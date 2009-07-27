@@ -1524,6 +1524,9 @@ static void read_clipping_normal (char *text)
   }
 }
 
+/* declare menu callback */
+static void menu_analysis (int);
+
 /* seek to specific time frame */
 static void seek_to_time (char *text)
 {
@@ -1531,6 +1534,8 @@ static void seek_to_time (char *text)
 
   if (text)
   {
+    if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
+
     SOLFEC_Time_Limits (solfec, &s, &e);
 
     t = atof (text);
@@ -1969,7 +1974,7 @@ static void solfec_run (int value)
   solfec_step ();
 
   if (domain->flags & DOM_RUN_ANALYSIS)
-    glutTimerFunc (1000 * domain->step, solfec_run, 0);
+    glutTimerFunc (1000 * SOLFEC_Time_Skip (solfec), solfec_run, 0);
 }
 
 /* menu callbacks */
@@ -2080,7 +2085,7 @@ static void menu_analysis (int value)
   {
   case ANALYSIS_RUN:
     domain->flags |= DOM_RUN_ANALYSIS;
-    glutTimerFunc (1000 * domain->step, solfec_run, 0);
+    solfec_run (0);
     glutSetMenu (analysis_menu);
     glutChangeToMenuEntry (1, "stop /RETURN/", ANALYSIS_STOP);
     break;
@@ -2090,6 +2095,7 @@ static void menu_analysis (int value)
     glutChangeToMenuEntry (1, "run /RETURN/", ANALYSIS_RUN);
     break;
   case ANALYSIS_STEP:
+    if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
     solfec_step ();
     break;
   case ANALYSIS_SEEKTO:
@@ -2103,11 +2109,13 @@ static void menu_analysis (int value)
     }
     break;
   case ANALYSIS_FORWARD:
+    if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
     SOLFEC_Forward (solfec, analysis_skip_steps);
     if (volumetric_map) volumetric_map_on (volumetric_map_kind);
     else GLV_Redraw_All ();
     break;
   case ANALYSIS_BACKWARD:
+    if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
     SOLFEC_Backward (solfec, analysis_skip_steps);
     if (volumetric_map) volumetric_map_on (volumetric_map_kind);
     else GLV_Redraw_All ();
@@ -2322,6 +2330,7 @@ void RND_Key (int key, int x, int y)
     else menu_analysis (ANALYSIS_RUN);
     break;
   case ' ':
+    if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
     solfec_step ();
     break;
   case '<':

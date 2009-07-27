@@ -64,10 +64,11 @@ struct solfec
 
   DOM *dom; /* bodies, constraints and time integration */
 
+  int iover; /* input-output version */
   double output_interval,
 	 output_time;
   char *outpath;
-  PBF *bf;
+  PBF *bf;  
 
   /* callback data */
   double callback_interval,
@@ -90,6 +91,9 @@ void SOLFEC_Output (SOLFEC *sol, double interval);
 
 /* set up callback function */
 void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, SOLFEC_Callback callback);
+
+/* the next time minus the current time */
+double SOLFEC_Time_Skip (SOLFEC *sol);
 
 /* get analysis duration time limits */
 void SOLFEC_Time_Limits (SOLFEC *sol, double *start, double *end);

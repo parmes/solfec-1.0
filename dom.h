@@ -135,8 +135,6 @@ struct domain
   double threshold; /* sparsification threshold */
 
   short verbose; /* verbosity flag */
-
-  int iover; /* input-output version */
 };
 
 /* constraint kind string */

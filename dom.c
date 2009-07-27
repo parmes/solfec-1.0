@@ -31,10 +31,6 @@
 #include "tmr.h"
 #include "err.h"
 
-/* ------------------------------------- */
-#define IOVER 1 /* input-output version */
-/* ----------------------------------- */
-
 #define CONBLK 512 /* constraints memory block size */
 #define MAPBLK 128 /* map items memory block size */
 #define SETBLK 512 /* set items memory block size */
@@ -473,7 +469,6 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->data = data_create ();
 
   dom->verbose = 0;
-  dom->iover = -IOVER; /* negative to indicate initial state */
 
   return dom;
 }
@@ -900,18 +895,9 @@ static CON* read_constraint (DOM *dom, PBF *bf)
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf)
 {
-  /* write time */
+  /* mark domain output */
 
-  PBF_Time (bf, &dom->time);
-
-  /* write version */
-
-  if (dom->iover < 0)
-  {
-    dom->iover = -dom->iover; /* make positive */
-    PBF_Label (bf, "IOVER");
-    PBF_Int (bf, &dom->iover, 1);
-  }
+  PBF_Label (bf, "DOM");
 
   /* write time step */
 
@@ -996,124 +982,115 @@ void DOM_Write_State (DOM *dom, PBF *bf)
 /* read domain state */
 void DOM_Read_State (DOM *dom, PBF *bf)
 {
-  /* read time */
-
-  PBF_Time (bf, &dom->time);
-
-  /* read version */
-
-  if (dom->iover < 0)
+  if (PBF_Label (bf, "DOM"))
   {
-    PBF_Label (bf, "IOVER");
-    PBF_Int (bf, &dom->iover, 1);
-  }
+    /* read time step */
 
-  /* read time step */
+    ASSERT (PBF_Label (bf, "STEP"), ERR_FILE_FORMAT);
 
-  PBF_Label (bf, "STEP");
+    PBF_Double (bf, &dom->step, 1);
 
-  PBF_Double (bf, &dom->step, 1);
+    /* read contacts */
 
-  /* read contacts */
+    ASSERT (PBF_Label (bf, "CONS"), ERR_FILE_FORMAT);
 
-  PBF_Label (bf, "CONS");
+    MAP_Free (&dom->mapmem, &dom->idc);
+    MEM_Release (&dom->conmem);
+    dom->con = NULL;
+   
+    PBF_Int (bf, &dom->ncon, 1);
 
-  MAP_Free (&dom->mapmem, &dom->idc);
-  MEM_Release (&dom->conmem);
-  dom->con = NULL;
- 
-  PBF_Int (bf, &dom->ncon, 1);
+    for (int n = 0; n < dom->ncon; n ++)
+    {
+      CON *con;
+      
+      con = read_constraint (dom, bf);
+      MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
+      con->next = dom->con;
+      if (dom->con) dom->con->prev = con;
+      dom->con = con;
+    }
 
-  for (int n = 0; n < dom->ncon; n ++)
-  {
-    CON *con;
-    
-    con = read_constraint (dom, bf);
-    MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
-    con->next = dom->con;
-    if (dom->con) dom->con->prev = con;
-    dom->con = con;
-  }
+    /* read ids of bodies that need to be deleted and remove them from all containers */
 
-  /* read ids of bodies that need to be deleted and remove them from all containers */
+    int size, n, id;
 
-  int size, n, id;
+    ASSERT (PBF_Label (bf, "DELBODS"), ERR_FILE_FORMAT);
 
-  PBF_Label (bf, "DELBODS");
+    PBF_Int (bf, &size, 1);
 
-  PBF_Int (bf, &size, 1);
+    for (n = 0; n < size; n ++)
+    {
+      BODY *bod;
 
-  for (n = 0; n < size; n ++)
-  {
-    BODY *bod;
+      PBF_Int (bf, &id, 1);
 
-    PBF_Int (bf, &id, 1);
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
 
-    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+      if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
+      MAP_Delete (&dom->mapmem, &dom->idb, (void*)id, NULL);
+      if (bod->next) bod->next->prev = bod->prev;
+      if (bod->prev) bod->prev->next = bod->next;
+      else dom->bod = bod->next;
+      dom->nbod --;
+      BODY_Destroy (bod);
+    }
 
-    if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
-    MAP_Delete (&dom->mapmem, &dom->idb, (void*)id, NULL);
-    if (bod->next) bod->next->prev = bod->prev;
-    if (bod->prev) bod->prev->next = bod->next;
-    else dom->bod = bod->next;
-    dom->nbod --;
-    BODY_Destroy (bod);
-  }
+    /* read complete data of newly created bodies and insert them into all containers */
 
-  /* read complete data of newly created bodies and insert them into all containers */
+    int dpos, doubles;
+    double *d = NULL;
 
-  int dpos, doubles;
-  double *d = NULL;
+    int ipos, integers, *i = NULL;
 
-  int ipos, integers, *i = NULL;
+    ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
 
-  PBF_Label (bf, "NEWBODS");
+    PBF_Int (bf, &size, 1);
 
-  PBF_Int (bf, &size, 1);
+    for (n = 0; n < size; n ++)
+    {
+      BODY *bod;
 
-  for (n = 0; n < size; n ++)
-  {
-    BODY *bod;
+      PBF_Int (bf, &doubles, 1);
+      ERRMEM (d  = realloc (d, doubles * sizeof (double)));
+      PBF_Double (bf, d, doubles);
 
-    PBF_Int (bf, &doubles, 1);
-    ERRMEM (d  = realloc (d, doubles * sizeof (double)));
-    PBF_Double (bf, d, doubles);
+      PBF_Int (bf, &integers, 1);
+      ERRMEM (i  = realloc (i, integers * sizeof (int)));
+      PBF_Int (bf, i, integers);
 
-    PBF_Int (bf, &integers, 1);
-    ERRMEM (i  = realloc (i, integers * sizeof (int)));
-    PBF_Int (bf, i, integers);
+      dpos = ipos = 0;
 
-    dpos = ipos = 0;
+      bod = BODY_Unpack (dom->owner, &dpos, d, doubles, &ipos, i, integers);
 
-    bod = BODY_Unpack (dom->owner, &dpos, d, doubles, &ipos, i, integers);
+      if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
+      MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
+      bod->next = dom->bod;
+      if (dom->bod) dom->bod->prev = bod;
+      dom->bod = bod;
+      dom->nbod ++;
+    }
 
-    if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
-    MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
-    bod->next = dom->bod;
-    if (dom->bod) dom->bod->prev = bod;
-    dom->bod = bod;
-    dom->nbod ++;
-  }
+    free (d);
+    free (i);
 
-  free (d);
-  free (i);
+    /* read regular bodies */
 
-  /* read regular bodies */
+    ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
 
-  PBF_Label (bf, "BODS");
+    int nbod;
 
-  int nbod;
+    PBF_Int (bf, &nbod, 1);
 
-  PBF_Int (bf, &nbod, 1);
+    for (int n = 0; n < nbod; n ++)
+    {
+      int id;
+      BODY *bod;
 
-  for (int n = 0; n < nbod; n ++)
-  {
-    int id;
-    BODY *bod;
-
-    PBF_Int (bf, &id, 1);
-    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Body id invalid");
-    BODY_Read_State (bod, bf);
+      PBF_Int (bf, &id, 1);
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Body id invalid");
+      BODY_Read_State (bod, bf);
+    }
   }
 }
 

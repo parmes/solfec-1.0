@@ -29,6 +29,10 @@
 #include "rnd.h"
 #include "tmr.h"
 
+/* ------------------------------------- */
+#define IOVER 1 /* input-output version */
+/* ----------------------------------- */
+
 /* defulat initial amoung of boxes */
 #define DEFSIZE 1024
 
@@ -134,6 +138,47 @@ static PBF* writeoutpath (char *outpath)
   return bf;
 }
 
+/* output state */
+static void write_state (SOLFEC *sol)
+{
+  /* write time */
+
+  PBF_Time (sol->bf, &sol->dom->time); /* the only domain member written outside of it */
+
+  /* write version */
+
+  if (sol->iover < 0)
+  {
+    sol->iover = -sol->iover; /* make positive */
+    PBF_Label (sol->bf, "IOVER");
+    PBF_Int (sol->bf, &sol->iover, 1);
+  }
+
+  /* write domain */
+
+  DOM_Write_State (sol->dom, sol->bf);
+}
+
+/* input state */
+static void read_state (SOLFEC *sol)
+{
+  /* read time */
+
+  PBF_Time (sol->bf, &sol->dom->time); /* the only domain member red outside of it */
+
+  /* read version */
+
+  if (sol->iover < 0)
+  {
+    ASSERT (PBF_Label (sol->bf, "IOVER"), ERR_FILE_FORMAT);
+    PBF_Int (sol->bf, &sol->iover, 1);
+  }
+
+  /* read domain */
+
+  DOM_Read_State (sol->dom, sol->bf);
+}
+
 /* create a solfec instance */
 SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
 {
@@ -152,6 +197,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   if ((sol->bf = readoutpath (outpath))) sol->mode = SOLFEC_READ;
   else if ((sol->bf = writeoutpath (outpath))) sol->mode = SOLFEC_WRITE;
   else THROW (ERR_FILE_OPEN);
+  sol->iover = -IOVER; /* negative to indicate initial state */
 
   sol->callback_interval = DBL_MAX;
   sol->callback_time = DBL_MAX;
@@ -184,7 +230,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     TIMING tim;
     double tt;
 
-    if (sol->dom->time == 0.0) DOM_Write_State (sol->dom, sol->bf); /* write zero state */
+    if (sol->dom->time == 0.0) write_state (sol); /* write zero state */
 
     verbose = verbose_on (sol, kind, solver);
     timerstart (&tim);
@@ -219,7 +265,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       if (sol->dom->time >= sol->output_time)
       {
 	sol->output_time += sol->output_interval;
-	DOM_Write_State (sol->dom, sol->bf);
+	write_state (sol);
       }
 
       /* execute callback if needed */
@@ -236,7 +282,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
   }
   else /* READ */
   {
-    DOM_Read_State (sol->dom, sol->bf);
+    read_state (sol);
     PBF_Forward (sol->bf, 1);
   }
 }
@@ -246,6 +292,21 @@ void SOLFEC_Output (SOLFEC *sol, double interval)
 {
   sol->output_interval = interval;
   sol->output_time = sol->dom->time + interval;
+}
+
+/* the next time minus the current time */
+double SOLFEC_Time_Skip (SOLFEC *sol)
+{
+  if (sol->mode == SOLFEC_READ)
+  {
+    double t;
+
+    PBF_Forward (sol->bf, 1);
+    PBF_Time (sol->bf, &t);
+    PBF_Backward (sol->bf, 1);
+    return t - sol->dom->time;
+  }
+  else return sol->dom->step;
 }
 
 /* get analysis duration time limits */
@@ -283,7 +344,7 @@ void SOLFEC_Seek_To (SOLFEC *sol, double time)
   if (sol->mode == SOLFEC_READ)
   {
     PBF_Seek (sol->bf, time);
-    DOM_Read_State (sol->dom, sol->bf);
+    read_state (sol);
   }
 }
 
@@ -293,7 +354,7 @@ void SOLFEC_Backward (SOLFEC *sol, int steps)
   if (sol->mode == SOLFEC_READ)
   {
     PBF_Backward (sol->bf, steps);
-    DOM_Read_State (sol->dom, sol->bf);
+    read_state (sol);
   }
 }
 
@@ -303,7 +364,7 @@ void SOLFEC_Forward (SOLFEC *sol, int steps)
   if (sol->mode == SOLFEC_READ)
   {
     PBF_Forward (sol->bf, steps);
-    DOM_Read_State (sol->dom, sol->bf);
+    read_state (sol);
   }
 }
 

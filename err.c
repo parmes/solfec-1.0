@@ -31,6 +31,7 @@ char* errstring (int error)
     case ERR_OUT_OF_MEMORY: return "Out of memory";
     case ERR_FILE_OPEN: return "File open failed";
     case ERR_FILE_EMPTY: return "File empty";
+    case ERR_FILE_FORMAT: return "Invalid file format";
     case ERR_NOT_IMPLEMENTED: return "Not implemented";
     case ERR_TMS_INTEGRATE_CONSTANT: return "Cannot integrate constant time series (no limits)";
     case ERR_PBF_INDEX_FILE_CORRUPTED: return "PBF index file corrupted";
