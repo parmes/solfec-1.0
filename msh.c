@@ -1015,7 +1015,7 @@ ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point)
 }
 
 /* update mesh according to the given motion */
-void MESH_Update (MESH *msh, void *data, void (*motion) (void *data, void *gobj, double *X, double *x))
+void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
 {
   ELEMENT *ele;
   FACE *fac;
@@ -1024,7 +1024,7 @@ void MESH_Update (MESH *msh, void *data, void (*motion) (void *data, void *gobj,
   int m = msh->nodes_count, n;
 
   for (n = 0; n < m; n ++)
-    motion (data, NULL, ref [n], cur [n]); /* move current nodes */
+    motion (body, shp, NULL, ref [n], cur [n]); /* move current nodes (NULL for gobj implies nodal update) */
 
   for (ele = msh->surfeles; ele; ele = ele->next)
     for (fac = ele->faces; fac; fac = fac->next)

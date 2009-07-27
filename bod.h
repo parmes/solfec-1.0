@@ -20,7 +20,6 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include <stdlib.h>
-#include "box.h"
 #include "pbf.h"
 #include "shp.h"
 #include "tms.h"
@@ -181,22 +180,22 @@ void BODY_Static_Step_Begin (BODY *bod, double time, double step);
 void BODY_Static_Step_End (BODY *bod, double time, double step);
 
 /* motion x = x (X, state) */
-void BODY_Cur_Point (BODY *bod, GOBJ kind, void *gobj, double *X, double *x);
+void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
 
 /* inverse motion X = X (x, state) */
-void BODY_Ref_Point (BODY *bod, GOBJ kind, void *gobj, double *x, double *X);
+void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
 
 /* obtain velocity at (element, point), expressed in the local 'base' => all entities are spatial */
-void BODY_Local_Velo (BODY *bod, VELOTIME time, GOBJ kind, void *gobj, double *point, double *base, double *velo);
+void BODY_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo);
 
 /* return transformation operator from the generalised to the local velocity space at (element, point, base) */
-MX* BODY_Gen_To_Loc_Operator (BODY *bod, GOBJ kind, void *gobj, double *point, double *base);
+MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base);
 
 /* compute current kinetic energy */
 double BODY_Kinetic_Energy (BODY *bod);
 
 /* get some values at a node of a geometrical object */
-void BODY_Nodal_Values (BODY *bod, GOBJ gobj_kind, void *gobj, int node, VALUE_KIND value_kind, double *values);
+void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values);
 
 /* get some values at a referential point */
 void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values);

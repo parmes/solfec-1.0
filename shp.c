@@ -43,7 +43,7 @@ typedef void (*gcha_func) (void*, double*, double*, double*, double*, double*);
 static gcha_func gcha [] = {(gcha_func)MESH_Char_Partial, (gcha_func)CONVEX_Char_Partial, (gcha_func)SPHERE_Char_Partial};
 typedef void* (*gobj_func) (void*, double*);
 static gobj_func gobj [] = {(gobj_func)MESH_Element_Containing_Point, (gobj_func)CONVEX_Containing_Point, (gobj_func)SPHERE_Containing_Point};
-typedef void (*update_func) (void*, void*, void (*motion) (void*, void*, double*, double*));
+typedef void (*update_func) (void*, void*, void*, MOTION);
 static update_func update [] = {(update_func)MESH_Update, (update_func)CONVEX_Update, (update_func)SPHERE_Update};
 typedef void (*extents_func) (void*, double*);
 static extents_func objextents [] = {(extents_func)MESH_Extents, (extents_func)CONVEX_List_Extents, (extents_func)SPHERE_List_Extents};
@@ -209,7 +209,7 @@ void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler)
 }
 
 /* return an object containing spatial point */
-void* SHAPE_Gobj (SHAPE *shp, double *point)
+void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out)
 {
   void *obj;
 
@@ -217,7 +217,11 @@ void* SHAPE_Gobj (SHAPE *shp, double *point)
   {
     obj = gobj [shp->kind] (shp->data, point);
 
-    if (obj) break;
+    if (obj)
+    {
+      if (out) *out = shp;
+      break;
+    }
   }
 
   /* TODO: optimize this search by building a spatial tree
@@ -228,10 +232,10 @@ void* SHAPE_Gobj (SHAPE *shp, double *point)
 }
 
 /* update current shape with given motion */
-void SHAPE_Update (SHAPE *shp, void *data, SHAPE_Motion motion)
+void SHAPE_Update (SHAPE *shp, void *body, MOTION motion)
 {
   for (; shp; shp = shp->next)
-    update [shp->kind] (shp->data, data, motion);
+    update [shp->kind] (shp->data, body, shp, motion);
 }
 
 /* copute shape extents */

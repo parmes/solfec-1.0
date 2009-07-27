@@ -72,8 +72,11 @@ struct constraint
   void *mgobj, /* master geometrical object */
        *sgobj; /* slave geometrical object */
 
-  GOBJ mkind, /* kind of mgobj */
-       skind; /* kind of sgobj */
+  GOBJ mkind, /* kind of mobj */
+       skind; /* kind of sobj */
+
+  SHAPE *mshp, /* shape of mgobj */
+        *sshp; /* shape of sgobj */
 
   double mpnt [3], /* master referential point */
 	 spnt [3]; /* slave referential point */

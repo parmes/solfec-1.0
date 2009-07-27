@@ -761,7 +761,7 @@ CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point)
 }
 
 /* update convex list according to the given motion */
-void CONVEX_Update (CONVEX *cvx, void *data, void (*motion) (void *data, void *gobj, double *X, double *x))
+void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion)
 {
   double *ref, *cur;
   int n;
@@ -769,7 +769,7 @@ void CONVEX_Update (CONVEX *cvx, void *data, void (*motion) (void *data, void *g
   for (; cvx; cvx = cvx->next)
   {	
     for (ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; ref += 3, cur += 3, n ++)
-      motion (data, NULL, ref, cur); /* move current nodes */
+      motion (body, shp, cvx, ref, cur); /* move current nodes */
 
     /* calculate planes */
     computeplanes (cvx);

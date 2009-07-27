@@ -3912,7 +3912,7 @@ static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, Py
   p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
   p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
 
-  gobj1 = SHAPE_Gobj (body1->bod->shape, p1);
+  gobj1 = SHAPE_Gobj (body1->bod->shape, p1, NULL);
 
   if (!gobj1)
   {
@@ -3920,7 +3920,7 @@ static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, Py
     return NULL;
   }
 
-  gobj2 = SHAPE_Gobj (body2->bod->shape, p2);
+  gobj2 = SHAPE_Gobj (body2->bod->shape, p2, NULL);
 
   if (!gobj2)
   {

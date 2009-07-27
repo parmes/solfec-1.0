@@ -22,6 +22,7 @@
 #include "mat.h"
 #include "mem.h"
 #include "cvx.h"
+#include "mot.h"
 
 #ifndef __msh__
 #define __msh__
@@ -116,7 +117,7 @@ void MESH_Char (MESH *msh, double *volume, double *center, double *euler);
 ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point);
 
 /* update mesh according to the given motion */
-void MESH_Update (MESH *msh, void *data, void (*motion) (void *data, void *gobj, double *X, double *x));
+void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion);
 
 /* convert mesh into a list of convices;
  * surfonly > 0 => use only surface elements */

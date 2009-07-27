@@ -1015,7 +1015,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
 
-      SHAPE_Update (bod->shape, bod, (SHAPE_Motion)BODY_Cur_Point); 
+      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
     }
     break;
     case PRB:
@@ -1031,7 +1031,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
       prb_dynamic_force (bod, time+half, step, force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
-      SHAPE_Update (bod->shape, bod, (SHAPE_Motion)BODY_Cur_Point); 
+      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
     }
     break;
     case FEM:
@@ -1094,7 +1094,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	}
       }
 
-      SHAPE_Update (bod->shape, bod, (SHAPE_Motion)BODY_Cur_Point);
+      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     }
     break;
     case PRB:
@@ -1104,7 +1104,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       prb_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */
       blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-      SHAPE_Update (bod->shape, bod, (SHAPE_Motion)BODY_Cur_Point); 
+      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
     }
     break;
     case FEM:
@@ -1211,7 +1211,7 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
       EXPMAP (O, DR); 
       NNCOPY (R, O);
       NNMUL (O, DR, R); /* R(t) = R(t) exp [h * W(t+h)] */
-      SHAPE_Update (bod->shape, bod, (SHAPE_Motion)BODY_Cur_Point);
+      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     }
     break;
     case PRB:
@@ -1221,7 +1221,7 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
       prb_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
       blas_daxpy (12, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
-      SHAPE_Update (bod->shape, bod, (SHAPE_Motion)BODY_Cur_Point); 
+      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
     }
     break;
     case FEM:
@@ -1231,7 +1231,7 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
   }
 }
 
-void BODY_Cur_Point (BODY *bod, GOBJ kind, void *gobj, double *X, double *x)
+void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 {
   switch (bod->kind)
   {
@@ -1261,12 +1261,12 @@ void BODY_Cur_Point (BODY *bod, GOBJ kind, void *gobj, double *X, double *x)
     break;
     case FEM:
       ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      /* TODO: gobj == NULL implies nodal update (X is within the mesh->ref_nodes) */
     break;
   }
 }
 
-void BODY_Ref_Point (BODY *bod, GOBJ kind, void *gobj, double *x, double *X)
+void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
 {
   switch (bod->kind)
   {
@@ -1304,7 +1304,7 @@ void BODY_Ref_Point (BODY *bod, GOBJ kind, void *gobj, double *x, double *X)
   }
 }
 
-void BODY_Local_Velo (BODY *bod, VELOTIME time, GOBJ kind, void *gobj, double *point, double *base, double *velo)
+void BODY_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo)
 {
   switch (bod->kind)
   {
@@ -1336,7 +1336,7 @@ void BODY_Local_Velo (BODY *bod, VELOTIME time, GOBJ kind, void *gobj, double *p
   }
 }
 
-MX* BODY_Gen_To_Loc_Operator (BODY *bod, GOBJ kind, void *gobj, double *point, double *base)
+MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base)
 {
   MX *H = NULL;
 
@@ -1403,7 +1403,7 @@ double BODY_Kinetic_Energy (BODY *bod)
   return energy;
 }
 
-void BODY_Nodal_Values (BODY *bod, GOBJ gobj_kind, void *gobj, int node, VALUE_KIND value_kind, double *values)
+void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values)
 {
 }
 
@@ -1422,7 +1422,7 @@ void BODY_Read_State (BODY *bod, PBF *bf)
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
   PBF_Double (bf, bod->velo, bod->dofs);
 
-  SHAPE_Update (bod->shape, bod, (SHAPE_Motion)BODY_Cur_Point); 
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
 
 void BODY_Destroy (BODY *bod)

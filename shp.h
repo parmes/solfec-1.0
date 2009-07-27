@@ -19,10 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include "mot.h"
+
 #ifndef __shp__
 #define __shp__
-
-typedef void (*SHAPE_Motion) (void *data, void *gobj, double *X, double *x); /* motion update callbac (BODY_Cur_Point) */
 
 typedef struct shape SHAPE;
 
@@ -66,10 +66,10 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle);
 void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler);
 
 /* return an object containing spatial point */
-void* SHAPE_Gobj (SHAPE *shp, double *point);
+void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out);
 
 /* update current shape with given motion */
-void SHAPE_Update (SHAPE *shp, void *data, SHAPE_Motion motion);
+void SHAPE_Update (SHAPE *shp, void *body, MOTION motion);
 
 /* copute shape extents */
 void SHAPE_Extents (SHAPE *shp, double *extents);

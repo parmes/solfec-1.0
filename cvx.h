@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include "mat.h"
+#include "mot.h"
 
 #ifndef __cvx__
 #define __cvx__
@@ -96,7 +97,7 @@ void CONVEX_List_Extents (CONVEX *cvx, double *extents);
 CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point);
 
 /* update convex list according to the given motion */
-void CONVEX_Update (CONVEX *cvx, void *data, void (*motion) (void *data, void *gobj, double *X, double *x));
+void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion);
 
 /* test wether two convices are adjacent */
 int CONVEX_Adjacent (CONVEX *one, CONVEX *two);

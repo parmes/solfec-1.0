@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include "mat.h"
+#include "mot.h"
 
 #ifndef __sph__
 #define __sph__
@@ -92,7 +93,7 @@ void SPHERE_List_Extents (SPHERE *sph, double *extents);
 SPHERE* SPHERE_Containing_Point (SPHERE *sph, double *point);
 
 /* update sphere list according to the given motion */
-void SPHERE_Update (SPHERE *sph, void *data, void (*motion) (void *data, void *gobj, double *X, double *x));
+void SPHERE_Update (SPHERE *sph, void *body, void *shp, MOTION motion);
 
 /* test wether two spheres are adjacent */
 int SPHERE_Adjacent (SPHERE *one, SPHERE *two);

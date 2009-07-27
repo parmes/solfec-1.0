@@ -175,8 +175,8 @@ static void aabb_timing (DOM *dom, double timing)
 }
 
 /* insert a contact into the constraints set */
-static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, void *mgobj,
-  GOBJ mkind, void *sgobj, GOBJ skind, double *spampnt, double *spaspnt,
+static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, void *mgobj, GOBJ mkind,
+  SHAPE *mshp, void *sgobj, GOBJ skind, SHAPE *sshp, double *spampnt, double *spaspnt,
   double *normal, double gap, double area, SURFACE_MATERIAL *mat, short paircode)
 {
   CON *con;
@@ -185,11 +185,13 @@ static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, void *mgobj,
   con->kind = CONTACT;
   con->mgobj = mgobj;
   con->mkind = mkind;
+  con->mshp = mshp;
   con->sgobj = sgobj;
   con->skind = skind;
+  con->sshp = sshp;
   COPY (spampnt, con->point);
-  BODY_Ref_Point (master, mkind, mgobj, spampnt, con->mpnt); /* referential image */
-  BODY_Ref_Point (slave, skind, sgobj, spaspnt, con->spnt); /* ... */
+  BODY_Ref_Point (master, mshp, mgobj, spampnt, con->mpnt); /* referential image */
+  BODY_Ref_Point (slave, sshp, sgobj, spaspnt, con->spnt); /* ... */
   localbase (normal, con->base);
   con->gap = gap;
   con->area = area;
@@ -223,14 +225,14 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
     case 1: /* first body is the master */
     {
       paircode = GOBJ_Pair_Code (one, two);
-      return insert_contact (dom, one->body, two->body, one->gobj, one->kind,
-	two->gobj, two->kind, onepnt, twopnt, normal, gap, area, mat, paircode);
+      return insert_contact (dom, one->body, two->body, one->gobj, one->kind, one->shape,
+	two->gobj, two->kind, two->shape, onepnt, twopnt, normal, gap, area, mat, paircode);
     }
     case 2: /* second body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
-      return insert_contact (dom, two->body, one->body, two->gobj, one->kind,
-	one->gobj, two->kind, twopnt, onepnt, normal, gap, area, mat, paircode);
+      return insert_contact (dom, two->body, one->body, two->gobj, two->kind, two->shape,
+	one->gobj, one->kind, one->shape, twopnt, onepnt, normal, gap, area, mat, paircode);
     }
   }
 
@@ -257,15 +259,14 @@ void update_contact (DOM *dom, CON *con)
   }
 
   /* current spatial points and normal */
-  BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, mpnt);
-  BODY_Cur_Point (con->slave, con->skind, con->sgobj, con->spnt, spnt);
+  BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, mpnt);
+  BODY_Cur_Point (con->slave, con->sshp, con->sgobj, con->spnt, spnt);
   COPY (con->base+6, normal);
 
   /* update contact data => during an update 'master' and 'slave' relation does not change */
   state = gobjcontact (
     CONTACT_UPDATE, con->paircode,
-    con->master->shape, con->mgobj,
-    con->slave->shape, con->sgobj,
+    con->mshp, con->mgobj, con->sshp, con->sgobj,
     mpnt, spnt, normal, &con->gap, /* 'mpnt' and 'spnt' are updated here */
     &con->area, spair); /* surface pair might change though */
 
@@ -277,8 +278,8 @@ void update_contact (DOM *dom, CON *con)
   else
   {
     COPY (mpnt, con->point);
-    BODY_Ref_Point (con->master, con->mkind, con->mgobj, mpnt, con->mpnt);
-    BODY_Ref_Point (con->slave, con->skind, con->sgobj, spnt, con->spnt);
+    BODY_Ref_Point (con->master, con->mshp, con->mgobj, mpnt, con->mpnt);
+    BODY_Ref_Point (con->slave, con->sshp, con->sgobj, spnt, con->spnt);
     localbase (normal, con->base);
     if (state > 1) /* surface pair has changed */
     {
@@ -291,20 +292,20 @@ void update_contact (DOM *dom, CON *con)
 /* update fixed point data */
 void update_fixpnt (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, con->point);
 }
 
 /* update fixed direction data */
 void update_fixdir (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, con->point);
 }
 
 /* update velocity direction data */
 void update_velodir (DOM *dom, CON *con)
 {
   VELODIR (con->Z) = TMS_Value (con->tms, dom->time + dom->step);
-  BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, con->point);
 }
 
 /* update rigid link data */
@@ -317,12 +318,12 @@ void update_riglnk (DOM *dom, CON *con)
 
   if (con->master && con->slave)
   {
-    BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, m);
-    BODY_Cur_Point (con->slave, con->skind, con->sgobj, con->spnt, s);
+    BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, m);
+    BODY_Cur_Point (con->slave, con->sshp, con->sgobj, con->spnt, s);
   }
   else /* master point to a spatial point link */
   {
-    BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, m);
+    BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, m);
     COPY (con->spnt, s);
   }
 
@@ -608,7 +609,7 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
   con->kind = FIXPNT;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
-  con->mgobj = SHAPE_Gobj (bod->shape, pnt);
+  con->mgobj = SHAPE_Gobj (bod->shape, pnt, &con->mshp);
   IDENTITY (con->base);
   return con;
 }
@@ -622,7 +623,7 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
   con->kind = FIXDIR;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
-  con->mgobj = SHAPE_Gobj (bod->shape, pnt);
+  con->mgobj = SHAPE_Gobj (bod->shape, pnt, &con->mshp);
   localbase (dir, con->base);
   return con;
 }
@@ -636,7 +637,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   con->kind = VELODIR;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
-  con->mgobj = SHAPE_Gobj (bod->shape, pnt);
+  con->mgobj = SHAPE_Gobj (bod->shape, pnt, &con->mshp);
   localbase (dir, con->base);
   con->tms = vel;
   return con;
@@ -662,12 +663,12 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
-    con->mgobj = SHAPE_Gobj (master->shape, mpnt);
+    con->mgobj = SHAPE_Gobj (master->shape, mpnt, &con->mshp);
     IDENTITY (con->base);
 
     if (master && slave) /* no contact between this pair */
     {
-      con->sgobj = SHAPE_Gobj (slave->shape, spnt);
+      con->sgobj = SHAPE_Gobj (slave->shape, spnt, &con->sshp);
       AABB_Exclude_Gobj_Pair (dom->aabb, con->mgobj, con->sgobj);
     }
   }
@@ -679,8 +680,8 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
     RIGLNK_LEN (con->Z) = d; /* initial distance */
-    con->mgobj = SHAPE_Gobj (master->shape, mpnt);
-    if (slave) con->sgobj = SHAPE_Gobj (slave->shape, spnt);
+    con->mgobj = SHAPE_Gobj (master->shape, mpnt, &con->mshp);
+    if (slave) con->sgobj = SHAPE_Gobj (slave->shape, spnt, &con->sshp);
     update_riglnk (dom, con); /* initial update */
   }
   
