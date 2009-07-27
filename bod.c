@@ -1231,7 +1231,7 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
   }
 }
 
-void BODY_Cur_Point (BODY *bod, void *gobj, double *X, double *x)
+void BODY_Cur_Point (BODY *bod, GOBJ kind, void *gobj, double *X, double *x)
 {
   switch (bod->kind)
   {
@@ -1266,7 +1266,7 @@ void BODY_Cur_Point (BODY *bod, void *gobj, double *X, double *x)
   }
 }
 
-void BODY_Ref_Point (BODY *bod, void *gobj, double *x, double *X)
+void BODY_Ref_Point (BODY *bod, GOBJ kind, void *gobj, double *x, double *X)
 {
   switch (bod->kind)
   {
@@ -1304,7 +1304,7 @@ void BODY_Ref_Point (BODY *bod, void *gobj, double *x, double *X)
   }
 }
 
-void BODY_Local_Velo (BODY *bod, VELOTIME time, void *gobj, double *point, double *base, double *velo)
+void BODY_Local_Velo (BODY *bod, VELOTIME time, GOBJ kind, void *gobj, double *point, double *base, double *velo)
 {
   switch (bod->kind)
   {
@@ -1336,7 +1336,7 @@ void BODY_Local_Velo (BODY *bod, VELOTIME time, void *gobj, double *point, doubl
   }
 }
 
-MX* BODY_Gen_To_Loc_Operator (BODY *bod, void *gobj, double *point, double *base)
+MX* BODY_Gen_To_Loc_Operator (BODY *bod, GOBJ kind, void *gobj, double *point, double *base)
 {
   MX *H = NULL;
 
@@ -1401,6 +1401,14 @@ double BODY_Kinetic_Energy (BODY *bod)
   }
 
   return energy;
+}
+
+void BODY_Nodal_Values (BODY *bod, GOBJ gobj_kind, void *gobj, int node, VALUE_KIND value_kind, double *values)
+{
+}
+
+void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values)
+{
 }
 
 void BODY_Write_State (BODY *bod, PBF *bf)

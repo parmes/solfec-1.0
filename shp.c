@@ -308,9 +308,8 @@ SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
 
   for (; count > 0; count --)
   {
-    ERRMEM (ptr = malloc (sizeof (SHAPE)));
-    ptr->kind = unpack_int (ipos, i, integers);
-    ptr->data = unpack [ptr->kind] (solfec, dpos, d, doubles, ipos, i, integers);
+    ptr = SHAPE_Create (unpack_int (ipos, i, integers),
+                        unpack [ptr->kind] (solfec, dpos, d, doubles, ipos, i, integers));
     ptr->next = shp;
     shp = ptr;
   }

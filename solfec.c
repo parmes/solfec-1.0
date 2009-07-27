@@ -184,6 +184,8 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     TIMING tim;
     double tt;
 
+    if (sol->dom->time == 0.0) DOM_Write_State (sol->dom, sol->bf); /* write zero state */
+
     verbose = verbose_on (sol, kind, solver);
     timerstart (&tim);
 
@@ -246,6 +248,25 @@ void SOLFEC_Output (SOLFEC *sol, double interval)
   sol->output_time = sol->dom->time + interval;
 }
 
+/* get analysis duration time limits */
+void SOLFEC_Time_Limits (SOLFEC *sol, double *start, double *end)
+{
+  if (sol->mode == SOLFEC_READ)
+  {
+    double s, e;
+
+    PBF_Limits (sol->bf, &s, &e);
+
+    if (start) *start = s;
+    if (end) *end = e;
+  }
+  else 
+  {
+    if (start) *start = 0;
+    if (end) *end = sol->dom->time;
+  }
+}
+
 /* set up callback function */
 void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, SOLFEC_Callback callback)
 {
@@ -254,6 +275,36 @@ void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, 
   sol->data = data;
   sol->call = call;
   sol->callback = callback;
+}
+
+/* seek to specific time in READ mode */
+void SOLFEC_Seek_To (SOLFEC *sol, double time)
+{
+  if (sol->mode == SOLFEC_READ)
+  {
+    PBF_Seek (sol->bf, time);
+    DOM_Read_State (sol->dom, sol->bf);
+  }
+}
+
+/* step backward in READ modes */
+void SOLFEC_Backward (SOLFEC *sol, int steps)
+{
+  if (sol->mode == SOLFEC_READ)
+  {
+    PBF_Backward (sol->bf, steps);
+    DOM_Read_State (sol->dom, sol->bf);
+  }
+}
+
+/* step forward in READ modes */
+void SOLFEC_Forward (SOLFEC *sol, int steps)
+{
+  if (sol->mode == SOLFEC_READ)
+  {
+    PBF_Forward (sol->bf, steps);
+    DOM_Read_State (sol->dom, sol->bf);
+  }
 }
 
 /* free solfec memory */

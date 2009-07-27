@@ -256,6 +256,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 	 *s = con->slave;
     void *mgobj = con->mgobj,
 	 *sgobj = con->sgobj;
+    GOBJ mkind = con->mkind,
+	 skind = con->skind;
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base,
@@ -268,22 +270,22 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     OFFB *blk;
 
     /* previous time step velocity */
-    BODY_Local_Velo (m, PREVELO, mgobj, mpnt, base, X); /* master body pointer cannot be NULL */
-    if (s) BODY_Local_Velo (s, PREVELO, sgobj, spnt, base, Y); /* might be NULL for some constraints (one body) */
+    BODY_Local_Velo (m, PREVELO, mkind, mgobj, mpnt, base, X); /* master body pointer cannot be NULL */
+    if (s) BODY_Local_Velo (s, PREVELO, skind, sgobj, spnt, base, Y); /* might be NULL for some constraints (one body) */
     else { SET (Y, 0.0); }
     SUB (Y, X, V); /* relative = slave - master => outward master normal */
 
     /* local free velocity */
-    BODY_Local_Velo (m, CURVELO, mgobj, mpnt, base, X);
-    if (s) BODY_Local_Velo (s, CURVELO, sgobj, spnt, base, Y);
+    BODY_Local_Velo (m, CURVELO, mkind, mgobj, mpnt, base, X);
+    if (s) BODY_Local_Velo (s, CURVELO, skind, sgobj, spnt, base, Y);
     else { SET (Y, 0.0); }
     SUB (Y, X, B);
 
     /* diagonal block */
-    mH = BODY_Gen_To_Loc_Operator (m, mgobj, mpnt, base);
+    mH = BODY_Gen_To_Loc_Operator (m, mkind, mgobj, mpnt, base);
     MX_Trimat (mH, m->inverse, MX_Tran (mH), &W); /* H * inv (M) * H^T */
     if (s)
-    { sH = BODY_Gen_To_Loc_Operator (s, sgobj, spnt, base);
+    { sH = BODY_Gen_To_Loc_Operator (s, skind, sgobj, spnt, base);
       MX_Trimat (sH, s->inverse, MX_Tran (sH), &C); /* H * inv (M) * H^T */
       NNADD (W.x, C.x, W.x); }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
@@ -310,12 +312,12 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
       if (bod == con->master)
       {
-	rH =  BODY_Gen_To_Loc_Operator (bod, con->mgobj, con->mpnt, con->base);
+	rH =  BODY_Gen_To_Loc_Operator (bod, con->mkind, con->mgobj, con->mpnt, con->base);
 	coef = (bod == s ? -step : step);
       }
       else /* blk->bod == dia->slave */
       {
-	rH =  BODY_Gen_To_Loc_Operator (bod, con->sgobj, con->spnt, con->base);
+	rH =  BODY_Gen_To_Loc_Operator (bod, con->skind, con->sgobj, con->spnt, con->base);
 	coef = (bod == m ? -step : step);
       }
 

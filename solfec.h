@@ -91,6 +91,18 @@ void SOLFEC_Output (SOLFEC *sol, double interval);
 /* set up callback function */
 void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, SOLFEC_Callback callback);
 
+/* get analysis duration time limits */
+void SOLFEC_Time_Limits (SOLFEC *sol, double *start, double *end);
+
+/* seek to specific time in READ mode */
+void SOLFEC_Seek_To (SOLFEC *sol, double time);
+
+/* step backward in READ modes */
+void SOLFEC_Backward (SOLFEC *sol, int steps);
+
+/* step forward in READ modes */
+void SOLFEC_Forward (SOLFEC *sol, int steps);
+
 /* free solfec memory */
 void SOLFEC_Destroy (SOLFEC *sol);
 

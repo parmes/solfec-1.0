@@ -188,8 +188,8 @@ static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, void *mgobj,
   con->sgobj = sgobj;
   con->skind = skind;
   COPY (spampnt, con->point);
-  BODY_Ref_Point (master, mgobj, spampnt, con->mpnt); /* referential image */
-  BODY_Ref_Point (slave, sgobj, spaspnt, con->spnt); /* ... */
+  BODY_Ref_Point (master, mkind, mgobj, spampnt, con->mpnt); /* referential image */
+  BODY_Ref_Point (slave, skind, sgobj, spaspnt, con->spnt); /* ... */
   localbase (normal, con->base);
   con->gap = gap;
   con->area = area;
@@ -257,8 +257,8 @@ void update_contact (DOM *dom, CON *con)
   }
 
   /* current spatial points and normal */
-  BODY_Cur_Point (con->master, con->mgobj, con->mpnt, mpnt);
-  BODY_Cur_Point (con->slave, con->sgobj, con->spnt, spnt);
+  BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, mpnt);
+  BODY_Cur_Point (con->slave, con->skind, con->sgobj, con->spnt, spnt);
   COPY (con->base+6, normal);
 
   /* update contact data => during an update 'master' and 'slave' relation does not change */
@@ -277,8 +277,8 @@ void update_contact (DOM *dom, CON *con)
   else
   {
     COPY (mpnt, con->point);
-    BODY_Ref_Point (con->master, con->mgobj, mpnt, con->mpnt);
-    BODY_Ref_Point (con->slave, con->sgobj, spnt, con->spnt);
+    BODY_Ref_Point (con->master, con->mkind, con->mgobj, mpnt, con->mpnt);
+    BODY_Ref_Point (con->slave, con->skind, con->sgobj, spnt, con->spnt);
     localbase (normal, con->base);
     if (state > 1) /* surface pair has changed */
     {
@@ -291,20 +291,20 @@ void update_contact (DOM *dom, CON *con)
 /* update fixed point data */
 void update_fixpnt (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, con->point);
 }
 
 /* update fixed direction data */
 void update_fixdir (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, con->point);
 }
 
 /* update velocity direction data */
 void update_velodir (DOM *dom, CON *con)
 {
   VELODIR (con->Z) = TMS_Value (con->tms, dom->time + dom->step);
-  BODY_Cur_Point (con->master, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, con->point);
 }
 
 /* update rigid link data */
@@ -317,12 +317,12 @@ void update_riglnk (DOM *dom, CON *con)
 
   if (con->master && con->slave)
   {
-    BODY_Cur_Point (con->master, con->mgobj, con->mpnt, m);
-    BODY_Cur_Point (con->slave, con->sgobj, con->spnt, s);
+    BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, m);
+    BODY_Cur_Point (con->slave, con->skind, con->sgobj, con->spnt, s);
   }
   else /* master point to a spatial point link */
   {
-    BODY_Cur_Point (con->master, con->mgobj, con->mpnt, m);
+    BODY_Cur_Point (con->master, con->mkind, con->mgobj, con->mpnt, m);
     COPY (con->spnt, s);
   }
 
@@ -912,6 +912,12 @@ void DOM_Write_State (DOM *dom, PBF *bf)
     PBF_Int (bf, &dom->iover, 1);
   }
 
+  /* write time step */
+
+  PBF_Label (bf, "STEP");
+
+  PBF_Double (bf, &dom->step, 1);
+
   /* write contacts */
 
   PBF_Label (bf, "CONS");
@@ -1000,6 +1006,12 @@ void DOM_Read_State (DOM *dom, PBF *bf)
     PBF_Label (bf, "IOVER");
     PBF_Int (bf, &dom->iover, 1);
   }
+
+  /* read time step */
+
+  PBF_Label (bf, "STEP");
+
+  PBF_Double (bf, &dom->step, 1);
 
   /* read contacts */
 

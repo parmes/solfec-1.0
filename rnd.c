@@ -69,6 +69,8 @@ static int domain_menu,
 	   analysis_menu_items,
 	   results_menu; /* menu handles */
 
+static int analysis_skip_steps = 1; /* skip steps when rewinding forward or backward */
+
 static MAP *selection = NULL; /* selected bodies */
 
 enum /* rendering flags */
@@ -92,6 +94,7 @@ enum /* menu items */
   ANALYSIS_SEEKTO,
   ANALYSIS_FORWARD,
   ANALYSIS_BACKWARD,
+  ANALYSIS_SKIP,
   KINDSOF_CONSTRAINTS,
   KINDSOF_FORCES,
   KINDSOF_BODIES,
@@ -1521,6 +1524,37 @@ static void read_clipping_normal (char *text)
   }
 }
 
+/* seek to specific time frame */
+static void seek_to_time (char *text)
+{
+  double t, s, e;
+
+  if (text)
+  {
+    SOLFEC_Time_Limits (solfec, &s, &e);
+
+    t = atof (text);
+
+    if (t < s) t = s;
+    if (t > e) t = e;
+
+    SOLFEC_Seek_To (solfec, t);
+
+    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
+    else GLV_Redraw_All ();
+  }
+}
+
+/* set skip steps value */
+static void set_skip_steps (char *text)
+{
+  if (text)
+  {
+    analysis_skip_steps = ABS (atoi (text));
+    analysis_skip_steps = MAX (analysis_skip_steps, 1);
+  }
+}
+
 /* set up body rendering => return 1 if this body should be skipped or 0 otherwise */
 inline static int render_body_begin (BODY *bod, GLfloat color [4])
 {
@@ -1913,8 +1947,7 @@ static void selection_off ()
 
   /* update volumetric map (and its extrema) after selection */
   if (volumetric_map) volumetric_map_on (volumetric_map_kind);
-
-  GLV_Redraw_All ();
+  else GLV_Redraw_All ();
 }
 
 /* one solfec step in write mode */
@@ -1928,6 +1961,15 @@ static void solfec_step ()
   /* update volumetric map (and its extrema) after updating state */
   if (volumetric_map) volumetric_map_on (volumetric_map_kind);
   else GLV_Redraw_All ();
+}
+
+/* solfe run timer callback */
+static void solfec_run (int value)
+{
+  solfec_step ();
+
+  if (domain->flags & DOM_RUN_ANALYSIS)
+    glutTimerFunc (1000 * domain->step, solfec_run, 0);
 }
 
 /* menu callbacks */
@@ -1997,10 +2039,12 @@ static void menu_domain (int value)
     glutAddMenuEntry ("seek to /UP/", ANALYSIS_SEEKTO);
     glutAddMenuEntry ("forward /LEFT/", ANALYSIS_FORWARD);
     glutAddMenuEntry ("backward /RIGHT/", ANALYSIS_BACKWARD);
-    analysis_menu_items = 5;
+    glutAddMenuEntry ("skip /DOWN/", ANALYSIS_SKIP);
+    analysis_menu_items = 6;
   }
-  else if (solfec->mode == SOLFEC_WRITE && analysis_menu_items == 5)
+  else if (solfec->mode == SOLFEC_WRITE && analysis_menu_items == 6)
   {
+    glutRemoveMenuItem (6);
     glutRemoveMenuItem (5);
     glutRemoveMenuItem (4);
     glutRemoveMenuItem (3);
@@ -2036,6 +2080,7 @@ static void menu_analysis (int value)
   {
   case ANALYSIS_RUN:
     domain->flags |= DOM_RUN_ANALYSIS;
+    glutTimerFunc (1000 * domain->step, solfec_run, 0);
     glutSetMenu (analysis_menu);
     glutChangeToMenuEntry (1, "stop /RETURN/", ANALYSIS_STOP);
     break;
@@ -2048,10 +2093,27 @@ static void menu_analysis (int value)
     solfec_step ();
     break;
   case ANALYSIS_SEEKTO:
+    {
+      static char caption [128];
+      double s, e;
+
+      SOLFEC_Time_Limits (solfec, &s, &e);
+      snprintf (caption, 128, "Seek to time from [%.2e, %.2e]", s, e);
+      GLV_Read_Text (caption, seek_to_time);
+    }
     break;
   case ANALYSIS_FORWARD:
+    SOLFEC_Forward (solfec, analysis_skip_steps);
+    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
+    else GLV_Redraw_All ();
     break;
   case ANALYSIS_BACKWARD:
+    SOLFEC_Backward (solfec, analysis_skip_steps);
+    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
+    else GLV_Redraw_All ();
+    break;
+  case ANALYSIS_SKIP:
+    GLV_Read_Text ("FORWARD and BACKWARD skip", set_skip_steps);
     break;
   }
 }
@@ -2104,7 +2166,8 @@ int RND_Menu (char ***names, int **codes)
     glutAddMenuEntry ("seek to /UP/", ANALYSIS_SEEKTO);
     glutAddMenuEntry ("forward /LEFT/", ANALYSIS_FORWARD);
     glutAddMenuEntry ("backward /RIGHT/", ANALYSIS_BACKWARD);
-    analysis_menu_items = 5;
+    glutAddMenuEntry ("skip /DOWN/", ANALYSIS_SKIP);
+    analysis_menu_items = 6;
   }
 
   local [0] = glutCreateMenu (menu_results);
@@ -2153,21 +2216,7 @@ void RND_Init ()
 /* idle actions */
 int  RND_Idle ()
 {
-  int update = 0;
-  DOM *dom;
-
-  for (dom = domain; dom->prev; dom = dom->prev); /* rewind back */
-
-  for (; dom; dom = dom->next) /* go ahead */
-  {
-    if (dom->flags & DOM_RUN_ANALYSIS) /* test whether to step analysis forward */
-    {
-      solfec_step ();
-      update = 1;
-    }
-  }
-
-  return update;
+  return 0;
 }
 
 /* finalize rendering */
@@ -2320,6 +2369,21 @@ void RND_Key (int key, int x, int y)
 /* react to special key pressed */
 void RND_Keyspec (int key, int x, int y)
 {
+  switch (key)
+  {
+    case GLUT_KEY_UP:
+      menu_analysis (ANALYSIS_SEEKTO);
+      break;
+    case GLUT_KEY_LEFT:
+      menu_analysis (ANALYSIS_BACKWARD);
+      break;
+    case GLUT_KEY_RIGHT:
+      menu_analysis (ANALYSIS_FORWARD);
+      break;
+    case GLUT_KEY_DOWN:
+      menu_analysis (ANALYSIS_SKIP);
+      break;
+  }
 }
 
 /* react to mouse click */
