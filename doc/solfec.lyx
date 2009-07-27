@@ -1,0 +1,5421 @@
+#LyX 1.6.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 345
+\begin_document
+\begin_header
+\textclass scrbook
+\use_default_options false
+\language english
+\inputencoding auto
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_default_family default
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+
+\graphics default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_amsmath 1
+\use_esint 1
+\cite_engine basic
+\use_bibtopic false
+\paperorientation portrait
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\defskip medskip
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\author "" 
+\author "" 
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Solfec User Manual
+\end_layout
+
+\begin_layout Author
+Tomasz Koziara
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:int"
+
+\end_inset
+
+Introduction
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:inp"
+
+\end_inset
+
+Input language
+\end_layout
+
+\begin_layout Standard
+Solfec input file is essentially a Python source code.
+ Python interpreter is embedded in Solfec.
+ At the same time Solfec extends Python by adding a number of objects and
+ routines.
+ There are few general principles to remember:
+\end_layout
+
+\begin_layout Itemize
+Zero based indexing is observed in routine arguments.
+\end_layout
+
+\begin_layout Itemize
+Parameters after the bar | are optional.
+ For example 
+\emph on
+FUNCTION (a, b| c, d)
+\emph default
+ has two optional parameters 
+\emph on
+c, d
+\emph default
+.
+\end_layout
+
+\begin_layout Itemize
+Passing Solfec objects to some routines 
+\emph on
+empties
+\emph default
+ them.
+ This means that a variable, that was passed as an argument, no longer stores
+ data.
+ For example: let 
+\emph on
+x = CREATE1 ()
+\emph default
+ create an object 
+\emph on
+x
+\emph default
+, and let 
+\emph on
+y = CREATE2 (x)
+\emph default
+ create an object 
+\emph on
+y
+\emph default
+, using 
+\emph on
+x
+\emph default
+.
+ If 
+\emph on
+CREATE2 (x)
+\emph default
+ empties 
+\emph on
+x
+\emph default
+, then after the call 
+\emph on
+x
+\emph default
+ becomes an empty placeholder.
+ One can use it to assign value, 
+\emph on
+x = CREATE1 ()
+\emph default
+, but using it as an argument, 
+\emph on
+z = CREATE2 (x)
+\emph default
+, will cause an abnormal termination.
+ One can create a copy of an object by calling 
+\emph on
+z = COPY (x)
+\emph default
+, hence using 
+\emph on
+y = CREATE2 (COPY (x))
+\emph default
+ leaves 
+\emph on
+x
+\emph default
+ intact.
+\end_layout
+
+\begin_layout Standard
+Sections below document Solfec objects and routines used for their manipulation.
+\end_layout
+
+\begin_layout Section
+CONVEX
+\end_layout
+
+\begin_layout Standard
+An object of type CONVEX is either an arbitrary convex polyhedron, or it
+ is a collection of such polyhedrons.
+\end_layout
+
+\begin_layout Subsection*
+obj = CONVEX (vertices, faces, volid| convex)
+\end_layout
+
+\begin_layout Standard
+This routine creates a CONVEX object from a detailed input data.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONVEX object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+vertices
+\series default
+ - list of vertices: [
+\emph on
+x0, y0, z0, x1, y1, z1, ...
+\emph default
+]
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+faces
+\series default
+ - list of faces: [
+\emph on
+n1, v1, v2, ..., vn1, s1, n2, v1, v2, ..., vn2, s2, ...
+\emph default
+], where 
+\emph on
+n1
+\emph default
+ is the number of vertices of the first face, 
+\emph on
+v1, v2, ..., vn1
+\emph default
+ enumerate the vertices in the CCW order when looking from the outside,
+ and 
+\emph on
+s1
+\emph default
+ is the surface identifier of the face.
+ Similarly for the second face and so on.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+convex
+\series default
+ (emptied) - collection of CONVEX objects appending 
+\series bold
+obj
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members and methods of a CONVEX
+ object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members and methods
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.nver
+\series default
+ - number of convex vertices
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.vertex (n)
+\series default
+ - returns a (x, y, z) tuple storing coordinates of nth vertex
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection*
+obj = HULL (points, volid, surfid| convex)
+\end_layout
+
+\begin_layout Standard
+This routine creates a CONVEX object as a convex hull of a point set.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONVEX object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+points
+\series default
+ - list of points: [
+\emph on
+x0, y0, z0, x1, y1, z1, ...
+\emph default
+]
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ - surface identifier common to all faces
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+convex
+\series default
+ (emptied) - collection of CONVEX objects appending 
+\series bold
+obj
+\end_layout
+
+\begin_layout Section
+MESH
+\end_layout
+
+\begin_layout Standard
+An object of type MESH describes an arbitrary volumetric mesh, comprising
+ tetrahedrons, pyramids, wedges, and hexahedrons (Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:elements"
+
+\end_inset
+
+).
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename tet.eps
+	lyxscale 15
+	width 25col%
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename pyr.eps
+	lyxscale 15
+	width 25col%
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename wed.eps
+	lyxscale 15
+	width 26col%
+
+\end_inset
+
+
+\begin_inset Graphics
+	filename hex.eps
+	lyxscale 15
+	width 25col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:elements"
+
+\end_inset
+
+Element types in Solfec
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection*
+obj = MESH (nodes, elements, surfids)
+\end_layout
+
+\begin_layout Standard
+This routine creates a MESH object from a detailed input data.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created MESH object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+nodes
+\series default
+ - list of nodes: [
+\emph on
+x0, y0, z0, x1, y1, z1, ...
+\emph default
+]
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+elements
+\series default
+ - list of elements: [
+\emph on
+e1, n1, n2, ..., ne1, v1, e2, n1, n2, ..., ne2, v2, ...
+\emph default
+], where 
+\emph on
+e1
+\emph default
+ is the number of nodes of the first element,
+\emph on
+ n1, n2, ..., ne1
+\emph default
+ enumerate the element nodes, and 
+\emph on
+v1
+\emph default
+ is the volume identifier of the element.
+ Similarly for the second element and so on.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfids
+\series default
+ - list of surface identifiers: [
+\emph on
+gid, f1, n1, n2, ..., nf1, s1, f2, n1, n2, ..., nf2, s2, ...
+\emph default
+], where 
+\emph on
+gid
+\emph default
+ is the global surface identifier for all not specified faces, 
+\emph on
+f1
+\emph default
+ is the number of nodes in the first specified face, 
+\emph on
+n1, n2, ..., nf1
+\emph default
+ enumerate the face nodes, and 
+\emph on
+s1
+\emph default
+ is the surface identifier of the face.
+ Similarly for other specified faces.
+ If only the 
+\emph on
+gid
+\emph default
+ is given, this can be done either as [
+\emph on
+gid
+\emph default
+] or as 
+\emph on
+gid
+\emph default
+ alone.
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members and methods of a MESH object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members and methods
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.nnod
+\series default
+ - number of mesh nodes
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.node (n)
+\series default
+ - returns a (x, y, z) tuple storing coordinates of nth node
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection*
+obj = HEX (nodes, i, j, k, volid, surfids| dx, dy, dz)
+\end_layout
+
+\begin_layout Standard
+This routine creates a MESH object corresponding to a hexahedral shape (hexahedr
+al elements are used).
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created MESH object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+nodes
+\series default
+ - list of 8 nodes: [
+\emph on
+x0, y0, z0, x1, y1, z1, ...
+\emph default
+, x7, y7, z7].
+ The hexahedral shape will be stretched between those nodes using a linear
+ inerpolation.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+i, j, k
+\series default
+ - numbers of subdivisions along the local 
+\emph on
+x, y, z
+\emph default
+ directions.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfids
+\series default
+ - list of six surface identifiers: [
+\emph on
+s1, s2, ..., s6
+\emph default
+], corresponding to the faces of the hexahedral shape
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+dx, dy, dz
+\series default
+ - lists of subdivision schemes along local 
+\emph on
+x, y, z
+\emph default
+ directions.
+ By default a subdivision is uniform.
+ When 
+\emph on
+dx = 
+\emph default
+[
+\emph on
+1, 1, 5, 5, 1, 1
+\emph default
+] is present, then this scheme will be normalized (actual numbers do not
+ matter, but their ratios) and applied to the local x direction of the generated
+ shape.
+\end_layout
+
+\begin_layout Section
+SPHERE
+\end_layout
+
+\begin_layout Standard
+An object of type SPHERE is either a 
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+uniformly deformable
+\end_layout
+
+\end_inset
+
+ sphere, or it is a collections of spheres.
+\end_layout
+
+\begin_layout Subsection*
+obj = SPHERE (center, radius, volid, surfid| sphere)
+\end_layout
+
+\begin_layout Standard
+This routine creates a SPHERE object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created SPHERE object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+center
+\series default
+ - tuple 
+\emph on
+(x, y, z)
+\emph default
+ defining the center
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+radius
+\series default
+ - sphere radius
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ - surface identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+sphere
+\series default
+ (emptied) - collection of SPHERE objects appending 
+\series bold
+obj
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a MESH object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members and methods
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.center, obj.radius
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+SOLFEC
+\end_layout
+
+\begin_layout Standard
+An object of type SOLFEC represents the Solfec algorithm.
+ One can use several SOLFEC objects to run several analyzes from a single
+ input file.
+\end_layout
+
+\begin_layout Subsection*
+obj = SOLFEC (analysis, step, output)
+\end_layout
+
+\begin_layout Standard
+This routine creates a SOLFEC object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+analysis
+\series default
+ - 'DYNAMIC' or 'QUASI_STATIC' analysis kind
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+step
+\series default
+ - initially assumed time step, regarded as an upper bound
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+output
+\series default
+ - defines the output 
+\series bold
+directory
+\series default
+ path (
+\series bold
+Important note:
+\series default
+ if this directory exists and contains valid output data SOLFEC is created
+ in 'READ' mode, otherwise SOLFEC is created in 'WRITE' mode)
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a SOLFEC object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="8" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.analysis
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.time
+\series default
+\emph default
+ - current time
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.mode
+\series default
+\emph default
+ - either 'READ' or 'WRITE' as described above
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.constraints
+\series default
+\emph default
+ - list of constraints (cf.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:con"
+
+\end_inset
+
+)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.ncon
+\series default
+\emph default
+ - number of constraints
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.bodies
+\series default
+\emph default
+ - list of bodies (cf.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:bod"
+
+\end_inset
+
+)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.nbod
+\series default
+\emph default
+ - number of bodies
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read/write
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.step
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+SURFACE_MATERIAL
+\end_layout
+
+\begin_layout Standard
+An object of type SURFACE_MATERIAL represents material properties on the
+ interface between two surfaces.
+ Surfaces identifiers were included in definitions of all geometric objects.
+\end_layout
+
+\begin_layout Subsection*
+obj = SURFACE_MATERIAL (solfec| surf1, surf2, model, label, friction, cohesion,
+ restitution, spring, dashpot)
+\end_layout
+
+\begin_layout Standard
+This routine creates a SURFACE_MATERIAL object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created SURFACE_MATERIAL object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surf1
+\series default
+ - first surface identifier (default: 0)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surf2
+\series default
+ - second surface identifier (default: 0).
+ If 
+\series bold
+surf1
+\series default
+ or 
+\series bold
+surf2
+\series default
+ (or both) are not specified, a 
+\emph on
+default
+\emph default
+ surface material is being defined (one used when a specific surface pairing
+ cannot be found for a new contact point).
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+model
+\series default
+ - material model name (default: 'SIGNORINI_COULMB'), see Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:surfmats"
+
+\end_inset
+
+ and Chapter 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "cha:mat"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - label string (default: 'SURFACE_MATERIAL_
+\emph on
+i
+\emph default
+', where 
+\emph on
+i
+\emph default
+ is incremented for each call)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+friction
+\series default
+ - friction coefficient (default: 0.0)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+cohesion
+\series default
+ - cohesion per unit area (default: 0.0)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+restitution
+\series default
+ - velocity restitution (default: 0.0)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+spring
+\series default
+ - spring stiffness (default: 0.0)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+dashpot
+\series default
+ - dashpot stiffness (default: 0.0)
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a SURFACE_MATERIAL object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.surf1, obj.surf2, obj.label
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read/write
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.model,obj.friction, obj.cohesion, obj.restitution, obj.spring, obj.dashpot
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="2">
+<features>
+<column alignment="center" valignment="top" width="40col%">
+<column alignment="center" valignment="top" width="40col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Model name
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Employs variables
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'SIGNORINI_COULOMB'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+friction, cohesion, restitution
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'SPRING_DASHPOT'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+spring, dashpot, friction, cohesion
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:surfmats"
+
+\end_inset
+
+Surface material models.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+BULK_MATERIAL
+\end_layout
+
+\begin_layout Standard
+An object of type BULK_MATERIAL represents material properties of a volume.
+\end_layout
+
+\begin_layout Subsection*
+obj = BULK_MATERIAL (solfec| model, label, young, poisson, density)
+\end_layout
+
+\begin_layout Standard
+This routine creates a BULK_MATERIAL object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created BULK_MATERIAL object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+model
+\series default
+ - material model name (default: 'KIRCHHOFF'), see Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:bulkmats"
+
+\end_inset
+
+ and Chapter 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "cha:mat"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - label string (default: 'BULK_MATERIAL_
+\emph on
+i
+\emph default
+', where 
+\emph on
+i
+\emph default
+ is incremented for each call)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+young
+\series default
+ - Young's modulus (default: 1E6)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+poisson
+\series default
+ - Poisson's coefficient (default: 0.25)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+density
+\series default
+ - material density (default: 1E3)
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a BULK_MATERIAL object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.model, obj.label
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read/write
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.young, obj.poisson, obj.density
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="2">
+<features>
+<column alignment="center" valignment="top" width="40col%">
+<column alignment="center" valignment="top" width="40col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Model name
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Employs variables
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'KIRCHHOFF'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+young, poisson, density
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:bulkmats"
+
+\end_inset
+
+Bulk material models.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:bod"
+
+\end_inset
+
+BODY
+\end_layout
+
+\begin_layout Standard
+An object of type BODY represents a solid body.
+\end_layout
+
+\begin_layout Subsection*
+obj = BODY (solfec, kind, shape, material| label)
+\end_layout
+
+\begin_layout Standard
+This routine creates a body.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - a string: 'RIGID', 'PSEUDO_RIGID', 'FINITE_ELEMENT' or 'OBSTACLE' describing
+ the kinematic model
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ (emptied) - this is can be a CONVEX/MESH/SPHERE object, or a list 
+\emph on
+[obj1, obj2, ...]
+\emph default
+, where each object is of type CONVEX/MESH/SPHERE.
+ If the 
+\series bold
+kind
+\series default
+ is 'FINITE_ELEMENT', only a single MESH object can be given.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+material
+\series default
+ - a BULK_MATERIAL object or a label of a bulk material (specifies an initial
+ body-wise material, see also the 
+\series bold
+MATERIAL (...)
+\series default
+ routine in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:util"
+
+\end_inset
+
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - a label string (no label is assigned by default)
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a BODY object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="4" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.kind, obj.label
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.conf
+\series default
+\emph default
+ - tuple 
+\emph on
+(q1, q2, ..., qN)
+\emph default
+ storing configuration of the body.
+ See Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:conf"
+
+\end_inset
+
+.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.velo
+\series default
+\emph default
+ - tuple 
+\emph on
+(u1, u2, ..., uN)
+\emph default
+ storing velocity of the body.
+ See Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:velo"
+
+\end_inset
+
+.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read/write
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.selfcontact
+\series default
+\emph default
+ - self-contact detection flag (default: 'OFF
+\begin_inset Quotes erd
+\end_inset
+
+) taking values 'ON' or 'OFF'.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.scheme
+\series default
+\emph default
+ - time integration scheme (default: 'DEFAULT') used to integrate motion.
+ See Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:schema"
+
+\end_inset
+
+.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="5" columns="2">
+<features>
+<column alignment="center" valignment="top" width="25col%">
+<column alignment="center" valignment="top" width="60col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Body kind
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Configuration description
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Column-wise rotation matrix followed by the current mass center.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'PSEUDO_RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Column-wise deformation gradient followed by the current mass center.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'FINITE_ELEMENT'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Current coordinates x, y, z of consecutive mesh nodes.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'OBSTACLE'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Python 
+\emph on
+None
+\emph default
+ object.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:conf"
+
+\end_inset
+
+Types of configurations.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="5" columns="2">
+<features>
+<column alignment="center" valignment="top" width="25col%">
+<column alignment="center" valignment="top" width="60col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Body kind
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Velocity description
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Referential angular velocity followed by the spatial velocity of mass center.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'PSEUDO_RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Deformation gradient velocity followed by the spatial velocity of mass center.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'FINITE_ELEMENT'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Components x, y, z of spatial velocities consecutive mesh nodes.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'OBSTACLE'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Python 
+\emph on
+None
+\emph default
+ object.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:velo"
+
+\end_inset
+
+Types of velocities.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="5" columns="3">
+<features>
+<column alignment="center" valignment="top" width="15col%">
+<column alignment="center" valignment="top" width="20col%">
+<column alignment="center" valignment="top" width="50col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Scheme
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Body kind
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Remarks
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'DEFAULT'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+all
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Use a default time integrator regardless of underlying kinematics.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIG_POS'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+NEW1 in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2008b"
+
+\end_inset
+
+: explicit, positive energy drift, no momentum conservation
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIG_NEG'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+NEW2 in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2008b"
+
+\end_inset
+
+: explicit, negative energy drift, exact momentum conservation; 
+\series bold
+default
+\series default
+ for rigid kinematics
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIG_IMP'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+NEW3 in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2008b"
+
+\end_inset
+
+: semi-explicit, no energy drift and exact momentum conservation
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:schema"
+
+\end_inset
+
+Time integration schema.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+TIME_SERIES
+\end_layout
+
+\begin_layout Standard
+An object of type TIME_SERIES is a linear spline based on a series of 2-points.
+\end_layout
+
+\begin_layout Subsection*
+obj = TIME_SERIES (points)
+\end_layout
+
+\begin_layout Standard
+This routine creates a TIME_SERIES object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created TIME_SERIES object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+points
+\series default
+ - either a list 
+\emph on
+[t0, v0, t1, v1, ....]
+\emph default
+ of points (where 
+\emph on
+ti < tj
+\emph default
+, when 
+\emph on
+i < j
+\emph default
+), or a path to a file storing times and values pairs
+\end_layout
+
+\begin_layout Section
+GAUSS_SEIDEL_SOLVER
+\end_layout
+
+\begin_layout Standard
+An object of type GAUSS_SEIDEL_SOLVER represents a nonlinear block Gauss-Seidel
+ solver, employed for the calculation of constraint reactions.
+\end_layout
+
+\begin_layout Subsection*
+obj = GAUSS_SEIDEL_SOLVER (epsilon, maxiter| failure, diagepsilon, diagmaxiter,
+ diagsolver,data,callback)
+\end_layout
+
+\begin_layout Standard
+This routine creates a GAUSS_SEIDEL_SOLVER object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created GAUSS_SEIDEL_SOLVER object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+epsilon
+\series default
+ - relative accuracy of constraint reactions sufficient for termination
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+maxiter
+\series default
+ - maximal number of iterations before termination
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+failure
+\series default
+ - failure (lack of convergence) action (default: 'CONTINUE').
+ Available failure actions are: 'CONTINUE' (simulation is continued), 'EXIT'
+ (simulation is stopped and Solfec exits), 'CALLBACK' (a callback function
+ is called if it was set or othewise the 'STOP' scenario is executed).
+ In all cases 
+\series bold
+\emph on
+obj.error
+\series default
+\emph default
+ variable is set up, cf.
+ Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:err-gs"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+diagepsilon
+\series default
+ - diagonal block solver relative accuracy of constraint reactions (default:
+ 
+\emph on
+epsilon / 100
+\emph default
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+diagmaxiter
+\series default
+ - diagonal block solver maximal number of iterations (default: 
+\emph on
+max (100, maxiter / 100)
+\emph default
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+diagsolver
+\series default
+ - diagonal block solver kind (default: 'SEMISMOOTH_NEWTON').
+ Available diagonal solvers are 'SEMISMOOTH_NEWTON', 'PROJECTED_GRADIENT',
+ 'DE_SAXE_AND_FENG', cf.
+ Chapter 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "cha:sol"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+data
+\series default
+ - data passed to the failure callback function (if this is a tuple it will
+ accordingly expand the parameter list of the callback routine)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+callback
+\series default
+ - failure callback function of form: 
+\emph on
+value = callback (obj, data)
+\emph default
+, where for the returned value equal zero Solfec run is stopped
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a GAUSS_SEIDEL_SOLVER
+ object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="5" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.failure
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.error
+\series default
+ 
+\emph default
+- current error code, cf.
+ Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:err-gs"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.iters
+\series default
+\emph default
+ - number of iterations during a last run of solver
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.rerhist
+\series default
+\emph default
+ - if history recording is on, this is a list of relative error values for
+ each iteration of the last run.
+ Otherwise a 
+\emph on
+None
+\emph default
+ object is returned.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read/write
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.epsilon, obj.maxiter, obj.diagepsilon, obj.diagmaxiter, obj.diagsolver
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.history
+\series default
+\emph default
+ - 'ON' or 'OFF' flag switching history recording (default is 'OFF')
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="4" columns="2">
+<features>
+<column alignment="center" valignment="top" width="0">
+<column alignment="center" valignment="top" width="0">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'OK'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+No error has occured
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'DIVERGED'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Global iteration loop divergence
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'DIAGONAL_DIVERGED'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Diagonal solver iteration loop divergence
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'DIAGONAL_FAILED'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Failure of a diagonal solver (e.g.
+ singularity)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:err-gs"
+
+\end_inset
+
+Error codes of GAUSS_SEIDEL_SOLVER object
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+EXPLICIT_SOLVER
+\end_layout
+
+\begin_layout Standard
+An object of type EXPLICIT_SOLVER represents a penlaty based constraint
+ solver.
+ When in use, all 'SIGNORONI_COULOMB' type contact interfaces are regarded
+ as 'SPRING_DASHPOT' ones.
+ One should then remember about specyfying the 
+\emph on
+spring
+\emph default
+ value for those.
+\end_layout
+
+\begin_layout Subsection*
+obj = EXPLICIT_SOLVER ()
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created EXPLICIT_SOLVER object
+\end_layout
+
+\begin_layout Section
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:con"
+
+\end_inset
+
+CONSTRAINT
+\end_layout
+
+\begin_layout Standard
+An object of type CONSTRAINT represents a constraint and some of its associated
+ data (e.g.
+ constraint reaction).
+ Both user prescribed constraints and contact constraints are represented
+ by an object of the same type.
+\end_layout
+
+\begin_layout Subsection*
+obj = FIX_POINT (solfec, body, point)
+\end_layout
+
+\begin_layout Standard
+This routine creates a fixed point constrint.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with referential point coordinates
+\end_layout
+
+\begin_layout Subsection*
+obj = FIX_DIRECTION (solfec, body, point, direction)
+\end_layout
+
+\begin_layout Standard
+This routine fixes the motion of a referential point along a specified spatial
+ direction.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ -
+\emph on
+ (x, y, z)
+\emph default
+ tuple with referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple with spatial direction components
+\end_layout
+
+\begin_layout Subsection*
+obj = FIX_SURFACE (solfec, body, surfid, direction)
+\color red
+ TODO
+\end_layout
+
+\begin_layout Standard
+This routine fixes the motion of a referential surface along a specified
+ spatial direction.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - list of created point CONSTRAINT objects
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ -
+\emph on
+ 
+\emph default
+surface identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple defining the direction of load, or 'NORMAL' if load is normal to
+ the surface, or 'TANGENT1' if load acts along the first tangent direction,
+ or 'TANGENT2' if it acts along the second tangent direction.
+ The normal direction ('NORMAL') is outward.
+ The first tangent direction ('TANGENT1') is the one of the steepest descent,
+ or a global 
+\emph on
+x
+\emph default
+ direction if the surface is horizontal.
+ The second tangent direction ('TANGENT2') is such that the local ('TANGENT1',
+ 'TANGENT2', 'NORMAL') coordinate system is right-handed.
+\end_layout
+
+\begin_layout Subsection*
+obj = SET_DISPLACEMENT (solfec, body, point, direction, tms)
+\end_layout
+
+\begin_layout Standard
+This routine prescribes a displacement history of a referential point along
+ a specified spacial direction.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple with spatial direction components
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+tms
+\series default
+ - TIME_SERIES object with the displacement history
+\end_layout
+
+\begin_layout Subsection*
+obj = SET_VELOCITY (solfec, body, point, direction, tms)
+\end_layout
+
+\begin_layout Standard
+This routine prescribes a velocity history of a referential point along
+ a specified spacial direction.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple with spatial direction components
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+tms
+\series default
+ - TIME_SERIES object with the velocity history
+\end_layout
+
+\begin_layout Subsection*
+obj = SET_ACCELERATION (solfec, body, point, direction, tms)
+\end_layout
+
+\begin_layout Standard
+This routine prescribes an acceleration history of a referential point along
+ a specified spacial direction.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple with spatial direction components
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+tms
+\series default
+ - TIME_SERIES object with the acceleration history
+\end_layout
+
+\begin_layout Subsection*
+obj = PUT_RIGID_LINK (solfec, body1, body2, point1, point2)
+\end_layout
+
+\begin_layout Standard
+This routine creates a rigid link constraints between two referential points
+ of two distinct bodies.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body1
+\series default
+ - BODY object one whose motion is constrained (could be 
+\emph on
+None
+\emph default
+ when 
+\series bold
+body2
+\series default
+ is not 
+\emph on
+None
+\emph default
+ - then one of the points is fixed 
+\begin_inset Quotes eld
+\end_inset
+
+in the air
+\begin_inset Quotes erd
+\end_inset
+
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body2
+\series default
+ - BODY object two whose motion is constrained (could be 
+\emph on
+None
+\emph default
+ when 
+\series bold
+body1
+\series default
+ is not 
+\emph on
+None
+\emph default
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point1
+\series default
+ - 
+\emph on
+(x1, y1, z1)
+\emph default
+ tuple with the first referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point2
+\series default
+ - 
+\emph on
+(x2, y2, z2)
+\emph default
+ tuple with the second referential point coordinates
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a CONSTRAINT object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="7" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.kind
+\series default
+ 
+\emph default
+- kind of constraint: 'CONTACT', 'FIXPNT' (fixed point), 'FIXDIR' (fixed
+ direction), 'VELODIR' (prescribed velocity; note that prescribed displacement
+ and acceleration are converted into this case), 'RIGLNK' (rigid link)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.R
+\series default
+\emph default
+ - current average constraint reaction in a form of a tuple: 
+\emph on
+(RT1, RT2, RN)
+\emph default
+ given with respect to a local base stored at 
+\series bold
+\emph on
+obj.base
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.base
+\series default
+\emph default
+ - current spatial coordinate system in a form of a tuple: 
+\emph on
+(eT1x, eT2x, eNx, eT1y, eT2y, eNy, eT1z, eT2z, eNz)
+\emph default
+ where 
+\emph on
+x, y, z
+\emph default
+ components are global
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.point
+\series default
+\emph default
+ - current spatial point where the constraint force acts.
+ This is a 
+\emph on
+(x, y, z)
+\emph default
+ tuple for all constraint types, but 'RIGLNK' for which this is a 
+\emph on
+(x1, y1, z1, x2, y2, z2)
+\emph default
+ tuple.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.adjbod
+\series default
+\emph default
+ - adjacent bodies.
+ This is a tuple (body1, body2) of BODY objects for 'CONTACT' and 'RIGLNK'
+ or a single BODY object otherwise.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.matlab
+\series default
+\emph default
+ - surface material label for constraints of kind 'CONTACT', or a 
+\emph on
+None
+\emph default
+ object otherwise.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Applying loads
+\end_layout
+
+\begin_layout Standard
+Routines listed in this section apply loads.
+\end_layout
+
+\begin_layout Subsection*
+GRAVITY (solfec, direction, value)
+\end_layout
+
+\begin_layout Standard
+This routine sets up the gravitational acceleration.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object for which the acceleration is set up
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple defining the direction
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+value
+\series default
+ - a number or a TIME_SERIES object defining the value of the acceleration
+\end_layout
+
+\begin_layout Subsection*
+FORCE (body, kind, point, direction, value| data)
+\end_layout
+
+\begin_layout Standard
+This routine applies a point force to a body.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object to which the force is applied
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - either 'SPATIAL' or 'CONVECTED'; the 
+\emph on
+spactial
+\emph default
+ direction remains fixed, while the 
+\emph on
+convected
+\emph default
+ one follows deformation
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with the referential point where the force is applied
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ -
+\emph on
+ (vx, vy, vz)
+\emph default
+ tuple defining the direction of force
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+value
+\series default
+ - a number, a TIME_SERIES object or a callback routine defining the value
+ of the applied force.
+ In case of a callback routine, the following format is assumed: 
+\end_layout
+
+\begin_layout Standard
+\align right
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+width "95col%"
+special "none"
+height "1in"
+height_special "totalheight"
+status open
+
+\begin_layout Plain Layout
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+
+\series bold
+\emph on
+force = value_callback (data, q, u, time, step)
+\end_layout
+
+\begin_layout Plain Layout
+where: 
+\series bold
+data
+\series default
+ is the optional user data passed to 
+\series bold
+FORCE
+\series default
+ routine (if 
+\series bold
+data
+\series default
+ is a tuple it will expand the list of parameters to the callback), 
+\series bold
+q
+\series default
+ is the configuration of the body passed to the callback, 
+\series bold
+u
+\series default
+ is the velocity of the body passed to the callback, 
+\series bold
+time
+\series default
+ is the current time passed to the callback and 
+\series bold
+step
+\series default
+ is the current time step passed to the callback.
+ The callback returnes a 
+\series bold
+force
+\series default
+ tuple.
+ For rigid body the force reads 
+\emph on
+(spatial force, spatial torque, referential torque)
+\emph default
+, while for other hinds of bodies this is a generalised force of the same
+ dimension as the velocity 
+\series bold
+u
+\series default
+ (power conjugate to it).
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+data
+\series default
+ - callback routine user data
+\end_layout
+
+\begin_layout Subsection*
+TORQUE (body, kind, direction, value)
+\end_layout
+
+\begin_layout Standard
+This routine applies a torque to a 
+\emph on
+rigid
+\emph default
+ body.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object of kind 'RIGID' to which the torque is applied
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - either 'SPATIAL' or 'CONVECTED'; the 
+\emph on
+spactial
+\emph default
+ direction remains fixed, while the 
+\emph on
+convected
+\emph default
+ one follows deformation
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ -
+\emph on
+ (vx, vy, vz)
+\emph default
+ tuple defining the direction of torque
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+value
+\series default
+ - a number or a TIME_SERIES object defining the value of the applied torque
+\end_layout
+
+\begin_layout Subsection*
+LOAD (body, kind, surfid, direction, value)
+\color red
+ TODO
+\end_layout
+
+\begin_layout Standard
+This routine applies a surface load.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object to which the load is applied
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - either 'SPATIAL' or 'CONVECTED'; the 
+\emph on
+spactial
+\emph default
+ direction remains fixed, while the 
+\emph on
+convected
+\emph default
+ one follows deformation
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ - the integer surface identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple defining the direction of load, or 'NORMAL' if load is normal to
+ the surface, or 'TANGENT1' if load acts along the first tangent direction,
+ or 'TANGENT2' if it acts along the second tangent direction.
+ The normal direction ('NORMAL') is outward.
+ The first tangent direction ('TANGENT1') is the one of the steepest descent,
+ or a global 
+\emph on
+x
+\emph default
+ direction if the surface is horizontal.
+ The second tangent direction ('TANGENT2') is such that the local ('TANGENT1',
+ 'TANGENT2', 'NORMAL') coordinate system is right-handed.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+value
+\series default
+ - a number or a TIME_SERIES object defining the value of the applied load
+\end_layout
+
+\begin_layout Section
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:sol"
+
+\end_inset
+
+Running simulations
+\end_layout
+
+\begin_layout Standard
+Routines listed in this section control the solution process.
+\end_layout
+
+\begin_layout Subsection*
+RUN (solfec, solver, duration)
+\end_layout
+
+\begin_layout Standard
+This routine runs a simulation.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solver
+\series default
+ - constraint solver object (e.g.
+ GAUSS_SEIDEL_SOLVER, EXPLICIT_SOLVER)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+duration
+\series default
+ - duration of analysis
+\end_layout
+
+\begin_layout Subsection*
+OUTPUT (solfec, interval)
+\end_layout
+
+\begin_layout Standard
+This routine specifies the frequency of writing to the output file.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+interval
+\series default
+ - length of the time interval elapsing before consecutive output file writes
+\end_layout
+
+\begin_layout Subsection*
+EXTENTS (solfec, extents)
+\end_layout
+
+\begin_layout Standard
+This routine bounds the simulation space.
+ Bodies falling outside of the extents are deleted from the simulation.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+extents
+\series default
+ - 
+\emph on
+(xmin, ymin, zmin, xmax, ymax, zmax)
+\emph default
+ tuple
+\end_layout
+
+\begin_layout Subsection*
+CALLBACK (solfec, interval, data, callback)
+\end_layout
+
+\begin_layout Standard
+This routine defines a callback function, invoked during a run of Solfec
+ every interval of time.
+ A callback routine can interrupt the course of 
+\series bold
+RUN
+\series default
+ command by returning 0.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+interval
+\series default
+ - length of the time interval elapsing before consecutive callback calls
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+data
+\series default
+ - data passed to the callback function
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+callback
+\series default
+ - callback function of form: 
+\emph on
+value = callback (data)
+\emph default
+, where for the returned value equal zero Solfec run is stopped
+\end_layout
+
+\begin_layout Section
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:util"
+
+\end_inset
+
+Utilities
+\end_layout
+
+\begin_layout Standard
+Various utility routines are listed below.
+\end_layout
+
+\begin_layout Subsection*
+obj = VIEWER_ON ()
+\end_layout
+
+\begin_layout Standard
+This routine test whether the viewer is enabled.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - 
+\emph on
+True
+\emph default
+ or 
+\emph on
+False
+\emph default
+ depending on whether the viewer (
+\emph on
+-v
+\emph default
+ command line option) was enabled
+\end_layout
+
+\begin_layout Subsection*
+BODY_CHARS (body, mass, volume, center, tensor)
+\end_layout
+
+\begin_layout Standard
+This routine overwrites referential characteristics of a body.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+mass
+\series default
+ - body mass
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volume
+\series default
+ - body volume
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+center
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ mass center
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+tensor
+\series default
+ - 
+\begin_inset Formula $\left(t_{11},t_{21},\,...\,,t_{33}\right)$
+\end_inset
+
+ column-wise inertia tensor for a rigid body or Euler tensor otherwise
+\end_layout
+
+\begin_layout Subsection*
+INITIAL_VELOCITY (body, linear, angular)
+\end_layout
+
+\begin_layout Standard
+This routine applies initial (at time zero) linear and angular (in the sense
+ of rigid motion) velocity to a body.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+linear
+\series default
+ - linear velocity 
+\emph on
+(
+\begin_inset Formula $v_{x},v_{y},v_{z}$
+\end_inset
+
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+angular
+\series default
+ - angular velocity (
+\begin_inset Formula $\omega_{x},\omega_{y},\omega_{z}$
+\end_inset
+
+ )
+\end_layout
+
+\begin_layout Subsection*
+MATERIAL (solfec, body, volid, material)
+\end_layout
+
+\begin_layout Standard
+This routine applies material to a subset of geometric objects with the
+ given volume identifier.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+material
+\series default
+ - MATERIAL object or material label
+\end_layout
+
+\begin_layout Subsection*
+DELETE (solfec, object)
+\end_layout
+
+\begin_layout Standard
+This routine deletes a BODY object or a CONSTRAINT object from a SOLFEC
+ object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+object
+\series default
+ (emptied) - BODY or CONSTRAINT object
+\end_layout
+
+\begin_layout Subsection*
+obj = SCALE (shape, coefs)
+\end_layout
+
+\begin_layout Standard
+This routine scales a geometrical object or a collection of such objects.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - when 
+\series bold
+shape
+\series default
+ is not 
+\emph on
+(x, y, z)
+\emph default
+ tuple: same as 
+\series bold
+shape
+\series default
+, returned for convenience.
+ Otherwise the 
+\emph on
+(
+\emph default
+
+\begin_inset Formula $x\cdot coefs[0]$
+\end_inset
+
+, 
+\begin_inset Formula $y\cdot coefs[1]$
+\end_inset
+
+, 
+\begin_inset Formula $z\cdot coefs[2]$
+\end_inset
+
+
+\emph on
+)
+\emph default
+ tuple.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ - object, collection of objects, or a list 
+\emph on
+[a, b, c, ...]
+\emph default
+ of objects of type CONVEX, MESH, SPHERE.
+ Alternately this can be a single 
+\emph on
+(x, y, z)
+\emph default
+ tuple.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+coefs
+\series default
+ - 
+\emph on
+(cx, cy, cz)
+\emph default
+ tuple of scaling factors along each axis
+\end_layout
+
+\begin_layout Subsection*
+obj = TRANSLATE (shape, vector)
+\end_layout
+
+\begin_layout Standard
+This routine translates a geometrical object or a collection of such objects.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - when 
+\series bold
+shape
+\series default
+ is not 
+\emph on
+(x, y, z)
+\emph default
+ tuple: same as 
+\series bold
+shape
+\series default
+, returned for convenience.
+ Otherwise the 
+\emph on
+(
+\emph default
+
+\begin_inset Formula $x+vector[0]$
+\end_inset
+
+, 
+\begin_inset Formula $y+vector[1]$
+\end_inset
+
+, 
+\begin_inset Formula $z+vector[2]$
+\end_inset
+
+
+\emph on
+)
+\emph default
+ tuple.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ - object, collection of objects, or a list 
+\emph on
+[a, b, c, ...]
+\emph default
+ of objects of type CONVEX, MESH, SPHERE.
+ Alternately this can be a single 
+\emph on
+(x, y, z)
+\emph default
+ tuple.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+vector
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple defining the translation
+\end_layout
+
+\begin_layout Subsection*
+obj = ROTATE (shape, point, vector, angle)
+\end_layout
+
+\begin_layout Standard
+This routine rotates a geometrical object or a collection of such objects.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - when 
+\series bold
+shape
+\series default
+ is not 
+\emph on
+(x, y, z)
+\emph default
+ tuple: same as 
+\series bold
+shape
+\series default
+, returned for convenience.
+ Otherwise the rotated 
+\emph on
+(x1, y1, z1)
+\emph default
+ image of 
+\emph on
+(x, y, z)
+\emph default
+.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ - object, collection of objects, or a list 
+\emph on
+[a, b, c, ...]
+\emph default
+ of objects of type CONVEX, MESH, SPHERE.
+ Alternately this can be a single 
+\emph on
+(x, y, z)
+\emph default
+ tuple.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(px, py, pz)
+\emph default
+ tuple defining a point passed by the rotation axis
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+vector
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple defining a direction of the rotation axis
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+angle
+\series default
+ - rotation angle in degrees
+\end_layout
+
+\begin_layout Subsection*
+(one, two) = SPLIT (shape, point, normal)
+\end_layout
+
+\begin_layout Standard
+This routine splits a geometrical object (or a collection of objects) by
+ a plane passing by a point.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+one
+\series default
+ - objects placed below the splitting plane (
+\emph on
+None
+\emph default
+ if no objects were placed below)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+two
+\series default
+ - objects placed above the splitting plane (
+\emph on
+None
+\emph default
+ if no objects were placed above)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ (emptied) - object, collection of objects, or a list 
+\emph on
+[a, b, c, ...]
+\emph default
+ of objects of type CONVEX or SPHERE
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(px, py, pz)
+\emph default
+ tuple defining a point passed by the splitting plane
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+normal
+\series default
+ - 
+\emph on
+(nx, ny, nz)
+\emph default
+ tuple defining the splitting plane normal
+\end_layout
+
+\begin_layout Subsection*
+obj = COPY (shape)
+\end_layout
+
+\begin_layout Standard
+This routine makes a copy of input objects.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created collection of coppied objects
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ - object, collection of objects, or a list 
+\emph on
+[a, b, c, ...]
+\emph default
+ of objects of type CONVEX, MESH, SPHERE
+\end_layout
+
+\begin_layout Subsection*
+obj = BYLABEL (solfec, kind, label)
+\end_layout
+
+\begin_layout Standard
+This routine finds a labeled object inside of a SOLFEC object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - returned object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - labeled object: 'SURFACE_MATERIAL', 'BULK_MATERIAL', 'BODY'
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - the label string
+\end_layout
+
+\begin_layout Subsection*
+obj = MASS_CENTER (shape)
+\end_layout
+
+\begin_layout Standard
+This routine calculates the mass center of a geometrical object or a collection
+ of such objects.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple storing the mass center
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ - object, collection of objects, or a list 
+\emph on
+[a, b, c, ...]
+\emph default
+ of objects of type CONVEX, MESH, SPHERE.
+ Alternately this can be a single
+\emph on
+ 
+\emph default
+BODY tuple.
+\end_layout
+
+\begin_layout Subsection*
+CONTACT_EXCLUDE_BODIES (solfec, body1, body2)
+\end_layout
+
+\begin_layout Standard
+This routine disables contact detection for a specific pair of bodies.
+ By default contact detection is enabled for all possible body pairs.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body1
+\series default
+ - first BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body2
+\series default
+ - second BODY object
+\end_layout
+
+\begin_layout Subsection*
+CONTACT_EXCLUDE_OBJECTS (solfec, body1, point1, body2, point2)
+\end_layout
+
+\begin_layout Standard
+This routine disables contact detection for a specific pair of geometric
+ objects (e.g.
+ elements, convices, sheres).
+ By default, between different bodies, contact detection is enabled for
+ all possible object pairs.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body1
+\series default
+ - first BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point1
+\series default
+ - referential point properly contained in the 1st geometric object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+bod2
+\series default
+ - second BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point2
+\series default
+ - referentail point properly contained in the 2nd geometric object
+\end_layout
+
+\begin_layout Subsection*
+CONTACT_SPARSIFY (solfec, threshold)
+\end_layout
+
+\begin_layout Standard
+This routine modifies contact filtering (sparsification) behaviour.
+ Generally speaking, some contact points are filtered out in order to avoid
+ unnecessary dense contact point clusters.
+ If a pair of bodies is connected by two or more contact points, one of
+ the points generated by topologically adjacent entities (elements, convices)
+ will be removed (sparsified) if the ratio of contact areas of is smaller
+ than the prescribed threshold.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+threshold
+\series default
+ - sparsification threshold (default: 0.01) from within the interval [0,
+ 1].
+ Zero corresponds to the lack of sparsification.
+\end_layout
+
+\begin_layout Section
+Results access
+\end_layout
+
+\begin_layout Standard
+Results can be accessed either in the 'READ' mode of a SOLFEC object, or
+ in the 'WRITE' mode once some analysis has been run.
+\end_layout
+
+\begin_layout Subsection*
+value = DURATION (solfec) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine returnes the duration of a simulation in SOLFEC's 'READ' mode,
+ or 
+\series bold
+\emph on
+solfec.time
+\series default
+\emph default
+ in the 'WRITE' mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+value
+\series default
+ - duration of the simulation
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Subsection*
+FORWARD (solfec, steps) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine steps forward within the simulation output file.
+ Ignored in SOLFEC's 'WRITE' mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+steps
+\series default
+ - numbers of steps forward
+\end_layout
+
+\begin_layout Subsection*
+BACKWARD (solfec, steps) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine steps backward within the simulation output file.
+ Ignored in SOLFEC's 'WRITE' mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+steps
+\series default
+ - number of steps backward
+\end_layout
+
+\begin_layout Subsection*
+SEEK (solfec, time) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine to a specific time within the simulation output file.
+ Ignored in SOLFEC's 'WRITE' mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+time
+\series default
+ - time to start reading at
+\end_layout
+
+\begin_layout Subsection*
+disp = DISPLACEMENT (body, point) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine outputs the displacement of a referential point.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+disp
+\series default
+ - 
+\emph on
+(dx, dy, dz)
+\emph default
+ tuple storing the displacement
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple storing the referential point
+\end_layout
+
+\begin_layout Subsection*
+velo = VELOCITY (body, point) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine outputs the velocity of a referential point.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+velo
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple storing the velocity
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ -
+\emph on
+ (x, y, z)
+\emph default
+ tuple storing the referential point
+\end_layout
+
+\begin_layout Subsection*
+stre = STRESS (body, point) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine outputs the Cauchy stress of a referential point.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+stre
+\series default
+ - 
+\emph on
+(sx, sy, sz, sxy, sxz, syz)
+\emph default
+ tuple storing the Cauchy stress
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple storing the referential point
+\end_layout
+
+\begin_layout Subsection*
+hist = HISTORY (body, point, entity, t0, t1) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine outputs the history of an entity at a referential point.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+hist
+\series default
+ - a list object storing the history of the entity
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple storing the referential point
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+entity
+\series default
+ - this is one of: 'DX', 'DY', 'DZ' (displacement), 'VX', 'VY', 'VZ' (velocity),
+ 'SX', 'SY', 'SZ', 'SXY', 'SXZ', 'SYZ' (stress)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+t0
+\series default
+ - time interval start
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+t1
+\series default
+ - time interval end
+\end_layout
+
+\begin_layout Subsection*
+ene = ENERGY (obj, kind) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+The routine outputs the value of energy of a specific object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+ene
+\series default
+ - value of the energy
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - this can be: a SOLFEC object, a BODY object, or a list of BODY objects
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - this is one of: 'KINETIC', 'POTENTIAL', 'EXTWORK' (work of external forces,
+ including friction), 'FRICWORK' (work of friction forces)
+\end_layout
+
+\begin_layout Subsection*
+hist = ENERGY_HISTORY (obj, kind, t0, t1) 
+\color red
+TODO
+\end_layout
+
+\begin_layout Standard
+This routine outputs the history of energy for a collection of objects.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+hist
+\series default
+ - a list object storing the history of the entity
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - this can be: a SOLFEC object, a BODY object, or a list of BODY objects
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - same as 
+\series bold
+kind
+\series default
+ in 
+\series bold
+ENERGY
+\series default
+ routine
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+t0
+\series default
+ - time interval start
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+t1
+\series default
+ - time interval end
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:par"
+
+\end_inset
+
+Parallelism
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Enumerate
+Solfec runs in parallel on hardware homogeneous platforms supporting MPI,
+ HDF5 and Zoltan libraries.
+\end_layout
+
+\begin_layout Enumerate
+Each body comprises a set of geometric objects (e.g.
+ surface adjacent elements) taking part in contact detection.
+\end_layout
+
+\begin_layout Enumerate
+Each geometric object is bounded by a box.
+\end_layout
+
+\begin_layout Enumerate
+Each body is bounded by a box.
+\end_layout
+
+\begin_layout Enumerate
+Two RCB partitions are maintained: one based on lowest corners of body boxes
+ (body partitions), and one based on lowest corners of geometric object
+ boxes (constraint partitions).
+\end_layout
+
+\begin_layout Enumerate
+Body partitions are used to balance time stepping.
+\end_layout
+
+\begin_layout Enumerate
+Constraint partitions are used to balance contact detection and resolution.
+\end_layout
+
+\begin_layout Enumerate
+Each body has one master copy, stored in the body partition containing lowest
+ corner of its box.
+ It also has a number of slave copies, stored in all constraint partitions
+ crossed by its box.
+\end_layout
+
+\begin_layout Enumerate
+Time stepping is performed on master copies, while slave copies are updated
+ accordingly.
+\end_layout
+
+\begin_layout Enumerate
+Each geometric object is stored in all constraint partitions crossed by
+ its box.
+\end_layout
+
+\begin_layout Enumerate
+There always is either a master or a slave body in a constraint partition,
+ corresponding to every geometric object stored in this partition.
+ Hence, geometric objects can always be updated without additional communication
+ (after bodies were updated).
+\end_layout
+
+\begin_layout Enumerate
+Bilateral constraints belong to constraint partitions containing their character
+istic points.
+\end_layout
+
+\begin_layout Enumerate
+Contact constraints belong to contact partitions containing contact points.
+ Multiple copies of geometric object pairs may be stored near partition
+ boundaries, hence multiple detection of a contact is possible.
+\end_layout
+
+\begin_layout Enumerate
+Body and contact objects will internally store identifiers and object pointers.
+ They 
+\begin_inset Quotes eld
+\end_inset
+
+are run
+\begin_inset Quotes erd
+\end_inset
+
+ on processors storing the master objects.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:mat"
+
+\end_inset
+
+Material models
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:sol"
+
+\end_inset
+
+Solvers
+\end_layout
+
+\begin_layout Chapter
+Examples
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset bibtex
+LatexCommand bibtex
+bibfiles "/Users/tomek/Devel/tkwork/bibs/rigid-bodies"
+options "plain"
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
