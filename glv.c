@@ -202,7 +202,7 @@ static void globals3D ()
   glEnable (GL_LIGHTING);
   glEnable (GL_LIGHT0);
   glEnable (GL_COLOR_MATERIAL);
-  glShadeModel (GL_FLAT);
+  glShadeModel (GL_SMOOTH);
   glFrontFace (GL_CCW);
   glEnable (GL_DEPTH_TEST);
   glEnable (GL_NORMALIZE);

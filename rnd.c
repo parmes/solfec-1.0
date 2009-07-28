@@ -148,8 +148,6 @@ static double volumetric_map_min = 0; /* minimum of the volumetric map values */
 static double volumetric_map_max = 1; /* maximum */
 #define MAP_LEGEND_ROWS 8 /* number of rows in the map legend */
 
-typedef struct {MESH *msh; ELEMENT *ele;} MESHELE; /* auxiliary mesh-element pair */
-
 typedef void (*FUNC_OFF) (); /* turning off function callback */
 
 #define FUNC_OFF_MAX 512
@@ -422,9 +420,82 @@ static void render_map_legend ()
   glEnable (GL_DEPTH_TEST);
 }
 
-/* value of element node */
-static double get_element_node_value (BODY *bod, MESH *msh, ELEMENT *ele, FACE *fac, int node) /* node indexing is element/face local (depending if fac == NULL) */
+/* get nodal value from displacements onwards */
+inline static double get_bod_shp_gobj_node (BODY *bod, SHAPE *shp, void *gobj, int node)
 {
+  switch (volumetric_map_kind)
+  {
+  case RESULTS_DX:
+  case RESULTS_DY:
+  case RESULTS_DZ:
+    {
+      double d [3];
+
+      SET (d, DBL_MAX);
+
+      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_DISPLACEMENT, d);
+
+      return d [volumetric_map_kind - RESULTS_DX];
+    }
+    break;
+  case RESULTS_VX:
+  case RESULTS_VY:
+  case RESULTS_VZ:
+    {
+      double v [3];
+
+      SET (v, DBL_MAX);
+
+      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_VELOCITY, v);
+
+      return v [volumetric_map_kind - RESULTS_VX];
+    }
+    break;
+  case RESULTS_SX:
+  case RESULTS_SY:
+  case RESULTS_SZ:
+  case RESULTS_SXY:
+  case RESULTS_SXZ:
+  case RESULTS_SYZ:
+    {
+      double s [6];
+
+      SET6 (s, DBL_MAX);
+
+      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_STRESS, s);
+
+      return s [volumetric_map_kind - RESULTS_SX];
+    }
+    break;
+  case RESULTS_MISES:
+    {
+      double mises = DBL_MAX;
+
+      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_STRESS, &mises);
+
+      return mises;
+    }
+    break;
+  }
+
+  return DBL_MAX;
+}
+
+/* value of element node */
+static double get_element_node_value (BODY *bod, SHAPE *shp, ELEMENT *ele, FACE *fac, int node) /* node indexing is element/face local (depending if fac == NULL) */
+{
+  if (fac) /* translate face node number to element node number */
+  {
+    int n = fac->nodes [node], i;
+
+    for (i = 0; i < ele->type; i ++)
+      if (ele->nodes [i] == n) break;
+
+    ASSERT_DEBUG (i < ele->type, "Inconsitency in face and element node numbering");
+
+    node = i;
+  }
+
   switch (volumetric_map_kind)
   {
   case KINDSOF_CONSTRAINTS: return DBL_MAX;
@@ -435,31 +506,17 @@ static double get_element_node_value (BODY *bod, MESH *msh, ELEMENT *ele, FACE *
     else return DBL_MAX;
     break;
   case KINDSOF_VOLUMES: return ele->volume;
-  case RESULTS_DX:
-  case RESULTS_DY:
-  case RESULTS_DZ:
-    /* TODO */
-    break;
-  case RESULTS_VX:
-  case RESULTS_VY:
-  case RESULTS_VZ:
-    break;
-  case RESULTS_SX:
-  case RESULTS_SY:
-  case RESULTS_SZ:
-  case RESULTS_SXY:
-  case RESULTS_SXZ:
-  case RESULTS_SYZ:
-  case RESULTS_MISES:
-    break;
+  default: return get_bod_shp_gobj_node (bod, shp, ele, node);
   }
 
   return DBL_MAX;
 }
 
 /* value of convex face vertex */
-static double get_convex_face_vertex_value (BODY *bod, CONVEX *cvx, int *fac, int f, int v)
+static double get_convex_face_vertex_value (BODY *bod, SHAPE *shp, CONVEX *cvx, int *fac, int f, int v)
 {
+  int node = fac [v] / 3;
+
   switch (volumetric_map_kind)
   {
   case KINDSOF_CONSTRAINTS: return DBL_MAX;
@@ -467,30 +524,14 @@ static double get_convex_face_vertex_value (BODY *bod, CONVEX *cvx, int *fac, in
   case KINDSOF_BODIES: return bod->kind;
   case KINDSOF_SURFACES: return cvx->surface [f];
   case KINDSOF_VOLUMES: return cvx->volume;
-  case RESULTS_DX:
-  case RESULTS_DY:
-  case RESULTS_DZ:
-    /* TODO */
-    break;
-  case RESULTS_VX:
-  case RESULTS_VY:
-  case RESULTS_VZ:
-    break;
-  case RESULTS_SX:
-  case RESULTS_SY:
-  case RESULTS_SZ:
-  case RESULTS_SXY:
-  case RESULTS_SXZ:
-  case RESULTS_SYZ:
-  case RESULTS_MISES:
-    break;
+  default: return get_bod_shp_gobj_node (bod, shp, cvx, node);
   }
 
   return DBL_MAX;
 }
 
 /* value of sphere surface */
-static double get_sphere_surface_value (BODY *bod, SPHERE *sph)
+static double get_sphere_surface_value (BODY *bod, SHAPE *shp, SPHERE *sph)
 {
   switch (volumetric_map_kind)
   {
@@ -499,23 +540,7 @@ static double get_sphere_surface_value (BODY *bod, SPHERE *sph)
   case KINDSOF_BODIES: return bod->kind;
   case KINDSOF_SURFACES: return sph->surface;
   case KINDSOF_VOLUMES: return sph->volume;
-  case RESULTS_DX:
-  case RESULTS_DY:
-  case RESULTS_DZ:
-    /* TODO */
-    break;
-  case RESULTS_VX:
-  case RESULTS_VY:
-  case RESULTS_VZ:
-    break;
-  case RESULTS_SX:
-  case RESULTS_SY:
-  case RESULTS_SZ:
-  case RESULTS_SXY:
-  case RESULTS_SXZ:
-  case RESULTS_SYZ:
-  case RESULTS_MISES:
-    break;
+  default: return get_bod_shp_gobj_node (bod, shp, sph, 0);
   }
 
   return DBL_MAX;
@@ -562,7 +587,7 @@ static void volumetric_map_extrema_process_body (BODY *bod)
 	{
 	  for (n = 0; n < fac->type; n ++)
 	  {
-	    value = get_element_node_value (bod, msh, ele, fac, n);
+	    value = get_element_node_value (bod, shp, ele, fac, n);
 	    volumetric_map_register_value (value);
 	  }
 	}
@@ -572,7 +597,7 @@ static void volumetric_map_extrema_process_body (BODY *bod)
       {
 	for (n = 0; n < ele->type; n ++)
 	{
-	  value = get_element_node_value (bod, msh, ele, NULL, n);
+	  value = get_element_node_value (bod, shp, ele, NULL, n);
 	  volumetric_map_register_value (value);
 	}
       }
@@ -586,7 +611,7 @@ static void volumetric_map_extrema_process_body (BODY *bod)
 	{
 	  for (l = 1; l <= cvx->fac [m]; l ++)
 	  {
-	    value = get_convex_face_vertex_value (bod, cvx, &cvx->fac [m], n, l-1);
+	    value = get_convex_face_vertex_value (bod, shp, cvx, &cvx->fac [m], n, l);
 	    volumetric_map_register_value (value);
 	  }
 	}
@@ -597,7 +622,7 @@ static void volumetric_map_extrema_process_body (BODY *bod)
 
       for (sph = shp->data; sph; sph = sph->next)
       {
-	value = get_sphere_surface_value (bod, sph);
+	value = get_sphere_surface_value (bod, shp, sph);
 	volumetric_map_register_value (value);
       }
 
@@ -708,6 +733,13 @@ static void volumetric_map_extrema ()
       }
     }
   }
+
+ if (volumetric_map_min == volumetric_map_max)
+ {
+   double d = 1E-9 * fabs (volumetric_map_min);
+   volumetric_map_min -= d;
+   volumetric_map_max += d;
+ }
 }
 
 /* turn off volumetric map */
@@ -751,36 +783,43 @@ static void volumetric_map_on (int kind)
 }
 
 /* color of element node */
-static int get_element_node_color (BODY *bod, MESH *msh, ELEMENT *ele, FACE *fac, int node, GLfloat *color)
+static int get_element_node_color (BODY *bod, SHAPE *shp, ELEMENT *ele, FACE *fac, int node, GLfloat *color)
 {
   double val;
 
   if (!volumetric_map) return 0;
-  val = get_element_node_value (bod, msh, ele, fac, node);
-  if (val < DBL_MAX) mapcolor (volumetric_map_min, val, volumetric_map_max, color);
-  else return 0;
-  return 1;
+  val = get_element_node_value (bod, shp, ele, fac, node);
+  if (val < DBL_MAX)
+  {
+    mapcolor (volumetric_map_min, val, volumetric_map_max, color);
+    return 1;
+  }
+  return 0;
 }
 
 /* color of convex face vertex */
-static int get_convex_face_vertex_color (BODY *bod, CONVEX *cvx, int *fac, int f, int v, GLfloat *color)
+static int get_convex_face_vertex_color (BODY *bod, SHAPE *shp, CONVEX *cvx, int *fac, int f, int v, GLfloat *color)
 {
   double val;
 
   if (!volumetric_map) return 0;
-  val = get_convex_face_vertex_value (bod, cvx, fac, f, v);
-  if (val < DBL_MAX) mapcolor (volumetric_map_min, val, volumetric_map_max, color);
-  else return 0;
-  return 1;
+  val = get_convex_face_vertex_value (bod, shp, cvx, fac, f, v);
+
+  if (val < DBL_MAX)
+  {
+    mapcolor (volumetric_map_min, val, volumetric_map_max, color);
+    return 1;
+  }
+  return 0;
 }
 
 /* color of sphere surface */
-static void get_sphere_surface_color (BODY *bod, SPHERE *sph, GLfloat *color)
+static void get_sphere_surface_color (BODY *bod, SHAPE *shp, SPHERE *sph, GLfloat *color)
 {
   double val;
 
   if (!volumetric_map) return;
-  val = get_sphere_surface_value (bod, sph);
+  val = get_sphere_surface_value (bod, shp, sph);
   if (val < DBL_MAX) mapcolor (volumetric_map_min, val, volumetric_map_max, color);
 }
 
@@ -809,7 +848,7 @@ static void get_constraint_based_color (CON *con, GLfloat *color)
 }
 
 /* render mesh surface */
-static void render_mesh (BODY *bod, MESH *mesh, int flags, GLfloat color [4])
+static void render_mesh (BODY *bod, SHAPE *shp, MESH *mesh, int flags, GLfloat color [4])
 {
   GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
   double (*cur) [3] = mesh->cur_nodes;
@@ -865,11 +904,11 @@ static void render_mesh (BODY *bod, MESH *mesh, int flags, GLfloat color [4])
 	{
 	  glBegin (GL_TRIANGLES);
 	  glNormal3dv (fac->normal);
-	  if (get_element_node_color (bod, mesh, ele, fac, 0, color)) glColor4fv (color);
+	  if (get_element_node_color (bod, shp, ele, fac, 0, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[0]]);
-	  if (get_element_node_color (bod, mesh, ele, fac, 1, color)) glColor4fv (color);
+	  if (get_element_node_color (bod, shp, ele, fac, 1, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[1]]);
-	  if (get_element_node_color (bod, mesh, ele, fac, 2, color)) glColor4fv (color);
+	  if (get_element_node_color (bod, shp, ele, fac, 2, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[2]]);
 	  glEnd ();
 	}
@@ -890,13 +929,13 @@ static void render_mesh (BODY *bod, MESH *mesh, int flags, GLfloat color [4])
 	{
 	  glBegin (GL_QUADS);
 	  glNormal3dv (fac->normal);
-	  if (get_element_node_color (bod, mesh, ele, fac, 0, color)) glColor4fv (color);
+	  if (get_element_node_color (bod, shp, ele, fac, 0, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[0]]);
-	  if (get_element_node_color (bod, mesh, ele, fac, 1, color)) glColor4fv (color);
+	  if (get_element_node_color (bod, shp, ele, fac, 1, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[1]]);
-	  if (get_element_node_color (bod, mesh, ele, fac, 2, color)) glColor4fv (color);
+	  if (get_element_node_color (bod, shp, ele, fac, 2, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[2]]);
-	  if (get_element_node_color (bod, mesh, ele, fac, 3, color)) glColor4fv (color);
+	  if (get_element_node_color (bod, shp, ele, fac, 3, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[3]]);
 	  glEnd ();
 	}
@@ -908,7 +947,7 @@ static void render_mesh (BODY *bod, MESH *mesh, int flags, GLfloat color [4])
 }
 
 /* render single convex */
-static void render_convex (BODY *bod, CONVEX *cvx, int flags, GLfloat color [4])
+static void render_convex (BODY *bod, SHAPE *shp, CONVEX *cvx, int flags, GLfloat color [4])
 {
   GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
   int n, m, l;
@@ -941,7 +980,7 @@ static void render_convex (BODY *bod, CONVEX *cvx, int flags, GLfloat color [4])
     glNormal3dv (&cvx->pla [n * 4]);
     for (l = 1; l <= cvx->fac [m]; l ++)
     {
-      if (!(flags & SELECTION) && get_convex_face_vertex_color (bod, cvx, &cvx->fac [m], n, l-1, color)) glColor4fv (color);
+      if (!(flags & SELECTION) && get_convex_face_vertex_color (bod, shp, cvx, &cvx->fac [m], n, l, color)) glColor4fv (color);
       glVertex3dv (&cvx->cur [cvx->fac [m + l]]);
     }
     glEnd ();
@@ -951,7 +990,7 @@ static void render_convex (BODY *bod, CONVEX *cvx, int flags, GLfloat color [4])
 }
 
 /* render single sphere */
-static void render_sphere (BODY *bod, SPHERE *sphere, int flags, GLfloat color [4])
+static void render_sphere (BODY *bod, SHAPE *shp, SPHERE *sphere, int flags, GLfloat color [4])
 {
   GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
   double *c = sphere->cur_center;
@@ -974,7 +1013,7 @@ static void render_sphere (BODY *bod, SPHERE *sphere, int flags, GLfloat color [
   glMatrixMode (GL_MODELVIEW_MATRIX);
   glPushMatrix ();
     glTranslated (c[0], c[1], c[2]);
-    if (!(flags & SELECTION)) get_sphere_surface_color (bod, sphere, color);
+    if (!(flags & SELECTION)) get_sphere_surface_color (bod, shp, sphere, color);
     glColor4fv (color);
     glutSolidSphere (sphere->cur_radius, 12, 12);
   glPopMatrix ();
@@ -983,7 +1022,7 @@ static void render_sphere (BODY *bod, SPHERE *sphere, int flags, GLfloat color [
 }
 
 /* render single element */
-static void render_element (BODY *bod, MESHELE *x, int flags, GLfloat color [4])
+static void render_element (BODY *bod, SHAPE *shp, ELEMENT *ele, int flags, GLfloat color [4])
 {
   GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
   CONVEX *cvx;
@@ -991,7 +1030,7 @@ static void render_element (BODY *bod, MESHELE *x, int flags, GLfloat color [4])
   int n, m, l;
 
   /* get convex of element */
-  cvx = ELEMENT_Convex (x->msh, x->ele);
+  cvx = ELEMENT_Convex (shp->data, ele);
 
   /* outline */
   if (flags & OUTLINE)
@@ -1017,14 +1056,14 @@ static void render_element (BODY *bod, MESHELE *x, int flags, GLfloat color [4])
   for (n = m = 0; n < cvx->nfac;
     n ++, m += (cvx->fac [m] + 1))
   {
-    for (fac = x->ele->faces; fac; fac = fac->next)
+    for (fac = ele->faces; fac; fac = fac->next)
     { if (fac->index == n) break; /* face found */ }
 
     glBegin (GL_POLYGON);
     glNormal3dv (&cvx->pla [n * 4]);
     for (l = 1; l <= cvx->fac [m]; l ++)
     {
-      if (!(flags & SELECTION) && get_element_node_color (bod, x->msh, x->ele, fac, cvx->fac [m+l] / 3, color)) glColor4fv (color);
+      if (!(flags & SELECTION) && get_element_node_color (bod, shp, ele, fac, cvx->fac [m+l] / 3, color)) glColor4fv (color);
       glVertex3dv (&cvx->cur [cvx->fac [m+l]]);
     }
     glEnd ();
@@ -1600,19 +1639,19 @@ inline static void render_body_end (BODY *bod, GLfloat color [4])
 }
 
 /* render volumetric object - basic */
-inline static void render_object_basic (BODY *bod, short kind, void *obj, int flags, GLfloat color [4])
+inline static void render_object_basic (BODY *bod, SHAPE *shp, short kind, void *obj, int flags, GLfloat color [4])
 {
   switch (kind)
   {
-    case SHAPE_MESH: render_mesh (bod, obj, flags, color); break;
-    case SHAPE_CONVEX: render_convex (bod, obj, flags, color); break;
-    case SHAPE_SPHERE: render_sphere (bod, obj, flags, color); break;
-    case SHAPE_ELEMENT: render_element (bod, obj, flags, color); break;
+    case SHAPE_MESH: render_mesh (bod, shp, obj, flags, color); break;
+    case SHAPE_CONVEX: render_convex (bod, shp, obj, flags, color); break;
+    case SHAPE_SPHERE: render_sphere (bod, shp, obj, flags, color); break;
+    case SHAPE_ELEMENT: render_element (bod, shp, obj, flags, color); break;
   }
 }
 
 /* render volumetric object - complete (with clipping, etc.) */
-static void render_object (BODY *bod, short kind, void *obj, int flags, GLfloat color [4])
+static void render_object (BODY *bod, SHAPE *shp, short kind, void *obj, int flags, GLfloat color [4])
 {
   if (current_tool == TOOLS_CLIPPING_PLANE)
   {
@@ -1631,11 +1670,11 @@ static void render_object (BODY *bod, short kind, void *obj, int flags, GLfloat 
 
     glStencilOp (GL_KEEP, GL_KEEP, GL_INCR);
     glCullFace (GL_FRONT);
-    render_object_basic (bod, kind, obj, flags, color);
+    render_object_basic (bod, shp, kind, obj, flags, color);
 
     glStencilOp (GL_KEEP, GL_KEEP, GL_DECR);
     glCullFace (GL_BACK); 
-    render_object_basic (bod, kind, obj, flags, color);
+    render_object_basic (bod, shp, kind, obj, flags, color);
 
     glEnable (GL_DEPTH_TEST);
     glDisable (GL_CLIP_PLANE0);
@@ -1655,7 +1694,7 @@ static void render_object (BODY *bod, short kind, void *obj, int flags, GLfloat 
     glEnable (GL_CLIP_PLANE0);
   }
 
-  render_object_basic (bod, kind, obj, flags, color);
+  render_object_basic (bod, shp, kind, obj, flags, color);
 
   if (current_tool == TOOLS_CLIPPING_PLANE)
   {
@@ -1673,32 +1712,28 @@ static void render_shape (BODY *bod, SHAPE *shp, int flags, GLfloat color [4])
     {
       ELEMENT *ele;
       MESH *msh;
-      MESHELE x;
 
       msh = shp->data;
-      x.msh = msh;
 
       for (ele = msh->surfeles; ele; ele = ele->next)
       {
-	x.ele = ele;
-	render_object (bod, SHAPE_ELEMENT, &x, flags, color);
+	render_object (bod, shp, SHAPE_ELEMENT, ele, flags, color);
       }
 
       for (ele = msh->bulkeles; ele; ele = ele->next)
       {
-	x.ele = ele;
-	render_object (bod, SHAPE_ELEMENT, &x, flags, color);
+	render_object (bod, shp, SHAPE_ELEMENT, ele, flags, color);
       }
     }
-    else render_object (bod, SHAPE_MESH, shp->data, flags, color);
+    else render_object (bod, shp, SHAPE_MESH, shp->data, flags, color);
     break;
   case SHAPE_CONVEX:
     for (CONVEX *cvx = shp->data; cvx; cvx = cvx->next)
-      render_object (bod, SHAPE_CONVEX, cvx, flags, color);
+      render_object (bod, shp, SHAPE_CONVEX, cvx, flags, color);
     break;
   case SHAPE_SPHERE:
     for (SPHERE *sph = shp->data; sph; sph = sph->next)
-      render_object (bod, SHAPE_SPHERE, sph, flags, color);
+      render_object (bod, shp, SHAPE_SPHERE, sph, flags, color);
     break;
   }
 }
@@ -1750,15 +1785,15 @@ static void render_selection ()
 	switch (shp->kind)
 	{
 	  case SHAPE_MESH:
-	    render_mesh (NULL, shp->data, SELECTION, color);
+	    render_mesh (NULL, shp, shp->data, SELECTION, color);
 	    break;
 	  case SHAPE_CONVEX:
             for (CONVEX *cvx = shp->data; cvx; cvx = cvx->next)
-              render_convex (NULL, cvx, SELECTION, color);
+              render_convex (NULL, shp, cvx, SELECTION, color);
 	    break;
 	  case SHAPE_SPHERE:
             for (SPHERE *sph = shp->data; sph; sph = sph->next)
-	      render_sphere (NULL, sph, SELECTION, color);
+	      render_sphere (NULL, shp, sph, SELECTION, color);
 	    break;
 	}
       }
@@ -1776,15 +1811,15 @@ static void render_selection ()
 	switch (shp->kind)
 	{
 	  case SHAPE_MESH:
-	    render_mesh (NULL, shp->data, SELECTION, color);
+	    render_mesh (NULL, shp, shp->data, SELECTION, color);
 	    break;
 	  case SHAPE_CONVEX:
             for (CONVEX *cvx = shp->data; cvx; cvx = cvx->next)
-              render_convex (NULL, cvx, SELECTION, color);
+              render_convex (NULL, shp, cvx, SELECTION, color);
 	    break;
 	  case SHAPE_SPHERE:
             for (SPHERE *sph = shp->data; sph; sph = sph->next)
-	      render_sphere (NULL, sph, SELECTION, color);
+	      render_sphere (NULL, shp, sph, SELECTION, color);
 	    break;
 	}
       }
@@ -2241,7 +2276,6 @@ void RND_Quit ()
 /* render scene */
 void RND_Render ()
 {
-  GLfloat color [4] = {0.7, 0.7, 0.7, 0.2};
   int flags = OUTLINE;
 
   if (volumetric_map_constraint_based ())
@@ -2282,6 +2316,8 @@ void RND_Render ()
     {
       BODY *bod = item->data;
 
+      GLfloat color [4] = {0.7, 0.7, 0.7, 0.2};
+
       if (render_body_begin (bod, color)) continue;
 
       for (SHAPE *shp = bod->shape; shp; shp = shp->next)
@@ -2294,6 +2330,8 @@ void RND_Render ()
   {
     for (BODY *bod = domain->bod; bod; bod = bod->next)
     {
+      GLfloat color [4] = {0.7, 0.7, 0.7, 0.2};
+
       if (render_body_begin (bod, color)) continue;
 
       for (SHAPE *shp = bod->shape; shp; shp = shp->next)
@@ -2312,7 +2350,12 @@ void RND_Render ()
     for (CON *con = domain->con; con; con = con->next)
     {
       if (skip_constraint (con)) continue;
-      if (con->kind == RIGLNK) render_riglnk (con, color); /* render rigid links */
+      if (con->kind == RIGLNK) 
+      {
+        GLfloat color [4] = {0.7, 0.7, 0.7, 0.2};
+
+	render_riglnk (con, color); /* render rigid links */
+      }
     }
   }
 }

@@ -112,6 +112,9 @@ inline static double* maximal_sphere_support_point (point *w, int n, double b [4
     }
   }
 
+  ASSERT_DEBUG (out, "Failed to identify a spare return pointer in maximal_sphere_support_point of gjk");
+  /* FIXME: the above does happen for drum simulation at 1.21 sec */
+
   COPY (v, out);
   NORMALIZE (out);
   SCALE (out, r);

@@ -37,6 +37,16 @@
 #include "err.h"
 #include "lng.h"
 
+/* compute Mises norm of a Cauchy stress */
+#define MISES(s, v)\
+  do {\
+  double a = (s [0] - s [1])*(s [0] - s [1]);\
+  double b = (s [0] - s [2])*(s [0] - s [2]);\
+  double c = (s [2] - s [1])*(s [2] - s [1]);\
+  double d = 6. * (s [3]*s [3] + s [4]*s [4] + s [5]*s [5]);\
+  v = .707106781186548 * sqrt (a + b + c + d);\
+  } while (0)
+
 /* sizes */
 #define RIG_CONF_SIZE	15	/* rotation matrix, mass center position, auxiliary vector of size 3 */
 #define RIG_VELO_SIZE   12      /* referential angular velocity, spatial linear velocity, copies of both at (t-h) */
@@ -611,6 +621,25 @@ static void prb_constraints_force (BODY *bod, double *force)
     }
   }
 }
+
+/* calculate cauche stress for a pseudo-rigid body */
+void prb_cauchy (BODY *bod, double *stress)
+{
+  double P [9], J, *F;
+
+  F = bod->conf;
+  J = SVK_Stress_R (lambda (bod->mat->young, bod->mat->poisson),
+    mi (bod->mat->young, bod->mat->poisson), 1.0, F, P); /* per unit volume */
+
+  stress [0] = (F [0]*P [0] + F [1]*P [3] + F [2]*P [6]) / J;
+  stress [1] = (F [3]*P [1] + F [4]*P [4] + F [5]*P [7]) / J;
+  stress [2] = (F [6]*P [2] + F [7]*P [5] + F [8]*P [8]) / J;
+  stress [3] = (F [0]*P [1] + F [1]*P [4] + F [2]*P [7]) / J;
+  stress [4] = (F [0]*P [2] + F [1]*P [5] + F [2]*P [8]) / J;
+  stress [5] = (F [3]*P [2] + F [4]*P [5] + F [5]*P [8]) / J;
+}
+
+/* -------------------------------------- */
 
 /* copy user label */
 static char* copylabel (char *label)
@@ -1405,6 +1434,84 @@ double BODY_Kinetic_Energy (BODY *bod)
 
 void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values)
 {
+  switch (bod->kind)
+  {
+  case OBS: break;
+  case RIG:
+  case PRB:
+  {
+    double ref_point [3];
+
+    switch (shp->kind)
+    {
+    case SHAPE_MESH:
+    {
+      MESH *msh = shp->data;
+      ELEMENT *ele = gobj;
+      int n = ele->nodes [node];
+
+      COPY (msh->ref_nodes [n], ref_point);
+    }
+    break;
+    case SHAPE_CONVEX:
+    {
+      CONVEX *cvx = gobj;
+      double *ref = cvx->ref + 3 * node;
+
+      COPY (ref, ref_point);
+    }
+    break;
+    case SHAPE_SPHERE:
+    {
+      SPHERE *sph = gobj;
+
+      COPY (sph->ref_center, ref_point);
+    }
+    break;
+    }
+
+    switch (kind)
+    {
+    case VALUE_DISPLACEMENT:
+    {
+      double cur_point [3];
+
+      BODY_Cur_Point (bod, shp, gobj, ref_point, cur_point);
+      SUB (cur_point, ref_point, values);
+    }
+    break;
+    case VALUE_VELOCITY:
+    {
+      double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+      BODY_Local_Velo (bod, CURVELO, shp, gobj, ref_point, base, values);
+    }
+    break;
+    case VALUE_STRESS:
+    {
+      if (bod->kind == PRB)
+	prb_cauchy (bod, values);
+    }
+    break;
+    case VALUE_MISES:
+    {
+      double stress [6];
+
+      if (bod->kind == PRB)
+      {
+	prb_cauchy (bod, stress);
+	MISES (stress, values [0]);
+      }
+    }
+    break;
+    }
+  }
+  break;
+  case FEM:
+    ASSERT (0, ERR_NOT_IMPLEMENTED);
+    /* TODO */
+  break;
+  }
 }
 
 void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values)
