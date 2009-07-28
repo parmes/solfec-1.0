@@ -212,6 +212,8 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
 
   if (state)
   {
+    ASSERT (gap > dom->depth, ERR_DOM_DEPTH);
+
     /* set surface pair data if there was a contact */
     mat = SPSET_Find (dom->sps, spair [0], spair [1]);
   }
@@ -273,6 +275,8 @@ void update_contact (DOM *dom, CON *con)
   }
   else
   {
+    ASSERT (con->gap > dom->depth, ERR_DOM_DEPTH);
+
     COPY (mpnt, con->point);
     BODY_Ref_Point (con->master, con->mshp, con->mgobj, mpnt, con->mpnt);
     BODY_Ref_Point (con->slave, con->sshp, con->sgobj, spnt, con->spnt);
@@ -458,6 +462,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->prev = dom->next = NULL;
   dom->flags = 0;
   dom->threshold = 0.01;
+  dom->depth = -DBL_MAX;
   ERRMEM (dom->ldy = LOCDYN_Create (dom));
 
   SET (dom->gravdir, 0);

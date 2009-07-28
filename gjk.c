@@ -113,7 +113,6 @@ inline static double* maximal_sphere_support_point (point *w, int n, double b [4
   }
 
   ASSERT_DEBUG (out, "Failed to identify a spare return pointer in maximal_sphere_support_point of gjk");
-  /* FIXME: the above does happen for drum simulation at 1.21 sec */
 
   COPY (v, out);
   NORMALIZE (out);
@@ -260,7 +259,7 @@ double gjk (double *a, int na, double *b, int nb, double *p, double *q)
   SUB (a, b, v);
   vlen = LEN (v);
 
-  while (toofar && vlen > GEOMETRIC_EPSILON)
+  while (toofar && vlen > GEOMETRIC_EPSILON && n < 4) /* (#) see below */
   {
     w[n].a = minimal_support_point (a, na, v);
     w[n].b = maximal_support_point (b, nb, v);
@@ -270,7 +269,7 @@ double gjk (double *a, int na, double *b, int nb, double *p, double *q)
     toofar = (vlen - mi) > GEOMETRIC_EPSILON;
     if (toofar)
     {
-      n = project (w, ++n, l, v);
+      n = project (w, ++n, l, v); /* (#) n = 4 can happen due to roundoff */
       vlen = LEN (v);
     }
   }
@@ -314,7 +313,7 @@ double gjk_convex_sphere (double *a, int na, double *c, double r, double *p, dou
   SUB (a, b [0], v); /* an initial point in the set A-B */
   vlen = LEN (v);
 
-  while (toofar && vlen > GEOMETRIC_EPSILON)
+  while (toofar && vlen > GEOMETRIC_EPSILON && n < 4) /* (#) see below */
   {
     w[n].a = minimal_support_point (a, na, v);
     w[n].b = maximal_sphere_support_point (w, n, b, c, r, v);
@@ -324,7 +323,7 @@ double gjk_convex_sphere (double *a, int na, double *c, double r, double *p, dou
     toofar = (vlen - mi) > GEOMETRIC_EPSILON;
     if (toofar)
     {
-      n = project (w, ++n, l, v);
+      n = project (w, ++n, l, v); /* (#) n = 4 can happen due to roundoff */
       vlen = LEN (v);
     }
   }

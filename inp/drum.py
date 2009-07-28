@@ -40,7 +40,7 @@ def spheres_create (material, solfec):
 
 step = 0.001
 skip = 10
-dura = 1.0
+dura = 2.0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/drum')
 
@@ -65,5 +65,7 @@ def callback (sol):
 if not VIEWER_ON (): CALLBACK (solfec, step * skip, solfec, callback)
 
 OUTPUT (solfec, 0.02)
+
+UNPHYSICAL_PENETRATION (solfec, 0.01)
 
 RUN (solfec, gs, dura)

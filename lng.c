@@ -4131,6 +4131,24 @@ static PyObject* lng_CALLBACK (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+/* set unphysical penetration depth */
+static PyObject* lng_UNPHYSICAL_PENETRATION (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "depth");
+  lng_SOLFEC *solfec;
+  double depth;
+
+  PARSEKEYS ("Od", &solfec, &depth);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (depth, kwl[1]));
+
+  if (solfec->sol->mode == SOLFEC_READ) Py_RETURN_NONE; /* skip READ mode */
+
+  solfec->sol->dom->depth = -depth; /* make negative */
+
+  Py_RETURN_NONE;
+}
+
 static PyMethodDef lng_methods [] =
 {
   {"HULL", (PyCFunction)lng_HULL, METH_VARARGS|METH_KEYWORDS, "Create convex hull from a point set"},
@@ -4163,6 +4181,7 @@ static PyMethodDef lng_methods [] =
   {"OUTPUT", (PyCFunction)lng_OUTPUT, METH_VARARGS|METH_KEYWORDS, "Set data output interval"},
   {"EXTENTS", (PyCFunction)lng_EXTENTS, METH_VARARGS|METH_KEYWORDS, "Set scene extents"},
   {"CALLBACK", (PyCFunction)lng_CALLBACK, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
+  {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
   {NULL, 0, 0, NULL}
 };
 
@@ -4312,7 +4331,8 @@ int lng (const char *path)
                      "from solfec import RUN\n"
                      "from solfec import OUTPUT\n"
                      "from solfec import EXTENTS\n"
-                     "from solfec import CALLBACK\n");
+                     "from solfec import CALLBACK\n"
+                     "from solfec import UNPHYSICAL_PENETRATION\n");
 
   error = PyRun_SimpleFile (file, path);
 

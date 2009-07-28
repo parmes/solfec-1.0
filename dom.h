@@ -134,6 +134,8 @@ struct domain
 
   double threshold; /* sparsification threshold */
 
+  double depth; /* unphisical interpenetration depth bound (negative) */
+
   short verbose; /* verbosity flag */
 };
 

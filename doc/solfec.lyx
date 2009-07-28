@@ -4137,6 +4137,36 @@ value = callback (data)
 , where for the returned value equal zero Solfec run is stopped
 \end_layout
 
+\begin_layout Subsection*
+UNPHYSICAL_PENETRATION (solfec, depth)
+\end_layout
+
+\begin_layout Standard
+This routine sets a depth of an unphysical interpenetration.
+ Once it is exceeded, the simulation is stopped and a suitable error message
+ printed out.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+depth
+\series default
+ - interpenetration depth bound (default: 
+\begin_inset Formula $\infty$
+\end_inset
+
+)
+\end_layout
+
 \begin_layout Section
 \begin_inset CommandInset label
 LatexCommand label
