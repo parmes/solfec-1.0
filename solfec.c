@@ -179,6 +179,12 @@ static void read_state (SOLFEC *sol)
   DOM_Read_State (sol->dom, sol->bf);
 }
 
+/* read initial state if needed */
+static void init (SOLFEC *sol)
+{
+  if (sol->iover < 0) read_state (sol);
+}
+
 /* create a solfec instance */
 SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
 {
@@ -343,6 +349,7 @@ void SOLFEC_Seek_To (SOLFEC *sol, double time)
 {
   if (sol->mode == SOLFEC_READ)
   {
+    init (sol);
     PBF_Seek (sol->bf, time);
     read_state (sol);
   }
@@ -353,6 +360,7 @@ void SOLFEC_Backward (SOLFEC *sol, int steps)
 {
   if (sol->mode == SOLFEC_READ)
   {
+    init (sol);
     PBF_Backward (sol->bf, steps);
     read_state (sol);
   }
@@ -363,6 +371,7 @@ void SOLFEC_Forward (SOLFEC *sol, int steps)
 {
   if (sol->mode == SOLFEC_READ)
   {
+    init (sol);
     PBF_Forward (sol->bf, steps);
     read_state (sol);
   }

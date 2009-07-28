@@ -88,6 +88,8 @@ enum /* menu items */
   RENDER_SELECTION_3D,
   TOOLS_TOGGLE_VISIBLE,
   TOOLS_CLIPPING_PLANE,
+  TOOLS_SWITCH_OFF,
+  TOOLS_SWITCH_ON_ALL,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -132,6 +134,11 @@ static int mouse_x,
 
 static int current_tool = 0;
 
+static enum /* tool modifier flags */
+{
+  TOOL_FLAG_SWITCH_OFF = 1 /* mutate toggle visible into switch off */
+} tool_flag = 0;
+
 BODY *toggle_visible = NULL;
 
 static double clipping_factor;
@@ -147,6 +154,8 @@ static SET *volumetric_map_discrete; /* set of discrete data */
 static double volumetric_map_min = 0; /* minimum of the volumetric map values */
 static double volumetric_map_max = 1; /* maximum */
 #define MAP_LEGEND_ROWS 8 /* number of rows in the map legend */
+#define WIDTH_DISC 48 /* legend width for discrete data */
+#define WIDTH_CONT 74 /* legend width for continuous data */
 
 typedef void (*FUNC_OFF) (); /* turning off function callback */
 
@@ -232,6 +241,7 @@ inline static void mapcolor (double min, double val, double max, GLfloat *color)
 static void tools_off ()
 {
   current_tool = 0;
+  tool_flag = 0;
   toggle_visible = NULL;
   GLV_Redraw_All ();
 }
@@ -306,8 +316,8 @@ static int map_legend_width ()
   i = volumetric_map_range / MAP_LEGEND_ROWS;
   if (volumetric_map_range % MAP_LEGEND_ROWS) i ++;
 
-  if (volumetric_map_is_discrete) i *= 48;
-  else i *= 68;
+  if (volumetric_map_is_discrete) i *= WIDTH_DISC;
+  else i *= WIDTH_CONT;
 
   j = map_caption_width ();
 
@@ -381,13 +391,13 @@ static void render_map_legend ()
     {
       mapcolor (volumetric_map_min, (double)(int)item->data, volumetric_map_max, color);
       glColor3f (1, 1, 1);
-      glRecti (v[0] + j * 48, v[1] + i * 16, v[0] + (j+1) * 48, v[1] + (i+1) * 16);
+      glRecti (v[0] + j * WIDTH_DISC, v[1] + i * 16, v[0] + (j+1) * WIDTH_DISC, v[1] + (i+1) * 16);
       glColor4fv (color);
-      glRecti (v[0] + j * 48, v[1] + i * 16, v[0] + j * 48 + 16, v[1] + i * 16 + 16);
+      glRecti (v[0] + j * WIDTH_DISC, v[1] + i * 16, v[0] + j * WIDTH_DISC + 16, v[1] + i * 16 + 16);
       glColor3f (0, 0, 0);
       if ((str = get_map_legend_value_string (item->data)))
-        GLV_Print (v[0] + j * 48 + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%s", str);
-      else GLV_Print (v[0] + j * 48 + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%d", (int)item->data);
+        GLV_Print (v[0] + j * WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%s", str);
+      else GLV_Print (v[0] + j * WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%d", (int)item->data);
       if (i ++ == MAP_LEGEND_ROWS) { i = 1; j ++; }
     }
     glPopMatrix ();
@@ -405,11 +415,11 @@ static void render_map_legend ()
       {
 	mapcolor (volumetric_map_min, value, volumetric_map_max, color);
 	glColor3f (1, 1, 1);
-	glRecti (v[0] + j * 68, v[1] + i * 16, v[0] + (j+1) * 68, v[1] + (i+1) * 16);
+	glRecti (v[0] + j * WIDTH_CONT, v[1] + i * 16, v[0] + (j+1) * WIDTH_CONT, v[1] + (i+1) * 16);
 	glColor4fv (color);
-	glRecti (v[0] + j * 68, v[1] + i * 16, v[0] + j * 68 + 16, v[1] + i * 16 + 16);
+	glRecti (v[0] + j * WIDTH_CONT, v[1] + i * 16, v[0] + j * WIDTH_CONT + 16, v[1] + i * 16 + 16);
 	glColor3f (0, 0, 0);
-	GLV_Print (v[0] + j * 68 + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%.2e", value);
+	GLV_Print (v[0] + j * WIDTH_CONT + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%.2e", value);
 	if (i ++ == MAP_LEGEND_ROWS) { i = 1; j ++; }
       }
       glPopMatrix ();
@@ -641,13 +651,13 @@ static int skip_constraint (CON *con)
 	 *two = con->slave ? MAP_Find (selection, (void*)con->slave->id, NULL) : NULL;
 
     if ((!(one || two)) ||
-	((!one) && (con->slave && (con->slave->flags & BODY_HIDDEN))) ||
-	((!two) && con->master->flags & BODY_HIDDEN)) return 1;
+	((!one) && (con->slave && (con->slave->flags & (BODY_HIDDEN|BODY_OFF)))) ||
+	((!two) && con->master->flags & (BODY_HIDDEN|BODY_OFF))) return 1;
 
   }
 
-  if ((con->master->flags & BODY_HIDDEN) &&
-      (con->slave == NULL || (con->slave->flags & BODY_HIDDEN))) return 1;
+  if ((con->master->flags & (BODY_HIDDEN|BODY_OFF)) &&
+      (con->slave == NULL || (con->slave->flags & (BODY_HIDDEN|BODY_OFF)))) return 1;
 
   return 0;
 }
@@ -720,7 +730,7 @@ static void volumetric_map_extrema ()
       for (MAP *item = MAP_First (selection); item; item = MAP_Next (item))
       {
 	bod = item->data;
-	if (bod->flags & BODY_HIDDEN) continue;
+	if (bod->flags & (BODY_HIDDEN|BODY_OFF)) continue;
 	volumetric_map_extrema_process_body (bod);
       }
     }
@@ -728,7 +738,7 @@ static void volumetric_map_extrema ()
     {
       for (bod = domain->bod; bod; bod = bod->next)
       {
-	if (bod->flags & BODY_HIDDEN) continue;
+	if (bod->flags & (BODY_HIDDEN|BODY_OFF)) continue;
 	volumetric_map_extrema_process_body (bod);
       }
     }
@@ -854,6 +864,11 @@ static void render_mesh (BODY *bod, SHAPE *shp, MESH *mesh, int flags, GLfloat c
   double (*cur) [3] = mesh->cur_nodes;
   ELEMENT *ele;
   FACE *fac;
+  GLboolean blend;
+
+  glGetBooleanv (GL_BLEND, &blend);
+  if (blend)
+  { SET (outcol, 0.65); }
 
   for (ele = mesh->surfeles; ele; ele = ele->next)
   {
@@ -951,6 +966,11 @@ static void render_convex (BODY *bod, SHAPE *shp, CONVEX *cvx, int flags, GLfloa
 {
   GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
   int n, m, l;
+  GLboolean blend;
+
+  glGetBooleanv (GL_BLEND, &blend);
+  if (blend)
+  { SET (outcol, 0.65); }
 
   /* outline */
   if (flags & OUTLINE)
@@ -994,10 +1014,15 @@ static void render_sphere (BODY *bod, SHAPE *shp, SPHERE *sphere, int flags, GLf
 {
   GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
   double *c = sphere->cur_center;
+  GLboolean blend;
+
+  glGetBooleanv (GL_BLEND, &blend);
+  if (blend)
+  { SET (outcol, 0.65); }
 
   if (flags & OUTLINE)
   {
-    glPointSize (5.0);
+    glPointSize (2.0);
     glColor4fv (outcol);
     glBegin (GL_POINTS);
       glVertex3dv (sphere->cur_points[0]);
@@ -1383,7 +1408,7 @@ static void get_scene_extents (double *extents)
     {
       BODY *bod = item->data;
 
-      if (bod->flags & BODY_HIDDEN) continue;
+      if (bod->flags & (BODY_HIDDEN|BODY_OFF)) continue;
 
       SHAPE_Extents (bod->shape, e);
 
@@ -1399,7 +1424,7 @@ static void get_scene_extents (double *extents)
   {
     for (bod = domain->bod; bod; bod = bod->next)
     {
-      if (bod->flags & BODY_HIDDEN) continue;
+      if (bod->flags & (BODY_HIDDEN|BODY_OFF)) continue;
 
       SHAPE_Extents (bod->shape, e);
 
@@ -1602,15 +1627,17 @@ static void set_skip_steps (char *text)
 /* set up body rendering => return 1 if this body should be skipped or 0 otherwise */
 inline static int render_body_begin (BODY *bod, GLfloat color [4])
 {
-  if (bod == toggle_visible)
+  if (bod->flags & BODY_OFF) return 1;
+  else if (bod == toggle_visible)
   {
-    if (! bod->flags & BODY_HIDDEN)
+    if (!bod->flags & BODY_HIDDEN)
     {
       glEnable (GL_BLEND);
       glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     }
 
-    color [0] = 1.0;
+    if (tool_flag) color [1] = 1.0;
+    else color [0] = 1.0;
   }
   else if (current_tool == TOOLS_TOGGLE_VISIBLE &&
 	   bod->flags & BODY_HIDDEN)
@@ -1632,7 +1659,8 @@ inline static void render_body_end (BODY *bod, GLfloat color [4])
     if (! bod->flags & BODY_HIDDEN)
       glDisable (GL_BLEND);
 
-    color [0] = 0.7;
+    if (tool_flag) color [1] = 0.7;
+    else color [0] = 0.7;
   }
   else if (current_tool == TOOLS_TOGGLE_VISIBLE &&
 	   bod->flags & BODY_HIDDEN) glDisable (GL_BLEND);
@@ -1768,7 +1796,7 @@ static int rgbatoid (unsigned char *rgba)
 }
 
 /* rendering in selection mode */
-static void render_selection ()
+static void render_selection (int skip_flags)
 {
   GLfloat color [4];
 
@@ -1777,6 +1805,8 @@ static void render_selection ()
     for (MAP *item = MAP_First (selection); item; item = MAP_Next (item))
     {
       BODY *bod = item->data;
+
+      if (bod->flags & skip_flags) continue;
 
       glPushName (bod->id);
       idtorgba (bod->id, color);
@@ -1804,6 +1834,8 @@ static void render_selection ()
   {
     for (BODY *bod = domain->bod; bod; bod = bod->next)
     {
+      if (bod->flags & skip_flags) continue;
+
       glPushName (bod->id);
       idtorgba (bod->id, color);
       for (SHAPE *shp = bod->shape; shp; shp = shp->next)
@@ -1852,7 +1884,7 @@ static void select_bodies_3d (int x1, int y1, int x2, int y2)
   GLV_SetProjectionMatrix (viewport [2], viewport [3]);
   glMatrixMode (GL_MODELVIEW);
   glInitNames ();
-  render_selection ();
+  render_selection (BODY_HIDDEN|BODY_OFF);
   glMatrixMode (GL_PROJECTION);
   glPopMatrix ();
   glMatrixMode (GL_MODELVIEW);
@@ -1917,7 +1949,7 @@ static void select_bodies_2d (int x1, int y1, int x2, int y2)
 
   glDisable (GL_LIGHTING);
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  render_selection ();
+  render_selection (BODY_HIDDEN|BODY_OFF);
   glEnable (GL_LIGHTING);
 
   ERRMEM (pix = malloc (m * sizeof (unsigned char [4])));
@@ -1965,7 +1997,7 @@ static BODY* select_body (int x, int y)
 
   glDisable (GL_LIGHTING);
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  render_selection ();
+  render_selection (BODY_OFF);
   glEnable (GL_LIGHTING);
 
   glGetIntegerv (GL_VIEWPORT, viewport);
@@ -2101,9 +2133,20 @@ static void menu_tools (int value)
   case TOOLS_TOGGLE_VISIBLE:
     if (!current_tool) pushoff (tools_off);
     current_tool = value;
+    tool_flag = 0;
     break;
   case TOOLS_CLIPPING_PLANE:
     GLV_Read_Text ("Plane normal nx, ny, nz", read_clipping_normal);
+    break;
+  case TOOLS_SWITCH_OFF:
+    if (!current_tool) pushoff (tools_off);
+    current_tool = TOOLS_TOGGLE_VISIBLE;
+    tool_flag = TOOL_FLAG_SWITCH_OFF;
+    break;
+  case TOOLS_SWITCH_ON_ALL:
+    for (BODY *bod = domain->bod; bod; bod = bod->next)
+      bod->flags &= ~(BODY_HIDDEN|BODY_OFF);
+    GLV_Redraw_All ();
     break;
   }
 }
@@ -2190,6 +2233,8 @@ int RND_Menu (char ***names, int **codes)
   code [2] = tools_menu = glutCreateMenu (menu_tools);
   glutAddMenuEntry ("toggle visible /v/", TOOLS_TOGGLE_VISIBLE);
   glutAddMenuEntry ("clipping plane /c/", TOOLS_CLIPPING_PLANE);
+  glutAddMenuEntry ("switch off /f/", TOOLS_SWITCH_OFF);
+  glutAddMenuEntry ("switch on all /o/", TOOLS_SWITCH_ON_ALL);
 
   name [3] = "kinds of";
   code [3] = kindsof_menu = glutCreateMenu (menu_kinds);
@@ -2397,6 +2442,12 @@ void RND_Key (int key, int x, int y)
   case 'c':
     menu_tools (TOOLS_CLIPPING_PLANE);
     break;
+  case 'f':
+    menu_tools (TOOLS_SWITCH_OFF);
+    break;
+  case 'o':
+    menu_tools (TOOLS_SWITCH_ON_ALL);
+    break;
   case '=':
     if (volumetric_map)
     {
@@ -2485,12 +2536,20 @@ void RND_Mouse (int button, int state, int x, int y)
       {
         if (toggle_visible)
 	{
-	  if (toggle_visible->flags & BODY_HIDDEN)
-	    toggle_visible->flags &= ~BODY_HIDDEN; /* switch to visible */
-	  else toggle_visible->flags |= BODY_HIDDEN; /* hide */
+	  if ((glutGetModifiers () & GLUT_ACTIVE_CTRL)
+	      || tool_flag == TOOL_FLAG_SWITCH_OFF)
+	  {
+	    toggle_visible->flags |= BODY_OFF; /* switch off */
+	  }
+	  else
+	  {
+	    if (toggle_visible->flags & BODY_HIDDEN)
+	      toggle_visible->flags &= ~BODY_HIDDEN; /* switch to visible */
+	    else toggle_visible->flags |= BODY_HIDDEN; /* hide */
 
-	  /* update volumetric map (and its extrema) after toggling state */
-	  if (volumetric_map) volumetric_map_on (volumetric_map_kind);
+	    /* update volumetric map (and its extrema) after toggling state */
+	    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
+	  }
 	}
       }
       break;
