@@ -81,11 +81,11 @@ void SHAPE_Destroy (SHAPE *shp);
 void SHAPE_Destroy_Wrapper (SHAPE *shp);
 
 /* pack shape into double and integer buffers (d and i buffers are of initial
- * dsize and isize, while the final numberof of doubles and integers is packed) */
-void SHAPE_Pack (SHAPE *shp, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers);
+ * dsize and isize, while the final numberof of doubles and ints is packed) */
+void SHAPE_Pack (SHAPE *shp, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 
 /* unpack shape from double and integer buffers (unpacking starts at dpos and ipos in
- * d and i and no more than a specific number of doubles and integers can be red) */
-SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers);
+ * d and i and no more than a specific number of doubles and ints can be red) */
+SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 #endif

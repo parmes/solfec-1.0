@@ -415,7 +415,7 @@ void SPHERE_Destroy (SPHERE *sph)
   }
 }
 
-void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SPHERE *ptr;
   int count, n;
@@ -426,13 +426,13 @@ void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize,
   for (map = NULL, n = 0, ptr = sph; ptr; ptr = ptr->next, n ++)
     MAP_Insert (NULL, &map, ptr, (void*)n, NULL); /* map pointers to table indices */
 
-  pack_int (isize, i, integers, count); /* number of spheres */
+  pack_int (isize, i, ints, count); /* number of spheres */
 
   for (; sph; sph = sph->next)
   {
-    pack_int (isize, i, integers, sph->surface);
-    pack_int (isize, i, integers, sph->nadj);
-    pack_int (isize, i, integers, sph->volume);
+    pack_int (isize, i, ints, sph->surface);
+    pack_int (isize, i, ints, sph->nadj);
+    pack_int (isize, i, ints, sph->volume);
 
     pack_doubles (dsize, d, doubles, sph->cur_center, 3);
     pack_doubles (dsize, d, doubles, (double*)sph->cur_points, 9);
@@ -443,29 +443,29 @@ void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize,
     pack_double  (dsize, d, doubles, sph->ref_radius);
 
     /* rather than adjacency pack indices of neighbours in the output sequence */
-    for (n = 0; n < sph->nadj; n ++) pack_int (isize, i, integers, (int) MAP_Find (map, sph->adj [n], NULL));
+    for (n = 0; n < sph->nadj; n ++) pack_int (isize, i, ints, (int) MAP_Find (map, sph->adj [n], NULL));
 
-    pack_int (isize, i, integers, sph->mat ? 1 : 0); /* pack material existence flag */
-    if (sph->mat) pack_string (isize, i, integers, sph->mat->label);
+    pack_int (isize, i, ints, sph->mat ? 1 : 0); /* pack material existence flag */
+    if (sph->mat) pack_string (isize, i, ints, sph->mat->label);
   }
 
   MAP_Free (NULL, &map);
 }
 
-SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int count, k, surface, nadj, volume, n, j;
   SPHERE *ptr, **tab, *tail = NULL;
   
-  count = unpack_int (ipos, i, integers); /* number of spheres */
+  count = unpack_int (ipos, i, ints); /* number of spheres */
 
   ERRMEM (tab = malloc (count * sizeof (SPHERE*)));
   
   for (k = 0; k < count; k ++) /* unpack spheres */
   {
-    surface = unpack_int (ipos, i, integers);
-    nadj = unpack_int (ipos, i, integers);
-    volume = unpack_int (ipos, i, integers);
+    surface = unpack_int (ipos, i, ints);
+    nadj = unpack_int (ipos, i, ints);
+    volume = unpack_int (ipos, i, ints);
 
     ERRMEM (ptr = malloc (sizeof (SPHERE)));
     ERRMEM (ptr->adj = malloc (nadj * sizeof (SPHERE*)));
@@ -486,16 +486,16 @@ SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 
     for (n = 0; n < nadj; n ++)
     {
-      j = unpack_int (ipos, i, integers);
+      j = unpack_int (ipos, i, ints);
       ptr->adj [ptr->nadj ++] = (SPHERE*) j; /* store index in 'tab' for the moment */
     }
 
-    j = unpack_int (ipos, i, integers); /* unpack material existence flag */
+    j = unpack_int (ipos, i, ints); /* unpack material existence flag */
 
     if (j)
     {
       SOLFEC *sol = solfec;
-      char *label = unpack_string (ipos, i, integers);
+      char *label = unpack_string (ipos, i, ints);
       ASSERT_DEBUG_EXT (ptr->mat = MATSET_Find (sol->mat, label), "Failed to find material when unpacking a sphere");
       free (label);
     }

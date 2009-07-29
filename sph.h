@@ -102,11 +102,11 @@ int SPHERE_Adjacent (SPHERE *one, SPHERE *two);
 void SPHERE_Destroy (SPHERE *sph);
 
 /* pack sphere(s) into double and integer buffers (d and i buffers are of initial
- * dsize and isize, while the final numberof of doubles and integers is packed) */
-void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers);
+ * dsize and isize, while the final numberof of doubles and ints is packed) */
+void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 
 /* unpack sphere(s) from double and integer buffers (unpacking starts at dpos and ipos in
- * d and i and no more than a specific number of doubles and integers can be red) */
-SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers);
+ * d and i and no more than a specific number of doubles and ints can be red) */
+SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 #endif

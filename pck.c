@@ -2,7 +2,7 @@
  * pck.c
  * Copyright (C) 2009, Tomasz Koziara (t.koziara AT gmail.com)
  * --------------------------------------------------------------
- * pack and unpack data into doubles and integers
+ * pack and unpack data into doubles and ints
  */
 
 /* This file is part of Solfec.
@@ -60,7 +60,7 @@
   {\
     type *slot;\
   \
-    ASSERT (((*pos) + count) < stored, ERR_PCK_UNPACK);\
+    ASSERT (((*pos) + count) <= stored, ERR_PCK_UNPACK);\
   \
     for (slot = &array[*pos], (*pos) += count;\
 	 count > 0; count --, slot ++, output ++) *output = *slot;\
@@ -70,7 +70,7 @@
 #define unpack_one(pos, array, stored, output, type)\
   do\
   {\
-    ASSERT (((*pos) + 1) < stored, ERR_PCK_UNPACK);\
+    ASSERT (((*pos) + 1) <= stored, ERR_PCK_UNPACK);\
   \
     output = array[*pos];\
     (*pos) += 1;\
@@ -84,13 +84,13 @@ void pack_doubles (int *dsize, double **d, int *doubles, double *input, int coun
 }
 
 /* pack vector of ints */
-void pack_ints (int *isize, int **i, int *integers, int *input, int count)
+void pack_ints (int *isize, int **i, int *ints, int *input, int count)
 {
-  pack_many (isize, i, integers, input, count, int);
+  pack_many (isize, i, ints, input, count, int);
 }
 
 /* pack string into ints */
-void pack_string (int *isize, int **i, int *integers, char *input)
+void pack_string (int *isize, int **i, int *ints, char *input)
 {
   int len = strlen (input) + 1, /* + '\0' */
       bytlen = len * sizeof (char),
@@ -104,12 +104,12 @@ void pack_string (int *isize, int **i, int *integers, char *input)
 
     strcpy ((char*)buf, input);
 
-    pack_one (isize, i, integers, buflen, int); /* length of the integer packed string */
-    pack_many (isize, i, integers, buf, buflen, int); /* the integer packed string itself */
+    pack_one (isize, i, ints, buflen, int); /* length of the integer packed string */
+    pack_many (isize, i, ints, buf, buflen, int); /* the integer packed string itself */
 
     free (buf);
   }
-  else pack_one (isize, i, integers, 0, int);
+  else pack_one (isize, i, ints, 0, int);
 }
 
 /* pack single double */
@@ -119,9 +119,9 @@ void pack_double (int *dsize, double **d, int *doubles, double input)
 }
 
 /* pack single int */
-void pack_int (int *isize, int **i, int *integers, int input)
+void pack_int (int *isize, int **i, int *ints, int input)
 {
-  pack_one (isize, i, integers, input, int);
+  pack_one (isize, i, ints, input, int);
 }
 
 /* unpack vector of doubles */
@@ -131,23 +131,23 @@ void unpack_doubles (int *dpos, double *d, int doubles, double *output, int coun
 }
 
 /* unpack vector of ints */
-void unpack_ints (int *ipos, int *i, int integers, int *output, int count)
+void unpack_ints (int *ipos, int *i, int ints, int *output, int count)
 {
-  unpack_many (ipos, i, integers, output, count, int);
+  unpack_many (ipos, i, ints, output, count, int);
 }
 
 /* unpack string */
-char* unpack_string (int *ipos, int *i, int integers)
+char* unpack_string (int *ipos, int *i, int ints)
 {
   int len,
      *buf = NULL;
 
-  unpack_one (ipos, i, integers, len, int);
+  unpack_one (ipos, i, ints, len, int);
 
   if (len > 0)
   {
     ERRMEM (buf = malloc (len * sizeof (int)));
-    unpack_many (ipos, i, integers, buf, len, int);
+    unpack_many (ipos, i, ints, buf, len, int);
   }
 
   return (char*)buf;
@@ -164,11 +164,11 @@ double unpack_double (int *dpos, double *d, int doubles)
 }
 
 /* unpack single int */
-int unpack_int (int *ipos, int *i, int integers)
+int unpack_int (int *ipos, int *i, int ints)
 {
   int output;
 
-  unpack_one (ipos, i, integers, output, int);
+  unpack_one (ipos, i, ints, output, int);
 
   return output;
 }

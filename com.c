@@ -69,6 +69,7 @@ void COM (MPI_Comm comm, int tag,
       send_count,
      *send_rank_all,
      *send_count_all,
+     *send_rank_disp,
      *recv_rank,
     (*recv_sizes) [3],
       recv_count,
@@ -143,10 +144,12 @@ void COM (MPI_Comm comm, int tag,
   ERRMEM (recv_rank = malloc (ncpu * sizeof (int)));
 
   /* gather all send ranks */
-  MPI_Allgather (&send_count, 1, MPI_INT, send_count_all, ncpu, MPI_INT, comm);
-  for (l = i = 0; i < ncpu; i ++) l += send_count_all [i];
+  MPI_Allgather (&send_count, 1, MPI_INT, send_count_all, 1, MPI_INT, comm);
+  ERRMEM (send_rank_disp = malloc (ncpu * sizeof (int)));
+  for (send_rank_disp [0] = l = i = 0; i < ncpu; i ++)
+  { l += send_count_all [i]; if (i < ncpu-1) send_rank_disp [i+1] = l; }
   ERRMEM (send_rank_all = malloc (l * sizeof (int)));
-  MPI_Allgather (send_rank, send_count, MPI_INT, send_count_all, l, MPI_INT, comm);
+  MPI_Allgatherv (send_rank, send_count, MPI_INT, send_rank_all, send_count_all, send_rank_disp, MPI_INT, comm);
 
   /* compute receive ranks */
   for (recv_count = k = j = i = 0; i < l; i += send_count_all [k], k ++)
@@ -240,8 +243,8 @@ void COM (MPI_Comm comm, int tag,
 
 /* communicate objects */
 void COMOBJS (MPI_Comm comm, int tag,
-              OBJ_Sizes sizes,
 	      OBJ_Pack pack,
+	      void *data,
 	      OBJ_Unpack unpack,
               COMOBJ *send, int nsend,
 	      COMOBJ **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
@@ -250,7 +253,6 @@ void COMOBJS (MPI_Comm comm, int tag,
 	  *recv_data,
 	  *cd;
   int recv_count,
-      j [2], k [2],
       i, n;
   COMOBJ *co;
 
@@ -259,11 +261,16 @@ void COMOBJS (MPI_Comm comm, int tag,
   /* pack objects */
   for (i = 0, cd = send_data, co = send; i < nsend; i ++, cd ++, co ++)
   {
+    int isize = 0,
+	dsize = 0;
+
     cd->rank = co->rank;
-    sizes (co->o, &cd->ints, &cd->doubles);
-    ERRMEM (cd->i = malloc (cd->ints * sizeof (int)));
-    ERRMEM (cd->d = malloc (cd->doubles * sizeof (double)));
-    pack (co->o, cd->i, cd->d);
+    cd->ints = 0;
+    cd->doubles = 0;
+    cd->i = NULL;
+    cd->d = NULL;
+
+    pack (co->o, &dsize, &cd->d, &cd->doubles, &isize, &cd->i, &cd->ints);
   }
 
   /* send and receive packed data */
@@ -275,8 +282,9 @@ void COMOBJS (MPI_Comm comm, int tag,
   /* unpack received objects */
   for (n = i = 0, cd = recv_data, co = *recv; i < recv_count; i ++)
   {
-    j [0] = j [1] =
-    k [0] = k [1] = 0;
+    int ipos = 0,
+	dpos = 0;
+
     do
     {
       if (n == *nrecv)
@@ -287,15 +295,12 @@ void COMOBJS (MPI_Comm comm, int tag,
       }
 
       co->rank = cd->rank;
-      co->o = unpack (cd->i + j[0], cd->d + k[0]);
+      co->o = unpack (data, &dpos, cd->d, cd->doubles, &ipos, cd->i, cd->ints);
 
-      sizes (co->o, j+1, k+1);
-      j [0] += j [1];
-      k [0] += k [1];
       co ++;
       n ++;
 
-    } while (j[0] < cd->ints || k[0] < cd->doubles); /* while something is left to unpack */
+    } while (ipos < cd->ints || dpos < cd->doubles); /* while something is left to unpack */
   }
 
   /* truncate output */
@@ -324,6 +329,7 @@ void* COM_Pattern (MPI_Comm comm, int tag,
       ncpu,
      *send_rank_all,
      *send_count_all,
+     *send_rank_disp,
       i, j, k, l;
   void *p;
 
@@ -380,10 +386,12 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   ERRMEM (pattern->recv_rank = malloc (ncpu * sizeof (int)));
 
   /* gather all send ranks */
-  MPI_Allgather (&pattern->send_count, 1, MPI_INT, send_count_all, ncpu, MPI_INT, comm);
-  for (l = i = 0; i < ncpu; i ++) l += send_count_all [i];
+  MPI_Allgather (&pattern->send_count, 1, MPI_INT, send_count_all, 1, MPI_INT, comm);
+  ERRMEM (send_rank_disp = malloc (ncpu * sizeof (int)));
+  for (send_rank_disp [0] = l = i = 0; i < ncpu; i ++)
+  { l += send_count_all [i]; if (i < ncpu-1) send_rank_disp [i+1] = l; }
   ERRMEM (send_rank_all = malloc (l * sizeof (int)));
-  MPI_Allgather (pattern->send_rank, pattern->send_count, MPI_INT, send_count_all, l, MPI_INT, comm);
+  MPI_Allgatherv (pattern->send_rank, pattern->send_count, MPI_INT, send_rank_all, send_count_all, send_rank_disp, MPI_INT, comm);
 
   /* compute receive ranks */
   for (pattern->recv_count = k = j = i = 0; i < l; i += send_count_all [k], k ++)

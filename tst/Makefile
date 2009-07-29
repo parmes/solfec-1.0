@@ -44,7 +44,7 @@ del:
 clean:
 	rm -f core *.o
 	rm -f *out
-	rm -f $(TGT)
+	rm -f $(TGT) $(TGTMPI)
 	rm -fr *dSYM
 
 ../obj/libdebris.a:

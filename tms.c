@@ -276,22 +276,22 @@ void TMS_Destroy (TMS *ts)
   }
 }
 
-void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_double (dsize, d, doubles, ts->value);
-  pack_int (isize, i, integers, ts->marker);
-  pack_int (isize, i, integers, ts->size);
+  pack_int (isize, i, ints, ts->marker);
+  pack_int (isize, i, ints, ts->size);
   pack_doubles (dsize, d, doubles, (double*)ts->points, ts->size * 2);
 }
 
-TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   TMS *ts;
 
   ERRMEM (ts = malloc (sizeof (TMS)));
   ts->value = unpack_double (dpos, d, doubles);
-  ts->marker = unpack_int (ipos, i, integers);
-  ts->size = unpack_int (ipos, i, integers);
+  ts->marker = unpack_int (ipos, i, ints);
+  ts->size = unpack_int (ipos, i, ints);
   ERRMEM (ts->points = malloc (sizeof (double [2]) * ts->size));
   unpack_doubles (dpos, d, doubles, (double*)ts->points, ts->size * 2);
 

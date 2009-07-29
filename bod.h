@@ -211,11 +211,11 @@ void BODY_Read_State (BODY *bod, PBF *bf);
 void BODY_Destroy (BODY *bod);
 
 /* pack body into double and integer buffers (d and i buffers are of initial
- * dsize and isize, while the final numberof of doubles and integers is packed) */
-void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers);
+ * dsize and isize, while the final numberof of doubles and ints is packed) */
+void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 
 /* unpack body from double and integer buffers (unpacking starts at dpos and ipos in
- * d and i and no more than a specific number of doubles and integers can be red) */
-BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers);
+ * d and i and no more than a specific number of doubles and ints can be red) */
+BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 #endif

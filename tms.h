@@ -63,11 +63,11 @@ void TMS_Output (TMS *ts, char *path, double step);
 void TMS_Destroy (TMS *ts);
 
 /* pack time series into double and integer buffers (d and i buffers are of initial
- * dsize and isize, while the final numberof of doubles and integers is packed) */
-void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers);
+ * dsize and isize, while the final numberof of doubles and ints is packed) */
+void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 
 /* unpack time series from double and integer buffers (unpacking starts at dpos and ipos in
- * d and i and no more than a specific number of doubles and integers can be red) */
-TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int integers);
+ * d and i and no more than a specific number of doubles and ints can be red) */
+TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 #endif

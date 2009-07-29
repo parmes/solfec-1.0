@@ -38,15 +38,14 @@ PYTHONLIB = -L/usr/lib -lpython2.5
 #
 
 OPENGL = yes
+
 GLINC =
 GLLIB = -framework GLUT -framework OpenGL
 
 #
-# PARALLEL (yes/no)
+# MPI (yes/no)
 #
 
-PARALLEL = no
-ZOLTANINC =
-ZOLTANLIB =
-HDF5INC =
-HDF5LIB =
+MPI = yes
+ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
+ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan

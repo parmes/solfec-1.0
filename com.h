@@ -26,9 +26,8 @@
 
 typedef struct comdata COMDATA; /* ints and doubles */
 typedef struct comobj COMOBJ; /* objects */
-typedef void  (*OBJ_Sizes)  (void *obj, int *ints, int *doubles); /* number of ints and doubles in an object */
-typedef void  (*OBJ_Pack)   (void *obj, int *i, double *d); /* pack an object */
-typedef void* (*OBJ_Unpack) (int *i, double *d); /* unpack an object */
+typedef void  (*OBJ_Pack)   (void *obj, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints); /* pack an object */
+typedef void* (*OBJ_Unpack) (void *data, int *dpos, double *d, int doubles, int *ipos, int *i, int ints); /* unpack an object */
 
 struct comdata
 {
@@ -55,8 +54,8 @@ void COM (MPI_Comm comm, int tag,
 
 /* communicate objects */
 void COMOBJS (MPI_Comm comm, int tag,
-              OBJ_Sizes sizes,
 	      OBJ_Pack pack,
+	      void *data,
 	      OBJ_Unpack unpack,
               COMOBJ *send, int nsend,
 	      COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */

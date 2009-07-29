@@ -148,11 +148,11 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k);
 CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele);
 
 /* pack mesh into double and integer buffers (d and i buffers are of initial
- * dsize and isize, while the final numberof of doubles and integers is packed) */
-void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers);
+ * dsize and isize, while the final numberof of doubles and ints is packed) */
+void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 
 /* unpack mesh from double and integer buffers (unpacking starts at dpos and ipos in
- * d and i and no more than a specific number of doubles and integers can be red) */
-MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers);
+ * d and i and no more than a specific number of doubles and ints can be red) */
+MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 #endif

@@ -106,11 +106,11 @@ int CONVEX_Adjacent (CONVEX *one, CONVEX *two);
 void CONVEX_Destroy (CONVEX *cvx);
 
 /* pack convex(es) into double and integer buffers (d and i buffers are of initial
- * dsize and isize, while the final numberof of doubles and integers is packed) */
-void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers);
+ * dsize and isize, while the final numberof of doubles and ints is packed) */
+void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 
 /* unpack convex(es) from double and integer buffers (unpacking starts at dpos and ipos
- * in d and i and no more than a specific number of doubles and integers can be red) */
-CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers);
+ * in d and i and no more than a specific number of doubles and ints can be red) */
+CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 #endif

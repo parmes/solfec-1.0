@@ -42,11 +42,9 @@ GLINC = -I/usr/include
 GLLIB = -L/usr/lib -lglut
 
 #
-# PARALLEL (yes/no)
+# MPI (yes/no)
 #
 
-PARALLEL = no
+MPI = no
 ZOLTANINC =
 ZOLTANLIB =
-HDF5INC =
-HDF5LIB =

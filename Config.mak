@@ -47,5 +47,5 @@ GLLIB = -framework GLUT -framework OpenGL
 #
 
 MPI = yes
-ZOLTANINC =
-ZOLTANLIB =
+ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
+ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan

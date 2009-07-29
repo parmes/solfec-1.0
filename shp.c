@@ -285,35 +285,35 @@ void SHAPE_Destroy_Wrapper (SHAPE *shp)
 }
 
 /* pack shape */
-void SHAPE_Pack (SHAPE *shp, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+void SHAPE_Pack (SHAPE *shp, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SHAPE *ptr;
   int count;
 
   for (count = 0, ptr = shp; ptr; ptr = ptr->next) count ++;
 
-  pack_int (isize, i, integers, count);
+  pack_int (isize, i, ints, count);
 
   for (ptr = shp; ptr; ptr = ptr->next)
   {
-    pack_int (isize, i, integers, ptr->kind);
-    pack [ptr->kind] (ptr->data, dsize, d, doubles, isize, i, integers);
+    pack_int (isize, i, ints, ptr->kind);
+    pack [ptr->kind] (ptr->data, dsize, d, doubles, isize, i, ints);
   }
 }
 
 /* unpack shape */
-SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int count;
   SHAPE *shp = NULL,
 	*ptr;
 
-  count = unpack_int (ipos, i, integers);
+  count = unpack_int (ipos, i, ints);
 
   for (; count > 0; count --)
   {
-    ptr = SHAPE_Create (unpack_int (ipos, i, integers),
-                        unpack [ptr->kind] (solfec, dpos, d, doubles, ipos, i, integers));
+    ptr = SHAPE_Create (unpack_int (ipos, i, ints),
+                        unpack [ptr->kind] (solfec, dpos, d, doubles, ipos, i, ints));
     ptr->next = shp;
     shp = ptr;
   }

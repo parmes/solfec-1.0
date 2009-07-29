@@ -84,7 +84,7 @@ inline static void swap (int *a, int *b)
   int c = *a; *a = *b; *b = c;
 }
 
-/* quick sort of integers */
+/* quick sort of ints */
 static void sort (int* begin, int* end)
 {
   int *lower = begin, *upper = end,
@@ -1212,59 +1212,59 @@ CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele)
 }
 
 /* pack face */
-static void face_pack (FACE *fac, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+static void face_pack (FACE *fac, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_doubles (dsize, d, doubles, fac->normal, 3);
-  pack_int (isize, i, integers, fac->type);
-  pack_ints (isize, i, integers, fac->nodes, fac->type);
-  pack_int (isize, i, integers, fac->index);
-  pack_int (isize, i, integers, fac->surface);
+  pack_int (isize, i, ints, fac->type);
+  pack_ints (isize, i, ints, fac->nodes, fac->type);
+  pack_int (isize, i, ints, fac->index);
+  pack_int (isize, i, ints, fac->surface);
 }
 
 /* unpack face */
-static FACE* face_unpack (MESH *msh, int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+static FACE* face_unpack (MESH *msh, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   FACE *fac;
 
   ERRMEM (fac = MEM_Alloc (&msh->facmem));
 
   unpack_doubles (dpos, d, doubles, fac->normal, 3);
-  fac->type = unpack_int (ipos, i, integers);
-  unpack_ints (ipos, i, integers, fac->nodes, fac->type);
-  fac->index = unpack_int (ipos, i, integers);
-  fac->surface = unpack_int (ipos, i, integers);
+  fac->type = unpack_int (ipos, i, ints);
+  unpack_ints (ipos, i, ints, fac->nodes, fac->type);
+  fac->index = unpack_int (ipos, i, ints);
+  fac->surface = unpack_int (ipos, i, ints);
 
   return fac;
 }
 
 /* pack element */
-static void element_pack (ELEMENT *ele, MAP *map, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+static void element_pack (ELEMENT *ele, MAP *map, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   FACE *fac;
   int n;
 
-  pack_int (isize, i, integers, ele->type);
-  pack_int (isize, i, integers, ele->neighs);
-  pack_int (isize, i, integers, ele->volume);
+  pack_int (isize, i, ints, ele->type);
+  pack_int (isize, i, ints, ele->neighs);
+  pack_int (isize, i, ints, ele->volume);
 
-  pack_ints (isize, i, integers, ele->nodes, ele->type);
+  pack_ints (isize, i, ints, ele->nodes, ele->type);
 
   /* rather than adjacency pack indices of neighbours in the output sequence */
-  for (n = 0; n < ele->neighs; n ++) pack_int (isize, i, integers, (int) MAP_Find (map, ele->adj [n], NULL));
+  for (n = 0; n < ele->neighs; n ++) pack_int (isize, i, ints, (int) MAP_Find (map, ele->adj [n], NULL));
 
-  pack_int (isize, i, integers, ele->mat ? 1 : 0); /* pack material existence flag */
-  if (ele->mat) pack_string (isize, i, integers, ele->mat->label);
+  pack_int (isize, i, ints, ele->mat ? 1 : 0); /* pack material existence flag */
+  if (ele->mat) pack_string (isize, i, ints, ele->mat->label);
 
   for (n = 0, fac = ele->faces; fac; fac = fac->next) n ++; /* faces count */
 
-  pack_int (isize, i, integers, n);
+  pack_int (isize, i, ints, n);
 
   for (fac = ele->faces; fac; fac = fac->next)
-    face_pack (fac, dsize, d, doubles, isize, i, integers);
+    face_pack (fac, dsize, d, doubles, isize, i, ints);
 }
 
 /* unpack element */
-static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   ELEMENT *ele;
   FACE *fac;
@@ -1272,29 +1272,29 @@ static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, i
 
   ERRMEM (ele = MEM_Alloc (&msh->elemem));
 
-  ele->type = unpack_int (ipos, i, integers);
-  ele->neighs = unpack_int (ipos, i, integers);
-  ele->volume = unpack_int (ipos, i, integers);
+  ele->type = unpack_int (ipos, i, ints);
+  ele->neighs = unpack_int (ipos, i, ints);
+  ele->volume = unpack_int (ipos, i, ints);
 
-  unpack_ints (ipos, i, integers, ele->nodes, ele->type);
+  unpack_ints (ipos, i, ints, ele->nodes, ele->type);
 
-  for (n = 0; n < ele->neighs; n ++) ele->adj [n] = (ELEMENT*)unpack_int (ipos, i, integers);
+  for (n = 0; n < ele->neighs; n ++) ele->adj [n] = (ELEMENT*)unpack_int (ipos, i, ints);
 
-  j = unpack_int (ipos, i, integers); /* unpack material existence flag */
+  j = unpack_int (ipos, i, ints); /* unpack material existence flag */
 
   if (j)
   {
     SOLFEC *sol = solfec;
-    char *label = unpack_string (ipos, i, integers);
+    char *label = unpack_string (ipos, i, ints);
     ASSERT_DEBUG_EXT (ele->mat = MATSET_Find (sol->mat, label), "Failed to find material when unpacking an element");
     free (label);
   }
 
-  n = unpack_int (ipos, i, integers); /* faces count */
+  n = unpack_int (ipos, i, ints); /* faces count */
 
   for (ele->faces = NULL, j = 0; j < n; j ++)
   {
-    fac = face_unpack (msh, dpos, d, doubles, ipos, i, integers);
+    fac = face_unpack (msh, dpos, d, doubles, ipos, i, ints);
     fac->ele = ele;
     fac->next = ele->faces;
     ele->faces = fac;
@@ -1304,16 +1304,16 @@ static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, i
 }
 
 /* pack mesh */
-void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   ELEMENT *ele;
   MEM mem;
   MAP *map;
   int n;
 
-  pack_int (isize, i, integers, msh->nodes_count);
-  pack_int (isize, i, integers, msh->bulkeles_count);
-  pack_int (isize, i, integers, msh->surfeles_count);
+  pack_int (isize, i, ints, msh->nodes_count);
+  pack_int (isize, i, ints, msh->bulkeles_count);
+  pack_int (isize, i, ints, msh->surfeles_count);
 
   pack_doubles (dsize, d, doubles, (double*)msh->cur_nodes, msh->nodes_count * 3);
   pack_doubles (dsize, d, doubles, (double*)msh->ref_nodes, msh->nodes_count * 3);
@@ -1327,16 +1327,16 @@ void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int
     MAP_Insert (&mem, &map, ele, (void*)n, NULL);
 
   for (ele = msh->bulkeles; ele; ele = ele->next)
-    element_pack (ele, map, dsize, d, doubles, isize, i, integers);
+    element_pack (ele, map, dsize, d, doubles, isize, i, ints);
 
   for (ele = msh->surfeles; ele; ele = ele->next)
-    element_pack (ele, map, dsize, d, doubles, isize, i, integers);
+    element_pack (ele, map, dsize, d, doubles, isize, i, ints);
 
   MEM_Release (&mem);
 }
 
 /* unpack mesh */
-MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   ELEMENT *ele, **tab;
   int n, m, k;
@@ -1344,9 +1344,9 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   ERRMEM (msh = malloc (sizeof (MESH)));
 
-  msh->nodes_count = unpack_int (ipos, i, integers);
-  msh->bulkeles_count = unpack_int (ipos, i, integers);
-  msh->surfeles_count = unpack_int (ipos, i, integers);
+  msh->nodes_count = unpack_int (ipos, i, ints);
+  msh->bulkeles_count = unpack_int (ipos, i, ints);
+  msh->surfeles_count = unpack_int (ipos, i, ints);
 
   m = msh->bulkeles_count + msh->surfeles_count;
 
@@ -1363,7 +1363,7 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   for (msh->bulkeles = NULL, n = m = 0; n < msh->bulkeles_count; n ++, m ++)
   {
-    ele = element_unpack (msh, solfec, dpos, d, doubles, ipos, i, integers);
+    ele = element_unpack (msh, solfec, dpos, d, doubles, ipos, i, ints);
     ele->next = msh->bulkeles;
     if (msh->bulkeles)
       msh->bulkeles->prev = ele;
@@ -1373,7 +1373,7 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   for (msh->surfeles = NULL, n = 0; n < msh->surfeles_count; n ++, m ++)
   {
-    ele = element_unpack (msh, solfec, dpos, d, doubles, ipos, i, integers);
+    ele = element_unpack (msh, solfec, dpos, d, doubles, ipos, i, ints);
     ele->next = msh->surfeles;
     if (msh->surfeles)
       msh->surfeles->prev = ele;

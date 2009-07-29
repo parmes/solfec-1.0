@@ -802,7 +802,7 @@ void CONVEX_Destroy (CONVEX *cvx)
   }
 }
 
-void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   CONVEX *ptr;
   int count, n;
@@ -813,49 +813,49 @@ void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize,
   for (map = NULL, n = 0, ptr = cvx; ptr; ptr = ptr->next, n ++)
     MAP_Insert (NULL, &map, ptr, (void*)n, NULL); /* map pointers to table indices */
 
-  pack_int (isize, i, integers, count); /* number of convices */
+  pack_int (isize, i, ints, count); /* number of convices */
 
   for (; cvx; cvx = cvx->next)
   {
-    pack_int (isize, i, integers, cvx->nver);
-    pack_int (isize, i, integers, cvx->nfac);
-    pack_int (isize, i, integers, cvx->nadj);
-    pack_int (isize, i, integers, cvx->volume);
-    pack_int (isize, i, integers, (n = facsize (cvx)));
+    pack_int (isize, i, ints, cvx->nver);
+    pack_int (isize, i, ints, cvx->nfac);
+    pack_int (isize, i, ints, cvx->nadj);
+    pack_int (isize, i, ints, cvx->volume);
+    pack_int (isize, i, ints, (n = facsize (cvx)));
 
-    pack_ints (isize, i, integers, cvx->fac, n);
-    pack_ints (isize, i, integers, cvx->surface, cvx->nfac);
+    pack_ints (isize, i, ints, cvx->fac, n);
+    pack_ints (isize, i, ints, cvx->surface, cvx->nfac);
 
     pack_doubles (dsize, d, doubles, cvx->pla, cvx->nfac * 4);
     pack_doubles (dsize, d, doubles, cvx->cur, cvx->nver * 3);
     pack_doubles (dsize, d, doubles, cvx->ref, cvx->nver * 3);
 
     /* rather than adjacency pack indices of neighbours in the output sequence */
-    for (n = 0; n < cvx->nadj; n ++) pack_int (isize, i, integers, (int) MAP_Find (map, cvx->adj [n], NULL));
+    for (n = 0; n < cvx->nadj; n ++) pack_int (isize, i, ints, (int) MAP_Find (map, cvx->adj [n], NULL));
 
-    pack_int (isize, i, integers, cvx->mat ? 1 : 0); /* pack material existence flag */
-    if (cvx->mat) pack_string (isize, i, integers, cvx->mat->label);
+    pack_int (isize, i, ints, cvx->mat ? 1 : 0); /* pack material existence flag */
+    if (cvx->mat) pack_string (isize, i, ints, cvx->mat->label);
   }
 
   MAP_Free (NULL, &map);
 }
 
-CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int count, k, nver, nfac, nadj, volume, facsi, size, n, j;
   CONVEX *ptr, **tab, *tail = NULL;
   
-  count = unpack_int (ipos, i, integers); /* number of convices */
+  count = unpack_int (ipos, i, ints); /* number of convices */
 
   ERRMEM (tab = malloc (count * sizeof (CONVEX*)));
   
   for (k = 0; k < count; k ++) /* unpack convices */
   {
-    nver = unpack_int (ipos, i, integers);
-    nfac = unpack_int (ipos, i, integers);
-    nadj = unpack_int (ipos, i, integers);
-    volume = unpack_int (ipos, i, integers);
-    facsi = unpack_int (ipos, i, integers);
+    nver = unpack_int (ipos, i, ints);
+    nfac = unpack_int (ipos, i, ints);
+    nadj = unpack_int (ipos, i, ints);
+    volume = unpack_int (ipos, i, ints);
+    facsi = unpack_int (ipos, i, ints);
 
     size = nver * sizeof (double [6]) +
            nfac * (sizeof (int) + sizeof (double [4])) +
@@ -877,8 +877,8 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
     tail = ptr;
     tab [k] = ptr;
 
-    unpack_ints (ipos, i, integers, ptr->fac, facsi);
-    unpack_ints (ipos, i, integers, ptr->surface, nfac);
+    unpack_ints (ipos, i, ints, ptr->fac, facsi);
+    unpack_ints (ipos, i, ints, ptr->surface, nfac);
 
     unpack_doubles (dpos, d, doubles, ptr->pla, nfac * 4);
     unpack_doubles (dpos, d, doubles, ptr->cur, nver * 3);
@@ -886,16 +886,16 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 
     for (n = 0; n < nadj; n ++)
     {
-      j = unpack_int (ipos, i, integers);
+      j = unpack_int (ipos, i, ints);
       ptr->adj [ptr->nadj ++] = (CONVEX*) j; /* store index in 'tab' for the moment */
     }
 
-    j = unpack_int (ipos, i, integers); /* unpack material existence flag */
+    j = unpack_int (ipos, i, ints); /* unpack material existence flag */
 
     if (j)
     {
       SOLFEC *sol = solfec;
-      char *label = unpack_string (ipos, i, integers);
+      char *label = unpack_string (ipos, i, ints);
       ASSERT_DEBUG_EXT (ptr->mat = MATSET_Find (sol->mat, label), "Failed to find material when unpacking a convex");
       free (label);
     }

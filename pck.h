@@ -2,7 +2,7 @@
  * pck.h
  * Copyright (C) 2009, Tomasz Koziara (t.koziara AT gmail.com)
  * --------------------------------------------------------------
- * pack and unpack data into doubles and integers
+ * pack and unpack data into doubles and ints
  */
 
 /* This file is part of Solfec.
@@ -26,30 +26,30 @@
 void pack_doubles (int *dsize, double **d, int *doubles, double *input, int count);
 
 /* pack vector of ints */
-void pack_ints (int *isize, int **i, int *integers, int *input, int count);
+void pack_ints (int *isize, int **i, int *ints, int *input, int count);
 
 /* pack string into ints */
-void pack_string (int *isize, int **i, int *integers, char *input);
+void pack_string (int *isize, int **i, int *ints, char *input);
 
 /* pack single double */
 void pack_double (int *dsize, double **d, int *doubles, double input);
 
 /* pack single int */
-void pack_int (int *isize, int **i, int *integers, int input);
+void pack_int (int *isize, int **i, int *ints, int input);
 
 /* unpack vector of doubles */
 void unpack_doubles (int *dpos, double *d, int doubles, double *output, int count);
 
 /* unpack vector of ints */
-void unpack_ints (int *ipos, int *i, int integers, int *output, int count);
+void unpack_ints (int *ipos, int *i, int ints, int *output, int count);
 
 /* unpack string */
-char* unpack_string (int *ipos, int *i, int integers);
+char* unpack_string (int *ipos, int *i, int ints);
 
 /* unpack single double */
 double unpack_double (int *dpos, double *d, int doubles);
 
 /* unpack single int */
-int unpack_int (int *ipos, int *i, int integers);
+int unpack_int (int *ipos, int *i, int ints);
 
 #endif

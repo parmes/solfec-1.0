@@ -945,7 +945,7 @@ void DOM_Write_State (DOM *dom, PBF *bf)
   int dsize = 0, doubles;
   double *d = NULL;
 
-  int isize = 0, integers, *i = NULL;
+  int isize = 0, ints, *i = NULL;
 
   PBF_Label (bf, "NEWBODS");
 
@@ -955,15 +955,15 @@ void DOM_Write_State (DOM *dom, PBF *bf)
 
   for (item = SET_First (dom->newb); item; item = SET_Next (item))
   {
-    doubles = integers = 0;
+    doubles = ints = 0;
 
-    BODY_Pack (item->data, &dsize, &d, &doubles, &isize, &i, &integers);
+    BODY_Pack (item->data, &dsize, &d, &doubles, &isize, &i, &ints);
 
     PBF_Int (bf, &doubles, 1);
     PBF_Double (bf, d, doubles);
 
-    PBF_Int (bf, &integers, 1);
-    PBF_Int (bf, i, integers);
+    PBF_Int (bf, &ints, 1);
+    PBF_Int (bf, i, ints);
   }
 
   free (d);
@@ -1046,7 +1046,7 @@ void DOM_Read_State (DOM *dom, PBF *bf)
     int dpos, doubles;
     double *d = NULL;
 
-    int ipos, integers, *i = NULL;
+    int ipos, ints, *i = NULL;
 
     ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
 
@@ -1060,13 +1060,13 @@ void DOM_Read_State (DOM *dom, PBF *bf)
       ERRMEM (d  = realloc (d, doubles * sizeof (double)));
       PBF_Double (bf, d, doubles);
 
-      PBF_Int (bf, &integers, 1);
-      ERRMEM (i  = realloc (i, integers * sizeof (int)));
-      PBF_Int (bf, i, integers);
+      PBF_Int (bf, &ints, 1);
+      ERRMEM (i  = realloc (i, ints * sizeof (int)));
+      PBF_Int (bf, i, ints);
 
       dpos = ipos = 0;
 
-      bod = BODY_Unpack (dom->owner, &dpos, d, doubles, &ipos, i, integers);
+      bod = BODY_Unpack (dom->owner, &dpos, d, doubles, &ipos, i, ints);
 
       if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
       MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);

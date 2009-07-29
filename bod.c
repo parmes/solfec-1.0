@@ -1554,63 +1554,63 @@ void BODY_Destroy (BODY *bod)
 }
 
 /* pack force list */
-static void pack_forces (FORCE *forces, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+static void pack_forces (FORCE *forces, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   FORCE *frc;
   int count, id;
 
   for (count = 0, frc = forces; frc; frc = frc->next) count ++;
 
-  pack_int (isize, i, integers, count);
+  pack_int (isize, i, ints, count);
 
   for (frc = forces; frc; frc = frc->next)
   {
-    pack_int (isize, i, integers, frc->kind);
+    pack_int (isize, i, ints, frc->kind);
     pack_doubles (dsize, d, doubles, frc->ref_point, 3);
     pack_doubles (dsize, d, doubles, frc->direction, 3);
 
     if (frc->func)
     {
-      pack_int (isize, i, integers, 1);
+      pack_int (isize, i, ints, 1);
       ASSERT_DEBUG_EXT (id = lngcallback_id (frc->data, frc->call), "Invalid callback pair");
-      pack_int (isize, i, integers, id);
+      pack_int (isize, i, ints, id);
     }
     else
     {
-      pack_int (isize, i, integers, 0);
-      TMS_Pack (frc->data, dsize, d, doubles, isize, i, integers);
+      pack_int (isize, i, ints, 0);
+      TMS_Pack (frc->data, dsize, d, doubles, isize, i, ints);
     }
   }
 }
 
 /* unpack force list */
-static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   FORCE *forces, *frc;
   int count, id, n, func;
 
   forces = NULL;
 
-  count = unpack_int (ipos, i, integers);
+  count = unpack_int (ipos, i, ints);
 
   for (n = 0; n < count; n ++)
   {
     ERRMEM (frc = malloc (sizeof (FORCE)));
 
-    frc->kind = unpack_int (ipos, i, integers);
+    frc->kind = unpack_int (ipos, i, ints);
     unpack_doubles (dpos, d, doubles, frc->ref_point, 3);
     unpack_doubles (dpos, d, doubles, frc->direction, 3);
 
-    func = unpack_int (ipos, i, integers);
+    func = unpack_int (ipos, i, ints);
 
     if (func)
     {
-      id = unpack_int (ipos, i, integers);
+      id = unpack_int (ipos, i, ints);
       ASSERT_DEBUG_EXT (lngcallback_set (id, (void**)&frc->data, &frc->call), "Invalid callback id");
     }
     else
     {
-      frc->data = TMS_Unpack (dpos, d, doubles, ipos, i, integers);
+      frc->data = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
     }
 
     frc->next = forces;
@@ -1621,13 +1621,13 @@ static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *
 }
 
 /* pack body */
-void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *integers)
+void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   /* these are arguments of BODY_Create */
-  pack_int (isize, i, integers, bod->kind);
-  SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, integers);
-  pack_string (isize, i, integers, bod->mat->label);
-  pack_string (isize, i, integers, bod->label);
+  pack_int (isize, i, ints, bod->kind);
+  SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
+  pack_string (isize, i, ints, bod->mat->label);
+  pack_string (isize, i, ints, bod->label);
 
   /* characteristics will be overwritten when unpacking */
   pack_double (dsize, d, doubles, bod->ref_mass);
@@ -1636,29 +1636,29 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
   pack_doubles (dsize, d, doubles, bod->ref_tensor, 9);
 
   /* body id and the velocity size */
-  pack_int (isize, i, integers, bod->id);
-  pack_int (isize, i, integers, bod->dofs);
+  pack_int (isize, i, ints, bod->id);
+  pack_int (isize, i, ints, bod->dofs);
 
   /* configuration and velocity */
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
 
   /* constraints: pack their integer ids */
-  pack_int (isize, i, integers, SET_Size (bod->con));
+  pack_int (isize, i, ints, SET_Size (bod->con));
   for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-    pack_int (isize, i, integers, ((CON*)item->data)->id);
+    pack_int (isize, i, ints, ((CON*)item->data)->id);
 
   /* pack the list of forces */
-  pack_forces (bod->forces, dsize, d, doubles, isize, i, integers);
+  pack_forces (bod->forces, dsize, d, doubles, isize, i, ints);
 
   /* pack extents, scheme and flags */
   pack_doubles (dsize, d, doubles, bod->extents, 6);
-  pack_int (isize, i, integers, bod->scheme);
-  pack_int (isize, i, integers, bod->flags);
+  pack_int (isize, i, ints, bod->scheme);
+  pack_int (isize, i, ints, bod->flags);
 }
 
 /* unpack body */
-BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int integers)
+BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *bod;
   int kind;
@@ -1671,12 +1671,12 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   /* unpack BODY_Create arguments and create body */
   sol = solfec;
-  kind = unpack_int (ipos, i, integers);
-  shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, integers);
-  label = unpack_string (ipos, i, integers);
+  kind = unpack_int (ipos, i, ints);
+  shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
+  label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
-  label = unpack_string (ipos, i, integers);
+  label = unpack_string (ipos, i, ints);
   bod = BODY_Create (kind, shp, mat, label);
   free (label);
 
@@ -1687,8 +1687,8 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   unpack_doubles (dpos, d, doubles, bod->ref_tensor, 9);
 
   /* body id and the velocity size */
-  bod->id = unpack_int (ipos, i, integers);
-  bod->dofs = unpack_int (ipos, i, integers);
+  bod->id = unpack_int (ipos, i, ints);
+  bod->dofs = unpack_int (ipos, i, ints);
 
   /* configuration and velocity */
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
@@ -1696,23 +1696,23 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   /* unpack constraints */
   dom = sol->dom;
-  ncon = unpack_int (ipos, i, integers);
+  ncon = unpack_int (ipos, i, ints);
   for (n = 0; n < ncon; n ++)
   {
     CON *con;
 
-    id = unpack_int (ipos, i, integers);
+    id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)id, NULL), "Invalid constraint id");
     SET_Insert (&dom->setmem, &bod->con, con, NULL);
   }
 
   /* unpack the list of forces */
-  bod->forces = unpack_forces (dpos, d, doubles, ipos, i, integers);
+  bod->forces = unpack_forces (dpos, d, doubles, ipos, i, ints);
 
   /* unpack extents, scheme and flags */
   unpack_doubles (dpos, d, doubles, bod->extents, 6);
-  bod->scheme = unpack_int (ipos, i, integers);
-  bod->flags = unpack_int (ipos, i, integers);
+  bod->scheme = unpack_int (ipos, i, ints);
+  bod->flags = unpack_int (ipos, i, ints);
 
   return bod;
 }
