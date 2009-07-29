@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if MPI
+#include <zoltan.h>
+#endif
+
 #include "mem.h"
 #include "map.h"
 #include "box.h"
@@ -51,7 +55,7 @@ struct constraint
 
   double Z [Z_SIZE]; /* auxiliary storage */
 
-  int id; /* identifier */
+  unsigned int id; /* identifier */
 
   enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK} kind; /* constraint kind */
 
@@ -104,7 +108,7 @@ struct domain
   double step; /* time step size */
   double time; /* current time */
 
-  int bid; /* last free body identifier */
+  unsigned int bid; /* last free body identifier */
   MAP *lab; /* bodies mapped by labels (a subset) */
   MAP *idb; /* bodies mapped by identifiers (all bodies) */
   BODY *bod; /* list of bodies */
@@ -112,7 +116,7 @@ struct domain
   SET *delb; /* set of deleted body ids for time > 0 and before state write */
   SET *newb; /* set of newly created bodies for time > 0 and before state write */
 
-  int cid;  /* last free constraint identifier */
+  unsigned int cid;  /* last free constraint identifier */
   MAP *idc; /* constraints mapped by identifiers */
   CON *con; /* list of constraints */
   int ncon; /* number of constraints */
@@ -137,6 +141,11 @@ struct domain
   double depth; /* unphisical interpenetration depth bound (negative) */
 
   short verbose; /* verbosity flag */
+
+#if MPI
+  struct Zoltan_Struct *zolbod,
+		       *zolcon;
+#endif
 };
 
 /* constraint kind string */

@@ -55,6 +55,7 @@ char* errstring (int error)
     case ERR_RND_STACK_OVERFLOW: return "Stack overflow in rendering module";
     case ERR_PCK_UNPACK: return "Trying to unpack more elements then stored";
     case ERR_DOM_DEPTH: return "Unphysical interpenetration has occurred";
+    case ERR_ZOLTAN_INIT: return "Zoltan initialization failed";
   }
 
   return "Unknown";

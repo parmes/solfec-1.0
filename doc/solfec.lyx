@@ -5328,83 +5328,47 @@ Parallelism
 status open
 
 \begin_layout Enumerate
-Solfec runs in parallel on hardware homogeneous platforms supporting MPI,
- HDF5 and Zoltan libraries.
+One process reads input.
 \end_layout
 
 \begin_layout Enumerate
-Each body comprises a set of geometric objects (e.g.
- surface adjacent elements) taking part in contact detection.
+Three partitionings are maintained: 
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+one based on corners of body boxes (for time integration)
 \end_layout
 
 \begin_layout Enumerate
-Each geometric object is bounded by a box.
+one based on corners of gemetric object boxes (for contact detection)
 \end_layout
 
 \begin_layout Enumerate
-Each body is bounded by a box.
+one based on constraint points (for constraint solution)
+\end_layout
+
+\end_deeper
+\begin_layout Enumerate
+In a body partitioning:
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+One parent body is stored in domain body list of a partition containing
+ body box corner
 \end_layout
 
 \begin_layout Enumerate
-Two RCB partitions are maintained: one based on lowest corners of body boxes
- (body partitions), and one based on lowest corners of geometric object
- boxes (constraint partitions).
+A child copy of a parent body is stored in the domain id-based body set
+ of all partitions crossed by body box
 \end_layout
 
+\end_deeper
 \begin_layout Enumerate
-Body partitions are used to balance time stepping.
-\end_layout
-
-\begin_layout Enumerate
-Constraint partitions are used to balance contact detection and resolution.
-\end_layout
-
-\begin_layout Enumerate
-Each body has one master copy, stored in the body partition containing lowest
- corner of its box.
- It also has a number of slave copies, stored in all constraint partitions
- crossed by its box.
-\end_layout
-
-\begin_layout Enumerate
-Time stepping is performed on master copies, while slave copies are updated
- accordingly.
-\end_layout
-
-\begin_layout Enumerate
-Each geometric object is stored in all constraint partitions crossed by
- its box.
-\end_layout
-
-\begin_layout Enumerate
-There always is either a master or a slave body in a constraint partition,
- corresponding to every geometric object stored in this partition.
- Hence, geometric objects can always be updated without additional communication
- (after bodies were updated).
-\end_layout
-
-\begin_layout Enumerate
-Bilateral constraints belong to constraint partitions containing their character
-istic points.
-\end_layout
-
-\begin_layout Enumerate
-Contact constraints belong to contact partitions containing contact points.
- Multiple copies of geometric object pairs may be stored near partition
- boundaries, hence multiple detection of a contact is possible.
-\end_layout
-
-\begin_layout Enumerate
-Body and contact objects will internally store identifiers and object pointers.
- They 
-\begin_inset Quotes eld
-\end_inset
-
-are run
-\begin_inset Quotes erd
-\end_inset
-
- on processors storing the master objects.
+While interpreting Python code (say, from a callback) routines should be
+ executed only if their argument objects are locally stored (e.g.
+ only for a parent body).
 \end_layout
 
 \end_inset

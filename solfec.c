@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if MPI
+#include <zoltan.h>
+#endif
+
 #include <sys/stat.h> /* POSIX */
 #include <string.h>
 #include <float.h>
@@ -436,6 +440,12 @@ static int vieweron (int argc, char **argv)
 int main (int argc, char **argv)
 {
   int error;
+
+#if MPI
+  float version;
+
+  ASSERT (Zoltan_Initialize (argc, argv, &version) == ZOLTAN_OK, ERR_ZOLTAN_INIT);
+#endif
 
   TRY ()
   {

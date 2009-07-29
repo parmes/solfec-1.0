@@ -831,7 +831,7 @@ static void write_constraint (CON *con, PBF *bf)
 {
   int kind = con->kind;
 
-  PBF_Int (bf, &con->id, 1);
+  PBF_Uint (bf, &con->id, 1);
   PBF_Int (bf, &kind, 1);
 
   PBF_Double (bf, con->R, 3);
@@ -845,8 +845,8 @@ static void write_constraint (CON *con, PBF *bf)
   if (con->slave) count = 2;
 
   PBF_Int (bf, &count, 1);
-  PBF_Int (bf, &con->master->id, 1);
-  if (con->slave) PBF_Int (bf, &con->slave->id, 1);
+  PBF_Uint (bf, &con->master->id, 1);
+  if (con->slave) PBF_Uint (bf, &con->slave->id, 1);
 
   if (kind == CONTACT) PBF_String (bf, &con->mat.label);
 
@@ -861,7 +861,7 @@ static CON* read_constraint (DOM *dom, PBF *bf)
 
   ERRMEM (con = MEM_Alloc (&dom->conmem));
 
-  PBF_Int (bf, &con->id, 1);
+  PBF_Uint (bf, &con->id, 1);
   PBF_Int (bf, &kind, 1);
   con->kind = kind;
 
@@ -871,14 +871,15 @@ static CON* read_constraint (DOM *dom, PBF *bf)
   PBF_Double (bf, &con->area, 1);
   PBF_Double (bf, &con->gap, 1);
 
-  int count, id;
+  unsigned int id;
+  int count;
 
   PBF_Int (bf, &count, 1);
-  PBF_Int (bf, &id, 1);
+  PBF_Uint (bf, &id, 1);
   ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*)id, NULL), "Invalid master id");
   if (count == 2)
   {
-    PBF_Int (bf, &id, 1);
+    PBF_Uint (bf, &id, 1);
     ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*)id, NULL), "Invalid slave id");
   }
 
@@ -923,8 +924,9 @@ void DOM_Write_State (DOM *dom, PBF *bf)
 
   /* write ids of bodies that have been deleted and empty the deleted bodies ids set */
 
+  unsigned int id;
   SET *item;
-  int size, id;
+  int size;
 
   PBF_Label (bf, "DELBODS");
 
@@ -935,7 +937,7 @@ void DOM_Write_State (DOM *dom, PBF *bf)
   for (item = SET_First (dom->delb); item; item = SET_Next (item))
   {
     id = (int)item->data;
-    PBF_Int (bf, &id, 1);
+    PBF_Uint (bf, &id, 1);
   }
 
   SET_Free (&dom->setmem, &dom->delb);
@@ -979,7 +981,7 @@ void DOM_Write_State (DOM *dom, PBF *bf)
 
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
-    PBF_Int (bf, &bod->id, 1);
+    PBF_Uint (bf, &bod->id, 1);
     BODY_Write_State (bod, bf);
   }
 }
@@ -1018,7 +1020,8 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 
     /* read ids of bodies that need to be deleted and remove them from all containers */
 
-    int size, n, id;
+    unsigned int id;
+    int size, n;
 
     ASSERT (PBF_Label (bf, "DELBODS"), ERR_FILE_FORMAT);
 
@@ -1028,7 +1031,7 @@ void DOM_Read_State (DOM *dom, PBF *bf)
     {
       BODY *bod;
 
-      PBF_Int (bf, &id, 1);
+      PBF_Uint (bf, &id, 1);
 
       ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
 
@@ -1089,10 +1092,10 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 
     for (int n = 0; n < nbod; n ++)
     {
-      int id;
+      unsigned int id;
       BODY *bod;
 
-      PBF_Int (bf, &id, 1);
+      PBF_Uint (bf, &id, 1);
       ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Body id invalid");
       BODY_Read_State (bod, bf);
     }

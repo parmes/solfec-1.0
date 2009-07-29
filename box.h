@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if MPI
+#include <zoltan.h>
+#endif
+
 #include "mem.h"
 #include "map.h"
 #include "set.h"
@@ -133,6 +137,10 @@ struct aabb
 
   void *swp,  /* sweep plane data */
        *hsh;  /* hashing data */
+
+#if MPI
+  struct Zoltan_Struct *zol;
+#endif
 };
 
 /* create box overlap driver data */

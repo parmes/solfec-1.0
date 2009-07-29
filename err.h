@@ -65,7 +65,8 @@ enum
   ERR_RND_NO_DOMAIN,
   ERR_RND_STACK_OVERFLOW,
   ERR_PCK_UNPACK,
-  ERR_DOM_DEPTH
+  ERR_DOM_DEPTH,
+  ERR_ZOLTAN_INIT
 };
 
 /* get error string */

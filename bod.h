@@ -95,6 +95,8 @@ struct general_body
 {
   enum {OBS, RIG, PRB, FEM} kind; /* obstacle, rigid, pseudo-rigid, finite element */
 
+  unsigned int id;  /* unique identifier (for serialization & parallel processing) */
+
   BULK_MATERIAL *mat; /* default material */
 
   double ref_mass,
@@ -102,12 +104,10 @@ struct general_body
          ref_center [3],
          ref_tensor [9]; /* RIG => Inertia tensor
 			    PRB => Euler tensor */
-
   double *conf,
          *velo;
 
-  int id,          /* unique identifier (for serialization & parallel processing) */
-      dofs;        /* velocity degrees of freedom count */
+  int dofs;        /* velocity degrees of freedom count */
 
   SET *con;        /* adjacent constraints */
 
