@@ -39,12 +39,8 @@ else
   NOTHROW =
 endif
 
-ifeq ($(PARALLEL),yes)
-  PARALLEL = -DPARALLEL $(ZOLTANINC) $(HDF5INC)
+ifeq ($(MPI),yes)
+  MPIFLG = -DMPI $(ZOLTANINC)
   MPICC = mpicc
-  PARLIBS = $(ZOLTANLIB) $(HDF5LIB)
-else
-  PARALLEL =
-  MPICC = $(CC)
-  PARLIBS =
+  MPILIBS = $(ZOLTANLIB)
 endif

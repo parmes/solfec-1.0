@@ -43,11 +43,9 @@ GLINC =
 GLLIB = -framework GLUT -framework OpenGL
 
 #
-# PARALLEL (yes/no)
+# MPI (yes/no)
 #
 
-PARALLEL = yes
+MPI = yes
 ZOLTANINC =
 ZOLTANLIB =
-HDF5INC =
-HDF5LIB =

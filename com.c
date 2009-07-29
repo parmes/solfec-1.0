@@ -19,7 +19,6 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#if PARALLEL
 #include <stdlib.h>
 #include <mpi.h>
 #include "com.h"
@@ -542,4 +541,3 @@ void COM_Free (void *pattern)
   free (cp->req);
   free (cp->sta);
 }
-#endif

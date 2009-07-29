@@ -991,12 +991,16 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
     IFIS (analysis, "QUASI_STATIC")
     {
       self->sol = SOLFEC_Create (0, step, outpath);
+#if OPENGL
       RND_Domain (self->sol->dom); /* just in case a viewer is enabled (last created SOLFEC object) */
+#endif
     }
     ELIF (analysis, "DYNAMIC")
     {
       self->sol = SOLFEC_Create (1, step, outpath);
+#if OPENGL
       RND_Domain (self->sol->dom); /* pass last created SOLFEC object to the rendering */
+#endif
     }
     ELSE
     {
@@ -3356,8 +3360,11 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
 /* test whether the viewer is enabled */
 static PyObject* lng_VIEWER_ON (PyObject *self, PyObject *args, PyObject *kwds)
 {
+#if OPENGL
   if (RND_On ()) Py_RETURN_TRUE; /* return true and maintain reference count of Py_True */
-  else Py_RETURN_FALSE; /* return false and maintain reference count of Py_False */
+  else
+#endif
+  Py_RETURN_FALSE; /* return false and maintain reference count of Py_False */
 }
 
 /* overwrite body characteristics */
@@ -4008,7 +4015,9 @@ static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
 
   if (solfec->sol->mode == SOLFEC_READ) Py_RETURN_NONE; /* skip READ mode */
 
+#if OPENGL 
   if (!RND_On ()) /* otherwise interactive run is controlled by the viewer */
+#endif
   {
     TRY ()
     {
@@ -4024,12 +4033,14 @@ static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
     }
     ENDTRY ()
   }
+#if OPENGL
   else /* only map a domain to a specific solver */
   {
     RND_Solver (solfec->sol->dom,
 		get_solver_kind (solver),
 		get_solver (solver));
   }
+#endif
 
   Py_RETURN_NONE;
 }

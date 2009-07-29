@@ -443,9 +443,12 @@ int main (int argc, char **argv)
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Viewer_On (); /* make renderer aware of viewer before calling interpreter */
+    char *synopsis = "SYNOPSIS: solfec [-v] path\n";
+#else
+    char *synopsis = "SYNOPSIS: solfec path\n";
 #endif
 
-    if (!getfile (argc, argv)) printf ("SYNOPSIS: solfec [-v] path\n");
+    if (!getfile (argc, argv)) printf (synopsis);
     else lngerr = lng (getfile (argc, argv)); /* call interpreter */
 
 #if OPENGL

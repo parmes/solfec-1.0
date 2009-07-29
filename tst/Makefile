@@ -2,8 +2,12 @@ include ../Config.mak
 include ../Flags.mak
 
 LIBBRICKS = ../obj/libsolfec.a
+LIBBRICKSMPI = ../obj/libsolfec-mpi.a
 CFLAGS = -std=c99 $(DEBUG) $(PROFILE) $(OPENGL) -I..
-LIB = -L../obj -lsolfec -lm $(BLAS) $(LAPACK) $(GLLIB) $(SPARSELIB)
+LIB = -L../obj -lsolfec -lm $(BLAS) $(LAPACK) $(GLLIB)
+ifeq ($(MPI),yes)
+  LIBMPI = -L../obj -lsolfec-mpi -lm $(BLAS) $(LAPACK) $(MPILIBS)
+endif
 
 TGT = glvtest\
       pbftest\
@@ -12,12 +16,19 @@ TGT = glvtest\
       gjktest\
       boxtest\
       listest\
-      comtest\
 
-all: lib $(TGT)
+ifeq ($(MPI),yes)
+
+TGTMPI = comtest\
+
+else
+TGTMPI = 
+endif
+
+all: lib $(TGT) $(TGTMPI)
 
 lib:
-	(cd .. && make)
+	(cd .. && make all)
 
 del:
 	rm -f *.dat
@@ -60,5 +71,7 @@ boxtest: boxtest.c $(LIBBRICKS)
 listest: listest.c $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-comtest: comtest.c $(LIBBRICKS)
-	$(MPICC) $(CFLAGS) $(PARALLEL) -o $@ $< $(LIB)
+# MPI
+
+comtest: comtest.c $(LIBBRICKSMPI)
+	$(MPICC) $(CFLAGS) $(MPITGT) -o $@ $< $(LIBMPI)

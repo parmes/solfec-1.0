@@ -13,10 +13,13 @@ include Flags.mak
 
 CFLAGS = -std=c99 $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
-LIB = -lm $(BLAS) $(LAPACK) $(GLLIB) $(PYTHONLIB) $(PARLIBS)
+LIB = -lm $(BLAS) $(LAPACK) $(GLLIB) $(PYTHONLIB)
 
-OBJ = \
-	obj/err.o \
+ifeq ($(MPI),yes)
+  LIBMPI = -lm $(BLAS) $(LAPACK) $(PYTHONLIB) $(MPILIBS)
+endif
+
+BASEO = obj/err.o \
 	obj/alg.o \
 	obj/mem.o \
 	obj/pck.o \
@@ -38,21 +41,32 @@ OBJ = \
 	obj/spx.o \
 	obj/cvx.o \
 	obj/hyb.o \
-	obj/box.o \
 	obj/msh.o \
 	obj/sph.o \
 	obj/shp.o \
+	obj/sps.o \
+	obj/mat.o \
+	obj/goc.o \
+
+OBJ =   $(BASEO)  \
+	obj/box.o \
 	obj/bod.o \
 	obj/ldy.o \
 	obj/bgs.o \
 	obj/exs.o \
 	obj/dom.o \
-	obj/sps.o \
-	obj/mat.o \
-	obj/goc.o \
 	obj/lng.o \
-	obj/com.o \
 	$(GLOBJ)
+
+OBJMPI = $(BASEO)  \
+	 obj/box-mpi.o \
+	 obj/bod-mpi.o \
+	 obj/ldy-mpi.o \
+	 obj/bgs-mpi.o \
+	 obj/exs-mpi.o \
+	 obj/dom-mpi.o \
+	 obj/lng-mpi.o \
+	 obj/com-mpi.o \
 
 solfec: solfec.c solfec.h obj/libsolfec.a
 	$(CC) $(CFLAGS) $(OPENGL) -o $@ $< -Lobj -lsolfec $(LIB)
@@ -61,14 +75,35 @@ obj/libsolfec.a: $(OBJ)
 	ar rcv $@ $(OBJ)
 	ranlib $@ 
 
+ifeq ($(MPI),yes)
+
+all: solfec mpi
+
+mpi: solfec-mpi
+
+solfec-mpi: solfec.c solfec.h obj/libsolfec-mpi.a
+	$(MPICC) $(CFLAGS) $(MPIFLG) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
+
+obj/libsolfec-mpi.a: $(OBJMPI)
+	ar rcv $@ $(OBJMPI)
+	ranlib $@ 
+
+else
+
+all: solfec
+
+endif
+
 del:
 	rm -fr out/*
 
 clean:
 	rm -f solfec
+	rm -f solfec-mpi
 	rm -fr out/*
 	rm -f core obj/*.o
 	rm -f obj/libsolfec.a
+	rm -f obj/libsolfec-mpi.a
 	rm -fr *dSYM
 	(cd tst && make clean)
 
@@ -175,10 +210,9 @@ obj/goc.o: goc.c goc.h shp.h cvi.h box.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lng.o: lng.c lng.h solfec.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
-	$(CC) $(CFLAGS) $(PYTHON) -c -o $@ $<
+	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
 
-obj/com.o: com.c com.h err.h
-	$(MPICC) $(CFLAGS) $(PARALLEL) -c -o $@ $<
+# OPENGL
 
 obj/glv.o: glv.c glv.h bmp.h err.h
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
@@ -188,3 +222,29 @@ obj/bmp.o: bmp.c bmp.h
 
 obj/rnd.o: rnd.c rnd.h alg.h dom.h shp.h cvx.h msh.h sph.h err.h
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
+
+#MPI
+
+obj/com-mpi.o: com.c com.h err.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/bod-mpi.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/dom-mpi.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/ldy-mpi.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/exs-mpi.o: exs.c exs.h dom.h ldy.h err.h alg.h lap.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/lng-mpi.o: lng.c lng.h solfec.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
+	$(MPICC) $(CFLAGS) $(PYTHON) -c -o $@ $<
