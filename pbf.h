@@ -72,6 +72,7 @@ struct pbf
   int lsize; /* free index (WRITE) or ltab size (READ) */
   int msize; /* mtab size (READ) */
   int cur; /* index of current time frame */
+  PBF *next; /* list of parallel files (READ) */
 };
 
 /* open for writing */

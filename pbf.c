@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if MPI
+#include <mpi.h>
+#endif
+
 #include <string.h>
 #include "pbf.h"
 #include "err.h"
@@ -214,19 +218,38 @@ PBF* PBF_Write (const char *path)
   char *txt;
   PBF *bf;
 
+#if MPI
+  int rank;
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+#endif
+
   ERRMEM (bf = malloc (sizeof (PBF)));
   ERRMEM (txt = malloc (strlen (path) + 16));
 
   /* openin files */
+#if MPI
+  sprintf (txt, "%s.dat.%d", path, rank);
+#else
   sprintf (txt, "%s.dat", path);
+#endif
   if (! (bf->dat = fopen (txt, "w"))) goto failure;
   xdrstdio_create (&bf->x_dat, bf->dat, XDR_ENCODE);
   bf->dph = copypath (txt);
+
+#if MPI
+  sprintf (txt, "%s.idx.%d", path, rank);
+#else
   sprintf (txt, "%s.idx", path);
+#endif
   if (! (bf->idx = fopen (txt, "w"))) goto failure;
   xdrstdio_create (&bf->x_idx, bf->idx, XDR_ENCODE);
   bf->iph = copypath (txt);
+
+#if MPI
+  sprintf (txt, "%s.lab.%d", path, rank);
+#else
   sprintf (txt, "%s.lab", path);
+#endif
   if (! (bf->lab = fopen (txt, "w"))) goto failure;
   xdrstdio_create (&bf->x_lab, bf->lab, XDR_ENCODE);
   bf->lph = copypath (txt);
@@ -242,6 +265,7 @@ PBF* PBF_Write (const char *path)
   bf->lsize = 0;
   bf->msize = 0;
   bf->cur = 0;
+  bf->next = NULL;
   free (txt);
   return bf;
   
@@ -253,40 +277,69 @@ failure:
 
 PBF* PBF_Read (const char *path)
 {
+  PBF *bf, *out;
+  FILE *dat;
   char *txt;
-  PBF *bf;
+  int n, m;
 
-  ERRMEM (bf = malloc (sizeof (PBF)));
+#if MPI
+  return NULL; /* reading in parallel not supported */
+#endif
+
   ERRMEM (txt = malloc (strlen (path) + 16));
 
-  /* openin files */
-  sprintf (txt, "%s.dat", path);
-  if (! (bf->dat = fopen (txt, "r"))) goto failure;
-  xdrstdio_create (&bf->x_dat, bf->dat, XDR_DECODE);
-  bf->dph = copypath (txt);
-  sprintf (txt, "%s.idx", path);
-  if (! (bf->idx = fopen (txt, "r"))) goto failure;
-  xdrstdio_create (&bf->x_idx, bf->idx, XDR_DECODE);
-  bf->iph = copypath (txt);
-  sprintf (txt, "%s.lab", path);
-  if (! (bf->lab = fopen (txt, "r"))) goto failure;
-  xdrstdio_create (&bf->x_lab, bf->lab, XDR_DECODE);
-  bf->lph = copypath (txt);
+  /* count input files */
+  m = 0;
+  do
+  {
+    sprintf (txt, "%s.dat.%d", path, m);
+    dat = fopen (txt, "r");
+  } while (dat && fclose (dat) == 0 && ++ m); /* m incremented as last */
 
-  /* initialise the rest */
-  MEM_Init (&bf->mappool, sizeof (MAP), 1024);
-  MEM_Init (&bf->labpool, sizeof (PBF_LABEL), 1024);
-  bf->ltab = NULL;
-  bf->labels = NULL;
-  bf->mtab = NULL;
-  bf->mode = PBF_READ;
-  bf->time = 0.;
-  bf->lsize = 0;
-  bf->msize = 0;
-  bf->cur = 0;
-  initialise_reading (bf);
+
+  /* open input files */
+  out = NULL;
+  n = 0;
+  do
+  {
+    ERRMEM (bf = malloc (sizeof (PBF)));
+
+    /* openin files */
+    if (m) sprintf (txt, "%s.dat.%d", path, n);
+    else sprintf (txt, "%s.dat", path);
+    if (! (bf->dat = fopen (txt, "r"))) goto failure;
+    xdrstdio_create (&bf->x_dat, bf->dat, XDR_DECODE);
+    bf->dph = copypath (txt);
+    if (m) sprintf (txt, "%s.idx.%d", path, n);
+    else sprintf (txt, "%s.idx", path);
+    if (! (bf->idx = fopen (txt, "r"))) goto failure;
+    xdrstdio_create (&bf->x_idx, bf->idx, XDR_DECODE);
+    bf->iph = copypath (txt);
+    if (m) sprintf (txt, "%s.lab.%d", path, n);
+    else sprintf (txt, "%s.lab", path);
+    if (! (bf->lab = fopen (txt, "r"))) goto failure;
+    xdrstdio_create (&bf->x_lab, bf->lab, XDR_DECODE);
+    bf->lph = copypath (txt);
+
+    /* initialise the rest */
+    MEM_Init (&bf->mappool, sizeof (MAP), 1024);
+    MEM_Init (&bf->labpool, sizeof (PBF_LABEL), 1024);
+    bf->ltab = NULL;
+    bf->labels = NULL;
+    bf->mtab = NULL;
+    bf->mode = PBF_READ;
+    bf->time = 0.;
+    bf->lsize = 0;
+    bf->msize = 0;
+    bf->cur = 0;
+    initialise_reading (bf);
+    bf->next = out;
+    out = bf;
+
+  } while (++ n < m);
+
   free (txt);
-  return bf;
+  return out;
   
 failure: 
   free (bf);
@@ -296,60 +349,66 @@ failure:
 
 void PBF_Close (PBF *bf)
 {
-  int empty;
+  PBF *next;
 
-  /* close streams */
-  xdr_destroy (&bf->x_dat);
-  xdr_destroy (&bf->x_idx);
-  xdr_destroy (&bf->x_lab);
-
-  fflush (bf->dat);
-  fflush (bf->idx);
-  fflush (bf->lab);
-
-  empty = is_empty (bf->dat);
-
-  fclose (bf->dat);
-  fclose (bf->idx);
-  fclose (bf->lab);
-
-  if (empty) /* remove empty files */
+  for (; bf; bf = next)
   {
-    remove (bf->dph);
-    remove (bf->iph);
-    remove (bf->lph);
-  }
- 
-  free (bf->dph);
-  free (bf->iph);
-  free (bf->lph);
+    int empty;
 
-  /* free labels & markers */ 
-  if (bf->mode == PBF_READ)
-  {
-    int k;
+    /* close streams */
+    xdr_destroy (&bf->x_dat);
+    xdr_destroy (&bf->x_idx);
+    xdr_destroy (&bf->x_lab);
 
-    for (k = 0; k < bf->lsize; k ++)
-      free (bf->ltab [k].name);
+    fflush (bf->dat);
+    fflush (bf->idx);
+    fflush (bf->lab);
 
-    free (bf->ltab);
-    free (bf->mtab);
-  }
-  else
-  {
-    MAP *k;
+    empty = is_empty (bf->dat);
 
-    for (k = MAP_First (bf->labels);
-      k; k = MAP_Next (k))
+    fclose (bf->dat);
+    fclose (bf->idx);
+    fclose (bf->lab);
+
+    if (empty) /* remove empty files */
     {
-      PBF_LABEL *l = (PBF_LABEL*)k->data;
-      free (l->name);
+      remove (bf->dph);
+      remove (bf->iph);
+      remove (bf->lph);
     }
-    MEM_Release (&bf->labpool);
-  }
+   
+    free (bf->dph);
+    free (bf->iph);
+    free (bf->lph);
 
-  MEM_Release (&bf->mappool);
-  free (bf);
+    /* free labels & markers */ 
+    if (bf->mode == PBF_READ)
+    {
+      int k;
+
+      for (k = 0; k < bf->lsize; k ++)
+	free (bf->ltab [k].name);
+
+      free (bf->ltab);
+      free (bf->mtab);
+    }
+    else
+    {
+      MAP *k;
+
+      for (k = MAP_First (bf->labels);
+	k; k = MAP_Next (k))
+      {
+	PBF_LABEL *l = (PBF_LABEL*)k->data;
+	free (l->name);
+      }
+      MEM_Release (&bf->labpool);
+    }
+
+    MEM_Release (&bf->mappool);
+    next = bf->next;
+    free (bf);
+  }
 }
 
 void PBF_Time (PBF *bf, double *time)
@@ -359,21 +418,24 @@ void PBF_Time (PBF *bf, double *time)
 
   if (bf->mode == PBF_WRITE)
   {
-    ASSERT ((*time) >= bf->time, ERR_PBF_OUTPUT_TIME_DECREASED);
-    if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
+    for (; bf; bf = bf->next)
     {
-      index = -1;
-      xdr_int (&bf->x_idx, &index);
+      ASSERT ((*time) >= bf->time, ERR_PBF_OUTPUT_TIME_DECREASED);
+      if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
+      {
+	index = -1;
+	xdr_int (&bf->x_idx, &index);
+      }
+
+      /* output current data
+       * position and time */
+      xdr_double (&bf->x_idx, time);
+      pos = xdr_getpos (&bf->x_dat);
+      xdr_u_int (&bf->x_idx, &pos); /* dat position */
+
+      /* set time */
+      bf->time = *time;
     }
-
-    /* output current data
-     * position and time */
-    xdr_double (&bf->x_idx, time);
-    pos = xdr_getpos (&bf->x_dat);
-    xdr_u_int (&bf->x_idx, &pos); /* dat position */
-
-    /* set time */
-    bf->time = *time;
   }
   else
   { *time = bf->time; }
@@ -381,77 +443,116 @@ void PBF_Time (PBF *bf, double *time)
 
 int PBF_Label (PBF *bf, const char *label)
 {
-  PBF_LABEL *l;
-  unsigned int pos;
+  int ret;
 
-  if (bf->mode == PBF_WRITE)
+  for (ret = 1; bf; bf = bf->next)
   {
-    if (!(l = MAP_Find (bf->labels, (void*)label,
-      (MAP_Compare) strcmp)))
-    {
-      /* create new label */
-      l = MEM_Alloc (&bf->labpool);
-      ERRMEM (l->name = malloc (strlen (label) + 1));
-      strcpy (l->name, label);
-      l->index = bf->lsize ++;
-      MAP_Insert (&bf->mappool, &bf->labels,
-	l->name, l, (MAP_Compare) strcmp);
+    PBF_LABEL *l;
+    unsigned int pos;
 
-      /* output definition */
-      xdr_string (&bf->x_lab, (char**)&label, PBF_MAXSTRING);
-    }
-
-    /* record label and position
-     * in the index file */
-    xdr_int (&bf->x_idx, &l->index);
-    pos = xdr_getpos (&bf->x_dat);
-    xdr_u_int (&bf->x_idx, &pos);
-  }
-  else
-  {
-    if ((l = MAP_Find (bf->labels, (void*)label,
-      (MAP_Compare) strcmp)))
+    if (bf->mode == PBF_WRITE)
     {
-      /* seek to labeled data begining */
-      xdr_setpos (&bf->x_dat, l->dpos);
-      return 1;
+      if (!(l = MAP_Find (bf->labels, (void*)label,
+	(MAP_Compare) strcmp)))
+      {
+	/* create new label */
+	l = MEM_Alloc (&bf->labpool);
+	ERRMEM (l->name = malloc (strlen (label) + 1));
+	strcpy (l->name, label);
+	l->index = bf->lsize ++;
+	MAP_Insert (&bf->mappool, &bf->labels,
+	  l->name, l, (MAP_Compare) strcmp);
+
+	/* output definition */
+	xdr_string (&bf->x_lab, (char**)&label, PBF_MAXSTRING);
+      }
+
+      /* record label and position
+       * in the index file */
+      xdr_int (&bf->x_idx, &l->index);
+      pos = xdr_getpos (&bf->x_dat);
+      xdr_u_int (&bf->x_idx, &pos);
+    }
+    else
+    {
+      if ((l = MAP_Find (bf->labels, (void*)label,
+	(MAP_Compare) strcmp)))
+      {
+	/* seek to labeled data begining */
+	xdr_setpos (&bf->x_dat, l->dpos);
+      }
+      else ret = 0;
     }
   }
-  return 0;
+
+  return ret;
 }
 
 void PBF_Char (PBF *bf, char *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (char), (xdrproc_t)xdr_char); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (char), (xdrproc_t)xdr_char);
+}
 
 void PBF_Uchar (PBF *bf, unsigned char *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned char), (xdrproc_t)xdr_u_char); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned char), (xdrproc_t)xdr_u_char);
+}
 
 void PBF_Short (PBF *bf, short *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (short), (xdrproc_t)xdr_short); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (short), (xdrproc_t)xdr_short);
+}
 
 void PBF_Ushort (PBF *bf, unsigned short *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned short), (xdrproc_t)xdr_u_short); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned short), (xdrproc_t)xdr_u_short);
+}
 
 void PBF_Int (PBF *bf, int *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (int), (xdrproc_t)xdr_int); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (int), (xdrproc_t)xdr_int);
+}
 
 void PBF_Uint (PBF *bf, unsigned int *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned int), (xdrproc_t)xdr_u_int); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned int), (xdrproc_t)xdr_u_int);
+}
 
 void PBF_Long (PBF *bf, long *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (long), (xdrproc_t)xdr_long); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (long), (xdrproc_t)xdr_long);
+}
 
 void PBF_Ulong (PBF *bf, unsigned long *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned long), (xdrproc_t)xdr_u_long); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned long), (xdrproc_t)xdr_u_long);
+}
 
 void PBF_Float (PBF *bf, float *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (float), (xdrproc_t)xdr_float); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (float), (xdrproc_t)xdr_float);
+}
 
 void PBF_Double (PBF *bf, double *value, unsigned int length)
-{ xdr_vector (&bf->x_dat, (char*)value, length, sizeof (double), (xdrproc_t)xdr_double); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (double), (xdrproc_t)xdr_double);
+}
 
 void PBF_String (PBF *bf, char **value)
-{ xdr_string (&bf->x_dat, value, PBF_MAXSTRING); }
+{ 
+  for (; bf; bf = bf->next)
+    xdr_string (&bf->x_dat, value, PBF_MAXSTRING);
+}
 
 void PBF_Limits (PBF *bf, double *start, double *end)
 {
@@ -466,24 +567,27 @@ void PBF_Seek (PBF *bf, double time)
 {
   if (bf->mode == PBF_READ)
   {
-    PBF_MARKER *l, *h, *m;
-
-    /* binary search
-     * of marker */
-    l = bf->mtab;
-    h = l + bf->msize - 1;
-    while (l <= h)
+    for (; bf; bf = bf->next)
     {
-      m = l + (h - l) / 2;
-      if (time == m->time) break;
-      else if (time < m->time) h = m - 1;
-      else l = m + 1;
-    }
+      PBF_MARKER *l, *h, *m;
 
-    /* handle limit cases */
-    if (h < bf->mtab) m = l;
-    else if (l > (bf->mtab + bf->msize - 1)) m = h;
-    initialise_frame (bf, m - bf->mtab);
+      /* binary search
+       * of marker */
+      l = bf->mtab;
+      h = l + bf->msize - 1;
+      while (l <= h)
+      {
+	m = l + (h - l) / 2;
+	if (time == m->time) break;
+	else if (time < m->time) h = m - 1;
+	else l = m + 1;
+      }
+
+      /* handle limit cases */
+      if (h < bf->mtab) m = l;
+      else if (l > (bf->mtab + bf->msize - 1)) m = h;
+      initialise_frame (bf, m - bf->mtab);
+    }
   }
 }
 
@@ -491,10 +595,13 @@ void PBF_Backward (PBF *bf, int steps)
 {
   if (bf->mode == PBF_READ)
   {
-    if (bf->cur - steps <  0)
-      steps = 0;
-    else steps = bf->cur - steps;
-    initialise_frame (bf, steps);
+    for (; bf; bf = bf->next)
+    {
+      if (bf->cur - steps <  0)
+	steps = 0;
+      else steps = bf->cur - steps;
+      initialise_frame (bf, steps);
+    }
   }
 }
 
@@ -502,9 +609,12 @@ void PBF_Forward (PBF *bf, int steps)
 {
   if (bf->mode == PBF_READ)
   {
-    if (bf->cur + steps >=  bf->msize)
-      steps = bf->msize - 1;
-    else steps += bf->cur;
-    initialise_frame (bf, steps);
+    for (; bf; bf = bf->next)
+    {
+      if (bf->cur + steps >=  bf->msize)
+	steps = bf->msize - 1;
+      else steps += bf->cur;
+      initialise_frame (bf, steps);
+    }
   }
 }

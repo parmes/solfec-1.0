@@ -88,7 +88,8 @@ typedef enum
 {
   BODY_DETECT_SELF_CONTACT = 0x01, /* enable self contact detection */
   BODY_HIDDEN              = 0x02, /* rendering visiblity flag */
-  BODY_OFF                 = 0x04  /* another rendering flag */
+  BODY_OFF                 = 0x04, /* another rendering flag */
+  BODY_CHILD               = 0x08, /* a child copy of a parent body flag */
 } BODY_FLAGS;
 
 struct general_body

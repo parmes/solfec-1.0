@@ -26,7 +26,6 @@ BASEO = obj/err.o \
 	obj/map.o \
 	obj/set.o \
 	obj/skp.o \
-	obj/pbf.o \
 	obj/svk.o \
 	obj/mtx.o \
 	obj/tms.o \
@@ -49,6 +48,7 @@ BASEO = obj/err.o \
 	obj/goc.o \
 
 OBJ =   $(BASEO)  \
+	obj/pbf.o \
 	obj/box.o \
 	obj/bod.o \
 	obj/ldy.o \
@@ -59,6 +59,7 @@ OBJ =   $(BASEO)  \
 	$(GLOBJ)
 
 OBJMPI = $(BASEO)  \
+	 obj/pbf-mpi.o \
 	 obj/box-mpi.o \
 	 obj/bod-mpi.o \
 	 obj/ldy-mpi.o \
@@ -228,6 +229,9 @@ obj/rnd.o: rnd.c rnd.h alg.h dom.h shp.h cvx.h msh.h sph.h err.h
 obj/com-mpi.o: com.c com.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
+obj/pbf-mpi.o: pbf.c pbf.h map.h mem.h err.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
 obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
@@ -247,4 +251,4 @@ obj/exs-mpi.o: exs.c exs.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h solfec.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
-	$(MPICC) $(CFLAGS) $(PYTHON) -c -o $@ $<
+	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<

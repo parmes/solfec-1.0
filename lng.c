@@ -1607,10 +1607,45 @@ struct lng_BODY
 {
   PyObject_HEAD
 
+#if MPI
+  unsigned int id;
+#endif
+
   short dodestroy;
 
   BODY *bod;
 };
+
+#if MPI
+/* try assigning a parent body pointer to the id */
+static int ID_TO_BODY (lng_SOLFEC *solfec, lng_BODY *body)
+{
+  DOM *dom = solfec->sol->dom;
+
+  if (body->id)
+  {
+    BODY *bod = MAP_Find (dom->idb, (void*)body->id, NULL);
+
+    if (bod && !(bod->flags & BODY_CHILD))
+    {
+      body->bod = bod;
+      return 1;
+    }
+  }
+
+  return 0;
+}
+
+/* is this a zero rank process */
+static int ZERO_RANK ()
+{
+  int rank;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+  return rank == 0;
+}
+#endif
 
 /* test whether an object is a bulk material or a bulk material label */
 static int is_bulk_material (SOLFEC *sol, PyObject *obj, char *var)
@@ -1871,6 +1906,14 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
   if (self)
   {
     self->dodestroy = 0; /* never destroy by default as the body will be imediately owned by a domain */
+
+#if MPI
+    if (!ZERO_RANK()) /* bodies can only be created on process number zero */
+    {
+      self->id = 0; /* identifiers start from 1, hence this will always be invalid */
+      return (PyObject*)self; /* return an empty body object */
+    }
+#endif
 
     label = NULL;
 
