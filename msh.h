@@ -129,7 +129,7 @@ void MESH_Extents (MESH *msh, double *extents);
 /* free mesh memory */
 void MESH_Destroy (MESH *msh);
   
-/* does the element contain point */
+/* does the element contain the point? */
 int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point);
 
 /* test wether two elements are adjacent

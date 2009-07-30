@@ -1096,7 +1096,7 @@ void MESH_Destroy (MESH *msh)
   free (msh);
 }
 
-/* does the element contain point */
+/* does the element contain the point? */
 int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point)
 {
   double pla [24];

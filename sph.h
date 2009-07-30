@@ -92,7 +92,7 @@ void SPHERE_List_Extents (SPHERE *sph, double *extents);
 /* return sphere containing the point */
 SPHERE* SPHERE_Containing_Point (SPHERE *sph, double *point);
 
-/* does this sphere (not a list) contain the point */
+/* does this sphere (not a list) contain the point? */
 int SPHERE_Contains_Point (void *dummy, SPHERE *sph, double *point);
 
 /* update sphere list according to the given motion */

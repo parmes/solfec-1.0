@@ -760,7 +760,7 @@ CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point)
   return NULL;
 }
 
-/* does this convex (not a list) contain */
+/* does this convex (not a list) contain the point? */
 int CONVEX_Contains_Point (void *dummy, CONVEX *cvx, double *point)
 {
   return point_inside (cvx->nfac, cvx->pla, point);

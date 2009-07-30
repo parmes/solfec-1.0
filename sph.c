@@ -371,7 +371,7 @@ SPHERE* SPHERE_Containing_Point (SPHERE *sph, double *point)
   return NULL;
 }
 
-/* does this sphere (not a list) contain the point */
+/* does this sphere (not a list) contain the point? */
 int SPHERE_Contains_Point (void *dummy, SPHERE *sph, double *point)
 {
   return point_inside (sph->cur_center, sph->cur_radius, point);
