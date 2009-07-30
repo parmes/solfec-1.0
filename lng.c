@@ -1609,6 +1609,8 @@ struct lng_BODY
 
 #if MPI
   unsigned int id;
+
+  DOM *dom;
 #endif
 
   short dodestroy;
@@ -1618,13 +1620,11 @@ struct lng_BODY
 
 #if MPI
 /* try assigning a parent body pointer to the id */
-static int ID_TO_BODY (lng_SOLFEC *solfec, lng_BODY *body)
+static int ID_TO_BODY (lng_BODY *body)
 {
-  DOM *dom = solfec->sol->dom;
-
   if (body->id)
   {
-    BODY *bod = MAP_Find (dom->idb, (void*)body->id, NULL);
+    BODY *bod = MAP_Find (body->dom->idb, (void*)body->id, NULL);
 
     if (bod && !(bod->flags & BODY_CHILD))
     {
@@ -1636,14 +1636,14 @@ static int ID_TO_BODY (lng_SOLFEC *solfec, lng_BODY *body)
   return 0;
 }
 
-/* is this a zero rank process */
-static int ZERO_RANK ()
+/* get rank */
+static int RANK ()
 {
   int rank;
 
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);
 
-  return rank == 0;
+  return rank;
 }
 #endif
 
@@ -1907,20 +1907,21 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
   {
     self->dodestroy = 0; /* never destroy by default as the body will be imediately owned by a domain */
 
-#if MPI
-    if (!ZERO_RANK()) /* bodies can only be created on process number zero */
-    {
-      self->id = 0; /* identifiers start from 1, hence this will always be invalid */
-      return (PyObject*)self; /* return an empty body object */
-    }
-#endif
-
     label = NULL;
 
     PARSEKEYS ("OOOO|O", &solfec, &kind, &shape, &material, &label);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape (shape, kwl[2]) &&
 	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]));
+
+#if MPI
+    if (RANK() > 0) /* bodies can only be created on process zero */
+    {
+      self->dom = solfec->sol->dom;
+      self->id = 0; /* identifiers start from 1 => always invalid (ID_TO_BODY returns 0) */
+      return (PyObject*)self; /* return a zero initialized objecy (tp_alloc) */
+    }
+#endif
 
     if (label) lab = PyString_AsString (label);
     else lab = NULL;
@@ -1949,6 +1950,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     }
 
     DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
+
+#if MPI
+    self->id = self->bod->id;
+    self->dom = solfec->sol->dom;
+#endif
   }
 
   return (PyObject*)self;
@@ -1960,6 +1966,11 @@ static PyObject* lng_BODY_WRAPPER (BODY *bod)
   lng_BODY *self;
 
   self = (lng_BODY*)lng_BODY_TYPE.tp_alloc (&lng_BODY_TYPE, 0);
+
+#if MPI
+  self->id = bod->id;
+  self->dom = bod->dom;
+#endif
 
   self->bod = bod;
 
@@ -2695,8 +2706,32 @@ static PyTypeObject lng_CONSTRAINT_TYPE;
 struct lng_CONSTRAINT
 {
   PyObject_HEAD
+
+#if MPI
+  unsigned int id;
+#endif
+
   CON *con;
 };
+
+#if MPI
+/* try assigning a constraint pointer to the id */
+static int ID_TO_CONSTRAINT (lng_SOLFEC *solfec, lng_CONSTRAINT *constraint)
+{
+  if (constraint->id)
+  {
+    CON *con = MAP_Find (solfec->sol->dom->idc, (void*)constraint->id, NULL);
+
+    if (con)
+    {
+      constraint->con = con;
+      return 1;
+    }
+  }
+
+  return 0;
+}
+#endif
 
 /* test whether an object is of BODY or CONSTRAINT type */
 static int is_body_or_constraint (PyObject *obj, char *var)
@@ -2729,6 +2764,10 @@ static PyObject* lng_CONSTRAINT_WRAPPER (CON *con)
   lng_CONSTRAINT *self;
 
   self = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
+
+#if MPI
+  self->id = con->id;
+#endif
 
   self->con = con;
 
@@ -3004,11 +3043,20 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) && is_tuple (point, kwl[2], 3));
 
+#if MPI
+    if (ID_TO_BODY (body))
+    {
+#endif
+
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
     out->con = DOM_Fix_Point (solfec->sol->dom, body->bod, p);
+
+#if MPI
+    }
+#endif
   }
 
   return (PyObject*)out;
@@ -3033,6 +3081,11 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
     TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
       is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3));
 
+#if MPI
+    if (ID_TO_BODY (body))
+    {
+#endif
+
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
@@ -3042,6 +3095,10 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
     out->con = DOM_Fix_Direction (solfec->sol->dom, body->bod, p, d);
+
+#if MPI
+    }
+#endif
   }
 
   return (PyObject*)out;
@@ -3068,6 +3125,11 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
       is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&
       is_time_series (tms, kwl[4]));
 
+#if MPI
+    if (ID_TO_BODY (body))
+    {
+#endif
+
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
@@ -3077,6 +3139,10 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
     out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Derivative (tms->ts));
+
+#if MPI
+    }
+#endif
   }
 
   return (PyObject*)out;
@@ -3103,6 +3169,11 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
       is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&
       is_time_series (tms, kwl[4]));
 
+#if MPI
+    if (ID_TO_BODY (body))
+    {
+#endif
+
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
@@ -3112,6 +3183,10 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
     out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Copy (tms->ts));
+
+#if MPI
+    }
+#endif
   }
 
   return (PyObject*)out;
@@ -3138,6 +3213,11 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
       is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&
       is_time_series (tms, kwl[4]));
 
+#if MPI
+    if (ID_TO_BODY (body))
+    {
+#endif
+
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
@@ -3147,6 +3227,10 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
     out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Integral (tms->ts));
+
+#if MPI
+    }
+#endif
   }
 
   return (PyObject*)out;
@@ -3184,6 +3268,13 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 		is_tuple (point1, kwl[3], 3) && is_tuple (point2, kwl[4], 3));
     }
 
+#if MPI
+    if (((PyObject*)body1 == Py_None && ID_TO_BODY (body2)) ||
+	((PyObject*)body2 == Py_None && ID_TO_BODY (body1)) ||
+	(ID_TO_BODY (body1) && ID_TO_BODY (body2)))
+    {
+#endif
+
     p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
     p1 [1] = PyFloat_AsDouble (PyTuple_GetItem (point1, 1));
     p1 [2] = PyFloat_AsDouble (PyTuple_GetItem (point1, 2));
@@ -3195,6 +3286,10 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (solfec->sol->dom, NULL, body2->bod, p1, p2);
     else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (solfec->sol->dom, body1->bod, NULL, p1, p2);
     else out->con = DOM_Put_Rigid_Link (solfec->sol->dom, body1->bod, body2->bod, p1, p2);
+
+#if MPI
+    }
+#endif
   }
 
   return (PyObject*)out;
@@ -3313,6 +3408,11 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_body (body, kwl[0]) && is_string (kind, kwl[1]) && is_tuple (point, kwl[2], 3) &&
             is_tuple (direction, kwl[3], 3) && is_number_or_time_series_or_callable (value, kwl[4]));
 
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif 
+
   p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
   p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
   p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
@@ -3348,6 +3448,10 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Apply_Force (body->bod, k, p, d, ts, call, func);
 
+#if MPI
+  }
+#endif
+
   Py_RETURN_NONE;
 }
 
@@ -3366,6 +3470,11 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_body (body, kwl[0]) && is_string (kind, kwl[1]) &&
             is_tuple (direction, kwl[2], 3) &&
 	    is_number_or_time_series (value, kwl[3]));
+
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif 
 
   if (body->bod->kind != RIG)
   {
@@ -3397,6 +3506,10 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Apply_Force (body->bod, k | TORQUE, NULL, d, ts, NULL, NULL);
 
+#if MPI
+  }
+#endif
+
   Py_RETURN_NONE;
 }
 
@@ -3424,6 +3537,11 @@ static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (center, kwl[3], 3) && is_tuple (tensor, kwl[4], 9));
 
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif
+
   c [0] = PyFloat_AsDouble (PyTuple_GetItem (center, 0));
   c [1] = PyFloat_AsDouble (PyTuple_GetItem (center, 1));
   c [2] = PyFloat_AsDouble (PyTuple_GetItem (center, 2));
@@ -3431,6 +3549,10 @@ static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
   for (i = 0; i < 9; i ++) t [i] = PyFloat_AsDouble (PyTuple_GetItem (tensor, i));
 
   BODY_Overwrite_Chars (body->bod, mass, volume, c, t);
+
+#if MPI
+  }
+#endif
 
   Py_RETURN_NONE;
 }
@@ -3447,6 +3569,11 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (linear, kwl[1], 3) && is_tuple (angular, kwl[2], 3));
 
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif
+
   l [0] = PyFloat_AsDouble (PyTuple_GetItem (linear, 0));
   l [1] = PyFloat_AsDouble (PyTuple_GetItem (linear, 1));
   l [2] = PyFloat_AsDouble (PyTuple_GetItem (linear, 2));
@@ -3456,6 +3583,10 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
   a [2] = PyFloat_AsDouble (PyTuple_GetItem (angular, 2));
 
   BODY_Initial_Velocity (body->bod, l, a);
+
+#if MPI
+  }
+#endif
 
   Py_RETURN_NONE;
 }
@@ -3474,7 +3605,16 @@ static PyObject* lng_MATERIAL (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
             is_bulk_material (solfec->sol, material, kwl[2]));
 
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif
+
   BODY_Material (body->bod, volid, get_bulk_material (solfec->sol, material));
+
+#if MPI
+  }
+#endif
 
   Py_RETURN_NONE;
 }
@@ -3495,13 +3635,33 @@ static PyObject* lng_DELETE (PyObject *self, PyObject *args, PyObject *kwds)
   if (PyObject_IsInstance (object, (PyObject*)&lng_BODY_TYPE))
   {
     body = (lng_BODY*)object;
+
+#if MPI
+    if (ID_TO_BODY (body))
+    {
+#endif
+
     DOM_Remove_Body (solfec->sol->dom, body->bod);
     body->dodestroy = 1; /* set destruction flag as this body will no longer be destroyed by the domain */
+
+#if MPI
+    }
+#endif
   }
   else
   {
     constraint = (lng_CONSTRAINT*)object;
+
+#if MPI
+    if (ID_TO_CONSTRAINT (solfec, constraint))
+    {
+#endif
+
     DOM_Remove_Constraint (solfec->sol->dom, constraint->con);
+
+#if MPI
+    }
+#endif
   }
 
   Py_RETURN_NONE;
@@ -3857,11 +4017,7 @@ static PyObject* lng_BYLABEL (PyObject *self, PyObject *args, PyObject *kwds)
 
     if ((mat = SPSET_Find_Label (solfec->sol->sps, PyString_AsString (label))))
       out = lng_SURFACE_MATERIAL_WRAPPER (mat);
-    else
-    {
-      PyErr_SetString (PyExc_ValueError, "Invalid label");
-      return NULL;
-    }
+    else Py_RETURN_NONE;
   }
   ELIF (kind, "BULK_MATERIAL")
   {
@@ -3869,11 +4025,7 @@ static PyObject* lng_BYLABEL (PyObject *self, PyObject *args, PyObject *kwds)
 
     if ((mat = MATSET_Find (solfec->sol->mat, PyString_AsString (label))))
       out = lng_BULK_MATERIAL_WRAPPER (mat);
-    else
-    {
-      PyErr_SetString (PyExc_ValueError, "Invalid label");
-      return NULL;
-    }
+    else Py_RETURN_NONE;
   }
   ELIF (kind, "BODY")
   {
@@ -3881,11 +4033,7 @@ static PyObject* lng_BYLABEL (PyObject *self, PyObject *args, PyObject *kwds)
 
     if ((bod = DOM_Find_Body (solfec->sol->dom, PyString_AsString (label))))
       out = lng_BODY_WRAPPER (bod);
-    else
-    {
-      PyErr_SetString (PyExc_ValueError, "Invalid label");
-      return NULL;
-    }
+    else Py_RETURN_NONE;
   }
   ELSE
   {
@@ -3899,7 +4047,7 @@ static PyObject* lng_BYLABEL (PyObject *self, PyObject *args, PyObject *kwds)
 /* calculate mass center */
 static PyObject* lng_MASS_CENTER (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  double v, c [3], e [9];
+  double v, c [3] = {0, 0, 0}, e [9];
   KEYWORDS ("shape");
   PyObject *shape;
   SHAPE *shp;
@@ -3910,8 +4058,17 @@ static PyObject* lng_MASS_CENTER (PyObject *self, PyObject *args, PyObject *kwds
 
   if (is_body_check (shape)) /* body */
   {
+#if MPI
+    if (ID_TO_BODY ((lng_BODY*)shape))
+    {
+#endif
+
     BODY *bod = ((lng_BODY*)shape)->bod;
     SHAPE_Char (bod->shape, &v, c, e);
+
+#if MPI
+    }
+#endif
   }
   else /* shape */
   {
@@ -3934,7 +4091,11 @@ static PyObject* lng_CONTACT_EXCLUDE_BODIES (PyObject *self, PyObject *args, PyO
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body1, kwl[1]) && is_body (body2, kwl[2]));
 
-  AABB_Exclude_Body_Pair (solfec->sol->aabb, body1->bod, body2->bod);
+#if MPI
+  AABB_Exclude_Body_Pair (solfec->sol->aabb, body1->id, body2->id);
+#else
+  AABB_Exclude_Body_Pair (solfec->sol->aabb, body1->bod->id, body2->bod->id);
+#endif
 
   Py_RETURN_NONE;
 }
@@ -3946,13 +4107,18 @@ static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, Py
   PyObject *point1, *point2;
   lng_BODY *body1, *body2;
   double p1 [3], p2 [3];
-  void *gobj1, *gobj2;
   lng_SOLFEC *solfec;
+  int sgp1, sgp2;
 
   PARSEKEYS ("OOOOO", &solfec, &body1, &point1, &body2, &point2);
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body1, kwl[1]) &&
     is_tuple (point1, kwl[2], 3) && is_body (body2, kwl[3]) && is_tuple (point2, kwl[4], 3));
+
+#if MPI
+  if (ID_TO_BODY (body1) && ID_TO_BODY (body2))
+  {
+#endif
 
   p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
   p1 [1] = PyFloat_AsDouble (PyTuple_GetItem (point1, 1));
@@ -3962,23 +4128,27 @@ static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, Py
   p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
   p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
 
-  gobj1 = SHAPE_Gobj (body1->bod->shape, p1, NULL);
+  sgp1 = SHAPE_Sgp (body1->bod->sgp, body1->bod->nsgp, p1);
 
-  if (!gobj1)
+  if (sgp1 < 0)
   {
     PyErr_SetString (PyExc_ValueError, "First point outside of body one");
     return NULL;
   }
 
-  gobj2 = SHAPE_Gobj (body2->bod->shape, p2, NULL);
+  sgp2 = SHAPE_Sgp (body2->bod->sgp, body2->bod->nsgp, p2);
 
-  if (!gobj2)
+  if (sgp2 < 0)
   {
     PyErr_SetString (PyExc_ValueError, "Second point outside of body two");
     return NULL;
   }
 
-  AABB_Exclude_Gobj_Pair (solfec->sol->aabb, gobj1, gobj2);
+  AABB_Exclude_Gobj_Pair (solfec->sol->aabb, body1->bod->id, sgp1, body2->bod->id, sgp2);
+
+#if MPI
+  }
+#endif
 
   Py_RETURN_NONE;
 }

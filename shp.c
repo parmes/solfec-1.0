@@ -26,7 +26,6 @@
 #include "msh.h"
 #include "cvx.h"
 #include "sph.h"
-#include "box.h"
 #include "err.h"
 #include "pck.h"
 
@@ -43,6 +42,8 @@ typedef void (*gcha_func) (void*, double*, double*, double*, double*, double*);
 static gcha_func gcha [] = {(gcha_func)MESH_Char_Partial, (gcha_func)CONVEX_Char_Partial, (gcha_func)SPHERE_Char_Partial};
 typedef void* (*gobj_func) (void*, double*);
 static gobj_func gobj [] = {(gobj_func)MESH_Element_Containing_Point, (gobj_func)CONVEX_Containing_Point, (gobj_func)SPHERE_Containing_Point};
+typedef int (*gobjs_func) (void*, void*, double*);
+static gobjs_func gobjs [] = {(gobjs_func)ELEMENT_Contains_Point, (gobjs_func)CONVEX_Contains_Point, (gobjs_func)SPHERE_Contains_Point};
 typedef void (*update_func) (void*, void*, void*, MOTION);
 static update_func update [] = {(update_func)MESH_Update, (update_func)CONVEX_Update, (update_func)SPHERE_Update};
 typedef void (*extents_func) (void*, double*);
@@ -78,6 +79,71 @@ SHAPE* SHAPE_Create (short kind, void *data)
   shq->next = NULL;
 
   return shq;
+}
+
+/* create shape geometric object pairs */
+SGP* SGP_Create (SHAPE *shp, int *nsgp)
+{
+  SGP *sgp, *ptr;
+  int n = 0;
+
+  /* compute geomerical objects */
+  for (SHAPE *shq = shp; shq; shq = shq->next)
+  {
+    switch (shq->kind)
+    {
+      case SHAPE_MESH:
+      {
+	MESH *msh = shq->data;
+	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next) n ++;
+      }
+      break;
+      case SHAPE_CONVEX:
+      {
+	CONVEX *cvx = shq->data;
+	for (; cvx; cvx = cvx->next) n ++;
+      }
+      break;
+      case SHAPE_SPHERE:
+      {
+	SPHERE *sph = shq->data;
+	for (; sph; sph = sph->next) n ++;
+      }
+      break;
+    }
+  }
+
+  /* allocate */
+  ERRMEM (ptr = sgp = malloc (sizeof (SGP [n])));
+  *nsgp = n;
+
+  /* set pointers */
+  for (SHAPE *shq = shp; shq; shq = shq->next)
+  {
+    switch (shq->kind)
+    {
+      case SHAPE_MESH:
+      {
+	MESH *msh = shq->data;
+	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next, ptr ++) ptr->shp = shq, ptr->gobj = ele;
+      }
+      break;
+      case SHAPE_CONVEX:
+      {
+	CONVEX *cvx = shq->data;
+	for (; cvx; cvx = cvx->next, ptr ++) ptr->shp = shq, ptr->gobj = cvx;
+      }
+      break;
+      case SHAPE_SPHERE:
+      {
+	SPHERE *sph = shq->data;
+	for (; sph; sph = sph->next, ptr ++) ptr->shp = shq, ptr->gobj = sph;
+      }
+      break;
+    }
+  }
+
+  return sgp;
 }
 
 /* glue two shape lists (gluing together basic shapes) */
@@ -229,6 +295,19 @@ void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out)
    * TODO: it with the pulled back input point */
 
   return obj;
+}
+
+/* return an index of object containing spatial point (or -1 on failure) */
+int SHAPE_Sgp (SGP *sgp, int nsgp, double *point)
+{
+  int i;
+
+  for (i = 0; i < nsgp; i ++, sgp ++)
+  {
+    if (gobjs [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point)) return i;
+  }
+
+  return -1;
 }
 
 /* update current shape with given motion */

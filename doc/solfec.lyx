@@ -4726,7 +4726,11 @@ This routine finds a labeled object inside of a SOLFEC object.
 \series bold
 obj
 \series default
- - returned object
+ - returned object (
+\emph on
+None
+\emph default
+ if a labeled object was not found)
 \end_layout
 
 \begin_layout Itemize

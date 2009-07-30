@@ -27,7 +27,6 @@
 #include "alg.h"
 #include "mem.h"
 #include "map.h"
-#include "box.h"
 #include "hyb.h"
 #include "gjk.h"
 #include "err.h"
@@ -47,8 +46,8 @@ inline static int point_inside (double *center, double radius, double *point)
 static void* overlap (void *data, BOX *one, BOX *two)
 {
   double p [3], q [3];
-  SPHERE *sph = one->gobj,
-	 *spg = two->gobj;
+  SPHERE *sph = (SPHERE*)one->sgp,
+	 *spg = (SPHERE*)two->sgp;
 
   if (gjk_sphere_sphere (sph->cur_center, sph->cur_radius, spg->cur_center, spg->cur_radius, p, q) < GEOMETRIC_EPSILON) /* if they touch */
   {
@@ -136,7 +135,7 @@ void SPHERE_Update_Adjacency (SPHERE *sph)
   {
     ERRMEM (boxes [num] = MEM_Alloc (&mem));
     SPHERE_Extents (NULL, spg, boxes [num]->extents); /* set up extents */
-    boxes [num]->gobj = spg;
+    boxes [num]->sgp = (SGP*)spg;
   }
 
   hybrid (boxes, num, NULL, overlap); /* detect boxoverlaps => set adjacency inside the callback */
@@ -370,6 +369,12 @@ SPHERE* SPHERE_Containing_Point (SPHERE *sph, double *point)
     if (point_inside (sph->cur_center, sph->cur_radius, point)) return sph;
 
   return NULL;
+}
+
+/* does this sphere (not a list) contain the point */
+int SPHERE_Contains_Point (void *dummy, SPHERE *sph, double *point)
+{
+  return point_inside (sph->cur_center, sph->cur_radius, point);
 }
 
 /* update sphere list according to the given motion */

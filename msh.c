@@ -1096,6 +1096,15 @@ void MESH_Destroy (MESH *msh)
   free (msh);
 }
 
+/* does the element contain point */
+int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point)
+{
+  double pla [24];
+
+  create_element_planes (msh, ele, pla);
+  return point_inside (neighs (ele->type), pla, point);
+}
+
 /* test wether two elements are adjacent
  * through a common face, edge or vertex */
 int ELEMENT_Adjacent (ELEMENT *one, ELEMENT *two)

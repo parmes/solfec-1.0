@@ -96,6 +96,9 @@ void CONVEX_List_Extents (CONVEX *cvx, double *extents);
 /* return convex containing the point */
 CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point);
 
+/* does this convex (not a list) contain */
+int CONVEX_Contains_Point (void *dummy, CONVEX *cvx, double *point);
+
 /* update convex list according to the given motion */
 void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion);
 

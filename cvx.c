@@ -373,8 +373,8 @@ static int facsize (CONVEX *cvx)
 static void* overlap (void *data, BOX *one, BOX *two)
 {
   double p [3], q [3];
-  CONVEX *cvx = one->gobj,
-	 *cvy = two->gobj;
+  CONVEX *cvx = (CONVEX*)one->sgp,
+	 *cvy = (CONVEX*)two->sgp;
 
   if (gjk (cvx->cur, cvx->nver, cvy->cur, cvy->nver, p, q) < GEOMETRIC_EPSILON) /* if they touch */
   {
@@ -529,7 +529,7 @@ void CONVEX_Update_Adjacency (CONVEX *cvx)
   {
     ERRMEM (boxes [num] = MEM_Alloc (&mem));
     CONVEX_Extents (NULL, cvy, boxes [num]->extents); /* set up extents */
-    boxes [num]->gobj = cvy;
+    boxes [num]->sgp = (SGP*)cvy;
   }
 
   hybrid (boxes, num, NULL, overlap); /* detect boxoverlaps => set adjacency inside the callback */
@@ -758,6 +758,12 @@ CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point)
     if (point_inside (cvx->nfac, cvx->pla, point)) return cvx;
 
   return NULL;
+}
+
+/* does this convex (not a list) contain */
+int CONVEX_Contains_Point (void *dummy, CONVEX *cvx, double *point)
+{
+  return point_inside (cvx->nfac, cvx->pla, point);
 }
 
 /* update convex list according to the given motion */

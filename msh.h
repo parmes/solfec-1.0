@@ -129,6 +129,9 @@ void MESH_Extents (MESH *msh, double *extents);
 /* free mesh memory */
 void MESH_Destroy (MESH *msh);
   
+/* does the element contain point */
+int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point);
+
 /* test wether two elements are adjacent
  * through a common face, edge or vertex */
 int ELEMENT_Adjacent (ELEMENT *one, ELEMENT *two);

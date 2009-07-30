@@ -171,9 +171,9 @@ static void aabb_timing (DOM *dom, double timing)
 }
 
 /* insert a contact into the constraints set */
-static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, void *mgobj, GOBJ mkind,
-  SHAPE *mshp, void *sgobj, GOBJ skind, SHAPE *sshp, double *spampnt, double *spaspnt,
-  double *normal, double gap, double area, SURFACE_MATERIAL *mat, short paircode)
+static CON* insert_contact (DOM *dom, BOX *one, BOX *two, BODY *master, BODY *slave,
+  void *mgobj, GOBJ mkind, SHAPE *mshp, void *sgobj, GOBJ skind, SHAPE *sshp, double *spampnt,
+  double *spaspnt, double *normal, double gap, double area, SURFACE_MATERIAL *mat, short paircode)
 {
   CON *con;
 
@@ -185,6 +185,8 @@ static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, void *mgobj, GO
   con->sgobj = sgobj;
   con->skind = skind;
   con->sshp = sshp;
+  con->one = one;
+  con->two = two;
   COPY (spampnt, con->point);
   BODY_Ref_Point (master, mshp, mgobj, spampnt, con->mpnt); /* referential image */
   BODY_Ref_Point (slave, sshp, sgobj, spaspnt, con->spnt); /* ... */
@@ -207,7 +209,8 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
 
   state = gobjcontact (
     CONTACT_DETECT, GOBJ_Pair_Code (one, two),
-    one->shape, one->gobj, two->shape, two->gobj,
+    one->sgp->shp, one->sgp->gobj,
+    two->sgp->shp, two->sgp->gobj,
     onepnt, twopnt, normal, &gap, &area, spair);
 
   if (state)
@@ -223,14 +226,14 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
     case 1: /* first body is the master */
     {
       paircode = GOBJ_Pair_Code (one, two);
-      return insert_contact (dom, one->body, two->body, one->gobj, one->kind, one->shape,
-	two->gobj, two->kind, two->shape, onepnt, twopnt, normal, gap, area, mat, paircode);
+      return insert_contact (dom, one, two, one->body, two->body, one->sgp->gobj, one->kind, one->sgp->shp,
+	two->sgp->gobj, two->kind, two->sgp->shp, onepnt, twopnt, normal, gap, area, mat, paircode);
     }
     case 2: /* second body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
-      return insert_contact (dom, two->body, one->body, two->gobj, two->kind, two->shape,
-	one->gobj, one->kind, one->shape, twopnt, onepnt, normal, gap, area, mat, paircode);
+      return insert_contact (dom, one, two, two->body, one->body, two->sgp->gobj, two->kind, two->sgp->shp,
+	one->sgp->gobj, one->kind, one->sgp->shp, twopnt, onepnt, normal, gap, area, mat, paircode);
     }
   }
 
@@ -270,7 +273,7 @@ void update_contact (DOM *dom, CON *con)
 
   if (state == 0) /* remove contact */
   {
-    AABB_Break_Adjacency (dom->aabb, con->mgobj, con->sgobj); /* box overlap will be re-detected */
+    AABB_Break_Adjacency (dom->aabb, con->one, con->two); /* box overlap will be re-detected */
     DOM_Remove_Constraint (dom, con);
   }
   else
@@ -405,7 +408,7 @@ static void sparsify_contacts (DOM *dom)
     con = itm->data;
     /* remove first from the box adjacency structure => otherwise box engine would try
      * to release this contact at a later point and that would cose memory corruption */
-    AABB_Break_Adjacency (dom->aabb, con->mgobj, con->sgobj); /* box overlap will be re-detected */
+    AABB_Break_Adjacency (dom->aabb, con->one, con->two); /* box overlap will be re-detected */
     DOM_Remove_Constraint (dom, con); /* now remove from the domain */
   }
 
@@ -416,6 +419,36 @@ static void sparsify_contacts (DOM *dom)
   MEM_Release (&mem);
 
   /* TODO: possibly record recently sparsified contacts (gobj pairs) and do not insert them later for a while */
+}
+
+/* get geometrical object kind */
+static int gobj_kind (SGP *sgp)
+{
+  switch (sgp->shp->kind)
+  {
+  case SHAPE_MESH: return GOBJ_ELEMENT;
+  case SHAPE_CONVEX: return GOBJ_CONVEX;
+  case SHAPE_SPHERE: return GOBJ_SPHERE;
+  }
+
+  ASSERT_DEBUG (0, "Invalid shape kind in gobj_kind");
+
+  return 0;
+}
+
+/* get geometrical object extents update callback */
+static BOX_Extents_Update extents_update (SGP *sgp)
+{
+  switch (sgp->shp->kind)
+  {
+  case SHAPE_MESH: return (BOX_Extents_Update) ELEMENT_Extents;
+  case SHAPE_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
+  case SHAPE_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
+  }
+
+  ASSERT_DEBUG (0, "Invalid shape kind in extents_update");
+
+  return 0;
 }
 
 /* constraint kind string */
@@ -481,38 +514,12 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 /* insert a body into the domain */
 void DOM_Insert_Body (DOM *dom, BODY *bod)
 {
-  for (SHAPE *shp = bod->shape; shp; shp = shp->next)
+  SGP *sgp, *sgpe;
+
+  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
   {
-    switch (shp->kind)
-    {
-      case SHAPE_MESH:
-      {
-	MESH *msh = shp->data;
-
-	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next) /* insert all surface elements */
-	  AABB_Insert (dom->aabb, bod, shp, GOBJ_ELEMENT, ele, msh,
-		      (BOX_Extents_Update) ELEMENT_Extents);
-      }
-      break;
-      case SHAPE_CONVEX:
-      {
-	CONVEX *cvx = shp->data;
-
-	for (; cvx; cvx = cvx->next)
-	  AABB_Insert (dom->aabb, bod, shp, GOBJ_CONVEX, cvx, NULL,
-		      (BOX_Extents_Update) CONVEX_Extents); /* insert all convices */
-      }
-      break;
-      case SHAPE_SPHERE:
-      {
-	SPHERE *sph = shp->data;
-
-	for (; sph; sph = sph->next)
-	  AABB_Insert (dom->aabb, bod, shp, GOBJ_SPHERE, sph, NULL,
-		      (BOX_Extents_Update) SPHERE_Extents); /* insert all spheres */
-      }
-      break;
-    }
+    sgp->box = AABB_Insert (dom->aabb, bod, gobj_kind (sgp), sgp,
+                            sgp->shp->data, extents_update (sgp));
   }
 
   if (bod->label) /* map labeled bodies */
@@ -534,35 +541,11 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
 /* remove a body from the domain */
 void DOM_Remove_Body (DOM *dom, BODY *bod)
 {
-  for (SHAPE *shp = bod->shape; shp; shp = shp->next)
+  SGP *sgp, *sgpe;
+
+  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
   {
-    switch (shp->kind)
-    {
-      case SHAPE_MESH:
-      {
-	MESH *msh = shp->data;
-
-	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next)
-	  AABB_Delete (dom->aabb, ele, NULL); /* delete all surface elements */
-      }
-      break;
-      case SHAPE_CONVEX:
-      {
-	CONVEX *cvx = shp->data;
-
-	for (; cvx; cvx = cvx->next)
-	  AABB_Delete (dom->aabb, cvx, NULL); /* delete all convices */
-      }
-      break;
-      case SHAPE_SPHERE:
-      {
-	SPHERE *sph = shp->data;
-
-	for (; sph; sph = sph->next)
-	  AABB_Delete (dom->aabb, sph, NULL); /* delete all spheres */
-      }
-      break;
-    }
+    AABB_Delete (dom->aabb, sgp->box);
   }
 
   /* remove all body related constraints */
@@ -668,8 +651,16 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
 
     if (master && slave) /* no contact between this pair */
     {
-      con->sgobj = SHAPE_Gobj (slave->shape, spnt, &con->sshp);
-      AABB_Exclude_Gobj_Pair (dom->aabb, con->mgobj, con->sgobj);
+      int msgp, ssgp;
+      SGP *sgp;
+
+      msgp = SHAPE_Sgp (master->sgp, master->nsgp, mpnt);
+      ssgp = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt);
+      sgp = &slave->sgp [ssgp];
+      con->sgobj = sgp->gobj;
+      con->sshp = sgp->shp;
+
+      AABB_Exclude_Gobj_Pair (dom->aabb, master->id, msgp, slave->id, ssgp);
     }
   }
   else

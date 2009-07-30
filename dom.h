@@ -70,8 +70,11 @@ struct constraint
 
   TMS *tms; /* time series data */
 
-  BODY *master,
-       *slave;
+  BODY *master, /* master body */
+       *slave; /* slave body */
+
+  SHAPE *mshp, /* shape of mgobj */
+        *sshp; /* shape of sgobj */
 
   void *mgobj, /* master geometrical object */
        *sgobj; /* slave geometrical object */
@@ -79,11 +82,11 @@ struct constraint
   GOBJ mkind, /* kind of mobj */
        skind; /* kind of sobj */
 
-  SHAPE *mshp, /* shape of mgobj */
-        *sshp; /* shape of sgobj */
-
   double mpnt [3], /* master referential point */
 	 spnt [3]; /* slave referential point */
+
+  BOX *one, /* the two bounding boxes that were */
+      *two; /* involved in this constraint (if any) */
 
   CON *prev, /* list */
       *next;

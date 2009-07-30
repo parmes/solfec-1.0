@@ -30,7 +30,7 @@
 #include "hyb.h"
 
 #define CUTOFF 1024
-#define PLT(b1, b2, d) ((b1)->extents[d] < (b2)->extents[d] ? 1 : ((b1)->extents[d] == (b2)->extents[d] && (b1)->gobj < (b2)->gobj ? 1 : 0))
+#define PLT(b1, b2, d) ((b1)->extents[d] < (b2)->extents[d] ? 1 : ((b1)->extents[d] == (b2)->extents[d] && (b1)->sgp < (b2)->sgp ? 1 : 0))
 typedef int (*QCMP) (const void*, const void*); /* qsort comparison type */
 
 /* compare for qsort */
@@ -63,7 +63,7 @@ static void onewayscan (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
 	    (*Ib)->extents [3+n] < (*P)->extents [n]) break; /* break if 'P' does not overlap 'Ib' along dimension 'n' */
       }
 
-      if (n > d && (*Ib)->gobj != (*P)->gobj) create (data, *Ib, *P); /* report overlap, if (P, Ib) overlap along all dimensions and P != Ib */
+      if (n > d && (*Ib)->sgp != (*P)->sgp) create (data, *Ib, *P); /* report overlap, if (P, Ib) overlap along all dimensions and P != Ib */
     }
   }
 }
@@ -92,7 +92,7 @@ static void twowayscan (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
 	      (*I)->extents [3+n] < (*p)->extents [n]) break;
 	}
 
-	if (n > d && (*I)->gobj != (*p)->gobj) create (data, *I, *p);
+	if (n > d && (*I)->sgp != (*p)->sgp) create (data, *I, *p);
       }
     }
     else /* here, 'Pb' is the interval */
@@ -106,7 +106,7 @@ static void twowayscan (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
 	      (*P)->extents [3+n] < (*i)->extents [n]) break;
 	}
 
-	if (n > d && (*P)->gobj != (*i)->gobj) create (data, *P, *i);
+	if (n > d && (*P)->sgp != (*i)->sgp) create (data, *P, *i);
       }
     }
   }

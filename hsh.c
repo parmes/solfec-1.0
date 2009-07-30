@@ -44,7 +44,7 @@ struct link
 struct mybox
 {
   BOX *box;
-  void *mark;
+  SGP *mark;
 };
 
 struct hash
@@ -90,7 +90,7 @@ static void onewayscan (LINK *list, int d,
 
   for (jp = list->next; jp && LE (jp->extents [d], list->extents [3 + d]); jp = jp->next)
   {
-    if (MYBOX (jp)->mark >= BOX (list)->gobj) continue;
+    if (MYBOX (jp)->mark >= BOX (list)->sgp) continue;
 
     for (n = 0; n < 3; n ++)
       if (d != n)  
@@ -101,7 +101,7 @@ static void onewayscan (LINK *list, int d,
     if (n == 3)
     {
       report (data,BOX (list), BOX (jp));
-      MYBOX (jp)->mark = BOX (list)->gobj;
+      MYBOX (jp)->mark = BOX (list)->sgp;
     }
   }
 }

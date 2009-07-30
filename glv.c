@@ -305,13 +305,13 @@ static void reshape3D (int w, int h)
 /* update all windows */
 static void updateall ()
 {
-  reshape3D (width, height);
-
   for (int w = windowscount - 1; w >= 0; w --) 
   {
     glutSetWindow (windows [w]);
     glutPostRedisplay();
   }
+
+  reshape3D (width, height);
 }
 
 /* draw input window */

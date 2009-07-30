@@ -23,6 +23,7 @@
 #include <zoltan.h>
 #endif
 
+#include "shp.h"
 #include "mem.h"
 #include "map.h"
 #include "set.h"
@@ -52,7 +53,7 @@ enum boxalg
   HASH3D
 };
 
-typedef struct ptrpair PPR; /* pointer pair used for exclusion tests */
+typedef struct objpair OPR; /* pointer pair used for exclusion tests */
 typedef struct box BOX; /* axis aligned box */
 typedef struct aabb AABB; /* overlap detection driver data */
 typedef enum gobj GOBJ; /* kind of geometrical object */
@@ -61,11 +62,13 @@ typedef void* (*BOX_Overlap_Create)  (void *data, BOX *one, BOX *two); /* create
 typedef void  (*BOX_Overlap_Release) (void *data, BOX *one, BOX *two, void *user); /* released overlap callback => uses the user pointer */
 typedef void  (*BOX_Extents_Update)  (void *data, void *gobj, double *extents); /* extents update callback */
 
-/* pointer pair */
-struct ptrpair
+/* object pair */
+struct objpair
 {
-  void *ptr1,
-       *ptr2;
+  unsigned int bod1,
+	       bod2;
+  int sgp1,
+      sgp2;
 };
 
 /* bounding box */
@@ -78,9 +81,9 @@ struct box
 
   GOBJ kind; /* kind of a geometric object */
 
+  SGP *sgp; /* shape and geometric object pair */
+
   void *body, /* owner of the shape */
-       *shape, /* shape that owes the geometric object */
-       *gobj, /* geometric object */
        *mark; /* auxiliary marker used by hashing algorithms */
 
   MAP *adj; /* map of adjacent boxes to user pointers returned by the overlap create callback */
@@ -123,9 +126,7 @@ struct aabb
   MEM boxmem, /* box memory pool */
       mapmem, /* map memory pool */
       setmem, /* set memory pool */
-      ptrmem; /* pointer pair memory pool */
-
-  MAP *gbm; /* geometric object to box map => used during deletion */
+      oprmem; /* object pair memory pool */
 
   SET *nobody, /* set of body pairs excluded from overlap tests */
       *nogobj; /* set of geometric object pairs excluded from overlap tests */
@@ -147,23 +148,23 @@ struct aabb
 AABB* AABB_Create (int size);
 
 /* insert geometrical object => return the associated box */
-BOX* AABB_Insert (AABB *aabb, void *body, void *shape, GOBJ kind, void *gobj, void *data, BOX_Extents_Update update);
+BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_Extents_Update update);
 
 /* delete an object (either 'gobj' or 'box' must be not NULL) */
-void AABB_Delete (AABB *aabb, void *gobj, BOX *box);
+void AABB_Delete (AABB *aabb, BOX *box);
 
 /* update state => detect created and released overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release);
 
-/* never report overlaps betweem this pair of bodies */
-void AABB_Exclude_Body_Pair (AABB *aabb, void *body1, void *body2);
+/* never report overlaps betweem this pair of bodies (given by identifiers) */
+void AABB_Exclude_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2);
 
-/* never report overlaps betweem this pair of objects */
-void AABB_Exclude_Gobj_Pair (AABB *aabb, void *gobj1, void *gobj2);
+/* never report overlaps betweem this pair of objects (bod1, sgp1), (bod1, sgp2) */
+void AABB_Exclude_Gobj_Pair (AABB *aabb, unsigned int bod1, int sgp1, unsigned int bod2, int sgp2);
 
 /* break box adjacency if boxes associated with the objects are adjacent
  * (this will cose re-detection of the overlap during the next update) */
-void AABB_Break_Adjacency (AABB *aabb, void *gobj1, void *gobj2);
+void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two);
 
 /* release memory */
 void AABB_Destroy (AABB *aabb);

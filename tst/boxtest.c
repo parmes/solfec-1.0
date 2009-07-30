@@ -58,6 +58,8 @@ struct testbox
 
   BOX *box; /* related box object */
 
+  SGP *sgp;
+
   TESTBOX *p, *n; /* list links */
 };
 
@@ -74,6 +76,9 @@ static double box_wz = 100.;
 
 /* global dummy body */
 static BODY bod;
+
+/* shape object pairs */
+SGP *sgp = NULL;
 
 /* vector of boxes */
 static TESTBOX *box = NULL;
@@ -181,6 +186,9 @@ static void generate_box_set (int howmany, short arrange)
 {
   int i;
 
+  /* enable self-contact (we use one dummy body) */
+  bod.flags |= BODY_DETECT_SELF_CONTACT;
+
   /* adjust edge widths to the number of boxes */
   box_wx = box_wy = box_wz = pow (volume/(double)howmany, 0.33),
 
@@ -190,6 +198,7 @@ static void generate_box_set (int howmany, short arrange)
   /* initialise particles memory */
   howmany = MAX (howmany, 1);
   ERRMEM (box = realloc (box, sizeof (TESTBOX) * howmany));
+  ERRMEM (sgp = realloc (sgp, sizeof (SGP) * howmany));
   boxsize = howmany;
   deleted = NULL; /* empty deleted boxes list */
 
@@ -210,7 +219,9 @@ static void generate_box_set (int howmany, short arrange)
       random_coord (box [i].coord);
       random_velo (box [i].velo);
 
-      box [i].box = AABB_Insert (aabb, &bod, NULL, GOBJ_DUMMY, &box [i], NULL, (BOX_Extents_Update)box_extents_update);
+      sgp [i].gobj = &box [i];
+      box [i].sgp = &sgp [i];
+      box [i].box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, &sgp [i], NULL, (BOX_Extents_Update)box_extents_update);
     }
   }
   break;
@@ -234,7 +245,9 @@ static void generate_box_set (int howmany, short arrange)
 	box [i].coord [5] = z + step;
         random_velo (box [i].velo);
 
-	box [i].box = AABB_Insert (aabb, &bod, NULL, GOBJ_DUMMY, &box [i], NULL, (BOX_Extents_Update)box_extents_update);
+        sgp [i].gobj = &box [i];
+        box [i].sgp = &sgp [i];
+	box [i].box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, &sgp [i], NULL, (BOX_Extents_Update)box_extents_update);
 	i ++;
       }
     }
@@ -275,8 +288,8 @@ static void box_motion_step ()
       obi = item->key;
       if (obi < obj)
       {
-	p = obi->gobj;
-	r = obj->gobj;
+	p = obi->sgp->gobj;
+	r = obj->sgp->gobj;
 	MID (p->coord, p->coord + 3, pmid);
 	MID (r->coord, r->coord + 3, rmid);
 	SUB (rmid, pmid, dir); NORMALIZE (dir);
@@ -293,7 +306,7 @@ static void box_motion_step ()
   /* update positions */
   for (obj = aabb->lst; obj; obj = obj->next)
   {
-    p = obj->gobj;
+    p = obj->sgp->gobj;
     q = p->coord;
     u = p->velo;
     
@@ -368,7 +381,7 @@ static void single_computational_step ()
       random_velo (p->velo);
       deleted = p->n; 
 
-      p->box = AABB_Insert (aabb, &bod, NULL, GOBJ_DUMMY, p, NULL, (BOX_Extents_Update)box_extents_update);
+      p->box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, p->sgp, NULL, (BOX_Extents_Update)box_extents_update);
       boxsize ++;
     } 
   }
@@ -378,8 +391,8 @@ static void single_computational_step ()
   {
     if (DRAND () < prob)
     {
-      p = obj->gobj;
-      AABB_Delete (aabb, p, p->box);
+      p = obj->sgp->gobj;
+      AABB_Delete (aabb, p->box);
       p->n = deleted;
       deleted = p;
       boxsize --;
@@ -399,6 +412,7 @@ static void single_computational_step ()
 static void free_all_data ()
 {
   free (box);
+  free (sgp);
   AABB_Destroy (aabb);
 }
 
@@ -524,7 +538,7 @@ static void view_render3d (void)
     {
       box_color (n, color);
       glColor3fv (color);
-      p = u->gobj;
+      p = u->sgp->gobj;
       GLBOX (p->coord);
     }
     glEnd ();

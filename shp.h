@@ -25,6 +25,7 @@
 #define __shp__
 
 typedef struct shape SHAPE;
+typedef struct shape_gobj_pair SGP;
 
 /* general shape */
 struct shape
@@ -38,8 +39,19 @@ struct shape
   SHAPE *next;
 };
 
+/* shape and geometrical object pair */
+struct shape_gobj_pair
+{
+  SHAPE *shp;
+  void *gobj;
+  void *box; /* points to the bounding box */
+};
+
 /* create a general shape */
 SHAPE* SHAPE_Create (short kind, void *data);
+
+/* create shape geometric object pairs */
+SGP* SGP_Create (SHAPE *shp, int *nsgp);
 
 /* glue two shape lists (gluing together basic shapes) */
 SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq);
@@ -67,6 +79,9 @@ void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler);
 
 /* return an object containing spatial point */
 void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out);
+
+/* return an index of object containing spatial point (or -1 on failure) */
+int SHAPE_Sgp (SGP *sgp, int nsgp, double *point);
 
 /* update current shape with given motion */
 void SHAPE_Update (SHAPE *shp, void *body, MOTION motion);

@@ -124,10 +124,10 @@ static void hash2d_list_insert (DR *dyn, double xmin, double ymin, double xmax,
     for (r = htable [key]; r; r = r->next)
     {
       if (r->box == box) found = 1;
-      else if (r->box->mark != box->gobj && overlap (r, xmin, ymin, xmax, ymax))
+      else if (r->box->mark != box->sgp && overlap (r, xmin, ymin, xmax, ymax))
       {
         report (data, box, r->box);
-	r->box->mark = box->gobj;
+	r->box->mark = box->sgp;
       }
     }
 
@@ -147,11 +147,11 @@ static void hash2d_list_insert (DR *dyn, double xmin, double ymin, double xmax,
 
 static void xycallback (XYAUX *aux, RANGE *r)
 {
-  if (r->box->mark == aux->box->gobj) return;
+  if (r->box->mark == aux->box->sgp) return;
   else if (aux->max < r->min || aux->min > r->max) return;
 
   aux->report (aux->data, aux->box, r->box);
-  r->box->mark = aux->box->gobj;
+  r->box->mark = aux->box->sgp;
 }
 
 static void hash1d_xytree_insert (DR *dyn, double xmin, double ymin, double xmax,

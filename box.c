@@ -42,13 +42,28 @@ struct auxdata
   BOX_Overlap_Create create;
 };
 
-/* pointer pair comparison */
-static int ptrpaircmp (PPR *a, PPR *b)
+/* body pair comparison */
+static int bodcmp (OPR *a, OPR *b)
 {
-  if (a->ptr1 < b->ptr1) return -1;
-  else if (a->ptr1 == b->ptr1 && a->ptr2 < b->ptr2) return -1;
-  else if (a->ptr1 == b->ptr1 && a->ptr2 == b->ptr2) return 0;
+  if (a->bod1 < b->bod1) return -1;
+  else if (a->bod1 == b->bod1 && a->bod2 < b->bod2) return -1;
+  else if (a->bod1 == b->bod1 && a->bod2 == b->bod2) return 0;
   else return 1;
+}
+
+/* geomtric object pair comparison */
+static int gobjcmp (OPR *a, OPR *b)
+{
+  int cmp = bodcmp (a, b);
+
+  if (cmp == 0)
+  {
+    if (a->sgp1 < b->sgp1) return -1;
+    else if (a->sgp1 == b->sgp1 && a->sgp2 < b->sgp2) return -1;
+    else if (a->sgp1 == b->sgp1 && a->sgp2 == b->sgp2) return 0;
+    else return 1;
+  }
+  else return cmp;
 }
 
 /* check for a lack of overlap */
@@ -66,7 +81,7 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
   void *user;
 
   /* check if these are two obstacles => no need to report overlap */
-  if (((BODY*)one->body)->kind == OBS && ((BODY*)two->body)->kind == OBS) return NULL;
+  if (BODY(one->body)->kind == OBS && BODY(two->body)->kind == OBS) return NULL;
 
   /* boxes already adjacent ? */
   if (MAP_Find (one->adj, two, NULL)) return NULL;
@@ -79,15 +94,18 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
      * flag rathert than use the exclusion set within the AABB structure */
   }
 
+  int id1 = BODY (one->body)->id,
+      id2 = BODY (two->body)->id,
+      no1 = one->sgp - BODY (one->body)->sgp,
+      no2 = two->sgp - BODY (two->body)->sgp;
+
+  OPR pair = {MIN (id1, id2), MAX (id1, id2), MIN (no1, no2), MAX (no1, no2)};
+
   /* an excluded body pair ? */
-  PPR bpair = {MIN (one->body, two->body),
-               MAX (one->body, two->body)};
-  if (SET_Find (aux->nobody, &bpair, (SET_Compare) ptrpaircmp)) return NULL;
+  if (SET_Find (aux->nobody, &pair, (SET_Compare) bodcmp)) return NULL;
 
   /* an excluded object pair ? */
-  PPR opair = {MIN (one->gobj, two->gobj),
-               MAX (one->gobj, two->gobj)};
-  if (SET_Find (aux->nogobj, &opair, (SET_Compare) ptrpaircmp)) return NULL;
+  if (SET_Find (aux->nogobj, &pair, (SET_Compare) gobjcmp)) return NULL;
 
   /* test topological adjacency */
   switch (GOBJ_Pair_Code (one, two))
@@ -97,19 +115,19 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
       if (one->body == two->body) /* assuming only one mesh per body is possible,
 				     the two elements are within the same mesh;
 				     exclude topologically adjacent elements */
-	if (ELEMENT_Adjacent (one->gobj, two->gobj)) return NULL;
+	if (ELEMENT_Adjacent (one->sgp->gobj, two->sgp->gobj)) return NULL;
     }
     break;
     case AABB_CONVEX_CONVEX:
     {
       if (one->body == two->body) /* exclude topologically adjacent convices */
-	if (CONVEX_Adjacent (one->gobj, two->gobj)) return NULL;
+	if (CONVEX_Adjacent (one->sgp->gobj, two->sgp->gobj)) return NULL;
     }
     break;
     case AABB_SPHERE_SPHERE:
     {
       if (one->body == two->body) /* exclude topologically adjacent spheres */
-	if (SPHERE_Adjacent (one->gobj, two->gobj)) return NULL;
+	if (SPHERE_Adjacent (one->sgp->gobj, two->sgp->gobj)) return NULL;
     }
   }
  
@@ -141,9 +159,8 @@ AABB* AABB_Create (int size)
   MEM_Init (&aabb->boxmem, sizeof (BOX), MIN (size, SIZE));
   MEM_Init (&aabb->mapmem, sizeof (MAP), MIN (size, SIZE));
   MEM_Init (&aabb->setmem, sizeof (SET), MIN (size, SIZE));
-  MEM_Init (&aabb->ptrmem, sizeof (PPR), MIN (size, SIZE));
+  MEM_Init (&aabb->oprmem, sizeof (OPR), MIN (size, SIZE));
 
-  aabb->gbm = NULL;
   aabb->nobody = aabb->nogobj= NULL;
 
   aabb->nlst = 0;
@@ -155,7 +172,7 @@ AABB* AABB_Create (int size)
 }
 
 /* insert geometrical object */
-BOX* AABB_Insert (AABB *aabb, void *body, void *shape, GOBJ kind, void *gobj, void *data, BOX_Extents_Update update)
+BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_Extents_Update update)
 {
   BOX *box;
 
@@ -164,17 +181,13 @@ BOX* AABB_Insert (AABB *aabb, void *body, void *shape, GOBJ kind, void *gobj, vo
   box->update = update;
   box->kind = kind;
   box->body = body;
-  box->shape = shape;
-  box->gobj = gobj;
+  box->sgp = sgp;
 
   /* include into the
    * insertion list */
   box->next = aabb->in;
   if (aabb->in) aabb->in->prev= box;
   aabb->in = box;
-
-  /* map geometri object to the new box */
-  MAP_Insert (&aabb->mapmem, &aabb->gbm, gobj, box, NULL);
 
   /* set modified */
   aabb->modified = 1;
@@ -183,32 +196,21 @@ BOX* AABB_Insert (AABB *aabb, void *body, void *shape, GOBJ kind, void *gobj, vo
 }
 
 /* delete an object */
-void AABB_Delete (AABB *aabb, void *gobj, BOX *box)
+void AABB_Delete (AABB *aabb, BOX *box)
 {
-  if (!box) /* 'gobj' must be valid then */
-  {
-    box = MAP_Find (aabb->gbm, gobj, NULL); /* find it */
-  }
-  
-  if (box)
-  {
-    /* remove from the object to box map */
-    MAP_Delete (&aabb->mapmem, &aabb->gbm, box->gobj, NULL);
+  /* remove box from the current list */
+  if (box->prev) box->prev->next = box->next;
+  else aabb->lst = box->next;
+  if (box->next) box->next->prev = box->prev;
+  aabb->nlst --; /* decrease count */
 
-    /* remove box from the current list */
-    if (box->prev) box->prev->next = box->next;
-    else aabb->lst = box->next;
-    if (box->next) box->next->prev = box->prev;
-    aabb->nlst --; /* decrease count */
+  /* insert it into
+   * the deletion list */
+  box->next = aabb->out;
+  aabb->out = box;
 
-    /* insert it into
-     * the deletion list */
-    box->next = aabb->out;
-    aabb->out = box;
-
-    /* set modified */
-    aabb->modified = 1;
-  }
+  /* set modified */
+  aabb->modified = 1;
 }
 
 /* update state => detect created and released overlaps */
@@ -221,10 +223,10 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
 
   /* update extents */
   for (box = aabb->lst; box; box = box->next) /* for each current box */
-    box->update (box->data, box->gobj, box->extents);
+    box->update (box->data, box->sgp->gobj, box->extents);
 
   for (box = aabb->in, nin = 0; box; box = box->next, nin ++) /* for each inserted box */
-    box->update (box->data, box->gobj, box->extents);
+    box->update (box->data, box->sgp->gobj, box->extents);
 
   /* check for released overlaps */
   for (box = aabb->out; box; box = next) /* for each deleted box */
@@ -311,36 +313,33 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   aabb->modified = 0;
 }
 
-/* never report overlaps betweem this pair of bodies */
-void AABB_Exclude_Body_Pair (AABB *aabb, void *body1, void *body2)
+/* never report overlaps betweem this pair of bodies (given by identifiers) */
+void AABB_Exclude_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2)
 {
-  PPR *ppr;
+  OPR *opr;
   
-  ERRMEM (ppr = MEM_Alloc (&aabb->ptrmem));
-  ppr->ptr1 = body1;
-  ppr->ptr2 = body2;
-  SET_Insert (&aabb->setmem, &aabb->nobody, ppr, (SET_Compare) ptrpaircmp);
+  ERRMEM (opr = MEM_Alloc (&aabb->oprmem));
+  opr->bod1 = MIN (id1, id2);
+  opr->bod2 = MAX (id1, id2);
+  SET_Insert (&aabb->setmem, &aabb->nobody, opr, (SET_Compare) bodcmp);
 }
 
-/* never report overlaps betweem this pair of objects */
-void AABB_Exclude_Gobj_Pair (AABB *aabb, void *gobj1, void *gobj2)
+/* never report overlaps betweem this pair of objects (bod1, sgp1), (bod1, sgp2) */
+void AABB_Exclude_Gobj_Pair (AABB *aabb, unsigned int bod1, int sgp1, unsigned int bod2, int sgp2)
 {
-  PPR *ppr;
+  OPR *opr;
   
-  ERRMEM (ppr = MEM_Alloc (&aabb->ptrmem));
-  ppr->ptr1 = gobj1;
-  ppr->ptr2 = gobj2;
-  SET_Insert (&aabb->setmem, &aabb->nogobj, ppr, (SET_Compare) ptrpaircmp);
+  ERRMEM (opr = MEM_Alloc (&aabb->oprmem));
+  opr->bod1 = MIN (bod1, bod2);
+  opr->bod2 = MAX (bod1, bod2);
+  opr->sgp1 = MIN (sgp1, sgp2);
+  opr->sgp2 = MAX (sgp1, sgp2);
+  SET_Insert (&aabb->setmem, &aabb->nogobj, opr, (SET_Compare) gobjcmp);
 }
 
 /* break box adjacency if boxes associated with the objects are adjacent */
-void AABB_Break_Adjacency (AABB *aabb, void *gobj1, void *gobj2)
+void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two)
 {
-  BOX *one = MAP_Find (aabb->gbm, gobj1, NULL),
-      *two = MAP_Find (aabb->gbm, gobj2, NULL);
-
-  ASSERT_DEBUG (one && two, "Inconsitency in box mapping to geometrical objects");
-
   /* mutually delete from adjacency lists */
   MAP_Delete (&aabb->mapmem, &one->adj, two, NULL);
   MAP_Delete (&aabb->mapmem, &two->adj, one, NULL);
@@ -353,7 +352,7 @@ void AABB_Destroy (AABB *aabb)
   MEM_Release (&aabb->boxmem);
   MEM_Release (&aabb->mapmem);
   MEM_Release (&aabb->setmem);
-  MEM_Release (&aabb->ptrmem);
+  MEM_Release (&aabb->oprmem);
   if (aabb->swp) SWEEP_Destroy (aabb->swp);
   if (aabb->hsh) HASH_Destroy (aabb->hsh);
   free (aabb);

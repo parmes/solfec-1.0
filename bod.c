@@ -736,6 +736,9 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label)
   /* update shape adjacency */
   SHAPE_Update_Adjacency (shp);
 
+  /* create piars table */
+  bod->sgp = SGP_Create (shp, &bod->nsgp);
+
   /* update body extents */
   SHAPE_Extents (shp, bod->extents);
 
@@ -1543,6 +1546,8 @@ void BODY_Destroy (BODY *bod)
     free (forc); }
 
   SHAPE_Destroy (bod->shape);
+
+  free (bod->sgp);
 
   if (bod->inverse) MX_Destroy (bod->inverse);
 

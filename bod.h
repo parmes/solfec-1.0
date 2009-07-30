@@ -116,7 +116,11 @@ struct general_body
   
   SHAPE *shape;    /* shape of the body */
 
-  double extents [6]; /* shape extents */
+  SGP *sgp;        /* shape and geometric object pairs */
+
+  int nsgp;        /* number of them (above) */
+
+  double extents [6];  /* shape extents */
 
   SCHEME scheme;    /* integration scheme */
 
@@ -132,6 +136,9 @@ struct general_body
 
   BODY_FLAGS flags;      /* flags */
 };
+
+/* body pointer cast */
+#define BODY(bod) ((BODY*)(bod))
 
 /* create a body */
 BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label);
