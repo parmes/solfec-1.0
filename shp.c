@@ -391,8 +391,10 @@ SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
 
   for (; count > 0; count --)
   {
-    ptr = SHAPE_Create (unpack_int (ipos, i, ints),
-                        unpack [ptr->kind] (solfec, dpos, d, doubles, ipos, i, ints));
+    int kind = unpack_int (ipos, i, ints);
+
+    ptr = SHAPE_Create (kind, unpack [kind] (solfec, dpos, d, doubles, ipos, i, ints));
+
     ptr->next = shp;
     shp = ptr;
   }

@@ -76,7 +76,7 @@ struct box
 {
   double extents [6]; /* min x, y, z, max x, y, z */
 
-  void *data; /* extents update callback data */
+  void *data; /* extents update data, usually => sgp->shp->data */
   BOX_Extents_Update update; /* extents update callback => update (data, gobj, extents) */
 
   GOBJ kind; /* kind of a geometric object */

@@ -1648,10 +1648,12 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
 
+#if 0
   /* constraints: pack their integer ids */
   pack_int (isize, i, ints, SET_Size (bod->con));
   for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
     pack_int (isize, i, ints, ((CON*)item->data)->id);
+#endif
 
   /* pack the list of forces */
   pack_forces (bod->forces, dsize, d, doubles, isize, i, ints);
@@ -1671,8 +1673,6 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   char *label;
   BULK_MATERIAL *mat;
   SOLFEC *sol;
-  int ncon, n, id;
-  DOM *dom;
 
   /* unpack BODY_Create arguments and create body */
   sol = solfec;
@@ -1699,6 +1699,10 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
 
+#if 0
+  int ncon, n, id;
+  DOM *dom;
+
   /* unpack constraints */
   dom = sol->dom;
   ncon = unpack_int (ipos, i, ints);
@@ -1710,6 +1714,7 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
     ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)id, NULL), "Invalid constraint id");
     SET_Insert (&dom->setmem, &bod->con, con, NULL);
   }
+#endif
 
   /* unpack the list of forces */
   bod->forces = unpack_forces (dpos, d, doubles, ipos, i, ints);

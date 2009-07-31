@@ -146,8 +146,7 @@ struct domain
   short verbose; /* verbosity flag */
 
 #if MPI
-  struct Zoltan_Struct *zolbod,
-		       *zolcon;
+  struct Zoltan_Struct *zol;
 #endif
 };
 

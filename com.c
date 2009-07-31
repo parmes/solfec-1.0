@@ -152,11 +152,11 @@ void COM (MPI_Comm comm, int tag,
   MPI_Allgatherv (send_rank, send_count, MPI_INT, send_rank_all, send_count_all, send_rank_disp, MPI_INT, comm);
 
   /* compute receive ranks */
-  for (recv_count = k = j = i = 0; i < l; i += send_count_all [k], k ++)
+  for (recv_count = k = i = 0; i < l; i += send_count_all [k], k ++)
   {
     for (j = 0; k != rank && j < send_count_all [k]; j ++) /* while not here */
     {
-      if (send_rank_all [i] == rank) /* 'k'th rank is sending here */
+      if (send_rank_all [i+j] == rank) /* 'k'th rank is sending here */
       {
 	recv_rank [recv_count] = k;
 	recv_count ++;
@@ -394,11 +394,11 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   MPI_Allgatherv (pattern->send_rank, pattern->send_count, MPI_INT, send_rank_all, send_count_all, send_rank_disp, MPI_INT, comm);
 
   /* compute receive ranks */
-  for (pattern->recv_count = k = j = i = 0; i < l; i += send_count_all [k], k ++)
+  for (pattern->recv_count = k = i = 0; i < l; i += send_count_all [k], k ++)
   {
     for (j = 0; k != rank && j < send_count_all [k]; j ++) /* while not here */
     {
-      if (send_rank_all [i] == rank) /* 'k'th rank is sending here */
+      if (send_rank_all [i+j] == rank) /* 'k'th rank is sending here */
       {
 	pattern->recv_rank [pattern->recv_count] = k;
 	pattern->recv_count ++;

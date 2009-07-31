@@ -31,6 +31,10 @@
 #include "tmr.h"
 #include "err.h"
 
+#if MPI
+#include "com.h"
+#endif
+
 #define CONBLK 512 /* constraints memory block size */
 #define MAPBLK 128 /* map items memory block size */
 #define SETBLK 512 /* set items memory block size */
@@ -451,6 +455,163 @@ static BOX_Extents_Update extents_update (SGP *sgp)
   return 0;
 }
 
+#if MPI
+/* number of bodies */
+static int body_count (DOM *dom, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  return dom->nbod;
+}
+
+/* list of body identifiers */
+static void body_list (DOM *dom, int num_gid_entries, int num_lid_entries,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
+{
+  BODY *bod;
+  int i;
+  
+  for (bod = dom->bod, i = 0; bod; i ++, bod = bod->next)
+  {
+    global_ids [i * num_gid_entries] = bod->id;
+    obj_wgts [i * wgt_dim] = bod->dofs;
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* number of spatial dimensions */
+static int dimensions (DOM *dom, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  return 3;
+}
+
+/* list of body extent midpoints */
+static void midpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int num_obj,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
+{
+  unsigned int id;
+  double *e, *v;
+  BODY *bod;
+  int i;
+
+  for (i = 0, bod = dom->bod; i < num_obj; i ++, bod = bod->next)
+  {
+    id = global_ids [i * num_gid_entries];
+
+    if (bod && bod->id != id) /* Zoltan changed the order of bodies in the list */
+    {
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+    }
+
+    e = bod->extents;
+    v = &geom_vec [i* num_dim];
+    MID (e, e+3, v);
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* balance bodies */
+int balance (DOM *dom)
+{
+  int changes,
+      num_gid_entries,
+      num_lid_entries,
+      num_import,
+      *import_procs,
+      num_export,
+      *export_procs;
+
+  ZOLTAN_ID_PTR import_global_ids,
+		import_local_ids,
+		export_global_ids,
+		export_local_ids;
+
+  COMOBJ *send, *recv, *ptr;
+
+  unsigned int id;
+
+  int i;
+
+  Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
+    &num_import, &import_global_ids, &import_local_ids, &import_procs,
+    &num_export, &export_global_ids, &export_local_ids, &export_procs);
+
+  ERRMEM (send = malloc (sizeof (COMOBJ [num_export])));
+
+  for (i = 0, ptr = send; i < num_export; i ++, ptr ++)
+  {
+    id = export_global_ids [i * num_gid_entries];
+
+    ptr->rank = export_procs [i];
+    ASSERT_DEBUG_EXT (ptr->o = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+  }
+
+  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+                       &export_global_ids, &export_local_ids, &export_procs);
+
+  COMOBJS (MPI_COMM_WORLD, 0, (OBJ_Pack)BODY_Pack, dom->owner, (OBJ_Unpack)BODY_Unpack, send, num_export, &recv, &num_import);
+
+  for (i = 0, ptr = send; i < num_export; i ++, ptr ++)
+  {
+    DOM_Remove_Body (dom, ptr->o);
+    BODY_Destroy (ptr->o);
+    /* TODO: maintain constraints attached to those bodies;
+     * TODO: specifically the user given constraints are vournable
+     */
+  }
+
+  for (i = 0, ptr = recv; i < num_import; i ++, ptr ++)
+  {
+    DOM_Insert_Body (dom, ptr->o);
+  }
+
+  free (send);
+  free (recv);
+
+  return changes;
+}
+
+/* create MPI related data */
+static void create_mpi (DOM *dom)
+{
+  ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN_INIT);
+
+  /* global parameters */
+  Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
+  Zoltan_Set_Param (dom->zol, "DEBUG_MEMORY", "0");
+  Zoltan_Set_Param (dom->zol, "NUM_GID_ENTRIES", "1");
+  Zoltan_Set_Param (dom->zol, "NUM_LID_ENTRIES", "0");
+  Zoltan_Set_Param (dom->zol, "OBJ_WEIGHT_DIM", "1"); /* bod->ndof */
+ 
+  /* load balancing parameters */
+  Zoltan_Set_Param (dom->zol, "LB_METHOD", "RCB");
+  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", "1.2");
+  Zoltan_Set_Param (dom->zol, "AUTO_MIGRATE", "FALSE"); /* we shall use COMOBJS */
+  Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "EXPORT"); /* the rest will be done by COMOBJS */
+
+  /* RCB parameters */
+  Zoltan_Set_Param (dom->zol, "RCB_OVERALLOC", "1.3");
+  Zoltan_Set_Param (dom->zol, "RCB_REUSE", "1");
+  Zoltan_Set_Param (dom->zol, "RCB_OUTPUT_LEVEL", "0");
+  Zoltan_Set_Param (dom->zol, "CHECK_GEOM", "1");
+  Zoltan_Set_Param (dom->zol, "KEEP_CUTS", "1");
+
+  /* callbacks */
+  Zoltan_Set_Fn (dom->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) body_count, dom);
+  Zoltan_Set_Fn (dom->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) body_list, dom);
+  Zoltan_Set_Fn (dom->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, dom);
+  Zoltan_Set_Fn (dom->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) midpoints, dom);
+}
+
+/* destroy MPI related data */
+static void destroy_mpi (DOM *dom)
+{
+  Zoltan_Destroy (&dom->zol);
+}
+#endif
+
 /* constraint kind string */
 char* CON_Kind (CON *con)
 {
@@ -507,6 +668,10 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->data = data_create ();
 
   dom->verbose = 0;
+
+#if MPI
+  create_mpi (dom);
+#endif
 
   return dom;
 }
@@ -1113,6 +1278,10 @@ void DOM_Destroy (DOM *dom)
     TMS_Destroy (dom->gravval);
 
   data_destroy (dom->data);
+
+#if MPI
+  destroy_mpi (dom);
+#endif
 
   free (dom);
 }

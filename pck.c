@@ -27,7 +27,7 @@
 #define pack_many(size, array, stored, input, count, type)\
   do\
   {\
-    type *slot;\
+    type *slot, *iter;\
   \
     if ((*size) < (*stored) + count)\
     {\
@@ -35,8 +35,8 @@
       ERRMEM ((*array) = realloc ((*array), (*size) * sizeof (type)));\
     }\
   \
-    for (slot = &(*array)[*stored], (*stored) += count;\
-	 count > 0; count --, slot ++, input ++) *slot = *input;\
+    for (slot = &(*array)[*stored], iter = input, (*stored) += count;\
+	 count > 0; count --, slot ++, iter ++) *slot = *iter;\
   }\
   while (0)
 
@@ -58,12 +58,12 @@
 #define unpack_many(pos, array, stored, output, count, type)\
   do\
   {\
-    type *slot;\
+    type *slot, *iter;\
   \
     ASSERT (((*pos) + count) <= stored, ERR_PCK_UNPACK);\
   \
-    for (slot = &array[*pos], (*pos) += count;\
-	 count > 0; count --, slot ++, output ++) *output = *slot;\
+    for (iter = output, slot = &array[*pos], (*pos) += count;\
+	 count > 0; count --, slot ++, iter ++) *iter = *slot;\
   }\
   while (0)
 
@@ -92,14 +92,15 @@ void pack_ints (int *isize, int **i, int *ints, int *input, int count)
 /* pack string into ints */
 void pack_string (int *isize, int **i, int *ints, char *input)
 {
-  int len = strlen (input) + 1, /* + '\0' */
-      bytlen = len * sizeof (char),
-      remain = bytlen % sizeof (int),
-      buflen = bytlen / sizeof (int) + (remain ? 1 : 0),
-     *buf;
-
   if (input)
   {
+    int len = strlen (input) + 1, /* + '\0' */
+	bytlen = len * sizeof (char),
+	remain = bytlen % sizeof (int),
+	buflen = bytlen / sizeof (int) + (remain ? 1 : 0),
+       *buf;
+
+
     ERRMEM (buf = malloc (buflen * sizeof (int)));
 
     strcpy ((char*)buf, input);
