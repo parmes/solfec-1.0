@@ -1640,32 +1640,117 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
   pack_doubles (dsize, d, doubles, bod->ref_center, 3);
   pack_doubles (dsize, d, doubles, bod->ref_tensor, 9);
 
-  /* body id and the velocity size */
+  /* body id */
   pack_int (isize, i, ints, bod->id);
-  pack_int (isize, i, ints, bod->dofs);
 
   /* configuration and velocity */
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
 
-#if 0
   /* constraints: pack their integer ids */
   pack_int (isize, i, ints, SET_Size (bod->con));
   for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-    pack_int (isize, i, ints, ((CON*)item->data)->id);
-#endif
+    pack_int (isize, i, ints, CON(item->data)->id);
 
   /* pack the list of forces */
   pack_forces (bod->forces, dsize, d, doubles, isize, i, ints);
 
-  /* pack extents, scheme and flags */
-  pack_doubles (dsize, d, doubles, bod->extents, 6);
+  /* pack scheme and flags */
   pack_int (isize, i, ints, bod->scheme);
   pack_int (isize, i, ints, bod->flags);
 }
 
 /* unpack body */
 BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  BODY *bod;
+  int kind;
+  SHAPE *shp;
+  char *label;
+  BULK_MATERIAL *mat;
+  SOLFEC *sol;
+  int ncon, n, id;
+  DOM *dom;
+
+  /* unpack BODY_Create arguments and create body */
+  sol = solfec;
+  kind = unpack_int (ipos, i, ints);
+  shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
+  label = unpack_string (ipos, i, ints);
+  ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
+  free (label);
+  label = unpack_string (ipos, i, ints);
+  bod = BODY_Create (kind, shp, mat, label);
+  free (label);
+
+  /* overwritte characteristics */
+  bod->ref_mass = unpack_double (dpos, d, doubles);
+  bod->ref_volume = unpack_double (dpos, d, doubles);
+  unpack_doubles (dpos, d, doubles, bod->ref_center, 3);
+  unpack_doubles (dpos, d, doubles, bod->ref_tensor, 9);
+
+  /* body id */
+  bod->id = unpack_int (ipos, i, ints);
+
+  /* configuration and velocity */
+  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+
+  /* unpack constraints */
+  dom = sol->dom;
+  ncon = unpack_int (ipos, i, ints);
+  for (n = 0; n < ncon; n ++)
+  {
+    CON *con;
+
+    id = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)id, NULL), "Invalid constraint id");
+    SET_Insert (&dom->setmem, &bod->con, con, NULL);
+  }
+
+  /* unpack the list of forces */
+  bod->forces = unpack_forces (dpos, d, doubles, ipos, i, ints);
+
+  /* unpack scheme and flags */
+  bod->scheme = unpack_int (ipos, i, ints);
+  bod->flags = unpack_int (ipos, i, ints);
+
+  return bod;
+}
+
+#if MPI
+/* pack parent body */
+void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  /* these are arguments of BODY_Create */
+  pack_int (isize, i, ints, bod->kind);
+  SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
+  pack_string (isize, i, ints, bod->mat->label);
+  pack_string (isize, i, ints, bod->label);
+
+  /* characteristics will be overwritten when unpacking */
+  pack_double (dsize, d, doubles, bod->ref_mass);
+  pack_double (dsize, d, doubles, bod->ref_volume);
+  pack_doubles (dsize, d, doubles, bod->ref_center, 3);
+  pack_doubles (dsize, d, doubles, bod->ref_tensor, 9);
+
+  /* body id */
+  pack_int (isize, i, ints, bod->id);
+
+  /* configuration and velocity */
+  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+
+  /* pack the list of forces */
+  pack_forces (bod->forces, dsize, d, doubles, isize, i, ints);
+
+  /* pack scheme and flags */
+  pack_int (isize, i, ints, bod->scheme);
+  pack_int (isize, i, ints, bod->flags);
+}
+
+/* unpack parent body */
+BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *bod;
   int kind;
@@ -1691,38 +1776,85 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   unpack_doubles (dpos, d, doubles, bod->ref_center, 3);
   unpack_doubles (dpos, d, doubles, bod->ref_tensor, 9);
 
-  /* body id and the velocity size */
+  /* body id */
   bod->id = unpack_int (ipos, i, ints);
-  bod->dofs = unpack_int (ipos, i, ints);
 
   /* configuration and velocity */
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
 
-#if 0
-  int ncon, n, id;
-  DOM *dom;
-
-  /* unpack constraints */
-  dom = sol->dom;
-  ncon = unpack_int (ipos, i, ints);
-  for (n = 0; n < ncon; n ++)
-  {
-    CON *con;
-
-    id = unpack_int (ipos, i, ints);
-    ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)id, NULL), "Invalid constraint id");
-    SET_Insert (&dom->setmem, &bod->con, con, NULL);
-  }
-#endif
-
   /* unpack the list of forces */
   bod->forces = unpack_forces (dpos, d, doubles, ipos, i, ints);
 
-  /* unpack extents, scheme and flags */
-  unpack_doubles (dpos, d, doubles, bod->extents, 6);
+  /* unpack scheme and flags */
   bod->scheme = unpack_int (ipos, i, ints);
   bod->flags = unpack_int (ipos, i, ints);
 
+  /* init inverse */
+  if (sol->dom->dynamic)
+    BODY_Dynamic_Init (bod, bod->scheme);
+  else BODY_Static_Init (bod);
+
   return bod;
 }
+
+/* pack child body */
+void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  /* these are arguments of BODY_Create */
+  pack_int (isize, i, ints, bod->kind);
+  SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
+  pack_string (isize, i, ints, bod->mat->label);
+  pack_string (isize, i, ints, bod->label);
+
+  /* characteristics will be overwritten when unpacking */
+  pack_double (dsize, d, doubles, bod->ref_mass);
+  pack_double (dsize, d, doubles, bod->ref_volume);
+  pack_doubles (dsize, d, doubles, bod->ref_center, 3);
+  pack_doubles (dsize, d, doubles, bod->ref_tensor, 9);
+
+  /* body id */
+  pack_int (isize, i, ints, bod->id);
+}
+
+/* unpack child body */
+BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  BODY *bod;
+  int kind;
+  SHAPE *shp;
+  char *label;
+  BULK_MATERIAL *mat;
+  SOLFEC *sol;
+
+  /* unpack BODY_Create arguments and create body */
+  sol = solfec;
+  kind = unpack_int (ipos, i, ints);
+  shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
+  label = unpack_string (ipos, i, ints);
+  ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
+  free (label);
+  label = unpack_string (ipos, i, ints);
+  bod = BODY_Create (kind, shp, mat, label);
+  free (label);
+
+  /* overwritte characteristics */
+  bod->ref_mass = unpack_double (dpos, d, doubles);
+  bod->ref_volume = unpack_double (dpos, d, doubles);
+  unpack_doubles (dpos, d, doubles, bod->ref_center, 3);
+  unpack_doubles (dpos, d, doubles, bod->ref_tensor, 9);
+
+  /* body id */
+  bod->id = unpack_int (ipos, i, ints);
+
+  /* init inverse */
+  if (sol->dom->dynamic)
+    BODY_Dynamic_Init (bod, bod->scheme);
+  else BODY_Static_Init (bod);
+
+  /* set child flag */
+  bod->scheme |= BODY_CHILD;
+
+  return bod;
+}
+#endif

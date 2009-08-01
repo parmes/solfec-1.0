@@ -153,6 +153,9 @@ struct domain
 /* constraint kind string */
 char* CON_Kind (CON *con);
 
+/* constraint pointer cast */
+#define CON(con) ((CON*)(con))
+
 /* domain pointer cast */
 #define DOM(dom) ((DOM*)(dom))
 

@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if MPI
+#include <zoltan.h>
+#endif
+
 #include "mem.h"
 #include "bod.h"
 
@@ -77,6 +81,10 @@ struct locdyn
   DIAB *dia; /* list of diagonal blocks */
 
   short modified; /* 1 if system structure has changed; otherwise 0 */
+
+#if MPI
+  struct Zoltan_Struct *zol;
+#endif
 };
 
 /* create local dynamics for a domain */

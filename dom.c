@@ -39,7 +39,6 @@
 #define MAPBLK 128 /* map items memory block size */
 #define SETBLK 512 /* set items memory block size */
 #define SIZE (HASH3D+1) /* aabb timing tables size */
-#define CON(ptr) ((CON*)(ptr))
 
 typedef struct private_data DATA;
 
@@ -546,20 +545,28 @@ int balance (DOM *dom)
 
     ptr->rank = export_procs [i];
     ASSERT_DEBUG_EXT (ptr->o = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+
+    /* TODO: Scan constraints sets of each body here; two approaches are then possible:
+     * TODO: 1. Remove all non-contact constraints (as in DOM_Remove_Constraint, but
+     * TODO:    without deleting the constraint itself) and record this constraint
+     * TODO:    to be soon send to the same partition as its (master) body.
+     * TODO: 2. Pack all those constraints into double/int storage here but leave
+     * TODO:    their removal to DOM_Remove_Body routine below;
+     * TODO: If a RIGLNK constraint was met:
+     * TODO: 1. If its master body is to be moved only, append the slave body to the 'send' list as well
+     * TODO: 2. If its slave body is to be moved only, do not move it, remove it from the 'send' list
+     */
   }
 
   Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
                        &export_global_ids, &export_local_ids, &export_procs);
 
-  COMOBJS (MPI_COMM_WORLD, 0, (OBJ_Pack)BODY_Pack, dom->owner, (OBJ_Unpack)BODY_Unpack, send, num_export, &recv, &num_import);
+  COMOBJS (MPI_COMM_WORLD, 0, (OBJ_Pack)BODY_Parent_Pack, dom->owner, (OBJ_Unpack)BODY_Parent_Unpack, send, num_export, &recv, &num_import);
 
   for (i = 0, ptr = send; i < num_export; i ++, ptr ++)
   {
     DOM_Remove_Body (dom, ptr->o);
     BODY_Destroy (ptr->o);
-    /* TODO: maintain constraints attached to those bodies;
-     * TODO: specifically the user given constraints are vournable
-     */
   }
 
   for (i = 0, ptr = recv; i < num_import; i ++, ptr ++)
@@ -569,6 +576,28 @@ int balance (DOM *dom)
 
   free (send);
   free (recv);
+
+  /* TODO: now send the constraints which were recorded above and reattach them to
+   * TODO: the appropriate bodies */
+
+  /* TODO: finally, use Zoltan_LB_Box_Assign in order to send child bodies;
+   * TODO: bodies should store numbers of processors where they reside and
+   * TODO: those should be used to minimise communication here */
+
+  /* TODO: note that child bodies allow to detect contacts wither in the
+   * TODO: partitioning maintained here or that in dom->aabb structure;
+   * TODO: The one in dom->aabb seems more appropriate for better balance;
+   */
+
+  /* TODO: once contacts have been detected, parent and child bodies
+   * TODO: should communicate and create unions of their constraint sets;
+   * TODO: perhaps bodies should have additional 'con' sets for external
+   * TODO: constraints - for which a new simplified type should be added */
+
+  /* TODO: consider parallelisation of LOCDYN => those additional 'con' sets
+   * TODO: might be further used in order to glue portions of W operator;
+   * TODO: why not receive the necessary H operator from outside when building
+   * TODO: the remaining off-diagonal W blocks? */
 
   return changes;
 }

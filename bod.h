@@ -226,4 +226,14 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
  * d and i and no more than a specific number of doubles and ints can be red) */
 BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
+#if MPI
+/* parent bodies store all body data and serve for time stepping */
+void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+
+/* child bodies store a minimal subset of needed data and serve for constraint solution */
+void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+#endif
+
 #endif
