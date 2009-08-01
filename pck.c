@@ -28,6 +28,7 @@
   do\
   {\
     type *slot, *iter;\
+    int n = count;\
   \
     if ((*size) < (*stored) + count)\
     {\
@@ -36,7 +37,7 @@
     }\
   \
     for (slot = &(*array)[*stored], iter = input, (*stored) += count;\
-	 count > 0; count --, slot ++, iter ++) *slot = *iter;\
+	 n > 0; n --, slot ++, iter ++) *slot = *iter;\
   }\
   while (0)
 
@@ -59,11 +60,12 @@
   do\
   {\
     type *slot, *iter;\
+    int n = count;\
   \
     ASSERT (((*pos) + count) <= stored, ERR_PCK_UNPACK);\
   \
     for (iter = output, slot = &array[*pos], (*pos) += count;\
-	 count > 0; count --, slot ++, iter ++) *iter = *slot;\
+	 n > 0; n --, slot ++, iter ++) *iter = *slot;\
   }\
   while (0)
 
@@ -94,19 +96,16 @@ void pack_string (int *isize, int **i, int *ints, char *input)
 {
   if (input)
   {
-    int len = strlen (input) + 1, /* + '\0' */
-	bytlen = len * sizeof (char),
-	remain = bytlen % sizeof (int),
-	buflen = bytlen / sizeof (int) + (remain ? 1 : 0),
-       *buf;
+    int len, n, *buf;
 
+    len = strlen (input) + 1; /* + '\0' */
 
-    ERRMEM (buf = malloc (buflen * sizeof (int)));
+    ERRMEM (buf = malloc (len * sizeof (int)));
 
-    strcpy ((char*)buf, input);
+    for (n = 0; n < len; n ++) buf [n] = (int)input [n]; /* one-to-one for portability sake (heterogenous platforms) */
 
-    pack_one (isize, i, ints, buflen, int); /* length of the integer packed string */
-    pack_many (isize, i, ints, buf, buflen, int); /* the integer packed string itself */
+    pack_one (isize, i, ints, len, int); /* length of the integer packed string */
+    pack_many (isize, i, ints, buf, len, int); /* the integer packed string itself */
 
     free (buf);
   }
@@ -140,18 +139,24 @@ void unpack_ints (int *ipos, int *i, int ints, int *output, int count)
 /* unpack string */
 char* unpack_string (int *ipos, int *i, int ints)
 {
-  int len,
-     *buf = NULL;
+  int len, n, *buf;
+  char *str = NULL;
 
   unpack_one (ipos, i, ints, len, int);
 
   if (len > 0)
   {
     ERRMEM (buf = malloc (len * sizeof (int)));
+    ERRMEM (str = malloc (len * sizeof (char)));
+
     unpack_many (ipos, i, ints, buf, len, int);
+
+    for (n = 0; n < len; n ++) str [n] = (char) buf [n];
+
+    free (buf);
   }
 
-  return (char*)buf;
+  return str;
 }
 
 /* unpack single double */
