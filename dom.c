@@ -32,7 +32,9 @@
 #include "err.h"
 
 #if MPI
+#include "pck.h"
 #include "com.h"
+#include "tag.h"
 #endif
 
 #define CONBLK 512 /* constraints memory block size */
@@ -127,7 +129,23 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
   con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
 
   /* constraint identifier */
+#if MPI
+  if (!dom->noid)
+  {
+    if (dom->sparecid)
+    {
+      SET *item;
+     
+      item = SET_First (dom->sparecid);
+      con->id = (unsigned int) item->data; /* use a previously freed id */
+      SET_Delete (&dom->setmem, &dom->sparecid, item->data, NULL);
+    }
+    else con->id = dom->cid, dom->cid += (dom->rank + 1); /* every (rank+1) number */
+  }
+#else
   con->id = dom->cid ++;
+#endif
+
   MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
 
   return con;
@@ -455,6 +473,90 @@ static BOX_Extents_Update extents_update (SGP *sgp)
 }
 
 #if MPI
+typedef struct conaux CONAUX;
+
+/* auxiliary
+ * constraint */
+struct conaux
+{
+  int id,
+      kind,
+      master,
+      slave;
+  double R [3];
+  double vec [2][3];
+  TMS *tms;
+};
+
+/* pack non-contact constraint */
+static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, con->id);
+  pack_int (isize, i, ints, con->kind);
+  pack_doubles (dsize, d, doubles, con->R, 3);
+  pack_int (isize, i, ints, con->master->id);
+
+  switch (con->kind)
+  {
+  case FIXPNT:
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    break;
+  case FIXDIR:
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    pack_doubles (dsize, d, doubles, con->base + 6, 3);
+    break;
+  case VELODIR:
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    pack_doubles (dsize, d, doubles, con->base + 6, 3);
+    TMS_Pack (con->tms, dsize, d, doubles, isize, i, ints);
+    break;
+  case RIGLNK:
+    pack_int (isize, i, ints, con->slave->id);
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    pack_doubles (dsize, d, doubles, con->spnt, 3);
+    break;
+  case CONTACT:
+    ASSERT_DEBUG (0, "Trying to pack a contact constraint");
+    break;
+  }
+}
+
+/* unpack non-contact constraint */
+CONAUX* unpack_constraint (MEM *mem, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  CONAUX *aux;
+
+  ERRMEM (aux = MEM_Alloc (mem));
+
+  aux->id = unpack_int (ipos, i, ints);
+  aux->kind = unpack_int (ipos, i, ints);
+  unpack_doubles (dpos, d, doubles, aux->R, 3);
+  aux->master = unpack_int (ipos, i, ints);
+
+  switch (aux->kind)
+  {
+  case FIXPNT:
+    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
+    break;
+  case FIXDIR:
+    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
+    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
+    break;
+  case VELODIR:
+    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
+    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
+    aux->tms = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
+    break;
+  case RIGLNK:
+    aux->slave = unpack_int (ipos, i, ints);
+    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
+    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
+    break;
+  }
+
+  return aux;
+}
+
 /* number of bodies */
 static int body_count (DOM *dom, int *ierr)
 {
@@ -527,62 +629,213 @@ int balance (DOM *dom)
 		export_global_ids,
 		export_local_ids;
 
-  COMOBJ *send, *recv, *ptr;
+  COMOBJ *bodsend, *bodrecv, *consend, *conrecv, *ptr;
+
+  int nbodsend, nbodrecv, nconsend, nconrecv;
+
+  MAP *export_bod = NULL,
+      *export_con = NULL,
+      *item;
+
+  SET *adj;
+
+  MEM mem;
 
   unsigned int id;
 
   int i;
 
+  /* update body partitioning using mid points of their extents */
   Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
     &num_import, &import_global_ids, &import_local_ids, &import_procs,
     &num_export, &export_global_ids, &export_local_ids, &export_procs);
 
-  ERRMEM (send = malloc (sizeof (COMOBJ [num_export])));
+  /* SUMMARY: After partitioning update some bodies will be exported to other partitions.
+   *          We need to maintain user prescribed non-contact constraints attached to those
+   *          bodies. For this reason 'bod->con' lists of exported bodies are first scanned
+   *          and the 'export_con' set is created from all such constraints. At the same
+   *          time 'export_bod' set is created, comprising all bodies to be exported; then
+   *          all RIGLNK constraints are found and:
+   *
+   *       1. If a master body of RIGLNK constraint is exported, then the slave body is
+   *          appended to the 'export_bod' set (so that both are exporet into the same location)
+   *
+   *       2. If only a slave body of RIGLNK constraint is exported, then this body
+   *          is removed from the 'export_bod' set and the constraint is removed from 'export_con'
+   *          set (neither the body nor the constraint is exported)
+   *
+   *          Constraint communication is done first, so that we have access to memory of needed
+   *          constraints, before DOM_Remove_Body would be invoked (which would delete those
+   *          constrints as well). Then bodies from 'export_bod' are sent and some bodies
+   *          are received. The sent bodies are removed from the domain while the reveived are
+   *          insrted. Finally, the received constraints are inserted into the domain.
+   *
+   *          The last step is sending and receiving the 'child' bodies; these are copies
+   *          of the currently stored 'parent' bodies sent into all the partitions which
+   *          are overalpped by their bounding boxes.
+   *          -----------------------------------------------------------------------  */
 
-  for (i = 0, ptr = send; i < num_export; i ++, ptr ++)
+  for (i = 0; i < num_export; i ++) /* for each exported body */
   {
-    id = export_global_ids [i * num_gid_entries];
+    BODY *bod;
 
-    ptr->rank = export_procs [i];
-    ASSERT_DEBUG_EXT (ptr->o = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+    id = export_global_ids [i * num_gid_entries]; /* get id */
 
-    /* TODO: Scan constraints sets of each body here; two approaches are then possible:
-     * TODO: 1. Remove all non-contact constraints (as in DOM_Remove_Constraint, but
-     * TODO:    without deleting the constraint itself) and record this constraint
-     * TODO:    to be soon send to the same partition as its (master) body.
-     * TODO: 2. Pack all those constraints into double/int storage here but leave
-     * TODO:    their removal to DOM_Remove_Body routine below;
-     * TODO: If a RIGLNK constraint was met:
-     * TODO: 1. If its master body is to be moved only, append the slave body to the 'send' list as well
-     * TODO: 2. If its slave body is to be moved only, do not move it, remove it from the 'send' list
-     */
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id"); /* identify body object */
+
+    MAP_Insert (&dom->mapmem, &export_bod, bod, (void*)export_procs [i], NULL); /* map this body to its export rank */
+
+    for (adj = SET_First (bod->con); adj; adj = SET_Next (adj)) /* search adjacent constraints */
+    {
+      CON *con = adj->data;
+
+      if (con->kind != CONTACT)
+      {
+	MAP_Insert (&dom->mapmem, &export_con, con,
+	            (void*)export_procs [i], NULL); /* map non-contact constraint to its export rank */
+
+	con->id = 0; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
+			non-contact constrints should have cluster-wide unique ids, as users
+			could store some global variables in Python input and might later like
+			to acces those constraints; this will not be implemented for contacts */
+      }
+    }
   }
 
   Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-                       &export_global_ids, &export_local_ids, &export_procs);
+                       &export_global_ids, &export_local_ids, &export_procs); /* not needed */
 
-  COMOBJS (MPI_COMM_WORLD, 0, (OBJ_Pack)BODY_Parent_Pack, dom->owner, (OBJ_Unpack)BODY_Parent_Unpack, send, num_export, &recv, &num_import);
+  for (item = MAP_First (export_con); item; ) /* for each exported constraint */
+  {
+    CON *con = item->data;
 
-  for (i = 0, ptr = send; i < num_export; i ++, ptr ++)
+    if (con->kind == RIGLNK) /* if a rigid link */
+    {
+      if (! MAP_Find (export_bod, con->master, NULL)) /* if the master body is not exported */
+      {
+        MAP_Delete (&dom->mapmem, &export_bod, con->slave, NULL); /* do not export the slave */
+	item = MAP_Delete_Node (&dom->mapmem, &export_con, item); /* do not export the constraint (TODO: test, as this MAP routine is vulnerable) */
+	continue;
+      }
+      else if (! MAP_Find (export_bod, con->slave, NULL)) /* or if the slave body is not exported */
+      {
+        MAP_Insert (&dom->mapmem, &export_bod, con->slave, item->data, NULL); /* export slave */ 	
+      }
+    }
+
+    item = MAP_Next (item);
+  }
+
+  /* communicate constraints */
+
+  MEM_Init (&mem, sizeof (CONAUX), CONBLK);
+
+  nconsend = MAP_Size (export_con);
+
+  ERRMEM (consend = malloc (sizeof (COMOBJ [nconsend])));
+
+  for (item = MAP_First (export_con), ptr = consend; item; item = MAP_Next (item), ptr ++)
+  {
+    ptr->rank = (int)item->data;
+    ptr->o = item->key;
+  }
+
+  COMOBJS (MPI_COMM_WORLD, TAG_CONAUX, (OBJ_Pack)pack_constraint, &mem, (OBJ_Unpack)unpack_constraint, consend, nconsend, &conrecv, &nconrecv);
+
+  /* communicate parent bodies */
+
+  nbodsend = MAP_Size (export_bod);
+
+  ERRMEM (bodsend = malloc (sizeof (COMOBJ [nbodsend])));
+
+  for (item = MAP_First (export_bod), ptr = bodsend; item; item = MAP_Next (item), ptr ++)
+  {
+    ptr->rank = (int)item->data;
+    ptr->o = item->key;
+  }
+
+  COMOBJS (MPI_COMM_WORLD, TAG_PARENTS, (OBJ_Pack)BODY_Parent_Pack, dom->owner, (OBJ_Unpack)BODY_Parent_Unpack, bodsend, nbodsend, &bodrecv, &nbodrecv);
+
+  /* remove exported bodies */
+
+  for (i = 0, ptr = bodsend; i < nbodsend; i ++, ptr ++)
   {
     DOM_Remove_Body (dom, ptr->o);
     BODY_Destroy (ptr->o);
   }
 
-  for (i = 0, ptr = recv; i < num_import; i ++, ptr ++)
+  /* insert imported bodies */
+
+  for (i = 0, ptr = bodrecv; i < nbodrecv; i ++, ptr ++)
   {
     DOM_Insert_Body (dom, ptr->o);
   }
 
-  free (send);
-  free (recv);
+  /* insert imported constraints */
 
-  /* TODO: now send the constraints which were recorded above and reattach them to
-   * TODO: the appropriate bodies */
+  dom->noid = 1; /* disable constraint ids generation */
 
-  /* TODO: finally, use Zoltan_LB_Box_Assign in order to send child bodies;
-   * TODO: bodies should store numbers of processors where they reside and
-   * TODO: those should be used to minimise communication here */
+  for (i = 0, ptr = conrecv; i < nconrecv; i ++, ptr ++)
+  {
+    CONAUX *aux;
+    BODY *bod;
+    CON *con;
+
+    aux = ptr->o;
+
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)aux->master, NULL), "Invalid body id");
+
+    switch (aux->kind)
+    {
+    case FIXPNT: con = DOM_Fix_Point (dom, bod, aux->vec [0]); break;
+    case FIXDIR: con = DOM_Fix_Direction (dom, bod, aux->vec [0], aux->vec [1]); break;
+    case VELODIR: con = DOM_Set_Velocity (dom, bod, aux->vec [0], aux->vec [1], aux->tms); break;
+    case RIGLNK:
+    {
+      BODY *other;
+
+      ASSERT_DEBUG_EXT (other = MAP_Find (dom->idb, (void*)aux->slave, NULL), "Invalid body id");
+      con = DOM_Put_Rigid_Link (dom, bod, other, aux->vec [0], aux->vec [1]);
+    }
+    break;
+    }
+
+    con->id = aux->id;
+  }
+
+  dom->noid = 0; /* enable constraint ids generation */
+
+  MAP_Free (&dom->mapmem, &export_bod);
+  MAP_Free (&dom->mapmem, &export_con);
+  MEM_Release (&mem);
+  free (bodsend);
+  free (bodrecv);
+  free (consend);
+  free (conrecv);
+
+  /* communicate child bodies */
+
+  int *procs, numprocs;
+
+  ERRMEM (procs = malloc (sizeof (int [dom->size])));
+
+  for (BODY *bod = dom->bod; bod; bod = bod->next)
+  {
+    double *e = bod->extents;
+
+    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+    /* 1. create a SET copy 'procset' of 'procs'
+     * 2. create an empty SET 'delset' of pairs (id, rank) of children
+     *    that will need to be removed from their partitions
+     * 3. create an empty SET 'sndset' of pairs (body, rank) of bodies
+     *    to be sent as children to other partitions
+     * 4. for each x in bod->my.children, if not in procset, add (bod->id, x) to delset, remove x from bod->my.children
+     * 5. for each x in procset, if not in bod->my.children, add (bod, x) to sndset, insert x into bod->my.children
+     * 6. communicate delset and delete unwanted children
+     * 7. communicate sndset and insert new children
+     */
+  }
 
   /* TODO: note that child bodies allow to detect contacts wither in the
    * TODO: partitioning maintained here or that in dom->aabb structure;
@@ -605,7 +858,17 @@ int balance (DOM *dom)
 /* create MPI related data */
 static void create_mpi (DOM *dom)
 {
-  ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN_INIT);
+  MPI_Comm_rank (MPI_COMM_WORLD, &dom->rank); /* store rank */
+
+  MPI_Comm_size (MPI_COMM_WORLD, &dom->size); /* store size */
+
+  dom->cid = (dom->rank + 1); /* overwrite */
+
+  dom->sparecid = NULL; /* initialize spare ids set */
+
+  dom->noid = 0; /* assign constraint ids in 'insert' routine (turned off when importing non-contacts) */
+
+  ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN_INIT); /* zoltan context for body partitioning */
 
   /* global parameters */
   Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
@@ -893,6 +1156,11 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 
   /* remove from local dynamics */
   LOCDYN_Remove (dom->ldy, con->dia);
+
+#if MPI
+  /* free constraint id if needed */
+  if (con->id) SET_Insert (&dom->setmem, &dom->sparecid, (void*)con->id, NULL);
+#endif
 
   /* destroy passed data */
   MEM_Free (&dom->conmem, con);

@@ -146,7 +146,15 @@ struct domain
   short verbose; /* verbosity flag */
 
 #if MPI
-  struct Zoltan_Struct *zol;
+  int rank; /* communicator rank */
+
+  int size; /* cummunicator size */
+
+  struct Zoltan_Struct *zol; /* body partitioning */
+
+  SET *sparecid; /* spare constraint ids */
+
+  int noid; /* constraint id assignment omition flag */
 #endif
 };
 

@@ -135,6 +135,11 @@ struct general_body
   char *label;      /* user specified label */
 
   BODY_FLAGS flags;      /* flags */
+
+#if MPI
+  union { SET *children; /* used by parent */
+          int parent; /* used by children */ } my;
+#endif
 };
 
 /* body pointer cast */

@@ -754,6 +754,10 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label)
   /* default integration scheme */
   bod->scheme = SCH_DEFAULT;
 
+#if MPI
+  bod->my.children = NULL;
+#endif
+
   return bod;
 }
 
@@ -1555,6 +1559,11 @@ void BODY_Destroy (BODY *bod)
   { free (bod->conf);
     free (bod->velo); }
 
+#if MPI
+  if ((bod->flags & BODY_CHILD) == 0) /* a parent body */
+    SET_Free (NULL, &bod->my.children);  /* free children ranks */
+#endif
+
   free (bod);
 }
 
@@ -1747,13 +1756,18 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   /* pack scheme and flags */
   pack_int (isize, i, ints, bod->scheme);
   pack_int (isize, i, ints, bod->flags);
+
+  /* pack children ranks */
+  pack_int (isize, i, ints, SET_Size (bod->my.children));
+  for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
+    pack_int (isize, i, ints, (int)item->data);
 }
 
 /* unpack parent body */
 BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *bod;
-  int kind;
+  int kind, n, m;
   SHAPE *shp;
   char *label;
   BULK_MATERIAL *mat;
@@ -1790,6 +1804,11 @@ BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *
   bod->scheme = unpack_int (ipos, i, ints);
   bod->flags = unpack_int (ipos, i, ints);
 
+  /* unpack children ranks */
+  m = unpack_int (ipos, i, ints);
+  for (n = 0; n < m; n ++)
+    SET_Insert (NULL, &bod->my.children, (void*)unpack_int (ipos, i, ints), NULL);
+
   /* init inverse */
   if (sol->dom->dynamic)
     BODY_Dynamic_Init (bod, bod->scheme);
@@ -1815,6 +1834,9 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
 
   /* body id */
   pack_int (isize, i, ints, bod->id);
+
+  /* pack parent rank => same as domain's rank */
+  pack_int (isize, i, ints, DOM (bod->dom)->rank);
 }
 
 /* unpack child body */
@@ -1846,6 +1868,9 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
 
   /* body id */
   bod->id = unpack_int (ipos, i, ints);
+
+  /* unpack parent rank */
+  bod->my.parent = unpack_int (ipos, i, ints);
 
   /* init inverse */
   if (sol->dom->dynamic)

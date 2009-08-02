@@ -168,7 +168,7 @@ obj/cvi.o: cvi.c cvi.h tri.h hul.h alg.h gjk.h err.h
 obj/spx.o: spx.c spx.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/cvx.o: cvx.c cvx.h spx.h err.h alg.h hyb.h gjk.h
+obj/cvx.o: cvx.c cvx.h spx.h err.h alg.h hyb.h gjk.h mot.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/hyb.o: hyb.c hyb.h box.h err.h alg.h
@@ -177,13 +177,13 @@ obj/hyb.o: hyb.c hyb.h box.h err.h alg.h
 obj/box.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/msh.o: msh.c msh.h cvx.h spx.h mem.h map.h err.h alg.h
+obj/msh.o: msh.c msh.h cvx.h spx.h mem.h map.h err.h alg.h mot.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/sph.o: sph.c sph.h spx.h mem.h map.h err.h alg.h
+obj/sph.o: sph.c sph.h spx.h mem.h map.h err.h alg.h mot.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/shp.o: shp.c shp.h cvx.h msh.h sph.h err.h
+obj/shp.o: shp.c shp.h cvx.h msh.h sph.h err.h mot.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/bod.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h
@@ -232,22 +232,22 @@ obj/com-mpi.o: com.c com.h err.h
 obj/pbf-mpi.o: pbf.c pbf.h map.h mem.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h
+obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h tag.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/bod-mpi.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/dom-mpi.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
+obj/dom-mpi.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h tag.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/ldy-mpi.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h
+obj/ldy-mpi.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h tag.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h
+obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h tag.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/exs-mpi.o: exs.c exs.h dom.h ldy.h err.h alg.h lap.h
+obj/exs-mpi.o: exs.c exs.h dom.h ldy.h err.h alg.h lap.h tag.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h solfec.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
