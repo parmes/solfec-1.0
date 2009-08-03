@@ -157,6 +157,8 @@ struct domain
   int noid; /* constraint id assignment omition flag */
 
   MAP *children; /* id-to-child map */
+
+  SET **delch; /* id sets of children to be deleted for each rank (after removed parent) */
 #endif
 };
 

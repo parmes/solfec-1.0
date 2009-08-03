@@ -758,22 +758,62 @@ static int balance (DOM *dom)
 
   int nbodsend, nbodrecv, nconsend, nconrecv;
 
+  COMDATA *send, *recv, *qtr;
+
+  int nsend, nrecv;
+
   MAP *export_bod = NULL,
       *export_con = NULL,
       *item;
 
-  SET *adj;
+  SET *adj, **del;
 
   MEM mem;
 
   unsigned int id;
 
-  int i;
+  int i, *j;
+
+  ERRMEM (send = calloc (dom->size, sizeof (COMDATA)));
+
+  /* before rebalancing - delete orhpans (children of removed bodies) */
+  for (i = 0, del = dom->delch, qtr = send; i < dom->size; i ++, del ++)
+  {
+    if (*del)
+    {
+      qtr->rank = i; /* send it there */
+      qtr->ints = SET_Size (*del);
+      ERRMEM (qtr->i = j = malloc (sizeof (int [qtr->ints])));
+      for (SET *x = SET_First (*del); x; x = SET_Next (x), j ++) *j = (int)x->data; /* ids of children to be deleted */
+      SET_Free (&dom->setmem, del); /* empty this set to be reused next time */
+      qtr ++;
+    }
+  }
+
+  nsend = qtr - send;
+
+  COM (MPI_COMM_WORLD, TAG_ORPHANS, send, nsend, &recv, &nrecv); /* send and receive orphans ids */
+
+  for (i = 0, qtr = recv; i < nrecv; i ++, qtr ++)
+  {
+    for (j = qtr->i; j < qtr->i + qtr->ints; j ++) /* for each orphan id */
+    {
+      BODY *bod;
+
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)(*j), NULL), "Invalid orphan id"); /* find child */
+      remove_child (dom, bod); /* remove it from the domain */
+      BODY_Destroy (bod); /* free its memory */
+    }
+  }
+
+  for (i = 0; i < nsend; i ++) free (send [i].i);
+  free (send);
+  free (recv);
 
   /* update body partitioning using mid points of their extents */
-  Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
-    &num_import, &import_global_ids, &import_local_ids, &import_procs,
-    &num_export, &export_global_ids, &export_local_ids, &export_procs);
+  ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
+	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
   /* SUMMARY: After partitioning update some bodies will be exported to other partitions.
    *          We need to maintain user prescribed non-contact constraints attached to those
@@ -1030,9 +1070,6 @@ static int balance (DOM *dom)
 
   /* 6. communicate delset and delete unwanted children */
 
-  COMDATA *send, *recv;
-  int nsend, nrecv;
-
   ERRMEM (send = calloc (dom->size, sizeof (COMDATA))); /* one for each processor */
 
   /* pack ids into specific rank data */
@@ -1153,6 +1190,8 @@ static void create_mpi (DOM *dom)
 
   dom->children = NULL; /* initially empty */
 
+  ERRMEM (dom->delch = calloc (dom->size, sizeof (SET*)));
+
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
   /* global parameters */
@@ -1185,6 +1224,8 @@ static void create_mpi (DOM *dom)
 /* destroy MPI related data */
 static void destroy_mpi (DOM *dom)
 {
+  free (dom->delch);
+
   Zoltan_Destroy (&dom->zol);
 }
 #endif
@@ -1317,6 +1358,12 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
 
 
   if (dom->time > 0) SET_Insert (&dom->setmem, &dom->delb, (void*) bod->id, NULL);
+
+#if MPI
+  /* gather children ids to be deleted during balancing */
+  for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
+    SET_Insert (&dom->setmem, &dom->delch [(int)item->data], (void*)bod->id, NULL);
+#endif
 }
 
 /* find labeled body */
