@@ -66,7 +66,8 @@ enum
   ERR_RND_STACK_OVERFLOW,
   ERR_PCK_UNPACK,
   ERR_DOM_DEPTH,
-  ERR_ZOLTAN_INIT
+  ERR_ZOLTAN_INIT,
+  ERR_ZOLTAN
 };
 
 /* get error string */

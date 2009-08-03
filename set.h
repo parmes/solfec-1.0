@@ -49,6 +49,9 @@ int SET_Contains (SET *root, void *data , SET_Compare compare);
 /* delete an element from the set */
 void SET_Delete (MEM *pool, SET **root, void *data, SET_Compare compare);
 
+/* delete a specific set node => return the next node by key */
+SET* SET_Delete_Node (MEM *pool, SET **root, SET *node);
+
 /* postorder traverse and free set memory */
 void SET_Free (MEM *pool, SET **root);
 

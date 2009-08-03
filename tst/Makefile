@@ -16,6 +16,7 @@ TGT = glvtest\
       gjktest\
       boxtest\
       listest\
+      maptest\
 
 ifeq ($(MPI),yes)
 
@@ -69,6 +70,9 @@ boxtest: boxtest.c $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 listest: listest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -o $@ $< $(LIB)
+
+maptest: maptest.c $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 # MPI

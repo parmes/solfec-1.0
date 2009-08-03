@@ -155,6 +155,8 @@ struct domain
   SET *sparecid; /* spare constraint ids */
 
   int noid; /* constraint id assignment omition flag */
+
+  MAP *children; /* id-to-child map */
 #endif
 };
 

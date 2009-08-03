@@ -56,6 +56,7 @@ char* errstring (int error)
     case ERR_PCK_UNPACK: return "Trying to unpack more elements then stored";
     case ERR_DOM_DEPTH: return "Unphysical interpenetration has occurred";
     case ERR_ZOLTAN_INIT: return "Zoltan initialization failed";
+    case ERR_ZOLTAN: return "Zoltan call failed";
   }
 
   return "Unknown";

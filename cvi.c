@@ -42,8 +42,8 @@ TRI* cvi (double *va, int nva, double *pa, int npa,
   yy = NULL;
 
   /* adapt geometric tollerace */
-  GEOMETRIC_EPSILON_ADAPT (va, nva);
-  GEOMETRIC_EPSILON_ADAPT (vb, nvb);
+  GEOMETRIC_EPSILON_ADAPT (va, nva); /* TODO: consider removing, as it introduces disturbance */
+  GEOMETRIC_EPSILON_ADAPT (vb, nvb); /* TODO: which will affect reproducibity of results */
   
   /* compute closest points */
   d = gjk (va, nva, vb, nvb, p, q);

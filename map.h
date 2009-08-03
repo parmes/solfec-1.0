@@ -48,7 +48,7 @@ MAP* MAP_Find_Node (MAP *root, void *key, MAP_Compare compare);
 /* delete an element from the map */
 void* MAP_Delete (MEM *pool, MAP **root, void *key, MAP_Compare compare);
 
-/* delete a specific map node => return the next node by key */
+/* delete a specific map node => return the next node by data order */
 MAP* MAP_Delete_Node (MEM *pool, MAP **root, MAP *node);
 
 /* postorder traverse and free map memory */

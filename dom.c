@@ -236,6 +236,15 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
 
   if (state)
   {
+#if MPI
+    int proc;
+
+    ASSERT (Zoltan_LB_Point_Assign (dom->aabb->zol, onepnt, &proc) == ZOLTAN_OK, ERR_ZOLTAN);
+    if (proc != dom->rank) return NULL; /* insert contacts located in this partition (from AABB partitioning viewpoint);
+					   note, that using AABB's partitioning results in a better balance for contacts,
+					   although the final balancing will be done in the LOCDYN module */
+#endif
+
     ASSERT (gap > dom->depth, ERR_DOM_DEPTH);
 
     /* set surface pair data if there was a contact */
@@ -472,6 +481,78 @@ static BOX_Extents_Update extents_update (SGP *sgp)
   return 0;
 }
 
+/* write constraint state */
+static void write_constraint (CON *con, PBF *bf)
+{
+  int kind = con->kind;
+
+  PBF_Uint (bf, &con->id, 1);
+  PBF_Int (bf, &kind, 1);
+
+  PBF_Double (bf, con->R, 3);
+  PBF_Double (bf, con->point, 3);
+  PBF_Double (bf, con->base, 9);
+  PBF_Double (bf, &con->area, 1);
+  PBF_Double (bf, &con->gap, 1);
+
+  int count = 1;
+
+  if (con->slave) count = 2;
+
+  PBF_Int (bf, &count, 1);
+  PBF_Uint (bf, &con->master->id, 1);
+  if (con->slave) PBF_Uint (bf, &con->slave->id, 1);
+
+  if (kind == CONTACT) PBF_String (bf, &con->mat.label);
+
+  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, Z_SIZE);
+}
+
+/* read constraint state */
+static CON* read_constraint (DOM *dom, PBF *bf)
+{
+  CON *con;
+  int kind;
+
+  ERRMEM (con = MEM_Alloc (&dom->conmem));
+
+  PBF_Uint (bf, &con->id, 1);
+  PBF_Int (bf, &kind, 1);
+  con->kind = kind;
+
+  PBF_Double (bf, con->R, 3);
+  PBF_Double (bf, con->point, 3);
+  PBF_Double (bf, con->base, 9);
+  PBF_Double (bf, &con->area, 1);
+  PBF_Double (bf, &con->gap, 1);
+
+  unsigned int id;
+  int count;
+
+  PBF_Int (bf, &count, 1);
+  PBF_Uint (bf, &id, 1);
+  ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*)id, NULL), "Invalid master id");
+  if (count == 2)
+  {
+    PBF_Uint (bf, &id, 1);
+    ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*)id, NULL), "Invalid slave id");
+  }
+
+  if (kind == CONTACT)
+  {
+    char buf [PBF_MAXSTRING], *label = buf;
+    SURFACE_MATERIAL *mat;
+
+    PBF_String (bf, &label);
+    ASSERT_DEBUG_EXT (mat = SPSET_Find_Label (dom->sps, label), "Invalid material label");
+    con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat);
+  }
+
+  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, Z_SIZE);
+
+  return con;
+}
+
 #if MPI
 typedef struct conaux CONAUX;
 
@@ -613,8 +694,52 @@ static void midpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
   *ierr = ZOLTAN_OK;
 }
 
+/* insert a child body into the domain */
+static void insert_child (DOM *dom, BODY *bod)
+{
+  SGP *sgp, *sgpe;
+
+  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
+  {
+    sgp->box = AABB_Insert (dom->aabb, bod, gobj_kind (sgp), sgp,
+                            sgp->shp->data, extents_update (sgp));
+  }
+
+  /* insert into id based map */
+  MAP_Insert (&dom->mapmem, &dom->children, (void*)bod->id, bod, NULL);
+
+  bod->dom = dom;
+}
+
+/* remove a child body from the domain */
+static void remove_child (DOM *dom, BODY *bod)
+{
+  SGP *sgp, *sgpe;
+
+  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
+  {
+    AABB_Delete (dom->aabb, sgp->box);
+  }
+
+  /* remove all body related constraints */
+  {
+    SET *con = bod->con;
+    bod->con = NULL; /* DOM_Remove_Constraint will try to remove the constraint
+			from body constraints set, which is not nice if we try
+			to iterate over the set at the same time => make it empty */
+    
+    for (SET *item = SET_First (con); item; item = SET_Next (item))
+      DOM_Remove_Constraint (dom, item->data);
+
+    SET_Free (&dom->setmem, &con); /* free body's constraint set */
+  }
+
+  /* delete from id based map */
+  MAP_Delete (&dom->mapmem, &dom->children, (void*)bod->id, NULL);
+}
+
 /* balance bodies */
-int balance (DOM *dom)
+static int balance (DOM *dom)
 {
   int changes,
       num_gid_entries,
@@ -714,7 +839,7 @@ int balance (DOM *dom)
       if (! MAP_Find (export_bod, con->master, NULL)) /* if the master body is not exported */
       {
         MAP_Delete (&dom->mapmem, &export_bod, con->slave, NULL); /* do not export the slave */
-	item = MAP_Delete_Node (&dom->mapmem, &export_con, item); /* do not export the constraint (TODO: test, as this MAP routine is vulnerable) */
+	item = MAP_Delete_Node (&dom->mapmem, &export_con, item); /* do not export the constraint */
 	continue;
       }
       else if (! MAP_Find (export_bod, con->slave, NULL)) /* or if the slave body is not exported */
@@ -819,40 +944,198 @@ int balance (DOM *dom)
 
   ERRMEM (procs = malloc (sizeof (int [dom->size])));
 
+  struct pair
+  {
+    union { int id; BODY *ptr; } bod;
+    int rank;
+  };
+
+  MEM_Init (&mem, sizeof (struct pair), CONBLK);
+
+  SET *procset,
+      *delset,
+      *sndset;
+
+  delset = sndset = NULL;
+
+  /* 1. create an empty set 'delset' of pairs (id, rank) of children
+   *    that will need to be removed from their partitions
+   * 2. create an empty set 'sndset' of pairs (body, rank) of bodies
+   *    to be sent as children to other partitions */
+
+  procset = NULL;
+
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
     double *e = bod->extents;
 
     Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
-    /* 1. create a SET copy 'procset' of 'procs'
-     * 2. create an empty SET 'delset' of pairs (id, rank) of children
-     *    that will need to be removed from their partitions
-     * 3. create an empty SET 'sndset' of pairs (body, rank) of bodies
-     *    to be sent as children to other partitions
-     * 4. for each x in bod->my.children, if not in procset, add (bod->id, x) to delset, remove x from bod->my.children
-     * 5. for each x in procset, if not in bod->my.children, add (bod, x) to sndset, insert x into bod->my.children
-     * 6. communicate delset and delete unwanted children
-     * 7. communicate sndset and insert new children
-     */
+    /* 3. create a set copy 'procset' of 'procs' table */
+    for (i = 0; i < numprocs; i ++) 
+    {
+      if (dom->rank != procs [i]) /* skip current rank */
+        SET_Insert (&dom->setmem, &procset, (void*)procs [i], NULL);
+    }
+
+    /* 3.5. if this body just migrated here, a child copy
+     *      of it could still be here; schedule it for deletion */
+    if (SET_Find (bod->my.children, (void*)dom->rank, NULL))
+    {
+      struct pair *p;
+
+      ERRMEM (p = MEM_Alloc (&mem));
+      p->bod.id = bod->id;
+      p->rank = dom->rank;
+      SET_Insert (&dom->setmem, &delset, p, NULL); /* schedule for deletion with other children */
+      SET_Delete (NULL, &bod->my.children, (void*)dom->rank, NULL); /* delete from bodies children set */
+    }
+
+     /* 4. for each x in bod->my.children, if not in procset,
+      *    add (bod->id, x) to delset, remove x from bod->my.children */
+    for (SET *x = SET_First (bod->my.children); x; )
+    {
+      if (! SET_Find (procset, x->data, NULL))
+      {
+	struct pair *p;
+
+	ERRMEM (p = MEM_Alloc (&mem));
+	p->bod.id = bod->id;
+	p->rank = (int) x->data;
+	SET_Insert (&dom->setmem, &delset, p, NULL);
+	x = SET_Delete_Node (NULL, &bod->my.children, x);
+      }
+      else x = SET_Next (x);
+    }
+
+     /* 5. for each x in procset, if not in bod->my.children,
+      *    add (bod, x) to sndset, insert x into bod->my.children */
+    for (SET *x = SET_First (procset); x; x = SET_Next (x))
+    {
+      if (! SET_Find (bod->my.children, x->data, NULL))
+      {
+	struct pair *p;
+
+	ERRMEM (p = MEM_Alloc (&mem));
+	p->bod.ptr = bod;
+	p->rank = (int) x->data;
+	SET_Insert (&dom->setmem, &sndset, p, NULL);
+	SET_Insert (NULL, &bod->my.children, x->data, NULL);
+      }
+    }
+
+    /* reset processors set */
+    SET_Free (&dom->setmem, &procset);
   }
 
-  /* TODO: note that child bodies allow to detect contacts wither in the
-   * TODO: partitioning maintained here or that in dom->aabb structure;
-   * TODO: The one in dom->aabb seems more appropriate for better balance;
-   */
+  /* 6. communicate delset and delete unwanted children */
 
-  /* TODO: once contacts have been detected, parent and child bodies
-   * TODO: should communicate and create unions of their constraint sets;
-   * TODO: perhaps bodies should have additional 'con' sets for external
-   * TODO: constraints - for which a new simplified type should be added */
+  COMDATA *send, *recv;
+  int nsend, nrecv;
 
-  /* TODO: consider parallelisation of LOCDYN => those additional 'con' sets
-   * TODO: might be further used in order to glue portions of W operator;
-   * TODO: why not receive the necessary H operator from outside when building
-   * TODO: the remaining off-diagonal W blocks? */
+  ERRMEM (send = calloc (dom->size, sizeof (COMDATA))); /* one for each processor */
+
+  /* pack ids into specific rank data */
+  for (SET *x = SET_First (delset); x; x = SET_Next (x))
+  {
+    struct pair *p = x->data;
+    COMDATA *c = &send [p->rank];
+
+    c->ints ++;
+    ERRMEM (c->i = realloc (c->i, sizeof (int [c->ints])));
+    c->i [c->ints - 1] = p->bod.id;
+  }
+
+  /* compress the send buffer */
+  for (nsend = i = 0; i < dom->size; i ++)
+  {
+    if (send [i].ints)
+    {
+      send [nsend] = send [i];
+      nsend ++;
+    }
+  }
+
+  /* send and receive */
+  COM (MPI_COMM_WORLD, TAG_CHILDREN_DELETE, send, nsend, &recv, &nrecv);
+
+  /* delete children */
+  for (nrecv --; nrecv >= 0; nrecv --)
+  {
+    for (i = 0; i < recv[nrecv].ints; i ++)
+    {
+      BODY *bod;
+
+      id = recv[nrecv].i [i];
+
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)id, NULL), "Invalid body id");
+      remove_child (dom, bod);
+      BODY_Destroy (bod);
+    }
+  }
+
+  /* 7. communicate sndset and insert new children */
+
+  nbodsend = SET_Size (sndset);
+
+  ERRMEM (bodsend = malloc (sizeof (COMOBJ [nbodsend])));
+
+  /* set up send buffer */
+  for (adj = SET_First (sndset), ptr = bodsend; adj; adj = SET_Next (adj), ptr ++)
+  {
+    struct pair *p = adj->data;
+
+    ptr->rank = p->rank;
+    ptr->o = p->bod.ptr;
+  }
+
+  /* send and receive children */
+  COMOBJS (MPI_COMM_WORLD, TAG_CHILDREN_INSERT, (OBJ_Pack)BODY_Child_Pack, dom->owner, (OBJ_Unpack)BODY_Child_Unpack, bodsend, nbodsend, &bodrecv, &nbodrecv);
+
+  /* insert children */
+  for (i = 0, ptr = bodrecv; i < nbodrecv; i ++, ptr ++)
+  {
+    insert_child (dom, ptr->o);
+  }
+
+  for (i = 0; i < nsend; i ++) free (send [i].i);
+  SET_Free (&dom->setmem, &delset);
+  SET_Free (&dom->setmem, &sndset);
+  MEM_Release (&mem);
+  free (bodsend);
+  free (bodrecv);
+  free (procs);
+  free (send);
+  free (recv);
 
   return changes;
+}
+
+/* update children */
+static void gossip (DOM *dom)
+{
+  /* TODO: send configuration and velocity from parent to child bodies
+   * TODO: update shape of child bodies (implement within child unpack?) */
+}
+
+/* complete contact graph */
+static void glue (DOM *dom)
+{
+  /* TODO: crate unions of constraint sets for each body and child */
+
+  /* ROUGH IDEA:
+   * 1. Introduce an auxiliary constraint type CONEXT for external constraints (id, point, master, slave, reaction, etc.)
+   * 2. Add bod->conext set and update covariant constraint force evaluation
+   * 3. Add dom->conext - an id-to-CONEXT map
+   * 4. Walk over all constraints and identify (con, rank) pairs to be exported
+   * 2. Implement conext_remove_all and ivoke it (call LOCDYN_Remove_Ext from within)
+   * 3. Send and receive (CONEX(con), rank) data using COMOBJS
+   * 4. Implement conext_insert and invok for each received constraint (call LOCDYN_Insert_Ext from within)
+   *
+   * REMARKS:
+   * 1. The above approach redoes the whole think every time
+   * 2. Could this be implemented in an elegant incremental manner?
+   */
 }
 
 /* create MPI related data */
@@ -868,7 +1151,9 @@ static void create_mpi (DOM *dom)
 
   dom->noid = 0; /* assign constraint ids in 'insert' routine (turned off when importing non-contacts) */
 
-  ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN_INIT); /* zoltan context for body partitioning */
+  dom->children = NULL; /* initially empty */
+
+  ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
   /* global parameters */
   Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
@@ -1181,6 +1466,10 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   BODY *bod;
   CON *con;
 
+#if MPI
+  balance (dom);
+#endif
+
   /* time and step */
   time = dom->time;
   step = dom->step;
@@ -1203,6 +1492,10 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   else
     for (bod = dom->bod; bod; bod = bod->next)
       BODY_Static_Step_Begin (bod, time, step);
+
+#if MPI
+  gossip (dom);
+#endif
 
   /* detect contacts */
   timerstart (&timing);
@@ -1227,6 +1520,10 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case RIGLNK:  update_riglnk  (dom, con); break;
     }
   }
+
+#if MPI
+  glue (dom);
+#endif
 
   /* output local dynamics */
   return dom->ldy;
@@ -1277,78 +1574,6 @@ void DOM_Update_End (DOM *dom)
   }
 
   SET_Free (&dom->setmem, &del); /* free up deletion set */
-}
-
-/* write constraint state */
-static void write_constraint (CON *con, PBF *bf)
-{
-  int kind = con->kind;
-
-  PBF_Uint (bf, &con->id, 1);
-  PBF_Int (bf, &kind, 1);
-
-  PBF_Double (bf, con->R, 3);
-  PBF_Double (bf, con->point, 3);
-  PBF_Double (bf, con->base, 9);
-  PBF_Double (bf, &con->area, 1);
-  PBF_Double (bf, &con->gap, 1);
-
-  int count = 1;
-
-  if (con->slave) count = 2;
-
-  PBF_Int (bf, &count, 1);
-  PBF_Uint (bf, &con->master->id, 1);
-  if (con->slave) PBF_Uint (bf, &con->slave->id, 1);
-
-  if (kind == CONTACT) PBF_String (bf, &con->mat.label);
-
-  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, Z_SIZE);
-}
-
-/* read constraint state */
-static CON* read_constraint (DOM *dom, PBF *bf)
-{
-  CON *con;
-  int kind;
-
-  ERRMEM (con = MEM_Alloc (&dom->conmem));
-
-  PBF_Uint (bf, &con->id, 1);
-  PBF_Int (bf, &kind, 1);
-  con->kind = kind;
-
-  PBF_Double (bf, con->R, 3);
-  PBF_Double (bf, con->point, 3);
-  PBF_Double (bf, con->base, 9);
-  PBF_Double (bf, &con->area, 1);
-  PBF_Double (bf, &con->gap, 1);
-
-  unsigned int id;
-  int count;
-
-  PBF_Int (bf, &count, 1);
-  PBF_Uint (bf, &id, 1);
-  ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*)id, NULL), "Invalid master id");
-  if (count == 2)
-  {
-    PBF_Uint (bf, &id, 1);
-    ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*)id, NULL), "Invalid slave id");
-  }
-
-  if (kind == CONTACT)
-  {
-    char buf [PBF_MAXSTRING], *label = buf;
-    SURFACE_MATERIAL *mat;
-
-    PBF_String (bf, &label);
-    ASSERT_DEBUG_EXT (mat = SPSET_Find_Label (dom->sps, label), "Invalid material label");
-    con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat);
-  }
-
-  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, Z_SIZE);
-
-  return con;
 }
 
 /* write domain state */

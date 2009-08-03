@@ -419,6 +419,49 @@ FOUND:
   else free (y);
 }
 
+SET* SET_Delete_Node (MEM *pool, SET **root, SET *node)
+{
+  SET *x, *y, *next;
+ 
+  next = SET_Next (node);
+
+  if (node->l == NIL || node->r == NIL)
+  {
+    y = node;
+  }
+  else
+  {
+    y = node->r;
+    while (y->l != NIL) y = y->l;
+  }
+  
+  if (y->l != NIL)
+    x = y->l;
+  else x = y->r;
+
+  x->p = y->p;
+  if (y->p)
+    if (y == y->p->l)
+      y->p->l = x;
+    else
+      y->p->r = x;
+  else
+    *root = x;
+
+  if (y != node)
+  {
+    node->data = y->data;
+  }
+
+  if (y->colour == black)
+    set_delete_fixup (root, x);
+      
+  if (pool) MEM_Free (pool, y);
+  else free (y);
+
+  return next; /* the next item after the input 'node', ordered by data */
+}
+
 void SET_Free (MEM *pool, SET **root)
 {
   if (*root == NULL || *root == NIL) return;

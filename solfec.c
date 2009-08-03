@@ -242,7 +242,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
   if (sol->dom->time == 0.0) write_state (sol); /* write zero state */
 
-  balance (sol->dom);
+  DOM_Update_Begin (sol->dom);
 
   verbose_off (sol, kind, solver);
 }

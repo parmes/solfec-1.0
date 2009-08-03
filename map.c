@@ -427,8 +427,10 @@ FOUND:
 
 MAP* MAP_Delete_Node (MEM *pool, MAP **root, MAP *node)
 {
-  MAP *x, *y;
+  MAP *x, *y, *next;
  
+  next = MAP_Next (node);
+
   if (node->l == NIL || node->r == NIL)
   {
     y = node;
@@ -457,7 +459,6 @@ MAP* MAP_Delete_Node (MEM *pool, MAP **root, MAP *node)
     node->key = y->key;
     node->data = y->data;
   }
-  else node = MAP_Next (node); /* as 'node == y' will be delted */
 
   if (y->colour == black)
     map_delete_fixup (root, x); /* this cannot change the next item after 'node' */
@@ -465,9 +466,7 @@ MAP* MAP_Delete_Node (MEM *pool, MAP **root, MAP *node)
   if (pool) MEM_Free (pool, y);
   else free (y);
 
-  return node; /* the next item after the input 'node', ordered by key */
-
-  /* TODO: make sure that a correct node is returned */
+  return next; /* the next item after the input 'node', ordered by key */
 }
 
 void MAP_Free (MEM *pool, MAP **root)
