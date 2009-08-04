@@ -98,6 +98,39 @@ static void variables_change_end (LOCDYN *ldy)
   }
 }
 
+#if MPI
+
+/* balance local dynamics */
+static void balance (LOCDYN *ldy)
+{
+  /* TODO: update dia data copied from con before migration */
+  /* TODO: migrate ldy->dia into ldy->diab */
+}
+
+/* glue W operator */
+static void glue (LOCDYN *ldy)
+{
+  /* TODO: compute the remaining off-diagonal blocks using the external constraints */
+  /* TODO: send the computed blocks to the appropriate processor/ldy->diab locations */
+}
+
+static void gossip (LOCDYN *ldy)
+{
+  /* TODO: cummunicate reactions from balanced (migrated) to unbalanced (local) systems */
+}
+
+/* create MPI context */
+static void create_mpi (LOCDYN *ldy)
+{
+  ldy->diab = ldy->dia; /* temporaily */
+}
+
+/* destroy MPI context */
+static void destroy_mpi (LOCDYN *ldy)
+{
+}
+#endif
+
 /* create local dynamics for a domain */
 LOCDYN* LOCDYN_Create (void *dom)
 {
@@ -109,6 +142,10 @@ LOCDYN* LOCDYN_Create (void *dom)
   ldy->dom = dom;
   ldy->dia = NULL;
   ldy->modified = 0;
+
+#if MPI
+  create_mpi (ldy);
+#endif
 
   return ldy;
 }
@@ -123,7 +160,11 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
   CON *c;
 
   ERRMEM (dia = MEM_Alloc (&ldy->diamem));
-  dia->R = ((CON*)con)->R;
+#if MPI
+  dia->R = dia->REAC;
+#else
+  dia->R = CON(con)->R;
+#endif
   dia->con = con;
 
   /* insert into list */
@@ -240,6 +281,18 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
   ldy->modified = 1;
 }
 
+#if MPI
+/* insert an external constraint */
+void LOCDYN_Insert_Ext (LOCDYN *ldy, void *con)
+{
+}
+
+/* remove all external constraints */
+void LOCDYN_Remove_Ext_All (LOCDYN *ldy)
+{
+}
+#endif
+
 /* updiae local dynamics => prepare for a solution */
 void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 {
@@ -332,6 +385,12 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
   /* forward variables change */
   variables_change_begin (ldy);
+
+#if MPI
+  balance (ldy); /* balance diagonal blocks */
+
+  glue (ldy); /* compute gluing blocks and attach them to the balanced diagonal ones */
+#endif
 }
 
 /* updiae local dynamics => after the solution */
@@ -342,12 +401,21 @@ void LOCDYN_Update_End (LOCDYN *ldy)
 
   /* not modified */
   ldy->modified = 0;
+
+#if MPI
+  gossip (ldy);
+#endif
 }
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy)
 {
+#if MPI
+  destroy_mpi (ldy);
+#endif
+
   MEM_Release (&ldy->diamem);
   MEM_Release (&ldy->offmem);
+
   free (ldy);
 }

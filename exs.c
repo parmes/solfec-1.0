@@ -51,21 +51,22 @@ static int riglnk (double gap, double spring, double *n, double *W, double *B, d
   return 0;
 }
 
-static int solver (CON *con, DIAB *dia)
+static int solver (short kind, SURFACE_MATERIAL *mat, double gap, double *Z,
+                   double *mpnt, double *point, double *base, DIAB *dia)
 {
-  switch (con->kind)
+  switch (kind)
   {
   case CONTACT:
-    return EXPLICIT_Spring_Dashpot_Contact (con->gap, con->mat.spring, con->mat.dashpot,
-	                       con->mat.friction, dia->W, dia->B, dia->V, dia->U, dia->R);
+    return EXPLICIT_Spring_Dashpot_Contact (gap, mat->spring, mat->dashpot,
+	                       mat->friction, dia->W, dia->B, dia->V, dia->U, dia->R);
   case FIXPNT:
-    return fixpnt (con->mat.spring, con->mpnt, con->point, dia->W, dia->B, dia->U, dia->R);
+    return fixpnt (mat->spring, mpnt, point, dia->W, dia->B, dia->U, dia->R);
   case FIXDIR:
-    return fixdir (con->mat.spring, con->mpnt, con->point, con->base+6, dia->W, dia->B, dia->U, dia->R);
+    return fixdir (mat->spring, mpnt, point, base+6, dia->W, dia->B, dia->U, dia->R);
   case VELODIR:
-    return velodir (con->Z, dia->W, dia->B, dia->U, dia->R);
+    return velodir (Z, dia->W, dia->B, dia->U, dia->R);
   case RIGLNK:
-    return riglnk (con->gap, con->mat.spring, con->base+6, dia->W, dia->B, dia->U, dia->R);
+    return riglnk (gap, mat->spring, base+6, dia->W, dia->B, dia->U, dia->R);
   }
 
   return 0;
@@ -114,5 +115,17 @@ void EXPLICIT_Solve (LOCDYN *ldy)
 {
   DIAB *dia;
 
-  for (dia = ldy->dia; dia; dia = dia->n) solver (dia->con, dia);
+#if MPI 
+  for (dia = ldy->diab; dia; dia = dia->n) /* use balanced blocks */
+#else
+  for (dia = ldy->dia; dia; dia = dia->n)
+#endif
+  {
+#if MPI
+    solver (dia->kind, &dia->mat, dia->gap, dia->Z, dia->mpnt, dia->point, dia->base, dia);
+#else
+    CON *con = dia->con;
+    solver (con->kind, &con->mat, con->gap, con->Z, con->mpnt, con->point, con->base, dia);
+#endif
+  }
 }

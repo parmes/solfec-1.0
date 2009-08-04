@@ -239,10 +239,8 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
 #if MPI
     int proc;
 
-    ASSERT (Zoltan_LB_Point_Assign (dom->aabb->zol, onepnt, &proc) == ZOLTAN_OK, ERR_ZOLTAN);
-    if (proc != dom->rank) return NULL; /* insert contacts located in this partition (from AABB partitioning viewpoint);
-					   note, that using AABB's partitioning results in a better balance for contacts,
-					   although the final balancing will be done in the LOCDYN module */
+    ASSERT (Zoltan_LB_Point_Assign (dom->zol, onepnt, &proc) == ZOLTAN_OK, ERR_ZOLTAN);
+    if (proc != dom->rank) return NULL; /* insert contacts located in this partition */
 #endif
 
     ASSERT (gap > dom->depth, ERR_DOM_DEPTH);
@@ -505,7 +503,7 @@ static void write_constraint (CON *con, PBF *bf)
 
   if (kind == CONTACT) PBF_String (bf, &con->mat.label);
 
-  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, Z_SIZE);
+  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
 }
 
 /* read constraint state */
@@ -548,7 +546,7 @@ static CON* read_constraint (DOM *dom, PBF *bf)
     con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat);
   }
 
-  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, Z_SIZE);
+  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
 
   return con;
 }
@@ -1155,24 +1153,115 @@ static void gossip (DOM *dom)
    * TODO: update shape of child bodies (implement within child unpack?) */
 }
 
-/* complete contact graph */
+/* remove all external constraints */
+static void conext_remove_all (DOM *dom)
+{
+  CONEXT *ext;
+
+  for (ext = dom->conext; ext; ext = ext->next)
+  {
+    if (ext->master && ext->master->conext) SET_Free (&dom->setmem, &ext->master->conext);
+    if (ext->slave && ext->slave->conext) SET_Free (&dom->setmem, &ext->slave->conext);
+  }
+
+  LOCDYN_Remove_Ext_All (dom->ldy);
+  MEM_Release (&dom->extmem);
+  dom->conext = NULL;
+}
+
+/* insert an external constraint */
+static void conext_insert (DOM *dom, CONEXT *ext)
+{
+  /* TODO */
+}
+
+/* pack an external constraint */
+static void conext_pack (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  /* TODO */
+}
+
+/* unpack an external constraint */
+CONEXT* conext_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  /* TODO */
+  return NULL;
+}
+
+/* return next pointer and realloc send memory if needed */
+inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
+{
+  if (nsend >= *size)
+  {
+    (*size) *= 2;
+
+    ERRMEM (*send = realloc (*send, sizeof (COMOBJ [*size])));
+  }
+
+  return &(*send)[nsend];
+}
+
+/* complete contact graph by migrating external constraints */
 static void glue (DOM *dom)
 {
-  /* TODO: crate unions of constraint sets for each body and child */
+  COMOBJ *send, *recv, *ptr;
+  int k, size, nsend, nrecv;
+  CON *con;
 
-  /* ROUGH IDEA:
-   * 1. Introduce an auxiliary constraint type CONEXT for external constraints (id, point, master, slave, reaction, etc.)
-   * 2. Add bod->conext set and update covariant constraint force evaluation
-   * 3. Add dom->conext - an id-to-CONEXT map
-   * 4. Walk over all constraints and identify (con, rank) pairs to be exported
-   * 2. Implement conext_remove_all and ivoke it (call LOCDYN_Remove_Ext from within)
-   * 3. Send and receive (CONEX(con), rank) data using COMOBJS
-   * 4. Implement conext_insert and invok for each received constraint (call LOCDYN_Insert_Ext from within)
+  /* IDEA:
+   * 1. Walk over all constraints and identify (con, rank) pairs to be exported
+   * 2. Remove all currrently stored external constraints
+   * 3. Send and receive (CONEX(con), rank) data
+   * 4. Insert received external constraints
    *
    * REMARKS:
-   * 1. The above approach redoes the whole think every time
-   * 2. Could this be implemented in an elegant incremental manner?
+   * 1. The above approach redoes the whole thing every time
+   * 2. Could this be implemented in an (elegant) incremental manner?
    */
+
+  size = dom->ncon;
+
+  ERRMEM (send = malloc (sizeof (COMOBJ [size])));
+
+  /* 1. Walk over all constraints and identify (con, rank) pairs to be exported */
+  for (ptr = send, nsend = 0, con = dom->con; con; con = con->next)
+  {
+    BODY *bod [] = {con->master, con->slave};
+
+    for (k = 0; k < 2; k ++)
+    {
+      if (bod [k])
+      {
+	if (bod [k]->flags & BODY_CHILD)
+	{
+	  ptr->rank = bod [k]->my.parent;
+	  ptr->o = con;	
+	  ptr = sendnext (++ nsend, &size, &send);
+	}
+	else /* parent */
+	{
+	  for (SET *item = SET_First (bod [k]->my.children); item; item = SET_Next (item))
+	  {
+	    ptr->rank = (int)item->data;
+	    ptr->o = con;	
+	    ptr = sendnext (++ nsend, &size, &send);
+	  }
+	}
+      }
+    }
+  }
+
+  /* 2. Remove all currrently stored external constraints */
+  conext_remove_all (dom);
+
+  /* 3. Send and receive (CONEX(con), rank) data */
+  COMOBJS (MPI_COMM_WORLD, TAG_CONEXT, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack, send, nsend, &recv, &nrecv);
+
+  /* 4. Insert received external constraints */
+  for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++) conext_insert (dom, ptr->o);
+
+  free (send);
+  free (recv);
 }
 
 /* create MPI related data */
@@ -1191,6 +1280,10 @@ static void create_mpi (DOM *dom)
   dom->children = NULL; /* initially empty */
 
   ERRMEM (dom->delch = calloc (dom->size, sizeof (SET*)));
+
+  dom->conext = NULL;
+
+  MEM_Init (&dom->extmem, sizeof (CONEXT), CONBLK);
 
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
@@ -1225,6 +1318,8 @@ static void create_mpi (DOM *dom)
 static void destroy_mpi (DOM *dom)
 {
   free (dom->delch);
+
+  MEM_Release (&dom->extmem);
 
   Zoltan_Destroy (&dom->zol);
 }

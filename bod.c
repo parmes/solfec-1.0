@@ -330,11 +330,38 @@ static void rig_static_force (BODY *bod, double time, double step, double *force
   PRODUCTSUB (W1, O, force);   /* force [0..2] = T - W1 x J * W1 */
 }
 
+/* accumulate constraints reaction */
+inline static void rig_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short isma, double *force)
+{
+  double H [18], r [6];
+
+  rig_operator_H (bod, point, base, H);
+  blas_dgemv ('T', 3, 6, 1.0, H, 3, R, 1, 0.0, r, 1);
+
+  if (isma)
+  {
+    force [0] -= r[0];
+    force [1] -= r[1];
+    force [2] -= r[2];
+    force [3] -= r[3];
+    force [4] -= r[4];
+    force [5] -= r[5];
+  }
+  else
+  {
+    force [0] += r[0];
+    force [1] += r[1];
+    force [2] += r[2];
+    force [3] += r[3];
+    force [4] += r[4];
+    force [5] += r[5];
+  }
+}
+
 /* calculate constraints reaction */
 static void rig_constraints_force (BODY *bod, double *force)
 {
   SET *node;
-  double H [18];
 
   force [0] = force [1] = force [2] =
   force [3] = force [4] = force [5] = 0.0;
@@ -343,32 +370,21 @@ static void rig_constraints_force (BODY *bod, double *force)
   {
     CON *con = node->data;
     short isma = (bod == con->master);
-    double *point = (isma ? con->mpnt : con->spnt),
-	   *R = con->R,
-	   r [6];
+    double *point = (isma ? con->mpnt : con->spnt);
 
-    rig_operator_H (bod, point, con->base, H);
-    blas_dgemv ('T', 3, 6, 1.0, H, 3, R, 1, 0.0, r, 1);
-
-    if (isma)
-    {
-      force [0] -= r[0];
-      force [1] -= r[1];
-      force [2] -= r[2];
-      force [3] -= r[3];
-      force [4] -= r[4];
-      force [5] -= r[5];
-    }
-    else
-    {
-      force [0] += r[0];
-      force [1] += r[1];
-      force [2] += r[2];
-      force [3] += r[3];
-      force [4] += r[4];
-      force [5] += r[5];
-    }
+    rig_constraints_force_accum (bod, point, con->base, con->R, isma, force);
   }
+
+#if MPI
+  for (node = SET_First (bod->conext); node; node = SET_Next (node))
+  {
+    CONEXT *con = node->data;
+    short isma = (bod == con->master);
+    double *point = (isma ? con->mpnt : con->spnt);
+
+    rig_constraints_force_accum (bod, point, con->base, con->R, isma, force);
+  }
+#endif
 }
 
 /* ------------------- PRB --------------------- */
@@ -567,11 +583,50 @@ static void prb_dynamic_force (BODY *bod, double time, double step, double *forc
 /* the smame computation for the static case */
 #define prb_static_force(bod, time, step, force) prb_dynamic_force (bod,time,step,force)
 
+/* accumulate constraints reaction */
+inline static void prb_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short isma, double *force)
+{
+  double H [36], r [12];
+
+  prb_operator_H (bod, point, base, H);
+  blas_dgemv ('T', 3, 12, 1.0, H, 3, R, 1, 0.0, r, 1);
+
+  if (isma)
+  {
+    force [0]  -= r[0];
+    force [1]  -= r[1];
+    force [2]  -= r[2];
+    force [3]  -= r[3];
+    force [4]  -= r[4];
+    force [5]  -= r[5];
+    force [6]  -= r[6];
+    force [7]  -= r[7];
+    force [8]  -= r[8];
+    force [9]  -= r[9];
+    force [10] -= r[10];
+    force [11] -= r[11];
+  }
+  else
+  {
+    force [0]  += r[0];
+    force [1]  += r[1];
+    force [2]  += r[2];
+    force [3]  += r[3];
+    force [4]  += r[4];
+    force [5]  += r[5];
+    force [6]  += r[6];
+    force [7]  += r[7];
+    force [8]  += r[8];
+    force [9]  += r[9];
+    force [10] += r[10];
+    force [11] += r[11];
+  }
+}
+
 /* calculate constraints reaction */
 static void prb_constraints_force (BODY *bod, double *force)
 {
   SET *node;
-  double H [36];
 
   force [0] = force [1]  = force [2]  =
   force [3] = force [4]  = force [5]  =
@@ -582,44 +637,21 @@ static void prb_constraints_force (BODY *bod, double *force)
   {
     CON *con = node->data;
     short isma = (bod == con->master);
-    double *point = (isma ? con->mpnt : con->spnt),
-	   *R = con->R,
-	   r [12];
+    double *point = (isma ? con->mpnt : con->spnt);
 
-    prb_operator_H (bod, point, con->base, H);
-    blas_dgemv ('T', 3, 12, 1.0, H, 3, R, 1, 0.0, r, 1);
-
-    if (isma)
-    {
-      force [0]  -= r[0];
-      force [1]  -= r[1];
-      force [2]  -= r[2];
-      force [3]  -= r[3];
-      force [4]  -= r[4];
-      force [5]  -= r[5];
-      force [6]  -= r[6];
-      force [7]  -= r[7];
-      force [8]  -= r[8];
-      force [9]  -= r[9];
-      force [10] -= r[10];
-      force [11] -= r[11];
-    }
-    else
-    {
-      force [0]  += r[0];
-      force [1]  += r[1];
-      force [2]  += r[2];
-      force [3]  += r[3];
-      force [4]  += r[4];
-      force [5]  += r[5];
-      force [6]  += r[6];
-      force [7]  += r[7];
-      force [8]  += r[8];
-      force [9]  += r[9];
-      force [10] += r[10];
-      force [11] += r[11];
-    }
+    prb_constraints_force_accum (bod, point, con->base, con->R, isma, force);
   }
+
+#if MPI
+  for (node = SET_First (bod->conext); node; node = SET_Next (node))
+  {
+    CON *con = node->data;
+    short isma = (bod == con->master);
+    double *point = (isma ? con->mpnt : con->spnt);
+
+    prb_constraints_force_accum (bod, point, con->base, con->R, isma, force);
+  }
+#endif
 }
 
 /* calculate cauche stress for a pseudo-rigid body */

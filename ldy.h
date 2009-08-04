@@ -25,9 +25,12 @@
 
 #include "mem.h"
 #include "bod.h"
+#include "sps.h"
 
 #ifndef __ldy__
 #define __ldy__
+
+#define DOM_Z_SIZE          4      /* size of auxiliary storage in dom.h/constraint */
 
 typedef struct offb OFFB;
 typedef struct diab DIAB;
@@ -69,6 +72,23 @@ struct diab
   OFFB *adj;
   void *con;   /* the underlying constraint an the owner od the reactopn R[3] */
   DIAB *p, *n;
+
+#if MPI
+  /* local dynamic system entries can be migrated in parallel,
+   * hence it is better to copy the necessary members of an
+   * underlying constraint, in order to support independent migration */
+
+  double REAC [3],
+	 Z [DOM_Z_SIZE],
+	 point [3],
+	 base [9],
+	 mpnt [3],
+	 gap;
+
+  short kind;
+
+  SURFACE_MATERIAL mat;
+#endif
 };
 
 /* local dynamics */
@@ -78,12 +98,14 @@ struct locdyn
       diamem;
 
   void *dom; /* domain */
-  DIAB *dia; /* list of diagonal blocks */
+  DIAB *dia; /* list of diagonal blocks (unbalanced) */
 
   short modified; /* 1 if system structure has changed; otherwise 0 */
 
 #if MPI
   struct Zoltan_Struct *zol;
+
+  DIAB *diab; /* list of diagonal blocks (balanced) */
 #endif
 };
 
@@ -96,6 +118,14 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two);
 
 /* remove a diagonal entry from local dynamics */
 void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia);
+
+#if MPI
+/* insert an external constraint */
+void LOCDYN_Insert_Ext (LOCDYN *ldy, void *con);
+
+/* remove all external constraints */
+void LOCDYN_Remove_Ext_All (LOCDYN *ldy);
+#endif
 
 /* update local dynamics => prepare for a solution */
 void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind);

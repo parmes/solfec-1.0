@@ -139,6 +139,8 @@ struct general_body
 #if MPI
   union { SET *children; /* used by parent */
           int parent; /* used by children */ } my;
+
+  SET *conext; /* external constraints */
 #endif
 };
 

@@ -37,7 +37,6 @@
 typedef struct constraint CON;
 typedef struct domain DOM;
 
-#define Z_SIZE          4          /* size of auxiliary storage */
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
@@ -53,7 +52,7 @@ struct constraint
 	 area, /* contact area */
 	 gap; /* contact gap */
 
-  double Z [Z_SIZE]; /* auxiliary storage */
+  double Z [DOM_Z_SIZE]; /* auxiliary storage */
 
   unsigned int id; /* identifier */
 
@@ -91,6 +90,37 @@ struct constraint
   CON *prev, /* list */
       *next;
 };
+
+#if MPI
+typedef struct conext CONEXT;
+
+/* external
+ * constraint */
+struct conext
+{
+  double R [3];
+
+  double point [3],
+         base [9],
+	 area;
+
+  unsigned int id;
+
+  BODY *master,
+       *slave;
+
+  unsigned int mid,
+	       sid;
+
+  SGP *msgp,
+      *ssgp;
+
+  double mpnt [3],
+	 spnt [3];
+
+  CONEXT *next;
+};
+#endif
 
 /* domain flags */
 typedef enum
@@ -159,6 +189,10 @@ struct domain
   MAP *children; /* id-to-child map */
 
   SET **delch; /* id sets of children to be deleted for each rank (after removed parent) */
+
+  MEM extmem; /* memory pool of external constraints */
+
+  CONEXT *conext; /* external constraints */
 #endif
 };
 
