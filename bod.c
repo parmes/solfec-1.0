@@ -1914,4 +1914,29 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
 
   return bod;
 }
+
+/* pack body state */
+void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, bod->id);
+  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+}
+
+/* unpack body state and update the shape */
+void BODY_Child_Unpack_State (void *domain, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  unsigned int id;
+  DOM *dom = domain;
+  BODY *bod;
+
+  id = unpack_int (ipos, i, ints);
+
+  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)id, NULL), "Invalid child id");
+
+  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+}
 #endif

@@ -99,7 +99,6 @@ static void variables_change_end (LOCDYN *ldy)
 }
 
 #if MPI
-
 /* balance local dynamics */
 static void balance (LOCDYN *ldy)
 {

@@ -3052,7 +3052,11 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-    out->con = DOM_Fix_Point (solfec->sol->dom, body->bod, p);
+    if (!(out->con = DOM_Fix_Point (solfec->sol->dom, body->bod, p)))
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
 
 #if MPI
     }
@@ -3094,7 +3098,11 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    out->con = DOM_Fix_Direction (solfec->sol->dom, body->bod, p, d);
+    if (!(out->con = DOM_Fix_Direction (solfec->sol->dom, body->bod, p, d)))
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
 
 #if MPI
     }
@@ -3138,7 +3146,11 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Derivative (tms->ts));
+    if (!(out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Derivative (tms->ts))))
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
 
 #if MPI
     }
@@ -3182,7 +3194,11 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Copy (tms->ts));
+    if (!(out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Copy (tms->ts))))
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
 
 #if MPI
     }
@@ -3226,7 +3242,11 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Integral (tms->ts));
+    if (!(out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Integral (tms->ts))))
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
 
 #if MPI
     }
@@ -3286,6 +3306,12 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (solfec->sol->dom, NULL, body2->bod, p1, p2);
     else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (solfec->sol->dom, body1->bod, NULL, p1, p2);
     else out->con = DOM_Put_Rigid_Link (solfec->sol->dom, body1->bod, body2->bod, p1, p2);
+
+    if (!out->con)
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
 
 #if MPI
     }

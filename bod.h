@@ -241,6 +241,10 @@ BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *
 /* child bodies store a minimal subset of needed data and serve for constraint solution */
 void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+
+/* pack/unpack child body state (update shape after unpacking) */
+void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+void BODY_Child_Unpack_State (void *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 #endif
 
 #endif

@@ -111,10 +111,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
   con->master = master;
   con->slave = slave;
 
-  /* add to the body constraint adjacency => NOTE this dupliciates
-   * the dual graph structure, which will be of use in the distributed
-   * memory parallel implementation (where partitionings of bodies and
-   * contact points are separate) */
+  /* add to the body constraint adjacency */
   SET_Insert (&dom->setmem, &master->con, con, NULL);
   if (slave) SET_Insert (&dom->setmem, &slave->con, con, NULL);
  
@@ -192,7 +189,7 @@ static void aabb_timing (DOM *dom, double timing)
 }
 
 /* insert a contact into the constraints set */
-static CON* insert_contact (DOM *dom, BOX *one, BOX *two, BODY *master, BODY *slave,
+static CON* insert_contact (DOM *dom, BOX *mbox, BOX *sbox, BODY *master, BODY *slave,
   void *mgobj, GOBJ mkind, SHAPE *mshp, void *sgobj, GOBJ skind, SHAPE *sshp, double *spampnt,
   double *spaspnt, double *normal, double gap, double area, SURFACE_MATERIAL *mat, short paircode)
 {
@@ -206,8 +203,8 @@ static CON* insert_contact (DOM *dom, BOX *one, BOX *two, BODY *master, BODY *sl
   con->sgobj = sgobj;
   con->skind = skind;
   con->sshp = sshp;
-  con->one = one;
-  con->two = two;
+  con->mbox = mbox;
+  con->sbox = sbox;
   COPY (spampnt, con->point);
   BODY_Ref_Point (master, mshp, mgobj, spampnt, con->mpnt); /* referential image */
   BODY_Ref_Point (slave, sshp, sgobj, spaspnt, con->spnt); /* ... */
@@ -301,7 +298,7 @@ void update_contact (DOM *dom, CON *con)
 
   if (state == 0) /* remove contact */
   {
-    AABB_Break_Adjacency (dom->aabb, con->one, con->two); /* box overlap will be re-detected */
+    AABB_Break_Adjacency (dom->aabb, con->mbox, con->sbox); /* box overlap will be re-detected */
     DOM_Remove_Constraint (dom, con);
   }
   else
@@ -436,7 +433,7 @@ static void sparsify_contacts (DOM *dom)
     con = itm->data;
     /* remove first from the box adjacency structure => otherwise box engine would try
      * to release this contact at a later point and that would cose memory corruption */
-    AABB_Break_Adjacency (dom->aabb, con->one, con->two); /* box overlap will be re-detected */
+    AABB_Break_Adjacency (dom->aabb, con->mbox, con->sbox); /* box overlap will be re-detected */
     DOM_Remove_Constraint (dom, con); /* now remove from the domain */
   }
 
@@ -1146,48 +1143,6 @@ static int balance (DOM *dom)
   return changes;
 }
 
-/* update children */
-static void gossip (DOM *dom)
-{
-  /* TODO: send configuration and velocity from parent to child bodies
-   * TODO: update shape of child bodies (implement within child unpack?) */
-}
-
-/* remove all external constraints */
-static void conext_remove_all (DOM *dom)
-{
-  CONEXT *ext;
-
-  for (ext = dom->conext; ext; ext = ext->next)
-  {
-    if (ext->master && ext->master->conext) SET_Free (&dom->setmem, &ext->master->conext);
-    if (ext->slave && ext->slave->conext) SET_Free (&dom->setmem, &ext->slave->conext);
-  }
-
-  LOCDYN_Remove_Ext_All (dom->ldy);
-  MEM_Release (&dom->extmem);
-  dom->conext = NULL;
-}
-
-/* insert an external constraint */
-static void conext_insert (DOM *dom, CONEXT *ext)
-{
-  /* TODO */
-}
-
-/* pack an external constraint */
-static void conext_pack (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
-  /* TODO */
-}
-
-/* unpack an external constraint */
-CONEXT* conext_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  /* TODO */
-  return NULL;
-}
-
 /* return next pointer and realloc send memory if needed */
 inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
 {
@@ -1199,6 +1154,133 @@ inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
   }
 
   return &(*send)[nsend];
+}
+
+/* update children */
+static void gossip (DOM *dom)
+{
+  COMOBJ *send, *recv, *ptr;
+  int size, nsend, nrecv;
+  BODY *bod;
+  SET *item;
+
+  size = dom->nbod;
+  ERRMEM (send = malloc (sizeof (COMOBJ [size])));
+
+  /* gather are (body, rank) send paris */
+  for (nsend = 0, ptr = send, bod = dom->bod; bod; bod = bod->next)
+  {
+    for (item = SET_First (bod->my.children); item; item = SET_Next (item))
+    {
+      ptr->rank = (int)item->data;
+      ptr->o = bod;
+      ptr = sendnext (++ nsend, &size, &send);
+    }
+  }
+
+  /* send configuration and velocity from parent to child bodies and
+   * update children shapes while unpacking the sent data */
+  COMOBJS (MPI_COMM_WORLD, TAG_CHILDREN_UPDATE, (OBJ_Pack)BODY_Child_Pack_State, dom,
+           (OBJ_Unpack)BODY_Child_Unpack_State, send, nsend, &recv, &nrecv);
+
+  free (send);
+  free (recv);
+}
+
+/* remove all external constraints */
+static void conext_remove_all (DOM *dom)
+{
+  CONEXT *ext;
+
+  /* empty body external constraint sets */
+  for (ext = dom->conext; ext; ext = ext->next)
+  {
+    if (ext->master && ext->master->conext) SET_Free (&dom->setmem, &ext->master->conext);
+    if (ext->slave && ext->slave->conext) SET_Free (&dom->setmem, &ext->slave->conext);
+  }
+
+  /* erase in local dynamics */
+  LOCDYN_Remove_Ext_All (dom->ldy);
+
+  /* erase in the domain */
+  MEM_Release (&dom->extmem);
+  dom->conext = NULL;
+}
+
+/* insert an external constraint */
+static void conext_insert (DOM *dom, CONEXT *ext)
+{
+  /* append list */
+  ext->next = dom->conext;
+  dom->conext = ext;
+
+  /* add to the body constraint adjacency */
+  SET_Insert (&dom->setmem, &ext->master->conext, ext, NULL);
+  if (ext->slave) SET_Insert (&dom->setmem, &ext->slave->conext, ext, NULL);
+ 
+  /* insert into local dynamics */
+  LOCDYN_Insert_Ext (dom->ldy, ext);
+}
+
+/* pack an external constraint */
+static void conext_pack (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_doubles (dsize, d, doubles, con->R, 3);
+  pack_doubles (dsize, d, doubles, con->point, 3);
+  pack_doubles (dsize, d, doubles, con->base, 9);
+  pack_double (dsize, d, doubles, con->area);
+
+  pack_int (isize, i, ints, con->id);
+
+  pack_int (isize, i, ints, con->master->id);
+  if (con->slave) pack_int (isize, i, ints, con->slave->id);
+  else pack_int (isize, i, ints, 0);
+
+  pack_int (isize, i, ints, con->mbox->sgp - con->master->sgp);
+  if (con->slave) pack_int (isize, i, ints, con->sbox->sgp - con->slave->sgp);
+  else pack_int (isize, i, ints, 0);
+
+  pack_doubles (dsize, d, doubles, con->mpnt, 3);
+  if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
+}
+
+/* unpack an external constraint */
+CONEXT* conext_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  CONEXT *ext;
+  int m, s;
+
+  ERRMEM (ext = MEM_Alloc (&dom->extmem));
+
+  unpack_doubles (dpos, d, doubles, ext->R, 3);
+  unpack_doubles (dpos, d, doubles, ext->point, 3);
+  unpack_doubles (dpos, d, doubles, ext->base, 9);
+  ext->area = unpack_double (dpos, d, doubles);
+
+  ext->id = unpack_int (ipos, i, ints);
+
+  ext->mid = unpack_int (ipos, i, ints);
+  ext->sid = unpack_int (ipos, i, ints);
+
+  ext->master = MAP_Find (dom->idb, (void*)ext->mid, NULL);
+  if (!ext->master) ASSERT_DEBUG_EXT (ext->master = MAP_Find (dom->children, (void*)ext->mid, NULL), "Invalid body id");
+
+  if (ext->sid)
+  {
+    ext->slave = MAP_Find (dom->idb, (void*)ext->sid, NULL);
+    if (!ext->slave) ASSERT_DEBUG_EXT (ext->slave = MAP_Find (dom->children, (void*)ext->sid, NULL), "Invalid body id");
+  }
+
+  m = unpack_int (ipos, i, ints);
+  s = unpack_int (ipos, i, ints);
+
+  ext->msgp = &ext->master->sgp [m];
+  if (ext->sid) ext->ssgp = &ext->slave->sgp [s];
+
+  unpack_doubles (dpos, d, doubles, ext->mpnt, 3);
+  if (ext->slave) unpack_doubles (dpos, d, doubles, ext->spnt, 3);
+
+  return ext;
 }
 
 /* complete contact graph by migrating external constraints */
@@ -1471,13 +1553,21 @@ BODY* DOM_Find_Body (DOM *dom, char *label)
 CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
 {
   CON *con;
+  SGP *sgp;
+  int n;
 
+  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
+
+  sgp = &bod->sgp [n];
   con = insert (dom, bod, NULL);
   con->kind = FIXPNT;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
-  con->mgobj = SHAPE_Gobj (bod->shape, pnt, &con->mshp);
   IDENTITY (con->base);
+  con->mgobj = sgp->gobj;
+  con->mshp = sgp->shp;
+  con->mbox = sgp->box;
+
   return con;
 }
 
@@ -1485,13 +1575,21 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
 CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
 {
   CON *con;
+  SGP *sgp;
+  int n;
 
+  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
+
+  sgp = &bod->sgp [n];
   con = insert (dom, bod, NULL);
   con->kind = FIXDIR;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
-  con->mgobj = SHAPE_Gobj (bod->shape, pnt, &con->mshp);
   localbase (dir, con->base);
+  con->mgobj = sgp->gobj;
+  con->mshp = sgp->shp;
+  con->mbox = sgp->box;
+
   return con;
 }
 
@@ -1499,14 +1597,22 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
 CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
 {
   CON *con;
+  SGP *sgp;
+  int n;
 
+  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
+
+  sgp = &bod->sgp [n];
   con = insert (dom, bod, NULL);
   con->kind = VELODIR;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
-  con->mgobj = SHAPE_Gobj (bod->shape, pnt, &con->mshp);
   localbase (dir, con->base);
   con->tms = vel;
+  con->mgobj = sgp->gobj;
+  con->mshp = sgp->shp;
+  con->mbox = sgp->box;
+
   return con;
 }
 
@@ -1515,10 +1621,26 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
 CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt)
 {
   double v [3], d;
-  CON*con;
+  CON *con;
+  SGP *msgp, *ssgp;
+  int m, s;
 
-  if (!master) master = slave;
+  if (!master)
+  {
+    master = slave;
+    mpnt = spnt;
+    slave = NULL;
+  }
+
   ASSERT_DEBUG (master, "At least one body pointer must not be NULL");
+
+  if (master && (m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
+
+  if (slave && (s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
+
+  msgp = &master->sgp [m];
+  if (slave) ssgp = &slave->sgp [s];
+  else ssgp = NULL;
 
   SUB (mpnt, spnt, v);
   d = LEN (v);
@@ -1530,21 +1652,18 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
-    con->mgobj = SHAPE_Gobj (master->shape, mpnt, &con->mshp);
     IDENTITY (con->base);
+    con->mgobj = msgp->gobj;
+    con->mshp = msgp->shp;
+    con->mbox = msgp->box;
 
-    if (master && slave) /* no contact between this pair */
+    if (slave)
     {
-      int msgp, ssgp;
-      SGP *sgp;
+      con->sgobj = ssgp->gobj;
+      con->sshp = ssgp->shp;
+      con->sbox = ssgp->box;
 
-      msgp = SHAPE_Sgp (master->sgp, master->nsgp, mpnt);
-      ssgp = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt);
-      sgp = &slave->sgp [ssgp];
-      con->sgobj = sgp->gobj;
-      con->sshp = sgp->shp;
-
-      AABB_Exclude_Gobj_Pair (dom->aabb, master->id, msgp, slave->id, ssgp);
+      AABB_Exclude_Gobj_Pair (dom->aabb, master->id, m, slave->id, s); /* no contact between this pair */
     }
   }
   else
@@ -1555,8 +1674,17 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
     RIGLNK_LEN (con->Z) = d; /* initial distance */
-    con->mgobj = SHAPE_Gobj (master->shape, mpnt, &con->mshp);
-    if (slave) con->sgobj = SHAPE_Gobj (slave->shape, spnt, &con->sshp);
+    con->mgobj = msgp->gobj;
+    con->mshp = msgp->shp;
+    con->mbox = msgp->box;
+
+    if (slave)
+    { 
+      con->sgobj = ssgp->gobj;
+      con->sshp = ssgp->shp;
+      con->sbox = ssgp->box;
+    }
+
     update_riglnk (dom, con); /* initial update */
   }
   

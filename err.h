@@ -154,9 +154,10 @@ char* errstring (int error);
 /* assertion executed only in debug mode */
 #if DEBUG
   #define ASSERT_DEBUG(Test, ...)\
+    do {\
     if (! (Test)) { fprintf (stderr, "%s: %d => ", __FILE__, __LINE__);\
       fprintf (stderr, __VA_ARGS__);\
-      fprintf (stderr, "\n"); exit (1); }
+      fprintf (stderr, "\n"); exit (1); } } while (0)
 #else
   #define ASSERT_DEBUG(Test, ...)
 #endif
@@ -165,9 +166,10 @@ char* errstring (int error);
  * but still performing the test in reslease mode */
 #if DEBUG
   #define ASSERT_DEBUG_EXT(Test, ...)\
+    do {\
     if (! (Test)) { fprintf (stderr, "%s: %d => ", __FILE__, __LINE__);\
       fprintf (stderr, __VA_ARGS__);\
-      fprintf (stderr, "\n"); exit (1); }
+      fprintf (stderr, "\n"); exit (1); } } while (0)
 #else
   #define ASSERT_DEBUG_EXT(Test, ...) Test
 #endif

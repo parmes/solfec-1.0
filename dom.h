@@ -84,8 +84,8 @@ struct constraint
   double mpnt [3], /* master referential point */
 	 spnt [3]; /* slave referential point */
 
-  BOX *one, /* the two bounding boxes that were */
-      *two; /* involved in this constraint (if any) */
+  BOX *mbox, /* master box */
+      *sbox; /* slave box (if any) */
 
   CON *prev, /* list */
       *next;
