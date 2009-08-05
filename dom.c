@@ -1208,8 +1208,11 @@ static void conext_remove_all (DOM *dom)
 }
 
 /* insert an external constraint */
-static void conext_insert (DOM *dom, CONEXT *ext)
+static void conext_insert (DOM *dom, int rank, CONEXT *ext)
 {
+  /* set parent rank */
+  ext->rank = rank;
+
   /* append list */
   ext->next = dom->conext;
   dom->conext = ext;
@@ -1340,7 +1343,7 @@ static void glue (DOM *dom)
   COMOBJS (MPI_COMM_WORLD, TAG_CONEXT, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack, send, nsend, &recv, &nrecv);
 
   /* 4. Insert received external constraints */
-  for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++) conext_insert (dom, ptr->o);
+  for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++) conext_insert (dom, ptr->rank, ptr->o);
 
   free (send);
   free (recv);

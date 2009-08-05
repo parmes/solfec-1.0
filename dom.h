@@ -118,6 +118,8 @@ struct conext
   double mpnt [3],
 	 spnt [3];
 
+  int rank; /* rank of the parent constraint */
+
   CONEXT *next;
 };
 #endif

@@ -55,6 +55,10 @@ struct offb
   DIAB *dia;
   BODY *bod;
   OFFB *n;
+
+#if MPI
+  void *ext; /* external constraint */
+#endif
 };
 
 /* diagonal
@@ -74,6 +78,10 @@ struct diab
   DIAB *p, *n;
 
 #if MPI
+  OFFB *adjext; /* adjacent external constraints */
+
+  int rank; /* for a parent: rank of its child, and vice versa */
+
   /* local dynamic system entries can be migrated in parallel,
    * hence it is better to copy the necessary members of an
    * underlying constraint, in order to support independent migration */

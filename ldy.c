@@ -106,13 +106,6 @@ static void balance (LOCDYN *ldy)
   /* TODO: migrate ldy->dia into ldy->diab */
 }
 
-/* glue W operator */
-static void glue (LOCDYN *ldy)
-{
-  /* TODO: compute the remaining off-diagonal blocks using the external constraints */
-  /* TODO: send the computed blocks to the appropriate processor/ldy->diab locations */
-}
-
 static void gossip (LOCDYN *ldy)
 {
   /* TODO: cummunicate reactions from balanced (migrated) to unbalanced (local) systems */
@@ -159,11 +152,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
   CON *c;
 
   ERRMEM (dia = MEM_Alloc (&ldy->diamem));
-#if MPI
-  dia->R = dia->REAC;
-#else
   dia->R = CON(con)->R;
-#endif
   dia->con = con;
 
   /* insert into list */
@@ -284,11 +273,55 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
 /* insert an external constraint */
 void LOCDYN_Insert_Ext (LOCDYN *ldy, void *con)
 {
+  BODY *bod [2];
+  CONEXT *ext;
+  SET *item;
+  DIAB *dia;
+  OFFB *b;
+  CON *c;
+  int i;
+
+  ext = con;
+  bod [0] = ext->master;
+  bod [1] = ext->slave;
+
+  for (i = 0; i < 2; i ++)
+  {
+    if (bod [i] && bod [i]->kind != OBS) /* obstacles do not transfer adjacency */
+    {
+      for (item = SET_First (bod [i]->con); item; item = SET_Next (item))
+      {
+	c = item->data;
+	dia = c->dia;
+
+	/* allocate block and put into 'dia->adjext' list */ 
+	ERRMEM (b = MEM_Alloc (&ldy->offmem));
+	b->dia = NULL; /* there is no diagonal block here */
+	b->ext = ext; /* but there is this external constraint instead */
+	b->bod = bod [i]; /* adjacent through this body */
+	b->n = dia->adjext;
+	dia->adjext = b;
+      }
+    }
+  }
 }
 
 /* remove all external constraints */
 void LOCDYN_Remove_Ext_All (LOCDYN *ldy)
 {
+  OFFB *b, *n;
+  DIAB *dia;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    for (b = dia->adj; b; b = n)
+    {
+      n = b->n;
+      MEM_Free (&ldy->offmem, b); /* free external off-diagonal blocks */
+    }
+
+    dia->adjext = NULL;
+  }
 }
 #endif
 
@@ -378,6 +411,39 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
       MX_Destroy (rH);
     }
 
+#if MPI
+    /* external off-diagonal blocks if requested */
+    for (blk = dia->adjext; upkind == UPALL && blk; blk = blk->n)
+    {
+      CONEXT *ext = blk->ext;
+      BODY *bod = blk->bod;
+      MX *lH, *rH, *inv;
+      MX_DENSE_PTR (W, 3, 3, blk->W);
+      double coef;
+
+      ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
+     
+      lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
+                                   as it was inserted into the dual graph */
+      inv = bod->inverse;
+
+      if (bod == ext->master)
+      {
+	rH =  BODY_Gen_To_Loc_Operator (bod, ext->msgp->shp, ext->msgp->gobj, ext->mpnt, ext->base);
+	coef = (bod == s ? -step : step);
+      }
+      else /* blk->bod == ext->slave */
+      {
+	rH =  BODY_Gen_To_Loc_Operator (bod, ext->ssgp->shp, ext->ssgp->gobj, ext->spnt, ext->base);
+	coef = (bod == m ? -step : step);
+      }
+
+      MX_Trimat (lH, inv, MX_Tran (rH), &W);
+      SCALE9 (W.x, coef);
+      MX_Destroy (rH);
+    }
+#endif
+
     MX_Destroy (mH);
     if (s) MX_Destroy (sH);
   }
@@ -386,9 +452,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   variables_change_begin (ldy);
 
 #if MPI
-  balance (ldy); /* balance diagonal blocks */
-
-  glue (ldy); /* compute gluing blocks and attach them to the balanced diagonal ones */
+  balance (ldy);
 #endif
 }
 
