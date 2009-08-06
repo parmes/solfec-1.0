@@ -1372,7 +1372,7 @@ static void create_mpi (DOM *dom)
 
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
-  /* global parameters */
+  /* general parameters */
   Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
   Zoltan_Set_Param (dom->zol, "DEBUG_MEMORY", "0");
   Zoltan_Set_Param (dom->zol, "NUM_GID_ENTRIES", "1");

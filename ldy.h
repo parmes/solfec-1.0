@@ -57,6 +57,8 @@ struct offb
   OFFB *n;
 
 #if MPI
+  unsigned int id; /* adjacent constraint id */
+
   void *ext; /* external constraint */
 #endif
 };
@@ -78,6 +80,8 @@ struct diab
   DIAB *p, *n;
 
 #if MPI
+  unsigned int id; /* this constraint id */
+
   OFFB *adjext; /* adjacent external constraints */
 
   int rank; /* for a parent: rank of its child, and vice versa */
@@ -111,9 +115,18 @@ struct locdyn
   short modified; /* 1 if system structure has changed; otherwise 0 */
 
 #if MPI
-  struct Zoltan_Struct *zol;
+  DIAB **ins; /* newly inserted unbalanced blocks */
+  int nins, sins; /* number of them and size of buffer */
 
+  DIAB **del; /* recently deleted unbalanced blocks */
+  int ndel, sdel; /* number and size */
+
+  MEM mapmem;
+  MAP *idbb; /* id-to-balanced diagonal block map */
   DIAB *diab; /* list of diagonal blocks (balanced) */
+  int ndiab; /* number of balanced diagonal blocks */
+
+  struct Zoltan_Struct *zol;
 #endif
 };
 

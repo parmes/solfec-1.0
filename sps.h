@@ -93,4 +93,9 @@ void SPSET_Destroy (SPSET *set);
  * at the given time => e.g. cohesion will be >0 only for 'time' == 0 */
 short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MATERIAL *dst);
 
+/* pack surface material data (witouht the label and surface pairing) */
+void SURFACE_MATERIAL_Pack_Data (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+
+/* pack surface material data (witouht the label and surface pairing) */
+void SURFACE_MATERIAL_Unpack_Data (SURFACE_MATERIAL *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 #endif

@@ -24,6 +24,7 @@
 #include "dom.h"
 #include "sps.h"
 #include "err.h"
+#include "pck.h"
 
 #define SPCHUNK 128
 
@@ -180,4 +181,18 @@ short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MAT
   }
 
   return state;
+}
+
+/* pack surface material data (witouht the label and surface pairing) */
+void SURFACE_MATERIAL_Pack_Data (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, mat->model);
+  pack_doubles (dsize, d, doubles, &mat->friction, 5);
+}
+
+/* pack surface material data (witouht the label and surface pairing) */
+void SURFACE_MATERIAL_Unpack_Data (SURFACE_MATERIAL *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  mat->model = unpack_int (ipos, i, ints);
+  unpack_doubles (dpos, d, doubles, &mat->friction, 5);
 }

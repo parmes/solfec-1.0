@@ -25,6 +25,12 @@
 #include "lap.h"
 #include "err.h"
 
+#if MPI
+#include "pck.h"
+#include "com.h"
+#include "tag.h"
+#endif
+
 /* memory block size */
 #define BLKSIZE 512
 
@@ -99,27 +105,485 @@ static void variables_change_end (LOCDYN *ldy)
 }
 
 #if MPI
-/* balance local dynamics */
-static void balance (LOCDYN *ldy)
+/* number of vertices in the local W graph */
+static int vertex_count (LOCDYN *ldy, int *ierr)
 {
-  /* TODO: update dia data copied from con before migration */
-  /* TODO: migrate ldy->dia into ldy->diab */
+  *ierr = ZOLTAN_OK;
+  return ldy->ndiab + ldy->nins; /* balanced + newly inserted */
 }
 
+/* list of vertices in the local W graph */
+static void vertex_list (LOCDYN *ldy, int num_gid_entries, int num_lid_entries,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
+{
+  DIAB *dia;
+  int i, j;
+
+  for (dia = ldy->diab, i = 0; dia; i ++, dia = dia->n) /* balanced vertices */
+  {
+    global_ids [i * num_gid_entries] = dia->id;
+    local_ids [i * num_lid_entries] = -1; /* mapped */
+  }
+
+  for (j = 0; j < ldy->nins; i ++, j ++) /* newly inserted vertices */
+  {
+    global_ids [i * num_gid_entries] = ldy->ins [j]->id;
+    local_ids [i * num_lid_entries] = j; /* indexed */
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* sizes of edges (compressed rows) of the local W graph */
+static void edge_sizes (LOCDYN *ldy, int *num_lists, int *num_pins, int *format, int *ierr)
+{
+  DIAB *dia;
+  OFFB *b;
+  int j, n = 0;
+
+  for (dia = ldy->diab; dia; dia = dia->n, n ++)
+    for (b = dia->adj; b; b = b->n) n ++;
+
+  for (j = 0; j < ldy->nins; j ++, n ++)
+  {
+    dia = ldy->ins [j];
+    for (b = dia->adjext; b; b = b->n) n ++;
+    for (b = dia->adj; b; b = b->n) n ++;
+  }
+
+  *num_lists = ldy->ndiab + ldy->nins;
+  *num_pins =  n;
+  *format = ZOLTAN_COMPRESSED_EDGE;
+  *ierr = ZOLTAN_OK;
+}
+
+/* graph edges (compressed rows) of W */
+static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int num_pins,
+  int format, ZOLTAN_ID_PTR vtxedge_GID, int *vtxedge_ptr, ZOLTAN_ID_PTR pin_GID, int *ierr)
+{
+  DIAB *dia;
+  OFFB *b;
+  int j, n = 0;
+
+  for (dia = ldy->diab; dia; dia = dia->n, vtxedge_GID ++, vtxedge_ptr ++)
+  {
+    *vtxedge_GID = dia->id;
+    *vtxedge_ptr = n;
+
+    for (b = dia->adj; b; b = b->n, n ++, pin_GID ++) *pin_GID = b->id;
+  }
+
+  for (j = 0; j < ldy->nins; j ++, vtxedge_GID ++, vtxedge_ptr ++) 
+  {
+    dia = ldy->ins [j];
+    *vtxedge_GID = dia->id;
+    *vtxedge_ptr = n;
+
+    for (b = dia->adjext; b; b = b->n, n ++, pin_GID ++) *pin_GID = b->id;
+    for (b = dia->adj; b; b = b->n, n ++, pin_GID ++) *pin_GID = b->id;
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* auxiliary
+ * pack data */
+typedef struct
+{
+  SET *del, /* deleted blocks */
+      *upd; /* updated blocks */
+
+} AUXDATA;
+
+/* pack diagonal block */
+static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  OFFB *b;
+  int n;
+
+  pack_doubles (dsize, d, doubles, dia->R, 3);
+  pack_doubles (dsize, d, doubles, dia->U, 3);
+  pack_doubles (dsize, d, doubles, dia->V, 3);
+  pack_doubles (dsize, d, doubles, dia->B, 3);
+  pack_doubles (dsize, d, doubles, dia->W, 9);
+  pack_double  (dsize, d, doubles, dia->rho);
+
+  pack_doubles (dsize, d, doubles, dia->Z, DOM_Z_SIZE);
+  pack_doubles (dsize, d, doubles, dia->point, 3);
+  pack_doubles (dsize, d, doubles, dia->base, 9);
+  pack_doubles (dsize, d, doubles, dia->mpnt, 3);
+  pack_double  (dsize, d, doubles, dia->gap);
+  pack_int     (isize, i, ints, dia->kind);
+  SURFACE_MATERIAL_Pack_Data (&dia->mat, dsize, d, doubles, isize, i, ints);
+
+  for (n = 0, b = dia->adjext; b; b = b->n) n ++; /* number of external blocks */
+  for (b = dia->adj; b; b = b->n) n ++; /* number of internal blocks */
+
+  pack_int (isize, i, ints, n); /* total number of off-diagonal blocks */
+
+  for (b = dia->adjext; b; b = b->n) /* pack external blocks */
+  {
+    pack_doubles (dsize, d, doubles, b->W, 9);
+    pack_int (isize, i, ints, b->id);
+  }
+
+  for (b = dia->adj; b; b = b->n) /* pack internal blocks */
+  {
+    pack_doubles (dsize, d, doubles, b->W, 9);
+    pack_int (isize, i, ints, b->id);
+  }
+}
+
+/* unpack diagonal block */
+static void unpack_block (DIAB *dia, MEM *offmem, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  OFFB *b, *n;
+  int m;
+
+  unpack_doubles (dpos, d, doubles, dia->R, 3);
+  unpack_doubles (dpos, d, doubles, dia->U, 3);
+  unpack_doubles (dpos, d, doubles, dia->V, 3);
+  unpack_doubles (dpos, d, doubles, dia->B, 3);
+  unpack_doubles (dpos, d, doubles, dia->W, 9);
+  dia->rho = unpack_double  (dpos, d, doubles);
+
+  unpack_doubles (dpos, d, doubles, dia->Z, DOM_Z_SIZE);
+  unpack_doubles (dpos, d, doubles, dia->point, 3);
+  unpack_doubles (dpos, d, doubles, dia->base, 9);
+  unpack_doubles (dpos, d, doubles, dia->mpnt, 3);
+  dia->gap = unpack_double  (dpos, d, doubles);
+  dia->kind = unpack_int (ipos, i, ints);
+  SURFACE_MATERIAL_Unpack_Data (&dia->mat, dpos, d, doubles, ipos, i, ints);
+
+  /* free current off-diagonal blocks */
+  for (b = dia->adj; b; b = n)
+  {
+    n = b->n;
+    MEM_Free (offmem, b);
+  }
+
+  m = unpack_int (ipos, i, ints); /* number of off-diagonal blocks */
+  for (; m > 0; m --) /* unpack off-diagonal blocks */
+  {
+    ERRMEM (b = MEM_Alloc (offmem));
+
+    unpack_doubles (dpos, d, doubles, b->W, 9);
+    b->id = unpack_int (ipos, i, ints);
+    b->n = dia->adj;
+    dia->adj = b;
+  }
+}
+
+/* pack auxiliary data */
+static void pack_aux (AUXDATA *data, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  /* ids of blocks to be deleted */
+  pack_int (isize, i, ints, SET_Size (data->del));
+  for (SET *item = SET_First (data->del); item; item = SET_Next (item))
+    pack_int (isize, i, ints, (int)item->data);
+
+  /* pack updated data and external off-diagonal blocks updated blocks */
+  pack_int (isize, i, ints, SET_Size (data->upd));
+  for (SET *item = SET_First (data->del); item; item = SET_Next (item))
+  {
+    DIAB *dia = item->data;
+
+    pack_int (isize, i, ints, dia->id);
+    pack_block (dia, dsize, d, doubles, isize, i, ints);
+  }
+}
+
+/* unpack auxiliary data and do what needed, hence do not return an AUXDATA object */
+static void* unpack_aux (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int ndel, next;
+
+  /* delete blocks */
+  ndel = unpack_int (ipos, i, ints);
+  for (; ndel > 0; ndel --)
+  {
+    OFFB *b, *n;
+    DIAB *dia;
+    int id;
+
+    id = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*)id, NULL), "Invalid block id");
+    MAP_Delete (&ldy->mapmem, &ldy->idbb, (void*)id, NULL);
+
+    if (dia->p) dia->p->n = dia->n;
+    else ldy->diab = dia->n;
+    if (dia->n) dia->n->p = dia->p;
+
+    for (b = dia->adj; b; b = n) /* delete off-diagonal blocks */
+    {
+      n = b->n;
+      MEM_Free (&ldy->offmem, b);
+    }
+
+    MEM_Free (&ldy->diamem, dia);
+  }
+  ldy->ndiab -= ndel;
+
+  /* updated blocks */
+  next = unpack_int (ipos, i, ints);
+  for (; next > 0; next --)
+  {
+    DIAB *dia;
+    int id;
+
+    id = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*)id, NULL), "Invalid block id");
+    unpack_block (dia, &ldy->offmem, dpos, d, doubles, ipos, i, ints);
+  }
+
+  return NULL;
+}
+
+/* pack diagonal block */
+static void pack_block_ext (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, dia->id);
+  pack_block (dia, dsize, d, doubles, isize, i, ints);
+}
+
+/* unpack blocks of W and insert it into the balanced block structures */
+static void* unpack_block_ext (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  DIAB *dia;
+
+  ERRMEM (dia = MEM_Alloc (&ldy->diamem));
+  dia->id = unpack_int (ipos, i, ints);
+  unpack_block (dia, &ldy->offmem, dpos, d, doubles, ipos, i, ints);
+
+  dia->n = ldy->diab;
+  if (ldy->diab) ldy->diab->p = dia;
+  ldy->diab = dia;
+
+  MAP_Insert (&ldy->mapmem, &ldy->idbb, (void*)dia->id, dia, NULL);
+
+  return dia;
+}
+
+/* balance local dynamics */
+static int balance (LOCDYN *ldy)
+{
+  MEM setmem, auxmem;
+  AUXDATA *aux;
+  DIAB *dia;
+  MAP *map; /* maps ranks to AUXDATA */
+  int i;
+
+  /* Update constraint coppied data of unbalanced blocks */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    CON *con = dia->con;
+
+    COPY (dia->R, dia->REAC);
+    for (i = 0; i < DOM_Z_SIZE; i ++)
+      dia->Z [i] = con->Z [i];
+    COPY (con->point, dia->point);
+    NNCOPY (con->base, dia->base);
+    COPY (con->mpnt, dia->mpnt);
+    dia->gap = con->gap;
+    dia->kind = con->kind;
+    dia->mat = con->mat;
+  }
+
+  MEM_Init (&setmem, sizeof (SET), BLKSIZE);
+  MEM_Init (&auxmem, sizeof (AUXDATA), BLKSIZE);
+  map = NULL;
+
+  /* map deleted blocks to ranks */
+  for (i = 0; i < ldy->ndel; i ++)
+  {
+    int rank = ldy->del [i]->rank;
+
+    if (rank >= 0)
+    {
+      if (!(aux = MAP_Find (map, (void*)rank, NULL)))
+      {
+	ERRMEM (aux = MEM_Alloc (&auxmem));
+	MAP_Insert (&ldy->mapmem, &map, (void*)rank, aux, NULL);
+      }
+
+      SET_Insert (&setmem, &aux->del, (void*)ldy->del [i]->id, NULL);
+    }
+  }
+
+  /* map updated blocks to ranks */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    int rank = dia->rank;
+
+    if (rank >= 0)
+    {
+      if (!(aux = MAP_Find (map, (void*)rank, NULL)))
+      {
+	ERRMEM (aux = MEM_Alloc (&auxmem));
+	MAP_Insert (&ldy->mapmem, &map, (void*)rank, aux, NULL);
+      }
+
+      SET_Insert (&setmem, &aux->upd, ldy->del [i], NULL);
+    }
+  }
+
+  COMOBJ *send, *recv, *ptr;
+  int nsend, nrecv;
+  MAP *item;
+
+  nsend = MAP_Size (map);
+  ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
+
+  for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
+  {
+    ptr->rank = (int)item->key;
+    ptr->o = item->data;
+  }
+
+  /* Communicate deleted and updates blocks:
+   * 1. Communicate deleted parent blocks ids and delete their children
+   * 2. Communicate updated data and the new external off-diagonal blocks of exported blocks */
+  COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_PREPROCESS, (OBJ_Pack)pack_aux, ldy, (OBJ_Unpack)unpack_aux, send, nsend, &recv, &nrecv);
+
+  MAP_Free (&ldy->mapmem, &map);
+  MEM_Release (&setmem);
+  MEM_Release (&auxmem);
+  free (send);
+  free (recv);
+
+  int changes,
+      num_gid_entries,
+      num_lid_entries,
+      num_import,
+      *import_procs,
+      num_export,
+      *export_procs;
+
+  ZOLTAN_ID_PTR import_global_ids,
+		import_local_ids,
+		export_global_ids,
+		export_local_ids;
+
+  /* Balance graph comprising the old balanced blocks and the newly inserted unbalanced blocks */
+  ASSERT (Zoltan_LB_Balance (ldy->zol, &changes, &num_gid_entries, &num_lid_entries,
+	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+  nsend = num_export;
+  ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
+
+  for (ptr = send, i = 0; i < num_export; i ++, ptr ++)
+  {
+    int m = export_local_ids [i];
+
+    if (m < 0) ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*)export_global_ids [i], NULL), "Invalid block id");
+    else /* use local index */
+    {
+      ASSERT_DEBUG (m < ldy->nins, "Invalid local index");
+      dia = ldy->ins [m];
+    }
+
+    ptr->rank = dia->rank = export_procs [i];
+    ptr->o = dia;
+  }
+
+  /* communicate compressed rows of W */
+  COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_BALANCE, (OBJ_Pack)pack_block_ext, ldy, (OBJ_Unpack)unpack_block_ext, send, nsend, &recv, &nrecv);
+
+  /* set ranks of parent blocks */
+  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+  {
+    dia = ptr->o;
+    dia->rank = ptr->rank;
+  }
+
+  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+                       &export_global_ids, &export_local_ids, &export_procs);
+
+  free (send);
+  free (recv);
+
+  /* Empty the deleted parents table and free parents */
+  for (i = 0; i < ldy->ndel; i ++)
+    MEM_Free (&ldy->diamem, ldy->del [i]);
+  ldy->ndel = 0;
+
+  /* Empty the inserted parents table */
+  ldy->nins = 0;
+
+  return changes;
+}
+
+/* cummunicate reactions from balanced 
+ * (migrated) to unbalanced (local) systems */
 static void gossip (LOCDYN *ldy)
 {
-  /* TODO: cummunicate reactions from balanced (migrated) to unbalanced (local) systems */
+  /* TODO */
+}
+
+/* append buffer with a new item */
+static void append (DIAB ***buf, int *n, int *s, DIAB *dia)
+{
+  int i = *n;
+
+  (*n) ++;
+
+  if ((*n) >= (*s))
+  {
+    (*s) *= 2;
+    ERRMEM ((*buf) = realloc (*buf, (*s) * sizeof (DIAB*)));
+  }
+
+  (*buf) [i] = dia;
 }
 
 /* create MPI context */
 static void create_mpi (LOCDYN *ldy)
 {
-  ldy->diab = ldy->dia; /* temporaily */
+  ERRMEM (ldy->ins = malloc (BLKSIZE * sizeof (DIAB*)));
+  ldy->sins = BLKSIZE;
+  ldy->nins = 0;
+
+  ERRMEM (ldy->del = malloc (BLKSIZE * sizeof (DIAB*)));
+  ldy->sdel = BLKSIZE;
+  ldy->ndel = 0;
+
+  MEM_Init (&ldy->mapmem, sizeof (MAP), BLKSIZE);
+  ldy->idbb = NULL;
+  ldy->diab = NULL;
+  ldy->ndiab = 0;
+
+  /* create Zoltan context */
+  ASSERT (ldy->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
+
+  /* general parameters */
+  Zoltan_Set_Param (ldy->zol, "DEBUG_LEVEL", "0");
+  Zoltan_Set_Param (ldy->zol, "DEBUG_MEMORY", "0");
+  Zoltan_Set_Param (ldy->zol, "NUM_GID_ENTRIES", "1");
+  Zoltan_Set_Param (ldy->zol, "NUM_LID_ENTRIES", "1");
+
+  /* load balaninc parameters */
+  Zoltan_Set_Param (ldy->zol, "LB_METHOD", "HYPERGRAPH");
+  Zoltan_Set_Param (ldy->zol, "HYPERGRAPH_PACKAGE", "PHG");
+  Zoltan_Set_Param (ldy->zol, "AUTO_MIGRATE", "FALSE");
+  Zoltan_Set_Param (ldy->zol, "RETURN_LISTS", "EXPORT");
+
+  /* PHG parameters */
+  Zoltan_Set_Param (ldy->zol, "PHG_OUTPUT_LEVEL", "0");
+
+  /* callbacks */
+  Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) vertex_count, ldy);
+  Zoltan_Set_Fn (ldy->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) vertex_list, ldy);
+  Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_SIZE_CS_FN_TYPE, (void (*)()) edge_sizes, ldy);
+  Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_CS_FN_TYPE, (void (*)()) edge_list, ldy);
 }
 
 /* destroy MPI context */
 static void destroy_mpi (LOCDYN *ldy)
 {
+  free (ldy->ins);
+  free (ldy->del);
+  Zoltan_Destroy (&ldy->zol);
 }
 #endif
 
@@ -216,6 +680,14 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
   /* mark as modified */
   ldy->modified = 1;
 
+#if MPI
+  dia->id = CON(con)->id;
+  dia->rank = -1; /* initially invalid */
+
+  /* schedule for balancing use */
+  append (&ldy->ins, &ldy->nins, &ldy->sins, dia);
+#endif
+
   return dia;
 }
 
@@ -225,7 +697,7 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
   OFFB *b, *c, *r;
 
   /* destroy blocks in
-   * adjacent diaa items */
+   * adjacent dia items */
   for (b = dia->adj; b; b = b->n)
   {
     c = b->dia->adj;
@@ -262,8 +734,13 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
   if (dia->n)
     dia->n->p = dia->p;
 
-  /* destroy passed diaa */
+#if MPI
+  /* schedule for balancing use and a later deletion */
+  append (&ldy->del, &ldy->ndel, &ldy->sdel, dia);
+#else
+  /* destroy passed dia */
   MEM_Free (&ldy->diamem, dia);
+#endif
 
   /* mark as modified */
   ldy->modified = 1;
@@ -299,6 +776,7 @@ void LOCDYN_Insert_Ext (LOCDYN *ldy, void *con)
 	b->dia = NULL; /* there is no diagonal block here */
 	b->ext = ext; /* but there is this external constraint instead */
 	b->bod = bod [i]; /* adjacent through this body */
+	b->id = ext->id; /* useful when migrated */
 	b->n = dia->adjext;
 	dia->adjext = b;
       }
@@ -314,7 +792,7 @@ void LOCDYN_Remove_Ext_All (LOCDYN *ldy)
 
   for (dia = ldy->dia; dia; dia = dia->n)
   {
-    for (b = dia->adj; b; b = n)
+    for (b = dia->adjext; b; b = n)
     {
       n = b->n;
       MEM_Free (&ldy->offmem, b); /* free external off-diagonal blocks */

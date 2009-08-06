@@ -507,6 +507,113 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   return gs;
 }
 
+#if MPI
+void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
+{
+  double error, step;
+  int diagiters;
+  short dynamic;
+  char fmt [512];
+  int div = 10;
+
+  if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+
+  if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+
+  dynamic = DOM(ldy->dom)->dynamic;
+  step = DOM(ldy->dom)->step;
+  gs->error = GS_OK;
+  gs->iters = 0;
+  do
+  {
+    double errup = 0.0,
+	   errlo = 0.0;
+    OFFB *blk;
+    DIAB *dia;
+   
+    for (dia = ldy->diab; dia; dia = dia->n) /* use balanced blocks */
+    {
+      double R0 [3],
+	     B [3],
+	     *R = dia->R;
+
+      /* prefetch reactions */
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	COPY (blk->dia->R, blk->R);
+      }
+
+      /* compute local free velocity */
+      COPY (dia->B, B);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	double *W = blk->W,
+	       *R = blk->R;
+	NVADDMUL (B, W, R, B);
+      }
+      
+      COPY (R, R0); /* previous reaction */
+
+      /* solve local diagonal block problem */
+      diagiters = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
+
+      if (diagiters > gs->diagmaxiter || diagiters < 0)
+      {
+	if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
+	else gs->error = GS_DIAGONAL_DIVERGED;
+
+	switch (gs->failure)
+	{
+	case GS_FAILURE_CONTINUE:
+	  COPY (R0, R); /* use previous reaction */
+	  break;
+	case GS_FAILURE_EXIT:
+	  fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED\n");
+	  exit (1);
+	  break;
+	case GS_FAILURE_CALLBACK:
+	  gs->callback (gs->data);
+	  return;
+	}
+      }
+
+      /* accumulate relative
+       * error components */
+      SUB (R, R0, R0);
+      errup += DOT (R0, R0);
+      errlo += DOT (R, R);
+    }
+
+    /* calculate relative error */
+    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+    if (gs->history) gs->rerhist [gs->iters] = error;
+
+    if (gs->iters % div == 0 && gs->verbose) printf (fmt, gs->iters, error), div *= 2;
+  }
+  while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+
+  if (gs->verbose) printf (fmt, gs->iters, error);
+
+  if (gs->iters >= gs->maxiter)
+  {
+    gs->error = GS_DIVERGED;
+
+    switch (gs->failure)
+    {
+    case GS_FAILURE_CONTINUE:
+      break;
+    case GS_FAILURE_EXIT:
+      fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code DIVERGED\n");
+      exit (1);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      return;
+    }
+  }
+
+}
+#else
 /* run solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
@@ -531,11 +638,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     OFFB *blk;
     DIAB *dia;
    
-#if MPI 
-    for (dia = ldy->diab; dia; dia = dia->n) /* use balanced blocks */
-#else
     for (dia = ldy->dia; dia; dia = dia->n)
-#endif
     {
       double R0 [3],
 	     B [3],
@@ -559,12 +662,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       COPY (R, R0); /* previous reaction */
 
       /* solve local diagonal block problem */
-#if MPI
-      diagiters = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
-#else
       CON *con = dia->con;
       diagiters = solver (gs, dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
-#endif
 
       if (diagiters > gs->diagmaxiter || diagiters < 0)
       {
@@ -621,6 +720,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
   }
 }
+#endif
 
 /* return faulure string */
 char* GAUSS_SEIDEL_Failure (GAUSS_SEIDEL *gs)
