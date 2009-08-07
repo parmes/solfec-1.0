@@ -26,6 +26,7 @@
 #include "err.h"
 
 #if MPI
+#include <limits.h>
 #include "pck.h"
 #include "com.h"
 #include "tag.h"
@@ -122,7 +123,7 @@ static void vertex_list (LOCDYN *ldy, int num_gid_entries, int num_lid_entries,
   for (dia = ldy->diab, i = 0; dia; i ++, dia = dia->n) /* balanced vertices */
   {
     global_ids [i * num_gid_entries] = dia->id;
-    local_ids [i * num_lid_entries] = -1; /* mapped */
+    local_ids [i * num_lid_entries] = UINT_MAX; /* mapped */
   }
 
   for (j = 0; j < ldy->nins; i ++, j ++) /* newly inserted vertices */
@@ -268,15 +269,6 @@ static void unpack_block (DIAB *dia, MEM *offmem, int *dpos, double *d, int doub
   }
 }
 
-/* pack deletion data */
-static void pack_delete (SET *del, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
-  /* ids of blocks to be deleted */
-  pack_int (isize, i, ints, SET_Size (del));
-  for (SET *item = SET_First (del); item; item = SET_Next (item))
-    pack_int (isize, i, ints, (int)item->data);
-}
-
 /* delete balanced block */
 static void delete_balanced_block (LOCDYN *ldy, DIAB *dia)
 {
@@ -299,6 +291,15 @@ static void delete_balanced_block (LOCDYN *ldy, DIAB *dia)
   ldy->ndiab --;
 }
 
+/* pack deletion data */
+static void pack_delete (SET *del, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  /* ids of blocks to be deleted */
+  pack_int (isize, i, ints, SET_Size (del));
+  for (SET *item = SET_First (del); item; item = SET_Next (item))
+    pack_int (isize, i, ints, (int)item->data);
+}
+
 /* unpack deletion data */
 static void* unpack_delete  (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
@@ -317,6 +318,34 @@ static void* unpack_delete  (LOCDYN *ldy, int *dpos, double *d, int doubles, int
   }
 
   return NULL;
+}
+
+/* pack migration data */
+static void pack_migrate (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, dia->id);
+  pack_int (isize, i, ints, dia->rank);
+}
+
+/* unpack migration data */
+static void* unpack_migrate (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  DIAB *dia;
+
+  ERRMEM (dia = MEM_Alloc (&ldy->diamem));
+  dia->id = unpack_int (ipos, i, ints);
+  dia->rank = unpack_int (ipos, i, ints);
+  dia->R = dia->REAC;
+
+  dia->n = ldy->diab;
+  if (ldy->diab) ldy->diab->p = dia;
+  ldy->diab = dia;
+
+  MAP_Insert (&ldy->mapmem, &ldy->idbb, (void*)dia->id, dia, NULL);
+
+  ldy->ndiab ++;
+
+  return dia;
 }
 
 /* pack update data */
@@ -352,33 +381,6 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
   return NULL;
 }
 
-/* pack migration data */
-static void pack_migrate (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
-  pack_int (isize, i, ints, dia->id);
-  pack_int (isize, i, ints, dia->rank);
-}
-
-/* unpack migration data */
-static void* unpack_migrate (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  DIAB *dia;
-
-  ERRMEM (dia = MEM_Alloc (&ldy->diamem));
-  dia->id = unpack_int (ipos, i, ints);
-  dia->rank = unpack_int (ipos, i, ints);
-
-  dia->n = ldy->diab;
-  if (ldy->diab) ldy->diab->p = dia;
-  ldy->diab = dia;
-
-  MAP_Insert (&ldy->mapmem, &ldy->idbb, (void*)dia->id, dia, NULL);
-
-  ldy->ndiab ++;
-
-  return dia;
-}
-
 /* balance local dynamics */
 static int balance (LOCDYN *ldy)
 {
@@ -400,7 +402,7 @@ static int balance (LOCDYN *ldy)
     if (!(set = MAP_Find_Node (map, (void*)rank, NULL)))
       set = MAP_Insert (&ldy->mapmem, &map, (void*)rank, NULL, NULL);
 
-    SET_Insert (&setmem, (SET**)&set, (void*)ldy->del [i]->id, NULL);
+    SET_Insert (&setmem, (SET**)&set->data, (void*)ldy->del [i]->id, NULL);
   }
 
   COMOBJ *send, *recv, *ptr;
@@ -448,20 +450,20 @@ static int balance (LOCDYN *ldy)
 
   for (ptr = send, i = 0; i < num_export; i ++, ptr ++)
   {
-    int m = export_local_ids [i];
+    ZOLTAN_ID_TYPE m = export_local_ids [i];
 
-    if (m < 0) /* mapped migrated block */
+    if (m == UINT_MAX) /* mapped migrated block */
     {
       ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*)export_global_ids [i], NULL), "Invalid block id");
 
       /* parent block will need to have updated rank of its migrated copy */
       if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
 	set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
-      SET_Insert (&setmem, (SET**)&set, (void*)dia->id, NULL); /* map the id of this block to the rank set of its parent */
+      SET_Insert (&setmem, (SET**)&set->data, (void*)dia->id, NULL); /* map the id of this block to the rank set of its parent */
     }
     else /* use local index */
     {
-      ASSERT_DEBUG (m < ldy->nins, "Invalid local index");
+      ASSERT_DEBUG (m < (unsigned)ldy->nins, "Invalid local index");
       dia = ldy->ins [m];
     }
 
@@ -508,8 +510,8 @@ static int balance (LOCDYN *ldy)
     }
   }
 
-  MAP_Free (&ldy->mapmem, &map);
   MEM_Release (&setmem);
+  MAP_Free (&ldy->mapmem, &map);
   for (i = 0; i < dnsend; i ++) free (dsend [i].i);
   free (dsend);
   free (drecv);
@@ -542,7 +544,7 @@ static int balance (LOCDYN *ldy)
     if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
       MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
 
-    SET_Insert (&setmem, (SET**)&set, dia, NULL);
+    SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
   }
 
   nsend = MAP_Size (map);
@@ -576,7 +578,72 @@ static int balance (LOCDYN *ldy)
  * (migrated) to unbalanced (local) systems */
 static void gossip (LOCDYN *ldy)
 {
-  /* TODO */
+  MEM setmem;
+  DIAB *dia;
+  MAP *map, /* map ranks to sets of balanced blocks */
+      *set;
+  DOM *dom; 
+  int i, j;
+
+  dom = DOM (ldy->dom);
+
+  MEM_Init (&setmem, sizeof (SET), BLKSIZE);
+
+  for (map = NULL, dia = ldy->diab; dia; dia = dia->n)
+  {
+    if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
+      set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
+
+    SET_Insert (&setmem, (SET**)&set->data, dia, NULL); /* map balanced blocks to their parent ranks */
+  }
+
+  COMDATA *send, *recv, *ptr;
+  int nsend, nrecv;
+  SET *item;
+
+  nsend = MAP_Size (map); /* the number of distinct parent ranks */
+  ERRMEM (send = malloc (sizeof (COMDATA [nsend])));
+
+  for (set = MAP_First (map), ptr = send; set; set = MAP_Next (set), ptr ++)
+  {
+    ptr->rank = (int)set->key;
+    ptr->ints = SET_Size ((SET*)set->data);
+    ptr->doubles = 3 * ptr->ints;
+    ERRMEM (ptr->i = malloc (sizeof (int [ptr->ints]))); /* ids */
+    ERRMEM (ptr->d = malloc (sizeof (double [ptr->doubles]))); /* reactions */
+
+    for (i = 0, item = SET_First ((SET*)set->data); item; i ++, item = SET_Next (item))
+    {
+      dia = item->data;
+
+      ptr->i [i] = dia->id;
+      COPY (dia->R, &ptr->d [3*i]);
+    }
+  }
+
+  /* communicate reactions */
+  COM (MPI_COMM_WORLD, TAG_LOCDYN_REAC, send, nsend, &recv, &nrecv);
+
+  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+  {
+    for (j = 0; j < ptr->ints; j ++)
+    {
+      double *R;
+      CON *con;
+
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)ptr->i[j], NULL), "Invalid constraint id"); /* find constraint */
+      dia = con->dia;
+      R = &ptr->d [3*j];
+      COPY (R, dia->R); /* update reaction */
+    }
+  }
+
+  MEM_Release (&setmem);
+  MAP_Free (&ldy->mapmem, &map);
+  for (i = 0, ptr = send; i < nsend; i ++, ptr ++)
+  { free (ptr->i); free (ptr->d); }
+  free (send);
+  free (recv);
 }
 
 /* append buffer with a new item */
