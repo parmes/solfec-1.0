@@ -38,7 +38,8 @@ enum gobj
   GOBJ_DUMMY   = 0x00,
   GOBJ_ELEMENT = 0x01,
   GOBJ_CONVEX  = 0x02,
-  GOBJ_SPHERE  = 0x04
+  GOBJ_SPHERE  = 0x04,
+  GOBJ_NEW     = 0x08
 };
 
 /* detection

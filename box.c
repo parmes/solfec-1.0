@@ -147,6 +147,17 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
   return user;
 }
 
+#if MPI
+/* synchronise exclusion sets */
+static void sync (AABB *aabb)
+{
+  /* TODO */
+  /* consider including boxes in domain balancing
+   * rather than doing a separate balancing here;
+   * if so, remove zoltan from the header */
+}
+#endif
+
 /* create box overlap driver data */
 AABB* AABB_Create (int size)
 {
@@ -179,7 +190,7 @@ BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_E
   ERRMEM (box = MEM_Alloc (&aabb->boxmem));
   box->data = data;
   box->update = update;
-  box->kind = kind;
+  box->kind = kind | GOBJ_NEW; /* mark as new */
   box->body = body;
   box->sgp = sgp;
 
@@ -198,16 +209,29 @@ BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_E
 /* delete an object */
 void AABB_Delete (AABB *aabb, BOX *box)
 {
-  /* remove box from the current list */
-  if (box->prev) box->prev->next = box->next;
-  else aabb->lst = box->next;
-  if (box->next) box->next->prev = box->prev;
-  aabb->nlst --; /* decrease count */
+  if (box->kind & GOBJ_NEW) /* still in the insertion list */
+  {
+    /* remove box from the insertion list */
+    if (box->prev) box->prev->next = box->next;
+    else aabb->in = box->next;
+    if (box->next) box->next->prev = box->prev;
 
-  /* insert it into
-   * the deletion list */
-  box->next = aabb->out;
-  aabb->out = box;
+    /* free it here */
+    MEM_Free (&aabb->boxmem, box); 
+  }
+  else
+  {
+    /* remove box from the current list */
+    if (box->prev) box->prev->next = box->next;
+    else aabb->lst = box->next;
+    if (box->next) box->next->prev = box->prev;
+    aabb->nlst --; /* decrease count */
+
+    /* insert it into
+     * the deletion list */
+    box->next = aabb->out;
+    aabb->out = box;
+  }
 
   /* set modified */
   aabb->modified = 1;
@@ -221,12 +245,19 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   MAP *item, *jtem;
   int nin;
 
+#if MPI
+  sync (aabb);
+#endif
+
   /* update extents */
   for (box = aabb->lst; box; box = box->next) /* for each current box */
     box->update (box->data, box->sgp->gobj, box->extents);
 
   for (box = aabb->in, nin = 0; box; box = box->next, nin ++) /* for each inserted box */
+  {
     box->update (box->data, box->sgp->gobj, box->extents);
+    box->kind &= ~GOBJ_NEW; /* not new any more */
+  }
 
   /* check for released overlaps */
   for (box = aabb->out; box; box = next) /* for each deleted box */
