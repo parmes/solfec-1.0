@@ -588,7 +588,7 @@ MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, int vol
 
   ERRMEM (nod = malloc (sizeof (double [3])*(i+1)*(j+1)*(k+1)));
   ERRMEM (ele = malloc (sizeof (int [10])*i*j*k + sizeof (int)));
-  ERRMEM (sur = malloc (1 + sizeof (int [6])*((2*i*j)+(2*j*k)+(2*i*k)) + sizeof (int)));
+  ERRMEM (sur = malloc (sizeof(int [2]) + sizeof (int [6])*((2*i*j)+(2*j*k)+(2*i*k))));
 
   /* create the unit cube mesh */
 

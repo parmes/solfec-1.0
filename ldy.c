@@ -471,7 +471,7 @@ static int balance (LOCDYN *ldy)
     ptr->o = dia;
   }
 
-  /* communicate migration data */
+  /* communicate migration data (unpacking inserts the imported blocks) */
   COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_BALANCE, (OBJ_Pack)pack_migrate, ldy, (OBJ_Unpack)unpack_migrate, send, nsend, &recv, &nrecv);
 
   /* communicate rank updates to parents */
@@ -662,7 +662,7 @@ static void append (DIAB ***buf, int *n, int *s, DIAB *dia)
   (*buf) [i] = dia;
 }
 
-/* create MPI context */
+/* create MPI related data */
 static void create_mpi (LOCDYN *ldy)
 {
   ERRMEM (ldy->ins = malloc (BLKSIZE * sizeof (DIAB*)));
@@ -703,7 +703,7 @@ static void create_mpi (LOCDYN *ldy)
   Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_CS_FN_TYPE, (void (*)()) edge_list, ldy);
 }
 
-/* destroy MPI context */
+/* destroy MPI related data */
 static void destroy_mpi (LOCDYN *ldy)
 {
   free (ldy->ins);
@@ -1076,12 +1076,12 @@ void LOCDYN_Update_End (LOCDYN *ldy)
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy)
 {
+  MEM_Release (&ldy->diamem);
+  MEM_Release (&ldy->offmem);
+
 #if MPI
   destroy_mpi (ldy);
 #endif
-
-  MEM_Release (&ldy->diamem);
-  MEM_Release (&ldy->offmem);
 
   free (ldy);
 }

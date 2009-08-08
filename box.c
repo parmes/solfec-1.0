@@ -30,7 +30,14 @@
 #include "hsh.h"
 #include "err.h"
 
-#define SIZE 512
+#if MPI
+#include "dom.h"
+#include "pck.h"
+#include "com.h"
+#include "tag.h"
+#endif
+
+#define SIZE 512 /* mempool size */
 
 /* auxiliary data */
 struct auxdata
@@ -148,13 +155,290 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
 }
 
 #if MPI
-/* synchronise exclusion sets */
-static void sync (AABB *aabb)
+/* number of boxes */
+static int box_count (AABB *aabb, int *ierr)
 {
-  /* TODO */
-  /* consider including boxes in domain balancing
-   * rather than doing a separate balancing here;
-   * if so, remove zoltan from the header */
+  *ierr = ZOLTAN_OK;
+
+  return aabb->nin + aabb->nlst;
+}
+
+/* list of box identifiers */
+static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
+{
+  BOX *box, **aux;
+  BODY *bod;
+  int i;
+
+  free (aabb->aux);
+  /* realloc auxiliary table */
+  ERRMEM (aabb->aux = malloc ((aabb->nin + aabb->nlst) * sizeof (BOX*)));
+
+  /* gather inserted boxes */
+  for (aux = aabb->aux, i = 0, box = aabb->in; box; aux ++, i ++, box = box->next)
+  {
+    bod = box->body;
+
+    global_ids [i * num_gid_entries] = bod->id;
+    global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp; /* local SGP index */
+    local_ids [i * num_lid_entries] = i;
+    *aux = box;
+  }
+
+  /* gather current boxes */
+  for (box = aabb->lst; box; aux ++, i ++, box = box->next)
+  {
+    bod = box->body;
+
+    global_ids [i * num_gid_entries] = bod->id;
+    global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp;
+    local_ids [i * num_lid_entries] = i;
+    *aux = box;
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* number of spatial dimensions */
+static int dimensions (AABB *aabb, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  return 3;
+}
+
+/* list of body extent low points */
+static void lopoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int num_obj,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
+{
+  BOX **aux, *box;
+  int i;
+
+  aux = aabb->aux;
+
+  for (i = 0; i < num_obj; i ++, geom_vec += num_dim)
+  {
+    box = aux [local_ids [i * num_lid_entries]];
+    COPY (box->extents, geom_vec);
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* pack migration data */
+static void pack_migrate (BOX *box, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  BODY *bod = box->body;
+
+  pack_int (isize, i, ints, bod->id);
+  pack_int (isize, i, ints, box->kind & ~GOBJ_NEW);
+  pack_int (isize, i, ints, box->sgp - bod->sgp);
+}
+
+/* unpack migration data */
+static void* unpack_migrate (AABB *aabb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  DOM *dom = aabb->dom;
+  int id, kind, isgp;
+  BODY *bod;
+  SGP *sgp;
+
+  id = unpack_int (ipos, i, ints);
+  kind = unpack_int (ipos, i, ints);
+  isgp = unpack_int (ipos, i, ints);
+
+  bod = MAP_Find (dom->children, (void*)id, NULL);
+  if (!bod) ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+  sgp = &bod->sgp [isgp];
+
+  switch (kind)
+  {
+  case GOBJ_ELEMENT: AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
+  case GOBJ_CONVEX:  AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
+  case GOBJ_SPHERE:  AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
+  }
+
+  return NULL;
+}
+
+/* synchronise an exclusion set */
+static void sync (SET **eset, MEM *oprmem, MEM *setmem, int nobody)
+{
+  int i, s, n, ncpu, step, *sizes, *disp, *set, *all, *ptr, *end;
+  SET_Compare cmp;
+  SET *item;
+
+  if (nobody) 
+  {
+    step = 2;
+    cmp = (SET_Compare)bodcmp;
+  }
+  else
+  {
+    step = 4;
+    cmp = (SET_Compare)gobjcmp;
+  }
+
+  MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
+
+  s = SET_Size (*eset);
+  ERRMEM (sizes = malloc (sizeof (int [ncpu])));
+  ERRMEM (disp = malloc (sizeof (int [ncpu])));
+  ERRMEM (set = malloc (sizeof (int [step * s])));
+
+  /* sizes of all sets */
+  MPI_Allgather (&s, 1, MPI_INT, sizes, 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (disp [0] = 0, i = 0; i < ncpu; i ++)
+    if (i < ncpu - 1) disp [i+1] = disp [i] + sizes [i];
+
+  n = disp [ncpu-1] + sizes [ncpu-1]; /* total size */
+
+  ERRMEM (all = malloc (sizeof (int [step * n])));
+
+  /* copy the local set into a buffer */
+  for (item = SET_First (*eset), ptr = set; item; item = SET_Next (item), ptr += step)
+  {
+    OPR *opr = item->data;
+
+    ptr [0] = opr->bod1;
+    ptr [1] = opr->bod2;
+
+    if (step == 4)
+    {
+      ptr [2] = opr->sgp1;
+      ptr [3] = opr->sgp2;
+    }
+  }
+
+  /* gather all local sets into the common 'all' space */
+  MPI_Allgatherv (set, step * s, MPI_INT, all, sizes, disp, MPI_INT, MPI_COMM_WORLD);
+
+  /* complete the local set */
+  for (ptr = all, end = all + step * n; ptr < end; ptr += step)
+  {
+    OPR pair = {ptr [0], ptr [1], 0, 0};
+
+    if (step == 4)
+    {
+      pair.sgp1 = ptr [2];
+      pair.sgp2 = ptr [3];
+    }
+
+    if (! SET_Find (*eset, &pair, cmp))  /* if not found */
+    {
+      OPR *opr;
+      
+      ERRMEM (opr = MEM_Alloc (oprmem));
+      *opr = pair;
+      SET_Insert (setmem, eset, opr, cmp); /* insert new item */
+    }
+  }
+
+  free (all);
+  free (set);
+  free (disp);
+  free (sizes);
+}
+
+/* balance boxes */
+static void balance (AABB *aabb)
+{
+  int flag;
+
+  /* synchronise body pair exclusion set */
+  MPI_Allreduce (&aabb->nobody_modified, &flag, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  if (flag) sync (&aabb->nobody, &aabb->setmem, &aabb->oprmem, 1);
+
+  /* synchronise geometric object pair exclusion set */
+  MPI_Allreduce (&aabb->nogobj_modified, &flag, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  if (flag) sync (&aabb->nogobj, &aabb->setmem, &aabb->oprmem, 0);
+
+  int changes,
+      num_gid_entries,
+      num_lid_entries,
+      num_import,
+      *import_procs,
+      num_export,
+      *export_procs;
+
+  ZOLTAN_ID_PTR import_global_ids,
+		import_local_ids,
+		export_global_ids,
+		export_local_ids;
+
+  /* update box partitioning using low points of their extents */
+  ASSERT (Zoltan_LB_Balance (aabb->zol, &changes, &num_gid_entries, &num_lid_entries,
+	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+  COMOBJ *send, *recv, *ptr;
+  int nsend, nrecv, i;
+  BOX **aux;
+
+  nsend = num_export;
+  ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
+
+  for (aux = aabb->aux, ptr = send, i = 0; i < nsend; i ++, ptr ++)
+  {
+    ptr->rank = export_procs [i];
+    ptr->o = aux [export_local_ids [i]];
+  }
+
+  /* communicate migration data (unpacking inserts the imported boxes) */
+  COMOBJS (MPI_COMM_WORLD, TAG_AABB_BALANCE, (OBJ_Pack)pack_migrate, aabb, (OBJ_Unpack)unpack_migrate, send, nsend, &recv, &nrecv);
+
+  /* delete exported boxes */
+  for (ptr = send, i = 0; i < nsend; i ++, ptr ++) AABB_Delete (aabb, ptr->o);
+
+  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+                       &export_global_ids, &export_local_ids, &export_procs);
+  free (send);
+  free (recv);
+}
+
+/* create MPI related data */
+static void create_mpi (AABB *aabb)
+{
+  aabb->nobody_modified = 0;
+  aabb->nogobj_modified = 0;
+  aabb->aux = NULL;
+
+  /* zoltan context for body partitioning */
+  ASSERT (aabb->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
+
+  /* general parameters */
+  Zoltan_Set_Param (aabb->zol, "DEBUG_LEVEL", "0");
+  Zoltan_Set_Param (aabb->zol, "DEBUG_MEMORY", "0");
+  Zoltan_Set_Param (aabb->zol, "NUM_GID_ENTRIES", "2"); /* body id, sgp index */
+  Zoltan_Set_Param (aabb->zol, "NUM_LID_ENTRIES", "1"); /* indices in aux table */
+ 
+  /* load balancing parameters */
+  Zoltan_Set_Param (aabb->zol, "LB_METHOD", "RCB");
+  Zoltan_Set_Param (aabb->zol, "IMBALANCE_TOL", "1.2");
+  Zoltan_Set_Param (aabb->zol, "AUTO_MIGRATE", "FALSE"); /* we shall use COMOBJS */
+  Zoltan_Set_Param (aabb->zol, "RETURN_LISTS", "EXPORT"); /* the rest will be done by COMOBJS */
+
+  /* RCB parameters */
+  Zoltan_Set_Param (aabb->zol, "RCB_OVERALLOC", "1.3");
+  Zoltan_Set_Param (aabb->zol, "RCB_REUSE", "1");
+  Zoltan_Set_Param (aabb->zol, "RCB_OUTPUT_LEVEL", "0");
+  Zoltan_Set_Param (aabb->zol, "CHECK_GEOM", "1");
+  Zoltan_Set_Param (aabb->zol, "KEEP_CUTS", "1");
+
+  /* callbacks */
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) box_count, aabb);
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) box_list, aabb);
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, aabb);
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) lopoints, aabb);
+}
+
+/* destroy MPI related data */
+static void destroy_mpi (AABB *aabb)
+{
+  free (aabb->aux);
+
+  Zoltan_Destroy (&aabb->zol);
 }
 #endif
 
@@ -174,10 +458,15 @@ AABB* AABB_Create (int size)
 
   aabb->nobody = aabb->nogobj= NULL;
 
+  aabb->nin = 0;
   aabb->nlst = 0;
   aabb->ntab = 0;
   aabb->modified = 0;
   aabb->swp = aabb->hsh = NULL;
+
+#if MPI
+  create_mpi (aabb);
+#endif
 
   return aabb;
 }
@@ -199,6 +488,7 @@ BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_E
   box->next = aabb->in;
   if (aabb->in) aabb->in->prev= box;
   aabb->in = box;
+  aabb->nin ++;
 
   /* set modified */
   aabb->modified = 1;
@@ -215,6 +505,7 @@ void AABB_Delete (AABB *aabb, BOX *box)
     if (box->prev) box->prev->next = box->next;
     else aabb->in = box->next;
     if (box->next) box->next->prev = box->prev;
+    aabb->nin --;
 
     /* free it here */
     MEM_Free (&aabb->boxmem, box); 
@@ -237,6 +528,33 @@ void AABB_Delete (AABB *aabb, BOX *box)
   aabb->modified = 1;
 }
 
+/* delete all data related to this body */
+void AABB_Delete_Body (AABB *aabb, void *body)
+{
+  SET *del, *item;
+  BOX *box;
+
+  /* search insertion list */
+  for (del = NULL, box = aabb->in; box; box = box->next)
+  {
+    if (box->body == body) SET_Insert (&aabb->setmem, &del, box, NULL);
+  }
+
+  /* search current list */
+  for (box = aabb->lst; box; box = box->next)
+  {
+    if (box->body == body) SET_Insert (&aabb->setmem, &del, box, NULL);
+  }
+
+  /* delete boxes */
+  for (item = SET_First (del); item; item = SET_Next (item))
+  {
+    AABB_Delete (aabb, item->data);
+  }
+
+  SET_Free (&aabb->setmem, &del);
+}
+
 /* update state => detect created and released overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release)
 {
@@ -246,7 +564,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   int nin;
 
 #if MPI
-  sync (aabb);
+  balance (aabb);
 #endif
 
   /* update extents */
@@ -353,6 +671,10 @@ void AABB_Exclude_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2)
   opr->bod1 = MIN (id1, id2);
   opr->bod2 = MAX (id1, id2);
   SET_Insert (&aabb->setmem, &aabb->nobody, opr, (SET_Compare) bodcmp);
+
+#if MPI
+  aabb->nobody_modified = 1;
+#endif
 }
 
 /* never report overlaps betweem this pair of objects (bod1, sgp1), (bod1, sgp2) */
@@ -366,6 +688,10 @@ void AABB_Exclude_Gobj_Pair (AABB *aabb, unsigned int bod1, int sgp1, unsigned i
   opr->sgp1 = MIN (sgp1, sgp2);
   opr->sgp2 = MAX (sgp1, sgp2);
   SET_Insert (&aabb->setmem, &aabb->nogobj, opr, (SET_Compare) gobjcmp);
+
+#if MPI
+  aabb->nogobj_modified = 1;
+#endif
 }
 
 /* break box adjacency if boxes associated with the objects are adjacent */
@@ -380,11 +706,18 @@ void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two)
 void AABB_Destroy (AABB *aabb)
 {
   free (aabb->tab);
+
   MEM_Release (&aabb->boxmem);
   MEM_Release (&aabb->mapmem);
   MEM_Release (&aabb->setmem);
   MEM_Release (&aabb->oprmem);
+
   if (aabb->swp) SWEEP_Destroy (aabb->swp);
   if (aabb->hsh) HASH_Destroy (aabb->hsh);
+
+#if MPI
+  destroy_mpi (aabb);
+#endif
+
   free (aabb);
 }

@@ -257,7 +257,7 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
     case 2: /* second body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
-      return insert_contact (dom, one, two, two->body, one->body, two->sgp->gobj, two->kind, two->sgp->shp,
+      return insert_contact (dom, two, one, two->body, one->body, two->sgp->gobj, two->kind, two->sgp->shp,
 	one->sgp->gobj, one->kind, one->sgp->shp, twopnt, onepnt, normal, gap, area, mat, paircode);
     }
   }
@@ -692,29 +692,20 @@ static void midpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
 /* insert a child body into the domain */
 static void insert_child (DOM *dom, BODY *bod)
 {
-  SGP *sgp, *sgpe;
-
-  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
-  {
-    sgp->box = AABB_Insert (dom->aabb, bod, gobj_kind (sgp), sgp,
-                            sgp->shp->data, extents_update (sgp));
-  }
-
   /* insert into id based map */
   MAP_Insert (&dom->mapmem, &dom->children, (void*)bod->id, bod, NULL);
 
   bod->dom = dom;
+
+  /* note, that the bounding boxes related to this
+   * body migrate independently in the AABB module */
 }
 
 /* remove a child body from the domain */
 static void remove_child (DOM *dom, BODY *bod)
 {
-  SGP *sgp, *sgpe;
-
-  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
-  {
-    AABB_Delete (dom->aabb, sgp->box);
-  }
+  /* delete from AABB all data related to this child body */
+  AABB_Delete_Body (dom->aabb, bod);
 
   /* remove all body related constraints */
   {
@@ -1432,6 +1423,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 
   ERRMEM (dom = calloc (1, sizeof (DOM)));
   dom->aabb = aabb;
+  aabb->dom = dom;
   dom->sps = sps;
   dom->dynamic = (dynamic == 1 ? 1 : 0);
   dom->step = step;

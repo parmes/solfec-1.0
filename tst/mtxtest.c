@@ -1,8 +1,8 @@
 /*
- * maptest.c
+ * mtxtest.c
  * Copyright (C) 2008, Tomasz Koziara (t.koziara AT gmail.com)
  * --------------------------------------------------------------
- * test of MAP container
+ * test of matrix routines
  */
 
 /* This file is part of Solfec.
@@ -19,57 +19,22 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
-#include "map.h"
+#include <stdlib.h>
+#include "mtx.h"
 #include "alg.h"
-
-static int map_test (int count)
-{
-  MAP *map, *item;
-  MEM mem;
-  int n, m, div;
-
-  div = MAX (log (count), 2);
-
-  MEM_Init (&mem, sizeof (MAP), 64);
-  map = NULL;
-
-  for (n = 0; n < count; n ++)
-  {
-    MAP_Insert (&mem, &map, (void*)n, (void*)n, NULL);
-  }
-
-  for (n = 0, item = MAP_First (map); item; n ++)
-  {
-    m = (int)item->key;
-
-    if (rand () % div == 0 || n % div == 0)
-    {
-      item = MAP_Delete_Node (&mem, &map, item);
-      if (item && (m+1) != (int)item->key) break;
-      continue;
-    }
-
-    item = MAP_Next (item);
-  }
-
-  MEM_Release (&mem);
-
-  return item ? 0 : 1;
-}
 
 int main (int argc, char **argv)
 {
-  int count;
+  MX_DENSE (a, 3, 3);
 
-  if (argc > 1) count = atoi (argv [1]);
+  IDENTITY (a.x);
+  SCALE9 (a.x, 2.0);
 
-  if (count < 1) count = 1;
+  MX_Inverse (&a, &a);
 
-  if (map_test (count)) printf ("PASSED\n");
-  else printf ("FAILED\n");
+  printf ("[%.2f, %.2f, %.2f]\n[%.2f, %.2f, %.2f]\n[%.2f, %.2f, %.2f]\n",
+	   a.x [0], a.x [3], a.x [6], a.x [1], a.x [4], a.x [7], a.x [2], a.x [5], a.x [8]);
 
   return 0;
 }

@@ -122,7 +122,7 @@ struct aabb
   BOX *lst, /* current list of boxes */
       *in, /* list of boxes inserted before an update */
       *out, /* list of boxes deleted before an update */
-     **tab; /* pointer table of boxes used by HYBRID and HASH algorithms */
+     **tab; /* pointer table of boxes from the current list */
 
   MEM boxmem, /* box memory pool */
       mapmem, /* map memory pool */
@@ -132,7 +132,8 @@ struct aabb
   SET *nobody, /* set of body pairs excluded from overlap tests */
       *nogobj; /* set of geometric object pairs excluded from overlap tests */
 
-  int nlst, /* length of the current box list 'lst' */
+  int nin, /* length of the insertion list 'in' */
+      nlst, /* length of the current box list 'lst' */
       ntab;  /* length of the pointer table 'tab' */
 
   char modified; /* modification flag => for time coherence */
@@ -140,7 +141,14 @@ struct aabb
   void *swp,  /* sweep plane data */
        *hsh;  /* hashing data */
 
+  void *dom; /* the underlying domain */
+
 #if MPI
+  int nobody_modified, /* used to synchronise 'nobody' */
+      nogobj_modified; /* used to synchronise 'nogobj' */
+
+  BOX **aux; /* auxiliary table of boxes used during balancing */
+
   struct Zoltan_Struct *zol;
 #endif
 };
@@ -153,6 +161,9 @@ BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_E
 
 /* delete an object (either 'gobj' or 'box' must be not NULL) */
 void AABB_Delete (AABB *aabb, BOX *box);
+
+/* delete all data related to this body */
+void AABB_Delete_Body (AABB *aabb, void *body);
 
 /* update state => detect created and released overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release);

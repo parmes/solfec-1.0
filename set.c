@@ -451,6 +451,7 @@ SET* SET_Delete_Node (MEM *pool, SET **root, SET *node)
   if (y != node)
   {
     node->data = y->data;
+    next = node;
   }
 
   if (y->colour == black)
@@ -458,6 +459,8 @@ SET* SET_Delete_Node (MEM *pool, SET **root, SET *node)
       
   if (pool) MEM_Free (pool, y);
   else free (y);
+
+  ASSERT_DEBUG (next != y, "Returning a freed item");
 
   return next; /* the next item after the input 'node', ordered by data */
 }

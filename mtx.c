@@ -643,14 +643,15 @@ static MX* matmat_csc_bd (double alpha, MX *a, MX *b, double beta, MX *c)
 static MX* dense_inverse (MX *a, MX *b)
 {
   int lwork, *ipiv;
-  double *work;
+  double *work, w;
 
   ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
   if (b == NULL) b = MX_Create (MXDENSE, a->m, a->n, NULL, NULL);
   else { ASSERT_DEBUG_EXT (prepare (b, MXDENSE, a->nzmax, a->m, a->n, NULL, NULL), "Invalid output matrix"); }
 
   if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
-  lwork = b->m * 4;  /* workspace size for the inversion */
+  lapack_dgetri (b->n, NULL, b->m, NULL, &w, -1); /* query for workspace size */
+  lwork = (int) w;
 
   ERRMEM (ipiv = malloc (sizeof (int) * b->m));
   ERRMEM (work = malloc (sizeof (double) * lwork));
@@ -665,7 +666,7 @@ static MX* dense_inverse (MX *a, MX *b)
 static MX* bd_inverse (MX *a, MX *b)
 {
   int m, n, k, lwork, *ipiv, *pp, *ii;
-  double *work, *bx;
+  double *work, *bx, w;
 
   if (b == NULL) b = MX_Create (MXBD, a->m, a->n, a->p, a->i);
   else { ASSERT_DEBUG_EXT (prepare (b, MXBD, a->nzmax, a->m, a->n, a->p, a->i), "Invalid output matrix"); }
@@ -680,9 +681,9 @@ static MX* bd_inverse (MX *a, MX *b)
   for (lwork = k = 0; k < n; k ++)
   {
     m = ii[k+1] - ii[k];
-    if (m > lwork) lwork = m;
+    lapack_dgetri (m, NULL, m, NULL, &w, -1); /* query for workspace size */
+    if ((int)w > lwork) lwork = (int)w;
   }
-  lwork *= 4;  /* workspace size for the inversion */
 
   ERRMEM (ipiv = malloc (sizeof (int) * lwork/4));
   ERRMEM (work = malloc (sizeof (double) * lwork));

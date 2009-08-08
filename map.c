@@ -458,6 +458,7 @@ MAP* MAP_Delete_Node (MEM *pool, MAP **root, MAP *node)
   {
     node->key = y->key;
     node->data = y->data;
+    next = node;
   }
 
   if (y->colour == black)
@@ -465,6 +466,8 @@ MAP* MAP_Delete_Node (MEM *pool, MAP **root, MAP *node)
       
   if (pool) MEM_Free (pool, y);
   else free (y);
+
+  ASSERT_DEBUG (next != y, "Returning a freed item");
 
   return next; /* the next item after the input 'node', ordered by key */
 }
