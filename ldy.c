@@ -229,7 +229,7 @@ static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *is
 }
 
 /* unpack diagonal block */
-static void unpack_block (DIAB *dia, MEM *offmem, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   OFFB *b, *n;
   int m;
@@ -264,6 +264,7 @@ static void unpack_block (DIAB *dia, MEM *offmem, int *dpos, double *d, int doub
 
     unpack_doubles (dpos, d, doubles, b->W, 9);
     b->id = unpack_int (ipos, i, ints);
+    b->dia = MAP_Find (idbb, (void*)b->id, NULL); /* might be NULL for boundary nodes of the local graph portion */
     b->n = dia->adj;
     dia->adj = b;
   }
@@ -375,7 +376,7 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
 
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*)id, NULL), "Invalid block id");
-    unpack_block (dia, &ldy->offmem, dpos, d, doubles, ipos, i, ints);
+    unpack_block (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
   }
 
   return NULL;

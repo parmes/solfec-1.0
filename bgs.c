@@ -540,7 +540,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       /* prefetch reactions */
       for (blk = dia->adj; blk; blk = blk->n)
       {
-	COPY (blk->dia->R, blk->R);
+	if (blk->dia) COPY (blk->dia->R, blk->R);
+	/* TODO: asynchronous receive or a complete Adams approach */
       }
 
       /* compute local free velocity */
@@ -556,6 +557,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
       /* solve local diagonal block problem */
       diagiters = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
+
+      /* TODO: MPI_Allreduce (diagiters, MAX) */
 
       if (diagiters > gs->diagmaxiter || diagiters < 0)
       {
@@ -582,6 +585,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       SUB (R, R0, R0);
       errup += DOT (R0, R0);
       errlo += DOT (R, R);
+
+      /* TODO: MPI_Allreduce (err..., ADD) */
     }
 
     /* calculate relative error */

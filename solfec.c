@@ -229,24 +229,6 @@ char* SOLFEC_Mode (SOLFEC *sol)
   return NULL;
 }
 
-#if MPI
-void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
-{
-  int rank;
-
-  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
-
-  verbose_on (sol, kind, solver);
-
-  printf ("Temporary fake run of process %d\n", rank);
-
-  if (sol->dom->time == 0.0) write_state (sol); /* write zero state */
-
-  DOM_Update_Begin (sol->dom);
-
-  verbose_off (sol, kind, solver);
-}
-#else
 /* run analysis with a specific constraint solver */
 void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 {
@@ -314,7 +296,6 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     PBF_Forward (sol->bf, 1);
   }
 }
-#endif
 
 /* set results output interval */
 void SOLFEC_Output (SOLFEC *sol, double interval)
