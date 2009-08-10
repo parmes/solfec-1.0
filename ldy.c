@@ -527,8 +527,30 @@ static int locdyn_balance (LOCDYN *ldy)
   free (send);
   free (recv);
 
-  /* update constraint coppied data of unbalanced blocks 
-   * and create update sets at the same time */
+  /* internally 'migrate' blocks from the insertion list to the balanced
+   * block list (those that have not been exported away from here) */
+  int dsize = 0, isize = 0;
+  double *dd = NULL;
+  int *ii = NULL;
+  for (i = 0; i < ldy->nins; i ++)
+  {
+    DIAB *dia = ldy->ins [i];
+
+    if (dia->rank == dom->rank) /* same rank => not exported */
+    {
+      int doubles = 0, ints = 0, dpos = 0, ipos = 0;
+
+      /* use migration routines as a wrapper here */
+      pack_migrate (dia, &dsize, &dd, &doubles, &isize, &ii, &ints);
+      unpack_migrate (ldy, &dpos, dd, doubles, &ipos, ii, ints);
+    }
+  }
+  free (dd);
+  free (ii);
+
+  /* update constraint coppied data of unbalanced blocks and create update
+   * sets at the same time; update all blocks without regard for the rank
+   * (local or exported) => use communicatio to update all then */
   for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
   {
     CON *con = dia->con;

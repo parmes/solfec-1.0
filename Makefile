@@ -71,7 +71,7 @@ OBJMPI = $(BASEO)  \
 	 obj/com-mpi.o \
 	 obj/sol-mpi.o \
 
-solfec: solfec.c solfec.h obj/libsolfec.a
+solfec: solfec.c obj/libsolfec.a
 	$(CC) $(CFLAGS) $(OPENGL) -o $@ $< -Lobj -lsolfec $(LIB)
 
 obj/libsolfec.a: $(OBJ)
@@ -84,7 +84,7 @@ all: solfec mpi
 
 mpi: solfec-mpi
 
-solfec-mpi: solfec.c solfec.h obj/libsolfec-mpi.a
+solfec-mpi: solfec.c obj/libsolfec-mpi.a
 	$(MPICC) $(CFLAGS) $(MPIFLG) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
@@ -212,7 +212,7 @@ obj/mat.o: mat.c mat.h mem.h map.h err.h alg.h
 obj/goc.o: goc.c goc.h shp.h cvi.h box.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/lng.o: lng.c lng.h solfec.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
+obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
 
 obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h exs.h mat.h pbf.h tmr.h
@@ -254,7 +254,7 @@ obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h tag.h
 obj/exs-mpi.o: exs.c exs.h dom.h ldy.h err.h alg.h lap.h tag.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/lng-mpi.o: lng.c lng.h solfec.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
+obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<
 
 obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h exs.h mat.h pbf.h tmr.h
