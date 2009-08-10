@@ -1,5 +1,5 @@
 /*
- * solfec.h
+ * sol.h
  * Copyright (C) 2008, Tomasz Koziara (t.koziara AT gmail.com)
  * --------------------------------------------------------------
  * solfec type
@@ -30,8 +30,8 @@
 #include "mat.h"
 #include "pbf.h"
 
-#ifndef __solfec__
-#define __solfec__
+#ifndef __sol__
+#define __sol__
 
 typedef struct solfec SOLFEC;
 typedef int (*SOLFEC_Callback) (SOLFEC*, void*, void*);

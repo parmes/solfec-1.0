@@ -725,7 +725,7 @@ static void remove_child (DOM *dom, BODY *bod)
 }
 
 /* balance bodies */
-static int balance (DOM *dom)
+static int domain_balance (DOM *dom)
 {
   int changes,
       num_gid_entries,
@@ -1148,7 +1148,7 @@ inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
 }
 
 /* update children */
-static void gossip (DOM *dom)
+static void domain_gossip (DOM *dom)
 {
   COMOBJ *send, *recv, *ptr;
   int size, nsend, nrecv;
@@ -1732,7 +1732,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   CON *con;
 
 #if MPI
-  balance (dom);
+  domain_balance (dom);
 #endif
 
   /* time and step */
@@ -1759,7 +1759,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       BODY_Static_Step_Begin (bod, time, step);
 
 #if MPI
-  gossip (dom);
+  domain_gossip (dom);
 #endif
 
   /* detect contacts */

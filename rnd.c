@@ -27,7 +27,7 @@
 #include <string.h>
 #include <float.h>
 #include <math.h>
-#include "solfec.h"
+#include "sol.h"
 #include "set.h"
 #include "alg.h"
 #include "msh.h"

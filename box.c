@@ -342,7 +342,7 @@ static void sync (SET **eset, MEM *oprmem, MEM *setmem, int nobody)
 }
 
 /* balance boxes */
-static void balance (AABB *aabb)
+static void aabb_balance (AABB *aabb)
 {
   int flag;
 
@@ -564,7 +564,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   int nin;
 
 #if MPI
-  balance (aabb);
+  aabb_balance (aabb);
 #endif
 
   /* update extents */

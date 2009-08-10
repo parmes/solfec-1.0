@@ -22,7 +22,7 @@
 #include <limits.h>
 #include <float.h>
 #include <string.h>
-#include "solfec.h"
+#include "sol.h"
 #include "spx.h"
 #include "err.h"
 #include "mem.h"
@@ -1372,7 +1372,7 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   for (msh->bulkeles = NULL, n = m = 0; n < msh->bulkeles_count; n ++, m ++)
   {
-    ele = element_unpack (msh, solfec, dpos, d, doubles, ipos, i, ints);
+    ele = element_unpack (solfec, msh, dpos, d, doubles, ipos, i, ints);
     ele->next = msh->bulkeles;
     if (msh->bulkeles)
       msh->bulkeles->prev = ele;
@@ -1382,7 +1382,7 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   for (msh->surfeles = NULL, n = 0; n < msh->surfeles_count; n ++, m ++)
   {
-    ele = element_unpack (msh, solfec, dpos, d, doubles, ipos, i, ints);
+    ele = element_unpack (solfec, msh, dpos, d, doubles, ipos, i, ints);
     ele->next = msh->surfeles;
     if (msh->surfeles)
       msh->surfeles->prev = ele;

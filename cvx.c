@@ -22,7 +22,7 @@
 #include <limits.h>
 #include <float.h>
 #include <string.h>
-#include "solfec.h"
+#include "sol.h"
 #include "hyb.h"
 #include "gjk.h"
 #include "spx.h"

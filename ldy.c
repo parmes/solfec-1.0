@@ -383,7 +383,7 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
 }
 
 /* balance local dynamics */
-static int balance (LOCDYN *ldy)
+static int locdyn_balance (LOCDYN *ldy)
 {
   MEM setmem;
   DIAB *dia;
@@ -460,6 +460,7 @@ static int balance (LOCDYN *ldy)
       /* parent block will need to have updated rank of its migrated copy */
       if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
 	set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
+
       SET_Insert (&setmem, (SET**)&set->data, (void*)dia->id, NULL); /* map the id of this block to the rank set of its parent */
     }
     else /* use local index */
@@ -543,7 +544,7 @@ static int balance (LOCDYN *ldy)
     dia->mat = con->mat;
 
     if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
-      MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
+      set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
 
     SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
   }
@@ -577,7 +578,7 @@ static int balance (LOCDYN *ldy)
 
 /* cummunicate reactions from balanced 
  * (migrated) to unbalanced (local) systems */
-static void gossip (LOCDYN *ldy)
+static void locdyn_gossip (LOCDYN *ldy)
 {
   MEM setmem;
   DIAB *dia;
@@ -1056,7 +1057,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   variables_change_begin (ldy);
 
 #if MPI
-  balance (ldy);
+  locdyn_balance (ldy);
 #endif
 }
 
@@ -1070,7 +1071,7 @@ void LOCDYN_Update_End (LOCDYN *ldy)
   ldy->modified = 0;
 
 #if MPI
-  gossip (ldy);
+  locdyn_gossip (ldy);
 #endif
 }
 

@@ -20,7 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include <float.h>
-#include "solfec.h"
+#include "sol.h"
 #include "alg.h"
 #include "shp.h"
 #include "msh.h"

@@ -24,7 +24,7 @@
 #include <limits.h>
 #include <float.h>
 #include "alg.h"
-#include "solfec.h"
+#include "sol.h"
 #include "rnd.h"
 #include "lng.h"
 #include "err.h"

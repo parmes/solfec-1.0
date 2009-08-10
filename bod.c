@@ -21,7 +21,7 @@
 
 #include <string.h>
 #include <float.h>
-#include "solfec.h"
+#include "sol.h"
 #include "lap.h"
 #include "bla.h"
 #include "mem.h"
