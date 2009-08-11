@@ -154,7 +154,7 @@ void COM (MPI_Comm comm, int tag,
   /* compute receive ranks */
   for (recv_count = k = i = 0; i < l; i += send_count_all [k], k ++)
   {
-    for (j = 0; k != rank && j < send_count_all [k]; j ++) /* while not here */
+    for (j = 0; j < send_count_all [k]; j ++)
     {
       if (send_rank_all [i+j] == rank) /* 'k'th rank is sending here */
       {
@@ -172,7 +172,7 @@ void COM (MPI_Comm comm, int tag,
   /* communicate receive sizes */
   for (i = 0; i < recv_count; i ++)
   {
-    MPI_Irecv (recv_sizes [i], 3, MPI_INT, recv_rank [i], tag, comm, req);
+    MPI_Irecv (recv_sizes [i], 3, MPI_INT, recv_rank [i], tag, comm, &req [i]);
   }
   MPI_Barrier (comm);
   for (i = 0; i < send_count; i ++)
@@ -207,7 +207,7 @@ void COM (MPI_Comm comm, int tag,
   /* communicate data */
   for (i = 0; i < recv_count; i ++)
   {
-    MPI_Irecv (recv_data [i], recv_sizes [i][2], MPI_PACKED, recv_rank [i], tag, comm, req);
+    MPI_Irecv (recv_data [i], recv_sizes [i][2], MPI_PACKED, recv_rank [i], tag, comm, &req [i]);
   }
   MPI_Barrier (comm);
   for (i = 0; i < send_count; i ++)
@@ -396,7 +396,7 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   /* compute receive ranks */
   for (pattern->recv_count = k = i = 0; i < l; i += send_count_all [k], k ++)
   {
-    for (j = 0; k != rank && j < send_count_all [k]; j ++) /* while not here */
+    for (j = 0; j < send_count_all [k]; j ++)
     {
       if (send_rank_all [i+j] == rank) /* 'k'th rank is sending here */
       {
@@ -414,7 +414,7 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   /* communicate receive sizes */
   for (i = 0; i < pattern->recv_count; i ++)
   {
-    MPI_Irecv (pattern->recv_sizes [i], 3, MPI_INT, pattern->recv_rank [i], tag, comm, pattern->req);
+    MPI_Irecv (pattern->recv_sizes [i], 3, MPI_INT, pattern->recv_rank [i], tag, comm, &pattern->req [i]);
   }
   MPI_Barrier (comm);
   for (i = 0; i < pattern->send_count; i ++)
@@ -512,7 +512,7 @@ void COM_Repeat (void *pattern)
   /* communicate data */
   for (i = 0; i < recv_count; i ++)
   {
-    MPI_Irecv (recv_data [i], recv_sizes [i][2], MPI_PACKED, recv_rank [i], tag, comm, req);
+    MPI_Irecv (recv_data [i], recv_sizes [i][2], MPI_PACKED, recv_rank [i], tag, comm, &req [i]);
   }
   MPI_Barrier (comm);
   for (i = 0; i < send_count; i ++)

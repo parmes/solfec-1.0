@@ -106,6 +106,33 @@ static void variables_change_end (LOCDYN *ldy)
 }
 
 #if MPI
+/* swap two ids */
+inline static void ID_swap (ZOLTAN_ID_PTR a, ZOLTAN_ID_PTR b)
+{
+  ZOLTAN_ID_TYPE c = *a; *a = *b; *b = c;
+}
+
+/* sort a list of identifiers */
+static void ID_sort (ZOLTAN_ID_PTR begin, ZOLTAN_ID_PTR end)
+{
+  ZOLTAN_ID_TYPE *lower = begin,
+	         *upper = end,
+                  bound = *(begin+(end-begin)/2);
+  
+  while (lower <= upper)
+  {
+    while (*lower < bound) lower++;
+
+    while (bound < *upper) upper--;
+
+    if (lower < upper) ID_swap (lower ++, upper--);
+    else lower ++;
+  }
+
+  if (begin < upper) ID_sort (begin, upper);
+  if (upper < end) ID_sort (upper+1, end);
+}
+
 /* number of vertices in the local W graph */
 static int vertex_count (LOCDYN *ldy, int *ierr)
 {
@@ -162,6 +189,7 @@ static void edge_sizes (LOCDYN *ldy, int *num_lists, int *num_pins, int *format,
 static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int num_pins,
   int format, ZOLTAN_ID_PTR vtxedge_GID, int *vtxedge_ptr, ZOLTAN_ID_PTR pin_GID, int *ierr)
 {
+  ZOLTAN_ID_PTR GID = pin_GID;
   DIAB *dia;
   OFFB *b;
   int j, n = 0;
@@ -170,9 +198,11 @@ static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int n
   {
     *vtxedge_GID = dia->id;
     *vtxedge_ptr = n;
-    *pin_GID = dia->id; pin_GID ++;
+    *GID = dia->id; n ++, GID ++;
 
-    for (b = dia->adj; b; b = b->n, n ++, pin_GID ++) *pin_GID = b->id;
+    for (b = dia->adj; b; b = b->n, n ++, GID ++) *GID = b->id;
+
+    ID_sort (&pin_GID [*vtxedge_ptr], GID-1);
   }
 
   for (j = 0; j < ldy->nins; j ++, vtxedge_GID ++, vtxedge_ptr ++)
@@ -180,10 +210,12 @@ static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int n
     dia = ldy->ins [j];
     *vtxedge_GID = dia->id;
     *vtxedge_ptr = n;
-    *pin_GID = dia->id; pin_GID ++;
+    *GID = dia->id; n ++, GID ++;
 
-    for (b = dia->adjext; b; b = b->n, n ++, pin_GID ++) *pin_GID = b->id;
-    for (b = dia->adj; b; b = b->n, n ++, pin_GID ++) *pin_GID = b->id;
+    for (b = dia->adjext; b; b = b->n, n ++, GID ++) *GID = b->id;
+    for (b = dia->adj; b; b = b->n, n ++, GID ++) *GID = b->id;
+
+    ID_sort (&pin_GID [*vtxedge_ptr], GID-1);
   }
 
   *ierr = ZOLTAN_OK;
@@ -499,7 +531,7 @@ static int locdyn_balance (LOCDYN *ldy)
   /* communicate rank updates */
   COM (MPI_COMM_WORLD, TAG_LOCDYN_RANKS, dsend, dnsend, &drecv, &dnrecv);
 
-  /* update ranks */
+  /* update ranks of blocks of received ids */
   dom = ldy->dom;
   for (i = 0, dtr = drecv; i < dnrecv; i ++, dtr ++)
   {
@@ -512,14 +544,31 @@ static int locdyn_balance (LOCDYN *ldy)
     }
   }
 
+  /* update ranks of exported local blocks */
+  for (i = 0; i < num_export; i ++)
+  {
+    ZOLTAN_ID_TYPE m = export_local_ids [i];
+
+    if (m < UINT_MAX) /* local index */
+    {
+      dia = ldy->ins [m];
+      dia->rank = export_procs [i];
+    }
+  }
+
   MEM_Release (&setmem);
   MAP_Free (&ldy->mapmem, &map);
   for (i = 0; i < dnsend; i ++) free (dsend [i].i);
   free (dsend);
   free (drecv);
 
-  /* delete migrated blocks */
-  for (i = 0, ptr = send; i < nsend; i ++, ptr ++) delete_balanced_block (ldy, ptr->o);
+  /* delete migrated balanced blocks */
+  for (i = 0, ptr = send; i < nsend; i ++, ptr ++)
+  {
+    dia = ptr->o;
+    if (dia->con == NULL) /* if balanced */
+      delete_balanced_block (ldy, dia);
+  }
 
   Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
                        &export_global_ids, &export_local_ids, &export_procs);
@@ -768,6 +817,14 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
   dia->R = CON(con)->R;
   dia->con = con;
 
+#if MPI
+  dia->id = CON(con)->id;
+  dia->rank = DOM(ldy->dom)->rank;
+
+  /* schedule for balancing use */
+  append (&ldy->ins, &ldy->nins, &ldy->sins, dia);
+#endif
+
   /* insert into list */
   dia->n = ldy->dia;
   if (ldy->dia)
@@ -789,6 +846,9 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 	b->bod = one; /* adjacent trough body 'one' */
 	b->n = nei->adj; /* extend list ... */
 	nei->adj = b; /* ... */
+#if MPI
+	b->id = dia->id;
+#endif
 
 	/* allocate block and put into 'dia->adj' list */ 
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
@@ -796,6 +856,9 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 	b->bod = one; /* ... trough 'one' */
 	b->n = dia->adj;
 	dia->adj = b;
+#if MPI
+	b->id = nei->id;
+#endif
       }
     }
   }
@@ -815,6 +878,9 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 	b->bod = two; /* adjacent trough body 'two' */
 	b->n = nei->adj; /* extend list ... */
 	nei->adj = b; /* ... */
+#if MPI
+	b->id = dia->id;
+#endif
 
 	/* allocate block and put into 'dia->adj' list */ 
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
@@ -822,20 +888,15 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 	b->bod = two; /* ... trough 'two' */
 	b->n = dia->adj;
 	dia->adj = b;
+#if MPI
+	b->id = nei->id;
+#endif
       }
     }
   }
 
   /* mark as modified */
   ldy->modified = 1;
-
-#if MPI
-  dia->id = CON(con)->id;
-  dia->rank = DOM(ldy->dom)->rank;
-
-  /* schedule for balancing use */
-  append (&ldy->ins, &ldy->nins, &ldy->sins, dia);
-#endif
 
   return dia;
 }

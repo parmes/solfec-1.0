@@ -122,9 +122,6 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
   dom->con = con;
   dom->ncon ++;
 
-  /* insert into local dynamics */
-  con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
-
   /* constraint identifier */
 #if MPI
   if (!dom->noid)
@@ -144,6 +141,9 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
 #endif
 
   MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
+
+  /* insert into local dynamics */
+  con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
 
   return con;
 }

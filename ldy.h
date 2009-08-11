@@ -76,7 +76,8 @@ struct diab
 	 rho;   /* scaling parameter */
 
   OFFB *adj;
-  void *con;   /* the underlying constraint an the owner od the reactopn R[3] */
+  void *con;   /* the underlying constraint (and the owner od the reaction R[3]);
+                  NULL for balanced constraints from aabb->diab */
   DIAB *p, *n;
 
 #if MPI

@@ -278,8 +278,15 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       /* execute callback if needed */
       if (sol->dom->time >= sol->callback_time)
       {
+	int ret;
+
 	sol->callback_time += sol->callback_interval;
-	if (!sol->callback (sol, sol->data, sol->call)) break; /* interrupt run */
+	ret = sol->callback (sol, sol->data, sol->call);
+#if MPI
+	int cpy = ret;
+        MPI_Allreduce (&cpy, &ret, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+#endif
+	if (!ret) break; /* interrupt run */
       }
 
       /* statistics are printed every human perciveable period of time */

@@ -50,7 +50,8 @@ bod = pinned_bar_create (bulkmat, solfec)
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'EXIT')
 
 def callback (bod):
-  if bod.conf [9] <= 0:
+  if bod.conf == None: return 1 # in parallel bod.conf might be None for a not-owner processor
+  elif bod.conf [9] <= 0:
     print '--------------------------------------------'
     print 'Angular velocity W2 [X1 = 0] =', bod.velo [1]
     print '--------------------------------------------'

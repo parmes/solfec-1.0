@@ -1989,7 +1989,17 @@ static void lng_BODY_dealloc (lng_BODY *self)
 
 static PyObject* lng_BODY_get_kind (lng_BODY *self, void *closure)
 {
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
   return PyString_FromString (BODY_Kind (self->bod));
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_kind (lng_BODY *self, PyObject *value, void *closure)
@@ -2000,9 +2010,19 @@ static int lng_BODY_set_kind (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_label (lng_BODY *self, void *closure)
 {
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
   if (self->bod->label)
     return PyString_FromString (self->bod->label);
   else return PyString_FromString (""); /* an empty label */
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_label (lng_BODY *self, PyObject *value, void *closure)
@@ -2017,6 +2037,11 @@ static PyObject* lng_BODY_get_conf (lng_BODY *self, void *closure)
   int i, size;
   double *q;
 
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
   if (self->bod->kind == OBS) Py_RETURN_NONE;
 
   size = BODY_Conf_Size (self->bod);
@@ -2029,6 +2054,11 @@ static PyObject* lng_BODY_get_conf (lng_BODY *self, void *closure)
   }
 
   return conf;
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_conf (lng_BODY *self, PyObject *value, void *closure)
@@ -2043,6 +2073,11 @@ static PyObject* lng_BODY_get_velo (lng_BODY *self, void *closure)
   int i, size;
   double *u;
 
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
   if (self->bod->kind == OBS) Py_RETURN_NONE;
 
   size = self->bod->dofs;
@@ -2055,6 +2090,11 @@ static PyObject* lng_BODY_get_velo (lng_BODY *self, void *closure)
   }
 
   return velo;
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_velo (lng_BODY *self, PyObject *value, void *closure)
@@ -2063,18 +2103,31 @@ static int lng_BODY_set_velo (lng_BODY *self, PyObject *value, void *closure)
   return -1;
 }
 
-
-
 static PyObject* lng_BODY_get_selfcontact (lng_BODY *self, void *closure)
 {
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
   if (self->bod->flags & BODY_DETECT_SELF_CONTACT)
     return PyString_FromString ("ON");
   else return PyString_FromString ("OFF");
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *closure)
 {
   if (!is_string (value, "selfcontact")) return -1;
+
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
 
   IFIS (value, "ON") self->bod->flags |= BODY_DETECT_SELF_CONTACT;
   ELIF (value, "OFF") self->bod->flags &= ~BODY_DETECT_SELF_CONTACT;
@@ -2084,11 +2137,20 @@ static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *clos
     return -1;
   }
 
+#if MPI
+  }
+#endif
+
   return 0;
 }
 
 static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
 {
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
   switch (self->bod->scheme)
   {
   case SCH_DEFAULT: return PyString_FromString ("DEFAULT");
@@ -2097,12 +2159,22 @@ static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
   case SCH_RIG_IMP: return PyString_FromString ("RIG_IMP");
   }
 
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+
   return NULL;
 }
 
 static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
 {
   if (!is_string (value, "scheme")) return -1;
+
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
 
   IFIS (value, "DEFAULT") self->bod->scheme = SCH_DEFAULT;
   ELIF (value, "RIG_POS")
@@ -2140,6 +2212,10 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
     PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
     return -1;
   }
+
+#if MPI
+  }
+#endif
 
   return 0;
 }
