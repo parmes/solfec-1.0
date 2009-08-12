@@ -175,8 +175,8 @@ static void edge_sizes (LOCDYN *ldy, int *num_lists, int *num_pins, int *format,
   for (j = 0; j < ldy->nins; j ++, n ++)
   {
     dia = ldy->ins [j];
-    for (b = dia->adjext; b; b = b->n) n ++;
     for (b = dia->adj; b; b = b->n) n ++;
+    for (b = dia->adjext; b; b = b->n) n ++;
   }
 
   *num_lists = ldy->ndiab + ldy->nins;
@@ -212,8 +212,8 @@ static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int n
     *vtxedge_ptr = n;
     *GID = dia->id; n ++, GID ++;
 
-    for (b = dia->adjext; b; b = b->n, n ++, GID ++) *GID = b->id;
     for (b = dia->adj; b; b = b->n, n ++, GID ++) *GID = b->id;
+    for (b = dia->adjext; b; b = b->n, n ++, GID ++) *GID = b->id;
 
     ID_sort (&pin_GID [*vtxedge_ptr], GID-1);
   }
@@ -242,18 +242,18 @@ static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *is
   pack_int     (isize, i, ints, dia->kind);
   SURFACE_MATERIAL_Pack_Data (&dia->mat, dsize, d, doubles, isize, i, ints);
 
-  for (n = 0, b = dia->adjext; b; b = b->n) n ++; /* number of external blocks */
-  for (b = dia->adj; b; b = b->n) n ++; /* number of internal blocks */
+  for (n = 0, b = dia->adj; b; b = b->n) n ++; /* number of internal blocks */
+  for (b = dia->adjext; b; b = b->n) n ++; /* number of external blocks */
 
   pack_int (isize, i, ints, n); /* total number of off-diagonal blocks */
 
-  for (b = dia->adjext; b; b = b->n) /* pack external blocks */
+  for (b = dia->adj; b; b = b->n) /* pack internal blocks */
   {
     pack_doubles (dsize, d, doubles, b->W, 9);
     pack_int (isize, i, ints, b->id);
   }
 
-  for (b = dia->adj; b; b = b->n) /* pack internal blocks */
+  for (b = dia->adjext; b; b = b->n) /* pack internal blocks */
   {
     pack_doubles (dsize, d, doubles, b->W, 9);
     pack_int (isize, i, ints, b->id);
@@ -412,6 +412,57 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
   }
 
   return NULL;
+}
+
+/* clear external adjacency of a block */
+static void clear_adjext (LOCDYN *ldy, DIAB *dia)
+{
+  OFFB *b, *n;
+
+  for (b = dia->adjext; b; b = n)
+  {
+    n = b->n;
+    MEM_Free (&ldy->offmem, b);
+  }
+
+  dia->adjext = NULL;
+}
+
+/* build external adjacency */
+static void locdyn_adjext (LOCDYN *ldy)
+{
+  SET *item, *jtem;
+  CONEXT *ext;
+  BODY *bod;
+  DIAB *dia;
+  CON *con;
+  OFFB *b;
+
+  for (dia = ldy->dia; dia; dia = dia->n) clear_adjext (ldy, dia);
+
+  for (bod = DOM (ldy->dom)->bod; bod; bod = bod->next)
+  {
+    if (bod->kind == OBS) continue; /* obstacles do not trasnder adjacency */
+
+    for (item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      con = item->data;
+      dia = con->dia;
+
+      for (jtem = SET_First (bod->conext); jtem; jtem = SET_Next (jtem))
+      {
+        ext = jtem->data;
+
+	ERRMEM (b = MEM_Alloc (&ldy->offmem));
+	b->dia = NULL; /* there is no diagonal block here */
+	b->bod = bod; /* adjacent through this body */
+	b->id = ext->id; /* useful when migrated */
+	b->ext = ext;
+	b->n = dia->adjext;
+	dia->adjext = b;
+      }
+    }
+  }
 }
 
 /* balance local dynamics */
@@ -642,6 +693,7 @@ static int locdyn_balance (LOCDYN *ldy)
   ldy->ndel = 0;
 
   /* empty the inserted parents table */
+  MAP_Free (&ldy->mapmem, &ldy->insmap);
   ldy->nins = 0;
 
   return changes;
@@ -651,11 +703,13 @@ static int locdyn_balance (LOCDYN *ldy)
  * (migrated) to unbalanced (local) systems */
 static void locdyn_gossip (LOCDYN *ldy)
 {
+  double *R;
   MEM setmem;
   DIAB *dia;
   MAP *map, /* map ranks to sets of balanced blocks */
       *set;
   DOM *dom; 
+  CON *con;
   int i, j;
 
   dom = DOM (ldy->dom);
@@ -664,10 +718,19 @@ static void locdyn_gossip (LOCDYN *ldy)
 
   for (map = NULL, dia = ldy->diab; dia; dia = dia->n)
   {
-    if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
-      set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
+    if (dia->rank != dom->rank) /* send */
+    {
+      if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
+	set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
 
-    SET_Insert (&setmem, (SET**)&set->data, dia, NULL); /* map balanced blocks to their parent ranks */
+      SET_Insert (&setmem, (SET**)&set->data, dia, NULL); /* map balanced blocks to their parent ranks */
+    }
+    else /* do not send */
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)dia->id, NULL), "Invalid constraint id"); /* find constraint */
+      R = con->dia->R;
+      COPY (dia->R, R); /* update reaction */
+    }
   }
 
   COMDATA *send, *recv, *ptr;
@@ -701,9 +764,6 @@ static void locdyn_gossip (LOCDYN *ldy)
   {
     for (j = 0; j < ptr->ints; j ++)
     {
-      double *R;
-      CON *con;
-
       ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)ptr->i[j], NULL), "Invalid constraint id"); /* find constraint */
       dia = con->dia;
       R = &ptr->d [3*j];
@@ -739,6 +799,7 @@ static void append (DIAB ***buf, int *n, int *s, DIAB *dia)
 static void create_mpi (LOCDYN *ldy)
 {
   ERRMEM (ldy->ins = malloc (BLKSIZE * sizeof (DIAB*)));
+  ldy->insmap = NULL;
   ldy->sins = BLKSIZE;
   ldy->nins = 0;
 
@@ -823,6 +884,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 
   /* schedule for balancing use */
   append (&ldy->ins, &ldy->nins, &ldy->sins, dia);
+  MAP_Insert (&ldy->mapmem, &ldy->insmap, dia, (void*)(ldy->nins-1), NULL);
 #endif
 
   /* insert into list */
@@ -945,8 +1007,19 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
     dia->n->p = dia->p;
 
 #if MPI
-  /* schedule for balancing use and a later deletion */
-  append (&ldy->del, &ldy->ndel, &ldy->sdel, dia);
+  MAP *item;
+
+  if ((item = MAP_Find_Node (ldy->insmap, dia, NULL))) /* was inserted and now is deleted before balancing */
+  {
+    ldy->ins [(int)item->data] = ldy->ins [-- ldy->nins]; /* replace this item in items table */
+    MAP_Delete_Node (&ldy->mapmem, &ldy->insmap, item); /* remove from map */
+    MEM_Free (&ldy->diamem, dia); /* and free */
+  }
+  else
+  {
+    clear_adjext (ldy, dia); /* clear external adjacency */
+    append (&ldy->del, &ldy->ndel, &ldy->sdel, dia); /* schedule for balancing use and a later deletion */
+  }
 #else
   /* destroy passed dia */
   MEM_Free (&ldy->diamem, dia);
@@ -956,69 +1029,16 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
   ldy->modified = 1;
 }
 
-#if MPI
-/* insert an external constraint */
-void LOCDYN_Insert_Ext (LOCDYN *ldy, void *con)
-{
-  BODY *bod [2];
-  CONEXT *ext;
-  SET *item;
-  DIAB *dia;
-  OFFB *b;
-  CON *c;
-  int i;
-
-  ext = con;
-  bod [0] = ext->master;
-  bod [1] = ext->slave;
-
-  for (i = 0; i < 2; i ++)
-  {
-    if (bod [i] && bod [i]->kind != OBS) /* obstacles do not transfer adjacency */
-    {
-      for (item = SET_First (bod [i]->con); item; item = SET_Next (item))
-      {
-	c = item->data;
-	dia = c->dia;
-
-	/* allocate block and put into 'dia->adjext' list */ 
-	ERRMEM (b = MEM_Alloc (&ldy->offmem));
-	b->dia = NULL; /* there is no diagonal block here */
-	b->ext = ext; /* but there is this external constraint instead */
-	b->bod = bod [i]; /* adjacent through this body */
-	b->id = ext->id; /* useful when migrated */
-	b->n = dia->adjext;
-	dia->adjext = b;
-      }
-    }
-  }
-}
-
-/* remove all external constraints */
-void LOCDYN_Remove_Ext_All (LOCDYN *ldy)
-{
-  OFFB *b, *n;
-  DIAB *dia;
-
-  for (dia = ldy->dia; dia; dia = dia->n)
-  {
-    for (b = dia->adjext; b; b = n)
-    {
-      n = b->n;
-      MEM_Free (&ldy->offmem, b); /* free external off-diagonal blocks */
-    }
-
-    dia->adjext = NULL;
-  }
-}
-#endif
-
 /* updiae local dynamics => prepare for a solution */
 void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 {
   DOM *dom = ldy->dom;
   double step = dom->step;
   DIAB *dia;
+
+#if MPI
+  locdyn_adjext (ldy);
+#endif
 
   /* calculate local velocities and
    * assmeble the force-velocity 'W' operator */
@@ -1100,7 +1120,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     }
 
 #if MPI
-    /* external off-diagonal blocks if requested */
+    /* off-diagonal external blocks if requested */
     for (blk = dia->adjext; upkind == UPALL && blk; blk = blk->n)
     {
       CONEXT *ext = blk->ext;
@@ -1111,20 +1131,14 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
       ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
      
-      lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
-                                   as it was inserted into the dual graph */
+      lH = (bod == m ? mH : sH);
+                               
       inv = bod->inverse;
 
-      if (bod == ext->master)
-      {
-	rH =  BODY_Gen_To_Loc_Operator (bod, ext->msgp->shp, ext->msgp->gobj, ext->mpnt, ext->base);
-	coef = (bod == s ? -step : step);
-      }
-      else /* blk->bod == ext->slave */
-      {
-	rH =  BODY_Gen_To_Loc_Operator (bod, ext->ssgp->shp, ext->ssgp->gobj, ext->spnt, ext->base);
-	coef = (bod == m ? -step : step);
-      }
+      rH =  BODY_Gen_To_Loc_Operator (bod, ext->sgp->shp, ext->sgp->gobj, ext->point, ext->base);
+
+      if (ext->isma) coef = (bod == s ? -step : step);
+      else coef = (bod == m ? -step : step);
 
       MX_Trimat (lH, inv, MX_Tran (rH), &W);
       SCALE9 (W.x, coef);

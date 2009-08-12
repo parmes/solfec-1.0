@@ -83,7 +83,7 @@ struct diab
 #if MPI
   unsigned int id; /* this constraint id */
 
-  OFFB *adjext; /* adjacent external constraints */
+  OFFB *adjext; /* external adjacency */
 
   int rank; /* for a parent: rank of its child, and vice versa */
 
@@ -116,6 +116,7 @@ struct locdyn
   short modified; /* 1 if system structure has changed; otherwise 0 */
 
 #if MPI
+  MAP *insmap; /* maps newly inserted blocks to indices in 'ins' */
   DIAB **ins; /* newly inserted unbalanced blocks */
   int nins, sins; /* number of them and size of buffer */
 
@@ -140,14 +141,6 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two);
 
 /* remove a diagonal entry from local dynamics */
 void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia);
-
-#if MPI
-/* insert an external constraint */
-void LOCDYN_Insert_Ext (LOCDYN *ldy, void *con);
-
-/* remove all external constraints */
-void LOCDYN_Remove_Ext_All (LOCDYN *ldy);
-#endif
 
 /* update local dynamics => prepare for a solution */
 void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind);

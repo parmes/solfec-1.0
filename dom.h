@@ -94,33 +94,25 @@ struct constraint
 #if MPI
 typedef struct conext CONEXT;
 
-/* external
- * constraint */
+/* external constraints are those created
+ * by child bodies and attached to parents */
 struct conext
 {
-  double R [3];
+  double R [3], /* reaction */
+         point [3],  /* referential point */
+         base [9]; /* spatial base */
 
-  double point [3],
-         base [9],
-	 area;
+  unsigned int id; /* constraint id */
 
-  unsigned int id;
+  BODY *bod; /* parent body */
 
-  BODY *master,
-       *slave;
+  int isma; /* 1 if the paranet body is a master; 0 otherwise */
 
-  unsigned int mid,
-	       sid;
+  SGP *sgp; /* shape geometric object pair */
 
-  SGP *msgp,
-      *ssgp;
+  CONEXT *next; /* in-domain list for fast deletion */
 
-  double mpnt [3],
-	 spnt [3];
-
-  int rank; /* rank of the parent constraint */
-
-  CONEXT *next;
+  int rank; /* child rank */
 };
 #endif
 
@@ -253,6 +245,11 @@ LOCDYN* DOM_Update_Begin (DOM *dom);
  * problem has been solved (externally), motion of bodies
  * is updated with the help of new constraint reactions */
 void DOM_Update_End (DOM *dom);
+
+#if MPI
+/* balance children in accordance to the given geometric partitioning */
+void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol);
+#endif
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf);

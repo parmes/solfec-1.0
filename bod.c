@@ -379,10 +379,8 @@ static void rig_constraints_force (BODY *bod, double *force)
   for (node = SET_First (bod->conext); node; node = SET_Next (node))
   {
     CONEXT *con = node->data;
-    short isma = (bod == con->master);
-    double *point = (isma ? con->mpnt : con->spnt);
 
-    rig_constraints_force_accum (bod, point, con->base, con->R, isma, force);
+    rig_constraints_force_accum (bod, con->point, con->base, con->R, con->isma, force);
   }
 #endif
 }
@@ -645,11 +643,9 @@ static void prb_constraints_force (BODY *bod, double *force)
 #if MPI
   for (node = SET_First (bod->conext); node; node = SET_Next (node))
   {
-    CON *con = node->data;
-    short isma = (bod == con->master);
-    double *point = (isma ? con->mpnt : con->spnt);
+    CONEXT *con = node->data;
 
-    prb_constraints_force_accum (bod, point, con->base, con->R, isma, force);
+    prb_constraints_force_accum (bod, con->point, con->base, con->R, con->isma, force);
   }
 #endif
 }

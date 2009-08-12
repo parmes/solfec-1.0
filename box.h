@@ -91,6 +91,10 @@ struct box
 
   BOX *prev, /* previous in list */
       *next; /* next in list */
+
+#if MPI
+  SET *children;
+#endif
 };
 
 /* this routine returns a combined code of two

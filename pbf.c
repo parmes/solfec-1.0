@@ -418,24 +418,21 @@ void PBF_Time (PBF *bf, double *time)
 
   if (bf->mode == PBF_WRITE)
   {
-    for (; bf; bf = bf->next)
+    ASSERT ((*time) >= bf->time, ERR_PBF_OUTPUT_TIME_DECREASED);
+    if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
     {
-      ASSERT ((*time) >= bf->time, ERR_PBF_OUTPUT_TIME_DECREASED);
-      if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
-      {
-	index = -1;
-	xdr_int (&bf->x_idx, &index);
-      }
-
-      /* output current data
-       * position and time */
-      xdr_double (&bf->x_idx, time);
-      pos = xdr_getpos (&bf->x_dat);
-      xdr_u_int (&bf->x_idx, &pos); /* dat position */
-
-      /* set time */
-      bf->time = *time;
+      index = -1;
+      xdr_int (&bf->x_idx, &index);
     }
+
+    /* output current data
+     * position and time */
+    xdr_double (&bf->x_idx, time);
+    pos = xdr_getpos (&bf->x_dat);
+    xdr_u_int (&bf->x_idx, &pos); /* dat position */
+
+    /* set time */
+    bf->time = *time;
   }
   else
   { *time = bf->time; }
@@ -443,115 +440,99 @@ void PBF_Time (PBF *bf, double *time)
 
 int PBF_Label (PBF *bf, const char *label)
 {
-  int ret;
+  PBF_LABEL *l;
+  unsigned int pos;
 
-  for (ret = 1; bf; bf = bf->next)
+  if (bf->mode == PBF_WRITE)
   {
-    PBF_LABEL *l;
-    unsigned int pos;
-
-    if (bf->mode == PBF_WRITE)
+    if (!(l = MAP_Find (bf->labels, (void*)label,
+      (MAP_Compare) strcmp)))
     {
-      if (!(l = MAP_Find (bf->labels, (void*)label,
-	(MAP_Compare) strcmp)))
-      {
-	/* create new label */
-	l = MEM_Alloc (&bf->labpool);
-	ERRMEM (l->name = malloc (strlen (label) + 1));
-	strcpy (l->name, label);
-	l->index = bf->lsize ++;
-	MAP_Insert (&bf->mappool, &bf->labels,
-	  l->name, l, (MAP_Compare) strcmp);
+      /* create new label */
+      l = MEM_Alloc (&bf->labpool);
+      ERRMEM (l->name = malloc (strlen (label) + 1));
+      strcpy (l->name, label);
+      l->index = bf->lsize ++;
+      MAP_Insert (&bf->mappool, &bf->labels,
+	l->name, l, (MAP_Compare) strcmp);
 
-	/* output definition */
-	xdr_string (&bf->x_lab, (char**)&label, PBF_MAXSTRING);
-      }
-
-      /* record label and position
-       * in the index file */
-      xdr_int (&bf->x_idx, &l->index);
-      pos = xdr_getpos (&bf->x_dat);
-      xdr_u_int (&bf->x_idx, &pos);
+      /* output definition */
+      xdr_string (&bf->x_lab, (char**)&label, PBF_MAXSTRING);
     }
-    else
+
+    /* record label and position
+     * in the index file */
+    xdr_int (&bf->x_idx, &l->index);
+    pos = xdr_getpos (&bf->x_dat);
+    xdr_u_int (&bf->x_idx, &pos);
+  }
+  else
+  {
+    if ((l = MAP_Find (bf->labels, (void*)label,
+      (MAP_Compare) strcmp)))
     {
-      if ((l = MAP_Find (bf->labels, (void*)label,
-	(MAP_Compare) strcmp)))
-      {
-	/* seek to labeled data begining */
-	xdr_setpos (&bf->x_dat, l->dpos);
-      }
-      else ret = 0;
+      /* seek to labeled data begining */
+      xdr_setpos (&bf->x_dat, l->dpos);
     }
+    else return 0;
   }
 
-  return ret;
+  return 1;
 }
 
 void PBF_Char (PBF *bf, char *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (char), (xdrproc_t)xdr_char);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (char), (xdrproc_t)xdr_char);
 }
 
 void PBF_Uchar (PBF *bf, unsigned char *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned char), (xdrproc_t)xdr_u_char);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned char), (xdrproc_t)xdr_u_char);
 }
 
 void PBF_Short (PBF *bf, short *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (short), (xdrproc_t)xdr_short);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (short), (xdrproc_t)xdr_short);
 }
 
 void PBF_Ushort (PBF *bf, unsigned short *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned short), (xdrproc_t)xdr_u_short);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned short), (xdrproc_t)xdr_u_short);
 }
 
 void PBF_Int (PBF *bf, int *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (int), (xdrproc_t)xdr_int);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (int), (xdrproc_t)xdr_int);
 }
 
 void PBF_Uint (PBF *bf, unsigned int *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned int), (xdrproc_t)xdr_u_int);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned int), (xdrproc_t)xdr_u_int);
 }
 
 void PBF_Long (PBF *bf, long *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (long), (xdrproc_t)xdr_long);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (long), (xdrproc_t)xdr_long);
 }
 
 void PBF_Ulong (PBF *bf, unsigned long *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned long), (xdrproc_t)xdr_u_long);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (unsigned long), (xdrproc_t)xdr_u_long);
 }
 
 void PBF_Float (PBF *bf, float *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (float), (xdrproc_t)xdr_float);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (float), (xdrproc_t)xdr_float);
 }
 
 void PBF_Double (PBF *bf, double *value, unsigned int length)
 { 
-  for (; bf; bf = bf->next)
-    xdr_vector (&bf->x_dat, (char*)value, length, sizeof (double), (xdrproc_t)xdr_double);
+  xdr_vector (&bf->x_dat, (char*)value, length, sizeof (double), (xdrproc_t)xdr_double);
 }
 
 void PBF_String (PBF *bf, char **value)
 { 
-  for (; bf; bf = bf->next)
-    xdr_string (&bf->x_dat, value, PBF_MAXSTRING);
+  xdr_string (&bf->x_dat, value, PBF_MAXSTRING);
 }
 
 void PBF_Limits (PBF *bf, double *start, double *end)
@@ -595,12 +576,13 @@ void PBF_Backward (PBF *bf, int steps)
 {
   if (bf->mode == PBF_READ)
   {
+    int pos;
+
     for (; bf; bf = bf->next)
     {
-      if (bf->cur - steps <  0)
-	steps = 0;
-      else steps = bf->cur - steps;
-      initialise_frame (bf, steps);
+      if (bf->cur - steps <  0) pos = 0;
+      else pos = bf->cur - steps;
+      initialise_frame (bf, pos);
     }
   }
 }
@@ -609,12 +591,13 @@ void PBF_Forward (PBF *bf, int steps)
 {
   if (bf->mode == PBF_READ)
   {
+    int pos;
+
     for (; bf; bf = bf->next)
     {
-      if (bf->cur + steps >=  bf->msize)
-	steps = bf->msize - 1;
-      else steps += bf->cur;
-      initialise_frame (bf, steps);
+      if (bf->cur + steps >=  bf->msize) pos = bf->msize - 1;
+      else pos = bf->cur + steps;
+      initialise_frame (bf, pos);
     }
   }
 }

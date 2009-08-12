@@ -226,22 +226,24 @@ static void lopoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int 
 }
 
 /* pack migration data */
-static void pack_migrate (BOX *box, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+static void box_pack (BOX *box, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   BODY *bod = box->body;
 
   pack_int (isize, i, ints, bod->id);
   pack_int (isize, i, ints, box->kind & ~GOBJ_NEW);
   pack_int (isize, i, ints, box->sgp - bod->sgp);
+  pack_doubles (dsize, d, doubles, box->extents, 6);
 }
 
 /* unpack migration data */
-static void* unpack_migrate (AABB *aabb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static void* box_unpack (AABB *aabb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   DOM *dom = aabb->dom;
   int id, kind, isgp;
   BODY *bod;
   SGP *sgp;
+  BOX *box;
 
   id = unpack_int (ipos, i, ints);
   kind = unpack_int (ipos, i, ints);
@@ -253,10 +255,12 @@ static void* unpack_migrate (AABB *aabb, int *dpos, double *d, int doubles, int 
 
   switch (kind)
   {
-  case GOBJ_ELEMENT: AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
-  case GOBJ_CONVEX:  AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
-  case GOBJ_SPHERE:  AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
+  case GOBJ_ELEMENT: box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
+  case GOBJ_CONVEX:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
+  case GOBJ_SPHERE:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
   }
+
+  unpack_doubles (dpos, d, doubles, box->extents, 6);
 
   return NULL;
 }
@@ -341,6 +345,19 @@ static void sync (SET **eset, MEM *oprmem, MEM *setmem, int nobody)
   free (sizes);
 }
 
+/* return next pointer and realloc send memory if needed */
+inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
+{
+  if (nsend >= *size)
+  {
+    (*size) *= 2;
+
+    ERRMEM (*send = realloc (*send, sizeof (COMOBJ [*size])));
+  }
+
+  return &(*send)[nsend];
+}
+
 /* balance boxes */
 static void aabb_balance (AABB *aabb)
 {
@@ -372,27 +389,57 @@ static void aabb_balance (AABB *aabb)
 	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
+  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+                       &export_global_ids, &export_local_ids, &export_procs);
+
+  /* balance children bodies according to the box partitioning */
+  DOM_Balance_Children (aabb->dom, aabb->zol);
+
+  int size , nsend, nrecv, i, j, naux;
+  int *procs, numprocs, rank;
   COMOBJ *send, *recv, *ptr;
-  int nsend, nrecv, i;
+  SET *del, *item;
   BOX **aux;
 
-  nsend = num_export;
-  ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
+  nsend = 0;
+  del = NULL;
+  rank = DOM(aabb->dom)->rank;
+  naux = box_count (aabb, &i);
+  size = MIN (naux, 128);
+  ERRMEM (send = malloc (sizeof (COMOBJ [size])));
+  ERRMEM (procs = malloc (sizeof (int [DOM(aabb->dom)->size])));
 
-  for (aux = aabb->aux, ptr = send, i = 0; i < nsend; i ++, ptr ++)
+  for (aux = aabb->aux, ptr = send, i = 0; i < naux; i ++)
   {
-    ptr->rank = export_procs [i];
-    ptr->o = aux [export_local_ids [i]];
+    double *e = aux [i]->extents;
+
+    /* TODO: use low corner belongance to decide which box is the parent
+     * TODO: only the parent box can send out more children
+     * TODO: children can only delete themselves */
+
+    Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+    for (flag = 1, j = 0; j < numprocs; j ++)
+    {
+      if (procs [j] != rank)
+      {
+	ptr->rank = procs [j];
+	ptr->o = aux [i];
+        ptr = sendnext (++ nsend, &size, &send);
+      }
+      else flag = 0; /* should stay here */
+    }
+
+    if (flag) SET_Insert (&aabb->setmem, &del, aux [i], NULL);
   }
 
   /* communicate migration data (unpacking inserts the imported boxes) */
-  COMOBJS (MPI_COMM_WORLD, TAG_AABB_BALANCE, (OBJ_Pack)pack_migrate, aabb, (OBJ_Unpack)unpack_migrate, send, nsend, &recv, &nrecv);
+  COMOBJS (MPI_COMM_WORLD, TAG_AABB_BALANCE, (OBJ_Pack)box_pack, aabb, (OBJ_Unpack)box_unpack, send, nsend, &recv, &nrecv);
 
   /* delete exported boxes */
-  for (ptr = send, i = 0; i < nsend; i ++, ptr ++) AABB_Delete (aabb, ptr->o);
+  for (item = SET_First (del); item; item = SET_Next (item)) AABB_Delete (aabb, item->data);
 
-  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-                       &export_global_ids, &export_local_ids, &export_procs);
+  SET_Free (&aabb->setmem, &del);
   free (send);
   free (recv);
 }
@@ -417,7 +464,7 @@ static void create_mpi (AABB *aabb)
   Zoltan_Set_Param (aabb->zol, "LB_METHOD", "RCB");
   Zoltan_Set_Param (aabb->zol, "IMBALANCE_TOL", "1.2");
   Zoltan_Set_Param (aabb->zol, "AUTO_MIGRATE", "FALSE"); /* we shall use COMOBJS */
-  Zoltan_Set_Param (aabb->zol, "RETURN_LISTS", "EXPORT"); /* the rest will be done by COMOBJS */
+  Zoltan_Set_Param (aabb->zol, "RETURN_LISTS", "NONE");
 
   /* RCB parameters */
   Zoltan_Set_Param (aabb->zol, "RCB_OVERALLOC", "1.3");
@@ -561,21 +608,20 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
   BOX *box, *next, *adj;
   MAP *item, *jtem;
-  int nin;
-
-#if MPI
-  aabb_balance (aabb);
-#endif
 
   /* update extents */
   for (box = aabb->lst; box; box = box->next) /* for each current box */
     box->update (box->data, box->sgp->gobj, box->extents);
 
-  for (box = aabb->in, nin = 0; box; box = box->next, nin ++) /* for each inserted box */
-  {
+  for (box = aabb->in; box; box = box->next) /* for each inserted box */
     box->update (box->data, box->sgp->gobj, box->extents);
+
+#if MPI
+  aabb_balance (aabb);
+#endif
+
+  for (box = aabb->in; box; box = box->next) /* for each inserted box */
     box->kind &= ~GOBJ_NEW; /* not new any more */
-  }
 
   /* check for released overlaps */
   for (box = aabb->out; box; box = next) /* for each deleted box */
@@ -619,8 +665,9 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
       box->next = aabb->lst; /* link it with the current list */
       if (aabb->lst) aabb->lst->prev = box; /* set previous link */
       aabb->lst = aabb->in; /* list appended */
+      aabb->nlst += aabb->nin; /* increase number of current boxes */
       aabb->in = NULL; /* list emptied */
-      aabb->nlst += nin; /* increase number of current boxes */
+      aabb->nin = 0;
       aabb->ntab = aabb->nlst; /* resize the pointer table */
       ERRMEM (aabb->tab = realloc (aabb->tab, sizeof (BOX*) * aabb->ntab));
     }

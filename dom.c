@@ -442,8 +442,6 @@ static void sparsify_contacts (DOM *dom)
 
   /* clean up */
   MEM_Release (&mem);
-
-  /* TODO: possibly record recently sparsified contacts (gobj pairs) and do not insert them later for a while */
 }
 
 /* get geometrical object kind */
@@ -724,6 +722,66 @@ static void remove_child (DOM *dom, BODY *bod)
   MAP_Delete (&dom->mapmem, &dom->children, (void*)bod->id, NULL);
 }
 
+/* insert migrated body into the domain */
+void insert_migrated_body (DOM *dom, BODY *bod)
+{
+  SGP *sgp, *sgpe;
+
+  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
+  {
+    sgp->box = AABB_Insert (dom->aabb, bod, gobj_kind (sgp), sgp,
+                            sgp->shp->data, extents_update (sgp));
+  }
+
+  if (bod->label) /* map labeled bodies */
+    MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare)strcmp);
+
+  MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
+
+  bod->dom = dom;
+  dom->nbod ++;
+
+  bod->next = dom->bod;
+  if (dom->bod) dom->bod->prev = bod;
+  dom->bod = bod;
+}
+
+/* remove migrated body from the domain */
+static void remove_migrated_body (DOM *dom, BODY *bod)
+{
+  SGP *sgp, *sgpe;
+
+  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
+  {
+    AABB_Delete (dom->aabb, sgp->box);
+  }
+
+  /* remove all body related constraints */
+  {
+    SET *con = bod->con;
+    bod->con = NULL; /* DOM_Remove_Constraint will try to remove the constraint
+			from body constraints set, which is not nice if we try
+			to iterate over the set at the same time => make it empty */
+    
+    for (SET *item = SET_First (con); item; item = SET_Next (item))
+      DOM_Remove_Constraint (dom, item->data);
+
+    SET_Free (&dom->setmem, &con); /* free body's constraint set */
+  }
+
+  if (bod->label) /* delete labeled body */
+    MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare)strcmp);
+
+  /* delete from id based map */
+  MAP_Delete (&dom->mapmem, &dom->idb, (void*)bod->id, NULL);
+
+  dom->nbod --;
+
+  if (bod->prev) bod->prev->next = bod->next;
+  else dom->bod = bod->next;
+  if (bod->next) bod->next->prev = bod->prev;
+}
+
 /* balance bodies */
 static int domain_balance (DOM *dom)
 {
@@ -816,7 +874,7 @@ static int domain_balance (DOM *dom)
    *          set (neither the body nor the constraint is exported)
    *
    *          Constraint communication is done first, so that we have access to memory of needed
-   *          constraints, before DOM_Remove_Body would be invoked (which would delete those
+   *          constraints, before 'remove_migrated_body' would be invoked (which would delete those
    *          constrints as well). Then bodies from 'export_bod' are sent and some bodies
    *          are received. The sent bodies are removed from the domain while the reveived are
    *          insrted. Finally, the received constraints are inserted into the domain.
@@ -911,7 +969,7 @@ static int domain_balance (DOM *dom)
 
   for (i = 0, ptr = bodsend; i < nbodsend; i ++, ptr ++)
   {
-    DOM_Remove_Body (dom, ptr->o);
+    remove_migrated_body (dom, ptr->o);
     BODY_Destroy (ptr->o);
   }
 
@@ -919,7 +977,7 @@ static int domain_balance (DOM *dom)
 
   for (i = 0, ptr = bodrecv; i < nbodrecv; i ++, ptr ++)
   {
-    DOM_Insert_Body (dom, ptr->o);
+    insert_migrated_body (dom, ptr->o);
   }
 
   /* insert imported constraints */
@@ -963,173 +1021,6 @@ static int domain_balance (DOM *dom)
   free (bodrecv);
   free (consend);
   free (conrecv);
-
-  /* communicate child bodies */
-
-  int *procs, numprocs;
-
-  ERRMEM (procs = malloc (sizeof (int [dom->size])));
-
-  struct pair
-  {
-    union { int id; BODY *ptr; } bod;
-    int rank;
-  };
-
-  MEM_Init (&mem, sizeof (struct pair), CONBLK);
-
-  SET *procset,
-      *delset,
-      *sndset;
-
-  delset = sndset = NULL;
-
-  /* 1. create an empty set 'delset' of pairs (id, rank) of children
-   *    that will need to be removed from their partitions
-   * 2. create an empty set 'sndset' of pairs (body, rank) of bodies
-   *    to be sent as children to other partitions */
-
-  procset = NULL;
-
-  for (BODY *bod = dom->bod; bod; bod = bod->next)
-  {
-    double *e = bod->extents;
-
-    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
-
-    /* 3. create a set copy 'procset' of 'procs' table */
-    for (i = 0; i < numprocs; i ++) 
-    {
-      if (dom->rank != procs [i]) /* skip current rank */
-        SET_Insert (&dom->setmem, &procset, (void*)procs [i], NULL);
-    }
-
-    /* 3.5. if this body just migrated here, a child copy
-     *      of it could still be here; schedule it for deletion */
-    if (SET_Find (bod->my.children, (void*)dom->rank, NULL))
-    {
-      struct pair *p;
-
-      ERRMEM (p = MEM_Alloc (&mem));
-      p->bod.id = bod->id;
-      p->rank = dom->rank;
-      SET_Insert (&dom->setmem, &delset, p, NULL); /* schedule for deletion with other children */
-      SET_Delete (NULL, &bod->my.children, (void*)dom->rank, NULL); /* delete from bodies children set */
-    }
-
-     /* 4. for each x in bod->my.children, if not in procset,
-      *    add (bod->id, x) to delset, remove x from bod->my.children */
-    for (SET *x = SET_First (bod->my.children); x; )
-    {
-      if (! SET_Find (procset, x->data, NULL))
-      {
-	struct pair *p;
-
-	ERRMEM (p = MEM_Alloc (&mem));
-	p->bod.id = bod->id;
-	p->rank = (int) x->data;
-	SET_Insert (&dom->setmem, &delset, p, NULL);
-	x = SET_Delete_Node (NULL, &bod->my.children, x);
-      }
-      else x = SET_Next (x);
-    }
-
-     /* 5. for each x in procset, if not in bod->my.children,
-      *    add (bod, x) to sndset, insert x into bod->my.children */
-    for (SET *x = SET_First (procset); x; x = SET_Next (x))
-    {
-      if (! SET_Find (bod->my.children, x->data, NULL))
-      {
-	struct pair *p;
-
-	ERRMEM (p = MEM_Alloc (&mem));
-	p->bod.ptr = bod;
-	p->rank = (int) x->data;
-	SET_Insert (&dom->setmem, &sndset, p, NULL);
-	SET_Insert (NULL, &bod->my.children, x->data, NULL);
-      }
-    }
-
-    /* reset processors set */
-    SET_Free (&dom->setmem, &procset);
-  }
-
-  /* 6. communicate delset and delete unwanted children */
-
-  ERRMEM (send = calloc (dom->size, sizeof (COMDATA))); /* one for each processor */
-
-  /* pack ids into specific rank data */
-  for (SET *x = SET_First (delset); x; x = SET_Next (x))
-  {
-    struct pair *p = x->data;
-    COMDATA *c = &send [p->rank];
-
-    c->ints ++;
-    ERRMEM (c->i = realloc (c->i, sizeof (int [c->ints])));
-    c->i [c->ints - 1] = p->bod.id;
-  }
-
-  /* compress the send buffer */
-  for (nsend = i = 0; i < dom->size; i ++)
-  {
-    if (send [i].ints)
-    {
-      send [nsend] = send [i];
-      nsend ++;
-    }
-  }
-
-  /* send and receive */
-  COM (MPI_COMM_WORLD, TAG_CHILDREN_DELETE, send, nsend, &recv, &nrecv);
-
-  /* delete children */
-  for (nrecv --; nrecv >= 0; nrecv --)
-  {
-    for (i = 0; i < recv[nrecv].ints; i ++)
-    {
-      BODY *bod;
-
-      id = recv[nrecv].i [i];
-
-      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)id, NULL), "Invalid body id");
-      remove_child (dom, bod);
-      BODY_Destroy (bod);
-    }
-  }
-
-  /* 7. communicate sndset and insert new children */
-
-  nbodsend = SET_Size (sndset);
-
-  ERRMEM (bodsend = malloc (sizeof (COMOBJ [nbodsend])));
-
-  /* set up send buffer */
-  for (adj = SET_First (sndset), ptr = bodsend; adj; adj = SET_Next (adj), ptr ++)
-  {
-    struct pair *p = adj->data;
-
-    ptr->rank = p->rank;
-    ptr->o = p->bod.ptr;
-  }
-
-  /* send and receive children */
-  COMOBJS (MPI_COMM_WORLD, TAG_CHILDREN_INSERT, (OBJ_Pack)BODY_Child_Pack, dom->owner, (OBJ_Unpack)BODY_Child_Unpack, bodsend, nbodsend, &bodrecv, &nbodrecv);
-
-  /* insert children */
-  for (i = 0, ptr = bodrecv; i < nbodrecv; i ++, ptr ++)
-  {
-    insert_child (dom, ptr->o);
-  }
-
-  for (i = 0; i < nsend; i ++) free (send [i].i);
-  SET_Free (&dom->setmem, &delset);
-  SET_Free (&dom->setmem, &sndset);
-  MEM_Release (&mem);
-  free (bodsend);
-  free (bodrecv);
-  free (procs);
-  free (send);
-  free (recv);
 
   return changes;
 }
@@ -1186,12 +1077,8 @@ static void conext_remove_all (DOM *dom)
   /* empty body external constraint sets */
   for (ext = dom->conext; ext; ext = ext->next)
   {
-    if (ext->master && ext->master->conext) SET_Free (&dom->setmem, &ext->master->conext);
-    if (ext->slave && ext->slave->conext) SET_Free (&dom->setmem, &ext->slave->conext);
+    if (ext->bod->conext) SET_Free (&dom->setmem, &ext->bod->conext);
   }
-
-  /* erase in local dynamics */
-  LOCDYN_Remove_Ext_All (dom->ldy);
 
   /* erase in the domain */
   MEM_Release (&dom->extmem);
@@ -1201,7 +1088,7 @@ static void conext_remove_all (DOM *dom)
 /* insert an external constraint */
 static void conext_insert (DOM *dom, int rank, CONEXT *ext)
 {
-  /* set parent rank */
+  /* set child rank */
   ext->rank = rank;
 
   /* append list */
@@ -1209,97 +1096,104 @@ static void conext_insert (DOM *dom, int rank, CONEXT *ext)
   dom->conext = ext;
 
   /* add to the body constraint adjacency */
-  SET_Insert (&dom->setmem, &ext->master->conext, ext, NULL);
-  if (ext->slave) SET_Insert (&dom->setmem, &ext->slave->conext, ext, NULL);
- 
-  /* insert into local dynamics */
-  LOCDYN_Insert_Ext (dom->ldy, ext);
+  SET_Insert (&dom->setmem, &ext->bod->conext, ext, NULL);
+}
+
+/* create an external constraint */
+static CONEXT* conext_create (DOM *dom, CON *con, BODY *bod)
+{
+  CONEXT *ext;
+
+  ERRMEM (ext = MEM_Alloc (&dom->extmem));
+
+  COPY (con->R, ext->R);
+  NNCOPY (con->base, ext->base);
+  ext->id = con->id;
+  ext->bod = bod;
+
+  if (bod == con->master)
+  {
+    ext->isma = 1;
+    ext->sgp = con->mbox->sgp;
+  }
+  else
+  {
+    ext->isma = 0;
+    ext->sgp = con->sbox->sgp;
+  }
+
+  return ext;
 }
 
 /* pack an external constraint */
-static void conext_pack (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+static void conext_pack (CONEXT *ext, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_doubles (dsize, d, doubles, con->R, 3);
-  pack_doubles (dsize, d, doubles, con->point, 3);
-  pack_doubles (dsize, d, doubles, con->base, 9);
-  pack_double (dsize, d, doubles, con->area);
-
-  pack_int (isize, i, ints, con->id);
-
-  pack_int (isize, i, ints, con->master->id);
-  if (con->slave) pack_int (isize, i, ints, con->slave->id);
-  else pack_int (isize, i, ints, 0);
-
-  pack_int (isize, i, ints, con->mbox->sgp - con->master->sgp);
-  if (con->slave) pack_int (isize, i, ints, con->sbox->sgp - con->slave->sgp);
-  else pack_int (isize, i, ints, 0);
-
-  pack_doubles (dsize, d, doubles, con->mpnt, 3);
-  if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
+  pack_doubles (dsize, d, doubles, ext->R, 3);
+  pack_doubles (dsize, d, doubles, ext->point, 3);
+  pack_doubles (dsize, d, doubles, ext->base, 9);
+  pack_int (isize, i, ints, ext->id);
+  pack_int (isize, i, ints, ext->bod->id);
+  pack_int (isize, i, ints, ext->isma);
+  pack_int (isize, i, ints, ext->sgp - ext->bod->sgp);
 }
 
-/* unpack an external constraint */
+/* unpack an external constraint (do not set body pointer, but an id) */
 CONEXT* conext_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   CONEXT *ext;
-  int m, s;
 
   ERRMEM (ext = MEM_Alloc (&dom->extmem));
 
   unpack_doubles (dpos, d, doubles, ext->R, 3);
   unpack_doubles (dpos, d, doubles, ext->point, 3);
   unpack_doubles (dpos, d, doubles, ext->base, 9);
-  ext->area = unpack_double (dpos, d, doubles);
-
-  ext->id = unpack_int (ipos, i, ints);
-
-  ext->mid = unpack_int (ipos, i, ints);
-  ext->sid = unpack_int (ipos, i, ints);
-
-  ext->master = MAP_Find (dom->idb, (void*)ext->mid, NULL);
-  if (!ext->master) ASSERT_DEBUG_EXT (ext->master = MAP_Find (dom->children, (void*)ext->mid, NULL), "Invalid body id");
-
-  if (ext->sid)
-  {
-    ext->slave = MAP_Find (dom->idb, (void*)ext->sid, NULL);
-    if (!ext->slave) ASSERT_DEBUG_EXT (ext->slave = MAP_Find (dom->children, (void*)ext->sid, NULL), "Invalid body id");
-  }
-
-  m = unpack_int (ipos, i, ints);
-  s = unpack_int (ipos, i, ints);
-
-  ext->msgp = &ext->master->sgp [m];
-  if (ext->sid) ext->ssgp = &ext->slave->sgp [s];
-
-  unpack_doubles (dpos, d, doubles, ext->mpnt, 3);
-  if (ext->slave) unpack_doubles (dpos, d, doubles, ext->spnt, 3);
+  ext->id  = unpack_int (ipos, i, ints);
+  ext->bod = (BODY*) unpack_int (ipos, i, ints);
+  ext->isma = unpack_int (ipos, i, ints);
+  ext->sgp = (SGP*) unpack_int (ipos, i, ints);
 
   return ext;
 }
 
-/* complete contact graph by migrating external constraints */
-static void glue (DOM *dom)
+/* unpack an external constraint for a parent body */
+CONEXT* conext_unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  CONEXT *ext = conext_unpack (dom, dpos, d, doubles, ipos, i, ints);
+
+  ASSERT_DEBUG_EXT (ext->bod = MAP_Find (dom->idb, ext->bod, NULL), "Invalid body id");
+
+  ext->sgp = &ext->bod->sgp [(int) ext->sgp];
+
+  return ext;
+}
+
+/* unpack an external constraint for a child body */
+CONEXT* conext_unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  CONEXT *ext = conext_unpack (dom, dpos, d, doubles, ipos, i, ints);
+
+  ASSERT_DEBUG_EXT (ext->bod = MAP_Find (dom->children, ext->bod, NULL), "Invalid body id");
+
+  ext->sgp = &ext->bod->sgp [(int) ext->sgp];
+
+  return ext;
+}
+
+/* migrate external constraints */
+static void domain_glue (DOM *dom)
 {
   COMOBJ *send, *recv, *ptr;
   int k, size, nsend, nrecv;
+  SET *item, *jtem, *del;
+  CONEXT *ext;
+  BODY *bod;
   CON *con;
-
-  /* IDEA:
-   * 1. Walk over all constraints and identify (con, rank) pairs to be exported
-   * 2. Remove all currrently stored external constraints
-   * 3. Send and receive (CONEX(con), rank) data
-   * 4. Insert received external constraints
-   *
-   * REMARKS:
-   * 1. The above approach redoes the whole thing every time
-   * 2. Could this be implemented in an (elegant) incremental manner?
-   */
 
   size = dom->ncon;
 
   ERRMEM (send = malloc (sizeof (COMOBJ [size])));
 
-  /* 1. Walk over all constraints and identify (con, rank) pairs to be exported */
+  /* Walk over all constraints and identify (con, rank) pairs to be exported */
   for (ptr = send, nsend = 0, con = dom->con; con; con = con->next)
   {
     BODY *bod [] = {con->master, con->slave};
@@ -1311,31 +1205,62 @@ static void glue (DOM *dom)
 	if (bod [k]->flags & BODY_CHILD)
 	{
 	  ptr->rank = bod [k]->my.parent;
-	  ptr->o = con;	
+	  ptr->o = conext_create (dom, con, bod [k]);
 	  ptr = sendnext (++ nsend, &size, &send);
-	}
-	else /* parent */
-	{
-	  for (SET *item = SET_First (bod [k]->my.children); item; item = SET_Next (item))
-	  {
-	    ptr->rank = (int)item->data;
-	    ptr->o = con;	
-	    ptr = sendnext (++ nsend, &size, &send);
-	  }
 	}
       }
     }
   }
 
-  /* 2. Remove all currrently stored external constraints */
+  /* Remove all currrently stored external constraints */
   conext_remove_all (dom);
 
-  /* 3. Send and receive (CONEX(con), rank) data */
-  COMOBJS (MPI_COMM_WORLD, TAG_CONEXT, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack, send, nsend, &recv, &nrecv);
+  /* Send from children and receive in parents */
+  COMOBJS (MPI_COMM_WORLD, TAG_CONEXT, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack_parent, send, nsend, &recv, &nrecv);
 
-  /* 4. Insert received external constraints */
+  /* Insert received external constraints */
   for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++) conext_insert (dom, ptr->rank, ptr->o);
 
+  /* Clean up */
+  for (k = 0, ptr = send; k < nsend; k ++, ptr ++) MEM_Free (&dom->extmem, ptr->o);
+  free (recv);
+
+  /* Now parent bodies contain complete sets of adjacent constraints;
+   * send those sets back to children, ommiting their own constraints */
+  for (del = NULL, ptr = send, nsend = 0, bod = dom->bod; bod; bod = bod->next)
+  {
+    for (item = SET_First (bod->my.children); item; item = SET_Next (item))
+    {
+      for (jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem)) /* local constraints */
+      {
+	ptr->rank = (int)item->data; /* child rank */
+	ptr->o = conext_create (dom, jtem->data, bod);
+	SET_Insert (&dom->setmem, &del, ptr->o, NULL); /* to delete when done */
+	ptr = sendnext (++ nsend, &size, &send);
+      }
+
+      for (jtem = SET_First (bod->conext); jtem; jtem = SET_Next (jtem)) /* external constraints */
+      {
+        ext = jtem->data;
+
+	if (ext->rank != (int)item->data) /* if not coming from this child */
+	{
+	  ptr->rank = (int)item->data; /* child rank */
+	  ptr->o = ext;
+	  ptr = sendnext (++ nsend, &size, &send);
+	}
+      }
+    }
+  }
+
+  /* Send from parents and receive in children */
+  COMOBJS (MPI_COMM_WORLD, TAG_CONEXT, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack_child, send, nsend, &recv, &nrecv);
+
+  /* Insert received new external constraints */
+  for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++) conext_insert (dom, -1, ptr->o); /* invalid -1 rank here */
+
+  /* Clean up */
+  for (item = SET_First (del); item; item = SET_Next (item)) MEM_Free (&dom->extmem, item->data);
   free (send);
   free (recv);
 }
@@ -1480,7 +1405,11 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   if (bod->label) /* map labeled bodies */
     MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare)strcmp);
 
-  bod->id = dom->bid ++;
+#if MPI
+  ASSERT_DEBUG (dom->rank == 0, "Bodies can only be inserted at rank 0");
+#endif
+
+  bod->id = dom->bid ++; /* due to the above assertion this is fine in parallel */
   MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
 
   bod->dom = dom;
@@ -1758,10 +1687,6 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     for (bod = dom->bod; bod; bod = bod->next)
       BODY_Static_Step_Begin (bod, time, step);
 
-#if MPI
-  domain_gossip (dom);
-#endif
-
   /* detect contacts */
   timerstart (&timing);
 
@@ -1787,7 +1712,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   }
 
 #if MPI
-  glue (dom);
+  domain_glue (dom);
 #endif
 
   /* output local dynamics */
@@ -1840,6 +1765,188 @@ void DOM_Update_End (DOM *dom)
 
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 }
+
+#if MPI
+/* balance children in accordance to the given geometric partitioning */
+void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
+{
+  COMOBJ *bodsend, *bodrecv, *ptr;
+  int *procs, numprocs, i, id;
+  int nbodsend, nbodrecv;
+  COMDATA *send, *recv;
+  int nsend, nrecv;
+  MEM mem;
+
+  struct pair
+  {
+    union { int id; BODY *ptr; } bod;
+    int rank;
+  };
+
+  ERRMEM (procs = malloc (sizeof (int [dom->size])));
+
+  MEM_Init (&mem, sizeof (struct pair), CONBLK);
+
+  SET *procset,
+      *delset,
+      *sndset,
+      *item;
+
+  delset = sndset = NULL;
+
+  /* 1. create an empty set 'delset' of pairs (id, rank) of children
+   *    that will need to be removed from their partitions
+   * 2. create an empty set 'sndset' of pairs (body, rank) of bodies
+   *    to be sent as children to other partitions */
+
+  procset = NULL;
+
+  for (BODY *bod = dom->bod; bod; bod = bod->next)
+  {
+    double *e = bod->extents;
+
+    Zoltan_LB_Box_Assign (zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+    /* 3. create a set copy 'procset' of 'procs' table */
+    for (i = 0; i < numprocs; i ++) 
+    {
+      if (dom->rank != procs [i]) /* skip current rank */
+        SET_Insert (&dom->setmem, &procset, (void*)procs [i], NULL);
+    }
+
+    /* 3.5. if this body just migrated here, a child copy
+     *      of it could still be here; schedule it for deletion */
+    if (SET_Find (bod->my.children, (void*)dom->rank, NULL))
+    {
+      struct pair *p;
+
+      ERRMEM (p = MEM_Alloc (&mem));
+      p->bod.id = bod->id;
+      p->rank = dom->rank;
+      SET_Insert (&dom->setmem, &delset, p, NULL); /* schedule for deletion with other children */
+      SET_Delete (NULL, &bod->my.children, (void*)dom->rank, NULL); /* delete from bodies children set */
+    }
+
+     /* 4. for each x in bod->my.children, if not in procset,
+      *    add (bod->id, x) to delset, remove x from bod->my.children */
+    for (SET *x = SET_First (bod->my.children); x; )
+    {
+      if (! SET_Find (procset, x->data, NULL))
+      {
+	struct pair *p;
+
+	ERRMEM (p = MEM_Alloc (&mem));
+	p->bod.id = bod->id;
+	p->rank = (int) x->data;
+	SET_Insert (&dom->setmem, &delset, p, NULL);
+	x = SET_Delete_Node (NULL, &bod->my.children, x);
+      }
+      else x = SET_Next (x);
+    }
+
+     /* 5. for each x in procset, if not in bod->my.children,
+      *    add (bod, x) to sndset, insert x into bod->my.children */
+    for (SET *x = SET_First (procset); x; x = SET_Next (x))
+    {
+      if (! SET_Find (bod->my.children, x->data, NULL))
+      {
+	struct pair *p;
+
+	ERRMEM (p = MEM_Alloc (&mem));
+	p->bod.ptr = bod;
+	p->rank = (int) x->data;
+	SET_Insert (&dom->setmem, &sndset, p, NULL);
+	SET_Insert (NULL, &bod->my.children, x->data, NULL);
+      }
+    }
+
+    /* reset processors set */
+    SET_Free (&dom->setmem, &procset);
+  }
+
+  /* 6. communicate delset and delete unwanted children */
+
+  ERRMEM (send = calloc (dom->size, sizeof (COMDATA))); /* one for each processor */
+
+  /* pack ids into specific rank data */
+  for (SET *x = SET_First (delset); x; x = SET_Next (x))
+  {
+    struct pair *p = x->data;
+    COMDATA *c = &send [p->rank];
+
+    c->ints ++;
+    ERRMEM (c->i = realloc (c->i, sizeof (int [c->ints])));
+    c->i [c->ints - 1] = p->bod.id;
+  }
+
+  /* compress the send buffer */
+  for (nsend = i = 0; i < dom->size; i ++)
+  {
+    if (send [i].ints)
+    {
+      send [nsend] = send [i];
+      send [nsend].rank = i;
+      nsend ++;
+    }
+  }
+
+  /* send and receive */
+  COM (MPI_COMM_WORLD, TAG_CHILDREN_DELETE, send, nsend, &recv, &nrecv);
+
+  /* delete children */
+  for (nrecv --; nrecv >= 0; nrecv --)
+  {
+    for (i = 0; i < recv[nrecv].ints; i ++)
+    {
+      BODY *bod;
+
+      id = recv[nrecv].i [i];
+
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)id, NULL), "Invalid body id");
+      remove_child (dom, bod);
+      BODY_Destroy (bod);
+    }
+  }
+
+  /* 7. communicate sndset and insert new children */
+
+  nbodsend = SET_Size (sndset);
+
+  ERRMEM (bodsend = malloc (sizeof (COMOBJ [nbodsend])));
+
+  /* set up send buffer */
+  for (item = SET_First (sndset), ptr = bodsend; item; item = SET_Next (item), ptr ++)
+  {
+    struct pair *p = item->data;
+
+    ptr->rank = p->rank;
+    ptr->o = p->bod.ptr;
+  }
+
+  /* send and receive children */
+  COMOBJS (MPI_COMM_WORLD, TAG_CHILDREN_INSERT, (OBJ_Pack)BODY_Child_Pack, dom->owner, (OBJ_Unpack)BODY_Child_Unpack, bodsend, nbodsend, &bodrecv, &nbodrecv);
+
+  /* insert children */
+  for (i = 0, ptr = bodrecv; i < nbodrecv; i ++, ptr ++)
+  {
+    insert_child (dom, ptr->o);
+  }
+
+  /* clean up */
+  for (i = 0; i < nsend; i ++) free (send [i].i);
+  SET_Free (&dom->setmem, &delset);
+  SET_Free (&dom->setmem, &sndset);
+  MEM_Release (&mem);
+  free (bodsend);
+  free (bodrecv);
+  free (procs);
+  free (send);
+  free (recv);
+
+  /* update children configurations */
+  domain_gossip (dom);
+}
+#endif
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf)
@@ -1932,115 +2039,124 @@ void DOM_Write_State (DOM *dom, PBF *bf)
 /* read domain state */
 void DOM_Read_State (DOM *dom, PBF *bf)
 {
-  if (PBF_Label (bf, "DOM"))
+  int ncon;
+
+  /* clear contacts */
+  MAP_Free (&dom->mapmem, &dom->idc);
+  MEM_Release (&dom->conmem);
+  dom->con = NULL;
+  dom->ncon = 0;
+
+  for (; bf; bf = bf->next)
   {
-    /* read time step */
-
-    ASSERT (PBF_Label (bf, "STEP"), ERR_FILE_FORMAT);
-
-    PBF_Double (bf, &dom->step, 1);
-
-    /* read contacts */
-
-    ASSERT (PBF_Label (bf, "CONS"), ERR_FILE_FORMAT);
-
-    MAP_Free (&dom->mapmem, &dom->idc);
-    MEM_Release (&dom->conmem);
-    dom->con = NULL;
-   
-    PBF_Int (bf, &dom->ncon, 1);
-
-    for (int n = 0; n < dom->ncon; n ++)
+    if (PBF_Label (bf, "DOM"))
     {
-      CON *con;
-      
-      con = read_constraint (dom, bf);
-      MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
-      con->next = dom->con;
-      if (dom->con) dom->con->prev = con;
-      dom->con = con;
-    }
+      /* read time step */
 
-    /* read ids of bodies that need to be deleted and remove them from all containers */
+      ASSERT (PBF_Label (bf, "STEP"), ERR_FILE_FORMAT);
 
-    unsigned int id;
-    int size, n;
+      PBF_Double (bf, &dom->step, 1);
 
-    ASSERT (PBF_Label (bf, "DELBODS"), ERR_FILE_FORMAT);
+      /* read contacts */
 
-    PBF_Int (bf, &size, 1);
+      ASSERT (PBF_Label (bf, "CONS"), ERR_FILE_FORMAT);
+    
+      PBF_Int (bf, &ncon, 1);
 
-    for (n = 0; n < size; n ++)
-    {
-      BODY *bod;
+      for (int n = 0; n < ncon; n ++)
+      {
+	CON *con;
+	
+	con = read_constraint (dom, bf);
+	MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
+	con->next = dom->con;
+	if (dom->con) dom->con->prev = con;
+	dom->con = con;
+      }
 
-      PBF_Uint (bf, &id, 1);
+      dom->ncon += ncon;
 
-      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+      /* read ids of bodies that need to be deleted and remove them from all containers */
 
-      if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
-      MAP_Delete (&dom->mapmem, &dom->idb, (void*)id, NULL);
-      if (bod->next) bod->next->prev = bod->prev;
-      if (bod->prev) bod->prev->next = bod->next;
-      else dom->bod = bod->next;
-      dom->nbod --;
-      BODY_Destroy (bod);
-    }
-
-    /* read complete data of newly created bodies and insert them into all containers */
-
-    int dpos, doubles;
-    double *d = NULL;
-
-    int ipos, ints, *i = NULL;
-
-    ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
-
-    PBF_Int (bf, &size, 1);
-
-    for (n = 0; n < size; n ++)
-    {
-      BODY *bod;
-
-      PBF_Int (bf, &doubles, 1);
-      ERRMEM (d  = realloc (d, doubles * sizeof (double)));
-      PBF_Double (bf, d, doubles);
-
-      PBF_Int (bf, &ints, 1);
-      ERRMEM (i  = realloc (i, ints * sizeof (int)));
-      PBF_Int (bf, i, ints);
-
-      dpos = ipos = 0;
-
-      bod = BODY_Unpack (dom->owner, &dpos, d, doubles, &ipos, i, ints);
-
-      if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
-      MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
-      bod->next = dom->bod;
-      if (dom->bod) dom->bod->prev = bod;
-      dom->bod = bod;
-      dom->nbod ++;
-    }
-
-    free (d);
-    free (i);
-
-    /* read regular bodies */
-
-    ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
-
-    int nbod;
-
-    PBF_Int (bf, &nbod, 1);
-
-    for (int n = 0; n < nbod; n ++)
-    {
       unsigned int id;
-      BODY *bod;
+      int size, n;
 
-      PBF_Uint (bf, &id, 1);
-      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Body id invalid");
-      BODY_Read_State (bod, bf);
+      ASSERT (PBF_Label (bf, "DELBODS"), ERR_FILE_FORMAT);
+
+      PBF_Int (bf, &size, 1);
+
+      for (n = 0; n < size; n ++)
+      {
+	BODY *bod;
+
+	PBF_Uint (bf, &id, 1);
+
+	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+
+	if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
+	MAP_Delete (&dom->mapmem, &dom->idb, (void*)id, NULL);
+	if (bod->next) bod->next->prev = bod->prev;
+	if (bod->prev) bod->prev->next = bod->next;
+	else dom->bod = bod->next;
+	dom->nbod --;
+	BODY_Destroy (bod);
+      }
+
+      /* read complete data of newly created bodies and insert them into all containers */
+
+      int dpos, doubles;
+      double *d = NULL;
+
+      int ipos, ints, *i = NULL;
+
+      ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
+
+      PBF_Int (bf, &size, 1);
+
+      for (n = 0; n < size; n ++)
+      {
+	BODY *bod;
+
+	PBF_Int (bf, &doubles, 1);
+	ERRMEM (d  = realloc (d, doubles * sizeof (double)));
+	PBF_Double (bf, d, doubles);
+
+	PBF_Int (bf, &ints, 1);
+	ERRMEM (i  = realloc (i, ints * sizeof (int)));
+	PBF_Int (bf, i, ints);
+
+	dpos = ipos = 0;
+
+	bod = BODY_Unpack (dom->owner, &dpos, d, doubles, &ipos, i, ints);
+
+	if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
+	MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
+	bod->next = dom->bod;
+	if (dom->bod) dom->bod->prev = bod;
+	dom->bod = bod;
+	dom->nbod ++;
+      }
+
+      free (d);
+      free (i);
+
+      /* read regular bodies */
+
+      ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
+
+      int nbod;
+
+      PBF_Int (bf, &nbod, 1);
+
+      for (int n = 0; n < nbod; n ++)
+      {
+	unsigned int id;
+	BODY *bod;
+
+	PBF_Uint (bf, &id, 1);
+	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Body id invalid");
+	BODY_Read_State (bod, bf);
+      }
     }
   }
 }
