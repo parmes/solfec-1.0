@@ -114,7 +114,7 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp)
   }
 
   /* allocate */
-  ERRMEM (ptr = sgp = malloc (sizeof (SGP [n])));
+  ERRMEM (ptr = sgp = calloc (n, sizeof (SGP)));
   *nsgp = n;
 
   /* set pointers */

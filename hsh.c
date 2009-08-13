@@ -80,7 +80,7 @@ typedef int (*qcmp) (const void*, const void*);
 
 #define OUT(ext1, ext2, d) (GT (ext1 [d], ext2 [3 + d]) || GT (ext2 [d], ext1 [3 + d]))
 #define MYBOX(lnk) ((lnk)->box)
-#define BOX(lnk) (MYBOX (lnk)->box)
+#define BOXO(lnk) (MYBOX (lnk)->box)
 
 static void onewayscan (LINK *list, int d,
                         void *data, BOX_Overlap_Create report)
@@ -90,7 +90,7 @@ static void onewayscan (LINK *list, int d,
 
   for (jp = list->next; jp && LE (jp->extents [d], list->extents [3 + d]); jp = jp->next)
   {
-    if (MYBOX (jp)->mark >= BOX (list)->sgp) continue;
+    if (MYBOX (jp)->mark >= BOXO (list)->sgp) continue;
 
     for (n = 0; n < 3; n ++)
       if (d != n)  
@@ -100,8 +100,8 @@ static void onewayscan (LINK *list, int d,
 
     if (n == 3)
     {
-      report (data,BOX (list), BOX (jp));
-      MYBOX (jp)->mark = BOX (list)->sgp;
+      report (data, BOXO (list), BOXO (jp));
+      MYBOX (jp)->mark = BOXO (list)->sgp;
     }
   }
 }

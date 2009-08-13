@@ -109,10 +109,10 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
   OPR pair = {MIN (id1, id2), MAX (id1, id2), MIN (no1, no2), MAX (no1, no2)};
 
   /* an excluded body pair ? */
-  if (SET_Find (aux->nobody, &pair, (SET_Compare) bodcmp)) return NULL;
+  if (SET_Contains (aux->nobody, &pair, (SET_Compare) bodcmp)) return NULL;
 
   /* an excluded object pair ? */
-  if (SET_Find (aux->nogobj, &pair, (SET_Compare) gobjcmp)) return NULL;
+  if (SET_Contains (aux->nogobj, &pair, (SET_Compare) gobjcmp)) return NULL;
 
   /* test topological adjacency */
   switch (GOBJ_Pair_Code (one, two))
@@ -152,6 +152,36 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
   }
 
   return user;
+}
+
+/* get geometrical object kind */
+static int gobj_kind (SGP *sgp)
+{
+  switch (sgp->shp->kind)
+  {
+  case SHAPE_MESH: return GOBJ_ELEMENT;
+  case SHAPE_CONVEX: return GOBJ_CONVEX;
+  case SHAPE_SPHERE: return GOBJ_SPHERE;
+  }
+
+  ASSERT_DEBUG (0, "Invalid shape kind in gobj_kind");
+
+  return 0;
+}
+
+/* get geometrical object extents update callback */
+static BOX_Extents_Update extents_update (SGP *sgp)
+{
+  switch (sgp->shp->kind)
+  {
+  case SHAPE_MESH: return (BOX_Extents_Update) ELEMENT_Extents;
+  case SHAPE_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
+  case SHAPE_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
+  }
+
+  ASSERT_DEBUG (0, "Invalid shape kind in extents_update");
+
+  return 0;
 }
 
 #if MPI
@@ -228,11 +258,10 @@ static void lopoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int 
 /* pack migration data */
 static void box_pack (BOX *box, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  BODY *bod = box->body;
-
-  pack_int (isize, i, ints, bod->id);
+  pack_int (isize, i, ints, box->bid);
   pack_int (isize, i, ints, box->kind & ~GOBJ_NEW);
-  pack_int (isize, i, ints, box->sgp - bod->sgp);
+  if (box->body) pack_int (isize, i, ints, box->sgp - BODY(box->body)->sgp);
+  else pack_int (isize, i, ints, (int) box->sgp); /* detached box */
   pack_doubles (dsize, d, doubles, box->extents, 6);
 }
 
@@ -240,32 +269,54 @@ static void box_pack (BOX *box, int *dsize, double **d, int *doubles, int *isize
 static void* box_unpack (AABB *aabb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   DOM *dom = aabb->dom;
-  int id, kind, isgp;
+  int bid, kind, isgp;
+  double extents [6];
   BODY *bod;
   SGP *sgp;
   BOX *box;
 
-  id = unpack_int (ipos, i, ints);
+  bid = unpack_int (ipos, i, ints);
   kind = unpack_int (ipos, i, ints);
   isgp = unpack_int (ipos, i, ints);
+  unpack_doubles (dpos, d, doubles, extents, 6);
 
-  bod = MAP_Find (dom->children, (void*)id, NULL);
-  if (!bod) ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+  bod = MAP_Find (dom->children, (void*) bid, NULL);
+  if (!bod) ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) bid, NULL), "Invalid body id");
+
   sgp = &bod->sgp [isgp];
 
-  switch (kind)
+  if (sgp->box == NULL) /* do not insert boxes that are already attached */
   {
-  case GOBJ_ELEMENT: box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
-  case GOBJ_CONVEX:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
-  case GOBJ_SPHERE:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
-  }
+    switch (kind)
+    {
+    case GOBJ_ELEMENT: sgp->box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
+    case GOBJ_CONVEX:  sgp->box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
+    case GOBJ_SPHERE:  sgp->box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
+    }
 
-  unpack_doubles (dpos, d, doubles, box->extents, 6);
+    box = sgp->box;
+
+    ASSERT_DEBUG (box, "Invalid box kind");
+
+    COPY6 (extents, box->extents);
+  }
 
   return NULL;
 }
 
-/* synchronise an exclusion set */
+/* return next pointer and realloc send memory if needed */
+inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
+{
+  if (nsend >= *size)
+  {
+    (*size) *= 2;
+    ERRMEM (*send = realloc (*send, sizeof (COMOBJ [*size])));
+  }
+
+  return &(*send)[nsend];
+}
+
+/* synchronise exclusion set */
 static void sync (SET **eset, MEM *oprmem, MEM *setmem, int nobody)
 {
   int i, s, n, ncpu, step, *sizes, *disp, *set, *all, *ptr, *end;
@@ -329,7 +380,7 @@ static void sync (SET **eset, MEM *oprmem, MEM *setmem, int nobody)
       pair.sgp2 = ptr [3];
     }
 
-    if (! SET_Find (*eset, &pair, cmp))  /* if not found */
+    if (!SET_Contains (*eset, &pair, cmp))  /* if not found */
     {
       OPR *opr;
       
@@ -345,31 +396,162 @@ static void sync (SET **eset, MEM *oprmem, MEM *setmem, int nobody)
   free (sizes);
 }
 
-/* return next pointer and realloc send memory if needed */
-inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
+/* synchronise set */
+static void syncset (SET **theset, MEM *setmem)
 {
-  if (nsend >= *size)
-  {
-    (*size) *= 2;
+  int i, s, n, ncpu, *sizes, *disp, *set, *all, *ptr, *end;
+  SET *item;
 
-    ERRMEM (*send = realloc (*send, sizeof (COMOBJ [*size])));
+  MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
+
+  s = SET_Size (*theset);
+  ERRMEM (sizes = malloc (sizeof (int [ncpu])));
+  ERRMEM (disp = malloc (sizeof (int [ncpu])));
+  ERRMEM (set = malloc (sizeof (int [s])));
+
+  /* sizes of all sets */
+  MPI_Allgather (&s, 1, MPI_INT, sizes, 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (disp [0] = 0, i = 0; i < ncpu; i ++)
+    if (i < ncpu - 1) disp [i+1] = disp [i] + sizes [i];
+
+  n = disp [ncpu-1] + sizes [ncpu-1]; /* total size */
+
+  ERRMEM (all = malloc (sizeof (int [n])));
+
+  /* copy the local set into a buffer */
+  for (item = SET_First (*theset), ptr = set; item; item = SET_Next (item), ptr ++)
+  {
+    ptr [0] = (int) item->data;
   }
 
-  return &(*send)[nsend];
+  /* gather all local sets into the common 'all' space */
+  MPI_Allgatherv (set, s, MPI_INT, all, sizes, disp, MPI_INT, MPI_COMM_WORLD);
+
+  /* complete the local set */
+  for (ptr = all, end = all + n; ptr < end; ptr ++)
+  {
+    if (!SET_Contains (*theset, (void*) ptr [0], NULL))  /* if not found */
+      SET_Insert (setmem, theset, (void*) ptr [0], NULL); /* insert new item */
+  }
+
+  free (all);
+  free (set);
+  free (disp);
+  free (sizes);
+}
+
+/* attach deteached boxes */
+static void attach_detached (AABB *aabb)
+{
+  BOX *box, *next;
+  BODY *bod;
+  DOM *dom;
+
+  dom = aabb->dom;
+
+  for (box = aabb->in; box; box = next)
+  {
+    next = box->next;
+
+    if (box->body == NULL)
+    {
+      bod = MAP_Find (dom->children, (void*) box->bid, NULL);
+      if (!bod) bod = MAP_Find (dom->idb, (void*) box->bid, NULL);
+
+      if (bod)
+      {
+	box->body = bod;
+	box->sgp = &bod->sgp [(int) box->sgp];
+      }
+      else AABB_Delete (aabb, box);
+    }
+  }
+
+  for (box = aabb->lst; box; box = next)
+  {
+    next = box->next;
+
+    if (box->body == NULL)
+    {
+      bod = MAP_Find (dom->children, (void*) box->bid, NULL);
+      if (!bod) bod = MAP_Find (dom->idb, (void*) box->bid, NULL);
+
+      if (bod)
+      {
+	box->body = bod;
+	box->sgp = &bod->sgp [(int) box->sgp];
+      }
+      else AABB_Delete (aabb, box);
+    }
+  }
 }
 
 /* balance boxes */
 static void aabb_balance (AABB *aabb)
 {
-  int flag;
+  int flag, size;
+  BOX *box;
 
   /* synchronise body pair exclusion set */
   MPI_Allreduce (&aabb->nobody_modified, &flag, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-  if (flag) sync (&aabb->nobody, &aabb->setmem, &aabb->oprmem, 1);
+  if (flag) sync (&aabb->nobody, &aabb->setmem, &aabb->oprmem, 1), aabb->nobody_modified = 0;
 
   /* synchronise geometric object pair exclusion set */
   MPI_Allreduce (&aabb->nogobj_modified, &flag, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-  if (flag) sync (&aabb->nogobj, &aabb->setmem, &aabb->oprmem, 0);
+  if (flag) sync (&aabb->nogobj, &aabb->setmem, &aabb->oprmem, 0), aabb->nogobj_modified = 0;
+
+  size = SET_Size (aabb->delbod);
+  MPI_Allreduce (&size, &flag, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  if (flag)
+  {
+    SET *item, *jtem;
+    BOX *next;
+
+    /* synchronise body deletion set */
+    syncset (&aabb->delbod, &aabb->setmem);
+
+    /* remove related items from exclusion sets */
+    for (item = SET_First (aabb->delbod); item; item = SET_Next (item))
+    {
+      OPR *op;
+
+      for (jtem = SET_First (aabb->nobody); jtem; )
+      {
+	op = jtem->data;
+
+	if (op->bod1 == (unsigned int) item->data ||
+	    op->bod1 == (unsigned int) item->data)
+	  jtem = SET_Delete_Node (&aabb->setmem, &aabb->nobody, jtem);
+	else jtem = SET_Next (jtem);
+      }
+
+      for (jtem = SET_First (aabb->nogobj); jtem; )
+      {
+	op = jtem->data;
+
+	if (op->bod1 == (unsigned int) item->data ||
+	    op->bod1 == (unsigned int) item->data)
+	  jtem = SET_Delete_Node (&aabb->setmem, &aabb->nobody, jtem);
+	else jtem = SET_Next (jtem);
+      }
+    }
+
+    /* delete boxes attached to deleted bodies */
+    for (box = aabb->in; box; box = next)
+    {
+      next = box->next;
+      if (SET_Contains (aabb->delbod, (void*) box->bid, NULL)) AABB_Delete (aabb, box);
+    }
+    for (box = aabb->lst; box; box = next)
+    {
+      next = box->next;
+      if (SET_Contains (aabb->delbod, (void*) box->bid, NULL)) AABB_Delete (aabb, box);
+    }
+
+    /* empty deletion set */
+    SET_Free (&aabb->setmem, &aabb->delbod);
+  }
 
   int changes,
       num_gid_entries,
@@ -392,18 +574,20 @@ static void aabb_balance (AABB *aabb)
   Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
                        &export_global_ids, &export_local_ids, &export_procs);
 
-  /* balance children bodies according to the box partitioning */
+  /* balance children bodies in the domin */
   DOM_Balance_Children (aabb->dom, aabb->zol);
 
-  int size , nsend, nrecv, i, j, naux;
+  int nsend, nrecv, i, j, naux;
   int *procs, numprocs, rank;
   COMOBJ *send, *recv, *ptr;
   SET *del, *item;
   BOX **aux;
+  DOM *dom;
 
   nsend = 0;
   del = NULL;
-  rank = DOM(aabb->dom)->rank;
+  dom = aabb->dom;
+  rank = dom->rank;
   naux = box_count (aabb, &i);
   size = MIN (naux, 128);
   ERRMEM (send = malloc (sizeof (COMOBJ [size])));
@@ -413,19 +597,15 @@ static void aabb_balance (AABB *aabb)
   {
     double *e = aux [i]->extents;
 
-    /* TODO: use low corner belongance to decide which box is the parent
-     * TODO: only the parent box can send out more children
-     * TODO: children can only delete themselves */
-
-    Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+    ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
     for (flag = 1, j = 0; j < numprocs; j ++)
     {
-      if (procs [j] != rank)
+      if (procs [j] != rank) /* exported */
       {
 	ptr->rank = procs [j];
 	ptr->o = aux [i];
-        ptr = sendnext (++ nsend, &size, &send);
+	ptr = sendnext (++ nsend, &size, &send);
       }
       else flag = 0; /* should stay here */
     }
@@ -439,6 +619,10 @@ static void aabb_balance (AABB *aabb)
   /* delete exported boxes */
   for (item = SET_First (del); item; item = SET_Next (item)) AABB_Delete (aabb, item->data);
 
+  /* there should be no detached bodies left */
+  for (box = aabb->in; box; box = box->next) ASSERT_DEBUG (box->body, "A deteached box found");
+  for (box = aabb->lst; box; box = box->next) ASSERT_DEBUG (box->body, "A deteached box found");
+
   SET_Free (&aabb->setmem, &del);
   free (send);
   free (recv);
@@ -447,6 +631,7 @@ static void aabb_balance (AABB *aabb)
 /* create MPI related data */
 static void create_mpi (AABB *aabb)
 {
+  aabb->delbod = NULL;
   aabb->nobody_modified = 0;
   aabb->nogobj_modified = 0;
   aabb->aux = NULL;
@@ -526,6 +711,7 @@ BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_E
   ERRMEM (box = MEM_Alloc (&aabb->boxmem));
   box->data = data;
   box->update = update;
+  box->bid = BODY(body)->id;
   box->kind = kind | GOBJ_NEW; /* mark as new */
   box->body = body;
   box->sgp = sgp;
@@ -546,6 +732,11 @@ BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_E
 /* delete an object */
 void AABB_Delete (AABB *aabb, BOX *box)
 {
+#if MPI
+  if (!box) return; /* possible for a child body or a parent body whose box has migrated away */
+  else if (box->body) box->sgp->box = NULL; /* invalidate box pointer */
+#endif
+
   if (box->kind & GOBJ_NEW) /* still in the insertion list */
   {
     /* remove box from the insertion list */
@@ -575,32 +766,55 @@ void AABB_Delete (AABB *aabb, BOX *box)
   aabb->modified = 1;
 }
 
-/* delete all data related to this body */
+/* insert a body */
+void AABB_Insert_Body (AABB *aabb, void *body)
+{
+  SGP *sgp, *sgpe;
+  BODY *bod;
+
+  for (bod = body, sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
+  {
+    sgp->box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp,
+                            sgp->shp->data, extents_update (sgp));
+  }
+}
+
+/* delete a body */
 void AABB_Delete_Body (AABB *aabb, void *body)
 {
-  SET *del, *item;
+  SGP *sgp, *sgpe;
+  BODY *bod;
+
+  for (bod = body, sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
+  {
+    AABB_Delete (aabb, sgp->box);
+  }
+
+#if MPI
+  SET_Insert (&aabb->setmem, &aabb->delbod, (void*) bod->id, NULL);
+#endif
+}
+
+#if MPI
+/* detach a body */
+void AABB_Detach_Body (AABB *aabb, void *body)
+{
+  SGP *sgp, *sgpe;
+  BODY *bod;
   BOX *box;
 
-  /* search insertion list */
-  for (del = NULL, box = aabb->in; box; box = box->next)
+  for (bod = body, sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
   {
-    if (box->body == body) SET_Insert (&aabb->setmem, &del, box, NULL);
-  }
+    box = sgp->box;
 
-  /* search current list */
-  for (box = aabb->lst; box; box = box->next)
-  {
-    if (box->body == body) SET_Insert (&aabb->setmem, &del, box, NULL);
+    if (box)
+    {
+      box->sgp = (SGP*) (box->sgp - bod->sgp);
+      box->body = NULL;
+    }
   }
-
-  /* delete boxes */
-  for (item = SET_First (del); item; item = SET_Next (item))
-  {
-    AABB_Delete (aabb, item->data);
-  }
-
-  SET_Free (&aabb->setmem, &del);
 }
+#endif
 
 /* update state => detect created and released overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release)
@@ -608,6 +822,10 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
   BOX *box, *next, *adj;
   MAP *item, *jtem;
+
+#if MPI
+  attach_detached (aabb);
+#endif
 
   /* update extents */
   for (box = aabb->lst; box; box = box->next) /* for each current box */
@@ -631,6 +849,9 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
     for (item = MAP_First (box->adj); item; item = MAP_Next (item)) /* for each adjacent box */
     {
       adj = item->key;
+#if MPI
+      if (box->body) /* not detached */
+#endif
       release (data, box, adj, item->data); /* release overlap */
       MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
     }

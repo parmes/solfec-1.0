@@ -178,6 +178,8 @@ struct domain
 
   SET *sparecid; /* spare constraint ids */
 
+  SET *sparebid; /* spare body ids */
+
   int noid; /* constraint id assignment omition flag */
 
   MAP *children; /* id-to-child map */
@@ -247,7 +249,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom);
 void DOM_Update_End (DOM *dom);
 
 #if MPI
-/* balance children in accordance to the given geometric partitioning */
+/* balance children according to a given geometric partitioning */
 void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol);
 #endif
 

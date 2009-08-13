@@ -1103,6 +1103,8 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       /* TODO */
     break;
   }
+
+  SHAPE_Extents (bod->shape, bod->extents); /* update extents */
 }
 
 void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
@@ -1906,7 +1908,7 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
   else BODY_Static_Init (bod);
 
   /* set child flag */
-  bod->scheme |= BODY_CHILD;
+  bod->flags |= BODY_CHILD;
 
   return bod;
 }

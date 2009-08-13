@@ -47,14 +47,14 @@ struct sweep
   double avglen [3];
 };
 
-#define BOX(pnt) ((pnt)->box)
+#define BOXO(pnt) ((pnt)->box)
 #define ISLOW(pnt) ((pnt)->high == 0)
 #define ISHIGH(pnt) ((pnt)->high == 3)
 
 static int pntcmp0 (const POINT *a, const POINT *b)
 {
-  if (BOX (a)->extents [(int) a->high] < BOX (b)->extents [(int) b->high]) return -1;
-  else if (BOX (a)->extents [(int) a->high] > BOX (b)->extents [(int) b->high]) return 1;
+  if (BOXO (a)->extents [(int) a->high] < BOXO (b)->extents [(int) b->high]) return -1;
+  else if (BOXO (a)->extents [(int) a->high] > BOXO (b)->extents [(int) b->high]) return 1;
   else if (ISHIGH (a) && ISLOW (b)) return -1;
   else if (ISHIGH (b) && ISLOW (a)) return 1;
   else return 0;
@@ -62,8 +62,8 @@ static int pntcmp0 (const POINT *a, const POINT *b)
 
 static int pntcmp1 (const POINT *a, const POINT *b)
 {
-  if (BOX (a)->extents [(int) a->high + 1] < BOX (b)->extents [(int) b->high + 1]) return -1;
-  else if (BOX (a)->extents [(int) a->high + 1] > BOX (b)->extents [(int) b->high + 1]) return 1;
+  if (BOXO (a)->extents [(int) a->high + 1] < BOXO (b)->extents [(int) b->high + 1]) return -1;
+  else if (BOXO (a)->extents [(int) a->high + 1] > BOXO (b)->extents [(int) b->high + 1]) return 1;
   else if (ISHIGH (a) && ISLOW (b)) return -1;
   else if (ISHIGH (b) && ISLOW (a)) return 1;
   else return 0;
@@ -71,8 +71,8 @@ static int pntcmp1 (const POINT *a, const POINT *b)
 
 static int pntcmp2 (const POINT *a, const POINT *b)
 {
-  if (BOX (a)->extents [(int) a->high + 2] < BOX (b)->extents [(int) b->high + 2]) return -1;
-  else if (BOX (a)->extents [(int) a->high + 2] > BOX (b)->extents [(int) b->high + 2]) return 1;
+  if (BOXO (a)->extents [(int) a->high + 2] < BOXO (b)->extents [(int) b->high + 2]) return -1;
+  else if (BOXO (a)->extents [(int) a->high + 2] > BOXO (b)->extents [(int) b->high + 2]) return 1;
   else if (ISHIGH (a) && ISLOW (b)) return -1;
   else if (ISHIGH (b) && ISLOW (a)) return 1;
   else return 0;

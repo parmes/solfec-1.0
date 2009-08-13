@@ -236,8 +236,8 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
 #if MPI
     int proc;
 
-    ASSERT (Zoltan_LB_Point_Assign (dom->zol, onepnt, &proc) == ZOLTAN_OK, ERR_ZOLTAN);
-    if (proc != dom->rank) return NULL; /* insert contacts located in this partition */
+    ASSERT (Zoltan_LB_Point_Assign (dom->aabb->zol, state == 1 ? onepnt : twopnt, &proc) == ZOLTAN_OK, ERR_ZOLTAN);
+    if (proc != dom->rank) return NULL; /* insert contacts located in this AABB partition */
 #endif
 
     ASSERT (gap > dom->depth, ERR_DOM_DEPTH);
@@ -296,13 +296,15 @@ void update_contact (DOM *dom, CON *con)
     mpnt, spnt, normal, &con->gap, /* 'mpnt' and 'spnt' are updated here */
     &con->area, spair); /* surface pair might change though */
 
-  if (state == 0) /* remove contact */
+  if (state)
   {
-    AABB_Break_Adjacency (dom->aabb, con->mbox, con->sbox); /* box overlap will be re-detected */
-    DOM_Remove_Constraint (dom, con);
-  }
-  else
-  {
+#if MPI
+    int proc;
+
+    ASSERT (Zoltan_LB_Point_Assign (dom->aabb->zol, mpnt, &proc) == ZOLTAN_OK, ERR_ZOLTAN);
+    if (proc != dom->rank) goto del; /* delete contacts located outside of this AABB partition */
+#endif
+
     ASSERT (con->gap > dom->depth, ERR_DOM_DEPTH);
 
     COPY (mpnt, con->point);
@@ -314,6 +316,14 @@ void update_contact (DOM *dom, CON *con)
       SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, spair [0], spair [1]); /* find new surface pair description */
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
     }
+  }
+  else /* remove contact */
+  {
+#if MPI
+del:
+#endif
+    AABB_Break_Adjacency (dom->aabb, con->mbox, con->sbox); /* box overlap will be re-detected */
+    DOM_Remove_Constraint (dom, con);
   }
 }
 
@@ -442,36 +452,6 @@ static void sparsify_contacts (DOM *dom)
 
   /* clean up */
   MEM_Release (&mem);
-}
-
-/* get geometrical object kind */
-static int gobj_kind (SGP *sgp)
-{
-  switch (sgp->shp->kind)
-  {
-  case SHAPE_MESH: return GOBJ_ELEMENT;
-  case SHAPE_CONVEX: return GOBJ_CONVEX;
-  case SHAPE_SPHERE: return GOBJ_SPHERE;
-  }
-
-  ASSERT_DEBUG (0, "Invalid shape kind in gobj_kind");
-
-  return 0;
-}
-
-/* get geometrical object extents update callback */
-static BOX_Extents_Update extents_update (SGP *sgp)
-{
-  switch (sgp->shp->kind)
-  {
-  case SHAPE_MESH: return (BOX_Extents_Update) ELEMENT_Extents;
-  case SHAPE_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
-  case SHAPE_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
-  }
-
-  ASSERT_DEBUG (0, "Invalid shape kind in extents_update");
-
-  return 0;
 }
 
 /* write constraint state */
@@ -702,10 +682,9 @@ static void insert_child (DOM *dom, BODY *bod)
 /* remove a child body from the domain */
 static void remove_child (DOM *dom, BODY *bod)
 {
-  /* delete from AABB all data related to this child body */
-  AABB_Delete_Body (dom->aabb, bod);
+  AABB_Detach_Body (dom->aabb, bod);
 
-  /* remove all body related constraints */
+  /* remove child related constraints */
   {
     SET *con = bod->con;
     bod->con = NULL; /* DOM_Remove_Constraint will try to remove the constraint
@@ -718,6 +697,17 @@ static void remove_child (DOM *dom, BODY *bod)
     SET_Free (&dom->setmem, &con); /* free body's constraint set */
   }
 
+  /* remove external constrains */
+  {
+    for (SET *item = SET_First (bod->conext); item; item = SET_Next (item))
+    {
+      CONEXT *ext = item->data;
+      ext->bod = NULL;
+    }
+
+    SET_Free (&dom->setmem, &bod->conext);
+  }
+
   /* delete from id based map */
   MAP_Delete (&dom->mapmem, &dom->children, (void*)bod->id, NULL);
 }
@@ -725,14 +715,6 @@ static void remove_child (DOM *dom, BODY *bod)
 /* insert migrated body into the domain */
 void insert_migrated_body (DOM *dom, BODY *bod)
 {
-  SGP *sgp, *sgpe;
-
-  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
-  {
-    sgp->box = AABB_Insert (dom->aabb, bod, gobj_kind (sgp), sgp,
-                            sgp->shp->data, extents_update (sgp));
-  }
-
   if (bod->label) /* map labeled bodies */
     MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare)strcmp);
 
@@ -744,17 +726,14 @@ void insert_migrated_body (DOM *dom, BODY *bod)
   bod->next = dom->bod;
   if (dom->bod) dom->bod->prev = bod;
   dom->bod = bod;
+
+  AABB_Insert_Body (dom->aabb, bod);
 }
 
 /* remove migrated body from the domain */
 static void remove_migrated_body (DOM *dom, BODY *bod)
 {
-  SGP *sgp, *sgpe;
-
-  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
-  {
-    AABB_Delete (dom->aabb, sgp->box);
-  }
+  AABB_Detach_Body (dom->aabb, bod);
 
   /* remove all body related constraints */
   {
@@ -767,6 +746,17 @@ static void remove_migrated_body (DOM *dom, BODY *bod)
       DOM_Remove_Constraint (dom, item->data);
 
     SET_Free (&dom->setmem, &con); /* free body's constraint set */
+  }
+
+  /* remove external constrains */
+  {
+    for (SET *item = SET_First (bod->conext); item; item = SET_Next (item))
+    {
+      CONEXT *ext = item->data;
+      ext->bod = NULL;
+    }
+
+    SET_Free (&dom->setmem, &bod->conext);
   }
 
   if (bod->label) /* delete labeled body */
@@ -845,8 +835,8 @@ static int domain_balance (DOM *dom)
       BODY *bod;
 
       ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)(*j), NULL), "Invalid orphan id"); /* find child */
-      remove_child (dom, bod); /* remove it from the domain */
-      BODY_Destroy (bod); /* free its memory */
+      remove_child (dom, bod);
+      BODY_Destroy (bod);
     }
   }
 
@@ -1077,7 +1067,7 @@ static void conext_remove_all (DOM *dom)
   /* empty body external constraint sets */
   for (ext = dom->conext; ext; ext = ext->next)
   {
-    if (ext->bod->conext) SET_Free (&dom->setmem, &ext->bod->conext);
+    if (ext->bod && ext->bod->conext) SET_Free (&dom->setmem, &ext->bod->conext);
   }
 
   /* erase in the domain */
@@ -1189,6 +1179,9 @@ static void domain_glue (DOM *dom)
   BODY *bod;
   CON *con;
 
+  /* Remove all currrently stored external constraints */
+  conext_remove_all (dom);
+
   size = dom->ncon;
 
   ERRMEM (send = malloc (sizeof (COMOBJ [size])));
@@ -1211,9 +1204,6 @@ static void domain_glue (DOM *dom)
       }
     }
   }
-
-  /* Remove all currrently stored external constraints */
-  conext_remove_all (dom);
 
   /* Send from children and receive in parents */
   COMOBJS (MPI_COMM_WORLD, TAG_CONEXT, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack_parent, send, nsend, &recv, &nrecv);
@@ -1274,7 +1264,8 @@ static void create_mpi (DOM *dom)
 
   dom->cid = (dom->rank + 1); /* overwrite */
 
-  dom->sparecid = NULL; /* initialize spare ids set */
+  dom->sparecid = NULL; /* initialize spare ids sets */
+  dom->sparebid = NULL;
 
   dom->noid = 0; /* assign constraint ids in 'insert' routine (turned off when importing non-contacts) */
 
@@ -1394,21 +1385,22 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 /* insert a body into the domain */
 void DOM_Insert_Body (DOM *dom, BODY *bod)
 {
-  SGP *sgp, *sgpe;
-
-  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
-  {
-    sgp->box = AABB_Insert (dom->aabb, bod, gobj_kind (sgp), sgp,
-                            sgp->shp->data, extents_update (sgp));
-  }
-
   if (bod->label) /* map labeled bodies */
     MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare)strcmp);
 
 #if MPI
   ASSERT_DEBUG (dom->rank == 0, "Bodies can only be inserted at rank 0");
-#endif
 
+  if (dom->sparebid)
+  {
+    SET *item;
+   
+    item = SET_First (dom->sparebid);
+    bod->id = (unsigned int) item->data; /* use a previously freed id */
+    SET_Delete (&dom->setmem, &dom->sparebid, item->data, NULL);
+  }
+  else
+#endif
   bod->id = dom->bid ++; /* due to the above assertion this is fine in parallel */
   MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
 
@@ -1420,17 +1412,14 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   dom->bod = bod;
 
   if (dom->time > 0) SET_Insert (&dom->setmem, &dom->newb, bod, NULL);
+
+  AABB_Insert_Body (dom->aabb, bod);
 }
 
 /* remove a body from the domain */
 void DOM_Remove_Body (DOM *dom, BODY *bod)
 {
-  SGP *sgp, *sgpe;
-
-  for (sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
-  {
-    AABB_Delete (dom->aabb, sgp->box);
-  }
+  AABB_Delete_Body (dom->aabb, bod);
 
   /* remove all body related constraints */
   {
@@ -1444,6 +1433,19 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
 
     SET_Free (&dom->setmem, &con); /* free body's constraint set */
   }
+
+#if MPI
+  /* remove external constrains */
+  {
+    for (SET *item = SET_First (bod->conext); item; item = SET_Next (item))
+    {
+      CONEXT *ext = item->data;
+      ext->bod = NULL;
+    }
+
+    SET_Free (&dom->setmem, &bod->conext);
+  }
+#endif
 
   if (bod->label) /* delete labeled body */
     MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare)strcmp);
@@ -1461,6 +1463,9 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   if (dom->time > 0) SET_Insert (&dom->setmem, &dom->delb, (void*) bod->id, NULL);
 
 #if MPI
+  /* free body id */
+  SET_Insert (&dom->setmem, &dom->sparebid, (void*)bod->id, NULL);
+
   /* gather children ids to be deleted during balancing */
   for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
     SET_Insert (&dom->setmem, &dom->delch [(int)item->data], (void*)bod->id, NULL);
@@ -1696,9 +1701,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   aabb_timing (dom, timerend (&timing));
 
-  sparsify_contacts (dom);
-
-  /* update all constraints */
+  /* update old constraints */
   for (con = dom->con; con; con = con->next)
   {
     switch (con->kind)
@@ -1710,6 +1713,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case RIGLNK:  update_riglnk  (dom, con); break;
     }
   }
+
+  /* sparsify new contacts */
+  sparsify_contacts (dom);
 
 #if MPI
   domain_glue (dom);
@@ -1767,7 +1773,7 @@ void DOM_Update_End (DOM *dom)
 }
 
 #if MPI
-/* balance children in accordance to the given geometric partitioning */
+/* balance children according to a given geometric partitioning */
 void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
 {
   COMOBJ *bodsend, *bodrecv, *ptr;
@@ -1816,7 +1822,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
 
     /* 3.5. if this body just migrated here, a child copy
      *      of it could still be here; schedule it for deletion */
-    if (SET_Find (bod->my.children, (void*)dom->rank, NULL))
+    if (SET_Contains (bod->my.children, (void*)dom->rank, NULL))
     {
       struct pair *p;
 
@@ -1831,7 +1837,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
       *    add (bod->id, x) to delset, remove x from bod->my.children */
     for (SET *x = SET_First (bod->my.children); x; )
     {
-      if (! SET_Find (procset, x->data, NULL))
+      if (!SET_Contains (procset, x->data, NULL))
       {
 	struct pair *p;
 
@@ -1848,7 +1854,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
       *    add (bod, x) to sndset, insert x into bod->my.children */
     for (SET *x = SET_First (procset); x; x = SET_Next (x))
     {
-      if (! SET_Find (bod->my.children, x->data, NULL))
+      if (!SET_Contains (bod->my.children, x->data, NULL))
       {
 	struct pair *p;
 

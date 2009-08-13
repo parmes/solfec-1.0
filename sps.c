@@ -141,7 +141,7 @@ int SPSET_Has (SPSET *set, int surf1, int surf2)
   tmp.surf1 = MIN (surf1, surf2);
   tmp.surf2 = MAX (surf1, surf2);
 
-  if (SET_Find (set->set, &tmp, (SET_Compare) setcmp)) return 1;
+  if (SET_Contains (set->set, &tmp, (SET_Compare) setcmp)) return 1;
   return 0;
 }
 

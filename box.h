@@ -80,6 +80,8 @@ struct box
   void *data; /* extents update data, usually => sgp->shp->data */
   BOX_Extents_Update update; /* extents update callback => update (data, gobj, extents) */
 
+  unsigned int bid; /* owner body id */
+
   GOBJ kind; /* kind of a geometric object */
 
   SGP *sgp; /* shape and geometric object pair */
@@ -91,11 +93,10 @@ struct box
 
   BOX *prev, /* previous in list */
       *next; /* next in list */
-
-#if MPI
-  SET *children;
-#endif
 };
+
+/* box pointer cast */
+#define BOX(box) ((BOX*)(box))
 
 /* this routine returns a combined code of two
  * geomtric objects bounded by the respective boxes */
@@ -148,6 +149,8 @@ struct aabb
   void *dom; /* the underlying domain */
 
 #if MPI
+  SET *delbod; /* set of deleted body ids */
+
   int nobody_modified, /* used to synchronise 'nobody' */
       nogobj_modified; /* used to synchronise 'nogobj' */
 
@@ -163,11 +166,19 @@ AABB* AABB_Create (int size);
 /* insert geometrical object => return the associated box */
 BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_Extents_Update update);
 
-/* delete an object (either 'gobj' or 'box' must be not NULL) */
+/* delete geometrical gobject associated with the box */
 void AABB_Delete (AABB *aabb, BOX *box);
 
-/* delete all data related to this body */
+/* insert a body */
+void AABB_Insert_Body (AABB *aabb, void *body);
+
+/* delete a body */
 void AABB_Delete_Body (AABB *aabb, void *body);
+
+#if MPI
+/* detach a body */
+void AABB_Detach_Body (AABB *aabb, void *body);
+#endif
 
 /* update state => detect created and released overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release);
