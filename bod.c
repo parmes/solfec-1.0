@@ -1078,8 +1078,6 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       PRODUCTSUB (W05, O, force);   /* force [0..2] = T - W05 x J * W05 */
       
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
-
-      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
     }
     break;
     case PRB:
@@ -1095,7 +1093,6 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
       prb_dynamic_force (bod, time+half, step, force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
-      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
     }
     break;
     case FEM:
@@ -1104,7 +1101,9 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
     break;
   }
 
-  SHAPE_Extents (bod->shape, bod->extents); /* update extents */
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+
+  SHAPE_Extents (bod->shape, bod->extents); /* update extents at half-step only  */
 }
 
 void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
@@ -1159,8 +1158,6 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	  NNMUL (O, DR, R); /* R(t) = R(t+h/2) exp [(h/2) * W(t+h)] */
 	}
       }
-
-      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     }
     break;
     case PRB:
@@ -1170,7 +1167,6 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       prb_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */
       blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
     }
     break;
     case FEM:
@@ -1179,7 +1175,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
     break;
   }
 
-  SHAPE_Extents (bod->shape, bod->extents); /* update extents */
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
 }
 
 void BODY_Static_Init (BODY *bod)
@@ -1253,6 +1249,8 @@ void BODY_Static_Step_Begin (BODY *bod, double time, double step)
       /* TODO */
     break;
   }
+
+  SHAPE_Extents (bod->shape, bod->extents); /* update extents at half-step only (no difference here) */
 }
 
 void BODY_Static_Step_End (BODY *bod, double time, double step)
@@ -1277,7 +1275,6 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
       EXPMAP (O, DR); 
       NNCOPY (R, O);
       NNMUL (O, DR, R); /* R(t) = R(t) exp [h * W(t+h)] */
-      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     }
     break;
     case PRB:
@@ -1287,7 +1284,6 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
       prb_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
       blas_daxpy (12, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
-      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
     }
     break;
     case FEM:
@@ -1295,6 +1291,8 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
       /* TODO */
     break;
   }
+
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
 }
 
 void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)

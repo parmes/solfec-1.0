@@ -151,6 +151,8 @@ struct aabb
 #if MPI
   SET *delbod; /* set of deleted body ids */
 
+  SET *detached; /* set of detached boxes */
+
   int nobody_modified, /* used to synchronise 'nobody' */
       nogobj_modified; /* used to synchronise 'nogobj' */
 

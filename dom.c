@@ -134,7 +134,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
       con->id = (unsigned int) item->data; /* use a previously freed id */
       SET_Delete (&dom->setmem, &dom->sparecid, item->data, NULL);
     }
-    else con->id = dom->cid, dom->cid += (dom->rank + 1); /* every (rank+1) number */
+    else con->id = dom->cid, dom->cid += dom->size; /* every communicator-size number */
   }
 #else
   con->id = dom->cid ++;
@@ -726,8 +726,6 @@ void insert_migrated_body (DOM *dom, BODY *bod)
   bod->next = dom->bod;
   if (dom->bod) dom->bod->prev = bod;
   dom->bod = bod;
-
-  AABB_Insert_Body (dom->aabb, bod);
 }
 
 /* remove migrated body from the domain */

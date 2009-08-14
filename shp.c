@@ -320,7 +320,7 @@ void SHAPE_Update (SHAPE *shp, void *body, MOTION motion)
 /* copute shape extents */
 void SHAPE_Extents (SHAPE *shp, double *extents)
 {
-  double e [6];
+  double e [6], margin;
 
   extents [0] = extents [1] = extents [2] =  DBL_MAX;
   extents [3] = extents [4] = extents [5] = -DBL_MAX;
@@ -336,6 +336,15 @@ void SHAPE_Extents (SHAPE *shp, double *extents)
     if (e [4] > extents [4]) extents [4] = e [4];
     if (e [5] > extents [5]) extents [5] = e [5];
   }
+
+  margin = 10.0 * GEOMETRIC_EPSILON;
+
+  extents [0] -= margin;
+  extents [1] -= margin;
+  extents [2] -= margin;
+  extents [3] += margin;
+  extents [4] += margin;
+  extents [5] += margin;
 }
 
 /* release shape memory */

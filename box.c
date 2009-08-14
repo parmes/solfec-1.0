@@ -210,8 +210,17 @@ static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
   {
     bod = box->body;
 
-    global_ids [i * num_gid_entries] = bod->id;
-    global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp; /* local SGP index */
+    if (bod) /* attached */
+    {
+      global_ids [i * num_gid_entries] = bod->id;
+      global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp; /* local SGP index */
+    }
+    else /* detached */
+    {
+      global_ids [i * num_gid_entries] = box->bid;
+      global_ids [i * num_gid_entries + 1] = (int) box->sgp; /* local SGP index */
+    }
+
     local_ids [i * num_lid_entries] = i;
     *aux = box;
   }
@@ -221,8 +230,17 @@ static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
   {
     bod = box->body;
 
-    global_ids [i * num_gid_entries] = bod->id;
-    global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp;
+    if (bod)
+    {
+      global_ids [i * num_gid_entries] = bod->id;
+      global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp;
+    }
+    else
+    {
+      global_ids [i * num_gid_entries] = box->bid;
+      global_ids [i * num_gid_entries + 1] = (int) box->sgp;
+    }
+
     local_ids [i * num_lid_entries] = i;
     *aux = box;
   }
@@ -289,9 +307,9 @@ static void* box_unpack (AABB *aabb, int *dpos, double *d, int doubles, int *ipo
   {
     switch (kind)
     {
-    case GOBJ_ELEMENT: sgp->box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
-    case GOBJ_CONVEX:  sgp->box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
-    case GOBJ_SPHERE:  sgp->box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
+    case GOBJ_ELEMENT: AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
+    case GOBJ_CONVEX:  AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
+    case GOBJ_SPHERE:  AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
     }
 
     box = sgp->box;
@@ -441,50 +459,35 @@ static void syncset (SET **theset, MEM *setmem)
   free (sizes);
 }
 
-/* attach deteached boxes */
+/* attach or remove deteached boxes */
 static void attach_detached (AABB *aabb)
 {
-  BOX *box, *next;
+  SET *item;
   BODY *bod;
   DOM *dom;
+  BOX *box;
 
   dom = aabb->dom;
 
-  for (box = aabb->in; box; box = next)
+  for (item = SET_First (aabb->detached); item; item = SET_Next (item))
   {
-    next = box->next;
+    box = item->data;
 
-    if (box->body == NULL)
+    bod = MAP_Find (dom->children, (void*) box->bid, NULL);
+    if (!bod) bod = MAP_Find (dom->idb, (void*) box->bid, NULL);
+
+    if (bod)
     {
-      bod = MAP_Find (dom->children, (void*) box->bid, NULL);
-      if (!bod) bod = MAP_Find (dom->idb, (void*) box->bid, NULL);
-
-      if (bod)
-      {
-	box->body = bod;
-	box->sgp = &bod->sgp [(int) box->sgp];
-      }
-      else AABB_Delete (aabb, box);
+      box->body = bod;
+      box->sgp = &bod->sgp [(int) box->sgp];
+      box->sgp->box = box;
+      box->data = box->sgp->shp->data;
+      box->update = extents_update (box->sgp);
     }
+    else AABB_Delete (aabb, box); 
   }
 
-  for (box = aabb->lst; box; box = next)
-  {
-    next = box->next;
-
-    if (box->body == NULL)
-    {
-      bod = MAP_Find (dom->children, (void*) box->bid, NULL);
-      if (!bod) bod = MAP_Find (dom->idb, (void*) box->bid, NULL);
-
-      if (bod)
-      {
-	box->body = bod;
-	box->sgp = &bod->sgp [(int) box->sgp];
-      }
-      else AABB_Delete (aabb, box);
-    }
-  }
+  SET_Free (&aabb->setmem, &aabb->detached);
 }
 
 /* balance boxes */
@@ -617,11 +620,14 @@ static void aabb_balance (AABB *aabb)
   COMOBJS (MPI_COMM_WORLD, TAG_AABB_BALANCE, (OBJ_Pack)box_pack, aabb, (OBJ_Unpack)box_unpack, send, nsend, &recv, &nrecv);
 
   /* delete exported boxes */
-  for (item = SET_First (del); item; item = SET_Next (item)) AABB_Delete (aabb, item->data);
+  for (item = SET_First (del); item; item = SET_Next (item))
+  {
+    SET_Delete (&aabb->setmem, &aabb->detached, item->data, NULL); /* in case it was detached */
+    AABB_Delete (aabb, item->data);
+  }
 
-  /* there should be no detached bodies left */
-  for (box = aabb->in; box; box = box->next) ASSERT_DEBUG (box->body, "A deteached box found");
-  for (box = aabb->lst; box; box = box->next) ASSERT_DEBUG (box->body, "A deteached box found");
+  /* manage detached boxes */
+  attach_detached (aabb);
 
   SET_Free (&aabb->setmem, &del);
   free (send);
@@ -632,6 +638,7 @@ static void aabb_balance (AABB *aabb)
 static void create_mpi (AABB *aabb)
 {
   aabb->delbod = NULL;
+  aabb->detached = NULL;
   aabb->nobody_modified = 0;
   aabb->nogobj_modified = 0;
   aabb->aux = NULL;
@@ -715,6 +722,7 @@ BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_E
   box->kind = kind | GOBJ_NEW; /* mark as new */
   box->body = body;
   box->sgp = sgp;
+  sgp->box = box;
 
   /* include into the
    * insertion list */
@@ -771,11 +779,12 @@ void AABB_Insert_Body (AABB *aabb, void *body)
 {
   SGP *sgp, *sgpe;
   BODY *bod;
+  BOX *box;
 
   for (bod = body, sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
   {
-    sgp->box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp,
-                            sgp->shp->data, extents_update (sgp));
+    box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, sgp->shp->data, extents_update (sgp));
+    box->update (box->data, box->sgp->gobj, box->extents); /* initial update */
   }
 }
 
@@ -809,8 +818,12 @@ void AABB_Detach_Body (AABB *aabb, void *body)
 
     if (box)
     {
-      box->sgp = (SGP*) (box->sgp - bod->sgp);
-      box->body = NULL;
+      box->sgp->box = NULL; /* detach box from the body */
+      box->sgp = (SGP*) (box->sgp - bod->sgp); /* relative index */
+      box->body = NULL; /* detach body from the box */
+
+      /* insert into detached boxes list */
+      SET_Insert (&aabb->setmem, &aabb->detached, box, NULL);
     }
   }
 }
@@ -822,9 +835,9 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
   BOX *box, *next, *adj;
   MAP *item, *jtem;
-
+  
 #if MPI
-  attach_detached (aabb);
+  aabb_balance (aabb);
 #endif
 
   /* update extents */
@@ -832,14 +845,10 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
     box->update (box->data, box->sgp->gobj, box->extents);
 
   for (box = aabb->in; box; box = box->next) /* for each inserted box */
+  {
     box->update (box->data, box->sgp->gobj, box->extents);
-
-#if MPI
-  aabb_balance (aabb);
-#endif
-
-  for (box = aabb->in; box; box = box->next) /* for each inserted box */
     box->kind &= ~GOBJ_NEW; /* not new any more */
+  }
 
   /* check for released overlaps */
   for (box = aabb->out; box; box = next) /* for each deleted box */
@@ -850,7 +859,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
     {
       adj = item->key;
 #if MPI
-      if (box->body) /* not detached */
+      if (box->body) /* attached */
 #endif
       release (data, box, adj, item->data); /* release overlap */
       MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
