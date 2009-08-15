@@ -99,7 +99,7 @@ static void localbase (double *n, double *loc)
 }
 
 /* insert a new constrait between two bodies */
-static CON* insert (DOM *dom, BODY *master, BODY *slave)
+static CON* insert (DOM *dom, BODY *master, BODY *slave, short locdyn)
 {
   CON *con;
 
@@ -126,7 +126,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
 #if MPI
   if (!dom->noid)
   {
-    if (dom->sparecid)
+    if (SET_Size (dom->sparecid))
     {
       SET *item;
      
@@ -143,7 +143,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
   MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
 
   /* insert into local dynamics */
-  con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
+  if (locdyn) con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
 
   return con;
 }
@@ -195,7 +195,7 @@ static CON* insert_contact (DOM *dom, BOX *mbox, BOX *sbox, BODY *master, BODY *
 {
   CON *con;
 
-  con = insert (dom, master, slave);
+  con = insert (dom, master, slave, 0); /* 0: do not insert into LOCDYN yet, only after sparsification */
   con->kind = CONTACT;
   con->mgobj = mgobj;
   con->mkind = mkind;
@@ -280,6 +280,9 @@ void update_contact (DOM *dom, CON *con)
 
   if (con->state & CON_NEW)
   {
+    /* insert into local dynamics */
+    con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
+    /* invalidate newness */
     con->state &= ~CON_NEW;
     return; /* new contacts are up to date */
   }
@@ -396,7 +399,6 @@ static void sparsify_contacts (DOM *dom)
   double threshold = dom->threshold;
   SET *del, *itm;
   CON *con, *adj;
-  OFFB *blk;
   MEM mem;
   int n;
 
@@ -406,9 +408,13 @@ static void sparsify_contacts (DOM *dom)
   {
     if (con->kind == CONTACT && con->state & CON_NEW) /* walk over all new contacts */
     {
-      for (blk = con->dia->adj; blk; blk = blk->n)
+      SET *set [2] = {con->master->con, con->slave->con};
+
+      for (n = 0; n < 2; n ++) for (itm = SET_First (set [n]); itm; itm = SET_Next (itm))
       {
-	adj = blk->dia->con;
+	adj = itm->data;
+
+	if (adj == con) continue;
 	
 	if (con->area < threshold * adj->area) /* check whether the area of the diagonal element is too small (this test is cheaper => let it go first) */
 	{
@@ -448,7 +454,7 @@ static void sparsify_contacts (DOM *dom)
   }
 
   /* report */
-  if (dom->verbose) printf ("CONSTRAINTS: %d\nSPARSIFIED CONTACTS: %d\n",  dom->ncon, n);
+  if (dom->verbose) printf ("SPARSIFIED CONTACTS: %d\n",  n);
 
   /* clean up */
   MEM_Release (&mem);
@@ -1389,7 +1395,7 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
 #if MPI
   ASSERT_DEBUG (dom->rank == 0, "Bodies can only be inserted at rank 0");
 
-  if (dom->sparebid)
+  if (SET_Size (dom->sparebid))
   {
     SET *item;
    
@@ -1486,7 +1492,7 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL);
+  con = insert (dom, bod, NULL, 1);
   con->kind = FIXPNT;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
@@ -1508,7 +1514,7 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL);
+  con = insert (dom, bod, NULL, 1);
   con->kind = FIXDIR;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
@@ -1530,7 +1536,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL);
+  con = insert (dom, bod, NULL, 1);
   con->kind = VELODIR;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
@@ -1574,7 +1580,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   
   if (d < GEOMETRIC_EPSILON) /* no point in keeping very short links */
   {
-    con = insert (dom, master, slave);
+    con = insert (dom, master, slave, 1);
     con->kind = FIXPNT;
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
@@ -1595,7 +1601,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   }
   else
   {
-    con = insert (dom, master, slave);
+    con = insert (dom, master, slave, 1);
     con->kind = RIGLNK;
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
@@ -1637,7 +1643,7 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
   dom->ncon --;
 
   /* remove from local dynamics */
-  LOCDYN_Remove (dom->ldy, con->dia);
+  if (con->dia) LOCDYN_Remove (dom->ldy, con->dia);
 
 #if MPI
   /* free constraint id if needed */
@@ -1699,6 +1705,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   aabb_timing (dom, timerend (&timing));
 
+  /* sparsify new contacts */
+  sparsify_contacts (dom);
+
   /* update old constraints */
   for (con = dom->con; con; con = con->next)
   {
@@ -1712,8 +1721,8 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     }
   }
 
-  /* sparsify new contacts */
-  sparsify_contacts (dom);
+  /* report */
+  if (dom->verbose) printf ("CONSTRAINTS: %d\n",  dom->ncon);
 
 #if MPI
   domain_glue (dom);

@@ -262,6 +262,8 @@ static void unpack_block_offids (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, d
     b->n = dia->adj;
     dia->adj = b;
   }
+
+  /* TODO: remove duplicates */
 }
 
 /* pack diagonal block */
@@ -343,6 +345,8 @@ static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *
     b->n = dia->adj;
     dia->adj = b;
   }
+
+  /* TODO: sum up and remove duplicates (happen due to multiple contacts between same two bodies)*/
 }
 
 /* delete balanced block */
@@ -507,8 +511,8 @@ static void clear_adjext (LOCDYN *ldy, DIAB *dia)
 /* build external adjacency */
 static void locdyn_adjext (LOCDYN *ldy)
 {
-  SET *item, *jtem;
   CONEXT *ext;
+  SET *item;
   BODY *bod;
   DIAB *dia;
   CON *con;
@@ -516,27 +520,24 @@ static void locdyn_adjext (LOCDYN *ldy)
 
   for (dia = ldy->dia; dia; dia = dia->n) clear_adjext (ldy, dia);
 
-  for (bod = DOM (ldy->dom)->bod; bod; bod = bod->next)
+  for (ext = DOM(ldy->dom)->conext; ext; ext = ext->next) /* for each external constraint in the domain */
   {
+    bod = ext->bod; /* for all involved bodies (parents and children) */
+
     if (bod->kind == OBS) continue; /* obstacles do not trasnder adjacency */
 
-    for (item = SET_First (bod->con); item; item = SET_Next (item))
+    for (item = SET_First (bod->con); item; item = SET_Next (item))  /* for each regular constraint */
     {
       con = item->data;
       dia = con->dia;
 
-      for (jtem = SET_First (bod->conext); jtem; jtem = SET_Next (jtem))
-      {
-        ext = jtem->data;
-
-	ERRMEM (b = MEM_Alloc (&ldy->offmem));
-	b->dia = NULL; /* there is no diagonal block here */
-	b->bod = bod; /* adjacent through this body */
-	b->id = ext->id; /* useful when migrated */
-	b->ext = ext;
-	b->n = dia->adjext;
-	dia->adjext = b;
-      }
+      ERRMEM (b = MEM_Alloc (&ldy->offmem));
+      b->dia = NULL; /* there is no diagonal block here */
+      b->bod = bod; /* adjacent through this body */
+      b->id = ext->id; /* useful when migrated */
+      b->ext = ext;
+      b->n = dia->adjext;
+      dia->adjext = b;
     }
   }
 }
@@ -1009,9 +1010,10 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
   {
     for (item = SET_First (one->con); item; item = SET_Next (item))
     {
-      if (item->data != con) /* skip the coincident constraint */
+      c = item->data;
+
+      if (c != con && c->dia) /* skip the coincident or unattached yet constraint */
       {
-	c = item->data;
 	nei = c->dia;
 
         /* allocate block and put into 'nei->adj' list */ 
@@ -1041,9 +1043,10 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
   {
     for (item = SET_First (two->con); item; item = SET_Next (item))
     {
-      if (item->data != con) /* skip the coincident constraint */
+      c = item->data;
+
+      if (c != con && c->dia) /* skip the coincident or unattached yet constraint */
       {
-	c = item->data;
 	nei = c->dia;
 
         /* allocate block and put into 'nei->adj' list */ 
@@ -1119,11 +1122,13 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
     dia->n->p = dia->p;
 
 #if MPI
-  MAP *item;
+  MAP *item, *jtem;
 
   if ((item = MAP_Find_Node (ldy->insmap, dia, NULL))) /* was inserted and now is deleted before balancing */
   {
-    ldy->ins [(int)item->data] = ldy->ins [-- ldy->nins]; /* replace this item in items table */
+    ldy->ins [(int)item->data] = ldy->ins [-- ldy->nins]; /* replace this item withe the last one */
+    ASSERT_DEBUG (jtem = MAP_Find_Node (ldy->insmap, ldy->ins [(int)item->data], NULL), "Failed to find an inserted block");
+    jtem->data = item->data; /* update block to index mapping */
     MAP_Delete_Node (&ldy->mapmem, &ldy->insmap, item); /* remove from map */
     MEM_Free (&ldy->diamem, dia); /* and free */
   }

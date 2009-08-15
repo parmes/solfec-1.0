@@ -280,7 +280,7 @@ void COMOBJS (MPI_Comm comm, int tag,
   ERRMEM (*recv = malloc ((*nrecv) * sizeof (COMOBJ)));
 
   /* unpack received objects */
-  for (n = i = 0, cd = recv_data, co = *recv; i < recv_count; i ++)
+  for (n = i = 0, cd = recv_data, co = *recv; i < recv_count; i ++, cd ++)
   {
     int ipos = 0,
 	dpos = 0;

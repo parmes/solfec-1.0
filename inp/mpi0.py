@@ -3,7 +3,7 @@
 from math import sin
 from math import cos
 
-N = 4
+N = 5
 PI = 3.14159265358979323846 
 
 def masonry_arch_create (ratio, material, solfec):
@@ -68,8 +68,7 @@ def masonry_arch_create (ratio, material, solfec):
     k = 1 + i % 4
     surfaces = [k, k, k, k, k, k]
 
-   #hex = HEX (nodes, 3, 2, 1, 0, surfaces, dx)
-    hex = HEX (nodes, 1, 1, 1, 0, surfaces)
+    hex = HEX (nodes, 2, 3, 1, 0, surfaces)
     BODY (solfec, 'RIGID', hex, material)
     alpha += dalpha
 
