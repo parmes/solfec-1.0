@@ -1862,9 +1862,6 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
 
   /* body id */
   pack_int (isize, i, ints, bod->id);
-
-  /* pack parent rank => same as domain's rank */
-  pack_int (isize, i, ints, DOM (bod->dom)->rank);
 }
 
 /* unpack child body */
@@ -1897,9 +1894,6 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
   /* body id */
   bod->id = unpack_int (ipos, i, ints);
 
-  /* unpack parent rank */
-  bod->my.parent = unpack_int (ipos, i, ints);
-
   /* init inverse */
   if (sol->dom->dynamic)
     BODY_Dynamic_Init (bod, bod->scheme);
@@ -1917,6 +1911,7 @@ void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int
   pack_int (isize, i, ints, bod->id);
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+  pack_int (isize, i, ints, DOM (bod->dom)->rank); /* pack parent rank => same as domain's rank */
 }
 
 /* unpack body state and update the shape */
@@ -1932,6 +1927,8 @@ void BODY_Child_Unpack_State (void *domain, int *dpos, double *d, int doubles, i
 
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+
+  bod->my.parent = unpack_int (ipos, i, ints); /* unpack parent rank */
 
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }

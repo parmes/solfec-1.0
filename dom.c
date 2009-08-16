@@ -1032,7 +1032,7 @@ inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
   return &(*send)[nsend];
 }
 
-/* update children */
+/* update children configurations and parent ranks */
 static void domain_gossip (DOM *dom)
 {
   COMOBJ *send, *recv, *ptr;
@@ -1055,7 +1055,8 @@ static void domain_gossip (DOM *dom)
   }
 
   /* send configuration and velocity from parent to child bodies and
-   * update children shapes while unpacking the sent data */
+   * update children shapes while unpacking the sent data; also update parent
+   * ranks as those might change when parents migrate while their children don't */
   COMOBJS (MPI_COMM_WORLD, TAG_CHILDREN_UPDATE, (OBJ_Pack)BODY_Child_Pack_State, dom,
            (OBJ_Unpack)BODY_Child_Unpack_State, send, nsend, &recv, &nrecv);
 
@@ -1956,7 +1957,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
   free (send);
   free (recv);
 
-  /* update children configurations */
+  /* update children configurations and parent ranks */
   domain_gossip (dom);
 }
 #endif

@@ -273,6 +273,15 @@ static void lopoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int 
   *ierr = ZOLTAN_OK;
 }
 
+/* compare detached boxes */
+static int detached_compare (BOX *a, BOX *b)
+{
+  if (a->bid < b->bid) return -1;
+  else if (a->bid == b->bid && a->sgp < b->sgp) return -1;
+  else if (a->bid == b->bid && a->sgp == b->sgp) return 0;
+  else return 1;
+}
+
 /* pack migration data */
 static void box_pack (BOX *box, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -287,23 +296,27 @@ static void box_pack (BOX *box, int *dsize, double **d, int *doubles, int *isize
 static void* box_unpack (AABB *aabb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   DOM *dom = aabb->dom;
-  int bid, kind, isgp;
   double extents [6];
+  BOX *box, aux;
   BODY *bod;
+  int kind;
   SGP *sgp;
-  BOX *box;
 
-  bid = unpack_int (ipos, i, ints);
+  aux.bid = unpack_int (ipos, i, ints);
   kind = unpack_int (ipos, i, ints);
-  isgp = unpack_int (ipos, i, ints);
+  aux.sgp = (SGP*) unpack_int (ipos, i, ints);
   unpack_doubles (dpos, d, doubles, extents, 6);
 
-  bod = MAP_Find (dom->children, (void*) bid, NULL);
-  if (!bod) ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) bid, NULL), "Invalid body id");
+  /* a body must be waiting here for this box => let us make sure */
+  bod = MAP_Find (dom->children, (void*) aux.bid, NULL);
+  if (!bod) ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) aux.bid, NULL), "Invalid body id");
 
-  sgp = &bod->sgp [isgp];
+  /* but it could also be detached => if so let it get attached later, not here */
+  if (SET_Contains (aabb->detached, &aux, (SET_Compare) detached_compare)) return NULL;
 
-  if (sgp->box == NULL) /* do not insert boxes that are already attached */
+  sgp = &bod->sgp [(int) aux.sgp];
+
+  if (sgp->box == NULL) /* do not insert boxes that already exist */
   {
     switch (kind)
     {
@@ -622,8 +635,9 @@ static void aabb_balance (AABB *aabb)
   /* delete exported boxes */
   for (item = SET_First (del); item; item = SET_Next (item))
   {
-    SET_Delete (&aabb->setmem, &aabb->detached, item->data, NULL); /* in case it was detached */
-    AABB_Delete (aabb, item->data);
+    box = item->data;
+    if (!box->body) SET_Delete (&aabb->setmem, &aabb->detached, box, (SET_Compare) detached_compare); /* it was detached */
+    AABB_Delete (aabb, box);
   }
 
   /* manage detached boxes */
@@ -809,8 +823,9 @@ void AABB_Delete_Body (AABB *aabb, void *body)
 void AABB_Detach_Body (AABB *aabb, void *body)
 {
   SGP *sgp, *sgpe;
+  BOX *box, *adj;
   BODY *bod;
-  BOX *box;
+  MAP *item;
 
   for (bod = body, sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
   {
@@ -822,8 +837,15 @@ void AABB_Detach_Body (AABB *aabb, void *body)
       box->sgp = (SGP*) (box->sgp - bod->sgp); /* relative index */
       box->body = NULL; /* detach body from the box */
 
+      for (item = MAP_First (box->adj); item; item = MAP_Next (item)) /* for each adjacent box */
+      {
+	adj = item->key;
+	MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
+      }
+      MAP_Free (&aabb->mapmem, &box->adj); /* free adjacency */
+
       /* insert into detached boxes list */
-      SET_Insert (&aabb->setmem, &aabb->detached, box, NULL);
+      SET_Insert (&aabb->setmem, &aabb->detached, box, (SET_Compare) detached_compare);
     }
   }
 }
@@ -899,8 +921,10 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
       aabb->in = NULL; /* list emptied */
       aabb->nin = 0;
       aabb->ntab = aabb->nlst; /* resize the pointer table */
-      ERRMEM (aabb->tab = realloc (aabb->tab, sizeof (BOX*) * aabb->ntab));
+      free (aabb->tab);
+      ERRMEM (aabb->tab = malloc (sizeof (BOX*) * aabb->ntab));
     }
+    else aabb->ntab = aabb->nlst; /* deleted boxes could decrement the counter */
 
     for (box = aabb->lst, b = aabb->tab; box; box = box->next, b ++) *b = box; /* overwrite box pointers */
   }
