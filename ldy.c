@@ -1427,6 +1427,8 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
 
   free (send);
   free (recv);
+
+  /* TODO: update REXT reactions to the latest values stored in balanced blocks */
 }
 #endif
 

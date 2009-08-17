@@ -508,101 +508,126 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 }
 
 #if MPI
+/* a single row Gauss-Seidel step */
+static void gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
+{
+  OFFB *blk;
+  int di, diagiters;
+  double err [4],
+         R0 [3],
+	 B [3],
+	 *R;
+
+  R = dia->R;
+
+  /* prefetch reactions */
+  for (blk = dia->adj; blk; blk = blk->n)
+  {
+    if (blk->dia) { COPY (blk->dia->R, blk->R); }
+    else { COPY (XR(blk->ext)->R, blk->R); }
+  }
+
+  /* compute local free velocity */
+  COPY (dia->B, B);
+  for (blk = dia->adj; blk; blk = blk->n)
+  {
+    double *W = blk->W,
+	   *R = blk->R;
+    NVADDMUL (B, W, R, B);
+  }
+  
+  COPY (R, R0); /* previous reaction */
+
+  /* solve local diagonal block problem */
+  di = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
+  MPI_Allreduce (&di, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+  if (diagiters > gs->diagmaxiter || diagiters < 0)
+  {
+    if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
+    else gs->error = GS_DIAGONAL_DIVERGED;
+
+    switch (gs->failure)
+    {
+    case GS_FAILURE_CONTINUE:
+      COPY (R0, R); /* use previous reaction */
+      break;
+    case GS_FAILURE_EXIT:
+      fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED\n");
+      exit (1);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      return;
+    }
+  }
+
+  /* accumulate relative
+   * error components */
+  SUB (R, R0, R0);
+  err [2] = DOT (R0, R0);
+  err [3] = DOT (R, R);
+  MPI_Allreduce (err + 2, err, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  *errup += err [0];
+  *errup += err [1];
+}
+    
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
   double error, step;
-  int diagiters;
   short dynamic;
   char fmt [512];
-  int div = 10;
-  XR *REXT;
+  int div = 10,
+      rank;
 
   if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
   if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
 
   LOCDYN_REXT_Update (ldy); /* update REXT related data */
-  REXT = ldy->REXT;
+
+  /* TODO:
+   * 
+   * 1. Create set A of blocks that send only to one rank.
+   * 2. Create set B of blocks that receive only from one rank.
+   * 3. Create communication pattern between sets A and B.
+   * 4. Create set C of internal blocks.
+   * 5. Create set D of remaining blocks.
+   * 6. Process A.
+   * 7. Send from A to B.
+   * 8. Start processing B and C.
+   * 9. While executing point 8 in a separate thread do:
+   *    a) Color blocks of D using the send-receive (children, rext) graph
+   *    b) Perform colored Gauss-Seidel on blocks from D
+   * 10. Wait until 8, a) and b) finish.
+   */
 
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
+  rank = DOM(ldy->dom)->rank;
   gs->error = GS_OK;
   gs->iters = 0;
   do
   {
     double errup = 0.0,
 	   errlo = 0.0;
-    OFFB *blk;
     DIAB *dia;
    
     for (dia = ldy->diab; dia; dia = dia->n) /* use balanced blocks */
     {
-      double R0 [3],
-	     B [3],
-	     *R = dia->R;
-
-      /* prefetch reactions */
-      for (blk = dia->adj; blk; blk = blk->n)
-      {
-	if (blk->dia) { COPY (blk->dia->R, blk->R); }
-	else { COPY (XR(blk->ext)->R, blk->R); } /* TODO: asynchronous receive or a complete Adams approach */
-      }
-
-      /* compute local free velocity */
-      COPY (dia->B, B);
-      for (blk = dia->adj; blk; blk = blk->n)
-      {
-	double *W = blk->W,
-	       *R = blk->R;
-	NVADDMUL (B, W, R, B);
-      }
-      
-      COPY (R, R0); /* previous reaction */
-
-      /* solve local diagonal block problem */
-      diagiters = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
-
-      /* TODO: MPI_Allreduce (diagiters, MAX) */
-
-      if (diagiters > gs->diagmaxiter || diagiters < 0)
-      {
-	if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
-	else gs->error = GS_DIAGONAL_DIVERGED;
-
-	switch (gs->failure)
-	{
-	case GS_FAILURE_CONTINUE:
-	  COPY (R0, R); /* use previous reaction */
-	  break;
-	case GS_FAILURE_EXIT:
-	  fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED\n");
-	  exit (1);
-	  break;
-	case GS_FAILURE_CALLBACK:
-	  gs->callback (gs->data);
-	  return;
-	}
-      }
-
-      /* accumulate relative
-       * error components */
-      SUB (R, R0, R0);
-      errup += DOT (R0, R0);
-      errlo += DOT (R, R);
-
-      /* TODO: MPI_Allreduce (err..., ADD) */
+      gauss_siedel (gs, dynamic, step, dia, &errup, &errlo);
     }
 
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
     if (gs->history) gs->rerhist [gs->iters] = error;
 
-    if (gs->iters % div == 0 && gs->verbose) printf (fmt, gs->iters, error), div *= 2;
+    if (rank == 0 && gs->iters % div == 0 && gs->verbose) printf (fmt, gs->iters, error), div *= 2;
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
-  if (gs->verbose) printf (fmt, gs->iters, error);
+  if (rank == 0 && gs->verbose) printf (fmt, gs->iters, error);
 
   if (gs->iters >= gs->maxiter)
   {
@@ -621,7 +646,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       return;
     }
   }
-
 }
 #else
 /* run serial solver */
