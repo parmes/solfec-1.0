@@ -52,14 +52,16 @@ struct offb
 	 T [9], /* tangent operator block */
 	 R [3]; /* prefetched dia->R */
 
-  DIAB *dia;
+  DIAB *dia; /* can be NULL for balanced boundary blocks */
   BODY *bod;
   OFFB *n;
 
 #if MPI
   unsigned int id; /* adjacent constraint id */
 
-  void *ext; /* external constraint */
+  void *ext; /* unbalanced W: external constraint;
+		balanced W: index of an external reaction in REXT when dia == NULL,
+		            that is for a boundary off-diagonal block */
 #endif
 };
 
@@ -87,6 +89,10 @@ struct diab
 
   int rank; /* for a parent: rank of its child, and vice versa */
 
+  MAP *children; /* balanced boundary nodes map children ranks to local reaction REXT indices */
+
+  SET *rext; /* balanced boundary receiving nodes store pointers to their XR here */
+
   /* local dynamic system entries can be migrated in parallel,
    * hence it is better to copy the necessary members of an
    * underlying constraint, in order to support independent migration */
@@ -103,6 +109,14 @@ struct diab
   SURFACE_MATERIAL mat;
 #endif
 };
+
+#if MPI
+/* eXternal Reaction */
+typedef struct { double R [3]; int id; int rank; short done; } XR;
+
+/* XR pointer cast */
+#define XR(ptr) ((XR*)(ptr))
+#endif
 
 /* local dynamics */
 struct locdyn
@@ -123,10 +137,15 @@ struct locdyn
   DIAB **del; /* recently deleted unbalanced blocks */
   int ndel, sdel; /* number and size */
 
-  MEM mapmem;
+  MEM mapmem, /* map items memory */
+      setmem; /* set items memory */
+
   MAP *idbb; /* id-to-balanced diagonal block map */
   DIAB *diab; /* list of diagonal blocks (balanced) */
   int ndiab; /* number of balanced diagonal blocks */
+
+  XR *REXT; /* table of reactions stored at other processors */
+  int REXT_count; /* count of external reactions */
 
   struct Zoltan_Struct *zol;
 #endif
@@ -147,6 +166,11 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind);
 
 /* update local dynamics => after the solution */
 void LOCDYN_Update_End (LOCDYN *ldy);
+
+#if MPI
+/* update mapping of balanced external reactions */
+void LOCDYN_REXT_Update (LOCDYN *ldy);
+#endif
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);

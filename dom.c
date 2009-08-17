@@ -1040,7 +1040,7 @@ static void domain_gossip (DOM *dom)
   BODY *bod;
   SET *item;
 
-  size = dom->nbod;
+  size = MAX (dom->nbod, 128);
   ERRMEM (send = malloc (sizeof (COMOBJ [size])));
 
   /* gather are (body, rank) send paris */
@@ -1187,7 +1187,7 @@ static void domain_glue (DOM *dom)
   /* Remove all currrently stored external constraints */
   conext_remove_all (dom);
 
-  size = dom->ncon;
+  size = MAX (dom->ncon, 128);
 
   ERRMEM (send = malloc (sizeof (COMOBJ [size])));
 

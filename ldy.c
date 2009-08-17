@@ -30,6 +30,7 @@
 #include "pck.h"
 #include "com.h"
 #include "tag.h"
+#include "lis.h"
 #endif
 
 /* memory block size */
@@ -106,32 +107,9 @@ static void variables_change_end (LOCDYN *ldy)
 }
 
 #if MPI
-/* swap two ids */
-inline static void ID_swap (ZOLTAN_ID_PTR a, ZOLTAN_ID_PTR b)
-{
-  ZOLTAN_ID_TYPE c = *a; *a = *b; *b = c;
-}
-
-/* sort a list of identifiers */
-static void ID_sort (ZOLTAN_ID_PTR begin, ZOLTAN_ID_PTR end)
-{
-  ZOLTAN_ID_TYPE *lower = begin,
-	         *upper = end,
-                  bound = *(begin+(end-begin)/2);
-  
-  while (lower <= upper)
-  {
-    while (*lower < bound) lower++;
-
-    while (bound < *upper) upper--;
-
-    if (lower < upper) ID_swap (lower ++, upper--);
-    else lower ++;
-  }
-
-  if (begin < upper) ID_sort (begin, upper);
-  if (upper < end) ID_sort (upper+1, end);
-}
+/* sort off-diagonal blocks by ids */
+#define LEOFFB(a, b) ((a)->id <= (b)->id)
+IMPLEMENT_LIST_SORT (SINGLE_LINKED, sort_offb, OFFB, p, n, LEOFFB)
 
 /* number of vertices in the local W graph */
 static int vertex_count (LOCDYN *ldy, int *ierr)
@@ -201,8 +179,6 @@ static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int n
     *GID = dia->id; n ++, GID ++;
 
     for (b = dia->adj; b; b = b->n, n ++, GID ++) *GID = b->id;
-
-    ID_sort (&pin_GID [*vtxedge_ptr], GID-1);
   }
 
   for (j = 0; j < ldy->nins; j ++, vtxedge_GID ++, vtxedge_ptr ++)
@@ -214,8 +190,6 @@ static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int n
 
     for (b = dia->adj; b; b = b->n, n ++, GID ++) *GID = b->id;
     for (b = dia->adjext; b; b = b->n, n ++, GID ++) *GID = b->id;
-
-    ID_sort (&pin_GID [*vtxedge_ptr], GID-1);
   }
 
   *ierr = ZOLTAN_OK;
@@ -242,7 +216,7 @@ static void pack_block_offids (DIAB *dia, int *dsize, double **d, int *doubles, 
 /* unpack off-diagonal block ids */
 static void unpack_block_offids (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  OFFB *b, *n;
+  OFFB *b, *n, *x;
   int m;
 
   /* free current off-diagonal blocks */
@@ -263,7 +237,19 @@ static void unpack_block_offids (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, d
     dia->adj = b;
   }
 
-  /* TODO: remove duplicates */
+  /* remove duplicates (happen when more than two constraints exist between two bodies) */
+  dia->adj = sort_offb (dia->adj);
+  for (b = dia->adj; b; b = b->n)
+  {
+    n = b->n;
+    while (n && b->id == n->id)
+    {
+      x = n;
+      n = n->n;
+      MEM_Free (offmem, x);
+    }
+    b->n = n;
+  }
 }
 
 /* pack diagonal block */
@@ -308,7 +294,7 @@ static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *is
 /* unpack diagonal block */
 static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  OFFB *b, *n;
+  OFFB *b, *n, *x;
   int m;
 
   unpack_doubles (dpos, d, doubles, dia->R, 3);
@@ -346,7 +332,20 @@ static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *
     dia->adj = b;
   }
 
-  /* TODO: sum up and remove duplicates (happen due to multiple contacts between same two bodies)*/
+  /* sum up and remove duplicates (happen due to multiple contacts between same two bodies)*/
+  dia->adj = sort_offb (dia->adj);
+  for (b = dia->adj; b; b = b->n)
+  {
+    n = b->n;
+    while (n && b->id == n->id)
+    {
+      x = n;
+      n = n->n;
+      NNADD (b->W, x->W, b->W); /* sum up W blocks */
+      MEM_Free (offmem, x);
+    }
+    b->n = n;
+  }
 }
 
 /* delete balanced block */
@@ -355,6 +354,9 @@ static void delete_balanced_block (LOCDYN *ldy, DIAB *dia)
   OFFB *b, *n;
 
   MAP_Delete (&ldy->mapmem, &ldy->idbb, (void*)dia->id, NULL);
+
+  MAP_Free (&ldy->mapmem, &dia->children);
+  SET_Free (&ldy->setmem, &dia->rext);
 
   if (dia->p) dia->p->n = dia->n;
   else ldy->diab = dia->n;
@@ -921,9 +923,14 @@ static void create_mpi (LOCDYN *ldy)
   ldy->ndel = 0;
 
   MEM_Init (&ldy->mapmem, sizeof (MAP), BLKSIZE);
+  MEM_Init (&ldy->setmem, sizeof (SET), BLKSIZE);
+
   ldy->idbb = NULL;
   ldy->diab = NULL;
   ldy->ndiab = 0;
+
+  ldy->REXT = NULL;
+  ldy->REXT_count = 0;
 
   /* create Zoltan context */
   ASSERT (ldy->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
@@ -1288,6 +1295,140 @@ void LOCDYN_Update_End (LOCDYN *ldy)
   locdyn_gossip (ldy);
 #endif
 }
+
+#if MPI
+/* update mapping of balanced external reactions */
+void LOCDYN_REXT_Update (LOCDYN *ldy)
+{
+  int *local_ids,
+      *global_ids,
+      *size, *disp,
+      ncpu, i, j, k, n;
+  DIAB *dia;
+  OFFB *b;
+
+  ncpu = DOM(ldy->dom)->size;
+
+  ERRMEM (size = malloc (sizeof (int [ncpu])));
+  ERRMEM (disp = malloc (sizeof (int [ncpu])));
+  ERRMEM (local_ids = malloc (sizeof (int [ldy->ndiab])));
+
+  /* gather counts of local balanced blocks into size table */
+  MPI_Allgather (&ldy->ndiab, 1, MPI_INT, size, 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (i = disp [0] = 0; i < ncpu - 1; i ++) disp [i+1] = disp [i] + size [i];
+
+  n = disp [ncpu-1] + size [ncpu-1];
+  ERRMEM (global_ids = malloc (sizeof (int [n])));
+
+  for (i = 0, dia = ldy->diab; dia; i ++, dia = dia->n) local_ids [i] = dia->id;
+
+  /* gather all local balanced block ids into one global table of global_ids */
+  MPI_Allgatherv (local_ids, ldy->ndiab, MPI_INT, global_ids, size, disp, MPI_INT, MPI_COMM_WORLD);
+
+  MAP *idrank = NULL; /* id to rank map */
+  MAP *ididx = NULL; /* id to local REXT index map */
+  MEM *mapmem = &ldy->mapmem;
+  MEM *setmem = &ldy->setmem;
+  MAP *item;
+  XR *xr;
+
+  for (k = i = 0; i < ncpu; i ++)
+    for (j = 0; j < size [i]; j ++, k ++)
+      MAP_Insert (mapmem, &idrank, (void*) global_ids [k], (void*) i, NULL);
+
+  /* clean up and preprocess REXT related data */
+  for (n = 0, dia = ldy->diab; dia; dia = dia->n)
+  {
+    MAP_Free (mapmem, &dia->children);
+    SET_Free (setmem, &dia->rext);
+
+    for (b = dia->adj; b; b = b->n)
+    {
+      if (!b->dia)
+      {
+	if (!MAP_Find_Node (ididx, (void*) b->id, NULL))
+	  MAP_Insert (mapmem, &ididx, (void*) b->id, (void*) (n ++), NULL);
+	b->ext = NULL;
+      }
+    }
+  }
+  free (ldy->REXT);
+  ldy->REXT = NULL;
+  ldy->REXT_count = n;
+  ERRMEM (ldy->REXT = calloc (n, sizeof (XR))); /* zero reactions by the way */
+
+  /* build up REXT related data */
+  for (dia = ldy->diab; dia; dia = dia->n)
+  {
+    for (b = dia->adj; b; b = b->n)
+    {
+      if (!b->dia)
+      {
+	ASSERT_DEBUG_EXT (item = MAP_Find_Node (ididx, (void*) b->id, NULL), "Inconsitency in id to index mapping");
+	xr = &ldy->REXT [(int) item->data];
+
+	if (!b->ext)
+	{
+	  xr->id = b->id;
+	  ASSERT_DEBUG_EXT (item = MAP_Find_Node (idrank, (void*) b->id, NULL), "Inconsitency in id to rank mapping");
+	  xr->rank = (int) item->data;
+	}
+
+	b->ext = xr; /* mapped to an REXT entry */
+
+	SET_Insert (setmem, &dia->rext, xr, NULL); /* store for fast acces */
+      }
+    }
+  }
+
+  MAP_Free (mapmem, &ididx);
+  MAP_Free (mapmem, &idrank);
+  free (size);
+  free (disp);
+  free (local_ids);
+  free (global_ids);
+
+#if DEBUG
+  for (i = 0, xr = ldy->REXT; i < n; i ++, xr ++)
+    ASSERT_DEBUG (xr->id, "Inconsitency in mapping external reactions");
+#endif
+
+  /* now send (id, index) pairs to parent blocks pointed by their ranks in REXT;
+   * this way we shall fill up the 'children' members of balanced blocks */
+
+  COMDATA *send, *recv, *ptr;
+  int nsend, nrecv, *pair;
+
+  ERRMEM (send = malloc (sizeof (COMDATA [n]) + sizeof (int [2]) * n));;
+  pair = (int*) (send + n);
+  nsend = n;
+
+  for (i = 0, xr = ldy->REXT, ptr = send; i < n; i ++, xr ++, ptr ++, pair += 2)
+  {
+    ptr->rank = xr->rank;
+    ptr->ints = 2;
+    ptr->doubles = 0;
+    ptr->i = pair;
+    pair [0] = xr->id;
+    pair [1] = (xr - ldy->REXT);
+  }
+
+  COM (MPI_COMM_WORLD, TAG_LOCDYN_REXT, send, nsend, &recv, &nrecv);
+
+  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+  {
+    for  (j = 0, pair = ptr->i; j < ptr->ints; j += 2, pair += 2)
+    {
+      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) pair [0], NULL), "Invalid block id");
+      MAP_Insert (mapmem, &dia->children, (void*) ptr->rank, (void*) pair [1], NULL); /* map child rank to the local index of its XR */
+    }
+  }
+
+  free (send);
+  free (recv);
+}
+#endif
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy)

@@ -508,6 +508,7 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 }
 
 #if MPI
+/* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
   double error, step;
@@ -515,10 +516,14 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   short dynamic;
   char fmt [512];
   int div = 10;
+  XR *REXT;
 
   if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
   if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+
+  LOCDYN_REXT_Update (ldy); /* update REXT related data */
+  REXT = ldy->REXT;
 
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
@@ -540,8 +545,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       /* prefetch reactions */
       for (blk = dia->adj; blk; blk = blk->n)
       {
-	if (blk->dia) COPY (blk->dia->R, blk->R);
-	/* TODO: asynchronous receive or a complete Adams approach */
+	if (blk->dia) { COPY (blk->dia->R, blk->R); }
+	else { COPY (XR(blk->ext)->R, blk->R); } /* TODO: asynchronous receive or a complete Adams approach */
       }
 
       /* compute local free velocity */
@@ -619,7 +624,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
 }
 #else
-/* run solver */
+/* run serial solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
   double error, step;
