@@ -697,8 +697,7 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       num_lid_entries,
       color_exp;
 
-  ZOLTAN_ID_TYPE global_ids = (rank + 1),
-		 local_ids = 0;
+  ZOLTAN_ID_TYPE global_ids, local_ids;
 
   /* perform coloring */
   ASSERT (Zoltan_Color (gs->zol, &num_gid_entries, &num_lid_entries,
@@ -753,7 +752,7 @@ static void REXT_recv (LOCDYN *ldy, COMDATA *recv, int nrecv)
 }
 
 /* perform a Guss-Seidel sweep over a set of blocks */
-static void gauss_siedel_sweep (SET *set, int reverse, GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
+static void gauss_siedel_sweep (SET *set, int reverse, GAUSS_SEIDEL *gs, short dynamic, double step, double *errup, double *errlo)
 {
   if (reverse)
   {
@@ -911,11 +910,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     REXT_recv (ldy, recv_lohi, nrecv_lohi);
 
-    gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, dia, &errup, &errlo);
+    gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo);
 
     COM_Send (hilo);
 
-    gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, dia, &errup, &errlo);
+    gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, &errup, &errlo);
 
     COM_Recv (hilo);
 
@@ -923,11 +922,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     /* TODO: mid nodes */
 
-    gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, dia, &errup, &errlo);
+    gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, &errup, &errlo);
 
     /* TODO: receive the rest */
 
-    gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, dia, &errup, &errlo);
+    gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo);
 
     if (gs->iters % 2) /* reverse */
     {

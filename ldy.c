@@ -784,7 +784,6 @@ static int locdyn_balance (LOCDYN *ldy)
   {
     CON *con = dia->con;
 
-    COPY (dia->R, dia->REAC);
     for (i = 0; i < DOM_Z_SIZE; i ++)
       dia->Z [i] = con->Z [i];
     COPY (con->point, dia->point);
