@@ -89,6 +89,8 @@ struct diab
 
   int rank; /* for a parent: rank of its child, and vice versa */
 
+  int degree; /* the total number of blocks in this row */
+
   MAP *children; /* balanced boundary nodes map children ranks to local reaction REXT indices */
 
   SET *rext; /* balanced boundary receiving nodes store pointers to their XR here */

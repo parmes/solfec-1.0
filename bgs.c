@@ -14,6 +14,11 @@
 #include "exs.h"
 #include "err.h"
 
+#if MPI
+#include "com.h"
+#include "tag.h"
+#endif
+
 static int projected_gradient (short dynamic, double epsilon, int maxiter,
   double step, double friction, double restitution, double gap, double rho,
   double *W, double *B, double *V, double *U, double *R)
@@ -485,6 +490,82 @@ static int solver (GAUSS_SEIDEL *gs, short dynamic, double step, short kind,
   return 0;
 }
 
+#if MPI
+/* number of cpus in here  */
+static int cpu_count (GAUSS_SEIDEL *gs, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  return 1;
+}
+
+/* list of cpus in here */
+static void cpu_list (GAUSS_SEIDEL *gs, int num_gid_entries, int num_lid_entries,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
+{
+  int rank;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  global_ids [0] =  (rank + 1); /* ids start from 1, while ranks start from 0 */
+  *ierr = ZOLTAN_OK;
+}
+
+/* size of the adjacent cpus set */
+static int adjcpu_size (GAUSS_SEIDEL *gs, int num_gid_entries,
+  int num_lid_entries, ZOLTAN_ID_PTR global_id, ZOLTAN_ID_PTR local_id, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  return SET_Size (gs->adjcpu);
+}
+
+/* list of adjacent cpus */
+static void adjcpu_list (GAUSS_SEIDEL *gs, int num_gid_entries, int num_lid_entries,
+  ZOLTAN_ID_PTR global_id, ZOLTAN_ID_PTR local_id, ZOLTAN_ID_PTR nbor_global_id,
+  int *nbor_procs, int wgt_dim, float *ewgts, int *ierr)
+{
+  SET *item;
+  int i;
+
+  for (i = 0, item = SET_First (gs->adjcpu); item; i ++, item = SET_Next (item))
+  {
+    nbor_global_id [i] = ((int) item->data) + 1;
+    nbor_procs [i] = (int) item->data;
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* create MPI related data */
+static void create_mpi (GAUSS_SEIDEL *gs)
+{
+  int ncpu;
+
+  MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
+  MEM_Init (&gs->setmem, sizeof (SET), MAX (ncpu, 1024));
+  gs->adjcpu = NULL;
+
+  /* create Zoltan context */
+  ASSERT (gs->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
+
+  /* general parameters */
+  Zoltan_Set_Param (gs->zol, "DEBUG_LEVEL", "0");
+  Zoltan_Set_Param (gs->zol, "DEBUG_MEMORY", "0");
+  Zoltan_Set_Param (gs->zol, "NUM_GID_ENTRIES", "1");
+  Zoltan_Set_Param (gs->zol, "NUM_LID_ENTRIES", "0");
+
+  /* callbacks */
+  Zoltan_Set_Fn (gs->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) cpu_count, gs);
+  Zoltan_Set_Fn (gs->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) cpu_list, gs);
+  Zoltan_Set_Fn (gs->zol, ZOLTAN_NUM_EDGES_FN_TYPE, (void (*)()) adjcpu_size, gs);
+  Zoltan_Set_Fn (gs->zol, ZOLTAN_EDGE_LIST_FN_TYPE, (void (*)()) adjcpu_list, gs);
+}
+
+/* destroy MPI related data */
+static void destroy_mpi (GAUSS_SEIDEL *gs)
+{
+  Zoltan_Destroy (&gs->zol);
+}
+#endif
+
 /* create solver */
 GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
                                    double diagepsilon, int diagmaxiter, GSDIAS diagsolver,
@@ -504,6 +585,11 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   gs->history = GS_OFF;
   gs->rerhist = NULL;
   gs->verbose = 0;
+
+#if MPI
+  create_mpi (gs);
+#endif
+
   return gs;
 }
 
@@ -571,14 +657,132 @@ static void gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *di
   *errup += err [0];
   *errup += err [1];
 }
-    
+
+/* create rank coloring using adjacency graph between
+ * processors derived from the balanced W graph */
+static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
+{
+  int *coloring;
+  SET **adjcpu;
+  MEM *setmem;
+  DIAB *dia;
+  int ncpu;
+  int rank;
+
+  adjcpu = &gs->adjcpu;
+  setmem = &gs->setmem;
+
+  /* empty current set of adjacent processors */
+  SET_Free (setmem, adjcpu);
+
+  /* create new set of adjacent processors */
+  for (dia = ldy->diab; dia; dia = dia->n)
+  {
+    for (MAP *item = MAP_First (dia->children); item; item = MAP_Next (item))
+    {
+      SET_Insert (setmem, adjcpu, item->key, NULL);
+    }
+
+    for (SET *item = SET_First (dia->rext); item; item = SET_Next (item))
+    {
+      SET_Insert (setmem, adjcpu, (void*) XR(item->data)->rank, NULL);
+    }
+  }
+
+  rank = DOM(ldy->dom)->rank;
+  ncpu = DOM(ldy->dom)->ncpu;
+  ERRMEM (coloring = calloc (ncpu, sizeof (int))); /* processor to color map */
+
+  int num_gid_entries,
+      num_lid_entries,
+      color_exp;
+
+  ZOLTAN_ID_TYPE global_ids = (rank + 1),
+		 local_ids = 0;
+
+  /* perform coloring */
+  ASSERT (Zoltan_Color (gs->zol, &num_gid_entries, &num_lid_entries,
+	  1, &global_ids, &local_ids, &color_exp) == ZOLTAN_OK, ERR_ZOLTAN);
+
+  /* gather coloring from all processors */
+  MPI_Allgather (&color_exp, 1, MPI_INT, coloring, 1, MPI_INT, MPI_COMM_WORLD);
+
+  return coloring;
+}
+
+/* return next pointer and realloc send memory if needed */
+inline static COMDATA* sendnext (int nsend, int *size, COMDATA **send)
+{
+  if (nsend >= *size)
+  {
+    (*size) *= 2;
+    ERRMEM (*send = realloc (*send, sizeof (COMDATA [*size])));
+  }
+
+  return &(*send)[nsend];
+}
+
+/* undo external reactions */
+inline static void REXT_undo (LOCDYN *ldy)
+{
+  XR *x, *end;
+
+  for (x = ldy->REXT, end = x + ldy->REXT_count; x < end; x ++) x->done = 0;
+}
+
+/* receive reactions */
+static void REXT_recv (LOCDYN *ldy, COMDATA *recv, int nrecv)
+{
+  XR *REXT, *x;
+  COMDATA *ptr;
+  int i, j, *k;
+  double *R;
+
+  for (REXT = ldy->REXT, i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+  {
+    ASSERT_DEBUG (ptr->doubles / ptr->ints == 3 &&
+	          ptr->doubles % ptr->ints == 0,  "Incorrect data count received");
+
+    for (j = 0, k = ptr->i, R = ptr->d; j < ptr->ints; j ++, k ++, R += 3)
+    {
+      x = &REXT [*k];
+      COPY (R, x->R);
+      x->done = 1; /* it's done for now */
+    }
+  }
+}
+
+/* perform a Guss-Seidel sweep over a set of blocks */
+static void gauss_siedel_sweep (SET *set, int reverse, GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
+{
+  if (reverse)
+  {
+    for (SET *item = SET_Last (set); item; item = SET_Prev (item))
+    {
+      gauss_siedel (gs, dynamic, step, item->data, errup, errlo);
+    }
+  }
+  else
+  {
+    for (SET *item = SET_First (set); item; item = SET_Next (item))
+    {
+      gauss_siedel (gs, dynamic, step, item->data, errup, errlo);
+    }
+  }
+}
+
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
   double error, step;
   short dynamic;
   char fmt [512];
+  MEM *setmem;
+  DIAB *dia;
+  void *tmp;
   int div = 10,
+      mycolor,
+     *color,
       rank;
 
   if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
@@ -587,36 +791,149 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   LOCDYN_REXT_Update (ldy); /* update REXT related data */
 
-  /* TODO:
-   * 
-   * 1. Create set A of blocks that send only to one rank.
-   * 2. Create set B of blocks that receive only from one rank.
-   * 3. Create communication pattern between sets A and B.
-   * 4. Create set C of internal blocks.
-   * 5. Create set D of remaining blocks.
-   * 6. Process A.
-   * 7. Send from A to B.
-   * 8. Start processing B and C.
-   * 9. While executing point 8 in a separate thread do:
-   *    a) Color blocks of D using the send-receive (children, rext) graph
-   *    b) Perform colored Gauss-Seidel on blocks from D
-   * 10. Wait until 8, a) and b) finish.
-   */
+  color = processor_coloring (gs, ldy); /* color processors */
+  rank = DOM(ldy->dom)->rank;
+  mycolor = color [rank];
+  setmem = &gs->setmem;
+
+  SET *bot = NULL, /* boundary blocks that communicate with processors whith higher colors */
+      *top = NULL, /* boundary blocks that communicate with processors with lower colors */
+      *mid = NULL, /* the rest of boundary blocks */
+      *int1 = NULL, /* first half of internal blocks */
+      *int2 = NULL, /* second hald of internal blocks */
+      *int3 = NULL; /* int1 + int2 */
+  int siz1 = 0, /* total number of non-zero blocks in int1 + top */
+      siz2 = 0; /* total number of non-zero blocks in int2 + bot */
+
+  for (dia = ldy->diab; dia; dia = dia->n)
+  {
+    short lo = 0,
+	  hi = 0;
+
+    for (MAP *item = MAP_First (dia->children); item; item = MAP_Next (item))
+    {
+      int adjcolor = color [(int) item->key];
+
+      if (adjcolor < mycolor) hi ++; /* sends to lower */
+      else lo ++;
+    }
+
+    for (SET *item = SET_First (dia->rext); item; item = SET_Next (item))
+    {
+      int adjcolor = color [XR (item->data)->rank];
+
+      if (adjcolor < mycolor) hi ++; /* receives from lower */
+      else lo ++;
+    }
+
+    if (lo && hi) SET_Insert (setmem, &mid, dia, NULL);
+    else if (lo) SET_Insert (setmem, &bot, dia, NULL), siz2 += dia->degree;
+    else if (hi) SET_Insert (setmem, &top, dia, NULL), siz1 += dia->degree;
+    else SET_Insert (setmem, &int3, dia, NULL); /* int1 + int2 */
+  }
+
+  /* process int3 and create int1 and int2 so that |int1| + |top| == |int2| + |bot| */
+  for (SET *item = SET_First (int3); item; item = SET_Next (item))
+  {
+    dia = item->data;
+    if (siz1 <= siz2) SET_Insert (setmem, &int1, dia, NULL), siz1 += dia->degree;
+    else SET_Insert (setmem, &int2, dia, NULL), siz2 += dia->degree;
+  }
+
+  void *lohi, /* communication pattern when sending from lower to higher processors */
+       *hilo; /* the reverse communication pattern */
+
+  COMDATA *send_lohi, *recv_lohi, *ptr_lohi,
+	  *send_hilo, *recv_hilo, *ptr_hilo;
+
+  int size_lohi, nsend_lohi, nrecv_lohi,
+      size_hilo, nsend_hilo, nrecv_hilo;
+
+  size_lohi = size_hilo = 512;
+  nsend_lohi = nsend_hilo = 0;
+
+  ERRMEM (send_lohi = calloc (size_lohi, sizeof (COMDATA)));
+  ERRMEM (send_hilo = calloc (size_hilo, sizeof (COMDATA)));
+
+  ptr_lohi = send_lohi;
+  ptr_hilo = send_hilo;
+
+  for (dia = ldy->diab; dia; dia = dia->n)
+  {
+    for (MAP *item = MAP_First (dia->children); item; item = MAP_Next (item))
+    {
+      int adjrank = (int) item->key,
+          adjcolor = color [adjrank];
+
+      if (adjcolor > mycolor) /* send to higher processor */
+      {
+	ptr_lohi->rank = adjrank;
+	ptr_lohi->ints = 1;
+	ptr_lohi->doubles = 3;
+	ptr_lohi->i = (int*) &item->data;
+	ptr_lohi->d = dia->R;
+	ptr_lohi = sendnext (++ nsend_lohi, &size_lohi, &send_lohi);
+      }
+      else /* sends to lower processor */
+      {
+	ptr_hilo->rank = adjrank;
+	ptr_hilo->ints = 1;
+	ptr_hilo->doubles = 3;
+	ptr_hilo->i = (int*) &item->data;
+	ptr_hilo->d = dia->R;
+	ptr_hilo = sendnext (++ nsend_hilo, &size_hilo, &send_hilo);
+      }
+    }
+  }
+
+  lohi = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_LOHI, send_lohi, nsend_lohi, &recv_lohi, &nrecv_lohi);
+  hilo = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_HILO, send_hilo, nsend_hilo, &recv_hilo, &nrecv_hilo);
 
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
-  rank = DOM(ldy->dom)->rank;
   gs->error = GS_OK;
   gs->iters = 0;
   do
   {
     double errup = 0.0,
 	   errlo = 0.0;
-    DIAB *dia;
-   
-    for (dia = ldy->diab; dia; dia = dia->n) /* use balanced blocks */
+
+    REXT_undo (ldy);
+
+    if (gs->iters % 2) /* reverse */
     {
-      gauss_siedel (gs, dynamic, step, dia, &errup, &errlo);
+      tmp = top;  top  = bot;  bot  = tmp;
+      tmp = lohi; lohi = hilo; hilo = tmp;
+      tmp = int1; int1 = int2; int2 = tmp;
+    }
+
+    COM_Repeat (lohi); /* send from lower to higher */
+
+    REXT_recv (ldy, recv_lohi, nrecv_lohi);
+
+    gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, dia, &errup, &errlo);
+
+    COM_Send (hilo);
+
+    gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, dia, &errup, &errlo);
+
+    COM_Recv (hilo);
+
+    REXT_recv (ldy, recv_hilo, nrecv_hilo);
+
+    /* TODO: mid nodes */
+
+    gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, dia, &errup, &errlo);
+
+    /* TODO: receive the rest */
+
+    gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, dia, &errup, &errlo);
+
+    if (gs->iters % 2) /* reverse */
+    {
+      tmp = top;  top  = bot;  bot  = tmp;
+      tmp = lohi; lohi = hilo; hilo = tmp;
+      tmp = int1; int1 = int2; int2 = tmp;
     }
 
     /* calculate relative error */
@@ -656,10 +973,14 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   short dynamic;
   char fmt [512];
   int div = 10;
+  DIAB *end;
 
   if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
   if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+
+  if (ldy->dia) for (end = ldy->dia; end->n; end = end->n); /* find last block for the backward run */
+  else end = NULL;
 
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
@@ -672,7 +993,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     OFFB *blk;
     DIAB *dia;
    
-    for (dia = ldy->dia; dia; dia = dia->n)
+    for (dia = gs->iters % 2 ? ldy->dia : end; dia; dia = gs->iters % 2 ? dia->n : dia->p) /* run forward and backward alternately */
     {
       double R0 [3],
 	     B [3],
@@ -811,6 +1132,10 @@ char* GAUSS_SEIDEL_History (GAUSS_SEIDEL *gs)
 /* free solver */
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs)
 {
+#if MPI
+  destroy_mpi (gs);
+#endif
+
   free (gs->rerhist);
   free (gs);
 }

@@ -72,6 +72,12 @@ void* COM_Pattern (MPI_Comm comm, int tag,
  * to the pattern computed by COM_Pattern */
 void COM_Repeat (void *pattern);
 
+/* non-blocking send */
+void COM_Send (void *pattern);
+
+/* blocking receive */
+void COM_Recv (void *pattern);
+
 /* free communication pattern */
 void COM_Free (void *pattern);
 

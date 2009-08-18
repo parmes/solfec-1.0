@@ -107,6 +107,18 @@ static void variables_change_end (LOCDYN *ldy)
 }
 
 #if MPI
+/* return next pointer and realloc send memory if needed */
+inline static COMDATA* sendnext (int nsend, int *size, COMDATA **send)
+{
+  if (nsend >= *size)
+  {
+    (*size) *= 2;
+    ERRMEM (*send = realloc (*send, sizeof (COMDATA [*size])));
+  }
+
+  return &(*send)[nsend];
+}
+
 /* sort off-diagonal blocks by ids */
 #define LEOFFB(a, b) ((a)->id <= (b)->id)
 IMPLEMENT_LIST_SORT (SINGLE_LINKED, sort_offb, OFFB, p, n, LEOFFB)
@@ -334,7 +346,7 @@ static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *
 
   /* sum up and remove duplicates (happen due to multiple contacts between same two bodies)*/
   dia->adj = sort_offb (dia->adj);
-  for (b = dia->adj; b; b = b->n)
+  for (b = dia->adj, m = 0; b; b = b->n, m ++)
   {
     n = b->n;
     while (n && b->id == n->id)
@@ -346,6 +358,8 @@ static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *
     }
     b->n = n;
   }
+
+  dia->degree = m + 1; /* total number of blocks in this row */
 }
 
 /* delete balanced block */
@@ -1307,7 +1321,7 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
   DIAB *dia;
   OFFB *b;
 
-  ncpu = DOM(ldy->dom)->size;
+  ncpu = DOM(ldy->dom)->ncpu;
 
   ERRMEM (size = malloc (sizeof (int [ncpu])));
   ERRMEM (disp = malloc (sizeof (int [ncpu])));
@@ -1398,7 +1412,7 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
    * this way we shall fill up the 'children' members of balanced blocks */
 
   COMDATA *send, *recv, *ptr;
-  int nsend, nrecv, *pair;
+  int ssiz, nsend, nrecv, *pair;
 
   ERRMEM (send = malloc (sizeof (COMDATA [n]) + sizeof (int [2]) * n));;
   pair = (int*) (send + n);
@@ -1428,7 +1442,35 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
   free (send);
   free (recv);
 
-  /* TODO: update REXT reactions to the latest values stored in balanced blocks */
+  /* update REXT reactions to the latest
+   * values stored in balanced blocks */
+
+  ssiz = MAX (ldy->ndiab, 128);
+  ERRMEM (send = malloc (sizeof (COMDATA [ssiz])));
+
+  for (ptr = send, nsend = 0, dia = ldy->diab; dia; dia = dia->n)
+  {
+    for (item = MAP_First (dia->children); item; item = MAP_Next (item))
+    {
+      ptr->rank = (int) item->key;
+      ptr->ints = 1;
+      ptr->doubles = 3;
+      ptr->i = (int*) &item->data;
+      ptr->d = dia->R;
+      ptr = sendnext (++ nsend, &ssiz, &send);
+    }
+  }
+
+  COM (MPI_COMM_WORLD, TAG_LOCDYN_REXT_INIT, send, nsend, &recv, &nrecv);
+
+  for (ptr = recv, i = 0; i < nrecv; ptr ++, i ++)
+  {
+    double *R = ldy->REXT [ptr->i [0]].R;
+    COPY (ptr->d, R);
+  }
+
+  free (send);
+  free (recv);
 }
 #endif
 

@@ -607,7 +607,7 @@ static void aabb_balance (AABB *aabb)
   naux = box_count (aabb, &i);
   size = MAX (naux, 128);
   ERRMEM (send = malloc (sizeof (COMOBJ [size])));
-  ERRMEM (procs = malloc (sizeof (int [DOM(aabb->dom)->size])));
+  ERRMEM (procs = malloc (sizeof (int [DOM(aabb->dom)->ncpu])));
 
   for (aux = aabb->aux, ptr = send, i = 0; i < naux; i ++)
   {

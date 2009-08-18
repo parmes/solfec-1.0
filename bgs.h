@@ -7,6 +7,10 @@
 
 #include "ldy.h"
 
+#if MPI
+#include <zoltan.h>
+#endif
+
 #ifndef __bgs__
 #define __bgs__
 
@@ -73,6 +77,14 @@ struct gs
   double *rerhist; /* relative error history */
 
   short verbose; /* verbosity flag */
+
+#if MPI
+  struct Zoltan_Struct *zol; /* used by coloring algorithm */
+
+  MEM setmem; /* set items memory */
+
+  SET *adjcpu; /* adjecent processors, based on the balanced W graph */
+#endif
 };
 
 /* create solver */

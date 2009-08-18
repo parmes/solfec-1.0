@@ -172,7 +172,7 @@ struct domain
 #if MPI
   int rank; /* communicator rank */
 
-  int size; /* cummunicator size */
+  int ncpu; /* cummunicator size */
 
   struct Zoltan_Struct *zol; /* body partitioning */
 

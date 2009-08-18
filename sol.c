@@ -130,6 +130,17 @@ static PBF* readoutpath (char *outpath)
 /* attempt writing output path */
 static PBF* writeoutpath (char *outpath)
 {
+  int i, l = strlen (outpath);
+
+  for (i = 0; i < l; i ++) /* create all directories on the way */
+  {
+    if (outpath [i] == '/')
+    {
+       outpath [i] = '\0';
+       mkdir (outpath, 0777); /* POSIX */
+       outpath [i] = '/';
+    }
+  }
   mkdir (outpath, 0777); /* POSIX */
 
   char *path = getpath (outpath);

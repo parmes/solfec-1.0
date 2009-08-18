@@ -134,7 +134,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, short locdyn)
       con->id = (unsigned int) item->data; /* use a previously freed id */
       SET_Delete (&dom->setmem, &dom->sparecid, item->data, NULL);
     }
-    else con->id = dom->cid, dom->cid += dom->size; /* every communicator-size number */
+    else con->id = dom->cid, dom->cid += dom->ncpu; /* every ncpu number */
   }
 #else
   con->id = dom->cid ++;
@@ -812,10 +812,10 @@ static int domain_balance (DOM *dom)
 
   int i, *j;
 
-  ERRMEM (send = calloc (dom->size, sizeof (COMDATA)));
+  ERRMEM (send = calloc (dom->ncpu, sizeof (COMDATA)));
 
   /* before rebalancing - delete orhpans (children of removed bodies) */
-  for (i = 0, del = dom->delch, qtr = send; i < dom->size; i ++, del ++)
+  for (i = 0, del = dom->delch, qtr = send; i < dom->ncpu; i ++, del ++)
   {
     if (*del)
     {
@@ -1265,7 +1265,7 @@ static void create_mpi (DOM *dom)
 {
   MPI_Comm_rank (MPI_COMM_WORLD, &dom->rank); /* store rank */
 
-  MPI_Comm_size (MPI_COMM_WORLD, &dom->size); /* store size */
+  MPI_Comm_size (MPI_COMM_WORLD, &dom->ncpu); /* store size */
 
   dom->cid = (dom->rank + 1); /* overwrite */
 
@@ -1276,7 +1276,7 @@ static void create_mpi (DOM *dom)
 
   dom->children = NULL; /* initially empty */
 
-  ERRMEM (dom->delch = calloc (dom->size, sizeof (SET*)));
+  ERRMEM (dom->delch = calloc (dom->ncpu, sizeof (SET*)));
 
   dom->conext = NULL;
 
@@ -1797,7 +1797,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
     int rank;
   };
 
-  ERRMEM (procs = malloc (sizeof (int [dom->size])));
+  ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
 
   MEM_Init (&mem, sizeof (struct pair), CONBLK);
 
@@ -1880,7 +1880,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
 
   /* 6. communicate delset and delete unwanted children */
 
-  ERRMEM (send = calloc (dom->size, sizeof (COMDATA))); /* one for each processor */
+  ERRMEM (send = calloc (dom->ncpu, sizeof (COMDATA))); /* one for each processor */
 
   /* pack ids into specific rank data */
   for (SET *x = SET_First (delset); x; x = SET_Next (x))
@@ -1894,7 +1894,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
   }
 
   /* compress the send buffer */
-  for (nsend = i = 0; i < dom->size; i ++)
+  for (nsend = i = 0; i < dom->ncpu; i ++)
   {
     if (send [i].ints)
     {
