@@ -71,7 +71,7 @@ OBJMPI = $(BASEO)  \
 	 obj/com-mpi.o \
 	 obj/sol-mpi.o \
 
-solfec: solfec.c obj/libsolfec.a
+solfec: obj/solfec.o obj/libsolfec.a
 	$(CC) $(CFLAGS) $(OPENGL) -o $@ $< -Lobj -lsolfec $(LIB)
 
 obj/libsolfec.a: $(OBJ)
@@ -84,7 +84,7 @@ all: solfec mpi
 
 mpi: solfec-mpi
 
-solfec-mpi: solfec.c obj/libsolfec-mpi.a
+solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a
 	$(MPICC) $(CFLAGS) $(MPIFLG) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
@@ -109,6 +109,9 @@ clean:
 	rm -f obj/libsolfec-mpi.a
 	rm -fr *dSYM
 	(cd tst && make clean)
+
+obj/solfec.o: solfec.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/err.o: err.c err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -229,6 +232,9 @@ obj/rnd.o: rnd.c rnd.h alg.h dom.h shp.h cvx.h msh.h sph.h err.h
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
 
 #MPI
+
+obj/solfec-mpi.o: solfec.c
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/com-mpi.o: com.c com.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
