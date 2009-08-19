@@ -74,7 +74,10 @@ int main (int argc, char **argv)
 
 #if MPI
   float version;
+  int provided;
 
+  MPI_Init_thread (&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
+  ASSERT (provided >= MPI_THREAD_MULTIPLE, ERR_MPI_THREAD_MULTIPLE);
   ASSERT (Zoltan_Initialize (argc, argv, &version) == ZOLTAN_OK, ERR_ZOLTAN_INIT);
 #endif
 

@@ -15,6 +15,7 @@
 #include "err.h"
 
 #if MPI
+#include <pthread.h>
 #include "com.h"
 #include "tag.h"
 #endif
@@ -697,7 +698,8 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       num_lid_entries,
       color_exp;
 
-  ZOLTAN_ID_TYPE global_ids, local_ids;
+  ZOLTAN_ID_TYPE global_ids = (rank + 1),
+		 local_ids;
 
   /* perform coloring */
   ASSERT (Zoltan_Color (gs->zol, &num_gid_entries, &num_lid_entries,
@@ -752,28 +754,190 @@ static void REXT_recv (LOCDYN *ldy, COMDATA *recv, int nrecv)
 }
 
 /* perform a Guss-Seidel sweep over a set of blocks */
-static void gauss_siedel_sweep (SET *set, int reverse, GAUSS_SEIDEL *gs, short dynamic, double step, double *errup, double *errlo)
+static void gauss_siedel_sweep (SET *set, int reverse,
+  GAUSS_SEIDEL *gs, short dynamic, double step, double *errup, double *errlo)
 {
-  if (reverse)
+  SET* (*first) (SET*);
+  SET* (*next) (SET*);
+
+  if (reverse) first = SET_Last, next = SET_Prev;
+  else first = SET_First, next = SET_Next;
+
+  for (SET *item = first (set); item; item = next (item))
   {
-    for (SET *item = SET_Last (set); item; item = SET_Prev (item))
+    gauss_siedel (gs, dynamic, step, item->data, errup, errlo);
+  }
+}
+
+/* perform a Guss-Seidel loop over a set of blocks */
+static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
+  GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
+{
+  SET* (*first) (SET*);
+  SET* (*next) (SET*);
+
+  if (reverse) first = SET_Last, next = SET_Prev;
+  else first = SET_First, next = SET_Next;
+
+  MEM *setmem = &gs->setmem;
+  SET *active = NULL,
+      *updated = NULL,
+      *item, *jtem;
+
+  COMDATA *send, *recv, *ptr;
+  int size, nsend, nrecv;
+
+  size = SET_Size (set);
+  size = MAX (size, 128);
+  ERRMEM (send = malloc (sizeof (COMDATA [size])));
+
+  /* copy input set into the active set */
+  for (item = SET_First (set); item; item = SET_Next (item))
+    SET_Insert (setmem, &active, item->data, NULL);
+
+  while (SET_Size (active)) /* until the active set is empty */
+  {
+    for (item = first (active); item; item = next (item))
     {
-      gauss_siedel (gs, dynamic, step, item->data, errup, errlo);
+      DIAB *dia = item->data;
+      short adjdone = 1; /* initially, the adjacent external reactions are assumed done */
+
+      for (jtem = SET_First (dia->rext); jtem; jtem = SET_Next (jtem))
+      {
+	XR *x = XR (jtem->data);
+	int adjcolor = color [x->rank];
+
+	if ((reverse && adjcolor < mycolor && !x->done) || /* a lower external reaction is undone */
+	    (!reverse && adjcolor > mycolor && !x->done)) adjdone = 0; /* or a higher external reaction is undone */
+      }
+
+      if (adjdone) /* external reactions were done */
+      {
+	gauss_siedel (gs, dynamic, step, dia, errup, errlo); /* update the current block */
+
+	SET_Delete (setmem, &active, dia, NULL); /* no more active */
+	SET_Insert (setmem, &updated, dia, NULL); /* schedule for sending */
+      }
+    }
+
+    for (nsend = 0, ptr = send, item = SET_First (updated); item; item = SET_Next (item)) /* fill send buffer */
+    {
+      DIAB *dia = item->data;
+
+      for (MAP *ktem = MAP_First (dia->children); ktem; ktem = MAP_Next (ktem)) /* send to all children */
+      {
+	ptr->rank = (int) ktem->key;
+	ptr->ints = 1;
+	ptr->doubles = 3;
+	ptr->i = (int*) &ktem->data;
+	ptr->d = dia->R;
+	ptr = sendnext (++ nsend, &size, &send);
+      }
+    }
+
+    COM (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_MID, send, nsend, &recv, &nrecv); /* communicate all updated blocks */
+
+    REXT_recv (ldy, recv, nrecv); /* update external reactions */
+
+    SET_Free (setmem, &updated); /* empty the updated blocks set */
+  }
+}
+
+typedef struct gauss_seidel_thread_data GSTD;
+
+/* mid set thread data */
+struct gauss_seidel_thread_data
+{
+  pthread_t thread;
+
+  int active,
+      wait,
+      done;
+
+  SET *mid;
+  int mycolor;
+  int *color;
+  GAUSS_SEIDEL *gs;
+  LOCDYN *ldy;
+  short dynamic;
+  double step;
+  double *errup;
+  double *errlo;
+};
+
+/* mid set thread execution routine; there is only one thread
+ * per process hence no need for a sophisticated sheduling */
+static void* gauss_seidel_thread (GSTD *data)
+{
+  while (data->active)
+  {
+    while (data->wait);
+
+    if (data->active)
+    {
+      data->wait = 1;
+      data->done = 0;
+
+      gauss_siedel_loop (data->mid, data->gs->iters % 2,
+	data->mycolor, data->color, data->gs, data->ldy,
+	data->dynamic, data->step, data->errup, data->errlo);
+
+      data->done = 1;
     }
   }
-  else
-  {
-    for (SET *item = SET_First (set); item; item = SET_Next (item))
-    {
-      gauss_siedel (gs, dynamic, step, item->data, errup, errlo);
-    }
-  }
+
+  return NULL;
+}
+
+/* create gauss seidel thread */
+GSTD* gauss_seidel_thread_create (SET *mid, int mycolor, int *color,
+  GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
+{
+  GSTD *data;
+
+  ERRMEM (data = malloc (sizeof (GSTD)));
+
+  data->active = 1;
+  data->wait = 1;
+  data->done = 0;
+
+  data->mid = mid;
+  data->mycolor = mycolor;
+  data->color = color;
+  data->gs = gs;
+  data->ldy = ldy;
+  data->dynamic = dynamic;
+  data->step = step;
+  data->errup = errup;
+  data->errlo = errlo;
+
+  pthread_create (&data->thread, NULL, (void* (*)()) gauss_seidel_thread, data);
+
+  return data;
+}
+
+/* subsequent thread run */
+static void gauss_seidel_thread_run (GSTD *data)
+{
+  data->wait = 0;
+}
+
+/* wait for completion of a subsequent run */
+static void gauss_seidel_thread_wait (GSTD *data)
+{
+  while (!data->done);
+}
+
+static void gauss_seidel_thread_destroy (GSTD *data)
+{
+  data->active = 0;
+  data->wait = 0;
 }
 
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
-  double error, step;
+  double errup, errlo, error, step;
   short dynamic;
   char fmt [512];
   MEM *setmem;
@@ -795,14 +959,14 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   mycolor = color [rank];
   setmem = &gs->setmem;
 
-  SET *bot = NULL, /* boundary blocks that communicate with processors whith higher colors */
-      *top = NULL, /* boundary blocks that communicate with processors with lower colors */
-      *mid = NULL, /* the rest of boundary blocks */
-      *int1 = NULL, /* first half of internal blocks */
-      *int2 = NULL, /* second hald of internal blocks */
-      *int3 = NULL; /* int1 + int2 */
-  int siz1 = 0, /* total number of non-zero blocks in int1 + top */
-      siz2 = 0; /* total number of non-zero blocks in int2 + bot */
+  SET *bot  = NULL, /* boundary blocks that only send to higher processors */
+      *top  = NULL, /* boundary blocks that only send to lower processors */
+      *mid  = NULL, /* the rest of boundary blocks */
+      *int0 = NULL, /* internal blocks (int1 + int2) */
+      *int1 = NULL, /* first subset of internal blocks */
+      *int2 = NULL; /* second subset of internal blocks */
+  int siz1 = 0, /* non-zero blocks count in int1 + top */
+      siz2 = 0; /* non-zero blocks count in int2 + bot */
 
   for (dia = ldy->diab; dia; dia = dia->n)
   {
@@ -817,22 +981,14 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       else lo ++;
     }
 
-    for (SET *item = SET_First (dia->rext); item; item = SET_Next (item))
-    {
-      int adjcolor = color [XR (item->data)->rank];
-
-      if (adjcolor < mycolor) hi ++; /* receives from lower */
-      else lo ++;
-    }
-
     if (lo && hi) SET_Insert (setmem, &mid, dia, NULL);
     else if (lo) SET_Insert (setmem, &bot, dia, NULL), siz2 += dia->degree;
     else if (hi) SET_Insert (setmem, &top, dia, NULL), siz1 += dia->degree;
-    else SET_Insert (setmem, &int3, dia, NULL); /* int1 + int2 */
+    else SET_Insert (setmem, &int0, dia, NULL); /* int1 + int2 */
   }
 
-  /* process int3 and create int1 and int2 so that |int1| + |top| == |int2| + |bot| */
-  for (SET *item = SET_First (int3); item; item = SET_Next (item))
+  /* create int1 and int2 so that |int1| + |top| == |int2| + |bot| */
+  for (SET *item = SET_First (int0); item; item = SET_Next (item))
   {
     dia = item->data;
     if (siz1 <= siz2) SET_Insert (setmem, &int1, dia, NULL), siz1 += dia->degree;
@@ -888,16 +1044,16 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   lohi = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_LOHI, send_lohi, nsend_lohi, &recv_lohi, &nrecv_lohi);
   hilo = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_HILO, send_hilo, nsend_hilo, &recv_hilo, &nrecv_hilo);
 
+  /* create mid set update thread */
+  GSTD *data = gauss_seidel_thread_create (mid, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo);
+
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
   gs->error = GS_OK;
   gs->iters = 0;
   do
   {
-    double errup = 0.0,
-	   errlo = 0.0;
-
-    REXT_undo (ldy);
+    errup = errlo = 0.0;
 
     if (gs->iters % 2) /* reverse */
     {
@@ -906,27 +1062,29 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       tmp = int1; int1 = int2; int2 = tmp;
     }
 
-    COM_Repeat (lohi); /* send from lower to higher */
+    REXT_undo (ldy); /* undo all external reactions */
 
-    REXT_recv (ldy, recv_lohi, nrecv_lohi);
+    gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
 
-    gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo);
+    COM_Send (hilo); /* start sending top blocks */
 
-    COM_Send (hilo);
+    gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
 
-    gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, &errup, &errlo);
+    COM_Recv (hilo); /* receive top blocks */
 
-    COM_Recv (hilo);
+    REXT_recv (ldy, recv_hilo, nrecv_hilo); /* update received extenral reactions */
 
-    REXT_recv (ldy, recv_hilo, nrecv_hilo);
+    gauss_seidel_thread_run (data); /* begin update of mid blocks */
 
-    /* TODO: mid nodes */
+    gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
 
-    gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, &errup, &errlo);
+    gauss_seidel_thread_wait (data); /* waid until mid nodes are updated */
 
-    /* TODO: receive the rest */
+    gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update bot blocks */
 
-    gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo);
+    COM_Repeat (lohi); /* sending and receive bot blocks */
+
+    REXT_recv (ldy, recv_lohi, nrecv_lohi); /* update received external reactions */
 
     if (gs->iters % 2) /* reverse */
     {
@@ -944,6 +1102,19 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
   if (rank == 0 && gs->verbose) printf (fmt, gs->iters, error);
+
+  gauss_seidel_thread_destroy (data);
+  SET_Free (setmem, &int0);
+  SET_Free (setmem, &int1);
+  SET_Free (setmem, &int2);
+  SET_Free (setmem, &bot);
+  SET_Free (setmem, &mid);
+  SET_Free (setmem, &top);
+  free (send_lohi);
+  free (recv_lohi);
+  free (send_hilo);
+  free (recv_hilo);
+  free (color);
 
   if (gs->iters >= gs->maxiter)
   {
