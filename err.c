@@ -58,6 +58,8 @@ char* errstring (int error)
     case ERR_MPI_THREAD_MULTIPLE: return "MPI does not support MPI_THREAD_MULTIPLE";
     case ERR_ZOLTAN_INIT: return "Zoltan initialization failed";
     case ERR_ZOLTAN: return "Zoltan call failed";
+    case ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED: return "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED";
+    case ERR_GAUSS_SEIDEL_DIVERGED: return "GAUSS_SEIDEL_SOLVER failed with error code DIVERGED";
   }
 
   return "Unknown";

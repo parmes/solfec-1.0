@@ -588,6 +588,7 @@ void COM_Recv (void *pattern)
   int *recv_rank = cp->recv_rank,
      (*recv_sizes) [3] = cp->recv_sizes,
        recv_count = cp->recv_count,
+       send_count = cp->send_count,
        tag = cp->tag,
        i, j;
   char **recv_data = cp->recv_data;
@@ -598,7 +599,7 @@ void COM_Recv (void *pattern)
   COMDATA *cd;
 
   /* wait until until send is done */
-  MPI_Waitall (recv_count, reqs, stas);
+  MPI_Waitall (send_count, reqs, stas);
 
   /* receive data */
   for (i = 0; i < recv_count; i ++)

@@ -596,12 +596,11 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 
 #if MPI
 /* a single row Gauss-Seidel step */
-static void gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
+static int gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
 {
   OFFB *blk;
-  int di, diagiters;
-  double err [4],
-         R0 [3],
+  int diagiters;
+  double R0 [3],
 	 B [3],
 	 *R;
 
@@ -626,37 +625,31 @@ static void gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *di
   COPY (R, R0); /* previous reaction */
 
   /* solve local diagonal block problem */
-  di = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
-  MPI_Allreduce (&di, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+  diagiters = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
 
   if (diagiters > gs->diagmaxiter || diagiters < 0)
   {
     if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
     else gs->error = GS_DIAGONAL_DIVERGED;
 
-    switch (gs->failure)
+    switch ((int)gs->failure)
     {
     case GS_FAILURE_CONTINUE:
       COPY (R0, R); /* use previous reaction */
       break;
-    case GS_FAILURE_EXIT:
-      fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED\n");
-      exit (1);
-      break;
     case GS_FAILURE_CALLBACK:
       gs->callback (gs->data);
-      return;
+      break;
     }
   }
 
   /* accumulate relative
    * error components */
   SUB (R, R0, R0);
-  err [2] = DOT (R0, R0);
-  err [3] = DOT (R, R);
-  MPI_Allreduce (err + 2, err, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  *errup += err [0];
-  *errup += err [1];
+  *errup += DOT (R0, R0);
+  *errup += DOT (R, R);
+
+  return diagiters;
 }
 
 /* create rank coloring using adjacency graph between
@@ -759,13 +752,36 @@ static void gauss_siedel_sweep (SET *set, int reverse,
 {
   SET* (*first) (SET*);
   SET* (*next) (SET*);
+  double err [4] = {0, 0, 0, 0};
+  int di, dimax, diagiters;
 
   if (reverse) first = SET_Last, next = SET_Prev;
   else first = SET_First, next = SET_Next;
 
+  dimax = 0;
+
   for (SET *item = first (set); item; item = next (item))
   {
-    gauss_siedel (gs, dynamic, step, item->data, errup, errlo);
+    di = gauss_siedel (gs, dynamic, step, item->data, &err[2], &err[3]);
+    dimax = MAX (dimax, di);
+  }
+
+  /* sum up error */
+  MPI_Allreduce (err + 2, err, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  *errup += err [0];
+  *errlo += err [1];
+
+  /* get maximal iterations count of a diagonal block solver */
+  MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+  if (diagiters > gs->diagmaxiter || diagiters < 0)
+  {
+    switch ((int)gs->failure)
+    {
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
+      break;
+    }
   }
 }
 
@@ -778,6 +794,9 @@ static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
   if (reverse) first = SET_Last, next = SET_Prev;
   else first = SET_First, next = SET_Next;
+
+  double err [4] = {0, 0, 0, 0};
+  int di, dimax, diagiters;
 
   MEM *setmem = &gs->setmem;
   SET *active = NULL,
@@ -794,6 +813,8 @@ static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
   /* copy input set into the active set */
   for (item = SET_First (set); item; item = SET_Next (item))
     SET_Insert (setmem, &active, item->data, NULL);
+
+  dimax = 0;
 
   while (SET_Size (active)) /* until the active set is empty */
   {
@@ -813,7 +834,8 @@ static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
       if (adjdone) /* external reactions were done */
       {
-	gauss_siedel (gs, dynamic, step, dia, errup, errlo); /* update the current block */
+	di = gauss_siedel (gs, dynamic, step, dia, &err[2], &err[3]); /* update the current block */
+	dimax = MAX (dimax, di);
 
 	SET_Delete (setmem, &active, dia, NULL); /* no more active */
 	SET_Insert (setmem, &updated, dia, NULL); /* schedule for sending */
@@ -841,6 +863,24 @@ static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
     SET_Free (setmem, &updated); /* empty the updated blocks set */
   }
+
+  /* sum up error */
+  MPI_Allreduce (err + 2, err, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  *errup += err [0];
+  *errlo += err [1];
+
+  /* get maximal iterations count of a diagonal block solver */
+  MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+  if (diagiters > gs->diagmaxiter || diagiters < 0)
+  {
+    switch ((int)gs->failure)
+    {
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
+      break;
+    }
+  }
 }
 
 typedef struct gauss_seidel_thread_data GSTD;
@@ -861,8 +901,8 @@ struct gauss_seidel_thread_data
   LOCDYN *ldy;
   short dynamic;
   double step;
-  double *errup;
-  double *errlo;
+  double errup;
+  double errlo;
 };
 
 /* mid set thread execution routine; there is only one thread
@@ -880,7 +920,7 @@ static void* gauss_seidel_thread (GSTD *data)
 
       gauss_siedel_loop (data->mid, data->gs->iters % 2,
 	data->mycolor, data->color, data->gs, data->ldy,
-	data->dynamic, data->step, data->errup, data->errlo);
+	data->dynamic, data->step, &data->errup, &data->errlo);
 
       data->done = 1;
     }
@@ -891,7 +931,7 @@ static void* gauss_seidel_thread (GSTD *data)
 
 /* create gauss seidel thread */
 GSTD* gauss_seidel_thread_create (SET *mid, int mycolor, int *color,
-  GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
+  GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step)
 {
   GSTD *data;
 
@@ -908,8 +948,8 @@ GSTD* gauss_seidel_thread_create (SET *mid, int mycolor, int *color,
   data->ldy = ldy;
   data->dynamic = dynamic;
   data->step = step;
-  data->errup = errup;
-  data->errlo = errlo;
+  data->errup = 0.0;
+  data->errlo = 0.0;
 
   pthread_create (&data->thread, NULL, (void* (*)()) gauss_seidel_thread, data);
 
@@ -919,13 +959,19 @@ GSTD* gauss_seidel_thread_create (SET *mid, int mycolor, int *color,
 /* subsequent thread run */
 static void gauss_seidel_thread_run (GSTD *data)
 {
+  data->errup = 0.0;
+  data->errlo = 0.0;
+
   data->wait = 0;
 }
 
 /* wait for completion of a subsequent run */
-static void gauss_seidel_thread_wait (GSTD *data)
+static void gauss_seidel_thread_wait (GSTD *data, double *errup, double *errlo)
 {
   while (!data->done);
+
+  *errup += data->errup;
+  *errlo += data->errlo;
 }
 
 static void gauss_seidel_thread_destroy (GSTD *data)
@@ -937,7 +983,7 @@ static void gauss_seidel_thread_destroy (GSTD *data)
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
-  double errup, errlo, error, step;
+  double error, step;
   short dynamic;
   char fmt [512];
   MEM *setmem;
@@ -1045,7 +1091,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   hilo = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_HILO, send_hilo, nsend_hilo, &recv_hilo, &nrecv_hilo);
 
   /* create mid set update thread */
-  GSTD *data = gauss_seidel_thread_create (mid, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo);
+  GSTD *data = gauss_seidel_thread_create (mid, mycolor, color, gs, ldy, dynamic, step);
 
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
@@ -1053,7 +1099,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   gs->iters = 0;
   do
   {
-    errup = errlo = 0.0;
+    double errup = 0.0,
+           errlo = 0.0;
 
     if (gs->iters % 2) /* reverse */
     {
@@ -1078,7 +1125,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
 
-    gauss_seidel_thread_wait (data); /* waid until mid nodes are updated */
+    gauss_seidel_thread_wait (data, &errup, &errlo); /* waid until mid nodes are updated */
 
     gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update bot blocks */
 
@@ -1125,12 +1172,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     case GS_FAILURE_CONTINUE:
       break;
     case GS_FAILURE_EXIT:
-      fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code DIVERGED\n");
-      exit (1);
+      THROW (ERR_GAUSS_SEIDEL_DIVERGED);
       break;
     case GS_FAILURE_CALLBACK:
       gs->callback (gs->data);
-      return;
+      break;
     }
   }
 }
@@ -1201,12 +1247,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	  COPY (R0, R); /* use previous reaction */
 	  break;
 	case GS_FAILURE_EXIT:
-	  fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED\n");
-	  exit (1);
+	  THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
 	  break;
 	case GS_FAILURE_CALLBACK:
 	  gs->callback (gs->data);
-	  return;
+	  break;
 	}
       }
 
@@ -1236,12 +1281,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     case GS_FAILURE_CONTINUE:
       break;
     case GS_FAILURE_EXIT:
-      fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code DIVERGED\n");
-      exit (1);
+      THROW (ERR_GAUSS_SEIDEL_DIVERGED);
       break;
     case GS_FAILURE_CALLBACK:
       gs->callback (gs->data);
-      return;
+      break;
     }
   }
 }

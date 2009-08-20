@@ -46,5 +46,6 @@ GLLIB = -L/usr/lib -lGL -lGLU -lglut
 #
 
 PARALLEL = no
+MPILIB =
 ZOLTANINC =
 ZOLTANLIB =

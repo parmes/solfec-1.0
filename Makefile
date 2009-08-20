@@ -85,7 +85,7 @@ all: solfec mpi
 mpi: solfec-mpi
 
 solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a
-	$(MPICC) $(CFLAGS) $(MPIFLG) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
+	$(MPICC) $(CFLAGS) $(MPIFLG) $(MPILIB) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
