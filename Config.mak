@@ -47,6 +47,8 @@ GLLIB = -framework GLUT -framework OpenGL
 #
 
 MPI = yes
-MPILIB = -L/opt/openmpi/lib
+MPITHREADS = no # use MPI threads
+OWNASYNC = on # implement own asynchronous communication using pthreads and blocking communication (used when MPITHREADS == yes)
+MPILIB = -L/opt/openmpi/lib -lpthread # paths to MPI libs and pthreads library (used when MPITHREADS == yes)
 ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
-ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan -lpthread
+ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan

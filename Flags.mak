@@ -40,7 +40,16 @@ else
 endif
 
 ifeq ($(MPI),yes)
-  MPIFLG = -DMPI $(ZOLTANINC)
+  ifeq ($(MPITRHEARDS),yes)
+    ifeq ($(OWNASYNC),yes)
+      MPIFLG = -DMPI -DMPITHREADS -DOWNASYNC $(ZOLTANINC)
+    else
+      MPIFLG = -DMPI -DMPITHREADS $(ZOLTANINC)
+    endif
+  else
+    MPIFLG = -DMPI $(ZOLTANINC)
+    MPILIB =
+  endif
   MPICC = mpicc
   MPILIBS = $(ZOLTANLIB)
 endif

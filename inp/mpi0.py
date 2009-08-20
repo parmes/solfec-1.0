@@ -3,7 +3,7 @@
 from math import sin
 from math import cos
 
-N = 5
+N = 10
 PI = 3.14159265358979323846 
 
 def masonry_arch_create (ratio, material, solfec):
@@ -76,7 +76,7 @@ def masonry_arch_create (ratio, material, solfec):
 
 step = 0.001
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/arch')
+solfec = SOLFEC ('DYNAMIC', step, 'out/mpi0')
 
 CONTACT_SPARSIFY (solfec, 0.005)
 

@@ -46,6 +46,5 @@ GLLIB = -L/usr/lib -lglut
 #
 
 MPI = no
-MPILIB =
 ZOLTANINC =
 ZOLTANLIB =

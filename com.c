@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if OWNASYNC
+#include <pthread.h>
+#endif
+
 #include <stdlib.h>
 #include <mpi.h>
 #include "com.h"
@@ -56,6 +60,14 @@ struct compattern
 
   int nsend,
       nrecv;
+
+#if OWNASYNC
+  int active,
+      wait,
+      done;
+
+  pthread_t thread;
+#endif
 };
 
 /* communicate integers and doubles */
@@ -318,6 +330,30 @@ void COMOBJS (MPI_Comm comm, int tag,
   free (recv_data); /* contiguous */
 }
 
+
+#if OWNASYNC
+static void* ownasync (void *pattern)
+{
+  COMPATTERN *cp = pattern;
+
+  while (cp->active)
+  {
+    while (cp->wait);
+
+    if (cp->active)
+    {
+      cp->wait = 1;
+
+      COM_Repeat (cp);
+
+      cp->done = 1;
+    }
+  }
+
+  return NULL;
+}
+#endif
+
 /* create a repetitive communication pattern;
  * ranks and sizes must not change during the
  * repetitive communication; pointers to send
@@ -465,6 +501,15 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   /* output */
   *nrecv = pattern->nrecv;
   *recv = pattern->recv;
+
+#if OWNASYNC
+  pattern->active = 1;
+  pattern->wait = 1;
+  pattern->done = 0;
+
+  pthread_create (&pattern->thread, NULL, ownasync, pattern);
+#endif
+
   return pattern;
 }
 
@@ -538,6 +583,10 @@ void COM_Repeat (void *pattern)
 void COM_Send (void *pattern)
 {
   COMPATTERN *cp = pattern;
+#if OWNASYNC
+  cp->done = 0;
+  cp->wait = 0;
+#else
   int *rankmap = cp->rankmap,
       *send_position = cp->send_position,
      (*send_sizes) [3] = cp->send_sizes,
@@ -579,12 +628,16 @@ void COM_Send (void *pattern)
   {
     MPI_Isend (send_data [i], send_sizes [i][2], MPI_PACKED, send_rank [i], tag, comm, &reqs [i]);
   }
+#endif
 }
 
 /* blocking receive */
 void COM_Recv (void *pattern)
 {
   COMPATTERN *cp = pattern;
+#if OWNASYNC
+  while (!cp->done);
+#else
   int *recv_rank = cp->recv_rank,
      (*recv_sizes) [3] = cp->recv_sizes,
        recv_count = cp->recv_count,
@@ -613,6 +666,7 @@ void COM_Recv (void *pattern)
     MPI_Unpack (recv_data [i], recv_sizes [i][2], &j, cd->i, cd->ints, MPI_INT, comm);
     MPI_Unpack (recv_data [i], recv_sizes [i][2], &j, cd->d, cd->doubles, MPI_DOUBLE, comm);
   }
+#endif
 }
 
 /* free communication pattern */
@@ -636,4 +690,15 @@ void COM_Free (void *pattern)
   free (cp->sta);
   free (cp->reqs);
   free (cp->stas);
+
+#if OWNASYNC
+  void *r;
+
+  cp->active = 0;
+  cp->wait = 0;
+
+  pthread_join (cp->thread, &r);
+#endif
+
+  free (pattern);
 }

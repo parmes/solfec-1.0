@@ -632,8 +632,9 @@ static int gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
     if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
     else gs->error = GS_DIAGONAL_DIVERGED;
 
-    switch ((int)gs->failure)
+    switch (gs->failure)
     {
+    case GS_FAILURE_EXIT: /* delay exit until external loop is reached */
     case GS_FAILURE_CONTINUE:
       COPY (R0, R); /* use previous reaction */
       break;
@@ -647,7 +648,7 @@ static int gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
    * error components */
   SUB (R, R0, R0);
   *errup += DOT (R0, R0);
-  *errup += DOT (R, R);
+  *errlo += DOT (R, R);
 
   return diagiters;
 }
@@ -724,6 +725,20 @@ inline static void REXT_undo (LOCDYN *ldy)
   for (x = ldy->REXT, end = x + ldy->REXT_count; x < end; x ++) x->done = 0;
 }
 
+#if DEBUG
+/* undo external reactions */
+inline static int REXT_alldone (LOCDYN *ldy)
+{
+  XR *x, *end;
+  int alldone;
+
+  for (alldone = 1, x = ldy->REXT, end = x + ldy->REXT_count; x < end; x ++)
+    if (!x->done) { alldone = 0; break; }
+
+  return alldone;
+}
+#endif
+
 /* receive reactions */
 static void REXT_recv (LOCDYN *ldy, COMDATA *recv, int nrecv)
 {
@@ -747,13 +762,12 @@ static void REXT_recv (LOCDYN *ldy, COMDATA *recv, int nrecv)
 }
 
 /* perform a Guss-Seidel sweep over a set of blocks */
-static void gauss_siedel_sweep (SET *set, int reverse,
+static int gauss_siedel_sweep (SET *set, int reverse,
   GAUSS_SEIDEL *gs, short dynamic, double step, double *errup, double *errlo)
 {
   SET* (*first) (SET*);
   SET* (*next) (SET*);
-  double err [4] = {0, 0, 0, 0};
-  int di, dimax, diagiters;
+  int di, dimax;
 
   if (reverse) first = SET_Last, next = SET_Prev;
   else first = SET_First, next = SET_Next;
@@ -762,31 +776,15 @@ static void gauss_siedel_sweep (SET *set, int reverse,
 
   for (SET *item = first (set); item; item = next (item))
   {
-    di = gauss_siedel (gs, dynamic, step, item->data, &err[2], &err[3]);
+    di = gauss_siedel (gs, dynamic, step, item->data, errup, errlo);
     dimax = MAX (dimax, di);
   }
 
-  /* sum up error */
-  MPI_Allreduce (err + 2, err, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  *errup += err [0];
-  *errlo += err [1];
-
-  /* get maximal iterations count of a diagonal block solver */
-  MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-
-  if (diagiters > gs->diagmaxiter || diagiters < 0)
-  {
-    switch ((int)gs->failure)
-    {
-    case GS_FAILURE_EXIT:
-      THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
-      break;
-    }
-  }
+  return dimax;
 }
 
 /* perform a Guss-Seidel loop over a set of blocks */
-static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
+static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
   GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
 {
   SET* (*first) (SET*);
@@ -795,8 +793,7 @@ static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
   if (reverse) first = SET_Last, next = SET_Prev;
   else first = SET_First, next = SET_Next;
 
-  double err [4] = {0, 0, 0, 0};
-  int di, dimax, diagiters;
+  int di, dimax;
 
   MEM *setmem = &gs->setmem;
   SET *active = NULL,
@@ -834,7 +831,7 @@ static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
       if (adjdone) /* external reactions were done */
       {
-	di = gauss_siedel (gs, dynamic, step, dia, &err[2], &err[3]); /* update the current block */
+	di = gauss_siedel (gs, dynamic, step, dia, errup, errlo); /* update the current block */
 	dimax = MAX (dimax, di);
 
 	SET_Delete (setmem, &active, dia, NULL); /* no more active */
@@ -864,25 +861,10 @@ static void gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
     SET_Free (setmem, &updated); /* empty the updated blocks set */
   }
 
-  /* sum up error */
-  MPI_Allreduce (err + 2, err, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  *errup += err [0];
-  *errlo += err [1];
-
-  /* get maximal iterations count of a diagonal block solver */
-  MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-
-  if (diagiters > gs->diagmaxiter || diagiters < 0)
-  {
-    switch ((int)gs->failure)
-    {
-    case GS_FAILURE_EXIT:
-      THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
-      break;
-    }
-  }
+  return dimax;
 }
 
+#if MPITHREADS
 typedef struct gauss_seidel_thread_data GSTD;
 
 /* mid set thread data */
@@ -903,6 +885,7 @@ struct gauss_seidel_thread_data
   double step;
   double errup;
   double errlo;
+  int dimax;
 };
 
 /* mid set thread execution routine; there is only one thread
@@ -916,11 +899,10 @@ static void* gauss_seidel_thread (GSTD *data)
     if (data->active)
     {
       data->wait = 1;
-      data->done = 0;
 
-      gauss_siedel_loop (data->mid, data->gs->iters % 2,
-	data->mycolor, data->color, data->gs, data->ldy,
-	data->dynamic, data->step, &data->errup, &data->errlo);
+      data->dimax = gauss_siedel_loop (data->mid, data->gs->iters % 2,
+		      data->mycolor, data->color, data->gs, data->ldy,
+		 data->dynamic, data->step, &data->errup, &data->errlo);
 
       data->done = 1;
     }
@@ -962,27 +944,36 @@ static void gauss_seidel_thread_run (GSTD *data)
   data->errup = 0.0;
   data->errlo = 0.0;
 
+  data->done = 0;
   data->wait = 0;
 }
 
 /* wait for completion of a subsequent run */
-static void gauss_seidel_thread_wait (GSTD *data, double *errup, double *errlo)
+static int gauss_seidel_thread_wait (GSTD *data, double *errup, double *errlo)
 {
   while (!data->done);
 
   *errup += data->errup;
   *errlo += data->errlo;
+
+  return data->dimax;
 }
 
 static void gauss_seidel_thread_destroy (GSTD *data)
 {
+  void *r;
+
   data->active = 0;
   data->wait = 0;
+
+  pthread_join (data->thread, &r);
 }
+#endif
 
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
+  int di, dimax, diagiters;
   double error, step;
   short dynamic;
   char fmt [512];
@@ -993,6 +984,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       mycolor,
      *color,
       rank;
+
+  dimax = 0;
 
   if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -1090,8 +1083,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   lohi = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_LOHI, send_lohi, nsend_lohi, &recv_lohi, &nrecv_lohi);
   hilo = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_HILO, send_hilo, nsend_hilo, &recv_hilo, &nrecv_hilo);
 
+#if MPITHREADS
   /* create mid set update thread */
   GSTD *data = gauss_seidel_thread_create (mid, mycolor, color, gs, ldy, dynamic, step);
+#endif
 
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
@@ -1100,7 +1095,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   do
   {
     double errup = 0.0,
-           errlo = 0.0;
+           errlo = 0.0,
+	   errloc [2],
+	   errsum [2];
 
     if (gs->iters % 2) /* reverse */
     {
@@ -1111,27 +1108,41 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     REXT_undo (ldy); /* undo all external reactions */
 
-    gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
+    di = gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
+    dimax = MAX (dimax, di);
 
     COM_Send (hilo); /* start sending top blocks */
-
-    gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
+    
+    di = gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
+    dimax = MAX (dimax, di);
 
     COM_Recv (hilo); /* receive top blocks */
 
     REXT_recv (ldy, recv_hilo, nrecv_hilo); /* update received extenral reactions */
 
+#if MPITHREADS
     gauss_seidel_thread_run (data); /* begin update of mid blocks */
+#else
+    di = gauss_siedel_loop (mid, gs->iters % 2, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo);
+    dimax = MAX (dimax, di);
+#endif
 
-    gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
+    di = gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
+    dimax = MAX (dimax, di);
 
-    gauss_seidel_thread_wait (data, &errup, &errlo); /* waid until mid nodes are updated */
+#if MPITHREADS
+    di = gauss_seidel_thread_wait (data, &errup, &errlo); /* waid until mid nodes are updated */
+    dimax = MAX (dimax, di);
+#endif
 
-    gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update bot blocks */
+    di = gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update bot blocks */
+    dimax = MAX (dimax, di);
 
     COM_Repeat (lohi); /* sending and receive bot blocks */
 
     REXT_recv (ldy, recv_lohi, nrecv_lohi); /* update received external reactions */
+
+    ASSERT_DEBUG (REXT_alldone (ldy), "Not all external reactions are done");
 
     if (gs->iters % 2) /* reverse */
     {
@@ -1139,6 +1150,24 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       tmp = lohi; lohi = hilo; hilo = tmp;
       tmp = int1; int1 = int2; int2 = tmp;
     }
+
+    /* get maximal iterations count of a diagonal block solver */
+    MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+    if (diagiters > gs->diagmaxiter || diagiters < 0)
+    {
+      switch ((int)gs->failure)
+      {
+      case GS_FAILURE_EXIT:
+	THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
+	break;
+      }
+    }
+
+    /* sum up error */
+    errloc [0] = errup, errloc [1] = errlo;
+    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    errup = errsum [0], errlo = errsum [1];
 
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
@@ -1150,13 +1179,17 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   if (rank == 0 && gs->verbose) printf (fmt, gs->iters, error);
 
+#if MPITHREADS
   gauss_seidel_thread_destroy (data);
+#endif
   SET_Free (setmem, &int0);
   SET_Free (setmem, &int1);
   SET_Free (setmem, &int2);
   SET_Free (setmem, &bot);
   SET_Free (setmem, &mid);
   SET_Free (setmem, &top);
+  COM_Free (lohi);
+  COM_Free (hilo);
   free (send_lohi);
   free (recv_lohi);
   free (send_hilo);

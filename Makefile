@@ -111,7 +111,7 @@ clean:
 	(cd tst && make clean)
 
 obj/solfec.o: solfec.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
 
 obj/err.o: err.c err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
