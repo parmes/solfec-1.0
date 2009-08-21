@@ -491,6 +491,53 @@ static int solver (GAUSS_SEIDEL *gs, short dynamic, double step, short kind,
   return 0;
 }
 
+#if 1
+static void dump_WBR (DIAB *dia)
+{
+#if MPI
+  int rank, size, data;
+  MPI_Status sta;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &size);
+
+  if (rank > 0) MPI_Recv (&data, 1, MPI_INT, rank-1, 999, MPI_COMM_WORLD, &sta);
+#endif
+
+  for (; dia; dia = dia->n)
+  {
+    double *point, *base, *W;
+
+    if (dia->con) point = CON(dia->con)->point, base = CON(dia->con)->base;
+#if MPI
+    else point = dia->point, base = dia->base;
+#endif
+
+    printf ("POINT: %e, %e, %e| ", point [0], point [1], point [2]);
+    //printf ("B: %.2e, %.2e, %.2e| ", dia->B[0], dia->B[1], dia->B[2]);
+    printf ("R: %.2e, %.2e, %.2e\n", dia->R[0], dia->R[1], dia->R[2]);
+
+#if 0
+    W = dia->W;
+    printf ("W(diag): %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e\n", W[0], W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8]);
+    for (OFFB *b = dia->adj; b; b = b->n)
+    {
+      W = b->W;
+      printf ("W(off): %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e\n", W[0], W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8]);
+    }
+#endif
+  }
+
+#if MPI
+  if (rank < size - 1) MPI_Send (&rank, 1, MPI_INT, rank+1, 999, MPI_COMM_WORLD);
+
+  MPI_Barrier (MPI_COMM_WORLD);
+#endif
+
+  //exit (1);
+}
+#endif
+
 #if MPI
 /* number of cpus in here  */
 static int cpu_count (GAUSS_SEIDEL *gs, int *ierr)
@@ -790,8 +837,12 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
   SET* (*first) (SET*);
   SET* (*next) (SET*);
 
+#if 1
   if (reverse) first = SET_Last, next = SET_Prev;
   else first = SET_First, next = SET_Next;
+#else
+  first = SET_First, next = SET_Next;
+#endif
 
   int di, dimax;
 
@@ -811,9 +862,11 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
   for (item = SET_First (set); item; item = SET_Next (item))
     SET_Insert (setmem, &active, item->data, NULL);
 
+  int nactive, mactive;
+
   dimax = 0;
 
-  while (SET_Size (active)) /* until the active set is empty */
+  do
   {
     for (item = first (active); item; item = next (item))
     {
@@ -825,8 +878,12 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 	XR *x = XR (jtem->data);
 	int adjcolor = color [x->rank];
 
+#if 1
 	if ((reverse && adjcolor < mycolor && !x->done) || /* a lower external reaction is undone */
-	    (!reverse && adjcolor > mycolor && !x->done)) adjdone = 0; /* or a higher external reaction is undone */
+	    (!reverse && adjcolor > mycolor && !x->done)) { adjdone = 0; break; } /* or a higher external reaction is undone */
+#else
+	if (adjcolor > mycolor && !x->done) { adjdone = 0; break; } /* or a higher external reaction is undone */
+#endif
       }
 
       if (adjdone) /* external reactions were done */
@@ -834,7 +891,6 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 	di = gauss_siedel (gs, dynamic, step, dia, errup, errlo); /* update the current block */
 	dimax = MAX (dimax, di);
 
-	SET_Delete (setmem, &active, dia, NULL); /* no more active */
 	SET_Insert (setmem, &updated, dia, NULL); /* schedule for sending */
       }
     }
@@ -842,6 +898,8 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
     for (nsend = 0, ptr = send, item = SET_First (updated); item; item = SET_Next (item)) /* fill send buffer */
     {
       DIAB *dia = item->data;
+
+      SET_Delete (setmem, &active, dia, NULL); /* no more active */
 
       for (MAP *ktem = MAP_First (dia->children); ktem; ktem = MAP_Next (ktem)) /* send to all children */
       {
@@ -859,7 +917,11 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
     REXT_recv (ldy, recv, nrecv); /* update external reactions */
 
     SET_Free (setmem, &updated); /* empty the updated blocks set */
+
+    nactive = SET_Size (active);
+    MPI_Allreduce (&nactive, &mactive, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
   }
+  while (mactive); /* until all active set are empty */
 
   return dimax;
 }
@@ -985,6 +1047,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
      *color,
       rank;
 
+
   dimax = 0;
 
   if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
@@ -1003,7 +1066,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       *mid  = NULL, /* the rest of boundary blocks */
       *int0 = NULL, /* internal blocks (int1 + int2) */
       *int1 = NULL, /* first subset of internal blocks */
-      *int2 = NULL; /* second subset of internal blocks */
+      *int2 = NULL, /* second subset of internal blocks */
+      *all  = NULL; /* all blocks */
   int siz1 = 0, /* non-zero blocks count in int1 + top */
       siz2 = 0; /* non-zero blocks count in int2 + bot */
 
@@ -1024,6 +1088,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     else if (lo) SET_Insert (setmem, &bot, dia, NULL), siz2 += dia->degree;
     else if (hi) SET_Insert (setmem, &top, dia, NULL), siz1 += dia->degree;
     else SET_Insert (setmem, &int0, dia, NULL); /* int1 + int2 */
+
+    SET_Insert (setmem, &all, dia, NULL);
   }
 
   /* create int1 and int2 so that |int1| + |top| == |int2| + |bot| */
@@ -1108,6 +1174,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     REXT_undo (ldy); /* undo all external reactions */
 
+#if 0
     di = gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
     dimax = MAX (dimax, di);
 
@@ -1141,6 +1208,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     COM_Repeat (lohi); /* sending and receive bot blocks */
 
     REXT_recv (ldy, recv_lohi, nrecv_lohi); /* update received external reactions */
+#else
+
+    dimax = gauss_siedel_loop (all, gs->iters % 2, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo);
+
+#endif
 
     ASSERT_DEBUG (REXT_alldone (ldy), "Not all external reactions are done");
 
@@ -1187,7 +1259,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   SET_Free (setmem, &int2);
   SET_Free (setmem, &bot);
   SET_Free (setmem, &mid);
-  SET_Free (setmem, &top);
+  SET_Free (setmem, &all);
   COM_Free (lohi);
   COM_Free (hilo);
   free (send_lohi);
@@ -1212,6 +1284,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       break;
     }
   }
+
+  //dump_WBR (ldy->diab);
 }
 #else
 /* run serial solver */
@@ -1321,6 +1395,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       break;
     }
   }
+
+  //dump_WBR (ldy->dia);
 }
 #endif
 

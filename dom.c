@@ -1019,8 +1019,21 @@ static int domain_balance (DOM *dom)
   return changes;
 }
 
-/* return next pointer and realloc send memory if needed */
-inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
+/* return next pointer and realloc send data memory if needed */
+inline static COMDATA* sendnextdata (int nsend, int *size, COMDATA **send)
+{
+  if (nsend >= *size)
+  {
+    (*size) *= 2;
+
+    ERRMEM (*send = realloc (*send, sizeof (COMDATA [*size])));
+  }
+
+  return &(*send)[nsend];
+}
+
+/* return next pointer and realloc send object memory if needed */
+inline static COMOBJ* sendnextobj (int nsend, int *size, COMOBJ **send)
 {
   if (nsend >= *size)
   {
@@ -1050,7 +1063,7 @@ static void domain_gossip (DOM *dom)
     {
       ptr->rank = (int)item->data;
       ptr->o = bod;
-      ptr = sendnext (++ nsend, &size, &send);
+      ptr = sendnextobj (++ nsend, &size, &send);
     }
   }
 
@@ -1076,6 +1089,7 @@ static void conext_remove_all (DOM *dom)
   }
 
   /* erase in the domain */
+  MAP_Free (&dom->mapmem, &dom->extmap);
   MEM_Release (&dom->extmem);
   dom->conext = NULL;
 }
@@ -1089,6 +1103,9 @@ static void conext_insert (DOM *dom, int rank, CONEXT *ext)
   /* append list */
   ext->next = dom->conext;
   dom->conext = ext;
+
+  /* map it by the id for a parent-adjecent external constraint */
+  if (rank >= 0) MAP_Insert (&dom->mapmem, &dom->extmap, (void*) ext->id, ext, NULL);
 
   /* add to the body constraint adjacency */
   SET_Insert (&dom->setmem, &ext->bod->conext, ext, NULL);
@@ -1110,11 +1127,13 @@ static CONEXT* conext_create (DOM *dom, CON *con, BODY *bod)
   {
     ext->isma = 1;
     ext->sgp = con->mbox->sgp;
+    COPY (con->mpnt, ext->point);
   }
   else
   {
     ext->isma = 0;
     ext->sgp = con->sbox->sgp;
+    COPY (con->spnt, ext->point);
   }
 
   return ext;
@@ -1175,7 +1194,7 @@ CONEXT* conext_unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *i
 }
 
 /* migrate external constraints */
-static void domain_glue (DOM *dom)
+static void domain_glue_begin (DOM *dom)
 {
   COMOBJ *send, *recv, *ptr;
   int k, size, nsend, nrecv;
@@ -1204,14 +1223,14 @@ static void domain_glue (DOM *dom)
 	{
 	  ptr->rank = bod [k]->my.parent;
 	  ptr->o = conext_create (dom, con, bod [k]);
-	  ptr = sendnext (++ nsend, &size, &send);
+	  ptr = sendnextobj (++ nsend, &size, &send);
 	}
       }
     }
   }
 
   /* Send from children and receive in parents */
-  COMOBJS (MPI_COMM_WORLD, TAG_CONEXT, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack_parent, send, nsend, &recv, &nrecv);
+  COMOBJS (MPI_COMM_WORLD, TAG_CONEXT_TO_PARENTS, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack_parent, send, nsend, &recv, &nrecv);
 
   /* Insert received external constraints */
   for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++) conext_insert (dom, ptr->rank, ptr->o);
@@ -1231,7 +1250,7 @@ static void domain_glue (DOM *dom)
 	ptr->rank = (int)item->data; /* child rank */
 	ptr->o = conext_create (dom, jtem->data, bod);
 	SET_Insert (&dom->setmem, &del, ptr->o, NULL); /* to delete when done */
-	ptr = sendnext (++ nsend, &size, &send);
+	ptr = sendnextobj (++ nsend, &size, &send);
       }
 
       for (jtem = SET_First (bod->conext); jtem; jtem = SET_Next (jtem)) /* external constraints */
@@ -1242,14 +1261,14 @@ static void domain_glue (DOM *dom)
 	{
 	  ptr->rank = (int)item->data; /* child rank */
 	  ptr->o = ext;
-	  ptr = sendnext (++ nsend, &size, &send);
+	  ptr = sendnextobj (++ nsend, &size, &send);
 	}
       }
     }
   }
 
   /* Send from parents and receive in children */
-  COMOBJS (MPI_COMM_WORLD, TAG_CONEXT, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack_child, send, nsend, &recv, &nrecv);
+  COMOBJS (MPI_COMM_WORLD, TAG_CONEXT_TO_CHILDREN, (OBJ_Pack)conext_pack, dom, (OBJ_Unpack)conext_unpack_child, send, nsend, &recv, &nrecv);
 
   /* Insert received new external constraints */
   for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++) conext_insert (dom, -1, ptr->o); /* invalid -1 rank here */
@@ -1260,6 +1279,63 @@ static void domain_glue (DOM *dom)
   free (recv);
 }
 
+/* update external constraint reactions */
+static void domain_glue_end (DOM *dom)
+{
+  COMDATA *send, *recv, *ptr;
+  int j, k, size, nsend, nrecv;
+  CONEXT *ext;
+  double *R;
+  CON *con;
+
+  size = MAX (dom->ncon, 128);
+
+  ERRMEM (send = malloc (sizeof (COMDATA [size])));
+
+  /* Walk over all constraints and identify (con, rank) pairs to be exported */
+  for (ptr = send, nsend = 0, con = dom->con; con; con = con->next)
+  {
+    BODY *bod [] = {con->master, con->slave};
+
+    for (k = 0; k < 2; k ++)
+    {
+      if (bod [k])
+      {
+	if (bod [k]->flags & BODY_CHILD)
+	{
+	  ptr->rank = bod [k]->my.parent;
+	  ptr->ints = 1;
+	  ptr->doubles = 3;
+	  ptr->i = (int*) &con->id;
+	  ptr->d = con->R;
+	  ptr = sendnextdata (++ nsend, &size, &send);
+	}
+      }
+    }
+  }
+
+  /* Send updated reactions of external constraints from children to parents */
+  COM (MPI_COMM_WORLD, TAG_CONEXT_UPDATE_PARENTS, send, nsend, &recv, &nrecv);
+
+  /* Insert received external constraints */
+  for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++)
+  {
+
+    ASSERT_DEBUG (ptr->doubles / ptr->ints == 3 &&
+	          ptr->doubles % ptr->ints == 0,  "Incorrect data count received");
+
+    for (j = 0, R = ptr->d; j < ptr->ints; j ++, R += 3)
+    {
+      ASSERT_DEBUG_EXT (ext = MAP_Find (dom->extmap, (void*) ptr->i[j], NULL), "Invalid external constraint id");
+      COPY (R, ext->R);
+    }
+  }
+
+  /* Clean up */
+  free (send);
+  free (recv);
+}
+ 
 /* create MPI related data */
 static void create_mpi (DOM *dom)
 {
@@ -1279,6 +1355,7 @@ static void create_mpi (DOM *dom)
   ERRMEM (dom->delch = calloc (dom->ncpu, sizeof (SET*)));
 
   dom->conext = NULL;
+  dom->extmap = NULL;
 
   MEM_Init (&dom->extmem, sizeof (CONEXT), CONBLK);
 
@@ -1726,7 +1803,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   if (dom->verbose) printf ("CONSTRAINTS: %d\n",  dom->ncon);
 
 #if MPI
-  domain_glue (dom);
+  domain_glue_begin (dom);
 #endif
 
   /* output local dynamics */
@@ -1741,6 +1818,10 @@ void DOM_Update_End (DOM *dom)
   double time, step, *de, *be;
   SET *del, *item;
   BODY *bod;
+
+#if MPI
+  domain_glue_end (dom);
+#endif
 
   /* time and step */
   time = dom->time;
