@@ -218,7 +218,7 @@ static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
     else /* detached */
     {
       global_ids [i * num_gid_entries] = box->bid;
-      global_ids [i * num_gid_entries + 1] = (int) box->sgp; /* local SGP index */
+      global_ids [i * num_gid_entries + 1] = (int) (long) box->sgp; /* local SGP index */
     }
 
     local_ids [i * num_lid_entries] = i;
@@ -238,7 +238,7 @@ static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
     else
     {
       global_ids [i * num_gid_entries] = box->bid;
-      global_ids [i * num_gid_entries + 1] = (int) box->sgp;
+      global_ids [i * num_gid_entries + 1] = (int) (long) box->sgp;
     }
 
     local_ids [i * num_lid_entries] = i;
@@ -288,7 +288,7 @@ static void box_pack (BOX *box, int *dsize, double **d, int *doubles, int *isize
   pack_int (isize, i, ints, box->bid);
   pack_int (isize, i, ints, box->kind & ~GOBJ_NEW);
   if (box->body) pack_int (isize, i, ints, box->sgp - BODY(box->body)->sgp);
-  else pack_int (isize, i, ints, (int) box->sgp); /* detached box */
+  else pack_int (isize, i, ints, (int) (long) box->sgp); /* detached box */
   pack_doubles (dsize, d, doubles, box->extents, 6);
 }
 
@@ -308,13 +308,13 @@ static void* box_unpack (AABB *aabb, int *dpos, double *d, int doubles, int *ipo
   unpack_doubles (dpos, d, doubles, extents, 6);
 
   /* a body must be waiting here for this box => let us make sure */
-  bod = MAP_Find (dom->children, (void*) aux.bid, NULL);
-  if (!bod) ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) aux.bid, NULL), "Invalid body id");
+  bod = MAP_Find (dom->children, (void*) (long) aux.bid, NULL);
+  if (!bod) ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) aux.bid, NULL), "Invalid body id");
 
   /* but it could also be detached => if so let it get attached later, not here */
   if (SET_Contains (aabb->detached, &aux, (SET_Compare) detached_compare)) return NULL;
 
-  sgp = &bod->sgp [(int) aux.sgp];
+  sgp = &bod->sgp [(int) (long) aux.sgp];
 
   if (sgp->box == NULL) /* do not insert boxes that already exist */
   {
@@ -453,7 +453,7 @@ static void syncset (SET **theset, MEM *setmem)
   /* copy the local set into a buffer */
   for (item = SET_First (*theset), ptr = set; item; item = SET_Next (item), ptr ++)
   {
-    ptr [0] = (int) item->data;
+    ptr [0] = (int) (long) item->data;
   }
 
   /* gather all local sets into the common 'all' space */
@@ -462,8 +462,8 @@ static void syncset (SET **theset, MEM *setmem)
   /* complete the local set */
   for (ptr = all, end = all + n; ptr < end; ptr ++)
   {
-    if (!SET_Contains (*theset, (void*) ptr [0], NULL))  /* if not found */
-      SET_Insert (setmem, theset, (void*) ptr [0], NULL); /* insert new item */
+    if (!SET_Contains (*theset, (void*) (long) ptr [0], NULL))  /* if not found */
+      SET_Insert (setmem, theset, (void*) (long) ptr [0], NULL); /* insert new item */
   }
 
   free (all);
@@ -486,13 +486,13 @@ static void attach_detached (AABB *aabb)
   {
     box = item->data;
 
-    bod = MAP_Find (dom->children, (void*) box->bid, NULL);
-    if (!bod) bod = MAP_Find (dom->idb, (void*) box->bid, NULL);
+    bod = MAP_Find (dom->children, (void*) (long) box->bid, NULL);
+    if (!bod) bod = MAP_Find (dom->idb, (void*) (long) box->bid, NULL);
 
     if (bod)
     {
       box->body = bod;
-      box->sgp = &bod->sgp [(int) box->sgp];
+      box->sgp = &bod->sgp [(int) (long) box->sgp];
       box->sgp->box = box;
       box->data = box->sgp->shp->data;
       box->update = extents_update (box->sgp);
@@ -557,12 +557,12 @@ static void aabb_balance (AABB *aabb)
     for (box = aabb->in; box; box = next)
     {
       next = box->next;
-      if (SET_Contains (aabb->delbod, (void*) box->bid, NULL)) AABB_Delete (aabb, box);
+      if (SET_Contains (aabb->delbod, (void*) (long) box->bid, NULL)) AABB_Delete (aabb, box);
     }
     for (box = aabb->lst; box; box = next)
     {
       next = box->next;
-      if (SET_Contains (aabb->delbod, (void*) box->bid, NULL)) AABB_Delete (aabb, box);
+      if (SET_Contains (aabb->delbod, (void*) (long) box->bid, NULL)) AABB_Delete (aabb, box);
     }
 
     /* empty deletion set */
@@ -814,7 +814,7 @@ void AABB_Delete_Body (AABB *aabb, void *body)
   }
 
 #if MPI
-  SET_Insert (&aabb->setmem, &aabb->delbod, (void*) bod->id, NULL);
+  SET_Insert (&aabb->setmem, &aabb->delbod, (void*) (long) bod->id, NULL);
 #endif
 }
 

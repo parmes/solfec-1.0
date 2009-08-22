@@ -140,7 +140,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, short locdyn)
   con->id = dom->cid ++;
 #endif
 
-  MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
+  MAP_Insert (&dom->mapmem, &dom->idc, (void*) (long) con->id, con, NULL);
 
   /* insert into local dynamics */
   if (locdyn) con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
@@ -510,11 +510,11 @@ static CON* read_constraint (DOM *dom, PBF *bf)
 
   PBF_Int (bf, &count, 1);
   PBF_Uint (bf, &id, 1);
-  ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*)id, NULL), "Invalid master id");
+  ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid master id");
   if (count == 2)
   {
     PBF_Uint (bf, &id, 1);
-    ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*)id, NULL), "Invalid slave id");
+    ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid slave id");
   }
 
   if (kind == CONTACT)
@@ -662,7 +662,7 @@ static void midpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
 
     if (bod && bod->id != id) /* Zoltan changed the order of bodies in the list */
     {
-      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id");
     }
 
     e = bod->extents;
@@ -677,7 +677,7 @@ static void midpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
 static void insert_child (DOM *dom, BODY *bod)
 {
   /* insert into id based map */
-  MAP_Insert (&dom->mapmem, &dom->children, (void*)bod->id, bod, NULL);
+  MAP_Insert (&dom->mapmem, &dom->children, (void*) (long) bod->id, bod, NULL);
 
   bod->dom = dom;
 
@@ -715,7 +715,7 @@ static void remove_child (DOM *dom, BODY *bod)
   }
 
   /* delete from id based map */
-  MAP_Delete (&dom->mapmem, &dom->children, (void*)bod->id, NULL);
+  MAP_Delete (&dom->mapmem, &dom->children, (void*) (long) bod->id, NULL);
 }
 
 /* insert migrated body into the domain */
@@ -724,7 +724,7 @@ void insert_migrated_body (DOM *dom, BODY *bod)
   if (bod->label) /* map labeled bodies */
     MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare)strcmp);
 
-  MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
+  MAP_Insert (&dom->mapmem, &dom->idb, (void*) (long) bod->id, bod, NULL);
 
   bod->dom = dom;
   dom->nbod ++;
@@ -767,7 +767,7 @@ static void remove_migrated_body (DOM *dom, BODY *bod)
     MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare)strcmp);
 
   /* delete from id based map */
-  MAP_Delete (&dom->mapmem, &dom->idb, (void*)bod->id, NULL);
+  MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) bod->id, NULL);
 
   dom->nbod --;
 
@@ -822,7 +822,7 @@ static int domain_balance (DOM *dom)
       qtr->rank = i; /* send it there */
       qtr->ints = SET_Size (*del);
       ERRMEM (qtr->i = j = malloc (sizeof (int [qtr->ints])));
-      for (SET *x = SET_First (*del); x; x = SET_Next (x), j ++) *j = (int)x->data; /* ids of children to be deleted */
+      for (SET *x = SET_First (*del); x; x = SET_Next (x), j ++) *j = (int) (long) x->data; /* ids of children to be deleted */
       SET_Free (&dom->setmem, del); /* empty this set to be reused next time */
       qtr ++;
     }
@@ -838,7 +838,7 @@ static int domain_balance (DOM *dom)
     {
       BODY *bod;
 
-      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)(*j), NULL), "Invalid orphan id"); /* find child */
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) (*j), NULL), "Invalid orphan id"); /* find child */
       remove_child (dom, bod);
       BODY_Destroy (bod);
     }
@@ -884,9 +884,9 @@ static int domain_balance (DOM *dom)
 
     id = export_global_ids [i * num_gid_entries]; /* get id */
 
-    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id"); /* identify body object */
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id"); /* identify body object */
 
-    MAP_Insert (&dom->mapmem, &export_bod, bod, (void*)export_procs [i], NULL); /* map this body to its export rank */
+    MAP_Insert (&dom->mapmem, &export_bod, bod, (void*) (long) export_procs [i], NULL); /* map this body to its export rank */
 
     for (adj = SET_First (bod->con); adj; adj = SET_Next (adj)) /* search adjacent constraints */
     {
@@ -895,7 +895,7 @@ static int domain_balance (DOM *dom)
       if (con->kind != CONTACT)
       {
 	MAP_Insert (&dom->mapmem, &export_con, con,
-	            (void*)export_procs [i], NULL); /* map non-contact constraint to its export rank */
+	            (void*) (long) export_procs [i], NULL); /* map non-contact constraint to its export rank */
 
 	con->id = 0; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
 			non-contact constrints should have cluster-wide unique ids, as users
@@ -939,7 +939,7 @@ static int domain_balance (DOM *dom)
 
   for (item = MAP_First (export_con), ptr = consend; item; item = MAP_Next (item), ptr ++)
   {
-    ptr->rank = (int)item->data;
+    ptr->rank = (int) (long) item->data;
     ptr->o = item->key;
   }
 
@@ -953,7 +953,7 @@ static int domain_balance (DOM *dom)
 
   for (item = MAP_First (export_bod), ptr = bodsend; item; item = MAP_Next (item), ptr ++)
   {
-    ptr->rank = (int)item->data;
+    ptr->rank = (int) (long) item->data;
     ptr->o = item->key;
   }
 
@@ -986,7 +986,7 @@ static int domain_balance (DOM *dom)
 
     aux = ptr->o;
 
-    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)aux->master, NULL), "Invalid body id");
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) aux->master, NULL), "Invalid body id");
 
     switch (aux->kind)
     {
@@ -997,7 +997,7 @@ static int domain_balance (DOM *dom)
     {
       BODY *other;
 
-      ASSERT_DEBUG_EXT (other = MAP_Find (dom->idb, (void*)aux->slave, NULL), "Invalid body id");
+      ASSERT_DEBUG_EXT (other = MAP_Find (dom->idb, (void*) (long) aux->slave, NULL), "Invalid body id");
       con = DOM_Put_Rigid_Link (dom, bod, other, aux->vec [0], aux->vec [1]);
     }
     break;
@@ -1061,7 +1061,7 @@ static void domain_gossip (DOM *dom)
   {
     for (item = SET_First (bod->my.children); item; item = SET_Next (item))
     {
-      ptr->rank = (int)item->data;
+      ptr->rank = (int) (long) item->data;
       ptr->o = bod;
       ptr = sendnextobj (++ nsend, &size, &send);
     }
@@ -1104,7 +1104,7 @@ static void conext_insert (DOM *dom, int rank, CONEXT *ext)
   dom->conext = ext;
 
   /* add to the body constraint adjacency */
-  MAP_Insert (&dom->mapmem, &ext->bod->conext, (void*) ext->id, ext, NULL);
+  MAP_Insert (&dom->mapmem, &ext->bod->conext, (void*) (long) ext->id, ext, NULL);
 }
 
 /* create an external constraint */
@@ -1172,7 +1172,7 @@ CONEXT* conext_unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *
 
   ASSERT_DEBUG_EXT (ext->bod = MAP_Find (dom->idb, ext->bod, NULL), "Invalid body id");
 
-  ext->sgp = &ext->bod->sgp [(int) ext->sgp];
+  ext->sgp = &ext->bod->sgp [(int) (long) ext->sgp];
 
   return ext;
 }
@@ -1184,7 +1184,7 @@ CONEXT* conext_unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *i
 
   ASSERT_DEBUG_EXT (ext->bod = MAP_Find (dom->children, ext->bod, NULL), "Invalid body id");
 
-  ext->sgp = &ext->bod->sgp [(int) ext->sgp];
+  ext->sgp = &ext->bod->sgp [(int) (long) ext->sgp];
 
   return ext;
 }
@@ -1243,7 +1243,7 @@ static void domain_glue_begin (DOM *dom)
     {
       for (jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem)) /* local constraints */
       {
-	ptr->rank = (int)item->data; /* child rank */
+	ptr->rank = (int) (long) item->data; /* child rank */
 	ptr->o = conext_create (dom, jtem->data, bod);
 	SET_Insert (&dom->setmem, &del, ptr->o, NULL); /* to delete when done */
 	ptr = sendnextobj (++ nsend, &size, &send);
@@ -1253,9 +1253,9 @@ static void domain_glue_begin (DOM *dom)
       {
         ext = jtem->data;
 
-	if (ext->rank != (int)item->data) /* if not coming from this child */
+	if (ext->rank != (int) (long) item->data) /* if not coming from this child */
 	{
-	  ptr->rank = (int)item->data; /* child rank */
+	  ptr->rank = (int) (long) item->data; /* child rank */
 	  ptr->o = ext;
 	  ptr = sendnextobj (++ nsend, &size, &send);
 	}
@@ -1324,13 +1324,14 @@ static void domain_glue_end (DOM *dom)
   {
     for (j = ptr->i, l = j + ptr->ints, R = ptr->d; j < l; j += 2, R += 3)
     {
-      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) j [0], NULL), "Invalid body id");
-      ASSERT_DEBUG_EXT (ext = MAP_Find (bod->conext, (void*) j [1], NULL), "Invalid external constraint id");
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) j [0], NULL), "Invalid body id");
+      ASSERT_DEBUG_EXT (ext = MAP_Find (bod->conext, (void*) (long) j [1], NULL), "Invalid external constraint id");
       COPY (R, ext->R);
     }
   }
 
   /* Clean up */
+  MEM_Release (&memintpair);
   free (send);
   free (recv);
 }
@@ -1482,7 +1483,7 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   else
 #endif
   bod->id = dom->bid ++; /* due to the above assertion this is fine in parallel */
-  MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
+  MAP_Insert (&dom->mapmem, &dom->idb, (void*) (long) bod->id, bod, NULL);
 
   bod->dom = dom;
   dom->nbod ++;
@@ -1531,7 +1532,7 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
     MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare)strcmp);
 
   /* delete from id based map */
-  MAP_Delete (&dom->mapmem, &dom->idb, (void*)bod->id, NULL);
+  MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) bod->id, NULL);
 
   dom->nbod --;
 
@@ -1540,15 +1541,15 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   if (bod->next) bod->next->prev = bod->prev;
 
 
-  if (dom->time > 0) SET_Insert (&dom->setmem, &dom->delb, (void*) bod->id, NULL);
+  if (dom->time > 0) SET_Insert (&dom->setmem, &dom->delb, (void*) (long) bod->id, NULL);
 
 #if MPI
   /* free body id */
-  SET_Insert (&dom->setmem, &dom->sparebid, (void*)bod->id, NULL);
+  SET_Insert (&dom->setmem, &dom->sparebid, (void*) (long) bod->id, NULL);
 
   /* gather children ids to be deleted during balancing */
   for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
-    SET_Insert (&dom->setmem, &dom->delch [(int)item->data], (void*)bod->id, NULL);
+    SET_Insert (&dom->setmem, &dom->delch [(int) (long) item->data], (void*) (long) bod->id, NULL);
 #endif
 }
 
@@ -1708,7 +1709,7 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
   if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, NULL);
 
   /* remove from id-based map */
-  MAP_Delete (&dom->mapmem, &dom->idc, (void*)con->id, NULL);
+  MAP_Delete (&dom->mapmem, &dom->idc, (void*) (long) con->id, NULL);
 
   /* remove from list */
   if (con->prev)
@@ -1723,7 +1724,7 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 
 #if MPI
   /* free constraint id if needed */
-  if (con->id) SET_Insert (&dom->setmem, &dom->sparecid, (void*)con->id, NULL);
+  if (con->id) SET_Insert (&dom->setmem, &dom->sparecid, (void*) (long) con->id, NULL);
 #endif
 
   /* destroy passed data */
@@ -1904,12 +1905,12 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
     for (i = 0; i < numprocs; i ++) 
     {
       if (dom->rank != procs [i]) /* skip current rank */
-        SET_Insert (&dom->setmem, &procset, (void*)procs [i], NULL);
+        SET_Insert (&dom->setmem, &procset, (void*) (long) procs [i], NULL);
     }
 
     /* 3.5. if this body just migrated here, a child copy
      *      of it could still be here; schedule it for deletion */
-    if (SET_Contains (bod->my.children, (void*)dom->rank, NULL))
+    if (SET_Contains (bod->my.children, (void*) (long) dom->rank, NULL))
     {
       struct pair *p;
 
@@ -1917,7 +1918,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
       p->bod.id = bod->id;
       p->rank = dom->rank;
       SET_Insert (&dom->setmem, &delset, p, NULL); /* schedule for deletion with other children */
-      SET_Delete (NULL, &bod->my.children, (void*)dom->rank, NULL); /* delete from bodies children set */
+      SET_Delete (NULL, &bod->my.children, (void*) (long) dom->rank, NULL); /* delete from bodies children set */
     }
 
      /* 4. for each x in bod->my.children, if not in procset,
@@ -1930,7 +1931,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
 
 	ERRMEM (p = MEM_Alloc (&mem));
 	p->bod.id = bod->id;
-	p->rank = (int) x->data;
+	p->rank = (int) (long) x->data;
 	SET_Insert (&dom->setmem, &delset, p, NULL);
 	x = SET_Delete_Node (NULL, &bod->my.children, x);
       }
@@ -1947,7 +1948,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
 
 	ERRMEM (p = MEM_Alloc (&mem));
 	p->bod.ptr = bod;
-	p->rank = (int) x->data;
+	p->rank = (int) (long) x->data;
 	SET_Insert (&dom->setmem, &sndset, p, NULL);
 	SET_Insert (NULL, &bod->my.children, x->data, NULL);
       }
@@ -1995,7 +1996,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
 
       id = recv[nrecv].i [i];
 
-      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)id, NULL), "Invalid body id");
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) id, NULL), "Invalid body id");
       remove_child (dom, bod);
       BODY_Destroy (bod);
     }
@@ -2079,7 +2080,7 @@ void DOM_Write_State (DOM *dom, PBF *bf)
 
   for (item = SET_First (dom->delb); item; item = SET_Next (item))
   {
-    id = (int)item->data;
+    id = (int) (long) item->data;
     PBF_Uint (bf, &id, 1);
   }
 
@@ -2161,7 +2162,7 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 	CON *con;
 	
 	con = read_constraint (dom, bf);
-	MAP_Insert (&dom->mapmem, &dom->idc, (void*)con->id, con, NULL);
+	MAP_Insert (&dom->mapmem, &dom->idc, (void*) (long) con->id, con, NULL);
 	con->next = dom->con;
 	if (dom->con) dom->con->prev = con;
 	dom->con = con;
@@ -2184,10 +2185,10 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 
 	PBF_Uint (bf, &id, 1);
 
-	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Invalid body id");
+	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id");
 
 	if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
-	MAP_Delete (&dom->mapmem, &dom->idb, (void*)id, NULL);
+	MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) id, NULL);
 	if (bod->next) bod->next->prev = bod->prev;
 	if (bod->prev) bod->prev->next = bod->next;
 	else dom->bod = bod->next;
@@ -2223,7 +2224,7 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 	bod = BODY_Unpack (dom->owner, &dpos, d, doubles, &ipos, i, ints);
 
 	if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
-	MAP_Insert (&dom->mapmem, &dom->idb, (void*)bod->id, bod, NULL);
+	MAP_Insert (&dom->mapmem, &dom->idb, (void*) (long) bod->id, bod, NULL);
 	bod->next = dom->bod;
 	if (dom->bod) dom->bod->prev = bod;
 	dom->bod = bod;
@@ -2247,7 +2248,7 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 	BODY *bod;
 
 	PBF_Uint (bf, &id, 1);
-	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*)id, NULL), "Body id invalid");
+	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Body id invalid");
 	BODY_Read_State (bod, bf);
       }
     }

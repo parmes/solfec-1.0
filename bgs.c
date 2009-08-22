@@ -492,7 +492,8 @@ static int solver (GAUSS_SEIDEL *gs, short dynamic, double step, short kind,
 }
 
 #if 0
-static void dump_WBR (DIAB *dia)
+#if DEBUG
+static void DUMP (DIAB *dia)
 {
 #if MPI
   int rank, size, data;
@@ -506,25 +507,27 @@ static void dump_WBR (DIAB *dia)
 
   for (; dia; dia = dia->n)
   {
-    double *point, *base, *W;
+    double *point;
 
-    if (dia->con) point = CON(dia->con)->point, base = CON(dia->con)->base;
+    if (dia->con) point = CON(dia->con)->point;
 #if MPI
-    else point = dia->point, base = dia->base;
+    else point = dia->point;
 #endif
 
     printf ("POINT: %e, %e, %e| ", point [0], point [1], point [2]);
-    //printf ("B: %.2e, %.2e, %.2e| ", dia->B[0], dia->B[1], dia->B[2]);
+#if 0
+    printf ("B: %.2e, %.2e, %.2e| ", dia->B[0], dia->B[1], dia->B[2]);
     printf ("R: %.2e, %.2e, %.2e\n", dia->R[0], dia->R[1], dia->R[2]);
 
-#if 0
-    W = dia->W;
+    double *W = dia->W;
     printf ("W(diag): %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e\n", W[0], W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8]);
     for (OFFB *b = dia->adj; b; b = b->n)
     {
       W = b->W;
       printf ("W(off): %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e\n", W[0], W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8]);
     }
+#else
+    printf ("R: %.2e, %.2e, %.2e\n", dia->R[0], dia->R[1], dia->R[2]);
 #endif
   }
 
@@ -533,9 +536,10 @@ static void dump_WBR (DIAB *dia)
 
   MPI_Barrier (MPI_COMM_WORLD);
 #endif
-
-  //exit (1);
 }
+#else
+#define DUMP(dia)
+#endif
 #endif
 
 #if MPI
@@ -575,8 +579,8 @@ static void adjcpu_list (GAUSS_SEIDEL *gs, int num_gid_entries, int num_lid_entr
 
   for (i = 0, item = SET_First (gs->adjcpu); item; i ++, item = SET_Next (item))
   {
-    nbor_global_id [i] = ((int) item->data) + 1;
-    nbor_procs [i] = (int) item->data;
+    nbor_global_id [i] = ((int) (long) item->data) + 1;
+    nbor_procs [i] = (int) (long) item->data;
   }
 
   *ierr = ZOLTAN_OK;
@@ -727,7 +731,7 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     for (SET *item = SET_First (dia->rext); item; item = SET_Next (item))
     {
-      SET_Insert (setmem, adjcpu, (void*) XR(item->data)->rank, NULL);
+      SET_Insert (setmem, adjcpu, (void*) (long) XR(item->data)->rank, NULL);
     }
   }
 
@@ -837,12 +841,8 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
   SET* (*first) (SET*);
   SET* (*next) (SET*);
 
-#if 1
   if (reverse) first = SET_Last, next = SET_Prev;
   else first = SET_First, next = SET_Next;
-#else
-  first = SET_First, next = SET_Next;
-#endif
 
   int di, dimax;
 
@@ -878,12 +878,8 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 	XR *x = XR (jtem->data);
 	int adjcolor = color [x->rank];
 
-#if 1
 	if ((reverse && adjcolor < mycolor && !x->done) || /* a lower external reaction is undone */
 	    (!reverse && adjcolor > mycolor && !x->done)) { adjdone = 0; break; } /* or a higher external reaction is undone */
-#else
-	if (adjcolor > mycolor && !x->done) { adjdone = 0; break; } /* or a higher external reaction is undone */
-#endif
       }
 
       if (adjdone) /* external reactions were done */
@@ -903,7 +899,7 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
       for (MAP *ktem = MAP_First (dia->children); ktem; ktem = MAP_Next (ktem)) /* send to all children */
       {
-	ptr->rank = (int) ktem->key;
+	ptr->rank = (int) (long) ktem->key;
 	ptr->ints = 1;
 	ptr->doubles = 3;
 	ptr->i = (int*) &ktem->data;
@@ -919,7 +915,8 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
     SET_Free (setmem, &updated); /* empty the updated blocks set */
 
     nactive = SET_Size (active);
-    MPI_Allreduce (&nactive, &mactive, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+    MPI_Allreduce (&nactive, &mactive, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD); /* is there a nonempty active set ? */
   }
   while (mactive); /* until all active set are empty */
 
@@ -1078,7 +1075,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     for (MAP *item = MAP_First (dia->children); item; item = MAP_Next (item))
     {
-      int adjcolor = color [(int) item->key];
+      int adjcolor = color [(int) (long) item->key];
 
       if (adjcolor < mycolor) hi ++; /* sends to lower */
       else lo ++;
@@ -1122,7 +1119,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   {
     for (MAP *item = MAP_First (dia->children); item; item = MAP_Next (item))
     {
-      int adjrank = (int) item->key,
+      int adjrank = (int) (long) item->key,
           adjcolor = color [adjrank];
 
       if (adjcolor > mycolor) /* send to higher processor */
@@ -1174,7 +1171,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     REXT_undo (ldy); /* undo all external reactions */
 
-#if 0
+#if 1
     di = gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
     dimax = MAX (dimax, di);
 
@@ -1209,12 +1206,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     REXT_recv (ldy, recv_lohi, nrecv_lohi); /* update received external reactions */
 #else
-
     dimax = gauss_siedel_loop (all, gs->iters % 2, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo);
-
 #endif
 
-    ASSERT_DEBUG (REXT_alldone (ldy), "Not all external reactions are done");
+    ASSERT_DEBUG (REXT_alldone (ldy), "All external reactions should be done by now");
 
     if (gs->iters % 2) /* reverse */
     {
@@ -1228,7 +1223,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     if (diagiters > gs->diagmaxiter || diagiters < 0)
     {
-      switch ((int)gs->failure)
+      switch ((int) gs->failure)
       {
       case GS_FAILURE_EXIT:
 	THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
@@ -1284,10 +1279,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       break;
     }
   }
-
-  //dump_WBR (ldy->diab);
 }
-#else
+
+#else  /* ~MPI */
 /* run serial solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
@@ -1395,8 +1389,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       break;
     }
   }
-
-  //dump_WBR (ldy->dia);
 }
 #endif
 

@@ -429,7 +429,7 @@ void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize,
   for (count = 0, ptr = sph; ptr; ptr = ptr->next) count ++; /* number of spheres */
 
   for (map = NULL, n = 0, ptr = sph; ptr; ptr = ptr->next, n ++)
-    MAP_Insert (NULL, &map, ptr, (void*)n, NULL); /* map pointers to table indices */
+    MAP_Insert (NULL, &map, ptr, (void*) (long) n, NULL); /* map pointers to table indices */
 
   pack_int (isize, i, ints, count); /* number of spheres */
 
@@ -448,7 +448,7 @@ void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize,
     pack_double  (dsize, d, doubles, sph->ref_radius);
 
     /* rather than adjacency pack indices of neighbours in the output sequence */
-    for (n = 0; n < sph->nadj; n ++) pack_int (isize, i, ints, (int) MAP_Find (map, sph->adj [n], NULL));
+    for (n = 0; n < sph->nadj; n ++) pack_int (isize, i, ints, (int) (long) MAP_Find (map, sph->adj [n], NULL));
 
     pack_int (isize, i, ints, sph->mat ? 1 : 0); /* pack material existence flag */
     if (sph->mat) pack_string (isize, i, ints, sph->mat->label);
@@ -492,7 +492,7 @@ SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
     for (n = 0; n < nadj; n ++)
     {
       j = unpack_int (ipos, i, ints);
-      ptr->adj [ptr->nadj ++] = (SPHERE*) j; /* store index in 'tab' for the moment */
+      ptr->adj [ptr->nadj ++] = (SPHERE*) (long) j; /* store index in 'tab' for the moment */
     }
 
     j = unpack_int (ipos, i, ints); /* unpack material existence flag */
@@ -513,8 +513,8 @@ SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 
     for (n = 0; n < ptr->nadj; n ++)
     {
-      ASSERT_DEBUG (0 <= (int)ptr->adj [n] && (int)ptr->adj [n] < count, "Adjacent sphere index out of bounds");
-      ptr->adj [n] = tab [(int)ptr->adj [n]];
+      ASSERT_DEBUG (0 <= (int) (long) ptr->adj [n] && (int) (long) ptr->adj [n] < count, "Adjacent sphere index out of bounds");
+      ptr->adj [n] = tab [(int) (long) ptr->adj [n]];
     }
   }
 

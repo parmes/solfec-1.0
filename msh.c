@@ -1259,7 +1259,7 @@ static void element_pack (ELEMENT *ele, MAP *map, int *dsize, double **d, int *d
   pack_ints (isize, i, ints, ele->nodes, ele->type);
 
   /* rather than adjacency pack indices of neighbours in the output sequence */
-  for (n = 0; n < ele->neighs; n ++) pack_int (isize, i, ints, (int) MAP_Find (map, ele->adj [n], NULL));
+  for (n = 0; n < ele->neighs; n ++) pack_int (isize, i, ints, (int) (long) MAP_Find (map, ele->adj [n], NULL));
 
   pack_int (isize, i, ints, ele->mat ? 1 : 0); /* pack material existence flag */
   if (ele->mat) pack_string (isize, i, ints, ele->mat->label);
@@ -1287,7 +1287,7 @@ static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, i
 
   unpack_ints (ipos, i, ints, ele->nodes, ele->type);
 
-  for (n = 0; n < ele->neighs; n ++) ele->adj [n] = (ELEMENT*)unpack_int (ipos, i, ints);
+  for (n = 0; n < ele->neighs; n ++) ele->adj [n] = (ELEMENT*) (long) unpack_int (ipos, i, ints);
 
   j = unpack_int (ipos, i, ints); /* unpack material existence flag */
 
@@ -1330,10 +1330,10 @@ void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int
   MEM_Init (&mem, sizeof (MAP), msh->bulkeles_count + msh->surfeles_count);
 
   for (map = NULL, n = 0, ele = msh->bulkeles; ele; ele = ele->next, n ++)
-    MAP_Insert (&mem, &map, ele, (void*)n, NULL);
+    MAP_Insert (&mem, &map, ele, (void*) (long) n, NULL);
 
   for (ele = msh->surfeles; ele; ele = ele->next, n ++)
-    MAP_Insert (&mem, &map, ele, (void*)n, NULL);
+    MAP_Insert (&mem, &map, ele, (void*) (long) n, NULL);
 
   for (ele = msh->bulkeles; ele; ele = ele->next)
     element_pack (ele, map, dsize, d, doubles, isize, i, ints);
@@ -1395,7 +1395,7 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
     ele = tab [n];
 
     for (k = 0; k < ele->neighs; k ++)
-      ele->adj [k] = tab [(int)ele->adj [k]];
+      ele->adj [k] = tab [(int) (long) ele->adj [k]];
   }
 
   free (tab);

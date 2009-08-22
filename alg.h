@@ -38,16 +38,25 @@ void GEOMETRIC_EPSILON_ADAPT (double *p, int n);
  * scalar macros follow */
 
 #define ALG_PI 3.14159265358979323846 
-#define MIN(v, w) ((v) < (w) ? (v) : (w))
-#define MAX(v, w) ((v) > (w) ? (v) : (w))
+
+#ifndef MIN
+  #define MIN(v, w) ((v) < (w) ? (v) : (w))
+#endif
+
+#ifndef MAX
+  #define MAX(v, w) ((v) > (w) ? (v) : (w))
+#endif
+
 #define SGN(v) ((v) > 0 ? 1 : ((v) < 0 ? -1 : 0))
 #define ABS(v) ((v) > 0 ? (v) : -(v))
+
 #define LT(x, y) ((x) < (y))
 #define GT(x, y) ((x) > (y))
 #define GE(x, y) ((x) >= (y))
 #define LE(x, y) ((x) <= (y))
 #define EQ(x, y) ((x) == (y))
 #define NE(x, y) ((x) != (y))
+
 #define DRAND() ((double) rand () / (double) RAND_MAX)
 #define DRANDEXT(x, y) ((x) + ((y) - (x))*DRAND())
 

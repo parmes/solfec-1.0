@@ -339,7 +339,7 @@ static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *
 
     unpack_doubles (dpos, d, doubles, b->W, 9);
     b->id = unpack_int (ipos, i, ints);
-    b->dia = MAP_Find (idbb, (void*)b->id, NULL); /* might be NULL for boundary nodes of the local graph portion */
+    b->dia = MAP_Find (idbb, (void*) (long) b->id, NULL); /* might be NULL for boundary nodes of the local graph portion */
     b->n = dia->adj;
     dia->adj = b;
   }
@@ -367,7 +367,7 @@ static void delete_balanced_block (LOCDYN *ldy, DIAB *dia)
 {
   OFFB *b, *n;
 
-  MAP_Delete (&ldy->mapmem, &ldy->idbb, (void*)dia->id, NULL);
+  MAP_Delete (&ldy->mapmem, &ldy->idbb, (void*) (long) dia->id, NULL);
 
   MAP_Free (&ldy->mapmem, &dia->children);
   SET_Free (&ldy->setmem, &dia->rext);
@@ -393,7 +393,7 @@ static void pack_delete (SET *del, int *dsize, double **d, int *doubles, int *is
   /* ids of blocks to be deleted */
   pack_int (isize, i, ints, SET_Size (del));
   for (SET *item = SET_First (del); item; item = SET_Next (item))
-    pack_int (isize, i, ints, (int)item->data);
+    pack_int (isize, i, ints, (int) (long) item->data);
 }
 
 /* unpack deletion data */
@@ -409,7 +409,7 @@ static void* unpack_delete  (LOCDYN *ldy, int *dpos, double *d, int doubles, int
     int id;
 
     id = unpack_int (ipos, i, ints);
-    dia = MAP_Find (ldy->idbb, (void*)id, NULL);
+    dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL);
     if (dia) delete_balanced_block (ldy, dia); /* could be NULL if deletion followed insertion before balancing */
   }
 
@@ -437,7 +437,7 @@ static void* unpack_migrate (LOCDYN *ldy, int *dpos, double *d, int doubles, int
   if (ldy->diab) ldy->diab->p = dia;
   ldy->diab = dia;
 
-  MAP_Insert (&ldy->mapmem, &ldy->idbb, (void*)dia->id, dia, NULL);
+  MAP_Insert (&ldy->mapmem, &ldy->idbb, (void*) (long) dia->id, dia, NULL);
 
   ldy->ndiab ++;
 
@@ -470,7 +470,7 @@ static void* unpack_offids (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
     int id;
 
     id = unpack_int (ipos, i, ints);
-    ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*)id, NULL), "Invalid block id");
+    ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
     unpack_block_offids (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
   }
 
@@ -503,7 +503,7 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
     int id;
 
     id = unpack_int (ipos, i, ints);
-    ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*)id, NULL), "Invalid block id");
+    ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
     unpack_block (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
   }
 
@@ -577,10 +577,10 @@ static int locdyn_balance (LOCDYN *ldy)
   {
     int rank = ldy->del [i]->rank;
 
-    if (!(set = MAP_Find_Node (map, (void*)rank, NULL)))
-      set = MAP_Insert (&ldy->mapmem, &map, (void*)rank, NULL, NULL);
+    if (!(set = MAP_Find_Node (map, (void*) (long) rank, NULL)))
+      set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) rank, NULL, NULL);
 
-    SET_Insert (&setmem, (SET**)&set->data, (void*)ldy->del [i]->id, NULL);
+    SET_Insert (&setmem, (SET**)&set->data, (void*) (long) ldy->del [i]->id, NULL);
   }
 
   COMOBJ *send, *recv, *ptr;
@@ -592,7 +592,7 @@ static int locdyn_balance (LOCDYN *ldy)
 
   for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
   {
-    ptr->rank = (int)item->key;
+    ptr->rank = (int) (long) item->key;
     ptr->o = item->data;
   }
 
@@ -609,8 +609,8 @@ static int locdyn_balance (LOCDYN *ldy)
   {
     if (!MAP_Find_Node (ldy->insmap, dia, NULL)) /* not newly inserted */
     {
-      if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
-	set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
+      if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
 
       SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
     }
@@ -621,7 +621,7 @@ static int locdyn_balance (LOCDYN *ldy)
 
   for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
   {
-    ptr->rank = (int)item->key;
+    ptr->rank = (int) (long) item->key;
     ptr->o = item->data;
   }
 
@@ -662,11 +662,11 @@ static int locdyn_balance (LOCDYN *ldy)
 
     if (m == UINT_MAX) /* mapped migrated block */
     {
-      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*)export_global_ids [i], NULL), "Invalid block id");
+      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) export_global_ids [i], NULL), "Invalid block id");
 
       /* parent block will need to have updated rank of its migrated copy */
-      if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
-	set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
+      if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
 
       SET_Insert (&setmem, (SET**)&set->data, ptr, NULL); /* map (newrank, dia) the rank set of its parent */
     }
@@ -695,7 +695,7 @@ static int locdyn_balance (LOCDYN *ldy)
     SET *set = item->data,
 	*jtem;
 
-    dtr->rank = (int)item->key;
+    dtr->rank = (int) (long) item->key;
     dtr->ints = 2 * SET_Size (set);
     ERRMEM (dtr->i = malloc (sizeof (int [dtr->ints])));
     dtr->doubles = 0;
@@ -719,7 +719,7 @@ static int locdyn_balance (LOCDYN *ldy)
 
     for (j = 0; j < dtr->ints; j += 2)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)dtr->i [j], NULL), "Invalid constraint id");
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) dtr->i [j], NULL), "Invalid constraint id");
       con->dia->rank = dtr->i [j + 1]; /* the current rank of the child copy of this block */
     }
   }
@@ -793,8 +793,8 @@ static int locdyn_balance (LOCDYN *ldy)
     dia->kind = con->kind;
     dia->mat = con->mat;
 
-    if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
-      set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
+    if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+      set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
 
     SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
   }
@@ -804,7 +804,7 @@ static int locdyn_balance (LOCDYN *ldy)
 
   for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
   {
-    ptr->rank = (int)item->key;
+    ptr->rank = (int) (long) item->key;
     ptr->o = item->data;
   }
 
@@ -848,14 +848,14 @@ static void locdyn_gossip (LOCDYN *ldy)
   {
     if (dia->rank != dom->rank) /* send */
     {
-      if (!(set = MAP_Find_Node (map, (void*)dia->rank, NULL)))
-	set = MAP_Insert (&ldy->mapmem, &map, (void*)dia->rank, NULL, NULL);
+      if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
 
       SET_Insert (&setmem, (SET**)&set->data, dia, NULL); /* map balanced blocks to their parent ranks */
     }
     else /* do not send */
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)dia->id, NULL), "Invalid constraint id"); /* find constraint */
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) dia->id, NULL), "Invalid constraint id"); /* find constraint */
       R = con->dia->R;
       COPY (dia->R, R); /* update reaction */
     }
@@ -870,7 +870,7 @@ static void locdyn_gossip (LOCDYN *ldy)
 
   for (set = MAP_First (map), ptr = send; set; set = MAP_Next (set), ptr ++)
   {
-    ptr->rank = (int)set->key;
+    ptr->rank = (int) (long) set->key;
     ptr->ints = SET_Size ((SET*)set->data);
     ptr->doubles = 3 * ptr->ints;
     ERRMEM (ptr->i = malloc (sizeof (int [ptr->ints]))); /* ids */
@@ -892,7 +892,7 @@ static void locdyn_gossip (LOCDYN *ldy)
   {
     for (j = 0; j < ptr->ints; j ++)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)ptr->i[j], NULL), "Invalid constraint id"); /* find constraint */
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ptr->i[j], NULL), "Invalid constraint id"); /* find constraint */
       dia = con->dia;
       R = &ptr->d [3*j];
       COPY (R, dia->R); /* update reaction */
@@ -1017,7 +1017,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 
   /* schedule for balancing use */
   append (&ldy->ins, &ldy->nins, &ldy->sins, dia);
-  MAP_Insert (&ldy->mapmem, &ldy->insmap, dia, (void*)(ldy->nins-1), NULL);
+  MAP_Insert (&ldy->mapmem, &ldy->insmap, dia, (void*) (long) (ldy->nins-1), NULL);
 #endif
 
   /* insert into list */
@@ -1146,8 +1146,8 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
 
   if ((item = MAP_Find_Node (ldy->insmap, dia, NULL))) /* was inserted and now is deleted before balancing */
   {
-    ldy->ins [(int)item->data] = ldy->ins [-- ldy->nins]; /* replace this item withe the last one */
-    ASSERT_DEBUG (jtem = MAP_Find_Node (ldy->insmap, ldy->ins [(int)item->data], NULL), "Failed to find an inserted block");
+    ldy->ins [(int) (long) item->data] = ldy->ins [-- ldy->nins]; /* replace this item withe the last one */
+    ASSERT_DEBUG (jtem = MAP_Find_Node (ldy->insmap, ldy->ins [(int) (long) item->data], NULL), "Failed to find an inserted block");
     jtem->data = item->data; /* update block to index mapping */
     MAP_Delete_Node (&ldy->mapmem, &ldy->insmap, item); /* remove from map */
     MEM_Free (&ldy->diamem, dia); /* and free */
@@ -1348,7 +1348,7 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
 
   for (k = i = 0; i < ncpu; i ++)
     for (j = 0; j < size [i]; j ++, k ++)
-      MAP_Insert (mapmem, &idrank, (void*) global_ids [k], (void*) i, NULL);
+      MAP_Insert (mapmem, &idrank, (void*) (long) global_ids [k], (void*) (long) i, NULL);
 
   /* clean up and preprocess REXT related data */
   for (n = 0, dia = ldy->diab; dia; dia = dia->n)
@@ -1360,8 +1360,8 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
     {
       if (!b->dia)
       {
-	if (!MAP_Find_Node (ididx, (void*) b->id, NULL))
-	  MAP_Insert (mapmem, &ididx, (void*) b->id, (void*) (n ++), NULL);
+	if (!MAP_Find_Node (ididx, (void*) (long) b->id, NULL))
+	  MAP_Insert (mapmem, &ididx, (void*) (long) b->id, (void*) (long) (n ++), NULL);
 	b->ext = NULL;
       }
     }
@@ -1378,14 +1378,14 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
     {
       if (!b->dia)
       {
-	ASSERT_DEBUG_EXT (item = MAP_Find_Node (ididx, (void*) b->id, NULL), "Inconsitency in id to index mapping");
-	xr = &ldy->REXT [(int) item->data];
+	ASSERT_DEBUG_EXT (item = MAP_Find_Node (ididx, (void*) (long) b->id, NULL), "Inconsitency in id to index mapping");
+	xr = &ldy->REXT [(int) (long) item->data];
 
 	if (!b->ext)
 	{
 	  xr->id = b->id;
-	  ASSERT_DEBUG_EXT (item = MAP_Find_Node (idrank, (void*) b->id, NULL), "Inconsitency in id to rank mapping");
-	  xr->rank = (int) item->data;
+	  ASSERT_DEBUG_EXT (item = MAP_Find_Node (idrank, (void*) (long) b->id, NULL), "Inconsitency in id to rank mapping");
+	  xr->rank = (int) (long) item->data;
 	}
 
 	b->ext = xr; /* mapped to an REXT entry */
@@ -1433,8 +1433,8 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
   {
     for  (j = 0, pair = ptr->i; j < ptr->ints; j += 2, pair += 2)
     {
-      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) pair [0], NULL), "Invalid block id");
-      MAP_Insert (mapmem, &dia->children, (void*) ptr->rank, (void*) pair [1], NULL); /* map child rank to the local index of its XR */
+      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) pair [0], NULL), "Invalid block id");
+      MAP_Insert (mapmem, &dia->children, (void*) (long) ptr->rank, (void*) (long) pair [1], NULL); /* map child rank to the local index of its XR */
     }
   }
 
@@ -1451,7 +1451,7 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
   {
     for (item = MAP_First (dia->children); item; item = MAP_Next (item))
     {
-      ptr->rank = (int) item->key;
+      ptr->rank = (int) (long) item->key;
       ptr->ints = 1;
       ptr->doubles = 3;
       ptr->i = (int*) &item->data;

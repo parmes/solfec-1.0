@@ -308,7 +308,7 @@ static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **tw
 
   /* map normals to surface identifiers */
   for (oo = cvx->pla, f = cvx->surface, n = 0; n < cvx->nfac; oo += 4, f ++, n ++)
-    MAP_Insert (&mapmem, &normals, oo, (void*)(*f), (MAP_Compare) vector_compare);
+    MAP_Insert (&mapmem, &normals, oo, (void*) (long) (*f), (MAP_Compare) vector_compare);
 
   /* try to associate normals of split
    * convices with surface identifiers */
@@ -318,7 +318,7 @@ static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **tw
     {
       if ((jtem = MAP_Find_Node (normals, oo, (MAP_Compare) vector_compare)))
       {
-	*f = (int) jtem->data;
+	*f = (int) (long) jtem->data;
       }
       else *f = cvx->surface [0]; /* if a normal could not be found use the first surface identifier */
     }
@@ -329,7 +329,7 @@ static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **tw
     {
       if ((jtem = MAP_Find_Node (normals, oo, (MAP_Compare) vector_compare)))
       {
-	*f = (int) jtem->data;
+	*f = (int) (long) jtem->data;
       }
       else *f = cvx->surface [0]; /* if a normal could not be found use the first surface identifier */
     }
@@ -461,7 +461,7 @@ CONVEX* CONVEX_Hull (CONVEX *cvx, double *pnt, int npnt, int surface, int volume
   {
     for (j = 0; j < 3; j ++)
     {
-      if (MAP_Insert (&mem, &map, tri [i].ver [j], (void*)n, NULL)) n ++;
+      if (MAP_Insert (&mem, &map, tri [i].ver [j], (void*) (long) n, NULL)) n ++;
     }
   }
 
@@ -471,7 +471,7 @@ CONVEX* CONVEX_Hull (CONVEX *cvx, double *pnt, int npnt, int surface, int volume
 
   for (item = MAP_First (map); item; item = MAP_Next (item))
   {
-    i = (int)item->data;
+    i = (int) (long) item->data;
     u = item->key;
     v = ver + i * 3;
     COPY (u, v); /* copy hull vertices */
@@ -481,7 +481,7 @@ CONVEX* CONVEX_Hull (CONVEX *cvx, double *pnt, int npnt, int surface, int volume
   {
     f [0] = 3;
 
-    for (j = 0; j < 3; j ++) f [j+1] = (int) MAP_Find (map, tri [i].ver [j], NULL); /* map hull vertices */
+    for (j = 0; j < 3; j ++) f [j+1] = (int) (long) MAP_Find (map, tri [i].ver [j], NULL); /* map hull vertices */
 
     surfaces [i] = surface;
   }
@@ -817,7 +817,7 @@ void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize,
   for (count = 0, ptr = cvx; ptr; ptr = ptr->next) count ++; /* number of convices */
 
   for (map = NULL, n = 0, ptr = cvx; ptr; ptr = ptr->next, n ++)
-    MAP_Insert (NULL, &map, ptr, (void*)n, NULL); /* map pointers to table indices */
+    MAP_Insert (NULL, &map, ptr, (void*) (long) n, NULL); /* map pointers to table indices */
 
   pack_int (isize, i, ints, count); /* number of convices */
 
@@ -837,7 +837,7 @@ void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize,
     pack_doubles (dsize, d, doubles, cvx->ref, cvx->nver * 3);
 
     /* rather than adjacency pack indices of neighbours in the output sequence */
-    for (n = 0; n < cvx->nadj; n ++) pack_int (isize, i, ints, (int) MAP_Find (map, cvx->adj [n], NULL));
+    for (n = 0; n < cvx->nadj; n ++) pack_int (isize, i, ints, (int) (long) MAP_Find (map, cvx->adj [n], NULL));
 
     pack_int (isize, i, ints, cvx->mat ? 1 : 0); /* pack material existence flag */
     if (cvx->mat) pack_string (isize, i, ints, cvx->mat->label);
@@ -893,7 +893,7 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
     for (n = 0; n < nadj; n ++)
     {
       j = unpack_int (ipos, i, ints);
-      ptr->adj [ptr->nadj ++] = (CONVEX*) j; /* store index in 'tab' for the moment */
+      ptr->adj [ptr->nadj ++] = (CONVEX*) (long) j; /* store index in 'tab' for the moment */
     }
 
     j = unpack_int (ipos, i, ints); /* unpack material existence flag */
@@ -914,8 +914,8 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 
     for (n = 0; n < ptr->nadj; n ++)
     {
-      ASSERT_DEBUG (0 <= (int)ptr->adj [n] && (int)ptr->adj [n] < count, "Adjacent convex index out of bounds");
-      ptr->adj [n] = tab [(int)ptr->adj [n]];
+      ASSERT_DEBUG (0 <= (int) (long) ptr->adj [n] && (int) (long) ptr->adj [n] < count, "Adjacent convex index out of bounds");
+      ptr->adj [n] = tab [(int) (long) ptr->adj [n]];
     }
   }
 

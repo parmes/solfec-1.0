@@ -308,7 +308,7 @@ double* TRI_Vertices (TRI *tri, int n, int *m)
     {
       if (! MAP_Find_Node (vm, t->ver [i], NULL)) /* vertex not mapped before */
       {
-	MAP_Insert (&mem, &vm, t->ver [i], (void*) vcnt, NULL); /* map vertex 'v' to a consecutive index */
+	MAP_Insert (&mem, &vm, t->ver [i], (void*) (long) vcnt, NULL); /* map vertex 'v' to a consecutive index */
 	vcnt ++;
       }
     }
@@ -321,7 +321,7 @@ double* TRI_Vertices (TRI *tri, int n, int *m)
   for (im = MAP_First (vm); im; im = MAP_Next (im), i ++)
   {
     w = (double*) im->key; /* vertex source */
-    i = (int) im->data; /* vertex index */
+    i = (int) (long) im->data; /* vertex index */
     z = v + i*3; /* vertex destination */
     COPY (w, z);
   }

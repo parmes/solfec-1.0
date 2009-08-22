@@ -1741,7 +1741,7 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
     CON *con;
 
     id = unpack_int (ipos, i, ints);
-    ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*)id, NULL), "Invalid constraint id");
+    ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) id, NULL), "Invalid constraint id");
     SET_Insert (&dom->setmem, &bod->con, con, NULL);
   }
 

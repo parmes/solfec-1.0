@@ -29,6 +29,10 @@
 #include "lng.h"
 #include "err.h"
 
+#ifndef Py_RETURN_NONE
+#define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
+#endif
+
 typedef struct callback_pair CALLBACK_PAIR;
 
 struct callback_pair
