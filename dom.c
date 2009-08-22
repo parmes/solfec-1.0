@@ -131,7 +131,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, short locdyn)
       SET *item;
      
       item = SET_First (dom->sparecid);
-      con->id = (unsigned int) item->data; /* use a previously freed id */
+      con->id = (unsigned int) (long) item->data; /* use a previously freed id */
       SET_Delete (&dom->setmem, &dom->sparecid, item->data, NULL);
     }
     else con->id = dom->cid, dom->cid += dom->ncpu; /* every ncpu number */
@@ -1158,9 +1158,9 @@ CONEXT* conext_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, i
   unpack_doubles (dpos, d, doubles, ext->point, 3);
   unpack_doubles (dpos, d, doubles, ext->base, 9);
   ext->id  = unpack_int (ipos, i, ints);
-  ext->bod = (BODY*) unpack_int (ipos, i, ints);
+  ext->bod = (BODY*) (long) unpack_int (ipos, i, ints);
   ext->isma = unpack_int (ipos, i, ints);
-  ext->sgp = (SGP*) unpack_int (ipos, i, ints);
+  ext->sgp = (SGP*) (long) unpack_int (ipos, i, ints);
 
   return ext;
 }
@@ -1477,7 +1477,7 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
     SET *item;
    
     item = SET_First (dom->sparebid);
-    bod->id = (unsigned int) item->data; /* use a previously freed id */
+    bod->id = (unsigned int) (long) item->data; /* use a previously freed id */
     SET_Delete (&dom->setmem, &dom->sparebid, item->data, NULL);
   }
   else

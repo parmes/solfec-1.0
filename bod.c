@@ -1648,7 +1648,7 @@ static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *
     if (func)
     {
       id = unpack_int (ipos, i, ints);
-      ASSERT_DEBUG_EXT (lngcallback_set (id, (void**)&frc->data, &frc->call), "Invalid callback id");
+      ASSERT_DEBUG_EXT (lngcallback_set (id, (void**) &frc->data, &frc->call), "Invalid callback id");
     }
     else
     {
@@ -1788,7 +1788,7 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   /* pack children ranks */
   pack_int (isize, i, ints, SET_Size (bod->my.children));
   for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
-    pack_int (isize, i, ints, (int)item->data);
+    pack_int (isize, i, ints, (int) (long) item->data);
 }
 
 /* unpack parent body */
@@ -1835,7 +1835,7 @@ BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *
   /* unpack children ranks */
   m = unpack_int (ipos, i, ints);
   for (n = 0; n < m; n ++)
-    SET_Insert (NULL, &bod->my.children, (void*)unpack_int (ipos, i, ints), NULL);
+    SET_Insert (NULL, &bod->my.children, (void*) (long) unpack_int (ipos, i, ints), NULL);
 
   /* init inverse */
   if (sol->dom->dynamic)
@@ -1923,7 +1923,7 @@ void BODY_Child_Unpack_State (void *domain, int *dpos, double *d, int doubles, i
 
   id = unpack_int (ipos, i, ints);
 
-  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*)id, NULL), "Invalid child id");
+  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) id, NULL), "Invalid child id");
 
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);

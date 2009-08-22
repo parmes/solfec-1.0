@@ -304,7 +304,7 @@ static void* box_unpack (AABB *aabb, int *dpos, double *d, int doubles, int *ipo
 
   aux.bid = unpack_int (ipos, i, ints);
   kind = unpack_int (ipos, i, ints);
-  aux.sgp = (SGP*) unpack_int (ipos, i, ints);
+  aux.sgp = (SGP*) (long) unpack_int (ipos, i, ints);
   unpack_doubles (dpos, d, doubles, extents, 6);
 
   /* a body must be waiting here for this box => let us make sure */
@@ -536,8 +536,8 @@ static void aabb_balance (AABB *aabb)
       {
 	op = jtem->data;
 
-	if (op->bod1 == (unsigned int) item->data ||
-	    op->bod1 == (unsigned int) item->data)
+	if (op->bod1 == (unsigned int) (long) item->data ||
+	    op->bod1 == (unsigned int) (long) item->data)
 	  jtem = SET_Delete_Node (&aabb->setmem, &aabb->nobody, jtem);
 	else jtem = SET_Next (jtem);
       }
@@ -546,8 +546,8 @@ static void aabb_balance (AABB *aabb)
       {
 	op = jtem->data;
 
-	if (op->bod1 == (unsigned int) item->data ||
-	    op->bod1 == (unsigned int) item->data)
+	if (op->bod1 == (unsigned int) (long) item->data ||
+	    op->bod1 == (unsigned int) (long) item->data)
 	  jtem = SET_Delete_Node (&aabb->setmem, &aabb->nobody, jtem);
 	else jtem = SET_Next (jtem);
       }

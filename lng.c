@@ -29,6 +29,14 @@
 #include "lng.h"
 #include "err.h"
 
+#ifndef Py_RETURN_FALSE
+#define Py_RETURN_FALSE return Py_INCREF(Py_False), Py_False
+#endif
+
+#ifndef Py_RETURN_TRUE
+#define Py_RETURN_TRUE return Py_INCREF(Py_True), Py_True
+#endif
+
 #ifndef Py_RETURN_NONE
 #define Py_RETURN_NONE return Py_INCREF(Py_None), Py_None
 #endif
@@ -1628,7 +1636,7 @@ static int ID_TO_BODY (lng_BODY *body)
 {
   if (body->id)
   {
-    BODY *bod = MAP_Find (body->dom->idb, (void*)body->id, NULL);
+    BODY *bod = MAP_Find (body->dom->idb, (void*) (long) body->id, NULL);
 
     if (bod && !(bod->flags & BODY_CHILD))
     {
@@ -1677,17 +1685,17 @@ static int is_basic_shape (PyObject *obj)
   {
     if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_CONVEX_TYPE))
     {
-      lng_CONVEX *convex = (lng_CONVEX*)obj;
+      lng_CONVEX *convex = (lng_CONVEX*) obj;
       if (convex->cvx == NULL) return 0; /* empty */
     }
     else if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_MESH_TYPE))
     {
-      lng_MESH *mesh = (lng_MESH*)obj;
+      lng_MESH *mesh = (lng_MESH*) obj;
       if (mesh->msh == NULL) return 0; /* empty */
     }
     else if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_SPHERE_TYPE))
     {
-      lng_SPHERE *sphere = (lng_SPHERE*)obj;
+      lng_SPHERE *sphere = (lng_SPHERE*) obj;
       if (sphere->sph == NULL) return 0; /* empty */
     }
     else return 0;
@@ -2800,7 +2808,7 @@ static int ID_TO_CONSTRAINT (lng_SOLFEC *solfec, lng_CONSTRAINT *constraint)
 {
   if (constraint->id)
   {
-    CON *con = MAP_Find (solfec->sol->dom->idc, (void*)constraint->id, NULL);
+    CON *con = MAP_Find (solfec->sol->dom->idc, (void*) (long) constraint->id, NULL);
 
     if (con)
     {
