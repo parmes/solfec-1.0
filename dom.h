@@ -189,8 +189,6 @@ struct domain
   MEM extmem; /* memory pool of external constraints */
 
   CONEXT *conext; /* external constraints (parents and children) */
-
-  MAP *extmap; /* id to external constraint map for parents */
 #endif
 };
 

@@ -376,7 +376,7 @@ static void rig_constraints_force (BODY *bod, double *force)
   }
 
 #if MPI
-  for (node = SET_First (bod->conext); node; node = SET_Next (node))
+  for (MAP *node = MAP_First (bod->conext); node; node = MAP_Next (node))
   {
     CONEXT *con = node->data;
 
@@ -641,7 +641,7 @@ static void prb_constraints_force (BODY *bod, double *force)
   }
 
 #if MPI
-  for (node = SET_First (bod->conext); node; node = SET_Next (node))
+  for (MAP *node = MAP_First (bod->conext); node; node = MAP_Next (node))
   {
     CONEXT *con = node->data;
 

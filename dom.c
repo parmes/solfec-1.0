@@ -705,13 +705,13 @@ static void remove_child (DOM *dom, BODY *bod)
 
   /* remove external constrains */
   {
-    for (SET *item = SET_First (bod->conext); item; item = SET_Next (item))
+    for (MAP *item = MAP_First (bod->conext); item; item = MAP_Next (item))
     {
       CONEXT *ext = item->data;
-      ext->bod = NULL;
+      ext->bod = NULL; /* see conext_remove_all to understand why */
     }
 
-    SET_Free (&dom->setmem, &bod->conext);
+    MAP_Free (&dom->mapmem, &bod->conext);
   }
 
   /* delete from id based map */
@@ -754,13 +754,13 @@ static void remove_migrated_body (DOM *dom, BODY *bod)
 
   /* remove external constrains */
   {
-    for (SET *item = SET_First (bod->conext); item; item = SET_Next (item))
+    for (MAP *item = MAP_First (bod->conext); item; item = MAP_Next (item))
     {
       CONEXT *ext = item->data;
-      ext->bod = NULL;
+      ext->bod = NULL; /* see conext_remove_all to understand why */
     }
 
-    SET_Free (&dom->setmem, &bod->conext);
+    MAP_Free (&dom->mapmem, &bod->conext);
   }
 
   if (bod->label) /* delete labeled body */
@@ -1085,11 +1085,10 @@ static void conext_remove_all (DOM *dom)
   /* empty body external constraint sets */
   for (ext = dom->conext; ext; ext = ext->next)
   {
-    if (ext->bod && ext->bod->conext) SET_Free (&dom->setmem, &ext->bod->conext);
+    if (ext->bod && ext->bod->conext) MAP_Free (&dom->mapmem, &ext->bod->conext);
   }
 
   /* erase in the domain */
-  MAP_Free (&dom->mapmem, &dom->extmap);
   MEM_Release (&dom->extmem);
   dom->conext = NULL;
 }
@@ -1104,11 +1103,8 @@ static void conext_insert (DOM *dom, int rank, CONEXT *ext)
   ext->next = dom->conext;
   dom->conext = ext;
 
-  /* map it by the id for a parent-adjecent external constraint */
-  if (rank >= 0) MAP_Insert (&dom->mapmem, &dom->extmap, (void*) ext->id, ext, NULL);
-
   /* add to the body constraint adjacency */
-  SET_Insert (&dom->setmem, &ext->bod->conext, ext, NULL);
+  MAP_Insert (&dom->mapmem, &ext->bod->conext, (void*) ext->id, ext, NULL);
 }
 
 /* create an external constraint */
@@ -1253,7 +1249,7 @@ static void domain_glue_begin (DOM *dom)
 	ptr = sendnextobj (++ nsend, &size, &send);
       }
 
-      for (jtem = SET_First (bod->conext); jtem; jtem = SET_Next (jtem)) /* external constraints */
+      for (MAP *jtem = MAP_First (bod->conext); jtem; jtem = MAP_Next (jtem)) /* external constraints */
       {
         ext = jtem->data;
 
@@ -1283,14 +1279,18 @@ static void domain_glue_begin (DOM *dom)
 static void domain_glue_end (DOM *dom)
 {
   COMDATA *send, *recv, *ptr;
-  int j, k, size, nsend, nrecv;
+  int k, *j, *l, size, nsend, nrecv;
+  MEM memintpair;
   CONEXT *ext;
   double *R;
+  BODY *bod;
   CON *con;
 
   size = MAX (dom->ncon, 128);
 
   ERRMEM (send = malloc (sizeof (COMDATA [size])));
+
+  MEM_Init (&memintpair, sizeof (int [2]), size);
 
   /* Walk over all constraints and identify (con, rank) pairs to be exported */
   for (ptr = send, nsend = 0, con = dom->con; con; con = con->next)
@@ -1304,9 +1304,11 @@ static void domain_glue_end (DOM *dom)
 	if (bod [k]->flags & BODY_CHILD)
 	{
 	  ptr->rank = bod [k]->my.parent;
-	  ptr->ints = 1;
+	  ptr->ints = 2;
 	  ptr->doubles = 3;
-	  ptr->i = (int*) &con->id;
+	  ERRMEM (ptr->i = MEM_Alloc (&memintpair));
+	  ptr->i[0] = bod[k]->id;
+	  ptr->i[1] = con->id;
 	  ptr->d = con->R;
 	  ptr = sendnextdata (++ nsend, &size, &send);
 	}
@@ -1320,13 +1322,10 @@ static void domain_glue_end (DOM *dom)
   /* Insert received external constraints */
   for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++)
   {
-
-    ASSERT_DEBUG (ptr->doubles / ptr->ints == 3 &&
-	          ptr->doubles % ptr->ints == 0,  "Incorrect data count received");
-
-    for (j = 0, R = ptr->d; j < ptr->ints; j ++, R += 3)
+    for (j = ptr->i, l = j + ptr->ints, R = ptr->d; j < l; j += 2, R += 3)
     {
-      ASSERT_DEBUG_EXT (ext = MAP_Find (dom->extmap, (void*) ptr->i[j], NULL), "Invalid external constraint id");
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) j [0], NULL), "Invalid body id");
+      ASSERT_DEBUG_EXT (ext = MAP_Find (bod->conext, (void*) j [1], NULL), "Invalid external constraint id");
       COPY (R, ext->R);
     }
   }
@@ -1355,7 +1354,6 @@ static void create_mpi (DOM *dom)
   ERRMEM (dom->delch = calloc (dom->ncpu, sizeof (SET*)));
 
   dom->conext = NULL;
-  dom->extmap = NULL;
 
   MEM_Init (&dom->extmem, sizeof (CONEXT), CONBLK);
 
@@ -1519,13 +1517,13 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
 #if MPI
   /* remove external constrains */
   {
-    for (SET *item = SET_First (bod->conext); item; item = SET_Next (item))
+    for (MAP *item = MAP_First (bod->conext); item; item = MAP_Next (item))
     {
       CONEXT *ext = item->data;
-      ext->bod = NULL;
+      ext->bod = NULL; /* see conext_remove_all to understand why */
     }
 
-    SET_Free (&dom->setmem, &bod->conext);
+    MAP_Free (&dom->mapmem, &bod->conext);
   }
 #endif
 

@@ -140,7 +140,7 @@ struct general_body
   union { SET *children; /* used by parent */
           int parent; /* used by children */ } my;
 
-  SET *conext; /* external constraints */
+  MAP *conext; /* external constraints mapped by ids */
 #endif
 };
 

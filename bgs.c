@@ -491,7 +491,7 @@ static int solver (GAUSS_SEIDEL *gs, short dynamic, double step, short kind,
   return 0;
 }
 
-#if 1
+#if 0
 static void dump_WBR (DIAB *dia)
 {
 #if MPI
