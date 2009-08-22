@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include <string.h>
+#include <limits.h>
 #include <float.h>
 #include "alg.h"
 #include "msh.h"
@@ -391,6 +392,40 @@ static int gobj_adjacent (short paircode, void *aobj, void *bobj)
   return 0;
 }
 
+#if MPI
+/* parallel statistics on a single value */
+static int stats (DOM *dom, int val, int *sum, int *min, int *avg, int *max)
+{
+  int *all;
+
+  if (dom->rank == 0) { ERRMEM (all = malloc (sizeof (int [dom->ncpu]))); }
+  else all = NULL;
+
+  MPI_Gather (&val, 1, MPI_INT, all, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  if (dom->rank == 0)
+  {
+    int i, su, mi, av, ma;
+
+    for (su = i = 0, ma = INT_MIN, mi = INT_MAX; i < dom->ncpu; i ++)
+    {
+      su += all [i], ma = MAX (ma, all [i]), mi = MIN (mi, all [i]);
+    }
+
+    av = su / dom->ncpu;
+
+    if (sum) *sum = su;
+    if (min) *min = mi;
+    if (avg) *avg = av;
+    if (max) *max = ma;
+
+    return 1;
+  }
+
+  return 0;
+}
+#endif
+
 /* go over contact points and remove those whose corresponding
  * areas are much smaller than those of other points related to
  * objects directly topologically adjacent in their shape definitions */
@@ -454,7 +489,17 @@ static void sparsify_contacts (DOM *dom)
   }
 
   /* report */
-  if (dom->verbose) printf ("SPARSIFIED CONTACTS: %d\n",  n);
+  if (dom->verbose)
+  {
+#if MPI
+    int sum, min, avg, max;
+
+    if (stats (dom, n, &sum, &min, &avg, &max))
+      printf ("SPARSIFIED CONTACTS: %d, MIN: %d, AVG: %d, MAX: %d\n",  sum, min, avg, max);
+#else
+    printf ("SPARSIFIED CONTACTS: %d\n",  n);
+#endif
+  }
 
   /* clean up */
   MEM_Release (&mem);
@@ -1335,7 +1380,7 @@ static void domain_glue_end (DOM *dom)
   free (send);
   free (recv);
 }
- 
+
 /* create MPI related data */
 static void create_mpi (DOM *dom)
 {
@@ -1799,7 +1844,17 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   }
 
   /* report */
-  if (dom->verbose) printf ("CONSTRAINTS: %d\n",  dom->ncon);
+  if (dom->verbose)
+  {
+#if MPI
+    int sum, min, avg, max;
+
+    if (stats (dom, dom->ncon, &sum, &min, &avg, &max))
+      printf ("CONSTRAINTS: %d, MIN: %d, AVG: %d, MAX: %d\n",  sum, min, avg, max);
+#else
+    printf ("CONSTRAINTS: %d\n",  dom->ncon);
+#endif
+  }
 
 #if MPI
   domain_glue_begin (dom);

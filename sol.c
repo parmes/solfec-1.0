@@ -258,7 +258,11 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       upkind = (kind == EXPLICIT_SOLVER ? UPDIA : UPALL);
 
       /* output time */
+#if MPI
+      if (verbose && sol->dom->rank == 0) printf ("TIME: %.2e\n", sol->dom->time);
+#else
       if (verbose) printf ("TIME: %.2e\n", sol->dom->time);
+#endif
 
       /* begin update of domain */
       ldy = DOM_Update_Begin (sol->dom);
