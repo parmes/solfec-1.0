@@ -27,6 +27,7 @@
 
 #if MPI
 #include <limits.h>
+#include "put.h"
 #include "pck.h"
 #include "com.h"
 #include "tag.h"
@@ -1291,7 +1292,18 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   variables_change_begin (ldy);
 
 #if MPI
+  if (dom->rank == 0 && dom->verbose)
+    printf ("BALANCING CONSTRAINT GRAPH ..."), fflush (stdout);
+
   locdyn_balance (ldy);
+
+  if (DOM(ldy->dom)->verbose)
+  {
+    int sum, min, avg, max;
+
+    if (PUT_Int_Stats (dom->rank, dom->ncpu, ldy->ndiab, &sum, &min, &avg, &max))
+      printf (" DONE: MIN = %d, AVG = %d, MAX = %d\n", min, avg, max);
+  }
 #endif
 }
 

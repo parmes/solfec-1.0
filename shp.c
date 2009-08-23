@@ -337,7 +337,9 @@ void SHAPE_Extents (SHAPE *shp, double *extents)
     if (e [5] > extents [5]) extents [5] = e [5];
   }
 
-  margin = 10.0 * GEOMETRIC_EPSILON;
+  SUB (extents+3, extents, e);
+  MAXABS (e, margin);
+  margin *= 0.05;
 
   extents [0] -= margin;
   extents [1] -= margin;

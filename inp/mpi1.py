@@ -1,6 +1,6 @@
 # stack of cubes example (CONVEX and PSEUDO_RIGID)
 
-N = 4
+N = 10
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -61,4 +61,4 @@ def gscallback (gs):
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
 
-RUN (solfec, gs, 10 * step)
+RUN (solfec, gs, 1000 * step)

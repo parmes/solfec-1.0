@@ -61,6 +61,7 @@ OBJ =   $(BASEO)  \
 
 OBJMPI = $(BASEO)  \
 	 obj/pbf-mpi.o \
+	 obj/put-mpi.o \
 	 obj/box-mpi.o \
 	 obj/bod-mpi.o \
 	 obj/ldy-mpi.o \
@@ -234,6 +235,9 @@ obj/rnd.o: rnd.c rnd.h alg.h dom.h shp.h cvx.h msh.h sph.h err.h
 #MPI
 
 obj/solfec-mpi.o: solfec.c
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/put-mpi.o: put.c put.h alg.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/com-mpi.o: com.c com.h err.h

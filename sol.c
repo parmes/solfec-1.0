@@ -304,9 +304,18 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 	if (!ret) break; /* interrupt run */
       }
 
-      /* statistics are printed every human perciveable period of time */
-      if ((tt = timerend (&tim)) < 0.5 && verbose) verbose = verbose_off (sol, kind, solver);
+      /* statistics are printed every
+       * human perciveable period of time */
+      tt = timerend (&tim);
+#if MPI
+      double qq = tt;
+      MPI_Allreduce (&qq, &tt, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+#endif
+      if (tt  < 0.5 && verbose) verbose = verbose_off (sol, kind, solver);
       else if (tt >= 0.5) { verbose = verbose_on (sol, kind, solver); timerstart (&tim); }
+#if MPI
+      MPI_Barrier (MPI_COMM_WORLD); /* meet up at the end */
+#endif
     }
   }
   else /* READ */
