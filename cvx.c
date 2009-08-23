@@ -905,6 +905,7 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
       ASSERT_DEBUG_EXT (ptr->mat = MATSET_Find (sol->mat, label), "Failed to find material when unpacking a convex");
       free (label);
     }
+    else ptr->mat = NULL;
   }
 
   /* now map adjacency */

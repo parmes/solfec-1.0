@@ -777,7 +777,7 @@ inline static void REXT_undo (LOCDYN *ldy)
 }
 
 #if DEBUG
-/* undo external reactions */
+/* test whether all reactions are done */
 inline static int REXT_alldone (LOCDYN *ldy)
 {
   XR *x, *end;
@@ -1042,10 +1042,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   int div = 10,
       mycolor,
      *color,
-      rank;
-
-
-  dimax = 0;
+      rank,
+      tmq;
 
   if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -1058,16 +1056,17 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   mycolor = color [rank];
   setmem = &gs->setmem;
 
-  SET *bot  = NULL, /* boundary blocks that only send to higher processors */
-      *top  = NULL, /* boundary blocks that only send to lower processors */
-      *mid  = NULL, /* the rest of boundary blocks */
-      *int0 = NULL, /* internal blocks (int1 + int2) */
-      *int1 = NULL, /* first subset of internal blocks */
-      *int2 = NULL, /* second subset of internal blocks */
-      *all  = NULL; /* all blocks */
-  int siz1 = 0, /* non-zero blocks count in int1 + top */
-      siz2 = 0; /* non-zero blocks count in int2 + bot */
+  SET *bot  = NULL, /* blocks that only send to higher processors */
+      *top  = NULL, /* blocks that only send to lower processors */
+      *mid  = NULL, /* blocks that send to higher and lower processors */
+      *int0 = NULL, /* internal blocks (int1 + int2) (may receive, but not send) */
+      *int1 = NULL, /* first subset of internal blocks (int0 \ int 2) */
+      *int2 = NULL; /* second subset of internal blocks (int0 \ int1) */
 
+  int siz1 = 0, /* blocks count in int1 + top */
+      siz2 = 0; /* blocks count in int2 + bot */
+
+  /* create block sets */
   for (dia = ldy->diab; dia; dia = dia->n)
   {
     short lo = 0,
@@ -1085,8 +1084,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     else if (lo) SET_Insert (setmem, &bot, dia, NULL), siz2 += dia->degree;
     else if (hi) SET_Insert (setmem, &top, dia, NULL), siz1 += dia->degree;
     else SET_Insert (setmem, &int0, dia, NULL); /* int1 + int2 */
-
-    SET_Insert (setmem, &all, dia, NULL);
   }
 
   /* create int1 and int2 so that |int1| + |top| == |int2| + |bot| */
@@ -1097,54 +1094,66 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     else SET_Insert (setmem, &int2, dia, NULL), siz2 += dia->degree;
   }
 
-  void *lohi, /* communication pattern when sending from lower to higher processors */
-       *hilo; /* the reverse communication pattern */
-
-  COMDATA *send_lohi, *recv_lohi, *ptr_lohi,
-	  *send_hilo, *recv_hilo, *ptr_hilo;
-
-  int size_lohi, nsend_lohi, nrecv_lohi,
-      size_hilo, nsend_hilo, nrecv_hilo;
-
-  size_lohi = size_hilo = 512;
-  nsend_lohi = nsend_hilo = 0;
-
-  ERRMEM (send_lohi = calloc (size_lohi, sizeof (COMDATA)));
-  ERRMEM (send_hilo = calloc (size_hilo, sizeof (COMDATA)));
-
-  ptr_lohi = send_lohi;
-  ptr_hilo = send_hilo;
-
-  for (dia = ldy->diab; dia; dia = dia->n)
+#if DEBUG
+  if (gs->verbose)
   {
-    for (MAP *item = MAP_First (dia->children); item; item = MAP_Next (item))
-    {
-      int adjrank = (int) (long) item->key,
-          adjcolor = color [adjrank];
+    printf ("GAUSS_SEIDEL (CPU %d): |BOT| = %d, |MID| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n",
+	    rank, SET_Size (bot), SET_Size (mid), SET_Size (top), SET_Size (int1), SET_Size (int2));
+  }
+#endif
 
-      if (adjcolor > mycolor) /* send to higher processor */
-      {
-	ptr_lohi->rank = adjrank;
-	ptr_lohi->ints = 1;
-	ptr_lohi->doubles = 3;
-	ptr_lohi->i = (int*) &item->data;
-	ptr_lohi->d = dia->R;
-	ptr_lohi = sendnext (++ nsend_lohi, &size_lohi, &send_lohi);
-      }
-      else /* sends to lower processor */
-      {
-	ptr_hilo->rank = adjrank;
-	ptr_hilo->ints = 1;
-	ptr_hilo->doubles = 3;
-	ptr_hilo->i = (int*) &item->data;
-	ptr_hilo->d = dia->R;
-	ptr_hilo = sendnext (++ nsend_hilo, &size_hilo, &send_hilo);
-      }
+  void *bot_pattern, /* communication pattern when sending from lower to higher processors */
+       *top_pattern; /* the reverse communication pattern */
+
+  COMDATA *send_bot, *recv_bot, *ptr_bot,
+	  *send_top, *recv_top, *ptr_top;
+
+  int size_bot, nsend_bot, nrecv_bot,
+      size_top, nsend_top, nrecv_top;
+
+  size_bot = size_top = 512;
+  nsend_bot = nsend_top = 0;
+
+  ERRMEM (send_bot = calloc (size_bot, sizeof (COMDATA)));
+  ERRMEM (send_top = calloc (size_top, sizeof (COMDATA)));
+
+  ptr_bot = send_bot;
+  ptr_top = send_top;
+
+  /* prepare 'bot' send buffer */
+  for (SET *item = SET_First (bot); item; item = SET_Next (item))
+  {
+    dia = item->data;
+
+    for (MAP *jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem))
+    {
+      ptr_bot->rank = (int) (long) jtem->key;
+      ptr_bot->ints = 1;
+      ptr_bot->doubles = 3;
+      ptr_bot->i = (int*) &jtem->data;
+      ptr_bot->d = dia->R;
+      ptr_bot = sendnext (++ nsend_bot, &size_bot, &send_bot);
     }
   }
 
-  lohi = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_LOHI, send_lohi, nsend_lohi, &recv_lohi, &nrecv_lohi);
-  hilo = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_HILO, send_hilo, nsend_hilo, &recv_hilo, &nrecv_hilo);
+  /* prepare 'top' send buffer */
+  for (SET *item = SET_First (top); item; item = SET_Next (item))
+  {
+    dia = item->data;
+
+    for (MAP *jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem))
+    {
+      ptr_top->rank = (int) (long) jtem->key;
+      ptr_top->ints = 1;
+      ptr_top->doubles = 3;
+      ptr_top->i = (int*) &jtem->data;
+      ptr_top->d = dia->R;
+      ptr_top = sendnext (++ nsend_top, &size_top, &send_top);
+    }
+  }
+
+  bot_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_BOT, send_bot, nsend_bot, &recv_bot, &nrecv_bot);
+  top_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_TOP, send_top, nsend_top, &recv_top, &nrecv_top);
 
 #if MPITHREADS
   /* create mid set update thread */
@@ -1155,6 +1164,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   step = DOM(ldy->dom)->step;
   gs->error = GS_OK;
   gs->iters = 0;
+  dimax = 0;
   do
   {
     double errup = 0.0,
@@ -1164,25 +1174,26 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     if (gs->iters % 2) /* reverse */
     {
-      tmp = top;  top  = bot;  bot  = tmp;
-      tmp = lohi; lohi = hilo; hilo = tmp;
+      tmp = bot_pattern; bot_pattern = top_pattern; top_pattern = tmp;
+      tmq = nrecv_bot; nrecv_bot = nrecv_top; nrecv_top = tmq;
+      tmp = recv_bot; recv_bot = recv_top; recv_top = tmp;
       tmp = int1; int1 = int2; int2 = tmp;
+      tmp = bot; bot = top; top = tmp;
     }
 
     REXT_undo (ldy); /* undo all external reactions */
 
-#if 1
     di = gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
     dimax = MAX (dimax, di);
 
-    COM_Send (hilo); /* start sending top blocks */
+    COM_Send (top_pattern); /* start sending top blocks */
     
     di = gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
     dimax = MAX (dimax, di);
 
-    COM_Recv (hilo); /* receive top blocks */
+    COM_Recv (top_pattern); /* receive top blocks */
 
-    REXT_recv (ldy, recv_hilo, nrecv_hilo); /* update received extenral reactions */
+    REXT_recv (ldy, recv_top, nrecv_top); /* update received extenral reactions */
 
 #if MPITHREADS
     gauss_seidel_thread_run (data); /* begin update of mid blocks */
@@ -1202,20 +1213,19 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     di = gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update bot blocks */
     dimax = MAX (dimax, di);
 
-    COM_Repeat (lohi); /* sending and receive bot blocks */
+    COM_Repeat (bot_pattern); /* sending and receive bot blocks */
 
-    REXT_recv (ldy, recv_lohi, nrecv_lohi); /* update received external reactions */
-#else
-    dimax = gauss_siedel_loop (all, gs->iters % 2, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo);
-#endif
+    REXT_recv (ldy, recv_bot, nrecv_bot); /* update received external reactions */
 
     ASSERT_DEBUG (REXT_alldone (ldy), "All external reactions should be done by now");
 
     if (gs->iters % 2) /* reverse */
     {
-      tmp = top;  top  = bot;  bot  = tmp;
-      tmp = lohi; lohi = hilo; hilo = tmp;
+      tmp = bot_pattern; bot_pattern = top_pattern; top_pattern = tmp;
+      tmq = nrecv_bot; nrecv_bot = nrecv_top; nrecv_top = tmq;
+      tmp = recv_bot; recv_bot = recv_top; recv_top = tmp;
       tmp = int1; int1 = int2; int2 = tmp;
+      tmp = bot; bot = top; top = tmp;
     }
 
     /* get maximal iterations count of a diagonal block solver */
@@ -1254,13 +1264,12 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   SET_Free (setmem, &int2);
   SET_Free (setmem, &bot);
   SET_Free (setmem, &mid);
-  SET_Free (setmem, &all);
-  COM_Free (lohi);
-  COM_Free (hilo);
-  free (send_lohi);
-  free (recv_lohi);
-  free (send_hilo);
-  free (recv_hilo);
+  COM_Free (bot_pattern);
+  COM_Free (top_pattern);
+  free (send_bot);
+  free (recv_bot);
+  free (send_top);
+  free (recv_top);
   free (color);
 
   if (gs->iters >= gs->maxiter)

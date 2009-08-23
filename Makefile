@@ -13,10 +13,10 @@ include Flags.mak
 
 CFLAGS = -std=c99 $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
-LIB = -lm $(BLAS) $(LAPACK) $(GLLIB) $(PYTHONLIB)
+LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB)
 
 ifeq ($(MPI),yes)
-  LIBMPI = -lm $(BLAS) $(LAPACK) $(PYTHONLIB) $(MPILIBS)
+  LIBMPI = -lm $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS)
 endif
 
 BASEO = obj/err.o \
