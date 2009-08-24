@@ -1097,8 +1097,13 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #if DEBUG
   if (gs->verbose)
   {
-    printf ("GAUSS_SEIDEL (CPU %d): |BOT| = %d, |MID| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n",
-	    rank, SET_Size (bot), SET_Size (mid), SET_Size (top), SET_Size (int1), SET_Size (int2));
+    int sizes [5] = {SET_Size (bot), SET_Size (mid), SET_Size (top), SET_Size (int1), SET_Size (int2)},
+	result [5];
+
+    MPI_Reduce (sizes, result, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    if (rank == 0)
+      printf ("GAUSS_SEIDEL: (SUM) |BOT| = %d, |MID| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n",
+	    result [0], result [1], result [2], result [3], result [4]);
   }
 #endif
 
