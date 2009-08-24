@@ -1560,6 +1560,63 @@ void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND 
 
 void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values)
 {
+  switch (bod->kind)
+  {
+  case OBS: break;
+  case RIG:
+  case PRB:
+  {
+    switch (kind)
+    {
+    case VALUE_DISPLACEMENT:
+    {
+      double cur_point [3];
+
+      BODY_Cur_Point (bod, NULL, NULL, point, cur_point);
+      SUB (cur_point, point, values);
+    }
+    break;
+    case VALUE_VELOCITY:
+    {
+      double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+      BODY_Local_Velo (bod, CURVELO, NULL, NULL, point, base, values);
+    }
+    break;
+    case VALUE_STRESS:
+    {
+      if (bod->kind == PRB)
+	prb_cauchy (bod, values);
+    }
+    break;
+    case VALUE_MISES:
+    {
+      double stress [6];
+
+      if (bod->kind == PRB)
+      {
+	prb_cauchy (bod, stress);
+	MISES (stress, values [0]);
+      }
+    }
+    break;
+    case VALUE_STRESS_AND_MISES:
+    {
+      if (bod->kind == PRB)
+      {
+	prb_cauchy (bod, values);
+	MISES (values, values [6]);
+      }
+    }
+    break;
+    }
+  }
+  break;
+  case FEM:
+    ASSERT (0, ERR_NOT_IMPLEMENTED);
+    /* TODO */
+  break;
+  }
 }
 
 void BODY_Write_State (BODY *bod, PBF *bf)

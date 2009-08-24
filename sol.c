@@ -241,7 +241,8 @@ static void read_state (SOLFEC *sol)
       {
 	char *label;
 	TIMING *t;
-	
+
+	label = NULL; /* needs allocation */
 	PBF_String (bf, &label); /* read label */
 
 	if (!(t = MAP_Find (sol->timers, label, (MAP_Compare) strcmp))) /* add timer if missing */
@@ -380,11 +381,13 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       LOCDYN_Update_Begin (ldy, upkind);
 
       /* solve constraints */
+      SOLFEC_Timer_Start (sol, "CONSOL");
       switch (kind)
       {
       case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Solve (solver, ldy); break;
       case EXPLICIT_SOLVER: EXPLICIT_Solve (ldy); break;
       }
+      SOLFEC_Timer_End (sol, "CONSOL");
 
       /* end update of local dynamics */
       LOCDYN_Update_End (ldy);
@@ -428,8 +431,9 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
   }
   else /* READ */
   {
-    read_state (sol);
+    init (sol);
     PBF_Forward (sol->bf, 1);
+    read_state (sol);
   }
 }
 

@@ -62,3 +62,11 @@ def gscallback (gs):
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
 
 RUN (solfec, gs, 10 * step)
+
+if not VIEWER() and solfec.mode == 'READ':
+  dur = DURATION (solfec)
+  gst = TIMING_HISTORY (solfec, 'CONSOL', dur[0], dur[1])
+  avg = 0.0
+  for tt in gst: avg += tt
+  avg /= len (gst)
+  print 'AVERAGE CONSOL TIME: ', avg

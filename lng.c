@@ -4879,6 +4879,7 @@ static PyObject* lng_TIMING_HISTORY (PyObject *self, PyObject *args, PyObject *k
     IFIS (kind, "TIMINT") {}
     ELIF (kind, "CONDET") {}
     ELIF (kind, "LOCDYN") {}
+    ELIF (kind, "CONSOL") {}
     ELIF (kind, "TIMBAL") {}
     ELIF (kind, "CONBAL") {}
     ELIF (kind, "LOCBAL") {}
@@ -4898,8 +4899,8 @@ static PyObject* lng_TIMING_HISTORY (PyObject *self, PyObject *args, PyObject *k
 
     while (solfec->sol->dom->time < t1)
     {
-      PyList_Append (list, PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label)));
       SOLFEC_Forward (solfec->sol, 1);
+      PyList_Append (list, PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label)));
     }
 
     return list;

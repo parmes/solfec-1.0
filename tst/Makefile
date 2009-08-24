@@ -4,7 +4,7 @@ include ../Flags.mak
 LIBBRICKS = ../obj/libsolfec.a
 LIBBRICKSMPI = ../obj/libsolfec-mpi.a
 CFLAGS = -std=c99 $(DEBUG) $(PROFILE) $(OPENGL) -I..
-LIB = -L../obj -lsolfec -lm $(BLAS) $(LAPACK) $(GLLIB)
+LIB = -L../obj -lsolfec -lm $(BLAS) $(LAPACK) $(GLLIB) $(PYTHONLIB)
 ifeq ($(MPI),yes)
   LIBMPI = -L../obj -lsolfec-mpi -lm $(BLAS) $(LAPACK) $(MPILIBS)
 endif
@@ -48,9 +48,6 @@ clean:
 	rm -f *out
 	rm -f $(TGT) $(TGTMPI)
 	rm -fr *dSYM
-
-../obj/libdebris.a:
-	(cd .. && make)
 
 glvtest: glvtest.c $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
