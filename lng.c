@@ -29,6 +29,10 @@
 #include "lng.h"
 #include "err.h"
 
+#if MPI
+#include <mpi.h>
+#endif
+
 #ifndef Py_RETURN_FALSE
 #define Py_RETURN_FALSE return Py_INCREF(Py_False), Py_False
 #endif
@@ -3627,8 +3631,54 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+/* return number of CPUs */
+static PyObject* lng_NCPU (PyObject *self, PyObject *args, PyObject *kwds)
+{
+#if MPI
+  int ncpu;
+
+  MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
+  return PyInt_FromLong (ncpu);
+#else
+  return PyInt_FromLong (1);
+#endif
+}
+
+/* test whether an object is on this processor */
+static PyObject* lng_HERE (PyObject *self, PyObject *args, PyObject *kwds)
+{
+#if MPI
+  KEYWORDS ("solfec", "object");
+  lng_CONSTRAINT *constraint;
+  lng_SOLFEC *solfec;
+  PyObject *object;
+  lng_BODY *body;
+
+  PARSEKEYS ("O", &object);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_body_or_constraint (object, kwl[1]));
+
+  if (PyObject_IsInstance (object, (PyObject*)&lng_BODY_TYPE))
+  {
+    body = (lng_BODY*)object;
+
+    if (ID_TO_BODY (body)) Py_RETURN_TRUE;
+    else Py_RETURN_FALSE;
+  }
+  else
+  {
+    constraint = (lng_CONSTRAINT*)object;
+
+    if (ID_TO_CONSTRAINT (solfec, constraint)) Py_RETURN_TRUE;
+    else Py_RETURN_FALSE;
+  }
+#else
+  Py_RETURN_TRUE;
+#endif
+}
+
 /* test whether the viewer is enabled */
-static PyObject* lng_VIEWER_ON (PyObject *self, PyObject *args, PyObject *kwds)
+static PyObject* lng_VIEWER (PyObject *self, PyObject *args, PyObject *kwds)
 {
 #if OPENGL
   if (RND_On ()) Py_RETURN_TRUE; /* return true and maintain reference count of Py_True */
@@ -4487,6 +4537,375 @@ static PyObject* lng_UNPHYSICAL_PENETRATION (PyObject *self, PyObject *args, PyO
   Py_RETURN_NONE;
 }
 
+/* simulation duration */
+static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec");
+  lng_SOLFEC *solfec;
+
+  PARSEKEYS ("O", &solfec);
+
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+  if (solfec->sol->mode == SOLFEC_WRITE) return PyFloat_FromDouble (solfec->sol->dom->time);
+  else
+  {
+    double start, end;
+    SOLFEC_Time_Limits (solfec->sol, &start, &end);
+    return Py_BuildValue ("(d, d)", start, end);
+  }
+}
+
+/* skip forward */
+static PyObject* lng_FORWARD (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "steps");
+  lng_SOLFEC *solfec;
+  int steps;
+
+  PARSEKEYS ("Oi", &solfec, &steps);
+
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+  if (solfec->sol->mode == SOLFEC_READ) SOLFEC_Forward (solfec->sol, steps); 
+
+  Py_RETURN_NONE;
+}
+
+/* skip backward */
+static PyObject* lng_BACKWARD (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "steps");
+  lng_SOLFEC *solfec;
+  int steps;
+
+  PARSEKEYS ("Oi", &solfec, &steps);
+
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+  if (solfec->sol->mode == SOLFEC_READ) SOLFEC_Backward (solfec->sol, steps); 
+
+  Py_RETURN_NONE;
+}
+
+/* seek to time */
+static PyObject* lng_SEEK (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "time");
+  lng_SOLFEC *solfec;
+  double time;
+
+  PARSEKEYS ("Od", &solfec, &time);
+
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+  if (solfec->sol->mode == SOLFEC_READ) SOLFEC_Seek_To (solfec->sol, time); 
+
+  Py_RETURN_NONE;
+}
+
+/* get displacement */
+static PyObject* lng_DISPLACEMENT (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "point");
+  double p [3], x [3];
+  lng_BODY *body;
+  PyObject *point;
+
+  PARSEKEYS ("OO", &body, &point);
+
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
+
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif
+
+  p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+  p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+  p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+  BODY_Point_Values (body->bod, p, VALUE_DISPLACEMENT, x);
+
+  return Py_BuildValue ("(d, d, d)", x[0], x[1], x[2]);
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+/* get velocity */
+static PyObject* lng_VELOCITY (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "point");
+  double p [3], x [3];
+  lng_BODY *body;
+  PyObject *point;
+
+  PARSEKEYS ("OO", &body, &point);
+
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
+
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif
+
+  p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+  p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+  p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+  BODY_Point_Values (body->bod, p, VALUE_VELOCITY, x);
+
+  return Py_BuildValue ("(d, d, d)", x[0], x[1], x[2]);
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+/* get stress */
+static PyObject* lng_STRESS (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "point");
+  double p [3], x [7];
+  lng_BODY *body;
+  PyObject *point;
+
+  PARSEKEYS ("OO", &body, &point);
+
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
+
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif
+
+  p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+  p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+  p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+  BODY_Point_Values (body->bod, p, VALUE_STRESS_AND_MISES, x);
+
+  return Py_BuildValue ("(d, d, d, d, d, d, d)", x[0], x[1], x[2], x[3], x[4], x[5], x[6]);
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+/* history of an entity */
+static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "point", "entity", "t0", "t1");
+  double start, end, t0, t1;
+  PyObject *point, *entity;
+  double p [3], x [6];
+  VALUE_KIND kind;
+  lng_BODY *body;
+  int index;
+
+  PARSEKEYS ("OOOdd", &body, &point, &entity, &t0, &t1);
+
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) && is_string (entity, kwl[2]));
+
+#if MPI
+  if (ID_TO_BODY (body))
+  {
+#endif
+
+  SOLFEC *sol = DOM(body->bod->dom)->owner;
+
+  if (sol->mode == SOLFEC_WRITE) Py_RETURN_NONE;
+  else
+  {
+    SOLFEC_Time_Limits (sol, &start, &end);
+
+    if (t0 < start || t1 > end)
+    {
+      PyErr_SetString (PyExc_ValueError, "t0 or t1 outside of simulation duration limits");
+      return NULL;
+    }
+
+    IFIS (entity, "DX")
+    {
+      kind = VALUE_DISPLACEMENT;
+      index = 0;
+    }
+    ELIF (entity, "DY")
+    {
+      kind = VALUE_DISPLACEMENT;
+      index = 1;
+    }
+    ELIF (entity, "DZ")
+    {
+      kind = VALUE_DISPLACEMENT;
+      index = 2;
+    }
+    ELIF (entity, "VX")
+    {
+      kind = VALUE_VELOCITY;
+      index = 0;
+    }
+    ELIF (entity, "VY")
+    {
+      kind = VALUE_VELOCITY;
+      index = 1;
+    }
+    ELIF (entity, "VZ")
+    {
+      kind = VALUE_VELOCITY;
+      index = 2;
+    }
+    ELIF (entity, "SX")
+    {
+      kind = VALUE_STRESS;
+      index = 0;
+    }
+    ELIF (entity, "SY")
+    {
+      kind = VALUE_STRESS;
+      index = 1;
+    }
+    ELIF (entity, "SZ")
+    {
+      kind = VALUE_STRESS;
+      index = 2;
+    }
+    ELIF (entity, "SXY")
+    {
+      kind = VALUE_STRESS;
+      index = 3;
+    }
+    ELIF (entity, "SXZ")
+    {
+      kind = VALUE_STRESS;
+      index = 4;
+    }
+    ELIF (entity, "SYZ")
+    {
+      kind = VALUE_STRESS;
+      index = 5;
+    }
+    ELIF (entity, "MISES")
+    {
+      kind = VALUE_MISES;
+      index = 0;
+    }
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid timing kind");
+      return NULL;
+    }
+
+    PyObject *list;
+
+    ERRMEM (list = PyList_New (0));
+
+    SOLFEC_Seek_To (sol, t0);
+
+    while (sol->dom->time < t1)
+    {
+      BODY_Point_Values (body->bod, p, kind, x);
+      PyList_Append (list, PyFloat_FromDouble (x [index]));
+      SOLFEC_Forward (sol, 1);
+    }
+
+    return list;
+  }
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+/* timing */
+static PyObject* lng_TIMING (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "kind");
+  lng_SOLFEC *solfec;
+  PyObject *kind;
+  char *label;
+
+  PARSEKEYS ("OO", &solfec, &kind);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]));
+
+  IFIS (kind, "TIMINT") {}
+  ELIF (kind, "CONDET") {}
+  ELIF (kind, "LOCDYN") {}
+  ELIF (kind, "TIMBAL") {}
+  ELIF (kind, "CONBAL") {}
+  ELIF (kind, "LOCBAL") {}
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid timing kind");
+    return NULL;
+  }
+
+  label = PyString_AsString (kind);
+
+  return PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label));
+}
+
+/* timing history */
+static PyObject* lng_TIMING_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "kind", "t0", "t1");
+  double start, end, t0, t1;
+  lng_SOLFEC *solfec;
+  PyObject *kind;
+  char *label;
+
+  PARSEKEYS ("OOdd", &solfec, &kind, &t0, &t1);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]));
+
+  if (solfec->sol->mode == SOLFEC_WRITE) Py_RETURN_NONE;
+  else
+  {
+    SOLFEC_Time_Limits (solfec->sol, &start, &end);
+
+    if (t0 < start || t1 > end)
+    {
+      PyErr_SetString (PyExc_ValueError, "t0 or t1 outside of simulation duration limits");
+      return NULL;
+    }
+
+    IFIS (kind, "TIMINT") {}
+    ELIF (kind, "CONDET") {}
+    ELIF (kind, "LOCDYN") {}
+    ELIF (kind, "TIMBAL") {}
+    ELIF (kind, "CONBAL") {}
+    ELIF (kind, "LOCBAL") {}
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid timing kind");
+      return NULL;
+    }
+
+    label = PyString_AsString (kind);
+
+    PyObject *list;
+
+    ERRMEM (list = PyList_New (0));
+
+    SOLFEC_Seek_To (solfec->sol, t0);
+
+    while (solfec->sol->dom->time < t1)
+    {
+      PyList_Append (list, PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label)));
+      SOLFEC_Forward (solfec->sol, 1);
+    }
+
+    return list;
+  }
+}
+
 static PyMethodDef lng_methods [] =
 {
   {"HULL", (PyCFunction)lng_HULL, METH_VARARGS|METH_KEYWORDS, "Create convex hull from a point set"},
@@ -4500,7 +4919,9 @@ static PyMethodDef lng_methods [] =
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
-  {"VIEWER_ON", (PyCFunction)lng_VIEWER_ON, METH_NOARGS, "Test whether the viewer is enabled"},
+  {"NCPU", (PyCFunction)lng_NCPU, METH_NOARGS, "Get the number of processors"},
+  {"HERE", (PyCFunction)lng_HERE, METH_NOARGS, "Test whether an object is located on the current processor"},
+  {"VIEWER", (PyCFunction)lng_VIEWER, METH_NOARGS, "Test whether the viewer is enabled"},
   {"BODY_CHARS", (PyCFunction)lng_BODY_CHARS, METH_VARARGS|METH_KEYWORDS, "Overwrite body characteristics"},
   {"INITIAL_VELOCITY", (PyCFunction)lng_INITIAL_VELOCITY, METH_VARARGS|METH_KEYWORDS, "Apply initial velocity"},
   {"MATERIAL", (PyCFunction)lng_MATERIAL, METH_VARARGS|METH_KEYWORDS, "Apply bulk material"},
@@ -4520,6 +4941,16 @@ static PyMethodDef lng_methods [] =
   {"EXTENTS", (PyCFunction)lng_EXTENTS, METH_VARARGS|METH_KEYWORDS, "Set scene extents"},
   {"CALLBACK", (PyCFunction)lng_CALLBACK, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
   {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
+  {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
+  {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
+  {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
+  {"SEEK", (PyCFunction)lng_SEEK, METH_VARARGS|METH_KEYWORDS, "Seek to time in READ mode"},
+  {"DISPLACEMENT", (PyCFunction)lng_DISPLACEMENT, METH_VARARGS|METH_KEYWORDS, "Get displacement of a referential point"},
+  {"VELOCITY", (PyCFunction)lng_VELOCITY, METH_VARARGS|METH_KEYWORDS, "Get velocity of a referential point"},
+  {"STRESS", (PyCFunction)lng_STRESS, METH_VARARGS|METH_KEYWORDS, "Get stress of a referential point"},
+  {"HISTORY", (PyCFunction)lng_HISTORY, METH_VARARGS|METH_KEYWORDS, "Get history of an entity for a body"},
+  {"TIMING", (PyCFunction)lng_TIMING, METH_VARARGS|METH_KEYWORDS, "Get timing"},
+  {"TIMING_HISTORY", (PyCFunction)lng_TIMING_HISTORY, METH_VARARGS|METH_KEYWORDS, "Get timing history"},
   {NULL, 0, 0, NULL}
 };
 
@@ -4651,7 +5082,9 @@ int lng (const char *path)
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
-                     "from solfec import VIEWER_ON\n"
+                     "from solfec import NCPU\n"
+                     "from solfec import HERE\n"
+                     "from solfec import VIEWER\n"
                      "from solfec import BODY_CHARS\n"
                      "from solfec import INITIAL_VELOCITY\n"
                      "from solfec import MATERIAL\n"
@@ -4670,7 +5103,17 @@ int lng (const char *path)
                      "from solfec import OUTPUT\n"
                      "from solfec import EXTENTS\n"
                      "from solfec import CALLBACK\n"
-                     "from solfec import UNPHYSICAL_PENETRATION\n");
+                     "from solfec import UNPHYSICAL_PENETRATION\n"
+                     "from solfec import DURATION\n"
+                     "from solfec import FORWARD\n"
+                     "from solfec import BACKWARD\n"
+                     "from solfec import SEEK\n"
+                     "from solfec import DISPLACEMENT\n"
+                     "from solfec import VELOCITY\n"
+                     "from solfec import STRESS\n"
+                     "from solfec import HISTORY\n"
+                     "from solfec import TIMING\n"
+                     "from solfec import TIMING_HISTORY\n");
 
   error = PyRun_SimpleFile (file, path);
 

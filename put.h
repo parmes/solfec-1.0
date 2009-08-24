@@ -19,10 +19,21 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include "tmr.h"
+
 #ifndef __put__
 #define __put__
 
 /* get statistics on single integer variable; return 1 for rank 0 and 0 for others */
-int PUT_Int_Stats (int rank, int ncpu, int val, int *sum, int *min, int *avg, int *max);
+int PUT_root_int_stats (int val, int *sum, int *min, int *avg, int *max);
+
+/* parallel timer end: get maximum of all calls; return 1 for rank 0 and 0 for others */
+int PUT_root_timerend (TIMING *t, double *time);
+
+/* parallel timer end: return maximum of all calls */
+double PUT_timerend (TIMING *t);
+
+/* return minimum of all calls */
+int PUT_int_min (int val);
 
 #endif

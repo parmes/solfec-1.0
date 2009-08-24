@@ -48,6 +48,6 @@ def termination (sol, bod):
   previous = bod.velo [5]
   return 1
 
-if not VIEWER_ON (): CALLBACK (solfec, step, (solfec, bod), termination)
+if not VIEWER(): CALLBACK (solfec, step, (solfec, bod), termination)
 
 RUN (solfec, gs, 10)

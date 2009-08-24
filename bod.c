@@ -1539,6 +1539,15 @@ void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND 
       }
     }
     break;
+    case VALUE_STRESS_AND_MISES:
+    {
+      if (bod->kind == PRB)
+      {
+	prb_cauchy (bod, values);
+	MISES (values, values [6]);
+      }
+    }
+    break;
     }
   }
   break;

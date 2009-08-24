@@ -4182,11 +4182,70 @@ Various utility routines are listed below.
 \end_layout
 
 \begin_layout Subsection*
-obj = VIEWER_ON ()
+num = NCPU()
 \end_layout
 
 \begin_layout Standard
-This routine test whether the viewer is enabled.
+This routine returns the number CPUs used in the analysis.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+num
+\series default
+ - the number of CPUs
+\end_layout
+
+\begin_layout Subsection*
+ret = HERE(solfec, object)
+\end_layout
+
+\begin_layout Standard
+This routine tests whether an object is located on the current processor.
+ During parallel runs objects migrate between processors.
+ When a function (or a member) for an object not present on the current
+ processor, the call will usually return None or be ignored.
+ Hence, it is sometimes convenient to check whether an object resides on
+ the current processor.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+ret
+\series default
+ - 
+\emph on
+True
+\emph default
+ or 
+\emph on
+False
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+object
+\series default
+ - BODY or CONSTRAINT object
+\end_layout
+
+\begin_layout Subsection*
+obj = VIEWER()
+\end_layout
+
+\begin_layout Standard
+This routine tests whether the viewer is enabled.
 \end_layout
 
 \begin_layout Itemize
@@ -4922,9 +4981,7 @@ Results can be accessed either in the 'READ' mode of a SOLFEC object, or
 \end_layout
 
 \begin_layout Subsection*
-value = DURATION (solfec) 
-\color red
-TODO
+value = DURATION (solfec)
 \end_layout
 
 \begin_layout Standard
@@ -4943,7 +5000,15 @@ solfec.time
 \series bold
 value
 \series default
- - duration of the simulation
+ - 
+\emph on
+(t0, t1)
+\emph default
+ duration limits of the simulation in 'READ' mode or current 
+\emph on
+time
+\emph default
+ in 'WRITE' mode
 \end_layout
 
 \begin_layout Itemize
@@ -4955,9 +5020,7 @@ solfec
 \end_layout
 
 \begin_layout Subsection*
-FORWARD (solfec, steps) 
-\color red
-TODO
+FORWARD (solfec, steps)
 \end_layout
 
 \begin_layout Standard
@@ -4982,9 +5045,7 @@ steps
 \end_layout
 
 \begin_layout Subsection*
-BACKWARD (solfec, steps) 
-\color red
-TODO
+BACKWARD (solfec, steps)
 \end_layout
 
 \begin_layout Standard
@@ -5009,9 +5070,7 @@ steps
 \end_layout
 
 \begin_layout Subsection*
-SEEK (solfec, time) 
-\color red
-TODO
+SEEK (solfec, time)
 \end_layout
 
 \begin_layout Standard
@@ -5036,9 +5095,7 @@ time
 \end_layout
 
 \begin_layout Subsection*
-disp = DISPLACEMENT (body, point) 
-\color red
-TODO
+disp = DISPLACEMENT (body, point)
 \end_layout
 
 \begin_layout Standard
@@ -5078,9 +5135,7 @@ point
 \end_layout
 
 \begin_layout Subsection*
-velo = VELOCITY (body, point) 
-\color red
-TODO
+velo = VELOCITY (body, point)
 \end_layout
 
 \begin_layout Standard
@@ -5120,9 +5175,7 @@ point
 \end_layout
 
 \begin_layout Subsection*
-stre = STRESS (body, point) 
-\color red
-TODO
+stre = STRESS (body, point)
 \end_layout
 
 \begin_layout Standard
@@ -5136,9 +5189,9 @@ stre
 \series default
  - 
 \emph on
-(sx, sy, sz, sxy, sxz, syz)
+(sx, sy, sz, sxy, sxz, syz, mises)
 \emph default
- tuple storing the Cauchy stress
+ tuple storing the Cauchy stress and the von Mises norm of it
 \end_layout
 
 \begin_layout Itemize
@@ -5162,9 +5215,7 @@ point
 \end_layout
 
 \begin_layout Subsection*
-hist = HISTORY (body, point, entity, t0, t1) 
-\color red
-TODO
+hist = HISTORY (body, point, entity, t0, t1)
 \end_layout
 
 \begin_layout Standard
@@ -5205,7 +5256,8 @@ point
 entity
 \series default
  - this is one of: 'DX', 'DY', 'DZ' (displacement), 'VX', 'VY', 'VZ' (velocity),
- 'SX', 'SY', 'SZ', 'SXY', 'SXZ', 'SYZ' (stress)
+ 'SX', 'SY', 'SZ', 'SXY', 'SXZ', 'SYZ' (stress), 'MISE' (von Mises norm
+ of stress)
 \end_layout
 
 \begin_layout Itemize
@@ -5297,6 +5349,100 @@ kind
  in 
 \series bold
 ENERGY
+\series default
+ routine
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+t0
+\series default
+ - time interval start
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+t1
+\series default
+ - time interval end
+\end_layout
+
+\begin_layout Subsection*
+tim = TIMING (solfec, kind)
+\end_layout
+
+\begin_layout Standard
+The routine outputs the value of a specific action timing per time step.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+tim
+\series default
+ - value of timing
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - this is one of: 'TIMINT' (time integration), 'CONDET' (contact detection),
+ 'LOCDYN' (local dynamics setup), 'CONSOL' (constraints solution), 'TIMBAL'
+ (time integration balancing), 'CONBAL' (contact detection balancing), 'LOCBAL'
+ (local dynamics balancing).
+ The balancing timings are non-zero only for parallel runs.
+ The balancing times are included in the corresponding total timings, e.g.
+ 'TIMINT' includes 'TIMBAL'.
+\end_layout
+
+\begin_layout Subsection*
+hist = TIMING_HISTORY (solfec, kind, t0, t1)
+\end_layout
+
+\begin_layout Standard
+This routine outputs the history of timing.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+hist
+\series default
+ - a list object storing the history of timing
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+kind
+\series default
+ - same as 
+\series bold
+kind
+\series default
+ in 
+\series bold
+TIMING
 \series default
  routine
 \end_layout

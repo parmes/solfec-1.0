@@ -62,7 +62,7 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'EXIT')
 def callback (sol):
   return 1
 
-if not VIEWER_ON (): CALLBACK (solfec, step * skip, solfec, callback)
+if not VIEWER(): CALLBACK (solfec, step * skip, solfec, callback)
 
 OUTPUT (solfec, 0.02)
 

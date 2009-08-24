@@ -22,6 +22,7 @@
 #include <string.h>
 #include <limits.h>
 #include <float.h>
+#include "sol.h"
 #include "alg.h"
 #include "msh.h"
 #include "cvx.h"
@@ -461,7 +462,7 @@ static void sparsify_contacts (DOM *dom)
 #if MPI
     int sum, min, avg, max;
 
-    if (PUT_Int_Stats (dom->rank, dom->ncpu, n, &sum, &min, &avg, &max))
+    if (PUT_root_int_stats (n, &sum, &min, &avg, &max))
       printf ("SPARSIFIED CONTACTS: %d, MIN: %d, AVG: %d, MAX: %d\n",  sum, min, avg, max);
 #else
     printf ("SPARSIFIED CONTACTS: %d\n",  n);
@@ -1758,8 +1759,14 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   BODY *bod;
   CON *con;
 
+  SOLFEC_Timer_Start (dom->owner, "TIMINT");
+
 #if MPI
+  SOLFEC_Timer_Start (dom->owner, "TIMBAL");
+
   domain_balance (dom);
+
+  SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #endif
 
   /* report bodies */
@@ -1768,7 +1775,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #if MPI
     int sum, min, avg, max;
 
-    if (PUT_Int_Stats (dom->rank, dom->ncpu, dom->nbod, &sum, &min, &avg, &max))
+    if (PUT_root_int_stats (dom->nbod, &sum, &min, &avg, &max))
       printf ("BODIES: %d, MIN: %d, AVG: %d, MAX: %d\n",  sum, min, avg, max);
 #else
     printf ("BODIES: %d\n",  dom->nbod);
@@ -1824,7 +1831,11 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   }
 
 #if MPI
+  SOLFEC_Timer_Start (dom->owner, "TIMBAL");
+
   domain_glue_begin (dom);
+
+  SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #endif
 
   /* report contacts */
@@ -1833,12 +1844,14 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #if MPI
     int sum, min, avg, max;
 
-    if (PUT_Int_Stats (dom->rank, dom->ncpu, dom->ncon, &sum, &min, &avg, &max))
+    if (PUT_root_int_stats (dom->ncon, &sum, &min, &avg, &max))
       printf ("CONSTRAINTS: %d, MIN: %d, AVG: %d, MAX: %d\n",  sum, min, avg, max);
 #else
     printf ("CONSTRAINTS: %d\n",  dom->ncon);
 #endif
   }
+
+  SOLFEC_Timer_End (dom->owner, "TIMINT");
 
   /* output local dynamics */
   return dom->ldy;
@@ -1853,8 +1866,14 @@ void DOM_Update_End (DOM *dom)
   SET *del, *item;
   BODY *bod;
 
+  SOLFEC_Timer_Start (dom->owner, "TIMINT");
+
 #if MPI
+  SOLFEC_Timer_Start (dom->owner, "TIMBAL");
+
   domain_glue_end (dom);
+
+  SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #endif
 
   /* time and step */
@@ -1893,6 +1912,8 @@ void DOM_Update_End (DOM *dom)
   }
 
   SET_Free (&dom->setmem, &del); /* free up deletion set */
+
+  SOLFEC_Timer_End (dom->owner, "TIMINT");
 }
 
 #if MPI

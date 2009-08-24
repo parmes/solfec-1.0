@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include "sol.h"
 #include "box.h"
 #include "hyb.h"
 #include "alg.h"
@@ -857,9 +858,15 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
   BOX *box, *next, *adj;
   MAP *item, *jtem;
+
+  SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONDET");
   
 #if MPI
+  SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONBAL");
+
   aabb_balance (aabb);
+
+  SOLFEC_Timer_End (DOM(aabb->dom)->owner, "CONBAL");
 #endif
 
   /* update extents */
@@ -961,6 +968,8 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
 
   /* set unmodified */
   aabb->modified = 0;
+
+  SOLFEC_Timer_End (DOM(aabb->dom)->owner, "CONDET");
 }
 
 /* never report overlaps betweem this pair of bodies (given by identifiers) */

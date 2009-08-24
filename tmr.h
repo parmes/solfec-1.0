@@ -29,7 +29,7 @@ typedef struct timing TIMING;
 struct timing
 {
   struct timeval time;
-  double sec;
+  double sec, total;
 };
 
 static inline void timerstart (TIMING *t)
@@ -43,6 +43,7 @@ static inline double timerend (TIMING *t)
   gettimeofday (&newtime, NULL);
   t->sec = (((double)newtime.tv_sec - (double)t->time.tv_sec) * 1000000. +
     ((double)newtime.tv_usec - (double)t->time.tv_usec)) / 1000000.;
+  t->total += t->sec;
   return t->sec;
 }
 

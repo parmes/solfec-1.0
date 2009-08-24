@@ -75,10 +75,23 @@ struct solfec
 	 callback_time;
   void *data, *call;
   SOLFEC_Callback callback;
+
+  /* labaled timers */
+  MEM mapmem, timemem;
+  MAP *timers;
 };
 
 /* create a solfec instance */
 SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath);
+
+/* start a labeled timer */
+void SOLFEC_Timer_Start (SOLFEC *sol, const char *label);
+
+/* end a labeled timer (labeled timers are written to the output) */
+void SOLFEC_Timer_End (SOLFEC *sol, const char *label);
+
+/* get timing of a labeled timer */
+double SOLFEC_Timing (SOLFEC *sol, const char *label);
 
 /* solfec mode string */
 char* SOLFEC_Mode (SOLFEC *sol);

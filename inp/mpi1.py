@@ -61,4 +61,4 @@ def gscallback (gs):
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
 
-RUN (solfec, gs, 1000 * step)
+RUN (solfec, gs, 10 * step)

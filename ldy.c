@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include "sol.h"
 #include "alg.h"
 #include "dom.h"
 #include "ldy.h"
@@ -1174,8 +1175,14 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   double step = dom->step;
   DIAB *dia;
 
+  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCDYN");
+
 #if MPI
+  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
+
   locdyn_adjext (ldy);
+
+  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCBAL");
 #endif
 
   /* calculate local velocities and
@@ -1295,21 +1302,29 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   if (dom->rank == 0 && dom->verbose)
     printf ("BALANCING CONSTRAINT GRAPH ..."), fflush (stdout);
 
+  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
+
   locdyn_balance (ldy);
+
+  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCBAL");
 
   if (DOM(ldy->dom)->verbose)
   {
     int sum, min, avg, max;
 
-    if (PUT_Int_Stats (dom->rank, dom->ncpu, ldy->ndiab, &sum, &min, &avg, &max))
+    if (PUT_root_int_stats (ldy->ndiab, &sum, &min, &avg, &max))
       printf (" DONE: MIN = %d, AVG = %d, MAX = %d\n", min, avg, max);
   }
 #endif
+
+  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCDYN");
 }
 
 /* updiae local dynamics => after the solution */
 void LOCDYN_Update_End (LOCDYN *ldy)
 {
+  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCDYN");
+
   /* backward variables change */
   variables_change_end (ldy);
 
@@ -1317,8 +1332,14 @@ void LOCDYN_Update_End (LOCDYN *ldy)
   ldy->modified = 0;
 
 #if MPI
+  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
+
   locdyn_gossip (ldy);
+
+  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCBAL");
 #endif
+
+  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCDYN");
 }
 
 #if MPI

@@ -21,6 +21,7 @@
 
 #if MPI
 #include <zoltan.h>
+#include "put.h"
 #endif
 
 #include <sys/stat.h> /* POSIX */
@@ -36,6 +37,16 @@
 
 /* defulat initial amoung of boxes */
 #define DEFSIZE 1024
+
+/* clean labeled timers (total member of TIMING) */
+static void clean_timers (SOLFEC *sol)
+{
+  for (MAP *item = MAP_First (sol->timers); item; item = MAP_Next (item))
+  {
+    TIMING *t = item->data;
+    t->total = 0.0;
+  }
+}
 
 /* turn on verbosity */
 static int verbose_on (SOLFEC *sol, short kind, void *solver)
@@ -169,6 +180,31 @@ static void write_state (SOLFEC *sol)
   /* write domain */
 
   DOM_Write_State (sol->dom, sol->bf);
+
+  /* write timers */
+
+#if MPI
+  if (sol->dom->rank == 0) /* only the root rank writes timings */
+  {
+#endif
+
+  int numt = MAP_Size (sol->timers);
+  PBF_Label (sol->bf, "TIMERS");
+  PBF_Int (sol->bf, &numt, 1);
+  
+  for (MAP *item = MAP_First (sol->timers); item; item = MAP_Next (item))
+  {
+    TIMING *t = item->data;
+
+    PBF_String (sol->bf, (char**) &item->key);
+    PBF_Double (sol->bf, &t->total, 1);
+  }
+
+#if MPI
+  }
+#endif
+
+  clean_timers (sol); /* restart total timing */
 }
 
 /* input state */
@@ -189,6 +225,36 @@ static void read_state (SOLFEC *sol)
   /* read domain */
 
   DOM_Read_State (sol->dom, sol->bf);
+
+  /* read timers */
+
+  int n, numt, found = 0;
+  for (PBF *bf = sol->bf; bf; bf = bf->next)
+  {
+    if (PBF_Label (bf, "TIMERS"))
+    {
+      found = 1;
+
+      PBF_Int (bf, &numt, 1);
+      
+      for (n = 0; n < numt; n ++)
+      {
+	char *label;
+	TIMING *t;
+	
+	PBF_String (bf, &label); /* read label */
+
+	if (!(t = MAP_Find (sol->timers, label, (MAP_Compare) strcmp))) /* add timer if missing */
+	{
+	  ERRMEM (t = MEM_Alloc (&sol->timemem));
+	  MAP_Insert (&sol->mapmem, &sol->timers, label, t, (MAP_Compare) strcmp);
+	}
+
+	PBF_Double (bf, &t->total, 1);
+      }
+    }
+  }
+  ASSERT (found, ERR_FILE_FORMAT); /* the former root file should have this section */
 }
 
 /* read initial state if needed */
@@ -222,7 +288,50 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->data = sol->call = NULL;
   sol->callback = NULL;
 
+  MEM_Init (&sol->mapmem, sizeof (MAP), 128);
+  MEM_Init (&sol->timemem, sizeof (TIMING), 128);
+  sol->timers = NULL;
+
   return sol;
+}
+
+/* start a labeled timer */
+void SOLFEC_Timer_Start (SOLFEC *sol, const char *label)
+{
+  TIMING *t;
+
+  if (!(t = MAP_Find (sol->timers, (void*) label, (MAP_Compare) strcmp)))
+  {
+    ERRMEM (t = MEM_Alloc (&sol->timemem));
+    MAP_Insert (&sol->mapmem, &sol->timers, (void*) label, t, (MAP_Compare) strcmp);
+  }
+
+  timerstart (t);
+}
+
+/* end a labeled timer (labeled timers are written to the output) */
+void SOLFEC_Timer_End (SOLFEC *sol, const char *label)
+{
+  TIMING *t;
+
+  if ((t = MAP_Find (sol->timers, (void*) label, (MAP_Compare) strcmp)))
+  {
+#if MPI
+    PUT_root_timerend (t, NULL);
+#else
+    timerend (t);
+#endif
+  }
+}
+
+/* get timing of a labeled timer */
+double SOLFEC_Timing (SOLFEC *sol, const char *label)
+{
+  TIMING *t;
+
+  if ((t = MAP_Find (sol->timers, (void*) label, (MAP_Compare) strcmp))) return t->total;
+
+  return 0.0;
 }
 
 /* solfec mode string */
@@ -298,18 +407,17 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 	sol->callback_time += sol->callback_interval;
 	ret = sol->callback (sol, sol->data, sol->call);
 #if MPI
-	int cpy = ret;
-        MPI_Allreduce (&cpy, &ret, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+	ret = PUT_int_min (ret);
 #endif
 	if (!ret) break; /* interrupt run */
       }
 
       /* statistics are printed every
        * human perciveable period of time */
-      tt = timerend (&tim);
 #if MPI
-      double qq = tt;
-      MPI_Allreduce (&qq, &tt, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+      tt = PUT_timerend (&tim);
+#else
+      tt = timerend (&tim);
 #endif
       if (tt  < 0.5 && verbose) verbose = verbose_off (sol, kind, solver);
       else if (tt >= 0.5) { verbose = verbose_on (sol, kind, solver); timerstart (&tim); }
@@ -420,6 +528,17 @@ void SOLFEC_Destroy (SOLFEC *sol)
   free (sol->outpath);
 
   if (sol->bf) PBF_Close (sol->bf);
+
+  if (sol->mode == SOLFEC_READ)
+  {
+    for (MAP *item = MAP_First (sol->timers); item; item = MAP_Next (item))
+    {
+      free (item->key); /* labels were allocated in READ mode */
+    }
+  }
+
+  MEM_Release (&sol->mapmem);
+  MEM_Release (&sol->timemem);
 
   free (sol);
 }

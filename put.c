@@ -24,11 +24,15 @@
 #include <mpi.h>
 #include "err.h"
 #include "alg.h"
+#include "put.h"
 
 /* get statistics on single integer variable; return 1 for rank 0 and 0 for others */
-int PUT_Int_Stats (int rank, int ncpu, int val, int *sum, int *min, int *avg, int *max)
+int PUT_root_int_stats (int val, int *sum, int *min, int *avg, int *max)
 {
-  int *all;
+  int rank, ncpu, *all;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
 
   if (rank == 0) { ERRMEM (all = malloc (sizeof (int [ncpu]))); }
   else all = NULL;
@@ -57,4 +61,44 @@ int PUT_Int_Stats (int rank, int ncpu, int val, int *sum, int *min, int *avg, in
   free (all);
 
   return 0;
+}
+
+/* parallel timer end: get maximum of all calls; return 1 for rank 0 and 0 for others */
+int PUT_root_timerend (TIMING *t, double *time)
+{
+  double local, timing;
+  int rank;
+
+  local = timerend (t);
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+  if (!time) time = &timing;
+
+  MPI_Reduce (&local, time, 1, MPI_DOUBLE, MPI_MAX, 0, MPI_COMM_WORLD);
+
+  if (rank == 0) return 1;
+  else return 0;
+}
+
+/* parallel timer end: return maximum of all calls */
+double PUT_timerend (TIMING *t)
+{
+  double local, time;
+
+  local = timerend (t);
+
+  MPI_Allreduce (&local, &time, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+  return time;
+}
+
+/* return minimum of all calls */
+int PUT_int_min (int val)
+{
+  int ret;
+
+  MPI_Allreduce (&val, &ret, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+
+  return ret;
 }

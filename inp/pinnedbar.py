@@ -58,6 +58,6 @@ def callback (bod):
     return 0
   else: return 1
 
-if not VIEWER_ON (): CALLBACK (solfec, step, bod, callback)
+if not VIEWER(): CALLBACK (solfec, step, bod, callback)
 
 RUN (solfec, gs, stop)
