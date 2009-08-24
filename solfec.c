@@ -81,7 +81,7 @@ int main (int argc, char **argv)
   MPI_Init_thread (&argc, &argv, MPI_THREAD_MULTIPLE, &provided);
   ASSERT (provided >= MPI_THREAD_MULTIPLE, ERR_MPI_THREAD_MULTIPLE);
 #endif
-
+  MPI_Init (&argc, &argv);
   ASSERT (Zoltan_Initialize (argc, argv, &version) == ZOLTAN_OK, ERR_ZOLTAN_INIT);
 #endif
 
@@ -118,6 +118,10 @@ int main (int argc, char **argv)
     return 1;
   }
   ENDTRY ()
+
+#if MPI
+  MPI_Finalize ();
+#endif
 
   return 0;
 }
