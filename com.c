@@ -319,7 +319,7 @@ void COMOBJS (MPI_Comm comm, int tag,
   }
 
   /* truncate output */
-  ERRMEM (*recv = realloc (*recv, n * sizeof (COMOBJ)));
+  if (n) ERRMEM (*recv = realloc (*recv, n * sizeof (COMOBJ)));
   *nrecv = n;
 
   /* cleanup */
@@ -488,11 +488,14 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   }
 
   /* truncate */
-  ERRMEM (pattern->send_sizes = realloc (pattern->send_sizes, pattern->send_count * sizeof (int [3])));
-  ERRMEM (pattern->send_position = realloc (pattern->send_position, pattern->send_count * sizeof (int)));
-  ERRMEM (pattern->send_rank = realloc (pattern->send_rank, pattern->send_count * sizeof (int)));
-  ERRMEM (pattern->send_data = realloc (pattern->send_data, pattern->send_count * sizeof (char*)));
-  ERRMEM (pattern->recv_rank = realloc (pattern->recv_rank, pattern->recv_count * sizeof (int)));
+  if (pattern->send_count)
+  {
+    ERRMEM (pattern->send_sizes = realloc (pattern->send_sizes, pattern->send_count * sizeof (int [3])));
+    ERRMEM (pattern->send_position = realloc (pattern->send_position, pattern->send_count * sizeof (int)));
+    ERRMEM (pattern->send_rank = realloc (pattern->send_rank, pattern->send_count * sizeof (int)));
+    ERRMEM (pattern->send_data = realloc (pattern->send_data, pattern->send_count * sizeof (char*)));
+  }
+  if (pattern->recv_count) ERRMEM (pattern->recv_rank = realloc (pattern->recv_rank, pattern->recv_count * sizeof (int)));
  
   /* cleanup */
   free (send_count_all);
