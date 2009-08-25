@@ -120,7 +120,7 @@ obj/err.o: err.c err.h
 obj/alg.o: alg.c alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/mem.o: mem.c mem.h
+obj/mem.o: mem.c mem.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/pck.o: pck.c pck.h err.h

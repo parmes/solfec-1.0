@@ -36,6 +36,7 @@
 #include "pck.h"
 #include "com.h"
 #include "tag.h"
+#include "put.h"
 #endif
 
 #define SIZE 512 /* mempool size */
@@ -630,6 +631,13 @@ static void aabb_balance (AABB *aabb)
     if (flag) SET_Insert (&aabb->setmem, &del, aux [i], NULL);
   }
 
+#if DEBUG
+  int sum, min, avg, max;
+
+  if (dom->verbose && PUT_root_int_stats (nsend, &sum, &min, &avg, &max))
+    printf ("EXPORTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ", sum, min, avg, max);
+#endif
+
   /* communicate migration data (unpacking inserts the imported boxes) */
   COMOBJS (MPI_COMM_WORLD, TAG_AABB_BALANCE, (OBJ_Pack)box_pack, aabb, (OBJ_Unpack)box_unpack, send, nsend, &recv, &nrecv);
 
@@ -862,6 +870,8 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONDET");
   
 #if MPI
+  if (DOM(aabb->dom)->verbose && DOM(aabb->dom)->rank == 0) printf ("AABB BALANCING ... "), fflush (stdout);
+
   SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONBAL");
 
   aabb_balance (aabb);
@@ -935,6 +945,16 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
 
     for (box = aabb->lst, b = aabb->tab; box; box = box->next, b ++) *b = box; /* overwrite box pointers */
   }
+
+#if MPI
+  int sum, min, avg, max;
+
+  if (DOM(aabb->dom)->verbose && PUT_root_int_stats (aabb->nlst, &sum, &min, &avg, &max))
+    printf ("BOXES: SUM = %d, MIN = %d, AVG = %d, MAX = %d\n", sum, min, avg, max);
+
+  if (DOM(aabb->dom)->rank == 0) /* output on zero rank only */
+#endif
+  if (DOM(aabb->dom)->verbose) printf ("CONTACT DETECTION ... "), fflush (stdout);
 
   /* the algorithm
    * specific part */

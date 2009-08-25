@@ -4182,7 +4182,39 @@ Various utility routines are listed below.
 \end_layout
 
 \begin_layout Subsection*
-num = NCPU()
+LOCDYN_BALANCING (solfec, mode)
+\end_layout
+
+\begin_layout Standard
+This routine sets the mode of local dynamics balancing for a parallel run.
+ It is ignored in sequential mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+mode
+\series default
+ - 'OFF' disables balancing (in this case geometrical balancing related
+ to contact detection is inherited by local dynamics), 'GEOM' enables geometrica
+l balancing based on spatial constraint points, 'GRAPG' enables topological
+ balancing based on the adjacency structure of the 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+ operator.
+\end_layout
+
+\begin_layout Subsection*
+num = NCPU ()
 \end_layout
 
 \begin_layout Standard
@@ -4198,7 +4230,7 @@ num
 \end_layout
 
 \begin_layout Subsection*
-ret = HERE(solfec, object)
+ret = HERE (solfec, object)
 \end_layout
 
 \begin_layout Standard
@@ -4241,7 +4273,7 @@ object
 \end_layout
 
 \begin_layout Subsection*
-obj = VIEWER()
+obj = VIEWER ()
 \end_layout
 
 \begin_layout Standard

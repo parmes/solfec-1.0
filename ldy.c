@@ -35,9 +35,6 @@
 #include "lis.h"
 #endif
 
-#define LOCDYN_BALANCING 1 /* balancing blocks */
-#define GEOMETRIC_LOCDYN_BALANCING 1 /* geometrical balancing */
-
 /* memory block size */
 #define BLKSIZE 512
 
@@ -157,7 +154,6 @@ static void vertex_list (LOCDYN *ldy, int num_gid_entries, int num_lid_entries,
   *ierr = ZOLTAN_OK;
 }
 
-#if GEOMETRIC_LOCDYN_BALANCING
 /* number of spatial dimensions */
 static int dimensions (LOCDYN *ldy, int *ierr)
 {
@@ -192,7 +188,6 @@ static void conpoints (LOCDYN *ldy, int num_gid_entries, int num_lid_entries, in
   *ierr = ZOLTAN_OK;
 }
 
-#else
 /* sizes of edges (compressed rows) of the local W graph */
 static void edge_sizes (LOCDYN *ldy, int *num_lists, int *num_pins, int *format, int *ierr)
 {
@@ -247,7 +242,6 @@ static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int n
 
   *ierr = ZOLTAN_OK;
 }
-#endif
 
 /* pack off-diagonal block ids */
 static void pack_block_offids (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
@@ -486,20 +480,21 @@ static void* unpack_migrate (LOCDYN *ldy, int *dpos, double *d, int doubles, int
   return dia;
 }
 
+/* auxiliary SET and LDB pair type */
+typedef struct {SET *set; LDB ldb;} SET_LDB_PAIR;
+
 /* pack off-diagonal ids data */
-static void pack_offids (SET *upd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+static void pack_offids (SET_LDB_PAIR *pair, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   /* pack updated blocks */
-  pack_int (isize, i, ints, SET_Size (upd));
-  for (SET *item = SET_First (upd); item; item = SET_Next (item))
+  pack_int (isize, i, ints, SET_Size (pair->set));
+  for (SET *item = SET_First (pair->set); item; item = SET_Next (item))
   {
     DIAB *dia = item->data;
 
     pack_int (isize, i, ints, dia->id);
     pack_block_offids (dia, dsize, d, doubles, isize, i, ints);
-#if GEOMETRIC_LOCDYN_BALANCING
-    pack_doubles (dsize, d, doubles, CON(dia->con)->point, 3); /* the updated coordinate will be needed during balancing */
-#endif
+    if (pair->ldb == LDB_GEOM) pack_doubles (dsize, d, doubles, CON(dia->con)->point, 3); /* the updated coordinate will be needed during balancing */
   }
 }
 
@@ -517,9 +512,7 @@ static void* unpack_offids (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
     unpack_block_offids (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
-#if GEOMETRIC_LOCDYN_BALANCING
-    unpack_doubles (dpos, d, doubles, dia->point, 3); /* update the point for geometric balancing */
-#endif
+    if (ldy->ldb == LDB_GEOM) unpack_doubles (dpos, d, doubles, dia->point, 3); /* update the point for geometric balancing */
   }
 
   return NULL;
@@ -556,6 +549,70 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
   }
 
   return NULL;
+}
+
+/* reset balancing approach */
+static void ldb_reset (LOCDYN *ldy)
+{
+  /* destroy previous context if any */
+  if (ldy->zol) Zoltan_Destroy (&ldy->zol);
+
+  /* create Zoltan context */
+  ASSERT (ldy->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
+
+  /* general parameters */
+  Zoltan_Set_Param (ldy->zol, "DEBUG_LEVEL", "0");
+  Zoltan_Set_Param (ldy->zol, "DEBUG_MEMORY", "0");
+  Zoltan_Set_Param (ldy->zol, "NUM_GID_ENTRIES", "1");
+  Zoltan_Set_Param (ldy->zol, "NUM_LID_ENTRIES", "1");
+
+  switch (ldy->ldb_new)
+  {
+  case LDB_GEOM:
+  {
+    /* load balancing parameters */
+    Zoltan_Set_Param (ldy->zol, "LB_METHOD", "RCB");
+    Zoltan_Set_Param (ldy->zol, "IMBALANCE_TOL", "1.2");
+    Zoltan_Set_Param (ldy->zol, "AUTO_MIGRATE", "FALSE");
+    Zoltan_Set_Param (ldy->zol, "RETURN_LISTS", "EXPORT");
+
+    /* RCB parameters */
+    Zoltan_Set_Param (ldy->zol, "RCB_OVERALLOC", "1.3");
+    Zoltan_Set_Param (ldy->zol, "RCB_REUSE", "1");
+    Zoltan_Set_Param (ldy->zol, "RCB_OUTPUT_LEVEL", "0");
+    Zoltan_Set_Param (ldy->zol, "CHECK_GEOM", "1");
+    Zoltan_Set_Param (ldy->zol, "KEEP_CUTS", "0");
+
+    /* callbacks */
+    Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) vertex_count, ldy);
+    Zoltan_Set_Fn (ldy->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) vertex_list, ldy);
+    Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, ldy);
+    Zoltan_Set_Fn (ldy->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) conpoints, ldy);
+  }
+  break;
+  case LDB_GRAPH:
+  {
+    /* load balaninc parameters */
+    Zoltan_Set_Param (ldy->zol, "LB_METHOD", "HYPERGRAPH");
+    Zoltan_Set_Param (ldy->zol, "HYPERGRAPH_PACKAGE", "PHG");
+    Zoltan_Set_Param (ldy->zol, "AUTO_MIGRATE", "FALSE");
+    Zoltan_Set_Param (ldy->zol, "RETURN_LISTS", "EXPORT");
+
+    /* PHG parameters */
+    Zoltan_Set_Param (ldy->zol, "PHG_OUTPUT_LEVEL", "0");
+
+    /* callbacks */
+    Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) vertex_count, ldy);
+    Zoltan_Set_Fn (ldy->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) vertex_list, ldy);
+    Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_SIZE_CS_FN_TYPE, (void (*)()) edge_sizes, ldy);
+    Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_CS_FN_TYPE, (void (*)()) edge_list, ldy);
+  }
+  break;
+  default: break;
+  }
+
+  /* invalidate reset flag */
+  ldy->ldb = ldy->ldb_new;
 }
 
 /* clear external adjacency of a block */
@@ -600,6 +657,7 @@ static void locdyn_adjext (LOCDYN *ldy)
       b->bod = bod; /* adjacent through this body */
       b->id = ext->id; /* useful when migrated */
       b->ext = ext;
+      b->x = NULL;
       b->n = dia->adjext;
       dia->adjext = b;
     }
@@ -607,379 +665,451 @@ static void locdyn_adjext (LOCDYN *ldy)
 }
 
 /* balance local dynamics */
-static int locdyn_balance (LOCDYN *ldy)
+static void locdyn_balance (LOCDYN *ldy)
 {
-  MEM setmem;
-  DIAB *dia;
-  DOM *dom;
-  MAP *map, /* maps ranks to sets */
-      *set;
-  int i;
+  /* reset balancing approach if needed */
+  if (ldy->ldb != ldy->ldb_new) ldb_reset (ldy);
 
-  dom = ldy->dom;
-  MEM_Init (&setmem, sizeof (SET), BLKSIZE);
-  map = NULL;
-
-  /* map deleted blocks to ranks */
-  for (i = 0; i < ldy->ndel; i ++)
+  if (ldy->ldb == LDB_OFF)
   {
-    int rank = ldy->del [i]->rank;
+    DIAB *dia;
+    OFFB *b;
+    int n;
 
-    if (!(set = MAP_Find_Node (map, (void*) (long) rank, NULL)))
-      set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) rank, NULL, NULL);
-
-    SET_Insert (&setmem, (SET**)&set->data, (void*) (long) ldy->del [i]->id, NULL);
-  }
-
-  COMOBJ *send, *recv, *ptr;
-  int nsend, nrecv;
-  MAP *item;
-
-  nsend = MAP_Size (map);
-  ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
-
-  for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
-  {
-    ptr->rank = (int) (long) item->key;
-    ptr->o = item->data;
-  }
-
-  /* communicate deleted blocks */
-  COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_DELETE, (OBJ_Pack)pack_delete, ldy, (OBJ_Unpack)unpack_delete, send, nsend, &recv, &nrecv);
-
-  MAP_Free (&ldy->mapmem, &map);
-  MEM_Release (&setmem);
-  free (send);
-  free (recv);
-
-  /* prepare update of off-diagonal block ids of balanced blocks */
-  for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
-  {
-    if (!MAP_Find_Node (ldy->insmap, dia, NULL)) /* not newly inserted */
+    /* attach external blocks to regular ones */
+    for (n = 0, dia = ldy->dia; dia; n ++, dia = dia->n)
     {
-      if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
-	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+      if (dia->adjext)
+      {
+        if (dia->adj)
+	{
+	  for (b = dia->adj; b->n; b = b->n);
+	  b->n = dia->adjext;
+	}
+	else dia->adj = dia->adjext;
+      }
 
-      SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
+      /* calculate degree of the diagonal block */
+      for (dia->degree = 1, b = dia->adj; b; b = b->n) dia->degree ++;
     }
+
+    ldy->ndiab = n;
+    ldy->diab = ldy->dia;
   }
-
-  nsend = MAP_Size (map);
-  ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
-
-  for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
+  else
   {
-    ptr->rank = (int) (long) item->key;
-    ptr->o = item->data;
-  }
+    MEM setmem;
+    DIAB *dia;
+    DOM *dom;
+    MAP *map, /* maps ranks to sets */
+	*set;
+    int i, j;
 
-  /* communicate updated off-diagonal block ids to balanced blocks */
-  COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_OFFIDS, (OBJ_Pack)pack_offids, ldy, (OBJ_Unpack)unpack_offids, send, nsend, &recv, &nrecv);
+    dom = ldy->dom;
+    MEM_Init (&setmem, sizeof (SET), BLKSIZE);
+    map = NULL;
 
-  MAP_Free (&ldy->mapmem, &map);
-  MEM_Release (&setmem);
-  free (send);
-  free (recv);
+    /* map deleted blocks to ranks */
+    for (i = 0; i < ldy->ndel; i ++)
+    {
+      int rank = ldy->del [i]->rank;
 
-#if LOCDYN_BALANCING
-  /* graph balancing data */
-  int changes, j,
-      num_gid_entries,
-      num_lid_entries,
-      num_import,
-      *import_procs,
-      num_export,
-      *export_procs;
+      if (!(set = MAP_Find_Node (map, (void*) (long) rank, NULL)))
+	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) rank, NULL, NULL);
 
-  ZOLTAN_ID_PTR import_global_ids,
-		import_local_ids,
-		export_global_ids,
-		export_local_ids;
+      SET_Insert (&setmem, (SET**)&set->data, (void*) (long) ldy->del [i]->id, NULL);
+    }
 
-  /* balance graph comprising the old balanced blocks and the newly inserted unbalanced blocks */
-  ASSERT (Zoltan_LB_Balance (ldy->zol, &changes, &num_gid_entries, &num_lid_entries,
-	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
-	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+    COMOBJ *send = NULL, *recv, *ptr;
+    int nsend, nrecv;
+    MAP *item;
+
+    if ((nsend = MAP_Size (map)))
+    {
+      ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
+
+      for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
+      {
+	ptr->rank = (int) (long) item->key;
+	ptr->o = item->data;
+      }
+    }
+
+    /* communicate deleted blocks */
+    COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_DELETE, (OBJ_Pack)pack_delete, ldy, (OBJ_Unpack)unpack_delete, send, nsend, &recv, &nrecv);
+
+    MAP_Free (&ldy->mapmem, &map);
+    MEM_Release (&setmem);
+    free (send);
+    free (recv);
+
+    /* prepare update of off-diagonal block ids of balanced blocks */
+    for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
+    {
+      if (!MAP_Find_Node (ldy->insmap, dia, NULL)) /* not newly inserted */
+      {
+	if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	  set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+
+	SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
+      }
+    }
+
+    MEM setldb;
+    send = NULL;
+    MEM_Init (&setldb, sizeof (SET_LDB_PAIR), MAX (nsend, 128));
+    if ((nsend = MAP_Size (map)))
+    {
+      ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
+
+      for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
+      {
+	SET_LDB_PAIR *pair;
+
+	ERRMEM (pair = MEM_Alloc (&setldb));
+	pair->set = item->data;
+	pair->ldb = ldy->ldb;
+	ptr->rank = (int) (long) item->key;
+	ptr->o = pair;
+      }
+    }
+
+    /* communicate updated off-diagonal block ids to balanced blocks */
+    COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_OFFIDS, (OBJ_Pack)pack_offids, ldy, (OBJ_Unpack)unpack_offids, send, nsend, &recv, &nrecv);
+
+    MAP_Free (&ldy->mapmem, &map);
+    MEM_Release (&setldb);
+    MEM_Release (&setmem);
+    free (send);
+    free (recv);
+
+    /* graph balancing data */
+    int changes,
+	num_gid_entries,
+	num_lid_entries,
+	num_import,
+	*import_procs,
+	num_export,
+	*export_procs;
+
+    ZOLTAN_ID_PTR import_global_ids,
+		  import_local_ids,
+		  export_global_ids,
+		  export_local_ids;
+
+    /* balance graph comprising the old balanced blocks and the newly inserted unbalanced blocks */
+    ASSERT (Zoltan_LB_Balance (ldy->zol, &changes, &num_gid_entries, &num_lid_entries,
+	    &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	    &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
 #if DEBUG
-  int sum, min, avg, max;
+    int sum, min, avg, max;
 
-  if (dom->verbose && PUT_root_int_stats (num_export, &sum, &min, &avg, &max))
-    printf ("EXPORTS SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ", sum, min, avg, max);
+    if (dom->verbose && PUT_root_int_stats (num_export, &sum, &min, &avg, &max))
+      printf ("EXPORTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ", sum, min, avg, max);
 #endif
 
-  nsend = num_export;
-  ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
-  map = NULL;
-
-  for (ptr = send, i = 0; i < num_export; i ++, ptr ++)
-  {
-    ZOLTAN_ID_TYPE m = export_local_ids [i];
-
-    if (m == UINT_MAX) /* mapped migrated block */
+    map = NULL;
+    send = NULL;
+    if ((nsend = num_export))
     {
-      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) export_global_ids [i], NULL), "Invalid block id");
+      ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
 
-      /* parent block will need to have updated rank of its migrated copy */
-      if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
-	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+      for (ptr = send, i = 0; i < num_export; i ++, ptr ++)
+      {
+	ZOLTAN_ID_TYPE m = export_local_ids [i];
 
-      SET_Insert (&setmem, (SET**)&set->data, ptr, NULL); /* map (newrank, dia) the rank set of its parent */
+	if (m == UINT_MAX) /* mapped migrated block */
+	{
+	  ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) export_global_ids [i], NULL), "Invalid block id");
+
+	  /* parent block will need to have updated rank of its migrated copy */
+	  if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	    set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+
+	  SET_Insert (&setmem, (SET**)&set->data, ptr, NULL); /* map (newrank, dia) the rank set of its parent */
+	}
+	else /* use local index */
+	{
+	  ASSERT_DEBUG (m < (unsigned)ldy->nins, "Invalid local index");
+	  dia = ldy->ins [m];
+	}
+
+	ptr->rank = export_procs [i];
+	ptr->o = dia;
+      }
     }
-    else /* use local index */
+
+    /* communicate migration data (unpacking inserts the imported blocks) */
+    COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_BALANCE, (OBJ_Pack)pack_migrate, ldy, (OBJ_Unpack)unpack_migrate, send, nsend, &recv, &nrecv);
+
+    /* communicate rank updates to parents */
+    COMDATA *dsend = NULL, *drecv, *dtr;
+    int dnsend, dnrecv;
+
+    if ((dnsend = MAP_Size (map)))
     {
-      ASSERT_DEBUG (m < (unsigned)ldy->nins, "Invalid local index");
-      dia = ldy->ins [m];
+      ERRMEM (dsend = malloc (sizeof (COMDATA [dnsend])));
+
+      for (dtr = dsend, item = MAP_First (map); item; item = MAP_Next (item), dtr ++)
+      {
+	SET *set = item->data,
+	    *jtem;
+
+	dtr->rank = (int) (long) item->key;
+	dtr->ints = 2 * SET_Size (set);
+	ERRMEM (dtr->i = malloc (sizeof (int [dtr->ints])));
+	dtr->doubles = 0;
+
+	for (i = 0, jtem = SET_First (set); jtem; i += 2, jtem = SET_Next (jtem))
+	{
+	  ptr = jtem->data;
+	  dia = ptr->o;
+	  dtr->i [i] = dia->id;
+	  dtr->i [i + 1] = ptr->rank;
+	}
+      }
     }
 
-    ptr->rank = export_procs [i];
-    ptr->o = dia;
-  }
+    /* communicate rank updates */
+    COM (MPI_COMM_WORLD, TAG_LOCDYN_RANKS, dsend, dnsend, &drecv, &dnrecv);
 
-  /* communicate migration data (unpacking inserts the imported blocks) */
-  COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_BALANCE, (OBJ_Pack)pack_migrate, ldy, (OBJ_Unpack)unpack_migrate, send, nsend, &recv, &nrecv);
-
-  /* communicate rank updates to parents */
-  COMDATA *dsend, *drecv, *dtr;
-  int dnsend, dnrecv;
-
-  dnsend = MAP_Size (map);
-  ERRMEM (dsend = malloc (sizeof (COMDATA [dnsend])));
-
-  for (dtr = dsend, item = MAP_First (map); item; item = MAP_Next (item), dtr ++)
-  {
-    SET *set = item->data,
-	*jtem;
-
-    dtr->rank = (int) (long) item->key;
-    dtr->ints = 2 * SET_Size (set);
-    ERRMEM (dtr->i = malloc (sizeof (int [dtr->ints])));
-    dtr->doubles = 0;
-
-    for (i = 0, jtem = SET_First (set); jtem; i += 2, jtem = SET_Next (jtem))
+    /* update ranks of blocks of received ids */
+    for (i = 0, dtr = drecv; i < dnrecv; i ++, dtr ++)
     {
-      ptr = jtem->data;
+      CON *con;
+
+      for (j = 0; j < dtr->ints; j += 2)
+      {
+	ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) dtr->i [j], NULL), "Invalid constraint id");
+	con->dia->rank = dtr->i [j + 1]; /* the current rank of the child copy of this block */
+      }
+    }
+
+    /* update ranks of exported local blocks */
+    for (i = 0; i < num_export; i ++)
+    {
+      ZOLTAN_ID_TYPE m = export_local_ids [i];
+
+      if (m < UINT_MAX) /* local index */
+      {
+	dia = ldy->ins [m];
+	dia->rank = export_procs [i];
+      }
+    }
+
+    MEM_Release (&setmem);
+    MAP_Free (&ldy->mapmem, &map);
+    for (i = 0; i < dnsend; i ++) free (dsend [i].i);
+    free (dsend);
+    free (drecv);
+
+    /* delete migrated balanced blocks */
+    for (i = 0, ptr = send; i < nsend; i ++, ptr ++)
+    {
       dia = ptr->o;
-      dtr->i [i] = dia->id;
-      dtr->i [i + 1] = ptr->rank;
+      if (dia->con == NULL) /* if balanced */
+	delete_balanced_block (ldy, dia);
     }
-  }
 
-  /* communicate rank updates */
-  COM (MPI_COMM_WORLD, TAG_LOCDYN_RANKS, dsend, dnsend, &drecv, &dnrecv);
+    Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+			 &export_global_ids, &export_local_ids, &export_procs);
 
-  /* update ranks of blocks of received ids */
-  for (i = 0, dtr = drecv; i < dnrecv; i ++, dtr ++)
-  {
-    CON *con;
+    free (send);
+    free (recv);
 
-    for (j = 0; j < dtr->ints; j += 2)
+    /* internally 'migrate' blocks from the insertion list to the balanced
+     * block list (those that have not been exported away from here) */
+    int dsize = 0, isize = 0;
+    double *dd = NULL;
+    int *ii = NULL;
+    for (i = 0; i < ldy->nins; i ++)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) dtr->i [j], NULL), "Invalid constraint id");
-      con->dia->rank = dtr->i [j + 1]; /* the current rank of the child copy of this block */
+      DIAB *dia = ldy->ins [i];
+
+      if (dia->rank == dom->rank) /* same rank => not exported */
+      {
+	int doubles = 0, ints = 0, dpos = 0, ipos = 0;
+
+	/* use migration routines as a wrapper here */
+	pack_migrate (dia, &dsize, &dd, &doubles, &isize, &ii, &ints);
+	unpack_migrate (ldy, &dpos, dd, doubles, &ipos, ii, ints);
+      }
     }
-  }
 
-  /* update ranks of exported local blocks */
-  for (i = 0; i < num_export; i ++)
-  {
-    ZOLTAN_ID_TYPE m = export_local_ids [i];
-
-    if (m < UINT_MAX) /* local index */
+    /* update constraint coppied data of unbalanced blocks
+     * and create remote update sets at the same time */
+    SET *upd = NULL;
+    for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
     {
-      dia = ldy->ins [m];
-      dia->rank = export_procs [i];
+      CON *con = dia->con;
+
+      for (i = 0; i < DOM_Z_SIZE; i ++)
+	dia->Z [i] = con->Z [i];
+      COPY (con->point, dia->point);
+      NNCOPY (con->base, dia->base);
+      COPY (con->mpnt, dia->mpnt);
+      dia->gap = con->gap;
+      dia->kind = con->kind;
+      dia->mat = con->mat;
+
+      if (dia->rank == dom->rank)
+      {
+	SET_Insert (&setmem, &upd, dia, NULL); /* shedule for local update */
+      }
+      else /* schedule for remote update */
+      {
+	if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	  set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+
+	SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
+      }
     }
-  }
 
-  MEM_Release (&setmem);
-  MAP_Free (&ldy->mapmem, &map);
-  for (i = 0; i < dnsend; i ++) free (dsend [i].i);
-  free (dsend);
-  free (drecv);
-
-  /* delete migrated balanced blocks */
-  for (i = 0, ptr = send; i < nsend; i ++, ptr ++)
-  {
-    dia = ptr->o;
-    if (dia->con == NULL) /* if balanced */
-      delete_balanced_block (ldy, dia);
-  }
-
-  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-                       &export_global_ids, &export_local_ids, &export_procs);
-
-  free (send);
-  free (recv);
-#else
-  int changes = 0;
-#endif
-
-  /* internally 'migrate' blocks from the insertion list to the balanced
-   * block list (those that have not been exported away from here) */
-  int dsize = 0, isize = 0;
-  double *dd = NULL;
-  int *ii = NULL;
-  for (i = 0; i < ldy->nins; i ++)
-  {
-    DIAB *dia = ldy->ins [i];
-
-    if (dia->rank == dom->rank) /* same rank => not exported */
+    /* update local blocks */
     {
       int doubles = 0, ints = 0, dpos = 0, ipos = 0;
 
-      /* use migration routines as a wrapper here */
-      pack_migrate (dia, &dsize, &dd, &doubles, &isize, &ii, &ints);
-      unpack_migrate (ldy, &dpos, dd, doubles, &ipos, ii, ints);
+      /* use migration routines as a wrapper again */
+      pack_update (upd, &dsize, &dd, &doubles, &isize, &ii, &ints);
+      unpack_update (ldy, &dpos, dd, doubles, &ipos, ii, ints);
     }
-  }
+    free (dd);
+    free (ii);
 
-  /* update constraint coppied data of unbalanced blocks
-   * and create remote update sets at the same time */
-  SET *upd = NULL;
-  for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
-  {
-    CON *con = dia->con;
-
-    for (i = 0; i < DOM_Z_SIZE; i ++)
-      dia->Z [i] = con->Z [i];
-    COPY (con->point, dia->point);
-    NNCOPY (con->base, dia->base);
-    COPY (con->mpnt, dia->mpnt);
-    dia->gap = con->gap;
-    dia->kind = con->kind;
-    dia->mat = con->mat;
-
-    if (dia->rank == dom->rank)
+    if ((nsend = MAP_Size (map)))
     {
-      SET_Insert (&setmem, &upd, dia, NULL); /* shedule for local update */
+      ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
+
+      for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
+      {
+	ptr->rank = (int) (long) item->key;
+	ptr->o = item->data;
+      }
     }
-    else /* schedule for remote update */
-    {
-      if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
-	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+    else send = NULL;
 
-      SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
-    }
+    /* communicate updated blocks */
+    COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_UPDATE, (OBJ_Pack)pack_update, ldy, (OBJ_Unpack)unpack_update, send, nsend, &recv, &nrecv);
+
+    MAP_Free (&ldy->mapmem, &map);
+    MEM_Release (&setmem);
+    free (send);
+    free (recv);
   }
-
-  /* update local blocks */
-  {
-    int doubles = 0, ints = 0, dpos = 0, ipos = 0;
-
-    /* use migration routines as a wrapper again */
-    pack_update (upd, &dsize, &dd, &doubles, &isize, &ii, &ints);
-    unpack_update (ldy, &dpos, dd, doubles, &ipos, ii, ints);
-  }
-  free (dd);
-  free (ii);
-
-  nsend = MAP_Size (map);
-  ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
-
-  for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
-  {
-    ptr->rank = (int) (long) item->key;
-    ptr->o = item->data;
-  }
-
-  /* communicate updated blocks */
-  COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_UPDATE, (OBJ_Pack)pack_update, ldy, (OBJ_Unpack)unpack_update, send, nsend, &recv, &nrecv);
-
-  MAP_Free (&ldy->mapmem, &map);
-  MEM_Release (&setmem);
-  free (send);
-  free (recv);
 
   /* empty the deleted parents table and free parents */
-  for (i = 0; i < ldy->ndel; i ++) MEM_Free (&ldy->diamem, ldy->del [i]);
+  for (int i = 0; i < ldy->ndel; i ++) MEM_Free (&ldy->diamem, ldy->del [i]);
   ldy->ndel = 0;
 
   /* empty the inserted parents table */
   MAP_Free (&ldy->mapmem, &ldy->insmap);
   ldy->nins = 0;
-
-  return changes;
 }
 
 /* cummunicate reactions from balanced 
  * (migrated) to unbalanced (local) systems */
 static void locdyn_gossip (LOCDYN *ldy)
 {
-  double *R;
-  MEM setmem;
-  DIAB *dia;
-  MAP *map, /* map ranks to sets of balanced blocks */
-      *set;
-  DOM *dom; 
-  CON *con;
-  int i, j;
-
-  dom = DOM (ldy->dom);
-
-  MEM_Init (&setmem, sizeof (SET), BLKSIZE);
-
-  for (map = NULL, dia = ldy->diab; dia; dia = dia->n)
+  if (ldy->ldb == LDB_OFF)
   {
-    if (dia->rank != dom->rank) /* send */
-    {
-      if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
-	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+    OFFB *b, *p;
+    DIAB *dia;
 
-      SET_Insert (&setmem, (SET**)&set->data, dia, NULL); /* map balanced blocks to their parent ranks */
-    }
-    else /* do not send */
+    /* detach external blocks from regular ones */
+    for (dia = ldy->dia; dia; dia = dia->n)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) dia->id, NULL), "Invalid constraint id"); /* find constraint */
-      R = con->dia->R;
-      COPY (dia->R, R); /* update reaction */
+      if (dia->adjext)
+      {
+	for (p = NULL, b = dia->adj; b != dia->adjext; p = b, b = b->n);
+
+	if (p) p->n = NULL;
+	else dia->adj = NULL;
+      }
     }
+
+    ldy->ndiab = 0;
+    ldy->diab = NULL;
   }
-
-  COMDATA *send, *recv, *ptr;
-  int nsend, nrecv;
-  SET *item;
-
-  nsend = MAP_Size (map); /* the number of distinct parent ranks */
-  ERRMEM (send = malloc (sizeof (COMDATA [nsend])));
-
-  for (set = MAP_First (map), ptr = send; set; set = MAP_Next (set), ptr ++)
+  else
   {
-    ptr->rank = (int) (long) set->key;
-    ptr->ints = SET_Size ((SET*)set->data);
-    ptr->doubles = 3 * ptr->ints;
-    ERRMEM (ptr->i = malloc (sizeof (int [ptr->ints]))); /* ids */
-    ERRMEM (ptr->d = malloc (sizeof (double [ptr->doubles]))); /* reactions */
+    double *R;
+    MEM setmem;
+    DIAB *dia;
+    MAP *map, /* map ranks to sets of balanced blocks */
+	*set;
+    DOM *dom; 
+    CON *con;
+    int i, j;
 
-    for (i = 0, item = SET_First ((SET*)set->data); item; i ++, item = SET_Next (item))
+    dom = DOM (ldy->dom);
+
+    MEM_Init (&setmem, sizeof (SET), BLKSIZE);
+
+    for (map = NULL, dia = ldy->diab; dia; dia = dia->n)
     {
-      dia = item->data;
+      if (dia->rank != dom->rank) /* send */
+      {
+	if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	  set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
 
-      ptr->i [i] = dia->id;
-      COPY (dia->R, &ptr->d [3*i]);
+	SET_Insert (&setmem, (SET**)&set->data, dia, NULL); /* map balanced blocks to their parent ranks */
+      }
+      else /* do not send */
+      {
+	ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) dia->id, NULL), "Invalid constraint id"); /* find constraint */
+	R = con->dia->R;
+	COPY (dia->R, R); /* update reaction */
+      }
     }
-  }
 
-  /* communicate reactions */
-  COM (MPI_COMM_WORLD, TAG_LOCDYN_REAC, send, nsend, &recv, &nrecv);
+    COMDATA *send = NULL, *recv, *ptr;
+    int nsend, nrecv;
+    SET *item;
 
-  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
-  {
-    for (j = 0; j < ptr->ints; j ++)
+    if ((nsend = MAP_Size (map))) /* the number of distinct parent ranks */
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ptr->i[j], NULL), "Invalid constraint id"); /* find constraint */
-      dia = con->dia;
-      R = &ptr->d [3*j];
-      COPY (R, dia->R); /* update reaction */
-    }
-  }
+      ERRMEM (send = malloc (sizeof (COMDATA [nsend])));
 
-  MEM_Release (&setmem);
-  MAP_Free (&ldy->mapmem, &map);
-  for (i = 0, ptr = send; i < nsend; i ++, ptr ++)
-  { free (ptr->i); free (ptr->d); }
-  free (send);
-  free (recv);
+      for (set = MAP_First (map), ptr = send; set; set = MAP_Next (set), ptr ++)
+      {
+	ptr->rank = (int) (long) set->key;
+	ptr->ints = SET_Size ((SET*)set->data);
+	ptr->doubles = 3 * ptr->ints;
+	ERRMEM (ptr->i = malloc (sizeof (int [ptr->ints]))); /* ids */
+	ERRMEM (ptr->d = malloc (sizeof (double [ptr->doubles]))); /* reactions */
+
+	for (i = 0, item = SET_First ((SET*)set->data); item; i ++, item = SET_Next (item))
+	{
+	  dia = item->data;
+
+	  ptr->i [i] = dia->id;
+	  COPY (dia->R, &ptr->d [3*i]);
+	}
+      }
+    }
+
+    /* communicate reactions */
+    COM (MPI_COMM_WORLD, TAG_LOCDYN_REAC, send, nsend, &recv, &nrecv);
+
+    for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+    {
+      for (j = 0; j < ptr->ints; j ++)
+      {
+	ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ptr->i[j], NULL), "Invalid constraint id"); /* find constraint */
+	dia = con->dia;
+	R = &ptr->d [3*j];
+	COPY (R, dia->R); /* update reaction */
+      }
+    }
+
+    MEM_Release (&setmem);
+    MAP_Free (&ldy->mapmem, &map);
+    for (i = 0, ptr = send; i < nsend; i ++, ptr ++)
+    { free (ptr->i); free (ptr->d); }
+    free (send);
+    free (recv);
+  }
 }
 
 /* append buffer with a new item */
@@ -1020,54 +1150,9 @@ static void create_mpi (LOCDYN *ldy)
   ldy->REXT = NULL;
   ldy->REXT_count = 0;
 
-  /* create Zoltan context */
-  ASSERT (ldy->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
-
-  /* general parameters */
-  Zoltan_Set_Param (ldy->zol, "DEBUG_LEVEL", "0");
-  Zoltan_Set_Param (ldy->zol, "DEBUG_MEMORY", "0");
-  Zoltan_Set_Param (ldy->zol, "NUM_GID_ENTRIES", "1");
-  Zoltan_Set_Param (ldy->zol, "NUM_LID_ENTRIES", "1");
-
-#if GEOMETRIC_LOCDYN_BALANCING /* geometrical balancing */
-
-  /* load balancing parameters */
-  Zoltan_Set_Param (ldy->zol, "LB_METHOD", "RCB");
-  Zoltan_Set_Param (ldy->zol, "IMBALANCE_TOL", "1.2");
-  Zoltan_Set_Param (ldy->zol, "AUTO_MIGRATE", "FALSE");
-  Zoltan_Set_Param (ldy->zol, "RETURN_LISTS", "EXPORT");
-
-  /* RCB parameters */
-  Zoltan_Set_Param (ldy->zol, "RCB_OVERALLOC", "1.3");
-  Zoltan_Set_Param (ldy->zol, "RCB_REUSE", "1");
-  Zoltan_Set_Param (ldy->zol, "RCB_OUTPUT_LEVEL", "0");
-  Zoltan_Set_Param (ldy->zol, "CHECK_GEOM", "1");
-  Zoltan_Set_Param (ldy->zol, "KEEP_CUTS", "1");
-
-  /* callbacks */
-  Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) vertex_count, ldy);
-  Zoltan_Set_Fn (ldy->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) vertex_list, ldy);
-  Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, ldy);
-  Zoltan_Set_Fn (ldy->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) conpoints, ldy);
-
-#else /* graph balancing */
-
-  /* load balaninc parameters */
-  Zoltan_Set_Param (ldy->zol, "LB_METHOD", "HYPERGRAPH");
-  Zoltan_Set_Param (ldy->zol, "HYPERGRAPH_PACKAGE", "PHG");
-  Zoltan_Set_Param (ldy->zol, "AUTO_MIGRATE", "FALSE");
-  Zoltan_Set_Param (ldy->zol, "RETURN_LISTS", "EXPORT");
-
-  /* PHG parameters */
-  Zoltan_Set_Param (ldy->zol, "PHG_OUTPUT_LEVEL", "0");
-
-  /* callbacks */
-  Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) vertex_count, ldy);
-  Zoltan_Set_Fn (ldy->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) vertex_list, ldy);
-  Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_SIZE_CS_FN_TYPE, (void (*)()) edge_sizes, ldy);
-  Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_CS_FN_TYPE, (void (*)()) edge_list, ldy);
-
-#endif
+  ldy->zol = NULL;
+  ldy->ldb = LDB_OFF;
+  ldy->ldb_new = ldy->ldb;
 }
 
 /* destroy MPI related data */
@@ -1075,7 +1160,8 @@ static void destroy_mpi (LOCDYN *ldy)
 {
   free (ldy->ins);
   free (ldy->del);
-  Zoltan_Destroy (&ldy->zol);
+
+  if (ldy->zol) Zoltan_Destroy (&ldy->zol);
 }
 #endif
 
@@ -1242,6 +1328,10 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
     dia->n->p = dia->p;
 
 #if MPI
+  /* in LDB_OFF mode regular blocks might store the below sets */
+  if (dia->children) MAP_Free (&ldy->mapmem, &dia->children);
+  if (dia->rext) SET_Free (&ldy->setmem, &dia->rext);
+
   MAP *item, *jtem;
 
   if ((item = MAP_Find_Node (ldy->insmap, dia, NULL))) /* was inserted and now is deleted before balancing */
@@ -1399,7 +1489,15 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   variables_change_begin (ldy);
 
 #if MPI
-  if (dom->verbose && dom->rank == 0) printf ("BALANCING ... "), fflush (stdout);
+  if (dom->verbose && dom->rank == 0)
+  {
+    switch (ldy->ldb)
+    {
+    case LDB_GEOM: printf ("GEOM BALANCING ... "), fflush (stdout); break;
+    case LDB_GRAPH: printf ("GRAPH BALANCING ... "), fflush (stdout); break;
+    default: break;
+    }
+  }
 
   SOLFEC_Timer_Start (dom->owner, "LOCBAL");
 
@@ -1412,7 +1510,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     int sum, min, avg, max;
 
     if (PUT_root_int_stats (ldy->ndiab, &sum, &min, &avg, &max))
-      printf ("BLOCKS: MIN = %d, AVG = %d, MAX = %d\n", min, avg, max);
+      printf ("BLOCKS: SUM = %d, MIN = %d, AVG = %d, MAX = %d\n", sum, min, avg, max);
   }
 #endif
 
@@ -1442,6 +1540,15 @@ void LOCDYN_Update_End (LOCDYN *ldy)
 }
 
 #if MPI
+/* change load balancing algorithm */
+void LOCDYN_Balancing (LOCDYN *ldy, LDB ldb)
+{
+  ldy->ldb_new = ldb;
+
+   /* only set the above flag here and delay reset of the balancing approach
+    * as this call might be invoked from a Python callback in the course */
+}
+
 /* update mapping of balanced external reactions */
 void LOCDYN_REXT_Update (LOCDYN *ldy)
 {
@@ -1463,24 +1570,26 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
 
   for (i = disp [0] = 0; i < ncpu - 1; i ++) disp [i+1] = disp [i] + size [i];
 
-  n = disp [ncpu-1] + size [ncpu-1];
-  ERRMEM (global_ids = malloc (sizeof (int [n])));
-
-  for (i = 0, dia = ldy->diab; dia; i ++, dia = dia->n) local_ids [i] = dia->id;
-
-  /* gather all local balanced block ids into one global table of global_ids */
-  MPI_Allgatherv (local_ids, ldy->ndiab, MPI_INT, global_ids, size, disp, MPI_INT, MPI_COMM_WORLD);
-
   MAP *idrank = NULL; /* id to rank map */
   MAP *ididx = NULL; /* id to local REXT index map */
   MEM *mapmem = &ldy->mapmem;
   MEM *setmem = &ldy->setmem;
   MAP *item;
-  XR *xr;
+  XR *x;
 
-  for (k = i = 0; i < ncpu; i ++)
-    for (j = 0; j < size [i]; j ++, k ++)
-      MAP_Insert (mapmem, &idrank, (void*) (long) global_ids [k], (void*) (long) i, NULL);
+  if ((n = (disp [ncpu-1] + size [ncpu-1])))
+  {
+    ERRMEM (global_ids = malloc (sizeof (int [n])));
+
+    for (i = 0, dia = ldy->diab; dia; i ++, dia = dia->n) local_ids [i] = dia->id;
+
+    /* gather all local balanced block ids into one global table of global_ids */
+    MPI_Allgatherv (local_ids, ldy->ndiab, MPI_INT, global_ids, size, disp, MPI_INT, MPI_COMM_WORLD);
+
+    for (k = i = 0; i < ncpu; i ++)
+      for (j = 0; j < size [i]; j ++, k ++)
+	MAP_Insert (mapmem, &idrank, (void*) (long) global_ids [k], (void*) (long) i, NULL);
+  }
 
   /* clean up and preprocess REXT related data */
   for (n = 0, dia = ldy->diab; dia; dia = dia->n)
@@ -1494,35 +1603,40 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
       {
 	if (!MAP_Find_Node (ididx, (void*) (long) b->id, NULL))
 	  MAP_Insert (mapmem, &ididx, (void*) (long) b->id, (void*) (long) (n ++), NULL);
-	b->ext = NULL;
+	b->x = NULL;
       }
     }
   }
   free (ldy->REXT);
   ldy->REXT = NULL;
   ldy->REXT_count = n;
-  ERRMEM (ldy->REXT = calloc (n, sizeof (XR))); /* zero reactions by the way */
 
-  /* build up REXT related data */
-  for (dia = ldy->diab; dia; dia = dia->n)
+  if (n)
   {
-    for (b = dia->adj; b; b = b->n)
+    ERRMEM (ldy->REXT = calloc (n, sizeof (XR))); /* zero reactions by the way */
+    for (i = 0, x = ldy->REXT; i < n; i ++, x ++) x->rank = -1;
+
+    /* build up REXT related data */
+    for (dia = ldy->diab; dia; dia = dia->n)
     {
-      if (!b->dia)
+      for (b = dia->adj; b; b = b->n)
       {
-	ASSERT_DEBUG_EXT (item = MAP_Find_Node (ididx, (void*) (long) b->id, NULL), "Inconsitency in id to index mapping");
-	xr = &ldy->REXT [(int) (long) item->data];
-
-	if (!b->ext)
+	if (!b->dia)
 	{
-	  xr->id = b->id;
-	  ASSERT_DEBUG_EXT (item = MAP_Find_Node (idrank, (void*) (long) b->id, NULL), "Inconsitency in id to rank mapping");
-	  xr->rank = (int) (long) item->data;
+	  ASSERT_DEBUG_EXT (item = MAP_Find_Node (ididx, (void*) (long) b->id, NULL), "Inconsitency in id to index mapping");
+	  x = &ldy->REXT [(int) (long) item->data];
+
+	  if (x->rank < 0)
+	  {
+	    ASSERT_DEBUG_EXT (item = MAP_Find_Node (idrank, (void*) (long) b->id, NULL), "Inconsitency in id to rank mapping");
+	    x->rank = (int) (long) item->data;
+	    x->id = b->id;
+	  }
+
+	  b->x = x; /* mapped to an REXT entry */
+
+	  SET_Insert (setmem, &dia->rext, x, NULL); /* store for fast acces */
 	}
-
-	b->ext = xr; /* mapped to an REXT entry */
-
-	SET_Insert (setmem, &dia->rext, xr, NULL); /* store for fast acces */
       }
     }
   }
@@ -1535,28 +1649,31 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
   free (global_ids);
 
 #if DEBUG
-  for (i = 0, xr = ldy->REXT; i < n; i ++, xr ++)
-    ASSERT_DEBUG (xr->id, "Inconsitency in mapping external reactions");
+  for (i = 0, x = ldy->REXT; i < n; i ++, x ++)
+    ASSERT_DEBUG (x->id && x->rank >= 0, "Inconsitency in mapping external reactions");
 #endif
 
   /* now send (id, index) pairs to parent blocks pointed by their ranks in REXT;
    * this way we shall fill up the 'children' members of balanced blocks */
 
-  COMDATA *send, *recv, *ptr;
+  COMDATA *send = NULL, *recv, *ptr;
   int ssiz, nsend, nrecv, *pair;
 
-  ERRMEM (send = malloc (sizeof (COMDATA [n]) + sizeof (int [2]) * n));;
-  pair = (int*) (send + n);
-  nsend = n;
-
-  for (i = 0, xr = ldy->REXT, ptr = send; i < n; i ++, xr ++, ptr ++, pair += 2)
+  if ((nsend = n))
   {
-    ptr->rank = xr->rank;
-    ptr->ints = 2;
-    ptr->doubles = 0;
-    ptr->i = pair;
-    pair [0] = xr->id;
-    pair [1] = (xr - ldy->REXT);
+    ERRMEM (send = malloc (sizeof (COMDATA [n]) + sizeof (int [n * 2])));;
+    pair = (int*) (send + n);
+
+    for (i = 0, x = ldy->REXT, ptr = send; i < n; i ++, x ++, ptr ++, pair += 2)
+    {
+      ptr->rank = x->rank;
+      ptr->ints = 2;
+      ptr->doubles = 0;
+      ptr->i = pair;
+      ptr->d = NULL;
+      pair [0] = x->id;
+      pair [1] = (x - ldy->REXT);
+    }
   }
 
   COM (MPI_COMM_WORLD, TAG_LOCDYN_REXT, send, nsend, &recv, &nrecv);
@@ -1565,7 +1682,17 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
   {
     for  (j = 0, pair = ptr->i; j < ptr->ints; j += 2, pair += 2)
     {
-      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) pair [0], NULL), "Invalid block id");
+      if (ldy->ldb == LDB_OFF)
+      {
+	CON *con;
+        ASSERT_DEBUG_EXT (con = MAP_Find (DOM(ldy->dom)->idc, (void*) (long) pair [0], NULL), "Invalid block id");
+	dia = con->dia;
+      }
+      else
+      {
+        ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) pair [0], NULL), "Invalid block id");
+      }
+
       MAP_Insert (mapmem, &dia->children, (void*) (long) ptr->rank, (void*) (long) pair [1], NULL); /* map child rank to the local index of its XR */
     }
   }

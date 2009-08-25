@@ -22,10 +22,13 @@
 #include <string.h>
 #include <stdlib.h>
 #include "mem.h"
+#include "err.h"
 
 void MEM_Init (MEM *pool,
   size_t chunksize, size_t chunksinblock)
 {
+  ASSERT_DEBUG (pool && chunksize > 0 && chunksinblock > 0, "A zero argument passed to MEM_Init");
+
   /* set chunksize not less than 'unsigned long' size
    * as wee plan to use chunks as items of 'deadchunks' list */
   pool->chunksize = (chunksize > sizeof(size_t) ? chunksize : sizeof(size_t));

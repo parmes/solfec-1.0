@@ -463,9 +463,9 @@ static void sparsify_contacts (DOM *dom)
     int sum, min, avg, max;
 
     if (PUT_root_int_stats (n, &sum, &min, &avg, &max))
-      printf ("SPARSIFIED CONTACTS: %d, MIN: %d, AVG: %d, MAX: %d\n",  sum, min, avg, max);
+      printf ("SPARSIFIED CONTACTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ",  sum, min, avg, max);
 #else
-    printf ("SPARSIFIED CONTACTS: %d\n",  n);
+    printf ("SPARSIFIED CONTACTS: %d ... ",  n);
 #endif
   }
 
@@ -866,6 +866,13 @@ static int domain_balance (DOM *dom)
 	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
+#if DEBUG
+  int sum, min, avg, max;
+
+  if (dom->verbose && PUT_root_int_stats (num_export, &sum, &min, &avg, &max))
+    printf ("EXPORTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ", sum, min, avg, max);
+#endif
+
   /* SUMMARY: After partitioning update some bodies will be exported to other partitions.
    *          We need to maintain user prescribed non-contact constraints attached to those
    *          bodies. For this reason 'bod->con' lists of exported bodies are first scanned
@@ -946,29 +953,33 @@ static int domain_balance (DOM *dom)
 
   MEM_Init (&mem, sizeof (CONAUX), CONBLK);
 
-  nconsend = MAP_Size (export_con);
-
-  ERRMEM (consend = malloc (sizeof (COMOBJ [nconsend])));
-
-  for (item = MAP_First (export_con), ptr = consend; item; item = MAP_Next (item), ptr ++)
+  if ((nconsend = MAP_Size (export_con)))
   {
-    ptr->rank = (int) (long) item->data;
-    ptr->o = item->key;
+    ERRMEM (consend = malloc (sizeof (COMOBJ [nconsend])));
+
+    for (item = MAP_First (export_con), ptr = consend; item; item = MAP_Next (item), ptr ++)
+    {
+      ptr->rank = (int) (long) item->data;
+      ptr->o = item->key;
+    }
   }
+  else consend = NULL;
 
   COMOBJS (MPI_COMM_WORLD, TAG_CONAUX, (OBJ_Pack)pack_constraint, &mem, (OBJ_Unpack)unpack_constraint, consend, nconsend, &conrecv, &nconrecv);
 
   /* communicate parent bodies */
 
-  nbodsend = MAP_Size (export_bod);
-
-  ERRMEM (bodsend = malloc (sizeof (COMOBJ [nbodsend])));
-
-  for (item = MAP_First (export_bod), ptr = bodsend; item; item = MAP_Next (item), ptr ++)
+  if ((nbodsend = MAP_Size (export_bod)))
   {
-    ptr->rank = (int) (long) item->data;
-    ptr->o = item->key;
+    ERRMEM (bodsend = malloc (sizeof (COMOBJ [nbodsend])));
+
+    for (item = MAP_First (export_bod), ptr = bodsend; item; item = MAP_Next (item), ptr ++)
+    {
+      ptr->rank = (int) (long) item->data;
+      ptr->o = item->key;
+    }
   }
+  else bodsend = NULL;
 
   COMOBJS (MPI_COMM_WORLD, TAG_PARENTS, (OBJ_Pack)BODY_Parent_Pack, dom->owner, (OBJ_Unpack)BODY_Parent_Unpack, bodsend, nbodsend, &bodrecv, &nbodrecv);
 
@@ -1762,6 +1773,8 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   SOLFEC_Timer_Start (dom->owner, "TIMINT");
 
 #if MPI
+  if (dom->verbose && dom->rank == 0) printf ("DOMAIN BALANCING ... "), fflush (stdout);
+
   SOLFEC_Timer_Start (dom->owner, "TIMBAL");
 
   domain_balance (dom);
@@ -1776,7 +1789,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     int sum, min, avg, max;
 
     if (PUT_root_int_stats (dom->nbod, &sum, &min, &avg, &max))
-      printf ("BODIES: %d, MIN: %d, AVG: %d, MAX: %d\n",  sum, min, avg, max);
+      printf ("BODIES: SUM = %d, MIN = %d, AVG = %d, MAX = %d\n",  sum, min, avg, max);
 #else
     printf ("BODIES: %d\n",  dom->nbod);
 #endif
@@ -1845,7 +1858,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     int sum, min, avg, max;
 
     if (PUT_root_int_stats (dom->ncon, &sum, &min, &avg, &max))
-      printf ("CONSTRAINTS: %d, MIN: %d, AVG: %d, MAX: %d\n",  sum, min, avg, max);
+      printf ("CONSTRAINTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d\n",  sum, min, avg, max);
 #else
     printf ("CONSTRAINTS: %d\n",  dom->ncon);
 #endif
@@ -2060,18 +2073,20 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
 
   /* 7. communicate sndset and insert new children */
 
-  nbodsend = SET_Size (sndset);
-
-  ERRMEM (bodsend = malloc (sizeof (COMOBJ [nbodsend])));
-
-  /* set up send buffer */
-  for (item = SET_First (sndset), ptr = bodsend; item; item = SET_Next (item), ptr ++)
+  if ((nbodsend = SET_Size (sndset)))
   {
-    struct pair *p = item->data;
+    ERRMEM (bodsend = malloc (sizeof (COMOBJ [nbodsend])));
 
-    ptr->rank = p->rank;
-    ptr->o = p->bod.ptr;
+    /* set up send buffer */
+    for (item = SET_First (sndset), ptr = bodsend; item; item = SET_Next (item), ptr ++)
+    {
+      struct pair *p = item->data;
+
+      ptr->rank = p->rank;
+      ptr->o = p->bod.ptr;
+    }
   }
+  else bodsend = NULL;
 
   /* send and receive children */
   COMOBJS (MPI_COMM_WORLD, TAG_CHILDREN_INSERT, (OBJ_Pack)BODY_Child_Pack, dom->owner, (OBJ_Unpack)BODY_Child_Unpack, bodsend, nbodsend, &bodrecv, &nbodrecv);

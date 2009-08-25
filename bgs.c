@@ -661,7 +661,7 @@ static int gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
   for (blk = dia->adj; blk; blk = blk->n)
   {
     if (blk->dia) { COPY (blk->dia->R, blk->R); }
-    else { COPY (XR(blk->ext)->R, blk->R); }
+    else { COPY (XR(blk->x)->R, blk->R); }
   }
 
   /* compute local free velocity */
@@ -672,11 +672,16 @@ static int gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
 	   *R = blk->R;
     NVADDMUL (B, W, R, B);
   }
-  
+
   COPY (R, R0); /* previous reaction */
 
   /* solve local diagonal block problem */
-  diagiters = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
+  if (dia->con) /* LDB_OFF */
+  {
+    CON *con = dia->con;
+    diagiters = solver (gs, dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
+  }
+  else diagiters = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
 
   if (diagiters > gs->diagmaxiter || diagiters < 0)
   {
@@ -739,6 +744,7 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   ncpu = DOM(ldy->dom)->ncpu;
   ERRMEM (coloring = calloc (ncpu, sizeof (int))); /* processor to color map */
 
+#if 0
   int num_gid_entries,
       num_lid_entries,
       color_exp;
@@ -752,6 +758,13 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   /* gather coloring from all processors */
   MPI_Allgather (&color_exp, 1, MPI_INT, coloring, 1, MPI_INT, MPI_COMM_WORLD);
+#else
+  for (int i = 0; i < ncpu; i ++) coloring [i] = (i + 1);
+
+  /* FIXME: Zoltan coloring writes on Solfec memory (randomly);
+   * FIXME: Isolate if possible; Develop own coloring algorithm;
+   * FIXME: (Own algorithm feasible as we are coloing processors) */
+#endif
 
   return coloring;
 }

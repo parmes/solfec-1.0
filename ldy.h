@@ -44,6 +44,17 @@ enum upkind
 
 typedef enum upkind UPKIND;
 
+#if MPI
+/* eXternal Reaction */
+typedef struct { double R [3]; int id; int rank; short done; } XR;
+
+/* XR pointer cast */
+#define XR(ptr) ((XR*)(ptr))
+
+/* balancing algorithm */
+typedef enum {LDB_OFF, LDB_GEOM, LDB_GRAPH} LDB;
+#endif
+
 /* off-diagonal
  * block entry */
 struct offb
@@ -59,9 +70,9 @@ struct offb
 #if MPI
   unsigned int id; /* adjacent constraint id */
 
-  void *ext; /* unbalanced W: external constraint;
-		balanced W: index of an external reaction in REXT when dia == NULL,
-		            that is for a boundary off-diagonal block */
+  void *ext; /* external constraint (unbalanced W) */
+
+  XR *x; /* external reaction for boundary blocks (dia == NULL) */
 #endif
 };
 
@@ -112,14 +123,6 @@ struct diab
 #endif
 };
 
-#if MPI
-/* eXternal Reaction */
-typedef struct { double R [3]; int id; int rank; short done; } XR;
-
-/* XR pointer cast */
-#define XR(ptr) ((XR*)(ptr))
-#endif
-
 /* local dynamics */
 struct locdyn
 {
@@ -149,6 +152,9 @@ struct locdyn
   XR *REXT; /* table of reactions stored at other processors */
   int REXT_count; /* count of external reactions */
 
+  LDB ldb, /* kind of balancing (default: LDB_OFF) */
+      ldb_new; /* newly set kind of balancing */
+
   struct Zoltan_Struct *zol;
 #endif
 };
@@ -170,6 +176,9 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind);
 void LOCDYN_Update_End (LOCDYN *ldy);
 
 #if MPI
+/* change load balancing algorithm */
+void LOCDYN_Balancing (LOCDYN *ldy, LDB ldb);
+
 /* update mapping of balanced external reactions */
 void LOCDYN_REXT_Update (LOCDYN *ldy);
 #endif

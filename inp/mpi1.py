@@ -61,6 +61,8 @@ def gscallback (gs):
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
 
+LOCDYN_BALANCING (solfec, 'OFF')
+
 RUN (solfec, gs, 10 * step)
 
 if not VIEWER() and solfec.mode == 'READ':

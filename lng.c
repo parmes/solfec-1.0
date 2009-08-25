@@ -3631,6 +3631,44 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+/* change LOCDYN balancing approach */
+static PyObject* lng_LOCDYN_BALANCING (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "mode");
+  lng_SOLFEC *solfec;
+  PyObject *mode;
+
+  PARSEKEYS ("OO", &solfec, &mode);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (mode, kwl[1]));
+
+  IFIS (mode, "OFF")
+  {
+#if MPI
+    LOCDYN_Balancing (solfec->sol->dom->ldy, LDB_OFF);
+#endif
+  }
+  ELIF (mode, "GEOM")
+  {
+#if MPI
+    LOCDYN_Balancing (solfec->sol->dom->ldy, LDB_GEOM);
+#endif
+  }
+  ELIF (mode, "GRAPH")
+  {
+#if MPI
+    LOCDYN_Balancing (solfec->sol->dom->ldy, LDB_GRAPH);
+#endif
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid balancing mode");
+    return NULL;
+  }
+
+  Py_RETURN_TRUE;
+}
+
 /* return number of CPUs */
 static PyObject* lng_NCPU (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -4920,8 +4958,9 @@ static PyMethodDef lng_methods [] =
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
+  {"LOCDYN_BALANCING", (PyCFunction)lng_LOCDYN_BALANCING, METH_VARARGS|METH_KEYWORDS, "Set local dynamics balancing mode"},
   {"NCPU", (PyCFunction)lng_NCPU, METH_NOARGS, "Get the number of processors"},
-  {"HERE", (PyCFunction)lng_HERE, METH_NOARGS, "Test whether an object is located on the current processor"},
+  {"HERE", (PyCFunction)lng_HERE, METH_VARARGS|METH_KEYWORDS, "Test whether an object is located on the current processor"},
   {"VIEWER", (PyCFunction)lng_VIEWER, METH_NOARGS, "Test whether the viewer is enabled"},
   {"BODY_CHARS", (PyCFunction)lng_BODY_CHARS, METH_VARARGS|METH_KEYWORDS, "Overwrite body characteristics"},
   {"INITIAL_VELOCITY", (PyCFunction)lng_INITIAL_VELOCITY, METH_VARARGS|METH_KEYWORDS, "Apply initial velocity"},
@@ -5083,6 +5122,7 @@ int lng (const char *path)
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
+                     "from solfec import LOCDYN_BALANCING\n"
                      "from solfec import NCPU\n"
                      "from solfec import HERE\n"
                      "from solfec import VIEWER\n"
