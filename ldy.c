@@ -35,6 +35,9 @@
 #include "lis.h"
 #endif
 
+#define LOCDYN_BALANCING 1 /* balancing blocks */
+#define GEOMETRIC_LOCDYN_BALANCING 1 /* geometrical balancing */
+
 /* memory block size */
 #define BLKSIZE 512
 
@@ -154,6 +157,42 @@ static void vertex_list (LOCDYN *ldy, int num_gid_entries, int num_lid_entries,
   *ierr = ZOLTAN_OK;
 }
 
+#if GEOMETRIC_LOCDYN_BALANCING
+/* number of spatial dimensions */
+static int dimensions (LOCDYN *ldy, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  return 3;
+}
+
+/* list of constraint points */
+static void conpoints (LOCDYN *ldy, int num_gid_entries, int num_lid_entries, int num_obj,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
+{
+  DIAB *dia;
+  int i;
+
+  for (i = 0; i < num_obj; i ++, geom_vec += 3)
+  {
+    ZOLTAN_ID_TYPE m = local_ids [i];
+
+    if (m == UINT_MAX) /* mapped migrated block */
+    {
+      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) global_ids [i], NULL), "Invalid block id");
+    }
+    else /* use local index */
+    {
+      ASSERT_DEBUG (m < (unsigned)ldy->nins, "Invalid local index");
+      dia = ldy->ins [m];
+    }
+
+    COPY (dia->point, geom_vec);
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+#else
 /* sizes of edges (compressed rows) of the local W graph */
 static void edge_sizes (LOCDYN *ldy, int *num_lists, int *num_pins, int *format, int *ierr)
 {
@@ -208,6 +247,7 @@ static void edge_list (LOCDYN *ldy, int num_gid_entries, int num_vtx_edge, int n
 
   *ierr = ZOLTAN_OK;
 }
+#endif
 
 /* pack off-diagonal block ids */
 static void pack_block_offids (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
@@ -457,6 +497,9 @@ static void pack_offids (SET *upd, int *dsize, double **d, int *doubles, int *is
 
     pack_int (isize, i, ints, dia->id);
     pack_block_offids (dia, dsize, d, doubles, isize, i, ints);
+#if GEOMETRIC_LOCDYN_BALANCING
+    pack_doubles (dsize, d, doubles, CON(dia->con)->point, 3); /* the updated coordinate will be needed during balancing */
+#endif
   }
 }
 
@@ -474,6 +517,9 @@ static void* unpack_offids (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
     unpack_block_offids (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
+#if GEOMETRIC_LOCDYN_BALANCING
+    unpack_doubles (dpos, d, doubles, dia->point, 3); /* update the point for geometric balancing */
+#endif
   }
 
   return NULL;
@@ -568,7 +614,7 @@ static int locdyn_balance (LOCDYN *ldy)
   DOM *dom;
   MAP *map, /* maps ranks to sets */
       *set;
-  int i, j;
+  int i;
 
   dom = ldy->dom;
   MEM_Init (&setmem, sizeof (SET), BLKSIZE);
@@ -635,8 +681,9 @@ static int locdyn_balance (LOCDYN *ldy)
   free (send);
   free (recv);
 
+#if LOCDYN_BALANCING
   /* graph balancing data */
-  int changes,
+  int changes, j,
       num_gid_entries,
       num_lid_entries,
       num_import,
@@ -653,6 +700,13 @@ static int locdyn_balance (LOCDYN *ldy)
   ASSERT (Zoltan_LB_Balance (ldy->zol, &changes, &num_gid_entries, &num_lid_entries,
 	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+#if DEBUG
+  int sum, min, avg, max;
+
+  if (dom->verbose && PUT_root_int_stats (num_export, &sum, &min, &avg, &max))
+    printf ("EXPORTS SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ", sum, min, avg, max);
+#endif
 
   nsend = num_export;
   ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
@@ -757,6 +811,9 @@ static int locdyn_balance (LOCDYN *ldy)
 
   free (send);
   free (recv);
+#else
+  int changes = 0;
+#endif
 
   /* internally 'migrate' blocks from the insertion list to the balanced
    * block list (those that have not been exported away from here) */
@@ -776,12 +833,10 @@ static int locdyn_balance (LOCDYN *ldy)
       unpack_migrate (ldy, &dpos, dd, doubles, &ipos, ii, ints);
     }
   }
-  free (dd);
-  free (ii);
 
-  /* update constraint coppied data of unbalanced blocks and create update
-   * sets at the same time; update all blocks without regard for the rank
-   * (local or exported) => use communication to update all */
+  /* update constraint coppied data of unbalanced blocks
+   * and create remote update sets at the same time */
+  SET *upd = NULL;
   for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
   {
     CON *con = dia->con;
@@ -795,11 +850,29 @@ static int locdyn_balance (LOCDYN *ldy)
     dia->kind = con->kind;
     dia->mat = con->mat;
 
-    if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
-      set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+    if (dia->rank == dom->rank)
+    {
+      SET_Insert (&setmem, &upd, dia, NULL); /* shedule for local update */
+    }
+    else /* schedule for remote update */
+    {
+      if (!(set = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	set = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
 
-    SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
+      SET_Insert (&setmem, (SET**)&set->data, dia, NULL);
+    }
   }
+
+  /* update local blocks */
+  {
+    int doubles = 0, ints = 0, dpos = 0, ipos = 0;
+
+    /* use migration routines as a wrapper again */
+    pack_update (upd, &dsize, &dd, &doubles, &isize, &ii, &ints);
+    unpack_update (ldy, &dpos, dd, doubles, &ipos, ii, ints);
+  }
+  free (dd);
+  free (ii);
 
   nsend = MAP_Size (map);
   ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
@@ -956,6 +1029,29 @@ static void create_mpi (LOCDYN *ldy)
   Zoltan_Set_Param (ldy->zol, "NUM_GID_ENTRIES", "1");
   Zoltan_Set_Param (ldy->zol, "NUM_LID_ENTRIES", "1");
 
+#if GEOMETRIC_LOCDYN_BALANCING /* geometrical balancing */
+
+  /* load balancing parameters */
+  Zoltan_Set_Param (ldy->zol, "LB_METHOD", "RCB");
+  Zoltan_Set_Param (ldy->zol, "IMBALANCE_TOL", "1.2");
+  Zoltan_Set_Param (ldy->zol, "AUTO_MIGRATE", "FALSE");
+  Zoltan_Set_Param (ldy->zol, "RETURN_LISTS", "EXPORT");
+
+  /* RCB parameters */
+  Zoltan_Set_Param (ldy->zol, "RCB_OVERALLOC", "1.3");
+  Zoltan_Set_Param (ldy->zol, "RCB_REUSE", "1");
+  Zoltan_Set_Param (ldy->zol, "RCB_OUTPUT_LEVEL", "0");
+  Zoltan_Set_Param (ldy->zol, "CHECK_GEOM", "1");
+  Zoltan_Set_Param (ldy->zol, "KEEP_CUTS", "1");
+
+  /* callbacks */
+  Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) vertex_count, ldy);
+  Zoltan_Set_Fn (ldy->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) vertex_list, ldy);
+  Zoltan_Set_Fn (ldy->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, ldy);
+  Zoltan_Set_Fn (ldy->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) conpoints, ldy);
+
+#else /* graph balancing */
+
   /* load balaninc parameters */
   Zoltan_Set_Param (ldy->zol, "LB_METHOD", "HYPERGRAPH");
   Zoltan_Set_Param (ldy->zol, "HYPERGRAPH_PACKAGE", "PHG");
@@ -970,6 +1066,8 @@ static void create_mpi (LOCDYN *ldy)
   Zoltan_Set_Fn (ldy->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) vertex_list, ldy);
   Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_SIZE_CS_FN_TYPE, (void (*)()) edge_sizes, ldy);
   Zoltan_Set_Fn (ldy->zol, ZOLTAN_HG_CS_FN_TYPE, (void (*)()) edge_list, ldy);
+
+#endif
 }
 
 /* destroy MPI related data */
@@ -1178,6 +1276,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCDYN");
 
 #if MPI
+  if (dom->verbose && dom->rank == 0) printf ("LOCDYN ASSEMBLING ... "), fflush (stdout);
+
   SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
 
   locdyn_adjext (ldy);
@@ -1299,21 +1399,20 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   variables_change_begin (ldy);
 
 #if MPI
-  if (dom->rank == 0 && dom->verbose)
-    printf ("BALANCING CONSTRAINT GRAPH ..."), fflush (stdout);
+  if (dom->verbose && dom->rank == 0) printf ("BALANCING ... "), fflush (stdout);
 
-  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
+  SOLFEC_Timer_Start (dom->owner, "LOCBAL");
 
   locdyn_balance (ldy);
 
-  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCBAL");
+  SOLFEC_Timer_End (dom->owner, "LOCBAL");
 
-  if (DOM(ldy->dom)->verbose)
+  if (dom->verbose)
   {
     int sum, min, avg, max;
 
     if (PUT_root_int_stats (ldy->ndiab, &sum, &min, &avg, &max))
-      printf (" DONE: MIN = %d, AVG = %d, MAX = %d\n", min, avg, max);
+      printf ("BLOCKS: MIN = %d, AVG = %d, MAX = %d\n", min, avg, max);
   }
 #endif
 

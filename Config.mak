@@ -12,7 +12,7 @@ DEBUG = yes
 PROFILE = no
 MEMDEBUG = no
 GEOMDEBUG = no
-NOTHROW = no
+NOTHROW = yes
 
 #
 # BLAS
