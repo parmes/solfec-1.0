@@ -93,6 +93,10 @@ struct box
 
   BOX *prev, /* previous in list */
       *next; /* next in list */
+
+#if MPI
+  SET *children; /* set of child box ranks */
+#endif
 };
 
 /* box pointer cast */

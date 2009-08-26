@@ -598,7 +598,7 @@ static void aabb_balance (AABB *aabb)
   int nsend, nrecv, i, j, naux;
   int *procs, numprocs, rank;
   COMOBJ *send, *recv, *ptr;
-  SET *del, *item;
+  SET *del, *item, *cpus;
   BOX **aux;
   DOM *dom;
 
@@ -613,22 +613,37 @@ static void aabb_balance (AABB *aabb)
 
   for (aux = aabb->aux, ptr = send, i = 0; i < naux; i ++)
   {
-    double *e = aux [i]->extents;
+    box = aux [i];
+    double *e = box->extents;
 
     ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-    for (flag = 1, j = 0; j < numprocs; j ++)
+    for (cpus = NULL, flag = 1, j = 0; j < numprocs; j ++)
     {
-      if (procs [j] != rank) /* exported */
+      SET_Insert (&aabb->setmem, &cpus, (void*) (long) procs [j], NULL);
+
+      if (procs [j] != rank && !SET_Contains (box->children, (void*) (long) procs [j], NULL)) /* exported */
       {
 	ptr->rank = procs [j];
-	ptr->o = aux [i];
+	ptr->o = box;
 	ptr = sendnext (++ nsend, &size, &send);
+
+	/* maintaining children set should minimise multiple exports of same bodies */
+	SET_Insert (&aabb->setmem, &box->children, (void*) (long) procs [j], NULL);
       }
-      else flag = 0; /* should stay here */
+
+      if (procs [j] == rank) flag = 0; /* should stay here */
     }
 
-    if (flag) SET_Insert (&aabb->setmem, &del, aux [i], NULL);
+    if (flag) SET_Insert (&aabb->setmem, &del, box, NULL); /* schedule for deletion */
+
+    for (item = SET_First (box->children); item;) /* for each child rank */
+    {
+      if (SET_Contains (cpus, item->data, NULL)) item = SET_Next (item);
+      else item = SET_Delete_Node (&aabb->setmem, &box->children, item); /* delete unwanted child */
+    }
+
+    SET_Free  (&aabb->setmem, &cpus);
   }
 
 #if DEBUG
@@ -766,6 +781,8 @@ void AABB_Delete (AABB *aabb, BOX *box)
 #if MPI
   if (!box) return; /* possible for a child body or a parent body whose box has migrated away */
   else if (box->body) box->sgp->box = NULL; /* invalidate box pointer */
+  
+  SET_Free (&aabb->setmem, &box->children); /* free children */
 #endif
 
   if (box->kind & GOBJ_NEW) /* still in the insertion list */
@@ -852,6 +869,9 @@ void AABB_Detach_Body (AABB *aabb, void *body)
 	MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
       }
       MAP_Free (&aabb->mapmem, &box->adj); /* free adjacency */
+
+      /* free children */
+      SET_Free (&aabb->setmem, &box->children);
 
       /* insert into detached boxes list */
       SET_Insert (&aabb->setmem, &aabb->detached, box, (SET_Compare) detached_compare);
