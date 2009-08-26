@@ -1223,7 +1223,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     di = gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
     dimax = MAX (dimax, di);
 
-    COM_Send (top_pattern); /* start sending top blocks */
+    COM_Repeat (top_pattern); /* send and receive top blocks */
+
+    REXT_recv (ldy, recv_top, nrecv_top); /* update received extenral reactions */
     
 #if MPITHREADS
     gauss_seidel_thread_run (data); /* begin update of mid blocks */
@@ -1239,10 +1241,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     di = gauss_seidel_thread_wait (data, &errup, &errlo); /* waid until mid nodes are updated */
     dimax = MAX (dimax, di);
 #endif
-
-    COM_Recv (top_pattern); /* receive top blocks */
-
-    REXT_recv (ldy, recv_top, nrecv_top); /* update received extenral reactions */
 
     di = gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update bot blocks */
     dimax = MAX (dimax, di);

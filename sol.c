@@ -206,10 +206,6 @@ static void write_state (SOLFEC *sol)
 #endif
 
   clean_timers (sol); /* restart total timing */
-
-  /* flush buffers (this saves a
-   * consistent output after a crush) */
-  PBF_Flush (sol->bf);
 }
 
 /* input state */

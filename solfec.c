@@ -23,6 +23,7 @@
 #include <zoltan.h>
 #endif
 
+#include <signal.h>
 #include <string.h>
 #include <stdio.h>
 #include "glv.h"
@@ -30,6 +31,14 @@
 #include "lng.h"
 #include "sol.h"
 #include "err.h"
+
+/* signal handler */
+static void sighnd (int signal)
+{
+  lngfinalize (); /* finalize interpreter: as a result
+		     flush output buffers if possible */
+  exit (1);
+}
 
 /* return a file path from among the input arguments */
 static char* getfile (int argc, char **argv)
@@ -71,6 +80,17 @@ static int vieweron (int argc, char **argv)
 int main (int argc, char **argv)
 {
   int error;
+
+  signal (SIGINT, sighnd);
+  signal (SIGHUP, sighnd);
+  signal (SIGKILL, sighnd);
+  signal (SIGPIPE, sighnd);
+  signal (SIGALRM, sighnd);
+  signal (SIGTERM, sighnd);
+  signal (SIGXCPU, sighnd);
+  signal (SIGXFSZ, sighnd);
+  signal (SIGVTALRM, sighnd);
+  signal (SIGPROF, sighnd);
 
 #if MPI
   float version;
