@@ -1105,12 +1105,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   SET *bot  = NULL, /* blocks that only send to higher processors */
       *top  = NULL, /* blocks that only send to lower processors */
       *mid  = NULL, /* blocks that send to higher and lower processors */
-      *int0 = NULL, /* internal blocks (int1 + int2) (may receive, but not send) */
-      *int1 = NULL, /* first subset of internal blocks (int0 \ int 2) */
-      *int2 = NULL; /* second subset of internal blocks (int0 \ int1) */
-
-  int siz1 = 0, /* blocks count in int1 + top */
-      siz2 = 0; /* blocks count in int2 + bot */
+      *inb  = NULL; /* internal blocks  */
 
   /* create block sets */
   for (dia = ldy->diab; dia; dia = dia->n)
@@ -1127,29 +1122,21 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
 
     if (lo && hi) SET_Insert (setmem, &mid, dia, NULL);
-    else if (lo) SET_Insert (setmem, &bot, dia, NULL), siz2 += dia->degree;
-    else if (hi) SET_Insert (setmem, &top, dia, NULL), siz1 += dia->degree;
-    else SET_Insert (setmem, &int0, dia, NULL); /* int1 + int2 */
-  }
-
-  /* create int1 and int2 so that |int1| + |top| == |int2| + |bot| */
-  for (SET *item = SET_First (int0); item; item = SET_Next (item))
-  {
-    dia = item->data;
-    if (siz1 <= siz2) SET_Insert (setmem, &int1, dia, NULL), siz1 += dia->degree;
-    else SET_Insert (setmem, &int2, dia, NULL), siz2 += dia->degree;
+    else if (lo) SET_Insert (setmem, &bot, dia, NULL);
+    else if (hi) SET_Insert (setmem, &top, dia, NULL);
+    else SET_Insert (setmem, &inb, dia, NULL);
   }
 
 #if DEBUG
   if (gs->verbose)
   {
-    int sizes [5] = {SET_Size (bot), SET_Size (mid), SET_Size (top), SET_Size (int1), SET_Size (int2)},
-	result [5];
+    int sizes [4] = {SET_Size (bot), SET_Size (mid), SET_Size (top), SET_Size (inb)},
+	result [4];
 
-    MPI_Reduce (sizes, result, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce (sizes, result, 4, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
     if (rank == 0)
-      printf ("GAUSS_SEIDEL: (SUM) |BOT| = %d, |MID| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n",
-	    result [0], result [1], result [2], result [3], result [4]);
+      printf ("GAUSS_SEIDEL: (SUM) |BOT| = %d, |MID| = %d, |TOP| = %d, |INT| = %d\n",
+	    result [0], result [1], result [2], result [3]);
   }
 #endif
 
@@ -1228,7 +1215,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       tmp = bot_pattern; bot_pattern = top_pattern; top_pattern = tmp;
       tmq = nrecv_bot; nrecv_bot = nrecv_top; nrecv_top = tmq;
       tmp = recv_bot; recv_bot = recv_top; recv_top = tmp;
-      tmp = int1; int1 = int2; int2 = tmp;
       tmp = bot; bot = top; top = tmp;
     }
 
@@ -1239,13 +1225,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     COM_Send (top_pattern); /* start sending top blocks */
     
-    di = gauss_siedel_sweep (int1, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
-    dimax = MAX (dimax, di);
-
-    COM_Recv (top_pattern); /* receive top blocks */
-
-    REXT_recv (ldy, recv_top, nrecv_top); /* update received extenral reactions */
-
 #if MPITHREADS
     gauss_seidel_thread_run (data); /* begin update of mid blocks */
 #else
@@ -1253,13 +1232,17 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     dimax = MAX (dimax, di);
 #endif
 
-    di = gauss_siedel_sweep (int2, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
+    di = gauss_siedel_sweep (inb, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
     dimax = MAX (dimax, di);
 
 #if MPITHREADS
     di = gauss_seidel_thread_wait (data, &errup, &errlo); /* waid until mid nodes are updated */
     dimax = MAX (dimax, di);
 #endif
+
+    COM_Recv (top_pattern); /* receive top blocks */
+
+    REXT_recv (ldy, recv_top, nrecv_top); /* update received extenral reactions */
 
     di = gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update bot blocks */
     dimax = MAX (dimax, di);
@@ -1275,7 +1258,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       tmp = bot_pattern; bot_pattern = top_pattern; top_pattern = tmp;
       tmq = nrecv_bot; nrecv_bot = nrecv_top; nrecv_top = tmq;
       tmp = recv_bot; recv_bot = recv_top; recv_top = tmp;
-      tmp = int1; int1 = int2; int2 = tmp;
       tmp = bot; bot = top; top = tmp;
     }
 
@@ -1310,11 +1292,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #if MPITHREADS
   gauss_seidel_thread_destroy (data);
 #endif
-  SET_Free (setmem, &int0);
-  SET_Free (setmem, &int1);
-  SET_Free (setmem, &int2);
   SET_Free (setmem, &bot);
   SET_Free (setmem, &mid);
+  SET_Free (setmem, &top);
+  SET_Free (setmem, &inb);
   COM_Free (bot_pattern);
   COM_Free (top_pattern);
   free (send_bot);
