@@ -317,11 +317,7 @@ void SOLFEC_Timer_End (SOLFEC *sol, const char *label)
 
   if ((t = MAP_Find (sol->timers, (void*) label, (MAP_Compare) strcmp)))
   {
-#if MPI
-    PUT_root_timerend (t, NULL);
-#else
     timerend (t);
-#endif
   }
 }
 
@@ -417,15 +413,15 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
       /* statistics are printed every
        * human perciveable period of time */
+
 #if MPI
-      tt = PUT_timerend (&tim);
-#else
-      tt = timerend (&tim);
+      if (sol->dom->rank == 0) /* verbosity is significant for process zero only */
+      {
 #endif
-      if (tt  < 0.5 && verbose) verbose = verbose_off (sol, kind, solver);
+      if ((tt = timerend (&tim))  < 0.5 && verbose) verbose = verbose_off (sol, kind, solver);
       else if (tt >= 0.5) { verbose = verbose_on (sol, kind, solver); timerstart (&tim); }
 #if MPI
-      MPI_Barrier (MPI_COMM_WORLD); /* meet up at the end */
+      }
 #endif
     }
   }
