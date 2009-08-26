@@ -259,6 +259,12 @@ void DOM_Write_State (DOM *dom, PBF *bf);
 /* read domain state */
 void DOM_Read_State (DOM *dom, PBF *bf);
 
+/* read state of an individual body */
+int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod);
+
+/* read state of an individual constraint */
+int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con);
+
 /* release memory */
 void DOM_Destroy (DOM *dom);
 

@@ -4735,16 +4735,37 @@ static PyObject* lng_STRESS (PyObject *self, PyObject *args, PyObject *kwds)
 #endif
 }
 
+/* callback data */
+typedef struct
+{
+  BODY *bod;
+  double p [3];
+  VALUE_KIND kind;
+  int index;
+  PyObject *times;
+  PyObject *values;
+}
+lng_HISTORY_DATA;
+
+/* callback for SOLFEC_History */
+static void lng_HISTORY_callback (lng_HISTORY_DATA *data, double time)
+{
+  double x [6];
+
+  BODY_Point_Values (data->bod, data->p, data->kind, x);
+
+  PyList_Append (data->times, PyFloat_FromDouble (time));
+  PyList_Append (data->values, PyFloat_FromDouble (x [data->index]));
+}
+
 /* history of an entity */
 static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("body", "point", "entity", "t0", "t1");
   double start, end, t0, t1;
   PyObject *point, *entity;
-  double p [3], x [6];
-  VALUE_KIND kind;
+  lng_HISTORY_DATA data;
   lng_BODY *body;
-  int index;
 
   PARSEKEYS ("OOOdd", &body, &point, &entity, &t0, &t1);
 
@@ -4770,68 +4791,68 @@ static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
 
     IFIS (entity, "DX")
     {
-      kind = VALUE_DISPLACEMENT;
-      index = 0;
+      data.kind = VALUE_DISPLACEMENT;
+      data.index = 0;
     }
     ELIF (entity, "DY")
     {
-      kind = VALUE_DISPLACEMENT;
-      index = 1;
+      data.kind = VALUE_DISPLACEMENT;
+      data.index = 1;
     }
     ELIF (entity, "DZ")
     {
-      kind = VALUE_DISPLACEMENT;
-      index = 2;
+      data.kind = VALUE_DISPLACEMENT;
+      data.index = 2;
     }
     ELIF (entity, "VX")
     {
-      kind = VALUE_VELOCITY;
-      index = 0;
+      data.kind = VALUE_VELOCITY;
+      data.index = 0;
     }
     ELIF (entity, "VY")
     {
-      kind = VALUE_VELOCITY;
-      index = 1;
+      data.kind = VALUE_VELOCITY;
+      data.index = 1;
     }
     ELIF (entity, "VZ")
     {
-      kind = VALUE_VELOCITY;
-      index = 2;
+      data.kind = VALUE_VELOCITY;
+      data.index = 2;
     }
     ELIF (entity, "SX")
     {
-      kind = VALUE_STRESS;
-      index = 0;
+      data.kind = VALUE_STRESS;
+      data.index = 0;
     }
     ELIF (entity, "SY")
     {
-      kind = VALUE_STRESS;
-      index = 1;
+      data.kind = VALUE_STRESS;
+      data.index = 1;
     }
     ELIF (entity, "SZ")
     {
-      kind = VALUE_STRESS;
-      index = 2;
+      data.kind = VALUE_STRESS;
+      data.index = 2;
     }
     ELIF (entity, "SXY")
     {
-      kind = VALUE_STRESS;
-      index = 3;
+      data.kind = VALUE_STRESS;
+      data.index = 3;
     }
     ELIF (entity, "SXZ")
     {
-      kind = VALUE_STRESS;
-      index = 4;
+      data.kind = VALUE_STRESS;
+      data.index = 4;
     }
     ELIF (entity, "SYZ")
     {
-      kind = VALUE_STRESS;
-      index = 5;
+      data.kind = VALUE_STRESS;
+      data.index = 5;
     }
     ELIF (entity, "MISES")
     {
-      kind = VALUE_MISES;
-      index = 0;
+      data.kind = VALUE_MISES;
+      data.index = 0;
     }
     ELSE
     {
@@ -4839,20 +4860,19 @@ static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
       return NULL;
     }
 
-    PyObject *list;
+    data.bod = body->bod;
 
-    ERRMEM (list = PyList_New (0));
+    data.p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+    data.p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+    data.p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-    SOLFEC_Seek_To (sol, t0);
+    ERRMEM (data.times = PyList_New (0));
+    ERRMEM (data.values = PyList_New (0));
 
-    while (sol->dom->time < t1)
-    {
-      BODY_Point_Values (body->bod, p, kind, x);
-      PyList_Append (list, PyFloat_FromDouble (x [index]));
-      SOLFEC_Forward (sol, 1);
-    }
+    SOLFEC_History (sol, NULL, NULL, NULL, 0, body->bod, NULL,
+      t0, t1, &data, (void (*) (void*, double)) lng_HISTORY_callback);
 
-    return list;
+    return Py_BuildValue ("(O,O)", data.times, data.values);
   }
 
 #if MPI
@@ -4890,10 +4910,27 @@ static PyObject* lng_TIMING (PyObject *self, PyObject *args, PyObject *kwds)
   return PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label));
 }
 
+/* callback data */
+typedef struct
+{
+  double val;
+  PyObject *times;
+  PyObject *values;
+}
+lng_TIMING_HISTORY_DATA;
+
+/* callback for SOLFEC_History */
+static void lng_TIMING_HISTORY_callback (lng_TIMING_HISTORY_DATA *data, double time)
+{
+  PyList_Append (data->times, PyFloat_FromDouble (time));
+  PyList_Append (data->values, PyFloat_FromDouble (data->val));
+}
+
 /* timing history */
 static PyObject* lng_TIMING_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("solfec", "kind", "t0", "t1");
+  lng_TIMING_HISTORY_DATA data;
   double start, end, t0, t1;
   lng_SOLFEC *solfec;
   PyObject *kind;
@@ -4929,19 +4966,13 @@ static PyObject* lng_TIMING_HISTORY (PyObject *self, PyObject *args, PyObject *k
 
     label = PyString_AsString (kind);
 
-    PyObject *list;
+    ERRMEM (data.times = PyList_New (0));
+    ERRMEM (data.values = PyList_New (0));
 
-    ERRMEM (list = PyList_New (0));
+    SOLFEC_History (solfec->sol, label, &data.val, NULL, 1, NULL, NULL,
+      t0, t1, &data, (void (*) (void*, double)) lng_TIMING_HISTORY_callback);
 
-    SOLFEC_Seek_To (solfec->sol, t0);
-
-    while (solfec->sol->dom->time < t1)
-    {
-      SOLFEC_Forward (solfec->sol, 1);
-      PyList_Append (list, PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label)));
-    }
-
-    return list;
+    return Py_BuildValue ("(O,O)", data.times, data.values);
   }
 }
 

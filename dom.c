@@ -2197,6 +2197,9 @@ void DOM_Write_State (DOM *dom, PBF *bf)
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
     PBF_Uint (bf, &bod->id, 1);
+
+    if (bod->label) PBF_Label (bf, bod->label); /* label body record for fast access */
+
     BODY_Write_State (bod, bf);
   }
 }
@@ -2324,6 +2327,92 @@ void DOM_Read_State (DOM *dom, PBF *bf)
       }
     }
   }
+}
+
+/* read state of an individual body */
+int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
+{
+  if (bod->label)
+  {
+    for (; bf; bf = bf->next)
+    {
+      if (PBF_Label (bf, bod->label))
+      {
+	BODY_Read_State (bod, bf);
+	return 1;
+      }
+    }
+  }
+  else
+  {
+    for (; bf; bf = bf->next)
+    {
+      if (PBF_Label (bf, "BODS"))
+      {
+	int nbod;
+
+	PBF_Int (bf, &nbod, 1);
+
+	for (int n = 0; n < nbod; n ++)
+	{
+	  unsigned int id;
+	  BODY *obj;
+
+	  PBF_Uint (bf, &id, 1);
+	  ASSERT_DEBUG_EXT (obj = MAP_Find (dom->idb, (void*) (long) id, NULL), "Body id invalid");
+	  if (bod->id == obj->id) 
+	  {
+	    BODY_Read_State (bod, bf);
+	    return 1;
+	  }
+	  else /* skip body and continue */
+	  {
+	    BODY fake;
+
+	    ERRMEM (fake.conf = malloc (sizeof (double [BODY_Conf_Size (obj)])));
+	    ERRMEM (fake.velo = malloc (sizeof (double [obj->dofs])));
+	    fake.shape = NULL;
+
+	    BODY_Read_State (&fake, bf);
+
+	    free (fake.conf);
+	    free (fake.velo);
+	  }
+	}
+      }
+    }
+  }
+
+  return 0;
+}
+
+/* read state of an individual constraint */
+int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
+{
+  for (; bf; bf = bf->next)
+  {
+    int ncon;
+
+    if (PBF_Label (bf, "CONS"))
+    {
+      PBF_Int (bf, &ncon, 1);
+
+      for (int n = 0; n < ncon; n ++)
+      {
+	CON *obj = read_constraint (dom, bf);
+
+	if (con->id == obj->id)
+	{
+	  *con = *obj;
+          MEM_Free (&dom->conmem, obj); /* not needed */
+	  return 1;
+	}
+	else MEM_Free (&dom->conmem, obj); /* skip and continue */
+      }
+    }
+  }
+
+  return 0;
 }
 
 /* release memory */

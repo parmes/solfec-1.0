@@ -32,7 +32,7 @@ ifeq ($(DEBUG),yes)
     GEOMDEBUG =
   endif
 else
-  DEBUG =  -W -Wall -Wno-unused-parameter -pedantic -O3 -funroll-loops -ftree-vectorize
+  DEBUG =  -w -pedantic -O3 -funroll-loops
   PROFILE =
   MEMDEBUG =
   GEOMDEBUG =

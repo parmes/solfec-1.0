@@ -1630,7 +1630,7 @@ void BODY_Read_State (BODY *bod, PBF *bf)
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
   PBF_Double (bf, bod->velo, bod->dofs);
 
-  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+  if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
 
 void BODY_Destroy (BODY *bod)

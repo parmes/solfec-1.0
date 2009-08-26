@@ -5259,7 +5259,9 @@ This routine outputs the history of an entity at a referential point.
 \series bold
 hist
 \series default
- - a list object storing the history of the entity
+ - a tuple of list objects storing the history of the entity: 
+\emph on
+(times, values)
 \end_layout
 
 \begin_layout Itemize
@@ -5358,7 +5360,9 @@ This routine outputs the history of energy for a collection of objects.
 \series bold
 hist
 \series default
- - a list object storing the history of the entity
+ - a tuple of list objects storing the history of the entity: 
+\emph on
+(times, values)
 \end_layout
 
 \begin_layout Itemize
@@ -5452,7 +5456,9 @@ This routine outputs the history of timing.
 \series bold
 hist
 \series default
- - a list object storing the history of timing
+ - a tuple of list objects storing the history of timing: 
+\emph on
+(times, values)
 \end_layout
 
 \begin_layout Itemize

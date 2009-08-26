@@ -84,6 +84,9 @@ PBF* PBF_Read (const char *path);
 /* close file */
 void PBF_Close (PBF *bf);
 
+/* flush buffers */
+void PBF_Flush (PBF *bf);
+
 /* read/write current time */
 void PBF_Time (PBF *bf, double *time);
 

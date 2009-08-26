@@ -102,6 +102,6 @@ if not VIEWER() and solfec.mode == 'READ':
   dur = DURATION (solfec)
   gst = TIMING_HISTORY (solfec, 'CONSOL', dur[0], dur[1])
   avg = 0.0
-  for tt in gst: avg += tt
+  for tt in gst [1]: avg += tt
   avg /= len (gst)
   print 'AVERAGE CONSOL TIME: ', avg

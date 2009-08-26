@@ -411,6 +411,17 @@ void PBF_Close (PBF *bf)
   }
 }
 
+
+/* flush buffers */
+void PBF_Flush (PBF *bf)
+{
+  fflush (bf->dat);
+  fflush (bf->idx);
+  fflush (bf->lab);
+}
+
+/* read/write current time */
+
 void PBF_Time (PBF *bf, double *time)
 {
   int index;

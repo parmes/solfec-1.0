@@ -196,8 +196,9 @@ static void write_state (SOLFEC *sol)
   {
     TIMING *t = item->data;
 
-    PBF_String (sol->bf, (char**) &item->key);
+    PBF_Label (sol->bf, item->key);
     PBF_Double (sol->bf, &t->total, 1);
+    PBF_String (sol->bf, (char**) &item->key);
   }
 
 #if MPI
@@ -205,6 +206,10 @@ static void write_state (SOLFEC *sol)
 #endif
 
   clean_timers (sol); /* restart total timing */
+
+  /* flush buffers (this saves a
+   * consistent output after a crush) */
+  PBF_Flush (sol->bf);
 }
 
 /* input state */
@@ -239,9 +244,11 @@ static void read_state (SOLFEC *sol)
       
       for (n = 0; n < numt; n ++)
       {
+	double total;
 	char *label;
 	TIMING *t;
 
+	PBF_Double (bf, &total, 1); /* read timing */
 	label = NULL; /* needs allocation */
 	PBF_String (bf, &label); /* read label */
 
@@ -251,7 +258,7 @@ static void read_state (SOLFEC *sol)
 	  MAP_Insert (&sol->mapmem, &sol->timers, label, t, (MAP_Compare) strcmp);
 	}
 
-	PBF_Double (bf, &t->total, 1);
+	t->total = total; /* update */
       }
     }
   }
@@ -515,6 +522,63 @@ void SOLFEC_Forward (SOLFEC *sol, int steps)
     PBF_Forward (sol->bf, steps);
     read_state (sol);
   }
+}
+
+/* read the history of an object (a labeled value, a body or
+ * a constraint) and invoke the callback for every new state */
+void SOLFEC_History (SOLFEC *sol, char *label, double *dval, int *ival, int len, BODY *bod,
+  CON *con, double t0, double t1, void *data, void (*callback) (void *data, double time))
+{
+  if (sol->mode == SOLFEC_WRITE) return;
+
+  double save, time;
+  PBF *bf;
+
+  init (sol);
+  save = sol->dom->time;
+  PBF_Seek (sol->bf, t0);
+
+  do
+  {
+    if (label && dval)
+    {
+      for (bf = sol->bf; bf; bf = bf->next)
+      {
+	if (PBF_Label (bf, label))
+	{
+	  PBF_Double (bf, dval, len);
+	  callback (data, time);
+	  break;
+	}
+      }
+    }
+    else if (label && ival)
+    {
+      for (bf = bf; bf; bf = bf->next)
+      {
+	if (PBF_Label (bf, label))
+	{
+	  PBF_Int (sol->bf, ival, len);
+	  callback (data, time);
+	  break;
+	}
+      }
+    }
+    else if (bod)
+    {
+      if (DOM_Read_Body (sol->dom, sol->bf, bod)) callback (data, time);
+    }
+    else if (con)
+    {
+      if (DOM_Read_Constraint (sol->dom, sol->bf, con)) callback (data, time);
+    }
+
+    PBF_Forward (sol->bf, 1);
+    PBF_Time (sol->bf, &time);
+  }
+  while (time < t1);
+
+  PBF_Seek (sol->bf, save); /* restore initial time frame */
 }
 
 /* free solfec memory */

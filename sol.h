@@ -120,6 +120,11 @@ void SOLFEC_Backward (SOLFEC *sol, int steps);
 /* step forward in READ modes */
 void SOLFEC_Forward (SOLFEC *sol, int steps);
 
+/* read the history of an object (a labeled value, a body or
+ * a constraint) and invoke the callback for every new state */
+void SOLFEC_History (SOLFEC *sol, char *label, double *dval, int *ival, int len, BODY *bod,
+  CON *con, double t0, double t1, void *data, void (*callback) (void *data, double time));
+
 /* free solfec memory */
 void SOLFEC_Destroy (SOLFEC *sol);
 
