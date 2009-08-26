@@ -744,6 +744,7 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   ncpu = DOM(ldy->dom)->ncpu;
   ERRMEM (coloring = calloc (ncpu, sizeof (int))); /* processor to color map */
 
+  /* FIXME: Zoltan coloring writes on Solfec memory (randomly) */
 #if 0
   int num_gid_entries,
       num_lid_entries,
@@ -759,11 +760,43 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   /* gather coloring from all processors */
   MPI_Allgather (&color_exp, 1, MPI_INT, coloring, 1, MPI_INT, MPI_COMM_WORLD);
 #else
-  for (int i = 0; i < ncpu; i ++) coloring [i] = (i + 1);
+  int i, n, m, *size, *disp, *adj;
+  SET *item;
 
-  /* FIXME: Zoltan coloring writes on Solfec memory (randomly);
-   * FIXME: Isolate if possible; Develop own coloring algorithm;
-   * FIXME: (Own algorithm feasible as we are coloing processors) */
+  ERRMEM (size = malloc (sizeof (int [ncpu])));
+  ERRMEM (disp = malloc (sizeof (int [ncpu + 1])));
+
+  n = SET_Size (*adjcpu);
+  MPI_Allgather (&n, 1, MPI_INT, size, 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (i = disp [0] = 0; i < ncpu - 1; i ++) disp [i+1] = disp [i] + size [i];
+  for (i = 0, item = SET_First (*adjcpu); item; i ++, item = SET_Next (item)) coloring [i] = (int) (long) item->data;
+
+  m = disp [ncpu] = (disp [ncpu-1] + size [ncpu-1]);
+  ERRMEM (adj = malloc (sizeof (int [m])));
+
+  MPI_Allgatherv (coloring, n, MPI_INT, adj, size, disp, MPI_INT, MPI_COMM_WORLD); /* gather graph adjacency */
+
+  for (i = 0; i < ncpu; i ++) coloring [i] = 0; /* invalidate coloring */
+
+  m = 1; /* free color */
+
+  for (i = 0; i < ncpu; i ++) /* simple BFS coloring */
+  {
+    int *j, *k;
+
+    if (coloring [i] == 0) coloring [i] = m ++; /* not colored => do it */
+
+    for (j = &adj[disp[i]], k = &adj[disp[i+1]]; j < k; j ++) /* for each adjacent vertex */
+    {
+      if (coloring [*j] == 0) coloring [*j] = m ++; /* not colored => do it */
+      else if (coloring [*j] == coloring [i]) coloring [*j] = m ++; /* conflict => do it again */
+    }
+  }
+
+  free (size);
+  free (disp);
+  free (adj);
 #endif
 
   return coloring;
