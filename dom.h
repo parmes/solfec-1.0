@@ -147,6 +147,7 @@ struct domain
   MAP *idc; /* constraints mapped by identifiers */
   CON *con; /* list of constraints */
   int ncon; /* number of constraints */
+  int nspa; /* number of sparsified contacts */
 
   LOCDYN *ldy; /* local dynamics */
 
@@ -176,6 +177,8 @@ struct domain
 
   struct Zoltan_Struct *zol; /* body partitioning */
 
+  double imbalance_tolerance; /* imbalance threshold */
+
   SET *sparecid; /* spare constraint ids */
 
   SET *sparebid; /* spare body ids */
@@ -189,6 +192,9 @@ struct domain
   MEM extmem; /* memory pool of external constraints */
 
   CONEXT *conext; /* external constraints (parents and children) */
+
+  int nexpbod, /* number of exported parent bodies */
+      nexpchild; /* number of exported child bodies */
 #endif
 };
 
@@ -251,6 +257,9 @@ void DOM_Update_End (DOM *dom);
 #if MPI
 /* balance children according to a given geometric partitioning */
 void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol);
+
+/* update children shapes */
+void DOM_Update_Children (DOM *dom);
 #endif
 
 /* write domain state */

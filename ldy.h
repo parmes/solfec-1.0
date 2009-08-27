@@ -156,6 +156,10 @@ struct locdyn
       ldb_new; /* newly set kind of balancing */
 
   struct Zoltan_Struct *zol;
+
+  double imbalance_tolerance;/* imbalance threshold */
+
+  int nexpdia; /* number of exported rows */
 #endif
 };
 

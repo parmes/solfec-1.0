@@ -24,8 +24,14 @@
 #ifndef __put__
 #define __put__
 
-/* get statistics on single integer variable; return 1 for rank 0 and 0 for others */
-int PUT_root_int_stats (int val, int *sum, int *min, int *avg, int *max);
+/* get statistics on a vector of integer variables */
+void PUT_int_stats (int n, int *val, int *sum, int *min, int *avg, int *max);
+
+/* get statistics on a vector of integer variables; return 1 for rank 0 and 0 for others */
+int PUT_root_int_stats (int n, int *val, int *sum, int *min, int *avg, int *max);
+
+/* get statistics on a vector of double variables; return 1 for rank 0 and 0 for others */
+int PUT_root_double_stats (int n, double *val, double *sum, double *min, double *avg, double *max);
 
 /* parallel timer end: get maximum of all calls; return 1 for rank 0 and 0 for others */
 int PUT_root_timerend (TIMING *t, double *time);

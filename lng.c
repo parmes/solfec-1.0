@@ -3631,6 +3631,26 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+/* set imbalance tolerances */
+static PyObject* lng_IMBALANCE_TOLERANCES (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "timint", "condet", "locdyn");
+  double timint, condet, locdyn;
+  lng_SOLFEC *solfec;
+
+  PARSEKEYS ("Oddd", &solfec, &timint, &condet, &locdyn);
+
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+#if MPI
+  solfec->sol->dom->imbalance_tolerance = timint;
+  solfec->sol->aabb->imbalance_tolerance = condet;
+  solfec->sol->dom->ldy->imbalance_tolerance = locdyn;
+#endif
+
+  Py_RETURN_TRUE;
+}
+
 /* change LOCDYN balancing approach */
 static PyObject* lng_LOCDYN_BALANCING (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -4989,6 +5009,7 @@ static PyMethodDef lng_methods [] =
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
+  {"IMBALANCE_TOLERANCES", (PyCFunction)lng_IMBALANCE_TOLERANCES, METH_VARARGS|METH_KEYWORDS, "Adjust imbalance tolerances"},
   {"LOCDYN_BALANCING", (PyCFunction)lng_LOCDYN_BALANCING, METH_VARARGS|METH_KEYWORDS, "Set local dynamics balancing mode"},
   {"NCPU", (PyCFunction)lng_NCPU, METH_NOARGS, "Get the number of processors"},
   {"HERE", (PyCFunction)lng_HERE, METH_VARARGS|METH_KEYWORDS, "Test whether an object is located on the current processor"},
@@ -5153,6 +5174,7 @@ int lng (const char *path)
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
+                     "from solfec import IMBALANCE_TOLERANCES\n"
                      "from solfec import LOCDYN_BALANCING\n"
                      "from solfec import NCPU\n"
                      "from solfec import HERE\n"

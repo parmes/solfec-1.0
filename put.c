@@ -26,39 +26,116 @@
 #include "alg.h"
 #include "put.h"
 
-/* get statistics on single integer variable; return 1 for rank 0 and 0 for others */
-int PUT_root_int_stats (int val, int *sum, int *min, int *avg, int *max)
+/* get statistics on a vector of integer variables */
+void PUT_int_stats (int n, int *val, int *sum, int *min, int *avg, int *max)
+{
+  int ncpu, *all, i, j, va, su, mi, av, ma;
+
+  MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
+
+  ERRMEM (all = malloc (sizeof (int [n * ncpu])));
+
+  MPI_Allgather (val, n, MPI_INT, all, n, MPI_INT, MPI_COMM_WORLD);
+
+  for (j = 0; j < n; j ++)
+  {
+    for (su = i = 0, ma = INT_MIN, mi = INT_MAX; i < ncpu; i ++)
+    {
+      va = all [i*n + j];
+      su += va, ma = MAX (ma, va), mi = MIN (mi, va);
+    }
+
+    av = su / ncpu;
+
+    if (sum) sum [j] = su;
+    if (min) min [j] = mi;
+    if (avg) avg [j] = av;
+    if (max) max [j] = ma;
+  }
+
+  free (all);
+}
+
+/* get statistics on a vector of integer variables; return 1 for rank 0 and 0 for others */
+int PUT_root_int_stats (int n, int *val, int *sum, int *min, int *avg, int *max)
 {
   int rank, ncpu, *all;
 
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);
   MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
 
-  if (rank == 0) { ERRMEM (all = malloc (sizeof (int [ncpu]))); }
+  if (rank == 0) { ERRMEM (all = malloc (sizeof (int [n * ncpu]))); }
   else all = NULL;
 
-  MPI_Gather (&val, 1, MPI_INT, all, 1, MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Gather (val, n, MPI_INT, all, n, MPI_INT, 0, MPI_COMM_WORLD);
 
   if (rank == 0)
   {
-    int i, su, mi, av, ma;
+    int i, j, va, su, mi, av, ma;
 
-    for (su = i = 0, ma = INT_MIN, mi = INT_MAX; i < ncpu; i ++)
+    for (j = 0; j < n; j ++)
     {
-      su += all [i], ma = MAX (ma, all [i]), mi = MIN (mi, all [i]);
+      for (su = i = 0, ma = INT_MIN, mi = INT_MAX; i < ncpu; i ++)
+      {
+	va = all [i*n + j];
+	su += va, ma = MAX (ma, va), mi = MIN (mi, va);
+      }
+
+      av = su / ncpu;
+
+      if (sum) sum [j] = su;
+      if (min) min [j] = mi;
+      if (avg) avg [j] = av;
+      if (max) max [j] = ma;
     }
 
-    av = su / ncpu;
-
-    if (sum) *sum = su;
-    if (min) *min = mi;
-    if (avg) *avg = av;
-    if (max) *max = ma;
+    free (all);
 
     return 1;
   }
 
-  free (all);
+  return 0;
+}
+
+/* get statistics on a vector of double variables; return 1 for rank 0 and 0 for others */
+int PUT_root_double_stats (int n, double *val, double *sum, double *min, double *avg, double *max)
+{
+  int rank, ncpu;
+  double *all;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
+
+  if (rank == 0) { ERRMEM (all = malloc (sizeof (double [n * ncpu]))); }
+  else all = NULL;
+
+  MPI_Gather (val, n, MPI_DOUBLE, all, n, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+  if (rank == 0)
+  {
+    double va, su, mi, av, ma;
+    int i, j;
+
+    for (j = 0; j < n; j ++)
+    {
+      for (su = i = 0, ma = INT_MIN, mi = INT_MAX; i < ncpu; i ++)
+      {
+	va = all [i*n + j];
+	su += va, ma = MAX (ma, va), mi = MIN (mi, va);
+      }
+
+      av = su / (double) ncpu;
+
+      if (sum) sum [j] = su;
+      if (min) min [j] = mi;
+      if (avg) avg [j] = av;
+      if (max) max [j] = ma;
+    }
+
+    free (all);
+
+    return 1;
+  }
 
   return 0;
 }

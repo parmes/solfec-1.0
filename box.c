@@ -349,6 +349,22 @@ inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
   return &(*send)[nsend];
 }
 
+/* update aux table of box pointers */
+static void auxupdate (AABB *aabb)
+{
+  BOX *box, **aux;
+
+  free (aabb->aux);
+  /* realloc auxiliary table */
+  ERRMEM (aabb->aux = malloc ((aabb->nin + aabb->nlst) * sizeof (BOX*)));
+
+  /* gather inserted boxes */
+  for (aux = aabb->aux, box = aabb->in; box; aux ++, box = box->next) *aux = box;
+
+  /* gather current boxes */
+  for (box = aabb->lst; box; aux ++, box = box->next) *aux = box;
+}
+
 /* synchronise exclusion set */
 static void sync (SET **eset, MEM *oprmem, MEM *setmem, int nobody)
 {
@@ -571,26 +587,39 @@ static void aabb_balance (AABB *aabb)
     SET_Free (&aabb->setmem, &aabb->delbod);
   }
 
-  int changes,
-      num_gid_entries,
-      num_lid_entries,
-      num_import,
-      *import_procs,
-      num_export,
-      *export_procs;
+  int val = aabb->nin + aabb->nlst,
+      sum, min, avg, max;
 
-  ZOLTAN_ID_PTR import_global_ids,
-		import_local_ids,
-		export_global_ids,
-		export_local_ids;
+  /* get statistics on boxes counts */
+  PUT_int_stats (1, &val, &sum, &min, &avg, &max);
 
-  /* update box partitioning using low points of their extents */
-  ASSERT (Zoltan_LB_Balance (aabb->zol, &changes, &num_gid_entries, &num_lid_entries,
-	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
-	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+  /* compute inbalance ratio for boxes */
+  double ratio = (double) max / (double) MAX (min, 1);
 
-  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-                       &export_global_ids, &export_local_ids, &export_procs);
+  if (aabb->nexpbox < 0 || ratio > aabb->imbalance_tolerance) /* update partitioning only if not sufficient to balance boxes */
+  {
+      int changes,
+	  num_gid_entries,
+	  num_lid_entries,
+	  num_import,
+	  *import_procs,
+	  num_export,
+	  *export_procs;
+
+      ZOLTAN_ID_PTR import_global_ids,
+		    import_local_ids,
+		    export_global_ids,
+		    export_local_ids;
+
+      /* update box partitioning using low points of their extents */
+      ASSERT (Zoltan_LB_Balance (aabb->zol, &changes, &num_gid_entries, &num_lid_entries,
+	      &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	      &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+      Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+			   &export_global_ids, &export_local_ids, &export_procs);
+  }
+  else auxupdate (aabb);
 
   /* balance children bodies in the domin */
   DOM_Balance_Children (aabb->dom, aabb->zol);
@@ -646,12 +675,7 @@ static void aabb_balance (AABB *aabb)
     SET_Free  (&aabb->setmem, &cpus);
   }
 
-#if DEBUG
-  int sum, min, avg, max;
-
-  if (dom->verbose && PUT_root_int_stats (nsend, &sum, &min, &avg, &max))
-    printf ("EXPORTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ", sum, min, avg, max);
-#endif
+  aabb->nexpbox = nsend; /* record for later statistics */
 
   /* communicate migration data (unpacking inserts the imported boxes) */
   COMOBJS (MPI_COMM_WORLD, TAG_AABB_BALANCE, (OBJ_Pack)box_pack, aabb, (OBJ_Unpack)box_unpack, send, nsend, &recv, &nrecv);
@@ -683,6 +707,10 @@ static void create_mpi (AABB *aabb)
 
   /* zoltan context for body partitioning */
   ASSERT (aabb->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
+
+  aabb->imbalance_tolerance = 1.3;
+
+  aabb->nexpbox = -1; /* set to indicate need for initial partitioning */
 
   /* general parameters */
   Zoltan_Set_Param (aabb->zol, "DEBUG_LEVEL", "0");
@@ -888,15 +916,22 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   MAP *item, *jtem;
 
   SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONDET");
+
+#if MPI
+  if (DOM(aabb->dom)->rank == 0)
+#endif
+  if (DOM(aabb->dom)->verbose) printf ("CONDET ... "), fflush (stdout);
   
 #if MPI
-  if (DOM(aabb->dom)->verbose && DOM(aabb->dom)->rank == 0) printf ("AABB BALANCING ... "), fflush (stdout);
-
   SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONBAL");
 
   aabb_balance (aabb);
 
   SOLFEC_Timer_End (DOM(aabb->dom)->owner, "CONBAL");
+
+  /* child body shapes need to be updated
+   * before box extens are updated next */
+  DOM_Update_Children (aabb->dom);
 #endif
 
   /* update extents */
@@ -965,16 +1000,6 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
 
     for (box = aabb->lst, b = aabb->tab; box; box = box->next, b ++) *b = box; /* overwrite box pointers */
   }
-
-#if MPI
-  int sum, min, avg, max;
-
-  if (DOM(aabb->dom)->verbose && PUT_root_int_stats (aabb->nlst, &sum, &min, &avg, &max))
-    printf ("BOXES: SUM = %d, MIN = %d, AVG = %d, MAX = %d\n", sum, min, avg, max);
-
-  if (DOM(aabb->dom)->rank == 0) /* output on zero rank only */
-#endif
-  if (DOM(aabb->dom)->verbose) printf ("CONTACT DETECTION ... "), fflush (stdout);
 
   /* the algorithm
    * specific part */

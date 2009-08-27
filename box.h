@@ -163,6 +163,10 @@ struct aabb
   BOX **aux; /* auxiliary table of boxes used during balancing */
 
   struct Zoltan_Struct *zol;
+
+  double imbalance_tolerance; /* imbalance threshold */
+
+  int nexpbox; /* number of exported boxes */
 #endif
 };
 

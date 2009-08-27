@@ -128,7 +128,7 @@ IMPLEMENT_LIST_SORT (SINGLE_LINKED, sort_offb, OFFB, p, n, LEOFFB)
 /* number of vertices in the local W graph */
 static int vertex_count (LOCDYN *ldy, int *ierr)
 {
-  *ierr = ZOLTAN_OK;
+  if (ierr) *ierr = ZOLTAN_OK;
   return ldy->ndiab + ldy->nins; /* balanced + newly inserted */
 }
 
@@ -613,6 +613,9 @@ static void ldb_reset (LOCDYN *ldy)
 
   /* invalidate reset flag */
   ldy->ldb = ldy->ldb_new;
+
+  /* notify that first partitioning is needed */
+  ldy->nexpdia = -1;
 }
 
 /* clear external adjacency of a block */
@@ -695,6 +698,7 @@ static void locdyn_balance (LOCDYN *ldy)
 
     ldy->ndiab = n;
     ldy->diab = ldy->dia;
+    ldy->nexpdia = 0;
   }
   else
   {
@@ -797,17 +801,28 @@ static void locdyn_balance (LOCDYN *ldy)
 		  export_global_ids,
 		  export_local_ids;
 
-    /* balance graph comprising the old balanced blocks and the newly inserted unbalanced blocks */
-    ASSERT (Zoltan_LB_Balance (ldy->zol, &changes, &num_gid_entries, &num_lid_entries,
-	    &num_import, &import_global_ids, &import_local_ids, &import_procs,
-	    &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+    int val = vertex_count (ldy, NULL),
+        repartitioned = 0,
+	sum, min, avg, max;
 
-#if DEBUG
-    int sum, min, avg, max;
+    /* get statistics on vertex counts */
+    PUT_int_stats (1, &val, &sum, &min, &avg, &max);
 
-    if (dom->verbose && PUT_root_int_stats (num_export, &sum, &min, &avg, &max))
-      printf ("EXPORTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ", sum, min, avg, max);
-#endif
+    /* compute inbalance ratio for boxes */
+    double ratio = (double) max / (double) MAX (min, 1);
+
+    if (ldy->nexpdia < 0 || ratio > ldy->imbalance_tolerance) /* update partitioning only if not sufficient to balance boxes */
+    {
+      /* balance graph comprising the old balanced blocks and the newly inserted unbalanced blocks */
+      ASSERT (Zoltan_LB_Balance (ldy->zol, &changes, &num_gid_entries, &num_lid_entries,
+	      &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	      &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+      repartitioned = 1;
+    }
+    else num_export = 0;
+
+    ldy->nexpdia = num_export; /* record for later statistics */
 
     map = NULL;
     send = NULL;
@@ -912,8 +927,11 @@ static void locdyn_balance (LOCDYN *ldy)
 	delete_balanced_block (ldy, dia);
     }
 
-    Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-			 &export_global_ids, &export_local_ids, &export_procs);
+    if (repartitioned)
+    {
+      Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+			   &export_global_ids, &export_local_ids, &export_procs);
+    }
 
     free (send);
     free (recv);
@@ -1153,6 +1171,8 @@ static void create_mpi (LOCDYN *ldy)
   ldy->zol = NULL;
   ldy->ldb = LDB_OFF;
   ldy->ldb_new = ldy->ldb;
+  ldy->nexpdia = -1; /* notify that first partitioning is needed */
+  ldy->imbalance_tolerance = 1.3;
 }
 
 /* destroy MPI related data */
@@ -1366,8 +1386,11 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCDYN");
 
 #if MPI
-  if (dom->verbose && dom->rank == 0) printf ("LOCDYN ASSEMBLING ... "), fflush (stdout);
+  if (dom->rank == 0)
+#endif
+  if (dom->verbose) printf ("LOCDYN ... "), fflush (stdout);
 
+#if MPI
   SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
 
   locdyn_adjext (ldy);
@@ -1491,7 +1514,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 #if MPI
   if (dom->verbose && dom->rank == 0)
   {
-    switch (ldy->ldb)
+    switch (ldy->ldb_new)
     {
     case LDB_GEOM: printf ("GEOM BALANCING ... "), fflush (stdout); break;
     case LDB_GRAPH: printf ("GRAPH BALANCING ... "), fflush (stdout); break;
@@ -1504,14 +1527,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   locdyn_balance (ldy);
 
   SOLFEC_Timer_End (dom->owner, "LOCBAL");
-
-  if (dom->verbose)
-  {
-    int sum, min, avg, max;
-
-    if (PUT_root_int_stats (ldy->ndiab, &sum, &min, &avg, &max))
-      printf ("BLOCKS: SUM = %d, MIN = %d, AVG = %d, MAX = %d\n", sum, min, avg, max);
-  }
 #endif
 
   SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCDYN");

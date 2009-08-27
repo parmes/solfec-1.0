@@ -4182,6 +4182,52 @@ Various utility routines are listed below.
 \end_layout
 
 \begin_layout Subsection*
+IMBALANCE_TOLERANCES (solfec, timint, condet, locdyn)
+\end_layout
+
+\begin_layout Standard
+This routine sets the imbalance tolerances for parallel balancing of Solfec
+ data.
+ A ratio of maximal to minimal per processor count of objects used.
+ Hence, 1.0 indicates perfect balance, while any ratio > 1.0 indicates an
+ imbalance.
+ Initially imbalance tolerances are all set to 1.3.
+ This routine is ignored during sequential runs.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+timint
+\series default
+ - time integration imbalance tolerance (default: 1.3)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+condet
+\series default
+ - contact detection imbalance tolerance (default: 1.3)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+locdyn
+\series default
+ - local dynamics imbalance tolerance (default: 1.3)
+\end_layout
+
+\begin_layout Subsection*
 LOCDYN_BALANCING (solfec, mode)
 \end_layout
 

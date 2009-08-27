@@ -66,9 +66,18 @@ LOCDYN_BALANCING (solfec, 'OFF')
 RUN (solfec, gs, 10 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
+
+  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'TIMBAL', 'CONBAL', 'LOCBAL']
   dur = DURATION (solfec)
-  gst = TIMING_HISTORY (solfec, 'CONSOL', dur[0], dur[1])
-  avg = 0.0
-  for tt in gst [1]: avg += tt
-  avg /= len (gst)
-  print 'AVERAGE CONSOL TIME: ', avg
+  total = 0.0
+
+  for timer in timers:
+    th = TIMING_HISTORY (solfec, timer, dur[0], dur[1])
+    sum = 0.0
+    for tt in th [1]: sum += tt
+    avg = sum / len (th [1])
+    total += sum
+    print 'AVG', timer, 'TIME:', avg
+
+  print 'TOTAL TIME:', total
+

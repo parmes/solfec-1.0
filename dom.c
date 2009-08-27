@@ -456,18 +456,7 @@ static void sparsify_contacts (DOM *dom)
     DOM_Remove_Constraint (dom, con); /* now remove from the domain */
   }
 
-  /* report */
-  if (dom->verbose)
-  {
-#if MPI
-    int sum, min, avg, max;
-
-    if (PUT_root_int_stats (n, &sum, &min, &avg, &max))
-      printf ("SPARSIFIED CONTACTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ",  sum, min, avg, max);
-#else
-    printf ("SPARSIFIED CONTACTS: %d ... ",  n);
-#endif
-  }
+  dom->nspa = n; /* record the number of sparsified contacts */
 
   /* clean up */
   MEM_Release (&mem);
@@ -866,12 +855,8 @@ static int domain_balance (DOM *dom)
 	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-#if DEBUG
-  int sum, min, avg, max;
 
-  if (dom->verbose && PUT_root_int_stats (num_export, &sum, &min, &avg, &max))
-    printf ("EXPORTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d ... ", sum, min, avg, max);
-#endif
+  dom->nexpbod = num_export; /* record this figure for later output statistics */
 
   /* SUMMARY: After partitioning update some bodies will be exported to other partitions.
    *          We need to maintain user prescribed non-contact constraints attached to those
@@ -926,7 +911,7 @@ static int domain_balance (DOM *dom)
   }
 
   Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-                       &export_global_ids, &export_local_ids, &export_procs); /* not needed */
+		       &export_global_ids, &export_local_ids, &export_procs); /* not needed */
 
   for (item = MAP_First (export_con); item; ) /* for each exported constraint */
   {
@@ -1041,6 +1026,20 @@ static int domain_balance (DOM *dom)
   free (conrecv);
 
   return changes;
+}
+
+/* try domein balancing */
+static void domain_try_balance (DOM *dom)
+{
+  int sum, min, avg, max;
+
+  /* compute inbalance of bodies in partitions */
+  PUT_int_stats (1, &dom->nbod, &sum, &min, &avg, &max);
+
+  double ratio = (double) max / (double) MAX (min, 1);
+
+  if (ratio > dom->imbalance_tolerance) domain_balance (dom);
+  else dom->nexpbod = 0;
 }
 
 /* return next pointer and realloc send data memory if needed */
@@ -1383,6 +1382,8 @@ static void create_mpi (DOM *dom)
   MEM_Init (&dom->extmem, sizeof (CONEXT), CONBLK);
 
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
+
+  dom->imbalance_tolerance = 1.3;
 
   /* general parameters */
   Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
@@ -1773,27 +1774,17 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   SOLFEC_Timer_Start (dom->owner, "TIMINT");
 
 #if MPI
-  if (dom->verbose && dom->rank == 0) printf ("DOMAIN BALANCING ... "), fflush (stdout);
+  if (dom->rank == 0)
+#endif
+  if (dom->verbose) printf ("DOMAIN ... "), fflush (stdout);
 
+#if MPI
   SOLFEC_Timer_Start (dom->owner, "TIMBAL");
 
-  domain_balance (dom);
+  domain_try_balance (dom);
 
   SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #endif
-
-  /* report bodies */
-  if (dom->verbose)
-  {
-#if MPI
-    int sum, min, avg, max;
-
-    if (PUT_root_int_stats (dom->nbod, &sum, &min, &avg, &max))
-      printf ("BODIES: SUM = %d, MIN = %d, AVG = %d, MAX = %d\n",  sum, min, avg, max);
-#else
-    printf ("BODIES: %d\n",  dom->nbod);
-#endif
-  }
 
   /* time and step */
   time = dom->time;
@@ -1850,19 +1841,6 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #endif
-
-  /* report contacts */
-  if (dom->verbose)
-  {
-#if MPI
-    int sum, min, avg, max;
-
-    if (PUT_root_int_stats (dom->ncon, &sum, &min, &avg, &max))
-      printf ("CONSTRAINTS: SUM = %d, MIN = %d, AVG = %d, MAX = %d\n",  sum, min, avg, max);
-#else
-    printf ("CONSTRAINTS: %d\n",  dom->ncon);
-#endif
-  }
 
   SOLFEC_Timer_End (dom->owner, "TIMINT");
 
@@ -1974,7 +1952,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
     for (i = 0; i < numprocs; i ++) 
     {
       if (dom->rank != procs [i]) /* skip current rank */
-        SET_Insert (&dom->setmem, &procset, (void*) (long) procs [i], NULL);
+	SET_Insert (&dom->setmem, &procset, (void*) (long) procs [i], NULL);
     }
 
     /* 3.5. if this body just migrated here, a child copy
@@ -2088,6 +2066,8 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
   }
   else bodsend = NULL;
 
+  dom->nexpchild = nbodsend; /* record for later statistics */
+
   /* send and receive children */
   COMOBJS (MPI_COMM_WORLD, TAG_CHILDREN_INSERT, (OBJ_Pack)BODY_Child_Pack, dom->owner, (OBJ_Unpack)BODY_Child_Unpack, bodsend, nbodsend, &bodrecv, &nbodrecv);
 
@@ -2107,7 +2087,11 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
   free (procs);
   free (send);
   free (recv);
+}
 
+/* update children shapes */
+void DOM_Update_Children (DOM *dom)
+{
   /* update children configurations and parent ranks */
   domain_gossip (dom);
 }
