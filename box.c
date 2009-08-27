@@ -258,7 +258,7 @@ static int dimensions (AABB *aabb, int *ierr)
 }
 
 /* list of body extent low points */
-static void lopoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int num_obj,
+static void boxpoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int num_obj,
   ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
 {
   BOX **aux, *box;
@@ -269,7 +269,7 @@ static void lopoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int 
   for (i = 0; i < num_obj; i ++, geom_vec += num_dim)
   {
     box = aux [local_ids [i * num_lid_entries]];
-    COPY (box->extents, geom_vec);
+    MID (box->extents, box->extents + 3, geom_vec);
   }
 
   *ierr = ZOLTAN_OK;
@@ -735,7 +735,7 @@ static void create_mpi (AABB *aabb)
   Zoltan_Set_Fn (aabb->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) box_count, aabb);
   Zoltan_Set_Fn (aabb->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) box_list, aabb);
   Zoltan_Set_Fn (aabb->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, aabb);
-  Zoltan_Set_Fn (aabb->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) lopoints, aabb);
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) boxpoints, aabb);
 }
 
 /* destroy MPI related data */
