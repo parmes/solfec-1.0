@@ -915,8 +915,6 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   BOX *box, *next, *adj;
   MAP *item, *jtem;
 
-  SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONDET");
-
 #if MPI
   if (DOM(aabb->dom)->rank == 0)
 #endif
@@ -933,6 +931,8 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
    * before box extens are updated next */
   DOM_Update_Children (aabb->dom);
 #endif
+
+  SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONDET");
 
   /* update extents */
   for (box = aabb->lst; box; box = box->next) /* for each current box */

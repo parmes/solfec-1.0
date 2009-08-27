@@ -1380,8 +1380,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   double step = dom->step;
   DIAB *dia;
 
-  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCDYN");
-
 #if MPI
   if (dom->rank == 0)
 #endif
@@ -1394,6 +1392,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
   SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCBAL");
 #endif
+
+  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCDYN");
 
   /* calculate local velocities and
    * assmeble the force-velocity 'W' operator */
@@ -1508,6 +1508,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   /* forward variables change */
   variables_change_begin (ldy);
 
+  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCDYN");
+
 #if MPI
   if (dom->verbose && dom->rank == 0)
   {
@@ -1525,8 +1527,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
   SOLFEC_Timer_End (dom->owner, "LOCBAL");
 #endif
-
-  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCDYN");
 }
 
 /* updiae local dynamics => after the solution */
@@ -1540,6 +1540,8 @@ void LOCDYN_Update_End (LOCDYN *ldy)
   /* not modified */
   ldy->modified = 0;
 
+  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCDYN");
+
 #if MPI
   SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
 
@@ -1547,8 +1549,6 @@ void LOCDYN_Update_End (LOCDYN *ldy)
 
   SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCBAL");
 #endif
-
-  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCDYN");
 }
 
 #if MPI

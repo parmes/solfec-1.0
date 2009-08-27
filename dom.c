@@ -1771,8 +1771,6 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   BODY *bod;
   CON *con;
 
-  SOLFEC_Timer_Start (dom->owner, "TIMINT");
-
 #if MPI
   if (dom->rank == 0)
 #endif
@@ -1785,6 +1783,8 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #endif
+
+  SOLFEC_Timer_Start (dom->owner, "TIMINT");
 
   /* time and step */
   time = dom->time;
@@ -1809,6 +1809,8 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     for (bod = dom->bod; bod; bod = bod->next)
       BODY_Static_Step_Begin (bod, time, step);
 
+  SOLFEC_Timer_End (dom->owner, "TIMINT");
+
   /* detect contacts */
   timerstart (&timing);
 
@@ -1818,8 +1820,14 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   aabb_timing (dom, timerend (&timing));
 
+  SOLFEC_Timer_Start (dom->owner, "CONDET");
+
   /* sparsify new contacts */
   sparsify_contacts (dom);
+
+  SOLFEC_Timer_End (dom->owner, "CONDET");
+
+  SOLFEC_Timer_Start (dom->owner, "TIMINT");
 
   /* update old constraints */
   for (con = dom->con; con; con = con->next)
@@ -1834,6 +1842,8 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     }
   }
 
+  SOLFEC_Timer_End (dom->owner, "TIMINT");
+
 #if MPI
   SOLFEC_Timer_Start (dom->owner, "TIMBAL");
 
@@ -1841,8 +1851,6 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #endif
-
-  SOLFEC_Timer_End (dom->owner, "TIMINT");
 
   /* output local dynamics */
   return dom->ldy;
@@ -1857,8 +1865,6 @@ void DOM_Update_End (DOM *dom)
   SET *del, *item;
   BODY *bod;
 
-  SOLFEC_Timer_Start (dom->owner, "TIMINT");
-
 #if MPI
   SOLFEC_Timer_Start (dom->owner, "TIMBAL");
 
@@ -1866,6 +1872,8 @@ void DOM_Update_End (DOM *dom)
 
   SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #endif
+
+  SOLFEC_Timer_Start (dom->owner, "TIMINT");
 
   /* time and step */
   time = dom->time;

@@ -308,7 +308,7 @@ static void statsout (SOLFEC *sol)
 
   if (PUT_root_int_stats (9, val, sum, min, avg, max))
   {
-    for (i = 0; i < N; i ++) printf ("%13s: SUM = %6d     MIN = %6d     AVG = %6d     MAX = %6d\n",
+    for (i = 0; i < N; i ++) printf ("%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n",
 				     name [i], sum [i], min [i], avg [i], max [i]);
     printf ("----------------------------------------------------------------------------------\n");
   }
@@ -319,7 +319,7 @@ static void statsout (SOLFEC *sol)
 
   int val [] = {dom->nbod, aabb->nlst, dom->ncon, dom->nspa}, i;
 
-  for (i = 0; i < N; i ++) printf ("%11s: %6d\n", name [i], val [i]);
+  for (i = 0; i < N; i ++) printf ("%11s: %8d\n", name [i], val [i]);
 
   printf ("------------------------------------------------------\n");
 #endif

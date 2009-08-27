@@ -5485,8 +5485,6 @@ kind
  (time integration balancing), 'CONBAL' (contact detection balancing), 'LOCBAL'
  (local dynamics balancing).
  The balancing timings are non-zero only for parallel runs.
- The balancing times are included in the corresponding total timings, e.g.
- 'TIMINT' includes 'TIMBAL'.
 \end_layout
 
 \begin_layout Subsection*
