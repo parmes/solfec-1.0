@@ -1045,9 +1045,6 @@ static void locdyn_gossip (LOCDYN *ldy)
 	else dia->adj = NULL;
       }
     }
-
-    ldy->ndiab = 0;
-    ldy->diab = NULL;
   }
   else
   {

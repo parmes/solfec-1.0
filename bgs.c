@@ -1135,7 +1135,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     MPI_Reduce (sizes, result, 4, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
     if (rank == 0)
-      printf ("GAUSS_SEIDEL: (SUM) |BOT| = %d, |MID| = %d, |TOP| = %d, |INT| = %d\n",
+      printf ("GAUSS_SEIDEL: |BOT| = %d, |MID| = %d, |TOP| = %d, |INT| = %d\n",
 	    result [0], result [1], result [2], result [3]);
   }
 #endif
