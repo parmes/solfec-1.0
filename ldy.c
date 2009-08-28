@@ -1744,36 +1744,56 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
 }
 
 /* pack union data */
-static void pack_union (SET *upd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+static void pack_union (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  /* pack updated blocks */
-  pack_int (isize, i, ints, SET_Size (upd));
-  for (SET *item = SET_First (upd); item; item = SET_Next (item))
+  pack_int (isize, i, ints, SET_Size (set));
+  for (SET *item = SET_First (set); item; item = SET_Next (item))
   {
     DIAB *dia = item->data;
     pack_block (dia, dsize, d, doubles, isize, i, ints);
     pack_int (isize, i, ints, dia->id);
+
+    /* pack children */
+    pack_int (isize, i, ints, MAP_Size (dia->children));
+    for (MAP *jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem))
+    {
+      pack_int (isize, i, ints, (int) (long) jtem->key);
+      pack_int (isize, i, ints, (int) (long) jtem->data);
+    }
   }
 }
 
 /* unpack union data */
 static void* unpack_union (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  int nupd;
+  SET *out;
+  int ndia;
 
-  nupd = unpack_int (ipos, i, ints);
-  for (; nupd > 0; nupd --)
+  ndia = unpack_int (ipos, i, ints);
+  for (out = NULL; ndia> 0; ndia --)
   {
     DIAB *dia;
     ERRMEM (dia = MEM_Alloc (&ldy->diamem));
-    unpack_block (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
+    unpack_block (dia, &ldy->offmem, NULL, dpos, d, doubles, ipos, i, ints);
     dia->id = unpack_int (ipos, i, ints);
+
+    /* unpack children */
+    int n, rnk, idx, nch = unpack_int (ipos, i, ints);
+    for (n = 0; n < nch; n ++)
+    {
+      rnk = unpack_int (ipos, i, ints);
+      idx = unpack_int (ipos, i, ints);
+      MAP_Insert (&ldy->mapmem, &dia->children, (void*) (long) rnk, (void*) (long) idx, NULL);
+    }
+
+    /* inser into the output set */
+    SET_Insert (&ldy->setmem, &out, dia, NULL);
   }
 
-  return NULL;
+  return out;
 }
 
-/* MPI operator callback to used to find minimal score rank */
+/* MPI operator callback used to find minimal score rank */
 static void min_score (int *in, int *inout, int *len, MPI_Datatype *type)
 {
   int i;
@@ -1790,6 +1810,26 @@ static void min_score (int *in, int *inout, int *len, MPI_Datatype *type)
     in += 2;
   }
 }
+
+typedef struct union_pattern UNION_PATTERN;
+
+struct union_pattern
+{
+  COMOBJ *recv; /* gathers sets from not-minimal-score ranks */
+  int nrecv;
+
+  XR *REXT; /* external reactions used in OFFBs on the minimal-score rank */
+  int REXT_count;
+
+  MEM ints; /* integer singletons */
+  void *pattern; /* REXT update pattern */
+  COMDATA *send_pattern,
+	  *recv_pattern;
+  int nsend_pattern,
+      nrecv_pattern;
+
+  SET *uni; /* union of mid node sets (not NULL ony on minimal-score rank) */
+};
 
 /* return the union of 'inp' sets at the processor with smallest 'score'; return a
  * communication 'pattern' used to update off-diagonal reactions in the union */
@@ -1809,21 +1849,232 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   MPI_Type_free (&type);
   MPI_Op_free (&op);
 
-  /* TODO */
+  COMOBJ send, *ptr, *end;
+  UNION_PATTERN *up;
+  int i, nsend;
+  XR *x;
+ 
+  ERRMEM (up = calloc (1, sizeof (UNION_PATTERN)));
+  MEM_Init (&up->ints, sizeof (int), BLKSIZE);
 
-  return NULL;
+  if (in [1] != out [1]) /* we do need to send the 'inp'ut set */
+  {
+    send.rank = out [1]; /* all processors send their 'inp'ut sets to the one having minimal score */
+    send.o = inp;
+    nsend = 1;
+  }
+  else nsend = 0; /* this is the minimal score owner */
+
+  /* send and receive block sets */
+  COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_UNION_INIT, (OBJ_Pack) pack_union,
+           ldy, (OBJ_Unpack) unpack_union, &send, nsend, &up->recv, &up->nrecv);
+
+  MAP *idtoext;
+
+  /* map off-diagonal blocks of imported rows to op->REXT indices */
+  for (idtoext = NULL, ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
+  {
+    SET *item;
+    DIAB *dia;
+    OFFB *b;
+
+    for (item = SET_First (ptr->o); item; item = SET_Next (item))
+    {
+      for (dia = item->data, b = dia->adj; b; b = b->n)
+      {
+	if (!MAP_Find_Node (idtoext, (void*) (long) b->id, NULL))
+	{
+	  MAP_Insert (&ldy->mapmem, &idtoext, (void*) (long) b->id, (void*) (long) up->REXT_count, NULL);
+	  up->REXT_count ++;
+	}
+      }
+    }
+  }
+
+  /* allocate external reactions now */
+  if (up->REXT_count) ERRMEM (up->REXT = malloc (sizeof (XR [up->REXT_count])));
+  for (i = 0, x = up->REXT; i < up->REXT_count; i ++, x ++) x->rank = -1; /* invalidate ranks */
+
+  /* map them to off-diagonal blocks now */
+  for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
+  {
+    SET *item;
+    DIAB *dia;
+    OFFB *b;
+
+    for (item = SET_First (ptr->o); item; item = SET_Next (item))
+    {
+      for (dia = item->data, b = dia->adj; b; b = b->n)
+      {
+	MAP *node;
+
+	ASSERT_DEBUG_EXT (node = MAP_Find_Node (idtoext, (void*) (long) b->id, NULL), "Inconsistent ID to rank mapping");
+
+	x = &up->REXT [(int) (long) node->data];
+	b->x = x;
+
+	if (x->rank < 0)
+	{
+	  x->done = 0;
+	  x->rank = ptr->rank;
+	  x->id = (int) (long) node->key;
+	}
+      }
+    }
+  }
+
+#if DEBUG
+  for (i = 0, x = up->REXT; i < up->REXT_count; i ++, x ++)
+    ASSERT_DEBUG (x->id && x->rank >= 0, "Inconsitency in mapping external reactions");
+#endif
+
+  /* now send (id, index) pairs to parent blocks pointed by their ranks in REXT;
+   * this way we shall fill up the 'children' members of balanced blocks */
+
+  COMDATA *dsend = NULL, *drecv, *qtr, *otr;
+  int j, k, ssiz, nrecv, *pair;
+  DIAB *dia;
+  CON *con;
+
+  if ((nsend = up->REXT_count))
+  {
+    ERRMEM (dsend = malloc (sizeof (COMDATA [nsend]) + sizeof (int [nsend * 2])));;
+    pair = (int*) (dsend + nsend);
+
+    for (i = 0, x = up->REXT, qtr = dsend; i < nsend; i ++, x ++, qtr ++, pair += 2)
+    {
+      qtr->rank = x->rank;
+      qtr->ints = 2;
+      qtr->doubles = 0;
+      qtr->i = pair;
+      qtr->d = NULL;
+      pair [0] = x->id;
+      pair [1] = (x - up->REXT);
+    }
+  }
+
+  COM (MPI_COMM_WORLD, TAG_LOCDYN_UNION_REXT, dsend, nsend, &drecv, &nrecv);
+
+  ssiz = MAX (nrecv, 128);
+  ERRMEM (up->send_pattern = malloc (sizeof (COMDATA [ssiz])));
+  otr = up->send_pattern;
+
+  for (i = 0, qtr = drecv; i < nrecv; i ++, qtr ++)
+  {
+    for  (j = 0, pair = qtr->i; j < qtr->ints; j += 2, pair += 2)
+    {
+      double *R = NULL;
+
+      if (ldy->ldb == LDB_OFF)
+      {
+        if ((con = MAP_Find (DOM(ldy->dom)->idc, (void*) (long) pair [0], NULL))) R = con->R;
+      }
+      else
+      {
+        if ((dia = MAP_Find (ldy->idbb, (void*) (long) pair [0], NULL))) R = dia->R;
+      }
+
+      if (R == NULL) /* must be in ldy->REXT */
+      {
+	for (k = 0, x = ldy->REXT; k < ldy->REXT_count; x ++, k ++) /* linear search => TODO: binary map of ids to REXT really needed? */
+	{
+	  if (x->id == pair [0])
+	  {
+	    R = x->R;
+	    break;
+	  }
+	}
+      }
+
+      ASSERT_DEBUG (R, "Inconsitent mapping of ID to reaction");
+
+      /* map R to qtr->rank and the local index pair [1] of REXT there */
+      otr->rank = qtr->rank;
+      otr->ints = 1;
+      otr->doubles = 3;
+      otr->i = MEM_Alloc (&up->ints);
+      otr->i [0] = pair [1];
+      otr->d = R;
+      otr = sendnext (++ up->nsend_pattern, &ssiz, &up->send_pattern);
+    }
+  }
+
+  free (dsend);
+  free (drecv);
+
+  /* create update communication pattern */
+  up->pattern = COM_Pattern (MPI_COMM_WORLD, TAG_LOCDYN_UNION_UPDATE,
+    up->send_pattern, up->nsend_pattern, &up->recv_pattern, &up->nrecv_pattern);
+
+  /* create return set now */
+  up->uni = NULL;
+  if (up->nrecv)
+  {
+    for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
+      for (SET *item = SET_First (ptr->o); item; item = SET_Next (item))
+	SET_Insert (&ldy->setmem, &up->uni, item->data, NULL);
+    for (SET *item = SET_First (inp); item; item = SET_Next (item))
+      SET_Insert (&ldy->setmem, &up->uni, item->data, NULL);
+  }
+
+  /* initial update of up->REXT  */
+  LOCDYN_Union_Update (up); 
+
+  /* clean up */
+  MAP_Free (&ldy->mapmem, &idtoext);
+
+  *pattern = up;
+  return up->uni;
 }
 
 /* update off-diagonal reactions in the union */
 void LOCDYN_Union_Update (void *pattern)
 {
-  /* TODO */
+  UNION_PATTERN *up = pattern;
+
+  COM_Repeat (up->pattern);
 }
 
 /* release memory used by the union set */
-void LOCDYN_Union_Destroy (LOCDYN *ldy, SET **uni)
+void LOCDYN_Union_Destroy (LOCDYN *ldy, void *pattern)
 {
-  /* TODO */
+  UNION_PATTERN *up = pattern;
+
+  COMOBJ *ptr, *end;
+
+  for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++) /* free received blocks data */
+  {
+    for (SET *item = SET_First (ptr->o); item; item = SET_Next (item))
+    {
+      OFFB *b, *n;
+      DIAB *dia;
+
+      for (dia = item->data, b = dia->adj; b; b = n) /* off-diagonal */
+      {
+	n = b->n;
+	MEM_Free (&ldy->offmem, b);
+      }
+
+      MAP_Free (&ldy->mapmem, &dia->children); /* children */
+      MEM_Free (&ldy->diamem, dia); /* diagonal */
+    }
+
+    SET_Free (&ldy->setmem, (SET**) ptr->o); /* the whole set */
+  }
+
+  free (up->recv);
+  free (up->REXT);
+
+  /* communicatio pattern data */
+  MEM_Release (&up->ints);
+  COM_Free (up->pattern);
+  free (up->send_pattern);
+  free (up->recv_pattern);
+
+  /* the union set */
+  SET_Free (&ldy->setmem, &up->uni);
+
+  free (up);
 }
 #endif
 

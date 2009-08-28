@@ -194,7 +194,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern);
 void LOCDYN_Union_Update (void *pattern);
 
 /* release memory used by the union set */
-void LOCDYN_Union_Destroy (LOCDYN *ldy, SET **uni);
+void LOCDYN_Union_Destroy (LOCDYN *ldy, void *pattern);
 #endif
 
 /* free memory */
