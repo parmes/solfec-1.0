@@ -1742,6 +1742,89 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
   free (send);
   free (recv);
 }
+
+/* pack union data */
+static void pack_union (SET *upd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  /* pack updated blocks */
+  pack_int (isize, i, ints, SET_Size (upd));
+  for (SET *item = SET_First (upd); item; item = SET_Next (item))
+  {
+    DIAB *dia = item->data;
+    pack_block (dia, dsize, d, doubles, isize, i, ints);
+    pack_int (isize, i, ints, dia->id);
+  }
+}
+
+/* unpack union data */
+static void* unpack_union (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int nupd;
+
+  nupd = unpack_int (ipos, i, ints);
+  for (; nupd > 0; nupd --)
+  {
+    DIAB *dia;
+    ERRMEM (dia = MEM_Alloc (&ldy->diamem));
+    unpack_block (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
+    dia->id = unpack_int (ipos, i, ints);
+  }
+
+  return NULL;
+}
+
+/* MPI operator callback to used to find minimal score rank */
+static void min_score (int *in, int *inout, int *len, MPI_Datatype *type)
+{
+  int i;
+
+  for (i = 0; i < *len; i ++)
+  {
+    if (*in < *inout)
+    {
+      inout [0] = in [0];
+      inout [1] = in [1];
+    }
+
+    inout += 2;
+    in += 2;
+  }
+}
+
+/* return the union of 'inp' sets at the processor with smallest 'score'; return a
+ * communication 'pattern' used to update off-diagonal reactions in the union */
+SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
+{
+  int in [2], out [2];
+  MPI_Datatype type;
+  MPI_Op op;
+
+  in [0] = score;
+  in [1] = DOM(ldy->dom)->rank;
+
+  MPI_Type_contiguous (2, MPI_INT, &type);
+  MPI_Type_commit (&type);
+  MPI_Op_create ((MPI_User_function*)min_score, 1, &op);
+  MPI_Allreduce (in, out, 1, type, op, MPI_COMM_WORLD); /* compute (min(score), rank(min(score))) in out */
+  MPI_Type_free (&type);
+  MPI_Op_free (&op);
+
+  /* TODO */
+
+  return NULL;
+}
+
+/* update off-diagonal reactions in the union */
+void LOCDYN_Union_Update (void *pattern)
+{
+  /* TODO */
+}
+
+/* release memory used by the union set */
+void LOCDYN_Union_Destroy (LOCDYN *ldy, SET **uni)
+{
+  /* TODO */
+}
 #endif
 
 /* free memory */

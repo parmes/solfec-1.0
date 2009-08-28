@@ -126,7 +126,7 @@ int main (int argc, char **argv)
     {
       double extents [6] = {-1, -1, -1, 1, 1, 1};
 
-      GLV (&argc, argv, "Solfec", 500, 500, extents, /* run viewer */
+      GLV (&argc, argv, "Solfec", 512, 512, extents, /* run viewer */
 	   RND_Menu, RND_Init, RND_Idle, RND_Quit, RND_Render,
 	   RND_Key, RND_Keyspec, RND_Mouse, RND_Motion, RND_Passive);
     }

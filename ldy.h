@@ -185,6 +185,16 @@ void LOCDYN_Balancing (LOCDYN *ldy, LDB ldb);
 
 /* update mapping of balanced external reactions */
 void LOCDYN_REXT_Update (LOCDYN *ldy);
+
+/* return the union of 'inp' sets at the processor with smallest 'score'; return a
+ * communication 'pattern' used to update off-diagonal reactions in the union */
+SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern);
+
+/* update off-diagonal reactions in the union */
+void LOCDYN_Union_Update (void *pattern);
+
+/* release memory used by the union set */
+void LOCDYN_Union_Destroy (LOCDYN *ldy, SET **uni);
 #endif
 
 /* free memory */
