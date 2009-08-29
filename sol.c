@@ -483,7 +483,12 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
       /* statistics are printed every
        * human perciveable period of time */
-      if ((tt = timerend (&tim))  < 0.5 && verbose) verbose = verbose_off (sol, kind, solver);
+#if MPI
+      tt = PUT_timerend (&tim);
+#else
+      tt = timerend (&tim);
+#endif
+      if (tt < 0.5 && verbose) verbose = verbose_off (sol, kind, solver);
       else if (tt >= 0.5) { statsout (sol); verbose = verbose_on (sol, kind, solver); timerstart (&tim); }
     }
   }

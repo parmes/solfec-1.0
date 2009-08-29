@@ -18,6 +18,9 @@
 #include <pthread.h>
 #include "com.h"
 #include "tag.h"
+
+#define XSET 1 /* transfer mid nodes on one processor */
+
 #endif
 
 static int projected_gradient (short dynamic, double epsilon, int maxiter,
@@ -880,6 +883,7 @@ static int gauss_siedel_sweep (SET *set, int reverse,
   return dimax;
 }
 
+#if !XSET
 /* perform a Guss-Seidel loop over a set of blocks */
 static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
   GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
@@ -968,6 +972,7 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
   return dimax;
 }
+#endif
 
 #if MPITHREADS
 typedef struct gauss_seidel_thread_data GSTD;
@@ -1084,7 +1089,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   char fmt [512];
   MEM *setmem;
   DIAB *dia;
+#if !XSET
   void *tmp;
+#endif
   int div = 10,
       mycolor,
      *color,
@@ -1105,7 +1112,17 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   SET *bot  = NULL, /* blocks that only send to higher processors */
       *top  = NULL, /* blocks that only send to lower processors */
       *mid  = NULL, /* blocks that send to higher and lower processors */
-      *inb  = NULL; /* internal blocks  */
+      *inb  = NULL; /* internal blocks */
+
+#if XSET
+  SET *in1  = NULL,
+      *in2  = NULL;
+
+  int size1 = 0,
+      size2 = 0,
+      size3 = 0,
+      size4;
+#endif
 
   /* create block sets */
   for (dia = ldy->diab; dia; dia = dia->n)
@@ -1121,11 +1138,39 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       else lo ++;
     }
 
+#if XSET
+    if (lo && hi) SET_Insert (setmem, &mid, dia, NULL);
+    else if (lo) SET_Insert (setmem, &bot, dia, NULL), size1 += dia->degree;
+    else if (hi) SET_Insert (setmem, &top, dia, NULL), size2 += dia->degree;
+    else SET_Insert (setmem, &inb, dia, NULL), size3 += dia->degree;
+#else
     if (lo && hi) SET_Insert (setmem, &mid, dia, NULL);
     else if (lo) SET_Insert (setmem, &bot, dia, NULL);
     else if (hi) SET_Insert (setmem, &top, dia, NULL);
     else SET_Insert (setmem, &inb, dia, NULL);
+#endif
   }
+
+#if XSET
+  /* size1 + |in2| = size2 + |in1|
+   * |in1| + |in2| = size3
+   * -------------------------------
+   * |in2| = (size3 + size2 - size1) / 2
+   */
+
+  size4 = (size3 + size2 - size1) / 2;
+  size4 = MAX (0, size4);
+  tmq = 0;
+
+  /* create in1 and in2 such that: |bot| + |in2| = |top| + |in1| */
+  for (SET *item = SET_First (inb); item; item = SET_Next (item))
+  {
+    dia = item->data;
+
+    if (tmq < size4) SET_Insert (setmem, &in2, dia, NULL), tmq += dia->degree;
+    else SET_Insert (setmem, &in1, dia, NULL);
+  }
+#endif
 
 #if DEBUG
   if (gs->verbose)
@@ -1198,6 +1243,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   GSTD *data = gauss_seidel_thread_create (mid, mycolor, color, gs, ldy, dynamic, step);
 #endif
 
+#if XSET
+  void *xpattern;
+  SET *xset = LOCDYN_Union_Create (ldy, mid, ldy->ndiab, &xpattern);
+#endif
+
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
   gs->error = GS_OK;
@@ -1210,6 +1260,35 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	   errloc [2],
 	   errsum [2];
 
+    REXT_undo (ldy); /* undo all external reactions */
+
+#if XSET
+    di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo);
+    dimax = MAX (dimax, di);
+    COM_Send (bot_pattern);
+
+    di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo);
+    dimax = MAX (dimax, di);
+
+    COM_Recv (bot_pattern);
+    REXT_recv (ldy, recv_bot, nrecv_bot);
+
+    di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo);
+    dimax = MAX (dimax, di);
+    COM_Send (top_pattern);
+
+    di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo);
+    dimax = MAX (dimax, di);
+
+    COM_Recv (top_pattern);
+    REXT_recv (ldy, recv_top, nrecv_top);
+
+    LOCDYN_Union_Import (xpattern);
+    di = gauss_siedel_sweep (xset, 0, gs, dynamic, step, &errup, &errlo);
+    dimax = MAX (dimax, di);
+    LOCDYN_Union_Export (xpattern);
+
+#else
     if (gs->iters % 2) /* reverse */
     {
       tmp = bot_pattern; bot_pattern = top_pattern; top_pattern = tmp;
@@ -1217,8 +1296,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       tmp = recv_bot; recv_bot = recv_top; recv_top = tmp;
       tmp = bot; bot = top; top = tmp;
     }
-
-    REXT_undo (ldy); /* undo all external reactions */
 
     di = gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
     dimax = MAX (dimax, di);
@@ -1249,8 +1326,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     REXT_recv (ldy, recv_bot, nrecv_bot); /* update received external reactions */
 
-    ASSERT_DEBUG (REXT_alldone (ldy), "All external reactions should be done by now");
-
     if (gs->iters % 2) /* reverse */
     {
       tmp = bot_pattern; bot_pattern = top_pattern; top_pattern = tmp;
@@ -1258,6 +1333,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       tmp = recv_bot; recv_bot = recv_top; recv_top = tmp;
       tmp = bot; bot = top; top = tmp;
     }
+#endif
+
+    ASSERT_DEBUG (REXT_alldone (ldy), "All external reactions should be done by now");
 
     /* get maximal iterations count of a diagonal block solver */
     MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
@@ -1289,6 +1367,12 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
 #if MPITHREADS
   gauss_seidel_thread_destroy (data);
+#endif
+
+#if XSET
+  LOCDYN_Union_Destroy (xpattern);
+  SET_Free (setmem, &in1);
+  SET_Free (setmem, &in2);
 #endif
   SET_Free (setmem, &bot);
   SET_Free (setmem, &mid);

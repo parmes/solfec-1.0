@@ -44,6 +44,16 @@ enum upkind
 
 typedef enum upkind UPKIND;
 
+enum locdyn_approach /* linearisation approaches */
+{
+  SEMISMOOTH_STRICT,
+  SEMISMOOTH_HYBRID,
+  VARIATIONAL_NONSMOOTH,
+  VARIATIONAL_SMOOTHED,
+};
+
+typedef enum locdyn_approach LOCDYN_APPROACH;
+
 #if MPI
 /* eXternal Reaction */
 typedef struct { double R [3]; int id; int rank; short done; } XR;
@@ -190,12 +200,30 @@ void LOCDYN_REXT_Update (LOCDYN *ldy);
  * communication 'pattern' used to update off-diagonal reactions in the union */
 SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern);
 
-/* update off-diagonal reactions in the union */
-void LOCDYN_Union_Update (void *pattern);
+/* update off-diagonal reactions in the union (one blocking step) */
+void LOCDYN_Union_Import (void *pattern);
+
+/* update diagonal reactions from the union on other processors */
+void LOCDYN_Union_Export (void *pattern);
+
+/* begin non-blocking export */
+void LOCDYN_Union_Send (void *pattern);
+
+/* end non-blocking export */
+void LOCDYN_Union_Recv (void *pattern);
 
 /* release memory used by the union set */
-void LOCDYN_Union_Destroy (LOCDYN *ldy, void *pattern);
+void LOCDYN_Union_Destroy (void *pattern);
 #endif
+
+/* set an approach to the linearisation of local dynamics */
+void LOCDYN_Approach (LOCDYN *ldy, LOCDYN_APPROACH approach);
+
+/* assemble tangent operator */
+void LOCDYN_Tangent (LOCDYN *ldy);
+
+/* compute merit function */
+double LOCDYN_Merit (LOCDYN *ldy);
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);

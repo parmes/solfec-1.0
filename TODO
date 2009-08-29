@@ -1,4 +1,5 @@
 Time step control
 ---------------------------
 Energy balance
----------------------------
+-----------------------------------------
+Merit function for convergence control
