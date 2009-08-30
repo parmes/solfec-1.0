@@ -551,6 +551,21 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
   return NULL;
 }
 
+/* copy constraint data into the block */
+static void copycon (DIAB *dia)
+{
+  CON *con = dia->con;
+
+  for (int i = 0; i < DOM_Z_SIZE; i ++)
+    dia->Z [i] = con->Z [i];
+  COPY (con->point, dia->point);
+  NNCOPY (con->base, dia->base);
+  COPY (con->mpnt, dia->mpnt);
+  dia->gap = con->gap;
+  dia->kind = con->kind;
+  dia->mat = con->mat;
+}
+
 /* reset balancing approach */
 static void ldb_reset (LOCDYN *ldy)
 {
@@ -960,16 +975,7 @@ static void locdyn_balance (LOCDYN *ldy)
     SET *upd = NULL;
     for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
     {
-      CON *con = dia->con;
-
-      for (i = 0; i < DOM_Z_SIZE; i ++)
-	dia->Z [i] = con->Z [i];
-      COPY (con->point, dia->point);
-      NNCOPY (con->base, dia->base);
-      COPY (con->mpnt, dia->mpnt);
-      dia->gap = con->gap;
-      dia->kind = con->kind;
-      dia->mat = con->mat;
+      copycon (dia);
 
       if (dia->rank == dom->rank)
       {
@@ -1750,6 +1756,9 @@ static void pack_union (SET *set, int *dsize, double **d, int *doubles, int *isi
   for (SET *item = SET_First (set); item; item = SET_Next (item))
   {
     DIAB *dia = item->data;
+
+    if (dia->con) copycon (dia); /* copy constraint data */
+
     pack_block (dia, dsize, d, doubles, isize, i, ints);
     pack_int (isize, i, ints, dia->id);
 
