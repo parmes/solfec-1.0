@@ -68,6 +68,7 @@ static DATA* data_create (void)
   part = 1.0 / (double) SIZE;
   data->aabb_limits [0] = 0.0;
   data->aabb_counter = 0;
+  data->aabb_algo = 0;
 
   return data;
 }
@@ -155,6 +156,9 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, short locdyn)
 static BOXALG aabb_algorithm (DOM *dom)
 {
   DATA *data = dom->data;
+
+  /*FIXME: NULL box->body after sweep algorithm (-np 2 inp/drum.py) */
+#if 0
   double num, *tim, *lim;
   int i;
 
@@ -180,7 +184,10 @@ static BOXALG aabb_algorithm (DOM *dom)
     }
   }
 
+  return data->aabb_algo;
+#else
   return (data->aabb_algo = HYBRID);
+#endif
 }
 
 /* update timing related data */

@@ -1821,45 +1821,67 @@ static void min_score (int *in, int *inout, int *len, MPI_Datatype *type)
   }
 }
 
+/* id and reaction pair */
+typedef struct id_r_pair ID_R_PAIR;
+
+struct id_r_pair
+{
+  int id;
+  double R [3];
+};
+
 /* union communication patterns and data */
 typedef struct union_pattern UNION_PATTERN;
 
 struct union_pattern
 {
+  int root; /* minimal score rank */
+
   COMOBJ *recv; /* gathers sets from not-minimal-score ranks */
   int nrecv;
 
-  XR *REXT; /* external reactions used in OFFBs on the minimal-score rank */
+  XR *REXT; /* external reactions used in OFFBs that cannot be locally mapped */
   int REXT_count;
 
-  MEM ints; /* integer singletons */
-  void *import_pattern; /* REXT update pattern */
-  COMDATA *send_import,
-	  *recv_import;
-  int nsend_import,
-      nrecv_import;
+  MPI_Datatype id_r_type; /* description of ID_R_PAIR */
 
-  void *export_pattern; /* dia->R and children update pattern */
-  COMDATA *send_export,
-	  *recv_export;
-  int nsend_export,
-      nrecv_export;
+  double **gather_R; /* pointers of reactions to be coppied into gather_send */
+  ID_R_PAIR *gather_send;
+  int gather_send_count;
 
-  LOCDYN *ldy; /* just a copy of LOCDYN to simply update interface */
+  ID_R_PAIR *gather_recv;
+  int *gather_recv_counts;
+  int *gather_recv_disps;
+  int gather_count;
 
-  SET *uni; /* union of mid node sets (not NULL ony on minimal-score rank) */
+  double **scatter_R; /* pointers of reactions to be coppied into scatter_send */
+  ID_R_PAIR *scatter_send;
+  int *scatter_send_counts;
+  int *scatter_send_disps;
+  int scatter_count;
+
+  ID_R_PAIR *scatter_recv;
+  int scatter_recv_count;
+
+  LOCDYN *ldy;
+
+  SET *uni; /* union of mid node sets (not NULL on root rank) */
 };
 
-/* return the union of 'inp' sets at the processor with smallest 'score'; return a
- * communication 'pattern' used to update off-diagonal reactions in the union */
+/* return the union of 'inp' sets at the processor with smallest 'score'; return
+ * communication 'pattern' used to gather and scatter reactions in the union */
 SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
 {
   int in [2], out [2];
   MPI_Datatype type;
+  int rank, ncpu;
   MPI_Op op;
 
+  rank = DOM(ldy->dom)->rank;
+  ncpu = DOM(ldy->dom)->ncpu;
+
   in [0] = score;
-  in [1] = DOM(ldy->dom)->rank;
+  in [1] = rank;
 
   MPI_Type_contiguous (2, MPI_INT, &type);
   MPI_Type_commit (&type);
@@ -1873,21 +1895,39 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   int i, nsend;
   DIAB *dia;
   SET *item;
+  MAP *jtem;
   CON *con;
   OFFB *b;
   XR *x;
  
   ERRMEM (up = calloc (1, sizeof (UNION_PATTERN)));
-  MEM_Init (&up->ints, sizeof (int), BLKSIZE);
+  up->root = out [1];
   up->ldy = ldy;
 
-  if (in [1] != out [1]) /* we do need to send the 'inp'ut set */
+  ID_R_PAIR id_r_example;
+  MPI_Datatype id_r_types [3] = {MPI_INT, MPI_DOUBLE, MPI_UB};
+  MPI_Aint id_r_disps [3], id_r_base, id_r_id, id_r_R;
+  int id_r_lengths [3] = {1, 3, 1};
+
+  MPI_Get_address (&id_r_example.id, &id_r_id);
+  MPI_Get_address (&id_r_example, &id_r_base);
+  MPI_Get_address (&id_r_example.R, &id_r_R);
+
+  id_r_disps [0] = id_r_id - id_r_base;
+  id_r_disps [1] = id_r_R - id_r_base;
+  id_r_disps [2] = sizeof (id_r_example);
+
+  /* create ID_R_PAIR type descriptor */
+  MPI_Type_create_struct (3, id_r_lengths, id_r_disps, id_r_types, &up->id_r_type);
+  MPI_Type_commit (&up->id_r_type);
+
+  if (in [1] != out [1]) /* we are sending the 'inp'ut set */
   {
     send.rank = out [1]; /* all processors send their 'inp'ut sets to the one having minimal score */
     send.o = inp;
     nsend = (inp ? 1 : 0);
   }
-  else nsend = 0; /* this is the minimal score owner */
+  else nsend = 0; /* this is the minimal score processor */
 
   /* send and receive block sets */
   COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_UNION_INIT, (OBJ_Pack) pack_union,
@@ -1937,11 +1977,11 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
     }
   }
 
-  /* allocate external reactions now */
+  /* allocate external reactions */
   if (up->REXT_count) ERRMEM (up->REXT = malloc (sizeof (XR [up->REXT_count])));
   for (i = 0, x = up->REXT; i < up->REXT_count; i ++, x ++) x->rank = -1; /* invalidate ranks */
 
-  /* map them to off-diagonal blocks now */
+  /* map them to off-diagonal blocks */
   for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
   {
     for (item = SET_First (ptr->o); item; item = SET_Next (item))
@@ -1972,11 +2012,10 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
     ASSERT_DEBUG (x->id && x->rank >= 0, "Inconsitency in mapping external reactions");
 #endif
 
-  /* now send (id, index) pairs to parent blocks pointed by their ranks in REXT;
-   * this way we shall fill up the 'children' members of balanced blocks */
+  /* send REXT (id, index) pairs to parent ranks */
 
-  COMDATA *dsend = NULL, *drecv, *qtr, *otr;
-  int j, k, ssiz, nrecv, *pair;
+  COMDATA *dsend = NULL, *drecv, *qtr;
+  int j, k, nrecv, *pair;
 
   if ((nsend = up->REXT_count))
   {
@@ -1997,87 +2036,94 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
 
   COM (MPI_COMM_WORLD, TAG_LOCDYN_UNION_REXT, dsend, nsend, &drecv, &nrecv);
 
-  ssiz = MAX (nrecv, 128);
-  ERRMEM (up->send_import = malloc (sizeof (COMDATA [ssiz])));
-  otr = up->send_import;
+  ASSERT_DEBUG (nrecv <= 1, "Inconsistent receive during REXT setup");
 
-  for (i = 0, qtr = drecv; i < nrecv; i ++, qtr ++)
+  if (nrecv)
   {
-    for  (j = 0, pair = qtr->i; j < qtr->ints; j += 2, pair += 2)
+    /* prepare gather send data */
+    up->gather_send_count = drecv->ints / 2;
+    ERRMEM (up->gather_R = malloc (up->gather_send_count * sizeof (double*)));
+    ERRMEM (up->gather_send = malloc (sizeof (ID_R_PAIR [up->gather_send_count])));
+
+    double **R = up->gather_R;
+    ID_R_PAIR *IDR = up->gather_send;
+
+    for  (j = 0, pair = drecv->i; j < drecv->ints; j += 2, pair += 2, R ++, IDR ++)
     {
-      double *R = NULL;
+      *R = NULL;
 
       if (ldy->ldb == LDB_OFF)
       {
-        if ((con = MAP_Find (DOM(ldy->dom)->idc, (void*) (long) pair [0], NULL))) R = con->R;
+        if ((con = MAP_Find (DOM(ldy->dom)->idc, (void*) (long) pair [0], NULL))) *R = con->R;
       }
       else
       {
-        if ((dia = MAP_Find (ldy->idbb, (void*) (long) pair [0], NULL))) R = dia->R;
+        if ((dia = MAP_Find (ldy->idbb, (void*) (long) pair [0], NULL))) *R = dia->R;
       }
 
-      if (R == NULL) /* must be in ldy->REXT */
+      if (*R == NULL) /* must be in ldy->REXT */
       {
 	for (k = 0, x = ldy->REXT; k < ldy->REXT_count; x ++, k ++) /* linear search => TODO: binary map of ids to REXT really needed? */
 	{
 	  if (x->id == pair [0])
 	  {
-	    R = x->R;
+	    *R = x->R;
 	    break;
 	  }
 	}
       }
 
-      ASSERT_DEBUG (R, "Inconsitent mapping of ID to reaction");
-
-      /* map R to qtr->rank and the local index pair [1] of REXT there */
-      ASSERT_DEBUG (qtr->rank == out [1], "Inconsitent rank");
-      otr->rank = qtr->rank;
-      otr->ints = 1;
-      otr->doubles = 3;
-      otr->i = MEM_Alloc (&up->ints);
-      otr->i [0] = pair [1]; /* local index in up->REXT */
-      otr->d = R; /* this reaction will write into up->REXT [pair [1]] on qtr->rank processor (lowest score) */
-      otr = sendnext (++ up->nsend_import, &ssiz, &up->send_import);
+      ASSERT_DEBUG (*R, "Inconsitent mapping of ID to reaction");
+      IDR->id = pair [1];
     }
   }
 
   free (dsend);
   free (drecv);
 
-  /* create import communication pattern */
-  up->import_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_LOCDYN_UNION_IMPORT,
-    up->send_import, up->nsend_import, &up->recv_import, &up->nrecv_import);
-
-  /* prepare export communication pattern */
   if (in [1] == out [1])
   {
-    ssiz = BLKSIZE;
-    ERRMEM (up->send_export = malloc (sizeof (COMDATA [ssiz])));
-    qtr = up->send_export;
+    /* prepare gather receive data */
+    ERRMEM (up->gather_recv_counts = malloc (sizeof (int [ncpu])));
+    ERRMEM (up->gather_recv_disps = malloc (sizeof (int [ncpu])));
+  }
 
-    for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++) /* for each imporeted set */
+  /* gather receive counts */
+  MPI_Gather (&up->gather_send_count, 1, MPI_INT, up->gather_recv_counts, 1, MPI_INT, up->root, MPI_COMM_WORLD);
+
+  if (in [1] == out [1])
+  {
+    /* compute disps */
+    for (i = 0; i < ncpu; i ++)
+    {
+      up->gather_count += up->gather_recv_counts [i];
+      if (i < (ncpu - 1)) up->gather_recv_disps [i+1] = up->gather_count;
+    }
+    up->gather_recv_disps [0] = 0;
+
+    ERRMEM (up->gather_recv = malloc (sizeof (ID_R_PAIR [up->gather_count])));
+  }
+
+  ASSERT_DEBUG (up->gather_count == up->REXT_count, "Inconsistent gather count");
+
+  /* prepare scatter send data */
+  if (in [1] == out [1])
+  {
+    MAP **rtoid;
+
+    ERRMEM (rtoid = calloc (ncpu, sizeof (MAP*)));
+
+    for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++) /* for each imported block */
     {
       for (item = SET_First (ptr->o); item; item = SET_Next (item))
       {
 	dia = item->data;
 
-	qtr->rank = ptr->rank; /* send diagonal back to the origin */
-	qtr->ints = 1;
-	qtr->doubles = 3;
-	qtr->i = MEM_Alloc (&up->ints);
-	qtr->i [0] = - dia->id; /* negative to indicate diagonal block rather than REXT index */
-	qtr->d = dia->R;
-	qtr = sendnext (++ up->nsend_export, &ssiz, &up->send_export);
+	MAP_Insert (&ldy->mapmem, &rtoid [ptr->rank], dia->R, (void*) (long) (-dia->id), NULL); /* negative indicates bloack id */
 
-	for (MAP *jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem)) /* for each child copy */
+	for (jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem))
 	{
-	  qtr->rank = (int) (long) jtem->key; /* child rank */
-	  qtr->ints = 1;
-	  qtr->doubles = 3;
-	  qtr->i = (int*) &jtem->data; /* REXT index */
-	  qtr->d = dia->R;
-	  qtr = sendnext (++ up->nsend_export, &ssiz, &up->send_export);
+	  MAP_Insert (&ldy->mapmem, &rtoid [(int) (long) jtem->key], dia->R, jtem->data, NULL); /* jtem->data >= 0 indicates REXT index */
 	}
       }
     }
@@ -2086,23 +2132,50 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
     {
       dia = item->data;
 
-      for (MAP *jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem)) /* for each child copy */
+      for (jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem)) 
       {
-	qtr->rank = (int) (long) jtem->key; /* child rank */
-	qtr->ints = 1;
-	qtr->doubles = 3;
-	qtr->i = (int*) &jtem->data; /* REXT index */
-	qtr->d = dia->R;
-	qtr = sendnext (++ up->nsend_export, &ssiz, &up->send_export);
+	MAP_Insert (&ldy->mapmem, &rtoid [(int) (long) jtem->key], dia->R, jtem->data, NULL); /* jtem->data >= 0 indicates REXT index */
       }
     }
+
+    ERRMEM (up->scatter_send_counts = calloc (ncpu, sizeof (int)));
+    ERRMEM (up->scatter_send_disps = malloc (sizeof (int [ncpu])));
+
+    /* compute counts and disps */
+    for (i = 0; i < ncpu; i ++)
+    {
+      up->scatter_send_counts [i] = MAP_Size (rtoid [i]);
+      up->scatter_count += up->scatter_send_counts [i];
+      if (i < (ncpu - 1)) up->scatter_send_disps [i+1] = up->scatter_count;
+    }
+    up->scatter_send_disps [0] = 0;
+
+    ERRMEM (up->scatter_R = malloc (up->scatter_count * sizeof (double*)));
+    ERRMEM (up->scatter_send = malloc (sizeof (ID_R_PAIR [up->scatter_count])));
+
+    double **R = up->scatter_R;
+    ID_R_PAIR *IDR = up->scatter_send;
+
+    for (i = 0; i < ncpu; i ++)
+    {
+      for (jtem = MAP_First (rtoid [i]); jtem; jtem = MAP_Next (jtem), R ++, IDR ++)
+      {
+	*R = jtem->key;
+	IDR->id = (int) (long) jtem->data;
+      }
+
+      MAP_Free (&ldy->mapmem, &rtoid [i]);
+    }
+
+    free (rtoid);
   }
 
-  /* create export communication pattern */
-  up->export_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_LOCDYN_UNION_EXPORT,
-    up->send_export, up->nsend_export, &up->recv_export, &up->nrecv_export);
+  /* scatter receive counts */
+  MPI_Scatter (up->scatter_send_counts, 1, MPI_INT, &up->scatter_recv_count, 1, MPI_INT, up->root, MPI_COMM_WORLD);
 
-  /* create return set now */
+  if (up->scatter_recv_count) ERRMEM (up->scatter_recv = malloc (sizeof (ID_R_PAIR [up->scatter_recv_count])));
+
+  /* create return set */
   up->uni = NULL;
   if (in [1] == out [1])
   {
@@ -2121,120 +2194,104 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   return up->uni;
 }
 
-/* update off-diagonal reactions in the union (one blocking step) */
-void LOCDYN_Union_Import (void *pattern)
+/* gather reactions from other processors */
+void LOCDYN_Union_Gather (void *pattern)
 {
   UNION_PATTERN *up = pattern;
+  ID_R_PAIR *IDR;
   XR *REXT, *x;
-  COMDATA *ptr;
-  int i, j, *k;
-  double *R;
+  double **R;
+  int i;
 
-#if DEBUG
-  XR *end;
-
-  for (x = up->REXT, end = x + up->REXT_count; x < end; x ++) x->done = 0; /* undo */
-#endif
-
-  COM_Repeat (up->import_pattern);
-
-  for (REXT = up->REXT, i = 0, ptr = up->recv_import; i < up->nrecv_import; i ++, ptr ++)
+  /* update gather send buffer */
+  for (R = up->gather_R, IDR = up->gather_send, i = 0; i < up->gather_send_count; i ++, R ++, IDR ++)
   {
-    ASSERT_DEBUG (ptr->doubles / ptr->ints == 3 &&
-	          ptr->doubles % ptr->ints == 0,  "Incorrect data count received");
+    COPY (*R, IDR->R);
+  }
 
-    for (j = 0, k = ptr->i, R = ptr->d; j < ptr->ints; j ++, k ++, R += 3)
-    {
-      ASSERT_DEBUG (*k >= 0 && *k < up->REXT_count, "REXT index out of bounds");
-      x = &REXT [*k];
-      COPY (R, x->R);
+  /* gather reactions */
+  MPI_Gatherv (up->gather_send, up->gather_send_count, up->id_r_type,
+               up->gather_recv, up->gather_recv_counts, up->gather_recv_disps,
+	       up->id_r_type, up->root, MPI_COMM_WORLD);
 #if DEBUG
-      x->done = 1; /* it's done for now */
+  for (XR *x = up->REXT, *end = x + up->REXT_count; x < end; x ++) x->done = 0;
 #endif
-    }
+
+  /* update REXT storage from gathered buffers */
+  for (REXT = up->REXT, IDR = up->gather_recv, i = 0; i < up->gather_count; i ++, IDR ++)
+  {
+    ASSERT_DEBUG (IDR->id >= 0 && IDR->id < up->REXT_count, "REXT index out of bounds");
+    x = &REXT [IDR->id];
+    COPY (IDR->R, x->R);
+#if DEBUG
+    ASSERT_DEBUG (x->done == 0, "Double update of REXT item");
+    x->done = 1;
+#endif
   }
 
 #if DEBUG
-  int alldone;
+  int alldone = 1;
 
-  for (alldone = 1, x = up->REXT, end = x + up->REXT_count; x < end; x ++)
-    if (!x->done) { alldone = 0; break; } /* not done */
+  for (XR *x = up->REXT, *end = x + up->REXT_count; x < end; x ++)
+    if (!x->done) { alldone = 0; break; }
 
-  ASSERT_DEBUG (alldone, "All external reactions should be done by now");
+  ASSERT_DEBUG (alldone, "All external reactions should be done");
 #endif
 }
 
-/* update external reactions and local blocks */
-static void union_export_update (UNION_PATTERN *up)
+/* scatter reactions to other processors */
+void LOCDYN_Union_Scatter (void *pattern)
 {
+  UNION_PATTERN *up = pattern;
   LOCDYN *ldy = up->ldy;
+  ID_R_PAIR *IDR;
   XR *REXT, *x;
-  COMDATA *ptr;
-  int i, j, *k;
-  double *R;
+  double **R;
   DIAB *dia;
   CON *con;
+  int i;
 
-  for (REXT = ldy->REXT, i = 0, ptr = up->recv_export; i < up->nrecv_export; i ++, ptr ++)
+  /* update scatter send buffer */
+  for (R = up->scatter_R, IDR = up->scatter_send, i = 0; i < up->scatter_count; i ++, R ++, IDR ++)
   {
-    ASSERT_DEBUG (ptr->doubles / ptr->ints == 3 &&
-	          ptr->doubles % ptr->ints == 0,  "Incorrect data count received");
+    COPY (*R, IDR->R);
+  }
 
-    for (j = 0, k = ptr->i, R = ptr->d; j < ptr->ints; j ++, k ++, R += 3)
+  /* scatter reactions */
+  MPI_Scatterv (up->scatter_send, up->scatter_send_counts, up->scatter_send_disps,
+                up->id_r_type, up->scatter_recv, up->scatter_recv_count,
+		up->id_r_type, up->root, MPI_COMM_WORLD);
+
+  /* update local REXT storage and diagonal blocks */
+  for (REXT = ldy->REXT, IDR = up->scatter_recv, i = 0; i < up->scatter_recv_count; i ++, IDR ++)
+  {
+    if (IDR->id >= 0) /* REXT */
     {
-      if ((*k) >= 0) /* REXT */
-      {
-        ASSERT_DEBUG (*k >= 0 && *k < ldy->REXT_count, "REXT index out of bounds");
-	x = &REXT [*k];
-	COPY (R, x->R);
-	x->done = 1; /* it's done for now */
-      }
-      else /* diagonal block */
-      {
-	double *Q = NULL;
+      ASSERT_DEBUG (IDR->id >= 0 && IDR->id < ldy->REXT_count, "REXT index out of bounds");
+      x = &REXT [IDR->id];
+      COPY (IDR->R, x->R);
+#if DEBUG
+    ASSERT_DEBUG (x->done == 0, "Double update of REXT item");
+#endif
+      x->done = 1;
+    }
+    else /* block */
+    {
+      double *Q = NULL;
 
-	if (ldy->ldb == LDB_OFF)
-	{
-	  if ((con = MAP_Find (DOM(ldy->dom)->idc, (void*) (long) (-(*k)), NULL))) Q = con->R;
-	}
-	else
-	{
-	  if ((dia = MAP_Find (ldy->idbb, (void*) (long) (-(*k)), NULL))) Q = dia->R;
-	}
-
-	ASSERT_DEBUG (Q, "Invalid block identifier");
-	COPY (R, Q);
+      if (ldy->ldb == LDB_OFF)
+      {
+	if ((con = MAP_Find (DOM(ldy->dom)->idc, (void*) (long) (-IDR->id), NULL))) Q = con->R;
       }
+      else
+      {
+	if ((dia = MAP_Find (ldy->idbb, (void*) (long) (-IDR->id), NULL))) Q = dia->R;
+      }
+
+      ASSERT_DEBUG (Q, "Invalid block identifier");
+      COPY (IDR->R, Q);
     }
   }
-}
-
-/* update diagonal reactions from the union on other processors */
-void LOCDYN_Union_Export (void *pattern)
-{
-  UNION_PATTERN *up = pattern;
-
-  COM_Repeat (up->export_pattern);
-
-  union_export_update (up);
-}
-
-/* begin non-blocking export */
-void LOCDYN_Union_Send (void *pattern)
-{
-  UNION_PATTERN *up = pattern;
-
-  COM_Send (up->export_pattern);
-}
-
-/* end non-blocking export */
-void LOCDYN_Union_Recv (void *pattern)
-{
-  UNION_PATTERN *up = pattern;
-
-  COM_Recv (up->export_pattern);
-
-  union_export_update (up);
 }
 
 /* release memory used by the union set */
@@ -2268,14 +2325,18 @@ void LOCDYN_Union_Destroy (void *pattern)
   free (up->recv);
   free (up->REXT);
 
-  /* import and export data */
-  MEM_Release (&up->ints);
-  COM_Free (up->import_pattern);
-  free (up->send_import);
-  free (up->recv_import);
-  COM_Free (up->export_pattern);
-  free (up->send_export);
-  free (up->recv_export);
+  /* gather and scatter */
+  free (up->gather_R);
+  free (up->gather_send);
+  free (up->gather_recv);
+  free (up->gather_recv_counts);
+  free (up->gather_recv_disps);
+  free (up->scatter_R);
+  free (up->scatter_send);
+  free (up->scatter_send_counts);
+  free (up->scatter_send_disps);
+  free (up->scatter_recv);
+  MPI_Type_free (&up->id_r_type);
 
   /* the union set */
   SET_Free (&ldy->setmem, &up->uni);

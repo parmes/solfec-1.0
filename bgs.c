@@ -1135,7 +1135,15 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       int adjcolor = color [(int) (long) item->key];
 
       if (adjcolor < mycolor) hi ++; /* sends to lower */
-      else lo ++;
+      else lo ++; /* send to higher */
+    }
+
+    for (SET *item = SET_First (dia->rext); item; item = SET_Next (item))
+    {
+      int adjcolor = color [XR(item->data)->rank];
+
+      if (adjcolor < mycolor) hi ++; /* receive from lower */
+      else lo ++; /* receive from higher */
     }
 
 #if XSET
@@ -1283,10 +1291,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     COM_Recv (top_pattern);
     REXT_recv (ldy, recv_top, nrecv_top);
 
-    LOCDYN_Union_Import (xpattern);
+    LOCDYN_Union_Gather (xpattern);
     di = gauss_siedel_sweep (xset, 0, gs, dynamic, step, &errup, &errlo);
     dimax = MAX (dimax, di);
-    LOCDYN_Union_Export (xpattern);
+    LOCDYN_Union_Scatter (xpattern);
 
 #else
     if (gs->iters % 2) /* reverse */

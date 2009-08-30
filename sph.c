@@ -472,7 +472,7 @@ SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
     nadj = unpack_int (ipos, i, ints);
     volume = unpack_int (ipos, i, ints);
 
-    ERRMEM (ptr = malloc (sizeof (SPHERE)));
+    ERRMEM (ptr = calloc (1, sizeof (SPHERE)));
     ERRMEM (ptr->adj = malloc (nadj * sizeof (SPHERE*)));
     ptr->surface = surface;
     ptr->nadj = 0;
