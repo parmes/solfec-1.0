@@ -1862,6 +1862,10 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   COMOBJ send, *ptr, *end;
   UNION_PATTERN *up;
   int i, nsend;
+  DIAB *dia;
+  SET *item;
+  CON *con;
+  OFFB *b;
   XR *x;
  
   ERRMEM (up = calloc (1, sizeof (UNION_PATTERN)));
@@ -1880,23 +1884,45 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_UNION_INIT, (OBJ_Pack) pack_union,
            ldy, (OBJ_Unpack) unpack_union, &send, nsend, &up->recv, &up->nrecv);
 
+  MAP *idtodia;
+
+  /* map received diagonal blocks to their ids */
+  for (idtodia = NULL, ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
+  {
+    for (item = SET_First (ptr->o); item; item = SET_Next (item))
+    {
+      dia = item->data;
+      MAP_Insert (&ldy->mapmem, &idtodia, (void*) (long) dia->id, (void*) (long) dia, NULL);
+    }
+  }
+
   MAP *idtoext;
 
-  /* map off-diagonal blocks of imported rows to op->REXT indices */
+  /* map imported off-diagonal blocks to imported or existing diagonal blocks or, if not possible, to up->REXT indices */
   for (idtoext = NULL, ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
   {
-    SET *item;
-    DIAB *dia;
-    OFFB *b;
-
     for (item = SET_First (ptr->o); item; item = SET_Next (item))
     {
       for (dia = item->data, b = dia->adj; b; b = b->n)
       {
-	if (!MAP_Find_Node (idtoext, (void*) (long) b->id, NULL))
+	b->dia = MAP_Find (idtodia, (void*) (long) b->id, NULL); /* try imported blocks first */
+
+	if (!b->dia)  /* failed => try existing blocks */
 	{
-	  MAP_Insert (&ldy->mapmem, &idtoext, (void*) (long) b->id, (void*) (long) up->REXT_count, NULL);
-	  up->REXT_count ++;
+	  if (ldy->ldb == LDB_OFF)
+	  {
+	    if ((con = MAP_Find (DOM(ldy->dom)->idc, (void*) (long) b->id, NULL))) b->dia = con->dia; /* unbalanced */
+	  }
+	  else b->dia = MAP_Find (ldy->idbb, (void*) (long) b->id, NULL); /* balanced */
+	}
+
+	if (!b->dia) /* still failure => request import from the parent processor */
+	{
+	  if (!MAP_Find_Node (idtoext, (void*) (long) b->id, NULL))
+	  {
+	    MAP_Insert (&ldy->mapmem, &idtoext, (void*) (long) b->id, (void*) (long) up->REXT_count, NULL);
+	    up->REXT_count ++;
+	  }
 	}
       }
     }
@@ -1909,25 +1935,24 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   /* map them to off-diagonal blocks now */
   for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
   {
-    SET *item;
-    DIAB *dia;
-    OFFB *b;
-
     for (item = SET_First (ptr->o); item; item = SET_Next (item))
     {
       for (dia = item->data, b = dia->adj; b; b = b->n)
       {
-	MAP *node;
-
-	ASSERT_DEBUG_EXT (node = MAP_Find_Node (idtoext, (void*) (long) b->id, NULL), "Inconsistent ID to rank mapping");
-
-	x = &up->REXT [(int) (long) node->data];
-	b->x = x;
-
-	if (x->rank < 0)
+	if (!b->dia)
 	{
-	  x->rank = ptr->rank;
-	  x->id = (int) (long) node->key;
+	  MAP *node;
+
+	  ASSERT_DEBUG_EXT (node = MAP_Find_Node (idtoext, (void*) (long) b->id, NULL), "Inconsistent ID to rank mapping");
+
+	  x = &up->REXT [(int) (long) node->data];
+	  b->x = x;
+
+	  if (x->rank < 0)
+	  {
+	    x->rank = ptr->rank;
+	    x->id = (int) (long) node->key;
+	  }
 	}
       }
     }
@@ -1943,8 +1968,6 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
 
   COMDATA *dsend = NULL, *drecv, *qtr, *otr;
   int j, k, ssiz, nrecv, *pair;
-  DIAB *dia;
-  CON *con;
 
   if ((nsend = up->REXT_count))
   {
@@ -2018,7 +2041,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
     up->send_import, up->nsend_import, &up->recv_import, &up->nrecv_import);
 
   /* prepare export communication pattern */
-  if (up->nrecv)
+  if (in [1] == out [1])
   {
     ssiz = BLKSIZE;
     ERRMEM (up->send_export = malloc (sizeof (COMDATA [ssiz])));
@@ -2026,7 +2049,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
 
     for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++) /* for each imporeted set */
     {
-      for (SET *item = SET_First (ptr->o); item; item = SET_Next (item))
+      for (item = SET_First (ptr->o); item; item = SET_Next (item))
       {
 	dia = item->data;
 
@@ -2050,7 +2073,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
       }
     }
 
-    for (SET *item = SET_First (inp); item; item = SET_Next (item)) /* for each local block */
+    for (item = SET_First (inp); item; item = SET_Next (item)) /* for each local block */
     {
       dia = item->data;
 
@@ -2072,16 +2095,17 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
 
   /* create return set now */
   up->uni = NULL;
-  if (up->nrecv)
+  if (in [1] == out [1])
   {
     for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
-      for (SET *item = SET_First (ptr->o); item; item = SET_Next (item))
+      for (item = SET_First (ptr->o); item; item = SET_Next (item))
 	SET_Insert (&ldy->setmem, &up->uni, item->data, NULL);
-    for (SET *item = SET_First (inp); item; item = SET_Next (item))
+    for (item = SET_First (inp); item; item = SET_Next (item))
       SET_Insert (&ldy->setmem, &up->uni, item->data, NULL);
   }
 
   /* clean up */
+  MAP_Free (&ldy->mapmem, &idtodia);
   MAP_Free (&ldy->mapmem, &idtoext);
 
   *pattern = up;
