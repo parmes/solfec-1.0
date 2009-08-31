@@ -18,8 +18,13 @@
 #include <pthread.h>
 #include "com.h"
 #include "tag.h"
+#include "sol.h"
 
+#if MPITHREADS
+#define XSET 0
+#else
 #define XSET 1 /* transfer mid nodes on one processor */
+#endif
 
 #endif
 
@@ -1253,7 +1258,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
 #if XSET
   void *xpattern;
-  SET *xset = LOCDYN_Union_Create (ldy, mid, ldy->ndiab, &xpattern);
+  SET *xset = LOCDYN_Union_Create (ldy, mid, &xpattern);
+  SOLFEC *sol = DOM(ldy->dom)->owner;
 #endif
 
   dynamic = DOM(ldy->dom)->dynamic;
@@ -1271,30 +1277,48 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     REXT_undo (ldy); /* undo all external reactions */
 
 #if XSET
+
+    SOLFEC_Timer_Start (sol, "GSBOT");
     di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo);
     dimax = MAX (dimax, di);
     COM_Send (bot_pattern);
+    SOLFEC_Timer_End (sol, "GSBOT");
 
+    SOLFEC_Timer_Start (sol, "GSIN1");
     di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo);
     dimax = MAX (dimax, di);
+    SOLFEC_Timer_End (sol, "GSIN1");
 
+    SOLFEC_Timer_Start (sol, "GSBOT_RECV");
     COM_Recv (bot_pattern);
     REXT_recv (ldy, recv_bot, nrecv_bot);
+    SOLFEC_Timer_End (sol, "GSBOT_RECV");
 
+    SOLFEC_Timer_Start (sol, "GSTOP");
     di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo);
     dimax = MAX (dimax, di);
     COM_Send (top_pattern);
+    SOLFEC_Timer_End (sol, "GSTOP");
 
+    SOLFEC_Timer_Start (sol, "GSIN2");
     di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo);
     dimax = MAX (dimax, di);
+    SOLFEC_Timer_End (sol, "GSIN2");
 
+    SOLFEC_Timer_Start (sol, "GSTOP_RECV");
     COM_Recv (top_pattern);
     REXT_recv (ldy, recv_top, nrecv_top);
+    SOLFEC_Timer_End (sol, "GSTOP_RECV");
 
+    SOLFEC_Timer_Start (sol, "GSMID_GATHER");
     LOCDYN_Union_Gather (xpattern);
+    SOLFEC_Timer_End (sol, "GSMID_GATHER");
+
+    SOLFEC_Timer_Start (sol, "GSMID");
     di = gauss_siedel_sweep (xset, 0, gs, dynamic, step, &errup, &errlo);
     dimax = MAX (dimax, di);
     LOCDYN_Union_Scatter (xpattern);
+    SOLFEC_Timer_End (sol, "GSMID");
 
 #else
     if (gs->iters % 2) /* reverse */

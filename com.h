@@ -47,12 +47,21 @@ struct comobj
   void *o; /* object */
 };
 
-/* communicate integers and doubles */
+/* communicate integers and doubles using point to point communication */
 void COM (MPI_Comm comm, int tag,
           COMDATA *send, int nsend,
 	  COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
-/* communicate objects */
+/* communicate integers and doubles using all to all communication */
+void COMALL (MPI_Comm comm,
+             COMDATA *send, int nsend,
+	     COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+
+/* communicate one set of integers and doubles to all other processors */
+void COMONEALL (MPI_Comm comm, COMDATA send,
+	        COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+
+/* communicate objects using point to point communication */
 void COMOBJS (MPI_Comm comm, int tag,
 	      OBJ_Pack pack,
 	      void *data,
@@ -60,10 +69,25 @@ void COMOBJS (MPI_Comm comm, int tag,
               COMOBJ *send, int nsend,
 	      COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
-/* create a repetitive communication pattern;
- * ranks and sizes must not change during the
- * repetitive communication; pointers to send
- * and receive buffers data must not change */
+/* communicate objects using all to all communication */
+void COMOBJSALL (MPI_Comm comm,
+	         OBJ_Pack pack,
+	         void *data,
+	         OBJ_Unpack unpack,
+                 COMOBJ *send, int nsend,
+	         COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+
+/* communicate an object to all other processors */
+void COMOBJALL (MPI_Comm comm,
+	        OBJ_Pack pack,
+	        void *data,
+	        OBJ_Unpack unpack,
+		void *object,
+	        COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+
+/* create a repetitive point to point communication pattern;
+ * ranks and sizes must not change during the communication;
+ * pointers to send and receive buffers data must not change */
 void* COM_Pattern (MPI_Comm comm, int tag,
                    COMDATA *send, int nsend,
 	           COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */

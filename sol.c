@@ -283,9 +283,14 @@ static void read_state (SOLFEC *sol)
 }
 
 /* read initial state if needed */
-static void init (SOLFEC *sol)
+static int init (SOLFEC *sol)
 {
-  if (sol->iover < 0) read_state (sol);
+  if (sol->iover < 0)
+  {
+    read_state (sol);
+    return 1;
+  }
+  else return 0;
 }
 
 /* output statistics */
@@ -407,6 +412,13 @@ double SOLFEC_Timing (SOLFEC *sol, const char *label)
   return 0.0;
 }
 
+/* test whether a labeled timer exists */
+int SOLFEC_Has_Timer (SOLFEC *sol, const char *label)
+{
+  if (MAP_Find (sol->timers, (void*) label, (MAP_Compare) strcmp)) return 1;
+  else return 0;
+}
+
 /* solfec mode string */
 char* SOLFEC_Mode (SOLFEC *sol)
 {
@@ -429,8 +441,6 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     int verbose;
     TIMING tim;
     double tt;
-
-    if (sol->dom->time == 0.0) write_state (sol); /* write zero state */
 
     verbose = verbose_on (sol, kind, solver);
     timerstart (&tim);

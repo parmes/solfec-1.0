@@ -4876,7 +4876,7 @@ static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
     }
     ELSE
     {
-      PyErr_SetString (PyExc_ValueError, "Invalid timing kind");
+      PyErr_SetString (PyExc_ValueError, "Invalid entity kind");
       return NULL;
     }
 
@@ -4913,19 +4913,13 @@ static PyObject* lng_TIMING (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]));
 
-  IFIS (kind, "TIMINT") {}
-  ELIF (kind, "CONDET") {}
-  ELIF (kind, "LOCDYN") {}
-  ELIF (kind, "TIMBAL") {}
-  ELIF (kind, "CONBAL") {}
-  ELIF (kind, "LOCBAL") {}
-  ELSE
+  label = PyString_AsString (kind);
+
+  if (!SOLFEC_Has_Timer (solfec->sol, label))
   {
     PyErr_SetString (PyExc_ValueError, "Invalid timing kind");
     return NULL;
   }
-
-  label = PyString_AsString (kind);
 
   return PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label));
 }
@@ -4971,20 +4965,13 @@ static PyObject* lng_TIMING_HISTORY (PyObject *self, PyObject *args, PyObject *k
       return NULL;
     }
 
-    IFIS (kind, "TIMINT") {}
-    ELIF (kind, "CONDET") {}
-    ELIF (kind, "LOCDYN") {}
-    ELIF (kind, "CONSOL") {}
-    ELIF (kind, "TIMBAL") {}
-    ELIF (kind, "CONBAL") {}
-    ELIF (kind, "LOCBAL") {}
-    ELSE
+    label = PyString_AsString (kind);
+
+    if (!SOLFEC_Has_Timer (solfec->sol, label))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid timing kind");
       return NULL;
     }
-
-    label = PyString_AsString (kind);
 
     ERRMEM (data.times = PyList_New (0));
     ERRMEM (data.values = PyList_New (0));

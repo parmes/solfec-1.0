@@ -56,7 +56,14 @@ typedef enum locdyn_approach LOCDYN_APPROACH;
 
 #if MPI
 /* eXternal Reaction */
-typedef struct { double R [3]; int id; int rank; short done; } XR;
+typedef struct
+{ 
+  double R [3];
+  int id;
+  int rank; /* rank of parent block */
+  short done;
+  double *update; /* auxiliary update pointer */
+} XR;
 
 /* XR pointer cast */
 #define XR(ptr) ((XR*)(ptr))
@@ -196,14 +203,14 @@ void LOCDYN_Balancing (LOCDYN *ldy, LDB ldb);
 /* update mapping of balanced external reactions */
 void LOCDYN_REXT_Update (LOCDYN *ldy);
 
-/* return the union of 'inp' sets at the processor with smallest 'score'; return
- * communication 'pattern' used to gather and scatter reactions in the union */
-SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern);
+/* return the union of 'inp' sets; return the communication
+ * 'pattern' used to gather reactions in the union */
+SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern);
 
 /* gather reactions from other processors */
 void LOCDYN_Union_Gather (void *pattern);
 
-/* scatter reactions to other processors */
+/* locally scatter reactions */
 void LOCDYN_Union_Scatter (void *pattern);
 
 /* release memory used by the union set */

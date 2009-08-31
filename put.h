@@ -42,4 +42,7 @@ double PUT_timerend (TIMING *t);
 /* return minimum of all calls */
 int PUT_int_min (int val);
 
+/* return minimum of all calls and its rank */
+int PUT_int_min_rank (int val, int *rank);
+
 #endif

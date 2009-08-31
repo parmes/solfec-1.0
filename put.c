@@ -179,3 +179,43 @@ int PUT_int_min (int val)
 
   return ret;
 }
+
+/* MPI operator callback used to find minimal value rank */
+static void int_min_rank (int *in, int *inout, int *len, MPI_Datatype *type)
+{
+  int i;
+
+  for (i = 0; i < *len; i ++)
+  {
+    if (*in < *inout)
+    {
+      inout [0] = in [0];
+      inout [1] = in [1];
+    }
+
+    inout += 2;
+    in += 2;
+  }
+}
+
+/* return minimum of all calls and its rank */
+int PUT_int_min_rank (int val, int *rank)
+{
+  int in [2], out [2];
+  MPI_Datatype type;
+  MPI_Op op;
+
+  in [0] = val;
+  MPI_Comm_rank (MPI_COMM_WORLD, &in [1]);
+
+  MPI_Type_contiguous (2, MPI_INT, &type);
+  MPI_Type_commit (&type);
+  MPI_Op_create ((MPI_User_function*)int_min_rank, 1, &op);
+  MPI_Allreduce (in, out, 1, type, op, MPI_COMM_WORLD); /* compute (min(val), rank(min(val))) in out */
+  MPI_Type_free (&type);
+  MPI_Op_free (&op);
+
+  if (rank) *rank = out [1];
+
+  return out [0];
+}

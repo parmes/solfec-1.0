@@ -240,7 +240,7 @@ obj/solfec-mpi.o: solfec.c
 obj/put-mpi.o: put.c put.h alg.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/com-mpi.o: com.c com.h err.h
+obj/com-mpi.o: com.c com.h map.h alg.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/pbf-mpi.o: pbf.c pbf.h map.h mem.h err.h

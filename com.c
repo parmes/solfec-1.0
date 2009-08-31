@@ -24,8 +24,11 @@
 #endif
 
 #include <stdlib.h>
+#include <limits.h>
 #include <mpi.h>
 #include "com.h"
+#include "map.h"
+#include "alg.h"
 #include "err.h"
 
 typedef struct compattern COMPATTERN;
@@ -60,17 +63,9 @@ struct compattern
 
   int nsend,
       nrecv;
-
-#if OWNASYNC
-  int active,
-      wait,
-      done;
-
-  pthread_t thread;
-#endif
 };
 
-/* communicate integers and doubles */
+/* communicate integers and doubles using point to point communication */
 void COM (MPI_Comm comm, int tag,
           COMDATA *send, int nsend,
 	  COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
@@ -256,7 +251,187 @@ void COM (MPI_Comm comm, int tag,
   free (sta);
 }
 
-/* communicate objects */
+/* communicate integers and doubles using all to all communication */
+void COMALL (MPI_Comm comm,
+             COMDATA *send, int nsend,
+	     COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+{
+  COMDATA *cd;
+  int rank,
+      ncpu,
+    (*send_sizes) [3],
+     *send_counts,
+     *send_disps,
+     *send_position,
+      send_size,
+    (*recv_sizes) [3],
+     *recv_counts,
+     *recv_disps,
+      recv_position,
+      recv_size,
+      i, j, k;
+  char *send_data,
+       *recv_data;
+  void *p;
+
+  MPI_Comm_rank (comm, &rank);
+  MPI_Comm_size (comm, &ncpu);
+
+  ERRMEM (send_sizes = calloc (ncpu, sizeof (int [3])));
+  ERRMEM (send_counts = calloc (ncpu, sizeof (int)));
+  ERRMEM (send_disps = calloc (ncpu, sizeof (int)));
+  ERRMEM (send_position = calloc (ncpu, sizeof (int)));
+
+  /* compute send sizes */
+  for (i = 0, cd = send; i < nsend; i ++, cd ++)
+  {
+    send_sizes [cd->rank][0] += cd->ints;
+    send_sizes [cd->rank][1] += cd->doubles;
+    MPI_Pack_size (cd->ints, MPI_INT, comm, &j);
+    MPI_Pack_size (cd->doubles, MPI_DOUBLE, comm, &k);
+    send_sizes [cd->rank][2] += (j + k);
+  }
+
+  /* compute send displacements */
+  for (send_size = i = 0; i < ncpu; i ++)
+  {
+    send_counts [i] = send_sizes [i][2];
+    send_size += send_counts [i];
+    if (i < (ncpu - 1)) send_disps [i+1] = send_size;
+  }
+  send_disps [0] = 0;
+
+  /* allocate send buffer */
+  ERRMEM (send_data = malloc (send_size));
+
+  /* pack ints */
+  for (i = 0, cd = send; i < nsend; i ++, cd ++)
+  {
+    if (cd->ints)
+    {
+      MPI_Pack (cd->i, cd->ints, MPI_INT, &send_data [send_disps [cd->rank]], send_counts [cd->rank], &send_position [cd->rank], comm);
+    }
+  }
+
+  /* pack doubles */
+  for (i = 0, cd = send; i < nsend; i ++, cd ++)
+  {
+    if (cd->doubles)
+    {
+      MPI_Pack (cd->d, cd->doubles, MPI_DOUBLE, &send_data [send_disps [cd->rank]], send_counts [cd->rank], &send_position [cd->rank], comm); 
+    }
+  }
+
+  ERRMEM (recv_sizes = calloc (ncpu, sizeof (int [3])));
+  ERRMEM (recv_counts = calloc (ncpu, sizeof (int)));
+  ERRMEM (recv_disps = calloc (ncpu, sizeof (int)));
+
+  /* distribute send sizes into receive sizes */
+  MPI_Alltoall (send_sizes, 3, MPI_INT, recv_sizes, 3, MPI_INT, MPI_COMM_WORLD);
+
+  /* compute receive displacements */
+  for (recv_size = i = 0; i < ncpu; i ++)
+  {
+    recv_counts [i] = recv_sizes [i][2];
+    recv_size += recv_counts [i];
+    if (i < (ncpu - 1)) recv_disps [i+1] = recv_size;
+  }
+  recv_disps [0] = 0;
+
+  /* allocate receive buffer */
+  ERRMEM (recv_data = malloc (recv_size));
+
+  /* all to all send and receive */
+  MPI_Alltoallv (send_data, send_counts, send_disps, MPI_PACKED,
+                 recv_data, recv_counts, recv_disps, MPI_PACKED,
+		 MPI_COMM_WORLD);
+
+  if (recv_size)
+  {
+    /* contiguous receive size */
+    j = ncpu * sizeof (COMDATA);
+    for (i = 0; i < ncpu; i ++)
+    {
+      j += recv_sizes [i][0] * sizeof (int) + 
+	   recv_sizes [i][1] * sizeof (double);
+    }
+
+    /* prepare output receive data */
+    ERRMEM ((*recv) = malloc (j));
+    p = (*recv) + ncpu;
+    for (i = 0, cd = *recv; i < ncpu; i ++, cd ++)
+    {
+      cd->rank = i;
+      cd->ints = recv_sizes [i][0];
+      cd->doubles = recv_sizes [i][1];
+      cd->i = p; p = (cd->i + cd->ints);
+      cd->d = p; p = (cd->d + cd->doubles);
+    }
+
+    /* compress receive storage */
+    for (*nrecv = i = 0; i < ncpu; i ++)
+    {
+      if (recv_counts [i])
+      {
+	recv_counts [*nrecv] = recv_counts [i];
+	(*recv) [*nrecv] = (*recv) [i];
+	(*nrecv) ++;
+      }
+    }
+
+    /* unpack data */
+    for (recv_position = i = 0; i < *nrecv; i ++)
+    {
+      MPI_Unpack (recv_data, recv_size, &recv_position, (*recv) [i].i, (*recv) [i].ints, MPI_INT, comm);
+      MPI_Unpack (recv_data, recv_size, &recv_position, (*recv) [i].d, (*recv) [i].doubles, MPI_DOUBLE, comm);
+    }
+  }
+  else
+  {
+    *recv = NULL;
+    *nrecv = 0;
+  }
+
+  /* cleanup */
+  free (send_sizes);
+  free (send_counts);
+  free (send_disps);
+  free (send_position);
+  free (recv_sizes);
+  free (recv_counts);
+  free (recv_disps);
+  free (send_data);
+  free (recv_data);
+}
+
+/* communicate one set of integers and doubles to all other processors */
+void COMONEALL (MPI_Comm comm, COMDATA send,
+	        COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+{
+  COMDATA *send_data;
+  int i, j, rank, ncpu;
+
+  MPI_Comm_rank (comm, &rank);
+  MPI_Comm_size (comm, &ncpu);
+
+  ERRMEM (send_data = calloc (ncpu - 1, sizeof (COMDATA)));
+
+  for (i = 0; i < ncpu; i ++)
+  {
+    if (i != rank)
+    {
+      send_data [j] = send;
+      send_data [j].rank = i;
+      j ++;
+    }
+  }
+
+  COMALL (comm, send_data, ncpu - 1, recv, nrecv);
+
+  free (send_data);
+}
+
+/* communicate objects using point to point communication */
 void COMOBJS (MPI_Comm comm, int tag,
 	      OBJ_Pack pack,
 	      void *data,
@@ -266,98 +441,144 @@ void COMOBJS (MPI_Comm comm, int tag,
 {
   COMDATA *send_data,
 	  *recv_data,
-	  *cd;
+	  *cd, *cc;
   int recv_count,
       i, n;
   COMOBJ *co;
+  MAP *map;
+  MEM mem;
 
   ERRMEM (send_data = malloc (nsend * sizeof (COMDATA)));
+  MEM_Init (&mem, sizeof (MAP), MAX (nsend, 64));
 
   /* pack objects */
-  for (i = 0, cd = send_data, co = send; i < nsend; i ++, cd ++, co ++)
+  for (i = 0, cd = send_data, co = send, map = NULL; i < nsend; i ++, cd ++, co ++)
   {
     int isize = 0,
 	dsize = 0;
 
     cd->rank = co->rank;
-    cd->ints = 0;
-    cd->doubles = 0;
-    cd->i = NULL;
-    cd->d = NULL;
 
-    pack (co->o, &dsize, &cd->d, &cd->doubles, &isize, &cd->i, &cd->ints);
+    if ((cc = MAP_Find (map, co->o, NULL))) /* same object was already packed */
+    {
+      cd->ints = cc->ints;
+      cd->doubles = cc->doubles;
+      cd->i = cc->i;
+      cd->d = cc->d;
+    }
+    else
+    {
+      cd->ints = 0;
+      cd->doubles = 0;
+      cd->i = NULL;
+      cd->d = NULL;
+
+      pack (co->o, &dsize, &cd->d, &cd->doubles, &isize, &cd->i, &cd->ints);
+
+      MAP_Insert (&mem, &map, co->o, cd, NULL);
+    }
   }
 
   /* send and receive packed data */
-  COM (comm, tag, send_data, nsend, &recv_data, &recv_count);
+  if (tag == INT_MIN) COMALL (comm, send_data, nsend, &recv_data, &recv_count); /* all to all */
+  else COM (comm, tag, send_data, nsend, &recv_data, &recv_count); /* point to point */
 
-  *nrecv = recv_count;
-  ERRMEM (*recv = malloc ((*nrecv) * sizeof (COMOBJ)));
-
-  /* unpack received objects */
-  for (n = i = 0, cd = recv_data, co = *recv; i < recv_count; i ++, cd ++)
+  if (recv_count)
   {
-    int ipos = 0,
-	dpos = 0;
+    *nrecv = recv_count;
+    ERRMEM (*recv = malloc ((*nrecv) * sizeof (COMOBJ)));
 
-    do
+    /* unpack received objects */
+    for (n = i = 0, cd = recv_data, co = *recv; i < recv_count; i ++, cd ++)
     {
-      if (n == *nrecv)
+      int ipos = 0,
+	  dpos = 0;
+
+      do
       {
-	*nrecv *= 2; /* resize the receive buffer */
-	ERRMEM (*recv = realloc (*recv, (*nrecv) * sizeof (COMOBJ)));
-	co = *recv + n; /* and reset the current pointer */
-      }
+	if (n == *nrecv)
+	{
+	  *nrecv *= 2; /* resize the receive buffer */
+	  ERRMEM (*recv = realloc (*recv, (*nrecv) * sizeof (COMOBJ)));
+	  co = *recv + n; /* and reset the current pointer */
+	}
 
-      co->rank = cd->rank;
-      co->o = unpack (data, &dpos, cd->d, cd->doubles, &ipos, cd->i, cd->ints);
+	co->rank = cd->rank;
+	co->o = unpack (data, &dpos, cd->d, cd->doubles, &ipos, cd->i, cd->ints);
 
-      co ++;
-      n ++;
+	co ++;
+	n ++;
 
-    } while (ipos < cd->ints || dpos < cd->doubles); /* while something is left to unpack */
+      } while (ipos < cd->ints || dpos < cd->doubles); /* while something is left to unpack */
+    }
+
+    /* truncate output */
+    if (n) ERRMEM (*recv = realloc (*recv, n * sizeof (COMOBJ)));
+    *nrecv = n;
+  }
+  else
+  {
+    *recv = NULL;
+    *nrecv = 0;
   }
 
-  /* truncate output */
-  if (n) ERRMEM (*recv = realloc (*recv, n * sizeof (COMOBJ)));
-  *nrecv = n;
-
   /* cleanup */
-  for (i = 0, cd = send_data; i < nsend; i ++, cd ++)
-  { free (cd->i);
-    free (cd->d); }
+  for (MAP *item = MAP_First (map); item; item = MAP_Next (item))
+  { cd = item->data; free (cd->i); free (cd->d); }
+  MEM_Release (&mem);
   free (send_data);
   free (recv_data); /* contiguous */
 }
 
-
-#if OWNASYNC
-static void* ownasync (void *pattern)
+/* communicate objects using all to all communication */
+void COMOBJSALL (MPI_Comm comm,
+	         OBJ_Pack pack,
+	         void *data,
+	         OBJ_Unpack unpack,
+                 COMOBJ *send, int nsend,
+	         COMOBJ **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
-  COMPATTERN *cp = pattern;
-
-  while (cp->active)
-  {
-    while (cp->wait);
-
-    if (cp->active)
-    {
-      cp->wait = 1;
-
-      COM_Repeat (cp);
-
-      cp->done = 1;
-    }
-  }
-
-  return NULL;
+  COMOBJS (comm, INT_MIN, pack, data, unpack, send, nsend, recv, nrecv); /* this is only a wrapper */
 }
-#endif
 
-/* create a repetitive communication pattern;
- * ranks and sizes must not change during the
- * repetitive communication; pointers to send
- * and receive buffers data must not change */
+/* communicate an object to all other processors */
+void COMOBJALL (MPI_Comm comm,
+	        OBJ_Pack pack,
+	        void *data,
+	        OBJ_Unpack unpack,
+		void *object,
+	        COMOBJ **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+{
+  COMOBJ *send_data;
+  int i, j, rank, ncpu;
+
+  if (object)
+  {
+    MPI_Comm_rank (comm, &rank);
+    MPI_Comm_size (comm, &ncpu);
+
+    ERRMEM (send_data = calloc (ncpu - 1, sizeof (COMOBJ)));
+
+    for (i = j = 0; i < ncpu; i ++)
+    {
+      if (i != rank)
+      {
+	send_data [j].rank = i;
+	send_data [j].o = object;
+	j ++;
+      }
+    }
+
+    COMOBJSALL (comm, pack, data, unpack, send_data, ncpu - 1, recv, nrecv);
+
+    free (send_data);
+  }
+  else COMOBJSALL (comm, pack, data, unpack, NULL, 0, recv, nrecv);
+}
+
+/* create a repetitive point to point communication pattern;
+ * ranks and sizes must not change during the communication;
+ * pointers to send and receive buffers data must not change */
 void* COM_Pattern (MPI_Comm comm, int tag,
                    COMDATA *send, int nsend,
 	           COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
@@ -505,14 +726,6 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   *nrecv = pattern->nrecv;
   *recv = pattern->recv;
 
-#if OWNASYNC
-  pattern->active = 1;
-  pattern->wait = 1;
-  pattern->done = 0;
-
-  pthread_create (&pattern->thread, NULL, ownasync, pattern);
-#endif
-
   return pattern;
 }
 
@@ -586,10 +799,6 @@ void COM_Repeat (void *pattern)
 void COM_Send (void *pattern)
 {
   COMPATTERN *cp = pattern;
-#if OWNASYNC
-  cp->done = 0;
-  cp->wait = 0;
-#else
   int *rankmap = cp->rankmap,
       *send_position = cp->send_position,
      (*send_sizes) [3] = cp->send_sizes,
@@ -631,16 +840,12 @@ void COM_Send (void *pattern)
   {
     MPI_Isend (send_data [i], send_sizes [i][2], MPI_PACKED, send_rank [i], tag, comm, &reqs [i]);
   }
-#endif
 }
 
 /* blocking receive */
 void COM_Recv (void *pattern)
 {
   COMPATTERN *cp = pattern;
-#if OWNASYNC
-  while (!cp->done);
-#else
   int *recv_rank = cp->recv_rank,
      (*recv_sizes) [3] = cp->recv_sizes,
        recv_count = cp->recv_count,
@@ -669,7 +874,6 @@ void COM_Recv (void *pattern)
     MPI_Unpack (recv_data [i], recv_sizes [i][2], &j, cd->i, cd->ints, MPI_INT, comm);
     MPI_Unpack (recv_data [i], recv_sizes [i][2], &j, cd->d, cd->doubles, MPI_DOUBLE, comm);
   }
-#endif
 }
 
 /* free communication pattern */
@@ -693,15 +897,6 @@ void COM_Free (void *pattern)
   free (cp->sta);
   free (cp->reqs);
   free (cp->stas);
-
-#if OWNASYNC
-  void *r;
-
-  cp->active = 0;
-  cp->wait = 0;
-
-  pthread_join (cp->thread, &r);
-#endif
 
   free (pattern);
 }

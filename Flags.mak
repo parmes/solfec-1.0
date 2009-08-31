@@ -40,12 +40,8 @@ else
 endif
 
 ifeq ($(MPI),yes)
-  ifeq ($(MPITRHEARDS),yes)
-    ifeq ($(OWNASYNC),yes)
-      MPIFLG = -DMPI -DMPITHREADS -DOWNASYNC $(ZOLTANINC)
-    else
-      MPIFLG = -DMPI -DMPITHREADS $(ZOLTANINC)
-    endif
+  ifeq ($(MPITHREADS),yes)
+    MPIFLG = -DMPI -DMPITHREADS $(ZOLTANINC)
   else
     MPIFLG = -DMPI $(ZOLTANINC)
     MPILIB =

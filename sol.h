@@ -93,6 +93,9 @@ void SOLFEC_Timer_End (SOLFEC *sol, const char *label);
 /* get timing of a labeled timer */
 double SOLFEC_Timing (SOLFEC *sol, const char *label);
 
+/* test whether a labeled timer exists */
+int SOLFEC_Has_Timer (SOLFEC *sol, const char *label);
+
 /* solfec mode string */
 char* SOLFEC_Mode (SOLFEC *sol);
 
