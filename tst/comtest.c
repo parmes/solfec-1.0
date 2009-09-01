@@ -38,7 +38,7 @@ typedef struct object OBJECT;
 
 static int RANK, SIZE;
 
-static int test_simple ()
+static int test_simple (int comall)
 {
   const int isize = 32,
 	    dsize = 64,
@@ -65,7 +65,8 @@ static int test_simple ()
     send[k].d = d;
   }
 
-  COM (MPI_COMM_WORLD, 0, send, nsend, &recv, &nrecv);
+  if (comall) COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+  else COM (MPI_COMM_WORLD, 0, send, nsend, &recv, &nrecv);
 
   for (k = 0; k < nrecv; k ++)
   {
@@ -202,7 +203,7 @@ int main (int argc, char **argv)
   MPI_Comm_rank (MPI_COMM_WORLD, &RANK);
   MPI_Comm_size (MPI_COMM_WORLD, &SIZE);
 
-  if (test_simple ()) printf ("Rank %d of %d COM OK\n", RANK, SIZE);
+  if (test_simple (0)) printf ("Rank %d of %d COM OK\n", RANK, SIZE);
   else printf ("Rank %d of %d COM FAILED\n", RANK, SIZE);
 
   if (test_pattern ()) printf ("Rank %d of %d COM_Pattern OK\n", RANK, SIZE);
@@ -210,6 +211,9 @@ int main (int argc, char **argv)
 
   if (test_object ()) printf ("Rank %d of %d COMOBJ OK\n", RANK, SIZE);
   else printf ("Rank %d of %d COMOBJ FAILED\n", RANK, SIZE);
+
+  if (test_simple (1)) printf ("Rank %d of %d COMALL OK\n", RANK, SIZE);
+  else printf ("Rank %d of %d COM FAILED\n", RANK, SIZE);
 
   MPI_Finalize ();
 

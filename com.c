@@ -136,6 +136,13 @@ void COM (MPI_Comm comm, int tag,
     }
   }
 
+#if DEBUG
+  for (i = 0; i < ncpu; i ++)
+  {
+    ASSERT_DEBUG (send_position [i] <= send_sizes [i][2], "Incorrect packing");
+  }
+#endif
+
   /* compute send ranks and move data */
   for (send_count = i = 0; i < ncpu; i ++)
   {
@@ -321,6 +328,13 @@ void COMALL (MPI_Comm comm,
       MPI_Pack (cd->d, cd->doubles, MPI_DOUBLE, &send_data [send_disps [cd->rank]], send_counts [cd->rank], &send_position [cd->rank], comm); 
     }
   }
+
+#if DEBUG
+  for (i = 0; i < ncpu; i ++)
+  {
+    ASSERT_DEBUG (send_position [i] <= send_counts [i], "Incorrect packing");
+  }
+#endif
 
   ERRMEM (recv_sizes = calloc (ncpu, sizeof (int [3])));
   ERRMEM (recv_counts = calloc (ncpu, sizeof (int)));
