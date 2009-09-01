@@ -274,7 +274,7 @@ void COMALL (MPI_Comm comm,
     (*recv_sizes) [3],
      *recv_counts,
      *recv_disps,
-      recv_position,
+     *recv_position,
       recv_size,
       i, j, k;
   char *send_data,
@@ -339,6 +339,7 @@ void COMALL (MPI_Comm comm,
   ERRMEM (recv_sizes = calloc (ncpu, sizeof (int [3])));
   ERRMEM (recv_counts = calloc (ncpu, sizeof (int)));
   ERRMEM (recv_disps = calloc (ncpu, sizeof (int)));
+  ERRMEM (recv_position = calloc (ncpu, sizeof (int)));
 
   /* distribute send sizes into receive sizes */
   MPI_Alltoall (send_sizes, 3, MPI_INT, recv_sizes, 3, MPI_INT, MPI_COMM_WORLD);
@@ -382,6 +383,13 @@ void COMALL (MPI_Comm comm,
       cd->d = p; p = (cd->d + cd->doubles);
     }
 
+    /* unpack data */
+    for (i = 0; i < ncpu; i ++)
+    {
+      MPI_Unpack (&recv_data [recv_disps [i]], recv_counts [i], &recv_position [i], (*recv) [i].i, (*recv) [i].ints, MPI_INT, comm);
+      MPI_Unpack (&recv_data [recv_disps [i]], recv_counts [i], &recv_position [i], (*recv) [i].d, (*recv) [i].doubles, MPI_DOUBLE, comm);
+    }
+
     /* compress receive storage */
     for (*nrecv = i = 0; i < ncpu; i ++)
     {
@@ -391,13 +399,6 @@ void COMALL (MPI_Comm comm,
 	(*recv) [*nrecv] = (*recv) [i];
 	(*nrecv) ++;
       }
-    }
-
-    /* unpack data */
-    for (recv_position = i = 0; i < *nrecv; i ++)
-    {
-      MPI_Unpack (recv_data, recv_size, &recv_position, (*recv) [i].i, (*recv) [i].ints, MPI_INT, comm);
-      MPI_Unpack (recv_data, recv_size, &recv_position, (*recv) [i].d, (*recv) [i].doubles, MPI_DOUBLE, comm);
     }
   }
   else
@@ -414,6 +415,7 @@ void COMALL (MPI_Comm comm,
   free (recv_sizes);
   free (recv_counts);
   free (recv_disps);
+  free (recv_position);
   free (send_data);
   free (recv_data);
 }
