@@ -1794,35 +1794,27 @@ static int idcmp (DIAB *a, DIAB *b)
   else return 1;
 }
 
-/* id and reaction pair */
-typedef struct id_r_pair ID_R_PAIR;
-
-struct id_r_pair
-{
-  int id;
-  double R [3];
-};
-
 /* union communication patterns and data */
 typedef struct union_pattern UNION_PATTERN;
 
 struct union_pattern
 {
-  COMOBJ *recv; /* gathers sets from other processors */
+  SET *inp; /* input set */
+
+  COMOBJ *recv; /* stores sets from other processors */
   int nrecv;
 
-  XR *REXT; /* external reactions used in OFFBs that cannot be locally mapped */
-  int REXT_count;
+  double **recv_B; /* pointers to dia->B of received blocks */
+  int nrecv_B; /* number of pointers */
 
-  MPI_Datatype id_r_type; /* description of ID_R_PAIR */
+  MPI_Datatype gather_type; /* double [3] */
 
-  double **gather_R; /* pointers of reactions to be coppied into gather_send */
-  ID_R_PAIR *gather_send;
+  double *gather_send;
   int *gather_send_counts;
   int *gather_send_disps;
   int gather_send_size;
 
-  ID_R_PAIR *gather_recv;
+  double *gather_recv;
   int *gather_recv_counts;
   int *gather_recv_disps;
   int gather_recv_size;
@@ -1836,48 +1828,24 @@ struct union_pattern
  * 'pattern' used to gather reactions in the union */
 SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
 {
+  int i, k, rank, ncpu;
   COMOBJ *ptr, *end;
   UNION_PATTERN *up;
-  int rank, ncpu;
-  int i, nsend;
+  OFFB *p, *b;
   DIAB *dia;
   SET *item;
   XR *x, *y;
   CON *con;
-  OFFB *b;
 
   rank = DOM(ldy->dom)->rank;
   ncpu = DOM(ldy->dom)->ncpu;
  
   ERRMEM (up = calloc (1, sizeof (UNION_PATTERN)));
+  up->inp = inp;
   up->ldy = ldy;
 
-  ID_R_PAIR id_r_example;
-  MPI_Datatype id_r_types [3] = {MPI_INT, MPI_DOUBLE, MPI_UB};
-  MPI_Aint id_r_disps [3], id_r_base, id_r_id, id_r_R;
-  int id_r_lengths [3] = {1, 3, 1};
-
-#if MPI_VERSION == 2
-  MPI_Get_address (&id_r_example.id, &id_r_id);
-  MPI_Get_address (&id_r_example, &id_r_base);
-  MPI_Get_address (&id_r_example.R, &id_r_R);
-#else
-  MPI_Address (&id_r_example.id, &id_r_id);
-  MPI_Address (&id_r_example, &id_r_base);
-  MPI_Address (&id_r_example.R, &id_r_R);
-#endif
-
-  id_r_disps [0] = id_r_id - id_r_base;
-  id_r_disps [1] = id_r_R - id_r_base;
-  id_r_disps [2] = sizeof (id_r_example);
-
-  /* create ID_R_PAIR type descriptor */
-#if MPI_VERSION == 2
-  MPI_Type_create_struct (3, id_r_lengths, id_r_disps, id_r_types, &up->id_r_type);
-#else
-  MPI_Type_struct (3, id_r_lengths, id_r_disps, id_r_types, &up->id_r_type);
-#endif
-  MPI_Type_commit (&up->id_r_type);
+  MPI_Type_contiguous (3, MPI_DOUBLE, &up->gather_type);
+  MPI_Type_commit (&up->gather_type);
 
   /* send 'inp' to all others and receive their 'inp's */
   COMOBJALL (MPI_COMM_WORLD, (OBJ_Pack) pack_union, ldy, (OBJ_Unpack) unpack_union, inp, &up->recv, &up->nrecv);
@@ -1887,21 +1855,26 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
   /* map received diagonal blocks to their ids */
   for (idtodia = NULL, ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
   {
-    for (item = SET_First (ptr->o); item; item = SET_Next (item))
+    for (item = SET_First (ptr->o); item; item = SET_Next (item), up->nrecv_B ++)
     {
       dia = item->data;
       MAP_Insert (&ldy->mapmem, &idtodia, (void*) (long) dia->id, (void*) (long) dia, NULL);
     }
   }
 
-  MAP *idtoext;
+  ERRMEM (up->recv_B = calloc (up->nrecv_B, sizeof (double*)));
+  double **B = up->recv_B;
 
-  /* map imported off-diagonal blocks to imported or existing diagonal blocks or, if not possible, to up->REXT indices */
-  for (idtoext = NULL, ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
+  /* map imported off-diagonal blocks to imported or existing diagonal blocks or, if not possible, remove them */
+  for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
   {
     for (item = SET_First (ptr->o); item; item = SET_Next (item))
     {
-      for (dia = item->data, b = dia->adj; b; b = b->n)
+      dia = item->data;
+      B [0] = dia->B;
+      B ++;
+
+      for (p = NULL, b = dia->adj; b;)
       {
 	b->dia = MAP_Find (idtodia, (void*) (long) b->id, NULL); /* try imported blocks first */
 
@@ -1914,131 +1887,43 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
 	  else b->dia = MAP_Find (ldy->idbb, (void*) (long) b->id, NULL); /* balanced */
 	}
 
-	if (!b->dia) /* still failure => request import from the parent processor */
+	if (b->dia) /* next */
 	{
-	  if (!MAP_Find_Node (idtoext, (void*) (long) b->id, NULL))
-	  {
-	    MAP_Insert (&ldy->mapmem, &idtoext, (void*) (long) b->id, (void*) (long) up->REXT_count, NULL);
-	    up->REXT_count ++;
-	  }
+	  p = b;
+	  b = b->n;
+	}
+	else /* remove block */
+	{
+	  OFFB *n = b->n;
+
+	  if (p) p->n = n;
+	  else dia->adj = n;
+
+          MEM_Free (&ldy->offmem, b); /* free removed block */
+	  dia->degree --; /* update degree */
+
+	  b = n;
 	}
       }
     }
   }
 
-  /* allocate external reactions */
-  if (up->REXT_count) ERRMEM (up->REXT = malloc (sizeof (XR [up->REXT_count])));
-  for (i = 0, x = up->REXT; i < up->REXT_count; i ++, x ++) x->rank = -1; /* invalidate ranks */
-
-  /* map them to off-diagonal blocks */
-  for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
-  {
-    for (item = SET_First (ptr->o); item; item = SET_Next (item))
-    {
-      for (dia = item->data, b = dia->adj; b; b = b->n)
-      {
-	if (!b->dia)
-	{
-	  MAP *node;
-
-	  ASSERT_DEBUG_EXT (node = MAP_Find_Node (idtoext, (void*) (long) b->id, NULL), "Inconsistent id to rank mapping");
-
-	  x = &up->REXT [(int) (long) node->data];
-	  b->x = x;
-
-	  if (x->rank < 0)
-	  {
-	    x->rank = ptr->rank;
-	    x->id = (int) (long) node->key;
-	  }
-	}
-      }
-    }
-  }
-
-#if DEBUG
-  for (x = up->REXT, y = x + up->REXT_count; x < y; x ++)
-    ASSERT_DEBUG (x->id && x->rank >= 0, "Inconsitency in mapping external reactions");
-#endif
-
-  /* prepare REXT (id, index) pairs
-   * to be sent to parent ranks */
-
-  COMDATA *dsend = NULL, *drecv, *qtr;
-  int j, k, nrecv, *pair;
-
-  if ((nsend = up->REXT_count))
-  {
-    ERRMEM (dsend = malloc (sizeof (COMDATA [nsend]) + sizeof (int [nsend * 2])));;
-    pair = (int*) (dsend + nsend);
-
-    for (i = 0, x = up->REXT, qtr = dsend; i < nsend; i ++, x ++, qtr ++, pair += 2)
-    {
-      qtr->rank = x->rank;
-      qtr->ints = 2;
-      qtr->doubles = 0;
-      qtr->i = pair;
-      qtr->d = NULL;
-      pair [0] = x->id;
-      pair [1] = (x - up->REXT);
-    }
-  }
-
-  /* send and receive REXT (id, index) pairs */
-  COMALL (MPI_COMM_WORLD, dsend, nsend, &drecv, &nrecv);
-
-  /* send counts and displacements */
+  /* gather send data */
   ERRMEM (up->gather_send_counts = calloc (ncpu, sizeof (int)));
   ERRMEM (up->gather_send_disps = calloc (ncpu, sizeof (int)));
 
-  /* prepare gather send data */
-  for (i = 0, qtr = drecv; i < nrecv; i ++, qtr ++)
+  k = SET_Size (inp);
+  up->gather_send_size = (ncpu - 1) * k; /* send Bs to all other processors */
+  ERRMEM (up->gather_send = realloc (up->gather_send, sizeof (double [3 * up->gather_send_size])));
+
+  /* send counts */
+  for (i = 0; i < ncpu; i ++)
   {
-    j = up->gather_send_size;
-    k = qtr->ints / 2;
-    up->gather_send_counts [qtr->rank] = k;
-    up->gather_send_size += k;
-
-    ERRMEM (up->gather_R = realloc (up->gather_R, up->gather_send_size * sizeof (double*)));
-    ERRMEM (up->gather_send = realloc (up->gather_send, sizeof (ID_R_PAIR [up->gather_send_size])));
-
-    double **R = &up->gather_R [j];
-    ID_R_PAIR *IDR = &up->gather_send [j];
-
-    for  (j = 0, pair = qtr->i; j < qtr->ints; j += 2, pair += 2, R ++, IDR ++)
-    {
-      *R = NULL;
-
-      if (ldy->ldb == LDB_OFF)
-      {
-        if ((con = MAP_Find (DOM(ldy->dom)->idc, (void*) (long) pair [0], NULL))) *R = con->R;
-      }
-      else
-      {
-        if ((dia = MAP_Find (ldy->idbb, (void*) (long) pair [0], NULL))) *R = dia->R;
-      }
-
-      if (*R == NULL) /* must be in ldy->REXT */
-      {
-	for (k = 0, x = ldy->REXT; k < ldy->REXT_count; x ++, k ++) /* linear search => TODO: binary map of ids to REXT really needed? */
-	{
-	  if (x->id == pair [0])
-	  {
-	    *R = x->R;
-	    break;
-	  }
-	}
-      }
-
-      ASSERT_DEBUG (*R, "Inconsitent mapping of id to reaction");
-      IDR->id = pair [1];
-    }
+    if (i == rank) up->gather_send_counts [i] = 0;
+    else up->gather_send_counts [i] = k;
   }
 
-  free (dsend);
-  free (drecv);
-
-  /* compute send displacements */
+  /* send displacements */
   up->gather_send_disps [0] = 0;
   for (i = 1; i < ncpu; i ++) up->gather_send_disps [i] = up->gather_send_disps [i-1] + up->gather_send_counts [i-1];
 
@@ -2057,9 +1942,9 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
   }
   up->gather_recv_disps [0] = 0;
 
-  ASSERT_DEBUG (up->gather_recv_size == up->REXT_count, "Inconsistent gather count");
+  ASSERT_DEBUG (up->nrecv_B == up->gather_recv_size, "Incorrect receive size");
 
-  ERRMEM (up->gather_recv = malloc (sizeof (ID_R_PAIR [up->gather_recv_size])));
+  ERRMEM (up->gather_recv = malloc (sizeof (double [3 * up->gather_recv_size])));
 
   /* create return set */
   for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
@@ -2080,7 +1965,6 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
 
   /* clean up */
   MAP_Free (&ldy->mapmem, &idtodia);
-  MAP_Free (&ldy->mapmem, &idtoext);
 
   *pattern = up;
   return up->uni;
@@ -2091,48 +1975,65 @@ void LOCDYN_Union_Gather (void *pattern)
 {
   UNION_PATTERN *up = pattern;
   LOCDYN *ldy = up->ldy;
-  int i, rank, ncpu;
-  ID_R_PAIR *IDR;
-  XR *REXT, *x;
-  double **R;
+  double **BB, **EE, *B;
+  COMOBJ *ptr, *end;
+  int rank, ncpu;
+  SET *item;
+  DIAB *dia;
+  OFFB *blk;
 
   rank = DOM(ldy->dom)->rank;
   ncpu = DOM(ldy->dom)->ncpu;
 
-  /* update gather send buffer */
-  for (R = up->gather_R, IDR = up->gather_send, i = 0; i < up->gather_send_size; i ++, R ++, IDR ++)
+  /* update up->inp Bs */
+  for (item = SET_First (up->inp), B = up->gather_send; item; item = SET_Next (item), B += 3)
   {
-    COPY (*R, IDR->R);
+    dia = item->data;
+
+    /* compute local free velocity */
+    COPY (dia->B, B);
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      double *W = blk->W,
+	     *R = blk->R;
+
+      if (blk->dia) { COPY (blk->dia->R, R); }
+      else { COPY (XR(blk->x)->R, R); }
+
+      NVADDMUL (B, W, R, B);
+    }
   }
 
   /* gather reactions */
-  MPI_Alltoallv (up->gather_send, up->gather_send_counts, up->gather_send_disps, up->id_r_type,
-                 up->gather_recv, up->gather_recv_counts, up->gather_recv_disps, up->id_r_type,
+  MPI_Alltoallv (up->gather_send, up->gather_send_counts, up->gather_send_disps, up->gather_type,
+                 up->gather_recv, up->gather_recv_counts, up->gather_recv_disps, up->gather_type,
 		 MPI_COMM_WORLD);
-#if DEBUG
-  for (XR *x = up->REXT, *end = x + up->REXT_count; x < end; x ++) x->done = 0;
-#endif
 
-  /* update REXT storage from gathered buffers */
-  for (REXT = up->REXT, IDR = up->gather_recv, i = 0; i < up->gather_recv_size; i ++, IDR ++)
+  /* update Bs of imported blocks */
+  for (BB = up->recv_B, EE = BB + up->nrecv_B, B = up->gather_recv; BB < EE; BB ++, B += 3)
   {
-    ASSERT_DEBUG (IDR->id >= 0 && IDR->id < up->REXT_count, "REXT index out of bounds");
-    x = &REXT [IDR->id];
-    COPY (IDR->R, x->R);
-#if DEBUG
-    ASSERT_DEBUG (x->done == 0, "Double update of REXT item with local index %d", IDR->id);
-    x->done = 1;
-#endif
+    COPY (B, *BB);
   }
 
-#if DEBUG
-  int alldone = 1;
+  /* subtract local imported contributions */
+  for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
+  {
+    for (item = SET_First (ptr->o); item; item = SET_Next (item))
+    {
+      dia = item->data;
+      B = dia->B;
 
-  for (XR *x = up->REXT, *end = x + up->REXT_count; x < end; x ++)
-    if (!x->done) { alldone = 0; break; }
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	double *W = blk->W,
+	       *R = blk->R;
 
-  ASSERT_DEBUG (alldone, "All external reactions should be done");
-#endif
+	COPY (blk->dia->R, R);
+
+	NVSUBMUL (B, W, R, B);
+      }
+    }
+  }
 }
 
 /* locally scatter reactions */
@@ -2179,18 +2080,15 @@ void LOCDYN_Union_Destroy (void *pattern)
     SET_Free (&ldy->setmem, (SET**) ptr->o); /* the whole set */
   }
 
-  free (up->recv);
-  free (up->REXT);
-
   /* gather data */
-  free (up->gather_R);
+  free (up->recv_B);
   free (up->gather_send);
   free (up->gather_send_counts);
   free (up->gather_send_disps);
   free (up->gather_recv);
   free (up->gather_recv_counts);
   free (up->gather_recv_disps);
-  MPI_Type_free (&up->id_r_type);
+  MPI_Type_free (&up->gather_type);
 
   /* the union set */
   SET_Free (&ldy->setmem, &up->uni);
