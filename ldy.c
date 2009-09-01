@@ -1805,7 +1805,10 @@ struct union_pattern
   int nrecv;
 
   double **recv_B; /* pointers to dia->B of received blocks */
-  int nrecv_B; /* number of pointers */
+  double **recv_R; /* pointers to dia->R of received blocks */
+  int recv_N; /* number of pointers */
+
+  SET **skip; /* skip ids sets for each receive rank */
 
   MPI_Datatype gather_type; /* double [3] */
 
@@ -1834,6 +1837,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
   OFFB *p, *b;
   DIAB *dia;
   SET *item;
+  MAP *jtem;
   XR *x, *y;
   CON *con;
 
@@ -1855,24 +1859,30 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
   /* map received diagonal blocks to their ids */
   for (idtodia = NULL, ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
   {
-    for (item = SET_First (ptr->o); item; item = SET_Next (item), up->nrecv_B ++)
+    for (item = SET_First (ptr->o); item; item = SET_Next (item), up->recv_N ++)
     {
       dia = item->data;
       MAP_Insert (&ldy->mapmem, &idtodia, (void*) (long) dia->id, (void*) (long) dia, NULL);
     }
   }
 
-  ERRMEM (up->recv_B = calloc (up->nrecv_B, sizeof (double*)));
+  ERRMEM (up->recv_B = calloc (up->recv_N, sizeof (double*)));
+  ERRMEM (up->recv_R = calloc (up->recv_N, sizeof (double*)));
   double **B = up->recv_B;
+  double **R = up->recv_R;
+
+  MAP *offtorank;
 
   /* map imported off-diagonal blocks to imported or existing diagonal blocks or, if not possible, remove them */
-  for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
+  for (offtorank = NULL, ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
   {
     for (item = SET_First (ptr->o); item; item = SET_Next (item))
     {
       dia = item->data;
       B [0] = dia->B;
+      R [0] = dia->R;
       B ++;
+      R ++;
 
       for (p = NULL, b = dia->adj; b;)
       {
@@ -1889,6 +1899,8 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
 
 	if (b->dia) /* next */
 	{
+	  MAP_Insert (&ldy->mapmem, &offtorank, b, (void*) (long) ptr->rank, NULL); /* skip this id on the source rank */
+
 	  p = b;
 	  b = b->n;
 	}
@@ -1907,6 +1919,42 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
       }
     }
   }
+
+  COMDATA *dsend = NULL, *drecv, *qtr;
+  int j, nsend, nrecv, *pid;
+
+  if ((nsend = MAP_Size (offtorank)))
+  {
+    ERRMEM (dsend = malloc (sizeof (COMDATA [nsend]) + sizeof (int [nsend])));;
+    pid = (int*) (dsend + nsend);
+
+    for (jtem = MAP_First (offtorank), qtr = dsend; jtem; jtem = MAP_Next (jtem), qtr ++, pid ++)
+    {
+      b = jtem->key;
+      pid [0] = b->id;
+      qtr->rank = (int) (long) jtem->data;
+      qtr->ints = 1;
+      qtr->doubles = 0;
+      qtr->i = pid;
+      qtr->d = NULL;
+    }
+  }
+
+  /* send and receive skip ids */
+  COMALL (MPI_COMM_WORLD, dsend, nsend, &drecv, &nrecv);
+
+  ERRMEM (up->skip = calloc (ncpu, sizeof (SET*)));
+
+  for (i = 0, qtr = drecv; i < nrecv; i ++, qtr ++)
+  {
+    for  (j = 0, pid = qtr->i; j < qtr->ints; j ++, pid ++)
+    { 
+      SET_Insert (&ldy->setmem, &up->skip [qtr->rank], (void*) (long) pid [0], NULL);
+    }
+  }
+
+  free (dsend);
+  free (drecv);
 
   /* gather send data */
   ERRMEM (up->gather_send_counts = calloc (ncpu, sizeof (int)));
@@ -1942,7 +1990,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
   }
   up->gather_recv_disps [0] = 0;
 
-  ASSERT_DEBUG (up->nrecv_B == up->gather_recv_size, "Incorrect receive size");
+  ASSERT_DEBUG (up->recv_N == up->gather_recv_size, "Incorrect receive size");
 
   ERRMEM (up->gather_recv = malloc (sizeof (double [3 * up->gather_recv_size])));
 
@@ -1965,6 +2013,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern)
 
   /* clean up */
   MAP_Free (&ldy->mapmem, &idtodia);
+  MAP_Free (&ldy->mapmem, &offtorank);
 
   *pattern = up;
   return up->uni;
@@ -1976,8 +2025,7 @@ void LOCDYN_Union_Gather (void *pattern)
   UNION_PATTERN *up = pattern;
   LOCDYN *ldy = up->ldy;
   double **BB, **EE, *B;
-  COMOBJ *ptr, *end;
-  int rank, ncpu;
+  int i, rank, ncpu;
   SET *item;
   DIAB *dia;
   OFFB *blk;
@@ -1986,53 +2034,43 @@ void LOCDYN_Union_Gather (void *pattern)
   ncpu = DOM(ldy->dom)->ncpu;
 
   /* update up->inp Bs */
-  for (item = SET_First (up->inp), B = up->gather_send; item; item = SET_Next (item), B += 3)
+  for (i = 0, B = up->gather_send; i < ncpu; i ++)
   {
-    dia = item->data;
+    if (i == rank) continue;
 
-    /* compute local free velocity */
-    COPY (dia->B, B);
-    for (blk = dia->adj; blk; blk = blk->n)
+    SET *skip = up->skip [i];
+
+    for (item = SET_First (up->inp); item; item = SET_Next (item), B += 3)
     {
-      double *W = blk->W,
-	     *R = blk->R;
+      dia = item->data;
+      COPY (dia->B, B);
 
-      if (blk->dia) { COPY (blk->dia->R, R); }
-      else { COPY (XR(blk->x)->R, R); }
+      /* compute local free velocity */
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+        if (!SET_Contains (skip, (void*) (long) blk->id, NULL)) /* skip items corresponding off-W stored in the union set at ptr->rank */
+	{
+	  double *W = blk->W,
+		 *R = blk->R;
 
-      NVADDMUL (B, W, R, B);
+	  if (blk->dia) { COPY (blk->dia->R, R); }
+	  else { COPY (XR(blk->x)->R, R); }
+
+	  NVADDMUL (B, W, R, B);
+	}
+      }
     }
   }
 
-  /* gather reactions */
+  /* gather local velocities */
   MPI_Alltoallv (up->gather_send, up->gather_send_counts, up->gather_send_disps, up->gather_type,
                  up->gather_recv, up->gather_recv_counts, up->gather_recv_disps, up->gather_type,
 		 MPI_COMM_WORLD);
 
   /* update Bs of imported blocks */
-  for (BB = up->recv_B, EE = BB + up->nrecv_B, B = up->gather_recv; BB < EE; BB ++, B += 3)
+  for (BB = up->recv_B, EE = BB + up->recv_N, B = up->gather_recv; BB < EE; BB ++, B += 3)
   {
     COPY (B, *BB);
-  }
-
-  /* subtract local imported contributions */
-  for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
-  {
-    for (item = SET_First (ptr->o); item; item = SET_Next (item))
-    {
-      dia = item->data;
-      B = dia->B;
-
-      for (blk = dia->adj; blk; blk = blk->n)
-      {
-	double *W = blk->W,
-	       *R = blk->R;
-
-	COPY (blk->dia->R, R);
-
-	NVSUBMUL (B, W, R, B);
-      }
-    }
   }
 }
 
@@ -2043,6 +2081,37 @@ void LOCDYN_Union_Scatter (void *pattern)
   LOCDYN *ldy = up->ldy;
   XR *x, *y;
 
+#if 0
+  double **RR, **EE, *R;
+  int i, ncpu;
+  SET *item;
+  DIAB *dia;
+
+  ncpu = DOM(ldy->dom)->ncpu;
+
+  /* update send Rs */
+  for (i = 0, R = up->gather_send; i < ncpu - 1; i ++)
+  {
+    for (item = SET_First (up->inp); item; item = SET_Next (item), R += 3)
+    {
+      dia = item->data;
+      COPY (dia->R, R);
+    }
+  }
+
+  /* scatter local reactions */
+  MPI_Alltoallv (up->gather_send, up->gather_send_counts, up->gather_send_disps, up->gather_type,
+                 up->gather_recv, up->gather_recv_counts, up->gather_recv_disps, up->gather_type,
+		 MPI_COMM_WORLD);
+
+  /* update Rs of imported blocks */
+  for (RR = up->recv_R, EE = RR + up->recv_N, R = up->gather_recv; RR < EE; RR ++, R += 3)
+  {
+    COPY (R, *RR);
+  }
+#endif
+
+  /* update local external reactions */
   for (x = ldy->REXT, y = x + ldy->REXT_count; x < y; x ++)
   {
     if (x->update)
@@ -2058,8 +2127,11 @@ void LOCDYN_Union_Destroy (void *pattern)
 {
   UNION_PATTERN *up = pattern;
   LOCDYN *ldy = up->ldy;
+  int ncpu, i;
 
   COMOBJ *ptr, *end;
+
+  ncpu = DOM(ldy->dom)->ncpu;
 
   for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++) /* free received blocks data */
   {
@@ -2080,8 +2152,12 @@ void LOCDYN_Union_Destroy (void *pattern)
     SET_Free (&ldy->setmem, (SET**) ptr->o); /* the whole set */
   }
 
+  for (i = 0; i < ncpu; i ++) SET_Free (&ldy->setmem, &up->skip [i]);
+  free (up->skip);
+
   /* gather data */
   free (up->recv_B);
+  free (up->recv_R);
   free (up->gather_send);
   free (up->gather_send_counts);
   free (up->gather_send_disps);
