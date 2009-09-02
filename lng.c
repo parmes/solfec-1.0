@@ -2722,6 +2722,82 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_history (lng_GAUSS_SEIDEL_SOLVER *self, P
   return 0;
 }
 
+static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_variant (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
+{
+  return PyString_FromString (GAUSS_SEIDEL_Variant (self->gs));
+}
+
+static int lng_GAUSS_SEIDEL_SOLVER_set_variant (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "variant")) return -1;
+
+  IFIS (value, "MID_LOOP")
+  {
+    self->gs->variant = GS_MID_LOOP;
+  }
+  ELIF (value, "MID_THREAD")
+  {
+    self->gs->variant = GS_MID_THREAD;
+  }
+  ELIF (value, "MID_TO_ALL")
+  {
+    self->gs->variant = GS_MID_TO_ALL;
+  }
+  ELIF (value, "MID_TO_ONE")
+  {
+    self->gs->variant = GS_MID_TO_ONE;
+  }
+  ELIF (value, "NOB_MID_LOOP")
+  {
+    self->gs->variant = GS_NOB_MID_LOOP;
+  }
+  ELIF (value, "NOB_MID_THREAD")
+  {
+    self->gs->variant = GS_NOB_MID_THREAD;
+  }
+  ELIF (value, "NOB_MID_TO_ALL")
+  {
+    self->gs->variant = GS_NOB_MID_TO_ALL;
+  }
+  ELIF (value, "NOB_MID_TO_ONE")
+  {
+    self->gs->variant = GS_NOB_MID_TO_ONE;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid diagonal solver");
+    return -1;
+  }
+
+  return 0;
+}
+
+static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_reverse (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
+{
+  return PyString_FromString (GAUSS_SEIDEL_Reverse (self->gs));
+}
+
+static int lng_GAUSS_SEIDEL_SOLVER_set_reverse (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "reverse")) return -1;
+
+  IFIS (value, "ON")
+  {
+    self->gs->reverse = GS_ON;
+  }
+  ELIF (value, "OFF")
+  {
+    self->gs->reverse = GS_OFF;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid reverse switch (ON/OFF accepted)");
+    return -1;
+  }
+
+  return 0;
+}
+
 /* GAUSS_SEIDEL_SOLVER methods */
 static PyMethodDef lng_GAUSS_SEIDEL_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -2743,6 +2819,8 @@ static PyGetSetDef lng_GAUSS_SEIDEL_SOLVER_getset [] =
   {"diagmaxiter", (getter)lng_GAUSS_SEIDEL_SOLVER_get_diagmaxiter, (setter)lng_GAUSS_SEIDEL_SOLVER_set_diagmaxiter, "diagonal solver iterations bound", NULL},
   {"diagsolver", (getter)lng_GAUSS_SEIDEL_SOLVER_get_diagsolver, (setter)lng_GAUSS_SEIDEL_SOLVER_set_diagsolver, "diagonal solver kind", NULL},
   {"history", (getter)lng_GAUSS_SEIDEL_SOLVER_get_history, (setter)lng_GAUSS_SEIDEL_SOLVER_set_history, "solution history recording", NULL},
+  {"variant", (getter)lng_GAUSS_SEIDEL_SOLVER_get_variant, (setter)lng_GAUSS_SEIDEL_SOLVER_set_variant, "parallel method variant", NULL},
+  {"reverse", (getter)lng_GAUSS_SEIDEL_SOLVER_get_reverse, (setter)lng_GAUSS_SEIDEL_SOLVER_set_reverse, "iteration reversion flag", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 

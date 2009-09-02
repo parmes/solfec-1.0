@@ -203,14 +203,16 @@ void LOCDYN_Balancing (LOCDYN *ldy, LDB ldb);
 /* update mapping of balanced external reactions */
 void LOCDYN_REXT_Update (LOCDYN *ldy);
 
-/* return the union of 'inp' sets; return the communication
- * 'pattern' used to gather reactions in the union */
-SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, void **pattern);
+/* return the union of 'inp' sets; return the communication 'pattern' used
+ * to gather and scatter reactions in the union; if score < 0 the same union
+ * set is created on all processors; if score >= 0 a single set is created
+ * on the processor with the minimum score, while other processors get NULL */
+SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern);
 
-/* gather reactions from other processors */
+/* gather reactions */
 void LOCDYN_Union_Gather (void *pattern);
 
-/* locally scatter reactions */
+/* scatter reactions */
 void LOCDYN_Union_Scatter (void *pattern);
 
 /* release memory used by the union set */

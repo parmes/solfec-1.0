@@ -39,16 +39,29 @@ enum gsfail
   GS_FAILURE_CALLBACK
 };
 
-enum gshist
+enum gsonoff
 {
   GS_OFF = 0,
   GS_ON
 };
 
+enum gsvariant
+{
+  GS_MID_LOOP, /* colored rank loop over mid nodes */
+  GS_MID_THREAD, /* execute the loop in a thread */
+  GS_MID_TO_ALL, /* migrate mid nodes to all ranks */
+  GS_MID_TO_ONE, /* migrate mid nodes to just one processor */
+  GS_NOB_MID_LOOP, /* non-blocking versions of the above */
+  GS_NOB_MID_THREAD,
+  GS_NOB_MID_TO_ALL,
+  GS_NOB_MID_TO_ONE
+};
+
 typedef enum gserror GSERROR;
 typedef enum gsdias GSDIAS;
 typedef enum gsfail GSFAIL;
-typedef enum gshist GSHIST;
+typedef enum gsonoff GSONOFF;
+typedef enum gsvariant GSVARIANT;
 
 struct gs
 {
@@ -72,11 +85,15 @@ struct gs
 
   int iters; /* most recent number of iterations */
 
-  GSHIST history; /* error history recording flag */
+  GSONOFF history; /* error history recording flag */
 
   double *rerhist; /* relative error history */
 
   short verbose; /* verbosity flag */
+
+  GSONOFF reverse; /* iterate forward an backward alternately ? */
+
+  GSVARIANT variant; /* variant of the parallel algorithm (exposed hor Python's sake) */
 
 #if MPI
   struct Zoltan_Struct *zol; /* used by coloring algorithm */
@@ -106,6 +123,12 @@ char* GAUSS_SEIDEL_Error (GAUSS_SEIDEL *gs);
 
 /* return history flag string */
 char* GAUSS_SEIDEL_History (GAUSS_SEIDEL *gs);
+
+/* return reverse flag string */
+char* GAUSS_SEIDEL_Reverse (GAUSS_SEIDEL *gs);
+
+/* return variant string */
+char* GAUSS_SEIDEL_Variant (GAUSS_SEIDEL *gs);
 
 /* free solver */
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs);

@@ -19,13 +19,6 @@
 #include "com.h"
 #include "tag.h"
 #include "sol.h"
-
-#if MPITHREADS
-#define XSET 0
-#else
-#define XSET 1 /* transfer mid nodes on one processor */
-#endif
-
 #endif
 
 static int projected_gradient (short dynamic, double epsilon, int maxiter,
@@ -645,6 +638,8 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   gs->history = GS_OFF;
   gs->rerhist = NULL;
   gs->verbose = 0;
+  gs->reverse = GS_OFF;
+  gs->variant = GS_MID_LOOP;
 
 #if MPI
   create_mpi (gs);
@@ -888,7 +883,11 @@ static int gauss_siedel_sweep (SET *set, int reverse,
   return dimax;
 }
 
-#if !XSET
+#define SMR() SOLFEC_Timer_Start (sol, "GSMRUN")
+#define EMR() SOLFEC_Timer_End (sol, "GSMRUN")
+#define SMC() SOLFEC_Timer_Start (sol, "GSMCOM")
+#define EMC() SOLFEC_Timer_End (sol, "GSMCOM")
+
 /* perform a Guss-Seidel loop over a set of blocks */
 static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
   GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
@@ -901,6 +900,7 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
   int di, dimax;
 
+  SOLFEC *sol = DOM(ldy->dom)->owner;
   MEM *setmem = &gs->setmem;
   SET *active = NULL,
       *updated = NULL,
@@ -923,6 +923,8 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
   do
   {
+    SMR();
+
     for (item = first (active); item; item = next (item))
     {
       DIAB *dia = item->data;
@@ -963,6 +965,10 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
       }
     }
 
+    EMR ();
+
+    SMC ();
+
     COM (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_MID, send, nsend, &recv, &nrecv); /* communicate all updated blocks */
 
     REXT_recv (ldy, recv, nrecv); /* update external reactions */
@@ -972,26 +978,29 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
     nactive = SET_Size (active);
 
     MPI_Allreduce (&nactive, &mactive, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD); /* is there a nonempty active set ? */
+
+    EMC ();
   }
   while (mactive); /* until all active set are empty */
 
   return dimax;
 }
-#endif
 
-#if MPITHREADS
 typedef struct gauss_seidel_thread_data GSTD;
 
 /* mid set thread data */
 struct gauss_seidel_thread_data
 {
+#if MPITHREADS
   pthread_t thread;
 
   int active,
       wait,
       done;
+#endif
 
   SET *mid;
+  GSONOFF reverse;
   int mycolor;
   int *color;
   GAUSS_SEIDEL *gs;
@@ -1003,6 +1012,7 @@ struct gauss_seidel_thread_data
   int dimax;
 };
 
+#if MPITHREADS
 /* mid set thread execution routine; there is only one thread
  * per process hence no need for a sophisticated sheduling */
 static void* gauss_seidel_thread (GSTD *data)
@@ -1025,20 +1035,18 @@ static void* gauss_seidel_thread (GSTD *data)
 
   return NULL;
 }
+#endif
 
 /* create gauss seidel thread */
-GSTD* gauss_seidel_thread_create (SET *mid, int mycolor, int *color,
-  GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step)
+GSTD* gauss_seidel_thread_create (SET *mid, GSONOFF reverse, int mycolor,
+  int *color, GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step)
 {
   GSTD *data;
 
   ERRMEM (data = malloc (sizeof (GSTD)));
 
-  data->active = 1;
-  data->wait = 1;
-  data->done = 0;
-
   data->mid = mid;
+  data->reverse = reverse;
   data->mycolor = mycolor;
   data->color = color;
   data->gs = gs;
@@ -1048,7 +1056,12 @@ GSTD* gauss_seidel_thread_create (SET *mid, int mycolor, int *color,
   data->errup = 0.0;
   data->errlo = 0.0;
 
+#if MPITHREADS
+  data->active = 1;
+  data->wait = 1;
+  data->done = 0;
   pthread_create (&data->thread, NULL, (void* (*)()) gauss_seidel_thread, data);
+#endif
 
   return data;
 }
@@ -1056,34 +1069,50 @@ GSTD* gauss_seidel_thread_create (SET *mid, int mycolor, int *color,
 /* subsequent thread run */
 static void gauss_seidel_thread_run (GSTD *data)
 {
+#if MPITHREADS
   data->errup = 0.0;
   data->errlo = 0.0;
 
   data->done = 0;
   data->wait = 0;
+#endif
 }
 
 /* wait for completion of a subsequent run */
 static int gauss_seidel_thread_wait (GSTD *data, double *errup, double *errlo)
 {
+#if MPITHREADS
   while (!data->done);
 
   *errup += data->errup;
   *errlo += data->errlo;
 
   return data->dimax;
+#else
+  return gauss_siedel_loop (data->mid, data->reverse && data->gs->iters % 2,
+    data->mycolor, data->color, data->gs, data->ldy, data->dynamic,
+    data->step, &data->errup, &data->errlo);
+#endif
 }
 
 static void gauss_seidel_thread_destroy (GSTD *data)
 {
+#if MPITHREADS
   void *r;
 
   data->active = 0;
   data->wait = 0;
 
   pthread_join (data->thread, &r);
-}
 #endif
+
+  free (data);
+}
+
+#define SR() SOLFEC_Timer_Start (sol, "GSRUN")
+#define ER() SOLFEC_Timer_End (sol, "GSRUN")
+#define SC() SOLFEC_Timer_Start (sol, "GSCOM")
+#define EC() SOLFEC_Timer_End (sol, "GSCOM")
 
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
@@ -1094,14 +1123,13 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   char fmt [512];
   MEM *setmem;
   DIAB *dia;
-#if !XSET
-  void *tmp;
-#endif
   int div = 10,
       mycolor,
      *color,
-      rank,
-      tmq;
+      rank;
+
+  GSONOFF reverse = gs->reverse; /* fetch these two here as a user might change them */
+  GSVARIANT variant = gs->variant; /* later from a callback */
 
   if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -1117,17 +1145,15 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   SET *bot  = NULL, /* blocks that only send to higher processors */
       *top  = NULL, /* blocks that only send to lower processors */
       *mid  = NULL, /* blocks that send to higher and lower processors */
-      *inb  = NULL; /* internal blocks */
-
-#if XSET
-  SET *in1  = NULL,
-      *in2  = NULL;
+      *inb  = NULL, /* internal blocks */
+      *in1  = NULL, /* first subest of internal nodes (used when non-blocking communication is enabled) */
+      *in2  = NULL; /* second subset of internal nodes */
 
   int size1 = 0,
       size2 = 0,
       size3 = 0,
-      size4;
-#endif
+      size4,
+      size5;
 
   /* create block sets */
   for (dia = ldy->diab; dia; dia = dia->n)
@@ -1151,39 +1177,33 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       else lo ++; /* receive from higher */
     }
 
-#if XSET
     if (lo && hi) SET_Insert (setmem, &mid, dia, NULL);
     else if (lo) SET_Insert (setmem, &bot, dia, NULL), size1 += dia->degree;
     else if (hi) SET_Insert (setmem, &top, dia, NULL), size2 += dia->degree;
     else SET_Insert (setmem, &inb, dia, NULL), size3 += dia->degree;
-#else
-    if (lo && hi) SET_Insert (setmem, &mid, dia, NULL);
-    else if (lo) SET_Insert (setmem, &bot, dia, NULL);
-    else if (hi) SET_Insert (setmem, &top, dia, NULL);
-    else SET_Insert (setmem, &inb, dia, NULL);
-#endif
   }
 
-#if XSET
-  /* size1 + |in2| = size2 + |in1|
-   * |in1| + |in2| = size3
-   * -------------------------------
-   * |in2| = (size3 + size2 - size1) / 2
-   */
-
-  size4 = (size3 + size2 - size1) / 2;
-  size4 = MAX (0, size4);
-  tmq = 0;
-
-  /* create in1 and in2 such that: |bot| + |in2| = |top| + |in1| */
-  for (SET *item = SET_First (inb); item; item = SET_Next (item))
+  if (variant >=  GS_NOB_MID_LOOP) /* non-blocking */
   {
-    dia = item->data;
+    /* size1 + |in2| = size2 + |in1|
+     * |in1| + |in2| = size3
+     * -------------------------------
+     * |in2| = (size3 + size2 - size1) / 2
+     */
 
-    if (tmq < size4) SET_Insert (setmem, &in2, dia, NULL), tmq += dia->degree;
-    else SET_Insert (setmem, &in1, dia, NULL);
+    size4 = (size3 + size2 - size1) / 2;
+    size4 = MAX (0, size4);
+    size5 = 0;
+
+    /* create in1 and in2 such that: |bot| + |in2| = |top| + |in1| */
+    for (SET *item = SET_First (inb); item; item = SET_Next (item))
+    {
+      dia = item->data;
+
+      if (size5 < size4) SET_Insert (setmem, &in2, dia, NULL), size5 += dia->degree;
+      else SET_Insert (setmem, &in1, dia, NULL);
+    }
   }
-#endif
 
 #if DEBUG
   if (gs->verbose)
@@ -1251,17 +1271,22 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   bot_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_BOT, send_bot, nsend_bot, &recv_bot, &nrecv_bot);
   top_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_TOP, send_top, nsend_top, &recv_top, &nrecv_top);
 
-#if MPITHREADS
+  GSTD *data = NULL;
+
   /* create mid set update thread */
-  GSTD *data = gauss_seidel_thread_create (mid, mycolor, color, gs, ldy, dynamic, step);
-#endif
+  if (variant == GS_MID_THREAD ||
+      variant == GS_NOB_MID_THREAD) gauss_seidel_thread_create (mid, reverse, mycolor, color, gs, ldy, dynamic, step);
 
-#if XSET
-  void *xpattern;
-  SET *xset = LOCDYN_Union_Create (ldy, mid, &xpattern);
+  void *upattern = NULL;
+  SET *umid;
+
+  /* create union of mid blocks */
+  if (variant == GS_MID_TO_ALL ||
+      variant == GS_NOB_MID_TO_ALL) umid = LOCDYN_Union_Create (ldy, mid, -1, &upattern);
+  else if (variant == GS_MID_TO_ONE ||
+           variant == GS_NOB_MID_TO_ALL) umid = LOCDYN_Union_Create (ldy, mid, ldy->ndiab, &upattern);
+
   SOLFEC *sol = DOM(ldy->dom)->owner;
-#endif
-
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
   gs->error = GS_OK;
@@ -1276,96 +1301,174 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     REXT_undo (ldy); /* undo all external reactions */
 
-#if XSET
-
-    SOLFEC_Timer_Start (sol, "GSBOT");
-    di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo);
-    dimax = MAX (dimax, di);
-    COM_Send (bot_pattern);
-    SOLFEC_Timer_End (sol, "GSBOT");
-
-    SOLFEC_Timer_Start (sol, "GSIN1");
-    di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo);
-    dimax = MAX (dimax, di);
-    SOLFEC_Timer_End (sol, "GSIN1");
-
-    SOLFEC_Timer_Start (sol, "GSBOT_RECV");
-    COM_Recv (bot_pattern);
-    REXT_recv (ldy, recv_bot, nrecv_bot);
-    SOLFEC_Timer_End (sol, "GSBOT_RECV");
-
-    SOLFEC_Timer_Start (sol, "GSTOP");
-    di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo);
-    dimax = MAX (dimax, di);
-    COM_Send (top_pattern);
-    SOLFEC_Timer_End (sol, "GSTOP");
-
-    SOLFEC_Timer_Start (sol, "GSIN2");
-    di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo);
-    dimax = MAX (dimax, di);
-    SOLFEC_Timer_End (sol, "GSIN2");
-
-    SOLFEC_Timer_Start (sol, "GSTOP_RECV");
-    COM_Recv (top_pattern);
-    REXT_recv (ldy, recv_top, nrecv_top);
-    SOLFEC_Timer_End (sol, "GSTOP_RECV");
-
-    SOLFEC_Timer_Start (sol, "GSMID_GATHER");
-    LOCDYN_Union_Gather (xpattern);
-    SOLFEC_Timer_End (sol, "GSMID_GATHER");
-
-    SOLFEC_Timer_Start (sol, "GSMID");
-    di = gauss_siedel_sweep (xset, 0, gs, dynamic, step, &errup, &errlo);
-    dimax = MAX (dimax, di);
-    LOCDYN_Union_Scatter (xpattern);
-    SOLFEC_Timer_End (sol, "GSMID");
-
-#else
-    if (gs->iters % 2) /* reverse */
+    switch (variant)
     {
-      tmp = bot_pattern; bot_pattern = top_pattern; top_pattern = tmp;
-      tmq = nrecv_bot; nrecv_bot = nrecv_top; nrecv_top = tmq;
-      tmp = recv_bot; recv_bot = recv_top; recv_top = tmp;
-      tmp = bot; bot = top; top = tmp;
-    }
-
-    di = gauss_siedel_sweep (top, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update top blocks */
-    dimax = MAX (dimax, di);
-
-    COM_Repeat (top_pattern); /* send and receive top blocks */
-
-    REXT_recv (ldy, recv_top, nrecv_top); /* update received extenral reactions */
-    
-#if MPITHREADS
-    gauss_seidel_thread_run (data); /* begin update of mid blocks */
-#else
-    di = gauss_siedel_loop (mid, gs->iters % 2, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo);
-    dimax = MAX (dimax, di);
-#endif
-
-    di = gauss_siedel_sweep (inb, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update interior blocks */
-    dimax = MAX (dimax, di);
-
-#if MPITHREADS
-    di = gauss_seidel_thread_wait (data, &errup, &errlo); /* waid until mid nodes are updated */
-    dimax = MAX (dimax, di);
-#endif
-
-    di = gauss_siedel_sweep (bot, gs->iters % 2, gs, dynamic, step, &errup, &errlo); /* update bot blocks */
-    dimax = MAX (dimax, di);
-
-    COM_Repeat (bot_pattern); /* sending and receive bot blocks */
-
-    REXT_recv (ldy, recv_bot, nrecv_bot); /* update received external reactions */
-
-    if (gs->iters % 2) /* reverse */
+    case GS_MID_LOOP:
     {
-      tmp = bot_pattern; bot_pattern = top_pattern; top_pattern = tmp;
-      tmq = nrecv_bot; nrecv_bot = nrecv_top; nrecv_top = tmq;
-      tmp = recv_bot; recv_bot = recv_top; recv_top = tmp;
-      tmp = bot; bot = top; top = tmp;
+      if (reverse && gs->iters % 2)
+      {
+	SR(); di = gauss_siedel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
+	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	di = gauss_siedel_loop (mid, 1, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+      }
+      else
+      {
+	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
+	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+	di = gauss_siedel_loop (mid, 0, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	SR(); di = gauss_siedel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+      }
     }
-#endif
+    break;
+    case GS_MID_THREAD:
+    {
+      if (reverse && gs->iters % 2)
+      {
+	SR(); di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);  ER();
+	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	gauss_seidel_thread_run (data);
+	SR(); di = gauss_siedel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
+	di = gauss_seidel_thread_wait (data, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+      }
+      else
+      {
+	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+	gauss_seidel_thread_run (data);
+	SR(); di = gauss_siedel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	di = gauss_seidel_thread_wait (data, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);  ER();
+	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+      }
+    }
+    break;
+    case GS_MID_TO_ALL:
+    case GS_MID_TO_ONE:
+    {
+      if (reverse && gs->iters % 2)
+      {
+	SR(); di = gauss_siedel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	SMC(); LOCDYN_Union_Gather (upattern); EMC ();
+	SMR(); di = gauss_siedel_sweep (umid, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
+	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
+	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+      }
+      else
+      {
+	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+	SMC(); LOCDYN_Union_Gather (upattern); EMC();
+	SMR(); di = gauss_siedel_sweep (umid, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
+	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
+	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	SR(); di = gauss_siedel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+      }
+    }
+    break;
+    case GS_NOB_MID_LOOP:
+    {
+      if (reverse && gs->iters % 2)
+      {
+	SR(); di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (bot_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	di = gauss_siedel_loop (mid, 1, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (top_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+      }
+      else
+      {
+	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (top_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+	di = gauss_siedel_loop (mid, 0, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (bot_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+      }
+
+    }
+    break;
+    case GS_NOB_MID_THREAD:
+    {
+      if (reverse && gs->iters % 2)
+      {
+	SR(); di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (bot_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	gauss_seidel_thread_run (data);
+	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (top_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+	di = gauss_seidel_thread_wait (data, &errup, &errlo); dimax = MAX (dimax, di);
+      }
+      else
+      {
+	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (top_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+	gauss_seidel_thread_run (data);
+	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (bot_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	di = gauss_seidel_thread_wait (data, &errup, &errlo); dimax = MAX (dimax, di);
+      }
+    }
+    break;
+    case GS_NOB_MID_TO_ALL:
+    case GS_NOB_MID_TO_ONE:
+    {
+      if (reverse && gs->iters % 2)
+      {
+	SR(); di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (bot_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	SMC(); LOCDYN_Union_Gather (upattern); EMC();
+	SMR(); di = gauss_siedel_sweep (umid, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
+	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
+	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (top_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+      }
+      else
+      {
+	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (top_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+	SMC(); LOCDYN_Union_Gather (upattern); EMC();
+	SMR(); di = gauss_siedel_sweep (umid, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
+	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
+	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Send (bot_pattern); EC();
+	SR(); di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+      }
+    }
+    break;
+    }
 
     ASSERT_DEBUG (REXT_alldone (ldy), "All external reactions should be done by now");
 
@@ -1397,19 +1500,14 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   if (rank == 0 && gs->verbose) printf (fmt, gs->iters, error);
 
-#if MPITHREADS
-  gauss_seidel_thread_destroy (data);
-#endif
-
-#if XSET
-  LOCDYN_Union_Destroy (xpattern);
-  SET_Free (setmem, &in1);
-  SET_Free (setmem, &in2);
-#endif
+  if (upattern) LOCDYN_Union_Destroy (upattern);
+  if (data) gauss_seidel_thread_destroy (data);
   SET_Free (setmem, &bot);
   SET_Free (setmem, &mid);
   SET_Free (setmem, &top);
   SET_Free (setmem, &inb);
+  SET_Free (setmem, &in1);
+  SET_Free (setmem, &in2);
   COM_Free (bot_pattern);
   COM_Free (top_pattern);
   free (send_bot);
@@ -1451,7 +1549,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
 
-  if (ldy->dia) for (end = ldy->dia; end->n; end = end->n); /* find last block for the backward run */
+  if (gs->reverse && ldy->dia) for (end = ldy->dia; end->n; end = end->n); /* find last block for the backward run */
   else end = NULL;
 
   dynamic = DOM(ldy->dom)->dynamic;
@@ -1465,7 +1563,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     OFFB *blk;
     DIAB *dia;
    
-    for (dia = gs->iters % 2 ? ldy->dia : end; dia; dia = gs->iters % 2 ? dia->n : dia->p) /* run forward and backward alternately */
+    for (dia = end && gs->iters % 2 ? end : ldy->dia; dia; dia = end && gs->iters % 2 ? dia->p : dia->n) /* run forward and backward alternately */
     {
       double R0 [3],
 	     B [3],
@@ -1594,6 +1692,36 @@ char* GAUSS_SEIDEL_History (GAUSS_SEIDEL *gs)
   {
   case GS_ON: return "ON";
   case GS_OFF: return "OFF";
+  }
+
+  return NULL;
+}
+
+/* return reverse flag string */
+char* GAUSS_SEIDEL_Reverse (GAUSS_SEIDEL *gs)
+{
+  switch (gs->reverse)
+  {
+  case GS_ON: return "ON";
+  case GS_OFF: return "OFF";
+  }
+
+  return NULL;
+}
+
+/* return variant string */
+char* GAUSS_SEIDEL_Variant (GAUSS_SEIDEL *gs)
+{
+  switch (gs->variant)
+  {
+  case GS_MID_LOOP: return "MID_LOOP";
+  case GS_MID_THREAD: return "MID_THREAD";
+  case GS_MID_TO_ALL: return "MID_TO_ALL";
+  case GS_MID_TO_ONE: return "MID_TO_ONE";
+  case GS_NOB_MID_LOOP: return "NOB_MID_LOOP";
+  case GS_NOB_MID_THREAD: return "NOB_MID_THREAD";
+  case GS_NOB_MID_TO_ALL: return "NOB_MID_TO_ALL";
+  case GS_NOB_MID_TO_ONE: return "NOB_MID_TO_ONE";
   }
 
   return NULL;
