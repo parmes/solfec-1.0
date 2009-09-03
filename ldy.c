@@ -2141,7 +2141,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
 
       for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
       {
-	up->scatter_send_counts [ptr->rank] = SET_Size (ptr->o); /* send to parents */
+	up->scatter_send_counts [ptr->rank] += SET_Size (ptr->o); /* send to parents */
 
 	for (item = SET_First (ptr->o); item; item = SET_Next (item))
 	{
@@ -2306,7 +2306,7 @@ void LOCDYN_Union_Scatter (void *pattern)
     {
       for (item = SET_First (ptr->o); item; item = SET_Next (item))
       {
-	R = &up->scatter_send [up->scatter_send_disps [ptr->rank] + i[ptr->rank]];
+	R = &up->scatter_send [up->scatter_send_disps[ptr->rank] + i[ptr->rank]];
 	i [ptr->rank] ++;
 	dia = item->data;
 	R->id = -dia->id; /* negative id for blocks */
@@ -2315,7 +2315,7 @@ void LOCDYN_Union_Scatter (void *pattern)
 	for (jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem))
 	{
 	  int rank = (int) (long) jtem->key;
-	  R = &up->scatter_send [up->scatter_send_disps [rank] + i[rank]];
+	  R = &up->scatter_send [up->scatter_send_disps[rank] + i[rank]];
 	  i [rank] ++;
 	  R->id = (int) (long) jtem->data; /* non-negative REXT index */
 	  COPY (dia->R, R->vec);
@@ -2382,7 +2382,7 @@ void LOCDYN_Union_Destroy (void *pattern)
       MEM_Free (&ldy->diamem, dia); /* diagonal */
     }
 
-    SET_Free (&ldy->setmem, (SET**) ptr->o); /* the whole set */
+    SET_Free (&ldy->setmem, (SET**) &ptr->o); /* the whole set */
   }
 
   for (i = 0; i < ncpu; i ++) SET_Free (&ldy->setmem, &up->skip [i]);
