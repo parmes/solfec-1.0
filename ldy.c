@@ -2231,27 +2231,30 @@ void LOCDYN_Union_Gather (void *pattern)
   }
   else
   {
-    SET *skip = up->skip [up->root];
-
-    /* update up->inp Bs */
-    for (B = up->gather_send, item = SET_First (up->inp); item; item = SET_Next (item), B ++)
+    if (rank != up->root) /* root rank does not send here */
     {
-      dia = item->data;
-      B->id = dia->id;
-      COPY (dia->B, B->vec);
+      SET *skip = up->skip [up->root];
 
-      /* compute local free velocity */
-      for (blk = dia->adj; blk; blk = blk->n)
+      /* update up->inp Bs */
+      for (B = up->gather_send, item = SET_First (up->inp); item; item = SET_Next (item), B ++)
       {
-	if (!SET_Contains (skip, (void*) (long) blk->id, NULL)) /* skip items corresponding off-W stored in the union set at ptr->rank */
+	dia = item->data;
+	B->id = dia->id;
+	COPY (dia->B, B->vec);
+
+	/* compute local free velocity */
+	for (blk = dia->adj; blk; blk = blk->n)
 	{
-	  double *W = blk->W,
-		 *R = blk->R;
+	  if (!SET_Contains (skip, (void*) (long) blk->id, NULL)) /* skip items corresponding off-W stored in the union set at ptr->rank */
+	  {
+	    double *W = blk->W,
+		   *R = blk->R;
 
-	  if (blk->dia) { COPY (blk->dia->R, R); }
-	  else { COPY (XR(blk->x)->R, R); }
+	    if (blk->dia) { COPY (blk->dia->R, R); }
+	    else { COPY (XR(blk->x)->R, R); }
 
-	  NVADDMUL (B->vec, W, R, B->vec);
+	    NVADDMUL (B->vec, W, R, B->vec);
+	  }
 	}
       }
     }
