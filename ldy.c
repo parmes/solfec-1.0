@@ -1749,51 +1749,6 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
   free (recv);
 }
 
-/* pack union data */
-static void pack_union (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
-  pack_int (isize, i, ints, SET_Size (set));
-  for (SET *item = SET_First (set); item; item = SET_Next (item))
-  {
-    DIAB *dia = item->data;
-
-    if (dia->con) copycon (dia); /* copy constraint data */
-
-    pack_block (dia, dsize, d, doubles, isize, i, ints);
-    pack_int (isize, i, ints, dia->id);
-  }
-}
-
-/* unpack union data */
-static void* unpack_union (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  SET *out;
-  int ndia;
-
-  ndia = unpack_int (ipos, i, ints);
-  for (out = NULL; ndia > 0; ndia --)
-  {
-    DIAB *dia;
-    ERRMEM (dia = MEM_Alloc (&ldy->diamem));
-    dia->R = dia->REAC;
-    unpack_block (dia, &ldy->offmem, NULL, dpos, d, doubles, ipos, i, ints);
-    dia->id = unpack_int (ipos, i, ints);
-
-    /* inser into the output set */
-    SET_Insert (&ldy->setmem, &out, dia, NULL);
-  }
-
-  return out;
-}
-
-/* id comparison of DIABs */
-static int idcmp (DIAB *a, DIAB *b)
-{
-  if (a->id < b->id) return -1;
-  else if (a->id == b->id) return 0;
-  else return 1;
-}
-
 /* id and vector */
 typedef struct id_vec ID_VEC;
 
@@ -1843,6 +1798,75 @@ struct union_pattern
 
   SET *uni; /* union of mid node sets (not NULL on root rank) */
 };
+
+/* pack union data */
+static void pack_union (UNION_PATTERN *up, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, SET_Size (up->inp));
+  for (SET *item = SET_First (up->inp); item; item = SET_Next (item))
+  {
+    DIAB *dia = item->data;
+
+    if (dia->con) copycon (dia); /* copy constraint data */
+
+    pack_block (dia, dsize, d, doubles, isize, i, ints);
+    pack_int (isize, i, ints, dia->id);
+
+    if (up->mode == ALL_TO_ONE)
+    {
+      /* pack children */
+      pack_int (isize, i, ints, MAP_Size (dia->children));
+      for (MAP *jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem))
+      {
+	pack_int (isize, i, ints, (int) (long) jtem->key);
+	pack_int (isize, i, ints, (int) (long) jtem->data);
+      }
+    }
+  }
+}
+
+/* unpack union data */
+static void* unpack_union (UNION_PATTERN *up, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  LOCDYN *ldy;
+  SET *out;
+  int ndia;
+
+  ndia = unpack_int (ipos, i, ints);
+  for (ldy = up->ldy, out = NULL; ndia > 0; ndia --)
+  {
+    DIAB *dia;
+    ERRMEM (dia = MEM_Alloc (&ldy->diamem));
+    dia->R = dia->REAC;
+    unpack_block (dia, &ldy->offmem, NULL, dpos, d, doubles, ipos, i, ints);
+    dia->id = unpack_int (ipos, i, ints);
+
+    if (up->mode == ALL_TO_ONE)
+    {
+      /* unpack children */
+      int n, rnk, idx, nch = unpack_int (ipos, i, ints);
+      for (n = 0; n < nch; n ++)
+      {
+	rnk = unpack_int (ipos, i, ints);
+	idx = unpack_int (ipos, i, ints);
+	MAP_Insert (&ldy->mapmem, &dia->children, (void*) (long) rnk, (void*) (long) idx, NULL);
+      }
+    }
+
+    /* inser into the output set */
+    SET_Insert (&ldy->setmem, &out, dia, NULL);
+  }
+
+  return out;
+}
+
+/* id comparison of DIABs */
+static int idcmp (DIAB *a, DIAB *b)
+{
+  if (a->id < b->id) return -1;
+  else if (a->id == b->id) return 0;
+  else return 1;
+}
 
 /* return the union of 'inp' sets; return the communication 'pattern' used
  * to gather and scatter reactions in the union; if score < 0 the same union
@@ -1909,14 +1933,14 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   if (up->mode == ALL_TO_ALL)
   {
     /* send 'inp' to all others and receive their 'inp's */
-    COMOBJALL (MPI_COMM_WORLD, (OBJ_Pack) pack_union, ldy, (OBJ_Unpack) unpack_union, inp, &up->recv, &up->nrecv);
+    COMOBJALL (MPI_COMM_WORLD, (OBJ_Pack) pack_union, up, (OBJ_Unpack) unpack_union, up, &up->recv, &up->nrecv);
   }
   else
   {
-    COMOBJ send = {up->root, inp};
+    COMOBJ send = {up->root, up};
     int nsend = inp ? 1 : 0;
 
-    COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_UNION, (OBJ_Pack) pack_union, ldy, (OBJ_Unpack) unpack_union, &send, nsend, &up->recv, &up->nrecv);
+    COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_UNION, (OBJ_Pack) pack_union, up, (OBJ_Unpack) unpack_union, &send, nsend, &up->recv, &up->nrecv);
   }
 
   MAP *idtodia;
@@ -2064,22 +2088,28 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
     up->gather_send_size = rank == up->root ? 0 : k; /* send Bs to root processor */
     if (up->gather_send_size) ERRMEM (up->gather_send = malloc (sizeof (ID_VEC [up->gather_send_size])));
 
-    /* prepare gather receive data */
-    ERRMEM (up->gather_recv_counts = malloc (sizeof (int [ncpu])));
-    ERRMEM (up->gather_recv_disps = malloc (sizeof (int [ncpu])));
+    if (rank == up->root)
+    {
+      /* prepare gather receive data */
+      ERRMEM (up->gather_recv_counts = malloc (sizeof (int [ncpu])));
+      ERRMEM (up->gather_recv_disps = malloc (sizeof (int [ncpu])));
+    }
 
     /* gather send sizes into receive counts */
     MPI_Gather (&up->gather_send_size, 1, MPI_INT, up->gather_recv_counts, 1, MPI_INT, up->root, MPI_COMM_WORLD);
 
-    /* compute receive displacements */
-    for (i = 0; i < ncpu; i ++)
+    if (rank == up->root)
     {
-      up->gather_recv_size += up->gather_recv_counts [i];
-      if (i < (ncpu - 1)) up->gather_recv_disps [i+1] = up->gather_recv_size;
-    }
-    up->gather_recv_disps [0] = 0;
+      /* compute receive displacements */
+      for (i = 0; i < ncpu; i ++)
+      {
+	up->gather_recv_size += up->gather_recv_counts [i];
+	if (i < (ncpu - 1)) up->gather_recv_disps [i+1] = up->gather_recv_size;
+      }
+      up->gather_recv_disps [0] = 0;
 
-    ERRMEM (up->gather_recv = malloc (sizeof (ID_VEC [up->gather_recv_size])));
+      ERRMEM (up->gather_recv = malloc (sizeof (ID_VEC [up->gather_recv_size])));
+    }
   }
 
   /* create the union set */
@@ -2101,27 +2131,43 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
       else x->update = NULL;
     }
   }
-  else if (rank == up->root)
+  else
   {
-    /* prepare scatter data */
-    ERRMEM (up->scatter_send_counts = malloc (sizeof (int [ncpu])));
-    ERRMEM (up->scatter_send_disps = malloc (sizeof (int [ncpu])));
-
-    for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
-      up->scatter_send_counts [ptr->rank] = SET_Size (ptr->o);
-
-    /* displacements */
-    for (i = 0; i < ncpu; i ++)
+    if (rank == up->root)
     {
-      up->scatter_send_size += up->scatter_send_counts [i];
-      if (i < (ncpu - 1)) up->scatter_send_disps [i+1] = up->scatter_send_size;
-    }
-    up->scatter_send_disps [0] = 0;
+      /* prepare scatter data */
+      ERRMEM (up->scatter_send_counts = calloc (ncpu, sizeof (int)));
+      ERRMEM (up->scatter_send_disps = calloc (ncpu, sizeof (int)));
 
-    ERRMEM (up->scatter_send = malloc (sizeof (ID_VEC [up->scatter_send_size])));
+      for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
+      {
+	up->scatter_send_counts [ptr->rank] = SET_Size (ptr->o); /* send to parents */
+
+	for (item = SET_First (ptr->o); item; item = SET_Next (item))
+	{
+	  dia = item->data;
+	  for (jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem))
+	  {
+	    up->scatter_send_counts [(int) (long) jtem->key] ++; /* send to children */
+	  }
+	}
+      }
+
+      /* displacements */
+      for (i = 0; i < ncpu; i ++)
+      {
+	up->scatter_send_size += up->scatter_send_counts [i];
+	if (i < (ncpu - 1)) up->scatter_send_disps [i+1] = up->scatter_send_size;
+      }
+      up->scatter_send_disps [0] = 0;
+
+      ERRMEM (up->scatter_send = malloc (sizeof (ID_VEC [up->scatter_send_size])));
+    }
+
+    /* scatter root send sizes into receive sizes (could include the root due to chidren ranks) */
+    MPI_Scatter (up->scatter_send_counts, 1, MPI_INT, &up->scatter_recv_size, 1, MPI_INT, up->root, MPI_COMM_WORLD);
 
     /* receive storage */
-    up->scatter_recv_size = rank == up->root ? 0 : SET_Size (inp);
     if (up->scatter_recv_size) ERRMEM (up->scatter_recv = malloc (sizeof (ID_VEC [up->scatter_recv_size])));
   }
 
@@ -2178,10 +2224,14 @@ void LOCDYN_Union_Gather (void *pattern)
 	}
       }
     }
+
+    /* gather local velocities */
+    MPI_Alltoallv (up->gather_send, up->gather_send_counts, up->gather_send_disps, up->id_vec_type,
+		   up->gather_recv, up->gather_recv_counts, up->gather_recv_disps, up->id_vec_type, MPI_COMM_WORLD);
   }
-  else if (rank != up->root)
+  else
   {
-    SET *skip = up->skip [rank];
+    SET *skip = up->skip [up->root];
 
     /* update up->inp Bs */
     for (B = up->gather_send, item = SET_First (up->inp); item; item = SET_Next (item), B ++)
@@ -2205,12 +2255,11 @@ void LOCDYN_Union_Gather (void *pattern)
 	}
       }
     }
-  }
 
-  /* gather local velocities */
-  MPI_Alltoallv (up->gather_send, up->gather_send_counts, up->gather_send_disps, up->id_vec_type,
-                 up->gather_recv, up->gather_recv_counts, up->gather_recv_disps, up->id_vec_type,
-		 MPI_COMM_WORLD);
+    /* gather local velocities */
+    MPI_Gatherv (up->gather_send, up->gather_send_size, up->id_vec_type, up->gather_recv,
+	         up->gather_recv_counts, up->gather_recv_disps, up->id_vec_type, up->root, MPI_COMM_WORLD);
+  }
 
   /* update Bs of imported blocks */
   for (B = up->gather_recv, E = B + up->gather_recv_size; B < E; B ++)
@@ -2248,16 +2297,37 @@ void LOCDYN_Union_Scatter (void *pattern)
     ID_VEC *R, *E;
     DIAB *dia;
     SET *item;
+    MAP *jtem;
+    int *i;
 
-    for (ptr = up->recv, end = ptr + up->nrecv, R = up->scatter_send; ptr < end; ptr ++)
+    ERRMEM (i = calloc (DOM(ldy->dom)->ncpu, sizeof (int)));
+
+    for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
     {
-      for (item = SET_First (ptr->o); item; item = SET_Next (item), R ++)
+      for (item = SET_First (ptr->o); item; item = SET_Next (item))
       {
+	R = &up->scatter_send [up->scatter_send_disps [ptr->rank] + i[ptr->rank]];
+	i [ptr->rank] ++;
 	dia = item->data;
-	R->id = dia->id;
+	R->id = -dia->id; /* negative id for blocks */
 	COPY (dia->R, R->vec);
+
+	for (jtem = MAP_First (dia->children); jtem; jtem = MAP_Next (jtem))
+	{
+	  int rank = (int) (long) jtem->key;
+	  R = &up->scatter_send [up->scatter_send_disps [rank] + i[rank]];
+	  i [rank] ++;
+	  R->id = (int) (long) jtem->data; /* non-negative REXT index */
+	  COPY (dia->R, R->vec);
+	}
       }
     }
+
+#if DEBUG
+    if (DOM(ldy->dom)->rank == up->root)
+      for (int j = 0; j < DOM(ldy->dom)->ncpu; j ++)
+	ASSERT_DEBUG (i [j] == up->scatter_send_counts [j], "Incorrect send count");
+#endif
 
     MPI_Scatterv (up->scatter_send, up->scatter_send_counts, up->scatter_send_disps,
       up->id_vec_type, up->scatter_recv, up->scatter_recv_size, up->id_vec_type,
@@ -2265,10 +2335,21 @@ void LOCDYN_Union_Scatter (void *pattern)
 
     for  (R = up->scatter_recv, E = R + up->scatter_recv_size; R < E; R ++)
     {
-      DIAB aux;
-      aux.id = R->id;
-      ASSERT_DEBUG_EXT (dia = SET_Find (up->uni, &aux, (SET_Compare) idcmp), "Invalid union block id");
-      COPY (R->vec, dia->R);
+      if (R->id < 0)
+      {
+	DIAB aux;
+	aux.id = -R->id;
+	ASSERT_DEBUG_EXT (dia = SET_Find (up->uni, &aux, (SET_Compare) idcmp), "Invalid union block id");
+	COPY (R->vec, dia->R);
+      }
+      else
+      {
+	ASSERT_DEBUG (R->id < ldy->REXT_count, "Incalid REXT index");
+	XR *x = &ldy->REXT [R->id];
+	COPY (R->vec, x->R);
+	ASSERT_DEBUG (x->done == 0, "Doing an already done REXT item");
+	x->done = 1;
+      }
     }
   }
 }
@@ -2297,6 +2378,7 @@ void LOCDYN_Union_Destroy (void *pattern)
 	MEM_Free (&ldy->offmem, b);
       }
 
+      MAP_Free (&ldy->mapmem, &dia->children); /* children */
       MEM_Free (&ldy->diamem, dia); /* diagonal */
     }
 

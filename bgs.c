@@ -492,57 +492,6 @@ static int solver (GAUSS_SEIDEL *gs, short dynamic, double step, short kind,
   return 0;
 }
 
-#if 0
-#if DEBUG
-static void DUMP (DIAB *dia)
-{
-#if MPI
-  int rank, size, data;
-  MPI_Status sta;
-
-  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
-  MPI_Comm_size (MPI_COMM_WORLD, &size);
-
-  if (rank > 0) MPI_Recv (&data, 1, MPI_INT, rank-1, 999, MPI_COMM_WORLD, &sta);
-#endif
-
-  for (; dia; dia = dia->n)
-  {
-    double *point;
-
-    if (dia->con) point = CON(dia->con)->point;
-#if MPI
-    else point = dia->point;
-#endif
-
-    printf ("POINT: %e, %e, %e| ", point [0], point [1], point [2]);
-#if 0
-    printf ("B: %.2e, %.2e, %.2e| ", dia->B[0], dia->B[1], dia->B[2]);
-    printf ("R: %.2e, %.2e, %.2e\n", dia->R[0], dia->R[1], dia->R[2]);
-
-    double *W = dia->W;
-    printf ("W(diag): %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e\n", W[0], W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8]);
-    for (OFFB *b = dia->adj; b; b = b->n)
-    {
-      W = b->W;
-      printf ("W(off): %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e, %.2e\n", W[0], W[1], W[2], W[3], W[4], W[5], W[6], W[7], W[8]);
-    }
-#else
-    printf ("R: %.2e, %.2e, %.2e\n", dia->R[0], dia->R[1], dia->R[2]);
-#endif
-  }
-
-#if MPI
-  if (rank < size - 1) MPI_Send (&rank, 1, MPI_INT, rank+1, 999, MPI_COMM_WORLD);
-
-  MPI_Barrier (MPI_COMM_WORLD);
-#endif
-}
-#else
-#define DUMP(dia)
-#endif
-#endif
-
 #if MPI
 /* number of cpus in here  */
 static int cpu_count (GAUSS_SEIDEL *gs, int *ierr)
@@ -975,6 +924,8 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
     SET_Free (setmem, &updated); /* empty the updated blocks set */
 
+    free (recv);
+
     nactive = SET_Size (active);
 
     MPI_Allreduce (&nactive, &mactive, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD); /* is there a nonempty active set ? */
@@ -1213,8 +1164,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     MPI_Reduce (sizes, result, 4, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
     if (rank == 0)
-      printf ("GAUSS_SEIDEL: |BOT| = %d, |MID| = %d, |TOP| = %d, |INT| = %d\n",
-	    result [0], result [1], result [2], result [3]);
+      printf ("GAUSS_SEIDEL (%s): |BOT| = %d, |MID| = %d, |TOP| = %d, |INT| = %d\n",
+	    GAUSS_SEIDEL_Variant (gs), result [0], result [1], result [2], result [3]);
   }
 #endif
 
@@ -1275,7 +1226,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   /* create mid set update thread */
   if (variant == GS_MID_THREAD ||
-      variant == GS_NOB_MID_THREAD) gauss_seidel_thread_create (mid, reverse, mycolor, color, gs, ldy, dynamic, step);
+      variant == GS_NOB_MID_THREAD) data = gauss_seidel_thread_create (mid, reverse, mycolor, color, gs, ldy, dynamic, step);
 
   void *upattern = NULL;
   SET *umid;
