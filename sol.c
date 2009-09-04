@@ -300,6 +300,15 @@ static void statsout (SOLFEC *sol)
   AABB *aabb = sol->aabb;
 #if MPI
   const int N = 9;
+  char *stapath;
+  FILE *sta;
+
+  ERRMEM (stapath = malloc (strlen (sol->outpath) + 64));
+  sprintf (stapath, "%s/STATE", sol->outpath);
+  ASSERT (sta = fopen (stapath, "w"), ERR_FILE_OPEN);
+  fprintf (sta, "----------------------------------------------------------------------------------------\n");
+  fprintf (sta, "TIME: %.2e\n", sol->dom->time);
+  fprintf (sta, "----------------------------------------------------------------------------------------\n");
 
   LOCDYN *ldy = sol->dom->ldy;
 
@@ -313,10 +322,17 @@ static void statsout (SOLFEC *sol)
 
   if (PUT_root_int_stats (9, val, sum, min, avg, max))
   {
-    for (i = 0; i < N; i ++) printf ("%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n",
-				     name [i], sum [i], min [i], avg [i], max [i]);
-    printf ("----------------------------------------------------------------------------------\n");
+    for (i = 0; i < N; i ++) 
+    {
+      fprintf (sta, "%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", name [i], sum [i], min [i], avg [i], max [i]);
+      printf ("%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", name [i], sum [i], min [i], avg [i], max [i]);
+    }
+    fprintf (sta, "----------------------------------------------------------------------------------------\n");
+    printf ("----------------------------------------------------------------------------------------\n");
   }
+
+  fclose (sta);
+  free (stapath);
 #else
   const int N = 3;
 
