@@ -1001,6 +1001,9 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
     for (box = aabb->lst, b = aabb->tab; box; box = box->next, b ++) *b = box; /* overwrite box pointers */
   }
 
+  /* regardless of the current algorithm notify sweep-plane about the change */
+  if (aabb->modified && aabb->swp) SWEEP_Changed (aabb->swp);
+
   /* the algorithm
    * specific part */
   switch (alg)
@@ -1025,8 +1028,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
     {
       if (!aabb->swp) aabb->swp = SWEEP_Create (aabb->ntab, (DRALG)alg);
 
-      SWEEP_Do (aabb->swp, (DRALG)alg, aabb->modified, aabb->ntab,
-	        aabb->tab, &aux, (BOX_Overlap_Create)local_create); 
+      SWEEP_Do (aabb->swp, (DRALG)alg, aabb->ntab, aabb->tab, &aux, (BOX_Overlap_Create)local_create); 
     }
     break;
   }

@@ -32,9 +32,14 @@
 void* SWEEP_Create (int boxnum, DRALG algo);
 
 /*
+ * Set changed flag.
+ */
+void SWEEP_Changed (void *context);
+
+/*
  * Perform overlap detection test.
  */
-void SWEEP_Do (void *context, DRALG algo, int changed, int boxnum, BOX **boxes, void *data, BOX_Overlap_Create report);
+void SWEEP_Do (void *context, DRALG algo, int boxnum, BOX **boxes, void *data, BOX_Overlap_Create report);
 
 /*
  * Clean up.

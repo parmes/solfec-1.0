@@ -253,7 +253,13 @@ void* SWEEP_Create (int boxnum, DRALG algo)
   return  s;
 }
 
-void SWEEP_Do (void *context, DRALG algo, int changed, int boxnum, BOX **boxes, void *data, BOX_Overlap_Create report)
+void SWEEP_Changed (void *context)
+{
+  SWEEP *s = context;
+  s->time = 0;
+}
+
+void SWEEP_Do (void *context, DRALG algo, int boxnum, BOX **boxes, void *data, BOX_Overlap_Create report)
 {
   SWEEP *s = context;
   BOX **end = boxes + boxnum;
@@ -261,8 +267,6 @@ void SWEEP_Do (void *context, DRALG algo, int changed, int boxnum, BOX **boxes, 
   POINT *endp, *p;
   int *dims = s->dims;
   void *dynrect;
-
-  if (changed) s->time = 0; /* force full reinitialisation (qsort'ed) */
 
   if (s->boxnum < boxnum) reinit (s, boxnum);
   else if (s->algo != algo) reinitdr (s, boxnum, algo);
@@ -297,7 +301,7 @@ void SWEEP_Do (void *context, DRALG algo, int changed, int boxnum, BOX **boxes, 
     }
   }
 
-  s->time = 1; /* no point to increment it */
+  s->time = 1;
 }
 
 void SWEEP_Destroy (void *context)
