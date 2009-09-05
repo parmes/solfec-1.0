@@ -437,20 +437,12 @@ static void view_fps_callback (int value)
 /* render 2d statistics */
 static void view_render2d (void)
 {
-  static char *alg [] = 
-  { "HYBRID",
-    "HASH3D",
-    "SWEEP_HASH2D_LIST",
-    "SWEEP_HASH1D_XYTREE",
-    "SWEEP_HASH2D_XYTREE",
-    "SWEEP_XYTREE" };
-
   glClearColor (1, 1, 1, 1);
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glColor3d (0., 0., 0.);
   GLV_Print (8, 8, 0, GLV_FONT_12,
     "FPS: %d, NCN: %d, NBX: %d, ALG: %s",
-    fps, noverlaps, boxsize, alg [algorithm]);
+    fps, noverlaps, boxsize, AABB_Algorithm_Name (algorithm));
   glutSwapBuffers();
 }
 

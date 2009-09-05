@@ -170,6 +170,9 @@ struct aabb
 #endif
 };
 
+/* get algorithm name string */
+char* AABB_Algorithm_Name (BOXALG alg);
+
 /* create box overlap driver data */
 AABB* AABB_Create (int size);
 

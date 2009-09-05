@@ -81,16 +81,12 @@ int main (int argc, char **argv)
 {
   int error;
 
-  signal (SIGINT, sighnd);
   signal (SIGHUP, sighnd);
-  signal (SIGKILL, sighnd);
-  signal (SIGPIPE, sighnd);
-  signal (SIGALRM, sighnd);
+  signal (SIGINT, sighnd);
+  signal (SIGQUIT, sighnd);
+  signal (SIGTSTP, sighnd);
   signal (SIGTERM, sighnd);
-  signal (SIGXCPU, sighnd);
-  signal (SIGXFSZ, sighnd);
-  signal (SIGVTALRM, sighnd);
-  signal (SIGPROF, sighnd);
+  signal (SIGSEGV, sighnd);
 
 #if MPI
   float version;

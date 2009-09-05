@@ -156,6 +156,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, short locdyn)
 static BOXALG aabb_algorithm (DOM *dom)
 {
   DATA *data = dom->data;
+#if 0
   double num, *tim, *lim;
   int i;
 
@@ -182,6 +183,9 @@ static BOXALG aabb_algorithm (DOM *dom)
   }
 
   return data->aabb_algo;
+#else
+  return (data->aabb_algo = HYBRID); /* FIXME: SWEEP_ gets stuck sometimes (see BUGS) */
+#endif
 }
 
 /* update timing related data */
