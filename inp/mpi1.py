@@ -61,9 +61,9 @@ def gscallback (gs):
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
 
-gs.reverse = 'ON'
+gs.reverse = 'OFF'
 
-gs.variant = 'MID_LOOP'
+gs.variant = 'MID_TO_ONE'
 
 LOCDYN_BALANCING (solfec, 'OFF')
 

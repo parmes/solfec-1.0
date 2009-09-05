@@ -599,7 +599,7 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 
 #if MPI
 /* a single row Gauss-Seidel step */
-static int gauss_siedel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
+static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
 {
   OFFB *blk;
   int diagiters;
@@ -811,7 +811,7 @@ static void REXT_recv (LOCDYN *ldy, COMDATA *recv, int nrecv)
 }
 
 /* perform a Guss-Seidel sweep over a set of blocks */
-static int gauss_siedel_sweep (SET *set, int reverse,
+static int gauss_seidel_sweep (SET *set, int reverse,
   GAUSS_SEIDEL *gs, short dynamic, double step, double *errup, double *errlo)
 {
   SET* (*first) (SET*);
@@ -825,7 +825,7 @@ static int gauss_siedel_sweep (SET *set, int reverse,
 
   for (SET *item = first (set); item; item = next (item))
   {
-    di = gauss_siedel (gs, dynamic, step, item->data, errup, errlo);
+    di = gauss_seidel (gs, dynamic, step, item->data, errup, errlo);
     dimax = MAX (dimax, di);
   }
 
@@ -838,7 +838,7 @@ static int gauss_siedel_sweep (SET *set, int reverse,
 #define EMC() SOLFEC_Timer_End (sol, "GSMCOM")
 
 /* perform a Guss-Seidel loop over a set of blocks */
-static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
+static int gauss_seidel_loop (SET *set, int reverse, int mycolor, int *color,
   GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
 {
   SET* (*first) (SET*);
@@ -890,7 +890,7 @@ static int gauss_siedel_loop (SET *set, int reverse, int mycolor, int *color,
 
       if (adjdone) /* external reactions were done */
       {
-	di = gauss_siedel (gs, dynamic, step, dia, errup, errlo); /* update the current block */
+	di = gauss_seidel (gs, dynamic, step, dia, errup, errlo); /* update the current block */
 	dimax = MAX (dimax, di);
 
 	SET_Insert (setmem, &updated, dia, NULL); /* schedule for sending */
@@ -976,7 +976,7 @@ static void* gauss_seidel_thread (GSTD *data)
     {
       data->wait = 1;
 
-      data->dimax = gauss_siedel_loop (data->mid, data->gs->iters % 2,
+      data->dimax = gauss_seidel_loop (data->mid, data->gs->iters % 2,
 		      data->mycolor, data->color, data->gs, data->ldy,
 		 data->dynamic, data->step, &data->errup, &data->errlo);
 
@@ -1040,7 +1040,7 @@ static int gauss_seidel_thread_wait (GSTD *data, double *errup, double *errlo)
 
   return data->dimax;
 #else
-  return gauss_siedel_loop (data->mid, data->reverse && data->gs->iters % 2,
+  return gauss_seidel_loop (data->mid, data->reverse && data->gs->iters % 2,
     data->mycolor, data->color, data->gs, data->ldy, data->dynamic,
     data->step, &data->errup, &data->errlo);
 #endif
@@ -1258,21 +1258,21 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     {
       if (reverse && gs->iters % 2)
       {
-	SR(); di = gauss_siedel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
+	SR(); di = gauss_seidel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	di = gauss_seidel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
 	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
-	di = gauss_siedel_loop (mid, 1, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	di = gauss_seidel_loop (mid, 1, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
       }
       else
       {
-	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
+	SR(); di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
-	di = gauss_siedel_loop (mid, 0, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	di = gauss_seidel_loop (mid, 0, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
-	SR(); di = gauss_siedel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
       }
     }
     break;
@@ -1280,22 +1280,22 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     {
       if (reverse && gs->iters % 2)
       {
-	SR(); di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
 	gauss_seidel_thread_run (data);
-	SR(); di = gauss_siedel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
+	SR(); di = gauss_seidel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER ();
 	di = gauss_seidel_thread_wait (data, &errup, &errlo); dimax = MAX (dimax, di);
-	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
       }
       else
       {
-	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
 	gauss_seidel_thread_run (data);
-	SR(); di = gauss_siedel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	di = gauss_seidel_thread_wait (data, &errup, &errlo); dimax = MAX (dimax, di);
-	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
       }
     }
@@ -1305,25 +1305,25 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     {
       if (reverse && gs->iters % 2)
       {
-	SR(); di = gauss_siedel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (inb, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	di = gauss_seidel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
 	SMC(); LOCDYN_Union_Gather (upattern); EMC ();
-	SMR(); di = gauss_siedel_sweep (umid, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
+	SMR(); di = gauss_seidel_sweep (umid, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
 	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
-	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
       }
       else
       {
-	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
 	SMC(); LOCDYN_Union_Gather (upattern); EMC();
-	SMR(); di = gauss_siedel_sweep (umid, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
+	SMR(); di = gauss_seidel_sweep (umid, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
 	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
-	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
-	SR(); di = gauss_siedel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
       }
     }
     break;
@@ -1331,33 +1331,33 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     {
       if (reverse && gs->iters % 2)
       {
-	SR(); di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Send (bot_pattern); EC();
-	SR(); di = gauss_siedel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
-	di = gauss_siedel_loop (mid, 1, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	SR(); di = gauss_siedel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
-	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	di = gauss_seidel_loop (mid, 1, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	SR(); di = gauss_seidel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC(); /* blocking comm, due to symmetry */
       }
       else
       {
-	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Send (top_pattern); EC();
-	SR(); di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
-	di = gauss_siedel_loop (mid, 0, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	di = gauss_seidel_loop (mid, 0, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
 	if (reverse) /* symmetry, but blocking comm at the end */
 	{
-	  SR(); di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
-	  SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	  SR(); di = gauss_seidel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	  SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	  SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
 	}
 	else /* symmetry broken, but non-blocking comm used again */
 	{
-	  SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	  SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	  SC(); COM_Send (bot_pattern); EC();
-	  SR(); di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	  SR(); di = gauss_seidel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	  SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
 	}
       }
@@ -1367,26 +1367,26 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     {
       if (reverse && gs->iters % 2)
       {
-	SR(); di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Send (bot_pattern); EC();
-	SR(); di = gauss_siedel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
 	gauss_seidel_thread_run (data);
-	SR(); di = gauss_siedel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	di = gauss_seidel_thread_wait (data, &errup, &errlo); dimax = MAX (dimax, di); /* receive all bot to top */
-	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC(); /* blocking, due to symmetry */
       }
       else
       {
-	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Send (top_pattern); EC();
-	SR(); di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
 	gauss_seidel_thread_run (data);
-	SR(); di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	di = gauss_seidel_thread_wait (data, &errup, &errlo); dimax = MAX (dimax, di); /* receive all top to bot */
-	SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC(); /* blocking, due to symmetry */
       }
     }
@@ -1396,37 +1396,37 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     {
       if (reverse && gs->iters % 2)
       {
-	SR(); di = gauss_siedel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Send (bot_pattern); EC();
-	SR(); di = gauss_siedel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
 	SMC(); LOCDYN_Union_Gather (upattern); EMC();
-	SMR(); di = gauss_siedel_sweep (umid, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
+	SMR(); di = gauss_seidel_sweep (umid, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
 	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
-	SR(); di = gauss_siedel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
-	SR(); di = gauss_siedel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC(); /* blocking, due to symmetry */
       }
       else
       {
-	SR(); di = gauss_siedel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Send (top_pattern); EC();
-	SR(); di = gauss_siedel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SR(); di = gauss_seidel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Recv (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
 	SMC(); LOCDYN_Union_Gather (upattern); EMC();
-	SMR(); di = gauss_siedel_sweep (umid, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
+	SMR(); di = gauss_seidel_sweep (umid, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR();
 	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
 	if (reverse) /* symmetry: top - in1 - mid - in2 - bot */
 	{
-	  SR(); di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
-	  SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	  SR(); di = gauss_seidel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	  SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	  SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC(); /* blocking, due to symmetry */
 	}
 	else /* break symmetry: top - in1 - mid - bot - in1 */
 	{
-	  SR(); di = gauss_siedel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	  SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	  SC(); COM_Send (bot_pattern); EC(); /* non-blocking comm again */
-	  SR(); di = gauss_siedel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	  SR(); di = gauss_seidel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	  SC(); COM_Recv (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
 	}
       }
