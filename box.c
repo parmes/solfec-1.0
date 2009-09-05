@@ -186,6 +186,22 @@ static BOX_Extents_Update extents_update (SGP *sgp)
   return 0;
 }
 
+/* algorithm name */
+char* algname (BOXALG alg)
+{
+  switch (alg)
+  {
+  case SWEEP_HASH2D_LIST: return "SWEEP_HASH2D_LIST";
+  case SWEEP_HASH2D_XYTREE: return "SWEEP_HASH2D_XYTREE";
+  case SWEEP_XYTREE: return "SWEEP_XYTREE";
+  case SWEEP_HASH1D_XYTREE: return "SWEEP_HASH1D_XYTREE";
+  case HYBRID: return "HYBRID";
+  case HASH3D: return "HASH3D";
+  }
+
+  return NULL;
+}
+
 #if MPI
 /* number of boxes */
 static int box_count (AABB *aabb, int *ierr)
@@ -918,7 +934,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
 #if MPI
   if (DOM(aabb->dom)->rank == 0)
 #endif
-  if (DOM(aabb->dom)->verbose) printf ("CONDET ... "), fflush (stdout);
+  if (DOM(aabb->dom)->verbose) printf ("CONDET (%s) ... ", algname (alg)), fflush (stdout);
   
 #if MPI
   SOLFEC_Timer_Start (DOM(aabb->dom)->owner, "CONBAL");

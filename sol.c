@@ -303,12 +303,20 @@ static void statsout (SOLFEC *sol)
   char *stapath;
   FILE *sta;
 
-  ERRMEM (stapath = malloc (strlen (sol->outpath) + 64));
-  sprintf (stapath, "%s/STATE", sol->outpath);
-  ASSERT (sta = fopen (stapath, "w"), ERR_FILE_OPEN);
-  fprintf (sta, "----------------------------------------------------------------------------------------\n");
-  fprintf (sta, "TIME: %.2e\n", sol->dom->time);
-  fprintf (sta, "----------------------------------------------------------------------------------------\n");
+  if (dom->rank == 0)
+  {
+    time_t timer = time(NULL);
+    char string [32];
+    ctime_r(&timer, string); 
+    ERRMEM (stapath = malloc (strlen (sol->outpath) + 64));
+    sprintf (stapath, "%s/STATE", sol->outpath);
+    ASSERT (sta = fopen (stapath, "w"), ERR_FILE_OPEN);
+    fprintf (sta, "------------------------\n");
+    fprintf (sta, "%s", string);
+    fprintf (sta, "----------------------------------------------------------------------------------------\n");
+    fprintf (sta, "TIME: %.2e\n", sol->dom->time);
+    fprintf (sta, "----------------------------------------------------------------------------------------\n");
+  }
 
   LOCDYN *ldy = sol->dom->ldy;
 
@@ -331,8 +339,11 @@ static void statsout (SOLFEC *sol)
     printf ("----------------------------------------------------------------------------------------\n");
   }
 
-  fclose (sta);
-  free (stapath);
+  if (dom->rank == 0)
+  {
+    fclose (sta);
+    free (stapath);
+  }
 #else
   const int N = 3;
 

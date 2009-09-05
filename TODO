@@ -3,3 +3,8 @@ Time step control
 Energy balance
 -----------------------------------------
 Merit function for convergence control
+--------------------------------------------------
+Compute per-block merit functions and sort blocks
+according to their values.  During Gauss-Seidel
+iterations process blocks in the descending order
+of such ordering.
