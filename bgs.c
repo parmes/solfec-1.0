@@ -1134,7 +1134,27 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     else SET_Insert (setmem, &inb, dia, NULL), size3 += dia->degree;
   }
 
-  if (variant >=  GS_NOB_MID_LOOP) /* non-blocking */
+  if (variant == GS_MID_TO_ONE)
+  {
+    /* in1 = inb \ adj (mid) (those in inb not adjacent to mid)
+     * in2 = inb \ in1 (those in inb adjacent to inb)
+     */
+
+    for  (SET *item = SET_First (inb); item; item = SET_Next (item))
+    {
+      dia = item->data;
+      OFFB *b;
+
+      for (b = dia->adj; b; b = b->n)
+      {
+	if (SET_Contains (mid, b->dia, NULL)) break;
+      }
+
+      if (b) SET_Insert (setmem, &in2, dia, NULL);
+      else SET_Insert (setmem, &in1, dia, NULL);
+    }
+  }
+  else if (variant >=  GS_NOB_MID_LOOP) /* non-blocking */
   {
     /* size1 + |in2| = size2 + |in1|
      * |in1| + |in2| = size3
@@ -1159,13 +1179,13 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #if DEBUG
   if (gs->verbose)
   {
-    int sizes [4] = {SET_Size (bot), SET_Size (mid), SET_Size (top), SET_Size (inb)},
-	result [4];
+    int sizes [6] = {SET_Size (bot), SET_Size (mid), SET_Size (top), SET_Size (inb), SET_Size (in1), SET_Size (in2)},
+	result [6];
 
-    MPI_Reduce (sizes, result, 4, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce (sizes, result, 6, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
     if (rank == 0)
-      printf ("GAUSS_SEIDEL (%s, REVERSE %s): |BOT| = %d, |MID| = %d, |TOP| = %d, |INT| = %d\n",
-	GAUSS_SEIDEL_Variant (gs), GAUSS_SEIDEL_Reverse (gs), result [0], result [1], result [2], result [3]);
+      printf ("GAUSS_SEIDEL (%s, REVERSE %s): |BOT| = %d, |MID| = %d, |TOP| = %d, |INT| = %d, |IN1| = %d, |IN2| = %d\n",
+	GAUSS_SEIDEL_Variant (gs), GAUSS_SEIDEL_Reverse (gs), result [0], result [1], result [2], result [3], result [4], result [5]);
   }
 #endif
 
@@ -1234,8 +1254,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   /* create union of mid blocks */
   if (variant == GS_MID_TO_ALL ||
       variant == GS_NOB_MID_TO_ALL) umid = LOCDYN_Union_Create (ldy, mid, -1, &upattern);
-  else if (variant == GS_MID_TO_ONE ||
-           variant == GS_NOB_MID_TO_ALL) umid = LOCDYN_Union_Create (ldy, mid, ldy->ndiab, &upattern);
+  else if (variant == GS_MID_TO_ONE) umid = LOCDYN_Union_Create (ldy, mid, SET_Size (in1), &upattern); /* size of blocks not adjacent to mid */
+  else if (variant == GS_NOB_MID_TO_ALL) umid = LOCDYN_Union_Create (ldy, mid, ldy->ndiab, &upattern);
 
   SOLFEC *sol = DOM(ldy->dom)->owner;
   dynamic = DOM(ldy->dom)->dynamic;
@@ -1301,7 +1321,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
     break;
     case GS_MID_TO_ALL:
-    case GS_MID_TO_ONE:
     {
       if (reverse && gs->iters % 2)
       {
@@ -1324,6 +1343,34 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
 	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
 	SR(); di = gauss_seidel_sweep (inb, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+      }
+    }
+    break;
+    case GS_MID_TO_ONE:
+    {
+      if (reverse && gs->iters % 2)
+      {
+	SR(); di = gauss_seidel_sweep (in2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER(); /* internal blocks adjacent to mid blocks */
+	SMC(); LOCDYN_Union_Gather (upattern); EMC();
+	SR(); di = gauss_seidel_sweep (in1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER(); /* internal blocks not adjacent to mid blocls */
+	SMR(); di = gauss_seidel_sweep (umid, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR(); /* union of mid blocks on root */
+	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
+	SR(); di = gauss_seidel_sweep (bot, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	SR(); di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+      }
+      else
+      {
+	SR(); di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (top_pattern); REXT_recv (ldy, recv_top, nrecv_top); EC();
+	SR(); di = gauss_seidel_sweep (bot, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER();
+	SC(); COM_Repeat (bot_pattern); REXT_recv (ldy, recv_bot, nrecv_bot); EC();
+	SMC(); LOCDYN_Union_Gather (upattern); EMC();
+	SMR(); di = gauss_seidel_sweep (umid, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); EMR(); /* union of mid blocks on root */
+	SR(); di = gauss_seidel_sweep (in1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER(); /* internal blocks not adjacent to mid blocls */
+	SMC(); LOCDYN_Union_Scatter (upattern); EMC();
+	SR(); di = gauss_seidel_sweep (in2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); ER(); /* internal blocks adjacent to mid blocks */
       }
     }
     break;
