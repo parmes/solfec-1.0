@@ -187,7 +187,12 @@ static void int_min_rank (int *in, int *inout, int *len, MPI_Datatype *type)
 
   for (i = 0; i < *len; i ++)
   {
-    if (*in < *inout)
+    if (in [0] < inout [0]) /* smaller value */
+    {
+      inout [0] = in [0];
+      inout [1] = in [1];
+    }
+    else if (in [0] == inout [0] && in [1] < inout [1]) /* same values => compare ranks */
     {
       inout [0] = in [0];
       inout [1] = in [1];
