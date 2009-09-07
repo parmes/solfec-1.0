@@ -68,7 +68,7 @@ def masonry_arch_create (ratio, material, solfec):
     k = 1 + i % 4
     surfaces = [k, k, k, k, k, k]
 
-    hex = HEX (nodes, 2, 3, 1, 0, surfaces)
+    hex = HEX (nodes, 4, 6, 1, 0, surfaces)
     BODY (solfec, 'RIGID', hex, material)
     alpha += dalpha
 
@@ -88,7 +88,7 @@ GRAVITY (solfec, (0, 0, -1), 9.81)
 
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
-masonry_arch_create (0.1070, bulkmat, solfec)
+masonry_arch_create (0.2, bulkmat, solfec)
 
 def gscallback (gs):
   print gs.error
@@ -99,9 +99,19 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallbac
 RUN (solfec, gs, 10 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
+
+  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'TIMBAL', 'CONBAL', 'LOCBAL',
+            'GSINIT', 'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM', 'GSEXIT']
   dur = DURATION (solfec)
-  gst = TIMING_HISTORY (solfec, 'CONSOL', dur[0], dur[1])
-  avg = 0.0
-  for tt in gst [1]: avg += tt
-  avg /= len (gst)
-  print 'AVERAGE CONSOL TIME: ', avg
+  total = 0.0
+  num = 0
+
+  for timer in timers:
+    th = TIMING_HISTORY (solfec, timer, dur[0], dur[1])
+    sum = 0.0
+    for tt in th [1]: sum += tt
+    if num < 7: total += sum
+    num = num + 1
+    print timer, 'TIME:', sum
+
+  print 'TOTAL TIME:', total

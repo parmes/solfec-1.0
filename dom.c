@@ -1347,7 +1347,7 @@ static void domain_glue_end (DOM *dom)
   /* Send updated reactions of external constraints from children to parents */
   COM (MPI_COMM_WORLD, TAG_CONEXT_UPDATE_PARENTS, send, nsend, &recv, &nrecv);
 
-  /* Insert received external constraints */
+  /* Update received external reactions */
   for (k = 0, ptr = recv; k < nrecv; k ++, ptr ++)
   {
     for (j = ptr->i, l = j + ptr->ints, R = ptr->d; j < l; j += 2, R += 3)

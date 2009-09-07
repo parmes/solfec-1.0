@@ -1060,6 +1060,10 @@ static void gauss_seidel_thread_destroy (GSTD *data)
   free (data);
 }
 
+#define SI() SOLFEC_Timer_Start (sol, "GSINIT")
+#define EI() SOLFEC_Timer_End (sol, "GSINIT")
+#define SE() SOLFEC_Timer_Start (sol, "GSEXIT")
+#define EE() SOLFEC_Timer_End (sol, "GSEXIT")
 #define SR() SOLFEC_Timer_Start (sol, "GSRUN")
 #define ER() SOLFEC_Timer_End (sol, "GSRUN")
 #define SC() SOLFEC_Timer_Start (sol, "GSCOM")
@@ -1068,6 +1072,7 @@ static void gauss_seidel_thread_destroy (GSTD *data)
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
+  SOLFEC *sol = DOM(ldy->dom)->owner;
   int di, dimax, diagiters;
   double error, step;
   short dynamic;
@@ -1078,6 +1083,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       mycolor,
      *color,
       rank;
+
+  SI();
 
   GSONOFF reverse = gs->reverse; /* fetch these two here as a user might change them */
   GSVARIANT variant = gs->variant; /* later from a callback */
@@ -1257,12 +1264,12 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   else if (variant == GS_MID_TO_ONE) umid = LOCDYN_Union_Create (ldy, mid, SET_Size (in1), &upattern); /* size of blocks not adjacent to mid */
   else if (variant == GS_NOB_MID_TO_ALL) umid = LOCDYN_Union_Create (ldy, mid, ldy->ndiab, &upattern);
 
-  SOLFEC *sol = DOM(ldy->dom)->owner;
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
   gs->error = GS_OK;
   gs->iters = 0;
   dimax = 0;
+  EI ();
   do
   {
     double errup = 0.0,
@@ -1509,6 +1516,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
+  SE();
+
   if (rank == 0 && gs->verbose) printf (fmt, gs->iters, error);
 
   if (upattern) LOCDYN_Union_Destroy (upattern);
@@ -1543,6 +1552,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       break;
     }
   }
+
+  EE ();
 }
 
 #else  /* ~MPI */

@@ -8,3 +8,7 @@ Compute per-block merit functions and sort blocks
 according to their values.  During Gauss-Seidel
 iterations process blocks in the descending order
 of such ordering.
+-----------------------------------------------------------------------------
+Implement incremental domain gluing instead of the current one
+(low priotity as the current, non-incremental gluing takes about 1% of the total time)
+----------------------------------------------------------------------------------------

@@ -76,7 +76,7 @@ RUN (solfec, gs, 10 * step)
 if not VIEWER() and solfec.mode == 'READ':
 
   timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'TIMBAL', 'CONBAL', 'LOCBAL',
-            'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM']
+            'GSINIT', 'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM', 'GSEXIT']
   dur = DURATION (solfec)
   total = 0.0
   num = 0
@@ -85,10 +85,8 @@ if not VIEWER() and solfec.mode == 'READ':
     th = TIMING_HISTORY (solfec, timer, dur[0], dur[1])
     sum = 0.0
     for tt in th [1]: sum += tt
-    if len (th [1]) > 0:
-      avg = sum / len (th [1])
-      if num < 7: total += sum
-      num = num + 1
-      print 'AVG', timer, 'TIME:', avg
+    if num < 7: total += sum
+    num = num + 1
+    print timer, 'TIME:', sum
 
   print 'TOTAL TIME:', total
