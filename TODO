@@ -12,3 +12,6 @@ of such ordering.
 Implement incremental domain gluing instead of the current one
 (low priotity as the current, non-incremental gluing takes about 1% of the total time)
 ----------------------------------------------------------------------------------------
+Prospectively remove the MID_TO_ALL option, or improve it so to introduce consitency
+of min-block reactions
+----------------------------------------------------------------------------------------

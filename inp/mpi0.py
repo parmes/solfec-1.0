@@ -3,7 +3,7 @@
 from math import sin
 from math import cos
 
-N = 50
+N = 100
 PI = 3.14159265358979323846 
 
 def masonry_arch_create (ratio, material, solfec):
@@ -68,7 +68,7 @@ def masonry_arch_create (ratio, material, solfec):
     k = 1 + i % 4
     surfaces = [k, k, k, k, k, k]
 
-    hex = HEX (nodes, 4, 6, 1, 0, surfaces)
+    hex = HEX (nodes, 6, 10, 1, 0, surfaces)
     BODY (solfec, 'RIGID', hex, material)
     alpha += dalpha
 
@@ -96,12 +96,16 @@ def gscallback (gs):
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
 
+gs.variant = 'MID_LOOP'
+
+LOCDYN_BALANCING (solfec, 'GRAPH')
+
 RUN (solfec, gs, 10 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 
   timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'TIMBAL', 'CONBAL', 'LOCBAL',
-            'GSINIT', 'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM', 'GSEXIT']
+            'GSINIT', 'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM', 'GSERR', 'GSEXIT']
   dur = DURATION (solfec)
   total = 0.0
   num = 0

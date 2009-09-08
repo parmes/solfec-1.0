@@ -21,6 +21,7 @@
 
 #if MPI
 #include <zoltan.h>
+#include <time.h>
 #include "put.h"
 #endif
 

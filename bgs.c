@@ -1068,6 +1068,8 @@ static void gauss_seidel_thread_destroy (GSTD *data)
 #define ER() SOLFEC_Timer_End (sol, "GSRUN")
 #define SC() SOLFEC_Timer_Start (sol, "GSCOM")
 #define EC() SOLFEC_Timer_End (sol, "GSCOM")
+#define SER() SOLFEC_Timer_Start (sol, "GSERR")
+#define EER() SOLFEC_Timer_End (sol, "GSERR")
 
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
@@ -1488,20 +1490,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     break;
     }
 
+    SER ();
+
     ASSERT_DEBUG (REXT_alldone (ldy), "All external reactions should be done by now");
-
-    /* get maximal iterations count of a diagonal block solver */
-    MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
-
-    if (diagiters > gs->diagmaxiter || diagiters < 0)
-    {
-      switch ((int) gs->failure)
-      {
-      case GS_FAILURE_EXIT:
-	THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
-	break;
-      }
-    }
 
     /* sum up error */
     errloc [0] = errup, errloc [1] = errlo;
@@ -1510,9 +1501,12 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+
     if (gs->history) gs->rerhist [gs->iters] = error;
 
     if (rank == 0 && gs->iters % div == 0 && gs->verbose) printf (fmt, gs->iters, error), div *= 2;
+
+    EER ();
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
@@ -1536,7 +1530,23 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   free (recv_top);
   free (color);
 
-  if (gs->iters >= gs->maxiter)
+  /* get maximal iterations count of a diagonal block solver (this has been
+   * delayed until here to minimize small communication within the loop) */
+  MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+  if (diagiters > gs->diagmaxiter || diagiters < 0)
+  {
+    switch ((int) gs->failure)
+    {
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      break;
+    }
+  }
+  else if (gs->iters >= gs->maxiter)
   {
     gs->error = GS_DIVERGED;
 

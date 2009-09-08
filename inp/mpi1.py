@@ -1,6 +1,6 @@
 # stack of cubes example (CONVEX and PSEUDO_RIGID)
 
-N = 15
+N = 20
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -76,7 +76,7 @@ RUN (solfec, gs, 10 * step)
 if not VIEWER() and solfec.mode == 'READ':
 
   timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'TIMBAL', 'CONBAL', 'LOCBAL',
-            'GSINIT', 'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM', 'GSEXIT']
+            'GSINIT', 'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM', 'GSERR', 'GSEXIT']
   dur = DURATION (solfec)
   total = 0.0
   num = 0
