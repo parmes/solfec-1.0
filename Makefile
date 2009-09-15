@@ -73,7 +73,7 @@ OBJMPI = $(BASEO)  \
 	 obj/sol-mpi.o \
 
 solfec: obj/solfec.o obj/libsolfec.a
-	$(CC) $(CFLAGS) $(OPENGL) -o $@ $< -Lobj -lsolfec $(LIB)
+	$(CC) -o $@ $< -Lobj -lsolfec $(LIB)
 
 obj/libsolfec.a: $(OBJ)
 	ar rcv $@ $(OBJ)
@@ -86,7 +86,7 @@ all: solfec mpi
 mpi: solfec-mpi
 
 solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a
-	$(MPICC) $(CFLAGS) $(MPIFLG) $(MPILIB) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
+	$(MPICC) $(MPILIB) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
