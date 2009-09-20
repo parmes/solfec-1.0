@@ -25,6 +25,7 @@
   #include <GL/glut.h>
 #endif
 #include <string.h>
+#include <limits.h>
 #include <float.h>
 #include <math.h>
 #include "sol.h"
@@ -56,8 +57,6 @@ struct solver_interface
 static MAP *solver_interfaces = NULL; /* maps domains to solver interfaces */
 
 #define SHAPE_ELEMENT 1978 /* an arbirary number higher then shapes defined in shp.h */
-
-#define SELBUFLEN 1024
 
 static short vieweron = 0; /* viewer flag  */
 
@@ -1863,7 +1862,7 @@ static void render_selection (int skip_flags)
 /* selection using selection buffer */
 static void select_bodies_3d (int x1, int y1, int x2, int y2)
 {
-  GLuint sel [SELBUFLEN], nsel, n, m, k;
+  GLuint *sel, ssel, nsel, n, m, k;
   GLint viewport[4];
   int x, y, w, h; 
 
@@ -1873,8 +1872,10 @@ static void select_bodies_3d (int x1, int y1, int x2, int y2)
   y = (y1 + y2) / 2;
   w = MAX (w, 2);
   h = MAX (h, 2);
+  ssel = domain->nbod * 4; /* assumes each body id stored in a separate hit, which is excessive and must be enough */
+  ERRMEM (sel = malloc (sizeof (GLuint [ssel])));
 
-  glSelectBuffer (SELBUFLEN, sel);
+  glSelectBuffer (ssel, sel);
   glRenderMode (GL_SELECT);
   glMatrixMode (GL_PROJECTION);
   glPushMatrix ();
@@ -1891,7 +1892,7 @@ static void select_bodies_3d (int x1, int y1, int x2, int y2)
   glFlush ();
   nsel = glRenderMode (GL_RENDER);
 
-  if (nsel > 0)
+  if (nsel > 0 && nsel < INT_MAX)
   {
     if (selection)
     {
@@ -1903,7 +1904,7 @@ static void select_bodies_3d (int x1, int y1, int x2, int y2)
 	for (k = 0; k < sel [m]; k ++)
 	{
 	  bod = MAP_Find (selection, (void*) sel [m+3+k], NULL);
-	  WARNING_DEBUG (bod, "Invalid selection name");
+	  WARNING_DEBUG (bod, "Invalid selection name: %d", sel [m+3+k]);
 	  if (bod) MAP_Insert (&domain->mapmem, &newsel, (void*) bod->id, bod, NULL);
 	}
       }
@@ -1920,12 +1921,14 @@ static void select_bodies_3d (int x1, int y1, int x2, int y2)
 	for (k = 0; k < sel [m]; k ++)
 	{
 	  bod = MAP_Find (domain->idb, (void*) sel [m+3+k], NULL);
-	  WARNING_DEBUG (bod, "Invalid selection name");
+	  WARNING_DEBUG (bod, "Invalid selection name: %d", sel [m+3+k]);
 	  if (bod) MAP_Insert (&domain->mapmem, &selection, (void*) bod->id, bod, NULL);
 	}
       }
     }
   }
+
+  free (sel);
 }
 
 /* selection using coloring */

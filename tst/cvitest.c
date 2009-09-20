@@ -236,6 +236,8 @@ static void key (int key, int x, int y)
 	pa = TRI_Planes (a, alength, &npa);
 	vb = TRI_Vertices (b, blength, &nvb);
 	pb = TRI_Planes (b, blength, &npb);
+	GEOMETRIC_EPSILON_ADAPT (va, nva);
+	GEOMETRIC_EPSILON_ADAPT (vb, nvb);
         free (c);
 	c = cvi (va, nva, pa, npa,
 	         vb, nvb, pb, npb,
