@@ -28,7 +28,8 @@ def drum_create (material, solfec):
 
 def spheres_create (material, solfec):
 
-  rng = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  #rng = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  rng = [0.5]
 
   for x in rng:
     for y in rng:
@@ -64,8 +65,10 @@ def callback (sol):
 
 if not VIEWER(): CALLBACK (solfec, step * skip, solfec, callback)
 
-OUTPUT (solfec, 0.02)
+OUTPUT (solfec, step)
 
 UNPHYSICAL_PENETRATION (solfec, 0.01)
+
+LOCDYN_BALANCING (solfec, 'OFF')
 
 RUN (solfec, gs, dura)

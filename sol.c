@@ -480,7 +480,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #if MPI
       if (sol->dom->rank == 0)
 #endif
-      if (verbose) printf ("TIME: %.2e\n", sol->dom->time);
+      if (verbose) printf ("TIME: %g\n", sol->dom->time);
 
       /* begin update of domain */
       ldy = DOM_Update_Begin (sol->dom);
@@ -526,8 +526,8 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #else
       tt = timerend (&tim);
 #endif
-      if (tt < 0.5 && verbose) verbose = verbose_off (sol, kind, solver);
-      else if (tt >= 0.5) { statsout (sol); verbose = verbose_on (sol, kind, solver); timerstart (&tim); }
+      if (tt < 1.0 && verbose) verbose = verbose_off (sol, kind, solver);
+      else if (tt >= 1.0) { statsout (sol); verbose = verbose_on (sol, kind, solver); timerstart (&tim); }
     }
   }
   else /* READ */
