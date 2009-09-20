@@ -170,6 +170,16 @@ double PUT_timerend (TIMING *t)
   return time;
 }
 
+/* return maximum of all calls */
+int PUT_int_max (int val)
+{
+  int ret;
+
+  MPI_Allreduce (&val, &ret, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+  return ret;
+}
+
 /* return minimum of all calls */
 int PUT_int_min (int val)
 {

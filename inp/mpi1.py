@@ -63,7 +63,7 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallbac
 
 gs.reverse = 'OFF'
 
-gs.variant = 'MID_TO_ONE'
+gs.variant = 'MID_LOOP'
 
 LOCDYN_BALANCING (solfec, 'OFF')
 

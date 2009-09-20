@@ -119,7 +119,8 @@ struct conext
 /* domain flags */
 typedef enum
 {
-  DOM_RUN_ANALYSIS = 0x01 /* on when the viewer runs analysis for this domain */
+  DOM_RUN_ANALYSIS   = 0x01, /* on when the viewer runs analysis for this domain */
+  DOM_DEPTH_VIOLATED = 0x02  /* on when unphysical penetration has occured */
 } DOM_FLAGS;
 
 struct domain

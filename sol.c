@@ -315,7 +315,7 @@ static void statsout (SOLFEC *sol)
     fprintf (sta, "------------------------\n");
     fprintf (sta, "%s", string);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
-    fprintf (sta, "TIME: %.2e\n", sol->dom->time);
+    fprintf (sta, "TIME: %g\n", sol->dom->time);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
   }
 

@@ -248,7 +248,7 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
     if (proc != dom->rank) return NULL; /* insert contacts located in this AABB partition */
 #endif
 
-    ASSERT (gap > dom->depth, ERR_DOM_DEPTH);
+    if (gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
 
     /* set surface pair data if there was a contact */
     mat = SPSET_Find (dom->sps, spair [0], spair [1]);
@@ -316,7 +316,7 @@ void update_contact (DOM *dom, CON *con)
     if (proc != dom->rank) goto del; /* delete contacts located outside of this AABB partition */
 #endif
 
-    ASSERT (con->gap > dom->depth, ERR_DOM_DEPTH);
+    if (con->gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
 
     COPY (mpnt, con->point);
     BODY_Ref_Point (con->master, con->mshp, con->mgobj, mpnt, con->mpnt);
@@ -1852,9 +1852,13 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #if MPI
   SOLFEC_Timer_Start (dom->owner, "TIMBAL");
 
+  ASSERT (!PUT_int_max (dom->flags & DOM_DEPTH_VIOLATED), ERR_DOM_DEPTH);
+
   domain_glue_begin (dom);
 
   SOLFEC_Timer_End (dom->owner, "TIMBAL");
+#else
+  ASSERT (!(dom->flags & DOM_DEPTH_VIOLATED), ERR_DOM_DEPTH);
 #endif
 
   /* output local dynamics */

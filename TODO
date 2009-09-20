@@ -14,8 +14,4 @@ Implement incremental domain gluing instead of the current one
 ----------------------------------------------------------------------------------------
 Prospectively remove the MID_TO_ALL option, or improve it so to introduce consitency
 of min-block reactions
-----------------------------------------------------------------------------------------
-Move ASSERT (..., ERR_DOM_DEPTH) outside of domain update internals and add MPI
-all-gather synchronisation in parallel case (so that all throw in case of
-unphysical penetration)
 -----------------------------------------------------------------------------------
