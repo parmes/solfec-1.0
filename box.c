@@ -89,6 +89,11 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
 {
   void *user;
 
+#if MPI
+  if (one->parent && one->parent == two->parent) return NULL; /* same parent rank children overlaps are not reported
+								 since they will be re-detected at the parent processor */
+#endif
+
   /* check if these are two obstacles => no need to report overlap */
   if (BODY(one->body)->kind == OBS && BODY(two->body)->kind == OBS) return NULL;
 
@@ -332,6 +337,8 @@ static void* box_unpack (AABB *aabb, int *dpos, double *d, int doubles, int *ipo
     ASSERT_DEBUG (box, "Invalid box kind");
 
     COPY6 (extents, box->extents);
+
+    return box;
   }
 
   return NULL;
@@ -628,6 +635,7 @@ static void aabb_balance (AABB *aabb)
   int *procs, numprocs, rank;
   COMOBJ *send, *recv, *ptr;
   SET *del, *item, *cpus;
+  double *e;
   BOX **aux;
   DOM *dom;
 
@@ -643,42 +651,62 @@ static void aabb_balance (AABB *aabb)
   for (aux = aabb->aux, ptr = send, i = 0; i < naux; i ++)
   {
     box = aux [i];
-    double *e = box->extents;
+    e = box->extents;
 
     ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-    for (cpus = NULL, flag = 1, j = 0; j < numprocs; j ++)
+    if (box->parent && numprocs == 1) box->parent = 0; /* no longer a child, as it resides on one processor only;
+							  a migrated in box remains a child as long as it crosses
+							  more the one processor domain; this is because its parent
+							  box coresses the same set of domains */
+    if (!box->parent) /* only parent boxes can migrate */
     {
-      SET_Insert (&aabb->setmem, &cpus, (void*) (long) procs [j], NULL);
-
-      if (procs [j] != rank && !SET_Contains (box->children, (void*) (long) procs [j], NULL)) /* exported */
+      for (cpus = NULL, flag = 1, j = 0; j < numprocs; j ++)
       {
-	ptr->rank = procs [j];
-	ptr->o = box;
-	ptr = sendnext (++ nsend, &size, &send);
+	SET_Insert (&aabb->setmem, &cpus, (void*) (long) procs [j], NULL);
 
-	/* maintaining children set should minimise multiple exports of same bodies */
-	SET_Insert (&aabb->setmem, &box->children, (void*) (long) procs [j], NULL);
+	if (procs [j] != rank && !SET_Contains (box->children, (void*) (long) procs [j], NULL)) /* exported */
+	{
+	  ptr->rank = procs [j];
+	  ptr->o = box;
+	  ptr = sendnext (++ nsend, &size, &send);
+
+	  /* maintaining children set should minimise multiple exports of same boxes */
+	  SET_Insert (&aabb->setmem, &box->children, (void*) (long) procs [j], NULL);
+	}
+
+	if (procs [j] == rank) flag = 0; /* should stay here */
       }
 
-      if (procs [j] == rank) flag = 0; /* should stay here */
+      if (flag) SET_Insert (&aabb->setmem, &del, box, NULL); /* schedule for deletion */
+
+      for (item = SET_First (box->children); item;) /* for each child rank */
+      {
+	if (SET_Contains (cpus, item->data, NULL)) item = SET_Next (item);
+	else item = SET_Delete_Node (&aabb->setmem, &box->children, item); /* delete unwanted child */
+      }
+
+      SET_Free  (&aabb->setmem, &cpus);
     }
-
-    if (flag) SET_Insert (&aabb->setmem, &del, box, NULL); /* schedule for deletion */
-
-    for (item = SET_First (box->children); item;) /* for each child rank */
-    {
-      if (SET_Contains (cpus, item->data, NULL)) item = SET_Next (item);
-      else item = SET_Delete_Node (&aabb->setmem, &box->children, item); /* delete unwanted child */
-    }
-
-    SET_Free  (&aabb->setmem, &cpus);
   }
 
   aabb->nexpbox = nsend; /* record for later statistics */
 
   /* communicate migration data (unpacking inserts the imported boxes) */
   COMOBJS (MPI_COMM_WORLD, TAG_AABB_BALANCE, (OBJ_Pack)box_pack, aabb, (OBJ_Unpack)box_unpack, send, nsend, &recv, &nrecv);
+
+  for (ptr = recv; nrecv > 0; nrecv --, ptr ++) /* set parent ranks for child boxes */
+  {
+    if (ptr->o) /* box_unpack might return NULL */
+    {
+      box = ptr->o;
+      e = box->extents;
+
+      ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+      if (numprocs > 1 ) box->parent = (ptr->rank + 1);  /* croesses more then one partition: (parent rank + 1) marks as a child */
+    }
+  }
 
   /* delete exported boxes */
   for (item = SET_First (del); item; item = SET_Next (item))
@@ -692,6 +720,7 @@ static void aabb_balance (AABB *aabb)
   attach_detached (aabb);
 
   SET_Free (&aabb->setmem, &del);
+  free (procs);
   free (send);
   free (recv);
 }

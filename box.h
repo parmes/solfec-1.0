@@ -96,6 +96,8 @@ struct box
 
 #if MPI
   SET *children; /* set of child box ranks */
+
+  int parent; /* (parent rank + 1) for a child or 0 for a parent */
 #endif
 };
 

@@ -241,7 +241,7 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
 
   if (state)
   {
-#if MPI
+#if 0 /* FIXME: not needed after box->parent flag introduction */
     int proc;
 
     ASSERT (Zoltan_LB_Point_Assign (dom->aabb->zol, state == 1 ? onepnt : twopnt, &proc) == ZOLTAN_OK, ERR_ZOLTAN);
@@ -309,7 +309,7 @@ void update_contact (DOM *dom, CON *con)
 
   if (state)
   {
-#if MPI
+#if 0 /* FIXME: not needed after box->parent flag introduction */
     int proc;
 
     ASSERT (Zoltan_LB_Point_Assign (dom->aabb->zol, mpnt, &proc) == ZOLTAN_OK, ERR_ZOLTAN);
@@ -330,7 +330,7 @@ void update_contact (DOM *dom, CON *con)
   }
   else /* remove contact */
   {
-#if MPI
+#if 0 /* FIXME: not needed after box->parent flag introduction */
 del:
 #endif
     AABB_Break_Adjacency (dom->aabb, con->mbox, con->sbox); /* box overlap will be re-detected */
