@@ -659,10 +659,7 @@ static void aabb_balance (AABB *aabb)
     {
       for (j = 0; j < numprocs; j ++)
       {
-	if ((procs [j]+1) == box->parent)
-	{
-	  break;  /* still croesses own parent's partition: keep as a child */
-	}
+	if ((procs [j]+1) == box->parent) break;  /* still croesses own parent's partition: keep as a child */
       }
 
       if (j == numprocs) box->parent = 0; /* no longer a child, as it does not resides on its parent processor */
@@ -718,6 +715,7 @@ static void aabb_balance (AABB *aabb)
 	if (procs [j] == ptr->rank)
 	{
           box->parent = (ptr->rank + 1);  /* croesses own parent's partition: (parent rank + 1) marks as a child */
+	  break;
 	}
       }
     }
