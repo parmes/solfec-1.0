@@ -655,11 +655,20 @@ static void aabb_balance (AABB *aabb)
 
     ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-    if (box->parent && numprocs == 1) box->parent = 0; /* no longer a child, as it resides on one processor only;
-							  a migrated in box remains a child as long as it crosses
-							  more the one processor domain; this is because its parent
-							  box coresses the same set of domains */
-    if (!box->parent) /* only parent boxes can migrate */
+    if (box->parent)
+    {
+      for (j = 0; j < numprocs; j ++)
+      {
+	if ((procs [j]+1) == box->parent)
+	{
+	  break;  /* still croesses own parent's partition: keep as a child */
+	}
+      }
+
+      if (j == numprocs) box->parent = 0; /* no longer a child, as it does not resides on its parent processor */
+    }
+
+    if (box->parent == 0) /* only parent boxes can migrate */
     {
       for (cpus = NULL, flag = 1, j = 0; j < numprocs; j ++)
       {
@@ -704,7 +713,13 @@ static void aabb_balance (AABB *aabb)
 
       ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-      if (numprocs > 1 ) box->parent = (ptr->rank + 1);  /* croesses more then one partition: (parent rank + 1) marks as a child */
+      for (j = 0; j < numprocs; j ++)
+      {
+	if (procs [j] == ptr->rank)
+	{
+          box->parent = (ptr->rank + 1);  /* croesses own parent's partition: (parent rank + 1) marks as a child */
+	}
+      }
     }
   }
 
