@@ -14,4 +14,7 @@ Implement incremental domain gluing instead of the current one
 ----------------------------------------------------------------------------------------
 Prospectively remove the MID_TO_ALL option, or improve it so to introduce consitency
 of min-block reactions
------------------------------------------------------------------------------------
+----------------------------------------------------------------
+Implement reading of multiple output files in separate threads
+(as many threads as there are files to read)
+-----------------------------------------------

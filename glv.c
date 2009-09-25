@@ -36,6 +36,8 @@
 #include "glv.h"
 #include "alg.h"
 
+#define MAXPRINTLEN 2048
+
 /* window identifiers */
 #define MAXWINDOWS 128
 static int windows [MAXWINDOWS],
@@ -292,13 +294,21 @@ static void reshape3D (int w, int h)
 
   for (int i = 0; i < viewportscount; i ++)
   {
-    if (viewports [i].x < 0) viewports [i].x = - (int)(viewports [i].rx * (double) w);
-
-    if (viewports [i].y < 0) viewports [i].y = - (int)(viewports [i].ry * (double) h);
-
     if (viewports [i].w < 0) viewports [i].w = - (int)(viewports [i].rw * (double) w);
 
     if (viewports [i].h < 0) viewports [i].h = - (int)(viewports [i].rh * (double) h);
+
+    if (viewports [i].x < 0)
+    {
+      if (viewports [i].rx < 0.8) viewports [i].x = - (int)(viewports [i].rx * (double) w);
+      else viewports [i].x = - (w - ABS (viewports [i].w));
+    }
+
+    if (viewports [i].y < 0)
+    {
+      if (viewports [i].ry < 0.8) viewports [i].y = - (int)(viewports [i].ry * (double) h);
+      else viewports [i].y = - (h - ABS (viewports [i].h));
+    }
   }
 }
 
@@ -752,8 +762,8 @@ void GLV (
   int *argc,
   char **argv,
   char *title,
-  int width,
-  int height,
+  int wdt,
+  int hgh,
   double *extents,
   View_Menu menu,
   View_Init init,
@@ -779,6 +789,8 @@ void GLV (
   user.motion = motion;
   user.passive = passive;
 
+  height = hgh;
+  width = wdt;
   glutInit (argc, argv);
   glutInitWindowPosition (0, 0); 
   glutInitWindowSize (width, height);
@@ -865,6 +877,12 @@ double GLV_Minimal_Extent ()
 	 b = look.top - look.bottom;
 
   return MIN (a, b);
+}
+
+void GLV_Sizes (int *w, int *h)
+{
+  *w = width;
+  *h = height;
 }
 
 int GLV_Open_Window (
@@ -964,6 +982,19 @@ void GLV_Move_Viewport (int viewport, int x, int y, int w, int h)
   }
 }
 
+void GLV_Resize_Viewport (int viewport, int w, int h)
+{
+  for (int n = 0; n < viewportscount; n ++)
+  {
+    if (viewports [n].id == viewport)
+    {
+      viewports [n].w = w;
+      viewports [n].h = h;
+      return;
+    }
+  }
+}
+
 void GLV_Close_Viewport (int viewport)
 {
   for (int n = 0; n < viewportscount; n ++)
@@ -995,17 +1026,25 @@ void GLV_Read_Text (char *title, void (*done) (char *text))
 void GLV_Print (double x, double y, double z, int font, char *fmt, ...)
 {
   va_list arg;
-  char buff [2048];
+  char buff [MAXPRINTLEN];
   int i;
 
   va_start (arg, fmt);
-  vsnprintf (buff, 2048, fmt, arg); /* read formated string */
+  vsnprintf (buff, MAXPRINTLEN, fmt, arg); /* read formated string */
   va_end (arg);
 
   glRasterPos3d (x, y, z); /* string position */
 
   switch (font)
   {
+    case GLV_FONT_8_BY_13:
+      for (i = 0; buff[i]; i++)
+	glutBitmapCharacter (GLUT_BITMAP_8_BY_13, buff[i]);
+      break;
+    case GLV_FONT_9_BY_15:
+      for (i = 0; buff[i]; i++)
+	glutBitmapCharacter (GLUT_BITMAP_9_BY_15, buff[i]);
+      break;
     case GLV_FONT_10:
       for (i = 0; buff[i]; i++)
 	glutBitmapCharacter (GLUT_BITMAP_HELVETICA_10, buff[i]); /* output characters */
@@ -1019,6 +1058,18 @@ void GLV_Print (double x, double y, double z, int font, char *fmt, ...)
 	glutBitmapCharacter (GLUT_BITMAP_HELVETICA_18, buff[i]);
       break;
   }
+}
+
+int GLV_Print_Width (int font, char *fmt, ...)
+{
+  va_list arg;
+  char buff [MAXPRINTLEN];
+
+  va_start (arg, fmt);
+  vsnprintf (buff, MAXPRINTLEN, fmt, arg); /* read formated string */
+  va_end (arg);
+
+  return font * strlen (buff);
 }
 
 void GLV_Screen_Bitmap (char *path)

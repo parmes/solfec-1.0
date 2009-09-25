@@ -153,8 +153,13 @@ static SET *volumetric_map_discrete; /* set of discrete data */
 static double volumetric_map_min = 0; /* minimum of the volumetric map values */
 static double volumetric_map_max = 1; /* maximum */
 #define MAP_LEGEND_ROWS 8 /* number of rows in the map legend */
-#define WIDTH_DISC 48 /* legend width for discrete data */
-#define WIDTH_CONT 74 /* legend width for continuous data */
+#define WIDTH_DISC 50 /* legend width for discrete data */
+#define WIDTH_CONT 100 /* legend width for continuous data */
+#define LEGEND_FONT GLV_FONT_8_BY_13
+
+static int time_window; /* time window handler */
+#define TIME_HEIGHT 16 /* time window height */
+#define TIME_FONT GLV_FONT_8_BY_13
 
 typedef void (*FUNC_OFF) (); /* turning off function callback */
 
@@ -245,6 +250,27 @@ static void tools_off ()
   GLV_Redraw_All ();
 }
 
+/* time window width */
+static int time_width ()
+{
+  return GLV_Print_Width (TIME_FONT, "t=%g", domain->time) + 6;
+}
+
+/* render current time */
+static void render_time ()
+{
+  glDisable (GL_LIGHTING);
+  glDisable (GL_DEPTH_TEST);
+
+  glColor3f (1, 1, 1);
+  glRecti (0, 0, time_width (), TIME_HEIGHT);
+  glColor3f (0, 0, 0);
+  GLV_Print (3, 3, 0, TIME_FONT, "t=%g", domain->time);
+
+  glEnable (GL_LIGHTING);
+  glEnable (GL_DEPTH_TEST);
+}
+
 /* get caption text */
 static char* map_legend_caption ()
 {
@@ -279,32 +305,7 @@ static char* map_legend_caption ()
 /* get caption widtth */
 static int map_caption_width ()
 {
-  switch (volumetric_map_kind)
-  {
-  case KINDSOF_CONSTRAINTS: return 111;
-  case KINDSOF_FORCES: return 79;
-  case KINDSOF_BODIES: return 75;
-  case KINDSOF_SURFACES: return 92;
-  case KINDSOF_VOLUMES: return 86;
-  case RESULTS_DX: return 21;
-  case RESULTS_DY: return 21;
-  case RESULTS_DZ: return 21;
-  case RESULTS_VX: return 21;
-  case RESULTS_VY: return 21;
-  case RESULTS_VZ: return 21;
-  case RESULTS_SX: return 21;
-  case RESULTS_SY: return 21;
-  case RESULTS_SZ: return 21;
-  case RESULTS_SXY: return 27;
-  case RESULTS_SXZ: return 27;
-  case RESULTS_SYZ: return 27;
-  case RESULTS_MISES: return 39;
-  case RESULTS_RN: return 21;
-  case RESULTS_RT: return 21;
-  case RESULTS_R: return 13;
-  }
-
-  return 0;
+  return GLV_Print_Width (LEGEND_FONT, map_legend_caption ()) + 9;
 }
 
 /* get legend width */
@@ -368,8 +369,8 @@ static void render_map_legend ()
 {
   GLfloat color [4] = {1, 1, 1, 1};
   double value, step;
+  int i, j, k, l;
   GLint v [4];
-  int i, j, k;
   char *str;
   SET *item;
 
@@ -380,7 +381,7 @@ static void render_map_legend ()
   glColor3f (1, 1, 1);
   glRecti (v[0] + 3, v[1] + 3, 3 + map_caption_width (), 19);
   glColor3f (0, 0, 0);
-  GLV_Print (v[0] + 6, v[1] + 6, 0, GLV_FONT_10, "%s", map_legend_caption ());
+  GLV_Print (v[0] + 6, v[1] + 6, 0, LEGEND_FONT, "%s", map_legend_caption ());
 
   if (volumetric_map_is_discrete)
   {
@@ -389,14 +390,24 @@ static void render_map_legend ()
     for (i = 1, j = 0, item = SET_First (volumetric_map_discrete); item; item = SET_Next (item))
     {
       mapcolor (volumetric_map_min, (double)(int)item->data, volumetric_map_max, color);
-      glColor3f (1, 1, 1);
-      glRecti (v[0] + j * WIDTH_DISC, v[1] + i * 16, v[0] + (j+1) * WIDTH_DISC, v[1] + (i+1) * 16);
       glColor4fv (color);
       glRecti (v[0] + j * WIDTH_DISC, v[1] + i * 16, v[0] + j * WIDTH_DISC + 16, v[1] + i * 16 + 16);
-      glColor3f (0, 0, 0);
       if ((str = get_map_legend_value_string (item->data)))
-        GLV_Print (v[0] + j * WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%s", str);
-      else GLV_Print (v[0] + j * WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%d", (int)item->data);
+      {
+	glColor3f (1, 1, 1);
+	l = GLV_Print_Width (LEGEND_FONT, str) + 5;
+	glRecti (v[0] + j * WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
+        glColor3f (0, 0, 0);
+        GLV_Print (v[0] + j * WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, str);
+      }
+      else
+      {
+	glColor3f (1, 1, 1);
+	l = GLV_Print_Width (LEGEND_FONT, "%d", (int)item->data) + 5;
+	glRecti (v[0] + j * WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
+        glColor3f (0, 0, 0);
+	GLV_Print (v[0] + j * WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%d", (int)item->data);
+      }
       if (i ++ == MAP_LEGEND_ROWS) { i = 1; j ++; }
     }
     glPopMatrix ();
@@ -413,12 +424,13 @@ static void render_map_legend ()
       for (i = 1, j = k = 0; k < volumetric_map_range; k ++, value += step)
       {
 	mapcolor (volumetric_map_min, value, volumetric_map_max, color);
-	glColor3f (1, 1, 1);
-	glRecti (v[0] + j * WIDTH_CONT, v[1] + i * 16, v[0] + (j+1) * WIDTH_CONT, v[1] + (i+1) * 16);
 	glColor4fv (color);
 	glRecti (v[0] + j * WIDTH_CONT, v[1] + i * 16, v[0] + j * WIDTH_CONT + 16, v[1] + i * 16 + 16);
+	glColor3f (1, 1, 1);
+	l = GLV_Print_Width (LEGEND_FONT, "%.2e", value) + 5;
+	glRecti (v[0] + j * WIDTH_CONT + 16, v[1] + i * 16, v[0] + j * WIDTH_CONT + 16 + l, v[1] + (i+1) * 16);
 	glColor3f (0, 0, 0);
-	GLV_Print (v[0] + j * WIDTH_CONT + 18, v[1] + i * 16 + 3, 0, GLV_FONT_10, "%.2e", value);
+	GLV_Print (v[0] + j * WIDTH_CONT + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%.2e", value);
 	if (i ++ == MAP_LEGEND_ROWS) { i = 1; j ++; }
       }
       glPopMatrix ();
@@ -480,7 +492,7 @@ inline static double get_bod_shp_gobj_node (BODY *bod, SHAPE *shp, void *gobj, i
     {
       double mises = DBL_MAX;
 
-      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_STRESS, &mises);
+      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_MISES, &mises);
 
       return mises;
     }
@@ -1610,6 +1622,9 @@ static void seek_to_time (char *text)
 
     if (volumetric_map) volumetric_map_on (volumetric_map_kind);
     else GLV_Redraw_All ();
+
+    /* resize time viewport so to fit the text output */
+    GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
   }
 }
 
@@ -2036,6 +2051,9 @@ static void solfec_step ()
   /* update volumetric map (and its extrema) after updating state */
   if (volumetric_map) volumetric_map_on (volumetric_map_kind);
   else GLV_Redraw_All ();
+
+  /* resize time viewport so to fit the text output */
+  GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
 }
 
 /* solfe run timer callback */
@@ -2194,12 +2212,16 @@ static void menu_analysis (int value)
     SOLFEC_Forward (solfec, analysis_skip_steps);
     if (volumetric_map) volumetric_map_on (volumetric_map_kind);
     else GLV_Redraw_All ();
+    /* resize time viewport so to fit the text output */
+    GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
     break;
   case ANALYSIS_BACKWARD:
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
     SOLFEC_Backward (solfec, analysis_skip_steps);
     if (volumetric_map) volumetric_map_on (volumetric_map_kind);
     else GLV_Redraw_All ();
+    /* resize time viewport so to fit the text output */
+    GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
     break;
   case ANALYSIS_SKIP:
     GLV_Read_Text ("FORWARD and BACKWARD skip", set_skip_steps);
@@ -2298,10 +2320,14 @@ int RND_Menu (char ***names, int **codes)
 void RND_Init ()
 {
   double extents [6];
+  int w, h;
 
   get_scene_extents (extents);
 
   GLV_Reset_Extents (extents);
+
+  GLV_Sizes (&w, &h);
+  time_window = GLV_Open_Viewport (0, -(h - TIME_HEIGHT), time_width (), TIME_HEIGHT, 0, render_time);
 }
 
 /* idle actions */

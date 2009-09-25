@@ -65,6 +65,9 @@ void GLV_Update_Extents (double *extents);
 /* get minimal view extent */
 double GLV_Minimal_Extent ();
 
+/* get main window sizes */
+void GLV_Sizes (int *w, int *h);
+
 /* open a 2D window with 1-to-1
  * coordinate-to-pixel mapping;
  * window's content is not exported
@@ -92,6 +95,9 @@ int GLV_Open_Viewport (
 /* move viewport */
 void GLV_Move_Viewport (int viewport, int x, int y, int w, int h);
 
+/* resize viewport */
+void GLV_Resize_Viewport (int viewport, int w, int h);
+
 /* close window */
 void GLV_Close_Viewport (int viewport);
 
@@ -100,8 +106,12 @@ void GLV_Close_Viewport (int viewport);
 void GLV_Read_Text (char *title, void (*done) (char *text));
 
 /* output text at specified coordinates */
-enum {GLV_FONT_10 = 10, GLV_FONT_12 = 12, GLV_FONT_18 = 18};
+enum {GLV_FONT_8_BY_13 = 8, GLV_FONT_9_BY_15 = 9,
+      GLV_FONT_10 = 10, GLV_FONT_12 = 12, GLV_FONT_18 = 18};
 void GLV_Print (double x, double y, double z, int font, char *fmt, ...);
+
+/* get width of printed text in pixels */
+int  GLV_Print_Width (int font, char *fmt, ...);
 
 /* output screen shot bitmap */
 void GLV_Screen_Bitmap (char *path);
