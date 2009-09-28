@@ -31,19 +31,22 @@
 #include "dom.h"
 #include "goc.h"
 #include "tmr.h"
+#include "pck.h"
 #include "err.h"
 
 #if MPI
 #include "put.h"
-#include "pck.h"
 #include "com.h"
 #include "tag.h"
 #endif
 
+#define MEMBLK 512 /* initial memory block size for state packing */
 #define CONBLK 512 /* constraints memory block size */
 #define MAPBLK 128 /* map items memory block size */
 #define SETBLK 512 /* set items memory block size */
 #define SIZE (HASH3D+1) /* aabb timing tables size */
+
+#define PACKEDIO 0 /* FIXME */
 
 typedef struct private_data DATA;
 
@@ -467,6 +470,72 @@ static void sparsify_contacts (DOM *dom)
   MEM_Release (&mem);
 }
 
+#if PACKEDIO
+/* pack constraint state */
+static void pack_constraint_state (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  int kind = con->kind;
+
+  pack_int (isize, i, ints, con->id);
+  pack_int (isize, i, ints , kind);
+
+  pack_doubles (dsize, d, doubles, con->R, 3);
+  pack_doubles (dsize, d, doubles, con->point, 3);
+  pack_doubles (dsize, d, doubles, con->base, 9);
+  pack_double (dsize, d, doubles, con->area);
+  pack_double (dsize, d, doubles, con->gap);
+
+  int count = 1;
+
+  if (con->slave) count = 2;
+
+  pack_int (isize, i, ints, count);
+  pack_int (isize, i, ints, con->master->id);
+  if (con->slave) pack_int (isize, i, ints, con->slave->id);
+
+  if (kind == CONTACT) SURFACE_MATERIAL_Pack_State (&con->mat, dsize, d, doubles, isize, i, ints);
+
+  if (kind == RIGLNK || kind == VELODIR) pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
+}
+
+/* unpack constraint state */
+static CON* unpack_constraint_state (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  CON *con;
+  int kind;
+
+  ERRMEM (con = MEM_Alloc (&dom->conmem));
+
+  con->id = unpack_int (ipos, i, ints);
+  kind = unpack_int (ipos, i, ints);
+  con->kind = kind;
+
+  unpack_doubles (dpos, d, doubles, con->R, 3);
+  unpack_doubles (dpos, d, doubles, con->point, 3);
+  unpack_doubles (dpos, d, doubles, con->base, 9);
+  con->area = unpack_double (dpos, d, doubles);
+  con->gap = unpack_double (dpos, d, doubles);
+
+  unsigned int id;
+  int count;
+
+  count = unpack_int (ipos, i, ints);
+  id = unpack_int (ipos, i, ints);
+  ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid master id");
+  if (count == 2)
+  {
+    id = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid slave id");
+  }
+
+  if (kind == CONTACT) SURFACE_MATERIAL_Unpack_State (dom->time, dom->sps, &con->mat, dpos, d, doubles, ipos, i, ints);
+
+  if (kind == RIGLNK || kind == VELODIR) unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
+
+  return con;
+}
+#else
+
 /* write constraint state */
 static void write_constraint (CON *con, PBF *bf)
 {
@@ -489,7 +558,7 @@ static void write_constraint (CON *con, PBF *bf)
   PBF_Uint (bf, &con->master->id, 1);
   if (con->slave) PBF_Uint (bf, &con->slave->id, 1);
 
-  if (kind == CONTACT) PBF_String (bf, &con->mat.label);
+  if (kind == CONTACT) SURFACE_MATERIAL_Write_State (&con->mat, bf);
 
   if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
 }
@@ -524,20 +593,13 @@ static CON* read_constraint (DOM *dom, PBF *bf)
     ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid slave id");
   }
 
-  if (kind == CONTACT)
-  {
-    char buf [PBF_MAXSTRING], *label = buf;
-    SURFACE_MATERIAL *mat;
-
-    PBF_String (bf, &label);
-    ASSERT_DEBUG_EXT (mat = SPSET_Find_Label (dom->sps, label), "Invalid material label");
-    con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat);
-  }
+  if (kind == CONTACT) con->state |= SURFACE_MATERIAL_Read_State (dom->time, dom->sps, &con->mat, bf);
 
   if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
 
   return con;
 }
+#endif
 
 #if MPI
 typedef struct conaux CONAUX;
@@ -2114,6 +2176,362 @@ void DOM_Update_Children (DOM *dom)
 }
 #endif
 
+#if PACKEDIO
+/* write domain state */
+void DOM_Write_State (DOM *dom, PBF *bf)
+{
+  int dsize = MEMBLK;
+  double *d;
+  int doubles = 0;
+  int isize = MEMBLK;
+  int *i;
+  int ints = 0;
+
+  ERRMEM (d = malloc (sizeof (double [MEMBLK])));
+  ERRMEM (i = malloc (sizeof (int [MEMBLK])));
+
+  /* data header */
+
+  int header [6]; /* (doubles, ints) offsets of constraints,
+		     (doubles, ints) offsets of bodies,
+		     doubles - in total,
+		     ints - in total */
+
+  /* pack time step */
+
+  pack_double (&dsize, &d, &doubles, dom->step);
+
+  /* pack constraints */
+
+  header [0] = doubles; /* record offsets of constraints data */
+  header [1] = ints;
+
+  pack_int (&isize, &i, &ints, dom->ncon);
+
+  for (CON *con = dom->con; con; con = con->next)
+  {
+    pack_constraint_state (con, &dsize, &d, &doubles, &isize, &i, &ints);
+  }
+
+  /* pack ids of bodies that have been deleted and empty the deleted bodies ids set */
+
+  unsigned int id;
+  SET *item;
+
+  pack_int (&isize, &i, &ints, SET_Size (dom->delb));
+
+  for (item = SET_First (dom->delb); item; item = SET_Next (item))
+  {
+    id = (int) (long) item->data;
+    pack_int (&isize, &i, &ints, id);
+  }
+
+  SET_Free (&dom->setmem, &dom->delb);
+
+  /* pack complete data of newly created bodies and empty the newly created bodies set */
+
+  pack_int (&isize, &i, &ints, SET_Size (dom->newb));
+
+  for (item = SET_First (dom->newb); item; item = SET_Next (item))
+  {
+    BODY_Pack (item->data, &dsize, &d, &doubles, &isize, &i, &ints);
+  }
+
+  SET_Free (&dom->setmem, &dom->newb);
+
+  /* pack regular bodies (this also includes states of newly created ones) */
+
+  header [2] = doubles; /* record offsets of bodies data */
+  header [3] = ints;
+
+  pack_int (&isize, &i, &ints, dom->nbod);
+
+  for (BODY *bod = dom->bod; bod; bod = bod->next)
+  {
+    pack_int (&isize, &i, &ints, bod->id);
+
+    BODY_Pack_State (bod, &dsize, &d, &doubles, &isize, &i, &ints);
+  }
+
+  /* write state */
+
+  header [4] = doubles;
+  header [5] = ints;
+
+  PBF_Label (bf, "DOM");
+
+  PBF_Int (bf, header, 6);
+  PBF_Double (bf, d, doubles);
+  PBF_Int (bf, i, ints);
+
+  free (d);
+  free (i);
+}
+
+/* read domain state */
+void DOM_Read_State (DOM *dom, PBF *bf)
+{
+  int ncon;
+
+  /* clear contacts */
+  MAP_Free (&dom->mapmem, &dom->idc);
+  MEM_Release (&dom->conmem);
+  dom->con = NULL;
+  dom->ncon = 0;
+
+  for (; bf; bf = bf->next)
+  {
+    if (PBF_Label (bf, "DOM"))
+    {
+      int dpos = 0;
+      double *d;
+      int doubles;
+      int ipos = 0;
+      int *i;
+      int ints;
+
+      /* data header */
+
+      int header [6];
+
+      /* read state */
+
+      PBF_Int (bf, header, 6);
+      doubles = header [4];
+      ints = header [5];
+
+      ERRMEM (d  = malloc (doubles * sizeof (double)));
+      ERRMEM (i  = malloc (ints * sizeof (int)));
+
+      PBF_Double (bf, d, doubles);
+      PBF_Int (bf, i, ints);
+
+      /* unpack time step */
+
+      dom->step = unpack_double (&dpos, d, doubles);
+
+      /* unpack constraints */
+    
+      ncon = unpack_int (&ipos, i, ints);
+
+      for (int n = 0; n < ncon; n ++)
+      {
+	CON *con;
+	
+	con = unpack_constraint_state (dom, &dpos, d, doubles, &ipos, i, ints);
+	MAP_Insert (&dom->mapmem, &dom->idc, (void*) (long) con->id, con, NULL);
+	con->next = dom->con;
+	if (dom->con) dom->con->prev = con;
+	dom->con = con;
+      }
+
+      dom->ncon += ncon;
+
+      /* unpack ids of bodies that need to be deleted and remove them from all containers */
+
+      unsigned int id;
+      int size, n;
+
+      size = unpack_int (&ipos, i, ints);
+
+      for (n = 0; n < size; n ++)
+      {
+	BODY *bod;
+
+	id = unpack_int (&ipos, i, ints);
+
+	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id");
+
+	if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
+	MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) id, NULL);
+	if (bod->next) bod->next->prev = bod->prev;
+	if (bod->prev) bod->prev->next = bod->next;
+	else dom->bod = bod->next;
+	dom->nbod --;
+	BODY_Destroy (bod);
+      }
+
+      /* unpack complete data of newly created bodies and insert them into all containers */
+
+      size = unpack_int (&ipos, i, ints);
+
+      for (n = 0; n < size; n ++)
+      {
+	BODY *bod;
+
+	bod = BODY_Unpack (dom->owner, &dpos, d, doubles, &ipos, i, ints);
+
+	if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
+	MAP_Insert (&dom->mapmem, &dom->idb, (void*) (long) bod->id, bod, NULL);
+	bod->next = dom->bod;
+	if (dom->bod) dom->bod->prev = bod;
+	dom->bod = bod;
+	dom->nbod ++;
+      }
+
+      /* unpack regular bodies */
+
+      int nbod;
+
+      nbod = unpack_int (&ipos, i, ints);
+
+      for (int n = 0; n < nbod; n ++)
+      {
+	unsigned int id;
+	BODY *bod;
+
+	id = unpack_int (&ipos, i, ints);
+	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Body id invalid");
+        BODY_Unpack_State (bod, &dpos, d, doubles, &ipos, i, ints);
+      }
+
+      /* free buffers */
+
+      free (d);
+      free (i);
+    }
+  }
+}
+
+/* read state of an individual body */
+int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
+{
+  for (; bf; bf = bf->next)
+  {
+    if (PBF_Label (bf, "DOM"))
+    {
+      int dpos;
+      double *d;
+      int doubles;
+      int ipos;
+      int *i;
+      int ints;
+
+      /* data header */
+
+      int header [6];
+
+      /* read state */
+
+      PBF_Int (bf, header, 6);
+      doubles = header [4];
+      ints = header [5];
+
+      ERRMEM (d  = malloc (doubles * sizeof (double)));
+      ERRMEM (i  = malloc (ints * sizeof (int)));
+
+      PBF_Double (bf, d, doubles);
+      PBF_Int (bf, i, ints);
+
+      /* read bodies */
+
+      dpos = header [2];
+      ipos = header [3];
+
+      int nbod;
+
+      nbod = unpack_int (&ipos, i, ints);
+
+      for (int n = 0; n < nbod; n ++)
+      {
+	unsigned int id;
+	BODY *obj;
+
+	id = unpack_int (&ipos, i, ints);
+	ASSERT_DEBUG_EXT (obj = MAP_Find (dom->idb, (void*) (long) id, NULL), "Body id invalid");
+	if (bod->id == obj->id) 
+	{
+	  BODY_Unpack_State (bod, &dpos, d, doubles, &ipos, i, ints);
+	  free (d);
+	  free (i);
+	  return 1;
+	}
+	else /* skip body and continue */
+	{
+	  BODY fake;
+
+	  ERRMEM (fake.conf = malloc (sizeof (double [BODY_Conf_Size (obj)])));
+	  ERRMEM (fake.velo = malloc (sizeof (double [obj->dofs])));
+	  fake.shape = NULL;
+
+	  BODY_Unpack_State (&fake, &dpos, d, doubles, &ipos, i, ints);
+
+	  free (fake.conf);
+	  free (fake.velo);
+	}
+      }
+
+      free (d);
+      free (i);
+    }
+  }
+
+  return 0;
+}
+
+/* read state of an individual constraint */
+int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
+{
+  for (; bf; bf = bf->next)
+  {
+    if (PBF_Label (bf, "DOM"))
+    {
+      int dpos;
+      double *d;
+      int doubles;
+      int ipos;
+      int *i;
+      int ints;
+
+      /* data header */
+
+      int header [6];
+
+      /* read state */
+
+      PBF_Int (bf, header, 6);
+      doubles = header [4];
+      ints = header [5];
+
+      ERRMEM (d  = malloc (doubles * sizeof (double)));
+      ERRMEM (i  = malloc (ints * sizeof (int)));
+
+      PBF_Double (bf, d, doubles);
+      PBF_Int (bf, i, ints);
+
+      /* read constraints */
+
+      dpos = header [0];
+      ipos = header [1];
+
+      int ncon;
+
+      ncon = unpack_int (&ipos, i, ints);
+
+      for (int n = 0; n < ncon; n ++)
+      {
+	CON *obj = unpack_constraint_state (dom, &dpos, d, doubles, &ipos, i, ints);
+
+	if (con->id == obj->id)
+	{
+	  *con = *obj;
+          MEM_Free (&dom->conmem, obj); /* not needed */
+	  free (d);
+	  free (i);
+	  return 1;
+	}
+	else MEM_Free (&dom->conmem, obj); /* skip and continue */
+      }
+
+      free (d);
+      free (i);
+    }
+  }
+
+  return 0;
+}
+
+#else
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf)
 {
@@ -2415,6 +2833,7 @@ int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
 
   return 0;
 }
+#endif
 
 /* release memory */
 void DOM_Destroy (DOM *dom)

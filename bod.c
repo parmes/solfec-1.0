@@ -1633,6 +1633,20 @@ void BODY_Read_State (BODY *bod, PBF *bf)
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
 
+void BODY_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+}
+
+void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+
+  if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+}
+
 void BODY_Destroy (BODY *bod)
 {
   FORCE *forc, *next;

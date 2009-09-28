@@ -1214,6 +1214,7 @@ static PyObject* lng_SURFACE_MATERIAL_new (PyTypeObject *type, PyObject *args, P
 
   SURFACE_MATERIAL mat = 
   {
+   0,
    INT_MAX,    /* surf1 */
    INT_MAX,    /* surf2 */
    NULL, /* label */

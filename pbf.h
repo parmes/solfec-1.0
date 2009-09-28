@@ -62,6 +62,8 @@ struct pbf
   XDR x_dat; /* data coding context */
   XDR x_idx; /* index coding context */
   XDR x_lab; /* labels coding context */
+  int i_dat; /* x_day POSIX file handle (READ) */
+  char *mem; /* x_dat memory (READ) */
   MEM mappool; /* map items pool */
   MEM labpool; /* labels pool */
   PBF_LABEL *ltab; /* table of labels */

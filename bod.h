@@ -223,6 +223,12 @@ void BODY_Write_State (BODY *bod, PBF *bf);
 /* read body state */
 void BODY_Read_State (BODY *bod, PBF *bf);
 
+/* pack body state */
+void BODY_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+
+/* unpack body state */
+void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+
 /* release body memory */
 void BODY_Destroy (BODY *bod);
 

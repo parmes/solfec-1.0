@@ -69,6 +69,9 @@ SPSET* SPSET_Create ()
   MEM_Init (&set->matmem, sizeof (SURFACE_MATERIAL), SPCHUNK);
   MEM_Init (&set->setmem, sizeof (SET), SPCHUNK);
   MEM_Init (&set->mapmem, sizeof (MAP), SPCHUNK);
+  ERRMEM (set->tab = malloc (sizeof (SURFACE_MATERIAL*)));
+  set->tab [0] = &set->def;
+  set->def.index = 0;
   set->def.friction = 
   set->def.cohesion = 
   set->def.restitution = 0.0;
@@ -82,6 +85,7 @@ SPSET* SPSET_Create ()
 void SPSET_Default (SPSET *set, SURFACE_MATERIAL data)
 { 
   set->def = data;
+  set->def.index = 0;
   set->def.label = "DEFAULT";
 }
 
@@ -102,6 +106,9 @@ SURFACE_MATERIAL* SPSET_Insert (SPSET *set, int surf1, int surf2, char *label, S
     SET_Insert (&set->setmem, &set->set, out, (SET_Compare) setcmp);
     MAP_Insert (&set->mapmem, &set->map, out->label, out, (SET_Compare) strcmp);
     set->size ++;
+    ERRMEM (set->tab = realloc (set->tab, (set->size + 1) * sizeof (SURFACE_MATERIAL)));
+    set->tab [set->size] = out;
+    out->index = set->size; /* 0 - default, 1 - first inserted, ... */
   }
 
   /* copy all data from the 'model' onwards */
@@ -160,6 +167,7 @@ void SPSET_Destroy (SPSET *set)
   MEM_Release (&set->matmem);
   MEM_Release (&set->setmem);
   MEM_Release (&set->mapmem);
+  free (set->tab);
   free (set);
 }
 
@@ -181,6 +189,42 @@ short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MAT
   }
 
   return state;
+}
+
+/* write surface material state */
+void SURFACE_MATERIAL_Write_State (SURFACE_MATERIAL *mat, PBF *bf)
+{
+  PBF_Short (bf, &mat->index, 1);
+}
+
+/* read surface material state; return contact state update */
+short SURFACE_MATERIAL_Read_State (double time, SPSET *set, SURFACE_MATERIAL *mat, PBF *bf)
+{
+  SURFACE_MATERIAL *out;
+  short index;
+
+  PBF_Short (bf, &index, 1);
+  ASSERT_DEBUG (index <= set->size, "Invalid material index");
+  out = set->tab [index];
+  return SURFACE_MATERIAL_Transfer (time, out, mat);
+}
+
+/* pack surface material state (e.g. label and time dependent data if any) */
+void SURFACE_MATERIAL_Pack_State (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, mat->index);
+}
+
+/* unpack surface material state (recover material state using the packed data and the permanent data from SPSET); return contact state update */
+short SURFACE_MATERIAL_Unpack_State (double time, SPSET *set, SURFACE_MATERIAL *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  SURFACE_MATERIAL *out;
+  int index;
+
+  index = unpack_int (ipos, i, ints);
+  ASSERT_DEBUG (index <= set->size, "Invalid material index");
+  out = set->tab [index];
+  return SURFACE_MATERIAL_Transfer (time, out, mat);
 }
 
 /* pack surface material data (witouht the label and surface pairing) */

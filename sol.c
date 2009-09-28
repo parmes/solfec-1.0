@@ -25,7 +25,9 @@
 #include "put.h"
 #endif
 
-#include <sys/stat.h> /* POSIX */
+#if POSIX
+#include <sys/stat.h>
+#endif
 #include <string.h>
 #include <float.h>
 #include "sol.h"
@@ -142,6 +144,7 @@ static PBF* readoutpath (char *outpath)
 /* attempt writing output path */
 static PBF* writeoutpath (char *outpath)
 {
+#if POSIX
   int i, l = strlen (outpath);
 
   for (i = 0; i < l; i ++) /* create all directories on the way */
@@ -154,6 +157,7 @@ static PBF* writeoutpath (char *outpath)
     }
   }
   mkdir (outpath, 0777); /* POSIX */
+#endif
 
   char *path = getpath (outpath);
   PBF *bf = PBF_Write (path);

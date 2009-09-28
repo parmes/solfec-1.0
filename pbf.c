@@ -23,7 +23,12 @@
 #include <mpi.h>
 #endif
 
+#if POSIX
+#include <unistd.h>
+#include <fcntl.h>
+#endif
 #include <string.h>
+#include <float.h>
 #include "pbf.h"
 #include "err.h"
 
@@ -53,6 +58,7 @@
  *  [FRAME_1]
  *  ...
  *  [FRAME_N]
+ *  [FRAME_INF]
  * ----------
  *  FRAME_i:
  * -------------------------------
@@ -66,6 +72,11 @@
  *  [IDX_K]
  *  [POS_K]
  *  [-1] (int) {end of labels marker}
+ * ----------------------------------
+ *  FRAME_INF:
+ * -------------------------------
+ *  [TIME] (double) {DBL_MAX time}
+ *  [DOFF] (unsigned int) {offest to last data in DAT file}
  * ----------------------------------
  */
 
@@ -129,7 +140,7 @@ static void initialise_reading (PBF *bf)
     else break;
   }
   bf->mtab = realloc (bf->mtab, sizeof (PBF_MARKER) * num); /* shrink */
-  bf->msize = num;
+  bf->msize = num - 1; /* subtract last "infinite" frame */
 
   /* initialise state, skip
    * time and position */
@@ -160,7 +171,7 @@ static void initialise_reading (PBF *bf)
 static void initialise_frame (PBF *bf, int frm)
 {
   PBF_LABEL *l;
-  int index;
+  int index, size;
 
   bf->cur = frm; /* set current frame */
   bf->time = bf->mtab [frm].time; /* and time */
@@ -168,9 +179,21 @@ static void initialise_frame (PBF *bf, int frm)
   /* empty current labels set */
   MAP_Free (&bf->mappool,&bf->labels);
  
-  /* seek to the frame in IDX and DAT */ 
+  /* seek to the frame in IDX file */ 
   xdr_setpos (&bf->x_idx, bf->mtab [frm].ipos);
-  xdr_setpos (&bf->x_dat, bf->mtab [frm].dpos);
+
+  /* create new memory XDR stream for DATA chunk */
+  size = bf->mtab [frm+1].dpos - bf->mtab [frm].dpos;
+  free (bf->mem); bf->mem = malloc (size);
+#if POSIX
+  lseek (bf->i_dat, bf->mtab [frm].dpos, SEEK_SET);
+  read (bf->i_dat, bf->mem, size);
+#else
+  fseek (bf->dat, bf->mtab [frm].dpos, SEEK_SET);
+  fread (bf->mem, sizeof (char), size, bf->dat);
+#endif
+  xdr_destroy (&bf->x_dat);
+  xdrmem_create (&bf->x_dat, bf->mem, size, XDR_DECODE);
 
   /* read labels */
   xdr_int (&bf->x_idx, &index);
@@ -191,6 +214,26 @@ static void initialise_frame (PBF *bf, int frm)
   }
 }
 
+/* finalize frames after last write */
+static void finalize_frames (PBF *bf)
+{
+  if (bf->mode == PBF_WRITE)
+  {
+    double time = DBL_MAX;
+    unsigned int pos;
+
+    if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
+    {
+      int index = -1;
+      xdr_int (&bf->x_idx, &index);
+    }
+
+    xdr_double (&bf->x_idx, &time);
+    pos = xdr_getpos (&bf->x_dat);
+    xdr_u_int (&bf->x_idx, &pos); /* last data position */
+  }
+}
+ 
 /* test before closing */
 static int is_empty (FILE *f)
 {
@@ -307,6 +350,9 @@ PBF* PBF_Read (const char *path)
     /* openin files */
     if (m) sprintf (txt, "%s.dat.%d", path, n);
     else sprintf (txt, "%s.dat", path);
+#if POSIX
+    if ((bf->i_dat = open (txt, O_RDONLY)) < 0) goto failure;
+#endif
     if (! (bf->dat = fopen (txt, "r"))) goto failure;
     xdrstdio_create (&bf->x_dat, bf->dat, XDR_DECODE);
     bf->dph = copypath (txt);
@@ -324,6 +370,7 @@ PBF* PBF_Read (const char *path)
     /* initialise the rest */
     MEM_Init (&bf->mappool, sizeof (MAP), 1024);
     MEM_Init (&bf->labpool, sizeof (PBF_LABEL), 1024);
+    bf->mem = NULL;
     bf->ltab = NULL;
     bf->labels = NULL;
     bf->mtab = NULL;
@@ -355,16 +402,19 @@ void PBF_Close (PBF *bf)
   {
     int empty;
 
+    /* finalize writing */
+    finalize_frames (bf);
+
     /* close streams */
     xdr_destroy (&bf->x_dat);
     xdr_destroy (&bf->x_idx);
     xdr_destroy (&bf->x_lab);
 
-    fflush (bf->dat);
-    fflush (bf->idx);
-    fflush (bf->lab);
-
     empty = is_empty (bf->dat);
+
+#if POSIX
+    close (bf->i_dat);
+#endif
 
     fclose (bf->dat);
     fclose (bf->idx);
@@ -376,7 +426,7 @@ void PBF_Close (PBF *bf)
       remove (bf->iph);
       remove (bf->lph);
     }
-   
+  
     free (bf->dph);
     free (bf->iph);
     free (bf->lph);
@@ -391,6 +441,7 @@ void PBF_Close (PBF *bf)
 
       free (bf->ltab);
       free (bf->mtab);
+      free (bf->mem);
     }
     else
     {
@@ -411,13 +462,15 @@ void PBF_Close (PBF *bf)
   }
 }
 
-
 /* flush buffers */
 void PBF_Flush (PBF *bf)
 {
-  fflush (bf->dat);
-  fflush (bf->idx);
-  fflush (bf->lab);
+  if (bf->mode == PBF_WRITE)
+  {
+    fflush (bf->dat);
+    fflush (bf->idx);
+    fflush (bf->lab);
+  }
 }
 
 /* read/write current time */

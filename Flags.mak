@@ -2,6 +2,12 @@
 # Compilation flags setup
 #
 
+ifeq ($(POSIX),yes)
+  POSIX = -DPOSIX
+else
+  POSIX = 
+endif
+
 ifeq ($(OPENGL),yes)
   OPENGL = -DOPENGL $(GLINC)
 else

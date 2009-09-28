@@ -11,7 +11,7 @@ endif
 
 include Flags.mak
 
-CFLAGS = -std=c99 $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
+CFLAGS = -std=c99 $(POSIX) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
 LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB)
 

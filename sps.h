@@ -22,6 +22,7 @@
 #include "mem.h"
 #include "map.h"
 #include "set.h"
+#include "pbf.h"
 
 #ifndef __sps__
 #define __sps__
@@ -31,6 +32,8 @@ typedef struct spset SPSET;
 
 struct surfmat
 {
+  short index; /* tab index */
+
   int surf1,
       surf2; /* surface indices */
 
@@ -55,7 +58,9 @@ struct spset /* surface pair set */
 
   SURFACE_MATERIAL def; /* default data */
 
-  SET *set;   /* surface pair indexed based set */
+  SURFACE_MATERIAL **tab; /* table of surface materials */
+
+  SET *set;   /* surface pair index based set */
 
   MAP *map;   /* label based map */
 
@@ -92,6 +97,18 @@ void SPSET_Destroy (SPSET *set);
 /* transfer data from the source 'src' to a destiny 'dst'
  * at the given time => e.g. cohesion will be >0 only for 'time' == 0 */
 short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MATERIAL *dst);
+
+/* write surface material state */
+void SURFACE_MATERIAL_Write_State (SURFACE_MATERIAL *mat, PBF *bf);
+
+/* read surface material state; return contact state update */
+short SURFACE_MATERIAL_Read_State (double time, SPSET *set, SURFACE_MATERIAL *mat, PBF *bf);
+
+/* pack surface material state (e.g. label and time dependent data if any) */
+void SURFACE_MATERIAL_Pack_State (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+
+/* unpack surface material state (recover material state using the packed data and the permanent data from SPSET); return contact state update  */
+short SURFACE_MATERIAL_Unpack_State (double time, SPSET *set, SURFACE_MATERIAL *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 /* pack surface material data (witouht the label and surface pairing) */
 void SURFACE_MATERIAL_Pack_Data (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);

@@ -15,6 +15,12 @@ GEOMDEBUG = no
 NOTHROW = no
 
 #
+# POSIX
+#
+
+POSIX = yes
+
+#
 # BLAS
 #
 
