@@ -46,8 +46,6 @@
 #define SETBLK 512 /* set items memory block size */
 #define SIZE (HASH3D+1) /* aabb timing tables size */
 
-#define PACKEDIO 0 /* FIXME */
-
 typedef struct private_data DATA;
 
 struct private_data
@@ -470,7 +468,6 @@ static void sparsify_contacts (DOM *dom)
   MEM_Release (&mem);
 }
 
-#if PACKEDIO
 /* pack constraint state */
 static void pack_constraint_state (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -534,7 +531,6 @@ static CON* unpack_constraint_state (DOM *dom, int *dpos, double *d, int doubles
 
   return con;
 }
-#else
 
 /* write constraint state */
 static void write_constraint (CON *con, PBF *bf)
@@ -599,7 +595,6 @@ static CON* read_constraint (DOM *dom, PBF *bf)
 
   return con;
 }
-#endif
 
 #if MPI
 typedef struct conaux CONAUX;
@@ -2176,9 +2171,8 @@ void DOM_Update_Children (DOM *dom)
 }
 #endif
 
-#if PACKEDIO
-/* write domain state */
-void DOM_Write_State (DOM *dom, PBF *bf)
+/* write compressed domain state */
+static void dom_write_state_compressed (DOM *dom, PBF *bf, CMP_ALG alg)
 {
   int dsize = MEMBLK;
   double *d;
@@ -2192,10 +2186,9 @@ void DOM_Write_State (DOM *dom, PBF *bf)
 
   /* data header */
 
-  int header [6]; /* (doubles, ints) offsets of constraints,
+  int header [5]; /* (doubles, ints) offsets of constraints,
 		     (doubles, ints) offsets of bodies,
-		     doubles - in total,
-		     ints - in total */
+		     size of compressed data */
 
   /* pack time step */
 
@@ -2255,21 +2248,29 @@ void DOM_Write_State (DOM *dom, PBF *bf)
 
   /* write state */
 
-  header [4] = doubles;
-  header [5] = ints;
+  int *data, size;
+
+  data = compress (alg, d, doubles, i, ints, &size); /* compress */
+
+#if MPI
+  if (dom->rank == 0)
+#endif
+  if (dom->verbose) printf ("DOMAIN COMPRESSION FACTOR: %g\n", (double) (sizeof (double [doubles]) + sizeof (int [ints])) / (double) sizeof (int [size]));
+
+  header [4] = size;
 
   PBF_Label (bf, "DOM");
 
-  PBF_Int (bf, header, 6);
-  PBF_Double (bf, d, doubles);
-  PBF_Int (bf, i, ints);
+  PBF_Int (bf, header, 5);
+  PBF_Int (bf, data, size);
 
+  free (data);
   free (d);
   free (i);
 }
 
-/* read domain state */
-void DOM_Read_State (DOM *dom, PBF *bf)
+/* read compressed domain state */
+static void dom_read_state_compressed (DOM *dom, PBF *bf)
 {
   int ncon;
 
@@ -2292,19 +2293,22 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 
       /* data header */
 
-      int header [6];
+      int header [5];
 
       /* read state */
 
-      PBF_Int (bf, header, 6);
-      doubles = header [4];
-      ints = header [5];
+      int *data, size;
 
-      ERRMEM (d  = malloc (doubles * sizeof (double)));
-      ERRMEM (i  = malloc (ints * sizeof (int)));
+      PBF_Int (bf, header, 5);
+      size = header [4];
 
-      PBF_Double (bf, d, doubles);
-      PBF_Int (bf, i, ints);
+      ERRMEM (data = malloc (size * sizeof (int)));
+
+      PBF_Int (bf, data, size);
+
+      decompress (data, size, &d, &doubles, &i, &ints); /* decompress */
+
+      free (data);
 
       /* unpack time step */
 
@@ -2330,7 +2334,7 @@ void DOM_Read_State (DOM *dom, PBF *bf)
       /* unpack ids of bodies that need to be deleted and remove them from all containers */
 
       unsigned int id;
-      int size, n;
+      int n;
 
       size = unpack_int (&ipos, i, ints);
 
@@ -2393,8 +2397,8 @@ void DOM_Read_State (DOM *dom, PBF *bf)
   }
 }
 
-/* read state of an individual body */
-int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
+/* read compressed state of an individual body */
+static int dom_read_body_compressed (DOM *dom, PBF *bf, BODY *bod)
 {
   for (; bf; bf = bf->next)
   {
@@ -2409,19 +2413,22 @@ int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
 
       /* data header */
 
-      int header [6];
+      int header [5];
 
       /* read state */
 
-      PBF_Int (bf, header, 6);
-      doubles = header [4];
-      ints = header [5];
+      int *data, size;
 
-      ERRMEM (d  = malloc (doubles * sizeof (double)));
-      ERRMEM (i  = malloc (ints * sizeof (int)));
+      PBF_Int (bf, header, 5);
+      size = header [4];
 
-      PBF_Double (bf, d, doubles);
-      PBF_Int (bf, i, ints);
+      ERRMEM (data = malloc (size * sizeof (int)));
+
+      PBF_Int (bf, data, size);
+
+      decompress (data, size, &d, &doubles, &i, &ints); /* decompress */
+
+      free (data);
 
       /* read bodies */
 
@@ -2469,8 +2476,8 @@ int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
   return 0;
 }
 
-/* read state of an individual constraint */
-int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
+/* read compressed state of an individual constraint */
+static int dom_read_constraint_compressed (DOM *dom, PBF *bf, CON *con)
 {
   for (; bf; bf = bf->next)
   {
@@ -2485,19 +2492,22 @@ int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
 
       /* data header */
 
-      int header [6];
+      int header [5];
 
       /* read state */
 
-      PBF_Int (bf, header, 6);
-      doubles = header [4];
-      ints = header [5];
+      int *data, size;
 
-      ERRMEM (d  = malloc (doubles * sizeof (double)));
-      ERRMEM (i  = malloc (ints * sizeof (int)));
+      PBF_Int (bf, header, 5);
+      size = header [4];
 
-      PBF_Double (bf, d, doubles);
-      PBF_Int (bf, i, ints);
+      ERRMEM (data = malloc (size * sizeof (int)));
+
+      PBF_Int (bf, data, size);
+
+      decompress (data, size, &d, &doubles, &i, &ints); /* decompress */
+
+      free (data);
 
       /* read constraints */
 
@@ -2531,9 +2541,8 @@ int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
   return 0;
 }
 
-#else
-/* write domain state */
-void DOM_Write_State (DOM *dom, PBF *bf)
+/* write uncompressed domain state */
+static void dom_write_state (DOM *dom, PBF *bf)
 {
   /* mark domain output */
 
@@ -2623,8 +2632,8 @@ void DOM_Write_State (DOM *dom, PBF *bf)
   }
 }
 
-/* read domain state */
-void DOM_Read_State (DOM *dom, PBF *bf)
+/* read uncompressed domain state */
+static void dom_read_state (DOM *dom, PBF *bf)
 {
   int ncon;
 
@@ -2748,8 +2757,8 @@ void DOM_Read_State (DOM *dom, PBF *bf)
   }
 }
 
-/* read state of an individual body */
-int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
+/* read uncompressed state of an individual body */
+static int dom_read_body (DOM *dom, PBF *bf, BODY *bod)
 {
   if (bod->label)
   {
@@ -2805,8 +2814,8 @@ int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
   return 0;
 }
 
-/* read state of an individual constraint */
-int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
+/* read uncompressed state of an individual constraint */
+static int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
 {
   for (; bf; bf = bf->next)
   {
@@ -2833,7 +2842,64 @@ int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
 
   return 0;
 }
-#endif
+
+/* write domain state */
+void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg)
+{
+  int cmp = alg;
+
+  PBF_Label (bf, "DOMCMP"); /* label domain compression (0 rank file in parallel) */
+  PBF_Int (bf, &cmp, 1); /* 0 rank file as well */
+
+  if (cmp == CMP_OFF) dom_write_state (dom, bf);
+  else dom_write_state_compressed (dom, bf, alg);
+}
+
+/* read domain state */
+void DOM_Read_State (DOM *dom, PBF *bf)
+{
+  int cmp;
+
+  if (PBF_Label (bf, "DOMCMP")) /* perhaps some other that was outputed more frequently (DOM needs not be in every frame) */
+  {
+    PBF_Int (bf, &cmp, 1);
+
+    if (cmp == CMP_OFF) dom_read_state (dom, bf);
+    else dom_read_state_compressed (dom, bf);
+  }
+}
+
+/* read state of an individual body */
+int DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
+{
+  int cmp;
+
+  if (PBF_Label (bf, "DOMCMP"))
+  {
+    PBF_Int (bf, &cmp, 1);
+
+    if (cmp == CMP_OFF) return dom_read_body (dom, bf, bod);
+    else return dom_read_body_compressed (dom, bf, bod);
+  }
+
+  return 0;
+}
+
+/* read state of an individual constraint */
+int DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
+{
+  int cmp;
+
+  if (PBF_Label (bf, "DOMCMP"))
+  {
+    PBF_Int (bf, &cmp, 1);
+
+    if (cmp == CMP_OFF) return dom_read_constraint (dom, bf, con);
+    else return dom_read_constraint_compressed (dom, bf, con);
+  }
+
+  return 0;
+}
 
 /* release memory */
 void DOM_Destroy (DOM *dom)

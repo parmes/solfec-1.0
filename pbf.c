@@ -32,6 +32,9 @@
 #include "pbf.h"
 #include "err.h"
 
+/* enable faster memory based XDR reading */
+#define XDRMEM 1
+
 /* memory increment */
 #define CHUNK 1024
 
@@ -182,6 +185,7 @@ static void initialise_frame (PBF *bf, int frm)
   /* seek to the frame in IDX file */ 
   xdr_setpos (&bf->x_idx, bf->mtab [frm].ipos);
 
+#if XDRMEM
   /* create new memory XDR stream for DATA chunk */
   size = bf->mtab [frm+1].dpos - bf->mtab [frm].dpos;
   free (bf->mem); bf->mem = malloc (size);
@@ -194,6 +198,9 @@ static void initialise_frame (PBF *bf, int frm)
 #endif
   xdr_destroy (&bf->x_dat);
   xdrmem_create (&bf->x_dat, bf->mem, size, XDR_DECODE);
+#else
+  xdr_setpos (&bf->x_dat, bf->mtab [frm].dpos);
+#endif
 
   /* read labels */
   xdr_int (&bf->x_idx, &index);
@@ -535,8 +542,13 @@ int PBF_Label (PBF *bf, const char *label)
     if ((l = MAP_Find (bf->labels, (void*)label,
       (MAP_Compare) strcmp)))
     {
-      /* seek to labeled data begining */
+#if XDRMEM
+      /* seek to labeled data begining (relative displacement due to xdrmem) */
+      xdr_setpos (&bf->x_dat, l->dpos - bf->mtab [bf->cur].dpos);
+#else
+      /* seek to labeled data begining (absolute displacement) */
       xdr_setpos (&bf->x_dat, l->dpos);
+#endif
     }
     else return 0;
   }

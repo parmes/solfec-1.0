@@ -29,6 +29,7 @@
 #include "dom.h"
 #include "mat.h"
 #include "pbf.h"
+#include "cmp.h"
 
 #ifndef __sol__
 #define __sol__
@@ -65,6 +66,7 @@ struct solfec
   DOM *dom; /* bodies, constraints and time integration */
 
   int iover; /* input-output version */
+  CMP_ALG output_compression;
   double output_interval,
 	 output_time;
   char *outpath;
@@ -103,7 +105,7 @@ char* SOLFEC_Mode (SOLFEC *sol);
 void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration);
 
 /* set results output interval */
-void SOLFEC_Output (SOLFEC *sol, double interval);
+void SOLFEC_Output (SOLFEC *sol, double interval, CMP_ALG compression);
 
 /* set up callback function */
 void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, SOLFEC_Callback callback);

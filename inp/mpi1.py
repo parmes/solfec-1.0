@@ -69,7 +69,7 @@ LOCDYN_BALANCING (solfec, 'OFF')
 
 IMBALANCE_TOLERANCES (solfec, 1.3, 1.1, 1.3)
 
-OUTPUT (solfec, 1 * step)
+OUTPUT (solfec, 1 * step, 'FASTLZ')
 
 RUN (solfec, gs, 10 * step)
 

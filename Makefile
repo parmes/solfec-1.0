@@ -19,6 +19,8 @@ ifeq ($(MPI),yes)
   LIBMPI = -lm $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS)
 endif
 
+EXTO  = obj/fastlz.o\
+
 BASEO = obj/err.o \
 	obj/alg.o \
 	obj/mem.o \
@@ -46,8 +48,10 @@ BASEO = obj/err.o \
 	obj/sps.o \
 	obj/mat.o \
 	obj/goc.o \
+	obj/cmp.o \
 
-OBJ =   $(BASEO)  \
+OBJ =   $(EXTO)   \
+        $(BASEO)  \
 	obj/pbf.o \
 	obj/box.o \
 	obj/bod.o \
@@ -59,7 +63,8 @@ OBJ =   $(BASEO)  \
 	obj/sol.o \
 	$(GLOBJ)
 
-OBJMPI = $(BASEO)  \
+OBJMPI = $(EXTO)       \
+         $(BASEO)      \
 	 obj/pbf-mpi.o \
 	 obj/put-mpi.o \
 	 obj/box-mpi.o \
@@ -113,6 +118,9 @@ clean:
 
 obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
+
+obj/fastlz.o: ext/fastlz.c ext/fastlz.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/err.o: err.c err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -214,6 +222,9 @@ obj/mat.o: mat.c mat.h mem.h map.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/goc.o: goc.c goc.h shp.h cvi.h box.h alg.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/cmp.o: cmp.c cmp.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h

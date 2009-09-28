@@ -184,7 +184,7 @@ static void write_state (SOLFEC *sol)
 
   /* write domain */
 
-  DOM_Write_State (sol->dom, sol->bf);
+  DOM_Write_State (sol->dom, sol->bf, sol->output_compression);
 
   /* write timers */
 
@@ -293,9 +293,9 @@ static int init (SOLFEC *sol)
   if (sol->iover < 0)
   {
     read_state (sol);
-    return 1;
+    return 0;
   }
-  else return 0;
+  else return 1;
 }
 
 /* output statistics */
@@ -392,6 +392,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->outpath = copyoutpath (outpath);
   sol->output_interval = step;
   sol->output_time = 0;
+  sol->output_compression = CMP_OFF;
   if ((sol->bf = readoutpath (outpath))) sol->mode = SOLFEC_READ;
   else if ((sol->bf = writeoutpath (outpath))) sol->mode = SOLFEC_WRITE;
   else THROW (ERR_FILE_OPEN);
@@ -536,17 +537,20 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
   }
   else /* READ */
   {
-    init (sol);
-    PBF_Forward (sol->bf, 1);
-    read_state (sol);
+    if (init (sol))
+    {
+      PBF_Forward (sol->bf, 1);
+      read_state (sol);
+    }
   }
 }
 
 /* set results output interval */
-void SOLFEC_Output (SOLFEC *sol, double interval)
+void SOLFEC_Output (SOLFEC *sol, double interval, CMP_ALG compression)
 {
   sol->output_interval = interval;
   sol->output_time = sol->dom->time + interval;
+  sol->output_compression = compression;
 }
 
 /* the next time minus the current time */
@@ -610,9 +614,11 @@ void SOLFEC_Backward (SOLFEC *sol, int steps)
 {
   if (sol->mode == SOLFEC_READ)
   {
-    init (sol);
-    PBF_Backward (sol->bf, steps);
-    read_state (sol);
+    if (init (sol))
+    {
+      PBF_Backward (sol->bf, steps);
+      read_state (sol);
+    }
   }
 }
 
@@ -621,9 +627,11 @@ void SOLFEC_Forward (SOLFEC *sol, int steps)
 {
   if (sol->mode == SOLFEC_READ)
   {
-    init (sol);
-    PBF_Forward (sol->bf, steps);
-    read_state (sol);
+    if (init (sol))
+    {
+      PBF_Forward (sol->bf, steps);
+      read_state (sol);
+    }
   }
 }
 

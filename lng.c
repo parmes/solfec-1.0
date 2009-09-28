@@ -4562,17 +4562,39 @@ static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
 /* set output frequency */
 static PyObject* lng_OUTPUT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "interval");
+  KEYWORDS ("solfec", "interval", "compression");
+  PyObject *compression;
   lng_SOLFEC *solfec;
   double interval;
+  CMP_ALG cmp;
 
-  PARSEKEYS ("Od", &solfec, &interval);
+  compression = NULL;
+  cmp = CMP_OFF;
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (interval, kwl[1]));
+  PARSEKEYS ("Od|O", &solfec, &interval, &compression);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (interval, kwl[1]) && is_string (compression, kwl [2]));
 
   if (solfec->sol->mode == SOLFEC_READ) Py_RETURN_NONE; /* skip READ mode */
 
-  SOLFEC_Output (solfec->sol, interval);
+  if (compression)
+  {
+    IFIS (compression, "OFF")
+    {
+      cmp = CMP_OFF;
+    }
+    ELIF (compression, "FASTLZ")
+    {
+      cmp = CMP_FASTLZ;
+    }
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid compression mode");
+      return NULL;
+    }
+  }
+
+  SOLFEC_Output (solfec->sol, interval, cmp);
 
   Py_RETURN_NONE;
 }

@@ -30,6 +30,7 @@
 #include "bod.h"
 #include "ldy.h"
 #include "pbf.h"
+#include "cmp.h"
 
 #ifndef __dom__
 #define __dom__
@@ -264,7 +265,7 @@ void DOM_Update_Children (DOM *dom);
 #endif
 
 /* write domain state */
-void DOM_Write_State (DOM *dom, PBF *bf);
+void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);
 
 /* read domain state */
 void DOM_Read_State (DOM *dom, PBF *bf);

@@ -4224,7 +4224,7 @@ duration
 \end_layout
 
 \begin_layout Subsection*
-OUTPUT (solfec, interval)
+OUTPUT (solfec, interval | compression)
 \end_layout
 
 \begin_layout Standard
@@ -4245,6 +4245,16 @@ solfec
 interval
 \series default
  - length of the time interval elapsing before consecutive output file writes
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+compression
+\series default
+ - output compression mode: 'OFF' (default) or 'FASTLZ'.
+ Compressed output files are smaller, although they might not be portable
+ between hardware platforms.
 \end_layout
 
 \begin_layout Subsection*
