@@ -686,7 +686,7 @@ static char* copylabel (char *label)
 
 /* -------------- interface ------------- */
 
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label)
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form)
 {
   BODY *bod;
 
@@ -695,7 +695,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label)
     case OBS:
     {
       ERRMEM (bod = calloc (1, sizeof (BODY)));
-      bod->shape = shp;
       bod->kind = kind;
       bod->mat = mat;
     }
@@ -709,7 +708,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label)
       bod->velo = bod->conf + RIG_CONF_SIZE;
       bod->kind = kind;
       bod->mat = mat;
-      bod->shape = shp;
       SHAPE_Char (shp,
 	&bod->ref_volume,
 	 bod->ref_center, euler);
@@ -734,7 +732,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label)
       bod->velo = bod->conf + PRB_CONF_SIZE;
       bod->kind = kind;
       bod->mat = mat;
-      bod->shape = shp;
       SHAPE_Char (shp,
 	&bod->ref_volume,
 	 bod->ref_center,
@@ -760,6 +757,9 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label)
       ASSERT (0, ERR_BOD_KIND);
     break;
   }
+
+  /* set shape */ 
+  bod->shape = shp;
 
   /* update shape adjacency */
   SHAPE_Update_Adjacency (shp);
@@ -1747,6 +1747,7 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 {
   /* these are arguments of BODY_Create */
   pack_int (isize, i, ints, bod->kind);
+  if (bod->kind == FEM) pack_int (isize, i, ints, bod->form);
   SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
   pack_string (isize, i, ints, bod->mat->label);
   pack_string (isize, i, ints, bod->label);
@@ -1787,17 +1788,19 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   BULK_MATERIAL *mat;
   SOLFEC *sol;
   int ncon, n, id;
+  short form;
   DOM *dom;
 
   /* unpack BODY_Create arguments and create body */
   sol = solfec;
   kind = unpack_int (ipos, i, ints);
+  if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
   shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label);
+  bod = BODY_Create (kind, shp, mat, label, form);
   free (label);
 
   /* overwritte characteristics */
@@ -1841,6 +1844,7 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
 {
   /* these are arguments of BODY_Create */
   pack_int (isize, i, ints, bod->kind);
+  if (bod->kind == FEM) pack_int (isize, i, ints, bod->form);
   SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
   pack_string (isize, i, ints, bod->mat->label);
   pack_string (isize, i, ints, bod->label);
@@ -1880,16 +1884,18 @@ BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *
   char *label;
   BULK_MATERIAL *mat;
   SOLFEC *sol;
+  short form;
 
   /* unpack BODY_Create arguments and create body */
   sol = solfec;
   kind = unpack_int (ipos, i, ints);
+  if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
   shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label);
+  bod = BODY_Create (kind, shp, mat, label, form);
   free (label);
 
   /* overwritte characteristics */
@@ -1930,6 +1936,7 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
 {
   /* these are arguments of BODY_Create */
   pack_int (isize, i, ints, bod->kind);
+  if (bod->kind == FEM) pack_int (isize, i, ints, bod->form);
   SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
   pack_string (isize, i, ints, bod->mat->label);
   pack_string (isize, i, ints, bod->label);
@@ -1953,16 +1960,18 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
   char *label;
   BULK_MATERIAL *mat;
   SOLFEC *sol;
+  short form;
 
   /* unpack BODY_Create arguments and create body */
   sol = solfec;
   kind = unpack_int (ipos, i, ints);
+  if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
   shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label);
+  bod = BODY_Create (kind, shp, mat, label, form);
   free (label);
 
   /* overwritte characteristics */

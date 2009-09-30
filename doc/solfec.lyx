@@ -1713,7 +1713,7 @@ An object of type BODY represents a solid body.
 \end_layout
 
 \begin_layout Subsection*
-obj = BODY (solfec, kind, shape, material| label)
+obj = BODY (solfec, kind, shape, material | label, formulation)
 \end_layout
 
 \begin_layout Standard
@@ -1792,6 +1792,27 @@ reference "sec:util"
 label
 \series default
  - a label string (no label is assigned by default)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+formulation
+\series default
+ - valid when 
+\series bold
+kind
+\series default
+ equals 'FINITE_ELEMENT', igonred otherwise (default: 'RIG_DEF_SEP').
+ This argument specifies a formulation of the finite element method.
+ See Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:formulation"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
@@ -1966,6 +1987,113 @@ reference "tab:schema"
 </cell>
 </row>
 </lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="2">
+<features>
+<column alignment="center" valignment="top" width="40col%">
+<column alignment="center" valignment="top" width="40col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Formulation
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Remarks
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIG_DEF_SEP'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+This formulation involves separation of rigid and deformable motion
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+''DISP_TETS
+\begin_inset Quotes erd
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+This is a simple displacement approach utilizing first order tetrahedra
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:formulation"
+
+\end_inset
+
+Bulk material models.
+\end_layout
+
+\end_inset
+
+
+\end_layout
 
 \end_inset
 

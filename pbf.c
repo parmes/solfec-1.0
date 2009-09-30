@@ -174,7 +174,7 @@ static void initialise_reading (PBF *bf)
 static void initialise_frame (PBF *bf, int frm)
 {
   PBF_LABEL *l;
-  int index, size;
+  int index;
 
   bf->cur = frm; /* set current frame */
   bf->time = bf->mtab [frm].time; /* and time */
@@ -186,6 +186,8 @@ static void initialise_frame (PBF *bf, int frm)
   xdr_setpos (&bf->x_idx, bf->mtab [frm].ipos);
 
 #if XDRMEM
+  int size;
+
   /* create new memory XDR stream for DATA chunk */
   size = bf->mtab [frm+1].dpos - bf->mtab [frm].dpos;
   free (bf->mem); bf->mem = malloc (size);

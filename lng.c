@@ -27,6 +27,7 @@
 #include "sol.h"
 #include "rnd.h"
 #include "lng.h"
+#include "fem.h"
 #include "err.h"
 
 #if MPI
@@ -1912,10 +1913,11 @@ static int is_body (lng_BODY *obj, char *var)
 /* body object constructor */
 static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "kind", "shape", "material", "label");
-  PyObject *kind, *shape, *material, *label;
+  KEYWORDS ("solfec", "kind", "shape", "material", "label", "formulation");
+  PyObject *kind, *shape, *material, *label, *formulation;
   lng_SOLFEC *solfec;
   lng_BODY *self;
+  short form;
   char *lab;
 
   self = (lng_BODY*)type->tp_alloc (type, 0);
@@ -1925,11 +1927,13 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     self->dodestroy = 0; /* never destroy by default as the body will be imediately owned by a domain */
 
     label = NULL;
+    formulation = NULL;
+    form = RIG_DEF_SEP;
 
-    PARSEKEYS ("OOOO|O", &solfec, &kind, &shape, &material, &label);
+    PARSEKEYS ("OOOO|OO", &solfec, &kind, &shape, &material, &label, &formulation);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape (shape, kwl[2]) &&
-	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]));
+	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]) && is_string (formulation, kwl[5]));
 
 #if MPI
     if (RANK() > 0) /* bodies can only be created on process zero */
@@ -1945,20 +1949,38 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     IFIS (kind, "RIGID")
     {
-      self->bod = BODY_Create (RIG, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab);
+      self->bod = BODY_Create (RIG, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
     }
     ELIF (kind, "PSEUDO_RIGID")
     {
-      self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab);
+      self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
     }
     ELIF (kind, "FINITE_ELEMENT")
     {
       TYPETEST (is_mesh (shape, kwl[2]));
-      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab);
+
+      if (formulation)
+      {
+	IFIS (formulation, "RIG_DEF_SEP")
+	{
+	  form = RIG_DEF_SEP;
+	}
+	ELIF (formulation, "DISP_TETS")
+	{
+	  form = DISP_TETS;
+	}
+	ELSE
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid FEM formulation");
+	  return NULL;
+	}
+      }
+
+      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
     }
     ELIF (kind, "OBSTACLE")
     {
-      self->bod = BODY_Create (OBS, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab);
+      self->bod = BODY_Create (OBS, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
     }
     ELSE
     {

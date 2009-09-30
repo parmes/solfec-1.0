@@ -137,6 +137,8 @@ struct general_body
 
   BODY_FLAGS flags;      /* flags */
 
+  short form; /* formulation (FEM) */
+
 #if MPI
   union { SET *children; /* used by parent */
           int parent; /* used by children */ } my;
@@ -149,7 +151,7 @@ struct general_body
 #define BODY(bod) ((BODY*)(bod))
 
 /* create a body */
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label);
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form);
 
 /* get body kind string */
 char* BODY_Kind (BODY *bod);
