@@ -53,6 +53,7 @@ GLLIB = -framework GLUT -framework OpenGL
 #
 
 MPI = yes
+MPICC = mpicc
 MPITHREADS = no
 MPILIB = -L/opt/openmpi/lib -lpthread # paths to MPI libs and pthreads library (used when MPITHREADS == yes)
 ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include

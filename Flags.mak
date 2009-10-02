@@ -52,6 +52,5 @@ ifeq ($(MPI),yes)
     MPIFLG = -DMPI $(ZOLTANINC)
     MPILIB =
   endif
-  MPICC = mpicc
   MPILIBS = $(ZOLTANLIB)
 endif

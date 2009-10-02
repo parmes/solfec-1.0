@@ -2002,7 +2002,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="2">
+<lyxtabular version="3" rows="4" columns="2">
 <features>
 <column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="40col%">
@@ -2031,6 +2031,34 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
+'DEF_NOD_LIN'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+This formulation interpolates deformation gradient 
+\begin_inset Formula $\mathbf{F}_{i}$
+\end_inset
+
+ at mesh nodes and separately models the linear motion 
+\begin_inset Formula $\mathbf{a}$
+\end_inset
+
+ of the whole body
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
 'RIG_DEF_SEP'
 \end_layout
 
@@ -2040,7 +2068,16 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-This formulation involves separation of rigid and deformable motion
+This formulation separates rigid and deformable motion by interpolating
+ the 
+\begin_inset Formula $\mathbf{U}_{i}$
+\end_inset
+
+ component of 
+\begin_inset Formula $\mathbf{F}_{i}=\mathbf{R}\mathbf{U}_{i}$
+\end_inset
+
+ at mesh nodes
 \end_layout
 
 \end_inset

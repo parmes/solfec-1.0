@@ -1961,7 +1961,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
       if (formulation)
       {
-	IFIS (formulation, "RIG_DEF_SEP")
+	IFIS (formulation, "DEF_NOD_LIN")
+	{
+	  form = DEF_NOD_LIN;
+	}
+	ELIF (formulation, "RIG_DEF_SEP")
 	{
 	  form = RIG_DEF_SEP;
 	}
