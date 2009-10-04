@@ -175,7 +175,7 @@ An object of type CONVEX is either an arbitrary convex polyhedron, or it
 \end_layout
 
 \begin_layout Subsection*
-obj = CONVEX (vertices, faces, volid| convex)
+obj = CONVEX (vertices, faces, volid | convex)
 \end_layout
 
 \begin_layout Standard
@@ -313,7 +313,7 @@ obj.vertex (n)
 \end_layout
 
 \begin_layout Subsection*
-obj = HULL (points, volid, surfid| convex)
+obj = HULL (points, volid, surfid | convex)
 \end_layout
 
 \begin_layout Standard
@@ -388,10 +388,6 @@ placement h
 wide false
 sideways false
 status open
-
-\begin_layout Plain Layout
-
-\end_layout
 
 \begin_layout Plain Layout
 \align center
@@ -617,7 +613,7 @@ obj.node (n)
 \end_layout
 
 \begin_layout Subsection*
-obj = HEX (nodes, i, j, k, volid, surfids| dx, dy, dz)
+obj = HEX (nodes, i, j, k, volid, surfids | dx, dy, dz)
 \end_layout
 
 \begin_layout Standard
@@ -722,7 +718,7 @@ uniformly deformable
 \end_layout
 
 \begin_layout Subsection*
-obj = SPHERE (center, radius, volid, surfid| sphere)
+obj = SPHERE (center, radius, volid, surfid | sphere)
 \end_layout
 
 \begin_layout Standard
@@ -1803,7 +1799,7 @@ formulation
 \series bold
 kind
 \series default
- equals 'FINITE_ELEMENT', igonred otherwise (default: 'RIG_DEF_SEP').
+ equals 'FINITE_ELEMENT', ignored otherwise (default: 'HEX_TET_O1').
  This argument specifies a formulation of the finite element method.
  See Table 
 \begin_inset CommandInset ref
@@ -2031,7 +2027,7 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-'DEF_NOD_LIN'
+'TET_O1'
 \end_layout
 
 \end_inset
@@ -2040,15 +2036,7 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-This formulation interpolates deformation gradient 
-\begin_inset Formula $\mathbf{F}_{i}$
-\end_inset
-
- at mesh nodes and separately models the linear motion 
-\begin_inset Formula $\mathbf{a}$
-\end_inset
-
- of the whole body
+Use first order tetrahedrons only
 \end_layout
 
 \end_inset
@@ -2059,7 +2047,7 @@ This formulation interpolates deformation gradient
 \begin_inset Text
 
 \begin_layout Plain Layout
-'RIG_DEF_SEP'
+'TET_O2'
 \end_layout
 
 \end_inset
@@ -2068,16 +2056,7 @@ This formulation interpolates deformation gradient
 \begin_inset Text
 
 \begin_layout Plain Layout
-This formulation separates rigid and deformable motion by interpolating
- the 
-\begin_inset Formula $\mathbf{U}_{i}$
-\end_inset
-
- component of 
-\begin_inset Formula $\mathbf{F}_{i}=\mathbf{R}\mathbf{U}_{i}$
-\end_inset
-
- at mesh nodes
+Use second order tetrahedrons only
 \end_layout
 
 \end_inset
@@ -2088,11 +2067,7 @@ This formulation separates rigid and deformable motion by interpolating
 \begin_inset Text
 
 \begin_layout Plain Layout
-''DISP_TETS
-\begin_inset Quotes erd
-\end_inset
-
-
+'HEX_TET_O1'
 \end_layout
 
 \end_inset
@@ -2101,7 +2076,7 @@ This formulation separates rigid and deformable motion by interpolating
 \begin_inset Text
 
 \begin_layout Plain Layout
-This is a simple displacement approach utilizing first order tetrahedra
+Use first order hexahedrons whenever possible or tetrahedrons otherwise
 \end_layout
 
 \end_inset
@@ -2702,8 +2677,8 @@ An object of type GAUSS_SEIDEL_SOLVER represents a nonlinear block Gauss-Seidel
 \end_layout
 
 \begin_layout Subsection*
-obj = GAUSS_SEIDEL_SOLVER (epsilon, maxiter| failure, diagepsilon, diagmaxiter,
- diagsolver,data,callback)
+obj = GAUSS_SEIDEL_SOLVER (epsilon, maxiter | failure, diagepsilon, diagmaxiter,
+ diagsolver, data, callback)
 \end_layout
 
 \begin_layout Standard

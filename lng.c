@@ -1928,7 +1928,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     label = NULL;
     formulation = NULL;
-    form = RIG_DEF_SEP;
+    form = HEX_TET_O1;
 
     PARSEKEYS ("OOOO|OO", &solfec, &kind, &shape, &material, &label, &formulation);
 
@@ -1961,17 +1961,17 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
       if (formulation)
       {
-	IFIS (formulation, "DEF_NOD_LIN")
+	IFIS (formulation, "TET_O1")
 	{
-	  form = DEF_NOD_LIN;
+	  form = TET_O1;
 	}
-	ELIF (formulation, "RIG_DEF_SEP")
+	ELIF (formulation, "TET_O2")
 	{
-	  form = RIG_DEF_SEP;
+	  form = TET_O2;
 	}
-	ELIF (formulation, "DISP_TETS")
+	ELIF (formulation, "HEX_TET_O1")
 	{
-	  form = DISP_TETS;
+	  form = HEX_TET_O1;
 	}
 	ELSE
 	{
