@@ -20,6 +20,7 @@ ifeq ($(MPI),yes)
 endif
 
 EXTO  = obj/fastlz.o\
+	obj/csparse.o\
 
 BASEO = obj/err.o \
 	obj/alg.o \
@@ -122,6 +123,9 @@ obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
 
 obj/fastlz.o: ext/fastlz.c ext/fastlz.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/csparse.o: ext/csparse.c ext/csparse.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/err.o: err.c err.h

@@ -27,6 +27,7 @@
 #include "alg.h"
 #include "err.h"
 #include "mtx.h"
+#include "ext/csparse.h"
 
 /* macros */
 #define KIND(a) ((a)->kind)
@@ -886,6 +887,7 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
 	ERRMEM (a->x = malloc (sizeof (double) * size));
 	memcpy (a->p, p, sizeof (int) * (n+1)); 
 	memcpy (a->i, i, sizeof (int) * size); 
+	a->nz = -1; /* compressed format */
       }
     break;
     default:

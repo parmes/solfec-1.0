@@ -38,8 +38,9 @@ struct general_matrix
           m,   /* number of rows (DENSE, BD (and columns), CSC) */
 	  n,   /* number of columns (DENSE, CSC), or number of blocks (BD) */
 	 *p,   /* pointers to columns (CSC), or blocks (BD); p[n] == nzmax */
-	 *i;   /* indices of column row entries (CSC, i[0...nzmax-1]), or indices
+	 *i,   /* indices of column row entries (CSC, i[0...nzmax-1]), or indices
 		  of the first block row/column (BD, i[n] = m) */
+	 nz;   /* number of entries in triplet matrix, -1 for compressed-col */
 
   double *x;   /* values, x[0...nzmax-1] */
 };
@@ -47,21 +48,21 @@ struct general_matrix
 /* static dense matrix */
 #define MX_DENSE(name, m, n)\
   double __##name [m*n];\
-  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, __##name}
+  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, 0, __##name}
 
 /* static dense matrix */
 #define MX_DENSE_PTR(name, m, n, ptr)\
-  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, ptr}
+  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, 0, ptr}
 
 /* static block diagonal matrix */
 #define MX_BD(name, nzmax, m, n, p, i)\
   double __##name [nzmax];\
-  MX name = {MXBD, MXSTATIC, nzmax, m, n, p, i, __##name}
+  MX name = {MXBD, MXSTATIC, nzmax, m, n, p, i, 0, __##name}
 
 /* static sparse matrix */
 #define MX_CSC(name, nzmax, m, n, p, i)\
   double __##name [nzmax];\
-  MX name = {MXCSC, MXSTATIC, nzmax, m, n, p, i, __##name}
+  MX name = {MXCSC, MXSTATIC, nzmax, m, n, p, i, 0, __##name}
 
 /* create a matrix => structure tables (p, i) always have
  * to be provided; the tables 'p' and 'i' are coppied */
