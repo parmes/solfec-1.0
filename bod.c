@@ -36,6 +36,8 @@
 #include "pck.h"
 #include "err.h"
 #include "lng.h"
+#include "epr.h"
+#include "fem.h"
 
 /* compute Mises norm of a Cauchy stress */
 #define MISES(s, v)\
@@ -749,9 +751,11 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       SET (PRB_LINVEL(bod), 0);
     }
     break;
+    case EPR:
+      EPR_Create (shp, mat, bod);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Create (form, shp->data, mat, bod);
     break;
     default:
       ASSERT (0, ERR_BOD_KIND);
@@ -796,6 +800,7 @@ char* BODY_Kind (BODY *bod)
   case OBS: return "OBSTACLE";
   case RIG: return "RIGID";
   case PRB: return "PSEUDO_RIGID";
+  case EPR: return "EXTENDED_PSEUDO_RIGID";
   case FEM: return "FINITE_ELEMENT";
   }
 
@@ -809,6 +814,7 @@ int BODY_Conf_Size (BODY *bod)
   case OBS: return 0;
   case RIG: return 12;
   case PRB: return 12;
+  case EPR: return EPR_Conf_Size (bod);
   case FEM: return bod->dofs;
   }
 
@@ -836,10 +842,11 @@ void BODY_Overwrite_State (BODY *bod, double *q, double *u)
       memcpy (bod->conf, q, sizeof (double [12]));
       memcpy (bod->velo, u, sizeof (double [12]));
     break;
+    case EPR:
+      EPR_Overwrite_State (bod, q, u);
     break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Overwrite_State (bod, q, u);
     break;
   }
 }
@@ -857,9 +864,11 @@ void BODY_Initial_Velocity (BODY *bod, double *linear, double *angular)
       if (angular) {VECSKEW (angular, PRB_GRADVEL(bod));}
       if (linear) {COPY (linear, PRB_LINVEL(bod));}
     break;
+    case EPR:
+      EPR_Initial_Velocity (bod, linear, angular);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Initial_Velocity (bod, linear, angular);
     break;
   }
 }
@@ -982,9 +991,11 @@ void BODY_Dynamic_Init (BODY *bod, SCHEME scheme)
       { ASSERT (scheme == SCH_DEFAULT, ERR_BOD_SCHEME); }
       bod->scheme = scheme;
     break;
+    case EPR:
+      EPR_Dynamic_Init (bod, scheme);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Dynamic_Init (bod, scheme);
     break;
   }
 }
@@ -1015,9 +1026,11 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
       step = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
     }
     break;
+    case EPR:
+      step = EPR_Dynamic_Critical_Step (bod);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      step = FEM_Dynamic_Critical_Step (bod);
     break;
   }
 
@@ -1095,9 +1108,11 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
     }
     break;
+    case EPR:
+      EPR_Dynamic_Step_Begin (bod, time, step);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Dynamic_Step_Begin (bod, time, step);
     break;
   }
 
@@ -1169,9 +1184,11 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
     }
     break;
+    case EPR:
+      EPR_Dynamic_Step_End (bod, time, step);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Dynamic_Step_End (bod, time, step);
     break;
   }
 
@@ -1215,9 +1232,11 @@ void BODY_Static_Init (BODY *bod)
       SET (v, 0);
     }
     break;
+    case EPR:
+      EPR_Static_Init (bod);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Static_Init (bod);
     break;
   }
 }
@@ -1244,9 +1263,11 @@ void BODY_Static_Step_Begin (BODY *bod, double time, double step)
       MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
     }
     break;
+    case EPR:
+      EPR_Static_Step_Begin (bod, time, step);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Static_Step_Begin (bod, time, step);
     break;
   }
 
@@ -1286,9 +1307,11 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
       blas_daxpy (12, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
     }
     break;
+    case EPR:
+      EPR_Static_Step_End (bod, time, step);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Static_Step_End (bod, time, step);
     break;
   }
 
@@ -1323,9 +1346,11 @@ void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
       TVADDMUL (c, F, A, x); /* transpose, as F is stored row-wise */
     }
     break;
+    case EPR:
+      EPR_Cur_Point (bod, shp, gobj, X, x);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO: gobj == NULL implies nodal update (X is within the mesh->ref_nodes) */
+      FEM_Cur_Point (bod, shp->data, gobj, X, x);
     break;
   }
 }
@@ -1361,9 +1386,11 @@ void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
       NVADDMUL (C, IF, a, X);
     }
     break;
+    case EPR:
+      EPR_Ref_Point (bod, shp, gobj, x, X);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Ref_Point (bod, shp->data, gobj, x, X);
     break;
   }
 }
@@ -1393,9 +1420,11 @@ void BODY_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *
       blas_dgemv ('N', 3, 12, 1.0, H, 3, bod->velo+off, 1, 0.0, velo, 1);
     }
     break;
+    case EPR:
+      EPR_Local_Velo (bod, time, shp, gobj, point, base, velo);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      FEM_Local_Velo (bod, time, shp->data, gobj, point, base, velo);
     break;
   }
 }
@@ -1418,9 +1447,11 @@ MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, 
       H = MX_Create (MXDENSE, 3, 12, NULL, NULL);
       prb_operator_H (bod, point, base, H->x);
     break;
+    case EPR:
+      H = EPR_Gen_To_Loc_Operator (bod, shp, gobj, point, base);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      H = FEM_Gen_To_Loc_Operator (bod, shp->data, gobj, point, base);
     break;
   }
 
@@ -1458,9 +1489,11 @@ double BODY_Kinetic_Energy (BODY *bod)
       energy = 0.5 * (DOT9(L, EL) + m*DOT(v, v));
     }
     break;
+    case EPR:
+      energy = EPR_Kinetic_Energy (bod);
+    break;
     case FEM:
-      ASSERT (0, ERR_NOT_IMPLEMENTED);
-      /* TODO */
+      energy = FEM_Kinetic_Energy (bod);
     break;
   }
 
@@ -1551,9 +1584,11 @@ void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND 
     }
   }
   break;
+  case EPR:
+    EPR_Nodal_Values (bod, shp, gobj, node, kind, values);
+  break;
   case FEM:
-    ASSERT (0, ERR_NOT_IMPLEMENTED);
-    /* TODO */
+    FEM_Nodal_Values (bod, shp->data, gobj, node, kind, values);
   break;
   }
 }
@@ -1612,9 +1647,11 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
     }
   }
   break;
+  case EPR:
+    EPR_Point_Values (bod, point, kind, values);
+  break;
   case FEM:
-    ASSERT (0, ERR_NOT_IMPLEMENTED);
-    /* TODO */
+    FEM_Point_Values (bod, point, kind, values);
   break;
   }
 }
@@ -1663,9 +1700,8 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->inverse) MX_Destroy (bod->inverse);
 
-  if (bod->kind == FEM)
-  { free (bod->conf);
-    free (bod->velo); }
+  if (bod->kind == EPR) EPR_Destroy (bod);
+  else if (bod->kind == FEM) FEM_Destroy (bod);
 
 #if MPI
   if ((bod->flags & BODY_CHILD) == 0) /* a parent body */

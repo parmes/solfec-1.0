@@ -49,6 +49,7 @@ BASEO = obj/err.o \
 	obj/mat.o \
 	obj/goc.o \
 	obj/cmp.o \
+	obj/epr.o \
 	obj/fem.o \
 
 OBJ =   $(EXTO)   \
@@ -226,6 +227,9 @@ obj/goc.o: goc.c goc.h shp.h cvi.h box.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/cmp.o: cmp.c cmp.h alg.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/epr.o: epr.c epr.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h

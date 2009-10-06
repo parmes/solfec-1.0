@@ -1738,6 +1738,47 @@ static int is_shape (PyObject *obj, char *var)
   return 1;
 }
 
+/* test whether an object is a valid shape
+ * representation depending on the input body kind */
+static int is_shape_ext (PyObject *kind, PyObject *obj, char *var)
+{
+  if (kind && obj)
+  {
+    if (!is_basic_shape (obj))
+    {
+      if (PyList_Check (obj))
+      {
+	int i, n = PyList_Size (obj);
+
+	for (i = 0; i < n; i ++)
+	{
+	  PyObject *it = PyList_GetItem (obj, i);
+
+	  if (!is_basic_shape (it))
+	  {
+	    IFIS (kind, "EXTENDED_PSEUDO_RIGOD")
+	    {
+	      if (!is_shape (it, var)) break; /* this could be a list of basic objects (an extended element definition) */
+	    }
+	    ELSE break;
+	  }
+	}
+
+	if (i == n) return 1;
+      }
+
+      char buf [BUFLEN];
+      IFIS (kind, "EXTENDED_PSEUDO_RIGOD")
+	sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE (simple) object, or a list composed of simple objects and/or lists of simple objects", var);
+      ELSE sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE object or a list of those", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
 /* test whether an object is a valid shape or a 3-vector */
 static int is_shape_or_vector (PyObject *obj, char *var)
 {
@@ -1893,6 +1934,33 @@ static SHAPE* create_shape (PyObject *obj, short empty)
   return NULL;
 }
 
+/* create a shape out of basic shapes and shape lists */
+static SHAPE* create_shape_ext (PyObject *obj)
+{
+  if (obj)
+  {
+    if (PyList_Check (obj))
+    {
+      int i, n = PyList_Size (obj);
+      SHAPE *out = NULL;
+      PyObject *it;
+
+      for (i = 0; i < n; i ++)
+      {
+	it = PyList_GetItem (obj, i);
+
+	if (PyList_Check (it)) out = SHAPE_Glue_Simple (create_shape (it, 1), out); /* glue simple shapes from a list into one shape (create_shape) */
+	else out = SHAPE_Glue_Simple (SHAPE_Create (shape_kind (it), get_shape (it, 1)), out); /* non destructive append of shape list */
+      }
+
+      return out;
+    }
+    else return SHAPE_Create (shape_kind (obj), get_shape (obj, 1));
+  }
+
+  return NULL;
+}
+
 /* test whether an object is of BODY type */
 static int is_body (lng_BODY *obj, char *var)
 {
@@ -1932,7 +2000,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     PARSEKEYS ("OOOO|OO", &solfec, &kind, &shape, &material, &label, &formulation);
 
-    TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape (shape, kwl[2]) &&
+    TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape_ext (kind, shape, kwl[2]) &&
 	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]) && is_string (formulation, kwl[5]));
 
 #if MPI
@@ -1954,6 +2022,10 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     ELIF (kind, "PSEUDO_RIGID")
     {
       self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
+    }
+    ELIF (kind, "EXTENDED_PSEUDO_RIGID")
+    {
+      self->bod = BODY_Create (PRB, create_shape_ext (shape), get_bulk_material (solfec->sol, material), lab, form);
     }
     ELIF (kind, "FINITE_ELEMENT")
     {
