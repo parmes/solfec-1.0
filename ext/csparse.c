@@ -4,6 +4,14 @@
  */
 
 /*
+ * The original code repository:
+ * http://www.cise.ufl.edu/research/sparse/CSparse/
+ *
+ * The original code is included into the monograph:
+ * T. A. Davis. Direct Methods for Sparse Linear Systems. SIAM, 2006.
+ */
+
+/*
  * Modified: T. Koziara, 2009
  */
 
