@@ -59,6 +59,8 @@ double cs_norm (const MX *A) ;
 int cs_print (const MX *A, int brief) ;
 int cs_qrsol (int order, const MX *A, double *b) ;
 MX *cs_transpose (const MX *A, int values) ;
+MX* cs_transpose_ext (const MX *A, MX *C) ; /* return C = A' */
+
 /* utilities */
 void *cs_calloc (int n, size_t size) ;
 void *cs_free (void *p) ;

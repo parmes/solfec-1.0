@@ -35,6 +35,7 @@
 #define MXSTATIC(a) ((a)->flags & MXSTATIC)
 #define MXDSUBLK(a) ((a)->flags & MXDSUBLK)
 #define TEMPORARY(a) (MXTRANS(a)||MXDSUBLK(a))
+#define MXIFAC(a) ((a)->flags & MXIFAC)
 
 /* types */
 typedef int (*qcmp_t) (const void*, const void*);
@@ -85,11 +86,7 @@ static void bd_transpose_copy (MX *a, MX *b)
 }
 
 /* copy transpose(a) into 'b' */
-static void csc_transpose_copy (MX *a, MX *b)
-{
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
-}
+#define csc_transpose_copy(a, b) ERRMEM (cs_transpose_ext (a, b)) /* workspace memory error possible */
 
 /* compare structures of diagonal block matrices */
 inline static int bdseq (int n, int *pa, int *ia, int *pb, int *ib)
@@ -139,6 +136,9 @@ static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p,
 	ASSERT_DEBUG (p && i, "No structure pointers passed for MXCSC");
 	memcpy (b->p, p, sizeof (int) * (n+1)); 
 	memcpy (b->i, i, sizeof (int) * nzmax); 
+	if (b->sym) cs_sfree (b->sym); /* get rid of previous factorisations */
+	if (b->num) cs_nfree (b->num);
+	b->sym = b->num = NULL;
       break;
     }
   }
@@ -147,6 +147,31 @@ static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p,
   return 1;
 }
 
+/* sparse to dense conversion */
+static MX* csc_to_dense (MX *a)
+{
+  int *p, *i, k, l, n, m;
+  double *ax, *bx;
+  MX *b;
+
+  ASSERT_DEBUG (a->kind == MXCSC, "Invalid matrix kind");
+
+  b = MX_Create (MXDENSE, a->m, a->n, NULL, NULL);
+  b->flags = a->flags;
+
+  ax = a->x;
+  bx = b->x;
+  p = a->p;
+  i = a->i;
+  m = a->m;
+  n = a->n;
+
+  for (k = 0; k < n; k ++) for (l = p[k]; l < p[k+1]; l ++, ax ++) bx [m*k + i[l]] = *ax;
+
+  return b;
+}
+
+/* add two dense matrices */
 static MX* add_dense_dense (double alpha, MX *a, double beta, MX *b, MX *c)
 {
   switch (MXTRANS(a)<<4|MXTRANS(b))
@@ -214,6 +239,7 @@ static MX* add_dense_dense (double alpha, MX *a, double beta, MX *b, MX *c)
   return c;
 }
 
+/* add two diagonal block matrices */
 static MX* add_bd_bd (double alpha, MX *a, double beta, MX *b, MX *c)
 {
   switch (MXTRANS(a)<<4|MXTRANS(b))
@@ -294,13 +320,68 @@ static MX* add_bd_bd (double alpha, MX *a, double beta, MX *b, MX *c)
   return c;
 }
 
+/* add two sparse matrices */
 static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  MX *A, *B, *d;
+
+  ASSERT (!(MXIFAC (a) || MXIFAC (b)), ERR_MTX_IFAC); /* adding factorized inverses is invalid */
+
+  switch (MXTRANS(a)<<4|MXTRANS(b))
+  {
+    case 0x00:
+    {
+      ASSERT_DEBUG (a->m == b->m && a->n == b->n, "Incompatible dimensions");
+      A = a;
+      B = b;
+    }
+    break;
+    case 0x10:
+    {
+      ASSERT_DEBUG (a->m == b->n && a->n == b->m, "Incompatible dimensions");
+      A = cs_transpose (a, 1);
+      B = b;
+    }
+    break;
+    case 0x01:
+    {
+      ASSERT_DEBUG (a->m == b->n && a->n == b->m, "Incompatible dimensions");
+      A = a;
+      B = cs_transpose (b, 1);
+    }
+    break;
+    case 0x11:
+    {
+      ASSERT_DEBUG (a->m == b->n && a->n == b->m, "Incompatible dimensions");
+      A = cs_transpose (a, 1);
+      B = cs_transpose (b, 1);
+    }
+    break;
+  }
+
+  ERRMEM (d = cs_add (A, B, alpha, beta));
+
+  d->kind = MXCSC;
+
+  if (c)
+  {
+    free (c->p);
+    free (c->i);
+    free (c->x);
+   
+    *c  = *d;
+
+    free (d);
+  }
+  else c = d;
+
+  if (A != a) cs_spfree (A);
+  if (B != b) cs_spfree (B);
+
   return c;
 }
 
+/* add dense and diagonal block matrices */
 static MX* add_dense_bd (double alpha, MX *a, double beta, MX *b, MX *c)
 {
   switch (MXTRANS(a)<<4|MXTRANS(b))
@@ -407,20 +488,35 @@ static MX* add_dense_bd (double alpha, MX *a, double beta, MX *b, MX *c)
   return c;
 }
 
+/* add dense and sparse matrices */
 static MX* add_dense_csc (double alpha, MX *a, double beta, MX *b, MX *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  MX *B;
+
+  ASSERT (!MXIFAC (b), ERR_MTX_IFAC); /* adding factorized inverses is invalid */
+
+  B = csc_to_dense (b);
+  c = add_dense_dense (alpha, a, beta, B, c);
+  MX_Destroy (B);
+
   return c;
 }
 
+/* add sparse and diagonal block matrices */
 static MX* add_csc_bd (double alpha, MX *a, double beta, MX *b, MX *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  MX *A;
+
+  ASSERT (!MXIFAC (a), ERR_MTX_IFAC); /* adding factorized inverses is invalid */
+  
+  A = csc_to_dense (a);
+  c = add_dense_bd (alpha, A, beta, b, c);
+  MX_Destroy (A);
+
   return c;
 }
 
+/* multiply two dense matrices */
 static MX* matmat_dense_dense (double alpha, MX *a, MX *b, double beta, MX *c)
 {
   int m, n, k, l;
@@ -462,6 +558,7 @@ static MX* matmat_dense_dense (double alpha, MX *a, MX *b, double beta, MX *c)
   return c;
 }
 
+/* multiply two diagonal block matrices */
 static MX* matmat_bd_bd (double alpha, MX *a, MX *b, double beta, MX *c)
 {
   char transa,
@@ -497,13 +594,129 @@ static MX* matmat_bd_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   return c;
 }
 
-static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c) 
+static MX* matmat_inv_csc (double alpha, MX *a, MX *b, double beta, MX *c) 
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  //TODO: how to handle transpose (inv (a)) ??? (tans(LU) B = trans(U) trans(L) B, which seems to look fine)
+  //TODO
+  return NULL;
+}
+
+static MX* matmat_csc_inv (double alpha, MX *a, MX *b, double beta, MX *c) 
 {
   ASSERT (0, ERR_NOT_IMPLEMENTED);
   //TODO
+  return NULL;
+}
+
+static MX* matmat_inv_dense (double alpha, MX *a, MX *b, double beta, MX *c) 
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  //TODO
+  return NULL;
+}
+
+static MX* matmat_dense_inv (double alpha, MX *a, MX *b, double beta, MX *c) 
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  //TODO
+  return NULL;
+}
+
+static MX* matmat_inv_bd (double alpha, MX *a, MX *b, double beta, MX *c) 
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  //TODO
+  return NULL;
+}
+
+static MX* matmat_bd_inv (double alpha, MX *a, MX *b, double beta, MX *c) 
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  //TODO
+  return NULL;
+}
+
+/* multiply two sparse matrices */
+static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c) 
+{
+  MX *A, *B, *d;
+
+  if (MXIFAC (a)) /* inv (a) * b */
+  {
+    ASSERT (!MXIFAC (b), ERR_MTX_IFAC); /* multiplying two factorized inverses is invalid */
+
+    return matmat_inv_csc (alpha, a, b, beta, c);
+  }
+  else if (MXIFAC (b)) /* a * inv (b) */
+  {
+    return matmat_csc_inv (alpha, a, b, beta, c);
+  }
+  
+  switch (MXTRANS(a)<<4|MXTRANS(b))
+  {
+    case 0x00:
+    {
+      ASSERT_DEBUG (a->n == b->m, "Incompatible dimensions");
+      A = a;
+      B = b;
+    }
+    break;
+    case 0x10:
+    {
+      ASSERT_DEBUG (a->m == b->m, "Incompatible dimensions");
+      A = cs_transpose (a, 1);
+      B = b;
+    }
+    break;
+    case 0x01:
+    {
+      ASSERT_DEBUG (a->n == b->n, "Incompatible dimensions");
+      A = a;
+      B = cs_transpose (b, 1);
+    }
+    break;
+    case 0x11:
+    {
+      ASSERT_DEBUG (a->m == b->n, "Incompatible dimensions");
+      A = cs_transpose (a, 1);
+      B = cs_transpose (b, 1);
+    }
+    break;
+  }
+
+  ERRMEM (d = cs_multiply (A, B));
+
+  d->kind = MXCSC;
+
+  if (c)
+  {
+    MX *e;
+
+    e = add_csc_csc (alpha, d, beta, c, NULL);
+
+    free (c->p);
+    free (c->i);
+    free (c->x);
+   
+    *c  = *e;
+
+    free (e);
+    cs_spfree (d);
+  }
+  else
+  {
+    if (alpha != 1.0) MX_Scale (d, alpha);
+    c = d;
+  }
+
+  if (A != a) cs_spfree (A);
+  if (B != b) cs_spfree (B);
+
   return c;
 }
 
+/* multiply diagonal block and dense matrices */
 static MX* matmat_bd_dense (double alpha, MX *a, MX *b, double beta, MX *c)
 {
   int m, n, k, l;
@@ -559,6 +772,7 @@ static MX* matmat_bd_dense (double alpha, MX *a, MX *b, double beta, MX *c)
   return c;
 }
 
+/* multiply dense and diagonal block matrices */
 static MX* matmat_dense_bd (double alpha, MX *a, MX *b, double beta, MX *c)
 {
   int m, n, k, l;
@@ -613,34 +827,75 @@ static MX* matmat_dense_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   return c;
 }
 
+/* multiply sparse and dense matrices */
 static MX* matmat_csc_dense (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  MX *A;
+
+  if (MXIFAC (a)) /* inv (a) * b */
+  {
+    return matmat_inv_dense (alpha, a, b, beta, c);
+  }
+ 
+  A = csc_to_dense (a);
+  c = matmat_dense_dense (alpha, A, b, beta, c);
+  MX_Destroy (A);
+
   return c;
 }
 
+/* multiply dense and sparse matrices */
 static MX* matmat_dense_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  MX *B;
+
+  if (MXIFAC (b)) /* a * inv (b) */
+  {
+    return matmat_dense_inv (alpha, a, b, beta, c);
+  }
+
+  B = csc_to_dense (B);
+  c = matmat_dense_dense (alpha, a, B, beta, c);
+  MX_Destroy (B);
+
   return c;
 }
 
+/* multiply diagonal block and sparse matrices */
 static MX* matmat_bd_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  MX *B;
+
+  if (MXIFAC (b)) /* a * inv (b) */
+  {
+    return matmat_bd_inv (alpha, a, b, beta, c);
+  }
+
+  B = csc_to_dense (B);
+  c = matmat_bd_dense (alpha, a, B, beta, c);
+  MX_Destroy (B);
+
   return c;
 }
 
+/* multiply sparse and diagonal block matrices */
 static MX* matmat_csc_bd (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  MX *A;
+
+  if (MXIFAC (a)) /* inv (a) * b */
+  {
+    return matmat_inv_bd (alpha, a, b, beta, c);
+  }
+
+  A = csc_to_dense (a);
+  c = matmat_dense_bd (alpha, A, b, beta, c);
+  MX_Destroy (A);
+
   return c;
 }
 
+/* invert dense matrix */
 static MX* dense_inverse (MX *a, MX *b)
 {
   int lwork, *ipiv;
@@ -664,6 +919,7 @@ static MX* dense_inverse (MX *a, MX *b)
   return b;
 }
 
+/* invert diagonal block matrix */
 static MX* bd_inverse (MX *a, MX *b)
 {
   int m, n, k, lwork, *ipiv, *pp, *ii;
@@ -702,13 +958,30 @@ static MX* bd_inverse (MX *a, MX *b)
   return b;
 }
 
+/* invert sparse matrix */
 static MX* csc_inverse (MX *a, MX *b)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  if (MXIFAC (a))
+  {
+    a->flags &= ~MXIFAC;
+    cs_sfree (a->sym);
+    cs_nfree (a->num);
+    a->sym = a->num = NULL;
+
+    if (a != b) b = MX_Copy (a, b);
+  }
+  else
+  {
+    a->flags |= MXIFAC;
+
+    ASSERT (0, ERR_NOT_IMPLEMENTED);
+    //TODO
+  }
+
   return b;
 }
 
+/* compute dense matrix eigenvalues */
 static void dense_eigen (MX *a, int n, double *val, MX *vec)
 {
   double *bx, *z, *work;
@@ -750,6 +1023,7 @@ static void dense_eigen (MX *a, int n, double *val, MX *vec)
   free (work);
 }
 
+/* compute diagonal block matrix eigenvalues */
 static void bd_eigen (MX *a, int n, double *val, MX *vec)
 {
   int size, m, nn, k, l, lwork, *pp, *ii;
@@ -842,6 +1116,7 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
   free (pairs);
 }
 
+/* compute sparse matrix eigenvalues */
 static void csc_eigen (MX *a, int n, double *val, MX *vec)
 {
   ASSERT (0, ERR_NOT_IMPLEMENTED);
@@ -908,6 +1183,8 @@ void MX_Zero (MX *a)
   for (double *x = a->x,
     *e = (a->x+a->nzmax);
     x < e; x ++) *x = 0.0;
+
+  if (MXIFAC (a)) MX_Inverse (a, a); /* a is a sparse inverse => cancel the inverse */
 }
 
 
@@ -916,6 +1193,8 @@ void MX_Scale (MX *a, double b)
   for (double *x = a->x,
     *e = (a->x+a->nzmax);
     x < e; x ++) *x *= b;
+
+  if (MXIFAC (a)) MX_Inverse (a, a), MX_Inverse (a, a); /* a is a sparse inverse => cancel the inverse and redo it */
 }
 
 MX* MX_Copy (MX *a, MX *b)
@@ -955,6 +1234,8 @@ MX* MX_Copy (MX *a, MX *b)
     for (double *y = b->x, *x = a->x,
      *e = (a->x+a->nzmax); x < e; y ++, x++) *y = *x;
   }
+
+  if (MXIFAC (a)) MX_Inverse (b, b); /* a was a sparse inverse => invert its copy */
 
   return b;
 }
@@ -1173,6 +1454,8 @@ void MX_Destroy (MX *a)
       free (a->p);
       free (a->i);
       free (a->x);
+      if (a->sym) cs_sfree (a->sym);
+      if (a->num) cs_nfree (a->num);
       free (a);
     break;
   }

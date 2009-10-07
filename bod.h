@@ -125,8 +125,7 @@ struct general_body
 
   SCHEME scheme;    /* integration scheme */
 
-  MX *inverse;      /* either the inverse inertia or the inverse static Euler
-                       operator, returned by the BODY_Inverse... functions */
+  MX *inverse;      /* a suitable inverse oprator (e.g. inertia for dynamics) */
 
   void *dom;        /* domain storing the body */
 

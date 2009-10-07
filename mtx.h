@@ -32,7 +32,8 @@ struct general_matrix
   
   enum {MXTRANS  = 0x01,        /* transposed matrix */
 	MXSTATIC = 0x02,        /* static matrix */
-        MXDSUBLK = 0x04} flags; /* diagonal sub-block */
+        MXDSUBLK = 0x04,        /* diagonal sub-block */
+        MXIFAC   = 0x08} flags; /* factorised sparse inverse */
 
   int nzmax,   /* number of nonzero entries */
           m,   /* number of rows (DENSE, BD (and columns), CSC) */
@@ -43,26 +44,29 @@ struct general_matrix
 	 nz;   /* number of entries in triplet matrix, -1 for compressed-col */
 
   double *x;   /* values, x[0...nzmax-1] */
+
+  void *sym,   /* symbolic factorisation for CSC inverse */
+       *num;   /* numeric factorisation for CSC inverse */
 };
 
 /* static dense matrix */
 #define MX_DENSE(name, m, n)\
   double __##name [m*n];\
-  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, 0, __##name}
+  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, 0, __##name, NULL, NULL}
 
 /* static dense matrix */
 #define MX_DENSE_PTR(name, m, n, ptr)\
-  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, 0, ptr}
+  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, 0, ptr, NULL, NULL}
 
 /* static block diagonal matrix */
 #define MX_BD(name, nzmax, m, n, p, i)\
   double __##name [nzmax];\
-  MX name = {MXBD, MXSTATIC, nzmax, m, n, p, i, 0, __##name}
+  MX name = {MXBD, MXSTATIC, nzmax, m, n, p, i, 0, __##name, NULL, NULL}
 
 /* static sparse matrix */
 #define MX_CSC(name, nzmax, m, n, p, i)\
   double __##name [nzmax];\
-  MX name = {MXCSC, MXSTATIC, nzmax, m, n, p, i, 0, __##name}
+  MX name = {MXCSC, MXSTATIC, nzmax, m, n, p, i, 0, __##name, NULL, NULL}
 
 /* create a matrix => structure tables (p, i) always have
  * to be provided; the tables 'p' and 'i' are coppied */
@@ -102,7 +106,7 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c);
  * if 'd' == NULL return new matrix; otherwise return 'd' */
 MX* MX_Trimat (MX *a, MX *b, MX *c, MX *d);
 
-/* (approximate)inverse => b = inv (a); approximation is used for CSC;
+/* inverse => b = inv (a); factorization is used for CSC;
  * if 'b' == NULL return new matrix; otherwise return 'b' */
 MX* MX_Inverse (MX *a, MX *b);
 

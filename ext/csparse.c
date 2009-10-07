@@ -1920,6 +1920,29 @@ MX *cs_transpose (const MX *A, int values)
     return (cs_done (C, w, NULL, 1)) ;  /* success; free w and return C */
 }
 
+/* C = A'; added by TK */
+MX* cs_transpose_ext (const MX *A, MX *C)
+{
+    int p, q, j, *Cp, *Ci, n, m, *Ap, *Ai, *w ;
+    double *Cx, *Ax ;
+    if (!CS_CSC (A)) return (NULL) ;    /* check inputs */
+    m = A->m ; n = A->n ; Ap = A->p ; Ai = A->i ; Ax = A->x ;
+    w = cs_calloc (m, sizeof (int)) ;                      /* get workspace */
+    if (!C || !w) return (cs_done (C, w, NULL, 0)) ;       /* out of memory */
+    Cp = C->p ; Ci = C->i ; Cx = C->x ;
+    for (p = 0 ; p < Ap [n] ; p++) w [Ai [p]]++ ;          /* row counts */
+    cs_cumsum (Cp, w, m) ;                                 /* row pointers */
+    for (j = 0 ; j < n ; j++)
+    {
+        for (p = Ap [j] ; p < Ap [j+1] ; p++)
+        {
+            Ci [q = w [Ai [p]]++] = j ; /* place A(i,j) as entry C(j,i) */
+            if (Cx) Cx [q] = Ax [p] ;
+        }
+    }
+    return (cs_done (C, w, NULL, 1)) ;  /* success; free w and return C */
+}
+
 /* sparse Cholesky update/downdate, L*L' + sigma*w*w' (sigma = +1 or -1) */
 int cs_updown (MX *L, int sigma, const MX *C, const int *parent)
 {

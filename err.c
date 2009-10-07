@@ -39,7 +39,8 @@ char* errstring (int error)
     case ERR_MTX_LU_FACTOR: return  "LU factorisation failed";
     case ERR_MTX_MATRIX_INVERT: return  "Matrix inversion failed";
     case ERR_MTX_EIGEN_DECOMP: return  "Eigen decomposition failed";
-    case ERR_MTX_KIND: return "Invalud matrix kind";
+    case ERR_MTX_KIND: return "Invalid matrix kind";
+    case ERR_MTX_IFAC: return "Invalid operation involving a factorised sparse inverse matrix";
     case ERR_MSH_UNSUPPORTED_ELEMENT: return "An element has an unsupported type";
     case ERR_MSH_UNSUPPORTED_FACE: return "An element face has an unsupported type";
     case ERR_CVX_ZERO_NORMAL: return "Zero face normal generated during a CONVEX face update";
