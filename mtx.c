@@ -625,14 +625,62 @@ static void vec_inv (MX *a, double *b, double *c)
 /* return w = a (:,j) */
 static double* col (MX *a, int j, double *w)
 {
-  //TODO: mind transpose for dense and block diagonal
+  switch (a->kind)
+  {
+    case MXDENSE: return &a->x[a->m*j];
+    case MXBD:
+    {
+      double *x, *y;
+      int *p = a->p,
+	  *i = a->i,
+	  k, l;
+
+#if DEBUG
+      static int j_prev = -1;
+      ASSERT_DEBUG (j == (j_prev + 1), "Column retrival must be called for a sequence of js: 0, 1, 2, ..., n");
+      j_prev = j;
+#endif
+
+      for (x = w, y = x + a->m; x < y; x ++) *x = 0.0;
+
+      if (j == 0) k = a->nz = 0; /* initialize an auxiliary current block index */
+      else
+      {
+        k = a->nz;
+
+	if ((j-k) >= (i[k+1]-i[k])) a->nz = ++ k; /* change to next block when j passes through block dimension (sequential j iteration assumed) */
+      }
+
+      l = i[k+1] - i[k];
+
+      for (w += i [k], x = &a->x [p[k] + l*(j-k)], y = &a->x [p[k] + l*(1+j-k)]; x < y; x ++, w ++) *w = *x;
+    }
+    break;
+    case MXCSC:
+    {
+      double *x, *y;
+      int *p = a->p,
+	  *i, k;
+
+      for (x = w, y = x + a->m; x < y; x ++) *x = 0.0;
+
+      for (k = p[j], i = &a->i[k], x = &a->x[k], y = &a->x[p[j+1]]; x < y; i ++, x ++) w [*i] = *x;
+    }
+    break;
+  }
+  
   return w;
 }
 
 /* a (i,:) = v where 'a' is dense */
 static void putrow (MX *a, int i, double *v)
 {
-  //TODO
+  double *x = a->x;
+  int m = a->m,
+      n = a->n,
+      j;
+
+  for (j = 0; j < n; j ++, v ++) x [m*j+i] = *v;
 }
 
 /* general 'sparse inverse' * B or B * 'sparse inverse' */
