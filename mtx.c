@@ -36,6 +36,8 @@
 #define MXDSUBLK(a) ((a)->flags & MXDSUBLK)
 #define TEMPORARY(a) (MXTRANS(a)||MXDSUBLK(a))
 #define MXIFAC(a) ((a)->flags & MXIFAC)
+#define MXIFAC_WORK1(a) ((a)->x + (a)->nzmax)
+#define MXIFAC_WORK2(a) ((a)->x + (a)->nzmax + (a)->n)
 
 /* types */
 typedef int (*qcmp_t) (const void*, const void*);
@@ -594,48 +596,185 @@ static MX* matmat_bd_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   return c;
 }
 
-static MX* matmat_inv_csc (double alpha, MX *a, MX *b, double beta, MX *c) 
+/* c = inv (a) * b */
+static void inv_vec (MX *a, double *b, double *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO: how to handle transpose (inv (a)) ??? (tans(LU) B = trans(U) trans(L) B, which seems to look fine)
-  //TODO
-  return NULL;
+  double *x = MXIFAC_WORK1(a);
+  css *S = a->sym;
+  csn *N = a->num;
+
+  cs_ipvec (N->pinv, b, x, a->n);  /* x = permute (b) */
+  cs_lsolve (N->L, x);             /* x = L \ x */
+  cs_usolve (N->U, x);             /* x = U \ x */
+  cs_ipvec (S->q, x, c, a->n);     /* c = inv-permute (x) */
 }
 
-static MX* matmat_csc_inv (double alpha, MX *a, MX *b, double beta, MX *c) 
+/* c = b * inv (a) */
+static void vec_inv (MX *a, double *b, double *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
-  return NULL;
+  double *x = MXIFAC_WORK1(a);
+  css *S = a->sym;
+  csn *N = a->num;
+
+  cs_ipvec (S->q, b, x, a->n);     /* x = inv-permute (b) */
+  cs_utsolve (N->U, x);            /* x = U' \ x */
+  cs_ltsolve (N->L, x);            /* x = L' \ x */
+  cs_ipvec (N->pinv, x, c, a->n);  /* c = permute (x) */
 }
 
-static MX* matmat_inv_dense (double alpha, MX *a, MX *b, double beta, MX *c) 
+/* return w = a (:,j) */
+static double* col (MX *a, int j, double *w)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
-  return NULL;
+  //TODO: mind transpose for dense and block diagonal
+  return w;
 }
 
-static MX* matmat_dense_inv (double alpha, MX *a, MX *b, double beta, MX *c) 
+/* a (i,:) = v where 'a' is dense */
+static void putrow (MX *a, int i, double *v)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
   //TODO
-  return NULL;
 }
 
-static MX* matmat_inv_bd (double alpha, MX *a, MX *b, double beta, MX *c) 
+/* general 'sparse inverse' * B or B * 'sparse inverse' */
+static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
-  return NULL;
+  MX *A, *B, *d;
+  double *w, *v;
+  int i, m;
+
+  ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
+
+  m = reverse ? b->n : a ->n;
+  ERRMEM (w = malloc (sizeof (double [m * 2])));
+  v = w + m;
+
+  if (reverse)
+  {
+    switch (MXTRANS(a)<<4|MXTRANS(b))
+    {
+      case 0x00:
+      {
+	ASSERT_DEBUG (a->n == b->m, "Incompatible dimensions");
+	d = MX_Create (MXDENSE, a->m, b->n, NULL, NULL);
+	A = a;
+	B = b;
+	for (i = 0; i < A->m; i ++) vec_inv (B, col (A, i, w), v), putrow (d, i, v);
+      }
+      break;
+      case 0x10:
+      {
+	ASSERT_DEBUG (a->m == b->m, "Incompatible dimensions");
+	d = MX_Create (MXDENSE, a->n, b->n, NULL, NULL);
+	A = a->kind == MXCSC ? cs_transpose (a, 1) : a;
+	B = b;
+	for (i = 0; i < A->m; i ++) vec_inv (B, col (A, i, w), v), putrow (d, i, v);
+      }
+      break;
+      case 0x01:
+      {
+	ASSERT_DEBUG (a->n == b->n, "Incompatible dimensions");
+	d = MX_Create (MXDENSE, a->m, b->n, NULL, NULL);
+	A = a;
+	B = b;
+	for (i = 0; i < A->m; i ++) inv_vec (B, col (A, i, w), v), putrow (d, i, v);
+      }
+      break;
+      case 0x11:
+      {
+	ASSERT_DEBUG (a->m == b->n, "Incompatible dimensions");
+	d = MX_Create (MXDENSE, a->n, b->m, NULL, NULL);
+	A = a->kind == MXCSC ? cs_transpose (a, 1) : a;
+	B = b;
+	for (i = 0; i < A->m; i ++) inv_vec (B, col (A, i, w), v), putrow (d, i, v);
+      }
+      break;
+    }
+  }
+  else
+  {
+    switch (MXTRANS(a)<<4|MXTRANS(b))
+    {
+      case 0x00:
+      {
+	ASSERT_DEBUG (a->n == b->m, "Incompatible dimensions");
+	d = MX_Create (MXDENSE, a->m, b->n, NULL, NULL);
+	A = a;
+	B = b;
+	for (i = 0; i < B->n; i ++) inv_vec (A, col (B, i, w), col (d, i, NULL));
+      }
+      break;
+      case 0x10:
+      {
+	ASSERT_DEBUG (a->m == b->m, "Incompatible dimensions");
+	d = MX_Create (MXDENSE, a->n, b->n, NULL, NULL);
+	A = a;
+	B = b;
+	for (i = 0; i < B->n; i ++) vec_inv (A, col (B, i, w), col (d, i, NULL));
+      }
+      break;
+      case 0x01:
+      {
+	ASSERT_DEBUG (a->n == b->n, "Incompatible dimensions");
+	d = MX_Create (MXDENSE, a->m, B->n, NULL, NULL);
+	A = a;
+	B = b->kind == MXCSC ? cs_transpose (b, 1) : b;
+	for (i = 0; i < B->n; i ++) inv_vec (A, col (B, i, w), col (d, i, NULL));
+      }
+      break;
+      case 0x11:
+      {
+	ASSERT_DEBUG (a->m == b->n, "Incompatible dimensions");
+	d = MX_Create (MXDENSE, a->n, B->n, NULL, NULL);
+	A = a;
+	B = b->kind == MXCSC ? cs_transpose (b, 1) : b;
+	for (i = 0; i < B->n; i ++) vec_inv (A, col (B, i, w), col (d, i, NULL));
+      }
+      break;
+    }
+  }
+
+  if (c)
+  {
+    MX *C;
+
+    C = MX_Copy (c, NULL);
+
+    MX_Add (alpha, d, beta, C, c);
+
+    MX_Destroy (C);
+    MX_Destroy (d);
+  }
+  else
+  {
+    if (alpha != 1.0) MX_Scale (d, alpha);
+    c = d;
+  }
+
+  if (A != a) cs_spfree (A);
+  if (B != b) cs_spfree (B);
+
+  free (w);
+
+  return c;
 }
 
-static MX* matmat_bd_inv (double alpha, MX *a, MX *b, double beta, MX *c) 
-{
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
-  return NULL;
-}
+/* inverse sparse times sparse */
+#define matmat_inv_csc(alpha, a, b, beta, c)  matmat_inv_general (0, alpha, a, b, beta, c)
+ 
+/* sparse times inverse sparse */
+#define matmat_csc_inv(alpha, a, b, beta, c)  matmat_inv_general (1, alpha, a, b, beta, c) 
+
+/* inverse sparse times dense */
+#define matmat_inv_dense(alpha, a, b, beta, c) matmat_inv_general (0, alpha, a, b, beta, c)
+
+/* dense times inverse sparse */
+#define matmat_dense_inv(alpha, a, b, beta, c) matmat_inv_general (1, alpha, a, b, beta, c) 
+
+/* inverse sparse times block diagonal */
+#define matmat_inv_bd(alpha, a, b, beta, c) matmat_inv_general (0, alpha, a, b, beta, c) 
+
+/* block diagonal times inverse sparse */
+#define matmat_bd_inv(alpha, a, b, beta, c) matmat_inv_general (1, alpha, a, b, beta, c) 
 
 /* multiply two sparse matrices */
 static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c) 
@@ -653,6 +792,8 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
     return matmat_csc_inv (alpha, a, b, beta, c);
   }
   
+  ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
+
   switch (MXTRANS(a)<<4|MXTRANS(b))
   {
     case 0x00:
@@ -692,6 +833,8 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
   if (c)
   {
     MX *e;
+
+    ASSERT_DEBUG (c->kind == MXCSC, "Invalid output matrix kind");
 
     e = add_csc_csc (alpha, d, beta, c, NULL);
 
@@ -961,21 +1104,24 @@ static MX* bd_inverse (MX *a, MX *b)
 /* invert sparse matrix */
 static MX* csc_inverse (MX *a, MX *b)
 {
-  if (MXIFAC (a))
-  {
-    a->flags &= ~MXIFAC;
-    cs_sfree (a->sym);
-    cs_nfree (a->num);
-    a->sym = a->num = NULL;
+  ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
 
-    if (a != b) b = MX_Copy (a, b);
+  if (b != a) MX_Copy (a, b);
+
+  if (MXIFAC (b))
+  {
+    b->flags &= ~MXIFAC;
+    cs_sfree (b->sym);
+    cs_nfree (b->num);
+    b->sym = b->num = NULL;
   }
   else
   {
-    a->flags |= MXIFAC;
+    b->flags |= MXIFAC;
 
-    ASSERT (0, ERR_NOT_IMPLEMENTED);
-    //TODO
+    ERRMEM (b->sym = cs_sqr (2, b, 0));
+    ASSERT (b->num = cs_lu (b, b->sym, 0.1), ERR_MTX_LU_FACTOR);
+    ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + 2 * b->n]))); /* workspace after b->x */
   }
 
   return b;
@@ -1373,19 +1519,53 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
 
       if (MXTRANS (a))
       {
-	for (l = 0; l < n; l ++, c ++)
+	if (MXIFAC (a))
 	{
-	  (*c) *= beta;
-	  for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
-	    (*c) += alpha * (*y) * b[*j];
+	  double *x = MXIFAC_WORK1(a),
+		 *y = MXIFAC_WORK2(a);
+	  css *S = a->sym;
+	  csn *N = a->num;
+
+	  cs_ipvec (S->q, b, x, a->n);     /* x = inv-permute (b) */
+	  cs_utsolve (N->U, x);            /* x = U' \ x */
+	  cs_ltsolve (N->L, x);            /* x = L' \ x */
+	  cs_ipvec (N->pinv, x, y, a->n);  /* y = permute (x) */
+
+	  for (int n = a->n; n > 0; n --, c ++, y ++) (*c) = alpha * (*y) + beta * (*c);
+	}
+	else
+	{
+	  for (l = 0; l < n; l ++, c ++)
+	  {
+	    (*c) *= beta;
+	    for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
+	      (*c) += alpha * (*y) * b[*j];
+	  }
 	}
       }
       else
       {
-	for (l = 0; l < m; l ++) c [l] *= beta;
-	for (l = 0; l < n; l ++, b ++)
-	  for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
-	    c [*j] += alpha * (*y) * (*b);
+	if (MXIFAC (a))
+	{
+	  double *x = MXIFAC_WORK1(a),
+		 *y = MXIFAC_WORK2(a);
+	  css *S = a->sym;
+	  csn *N = a->num;
+
+	  cs_ipvec (N->pinv, b, x, a->n);  /* x = permute (b) */
+	  cs_lsolve (N->L, x);             /* x = L \ x */
+	  cs_usolve (N->U, x);             /* x = U \ x */
+	  cs_ipvec (S->q, x, y, a->n);     /* y = inv-permute (x) */
+
+	  for (int n = a->n; n > 0; n --, c ++, y ++) (*c) = alpha * (*y) + beta * (*c);
+	}
+	else
+	{
+	  for (l = 0; l < m; l ++) c [l] *= beta;
+	  for (l = 0; l < n; l ++, b ++)
+	    for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
+	      c [*j] += alpha * (*y) * (*b);
+	}
       }
     }
     break;
