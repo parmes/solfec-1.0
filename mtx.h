@@ -115,6 +115,9 @@ MX* MX_Inverse (MX *a, MX *b);
  * results are outputed according to the ascending order of eigenvalues */
 void MX_Eigen (MX *a, int n, double *val, MX *vec);
 
+/* compure 2-norm */
+double MX_Norm (MX *a);
+
 /* free matrix */
 void MX_Destroy (MX *a);
 

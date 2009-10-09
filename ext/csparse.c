@@ -2003,6 +2003,7 @@ MX *cs_spalloc (int m, int n, int nzmax, int values, int triplet)
 {
     MX *A = cs_calloc (1, sizeof (MX)) ;    /* allocate the MX struct */
     if (!A) return (NULL) ;                 /* out of memory */
+    A->kind = MXCSC;                        /* compressed columns kind (added by TK) */
     A->m = m ;                              /* define dimensions and nzmax */
     A->n = n ;
     A->nzmax = nzmax = CS_MAX (nzmax, 1) ;

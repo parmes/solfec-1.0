@@ -58,6 +58,34 @@ static int eigpaircmp (struct eigpair *a, struct eigpair *b)
   else return 0;
 }
 
+/* self transpose */
+static void dense_transpose (double *a, int m, int n, int nzmax)
+{
+  int i, j;
+  double y;
+
+  if (m == n)
+  {
+    for (i = 0; i < m; i ++)
+      for (j = i+1; j < n; j ++)
+	y = a[j*m+i], a[j*m+i] = a[i*m+j], a[i*m+j] = y;
+  }
+  else
+  {
+    double *b, *q, *e;
+
+    ERRMEM (q = b = malloc (sizeof (double [nzmax])));
+
+    for (i = 0; i < m; i ++)
+      for (j = 0; j < n; j ++, q ++)
+	*q = a [i+j*m];
+
+    for (q = b, e = b + nzmax; q < e; q ++, a ++) *a = *q;
+
+    free (b);
+  }
+}
+
 /* copy transpose(a) into 'b' */
 static void dense_transpose_copy (MX *a, MX *b)
 {
@@ -141,10 +169,25 @@ static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p,
 	if (b->sym) cs_sfree (b->sym); /* get rid of previous factorisations */
 	if (b->num) cs_nfree (b->num);
 	b->sym = b->num = NULL;
+	b->nz = -1; /* indicate compressed format for CSparse internals */
       break;
     }
   }
-  else return 0; /* matrix kind cannot be changed */
+  else if (kind == MXCSC) /* we can overwrite MXDENSE or MXBD with MXCSC (although some memory will be waisted) */
+  {
+    b->kind = kind;
+    b->nzmax = nzmax;
+    b->m = m;
+    b->n = n;
+    ERRMEM (b->p = malloc (sizeof (int) * (n+1)));
+    ERRMEM (b->i = malloc (sizeof (int) * nzmax));
+    ERRMEM (b->x = malloc (sizeof (double) * nzmax));
+    ASSERT_DEBUG (p && i, "No structure pointers passed for MXCSC");
+    memcpy (b->p, p, sizeof (int) * (n+1)); 
+    memcpy (b->i, i, sizeof (int) * nzmax);
+    b->nz = -1; /* indicate compressed format for CSparse internals */
+  }
+  else return 0; /* other matrix conversions are note possible */
 
   return 1;
 }
@@ -363,15 +406,16 @@ static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
 
   ERRMEM (d = cs_add (A, B, alpha, beta));
 
-  d->kind = MXCSC;
-
   if (c)
   {
-    free (c->p);
-    free (c->i);
-    free (c->x);
+    if (c->kind == MXCSC)
+    {
+      free (c->p);
+      free (c->i);
+      free (c->x);
+    }
    
-    *c  = *d;
+    *c  = *d; /* overwrie (all kinds) */
 
     free (d);
   }
@@ -555,6 +599,9 @@ static MX* matmat_dense_dense (double alpha, MX *a, MX *b, double beta, MX *c)
   if (c == NULL) c = MX_Create (MXDENSE, m, n, NULL, NULL);
   else { ASSERT_DEBUG_EXT (prepare (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
   ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
+
+  if (MXTRANS (c)) dense_transpose (c->x, c->m, c->n, c->nzmax);
+
   blas_dgemm (transa, transb, m, n, k, alpha, a->x, a->m, b->x, b->m, beta, c->x, c->m);
   
   return c;
@@ -588,6 +635,9 @@ static MX* matmat_bd_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   for (k = 0; k < n; k ++)
   {
     m = ii[k+1] - ii[k];
+
+    if (MXTRANS (c)) dense_transpose (cx, m, m, m*m);
+
     blas_dgemm (transa, transb, m, m, m,
       alpha, &ax [pp[k]], m, &bx [pp[k]],
       m, beta, &cx [pp[k]], m);
@@ -610,17 +660,23 @@ static void inv_vec (MX *a, double *b, double *c)
 }
 
 /* c = b * inv (a) */
-static void vec_inv (MX *a, double *b, double *c)
+static void vec_inv (double *b, MX *a, double *c)
 {
   double *x = MXIFAC_WORK1(a);
   css *S = a->sym;
   csn *N = a->num;
 
-  cs_ipvec (S->q, b, x, a->n);     /* x = inv-permute (b) */
-  cs_utsolve (N->U, x);            /* x = U' \ x */
-  cs_ltsolve (N->L, x);            /* x = L' \ x */
-  cs_ipvec (N->pinv, x, c, a->n);  /* c = permute (x) */
+  cs_pvec (S->q, b, x, a->m);     /* x = read-col-perm (b) */
+  cs_utsolve (N->U, x);           /* x = U' \ x */
+  cs_ltsolve (N->L, x);           /* x = L' \ x */
+  cs_pvec (N->pinv, x, c, a->m);  /* x = write-row-perm (x) */
 }
+
+/* c = inv (a)' * b */
+#define inv_tran_vec(a, b, c) vec_inv (b, a, c)
+
+/* c = b * inv (a)' */
+#define vec_inv_tran(b, a, c) inv_vec (a, b, c)
 
 /* return w = a (:,j) */
 static double* col (MX *a, int j, double *w)
@@ -683,12 +739,12 @@ static void putrow (MX *a, int i, double *v)
   for (j = 0; j < n; j ++, v ++) x [m*j+i] = *v;
 }
 
-/* general 'sparse inverse' * B or B * 'sparse inverse' */
+/* general 'sparse inverse' * matrix or matrix * 'sparse inverse' */
 static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double beta, MX *c)
 {
   MX *A, *B, *d;
   double *w, *v;
-  int i, m;
+  int i, m, un;
 
   ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
 
@@ -704,36 +760,43 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
       {
 	ASSERT_DEBUG (a->n == b->m, "Incompatible dimensions");
 	d = MX_Create (MXDENSE, a->m, b->n, NULL, NULL);
-	A = a;
+
+	if (a->kind == MXCSC) A = cs_transpose (a, 1), un = 0;
+	else A = a, a->flags |= MXTRANS, un = 1; /* transpose (we need to read rows) */
 	B = b;
-	for (i = 0; i < A->m; i ++) vec_inv (B, col (A, i, w), v), putrow (d, i, v);
+	for (i = 0; i < a->m; i ++) vec_inv (col (A, i, w), B, v), putrow (d, i, v);
+	if (un) a->flags &= ~MXTRANS; /* untranspose */
       }
       break;
       case 0x10:
       {
 	ASSERT_DEBUG (a->m == b->m, "Incompatible dimensions");
 	d = MX_Create (MXDENSE, a->n, b->n, NULL, NULL);
-	A = a->kind == MXCSC ? cs_transpose (a, 1) : a;
+	A = a, a->flags &= ~MXTRANS; /* untranspose (to read rows) */
 	B = b;
-	for (i = 0; i < A->m; i ++) vec_inv (B, col (A, i, w), v), putrow (d, i, v);
+	for (i = 0; i < A->m; i ++) vec_inv (col (A, i, w), B, v), putrow (d, i, v);
+	a->flags |= MXTRANS; /* transpose back */
       }
       break;
       case 0x01:
       {
 	ASSERT_DEBUG (a->n == b->n, "Incompatible dimensions");
 	d = MX_Create (MXDENSE, a->m, b->n, NULL, NULL);
-	A = a;
+	if (a->kind == MXCSC) A = cs_transpose (a, 1), un = 0;
+	else A = a, a->flags |= MXTRANS, un = 1; /* transpose (we need to read rows) */
 	B = b;
-	for (i = 0; i < A->m; i ++) inv_vec (B, col (A, i, w), v), putrow (d, i, v);
+	for (i = 0; i < A->m; i ++) vec_inv_tran (col (A, i, w), B, v), putrow (d, i, v);
+	if (un) a->flags &= ~MXTRANS; /* untranspose */
       }
       break;
       case 0x11:
       {
 	ASSERT_DEBUG (a->m == b->n, "Incompatible dimensions");
 	d = MX_Create (MXDENSE, a->n, b->m, NULL, NULL);
-	A = a->kind == MXCSC ? cs_transpose (a, 1) : a;
+	A = a, a->flags &= ~MXTRANS; /* untranspose (to read rows) */
 	B = b;
-	for (i = 0; i < A->m; i ++) inv_vec (B, col (A, i, w), v), putrow (d, i, v);
+	for (i = 0; i < A->m; i ++) vec_inv_tran (col (A, i, w), B, v), putrow (d, i, v);
+	a->flags |= MXTRANS; /* transpose back */
       }
       break;
     }
@@ -757,7 +820,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	d = MX_Create (MXDENSE, a->n, b->n, NULL, NULL);
 	A = a;
 	B = b;
-	for (i = 0; i < B->n; i ++) vec_inv (A, col (B, i, w), col (d, i, NULL));
+	for (i = 0; i < B->n; i ++) inv_tran_vec (A, col (B, i, w), col (d, i, NULL));
       }
       break;
       case 0x01:
@@ -775,22 +838,29 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	d = MX_Create (MXDENSE, a->n, B->n, NULL, NULL);
 	A = a;
 	B = b->kind == MXCSC ? cs_transpose (b, 1) : b;
-	for (i = 0; i < B->n; i ++) vec_inv (A, col (B, i, w), col (d, i, NULL));
+	for (i = 0; i < B->n; i ++) inv_tran_vec (A, col (B, i, w), col (d, i, NULL));
       }
       break;
     }
   }
 
-  if (c)
+  if (beta != 0.0 && c)
   {
-    MX *C;
-
-    C = MX_Copy (c, NULL);
-
-    MX_Add (alpha, d, beta, C, c);
-
-    MX_Destroy (C);
+    MX_Add (alpha, d, beta, c, c);
     MX_Destroy (d);
+  }
+  else if (c)
+  {
+    if (alpha != 1.0) MX_Scale (d, alpha);
+
+    if (c->kind == MXCSC)
+    {
+      free (c->p);
+      free (c->i);
+      free (c->x);
+    }
+ 
+    *c = *d; /* overwrite (also MXDENSE or MXBD) */
   }
   else
   {
@@ -876,24 +946,23 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 
   ERRMEM (d = cs_multiply (A, B));
 
-  d->kind = MXCSC;
-
-  if (c)
+  if (beta != 0.0 && c)
   {
-    MX *e;
-
-    ASSERT_DEBUG (c->kind == MXCSC, "Invalid output matrix kind");
-
-    e = add_csc_csc (alpha, d, beta, c, NULL);
-
-    free (c->p);
-    free (c->i);
-    free (c->x);
-   
-    *c  = *e;
-
-    free (e);
+    add_csc_csc (alpha, d, beta, c, c);
     cs_spfree (d);
+  }
+  else if (c)
+  {
+    if (alpha != 1.0) MX_Scale (d, alpha);
+
+    if (c->kind == MXCSC)
+    {
+      free (c->p);
+      free (c->i);
+      free (c->x);
+    }
+
+    *c = *d; /* overwrite (all kinds) */
   }
   else
   {
@@ -1154,7 +1223,7 @@ static MX* csc_inverse (MX *a, MX *b)
 {
   ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
 
-  if (b != a) MX_Copy (a, b);
+  if (b != a) b = MX_Copy (a, b);
 
   if (MXIFAC (b))
   {
@@ -1667,6 +1736,15 @@ void MX_Eigen (MX *a, int n, double *val, MX *vec)
   }
 
   if (TEMPORARY (a)) free (a);
+}
+
+double MX_Norm (MX *a)
+{
+  double *x, *y, norm;
+
+  for (norm = 0.0, x = a->x, y = x + a->nzmax; x < y; x ++) norm += (*x)*(*x);
+
+  return sqrt (norm);
 }
 
 void MX_Destroy (MX *a)
