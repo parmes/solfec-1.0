@@ -41,7 +41,7 @@ struct general_matrix
 	 *p,   /* pointers to columns (CSC), or blocks (BD); p[n] == nzmax */
 	 *i,   /* indices of column row entries (CSC, i[0...nzmax-1]), or indices
 		  of the first block row/column (BD, i[n] = m) */
-	 nz;   /* number of entries in triplet matrix, -1 for compressed-col */
+	 nz;   /* CSC: number of entries in triplet matrix, -1 for compressed-col; otherwise nzmax <= nz */
 
   double *x;   /* values, x[0...nzmax-1] */
 

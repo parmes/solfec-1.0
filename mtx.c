@@ -129,66 +129,106 @@ inline static int bdseq (int n, int *pa, int *ia, int *pb, int *ib)
   return 1;
 }
 
-/* prepare the structure of 'b' according to the specification */
+/* erepare the structure of 'b' according to the specification */
 static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p, int *i)
 {
-  if (KIND (b) == kind)
+  switch (kind)
   {
-    switch (kind)
+  case MXDENSE:
     {
-      case MXDENSE:
-#if DEBUG
-	if (b->nzmax >= nzmax) /* dense matrix can be downscaled and resized */
+      if (b->kind == MXDENSE)
+      {
+	if (nzmax > b->nz)
 	{
-#endif
-	  b->nzmax = nzmax;
-	  b->m = m;
-	  b->n = n;
-#if DEBUG
+	  if (REALLOCED (b)) free (b->x);
+
+	  ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+
+	  b->nz = nzmax;
 	}
-	else return 0;
-#endif
-      break;
-#if DEBUG  /* block diagonal tests are performed only in debug mode */
-      case MXBD:
-	if (b->nzmax == nzmax &&
-	    b->m == m &&
-	    b->n == n) /* structure of diagonal block matrix must much exactly */
-	{ if (! bdseq (n, b->p, b->i, p, i)) return 0; }
-      break;
-#endif
-      case MXCSC: /* compressed column matrix can change in an arbitrary way */
-	b->nzmax = nzmax;
-	b->m = m;
-	b->n = n;
-	ERRMEM (b->p = realloc (b->p, sizeof (int) * (n+1)));
-	ERRMEM (b->i = realloc (b->i, sizeof (int) * nzmax));
-	ERRMEM (b->x = realloc (b->x, sizeof (double) * nzmax));
-	ASSERT_DEBUG (p && i, "No structure pointers passed for MXCSC");
-	memcpy (b->p, p, sizeof (int) * (n+1)); 
-	memcpy (b->i, i, sizeof (int) * nzmax); 
-	if (b->sym) cs_sfree (b->sym); /* get rid of previous factorisations */
-	if (b->num) cs_nfree (b->num);
-	b->sym = b->num = NULL;
-	b->nz = -1; /* indicate compressed format for CSparse internals */
-      break;
+      }
+      else
+      {
+	if (REALLOCED (b))
+	{
+	  free (b->x);
+	  free (b->p);
+	  free (b->i);
+	}
+
+        ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+
+	b->kind = kind;
+	b->nz = nzmax;
+      }
+
+      b->nzmax = nzmax;
+      b->m = m;
+      b->n = n;
     }
+    break;
+  case MXBD:
+    {
+      if (kind == MXBD)
+      {
+	if (nzmax > b->nz || n > b->n)
+	{
+	  if (REALLOCED (b))
+	  {
+	    free (b->x);
+	    free (b->p);
+	    free (b->i);
+	  }
+
+	  ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+	  ERRMEM (b->p = malloc (sizeof (int [n+1])));
+	  ERRMEM (b->i = malloc (sizeof (int [nzmax+1])));
+
+	  b->nz = nzmax;
+	}
+      }
+      else
+      {
+	if (REALLOCED (b)) free (b->x);
+
+	ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+	ERRMEM (b->p = malloc (sizeof (int [n+1])));
+	ERRMEM (b->i = malloc (sizeof (int [nzmax+1])));
+
+	b->kind = kind;
+	b->nz = nzmax;
+      }
+
+      for (int k = 0; k <= nzmax; k ++) b->i [k] = i [k];
+      for (int k = 0; k <= n; k ++ ) b->p [k] = p [k];
+
+      b->nzmax = nzmax;
+      b->m = m;
+      b->n = n;
+    }
+    break;
+  case MXCSC:
+    {
+      if (REALLOCED (b))
+      {
+	free (b->x);
+	if (b->kind != MXDENSE) free (b->p), free (b->i);
+      }
+
+      b->kind = kind;
+      b->nzmax = nzmax;
+      b->m = m;
+      b->n = n;
+      ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+      ERRMEM (b->p = malloc (sizeof (int) * (n+1)));
+      ERRMEM (b->i = malloc (sizeof (int) * nzmax));
+      ASSERT_DEBUG (p && i, "No structure pointers passed for MXCSC");
+      memcpy (b->p, p, sizeof (int) * (n+1)); 
+      memcpy (b->i, i, sizeof (int) * nzmax);
+      b->nz = -1; /* indicate compressed format for CSparse internals */
+    }
+    break;
   }
-  else if (kind == MXCSC) /* we can overwrite MXDENSE or MXBD with MXCSC (although some memory might be waisted) */
-  {
-    b->kind = kind;
-    b->nzmax = nzmax;
-    b->m = m;
-    b->n = n;
-    ERRMEM (b->p = malloc (sizeof (int) * (n+1)));
-    ERRMEM (b->i = malloc (sizeof (int) * nzmax));
-    ERRMEM (b->x = malloc (sizeof (double) * nzmax));
-    ASSERT_DEBUG (p && i, "No structure pointers passed for MXCSC");
-    memcpy (b->p, p, sizeof (int) * (n+1)); 
-    memcpy (b->i, i, sizeof (int) * nzmax);
-    b->nz = -1; /* indicate compressed format for CSparse internals */
-  }
-  else return 0; /* other matrix conversions are note possible */
 
   return 1;
 }
@@ -409,11 +449,10 @@ static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
 
   if (c)
   {
-    if (c->kind == MXCSC)
+    if (REALLOCED (c))
     {
-      free (c->p);
-      free (c->i);
       free (c->x);
+      if (c->kind != MXDENSE) free (c->p), free (c->i);
     }
    
     *c  = *d; /* overwrie (all kinds) */
@@ -854,11 +893,10 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
   {
     if (alpha != 1.0) MX_Scale (d, alpha);
 
-    if (c->kind == MXCSC)
+    if (REALLOCED (c))
     {
-      free (c->p);
-      free (c->i);
       free (c->x);
+      if (c->kind != MXDENSE) free (c->p), free (c->i);
     }
  
     *c = *d; /* overwrite (also MXDENSE or MXBD) */
@@ -956,11 +994,10 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
   {
     if (alpha != 1.0) MX_Scale (d, alpha);
 
-    if (c->kind == MXCSC)
+    if (REALLOCED (c))
     {
-      free (c->p);
-      free (c->i);
       free (c->x);
+      if (c->kind != MXDENSE) free (c->p), free (c->i);
     }
 
     *c = *d; /* overwrite (all kinds) */
@@ -1401,6 +1438,7 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
       ASSERT_DEBUG (size > 0, "Invalid size");
       ERRMEM (a = calloc (1, sizeof (MX) + size * sizeof (double)));
       a->x = (double*) (a + 1);
+      a->nz = size;
     break;
     case MXBD:
       ASSERT_DEBUG ((p && i) && (p != i), "Invalid structure");
@@ -1411,8 +1449,9 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
       a->x = (double*) (a + 1);
       a->p = (int*) (a->x + size);
       a->i = a->p + (n + 1);
-      memcpy (a->p, p, sizeof (int) * (n+1)); 
-      memcpy (a->i, i, sizeof (int) * (n+1)); 
+      memcpy (a->p, p, sizeof (int) * (n+1));
+      memcpy (a->i, i, sizeof (int) * (n+1));
+      a->nz = size;
     break;
     case MXCSC:
       ERRMEM (a = calloc (1, sizeof (MX)));
@@ -1735,7 +1774,7 @@ void MX_Destroy (MX *a)
   {
     case MXDENSE:
     case MXBD:
-      if (REALLOCED(a))
+      if (REALLOCED (a))
       {
 	free (a->x);
 	if (a->kind == MXBD) free (a->p), free (a->i);
