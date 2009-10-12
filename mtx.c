@@ -35,6 +35,7 @@
 #define MXSTATIC(a) ((a)->flags & MXSTATIC)
 #define MXDSUBLK(a) ((a)->flags & MXDSUBLK)
 #define TEMPORARY(a) (MXTRANS(a)||MXDSUBLK(a))
+#define REALLOCED(a) ((a)->x != (double*)((a)+1))
 #define MXIFAC(a) ((a)->flags & MXIFAC)
 #define MXIFAC_WORK1(a) ((a)->x + (a)->nzmax)
 #define MXIFAC_WORK2(a) ((a)->x + (a)->nzmax + (a)->n)
@@ -173,7 +174,7 @@ static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p,
       break;
     }
   }
-  else if (kind == MXCSC) /* we can overwrite MXDENSE or MXBD with MXCSC (although some memory will be waisted) */
+  else if (kind == MXCSC) /* we can overwrite MXDENSE or MXBD with MXCSC (although some memory might be waisted) */
   {
     b->kind = kind;
     b->nzmax = nzmax;
@@ -1407,9 +1408,9 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
       size = p [n];
       ERRMEM (a = calloc (1, sizeof (MX) + (2 * n + 2)
 	* sizeof (int) + size * sizeof (double)));
-      a->p = (int*) (a + 1);
+      a->x = (double*) (a + 1);
+      a->p = (int*) (a->x + size);
       a->i = a->p + (n + 1);
-      a->x = (double*) (a->i + (n + 1));
       memcpy (a->p, p, sizeof (int) * (n+1)); 
       memcpy (a->i, i, sizeof (int) * (n+1)); 
     break;
@@ -1482,12 +1483,12 @@ MX* MX_Copy (MX *a, MX *b)
       break;
       case MXCSC:
         ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->n,
-	  a->m, NULL, NULL), "Invalid output matrix");
+	  a->m, a->p, a->i), "Invalid output matrix");
 	csc_transpose_copy (a, b);
       break;
     }
 
-    free (a);
+    free (a); /* it was temporary */
   }
   else
   {
@@ -1573,6 +1574,8 @@ MX* MX_Add (double alpha, MX *a, double beta, MX *b, MX *c)
 
 MX* MX_Matmat (double alpha, MX *a, MX *b, double beta, MX *c)
 {
+  ASSERT_DEBUG (!c || (c && !MXTRANS(c)), "In alpha * a *b + beta *c, c cannot be transposed");
+
   switch ((KIND(a)<<4)|KIND(b))
   {
     case 0x11: /* DENSE * DENSE */
@@ -1631,26 +1634,21 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
     break;
     case MXCSC:
     {
-      int *p = a->p, *i = a->i, m = a->m, n = a->n, *j, *k, l;
-      double *x = a->x, *y;
-
-      if (MXTRANS (a))
+      if (MXIFAC (a))
       {
-	if (MXIFAC (a))
-	{
-	  double *x = MXIFAC_WORK1(a),
-		 *y = MXIFAC_WORK2(a);
-	  css *S = a->sym;
-	  csn *N = a->num;
+	double *y = MXIFAC_WORK2(a);
 
-	  cs_ipvec (S->q, b, x, a->n);     /* x = inv-permute (b) */
-	  cs_utsolve (N->U, x);            /* x = U' \ x */
-	  cs_ltsolve (N->L, x);            /* x = L' \ x */
-	  cs_ipvec (N->pinv, x, y, a->n);  /* y = permute (x) */
+	if (MXTRANS (a)) inv_tran_vec (a, b, y);
+	else inv_vec (a, b, y);
 
-	  for (int n = a->n; n > 0; n --, c ++, y ++) (*c) = alpha * (*y) + beta * (*c);
-	}
-	else
+	for (int n = a->n; n > 0; n --, c ++, y ++) (*c) = alpha * (*y) + beta * (*c);
+      }
+      else
+      {
+	int *p = a->p, *i = a->i, m = a->m, n = a->n, *j, *k, l;
+	double *x = a->x, *y;
+
+	if (MXTRANS (a))
 	{
 	  for (l = 0; l < n; l ++, c ++)
 	  {
@@ -1658,23 +1656,6 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
 	    for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
 	      (*c) += alpha * (*y) * b[*j];
 	  }
-	}
-      }
-      else
-      {
-	if (MXIFAC (a))
-	{
-	  double *x = MXIFAC_WORK1(a),
-		 *y = MXIFAC_WORK2(a);
-	  css *S = a->sym;
-	  csn *N = a->num;
-
-	  cs_ipvec (N->pinv, b, x, a->n);  /* x = permute (b) */
-	  cs_lsolve (N->L, x);             /* x = L \ x */
-	  cs_usolve (N->U, x);             /* x = U \ x */
-	  cs_ipvec (S->q, x, y, a->n);     /* y = inv-permute (x) */
-
-	  for (int n = a->n; n > 0; n --, c ++, y ++) (*c) = alpha * (*y) + beta * (*c);
 	}
 	else
 	{
@@ -1754,6 +1735,11 @@ void MX_Destroy (MX *a)
   {
     case MXDENSE:
     case MXBD:
+      if (REALLOCED(a))
+      {
+	free (a->x);
+	if (a->kind == MXBD) free (a->p), free (a->i);
+      }
       free (a);
     break;
     case MXCSC:

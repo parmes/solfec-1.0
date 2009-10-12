@@ -253,8 +253,8 @@ static int test_run_0 (FILE *file, MX *A, MX *B, MX *C, MX *D, MX *E, double alp
   else { printf ("FAILED\n"); return 0; }
 
   printf ("TEST: alpha * A * B + beta * C' ... ");
-  MX_Copy (C, X);
-  MX_Matmat (alpha, A, B, beta, MX_Tran (X));
+  MX_Copy (MX_Tran (C), X);
+  MX_Matmat (alpha, A, B, beta, X);
   Y = read_matrix (OUTPUT, file, A->m, B->n, kind);
   MX_Add (1.0, X, -1.0, Y, Z);
   MX_Destroy (Y);
@@ -271,8 +271,8 @@ static int test_run_0 (FILE *file, MX *A, MX *B, MX *C, MX *D, MX *E, double alp
   else { printf ("FAILED\n"); return 0; }
 
   printf ("TEST: alpha * A * inv(B) + beta * C' ... ");
-  MX_Copy (C, X);
-  MX_Matmat (alpha, A, invB, beta, MX_Tran (X));
+  MX_Copy (MX_Tran (C), X);
+  MX_Matmat (alpha, A, invB, beta, X);
   Y = read_matrix (OUTPUT, file, A->m, invB->n, kind);
   MX_Add (1.0, X, -1.0, Y, Z);
   MX_Destroy (Y);
