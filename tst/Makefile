@@ -49,38 +49,72 @@ clean:
 	rm -f *out
 	rm -f $(TGT) $(TGTMPI)
 	rm -fr *dSYM
+	rm -f obj/*
 
-glvtest: glvtest.c $(LIBBRICKS)
+glvtest: obj/glvtest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-pbftest: pbftest.c $(LIBBRICKS)
+obj/glvtest.o: glvtest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+pbftest: obj/pbftest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-hultest: hultest.c $(LIBBRICKS)
+obj/pbftest.o: pbftest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+hultest: obj/hultest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-cvitest: cvitest.c $(LIBBRICKS)
+obj/hultest.o: hultest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+cvitest: obj/cvitest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-gjktest: gjktest.c $(LIBBRICKS)
+obj/cvitest.o: cvitest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+gjktest: obj/gjktest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-boxtest: boxtest.c $(LIBBRICKS)
+obj/gjktest.o: gjktest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+boxtest: obj/boxtest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-listest: listest.c $(LIBBRICKS)
+obj/boxtest.o: boxtest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+listest: obj/listest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-maptest: maptest.c $(LIBBRICKS)
+obj/listest.o: listest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+maptest: obj/maptest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-mtxtest: mtxtest.c $(LIBBRICKS)
+obj/maptest.o: maptest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+mtxtest: obj/mtxtest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
-cmptest: cmptest.c $(LIBBRICKS)
+obj/mtxtest.o: mtxtest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+cmptest: obj/cmptest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
+
+obj/cmptest.o: cmptest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 # MPI
 
-comtest: comtest.c $(LIBBRICKSMPI)
+comtest: obj/comtest.o $(LIBBRICKSMPI)
 	$(MPICC) $(CFLAGS) $(MPITGT) -o $@ $< $(LIBMPI)
+
+obj/comtest.o: comtest.c $(LIBBRICKSMPI)
+	$(MPICC) $(CFLAGS) $(MPITGT) -c -o $@ $<

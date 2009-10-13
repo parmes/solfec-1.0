@@ -129,9 +129,22 @@ inline static int bdseq (int n, int *pa, int *ia, int *pb, int *ib)
   return 1;
 }
 
-/* erepare the structure of 'b' according to the specification */
-static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p, int *i)
+/* matrix preparation modes */
+typedef enum {PREP_RESET, PREP_COPY} PREPOP;
+
+/* prepare the structure of 'b' according to the specification */
+static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int m, int n, int *p, int *i)
 {
+  MX *B;
+
+  /* if the values of the input matrix are to be and can really be coppied: prepare a copy */
+  if (op == PREP_COPY && b->kind != kind && b->m == m && b->n == b->n && b->nzmax <= nzmax)
+  {
+    ASSERT_DEBUG (b->kind != MXBD && kind != MXBD, "Invalid prepare_copy call (to or from MXBD)");
+    B = MX_Copy (b, NULL);
+  }
+  else B = NULL;
+
   switch (kind)
   {
   case MXDENSE:
@@ -154,6 +167,8 @@ static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p,
 	  free (b->x);
 	  free (b->p);
 	  free (b->i);
+	  b->p = NULL;
+	  b->i = NULL;
 	}
 
         ERRMEM (b->x = calloc (nzmax, sizeof (double)));
@@ -169,7 +184,7 @@ static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p,
     break;
   case MXBD:
     {
-      if (kind == MXBD)
+      if (b->kind == MXBD)
       {
 	if (nzmax > b->nz || n > b->n)
 	{
@@ -189,7 +204,11 @@ static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p,
       }
       else
       {
-	if (REALLOCED (b)) free (b->x);
+	if (REALLOCED (b))
+	{
+	  free (b->x);
+	  if (b->kind == MXCSC) free (b->p), free (b->i);
+	}
 
 	ERRMEM (b->x = calloc (nzmax, sizeof (double)));
 	ERRMEM (b->p = malloc (sizeof (int [n+1])));
@@ -230,8 +249,57 @@ static int prepare (MX *b, unsigned short kind, int nzmax, int m, int n, int *p,
     break;
   }
 
+#if DEBUG
+  if (b->sym || b->num)
+#else
+  if (b->sym)
+#endif
+  {
+    ASSERT_DEBUG (b->sym && b->num, "Symbolic or numeric factorization is missing");
+    cs_sfree (b->sym), b->sym = NULL;
+    cs_sfree (b->num), b->num = NULL;
+  }
+
+  b->flags = 0;
+
+  if (B)
+  {
+    double *Bx = B->x,
+	   *bx = b->x,
+	   *x, *y;
+    int m = b->m,
+	n = b->n,
+	*p, *i, j;
+
+    switch ((int)B->kind)
+    {
+    case MXDENSE: /* to MXCSC */
+    {
+      for (p = b->p, i = b->i, j = 0; j < n; j ++)
+	for (x = &bx[p[j]], y = &bx[p[j+1]]; x < y; x ++, i ++)
+	  *x = Bx [j*m+(*i)];
+    }
+    break;
+    case MXCSC: /* to MXDENSE */
+    {
+      for (p = B->p, i = B->i, j = 0; j < n; j ++)
+	for (x = &Bx[p[j]], y = &Bx[p[j+1]]; x < y; x ++, i ++)
+	  bx [j*m+(*i)] = *x;
+    }
+    break;
+    }
+
+    MX_Destroy (B);
+  }
+
   return 1;
 }
+
+/* prepare new matrix */
+#define prepare(b, kind, nzmax, m, n, p, i) prepare_matrix (PREP_RESET, b, kind, nzmax, m, n, p, i)
+
+/* prepare a copy of input matrix (e.g. change kind and keep values) */
+#define prepare_copy(b, kind, nzmax, m, n, p, i) prepare_matrix (PREP_COPY, b, kind, nzmax, m, n, p, i)
 
 /* sparse to dense conversion */
 static MX* csc_to_dense (MX *a)
@@ -637,7 +705,7 @@ static MX* matmat_dense_dense (double alpha, MX *a, MX *b, double beta, MX *c)
 
   ASSERT_DEBUG (k == l, "Incompatible dimensions");
   if (c == NULL) c = MX_Create (MXDENSE, m, n, NULL, NULL);
-  else { ASSERT_DEBUG_EXT (prepare (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
+  else { ASSERT_DEBUG_EXT (prepare_copy (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
   ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
 
   if (MXTRANS (c)) dense_transpose (c->x, c->m, c->n, c->nzmax);
@@ -662,7 +730,7 @@ static MX* matmat_bd_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   ASSERT_DEBUG (a->m == b->m && a->n == b->n, "Incompatible dimensions");
   ASSERT_DEBUG (bdseq (a->n, a->p, a->i, b->p, b->i), "Incompatible dimensions");
   if (c == NULL) c = MX_Create (MXBD, a->m, a->n, a->p, a->i);
-  else { ASSERT_DEBUG_EXT (prepare (c, MXBD, a->nzmax, a->m, a->n, a->p, a->i), "Invalid output matrix"); }
+  else { ASSERT_DEBUG_EXT (prepare_copy (c, MXBD, a->nzmax, a->m, a->n, a->p, a->i), "Invalid output matrix"); }
   ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
 
   double *ax = a->x,
@@ -723,21 +791,30 @@ static double* col (MX *a, int j, double *w)
 {
   switch (a->kind)
   {
-    case MXDENSE: return &a->x[a->m*j];
+    case MXDENSE:
+    {
+      if (MXTRANS (a))
+      {
+	double *x = a->x, *y = w;
+	int m = a->m, k;
+
+	for (k = 0; k < a->n; k ++, y ++) *y = x [k*m+j];
+      }
+      else return &a->x[a->m*j];
+    }
+    break;
     case MXBD:
     {
-      double *x, *y;
+      double *x, *y, *z;
       int *p = a->p,
 	  *i = a->i,
-	  k, l;
+	  k, l, o;
 
 #if DEBUG
       static int j_prev = -1;
       ASSERT_DEBUG (j == (j_prev + 1), "Column retrival must be called for a sequence of js: 0, 1, 2, ..., n");
       j_prev = j;
 #endif
-
-      for (x = w, y = x + a->m; x < y; x ++) *x = 0.0;
 
       if (j == 0) k = a->nz = 0; /* initialize an auxiliary current block index */
       else
@@ -749,7 +826,18 @@ static double* col (MX *a, int j, double *w)
 
       l = i[k+1] - i[k];
 
-      for (w += i [k], x = &a->x [p[k] + l*(j-k)], y = &a->x [p[k] + l*(1+j-k)]; x < y; x ++, w ++) *w = *x;
+      if (MXTRANS (a))
+      {
+        for (x = w, y = x + a->n; x < y; x ++) *x = 0.0;
+
+        for (z = w + i [k], x = &a->x [p[k] + l*(j-k)], o = 0; o < l; o ++, z ++) *z = x[o*l+(j-k)];
+      }
+      else
+      {
+        for (x = w, y = x + a->m; x < y; x ++) *x = 0.0;
+
+        for (z = w + i [k], x = &a->x [p[k] + l*(j-k)], y = &a->x [p[k] + l*(1+j-k)]; x < y; x ++, z ++) *z = *x;
+      }
     }
     break;
     case MXCSC:
@@ -788,7 +876,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 
   ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
 
-  m = reverse ? b->n : a ->n;
+  m = reverse ? MAX (b->m, b->n) : MAX (a ->m, a->n);
   ERRMEM (w = malloc (sizeof (double [m * 2])));
   v = w + m;
 
@@ -821,7 +909,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
       case 0x01:
       {
 	ASSERT_DEBUG (a->n == b->n, "Incompatible dimensions");
-	d = MX_Create (MXDENSE, a->m, b->n, NULL, NULL);
+	d = MX_Create (MXDENSE, a->m, b->m, NULL, NULL);
 	if (a->kind == MXCSC) A = cs_transpose (a, 1), un = 0;
 	else A = a, a->flags |= MXTRANS, un = 1; /* transpose (we need to read rows) */
 	B = b;
@@ -866,7 +954,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
       case 0x01:
       {
 	ASSERT_DEBUG (a->n == b->n, "Incompatible dimensions");
-	d = MX_Create (MXDENSE, a->m, B->n, NULL, NULL);
+	d = MX_Create (MXDENSE, a->m, b->m, NULL, NULL);
 	A = a;
 	B = b->kind == MXCSC ? cs_transpose (b, 1) : b;
 	for (i = 0; i < B->n; i ++) inv_vec (A, col (B, i, w), col (d, i, NULL));
@@ -875,7 +963,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
       case 0x11:
       {
 	ASSERT_DEBUG (a->m == b->n, "Incompatible dimensions");
-	d = MX_Create (MXDENSE, a->n, B->n, NULL, NULL);
+	d = MX_Create (MXDENSE, a->n, b->m, NULL, NULL);
 	A = a;
 	B = b->kind == MXCSC ? cs_transpose (b, 1) : b;
 	for (i = 0; i < B->n; i ++) inv_tran_vec (A, col (B, i, w), col (d, i, NULL));
@@ -892,14 +980,8 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
   else if (c)
   {
     if (alpha != 1.0) MX_Scale (d, alpha);
-
-    if (REALLOCED (c))
-    {
-      free (c->x);
-      if (c->kind != MXDENSE) free (c->p), free (c->i);
-    }
- 
-    *c = *d; /* overwrite (also MXDENSE or MXBD) */
+    MX_Copy (d, c);
+    MX_Destroy (d);
   }
   else
   {
@@ -1001,6 +1083,8 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
     }
 
     *c = *d; /* overwrite (all kinds) */
+
+    free (d);
   }
   else
   {
@@ -1040,7 +1124,7 @@ static MX* matmat_bd_dense (double alpha, MX *a, MX *b, double beta, MX *c)
 
   ASSERT_DEBUG (k == l, "Incompatible dimensions");
   if (c == NULL) c = MX_Create (MXDENSE, m, n, NULL, NULL);
-  else { ASSERT_DEBUG_EXT (prepare (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
+  else { ASSERT_DEBUG_EXT (prepare_copy (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
   ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
  
   double *ax = a->x,
@@ -1096,7 +1180,7 @@ static MX* matmat_dense_bd (double alpha, MX *a, MX *b, double beta, MX *c)
 
   ASSERT_DEBUG (k == l, "Incompatible dimensions");
   if (c == NULL) c = MX_Create (MXDENSE, m, n, NULL, NULL);
-  else { ASSERT_DEBUG_EXT (prepare (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
+  else { ASSERT_DEBUG_EXT (prepare_copy (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
   ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
  
   double *ax = a->x,
@@ -1152,7 +1236,7 @@ static MX* matmat_dense_csc (double alpha, MX *a, MX *b, double beta, MX *c)
     return matmat_dense_inv (alpha, a, b, beta, c);
   }
 
-  B = csc_to_dense (B);
+  B = csc_to_dense (b);
   c = matmat_dense_dense (alpha, a, B, beta, c);
   MX_Destroy (B);
 
@@ -1169,7 +1253,7 @@ static MX* matmat_bd_csc (double alpha, MX *a, MX *b, double beta, MX *c)
     return matmat_bd_inv (alpha, a, b, beta, c);
   }
 
-  B = csc_to_dense (B);
+  B = csc_to_dense (b);
   c = matmat_bd_dense (alpha, a, B, beta, c);
   MX_Destroy (B);
 
@@ -1526,8 +1610,6 @@ MX* MX_Copy (MX *a, MX *b)
 	csc_transpose_copy (a, b);
       break;
     }
-
-    free (a); /* it was temporary */
   }
   else
   {
@@ -1538,7 +1620,9 @@ MX* MX_Copy (MX *a, MX *b)
      *e = (a->x+a->nzmax); x < e; y ++, x++) *y = *x;
   }
 
-  if (MXIFAC (a)) MX_Inverse (b, b); /* a was a sparse inverse => invert its copy */
+  if (MXIFAC (a)) MX_Inverse (b, b); /* it was a sparse inverse => invert its copy */
+
+  if (TEMPORARY (a)) free (a);
 
   return b;
 }

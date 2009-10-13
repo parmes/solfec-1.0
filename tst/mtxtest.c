@@ -303,6 +303,9 @@ static int test_run_0 (FILE *file, MX *A, MX *B, MX *C, MX *D, MX *E, double alp
   if (MX_Norm (Z) < EPSILON) printf ("OK\n");
   else { printf ("FAILED\n"); return 0; }
 
+  MX_Destroy (X);
+  MX_Destroy (Z);
+
   printf ("TEST: E * inv(A) * E' ... ");
   X = MX_Trimat (E, invA, MX_Tran (E), NULL);
   Y = read_matrix (OUTPUT, file, E->m, E->m, kind);
@@ -350,6 +353,38 @@ static int test_set_0 (void)
   B = read_matrix (INPUT, file, 0, 0, MXCSC);
   C = read_matrix (INPUT, file, 0, 0, MXCSC);
   D = read_matrix (INPUT, file, 0, 0, MXCSC);
+  E = read_matrix (INPUT, file, 0, 0, MXCSC);
+
+  if (!test_run_0 (file, A, B, C, D, E, alpha, beta, MXCSC)) return 0;
+
+  MX_Destroy (A);
+  MX_Destroy (B);
+  MX_Destroy (C);
+  MX_Destroy (D);
+  MX_Destroy (E);
+
+  fseek (file, 0, SEEK_SET);
+
+  A = read_matrix (INPUT, file, 0, 0, MXDENSE);
+  B = read_matrix (INPUT, file, 0, 0, MXCSC);
+  C = read_matrix (INPUT, file, 0, 0, MXDENSE);
+  D = read_matrix (INPUT, file, 0, 0, MXCSC);
+  E = read_matrix (INPUT, file, 0, 0, MXDENSE);
+
+  if (!test_run_0 (file, A, B, C, D, E, alpha, beta, MXCSC)) return 0;
+
+  MX_Destroy (A);
+  MX_Destroy (B);
+  MX_Destroy (C);
+  MX_Destroy (D);
+  MX_Destroy (E);
+
+  fseek (file, 0, SEEK_SET);
+
+  A = read_matrix (INPUT, file, 0, 0, MXCSC);
+  B = read_matrix (INPUT, file, 0, 0, MXDENSE);
+  C = read_matrix (INPUT, file, 0, 0, MXCSC);
+  D = read_matrix (INPUT, file, 0, 0, MXDENSE);
   E = read_matrix (INPUT, file, 0, 0, MXCSC);
 
   if (!test_run_0 (file, A, B, C, D, E, alpha, beta, MXCSC)) return 0;
