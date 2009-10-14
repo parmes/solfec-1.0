@@ -63,6 +63,7 @@ static SHAPE* append (SHAPE *shp, short kind, void *data)
   ERRMEM (shq = malloc (sizeof (SHAPE)));
   shq->kind = kind;
   shq->data = data;
+  shq->epr = NULL;
   shq->next = shp;
 
   return shq;
@@ -76,6 +77,7 @@ SHAPE* SHAPE_Create (short kind, void *data)
   ERRMEM (shq = malloc (sizeof (SHAPE)));
   shq->kind = kind;
   shq->data = data;
+  shq->epr = NULL;
   shq->next = NULL;
 
   return shq;

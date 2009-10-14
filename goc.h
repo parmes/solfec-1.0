@@ -57,4 +57,8 @@ int gobjcontact (
     double *area, /* area of contact */
     int spair [2]); /* surface pair codes */
 
+
+/* get distance between two objects (output closest point pair in p, q) */
+double gobjdistance (short paircode, SGP *one, SGP *two, double *p, double *q);
+
 #endif

@@ -908,3 +908,103 @@ int gobjcontact (
   else return update (paircode, oneshp, onegobj, twoshp,
     twogobj, onepnt, twopnt, normal, gap, area, spair);
 }
+
+
+/* get distance between two objects (output closest point pair in p, q) */
+double gobjdistance (short paircode, SGP *one, SGP *two, double *p, double *q)
+{
+  switch (paircode)
+  {
+    case AABB_ELEMENT_ELEMENT:
+    {
+      double va [24],
+             vb [24];
+      int nva,
+	  nvb;
+
+      nva = ELEMENT_Vertices (one->shp->data, one->gobj, va);
+      nvb = ELEMENT_Vertices (two->shp->data, two->gobj, vb);
+
+      return gjk (va, nva, vb, nvb, p, q);
+    }
+    break;
+    case AABB_CONVEX_CONVEX:
+    {
+      CONVEX *a = one->gobj,
+	     *b = two->gobj;
+
+      return gjk (a->cur, a->nver, b->cur, b->nver, p, q);
+    }
+    break;
+    case AABB_SPHERE_SPHERE:
+    {
+      SPHERE *a = one->gobj,
+	     *b = two->gobj;
+
+      return gjk_sphere_sphere (a->cur_center, a->cur_radius, b->cur_center, b->cur_radius, p, q);
+    }
+    break;
+    case AABB_ELEMENT_CONVEX:
+    {
+      double va [24];
+      int nva;
+      CONVEX *b = two->gobj;
+
+      nva = ELEMENT_Vertices (one->shp->data, one->gobj, va);
+
+      return gjk (va, nva, b->cur, b->nver, p, q);
+    }
+    break;
+    case AABB_CONVEX_ELEMENT:
+    {
+      CONVEX *a = one->gobj;
+      double vb [24];
+      int nvb;
+
+      nvb = ELEMENT_Vertices (two->shp->data, two->gobj, vb);
+
+      return gjk (a->cur, a->nver, vb, nvb, p, q);
+    }
+    break;
+    case AABB_ELEMENT_SPHERE:
+    {
+      double va [24];
+      int nva;
+      SPHERE *b = two->gobj;
+
+      nva = ELEMENT_Vertices (one->shp->data, one->gobj, va);
+
+      return gjk_convex_sphere (va, nva, b->cur_center, b->cur_radius, p, q);
+    }
+    break;
+    case AABB_SPHERE_ELEMENT:
+    {
+      SPHERE *a = one->gobj;
+      double vb [24];
+      int nvb;
+
+      nvb = ELEMENT_Vertices (two->shp->data, two->gobj, vb);
+
+      return gjk_convex_sphere (vb, nvb, a->cur_center, a->cur_radius, q, p);
+    }
+    break;
+    case AABB_CONVEX_SPHERE:
+    {
+      CONVEX *a = one->gobj;
+      SPHERE *b = two->gobj;
+
+      return gjk_convex_sphere (a->cur, a->nver, b->cur_center, b->cur_radius, p, q);
+    }
+    break;
+    case AABB_SPHERE_CONVEX:
+    {
+      SPHERE *a = one->gobj;
+      CONVEX *b = two->gobj;
+
+      return gjk_convex_sphere (b->cur, b->nver, a->cur_center, a->cur_radius, q, p);
+    }
+    break;
+  }
+
+  return 0;
+}

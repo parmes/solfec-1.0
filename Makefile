@@ -212,7 +212,7 @@ obj/bod.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat
 obj/dom.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/ldy.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h
+obj/ldy.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h mtx.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/bgs.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h

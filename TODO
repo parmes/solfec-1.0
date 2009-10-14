@@ -17,4 +17,6 @@ of min-block reactions
 ----------------------------------------------------------------
 Implement reading of multiple output files in separate threads
 (as many threads as there are files to read)
------------------------------------------------
+-------------------------------------------------------------
+Speed up rendering by using Vertex Buffer Objects extension
+-----------------------------------------------------------

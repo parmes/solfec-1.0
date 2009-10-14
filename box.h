@@ -211,4 +211,7 @@ void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two);
 /* release memory */
 void AABB_Destroy (AABB *aabb);
 
+/* get geometrical object extents update callback */
+BOX_Extents_Update SGP_Extents_Update (SGP *sgp);
+
 #endif

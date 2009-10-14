@@ -1949,6 +1949,8 @@ static SHAPE* create_shape_ext (PyObject *obj)
       {
 	it = PyList_GetItem (obj, i);
 
+	if (out) out->epr = (void*)1; /* mark this shape as the end of a previous extended element */
+
 	if (PyList_Check (it)) out = SHAPE_Glue_Simple (create_shape (it, 1), out); /* glue simple shapes from a list into one shape (create_shape) */
 	else out = SHAPE_Glue_Simple (SHAPE_Create (shape_kind (it), get_shape (it, 1)), out); /* non destructive append of shape list */
       }

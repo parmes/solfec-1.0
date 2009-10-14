@@ -176,21 +176,6 @@ static int gobj_kind (SGP *sgp)
   return 0;
 }
 
-/* get geometrical object extents update callback */
-static BOX_Extents_Update extents_update (SGP *sgp)
-{
-  switch (sgp->shp->kind)
-  {
-  case SHAPE_MESH: return (BOX_Extents_Update) ELEMENT_Extents;
-  case SHAPE_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
-  case SHAPE_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
-  }
-
-  ASSERT_DEBUG (0, "Invalid shape kind in extents_update");
-
-  return 0;
-}
-
 #if MPI
 /* number of boxes */
 static int box_count (AABB *aabb, int *ierr)
@@ -520,7 +505,7 @@ static void attach_detached (AABB *aabb)
       box->sgp = &bod->sgp [(int) (long) box->sgp];
       box->sgp->box = box;
       box->data = box->sgp->shp->data;
-      box->update = extents_update (box->sgp);
+      box->update = SGP_Extents_Update (box->sgp);
     }
     else AABB_Delete (aabb, box); 
   }
@@ -909,7 +894,7 @@ void AABB_Insert_Body (AABB *aabb, void *body)
 
   for (bod = body, sgp = bod->sgp, sgpe = sgp + bod->nsgp; sgp < sgpe; sgp ++)
   {
-    box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, sgp->shp->data, extents_update (sgp));
+    box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, sgp->shp->data, SGP_Extents_Update (sgp));
     box->update (box->data, box->sgp->gobj, box->extents); /* initial update */
   }
 }
@@ -1155,4 +1140,19 @@ void AABB_Destroy (AABB *aabb)
 #endif
 
   free (aabb);
+}
+
+/* get geometrical object extents update callback */
+BOX_Extents_Update SGP_Extents_Update (SGP *sgp)
+{
+  switch (sgp->shp->kind)
+  {
+  case SHAPE_MESH: return (BOX_Extents_Update) ELEMENT_Extents;
+  case SHAPE_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
+  case SHAPE_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
+  }
+
+  ASSERT_DEBUG (0, "Invalid shape kind in SGP_Extents_Update");
+
+  return 0;
 }

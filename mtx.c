@@ -35,7 +35,7 @@
 #define MXSTATIC(a) ((a)->flags & MXSTATIC)
 #define MXDSUBLK(a) ((a)->flags & MXDSUBLK)
 #define TEMPORARY(a) (MXTRANS(a)||MXDSUBLK(a))
-#define REALLOCED(a) ((a)->x != (double*)((a)+1))
+#define REALLOCED(a) (!MXSTATIC(a) && (a)->x != (double*)((a)+1))
 #define MXIFAC(a) ((a)->flags & MXIFAC)
 #define MXIFAC_WORK1(a) ((a)->x + (a)->nzmax)
 #define MXIFAC_WORK2(a) ((a)->x + (a)->nzmax + (a)->n)
@@ -155,6 +155,8 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	{
 	  if (REALLOCED (b)) free (b->x);
 
+	  ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
+
 	  ERRMEM (b->x = calloc (nzmax, sizeof (double)));
 
 	  b->nz = nzmax;
@@ -170,6 +172,8 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	  b->p = NULL;
 	  b->i = NULL;
 	}
+
+	ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
 
         ERRMEM (b->x = calloc (nzmax, sizeof (double)));
 
@@ -195,6 +199,8 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	    free (b->i);
 	  }
 
+	  ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
+
 	  ERRMEM (b->x = calloc (nzmax, sizeof (double)));
 	  ERRMEM (b->p = malloc (sizeof (int [n+1])));
 	  ERRMEM (b->i = malloc (sizeof (int [nzmax+1])));
@@ -210,6 +216,8 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	  if (b->kind == MXCSC) free (b->p), free (b->i);
 	}
 
+	ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
+
 	ERRMEM (b->x = calloc (nzmax, sizeof (double)));
 	ERRMEM (b->p = malloc (sizeof (int [n+1])));
 	ERRMEM (b->i = malloc (sizeof (int [nzmax+1])));
@@ -218,8 +226,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	b->nz = nzmax;
       }
 
-      for (int k = 0; k <= nzmax; k ++) b->i [k] = i [k];
-      for (int k = 0; k <= n; k ++ ) b->p [k] = p [k];
+      for (int k = 0; k <= n; k ++) b->p [k] = p [k], b->i [k] = i [k];
 
       b->nzmax = nzmax;
       b->m = m;
@@ -233,6 +240,8 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	free (b->x);
 	if (b->kind != MXDENSE) free (b->p), free (b->i);
       }
+
+      ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
 
       b->kind = kind;
       b->nzmax = nzmax;

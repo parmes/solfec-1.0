@@ -52,21 +52,21 @@ struct general_matrix
 /* static dense matrix */
 #define MX_DENSE(name, m, n)\
   double __##name [m*n];\
-  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, 0, __##name, NULL, NULL}
+  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, m*n, __##name, NULL, NULL}
 
 /* static dense matrix */
 #define MX_DENSE_PTR(name, m, n, ptr)\
-  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, 0, ptr, NULL, NULL}
+  MX name = {MXDENSE, MXSTATIC, m*n, m, n, NULL, NULL, m*n, ptr, NULL, NULL}
 
 /* static block diagonal matrix */
 #define MX_BD(name, nzmax, m, n, p, i)\
   double __##name [nzmax];\
-  MX name = {MXBD, MXSTATIC, nzmax, m, n, p, i, 0, __##name, NULL, NULL}
+  MX name = {MXBD, MXSTATIC, nzmax, m, n, p, i, nzmax, __##name, NULL, NULL}
 
 /* static sparse matrix */
 #define MX_CSC(name, nzmax, m, n, p, i)\
   double __##name [nzmax];\
-  MX name = {MXCSC, MXSTATIC, nzmax, m, n, p, i, 0, __##name, NULL, NULL}
+  MX name = {MXCSC, MXSTATIC, nzmax, m, n, p, i, -1, __##name, NULL, NULL}
 
 /* create a matrix => structure tables (p, i) always have
  * to be provided; the tables 'p' and 'i' are coppied */
