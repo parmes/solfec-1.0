@@ -558,7 +558,7 @@ static void prb_dynamic_force (BODY *bod, double time, double step, double *forc
       force [4] += A [1]*f [1];
       force [5] += A [2]*f [1];
       force [6] += A [0]*f [2];
-      force [6] += A [1]*f [2];
+      force [7] += A [1]*f [2];
       force [8] += A [2]*f [2];
       force [9] += f [0];
       force [10] += f [1];
@@ -698,7 +698,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
     {
       ERRMEM (bod = calloc (1, sizeof (BODY)));
       bod->kind = kind;
-      bod->mat = mat;
     }
     break;
     case RIG:
@@ -709,7 +708,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       bod->conf = (double*) (bod + 1);
       bod->velo = bod->conf + RIG_CONF_SIZE;
       bod->kind = kind;
-      bod->mat = mat;
       SHAPE_Char (shp,
 	&bod->ref_volume,
 	 bod->ref_center, euler);
@@ -733,7 +731,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       bod->conf = (double*) (bod + 1);
       bod->velo = bod->conf + PRB_CONF_SIZE;
       bod->kind = kind;
-      bod->mat = mat;
       SHAPE_Char (shp,
 	&bod->ref_volume,
 	 bod->ref_center,
@@ -761,6 +758,9 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       ASSERT (0, ERR_BOD_KIND);
     break;
   }
+
+  /* set material */
+  bod->mat = mat;
 
   /* set shape */ 
   bod->shape = shp;
@@ -982,13 +982,12 @@ void BODY_Dynamic_Init (BODY *bod, SCHEME scheme)
       
       if (scheme == SCH_DEFAULT)
 	bod->scheme = SCH_RIG_NEG;
-      else
-      { ASSERT (scheme >= SCH_RIG_POS && scheme <= SCH_RIG_IMP, ERR_BOD_SCHEME); }
+      else { ASSERT (scheme >= SCH_RIG_POS && scheme <= SCH_RIG_IMP, ERR_BOD_SCHEME); }
       bod->scheme = scheme;
     break;
     case PRB:
       prb_dynamic_inverse (bod);
-      { ASSERT (scheme == SCH_DEFAULT, ERR_BOD_SCHEME); }
+      ASSERT (scheme == SCH_DEFAULT, ERR_BOD_SCHEME);
       bod->scheme = scheme;
     break;
     case EPR:

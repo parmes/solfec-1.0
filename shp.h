@@ -79,6 +79,10 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle);
 /* get cur characteristics => volume, mass center, and Euler tensor (centered) */
 void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler);
 
+/* for the given shape (not list) compute current partial characteristic: 'vo'lume and static
+ * momenta 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
+void SHAPE_Char_Partial (SHAPE *shp, double *vo, double *sx, double *sy, double *sz, double *eul);
+
 /* return an object containing spatial point */
 void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out);
 

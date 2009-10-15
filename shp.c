@@ -276,6 +276,32 @@ void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler)
   if (euler) NNCOPY (eul, euler);
 }
 
+/* for the given shape (not list) compute current partial characteristic: 'vo'lume and static
+ * momenta 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
+void SHAPE_Char_Partial (SHAPE *shp, double *vo, double *sx, double *sy, double *sz, double *eul)
+{
+  double v = 0, s[3] = {0, 0, 0}, e [9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
+
+  gcha [shp->kind] (shp->data, &v, &s[0], &s[1], &s[2], e);
+
+  if (vo) *vo += v;
+  if (sx) *sx += s [0];
+  if (sy) *sy += s [1];
+  if (sz) *sz += s [2];
+  if (eul)
+  {
+    eul [0] += e[0];
+    eul [4] += e[4];
+    eul [8] += e[8];
+    eul [3] += e[3];
+    eul [6] += e[6];
+    eul [7] += e[7];
+    eul [1] += e[3];
+    eul [2] += e[6];
+    eul [5] += e[7];
+  }
+}
+
 /* return an object containing spatial point */
 void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out)
 {

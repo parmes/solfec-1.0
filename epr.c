@@ -20,10 +20,16 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include "epr.h"
+#include "dom.h"
 #include "hyb.h"
 #include "goc.h"
 #include "alg.h"
+#include "bla.h"
+#include "svk.h"
 #include "err.h"
+
+#define EPR_VEL0(bod) ((bod)->conf + 2 * (bod)->dofs)
+#define EPR_FORCE(bod) ((bod)->conf + 3 * (bod)->dofs)
 
 typedef struct epr_element EPR_ELEMENT;
 typedef struct epr_mesh EPR_MESH;
@@ -35,9 +41,13 @@ struct epr_element
 
   EPR_ELEMENT **adj;
 
+  BULK_MATERIAL *mat;
+
   int nadj;
 
-  double A [3]; /* a referential auxiliary point */
+  double A [3]; /* referential auxiliary point */
+
+  double vol; /* element volume */
 };
 
 /* extended pseudo-rigid mesh */
@@ -51,13 +61,13 @@ struct epr_mesh
 /* overlap callback for element adjacency */
 static void* overlap (void *data, BOX *one, BOX *two)
 {
+  EPR_ELEMENT *epr = one->sgp->shp->epr, *epq = two->sgp->shp->epr, **x, **y;
   double p [3], q [3];
+
+  if (epr == epq) return NULL; /* exclude self-contact */
 
   if (gobjdistance (GOBJ_Pair_Code (one, two), one->sgp, two->sgp, p, q) < GEOMETRIC_EPSILON) /* if they touch */
   {
-    EPR_ELEMENT *epr = one->sgp->shp->epr,
-		*epq = two->sgp->shp->epr, **x, **y;
-
     for (x = epr->adj, y = x + epr->nadj; x < y; x ++)
     {
       if (*x == epq) return NULL; /* already adjacent */
@@ -98,6 +108,330 @@ void set_up_adjacency (SHAPE *shp)
   free (boxes);
 }
 
+/* dive into shape primitives and try setting up ele[]->mat */
+void set_up_bulk_materials (EPR_ELEMENT *ele, int nele)
+{
+  //TODO
+}
+
+/* compute ele[]->A, ele[]->vol and return a table of static
+ * momenta and Euler tensors: {[Sx,Sy,Sz,E(3,3)], [-||-], ...} */
+static double* compute_epr_chars (EPR_ELEMENT *ele, int nele)
+{
+  double *A, *chars, *sta, *eul, coef, sum;
+  EPR_ELEMENT *cur, *end, **nei, **nee;
+  SHAPE *shp;
+
+  ERRMEM (chars = calloc (nele, sizeof (double [12])));
+
+  /* compute characteristics and volumes */
+  for (cur = ele, end = cur + nele, sta = chars, eul = sta + 3; cur < end; cur ++, sta += 12, eul += 12)
+  {
+    for (shp = cur->head; shp != cur->tail; shp = shp->next)
+    {
+      SHAPE_Char_Partial (shp, &cur->vol, &sta[0], &sta[1], &sta[2], eul);
+    }
+  }
+
+  /* compute ele[]->A */
+  for (cur = ele, end = cur + nele; cur < end; cur ++)
+  {
+    A = cur->A;
+    sta = &chars [12 * (cur - ele)];
+    coef = 1.0 / (double) (cur->nadj + 1);
+    COPY (sta, A);
+    SCALE (A, coef);
+    sum = coef * cur->vol;
+
+    for (nei = cur->adj, nee = nei + cur->nadj; nei < nee; nei ++)
+    {
+      sta = &chars [12 * ((*nei) - ele)];
+      coef = 1.0 / (double) ((*nei)->nadj + 1);
+      ADDMUL (A, coef, sta, A);
+      sum += coef * (*nei)->vol;
+    }
+    
+    coef = 1.0 / sum;
+    SCALE (A, coef);
+  }
+
+  return chars;
+}
+
+/* sum up a single value into a column map of values */
+static void sum_up (int i, int j, double x, MEM *map, MEM *val, MAP **col)
+{
+  double *y;
+  MAP *item;
+
+  if (!(item = MAP_Find_Node (col [j], (void*) (long) i, NULL)))
+  {
+    ERRMEM (y = MEM_Alloc (val));
+    item = MAP_Insert (map, &col [j], (void*) (long) i, y, NULL);
+  }
+
+  y = item->data, *y += x;
+}
+
+/* sum up element inertia into a column map of values */
+static void sum_up_inertia (int i, int j, double *Ai, double *Aj, double *eul, double *sta, int nadj, MEM *map, MEM *val, MAP **col)
+{
+  double XAj [9], AiX[9], AiAj [9], MijT [9], coef;
+  double I, J, k;
+
+  DIADIC (sta, Aj, XAj);
+  DIADIC (Ai, sta, AiX);
+  DIADIC (Ai, Aj, AiAj);
+
+  NTSUB (eul, XAj, MijT);
+  NTSUB (MijT, AiX, MijT);
+  NTADD (MijT, AiAj, MijT);
+
+  coef = 1.0 / (double) (nadj + 1);
+
+  SCALE9 (MijT, coef);
+
+  for (k = 0; k < 9; k += 3)
+  {
+    I = 9 * i + k;
+    J = 9 * j + k;
+
+    sum_up (I+0, J+0, MijT [0], map, val, col);
+    sum_up (I+1, J+0, MijT [1], map, val, col);
+    sum_up (I+2, J+0, MijT [2], map, val, col);
+    sum_up (I+0, J+1, MijT [3], map, val, col);
+    sum_up (I+1, J+1, MijT [4], map, val, col);
+    sum_up (I+2, J+1, MijT [5], map, val, col);
+    sum_up (I+0, J+2, MijT [6], map, val, col);
+    sum_up (I+1, J+2, MijT [7], map, val, col);
+    sum_up (I+2, J+2, MijT [8], map, val, col);
+  }
+}
+
+/* gather all elements stabbed by the point */
+static void epr_point_stab (EPR_MESH *msh, double *point, MEM *mem, SET **set)
+{
+  //TODO
+}
+
+/* get average deformation gradient over set */
+static void set_average_gradient (SET *set, double F[9])
+{
+  //TODO
+}
+
+/* get average deformation gradient over adjacency */
+static void adj_average_gradient (EPR_ELEMENT *ele, double F[9])
+{
+  //TODO
+}
+
+/* Lame's lambda coefficient */
+static double lambda (double young, double poisson)
+{
+  return young*poisson / ((1.0 + poisson)*(1.0 - 2.0*poisson));
+}
+
+/* Lame's mi coefficient */
+static double mi (double young, double poisson)
+{
+  return young / (2.0*(1.0 + poisson));
+}
+
+/* get lame coefficients */
+static void lame_coefs (BODY *bod, EPR_ELEMENT *ele, double *lame_lambda, double *lame_mi)
+{
+  if (ele->mat)
+  {
+    *lame_lambda = lambda (ele->mat->young, ele->mat->poisson);
+    *lame_mi = mi (ele->mat->young, ele->mat->poisson);
+  }
+  else
+  {
+    *lame_lambda = lambda (bod->mat->young, bod->mat->poisson);
+    *lame_mi = mi (bod->mat->young, bod->mat->poisson);
+  }
+}
+
+/* compute force(time) = external(time) - internal(time), provided
+ * that the configuration(time) has already been set elsewhere */
+static void epr_dynamic_force (BODY *bod, double time, double step, double *force)
+{
+  EPR_ELEMENT *ele, *end, **nei, **nee;
+  SET *set, *item;
+  EPR_MESH *msh;
+  double f [3],
+	 g [3],
+	*point,
+	*cur,
+	*lin,
+	 F [9],
+	 P [9],
+	 value,
+	 B [3],
+	 coef;
+  int shift;
+  MEM mem;
+
+  msh = bod->priv;
+
+  blas_dscal (bod->dofs, 0.0, force, 1); /* zero force */
+
+  lin = force + bod->dofs - 3;
+
+  MEM_Init (&mem, sizeof (SET), 128);
+  set = NULL;
+
+  /* point forces */
+  for (FORCE *frc = bod->forces; frc; frc = frc->next)
+  {
+    if (frc->func)
+    {
+      ERRMEM (cur = calloc (bod->dofs, sizeof (double)));
+      frc->func (frc->data, frc->call, bod->dofs, bod->conf, bod->dofs, bod->velo, time, step, cur);
+      blas_daxpy (bod->dofs, 1.0, cur, 1, force, 1);
+      free (cur);
+    }
+    else
+    {
+      value = TMS_Value (frc->data, time);
+      COPY (frc->direction, f);
+      SCALE (f, value);
+      point = frc->ref_point;
+
+      epr_point_stab (msh, point, &mem, &set); /* get elements stabbed by the point */
+
+      if (frc->kind & CONVECTED) /* obtain spatial force */
+      {
+	set_average_gradient (set, F);
+	NVMUL (F, f, g);
+	COPY (g, f);
+      }
+
+      for (item = SET_First (set); item; item = SET_Next (item))
+      {
+	ele = item->data;
+	shift = 9 * (ele - msh->ele);
+	cur = &force [shift];
+	coef = 1.0 / (double) (ele->nadj + 1);
+
+	SUB (point, ele->A, B);
+
+	cur [0] += B [0] * f [0];
+	cur [1] += B [1] * f [0];
+	cur [2] += B [2] * f [0];
+	cur [3] += B [0] * f [1];
+	cur [4] += B [1] * f [1];
+	cur [5] += B [2] * f [1];
+	cur [6] += B [0] * f [2];
+	cur [7] += B [1] * f [2];
+	cur [8] += B [2] * f [2];
+	lin [0] += f [0];
+	lin [1] += f [1];
+	lin [2] += f [2];
+      }
+    }
+  }
+
+  /* gravity */
+  if (DOM(bod->dom)->gravval)
+  {
+    COPY (DOM(bod->dom)->gravdir, f);
+    value = TMS_Value (DOM(bod->dom)->gravval, time);
+    SCALE (f, value);
+    ADDMUL (lin, bod->ref_mass, f, lin);
+  }
+
+  /* internal forces */
+  for (ele = msh->ele, end = ele + msh->nele; ele < end; ele ++)
+  {
+    double lambda, mi;
+
+    lame_coefs (bod, ele, &lambda, &mi);
+    adj_average_gradient (ele, F);
+    SVK_Stress_R (lambda, mi, ele->vol, F, P);
+    NNSUB (cur, P, cur);/* force = external - internal */
+
+    for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+    {
+      lame_coefs (bod, *nei, &lambda, &mi);
+      adj_average_gradient (*nei, F);
+      SVK_Stress_R (lambda, mi, (*nei)->vol, F, P);
+      NNSUB (cur, P, cur); /* force = external - internal */
+    }
+  }
+}
+
+/* accumulate constraints reaction */
+inline static void epr_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short isma, double *force)
+{
+#if 0
+  double H [36], r [12];
+
+  prb_operator_H (bod, point, base, H);
+  blas_dgemv ('T', 3, 12, 1.0, H, 3, R, 1, 0.0, r, 1);
+
+  if (isma)
+  {
+    force [0]  -= r[0];
+    force [1]  -= r[1];
+    force [2]  -= r[2];
+    force [3]  -= r[3];
+    force [4]  -= r[4];
+    force [5]  -= r[5];
+    force [6]  -= r[6];
+    force [7]  -= r[7];
+    force [8]  -= r[8];
+    force [9]  -= r[9];
+    force [10] -= r[10];
+    force [11] -= r[11];
+  }
+  else
+  {
+    force [0]  += r[0];
+    force [1]  += r[1];
+    force [2]  += r[2];
+    force [3]  += r[3];
+    force [4]  += r[4];
+    force [5]  += r[5];
+    force [6]  += r[6];
+    force [7]  += r[7];
+    force [8]  += r[8];
+    force [9]  += r[9];
+    force [10] += r[10];
+    force [11] += r[11];
+  }
+#else
+  //TODO
+#endif
+}
+
+/* calculate constraints reaction */
+static void epr_constraints_force (BODY *bod, double *force)
+{
+  SET *node;
+
+  blas_dscal (bod->dofs, 0.0, force, 1); /* zero force */
+
+  for (node = SET_First (bod->con); node; node = SET_Next (node))
+  {
+    CON *con = node->data;
+    short isma = (bod == con->master);
+    double *point = (isma ? con->mpnt : con->spnt);
+
+    epr_constraints_force_accum (bod, point, con->base, con->R, isma, force);
+  }
+
+#if MPI
+  for (MAP *node = MAP_First (bod->conext); node; node = MAP_Next (node))
+  {
+    CONEXT *con = node->data;
+
+    epr_constraints_force_accum (bod, con->point, con->base, con->R, con->isma, force);
+  }
+#endif
+}
+
 /* create EPR internals for a body */
 void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 {
@@ -105,6 +439,11 @@ void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
   EPR_MESH *msh;
   SHAPE *shq;
 
+  /* get some global mass characteristics */
+  SHAPE_Char (shp, &bod->ref_volume, bod->ref_center, bod->ref_tensor);
+  bod->ref_mass = bod->ref_volume * mat->density;
+
+  /* create mesh */ 
   ERRMEM (msh = malloc (sizeof (EPR_MESH)));
 
   for (shq = shp, msh->nele = 1; shq; shq = shq->next) /* initialize with 1 for the sake of the last NULL-terimed element */
@@ -132,10 +471,12 @@ void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 
   bod->dofs = 9 * msh->nele + 3;
 
-  ERRMEM (bod->conf = calloc (2 * bod->dofs, sizeof (double)));
+  ERRMEM (bod->conf = calloc (4 * bod->dofs, sizeof (double))); /* conf, velo, vel0, force */
   bod->velo = bod->conf + bod->dofs;
 
   for (double *F = bod->conf, *E = F + 9 * msh->nele; F < E; F += 9) { IDENTITY (F); }
+
+  set_up_bulk_materials (msh->ele, msh->nele);
 
   bod->priv = msh;
 }
@@ -171,8 +512,91 @@ void EPR_Initial_Velocity (BODY *bod, double *linear, double *angular)
 /* initialise dynamic time stepping */
 void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  EPR_ELEMENT *ele, *end, **nei, **nee;
+  double *xx, *chars, *sta, *eul, den;
+  int m, n, *p, *i, ii, jj, *pp;
+  MEM mapmem, valmem;
+  MAP **col, *item;
+  EPR_MESH *msh;
+
+  if (bod->inverse) MX_Destroy (bod->inverse);
+
+  msh = bod->priv;
+
+  chars = compute_epr_chars (msh->ele, msh->nele);
+
+  m = n = bod->dofs;
+
+  ERRMEM (col = calloc (n, sizeof (MAP*)));
+  MEM_Init (&mapmem, sizeof (MAP), MAX (256, 8 * n));
+  MEM_Init (&valmem, sizeof (double), MAX (256, 8 * n));
+
+  /* sum up element inertia into the column values map */
+  for (ele = msh->ele, end = ele + msh->nele; ele < end; ele ++)
+  {
+    ii = ele - msh->ele;
+    sta = &chars [12 * jj];
+    eul = sta + 3;
+    sum_up_inertia (ii, ii, ele->A, ele->A, eul, sta, ele->nadj, &mapmem, &valmem, col);
+
+    for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
+    {
+      jj = (*nei) - msh->ele;
+      sum_up_inertia (ii, jj, ele->A, (*nei)->A, eul, sta, ele->nadj, &mapmem, &valmem, col);
+    }
+  }
+
+  /* sum up scalar mass at the end */
+  sum_up (m-3, n-3, bod->ref_volume, &mapmem, &valmem, col);
+  sum_up (m-2, n-2, bod->ref_volume, &mapmem, &valmem, col);
+  sum_up (m-1, n-1, bod->ref_volume, &mapmem, &valmem, col);
+
+
+  /* compute sparse storage */
+  for (ii = jj = 0; jj < n; jj ++)
+  {
+    ii += MAP_Size (col [jj]);
+  }
+
+  ERRMEM (p = malloc (n * sizeof (int)));
+  ERRMEM (i = malloc (ii * sizeof (int)));
+
+  p [0] = 0;
+  pp = &p[1];
+
+  for (jj = 0; jj < n; jj ++)
+  {
+    for (item = MAP_First (col[jj]); item; item = MAP_Next (item), pp ++)
+    {
+      *pp = (int) (long) item->key;
+    }
+  }
+
+  /* create matrix */
+  bod->inverse = MX_Create (MXCSC, m, n, p, i);
+
+  /* set values and scale by volume density */
+  for (jj = 0, xx = bod->inverse->x, den = bod->mat->density; jj < n; jj ++)
+  {
+    for (item = MAP_First (col[jj]); item; item = MAP_Next (item), xx ++)
+    {
+      *xx = (*((double*) item->data)) * den;
+    }
+  }
+
+  /* compute inverse factorization */
+  MX_Inverse (bod->inverse, bod->inverse);
+
+  /* set integration scheme */
+  ASSERT (scheme == SCH_DEFAULT, ERR_BOD_SCHEME);
+  bod->scheme = scheme;
+
+  /* clean up */
+  MEM_Release (&mapmem);
+  MEM_Release (&valmem);
+  free (col);
+  free (p);
+  free (i);
 }
 
 /* estimate critical step for the dynamic scheme */
@@ -186,15 +610,24 @@ double EPR_Dynamic_Critical_Step (BODY *bod)
 /* perform the initial half-step of the dynamic scheme */
 void EPR_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  double half = 0.5 * step,
+        *force = EPR_FORCE (bod);
+
+  blas_dcopy (bod->dofs, bod->velo, 1, EPR_VEL0 (bod), 1); /* save u(t) */
+  blas_daxpy (bod->dofs, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+  epr_dynamic_force (bod, time+half, step, force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
+  MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
 }
 
 /* perform the final half-step of the dynamic scheme */
 void EPR_Dynamic_Step_End (BODY *bod, double time, double step)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  double half = 0.5 * step,
+        *force = EPR_FORCE (bod);
+      
+  epr_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */
+  blas_daxpy (bod->dofs, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
 }
 
 /* initialise static time stepping */
