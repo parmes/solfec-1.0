@@ -1087,6 +1087,20 @@ void MESH_Extents (MESH *msh, double *extents)
   }
 }
 
+/* return first not NULL bulk material of an element */
+void* MESH_First_Bulk_Material (MESH *msh)
+{
+  ELEMENT *ele;
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+    if (ele->mat) return ele->mat;
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+    if (ele->mat) return ele->mat;
+
+  return NULL;
+}
+
 /* free mesh memory */
 void MESH_Destroy (MESH *msh)
 {

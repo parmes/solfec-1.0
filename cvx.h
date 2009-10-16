@@ -93,6 +93,9 @@ void CONVEX_Extents (void *data, CONVEX *cvx, double *extents);
 /* compute extents of convex list */
 void CONVEX_List_Extents (CONVEX *cvx, double *extents);
 
+/* return first not NULL bulk material for a convex list */
+void* CONVEX_First_Bulk_Material (CONVEX *cvx);
+
 /* return convex containing the point */
 CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point);
 

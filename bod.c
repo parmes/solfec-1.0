@@ -39,16 +39,6 @@
 #include "epr.h"
 #include "fem.h"
 
-/* compute Mises norm of a Cauchy stress */
-#define MISES(s, v)\
-  do {\
-  double a = (s [0] - s [1])*(s [0] - s [1]);\
-  double b = (s [0] - s [2])*(s [0] - s [2]);\
-  double c = (s [2] - s [1])*(s [2] - s [1]);\
-  double d = 6. * (s [3]*s [3] + s [4]*s [4] + s [5]*s [5]);\
-  v = .707106781186548 * sqrt (a + b + c + d);\
-  } while (0)
-
 /* sizes */
 #define RIG_CONF_SIZE	15	/* rotation matrix, mass center position, auxiliary vector of size 3 */
 #define RIG_VELO_SIZE   12      /* referential angular velocity, spatial linear velocity, copies of both at (t-h) */

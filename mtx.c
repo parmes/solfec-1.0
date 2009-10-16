@@ -34,7 +34,8 @@
 #define MXTRANS(a) ((a)->flags & MXTRANS)
 #define MXSTATIC(a) ((a)->flags & MXSTATIC)
 #define MXDSUBLK(a) ((a)->flags & MXDSUBLK)
-#define TEMPORARY(a) (MXTRANS(a)||MXDSUBLK(a))
+#define MXUNINV(a) ((a)->flags & MXUNINV)
+#define TEMPORARY(a) ((a)->flags & (MXTRANS|MXDSUBLK|MXUNINV))
 #define REALLOCED(a) (!MXSTATIC(a) && (a)->x != (double*)((a)+1))
 #define MXIFAC(a) ((a)->flags & MXIFAC)
 #define MXIFAC_WORK1(a) ((a)->x + (a)->nzmax)
@@ -1644,7 +1645,7 @@ MX* MX_Tran (MX *a)
   ERRMEM (b = malloc (sizeof (MX)));
   memcpy (b, a, sizeof (MX));
   b->flags |= MXTRANS;
-  if (MXDSUBLK (a)) free (a);
+  if (TEMPORARY (a)) free (a);
   return b;
 }
 
@@ -1662,7 +1663,22 @@ MX* MX_Diag (MX *a, int from, int to)
   b->p = a->p + from;
   b->i = a->i + from;
   b->n = to - from + 1;
-  if (MXTRANS (a)) free (a);
+  if (TEMPORARY (a)) free (a);
+  return b;
+}
+
+MX* MX_Uninv (MX *a)
+{
+  MX *b;
+
+  ASSERT_DEBUG (KIND (a) == MXCSC, "Invalid matrix kind");
+  ASSERT_DEBUG (MXIFAC (a), "This is not a sparse inverse matrix");
+  ERRMEM (b = malloc (sizeof (MX)));
+  memcpy (b, a, sizeof (MX));
+  b->sym = b->num = NULL;
+  b->flags &= ~MXIFAC;
+  b->flags |= MXUNINV;
+  if (TEMPORARY (a)) free (a);
   return b;
 }
 

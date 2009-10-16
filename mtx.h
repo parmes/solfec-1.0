@@ -33,7 +33,8 @@ struct general_matrix
   enum {MXTRANS  = 0x01,        /* transposed matrix */
 	MXSTATIC = 0x02,        /* static matrix */
         MXDSUBLK = 0x04,        /* diagonal sub-block */
-        MXIFAC   = 0x08} flags; /* factorised sparse inverse */
+        MXIFAC   = 0x08,        /* factorised sparse inverse */
+        MXUNINV  = 0x10} flags; /* on-the-fly undone sparse inverse */
 
   int nzmax,   /* number of nonzero entries */
           m,   /* number of rows (DENSE, BD (and columns), CSC) */
@@ -90,6 +91,10 @@ MX* MX_Tran (MX *a);
  * it can only be used "on the fly" in order to modify an input to other routines; Applies
  * only to block diagonal (BD) matrices; (from, to) correspond to blocks range (inclusive) */
 MX* MX_Diag (MX *a, int from, int to);
+
+/* returned = undone sparse inverse (a) => IMPORTANT: never use this function to set a pointer;
+ * it can only be used "on the fly" in order to modify an input to other routines; Applies only to MXCSC  */
+MX* MX_Uninv (MX *a);
 
 /* sum of two matrices => c = alpha * a + beta * b;
  * if 'c' == NULL return new matrix; otherwise return 'c' */

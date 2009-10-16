@@ -751,6 +751,15 @@ void CONVEX_List_Extents (CONVEX *cvx, double *extents)
   }
 }
 
+/* return first not NULL bulk material for a convex list */
+void* CONVEX_First_Bulk_Material (CONVEX *cvx)
+{
+  for (; cvx; cvx = cvx->next)
+    if (cvx->mat) return cvx->mat;
+
+  return NULL;
+}
+
 /* return convex containing the point */
 CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point)
 {

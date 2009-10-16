@@ -79,7 +79,7 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle);
 /* get cur characteristics => volume, mass center, and Euler tensor (centered) */
 void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler);
 
-/* for the given shape (not list) compute current partial characteristic: 'vo'lume and static
+/* for the given shape (not a list) compute current partial characteristic: 'vo'lume and static
  * momenta 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
 void SHAPE_Char_Partial (SHAPE *shp, double *vo, double *sx, double *sy, double *sz, double *eul);
 
@@ -94,6 +94,10 @@ void SHAPE_Update (SHAPE *shp, void *body, MOTION motion);
 
 /* copute shape extents */
 void SHAPE_Extents (SHAPE *shp, double *extents);
+
+/* return first bulk material recorded
+ * in this individual shape (not a list) */
+void* SHAPE_First_Bulk_Material (SHAPE *shp);
 
 /* release shape memory */
 void SHAPE_Destroy (SHAPE *shp);

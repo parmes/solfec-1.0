@@ -126,6 +126,9 @@ CONVEX* MESH_Convex (MESH *msh, int surfonly);
 /* compute extents of entire mesh */
 void MESH_Extents (MESH *msh, double *extents);
 
+/* return first not NULL bulk material of an element */
+void* MESH_First_Bulk_Material (MESH *msh);
+
 /* free mesh memory */
 void MESH_Destroy (MESH *msh);
   

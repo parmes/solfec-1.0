@@ -48,6 +48,8 @@ typedef void (*update_func) (void*, void*, void*, MOTION);
 static update_func update [] = {(update_func)MESH_Update, (update_func)CONVEX_Update, (update_func)SPHERE_Update};
 typedef void (*extents_func) (void*, double*);
 static extents_func objextents [] = {(extents_func)MESH_Extents, (extents_func)CONVEX_List_Extents, (extents_func)SPHERE_List_Extents};
+typedef void* (*first_bulk_func) (void*);
+static first_bulk_func firstbulk [] = {(first_bulk_func)MESH_First_Bulk_Material, (first_bulk_func)CONVEX_First_Bulk_Material, (first_bulk_func)SPHERE_First_Bulk_Material};
 typedef void (*destroy_func) (void*);
 static destroy_func destroy [] = {(destroy_func)MESH_Destroy, (destroy_func)CONVEX_Destroy, (destroy_func)SPHERE_Destroy};
 typedef void (*pack_func) (void*, int*, double**, int*, int*, int**, int*);
@@ -276,7 +278,7 @@ void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler)
   if (euler) NNCOPY (eul, euler);
 }
 
-/* for the given shape (not list) compute current partial characteristic: 'vo'lume and static
+/* for the given shape (not a list) compute current partial characteristic: 'vo'lume and static
  * momenta 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
 void SHAPE_Char_Partial (SHAPE *shp, double *vo, double *sx, double *sy, double *sz, double *eul)
 {
@@ -375,6 +377,13 @@ void SHAPE_Extents (SHAPE *shp, double *extents)
   extents [3] += margin;
   extents [4] += margin;
   extents [5] += margin;
+}
+
+/* return first bulk material recorded
+ * in this individual shape (not a list) */
+void* SHAPE_First_Bulk_Material (SHAPE *shp)
+{
+  return firstbulk [shp->kind] (shp->data);
 }
 
 /* release shape memory */

@@ -1125,4 +1125,14 @@ if (((DET) =\
   (R2) [8] = aux[8] * (OMEGA)[2] + 2.0 * tmp[2];\
 }
 
+/* compute Mises norm of a Cauchy stress */
+#define MISES(s, v)\
+  do {\
+  double a = (s [0] - s [1])*(s [0] - s [1]);\
+  double b = (s [0] - s [2])*(s [0] - s [2]);\
+  double c = (s [2] - s [1])*(s [2] - s [1]);\
+  double d = 6. * (s [3]*s [3] + s [4]*s [4] + s [5]*s [5]);\
+  v = .707106781186548 * sqrt (a + b + c + d);\
+  } while (0)
+
 #endif

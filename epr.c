@@ -26,6 +26,9 @@
 #include "alg.h"
 #include "bla.h"
 #include "svk.h"
+#include "msh.h"
+#include "sph.h"
+#include "cvx.h"
 #include "err.h"
 
 #define EPR_VEL0(bod) ((bod)->conf + 2 * (bod)->dofs)
@@ -111,7 +114,16 @@ void set_up_adjacency (SHAPE *shp)
 /* dive into shape primitives and try setting up ele[]->mat */
 void set_up_bulk_materials (EPR_ELEMENT *ele, int nele)
 {
-  //TODO
+  EPR_ELEMENT *end;
+  SHAPE *shp;
+
+  for (end = ele + nele; ele < end; ele ++)
+  {
+    for (shp = ele->head; shp != ele->tail; shp = shp->next)
+    {
+      if ((ele->mat = SHAPE_First_Bulk_Material (shp))) break; /* set element material to first encountered primitive shape material */
+    }
+  }
 }
 
 /* compute ele[]->A, ele[]->vol and return a table of static
@@ -208,22 +220,35 @@ static void sum_up_inertia (int i, int j, double *Ai, double *Aj, double *eul, d
   }
 }
 
-/* gather all elements stabbed by the point */
-static void epr_point_stab (EPR_MESH *msh, double *point, MEM *mem, SET **set)
+/* get shape stabbed by a referential point */
+static SHAPE* epr_shape_stab (BODY *bod, double *point)
 {
-  //TODO
+  SHAPE *shp;
+
+  if (SHAPE_Gobj (bod->shape, point, &shp)) return shp; /* TODO: optimize by an EPR-specific spatial tree based search */
+  else return NULL;
 }
 
-/* get average deformation gradient over set */
-static void set_average_gradient (SET *set, double F[9])
+/* get (self-inclusive) average deformation gradient over adjacency */
+static void adj_average_gradient (EPR_ELEMENT *base, EPR_ELEMENT *ele, double *conf, double F[9])
 {
-  //TODO
-}
+  EPR_ELEMENT **nei, **nee;
+  double *grad, coef;
+  int shift;
 
-/* get average deformation gradient over adjacency */
-static void adj_average_gradient (EPR_ELEMENT *ele, double F[9])
-{
-  //TODO
+  shift = 9 * (ele - base);
+  grad = &conf [shift];
+  NNCOPY (grad, F);
+
+  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  {
+    shift =  9 * ((*nei) - base);
+    grad = &conf [shift];
+    NNADD (grad, F, F);
+  }
+
+  coef = 1.0 / (double) (ele->nadj + 1);
+  SCALE9 (F, coef);
 }
 
 /* Lame's lambda coefficient */
@@ -258,8 +283,8 @@ static void lame_coefs (BODY *bod, EPR_ELEMENT *ele, double *lame_lambda, double
 static void epr_dynamic_force (BODY *bod, double time, double step, double *force)
 {
   EPR_ELEMENT *ele, *end, **nei, **nee;
-  SET *set, *item;
   EPR_MESH *msh;
+  SHAPE *shp;
   double f [3],
 	 g [3],
 	*point,
@@ -271,16 +296,12 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
 	 B [3],
 	 coef;
   int shift;
-  MEM mem;
 
   msh = bod->priv;
 
   blas_dscal (bod->dofs, 0.0, force, 1); /* zero force */
 
   lin = force + bod->dofs - 3;
-
-  MEM_Init (&mem, sizeof (SET), 128);
-  set = NULL;
 
   /* point forces */
   for (FORCE *frc = bod->forces; frc; frc = frc->next)
@@ -299,36 +320,48 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
       SCALE (f, value);
       point = frc->ref_point;
 
-      epr_point_stab (msh, point, &mem, &set); /* get elements stabbed by the point */
+      shp = epr_shape_stab (bod, point); /* get element stabbed by the point */
 
-      if (frc->kind & CONVECTED) /* obtain spatial force */
+      if (shp)
       {
-	set_average_gradient (set, F);
-	NVMUL (F, f, g);
-	COPY (g, f);
-      }
+	ele = shp->epr;
 
-      for (item = SET_First (set); item; item = SET_Next (item))
-      {
-	ele = item->data;
-	shift = 9 * (ele - msh->ele);
-	cur = &force [shift];
-	coef = 1.0 / (double) (ele->nadj + 1);
+	if (frc->kind & CONVECTED) /* obtain spatial force */
+	{
+	  adj_average_gradient (msh->ele, ele, bod->conf, F);
+	  NVMUL (F, f, g);
+	  COPY (g, f);
+	}
 
-	SUB (point, ele->A, B);
+	nei = &ele; /* see below for loop */
+	goto jumpin; /* execute loop code for 'ele' */
 
-	cur [0] += B [0] * f [0];
-	cur [1] += B [1] * f [0];
-	cur [2] += B [2] * f [0];
-	cur [3] += B [0] * f [1];
-	cur [4] += B [1] * f [1];
-	cur [5] += B [2] * f [1];
-	cur [6] += B [0] * f [2];
-	cur [7] += B [1] * f [2];
-	cur [8] += B [2] * f [2];
-	lin [0] += f [0];
-	lin [1] += f [1];
-	lin [2] += f [2];
+loopin:
+	for (nei = ele->adj, nee = nei+ele->nadj, ele = *nei; nei < nee; nei ++, ele = *nei)
+	{
+jumpin:
+	  shift = 9 * (ele - msh->ele);
+	  cur = &force [shift];
+	  coef = 1.0 / (double) (ele->nadj + 1);
+
+	  SUB (point, ele->A, B);
+
+	  cur [0] += B [0] * f [0] * coef;
+	  cur [1] += B [1] * f [0] * coef;
+	  cur [2] += B [2] * f [0] * coef;
+	  cur [3] += B [0] * f [1] * coef;
+	  cur [4] += B [1] * f [1] * coef;
+	  cur [5] += B [2] * f [1] * coef;
+	  cur [6] += B [0] * f [2] * coef;
+	  cur [7] += B [1] * f [2] * coef;
+	  cur [8] += B [2] * f [2] * coef;
+
+	  lin [0] += f [0];
+	  lin [1] += f [1];
+	  lin [2] += f [2];
+	}
+
+	if (nei == &ele) goto loopin; /* execute loop code on 'ele->adj' */
       }
     }
   }
@@ -348,62 +381,43 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
     double lambda, mi;
 
     lame_coefs (bod, ele, &lambda, &mi);
-    adj_average_gradient (ele, F);
+    adj_average_gradient (msh->ele, ele, bod->conf, F);
     SVK_Stress_R (lambda, mi, ele->vol, F, P);
-    NNSUB (cur, P, cur);/* force = external - internal */
+    coef = 1.0 / (double) (ele->nadj + 1);
+    NNSUBMUL (cur, coef, P, cur); /* force = external - internal */
 
     for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
     {
       lame_coefs (bod, *nei, &lambda, &mi);
-      adj_average_gradient (*nei, F);
+      adj_average_gradient (msh->ele, *nei, bod->conf, F);
       SVK_Stress_R (lambda, mi, (*nei)->vol, F, P);
-      NNSUB (cur, P, cur); /* force = external - internal */
+      coef = 1.0 / (double) ((*nei)->nadj + 1);
+      NNSUBMUL (cur, coef, P, cur); /* force = external - internal */
     }
   }
 }
 
-/* accumulate constraints reaction */
-inline static void epr_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short isma, double *force)
+/* static unbalanced force computation */
+#define epr_static_force(bod, time, step, force) epr_dynamic_force (bod, time, step, force)
+
+/* compute static inverse operator */
+static void epr_static_inverse (BODY *bod, double step)
 {
-#if 0
-  double H [36], r [12];
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  /* TODO */
+}
 
-  prb_operator_H (bod, point, base, H);
-  blas_dgemv ('T', 3, 12, 1.0, H, 3, R, 1, 0.0, r, 1);
+/* accumulate constraints reaction */
+inline static void epr_constraints_force_accum (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base, double *R, short isma, double *force)
+{
+  MX *H;
 
-  if (isma)
-  {
-    force [0]  -= r[0];
-    force [1]  -= r[1];
-    force [2]  -= r[2];
-    force [3]  -= r[3];
-    force [4]  -= r[4];
-    force [5]  -= r[5];
-    force [6]  -= r[6];
-    force [7]  -= r[7];
-    force [8]  -= r[8];
-    force [9]  -= r[9];
-    force [10] -= r[10];
-    force [11] -= r[11];
-  }
-  else
-  {
-    force [0]  += r[0];
-    force [1]  += r[1];
-    force [2]  += r[2];
-    force [3]  += r[3];
-    force [4]  += r[4];
-    force [5]  += r[5];
-    force [6]  += r[6];
-    force [7]  += r[7];
-    force [8]  += r[8];
-    force [9]  += r[9];
-    force [10] += r[10];
-    force [11] += r[11];
-  }
-#else
-  //TODO
-#endif
+  H = EPR_Gen_To_Loc_Operator (bod, shp, gobj, point, base);
+
+  if (isma) MX_Matvec (-1.0, MX_Tran (H), R, 1.0, force);
+  else MX_Matvec (1.0, MX_Tran (H), R, 1.0, force);
+
+  MX_Destroy (H);
 }
 
 /* calculate constraints reaction */
@@ -418,8 +432,10 @@ static void epr_constraints_force (BODY *bod, double *force)
     CON *con = node->data;
     short isma = (bod == con->master);
     double *point = (isma ? con->mpnt : con->spnt);
+    SHAPE *shp = (isma ? con->mshp : con->sshp);
+    void *gobj = (isma ? con->mgobj : con->sgobj);
 
-    epr_constraints_force_accum (bod, point, con->base, con->R, isma, force);
+    epr_constraints_force_accum (bod, shp, gobj, point, con->base, con->R, isma, force);
   }
 
 #if MPI
@@ -427,9 +443,66 @@ static void epr_constraints_force (BODY *bod, double *force)
   {
     CONEXT *con = node->data;
 
-    epr_constraints_force_accum (bod, con->point, con->base, con->R, con->isma, force);
+    epr_constraints_force_accum (bod, con->sgp->shp, con->sgp->gobj, con->point, con->base, con->R, con->isma, force);
   }
 #endif
+}
+
+/* calculates a block of transformation operator from generalized
+ * velocity space to the local cartesian space at 'X' in given 'base' */
+static void epr_operator_block_H (double *X, double *A, double *base, double *H) /* H is assumed all zero on entry */
+{
+  double B [3];
+
+  SUB (X, A, B); 
+
+  H [0] = base [0] * B [0];
+  H [3] = base [0] * B [1];
+  H [6] = base [0] * B [2];
+  H [9] = base [1] * B [0];
+  H [12] = base [1] * B [1];
+  H [15] = base [1] * B [2];
+  H [18] = base [2] * B [0];
+  H [21] = base [2] * B [1];
+  H [24] = base [2] * B [2];
+
+  H [1] = base [3] * B [0];
+  H [4] = base [3] * B [1];
+  H [7] = base [3] * B [2];
+  H [10] = base [4] * B [0];
+  H [13] = base [4] * B [1];
+  H [16] = base [4] * B [2];
+  H [19] = base [5] * B [0];
+  H [22] = base [5] * B [1];
+  H [25] = base [5] * B [2];
+
+  H [2] = base [6] * B [0];
+  H [5] = base [6] * B [1];
+  H [8] = base [6] * B [2];
+  H [11] = base [7] * B [0];
+  H [14] = base [7] * B [1];
+  H [17] = base [7] * B [2];
+  H [20] = base [8] * B [0];
+  H [23] = base [8] * B [1];
+  H [26] = base [8] * B [2];
+}
+
+/* calculate cauche stress for a pseudo-rigid body */
+void epr_cauchy (BODY *bod, EPR_MESH *msh, EPR_ELEMENT *ele, double *stress)
+{
+  double P [9], J, F [9], lambda, mi;
+
+  lame_coefs (bod, ele, &lambda, &mi);
+  adj_average_gradient (msh->ele, ele, bod->conf, F);
+
+  J = SVK_Stress_R (lambda, mi , 1.0, F, P); /* per unit volume */
+
+  stress [0] = (F [0]*P [0] + F [1]*P [3] + F [2]*P [6]) / J;
+  stress [1] = (F [3]*P [1] + F [4]*P [4] + F [5]*P [7]) / J;
+  stress [2] = (F [6]*P [2] + F [7]*P [5] + F [8]*P [8]) / J;
+  stress [3] = (F [0]*P [1] + F [1]*P [4] + F [2]*P [7]) / J;
+  stress [4] = (F [0]*P [2] + F [1]*P [5] + F [2]*P [8]) / J;
+  stress [5] = (F [3]*P [2] + F [4]*P [5] + F [5]*P [8]) / J;
 }
 
 /* create EPR internals for a body */
@@ -594,6 +667,7 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
   /* clean up */
   MEM_Release (&mapmem);
   MEM_Release (&valmem);
+  free (chars);
   free (col);
   free (p);
   free (i);
@@ -633,78 +707,327 @@ void EPR_Dynamic_Step_End (BODY *bod, double time, double step)
 /* initialise static time stepping */
 void EPR_Static_Init (BODY *bod)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  /* cancel initial velocity */
+  blas_dscal (bod->dofs, 0.0, bod->velo, 1);
 }
 
 /* perform the initial half-step of the static scheme */
 void EPR_Static_Step_Begin (BODY *bod, double time, double step)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  double *force = EPR_FORCE (bod);
+
+  epr_static_inverse (bod, step); /* compute inverse of static tangent operator */
+  epr_static_force (bod, time+step, step, force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
+  MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
 }
 
 /* perform the final half-step of the static scheme */
 void EPR_Static_Step_End (BODY *bod, double time, double step)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  double *force = EPR_FORCE (bod);
+      
+  epr_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
+  blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
 }
 
 /* motion x = x (X, state) */
 void EPR_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  double *conf, *F, *a, *A, coef, B [3];
+  EPR_ELEMENT *ele, **nei, **nee;
+  EPR_MESH *msh;
+  int shift;
+
+  msh = bod->priv;
+  ele = shp->epr;
+  conf = bod->conf;
+  a = conf + bod->dofs - 3;
+  coef = 1.0  / (double) (ele->nadj + 1);
+
+  shift = 9 * (ele - msh->ele);
+  F = &conf [shift];
+  A = ele->A;
+
+  SUB (X, A, B);
+  TVMUL (F, B, x); /* transpose, as F is stored row-wise */
+
+  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  {
+    shift = 9 * ((*nei) - msh->ele);
+    F = &conf [shift];
+    A = (*nei)->A;
+
+    SUB (X, A, B);
+    TVADDMUL (x, F, B, x); /* transpose, as F is stored row-wise */
+  }
+
+  SCALE (x, coef); /* scale by shape function value */
+
+  ADD (x, a, x); /* add motion of the mass center */
 }
 
 /* inverse motion X = X (x, state) */
 void EPR_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  double *conf, *F, *a, *A, coef, B [3], C [3], FAVG [9], IF [9], det;
+  EPR_ELEMENT *ele, **nei, **nee;
+  EPR_MESH *msh;
+  int shift;
+
+  msh = bod->priv;
+  ele = shp->epr;
+  conf = bod->conf;
+  a = conf + bod->dofs - 3;
+  coef = 1.0  / (double) (ele->nadj + 1);
+
+  shift = 9 * (ele - msh->ele);
+  F = &conf [shift];
+  A = ele->A;
+
+  TVMUL (F, A, B); /* B = (x-a) + SUM Ni Fi Ai; transpose, as F is stored row-wise */
+  TNCOPY (F, FAVG); /* FAVG = SUM Ni Fi */
+
+  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  {
+    shift = 9 * ((*nei) - msh->ele);
+    F = &conf [shift];
+    A = (*nei)->A;
+
+    TVADDMUL (B, F, A, B);
+    NTADD (FAVG, F, FAVG);
+  }
+
+  SCALE (B, coef);  /* scale by shape function value */
+  SUB (x, a, C);
+  ADD (B, C, B); /* B = (x-a) + SUM Ni Fi Ai */
+
+  SCALE9 (FAVG, coef); /* FAVG = SUM Ni Fi */
+
+  INVERT (FAVG, IF, det);
+  ASSERT (det > 0.0, ERR_BOD_MOTION_INVERT);
+  NVMUL (IF, B, X);
+  NVADDMUL (C, IF, a, X); /* X = inv (SUM Ni Fi) * {(x - a) + SUM Ni Fi Ai} */
 }
 
 /* obtain velocity at (element, point), expressed in the local 'base' => all entities are spatial */
 void EPR_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  double *genvel, *F, *a, *A, coef, B [3], v [3];
+  EPR_ELEMENT *ele, **nei, **nee;
+  EPR_MESH *msh;
+  int shift;
+
+  msh = bod->priv;
+  ele = shp->epr;
+  genvel = time == CURVELO ? bod->velo : EPR_VEL0 (bod);
+  a = genvel + bod->dofs - 3;
+  coef = 1.0  / (double) (ele->nadj + 1);
+
+  shift = 9 * (ele - msh->ele);
+  F = &genvel [shift];
+  A = ele->A;
+
+  SUB (point, A, B);
+  TVMUL (F, B, v); /* v = SUM Ni dF/dti (point - Ai) + da/dt; transpose, as F is stored row-wise */
+
+  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  {
+    shift = 9 * ((*nei) - msh->ele);
+    F = &genvel [shift];
+    A = (*nei)->A;
+
+    SUB (point, A, B);
+    TVADDMUL (v, F, B, v);
+  }
+
+  SCALE (v, coef); /* scale by shape function value */
+
+  ADD (v, a, v); /* v = SUM Ni dF/dti (point - Ai) + da/dt */
+
+  TVMUL (base, v, velo); /* express in local base */
 }
 
 /* return transformation operator from the generalised to the local velocity space at (element, point, base) */
 MX* EPR_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
-  return NULL;
+  EPR_ELEMENT *ele, **nei, **nee;
+  double *tail, coef;
+  EPR_MESH *msh;
+  int shift;
+  MX *H;
+
+  msh = bod->priv;
+  ele = shp->epr;
+  coef = 1.0 / (double) (ele->nadj + 1);
+
+  H = MX_Create (MXDENSE, 3, bod->dofs, NULL, NULL); /* initially a zero matrix */
+
+  shift = 27 * (ele - msh->ele);
+  epr_operator_block_H (point, ele->A, base, &H->x[shift]);
+
+  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  {
+    shift = 27 * ((*nei) - msh->ele);
+    epr_operator_block_H (point, (*nei)->A, base, &H->x[shift]);
+  }
+
+  MX_Scale (H, coef); /* scale by shape function value */
+
+  tail = &H->x[3 * bod->dofs - 9];
+  TNCOPY (base, tail); /* copy last bit from the linear motion */
+
+  return H;
 }
 
 /* compute current kinetic energy */
 double EPR_Kinetic_Energy (BODY *bod)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
-  return 0.0;
+  double *tmp = EPR_FORCE (bod);
+
+  ASSERT_DEBUG (bod->inverse, "Invalid inertia operator");
+
+  MX_Matvec (1.0, MX_Uninv (bod->inverse), bod->velo, 0.0, tmp);
+
+  return 0.5 * blas_ddot (bod->dofs, tmp, 1, bod->velo, 1);
 }
 
 /* get some values at a node of a geometrical object */
 void EPR_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  double ref_point [3];
+
+  switch (shp->kind)
+  {
+  case SHAPE_MESH:
+  {
+    MESH *msh = shp->data;
+    ELEMENT *ele = gobj;
+    int n = ele->nodes [node];
+
+    COPY (msh->ref_nodes [n], ref_point);
+  }
+  break;
+  case SHAPE_CONVEX:
+  {
+    CONVEX *cvx = gobj;
+    double *ref = cvx->ref + 3 * node;
+
+    COPY (ref, ref_point);
+  }
+  break;
+  case SHAPE_SPHERE:
+  {
+    SPHERE *sph = gobj;
+
+    COPY (sph->ref_center, ref_point);
+  }
+  break;
+  }
+
+  switch (kind)
+  {
+  case VALUE_DISPLACEMENT:
+  {
+    double cur_point [3];
+
+    EPR_Cur_Point (bod, shp, gobj, ref_point, cur_point);
+    SUB (cur_point, ref_point, values);
+  }
+  break;
+  case VALUE_VELOCITY:
+  {
+    double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+    EPR_Local_Velo (bod, CURVELO, shp, gobj, ref_point, base, values);
+  }
+  break;
+  case VALUE_STRESS:
+  {
+    epr_cauchy (bod, bod->priv, shp->epr, values);
+  }
+  break;
+  case VALUE_MISES:
+  {
+    double stress [6];
+
+    epr_cauchy (bod, bod->priv, shp->epr, stress);
+    MISES (stress, values [0]);
+  }
+  break;
+  case VALUE_STRESS_AND_MISES:
+  {
+    epr_cauchy (bod, bod->priv, shp->epr, values);
+    MISES (values, values [6]);
+  }
+  break;
+  }
 }
 
 /* get some values at a referential point */
 void EPR_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  SHAPE *shp;
+
+  if ((shp = epr_shape_stab (bod, point)))
+  {
+    switch (kind)
+    {
+    case VALUE_DISPLACEMENT:
+    {
+      double cur_point [3];
+
+      EPR_Cur_Point (bod, shp, NULL, point, cur_point);
+      SUB (cur_point, point, values);
+    }
+    break;
+    case VALUE_VELOCITY:
+    {
+      double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+
+      EPR_Local_Velo (bod, CURVELO, shp, NULL, point, base, values);
+    }
+    break;
+    case VALUE_STRESS:
+    {
+      epr_cauchy (bod, bod->priv, shp->epr, values);
+    }
+    break;
+    case VALUE_MISES:
+    {
+      double stress [6];
+
+      epr_cauchy (bod, bod->priv, shp->epr, stress);
+      MISES (stress, values [0]);
+    }
+    break;
+    case VALUE_STRESS_AND_MISES:
+    {
+      epr_cauchy (bod, bod->priv, shp->epr, values);
+      MISES (values, values [6]);
+    }
+    break;
+    }
+  }
 }
 
 /* release EPR memory */
 void EPR_Destroy (BODY *bod)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  /* TODO */
+  EPR_ELEMENT *ele, *end;
+  EPR_MESH *msh;
+
+  msh = bod->priv;
+
+  for (ele = msh->ele, end = ele + msh->nele; ele < end; ele ++) free (ele->adj);
+
+  free (msh->ele);
+
+  free (msh);
+
+  bod->priv = NULL;
+
+  if (bod->inverse) MX_Destroy (bod->inverse);
+
+  bod->inverse = NULL;
 }

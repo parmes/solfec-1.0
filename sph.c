@@ -362,6 +362,15 @@ void SPHERE_List_Extents (SPHERE *sph, double *extents)
   }
 }
 
+/* return first not NULL bulk material for a sphere list */
+void* SPHERE_First_Bulk_Material (SPHERE *sph)
+{
+  for (; sph; sph = sph->next)
+    if (sph->mat) return sph->mat;
+
+  return NULL;
+}
+
 /* return sphere containing the point */
 SPHERE* SPHERE_Containing_Point (SPHERE *sph, double *point)
 {
