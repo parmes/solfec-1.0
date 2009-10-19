@@ -2027,7 +2027,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     }
     ELIF (kind, "EXTENDED_PSEUDO_RIGID")
     {
-      self->bod = BODY_Create (PRB, create_shape_ext (shape), get_bulk_material (solfec->sol, material), lab, form);
+      self->bod = BODY_Create (EPR, create_shape_ext (shape), get_bulk_material (solfec->sol, material), lab, form);
     }
     ELIF (kind, "FINITE_ELEMENT")
     {

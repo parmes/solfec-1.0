@@ -902,7 +902,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	if (a->kind == MXCSC) A = cs_transpose (a, 1), un = 0;
 	else A = a, a->flags |= MXTRANS, un = 1; /* transpose (we need to read rows) */
 	B = b;
-	for (i = 0; i < a->m; i ++) vec_inv (col (A, i, w), B, v), putrow (d, i, v);
+	for (i = 0; i < d->m; i ++) vec_inv (col (A, i, w), B, v), putrow (d, i, v);
 	if (un) a->flags &= ~MXTRANS; /* untranspose */
       }
       break;
@@ -912,7 +912,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	d = MX_Create (MXDENSE, a->n, b->n, NULL, NULL);
 	A = a, a->flags &= ~MXTRANS; /* untranspose (to read rows) */
 	B = b;
-	for (i = 0; i < A->m; i ++) vec_inv (col (A, i, w), B, v), putrow (d, i, v);
+	for (i = 0; i < d->m; i ++) vec_inv (col (A, i, w), B, v), putrow (d, i, v);
 	a->flags |= MXTRANS; /* transpose back */
       }
       break;
@@ -923,7 +923,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	if (a->kind == MXCSC) A = cs_transpose (a, 1), un = 0;
 	else A = a, a->flags |= MXTRANS, un = 1; /* transpose (we need to read rows) */
 	B = b;
-	for (i = 0; i < A->m; i ++) vec_inv_tran (col (A, i, w), B, v), putrow (d, i, v);
+	for (i = 0; i < d->m; i ++) vec_inv_tran (col (A, i, w), B, v), putrow (d, i, v);
 	if (un) a->flags &= ~MXTRANS; /* untranspose */
       }
       break;
@@ -933,7 +933,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	d = MX_Create (MXDENSE, a->n, b->m, NULL, NULL);
 	A = a, a->flags &= ~MXTRANS; /* untranspose (to read rows) */
 	B = b;
-	for (i = 0; i < A->m; i ++) vec_inv_tran (col (A, i, w), B, v), putrow (d, i, v);
+	for (i = 0; i < d->m; i ++) vec_inv_tran (col (A, i, w), B, v), putrow (d, i, v);
 	a->flags |= MXTRANS; /* transpose back */
       }
       break;
@@ -949,7 +949,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	d = MX_Create (MXDENSE, a->m, b->n, NULL, NULL);
 	A = a;
 	B = b;
-	for (i = 0; i < B->n; i ++) inv_vec (A, col (B, i, w), col (d, i, NULL));
+	for (i = 0; i < d->n; i ++) inv_vec (A, col (B, i, w), col (d, i, NULL));
       }
       break;
       case 0x10:
@@ -958,7 +958,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	d = MX_Create (MXDENSE, a->n, b->n, NULL, NULL);
 	A = a;
 	B = b;
-	for (i = 0; i < B->n; i ++) inv_tran_vec (A, col (B, i, w), col (d, i, NULL));
+	for (i = 0; i < d->n; i ++) inv_tran_vec (A, col (B, i, w), col (d, i, NULL));
       }
       break;
       case 0x01:
@@ -967,7 +967,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	d = MX_Create (MXDENSE, a->m, b->m, NULL, NULL);
 	A = a;
 	B = b->kind == MXCSC ? cs_transpose (b, 1) : b;
-	for (i = 0; i < B->n; i ++) inv_vec (A, col (B, i, w), col (d, i, NULL));
+	for (i = 0; i < d->n; i ++) inv_vec (A, col (B, i, w), col (d, i, NULL));
       }
       break;
       case 0x11:
@@ -976,7 +976,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
 	d = MX_Create (MXDENSE, a->n, b->m, NULL, NULL);
 	A = a;
 	B = b->kind == MXCSC ? cs_transpose (b, 1) : b;
-	for (i = 0; i < B->n; i ++) inv_tran_vec (A, col (B, i, w), col (d, i, NULL));
+	for (i = 0; i < d->n; i ++) inv_tran_vec (A, col (B, i, w), col (d, i, NULL));
       }
       break;
     }

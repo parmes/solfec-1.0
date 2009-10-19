@@ -42,11 +42,11 @@ struct epr_element
 {
   SHAPE *head, *tail; /* beginning and end of shapes within this element */
 
-  EPR_ELEMENT **adj;
+  EPR_ELEMENT **adj; /* self-inclusive adjacency */
 
   BULK_MATERIAL *mat;
 
-  int nadj;
+  int nadj; /* >= 1 */
 
   double A [3]; /* referential auxiliary point */
 
@@ -86,9 +86,10 @@ static void* overlap (void *data, BOX *one, BOX *two)
 }
 
 /* set up adjacency pointers */
-void set_up_adjacency (SHAPE *shp)
+void set_up_adjacency (SHAPE *shp, EPR_MESH *msh)
 {
   BOX_Extents_Update update;
+  EPR_ELEMENT *ele, *end;
   SGP *sgp, *sge, *sgx;
   BOX **boxes;
   MEM mem;
@@ -106,6 +107,13 @@ void set_up_adjacency (SHAPE *shp)
   }
 
   hybrid (boxes, num, NULL, overlap); /* detect boxoverlaps => set adjacency inside the callback */
+
+  /* append self-reference to the adjacency list */
+  for (ele = msh->ele, end = ele + msh->nele; ele < end; ele ++)
+  {
+    ERRMEM (ele->adj = realloc (ele->adj, (++ele->nadj) * sizeof (EPR_ELEMENT)));
+    ele->adj [ele->nadj-1] = ele;
+  }
 
   MEM_Release (&mem); /* done */
   free (boxes);
@@ -146,25 +154,20 @@ static double* compute_epr_chars (EPR_ELEMENT *ele, int nele)
   }
 
   /* compute ele[]->A */
-  for (cur = ele, end = cur + nele; cur < end; cur ++)
+  for (cur = ele, end = cur + nele, A = cur->A; cur < end; cur ++, A = cur->A)
   {
-    A = cur->A;
-    sta = &chars [12 * (cur - ele)];
-    coef = 1.0 / (double) (cur->nadj + 1);
-    COPY (sta, A);
-    SCALE (A, coef);
-    sum = coef * cur->vol;
+    SET (A, 0.0);
+    sum = 0.0;
 
     for (nei = cur->adj, nee = nei + cur->nadj; nei < nee; nei ++)
     {
       sta = &chars [12 * ((*nei) - ele)];
-      coef = 1.0 / (double) ((*nei)->nadj + 1);
+      coef = 1.0 / (double) (*nei)->nadj;
       ADDMUL (A, coef, sta, A);
       sum += coef * (*nei)->vol;
     }
-    
-    coef = 1.0 / sum;
-    SCALE (A, coef);
+   
+    DIV (A, sum, A); 
   }
 
   return chars;
@@ -199,14 +202,17 @@ static void sum_up_inertia (int i, int j, double *Ai, double *Aj, double *eul, d
   NTSUB (MijT, AiX, MijT);
   NTADD (MijT, AiAj, MijT);
 
-  coef = 1.0 / (double) (nadj + 1);
+  coef = 1.0 / (double) nadj * nadj;
 
   SCALE9 (MijT, coef);
 
-  for (k = 0; k < 9; k += 3)
+  i *= 9; /* from element numbering to matrix block numbering */
+  j *= 9;
+
+  for (k = 0; k < 9; k += 3) /* three diagonal blocks */
   {
-    I = 9 * i + k;
-    J = 9 * j + k;
+    I = i + k;
+    J = j + k;
 
     sum_up (I+0, J+0, MijT [0], map, val, col);
     sum_up (I+1, J+0, MijT [1], map, val, col);
@@ -236,18 +242,17 @@ static void adj_average_gradient (EPR_ELEMENT *base, EPR_ELEMENT *ele, double *c
   double *grad, coef;
   int shift;
 
-  shift = 9 * (ele - base);
-  grad = &conf [shift];
-  NNCOPY (grad, F);
+  coef = 1.0 / (double) ele->nadj;
 
-  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  SET9 (F, 0.0);
+
+  for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
     shift =  9 * ((*nei) - base);
     grad = &conf [shift];
     NNADD (grad, F, F);
   }
 
-  coef = 1.0 / (double) (ele->nadj + 1);
   SCALE9 (F, coef);
 }
 
@@ -333,18 +338,13 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
 	  COPY (g, f);
 	}
 
-	nei = &ele; /* see below for loop */
-	goto jumpin; /* execute loop code for 'ele' */
-
-loopin:
-	for (nei = ele->adj, nee = nei+ele->nadj, ele = *nei; nei < nee; nei ++, ele = *nei)
+	for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
 	{
-jumpin:
-	  shift = 9 * (ele - msh->ele);
+	  shift = 9 * ((*nei) - msh->ele);
 	  cur = &force [shift];
-	  coef = 1.0 / (double) (ele->nadj + 1);
+	  coef = 1.0 / (double) (*nei)->nadj;
 
-	  SUB (point, ele->A, B);
+	  SUB (point, (*nei)->A, B);
 
 	  cur [0] += B [0] * f [0] * coef;
 	  cur [1] += B [1] * f [0] * coef;
@@ -355,13 +355,11 @@ jumpin:
 	  cur [6] += B [0] * f [2] * coef;
 	  cur [7] += B [1] * f [2] * coef;
 	  cur [8] += B [2] * f [2] * coef;
-
-	  lin [0] += f [0];
-	  lin [1] += f [1];
-	  lin [2] += f [2];
 	}
 
-	if (nei == &ele) goto loopin; /* execute loop code on 'ele->adj' */
+	lin [0] += f [0];
+	lin [1] += f [1];
+	lin [2] += f [2];
       }
     }
   }
@@ -380,18 +378,12 @@ jumpin:
   {
     double lambda, mi;
 
-    lame_coefs (bod, ele, &lambda, &mi);
-    adj_average_gradient (msh->ele, ele, bod->conf, F);
-    SVK_Stress_R (lambda, mi, ele->vol, F, P);
-    coef = 1.0 / (double) (ele->nadj + 1);
-    NNSUBMUL (cur, coef, P, cur); /* force = external - internal */
-
-    for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+    for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
     {
       lame_coefs (bod, *nei, &lambda, &mi);
       adj_average_gradient (msh->ele, *nei, bod->conf, F);
       SVK_Stress_R (lambda, mi, (*nei)->vol, F, P);
-      coef = 1.0 / (double) ((*nei)->nadj + 1);
+      coef = 1.0 / (double) (*nei)->nadj;
       NNSUBMUL (cur, coef, P, cur); /* force = external - internal */
     }
   }
@@ -505,6 +497,34 @@ void epr_cauchy (BODY *bod, EPR_MESH *msh, EPR_ELEMENT *ele, double *stress)
   stress [5] = (F [3]*P [2] + F [4]*P [5] + F [5]*P [8]) / J;
 }
 
+#if DEBUG
+/* test symmetry of a sparse matrix */
+static int test_symmetry (MAP **col, int n)
+{
+  MAP *item, *jtem;
+  double xij, xji;
+  int i, j;
+
+  for (j = 0; j < n; j ++)
+  {
+    for (item = MAP_First (col [j]); item; item = MAP_Next (item))
+    {
+      i = (int) (long) item->key;
+
+      xji = * (double*) item->data;
+
+      if (!(jtem = MAP_Find_Node (col [i], (void*) (long) j, NULL))) return 0;
+
+      xij = * (double*) jtem->data;
+
+      if (xij != xji) return 0;
+    }
+  }
+
+  return 1;
+}
+#endif
+
 /* create EPR internals for a body */
 void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 {
@@ -540,7 +560,7 @@ void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
     }
   }
 
-  set_up_adjacency (shp);
+  set_up_adjacency (shp, msh);
 
   bod->dofs = 9 * msh->nele + 3;
 
@@ -585,9 +605,9 @@ void EPR_Initial_Velocity (BODY *bod, double *linear, double *angular)
 /* initialise dynamic time stepping */
 void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
 {
-  EPR_ELEMENT *ele, *end, **nei, **nee;
+  EPR_ELEMENT *ele, *end, **nei, **nee, **nej, **nff;
   double *xx, *chars, *sta, *eul, den;
-  int m, n, *p, *i, ii, jj, *pp;
+  int m, n, *p, *i, ii, jj, *pp, *pi;
   MEM mapmem, valmem;
   MAP **col, *item;
   EPR_MESH *msh;
@@ -607,15 +627,17 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
   /* sum up element inertia into the column values map */
   for (ele = msh->ele, end = ele + msh->nele; ele < end; ele ++)
   {
-    ii = ele - msh->ele;
-    sta = &chars [12 * jj];
+    sta = &chars [12 * (ele - msh->ele)];
     eul = sta + 3;
-    sum_up_inertia (ii, ii, ele->A, ele->A, eul, sta, ele->nadj, &mapmem, &valmem, col);
 
     for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
     {
-      jj = (*nei) - msh->ele;
-      sum_up_inertia (ii, jj, ele->A, (*nei)->A, eul, sta, ele->nadj, &mapmem, &valmem, col);
+      ii = (*nei) - msh->ele;
+      for (nej = ele->adj, nff = nej + ele->nadj; nej < nff; nej ++)
+      {
+	jj = (*nej) - msh->ele;
+	sum_up_inertia (ii, jj, (*nei)->A, (*nej)->A, eul, sta, ele->nadj, &mapmem, &valmem, col);
+      }
     }
   }
 
@@ -624,6 +646,8 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
   sum_up (m-2, n-2, bod->ref_volume, &mapmem, &valmem, col);
   sum_up (m-1, n-1, bod->ref_volume, &mapmem, &valmem, col);
 
+  /* test symmetry */
+  ASSERT_DEBUG (test_symmetry (col, n), "Symmetry test failed");
 
   /* compute sparse storage */
   for (ii = jj = 0; jj < n; jj ++)
@@ -637,12 +661,14 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
   p [0] = 0;
   pp = &p[1];
 
-  for (jj = 0; jj < n; jj ++)
+  for (jj = 0, pi = i; jj < n; jj ++, pp ++)
   {
-    for (item = MAP_First (col[jj]); item; item = MAP_Next (item), pp ++)
+    for (item = MAP_First (col[jj]); item; item = MAP_Next (item), pi ++)
     {
-      *pp = (int) (long) item->key;
+      *pi = (int) (long) item->key;
     }
+
+    *pp = (*(pp-1)) + MAP_Size (col [jj]);
   }
 
   /* create matrix */
@@ -743,16 +769,10 @@ void EPR_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
   ele = shp->epr;
   conf = bod->conf;
   a = conf + bod->dofs - 3;
-  coef = 1.0  / (double) (ele->nadj + 1);
+  coef = 1.0  / (double) ele->nadj;
+  SET (x, 0.0);
 
-  shift = 9 * (ele - msh->ele);
-  F = &conf [shift];
-  A = ele->A;
-
-  SUB (X, A, B);
-  TVMUL (F, B, x); /* transpose, as F is stored row-wise */
-
-  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
     shift = 9 * ((*nei) - msh->ele);
     F = &conf [shift];
@@ -779,23 +799,19 @@ void EPR_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
   ele = shp->epr;
   conf = bod->conf;
   a = conf + bod->dofs - 3;
-  coef = 1.0  / (double) (ele->nadj + 1);
+  coef = 1.0  / (double) ele->nadj;
 
-  shift = 9 * (ele - msh->ele);
-  F = &conf [shift];
-  A = ele->A;
+  SET9 (FAVG, 0.0);
+  SET (B, 0.0);
 
-  TVMUL (F, A, B); /* B = (x-a) + SUM Ni Fi Ai; transpose, as F is stored row-wise */
-  TNCOPY (F, FAVG); /* FAVG = SUM Ni Fi */
-
-  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
     shift = 9 * ((*nei) - msh->ele);
     F = &conf [shift];
     A = (*nei)->A;
 
-    TVADDMUL (B, F, A, B);
-    NTADD (FAVG, F, FAVG);
+    TVADDMUL (B, F, A, B); /* B = (x-a) + SUM Ni Fi Ai; transpose, as F is stored row-wise */
+    NTADD (FAVG, F, FAVG); /* FAVG = SUM Ni Fi */
   }
 
   SCALE (B, coef);  /* scale by shape function value */
@@ -822,23 +838,17 @@ void EPR_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *p
   ele = shp->epr;
   genvel = time == CURVELO ? bod->velo : EPR_VEL0 (bod);
   a = genvel + bod->dofs - 3;
-  coef = 1.0  / (double) (ele->nadj + 1);
+  coef = 1.0  / (double) ele->nadj;
+  SET (v, 0.0);
 
-  shift = 9 * (ele - msh->ele);
-  F = &genvel [shift];
-  A = ele->A;
-
-  SUB (point, A, B);
-  TVMUL (F, B, v); /* v = SUM Ni dF/dti (point - Ai) + da/dt; transpose, as F is stored row-wise */
-
-  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
     shift = 9 * ((*nei) - msh->ele);
     F = &genvel [shift];
     A = (*nei)->A;
 
     SUB (point, A, B);
-    TVADDMUL (v, F, B, v);
+    TVADDMUL (v, F, B, v); /* v = SUM Ni dF/dti (point - Ai) + da/dt; transpose, as F is stored row-wise */
   }
 
   SCALE (v, coef); /* scale by shape function value */
@@ -859,14 +869,11 @@ MX* EPR_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, d
 
   msh = bod->priv;
   ele = shp->epr;
-  coef = 1.0 / (double) (ele->nadj + 1);
+  coef = 1.0 / (double) ele->nadj;
 
   H = MX_Create (MXDENSE, 3, bod->dofs, NULL, NULL); /* initially a zero matrix */
 
-  shift = 27 * (ele - msh->ele);
-  epr_operator_block_H (point, ele->A, base, &H->x[shift]);
-
-  for (nei = ele->adj, nee = nei+ele->nadj; nei < nee; nei ++)
+  for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
     shift = 27 * ((*nei) - msh->ele);
     epr_operator_block_H (point, (*nei)->A, base, &H->x[shift]);

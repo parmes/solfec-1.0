@@ -84,6 +84,7 @@ static void* alloc_body (short kind)
     /* alloc pseudo-rigid body structure */
     return calloc (1, sizeof (BODY) + sizeof (double [PRB_CONF_SIZE + PRB_VELO_SIZE]));
 
+    case EPR:
     case FEM:
     /* alloc finite element discretised body =>
      * configuration and velocity are allocated individually */
@@ -687,7 +688,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
     case OBS:
     {
       ERRMEM (bod = calloc (1, sizeof (BODY)));
-      bod->kind = kind;
     }
     break;
     case RIG:
@@ -697,7 +697,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       ERRMEM (bod = alloc_body (RIG));
       bod->conf = (double*) (bod + 1);
       bod->velo = bod->conf + RIG_CONF_SIZE;
-      bod->kind = kind;
       SHAPE_Char (shp,
 	&bod->ref_volume,
 	 bod->ref_center, euler);
@@ -720,7 +719,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       ERRMEM (bod = alloc_body (PRB));
       bod->conf = (double*) (bod + 1);
       bod->velo = bod->conf + PRB_CONF_SIZE;
-      bod->kind = kind;
       SHAPE_Char (shp,
 	&bod->ref_volume,
 	 bod->ref_center,
@@ -739,15 +737,20 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
     }
     break;
     case EPR:
+      ERRMEM (bod = alloc_body (EPR));
       EPR_Create (shp, mat, bod);
     break;
     case FEM:
+      ERRMEM (bod = alloc_body (FEM));
       FEM_Create (form, shp->data, mat, bod);
     break;
     default:
       ASSERT (0, ERR_BOD_KIND);
     break;
   }
+
+  /* set kind */
+  bod->kind = kind;
 
   /* set material */
   bod->mat = mat;

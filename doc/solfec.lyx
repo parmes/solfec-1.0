@@ -2786,7 +2786,7 @@ failure
  - failure (lack of convergence) action (default: 'CONTINUE').
  Available failure actions are: 'CONTINUE' (simulation is continued), 'EXIT'
  (simulation is stopped and Solfec exits), 'CALLBACK' (a callback function
- is called if it was set or othewise the 'STOP' scenario is executed).
+ is called if it was set or othewise the 'EXIT' scenario is executed).
  In all cases 
 \series bold
 \emph on
