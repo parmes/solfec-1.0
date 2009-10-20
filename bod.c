@@ -1031,14 +1031,13 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
 
 void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
-  double half = 0.5 * step;
-
   switch (bod->kind)
   {
     case OBS: break;
     case RIG:
     {
-      double force [6],
+      double half = 0.5 * step,
+	     force [6],
 	     *J  = BOD_J0(bod),
 	     *I  = bod->inverse->x,
 	     *W  = RIG_ANGVEL(bod),
@@ -1087,7 +1086,8 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
     break;
     case PRB:
     {
-      double force [12],
+      double half = 0.5 * step,
+	     force [12],
 	     *L  = PRB_GRADVEL(bod),
 	     *L0 = PRB_GRADVEL0(bod),
 	     *v  = PRB_LINVEL(bod),
@@ -1115,15 +1115,14 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 
 void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 {
-  double half = 0.5 * step;
-
   switch (bod->kind)
   {
     case OBS: break;
     case RIG:
     {
       SCHEME sch = bod->scheme;
-      double force [6],
+      double half = 0.5 * step,
+	     force [6],
 	     *x = RIG_CENTER(bod),
 	     *v = RIG_LINVEL(bod),
 	     *R = RIG_ROTATION(bod),
@@ -1169,7 +1168,8 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
     break;
     case PRB:
     {
-      double force [12];
+      double half = 0.5 * step,
+             force [12];
       
       prb_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */

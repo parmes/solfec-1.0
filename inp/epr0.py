@@ -35,7 +35,7 @@ def one_d_bar_create (n, material, solfec):
 
   bod = BODY (solfec, 'EXTENDED_PSEUDO_RIGID', shp, material)
 
-  FIX_POINT (solfec, bod, (a/2, b/2, 0))
+  FIX_POINT (solfec, bod, (.5*a, .5*b, 0))
   #FIX_DIRECTION (solfec, bod, (a, 0, 0), (0, 0, 1))
   #FIX_DIRECTION (solfec, bod, (0, b, 0), (0, 0, 1))
   #FIX_DIRECTION (solfec, bod, (0, b, 0), (1, 0, 0))

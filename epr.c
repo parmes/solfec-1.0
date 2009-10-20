@@ -568,6 +568,7 @@ void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
   bod->velo = bod->conf + bod->dofs;
 
   for (double *F = bod->conf, *E = F + 9 * msh->nele; F < E; F += 9) { IDENTITY (F); }
+  COPY (bod->ref_center, bod->conf - 3);
 
   set_up_bulk_materials (msh->ele, msh->nele);
 
