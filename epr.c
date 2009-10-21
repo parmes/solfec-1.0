@@ -30,9 +30,21 @@
 #include "sph.h"
 #include "cvx.h"
 #include "err.h"
+#include "but.h"
 
-#define EPR_VEL0(bod) ((bod)->conf + 2 * (bod)->dofs)
-#define EPR_FORCE(bod) ((bod)->conf + 3 * (bod)->dofs)
+#define EPR_M0(bod) (bod)->ref_mass
+#define EPR_V0(bod) (bod)->ref_volume
+#define EPR_A0(bod) (bod)->ref_center
+#define EPR_J0(bod) (bod)->ref_tensor
+#define EPR_CONF_SIZE(bod) ((bod)->dofs + 6)
+#define EPR_U(bod) (bod)->conf
+#define EPR_CENTER(bod) ((bod)->conf + (bod)->dofs - 6)
+#define EPR_ROTATION(bod) ((bod)->conf + (bod)->dofs - 3) 
+#define EPR_UVEL(bod) (bod)->velo
+#define EPR_LINVEL(bod) ((bod)->velo + (bod)->dofs - 6)
+#define EPR_ANGVEL(bod) ((bod)->velo + (bod)->dofs - 3) 
+#define EPR_VEL0(bod) ((bod)->velo + (bod)->dofs)
+#define EPR_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
 
 typedef struct epr_element EPR_ELEMENT;
 typedef struct epr_mesh EPR_MESH;
@@ -59,6 +71,8 @@ struct epr_mesh
   EPR_ELEMENT *ele;
 
   int nele;
+
+  double INVJ [9]; /* global rigid inverse inertia operator (for slow rotations integration) */
 };
 
 /* overlap callback for element adjacency */
@@ -189,7 +203,7 @@ static void sum_up (int i, int j, double x, MEM *map, MEM *val, MAP **col)
 }
 
 /* sum up element inertia into a column map of values */
-static void sum_up_inertia (int i, int j, double *Ai, double *Aj, double *eul, double *sta, int nadj, MEM *map, MEM *val, MAP **col)
+static void sum_up_inertia (int i, int j, double *Ai, double *Aj, double *eul, double *sta, int nadj, double density, MEM *map, MEM *val, MAP **col)
 {
   double XAj [9], AiX[9], AiAj [9], MijT [9], coef;
   double I, J, k;
@@ -202,7 +216,7 @@ static void sum_up_inertia (int i, int j, double *Ai, double *Aj, double *eul, d
   NTSUB (MijT, AiX, MijT);
   NTADD (MijT, AiAj, MijT);
 
-  coef = 1.0 / (double) nadj * nadj;
+  coef = density / (double) nadj * nadj;
 
   SCALE9 (MijT, coef);
 
@@ -254,18 +268,6 @@ static void adj_average_gradient (EPR_ELEMENT *base, EPR_ELEMENT *ele, double *c
   }
 
   SCALE9 (F, coef);
-}
-
-/* Lame's lambda coefficient */
-static double lambda (double young, double poisson)
-{
-  return young*poisson / ((1.0 + poisson)*(1.0 - 2.0*poisson));
-}
-
-/* Lame's mi coefficient */
-static double mi (double young, double poisson)
-{
-  return young / (2.0*(1.0 + poisson));
 }
 
 /* get lame coefficients */
@@ -529,12 +531,15 @@ static int test_symmetry (MAP **col, int n)
 void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 {
   EPR_ELEMENT *ele;
+  double euler [9];
   EPR_MESH *msh;
   SHAPE *shq;
 
   /* get some global mass characteristics */
-  SHAPE_Char (shp, &bod->ref_volume, bod->ref_center, bod->ref_tensor);
+  SHAPE_Char (shp, &bod->ref_volume, bod->ref_center, euler);
   bod->ref_mass = bod->ref_volume * mat->density;
+  SCALE9 (bod->ref_tensor, mat->density);
+  euler2inertia (euler, bod->ref_tensor);
 
   /* create mesh */ 
   ERRMEM (msh = malloc (sizeof (EPR_MESH)));
@@ -562,13 +567,13 @@ void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 
   set_up_adjacency (shp, msh);
 
-  bod->dofs = 9 * msh->nele + 3;
+  bod->dofs = 9 * msh->nele + 6; /* a number of U_i (fast), angular velocity (slow), linear velocity (fast) */
 
-  ERRMEM (bod->conf = calloc (4 * bod->dofs, sizeof (double))); /* conf, velo, vel0, force */
-  bod->velo = bod->conf + bod->dofs;
-
-  for (double *F = bod->conf, *E = F + 9 * msh->nele; F < E; F += 9) { IDENTITY (F); }
-  COPY (bod->ref_center, bod->conf - 3);
+  ERRMEM (bod->conf = calloc (4 * bod->dofs + 6, sizeof (double))); /* conf, velo, vel0, force */
+  bod->velo = bod->conf + EPR_CONF_SIZE (bod);
+ 
+  IDENTITY (EPR_ROTATION (bod)); /* R(0) is 1, U_i(0) are 0 */
+  COPY (bod->ref_center, EPR_CENTER (bod)); /* referential mass center */
 
   set_up_bulk_materials (msh->ele, msh->nele);
 
@@ -578,7 +583,7 @@ void EPR_Create (SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 /* return configuration size */
 int EPR_Conf_Size (BODY *bod)
 {
-  return bod->dofs;
+  return EPR_CONF_SIZE (bod);
 }
 
 /* overwrite state */
@@ -586,40 +591,41 @@ void EPR_Overwrite_State (BODY *bod, double *q, double *u)
 {
   double *x, *y;
 
-  for (x = bod->conf, y = x + bod->dofs; x < y; x ++, q ++) *x = *q;
+  for (x = bod->conf, y = x + EPR_CONF_SIZE (bod); x < y; x ++, q ++) *x = *q;
+
   for (x = bod->velo, y = x + bod->dofs; x < y; x ++, u ++) *x = *u;
 }
 
 /* set initial rigid motion velocity */
 void EPR_Initial_Velocity (BODY *bod, double *linear, double *angular)
 {
-  double *u = bod->velo, *e = u + bod->dofs - 3;
+  double *l = EPR_LINVEL (bod),
+	 *a = EPR_ANGVEL (bod);
 
-  if (angular)
-  {
-    for (; u < e; u += 9) { VECSKEW (angular, u); }
-  }
+  if (linear) { COPY (linear, l); }
 
-  if (linear) { COPY (linear, e); }
+  if (angular) { COPY (angular, a); }
 }
 
 /* initialise dynamic time stepping */
 void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
 {
   EPR_ELEMENT *ele, *end, **nei, **nee, **nej, **nff;
-  double *xx, *chars, *sta, *eul, den;
+  double *xx, *chars, *sta, *eul, *j0, den;
   int m, n, *p, *i, ii, jj, *pp, *pi;
   MEM mapmem, valmem;
   MAP **col, *item;
   EPR_MESH *msh;
 
-  if (bod->inverse) MX_Destroy (bod->inverse);
-
   msh = bod->priv;
+
+  if (bod->inverse) MX_Destroy (bod->inverse);
 
   chars = compute_epr_chars (msh->ele, msh->nele);
 
-  m = n = bod->dofs;
+  den = bod->mat->density;
+
+  m = n = bod->dofs - 3;
 
   ERRMEM (col = calloc (n, sizeof (MAP*)));
   MEM_Init (&mapmem, sizeof (MAP), MAX (256, 8 * n));
@@ -637,15 +643,27 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
       for (nej = ele->adj, nff = nej + ele->nadj; nej < nff; nej ++)
       {
 	jj = (*nej) - msh->ele;
-	sum_up_inertia (ii, jj, (*nei)->A, (*nej)->A, eul, sta, ele->nadj, &mapmem, &valmem, col);
+	sum_up_inertia (ii, jj, (*nei)->A, (*nej)->A, eul, sta, ele->nadj, den, &mapmem, &valmem, col);
       }
     }
   }
 
   /* sum up scalar mass at the end */
-  sum_up (m-3, n-3, bod->ref_volume, &mapmem, &valmem, col);
-  sum_up (m-2, n-2, bod->ref_volume, &mapmem, &valmem, col);
-  sum_up (m-1, n-1, bod->ref_volume, &mapmem, &valmem, col);
+  sum_up (m-6, n-6, EPR_M0(bod), &mapmem, &valmem, col);
+  sum_up (m-5, n-5, EPR_M0(bod), &mapmem, &valmem, col);
+  sum_up (m-4, n-4, EPR_M0(bod), &mapmem, &valmem, col);
+
+  /* sum up global inertia */
+  j0 = EPR_J0 (bod);
+  sum_up (m-3, n-3, j0[0], &mapmem, &valmem, col);
+  sum_up (m-2, n-3, j0[1], &mapmem, &valmem, col);
+  sum_up (m-1, n-3, j0[2], &mapmem, &valmem, col);
+  sum_up (m-3, n-2, j0[3], &mapmem, &valmem, col);
+  sum_up (m-2, n-2, j0[4], &mapmem, &valmem, col);
+  sum_up (m-1, n-2, j0[5], &mapmem, &valmem, col);
+  sum_up (m-3, n-1, j0[6], &mapmem, &valmem, col);
+  sum_up (m-2, n-1, j0[7], &mapmem, &valmem, col);
+  sum_up (m-1, n-1, j0[8], &mapmem, &valmem, col);
 
   /* test symmetry */
   ASSERT_DEBUG (test_symmetry (col, n), "Symmetry test failed");
@@ -676,16 +694,20 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
   bod->inverse = MX_Create (MXCSC, m, n, p, i);
 
   /* set values and scale by volume density */
-  for (jj = 0, xx = bod->inverse->x, den = bod->mat->density; jj < n; jj ++)
+  for (jj = 0, xx = bod->inverse->x; jj < n; jj ++)
   {
     for (item = MAP_First (col[jj]); item; item = MAP_Next (item), xx ++)
     {
-      *xx = (*((double*) item->data)) * den;
+      *xx = *((double*) item->data);
     }
   }
 
   /* compute inverse factorization */
   MX_Inverse (bod->inverse, bod->inverse);
+
+  /* compute inverse inertia */
+  INVERT (EPR_J0 (bod), msh->INVJ, den);
+  ASSERT_DEBUG (den != 0.0, "Inverting inertia tensor failed");
 
   /* set integration scheme */
   ASSERT (scheme == SCH_DEFAULT, ERR_BOD_SCHEME);
@@ -714,8 +736,11 @@ void EPR_Dynamic_Step_Begin (BODY *bod, double time, double step)
   double half = 0.5 * step,
         *force = EPR_FORCE (bod);
 
+  /* TODO: review the code from here on,
+   * TODO: (including private routines) */
+
   blas_dcopy (bod->dofs, bod->velo, 1, EPR_VEL0 (bod), 1); /* save u(t) */
-  blas_daxpy (bod->dofs, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+  blas_daxpy (bod->dofs - 3, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
   epr_dynamic_force (bod, time+half, step, force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
   MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
 }

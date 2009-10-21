@@ -38,6 +38,7 @@
 #include "lng.h"
 #include "epr.h"
 #include "fem.h"
+#include "but.h"
 
 /* sizes */
 #define RIG_CONF_SIZE	15	/* rotation matrix, mass center position, auxiliary vector of size 3 */
@@ -94,18 +95,6 @@ static void* alloc_body (short kind)
   return NULL;
 }
 
-/* Lame's lambda coefficient */
-static double lambda (double young, double poisson)
-{
-  return young*poisson / ((1.0 + poisson)*(1.0 - 2.0*poisson));
-}
-
-/* Lame's mi coefficient */
-static double mi (double young, double poisson)
-{
-  return young / (2.0*(1.0 + poisson));
-}
-
 /* ------------------- RIG --------------------- */
 
 /* implicit solver of => exp[hW]JW = G, outputing W and A = exp[hW] */
@@ -160,17 +149,6 @@ static double SOLVE (double h, double *J, double *W, double *G, double *A)
   return LEN (O);
 }
 
-/* convert Euler tensor to the inertia tensor */
-inline static void euler2inertia (double *euler, double *inertia)
-{
-  double trace;
-
-  trace = TRACE (euler);
-  IDENTITY (inertia);
-  SCALE9 (inertia, trace);
-  NNSUB (inertia, euler, inertia); /* inertia = tr(euler)*one - euler */
-}
-
 /* calculates transformation operator from the generalized velocity
  * space to the local Cartesian space at 'X' in given the 'base' */
 static void rig_operator_H (BODY *bod, double *X, double *base, double *H)
@@ -186,7 +164,7 @@ static void rig_operator_H (BODY *bod, double *X, double *base, double *H)
   TNMUL (base, T, H);
   TNCOPY (base, H + 9);
 }
- 
+
 /* set up the inverse of the inertia
  * for the dynamic time stepping */
 static void rig_dynamic_inverse (BODY *bod)
@@ -213,7 +191,7 @@ static void rig_dynamic_inverse (BODY *bod)
   SCALEDIAG (x, m);
   MX_Inverse (M, M);
 }
-
+ 
 /* no difference for the static inverse routine */
 #define rig_static_inverse(bod) rig_dynamic_inverse(bod)
 
@@ -700,6 +678,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       SHAPE_Char (shp,
 	&bod->ref_volume,
 	 bod->ref_center, euler);
+      SCALE9 (euler, mat->density);
       euler2inertia (euler, bod->ref_tensor);
       bod->ref_mass = bod->ref_volume * mat->density;
       bod->id = 0;
@@ -723,6 +702,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
 	&bod->ref_volume,
 	 bod->ref_center,
 	 bod->ref_tensor);
+      SCALE9 (bod->ref_tensor, mat->density);
       bod->ref_mass = bod->ref_volume * mat->density;
       bod->id = 0;
       bod->dofs = 12;

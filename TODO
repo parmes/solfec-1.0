@@ -20,3 +20,5 @@ Implement reading of multiple output files in separate threads
 -------------------------------------------------------------
 Speed up rendering by using Vertex Buffer Objects extension
 -----------------------------------------------------------
+Test whether inertia scaling by density works correctly
+--------------------------------------------------------
