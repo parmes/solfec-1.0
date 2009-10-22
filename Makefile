@@ -64,7 +64,6 @@ OBJ =   $(EXTO)   \
 	obj/sol.o \
 	obj/epr.o \
 	obj/fem.o \
-	obj/but.o \
 	$(GLOBJ)
 
 OBJMPI = $(EXTO)       \
@@ -82,7 +81,6 @@ OBJMPI = $(EXTO)       \
 	 obj/sol-mpi.o \
 	 obj/epr-mpi.o \
 	 obj/fem-mpi.o \
-	 obj/but-mpi.o \
 
 solfec: obj/solfec.o obj/libsolfec.a
 	$(CC) -o $@ $< -Lobj -lsolfec $(LIB)
@@ -210,7 +208,7 @@ obj/sph.o: sph.c sph.h spx.h mem.h map.h err.h alg.h mot.h
 obj/shp.o: shp.c shp.h cvx.h msh.h sph.h err.h mot.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/bod.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h
+obj/bod.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h but.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/dom.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
@@ -237,13 +235,10 @@ obj/goc.o: goc.c goc.h shp.h cvi.h box.h alg.h err.h
 obj/cmp.o: cmp.c cmp.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/epr.o: epr.c epr.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h
+obj/epr.o: epr.c epr.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h but.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-obj/but.o: but.c but.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
@@ -279,7 +274,7 @@ obj/pbf-mpi.o: pbf.c pbf.h map.h mem.h err.h
 obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h tag.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/bod-mpi.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h
+obj/bod-mpi.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h but.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/dom-mpi.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h tag.h
@@ -300,7 +295,7 @@ obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h exs.h mat.h pbf.h tmr.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/epr-mpi.o: epr.c epr.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h
+obj/epr-mpi.o: epr.c epr.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h but.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/fem-mpi.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h

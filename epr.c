@@ -30,6 +30,7 @@
 #include "sph.h"
 #include "cvx.h"
 #include "err.h"
+#include "pck.h"
 #include "but.h"
 
 #define EPR_M0(bod) (bod)->ref_mass
@@ -45,6 +46,7 @@
 #define EPR_ANGVEL(bod) ((bod)->velo + (bod)->dofs - 3) 
 #define EPR_VEL0(bod) ((bod)->velo + (bod)->dofs)
 #define EPR_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
+#define EPR_REFTORQ(bod) ((bod)->velo + (bod)->dofs * 3 - 3)
 
 typedef struct epr_element EPR_ELEMENT;
 typedef struct epr_mesh EPR_MESH;
@@ -72,7 +74,8 @@ struct epr_mesh
 
   int nele;
 
-  double INVJ [9]; /* global rigid inverse inertia operator (for slow rotations integration) */
+  double INVJ [9], /* global rigid inverse inertia operator (for slow rotations integration) */
+	 RHS [3]; /* exp [-(h/2)W(t)]JW(t) + hT(t+h/2) used by rigid integrator */
 };
 
 /* overlap callback for element adjacency */
@@ -250,24 +253,26 @@ static SHAPE* epr_shape_stab (BODY *bod, double *point)
 }
 
 /* get (self-inclusive) average deformation gradient over adjacency */
-static void adj_average_gradient (EPR_ELEMENT *base, EPR_ELEMENT *ele, double *conf, double F[9])
+static void adj_average_gradient (EPR_ELEMENT *base, EPR_ELEMENT *ele, double *R, double *conf, double F[9])
 {
   EPR_ELEMENT **nei, **nee;
-  double *grad, coef;
+  double U[9], *Ui, coef;
   int shift;
 
   coef = 1.0 / (double) ele->nadj;
 
-  SET9 (F, 0.0);
+  IDENTITY (U);
 
   for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
     shift =  9 * ((*nei) - base);
-    grad = &conf [shift];
-    NNADD (grad, F, F);
+    Ui = &conf [shift];
+    NNADD (U, Ui, U);
   }
 
-  SCALE9 (F, coef);
+  SCALE9 (U, coef);
+
+  NNMUL (R, U, F);
 }
 
 /* get lame coefficients */
@@ -296,19 +301,30 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
 	 g [3],
 	*point,
 	*cur,
+	*last,
 	*lin,
 	 F [9],
 	 P [9],
 	 value,
 	 B [3],
+	 *R,
+	 *A0,
+	 *spatorq,
+	 b [3],
 	 coef;
-  int shift;
+  int shift,
+      kind;
 
   msh = bod->priv;
 
   blas_dscal (bod->dofs, 0.0, force, 1); /* zero force */
 
-  lin = force + bod->dofs - 3;
+  lin = force + bod->dofs - 6;
+
+  spatorq = lin + 3;
+
+  R = EPR_ROTATION (bod); /* current rigid rotation */
+  A0 = EPR_A0 (bod); /* referential mass center */
 
   /* point forces */
   for (FORCE *frc = bod->forces; frc; frc = frc->next)
@@ -326,19 +342,19 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
       COPY (frc->direction, f);
       SCALE (f, value);
       point = frc->ref_point;
+      kind = frc->kind;
+
+      if (kind & CONVECTED) /* obtain spatial force */
+      {
+	NVMUL (R, f, g);
+	COPY (g, f);
+      }
 
       shp = epr_shape_stab (bod, point); /* get element stabbed by the point */
 
-      if (shp)
+      if (shp && !(kind & TORQUE)) /* deformable term */
       {
 	ele = shp->epr;
-
-	if (frc->kind & CONVECTED) /* obtain spatial force */
-	{
-	  adj_average_gradient (msh->ele, ele, bod->conf, F);
-	  NVMUL (F, f, g);
-	  COPY (g, f);
-	}
 
 	for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
 	{
@@ -358,10 +374,35 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
 	  cur [7] += B [1] * f [2] * coef;
 	  cur [8] += B [2] * f [2] * coef;
 	}
+      }
 
-	lin [0] += f [0];
-	lin [1] += f [1];
-	lin [2] += f [2];
+      if (kind & CONVECTED) /* rigid terms */
+      { 
+	if (kind & TORQUE)
+	{ 
+          NVADDMUL (spatorq, R, f, spatorq); /* add spatial image of it */
+	}
+	else
+	{
+	  SUB (point, A0, B);          /* (X - A0) => referential force arm */
+	  NVMUL (R, B, b);             /* a => spatial force arm */
+	  PRODUCTADD (b, f, spatorq);  /* (x-x0) x b => spatial torque */
+	  ADD (lin, f, lin);           /* linear force */
+	}
+      }
+      else
+      {
+	if (kind & TORQUE)
+	{ 
+	  ADD (spatorq, f, spatorq);
+	}
+	else
+	{
+	  SUB (point, A0, B);          /* (X - X0) => referential force arm */
+	  NVMUL (R, B, b);             /* a => spatial force arm */
+	  PRODUCTADD (b, f, spatorq);  /* (x-x0) x b => spatial torque */
+	  ADD (lin, f, lin);           /* linear force */
+	}
       }
     }
   }
@@ -383,12 +424,25 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
     for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
     {
       lame_coefs (bod, *nei, &lambda, &mi);
-      adj_average_gradient (msh->ele, *nei, bod->conf, F);
+      adj_average_gradient (msh->ele, *nei, R, bod->conf, F);
       SVK_Stress_R (lambda, mi, (*nei)->vol, F, P);
       coef = 1.0 / (double) (*nei)->nadj;
       NNSUBMUL (cur, coef, P, cur); /* force = external - internal */
     }
   }
+
+  /* multiply everything but the linear term by R^T
+   * (mind that U-corresponding force blocks are row-wise) */
+
+  for (cur = force, last = force + 9 * msh->nele; cur < last; cur += 9)
+  {
+    TNCOPY (cur, P);
+    TNMUL (R, P, F);
+    NTCOPY (F, cur);
+  }
+
+  COPY (spatorq, f);
+  TVMUL (R, f, spatorq);
 }
 
 /* static unbalanced force computation */
@@ -443,42 +497,42 @@ static void epr_constraints_force (BODY *bod, double *force)
 }
 
 /* calculates a block of transformation operator from generalized
- * velocity space to the local cartesian space at 'X' in given 'base' */
-static void epr_operator_block_H (double *X, double *A, double *base, double *H) /* H is assumed all zero on entry */
+ * velocity space to the local cartesian space at 'X' in given 'base^T * R' */
+static void epr_operator_block_H (double *X, double *A, double *baseTR, double *H) /* H is assumed all zero on entry */
 {
   double B [3];
 
   SUB (X, A, B); 
 
-  H [0] = base [0] * B [0];
-  H [3] = base [0] * B [1];
-  H [6] = base [0] * B [2];
-  H [9] = base [1] * B [0];
-  H [12] = base [1] * B [1];
-  H [15] = base [1] * B [2];
-  H [18] = base [2] * B [0];
-  H [21] = base [2] * B [1];
-  H [24] = base [2] * B [2];
+  H [0] = baseTR [0] * B [0];
+  H [3] = baseTR [0] * B [1];
+  H [6] = baseTR [0] * B [2];
+  H [9] = baseTR [3] * B [0];
+  H [12] = baseTR [3] * B [1];
+  H [15] = baseTR [3] * B [2];
+  H [18] = baseTR [6] * B [0];
+  H [21] = baseTR [6] * B [1];
+  H [24] = baseTR [6] * B [2];
 
-  H [1] = base [3] * B [0];
-  H [4] = base [3] * B [1];
-  H [7] = base [3] * B [2];
-  H [10] = base [4] * B [0];
-  H [13] = base [4] * B [1];
-  H [16] = base [4] * B [2];
-  H [19] = base [5] * B [0];
-  H [22] = base [5] * B [1];
-  H [25] = base [5] * B [2];
+  H [1] = baseTR [1] * B [0];
+  H [4] = baseTR [1] * B [1];
+  H [7] = baseTR [1] * B [2];
+  H [10] = baseTR [4] * B [0];
+  H [13] = baseTR [4] * B [1];
+  H [16] = baseTR [4] * B [2];
+  H [19] = baseTR [7] * B [0];
+  H [22] = baseTR [7] * B [1];
+  H [25] = baseTR [7] * B [2];
 
-  H [2] = base [6] * B [0];
-  H [5] = base [6] * B [1];
-  H [8] = base [6] * B [2];
-  H [11] = base [7] * B [0];
-  H [14] = base [7] * B [1];
-  H [17] = base [7] * B [2];
-  H [20] = base [8] * B [0];
-  H [23] = base [8] * B [1];
-  H [26] = base [8] * B [2];
+  H [2] = baseTR [2] * B [0];
+  H [5] = baseTR [2] * B [1];
+  H [8] = baseTR [2] * B [2];
+  H [11] = baseTR [5] * B [0];
+  H [14] = baseTR [5] * B [1];
+  H [17] = baseTR [5] * B [2];
+  H [20] = baseTR [8] * B [0];
+  H [23] = baseTR [8] * B [1];
+  H [26] = baseTR [8] * B [2];
 }
 
 /* calculate cauche stress for a pseudo-rigid body */
@@ -487,7 +541,7 @@ void epr_cauchy (BODY *bod, EPR_MESH *msh, EPR_ELEMENT *ele, double *stress)
   double P [9], J, F [9], lambda, mi;
 
   lame_coefs (bod, ele, &lambda, &mi);
-  adj_average_gradient (msh->ele, ele, bod->conf, F);
+  adj_average_gradient (msh->ele, ele, EPR_ROTATION (bod), bod->conf, F);
 
   J = SVK_Stress_R (lambda, mi , 1.0, F, P); /* per unit volume */
 
@@ -625,7 +679,7 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
 
   den = bod->mat->density;
 
-  m = n = bod->dofs - 3;
+  m = n = bod->dofs;
 
   ERRMEM (col = calloc (n, sizeof (MAP*)));
   MEM_Init (&mapmem, sizeof (MAP), MAX (256, 8 * n));
@@ -733,27 +787,74 @@ double EPR_Dynamic_Critical_Step (BODY *bod)
 /* perform the initial half-step of the dynamic scheme */
 void EPR_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
+  EPR_MESH *msh = bod->priv;
   double half = 0.5 * step,
-        *force = EPR_FORCE (bod);
-
-  /* TODO: review the code from here on,
-   * TODO: (including private routines) */
+        *force = EPR_FORCE (bod),
+	*J = EPR_J0(bod),
+	*I = msh->INVJ,
+	*S = msh->RHS,
+	*T = EPR_REFTORQ (bod), /* some shited storage within 'force' */
+	*W = EPR_ANGVEL(bod),
+	*R = EPR_ROTATION(bod),
+	O [9], DR [9], W05 [3];
 
   blas_dcopy (bod->dofs, bod->velo, 1, EPR_VEL0 (bod), 1); /* save u(t) */
   blas_daxpy (bod->dofs - 3, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+
+  COPY (W, O);
+  SCALE (O, half);
+  EXPMAP (O, DR); 
+  NNCOPY (R, O);
+  NNMUL (O, DR, R);       /* R(t+h/2) = R(t) exp [(h/2) * W(t)] */
+
   epr_dynamic_force (bod, time+half, step, force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
+  
+  NVMUL (J, W, O);
+  TVMUL (DR, O, S);
+  ADDMUL (S, step, T, S);  /* exp [-(h/2)W(t)]JW(t) + hT(t+h/2) */
+
+  COPY (T, O);
+  SCALE (O, half); 
+  NVMUL (J, W, W05);
+  TVADDMUL (O, DR, W05, O);
+  NVMUL (I, O, W05);            /* W05 = I * [exp [-(h/2) * W(t)]*J*W(t) + (h/2)*T(t+h/2)] */
+
+  NVMUL (J, W05, O);
+  PRODUCTSUB (W05, O, T);   /* force [0..2] = T - W05 x J * W05 */
+
   MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
 }
 
 /* perform the final half-step of the dynamic scheme */
 void EPR_Dynamic_Step_End (BODY *bod, double time, double step)
 {
+  EPR_MESH *msh = bod->priv;
   double half = 0.5 * step,
-        *force = EPR_FORCE (bod);
-      
+        *force = EPR_FORCE (bod),
+        *R = EPR_ROTATION(bod),
+        *W = EPR_ANGVEL(bod),
+	*I = msh->INVJ,
+	*S = msh->RHS,
+	*T = EPR_REFTORQ (bod),
+         O [9], DR [9];
+
   epr_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */
-  blas_daxpy (bod->dofs, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+  blas_daxpy (bod->dofs - 3, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+
+  COPY (W, O);
+  SCALE (O, half);
+  EXPMAP (O, DR); 
+  NNCOPY (R, O);
+  NNMUL (O, DR, R); /* R(t) = R(t+h/2) exp [(h/2) * W(t+h)] */
+
+  ADDMUL (S, step, T, S);
+  TVMUL (DR, S, O);
+  NVMUL (I, O, W); /* W2(t+h) = I * exp [-(h/2)W1(t+h)][exp [-(h/2)W(t)]JW(t) + hT(t+h/2)] */
+
+  /* symmetrize Ui */
+  blas_dcopy (bod->dofs - 6, bod->velo, 1, force, 1); /* copy {Ui} int 'force' then copy back and symmetrize */
+  for (double *IN = force, *OUT = bod->velo, *END = IN + bod->dofs - 6; IN < END; IN += 9, OUT += 9) { SYMM (IN, OUT); }
 }
 
 /* initialise static time stepping */
@@ -776,86 +877,54 @@ void EPR_Static_Step_Begin (BODY *bod, double time, double step)
 /* perform the final half-step of the static scheme */
 void EPR_Static_Step_End (BODY *bod, double time, double step)
 {
-  double *force = EPR_FORCE (bod);
+  double *force = EPR_FORCE (bod),
+	 *R = EPR_ROTATION(bod),
+	 *W = EPR_ANGVEL(bod),
+	 O [9], DR [9];
       
   epr_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
-  blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
+  blas_daxpy (bod->dofs - 3, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
+
+  COPY (W, O);
+  SCALE (O, step);
+  EXPMAP (O, DR); 
+  NNCOPY (R, O);
+  NNMUL (O, DR, R); /* R(t) = R(t) exp [h * W(t+h)] */
+
+  /* symmetrize Ui */
+  blas_dcopy (bod->dofs - 6, bod->velo, 1, force, 1); /* copy {Ui} int 'force' then copy back and symmetrize */
+  for (double *IN = force, *OUT = bod->velo, *END = IN + bod->dofs - 6; IN < END; IN += 9, OUT += 9) { SYMM (IN, OUT); }
 }
 
 /* motion x = x (X, state) */
 void EPR_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 {
-  double *conf, *F, *a, *A, coef, B [3];
-  EPR_ELEMENT *ele, **nei, **nee;
-  EPR_MESH *msh;
-  int shift;
+  double *R = EPR_ROTATION(bod),
+	 *c = EPR_CENTER(bod),
+	 *C = EPR_A0(bod),
+	 A [3];
 
-  msh = bod->priv;
-  ele = shp->epr;
-  conf = bod->conf;
-  a = conf + bod->dofs - 3;
-  coef = 1.0  / (double) ele->nadj;
-  SET (x, 0.0);
-
-  for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
-  {
-    shift = 9 * ((*nei) - msh->ele);
-    F = &conf [shift];
-    A = (*nei)->A;
-
-    SUB (X, A, B);
-    TVADDMUL (x, F, B, x); /* transpose, as F is stored row-wise */
-  }
-
-  SCALE (x, coef); /* scale by shape function value */
-
-  ADD (x, a, x); /* add motion of the mass center */
+  SUB (X, C, A);
+  NVADDMUL (c, R, A, x);
 }
 
 /* inverse motion X = X (x, state) */
 void EPR_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
 {
-  double *conf, *F, *a, *A, coef, B [3], C [3], FAVG [9], IF [9], det;
-  EPR_ELEMENT *ele, **nei, **nee;
-  EPR_MESH *msh;
-  int shift;
+  double *R = EPR_ROTATION(bod),
+	 *c = EPR_CENTER(bod),
+	 *C = EPR_A0(bod),
+	 a [3];
 
-  msh = bod->priv;
-  ele = shp->epr;
-  conf = bod->conf;
-  a = conf + bod->dofs - 3;
-  coef = 1.0  / (double) ele->nadj;
-
-  SET9 (FAVG, 0.0);
-  SET (B, 0.0);
-
-  for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
-  {
-    shift = 9 * ((*nei) - msh->ele);
-    F = &conf [shift];
-    A = (*nei)->A;
-
-    TVADDMUL (B, F, A, B); /* B = (x-a) + SUM Ni Fi Ai; transpose, as F is stored row-wise */
-    NTADD (FAVG, F, FAVG); /* FAVG = SUM Ni Fi */
-  }
-
-  SCALE (B, coef);  /* scale by shape function value */
-  SUB (x, a, C);
-  ADD (B, C, B); /* B = (x-a) + SUM Ni Fi Ai */
-
-  SCALE9 (FAVG, coef); /* FAVG = SUM Ni Fi */
-
-  INVERT (FAVG, IF, det);
-  ASSERT (det > 0.0, ERR_BOD_MOTION_INVERT);
-  NVMUL (IF, B, X);
-  NVADDMUL (C, IF, a, X); /* X = inv (SUM Ni Fi) * {(x - a) + SUM Ni Fi Ai} */
+  SUB (x, c, a);
+  TVADDMUL (C, R, a, X);
 }
 
 /* obtain velocity at (element, point), expressed in the local 'base' => all entities are spatial */
 void EPR_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo)
 {
-  double *genvel, *F, *a, *A, coef, B [3], v [3];
+  double *genvel, *W, *U, *a, *A, *R, coef, B [3], v [3], w [3];
   EPR_ELEMENT *ele, **nei, **nee;
   EPR_MESH *msh;
   int shift;
@@ -863,32 +932,38 @@ void EPR_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *p
   msh = bod->priv;
   ele = shp->epr;
   genvel = time == CURVELO ? bod->velo : EPR_VEL0 (bod);
-  a = genvel + bod->dofs - 3;
+  a = genvel + bod->dofs - 6;
+  W = a + 3;
   coef = 1.0  / (double) ele->nadj;
-  SET (v, 0.0);
+  R = EPR_ROTATION (bod);
 
+  SET (w, 0.0);
   for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
     shift = 9 * ((*nei) - msh->ele);
-    F = &genvel [shift];
+    U = &genvel [shift];
     A = (*nei)->A;
 
     SUB (point, A, B);
-    TVADDMUL (v, F, B, v); /* v = SUM Ni dF/dti (point - Ai) + da/dt; transpose, as F is stored row-wise */
+    NVADDMUL (w, U, B, w); /* SUM Ni dUi/dt (point - Ai) */
   }
+  SCALE (w, coef); /* scale by shape function value */
 
-  SCALE (v, coef); /* scale by shape function value */
+  NVADDMUL (a, R, w, v); /* v = R * SUM Ni dUi/dt (point - Ai) + da/dt */
 
-  ADD (v, a, v); /* v = SUM Ni dF/dti (point - Ai) + da/dt */
+  A = EPR_A0 (bod);
+  SUB (point, A, B);
+  PRODUCT (W, B, w);
+  ADD (v, w, v); /* v = dR/dT (point - A0) + R * SUM Ni dUi/dt (point - Ai) + da/dt */
 
-  TVMUL (base, v, velo); /* express in local base */
+  TVMUL (base, v, velo); /* express in local base: velo = base^T * v */
 }
 
 /* return transformation operator from the generalised to the local velocity space at (element, point, base) */
 MX* EPR_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base)
 {
+  double *tail, coef, *R, baseTR [9], *A0, A [3], S [9];
   EPR_ELEMENT *ele, **nei, **nee;
-  double *tail, coef;
   EPR_MESH *msh;
   int shift;
   MX *H;
@@ -896,19 +971,31 @@ MX* EPR_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, d
   msh = bod->priv;
   ele = shp->epr;
   coef = 1.0 / (double) ele->nadj;
+  R = EPR_ROTATION (bod);
+  A0 = EPR_A0 (bod);
+
+  TNMUL (base, R, baseTR);
 
   H = MX_Create (MXDENSE, 3, bod->dofs, NULL, NULL); /* initially a zero matrix */
 
+  /* deformable terms */
   for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
     shift = 27 * ((*nei) - msh->ele);
-    epr_operator_block_H (point, (*nei)->A, base, &H->x[shift]);
+    epr_operator_block_H (point, (*nei)->A, baseTR, &H->x[shift]);
   }
 
   MX_Scale (H, coef); /* scale by shape function value */
 
-  tail = &H->x[3 * bod->dofs - 9];
+  /* linear term */
+  tail = &H->x[3 * bod->dofs - 18];
   TNCOPY (base, tail); /* copy last bit from the linear motion */
+
+  /* angular term */
+  tail += 9;
+  SUB (point, A0, A);
+  VECSKEW (A, S);
+  NTMUL (baseTR, S, tail);
 
   return H;
 }
@@ -1063,4 +1150,84 @@ void EPR_Destroy (BODY *bod)
   if (bod->inverse) MX_Destroy (bod->inverse);
 
   bod->inverse = NULL;
+}
+
+/* write state */
+void EPR_Write_State (BODY *bod, PBF *bf)
+{
+  double *U = bod->conf,
+	 *V = bod->velo,
+	 *W = U + bod->dofs - 6,
+	  Z [12];
+
+  for (; U < W; U += 9, V += 9)
+  {
+    SYMMLOTR (U, Z);
+    SYMMLOTR (V, Z+6);
+
+    PBF_Double (bf, Z, 12);
+  }
+
+  PBF_Double (bf, U, 12);
+  PBF_Double (bf, V, 6);
+}
+
+/* read state */
+void EPR_Read_State (BODY *bod, PBF *bf)
+{
+  double *U = bod->conf,
+	 *V = bod->velo,
+	 *W = U + bod->dofs - 6,
+	  Z [12];
+
+  for (; U < W; U += 9, V += 9)
+  {
+    PBF_Double (bf, Z, 12);
+
+    LOTRSYMM (Z, U);
+    LOTRSYMM (Z+6, V);
+  }
+
+  PBF_Double (bf, U, 12);
+  PBF_Double (bf, V, 6);
+}
+
+/* pack state */
+void EPR_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  double *U = bod->conf,
+	 *V = bod->velo,
+	 *W = U + bod->dofs - 6,
+	  Z [12];
+
+  for (; U < W; U += 9, V += 9)
+  {
+    SYMMLOTR (U, Z);
+    SYMMLOTR (V, Z+6);
+
+    pack_doubles (dsize, d, doubles, Z, 12);
+  }
+
+  pack_doubles (dsize, d, doubles, U, 12);
+  pack_doubles (dsize, d, doubles, V, 6);
+}
+
+/* unpack state */
+void EPR_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  double *U = bod->conf,
+	 *V = bod->velo,
+	 *W = U + bod->dofs - 6,
+	  Z [12];
+
+  for (; U < W; U += 9, V += 9)
+  {
+    unpack_doubles (dpos, d, doubles, Z, 12);
+
+    LOTRSYMM (Z, U);
+    LOTRSYMM (Z+6, V);
+  }
+
+  unpack_doubles (dpos, d, doubles, U, 12);
+  unpack_doubles (dpos, d, doubles, V, 6);
 }

@@ -1630,28 +1630,60 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
 
 void BODY_Write_State (BODY *bod, PBF *bf)
 {
-  PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
-  PBF_Double (bf, bod->velo, bod->dofs);
+  switch (bod->kind)
+  {
+  case EPR:
+    EPR_Write_State (bod, bf);
+    break;
+  default:
+    PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
+    PBF_Double (bf, bod->velo, bod->dofs);
+    break;
+  }
 }
 
 void BODY_Read_State (BODY *bod, PBF *bf)
 {
-  PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
-  PBF_Double (bf, bod->velo, bod->dofs);
+  switch (bod->kind)
+  {
+  case EPR:
+    EPR_Read_State (bod, bf);
+    break;
+  default:
+    PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
+    PBF_Double (bf, bod->velo, bod->dofs);
+    break;
+  }
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
 
 void BODY_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+  switch (bod->kind)
+  {
+  case EPR:
+    EPR_Pack_State (bod, dsize, d, doubles, isize, i, ints);
+    break;
+  default:
+    pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+    pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+    break;
+  }
 }
 
 void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+  switch (bod->kind)
+  {
+  case EPR:
+    EPR_Unpack_State (bod, dpos, d, doubles, ipos, i, ints);
+    break;
+  default:
+    unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+    unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+    break;
+  }
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
@@ -2006,8 +2038,18 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
 void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_int (isize, i, ints, bod->id);
-  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+
+  switch (bod->kind)
+  {
+  case EPR:
+    EPR_Pack_State (bod, dsize, d, doubles, isize, i, ints);
+    break;
+  default:
+    pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+    pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+    break;
+  }
+
   pack_int (isize, i, ints, DOM (bod->dom)->rank); /* pack parent rank => same as domain's rank */
 }
 
@@ -2022,8 +2064,16 @@ void BODY_Child_Unpack_State (void *domain, int *dpos, double *d, int doubles, i
 
   ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) id, NULL), "Invalid child id");
 
-  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+  switch (bod->kind)
+  {
+  case EPR:
+    EPR_Unpack_State (bod, dpos, d, doubles, ipos, i, ints);
+    break;
+  default:
+    unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+    unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+    break;
+  }
 
   bod->my.parent = unpack_int (ipos, i, ints); /* unpack parent rank */
 

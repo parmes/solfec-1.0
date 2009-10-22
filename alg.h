@@ -834,6 +834,15 @@ if (((DET) =\
   (A) [8] = 0;\
 }
 
+#define SYMMLOTR(SYMM,LO)\
+  (LO)[0] = (SYMM)[0], (LO)[1] = (SYMM)[1], (LO)[2] = (SYMM)[2],\
+  (LO)[3] = (SYMM)[4], (LO)[4] = (SYMM)[5], (LO)[5] = (SYMM)[8]
+
+#define LOTRSYMM(LO,SYMM)\
+  (SYMM)[0] = (LO)[0], (SYMM)[1] = (LO)[1], (SYMM)[2] = (LO)[2],\
+  (SYMM)[3] = (LO)[1], (SYMM)[4] = (LO)[3], (SYMM)[5] = (LO)[4],\
+  (SYMM)[6] = (LO)[2], (SYMM)[7] = (LO)[4], (SYMM)[8] = (LO)[5]
+
 #define DIADIC(a, b, C)\
 {\
   (C) [0] = (a) [0]*(b) [0];\

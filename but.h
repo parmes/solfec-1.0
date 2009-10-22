@@ -21,20 +21,8 @@
 
 #include "alg.h"
 
-/* declared routines */
-
 #ifndef __but__
 #define __but__
-
-/* dummy routine */
-void BUT_dummy ();
-
-#endif
-
-/* inline routines */
-
-#ifndef __butinc__
-#define __butinc__
 
 /* convert Euler tensor to the inertia tensor */
 inline static void euler2inertia (double *euler, double *inertia)

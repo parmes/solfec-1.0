@@ -81,4 +81,16 @@ void EPR_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values
 /* release EPR memory */
 void EPR_Destroy (BODY *bod);
 
+/* write state */
+void EPR_Write_State (BODY *bod, PBF *bf);
+
+/* read state */
+void EPR_Read_State (BODY *bod, PBF *bf);
+
+/* pack state */
+void EPR_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+
+/* unpack state */
+void EPR_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+
 #endif
