@@ -1,0 +1,63 @@
+#
+# valgrind suppression file to be used with Solfec
+#
+#  Here's an example of running valgrind:
+#
+#	valgrind --suppressions=doc/solfec.supp ./solfec inp/epr0.py
+
+{
+   PyObject_Free/Invalid read of size 4
+   Memcheck:Addr4
+   fun:PyObject_Free
+}
+
+{
+   PyObject_Free/Conditional jump or move depends on uninitialised value
+   Memcheck:Cond
+   fun:PyObject_Free
+}
+
+{
+   PyObject_Free/Invalid use of value of size 4
+   Memcheck:Value4
+   fun:PyObject_Free
+}
+
+{
+   PyObject_Realloc/Invalid read of size 4
+   Memcheck:Addr4
+   fun:PyObject_Realloc
+}
+
+{
+   PyObject_Realloc/Conditional jump or move depends on uninitialised value
+   Memcheck:Cond
+   fun:PyObject_Realloc
+}
+
+{
+   PyObject_Realloc/Invalid use of object of size 4
+   Memcheck:Value4
+   fun:PyObject_Realloc
+}
+
+{
+   Suppress leaking from dyld
+   Memcheck:Leak
+   fun:malloc_zone_calloc
+   fun:NXHashInsert
+}
+
+{
+   Suppress leaking from Python
+   Memcheck:Leak
+   fun:malloc
+   fun:_PyObject_GC_Malloc
+}
+
+{
+   Suppress leaking from c++ libs
+   Memcheck:Leak
+   fun:'operator new(unsigned long)'
+   fun:'std::string::_Rep::_S_create(unsigned long, unsigned long, std::allocator<char> const&)'
+}

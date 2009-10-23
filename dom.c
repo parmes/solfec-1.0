@@ -2916,6 +2916,7 @@ void DOM_Destroy (DOM *dom)
 
   MEM_Release (&dom->conmem);
   MEM_Release (&dom->setmem);
+  MEM_Release (&dom->mapmem);
 
   if (dom->gravval)
     TMS_Destroy (dom->gravval);

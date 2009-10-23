@@ -422,7 +422,7 @@ void PBF_Close (PBF *bf)
     empty = is_empty (bf->dat);
 
 #if POSIX
-    close (bf->i_dat);
+    if (bf->mode == PBF_READ) close (bf->i_dat);
 #endif
 
     fclose (bf->dat);

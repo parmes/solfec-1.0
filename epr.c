@@ -134,6 +134,7 @@ void set_up_adjacency (SHAPE *shp, EPR_MESH *msh)
 
   MEM_Release (&mem); /* done */
   free (boxes);
+  free (sgp);
 }
 
 /* dive into shape primitives and try setting up ele[]->mat */
@@ -261,7 +262,7 @@ static void adj_average_gradient (EPR_ELEMENT *base, EPR_ELEMENT *ele, double *R
 
   coef = 1.0 / (double) ele->nadj;
 
-  IDENTITY (U);
+  SET9 (U, 0.0);
 
   for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
   {
@@ -271,6 +272,10 @@ static void adj_average_gradient (EPR_ELEMENT *base, EPR_ELEMENT *ele, double *R
   }
 
   SCALE9 (U, coef);
+
+  U [0] += 1.0;
+  U [4] += 1.0;
+  U [8] += 1.0;
 
   NNMUL (R, U, F);
 }
@@ -355,12 +360,12 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
       if (shp && !(kind & TORQUE)) /* deformable term */
       {
 	ele = shp->epr;
+	coef = 1.0 / (double) ele->nadj;
 
 	for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
 	{
 	  shift = 9 * ((*nei) - msh->ele);
 	  cur = &force [shift];
-	  coef = 1.0 / (double) (*nei)->nadj;
 
 	  SUB (point, (*nei)->A, B);
 
@@ -417,14 +422,14 @@ static void epr_dynamic_force (BODY *bod, double time, double step, double *forc
   }
 
   /* internal forces */
-  for (ele = msh->ele, end = ele + msh->nele; ele < end; ele ++)
+  for (ele = msh->ele, end = ele + msh->nele, cur = force; ele < end; ele ++, cur += 9)
   {
     double lambda, mi;
 
     for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
     {
       lame_coefs (bod, *nei, &lambda, &mi);
-      adj_average_gradient (msh->ele, *nei, R, bod->conf, F);
+      adj_average_gradient (msh->ele, *nei, R, bod->conf, F); /* TODO: optimize by storing precomputed P values at elements */
       SVK_Stress_R (lambda, mi, (*nei)->vol, F, P);
       coef = 1.0 / (double) (*nei)->nadj;
       NNSUBMUL (cur, coef, P, cur); /* force = external - internal */
@@ -686,9 +691,8 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
   MEM_Init (&valmem, sizeof (double), MAX (256, 8 * n));
 
   /* sum up element inertia into the column values map */
-  for (ele = msh->ele, end = ele + msh->nele; ele < end; ele ++)
+  for (ele = msh->ele, end = ele + msh->nele, sta = chars; ele < end; ele ++, sta += 12)
   {
-    sta = &chars [12 * (ele - msh->ele)];
     eul = sta + 3;
 
     for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
@@ -728,7 +732,7 @@ void EPR_Dynamic_Init (BODY *bod, SCHEME scheme)
     ii += MAP_Size (col [jj]);
   }
 
-  ERRMEM (p = malloc (n * sizeof (int)));
+  ERRMEM (p = malloc ((n+1) * sizeof (int)));
   ERRMEM (i = malloc (ii * sizeof (int)));
 
   p [0] = 0;
@@ -900,6 +904,7 @@ void EPR_Static_Step_End (BODY *bod, double time, double step)
 /* motion x = x (X, state) */
 void EPR_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 {
+#if 0
   double *R = EPR_ROTATION(bod),
 	 *c = EPR_CENTER(bod),
 	 *C = EPR_A0(bod),
@@ -907,6 +912,36 @@ void EPR_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 
   SUB (X, C, A);
   NVADDMUL (c, R, A, x);
+#else
+  double *a, *conf, *A, *U, *R, coef, B [3], v [3];
+  EPR_ELEMENT *ele, **nei, **nee;
+  EPR_MESH *msh;
+  int shift;
+
+  msh = bod->priv;
+  ele = shp->epr;
+  conf = bod->conf;
+  coef = 1.0  / (double) ele->nadj;
+  a = EPR_CENTER (bod);
+  R = EPR_ROTATION (bod);
+
+  SET (v, 0);
+  for (nei = ele->adj, nee = nei + ele->nadj; nei < nee; nei ++)
+  {
+    shift = 9 * ((*nei) - msh->ele);
+    U = &conf [shift];
+    A = (*nei)->A;
+
+    SUB (X, A, B);
+    NVADDMUL (v, U, B, v);
+  }
+  SCALE (v, coef);
+  NVADDMUL (a, R, v, x);
+
+  A = EPR_A0 (bod);
+  SUB (X, A, B);
+  NVADDMUL (x, R, B, x);
+#endif
 }
 
 /* inverse motion X = X (x, state) */
@@ -988,7 +1023,7 @@ MX* EPR_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, d
   MX_Scale (H, coef); /* scale by shape function value */
 
   /* linear term */
-  tail = &H->x[3 * bod->dofs - 18];
+  tail = &H->x[H->nzmax - 18];
   TNCOPY (base, tail); /* copy last bit from the linear motion */
 
   /* angular term */
@@ -1145,9 +1180,9 @@ void EPR_Destroy (BODY *bod)
 
   free (msh);
 
-  bod->priv = NULL;
+  free (bod->conf);
 
-  if (bod->inverse) MX_Destroy (bod->inverse);
+  bod->priv = NULL;
 
   bod->inverse = NULL;
 }

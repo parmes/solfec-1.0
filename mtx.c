@@ -36,7 +36,7 @@
 #define MXDSUBLK(a) ((a)->flags & MXDSUBLK)
 #define MXUNINV(a) ((a)->flags & MXUNINV)
 #define TEMPORARY(a) ((a)->flags & (MXTRANS|MXDSUBLK|MXUNINV))
-#define REALLOCED(a) (!MXSTATIC(a) && (a)->x != (double*)((a)+1))
+#define REALLOCED(a) (!MXSTATIC(a) && (a)->x != (double*)((char*)&(a)[1]+(sizeof(double)-sizeof(MX)%sizeof(double))))
 #define MXIFAC(a) ((a)->flags & MXIFAC)
 #define MXIFAC_WORK1(a) ((a)->x + (a)->nzmax)
 #define MXIFAC_WORK2(a) ((a)->x + (a)->nzmax + (a)->n)
@@ -1530,17 +1530,18 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
     case MXDENSE:
       size = m * n;
       ASSERT_DEBUG (size > 0, "Invalid size");
-      ERRMEM (a = calloc (1, sizeof (MX) + size * sizeof (double)));
-      a->x = (double*) (a + 1);
+      ERRMEM (a = calloc (1, sizeof (MX) + size * sizeof (double) + 
+	     (sizeof (double) - sizeof (MX) % sizeof (double)))); /* align memory to a sizeof (double) multiple */
+      a->x = (double*) ((char*)a + sizeof (MX) + (sizeof (double) - sizeof (MX) % sizeof (double)));
       a->nz = size;
     break;
     case MXBD:
       ASSERT_DEBUG ((p && i) && (p != i), "Invalid structure");
       ASSERT_DEBUG (p [n] > 0, "Invalid block size");
       size = p [n];
-      ERRMEM (a = calloc (1, sizeof (MX) + (2 * n + 2)
-	* sizeof (int) + size * sizeof (double)));
-      a->x = (double*) (a + 1);
+      ERRMEM (a = calloc (1, sizeof (MX) + size * sizeof (double) + (2 * n + 2) * sizeof (int) + 
+	     (sizeof (double) - sizeof (MX) % sizeof (double)))); /* align memory to a sizeof (double) multiple */
+      a->x = (double*) ((char*)a + sizeof (MX) + (sizeof (double) - sizeof (MX) % sizeof (double)));
       a->p = (int*) (a->x + size);
       a->i = a->p + (n + 1);
       memcpy (a->p, p, sizeof (int) * (n+1));
