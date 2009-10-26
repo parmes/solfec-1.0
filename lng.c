@@ -357,6 +357,17 @@ struct lng_CONVEX
 };
 
 /* test whether an object is of CONVEX type */
+static int is_convex_test (PyObject *obj)
+{
+  if (obj)
+  {
+    if (!PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_CONVEX_TYPE)) return 0;
+  }
+
+  return 1;
+}
+
+/* test whether an object is of CONVEX type */
 static int is_convex (lng_CONVEX *obj, char *var)
 {
   if (obj)
@@ -1738,11 +1749,10 @@ static int is_shape (PyObject *obj, char *var)
   return 1;
 }
 
-/* test whether an object is a valid shape
- * representation depending on the input body kind */
-static int is_shape_ext (PyObject *kind, PyObject *obj, char *var)
+/* test whether an object is a valid shape composed of convices */
+static int is_shape_convex (PyObject *obj, char *var)
 {
-  if (kind && obj)
+  if (obj)
   {
     if (!is_basic_shape (obj))
     {
@@ -1751,26 +1761,13 @@ static int is_shape_ext (PyObject *kind, PyObject *obj, char *var)
 	int i, n = PyList_Size (obj);
 
 	for (i = 0; i < n; i ++)
-	{
-	  PyObject *it = PyList_GetItem (obj, i);
-
-	  if (!is_basic_shape (it))
-	  {
-	    IFIS (kind, "EXTENDED_PSEUDO_RIGOD")
-	    {
-	      if (!is_shape (it, var)) break; /* this could be a list of basic objects (an extended element definition) */
-	    }
-	    ELSE break;
-	  }
-	}
+	  if (!is_convex_test (PyList_GetItem (obj, i))) break;
 
 	if (i == n) return 1;
       }
 
       char buf [BUFLEN];
-      IFIS (kind, "EXTENDED_PSEUDO_RIGOD")
-	sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE (simple) object, or a list composed of simple objects and/or lists of simple objects", var);
-      ELSE sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE object or a list of those", var);
+      sprintf (buf, "'%s' must be a non-empty CONVEX object or a list of those", var);
       PyErr_SetString (PyExc_TypeError, buf);
       return 0;
     }
@@ -1934,35 +1931,6 @@ static SHAPE* create_shape (PyObject *obj, short empty)
   return NULL;
 }
 
-/* create a shape out of basic shapes and shape lists */
-static SHAPE* create_shape_ext (PyObject *obj)
-{
-  if (obj)
-  {
-    if (PyList_Check (obj))
-    {
-      int i, n = PyList_Size (obj);
-      SHAPE *out = NULL;
-      PyObject *it;
-
-      for (i = 0; i < n; i ++)
-      {
-	it = PyList_GetItem (obj, i);
-
-	if (out) out->epr = (void*)1; /* mark this shape as the end of a previous extended element */
-
-	if (PyList_Check (it)) out = SHAPE_Glue_Simple (create_shape (it, 1), out); /* glue simple shapes from a list into one shape (create_shape) */
-	else out = SHAPE_Glue_Simple (SHAPE_Create (shape_kind (it), get_shape (it, 1)), out); /* non destructive append of shape list */
-      }
-
-      return out;
-    }
-    else return SHAPE_Create (shape_kind (obj), get_shape (obj, 1));
-  }
-
-  return NULL;
-}
-
 /* test whether an object is of BODY type */
 static int is_body (lng_BODY *obj, char *var)
 {
@@ -1983,10 +1951,11 @@ static int is_body (lng_BODY *obj, char *var)
 /* body object constructor */
 static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "kind", "shape", "material", "label", "formulation");
+  KEYWORDS ("solfec", "kind", "shape", "material", "label", "formulation", "mesh");
   PyObject *kind, *shape, *material, *label, *formulation;
   lng_SOLFEC *solfec;
   lng_BODY *self;
+  lng_MESH *mesh;
   short form;
   char *lab;
 
@@ -1999,11 +1968,13 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     label = NULL;
     formulation = NULL;
     form = HEX_TET_O1;
+    mesh = NULL;
 
-    PARSEKEYS ("OOOO|OO", &solfec, &kind, &shape, &material, &label, &formulation);
+    PARSEKEYS ("OOOO|OOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh);
 
-    TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape_ext (kind, shape, kwl[2]) &&
-	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]) && is_string (formulation, kwl[5]));
+    TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape (shape, kwl[2]) &&
+	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]) &&
+	      is_string (formulation, kwl[5]) && is_mesh ((PyObject*)mesh, kwl[6]));
 
 #if MPI
     if (RANK() > 0) /* bodies can only be created on process zero */
@@ -2019,15 +1990,18 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     IFIS (kind, "RIGID")
     {
-      self->bod = BODY_Create (RIG, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
+      self->bod = BODY_Create (RIG, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
     }
     ELIF (kind, "PSEUDO_RIGID")
     {
-      self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
+      self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
     }
-    ELIF (kind, "EXTENDED_PSEUDO_RIGID")
+    ELIF (kind, "ROUGH_FINITE_ELEMENT")
     {
-      self->bod = BODY_Create (EPR, create_shape_ext (shape), get_bulk_material (solfec->sol, material), lab, form);
+      TYPETEST (is_shape_convex (shape, kwl[2]) && is_mesh ((PyObject*)mesh, kwl[6]));
+
+      self->bod = BODY_Create (RFE, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, mesh->msh);
+      mesh->msh = NULL; /* empty */
     }
     ELIF (kind, "FINITE_ELEMENT")
     {
@@ -2054,11 +2028,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	}
       }
 
-      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
+      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
     }
     ELIF (kind, "OBSTACLE")
     {
-      self->bod = BODY_Create (OBS, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form);
+      self->bod = BODY_Create (OBS, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
     }
     ELSE
     {

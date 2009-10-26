@@ -1709,7 +1709,7 @@ An object of type BODY represents a solid body.
 \end_layout
 
 \begin_layout Subsection*
-obj = BODY (solfec, kind, shape, material | label, formulation)
+obj = BODY (solfec, kind, shape, material | label, formulation, mesh)
 \end_layout
 
 \begin_layout Standard
@@ -1741,7 +1741,7 @@ obj
 \series bold
 kind
 \series default
- - a string: 'RIGID', 'PSEUDO_RIGID', 'EXTENDED_PSEUDO_RIGID', 'FINITE_ELEMENT'
+ - a string: 'RIGID', 'PSEUDO_RIGID', 'ROUGH_FINITE_ELEMENT', 'FINITE_ELEMENT'
  or 'OBSTACLE' describing the kinematic model
 \end_layout
 
@@ -1764,25 +1764,11 @@ kind
 \series bold
 kind
 \series default
- is 'EXTENDED_PSEUDO_RIGID' then 
+ is 'ROUGH_FINITE_ELEMENT' then 
 \series bold
 shape
 \series default
- can be a list of lists 
-\emph on
-[list1, obj2, list3, obj4, ....]
-\emph default
-, where for example 
-\emph on
-list1 = [objA, objB, ...]
-\emph default
- and corresponds to a first extended pseudo-rigid element, while 
-\emph on
-obj2
-\emph default
- by itself becomes a second extended pseudo-rigid element; hence, passing
- just one object as a shape reduces the 'EXTENDED_PSEUDO_RIGID' model to
- the 'PSEUDO_RIGID' one.
+ must composed of CONVEX objects.
 \end_layout
 
 \begin_layout Itemize
@@ -1822,7 +1808,8 @@ formulation
 \series bold
 kind
 \series default
- equals 'FINITE_ELEMENT', ignored otherwise (default: 'HEX_TET_O1').
+ equals 'FINITE_ELEMENT' or 'ROUGH_FINITE_ELEMENT', ignored otherwise (default:
+ 'HEX_TET_O1').
  This argument specifies a formulation of the finite element method.
  See Table 
 \begin_inset CommandInset ref
@@ -1832,6 +1819,30 @@ reference "tab:formulation"
 \end_inset
 
 .
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+mesh
+\series default
+ - necessary when 
+\series bold
+kind
+\series default
+ equals 'ROUGH_FINITE_ELEMENT', ignored otherwise.
+ This variable must be a MESH object describing a 
+\begin_inset Quotes eld
+\end_inset
+
+rough
+\begin_inset Quotes erd
+\end_inset
+
+ finite element mesh properly containing the shape.
+ The 'ROUGH_FINITE_ELEMENT' model allows to handle complicated shapes with
+ less finite elements, e.g.
+ an arbitrary shape could be contained in just one hexahedron.
 \end_layout
 
 \begin_layout Standard
@@ -2147,7 +2158,7 @@ status open
 \begin_inset Tabular
 <lyxtabular version="3" rows="6" columns="2">
 <features>
-<column alignment="center" valignment="top" width="30col%">
+<column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
@@ -2214,9 +2225,7 @@ Column-wise deformation gradient followed by the current mass center.
 \begin_inset Text
 
 \begin_layout Plain Layout
-
-\size scriptsize
-'EXTENDED_PSEUDO_RIGID'
+'ROUGH_FINITE_ELEMENT'
 \end_layout
 
 \end_inset
@@ -2225,8 +2234,7 @@ Column-wise deformation gradient followed by the current mass center.
 \begin_inset Text
 
 \begin_layout Plain Layout
-Column-wise deformation gradients from all elements followed by the current
- mass center.
+Current coordinates x, y, z of  rough mesh nodes.
 \end_layout
 
 \end_inset
@@ -2246,7 +2254,7 @@ Column-wise deformation gradients from all elements followed by the current
 \begin_inset Text
 
 \begin_layout Plain Layout
-Current coordinates x, y, z of consecutive mesh nodes.
+Current coordinates x, y, z of  mesh nodes.
 \end_layout
 
 \end_inset
@@ -2318,7 +2326,7 @@ status open
 \begin_inset Tabular
 <lyxtabular version="3" rows="6" columns="2">
 <features>
-<column alignment="center" valignment="top" width="30col%">
+<column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
@@ -2385,9 +2393,7 @@ Deformation gradient velocity followed by the spatial velocity of mass center.
 \begin_inset Text
 
 \begin_layout Plain Layout
-
-\size scriptsize
-'EXTENDED_PSEUDO_RIGID'
+'ROUGH_FINITE_ELEMENT'
 \end_layout
 
 \end_inset
@@ -2396,8 +2402,7 @@ Deformation gradient velocity followed by the spatial velocity of mass center.
 \begin_inset Text
 
 \begin_layout Plain Layout
-Deformation gradient velocities followed by the spatial velocity of mass
- center.
+Components x, y, z of spatial velocities of rough mesh nodes.
 \end_layout
 
 \end_inset
@@ -2417,7 +2422,7 @@ Deformation gradient velocities followed by the spatial velocity of mass
 \begin_inset Text
 
 \begin_layout Plain Layout
-Components x, y, z of spatial velocities consecutive mesh nodes.
+Components x, y, z of spatial velocities of mesh nodes.
 \end_layout
 
 \end_inset

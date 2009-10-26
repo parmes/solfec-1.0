@@ -62,7 +62,7 @@ OBJ =   $(EXTO)   \
 	obj/dom.o \
 	obj/lng.o \
 	obj/sol.o \
-	obj/epr.o \
+	obj/rfe.o \
 	obj/fem.o \
 	$(GLOBJ)
 
@@ -79,7 +79,7 @@ OBJMPI = $(EXTO)       \
 	 obj/lng-mpi.o \
 	 obj/com-mpi.o \
 	 obj/sol-mpi.o \
-	 obj/epr-mpi.o \
+	 obj/rfe-mpi.o \
 	 obj/fem-mpi.o \
 
 solfec: obj/solfec.o obj/libsolfec.a
@@ -235,7 +235,7 @@ obj/goc.o: goc.c goc.h shp.h cvi.h box.h alg.h err.h
 obj/cmp.o: cmp.c cmp.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/epr.o: epr.c epr.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h but.h
+obj/rfe.o: rfe.c rfe.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h but.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
@@ -295,7 +295,7 @@ obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h exs.h mat.h pbf.h tmr.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/epr-mpi.o: epr.c epr.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h but.h
+obj/rfe-mpi.o: rfe.c rfe.h bod.h shp.h msh.h cvx.h sph.h mat.h alg.h err.h but.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/fem-mpi.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h

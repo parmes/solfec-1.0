@@ -356,7 +356,7 @@ char *get_map_legend_value_string (void *data)
       case OBS: return "OBS";
       case RIG: return "RIG";
       case PRB: return "PRB";
-      case EPR: return "EPR";
+      case RFE: return "RFE";
       case FEM: return "FEM";
       default: return "???";
     }

@@ -26,6 +26,7 @@
 #include "set.h"
 #include "mtx.h"
 #include "mat.h"
+#include "msh.h"
 
 #ifndef __bod__
 #define __bod__
@@ -95,7 +96,7 @@ typedef enum
 
 struct general_body
 {
-  enum {OBS, RIG, PRB, EPR, FEM} kind; /* obstacle, rigid, pseudo-rigid, finite element */
+  enum {OBS, RIG, PRB, RFE, FEM} kind; /* obstacle, rigid, pseudo-rigid, finite element */
 
   unsigned int id;  /* unique identifier (for serialization & parallel processing) */
 
@@ -138,7 +139,7 @@ struct general_body
 
   short form; /* formulation (FEM) */
 
-  void *priv; /* private data (EPR, FEM) */
+  void *priv; /* private data (RFE, FEM) */
 
 #if MPI
   union { SET *children; /* used by parent */
@@ -152,7 +153,7 @@ struct general_body
 #define BODY(bod) ((BODY*)(bod))
 
 /* create a body */
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form);
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form, MESH *msh);
 
 /* get body kind string */
 char* BODY_Kind (BODY *bod);

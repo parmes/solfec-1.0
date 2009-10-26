@@ -36,7 +36,7 @@
 #include "pck.h"
 #include "err.h"
 #include "lng.h"
-#include "epr.h"
+#include "rfe.h"
 #include "fem.h"
 #include "but.h"
 
@@ -85,7 +85,7 @@ static void* alloc_body (short kind)
     /* alloc pseudo-rigid body structure */
     return calloc (1, sizeof (BODY) + sizeof (double [PRB_CONF_SIZE + PRB_VELO_SIZE]));
 
-    case EPR:
+    case RFE:
     case FEM:
     /* alloc finite element discretised body =>
      * configuration and velocity are allocated individually */
@@ -657,7 +657,7 @@ static char* copylabel (char *label)
 
 /* -------------- interface ------------- */
 
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form)
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form, MESH *msh)
 {
   BODY *bod;
 
@@ -716,9 +716,9 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       SET (PRB_LINVEL(bod), 0);
     }
     break;
-    case EPR:
-      ERRMEM (bod = alloc_body (EPR));
-      EPR_Create (shp, mat, bod);
+    case RFE:
+      ERRMEM (bod = alloc_body (RFE));
+      RFE_Create (form, msh, shp, mat, bod);
     break;
     case FEM:
       ERRMEM (bod = alloc_body (FEM));
@@ -773,7 +773,7 @@ char* BODY_Kind (BODY *bod)
   case OBS: return "OBSTACLE";
   case RIG: return "RIGID";
   case PRB: return "PSEUDO_RIGID";
-  case EPR: return "EXTENDED_PSEUDO_RIGID";
+  case RFE: return "EXTENDED_PSEUDO_RIGID";
   case FEM: return "FINITE_ELEMENT";
   }
 
@@ -787,7 +787,7 @@ int BODY_Conf_Size (BODY *bod)
   case OBS: return 0;
   case RIG: return 12;
   case PRB: return 12;
-  case EPR: return EPR_Conf_Size (bod);
+  case RFE: return bod->dofs;
   case FEM: return bod->dofs;
   }
 
@@ -815,8 +815,8 @@ void BODY_Overwrite_State (BODY *bod, double *q, double *u)
       memcpy (bod->conf, q, sizeof (double [12]));
       memcpy (bod->velo, u, sizeof (double [12]));
     break;
-    case EPR:
-      EPR_Overwrite_State (bod, q, u);
+    case RFE:
+      RFE_Overwrite_State (bod, q, u);
     break;
     case FEM:
       FEM_Overwrite_State (bod, q, u);
@@ -837,8 +837,8 @@ void BODY_Initial_Velocity (BODY *bod, double *linear, double *angular)
       if (angular) {VECSKEW (angular, PRB_GRADVEL(bod));}
       if (linear) {COPY (linear, PRB_LINVEL(bod));}
     break;
-    case EPR:
-      EPR_Initial_Velocity (bod, linear, angular);
+    case RFE:
+      RFE_Initial_Velocity (bod, linear, angular);
     break;
     case FEM:
       FEM_Initial_Velocity (bod, linear, angular);
@@ -963,8 +963,8 @@ void BODY_Dynamic_Init (BODY *bod, SCHEME scheme)
       ASSERT (scheme == SCH_DEFAULT, ERR_BOD_SCHEME);
       bod->scheme = scheme;
     break;
-    case EPR:
-      EPR_Dynamic_Init (bod, scheme);
+    case RFE:
+      RFE_Dynamic_Init (bod, scheme);
     break;
     case FEM:
       FEM_Dynamic_Init (bod, scheme);
@@ -998,8 +998,8 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
       step = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
     }
     break;
-    case EPR:
-      step = EPR_Dynamic_Critical_Step (bod);
+    case RFE:
+      step = RFE_Dynamic_Critical_Step (bod);
     break;
     case FEM:
       step = FEM_Dynamic_Critical_Step (bod);
@@ -1080,8 +1080,8 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
     }
     break;
-    case EPR:
-      EPR_Dynamic_Step_Begin (bod, time, step);
+    case RFE:
+      RFE_Dynamic_Step_Begin (bod, time, step);
     break;
     case FEM:
       FEM_Dynamic_Step_Begin (bod, time, step);
@@ -1156,8 +1156,8 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
     }
     break;
-    case EPR:
-      EPR_Dynamic_Step_End (bod, time, step);
+    case RFE:
+      RFE_Dynamic_Step_End (bod, time, step);
     break;
     case FEM:
       FEM_Dynamic_Step_End (bod, time, step);
@@ -1204,8 +1204,8 @@ void BODY_Static_Init (BODY *bod)
       SET (v, 0);
     }
     break;
-    case EPR:
-      EPR_Static_Init (bod);
+    case RFE:
+      RFE_Static_Init (bod);
     break;
     case FEM:
       FEM_Static_Init (bod);
@@ -1235,8 +1235,8 @@ void BODY_Static_Step_Begin (BODY *bod, double time, double step)
       MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
     }
     break;
-    case EPR:
-      EPR_Static_Step_Begin (bod, time, step);
+    case RFE:
+      RFE_Static_Step_Begin (bod, time, step);
     break;
     case FEM:
       FEM_Static_Step_Begin (bod, time, step);
@@ -1279,8 +1279,8 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
       blas_daxpy (12, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
     }
     break;
-    case EPR:
-      EPR_Static_Step_End (bod, time, step);
+    case RFE:
+      RFE_Static_Step_End (bod, time, step);
     break;
     case FEM:
       FEM_Static_Step_End (bod, time, step);
@@ -1318,8 +1318,8 @@ void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
       TVADDMUL (c, F, A, x); /* transpose, as F is stored row-wise */
     }
     break;
-    case EPR:
-      EPR_Cur_Point (bod, shp, gobj, X, x);
+    case RFE:
+      RFE_Cur_Point (bod, shp, gobj, X, x);
     break;
     case FEM:
       FEM_Cur_Point (bod, shp->data, gobj, X, x);
@@ -1358,8 +1358,8 @@ void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
       NVADDMUL (C, IF, a, X);
     }
     break;
-    case EPR:
-      EPR_Ref_Point (bod, shp, gobj, x, X);
+    case RFE:
+      RFE_Ref_Point (bod, shp, gobj, x, X);
     break;
     case FEM:
       FEM_Ref_Point (bod, shp->data, gobj, x, X);
@@ -1392,8 +1392,8 @@ void BODY_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *
       blas_dgemv ('N', 3, 12, 1.0, H, 3, bod->velo+off, 1, 0.0, velo, 1);
     }
     break;
-    case EPR:
-      EPR_Local_Velo (bod, time, shp, gobj, point, base, velo);
+    case RFE:
+      RFE_Local_Velo (bod, time, shp, gobj, point, base, velo);
     break;
     case FEM:
       FEM_Local_Velo (bod, time, shp->data, gobj, point, base, velo);
@@ -1419,8 +1419,8 @@ MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, 
       H = MX_Create (MXDENSE, 3, 12, NULL, NULL);
       prb_operator_H (bod, point, base, H->x);
     break;
-    case EPR:
-      H = EPR_Gen_To_Loc_Operator (bod, shp, gobj, point, base);
+    case RFE:
+      H = RFE_Gen_To_Loc_Operator (bod, shp, gobj, point, base);
     break;
     case FEM:
       H = FEM_Gen_To_Loc_Operator (bod, shp->data, gobj, point, base);
@@ -1461,8 +1461,8 @@ double BODY_Kinetic_Energy (BODY *bod)
       energy = 0.5 * (DOT9(L, EL) + m*DOT(v, v));
     }
     break;
-    case EPR:
-      energy = EPR_Kinetic_Energy (bod);
+    case RFE:
+      energy = RFE_Kinetic_Energy (bod);
     break;
     case FEM:
       energy = FEM_Kinetic_Energy (bod);
@@ -1556,8 +1556,8 @@ void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND 
     }
   }
   break;
-  case EPR:
-    EPR_Nodal_Values (bod, shp, gobj, node, kind, values);
+  case RFE:
+    RFE_Nodal_Values (bod, shp, gobj, node, kind, values);
   break;
   case FEM:
     FEM_Nodal_Values (bod, shp->data, gobj, node, kind, values);
@@ -1619,8 +1619,8 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
     }
   }
   break;
-  case EPR:
-    EPR_Point_Values (bod, point, kind, values);
+  case RFE:
+    RFE_Point_Values (bod, point, kind, values);
   break;
   case FEM:
     FEM_Point_Values (bod, point, kind, values);
@@ -1630,60 +1630,28 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
 
 void BODY_Write_State (BODY *bod, PBF *bf)
 {
-  switch (bod->kind)
-  {
-  case EPR:
-    EPR_Write_State (bod, bf);
-    break;
-  default:
-    PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
-    PBF_Double (bf, bod->velo, bod->dofs);
-    break;
-  }
+  PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
+  PBF_Double (bf, bod->velo, bod->dofs);
 }
 
 void BODY_Read_State (BODY *bod, PBF *bf)
 {
-  switch (bod->kind)
-  {
-  case EPR:
-    EPR_Read_State (bod, bf);
-    break;
-  default:
-    PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
-    PBF_Double (bf, bod->velo, bod->dofs);
-    break;
-  }
+  PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
+  PBF_Double (bf, bod->velo, bod->dofs);
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
 
 void BODY_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  switch (bod->kind)
-  {
-  case EPR:
-    EPR_Pack_State (bod, dsize, d, doubles, isize, i, ints);
-    break;
-  default:
-    pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-    pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
-    break;
-  }
+  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
 }
 
 void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  switch (bod->kind)
-  {
-  case EPR:
-    EPR_Unpack_State (bod, dpos, d, doubles, ipos, i, ints);
-    break;
-  default:
-    unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-    unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
-    break;
-  }
+  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
@@ -1704,7 +1672,7 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->inverse) MX_Destroy (bod->inverse);
 
-  if (bod->kind == EPR) EPR_Destroy (bod);
+  if (bod->kind == RFE) RFE_Destroy (bod);
   else if (bod->kind == FEM) FEM_Destroy (bod);
 
 #if MPI
@@ -1788,6 +1756,7 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
   /* these are arguments of BODY_Create */
   pack_int (isize, i, ints, bod->kind);
   if (bod->kind == FEM) pack_int (isize, i, ints, bod->form);
+  if (bod->kind == RFE) MESH_Pack (RFE_Mesh (bod), dsize, d, doubles, isize, i, ints);
   SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
   pack_string (isize, i, ints, bod->mat->label);
   pack_string (isize, i, ints, bod->label);
@@ -1823,6 +1792,7 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 {
   BODY *bod;
   int kind;
+  MESH *msh;
   SHAPE *shp;
   char *label;
   BULK_MATERIAL *mat;
@@ -1835,12 +1805,13 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   sol = solfec;
   kind = unpack_int (ipos, i, ints);
   if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
+  if (kind == RFE) msh = MESH_Unpack (solfec, dpos, d, doubles, ipos, i, ints); else msh = NULL;
   shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label, form);
+  bod = BODY_Create (kind, shp, mat, label, form, msh);
   free (label);
 
   /* overwritte characteristics */
@@ -1885,6 +1856,7 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   /* these are arguments of BODY_Create */
   pack_int (isize, i, ints, bod->kind);
   if (bod->kind == FEM) pack_int (isize, i, ints, bod->form);
+  if (bod->kind == RFE) MESH_Pack (RFE_Mesh (bod), dsize, d, doubles, isize, i, ints);
   SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
   pack_string (isize, i, ints, bod->mat->label);
   pack_string (isize, i, ints, bod->label);
@@ -1921,6 +1893,7 @@ BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *
   BODY *bod;
   int kind, n, m;
   SHAPE *shp;
+  MESH *msh;
   char *label;
   BULK_MATERIAL *mat;
   SOLFEC *sol;
@@ -1930,12 +1903,13 @@ BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *
   sol = solfec;
   kind = unpack_int (ipos, i, ints);
   if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
+  if (kind == RFE) msh = MESH_Unpack (solfec, dpos, d, doubles, ipos, i, ints); else msh = NULL;
   shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label, form);
+  bod = BODY_Create (kind, shp, mat, label, form, msh);
   free (label);
 
   /* overwritte characteristics */
@@ -1977,6 +1951,7 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
   /* these are arguments of BODY_Create */
   pack_int (isize, i, ints, bod->kind);
   if (bod->kind == FEM) pack_int (isize, i, ints, bod->form);
+  if (bod->kind == RFE) MESH_Pack (RFE_Mesh (bod), dsize, d, doubles, isize, i, ints);
   SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
   pack_string (isize, i, ints, bod->mat->label);
   pack_string (isize, i, ints, bod->label);
@@ -1997,6 +1972,7 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
   BODY *bod;
   int kind;
   SHAPE *shp;
+  MESH *msh;
   char *label;
   BULK_MATERIAL *mat;
   SOLFEC *sol;
@@ -2006,12 +1982,13 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
   sol = solfec;
   kind = unpack_int (ipos, i, ints);
   if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
+  if (kind == RFE) msh = MESH_Unpack (solfec, dpos, d, doubles, ipos, i, ints); else msh = NULL;
   shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label, form);
+  bod = BODY_Create (kind, shp, mat, label, form, msh);
   free (label);
 
   /* overwritte characteristics */
@@ -2038,18 +2015,8 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
 void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_int (isize, i, ints, bod->id);
-
-  switch (bod->kind)
-  {
-  case EPR:
-    EPR_Pack_State (bod, dsize, d, doubles, isize, i, ints);
-    break;
-  default:
-    pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-    pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
-    break;
-  }
-
+  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
   pack_int (isize, i, ints, DOM (bod->dom)->rank); /* pack parent rank => same as domain's rank */
 }
 
@@ -2064,16 +2031,8 @@ void BODY_Child_Unpack_State (void *domain, int *dpos, double *d, int doubles, i
 
   ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) id, NULL), "Invalid child id");
 
-  switch (bod->kind)
-  {
-  case EPR:
-    EPR_Unpack_State (bod, dpos, d, doubles, ipos, i, ints);
-    break;
-  default:
-    unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-    unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
-    break;
-  }
+  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
 
   bod->my.parent = unpack_int (ipos, i, ints); /* unpack parent rank */
 
