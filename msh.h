@@ -113,8 +113,8 @@ void MESH_Char_Partial (MESH *msh, double *vo, double *sx, double *sy, double *s
  * volume, mass center, and Euler tensor (centered) */
 void MESH_Char (MESH *msh, double *volume, double *center, double *euler);
 
-/* find an element containing the point */
-ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point);
+/* find an element containing a spatial or referential point */
+ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref);
 
 /* update mesh according to the given motion */
 void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion);

@@ -773,7 +773,7 @@ char* BODY_Kind (BODY *bod)
   case OBS: return "OBSTACLE";
   case RIG: return "RIGID";
   case PRB: return "PSEUDO_RIGID";
-  case RFE: return "EXTENDED_PSEUDO_RIGID";
+  case RFE: return "ROUGH_FINITE_ELEMENT";
   case FEM: return "FINITE_ELEMENT";
   }
 

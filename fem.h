@@ -26,7 +26,7 @@
 #define __fem__
 
 /* formulation kind */
-typedef enum {TET_O1, TET_O2, HEX_TET_O1} FEMFORM;
+typedef enum {FEM_O1, FEM_O2} FEMFORM;
 
 /* create FEM internals for a body */
 void FEM_Create (FEMFORM form, MESH *msh, BULK_MATERIAL *mat, BODY *bod);

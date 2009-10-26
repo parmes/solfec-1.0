@@ -323,10 +323,9 @@ static void load_nodes (double (*heap) [3], int type, int *nodes, double (*stack
 }
 
 /* create face planes from the current shape of an element */
-static int create_element_planes (MESH *msh, ELEMENT *ele, double *pla)
+static int create_element_planes (double (*node) [3], ELEMENT *ele, double *pla)
 {
-  double (*node) [3] = msh->cur_nodes,
-         a [3], b [3], c [3];
+  double a [3], b [3], c [3];
   int *n = ele->nodes - 1, /* due to one based indexing in tet, pyr, wed, hex */
       (*f) [4], i, m;
 
@@ -988,32 +987,34 @@ void MESH_Char (MESH *msh, double *volume, double *center, double *euler)
 }
 
 /* find an element containing the point */
-ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point)
+ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref)
 {
   /* the linear search should be at some point optimised with a proper
      spatial search => move point to the reference configuration and
      query a search tree based on the reference configuration geometry */
 
+  double (*nodes) [3] = ref ? msh->ref_nodes : msh->cur_nodes;
   double pla [24];
   ELEMENT *ele;
 
   /* first search surface elements */
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
-    create_element_planes (msh, ele, pla);
+    create_element_planes (nodes, ele, pla);
     if (point_inside (neighs (ele->type), pla, point)) return ele;
   }
 
   /* then the bulk elements */
   for (ele = msh->bulkeles; ele; ele = ele->next)
   {
-    create_element_planes (msh, ele, pla);
+    create_element_planes (nodes, ele, pla);
     if (point_inside (neighs (ele->type), pla, point)) return ele;
   }
 
   return NULL;
 }
 
+/* find an element containing a referential point */
 /* update mesh according to the given motion */
 void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
 {
@@ -1115,7 +1116,7 @@ int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point)
 {
   double pla [24];
 
-  create_element_planes (msh, ele, pla);
+  create_element_planes (msh->cur_nodes, ele, pla);
   return point_inside (neighs (ele->type), pla, point);
 }
 

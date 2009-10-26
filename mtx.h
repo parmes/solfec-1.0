@@ -67,7 +67,7 @@ struct general_matrix
 /* static sparse matrix */
 #define MX_CSC(name, nzmax, m, n, p, i)\
   double __##name [nzmax];\
-  MX name = {MXCSC, MXSTATIC, nzmax, m, n, p, i, -1, __##name, NULL, NULL}
+  MX name = {MXCSC, MXSTATIC, nzmax, m, n, (int*)p, (int*)i, -1, __##name, NULL, NULL}
 
 /* create a matrix => structure tables (p, i) always have
  * to be provided; the tables 'p' and 'i' are coppied */
