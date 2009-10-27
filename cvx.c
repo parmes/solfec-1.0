@@ -410,7 +410,9 @@ CONVEX* CONVEX_Create (CONVEX *cvx, double *ver, int nver, int *fac, int nfac, i
   cvy->nver = nver;
   cvy->nfac = nfac;
   cvy->adj = NULL;
+  cvx->ele = NULL;
   cvy->nadj = 0;
+  cvx->nele = 0;
   cvy->volume = volume; /* volume identifier */
   cvy->mat = NULL;
 
@@ -804,6 +806,34 @@ int CONVEX_Adjacent (CONVEX *one, CONVEX *two)
   return 0;
 }
 
+/* return 6-vector (normal, point) planes of convex faces */
+double* CONVEX_Planes (CONVEX *cvx)
+{
+  double *pla, *p, *q, max;
+  int i, j ,k;
+
+  ERRMEM (p = malloc (cvx->nfac * sizeof (double [6])));
+
+  for (i = 0, pla = cvx->pla, q = p; i < cvx->nfac; i ++, pla += 4, q += 6)
+  {
+    COPY (pla, q);
+
+    for (max = fabs (pla [0]), k = 0, j = 1; j < 3; j ++)
+    {
+      if (fabs (pla [j]) > max) /* get maximal absolute normal coordinate */
+      {
+	max = fabs (pla [j]);
+	k = j;
+      }
+    }
+
+    q [3] = q [4] = q [5] = 0.0;
+    q [3+k]  = -pla [3] / pla [k];
+  }
+
+  return p;
+}
+
 /* free list of convices */
 void CONVEX_Destroy (CONVEX *cvx)
 {
@@ -813,6 +843,7 @@ void CONVEX_Destroy (CONVEX *cvx)
   {
     nxt = cvx->next;
     free (cvx->adj);
+    free (cvx->ele);
     free (cvx);
   }
 }

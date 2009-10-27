@@ -96,7 +96,7 @@ typedef enum
 
 struct general_body
 {
-  enum {OBS, RIG, PRB, RFE, FEM} kind; /* obstacle, rigid, pseudo-rigid, finite element */
+  enum {OBS, RIG, PRB, FEM} kind; /* obstacle, rigid, pseudo-rigid, finite element */
 
   unsigned int id;  /* unique identifier (for serialization & parallel processing) */
 
@@ -137,9 +137,9 @@ struct general_body
 
   BODY_FLAGS flags;      /* flags */
 
-  short form; /* formulation (FEM) */
+  short form; /* FEM formulation */
 
-  void *priv; /* private data (RFE, FEM) */
+  MESH *msh; /* FEM mesh when 'shape' is made of CONVEX objects */
 
 #if MPI
   union { SET *children; /* used by parent */

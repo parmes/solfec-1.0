@@ -31,6 +31,13 @@ struct triangle
   int    flg;     /* flag(s) => used in external algorithms */
 };
 
+typedef struct triangle_surface TRISURF; /* triangulized surface */
+struct triangle_surface
+{
+  TRI *tri; /* triangles and related data as outputed by 'cvi' */
+  int m; /* number of triangles as outputed by 'cvi' */
+};
+
 typedef struct polar_face_vertex PFV; /* vertex of a polar face */
 struct polar_face_vertex
 {

@@ -21,8 +21,11 @@
 
 #include "dom.h"
 #include "fem.h"
+#include "but.h"
 #include "alg.h"
 #include "bla.h"
+#include "hyb.h"
+#include "cvi.h"
 #include "err.h"
 
 typedef double (*node_t) [3]; /* mesh node */
@@ -229,12 +232,14 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *forc
 /* accumulate constraints reaction */
 inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *base, double *R, short isma, double *forc)
 {
+#if 0
   MX *H = FEM_Gen_To_Loc_Operator (bod, msh, ele, point, base);
 
   if (isma) MX_Matvec (1.0, MX_Tran (H), R, -1.0, forc);
   else MX_Matvec (1.0, MX_Tran (H), R, 1.0, forc);
 
   MX_Destroy (H);
+#endif
 }
 
 /* calculate constraints force */
@@ -291,19 +296,98 @@ static void fem_element_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, double *poin
 {
 }
 
-/* create FEM internals for a body */
-void FEM_Create (FEMFORM form, MESH *msh, BULK_MATERIAL *mat, BODY *bod)
+/* element and convex bounding boxe intersection callback; compute
+ * their volumetric intersection to be later used for integration */
+static void* overlap (void *data, BOX *one, BOX *two)
 {
-  SHAPE shp = {SHAPE_MESH, msh, NULL, NULL};
+  double vertices [24], planes [36], *pla;
+  ELEMENT *ele;
+  CONVEX *cvx;
+  int m, n, k;
+  TRI *tri;
 
-  SHAPE_Char (&shp, &bod->ref_volume, bod->ref_center, bod->ref_tensor);
-  SCALE9 (bod->ref_tensor, mat->density);
+  switch (GOBJ_Pair_Code (one, two))
+  {
+  case AABB_ELEMENT_CONVEX: ele = one->sgp->gobj; cvx = two->sgp->gobj; break;
+  case AABB_CONVEX_ELEMENT: ele = two->sgp->gobj; cvx = one->sgp->gobj; break;
+  default: ASSERT_DEBUG (0, "Unexpected pair code"); break;
+  }
+
+  n = ELEMENT_Vertices (data, ele, vertices);
+  k = ELEMENT_Planes (data, ele, planes, NULL, NULL);
+  pla = CONVEX_Planes (cvx);
+  tri = cvi (cvx->cur, cvx->nver, pla, cvx->nfac, vertices, n, planes, k, &m);
+  free (pla);
+
+  if (tri)
+  {
+#if DEBUG
+    for (n = 0; n < cvx->nele; n ++) { ASSERT_DEBUG (cvx->ele [n] != ele, "CONVEX-ELEMENT intersection detected twice: this should not happen"); }
+#endif
+    ERRMEM (cvx->ele = realloc (cvx->ele, (++cvx->nele) * sizeof (ELEMENT*)));
+    cvx->ele [cvx->nele-1] = ele;
+    ERRMEM (ele->dom = realloc (ele->dom, (++ele->domnum) * sizeof (TRISURF)));
+    ele->dom [ele->domnum-1].tri = tri;
+    ele->dom [ele->domnum-1].m = m;
+  }
+
+  return NULL;
+}
+
+/* create FEM internals for a body */
+void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
+{
+  /* compute shape characteristics */
+  SHAPE_Char (shp, &bod->ref_volume, bod->ref_center, bod->ref_tensor);
   bod->ref_mass = bod->ref_volume * mat->density;
+  SCALE9 (bod->ref_tensor, mat->density);
 
-  bod->form  = form;
-  bod->priv = NULL;
+  if (msh) /* the given mesh is assumed to properly contain the shape */
+  {
+    SHAPE msh_shp = {SHAPE_MESH, msh, NULL, NULL};
+    BOX **msh_boxes, **shp_boxes, **box;
+    SGP *msh_sgp, *shp_sgp, *sgp, *sge;
+    BOX_Extents_Update update;
+    int msh_nsgp, shp_nsgp;
+    MEM boxmem;
+
+    msh_sgp = SGP_Create (&msh_shp, &msh_nsgp);
+    shp_sgp = SGP_Create (shp, &shp_nsgp);
+    MEM_Init (&boxmem, sizeof (BOX), msh_nsgp + shp_nsgp);
+    ERRMEM (msh_boxes = malloc (msh_nsgp * sizeof (AABB*)));
+    ERRMEM (shp_boxes = malloc (shp_nsgp * sizeof (AABB*)));
+
+    for (sgp = msh_sgp, box = msh_boxes, sge = sgp + msh_nsgp; sgp < sge; sgp ++, box ++)
+    {
+      ERRMEM ((*box) = MEM_Alloc (&boxmem));
+      update = SGP_Extents_Update (sgp);
+      update (sgp->shp->data, sgp->gobj, (*box)->extents);
+      (*box)->sgp = sgp;
+      (*box)->kind = GOBJ_ELEMENT;
+    }
+
+    for (sgp = shp_sgp, box = shp_boxes, sge = sgp + shp_nsgp; sgp < sge; sgp ++, box ++)
+    {
+      ERRMEM ((*box) = MEM_Alloc (&boxmem));
+      update = SGP_Extents_Update (sgp);
+      update (sgp->shp->data, sgp->gobj, (*box)->extents);
+      (*box)->sgp = sgp;
+      (*box)->kind = GOBJ_CONVEX;
+    }
+
+    /* find overlaps between bounding boxes of mesh elements and convices */
+    hybrid_ext (msh_boxes, msh_nsgp, shp_boxes, shp_nsgp, msh, overlap);
+
+    free (shp_boxes);
+    free (msh_boxes);
+    MEM_Release (&boxmem);
+    free (shp_sgp);
+    free (msh_sgp);
+  }
+  else msh = shp->data; /* retrive the mesh pointer from the shape */
+
   bod->dofs = msh->nodes_count * 3;
-  ERRMEM (bod->conf = calloc (4, bod->dofs * sizeof (double))); /* conf, velo, vel0, forc */
+  ERRMEM (bod->conf = calloc (4, bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force */
   bod->velo = bod->conf + bod->dofs;
 }
 
@@ -431,8 +515,9 @@ void FEM_Static_Step_End (BODY *bod, double time, double step)
 }
 
 /* motion x = x (X, state) */
-void FEM_Cur_Point (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *x)
+void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 {
+#if 0
   if (ele)
   {
     double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
@@ -448,31 +533,37 @@ void FEM_Cur_Point (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *x)
 
     COPY (msh->cur_nodes [n], x);
   }
+#endif
 }
 
 /* inverse motion X = X (x, state) */
-void FEM_Ref_Point (BODY *bod, MESH *msh, ELEMENT *ele, double *x, double *X)
+void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
 {
+#if 0
   double point [3];
 
   spatial_to_local (msh, ele, x, point);
 
   local_to_referential (msh, ele, point, X);
+#endif
 }
 
 /* obtain velocity at (element, point), expressed in the local 'base' => all entities are spatial */
-void FEM_Local_Velo (BODY *bod, VELOTIME time, MESH *msh, ELEMENT *ele, double *point, double *base, double *velo)
+void FEM_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo)
 {
+#if 0
   double *u = (time == CURVELO ? bod->velo : FEM_VEL0 (bod));
   MX *H = FEM_Gen_To_Loc_Operator (bod, msh, ele, point, base);
 
   MX_Matvec (1.0, H, u, 0.0, velo);
   MX_Destroy (H);
+#endif
 }
 
 /* return transformation operator from the generalised to the local velocity space at (element, point, base) */
-MX* FEM_Gen_To_Loc_Operator (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *base)
+MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base)
 {
+#if 0
   double i [] = {0, 1, 2, 0, 1, 2, 0, 1, 2}, p [] = {0, 3, 6, 9};
   MX_CSC (base_trans, 9, 3, 3, p, i);
   MX *N, *H;
@@ -486,6 +577,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, MESH *msh, ELEMENT *ele, double *point, 
   MX_Destroy (N);
 
   return H;
+#endif
 }
 
 /* compute current kinetic energy */
@@ -507,8 +599,9 @@ double FEM_Kinetic_Energy (BODY *bod)
 }
 
 /* get some values at a node of a geometrical object */
-void FEM_Nodal_Values (BODY *bod, MESH *msh, ELEMENT *ele, int node, VALUE_KIND kind, double *values)
+void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values)
 {
+#if 0
   int n = ele->nodes [node];
 
   switch (kind)
@@ -547,6 +640,7 @@ void FEM_Nodal_Values (BODY *bod, MESH *msh, ELEMENT *ele, int node, VALUE_KIND 
   }
   break;
   }
+#endif
 }
 
 /* get some values at a referential point */

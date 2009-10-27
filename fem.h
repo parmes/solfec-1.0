@@ -26,10 +26,10 @@
 #define __fem__
 
 /* formulation kind */
-typedef enum {FEM_O1, FEM_O2} FEMFORM;
+typedef enum {FEM_O1 = 1, FEM_O2} FEMFORM; /* must start with > 1 (see BODY_Pack) */
 
-/* create FEM internals for a body */
-void FEM_Create (FEMFORM form, MESH *msh, BULK_MATERIAL *mat, BODY *bod);
+/* create FEM internals for a body (note that 'msh' might be NULL so that shp->data is a mesh) */
+void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod);
 
 /* overwrite state */
 void FEM_Overwrite_State (BODY *bod, double *q, double *u);
@@ -59,22 +59,22 @@ void FEM_Static_Step_Begin (BODY *bod, double time, double step);
 void FEM_Static_Step_End (BODY *bod, double time, double step);
 
 /* motion x = x (X, state) */
-void FEM_Cur_Point (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *x);
+void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
 
 /* inverse motion X = X (x, state) */
-void FEM_Ref_Point (BODY *bod, MESH *msh, ELEMENT *ele, double *x, double *X);
+void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
 
 /* obtain velocity at (element, point), expressed in the local 'base' => all entities are spatial */
-void FEM_Local_Velo (BODY *bod, VELOTIME time, MESH *msh, ELEMENT *ele, double *point, double *base, double *velo);
+void FEM_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo);
 
 /* return transformation operator from the generalised to the local velocity space at (element, point, base) */
-MX* FEM_Gen_To_Loc_Operator (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *base);
+MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base);
 
 /* compute current kinetic energy */
 double FEM_Kinetic_Energy (BODY *bod);
 
 /* get some values at a node of a geometrical object */
-void FEM_Nodal_Values (BODY *bod, MESH *msh, ELEMENT *ele, int node, VALUE_KIND kind, double *values);
+void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values);
 
 /* get some values at a referential point */
 void FEM_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values);

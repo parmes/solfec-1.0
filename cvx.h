@@ -22,6 +22,11 @@
 #include "mat.h"
 #include "mot.h"
 
+#ifndef ELEMENT_TYPE
+#define ELEMENT_TYPE
+typedef struct element ELEMENT;
+#endif
+
 #ifndef __cvx__
 #define __cvx__
 
@@ -37,9 +42,12 @@ struct convex
  
   CONVEX **adj; /* adjacency */
 
+  ELEMENT **ele; /* intersected elements */
+
   int nver, /* vertices count */
-      nfac, /* faces count */ 
+      nfac, /* faces count */
       nadj, /* number of neihjbours */
+      nele, /* number of intersected elements */
       volume; /* volume identifier */
 
   BULK_MATERIAL *mat;
@@ -107,6 +115,9 @@ void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion);
 
 /* test wether two convices are adjacent */
 int CONVEX_Adjacent (CONVEX *one, CONVEX *two);
+
+/* return 6-vector (normal, point) planes of convex faces */
+double* CONVEX_Planes (CONVEX *cvx);
 
 /* free list of convices */
 void CONVEX_Destroy (CONVEX *cvx);

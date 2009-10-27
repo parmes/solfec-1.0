@@ -30,4 +30,7 @@
 /* report overlaps between n boxes */
 void hybrid (BOX **boxes, int n, void *data, BOX_Overlap_Create create);
 
+/* report overlaps between two sets of boxes */
+void hybrid_ext (BOX **seta, int na, BOX **setb, int nb, void *data, BOX_Overlap_Create create);
+
 #endif

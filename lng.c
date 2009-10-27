@@ -1956,6 +1956,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
   lng_SOLFEC *solfec;
   lng_BODY *self;
   lng_MESH *mesh;
+  MESH *msh;
   short form;
   char *lab;
 
@@ -1969,6 +1970,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     formulation = NULL;
     form = FEM_O1;
     mesh = NULL;
+    msh = NULL;
 
     PARSEKEYS ("OOOO|OOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh);
 
@@ -1996,16 +1998,18 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     {
       self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
     }
-    ELIF (kind, "ROUGH_FINITE_ELEMENT")
-    {
-      TYPETEST (is_shape_convex (shape, kwl[2]) && is_mesh ((PyObject*)mesh, kwl[6]));
-
-      self->bod = BODY_Create (RFE, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, mesh->msh);
-      mesh->msh = NULL; /* empty */
-    }
     ELIF (kind, "FINITE_ELEMENT")
     {
-      TYPETEST (is_mesh (shape, kwl[2]));
+      if (mesh)
+      {
+        TYPETEST (is_shape_convex (shape, kwl[2]));
+        msh = mesh->msh;
+	mesh->msh = NULL; /* empty */
+      }
+      else
+      {
+        TYPETEST (is_mesh (shape, kwl[2]));
+      }
 
       if (formulation)
       {
@@ -2024,7 +2028,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	}
       }
 
-      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
+      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, msh);
     }
     ELIF (kind, "OBSTACLE")
     {

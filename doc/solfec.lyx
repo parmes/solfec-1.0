@@ -1741,8 +1741,8 @@ obj
 \series bold
 kind
 \series default
- - a string: 'RIGID', 'PSEUDO_RIGID', 'ROUGH_FINITE_ELEMENT', 'FINITE_ELEMENT'
- or 'OBSTACLE' describing the kinematic model
+ - a string: 'RIGID', 'PSEUDO_RIGID', 'FINITE_ELEMENT' or 'OBSTACLE' describing
+ the kinematic model
 \end_layout
 
 \begin_layout Itemize
@@ -1759,18 +1759,36 @@ shape
 \series bold
 kind
 \series default
- is 'FINITE_ELEMENT', only a single MESH object can be given.
- If the 
-\series bold
-kind
-\series default
- is 'ROUGH_FINITE_ELEMENT' then 
+ is 'FINITE_ELEMENT', then two cases are possible:
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+
 \series bold
 shape
 \series default
- must composed of CONVEX objects.
+ is a single MESH object: the mesh describes both the shape and the discretisati
+on of the motion of a body
 \end_layout
 
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ is solely composed of CONVEX objects: here a separate 
+\series bold
+mesh
+\series default
+ must be given to discretise motion of a body (see the 
+\series bold
+mesh
+\series default
+ argument below) 
+\end_layout
+
+\end_deeper
 \begin_layout Itemize
 
 \series bold
@@ -1808,8 +1826,7 @@ formulation
 \series bold
 kind
 \series default
- equals 'FINITE_ELEMENT' or 'ROUGH_FINITE_ELEMENT', ignored otherwise (default:
- 'FEM_O1').
+ equals 'FINITE_ELEMENT', ignored otherwise (default: 'FEM_O1').
  This argument specifies a formulation of the finite element method.
  See Table 
 \begin_inset CommandInset ref
@@ -1826,22 +1843,19 @@ reference "tab:formulation"
 \series bold
 mesh
 \series default
- - necessary when 
+ - optional when 
 \series bold
 kind
 \series default
- equals 'ROUGH_FINITE_ELEMENT', ignored otherwise.
- This variable must be a MESH object describing a 
-\begin_inset Quotes eld
-\end_inset
-
-rough
-\begin_inset Quotes erd
-\end_inset
-
- finite element mesh properly containing the shape.
- The 'ROUGH_FINITE_ELEMENT' model allows to handle complicated shapes with
- less finite elements, e.g.
+ equals 'FINITE_ELEMENT', ignored otherwise.
+ This variable must be a MESH object describing a finite element mesh properly
+ containing the 
+\series bold
+shape
+\series default
+ composed solely of CONVEX objects.
+ This way the 'FINITE_ELEMENT' model allows to handle complicated shapes
+ with less finite elements, e.g.
  an arbitrary shape could be contained in just one hexahedron.
 \end_layout
 
@@ -2034,8 +2048,8 @@ status open
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="2">
 <features>
-<column alignment="center" valignment="top" width="40col%">
-<column alignment="center" valignment="top" width="40col%">
+<column alignment="center" valignment="top" width="30col%">
+<column alignment="center" valignment="top" width="50col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
@@ -2136,9 +2150,9 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="6" columns="2">
+<lyxtabular version="3" rows="5" columns="2">
 <features>
-<column alignment="center" valignment="top" width="40col%">
+<column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
@@ -2195,26 +2209,6 @@ Column-wise rotation matrix followed by the current mass center.
 
 \begin_layout Plain Layout
 Column-wise deformation gradient followed by the current mass center.
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'ROUGH_FINITE_ELEMENT'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Current coordinates x, y, z of  rough mesh nodes.
 \end_layout
 
 \end_inset
@@ -2304,9 +2298,9 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="6" columns="2">
+<lyxtabular version="3" rows="5" columns="2">
 <features>
-<column alignment="center" valignment="top" width="40col%">
+<column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
@@ -2363,26 +2357,6 @@ Referential angular velocity followed by the spatial velocity of mass center.
 
 \begin_layout Plain Layout
 Deformation gradient velocity followed by the spatial velocity of mass center.
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'ROUGH_FINITE_ELEMENT'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Components x, y, z of spatial velocities of rough mesh nodes.
 \end_layout
 
 \end_inset

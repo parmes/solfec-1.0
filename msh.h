@@ -23,12 +23,17 @@
 #include "mem.h"
 #include "cvx.h"
 #include "mot.h"
+#include "tri.h"
+
+#ifndef ELEMENT_TYPE
+#define ELEMENT_TYPE
+typedef struct element ELEMENT;
+#endif
 
 #ifndef __msh__
 #define __msh__
 
 typedef struct face FACE;
-typedef struct element ELEMENT;
 typedef struct mesh MESH;
 
 /* triangular or quadrilateral face */
@@ -52,9 +57,12 @@ struct element
   int type, /* 4, 5, 6, 8 => tetrahedron, pyramid, wedge, hexahedron */
       nodes [8], /* node indices */
       neighs, /* number of neighbours */
+      domnum, /* number of integration domains */
       volume; /* volume identifier */
 
   BULK_MATERIAL *mat;
+
+  TRISURF *dom; /* integration domains */
 
   ELEMENT *prev,
 	  *next,
@@ -145,9 +153,9 @@ void ELEMENT_Extents (MESH *msh, ELEMENT *ele, double *extents);
 /* copy element vertices into 'ver' and return their count */
 int ELEMENT_Vertices (MESH *msh, ELEMENT *ele, double *ver);
 
-/* return 6-vector (normal, point) planes of element faces,
- * where 'sur' are code of the surfaces of * first 'k' planes
- * correspond to the surface faces; return the total number of planes */
+/* return 6-vector (normal, point) planes of element faces, where 'sur'
+ * are code of the surfaces of * first 'k' planes correspond to the
+ * surface faces (NULL accepted); return the total number of planes */
 int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k);
 
 /* copy element into a convex */

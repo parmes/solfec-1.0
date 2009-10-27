@@ -252,3 +252,18 @@ void hybrid (BOX **boxes, int n, void *data, BOX_Overlap_Create create)
 
   free (copy);
 }
+
+/* report overlaps between two sets of boxes */
+void hybrid_ext (BOX **seta, int na, BOX **setb, int nb, void *data, BOX_Overlap_Create create)
+{
+  stream (seta, seta + na, /* these are intervals */
+          setb, setb + nb, /* these are points */
+	 -DBL_MAX, DBL_MAX, /* the top level interval is [-inf, inf] */
+	  2, data, create); /* we go from the thrid (2) dimension down to one (0) */
+
+  stream (setb, setb + nb,
+          seta, seta + na,
+	 -DBL_MAX, DBL_MAX,
+	  2, data, create);
+}
+

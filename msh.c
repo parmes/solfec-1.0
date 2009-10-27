@@ -1105,9 +1105,24 @@ void* MESH_First_Bulk_Material (MESH *msh)
 /* free mesh memory */
 void MESH_Destroy (MESH *msh)
 {
-  free (msh->ref_nodes);
+  ELEMENT *ele;
+  int n;
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
+    free (ele->dom);
+  }
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
+    free (ele->dom);
+  }
+
   MEM_Release (&msh->facmem);
   MEM_Release (&msh->elemem);
+  free (msh->ref_nodes);
   free (msh);
 }
 
@@ -1181,17 +1196,19 @@ int ELEMENT_Vertices (MESH *msh, ELEMENT *ele, double *ver)
 int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
 {
   FACE faces [6], *fac;
-  int n, m, j;
+  int n, m, j, l;
 
   m = neighs (ele->type); 
-      
+
+  k = (k ? k : &l); /* in case of NULL */
+
   for (n = 0; n < m; n ++)
     setup_face (ele, n, &faces [n], 0);
 
   /* copy first 'k' surface planes */
   for ((*k) = 0, fac = ele->faces; fac; (*k) ++, fac = fac->next)
   {
-    sur [*k] = fac->surface;
+    if (sur) sur [*k] = fac->surface;
     COPY (fac->normal, pla);
     COPY (msh->cur_nodes [fac->nodes[0]], pla + 3);
     pla += 6;
