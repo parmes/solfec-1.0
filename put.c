@@ -234,3 +234,13 @@ int PUT_int_min_rank (int val, int *rank)
 
   return out [0];
 }
+
+/* return minimum of all calls */
+double PUT_double_min (double val)
+{
+  double ret;
+
+  MPI_Allreduce (&val, &ret, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+
+  return ret;
+}

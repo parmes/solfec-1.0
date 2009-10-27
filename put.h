@@ -48,4 +48,7 @@ int PUT_int_min (int val);
 /* return minimum of all calls and its rank */
 int PUT_int_min_rank (int val, int *rank);
 
+/* return minimum of all calls */
+double PUT_double_min (double val);
+
 #endif

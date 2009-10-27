@@ -1387,8 +1387,8 @@ static void dense_eigen (MX *a, int n, double *val, MX *vec)
 
   ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
   ASSERT_DEBUG (val, "NULL pointer passed for eigenvalues");
-  ASSERT_DEBUG (vec && KIND (vec) == MXDENSE, "Not a dense matrix passed for eigenvectors");
-  ASSERT_DEBUG (vec && ABS (n) == vec->n && a->m == vec->m, "Incompatible dimension of the eigenvectors matrix");
+  ASSERT_DEBUG (!vec || (vec && KIND (vec) == MXDENSE), "Not a dense matrix passed for eigenvectors");
+  ASSERT_DEBUG (!vec || (vec && ABS (n) == vec->n && a->m == vec->m), "Incompatible dimension of the eigenvectors matrix");
 
   b = MX_Copy (a, NULL);  /* copy, not to modify the input */
   jobz = vec ? 'V' : 'N';
@@ -1398,7 +1398,7 @@ static void dense_eigen (MX *a, int n, double *val, MX *vec)
   il = (n < 0 ?  1 : bm - n + 1);
   iu = (n < 0 ? -n : bm);
   z  = (vec ? vec->x : NULL);
-  ldz = (vec ? vec->m : 0);
+  ldz = (vec ? vec->m : 1);
   isuppz = NULL;
   
   lapack_dsyevr (jobz, 'I', 'U', bn, bx, bm,
@@ -1653,10 +1653,11 @@ MX* MX_Tran (MX *a)
 MX* MX_Diag (MX *a, int from, int to)
 {
   MX *b;
+  int j;
 
   ASSERT_DEBUG (KIND (a) == MXBD, "Invalid matrix kind");
-  ASSERT_DEBUG (from > to && from > 0 && to < a->n, "Invalid block index");
-  ASSERT_DEBUG (! MXDSUBLK (a), "Cannot get sub-block of a sub-block");
+  ASSERT_DEBUG (from < to && from >= 0 && to < a->n, "Invalid block index");
+  ASSERT_DEBUG (!MXDSUBLK (a), "Cannot get sub-block of a sub-block");
   ERRMEM (b = malloc (sizeof (MX)));
   memcpy (b, a, sizeof (MX));
   b->flags |= MXDSUBLK;
@@ -1664,6 +1665,7 @@ MX* MX_Diag (MX *a, int from, int to)
   b->p = a->p + from;
   b->i = a->i + from;
   b->n = to - from + 1;
+  for (b->m = j = 0; j < b->n; j ++) b->m += b->i[j+1] - b->i[j];
   if (TEMPORARY (a)) free (a);
   return b;
 }

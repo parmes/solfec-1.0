@@ -4,8 +4,8 @@ from math import cos
 from math import sqrt
 
 # some parameters
-N_BRICKS = 20
-M_BRICKS = 20
+N_BRICKS = 10
+M_BRICKS = 10
 N_LAYERS = 12
 
 # some constants
@@ -223,7 +223,7 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec):
   shape = [cv1, cv2, cv3, cv4, cv5]
   ROTATE (shape, pnt, zet, 45.0)
 
-  BODY (solfec, 'RIGID', shape, material)
+  BODY (solfec, 'PSEUDO_RIGID', shape, material)
 
 def gcore_brick (x, y, z):
 
@@ -271,7 +271,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
 	y = -(outd + dfac) + j * (outd + dfac)
 
 	shp = gcore_brick (x, y, z)
-	BODY (solfec , 'RIGID', shp, material)
+	BODY (solfec , 'PSEUDO_RIGID', shp, material)
 
     # loose keys
     lx = keyw - 2.0*loose_gap
@@ -377,13 +377,13 @@ def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, 
 
 ### main module ###
 
-step = 0.001
+step = 1E-4
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/boxkite')
 
-surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0)
+surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 5E6, poisson = 0.25, density = 1E3)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
 
 tms = TIME_SERIES ([0, 10, 1, 10])
 

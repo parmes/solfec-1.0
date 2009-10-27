@@ -1857,10 +1857,25 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   {
     if (dom->dynamic > 0)
       for (bod = dom->bod; bod; bod = bod->next)
+      {
 	BODY_Dynamic_Init (bod, bod->scheme); /* integration scheme is set externally */
+
+	double h = BODY_Dynamic_Critical_Step (bod);
+
+	if (h < step) step = 0.5 * h;
+      }
     else
       for (bod = dom->bod; bod; bod = bod->next)
 	BODY_Static_Init (bod);
+
+#if MPI
+    dom->step = step = PUT_double_min (step);
+
+    if (dom->rank == 0)
+#else
+    dom->step = step;
+#endif
+    printf (" (TIME STEP: %g) ", step), fflush (stdout);
   }
 
   /* begin time integration */
