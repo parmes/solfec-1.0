@@ -28,6 +28,7 @@
 #include "spx.h"
 #include "err.h"
 #include "alg.h"
+#include "msh.h"
 #include "cvx.h"
 #include "hul.h"
 #include "pck.h"
@@ -410,9 +411,9 @@ CONVEX* CONVEX_Create (CONVEX *cvx, double *ver, int nver, int *fac, int nfac, i
   cvy->nver = nver;
   cvy->nfac = nfac;
   cvy->adj = NULL;
-  cvx->ele = NULL;
+  cvy->ele = NULL;
   cvy->nadj = 0;
-  cvx->nele = 0;
+  cvy->nele = 0;
   cvy->volume = volume; /* volume identifier */
   cvy->mat = NULL;
 
