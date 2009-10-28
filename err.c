@@ -61,6 +61,7 @@ char* errstring (int error)
     case ERR_ZOLTAN: return "Zoltan call failed";
     case ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED: return "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED";
     case ERR_GAUSS_SEIDEL_DIVERGED: return "GAUSS_SEIDEL_SOLVER failed with error code DIVERGED";
+    case ERR_FEM_MASS_NOT_SPD: return "Mass matrix is not symmetric-positive-definite in FEM module";
   }
 
   return "Unknown";

@@ -141,7 +141,7 @@ void* MESH_First_Bulk_Material (MESH *msh);
 void MESH_Destroy (MESH *msh);
   
 /* does the element contain the point? */
-int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point);
+int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref);
 
 /* test wether two elements are adjacent
  * through a common face, edge or vertex */

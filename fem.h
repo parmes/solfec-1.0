@@ -64,11 +64,11 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
 /* inverse motion X = X (x, state) */
 void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
 
-/* obtain velocity at (element, point), expressed in the local 'base' => all entities are spatial */
-void FEM_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo);
+/* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
+void FEM_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *X, double *base, double *velo);
 
-/* return transformation operator from the generalised to the local velocity space at (element, point, base) */
-MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base);
+/* return transformation operator from the generalised to the local velocity space at (element, ref. point, base) */
+MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base);
 
 /* compute current kinetic energy */
 double FEM_Kinetic_Energy (BODY *bod);
@@ -77,7 +77,7 @@ double FEM_Kinetic_Energy (BODY *bod);
 void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values);
 
 /* get some values at a referential point */
-void FEM_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values);
+void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values);
 
 /* release FEM memory */
 void FEM_Destroy (BODY *bod);

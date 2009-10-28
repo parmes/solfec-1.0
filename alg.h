@@ -390,6 +390,16 @@ void GEOMETRIC_EPSILON_ADAPT (double *p, int n);
   (A) [11] = (EPS);\
 }
 
+#define SCALE6(A, EPS)\
+{\
+  (A) [0] *= (EPS);\
+  (A) [1] *= (EPS);\
+  (A) [2] *= (EPS);\
+  (A) [3] *= (EPS);\
+  (A) [4] *= (EPS);\
+  (A) [5] *= (EPS);\
+}
+
 #define SCALE9(A, EPS)\
 {\
   (A) [0] *= (EPS);\
