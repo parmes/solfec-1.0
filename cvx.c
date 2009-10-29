@@ -719,7 +719,7 @@ double CONVEX_Volume (CONVEX *cvx, int ref)
   {
     for (i = 0, f = cvx->fac; i < cvx->nfac; i ++, f = &f [f [0] + 1])
     {
-      a = &cvx->ref [f [1]];
+      a = &ver [f [1]];
       for (j = 2; j < f [0]; j ++)
       {
 	b = &ver [f [j]];
