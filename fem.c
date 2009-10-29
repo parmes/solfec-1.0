@@ -37,6 +37,660 @@ typedef double (*node_t) [3]; /* mesh node */
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
 
+static const double I_TET1_X[] = {0.25};
+static const double I_TET1_Y[] = {0.25};
+static const double I_TET1_Z[] = {0.25};
+static const double I_TET1_W[] = {0.16666666666666666};
+static const int    I_TET1_N   =  1;
+
+static const double I_TET2_X [] = {0.13819660112501052, 0.13819660112501052, 0.13819660112501052, 0.58541019662496840};
+static const double I_TET2_Y [] = {0.13819660112501052, 0.13819660112501052, 0.58541019662496840, 0.13819660112501052};
+static const double I_TET2_Z [] = {0.13819660112501052, 0.58541019662496840, 0.13819660112501052, 0.13819660112501052};
+static const double I_TET2_W [] = {0.04166666666666666, 0.04166666666666666, 0.04166666666666666, 0.04166666666666666};
+static const int    I_TET2_N    =  4;
+
+#define ISQR3 0.57735026918962584 
+static const double I_HEX2_X [] = {-ISQR3, ISQR3, ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3, -ISQR3};
+static const double I_HEX2_Y [] = {-ISQR3, -ISQR3, ISQR3, ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3};
+static const double I_HEX2_Z [] = {-ISQR3, -ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3, ISQR3, ISQR3};
+static const double I_HEX2_W [] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
+static const int    I_HEX2_N    = 8;
+
+/* linear tetrahedron shape functions */
+inline static void tet_o1_shapes (double *point, double *shapes)
+{
+  shapes [0] = point [0];
+  shapes [1] = point [1];
+  shapes [2] = point [2];
+  shapes [3] = 1.0 - (point [0] + point [1] + point [2]);
+}
+
+/* linear hexahedron shape functions */
+inline static void hex_o1_shapes (double *point, double *shapes)
+{
+  shapes [0] = 0.125 * (1.0 - point [0]) * (1.0 - point [1]) * (1.0 - point [2]);
+  shapes [1] = 0.125 * (1.0 + point [0]) * (1.0 - point [1]) * (1.0 - point [2]);
+  shapes [2] = 0.125 * (1.0 + point [0]) * (1.0 + point [1]) * (1.0 - point [2]);
+  shapes [3] = 0.125 * (1.0 - point [0]) * (1.0 + point [1]) * (1.0 - point [2]);
+  shapes [4] = 0.125 * (1.0 - point [0]) * (1.0 - point [1]) * (1.0 + point [2]);
+  shapes [5] = 0.125 * (1.0 + point [0]) * (1.0 - point [1]) * (1.0 + point [2]);
+  shapes [6] = 0.125 * (1.0 + point [0]) * (1.0 + point [1]) * (1.0 + point [2]);
+  shapes [7] = 0.125 * (1.0 - point [0]) * (1.0 + point [1]) * (1.0 + point [2]);
+}
+
+/* linear tetrahedron shape functions */
+inline static void tet_o1_derivs (double *point, double *derivs)
+{
+  derivs [0] = derivs [4] = derivs [8] = 1.0;
+  derivs [1] = derivs [2] = derivs [3] = derivs [5] = derivs [6] = derivs [7] = 0.0;
+  derivs [9] = derivs [10] = derivs [11] = -1.0;
+}
+
+/* linear hexahedron shape functions */
+inline static void hex_o1_derivs (double *point, double *derivs)
+{
+  derivs[0] = -0.125 * (1 - point[1]) * (1 - point[2]);
+  derivs[1] = -0.125 * (1 - point[0]) * (1 - point[2]);
+  derivs[2] = -0.125 * (1 - point[0]) * (1 - point[1]);
+
+  derivs[3] =  0.125 * (1 - point[1]) * (1 - point[2]);
+  derivs[4] = -0.125 * (1 + point[0]) * (1 - point[2]);
+  derivs[5] = -0.125 * (1 + point[0]) * (1 - point[1]);
+
+  derivs[6] =  0.125 * (1 + point[1]) * (1 - point[2]);
+  derivs[7] =  0.125 * (1 + point[0]) * (1 - point[2]);
+  derivs[8] = -0.125 * (1 + point[0]) * (1 + point[1]);
+
+  derivs[9] = -0.125 * (1 + point[1]) * (1 - point[2]);
+  derivs[10] =  0.125 * (1 - point[0]) * (1 - point[2]);
+  derivs[11] = -0.125 * (1 - point[0]) * (1 + point[1]);
+
+  derivs[12] = -0.125 * (1 - point[1]) * (1 + point[2]);
+  derivs[13] = -0.125 * (1 - point[0]) * (1 + point[2]);
+  derivs[14] =  0.125 * (1 - point[0]) * (1 - point[1]);
+
+  derivs[15] =  0.125 * (1 - point[1]) * (1 + point[2]);
+  derivs[16] = -0.125 * (1 + point[0]) * (1 + point[2]);
+  derivs[17] =  0.125 * (1 + point[0]) * (1 - point[1]);
+
+  derivs[18] =  0.125 * (1 + point[1]) * (1 + point[2]);
+  derivs[19] =  0.125 * (1 + point[0]) * (1 + point[2]);
+  derivs[20] =  0.125 * (1 + point[0]) * (1 + point[1]);
+
+  derivs[21] = -0.125 * (1 + point[1]) * (1 + point[2]);
+  derivs[22] =  0.125 * (1 - point[0]) * (1 + point[2]);
+  derivs[23] =  0.125 * (1 - point[0]) * (1 + point[1]);  
+}
+
+/* linear tetrahedron local to global point transformation */
+inline static void tet_local_to_global (node_t nodes, double *local, double *global)
+{
+  double shapes [4];
+  int i, j;
+
+  tet_o1_shapes (local, shapes);
+
+  SET (global, 0.0);
+
+  for (i = 0; i < 3; i ++)
+    for (j = 0; j < 4; j ++)
+      global [i] += nodes [j][i] * shapes [j];
+}
+
+/* linear tetrahedron global to local point transformation */
+inline static void tet_global_to_local (node_t nodes, double *global, double *local)
+{
+  double A [9], B [3], I [9], det;
+
+  SUB (nodes [0], nodes [3], A);
+  SUB (nodes [1], nodes [3], A+3);
+  SUB (nodes [2], nodes [3], A+6);
+  SUB (global, nodes [3], B);
+  INVERT (A, I, det);
+  ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
+  NVMUL (I, B, local);
+
+  ASSERT_DEBUG (local [0] >= 0.0 && local [0] <= 1.0 &&
+                local [1] >= 0.0 && local [1] <= 1.0 &&
+		local [2] >= 0.0 && local [2] <= 1.0, "Local coords out of bounds");
+}
+
+/* linear hexahedron local to global point transformation */
+inline static void hex_local_to_global (node_t nodes, double *local, double *global)
+{
+  double shapes [8];
+  int i, j;
+
+  hex_o1_shapes (local, shapes);
+
+  SET (global, 0.0);
+
+  for (i = 0; i < 3; i ++)
+    for (j = 0; j < 8; j ++)
+      global [i] += nodes [j][i] * shapes [j];
+}
+
+/* linear hexahedron global to local point transformation */
+inline static void hex_global_to_local (node_t nodes, double *global, double *local)
+{
+  double A [9], B [3], I [9], det, error;
+  double shapes [8], derivs [24];
+  int i, j, k, l;
+
+  SET (local, 1.0);
+  l = 0;
+
+  do
+  {
+    hex_o1_shapes (local, shapes);
+
+    COPY (global, B);
+
+    for (i = 0; i < 3; i ++)
+      for (j = 0; j < 8; j ++)
+	B [i] -= nodes [j][i] * shapes [j];
+
+    hex_o1_derivs (local, derivs);
+
+    SET9 (A, 0.0);
+
+    for (i = 0; i < 3; i ++)
+      for (j = 0; j < 3; j ++)
+	for (k = 0; k < 8; k ++) A [3*j+i] += nodes[k][i] * derivs [3*k+j];
+
+    INVERT (A, I, det);
+    ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
+    NVMUL (I, B, A);
+    SUB (local, A, local);
+    error = sqrt (DOT (A,A) / (1.0 + DOT (local, local)));
+
+  } while (++l < 64 && error > 1E-9);
+
+  ASSERT (l < 64, ERR_FEM_COORDS_INVERT);
+
+  ASSERT_DEBUG (local [0] >= 0.0 && local [0] <= 1.0 &&
+                local [1] >= 0.0 && local [1] <= 1.0 &&
+		local [2] >= 0.0 && local [2] <= 1.0, "Local coords out of bounds");
+}
+
+/* linear tetrahedron transformation determinant at local point */
+inline static double tet_o1_det (node_t nodes, double *point)
+{
+  double derivs [12], F [9];
+  int i, j, k;
+
+  tet_o1_derivs (point, derivs);
+
+  SET9 (F, 0.0);
+
+  for (i = 0; i < 3; i ++)
+    for (j = 0; j < 3; j ++)
+      for (k = 0; k < 4; k ++) F [3*j+i] += nodes[k][i] * derivs [3*k+j];
+
+  return DET (F);
+}
+
+/* linear hexahedron transformation determinant at local point */
+inline static double hex_o1_det (node_t nodes, double *point)
+{
+  double derivs [24], F [9];
+  int i, j, k;
+
+  hex_o1_derivs (point, derivs);
+
+  SET9 (F, 0.0);
+
+  for (i = 0; i < 3; i ++)
+    for (j = 0; j < 3; j ++)
+      for (k = 0; k < 8; k ++) F [3*j+i] += nodes[k][i] * derivs [3*k+j];
+
+  return DET (F);
+}
+
+/* linear tetrahedron deformation determinant at local point */
+inline static void tet_o1_gradient (node_t q, double *point, double *derivs, double *F)
+{
+  int i, j, k;
+
+  tet_o1_derivs (point, derivs);
+
+  IDENTITY (F);
+
+  for (i = 0; i < 3; i ++)
+    for (j = 0; j < 3; j ++)
+      for (k = 0; k < 4; k ++) F [3*j+i] += q[k][i] * derivs [3*k+j];
+}
+
+/* linear hexahedron deformation determinant at local point */
+inline static void hex_o1_gradient (node_t q, double *point, double *derivs, double *F)
+{
+  int i, j, k;
+
+  hex_o1_derivs (point, derivs);
+
+  IDENTITY (F);
+
+  for (i = 0; i < 3; i ++)
+    for (j = 0; j < 3; j ++)
+      for (k = 0; k < 8; k ++) F [3*j+i] += q[k][i] * derivs [3*k+j];
+}
+
+/* lump linear tetrahedron mass */
+inline static void tet_o1_lump (TRISURF *dom, int domnum, node_t nodes, double density, double **out)
+{
+  double point [3], J, integral;
+  double shapes [4];
+  int i, j, k;
+
+  if (dom)
+  {
+    double subnodes [4][3], subJ;
+    double subpoint [3];
+    TRI *t, *e;
+
+    for (; domnum > 0; dom ++, domnum --)
+    {
+      COPY (dom->center, subnodes [3]);
+
+      for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      {
+	COPY (t->ver [0], subnodes [0]);
+	COPY (t->ver [1], subnodes [1]);
+	COPY (t->ver [2], subnodes [2]);
+
+	for (k = 0; k < I_TET2_N; k ++)
+	{
+	  subpoint [0] = I_TET2_X [k];
+	  subpoint [1] = I_TET2_Y [k];
+	  subpoint [2] = I_TET2_Z [k];
+	  subJ = tet_o1_det (subnodes, subpoint);
+	  tet_local_to_global (subnodes, subpoint, point);
+	  tet_o1_shapes (point, shapes);
+	  J = tet_o1_det (nodes, point);
+
+	  for (i = 0; i < 4; i ++)
+	  {
+	    for (j = 0; j < 4; j ++)
+	    {
+	      integral = density * shapes [i] * shapes [j] * J * subJ * I_TET2_W [k];
+
+	      out [i][0] += integral;
+	      out [i][1] += integral;
+	      out [i][2] += integral;
+	    }
+	  }
+	}
+      }
+    }
+  }
+  else
+  {
+    for (k = 0; k < I_TET2_N; k ++)
+    {
+      point [0] = I_TET2_X [k];
+      point [1] = I_TET2_Y [k];
+      point [2] = I_TET2_Z [k];
+      tet_o1_shapes (point, shapes);
+      J = tet_o1_det (nodes, point);
+
+      for (i = 0; i < 4; i ++)
+      {
+	for (j = 0; j < 4; j ++)
+	{
+	  integral = density * shapes [i] * shapes [j] * J * I_TET2_W [k];
+
+	  out [i][0] += integral;
+	  out [i][1] += integral;
+	  out [i][2] += integral;
+	}
+      }
+    }
+  }
+}
+
+/* lump linear hexahedron mass */
+inline static void hex_o1_lump (TRISURF *dom, int domnum, node_t nodes, double density, double **out)
+{
+  double point [3], J, integral;
+  double shapes [8];
+  int i, j, k;
+
+  if (dom)
+  {
+    double subnodes [4][3], subJ;
+    double subpoint [3];
+    TRI *t, *e;
+
+    for (; domnum > 0; dom ++, domnum --)
+    {
+      COPY (dom->center, subnodes [3]);
+
+      for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      {
+	COPY (t->ver [0], subnodes [0]);
+	COPY (t->ver [1], subnodes [1]);
+	COPY (t->ver [2], subnodes [2]);
+
+	for (k = 0; k < I_TET2_N; k ++)
+	{
+	  subpoint [0] = I_TET2_X [k];
+	  subpoint [1] = I_TET2_Y [k];
+	  subpoint [2] = I_TET2_Z [k];
+	  subJ = tet_o1_det (subnodes, subpoint);
+	  tet_local_to_global (subnodes, subpoint, point);
+	  hex_o1_shapes (point, shapes);
+	  J = hex_o1_det (nodes, point);
+
+	  for (i = 0; i < 8; i ++)
+	  {
+	    for (j = 0; j < 8; j ++)
+	    {
+	      integral = density * shapes [i] * shapes [j] * J * subJ * I_TET2_W [k];
+
+	      out [i][0] += integral;
+	      out [i][1] += integral;
+	      out [i][2] += integral;
+	    }
+	  }
+	}
+      }
+    }
+  }
+  else
+  {
+    for (k = 0; k < I_HEX2_N; k ++) /* FIXME: underintegration here: O(2) while should be O(4) */
+    {
+      point [0] = I_HEX2_X [k];
+      point [1] = I_HEX2_Y [k];
+      point [2] = I_HEX2_Z [k];
+      hex_o1_shapes (point, shapes);
+      J = hex_o1_det (nodes, point);
+
+      for (i = 0; i < 8; i ++)
+      {
+	for (j = 0; j < 8; j ++)
+	{
+	  integral = density * shapes [i] * shapes [j] * J * I_TET2_W [k];
+
+	  out [i][0] += integral;
+	  out [i][1] += integral;
+	  out [i][2] += integral;
+	}
+      }
+    }
+  }
+}
+
+/* compute linear tetrahedron body force contribution */
+inline static void tet_o1_body_force (TRISURF *dom, int domnum, node_t nodes, double density, double *f, double *g)
+{
+  double point [3], J, integral;
+  double shapes [4];
+  int i, k;
+
+  blas_dscal (12, 0.0, g, 1);
+
+  if (dom)
+  {
+    double subnodes [4][3], subJ;
+    double subpoint [3];
+    TRI *t, *e;
+
+    for (; domnum > 0; dom ++, domnum --)
+    {
+      COPY (dom->center, subnodes [3]);
+
+      for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      {
+	COPY (t->ver [0], subnodes [0]);
+	COPY (t->ver [1], subnodes [1]);
+	COPY (t->ver [2], subnodes [2]);
+
+	for (k = 0; k < I_TET1_N; k ++)
+	{
+	  subpoint [0] = I_TET1_X [k];
+	  subpoint [1] = I_TET1_Y [k];
+	  subpoint [2] = I_TET1_Z [k];
+	  subJ = tet_o1_det (subnodes, subpoint);
+	  tet_local_to_global (subnodes, subpoint, point);
+	  tet_o1_shapes (point, shapes);
+	  J = tet_o1_det (nodes, point);
+
+	  for (i = 0; i < 4; i ++)
+	  {
+	    integral = density * shapes [i] * J * subJ *  I_TET1_W [k];
+
+	    g [3*i+0] += f [0] * integral;
+	    g [3*i+1] += f [1] * integral;
+	    g [3*i+2] += f [2] * integral;
+	  }
+	}
+      }
+    }
+  }
+  else
+  {
+    for (k = 0; k < I_TET1_N; k ++)
+    {
+      point [0] = I_TET1_X [k];
+      point [1] = I_TET1_Y [k];
+      point [2] = I_TET1_Z [k];
+      tet_o1_shapes (point, shapes);
+      J = tet_o1_det (nodes, point);
+
+      for (i = 0; i < 4; i ++)
+      {
+	integral = density * shapes [i] * J *  I_TET1_W [k];
+
+	g [3*i+0] += f [0] * integral;
+	g [3*i+1] += f [1] * integral;
+	g [3*i+2] += f [2] * integral;
+      }
+    }
+  }
+}
+
+/* compute linear hexahedron body force contribution */
+inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, double density, double *f, double *g)
+{
+  double point [3], J, integral;
+  double shapes [8];
+  int i, k;
+
+  blas_dscal (24, 0.0, g, 1);
+
+  if (dom)
+  {
+    double subnodes [4][3], subJ;
+    double subpoint [3];
+    TRI *t, *e;
+
+    for (; domnum > 0; dom ++, domnum --)
+    {
+      COPY (dom->center, subnodes [3]);
+
+      for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      {
+	COPY (t->ver [0], subnodes [0]);
+	COPY (t->ver [1], subnodes [1]);
+	COPY (t->ver [2], subnodes [2]);
+
+	for (k = 0; k < I_TET1_N; k ++)
+	{
+	  subpoint [0] = I_TET1_X [k];
+	  subpoint [1] = I_TET1_Y [k];
+	  subpoint [2] = I_TET1_Z [k];
+	  subJ = tet_o1_det (subnodes, subpoint);
+	  tet_local_to_global (subnodes, subpoint, point);
+	  hex_o1_shapes (point, shapes);
+	  J = hex_o1_det (nodes, point);
+
+	  for (i = 0; i < 8; i ++)
+	  {
+	    integral = density * shapes [i] * J * subJ *  I_TET1_W [k];
+
+	    g [3*i+0] += f [0] * integral;
+	    g [3*i+1] += f [1] * integral;
+	    g [3*i+2] += f [2] * integral;
+	  }
+	}
+      }
+    }
+  }
+  else
+  {
+    for (k = 0; k < I_HEX2_N; k ++)
+    {
+      point [0] = I_HEX2_X [k];
+      point [1] = I_HEX2_Y [k];
+      point [2] = I_HEX2_Z [k];
+      hex_o1_shapes (point, shapes);
+      J = hex_o1_det (nodes, point);
+
+      for (i = 0; i < 8; i ++)
+      {
+	integral = density * shapes [i] * J *  I_TET2_W [k];
+
+	g [3*i+0] += f [0] * integral;
+	g [3*i+1] += f [1] * integral;
+	g [3*i+2] += f [2] * integral;
+      }
+    }
+  }
+}
+
+/* compute linear tetrahedron internal force contribution */
+inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
+{
+  double shapes [4], derivs [12], F [9], P [9], *B, *p;
+  double point [3], J, integral;
+  double mat_lambda, mat_mi;
+  int i, k;
+
+  blas_dscal (12, 0.0, g, 1);
+  mat_lambda = lambda (mat->young, mat->poisson);
+  mat_mi  = mi (mat->young, mat->poisson);
+
+  if (dom)
+  {
+    double subnodes [4][3], subJ;
+    double subpoint [3];
+    TRI *t, *e;
+
+    for (; domnum > 0; dom ++, domnum --)
+    {
+      COPY (dom->center, subnodes [3]);
+
+      for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      {
+	COPY (t->ver [0], subnodes [0]);
+	COPY (t->ver [1], subnodes [1]);
+	COPY (t->ver [2], subnodes [2]);
+
+	for (k = 0; k < I_TET1_N; k ++)
+	{
+	  subpoint [0] = I_TET1_X [k];
+	  subpoint [1] = I_TET1_Y [k];
+	  subpoint [2] = I_TET1_Z [k];
+	  subJ = tet_o1_det (subnodes, subpoint);
+	  tet_local_to_global (subnodes, subpoint, point);
+	  tet_o1_shapes (point, shapes);
+	  J = tet_o1_det (nodes, point);
+	  tet_o1_gradient (q, point, derivs, F);
+	  SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
+	  integral = J * subJ *  I_TET1_W [k];
+	  SCALE9 (P, integral);
+
+          for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { TVADDMUL (p, P, B, p); }
+	}
+      }
+    }
+  }
+  else
+  {
+    for (k = 0; k < I_TET1_N; k ++)
+    {
+      point [0] = I_TET1_X [k];
+      point [1] = I_TET1_Y [k];
+      point [2] = I_TET1_Z [k];
+      tet_o1_shapes (point, shapes);
+      J = tet_o1_det (nodes, point);
+      tet_o1_gradient (q, point, derivs, F);
+      SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
+      integral = J *  I_TET1_W [k];
+      SCALE9 (P, integral);
+
+      for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { TVADDMUL (p, P, B, p); } /* B' P = P' B */
+    }
+  }
+}
+
+/* compute linear hexahedron internal force contribution */
+inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
+{
+  double shapes [8], derivs [24], F [9], P [9], *B, *p;
+  double point [3], J, integral;
+  double mat_lambda, mat_mi;
+  int i, k;
+
+  blas_dscal (12, 0.0, g, 1);
+  mat_lambda = lambda (mat->young, mat->poisson);
+  mat_mi  = mi (mat->young, mat->poisson);
+
+  if (dom)
+  {
+    double subnodes [4][3], subJ;
+    double subpoint [3];
+    TRI *t, *e;
+
+    for (; domnum > 0; dom ++, domnum --)
+    {
+      COPY (dom->center, subnodes [3]);
+
+      for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      {
+	COPY (t->ver [0], subnodes [0]);
+	COPY (t->ver [1], subnodes [1]);
+	COPY (t->ver [2], subnodes [2]);
+
+	for (k = 0; k < I_TET2_N; k ++)
+	{
+	  subpoint [0] = I_TET2_X [k];
+	  subpoint [1] = I_TET2_Y [k];
+	  subpoint [2] = I_TET2_Z [k];
+	  subJ = tet_o1_det (subnodes, subpoint);
+	  tet_local_to_global (subnodes, subpoint, point);
+	  hex_o1_shapes (point, shapes);
+	  J = hex_o1_det (nodes, point);
+	  hex_o1_gradient (q, point, derivs, F);
+	  SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
+	  integral = J * subJ *  I_TET2_W [k];
+	  SCALE9 (P, integral);
+
+          for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { TVADDMUL (p, P, B, p); }
+	}
+      }
+    }
+  }
+  else
+  {
+    for (k = 0; k < I_HEX2_N; k ++)
+    {
+      point [0] = I_HEX2_X [k];
+      point [1] = I_HEX2_Y [k];
+      point [2] = I_HEX2_Z [k];
+      hex_o1_shapes (point, shapes);
+      J = hex_o1_det (nodes, point);
+      hex_o1_gradient (q, point, derivs, F);
+      SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
+      integral = J *  I_HEX2_W [k];
+      SCALE9 (P, integral);
+
+      for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { TVADDMUL (p, P, B, p); } /* B' P = P' B */
+    }
+  }
+}
+
 /* copy node coordinates into a local table */
 static void load_nodes (node_t heap, int type, int *nodes, node_t stack)
 {
@@ -44,90 +698,6 @@ static void load_nodes (node_t heap, int type, int *nodes, node_t stack)
 
   for (n = 0; n < type; n ++)
   { COPY (heap [nodes [n]], stack [n]); }
-}
-
-/* linear tetrahedron local to global point transformation */
-inline static void tet_local_to_global (node_t nodes, double *local, double *point)
-{
-  /* TODO */
-}
-
-/* linear tetrahedron global to local point transformation */
-inline static void tet_global_to_local (node_t nodes, double *point, double *local)
-{
-  /* TODO */
-}
-
-/* linear hexahedron local to global point transformation */
-inline static void hex_local_to_global (node_t nodes, double *local, double *point)
-{
-  /* TODO */
-}
-
-/* linear hexahedron global to local point transformation */
-inline static void hex_global_to_local (node_t nodes, double *point, double *local)
-{
-  /* TODO */
-}
-
-/* linear tetrahedron shape functions */
-inline static void tet_o1_shapes (double *point, double *shapes)
-{
-  /* TODO */
-}
-
-/* linear hexahedron shape functions */
-inline static void hex_o1_shapes (double *point, double *shapes)
-{
-  /* TODO */
-}
-
-/* linear tetrahedron shape functions */
-inline static void tet_o1_derivs (double *point, double *derivs)
-{
-  /* TODO */
-}
-
-/* linear hexahedron shape functions */
-inline static void hex_o1_derivs (double *point, double *derivs)
-{
-  /* TODO */
-}
-
-/* lump linear tetrahedron mass */
-inline static void tet_o1_lump (node_t nodes, double density, double **out)
-{
-  /* TODO */
-}
-
-/* lump linear hexahedron mass */
-inline static void hex_o1_lump (node_t nodes, double density, double **out)
-{
-  /* TODO */
-}
-
-/* compute linear tetrahedron body force contribution */
-inline static void tet_o1_body_force (node_t nodes, double density, double *f, double *g)
-{
-  /* TODO */
-}
-
-/* compute linear hexahedron body force contribution */
-inline static void hex_o1_body_force (node_t nodes, double density, double *f, double *g)
-{
-  /* TODO */
-}
-
-/* compute linear tetrahedron internal force contribution */
-inline static void tet_o1_internal_force (node_t nodes, BULK_MATERIAL *mat, double *g)
-{
-  /* TODO */
-}
-
-/* compute linear hexahedron internal force contribution */
-inline static void hex_o1_internal_force (node_t nodes, BULK_MATERIAL *mat, double *g)
-{
-  /* TODO */
 }
 
 /* lump contribution of the element mass into the diagonal */
@@ -150,13 +720,13 @@ static void lump_mass_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
   {
     switch (ele->type)
     {
-    case 4: tet_o1_lump (nodes, density, out); break;
-    case 8: hex_o1_lump (nodes, density, out); break;
+    case 4: tet_o1_lump (ele->dom, ele->domnum, nodes, density, out); break;
+    case 8: hex_o1_lump (ele->dom, ele->domnum, nodes, density, out); break;
     case 5:
       COPY (nodes [4], nodes [5]); out [5] = out [4];
       COPY (nodes [4], nodes [6]); out [6] = out [4];
       COPY (nodes [4], nodes [7]); out [7] = out [4];
-      hex_o1_lump (nodes, density, out);
+      hex_o1_lump (ele->dom, ele->domnum, nodes, density, out);
       break;
     case 6:
       COPY (nodes [5], nodes [7]); out [7] = out [5];
@@ -164,7 +734,7 @@ static void lump_mass_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
       COPY (nodes [4], nodes [5]); out [5] = out [4];
       COPY (nodes [3], nodes [4]); out [4] = out [3];
       COPY (nodes [2], nodes [3]); out [3] = out [2];
-      hex_o1_lump (nodes, density, out);
+      hex_o1_lump (ele->dom, ele->domnum, nodes, density, out);
       break;
     }
   }
@@ -322,13 +892,13 @@ static void body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, double *g
   case FEM_O1:
     switch (ele->type)
     {
-    case 4: tet_o1_body_force (nodes, density, f, g); break;
-    case 8: hex_o1_body_force (nodes, density, f, g); break;
+    case 4: tet_o1_body_force (ele->dom, ele->domnum, nodes, density, f, g); break;
+    case 8: hex_o1_body_force (ele->dom, ele->domnum, nodes, density, f, g); break;
     case 5:
       COPY (nodes [4], nodes [5]);
       COPY (nodes [4], nodes [6]);
       COPY (nodes [4], nodes [7]);
-      hex_o1_body_force (nodes, density, f, g);
+      hex_o1_body_force (ele->dom, ele->domnum, nodes, density, f, g);
       break;
     case 6:
       COPY (nodes [5], nodes [7]);
@@ -336,7 +906,7 @@ static void body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, double *g
       COPY (nodes [4], nodes [5]);
       COPY (nodes [3], nodes [4]);
       COPY (nodes [2], nodes [3]);
-      hex_o1_body_force (nodes, density, f, g);
+      hex_o1_body_force (ele->dom, ele->domnum, nodes, density, f, g);
       break;
     }
   break;
@@ -352,22 +922,32 @@ static void body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, double *g
 static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
 {
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-  double nodes [8][3];
+  double nodes [8][3], q [8][3], *p;
+  int i;
 
   load_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
+
+  for (i = 0; i < ele->type; i ++)
+  {
+    p = &bod->conf [3 * ele->nodes [i]];
+    COPY (p, q[i]);
+  }
 
   switch (bod->form)
   {
   case FEM_O1:
     switch (ele->type)
     {
-    case 4: tet_o1_internal_force (nodes, mat, g); break;
-    case 8: hex_o1_internal_force (nodes, mat, g); break;
+    case 4: tet_o1_internal_force (ele->dom, ele->domnum, nodes, mat, q, g); break;
+    case 8: hex_o1_internal_force (ele->dom, ele->domnum, nodes, mat, q, g); break;
     case 5:
       COPY (nodes [4], nodes [5]);
       COPY (nodes [4], nodes [6]);
       COPY (nodes [4], nodes [7]);
-      hex_o1_internal_force (nodes, mat, g);
+      COPY (q [4], q [5]);
+      COPY (q [4], q [6]);
+      COPY (q [4], q [7]);
+      hex_o1_internal_force (ele->dom, ele->domnum, nodes, mat, q, g);
       break;
     case 6:
       COPY (nodes [5], nodes [7]);
@@ -375,7 +955,12 @@ static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
       COPY (nodes [4], nodes [5]);
       COPY (nodes [3], nodes [4]);
       COPY (nodes [2], nodes [3]);
-      hex_o1_internal_force (nodes, mat, g);
+      COPY (q [5], q [7]);
+      COPY (q [5], q [6]);
+      COPY (q [4], q [5]);
+      COPY (q [3], q [4]);
+      COPY (q [2], q [3]);
+      hex_o1_internal_force (ele->dom, ele->domnum, nodes, mat, q, g);
       break;
     }
   break;
@@ -723,6 +1308,161 @@ static MX* inverse_mass_times_stiffencess (BODY *bod, MESH *msh, ELEMENT *ele)
   return NULL;
 }
 
+/* there are few things to be done here:
+ * 1. Test whether the shape_volume == volume cut of the mesh
+ * 2. Delete elements whose ele->dom == NULL
+ * 3. Delete nodes unattached to elements
+ * 4. Delte ele->dom when volume (ele->dom) == volume (ele)
+ * 5. Transform global ele->dom points into local element coordinates */
+static void post_process_intersections (double shape_volume, MESH *msh)
+{
+  double cut_volume, ele_volume, point [3];
+  TRISURF *surf;
+  ELEMENT *ele;
+  TRI *tri;
+  int n, k;
+
+  /* 1. */
+ 
+  for (cut_volume = 0.0, ele = msh->surfeles; ele; ele = ele->next)
+    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
+      cut_volume += TRI_Char (surf->tri, surf->m, surf->center); /* compute subdomain center as well */
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
+      cut_volume += TRI_Char (surf->tri, surf->m, surf->center);
+
+  /* make sure that cut error is not too large, so that the mesh really contains the shape */
+  ASSERT (fabs (shape_volume - cut_volume) < GEOMETRIC_EPSILON * shape_volume, ERR_FEM_CUT_VOLUME);
+
+  /* 2. */
+
+  for (ele = msh->surfeles; ele; )
+  {
+    if (ele->dom) ele = ele->next;
+    else /* no intersection was found for this element */
+    {
+      ELEMENT *next = ele->next;
+
+      if (ele->prev) ele->prev->next = next;
+      else msh->surfeles = ele->next;
+      if (next) next->prev = ele->prev;
+
+      MEM_Free (&msh->elemem, ele);
+      ele = next;
+    }
+  }
+
+  for (ele = msh->bulkeles; ele; )
+  {
+    if (ele->dom) ele = ele->next;
+    else /* no intersection was found for this element */
+    {
+      ELEMENT *next = ele->next;
+
+      if (ele->prev) ele->prev->next = next;
+      else msh->bulkeles = ele->next;
+      if (next) next->prev = ele->prev;
+
+      MEM_Free (&msh->elemem, ele);
+      ele = next;
+    }
+  }
+
+  /* 3. */
+
+  int *node_map, m;
+
+  ERRMEM (node_map = calloc (msh->nodes_count, sizeof (int)));
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+    for (n = 0; n < ele->type; n ++) node_map [ele->nodes [n]] ++;
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+    for (n = 0; n < ele->type; n ++) node_map [ele->nodes [n]] ++;
+
+  for (n = 0, m = 1; n < msh->nodes_count; n ++)
+    if (node_map [n]) node_map [n] = m ++;
+
+  if (m < (n+1)) /* there are not referenced nodes */
+  {
+    for (ele = msh->surfeles; ele; ele = ele->next)
+      for (n = 0; n < ele->type; n ++) ele->nodes [n] = node_map [ele->nodes [n]] - 1;
+
+    for (ele = msh->bulkeles; ele; ele = ele->next)
+      for (n = 0; n < ele->type; n ++) ele->nodes [n] = node_map [ele->nodes [n]] - 1;
+
+    double (*ref) [3], (*mref) [3] = msh->ref_nodes,
+	   (*cur) [3], (*mcur) [3] = msh->cur_nodes;
+
+    ERRMEM (ref = malloc (2 * (m-1) * sizeof (double [3])));
+    cur = ref + (m-1);
+
+    for (n = 0; n < msh->nodes_count; n ++)
+    {
+      if (node_map [n])
+      { 
+	COPY (mref [n], ref [node_map [n] - 1]);
+	COPY (mcur [n], cur [node_map [n] - 1]);
+      }
+    }
+
+    free (msh->ref_nodes);
+
+    msh->nodes_count = m-1;
+    msh->ref_nodes = ref;
+    msh->cur_nodes = cur;
+  }
+
+  free (node_map);
+
+  /* 4. */
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    ele_volume = ELEMENT_Volume (msh, ele, 1);
+    cut_volume = 0.0;
+
+    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
+      cut_volume += TRI_Char (surf->tri, surf->m, NULL);
+
+    if (fabs (ele_volume - cut_volume) < GEOMETRIC_EPSILON * ele_volume)
+    {
+      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf);
+      free (ele->dom);
+      ele->dom = NULL;
+    }
+  }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    ele_volume = ELEMENT_Volume (msh, ele, 1);
+    cut_volume = 0.0;
+
+    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
+      cut_volume += TRI_Char (surf->tri, surf->m, NULL);
+
+    if (fabs (ele_volume - cut_volume) < GEOMETRIC_EPSILON * ele_volume)
+    {
+      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf);
+      free (ele->dom);
+      ele->dom = NULL;
+    }
+  }
+
+  /* 5. */
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
+      for (tri = surf->tri, m = 0; m < surf->m; tri ++, m ++)
+	for (k = 0; k < 3; k ++) { COPY (tri->ver [k], point); global_to_local (msh->ref_nodes, ele, point, tri->ver [k]); }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
+      for (tri = surf->tri, m = 0; m < surf->m; tri ++, m ++)
+	for (k = 0; k < 3; k ++) { COPY (tri->ver [k], point); global_to_local (msh->ref_nodes, ele, point, tri->ver [k]); }
+}
+
 /* element and convex bounding boxe intersection callback; compute
  * their volumetric intersection to be later used for integration */
 static void* overlap (void *data, BOX *one, BOX *two)
@@ -810,6 +1550,9 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     MEM_Release (&boxmem);
     free (shp_sgp);
     free (msh_sgp);
+
+    /* post-process intersections */
+    post_process_intersections (bod->ref_volume, msh);
   }
   else msh = shp->data; /* retrive the mesh pointer from the shape */
 

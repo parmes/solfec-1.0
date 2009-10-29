@@ -1252,6 +1252,23 @@ CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele)
   return cvx;
 }
 
+/* compute element volume */
+double ELEMENT_Volume (MESH *msh, ELEMENT *ele, int ref)
+{
+  int fac [30], surfaces [6] = {INT_MAX, INT_MAX,
+    INT_MAX, INT_MAX, INT_MAX, INT_MAX}, nfac, *f, n;
+  double nodes [8][3], volume;
+  CONVEX *cvx;
+
+  load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
+  nfac = neighs (ele->type); /* number of faces */
+  for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
+  cvx = CONVEX_Create (NULL, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
+  volume = CONVEX_Volume (cvx, ref);
+  CONVEX_Destroy (cvx);
+  return volume;
+}
+
 /* pack face */
 static void face_pack (FACE *fac, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {

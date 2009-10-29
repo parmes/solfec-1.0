@@ -95,6 +95,10 @@ void CONVEX_Char_Partial (CONVEX *cvx, double *vo, double *sx, double *sy, doubl
  * volume, mass center, and Euler tensor (centered) */
 void CONVEX_Char (CONVEX *cvx, double *volume, double *center, double *euler);
 
+/* compute convex colume (referential
+ * if ref == 1, or current otherwise) */
+double CONVEX_Volume (CONVEX *cvx, int ref);
+
 /* update extents of an individual convex */
 void CONVEX_Extents (void *data, CONVEX *cvx, double *extents);
 

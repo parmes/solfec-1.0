@@ -34,6 +34,7 @@ struct triangle
 typedef struct triangle_surface TRISURF; /* triangulized surface */
 struct triangle_surface
 {
+  double center [3]; /* mass center of the volume enclosed by the surface */
   TRI *tri; /* triangles and related data as outputed by 'cvi' */
   int m; /* number of triangles as outputed by 'cvi' */
 };
@@ -75,5 +76,8 @@ double* TRI_Vertices (TRI *tri, int n, int *m);
  * into a table of size (double [6]) x m, where
  * each plane is represented by (normal, point) */
 double* TRI_Planes (TRI *tri, int n, int *m);
+
+/* compute mass center and volume of triangulated solid */
+double TRI_Char (TRI *tri, int n, double *center);
 
 #endif

@@ -26,6 +26,7 @@
 #include "set.h"
 #include "err.h"
 #include "alg.h"
+#include "spx.h"
 
 /* auxiliary pointer pair */
 struct pp { void *a, *b; };
@@ -349,4 +350,34 @@ double* TRI_Planes (TRI *tri, int n, int *m)
 
   *m = n;
   return v;
+}
+
+/* compute mass center and volume of triangulated solid */
+double TRI_Char (TRI *tri, int n, double *center)
+{
+  double zero [3] = {0, 0, 0},
+	 volume, sx, sy, sz,
+	 J, *a, *b, *c;
+
+  volume = sx = sy = sz = 0.0;
+  for (; n > 0; tri ++, n --)
+  {
+    a = tri->ver [0];
+    b = tri->ver [1];
+    c = tri->ver [2];
+    J = simplex_J (zero, a, b, c);
+    volume += simplex_1 (J, zero, a, b, c);
+    sx += simplex_x (J, zero, a, b, c);
+    sy += simplex_y (J, zero, a, b, c);
+    sz += simplex_z (J, zero, a, b, c);
+  }
+
+  if (center)
+  {
+    center [0]  = sx / volume;
+    center [1]  = sy / volume;
+    center [2]  = sz / volume;
+  }
+
+  return volume;
 }

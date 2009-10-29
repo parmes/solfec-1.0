@@ -706,6 +706,35 @@ void CONVEX_Char (CONVEX *cvx, double *volume, double *center, double *euler)
   if (euler) NNCOPY (eul, euler);
 }
 
+/* compute convex colume (referential
+ * if ref == 1, or current otherwise) */
+double CONVEX_Volume (CONVEX *cvx, int ref)
+{
+  double zero [3] = {0, 0, 0}, volume = 0.0,
+	 *ver = ref ? cvx->ref : cvx->cur,
+	 J, *a, *b, *c;
+  int i, j, *f;
+
+  for (; cvx; cvx = cvx->next)
+  {
+    for (i = 0, f = cvx->fac; i < cvx->nfac; i ++, f = &f [f [0] + 1])
+    {
+      a = &cvx->ref [f [1]];
+      for (j = 2; j < f [0]; j ++)
+      {
+	b = &ver [f [j]];
+	c = &ver [f [j + 1]];
+
+	J = simplex_J (zero, a, b, c);
+	volume += simplex_1 (J, zero, a, b, c);
+      }
+    }
+  }
+
+  return volume;
+}
+
+
 /* update bounding boxe of an individual convex */
 void CONVEX_Extents (void *data, CONVEX *cvx, double *extents)
 {

@@ -62,6 +62,8 @@ char* errstring (int error)
     case ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED: return "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED";
     case ERR_GAUSS_SEIDEL_DIVERGED: return "GAUSS_SEIDEL_SOLVER failed with error code DIVERGED";
     case ERR_FEM_MASS_NOT_SPD: return "Mass matrix is not symmetric-positive-definite in FEM module";
+    case ERR_FEM_COORDS_INVERT: return "Global to local coordinates convertion failed in FEM module";
+    case ERR_FEM_CUT_VOLUME: return "Volume cut of FE mesh does not match the shape volume in FEM module";
   }
 
   return "Unknown";

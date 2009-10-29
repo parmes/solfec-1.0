@@ -161,6 +161,9 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k);
 /* copy element into a convex */
 CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele);
 
+/* compute element volume */
+double ELEMENT_Volume (MESH *msh, ELEMENT *ele, int ref);
+
 /* pack mesh into double and integer buffers (d and i buffers are of initial
  * dsize and isize, while the final numberof of doubles and ints is packed) */
 void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
