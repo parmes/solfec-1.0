@@ -150,9 +150,11 @@ inline static void tet_global_to_local (node_t nodes, double *global, double *lo
   ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
   NVMUL (I, B, local);
 
-  ASSERT_DEBUG (local [0] >= 0.0 && local [0] <= 1.0 &&
-                local [1] >= 0.0 && local [1] <= 1.0 &&
-		local [2] >= 0.0 && local [2] <= 1.0, "Local coords out of bounds");
+#if 0
+  ASSERT_DEBUG (local [0] >= 0.0 && local [1] >= 0.0 local [2] >= 0.0 &&
+  (local [0] + local [1] + local [2]) <= 1.0, "Local coords out of bounds");
+#endif
+
 }
 
 /* linear hexahedron local to global point transformation */
@@ -177,7 +179,7 @@ inline static void hex_global_to_local (node_t nodes, double *global, double *lo
   double shapes [8], derivs [24];
   int i, j, k, l;
 
-  SET (local, 1.0);
+  SET (local, 0.0);
   l = 0;
 
   do
@@ -201,16 +203,18 @@ inline static void hex_global_to_local (node_t nodes, double *global, double *lo
     INVERT (A, I, det);
     ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
     NVMUL (I, B, A);
-    SUB (local, A, local);
+    ADD (local, A, local);
     error = sqrt (DOT (A,A) / (1.0 + DOT (local, local)));
 
   } while (++l < 64 && error > 1E-9);
 
   ASSERT (l < 64, ERR_FEM_COORDS_INVERT);
 
+#if 0
   ASSERT_DEBUG (local [0] >= 0.0 && local [0] <= 1.0 &&
                 local [1] >= 0.0 && local [1] <= 1.0 &&
 		local [2] >= 0.0 && local [2] <= 1.0, "Local coords out of bounds");
+#endif
 }
 
 /* linear tetrahedron transformation determinant at local point */
@@ -410,7 +414,7 @@ inline static void hex_o1_lump (TRISURF *dom, int domnum, node_t nodes, double d
       {
 	for (j = 0; j < 8; j ++)
 	{
-	  integral = density * shapes [i] * shapes [j] * J * I_TET2_W [k];
+	  integral = density * shapes [i] * shapes [j] * J * I_HEX2_W [k];
 
 	  out [i][0] += integral;
 	  out [i][1] += integral;
@@ -549,7 +553,7 @@ inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
 
       for (i = 0; i < 8; i ++)
       {
-	integral = density * shapes [i] * J *  I_TET2_W [k];
+	integral = density * shapes [i] * J *  I_HEX2_W [k];
 
 	g [3*i+0] += f [0] * integral;
 	g [3*i+1] += f [1] * integral;
@@ -562,7 +566,7 @@ inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
 /* compute linear tetrahedron internal force contribution */
 inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
-  double shapes [4], derivs [12], F [9], P [9], *B, *p;
+  double derivs [12], F [9], P [9], *B, *p;
   double point [3], J, integral;
   double mat_lambda, mat_mi;
   int i, k;
@@ -594,14 +598,13 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	  subpoint [2] = I_TET1_Z [k];
 	  subJ = tet_o1_det (subnodes, subpoint);
 	  tet_local_to_global (subnodes, subpoint, point);
-	  tet_o1_shapes (point, shapes);
 	  J = tet_o1_det (nodes, point);
 	  tet_o1_gradient (q, point, derivs, F);
 	  SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
 	  integral = J * subJ *  I_TET1_W [k];
 	  SCALE9 (P, integral);
 
-          for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { TVADDMUL (p, P, B, p); }
+          for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
 	}
       }
     }
@@ -613,14 +616,13 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
       point [0] = I_TET1_X [k];
       point [1] = I_TET1_Y [k];
       point [2] = I_TET1_Z [k];
-      tet_o1_shapes (point, shapes);
       J = tet_o1_det (nodes, point);
       tet_o1_gradient (q, point, derivs, F);
       SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
       integral = J *  I_TET1_W [k];
       SCALE9 (P, integral);
 
-      for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { TVADDMUL (p, P, B, p); } /* B' P = P' B */
+      for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
   }
 }
@@ -628,12 +630,12 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 /* compute linear hexahedron internal force contribution */
 inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
-  double shapes [8], derivs [24], F [9], P [9], *B, *p;
+  double derivs [24], F [9], P [9], *B, *p;
   double point [3], J, integral;
   double mat_lambda, mat_mi;
   int i, k;
 
-  blas_dscal (12, 0.0, g, 1);
+  blas_dscal (24, 0.0, g, 1);
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
@@ -660,14 +662,13 @@ inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	  subpoint [2] = I_TET2_Z [k];
 	  subJ = tet_o1_det (subnodes, subpoint);
 	  tet_local_to_global (subnodes, subpoint, point);
-	  hex_o1_shapes (point, shapes);
 	  J = hex_o1_det (nodes, point);
 	  hex_o1_gradient (q, point, derivs, F);
 	  SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
 	  integral = J * subJ *  I_TET2_W [k];
 	  SCALE9 (P, integral);
 
-          for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { TVADDMUL (p, P, B, p); }
+          for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
 	}
       }
     }
@@ -679,14 +680,13 @@ inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
       point [0] = I_HEX2_X [k];
       point [1] = I_HEX2_Y [k];
       point [2] = I_HEX2_Z [k];
-      hex_o1_shapes (point, shapes);
       J = hex_o1_det (nodes, point);
       hex_o1_gradient (q, point, derivs, F);
       SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-      integral = J *  I_HEX2_W [k];
+      integral = J * I_HEX2_W [k];
       SCALE9 (P, integral);
 
-      for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { TVADDMUL (p, P, B, p); } /* B' P = P' B */
+      for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
   }
 }
@@ -799,24 +799,41 @@ static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *po
 }
 
 /* compute element shape functions at a local point */
-static MX* shape_functions (FEMFORM form, MESH *msh, ELEMENT *ele, double *point)
+static MX* shape_functions (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
 {
   MX *N = NULL;
 
-  switch (form)
+  switch (bod->form)
   {
   case FEM_O1:
   {
+    static int *p, *i, *q, *u, k, n, m;
     double shapes [8], *x;
-    static int p [] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24},
-	       i [] = {0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2, 0, 1, 2};
+
+    n = bod->dofs;
+
+    ERRMEM (p = calloc (2*n+1, sizeof (int)));
+    i = p + n + 1;
+
+    for (k = 0; k < ele->type; k ++)
+    {
+      m = ele->nodes [k] * 3;
+      q = &p [m + 1];
+      u = &i [m];
+      q [0] = 1; q [1] = 1; q [2] = 1;
+      u [0] = 0; u [1] = 1; u [2] = 2;
+    }
+
+    for (q = p + 1; q < i; q ++) *q += *(q-1);
+
+    N = MX_Create (MXCSC, 3, n, p, i);
+    x = N->x;
+    free (p);
 
     switch (ele->type)
     {
       case 4:
 	tet_o1_shapes (point, shapes);
-	N = MX_Create (MXCSC, 3, 12, p, i);
-	x = N->x;
 	x [0] = x [1]  = x [2]  = shapes [0];
 	x [3] = x [4]  = x [5]  = shapes [1];
 	x [6] = x [7]  = x [8]  = shapes [2];
@@ -824,8 +841,6 @@ static MX* shape_functions (FEMFORM form, MESH *msh, ELEMENT *ele, double *point
 	break;
       case 8:
 	hex_o1_shapes (point, shapes);
-	N = MX_Create (MXCSC, 3, 24, p, i);
-	x = N->x;
 	x [0]  = x [1]  = x [2]  = shapes [0];
 	x [3]  = x [4]  = x [5]  = shapes [1];
 	x [6]  = x [7]  = x [8]  = shapes [2];
@@ -837,8 +852,6 @@ static MX* shape_functions (FEMFORM form, MESH *msh, ELEMENT *ele, double *point
 	break;
       case 5:
 	hex_o1_shapes (point, shapes);
-	N = MX_Create (MXCSC, 3, 15, p, i);
-	x = N->x;
 	x [0]  = x [1]  = x [2]  = shapes [0];
 	x [3]  = x [4]  = x [5]  = shapes [1];
 	x [6]  = x [7]  = x [8]  = shapes [2];
@@ -847,8 +860,6 @@ static MX* shape_functions (FEMFORM form, MESH *msh, ELEMENT *ele, double *point
 	break;
       case 6:
 	hex_o1_shapes (point, shapes);
-	N = MX_Create (MXCSC, 3, 18, p, i);
-	x = N->x;
 	x [0]  = x [1]  = x [2]  = shapes [0];
 	x [3]  = x [4]  = x [5]  = shapes [1];
 	x [6]  = x [7]  = x [8]  = (shapes [2] + shapes [3]);
@@ -870,10 +881,10 @@ static MX* shape_functions (FEMFORM form, MESH *msh, ELEMENT *ele, double *point
 }
 
 /* copute point force contribution */
-static void point_force (FEMFORM form, MESH *msh, ELEMENT *ele, double *point, double *f, double *g)
+static void point_force (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *f, double *force)
 {
-  MX *N = shape_functions (form, msh, ele, point);
-  MX_Matvec (1.0, MX_Tran (N), f, 0.0, g);
+  MX *N = shape_functions (bod, msh, ele, point);
+  MX_Matvec (1.0, MX_Tran (N), f, 1.0, force);
   MX_Destroy (N);
 }
 
@@ -1144,7 +1155,7 @@ static MX* gen_to_loc_operator (BODY *bod, MESH *msh, ELEMENT *ele, double *X, d
 
   TNCOPY (base, base_trans.x);
   referential_to_local (msh, ele, X, point);
-  N = shape_functions (bod->form, msh, ele, point);
+  N = shape_functions (bod, msh, ele, point);
   H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
   MX_Destroy (N);
   return H;
@@ -1155,7 +1166,7 @@ inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *e
 {
   MX *H = gen_to_loc_operator (bod, msh, ele, X, base);
 
-  if (isma) MX_Matvec (1.0, MX_Tran (H), R, -1.0, forc);
+  if (isma) MX_Matvec (-1.0, MX_Tran (H), R, 1.0, forc);
   else MX_Matvec (1.0, MX_Tran (H), R, 1.0, forc);
 
   MX_Destroy (H);
@@ -1210,7 +1221,6 @@ static void fem_constraints_force (BODY *bod, double *forc)
 static void fem_dynamic_force (BODY *bod, double time, double step, double *force)
 {
   MESH *msh = FEM_MESH (bod);
-  FEMFORM form = bod->form;
   ELEMENT *ele;
   double g [24],
 	 f [3],
@@ -1250,13 +1260,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *forc
 	  COPY (g+9, f);
 	}
 
-	point_force (form, msh, ele, point, f, g);
-
-	for (i = 0, v = g; i < ele->type; i ++, v += 3)
-	{
-	  w = &force [ele->nodes [i] * 3];
-	  ADD (w, v, w);
-	}
+	point_force (bod, msh, ele, point, f, force);
       }
     }
   }
@@ -1301,12 +1305,14 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *forc
   }
 }
 
+#if 0
 /* compute inv (M) * K for an element */
 static MX* inverse_mass_times_stiffencess (BODY *bod, MESH *msh, ELEMENT *ele)
 {
   /* TODO */
   return NULL;
 }
+#endif
 
 /* there are few things to be done here:
  * 1. Test whether the shape_volume == volume cut of the mesh
@@ -1641,6 +1647,7 @@ void FEM_Dynamic_Init (BODY *bod, SCHEME scheme)
 /* estimate critical step for the dynamic scheme */
 double FEM_Dynamic_Critical_Step (BODY *bod)
 {
+#if 0
   MESH *msh = FEM_MESH (bod);
   double step, tcrit, eigmax;
   ELEMENT *ele;
@@ -1662,6 +1669,9 @@ double FEM_Dynamic_Critical_Step (BODY *bod)
   }
 
   return step;
+#else
+  return DBL_MAX; /* TODO */
+#endif
 }
 
 /* perform the initial half-step of the dynamic scheme */
@@ -1685,27 +1695,24 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 /* perform the final half-step of the dynamic scheme */
 void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 {
+  MESH *msh = FEM_MESH (bod);
   int n = bod->dofs;
   double half = 0.5 * step,
+       (*ref) [3] = msh->ref_nodes,
+       (*cur) [3] = msh->cur_nodes,
+       (*end) [3] = cur + msh->nodes_count,
 	*x = bod->inverse->x,
 	*r = FEM_FORCE (bod),
 	*u = bod->velo,
+        *q = bod->conf,
 	*e = u + n;
   
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   for (; u < e; u ++, x ++, r ++) (*u) += step * (*x) * (*r); /* u(t+h) += inv (M) * h * r */
-  blas_daxpy (n, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+  blas_daxpy (n, half, bod->velo, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
 
-  if (bod->msh) /* update current mesh nodes in case of a separate mesh */
-  {
-    MESH *msh = bod->msh;
-    double *q = bod->conf,
-	  (*ref) [3] = msh->ref_nodes,
-	  (*cur) [3] = msh->cur_nodes,
-	  (*end) [3] = cur + msh->nodes_count;
-
-    for (;cur < end; q += 3, ref ++, cur ++) { ADD (ref [0], q, cur [0]); }
-  }
+  /* update current mesh nodes in case of a separate mesh */
+  for (;cur < end; q += 3, ref ++, cur ++) { ADD (ref [0], q, cur [0]); }
 }
 
 /* initialise static time stepping */
@@ -1751,7 +1758,7 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
   {
     COPY (X, x);
     referential_to_local (msh, ele, X, point);
-    N = shape_functions (bod->form, msh, ele, point);
+    N = shape_functions (bod, msh, ele, point);
     MX_Matvec (1.0, N, bod->conf, 1.0, x); /* x = X + N q */
     MX_Destroy (N);
   }
@@ -1811,7 +1818,7 @@ void FEM_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *X
   }
 
   referential_to_local (msh, ele, X, point);
-  N = shape_functions (bod->form, msh, ele, point);
+  N = shape_functions (bod, msh, ele, point);
   MX_Matvec (1.0, N, u, 0.0, vglo); /* vglo = N u */
   TVMUL (base, vglo, velo); /* velo = base' vglo */
   MX_Destroy (N);
@@ -1890,7 +1897,7 @@ void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND k
   {
     if (bod->msh)
     {
-      MX *N = shape_functions (bod->form, msh, ele, point);
+      MX *N = shape_functions (bod, msh, ele, point);
       MX_Matvec (1.0, N, bod->conf, 0.0, values);
       MX_Destroy (N);
     }
@@ -1905,7 +1912,7 @@ void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND k
   {
     if (bod->msh)
     {
-      MX *N = shape_functions (bod->form, msh, ele, point);
+      MX *N = shape_functions (bod, msh, ele, point);
       MX_Matvec (1.0, N, bod->velo, 0.0, values);
       MX_Destroy (N);
     }
@@ -1958,14 +1965,14 @@ void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
     {
     case VALUE_DISPLACEMENT:
     {
-      MX *N = shape_functions (bod->form, msh, ele, point);
+      MX *N = shape_functions (bod, msh, ele, point);
       MX_Matvec (1.0, N, bod->conf, 0.0, values);
       MX_Destroy (N);
     }
     break;
     case VALUE_VELOCITY:
     {
-      MX *N = shape_functions (bod->form, msh, ele, point);
+      MX *N = shape_functions (bod, msh, ele, point);
       MX_Matvec (1.0, N, bod->velo, 0.0, values);
       MX_Destroy (N);
     }

@@ -532,8 +532,28 @@ static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
       free (c->x);
       if (c->kind != MXDENSE) free (c->p), free (c->i);
     }
-   
-    *c  = *d; /* overwrie (all kinds) */
+
+    if (MXSTATIC (c))
+    {
+      ASSERT_DEBUG (c->kind == MXDENSE && d->m == c->m && d->n == c->n && d->nzmax <= c->nzmax, "Invalid static result matrix passed to MX_Add rouinte");
+
+      if (d->nzmax == c->nzmax) for (double *x = d->x, *y = x + d->nzmax, *z = c->x; x < y; x ++, z ++) *z = *x;
+      else
+      {
+	int *p, *i, k, l, n, m;
+	double *dx, *cx;
+
+	dx = d->x;
+	cx = c->x;
+	p = d->p;
+	i = d->i;
+	m = d->m;
+	n = d->n;
+
+	for (k = 0; k < n; k ++) for (l = p[k]; l < p[k+1]; l ++, dx ++) cx [m*k + i[l]] = *dx;
+      }
+    }
+    else *c  = *d; /* overwrie (all kinds) */
 
     free (d);
   }
@@ -1092,7 +1112,27 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
       if (c->kind != MXDENSE) free (c->p), free (c->i);
     }
 
-    *c = *d; /* overwrite (all kinds) */
+    if (MXSTATIC (c))
+    {
+      ASSERT_DEBUG (c->kind == MXDENSE && d->m == c->m && d->n == c->n && d->nzmax <= c->nzmax, "Invalid static result matrix passed to MX_Add rouinte");
+
+      if (d->nzmax == c->nzmax) for (double *x = d->x, *y = x + d->nzmax, *z = c->x; x < y; x ++, z ++) *z = *x;
+      else
+      {
+	int *p, *i, k, l, n, m;
+	double *dx, *cx;
+
+	dx = d->x;
+	cx = c->x;
+	p = d->p;
+	i = d->i;
+	m = d->m;
+	n = d->n;
+
+	for (k = 0; k < n; k ++) for (l = p[k]; l < p[k+1]; l ++, dx ++) cx [m*k + i[l]] = *dx;
+      }
+    }
+    else *c = *d; /* overwrite (all kinds) */
 
     free (d);
   }
@@ -1557,7 +1597,7 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
 	ASSERT_DEBUG (size > 0, "Invalid nonzero size");
 	ERRMEM (a->p = malloc (sizeof (int) * (n+1)));
 	ERRMEM (a->i = malloc (sizeof (int) * size));
-	ERRMEM (a->x = malloc (sizeof (double) * size));
+	ERRMEM (a->x = calloc (size, sizeof (double)));
 	memcpy (a->p, p, sizeof (int) * (n+1)); 
 	memcpy (a->i, i, sizeof (int) * size); 
 	a->nz = -1; /* compressed format */
