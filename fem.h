@@ -65,7 +65,7 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
 void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
 
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
-void FEM_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *X, double *base, double *velo);
+void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel);
 
 /* return transformation operator from the generalised to the local velocity space at (element, ref. point, base) */
 MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base);

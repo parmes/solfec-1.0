@@ -371,7 +371,7 @@ void* SPHERE_First_Bulk_Material (SPHERE *sph)
   return NULL;
 }
 
-/* return sphere containing the point */
+/* return sphere containing a spatial point */
 SPHERE* SPHERE_Containing_Point (SPHERE *sph, double *point)
 {
   for (; sph; sph = sph->next)

@@ -140,8 +140,11 @@ void* MESH_First_Bulk_Material (MESH *msh);
 /* free mesh memory */
 void MESH_Destroy (MESH *msh);
   
-/* does the element contain the point? */
-int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref);
+/* does the element contain a spatial point? */
+int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point);
+
+/* does the element contain a referential point? */
+int ELEMENT_Contains_Ref_Point (MESH *msh, ELEMENT *ele, double *point);
 
 /* test wether two elements are adjacent
  * through a common face, edge or vertex */

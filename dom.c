@@ -104,7 +104,7 @@ static void localbase (double *n, double *loc)
 }
 
 /* insert a new constrait between two bodies */
-static CON* insert (DOM *dom, BODY *master, BODY *slave, short locdyn)
+static CON* insert (DOM *dom, BODY *master, BODY *slave)
 {
   CON *con;
 
@@ -146,9 +146,6 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, short locdyn)
 #endif
 
   MAP_Insert (&dom->mapmem, &dom->idc, (void*) (long) con->id, con, NULL);
-
-  /* insert into local dynamics */
-  if (locdyn) con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
 
   return con;
 }
@@ -204,7 +201,7 @@ static CON* insert_contact (DOM *dom, BOX *mbox, BOX *sbox, BODY *master, BODY *
 {
   CON *con;
 
-  con = insert (dom, master, slave, 0); /* 0: do not insert into LOCDYN yet, only after sparsification */
+  con = insert (dom, master, slave); /* do not insert into LOCDYN yet, only after sparsification */
   con->kind = CONTACT;
   con->mgobj = mgobj;
   con->mkind = mkind;
@@ -1656,7 +1653,7 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, 1);
+  con = insert (dom, bod, NULL);
   con->kind = FIXPNT;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
@@ -1664,6 +1661,9 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
   con->mgobj = sgp->gobj;
   con->mshp = sgp->shp;
   con->mbox = sgp->box;
+
+  /* insert into local dynamics */
+  con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
 
   return con;
 }
@@ -1678,7 +1678,7 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, 1);
+  con = insert (dom, bod, NULL);
   con->kind = FIXDIR;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
@@ -1686,6 +1686,9 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
   con->mgobj = sgp->gobj;
   con->mshp = sgp->shp;
   con->mbox = sgp->box;
+
+  /* insert into local dynamics */
+  con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
 
   return con;
 }
@@ -1700,7 +1703,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, 1);
+  con = insert (dom, bod, NULL);
   con->kind = VELODIR;
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
@@ -1709,6 +1712,9 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   con->mgobj = sgp->gobj;
   con->mshp = sgp->shp;
   con->mbox = sgp->box;
+
+  /* insert into local dynamics */
+  con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
 
   return con;
 }
@@ -1744,7 +1750,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   
   if (d < GEOMETRIC_EPSILON) /* no point in keeping very short links */
   {
-    con = insert (dom, master, slave, 1);
+    con = insert (dom, master, slave);
     con->kind = FIXPNT;
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
@@ -1765,7 +1771,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   }
   else
   {
-    con = insert (dom, master, slave, 1);
+    con = insert (dom, master, slave);
     con->kind = RIGLNK;
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
@@ -1785,6 +1791,9 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     update_riglnk (dom, con); /* initial update */
   }
   
+  /* insert into local dynamics */
+  con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
+
   return con;
 }
 

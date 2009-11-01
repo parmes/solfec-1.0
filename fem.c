@@ -218,12 +218,14 @@ inline static void hex_global_to_local (node_t nodes, double *global, double *lo
 }
 
 /* linear tetrahedron transformation determinant at local point */
-inline static double tet_o1_det (node_t nodes, double *point)
+inline static double tet_o1_det (node_t nodes, double *point, double *F)
 {
-  double derivs [12], F [9];
+  double derivs [12], G [9];
   int i, j, k;
 
   tet_o1_derivs (point, derivs);
+
+  if (!F) F = G;
 
   SET9 (F, 0.0);
 
@@ -235,12 +237,14 @@ inline static double tet_o1_det (node_t nodes, double *point)
 }
 
 /* linear hexahedron transformation determinant at local point */
-inline static double hex_o1_det (node_t nodes, double *point)
+inline static double hex_o1_det (node_t nodes, double *point, double *F)
 {
-  double derivs [24], F [9];
+  double derivs [24], G [9];
   int i, j, k;
 
   hex_o1_derivs (point, derivs);
+
+  if (!F) F = G;
 
   SET9 (F, 0.0);
 
@@ -252,11 +256,16 @@ inline static double hex_o1_det (node_t nodes, double *point)
 }
 
 /* linear tetrahedron deformation determinant at local point */
-inline static void tet_o1_gradient (node_t q, double *point, double *derivs, double *F)
+inline static void tet_o1_gradient (node_t q, double *point, double *F0, double *derivs, double *F)
 {
+  double local_derivs [12], IF0 [9], det, *l, *d;
   int i, j, k;
 
-  tet_o1_derivs (point, derivs);
+  tet_o1_derivs (point, local_derivs);
+
+  INVERT (F0, IF0, det);
+  ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
+  for (k = 0, l = local_derivs, d = derivs; k < 4; k ++, l += 3, d += 3) { TVMUL (IF0, l, d); }
 
   IDENTITY (F);
 
@@ -266,11 +275,16 @@ inline static void tet_o1_gradient (node_t q, double *point, double *derivs, dou
 }
 
 /* linear hexahedron deformation determinant at local point */
-inline static void hex_o1_gradient (node_t q, double *point, double *derivs, double *F)
+inline static void hex_o1_gradient (node_t q, double *point, double *F0, double *derivs, double *F)
 {
+  double local_derivs [24], IF0 [9], det, *l, *d;
   int i, j, k;
 
-  hex_o1_derivs (point, derivs);
+  hex_o1_derivs (point, local_derivs);
+
+  INVERT (F0, IF0, det);
+  ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
+  for (k = 0, l = local_derivs, d = derivs; k < 8; k ++, l += 3, d += 3) { TVMUL (IF0, l, d); }
 
   IDENTITY (F);
 
@@ -307,10 +321,10 @@ inline static void tet_o1_lump (TRISURF *dom, int domnum, node_t nodes, double d
 	  subpoint [0] = I_TET2_X [k];
 	  subpoint [1] = I_TET2_Y [k];
 	  subpoint [2] = I_TET2_Z [k];
-	  subJ = tet_o1_det (subnodes, subpoint);
+	  subJ = tet_o1_det (subnodes, subpoint, NULL);
 	  tet_local_to_global (subnodes, subpoint, point);
 	  tet_o1_shapes (point, shapes);
-	  J = tet_o1_det (nodes, point);
+	  J = tet_o1_det (nodes, point, NULL);
 
 	  for (i = 0; i < 4; i ++)
 	  {
@@ -335,7 +349,7 @@ inline static void tet_o1_lump (TRISURF *dom, int domnum, node_t nodes, double d
       point [1] = I_TET2_Y [k];
       point [2] = I_TET2_Z [k];
       tet_o1_shapes (point, shapes);
-      J = tet_o1_det (nodes, point);
+      J = tet_o1_det (nodes, point, NULL);
 
       for (i = 0; i < 4; i ++)
       {
@@ -380,10 +394,10 @@ inline static void hex_o1_lump (TRISURF *dom, int domnum, node_t nodes, double d
 	  subpoint [0] = I_TET2_X [k];
 	  subpoint [1] = I_TET2_Y [k];
 	  subpoint [2] = I_TET2_Z [k];
-	  subJ = tet_o1_det (subnodes, subpoint);
+	  subJ = tet_o1_det (subnodes, subpoint, NULL);
 	  tet_local_to_global (subnodes, subpoint, point);
 	  hex_o1_shapes (point, shapes);
-	  J = hex_o1_det (nodes, point);
+	  J = hex_o1_det (nodes, point, NULL);
 
 	  for (i = 0; i < 8; i ++)
 	  {
@@ -408,7 +422,7 @@ inline static void hex_o1_lump (TRISURF *dom, int domnum, node_t nodes, double d
       point [1] = I_HEX2_Y [k];
       point [2] = I_HEX2_Z [k];
       hex_o1_shapes (point, shapes);
-      J = hex_o1_det (nodes, point);
+      J = hex_o1_det (nodes, point, NULL);
 
       for (i = 0; i < 8; i ++)
       {
@@ -455,10 +469,10 @@ inline static void tet_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
 	  subpoint [0] = I_TET1_X [k];
 	  subpoint [1] = I_TET1_Y [k];
 	  subpoint [2] = I_TET1_Z [k];
-	  subJ = tet_o1_det (subnodes, subpoint);
+	  subJ = tet_o1_det (subnodes, subpoint, NULL);
 	  tet_local_to_global (subnodes, subpoint, point);
 	  tet_o1_shapes (point, shapes);
-	  J = tet_o1_det (nodes, point);
+	  J = tet_o1_det (nodes, point, NULL);
 
 	  for (i = 0; i < 4; i ++)
 	  {
@@ -480,7 +494,7 @@ inline static void tet_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
       point [1] = I_TET1_Y [k];
       point [2] = I_TET1_Z [k];
       tet_o1_shapes (point, shapes);
-      J = tet_o1_det (nodes, point);
+      J = tet_o1_det (nodes, point, NULL);
 
       for (i = 0; i < 4; i ++)
       {
@@ -524,10 +538,10 @@ inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
 	  subpoint [0] = I_TET1_X [k];
 	  subpoint [1] = I_TET1_Y [k];
 	  subpoint [2] = I_TET1_Z [k];
-	  subJ = tet_o1_det (subnodes, subpoint);
+	  subJ = tet_o1_det (subnodes, subpoint, NULL);
 	  tet_local_to_global (subnodes, subpoint, point);
 	  hex_o1_shapes (point, shapes);
-	  J = hex_o1_det (nodes, point);
+	  J = hex_o1_det (nodes, point, NULL);
 
 	  for (i = 0; i < 8; i ++)
 	  {
@@ -549,7 +563,7 @@ inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
       point [1] = I_HEX2_Y [k];
       point [2] = I_HEX2_Z [k];
       hex_o1_shapes (point, shapes);
-      J = hex_o1_det (nodes, point);
+      J = hex_o1_det (nodes, point, NULL);
 
       for (i = 0; i < 8; i ++)
       {
@@ -566,7 +580,7 @@ inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
 /* compute linear tetrahedron internal force contribution */
 inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
-  double derivs [12], F [9], P [9], *B, *p;
+  double derivs [12], F0 [9], F [9], P [9], *B, *p;
   double point [3], J, integral;
   double mat_lambda, mat_mi;
   int i, k;
@@ -596,10 +610,10 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	  subpoint [0] = I_TET1_X [k];
 	  subpoint [1] = I_TET1_Y [k];
 	  subpoint [2] = I_TET1_Z [k];
-	  subJ = tet_o1_det (subnodes, subpoint);
+	  subJ = tet_o1_det (subnodes, subpoint, NULL);
 	  tet_local_to_global (subnodes, subpoint, point);
-	  J = tet_o1_det (nodes, point);
-	  tet_o1_gradient (q, point, derivs, F);
+	  J = tet_o1_det (nodes, point, F0);
+	  tet_o1_gradient (q, point, F0, derivs, F);
 	  SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
 	  integral = J * subJ *  I_TET1_W [k];
 	  SCALE9 (P, integral);
@@ -616,8 +630,8 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
       point [0] = I_TET1_X [k];
       point [1] = I_TET1_Y [k];
       point [2] = I_TET1_Z [k];
-      J = tet_o1_det (nodes, point);
-      tet_o1_gradient (q, point, derivs, F);
+      J = tet_o1_det (nodes, point, F0);
+      tet_o1_gradient (q, point, F0, derivs, F);
       SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
       integral = J *  I_TET1_W [k];
       SCALE9 (P, integral);
@@ -630,7 +644,7 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 /* compute linear hexahedron internal force contribution */
 inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
-  double derivs [24], F [9], P [9], *B, *p;
+  double derivs [24], F0 [9], F [9], P [9], *B, *p;
   double point [3], J, integral;
   double mat_lambda, mat_mi;
   int i, k;
@@ -660,10 +674,10 @@ inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	  subpoint [0] = I_TET2_X [k];
 	  subpoint [1] = I_TET2_Y [k];
 	  subpoint [2] = I_TET2_Z [k];
-	  subJ = tet_o1_det (subnodes, subpoint);
+	  subJ = tet_o1_det (subnodes, subpoint, NULL);
 	  tet_local_to_global (subnodes, subpoint, point);
-	  J = hex_o1_det (nodes, point);
-	  hex_o1_gradient (q, point, derivs, F);
+	  J = hex_o1_det (nodes, point, F0);
+	  hex_o1_gradient (q, point, F0, derivs, F);
 	  SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
 	  integral = J * subJ *  I_TET2_W [k];
 	  SCALE9 (P, integral);
@@ -680,8 +694,8 @@ inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
       point [0] = I_HEX2_X [k];
       point [1] = I_HEX2_Y [k];
       point [2] = I_HEX2_Z [k];
-      J = hex_o1_det (nodes, point);
-      hex_o1_gradient (q, point, derivs, F);
+      J = hex_o1_det (nodes, point, F0);
+      hex_o1_gradient (q, point, F0, derivs, F);
       SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
       integral = J * I_HEX2_W [k];
       SCALE9 (P, integral);
@@ -750,44 +764,56 @@ static void lump_mass_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
 /* compute deformation gradient at a local point */
 static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *F)
 {
-  double *q = bod->conf;
-  int i, j, k, n;
+  double derivs [24], nodes [8][3], q [8][3], F0 [9], *p;
+  int i;
 
-  IDENTITY (F);
+  load_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
+
+  for (i = 0; i < ele->type; i ++)
+  {
+    p = &bod->conf [3 * ele->nodes [i]];
+    COPY (p, q[i]);
+  }
 
   switch (bod->form)
   {
   case FEM_O1:
   {
-    double derivs [24],
-	   *p [8];
-
-    n = ele->type;
-
-    for (i = 0; i < n; i ++) p [i] = &q [ele->nodes [i] * 3];
-
-    switch (n)
+    switch (ele->type)
     {
-    case 4: tet_o1_derivs (point, derivs); break; /* N1,1 N1,2 N1,3 N2,1 N2,3 ... */
-    case 8: hex_o1_derivs (point, derivs); break;
+    case 4: 
+      tet_o1_det (nodes, point, F0);
+      tet_o1_gradient (q, point, F0, derivs, F);
+      break;
+    case 8:
+      hex_o1_det (nodes, point, F0);
+      hex_o1_gradient (q, point, F0, derivs, F);
+      break;
     case 5:
-      hex_o1_derivs (point, derivs);
-      ADD (derivs + 15, derivs + 12, derivs + 12);
-      ADD (derivs + 18, derivs + 12, derivs + 12);
-      ADD (derivs + 21, derivs + 12, derivs + 12);
+      COPY (nodes [4], nodes [5]);
+      COPY (nodes [4], nodes [6]);
+      COPY (nodes [4], nodes [7]);
+      COPY (q [4], q [5]);
+      COPY (q [4], q [6]);
+      COPY (q [4], q [7]);
+      hex_o1_det (nodes, point, F0);
+      hex_o1_gradient (q, point, F0, derivs, F);
       break;
     case 6:
-      hex_o1_derivs (point, derivs);
-      ADD (derivs + 9, derivs + 6, derivs + 6);
-      COPY (derivs + 12, derivs + 9);
-      COPY (derivs + 15, derivs + 12);
-      ADD (derivs + 21, derivs + 18, derivs + 15);
+      COPY (nodes [5], nodes [7]);
+      COPY (nodes [5], nodes [6]);
+      COPY (nodes [4], nodes [5]);
+      COPY (nodes [3], nodes [4]);
+      COPY (nodes [2], nodes [3]);
+      COPY (q [5], q [7]);
+      COPY (q [5], q [6]);
+      COPY (q [4], q [5]);
+      COPY (q [3], q [4]);
+      COPY (q [2], q [3]);
+      hex_o1_det (nodes, point, F0);
+      hex_o1_gradient (q, point, F0, derivs, F);
       break;
     }
-
-    for (i = 0; i < 3; i ++)
-      for (j = 0; j < 3; j ++)
-	for (k = 0; k < n; k ++) F [3*j+i] += p[k][i] * derivs [3*k+j];
   }
   break;
   case FEM_O2:
@@ -1140,7 +1166,7 @@ static void fem_element_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, double *poin
 static ELEMENT* stabbed_element (MESH *msh, ELEMENT **ele, int nele, double *X)
 {
   for (; nele > 0; ele ++, nele --)
-    if (ELEMENT_Contains_Point (msh, *ele, X, 1)) return *ele;
+    if (ELEMENT_Contains_Ref_Point (msh, *ele, X)) return *ele;
 
   return NULL;
 }
@@ -1796,9 +1822,8 @@ void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
 }
 
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
-void FEM_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *X, double *base, double *velo)
+void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel)
 {
-  double *u = (time == CURVELO ? bod->velo : FEM_VEL0 (bod));
   double point [3], vglo [3];
   ELEMENT *ele;
   CONVEX *cvx;
@@ -1819,8 +1844,19 @@ void FEM_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *X
 
   referential_to_local (msh, ele, X, point);
   N = shape_functions (bod, msh, ele, point);
-  MX_Matvec (1.0, N, u, 0.0, vglo); /* vglo = N u */
-  TVMUL (base, vglo, velo); /* velo = base' vglo */
+
+  if (prevel)
+  {
+    MX_Matvec (1.0, N, FEM_VEL0 (bod), 0.0, vglo); /* vglo = N u */
+    TVMUL (base, vglo, prevel); /* prevel = base' vglo */
+  }
+
+  if (curvel)
+  {
+    MX_Matvec (1.0, N, bod->velo, 0.0, vglo);
+    TVMUL (base, vglo, curvel);
+  }
+
   MX_Destroy (N);
 }
 

@@ -49,14 +49,6 @@ typedef enum
   VALUE_STRESS_AND_MISES
 } VALUE_KIND;
 
-/* local velocity
- * routine enum */
-typedef enum
-{
-  CURVELO,   /* current velocity */
-  PREVELO    /* previous time step velocity */
-} VELOTIME;
-
 /* time integration
  * schemes */
 typedef enum 
@@ -207,7 +199,7 @@ void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
 void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
 
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
-void BODY_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo);
+void BODY_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base, double *prevel, double *curvel);
 
 /* return transformation operator from the generalised to the local velocity space at (element, point, base) */
 MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base);

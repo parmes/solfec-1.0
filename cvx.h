@@ -111,7 +111,7 @@ void* CONVEX_First_Bulk_Material (CONVEX *cvx);
 /* return convex containing the point */
 CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point);
 
-/* does this convex (not a list) contain the point? */
+/* does this convex (not a list) contain a spatial point? */
 int CONVEX_Contains_Point (void *dummy, CONVEX *cvx, double *point);
 
 /* update convex list according to the given motion */

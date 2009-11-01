@@ -1328,33 +1328,34 @@ void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
   }
 }
 
-void BODY_Local_Velo (BODY *bod, VELOTIME time, SHAPE *shp, void *gobj, double *point, double *base, double *velo)
+void BODY_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base, double *prevel, double *curvel)
 {
   switch (bod->kind)
   {
     case OBS:
-      SET (velo, 0.0);
+      SET (prevel, 0.0);
+      SET (curvel, 0.0);
     break;
     case RIG:
     {
       double H [18];
-      int off = (time == CURVELO ? 0 : 6); /* velocity selection offset */
 
       rig_operator_H (bod, point, base, H);
-      blas_dgemv ('N', 3, 6, 1.0, H, 3, bod->velo+off, 1, 0.0, velo, 1);
+      if (prevel) blas_dgemv ('N', 3, 6, 1.0, H, 3, bod->velo + 6, 1, 0.0, prevel, 1);
+      if (curvel) blas_dgemv ('N', 3, 6, 1.0, H, 3, bod->velo, 1, 0.0, curvel, 1);
     }
     break;
     case PRB:
     {
       double H [36];
-      int off = (time == CURVELO ? 0 : 12);
 
       prb_operator_H (bod, point, base, H);
-      blas_dgemv ('N', 3, 12, 1.0, H, 3, bod->velo+off, 1, 0.0, velo, 1);
+      if (prevel) blas_dgemv ('N', 3, 12, 1.0, H, 3, bod->velo + 12, 1, 0.0, prevel, 1);
+      if (curvel) blas_dgemv ('N', 3, 12, 1.0, H, 3, bod->velo, 1, 0.0, curvel, 1);
     }
     break;
     case FEM:
-      FEM_Local_Velo (bod, time, shp, gobj, point, base, velo);
+      FEM_Local_Velo (bod, shp, gobj, point, base, prevel, curvel);
     break;
   }
 }
@@ -1476,7 +1477,7 @@ void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND 
     {
       double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 
-      BODY_Local_Velo (bod, CURVELO, shp, gobj, ref_point, base, values);
+      BODY_Local_Velo (bod, shp, gobj, ref_point, base, NULL, values);
     }
     break;
     case VALUE_STRESS:
@@ -1536,7 +1537,7 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
     {
       double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 
-      BODY_Local_Velo (bod, CURVELO, NULL, NULL, point, base, values);
+      BODY_Local_Velo (bod, NULL, NULL, point, base, NULL, values);
     }
     break;
     case VALUE_STRESS:

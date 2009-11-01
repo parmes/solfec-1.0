@@ -1256,7 +1256,8 @@ static void arrow3d (double *p, double *q)
 
   SUB (q, p, d);
   MAXABSIDX (d, i);
-  COPY (d, x);
+  SET (x, 1.0);
+  ADD (x, d, x);
   x [i] = 0.0;
   PRODUCT (d, x, t);
   l = LEN (d);
@@ -1355,12 +1356,13 @@ static void render_rt (CON *con, GLfloat color [4])
   double r [3],
 	 other [3],
 	 ext = GLV_Minimal_Extent() * 0.1,
-	 eps;
+	 eps, len;
 
   COPY (con->base, r);
   SCALE (r, con->R[0]);
   ADDMUL (r, con->R[1], con->base+3, r);
-  eps = ext / volumetric_map_max;
+  len = LEN (r);
+  eps = (ext  / len) * (1.0 + (len - volumetric_map_min) / (volumetric_map_max - volumetric_map_min + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor4fv (color);
@@ -1373,11 +1375,12 @@ static void render_rn (CON *con, GLfloat color [4])
   double r [3],
 	 other [3],
 	 ext = GLV_Minimal_Extent() * 0.1,
-	 eps;
+	 eps, len;
 
   COPY (con->base + 6, r);
   SCALE (r, con->R[2]);
-  eps = ext / volumetric_map_max;
+  len = LEN (r);
+  eps = (ext  / len) * (1.0 + (len - volumetric_map_min) / (volumetric_map_max - volumetric_map_min + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor4fv (color);
@@ -1390,13 +1393,15 @@ static void render_r (CON *con, GLfloat color [4])
   double r [3],
 	 other [3],
 	 ext = GLV_Minimal_Extent() * 0.1,
-	 eps;
+	 eps,
+	 len;
 
   COPY (con->base, r);
   SCALE (r, con->R[0]);
   ADDMUL (r, con->R[1], con->base+3, r);
   ADDMUL (r, con->R[2], con->base+6, r);
-  eps = ext / volumetric_map_max;
+  len = LEN (r);
+  eps = (ext  / len) * (1.0 + (len - volumetric_map_min) / (volumetric_map_max - volumetric_map_min + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor4fv (color);

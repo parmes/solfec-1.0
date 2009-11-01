@@ -24,6 +24,7 @@
 #include "dom.h"
 #include "ldy.h"
 #include "lap.h"
+#include "msh.h"
 #include "err.h"
 
 #if MPI
@@ -1188,6 +1189,20 @@ static void destroy_mpi (LOCDYN *ldy)
 }
 #endif
 
+/* test whether two constraints are able to be adjacent */
+static int adjacentable (BODY *bod, CON *one, CON *two)
+{
+  if (bod->kind == FEM)
+  {
+    ELEMENT *e1 = (bod == one->master ? one->mgobj : one->sgobj),
+	    *e2 = (bod == two->master ? two->mgobj : two->sgobj);
+
+    return ELEMENT_Adjacent (e1, e2); /* only in case of a common node W_one_two and W_two_one will be != 0 */
+  }
+
+  return 1;
+}
+
 /* create local dynamics for a domain */
 LOCDYN* LOCDYN_Create (void *dom)
 {
@@ -1241,7 +1256,8 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
     {
       c = item->data;
 
-      if (c != con && c->dia) /* skip the coincident or unattached yet constraint */
+      if (c != con && c->dia && /* skip the coincident or unattached yet constraint */
+	  adjacentable (one, con, c)) /* skip other cases where W_ij would be zero */
       {
 	nei = c->dia;
 
@@ -1274,7 +1290,8 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
     {
       c = item->data;
 
-      if (c != con && c->dia) /* skip the coincident or unattached yet constraint */
+      if (c != con && c->dia && /* skip the coincident or unattached yet constraint */
+	  adjacentable (two, con, c)) /* skip other cases where W_ij would be zero */
       {
 	nei = c->dia;
 
@@ -1417,23 +1434,20 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 	   *base = con->base,
 	   *V = dia->V,
 	   *B = dia->B,
+	   X0 [3], Y0 [3],
            X [3], Y [9];
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE (C, 3, 3);
     MX *mH, *sH;
     OFFB *blk;
 
-    /* previous time step velocity */
-    BODY_Local_Velo (m, PREVELO, mshp, mgobj, mpnt, base, X); /* master body pointer cannot be NULL */
-    if (s) BODY_Local_Velo (s, PREVELO, sshp, sgobj, spnt, base, Y); /* might be NULL for some constraints (one body) */
-    else { SET (Y, 0.0); }
-    SUB (Y, X, V); /* relative = slave - master => outward master normal */
-
-    /* local free velocity */
-    BODY_Local_Velo (m, CURVELO, mshp, mgobj, mpnt, base, X);
-    if (s) BODY_Local_Velo (s, CURVELO, sshp, sgobj, spnt, base, Y);
-    else { SET (Y, 0.0); }
-    SUB (Y, X, B);
+    /* relative velocity = slave - master => outward master normal */
+    BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
+    if (s) BODY_Local_Velo (s, sshp, sgobj, spnt, base, Y0, Y); /* might be NULL for some constraints (one body) */
+    else { SET (Y0, 0.0); SET (Y, 0.0); }
+    
+    SUB (Y0, X0, V); /* previous time step velocity */
+    SUB (Y, X, B); /* local free velocity */
 
     /* diagonal block */
     mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);

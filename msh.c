@@ -1126,12 +1126,21 @@ void MESH_Destroy (MESH *msh)
   free (msh);
 }
 
-/* does the element contain the point? */
-int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref)
+/* does the element contain a spatial point? */
+int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point)
 {
   double pla [24];
 
-  create_element_planes (ref ? msh->ref_nodes : msh->cur_nodes, ele, pla);
+  create_element_planes (msh->cur_nodes, ele, pla);
+  return point_inside (neighs (ele->type), pla, point);
+}
+
+/* does the element contain a referential point? */
+int ELEMENT_Contains_Ref_Point (MESH *msh, ELEMENT *ele, double *point)
+{
+  double pla [24];
+
+  create_element_planes (msh->ref_nodes, ele, pla);
   return point_inside (neighs (ele->type), pla, point);
 }
 
