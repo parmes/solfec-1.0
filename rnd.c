@@ -1062,7 +1062,6 @@ static void render_element (BODY *bod, SHAPE *shp, ELEMENT *ele, int flags, GLfl
 {
   GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
   CONVEX *cvx;
-  FACE *fac;
   int n, m, l;
 
   /* get convex of element */
@@ -1092,14 +1091,11 @@ static void render_element (BODY *bod, SHAPE *shp, ELEMENT *ele, int flags, GLfl
   for (n = m = 0; n < cvx->nfac;
     n ++, m += (cvx->fac [m] + 1))
   {
-    for (fac = ele->faces; fac; fac = fac->next)
-    { if (fac->index == n) break; /* face found */ }
-
     glBegin (GL_POLYGON);
     glNormal3dv (&cvx->pla [n * 4]);
     for (l = 1; l <= cvx->fac [m]; l ++)
     {
-      if (!(flags & SELECTION) && get_element_node_color (bod, shp, ele, fac, cvx->fac [m+l] / 3, color)) glColor4fv (color);
+      if (!(flags & SELECTION) && get_element_node_color (bod, shp, ele, NULL, cvx->fac [m+l] / 3, color)) glColor4fv (color);
       glVertex3dv (&cvx->cur [cvx->fac [m+l]]);
     }
     glEnd ();

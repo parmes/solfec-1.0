@@ -32,6 +32,7 @@
 
 typedef double (*node_t) [3]; /* mesh node */
 
+#define CUT_TOL 0.001
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)
 #define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
@@ -154,7 +155,6 @@ inline static void tet_global_to_local (node_t nodes, double *global, double *lo
   ASSERT_DEBUG (local [0] >= 0.0 && local [1] >= 0.0 local [2] >= 0.0 &&
   (local [0] + local [1] + local [2]) <= 1.0, "Local coords out of bounds");
 #endif
-
 }
 
 /* linear hexahedron local to global point transformation */
@@ -834,18 +834,17 @@ static MX* shape_functions (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
   case FEM_O1:
   {
     static int *p, *i, *q, *u, k, n, m;
-    double shapes [8], *x;
+    double shapes [8], sum, *x, *y;
 
     n = bod->dofs;
 
     ERRMEM (p = calloc (2*n+1, sizeof (int)));
     i = p + n + 1;
 
-    for (k = 0; k < ele->type; k ++)
+    for (k = 0, u = i; k < ele->type; k ++, u += 3)
     {
       m = ele->nodes [k] * 3;
       q = &p [m + 1];
-      u = &i [m];
       q [0] = 1; q [1] = 1; q [2] = 1;
       u [0] = 0; u [1] = 1; u [2] = 2;
     }
@@ -855,43 +854,63 @@ static MX* shape_functions (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
     N = MX_Create (MXCSC, 3, n, p, i);
     x = N->x;
     free (p);
+    p = N->p;
 
     switch (ele->type)
     {
       case 4:
 	tet_o1_shapes (point, shapes);
-	x [0] = x [1]  = x [2]  = shapes [0];
-	x [3] = x [4]  = x [5]  = shapes [1];
-	x [6] = x [7]  = x [8]  = shapes [2];
-	x [9] = x [10] = x [11] = shapes [3];
+	for (k = 0; k < 4; k ++)
+	{
+	  m = ele->nodes [k] * 3;
+	  y = &x [p [m]];
+	  SET (y, shapes [k]);
+	}
 	break;
       case 8:
 	hex_o1_shapes (point, shapes);
-	x [0]  = x [1]  = x [2]  = shapes [0];
-	x [3]  = x [4]  = x [5]  = shapes [1];
-	x [6]  = x [7]  = x [8]  = shapes [2];
-	x [9]  = x [10] = x [11] = shapes [3];
-	x [12] = x [13] = x [14] = shapes [4];
-	x [15] = x [16] = x [17] = shapes [5];
-	x [18] = x [19] = x [20] = shapes [6];
-	x [21] = x [22] = x [23] = shapes [7];
+	for (k = 0; k < 8; k ++)
+	{
+	  m = ele->nodes [k] * 3;
+	  y = &x [p [m]];
+	  SET (y, shapes [k]);
+	}
 	break;
       case 5:
 	hex_o1_shapes (point, shapes);
-	x [0]  = x [1]  = x [2]  = shapes [0];
-	x [3]  = x [4]  = x [5]  = shapes [1];
-	x [6]  = x [7]  = x [8]  = shapes [2];
-	x [9]  = x [10] = x [11] = shapes [3];
-	x [12] = x [13] = x [14] = (shapes [4] + shapes [5] + shapes [6] + shapes [7]);
+	for (k = 0; k < 4; k ++)
+	{
+	  m = ele->nodes [k] * 3;
+	  y = &x [p [m]];
+	  SET (y, shapes [k]);
+	}
+	m = ele->nodes [k] * 3;
+	y = &x [p [m]];
+	sum = (shapes [4] + shapes [5] + shapes [6] + shapes [7]);
+	SET (y, sum);
 	break;
       case 6:
 	hex_o1_shapes (point, shapes);
-	x [0]  = x [1]  = x [2]  = shapes [0];
-	x [3]  = x [4]  = x [5]  = shapes [1];
-	x [6]  = x [7]  = x [8]  = (shapes [2] + shapes [3]);
-	x [9]  = x [10] = x [11] = shapes [4];
-	x [12] = x [13] = x [14] = shapes [5];
-	x [15] = x [16] = x [17] = (shapes [6] + shapes [7]);
+	for (k = 0; k < 2; k ++)
+	{
+	  m = ele->nodes [k] * 3;
+	  y = &x [p [m]];
+	  SET (y, shapes [k]);
+	}
+	m = ele->nodes [2] * 3;
+	y = &x [p [m]];
+	sum = (shapes [2] + shapes [3]);
+	SET (y, sum);
+	for (k = 4; k < 6; k ++)
+	{
+	  m = ele->nodes [k-1] * 3;
+	  y = &x [p [m]];
+	  SET (y, shapes [k]);
+	}
+	m = ele->nodes [5] * 3;
+	y = &x [p [m]];
+	sum = (shapes [6] + shapes [7]);
+	SET (y, sum);
 	break;
     }
   }
@@ -1162,13 +1181,40 @@ static void fem_element_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, double *poin
   values [5] = (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
 }
 
+/* return element stabbed by a spatial point */
+static ELEMENT* stabbed_element_cur (MESH *msh, ELEMENT **ele, int nele, double *x)
+{
+  ELEMENT **cur = ele, *ret;
+  double dist, d;
+
+  for (; nele > 0; ele ++, nele --)
+    if (ELEMENT_Contains_Point (msh, *ele, x)) return *ele;
+
+  for (dist = DBL_MAX, ret = NULL; cur < ele; cur ++)
+  {
+    d = ELEMENT_Point_Distance (msh, *cur, x, 0);
+    if (d < dist) dist = d, ret = *cur;
+  }
+
+  return ret;
+}
+
 /* return element stabbed by a referential point */
 static ELEMENT* stabbed_element (MESH *msh, ELEMENT **ele, int nele, double *X)
 {
+  ELEMENT **cur = ele, *ret;
+  double dist, d;
+
   for (; nele > 0; ele ++, nele --)
     if (ELEMENT_Contains_Ref_Point (msh, *ele, X)) return *ele;
 
-  return NULL;
+  for (dist = DBL_MAX, ret = NULL; cur < ele; cur ++)
+  {
+    d = ELEMENT_Point_Distance (msh, *cur, X, 1);
+    if (d < dist) dist = d, ret = *cur;
+  }
+
+  return ret;
 }
 
 /* return transformation operator from the generalised to the local velocity space */
@@ -1365,7 +1411,7 @@ static void post_process_intersections (double shape_volume, MESH *msh)
       cut_volume += TRI_Char (surf->tri, surf->m, surf->center);
 
   /* make sure that cut error is not too large, so that the mesh really contains the shape */
-  ASSERT (fabs (shape_volume - cut_volume) < GEOMETRIC_EPSILON * shape_volume, ERR_FEM_CUT_VOLUME);
+  ASSERT (fabs (shape_volume - cut_volume) < CUT_TOL * shape_volume, ERR_FEM_CUT_VOLUME);
 
   /* 2. */
 
@@ -1460,9 +1506,10 @@ static void post_process_intersections (double shape_volume, MESH *msh)
 
     if (fabs (ele_volume - cut_volume) < GEOMETRIC_EPSILON * ele_volume)
     {
-      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf);
+      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf->tri);
       free (ele->dom);
       ele->dom = NULL;
+      ele->domnum = 0;
     }
   }
 
@@ -1476,23 +1523,45 @@ static void post_process_intersections (double shape_volume, MESH *msh)
 
     if (fabs (ele_volume - cut_volume) < GEOMETRIC_EPSILON * ele_volume)
     {
-      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf);
+      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf->tri);
       free (ele->dom);
       ele->dom = NULL;
+      ele->domnum = 0;
     }
   }
 
   /* 5. */
 
-  for (ele = msh->surfeles; ele; ele = ele->next)
-    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
-      for (tri = surf->tri, m = 0; m < surf->m; tri ++, m ++)
-	for (k = 0; k < 3; k ++) { COPY (tri->ver [k], point); global_to_local (msh->ref_nodes, ele, point, tri->ver [k]); }
+  int bulk;
 
-  for (ele = msh->bulkeles; ele; ele = ele->next)
+  for (ele = msh->surfeles, bulk = 0; ele; )
+  {
     for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
+    {
+      SET *done = NULL;
+
+      COPY (surf->center, point); global_to_local (msh->ref_nodes, ele, point, surf->center); 
+
       for (tri = surf->tri, m = 0; m < surf->m; tri ++, m ++)
-	for (k = 0; k < 3; k ++) { COPY (tri->ver [k], point); global_to_local (msh->ref_nodes, ele, point, tri->ver [k]); }
+      {
+	for (k = 0; k < 3; k ++)
+	{ 
+	  if (!SET_Find (done, tri->ver [k], NULL)) /* note that multiple triangles reference same nodes */
+	  {
+	    COPY (tri->ver [k], point);
+	    global_to_local (msh->ref_nodes, ele, point, tri->ver [k]);
+	    SET_Insert (NULL, &done, tri->ver [k], NULL);
+	  }
+	}
+      }
+
+      SET_Free (NULL, &done);
+    }
+
+    if (bulk) ele = ele->next;
+    else if (ele->next) ele = ele->next;
+    else ele = msh->bulkeles, bulk = 1;
+  }
 }
 
 /* element and convex bounding boxe intersection callback; compute
@@ -1520,8 +1589,17 @@ static void* overlap (void *data, BOX *one, BOX *two)
 
   if (tri)
   {
-#if DEBUG
+#if DEBUG && 0 /* FIXME: hybrid_ext and twowayscan need to be fixed not to double overlap detection */
     for (n = 0; n < cvx->nele; n ++) { ASSERT_DEBUG (cvx->ele [n] != ele, "CONVEX-ELEMENT intersection detected twice: this should not happen"); }
+#else
+    for (n = 0; n < cvx->nele; n ++)
+    {
+      if (cvx->ele [n] == ele)
+      {
+	free (tri);
+	return NULL;
+      }
+    }
 #endif
     ERRMEM (cvx->ele = realloc (cvx->ele, (++cvx->nele) * sizeof (ELEMENT*)));
     cvx->ele [cvx->nele-1] = ele;
@@ -1721,12 +1799,8 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 /* perform the final half-step of the dynamic scheme */
 void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 {
-  MESH *msh = FEM_MESH (bod);
   int n = bod->dofs;
   double half = 0.5 * step,
-       (*ref) [3] = msh->ref_nodes,
-       (*cur) [3] = msh->cur_nodes,
-       (*end) [3] = cur + msh->nodes_count,
 	*x = bod->inverse->x,
 	*r = FEM_FORCE (bod),
 	*u = bod->velo,
@@ -1737,8 +1811,15 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   for (; u < e; u ++, x ++, r ++) (*u) += step * (*x) * (*r); /* u(t+h) += inv (M) * h * r */
   blas_daxpy (n, half, bod->velo, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
 
-  /* update current mesh nodes in case of a separate mesh */
-  for (;cur < end; q += 3, ref ++, cur ++) { ADD (ref [0], q, cur [0]); }
+  if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
+  {
+    MESH *msh = bod->msh;
+    double (*cur) [3] = msh->cur_nodes,
+	   (*ref) [3] = msh->ref_nodes,
+	   (*end) [3] = ref + msh->nodes_count;
+
+    for (; ref < end; cur ++, ref ++, q += 3) { ADD (ref[0], q, cur[0]); }
+  }
 }
 
 /* initialise static time stepping */
@@ -1773,6 +1854,7 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
     msh = bod->msh;
     ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
     ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+    ASSERT_DEBUG (ele, "Invalid referential point stabbing an element");
   }
   else
   {
@@ -1791,8 +1873,9 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
   else /* NULL implies nodal update (X is within msh->ref_nodes) */
   {
     int n = (node_t) X - msh->ref_nodes;
+    double *q = &bod->conf [n * 3];
 
-    COPY (msh->cur_nodes [n], x);
+    ADD (msh->ref_nodes [n], q, x);
   }
 }
 
@@ -1808,7 +1891,8 @@ void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
   {
     msh = bod->msh;
     ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
-    ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+    ele = stabbed_element_cur (msh, cvx->ele, cvx->nele, x);
+    ASSERT_DEBUG (ele, "Invalid spatial point stabbing an element");
   }
   else
   {
@@ -1835,6 +1919,7 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
     msh = bod->msh;
     ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
     ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+    ASSERT_DEBUG (ele, "Invalid referential point stabbing an element");
   }
   else
   {
@@ -1872,6 +1957,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
     msh = bod->msh;
     ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
     ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+    ASSERT_DEBUG (ele, "Invalid referential point stabbing an element");
   }
   else
   {
@@ -1916,6 +2002,7 @@ void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND k
     ASSERT_DEBUG (node >= 0 && node < cvx->nver, "CONVEX node number out of bounds");
     X = cvx->ref + node * 3;
     ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+    ASSERT_DEBUG (ele, "Invalid referential point stabbing an element");
     referential_to_local (msh, ele, X, point);
     n = 0;
   }

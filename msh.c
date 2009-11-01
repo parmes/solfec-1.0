@@ -358,6 +358,20 @@ static int point_inside (int npla, double *pla, double *point)
   return 1;
 }
 
+/* maximal plane distance query */
+static double point_distance (int npla, double *pla, double *point)
+{
+  double d, dist;
+
+  for (dist = -DBL_MAX; npla > 0; pla += 4, npla --)
+  {
+    d = PLANE (pla, point);
+    if (d > dist) dist = d;
+  }
+
+  return dist;
+}
+
 /* check if edge [nod1, nod2] belongs to the element */
 int element_has_edge (ELEMENT *ele, int nod1, int nod2)
 {
@@ -1142,6 +1156,16 @@ int ELEMENT_Contains_Ref_Point (MESH *msh, ELEMENT *ele, double *point)
 
   create_element_planes (msh->ref_nodes, ele, pla);
   return point_inside (neighs (ele->type), pla, point);
+}
+
+
+/* return distance of a spatial (ref == 0) or referential (ref == 1) point to the element */
+double ELEMENT_Point_Distance (MESH *msh, ELEMENT *ele, double *point, int ref)
+{
+  double pla [24];
+
+  create_element_planes (ref ? msh->ref_nodes : msh->cur_nodes, ele, pla);
+  return point_distance (neighs (ele->type), pla, point);
 }
 
 /* test wether two elements are adjacent
