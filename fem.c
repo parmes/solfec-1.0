@@ -669,17 +669,17 @@ inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	COPY (t->ver [1], subnodes [1]);
 	COPY (t->ver [2], subnodes [2]);
 
-	for (k = 0; k < I_TET2_N; k ++)
+	for (k = 0; k < I_TET1_N; k ++) /* under-integration here (but there are at least 4 sub-volumes) */
 	{
-	  subpoint [0] = I_TET2_X [k];
-	  subpoint [1] = I_TET2_Y [k];
-	  subpoint [2] = I_TET2_Z [k];
+	  subpoint [0] = I_TET1_X [k];
+	  subpoint [1] = I_TET1_Y [k];
+	  subpoint [2] = I_TET1_Z [k];
 	  subJ = tet_o1_det (subnodes, subpoint, NULL);
 	  tet_local_to_global (subnodes, subpoint, point);
 	  J = hex_o1_det (nodes, point, F0);
 	  hex_o1_gradient (q, point, F0, derivs, F);
 	  SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-	  integral = J * subJ *  I_TET2_W [k];
+	  integral = J * subJ *  I_TET1_W [k];
 	  SCALE9 (P, integral);
 
           for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }

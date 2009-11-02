@@ -3270,6 +3270,107 @@ static PyObject* lng_HEX (PyObject *self, PyObject *args, PyObject *kwds)
   return (PyObject*)out;
 }
 
+/* create a rough mesh object */
+static PyObject* lng_ROUGH_HEX (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("shape", "i", "j", "k", "dx", "dy", "dz");
+  PyObject *shape, *dx, *dy, *dz;
+  double (*nod) [3], *vdx, *vdy, *vdz;
+  int i, j, k, n, surfaces [6], volid;
+  lng_MESH *out;
+  SHAPE *shp;
+
+  out = (lng_MESH*)lng_MESH_TYPE.tp_alloc (&lng_MESH_TYPE, 0);
+
+  if (out)
+  {
+    dx = dy = dz = NULL;
+
+    PARSEKEYS ("Oiii|OOO", &shape, &i, &j, &k, &dx, &dy, &dz);
+
+    TYPETEST (is_shape_convex (shape, kwl[0]) && is_positive (i, kwl[1]) && is_positive (j, kwl[2]) && is_positive (k, kwl[3]) &&
+	      is_list (dx, kwl[6], 1, i) && is_list (dy, kwl[7], 1, j) && is_list (dz, kwl[8], 1, k));
+
+    MX_DENSE (euler, 3, 3);
+    MX_DENSE (eigv, 3, 3);
+    double eval [3],
+	   extents [6],
+	   point [3],
+	   *vx = eigv.x,
+	   *vy = vx + 3,
+	   *vz = vy + 3;
+
+    shp = create_shape (shape, 0); /* do not empty */
+    SHAPE_Char (shp, NULL, NULL, euler.x);
+    MX_Eigen (&euler, 3, eval, &eigv);
+    SHAPE_Oriented_Extents (shp, vx, vy, vz, extents);
+    SHAPE_Destroy_Wrapper (shp);
+
+    ERRMEM (nod = malloc (8 * sizeof (double [3])));
+    COPY (extents, point);
+    NVMUL (eigv.x, point, nod [3]);
+    point [0] = extents [3];
+    NVMUL (eigv.x, point, nod [2]);
+    point [1] = extents [4];
+    NVMUL (eigv.x, point, nod [1]);
+    point [0] = extents [0];
+    NVMUL (eigv.x, point, nod [0]);
+    point [1] = extents [1];
+    point [2] = extents [5];
+    NVMUL (eigv.x, point, nod [7]);
+    point [0] = extents [3];
+    NVMUL (eigv.x, point, nod [6]);
+    point [1] = extents [4];
+    NVMUL (eigv.x, point, nod [5]);
+    point [0] = extents [0];
+    NVMUL (eigv.x, point, nod [4]);
+
+    for (volid = INT_MAX, n = 0; n < 6; n ++) surfaces [n] = INT_MAX; /* fake ids */
+
+    if (dx)
+    {
+      ERRMEM (vdx = malloc (i * sizeof (double)));
+      for (n = 0; n < i; n ++)
+      {
+        vdx [n] = PyFloat_AsDouble (PyList_GetItem (dx, n));
+	TYPETEST (is_positive (vdx [n], "dx[i] for all i"));
+      }
+    }
+    else vdx = NULL;
+
+    if (dy)
+    {
+      ERRMEM (vdy = malloc (j * sizeof (double)));
+      for (n = 0; n < j; n ++)
+      {
+        vdy [n] = PyFloat_AsDouble (PyList_GetItem (dy, n));
+	TYPETEST (is_positive (vdy [n], "dy[j] for all j"));
+      }
+    }
+    else vdy = NULL;
+
+    if (dz)
+    {
+      ERRMEM (vdz = malloc (k * sizeof (double)));
+      for (n = 0; n < k; n ++)
+      {
+        vdz [n] = PyFloat_AsDouble (PyList_GetItem (dz, n));
+	TYPETEST (is_positive (vdz [n], "dz[k] for all k"));
+      }
+    }
+    else vdz = NULL;
+
+    out->msh = MESH_Hex (nod, i, j, k, surfaces, volid, vdx, vdy, vdz);
+
+    free (nod);
+    free (vdx);
+    free (vdy);
+    free (vdz);
+  }
+
+  return (PyObject*)out;
+}
+
 /* create fixed point constraint */
 static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -5162,6 +5263,7 @@ static PyMethodDef lng_methods [] =
 {
   {"HULL", (PyCFunction)lng_HULL, METH_VARARGS|METH_KEYWORDS, "Create convex hull from a point set"},
   {"HEX", (PyCFunction)lng_HEX, METH_VARARGS|METH_KEYWORDS, "Create mesh of a hexahedral shape"},
+  {"ROUGH_HEX", (PyCFunction)lng_ROUGH_HEX, METH_VARARGS|METH_KEYWORDS, "Create a rough hexahedral mesh containing a given shape"},
   {"FIX_POINT", (PyCFunction)lng_FIX_POINT, METH_VARARGS|METH_KEYWORDS, "Create a fixed point constraint"},
   {"FIX_DIRECTION", (PyCFunction)lng_FIX_DIRECTION, METH_VARARGS|METH_KEYWORDS, "Create a fixed direction constraint"},
   {"SET_DISPLACEMENT", (PyCFunction)lng_SET_DISPLACEMENT, METH_VARARGS|METH_KEYWORDS, "Create a prescribed displacement constraint"},
@@ -5319,6 +5421,7 @@ int lng (const char *path)
                      "from solfec import HULL\n"
                      "from solfec import MESH\n"
                      "from solfec import HEX\n"
+                     "from solfec import ROUGH_HEX\n"
                      "from solfec import SPHERE\n"
                      "from solfec import SOLFEC\n"
                      "from solfec import SURFACE_MATERIAL\n"

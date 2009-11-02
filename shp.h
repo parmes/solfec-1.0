@@ -95,6 +95,9 @@ void SHAPE_Update (SHAPE *shp, void *body, MOTION motion);
 /* copute shape extents */
 void SHAPE_Extents (SHAPE *shp, double *extents);
 
+/* copute shape oriented extents in corrds given by three direction vectors */
+void SHAPE_Oriented_Extents (SHAPE *shp, double *vx, double *vy, double *vz, double *extents);
+
 /* return first bulk material recorded
  * in this individual shape (not a list) */
 void* SHAPE_First_Bulk_Material (SHAPE *shp);

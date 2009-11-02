@@ -89,6 +89,9 @@ void SPHERE_Extents (void *data, SPHERE *sph, double *extents);
 /* compute extents of sphere list */
 void SPHERE_List_Extents (SPHERE *sph, double *extents);
 
+/* compute oriented extents of sphere list */
+void SPHERE_List_Oriented_Extents (SPHERE *sph, double *vx, double *vy, double *vz, double *extents);
+
 /* return first not NULL bulk material for a sphere list */
 void* SPHERE_First_Bulk_Material (SPHERE *sph);
 

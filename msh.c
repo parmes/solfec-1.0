@@ -1102,6 +1102,30 @@ void MESH_Extents (MESH *msh, double *extents)
   }
 }
 
+/* compute oriented extents of entire mesh */
+void MESH_Oriented_Extents (MESH *msh, double *vx, double *vy, double *vz, double *extents)
+{
+  double (*cur) [3], (*end) [3];
+  double e [3];
+
+  extents [0] = extents [1] = extents [2] =  DBL_MAX;
+  extents [3] = extents [4] = extents [5] = -DBL_MAX;
+    
+  for (cur = msh->cur_nodes, end = cur + msh->nodes_count; cur < end; cur ++)
+  {
+    e [0] = DOT (vx, cur[0]);
+    e [1] = DOT (vy, cur[0]);
+    e [2] = DOT (vz, cur[0]);
+
+    if (e [0] < extents [0]) extents [0] = e [0];
+    if (e [1] < extents [1]) extents [1] = e [1];
+    if (e [2] < extents [2]) extents [2] = e [2];
+    if (e [0] > extents [3]) extents [3] = e [0];
+    if (e [1] > extents [4]) extents [4] = e [1];
+    if (e [2] > extents [5]) extents [5] = e [2];
+  }
+}
+
 /* return first not NULL bulk material of an element */
 void* MESH_First_Bulk_Material (MESH *msh)
 {

@@ -22,3 +22,7 @@ Speed up rendering by using Vertex Buffer Objects extension
 -----------------------------------------------------------
 Test whether inertia scaling by density works correctly
 --------------------------------------------------------
+add void *mat; to TRISURF and inherit material poinetrs
+from convices when intersecting; use them when integrating
+over material properties
+--------------------------------------------------------

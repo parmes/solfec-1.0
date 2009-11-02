@@ -362,6 +362,41 @@ void SPHERE_List_Extents (SPHERE *sph, double *extents)
   }
 }
 
+/* compute oriented extents of sphere list */
+void SPHERE_List_Oriented_Extents (SPHERE *sph, double *vx, double *vy, double *vz, double *extents)
+{
+  double e [6], len [3], r;
+
+  extents [0] = extents [1] = extents [2] =  DBL_MAX;
+  extents [3] = extents [4] = extents [5] = -DBL_MAX;
+
+  len [0] = LEN (vx);
+  len [1] = LEN (vy);
+  len [2] = LEN (vz);
+    
+  for (; sph; sph = sph->next)
+  {
+    e [0] = DOT (sph->cur_center, vx);
+    e [1] = DOT (sph->cur_center, vy);
+    e [2] = DOT (sph->cur_center, vz);
+    COPY (e, e + 3);
+    r = sph->cur_radius;
+    e [0] -= r / len [0];
+    e [1] -= r / len [1];
+    e [2] -= r / len [2];
+    e [4] += r / len [0];
+    e [5] += r / len [1];
+    e [6] += r / len [2];
+
+    if (e [0] < extents [0]) extents [0] = e [0];
+    if (e [1] < extents [1]) extents [1] = e [1];
+    if (e [2] < extents [2]) extents [2] = e [2];
+    if (e [3] > extents [3]) extents [3] = e [3];
+    if (e [4] > extents [4]) extents [4] = e [4];
+    if (e [5] > extents [5]) extents [5] = e [5];
+  }
+}
+
 /* return first not NULL bulk material for a sphere list */
 void* SPHERE_First_Bulk_Material (SPHERE *sph)
 {

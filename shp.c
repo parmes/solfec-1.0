@@ -48,6 +48,8 @@ typedef void (*update_func) (void*, void*, void*, MOTION);
 static update_func update [] = {(update_func)MESH_Update, (update_func)CONVEX_Update, (update_func)SPHERE_Update};
 typedef void (*extents_func) (void*, double*);
 static extents_func objextents [] = {(extents_func)MESH_Extents, (extents_func)CONVEX_List_Extents, (extents_func)SPHERE_List_Extents};
+typedef void (*oextents_func) (void*, double*, double*, double*, double*);
+static oextents_func objorientedextents [] = {(oextents_func)MESH_Oriented_Extents, (oextents_func)CONVEX_List_Oriented_Extents, (oextents_func)SPHERE_List_Oriented_Extents};
 typedef void* (*first_bulk_func) (void*);
 static first_bulk_func firstbulk [] = {(first_bulk_func)MESH_First_Bulk_Material, (first_bulk_func)CONVEX_First_Bulk_Material, (first_bulk_func)SPHERE_First_Bulk_Material};
 typedef void (*destroy_func) (void*);
@@ -358,6 +360,38 @@ void SHAPE_Extents (SHAPE *shp, double *extents)
   for (; shp; shp = shp->next)
   {
     objextents [shp->kind] (shp->data, e);
+
+    if (e [0] < extents [0]) extents [0] = e [0];
+    if (e [1] < extents [1]) extents [1] = e [1];
+    if (e [2] < extents [2]) extents [2] = e [2];
+    if (e [3] > extents [3]) extents [3] = e [3];
+    if (e [4] > extents [4]) extents [4] = e [4];
+    if (e [5] > extents [5]) extents [5] = e [5];
+  }
+
+  SUB (extents+3, extents, e);
+  MAXABS (e, margin);
+  margin *= 0.05;
+
+  extents [0] -= margin;
+  extents [1] -= margin;
+  extents [2] -= margin;
+  extents [3] += margin;
+  extents [4] += margin;
+  extents [5] += margin;
+}
+
+/* copute shape oriented extents in corrds given by three direction vectors */
+void SHAPE_Oriented_Extents (SHAPE *shp, double *vx, double *vy, double *vz, double *extents)
+{
+  double e [6], margin;
+
+  extents [0] = extents [1] = extents [2] =  DBL_MAX;
+  extents [3] = extents [4] = extents [5] = -DBL_MAX;
+
+  for (; shp; shp = shp->next)
+  {
+    objorientedextents [shp->kind] (shp->data, vx, vy, vz, e);
 
     if (e [0] < extents [0]) extents [0] = e [0];
     if (e [1] < extents [1]) extents [1] = e [1];

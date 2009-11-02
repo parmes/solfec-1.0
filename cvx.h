@@ -102,8 +102,14 @@ double CONVEX_Volume (CONVEX *cvx, int ref);
 /* update extents of an individual convex */
 void CONVEX_Extents (void *data, CONVEX *cvx, double *extents);
 
+/* update oriented extents of an individual convex */
+void CONVEX_Oriented_Extents (CONVEX *cvx, double *vx, double *vy, double *vz, double *extents);
+
 /* compute extents of convex list */
 void CONVEX_List_Extents (CONVEX *cvx, double *extents);
+
+/* compute oriented extents of convex list */
+void CONVEX_List_Oriented_Extents (CONVEX *cvx, double *vx, double *vy, double *vz, double *extents);
 
 /* return first not NULL bulk material for a convex list */
 void* CONVEX_First_Bulk_Material (CONVEX *cvx);

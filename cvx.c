@@ -762,6 +762,31 @@ void CONVEX_Extents (void *data, CONVEX *cvx, double *extents)
   extents [5] += GEOMETRIC_EPSILON;
 }
 
+/* update oriented extents of an individual convex */
+void CONVEX_Oriented_Extents (CONVEX *cvx, double *vx, double *vy, double *vz, double *extents)
+{
+  double *cur;
+  double e [3];
+  int n;
+
+  extents [0] = extents [1] = extents [2] =  DBL_MAX;
+  extents [3] = extents [4] = extents [5] = -DBL_MAX;
+    
+  for (cur = cvx->cur, n = 0; n < cvx->nver; cur += 3, n ++)
+  {
+    e [0] = DOT (vx, cur);
+    e [1] = DOT (vy, cur);
+    e [2] = DOT (vz, cur);
+
+    if (e [0] < extents [0]) extents [0] = e [0];
+    if (e [1] < extents [1]) extents [1] = e [1];
+    if (e [2] < extents [2]) extents [2] = e [2];
+    if (e [0] > extents [3]) extents [3] = e [0];
+    if (e [1] > extents [4]) extents [4] = e [1];
+    if (e [2] > extents [5]) extents [5] = e [2];
+  }
+}
+
 /* compute extents of convex list */
 void CONVEX_List_Extents (CONVEX *cvx, double *extents)
 {
@@ -773,6 +798,27 @@ void CONVEX_List_Extents (CONVEX *cvx, double *extents)
   for (; cvx; cvx = cvx->next)
   {
     CONVEX_Extents (NULL, cvx, e);
+
+    if (e [0] < extents [0]) extents [0] = e [0];
+    if (e [1] < extents [1]) extents [1] = e [1];
+    if (e [2] < extents [2]) extents [2] = e [2];
+    if (e [3] > extents [3]) extents [3] = e [3];
+    if (e [4] > extents [4]) extents [4] = e [4];
+    if (e [5] > extents [5]) extents [5] = e [5];
+  }
+}
+
+/* compute oriented extents of convex list */
+void CONVEX_List_Oriented_Extents (CONVEX *cvx, double *vx, double *vy, double *vz, double *extents)
+{
+  double e [6];
+
+  extents [0] = extents [1] = extents [2] =  DBL_MAX;
+  extents [3] = extents [4] = extents [5] = -DBL_MAX;
+    
+  for (; cvx; cvx = cvx->next)
+  {
+    CONVEX_Oriented_Extents (cvx, vx, vy, vz, e);
 
     if (e [0] < extents [0]) extents [0] = e [0];
     if (e [1] < extents [1]) extents [1] = e [1];

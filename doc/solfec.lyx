@@ -699,6 +699,73 @@ dx =
  shape.
 \end_layout
 
+\begin_layout Subsection*
+obj = ROUGH_HEX (shape, i, j, k | dx, dy, dz)
+\end_layout
+
+\begin_layout Standard
+This routine creates a hexahedral MESH object corresponding to a given shape.
+ The resultant mesh properly contains the input shape and with its orientation
+ (which is based on the inertia properties of the shape).
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created MESH object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ - an input shape defined by a collection of CONVEX objects; a list of CONVEX
+ objects (or their collections) 
+\emph on
+[cvx1, cvx2, cvx3, ....]
+\emph default
+ is as well accepted.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+i, j, k
+\series default
+ - numbers of subdivisions along the local 
+\emph on
+x, y, z
+\emph default
+ directions of the principal inertia axes
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+dx, dy, dz
+\series default
+ - lists of subdivision schemes along local 
+\emph on
+x, y, z
+\emph default
+ directions.
+ By default a subdivision is uniform.
+ When 
+\emph on
+dx = 
+\emph default
+[
+\emph on
+1, 1, 5, 5, 1, 1
+\emph default
+] is present, then this scheme will be normalized (actual numbers do not
+ matter, but their ratios) and applied to the local x direction of the generated
+ shape.
+\end_layout
+
 \begin_layout Section
 SPHERE
 \end_layout

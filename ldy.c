@@ -1194,10 +1194,30 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
 {
   if (bod->kind == FEM)
   {
-    ELEMENT *e1 = (bod == one->master ? one->mgobj : one->sgobj),
-	    *e2 = (bod == two->master ? two->mgobj : two->sgobj);
+    if (bod->msh)
+    {
+      ELEMENT **e1, **f1, **e2, **f2;
+      CONVEX *c1 = (bod == one->master ? one->mgobj : one->sgobj),
+	     *c2 = (bod == two->master ? two->mgobj : two->sgobj);
 
-    return ELEMENT_Adjacent (e1, e2); /* only in case of a common node W_one_two and W_two_one will be != 0 */
+      for (e1 = c1->ele, f1 = e1 + c1->nele; e1 < f1; e1 ++)
+      {
+	for (e2 = c2->ele, f2 = e2 + c2->nele; e2 < f2; e2 ++)
+	{
+	  if (*e1 == *e2) return 1;
+	  else if (ELEMENT_Adjacent (*e1, *e2)) return 1;
+	}
+      }
+
+      return 0;
+    }
+    else
+    {
+      ELEMENT *e1 = (bod == one->master ? one->mgobj : one->sgobj),
+	      *e2 = (bod == two->master ? two->mgobj : two->sgobj);
+
+      return ELEMENT_Adjacent (e1, e2); /* only in case of a common node W_one_two and W_two_one will be != 0 */
+    }
   }
 
   return 1;
