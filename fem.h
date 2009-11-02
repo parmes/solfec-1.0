@@ -79,6 +79,9 @@ void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND k
 /* get some values at a referential point */
 void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values);
 
+/* issued by state reading routines of body interface */
+void FEM_Update_Rough_Mesh (BODY *bod);
+
 /* release FEM memory */
 void FEM_Destroy (BODY *bod);
 

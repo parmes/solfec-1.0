@@ -230,6 +230,6 @@ generate_scene (bulkmat, solfec)
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'EXIT', diagsolver = 'PROJECTED_GRADIENT')
 
-OUTPUT (solfec, 20 * step)
+OUTPUT (solfec, 5 * step)
 
 RUN (solfec, gs, 10000 * step)

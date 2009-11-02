@@ -89,6 +89,7 @@ enum /* menu items */
   TOOLS_CLIPPING_PLANE,
   TOOLS_SWITCH_OFF,
   TOOLS_SWITCH_ON_ALL,
+  TOOLS_ROUGH_MESH_ON,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -135,7 +136,8 @@ static int current_tool = 0;
 
 static enum /* tool modifier flags */
 {
-  TOOL_FLAG_SWITCH_OFF = 1 /* mutate toggle visible into switch off */
+  TOOL_FLAG_SWITCH_OFF = 1, /* mutate toggle visible into switch off */
+  TOOL_FLAG_ROUGH_MESH_ON,  /* rough mesh on tool */
 } tool_flag = 0;
 
 BODY *toggle_visible = NULL;
@@ -930,11 +932,11 @@ static void render_mesh (BODY *bod, SHAPE *shp, MESH *mesh, int flags, GLfloat c
 	{
 	  glBegin (GL_TRIANGLES);
 	  glNormal3dv (fac->normal);
-	  if (get_element_node_color (bod, shp, ele, fac, 0, color)) glColor4fv (color);
+	  if (shp && get_element_node_color (bod, shp, ele, fac, 0, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[0]]);
-	  if (get_element_node_color (bod, shp, ele, fac, 1, color)) glColor4fv (color);
+	  if (shp && get_element_node_color (bod, shp, ele, fac, 1, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[1]]);
-	  if (get_element_node_color (bod, shp, ele, fac, 2, color)) glColor4fv (color);
+	  if (shp && get_element_node_color (bod, shp, ele, fac, 2, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[2]]);
 	  glEnd ();
 	}
@@ -955,13 +957,13 @@ static void render_mesh (BODY *bod, SHAPE *shp, MESH *mesh, int flags, GLfloat c
 	{
 	  glBegin (GL_QUADS);
 	  glNormal3dv (fac->normal);
-	  if (get_element_node_color (bod, shp, ele, fac, 0, color)) glColor4fv (color);
+	  if (shp && get_element_node_color (bod, shp, ele, fac, 0, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[0]]);
-	  if (get_element_node_color (bod, shp, ele, fac, 1, color)) glColor4fv (color);
+	  if (shp && get_element_node_color (bod, shp, ele, fac, 1, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[1]]);
-	  if (get_element_node_color (bod, shp, ele, fac, 2, color)) glColor4fv (color);
+	  if (shp && get_element_node_color (bod, shp, ele, fac, 2, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[2]]);
-	  if (get_element_node_color (bod, shp, ele, fac, 3, color)) glColor4fv (color);
+	  if (shp && get_element_node_color (bod, shp, ele, fac, 3, color)) glColor4fv (color);
 	  glVertex3dv (cur[fac->nodes[3]]);
 	  glEnd ();
 	}
@@ -1660,7 +1662,7 @@ inline static int render_body_begin (BODY *bod, GLfloat color [4])
       glEnable (GL_BLEND);
       glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   }
-  else if (bod->flags && BODY_HIDDEN) return 1;
+  else if (bod->flags & BODY_HIDDEN) return 1;
 
   return 0;
 }
@@ -2170,6 +2172,11 @@ static void menu_tools (int value)
       bod->flags &= ~(BODY_HIDDEN|BODY_OFF);
     GLV_Redraw_All ();
     break;
+  case TOOLS_ROUGH_MESH_ON:
+    if (!current_tool) pushoff (tools_off);
+    current_tool = TOOLS_TOGGLE_VISIBLE;
+    tool_flag = TOOL_FLAG_ROUGH_MESH_ON;
+    break;
   }
 }
 
@@ -2261,6 +2268,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("clipping plane /c/", TOOLS_CLIPPING_PLANE);
   glutAddMenuEntry ("switch off /f/", TOOLS_SWITCH_OFF);
   glutAddMenuEntry ("switch on all /o/", TOOLS_SWITCH_ON_ALL);
+  glutAddMenuEntry ("rough mesh on /r/", TOOLS_ROUGH_MESH_ON);
 
   name [3] = "kinds of";
   code [3] = kindsof_menu = glutCreateMenu (menu_kinds);
@@ -2399,6 +2407,14 @@ void RND_Render ()
 	render_shape (bod, shp, flags, color);
 
       render_body_end (bod, color);
+
+      if (bod->flags & BODY_SHOW_ROUGH_MESH)
+      {
+	glEnable (GL_BLEND);
+	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	render_object (bod, NULL, SHAPE_MESH, bod->msh, flags, color);
+	glDisable (GL_BLEND);
+      }
     }
   }
   else
@@ -2413,6 +2429,14 @@ void RND_Render ()
 	render_shape (bod, shp, flags, color);
 
       render_body_end (bod, color);
+
+      if (bod->flags & BODY_SHOW_ROUGH_MESH)
+      {
+	glEnable (GL_BLEND);
+	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+	render_object (bod, NULL, SHAPE_MESH, bod->msh, flags, color);
+	glDisable (GL_BLEND);
+      }
     }
   }
 
@@ -2477,6 +2501,9 @@ void RND_Key (int key, int x, int y)
     break;
   case 'o':
     menu_tools (TOOLS_SWITCH_ON_ALL);
+    break;
+  case 'r':
+    menu_tools (TOOLS_ROUGH_MESH_ON);
     break;
   case '=':
     if (volumetric_map)
@@ -2571,7 +2598,13 @@ void RND_Mouse (int button, int state, int x, int y)
 	  {
 	    toggle_visible->flags |= BODY_OFF; /* switch off */
 	  }
-	  else
+	  else if (tool_flag == TOOL_FLAG_ROUGH_MESH_ON)
+	  {
+	    if (toggle_visible->flags & BODY_SHOW_ROUGH_MESH)
+	      toggle_visible->flags &= ~BODY_SHOW_ROUGH_MESH;
+	    else if (toggle_visible->msh) toggle_visible->flags |= BODY_SHOW_ROUGH_MESH;
+	  }
+	  else /* hide */
 	  {
 	    if (toggle_visible->flags & BODY_HIDDEN)
 	      toggle_visible->flags &= ~BODY_HIDDEN; /* switch to visible */

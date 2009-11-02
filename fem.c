@@ -2123,6 +2123,18 @@ void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
   }
 }
 
+/* issued by state reading routines of body interface */
+void FEM_Update_Rough_Mesh (BODY *bod)
+{
+  MESH *msh = bod->msh;
+  double *q = bod->conf,
+	(*cur) [3] = msh->cur_nodes,
+	(*ref) [3] = msh->ref_nodes,
+	(*end) [3] = ref + msh->nodes_count;
+
+  for (; ref < end; ref ++, cur ++, q += 3) { ADD (ref[0], q, cur[0]); }
+}
+
 /* release FEM memory */
 void FEM_Destroy (BODY *bod)
 {

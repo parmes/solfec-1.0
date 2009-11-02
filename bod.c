@@ -1587,6 +1587,8 @@ void BODY_Read_State (BODY *bod, PBF *bf)
   PBF_Double (bf, bod->velo, bod->dofs);
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+
+  if (bod->msh) FEM_Update_Rough_Mesh (bod);
 }
 
 void BODY_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
@@ -1601,6 +1603,8 @@ void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
   unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+
+  if (bod->msh) FEM_Update_Rough_Mesh (bod);
 }
 
 void BODY_Destroy (BODY *bod)

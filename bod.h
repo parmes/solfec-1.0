@@ -84,6 +84,7 @@ typedef enum
   BODY_HIDDEN              = 0x02, /* rendering visiblity flag */
   BODY_OFF                 = 0x04, /* another rendering flag */
   BODY_CHILD               = 0x08, /* a child copy of a parent body flag */
+  BODY_SHOW_ROUGH_MESH     = 0x10  /* render rough mesh if available */
 } BODY_FLAGS;
 
 struct general_body
@@ -131,7 +132,7 @@ struct general_body
 
   short form; /* FEM formulation */
 
-  MESH *msh; /* FEM mesh when 'shape' is made of CONVEX objects */
+  MESH *msh; /* FEM mesh when 'shape' is made of CONVEX objects ("rough mesh") */
 
 #if MPI
   union { SET *children; /* used by parent */
