@@ -27,9 +27,40 @@
 #include "gjk.h"
 #include "err.h"
 
-TRI* cvi (double *va, int nva, double *pa, int npa,
-          double *vb, int nvb, double *pb, int npb,
-	  int *m)
+/* push 'p' deeper inside of convices bounded by two plane sets */
+static int refine_point (double *pa, int npa, double *pb, int npb, double *p)
+{
+  double *pla, *end, eps, d, q [3];
+  short pushed, iter, imax;
+
+  imax = 10;
+  iter = 0;
+  eps = GEOMETRIC_EPSILON * (1 << (imax-1));
+  do
+  {
+    for (pushed = 0, pla = pa, end = pa + npa * 6; pla < end; pla += 6)
+    {
+      SUB (p, pla + 3, q);
+      d = DOT (pla, q);
+      if (d > -GEOMETRIC_EPSILON) { SUBMUL (p, eps, pla, p); pushed = 1; }
+    }
+
+    for (pla = pb, end = pb + npb * 6; pla < end; pla += 6)
+    {
+      SUB (p, pla + 3, q);
+      d = DOT (pla, q);
+      if (d > -GEOMETRIC_EPSILON) { SUBMUL (p, eps, pla, p); pushed = 1; }
+    }
+
+    eps *= 0.5;
+
+  } while (pushed && iter ++ < imax);
+
+  return !pushed;
+}
+
+/* compute intersection of two convex polyhedrons */
+TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double *pb, int npb, int *m)
 {
   double p [3], q [3], d, *nl, *pt, *nn, *yy;
   PFV *pfv, *v, *w, *z;
@@ -44,6 +75,9 @@ TRI* cvi (double *va, int nva, double *pa, int npa,
   /* compute closest points */
   d = gjk (va, nva, vb, nvb, p, q);
   if (d > GEOMETRIC_EPSILON) { *m = 0; return NULL; }
+
+  /* push 'p' deeper inside */
+  if (!refine_point (pa, npa, pb, npb, p)) { *m = 0; return NULL; }
 
   /* translate base points of planes so that
    * p = q = 0; compute new normals 'yy' */

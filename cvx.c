@@ -885,26 +885,16 @@ int CONVEX_Adjacent (CONVEX *one, CONVEX *two)
 /* return 6-vector (normal, point) planes of convex faces */
 double* CONVEX_Planes (CONVEX *cvx)
 {
-  double *pla, *p, *q, max;
-  int i, j ,k;
+  double *cur, *pla, *p, *q;
+  int i, *f;
 
   ERRMEM (p = malloc (cvx->nfac * sizeof (double [6])));
 
-  for (i = 0, pla = cvx->pla, q = p; i < cvx->nfac; i ++, pla += 4, q += 6)
+  for (i = 0, cur = cvx->cur, pla = cvx->pla, q = p, f = cvx->fac;
+       i < cvx->nfac; i ++, pla += 4, q += 6, f += f[0]+1)
   {
     COPY (pla, q);
-
-    for (max = fabs (pla [0]), k = 0, j = 1; j < 3; j ++)
-    {
-      if (fabs (pla [j]) > max) /* get maximal absolute normal coordinate */
-      {
-	max = fabs (pla [j]);
-	k = j;
-      }
-    }
-
-    q [3] = q [4] = q [5] = 0.0;
-    q [3+k]  = -pla [3] / pla [k];
+    COPY (&cur [f[1]], q+3);
   }
 
   return p;

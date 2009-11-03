@@ -201,10 +201,21 @@ def generate_scene (material, solfec):
 
   shp = gcore_brick (0, 0, 0)
 
+  vertices = [0, 0, 0,
+              1, 0, 0,
+              1, 2, 0,
+              0, 2, 0,
+              0, 0, 3,
+              1, 0, 3,
+              1, 2, 3,
+              0, 2, 3]
+
+  #shp = HULL (vertices, 0, 0)
+
   TRANSLATE (shp, (0, 0, 0.11))
   ROTATE (shp, (0, 0, 0.11), (1, 1, 1), 35)
 
-  msh = ROUGH_HEX (shp, 2, 2, 2)
+  msh = ROUGH_HEX (shp, 3, 3, 3)
 
   BODY (solfec , 'FINITE_ELEMENT', shp, material, mesh=msh)
   #BODY (solfec , 'FINITE_ELEMENT', msh, material)
@@ -218,7 +229,7 @@ solfec = SOLFEC ('DYNAMIC', step, 'out/boxkite')
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E5, poisson = 0.25, density = 1E3)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E6, poisson = 0.25, density = 1E3)
 
 tms = TIME_SERIES ([0, 10, 1, 10])
 

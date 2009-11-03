@@ -403,7 +403,7 @@ void SHAPE_Oriented_Extents (SHAPE *shp, double *vx, double *vy, double *vz, dou
 
   SUB (extents+3, extents, e);
   MAXABS (e, margin);
-  margin *= 0.05;
+  margin *= 0.01;
 
   extents [0] -= margin;
   extents [1] -= margin;

@@ -28,11 +28,12 @@
 #include "hyb.h"
 #include "cvi.h"
 #include "svk.h"
+#include "gjk.h"
 #include "err.h"
 
 typedef double (*node_t) [3]; /* mesh node */
 
-#define CUT_TOL 0.001
+#define CUT_TOL 0.005
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)
 #define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
@@ -1388,17 +1389,18 @@ static MX* inverse_mass_times_stiffencess (BODY *bod, MESH *msh, ELEMENT *ele)
 
 /* there are few things to be done here:
  * 1. Test whether the shape_volume == volume cut of the mesh
- * 2. Delete elements whose ele->dom == NULL
+ * 2. Delete elements whose volume (ele->dom) < TOL * volume (ele)
+ *    or delte ele->dom when volume (ele->dom) == volume (ele)
  * 3. Delete nodes unattached to elements
- * 4. Delte ele->dom when volume (ele->dom) == volume (ele)
- * 5. Transform global ele->dom points into local element coordinates */
+ * 4. Transform global ele->dom points into local element coordinates */
 static void post_process_intersections (double shape_volume, MESH *msh)
 {
   double cut_volume, ele_volume, point [3];
+  ELEMENT *ele, *next;
+  int bulk, n, k;
   TRISURF *surf;
-  ELEMENT *ele;
+  FACE *fac;
   TRI *tri;
-  int n, k;
 
   /* 1. */
  
@@ -1411,40 +1413,46 @@ static void post_process_intersections (double shape_volume, MESH *msh)
       cut_volume += TRI_Char (surf->tri, surf->m, surf->center);
 
   /* make sure that cut error is not too large, so that the mesh really contains the shape */
+#if DEBUG
+  if (fabs (shape_volume - cut_volume) >= CUT_TOL * shape_volume)
+    printf ("shape_volume = %g, cut_volume = %g, error = %g\n",
+      shape_volume, cut_volume, fabs (shape_volume - cut_volume) / shape_volume);
+#endif
   ASSERT (fabs (shape_volume - cut_volume) < CUT_TOL * shape_volume, ERR_FEM_CUT_VOLUME);
 
   /* 2. */
 
-  for (ele = msh->surfeles; ele; )
+  for (ele = msh->surfeles, bulk = 0; ele; ele = next)
   {
-    if (ele->dom) ele = ele->next;
-    else /* no intersection was found for this element */
-    {
-      ELEMENT *next = ele->next;
+    next = ele->next;
 
+    if (!ele->dom) /* delete element */
+    {
       if (ele->prev) ele->prev->next = next;
-      else msh->surfeles = ele->next;
+      else if (bulk) msh->bulkeles = next;
+      else msh->surfeles = next;
       if (next) next->prev = ele->prev;
 
       MEM_Free (&msh->elemem, ele);
-      ele = next;
     }
-  }
-
-  for (ele = msh->bulkeles; ele; )
-  {
-    if (ele->dom) ele = ele->next;
-    else /* no intersection was found for this element */
+    else
     {
-      ELEMENT *next = ele->next;
+      ele_volume = ELEMENT_Volume (msh, ele, 1);
+      cut_volume = 0.0;
 
-      if (ele->prev) ele->prev->next = next;
-      else msh->bulkeles = ele->next;
-      if (next) next->prev = ele->prev;
+      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
+	cut_volume += TRI_Char (surf->tri, surf->m, NULL);
 
-      MEM_Free (&msh->elemem, ele);
-      ele = next;
+      if (fabs (ele_volume - cut_volume) < GEOMETRIC_EPSILON * ele_volume) /* clear ele->dom */
+      {
+	for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf->tri);
+	free (ele->dom);
+	ele->dom = NULL;
+	ele->domnum = 0;
+      }
     }
+
+    if (!next && !bulk) next = msh->bulkeles, bulk = 1;
   }
 
   /* 3. */
@@ -1465,7 +1473,10 @@ static void post_process_intersections (double shape_volume, MESH *msh)
   if (m < (n+1)) /* there are not referenced nodes */
   {
     for (ele = msh->surfeles; ele; ele = ele->next)
+    {
       for (n = 0; n < ele->type; n ++) ele->nodes [n] = node_map [ele->nodes [n]] - 1;
+      for (fac = ele->faces; fac; fac = fac->next) for (n = 0; n < fac->type; n ++) fac->nodes [n] = node_map [fac->nodes [n]] - 1;
+    }
 
     for (ele = msh->bulkeles; ele; ele = ele->next)
       for (n = 0; n < ele->type; n ++) ele->nodes [n] = node_map [ele->nodes [n]] - 1;
@@ -1494,45 +1505,7 @@ static void post_process_intersections (double shape_volume, MESH *msh)
 
   free (node_map);
 
-  /* 4. */
-
-  for (ele = msh->surfeles; ele; ele = ele->next)
-  {
-    ele_volume = ELEMENT_Volume (msh, ele, 1);
-    cut_volume = 0.0;
-
-    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
-      cut_volume += TRI_Char (surf->tri, surf->m, NULL);
-
-    if (fabs (ele_volume - cut_volume) < GEOMETRIC_EPSILON * ele_volume)
-    {
-      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf->tri);
-      free (ele->dom);
-      ele->dom = NULL;
-      ele->domnum = 0;
-    }
-  }
-
-  for (ele = msh->bulkeles; ele; ele = ele->next)
-  {
-    ele_volume = ELEMENT_Volume (msh, ele, 1);
-    cut_volume = 0.0;
-
-    for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
-      cut_volume += TRI_Char (surf->tri, surf->m, NULL);
-
-    if (fabs (ele_volume - cut_volume) < GEOMETRIC_EPSILON * ele_volume)
-    {
-      for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++) free (surf->tri);
-      free (ele->dom);
-      ele->dom = NULL;
-      ele->domnum = 0;
-    }
-  }
-
-  /* 5. */
-
-  int bulk;
+ /* 4. */
 
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
@@ -1585,6 +1558,23 @@ static void* overlap (void *data, BOX *one, BOX *two)
   k = ELEMENT_Planes (data, ele, planes, NULL, NULL);
   pla = CONVEX_Planes (cvx);
   tri = cvi (cvx->cur, cvx->nver, pla, cvx->nfac, vertices, n, planes, k, &m);
+#if 0
+  double d, p[3], q[3];
+
+  d = gjk (cvx->cur, cvx->nver, vertices, n, p, q);
+
+  if ((!tri && d < GEOMETRIC_EPSILON) || (tri && TRI_Char (tri, m, NULL) < 0.0))
+  {
+    int i;
+    printf ("%.24e\n", GEOMETRIC_EPSILON);
+    printf ("%d   %d\n", cvx->nver, cvx->nfac);
+    for (i = 0; i < cvx->nver; i ++) printf ("%.24e   %.24e   %.24e\n", cvx->cur[3*i], cvx->cur[3*i+1], cvx->cur[3*i+2]);
+    for (i = 0; i < cvx->nfac; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", pla[6*i], pla[6*i+1], pla[6*i+2], pla[6*i+3], pla[6*i+4], pla[6*i+5]);
+    printf ("%d   %d\n", n, k);
+    for (i = 0; i < n; i ++) printf ("%.24e   %.24e   %.24e\n", vertices[3*i], vertices[3*i+1], vertices[3*i+2]);
+    for (i = 0; i < k; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", planes[6*i], planes[6*i+1], planes[6*i+2], planes[6*i+3], planes[6*i+4], planes[6*i+5]);
+  }
+#endif
   free (pla);
 
   if (tri)
@@ -1601,6 +1591,7 @@ static void* overlap (void *data, BOX *one, BOX *two)
       }
     }
 #endif
+
     ERRMEM (cvx->ele = realloc (cvx->ele, (++cvx->nele) * sizeof (ELEMENT*)));
     cvx->ele [cvx->nele-1] = ele;
     ERRMEM (ele->dom = realloc (ele->dom, (++ele->domnum) * sizeof (TRISURF)));
@@ -1626,9 +1617,13 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     SGP *msh_sgp, *shp_sgp, *sgp, *sge;
     BOX_Extents_Update update;
     int msh_nsgp, shp_nsgp;
+    ELEMENT *ele;
     MEM boxmem;
 
-    msh_sgp = SGP_Create (&msh_shp, &msh_nsgp);
+    msh_nsgp = msh->surfeles_count + msh->bulkeles_count;
+    ERRMEM (msh_sgp = sgp = calloc (msh_nsgp, sizeof (SGP)));
+    for (ele = msh->surfeles; ele; ele = ele->next, sgp ++) sgp->shp = &msh_shp, sgp->gobj = ele;
+    for (ele = msh->bulkeles; ele; ele = ele->next, sgp ++) sgp->shp = &msh_shp, sgp->gobj = ele;
     shp_sgp = SGP_Create (shp, &shp_nsgp);
     MEM_Init (&boxmem, sizeof (BOX), msh_nsgp + shp_nsgp);
     ERRMEM (msh_boxes = malloc (msh_nsgp * sizeof (AABB*)));

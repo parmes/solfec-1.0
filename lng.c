@@ -3299,6 +3299,7 @@ static PyObject* lng_ROUGH_HEX (PyObject *self, PyObject *args, PyObject *kwds)
 	   *vx = eigv.x,
 	   *vy = vx + 3,
 	   *vz = vy + 3;
+    int o [4] = {0, 1, 2, 3};
 
     shp = create_shape (shape, 0); /* do not empty */
     SHAPE_Char (shp, NULL, NULL, euler.x);
@@ -3306,24 +3307,27 @@ static PyObject* lng_ROUGH_HEX (PyObject *self, PyObject *args, PyObject *kwds)
     SHAPE_Oriented_Extents (shp, vx, vy, vz, extents);
     SHAPE_Destroy_Wrapper (shp);
 
+    PRODUCT (vx, vy, point);
+    if (DOT (point, vz) < 0.0) o[3] = 0, o[2] = 1, o[1] = 2, o[0] = 3; /* keep the orientation right */
+
     ERRMEM (nod = malloc (8 * sizeof (double [3])));
     COPY (extents, point);
-    NVMUL (eigv.x, point, nod [3]);
+    NVMUL (eigv.x, point, nod [o[0]]);
     point [0] = extents [3];
-    NVMUL (eigv.x, point, nod [2]);
+    NVMUL (eigv.x, point, nod [o[1]]);
     point [1] = extents [4];
-    NVMUL (eigv.x, point, nod [1]);
+    NVMUL (eigv.x, point, nod [o[2]]);
     point [0] = extents [0];
-    NVMUL (eigv.x, point, nod [0]);
+    NVMUL (eigv.x, point, nod [o[3]]);
     point [1] = extents [1];
     point [2] = extents [5];
-    NVMUL (eigv.x, point, nod [7]);
+    NVMUL (eigv.x, point, nod [4+o[0]]);
     point [0] = extents [3];
-    NVMUL (eigv.x, point, nod [6]);
+    NVMUL (eigv.x, point, nod [4+o[1]]);
     point [1] = extents [4];
-    NVMUL (eigv.x, point, nod [5]);
+    NVMUL (eigv.x, point, nod [4+o[2]]);
     point [0] = extents [0];
-    NVMUL (eigv.x, point, nod [4]);
+    NVMUL (eigv.x, point, nod [4+o[3]]);
 
     for (volid = INT_MAX, n = 0; n < 6; n ++) surfaces [n] = INT_MAX; /* fake ids */
 

@@ -28,19 +28,27 @@
 #include "glv.h"
 #endif
 
-#include <stdio.h>
 #include <stdlib.h>
+#include <float.h>
+#include <stdio.h>
 #include <time.h>
 #include "alg.h"
 #include "hul.h"
 #include "cvi.h"
+#include "err.h"
 
 #define minim 4
 #define limit 128
+FILE *input = NULL;
+short GLVON = 0;
 enum  {GEN, HUL, CVI} mode = HUL;
 double apoint [limit][3],
-       bpoint [limit][3];
-int asize, bsize;
+       bpoint [limit][3],
+       aplane [limit][6],
+       bplane [limit][6];
+int DOGEN = 1; /* set 0 in case of a file input */
+int asize, bsize,
+    anpla, bnpla;
 TRI *a = NULL,
     *b = NULL,
     *c = NULL;
@@ -143,6 +151,70 @@ static void gen ()
   }
 }
 
+static void inp (void)
+{
+  double extents [6], d [3];
+  int i, j;
+
+  if (input && !feof (input))
+  {
+    if (fscanf (input, "%lf", &GEOMETRIC_EPSILON) == EOF) goto LEOF;
+
+    if (fscanf (input, "%d", &asize) == EOF) goto LEOF;
+    if (fscanf (input, "%d", &anpla) == EOF) goto LEOF;
+    if (asize > limit || anpla > limit) { fprintf (stderr, "Increase 'limit' constant and recompile 'cvitest'\n"); exit (0); }
+    for (i = 0; i < asize; i ++) fscanf (input, "%lf", &apoint [i][0]), fscanf (input, "%lf", &apoint [i][1]), fscanf (input, "%lf", &apoint [i][2]);
+    for (i = 0; i < anpla; i ++) fscanf (input, "%lf", &aplane [i][0]), fscanf (input, "%lf", &aplane [i][1]), fscanf (input, "%lf", &aplane [i][2]),
+                                 fscanf (input, "%lf", &aplane [i][3]), fscanf (input, "%lf", &aplane [i][4]), fscanf (input, "%lf", &aplane [i][5]);
+
+    if (fscanf (input, "%d", &bsize) == EOF) goto LEOF;
+    if (fscanf (input, "%d", &bnpla) == EOF) goto LEOF;
+    if (bsize > limit || bnpla > limit) { fprintf (stderr, "Increase 'limit' constant and recompile 'cvitest'\n"); exit (0); }
+    for (i = 0; i < bsize; i ++) fscanf (input, "%lf", &bpoint [i][0]), fscanf (input, "%lf", &bpoint [i][1]), fscanf (input, "%lf", &bpoint [i][2]);
+    for (i = 0; i < bnpla; i ++) fscanf (input, "%lf", &bplane [i][0]), fscanf (input, "%lf", &bplane [i][1]), fscanf (input, "%lf", &bplane [i][2]),
+                                 fscanf (input, "%lf", &bplane [i][3]), fscanf (input, "%lf", &bplane [i][4]), fscanf (input, "%lf", &bplane [i][5]);
+  }
+  else
+  {
+LEOF:
+    printf ("END OF FILE\n");
+  }
+
+  if (GLVON)
+  {
+    extents [0] = extents [1] = extents [2] =  DBL_MAX;
+    extents [3] = extents [4] = extents [5] = -DBL_MAX;
+
+    for (i = 0; i < asize; i ++)
+    {
+      for (j = 0; j < 3; j ++)
+      {
+	if (apoint [i][j] < extents [j]) extents [j] = apoint [i][j];
+	if (apoint [i][j] > extents [3+j]) extents [3+j] = apoint [i][j];
+      }
+    }
+
+    for (i = 0; i < bsize; i ++)
+    {
+      for (j = 0; j < 3; j ++)
+      {
+	if (bpoint [i][j] < extents [j]) extents [j] = bpoint [i][j];
+	if (bpoint [i][j] > extents [3+j]) extents [3+j] = bpoint [i][j];
+      }
+    }
+
+    for (i = 0; i < 3; i ++) d [i] = extents [3+i] - extents [i];
+
+    for (i = 0; i < 3; i ++)
+    {
+      extents [3+i] += 0.25 * d [i];
+      extents [i] -= 0.25 * d [i];
+    }
+
+    GLV_Reset_Extents (extents);
+  }
+}
+
 static void render (void)
 {
   glPointSize (3.0);
@@ -204,7 +276,39 @@ static void render (void)
       glVertex3dv (bpoint [n]);
     glEnd ();
     glEnable (GL_LIGHTING);
+
+    if (!DOGEN)
+    {
+      double p [3], eps;
+
+      eps = GLV_Minimal_Extent () * 0.1;
+      glLineWidth (2.0);
+      glDisable (GL_LIGHTING);
+      glColor3d (1.0, 0.5, 0.5);
+      glBegin (GL_LINES);
+      for (int n = 0; n < anpla; n ++)
+      {
+	ADDMUL (aplane[n]+3, eps, aplane[n], p);
+	glVertex3dv (aplane[n]+3);
+	glVertex3dv (p);
+      }
+      glEnd ();
+
+      glColor3d (0.5, 1.0, 0.5);
+      glBegin (GL_LINES);
+      for (int n = 0; n < bnpla; n ++)
+      {
+	ADDMUL (bplane[n]+3, eps, bplane[n], p);
+	glVertex3dv (bplane[n]+3);
+	glVertex3dv (p);
+      }
+      glEnd ();
+      glEnable (GL_LIGHTING);
+      glLineWidth (1.0);
+    }
   }
+
+  GLVON = 1;
 }
 
 static void key (int key, int x, int y)
@@ -215,7 +319,8 @@ static void key (int key, int x, int y)
     switch (mode)
     {
       case GEN:
-	gen ();
+	if (DOGEN) gen ();
+	else inp ();
 	mode = HUL;
       break;
       case HUL:
@@ -232,21 +337,40 @@ static void key (int key, int x, int y)
 	int nva, npa,
 	    nvb, npb;
 
-	va = TRI_Vertices (a, alength, &nva);
-	pa = TRI_Planes (a, alength, &npa);
-	vb = TRI_Vertices (b, blength, &nvb);
-	pb = TRI_Planes (b, blength, &npb);
-	GEOMETRIC_EPSILON_ADAPT (va, nva);
-	GEOMETRIC_EPSILON_ADAPT (vb, nvb);
+	if (DOGEN)
+	{
+	  va = TRI_Vertices (a, alength, &nva);
+	  pa = TRI_Planes (a, alength, &npa);
+	  vb = TRI_Vertices (b, blength, &nvb);
+	  pb = TRI_Planes (b, blength, &npb);
+	  GEOMETRIC_EPSILON_ADAPT (va, nva);
+	  GEOMETRIC_EPSILON_ADAPT (vb, nvb);
+	}
+	else
+	{
+	  va = (double*)apoint;
+	  pa = (double*)aplane;
+	  vb = (double*)bpoint;
+	  pb = (double*)bplane;
+	  nva = asize;
+	  npa = anpla;
+	  nvb = bsize;
+	  npb = bnpla;
+	}
+
         free (c);
 	c = cvi (va, nva, pa, npa,
 	         vb, nvb, pb, npb,
 		 &clength);
 	mode = GEN;
-	free (va);
-	free (pa);
-	free (vb);
-	free (pb);
+
+	if (DOGEN)
+	{
+	  free (va);
+	  free (pa);
+	  free (vb);
+	  free (pb);
+	}
       }
       break;
     }
@@ -257,17 +381,54 @@ static void key (int key, int x, int y)
 
 int main (int argc, char **argv)
 {
-  double extents [6] =
-  { -2.0, -2.0, -2.0, 2.0, 2.0, 2.0};
+  double extents [6], d [3];
+  int i, j;
   
   printf ("SPACE - iterate over the test stages\n");
 
   srand ((unsigned) time (NULL));
 
-  gen ();
+  if (argc == 2)
+  {
+    ASSERT (input = fopen (argv [1], "r"), ERR_FILE_OPEN);
+    DOGEN = 0;
+    inp ();
+  }
+  else gen ();
+
+  extents [0] = extents [1] = extents [2] =  DBL_MAX;
+  extents [3] = extents [4] = extents [5] = -DBL_MAX;
+
+  for (i = 0; i < asize; i ++)
+  {
+    for (j = 0; j < 3; j ++)
+    {
+      if (apoint [i][j] < extents [j]) extents [j] = apoint [i][j];
+      if (apoint [i][j] > extents [3+j]) extents [3+j] = apoint [i][j];
+    }
+  }
+
+  for (i = 0; i < bsize; i ++)
+  {
+    for (j = 0; j < 3; j ++)
+    {
+      if (bpoint [i][j] < extents [j]) extents [j] = bpoint [i][j];
+      if (bpoint [i][j] > extents [3+j]) extents [3+j] = bpoint [i][j];
+    }
+  }
+
+  for (i = 0; i < 3; i ++) d [i] = extents [3+i] - extents [i];
+
+  for (i = 0; i < 3; i ++)
+  {
+    extents [3+i] += 0.25 * d [i];
+    extents [i] -= 0.25 * d [i];
+  }
 
   GLV (&argc, argv, "cvitest", 400, 400, extents, NULL,
     NULL, NULL, NULL, render, key, NULL, NULL, NULL, NULL);
+
+  if (input) fclose (input);
 
   return 0;
 }
