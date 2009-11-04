@@ -1038,11 +1038,75 @@ static void load_displacements (BODY *bod, MESH *msh, ELEMENT *ele, double (*q) 
   double *conf = bod->conf, *p;
   int i;
 
-  for (i = 0; i < ele->type; i ++)
+  switch (bod->form)
   {
-    p = &conf [3 * ele->nodes [i]];
-    COPY (p, q[i]);
+  case FEM_O1:
+  {
+    for (i = 0; i < ele->type; i ++)
+    {
+      p = &conf [3 * ele->nodes [i]];
+      COPY (p, q[i]);
+    }
   }
+  break;
+  case FEM_O2:
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  break;
+  }
+}
+
+/* load velocities into a local buffers */
+static void load_velocities (BODY *bod, MESH *msh, ELEMENT *ele, double (*u0) [3], double (*u) [3])
+{
+  double *vel0 = FEM_VEL0 (bod), *velo = bod->velo, *p;
+  int i, j;
+
+  switch (bod->form)
+  {
+  case FEM_O1:
+  {
+    for (i = 0; i < ele->type; i ++)
+    {
+      j = 3 * ele->nodes [i];
+      p = &vel0 [j];
+      COPY (p, u0[i]);
+      p = &velo [j];
+      COPY (p, u[i]);
+    }
+  }
+  break;
+  case FEM_O2:
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  break;
+  }
+}
+
+/* load node number into local buffer */
+static int load_node_numbers (BODY *bod, MESH *msh, ELEMENT *ele, int *numbers)
+{
+  int i;
+
+  switch (bod->form)
+  {
+  case FEM_O1:
+  {
+    for (i = 0; i < ele->type; i ++) numbers [i] = ele->nodes [i];
+
+    return i;
+  }
+  break;
+  case FEM_O2:
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  break;
+  }
+
+  return 0;
 }
  
 /* copute point force contribution */
@@ -1354,14 +1418,19 @@ static MX* gen_to_loc_operator (BODY *bod, MESH *msh, ELEMENT *ele, double *X, d
 }
 
 /* accumulate constraints reaction */
-inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *forc)
+inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *force)
 {
-  MX *H = gen_to_loc_operator (bod, msh, ele, X, base);
+  double shapes [MAX_NODES_COUNT], P [3], point [3], *f;
+  int numbers [MAX_NODES_COUNT], i, n;
 
-  if (isma) MX_Matvec (-1.0, MX_Tran (H), R, 1.0, forc);
-  else MX_Matvec (1.0, MX_Tran (H), R, 1.0, forc);
+  referential_to_local (msh, ele, X, point);
+  n = shape_functions_ext (bod, msh, ele, point, shapes);
+  load_node_numbers (bod, msh, ele, numbers);
 
-  MX_Destroy (H);
+  NVMUL (base, R, P);
+
+  if (isma) for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; SUBMUL (f, shapes [i], P, f); }
+  else for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; ADDMUL (f, shapes [i], P, f); }
 }
 
 /* compute constraints force */
@@ -1987,11 +2056,11 @@ void FEM_Static_Step_End (BODY *bod, double time, double step)
 /* motion x = x (X, t) */
 void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 {
-  double point [3];
+  double shapes [MAX_NODES_COUNT], q [MAX_NODES_COUNT][3], point [3];
   ELEMENT *ele;
   CONVEX *cvx;
   MESH *msh;
-  MX *N;
+  int n, i;
 
   if (bod->msh)
   {
@@ -2008,11 +2077,11 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 
   if (ele)
   {
-    COPY (X, x);
     referential_to_local (msh, ele, X, point);
-    N = shape_functions (bod, msh, ele, point);
-    MX_Matvec (1.0, N, bod->conf, 1.0, x); /* x = X + N q */
-    MX_Destroy (N);
+    n = shape_functions_ext (bod, msh, ele, point, shapes);
+    load_displacements (bod, msh, ele, q);
+
+    COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
   }
   else /* NULL implies nodal update (X is within msh->ref_nodes) */
   {
@@ -2027,12 +2096,13 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 void FEM_Cur_Point_Ext (BODY *bod, ELEMENT *ele, double *X, double *point, double *x)
 {
   double shapes [MAX_NODES_COUNT], q [MAX_NODES_COUNT][3];
+  MESH *msh = FEM_MESH (bod);
   int n, i;
 
-  n = shape_functions_ext (bod, bod->msh, ele, point, shapes);
-  load_displacements (bod, bod->msh, ele, q);
+  n = shape_functions_ext (bod, msh, ele, point, shapes);
+  load_displacements (bod, msh, ele, q);
 
-  COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); }
+  COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
 }
 
 /* inverse motion X = X (x, state) */
@@ -2064,11 +2134,11 @@ void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
 void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel)
 {
-  double point [3], vglo [3];
+  double shapes [MAX_NODES_COUNT], u0 [MAX_NODES_COUNT][3], u [MAX_NODES_COUNT][3], point [3], vglo [3];
   ELEMENT *ele;
   CONVEX *cvx;
   MESH *msh;
-  MX *N;
+  int i, n;
 
   if (bod->msh)
   {
@@ -2084,21 +2154,20 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
   }
 
   referential_to_local (msh, ele, X, point);
-  N = shape_functions (bod, msh, ele, point);
+  n = shape_functions_ext (bod, msh, ele, point, shapes);
+  load_velocities (bod, bod->msh, ele, u0, u);
 
   if (prevel)
   {
-    MX_Matvec (1.0, N, FEM_VEL0 (bod), 0.0, vglo); /* vglo = N u */
+    SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u0 [i], vglo); } /* vglo = N u0 */
     TVMUL (base, vglo, prevel); /* prevel = base' vglo */
   }
 
   if (curvel)
   {
-    MX_Matvec (1.0, N, bod->velo, 0.0, vglo);
-    TVMUL (base, vglo, curvel);
+    SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u [i], vglo); } /* vglo = N u */
+    TVMUL (base, vglo, curvel); /* prevel = base' vglo */
   }
-
-  MX_Destroy (N);
 }
 
 /* return transformation operator from the generalised to the local velocity space at (element, ref. point, base) */
