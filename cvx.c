@@ -986,7 +986,7 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 	   facsi * sizeof (int) +
 	   sizeof (CONVEX); /* total size of contiguous storage */
 
-    ERRMEM (ptr = malloc (size));
+    ERRMEM (ptr = calloc (size, 1));
     ptr->ref = (double*)(ptr + 1);
     ptr->cur = ptr->ref + nver * 3;
     ptr->pla = ptr->cur + nver * 3;
