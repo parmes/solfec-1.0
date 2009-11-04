@@ -35,6 +35,7 @@ typedef struct triangle_surface TRISURF; /* triangulized surface */
 struct triangle_surface
 {
   double center [3]; /* mass center of the volume enclosed by the surface */
+  double volume; /* volume of the enclosed solid */
   TRI *tri; /* triangles and related data as outputed by 'cvi' */
   int m; /* number of triangles as outputed by 'cvi' */
 };

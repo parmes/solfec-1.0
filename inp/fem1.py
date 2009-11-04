@@ -215,11 +215,12 @@ def generate_scene (material, solfec):
   TRANSLATE (shp, (0, 0, 0.11))
   ROTATE (shp, (0, 0, 0.11), (1, 1, 1), 35)
 
-  msh = ROUGH_HEX (shp, 3, 3, 3)
+  msh = ROUGH_HEX (shp, 2, 2, 2)
 
   BODY (solfec , 'FINITE_ELEMENT', shp, material, mesh=msh)
   #BODY (solfec , 'FINITE_ELEMENT', msh, material)
   #BODY (solfec , 'PSEUDO_RIGID', shp, material)
+  #BODY (solfec , 'RIGID', shp, material)
 
 ### main module ###
 
@@ -229,7 +230,7 @@ solfec = SOLFEC ('DYNAMIC', step, 'out/boxkite')
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E6, poisson = 0.25, density = 1E3)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E5, poisson = 0.25, density = 1E3)
 
 tms = TIME_SERIES ([0, 10, 1, 10])
 
@@ -244,3 +245,18 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'EXIT', diagsolver = 'PROJECTED_
 OUTPUT (solfec, 5 * step)
 
 RUN (solfec, gs, 10000 * step)
+
+if not VIEWER() and solfec.mode == 'READ':
+
+  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL']
+  dur = DURATION (solfec)
+  total = 0.0
+
+  for timer in timers:
+    th = TIMING_HISTORY (solfec, timer, dur[0], dur[1])
+    sum = 0.0
+    for tt in th [1]: sum += tt
+    total += sum
+    print timer, 'TIME:', sum
+
+  print 'TOTAL TIME:', total

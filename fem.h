@@ -21,6 +21,7 @@
 
 #include "bod.h"
 #include "msh.h"
+#include "cvx.h"
 
 #ifndef __fem__
 #define __fem__
@@ -60,6 +61,9 @@ void FEM_Static_Step_End (BODY *bod, double time, double step);
 
 /* motion x = x (X, state) */
 void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
+
+/* motion x = x (element, local point) */
+void FEM_Cur_Point_Ext (BODY *bod, ELEMENT *ele, double *X, double *point, double *x);
 
 /* inverse motion X = X (x, state) */
 void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);

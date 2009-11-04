@@ -26,3 +26,5 @@ add void *mat; to TRISURF and inherit material poinetrs
 from convices when intersecting; use them when integrating
 over material properties
 --------------------------------------------------------
+Consider replacing 4-coord cvx->pla with 6-coord one
+(hence no CONVEX_Planes routine would be needed)

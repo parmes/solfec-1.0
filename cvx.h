@@ -30,12 +30,21 @@ typedef struct element ELEMENT;
 #ifndef __cvx__
 #define __cvx__
 
+typedef struct elepnt ELEPNT;
+struct elepnt
+{
+  ELEMENT *ele;
+  double pnt [3]; /* local element point */
+};
+
 typedef struct convex CONVEX;
 struct convex
 {
   double *ref, /* reference vertices */
 	 *cur, /* current vecrtices */
          *pla; /* planes */
+
+  ELEPNT *epn; /* element points corresponding to vertices */
   
   int *surface, /* surface identifiers */
       *fac; /* faces */

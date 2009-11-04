@@ -32,6 +32,7 @@
 #include "cvx.h"
 #include "hul.h"
 #include "pck.h"
+#include "fem.h"
 
 #define MEMINC 64 /* memory increment size used in convex manipulations */
 
@@ -410,6 +411,7 @@ CONVEX* CONVEX_Create (CONVEX *cvx, double *ver, int nver, int *fac, int nfac, i
   cvy->fac = cvy->surface + nfac;
   cvy->nver = nver;
   cvy->nfac = nfac;
+  cvy->epn = NULL;
   cvy->adj = NULL;
   cvy->ele = NULL;
   cvy->nadj = 0;
@@ -857,12 +859,21 @@ int CONVEX_Contains_Point (void *dummy, CONVEX *cvx, double *point)
 void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion)
 {
   double *ref, *cur;
+  ELEPNT *epn;
   int n;
 
   for (; cvx; cvx = cvx->next)
   {	
-    for (ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; ref += 3, cur += 3, n ++)
-      motion (body, shp, cvx, ref, cur); /* move current nodes */
+    if (cvx->epn) /* use fast update for FEM bodies with rough mesh */
+    {
+      for (epn = cvx->epn, ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; epn ++, ref += 3, cur += 3, n ++)
+	FEM_Cur_Point_Ext (body, epn->ele, ref, epn->pnt, cur);
+    }
+    else /* use regular update for other body types */
+    {
+      for (ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; ref += 3, cur += 3, n ++)
+	motion (body, shp, cvx, ref, cur); /* move current nodes */
+    }
 
     /* calculate planes */
     computeplanes (cvx);
@@ -910,6 +921,7 @@ void CONVEX_Destroy (CONVEX *cvx)
     nxt = cvx->next;
     free (cvx->adj);
     free (cvx->ele);
+    free (cvx->epn);
     free (cvx);
   }
 }
