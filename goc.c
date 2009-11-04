@@ -216,7 +216,7 @@ static int detect_convex_convex (
 
   if (*gap < GEOMETRIC_EPSILON)
   {
-    if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, &m))) return 0;
+    if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
     a = point_and_normal (0, tri, m, sa, ap, an, &aa, &spair [0]);
     b = point_and_normal (1, tri, m, sb, bp, bn, &ba, &spair [1]);
@@ -336,7 +336,7 @@ static int update_convex_convex (
 
   if (*gap < GEOMETRIC_EPSILON)
   {
-    if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, &m))) return 0;
+    if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
     s [0] = spair [0];
     s [1] = spair [1];

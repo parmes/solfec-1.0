@@ -28,14 +28,14 @@
 #include "err.h"
 
 /* push 'p' deeper inside of convices bounded by two plane sets */
-static int refine_point (double *pa, int npa, double *pb, int npb, double *p)
+static int refine_point (double *pa, int npa, double *pb, int npb, double *p, double *epsout)
 {
   double *pla, *end, eps, d, q [3];
   short pushed, iter, imax;
 
-  imax = 10;
+  imax = 4;
   iter = 0;
-  eps = GEOMETRIC_EPSILON * (1 << (imax-1));
+  eps = GEOMETRIC_EPSILON * (1 << imax);
   do
   {
     for (pushed = 0, pla = pa, end = pa + npa * 6; pla < end; pla += 6)
@@ -56,13 +56,15 @@ static int refine_point (double *pa, int npa, double *pb, int npb, double *p)
 
   } while (pushed && iter ++ < imax);
 
+  *epsout = 10 * eps;
+
   return !pushed;
 }
 
 /* compute intersection of two convex polyhedrons */
-TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double *pb, int npb, int *m)
+TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double *pb, int npb, CVIKIND kind, int *m)
 {
-  double p [3], q [3], d, *nl, *pt, *nn, *yy;
+  double p [3], q [3], eps, d, *nl, *pt, *nn, *yy;
   PFV *pfv, *v, *w, *z;
   int i, j, k, n;
   TRI *tri, *t;
@@ -77,7 +79,7 @@ TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double 
   if (d > GEOMETRIC_EPSILON) { *m = 0; return NULL; }
 
   /* push 'p' deeper inside */
-  if (!refine_point (pa, npa, pb, npb, p)) { *m = 0; return NULL; }
+  if (!refine_point (pa, npa, pb, npb, p, &eps) && kind == REGULARIZED) { *m = 0; return NULL; }
 
   /* translate base points of planes so that
    * p = q = 0; compute new normals 'yy' */
@@ -87,7 +89,7 @@ TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double 
   {
     SUB (pt, p, q); /* q => translated point of current plane */
     d = - DOT (nl, q); /* d => zero offset */
-    if (d > -GEOMETRIC_EPSILON) d = -GEOMETRIC_EPSILON; /* ugly regularisation */
+    if (d > -GEOMETRIC_EPSILON) d = -eps; /* regularisation (tiny swelling) */
     DIV (nl, -d, nn);  /* <nn, x> <= 1 (yy stores vertices of polar polygon) */
   }
   for (i = 0, nl = pb, pt = pb + 3; i < npb;
@@ -95,7 +97,7 @@ TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double 
   {
     SUB (pt, p, q);
     d = - DOT (nl, q);
-    if (d > -GEOMETRIC_EPSILON) d = -GEOMETRIC_EPSILON; /* ugly regularisation */
+    if (d > -GEOMETRIC_EPSILON) d = -eps; /* regularisation (tiny swelling) */
     DIV (nl, -d, nn);
   }
 

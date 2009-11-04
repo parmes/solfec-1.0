@@ -39,6 +39,7 @@
 
 #define minim 4
 #define limit 128
+int counter = 0;
 FILE *input = NULL;
 short GLVON = 0;
 enum  {GEN, HUL, CVI} mode = HUL;
@@ -47,6 +48,7 @@ double apoint [limit][3],
        aplane [limit][6],
        bplane [limit][6];
 int DOGEN = 1; /* set 0 in case of a file input */
+CVIKIND kind = NON_REGULARIZED;
 int asize, bsize,
     anpla, bnpla;
 TRI *a = NULL,
@@ -151,10 +153,25 @@ static void gen ()
   }
 }
 
+static void export (void)
+{
+  int i;
+
+  printf ("%.24e\n", GEOMETRIC_EPSILON);
+  printf ("%d   %d\n", asize, anpla);
+  for (i = 0; i < asize; i ++) printf ("%.24e   %.24e   %.24e\n", apoint[i][0], apoint[i][1], apoint[i][2]);
+  for (i = 0; i < anpla; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", aplane[i][0], aplane[i][1], aplane[i][2], aplane[i][3], aplane[i][4], aplane[i][5]);
+  printf ("%d   %d\n", bsize, bnpla);
+  for (i = 0; i < bsize; i ++) printf ("%.24e   %.24e   %.24e\n", bpoint[i][0], bpoint[i][1], bpoint[i][2]);
+  for (i = 0; i < bnpla; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", bplane[i][0], bplane[i][1], bplane[i][2], bplane[i][3], bplane[i][4], bplane[i][5]);
+}
+
 static void inp (void)
 {
   double extents [6], d [3];
   int i, j;
+
+  printf ("COUNTER: %d\n", counter ++);
 
   if (input && !feof (input))
   {
@@ -361,7 +378,7 @@ static void key (int key, int x, int y)
         free (c);
 	c = cvi (va, nva, pa, npa,
 	         vb, nvb, pb, npb,
-		 &clength);
+		 kind, &clength);
 	mode = GEN;
 
 	if (DOGEN)
@@ -377,6 +394,12 @@ static void key (int key, int x, int y)
 
     GLV_Redraw_All ();
   }
+  else if (key == 'e' && DOGEN == 0) export ();
+  else if (key == 'k')
+  {
+    if (kind == REGULARIZED) kind = NON_REGULARIZED, printf ("NON_REGULARIZED\n");
+    else kind = REGULARIZED, printf ("REGULARIZED\n");
+  }
 }
 
 int main (int argc, char **argv)
@@ -385,6 +408,8 @@ int main (int argc, char **argv)
   int i, j;
   
   printf ("SPACE - iterate over the test stages\n");
+  printf ("e - export current case (when an input file was given)\n");
+  printf ("k - switch between regularized and non-regularized intersection kind\n");
 
   srand ((unsigned) time (NULL));
 

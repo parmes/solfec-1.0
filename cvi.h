@@ -24,6 +24,10 @@
 #ifndef __cvi__
 #define __cvi__
 
+typedef enum {REGULARIZED,     /* filters out zero-volume intersections */ 
+              NON_REGULARIZED} /* includes surface-to-surface zero-volume intersections */
+	      CVIKIND;
+
 /* compute intersection of two convex polyhedrons:
  * (va, nva) are vertices of polyhedron 'a' (3-vectors),
  * (pa, npa) are planes of polyhedron 'b' (6-vectors: normal, point),
@@ -35,6 +39,7 @@
  * the adjacency structure in the returned mesh is not set */
 TRI* cvi (double *va, int nva, double *pa, int npa,
           double *vb, int nvb, double *pb, int npb,
+	  CVIKIND kind,
 	  int *m);
 
 #endif
