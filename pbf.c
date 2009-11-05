@@ -23,10 +23,6 @@
 #include <mpi.h>
 #endif
 
-#if POSIX
-#include <unistd.h>
-#include <fcntl.h>
-#endif
 #include <string.h>
 #include <float.h>
 #include "pbf.h"
@@ -191,13 +187,8 @@ static void initialise_frame (PBF *bf, int frm)
   /* create new memory XDR stream for DATA chunk */
   size = bf->mtab [frm+1].dpos - bf->mtab [frm].dpos;
   free (bf->mem); bf->mem = malloc (size);
-#if POSIX
-  lseek (bf->i_dat, bf->mtab [frm].dpos, SEEK_SET);
-  read (bf->i_dat, bf->mem, size);
-#else
   fseek (bf->dat, bf->mtab [frm].dpos, SEEK_SET);
   fread (bf->mem, sizeof (char), size, bf->dat);
-#endif
   xdr_destroy (&bf->x_dat);
   xdrmem_create (&bf->x_dat, bf->mem, size, XDR_DECODE);
 #else
@@ -359,9 +350,6 @@ PBF* PBF_Read (const char *path)
     /* openin files */
     if (m) sprintf (txt, "%s.dat.%d", path, n);
     else sprintf (txt, "%s.dat", path);
-#if POSIX
-    if ((bf->i_dat = open (txt, O_RDONLY)) < 0) goto failure;
-#endif
     if (! (bf->dat = fopen (txt, "r"))) goto failure;
     xdrstdio_create (&bf->x_dat, bf->dat, XDR_DECODE);
     bf->dph = copypath (txt);
@@ -420,10 +408,6 @@ void PBF_Close (PBF *bf)
     xdr_destroy (&bf->x_lab);
 
     empty = is_empty (bf->dat);
-
-#if POSIX
-    if (bf->mode == PBF_READ) close (bf->i_dat);
-#endif
 
     fclose (bf->dat);
     fclose (bf->idx);

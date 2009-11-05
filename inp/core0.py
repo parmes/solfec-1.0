@@ -393,10 +393,6 @@ GRAVITY (solfec, (0, 0, -1), 10)
 
 gcore_create (0.0003, 0.0002,  0,  0,  0, tms, bulkmat, solfec)
 
-def gscallback (gs):
-  print gs.error
-  return 0
-
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
 OUTPUT (solfec, 1 * step)
