@@ -379,7 +379,7 @@ def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, 
 
 step = 1E-4
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/boxkite')
+solfec = SOLFEC ('DYNAMIC', step, 'out/core0')
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
@@ -397,6 +397,26 @@ def gscallback (gs):
   print gs.error
   return 0
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback=gscallback)
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+
+OUTPUT (solfec, 1 * step)
 
 RUN (solfec, gs, 10 * step)
+
+if not VIEWER() and solfec.mode == 'READ':
+
+  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'TIMBAL', 'CONBAL', 'LOCBAL',
+            'GSINIT', 'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM', 'GSERR', 'GSEXIT']
+  dur = DURATION (solfec)
+  total = 0.0
+  num = 0
+
+  for timer in timers:
+    th = TIMING_HISTORY (solfec, timer, dur[0], dur[1])
+    sum = 0.0
+    for tt in th [1]: sum += tt
+    if num < 7: total += sum
+    num = num + 1
+    print timer, 'TIME:', sum
+
+  print 'TOTAL TIME:', total

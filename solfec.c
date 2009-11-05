@@ -37,6 +37,10 @@ static void sighnd (int signal)
 {
   lngfinalize (); /* finalize interpreter: as a result
 		     flush output buffers if possible */
+#if MPI
+  MPI_Finalize ();
+#endif
+
   exit (1);
 }
 
