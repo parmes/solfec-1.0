@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <time.h>
 #include "alg.h"
 #include "cvx.h"
 #include "msh.h"
@@ -81,6 +82,10 @@ struct solfec
   /* labaled timers */
   MEM mapmem, timemem;
   MAP *timers;
+
+  /* current run start and duration */
+  double t0, duration;
+  time_t start;
 };
 
 /* create a solfec instance */

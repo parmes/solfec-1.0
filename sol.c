@@ -303,6 +303,17 @@ static void statsout (SOLFEC *sol)
 {
   DOM *dom = sol->dom;
   AABB *aabb = sol->aabb;
+  time_t timer = time(NULL);
+  double  elapsed = difftime (timer, sol->start), /* elapsed wall clock time for this run */
+	  estimated = (elapsed / (sol->dom->time  - sol->t0)) * sol->duration - elapsed; /* estimated remaining time */
+  int days = (int) (estimated / 86400.),
+      hours = (int) ((estimated - days * 86400.) / 3600.),
+      minutes = (int) ((estimated - days * 86400. - hours * 3600.) / 60.),
+      seconds = (int) (estimated - days * 86400. - hours * 3600. - minutes * 60.);
+  char string [32];
+
+  ctime_r(&timer, string); 
+
 #if MPI
   const int N = 9;
   char *stapath;
@@ -310,14 +321,11 @@ static void statsout (SOLFEC *sol)
 
   if (dom->rank == 0)
   {
-    time_t timer = time(NULL);
-    char string [32];
-    ctime_r(&timer, string); 
     ERRMEM (stapath = malloc (strlen (sol->outpath) + 64));
     sprintf (stapath, "%s/STATE", sol->outpath);
     ASSERT (sta = fopen (stapath, "w"), ERR_FILE_OPEN);
-    fprintf (sta, "------------------------\n");
-    fprintf (sta, "%s", string);
+    fprintf (sta, "----------------------------------------------------------------------------------------\n");
+    fprintf (sta, "%sEstimated end in %d days, %d hours, %d minutes and %d seconds\n", string, days, hours, minutes, seconds);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     fprintf (sta, "TIME: %g\n", sol->dom->time);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
@@ -357,8 +365,8 @@ static void statsout (SOLFEC *sol)
   int val [] = {dom->nbod, aabb->nlst, dom->ncon, dom->nspa}, i;
 
   for (i = 0; i < N; i ++) printf ("%11s: %8d\n", name [i], val [i]);
-
-  printf ("------------------------------------------------------\n");
+  printf ("%sEstimated end in %d days, %d hours, %d minutes and %d seconds\n", string, days, hours, minutes, seconds);
+  printf ("----------------------------------------------------------------------------------------\n");
 #endif
 }
 
@@ -476,9 +484,11 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     double tt;
 
     verbose = verbose_on (sol, kind, solver);
+    sol->duration = duration;
+    sol->start = time (NULL);
     timerstart (&tim);
 
-    for (double t0 = sol->dom->time; sol->dom->time < (t0 + duration);)
+    for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
     {
       upkind = (kind == EXPLICIT_SOLVER ? UPDIA : UPALL);
 
