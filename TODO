@@ -28,3 +28,8 @@ over material properties
 --------------------------------------------------------
 Consider replacing 4-coord cvx->pla with 6-coord one
 (hence no CONVEX_Planes routine would be needed)
+----------------------------------------------------------
+Replace CON->mat member with a pointer. This will save
+some 60 bytes per contact point. But, first figure out how
+efficiently store per-contact-time-dependent material data
+-------------------------------------------------------------

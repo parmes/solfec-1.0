@@ -439,33 +439,12 @@ static int update_sphere_sphere (
 /* initialize convex a convex representation */
 inline static void convex_init (CONVEX *cvx, double **v, int *nv, double **p, int *np, int **s, int *ns)
 {
-  double *pla, *q, max;
-  int i, j ,k;
-
   *v = cvx->cur;
   *nv = cvx->nver;
+  *p = CONVEX_Planes (cvx);
   *np = cvx->nfac;
   *s = cvx->surface;
   *ns = cvx->nfac;
-
-  ERRMEM ((*p) = malloc (cvx->nfac * sizeof (double [6])));
-
-  for (i = 0, pla = cvx->pla, q = *p; i < cvx->nfac; i ++, pla += 4, q += 6)
-  {
-    COPY (pla, q);
-
-    for (max = fabs (pla [0]), k = 0, j = 1; j < 3; j ++)
-    {
-      if (fabs (pla [j]) > max) /* get maximal absolute normal coordinate */
-      {
-	max = fabs (pla [j]);
-	k = j;
-      }
-    }
-
-    q [3] = q [4] = q [5] = 0.0;
-    q [3+k]  = -pla [3] / pla [k];
-  }
 }
 
 /* finalize a convex representation */

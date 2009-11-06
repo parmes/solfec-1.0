@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <float.h>
 #include "cvi.h"
 #include "hul.h"
 #include "alg.h"
@@ -35,7 +36,7 @@ static int refine_point (double *pa, int npa, double *pb, int npb, double *p, do
 
   imax = 4;
   iter = 0;
-  eps = GEOMETRIC_EPSILON * (1 << imax);
+  eps = GEOMETRIC_EPSILON * (1 << (imax + 1));
   do
   {
     for (pushed = 0, pla = pa, end = pa + npa * 6; pla < end; pla += 6)
@@ -61,10 +62,60 @@ static int refine_point (double *pa, int npa, double *pb, int npb, double *p, do
   return !pushed;
 }
 
+/* copute vertices extents */
+static void vertices_extents (double *va, int nva, double *vb, int nvb, double eps, double *e)
+{
+  e [0] = e [1] = e [2] =  DBL_MAX;
+  e [3] = e [4] = e [5] = -DBL_MAX;
+
+  for (; nva > 0; va += 3, nva --)
+  {
+    if (va [0] < e [0]) e [0] = va [0];
+    if (va [1] < e [1]) e [1] = va [1];
+    if (va [2] < e [2]) e [2] = va [2];
+    if (va [0] > e [3]) e [3] = va [0];
+    if (va [1] > e [4]) e [4] = va [1];
+    if (va [2] > e [5]) e [5] = va [2];
+  }
+
+  for (; nvb > 0; vb += 3, nvb --)
+  {
+    if (vb [0] < e [0]) e [0] = vb [0];
+    if (vb [1] < e [1]) e [1] = vb [1];
+    if (vb [2] < e [2]) e [2] = vb [2];
+    if (vb [0] > e [3]) e [3] = vb [0];
+    if (vb [1] > e [4]) e [4] = vb [1];
+    if (vb [2] > e [5]) e [5] = vb [2];
+  }
+
+  e [0] -= eps;
+  e [1] -= eps;
+  e [2] -= eps;
+  e [3] += eps;
+  e [4] += eps;
+  e [5] += eps;
+}
+
+#if GEOMDEBUG
+/* dump errornous input */
+static void dump_input (double *va, int nva, double *pa, int npa, double *vb, int nvb, double *pb, int npb)
+{
+  int i;
+
+  printf ("%.24e\n", GEOMETRIC_EPSILON);
+  printf ("%d   %d\n", nva, npa);
+  for (i = 0; i < nva; i ++) printf ("%.24e   %.24e   %.24e\n", va[3*i], va[3*i+1], va[3*i+2]);
+  for (i = 0; i < npa; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", pa[6*i], pa[6*i+1], pa[6*i+2], pa[6*i+3], pa[6*i+4], pa[6*i+5]);
+  printf ("%d   %d\n", nvb, npb);
+  for (i = 0; i < nvb; i ++) printf ("%.24e   %.24e   %.24e\n", vb[3*i], vb[3*i+1], vb[3*i+2]);
+  for (i = 0; i < npb; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", pb[6*i], pb[6*i+1], pb[6*i+2], pb[6*i+3], pb[6*i+4], pb[6*i+5]);
+}
+#endif
+
 /* compute intersection of two convex polyhedrons */
 TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double *pb, int npb, CVIKIND kind, int *m)
 {
-  double p [3], q [3], eps, d, *nl, *pt, *nn, *yy;
+  double e [6], p [3], q [3], eps, d, *nl, *pt, *nn, *yy;
   PFV *pfv, *v, *w, *z;
   int i, j, k, n;
   TRI *tri, *t;
@@ -80,6 +131,9 @@ TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double 
 
   /* push 'p' deeper inside */
   if (!refine_point (pa, npa, pb, npb, p, &eps) && kind == REGULARIZED) { *m = 0; return NULL; }
+
+  /* vertices extents for a later sanity check */
+  vertices_extents (va, nva, vb, nvb, eps, e);
 
   /* translate base points of planes so that
    * p = q = 0; compute new normals 'yy' */
@@ -130,7 +184,18 @@ TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double 
 
   /* shift point coords to the old 'zero' */
   for (k = 0, nl = pt; k < i; k ++, nl += 3)
-  { ADD (nl, p, nl); } /* 'nl' used as a point */
+  { 
+    ADD (nl, p, nl); /* 'nl' used as a point */
+
+    if (nl[0] < e [0] || nl[1] < e [1] || nl[2] < e [2] ||
+	nl[0] > e [3] || nl[1] > e [4] || nl[2] > e [5])
+    {
+#if GEOMDEBUG
+      printf ("CVI HAS GONE INSANE FOR THE INPUT:\n"), dump_input (va, nva, pa, npa, vb, nvb, pb, npb);
+#endif
+      goto error;
+    }
+  }
 
   for (k = 0, t = tri; k < j; k ++)
   {
