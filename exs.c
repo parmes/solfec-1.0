@@ -114,6 +114,7 @@ int EXPLICIT_Spring_Dashpot_Contact (double gap, double spring, double dashpot,
 void EXPLICIT_Solve (LOCDYN *ldy)
 {
   DIAB *dia;
+  CON *con;
 
 #if MPI 
   for (dia = ldy->diab; dia; dia = dia->n) /* use balanced blocks */
@@ -121,10 +122,12 @@ void EXPLICIT_Solve (LOCDYN *ldy)
   for (dia = ldy->dia; dia; dia = dia->n)
 #endif
   {
+    con = dia->con;
+
 #if MPI
-    solver (dia->kind, &dia->mat, dia->gap, dia->Z, dia->mpnt, dia->point, dia->base, dia);
+    if (con) solver (con->kind, &con->mat, con->gap, con->Z, con->mpnt, con->point, con->base, dia); /* LDB_OFF */
+    else solver (dia->kind, &dia->mat, dia->gap, dia->Z, dia->mpnt, dia->point, dia->base, dia);
 #else
-    CON *con = dia->con;
     solver (con->kind, &con->mat, con->gap, con->Z, con->mpnt, con->point, con->base, dia);
 #endif
   }
