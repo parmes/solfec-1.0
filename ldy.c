@@ -1478,40 +1478,43 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
       NNADD (W.x, C.x, W.x); }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
 
-    NNCOPY (W.x, C.x); /* calculate regularisation parameter */
-    ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
-    dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
-
-    /* off-diagonal blocks if requested */
-    for (blk = dia->adj; upkind == UPALL && blk; blk = blk->n)
+    if (upkind == UPALL) /* diagonal regularization and off-diagonal blocks update */
     {
-      DIAB *dia = blk->dia;
-      CON *con = dia->con;
-      BODY *bod = blk->bod;
-      MX *lH, *rH, *inv;
-      MX_DENSE_PTR (W, 3, 3, blk->W);
-      double coef;
+      NNCOPY (W.x, C.x); /* calculate regularisation parameter */
+      ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
+      dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
 
-      ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
-     
-      lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
-                                   as it was inserted into the dual graph */
-      inv = bod->inverse;
-
-      if (bod == con->master)
+      /* off-diagonal blocks if requested */
+      for (blk = dia->adj; blk; blk = blk->n)
       {
-	rH =  BODY_Gen_To_Loc_Operator (bod, con->mshp, con->mgobj, con->mpnt, con->base);
-	coef = (bod == s ? -step : step);
-      }
-      else /* blk->bod == dia->slave */
-      {
-	rH =  BODY_Gen_To_Loc_Operator (bod, con->sshp, con->sgobj, con->spnt, con->base);
-	coef = (bod == m ? -step : step);
-      }
+	DIAB *dia = blk->dia;
+	CON *con = dia->con;
+	BODY *bod = blk->bod;
+	MX *lH, *rH, *inv;
+	MX_DENSE_PTR (W, 3, 3, blk->W);
+	double coef;
 
-      MX_Trimat (lH, inv, MX_Tran (rH), &W);
-      SCALE9 (W.x, coef);
-      MX_Destroy (rH);
+	ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
+       
+	lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
+				     as it was inserted into the dual graph */
+	inv = bod->inverse;
+
+	if (bod == con->master)
+	{
+	  rH =  BODY_Gen_To_Loc_Operator (bod, con->mshp, con->mgobj, con->mpnt, con->base);
+	  coef = (bod == s ? -step : step);
+	}
+	else /* blk->bod == dia->slave */
+	{
+	  rH =  BODY_Gen_To_Loc_Operator (bod, con->sshp, con->sgobj, con->spnt, con->base);
+	  coef = (bod == m ? -step : step);
+	}
+
+	MX_Trimat (lH, inv, MX_Tran (rH), &W);
+	SCALE9 (W.x, coef);
+	MX_Destroy (rH);
+      }
     }
 
 #if MPI
