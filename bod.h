@@ -81,10 +81,7 @@ struct general_force
 typedef enum
 {
   BODY_DETECT_SELF_CONTACT = 0x01, /* enable self contact detection */
-  BODY_HIDDEN              = 0x02, /* rendering visiblity flag */
-  BODY_OFF                 = 0x04, /* another rendering flag */
-  BODY_CHILD               = 0x08, /* a child copy of a parent body flag */
-  BODY_SHOW_ROUGH_MESH     = 0x10  /* render rough mesh if available */
+  BODY_CHILD               = 0x02, /* a child copy of a parent body flag */
 } BODY_FLAGS;
 
 struct general_body
@@ -139,6 +136,8 @@ struct general_body
           int parent; /* used by children */ } my;
 
   MAP *conext; /* external constraints mapped by ids */
+#else
+  void *rendering; /* rendering data */
 #endif
 };
 

@@ -49,4 +49,7 @@ void RND_Solver (DOM *dom, int kind, void *solver);
 /* check whether rendering is on */
 int  RND_On ();
 
+/* free body associated rendering data */
+void RND_Free_Rendering_Data (void *data);
+
 #endif

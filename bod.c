@@ -38,6 +38,7 @@
 #include "lng.h"
 #include "fem.h"
 #include "but.h"
+#include "rnd.h"
 
 /* sizes */
 #define RIG_CONF_SIZE	15	/* rotation matrix, mass center position, auxiliary vector of size 3 */
@@ -1626,8 +1627,9 @@ void BODY_Destroy (BODY *bod)
   if (bod->kind == FEM) FEM_Destroy (bod);
 
 #if MPI
-  if ((bod->flags & BODY_CHILD) == 0) /* a parent body */
-    SET_Free (NULL, &bod->my.children);  /* free children ranks */
+  if ((bod->flags & BODY_CHILD) == 0) SET_Free (NULL, &bod->my.children);  /* a parent body => free children ranks */
+#else
+  if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
 #endif
 
   free (bod);
