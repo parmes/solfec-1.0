@@ -3997,7 +3997,7 @@ static PyObject* lng_HERE (PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject* lng_VIEWER (PyObject *self, PyObject *args, PyObject *kwds)
 {
 #if OPENGL
-  if (RND_On ()) Py_RETURN_TRUE; /* return true and maintain reference count of Py_True */
+  if (RND_Is_On ()) Py_RETURN_TRUE; /* return true and maintain reference count of Py_True */
   else
 #endif
   Py_RETURN_FALSE; /* return false and maintain reference count of Py_False */
@@ -4709,7 +4709,7 @@ static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
   if (solfec->sol->mode == SOLFEC_READ) Py_RETURN_NONE; /* skip READ mode */
 
 #if OPENGL 
-  if (!RND_On ()) /* otherwise interactive run is controlled by the viewer */
+  if (!RND_Is_On ()) /* otherwise interactive run is controlled by the viewer */
 #endif
   {
     TRY ()

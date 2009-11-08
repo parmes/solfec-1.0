@@ -112,7 +112,7 @@ int main (int argc, char **argv)
     int lngerr = 1;
 
 #if OPENGL
-    if (vieweron (argc, argv)) RND_Viewer_On (); /* make renderer aware of viewer before calling interpreter */
+    if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
     char *synopsis = "SYNOPSIS: solfec [-v] path\n";
 #else
     char *synopsis = "SYNOPSIS: solfec path\n";

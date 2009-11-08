@@ -37,8 +37,11 @@ void RND_Mouse (int button, int state, int x, int y);
 void RND_Motion (int x, int y);
 void RND_Passive (int x, int y);
 
-/* enable renedring before opening viewer */
-void RND_Viewer_On ();
+/* enable renedring before opening a viewer */
+void RND_Switch_On ();
+
+/* check whether rendering is on */
+int  RND_Is_On ();
 
 /* add domain to be rendered */
 void RND_Domain (DOM *dom);
@@ -46,10 +49,7 @@ void RND_Domain (DOM *dom);
 /* map solver to a domain */
 void RND_Solver (DOM *dom, int kind, void *solver);
 
-/* check whether rendering is on */
-int  RND_On ();
-
 /* free body associated rendering data */
-void RND_Free_Rendering_Data (void *data);
+void RND_Free_Rendering_Data (void *ptr);
 
 #endif
