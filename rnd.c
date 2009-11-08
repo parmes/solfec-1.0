@@ -152,6 +152,25 @@ enum /* menu items */
   RESULTS_R
 };
 
+enum mouse_mode
+{
+  MOUSE_NONE,
+  MOUSE_SELECTION_BEGIN,
+  MOUSE_SELECTION_END,
+  MOUSE_PICK_BODY
+};
+
+typedef enum mouse_mode MOUSE_MODE;
+
+enum selection_mode
+{
+  SELECTION_NONE,
+  SELECTION_2D,
+  SELECTION_3D
+};
+
+typedef enum selection_mode SELECTION_MODE;
+
 /* declarations */
 
 static void menu_analysis (int);
@@ -180,6 +199,16 @@ static MEM selsetmem; /* selection sets memory */
 
 static int skip_steps = 1; /* number of steps to skip when rewinding analysis */
 
+static MOUSE_MODE mouse_mode = MOUSE_NONE;
+
+static SELECTION_MODE selection_mode = SELECTION_NONE;
+
+static int mouse_start [2] = {0, 0};
+
+static short tool_mode = 0; /* current tool */
+
+static BODY *picked_body = NULL; /* currently picked body */
+
 /* push new selection on stack */
 static void selection_push (SET *set)
 {
@@ -190,6 +219,47 @@ static void selection_push (SET *set)
   s->set = set;
 
   selection = s;
+}
+
+/* pop most recent selection */
+static void selection_pop ()
+{
+  if (selection->prev)
+  {
+    SELECTION *top = selection;
+    SET_Free (&selsetmem, &selection->set);
+    selection = selection->prev;
+    free (top);
+  }
+}
+
+/* convert body id into an RGBA code */
+static void idtorgba (int id, GLfloat color [4])
+{
+  unsigned char rgba [4];
+
+  rgba [0] = ((unsigned char*)&id) [0];
+  rgba [1] = ((unsigned char*)&id) [1];
+  rgba [2] = ((unsigned char*)&id) [2];
+  rgba [3] = ((unsigned char*)&id) [3];
+
+  color [0] = (GLfloat) rgba [0] / 255.0f;
+  color [1] = (GLfloat) rgba [1] / 255.0f;
+  color [2] = (GLfloat) rgba [2] / 255.0f;
+  color [3] = (GLfloat) rgba [3] / 255.0f;
+}
+
+/* convert RGBA to body id */
+static int rgbatoid (unsigned char *rgba)
+{
+  int id;
+
+  ((unsigned char*)&id) [0] = rgba [0];
+  ((unsigned char*)&id) [1] = rgba [1];
+  ((unsigned char*)&id) [2] = rgba [2];
+  ((unsigned char*)&id) [3] = rgba [3];
+
+  return id;
 }
 
 /* translate scalar value into color */
@@ -478,6 +548,16 @@ static void render_sphere_triangles (double *center, double radius, GLfloat colo
   glPopMatrix ();
 }
 
+/* render sphere triangles for selection */
+static void selection_render_sphere_triangles (double *center, double radius)
+{
+  glMatrixMode (GL_MODELVIEW_MATRIX);
+  glPushMatrix ();
+    glTranslated (center[0], center[1], center[2]);
+    glutSolidSphere (radius, 12, 12);
+  glPopMatrix ();
+}
+
 /* render sphere points */
 static void render_sphere_points (double *a, double *b, double *c)
 {
@@ -496,6 +576,8 @@ static void render_body_triangles (BODY *bod)
   if (bod->rendering == NULL) bod->rendering = create_body_data (bod);
 
   data = bod->rendering;
+
+  if (data->flags & HIDDEN) return;
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
 
@@ -531,6 +613,8 @@ static void render_body_lines (BODY *bod)
 
   data = bod->rendering;
 
+  if (data->flags & HIDDEN) return;
+
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
 
   glEnableClientState (GL_VERTEX_ARRAY);
@@ -549,10 +633,36 @@ static void render_body_lines (BODY *bod)
     render_sphere_points (sph[2], sph[3], sph[4]);
 }
 
+/* render body triangles for selection */
+static void selection_render_body_triangles (BODY *bod)
+{
+  BODY_DATA *data = bod->rendering;
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+
+  glEnableClientState (GL_VERTEX_ARRAY);
+  glEnableClientState (GL_NORMAL_ARRAY);
+
+  glVertexPointer (3, GL_FLOAT, 0, 0);
+  glNormalPointer (GL_FLOAT, 0, (void*) (data->triangles_count * sizeof (GLfloat) * 9));
+
+  glDrawArrays (GL_TRIANGLES, 0, data->triangles_count * 3);
+
+  glDisableClientState (GL_VERTEX_ARRAY);
+  glDisableClientState (GL_NORMAL_ARRAY);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+
+  double **sph, **end;
+
+  for (sph = data->spheres, end = sph + data->spheres_count * 5; sph < end; sph += 5)
+    selection_render_sphere_triangles (sph[0], *sph[1]);
+}
+
 /* render body set */
 static void render_body_set (SET *set)
 {
-  GLfloat color [4] = {0.0, 0.0, 0.0};
+  GLfloat color [3] = {0.0, 0.0, 0.0};
   SET *item;
 
   glDisable (GL_LIGHTING);
@@ -570,6 +680,37 @@ static void render_body_set (SET *set)
   for (item = SET_First (set); item; item = SET_Next (item))
   {
     render_body_triangles (item->data);
+  }
+}
+
+/* render body set for 2D selection */
+static void selection_2D_render_body_set (SET *set)
+{
+  GLfloat color [4];
+  BODY *bod;
+  SET *item;
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    idtorgba (bod->id, color);
+    glColor4fv (color);
+    selection_render_body_triangles (item->data);
+  }
+}
+
+/* render body set for 3D selection */
+static void selection_3D_render_body_set (SET *set)
+{
+  BODY *bod;
+  SET *item;
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    glPushName (bod->id);
+    selection_render_body_triangles (item->data);
+    glPopName ();
   }
 }
 
@@ -661,6 +802,118 @@ static void set_skip_steps (char *text)
   }
 }
 
+/* 2D selection using indexed coloring */
+static void select_2D (int x1, int y1, int x2, int y2)
+{
+  unsigned char (*pix) [4];
+  SET *ids, *set, *item;
+  int x, y, w, h, n, m;
+  GLint viewport [4];
+  BODY *bod;
+
+  glDisable (GL_LIGHTING);
+  glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+  selection_2D_render_body_set (selection->set);
+  glEnable (GL_LIGHTING);
+
+  glGetIntegerv (GL_VIEWPORT, viewport);
+
+  x = MIN (x1, x2);
+  y = MIN (viewport[3]-y1, viewport[3]-y2);
+  w = MAX (x1, x2) - x;
+  h = MAX (viewport[3]-y1, viewport[3]-y2) - y;
+  w = MAX (w, 1);
+  h = MAX (h, 1);
+  m = w * h;
+
+  ERRMEM (pix = malloc (m * sizeof (unsigned char [4])));
+  glReadPixels (x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+  for (ids = NULL, n = 0; n < m; n ++) SET_Insert (&selsetmem, &ids, (void*) rgbatoid (pix [n]), NULL);
+  free (pix);
+
+  if (ids)
+  {
+    for (set = NULL, item = SET_First (ids); item; item = SET_Next (item))
+    {
+      bod = MAP_Find (domain->idb, item->data, NULL);
+      if (bod) SET_Insert (&selsetmem, &set, bod, NULL);
+    }
+
+    selection_push (set);
+
+    SET_Free (&selsetmem, &ids);
+  }
+}
+
+/* 3D selection using indexed coloring */
+static void select_3D (int x1, int y1, int x2, int y2)
+{
+  GLuint *sel, selsize, selcount, n, m, k;
+  GLint viewport [4];
+  int x, y, w, h; 
+  BODY *bod;
+  SET *set;
+
+  w = ABS (x1 - x2);
+  h = ABS (y1 - y2);
+  x = (x1 + x2) / 2;
+  y = (y1 + y2) / 2;
+  w = MAX (w, 2);
+  h = MAX (h, 2);
+  selsize = SET_Size (selection->set) * 4; /* assumes that each body id stored in a separate hit, which is excessive and must be enough */
+  ERRMEM (sel = malloc (sizeof (GLuint [selsize])));
+
+  glSelectBuffer (selsize, sel);
+  glRenderMode (GL_SELECT);
+  glMatrixMode (GL_PROJECTION);
+  glPushMatrix ();
+  glLoadIdentity ();
+  glGetIntegerv (GL_VIEWPORT, viewport);
+  gluPickMatrix (x, viewport [3] - y, w, h, viewport);
+  GLV_SetProjectionMatrix (viewport [2], viewport [3]);
+  glMatrixMode (GL_MODELVIEW);
+  glInitNames ();
+  selection_3D_render_body_set (selection->set);
+  glMatrixMode (GL_PROJECTION);
+  glPopMatrix ();
+  glMatrixMode (GL_MODELVIEW);
+  glFlush ();
+  selcount = glRenderMode (GL_RENDER);
+
+  if (selcount > 0 && selcount < INT_MAX)
+  {
+    for (n = m = 0, set = NULL; n < selcount; n ++, m += sel [m]+3)
+    {
+      for (k = 0; k < sel [m]; k ++)
+      {
+	bod = MAP_Find (domain->idb, (void*) sel [m+3+k], NULL);
+	if (bod) SET_Insert (&selsetmem, &set, bod, NULL);
+      }
+    }
+
+    if (set) selection_push (set);
+  }
+
+  free (sel);
+}
+
+/* pick one body using 2D selection */
+static BODY* pick_body (int x, int y)
+{
+  unsigned char pix [4];
+  GLint viewport [4];
+
+  glDisable (GL_LIGHTING);
+  glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+  selection_2D_render_body_set (selection->set);
+  glEnable (GL_LIGHTING);
+
+  glGetIntegerv (GL_VIEWPORT, viewport);
+  glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+
+  return MAP_Find (domain->idb, (void*) rgbatoid (pix), NULL);
+}
+
 /* menus */
 
 static void menu_domain (int item)
@@ -669,10 +922,48 @@ static void menu_domain (int item)
 
 static void menu_render (int item)
 {
+  switch (item)
+  {
+  case RENDER_SELECTION_2D:
+    mouse_mode = MOUSE_SELECTION_BEGIN;
+    selection_mode = SELECTION_2D;
+    GLV_Hold_Mouse ();
+    break;
+  case RENDER_SELECTION_3D:
+    mouse_mode = MOUSE_SELECTION_BEGIN;
+    selection_mode = SELECTION_3D;
+    GLV_Hold_Mouse ();
+    break;
+  case RENDER_PREVIOUS_SELECTION:
+    selection_pop ();
+    update_extents ();
+    break;
+  }
 }
 
 static void menu_tools (int item)
 {
+  switch (item)
+  {
+  case TOOLS_TRANSPARENT:
+    mouse_mode = MOUSE_PICK_BODY;
+    tool_mode = item;
+    break;
+  case TOOLS_HIDE:
+    mouse_mode = MOUSE_PICK_BODY;
+    tool_mode = item;
+    break;
+  case TOOLS_SHOW_ALL:
+    break;
+    for (BODY *bod = domain->bod; bod; bod = bod->next)
+    { BODY_DATA *data = bod->rendering; data->flags &= ~HIDDEN; }
+    update_extents ();
+    break;
+  case TOOLS_ROUGH_MESH:
+    mouse_mode = MOUSE_PICK_BODY;
+    tool_mode = item;
+    break;
+  }
 }
 
 static void menu_kinds (int item)
@@ -915,10 +1206,67 @@ void RND_Keyspec (int key, int x, int y)
 
 void RND_Mouse (int button, int state, int x, int y)
 {
+  switch (button)
+  {
+    case GLUT_LEFT_BUTTON:
+    switch (state)
+    {
+    case GLUT_UP:
+      if (mouse_mode == MOUSE_SELECTION_END)
+      {
+	switch (selection_mode)
+	{
+	case SELECTION_2D: select_2D (mouse_start [0], mouse_start [1], x, y); break;
+	case SELECTION_3D: select_3D (mouse_start [0], mouse_start [1], x, y); break;
+	default: break;
+	}
+
+	mouse_mode = MOUSE_NONE;
+	selection_mode = SELECTION_NONE;
+	GLV_Rectangle_Off ();
+	GLV_Release_Mouse ();
+        update_extents ();
+      }
+      break;
+    case GLUT_DOWN:
+      if (mouse_mode == MOUSE_SELECTION_BEGIN)
+      {
+	mouse_mode = MOUSE_SELECTION_END;
+	mouse_start [0] = x;
+	mouse_start [1] = y;
+      }
+      break;
+    }
+    break;
+
+    case GLUT_MIDDLE_BUTTON:
+    switch (state)
+    {
+    case GLUT_UP:
+      break;
+    case GLUT_DOWN:
+      break;
+    }
+    break;
+
+    case GLUT_RIGHT_BUTTON:
+    switch (state)
+    {
+    case GLUT_UP:
+      break;
+    case GLUT_DOWN:
+      break;
+    }
+    break;
+  }
 }
 
 void RND_Motion (int x, int y)
 {
+  if (mouse_mode == MOUSE_SELECTION_END)
+  {
+    GLV_Rectangle_On (mouse_start [0], mouse_start [1], x, y);
+  }
 }
 
 void RND_Passive (int x, int y)
