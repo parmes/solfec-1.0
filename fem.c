@@ -1288,65 +1288,6 @@ static void local_to_global (double (*mesh_nodes) [3], ELEMENT *ele, double *poi
 /* compute referential coordinates of a local point */
 #define local_to_referential(msh, ele, X, point) local_to_global ((msh)->ref_nodes, ele, X, point)
 
-/* gather elements with given node */
-static void elements_around_node (int node, ELEMENT *ele, MEM *mem, SET **set)
-{
-  int n;
-
-  for (n = 0; n < ele->type; n ++)
-  {
-    if (ele->nodes [n] == node)
-    {
-      ele->type = -ele->type; /* mark as visited */
-      SET_Insert (mem, set, ele, NULL); /* add to set */
-      for (n = 0; n < ele->neighs; n ++) elements_around_node (node, ele->adj [n], mem, set); /* recurse */
-      break; /* done */
-    }
-  }
-}
-
-/* compute Cauchy stress at node */
-static void fem_nodal_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, int node, double *values)
-{
-  double F [9], J, P [9], X [3], point [3];
-  SET *set, *item;
-  MEM mem;
-
-  set = NULL;
-  MEM_Init (&mem, sizeof (SET), 64);
-  elements_around_node (node, ele, &mem, &set);
-  COPY (msh->ref_nodes [node], X);
-
-  SET6 (values, 0.0);
-  for (item = SET_First (set); item; item = SET_Next (item)) /* sum up stresses around the node */
-  {
-    ele = item->data;
-    ASSERT_DEBUG (ele->type < 0, "Inconsistent elements around a node");
-    ele->type = -ele->type; /* unmark */
-    BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-
-    referential_to_local (msh, ele, X, point);
-    deformation_gradient (bod, msh, ele, point, F);
-
-    J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P); /* column-wise, per unit volume */
-
-    values [0] += (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
-    values [1] += (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
-    values [2] += (F[2]*P[6]+F[5]*P[7]+F[8]*P[8])/J; /* sz  */
-    values [3] += (F[0]*P[3]+F[3]*P[4]+F[6]*P[5])/J; /* sxy */
-    values [4] += (F[0]*P[6]+F[3]*P[7]+F[6]*P[8])/J; /* sxz */
-    values [5] += (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
-  }
-
-  if (set)
-  {
-    X [0] = 1.0 / (double) SET_Size (set);
-    SCALE6 (values, X[0]); /* averaged stress */
-  }
-
-  MEM_Release (&mem);
-}
-
 /* compute Cauchy stress at local point */
 static void fem_element_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
 {
@@ -2211,91 +2152,6 @@ double FEM_Kinetic_Energy (BODY *bod)
   return 0.0;
 }
 
-/* get some values at a node of a geometrical object */
-void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values)
-{
-  double *X, point [3];
-  ELEMENT *ele;
-  CONVEX *cvx;
-  MESH *msh;
-  int n;
-
-  if (bod->msh)
-  {
-    msh = bod->msh;
-    ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
-    ASSERT_DEBUG (node >= 0 && node < cvx->nver, "CONVEX node number out of bounds");
-    X = cvx->ref + node * 3;
-    ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
-    ASSERT_DEBUG (ele, "Invalid referential point stabbing an element");
-    referential_to_local (msh, ele, X, point);
-    n = 0;
-  }
-  else
-  {
-    msh = shp->data;
-    ele = gobj;
-    ASSERT_DEBUG (ele && node >= 0 && node < ele->type, "Invalid input when obtaining nodal FEM value");
-    n = ele->nodes [node];
-  }
-
-  switch (kind)
-  {
-  case VALUE_DISPLACEMENT:
-  {
-    if (bod->msh)
-    {
-      MX *N = shape_functions (bod, msh, ele, point);
-      MX_Matvec (1.0, N, bod->conf, 0.0, values);
-      MX_Destroy (N);
-    }
-    else
-    {
-      double *q = &bod->conf [3 * n];
-      COPY (q, values);
-    }
-  }
-  break;
-  case VALUE_VELOCITY:
-  {
-    if (bod->msh)
-    {
-      MX *N = shape_functions (bod, msh, ele, point);
-      MX_Matvec (1.0, N, bod->velo, 0.0, values);
-      MX_Destroy (N);
-    }
-    else
-    {
-      double *u = &bod->velo [3 * n];
-      COPY (u, values);
-    }
-  }
-  break;
-  case VALUE_STRESS:
-  {
-    if (bod->msh) fem_element_cauchy (bod, msh, ele, point, values);
-    else fem_nodal_cauchy (bod, msh, ele, n, values);
-  }
-  break;
-  case VALUE_MISES:
-  {
-    double stress [6];
-
-    if (bod->msh) fem_element_cauchy (bod, msh, ele, point, stress);
-    else fem_nodal_cauchy (bod, msh, ele, n, stress);
-    MISES (stress, values [0]);
-  }
-  break;
-  case VALUE_STRESS_AND_MISES:
-  {
-    if (bod->msh) fem_element_cauchy (bod, msh, ele, point, values);
-    else fem_nodal_cauchy (bod, msh, ele, n, values);
-    MISES (values, values [6]);
-  }
-  break;
-  }
-}
-
 /* get some values at a referential point */
 void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
 {
@@ -2345,6 +2201,155 @@ void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
     }
     break;
     }
+  }
+}
+
+/* get some values at a local point of an element */
+void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIND kind, double *values)
+{
+  MESH *msh = FEM_MESH (bod);
+
+  switch (kind)
+  {
+  case VALUE_DISPLACEMENT:
+  {
+    MX *N = shape_functions (bod, msh, ele, point);
+    MX_Matvec (1.0, N, bod->conf, 0.0, values);
+    MX_Destroy (N);
+  }
+  break;
+  case VALUE_VELOCITY:
+  {
+    MX *N = shape_functions (bod, msh, ele, point);
+    MX_Matvec (1.0, N, bod->velo, 0.0, values);
+    MX_Destroy (N);
+  }
+  break;
+  case VALUE_STRESS:
+  {
+    fem_element_cauchy (bod, msh, ele, point, values);
+  }
+  break;
+  case VALUE_MISES:
+  {
+    double stress [6];
+
+    fem_element_cauchy (bod, msh, ele, point, stress);
+    MISES (stress, values [0]);
+  }
+  break;
+  case VALUE_STRESS_AND_MISES:
+  {
+    fem_element_cauchy (bod, msh, ele, point, values);
+    MISES (values, values [6]);
+  }
+  break;
+  }
+}
+
+/* get some values at a curent mesh node */
+void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *values)
+{
+  MESH *msh = FEM_MESH (bod);
+  int n = (node_t) node - msh->cur_nodes;
+  ELEMENT *ele = MAP_Find (msh->map, node, NULL),
+	  *start [2] = {msh->surfeles, msh->bulkeles};
+  double point [3] = {0, 0, 0};
+  int i, j;
+
+  if (ele == NULL)
+  {
+    for(j = 0; j < 2; j ++)
+    {
+      for (ele = start [j]; ele; ele = ele->next)
+      {
+	for (i = 0; i < ele->type; i ++)
+	{
+	  if (ele->nodes [i] == n)
+	  {
+	    switch (ele->type)
+	    {
+	    case 4: if (i < 3) point [i] = 1.0; break;
+	    case 8:
+	      switch (i)
+	      {
+	      case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
+	      case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
+	      case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
+	      case 3: point [0] = -1; point [1] =  1; point [2] = -1; break;
+	      case 4: point [0] = -1; point [1] = -1; point [2] =  1; break;
+	      case 5: point [0] =  1; point [1] = -1; point [2] =  1; break;
+	      case 6: point [0] =  1; point [1] =  1; point [2] =  1; break;
+	      case 7: point [0] = -1; point [1] =  1; point [2] =  1; break;
+	      }
+	      break;
+	    case 6:
+	      switch (i)
+	      {
+	      case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
+	      case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
+	      case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
+	      case 3: point [0] = -1; point [1] = -1; point [2] =  1; break;
+	      case 4: point [0] =  1; point [1] = -1; point [2] =  1; break;
+	      case 5: point [0] =  1; point [1] =  1; point [2] =  1; break;
+	      }
+	      break;
+	    case 5:
+	      switch (i)
+	      {
+	      case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
+	      case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
+	      case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
+	      case 3: point [0] = -1; point [1] =  1; point [2] = -1; break;
+	      case 4: point [0] = -1; point [1] = -1; point [2] =  1; break;
+	      }
+	      break;
+	    }
+
+	    MAP_Insert (&msh->mapmem, &msh->map, node, ele, NULL);
+	    goto ok;
+	  }
+	}
+      }
+    }
+  }
+
+  ASSERT_DEBUG (ele, "Element with specified node number was not found");
+
+ok:
+  switch (kind)
+  {
+  case VALUE_DISPLACEMENT:
+  {
+    double *q = &bod->conf [3 * n];
+    COPY (q, values);
+  }
+  break;
+  case VALUE_VELOCITY:
+  {
+    double *u = &bod->velo [3 * n];
+    COPY (u, values);
+  }
+  break;
+  case VALUE_STRESS:
+  {
+    fem_element_cauchy (bod, msh, ele, point, values);
+  }
+  break;
+  case VALUE_MISES:
+  {
+    double stress [6];
+
+    fem_element_cauchy (bod, msh, ele, point, stress);
+    MISES (stress, values [0]);
+  }
+  break;
+  case VALUE_STRESS_AND_MISES:
+  {
+    fem_element_cauchy (bod, msh, ele, point, values);
+    MISES (values, values [6]);
+  }
+  break;
   }
 }
 

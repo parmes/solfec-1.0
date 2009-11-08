@@ -24,6 +24,7 @@
 #include "cvx.h"
 #include "mot.h"
 #include "tri.h"
+#include "map.h"
 
 #ifndef ELEMENT_TYPE
 #define ELEMENT_TYPE
@@ -75,7 +76,8 @@ struct element
 struct mesh
 {
   MEM facmem,
-      elemem;
+      elemem,
+      mapmem;
 
   double (*ref_nodes) [3],
 	 (*cur_nodes) [3];
@@ -86,6 +88,8 @@ struct mesh
   int  surfeles_count,
        bulkeles_count,
        nodes_count;
+
+  MAP *map; /* auxiliary */
 };
 
 /* create mesh from vector of nodes, element list in format =>

@@ -38,6 +38,7 @@
 #include "shp.h"
 #include "lng.h"
 #include "rnd.h"
+#include "fem.h"
 #include "err.h"
 
 typedef union value_source VALUE_SOURCE; /* vertex value source */
@@ -81,6 +82,8 @@ struct body_data
   GLfloat *sphere_colors; /* sphere surface colors */
 
   int spheres_count;
+
+  BODY_DATA *rough; /* rough mesh rendering */
 };
 
 typedef struct solver_data SOLVER_DATA; /* solver interface */
@@ -120,7 +123,6 @@ enum /* menu items */
   TOOLS_TRANSPARENT,
   TOOLS_HIDE,
   TOOLS_SHOW_ALL,
-  TOOLS_CLIPPING_PLANE,
   TOOLS_ROUGH_MESH,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
@@ -208,6 +210,39 @@ static int mouse_start [2] = {0, 0};
 static short tool_mode = 0; /* current tool */
 
 static BODY *picked_body = NULL; /* currently picked body */
+
+static int time_window = 0; /* time window handler */
+#define TIME_HEIGHT 16 /* time window height */
+#define TIME_FONT GLV_FONT_8_BY_13
+
+static int legend = 0; /* legend flag */
+
+/* body transparency test */
+#define TRANSPARENT(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & TRANSPARENT)
+
+/* body rough mesh flag test */
+#define ROUGH_MESH(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & ROUGH_MESH)
+
+/* initialize selection */
+static void selection_init ()
+{
+  SELECTION *prev;
+  BODY *bod;
+
+  while (selection)
+  {
+    SET_Free (&selsetmem, &selection->set);
+    prev = selection->prev;
+    free (selection);
+    selection = prev;
+  }
+  
+  ERRMEM (selection = malloc (sizeof (SELECTION)));
+
+  for (selection->set = NULL, bod = domain->bod; bod; bod = bod->next) SET_Insert (&selsetmem, &selection->set, bod, NULL);
+
+  selection->prev = NULL;
+}
 
 /* push new selection on stack */
 static void selection_push (SET *set)
@@ -502,8 +537,81 @@ static BODY_DATA* create_body_data (BODY *bod)
 /* update body rendering data */
 static void update_body_data (BODY *bod, BODY_DATA *data)
 {
+  double **vsr, **nsr, **lsr, **vvs, **end, *val, values [7];
   GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
-  double **vsr, **nsr, **lsr, **vvs, **end;
+  VALUE_SOURCE *src, *last;
+  VALUE_KIND kind;
+  short index;
+
+  if (legend)
+  {
+    switch (legend)
+    {
+    case KINDS_OF_BODIES: break;
+    case KINDS_OF_SURFACES: break;
+    case KINDS_OF_VOLUMES: break;
+    case RESULTS_DX:
+    case RESULTS_DY:
+    case RESULTS_DZ:
+      kind = VALUE_DISPLACEMENT;
+      index = legend - RESULTS_DX;
+      break;
+    case RESULTS_VX:
+    case RESULTS_VY:
+    case RESULTS_VZ:
+      kind = VALUE_VELOCITY;
+      index = legend - RESULTS_VX;
+      break;
+    case RESULTS_SX:
+    case RESULTS_SY:
+    case RESULTS_SZ:
+    case RESULTS_SXY:
+    case RESULTS_SXZ:
+    case RESULTS_SYZ:
+      kind = VALUE_STRESS;
+      index = legend - RESULTS_SX;
+      break;
+    case RESULTS_MISES:
+      kind = VALUE_MISES;
+      index = 0;
+      break;
+    }
+
+    if (legend >= RESULTS_DX)
+    {
+      src = data->value_sources;
+      last = src + data->values_count;
+      val = data->values;
+
+      if (bod->kind == FEM)
+      {
+	if (bod->msh)
+	{
+	  for (; src < last; src ++, val ++)
+	  {
+	    FEM_Element_Point_Values (bod, src->epn->ele, src->epn->pnt, kind, values);
+	    *val = values [index];
+	  }
+	}
+	else
+	{
+	  for (; src < last; src ++, val ++)
+	  {
+	    FEM_Cur_Node_Values (bod, src->pnt, kind, values);
+	    *val = values [index];
+	  }
+	}
+      }
+      else
+      {
+	for (; src < last; src ++, val ++)
+	{
+	  BODY_Point_Values (bod, src->pnt, kind, values);
+	  *val = values [index];
+	}
+      }
+    }
+  }
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
   lin = glMapBufferARB (GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
@@ -535,6 +643,8 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
   }
 
   glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
+
+  if (data->rough) update_body_data (bod, data->rough);
 }
 
 /* render sphere triangles */
@@ -569,7 +679,7 @@ static void render_sphere_points (double *a, double *b, double *c)
 }
 
 /* render body triangles */
-static void render_body_triangles (BODY *bod)
+static void render_body_triangles (BODY *bod, short skip)
 {
   BODY_DATA *data;
 
@@ -577,7 +687,8 @@ static void render_body_triangles (BODY *bod)
 
   data = bod->rendering;
 
-  if (data->flags & HIDDEN) return;
+  if (bod == picked_body ||           /* do not render a picked body */
+      data->flags & skip) return;
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
 
@@ -605,7 +716,7 @@ static void render_body_triangles (BODY *bod)
 }
 
 /* render body lines */
-static void render_body_lines (BODY *bod)
+static void render_body_lines (BODY *bod, short skip)
 {
   BODY_DATA *data;
 
@@ -613,7 +724,7 @@ static void render_body_lines (BODY *bod)
 
   data = bod->rendering;
 
-  if (data->flags & HIDDEN) return;
+  if (data->flags & skip) return;
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
 
@@ -638,6 +749,8 @@ static void selection_render_body_triangles (BODY *bod)
 {
   BODY_DATA *data = bod->rendering;
 
+  if (data->flags & HIDDEN) return;
+
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
 
   glEnableClientState (GL_VERTEX_ARRAY);
@@ -659,10 +772,60 @@ static void selection_render_body_triangles (BODY *bod)
     selection_render_sphere_triangles (sph[0], *sph[1]);
 }
 
+/* render rough mesh */
+static void render_rough_mesh (BODY *bod)
+{
+  BODY_DATA *data = bod->rendering,
+	    *rough = data->rough;
+
+  if (data->flags & HIDDEN) return;
+
+  if (!rough)
+  {
+    SHAPE shape = {SHAPE_MESH, bod->msh, NULL, NULL};
+    BODY body = bod [0];
+    body.shape = &shape;
+    body.msh = NULL;
+    data->rough = create_body_data (&body);
+    rough = data->rough;
+  }
+
+  glColor4f (0.0, 0.0, 0.0, 0.2);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, rough->lines);
+
+  glEnableClientState (GL_VERTEX_ARRAY);
+
+  glVertexPointer (3, GL_FLOAT, 0, 0);
+
+  glDrawArrays (GL_LINES, 0, rough->lines_count * 2);
+
+  glDisableClientState (GL_VERTEX_ARRAY);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+
+  glColor4f (0.9, 0.9, 0.9, 0.3);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, rough->triangles);
+
+  glEnableClientState (GL_VERTEX_ARRAY);
+  glEnableClientState (GL_NORMAL_ARRAY);
+
+  glVertexPointer (3, GL_FLOAT, 0, 0);
+  glNormalPointer (GL_FLOAT, 0, (void*) (rough->triangles_count * sizeof (GLfloat) * 9));
+
+  glDrawArrays (GL_TRIANGLES, 0, rough->triangles_count * 3);
+
+  glDisableClientState (GL_VERTEX_ARRAY);
+  glDisableClientState (GL_NORMAL_ARRAY);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+}
+
 /* render body set */
 static void render_body_set (SET *set)
 {
-  GLfloat color [3] = {0.0, 0.0, 0.0};
+  GLfloat color [4] = {0.0, 0.0, 0.0, 0.4};
   SET *item;
 
   glDisable (GL_LIGHTING);
@@ -670,7 +833,7 @@ static void render_body_set (SET *set)
 
   for (item = SET_First (set); item; item = SET_Next (item))
   {
-    render_body_lines (item->data);
+    render_body_lines (item->data, TRANSPARENT|HIDDEN);
   }
 
   glEnable (GL_LIGHTING);
@@ -679,8 +842,28 @@ static void render_body_set (SET *set)
 
   for (item = SET_First (set); item; item = SET_Next (item))
   {
-    render_body_triangles (item->data);
+    render_body_triangles (item->data, TRANSPARENT|HIDDEN);
   }
+
+  glEnable (GL_BLEND);
+  glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  color [0] = color [1] = color [2] = 0.8;
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    if (item->data == picked_body) continue;
+
+    if (TRANSPARENT (item->data))
+    {
+      glColor4fv (color);
+      render_body_lines (item->data, HIDDEN);
+      selection_render_body_triangles (item->data);
+    }
+
+    if (ROUGH_MESH (item->data)) render_rough_mesh (item->data);
+  }
+
+  glDisable (GL_BLEND);
 }
 
 /* render body set for 2D selection */
@@ -711,6 +894,32 @@ static void selection_3D_render_body_set (SET *set)
     glPushName (bod->id);
     selection_render_body_triangles (item->data);
     glPopName ();
+  }
+}
+
+/* render picked body if any */
+static void render_picked_body (void)
+{
+  GLfloat color [3] = {0.5, 0.5, 0.5};
+
+  if (picked_body)
+  {
+    switch (tool_mode)
+    {
+    case TOOLS_TRANSPARENT: color [0] = 1.0; break;
+    case TOOLS_HIDE: color [1] = 1.0; break;
+    case TOOLS_ROUGH_MESH: color [2] = 1.0; break;
+    }
+
+    glDisable (GL_LIGHTING);
+    if (TRANSPARENT (picked_body))
+    {
+      glColor3f (0., 0., 0.);
+      render_body_lines (picked_body, 0);
+    }
+    glColor3fv (color);
+    selection_render_body_triangles (picked_body);
+    glEnable (GL_LIGHTING);
   }
 }
 
@@ -914,10 +1123,84 @@ static BODY* pick_body (int x, int y)
   return MAP_Find (domain->idb, (void*) rgbatoid (pix), NULL);
 }
 
+/* disable all modes */
+static void modes_off ()
+{
+  mouse_mode = MOUSE_NONE;
+  selection_mode = SELECTION_NONE;
+  tool_mode = 0;
+  picked_body = NULL;
+  GLV_Rectangle_Off ();
+  GLV_Release_Mouse ();
+}
+
+/* time window width */
+static int time_width ()
+{
+  return GLV_Print_Width (TIME_FONT, "t=%g", domain->time) + 6;
+}
+
+/* render current time */
+static void time_render ()
+{
+  GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
+
+  glDisable (GL_LIGHTING);
+  glDisable (GL_DEPTH_TEST);
+
+  glColor3f (1, 1, 1);
+  glRecti (0, 0, time_width (), TIME_HEIGHT);
+  glColor3f (0, 0, 0);
+  GLV_Print (3, 3, 0, TIME_FONT, "t=%g", domain->time);
+
+  glEnable (GL_LIGHTING);
+  glEnable (GL_DEPTH_TEST);
+}
+
 /* menus */
 
 static void menu_domain (int item)
 {
+  int prevmode = solfec->mode;
+  DOM *prevdom = domain;
+  
+  switch (item)
+  {
+  case DOMAIN_NEXT:
+    if (domain->next) domain = domain->next; break;
+  case DOMAIN_PREVIOUS:
+    if (domain->prev) domain = domain->prev; break;
+  }
+
+  /* update analysis menu */
+
+  if (domain != prevdom)
+  {
+    selection_init ();
+
+    update_extents ();
+
+    glutSetMenu (menu_code [MENU_ANALYSIS]);
+
+    if (domain->flags & DOM_RUN_ANALYSIS)
+      glutChangeToMenuEntry (1, "stop /RETURN/", ANALYSIS_STOP);
+    else glutChangeToMenuEntry (1, "run /RETURN/", ANALYSIS_RUN);
+
+    if (solfec->mode == SOLFEC_READ && prevmode == SOLFEC_WRITE)
+    {
+      glutAddMenuEntry ("seek to /UP/", ANALYSIS_SEEKTO);
+      glutAddMenuEntry ("forward /LEFT/", ANALYSIS_FORWARD);
+      glutAddMenuEntry ("backward /RIGHT/", ANALYSIS_BACKWARD);
+      glutAddMenuEntry ("skip /DOWN/", ANALYSIS_SKIP);
+    }
+    else if (solfec->mode == SOLFEC_WRITE && prevmode == SOLFEC_READ)
+    {
+      glutRemoveMenuItem (6);
+      glutRemoveMenuItem (5);
+      glutRemoveMenuItem (4);
+      glutRemoveMenuItem (3);
+    }
+  }
 }
 
 static void menu_render (int item)
@@ -925,11 +1208,13 @@ static void menu_render (int item)
   switch (item)
   {
   case RENDER_SELECTION_2D:
+    modes_off ();
     mouse_mode = MOUSE_SELECTION_BEGIN;
     selection_mode = SELECTION_2D;
     GLV_Hold_Mouse ();
     break;
   case RENDER_SELECTION_3D:
+    modes_off ();
     mouse_mode = MOUSE_SELECTION_BEGIN;
     selection_mode = SELECTION_3D;
     GLV_Hold_Mouse ();
@@ -946,28 +1231,24 @@ static void menu_tools (int item)
   switch (item)
   {
   case TOOLS_TRANSPARENT:
-    mouse_mode = MOUSE_PICK_BODY;
-    tool_mode = item;
-    break;
+  case TOOLS_ROUGH_MESH:
   case TOOLS_HIDE:
+    modes_off ();
     mouse_mode = MOUSE_PICK_BODY;
     tool_mode = item;
+    GLV_Hold_Mouse ();
     break;
   case TOOLS_SHOW_ALL:
-    break;
     for (BODY *bod = domain->bod; bod; bod = bod->next)
     { BODY_DATA *data = bod->rendering; data->flags &= ~HIDDEN; }
     update_extents ();
-    break;
-  case TOOLS_ROUGH_MESH:
-    mouse_mode = MOUSE_PICK_BODY;
-    tool_mode = item;
     break;
   }
 }
 
 static void menu_kinds (int item)
 {
+  legend = item;
 }
 
 static void menu_analysis (int item)
@@ -1017,6 +1298,7 @@ static void menu_analysis (int item)
 
 static void menu_results (int item)
 {
+  legend = item;
 }
 
 /* callabacks */
@@ -1043,7 +1325,6 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("toggle transparent /t/", TOOLS_TRANSPARENT);
   glutAddMenuEntry ("hide /h/", TOOLS_HIDE);
   glutAddMenuEntry ("show all /a/", TOOLS_SHOW_ALL);
-  glutAddMenuEntry ("clipping plane /c/", TOOLS_CLIPPING_PLANE);
   glutAddMenuEntry ("toggle rough mesh /r/", TOOLS_ROUGH_MESH);
 
   menu_name [MENU_KINDS] = "kinds of";
@@ -1101,19 +1382,19 @@ int RND_Menu (char ***names, int **codes)
 
 void RND_Init ()
 {
-  BODY *bod;
-  SET *set;
+  int w, h;
 
   ASSERT (domain, ERR_RND_NO_DOMAIN);
 
   MEM_Init (&selsetmem, sizeof (SET), BIGCHUNK);
-  set = NULL;
 
-  for (bod = domain->bod; bod; bod = bod->next) SET_Insert (&selsetmem, &set, bod, NULL);
-
-  selection_push (set);
+  selection_init ();
 
   update_extents ();
+
+  GLV_Sizes (&w, &h);
+
+  time_window = GLV_Open_Viewport (0, -(h - TIME_HEIGHT), time_width (), TIME_HEIGHT, 0, time_render);
 }
 
 int  RND_Idle ()
@@ -1132,6 +1413,8 @@ void RND_Quit ()
 void RND_Render ()
 {
   render_body_set (selection->set);
+
+  render_picked_body ();
 }
 
 void RND_Key (int key, int x, int y)
@@ -1139,6 +1422,8 @@ void RND_Key (int key, int x, int y)
   switch (key)
   {
   case 27:
+    modes_off ();
+    GLV_Redraw_All ();
     break;
   case '\r':
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
@@ -1170,9 +1455,6 @@ void RND_Key (int key, int x, int y)
     break;
   case 'a':
     menu_tools (TOOLS_SHOW_ALL);
-    break;
-  case 'c':
-    menu_tools (TOOLS_CLIPPING_PLANE);
     break;
   case 'r':
     menu_tools (TOOLS_ROUGH_MESH);
@@ -1221,10 +1503,7 @@ void RND_Mouse (int button, int state, int x, int y)
 	default: break;
 	}
 
-	mouse_mode = MOUSE_NONE;
-	selection_mode = SELECTION_NONE;
-	GLV_Rectangle_Off ();
-	GLV_Release_Mouse ();
+	modes_off ();
         update_extents ();
       }
       break;
@@ -1234,6 +1513,25 @@ void RND_Mouse (int button, int state, int x, int y)
 	mouse_mode = MOUSE_SELECTION_END;
 	mouse_start [0] = x;
 	mouse_start [1] = y;
+      }
+      else if (mouse_mode == MOUSE_PICK_BODY && picked_body)
+      {
+	BODY_DATA *data = picked_body->rendering;
+
+	switch (tool_mode)
+	{
+	case TOOLS_TRANSPARENT:
+	  if (data->flags & TRANSPARENT) data->flags &= ~TRANSPARENT;
+	  else data->flags |= TRANSPARENT;
+	  break;
+	case TOOLS_HIDE: data->flags |= HIDDEN; break;
+	case TOOLS_ROUGH_MESH:
+	  if (data->flags & ROUGH_MESH) data->flags &= ~ROUGH_MESH;
+	  else if (picked_body->msh) data->flags |= ROUGH_MESH;
+	  break;
+	}
+
+	GLV_Redraw_All ();
       }
       break;
     }
@@ -1271,6 +1569,11 @@ void RND_Motion (int x, int y)
 
 void RND_Passive (int x, int y)
 {
+  if (mouse_mode == MOUSE_PICK_BODY)
+  {
+    picked_body = pick_body (x, y);
+    GLV_Redraw_All ();
+  }
 }
 
 /* user callable routines */
@@ -1320,6 +1623,8 @@ void RND_Free_Rendering_Data (void *ptr)
 
   glDeleteBuffersARB (1, &data->triangles);
   glDeleteBuffersARB (1, &data->lines);
+
+  if (data->rough) RND_Free_Rendering_Data (data->rough);
 
   free (data);
 }

@@ -207,9 +207,6 @@ MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, 
 /* compute current kinetic energy */
 double BODY_Kinetic_Energy (BODY *bod);
 
-/* get some values at a node of a geometrical object */
-void BODY_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values);
-
 /* get some values at a referential point */
 void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values);
 
