@@ -1,0 +1,56 @@
+#
+# Specify C compiller here
+#
+
+CC = cc
+
+# 
+# Debug or optimized version switch (yes/no)
+#
+
+DEBUG = yes
+PROFILE = no
+MEMDEBUG = no
+GEOMDEBUG = no
+NOTHROW = no
+
+#
+# POSIX
+#
+
+POSIX = yes
+
+#
+# BLAS
+#
+
+BLAS = -L/usr/lib -lblas
+
+#
+# LAPACK
+#
+
+LAPACK = -L/usr/lib -llapack
+
+#
+# Python
+#
+
+PYTHON = -I/usr/include/python2.5
+PYTHONLIB = -L/usr/lib -lpython2.5
+
+#
+# OpenGL (yes/no)
+#
+
+OPENGL = yes
+GLINC = -I/usr/include
+GLLIB = -L/usr/lib -lglut
+
+#
+# MPI (yes/no)
+#
+
+MPI = no
+ZOLTANINC =
+ZOLTANLIB =
