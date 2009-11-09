@@ -38,7 +38,8 @@ static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
 {
   lngfinalize (); /* finalize interpreter: as a result
 		     flush output buffers if possible */
-  MPI_Finalize ();
+
+  MPI_Abort (MPI_COMM_WORLD, 0);
 
   exit (1);
 }
