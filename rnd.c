@@ -66,18 +66,25 @@ struct body_data
 
   double **vertex_sources,
 	 **normal_sources,
-	 **vertex_value_sources,
+	  *vertex_values, /* as many values as vertices (triangles_count * 3) */
+	 **vertex_value_sources, /* maps vertices to 'values' */
 	 **line_sources;
 
-  double *values; /* vertex scalar field values */
+  double *values; /* unique vertex scalar field values */
 
   VALUE_SOURCE *value_sources; /* value sources */
 
   int values_count;
 
+  short values_updated; /* update flag */
+
   ELEPNT **color_sources; /* only for FEM */
 
-  double **spheres; /* center and radius and three points pointer tuples */
+  MAP *surfaces; /* map surface ids to sets of &vertex_values [i] pointers */
+
+  MAP *volumes; /* map volume ids to sets of &vertex_values [i] pointers */
+
+  SPHERE **spheres; /* sphere spheres */
 
   GLfloat *sphere_colors; /* sphere surface colors */
 
@@ -124,6 +131,10 @@ enum /* menu items */
   TOOLS_HIDE,
   TOOLS_SHOW_ALL,
   TOOLS_ROUGH_MESH,
+  TOOLS_PREVIOUS_RESULT,
+  TOOLS_NEXT_RESULT,
+  TOOLS_SMALLER_ARROWS,
+  TOOLS_BIGGER_ARROWS,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -173,9 +184,31 @@ enum selection_mode
 
 typedef enum selection_mode SELECTION_MODE;
 
+typedef struct legend_data LEGEND_DATA;
+
+struct legend_data
+{
+  short preventity;
+
+  short entity;
+
+  double extents [2];
+
+  int range; /* number of items in the legend */
+
+  int window;
+
+  SET *discrete;
+
+  double constant; /* value_to_color mapping regularisation constant */
+};
+
 /* declarations */
 
 static void menu_analysis (int);
+static void menu_kinds (int);
+static void menu_results (int);
+static void update ();
 
 /* global data */
 
@@ -197,7 +230,9 @@ static int menu_code [MENU_LAST]; /* menu codes */
 
 static SELECTION *selection = NULL; /* current selection */
 
-static MEM selsetmem; /* selection sets memory */
+static MEM rndsetmem; /* sets memory */
+
+static MEM rndmapmem;  /* maps memory */
 
 static int skip_steps = 1; /* number of steps to skip when rewinding analysis */
 
@@ -205,17 +240,25 @@ static MOUSE_MODE mouse_mode = MOUSE_NONE;
 
 static SELECTION_MODE selection_mode = SELECTION_NONE;
 
+static GLfloat neutral_color [3] = {0.8, 0.8, 0.8};
+
 static int mouse_start [2] = {0, 0};
 
 static short tool_mode = 0; /* current tool */
 
 static BODY *picked_body = NULL; /* currently picked body */
 
+static double arrow_factor = 0.05; /* arrow drawing constant */
+
 static int time_window = 0; /* time window handler */
 #define TIME_HEIGHT 16 /* time window height */
 #define TIME_FONT GLV_FONT_8_BY_13
 
-static int legend = 0; /* legend flag */
+static LEGEND_DATA legend; /* legend data */
+#define LEGEND_ROWS 8 /* number of rows in the legend */
+#define LEGEND_WIDTH_DISC 50 /* legend width for discrete data */
+#define LEGEND_WIDTH_CONT 100 /* legend width for continuous data */
+#define LEGEND_FONT GLV_FONT_8_BY_13
 
 /* body transparency test */
 #define TRANSPARENT(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & TRANSPARENT)
@@ -231,7 +274,7 @@ static void selection_init ()
 
   while (selection)
   {
-    SET_Free (&selsetmem, &selection->set);
+    SET_Free (&rndsetmem, &selection->set);
     prev = selection->prev;
     free (selection);
     selection = prev;
@@ -239,7 +282,7 @@ static void selection_init ()
   
   ERRMEM (selection = malloc (sizeof (SELECTION)));
 
-  for (selection->set = NULL, bod = domain->bod; bod; bod = bod->next) SET_Insert (&selsetmem, &selection->set, bod, NULL);
+  for (selection->set = NULL, bod = domain->bod; bod; bod = bod->next) SET_Insert (&rndsetmem, &selection->set, bod, NULL);
 
   selection->prev = NULL;
 }
@@ -262,7 +305,7 @@ static void selection_pop ()
   if (selection->prev)
   {
     SELECTION *top = selection;
-    SET_Free (&selsetmem, &selection->set);
+    SET_Free (&rndsetmem, &selection->set);
     selection = selection->prev;
     free (top);
   }
@@ -297,16 +340,101 @@ static int rgbatoid (unsigned char *rgba)
   return id;
 }
 
+
+/* Hue to RBG color mapping */
+static GLfloat Hue_2_RGB (double v1, double  v2, double vH)
+{
+  if (vH < 0.0) vH += 1.0;
+  if (vH > 1.0) vH -= 1.0;
+  if ((6.0 * vH) < 1.0) return (v1 + (v2 - v1) * 6.0 * vH);
+  if ((2.0 * vH) < 1.0) return (v2);
+  if ((3.0 * vH) < 2.0) return (v1 + (v2 - v1) * ((2.0/3.0) - vH) * 6.0);
+  return v1;
+}
+
+/* HSL to RBG color mapping */
+static void HSL_2_RGB (double H, double S, double L, GLfloat *RGB)
+{
+  if (S == 0)
+  {
+    RGB [0] = L;
+    RGB [1] = L;
+    RGB [2] = L;
+  }
+  else
+  {
+    double var_1, var_2;
+
+    if (L < 0.5) var_2 = L * (1.0 + S);
+    else var_2 = (L + S) - (S * L);
+
+    var_1 = 2.0 * L - var_2;
+
+    RGB [0] = Hue_2_RGB (var_1, var_2, H + (1.0/3.0));
+    RGB [1] = Hue_2_RGB (var_1, var_2, H);
+    RGB [2] = Hue_2_RGB (var_1, var_2, H - (1.0/3.0));
+  }
+}
+
 /* translate scalar value into color */
 inline static void value_to_color (double value, GLfloat *color)
 {
-  SET (color, 0.8);
+  HSL_2_RGB (0.69 * (1.0-(value-legend.extents[0])/(legend.extents[1]-legend.extents[0]+legend.constant)), 1.0, 0.45, color);
 }
 
-/* obtain scalar point value */
-static double point_value (BODY *bod, double *point)
+/* is legend constraint based */
+static short legend_constraint_based (void)
 {
-  return 0.0;
+  if ((legend.entity >= KINDS_OF_CONSTRAINTS &&
+       legend.entity <= KINDS_OF_FORCES) ||
+      (legend.entity >= RESULTS_RT &&
+       legend.entity <= RESULTS_R)) return 1;
+
+  return 0;
+}
+
+/* obtain scalar sphere point value */
+static double sphere_value (BODY *bod, SPHERE *sph)
+{
+  double values [7];
+  VALUE_KIND kind;
+  short index;
+
+  switch (legend.entity)
+  {
+  case KINDS_OF_BODIES: return bod->kind;
+  case KINDS_OF_SURFACES:  return sph->surface;
+  case KINDS_OF_VOLUMES: return sph->volume;
+  case RESULTS_DX:
+  case RESULTS_DY:
+  case RESULTS_DZ:
+    kind = VALUE_DISPLACEMENT;
+    index = legend.entity - RESULTS_DX;
+    break;
+  case RESULTS_VX:
+  case RESULTS_VY:
+  case RESULTS_VZ:
+    kind = VALUE_VELOCITY;
+    index = legend.entity - RESULTS_VX;
+    break;
+  case RESULTS_SX:
+  case RESULTS_SY:
+  case RESULTS_SZ:
+  case RESULTS_SXY:
+  case RESULTS_SXZ:
+  case RESULTS_SYZ:
+    kind = VALUE_STRESS;
+    index = legend.entity - RESULTS_SX;
+    break;
+  case RESULTS_MISES:
+    kind = VALUE_MISES;
+    index = 0;
+    break;
+  }
+
+  BODY_Point_Values (bod, sph->ref_center, kind, values);
+
+  return values [index];
 }
 
 /* compare pointer pair */
@@ -335,10 +463,23 @@ static void register_line (MEM *pairmem, MEM *setmem, SET **lset, double *a, dou
   if (!SET_Insert (setmem, lset, pair, (SET_Compare) paircompare)) MEM_Free (pairmem, pair);
 }
 
+/* register an identifier in a map of sets */
+static void register_identifier (MAP **map, int identifier, double *val)
+{
+  MAP *item;
+
+  if (!(item = MAP_Find_Node (*map, (void*) (long) identifier, NULL)))
+  {
+    ERRMEM (item = MAP_Insert (&rndmapmem, map, (void*) (long) identifier, NULL, NULL));
+  }
+
+  SET_Insert (&rndsetmem, (SET**) &item->data, val, NULL);
+}
+
 /* create body rendering data */
 static BODY_DATA* create_body_data (BODY *bod)
 {
-  double **vsr, **nsr, **lsr, **vvs, **end, *pla;
+  double **vsr, **nsr, **lsr, **vvs, **end, *pla, *val;
   GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
   MEM pairmem, mapmem, setmem;
   VALUE_SOURCE *source;
@@ -402,13 +543,9 @@ static BODY_DATA* create_body_data (BODY *bod)
       {
 	data->spheres_count ++;
 
-	ERRMEM (data->spheres = realloc (data->spheres, data->spheres_count * sizeof (double*) * 5));
-	j = (data->spheres_count - 1) * 5;
-	data->spheres [j] = sph->cur_center;
-	data->spheres [j+1] = &sph->cur_radius;
-	data->spheres [j+2] = &sph->cur_points [0][0];
-	data->spheres [j+3] = &sph->cur_points [1][0];
-	data->spheres [j+4] = &sph->cur_points [2][0];
+	ERRMEM (data->spheres = realloc (data->spheres, data->spheres_count * sizeof (SPHERE*)));
+	j = (data->spheres_count - 1);
+	data->spheres [j] = sph;
       }
       break;
     }
@@ -419,10 +556,13 @@ static BODY_DATA* create_body_data (BODY *bod)
   ERRMEM (ver = malloc (data->triangles_count * sizeof (GLfloat) * 27));
   nor = ver + data->triangles_count * 9;
   col = nor + data->triangles_count * 9;
-  ERRMEM (data->vertex_sources = malloc (data->triangles_count * sizeof (double*) * 9 + data->lines_count * sizeof (double*) * 2));
+  ERRMEM (data->vertex_sources = malloc (data->triangles_count * (sizeof (double*) * 9 + sizeof (double) * 3) + data->lines_count * sizeof (double*) * 2));
   data->normal_sources = data->vertex_sources + data->triangles_count * 3;
-  data->vertex_value_sources = data->normal_sources + data->triangles_count * 3;
+  data->vertex_values = (double*) (data->normal_sources + data->triangles_count * 3);
+  data->vertex_value_sources = (double**) (data->vertex_values + data->triangles_count * 3);
   data->line_sources = data->vertex_value_sources + data->triangles_count * 3;
+  data->surfaces = NULL;
+  data->volumes = NULL;
 
   for (item = SET_First (lset), lsr = data->line_sources; item; item = SET_Next (item), lsr += 2)
   {
@@ -433,6 +573,7 @@ static BODY_DATA* create_body_data (BODY *bod)
 
   vsr = data->vertex_sources;
   nsr = data->normal_sources;
+  val = data->vertex_values;
 
   for (shp = bod->shape; shp; shp = shp->next)
   {
@@ -444,12 +585,18 @@ static BODY_DATA* create_body_data (BODY *bod)
       {
 	for (fac = ele->faces; fac; fac = fac->next)
 	{
-	  for (i = 1; i < fac->type - 1; i ++, vsr += 3, nsr += 3)
+	  for (i = 1; i < fac->type - 1; i ++, vsr += 3, nsr += 3, val += 3)
 	  {
-	     vsr [0] = &msh->cur_nodes [fac->nodes [0]][0];
-	     vsr [1] = &msh->cur_nodes [fac->nodes [i]][0];
-	     vsr [2] = &msh->cur_nodes [fac->nodes [i+1]][0];
-	     nsr [0] = nsr [1] = nsr [2] = fac->normal;
+	    vsr [0] = &msh->cur_nodes [fac->nodes [0]][0];
+	    vsr [1] = &msh->cur_nodes [fac->nodes [i]][0];
+	    vsr [2] = &msh->cur_nodes [fac->nodes [i+1]][0];
+	    nsr [0] = nsr [1] = nsr [2] = fac->normal;
+	    register_identifier (&data->surfaces, fac->surface, &val [0]);
+	    register_identifier (&data->surfaces, fac->surface, &val [1]);
+	    register_identifier (&data->surfaces, fac->surface, &val [2]);
+	    register_identifier (&data->volumes, ele->volume, &val [0]);
+	    register_identifier (&data->volumes, ele->volume, &val [1]);
+	    register_identifier (&data->volumes, ele->volume, &val [2]);
 	  }
 	}
       }
@@ -459,12 +606,18 @@ static BODY_DATA* create_body_data (BODY *bod)
       {
 	for (f = cvx->fac, j = 0, pla = cvx->pla; j < cvx->nfac; f += f[0]+1, j ++, pla += 4)
 	{
-	  for (i = 2; i <= f[0]-1; i ++, vsr += 3, nsr += 3)
+	  for (i = 2; i <= f[0]-1; i ++, vsr += 3, nsr += 3, val += 3)
 	  {
 	    vsr [0] = &cvx->cur [f[1]];
 	    vsr [1] = &cvx->cur [f[i]];
 	    vsr [2] = &cvx->cur [f[i+1]];
 	    nsr [0] = nsr [1] = nsr [2] = pla;
+	    register_identifier (&data->surfaces, cvx->surface [j], &val [0]);
+	    register_identifier (&data->surfaces, cvx->surface [j], &val [1]);
+	    register_identifier (&data->surfaces, cvx->surface [j], &val [2]);
+	    register_identifier (&data->volumes, cvx->volume, &val [0]);
+	    register_identifier (&data->volumes, cvx->volume, &val [1]);
+	    register_identifier (&data->volumes, cvx->volume, &val [2]);
 	  }
 	}
       }
@@ -499,7 +652,7 @@ static BODY_DATA* create_body_data (BODY *bod)
     COPY (*vsr, v);
     COPY (*nsr, n);
     ASSERT_DEBUG_EXT (*vvs = MAP_Find (vmap, *vsr, NULL), "Inconsistent vertex mapping");
-    value_to_color (**vvs, c);
+    COPY (neutral_color, c);
   }
 
   for (lsr = data->line_sources,
@@ -513,8 +666,10 @@ static BODY_DATA* create_body_data (BODY *bod)
   {
     ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
 
-    for (c = data->sphere_colors, vsr = data->spheres, v = c + data->spheres_count * 3; c < v; c += 3, vsr += 5)
-      value_to_color (point_value (bod, *vsr), c);
+    for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+    {
+      COPY (neutral_color, c);
+    }
   }
 
   glGenBuffersARB (1, &data->lines);
@@ -534,33 +689,105 @@ static BODY_DATA* create_body_data (BODY *bod)
   return data;
 }
 
-/* update body rendering data */
-static void update_body_data (BODY *bod, BODY_DATA *data)
+/* update body set constraint or force legend values */
+static void update_body_constraint_or_force_values (BODY *bod)
 {
-  double **vsr, **nsr, **lsr, **vvs, **end, *val, values [7];
-  GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
+  BODY_DATA *data = bod->rendering;
+  double value;
+  FORCE *force;
+  SET *item;
+  CON *con;
+
+  if (data->flags & HIDDEN) return;
+
+  if (legend.entity != KINDS_OF_FORCES)
+  {
+    for (item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      con = item->data;
+
+      if (con->state & CON_DONERND) continue;
+
+      switch (legend.entity)
+      {
+      case KINDS_OF_CONSTRAINTS: 
+        SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) con->kind, NULL);
+	value = con->kind;
+	break;
+      case RESULTS_RT: value = LEN2 (con->R); break;
+      case RESULTS_RN: value = fabs (con->R[2]); break;
+      case RESULTS_R: value = LEN (con->R); break;
+      }
+
+      if (value < legend.extents [0]) legend.extents [0] = value;
+      if (value > legend.extents [1]) legend.extents [1] = value;
+
+      con->state |= CON_DONERND;
+    }
+  }
+  else
+  {
+    for (force = bod->forces; force; force = force->next)
+    {
+      if (force->data == NULL) continue;
+
+      value = TMS_Value (force->data, domain->time);
+
+      if (value < legend.extents [0]) legend.extents [0] = value;
+      if (value > legend.extents [1]) legend.extents [1] = value;
+    }
+  }
+}
+
+/* update body values */
+static void update_body_values (BODY *bod, BODY_DATA *data)
+{
+  double **vvs, *val, *end, values [7] = {0, 0, 0, 0, 0, 0, 0};
   VALUE_SOURCE *src, *last;
   VALUE_KIND kind;
   short index;
+  MAP *item;
+  SET *jtem;
 
-  if (legend)
+  if (legend.entity >= KINDS_OF_BODIES && legend.entity < RESULTS_RT)
   {
-    switch (legend)
+    switch (legend.entity)
     {
-    case KINDS_OF_BODIES: break;
-    case KINDS_OF_SURFACES: break;
-    case KINDS_OF_VOLUMES: break;
+    case KINDS_OF_BODIES:
+      for (val = data->vertex_values, end = val + data->triangles_count * 3; val < end; val ++) *val = (double) bod->kind;
+      if (bod->kind < legend.extents [0]) legend.extents [0] = bod->kind;
+      if (bod->kind > legend.extents [1]) legend.extents [1] = bod->kind;
+      SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) bod->kind, NULL);
+      break;
+    case KINDS_OF_SURFACES:
+      for (item = MAP_First (data->surfaces); item; item = MAP_Next (item))
+      {
+	for (jtem = SET_First (item->data); jtem; jtem = SET_Next (jtem)) val = jtem->data, *val = (double) (long) item->key;
+	if ((double) (long) item->key < legend.extents [0]) legend.extents [0] = (double) (long) item->key;
+	if ((double) (long) item->key > legend.extents [1]) legend.extents [1] = (double) (long) item->key;
+        SET_Insert (&rndsetmem, &legend.discrete, item->key, NULL);
+      }
+      break;
+    case KINDS_OF_VOLUMES:
+      for (item = MAP_First (data->volumes); item; item = MAP_Next (item))
+      {
+	for (jtem = SET_First (item->data); jtem; jtem = SET_Next (jtem)) val = jtem->data, *val = (double) (long) item->key;
+	if ((double) (long) item->key < legend.extents [0]) legend.extents [0] = (double) (long) item->key;
+	if ((double) (long) item->key > legend.extents [1]) legend.extents [1] = (double) (long) item->key;
+        SET_Insert (&rndsetmem, &legend.discrete, item->key, NULL);
+      }
+      break;
     case RESULTS_DX:
     case RESULTS_DY:
     case RESULTS_DZ:
       kind = VALUE_DISPLACEMENT;
-      index = legend - RESULTS_DX;
+      index = legend.entity - RESULTS_DX;
       break;
     case RESULTS_VX:
     case RESULTS_VY:
     case RESULTS_VZ:
       kind = VALUE_VELOCITY;
-      index = legend - RESULTS_VX;
+      index = legend.entity - RESULTS_VX;
       break;
     case RESULTS_SX:
     case RESULTS_SY:
@@ -569,7 +796,7 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
     case RESULTS_SXZ:
     case RESULTS_SYZ:
       kind = VALUE_STRESS;
-      index = legend - RESULTS_SX;
+      index = legend.entity - RESULTS_SX;
       break;
     case RESULTS_MISES:
       kind = VALUE_MISES;
@@ -577,7 +804,7 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
       break;
     }
 
-    if (legend >= RESULTS_DX)
+    if (legend.entity >= RESULTS_DX)
     {
       src = data->value_sources;
       last = src + data->values_count;
@@ -591,6 +818,8 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
 	  {
 	    FEM_Element_Point_Values (bod, src->epn->ele, src->epn->pnt, kind, values);
 	    *val = values [index];
+	    if (*val < legend.extents [0])  legend.extents [0] = *val;
+	    if (*val > legend.extents [1])  legend.extents [1] = *val;
 	  }
 	}
 	else
@@ -599,19 +828,57 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
 	  {
 	    FEM_Cur_Node_Values (bod, src->pnt, kind, values);
 	    *val = values [index];
+	    if (*val < legend.extents [0])  legend.extents [0] = *val;
+	    if (*val > legend.extents [1])  legend.extents [1] = *val;
 	  }
 	}
       }
-      else
+      else if (bod->kind != OBS)
       {
 	for (; src < last; src ++, val ++)
 	{
 	  BODY_Point_Values (bod, src->pnt, kind, values);
 	  *val = values [index];
+	  if (*val < legend.extents [0])  legend.extents [0] = *val;
+	  if (*val > legend.extents [1])  legend.extents [1] = *val;
 	}
       }
+
+      /* update vertex values */
+      for (val = data->vertex_values, vvs = data->vertex_value_sources,
+	   end = val + data->triangles_count * 3; val < end; vvs ++, val ++) *val = **vvs;
+    }
+
+    SPHERE **sph, **end;
+
+    for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    {
+      values [0] = sphere_value (bod, *sph);
+      if (values[0] < legend.extents [0])  legend.extents [0] = values[0];
+      if (values[0] > legend.extents [1])  legend.extents [1] = values[0];
+    }
+
+    switch (bod->kind)
+    {
+    case OBS:
+      data->values_updated = legend.entity < RESULTS_DX;
+      break;
+    case RIG:
+      data->values_updated = legend.entity < RESULTS_SX;
+      break;
+    default:
+      data->values_updated = 1;
+      break;
     }
   }
+  else if (legend.entity) update_body_constraint_or_force_values (bod);
+}
+
+/* update body rendering data */
+static void update_body_data (BODY *bod, BODY_DATA *data)
+{
+  double **vsr, **nsr, **lsr, **end, *val, *tail;
+  GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
   lin = glMapBufferARB (GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
@@ -632,17 +899,41 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
 
   for (vsr = data->vertex_sources,
        nsr = data->normal_sources,
-       vvs = data->vertex_value_sources,
        end = vsr + data->triangles_count * 3,
-       v = ver, n = nor, c = col; vsr < end;
-       vsr ++, nsr ++, vvs ++, v += 3, n += 3, c += 3)
+       v = ver, n = nor; vsr < end;
+       vsr ++, nsr ++, val ++, v += 3, n += 3)
   {
     COPY (*vsr, v);
     COPY (*nsr, n);
-    value_to_color (**vvs, c);
   }
 
+  if (data->values_updated)
+  {
+    for (val = data->vertex_values, tail = val + data->triangles_count * 3, c = col; val < tail;  val ++, c += 3) value_to_color (*val, c);
+  }
+  else for (c = col, l = c + data->triangles_count * 9; c < l;  c += 3) { COPY (neutral_color, c); }
+
   glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
+
+  if (data->spheres_count)
+  {
+    SPHERE **sph;
+
+    if (data->values_updated)
+    {
+      for (c = data->sphere_colors, sph = data->spheres, v = c + data->spheres_count * 3; c < v; c += 3, sph ++)
+      {
+	value_to_color (sphere_value (bod, *sph), c);
+      }
+    }
+    else
+    {
+      for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+      {
+	COPY (neutral_color, c);
+      }
+    }
+  }
 
   if (data->rough) update_body_data (bod, data->rough);
 }
@@ -666,6 +957,222 @@ static void selection_render_sphere_triangles (double *center, double radius)
     glTranslated (center[0], center[1], center[2]);
     glutSolidSphere (radius, 12, 12);
   glPopMatrix ();
+}
+
+/* get legend caption */
+static char* legend_caption ()
+{
+  switch (legend.entity)
+  {
+  case KINDS_OF_CONSTRAINTS: return "CONSTRAINT KINDS";
+  case KINDS_OF_FORCES: return "FORCE KINDS";
+  case KINDS_OF_BODIES: return "BODY KINDS";
+  case KINDS_OF_SURFACES: return "SURFACE KINDS";
+  case KINDS_OF_VOLUMES: return "VOLUME KINDS";
+  case RESULTS_DX: return "DX";
+  case RESULTS_DY: return "DY";
+  case RESULTS_DZ: return "DZ";
+  case RESULTS_VX: return "VX";
+  case RESULTS_VY: return "VY";
+  case RESULTS_VZ: return "VZ";
+  case RESULTS_SX: return "SX";
+  case RESULTS_SY: return "SY";
+  case RESULTS_SZ: return "SZ";
+  case RESULTS_SXY: return "SXY";
+  case RESULTS_SXZ: return "SXZ";
+  case RESULTS_SYZ: return "SYZ";
+  case RESULTS_MISES: return "MISES";
+  case RESULTS_RN: return "RN";
+  case RESULTS_RT: return "RT";
+  case RESULTS_R: return "R";
+  }
+
+  return NULL;
+}
+
+/* get legend caption widtth */
+static int legend_caption_width ()
+{
+  return GLV_Print_Width (LEGEND_FONT, legend_caption ()) + 9;
+}
+
+/* get legend width */
+static int legend_width ()
+{
+  int i, j;
+
+  i = legend.range / LEGEND_ROWS;
+  if (legend.range % LEGEND_ROWS) i ++;
+
+  if (legend.discrete) i *= LEGEND_WIDTH_DISC;
+  else i *= LEGEND_WIDTH_CONT;
+
+  j = legend_caption_width ();
+
+  return MAX (i, j);
+}
+
+/* get legend height */
+static int legend_height ()
+{
+  int i;
+
+  i = MIN (legend.range, LEGEND_ROWS) + 1;
+
+  return MAX (i, 1) * 16 + 6;
+}
+
+/* get legend value string */
+char *legend_value_string (void *data)
+{
+  if (legend.entity == KINDS_OF_CONSTRAINTS)
+  {
+    switch ((int)data)
+    {
+      case CONTACT: return "CNT";
+      case FIXPNT: return "PNT";
+      case FIXDIR: return "DIR";
+      case VELODIR: return "VEL";
+      case RIGLNK: return "LNK";
+      default: return "???";
+    }
+  }
+  else if (legend.entity == KINDS_OF_BODIES)
+  {
+    switch ((int)data)
+    {
+      case OBS: return "OBS";
+      case RIG: return "RIG";
+      case PRB: return "PRB";
+      case FEM: return "FEM";
+      default: return "???";
+    }
+  }
+
+  return NULL;
+}
+
+/* render legend */
+static void legend_render ()
+{
+  GLfloat color [4] = {1, 1, 1, 1};
+  double value, step;
+  int i, j, k, l;
+  GLint v [4];
+  char *str;
+  SET *item;
+
+  glDisable (GL_LIGHTING);
+  glDisable (GL_DEPTH_TEST);
+
+  glGetIntegerv (GL_VIEWPORT, v);
+  glColor3f (1, 1, 1);
+  glRecti (v[0] + 3, v[1] + 3, 3 + legend_caption_width (), 19);
+  glColor3f (0, 0, 0);
+  GLV_Print (v[0] + 6, v[1] + 6, 0, LEGEND_FONT, "%s", legend_caption ());
+
+  if (legend.discrete)
+  {
+    glPushMatrix ();
+    glTranslated (3, 3, 0);
+    for (i = 1, j = 0, item = SET_First (legend.discrete); item; item = SET_Next (item))
+    {
+      value_to_color ((double)(int)item->data, color);
+      glColor3fv (color);
+      glRecti (v[0] + j * LEGEND_WIDTH_DISC, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16 + 16);
+      if ((str = legend_value_string (item->data)))
+      {
+	glColor3f (1, 1, 1);
+	l = GLV_Print_Width (LEGEND_FONT, str) + 5;
+	glRecti (v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
+        glColor3f (0, 0, 0);
+        GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, str);
+      }
+      else
+      {
+	glColor3f (1, 1, 1);
+	l = GLV_Print_Width (LEGEND_FONT, "%d", (int)item->data) + 5;
+	glRecti (v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
+        glColor3f (0, 0, 0);
+	GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%d", (int)item->data);
+      }
+      if (i ++ == LEGEND_ROWS) { i = 1; j ++; }
+    }
+    glPopMatrix ();
+  }
+  else
+  {
+    if (legend.extents [0] < DBL_MAX)
+    {
+      step = (legend.extents [1] - legend.extents [0]) / (double) legend.range;
+      value = legend.extents [0] + 0.5 * step;
+
+      glPushMatrix ();
+      glTranslated (3, 3, 0);
+      for (i = 1, j = k = 0; k < legend.range; k ++, value += step)
+      {
+	value_to_color (value, color);
+	glColor3fv (color);
+	glRecti (v[0] + j * LEGEND_WIDTH_CONT, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_CONT + 16, v[1] + i * 16 + 16);
+	glColor3f (1, 1, 1);
+	l = GLV_Print_Width (LEGEND_FONT, "%.2e", value) + 5;
+	glRecti (v[0] + j * LEGEND_WIDTH_CONT + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_CONT + 16 + l, v[1] + (i+1) * 16);
+	glColor3f (0, 0, 0);
+	GLV_Print (v[0] + j * LEGEND_WIDTH_CONT + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%.2e", value);
+	if (i ++ == LEGEND_ROWS) { i = 1; j ++; }
+      }
+      glPopMatrix ();
+    }
+  }
+
+  glEnable (GL_LIGHTING);
+  glEnable (GL_DEPTH_TEST);
+}
+
+/* disable_legend */
+static void legend_disable ()
+{
+  if (legend.window)
+  {
+    GLV_Close_Viewport (legend.window);
+
+    legend.window = 0;
+  }
+
+  if (legend.entity)
+  {
+    for (BODY *bod = domain->bod; bod; bod = bod->next)
+    {
+      BODY_DATA *data = bod->rendering;
+      data->values_updated = 0;
+    }
+
+    legend.preventity = legend.entity;
+
+    legend.entity = 0;
+  }
+}
+
+/* enable legend */
+static void legend_enable ()
+{
+  if (legend.discrete)legend.range = SET_Size (legend.discrete);
+  else
+  {
+    if (legend.extents [0] == legend.extents [1]) legend.range = 1;
+    else legend.range = 8;
+  }
+
+  legend.constant = legend.range <= 1 ? 1.0 : 0.0;
+
+  if (legend.window) GLV_Close_Viewport (legend.window);
+  legend.window = GLV_Open_Viewport (0, 0, legend_width (), legend_height (), 0, legend_render);
+}
+
+/* pop previous legend entity */
+static void legend_pop ()
+{
+  if ((legend.entity = legend.preventity)) update ();
 }
 
 /* render sphere points */
@@ -708,11 +1215,11 @@ static void render_body_triangles (BODY *bod, short skip)
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 
-  double **sph, **end;
+  SPHERE **sph, **end;
   GLfloat *col;
 
-  for (sph = data->spheres, end = sph + data->spheres_count * 5, col = data->sphere_colors; sph < end; sph += 5, col += 3)
-    render_sphere_triangles (sph[0], *sph[1], col);
+  for (sph = data->spheres, end = sph + data->spheres_count, col = data->sphere_colors; sph < end; sph ++, col += 3)
+    render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius, col);
 }
 
 /* render body lines */
@@ -738,10 +1245,10 @@ static void render_body_lines (BODY *bod, short skip)
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 
-  double **sph, **end;
+  SPHERE **sph, **end;
 
-  for (sph = data->spheres, end = sph + data->spheres_count * 5; sph < end; sph += 5)
-    render_sphere_points (sph[2], sph[3], sph[4]);
+  for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    render_sphere_points ((*sph)->cur_points[0], (*sph)->cur_points[1], (*sph)->cur_points[2]);
 }
 
 /* render body triangles for selection */
@@ -766,10 +1273,10 @@ static void selection_render_body_triangles (BODY *bod)
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 
-  double **sph, **end;
+  SPHERE **sph, **end;
 
-  for (sph = data->spheres, end = sph + data->spheres_count * 5; sph < end; sph += 5)
-    selection_render_sphere_triangles (sph[0], *sph[1]);
+  for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    selection_render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius);
 }
 
 /* render rough mesh */
@@ -822,48 +1329,462 @@ static void render_rough_mesh (BODY *bod)
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 }
 
+/* render contact */
+static void render_contact (CON *con, GLfloat color [3])
+{
+  double other [3],
+	 scal = GLV_Minimal_Extent() * 0.03;
+
+  glColor3fv (color);
+
+  glPointSize (3.0);
+  glBegin (GL_POINTS);
+    glVertex3dv (con->point);
+  glEnd ();
+  glPointSize (1.0);
+
+  ADDMUL (con->point, 0.5*scal, con->base, other);
+
+  glLineWidth (2.0);
+  glBegin (GL_LINES);
+    glVertex3dv (con->point);
+    glVertex3dv (other);
+  glEnd ();
+  glLineWidth (1.0);
+
+  ADDMUL (con->point, 0.5*scal, con->base+3, other);
+
+  glLineWidth (2.0);
+  glBegin (GL_LINES);
+    glVertex3dv (con->point);
+    glVertex3dv (other);
+  glEnd ();
+  glLineWidth (1.0);
+
+  ADDMUL (con->point, scal, con->base+6, other);
+
+  glLineWidth (2.0);
+  glBegin (GL_LINES);
+    glVertex3dv (con->point);
+    glVertex3dv (other);
+  glEnd ();
+  glLineWidth (1.0);
+}
+
+/* render fixed point */
+static void render_fixpnt (CON *con, GLfloat color [3])
+{
+  glColor3fv (color);
+  glPointSize (4.0);
+  glBegin (GL_POINTS);
+    glVertex3dv (con->point);
+  glEnd ();
+  glPointSize (1.0);
+}
+
+/* render fixed direction */
+static void render_fixdir (CON *con, GLfloat color [3])
+{
+  double other [3],
+	 scal = GLV_Minimal_Extent() * 0.03;
+
+  glColor3fv (color);
+
+  glPointSize (3.0);
+  glBegin (GL_POINTS);
+    glVertex3dv (con->point);
+  glEnd ();
+  glPointSize (1.0);
+
+  ADDMUL (con->point, scal, con->base+6, other);
+
+  glLineWidth (2.0);
+  glBegin (GL_LINES);
+    glVertex3dv (con->point);
+    glVertex3dv (other);
+  glEnd ();
+  glLineWidth (1.0);
+}
+
+/* render velocity constraint */
+static void render_velodir (CON *con, GLfloat color [3])
+{
+  double other [3],
+	 scal = GLV_Minimal_Extent() * 0.03;
+
+  glColor3fv (color);
+
+  glPointSize (3.0);
+  glBegin (GL_POINTS);
+    glVertex3dv (con->point);
+  glEnd ();
+  glPointSize (1.0);
+
+  ADDMUL (con->point, scal, con->base+6, other);
+
+  glLineWidth (2.0);
+  glBegin (GL_LINES);
+    glVertex3dv (con->point);
+    glVertex3dv (other);
+  glEnd ();
+  glLineWidth (1.0);
+}
+
+/* render rigid link constraint */
+static void render_riglnk (CON *con, GLfloat color [3])
+{
+  double other [3];
+
+  ADD (con->point, RIGLNK_VEC (con->Z), other);
+
+  glColor3fv (color);
+
+  glPointSize (3.0);
+  glBegin (GL_POINTS);
+    glVertex3dv (con->point);
+    glVertex3dv (other);
+  glEnd ();
+  glPointSize (1.0);
+  
+  glLineWidth (2.0);
+  glBegin (GL_LINES);
+    glVertex3dv (con->point);
+    glVertex3dv (other);
+  glEnd ();
+  glLineWidth (1.0);
+}
+
+/* draw arrow from p to q */
+static void arrow3d (double *p, double *q)
+{
+  double R [9],
+	 a [3],
+	 b [3],
+	 c [3],
+	 d [3],
+	 x [3],
+	 y [3],
+	 t [3],
+	 r [3],
+	 n [3],
+	 l,
+	 o,
+	 s,
+	 angle;
+  int i, div = 2;
+
+  SUB (q, p, d);
+  MAXABSIDX (d, i);
+  SET (x, 1.0);
+  ADD (x, d, x);
+  x [i] = 0.0;
+  PRODUCT (d, x, t);
+  l = LEN (d);
+  DIV (d, l, d);
+  COPY (d, n);
+  SCALE (n, -1);
+  NORMALIZE (t);
+  o = 0.65 * l;
+  ADDMUL (p, o, d, r);
+  angle = ALG_PI / (double) div;
+  SCALE (d, angle);
+  EXPMAP (d, R);
+  o = 0.075 * l;
+  s = 0.150 * l;
+
+  ADDMUL (p, o, t, a);
+  ADDMUL (r, o, t, b);
+
+  div *= 2;
+
+  for (i = 0; i < div; i ++)
+  {
+    SUB (b, r, x);
+    NVMUL (R, x, y);
+    ADD (r, y, c);
+
+    SUB (a, r, x);
+    NVMUL (R, x, y);
+    ADD (r, y, d);
+
+    glNormal3dv (y);
+    glBegin (GL_QUADS);
+    glVertex3dv (d);
+    glVertex3dv (c);
+    glVertex3dv (b);
+    glVertex3dv (a);
+    glEnd ();
+
+    COPY (c, b);
+    COPY (d, a);
+  }
+
+  ADDMUL (r, o, t, a);
+  ADDMUL (r, s, t, b);
+  for (i = 0; i < div; i ++)
+  {
+    SUB (b, r, x);
+    NVMUL (R, x, y);
+    ADD (r, y, c);
+
+    SUB (a, r, x);
+    NVMUL (R, x, y);
+    ADD (r, y, d);
+
+    glNormal3dv (n);
+    glBegin (GL_QUADS);
+    glVertex3dv (d);
+    glVertex3dv (c);
+    glVertex3dv (b);
+    glVertex3dv (a);
+    glEnd ();
+
+    NORMAL (b, c, a, x);
+    glNormal3dv (x);
+    glBegin (GL_TRIANGLES);
+    glVertex3dv (b);
+    glVertex3dv (c);
+    glVertex3dv (q);
+    glEnd ();
+
+    COPY (c, b);
+    COPY (d, a);
+  }
+
+  ADDMUL (p, o, t, a);
+  glNormal3dv (n);
+  glBegin (GL_POLYGON);
+  glVertex3dv (a);
+  for (i = 0; i < div; i ++)
+  {
+    SUB (a, p, x);
+    TVMUL (R, x, y);
+    ADD (p, y, b);
+    glVertex3dv (b);
+    COPY (b, a);
+  }
+  glEnd ();
+}
+
+/* render tangential reactions */
+static void render_rt (CON *con, GLfloat color [3])
+{
+  double r [3],
+	 other [3],
+	 ext = GLV_Minimal_Extent() * arrow_factor,
+	 eps, len;
+
+  COPY (con->base, r);
+  SCALE (r, con->R[0]);
+  ADDMUL (r, con->R[1], con->base+3, r);
+  len = LEN (r);
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  ADDMUL (con->point, -eps, r, other);
+
+  glColor3fv (color);
+  arrow3d (other, con->point);
+}
+
+/* render normal reactions */
+static void render_rn (CON *con, GLfloat color [3])
+{
+  double r [3],
+	 other [3],
+	 ext = GLV_Minimal_Extent() * arrow_factor,
+	 eps, len;
+
+  COPY (con->base + 6, r);
+  SCALE (r, con->R[2]);
+  len = LEN (r);
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  ADDMUL (con->point, -eps, r, other);
+
+  glColor3fv (color);
+  arrow3d (other, con->point);
+}
+
+/* render reaction */
+static void render_r (CON *con, GLfloat color [3])
+{
+  double r [3],
+	 other [3],
+	 ext = GLV_Minimal_Extent() * arrow_factor,
+	 eps,
+	 len;
+
+  COPY (con->base, r);
+  SCALE (r, con->R[0]);
+  ADDMUL (r, con->R[1], con->base+3, r);
+  ADDMUL (r, con->R[2], con->base+6, r);
+  len = LEN (r);
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  ADDMUL (con->point, -eps, r, other);
+
+  glColor3fv (color);
+  arrow3d (other, con->point);
+}
+
+/* render force constraint */
+static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
+{
+  double r [3],
+	 other [3],
+	 point [3],
+	 ext = GLV_Minimal_Extent() * arrow_factor,
+	 eps,
+	 len;
+
+  if (bod->kind == FEM)
+  {
+    SGP *sgp;
+    int n;
+
+    if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, force->ref_point)) < 0) return; /* TODO: optimize */
+    BODY_Cur_Point (bod, sgp->shp, sgp->gobj, force->ref_point, point); /* TODO: optimize */
+  }
+  else BODY_Cur_Point (bod, NULL, NULL, force->ref_point, point);
+
+  COPY (force->direction, r);
+  len = TMS_Value (force->data, domain->time);
+  SCALE (r, len);
+  len = LEN (r);
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  ADDMUL (point, -eps, r, other);
+
+  glColor3fv (color);
+  arrow3d (other, point);
+}
+
+/* render body set constraints or forces */
+static void render_body_set_constraints_or_forces (SET *set)
+{
+  GLfloat color [3];
+  SET *item, *jtem;
+  BODY_DATA *data;
+  FORCE *force;
+  BODY *bod;
+  CON *con;
+
+  for (con = domain->con; con; con = con->next) con->state &= ~CON_DONERND; /* all undone */
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    data = bod->rendering;
+
+    if (data->flags & HIDDEN) continue;
+
+    if (legend.entity != KINDS_OF_FORCES) /* redner constraint */
+    {
+      for (jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
+      {
+	con = jtem->data;
+
+	if (con->state & CON_DONERND) continue;
+
+	switch (legend.entity)
+	{
+	case KINDS_OF_CONSTRAINTS:
+
+	  value_to_color (con->kind, color);
+
+	  switch (con->kind)
+	  {
+	    case CONTACT: render_contact (con, color); break;
+	    case FIXPNT: render_fixpnt (con, color); break;
+	    case FIXDIR: render_fixdir (con, color); break;
+	    case VELODIR: render_velodir (con, color); break;
+	    case RIGLNK: render_riglnk (con, color); break;
+	  }
+
+	  break;
+	case RESULTS_RT: value_to_color (LEN2 (con->R), color); render_rt (con, color); break;
+	case RESULTS_RN: value_to_color (fabs (con->R[2]), color); render_rn (con, color); break;
+	case RESULTS_R:  value_to_color (LEN (con->R), color); render_r (con, color); break;
+	}
+
+	con->state |= CON_DONERND;
+      }
+    }
+    else /* render force */
+    {
+      for (force = bod->forces; force; force = force->next)
+      {
+	if (force->data == NULL) continue;
+
+	value_to_color (TMS_Value (force->data, domain->time), color);
+	render_force (bod, force, color);
+      }
+    }
+  }
+}
+
 /* render body set */
 static void render_body_set (SET *set)
 {
   GLfloat color [4] = {0.0, 0.0, 0.0, 0.4};
   SET *item;
 
-  glDisable (GL_LIGHTING);
-  glColor3fv (color);
-
-  for (item = SET_First (set); item; item = SET_Next (item))
+  if (legend_constraint_based ()) /* render constraints or forces over transparent volumes */
   {
-    render_body_lines (item->data, TRANSPARENT|HIDDEN);
-  }
+    glDisable (GL_LIGHTING);
+    render_body_set_constraints_or_forces (set);
+    glEnable (GL_LIGHTING);
 
-  glEnable (GL_LIGHTING);
-  glEnable (GL_POLYGON_OFFSET_FILL);
-  glPolygonOffset (1.0, 1.0);
+    glEnable (GL_BLEND);
+    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    COPY (neutral_color, color);
 
-  for (item = SET_First (set); item; item = SET_Next (item))
-  {
-    render_body_triangles (item->data, TRANSPARENT|HIDDEN);
-  }
-
-  glEnable (GL_BLEND);
-  glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  color [0] = color [1] = color [2] = 0.8;
-
-  for (item = SET_First (set); item; item = SET_Next (item))
-  {
-    if (item->data == picked_body) continue;
-
-    if (TRANSPARENT (item->data))
+    for (item = SET_First (set); item; item = SET_Next (item))
     {
+      if (item->data == picked_body) continue;
+
       glColor4fv (color);
       render_body_lines (item->data, HIDDEN);
       selection_render_body_triangles (item->data);
     }
 
-    if (ROUGH_MESH (item->data)) render_rough_mesh (item->data);
+    glDisable (GL_BLEND);
   }
+  else /* regular rendering */
+  {
+    glDisable (GL_LIGHTING);
+    glColor3fv (color);
 
-  glDisable (GL_BLEND);
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      render_body_lines (item->data, TRANSPARENT|HIDDEN);
+    }
+
+    glEnable (GL_LIGHTING);
+    glEnable (GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset (1.0, 1.0);
+
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      render_body_triangles (item->data, TRANSPARENT|HIDDEN);
+    }
+
+    glEnable (GL_BLEND);
+    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    COPY (neutral_color, color);
+
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      if (item->data == picked_body) continue;
+
+      if (TRANSPARENT (item->data))
+      {
+	glColor4fv (color);
+	render_body_lines (item->data, HIDDEN);
+	selection_render_body_triangles (item->data);
+      }
+
+      if (ROUGH_MESH (item->data)) render_rough_mesh (item->data);
+    }
+
+    glDisable (GL_BLEND);
+  }
 }
 
 /* render body set for 2D selection */
@@ -955,6 +1876,23 @@ static void update_extents ()
 /* update bodies */
 static void update ()
 {
+  if (legend.entity)
+  {
+    legend.extents [0] =  DBL_MAX;
+    legend.extents [1] = -DBL_MAX;
+
+    SET_Free (&rndsetmem, &legend.discrete);
+
+    if (legend_constraint_based ()) 
+    {
+      for (CON *con = domain->con; con; con = con->next) con->state &= ~CON_DONERND; /* all undone */
+    }
+
+    for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_values (bod, bod->rendering);
+
+    legend_enable ();
+  }
+
   for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_data (bod, bod->rendering);
 
   GLV_Redraw_All ();
@@ -1037,7 +1975,7 @@ static void select_2D (int x1, int y1, int x2, int y2)
 
   ERRMEM (pix = malloc (m * sizeof (unsigned char [4])));
   glReadPixels (x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pix);
-  for (ids = NULL, n = 0; n < m; n ++) SET_Insert (&selsetmem, &ids, (void*) rgbatoid (pix [n]), NULL);
+  for (ids = NULL, n = 0; n < m; n ++) SET_Insert (&rndsetmem, &ids, (void*) (long) rgbatoid (pix [n]), NULL);
   free (pix);
 
   if (ids)
@@ -1045,12 +1983,12 @@ static void select_2D (int x1, int y1, int x2, int y2)
     for (set = NULL, item = SET_First (ids); item; item = SET_Next (item))
     {
       bod = MAP_Find (domain->idb, item->data, NULL);
-      if (bod) SET_Insert (&selsetmem, &set, bod, NULL);
+      if (bod) SET_Insert (&rndsetmem, &set, bod, NULL);
     }
 
-    selection_push (set);
+    if (set) selection_push (set);
 
-    SET_Free (&selsetmem, &ids);
+    SET_Free (&rndsetmem, &ids);
   }
 }
 
@@ -1096,7 +2034,7 @@ static void select_3D (int x1, int y1, int x2, int y2)
       for (k = 0; k < sel [m]; k ++)
       {
 	bod = MAP_Find (domain->idb, (void*) sel [m+3+k], NULL);
-	if (bod) SET_Insert (&selsetmem, &set, bod, NULL);
+	if (bod) SET_Insert (&rndsetmem, &set, bod, NULL);
       }
     }
 
@@ -1124,14 +2062,17 @@ static BODY* pick_body (int x, int y)
 }
 
 /* disable all modes */
-static void modes_off ()
+static int modes_off ()
 {
+  int ret = tool_mode;
   mouse_mode = MOUSE_NONE;
   selection_mode = SELECTION_NONE;
   tool_mode = 0;
   picked_body = NULL;
   GLV_Rectangle_Off ();
   GLV_Release_Mouse ();
+  update ();
+  return ret;
 }
 
 /* time window width */
@@ -1208,12 +2149,14 @@ static void menu_render (int item)
   switch (item)
   {
   case RENDER_SELECTION_2D:
+    legend_disable ();
     modes_off ();
     mouse_mode = MOUSE_SELECTION_BEGIN;
     selection_mode = SELECTION_2D;
     GLV_Hold_Mouse ();
     break;
   case RENDER_SELECTION_3D:
+    legend_disable ();
     modes_off ();
     mouse_mode = MOUSE_SELECTION_BEGIN;
     selection_mode = SELECTION_3D;
@@ -1243,12 +2186,43 @@ static void menu_tools (int item)
     { BODY_DATA *data = bod->rendering; data->flags &= ~HIDDEN; }
     update_extents ();
     break;
+  case TOOLS_NEXT_RESULT:
+    if (legend.entity)
+    {
+      if (legend.entity < RESULTS_R)
+      {
+	legend.entity ++;
+	update ();
+      }
+    }
+    else menu_kinds (KINDS_OF_CONSTRAINTS);
+    break;
+  case TOOLS_PREVIOUS_RESULT:
+    if (legend.entity)
+    {
+      if (legend.entity > KINDS_OF_CONSTRAINTS)
+      {
+	legend.entity --;
+	update ();
+      }
+    }
+    else menu_results (RESULTS_R);
+    break;
+  case TOOLS_SMALLER_ARROWS:
+    if (arrow_factor > 0.02) arrow_factor -= 0.01;
+    GLV_Redraw_All ();
+    break;
+  case TOOLS_BIGGER_ARROWS:
+    if (arrow_factor < 0.10) arrow_factor += 0.01;
+    GLV_Redraw_All ();
+    break;
   }
 }
 
 static void menu_kinds (int item)
 {
-  legend = item;
+  legend.entity = item;
+  update ();
 }
 
 static void menu_analysis (int item)
@@ -1298,7 +2272,8 @@ static void menu_analysis (int item)
 
 static void menu_results (int item)
 {
-  legend = item;
+  legend.entity = item;
+  update ();
 }
 
 /* callabacks */
@@ -1326,6 +2301,10 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("hide /h/", TOOLS_HIDE);
   glutAddMenuEntry ("show all /a/", TOOLS_SHOW_ALL);
   glutAddMenuEntry ("toggle rough mesh /r/", TOOLS_ROUGH_MESH);
+  glutAddMenuEntry ("next result /+/", TOOLS_NEXT_RESULT);
+  glutAddMenuEntry ("previous result /-/", TOOLS_PREVIOUS_RESULT);
+  glutAddMenuEntry ("bigger arrows /]/", TOOLS_BIGGER_ARROWS);
+  glutAddMenuEntry ("smaller arrows /[/", TOOLS_SMALLER_ARROWS);
 
   menu_name [MENU_KINDS] = "kinds of";
   menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
@@ -1386,11 +2365,18 @@ void RND_Init ()
 
   ASSERT (domain, ERR_RND_NO_DOMAIN);
 
-  MEM_Init (&selsetmem, sizeof (SET), BIGCHUNK);
+  MEM_Init (&rndsetmem, sizeof (SET), BIGCHUNK);
+
+  MEM_Init (&rndmapmem, sizeof (MAP), BIGCHUNK);
 
   selection_init ();
 
   update_extents ();
+
+  legend.preventity = 0;
+  legend.entity = 0;
+  legend.window = 0;
+  legend.discrete = NULL;
 
   GLV_Sizes (&w, &h);
 
@@ -1422,8 +2408,8 @@ void RND_Key (int key, int x, int y)
   switch (key)
   {
   case 27:
-    modes_off ();
-    GLV_Redraw_All ();
+    legend_disable ();
+    if (modes_off ()) legend_pop ();
     break;
   case '\r':
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
@@ -1460,11 +2446,18 @@ void RND_Key (int key, int x, int y)
     menu_tools (TOOLS_ROUGH_MESH);
     break;
   case '=':
+    menu_tools (TOOLS_NEXT_RESULT);
     break;
   case '-':
+    menu_tools (TOOLS_PREVIOUS_RESULT);
+    break;
+  case '[':
+    menu_tools (TOOLS_SMALLER_ARROWS);
+    break;
+  case ']':
+    menu_tools (TOOLS_BIGGER_ARROWS);
     break;
   }
-
 }
 
 void RND_Keyspec (int key, int x, int y)
@@ -1505,6 +2498,7 @@ void RND_Mouse (int button, int state, int x, int y)
 
 	modes_off ();
         update_extents ();
+	legend_pop ();
       }
       break;
     case GLUT_DOWN:
