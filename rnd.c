@@ -1888,7 +1888,11 @@ static void update ()
       for (CON *con = domain->con; con; con = con->next) con->state &= ~CON_DONERND; /* all undone */
     }
 
-    for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_values (bod, bod->rendering);
+    for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
+    {
+      BODY *bod = item->data;
+      update_body_values (bod, bod->rendering);
+    }
 
     legend_enable ();
   }
@@ -2165,6 +2169,7 @@ static void menu_render (int item)
   case RENDER_PREVIOUS_SELECTION:
     selection_pop ();
     update_extents ();
+    update ();
     break;
   }
 }
