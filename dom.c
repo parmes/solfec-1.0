@@ -2867,6 +2867,22 @@ static int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
   return 0;
 }
 
+/* attach constraints to bodies */
+static void dom_attach_constraints (DOM *dom)
+{
+  BODY *bod;
+  CON *con;
+
+  for (bod = dom->bod; bod; bod = bod->next) SET_Free (&dom->setmem, &bod->con);
+
+  for (con = dom->con; con; con = con->next)
+  {
+    if (con->master) SET_Insert (&dom->setmem, &con->master->con, con, NULL);
+
+    if (con->slave) SET_Insert (&dom->setmem, &con->slave->con, con, NULL);
+  }
+}
+
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg)
 {
@@ -2890,6 +2906,8 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 
     if (cmp == CMP_OFF) dom_read_state (dom, bf);
     else dom_read_state_compressed (dom, bf);
+
+    dom_attach_constraints (dom); /* attach constraints to bodies */
   }
 }
 

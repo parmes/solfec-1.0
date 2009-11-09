@@ -77,11 +77,14 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
 /* compute current kinetic energy */
 double FEM_Kinetic_Energy (BODY *bod);
 
-/* get some values at a node of a geometrical object */
-void FEM_Nodal_Values (BODY *bod, SHAPE *shp, void *gobj, int node, VALUE_KIND kind, double *values);
-
 /* get some values at a referential point */
 void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values);
+
+/* get some values at a local point of an element */
+void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIND kind, double *values);
+
+/* get some values at a curent mesh node */
+void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *values);
 
 /* issued by state reading routines of body interface */
 void FEM_Update_Rough_Mesh (BODY *bod);

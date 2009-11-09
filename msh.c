@@ -452,6 +452,8 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
   MEM_Init (elemem, sizeof (ELEMENT), elements_count);
   MEM_Init (&facmem, sizeof (FACE), MEMCHUNK);
   MEM_Init (&mapmem, sizeof (MAP), MEMCHUNK);
+  MEM_Init (&msh->mapmem, sizeof (MAP), MIN (elements_count, 128));
+  msh->map = NULL;
 
   elist = NULL;
   flist = NULL;
@@ -1160,6 +1162,7 @@ void MESH_Destroy (MESH *msh)
 
   MEM_Release (&msh->facmem);
   MEM_Release (&msh->elemem);
+  MEM_Release (&msh->mapmem);
   free (msh->ref_nodes);
   free (msh);
 }

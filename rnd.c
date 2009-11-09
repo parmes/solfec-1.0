@@ -28,68 +28,113 @@
 #include <limits.h>
 #include <float.h>
 #include <math.h>
-#include "sol.h"
 #include "set.h"
 #include "alg.h"
+#include "glv.h"
+#include "sol.h"
 #include "msh.h"
 #include "cvx.h"
 #include "sph.h"
 #include "shp.h"
-#include "glv.h"
-#include "err.h"
-#include "rnd.h"
 #include "lng.h"
+#include "rnd.h"
+#include "fem.h"
+#include "err.h"
 
-/* ------------------------------------------------- */
-static DOM *domain = NULL; /* global domain pointer */
-/* ----------------------------------------------- */
+typedef union value_source VALUE_SOURCE; /* vertex value source */
 
-#define solfec ((SOLFEC*)domain->owner)
+union value_source
+{
+  ELEPNT *epn;
 
-typedef struct solver_interface SOLVER_INTERFACE;
+  double *pnt;
+};
 
-struct solver_interface
+typedef struct body_data BODY_DATA; /* body rendering data */
+
+struct body_data
+{
+  enum {TRANSPARENT = 0x01,         /* transparency flag */
+        HIDDEN      = 0x02,         /* hidden state */
+	ROUGH_MESH  = 0x04} flags;  /* rough mesh rendering */
+
+  GLuint triangles, /* VBO of triangle vertices, normals and colors */
+	 lines; /* VBO of line vertices */
+
+  GLsizei triangles_count,
+	  lines_count;
+
+  double **vertex_sources,
+	 **normal_sources,
+	  *vertex_values, /* as many values as vertices (triangles_count * 3) */
+	 **vertex_value_sources, /* maps vertices to 'values' */
+	 **line_sources;
+
+  double *values; /* unique vertex scalar field values */
+
+  VALUE_SOURCE *value_sources; /* value sources */
+
+  int values_count;
+
+  short values_updated; /* update flag */
+
+  ELEPNT **color_sources; /* only for FEM */
+
+  MAP *surfaces; /* map surface ids to sets of &vertex_values [i] pointers */
+
+  MAP *volumes; /* map volume ids to sets of &vertex_values [i] pointers */
+
+  SPHERE **spheres; /* sphere spheres */
+
+  GLfloat *sphere_colors; /* sphere surface colors */
+
+  int spheres_count;
+
+  BODY_DATA *rough; /* rough mesh rendering */
+};
+
+typedef struct solver_data SOLVER_DATA; /* solver interface */
+
+struct solver_data
 {
   int kind;
-  short *solver;
+
+  void *solver;
 };
 
-static MAP *solver_interfaces = NULL; /* maps domains to solver interfaces */
+typedef struct pointer_pair POINTER_PAIR; /* pointer pair */
 
-#define SHAPE_ELEMENT 1978 /* an arbirary number higher then shapes defined in shp.h */
-
-static short vieweron = 0; /* viewer flag  */
-
-static int domain_menu,
-           render_menu,
-	   tools_menu,
-	   kindsof_menu,
-	   analysis_menu,
-	   analysis_menu_items,
-	   results_menu; /* menu handles */
-
-static int analysis_skip_steps = 1; /* skip steps when rewinding forward or backward */
-
-static MAP *selection = NULL; /* selected bodies */
-
-enum /* rendering flags */
+struct pointer_pair
 {
-  OUTLINE = 0x01,
-  SELECTION = 0x02
+  double *one, *two;
 };
+
+typedef struct selection SELECTION; /* body selection set */
+
+struct selection
+{
+  SET *set;
+
+  SELECTION *prev;
+};
+
+enum {MENU_DOMAIN = 0, MENU_RENDER, MENU_TOOLS, MENU_ANALYSIS, MENU_KINDS, MENU_RESULTS, MENU_LAST}; /* menu identifiers */
 
 enum /* menu items */
 {
   DOMAIN_NEXT,
-  DOMAIN_PREV,
-  RENDER_ALL,
+  DOMAIN_PREVIOUS,
   RENDER_SELECTION_2D,
   RENDER_SELECTION_3D,
-  TOOLS_TOGGLE_VISIBLE,
-  TOOLS_CLIPPING_PLANE,
-  TOOLS_SWITCH_OFF,
-  TOOLS_SWITCH_ON_ALL,
-  TOOLS_ROUGH_MESH_ON,
+  RENDER_PREVIOUS_SELECTION,
+  TOOLS_TRANSPARENT,
+  TOOLS_HIDE,
+  TOOLS_SHOW_ALL,
+  TOOLS_ROUGH_MESH,
+  TOOLS_PREVIOUS_RESULT,
+  TOOLS_NEXT_RESULT,
+  TOOLS_SMALLER_ARROWS,
+  TOOLS_BIGGER_ARROWS,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -97,11 +142,11 @@ enum /* menu items */
   ANALYSIS_FORWARD,
   ANALYSIS_BACKWARD,
   ANALYSIS_SKIP,
-  KINDSOF_CONSTRAINTS,
-  KINDSOF_FORCES,
-  KINDSOF_BODIES,
-  KINDSOF_SURFACES,
-  KINDSOF_VOLUMES,
+  KINDS_OF_CONSTRAINTS,
+  KINDS_OF_FORCES,
+  KINDS_OF_BODIES,
+  KINDS_OF_SURFACES,
+  KINDS_OF_VOLUMES,
   RESULTS_DX,
   RESULTS_DY,
   RESULTS_DZ,
@@ -120,87 +165,181 @@ enum /* menu items */
   RESULTS_R
 };
 
-static enum /* mouse mode */
+enum mouse_mode
 {
-  MOUSE_MODE_NONE,
-  MOUSE_SELECTION_2D_BEGIN,
-  MOUSE_SELECTION_2D_END,
-  MOUSE_SELECTION_3D_BEGIN,
-  MOUSE_SELECTION_3D_END,
-} mousemode;
+  MOUSE_NONE,
+  MOUSE_SELECTION_BEGIN,
+  MOUSE_SELECTION_END,
+  MOUSE_PICK_BODY
+};
 
-static int mouse_x,
-	   mouse_y; /* selection coordinates */
+typedef enum mouse_mode MOUSE_MODE;
 
-static int current_tool = 0;
-
-static enum /* tool modifier flags */
+enum selection_mode
 {
-  TOOL_FLAG_SWITCH_OFF = 1, /* mutate toggle visible into switch off */
-  TOOL_FLAG_ROUGH_MESH_ON,  /* rough mesh on tool */
-} tool_flag = 0;
+  SELECTION_NONE,
+  SELECTION_2D,
+  SELECTION_3D
+};
 
-BODY *toggle_visible = NULL;
+typedef enum selection_mode SELECTION_MODE;
 
-static double clipping_factor;
-static double clipping_plane [4];  /* clipping plane */
-static double clipping_quad [8][3]; /* plane clipping quadrangle */
+typedef struct legend_data LEGEND_DATA;
 
-static int volumetric_map = 0; /* volumetric map flag */
-static int volumetric_map_range = 1; /* number of items in the volumetric map */
-static int volumetric_map_kind = 0; /* kind of item drawn */
-static int volumetric_map_window = 0; /* map legend window */
-static int volumetric_map_is_discrete = 0; /* dicrete map flag */
-static SET *volumetric_map_discrete; /* set of discrete data */
-static double volumetric_map_min = 0; /* minimum of the volumetric map values */
-static double volumetric_map_max = 1; /* maximum */
-#define MAP_LEGEND_ROWS 8 /* number of rows in the map legend */
-#define WIDTH_DISC 50 /* legend width for discrete data */
-#define WIDTH_CONT 100 /* legend width for continuous data */
-#define LEGEND_FONT GLV_FONT_8_BY_13
+struct legend_data
+{
+  short preventity;
 
-static int time_window; /* time window handler */
+  short entity;
+
+  double extents [2];
+
+  int range; /* number of items in the legend */
+
+  int window;
+
+  SET *discrete;
+
+  double constant; /* value_to_color mapping regularisation constant */
+};
+
+/* declarations */
+
+static void menu_analysis (int);
+static void menu_kinds (int);
+static void menu_results (int);
+static void update ();
+
+/* global data */
+
+#define CHUNK 256 /* memory pool items chunk */
+
+#define BIGCHUNK 1024 /* memory pool items big chunk */
+
+static short enabled = 0; /* renderin on/off */
+
+static DOM *domain = NULL; /* current domain */
+
+#define solfec ((SOLFEC*)domain->owner) /* current solfec */
+
+static MAP *solvers = NULL; /* maps domains to solvers */
+
+static char* menu_name [MENU_LAST];  /* menu names */
+
+static int menu_code [MENU_LAST]; /* menu codes */
+
+static SELECTION *selection = NULL; /* current selection */
+
+static MEM rndsetmem; /* sets memory */
+
+static MEM rndmapmem;  /* maps memory */
+
+static int skip_steps = 1; /* number of steps to skip when rewinding analysis */
+
+static MOUSE_MODE mouse_mode = MOUSE_NONE;
+
+static SELECTION_MODE selection_mode = SELECTION_NONE;
+
+static GLfloat neutral_color [3] = {0.8, 0.8, 0.8};
+
+static int mouse_start [2] = {0, 0};
+
+static short tool_mode = 0; /* current tool */
+
+static BODY *picked_body = NULL; /* currently picked body */
+
+static double arrow_factor = 0.05; /* arrow drawing constant */
+
+static int time_window = 0; /* time window handler */
 #define TIME_HEIGHT 16 /* time window height */
 #define TIME_FONT GLV_FONT_8_BY_13
 
-typedef void (*FUNC_OFF) (); /* turning off function callback */
+static LEGEND_DATA legend; /* legend data */
+#define LEGEND_ROWS 8 /* number of rows in the legend */
+#define LEGEND_WIDTH_DISC 50 /* legend width for discrete data */
+#define LEGEND_WIDTH_CONT 100 /* legend width for continuous data */
+#define LEGEND_FONT GLV_FONT_8_BY_13
 
-#define FUNC_OFF_MAX 512
+/* body transparency test */
+#define TRANSPARENT(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & TRANSPARENT)
 
-static FUNC_OFF off_stack [FUNC_OFF_MAX]; /* stack of off functions */
-static int last_off = 0;
+/* body rough mesh flag test */
+#define ROUGH_MESH(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & ROUGH_MESH)
 
-/* push on off stack */
-static void pushoff (FUNC_OFF func)
+/* initialize selection */
+static void selection_init ()
 {
-  ASSERT (last_off < FUNC_OFF_MAX, ERR_RND_STACK_OVERFLOW);
-  off_stack [last_off ++] = func;
-}
+  SELECTION *prev;
+  BODY *bod;
 
-/* pop from off stack */
-static void popoff ()
-{
-  if (last_off > 0) off_stack [-- last_off] ();
-}
-
-/* find function on stack, call it and remove */
-static void deloff (FUNC_OFF func)
-{
-  int n;
-
-  for (n = 0; n < last_off; n ++)
+  while (selection)
   {
-    if (off_stack [n] == func)
-    {
-      func ();
+    SET_Free (&rndsetmem, &selection->set);
+    prev = selection->prev;
+    free (selection);
+    selection = prev;
+  }
+  
+  ERRMEM (selection = malloc (sizeof (SELECTION)));
 
-      for (; n + 1 < last_off; n ++)
-	off_stack [n] = off_stack [n + 1];
+  for (selection->set = NULL, bod = domain->bod; bod; bod = bod->next) SET_Insert (&rndsetmem, &selection->set, bod, NULL);
 
-      last_off --;
-    }
+  selection->prev = NULL;
+}
+
+/* push new selection on stack */
+static void selection_push (SET *set)
+{
+  SELECTION *s;
+
+  ERRMEM (s = malloc (sizeof (SELECTION)));
+  s->prev = selection;
+  s->set = set;
+
+  selection = s;
+}
+
+/* pop most recent selection */
+static void selection_pop ()
+{
+  if (selection->prev)
+  {
+    SELECTION *top = selection;
+    SET_Free (&rndsetmem, &selection->set);
+    selection = selection->prev;
+    free (top);
   }
 }
+
+/* convert body id into an RGBA code */
+static void idtorgba (int id, GLfloat color [4])
+{
+  unsigned char rgba [4];
+
+  rgba [0] = ((unsigned char*)&id) [0];
+  rgba [1] = ((unsigned char*)&id) [1];
+  rgba [2] = ((unsigned char*)&id) [2];
+  rgba [3] = ((unsigned char*)&id) [3];
+
+  color [0] = (GLfloat) rgba [0] / 255.0f;
+  color [1] = (GLfloat) rgba [1] / 255.0f;
+  color [2] = (GLfloat) rgba [2] / 255.0f;
+  color [3] = (GLfloat) rgba [3] / 255.0f;
+}
+
+/* convert RGBA to body id */
+static int rgbatoid (unsigned char *rgba)
+{
+  int id;
+
+  ((unsigned char*)&id) [0] = rgba [0];
+  ((unsigned char*)&id) [1] = rgba [1];
+  ((unsigned char*)&id) [2] = rgba [2];
+  ((unsigned char*)&id) [3] = rgba [3];
+
+  return id;
+}
+
 
 /* Hue to RBG color mapping */
 static GLfloat Hue_2_RGB (double v1, double  v2, double vH)
@@ -237,52 +376,599 @@ static void HSL_2_RGB (double H, double S, double L, GLfloat *RGB)
   }
 }
 
-/* value to color mapping */
-inline static void mapcolor (double min, double val, double max, GLfloat *color)
+/* translate scalar value into color */
+inline static void value_to_color (double value, GLfloat *color)
 {
-  HSL_2_RGB (0.69 * (1.0-(val-min)/(max-min)), 1.0, 0.45, color);
+  HSL_2_RGB (0.69 * (1.0-(value-legend.extents[0])/(legend.extents[1]-legend.extents[0]+legend.constant)), 1.0, 0.45, color);
 }
 
-/* switch off tools */
-static void tools_off ()
+/* is legend constraint based */
+static short legend_constraint_based (void)
 {
-  current_tool = 0;
-  tool_flag = 0;
-  toggle_visible = NULL;
-  GLV_Redraw_All ();
+  if ((legend.entity >= KINDS_OF_CONSTRAINTS &&
+       legend.entity <= KINDS_OF_FORCES) ||
+      (legend.entity >= RESULTS_RT &&
+       legend.entity <= RESULTS_R)) return 1;
+
+  return 0;
 }
 
-/* time window width */
-static int time_width ()
+/* obtain scalar sphere point value */
+static double sphere_value (BODY *bod, SPHERE *sph)
 {
-  return GLV_Print_Width (TIME_FONT, "t=%g", domain->time) + 6;
-}
+  double values [7];
+  VALUE_KIND kind;
+  short index;
 
-/* render current time */
-static void render_time ()
-{
-  glDisable (GL_LIGHTING);
-  glDisable (GL_DEPTH_TEST);
-
-  glColor3f (1, 1, 1);
-  glRecti (0, 0, time_width (), TIME_HEIGHT);
-  glColor3f (0, 0, 0);
-  GLV_Print (3, 3, 0, TIME_FONT, "t=%g", domain->time);
-
-  glEnable (GL_LIGHTING);
-  glEnable (GL_DEPTH_TEST);
-}
-
-/* get caption text */
-static char* map_legend_caption ()
-{
-  switch (volumetric_map_kind)
+  switch (legend.entity)
   {
-  case KINDSOF_CONSTRAINTS: return "CONSTRAINT KINDS";
-  case KINDSOF_FORCES: return "FORCE KINDS";
-  case KINDSOF_BODIES: return "BODY KINDS";
-  case KINDSOF_SURFACES: return "SURFACE KINDS";
-  case KINDSOF_VOLUMES: return "VOLUME KINDS";
+  case KINDS_OF_BODIES: return bod->kind;
+  case KINDS_OF_SURFACES:  return sph->surface;
+  case KINDS_OF_VOLUMES: return sph->volume;
+  case RESULTS_DX:
+  case RESULTS_DY:
+  case RESULTS_DZ:
+    kind = VALUE_DISPLACEMENT;
+    index = legend.entity - RESULTS_DX;
+    break;
+  case RESULTS_VX:
+  case RESULTS_VY:
+  case RESULTS_VZ:
+    kind = VALUE_VELOCITY;
+    index = legend.entity - RESULTS_VX;
+    break;
+  case RESULTS_SX:
+  case RESULTS_SY:
+  case RESULTS_SZ:
+  case RESULTS_SXY:
+  case RESULTS_SXZ:
+  case RESULTS_SYZ:
+    kind = VALUE_STRESS;
+    index = legend.entity - RESULTS_SX;
+    break;
+  case RESULTS_MISES:
+    kind = VALUE_MISES;
+    index = 0;
+    break;
+  }
+
+  BODY_Point_Values (bod, sph->ref_center, kind, values);
+
+  return values [index];
+}
+
+/* compare pointer pair */
+static int paircompare (POINTER_PAIR *a, POINTER_PAIR *b)
+{
+  if (a->one < b->one) return -1;
+  else if (a->one == b->one)
+  {
+    if (a->two < b->two) return -1;
+    else if (a->two == b->two) return 0;
+  }
+
+  return 1;
+}
+
+/* insert a pointer pair into the set */
+static void register_line (MEM *pairmem, MEM *setmem, SET **lset, double *a, double *b)
+{
+  POINTER_PAIR *pair;
+
+  ERRMEM (pair = MEM_Alloc (pairmem));
+
+  pair->one = (a < b ? a : b);
+  pair->two = (a > b ? a : b);
+
+  if (!SET_Insert (setmem, lset, pair, (SET_Compare) paircompare)) MEM_Free (pairmem, pair);
+}
+
+/* register an identifier in a map of sets */
+static void register_identifier (MAP **map, int identifier, double *val)
+{
+  MAP *item;
+
+  if (!(item = MAP_Find_Node (*map, (void*) (long) identifier, NULL)))
+  {
+    ERRMEM (item = MAP_Insert (&rndmapmem, map, (void*) (long) identifier, NULL, NULL));
+  }
+
+  SET_Insert (&rndsetmem, (SET**) &item->data, val, NULL);
+}
+
+/* create body rendering data */
+static BODY_DATA* create_body_data (BODY *bod)
+{
+  double **vsr, **nsr, **lsr, **vvs, **end, *pla, *val;
+  GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
+  MEM pairmem, mapmem, setmem;
+  VALUE_SOURCE *source;
+  POINTER_PAIR *pair;
+  MAP *vmap, *jtem;
+  SET *lset, *item;
+  BODY_DATA *data;
+  int i, j, *f;
+  ELEMENT *ele;
+  SPHERE *sph;
+  CONVEX *cvx;
+  SHAPE *shp;
+  MESH *msh;
+  FACE *fac;
+
+  ERRMEM (data = calloc (sizeof (BODY_DATA), 1));
+
+  MEM_Init (&pairmem, sizeof (POINTER_PAIR), CHUNK);
+  MEM_Init (&mapmem, sizeof (MAP), CHUNK);
+  MEM_Init (&setmem, sizeof (SET), CHUNK);
+  vmap = NULL;
+  lset = NULL;
+
+  for (shp = bod->shape; shp; shp = shp->next)
+  {
+    switch (shp->kind)
+    {
+    case SHAPE_MESH:
+      msh = shp->data;
+      for (ele = msh->surfeles; ele; ele = ele->next)
+      {
+	for (fac = ele->faces; fac; fac = fac->next)
+	{
+	  data->triangles_count += (fac->type - 2);
+
+	  for (i = 0; i < fac->type; i ++) MAP_Insert (&mapmem, &vmap, &msh->cur_nodes [fac->nodes [i]][0], NULL, NULL);
+
+	  for (i = 0; i < fac->type - 1; i ++)
+	    register_line (&pairmem, &setmem, &lset, &msh->cur_nodes [fac->nodes [i]][0], &msh->cur_nodes[fac->nodes [i+1]][0]);
+	  register_line (&pairmem, &setmem, &lset, &msh->cur_nodes [fac->nodes [i]][0], &msh->cur_nodes [fac->nodes [0]][0]);
+	}
+      }
+      break;
+    case SHAPE_CONVEX:
+      for (cvx = shp->data; cvx; cvx = cvx->next)
+      {
+	for (f = cvx->fac, j = 0; j < cvx->nfac; f += f[0]+1, j ++)
+	{
+	  data->triangles_count += (f[0] - 2);
+
+	  for (i = 1; i <= f[0]; i ++) MAP_Insert (&mapmem, &vmap, &cvx->cur [f[i]], cvx, NULL);
+
+	  for (i = 1; i <= f[0]-1; i ++)
+	    register_line (&pairmem, &setmem, &lset, &cvx->cur [f[i]], &cvx->cur [f[i+1]]);
+	  register_line (&pairmem, &setmem, &lset, &cvx->cur [f[i]], &cvx->cur [f[1]]);
+	}
+      }
+      break;
+    case SHAPE_SPHERE:
+      for (sph = shp->data; sph; sph = sph->next)
+      {
+	data->spheres_count ++;
+
+	ERRMEM (data->spheres = realloc (data->spheres, data->spheres_count * sizeof (SPHERE*)));
+	j = (data->spheres_count - 1);
+	data->spheres [j] = sph;
+      }
+      break;
+    }
+  }
+
+  data->lines_count = SET_Size (lset);
+  ERRMEM (lin = malloc (data->lines_count * sizeof (GLfloat) * 6));
+  ERRMEM (ver = malloc (data->triangles_count * sizeof (GLfloat) * 27));
+  nor = ver + data->triangles_count * 9;
+  col = nor + data->triangles_count * 9;
+  ERRMEM (data->vertex_sources = malloc (data->triangles_count * (sizeof (double*) * 9 + sizeof (double) * 3) + data->lines_count * sizeof (double*) * 2));
+  data->normal_sources = data->vertex_sources + data->triangles_count * 3;
+  data->vertex_values = (double*) (data->normal_sources + data->triangles_count * 3);
+  data->vertex_value_sources = (double**) (data->vertex_values + data->triangles_count * 3);
+  data->line_sources = data->vertex_value_sources + data->triangles_count * 3;
+  data->surfaces = NULL;
+  data->volumes = NULL;
+
+  for (item = SET_First (lset), lsr = data->line_sources; item; item = SET_Next (item), lsr += 2)
+  {
+    pair = item->data;
+    lsr [0] = pair->one;
+    lsr [1] = pair->two;
+  }
+
+  vsr = data->vertex_sources;
+  nsr = data->normal_sources;
+  val = data->vertex_values;
+
+  for (shp = bod->shape; shp; shp = shp->next)
+  {
+    switch (shp->kind)
+    {
+    case SHAPE_MESH:
+      msh = shp->data;
+      for (ele = msh->surfeles; ele; ele = ele->next)
+      {
+	for (fac = ele->faces; fac; fac = fac->next)
+	{
+	  for (i = 1; i < fac->type - 1; i ++, vsr += 3, nsr += 3, val += 3)
+	  {
+	    vsr [0] = &msh->cur_nodes [fac->nodes [0]][0];
+	    vsr [1] = &msh->cur_nodes [fac->nodes [i]][0];
+	    vsr [2] = &msh->cur_nodes [fac->nodes [i+1]][0];
+	    nsr [0] = nsr [1] = nsr [2] = fac->normal;
+	    register_identifier (&data->surfaces, fac->surface, &val [0]);
+	    register_identifier (&data->surfaces, fac->surface, &val [1]);
+	    register_identifier (&data->surfaces, fac->surface, &val [2]);
+	    register_identifier (&data->volumes, ele->volume, &val [0]);
+	    register_identifier (&data->volumes, ele->volume, &val [1]);
+	    register_identifier (&data->volumes, ele->volume, &val [2]);
+	  }
+	}
+      }
+      break;
+    case SHAPE_CONVEX:
+      for (cvx = shp->data; cvx; cvx = cvx->next)
+      {
+	for (f = cvx->fac, j = 0, pla = cvx->pla; j < cvx->nfac; f += f[0]+1, j ++, pla += 4)
+	{
+	  for (i = 2; i <= f[0]-1; i ++, vsr += 3, nsr += 3, val += 3)
+	  {
+	    vsr [0] = &cvx->cur [f[1]];
+	    vsr [1] = &cvx->cur [f[i]];
+	    vsr [2] = &cvx->cur [f[i+1]];
+	    nsr [0] = nsr [1] = nsr [2] = pla;
+	    register_identifier (&data->surfaces, cvx->surface [j], &val [0]);
+	    register_identifier (&data->surfaces, cvx->surface [j], &val [1]);
+	    register_identifier (&data->surfaces, cvx->surface [j], &val [2]);
+	    register_identifier (&data->volumes, cvx->volume, &val [0]);
+	    register_identifier (&data->volumes, cvx->volume, &val [1]);
+	    register_identifier (&data->volumes, cvx->volume, &val [2]);
+	  }
+	}
+      }
+      break;
+    case SHAPE_SPHERE: break;
+    }
+  }
+
+  data->values_count = MAP_Size (vmap); /* number of unique vertices */
+  ERRMEM (data->values = calloc (data->values_count, sizeof (double)));
+  ERRMEM (data->value_sources = malloc (data->values_count * sizeof (VALUE_SOURCE)));
+
+  for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))
+  {
+    if (bod->msh)
+    {
+      cvx = jtem->data; /* must have been mapped to a convex */
+      source->epn = &cvx->epn [((double*)jtem->key - cvx->cur) / 3]; /* extract ELEPNT */
+    }
+    else source->pnt = jtem->key;
+
+    jtem->data = &data->values [source - data->value_sources]; /* map to source */
+  }
+
+  for (vsr = data->vertex_sources,
+       nsr = data->normal_sources,
+       vvs = data->vertex_value_sources,
+       end = vsr + data->triangles_count * 3,
+       v = ver, n = nor, c = col; vsr < end;
+       vsr ++, nsr ++, vvs ++, v += 3, n += 3, c += 3)
+  {
+    COPY (*vsr, v);
+    COPY (*nsr, n);
+    ASSERT_DEBUG_EXT (*vvs = MAP_Find (vmap, *vsr, NULL), "Inconsistent vertex mapping");
+    COPY (neutral_color, c);
+  }
+
+  for (lsr = data->line_sources,
+       end = lsr + data->lines_count * 2,
+       l = lin; lsr < end; lsr ++, l += 3)
+  {
+    COPY (*lsr, l);
+  }
+
+  if (data->spheres_count)
+  {
+    ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
+
+    for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+    {
+      COPY (neutral_color, c);
+    }
+  }
+
+  glGenBuffersARB (1, &data->lines);
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
+  glBufferDataARB (GL_ARRAY_BUFFER_ARB, data->lines_count * sizeof (GLfloat) * 6, lin, GL_DYNAMIC_DRAW_ARB);
+
+  glGenBuffersARB (1, &data->triangles);
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+  glBufferDataARB (GL_ARRAY_BUFFER_ARB, data->triangles_count * sizeof (GLfloat) * 27, ver, GL_DYNAMIC_DRAW_ARB);
+
+  free (lin);
+  free (ver);
+  MEM_Release (&setmem);
+  MEM_Release (&mapmem);
+  MEM_Release (&pairmem);
+
+  return data;
+}
+
+/* update body set constraint or force legend values */
+static void update_body_constraint_or_force_values (BODY *bod)
+{
+  BODY_DATA *data = bod->rendering;
+  double value;
+  FORCE *force;
+  SET *item;
+  CON *con;
+
+  if (data->flags & HIDDEN) return;
+
+  if (legend.entity != KINDS_OF_FORCES)
+  {
+    for (item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      con = item->data;
+
+      if (con->state & CON_DONERND) continue;
+
+      switch (legend.entity)
+      {
+      case KINDS_OF_CONSTRAINTS: 
+        SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) con->kind, NULL);
+	value = con->kind;
+	break;
+      case RESULTS_RT: value = LEN2 (con->R); break;
+      case RESULTS_RN: value = fabs (con->R[2]); break;
+      case RESULTS_R: value = LEN (con->R); break;
+      }
+
+      if (value < legend.extents [0]) legend.extents [0] = value;
+      if (value > legend.extents [1]) legend.extents [1] = value;
+
+      con->state |= CON_DONERND;
+    }
+  }
+  else
+  {
+    for (force = bod->forces; force; force = force->next)
+    {
+      if (force->data == NULL) continue;
+
+      value = TMS_Value (force->data, domain->time);
+
+      if (value < legend.extents [0]) legend.extents [0] = value;
+      if (value > legend.extents [1]) legend.extents [1] = value;
+    }
+  }
+}
+
+/* update body values */
+static void update_body_values (BODY *bod, BODY_DATA *data)
+{
+  double **vvs, *val, *end, values [7] = {0, 0, 0, 0, 0, 0, 0};
+  VALUE_SOURCE *src, *last;
+  VALUE_KIND kind;
+  short index;
+  MAP *item;
+  SET *jtem;
+
+  if (legend.entity >= KINDS_OF_BODIES && legend.entity < RESULTS_RT)
+  {
+    switch (legend.entity)
+    {
+    case KINDS_OF_BODIES:
+      for (val = data->vertex_values, end = val + data->triangles_count * 3; val < end; val ++) *val = (double) bod->kind;
+      if (bod->kind < legend.extents [0]) legend.extents [0] = bod->kind;
+      if (bod->kind > legend.extents [1]) legend.extents [1] = bod->kind;
+      SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) bod->kind, NULL);
+      break;
+    case KINDS_OF_SURFACES:
+      for (item = MAP_First (data->surfaces); item; item = MAP_Next (item))
+      {
+	for (jtem = SET_First (item->data); jtem; jtem = SET_Next (jtem)) val = jtem->data, *val = (double) (long) item->key;
+	if ((double) (long) item->key < legend.extents [0]) legend.extents [0] = (double) (long) item->key;
+	if ((double) (long) item->key > legend.extents [1]) legend.extents [1] = (double) (long) item->key;
+        SET_Insert (&rndsetmem, &legend.discrete, item->key, NULL);
+      }
+      break;
+    case KINDS_OF_VOLUMES:
+      for (item = MAP_First (data->volumes); item; item = MAP_Next (item))
+      {
+	for (jtem = SET_First (item->data); jtem; jtem = SET_Next (jtem)) val = jtem->data, *val = (double) (long) item->key;
+	if ((double) (long) item->key < legend.extents [0]) legend.extents [0] = (double) (long) item->key;
+	if ((double) (long) item->key > legend.extents [1]) legend.extents [1] = (double) (long) item->key;
+        SET_Insert (&rndsetmem, &legend.discrete, item->key, NULL);
+      }
+      break;
+    case RESULTS_DX:
+    case RESULTS_DY:
+    case RESULTS_DZ:
+      kind = VALUE_DISPLACEMENT;
+      index = legend.entity - RESULTS_DX;
+      break;
+    case RESULTS_VX:
+    case RESULTS_VY:
+    case RESULTS_VZ:
+      kind = VALUE_VELOCITY;
+      index = legend.entity - RESULTS_VX;
+      break;
+    case RESULTS_SX:
+    case RESULTS_SY:
+    case RESULTS_SZ:
+    case RESULTS_SXY:
+    case RESULTS_SXZ:
+    case RESULTS_SYZ:
+      kind = VALUE_STRESS;
+      index = legend.entity - RESULTS_SX;
+      break;
+    case RESULTS_MISES:
+      kind = VALUE_MISES;
+      index = 0;
+      break;
+    }
+
+    if (legend.entity >= RESULTS_DX)
+    {
+      src = data->value_sources;
+      last = src + data->values_count;
+      val = data->values;
+
+      if (bod->kind == FEM)
+      {
+	if (bod->msh)
+	{
+	  for (; src < last; src ++, val ++)
+	  {
+	    FEM_Element_Point_Values (bod, src->epn->ele, src->epn->pnt, kind, values);
+	    *val = values [index];
+	    if (*val < legend.extents [0])  legend.extents [0] = *val;
+	    if (*val > legend.extents [1])  legend.extents [1] = *val;
+	  }
+	}
+	else
+	{
+	  for (; src < last; src ++, val ++)
+	  {
+	    FEM_Cur_Node_Values (bod, src->pnt, kind, values);
+	    *val = values [index];
+	    if (*val < legend.extents [0])  legend.extents [0] = *val;
+	    if (*val > legend.extents [1])  legend.extents [1] = *val;
+	  }
+	}
+      }
+      else if (bod->kind != OBS)
+      {
+	for (; src < last; src ++, val ++)
+	{
+	  BODY_Point_Values (bod, src->pnt, kind, values);
+	  *val = values [index];
+	  if (*val < legend.extents [0])  legend.extents [0] = *val;
+	  if (*val > legend.extents [1])  legend.extents [1] = *val;
+	}
+      }
+
+      /* update vertex values */
+      for (val = data->vertex_values, vvs = data->vertex_value_sources,
+	   end = val + data->triangles_count * 3; val < end; vvs ++, val ++) *val = **vvs;
+    }
+
+    SPHERE **sph, **end;
+
+    for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    {
+      values [0] = sphere_value (bod, *sph);
+      if (values[0] < legend.extents [0])  legend.extents [0] = values[0];
+      if (values[0] > legend.extents [1])  legend.extents [1] = values[0];
+    }
+
+    switch (bod->kind)
+    {
+    case OBS:
+      data->values_updated = legend.entity < RESULTS_DX;
+      break;
+    case RIG:
+      data->values_updated = legend.entity < RESULTS_SX;
+      break;
+    default:
+      data->values_updated = 1;
+      break;
+    }
+  }
+  else if (legend.entity) update_body_constraint_or_force_values (bod);
+}
+
+/* update body rendering data */
+static void update_body_data (BODY *bod, BODY_DATA *data)
+{
+  double **vsr, **nsr, **lsr, **end, *val, *tail;
+  GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
+  lin = glMapBufferARB (GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+
+  for (lsr = data->line_sources,
+       end = lsr + data->lines_count * 2,
+       l = lin; lsr < end; lsr ++, l += 3)
+  {
+    COPY (*lsr, l);
+  }
+
+  glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+  ver = glMapBufferARB (GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+  nor = ver + data->triangles_count * 9;
+  col = nor + data->triangles_count * 9;
+
+  for (vsr = data->vertex_sources,
+       nsr = data->normal_sources,
+       end = vsr + data->triangles_count * 3,
+       v = ver, n = nor; vsr < end;
+       vsr ++, nsr ++, val ++, v += 3, n += 3)
+  {
+    COPY (*vsr, v);
+    COPY (*nsr, n);
+  }
+
+  if (data->values_updated)
+  {
+    for (val = data->vertex_values, tail = val + data->triangles_count * 3, c = col; val < tail;  val ++, c += 3) value_to_color (*val, c);
+  }
+  else for (c = col, l = c + data->triangles_count * 9; c < l;  c += 3) { COPY (neutral_color, c); }
+
+  glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
+
+  if (data->spheres_count)
+  {
+    SPHERE **sph;
+
+    if (data->values_updated)
+    {
+      for (c = data->sphere_colors, sph = data->spheres, v = c + data->spheres_count * 3; c < v; c += 3, sph ++)
+      {
+	value_to_color (sphere_value (bod, *sph), c);
+      }
+    }
+    else
+    {
+      for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+      {
+	COPY (neutral_color, c);
+      }
+    }
+  }
+
+  if (data->rough) update_body_data (bod, data->rough);
+}
+
+/* render sphere triangles */
+static void render_sphere_triangles (double *center, double radius, GLfloat color [3])
+{
+  glMatrixMode (GL_MODELVIEW_MATRIX);
+  glPushMatrix ();
+    glTranslated (center[0], center[1], center[2]);
+    glColor3fv (color);
+    glutSolidSphere (radius, 12, 12);
+  glPopMatrix ();
+}
+
+/* render sphere triangles for selection */
+static void selection_render_sphere_triangles (double *center, double radius)
+{
+  glMatrixMode (GL_MODELVIEW_MATRIX);
+  glPushMatrix ();
+    glTranslated (center[0], center[1], center[2]);
+    glutSolidSphere (radius, 12, 12);
+  glPopMatrix ();
+}
+
+/* get legend caption */
+static char* legend_caption ()
+{
+  switch (legend.entity)
+  {
+  case KINDS_OF_CONSTRAINTS: return "CONSTRAINT KINDS";
+  case KINDS_OF_FORCES: return "FORCE KINDS";
+  case KINDS_OF_BODIES: return "BODY KINDS";
+  case KINDS_OF_SURFACES: return "SURFACE KINDS";
+  case KINDS_OF_VOLUMES: return "VOLUME KINDS";
   case RESULTS_DX: return "DX";
   case RESULTS_DY: return "DY";
   case RESULTS_DZ: return "DZ";
@@ -304,42 +990,42 @@ static char* map_legend_caption ()
   return NULL;
 }
 
-/* get caption widtth */
-static int map_caption_width ()
+/* get legend caption widtth */
+static int legend_caption_width ()
 {
-  return GLV_Print_Width (LEGEND_FONT, map_legend_caption ()) + 9;
+  return GLV_Print_Width (LEGEND_FONT, legend_caption ()) + 9;
 }
 
 /* get legend width */
-static int map_legend_width ()
+static int legend_width ()
 {
   int i, j;
 
-  i = volumetric_map_range / MAP_LEGEND_ROWS;
-  if (volumetric_map_range % MAP_LEGEND_ROWS) i ++;
+  i = legend.range / LEGEND_ROWS;
+  if (legend.range % LEGEND_ROWS) i ++;
 
-  if (volumetric_map_is_discrete) i *= WIDTH_DISC;
-  else i *= WIDTH_CONT;
+  if (legend.discrete) i *= LEGEND_WIDTH_DISC;
+  else i *= LEGEND_WIDTH_CONT;
 
-  j = map_caption_width ();
+  j = legend_caption_width ();
 
   return MAX (i, j);
 }
 
 /* get legend height */
-static int map_legend_height ()
+static int legend_height ()
 {
   int i;
 
-  i = MIN (volumetric_map_range, MAP_LEGEND_ROWS) + 1;
+  i = MIN (legend.range, LEGEND_ROWS) + 1;
 
   return MAX (i, 1) * 16 + 6;
 }
 
-/* get map legend value string (if any) */
-char *get_map_legend_value_string (void *data)
+/* get legend value string */
+char *legend_value_string (void *data)
 {
-  if (volumetric_map_kind == KINDSOF_CONSTRAINTS)
+  if (legend.entity == KINDS_OF_CONSTRAINTS)
   {
     switch ((int)data)
     {
@@ -351,7 +1037,7 @@ char *get_map_legend_value_string (void *data)
       default: return "???";
     }
   }
-  else if (volumetric_map_kind == KINDSOF_BODIES)
+  else if (legend.entity == KINDS_OF_BODIES)
   {
     switch ((int)data)
     {
@@ -366,8 +1052,8 @@ char *get_map_legend_value_string (void *data)
   return NULL;
 }
 
-/* render map legend */
-static void render_map_legend ()
+/* render legend */
+static void legend_render ()
 {
   GLfloat color [4] = {1, 1, 1, 1};
   double value, step;
@@ -381,59 +1067,59 @@ static void render_map_legend ()
 
   glGetIntegerv (GL_VIEWPORT, v);
   glColor3f (1, 1, 1);
-  glRecti (v[0] + 3, v[1] + 3, 3 + map_caption_width (), 19);
+  glRecti (v[0] + 3, v[1] + 3, 3 + legend_caption_width (), 19);
   glColor3f (0, 0, 0);
-  GLV_Print (v[0] + 6, v[1] + 6, 0, LEGEND_FONT, "%s", map_legend_caption ());
+  GLV_Print (v[0] + 6, v[1] + 6, 0, LEGEND_FONT, "%s", legend_caption ());
 
-  if (volumetric_map_is_discrete)
+  if (legend.discrete)
   {
     glPushMatrix ();
     glTranslated (3, 3, 0);
-    for (i = 1, j = 0, item = SET_First (volumetric_map_discrete); item; item = SET_Next (item))
+    for (i = 1, j = 0, item = SET_First (legend.discrete); item; item = SET_Next (item))
     {
-      mapcolor (volumetric_map_min, (double)(int)item->data, volumetric_map_max, color);
-      glColor4fv (color);
-      glRecti (v[0] + j * WIDTH_DISC, v[1] + i * 16, v[0] + j * WIDTH_DISC + 16, v[1] + i * 16 + 16);
-      if ((str = get_map_legend_value_string (item->data)))
+      value_to_color ((double)(int)item->data, color);
+      glColor3fv (color);
+      glRecti (v[0] + j * LEGEND_WIDTH_DISC, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16 + 16);
+      if ((str = legend_value_string (item->data)))
       {
 	glColor3f (1, 1, 1);
 	l = GLV_Print_Width (LEGEND_FONT, str) + 5;
-	glRecti (v[0] + j * WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
+	glRecti (v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
         glColor3f (0, 0, 0);
-        GLV_Print (v[0] + j * WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, str);
+        GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, str);
       }
       else
       {
 	glColor3f (1, 1, 1);
 	l = GLV_Print_Width (LEGEND_FONT, "%d", (int)item->data) + 5;
-	glRecti (v[0] + j * WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
+	glRecti (v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
         glColor3f (0, 0, 0);
-	GLV_Print (v[0] + j * WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%d", (int)item->data);
+	GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%d", (int)item->data);
       }
-      if (i ++ == MAP_LEGEND_ROWS) { i = 1; j ++; }
+      if (i ++ == LEGEND_ROWS) { i = 1; j ++; }
     }
     glPopMatrix ();
   }
   else
   {
-    if (volumetric_map_min < DBL_MAX)
+    if (legend.extents [0] < DBL_MAX)
     {
-      step = (volumetric_map_max - volumetric_map_min) / (double) volumetric_map_range;
-      value = volumetric_map_min + 0.5 * step;
+      step = (legend.extents [1] - legend.extents [0]) / (double) legend.range;
+      value = legend.extents [0] + 0.5 * step;
 
       glPushMatrix ();
       glTranslated (3, 3, 0);
-      for (i = 1, j = k = 0; k < volumetric_map_range; k ++, value += step)
+      for (i = 1, j = k = 0; k < legend.range; k ++, value += step)
       {
-	mapcolor (volumetric_map_min, value, volumetric_map_max, color);
-	glColor4fv (color);
-	glRecti (v[0] + j * WIDTH_CONT, v[1] + i * 16, v[0] + j * WIDTH_CONT + 16, v[1] + i * 16 + 16);
+	value_to_color (value, color);
+	glColor3fv (color);
+	glRecti (v[0] + j * LEGEND_WIDTH_CONT, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_CONT + 16, v[1] + i * 16 + 16);
 	glColor3f (1, 1, 1);
 	l = GLV_Print_Width (LEGEND_FONT, "%.2e", value) + 5;
-	glRecti (v[0] + j * WIDTH_CONT + 16, v[1] + i * 16, v[0] + j * WIDTH_CONT + 16 + l, v[1] + (i+1) * 16);
+	glRecti (v[0] + j * LEGEND_WIDTH_CONT + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_CONT + 16 + l, v[1] + (i+1) * 16);
 	glColor3f (0, 0, 0);
-	GLV_Print (v[0] + j * WIDTH_CONT + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%.2e", value);
-	if (i ++ == MAP_LEGEND_ROWS) { i = 1; j ++; }
+	GLV_Print (v[0] + j * LEGEND_WIDTH_CONT + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%.2e", value);
+	if (i ++ == LEGEND_ROWS) { i = 1; j ++; }
       }
       glPopMatrix ();
     }
@@ -443,678 +1129,213 @@ static void render_map_legend ()
   glEnable (GL_DEPTH_TEST);
 }
 
-/* get nodal value from displacements onwards */
-inline static double get_bod_shp_gobj_node (BODY *bod, SHAPE *shp, void *gobj, int node)
+/* disable_legend */
+static void legend_disable ()
 {
-  switch (volumetric_map_kind)
+  if (legend.window)
   {
-  case RESULTS_DX:
-  case RESULTS_DY:
-  case RESULTS_DZ:
-    {
-      double d [3];
+    GLV_Close_Viewport (legend.window);
 
-      SET (d, DBL_MAX);
-
-      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_DISPLACEMENT, d);
-
-      return d [volumetric_map_kind - RESULTS_DX];
-    }
-    break;
-  case RESULTS_VX:
-  case RESULTS_VY:
-  case RESULTS_VZ:
-    {
-      double v [3];
-
-      SET (v, DBL_MAX);
-
-      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_VELOCITY, v);
-
-      return v [volumetric_map_kind - RESULTS_VX];
-    }
-    break;
-  case RESULTS_SX:
-  case RESULTS_SY:
-  case RESULTS_SZ:
-  case RESULTS_SXY:
-  case RESULTS_SXZ:
-  case RESULTS_SYZ:
-    {
-      double s [6];
-
-      SET6 (s, DBL_MAX);
-
-      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_STRESS, s);
-
-      return s [volumetric_map_kind - RESULTS_SX];
-    }
-    break;
-  case RESULTS_MISES:
-    {
-      double mises = DBL_MAX;
-
-      BODY_Nodal_Values (bod, shp, gobj, node, VALUE_MISES, &mises);
-
-      return mises;
-    }
-    break;
+    legend.window = 0;
   }
 
-  return DBL_MAX;
-}
-
-/* value of element node */
-static double get_element_node_value (BODY *bod, SHAPE *shp, ELEMENT *ele, FACE *fac, int node) /* node indexing is element/face local (depending if fac == NULL) */
-{
-  if (fac) /* translate face node number to element node number */
+  if (legend.entity)
   {
-    int n = fac->nodes [node], i;
-
-    for (i = 0; i < ele->type; i ++)
-      if (ele->nodes [i] == n) break;
-
-    ASSERT_DEBUG (i < ele->type, "Inconsitency in face and element node numbering");
-
-    node = i;
-  }
-
-  switch (volumetric_map_kind)
-  {
-  case KINDSOF_CONSTRAINTS: return DBL_MAX;
-  case KINDSOF_FORCES: return DBL_MAX;
-  case KINDSOF_BODIES: return bod->kind;
-  case KINDSOF_SURFACES:
-    if (fac) return fac->surface;
-    else return DBL_MAX;
-    break;
-  case KINDSOF_VOLUMES: return ele->volume;
-  default: return get_bod_shp_gobj_node (bod, shp, ele, node);
-  }
-
-  return DBL_MAX;
-}
-
-/* value of convex face vertex */
-static double get_convex_face_vertex_value (BODY *bod, SHAPE *shp, CONVEX *cvx, int *fac, int f, int v)
-{
-  int node = fac [v] / 3;
-
-  switch (volumetric_map_kind)
-  {
-  case KINDSOF_CONSTRAINTS: return DBL_MAX;
-  case KINDSOF_FORCES: return DBL_MAX;
-  case KINDSOF_BODIES: return bod->kind;
-  case KINDSOF_SURFACES: return cvx->surface [f];
-  case KINDSOF_VOLUMES: return cvx->volume;
-  default: return get_bod_shp_gobj_node (bod, shp, cvx, node);
-  }
-
-  return DBL_MAX;
-}
-
-/* value of sphere surface */
-static double get_sphere_surface_value (BODY *bod, SHAPE *shp, SPHERE *sph)
-{
-  switch (volumetric_map_kind)
-  {
-  case KINDSOF_CONSTRAINTS: return DBL_MAX;
-  case KINDSOF_FORCES: return DBL_MAX;
-  case KINDSOF_BODIES: return bod->kind;
-  case KINDSOF_SURFACES: return sph->surface;
-  case KINDSOF_VOLUMES: return sph->volume;
-  default: return get_bod_shp_gobj_node (bod, shp, sph, 0);
-  }
-
-  return DBL_MAX;
-}
-
-/* register new value */
-inline static void volumetric_map_register_value (double value)
-{
-  if (value < DBL_MAX)
-  {
-    if (volumetric_map_is_discrete)
+    for (BODY *bod = domain->bod; bod; bod = bod->next)
     {
-      SET_Insert (&domain->setmem, &volumetric_map_discrete, (void*)(int)value, NULL);
+      BODY_DATA *data = bod->rendering;
+      data->values_updated = 0;
     }
 
-    if (value < volumetric_map_min) volumetric_map_min = value;
-    if (value > volumetric_map_max) volumetric_map_max = value;
+    legend.preventity = legend.entity;
+
+    legend.entity = 0;
   }
 }
 
-/* process body to get extrema of volumetric map */
-static void volumetric_map_extrema_process_body (BODY *bod)
+/* enable legend */
+static void legend_enable ()
 {
-  double value;
-  ELEMENT *ele;
-  CONVEX *cvx;
-  SPHERE *sph;
-  SHAPE *shp;
-  FACE *fac;
-  MESH *msh;
-  int n, m, l;
-
-  for (shp = bod->shape; shp; shp = shp->next)
-  {
-    switch (shp->kind)
-    {
-    case SHAPE_MESH:
-
-      msh = shp->data;
-
-      for (ele = msh->surfeles; ele; ele = ele->next)
-      {
-	for (fac = ele->faces; fac; fac = fac->next)
-	{
-	  for (n = 0; n < fac->type; n ++)
-	  {
-	    value = get_element_node_value (bod, shp, ele, fac, n);
-	    volumetric_map_register_value (value);
-	  }
-	}
-      }
-
-      for (ele = msh->bulkeles; ele; ele = ele->next)
-      {
-	for (n = 0; n < ele->type; n ++)
-	{
-	  value = get_element_node_value (bod, shp, ele, NULL, n);
-	  volumetric_map_register_value (value);
-	}
-      }
-
-      break;
-    case SHAPE_CONVEX:
-
-      for (cvx = shp->data; cvx; cvx = cvx->next)
-      {
-	for (n = m = 0; n < cvx->nfac; n ++, m += (cvx->fac [m] + 1))
-	{
-	  for (l = 1; l <= cvx->fac [m]; l ++)
-	  {
-	    value = get_convex_face_vertex_value (bod, shp, cvx, &cvx->fac [m], n, l);
-	    volumetric_map_register_value (value);
-	  }
-	}
-      }
-
-      break;
-    case SHAPE_SPHERE:
-
-      for (sph = shp->data; sph; sph = sph->next)
-      {
-	value = get_sphere_surface_value (bod, shp, sph);
-	volumetric_map_register_value (value);
-      }
-
-      break;
-    }
-  }
-}
-
-/* skip this constraint when calculating
- * extrema or rendering constraints ? */
-static int skip_constraint (CON *con)
-{
-  if (selection)
-  {
-    void *one = MAP_Find (selection, (void*)con->master->id, NULL),
-	 *two = con->slave ? MAP_Find (selection, (void*)con->slave->id, NULL) : NULL;
-
-    if ((!(one || two)) ||
-	((!one) && (con->slave && (con->slave->flags & (BODY_HIDDEN|BODY_OFF)))) ||
-	((!two) && con->master->flags & (BODY_HIDDEN|BODY_OFF))) return 1;
-
-  }
-
-  if ((con->master->flags & (BODY_HIDDEN|BODY_OFF)) &&
-      (con->slave == NULL || (con->slave->flags & (BODY_HIDDEN|BODY_OFF)))) return 1;
-
-  return 0;
-}
-
-
-/* shall we draw on constraints ? */
-static int volumetric_map_constraint_based ()
-{
-  if (!volumetric_map) return 0;
-
-  switch (volumetric_map_kind)
-  {
-  case KINDSOF_CONSTRAINTS:
-  case RESULTS_RT:
-  case RESULTS_RN:
-  case RESULTS_R:
-    return 1;
-  }
-
-  return 0;
-}
-
-/* render mesh surface */
-/* set map extrema */
-static void volumetric_map_extrema ()
-{
-  if (volumetric_map_is_discrete)
-  {
-    volumetric_map_min = 0;
-    volumetric_map_max = 1;
-  }
+  if (legend.discrete)legend.range = SET_Size (legend.discrete);
   else
   {
-    volumetric_map_min = DBL_MAX;
-    volumetric_map_max = -DBL_MAX;
+    if (legend.extents [0] == legend.extents [1]) legend.range = 1;
+    else legend.range = 8;
   }
 
+  legend.constant = legend.range <= 1 ? 1.0 : 0.0;
 
-  if (volumetric_map_constraint_based ())
-  {
-    CON *con;
-
-    for (con = domain->con; con; con = con->next)
-    {
-      if (skip_constraint (con)) continue;
-
-      switch (volumetric_map_kind)
-      {
-      case KINDSOF_CONSTRAINTS:
-	volumetric_map_register_value (con->kind);
-	break;
-      case RESULTS_RT:
-	volumetric_map_register_value (LEN2 (con->R));
-	break;
-      case RESULTS_RN:
-	volumetric_map_register_value (con->R [2]);
-	break;
-      case RESULTS_R:
-	volumetric_map_register_value (LEN (con->R));
-	break;
-      }
-    }
-  }
-  else
-  {
-    BODY *bod;
-
-    if (selection)
-    {
-      for (MAP *item = MAP_First (selection); item; item = MAP_Next (item))
-      {
-	bod = item->data;
-	if (bod->flags & (BODY_HIDDEN|BODY_OFF)) continue;
-	volumetric_map_extrema_process_body (bod);
-      }
-    }
-    else
-    {
-      for (bod = domain->bod; bod; bod = bod->next)
-      {
-	if (bod->flags & (BODY_HIDDEN|BODY_OFF)) continue;
-	volumetric_map_extrema_process_body (bod);
-      }
-    }
-  }
-
- if (volumetric_map_min == volumetric_map_max)
- {
-   double d = 1E-9 * fabs (volumetric_map_min);
-   volumetric_map_min -= d;
-   volumetric_map_max += d;
- }
+  if (legend.window) GLV_Close_Viewport (legend.window);
+  legend.window = GLV_Open_Viewport (0, 0, legend_width (), legend_height (), 0, legend_render);
 }
 
-/* turn off volumetric map */
-static void volumetric_map_off ()
+/* pop previous legend entity */
+static void legend_pop ()
 {
-  volumetric_map = 0;
-  GLV_Close_Viewport (volumetric_map_window);
+  if ((legend.entity = legend.preventity)) update ();
 }
 
-/* turn on volumetric map */
-static void volumetric_map_on (int kind)
+/* render sphere points */
+static void render_sphere_points (double *a, double *b, double *c)
 {
-  if (!volumetric_map) pushoff (volumetric_map_off); /* push switch off on stack (ESCAPE pops those functions) */
-
-  volumetric_map = 1;
-  volumetric_map_kind = kind;
-
-  switch (kind)
-  {
-  case KINDSOF_CONSTRAINTS:
-  case KINDSOF_FORCES:
-  case KINDSOF_BODIES:
-  case KINDSOF_SURFACES:
-  case KINDSOF_VOLUMES:
-    SET_Free (&domain->setmem, &volumetric_map_discrete);
-    volumetric_map_is_discrete = 1;
-    break;
-  default:
-    volumetric_map_is_discrete = 0;
-    break;
-  }
-
-  volumetric_map_extrema ();
-
-  if (volumetric_map_is_discrete)
-    volumetric_map_range = SET_Size (volumetric_map_discrete);
-  else volumetric_map_range = 8;
-
-  if (volumetric_map_window) GLV_Close_Viewport (volumetric_map_window);
-  volumetric_map_window = GLV_Open_Viewport (0, 0, map_legend_width (), map_legend_height (), 0, render_map_legend);
+  glBegin (GL_POINTS);
+    glVertex3dv (a);
+    glVertex3dv (b);
+    glVertex3dv (c);
+  glEnd ();
 }
 
-/* color of element node */
-static int get_element_node_color (BODY *bod, SHAPE *shp, ELEMENT *ele, FACE *fac, int node, GLfloat *color)
+/* render body triangles */
+static void render_body_triangles (BODY *bod, short skip)
 {
-  double val;
+  BODY_DATA *data;
 
-  if (!volumetric_map) return 0;
-  val = get_element_node_value (bod, shp, ele, fac, node);
-  if (val < DBL_MAX)
-  {
-    mapcolor (volumetric_map_min, val, volumetric_map_max, color);
-    return 1;
-  }
-  return 0;
+  if (bod->rendering == NULL) bod->rendering = create_body_data (bod);
+
+  data = bod->rendering;
+
+  if (bod == picked_body ||           /* do not render a picked body */
+      data->flags & skip) return;
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+
+  glEnableClientState (GL_VERTEX_ARRAY);
+  glEnableClientState (GL_NORMAL_ARRAY);
+  glEnableClientState (GL_COLOR_ARRAY);
+
+  glVertexPointer (3, GL_FLOAT, 0, 0);
+  glNormalPointer (GL_FLOAT, 0, (void*) (data->triangles_count * sizeof (GLfloat) * 9));
+  glColorPointer (3, GL_FLOAT, 0, (void*) (data->triangles_count * sizeof (GLfloat) * 18));
+
+  glDrawArrays (GL_TRIANGLES, 0, data->triangles_count * 3);
+
+  glDisableClientState (GL_VERTEX_ARRAY);
+  glDisableClientState (GL_NORMAL_ARRAY);
+  glDisableClientState (GL_COLOR_ARRAY);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+
+  SPHERE **sph, **end;
+  GLfloat *col;
+
+  for (sph = data->spheres, end = sph + data->spheres_count, col = data->sphere_colors; sph < end; sph ++, col += 3)
+    render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius, col);
 }
 
-/* color of convex face vertex */
-static int get_convex_face_vertex_color (BODY *bod, SHAPE *shp, CONVEX *cvx, int *fac, int f, int v, GLfloat *color)
+/* render body lines */
+static void render_body_lines (BODY *bod, short skip)
 {
-  double val;
+  BODY_DATA *data;
 
-  if (!volumetric_map) return 0;
-  val = get_convex_face_vertex_value (bod, shp, cvx, fac, f, v);
+  if (bod->rendering == NULL) bod->rendering = create_body_data (bod);
 
-  if (val < DBL_MAX)
-  {
-    mapcolor (volumetric_map_min, val, volumetric_map_max, color);
-    return 1;
-  }
-  return 0;
+  data = bod->rendering;
+
+  if (data->flags & skip) return;
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
+
+  glEnableClientState (GL_VERTEX_ARRAY);
+
+  glVertexPointer (3, GL_FLOAT, 0, 0);
+
+  glDrawArrays (GL_LINES, 0, data->lines_count * 2);
+
+  glDisableClientState (GL_VERTEX_ARRAY);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+
+  SPHERE **sph, **end;
+
+  for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    render_sphere_points ((*sph)->cur_points[0], (*sph)->cur_points[1], (*sph)->cur_points[2]);
 }
 
-/* color of sphere surface */
-static void get_sphere_surface_color (BODY *bod, SHAPE *shp, SPHERE *sph, GLfloat *color)
+/* render body triangles for selection */
+static void selection_render_body_triangles (BODY *bod)
 {
-  double val;
+  BODY_DATA *data = bod->rendering;
 
-  if (!volumetric_map) return;
-  val = get_sphere_surface_value (bod, shp, sph);
-  if (val < DBL_MAX) mapcolor (volumetric_map_min, val, volumetric_map_max, color);
+  if (data->flags & HIDDEN) return;
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+
+  glEnableClientState (GL_VERTEX_ARRAY);
+  glEnableClientState (GL_NORMAL_ARRAY);
+
+  glVertexPointer (3, GL_FLOAT, 0, 0);
+  glNormalPointer (GL_FLOAT, 0, (void*) (data->triangles_count * sizeof (GLfloat) * 9));
+
+  glDrawArrays (GL_TRIANGLES, 0, data->triangles_count * 3);
+
+  glDisableClientState (GL_VERTEX_ARRAY);
+  glDisableClientState (GL_NORMAL_ARRAY);
+
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+
+  SPHERE **sph, **end;
+
+  for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    selection_render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius);
 }
 
-/* color of constraint based rendering */
-static void get_constraint_based_color (CON *con, GLfloat *color)
+/* render rough mesh */
+static void render_rough_mesh (BODY *bod)
 {
-  double value = volumetric_map_min;
+  BODY_DATA *data = bod->rendering,
+	    *rough = data->rough;
 
-  switch (volumetric_map_kind)
+  if (data->flags & HIDDEN) return;
+
+  if (!rough)
   {
-  case KINDSOF_CONSTRAINTS:
-    value = con->kind;
-    break;
-  case RESULTS_RT:
-    value = LEN2 (con->R);
-    break;
-  case RESULTS_RN:
-    value = con->R [2];
-    break;
-  case RESULTS_R:
-    value = LEN (con->R);
-    break;
+    SHAPE shape = {SHAPE_MESH, bod->msh, NULL, NULL};
+    BODY body = bod [0];
+    body.shape = &shape;
+    body.msh = NULL;
+    data->rough = create_body_data (&body);
+    rough = data->rough;
   }
 
-  if (value < DBL_MAX) mapcolor (volumetric_map_min, value, volumetric_map_max, color);
-}
+  glColor4f (0.0, 0.0, 0.0, 0.2);
 
-/* render mesh surface */
-static void render_mesh (BODY *bod, SHAPE *shp, MESH *mesh, int flags, GLfloat color [4])
-{
-  GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
-  double (*cur) [3] = mesh->cur_nodes;
-  ELEMENT *ele;
-  FACE *fac;
-  GLboolean blend;
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, rough->lines);
 
-  glGetBooleanv (GL_BLEND, &blend);
-  if (blend)
-  { SET (outcol, 0.65); }
+  glEnableClientState (GL_VERTEX_ARRAY);
 
-  for (ele = mesh->surfeles; ele; ele = ele->next)
-  {
-    for (fac = ele->faces; fac; fac = fac->next)
-    {
-      /* outline */
-      if (flags & OUTLINE)
-      {
-	glDisable (GL_LIGHTING);
-	glColor4fv (outcol);
-	if (fac->type == 3)
-	{
-	  glBegin (GL_LINE_LOOP);
-	  glVertex3dv (cur[fac->nodes[0]]);
-	  glVertex3dv (cur[fac->nodes[1]]);
-	  glVertex3dv (cur[fac->nodes[2]]);
-	  glEnd ();
-	}
-	else
-	{
-	  glBegin (GL_LINE_LOOP);
-	  glVertex3dv (cur[fac->nodes[0]]);
-	  glVertex3dv (cur[fac->nodes[1]]);
-	  glVertex3dv (cur[fac->nodes[2]]);
-	  glVertex3dv (cur[fac->nodes[3]]);
-	  glEnd ();
-	}
-	glEnable (GL_LIGHTING);
+  glVertexPointer (3, GL_FLOAT, 0, 0);
 
-	glEnable (GL_POLYGON_OFFSET_FILL);
-	glPolygonOffset (1.0, 1.0);
-      }
+  glDrawArrays (GL_LINES, 0, rough->lines_count * 2);
 
-      /* fill */
-      glColor4fv (color);
-      if (fac->type == 3)
-      {
-	if (flags & SELECTION)
-	{
-          glBegin (GL_TRIANGLES);
-	  glNormal3dv (fac->normal);
-	  glVertex3dv (cur[fac->nodes[0]]);
-	  glVertex3dv (cur[fac->nodes[1]]);
-	  glVertex3dv (cur[fac->nodes[2]]);
-	  glEnd ();
-	}
-	else
-	{
-	  glBegin (GL_TRIANGLES);
-	  glNormal3dv (fac->normal);
-	  if (shp && get_element_node_color (bod, shp, ele, fac, 0, color)) glColor4fv (color);
-	  glVertex3dv (cur[fac->nodes[0]]);
-	  if (shp && get_element_node_color (bod, shp, ele, fac, 1, color)) glColor4fv (color);
-	  glVertex3dv (cur[fac->nodes[1]]);
-	  if (shp && get_element_node_color (bod, shp, ele, fac, 2, color)) glColor4fv (color);
-	  glVertex3dv (cur[fac->nodes[2]]);
-	  glEnd ();
-	}
-      }
-      else
-      {
-	if (flags & SELECTION)
-	{
-	  glBegin (GL_QUADS);
-	  glNormal3dv (fac->normal);
-	  glVertex3dv (cur[fac->nodes[0]]);
-	  glVertex3dv (cur[fac->nodes[1]]);
-	  glVertex3dv (cur[fac->nodes[2]]);
-	  glVertex3dv (cur[fac->nodes[3]]);
-	  glEnd ();
-	}
-	else
-	{
-	  glBegin (GL_QUADS);
-	  glNormal3dv (fac->normal);
-	  if (shp && get_element_node_color (bod, shp, ele, fac, 0, color)) glColor4fv (color);
-	  glVertex3dv (cur[fac->nodes[0]]);
-	  if (shp && get_element_node_color (bod, shp, ele, fac, 1, color)) glColor4fv (color);
-	  glVertex3dv (cur[fac->nodes[1]]);
-	  if (shp && get_element_node_color (bod, shp, ele, fac, 2, color)) glColor4fv (color);
-	  glVertex3dv (cur[fac->nodes[2]]);
-	  if (shp && get_element_node_color (bod, shp, ele, fac, 3, color)) glColor4fv (color);
-	  glVertex3dv (cur[fac->nodes[3]]);
-	  glEnd ();
-	}
-      }
+  glDisableClientState (GL_VERTEX_ARRAY);
 
-      if (flags & OUTLINE) glDisable (GL_POLYGON_OFFSET_FILL);
-    }
-  }
-}
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 
-/* render single convex */
-static void render_convex (BODY *bod, SHAPE *shp, CONVEX *cvx, int flags, GLfloat color [4])
-{
-  GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
-  int n, m, l;
-  GLboolean blend;
+  glColor4f (0.9, 0.9, 0.9, 0.3);
 
-  glGetBooleanv (GL_BLEND, &blend);
-  if (blend)
-  { SET (outcol, 0.65); }
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, rough->triangles);
 
-  /* outline */
-  if (flags & OUTLINE)
-  {
-    glDisable (GL_LIGHTING);
-    glColor4fv (outcol);
-    for (n = m = 0; n < cvx->nfac;
-      n ++, m += (cvx->fac [m] + 1))
-    {
-      glBegin (GL_LINE_LOOP);
-      for (l = 1; l <= cvx->fac [m]; l ++)
-	glVertex3dv (&cvx->cur [cvx->fac [m + l]]);
-      glEnd ();
-    }
-    glEnable (GL_LIGHTING);
+  glEnableClientState (GL_VERTEX_ARRAY);
+  glEnableClientState (GL_NORMAL_ARRAY);
 
-    glEnable (GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset (1.0, 1.0);
-  }
+  glVertexPointer (3, GL_FLOAT, 0, 0);
+  glNormalPointer (GL_FLOAT, 0, (void*) (rough->triangles_count * sizeof (GLfloat) * 9));
 
-  /* fill */
-  glColor4fv (color);
-  for (n = m = 0; n < cvx->nfac;
-    n ++, m += (cvx->fac [m] + 1))
-  {
-    glBegin (GL_POLYGON);
-    glNormal3dv (&cvx->pla [n * 4]);
-    for (l = 1; l <= cvx->fac [m]; l ++)
-    {
-      if (!(flags & SELECTION) && get_convex_face_vertex_color (bod, shp, cvx, &cvx->fac [m], n, l, color)) glColor4fv (color);
-      glVertex3dv (&cvx->cur [cvx->fac [m + l]]);
-    }
-    glEnd ();
-  }
+  glDrawArrays (GL_TRIANGLES, 0, rough->triangles_count * 3);
 
-  if (flags & OUTLINE) glDisable (GL_POLYGON_OFFSET_FILL);
-}
+  glDisableClientState (GL_VERTEX_ARRAY);
+  glDisableClientState (GL_NORMAL_ARRAY);
 
-/* render single sphere */
-static void render_sphere (BODY *bod, SHAPE *shp, SPHERE *sphere, int flags, GLfloat color [4])
-{
-  GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
-  double *c = sphere->cur_center;
-  GLboolean blend;
-
-  glGetBooleanv (GL_BLEND, &blend);
-  if (blend)
-  { SET (outcol, 0.65); }
-
-  if (flags & OUTLINE)
-  {
-    glPointSize (2.0);
-    glColor4fv (outcol);
-    glBegin (GL_POINTS);
-      glVertex3dv (sphere->cur_points[0]);
-      glVertex3dv (sphere->cur_points[1]);
-      glVertex3dv (sphere->cur_points[2]);
-    glEnd ();
-
-    glEnable (GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset (1.0, 1.0);
-    glPointSize (1.0);
-  }
-
-  glMatrixMode (GL_MODELVIEW_MATRIX);
-  glPushMatrix ();
-    glTranslated (c[0], c[1], c[2]);
-    if (!(flags & SELECTION)) get_sphere_surface_color (bod, shp, sphere, color);
-    glColor4fv (color);
-    glutSolidSphere (sphere->cur_radius, 12, 12);
-  glPopMatrix ();
-
-  if (flags & OUTLINE) glDisable (GL_POLYGON_OFFSET_FILL);
-}
-
-/* render single element */
-static void render_element (BODY *bod, SHAPE *shp, ELEMENT *ele, int flags, GLfloat color [4])
-{
-  GLfloat outcol [4] = {0.0, 0.0, 0.0, 1.0};
-  CONVEX *cvx;
-  int n, m, l;
-
-  /* get convex of element */
-  cvx = ELEMENT_Convex (shp->data, ele);
-
-  /* outline */
-  if (flags & OUTLINE)
-  {
-    glDisable (GL_LIGHTING);
-    glColor4fv (outcol);
-    for (n = m = 0; n < cvx->nfac;
-      n ++, m += (cvx->fac [m] + 1))
-    {
-      glBegin (GL_LINE_LOOP);
-      for (l = 1; l <= cvx->fac [m]; l ++)
-	glVertex3dv (&cvx->cur [cvx->fac [m + l]]);
-      glEnd ();
-    }
-    glEnable (GL_LIGHTING);
-
-    glEnable (GL_POLYGON_OFFSET_FILL);
-    glPolygonOffset (1.0, 1.0);
-  }
-
-  /* fill */
-  glColor4fv (color);
-  for (n = m = 0; n < cvx->nfac;
-    n ++, m += (cvx->fac [m] + 1))
-  {
-    glBegin (GL_POLYGON);
-    glNormal3dv (&cvx->pla [n * 4]);
-    for (l = 1; l <= cvx->fac [m]; l ++)
-    {
-      if (!(flags & SELECTION) && get_element_node_color (bod, shp, ele, NULL, cvx->fac [m+l] / 3, color)) glColor4fv (color);
-      glVertex3dv (&cvx->cur [cvx->fac [m+l]]);
-    }
-    glEnd ();
-  }
-
-  if (flags & OUTLINE) glDisable (GL_POLYGON_OFFSET_FILL);
-
-  CONVEX_Destroy (cvx);
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 }
 
 /* render contact */
-static void render_contact (CON *con, GLfloat color [4])
+static void render_contact (CON *con, GLfloat color [3])
 {
   double other [3],
 	 scal = GLV_Minimal_Extent() * 0.03;
 
-  glColor4fv (color);
+  glColor3fv (color);
 
   glPointSize (3.0);
   glBegin (GL_POINTS);
@@ -1151,9 +1372,9 @@ static void render_contact (CON *con, GLfloat color [4])
 }
 
 /* render fixed point */
-static void render_fixpnt (CON *con, GLfloat color [4])
+static void render_fixpnt (CON *con, GLfloat color [3])
 {
-  glColor4fv (color);
+  glColor3fv (color);
   glPointSize (4.0);
   glBegin (GL_POINTS);
     glVertex3dv (con->point);
@@ -1162,12 +1383,12 @@ static void render_fixpnt (CON *con, GLfloat color [4])
 }
 
 /* render fixed direction */
-static void render_fixdir (CON *con, GLfloat color [4])
+static void render_fixdir (CON *con, GLfloat color [3])
 {
   double other [3],
 	 scal = GLV_Minimal_Extent() * 0.03;
 
-  glColor4fv (color);
+  glColor3fv (color);
 
   glPointSize (3.0);
   glBegin (GL_POINTS);
@@ -1186,12 +1407,12 @@ static void render_fixdir (CON *con, GLfloat color [4])
 }
 
 /* render velocity constraint */
-static void render_velodir (CON *con, GLfloat color [4])
+static void render_velodir (CON *con, GLfloat color [3])
 {
   double other [3],
 	 scal = GLV_Minimal_Extent() * 0.03;
 
-  glColor4fv (color);
+  glColor3fv (color);
 
   glPointSize (3.0);
   glBegin (GL_POINTS);
@@ -1210,13 +1431,13 @@ static void render_velodir (CON *con, GLfloat color [4])
 }
 
 /* render rigid link constraint */
-static void render_riglnk (CON *con, GLfloat color [4])
+static void render_riglnk (CON *con, GLfloat color [3])
 {
   double other [3];
 
   ADD (con->point, RIGLNK_VEC (con->Z), other);
 
-  glColor4fv (color);
+  glColor3fv (color);
 
   glPointSize (3.0);
   glBegin (GL_POINTS);
@@ -1250,7 +1471,7 @@ static void arrow3d (double *p, double *q)
 	 o,
 	 s,
 	 angle;
-  int i;
+  int i, div = 2;
 
   SUB (q, p, d);
   MAXABSIDX (d, i);
@@ -1265,18 +1486,18 @@ static void arrow3d (double *p, double *q)
   NORMALIZE (t);
   o = 0.65 * l;
   ADDMUL (p, o, d, r);
-  angle = ALG_PI / 8.0;
+  angle = ALG_PI / (double) div;
   SCALE (d, angle);
   EXPMAP (d, R);
   o = 0.075 * l;
   s = 0.150 * l;
 
-  glDisable (GL_LIGHTING);
-
   ADDMUL (p, o, t, a);
   ADDMUL (r, o, t, b);
 
-  for (i = 0; i < 16; i ++)
+  div *= 2;
+
+  for (i = 0; i < div; i ++)
   {
     SUB (b, r, x);
     NVMUL (R, x, y);
@@ -1300,7 +1521,7 @@ static void arrow3d (double *p, double *q)
 
   ADDMUL (r, o, t, a);
   ADDMUL (r, s, t, b);
-  for (i = 0; i < 16; i ++)
+  for (i = 0; i < div; i ++)
   {
     SUB (b, r, x);
     NVMUL (R, x, y);
@@ -1334,7 +1555,7 @@ static void arrow3d (double *p, double *q)
   glNormal3dv (n);
   glBegin (GL_POLYGON);
   glVertex3dv (a);
-  for (i = 0; i < 16; i ++)
+  for (i = 0; i < div; i ++)
   {
     SUB (a, p, x);
     TVMUL (R, x, y);
@@ -1343,54 +1564,51 @@ static void arrow3d (double *p, double *q)
     COPY (b, a);
   }
   glEnd ();
-
-
-  glEnable (GL_LIGHTING);
 }
 
 /* render tangential reactions */
-static void render_rt (CON *con, GLfloat color [4])
+static void render_rt (CON *con, GLfloat color [3])
 {
   double r [3],
 	 other [3],
-	 ext = GLV_Minimal_Extent() * 0.1,
+	 ext = GLV_Minimal_Extent() * arrow_factor,
 	 eps, len;
 
   COPY (con->base, r);
   SCALE (r, con->R[0]);
   ADDMUL (r, con->R[1], con->base+3, r);
   len = LEN (r);
-  eps = (ext  / len) * (1.0 + (len - volumetric_map_min) / (volumetric_map_max - volumetric_map_min + 1.0));
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
-  glColor4fv (color);
+  glColor3fv (color);
   arrow3d (other, con->point);
 }
 
 /* render normal reactions */
-static void render_rn (CON *con, GLfloat color [4])
+static void render_rn (CON *con, GLfloat color [3])
 {
   double r [3],
 	 other [3],
-	 ext = GLV_Minimal_Extent() * 0.1,
+	 ext = GLV_Minimal_Extent() * arrow_factor,
 	 eps, len;
 
   COPY (con->base + 6, r);
   SCALE (r, con->R[2]);
   len = LEN (r);
-  eps = (ext  / len) * (1.0 + (len - volumetric_map_min) / (volumetric_map_max - volumetric_map_min + 1.0));
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
-  glColor4fv (color);
+  glColor3fv (color);
   arrow3d (other, con->point);
 }
 
-/* render rigid link constraint */
-static void render_r (CON *con, GLfloat color [4])
+/* render reaction */
+static void render_r (CON *con, GLfloat color [3])
 {
   double r [3],
 	 other [3],
-	 ext = GLV_Minimal_Extent() * 0.1,
+	 ext = GLV_Minimal_Extent() * arrow_factor,
 	 eps,
 	 len;
 
@@ -1399,211 +1617,305 @@ static void render_r (CON *con, GLfloat color [4])
   ADDMUL (r, con->R[1], con->base+3, r);
   ADDMUL (r, con->R[2], con->base+6, r);
   len = LEN (r);
-  eps = (ext  / len) * (1.0 + (len - volumetric_map_min) / (volumetric_map_max - volumetric_map_min + 1.0));
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
-  glColor4fv (color);
+  glColor3fv (color);
   arrow3d (other, con->point);
 }
 
-/* compute scene extents */
-static void get_scene_extents (double *extents)
+/* render force constraint */
+static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
 {
-  double e [6];
+  double r [3],
+	 other [3],
+	 point [3],
+	 ext = GLV_Minimal_Extent() * arrow_factor,
+	 eps,
+	 len;
+
+  if (bod->kind == FEM)
+  {
+    SGP *sgp;
+    int n;
+
+    if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, force->ref_point)) < 0) return; /* TODO: optimize */
+    BODY_Cur_Point (bod, sgp->shp, sgp->gobj, force->ref_point, point); /* TODO: optimize */
+  }
+  else BODY_Cur_Point (bod, NULL, NULL, force->ref_point, point);
+
+  COPY (force->direction, r);
+  len = TMS_Value (force->data, domain->time);
+  SCALE (r, len);
+  len = LEN (r);
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  ADDMUL (point, -eps, r, other);
+
+  glColor3fv (color);
+  arrow3d (other, point);
+}
+
+/* render body set constraints or forces */
+static void render_body_set_constraints_or_forces (SET *set)
+{
+  GLfloat color [3];
+  SET *item, *jtem;
+  BODY_DATA *data;
+  FORCE *force;
   BODY *bod;
   CON *con;
+
+  for (con = domain->con; con; con = con->next) con->state &= ~CON_DONERND; /* all undone */
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    data = bod->rendering;
+
+    if (data->flags & HIDDEN) continue;
+
+    if (legend.entity != KINDS_OF_FORCES) /* redner constraint */
+    {
+      for (jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
+      {
+	con = jtem->data;
+
+	if (con->state & CON_DONERND) continue;
+
+	switch (legend.entity)
+	{
+	case KINDS_OF_CONSTRAINTS:
+
+	  value_to_color (con->kind, color);
+
+	  switch (con->kind)
+	  {
+	    case CONTACT: render_contact (con, color); break;
+	    case FIXPNT: render_fixpnt (con, color); break;
+	    case FIXDIR: render_fixdir (con, color); break;
+	    case VELODIR: render_velodir (con, color); break;
+	    case RIGLNK: render_riglnk (con, color); break;
+	  }
+
+	  break;
+	case RESULTS_RT: value_to_color (LEN2 (con->R), color); render_rt (con, color); break;
+	case RESULTS_RN: value_to_color (fabs (con->R[2]), color); render_rn (con, color); break;
+	case RESULTS_R:  value_to_color (LEN (con->R), color); render_r (con, color); break;
+	}
+
+	con->state |= CON_DONERND;
+      }
+    }
+    else /* render force */
+    {
+      for (force = bod->forces; force; force = force->next)
+      {
+	if (force->data == NULL) continue;
+
+	value_to_color (TMS_Value (force->data, domain->time), color);
+	render_force (bod, force, color);
+      }
+    }
+  }
+}
+
+/* render body set */
+static void render_body_set (SET *set)
+{
+  GLfloat color [4] = {0.0, 0.0, 0.0, 0.4};
+  SET *item;
+
+  if (legend_constraint_based ()) /* render constraints or forces over transparent volumes */
+  {
+    glDisable (GL_LIGHTING);
+    render_body_set_constraints_or_forces (set);
+    glEnable (GL_LIGHTING);
+
+    glEnable (GL_BLEND);
+    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    COPY (neutral_color, color);
+
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      if (item->data == picked_body) continue;
+
+      glColor4fv (color);
+      render_body_lines (item->data, HIDDEN);
+      selection_render_body_triangles (item->data);
+    }
+
+    glDisable (GL_BLEND);
+  }
+  else /* regular rendering */
+  {
+    glDisable (GL_LIGHTING);
+    glColor3fv (color);
+
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      render_body_lines (item->data, TRANSPARENT|HIDDEN);
+    }
+
+    glEnable (GL_LIGHTING);
+    glEnable (GL_POLYGON_OFFSET_FILL);
+    glPolygonOffset (1.0, 1.0);
+
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      render_body_triangles (item->data, TRANSPARENT|HIDDEN);
+    }
+
+    glEnable (GL_BLEND);
+    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    COPY (neutral_color, color);
+
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      if (item->data == picked_body) continue;
+
+      if (TRANSPARENT (item->data))
+      {
+	glColor4fv (color);
+	render_body_lines (item->data, HIDDEN);
+	selection_render_body_triangles (item->data);
+      }
+
+      if (ROUGH_MESH (item->data)) render_rough_mesh (item->data);
+    }
+
+    glDisable (GL_BLEND);
+  }
+}
+
+/* render body set for 2D selection */
+static void selection_2D_render_body_set (SET *set)
+{
+  GLfloat color [4];
+  BODY *bod;
+  SET *item;
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    idtorgba (bod->id, color);
+    glColor4fv (color);
+    selection_render_body_triangles (item->data);
+  }
+}
+
+/* render body set for 3D selection */
+static void selection_3D_render_body_set (SET *set)
+{
+  BODY *bod;
+  SET *item;
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    glPushName (bod->id);
+    selection_render_body_triangles (item->data);
+    glPopName ();
+  }
+}
+
+/* render picked body if any */
+static void render_picked_body (void)
+{
+  GLfloat color [3] = {0.5, 0.5, 0.5};
+
+  if (picked_body)
+  {
+    switch (tool_mode)
+    {
+    case TOOLS_TRANSPARENT: color [0] = 1.0; break;
+    case TOOLS_HIDE: color [1] = 1.0; break;
+    case TOOLS_ROUGH_MESH: color [2] = 1.0; break;
+    }
+
+    glDisable (GL_LIGHTING);
+    if (TRANSPARENT (picked_body))
+    {
+      glColor3f (0., 0., 0.);
+      render_body_lines (picked_body, 0);
+    }
+    glColor3fv (color);
+    selection_render_body_triangles (picked_body);
+    glEnable (GL_LIGHTING);
+  }
+}
+
+/* update scene extents */
+static void update_extents ()
+{
+  double e [6], extents [6];
+  SET *item;
 
   extents [0] = extents [1] = extents [2] =  DBL_MAX;
   extents [3] = extents [4] = extents [5] = -DBL_MAX;
 
-  if (selection)
+  for (item = SET_First (selection->set); item; item = SET_Next (item))
   {
-    for (MAP *item = MAP_First (selection); item; item = MAP_Next (item))
-    {
-      BODY *bod = item->data;
+    BODY *bod = item->data;
+    BODY_DATA *data = bod->rendering;
 
-      if (bod->flags & (BODY_HIDDEN|BODY_OFF)) continue;
+    if (data && data->flags & HIDDEN) continue;
 
-      SHAPE_Extents (bod->shape, e);
+    SHAPE_Extents (bod->shape, e);
 
-      if (e [0] < extents [0]) extents [0] = e [0];
-      if (e [1] < extents [1]) extents [1] = e [1];
-      if (e [2] < extents [2]) extents [2] = e [2];
-      if (e [3] > extents [3]) extents [3] = e [3];
-      if (e [4] > extents [4]) extents [4] = e [4];
-      if (e [5] > extents [5]) extents [5] = e [5];
-    }
+    if (e [0] < extents [0]) extents [0] = e [0];
+    if (e [1] < extents [1]) extents [1] = e [1];
+    if (e [2] < extents [2]) extents [2] = e [2];
+    if (e [3] > extents [3]) extents [3] = e [3];
+    if (e [4] > extents [4]) extents [4] = e [4];
+    if (e [5] > extents [5]) extents [5] = e [5];
   }
-  else
-  {
-    for (bod = domain->bod; bod; bod = bod->next)
-    {
-      if (bod->flags & (BODY_HIDDEN|BODY_OFF)) continue;
-
-      SHAPE_Extents (bod->shape, e);
-
-      if (e [0] < extents [0]) extents [0] = e [0];
-      if (e [1] < extents [1]) extents [1] = e [1];
-      if (e [2] < extents [2]) extents [2] = e [2];
-      if (e [3] > extents [3]) extents [3] = e [3];
-      if (e [4] > extents [4]) extents [4] = e [4];
-      if (e [5] > extents [5]) extents [5] = e [5];
-    }
-  }
-
-  for (con = domain->con; con; con = con->next)
-  {
-    if (skip_constraint (con)) continue;
-
-    if (con->kind == RIGLNK)
-    {
-      if (con->slave == NULL)
-      {
-	ADD (con->point, RIGLNK_VEC (con->Z), e);
-
-	if (e [0] < extents [0]) extents [0] = e [0];
-	if (e [1] < extents [1]) extents [1] = e [1];
-	if (e [2] < extents [2]) extents [2] = e [2];
-	if (e [0] > extents [3]) extents [3] = e [0];
-	if (e [1] > extents [4]) extents [4] = e [1];
-	if (e [2] > extents [5]) extents [5] = e [2];
-      }
-    }
-  }
-}
-
-/* update viwer extents */
-static void update_extents ()
-{
-  double extents [6];
-
-  get_scene_extents (extents);
 
   GLV_Update_Extents (extents);
 }
 
-/* clipping reaction to mouse motion */
-static void move_clipping_plane (int x, int y)
+/* update bodies */
+static void update ()
 {
-  GLint viewport [4];
-  double u;
-  int xmid, ymid;
-  double *a = clipping_quad [0],
-	 *b = clipping_quad [1],
-	 *c = clipping_quad [2],
-	 *d = clipping_quad [3],
-         *a0 = clipping_quad [4],
-	 *b0 = clipping_quad [5],
-	 *c0 = clipping_quad [6],
-	 *d0 = clipping_quad [7];
-
-
-  glGetIntegerv (GL_VIEWPORT, viewport);
-
-  xmid = viewport [2] / 2;
-  ymid = viewport [3] / 2;
-
-  u = -clipping_factor * (double)(y - ymid) / (double) MIN (viewport[2], viewport[3]);
-
-  ADDMUL (a0, u, clipping_plane, a);
-  ADDMUL (b0, u, clipping_plane, b);
-  ADDMUL (c0, u, clipping_plane, c);
-  ADDMUL (d0, u, clipping_plane, d);
-
-  clipping_plane [3] = -DOT (clipping_plane, a);
-}
-
-/* calculate clipping plane */
-static void update_clipping_plane (double *normal)
-{
-  double extents [6],
-	 *a = clipping_quad [0],
-	 *b = clipping_quad [1],
-	 *c = clipping_quad [2],
-	 *d = clipping_quad [3],
-	 tang [2][3],
-	 mid [3],
-	 width [3], w;
-
-  get_scene_extents (extents);
-
-  w = DOT (normal, extents + 3);
-  clipping_factor = DOT (normal, extents) - w;
-  clipping_factor = fabs (clipping_factor); /* extents along the normal */
-
-  COPY (normal, tang [0]);
-  tang [0][0] += DRANDEXT (-1, 1);
-  tang [0][1] += DRANDEXT (-1, 1);
-  tang [0][2] += DRANDEXT (-1, 1);
-  PRODUCT (normal, tang [0], tang [1]);
-  PRODUCT (normal, tang [1], tang [0]);
-  NORMALIZE (tang [0]);
-  NORMALIZE (tang [1]);
-
-  MID (extents, extents + 3, mid);
-  SUB (extents + 3, extents, width);
-  w = LEN (width);
-
-  COPY (mid, a);
-  ADDMUL (a, -w, tang[0], a);
-  ADDMUL (a, -w, tang[1], a);
-
-  COPY (mid, b);
-  ADDMUL (b, -w, tang[0], b);
-  ADDMUL (b,  w, tang[1], b);
-
-  COPY (mid, c);
-  ADDMUL (c, w, tang[0], c);
-  ADDMUL (c, w, tang[1], c);
-
-  COPY (mid, d);
-  ADDMUL (d,  w, tang[0], d);
-  ADDMUL (d, -w, tang[1], d);
-
-  COPY (a, clipping_quad [4]);
-  COPY (b, clipping_quad [5]);
-  COPY (c, clipping_quad [6]);
-  COPY (d, clipping_quad [7]);
-}
-
-/* read clipping normal */
-static void read_clipping_normal (char *text)
-{
-  double normal [3];
-  int i, j, k, n;
-
-  if (text)
+  if (legend.entity)
   {
-    n = strlen (text);
+    legend.extents [0] =  DBL_MAX;
+    legend.extents [1] = -DBL_MAX;
 
-    for (j = k = 0; k < 3; k ++, j = i)
+    SET_Free (&rndsetmem, &legend.discrete);
+
+    if (legend_constraint_based ()) 
     {
-      for (i = j; i < n; i ++)
-      {
-	if (text [i] == ',')
-	{
-	  text [i] = '\0';
-	  i ++;
-	  break;
-	}
-      }
-      normal [k] = atof (&text [j]);
+      for (CON *con = domain->con; con; con = con->next) con->state &= ~CON_DONERND; /* all undone */
     }
+
+    for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_values (bod, bod->rendering);
+
+    legend_enable ();
   }
 
-  if (LEN (normal) > 0.0)
-  {
-    NORMALIZE (normal);
-    COPY (normal, clipping_plane);
-    update_clipping_plane (normal);
-    if (!current_tool) pushoff (tools_off);
-    current_tool = TOOLS_CLIPPING_PLANE;
-    GLV_Redraw_All ();
-  }
+  for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_data (bod, bod->rendering);
+
+  GLV_Redraw_All ();
 }
 
-/* declare menu callback */
-static void menu_analysis (int);
+/* one simulation step */
+static void step ()
+{
+  SOLVER_DATA *s = MAP_Find (solvers, domain, NULL);
+
+  if (s) SOLFEC_Run (solfec, s->kind, s->solver, domain->step);
+  else SOLFEC_Run (solfec, EXPLICIT_SOLVER, NULL, domain->step); /* default and in read mode */
+
+  update ();
+}
+
+/* run simulation */
+static void run (int dummy)
+{
+  step ();
+
+  if (domain->flags & DOM_RUN_ANALYSIS) glutTimerFunc (1000 * SOLFEC_Time_Skip (solfec), run, 0);
+}
 
 /* seek to specific time frame */
 static void seek_to_time (char *text)
@@ -1623,11 +1935,7 @@ static void seek_to_time (char *text)
 
     SOLFEC_Seek_To (solfec, t);
 
-    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
-    else GLV_Redraw_All ();
-
-    /* resize time viewport so to fit the text output */
-    GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
+    update ();
   }
 }
 
@@ -1636,327 +1944,24 @@ static void set_skip_steps (char *text)
 {
   if (text)
   {
-    analysis_skip_steps = ABS (atoi (text));
-    analysis_skip_steps = MAX (analysis_skip_steps, 1);
+    skip_steps = ABS (atoi (text));
+    skip_steps = MAX (skip_steps, 1);
   }
 }
 
-/* set up body rendering => return 1 if this body should be skipped or 0 otherwise */
-inline static int render_body_begin (BODY *bod, GLfloat color [4])
-{
-  if (bod->flags & BODY_OFF) return 1;
-  else if (bod == toggle_visible)
-  {
-    if (!bod->flags & BODY_HIDDEN)
-    {
-      glEnable (GL_BLEND);
-      glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    }
-
-    if (tool_flag) color [1] = 1.0;
-    else color [0] = 1.0;
-  }
-  else if (current_tool == TOOLS_TOGGLE_VISIBLE &&
-	   bod->flags & BODY_HIDDEN)
-  {
-      glEnable (GL_BLEND);
-      glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  }
-  else if (bod->flags & BODY_HIDDEN) return 1;
-
-  return 0;
-}
-
-
-/* finalize body rendering */
-inline static void render_body_end (BODY *bod, GLfloat color [4])
-{
-  if (bod == toggle_visible)
-  {
-    if (! bod->flags & BODY_HIDDEN)
-      glDisable (GL_BLEND);
-
-    if (tool_flag) color [1] = 0.7;
-    else color [0] = 0.7;
-  }
-  else if (current_tool == TOOLS_TOGGLE_VISIBLE &&
-	   bod->flags & BODY_HIDDEN) glDisable (GL_BLEND);
-}
-
-/* render volumetric object - basic */
-inline static void render_object_basic (BODY *bod, SHAPE *shp, short kind, void *obj, int flags, GLfloat color [4])
-{
-  switch (kind)
-  {
-    case SHAPE_MESH: render_mesh (bod, shp, obj, flags, color); break;
-    case SHAPE_CONVEX: render_convex (bod, shp, obj, flags, color); break;
-    case SHAPE_SPHERE: render_sphere (bod, shp, obj, flags, color); break;
-    case SHAPE_ELEMENT: render_element (bod, shp, obj, flags, color); break;
-  }
-}
-
-/* render volumetric object - complete (with clipping, etc.) */
-static void render_object (BODY *bod, SHAPE *shp, short kind, void *obj, int flags, GLfloat color [4])
-{
-  if (current_tool == TOOLS_CLIPPING_PLANE)
-  {
-    double normal [3];
-
-    glEnable (GL_CLIP_PLANE0);
-    glClipPlane (GL_CLIP_PLANE0, clipping_plane);
-
-    glDisable (GL_DEPTH_TEST);
-    glColorMask (GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
-
-    glEnable (GL_STENCIL_TEST);
-    glClear (GL_STENCIL_BUFFER_BIT);
-
-    glStencilFunc (GL_ALWAYS, 0, 0);
-
-    glStencilOp (GL_KEEP, GL_KEEP, GL_INCR);
-    glCullFace (GL_FRONT);
-    render_object_basic (bod, shp, kind, obj, flags, color);
-
-    glStencilOp (GL_KEEP, GL_KEEP, GL_DECR);
-    glCullFace (GL_BACK); 
-    render_object_basic (bod, shp, kind, obj, flags, color);
-
-    glEnable (GL_DEPTH_TEST);
-    glDisable (GL_CLIP_PLANE0);
-    glColorMask (GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
-
-    glStencilFunc (GL_NOTEQUAL, 0, ~0); 
-
-    COPY (clipping_plane, normal);
-    SCALE (normal, -1);
-
-    glBegin (GL_QUADS);
-    glNormal3dv (normal);
-    for (int j = 3; j >= 0; j--) glVertex3dv (clipping_quad [j]);
-    glEnd ();
-
-    glDisable (GL_STENCIL_TEST);
-    glEnable (GL_CLIP_PLANE0);
-  }
-
-  render_object_basic (bod, shp, kind, obj, flags, color);
-
-  if (current_tool == TOOLS_CLIPPING_PLANE)
-  {
-    glDisable (GL_CLIP_PLANE0);
-  }
-}
-
-/* render shape */
-static void render_shape (BODY *bod, SHAPE *shp, int flags, GLfloat color [4])
-{
-  switch (shp->kind)
-  {
-  case SHAPE_MESH:
-    if (current_tool == TOOLS_CLIPPING_PLANE && volumetric_map) /* draw bulk elements if clipping and volumetric maps are on */
-    {
-      ELEMENT *ele;
-      MESH *msh;
-
-      msh = shp->data;
-
-      for (ele = msh->surfeles; ele; ele = ele->next)
-      {
-	render_object (bod, shp, SHAPE_ELEMENT, ele, flags, color);
-      }
-
-      for (ele = msh->bulkeles; ele; ele = ele->next)
-      {
-	render_object (bod, shp, SHAPE_ELEMENT, ele, flags, color);
-      }
-    }
-    else render_object (bod, shp, SHAPE_MESH, shp->data, flags, color);
-    break;
-  case SHAPE_CONVEX:
-    for (CONVEX *cvx = shp->data; cvx; cvx = cvx->next)
-      render_object (bod, shp, SHAPE_CONVEX, cvx, flags, color);
-    break;
-  case SHAPE_SPHERE:
-    for (SPHERE *sph = shp->data; sph; sph = sph->next)
-      render_object (bod, shp, SHAPE_SPHERE, sph, flags, color);
-    break;
-  }
-}
-
-/* convert body id into an RGBA code */
-static void idtorgba (int id, GLfloat color [4])
-{
-  unsigned char rgba [4];
-
-  rgba [0] = ((unsigned char*)&id) [0];
-  rgba [1] = ((unsigned char*)&id) [1];
-  rgba [2] = ((unsigned char*)&id) [2];
-  rgba [3] = ((unsigned char*)&id) [3];
-
-  color [0] = (GLfloat) rgba [0] / 255.0f;
-  color [1] = (GLfloat) rgba [1] / 255.0f;
-  color [2] = (GLfloat) rgba [2] / 255.0f;
-  color [3] = (GLfloat) rgba [3] / 255.0f;
-}
-
-/* convert RGBA to body id */
-static int rgbatoid (unsigned char *rgba)
-{
-  int id;
-
-  ((unsigned char*)&id) [0] = rgba [0];
-  ((unsigned char*)&id) [1] = rgba [1];
-  ((unsigned char*)&id) [2] = rgba [2];
-  ((unsigned char*)&id) [3] = rgba [3];
-
-  return id;
-}
-
-/* rendering in selection mode */
-static void render_selection (int skip_flags)
-{
-  GLfloat color [4];
-
-  if (selection)
-  {
-    for (MAP *item = MAP_First (selection); item; item = MAP_Next (item))
-    {
-      BODY *bod = item->data;
-
-      if (bod->flags & skip_flags) continue;
-
-      glPushName (bod->id);
-      idtorgba (bod->id, color);
-      for (SHAPE *shp = bod->shape; shp; shp = shp->next)
-      {
-	switch (shp->kind)
-	{
-	  case SHAPE_MESH:
-	    render_mesh (NULL, shp, shp->data, SELECTION, color);
-	    break;
-	  case SHAPE_CONVEX:
-            for (CONVEX *cvx = shp->data; cvx; cvx = cvx->next)
-              render_convex (NULL, shp, cvx, SELECTION, color);
-	    break;
-	  case SHAPE_SPHERE:
-            for (SPHERE *sph = shp->data; sph; sph = sph->next)
-	      render_sphere (NULL, shp, sph, SELECTION, color);
-	    break;
-	}
-      }
-      glPopName ();
-    }
-  }
-  else
-  {
-    for (BODY *bod = domain->bod; bod; bod = bod->next)
-    {
-      if (bod->flags & skip_flags) continue;
-
-      glPushName (bod->id);
-      idtorgba (bod->id, color);
-      for (SHAPE *shp = bod->shape; shp; shp = shp->next)
-      {
-	switch (shp->kind)
-	{
-	  case SHAPE_MESH:
-	    render_mesh (NULL, shp, shp->data, SELECTION, color);
-	    break;
-	  case SHAPE_CONVEX:
-            for (CONVEX *cvx = shp->data; cvx; cvx = cvx->next)
-              render_convex (NULL, shp, cvx, SELECTION, color);
-	    break;
-	  case SHAPE_SPHERE:
-            for (SPHERE *sph = shp->data; sph; sph = sph->next)
-	      render_sphere (NULL, shp, sph, SELECTION, color);
-	    break;
-	}
-      }
-      glPopName ();
-    }
-  }
-}
-
-/* selection using selection buffer */
-static void select_bodies_3d (int x1, int y1, int x2, int y2)
-{
-  GLuint *sel, ssel, nsel, n, m, k;
-  GLint viewport[4];
-  int x, y, w, h; 
-
-  w = ABS (x1 - x2);
-  h = ABS (y1 - y2);
-  x = (x1 + x2) / 2;
-  y = (y1 + y2) / 2;
-  w = MAX (w, 2);
-  h = MAX (h, 2);
-  ssel = domain->nbod * 4; /* assumes each body id stored in a separate hit, which is excessive and must be enough */
-  ERRMEM (sel = malloc (sizeof (GLuint [ssel])));
-
-  glSelectBuffer (ssel, sel);
-  glRenderMode (GL_SELECT);
-  glMatrixMode (GL_PROJECTION);
-  glPushMatrix ();
-  glLoadIdentity ();
-  glGetIntegerv (GL_VIEWPORT, viewport);
-  gluPickMatrix (x, viewport [3] - y, w, h, viewport);
-  GLV_SetProjectionMatrix (viewport [2], viewport [3]);
-  glMatrixMode (GL_MODELVIEW);
-  glInitNames ();
-  render_selection (BODY_HIDDEN|BODY_OFF);
-  glMatrixMode (GL_PROJECTION);
-  glPopMatrix ();
-  glMatrixMode (GL_MODELVIEW);
-  glFlush ();
-  nsel = glRenderMode (GL_RENDER);
-
-  if (nsel > 0 && nsel < INT_MAX)
-  {
-    if (selection)
-    {
-      MAP *newsel = NULL;
-      BODY *bod;
-
-      for (n = m = 0; n < nsel; n ++, m += sel [m]+3)
-      {
-	for (k = 0; k < sel [m]; k ++)
-	{
-	  bod = MAP_Find (selection, (void*) sel [m+3+k], NULL);
-	  WARNING_DEBUG (bod, "Invalid selection name: %d", sel [m+3+k]);
-	  if (bod) MAP_Insert (&domain->mapmem, &newsel, (void*) bod->id, bod, NULL);
-	}
-      }
-
-      MAP_Free (&domain->mapmem, &selection);
-      selection = newsel;
-    }
-    else
-    {
-      BODY *bod;
-
-      for (n = m = 0; n < nsel; n ++, m += sel [m]+3)
-      {
-	for (k = 0; k < sel [m]; k ++)
-	{
-	  bod = MAP_Find (domain->idb, (void*) sel [m+3+k], NULL);
-	  WARNING_DEBUG (bod, "Invalid selection name: %d", sel [m+3+k]);
-	  if (bod) MAP_Insert (&domain->mapmem, &selection, (void*) bod->id, bod, NULL);
-	}
-      }
-    }
-  }
-
-  free (sel);
-}
-
-/* selection using coloring */
-static void select_bodies_2d (int x1, int y1, int x2, int y2)
+/* 2D selection using indexed coloring */
+static void select_2D (int x1, int y1, int x2, int y2)
 {
   unsigned char (*pix) [4];
+  SET *ids, *set, *item;
   int x, y, w, h, n, m;
-  GLint viewport[4];
-  SET *item, *set;
+  GLint viewport [4];
   BODY *bod;
+
+  glDisable (GL_LIGHTING);
+  glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+  selection_2D_render_body_set (selection->set);
+  glEnable (GL_LIGHTING);
 
   glGetIntegerv (GL_VIEWPORT, viewport);
 
@@ -1968,268 +1973,296 @@ static void select_bodies_2d (int x1, int y1, int x2, int y2)
   h = MAX (h, 1);
   m = w * h;
 
-  glDisable (GL_LIGHTING);
-  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  render_selection (BODY_HIDDEN|BODY_OFF);
-  glEnable (GL_LIGHTING);
-
   ERRMEM (pix = malloc (m * sizeof (unsigned char [4])));
   glReadPixels (x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pix);
-
-  for (set = NULL, n = 0; n < m; n ++)
-    SET_Insert (&domain->setmem, &set, (void*) rgbatoid (pix [n]), NULL);
-
+  for (ids = NULL, n = 0; n < m; n ++) SET_Insert (&rndsetmem, &ids, (void*) (long) rgbatoid (pix [n]), NULL);
   free (pix);
 
-  if (set)
+  if (ids)
   {
-    if (selection)
+    for (set = NULL, item = SET_First (ids); item; item = SET_Next (item))
     {
-      MAP *newsel = NULL;
-
-      for (item = SET_First (set); item; item = SET_Next (item))
-      {
-	bod = MAP_Find (selection, item->data, NULL);
-	if (bod) MAP_Insert (&domain->mapmem, &newsel, (void*) bod->id, bod, NULL);
-      }
-
-      MAP_Free (&domain->mapmem, &selection);
-      selection = newsel;
+      bod = MAP_Find (domain->idb, item->data, NULL);
+      if (bod) SET_Insert (&rndsetmem, &set, bod, NULL);
     }
-    else
-    {
-      for (item = SET_First (set); item; item = SET_Next (item))
-      {
-	bod = MAP_Find (domain->idb, item->data, NULL);
-	if (bod) MAP_Insert (&domain->mapmem, &selection, (void*) bod->id, bod, NULL);
-      }
-    }
+
+    if (set) selection_push (set);
+
+    SET_Free (&rndsetmem, &ids);
   }
-
-  SET_Free (&domain->setmem, &set);
 }
 
-/* selection one body using coloring */
-static BODY* select_body (int x, int y)
+/* 3D selection using indexed coloring */
+static void select_3D (int x1, int y1, int x2, int y2)
+{
+  GLuint *sel, selsize, selcount, n, m, k;
+  GLint viewport [4];
+  int x, y, w, h; 
+  BODY *bod;
+  SET *set;
+
+  w = ABS (x1 - x2);
+  h = ABS (y1 - y2);
+  x = (x1 + x2) / 2;
+  y = (y1 + y2) / 2;
+  w = MAX (w, 2);
+  h = MAX (h, 2);
+  selsize = SET_Size (selection->set) * 4; /* assumes that each body id stored in a separate hit, which is excessive and must be enough */
+  ERRMEM (sel = malloc (sizeof (GLuint [selsize])));
+
+  glSelectBuffer (selsize, sel);
+  glRenderMode (GL_SELECT);
+  glMatrixMode (GL_PROJECTION);
+  glPushMatrix ();
+  glLoadIdentity ();
+  glGetIntegerv (GL_VIEWPORT, viewport);
+  gluPickMatrix (x, viewport [3] - y, w, h, viewport);
+  GLV_SetProjectionMatrix (viewport [2], viewport [3]);
+  glMatrixMode (GL_MODELVIEW);
+  glInitNames ();
+  selection_3D_render_body_set (selection->set);
+  glMatrixMode (GL_PROJECTION);
+  glPopMatrix ();
+  glMatrixMode (GL_MODELVIEW);
+  glFlush ();
+  selcount = glRenderMode (GL_RENDER);
+
+  if (selcount > 0 && selcount < INT_MAX)
+  {
+    for (n = m = 0, set = NULL; n < selcount; n ++, m += sel [m]+3)
+    {
+      for (k = 0; k < sel [m]; k ++)
+      {
+	bod = MAP_Find (domain->idb, (void*) sel [m+3+k], NULL);
+	if (bod) SET_Insert (&rndsetmem, &set, bod, NULL);
+      }
+    }
+
+    if (set) selection_push (set);
+  }
+
+  free (sel);
+}
+
+/* pick one body using 2D selection */
+static BODY* pick_body (int x, int y)
 {
   unsigned char pix [4];
-  GLint viewport[4];
-  BODY *bod;
+  GLint viewport [4];
 
   glDisable (GL_LIGHTING);
-  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-  render_selection (BODY_OFF);
+  glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+  selection_2D_render_body_set (selection->set);
   glEnable (GL_LIGHTING);
 
   glGetIntegerv (GL_VIEWPORT, viewport);
   glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
 
-  if (selection) bod = MAP_Find (selection, (void*) rgbatoid (pix), NULL);
-  else bod = MAP_Find (domain->idb, (void*) rgbatoid (pix), NULL);
-
-  return bod;
+  return MAP_Find (domain->idb, (void*) rgbatoid (pix), NULL);
 }
 
-/* switch off selection */
-static void selection_off ()
+/* disable all modes */
+static int modes_off ()
 {
-
-  mousemode = MOUSE_MODE_NONE;
+  int ret = tool_mode;
+  mouse_mode = MOUSE_NONE;
+  selection_mode = SELECTION_NONE;
+  tool_mode = 0;
+  picked_body = NULL;
   GLV_Rectangle_Off ();
   GLV_Release_Mouse ();
-
-  /* update volumetric map (and its extrema) after selection */
-  if (volumetric_map) volumetric_map_on (volumetric_map_kind);
-  else GLV_Redraw_All ();
+  update ();
+  return ret;
 }
 
-/* one solfec step in write mode */
-static void solfec_step ()
+/* time window width */
+static int time_width ()
 {
-  SOLVER_INTERFACE *si = MAP_Find (solver_interfaces, domain, NULL);
+  return GLV_Print_Width (TIME_FONT, "t=%g", domain->time) + 6;
+}
 
-  if (si) SOLFEC_Run (solfec, si->kind, si->solver, domain->step);
-  else SOLFEC_Run (solfec, EXPLICIT_SOLVER, NULL, domain->step); /* use explicit solver by default */
-
-  /* update volumetric map (and its extrema) after updating state */
-  if (volumetric_map) volumetric_map_on (volumetric_map_kind);
-  else GLV_Redraw_All ();
-
-  /* resize time viewport so to fit the text output */
+/* render current time */
+static void time_render ()
+{
   GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
+
+  glDisable (GL_LIGHTING);
+  glDisable (GL_DEPTH_TEST);
+
+  glColor3f (1, 1, 1);
+  glRecti (0, 0, time_width (), TIME_HEIGHT);
+  glColor3f (0, 0, 0);
+  GLV_Print (3, 3, 0, TIME_FONT, "t=%g", domain->time);
+
+  glEnable (GL_LIGHTING);
+  glEnable (GL_DEPTH_TEST);
 }
 
-/* solfe run timer callback */
-static void solfec_run (int value)
+/* menus */
+
+static void menu_domain (int item)
 {
-  solfec_step ();
-
-  if (domain->flags & DOM_RUN_ANALYSIS)
-    glutTimerFunc (1000 * SOLFEC_Time_Skip (solfec), solfec_run, 0);
-}
-
-/* menu callbacks */
-
-static void menu_render (int value)
-{
-  switch (value)
-  {
-  case RENDER_ALL:
-
-    MAP_Free (&domain->mapmem, &selection);
-    mousemode = MOUSE_MODE_NONE;
-    update_extents ();
-
-    if (current_tool == TOOLS_CLIPPING_PLANE)
-      update_clipping_plane (clipping_plane);
-
-    /* update volumetric map (and its extrema) after selection */
-    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
-
-    break;
-  case RENDER_SELECTION_2D:
-    deloff (tools_off);
-    mousemode = MOUSE_SELECTION_2D_BEGIN;
-    GLV_Hold_Mouse ();
-    pushoff (selection_off);
-    break;
-  case RENDER_SELECTION_3D:
-    deloff (tools_off);
-    mousemode = MOUSE_SELECTION_3D_BEGIN;
-    GLV_Hold_Mouse ();
-    pushoff (selection_off);
-    break;
-  }
-}
-
-static void menu_domain (int value)
-{
-  switch (value)
+  int prevmode = solfec->mode;
+  DOM *prevdom = domain;
+  
+  switch (item)
   {
   case DOMAIN_NEXT:
-    if (domain->next)
-    {
-      domain = domain->next;
-      GLV_Redraw_All ();
-    }
-    break;
-  case DOMAIN_PREV:
-    if (domain->prev)
-    {
-      domain = domain->prev;
-      GLV_Redraw_All ();
-    }
-    break;
+    if (domain->next) domain = domain->next; break;
+  case DOMAIN_PREVIOUS:
+    if (domain->prev) domain = domain->prev; break;
   }
 
   /* update analysis menu */
 
-  glutSetMenu (analysis_menu);
-
-  if (domain->flags & DOM_RUN_ANALYSIS)
-    glutChangeToMenuEntry (1, "stop /RETURN/", ANALYSIS_STOP);
-  else glutChangeToMenuEntry (1, "run /RETURN/", ANALYSIS_RUN);
-
-  if (solfec->mode == SOLFEC_READ && analysis_menu_items == 2)
+  if (domain != prevdom)
   {
-    glutAddMenuEntry ("seek to /UP/", ANALYSIS_SEEKTO);
-    glutAddMenuEntry ("forward /LEFT/", ANALYSIS_FORWARD);
-    glutAddMenuEntry ("backward /RIGHT/", ANALYSIS_BACKWARD);
-    glutAddMenuEntry ("skip /DOWN/", ANALYSIS_SKIP);
-    analysis_menu_items = 6;
-  }
-  else if (solfec->mode == SOLFEC_WRITE && analysis_menu_items == 6)
-  {
-    glutRemoveMenuItem (6);
-    glutRemoveMenuItem (5);
-    glutRemoveMenuItem (4);
-    glutRemoveMenuItem (3);
-    analysis_menu_items = 2;
+    selection_init ();
+
+    update_extents ();
+
+    glutSetMenu (menu_code [MENU_ANALYSIS]);
+
+    if (domain->flags & DOM_RUN_ANALYSIS)
+      glutChangeToMenuEntry (1, "stop /RETURN/", ANALYSIS_STOP);
+    else glutChangeToMenuEntry (1, "run /RETURN/", ANALYSIS_RUN);
+
+    if (solfec->mode == SOLFEC_READ && prevmode == SOLFEC_WRITE)
+    {
+      glutAddMenuEntry ("seek to /UP/", ANALYSIS_SEEKTO);
+      glutAddMenuEntry ("forward /LEFT/", ANALYSIS_FORWARD);
+      glutAddMenuEntry ("backward /RIGHT/", ANALYSIS_BACKWARD);
+      glutAddMenuEntry ("skip /DOWN/", ANALYSIS_SKIP);
+    }
+    else if (solfec->mode == SOLFEC_WRITE && prevmode == SOLFEC_READ)
+    {
+      glutRemoveMenuItem (6);
+      glutRemoveMenuItem (5);
+      glutRemoveMenuItem (4);
+      glutRemoveMenuItem (3);
+    }
   }
 }
 
-static void menu_tools (int value)
+static void menu_render (int item)
 {
-  deloff (selection_off);
-
-  switch (value)
+  switch (item)
   {
-  case TOOLS_TOGGLE_VISIBLE:
-    if (!current_tool) pushoff (tools_off);
-    current_tool = value;
-    tool_flag = 0;
+  case RENDER_SELECTION_2D:
+    legend_disable ();
+    modes_off ();
+    mouse_mode = MOUSE_SELECTION_BEGIN;
+    selection_mode = SELECTION_2D;
+    GLV_Hold_Mouse ();
     break;
-  case TOOLS_CLIPPING_PLANE:
-    GLV_Read_Text ("Plane normal nx, ny, nz", read_clipping_normal);
+  case RENDER_SELECTION_3D:
+    legend_disable ();
+    modes_off ();
+    mouse_mode = MOUSE_SELECTION_BEGIN;
+    selection_mode = SELECTION_3D;
+    GLV_Hold_Mouse ();
     break;
-  case TOOLS_SWITCH_OFF:
-    if (!current_tool) pushoff (tools_off);
-    current_tool = TOOLS_TOGGLE_VISIBLE;
-    tool_flag = TOOL_FLAG_SWITCH_OFF;
+  case RENDER_PREVIOUS_SELECTION:
+    selection_pop ();
+    update_extents ();
     break;
-  case TOOLS_SWITCH_ON_ALL:
+  }
+}
+
+static void menu_tools (int item)
+{
+  switch (item)
+  {
+  case TOOLS_TRANSPARENT:
+  case TOOLS_ROUGH_MESH:
+  case TOOLS_HIDE:
+    modes_off ();
+    mouse_mode = MOUSE_PICK_BODY;
+    tool_mode = item;
+    GLV_Hold_Mouse ();
+    break;
+  case TOOLS_SHOW_ALL:
     for (BODY *bod = domain->bod; bod; bod = bod->next)
-      bod->flags &= ~(BODY_HIDDEN|BODY_OFF);
+    { BODY_DATA *data = bod->rendering; data->flags &= ~HIDDEN; }
+    update_extents ();
+    break;
+  case TOOLS_NEXT_RESULT:
+    if (legend.entity)
+    {
+      if (legend.entity < RESULTS_R)
+      {
+	legend.entity ++;
+	update ();
+      }
+    }
+    else menu_kinds (KINDS_OF_CONSTRAINTS);
+    break;
+  case TOOLS_PREVIOUS_RESULT:
+    if (legend.entity)
+    {
+      if (legend.entity > KINDS_OF_CONSTRAINTS)
+      {
+	legend.entity --;
+	update ();
+      }
+    }
+    else menu_results (RESULTS_R);
+    break;
+  case TOOLS_SMALLER_ARROWS:
+    if (arrow_factor > 0.02) arrow_factor -= 0.01;
     GLV_Redraw_All ();
     break;
-  case TOOLS_ROUGH_MESH_ON:
-    if (!current_tool) pushoff (tools_off);
-    current_tool = TOOLS_TOGGLE_VISIBLE;
-    tool_flag = TOOL_FLAG_ROUGH_MESH_ON;
+  case TOOLS_BIGGER_ARROWS:
+    if (arrow_factor < 0.10) arrow_factor += 0.01;
+    GLV_Redraw_All ();
     break;
   }
 }
 
-static void menu_kinds (int value)
+static void menu_kinds (int item)
 {
-  volumetric_map_on (value);
-  GLV_Redraw_All ();
+  legend.entity = item;
+  update ();
 }
 
-static void menu_analysis (int value)
+static void menu_analysis (int item)
 {
-  switch (value)
+  switch (item)
   {
   case ANALYSIS_RUN:
     domain->flags |= DOM_RUN_ANALYSIS;
-    solfec_run (0);
-    glutSetMenu (analysis_menu);
+    run (0);
+    glutSetMenu (menu_code [MENU_ANALYSIS]);
     glutChangeToMenuEntry (1, "stop /RETURN/", ANALYSIS_STOP);
     break;
   case ANALYSIS_STOP:
     domain->flags &= ~DOM_RUN_ANALYSIS;
-    glutSetMenu (analysis_menu);
+    glutSetMenu (menu_code [MENU_ANALYSIS]);
     glutChangeToMenuEntry (1, "run /RETURN/", ANALYSIS_RUN);
     break;
   case ANALYSIS_STEP:
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
-    solfec_step ();
+    step ();
     break;
   case ANALYSIS_SEEKTO:
     {
-      static char caption [128];
+      static char caption [256];
       double s, e;
 
       SOLFEC_Time_Limits (solfec, &s, &e);
-      snprintf (caption, 128, "Seek to time from [%.2e, %.2e]", s, e);
+      snprintf (caption, 256, "Seek to time from [%g, %g]", s, e);
       GLV_Read_Text (caption, seek_to_time);
     }
     break;
   case ANALYSIS_FORWARD:
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
-    SOLFEC_Forward (solfec, analysis_skip_steps);
-    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
-    else GLV_Redraw_All ();
-    /* resize time viewport so to fit the text output */
-    GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
+    SOLFEC_Forward (solfec, skip_steps);
+    update ();
     break;
   case ANALYSIS_BACKWARD:
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
-    SOLFEC_Backward (solfec, analysis_skip_steps);
-    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
-    else GLV_Redraw_All ();
-    /* resize time viewport so to fit the text output */
-    GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
+    SOLFEC_Backward (solfec, skip_steps);
+    update ();
     break;
   case ANALYSIS_SKIP:
     GLV_Read_Text ("FORWARD and BACKWARD skip", set_skip_steps);
@@ -2237,59 +2270,60 @@ static void menu_analysis (int value)
   }
 }
 
-static void menu_results (int value)
+static void menu_results (int item)
 {
-  volumetric_map_on (value);
-  GLV_Redraw_All ();
+  legend.entity = item;
+  update ();
 }
+
+/* callabacks */
 
 int RND_Menu (char ***names, int **codes)
 {
-  static int code [9];
-  static char *name [9];
-  int local [9];
+  int local [4];
 
   ASSERT (domain, ERR_RND_NO_DOMAIN);
 
-  name [0] = "domain";
-  code [0] = domain_menu = glutCreateMenu (menu_domain);
-  glutAddMenuEntry ("previous /</", DOMAIN_PREV);
+  menu_name [MENU_DOMAIN] = "domain";
+  menu_code [MENU_DOMAIN] = glutCreateMenu (menu_domain);
+  glutAddMenuEntry ("previous /</", DOMAIN_PREVIOUS);
   glutAddMenuEntry ("next />/", DOMAIN_NEXT);
 
-  name [1] = "render";
-  code [1] = render_menu = glutCreateMenu (menu_render);
-  glutAddMenuEntry ("all bodies /a/", RENDER_ALL);
+  menu_name [MENU_RENDER] = "render";
+  menu_code [MENU_RENDER] = glutCreateMenu (menu_render);
   glutAddMenuEntry ("2D selection /2/", RENDER_SELECTION_2D);
   glutAddMenuEntry ("3D selection /3/", RENDER_SELECTION_3D);
+  glutAddMenuEntry ("previous selection /p/", RENDER_PREVIOUS_SELECTION);
 
-  name [2] = "tools";
-  code [2] = tools_menu = glutCreateMenu (menu_tools);
-  glutAddMenuEntry ("toggle visible /v/", TOOLS_TOGGLE_VISIBLE);
-  glutAddMenuEntry ("clipping plane /c/", TOOLS_CLIPPING_PLANE);
-  glutAddMenuEntry ("switch off /f/", TOOLS_SWITCH_OFF);
-  glutAddMenuEntry ("switch on all /o/", TOOLS_SWITCH_ON_ALL);
-  glutAddMenuEntry ("rough mesh on /r/", TOOLS_ROUGH_MESH_ON);
+  menu_name [MENU_TOOLS] = "tools";
+  menu_code [MENU_TOOLS] = glutCreateMenu (menu_tools);
+  glutAddMenuEntry ("toggle transparent /t/", TOOLS_TRANSPARENT);
+  glutAddMenuEntry ("hide /h/", TOOLS_HIDE);
+  glutAddMenuEntry ("show all /a/", TOOLS_SHOW_ALL);
+  glutAddMenuEntry ("toggle rough mesh /r/", TOOLS_ROUGH_MESH);
+  glutAddMenuEntry ("next result /+/", TOOLS_NEXT_RESULT);
+  glutAddMenuEntry ("previous result /-/", TOOLS_PREVIOUS_RESULT);
+  glutAddMenuEntry ("bigger arrows /]/", TOOLS_BIGGER_ARROWS);
+  glutAddMenuEntry ("smaller arrows /[/", TOOLS_SMALLER_ARROWS);
 
-  name [3] = "kinds of";
-  code [3] = kindsof_menu = glutCreateMenu (menu_kinds);
-  glutAddMenuEntry ("constraints", KINDSOF_CONSTRAINTS);
-  glutAddMenuEntry ("forces", KINDSOF_FORCES);
-  glutAddMenuEntry ("bodies", KINDSOF_BODIES);
-  glutAddMenuEntry ("surfaces", KINDSOF_SURFACES);
-  glutAddMenuEntry ("volumes", KINDSOF_VOLUMES);
+  menu_name [MENU_KINDS] = "kinds of";
+  menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
+  glutAddMenuEntry ("constraints", KINDS_OF_CONSTRAINTS);
+  glutAddMenuEntry ("forces", KINDS_OF_FORCES);
+  glutAddMenuEntry ("bodies", KINDS_OF_BODIES);
+  glutAddMenuEntry ("surfaces", KINDS_OF_SURFACES);
+  glutAddMenuEntry ("volumes", KINDS_OF_VOLUMES);
 
-  name [4] = "analysis";
-  code [4] = analysis_menu = glutCreateMenu (menu_analysis);
+  menu_name [MENU_ANALYSIS] = "analysis";
+  menu_code [MENU_ANALYSIS] = glutCreateMenu (menu_analysis);
   glutAddMenuEntry ("run /RETURN/", ANALYSIS_RUN);
   glutAddMenuEntry ("step /SPACE/", ANALYSIS_STEP);
-  analysis_menu_items = 2;
   if (solfec->mode == SOLFEC_READ)
   {
     glutAddMenuEntry ("seek to /UP/", ANALYSIS_SEEKTO);
     glutAddMenuEntry ("forward /LEFT/", ANALYSIS_FORWARD);
     glutAddMenuEntry ("backward /RIGHT/", ANALYSIS_BACKWARD);
     glutAddMenuEntry ("skip /DOWN/", ANALYSIS_SKIP);
-    analysis_menu_items = 6;
   }
 
   local [0] = glutCreateMenu (menu_results);
@@ -2313,176 +2347,82 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("tangent", RESULTS_RT);
   glutAddMenuEntry ("resultant", RESULTS_R);
 
-  name [5] = "results";
-  code [5] = results_menu = glutCreateMenu (menu_results);
+  menu_name [MENU_RESULTS] = "results";
+  menu_code [MENU_RESULTS] = glutCreateMenu (menu_results);
   glutAddSubMenu ("displacements", local [0]);
   glutAddSubMenu ("velocities", local [1]);
   glutAddSubMenu ("stresses", local [2]);
   glutAddSubMenu ("reactions", local [3]);
 
-  *codes = code;
-  *names = name;
-  return 6;
+  *names = menu_name;
+  *codes = menu_code;
+  return MENU_LAST;
 }
 
-/* initialize rendering */
 void RND_Init ()
 {
-  double extents [6];
   int w, h;
 
-  get_scene_extents (extents);
+  ASSERT (domain, ERR_RND_NO_DOMAIN);
 
-  GLV_Reset_Extents (extents);
+  MEM_Init (&rndsetmem, sizeof (SET), BIGCHUNK);
+
+  MEM_Init (&rndmapmem, sizeof (MAP), BIGCHUNK);
+
+  selection_init ();
+
+  update_extents ();
+
+  legend.preventity = 0;
+  legend.entity = 0;
+  legend.window = 0;
+  legend.discrete = NULL;
 
   GLV_Sizes (&w, &h);
-  time_window = GLV_Open_Viewport (0, -(h - TIME_HEIGHT), time_width (), TIME_HEIGHT, 0, render_time);
+
+  time_window = GLV_Open_Viewport (0, -(h - TIME_HEIGHT), time_width (), TIME_HEIGHT, 0, time_render);
 }
 
-/* idle actions */
 int  RND_Idle ()
 {
   return 0;
 }
 
-/* finalize rendering */
 void RND_Quit ()
 {
-  MAP *item;
+  for (MAP *item = MAP_First (solvers); item; item = MAP_Next (item)) free (item->data); /* free solver interfaces */
+  MAP_Free (NULL, &solvers);
 
-  for (item = MAP_First (solver_interfaces); item; item = MAP_Next (item)) free (item->data); /* free solver interfaces */
-  MAP_Free (NULL, &solver_interfaces); /* and the map itself */
-
-  lngfinalize (); /* finalize Python context */
+  lngfinalize (); /* finalize Python */
 }
 
-/* render scene */
 void RND_Render ()
 {
-  int flags = OUTLINE;
+  render_body_set (selection->set);
 
-  if (volumetric_map_constraint_based ())
-  {
-    GLfloat color [4] = {1.0, 0.0, 0.0, 1.0};
-
-    for (CON *con = domain->con; con; con = con->next)
-    {
-      if (skip_constraint (con)) continue;
-
-      get_constraint_based_color (con, color);
-
-      switch (volumetric_map_kind)
-      {
-      case KINDSOF_CONSTRAINTS:
-	switch (con->kind)
-	{
-	  case CONTACT: render_contact (con, color); break;
-	  case FIXPNT: render_fixpnt (con, color); break;
-	  case FIXDIR: render_fixdir (con, color); break;
-	  case VELODIR: render_velodir (con, color); break;
-	  case RIGLNK: render_riglnk (con, color); break;
-	}
-	break;
-      case RESULTS_RT: render_rt (con, color); break;
-      case RESULTS_RN: render_rn (con, color); break;
-      case RESULTS_R:  render_r  (con, color); break;
-      }
-    }
-
-    glEnable (GL_BLEND);
-    glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  }
-
-  if (selection)
-  {
-    for (MAP *item = MAP_First (selection); item; item = MAP_Next (item))
-    {
-      BODY *bod = item->data;
-
-      GLfloat color [4] = {0.7, 0.7, 0.7, 0.2};
-
-      if (render_body_begin (bod, color)) continue;
-
-      for (SHAPE *shp = bod->shape; shp; shp = shp->next)
-	render_shape (bod, shp, flags, color);
-
-      render_body_end (bod, color);
-
-      if (bod->flags & BODY_SHOW_ROUGH_MESH)
-      {
-	glEnable (GL_BLEND);
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	render_object (bod, NULL, SHAPE_MESH, bod->msh, flags, color);
-	glDisable (GL_BLEND);
-      }
-    }
-  }
-  else
-  {
-    for (BODY *bod = domain->bod; bod; bod = bod->next)
-    {
-      GLfloat color [4] = {0.7, 0.7, 0.7, 0.2};
-
-      if (render_body_begin (bod, color)) continue;
-
-      for (SHAPE *shp = bod->shape; shp; shp = shp->next)
-	render_shape (bod, shp, flags, color);
-
-      render_body_end (bod, color);
-
-      if (bod->flags & BODY_SHOW_ROUGH_MESH)
-      {
-	glEnable (GL_BLEND);
-	glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-	render_object (bod, NULL, SHAPE_MESH, bod->msh, flags, color);
-	glDisable (GL_BLEND);
-      }
-    }
-  }
-
-  if (volumetric_map_constraint_based ())
-  {
-    glDisable (GL_BLEND);
-  }
-  else
-  {
-    for (CON *con = domain->con; con; con = con->next)
-    {
-      if (skip_constraint (con)) continue;
-      if (con->kind == RIGLNK) 
-      {
-        GLfloat color [4] = {0.7, 0.7, 0.7, 0.2};
-
-	render_riglnk (con, color); /* render rigid links */
-      }
-    }
-  }
+  render_picked_body ();
 }
 
-/* react to key pressed */
 void RND_Key (int key, int x, int y)
 {
   switch (key)
   {
   case 27:
-    popoff (); /* switch off stuff */
+    legend_disable ();
+    if (modes_off ()) legend_pop ();
     break;
   case '\r':
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
     else menu_analysis (ANALYSIS_RUN);
     break;
   case ' ':
-    if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
-    solfec_step ();
+    menu_analysis (ANALYSIS_STEP);
     break;
   case '<':
-    menu_domain (DOMAIN_PREV);
+    menu_domain (DOMAIN_PREVIOUS);
     break;
   case '>':
     menu_domain (DOMAIN_NEXT);
-    break;
-  case 'a':
-    menu_render (RENDER_ALL);
     break;
   case '2':
     menu_render (RENDER_SELECTION_2D);
@@ -2490,43 +2430,36 @@ void RND_Key (int key, int x, int y)
   case '3':
     menu_render (RENDER_SELECTION_3D);
     break;
-  case 'v':
-    menu_tools (TOOLS_TOGGLE_VISIBLE);
+  case 'p':
+    menu_render (RENDER_PREVIOUS_SELECTION);
     break;
-  case 'c':
-    menu_tools (TOOLS_CLIPPING_PLANE);
+  case 't':
+    menu_tools (TOOLS_TRANSPARENT);
     break;
-  case 'f':
-    menu_tools (TOOLS_SWITCH_OFF);
+  case 'h':
+    menu_tools (TOOLS_HIDE);
     break;
-  case 'o':
-    menu_tools (TOOLS_SWITCH_ON_ALL);
+  case 'a':
+    menu_tools (TOOLS_SHOW_ALL);
     break;
   case 'r':
-    menu_tools (TOOLS_ROUGH_MESH_ON);
+    menu_tools (TOOLS_ROUGH_MESH);
     break;
   case '=':
-    if (volumetric_map)
-    {
-      if (volumetric_map_kind < RESULTS_R)
-	volumetric_map_on (volumetric_map_kind + 1);
-    }
-    else volumetric_map_on (KINDSOF_CONSTRAINTS);
-    GLV_Redraw_All ();
+    menu_tools (TOOLS_NEXT_RESULT);
     break;
   case '-':
-    if (volumetric_map)
-    {
-      if (volumetric_map_kind > KINDSOF_CONSTRAINTS)
-	volumetric_map_on (volumetric_map_kind - 1);
-    }
-    else volumetric_map_on (RESULTS_R);
-    GLV_Redraw_All ();
+    menu_tools (TOOLS_PREVIOUS_RESULT);
+    break;
+  case '[':
+    menu_tools (TOOLS_SMALLER_ARROWS);
+    break;
+  case ']':
+    menu_tools (TOOLS_BIGGER_ARROWS);
     break;
   }
 }
 
-/* react to special key pressed */
 void RND_Keyspec (int key, int x, int y)
 {
   switch (key)
@@ -2546,74 +2479,53 @@ void RND_Keyspec (int key, int x, int y)
   }
 }
 
-/* react to mouse click */
 void RND_Mouse (int button, int state, int x, int y)
 {
-  switch (state)
-  {
-    case GLUT_UP:
-    break;
-
-    case GLUT_DOWN:
-    break;
-  }
-
   switch (button)
   {
     case GLUT_LEFT_BUTTON:
     switch (state)
     {
     case GLUT_UP:
-      if (mousemode == MOUSE_SELECTION_2D_END||
-          mousemode == MOUSE_SELECTION_3D_END)
+      if (mouse_mode == MOUSE_SELECTION_END)
       {
-	if (mousemode == MOUSE_SELECTION_2D_END)
-	  select_bodies_2d (mouse_x, mouse_y, x, y);
-	else select_bodies_3d (mouse_x, mouse_y, x, y);
+	switch (selection_mode)
+	{
+	case SELECTION_2D: select_2D (mouse_start [0], mouse_start [1], x, y); break;
+	case SELECTION_3D: select_3D (mouse_start [0], mouse_start [1], x, y); break;
+	default: break;
+	}
 
+	modes_off ();
         update_extents ();
-
-	deloff (selection_off);
+	legend_pop ();
       }
       break;
     case GLUT_DOWN:
-      if (mousemode == MOUSE_SELECTION_2D_BEGIN)
+      if (mouse_mode == MOUSE_SELECTION_BEGIN)
       {
-	mouse_x = x;
-	mouse_y = y;
-	mousemode = MOUSE_SELECTION_2D_END;
+	mouse_mode = MOUSE_SELECTION_END;
+	mouse_start [0] = x;
+	mouse_start [1] = y;
       }
-      else if (mousemode == MOUSE_SELECTION_3D_BEGIN)
+      else if (mouse_mode == MOUSE_PICK_BODY && picked_body)
       {
-	mouse_x = x;
-	mouse_y = y;
-	mousemode = MOUSE_SELECTION_3D_END;
-      }
-      else if (current_tool == TOOLS_TOGGLE_VISIBLE)
-      {
-        if (toggle_visible)
-	{
-	  if ((glutGetModifiers () & GLUT_ACTIVE_CTRL)
-	      || tool_flag == TOOL_FLAG_SWITCH_OFF)
-	  {
-	    toggle_visible->flags |= BODY_OFF; /* switch off */
-	  }
-	  else if (tool_flag == TOOL_FLAG_ROUGH_MESH_ON)
-	  {
-	    if (toggle_visible->flags & BODY_SHOW_ROUGH_MESH)
-	      toggle_visible->flags &= ~BODY_SHOW_ROUGH_MESH;
-	    else if (toggle_visible->msh) toggle_visible->flags |= BODY_SHOW_ROUGH_MESH;
-	  }
-	  else /* hide */
-	  {
-	    if (toggle_visible->flags & BODY_HIDDEN)
-	      toggle_visible->flags &= ~BODY_HIDDEN; /* switch to visible */
-	    else toggle_visible->flags |= BODY_HIDDEN; /* hide */
+	BODY_DATA *data = picked_body->rendering;
 
-	    /* update volumetric map (and its extrema) after toggling state */
-	    if (volumetric_map) volumetric_map_on (volumetric_map_kind);
-	  }
+	switch (tool_mode)
+	{
+	case TOOLS_TRANSPARENT:
+	  if (data->flags & TRANSPARENT) data->flags &= ~TRANSPARENT;
+	  else data->flags |= TRANSPARENT;
+	  break;
+	case TOOLS_HIDE: data->flags |= HIDDEN; break;
+	case TOOLS_ROUGH_MESH:
+	  if (data->flags & ROUGH_MESH) data->flags &= ~ROUGH_MESH;
+	  else if (picked_body->msh) data->flags |= ROUGH_MESH;
+	  break;
 	}
+
+	GLV_Redraw_All ();
       }
       break;
     }
@@ -2641,39 +2553,35 @@ void RND_Mouse (int button, int state, int x, int y)
   }
 }
 
-/* react to mouse motion */
 void RND_Motion (int x, int y)
 {
-  if (mousemode == MOUSE_SELECTION_2D_END||
-      mousemode == MOUSE_SELECTION_3D_END)
+  if (mouse_mode == MOUSE_SELECTION_END)
   {
-    GLV_Rectangle_On (mouse_x, mouse_y, x, y);
+    GLV_Rectangle_On (mouse_start [0], mouse_start [1], x, y);
   }
 }
 
-/* react on passive mouse motion */
 void RND_Passive (int x, int y)
 {
-  switch (current_tool)
+  if (mouse_mode == MOUSE_PICK_BODY)
   {
-  case TOOLS_TOGGLE_VISIBLE:
-    toggle_visible = select_body (x, y);
+    picked_body = pick_body (x, y);
     GLV_Redraw_All ();
-    break;
-  case TOOLS_CLIPPING_PLANE:
-    move_clipping_plane (x, y);
-    GLV_Redraw_All ();
-    break;
   }
 }
 
-/* enable renedring before opening viewer */
-void RND_Viewer_On ()
+/* user callable routines */
+
+void RND_Switch_On ()
 {
-  vieweron = 1; /* [-v] option was specified by the user => viewer is enabled */
+  enabled = 1;
 }
 
-/* set domain to be rendered */
+int  RND_Is_On ()
+{
+  return enabled;
+}
+
 void RND_Domain (DOM *dom)
 {
   dom->next = domain;
@@ -2681,23 +2589,36 @@ void RND_Domain (DOM *dom)
   domain = dom;
 }
 
-/* map solver to a domain */
 void RND_Solver (DOM *dom, int kind, void *solver)
 {
-  SOLVER_INTERFACE *si;
+  SOLVER_DATA *data;
   MAP *item;
 
-  ERRMEM (si = malloc (sizeof (SOLVER_INTERFACE))); /* create solver interfaces */
-  si->kind = kind;
-  si->solver = solver;
+  ERRMEM (data = malloc (sizeof (SOLVER_DATA)));
+  data->solver = solver;
+  data->kind = kind;
 
-  if ((item = MAP_Find (solver_interfaces, dom, NULL))) free (item->data); /* if previously mapped: free it */
+  if ((item = MAP_Find (solvers, dom, NULL))) free (item->data); /* if mapped, free it */
 
-  MAP_Insert (NULL, &solver_interfaces, dom, si, NULL); /* map solver interface */
+  MAP_Insert (NULL, &solvers, dom, data, NULL); /* map to domain */
 }
 
-/* check whether rendering is on */
-int  RND_On ()
+void RND_Free_Rendering_Data (void *ptr)
 {
-  return vieweron;
+  BODY_DATA *data;
+
+  data = ptr;
+
+  free (data->vertex_sources);
+  free (data->values);
+  free (data->value_sources);
+  free (data->spheres);
+  free (data->sphere_colors);
+
+  glDeleteBuffersARB (1, &data->triangles);
+  glDeleteBuffersARB (1, &data->lines);
+
+  if (data->rough) RND_Free_Rendering_Data (data->rough);
+
+  free (data);
 }

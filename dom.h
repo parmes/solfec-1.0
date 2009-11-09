@@ -62,7 +62,8 @@ struct constraint
   enum {CON_STICK    = 0x01,
         CON_OPEN     = 0x02,
         CON_COHESIVE = 0x04,
-        CON_NEW      = 0x08} state; /* constraint state */
+        CON_NEW      = 0x08,
+        CON_DONERND  = 0x10} state; /* constraint state */
 
   short paircode; /* geometric object pair code for a contact */
 
