@@ -2515,6 +2515,11 @@ static void lng_GAUSS_SEIDEL_callback (lng_GAUSS_SEIDEL_SOLVER *sol)
     if (PyInt_AsLong (result) == 0) /* exit */
     {
       fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code %s\n", GAUSS_SEIDEL_Error (sol->gs));
+#if MPI
+      MPI_Abort (MPI_COMM_WORLD, 0);
+#else
+      lngfinalize ();
+#endif
       exit (1);
     }
 
@@ -2524,6 +2529,11 @@ static void lng_GAUSS_SEIDEL_callback (lng_GAUSS_SEIDEL_SOLVER *sol)
   {
 err:
     PyErr_Print (); /* print traceback */
+#if MPI
+    MPI_Abort (MPI_COMM_WORLD, 0);
+#else
+    lngfinalize ();
+#endif
     exit (1);
   }
 }
@@ -3182,6 +3192,10 @@ static PyObject* lng_HULL (PyObject *self, PyObject *args, PyObject *kwds)
     CATCHANY (error)
     {
       PyErr_SetString (PyExc_RuntimeError, errstring (error));
+#if MPI
+      PyErr_Print ();
+      MPI_Abort (MPI_COMM_WORLD, 0);
+#endif
       return NULL;
     }
     ENDTRY ()
@@ -3759,6 +3773,11 @@ static void lng_FORCE_callback (PyObject *data, PyObject *call, int nq, int nu, 
   {
 err:
     PyErr_Print (); /* print traceback */
+#if MPI
+    MPI_Abort (MPI_COMM_WORLD, 0);
+#else
+    lngfinalize ();
+#endif
     exit (1);
   }
 }
@@ -4425,6 +4444,10 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   CATCHANY (error)
   {
     PyErr_SetString (PyExc_RuntimeError, errstring (error));
+#if MPI
+      PyErr_Print ();
+      MPI_Abort (MPI_COMM_WORLD, 0);
+#endif
     return NULL;
   }
   ENDTRY ()
@@ -4722,6 +4745,10 @@ static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
     CATCHANY (error)
     {
       PyErr_SetString (PyExc_RuntimeError, errstring (error));
+#if MPI
+      PyErr_Print ();
+      MPI_Abort (MPI_COMM_WORLD, 0);
+#endif
       return NULL;
     }
     ENDTRY ()
@@ -4828,6 +4855,11 @@ static int lng_CALLBACK_callback (SOLFEC *sol, PyObject *data, PyObject *callbac
   else /* error during the Python callback run */
   {
     PyErr_Print (); /* print traceback */
+#if MPI
+    MPI_Abort (MPI_COMM_WORLD, 0);
+#else
+    lngfinalize ();
+#endif
     exit (1);
   }
 
