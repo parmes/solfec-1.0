@@ -32,6 +32,28 @@
 #include "sol.h"
 #include "err.h"
 
+#if MPI
+/* error handler callback */
+static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
+{
+  lngfinalize (); /* finalize interpreter: as a result
+		     flush output buffers if possible */
+  MPI_Finalize ();
+
+  exit (1);
+}
+
+/* set up MPI global error handler */
+static void MPI_set_error_handling ()
+{
+  MPI_Errhandler handler;
+
+  MPI_Comm_create_errhandler (MPI_error_handling, &handler);
+
+  MPI_Comm_set_errhandler (MPI_COMM_WORLD, handler);
+}
+#endif
+
 /* signal handler */
 static void sighnd (int signal)
 {
@@ -105,6 +127,8 @@ int main (int argc, char **argv)
 #endif
 
   ASSERT (Zoltan_Initialize (argc, argv, &version) == ZOLTAN_OK, ERR_ZOLTAN_INIT);
+
+  MPI_set_error_handling ();
 #endif
 
   TRY ()
@@ -137,6 +161,7 @@ int main (int argc, char **argv)
   CATCHANY (error)
   {
     fprintf (stderr, "Error: %s\n", errstring (error));
+    sighnd (0);
     return 1;
   }
   ENDTRY ()
