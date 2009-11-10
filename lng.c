@@ -3587,7 +3587,7 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
 
   if (out)
   {
-    PARSEKEYS ("OOOO", &solfec, &body, &point, &direction, &tms);
+    PARSEKEYS ("OOOOO", &solfec, &body, &point, &direction, &tms);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
       is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&

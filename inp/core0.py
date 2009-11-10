@@ -370,7 +370,7 @@ def gcore_base (material, solfec):
 
   BODY (solfec, 'OBSTACLE', shape, material)
 
-def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, tms, material, solfec):
+def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, material, solfec):
 
   gcore_base (material, solfec)
   gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec)
@@ -385,13 +385,11 @@ surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
 
-tms = TIME_SERIES ([0, 10, 1, 10])
-
 GRAVITY (solfec, (0, 0, -1), 10)
 
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
-gcore_create (0.0003, 0.0002,  0,  0,  0, tms, bulkmat, solfec)
+gcore_create (0.0003, 0.0002,  0,  0,  0, bulkmat, solfec)
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 

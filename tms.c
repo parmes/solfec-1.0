@@ -27,7 +27,7 @@
 
 #define CHUNK 512
 
-static int compare (double (*a) [2], double (*b) [2])
+static int compare (double *a, double *b)
 {
   if (a[0] < b[0]) return -1;
   else if (a[0] > b[0]) return 1;
@@ -163,6 +163,7 @@ TMS* TMS_Integral (TMS *ts)
   ASSERT (ts->size > 0, ERR_TMS_INTEGRATE_CONSTANT);
   ERRMEM (out = malloc (sizeof (TMS)));
   out->size = ts->size;
+  ERRMEM (out->points = calloc (sizeof (double [2]), out->size));
 
   if (out->size == 0) return TMS_Constant ((ts->points[1][0] -
     ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]));
@@ -194,6 +195,7 @@ TMS* TMS_Derivative (TMS *ts)
 
   ERRMEM (out = malloc (sizeof (TMS)));
   out->size = ts->size - 1; /* one value per interval */
+  ERRMEM (out->points = calloc (sizeof (double [2]), out->size));
 
   if (out->size == 0) return TMS_Constant ((ts->points[1][0] -
     ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]));
