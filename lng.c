@@ -4719,17 +4719,28 @@ static void* get_solver (PyObject *obj)
 /* run analysis */
 static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "solver", "duration");
+  KEYWORDS ("solfec", "solver", "duration", "fulupint");
   PyObject *solver;
   lng_SOLFEC *solfec;
   double duration;
+  double fulupint;
   int error;
 
-  PARSEKEYS ("OOd", &solfec, &solver, &duration);
+  fulupint = 0.0;
+
+  PARSEKEYS ("OOd|d", &solfec, &solver, &duration, &fulupint);
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_solver (solver, kwl[1]) && is_positive (duration, kwl[2]));
 
   if (solfec->sol->mode == SOLFEC_READ) Py_RETURN_NONE; /* skip READ mode */
+
+  if (fulupint < 0.0)
+  {
+    PyErr_SetString (PyExc_RuntimeError, "'fulupint' must not be negative");
+    return NULL;
+  }
+
+  solfec->sol->dom->update_interval = fulupint; /* set up full update interval */
 
 #if OPENGL 
   if (!RND_Is_On ()) /* otherwise interactive run is controlled by the viewer */

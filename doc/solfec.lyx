@@ -4426,7 +4426,7 @@ Routines listed in this section control the solution process.
 \end_layout
 
 \begin_layout Subsection*
-RUN (solfec, solver, duration)
+RUN (solfec, solver, duration | fulupint)
 \end_layout
 
 \begin_layout Standard
@@ -4456,6 +4456,22 @@ solver
 duration
 \series default
  - duration of analysis
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+fulupint
+\series default
+ - full update interval (default: 0.0).
+ Full update detects new contact points and evaluates coefficients of the
+ algebraic contact problem.
+ It is much more costly then a partial update which updates only the known
+ contact points and maintains the last fully updated algebraic contact system.
+ For parallel runs, load balancing can only happen during the full update.
+ This parameter is of use for stiff deformable problems, where many time
+ steps can be skipped between a notable change of the underlying contact
+ state.
 \end_layout
 
 \begin_layout Subsection*

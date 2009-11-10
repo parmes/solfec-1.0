@@ -327,7 +327,7 @@ void update_contact (DOM *dom, CON *con)
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
     }
   }
-  else /* remove contact */
+  else if (dom->update_kind == DOM_UPDATE_FULL) /* remove contact in case of full update */
   {
 #if 0 /* FIXME: not needed after box->parent flag introduction */
 del:
@@ -1545,6 +1545,10 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 
   dom->verbose = 0;
 
+  dom->update_kind = DOM_UPDATE_FULL;
+  dom->update_interval = 0.0;
+  dom->update_time = 0.0;
+
 #if MPI
   create_mpi (dom);
 #endif
@@ -1853,11 +1857,14 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   if (dom->verbose) printf ("DOMAIN ... "), fflush (stdout);
 
 #if MPI
-  SOLFEC_Timer_Start (dom->owner, "TIMBAL");
+  if (dom->update_kind == DOM_UPDATE_FULL)
+  {
+    SOLFEC_Timer_Start (dom->owner, "TIMBAL");
 
-  domain_try_balance (dom);
+    domain_try_balance (dom);
 
-  SOLFEC_Timer_End (dom->owner, "TIMBAL");
+    SOLFEC_Timer_End (dom->owner, "TIMBAL");
+  }
 #endif
 
   SOLFEC_Timer_Start (dom->owner, "TIMINT");
@@ -1902,21 +1909,24 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   SOLFEC_Timer_End (dom->owner, "TIMINT");
 
-  /* detect contacts */
-  timerstart (&timing);
+  if (dom->update_kind == DOM_UPDATE_FULL)
+  {
+    /* detect contacts */
+    timerstart (&timing);
 
-  AABB_Update (dom->aabb, aabb_algorithm (dom),
-    dom, (BOX_Overlap_Create) overlap_create,
-    (BOX_Overlap_Release) overlap_release);
+    AABB_Update (dom->aabb, aabb_algorithm (dom),
+      dom, (BOX_Overlap_Create) overlap_create,
+      (BOX_Overlap_Release) overlap_release);
 
-  aabb_timing (dom, timerend (&timing));
+    aabb_timing (dom, timerend (&timing));
 
-  SOLFEC_Timer_Start (dom->owner, "CONDET");
+    SOLFEC_Timer_Start (dom->owner, "CONDET");
 
-  /* sparsify new contacts */
-  sparsify_contacts (dom);
+    /* sparsify new contacts */
+    sparsify_contacts (dom);
 
-  SOLFEC_Timer_End (dom->owner, "CONDET");
+    SOLFEC_Timer_End (dom->owner, "CONDET");
+  }
 
   SOLFEC_Timer_Start (dom->owner, "TIMINT");
 
@@ -1940,7 +1950,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   ASSERT (!PUT_int_max (dom->flags & DOM_DEPTH_VIOLATED), ERR_DOM_DEPTH);
 
-  domain_glue_begin (dom);
+  if (dom->update_kind == DOM_UPDATE_FULL) domain_glue_begin (dom);
 
   SOLFEC_Timer_End (dom->owner, "TIMBAL");
 #else
@@ -2006,6 +2016,13 @@ void DOM_Update_End (DOM *dom)
   }
 
   SET_Free (&dom->setmem, &del); /* free up deletion set */
+
+  if ((dom->time - dom->update_time) >= dom->update_interval)
+  {
+    dom->update_kind = DOM_UPDATE_FULL;
+    dom->update_time = dom->time;
+  }
+  else dom->update_kind = DOM_UPDATE_PARTIAL;
 
   SOLFEC_Timer_End (dom->owner, "TIMINT");
 }

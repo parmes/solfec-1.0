@@ -716,7 +716,7 @@ static void locdyn_balance (LOCDYN *ldy)
     ldy->diab = ldy->dia;
     ldy->nexpdia = 0;
   }
-  else
+  else if (DOM(ldy->dom)->update_kind == DOM_UPDATE_FULL)
   {
     MEM setmem;
     DIAB *dia;
@@ -1053,7 +1053,7 @@ static void locdyn_gossip (LOCDYN *ldy)
       }
     }
   }
-  else
+  else if (DOM(ldy->dom)->update_kind == DOM_UPDATE_FULL)
   {
     double *R;
     MEM setmem;
@@ -1397,7 +1397,7 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
   if ((item = MAP_Find_Node (ldy->insmap, dia, NULL))) /* was inserted and now is deleted before balancing */
   {
     ldy->ins [(int) (long) item->data] = ldy->ins [-- ldy->nins]; /* replace this item withe the last one */
-    ASSERT_DEBUG (jtem = MAP_Find_Node (ldy->insmap, ldy->ins [(int) (long) item->data], NULL), "Failed to find an inserted block");
+    ASSERT_DEBUG_EXT (jtem = MAP_Find_Node (ldy->insmap, ldy->ins [(int) (long) item->data], NULL), "Failed to find an inserted block");
     jtem->data = item->data; /* update block to index mapping */
     MAP_Delete_Node (&ldy->mapmem, &ldy->insmap, item); /* remove from map */
     MEM_Free (&ldy->diamem, dia); /* and free */
@@ -1429,11 +1429,14 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   if (dom->verbose) printf ("LOCDYN ... "), fflush (stdout);
 
 #if MPI
-  SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
+  if (dom->update_kind == DOM_UPDATE_FULL)
+  {
+    SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCBAL");
 
-  locdyn_adjext (ldy);
+    locdyn_adjext (ldy);
 
-  SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCBAL");
+    SOLFEC_Timer_End (DOM(ldy->dom)->owner, "LOCBAL");
+  }
 #endif
 
   SOLFEC_Timer_Start (DOM(ldy->dom)->owner, "LOCDYN");
@@ -1469,26 +1472,61 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     SUB (Y0, X0, V); /* previous time step velocity */
     SUB (Y, X, B); /* local free velocity */
 
-    /* diagonal block */
-    mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
-    MX_Trimat (mH, m->inverse, MX_Tran (mH), &W); /* H * inv (M) * H^T */
-    if (s)
-    { sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
-      MX_Trimat (sH, s->inverse, MX_Tran (sH), &C); /* H * inv (M) * H^T */
-      NNADD (W.x, C.x, W.x); }
-    SCALE9 (W.x, step); /* W = h * ( ... ) */
-
-    if (upkind == UPALL) /* diagonal regularization and off-diagonal blocks update */
+    if (dom->update_kind == DOM_UPDATE_FULL)
     {
-      NNCOPY (W.x, C.x); /* calculate regularisation parameter */
-      ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
-      dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
+      /* diagonal block */
+      mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+      MX_Trimat (mH, m->inverse, MX_Tran (mH), &W); /* H * inv (M) * H^T */
+      if (s)
+      { sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+	MX_Trimat (sH, s->inverse, MX_Tran (sH), &C); /* H * inv (M) * H^T */
+	NNADD (W.x, C.x, W.x); }
+      SCALE9 (W.x, step); /* W = h * ( ... ) */
 
-      /* off-diagonal blocks if requested */
-      for (blk = dia->adj; blk; blk = blk->n)
+      if (upkind == UPALL) /* diagonal regularization and off-diagonal blocks update */
       {
-	DIAB *dia = blk->dia;
-	CON *con = dia->con;
+	NNCOPY (W.x, C.x); /* calculate regularisation parameter */
+	ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
+	dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
+
+	/* off-diagonal blocks if requested */
+	for (blk = dia->adj; blk; blk = blk->n)
+	{
+	  DIAB *dia = blk->dia;
+	  CON *con = dia->con;
+	  BODY *bod = blk->bod;
+	  MX *lH, *rH, *inv;
+	  MX_DENSE_PTR (W, 3, 3, blk->W);
+	  double coef;
+
+	  ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
+	 
+	  lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
+				       as it was inserted into the dual graph */
+	  inv = bod->inverse;
+
+	  if (bod == con->master)
+	  {
+	    rH =  BODY_Gen_To_Loc_Operator (bod, con->mshp, con->mgobj, con->mpnt, con->base);
+	    coef = (bod == s ? -step : step);
+	  }
+	  else /* blk->bod == dia->slave */
+	  {
+	    rH =  BODY_Gen_To_Loc_Operator (bod, con->sshp, con->sgobj, con->spnt, con->base);
+	    coef = (bod == m ? -step : step);
+	  }
+
+	  MX_Trimat (lH, inv, MX_Tran (rH), &W);
+	  SCALE9 (W.x, coef);
+	  MX_Destroy (rH);
+	}
+      }
+
+#if MPI
+      /* off-diagonal external blocks if requested */
+      for (blk = dia->adjext; upkind == UPALL && blk; blk = blk->n)
+      {
+	CONEXT *ext = blk->ext;
 	BODY *bod = blk->bod;
 	MX *lH, *rH, *inv;
 	MX_DENSE_PTR (W, 3, 3, blk->W);
@@ -1496,56 +1534,24 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
 	ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
        
-	lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
-				     as it was inserted into the dual graph */
+	lH = (bod == m ? mH : sH);
+				 
 	inv = bod->inverse;
 
-	if (bod == con->master)
-	{
-	  rH =  BODY_Gen_To_Loc_Operator (bod, con->mshp, con->mgobj, con->mpnt, con->base);
-	  coef = (bod == s ? -step : step);
-	}
-	else /* blk->bod == dia->slave */
-	{
-	  rH =  BODY_Gen_To_Loc_Operator (bod, con->sshp, con->sgobj, con->spnt, con->base);
-	  coef = (bod == m ? -step : step);
-	}
+	rH =  BODY_Gen_To_Loc_Operator (bod, ext->sgp->shp, ext->sgp->gobj, ext->point, ext->base);
+
+	if (ext->isma) coef = (bod == s ? -step : step);
+	else coef = (bod == m ? -step : step);
 
 	MX_Trimat (lH, inv, MX_Tran (rH), &W);
 	SCALE9 (W.x, coef);
 	MX_Destroy (rH);
       }
-    }
-
-#if MPI
-    /* off-diagonal external blocks if requested */
-    for (blk = dia->adjext; upkind == UPALL && blk; blk = blk->n)
-    {
-      CONEXT *ext = blk->ext;
-      BODY *bod = blk->bod;
-      MX *lH, *rH, *inv;
-      MX_DENSE_PTR (W, 3, 3, blk->W);
-      double coef;
-
-      ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
-     
-      lH = (bod == m ? mH : sH);
-                               
-      inv = bod->inverse;
-
-      rH =  BODY_Gen_To_Loc_Operator (bod, ext->sgp->shp, ext->sgp->gobj, ext->point, ext->base);
-
-      if (ext->isma) coef = (bod == s ? -step : step);
-      else coef = (bod == m ? -step : step);
-
-      MX_Trimat (lH, inv, MX_Tran (rH), &W);
-      SCALE9 (W.x, coef);
-      MX_Destroy (rH);
-    }
 #endif
 
-    MX_Destroy (mH);
-    if (s) MX_Destroy (sH);
+      MX_Destroy (mH);
+      if (s) MX_Destroy (sH);
+    }
   }
 
   /* forward variables change */
@@ -1613,6 +1619,8 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
       ncpu, i, j, k, n;
   DIAB *dia;
   OFFB *b;
+  
+  if (DOM(ldy->dom)->update_kind == DOM_UPDATE_PARTIAL) return; /* REXT structure was already build during previous FULL update */
 
   ncpu = DOM(ldy->dom)->ncpu;
 
