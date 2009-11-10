@@ -125,6 +125,13 @@ typedef enum
   DOM_DEPTH_VIOLATED = 0x02  /* on when unphysical penetration has occured */
 } DOM_FLAGS;
 
+/* update kind */
+typedef enum
+{
+  DOM_UPDATE_PARTIAL, /* update domain using existing contact state (and balance in parallel) */
+  DOM_UPDATE_FULL /* update fully, detecting new contacts (and balancing load in parallel) */
+} DOM_UPDATE;
+
 struct domain
 {
   MEM conmem, /* constraints memory pool */
@@ -172,6 +179,12 @@ struct domain
   double depth; /* unphisical interpenetration depth bound (negative) */
 
   short verbose; /* verbosity flag */
+
+  DOM_UPDATE update_kind; /* domain update kind */
+
+  double update_interval; /* perform full update every interval of time */
+
+  double update_time; /* previous full update time */
 
 #if MPI
   int rank; /* communicator rank */
