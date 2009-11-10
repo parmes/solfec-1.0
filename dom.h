@@ -86,8 +86,8 @@ struct constraint
   double mpnt [3], /* master referential point */
 	 spnt [3]; /* slave referential point */
 
-  BOX *mbox, /* master box */
-      *sbox; /* slave box (if any) */
+  SGP *msgp, /* master (shape, gobj, box) triplet */
+      *ssgp; /* slave triplet (if any) */
 
   CON *prev, /* list */
       *next;
@@ -186,7 +186,7 @@ struct domain
 
   SET *sparebid; /* spare body ids */
 
-  int noid; /* constraint id assignment omition flag */
+  unsigned int noid; /* constraint id generation ommition flag */
 
   MAP *children; /* id-to-child map */
 

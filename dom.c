@@ -129,7 +129,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
 
   /* constraint identifier */
 #if MPI
-  if (!dom->noid)
+  if (dom->noid == 0)
   {
     if (SET_Size (dom->sparecid))
     {
@@ -141,6 +141,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave)
     }
     else con->id = dom->cid, dom->cid += dom->ncpu; /* every ncpu number */
   }
+  else con->id = dom->noid; /* assign the 'noid' as it was imported with a non-contact constraint */
 #else
   con->id = dom->cid ++;
 #endif
@@ -195,7 +196,7 @@ static void aabb_timing (DOM *dom, double timing)
 }
 
 /* insert a contact into the constraints set */
-static CON* insert_contact (DOM *dom, BOX *mbox, BOX *sbox, BODY *master, BODY *slave,
+static CON* insert_contact (DOM *dom, SGP *msgp, SGP *ssgp, BODY *master, BODY *slave,
   void *mgobj, GOBJ mkind, SHAPE *mshp, void *sgobj, GOBJ skind, SHAPE *sshp, double *spampnt,
   double *spaspnt, double *normal, double gap, double area, SURFACE_MATERIAL *mat, short paircode)
 {
@@ -209,8 +210,8 @@ static CON* insert_contact (DOM *dom, BOX *mbox, BOX *sbox, BODY *master, BODY *
   con->sgobj = sgobj;
   con->skind = skind;
   con->sshp = sshp;
-  con->mbox = mbox;
-  con->sbox = sbox;
+  con->msgp = msgp;
+  con->ssgp = ssgp;
   COPY (spampnt, con->point);
   BODY_Ref_Point (master, mshp, mgobj, spampnt, con->mpnt); /* referential image */
   BODY_Ref_Point (slave, sshp, sgobj, spaspnt, con->spnt); /* ... */
@@ -257,13 +258,13 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
     case 1: /* first body is the master */
     {
       paircode = GOBJ_Pair_Code (one, two);
-      return insert_contact (dom, one, two, one->body, two->body, one->sgp->gobj, one->kind, one->sgp->shp,
+      return insert_contact (dom, one->sgp, two->sgp, one->body, two->body, one->sgp->gobj, one->kind, one->sgp->shp,
 	two->sgp->gobj, two->kind, two->sgp->shp, onepnt, twopnt, normal, gap, area, mat, paircode);
     }
     case 2: /* second body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
-      return insert_contact (dom, two, one, two->body, one->body, two->sgp->gobj, two->kind, two->sgp->shp,
+      return insert_contact (dom, two->sgp, one->sgp, two->body, one->body, two->sgp->gobj, two->kind, two->sgp->shp,
 	one->sgp->gobj, one->kind, one->sgp->shp, twopnt, onepnt, normal, gap, area, mat, paircode);
     }
   }
@@ -331,7 +332,7 @@ void update_contact (DOM *dom, CON *con)
 #if 0 /* FIXME: not needed after box->parent flag introduction */
 del:
 #endif
-    AABB_Break_Adjacency (dom->aabb, con->mbox, con->sbox); /* box overlap will be re-detected */
+    AABB_Break_Adjacency (dom->aabb, con->msgp->box, con->ssgp->box); /* box overlap will be re-detected */
     DOM_Remove_Constraint (dom, con);
   }
 }
@@ -455,7 +456,7 @@ static void sparsify_contacts (DOM *dom)
     con = itm->data;
     /* remove first from the box adjacency structure => otherwise box engine would try
      * to release this contact at a later point and that would cose memory corruption */
-    AABB_Break_Adjacency (dom->aabb, con->mbox, con->sbox); /* box overlap will be re-detected */
+    AABB_Break_Adjacency (dom->aabb, con->msgp->box, con->ssgp->box); /* box overlap will be re-detected */
     DOM_Remove_Constraint (dom, con); /* now remove from the domain */
   }
 
@@ -960,11 +961,6 @@ static int domain_balance (DOM *dom)
       {
 	MAP_Insert (&dom->mapmem, &export_con, con,
 	            (void*) (long) export_procs [i], NULL); /* map non-contact constraint to its export rank */
-
-	con->id = 0; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
-			non-contact constrints should have cluster-wide unique ids, as users
-			could store some global variables in Python input and might later like
-			to acces those constraints; this will not be implemented for contacts */
       }
     }
   }
@@ -974,7 +970,7 @@ static int domain_balance (DOM *dom)
 
   for (item = MAP_First (export_con); item; ) /* for each exported constraint */
   {
-    CON *con = item->data;
+    CON *con = item->key;
 
     if (con->kind == RIGLNK) /* if a rigid link */
     {
@@ -1011,6 +1007,17 @@ static int domain_balance (DOM *dom)
 
   COMOBJS (MPI_COMM_WORLD, TAG_CONAUX, (OBJ_Pack)pack_constraint, &mem, (OBJ_Unpack)unpack_constraint, consend, nconsend, &conrecv, &nconrecv);
 
+  /* mark exported constraint ids as zeros in order to prevent freeing
+   * their id's when deleting constraints attached to exported bodies */
+  for (item = MAP_First (export_con); item; item = MAP_Next (item))
+  {
+    CON *con = item->key;
+    con->id = 0; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
+		    non-contact constrints should have cluster-wide unique ids, as users
+		    could store some global variables in Python input and might later like
+		    to acces those constraints; this will not be implemented for contacts */
+  }
+
   /* communicate parent bodies */
 
   if ((nbodsend = MAP_Size (export_bod)))
@@ -1044,8 +1051,6 @@ static int domain_balance (DOM *dom)
 
   /* insert imported constraints */
 
-  dom->noid = 1; /* disable constraint ids generation */
-
   for (i = 0, ptr = conrecv; i < nconrecv; i ++, ptr ++)
   {
     CONAUX *aux;
@@ -1055,6 +1060,8 @@ static int domain_balance (DOM *dom)
     aux = ptr->o;
 
     ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) aux->master, NULL), "Invalid body id");
+
+    dom->noid = aux->id; /* disable constraint ids generation and use 'noid' instead */
 
     switch (aux->kind)
     {
@@ -1070,8 +1077,6 @@ static int domain_balance (DOM *dom)
     }
     break;
     }
-
-    con->id = aux->id;
   }
 
   dom->noid = 0; /* enable constraint ids generation */
@@ -1204,13 +1209,13 @@ static CONEXT* conext_create (DOM *dom, CON *con, BODY *bod)
   if (bod == con->master)
   {
     ext->isma = 1;
-    ext->sgp = con->mbox->sgp;
+    ext->sgp = con->msgp;
     COPY (con->mpnt, ext->point);
   }
   else
   {
     ext->isma = 0;
-    ext->sgp = con->sbox->sgp;
+    ext->sgp = con->ssgp;
     COPY (con->spnt, ext->point);
   }
 
@@ -1660,7 +1665,7 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
   IDENTITY (con->base);
   con->mgobj = sgp->gobj;
   con->mshp = sgp->shp;
-  con->mbox = sgp->box;
+  con->msgp = sgp;
 
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
@@ -1685,7 +1690,7 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
   localbase (dir, con->base);
   con->mgobj = sgp->gobj;
   con->mshp = sgp->shp;
-  con->mbox = sgp->box;
+  con->msgp = sgp;
 
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
@@ -1711,7 +1716,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   con->tms = vel;
   con->mgobj = sgp->gobj;
   con->mshp = sgp->shp;
-  con->mbox = sgp->box;
+  con->msgp = sgp;
 
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
@@ -1758,13 +1763,13 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     IDENTITY (con->base);
     con->mgobj = msgp->gobj;
     con->mshp = msgp->shp;
-    con->mbox = msgp->box;
+    con->msgp = msgp;
 
     if (slave)
     {
       con->sgobj = ssgp->gobj;
       con->sshp = ssgp->shp;
-      con->sbox = ssgp->box;
+      con->ssgp = ssgp;
 
       AABB_Exclude_Gobj_Pair (dom->aabb, master->id, m, slave->id, s); /* no contact between this pair */
     }
@@ -1779,13 +1784,13 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     RIGLNK_LEN (con->Z) = d; /* initial distance */
     con->mgobj = msgp->gobj;
     con->mshp = msgp->shp;
-    con->mbox = msgp->box;
+    con->msgp = msgp;
 
     if (slave)
     { 
       con->sgobj = ssgp->gobj;
       con->sshp = ssgp->shp;
-      con->sbox = ssgp->box;
+      con->ssgp = ssgp;
     }
 
     update_riglnk (dom, con); /* initial update */
