@@ -1705,7 +1705,7 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
 
 #if DEBUG
   for (i = 0, x = ldy->REXT; i < n; i ++, x ++)
-    ASSERT_DEBUG (x->id && x->rank >= 0, "Inconsitency in mapping external reactions");
+    ASSERT_DEBUG (x->id && x->rank >= 0, "Inconsitency in mapping external reactions: id = %d, rank = %d", x->id, x->rank);
 #endif
 
   /* now send (id, index) pairs to parent blocks pointed by their ranks in REXT;
