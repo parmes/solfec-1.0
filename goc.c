@@ -208,7 +208,7 @@ static int detect_convex_convex (
   double *area,
   int spair [2])
 {
-  double a, b, an [3], bn [3], ap [3], bp [3], aa, ba;
+  double a, b, an [3], bn [3], ap [3], bp [3], aa, ba, sanity;
   TRI *tri;
   int m;
 
@@ -230,7 +230,10 @@ static int detect_convex_convex (
       *area = aa;
       *gap = convex_convex_gap (tri, m, ap, an);
       free (tri);
-      return 1;
+
+      sanity = (ap[0]+ap[1]+ap[2]+an[0]+an[1]+an[2]+aa+(*gap));
+      if (isnan (sanity)) return 0;
+      else return 1;
     }
     else
     {
@@ -241,7 +244,10 @@ static int detect_convex_convex (
       *area = ba;
       *gap = convex_convex_gap (tri, m, bp, bn);
       free (tri);
-      return 2;
+
+      sanity = (bp[0]+bp[1]+bp[2]+bn[0]+bn[1]+bn[2]+ba+(*gap));
+      if (isnan (sanity)) return 0;
+      else return 2;
     }
   }
 
@@ -327,7 +333,7 @@ static int update_convex_convex (
   double *area,
   int spair [2])
 {
-  double a, b, an [3], bn [3], ap [3], bp [3], aa, ba;
+  double a, b, an [3], bn [3], ap [3], bp [3], aa, ba, sanity;
   int s [2];
   TRI *tri;
   int m;
@@ -352,8 +358,9 @@ static int update_convex_convex (
     *gap = convex_convex_gap (tri, m, ap, an);
     free (tri);
 
-    if (s [0] == spair [0] &&
-	s [1] == spair [1]) return 1;
+    sanity = (ap[0]+ap[1]+ap[2]+an[0]+an[1]+an[2]+aa+(*gap));
+    if (isnan (sanity)) return 0;
+    else if (s [0] == spair [0] && s [1] == spair [1]) return 1;
     else return 2;
   }
   else if (*gap < GEOMETRIC_EPSILON * MAGNIFY)
@@ -367,8 +374,9 @@ static int update_convex_convex (
     spair [0] = nearest_surface (onepnt, pa, sa, nsa);
     spair [1] = nearest_surface (onepnt, pb, sb, nsb);
 
-    if (s [0] == spair [0] &&
-	s [1] == spair [1]) return 1;
+    sanity = (normal[0]+normal[1]+normal[2]+(*gap));
+    if (isnan (sanity)) return 0;
+    else if (s [0] == spair [0] && s [1] == spair [1]) return 1;
     else return 2;
   }
 

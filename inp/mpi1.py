@@ -1,6 +1,6 @@
 # stack of cubes example (CONVEX and PSEUDO_RIGID)
 
-N = 10
+N = 20
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -71,7 +71,7 @@ IMBALANCE_TOLERANCES (solfec, 1.3, 1.1, 1.3)
 
 OUTPUT (solfec, 1 * step, 'FASTLZ')
 
-RUN (solfec, gs, 100 * step, 10 * step)
+RUN (solfec, gs, 10 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 

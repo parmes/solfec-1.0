@@ -327,7 +327,7 @@ void update_contact (DOM *dom, CON *con)
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
     }
   }
-  else if (dom->update_kind == DOM_UPDATE_FULL) /* remove contact in case of full update */
+  else /* remove contact */
   {
 #if 0 /* FIXME: not needed after box->parent flag introduction */
 del:
@@ -1926,24 +1926,24 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     sparsify_contacts (dom);
 
     SOLFEC_Timer_End (dom->owner, "CONDET");
-  }
 
-  SOLFEC_Timer_Start (dom->owner, "TIMINT");
+    SOLFEC_Timer_Start (dom->owner, "TIMINT");
 
-  /* update old constraints */
-  for (con = dom->con; con; con = con->next)
-  {
-    switch (con->kind)
+    /* update old constraints */
+    for (con = dom->con; con; con = con->next)
     {
-      case CONTACT: update_contact (dom, con); break;
-      case FIXPNT:  update_fixpnt  (dom, con); break;
-      case FIXDIR:  update_fixdir  (dom, con); break;
-      case VELODIR: update_velodir (dom, con); break;
-      case RIGLNK:  update_riglnk  (dom, con); break;
+      switch (con->kind)
+      {
+	case CONTACT: update_contact (dom, con); break;
+	case FIXPNT:  update_fixpnt  (dom, con); break;
+	case FIXDIR:  update_fixdir  (dom, con); break;
+	case VELODIR: update_velodir (dom, con); break;
+	case RIGLNK:  update_riglnk  (dom, con); break;
+      }
     }
-  }
 
-  SOLFEC_Timer_End (dom->owner, "TIMINT");
+    SOLFEC_Timer_End (dom->owner, "TIMINT");
+  }
 
 #if MPI
   SOLFEC_Timer_Start (dom->owner, "TIMBAL");
