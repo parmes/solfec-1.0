@@ -5,8 +5,8 @@ from math import cos
 from math import sqrt
 
 # some parameters
-N_BRICKS = 4
-M_BRICKS = 4
+N_BRICKS = 1
+M_BRICKS = 1
 N_LAYERS = 4
 
 # some constants
@@ -403,7 +403,7 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJEC
 
 OUTPUT (solfec, 0.02, compression='FASTLZ')
 
-RUN (solfec, gs, 12, 0.001)
+RUN (solfec, gs, 0.01, 0.001)
 
 if not VIEWER() and solfec.mode == 'READ':
 

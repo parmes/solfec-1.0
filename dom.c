@@ -961,6 +961,11 @@ static int domain_balance (DOM *dom)
       {
 	MAP_Insert (&dom->mapmem, &export_con, con,
 	            (void*) (long) export_procs [i], NULL); /* map non-contact constraint to its export rank */
+
+	con->state |= CON_IDLOCK; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
+				     non-contact constrints should have cluster-wide unique ids, as users
+				     could store some global variables in Python input and might later like
+				     to acces those constraints; this will not be implemented for contacts */
       }
     }
   }
@@ -1006,17 +1011,6 @@ static int domain_balance (DOM *dom)
   else consend = NULL;
 
   COMOBJS (MPI_COMM_WORLD, TAG_CONAUX, (OBJ_Pack)pack_constraint, &mem, (OBJ_Unpack)unpack_constraint, consend, nconsend, &conrecv, &nconrecv);
-
-  /* mark exported constraint ids as zeros in order to prevent freeing
-   * their id's when deleting constraints attached to exported bodies */
-  for (item = MAP_First (export_con); item; item = MAP_Next (item))
-  {
-    CON *con = item->key;
-    con->id = 0; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
-		    non-contact constrints should have cluster-wide unique ids, as users
-		    could store some global variables in Python input and might later like
-		    to acces those constraints; this will not be implemented for contacts */
-  }
 
   /* communicate parent bodies */
 
@@ -1828,8 +1822,8 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
   if (con->dia) LOCDYN_Remove (dom->ldy, con->dia);
 
 #if MPI
-  /* free constraint id if needed */
-  if (con->id) SET_Insert (&dom->setmem, &dom->sparecid, (void*) (long) con->id, NULL);
+  /* free constraint id if possible */
+  if (!(con->state & CON_IDLOCK)) SET_Insert (&dom->setmem, &dom->sparecid, (void*) (long) con->id, NULL);
 #endif
 
   /* destroy passed data */
