@@ -466,7 +466,8 @@ void SHAPE_Pack (SHAPE *shp, int *dsize, double **d, int *doubles, int *isize, i
 SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int count;
-  SHAPE *shp = NULL,
+  SHAPE *tail = NULL,
+	*head,
 	*ptr;
 
   count = unpack_int (ipos, i, ints);
@@ -477,9 +478,13 @@ SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
 
     ptr = SHAPE_Create (kind, unpack [kind] (solfec, dpos, d, doubles, ipos, i, ints));
 
-    ptr->next = shp;
-    shp = ptr;
+    if (tail)
+    {
+      tail->next = ptr;
+      tail = ptr;
+    }
+    else head = tail = ptr;
   }
 
-  return shp;
+  return head;
 }

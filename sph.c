@@ -504,7 +504,7 @@ void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize,
 SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int count, k, surface, nadj, volume, n, j;
-  SPHERE *ptr, **tab, *tail = NULL;
+  SPHERE *ptr, **tab, *tail = NULL, *head;
   
   count = unpack_int (ipos, i, ints); /* number of spheres */
 
@@ -521,9 +521,14 @@ SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
     ptr->surface = surface;
     ptr->nadj = 0;
     ptr->volume = volume;
-    ptr->next = tail;
-    tail = ptr;
     tab [k] = ptr;
+
+    if (tail)
+    {
+      tail->next = ptr;
+      tail = ptr;
+    }
+    else head = tail = ptr;
 
     unpack_doubles (dpos, d, doubles, ptr->cur_center, 3);
     unpack_doubles (dpos, d, doubles, (double*)ptr->cur_points, 9);
@@ -564,5 +569,5 @@ SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 
   free (tab);
 
-  return tail;
+  return head;
 }

@@ -401,9 +401,9 @@ gcore_create (0.0003, 0.0002,  0,  0,  0, bulkmat, solfec)
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
-OUTPUT (solfec, 0.02, compression='FASTLZ')
+OUTPUT (solfec, 0.0001, compression='FASTLZ')
 
-RUN (solfec, gs, 0.01, 0.001)
+RUN (solfec, gs, 0.01, 0.0005)
 
 if not VIEWER() and solfec.mode == 'READ':
 
