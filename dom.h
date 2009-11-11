@@ -63,7 +63,8 @@ struct constraint
         CON_OPEN     = 0x02,
         CON_COHESIVE = 0x04,
         CON_NEW      = 0x08,
-        CON_DONERND  = 0x10} state; /* constraint state */
+	CON_IDLOCK   = 0x10, /* locked ID cannot be freed to the pool */
+        CON_DONERND  = 0x20} state; /* constraint state */
 
   short paircode; /* geometric object pair code for a contact */
 
