@@ -967,7 +967,7 @@ void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize,
 CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int count, k, nver, nfac, nadj, volume, facsi, size, n, j;
-  CONVEX *ptr, **tab, *tail = NULL;
+  CONVEX *ptr, **tab, *tail = NULL, *head;
   
   count = unpack_int (ipos, i, ints); /* number of convices */
 
@@ -997,9 +997,14 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
     ptr->nfac = nfac;
     ptr->nadj = 0;
     ptr->volume = volume;
-    ptr->next = tail;
-    tail = ptr;
     tab [k] = ptr;
+
+    if (tail)
+    {
+      tail->next = ptr;
+      tail = ptr;
+    }
+    else head = tail = ptr;
 
     unpack_ints (ipos, i, ints, ptr->fac, facsi);
     unpack_ints (ipos, i, ints, ptr->surface, nfac);
@@ -1040,5 +1045,5 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 
   free (tab);
 
-  return tail;
+  return head;
 }
