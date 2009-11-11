@@ -1472,59 +1472,59 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     SUB (Y0, X0, V); /* previous time step velocity */
     SUB (Y, X, B); /* local free velocity */
 
-    if (dom->update_kind == DOM_UPDATE_FULL)
+    /* diagonal block */
+    mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+    MX_Trimat (mH, m->inverse, MX_Tran (mH), &W); /* H * inv (M) * H^T */
+    if (s)
+    { sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+      MX_Trimat (sH, s->inverse, MX_Tran (sH), &C); /* H * inv (M) * H^T */
+      NNADD (W.x, C.x, W.x); }
+    SCALE9 (W.x, step); /* W = h * ( ... ) */
+
+    if (upkind != UPDIA) /* diagonal regularization (not needed by the explicit solver) */
     {
-      /* diagonal block */
-      mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
-      MX_Trimat (mH, m->inverse, MX_Tran (mH), &W); /* H * inv (M) * H^T */
-      if (s)
-      { sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
-	MX_Trimat (sH, s->inverse, MX_Tran (sH), &C); /* H * inv (M) * H^T */
-	NNADD (W.x, C.x, W.x); }
-      SCALE9 (W.x, step); /* W = h * ( ... ) */
+      NNCOPY (W.x, C.x); /* calculate regularisation parameter */
+      ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
+      dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
+    }
 
-      if (upkind == UPALL) /* diagonal regularization and off-diagonal blocks update */
+    if (dom->update_kind == DOM_UPDATE_FULL && upkind == UPALL) /* off-diagonal blocks update only for FULL domain updates */
+    {
+      /* off-diagonal local blocks */
+      for (blk = dia->adj; blk; blk = blk->n)
       {
-	NNCOPY (W.x, C.x); /* calculate regularisation parameter */
-	ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
-	dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
+	DIAB *dia = blk->dia;
+	CON *con = dia->con;
+	BODY *bod = blk->bod;
+	MX *lH, *rH, *inv;
+	MX_DENSE_PTR (W, 3, 3, blk->W);
+	double coef;
 
-	/* off-diagonal blocks if requested */
-	for (blk = dia->adj; blk; blk = blk->n)
+	ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
+       
+	lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
+				     as it was inserted into the dual graph */
+	inv = bod->inverse;
+
+	if (bod == con->master)
 	{
-	  DIAB *dia = blk->dia;
-	  CON *con = dia->con;
-	  BODY *bod = blk->bod;
-	  MX *lH, *rH, *inv;
-	  MX_DENSE_PTR (W, 3, 3, blk->W);
-	  double coef;
-
-	  ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
-	 
-	  lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
-				       as it was inserted into the dual graph */
-	  inv = bod->inverse;
-
-	  if (bod == con->master)
-	  {
-	    rH =  BODY_Gen_To_Loc_Operator (bod, con->mshp, con->mgobj, con->mpnt, con->base);
-	    coef = (bod == s ? -step : step);
-	  }
-	  else /* blk->bod == dia->slave */
-	  {
-	    rH =  BODY_Gen_To_Loc_Operator (bod, con->sshp, con->sgobj, con->spnt, con->base);
-	    coef = (bod == m ? -step : step);
-	  }
-
-	  MX_Trimat (lH, inv, MX_Tran (rH), &W);
-	  SCALE9 (W.x, coef);
-	  MX_Destroy (rH);
+	  rH =  BODY_Gen_To_Loc_Operator (bod, con->mshp, con->mgobj, con->mpnt, con->base);
+	  coef = (bod == s ? -step : step);
 	}
+	else /* blk->bod == dia->slave */
+	{
+	  rH =  BODY_Gen_To_Loc_Operator (bod, con->sshp, con->sgobj, con->spnt, con->base);
+	  coef = (bod == m ? -step : step);
+	}
+
+	MX_Trimat (lH, inv, MX_Tran (rH), &W);
+	SCALE9 (W.x, coef);
+	MX_Destroy (rH);
       }
 
 #if MPI
-      /* off-diagonal external blocks if requested */
-      for (blk = dia->adjext; upkind == UPALL && blk; blk = blk->n)
+      /* off-diagonal external blocks */
+      for (blk = dia->adjext; blk; blk = blk->n)
       {
 	CONEXT *ext = blk->ext;
 	BODY *bod = blk->bod;
@@ -1548,10 +1548,10 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 	MX_Destroy (rH);
       }
 #endif
-
-      MX_Destroy (mH);
-      if (s) MX_Destroy (sH);
     }
+
+    MX_Destroy (mH);
+    if (s) MX_Destroy (sH);
   }
 
   /* forward variables change */
