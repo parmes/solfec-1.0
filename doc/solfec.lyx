@@ -2033,7 +2033,7 @@ reference "tab:velo"
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="1">
+<lyxtabular version="3" rows="4" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -2073,7 +2073,7 @@ obj.selfcontact
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -2092,6 +2092,23 @@ reference "tab:schema"
 \end_inset
 
 .
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.damping
+\series default
+\emph default
+ - mass proportional damping coefficient (default: 0.0) for the dynamic case.
 \end_layout
 
 \end_inset

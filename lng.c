@@ -252,6 +252,35 @@ static int is_number (PyObject *obj, char *var)
   return 1;
 }
 
+/* test whether an object is a number */
+static int is_number_ge_val (PyObject *obj, char *var, double val)
+{
+  if (obj)
+  {
+    char buf [BUFLEN];
+
+    if (!PyNumber_Check (obj))
+    {
+      sprintf (buf, "'%s' must be a number", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+    else
+    {
+      double num = PyFloat_AsDouble (obj);
+
+      if (num < val)
+      {
+	sprintf (buf, "'%s' must be a number >= %g", var, val);
+	PyErr_SetString (PyExc_TypeError, buf);
+	return 0;
+      }
+    }
+  }
+
+  return 1;
+}
+
 /* test whether an object is a list (details as above) or a number */
 static int is_list_or_number (PyObject *obj, char *var, int div, int len)
 {
@@ -2311,6 +2340,35 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
   return 0;
 }
 
+static PyObject* lng_BODY_get_damping (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+  return PyFloat_FromDouble (self->bod->damping);
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_damping (lng_BODY *self, PyObject *value, void *closure)
+{
+  if (!is_number_ge_val (value, "damping", 0.0)) return -1;
+
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+  self->bod->damping = PyFloat_AsDouble (value);  
+#if MPI
+  }
+#endif
+
+  return 0;
+}
+
 /* BODY methods */
 static PyMethodDef lng_BODY_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -2328,6 +2386,7 @@ static PyGetSetDef lng_BODY_getset [] =
   {"velo", (getter)lng_BODY_get_velo, (setter)lng_BODY_set_velo, "velocity", NULL},
   {"selfcontact", (getter)lng_BODY_get_selfcontact, (setter)lng_BODY_set_selfcontact, "selfcontact", NULL},
   {"scheme", (getter)lng_BODY_get_scheme, (setter)lng_BODY_set_scheme, "scheme", NULL},
+  {"damping", (getter)lng_BODY_get_damping, (setter)lng_BODY_set_damping, "damping", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
