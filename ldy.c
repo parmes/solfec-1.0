@@ -399,6 +399,44 @@ static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *
   dia->degree = m + 1; /* total number of blocks in this row */
 }
 
+/* pack diagonal block for partial update */
+static void pack_block_partial (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_doubles (dsize, d, doubles, dia->R, 3);
+  pack_doubles (dsize, d, doubles, dia->U, 3);
+  pack_doubles (dsize, d, doubles, dia->V, 3);
+  pack_doubles (dsize, d, doubles, dia->B, 3);
+  pack_doubles (dsize, d, doubles, dia->W, 9);
+  pack_double  (dsize, d, doubles, dia->rho);
+
+  pack_doubles (dsize, d, doubles, dia->Z, DOM_Z_SIZE);
+  pack_doubles (dsize, d, doubles, dia->point, 3);
+  pack_doubles (dsize, d, doubles, dia->base, 9);
+  pack_doubles (dsize, d, doubles, dia->mpnt, 3);
+  pack_double  (dsize, d, doubles, dia->gap);
+  pack_int     (isize, i, ints, dia->kind);
+  SURFACE_MATERIAL_Pack_Data (&dia->mat, dsize, d, doubles, isize, i, ints);
+}
+
+/* unpack diagonal block for partial update */
+static void unpack_block_partial (DIAB *dia, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  unpack_doubles (dpos, d, doubles, dia->R, 3);
+  unpack_doubles (dpos, d, doubles, dia->U, 3);
+  unpack_doubles (dpos, d, doubles, dia->V, 3);
+  unpack_doubles (dpos, d, doubles, dia->B, 3);
+  unpack_doubles (dpos, d, doubles, dia->W, 9);
+  dia->rho = unpack_double  (dpos, d, doubles);
+
+  unpack_doubles (dpos, d, doubles, dia->Z, DOM_Z_SIZE);
+  unpack_doubles (dpos, d, doubles, dia->point, 3);
+  unpack_doubles (dpos, d, doubles, dia->base, 9);
+  unpack_doubles (dpos, d, doubles, dia->mpnt, 3);
+  dia->gap = unpack_double  (dpos, d, doubles);
+  dia->kind = unpack_int (ipos, i, ints);
+  SURFACE_MATERIAL_Unpack_Data (&dia->mat, dpos, d, doubles, ipos, i, ints);
+}
+
 /* delete balanced block */
 static void delete_balanced_block (LOCDYN *ldy, DIAB *dia)
 {
@@ -547,6 +585,39 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
     unpack_block (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
+  }
+
+  return NULL;
+}
+
+/* pack partial update data */
+static void pack_partial_update (SET *upd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  /* pack updated blocks */
+  pack_int (isize, i, ints, SET_Size (upd));
+  for (SET *item = SET_First (upd); item; item = SET_Next (item))
+  {
+    DIAB *dia = item->data;
+
+    pack_int (isize, i, ints, dia->id);
+    pack_block_partial (dia, dsize, d, doubles, isize, i, ints);
+  }
+}
+
+/* unpack partial update data */
+static void* unpack_partial_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int nupd;
+
+  nupd = unpack_int (ipos, i, ints);
+  for (; nupd > 0; nupd --)
+  {
+    DIAB *dia;
+    int id;
+
+    id = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
+    unpack_block_partial (dia, dpos, d, doubles, ipos, i, ints);
   }
 
   return NULL;
@@ -1022,6 +1093,71 @@ static void locdyn_balance (LOCDYN *ldy)
     free (send);
     free (recv);
   }
+  else /* partial update and graph or geom balancing => update local and remote diagonal blocks data */
+  {
+    DOM *dom = ldy->dom;
+    MAP *map, *item;
+    MEM setmem;
+    DIAB *dia;
+    SET *upd;
+
+    MEM_Init (&setmem, sizeof (SET), BLKSIZE);
+
+    /* update locally coppied data of unbalanced blocks
+     * and create remote update sets at the same time */
+    for (upd = NULL, map = NULL, dia = ldy->dia; dia; dia = dia->n)
+    {
+      copycon (dia);
+
+      if (dia->rank == dom->rank)
+      {
+	SET_Insert (&setmem, &upd, dia, NULL); /* shedule for local update */
+      }
+      else /* schedule for remote update */
+      {
+	if (!(item = MAP_Find_Node (map, (void*) (long) dia->rank, NULL)))
+	  item = MAP_Insert (&ldy->mapmem, &map, (void*) (long) dia->rank, NULL, NULL);
+
+	SET_Insert (&setmem, (SET**)&item->data, dia, NULL);
+      }
+    }
+
+    /* partially update local blocks */
+    {
+      int doubles = 0, ints = 0, dpos = 0, ipos = 0, dsize = 0, isize = 0;
+      double *d = NULL;
+      int *i = NULL;
+
+      /* use migration routines as a wrapper again */
+      pack_partial_update (upd, &dsize, &d, &doubles, &isize, &i, &ints);
+      unpack_partial_update (ldy, &dpos, d, doubles, &ipos, i, ints);
+      free (d);
+      free (i);
+    }
+
+    COMOBJ *send = NULL, *recv, *ptr;
+    int nsend, nrecv;
+
+    if ((nsend = MAP_Size (map)))
+    {
+      ERRMEM (send = malloc (sizeof (COMOBJ [nsend])));
+
+      for (ptr = send, item = MAP_First (map); item; item = MAP_Next (item), ptr ++)
+      {
+	ptr->rank = (int) (long) item->key;
+	ptr->o = item->data;
+      }
+    }
+    else send = NULL;
+
+    /* communicate and partially update remote blocks */
+    COMOBJS (MPI_COMM_WORLD, TAG_LOCDYN_UPDATE, (OBJ_Pack)pack_partial_update, ldy, (OBJ_Unpack)unpack_partial_update, send, nsend, &recv, &nrecv);
+
+    MAP_Free (&ldy->mapmem, &map);
+    MEM_Release (&setmem);
+    free (send);
+    free (recv);
+  }
 
   /* empty the deleted parents table and free parents */
   for (int i = 0; i < ldy->ndel; i ++) MEM_Free (&ldy->diamem, ldy->del [i]);
@@ -1053,7 +1189,7 @@ static void locdyn_gossip (LOCDYN *ldy)
       }
     }
   }
-  else if (DOM(ldy->dom)->update_kind == DOM_UPDATE_FULL)
+  else
   {
     double *R;
     MEM setmem;
