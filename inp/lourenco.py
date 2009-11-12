@@ -1,7 +1,7 @@
 # Lourenco wall example
 import math
 
-step = 1E-5
+step = 5E-6
 NWIDTH = 8
 NHEIGHT = 8
 damping = 1.0
@@ -10,12 +10,19 @@ solfec = SOLFEC ('DYNAMIC', step, 'out/lourenco')
 
 sur = SURFACE_MATERIAL (solfec,
                         model = 'SIGNORINI_COULOMB',
-                        friction = 0.3)
+                        friction = 0.62)
+
+sur = SURFACE_MATERIAL (solfec,
+                        model = 'SIGNORINI_COULOMB',
+			surf1 = 1,
+			surf2 = 3,
+                        friction = 0.62,
+			cohesion = 0.3E6)
 
 bulk = BULK_MATERIAL (solfec,
                       model = 'KIRCHHOFF',
-		      young = 1E9,
-		      poisson = 0.25,
+		      young = 15.5E9,
+		      poisson = 0.2,
 		      density = 1E3)
 
 
@@ -75,11 +82,12 @@ TRANSLATE (base, (a, 0, -c))
 SCALE (base, (NWIDTH + 1, 1, 1))
 TRANSLATE (base, (-2*a, 0, c*(NHEIGHT+1)))
 top = BODY (solfec, 'RIGID', base, bulk)
-FORCE (top, 'SPATIAL', (a * (NWIDTH-1)/2, 0, c * NHEIGHT + c/2), (1, 0, 0), 1000)
+FORCE (top, 'SPATIAL', (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), 1E3)
+FORCE (top, 'SPATIAL', (2 * a * NWIDTH / 2 - a, 0, c * NHEIGHT + c/2), (0, 0, -1), 30E3)
 
-OUTPUT (solfec, 10 * step)
+OUTPUT (solfec, 1E-4, compression = 'FASTLZ')
 
-RUN (solfec, gs, 10000 * step, 50 * step)
+RUN (solfec, gs, 1.0, 50 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 

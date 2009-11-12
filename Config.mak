@@ -8,7 +8,7 @@ CC = cc
 # Debug or optimized version switch (yes/no)
 #
 
-DEBUG = yes
+DEBUG = no
 PROFILE = no
 MEMDEBUG = no
 GEOMDEBUG = no
