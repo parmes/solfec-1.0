@@ -118,6 +118,8 @@ struct general_body
 
   MX *inverse;      /* a suitable inverse oprator (e.g. inertia for dynamics) */
 
+  double damping;   /* mass proportional damping */
+
   void *dom;        /* domain storing the body */
 
   BODY *prev,       /* list */

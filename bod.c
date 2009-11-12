@@ -756,6 +756,9 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
   /* default integration scheme */
   bod->scheme = SCH_DEFAULT;
 
+  /* initial damping */
+  bod->damping = 0.0;
+
 #if MPI
   bod->my.children = NULL;
 #endif
@@ -1050,6 +1053,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
     case PRB:
     {
       double half = 0.5 * step,
+	     c = bod->damping,
 	     force [12],
 	     *L  = PRB_GRADVEL(bod),
 	     *L0 = PRB_GRADVEL0(bod),
@@ -1061,6 +1065,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
       prb_dynamic_force (bod, time+half, step, force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
+      if (c > 0.0) for (v = L+9; L < v; L ++, L0++) (*L) -= c * (*L0); /* u(t+h) -= c * u (t) (deforomable part) */
     }
     break;
     case FEM:
@@ -1647,6 +1652,9 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
   /* pack scheme and flags */
   pack_int (isize, i, ints, bod->scheme);
   pack_int (isize, i, ints, bod->flags);
+
+  /* damping */
+  pack_double (dsize, d, doubles, bod->damping);
 }
 
 /* unpack body */
@@ -1708,6 +1716,9 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   bod->scheme = unpack_int (ipos, i, ints);
   bod->flags = unpack_int (ipos, i, ints);
 
+  /* damping */
+  bod->damping = unpack_double (dpos, d, doubles);
+
   return bod;
 }
 
@@ -1742,6 +1753,9 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   /* pack scheme and flags */
   pack_int (isize, i, ints, bod->scheme);
   pack_int (isize, i, ints, bod->flags);
+
+  /* damping */
+  pack_double (dsize, d, doubles, bod->damping);
 
   /* pack children ranks */
   pack_int (isize, i, ints, SET_Size (bod->my.children));
@@ -1793,6 +1807,9 @@ BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *
   /* unpack scheme and flags */
   bod->scheme = unpack_int (ipos, i, ints);
   bod->flags = unpack_int (ipos, i, ints);
+
+  /* damping */
+  bod->damping = unpack_double (dpos, d, doubles);
 
   /* unpack children ranks */
   m = unpack_int (ipos, i, ints);

@@ -1884,6 +1884,8 @@ void FEM_Dynamic_Init (BODY *bod, SCHEME scheme)
 
   bod->inverse = MX_Create (MXCSC, n, n, p, i);
   x = bod->inverse->x;
+  free (p);
+  free (i);
 
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
@@ -1937,6 +1939,7 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
   int n = bod->dofs;
   double half = 0.5 * step,
+	 c = bod->damping,
 	*x = bod->inverse->x,
 	*u0 = FEM_VEL0 (bod),
 	*f = FEM_FORCE (bod),
@@ -1948,6 +1951,7 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
   blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
   fem_dynamic_force (bod, time+half, step, f);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
   for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
+  if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
 }
 
 /* perform the final half-step of the dynamic scheme */

@@ -552,10 +552,15 @@ static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
 
 	for (k = 0; k < n; k ++) for (l = p[k]; l < p[k+1]; l ++, dx ++) cx [m*k + i[l]] = *dx;
       }
-    }
-    else *c  = *d; /* overwrie (all kinds) */
 
-    free (d);
+      cs_spfree (d);
+    }
+    else
+    {
+      *c  = *d; /* overwrie (all kinds) */
+
+      free (d);
+    }
   }
   else c = d;
 
@@ -1131,10 +1136,15 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 
 	for (k = 0; k < n; k ++) for (l = p[k]; l < p[k+1]; l ++, dx ++) cx [m*k + i[l]] = *dx;
       }
-    }
-    else *c = *d; /* overwrite (all kinds) */
 
-    free (d);
+      cs_spfree (d);
+    }
+    else
+    {
+      *c = *d; /* overwrite (all kinds) */
+
+      free (d);
+    }
   }
   else
   {

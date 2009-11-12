@@ -405,7 +405,7 @@ OUTPUT (solfec, 0.0001, compression='FASTLZ')
 
 LOCDYN_BALANCING (solfec, 'OFF')
 
-RUN (solfec, gs, 0.01, 0.001)
+RUN (solfec, gs, 1.01, 0.001)
 
 if not VIEWER() and solfec.mode == 'READ':
 
