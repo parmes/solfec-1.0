@@ -112,7 +112,7 @@ SURFACE_MATERIAL* SPSET_Insert (SPSET *set, int surf1, int surf2, char *label, S
   }
 
   /* copy all data from the 'model' onwards */
-  memcpy (&out->model, &data.model, sizeof (SURFACE_MATERIAL) - 2 * sizeof (int) - sizeof (char*));
+  memcpy (&out->model, &data.model, sizeof (SURFACE_MATERIAL) - ((char*)&data.model - (char*)&data.index));
 
   return out;
 }

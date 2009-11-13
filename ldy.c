@@ -1321,6 +1321,11 @@ static void destroy_mpi (LOCDYN *ldy)
   free (ldy->ins);
   free (ldy->del);
 
+  MEM_Release (&ldy->mapmem);
+  MEM_Release (&ldy->setmem);
+
+  free (ldy->REXT);
+
   if (ldy->zol) Zoltan_Destroy (&ldy->zol);
 }
 #endif

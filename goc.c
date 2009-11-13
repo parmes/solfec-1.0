@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <limits.h>
 #include <float.h>
 #include "alg.h"
 #include "box.h"
@@ -144,10 +145,11 @@ inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
 
 /* compute average point and resultant normal; return normal variance */
 inline static double point_and_normal (int negative, TRI *tri, int m,
-    int *surf, double *point, double *normal, double *area, int *sout)
+    int *surf, int nsurf, double *point, double *normal, double *area, int *sout)
 {
   double a, v [3], dots, max;
   TRI *t, *e;
+  int k;
 
   max = -DBL_MAX;
   SET (v, 0.0);
@@ -170,7 +172,10 @@ inline static double point_and_normal (int negative, TRI *tri, int m,
 
       if (a > max)
       {
-	(*sout) = surf [ABS (t->flg) - 1]; /* identifier of surface with maximal area */
+	k = ABS (t->flg) - 1;
+	ASSERT_DEBUG (k >= 0, "A negative face index: %d\n", k);
+	if (k < nsurf) (*sout) = surf [k]; /* identifier of surface with maximal area */
+	else (*sout) = INT_MAX; /* set an invalid index */
 	max = a;
       }
     }
@@ -218,8 +223,8 @@ static int detect_convex_convex (
   {
     if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
-    a = point_and_normal (0, tri, m, sa, ap, an, &aa, &spair [0]);
-    b = point_and_normal (1, tri, m, sb, bp, bn, &ba, &spair [1]);
+    a = point_and_normal (0, tri, m, sa, nsa, ap, an, &aa, &spair [0]);
+    b = point_and_normal (1, tri, m, sb, nsb, bp, bn, &ba, &spair [1]);
 
     if (a < b)
     {
@@ -347,8 +352,8 @@ static int update_convex_convex (
     s [0] = spair [0];
     s [1] = spair [1];
 
-    a = point_and_normal (0, tri, m, sa, ap, an, &aa, &spair [0]);
-    b = point_and_normal (1, tri, m, sb, bp, bn, &ba, &spair [1]);
+    a = point_and_normal (0, tri, m, sa, nsa, ap, an, &aa, &spair [0]);
+    b = point_and_normal (1, tri, m, sb, nsb, bp, bn, &ba, &spair [1]);
 
     NORMALIZE (an);
     COPY (an, normal);

@@ -564,6 +564,8 @@ static void create_mpi (GAUSS_SEIDEL *gs)
 /* destroy MPI related data */
 static void destroy_mpi (GAUSS_SEIDEL *gs)
 {
+  MEM_Release (&gs->setmem);
+
   Zoltan_Destroy (&gs->zol);
 }
 #endif
@@ -933,6 +935,8 @@ static int gauss_seidel_loop (SET *set, int reverse, int mycolor, int *color,
     EMC ();
   }
   while (mactive); /* until all active set are empty */
+
+  free (send);
 
   return dimax;
 }

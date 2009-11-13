@@ -1473,6 +1473,13 @@ static void create_mpi (DOM *dom)
 /* destroy MPI related data */
 static void destroy_mpi (DOM *dom)
 {
+  MAP *item;
+
+  for (item = MAP_First (dom->children); item; item = MAP_Next (item))
+  {
+    BODY_Destroy (item->data);
+  }
+
   free (dom->delch);
 
   MEM_Release (&dom->extmem);
@@ -2967,6 +2974,10 @@ void DOM_Destroy (DOM *dom)
 {
   BODY *bod, *next;
  
+#if MPI
+  destroy_mpi (dom);
+#endif
+
   for (bod = dom->bod; bod; bod = next)
   {
     next = bod->next;
@@ -2983,10 +2994,6 @@ void DOM_Destroy (DOM *dom)
     TMS_Destroy (dom->gravval);
 
   data_destroy (dom->data);
-
-#if MPI
-  destroy_mpi (dom);
-#endif
 
   free (dom);
 }

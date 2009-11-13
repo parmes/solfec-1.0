@@ -1528,10 +1528,13 @@ void BODY_Destroy (BODY *bod)
   FORCE *forc, *next;
 
   for (forc = bod->forces; forc; forc = next)
-  { next = forc->next;
-    if (forc->data)
-      TMS_Destroy (forc->data);
-    free (forc); }
+  { 
+    next = forc->next;
+
+    if (forc->data) TMS_Destroy (forc->data);
+
+    free (forc);
+  }
 
   SHAPE_Destroy (bod->shape);
 
@@ -1592,7 +1595,7 @@ static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *
 
   for (n = 0; n < count; n ++)
   {
-    ERRMEM (frc = malloc (sizeof (FORCE)));
+    ERRMEM (frc = calloc (1, sizeof (FORCE)));
 
     frc->kind = unpack_int (ipos, i, ints);
     unpack_doubles (dpos, d, doubles, frc->ref_point, 3);

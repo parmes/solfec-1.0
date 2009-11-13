@@ -33,6 +33,7 @@
 
 /* used in some pools */
 #define MEMCHUNK 1024
+#define MAPMEMCHUNK 128
 
 /* linear shape functions for the hexahedron */
 #define HEX0(x,y,z) (0.125*(1.0-(x))*(1.0-(y))*(1.0-(z)))
@@ -452,7 +453,7 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
   MEM_Init (elemem, sizeof (ELEMENT), elements_count);
   MEM_Init (&facmem, sizeof (FACE), MEMCHUNK);
   MEM_Init (&mapmem, sizeof (MAP), MEMCHUNK);
-  MEM_Init (&msh->mapmem, sizeof (MAP), MIN (elements_count, 128));
+  MEM_Init (&msh->mapmem, sizeof (MAP), MIN (elements_count, MAPMEMCHUNK));
   msh->map = NULL;
 
   elist = NULL;
@@ -775,6 +776,7 @@ MESH* MESH_Copy (MESH *msh)
   for (n = 0, ele = msh->surfeles; ele; ele = ele->next)
     for (fac = ele->faces; fac; fac = fac->next) n ++; /* count surface faces */
   MEM_Init (&ret->facmem, sizeof (FACE), n);
+  MEM_Init (&ret->mapmem, sizeof (MAP), MIN (msh->surfeles_count + msh->bulkeles_count, MAPMEMCHUNK));
   ERRMEM (ret->ref_nodes = malloc (sizeof (double [3]) * (msh->nodes_count * 2)));
   ret->cur_nodes = ret->ref_nodes + msh->nodes_count;
   ret->nodes_count = msh->nodes_count;
@@ -1470,6 +1472,7 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   MEM_Init (&msh->elemem, sizeof (ELEMENT), m);
   MEM_Init (&msh->facmem, sizeof (FACE), MEMCHUNK);
+  MEM_Init (&msh->mapmem, sizeof (MAP), MIN (m, MAPMEMCHUNK));
 
   ERRMEM (msh->ref_nodes = malloc (sizeof (double [3]) * (msh->nodes_count * 2)));
   msh->cur_nodes = msh->ref_nodes + msh->nodes_count;
