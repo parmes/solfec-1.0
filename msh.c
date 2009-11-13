@@ -1458,7 +1458,7 @@ void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int
 /* unpack mesh */
 MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  ELEMENT *ele, **tab;
+  ELEMENT *ele, **tab, *tail;
   int n, m, k;
   MESH *msh;
 
@@ -1482,23 +1482,25 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   ERRMEM (tab = malloc (m * sizeof (ELEMENT*)));
 
-  for (msh->bulkeles = NULL, n = m = 0; n < msh->bulkeles_count; n ++, m ++)
+  for (msh->bulkeles = tail = NULL, n = m = 0; n < msh->bulkeles_count; n ++, m ++)
   {
     ele = element_unpack (solfec, msh, dpos, d, doubles, ipos, i, ints);
-    ele->next = msh->bulkeles;
-    if (msh->bulkeles)
-      msh->bulkeles->prev = ele;
-    msh->bulkeles = ele;
-    tab [m] = ele;
+
+    if (tail) ele->prev = tail, tail->next = ele;
+    else msh->bulkeles = ele;
+    tail = ele;
+
+    tab [m] = tail = ele;
   }
 
-  for (msh->surfeles = NULL, n = 0; n < msh->surfeles_count; n ++, m ++)
+  for (msh->surfeles = tail = NULL, n = 0; n < msh->surfeles_count; n ++, m ++)
   {
     ele = element_unpack (solfec, msh, dpos, d, doubles, ipos, i, ints);
-    ele->next = msh->surfeles;
-    if (msh->surfeles)
-      msh->surfeles->prev = ele;
-    msh->surfeles = ele;
+
+    if (tail) ele->prev = tail, tail->next = ele;
+    else  msh->surfeles = ele;
+    tail = ele;
+
     tab [m] = ele;
   }
 
