@@ -1104,8 +1104,8 @@ static void legend_render ()
   {
     if (legend.extents [0] < DBL_MAX)
     {
-      step = (legend.extents [1] - legend.extents [0]) / (double) legend.range;
-      value = legend.extents [0] + 0.5 * step;
+      step = (legend.extents [1] - legend.extents [0]) / (double) (legend.range - 1);
+      value = legend.extents [0];
 
       glPushMatrix ();
       glTranslated (3, 3, 0);
@@ -1578,6 +1578,7 @@ static void render_rt (CON *con, GLfloat color [3])
   SCALE (r, con->R[0]);
   ADDMUL (r, con->R[1], con->base+3, r);
   len = LEN (r);
+  if (len == 0.0) len = 1.0;
   eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
@@ -1596,6 +1597,7 @@ static void render_rn (CON *con, GLfloat color [3])
   COPY (con->base + 6, r);
   SCALE (r, con->R[2]);
   len = LEN (r);
+  if (len == 0.0) len = 1.0;
   eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
@@ -1617,6 +1619,7 @@ static void render_r (CON *con, GLfloat color [3])
   ADDMUL (r, con->R[1], con->base+3, r);
   ADDMUL (r, con->R[2], con->base+6, r);
   len = LEN (r);
+  if (len == 0.0) len = 1.0;
   eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
@@ -1646,6 +1649,7 @@ static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
 
   COPY (force->direction, r);
   len = TMS_Value (force->data, domain->time);
+  if (len == 0.0) len = 1.0;
   SCALE (r, len);
   len = LEN (r);
   eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
