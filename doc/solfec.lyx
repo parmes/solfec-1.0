@@ -3694,7 +3694,7 @@ tms
 \end_layout
 
 \begin_layout Subsection*
-obj = SET_VELOCITY (solfec, body, point, direction, tms)
+obj = SET_VELOCITY (solfec, body, point, direction, value)
 \end_layout
 
 \begin_layout Standard
@@ -3757,9 +3757,9 @@ direction
 \begin_layout Itemize
 
 \series bold
-tms
+value
 \series default
- - TIME_SERIES object with the velocity history
+ - a constant value or a TIME_SERIES object with the velocity history
 \end_layout
 
 \begin_layout Subsection*

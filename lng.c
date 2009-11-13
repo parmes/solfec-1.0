@@ -3550,7 +3550,7 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
 
   if (out)
   {
-    PARSEKEYS ("OOOO", &solfec, &body, &point, &direction, &tms);
+    PARSEKEYS ("OOOOO", &solfec, &body, &point, &direction, &tms);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
       is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&
@@ -3586,23 +3586,23 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
 /* create prescribed velocity constraint */
 static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body", "point", "direction", "tms");
+  KEYWORDS ("solfec", "body", "point", "direction", "value");
   lng_CONSTRAINT *out;
   lng_SOLFEC *solfec;
   lng_BODY *body;
-  PyObject *point, *direction;
-  lng_TIME_SERIES *tms;
+  PyObject *point, *direction, *value;
   double p [3], d [3];
+  TMS *ts;
 
   out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
 
   if (out)
   {
-    PARSEKEYS ("OOOO", &solfec, &body, &point, &direction, &tms);
+    PARSEKEYS ("OOOOO", &solfec, &body, &point, &direction, &value);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
       is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&
-      is_time_series (tms, kwl[4]));
+      is_number_or_time_series (value, kwl[4]));
 
 #if MPI
     if (ID_TO_BODY (body))
@@ -3617,7 +3617,10 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    if (!(out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Copy (tms->ts))))
+    if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble (value));
+    else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
+
+    if (!(out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, ts)))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
@@ -3762,8 +3765,7 @@ static PyObject* lng_GRAVITY (PyObject *self, PyObject *args, PyObject *kwds)
   d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
   d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-  if (PyNumber_Check (value))
-    ts = TMS_Constant (PyFloat_AsDouble(value));
+  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value));
   else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
 
   COPY (d, solfec->sol->dom->gravdir);
@@ -3875,8 +3877,7 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
   d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
   d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-  if (PyNumber_Check (value))
-    ts = TMS_Constant (PyFloat_AsDouble(value));
+  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value));
   else if (PyCallable_Check (value))
   {
     ts = (TMS*) data;
@@ -3940,8 +3941,7 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
   d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-  if (PyNumber_Check (value))
-    ts = TMS_Constant (PyFloat_AsDouble(value));
+  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value));
   else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
 
   IFIS (kind, "SPATIAL")

@@ -1,9 +1,9 @@
 # Lourenco wall example
 import math
 
-step = 5E-6
-NWIDTH = 8
-NHEIGHT = 8
+step = 8E-6
+NWIDTH = 5
+NHEIGHT = 9
 damping = 1.0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/lourenco')
@@ -31,7 +31,7 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJEC
 GRAVITY (solfec, (0, 0, -1), 10)
 
 a = 0.10
-b = 0.05
+b = 0.10
 c = 0.10
 
 nodes = [-a, -b, 0,
@@ -44,7 +44,7 @@ nodes = [-a, -b, 0,
          -a,  b, c]
 
 for j in range (NHEIGHT):
-  if j % 2:
+  if j % 2 == 0:
     point = (-a/2, 0, j*c)
     brick = HEX (nodes, 2, 2, 2, 1, [1, 1, 1, 1, 1, 1])
     SCALE (brick, (0.5, 1, 1))
@@ -82,10 +82,11 @@ TRANSLATE (base, (a, 0, -c))
 SCALE (base, (NWIDTH + 1, 1, 1))
 TRANSLATE (base, (-2*a, 0, c*(NHEIGHT+1)))
 top = BODY (solfec, 'RIGID', base, bulk)
-FORCE (top, 'SPATIAL', (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), 1E3)
+#SET_VELOCITY (solfec, top, (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), 0.015)
+FORCE (top, 'SPATIAL', (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), 15E3)
 FORCE (top, 'SPATIAL', (2 * a * NWIDTH / 2 - a, 0, c * NHEIGHT + c/2), (0, 0, -1), 30E3)
 
-OUTPUT (solfec, 1E-4, compression = 'FASTLZ')
+OUTPUT (solfec, 1E-3, compression = 'FASTLZ')
 
 RUN (solfec, gs, 1.0, 50 * step)
 
