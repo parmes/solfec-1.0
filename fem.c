@@ -1395,7 +1395,7 @@ static void fem_constraints_force (BODY *bod, double *forc)
     if (bod->msh)
     {
       cvx = (isma ? con->mgobj : con->sgobj);
-      ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+      ele = stabbed_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
     }
     else ele = (isma ? con->mgobj : con->sgobj);
 
@@ -1410,7 +1410,7 @@ static void fem_constraints_force (BODY *bod, double *forc)
     if (bod->msh)
     {
       cvx = con->sgp->gobj;
-      ele = stabbed_element (msh, cvx->ele, cvx->nele, con->point);
+      ele = stabbed_element (msh, cvx->ele, cvx->nele, con->point); /* TODO: optimize */
     }
     else ele = con->sgp->gobj;
 
