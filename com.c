@@ -241,6 +241,7 @@ void COM (MPI_Comm comm, int tag,
   }
 
   /* cleanup */
+  free (send_rank_disp);
   free (send_sizes);
   free (send_position);
   free (send_rank);
@@ -735,6 +736,7 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   if (pattern->recv_count) ERRMEM (pattern->recv_rank = realloc (pattern->recv_rank, pattern->recv_count * sizeof (int)));
  
   /* cleanup */
+  free (send_rank_disp);
   free (send_count_all);
   free (send_rank_all);
 
@@ -898,6 +900,7 @@ void COM_Free (void *pattern)
   COMPATTERN *cp = pattern;
   int i;
 
+  free (cp->rankmap);
   free (cp->send_sizes);
   free (cp->send_position);
   free (cp->send_rank);
