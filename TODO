@@ -35,3 +35,10 @@ Replace CON->mat member with a pointer. This will save
 some 60 bytes per contact point. But, first figure out how
 efficiently store per-contact-time-dependent material data
 -------------------------------------------------------------
+Add menu "material" between "kinds of" and "results". Within
+this menu add friction, cohesio, spring, dahspot, young,
+poisson, etc. Render as fields or coloured constraint.
+-------------------------------------------------------------
+Add menu "top", "bottom", "left", "right", "front", "back"
+to the "render" menu. Or similarly.
+--------------------------------------------------------
