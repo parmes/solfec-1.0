@@ -42,10 +42,10 @@
 
 /* sizes */
 #define RIG_CONF_SIZE	15	/* rotation matrix, mass center position, auxiliary vector of size 3 */
-#define RIG_VELO_SIZE   12      /* referential angular velocity, spatial linear velocity, copies of both at (t-h) */
+#define RIG_VELO_SIZE   18      /* referential angular velocity, spatial linear velocity, copies of both at (t-h), fext */
 
 #define PRB_CONF_SIZE	12	/* deformation gradient (row-wise), mass cener position */
-#define PRB_VELO_SIZE	24	/* deformation velocity, spatial linear velocity, copies of both at (t-h) */
+#define PRB_VELO_SIZE	45	/* deformation velocity, spatial linear velocity, copies of both at (t-h), fext, fint */
 
 /* parameters */
 #define RIG_SOLVER_EPSILON (DBL_EPSILON * 1000.0)
@@ -64,13 +64,15 @@
 #define RIG_LINVEL(bod) ((bod)->velo+3)
 #define RIG_ANGVEL0(bod) ((bod)->velo+6)
 #define RIG_LINVEL0(bod) ((bod)->velo+9)
+#define RIG_FEXT(bod) ((bod)->velo+12)
 #define PRB_GRADIENT(bod) (bod)->conf
 #define PRB_CENTER(bod) ((bod)->conf+9)
 #define PRB_GRADVEL(bod) (bod)->velo
 #define PRB_LINVEL(bod) ((bod)->velo+9)
 #define PRB_GRADVEL0(bod) ((bod)->velo+12)
 #define PRB_LINVEL0(bod) ((bod)->velo+21)
-
+#define PRB_FEXT(bod) ((bod)->velo+24)
+#define PRB_FINT(bod) ((bod)->velo+36)
 
 /* allocate memory for a body */
 static void* alloc_body (short kind)
@@ -491,7 +493,7 @@ static void prb_static_inverse (BODY *bod, double step)
 
 /* compute force(time) = external(time) - internal(time), provided
  * that the configuration(time) has already been set elsewhere */
-static void prb_dynamic_force (BODY *bod, double time, double step, double *force)
+static void prb_dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
 {
   double *F = PRB_GRADIENT (bod),
 	 *X0 = BOD_X0 (bod),
@@ -542,14 +544,18 @@ static void prb_dynamic_force (BODY *bod, double time, double step, double *forc
     ADDMUL (force+9, BOD_M0 (bod), f, force+9);
   }
 
+  COPY12 (force, fext);
+
   SVK_Stress_R (lambda (bod->mat->young, bod->mat->poisson),
     mi (bod->mat->young, bod->mat->poisson), bod->ref_volume, F, P); /* internal force */
+
+  NNCOPY (P, fint);
 
   NNSUB (force, P, force); /* force = external - internal */
 }
 
 /* the smame computation for the static case */
-#define prb_static_force(bod, time, step, force) prb_dynamic_force (bod,time,step,force)
+#define prb_static_force(bod, time, step, fext, fint, force) prb_dynamic_force (bod,time,step,fext,fint,force)
 
 /* accumulate constraints reaction */
 inline static void prb_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short isma, double *force)
@@ -997,6 +1003,10 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
 
 void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
+  double *energy = bod->energy;
+
+  COPY (energy, energy+3); /* save previous energy */
+
   switch (bod->kind)
   {
     case OBS: break;
@@ -1012,6 +1022,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 	     *v0 = RIG_LINVEL0(bod),
 	     *R  = RIG_ROTATION(bod),
 	     *x  = RIG_CENTER(bod),
+	     *fext = RIG_FEXT(bod),
 	     O [9], DR [9], W05 [3],
 	     spatorq [3],
 	     reftorq [3];
@@ -1045,7 +1056,8 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       NVMUL (I, O, W05);            /* W05 = I * [exp [-(h/2) * W(t)]*J*W(t) + (h/2)*T(t+h/2)] */
 
       NVMUL (J, W05, O);
-      PRODUCTSUB (W05, O, force);   /* force [0..2] = T - W05 x J * W05 */
+      PRODUCTSUB (W05, O, force); /* force [0..2] = T - W05 x J * W05 */
+      COPY6 (force, fext); /* fext = force */
       
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
     }
@@ -1063,7 +1075,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       NNCOPY (L, L0);
       COPY (v, v0);
       blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-      prb_dynamic_force (bod, time+half, step, force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
+      prb_dynamic_force (bod, time+half, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
       if (c > 0.0) for (v = L+9; L < v; L ++, L0++) (*L) -= c * (*L0); /* u(t+h) -= c * u (t) (deforomable part) */
     }
@@ -1080,6 +1092,8 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 
 void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 {
+  double *energy = bod->energy;
+
   switch (bod->kind)
   {
     case OBS: break;
@@ -1092,10 +1106,13 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	     *v = RIG_LINVEL(bod),
 	     *R = RIG_ROTATION(bod),
 	     *W = RIG_ANGVEL(bod),
+	     *velo = bod->velo,
+	     *vel0 = RIG_ANGVEL0(bod),
+	     *fext = RIG_FEXT(bod),
 	     O [9], DR [9];
 
       rig_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-      MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */
+      MX_Matvec (step, bod->inverse, force, 1.0, velo); /* u(t+h) += inv (M) * h * r */
       ADDMUL (x, half, v, x); /* x(t+h) = x(t+h/2) + (h/2) * v(t+h) */
 
       if (sch <= SCH_RIG_NEG)
@@ -1129,22 +1146,47 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	  NNMUL (O, DR, R); /* R(t) = R(t+h/2) exp [(h/2) * W(t+h)] */
 	}
       }
+
+      /* energy */
+      ACC12 (force, fext);
+      ADD6 (velo, vel0, force);
+      SCALE6 (force, half); /* dq = (h/2) * {u(t) + u(t+h)} */
+      energy [EXTERNAL] += DOT6 (force, fext);
     }
     break;
     case PRB:
     {
       double half = 0.5 * step,
+	    *fext = PRB_FEXT(bod),
+	    *fint = PRB_FINT(bod),
+	    *velo = PRB_GRADVEL(bod),
+	    *vel0 = PRB_GRADVEL0(bod),
              force [12];
       
       prb_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-      MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */
-      blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+      MX_Matvec (step, bod->inverse, force, 1.0, velo); /* u(t+h) += inv (M) * h * r */
+      blas_daxpy (12, half, velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+
+      /* energy */
+      ACC12 (force, fext);
+      ADD12 (velo, vel0, force);
+      SCALE12 (force, half); /* dq = (h/2) * {u(t) + u(t+h)} */
+      energy [EXTERNAL] += DOT12 (force, fext);
+      energy [INTERNAL] += DOT9 (force, fint);
     }
     break;
     case FEM:
       FEM_Dynamic_Step_End (bod, time, step);
     break;
   }
+
+  energy [KINETIC] = BODY_Kinetic_Energy (bod);
+
+  ASSERT (energy [INTERNAL] >= 0.0, ERR_BOD_MOTION_UNSTABLE); /* TODO: sub-cycling */
+
+#if 0
+  printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL]);
+#endif
 
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
 }
@@ -1210,7 +1252,7 @@ void BODY_Static_Step_Begin (BODY *bod, double time, double step)
       double force [12];
 
       prb_static_inverse (bod, step); /* compute inverse of static tangent operator */
-      prb_static_force (bod, time+step, step, force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
+      prb_static_force (bod, time+step, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
       MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
     }
     break;
@@ -1495,12 +1537,14 @@ void BODY_Write_State (BODY *bod, PBF *bf)
 {
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
   PBF_Double (bf, bod->velo, bod->dofs);
+  PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod));
 }
 
 void BODY_Read_State (BODY *bod, PBF *bf)
 {
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
   PBF_Double (bf, bod->velo, bod->dofs);
+  PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod));
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 
@@ -1511,12 +1555,14 @@ void BODY_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
 {
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+  pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
 }
 
 void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+  unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 
@@ -1543,6 +1589,8 @@ void BODY_Destroy (BODY *bod)
   if (bod->inverse) MX_Destroy (bod->inverse);
 
   if (bod->kind == FEM) FEM_Destroy (bod);
+
+  if (bod->msh) MESH_Destroy (bod->msh);
 
 #if MPI
   if ((bod->flags & BODY_CHILD) == 0) SET_Free (NULL, &bod->my.children);  /* a parent body => free children ranks */

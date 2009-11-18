@@ -38,6 +38,8 @@ typedef double (*node_t) [3]; /* mesh node */
 #define MAX_NODES_COUNT 64
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)
 #define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
+#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 3)
+#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 4)
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
 
@@ -1375,7 +1377,7 @@ inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *e
 }
 
 /* compute constraints force */
-static void fem_constraints_force (BODY *bod, double *forc)
+static void fem_constraints_force (BODY *bod, double *force)
 {
   ELEMENT *ele;
   CONVEX *cvx;
@@ -1384,7 +1386,7 @@ static void fem_constraints_force (BODY *bod, double *forc)
 
   msh = FEM_MESH (bod);
 
-  blas_dscal (bod->dofs, 0.0, forc, 1);
+  blas_dscal (bod->dofs, 0.0, force, 1);
 
   for (node = SET_First (bod->con); node; node = SET_Next (node))
   {
@@ -1399,7 +1401,7 @@ static void fem_constraints_force (BODY *bod, double *forc)
     }
     else ele = (isma ? con->mgobj : con->sgobj);
 
-    fem_constraints_force_accum (bod, msh, ele, X, con->base, con->R, isma, forc);
+    fem_constraints_force_accum (bod, msh, ele, X, con->base, con->R, isma, force);
   }
 
 #if MPI
@@ -1414,13 +1416,13 @@ static void fem_constraints_force (BODY *bod, double *forc)
     }
     else ele = con->sgp->gobj;
 
-    fem_constraints_force_accum (bod, msh, ele, con->point, con->base, con->R, con->isma, forc);
+    fem_constraints_force_accum (bod, msh, ele, con->point, con->base, con->R, con->isma, force);
   }
 #endif
 }
 
 /* compute out of balance force = fext - fint */
-static void fem_dynamic_force (BODY *bod, double time, double step, double *force)
+static void fem_dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
 {
   MESH *msh = FEM_MESH (bod);
   ELEMENT *ele;
@@ -1433,14 +1435,18 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *forc
   int bulk,
       i;
 
-  /* add point forces */
+  /* zero forces */
+  blas_dscal (bod->dofs, 0.0, fext, 1);
+  blas_dscal (bod->dofs, 0.0, fint, 1);
+
+  /* point forces */
   for (FORCE *frc = bod->forces; frc; frc = frc->next)
   {
     if (frc->func)
     {
       ERRMEM (v = calloc (bod->dofs, sizeof (double)));
       frc->func (frc->data, frc->call, bod->dofs, bod->conf, bod->dofs, bod->velo, time, step, v);
-      blas_daxpy (bod->dofs, 1.0, v, 1, force, 1);
+      blas_daxpy (bod->dofs, 1.0, v, 1, fext, 1);
       free (v);
     }
     else
@@ -1462,12 +1468,12 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *forc
 	  COPY (g+9, f);
 	}
 
-	point_force (bod, msh, ele, point, f, force);
+	point_force (bod, msh, ele, point, f, fext);
       }
     }
   }
 
-  /* add gravitation */
+  /* gravitation */
   if (DOM(bod->dom)->gravval)
   {
     COPY (DOM(bod->dom)->gravdir, f);
@@ -1480,7 +1486,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *forc
 
       for (i = 0, v = g; i < ele->type; i ++, v += 3)
       {
-	w = &force [ele->nodes [i] * 3];
+	w = &fext [ele->nodes [i] * 3];
 	ADD (w, v, w);
       }
 
@@ -1490,21 +1496,24 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *forc
     }
   }
 
-  /* subtract internal forces */
+  /* internal forces */
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
     internal_force (bod, msh, ele, g);
 
     for (i = 0, v = g; i < ele->type; i ++, v += 3)
     {
-      w = &force [ele->nodes [i] * 3];
-      SUB (w, v, w);
+      w = &fint [ele->nodes [i] * 3];
+      ADD (w, v, w);
     }
 
     if (bulk) ele = ele->next;
     else if (ele->next) ele = ele->next;
     else ele = msh->bulkeles, bulk = 1;
   }
+
+  /* force = fext - fint */
+  for (double *x = fext, *y = fint, *z = force, *u = z + bod->dofs; z < u; x ++, y ++, z ++) *z = (*x) - (*y);
 }
 
 #if 0
@@ -1823,7 +1832,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   if (form == FEM_O1)
   {
     bod->dofs = msh->nodes_count * 3;
-    ERRMEM (bod->conf = calloc (4, bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force */
+    ERRMEM (bod->conf = calloc (6, bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
     bod->velo = bod->conf + bod->dofs;
   }
   else
@@ -1943,13 +1952,15 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 	*x = bod->inverse->x,
 	*u0 = FEM_VEL0 (bod),
 	*f = FEM_FORCE (bod),
+	*fext = FEM_FEXT (bod),
+	*fint = FEM_FINT (bod),
 	*q = bod->conf,
 	*u = bod->velo,
 	*e = u + n;
 
   blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
   blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-  fem_dynamic_force (bod, time+half, step, f);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
+  fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
   for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
   if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
 }
@@ -1959,15 +1970,28 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 {
   int n = bod->dofs;
   double half = 0.5 * step,
+	*energy = bod->energy,
 	*x = bod->inverse->x,
 	*r = FEM_FORCE (bod),
+	*ir = r,
+	*fext = FEM_FEXT (bod),
+	*fint = FEM_FINT (bod),
+	*u0 = FEM_VEL0 (bod),
+	*iu0 = u0,
 	*u = bod->velo,
+	*iu = u,
         *q = bod->conf,
 	*e = u + n;
   
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-  for (; u < e; u ++, x ++, r ++) (*u) += step * (*x) * (*r); /* u(t+h) += inv (M) * h * r */
-  blas_daxpy (n, half, bod->velo, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+  for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
+  blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+
+  /* energy */
+  blas_daxpy (n, 1.0, r, 1, fext, 1);
+  for (ir = r, iu = u; iu < e; ir ++, iu ++, iu0 ++) *ir = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
+  energy [EXTERNAL] += blas_ddot (n, r, 1, fext, 1);
+  energy [INTERNAL] += blas_ddot (n, r, 1, fint, 1);
 
   if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
   {
