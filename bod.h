@@ -77,6 +77,12 @@ struct general_force
   FORCE *next;
 };
 
+/* energy kinds */
+#define EXTERNAL 0
+#define KINETIC 1
+#define INTERNAL 2
+#define BODY_ENERGY_SIZE(bod) ((bod)->kind == OBS ? 0 : 3)
+
 /* body flags */
 typedef enum
 {
@@ -132,6 +138,8 @@ struct general_body
   short form; /* FEM formulation */
 
   MESH *msh; /* FEM mesh when 'shape' is made of CONVEX objects ("rough mesh") */
+
+  double energy [6]; /* current external, kinetic, potential; previous external, kinetic and potential */
 
 #if MPI
   union { SET *children; /* used by parent */

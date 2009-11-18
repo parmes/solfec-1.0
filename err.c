@@ -52,6 +52,7 @@ char* errstring (int error)
     case ERR_BOD_KIND: return "Invalid body kind";
     case ERR_BOD_SCHEME: return "Invalid body time integration scheme";
     case ERR_BOD_MOTION_INVERT: return "Body motion not invertible";
+    case ERR_BOD_MOTION_UNSTABLE: return "Body motion unstable";
     case ERR_RND_NO_DOMAIN: return "Nothing to visualise";
     case ERR_RND_STACK_OVERFLOW: return "Stack overflow in rendering module";
     case ERR_PCK_UNPACK: return "Trying to unpack more elements then stored";
