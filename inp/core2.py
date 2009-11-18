@@ -224,7 +224,7 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec):
   shape = [cv1, cv2, cv3, cv4, cv5]
   ROTATE (shape, pnt, zet, 45.0)
 
-  BODY (solfec, 'PSEUDO_RIGID', shape, material)
+  BODY (solfec, 'RIGID', shape, material)
 
 def gcore_brick (x, y, z):
 
@@ -272,7 +272,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
 	y = -(outd + dfac) + j * (outd + dfac)
 
 	shp = gcore_brick (x, y, z)
-	BODY (solfec , 'PSEUDO_RIGID', shp, material)
+	BODY (solfec , 'RIGID', shp, material)
 
     # loose keys
     lx = keyw - 2.0*loose_gap
@@ -385,7 +385,7 @@ def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, 
 
 ### main module ###
 
-step = 1E-5
+step = 1E-3
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/core2')
 
@@ -401,11 +401,11 @@ gcore_create (0.0003, 0.0002,  0,  0,  0, bulkmat, solfec)
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
-OUTPUT (solfec, 0.0001, compression='FASTLZ')
+OUTPUT (solfec, 0.00, compression='FASTLZ')
 
 LOCDYN_BALANCING (solfec, 'OFF')
 
-RUN (solfec, gs, 1.01, 0.001)
+RUN (solfec, gs, 1.01)
 
 if not VIEWER() and solfec.mode == 'READ':
 

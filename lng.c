@@ -4849,7 +4849,7 @@ static PyObject* lng_OUTPUT (PyObject *self, PyObject *args, PyObject *kwds)
 
   PARSEKEYS ("Od|O", &solfec, &interval, &compression);
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (interval, kwl[1]) && is_string (compression, kwl [2]));
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_non_negative (interval, kwl[1]) && is_string (compression, kwl [2]));
 
   if (solfec->sol->mode == SOLFEC_READ) Py_RETURN_NONE; /* skip READ mode */
 

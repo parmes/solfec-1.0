@@ -12,7 +12,7 @@
 }
 
 {
-   PyObject_Free/Invalid read of size 4
+   PyObject_Free/Invalid read of size 8
    Memcheck:Addr8
    fun:PyObject_Free
 }
@@ -30,7 +30,7 @@
 }
 
 {
-   PyObject_Free/Invalid use of value of size 4
+   PyObject_Free/Invalid use of value of size 8
    Memcheck:Value8
    fun:PyObject_Free
 }
@@ -42,7 +42,7 @@
 }
 
 {
-   PyObject_Realloc/Invalid read of size 4
+   PyObject_Realloc/Invalid read of size 8
    Memcheck:Addr8
    fun:PyObject_Realloc
 }
@@ -56,6 +56,12 @@
 {
    PyObject_Realloc/Invalid use of object of size 4
    Memcheck:Value4
+   fun:PyObject_Realloc
+}
+
+{
+   PyObject_Realloc/Invalid use of object of size 8
+   Memcheck:Value8
    fun:PyObject_Realloc
 }
 
