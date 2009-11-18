@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include "mem.h"
 #include "tms.h"
 #include "pck.h"
 #include "err.h"
@@ -111,7 +112,7 @@ TMS* TMS_File (char *path)
 
   if (!(fp = fopen (path, "r"))) return NULL;
   ERRMEM (ts = malloc (sizeof (TMS)));
-  ERRMEM (ts->points = calloc (sizeof (double [2]), CHUNK));
+  ERRMEM (ts->points = MEM_CALLOC (sizeof (double [2]) * CHUNK));
 
   np = CHUNK;
   ts->size = 0;
@@ -163,7 +164,7 @@ TMS* TMS_Integral (TMS *ts)
   ASSERT (ts->size > 0, ERR_TMS_INTEGRATE_CONSTANT);
   ERRMEM (out = malloc (sizeof (TMS)));
   out->size = ts->size;
-  ERRMEM (out->points = calloc (sizeof (double [2]), out->size));
+  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
 
   if (out->size == 0) return TMS_Constant ((ts->points[1][0] -
     ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]));
@@ -195,7 +196,7 @@ TMS* TMS_Derivative (TMS *ts)
 
   ERRMEM (out = malloc (sizeof (TMS)));
   out->size = ts->size - 1; /* one value per interval */
-  ERRMEM (out->points = calloc (sizeof (double [2]), out->size));
+  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
 
   if (out->size == 0) return TMS_Constant ((ts->points[1][0] -
     ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]));

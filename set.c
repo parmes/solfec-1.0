@@ -156,7 +156,7 @@ inline static SET* item (MEM *pool, void *data)
   SET *x;
 
   if (pool) { ERRMEM (x = MEM_Alloc (pool)); }
-  else { ERRMEM (x = calloc (1, sizeof (SET))); }
+  else { ERRMEM (x = MEM_CALLOC (sizeof (SET))); }
 
   x->l = x->r = NIL;
   x->p = NULL;

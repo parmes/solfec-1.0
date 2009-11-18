@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <float.h>
 #include <string.h>
+#include "mem.h"
 #include "sol.h"
 #include "hyb.h"
 #include "gjk.h"
@@ -986,7 +987,7 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 	   facsi * sizeof (int) +
 	   sizeof (CONVEX); /* total size of contiguous storage */
 
-    ERRMEM (ptr = calloc (size, 1));
+    ERRMEM (ptr = MEM_CALLOC (size));
     ptr->ref = (double*)(ptr + 1);
     ptr->cur = ptr->ref + nver * 3;
     ptr->pla = ptr->cur + nver * 3;

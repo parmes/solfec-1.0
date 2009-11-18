@@ -158,7 +158,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 
 	  ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
 
-	  ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+	  ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
 
 	  b->nz = nzmax;
 	}
@@ -176,7 +176,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 
 	ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
 
-        ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+        ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
 
 	b->kind = kind;
 	b->nz = nzmax;
@@ -202,7 +202,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 
 	  ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
 
-	  ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+	  ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
 	  ERRMEM (b->p = malloc (sizeof (int [n+1])));
 	  ERRMEM (b->i = malloc (sizeof (int [nzmax+1])));
 
@@ -219,7 +219,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 
 	ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
 
-	ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+	ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
 	ERRMEM (b->p = malloc (sizeof (int [n+1])));
 	ERRMEM (b->i = malloc (sizeof (int [nzmax+1])));
 
@@ -248,7 +248,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
       b->nzmax = nzmax;
       b->m = m;
       b->n = n;
-      ERRMEM (b->x = calloc (nzmax, sizeof (double)));
+      ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
       ERRMEM (b->p = malloc (sizeof (int) * (n+1)));
       ERRMEM (b->i = malloc (sizeof (int) * nzmax));
       ASSERT_DEBUG (p && i, "No structure pointers passed for MXCSC");
@@ -1580,7 +1580,7 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
     case MXDENSE:
       size = m * n;
       ASSERT_DEBUG (size > 0, "Invalid size");
-      ERRMEM (a = calloc (1, sizeof (MX) + size * sizeof (double) + 
+      ERRMEM (a = MEM_CALLOC (sizeof (MX) + size * sizeof (double) + 
 	     (sizeof (double) - sizeof (MX) % sizeof (double)))); /* align memory to a sizeof (double) multiple */
       a->x = (double*) ((char*)a + sizeof (MX) + (sizeof (double) - sizeof (MX) % sizeof (double)));
       a->nz = size;
@@ -1589,7 +1589,7 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
       ASSERT_DEBUG ((p && i) && (p != i), "Invalid structure");
       ASSERT_DEBUG (p [n] > 0, "Invalid block size");
       size = p [n];
-      ERRMEM (a = calloc (1, sizeof (MX) + size * sizeof (double) + (2 * n + 2) * sizeof (int) + 
+      ERRMEM (a = MEM_CALLOC (sizeof (MX) + size * sizeof (double) + (2 * n + 2) * sizeof (int) + 
 	     (sizeof (double) - sizeof (MX) % sizeof (double)))); /* align memory to a sizeof (double) multiple */
       a->x = (double*) ((char*)a + sizeof (MX) + (sizeof (double) - sizeof (MX) % sizeof (double)));
       a->p = (int*) (a->x + size);
@@ -1599,7 +1599,7 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
       a->nz = size;
     break;
     case MXCSC:
-      ERRMEM (a = calloc (1, sizeof (MX)));
+      ERRMEM (a = MEM_CALLOC (sizeof (MX)));
       if (p && i) /* structure might not be provided */
       {
 	size = p [n];
@@ -1607,7 +1607,7 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
 	ASSERT_DEBUG (size > 0, "Invalid nonzero size");
 	ERRMEM (a->p = malloc (sizeof (int) * (n+1)));
 	ERRMEM (a->i = malloc (sizeof (int) * size));
-	ERRMEM (a->x = calloc (size, sizeof (double)));
+	ERRMEM (a->x = MEM_CALLOC (size * sizeof (double)));
 	memcpy (a->p, p, sizeof (int) * (n+1)); 
 	memcpy (a->i, i, sizeof (int) * size); 
 	a->nz = -1; /* compressed format */

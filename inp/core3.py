@@ -272,7 +272,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
 	y = -(outd + dfac) + j * (outd + dfac)
 
 	shp = gcore_brick (x, y, z)
-	BODY (solfec , 'PSEUDO_RIGID', shp, material)
+	BODY (solfec , 'RIGID', shp, material)
 
     # loose keys
     lx = keyw - 2.0*loose_gap

@@ -156,7 +156,7 @@ inline static MAP* item (MEM *pool, void *key, void *data)
   MAP *x;
 
   if (pool) { ERRMEM (x = MEM_Alloc (pool)); }
-  else { ERRMEM (x = calloc (1, sizeof(MAP))); }
+  else { ERRMEM (x = MEM_CALLOC (sizeof(MAP))); }
 
   x->l = x->r = NIL;
   x->p = NULL;

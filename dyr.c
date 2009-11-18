@@ -383,12 +383,12 @@ void* DR_Create (int boxnum, DRALG algo)
   switch (algo)
   {
     case HASH2D_LIST:
-      ERRMEM (d->hash_list = calloc (sizeof (RECT*), boxnum));
+      ERRMEM (d->hash_list = MEM_CALLOC (sizeof (RECT*) * boxnum));
       MEM_Init (&d->rectpool, sizeof (RECT), MEMCHUNK);
       break;
     case HASH1D_XYTREE:
     case HASH2D_XYTREE:
-      ERRMEM (d->hash_xytree = calloc (sizeof (struct xytree*), boxnum));
+      ERRMEM (d->hash_xytree = MEM_CALLOC (sizeof (struct xytree*) * boxnum));
       MEM_Init (&d->xytreepool, sizeof (struct xytree), MEMCHUNK);
       MEM_Init (&d->rngpool, sizeof (RANGE), boxnum);
       break;
@@ -402,7 +402,7 @@ void* DR_Create (int boxnum, DRALG algo)
   d->hsize = boxnum;
   d->algo = algo;
 
-  ERRMEM (d->hashmarks = calloc (sizeof (BOX*), d->hsize));
+  ERRMEM (d->hashmarks = MEM_CALLOC (sizeof (BOX*) * d->hsize));
 
   return d;
 }

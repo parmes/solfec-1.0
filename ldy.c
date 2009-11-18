@@ -1817,7 +1817,7 @@ void LOCDYN_REXT_Update (LOCDYN *ldy)
 
   if (n)
   {
-    ERRMEM (ldy->REXT = calloc (n, sizeof (XR))); /* zero reactions by the way */
+    ERRMEM (ldy->REXT = MEM_CALLOC (n * sizeof (XR))); /* zero reactions by the way */
     for (i = 0, x = ldy->REXT; i < n; i ++, x ++) x->rank = -1;
 
     /* build up REXT related data */
@@ -2073,7 +2073,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   rank = DOM(ldy->dom)->rank;
   ncpu = DOM(ldy->dom)->ncpu;
  
-  ERRMEM (up = calloc (1, sizeof (UNION_PATTERN)));
+  ERRMEM (up = MEM_CALLOC (sizeof (UNION_PATTERN)));
 
   if (score < 0)
   {
@@ -2217,7 +2217,7 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
     COM (MPI_COMM_WORLD, TAG_LOCDYN_UNION_SKIPIDS, dsend, nsend, &drecv, &nrecv);
   }
 
-  ERRMEM (up->skip = calloc (ncpu, sizeof (SET*)));
+  ERRMEM (up->skip = MEM_CALLOC (ncpu * sizeof (SET*)));
 
   for (i = 0, qtr = drecv; i < nrecv; i ++, qtr ++)
   {
@@ -2233,8 +2233,8 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
   if (up->mode == ALL_TO_ALL)
   {
     /* gather send data */
-    ERRMEM (up->gather_send_counts = calloc (ncpu, sizeof (int)));
-    ERRMEM (up->gather_send_disps = calloc (ncpu, sizeof (int)));
+    ERRMEM (up->gather_send_counts = MEM_CALLOC (ncpu * sizeof (int)));
+    ERRMEM (up->gather_send_disps = MEM_CALLOC (ncpu * sizeof (int)));
 
     k = SET_Size (inp);
     up->gather_send_size = (ncpu - 1) * k; /* send Bs to all other processors */
@@ -2322,8 +2322,8 @@ SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern)
     if (rank == up->root)
     {
       /* prepare scatter data */
-      ERRMEM (up->scatter_send_counts = calloc (ncpu, sizeof (int)));
-      ERRMEM (up->scatter_send_disps = calloc (ncpu, sizeof (int)));
+      ERRMEM (up->scatter_send_counts = MEM_CALLOC (ncpu * sizeof (int)));
+      ERRMEM (up->scatter_send_disps = MEM_CALLOC (ncpu * sizeof (int)));
 
       for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
       {
@@ -2489,7 +2489,7 @@ void LOCDYN_Union_Scatter (void *pattern)
     MAP *jtem;
     int *i;
 
-    ERRMEM (i = calloc (DOM(ldy->dom)->ncpu, sizeof (int)));
+    ERRMEM (i = MEM_CALLOC (DOM(ldy->dom)->ncpu * sizeof (int)));
 
     for (ptr = up->recv, end = ptr + up->nrecv; ptr < end; ptr ++)
     {

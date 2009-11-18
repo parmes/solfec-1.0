@@ -12,6 +12,12 @@
 }
 
 {
+   PyObject_Free/Invalid read of size 4
+   Memcheck:Addr8
+   fun:PyObject_Free
+}
+
+{
    PyObject_Free/Conditional jump or move depends on uninitialised value
    Memcheck:Cond
    fun:PyObject_Free
@@ -24,8 +30,20 @@
 }
 
 {
+   PyObject_Free/Invalid use of value of size 4
+   Memcheck:Value8
+   fun:PyObject_Free
+}
+
+{
    PyObject_Realloc/Invalid read of size 4
    Memcheck:Addr4
+   fun:PyObject_Realloc
+}
+
+{
+   PyObject_Realloc/Invalid read of size 4
+   Memcheck:Addr8
    fun:PyObject_Realloc
 }
 

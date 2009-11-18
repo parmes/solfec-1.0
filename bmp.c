@@ -23,6 +23,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "mem.h"
 #include "err.h"
 #include "bmp.h"
 
@@ -142,7 +143,7 @@ void* AVI_Open (int width, int height, int fps, const char *path)
   AVI *avi;
   FILE *f;
 
-  ERRMEM (avi = calloc (sizeof (AVI), 1));
+  ERRMEM (avi = MEM_CALLOC (sizeof (AVI)));
   ASSERT (avi->file = fopen (path, "wb"), ERR_FILE_OPEN);
 
   avi->width = width;

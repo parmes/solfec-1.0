@@ -725,7 +725,7 @@ TRI* hull (double *v, int n, int *m)
    * it be now translated into a table TRI[] */
 
   for ((*m) = 0, f = h; f; f = f->n) (*m) ++; /* count output faces */
-  ERRMEM (tri = calloc ((*m), sizeof (TRI))); /* output memory (faces are triangular) */
+  ERRMEM (tri = MEM_CALLOC ((*m) * sizeof (TRI))); /* output memory (faces are triangular) */
   for (t = tri, f = h; f; f = f->n, t ++) /* translate each face into a triangle */
   {
     e = f->e; k = e->n; i = k->n;
