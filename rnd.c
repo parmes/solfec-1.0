@@ -495,7 +495,7 @@ static BODY_DATA* create_body_data (BODY *bod)
   MESH *msh;
   FACE *fac;
 
-  ERRMEM (data = calloc (sizeof (BODY_DATA), 1));
+  ERRMEM (data = MEM_CALLOC (sizeof (BODY_DATA)));
 
   MEM_Init (&pairmem, sizeof (POINTER_PAIR), CHUNK);
   MEM_Init (&mapmem, sizeof (MAP), CHUNK);
@@ -627,7 +627,7 @@ static BODY_DATA* create_body_data (BODY *bod)
   }
 
   data->values_count = MAP_Size (vmap); /* number of unique vertices */
-  ERRMEM (data->values = calloc (data->values_count, sizeof (double)));
+  ERRMEM (data->values = MEM_CALLOC (data->values_count * sizeof (double)));
   ERRMEM (data->value_sources = malloc (data->values_count * sizeof (VALUE_SOURCE)));
 
   for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))

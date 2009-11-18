@@ -21,8 +21,8 @@
 
 #include <stdlib.h>
 
-#ifndef __mp__
-#define __mp__
+#ifndef __mem__
+#define __mem__
 
 typedef struct memory_pool MEM;
 
@@ -35,6 +35,9 @@ struct memory_pool
   size_t chunksize; /* size of a chunk */
   size_t chunksinblock; /* number of memory chunks in a block */
 };
+
+/* allocate global zero'd memory */
+void* MEM_CALLOC (size_t size);
 
 /* initialize memory pool */
 void MEM_Init (MEM *pool, size_t chunksize, size_t chunksinblock);

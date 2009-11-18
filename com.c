@@ -26,6 +26,7 @@
 #include <stdlib.h>
 #include <limits.h>
 #include <mpi.h>
+#include "mem.h"
 #include "com.h"
 #include "map.h"
 #include "alg.h"
@@ -93,8 +94,8 @@ void COM (MPI_Comm comm, int tag,
   MPI_Comm_rank (comm, &rank);
   MPI_Comm_size (comm, &ncpu);
 
-  ERRMEM (send_sizes = calloc (ncpu, sizeof (int [3])));
-  ERRMEM (send_position = calloc (ncpu, sizeof (int)));
+  ERRMEM (send_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
+  ERRMEM (send_position = MEM_CALLOC (ncpu * sizeof (int)));
   ERRMEM (send_rank = malloc (ncpu * sizeof (int)));
   ERRMEM (send_data = malloc (ncpu * sizeof (char*)));
 
@@ -285,10 +286,10 @@ void COMALL (MPI_Comm comm,
   MPI_Comm_rank (comm, &rank);
   MPI_Comm_size (comm, &ncpu);
 
-  ERRMEM (send_sizes = calloc (ncpu, sizeof (int [3])));
-  ERRMEM (send_counts = calloc (ncpu, sizeof (int)));
-  ERRMEM (send_disps = calloc (ncpu, sizeof (int)));
-  ERRMEM (send_position = calloc (ncpu, sizeof (int)));
+  ERRMEM (send_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
+  ERRMEM (send_counts = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (send_disps = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (send_position = MEM_CALLOC (ncpu * sizeof (int)));
 
   /* compute send sizes */
   for (i = 0, cd = send; i < nsend; i ++, cd ++)
@@ -337,10 +338,10 @@ void COMALL (MPI_Comm comm,
   }
 #endif
 
-  ERRMEM (recv_sizes = calloc (ncpu, sizeof (int [3])));
-  ERRMEM (recv_counts = calloc (ncpu, sizeof (int)));
-  ERRMEM (recv_disps = calloc (ncpu, sizeof (int)));
-  ERRMEM (recv_position = calloc (ncpu, sizeof (int)));
+  ERRMEM (recv_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
+  ERRMEM (recv_counts = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (recv_disps = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (recv_position = MEM_CALLOC (ncpu * sizeof (int)));
 
   /* distribute send sizes into receive sizes */
   MPI_Alltoall (send_sizes, 3, MPI_INT, recv_sizes, 3, MPI_INT, MPI_COMM_WORLD);
@@ -431,7 +432,7 @@ void COMONEALL (MPI_Comm comm, COMDATA send,
   MPI_Comm_rank (comm, &rank);
   MPI_Comm_size (comm, &ncpu);
 
-  ERRMEM (send_data = calloc (ncpu - 1, sizeof (COMDATA)));
+  ERRMEM (send_data = MEM_CALLOC ((ncpu - 1) * sizeof (COMDATA)));
 
   for (i = 0; i < ncpu; i ++)
   {
@@ -574,7 +575,7 @@ void COMOBJALL (MPI_Comm comm,
     MPI_Comm_rank (comm, &rank);
     MPI_Comm_size (comm, &ncpu);
 
-    ERRMEM (send_data = calloc (ncpu - 1, sizeof (COMOBJ)));
+    ERRMEM (send_data = MEM_CALLOC ((ncpu - 1) * sizeof (COMOBJ)));
 
     for (i = j = 0; i < ncpu; i ++)
     {
@@ -614,9 +615,9 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   MPI_Comm_size (comm, &ncpu);
 
   ERRMEM (pattern = malloc (sizeof (COMPATTERN)));
-  ERRMEM (pattern->rankmap = calloc (ncpu, sizeof (int)));
-  ERRMEM (pattern->send_sizes = calloc (ncpu, sizeof (int [3])));
-  ERRMEM (pattern->send_position = calloc (ncpu, sizeof (int)));
+  ERRMEM (pattern->rankmap = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (pattern->send_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
+  ERRMEM (pattern->send_position = MEM_CALLOC (ncpu * sizeof (int)));
   ERRMEM (pattern->send_rank = malloc (ncpu * sizeof (int)));
   ERRMEM (pattern->send_data = malloc (ncpu * sizeof (char*)));
   pattern->nsend = nsend;

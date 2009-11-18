@@ -68,7 +68,7 @@ LIST* LIST_Create (int levels, LIST_Compare compare)
   list->level = 0;
   list->size = 0;
 
-  if (!(list->header.forward = calloc (levels, sizeof (ITEM*)))) return NULL;
+  if (!(list->header.forward = MEM_CALLOC (levels * sizeof (ITEM*)))) return NULL;
   if (!(list->update = malloc (levels * sizeof (ITEM*)))) return NULL;
 
   list->compare = compare;

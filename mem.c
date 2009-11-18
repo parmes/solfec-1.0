@@ -24,8 +24,18 @@
 #include "mem.h"
 #include "err.h"
 
-void MEM_Init (MEM *pool,
-  size_t chunksize, size_t chunksinblock)
+void* MEM_CALLOC (size_t size)
+{
+  void *chunk;
+
+  if (!(chunk = malloc (size))) return NULL;
+
+  memset (chunk, 0, size);
+
+  return chunk;
+}
+
+void MEM_Init (MEM *pool, size_t chunksize, size_t chunksinblock)
 {
   ASSERT_DEBUG (pool && chunksize > 0 && chunksinblock > 0, "A zero argument passed to MEM_Init");
 
@@ -42,9 +52,14 @@ void MEM_Init (MEM *pool,
 void* MEM_Alloc (MEM *pool)
 {
 #if MEMDEBUG
-  return calloc (pool->chunksize, 1);
+  void *chunk;
+
+  chunk = malloc (pool->chunksize);
+  memset (chunk, 0, pool->chunksize);
+
+  return chunk;
 #else
-  void *chunk,*block;
+  void *chunk, *block;
 
   if (pool->deadchunks)
   { /* if there are deallocated chunks, get one */
@@ -58,11 +73,9 @@ void* MEM_Alloc (MEM *pool)
   { /* else if we need to allocate a new block ... */
    
     /* allocate a block of memory */
-    block = calloc (pool->chunksize * pool->chunksinblock + sizeof(size_t), 1);
-    if (! block)
-    {
-      return NULL; /* do not exit() here */
-    }
+    block = malloc (pool->chunksize * pool->chunksinblock + sizeof(size_t));
+    if (!block) return NULL; /* do not exit() here */
+    memset (block, 0, pool->chunksize * pool->chunksinblock + sizeof(size_t));
    
     /* insert allocated block into the list */
     *((size_t*)block) = (size_t)pool->blocks;

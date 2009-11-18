@@ -874,7 +874,7 @@ static int domain_balance (DOM *dom)
 
   int i, *j;
 
-  ERRMEM (send = calloc (dom->ncpu, sizeof (COMDATA)));
+  ERRMEM (send = MEM_CALLOC (dom->ncpu * sizeof (COMDATA)));
 
   /* before rebalancing - delete orhpans (children of removed bodies) */
   for (i = 0, del = dom->delch, qtr = send; i < dom->ncpu; i ++, del ++)
@@ -1433,7 +1433,7 @@ static void create_mpi (DOM *dom)
 
   dom->children = NULL; /* initially empty */
 
-  ERRMEM (dom->delch = calloc (dom->ncpu, sizeof (SET*)));
+  ERRMEM (dom->delch = MEM_CALLOC (dom->ncpu * sizeof (SET*)));
 
   dom->conext = NULL;
 
@@ -1508,7 +1508,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 {
   DOM *dom;
 
-  ERRMEM (dom = calloc (1, sizeof (DOM)));
+  ERRMEM (dom = MEM_CALLOC (sizeof (DOM)));
   dom->aabb = aabb;
   aabb->dom = dom;
   dom->sps = sps;
@@ -2131,7 +2131,7 @@ void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol)
 
   /* 6. communicate delset and delete unwanted children */
 
-  ERRMEM (send = calloc (dom->ncpu, sizeof (COMDATA))); /* one for each processor */
+  ERRMEM (send = MEM_CALLOC (dom->ncpu * sizeof (COMDATA))); /* one for each processor */
 
   /* pack ids into specific rank data */
   for (SET *x = SET_First (delset); x; x = SET_Next (x))

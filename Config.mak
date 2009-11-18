@@ -10,7 +10,7 @@ CC = cc
 
 DEBUG = yes
 PROFILE = no
-MEMDEBUG = no
+MEMDEBUG = yes
 GEOMDEBUG = no
 NOTHROW = yes
 

@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include <float.h>
+#include "mem.h"
 #include "dom.h"
 #include "fem.h"
 #include "but.h"
@@ -919,7 +920,7 @@ static MX* shape_functions (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
 
     n = bod->dofs;
 
-    ERRMEM (p = calloc (2*n+1, sizeof (int)));
+    ERRMEM (p = MEM_CALLOC ((2*n+1) * sizeof (int)));
     i = p + n + 1;
 
     for (k = 0, u = i; k < ele->type; k ++, u += 3)
@@ -1444,7 +1445,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
   {
     if (frc->func)
     {
-      ERRMEM (v = calloc (bod->dofs, sizeof (double)));
+      ERRMEM (v = MEM_CALLOC (bod->dofs * sizeof (double)));
       frc->func (frc->data, frc->call, bod->dofs, bod->conf, bod->dofs, bod->velo, time, step, v);
       blas_daxpy (bod->dofs, 1.0, v, 1, fext, 1);
       free (v);
@@ -1622,7 +1623,7 @@ static void post_process_intersections (double shape_volume, MESH *msh)
 
   int *node_map, m;
 
-  ERRMEM (node_map = calloc (msh->nodes_count, sizeof (int)));
+  ERRMEM (node_map = MEM_CALLOC (msh->nodes_count * sizeof (int)));
 
   for (ele = msh->surfeles; ele; ele = ele->next)
     for (n = 0; n < ele->type; n ++) node_map [ele->nodes [n]] ++;
@@ -1786,7 +1787,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     MEM boxmem;
 
     msh_nsgp = msh->surfeles_count + msh->bulkeles_count;
-    ERRMEM (msh_sgp = sgp = calloc (msh_nsgp, sizeof (SGP)));
+    ERRMEM (msh_sgp = sgp = MEM_CALLOC (msh_nsgp * sizeof (SGP)));
     for (ele = msh->surfeles; ele; ele = ele->next, sgp ++) sgp->shp = &msh_shp, sgp->gobj = ele;
     for (ele = msh->bulkeles; ele; ele = ele->next, sgp ++) sgp->shp = &msh_shp, sgp->gobj = ele;
     shp_sgp = SGP_Create (shp, &shp_nsgp);
@@ -1832,7 +1833,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   if (form == FEM_O1)
   {
     bod->dofs = msh->nodes_count * 3;
-    ERRMEM (bod->conf = calloc (6, bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
+    ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
     bod->velo = bod->conf + bod->dofs;
   }
   else

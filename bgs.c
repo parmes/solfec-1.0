@@ -696,7 +696,7 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   rank = DOM(ldy->dom)->rank;
   ncpu = DOM(ldy->dom)->ncpu;
-  ERRMEM (coloring = calloc (ncpu, sizeof (int))); /* processor to color map */
+  ERRMEM (coloring = MEM_CALLOC (ncpu * sizeof (int))); /* processor to color map */
 
   /* FIXME: Zoltan coloring writes on Solfec memory (randomly) */
 #if 0
@@ -1214,8 +1214,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   size_bot = size_top = 512;
   nsend_bot = nsend_top = 0;
 
-  ERRMEM (send_bot = calloc (size_bot, sizeof (COMDATA)));
-  ERRMEM (send_top = calloc (size_top, sizeof (COMDATA)));
+  ERRMEM (send_bot = MEM_CALLOC (size_bot * sizeof (COMDATA)));
+  ERRMEM (send_top = MEM_CALLOC (size_top * sizeof (COMDATA)));
 
   ptr_bot = send_bot;
   ptr_top = send_top;

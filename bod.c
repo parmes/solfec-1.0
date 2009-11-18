@@ -81,16 +81,16 @@ static void* alloc_body (short kind)
   {
     case RIG:
     /* alloc rigid body structure  */
-    return calloc (1, sizeof (BODY) + sizeof (double [RIG_CONF_SIZE + RIG_VELO_SIZE]));
+    return MEM_CALLOC (sizeof (BODY) + sizeof (double [RIG_CONF_SIZE + RIG_VELO_SIZE]));
 
     case PRB:
     /* alloc pseudo-rigid body structure */
-    return calloc (1, sizeof (BODY) + sizeof (double [PRB_CONF_SIZE + PRB_VELO_SIZE]));
+    return MEM_CALLOC (sizeof (BODY) + sizeof (double [PRB_CONF_SIZE + PRB_VELO_SIZE]));
 
     case FEM:
     /* alloc finite element discretised body =>
      * configuration and velocity are allocated individually */
-    return calloc (1, sizeof (BODY));
+    return MEM_CALLOC (sizeof (BODY));
   }
 
   return NULL;
@@ -670,7 +670,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
   {
     case OBS:
     {
-      ERRMEM (bod = calloc (1, sizeof (BODY)));
+      ERRMEM (bod = MEM_CALLOC (sizeof (BODY)));
     }
     break;
     case RIG:
@@ -859,7 +859,7 @@ void BODY_Apply_Force (BODY *bod, short kind, double *point, double *direction, 
     ASSERT_DEBUG ((point && direction && data) || func, "NULL pointer passed incorectly");
   }
 
-  ERRMEM (frc = calloc (1, sizeof (FORCE)));
+  ERRMEM (frc = MEM_CALLOC (sizeof (FORCE)));
 
   /* set up force */
   frc->kind = kind;
@@ -1182,7 +1182,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
   energy [KINETIC] = BODY_Kinetic_Energy (bod);
 
-#if 1
+#if 0
   printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL]);
 #endif
 
@@ -1190,7 +1190,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
   MAXABS (energy, e);
 
-  ASSERT (energy [INTERNAL] >= -1E-3*e, ERR_BOD_MOTION_UNSTABLE); /* TODO: sub-cycling */
+  ASSERT (energy [INTERNAL] >= -1E-2*e, ERR_BOD_MOTION_UNSTABLE); /* TODO: sub-cycling */
 
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
 }
@@ -1647,7 +1647,7 @@ static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *
 
   for (n = 0; n < count; n ++)
   {
-    ERRMEM (frc = calloc (1, sizeof (FORCE)));
+    ERRMEM (frc = MEM_CALLOC (sizeof (FORCE)));
 
     frc->kind = unpack_int (ipos, i, ints);
     unpack_doubles (dpos, d, doubles, frc->ref_point, 3);
