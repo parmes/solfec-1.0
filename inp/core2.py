@@ -5,8 +5,8 @@ from math import cos
 from math import sqrt
 
 # some parameters
-N_BRICKS = 1
-M_BRICKS = 1
+N_BRICKS = 4
+M_BRICKS = 4
 N_LAYERS = 4
 
 # some constants
@@ -385,7 +385,7 @@ def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, 
 
 ### main module ###
 
-step = 1E-4
+step = 1E-5
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/core2')
 

@@ -5,9 +5,9 @@ from math import cos
 from math import sqrt
 
 # some parameters
-N_BRICKS = 4
-M_BRICKS = 4
-N_LAYERS = 4
+N_BRICKS = 2
+M_BRICKS = 2
+N_LAYERS = 12
 
 # some constants
 PI = 3.14159265358979323846 
@@ -224,7 +224,7 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec):
   shape = [cv1, cv2, cv3, cv4, cv5]
   ROTATE (shape, pnt, zet, 45.0)
 
-  BODY (solfec, 'PSEUDO_RIGID', shape, material)
+  BODY (solfec, 'RIGID', shape, material)
 
 def gcore_brick (x, y, z):
 
@@ -272,8 +272,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
 	y = -(outd + dfac) + j * (outd + dfac)
 
 	shp = gcore_brick (x, y, z)
-	msh = ROUGH_HEX (shp, 2, 2, 2)
-	BODY (solfec , 'FINITE_ELEMENT', shp, material, mesh = msh)
+	BODY (solfec , 'PSEUDO_RIGID', shp, material)
 
     # loose keys
     lx = keyw - 2.0*loose_gap
@@ -386,7 +385,7 @@ def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, 
 
 ### main module ###
 
-step = 1E-5
+step = 1E-4
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/core3')
 
@@ -404,7 +403,7 @@ gs = GAUSS_SEIDEL_SOLVER (1E-2, 10, failure = 'CONTINUE', diagsolver = 'PROJECTE
 
 OUTPUT (solfec, 0.025, compression='FASTLZ')
 
-LOCDYN_BALANCING (solfec, 'OFF')
+LOCDYN_BALANCING (solfec, 'GEOM')
 
 RUN (solfec, gs, 12.00, 0.001)
 

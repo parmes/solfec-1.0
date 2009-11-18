@@ -81,7 +81,7 @@ struct general_force
 #define EXTERNAL 0
 #define KINETIC 1
 #define INTERNAL 2
-#define BODY_ENERGY_SIZE(bod) ((bod)->kind == OBS ? 0 : 3)
+#define BODY_ENERGY_SIZE(bod) ((bod)->kind == OBS ? 0 : (bod)->kind == RIG ? 2 : 3)
 
 /* body flags */
 typedef enum
