@@ -1148,7 +1148,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       }
 
       /* energy */
-      ACC12 (force, fext);
+      ACC6 (force, fext);
       ADD6 (velo, vel0, force);
       SCALE6 (force, half); /* dq = (h/2) * {u(t) + u(t+h)} */
       energy [EXTERNAL] += DOT6 (force, fext);
@@ -1182,11 +1182,15 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
   energy [KINETIC] = BODY_Kinetic_Energy (bod);
 
-  ASSERT (energy [INTERNAL] >= 0.0, ERR_BOD_MOTION_UNSTABLE); /* TODO: sub-cycling */
-
-#if 0
+#if 1
   printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL]);
 #endif
+
+  double e;
+
+  MAXABS (energy, e);
+
+  ASSERT (energy [INTERNAL] >= -1E-3*e, ERR_BOD_MOTION_UNSTABLE); /* TODO: sub-cycling */
 
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
 }
