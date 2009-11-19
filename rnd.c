@@ -1920,7 +1920,12 @@ static void step ()
 /* run simulation */
 static void run (int dummy)
 {
-  step ();
+  if (solfec->mode == SOLFEC_WRITE) step ();
+  else 
+  {
+    SOLFEC_Forward (solfec, skip_steps);
+    update ();
+  }
 
   if (domain->flags & DOM_RUN_ANALYSIS) glutTimerFunc (1000 * SOLFEC_Time_Skip (solfec), run, 0);
 }

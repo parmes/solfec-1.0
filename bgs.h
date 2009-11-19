@@ -133,4 +133,9 @@ char* GAUSS_SEIDEL_Variant (GAUSS_SEIDEL *gs);
 /* free solver */
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs);
 
+/* diagonal block solver */
+int DIAGONAL_BLOCK_Solver (GSDIAS diagsolver, double diagepsilon, int diagmaxiter,
+  short dynamic, double step, short kind, SURFACE_MATERIAL *mat, double gap,
+  double *Z, double *base, DIAB *dia, double *B);
+
 #endif

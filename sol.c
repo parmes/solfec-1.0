@@ -65,6 +65,7 @@ static int verbose_on (SOLFEC *sol, short kind, void *solver)
   }
   break;
   case EXPLICIT_SOLVER:
+  case SEMI_EXPLICIT_SOLVER:
   break;
   }
 
@@ -85,6 +86,7 @@ static int verbose_off (SOLFEC *sol, short kind, void *solver)
   }
   break;
   case EXPLICIT_SOLVER:
+  case SEMI_EXPLICIT_SOLVER:
   break;
   }
 
@@ -382,6 +384,7 @@ static void SOLVE (void *solver, SOLVER_KIND kind, LOCDYN *ldy, int verbose)
   {
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Solve (solver, ldy); break;
   case EXPLICIT_SOLVER: EXPLICIT_Solve (ldy); break;
+  case SEMI_EXPLICIT_SOLVER: SEMI_EXPLICIT_Solve (ldy); break;
   }
 }
 
@@ -490,7 +493,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
     for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
     {
-      upkind = (kind == EXPLICIT_SOLVER ? UPDIA : UPALL);
+      upkind = (kind == EXPLICIT_SOLVER ? UPDIA_PART : kind == SEMI_EXPLICIT_SOLVER ? UPDIA_FULL : UPALL); /* here as user callback can change solver */
 
 #if MPI
       if (sol->dom->rank == 0)

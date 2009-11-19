@@ -1622,7 +1622,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
       NNADD (W.x, C.x, W.x); }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
 
-    if (upkind != UPDIA) /* diagonal regularization (not needed by the explicit solver) */
+    if (upkind != UPDIA_PART) /* diagonal regularization (not needed by the explicit solver) */
     {
       NNCOPY (W.x, C.x); /* calculate regularisation parameter */
       ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);

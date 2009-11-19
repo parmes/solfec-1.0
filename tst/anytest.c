@@ -30,6 +30,8 @@ int main (int argc, char **argv)
 
   printf ("Result of 'isnan' on %g is %d\n", nan, isnan (nan));
   printf ("Result of 'isfinite' on %g is %d\n", nan, isfinite (nan));
+  printf ("Size of 'long' is %ld\n", sizeof (long));
+  printf ("Size of 'long long' is %ld\n", sizeof (long long));
 
   return 0;
 }

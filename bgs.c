@@ -451,47 +451,6 @@ static int riglnk (short dynamic, double epsilon, int maxiter, double step,
   return 0;
 }
 
-static int solver (GAUSS_SEIDEL *gs, short dynamic, double step, short kind,
-  SURFACE_MATERIAL *mat, double gap, double *Z, double *base, DIAB *dia, double *B)
-{
-  switch (kind)
-  {
-  case CONTACT:
-    switch (mat->model)
-    {
-    case SIGNORINI_COULOMB:
-      switch (gs->diagsolver)
-      {
-      case GS_PROJECTED_GRADIENT:
-	return projected_gradient (dynamic, gs->diagepsilon, gs->diagmaxiter, step, mat->friction,
-			   mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
-      case GS_DE_SAXE_AND_FENG:
-	return de_saxe_and_feng (dynamic, gs->diagepsilon, gs->diagmaxiter, step, mat->friction,
-			 mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
-      case GS_SEMISMOOTH_NEWTON:
-	return semismooth_newton (dynamic, gs->diagepsilon, gs->diagmaxiter, step, mat->friction,
-			  mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
-      }
-      break;
-    case SPRING_DASHPOT:
-      return EXPLICIT_Spring_Dashpot_Contact (gap, mat->spring, mat->dashpot,
-	                         mat->friction, dia->W, dia->B, dia->V, dia->U, dia->R);
-    }
-    break;
-  case FIXPNT:
-    return fixpnt (dynamic, dia->W, B, dia->V, dia->U, dia->R);
-  case FIXDIR:
-    return fixdir (dynamic, dia->W, B, dia->V, dia->U, dia->R);
-  case VELODIR:
-    return velodir (Z, dia->W, B, dia->U, dia->R);
-  case RIGLNK:
-    return riglnk (dynamic, gs->diagepsilon, gs->diagmaxiter,
-	    step, base, Z, dia->W, B, dia->V, dia->U, dia->R);
-  }
-
-  return 0;
-}
-
 #if MPI
 /* number of cpus in here  */
 static int cpu_count (GAUSS_SEIDEL *gs, int *ierr)
@@ -633,9 +592,11 @@ static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
   if (dia->con) /* LDB_OFF */
   {
     CON *con = dia->con;
-    diagiters = solver (gs, dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
+    diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+	       dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
   }
-  else diagiters = solver (gs, dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
+  else diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+                  dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
 
   if (diagiters > gs->diagmaxiter || diagiters < 0)
   {
@@ -1624,7 +1585,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
       /* solve local diagonal block problem */
       CON *con = dia->con;
-      diagiters = solver (gs, dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
+      diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+	         dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
 
       if (diagiters > gs->diagmaxiter || diagiters < 0)
       {
@@ -1773,3 +1735,48 @@ void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs)
   free (gs->rerhist);
   free (gs);
 }
+
+/* diagonal block solver */
+int DIAGONAL_BLOCK_Solver (GSDIAS diagsolver, double diagepsilon, int diagmaxiter,
+  short dynamic, double step, short kind, SURFACE_MATERIAL *mat, double gap,
+  double *Z, double *base, DIAB *dia, double *B)
+{
+  switch (kind)
+  {
+  case CONTACT:
+    switch (mat->model)
+    {
+    case SIGNORINI_COULOMB:
+      switch (diagsolver)
+      {
+      case GS_PROJECTED_GRADIENT:
+	return projected_gradient (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
+			   mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
+      case GS_DE_SAXE_AND_FENG:
+	return de_saxe_and_feng (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
+			 mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
+      case GS_SEMISMOOTH_NEWTON:
+	return semismooth_newton (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
+			  mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
+      }
+      break;
+    case SPRING_DASHPOT:
+      return EXPLICIT_Spring_Dashpot_Contact (gap, mat->spring, mat->dashpot,
+	                         mat->friction, dia->W, dia->B, dia->V, dia->U, dia->R);
+    }
+    break;
+  case FIXPNT:
+    return fixpnt (dynamic, dia->W, B, dia->V, dia->U, dia->R);
+  case FIXDIR:
+    return fixdir (dynamic, dia->W, B, dia->V, dia->U, dia->R);
+  case VELODIR:
+    return velodir (Z, dia->W, B, dia->U, dia->R);
+  case RIGLNK:
+    return riglnk (dynamic, diagepsilon, diagmaxiter,
+	    step, base, Z, dia->W, B, dia->V, dia->U, dia->R);
+  }
+
+  return 0;
+}
+
+

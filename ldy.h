@@ -38,8 +38,9 @@ typedef struct locdyn LOCDYN;
 
 enum upkind
 {
-  UPDIA, /* update diagonal blocks only */
-  UPALL  /* update all blocks */
+  UPDIA_PART, /* partially update diagonal blocks only */
+  UPDIA_FULL, /* fully update diagonal blocks only */
+  UPALL  /* fully update all blocks */
 };
 
 typedef enum upkind UPKIND;

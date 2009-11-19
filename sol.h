@@ -27,6 +27,7 @@
 #include "tms.h"
 #include "bgs.h"
 #include "exs.h"
+#include "sxs.h"
 #include "dom.h"
 #include "mat.h"
 #include "pbf.h"
@@ -42,6 +43,7 @@ enum solver_kind
 {
   GAUSS_SEIDEL_SOLVER,
   EXPLICIT_SOLVER,
+  SEMI_EXPLICIT_SOLVER
 };
 
 typedef enum solver_kind SOLVER_KIND;
