@@ -69,6 +69,7 @@ struct pbf
   MAP *labels; /* name mapped labels */
   PBF_MARKER *mtab; /* markers */
   enum {PBF_READ, PBF_WRITE} mode; /* access mode */
+  unsigned int dpos; /* previous data position */
   double time; /* current time (>= 0) */
   int lsize; /* free index (WRITE) or ltab size (READ) */
   int msize; /* mtab size (READ) */

@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include <stdlib.h>
+#include <limits.h>
 #include <stdio.h>
 #include <float.h>
 #include <math.h>
@@ -32,6 +33,7 @@ int main (int argc, char **argv)
   printf ("Result of 'isfinite' on %g is %d\n", nan, isfinite (nan));
   printf ("Size of 'long' is %ld\n", sizeof (long));
   printf ("Size of 'long long' is %ld\n", sizeof (long long));
+  printf ("UINT_MAX is %u\n", UINT_MAX);
 
   return 0;
 }
