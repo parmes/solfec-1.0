@@ -139,7 +139,7 @@ struct general_body
 
   MESH *msh; /* FEM mesh when 'shape' is made of CONVEX objects ("rough mesh") */
 
-  double energy [6]; /* current external, kinetic, potential; previous external, kinetic and potential */
+  double energy [3]; /* external, kinetic, potential */
 
 #if MPI
   union { SET *children; /* used by parent */

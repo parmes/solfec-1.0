@@ -40,6 +40,9 @@
 #include "but.h"
 #include "rnd.h"
 
+/* energy conservation tolerance */
+#define ENE_TOL 0.01
+
 /* sizes */
 #define RIG_CONF_SIZE	15	/* rotation matrix, mass center position, auxiliary vector of size 3 */
 #define RIG_VELO_SIZE   18      /* referential angular velocity, spatial linear velocity, copies of both at (t-h), fext */
@@ -1003,10 +1006,6 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
 
 void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
-  double *energy = bod->energy;
-
-  COPY (energy, energy+3); /* save previous energy */
-
   switch (bod->kind)
   {
     case OBS: break;
@@ -1180,19 +1179,24 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
     break;
   }
 
-  energy [KINETIC] = BODY_Kinetic_Energy (bod);
+  if (bod->kind != OBS)
+  {
+    energy [KINETIC] = BODY_Kinetic_Energy (bod);
+
+    double emax, etot;
+
+    MAXABS (energy, emax);
+
+    etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
 #if 0
-  printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL]);
+    printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
 #endif
 
-  double e;
+    ASSERT (etot < ENE_TOL * emax, ERR_BOD_ENERGY_CONSERVATION);
 
-  MAXABS (energy, e);
-
-  ASSERT (energy [INTERNAL] >= -1E-2*e, ERR_BOD_MOTION_UNSTABLE); /* TODO: sub-cycling */
-
-  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+    SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+  }
 }
 
 void BODY_Static_Init (BODY *bod)
