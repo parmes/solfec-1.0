@@ -10,6 +10,7 @@ ifeq ($(MPI),yes)
 endif
 
 TGT = glvtest\
+      anytest\
       pbftest\
       hultest\
       cvitest\
@@ -55,6 +56,12 @@ glvtest: obj/glvtest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 obj/glvtest.o: glvtest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+anytest: obj/anytest.o $(LIBBRICKS)
+	$(CC) $(CFLAGS) -o $@ $< $(LIB)
+
+obj/anytest.o: anytest.c $(LIBBRICKS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 pbftest: obj/pbftest.o $(LIBBRICKS)

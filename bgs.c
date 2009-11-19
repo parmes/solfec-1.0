@@ -275,7 +275,7 @@ static int semismooth_newton (short dynamic, double epsilon, int maxiter,
     }
 
     if (lapack_dgesv (3, 1, a, 3, ipiv, b, 3)) return -1;
-    if (isnan(b[0])||isnan(b[1])||isnan(b[2])) return -1;
+    if (!isfinite (b[0]+b[1]+b[2])) return -1;
 
     NVADDMUL (RES, W, b, c);
     ADD (R, b, R);

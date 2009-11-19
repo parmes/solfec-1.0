@@ -237,7 +237,7 @@ static int detect_convex_convex (
       free (tri);
 
       sanity = (ap[0]+ap[1]+ap[2]+an[0]+an[1]+an[2]+aa+(*gap));
-      if (isnan (sanity)) return 0;
+      if (!isfinite (sanity)) return 0;
       else return 1;
     }
     else
@@ -251,7 +251,7 @@ static int detect_convex_convex (
       free (tri);
 
       sanity = (bp[0]+bp[1]+bp[2]+bn[0]+bn[1]+bn[2]+ba+(*gap));
-      if (isnan (sanity)) return 0;
+      if (!isfinite (sanity)) return 0;
       else return 2;
     }
   }
@@ -364,7 +364,7 @@ static int update_convex_convex (
     free (tri);
 
     sanity = (ap[0]+ap[1]+ap[2]+an[0]+an[1]+an[2]+aa+(*gap));
-    if (isnan (sanity)) return 0;
+    if (!isfinite (sanity)) return 0;
     else if (s [0] == spair [0] && s [1] == spair [1]) return 1;
     else return 2;
   }
@@ -380,7 +380,7 @@ static int update_convex_convex (
     spair [1] = nearest_surface (onepnt, pb, sb, nsb);
 
     sanity = (normal[0]+normal[1]+normal[2]+(*gap));
-    if (isnan (sanity)) return 0;
+    if (!isfinite (sanity)) return 0;
     else if (s [0] == spair [0] && s [1] == spair [1]) return 1;
     else return 2;
   }
