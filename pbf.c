@@ -24,6 +24,7 @@
 #endif
 
 #include <string.h>
+#include <limits.h>
 #include <float.h>
 #include "pbf.h"
 #include "err.h"
@@ -304,6 +305,7 @@ PBF* PBF_Write (const char *path)
   bf->labels = NULL;
   bf->mtab = NULL;
   bf->mode = PBF_WRITE;
+  bf->dpos = 0;
   bf->time = 0.;
   bf->lsize = 0;
   bf->msize = 0;
@@ -470,26 +472,37 @@ void PBF_Flush (PBF *bf)
 
 void PBF_Time (PBF *bf, double *time)
 {
-  int index;
   unsigned int pos;
+  int index;
 
   if (bf->mode == PBF_WRITE)
   {
     ASSERT ((*time) >= bf->time, ERR_PBF_OUTPUT_TIME_DECREASED);
-    if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
-    {
-      index = -1;
-      xdr_int (&bf->x_idx, &index);
-    }
 
-    /* output current data
-     * position and time */
-    xdr_double (&bf->x_idx, time);
     pos = xdr_getpos (&bf->x_dat);
-    xdr_u_int (&bf->x_idx, &pos); /* dat position */
 
-    /* set time */
-    bf->time = *time;
+    if (pos >= bf->dpos && pos < UINT_MAX)
+    {
+      bf->dpos = pos;
+
+      if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
+      {
+	index = -1;
+	xdr_int (&bf->x_idx, &index);
+      }
+
+      /* output current data
+       * position and time */
+      xdr_double (&bf->x_idx, time);
+      xdr_u_int (&bf->x_idx, &pos); /* dat position */
+
+      /* set time */
+      bf->time = *time;
+    }
+    else
+    {
+      fprintf (stderr, "PBF WARNING: data over %u bytes cannot be written (skipping).\n", UINT_MAX);
+    }
   }
   else
   { *time = bf->time; }
