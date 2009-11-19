@@ -42,6 +42,7 @@
 
 /* energy conservation tolerance */
 #define ENE_TOL 0.01
+#define ENE_EPS 1E-9
 
 /* sizes */
 #define RIG_CONF_SIZE	15	/* rotation matrix, mass center position, auxiliary vector of size 3 */
@@ -1189,11 +1190,12 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
     etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
-#if 0
-    printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
+#if 1
+    if (!(etot < ENE_TOL * emax || emax < ENE_EPS))
+      printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
 #endif
 
-    ASSERT (etot < ENE_TOL * emax, ERR_BOD_ENERGY_CONSERVATION);
+    ASSERT (etot < ENE_TOL * emax || emax < ENE_EPS, ERR_BOD_ENERGY_CONSERVATION);
 
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
   }

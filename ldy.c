@@ -1622,14 +1622,14 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
       NNADD (W.x, C.x, W.x); }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
 
-    if (upkind != UPDIA_PART) /* diagonal regularization (not needed by the explicit solver) */
+    if (upkind != UPDIA) /* diagonal regularization (not needed by the explicit solver) */
     {
       NNCOPY (W.x, C.x); /* calculate regularisation parameter */
       ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
       dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
     }
 
-    if (dom->update_kind == DOM_UPDATE_FULL && upkind == UPALL) /* off-diagonal blocks update only for FULL domain updates */
+    if (dom->update_kind == DOM_UPDATE_FULL && (upkind == UPALL || (upkind == UPBIL && con->kind != CONTACT))) /* off-diagonal blocks update only for FULL domain updates */
     {
       /* off-diagonal local blocks */
       for (blk = dia->adj; blk; blk = blk->n)

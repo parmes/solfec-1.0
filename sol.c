@@ -493,7 +493,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
     for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
     {
-      upkind = (kind == EXPLICIT_SOLVER ? UPDIA_PART : kind == SEMI_EXPLICIT_SOLVER ? UPDIA_FULL : UPALL); /* here as user callback can change solver */
+      upkind = (kind == EXPLICIT_SOLVER ? UPDIA : kind == SEMI_EXPLICIT_SOLVER ? UPBIL : UPALL); /* here as user callback can change solver */
 
 #if MPI
       if (sol->dom->rank == 0)

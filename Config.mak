@@ -12,7 +12,7 @@ DEBUG = yes
 PROFILE = no
 MEMDEBUG = no
 GEOMDEBUG = no
-NOTHROW = yes
+NOTHROW = no
 
 #
 # POSIX
