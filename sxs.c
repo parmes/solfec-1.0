@@ -33,6 +33,7 @@ void SEMI_EXPLICIT_Solve (LOCDYN *ldy)
   short dynamic;
   double step;
   double B [3];
+  short kind;
   OFFB *blk;
   DIAB *dia;
   CON *con;
@@ -48,13 +49,19 @@ void SEMI_EXPLICIT_Solve (LOCDYN *ldy)
   {
     con = dia->con;
 
-    if (con->kind != CONTACT) continue; /* skip bilateral constraints at first */
+#if MPI
+    if (con) kind = con->kind; else kind = dia->kind;
+#else
+    kind = con->kind;
+#endif
+
+    if (kind != CONTACT) continue; /* skip bilateral constraints at first */
 
 #if MPI
-    if (con) solver (dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, dia->B); /* LDB_OFF */
-    else solver (dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, dia->B);
+    if (con) solver (dynamic, step, kind, &con->mat, con->gap, con->Z, con->base, dia, dia->B); /* LDB_OFF */
+    else solver (dynamic, step, kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, dia->B);
 #else
-    solver (dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, dia->B);
+    solver (dynamic, step, kind, &con->mat, con->gap, con->Z, con->base, dia, dia->B);
 #endif
   }
 
@@ -66,7 +73,13 @@ void SEMI_EXPLICIT_Solve (LOCDYN *ldy)
   {
     con = dia->con;
 
-    if (con->kind == CONTACT) continue; /* skip contacts */
+#if MPI
+    if (con) kind = con->kind; else kind = dia->kind;
+#else
+    kind = con->kind;
+#endif
+
+    if (kind == CONTACT) continue; /* skip contacts */
 
     /* prefetch reactions */
     for (blk = dia->adj; blk; blk = blk->n)
@@ -84,10 +97,10 @@ void SEMI_EXPLICIT_Solve (LOCDYN *ldy)
     }
 
 #if MPI
-    if (con) solver (dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B); /* LDB_OFF */
-    else solver (dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
+    if (con) solver (dynamic, step, kind, &con->mat, con->gap, con->Z, con->base, dia, B); /* LDB_OFF */
+    else solver (dynamic, step, kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
 #else
-    solver (dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
+    solver (dynamic, step, kind, &con->mat, con->gap, con->Z, con->base, dia, B);
 #endif
   }
 }
