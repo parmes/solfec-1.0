@@ -84,6 +84,8 @@ void SEMI_EXPLICIT_Solve (LOCDYN *ldy)
     /* prefetch reactions */
     for (blk = dia->adj; blk; blk = blk->n)
     {
+      if (!blk->dia) continue; /* skip external reactions */
+
       COPY (blk->dia->R, blk->R);
     }
 
@@ -91,8 +93,11 @@ void SEMI_EXPLICIT_Solve (LOCDYN *ldy)
     COPY (dia->B, B);
     for (blk = dia->adj; blk; blk = blk->n)
     {
+      if (!blk->dia) continue; /* skip external reactions */
+
       double *W = blk->W,
 	     *R = blk->R;
+
       NVADDMUL (B, W, R, B);
     }
 
