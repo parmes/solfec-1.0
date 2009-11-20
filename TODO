@@ -42,3 +42,5 @@ poisson, etc. Render as fields or coloured constraint.
 Add menu "top", "bottom", "left", "right", "front", "back"
 to the "render" menu. Or similarly.
 --------------------------------------------------------
+MUST implement consistency tests NOW 
+--------------------------------------

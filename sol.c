@@ -360,7 +360,7 @@ static void statsout (SOLFEC *sol)
     free (stapath);
   }
 #else
-  const int N = 3;
+  const int N = 4;
 
   char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "SPARSIFIED"};
 
