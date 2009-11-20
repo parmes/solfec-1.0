@@ -9,3 +9,6 @@ MESH_Hex assignes surface identifiers in a wrong manner
 Reading of files larger than 0xffffffff (32-bit unsigned int)
 cannot seemingly work with XDR at all. Reconsider HDF.
 -------------------------------------------------------------
+Contact sparsification is now broken. Check mpi0.py.
+Tracep back and fix!
+-------------------------------------------------------------
