@@ -121,6 +121,7 @@ TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double 
   TRI *tri, *t;
 
   /* initialize */
+  eps = GEOMETRIC_EPSILON;
   tri = t = NULL;
   pfv = NULL;
   yy = NULL;
@@ -129,8 +130,8 @@ TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double 
   d = gjk (va, nva, vb, nvb, p, q);
   if (d > GEOMETRIC_EPSILON) { *m = 0; return NULL; }
 
-  /* push 'p' deeper inside */
-  if (!refine_point (pa, npa, pb, npb, p, &eps) && kind == REGULARIZED) { *m = 0; return NULL; }
+  /* push 'p' deeper inside only if regularized intersection is sought */
+  if (kind == REGULARIZED && !refine_point (pa, npa, pb, npb, p, &eps)) { *m = 0; return NULL; }
 
   /* vertices extents for a later sanity check */
   vertices_extents (va, nva, vb, nvb, eps, e);
