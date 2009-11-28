@@ -570,19 +570,15 @@ static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
 
   R = dia->R;
 
-  /* prefetch reactions */
-  for (blk = dia->adj; blk; blk = blk->n)
-  {
-    if (blk->dia) { COPY (blk->dia->R, blk->R); }
-    else { COPY (XR(blk->x)->R, blk->R); }
-  }
-
   /* compute local free velocity */
   COPY (dia->B, B);
   for (blk = dia->adj; blk; blk = blk->n)
   {
-    double *W = blk->W,
-	   *R = blk->R;
+    double *W = blk->W, R [3];
+
+    if (blk->dia) { COPY (blk->dia->R, R); }
+    else { COPY (XR(blk->x)->R, R); }
+
     NVADDMUL (B, W, R, B);
   }
 
@@ -1570,18 +1566,12 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	     B [3],
 	     *R = dia->R;
 
-      /* prefetch reactions */
-      for (blk = dia->adj; blk; blk = blk->n)
-      {
-	COPY (blk->dia->R, blk->R);
-      }
-
       /* compute local free velocity */
       COPY (dia->B, B);
       for (blk = dia->adj; blk; blk = blk->n)
       {
 	double *W = blk->W,
-	       *R = blk->R;
+	       *R = blk->dia->R;
 	NVADDMUL (B, W, R, B);
       }
       

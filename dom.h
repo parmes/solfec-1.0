@@ -70,19 +70,10 @@ struct constraint
 
   SURFACE_MATERIAL_STATE mat; /* surface pair material data */
 
-  TMS *tms; /* time series data */
+  TMS *tms; /* time series data (if any) */
 
   BODY *master, /* master body */
        *slave; /* slave body */
-
-  SHAPE *mshp, /* shape of mgobj */
-        *sshp; /* shape of sgobj */
-
-  void *mgobj, /* master geometrical object */
-       *sgobj; /* slave geometrical object */
-
-  GOBJ mkind, /* kind of mobj */
-       skind; /* kind of sobj */
 
   double mpnt [3], /* master referential point */
 	 spnt [3]; /* slave referential point */
@@ -93,6 +84,13 @@ struct constraint
   CON *prev, /* list */
       *next;
 };
+
+#define mshp(con) ((con)->msgp->shp)
+#define sshp(con) ((con)->ssgp->shp)
+#define mgobj(con) ((con)->msgp->gobj)
+#define sgobj(con) ((con)->ssgp->gobj)
+#define mkind(con) ((BOX*)(con)->msgp->box)->kind
+#define skind(con) ((BOX*)(con)->ssgp->box)->kind
 
 #if MPI
 typedef struct conext CONEXT;
