@@ -593,10 +593,10 @@ static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
   {
     CON *con = dia->con;
     diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
-	       dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
+	       dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
   }
   else diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
-                  dynamic, step, dia->kind, &dia->mat, dia->gap, dia->Z, dia->base, dia, B);
+                  dynamic, step, dia->kind, dia->mat.base, dia->gap, dia->Z, dia->base, dia, B);
 
   if (diagiters > gs->diagmaxiter || diagiters < 0)
   {
@@ -1586,7 +1586,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       /* solve local diagonal block problem */
       CON *con = dia->con;
       diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
-	         dynamic, step, con->kind, &con->mat, con->gap, con->Z, con->base, dia, B);
+	         dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
 
       if (diagiters > gs->diagmaxiter || diagiters < 0)
       {

@@ -54,7 +54,7 @@ static void variables_change_begin (LOCDYN *ldy)
 
     if (con->state & CON_COHESIVE) /* cohesive state */
     {
-      double c = con->mat.cohesion * con->area,
+      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
 	     *W = dia->W,
 	     *R = dia->R;
 
@@ -70,7 +70,7 @@ static void variables_change_begin (LOCDYN *ldy)
       CON *con = blk->dia->con;
       if (con->state & CON_COHESIVE) /* cohesive state */
       {
-	double c = con->mat.cohesion * con->area,
+	double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
 	       *W = blk->W;
 
 	B[0] -= (W[6]*c);
@@ -94,7 +94,7 @@ static void variables_change_end (LOCDYN *ldy)
 
     if (state & CON_COHESIVE) /* cohesive state */
     {
-      double c = con->mat.cohesion * con->area,
+      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
 	     *R = dia->R;
 
       R [2] -= c; /* back change */
@@ -103,7 +103,7 @@ static void variables_change_end (LOCDYN *ldy)
 	(!(state & CON_STICK))) /* mode-II decohesion */
       {
 	con->state &= ~CON_COHESIVE;
-	con->mat.cohesion = 0.0;
+	SURFACE_MATERIAL_Cohesion_Set (&con->mat, 0.0);
       }
     }
   }
@@ -320,7 +320,7 @@ static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *is
   pack_doubles (dsize, d, doubles, dia->mpnt, 3);
   pack_double  (dsize, d, doubles, dia->gap);
   pack_int     (isize, i, ints, dia->kind);
-  SURFACE_MATERIAL_Pack_Data (&dia->mat, dsize, d, doubles, isize, i, ints);
+  SURFACE_MATERIAL_Pack_State (&dia->mat, dsize, d, doubles, isize, i, ints);
 
   for (n = 0, b = dia->adj; b; b = b->n) n ++; /* number of internal blocks */
   for (b = dia->adjext; b; b = b->n) n ++; /* number of external blocks */
@@ -341,7 +341,7 @@ static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *is
 }
 
 /* unpack diagonal block */
-static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static void unpack_block (SPSET *sps, DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   OFFB *b, *n, *x;
   int m;
@@ -359,7 +359,7 @@ static void unpack_block (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *
   unpack_doubles (dpos, d, doubles, dia->mpnt, 3);
   dia->gap = unpack_double  (dpos, d, doubles);
   dia->kind = unpack_int (ipos, i, ints);
-  SURFACE_MATERIAL_Unpack_Data (&dia->mat, dpos, d, doubles, ipos, i, ints);
+  SURFACE_MATERIAL_Unpack_State (sps, &dia->mat, dpos, d, doubles, ipos, i, ints);
 
   /* free current off-diagonal blocks */
   for (b = dia->adj; b; b = n)
@@ -415,11 +415,11 @@ static void pack_block_partial (DIAB *dia, int *dsize, double **d, int *doubles,
   pack_doubles (dsize, d, doubles, dia->mpnt, 3);
   pack_double  (dsize, d, doubles, dia->gap);
   pack_int     (isize, i, ints, dia->kind);
-  SURFACE_MATERIAL_Pack_Data (&dia->mat, dsize, d, doubles, isize, i, ints);
+  SURFACE_MATERIAL_Pack_State (&dia->mat, dsize, d, doubles, isize, i, ints);
 }
 
 /* unpack diagonal block for partial update */
-static void unpack_block_partial (DIAB *dia, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static void unpack_block_partial (SPSET *sps, DIAB *dia, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   unpack_doubles (dpos, d, doubles, dia->R, 3);
   unpack_doubles (dpos, d, doubles, dia->U, 3);
@@ -434,7 +434,7 @@ static void unpack_block_partial (DIAB *dia, int *dpos, double *d, int doubles, 
   unpack_doubles (dpos, d, doubles, dia->mpnt, 3);
   dia->gap = unpack_double  (dpos, d, doubles);
   dia->kind = unpack_int (ipos, i, ints);
-  SURFACE_MATERIAL_Unpack_Data (&dia->mat, dpos, d, doubles, ipos, i, ints);
+  SURFACE_MATERIAL_Unpack_State (sps, &dia->mat, dpos, d, doubles, ipos, i, ints);
 }
 
 /* delete balanced block */
@@ -584,7 +584,7 @@ static void* unpack_update (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
 
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
-    unpack_block (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
+    unpack_block (DOM(ldy->dom)->sps, dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
   }
 
   return NULL;
@@ -617,7 +617,7 @@ static void* unpack_partial_update (LOCDYN *ldy, int *dpos, double *d, int doubl
 
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
-    unpack_block_partial (dia, dpos, d, doubles, ipos, i, ints);
+    unpack_block_partial (DOM(ldy->dom)->sps, dia, dpos, d, doubles, ipos, i, ints);
   }
 
   return NULL;
@@ -2024,7 +2024,7 @@ static void* unpack_union (UNION_PATTERN *up, int *dpos, double *d, int doubles,
     DIAB *dia;
     ERRMEM (dia = MEM_Alloc (&ldy->diamem));
     dia->R = dia->REAC;
-    unpack_block (dia, &ldy->offmem, NULL, dpos, d, doubles, ipos, i, ints);
+    unpack_block (DOM(ldy->dom)->sps, dia, &ldy->offmem, NULL, dpos, d, doubles, ipos, i, ints);
     dia->id = unpack_int (ipos, i, ints);
 
     if (up->mode == ALL_TO_ONE)

@@ -282,8 +282,8 @@ static void overlap_release (DOM *dom, BOX *one, BOX *two, CON *con)
 void update_contact (DOM *dom, CON *con)
 {
   double mpnt [3], spnt [3], normal [3];
-  int state, spair [2] = {con->mat.surf1,
-                          con->mat.surf2};
+  int state, spair [2] = {con->mat.base->surf1,
+                          con->mat.base->surf2};
 
   if (con->state & CON_NEW)
   {
@@ -523,7 +523,7 @@ static CON* unpack_constraint_state (DOM *dom, int *dpos, double *d, int doubles
     ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid slave id");
   }
 
-  if (kind == CONTACT) SURFACE_MATERIAL_Unpack_State (dom->time, dom->sps, &con->mat, dpos, d, doubles, ipos, i, ints);
+  if (kind == CONTACT) SURFACE_MATERIAL_Unpack_State (dom->sps, &con->mat, dpos, d, doubles, ipos, i, ints);
 
   if (kind == RIGLNK || kind == VELODIR) unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
 
@@ -587,7 +587,7 @@ static CON* read_constraint (DOM *dom, PBF *bf)
     ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid slave id");
   }
 
-  if (kind == CONTACT) con->state |= SURFACE_MATERIAL_Read_State (dom->time, dom->sps, &con->mat, bf);
+  if (kind == CONTACT) con->state |= SURFACE_MATERIAL_Read_State (dom->sps, &con->mat, bf);
 
   if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
 
@@ -1832,6 +1832,9 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
   /* free constraint id if possible */
   if (!(con->state & CON_IDLOCK)) SET_Insert (&dom->setmem, &dom->sparecid, (void*) (long) con->id, NULL);
 #endif
+
+  /* free contact material state */
+  if (con->kind & CONTACT) SURFACE_MATERIAL_Destroy_State (&con->mat);
 
   /* destroy passed data */
   MEM_Free (&dom->conmem, con);

@@ -26,7 +26,11 @@
 #include "err.h"
 #include "pck.h"
 
-#define SPCHUNK 128
+/* pools memory chunk size */
+#define SPCHUNK 64
+
+/* state indices */
+#define COHESION 0
 
 /* set item comparison */
 static int setcmp (SURFACE_MATERIAL *a, SURFACE_MATERIAL *b)
@@ -56,6 +60,23 @@ static char* newlabel (int size, char *label)
   }
 
   return out;
+}
+
+/* get state size */
+int state_size (SURFACE_MATERIAL *mat)
+{
+  if (mat->cohesion > 0.0) return 1;
+  else return 0;
+}
+
+/* get state flags */
+short state_flags (SURFACE_MATERIAL_STATE *mat)
+{
+  short flags = 0;
+
+  if (mat->base->cohesion > 0.0 && mat->state [COHESION] > 0.0) flags |= CON_COHESIVE;
+
+  return flags;
 }
 
 /* ------------- interface -------------- */
@@ -172,71 +193,101 @@ void SPSET_Destroy (SPSET *set)
 }
 
 /* transfer data from the source 'src' to a destiny 'dst' at the given 'time' */
-short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MATERIAL *dst)
+short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MATERIAL_STATE *dst)
 {
-  short state = 0;
+  dst->base = src;
 
-  *dst = *src;
+  if (dst->state) free (dst->state), dst->state = NULL;
 
-  if (time > 0.0)
+  ERRMEM (dst->state = malloc (sizeof (double [state_size (src)])));
+  
+  if (time == 0.0 && src->cohesion > 0.0) /* contacts created after the initial moment cannot get cohesive */
   {
-    dst->cohesion = 0.0; /* contacts created after the initial moment cannot get cohesive */
+    dst->state [COHESION] = src->cohesion;
   }
 
-  if (dst->cohesion > 0.0)
-  {
-    state |= CON_COHESIVE;
-  }
-
-  return state;
+  return state_flags (dst);
 }
 
 /* write surface material state */
-void SURFACE_MATERIAL_Write_State (SURFACE_MATERIAL *mat, PBF *bf)
+void SURFACE_MATERIAL_Write_State (SURFACE_MATERIAL_STATE *mat, PBF *bf)
 {
-  PBF_Short (bf, &mat->index, 1);
+  int size = state_size (mat->base);
+
+  PBF_Short (bf, &mat->base->index, 1);
+  PBF_Int (bf, &size, 1);
+
+  if (size) PBF_Double (bf, mat->state, size);
 }
 
-/* read surface material state; return contact state update */
-short SURFACE_MATERIAL_Read_State (double time, SPSET *set, SURFACE_MATERIAL *mat, PBF *bf)
+/* read surface material state; return contact state flags */
+short SURFACE_MATERIAL_Read_State (SPSET *set, SURFACE_MATERIAL_STATE *mat, PBF *bf)
 {
-  SURFACE_MATERIAL *out;
   short index;
+  int size;
+
+  if (mat->state) free (mat->state), mat->state = NULL;
 
   PBF_Short (bf, &index, 1);
+  PBF_Int (bf, &size, 1);
   ASSERT_DEBUG (index <= set->size, "Invalid material index");
-  out = set->tab [index];
-  return SURFACE_MATERIAL_Transfer (time, out, mat);
+  mat->base = set->tab [index];
+  if (size)
+  {
+    ERRMEM (mat->state = malloc (sizeof (double [size])));
+    PBF_Double (bf, mat->state, size);
+  }
+
+  return state_flags (mat);
 }
 
-/* pack surface material state (e.g. label and time dependent data if any) */
-void SURFACE_MATERIAL_Pack_State (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+/* pack surface material state */
+void SURFACE_MATERIAL_Pack_State (SURFACE_MATERIAL_STATE *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_int (isize, i, ints, mat->index);
+  int size = state_size (mat->base);
+
+  pack_int (isize, i, ints, mat->base->index);
+  pack_int (isize, i, ints, size);
+
+  if (size) pack_doubles (dsize, d, doubles, mat->state, size);
 }
 
-/* unpack surface material state (recover material state using the packed data and the permanent data from SPSET); return contact state update */
-short SURFACE_MATERIAL_Unpack_State (double time, SPSET *set, SURFACE_MATERIAL *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+/* unpack surface material state; return contact state flags */
+short SURFACE_MATERIAL_Unpack_State (SPSET *set, SURFACE_MATERIAL_STATE *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  SURFACE_MATERIAL *out;
   int index;
+  int size;
+
+  if (mat->state) free (mat->state), mat->state = NULL;
 
   index = unpack_int (ipos, i, ints);
+  size = unpack_int (ipos, i, ints);
   ASSERT_DEBUG (index <= set->size, "Invalid material index");
-  out = set->tab [index];
-  return SURFACE_MATERIAL_Transfer (time, out, mat);
+  mat->base = set->tab [index];
+  if (size)
+  {
+    ERRMEM (mat->state = malloc (sizeof (double [size])));
+    unpack_doubles (dpos, d, doubles, mat->state, size);
+  }
+
+  return state_flags (mat);
 }
 
-/* pack surface material data (witouht the label and surface pairing) */
-void SURFACE_MATERIAL_Pack_Data (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+/* free material state memory */
+void SURFACE_MATERIAL_Destroy_State (SURFACE_MATERIAL_STATE *mat)
 {
-  pack_int (isize, i, ints, mat->model);
-  pack_doubles (dsize, d, doubles, &mat->friction, 5);
+  if (mat->state) free (mat->state);
 }
 
-/* pack surface material data (witouht the label and surface pairing) */
-void SURFACE_MATERIAL_Unpack_Data (SURFACE_MATERIAL *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+/* cohesion state get */
+double SURFACE_MATERIAL_Cohesion_Get (SURFACE_MATERIAL_STATE *mat)
 {
-  mat->model = unpack_int (ipos, i, ints);
-  unpack_doubles (dpos, d, doubles, &mat->friction, 5);
+  if (mat->state) return mat->state [COHESION];
+  else return 0.0;
+}
+
+/* cohesion state set */
+void SURFACE_MATERIAL_Cohesion_Set (SURFACE_MATERIAL_STATE *mat, double value)
+{
+  if (mat->state) mat->state [COHESION] = value;
 }

@@ -27,8 +27,16 @@
 #ifndef __sps__
 #define __sps__
 
+typedef struct surfmat_state SURFACE_MATERIAL_STATE;
 typedef struct surfmat SURFACE_MATERIAL;
 typedef struct spset SPSET;
+
+struct surfmat_state
+{
+  SURFACE_MATERIAL *base; /* base material */
+
+  double *state; /* material state */
+};
 
 struct surfmat
 {
@@ -96,23 +104,26 @@ void SPSET_Destroy (SPSET *set);
 
 /* transfer data from the source 'src' to a destiny 'dst'
  * at the given time => e.g. cohesion will be >0 only for 'time' == 0 */
-short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MATERIAL *dst);
+short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MATERIAL_STATE *dst);
 
 /* write surface material state */
-void SURFACE_MATERIAL_Write_State (SURFACE_MATERIAL *mat, PBF *bf);
+void SURFACE_MATERIAL_Write_State (SURFACE_MATERIAL_STATE *mat, PBF *bf);
 
-/* read surface material state; return contact state update */
-short SURFACE_MATERIAL_Read_State (double time, SPSET *set, SURFACE_MATERIAL *mat, PBF *bf);
+/* read surface material state; return contact state flags */
+short SURFACE_MATERIAL_Read_State (SPSET *set, SURFACE_MATERIAL_STATE *mat, PBF *bf);
 
-/* pack surface material state (e.g. label and time dependent data if any) */
-void SURFACE_MATERIAL_Pack_State (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+/* pack surface material state */
+void SURFACE_MATERIAL_Pack_State (SURFACE_MATERIAL_STATE *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 
-/* unpack surface material state (recover material state using the packed data and the permanent data from SPSET); return contact state update  */
-short SURFACE_MATERIAL_Unpack_State (double time, SPSET *set, SURFACE_MATERIAL *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+/* unpack surface material state; return contact state flags */
+short SURFACE_MATERIAL_Unpack_State (SPSET *set, SURFACE_MATERIAL_STATE *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
-/* pack surface material data (witouht the label and surface pairing) */
-void SURFACE_MATERIAL_Pack_Data (SURFACE_MATERIAL *mat, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+/* free material state memory */
+void SURFACE_MATERIAL_Destroy_State (SURFACE_MATERIAL_STATE *mat);
 
-/* pack surface material data (witouht the label and surface pairing) */
-void SURFACE_MATERIAL_Unpack_Data (SURFACE_MATERIAL *mat, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+/* cohesion state get */
+double SURFACE_MATERIAL_Cohesion_Get (SURFACE_MATERIAL_STATE *mat);
+
+/* cohesion state set */
+void SURFACE_MATERIAL_Cohesion_Set (SURFACE_MATERIAL_STATE *mat, double value);
 #endif

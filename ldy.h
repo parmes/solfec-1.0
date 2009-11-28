@@ -136,7 +136,7 @@ struct diab
 
   short kind;
 
-  SURFACE_MATERIAL mat;
+  SURFACE_MATERIAL_STATE mat;
 #endif
 };
 
