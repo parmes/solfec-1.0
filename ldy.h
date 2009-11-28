@@ -77,7 +77,6 @@ typedef enum {LDB_OFF, LDB_GEOM, LDB_GRAPH} LDB;
 struct offb
 {
   double W [9], /* generalised inverse inertia block */
-	 T [9], /* tangent operator block */
 	 R [3]; /* prefetched dia->R */
 
   DIAB *dia; /* can be NULL for balanced boundary blocks */
@@ -93,6 +92,27 @@ struct offb
 #endif
 };
 
+#if MPI
+/* local dynamic system entries can be migrated in parallel,
+ * hence it is better to copy the necessary members of an
+ * underlying constraint, in order to support independent migration */
+typedef struct condata CONDATA;
+
+struct condata
+{
+  double REAC [3],
+	 Z [DOM_Z_SIZE],
+	 point [3],
+	 base [9],
+	 mpnt [3],
+	 gap;
+
+  short kind;
+
+  SURFACE_MATERIAL_STATE mat;
+};
+#endif
+
 /* diagonal
  * block entry */
 struct diab
@@ -102,7 +122,6 @@ struct diab
 	 V [3], /* initial velocity */
 	 B [3], /* free velocity */
          W [9], /* generalised inverse inertia block */
-	 T [9], /* tangent operator block */
 	 rho;   /* scaling parameter */
 
   OFFB *adj;
@@ -123,20 +142,7 @@ struct diab
 
   SET *rext; /* balanced boundary receiving nodes store pointers to their XR here */
 
-  /* local dynamic system entries can be migrated in parallel,
-   * hence it is better to copy the necessary members of an
-   * underlying constraint, in order to support independent migration */
-
-  double REAC [3],
-	 Z [DOM_Z_SIZE],
-	 point [3],
-	 base [9],
-	 mpnt [3],
-	 gap;
-
-  short kind;
-
-  SURFACE_MATERIAL_STATE mat;
+  CONDATA *condata; /* coppied contact data for migrated blocks */
 #endif
 };
 
@@ -160,7 +166,8 @@ struct locdyn
   int ndel, sdel; /* number and size */
 
   MEM mapmem, /* map items memory */
-      setmem; /* set items memory */
+      setmem, /* set items memory */
+      conmem; /* coppied contact datat memory */
 
   MAP *idbb; /* id-to-balanced diagonal block map */
   DIAB *diab; /* list of diagonal blocks (balanced) */
@@ -230,5 +237,4 @@ double LOCDYN_Merit (LOCDYN *ldy);
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);
-
 #endif

@@ -126,7 +126,11 @@ void EXPLICIT_Solve (LOCDYN *ldy)
 
 #if MPI
     if (con) solver (con->kind, con->mat.base, con->gap, con->Z, con->mpnt, con->point, con->base, dia); /* LDB_OFF */
-    else solver (dia->kind, dia->mat.base, dia->gap, dia->Z, dia->mpnt, dia->point, dia->base, dia);
+    else
+    {
+      CONDATA *con = dia->condata;
+      solver (con->kind, con->mat.base, con->gap, con->Z, con->mpnt, con->point, con->base, dia);
+    }
 #else
     solver (con->kind, con->mat.base, con->gap, con->Z, con->mpnt, con->point, con->base, dia);
 #endif
