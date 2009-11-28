@@ -38,7 +38,9 @@ poisson, etc. Render as fields or coloured constraint.
 Add menu "top", "bottom", "left", "right", "front", "back"
 to the "render" menu. Or similarly.
 --------------------------------------------------------
-Oprimze W assembling by exploiting symmetry!
+Optimize W assembly in parallel by using left product
+for blocks with dia->adjext != NULL and right product
+for the remaining (internal) nodes.
 -------------------------------------------------
 Further optimize W assembling by introducing norm of constact state
 change and opdating W blocks only corresponding to a sufficiently

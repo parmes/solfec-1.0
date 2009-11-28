@@ -1253,6 +1253,7 @@ static MX* matmat_dense_bd (double alpha, MX *a, MX *b, double beta, MX *c)
 
   m = a->m; 
   o = c->m;
+  n = b->n;
 
   for (k = 0; k < n; k ++)
   {

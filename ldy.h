@@ -76,7 +76,8 @@ typedef enum {LDB_OFF, LDB_GEOM, LDB_GRAPH} LDB;
  * block entry */
 struct offb
 {
-  double W [9]; /* generalised inverse inertia block */
+  double W [9], /* generalised inverse inertia block */
+	 *SYMW; /* symmetric copy of W block */
 
   DIAB *dia; /* can be NULL for balanced boundary blocks */
   BODY *bod;
@@ -124,8 +125,14 @@ struct diab
 	 rho;   /* scaling parameter */
 
   OFFB *adj;
-  void *con;   /* the underlying constraint (and the owner od the reaction R[3]);
-                  NULL for balanced constraints from aabb->diab */
+  void *con;    /* the underlying constraint (and the owner od the reaction R[3]);
+                   NULL for balanced constraints from aabb->diab */
+
+  MX *mH, *mprod, /* master H operator and H inv(M) or inv(M) H^T product */
+     *sH, *sprod; /* slave counterpart */
+                  /* NOTE: left product can be applied to adjext assembly (MPI)
+		           while right product is sligtly faster (serial code) */
+
   DIAB *p, *n;
 
 #if MPI

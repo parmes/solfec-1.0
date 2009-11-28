@@ -324,7 +324,7 @@ static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *is
   pack_doubles (dsize, d, doubles, condata->mpnt, 3);
   pack_double  (dsize, d, doubles, condata->gap);
   pack_int     (isize, i, ints, condata->kind);
-  SURFACE_MATERIAL_Pack_State (&condata->mat, dsize, d, doubles, isize, i, ints);
+  if (condata->kind == CONTACT) SURFACE_MATERIAL_Pack_State (&condata->mat, dsize, d, doubles, isize, i, ints);
 
   for (n = 0, b = dia->adj; b; b = b->n) n ++; /* number of internal blocks */
   for (b = dia->adjext; b; b = b->n) n ++; /* number of external blocks */
@@ -366,7 +366,7 @@ static void unpack_block (SPSET *sps, DIAB *dia, MEM *offmem, MAP *idbb, int *dp
   unpack_doubles (dpos, d, doubles, condata->mpnt, 3);
   condata->gap = unpack_double  (dpos, d, doubles);
   condata->kind = unpack_int (ipos, i, ints);
-  SURFACE_MATERIAL_Unpack_State (sps, &condata->mat, dpos, d, doubles, ipos, i, ints);
+  if (condata->kind == CONTACT) SURFACE_MATERIAL_Unpack_State (sps, &condata->mat, dpos, d, doubles, ipos, i, ints);
 
   /* free current off-diagonal blocks */
   for (b = dia->adj; b; b = n)
@@ -424,7 +424,7 @@ static void pack_block_partial (DIAB *dia, int *dsize, double **d, int *doubles,
   pack_doubles (dsize, d, doubles, condata->mpnt, 3);
   pack_double  (dsize, d, doubles, condata->gap);
   pack_int     (isize, i, ints, condata->kind);
-  SURFACE_MATERIAL_Pack_State (&condata->mat, dsize, d, doubles, isize, i, ints);
+  if (condata->kind == CONTACT) SURFACE_MATERIAL_Pack_State (&condata->mat, dsize, d, doubles, isize, i, ints);
 }
 
 /* unpack diagonal block for partial update */
@@ -445,7 +445,7 @@ static void unpack_block_partial (SPSET *sps, DIAB *dia, int *dpos, double *d, i
   unpack_doubles (dpos, d, doubles, condata->mpnt, 3);
   condata->gap = unpack_double  (dpos, d, doubles);
   condata->kind = unpack_int (ipos, i, ints);
-  SURFACE_MATERIAL_Unpack_State (sps, &condata->mat, dpos, d, doubles, ipos, i, ints);
+  if (condata->kind == CONTACT) SURFACE_MATERIAL_Unpack_State (sps, &condata->mat, dpos, d, doubles, ipos, i, ints);
 }
 
 /* delete balanced block */
@@ -1341,6 +1341,7 @@ static void destroy_mpi (LOCDYN *ldy)
 
   MEM_Release (&ldy->mapmem);
   MEM_Release (&ldy->setmem);
+  MEM_Release (&ldy->conmem);
 
   free (ldy->REXT);
 
@@ -1406,6 +1407,7 @@ LOCDYN* LOCDYN_Create (void *dom)
 DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 {
   DIAB *dia, *nei;
+  double *SYMW;
   SET *item;
   OFFB *b;
   CON *c;
@@ -1444,6 +1446,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
 	b->dia = dia; /* adjacent with 'dia' */
 	b->bod = one; /* adjacent trough body 'one' */
+	SYMW = b->W, b->SYMW = NULL; /* compute when assembling */
 	b->n = nei->adj; /* extend list ... */
 	nei->adj = b; /* ... */
 #if MPI
@@ -1454,6 +1457,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
 	b->dia = nei; /* adjacent with 'nei' */
 	b->bod = one; /* ... trough 'one' */
+	b->SYMW = SYMW; /* compy when assembling */
 	b->n = dia->adj;
 	dia->adj = b;
 #if MPI
@@ -1478,6 +1482,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
 	b->dia = dia; /* adjacent with 'dia' */
 	b->bod = two; /* adjacent trough body 'two' */
+	SYMW = b->W, b->SYMW = NULL; /* compute when assembling */
 	b->n = nei->adj; /* extend list ... */
 	nei->adj = b; /* ... */
 #if MPI
@@ -1488,6 +1493,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two)
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
 	b->dia = nei; /* adjacent with 'nei' */
 	b->bod = two; /* ... trough 'two' */
+	b->SYMW = SYMW; /* compy when assembling */
 	b->n = dia->adj;
 	dia->adj = b;
 #if MPI
@@ -1584,6 +1590,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   DOM *dom = ldy->dom;
   double step = dom->step;
   DIAB *dia;
+  OFFB *blk;
 
 #if MPI
   if (dom->rank == 0)
@@ -1623,8 +1630,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
            X [3], Y [9];
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE (C, 3, 3);
-    MX *mH, *sH;
-    OFFB *blk;
 
     /* relative velocity = slave - master => outward master normal */
     BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
@@ -1640,12 +1645,26 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     SUB (Y, X, B); /* local free velocity */
 
     /* diagonal block */
-    mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
-    MX_Trimat (mH, m->inverse, MX_Tran (mH), &W); /* H * inv (M) * H^T */
+    dia->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+#if MPI
+    dia->mprod = MX_Matmat (1.0, dia->mH, m->inverse, 0.0, NULL);
+    MX_Matmat (1.0, dia->mprod, MX_Tran (dia->mH), 0.0, &W); /* H * inv (M) * H^T */
+#else
+    dia->mprod = MX_Matmat (1.0, m->inverse, MX_Tran (dia->mH), 0.0, NULL);
+    MX_Matmat (1.0, dia->mH, dia->mprod, 0.0, &W); /* H * inv (M) * H^T */
+#endif
     if (s)
-    { sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
-      MX_Trimat (sH, s->inverse, MX_Tran (sH), &C); /* H * inv (M) * H^T */
-      NNADD (W.x, C.x, W.x); }
+    { 
+      dia->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+#if MPI
+      dia->sprod = MX_Matmat (1.0, dia->sH, s->inverse, 0.0, NULL);
+      MX_Matmat (1.0, dia->sprod, MX_Tran (dia->sH), 0.0, &C); /* H * inv (M) * H^T */
+#else
+      dia->sprod = MX_Matmat (1.0, s->inverse, MX_Tran (dia->sH), 0.0, NULL);
+      MX_Matmat (1.0, dia->sH, dia->sprod, 0.0, &C); /* H * inv (M) * H^T */
+#endif
+      NNADD (W.x, C.x, W.x);
+    }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
 
     if (upkind != UPDIA) /* diagonal regularization (not needed by the explicit solver) */
@@ -1654,71 +1673,112 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
       ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
       dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
     }
+  }
 
-    if (dom->update_kind == DOM_UPDATE_FULL && upkind == UPALL) /* off-diagonal blocks update only for FULL domain updates */
+  if (dom->update_kind == DOM_UPDATE_FULL && upkind == UPALL) /* off-diagonal blocks update only for FULL domain updates */
+  {
+    for (dia = ldy->dia; dia; dia = dia->n)
     {
+      CON *con = dia->con;
+      BODY *m = con->master,
+	   *s = con->slave;
+
       /* off-diagonal local blocks */
       for (blk = dia->adj; blk; blk = blk->n)
       {
-	DIAB *dia = blk->dia;
-	CON *con = dia->con;
+        if (blk->SYMW) continue; /* skip blocks pointing to their symmetric copies */
+
+	MX *left, *right;
+	DIAB *adj = blk->dia;
+	CON *con = adj->con;
 	BODY *bod = blk->bod;
-	MX *lH, *rH, *inv;
 	MX_DENSE_PTR (W, 3, 3, blk->W);
 	double coef;
 
 	ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
        
-	lH = (bod == m ? mH : sH); /* dia->bod is a valid body (not an obstacle)
-				     as it was inserted into the dual graph */
-	inv = bod->inverse;
+#if MPI
+	left = (bod == m ? dia->mprod : dia->sprod);
+#else
+	left = (bod == m ? dia->mH : dia->sH);
+#endif
 
 	if (bod == con->master)
 	{
-	  rH =  BODY_Gen_To_Loc_Operator (bod, mshp(con), mgobj(con), con->mpnt, con->base);
+#if MPI
+	  right = adj->mH;
+#else
+	  right =  adj->mprod;
+#endif
 	  coef = (bod == s ? -step : step);
 	}
 	else /* blk->bod == dia->slave */
 	{
-	  rH =  BODY_Gen_To_Loc_Operator (bod, sshp(con), sgobj(con), con->spnt, con->base);
+#if MPI
+	  right = adj->sH;
+#else
+	  right =  adj->sprod;
+#endif
 	  coef = (bod == m ? -step : step);
 	}
 
-	MX_Trimat (lH, inv, MX_Tran (rH), &W);
+#if MPI
+	MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
+#else
+	MX_Matmat (1.0, left, right, 0.0, &W);
+#endif
 	SCALE9 (W.x, coef);
-	MX_Destroy (rH);
       }
 
 #if MPI
       /* off-diagonal external blocks */
       for (blk = dia->adjext; blk; blk = blk->n)
       {
+	MX *left, *right;
 	CONEXT *ext = blk->ext;
 	BODY *bod = blk->bod;
-	MX *lH, *rH, *inv;
 	MX_DENSE_PTR (W, 3, 3, blk->W);
 	double coef;
 
 	ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
        
-	lH = (bod == m ? mH : sH);
-				 
-	inv = bod->inverse;
+	left = (bod == m ? dia->mprod : dia->sprod);
 
-	rH =  BODY_Gen_To_Loc_Operator (bod, ext->sgp->shp, ext->sgp->gobj, ext->point, ext->base);
+	right =  BODY_Gen_To_Loc_Operator (bod, ext->sgp->shp, ext->sgp->gobj, ext->point, ext->base);
 
 	if (ext->isma) coef = (bod == s ? -step : step);
 	else coef = (bod == m ? -step : step);
 
-	MX_Trimat (lH, inv, MX_Tran (rH), &W);
+	MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
 	SCALE9 (W.x, coef);
-	MX_Destroy (rH);
+	MX_Destroy (right);
       }
 #endif
     }
 
-    MX_Destroy (mH);
-    if (s) MX_Destroy (sH);
+    /* use symmetry */
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {  
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	if (blk->SYMW)
+	{
+	  TNCOPY (blk->SYMW, blk->W); /* transposed copy of a symmetric block */
+	}
+      }
+    }
+
+    /* clean up */
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {
+      MX_Destroy (dia->mH);
+      MX_Destroy (dia->mprod);
+      if (dia->sH)
+      {
+	MX_Destroy (dia->sH);
+	MX_Destroy (dia->sprod);
+      }
+    }
   }
 
   /* forward variables change */

@@ -1818,7 +1818,9 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 #endif
 
   /* free contact material state */
-  if (con->kind & CONTACT) SURFACE_MATERIAL_Destroy_State (&con->mat);
+  if (con->kind == CONTACT) SURFACE_MATERIAL_Destroy_State (&con->mat);
+  /* free velocity constraint time history */
+  else if (con->kind == VELODIR) TMS_Destroy (con->tms);
 
   /* destroy passed data */
   MEM_Free (&dom->conmem, con);
@@ -2960,10 +2962,17 @@ int DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
 void DOM_Destroy (DOM *dom)
 {
   BODY *bod, *next;
+  CON *con;
  
 #if MPI
   destroy_mpi (dom);
 #endif
+
+  for (con = dom->con; con; con = con->next)
+  {
+    if (con->kind == CONTACT) SURFACE_MATERIAL_Destroy_State (&con->mat);
+    else if (con->kind == VELODIR) TMS_Destroy (con->tms);
+  }
 
   for (bod = dom->bod; bod; bod = next)
   {
@@ -2977,8 +2986,7 @@ void DOM_Destroy (DOM *dom)
   MEM_Release (&dom->setmem);
   MEM_Release (&dom->mapmem);
 
-  if (dom->gravval)
-    TMS_Destroy (dom->gravval);
+  if (dom->gravval) TMS_Destroy (dom->gravval);
 
   data_destroy (dom->data);
 
