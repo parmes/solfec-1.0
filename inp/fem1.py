@@ -224,13 +224,13 @@ def generate_scene (material, solfec):
 
 ### main module ###
 
-step = 1E-3
+step = 1E-4
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/boxkite')
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E5, poisson = 0.25, density = 1E3)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
 
 tms = TIME_SERIES ([0, 10, 1, 10])
 
@@ -240,11 +240,11 @@ generate_scene (bulkmat, solfec)
 
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'EXIT', diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
-OUTPUT (solfec, 5 * step)
+OUTPUT (solfec, 0.02)
 
-RUN (solfec, gs, 10000 * step)
+RUN (solfec, gs, 3)
 
 if not VIEWER() and solfec.mode == 'READ':
 
