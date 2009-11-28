@@ -39,7 +39,6 @@ typedef struct locdyn LOCDYN;
 enum upkind
 {
   UPDIA, /* update diagonal blocks only */
-  UPBIL, /* update all diagonal blocks and rows of only bilateral constraints */
   UPALL  /* fully update all blocks */
 };
 

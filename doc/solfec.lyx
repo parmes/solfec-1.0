@@ -3424,32 +3424,6 @@ obj
 \end_layout
 
 \begin_layout Section
-SEMI_EXPLICIT_SOLVER
-\end_layout
-
-\begin_layout Standard
-An object of type SEMI_EXPLICIT_SOLVER represents a simplest block diagonal
- solver exploiting local dynamics, hence not resorting to spring regularisation.
- It works with 'SIGNORONI_COULOMB' interface by simply solving diagonal
- single-point problems and omitting all off-diagonal interactions.
- It can be used as a simple alternative to the EXPLICIT_SOLVER.
- Most naturally it combines with deformable kinematic models, letting the
- multiple-impact interactions resolve through stress waves.
-\end_layout
-
-\begin_layout Subsection*
-obj = SEMI_EXPLICIT_SOLVER ()
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-obj
-\series default
- - created SEMI_EXPLICIT_SOLVER object
-\end_layout
-
-\begin_layout Section
 \begin_inset CommandInset label
 LatexCommand label
 name "sec:con"
