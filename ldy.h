@@ -76,8 +76,7 @@ typedef enum {LDB_OFF, LDB_GEOM, LDB_GRAPH} LDB;
  * block entry */
 struct offb
 {
-  double W [9], /* generalised inverse inertia block */
-	 R [3]; /* prefetched dia->R */
+  double W [9]; /* generalised inverse inertia block */
 
   DIAB *dia; /* can be NULL for balanced boundary blocks */
   BODY *bod;

@@ -1397,10 +1397,10 @@ static void fem_constraints_force (BODY *bod, double *force)
 
     if (bod->msh)
     {
-      cvx = (isma ? con->mgobj : con->sgobj);
+      cvx = (isma ? mgobj(con) : sgobj(con));
       ele = stabbed_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
     }
-    else ele = (isma ? con->mgobj : con->sgobj);
+    else ele = (isma ? mgobj(con) : sgobj(con));
 
     fem_constraints_force_accum (bod, msh, ele, X, con->base, con->R, isma, force);
   }

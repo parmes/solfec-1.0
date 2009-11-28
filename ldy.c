@@ -1356,8 +1356,8 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
     if (bod->msh)
     {
       ELEMENT **e1, **f1, **e2, **f2;
-      CONVEX *c1 = (bod == one->master ? one->mgobj : one->sgobj),
-	     *c2 = (bod == two->master ? two->mgobj : two->sgobj);
+      CONVEX *c1 = (bod == one->master ? mgobj(one) : sgobj(one)),
+	     *c2 = (bod == two->master ? mgobj(two) : sgobj(two));
 
       for (e1 = c1->ele, f1 = e1 + c1->nele; e1 < f1; e1 ++)
       {
@@ -1372,8 +1372,8 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
     }
     else
     {
-      ELEMENT *e1 = (bod == one->master ? one->mgobj : one->sgobj),
-	      *e2 = (bod == two->master ? two->mgobj : two->sgobj);
+      ELEMENT *e1 = (bod == one->master ? mgobj(one) : sgobj(one)),
+	      *e2 = (bod == two->master ? mgobj(two) : sgobj(two));
 
       return ELEMENT_Adjacent (e1, e2); /* only in case of a common node W_one_two and W_two_one will be != 0 */
     }
@@ -1610,10 +1610,10 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     CON *con = dia->con;
     BODY *m = con->master,
 	 *s = con->slave;
-    void *mgobj = con->mgobj,
-	 *sgobj = con->sgobj;
-    SHAPE *mshp = con->mshp,
-	  *sshp = con->sshp;
+    void *mgobj = mgobj(con),
+	 *sgobj;
+    SHAPE *mshp = mshp(con),
+	  *sshp;
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base,
@@ -1628,7 +1628,12 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
     /* relative velocity = slave - master => outward master normal */
     BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
-    if (s) BODY_Local_Velo (s, sshp, sgobj, spnt, base, Y0, Y); /* might be NULL for some constraints (one body) */
+    if (s)
+    {
+      sgobj = sgobj(con);
+      sshp = sshp(con);
+      BODY_Local_Velo (s, sshp, sgobj, spnt, base, Y0, Y); /* might be NULL for some constraints (one body) */
+    }
     else { SET (Y0, 0.0); SET (Y, 0.0); }
     
     SUB (Y0, X0, V); /* previous time step velocity */
@@ -1670,12 +1675,12 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
 	if (bod == con->master)
 	{
-	  rH =  BODY_Gen_To_Loc_Operator (bod, con->mshp, con->mgobj, con->mpnt, con->base);
+	  rH =  BODY_Gen_To_Loc_Operator (bod, mshp(con), mgobj(con), con->mpnt, con->base);
 	  coef = (bod == s ? -step : step);
 	}
 	else /* blk->bod == dia->slave */
 	{
-	  rH =  BODY_Gen_To_Loc_Operator (bod, con->sshp, con->sgobj, con->spnt, con->base);
+	  rH =  BODY_Gen_To_Loc_Operator (bod, sshp(con), sgobj(con), con->spnt, con->base);
 	  coef = (bod == m ? -step : step);
 	}
 
@@ -2421,8 +2426,7 @@ void LOCDYN_Union_Gather (void *pattern)
 	{
 	  if (!SET_Contains (skip, (void*) (long) blk->id, NULL)) /* skip items corresponding off-W stored in the union set at ptr->rank */
 	  {
-	    double *W = blk->W,
-		   *R = blk->R;
+	    double *W = blk->W, R [3];
 
 	    if (blk->dia) { COPY (blk->dia->R, R); }
 	    else { COPY (XR(blk->x)->R, R); }
@@ -2455,8 +2459,7 @@ void LOCDYN_Union_Gather (void *pattern)
 	{
 	  if (!SET_Contains (skip, (void*) (long) blk->id, NULL)) /* skip items corresponding off-W stored in the union set at ptr->rank */
 	  {
-	    double *W = blk->W,
-		   *R = blk->R;
+	    double *W = blk->W, R [3];
 
 	    if (blk->dia) { COPY (blk->dia->R, R); }
 	    else { COPY (XR(blk->x)->R, R); }

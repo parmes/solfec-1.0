@@ -204,12 +204,6 @@ static CON* insert_contact (DOM *dom, SGP *msgp, SGP *ssgp, BODY *master, BODY *
 
   con = insert (dom, master, slave); /* do not insert into LOCDYN yet, only after sparsification */
   con->kind = CONTACT;
-  con->mgobj = mgobj;
-  con->mkind = mkind;
-  con->mshp = mshp;
-  con->sgobj = sgobj;
-  con->skind = skind;
-  con->sshp = sshp;
   con->msgp = msgp;
   con->ssgp = ssgp;
   COPY (spampnt, con->point);
@@ -284,6 +278,10 @@ void update_contact (DOM *dom, CON *con)
   double mpnt [3], spnt [3], normal [3];
   int state, spair [2] = {con->mat.base->surf1,
                           con->mat.base->surf2};
+  void *mgobj = mgobj(con),
+       *sgobj = sgobj(con);
+  SHAPE *mshp = mshp(con),
+	*sshp = sshp(con);
 
   if (con->state & CON_NEW)
   {
@@ -295,14 +293,14 @@ void update_contact (DOM *dom, CON *con)
   }
 
   /* current spatial points and normal */
-  BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, mpnt);
-  BODY_Cur_Point (con->slave, con->sshp, con->sgobj, con->spnt, spnt);
+  BODY_Cur_Point (con->master, mshp, mgobj, con->mpnt, mpnt);
+  BODY_Cur_Point (con->slave, sshp, sgobj, con->spnt, spnt);
   COPY (con->base+6, normal);
 
   /* update contact data => during an update 'master' and 'slave' relation does not change */
   state = gobjcontact (
     CONTACT_UPDATE, con->paircode,
-    con->mshp, con->mgobj, con->sshp, con->sgobj,
+    mshp, mgobj, sshp, sgobj,
     mpnt, spnt, normal, &con->gap, /* 'mpnt' and 'spnt' are updated here */
     &con->area, spair); /* surface pair might change though */
 
@@ -318,8 +316,8 @@ void update_contact (DOM *dom, CON *con)
     if (con->gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
 
     COPY (mpnt, con->point);
-    BODY_Ref_Point (con->master, con->mshp, con->mgobj, mpnt, con->mpnt);
-    BODY_Ref_Point (con->slave, con->sshp, con->sgobj, spnt, con->spnt);
+    BODY_Ref_Point (con->master, mshp, mgobj, mpnt, con->mpnt);
+    BODY_Ref_Point (con->slave, sshp, sgobj, spnt, con->spnt);
     localbase (normal, con->base);
     if (state > 1) /* surface pair has changed */
     {
@@ -340,20 +338,20 @@ del:
 /* update fixed point data */
 void update_fixpnt (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
 }
 
 /* update fixed direction data */
 void update_fixdir (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
 }
 
 /* update velocity direction data */
 void update_velodir (DOM *dom, CON *con)
 {
   VELODIR (con->Z) = TMS_Value (con->tms, dom->time + dom->step);
-  BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, con->point);
+  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
 }
 
 /* update rigid link data */
@@ -366,12 +364,12 @@ void update_riglnk (DOM *dom, CON *con)
 
   if (con->master && con->slave)
   {
-    BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, m);
-    BODY_Cur_Point (con->slave, con->sshp, con->sgobj, con->spnt, s);
+    BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, m);
+    BODY_Cur_Point (con->slave, sshp(con), sgobj(con), con->spnt, s);
   }
   else /* master point to a spatial point link */
   {
-    BODY_Cur_Point (con->master, con->mshp, con->mgobj, con->mpnt, m);
+    BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, m);
     COPY (con->spnt, s);
   }
 
@@ -427,22 +425,22 @@ static void sparsify_contacts (DOM *dom)
 	{
 	  if (con->master == adj->master && con->slave == adj->slave) /* identify contacts pair sharing the same pairs of bodies */
 	  {
-	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (con->mkind, adj->mkind), con->mgobj, adj->mgobj)) /* check whether the geometric objects are topologically adjacent */
+	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), mkind(adj)), mgobj(con), mgobj (adj))) /* check whether the geometric objects are topologically adjacent */
 	       SET_Insert (&mem, &del, con, NULL); /* if so schedule the current contact for deletion */
 	  }
 	  else if (con->master == adj->slave && con->slave == adj->master)
 	  {
-	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (con->mkind, adj->skind), con->mgobj, adj->sgobj))
+	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), skind(adj)), mgobj(con), sgobj(adj)))
 	      SET_Insert (&mem, &del, con, NULL);
 	  }
 	  else if (con->slave == adj->master && con->master == adj->slave)
 	  {
-	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (con->skind, adj->mkind), con->sgobj, adj->mgobj))
+	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), mkind(adj)), sgobj(con), mgobj(adj)))
 	      SET_Insert (&mem, &del, con, NULL);
 	  }
 	  else if (con->slave == adj->slave && con->master == adj->master)
 	  {
-	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (con->skind, adj->skind), con->sgobj, adj->sgobj))
+	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), skind(adj)), sgobj(con), sgobj(adj)))
 	      SET_Insert (&mem, &del, con, NULL);
 	  }
 	}
@@ -1668,8 +1666,6 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   IDENTITY (con->base);
-  con->mgobj = sgp->gobj;
-  con->mshp = sgp->shp;
   con->msgp = sgp;
 
   /* insert into local dynamics */
@@ -1693,8 +1689,6 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   localbase (dir, con->base);
-  con->mgobj = sgp->gobj;
-  con->mshp = sgp->shp;
   con->msgp = sgp;
 
   /* insert into local dynamics */
@@ -1719,8 +1713,6 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   COPY (pnt, con->mpnt);
   localbase (dir, con->base);
   con->tms = vel;
-  con->mgobj = sgp->gobj;
-  con->mshp = sgp->shp;
   con->msgp = sgp;
 
   /* insert into local dynamics */
@@ -1766,14 +1758,10 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
     IDENTITY (con->base);
-    con->mgobj = msgp->gobj;
-    con->mshp = msgp->shp;
     con->msgp = msgp;
 
     if (slave)
     {
-      con->sgobj = ssgp->gobj;
-      con->sshp = ssgp->shp;
       con->ssgp = ssgp;
 
       AABB_Exclude_Gobj_Pair (dom->aabb, master->id, m, slave->id, s); /* no contact between this pair */
@@ -1787,14 +1775,10 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
     RIGLNK_LEN (con->Z) = d; /* initial distance */
-    con->mgobj = msgp->gobj;
-    con->mshp = msgp->shp;
     con->msgp = msgp;
 
     if (slave)
     { 
-      con->sgobj = ssgp->gobj;
-      con->sshp = ssgp->shp;
       con->ssgp = ssgp;
     }
 
