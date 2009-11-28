@@ -1629,7 +1629,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
       dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
     }
 
-    if (dom->update_kind == DOM_UPDATE_FULL && (upkind == UPALL || (upkind == UPBIL && con->kind != CONTACT))) /* off-diagonal blocks update only for FULL domain updates */
+    if (dom->update_kind == DOM_UPDATE_FULL && upkind == UPALL) /* off-diagonal blocks update only for FULL domain updates */
     {
       /* off-diagonal local blocks */
       for (blk = dia->adj; blk; blk = blk->n)

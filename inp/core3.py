@@ -399,8 +399,7 @@ GRAVITY (solfec, (0, 0, -1), 10)
 
 gcore_create (0.0003, 0.0002,  0,  0,  0, bulkmat, solfec)
 
-#gs = GAUSS_SEIDEL_SOLVER (1E-2, 10, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
-gs = SEMI_EXPLICIT_SOLVER ()
+gs = GAUSS_SEIDEL_SOLVER (1E-2, 10, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
 OUTPUT (solfec, 0.025, compression='FASTLZ')
 

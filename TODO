@@ -42,5 +42,11 @@ poisson, etc. Render as fields or coloured constraint.
 Add menu "top", "bottom", "left", "right", "front", "back"
 to the "render" menu. Or similarly.
 --------------------------------------------------------
+Oprimze W assembling by exploiting symmetry!
+-------------------------------------------------
+Further optimize W assembling by introducing norm of constact state
+change and opdating W blocks only corresponding to a sufficiently
+large contact statate change (say point and normal difference relative norm)!
+--------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------
