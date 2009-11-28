@@ -125,10 +125,10 @@ void EXPLICIT_Solve (LOCDYN *ldy)
     con = dia->con;
 
 #if MPI
-    if (con) solver (con->kind, &con->mat, con->gap, con->Z, con->mpnt, con->point, con->base, dia); /* LDB_OFF */
-    else solver (dia->kind, &dia->mat, dia->gap, dia->Z, dia->mpnt, dia->point, dia->base, dia);
+    if (con) solver (con->kind, con->mat.base, con->gap, con->Z, con->mpnt, con->point, con->base, dia); /* LDB_OFF */
+    else solver (dia->kind, dia->mat.base, dia->gap, dia->Z, dia->mpnt, dia->point, dia->base, dia);
 #else
-    solver (con->kind, &con->mat, con->gap, con->Z, con->mpnt, con->point, con->base, dia);
+    solver (con->kind, con->mat.base, con->gap, con->Z, con->mpnt, con->point, con->base, dia);
 #endif
   }
 }

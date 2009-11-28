@@ -3181,7 +3181,7 @@ static int lng_CONSTRAINT_set_adjbod (lng_CONSTRAINT *self, PyObject *value, voi
 static PyObject* lng_CONSTRAINT_get_matlab (lng_CONSTRAINT *self, void *closure)
 {
   if (self->con->kind == CONTACT)
-    return PyString_FromString (self->con->mat.label);
+    return PyString_FromString (self->con->mat.base->label);
 
   Py_RETURN_NONE;
 }
