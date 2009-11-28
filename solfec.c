@@ -32,7 +32,7 @@
 #include "sol.h"
 #include "err.h"
 
-#if MPI
+#if MPI_VERSION >= 2
 /* error handler callback */
 static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
 {
@@ -129,7 +129,9 @@ int main (int argc, char **argv)
 
   ASSERT (Zoltan_Initialize (argc, argv, &version) == ZOLTAN_OK, ERR_ZOLTAN_INIT);
 
+#if MPI_VERSION >= 2
   MPI_set_error_handling ();
+#endif
 #endif
 
   TRY ()

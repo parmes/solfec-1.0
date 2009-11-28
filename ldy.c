@@ -167,6 +167,7 @@ static void conpoints (LOCDYN *ldy, int num_gid_entries, int num_lid_entries, in
   ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
 {
   DIAB *dia;
+  CON *con;
   int i;
 
   for (i = 0; i < num_obj; i ++, geom_vec += 3)
@@ -176,14 +177,14 @@ static void conpoints (LOCDYN *ldy, int num_gid_entries, int num_lid_entries, in
     if (m == UINT_MAX) /* mapped migrated block */
     {
       ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) global_ids [i], NULL), "Invalid block id");
+      COPY (dia->condata->point, geom_vec);
     }
     else /* use local index */
     {
       ASSERT_DEBUG (m < (unsigned)ldy->nins, "Invalid local index");
-      dia = ldy->ins [m];
+      con = ldy->ins [m]->con;
+      COPY (con->point, geom_vec);
     }
-
-    COPY (dia->point, geom_vec);
   }
 
   *ierr = ZOLTAN_OK;
@@ -304,8 +305,11 @@ static void unpack_block_offids (DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, d
 /* pack diagonal block */
 static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
+  CONDATA *condata;
   OFFB *b;
   int n;
+
+  condata = dia->condata;
 
   pack_doubles (dsize, d, doubles, dia->R, 3);
   pack_doubles (dsize, d, doubles, dia->U, 3);
@@ -314,13 +318,13 @@ static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *is
   pack_doubles (dsize, d, doubles, dia->W, 9);
   pack_double  (dsize, d, doubles, dia->rho);
 
-  pack_doubles (dsize, d, doubles, dia->Z, DOM_Z_SIZE);
-  pack_doubles (dsize, d, doubles, dia->point, 3);
-  pack_doubles (dsize, d, doubles, dia->base, 9);
-  pack_doubles (dsize, d, doubles, dia->mpnt, 3);
-  pack_double  (dsize, d, doubles, dia->gap);
-  pack_int     (isize, i, ints, dia->kind);
-  SURFACE_MATERIAL_Pack_State (&dia->mat, dsize, d, doubles, isize, i, ints);
+  pack_doubles (dsize, d, doubles, condata->Z, DOM_Z_SIZE);
+  pack_doubles (dsize, d, doubles, condata->point, 3);
+  pack_doubles (dsize, d, doubles, condata->base, 9);
+  pack_doubles (dsize, d, doubles, condata->mpnt, 3);
+  pack_double  (dsize, d, doubles, condata->gap);
+  pack_int     (isize, i, ints, condata->kind);
+  SURFACE_MATERIAL_Pack_State (&condata->mat, dsize, d, doubles, isize, i, ints);
 
   for (n = 0, b = dia->adj; b; b = b->n) n ++; /* number of internal blocks */
   for (b = dia->adjext; b; b = b->n) n ++; /* number of external blocks */
@@ -343,8 +347,11 @@ static void pack_block (DIAB *dia, int *dsize, double **d, int *doubles, int *is
 /* unpack diagonal block */
 static void unpack_block (SPSET *sps, DIAB *dia, MEM *offmem, MAP *idbb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  CONDATA *condata;
   OFFB *b, *n, *x;
   int m;
+
+  condata = dia->condata;
 
   unpack_doubles (dpos, d, doubles, dia->R, 3);
   unpack_doubles (dpos, d, doubles, dia->U, 3);
@@ -353,13 +360,13 @@ static void unpack_block (SPSET *sps, DIAB *dia, MEM *offmem, MAP *idbb, int *dp
   unpack_doubles (dpos, d, doubles, dia->W, 9);
   dia->rho = unpack_double  (dpos, d, doubles);
 
-  unpack_doubles (dpos, d, doubles, dia->Z, DOM_Z_SIZE);
-  unpack_doubles (dpos, d, doubles, dia->point, 3);
-  unpack_doubles (dpos, d, doubles, dia->base, 9);
-  unpack_doubles (dpos, d, doubles, dia->mpnt, 3);
-  dia->gap = unpack_double  (dpos, d, doubles);
-  dia->kind = unpack_int (ipos, i, ints);
-  SURFACE_MATERIAL_Unpack_State (sps, &dia->mat, dpos, d, doubles, ipos, i, ints);
+  unpack_doubles (dpos, d, doubles, condata->Z, DOM_Z_SIZE);
+  unpack_doubles (dpos, d, doubles, condata->point, 3);
+  unpack_doubles (dpos, d, doubles, condata->base, 9);
+  unpack_doubles (dpos, d, doubles, condata->mpnt, 3);
+  condata->gap = unpack_double  (dpos, d, doubles);
+  condata->kind = unpack_int (ipos, i, ints);
+  SURFACE_MATERIAL_Unpack_State (sps, &condata->mat, dpos, d, doubles, ipos, i, ints);
 
   /* free current off-diagonal blocks */
   for (b = dia->adj; b; b = n)
@@ -402,6 +409,8 @@ static void unpack_block (SPSET *sps, DIAB *dia, MEM *offmem, MAP *idbb, int *dp
 /* pack diagonal block for partial update */
 static void pack_block_partial (DIAB *dia, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
+  CONDATA *condata = dia->condata;
+
   pack_doubles (dsize, d, doubles, dia->R, 3);
   pack_doubles (dsize, d, doubles, dia->U, 3);
   pack_doubles (dsize, d, doubles, dia->V, 3);
@@ -409,18 +418,20 @@ static void pack_block_partial (DIAB *dia, int *dsize, double **d, int *doubles,
   pack_doubles (dsize, d, doubles, dia->W, 9);
   pack_double  (dsize, d, doubles, dia->rho);
 
-  pack_doubles (dsize, d, doubles, dia->Z, DOM_Z_SIZE);
-  pack_doubles (dsize, d, doubles, dia->point, 3);
-  pack_doubles (dsize, d, doubles, dia->base, 9);
-  pack_doubles (dsize, d, doubles, dia->mpnt, 3);
-  pack_double  (dsize, d, doubles, dia->gap);
-  pack_int     (isize, i, ints, dia->kind);
-  SURFACE_MATERIAL_Pack_State (&dia->mat, dsize, d, doubles, isize, i, ints);
+  pack_doubles (dsize, d, doubles, condata->Z, DOM_Z_SIZE);
+  pack_doubles (dsize, d, doubles, condata->point, 3);
+  pack_doubles (dsize, d, doubles, condata->base, 9);
+  pack_doubles (dsize, d, doubles, condata->mpnt, 3);
+  pack_double  (dsize, d, doubles, condata->gap);
+  pack_int     (isize, i, ints, condata->kind);
+  SURFACE_MATERIAL_Pack_State (&condata->mat, dsize, d, doubles, isize, i, ints);
 }
 
 /* unpack diagonal block for partial update */
 static void unpack_block_partial (SPSET *sps, DIAB *dia, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  CONDATA *condata = dia->condata;
+
   unpack_doubles (dpos, d, doubles, dia->R, 3);
   unpack_doubles (dpos, d, doubles, dia->U, 3);
   unpack_doubles (dpos, d, doubles, dia->V, 3);
@@ -428,13 +439,13 @@ static void unpack_block_partial (SPSET *sps, DIAB *dia, int *dpos, double *d, i
   unpack_doubles (dpos, d, doubles, dia->W, 9);
   dia->rho = unpack_double  (dpos, d, doubles);
 
-  unpack_doubles (dpos, d, doubles, dia->Z, DOM_Z_SIZE);
-  unpack_doubles (dpos, d, doubles, dia->point, 3);
-  unpack_doubles (dpos, d, doubles, dia->base, 9);
-  unpack_doubles (dpos, d, doubles, dia->mpnt, 3);
-  dia->gap = unpack_double  (dpos, d, doubles);
-  dia->kind = unpack_int (ipos, i, ints);
-  SURFACE_MATERIAL_Unpack_State (sps, &dia->mat, dpos, d, doubles, ipos, i, ints);
+  unpack_doubles (dpos, d, doubles, condata->Z, DOM_Z_SIZE);
+  unpack_doubles (dpos, d, doubles, condata->point, 3);
+  unpack_doubles (dpos, d, doubles, condata->base, 9);
+  unpack_doubles (dpos, d, doubles, condata->mpnt, 3);
+  condata->gap = unpack_double  (dpos, d, doubles);
+  condata->kind = unpack_int (ipos, i, ints);
+  SURFACE_MATERIAL_Unpack_State (sps, &condata->mat, dpos, d, doubles, ipos, i, ints);
 }
 
 /* delete balanced block */
@@ -457,6 +468,7 @@ static void delete_balanced_block (LOCDYN *ldy, DIAB *dia)
     MEM_Free (&ldy->offmem, b);
   }
 
+  MEM_Free (&ldy->conmem, dia->condata);
   MEM_Free (&ldy->diamem, dia);
 
   ldy->ndiab --;
@@ -504,9 +516,10 @@ static void* unpack_migrate (LOCDYN *ldy, int *dpos, double *d, int doubles, int
   DIAB *dia;
 
   ERRMEM (dia = MEM_Alloc (&ldy->diamem));
+  ERRMEM (dia->condata = MEM_Alloc (&ldy->conmem));
   dia->id = unpack_int (ipos, i, ints);
   dia->rank = unpack_int (ipos, i, ints);
-  dia->R = dia->REAC;
+  dia->R = dia->condata->REAC;
 
   dia->n = ldy->diab;
   if (ldy->diab) ldy->diab->p = dia;
@@ -551,7 +564,7 @@ static void* unpack_offids (LOCDYN *ldy, int *dpos, double *d, int doubles, int 
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->idbb, (void*) (long) id, NULL), "Invalid block id");
     unpack_block_offids (dia, &ldy->offmem, ldy->idbb, dpos, d, doubles, ipos, i, ints);
-    if (ldy->ldb == LDB_GEOM) unpack_doubles (dpos, d, doubles, dia->point, 3); /* update the point for geometric balancing */
+    if (ldy->ldb == LDB_GEOM) unpack_doubles (dpos, d, doubles, dia->condata->point, 3); /* update the point for geometric balancing */
   }
 
   return NULL;
@@ -624,18 +637,22 @@ static void* unpack_partial_update (LOCDYN *ldy, int *dpos, double *d, int doubl
 }
 
 /* copy constraint data into the block */
-static void copycon (DIAB *dia)
+static void copycon (DIAB *dia, MEM *conmem)
 {
   CON *con = dia->con;
+  CONDATA *condata;
+
+  if (!dia->condata) { ERRMEM (dia->condata = MEM_Alloc (conmem)); }
+  condata = dia->condata;
 
   for (int i = 0; i < DOM_Z_SIZE; i ++)
-    dia->Z [i] = con->Z [i];
-  COPY (con->point, dia->point);
-  NNCOPY (con->base, dia->base);
-  COPY (con->mpnt, dia->mpnt);
-  dia->gap = con->gap;
-  dia->kind = con->kind;
-  dia->mat = con->mat;
+    condata->Z [i] = con->Z [i];
+  COPY (con->point, condata->point);
+  NNCOPY (con->base, condata->base);
+  COPY (con->mpnt, condata->mpnt);
+  condata->gap = con->gap;
+  condata->kind = con->kind;
+  condata->mat = con->mat;
 }
 
 /* reset balancing approach */
@@ -1047,7 +1064,7 @@ static void locdyn_balance (LOCDYN *ldy)
     SET *upd = NULL;
     for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
     {
-      copycon (dia);
+      copycon (dia, &ldy->conmem);
 
       if (dia->rank == dom->rank)
       {
@@ -1107,7 +1124,7 @@ static void locdyn_balance (LOCDYN *ldy)
      * and create remote update sets at the same time */
     for (upd = NULL, map = NULL, dia = ldy->dia; dia; dia = dia->n)
     {
-      copycon (dia);
+      copycon (dia, &ldy->conmem);
 
       if (dia->rank == dom->rank)
       {
@@ -1300,6 +1317,7 @@ static void create_mpi (LOCDYN *ldy)
 
   MEM_Init (&ldy->mapmem, sizeof (MAP), BLKSIZE);
   MEM_Init (&ldy->setmem, sizeof (SET), BLKSIZE);
+  MEM_Init (&ldy->conmem, sizeof (CONDATA), BLKSIZE);
 
   ldy->idbb = NULL;
   ldy->diab = NULL;
@@ -1532,6 +1550,9 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
   /* in LDB_OFF mode regular blocks might store the below sets */
   if (dia->children) MAP_Free (&ldy->mapmem, &dia->children);
   if (dia->rext) SET_Free (&ldy->setmem, &dia->rext);
+
+  /* delete contact coppied data if any */
+  if (dia->condata) MEM_Free (&ldy->conmem, dia->condata);
 
   MAP *item, *jtem;
 
@@ -1993,7 +2014,7 @@ static void pack_union (UNION_PATTERN *up, int *dsize, double **d, int *doubles,
   {
     DIAB *dia = item->data;
 
-    if (dia->con) copycon (dia); /* copy constraint data */
+    if (dia->con) copycon (dia, &up->ldy->conmem); /* copy constraint data */
 
     pack_block (dia, dsize, d, doubles, isize, i, ints);
     pack_int (isize, i, ints, dia->id);
@@ -2023,7 +2044,8 @@ static void* unpack_union (UNION_PATTERN *up, int *dpos, double *d, int doubles,
   {
     DIAB *dia;
     ERRMEM (dia = MEM_Alloc (&ldy->diamem));
-    dia->R = dia->REAC;
+    ERRMEM (dia->condata = MEM_Alloc (&ldy->conmem));
+    dia->R = dia->condata->REAC;
     unpack_block (DOM(ldy->dom)->sps, dia, &ldy->offmem, NULL, dpos, d, doubles, ipos, i, ints);
     dia->id = unpack_int (ipos, i, ints);
 
@@ -2568,6 +2590,7 @@ void LOCDYN_Union_Destroy (void *pattern)
       }
 
       MAP_Free (&ldy->mapmem, &dia->children); /* children */
+      MEM_Free (&ldy->conmem, dia->condata); /* contact data */
       MEM_Free (&ldy->diamem, dia); /* diagonal */
     }
 
