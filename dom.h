@@ -114,7 +114,21 @@ struct conext
   CONEXT *next; /* in-domain list for fast deletion */
 
   int rank; /* child rank */
+
+#if PARALLEL_OVERLAP
+  double Z [DOM_Z_SIZE],
+	 gap;
+
+  short kind;
+
+  SURFACE_MATERIAL_STATE mat;
+
+  DIAB *dia; /* corresponding ldy->diaext entry */
+#endif
 };
+
+/* external constraint pointer cast */
+#define CONEXT(con) ((CONEXT*)(con))
 #endif
 
 /* domain flags */
