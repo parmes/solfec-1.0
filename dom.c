@@ -1165,6 +1165,10 @@ static void conext_remove_all (DOM *dom)
   for (ext = dom->conext; ext; ext = ext->next)
   {
     if (ext->bod && ext->bod->conext) MAP_Free (&dom->mapmem, &ext->bod->conext);
+
+#if PARALLEL_OVERLAP
+    if (ext->kind == CONTACT) SURFACE_MATERIAL_Destroy_State (&ext->mat);
+#endif
   }
 
   /* erase in the domain */
@@ -1211,6 +1215,16 @@ static CONEXT* conext_create (DOM *dom, CON *con, BODY *bod)
     COPY (con->spnt, ext->point);
   }
 
+#if PARALLEL_OVERLAP
+  for (int i = 0; i < DOM_Z_SIZE; i ++) ext->Z[i] = con->Z[i];
+
+  ext->gap = con->gap;
+
+  ext->kind = con->kind;
+
+  ext->mat = con->mat;
+#endif
+
   return ext;
 }
 
@@ -1224,6 +1238,13 @@ static void conext_pack (CONEXT *ext, int *dsize, double **d, int *doubles, int 
   pack_int (isize, i, ints, ext->bod->id);
   pack_int (isize, i, ints, ext->isma);
   pack_int (isize, i, ints, ext->sgp - ext->bod->sgp);
+
+#if PARALLEL_OVERLAP
+  pack_doubles (dsize, d, doubles, ext->Z, DOM_Z_SIZE);
+  pack_double (dsize, d, doubles, ext->gap);
+  pack_int (isize, i, ints, ext->kind);
+  if (ext->kind == CONTACT) SURFACE_MATERIAL_Pack_State (&ext->mat, dsize, d, doubles, isize, i, ints);
+#endif
 }
 
 /* unpack an external constraint (do not set body pointer, but an id) */
@@ -1240,6 +1261,13 @@ CONEXT* conext_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, i
   ext->bod = (BODY*) (long) unpack_int (ipos, i, ints);
   ext->isma = unpack_int (ipos, i, ints);
   ext->sgp = (SGP*) (long) unpack_int (ipos, i, ints);
+
+#if PARALLEL_OVERLAP
+  unpack_doubles (dpos, d, doubles, ext->Z, DOM_Z_SIZE);
+  ext->gap = unpack_double (dpos, d, doubles);
+  ext->kind = unpack_int (ipos, i, ints);
+  if (ext->kind == CONTACT) SURFACE_MATERIAL_Unpack_State (dom->sps, &ext->mat, dpos, d, doubles, ipos, i, ints);
+#endif
 
   return ext;
 }

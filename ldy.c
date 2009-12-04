@@ -722,6 +722,22 @@ static void ldb_reset (LOCDYN *ldy)
   ldy->nexpdia = -1;
 }
 
+#if PARALLEL_OVERLAP
+/* clear adjacency of a block */
+static void clear_adj (LOCDYN *ldy, DIAB *dia)
+{
+  OFFB *b, *n;
+
+  for (b = dia->adj; b; b = n)
+  {
+    n = b->n;
+    MEM_Free (&ldy->offmem, b);
+  }
+
+  dia->adj = NULL;
+}
+#endif
+
 /* clear external adjacency of a block */
 static void clear_adjext (LOCDYN *ldy, DIAB *dia)
 {
@@ -748,6 +764,83 @@ static void locdyn_adjext (LOCDYN *ldy)
 
   for (dia = ldy->dia; dia; dia = dia->n) clear_adjext (ldy, dia);
 
+#if PARALLEL_OVERLAP
+  CONEXT *exq;
+  DIAB *next;
+  OFFB *c;
+  MAP *jtem;
+
+  for (jtem = MAP_First (ldy->diaext); jtem; jtem = MAP_Next (jtem))
+  {
+    dia = jtem->data;
+    next = dia->n;
+    clear_adj (ldy, dia);
+    clear_adjext (ldy, dia);
+    MEM_Free (&ldy->diamem, dia);
+  }
+
+  MAP_Free (&ldy->mapmem, &ldy->diaext);
+
+  for (ext = DOM(ldy->dom)->conext; ext; ext = ext->next) /* for each external constraint in the domain */
+  {
+    ERRMEM (dia = MEM_Alloc (&ldy->diamem));
+    ERRMEM (dia->condata = MEM_Alloc (&ldy->conmem));
+    ext->dia = dia;
+    dia->con = ext;
+    dia->R = CONEXT(ext)->R;
+    dia->id = CONEXT(ext)->id;
+    dia->rank = CONEXT(ext)->rank;
+
+    MAP_Insert (&ldy->mapmem, &ldy->diaext, (void*) (long) dia->id, dia, NULL);
+
+    bod = ext->bod; /* for all involved bodies (parents and children) */
+
+    if (bod->kind == OBS) continue; /* obstacles do not trasnder adjacency */
+
+    for (item = SET_First (bod->con); item; item = SET_Next (item))  /* for each regular constraint */
+    {
+      con = item->data;
+
+      ERRMEM (b = MEM_Alloc (&ldy->offmem));
+      b->dia = dia;
+      b->bod = bod; /* adjacent through this body */
+      b->ext = ext;
+      b->n = con->dia->adjext;
+      con->dia->adjext = b;
+
+      /* add symmetric blocks to dia->adj */
+      ERRMEM (c = MEM_Alloc (&ldy->offmem));
+      c->SYMW = b->W;
+      c->dia = con->dia;
+      c->bod = bod;
+      c->n = dia->adj;
+      dia->adj = c;
+    }
+
+    for (jtem = MAP_First (bod->conext); jtem; jtem = MAP_Next (jtem)) /* for each external constraint */
+    {
+      exq = jtem->data;
+
+      if (exq == ext) continue; /* skip current external constraint */
+
+      ERRMEM (b = MEM_Alloc (&ldy->offmem));
+      b->dia = dia;
+      b->bod = bod;
+      b->ext = ext;
+      b->n = exq->dia->adjext;
+      exq->dia->adjext = b;
+
+      /* add symmetric blocks to exq->adjext */
+      ERRMEM (c = MEM_Alloc (&ldy->offmem));
+      c->SYMW = b->W;
+      c->dia = exq->dia;
+      c->bod = bod;
+      c->n = dia->adjext;
+      dia->adjext = c;
+    }
+  }
+
+#else
   for (ext = DOM(ldy->dom)->conext; ext; ext = ext->next) /* for each external constraint in the domain */
   {
     bod = ext->bod; /* for all involved bodies (parents and children) */
@@ -769,6 +862,7 @@ static void locdyn_adjext (LOCDYN *ldy)
       dia->adjext = b;
     }
   }
+#endif
 }
 
 /* balance local dynamics */
@@ -1779,6 +1873,118 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 	MX_Destroy (dia->sprod);
       }
     }
+
+#if MPI && PARALLEL_OVERLAP
+    /* communicate assembled diagonal W blocks from contacts
+     * involving child bodies to the external ldy->diaext blocks */
+    MAP *item, *jtem;
+    MAP *sendmap; /* rank-map of id-maps of W blocks */
+    MEM mem;
+
+    MEM_Init (&mem, sizeof (MAP), 256);
+    sendmap = NULL;
+
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+        CONEXT *ext = blk->ext;
+
+	if (!(jtem = MAP_Find_Node (sendmap, (void*) (long) ext->rank, NULL)))
+	{
+	  jtem = MAP_Insert (&mem, &sendmap, (void*) (long) ext->rank, NULL, NULL);
+	}
+
+	MAP_Insert (&mem, (MAP**) &jtem->data, (void*) (long) dia->id, dia->W, NULL);
+      }
+    }
+
+    COMDATA *send, *recv, *cur;
+    int nsend, nrecv;
+    int *ii, *ie;
+    double *dd;
+
+    nsend = MAP_Size (sendmap);
+    if (nsend) { ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend]))); }
+    else send = NULL;
+
+    for (item = MAP_First (sendmap), cur = send; item; item = MAP_Next (item), cur ++)
+    {
+      cur->rank = (int) (long) item->key;
+      cur->ints = MAP_Size ((MAP*) item->data);
+      cur->doubles = cur->ints * 9;
+      ERRMEM (cur->i = malloc (sizeof (int [cur->ints])));
+      ERRMEM (cur->d = malloc (sizeof (double [cur->doubles])));
+      ii = cur->i;
+      dd = cur->d;
+      for (jtem = MAP_First ((MAP*) item->data); jtem; jtem = MAP_Next (jtem), ii += 1, dd += 9)
+      {
+	*ii = (int) (long) jtem->key;
+	NNCOPY ((double*) jtem->data, dd);
+      }
+    }
+
+    COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+
+    for (cur = recv; nrecv; cur ++, nrecv --)
+    {
+      for (ii = cur->i, ie = ii + cur->ints, dd = cur->d; ii < ie; ii += 1, dd += 9)
+      {
+	ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->diaext, (void*) (long) (*ii), NULL), "Inconsistent diagonal W block id");
+	NNCOPY (dd, dia->W)
+      }
+    }
+
+    MEM_Release (&mem);
+    for (cur = send; nsend; cur ++, nsend --) { free (cur->i); free (cur->d); }
+    free (send);
+    free (recv);
+
+    /* compute off-diagonal ldy->diaext->adj blocks using symmetry */
+    for (item = MAP_First (ldy->diaext); item; item = MAP_Next (item))
+    {  
+      dia = item->data;
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	TNCOPY (blk->SYMW, blk->W); /* transposed copy of a symmetric block */
+      }
+    }
+
+    /* compute off->diagonal ldy->diaext->adjext blocks */
+    for (item = MAP_First (ldy->diaext); item; item = MAP_Next (item))
+    {  
+      MX *H, *left;
+      CONEXT *exq;
+
+      dia = item->data;
+      exq = dia->con;
+
+      H =  BODY_Gen_To_Loc_Operator (exq->bod, exq->sgp->shp, exq->sgp->gobj, exq->point, exq->base);
+      left = MX_Matmat (1.0, H, exq->bod->inverse, 0.0, NULL);
+      MX_Destroy (H);
+
+      /* off-diagonal external blocks */
+      for (blk = dia->adjext; blk; blk = blk->n)
+      { 
+	CONEXT *ext = blk->ext;
+	BODY *bod = blk->bod;
+	MX_DENSE_PTR (W, 3, 3, blk->W);
+	double coef;
+	MX *right;
+
+	right =  BODY_Gen_To_Loc_Operator (bod, ext->sgp->shp, ext->sgp->gobj, ext->point, ext->base);
+
+	if (ext->isma) coef = (!exq->isma ? -step : step);
+	else coef = (exq->isma ? -step : step);
+
+	MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
+	SCALE9 (W.x, coef);
+	MX_Destroy (right);
+      }
+
+      MX_Destroy (left);
+    }
+#endif
   }
 
   /* forward variables change */
@@ -2682,24 +2888,6 @@ void LOCDYN_Union_Destroy (void *pattern)
   free (up);
 }
 #endif
-
-/* set an approach to the linearisation of local dynamics */
-void LOCDYN_Approach (LOCDYN *ldy, LOCDYN_APPROACH approach)
-{
-  /* TODO */
-}
-
-/* assemble tangent operator */
-void LOCDYN_Tangent (LOCDYN *ldy)
-{
-  /* TODO */
-}
-
-/* compute merit function */
-double LOCDYN_Merit (LOCDYN *ldy)
-{
-  return 0.0; /* TODO */
-}
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy)

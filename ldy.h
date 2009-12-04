@@ -30,6 +30,8 @@
 #ifndef __ldy__
 #define __ldy__
 
+#define PARALLEL_OVERLAP    1      /* implement parallel overlap of local dynamics (testing, might replace current approach) */
+
 #define DOM_Z_SIZE          4      /* size of auxiliary storage in dom.h/constraint */
 
 typedef struct offb OFFB;
@@ -43,16 +45,6 @@ enum upkind
 };
 
 typedef enum upkind UPKIND;
-
-enum locdyn_approach /* linearisation approaches */
-{
-  SEMISMOOTH_STRICT,
-  SEMISMOOTH_HYBRID,
-  VARIATIONAL_NONSMOOTH,
-  VARIATIONAL_SMOOTHED,
-};
-
-typedef enum locdyn_approach LOCDYN_APPROACH;
 
 #if MPI
 /* eXternal Reaction */
@@ -190,6 +182,11 @@ struct locdyn
   double imbalance_tolerance;/* imbalance threshold */
 
   int nexpdia; /* number of exported rows */
+
+#if PARALLEL_OVERLAP
+  MAP *diaext; /* external diagonal blocks id-map */
+#endif
+
 #endif
 };
 
@@ -231,15 +228,6 @@ void LOCDYN_Union_Scatter (void *pattern);
 /* release memory used by the union set */
 void LOCDYN_Union_Destroy (void *pattern);
 #endif
-
-/* set an approach to the linearisation of local dynamics */
-void LOCDYN_Approach (LOCDYN *ldy, LOCDYN_APPROACH approach);
-
-/* assemble tangent operator */
-void LOCDYN_Tangent (LOCDYN *ldy);
-
-/* compute merit function */
-double LOCDYN_Merit (LOCDYN *ldy);
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);

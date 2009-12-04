@@ -20,8 +20,6 @@ of min-block reactions
 Implement reading of multiple output files in separate threads
 (as many threads as there are files to read)
 -------------------------------------------------------------
-Speed up rendering by using Vertex Buffer Objects extension
------------------------------------------------------------
 Test whether inertia scaling by density works correctly
 --------------------------------------------------------
 add void *mat; to TRISURF and inherit material poinetrs
@@ -47,6 +45,14 @@ change and opdating W blocks only corresponding to a sufficiently
 large contact statate change (say point and normal difference relative norm)!
 ----------------------------------------------------
 Explicit solver is unaware of cohesion
+--------------------------------------------------------------------
+Introduce local (BODY ID, SGP PAIR) to latest reaction value
+cache so to reassign most recent values to reestablished contacts
+-----------------------------------------------------------
+Get rid of separate LOCDYN balancing and merge balancing
+of contact points (hence W assembling, etc.) with the balancing
+of geometrical objects (AABB overlaps); let contact points have
+larger (e.g. 10x) weights than geometrical objects;
 --------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------

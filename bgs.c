@@ -559,6 +559,206 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 }
 
 #if MPI
+#if PARALLEL_OVERLAP
+void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
+{
+  MAP* (*FIRST) (MAP*);
+  MAP* (*NEXT) (MAP*);
+  int diagiters, rank;
+  double error, step;
+  DIAB *end = NULL;
+  short dynamic;
+  char fmt [512];
+  int div = 10;
+  MAP *item;
+
+  if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+
+  if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+
+  if (gs->reverse)
+  {
+    if (ldy->dia) for (end = ldy->dia; end->n; end = end->n); /* find last block for the backward run */
+
+    FIRST = MAP_First;
+    NEXT = MAP_Next;
+  }
+  else
+  {
+    FIRST = MAP_Last;
+    NEXT = MAP_Prev;
+  }
+
+ /* INITIAL compute and communicate ldy->dia->B(s) into ldy->diaext->B(s):
+  * for blocks from ldy->dia with adjext != NULL
+  *   compute B_base = dia->B + SUM (ldy->adj, W * R)
+  *   compute B_send [CPU] = B_base + SUM (ldy->adjext, extcpu != CPU, W * R)
+  *   send B_send [CPU] to corresponding ldy->diaext->B(s) */
+
+ /* TODO: use COMALL_Pattern (implement it first) */
+
+  rank = DOM(ldy->dom)->rank;
+  dynamic = DOM(ldy->dom)->dynamic;
+  step = DOM(ldy->dom)->step;
+  gs->error = GS_OK;
+  gs->iters = 0;
+  do
+  {
+    double errup = 0.0,
+	   errlo = 0.0,
+	   errloc [2],
+	   errsum [2];
+    OFFB *blk;
+    DIAB *dia;
+
+    for (item = FIRST (ldy->diaext); item; item = NEXT (item)) /* external blocks */
+    {
+      dia = item->data;
+
+      double R0 [3],
+	     B [3],
+	     *R = dia->R;
+
+      /* compute local free velocity */
+      COPY (dia->B, B);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	double *W = blk->W,
+	       *R = blk->dia->R;
+	NVADDMUL (B, W, R, B);
+      }
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	double *W = blk->W,
+	       *R = blk->dia->R;
+	NVADDMUL (B, W, R, B);
+      }
+      
+      COPY (R, R0); /* previous reaction */
+
+      /* solve local diagonal block problem */
+      CON *con = dia->con;
+      diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+	         dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+
+      if (diagiters > gs->diagmaxiter || diagiters < 0)
+      {
+	if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
+	else gs->error = GS_DIAGONAL_DIVERGED;
+
+	COPY (R0, R); /* use previous reaction and delay reaction until the end of loop */
+      }
+
+      /* accumulate relative
+       * error components */
+      SUB (R, R0, R0);
+      errup += DOT (R0, R0);
+      errlo += DOT (R, R);
+    }
+   
+    for (dia = end && gs->iters % 2 ? end : ldy->dia; dia; dia = end && gs->iters % 2 ? dia->p : dia->n) /* internal blocks */
+    {
+      double R0 [3],
+	     B [3],
+	     *R = dia->R;
+
+      /* compute local free velocity */
+      COPY (dia->B, B);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	double *W = blk->W,
+	       *R = blk->dia->R;
+	NVADDMUL (B, W, R, B);
+      }
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	double *W = blk->W,
+	       *R = blk->dia->R;
+	NVADDMUL (B, W, R, B);
+      }
+      
+      COPY (R, R0); /* previous reaction */
+
+      /* solve local diagonal block problem */
+      CON *con = dia->con;
+      diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+	         dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+
+      if (diagiters > gs->diagmaxiter || diagiters < 0)
+      {
+	if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
+	else gs->error = GS_DIAGONAL_DIVERGED;
+
+	COPY (R0, R); /* use previous reaction and delay reaction until the end of loop */
+      }
+
+      /* accumulate relative
+       * error components */
+      SUB (R, R0, R0);
+      errup += DOT (R0, R0);
+      errlo += DOT (R, R);
+    }
+
+    /* communicate ldy->dia->R(s) into ldy->diaext->R(s);
+     * compute and communicate ldy->dia->B(s) into ldy->diaext->B(s):
+     * for blocks from ldy->dia with adjext != NULL
+     *   compute B_base = dia->B + SUM (ldy->adj, W * R)
+     *   compute B_send [CPU] = B_base + SUM (ldy->adjext, extcpu != CPU, W * R)
+     *   send B_send [CPU] to corresponding ldy->diaext->B(s) */
+
+    /* TODO: use COMALL_Pattern to communicate Rs and Bs in one go (implement it first) */
+
+    /* sum up error */
+    errloc [0] = errup, errloc [1] = errlo;
+    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    errup = errsum [0], errlo = errsum [1];
+
+    /* calculate relative error */
+    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+    if (gs->history) gs->rerhist [gs->iters] = error;
+
+    if (rank == 0 && gs->iters % div == 0 && gs->verbose) printf (fmt, gs->iters, error), div *= 2;
+  }
+  while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+
+  if (gs->verbose) printf (fmt, gs->iters, error);
+
+  /* get maximal iterations count of a diagonal block solver (this has been
+   * delayed until here to minimize small communication within the loop) */
+  int localerror = gs->error, globalerror;
+  MPI_Allreduce (&localerror, &globalerror, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+  if (globalerror != GS_OK)
+  {
+    switch ((int) gs->failure)
+    {
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      break;
+    }
+  }
+  else if (gs->iters >= gs->maxiter)
+  {
+    gs->error = GS_DIVERGED;
+
+    switch (gs->failure)
+    {
+    case GS_FAILURE_CONTINUE:
+      break;
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIVERGED);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      break;
+    }
+  }
+}
+#else /* ~PARALLEL_OVERLAP */
+
 /* a single row Gauss-Seidel step */
 static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
 {
@@ -1530,6 +1730,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   EE ();
 }
+#endif /* PARALLEL_OVERLAP */
 
 #else  /* ~MPI */
 /* run serial solver */
