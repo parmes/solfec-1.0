@@ -399,11 +399,11 @@ GRAVITY (solfec, (0, 0, -1), 10)
 
 gcore_create (0.0003, 0.0002,  0,  0,  0, bulkmat, solfec)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-2, 10, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 100, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
 OUTPUT (solfec, 0.025, compression='FASTLZ')
 
-LOCDYN_BALANCING (solfec, 'GEOM')
+LOCDYN_BALANCING (solfec, 'OFF')
 
 RUN (solfec, gs, 12.00)
 

@@ -1906,7 +1906,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 	  jtem = MAP_Insert (&mem, &sendmap, (void*) (long) ext->rank, NULL, NULL);
 	}
 
-	MAP_Insert (&mem, (MAP**) &jtem->data, (void*) (long) dia->id, dia->W, NULL);
+	MAP_Insert (&mem, (MAP**) &jtem->data, (void*) (long) dia->id, dia, NULL);
       }
     }
 
@@ -1923,15 +1923,19 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     {
       cd->rank = (int) (long) item->key;
       cd->ints = MAP_Size (item->data);
-      cd->doubles = cd->ints * 9;
+      cd->doubles = cd->ints * 16;
       ERRMEM (cd->i = malloc (sizeof (int [cd->ints])));
       ERRMEM (cd->d = malloc (sizeof (double [cd->doubles])));
       ii = cd->i;
       dd = cd->d;
-      for (jtem = MAP_First (item->data); jtem; jtem = MAP_Next (jtem), ii += 1, dd += 9)
+      for (jtem = MAP_First (item->data); jtem; jtem = MAP_Next (jtem), ii += 1, dd += 16)
       {
 	*ii = (int) (long) jtem->key;
-	NNCOPY ((double*) jtem->data, dd);
+	dia = jtem->data;
+	COPY (dia->V, &dd [0]);
+	COPY (dia->B, &dd [3]);
+	NNCOPY (dia->W, &dd [6]);
+	dd [15] = dia->rho;
       }
     }
 
@@ -1939,10 +1943,13 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
     for (cd = recv; nrecv; cd ++, nrecv --)
     {
-      for (ii = cd->i, ie = ii + cd->ints, dd = cd->d; ii < ie; ii += 1, dd += 9)
+      for (ii = cd->i, ie = ii + cd->ints, dd = cd->d; ii < ie; ii += 1, dd += 16)
       {
 	ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->diaext, (void*) (long) (*ii), NULL), "Inconsistent diagonal W block id");
-	NNCOPY (dd, dia->W)
+	COPY (&dd [0], dia->V);
+	COPY (&dd [3], dia->B);
+	NNCOPY (&dd [6], dia->W);
+	dia->rho = dd [15];
       }
     }
 

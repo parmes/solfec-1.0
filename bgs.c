@@ -561,6 +561,223 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 #if MPI
 #if PARALLEL_OVERLAP
 
+#define CLIQUES_SOLVER 1
+
+#if CLIQUES_SOLVER
+
+typedef struct clioff CLIOFF;
+typedef struct clique CLIQUE;
+
+struct clioff
+{
+  double *W;
+  double *R;
+  CLIOFF *n;
+};
+
+struct clique
+{
+  char isext;
+  DIAB *dia;
+  CLIOFF *adj;
+  CLIQUE *n;
+};
+
+static CLIQUE* clique_create (MEM *diamem, MEM *offmem, BODY *bod)
+{
+  CLIQUE *list = NULL,
+	 *cli;
+  CLIOFF *off;
+  DIAB *dia;
+  OFFB *blk;
+  int n = 0;
+
+  for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
+  {
+    CON *con = item->data;
+    dia = con->dia;
+    ERRMEM (cli = MEM_Alloc (diamem));
+    cli->isext = 0;
+    cli->dia = dia;
+    cli->n = list;
+    list = cli;
+    n ++;
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      if (blk->bod != bod) continue;
+      ERRMEM (off = MEM_Alloc (offmem));
+      off->W = blk->W;
+      off->R = blk->dia->R;
+      off->n = cli->adj;
+      cli->adj = off;
+    }
+
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      if (blk->bod != bod) continue;
+      ERRMEM (off = MEM_Alloc (offmem));
+      off->W = blk->W;
+      off->R = blk->dia->R;
+      off->n = cli->adj;
+      cli->adj = off;
+    }
+  }
+
+  for (MAP *item = MAP_First (bod->conext); item; item = MAP_Next (item))
+  {
+    CONEXT *con = item->data;
+    dia = con->dia;
+    ERRMEM (cli = MEM_Alloc (diamem));
+    cli->isext = 1;
+    cli->dia = dia;
+    cli->n = list;
+    list = cli;
+    n ++;
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      if (blk->bod != bod) continue;
+      ERRMEM (off = MEM_Alloc (offmem));
+      off->W = blk->W;
+      off->R = blk->dia->R;
+      off->n = cli->adj;
+      cli->adj = off;
+    }
+
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      if (blk->bod != bod) continue;
+      ERRMEM (off = MEM_Alloc (offmem));
+      off->W = blk->W;
+      off->R = blk->dia->R;
+      off->n = cli->adj;
+      cli->adj = off;
+    }
+  }
+
+  //printf ("BODY %d CLIQUE SIZE = %d\n", bod->id, n); //FIXME
+
+  return list;
+}
+
+static void clique_destroy (MEM *diamem, MEM *offmem, CLIQUE *cli)
+{
+  CLIOFF *off;
+  void *next;
+
+  for (; cli; cli = next)
+  {
+    for (off = cli->adj; off; off = next)
+    {
+      next = off->n;
+      MEM_Free (offmem, off);
+    }
+
+    next = cli->n;
+    MEM_Free (diamem, cli);
+  }
+}
+
+/* parallel overlapped nonlinear Gauss-Seidel */
+void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
+{
+  double errup, errlo;
+  double error, step;
+  int diagiters;
+  short dynamic;
+  char fmt [512];
+  BODY *bod;
+  CLIQUE *cli, *cur;
+  CLIOFF *blk;
+  MEM diamem,
+      offmem;
+
+  MEM_Init (&diamem, sizeof (CLIQUE), 128);
+  MEM_Init (&offmem, sizeof (CLIOFF), 128);
+
+  if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+
+  if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+
+  for (bod = DOM(ldy->dom)->bod; bod; bod = bod->next)
+  {
+    dynamic = DOM(ldy->dom)->dynamic;
+    step = DOM(ldy->dom)->step;
+    gs->error = GS_OK;
+    gs->iters = 0;
+
+    cli = clique_create (&diamem, &offmem, bod);
+
+    //printf ("BODY %d ...", bod->id);
+
+    do
+    {
+      errup = errlo = 0.0;
+
+      for (cur = cli; cur; cur = cur->n)
+      {
+	double R0 [3],
+	       B [3],
+	       *R = cur->dia->R;
+
+	/* compute local free velocity */
+	COPY (cur->dia->B, B);
+	for (blk = cur->adj; blk; blk = blk->n)
+	{
+	  double *W = blk->W,
+		 *R = blk->R;
+	  NVADDMUL (B, W, R, B);
+	}
+
+	COPY (R, R0); /* previous reaction */
+
+	/* solve local diagonal block problem */
+	if (cur->isext)
+	{
+	  CONEXT *con = cur->dia->con;
+	  diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+		     dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, cur->dia, B);
+	}
+	else
+	{
+	  CON *con = cur->dia->con;
+	  diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+		     dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, cur->dia, B);
+	}
+
+	if (diagiters > gs->diagmaxiter || diagiters < 0)
+	{
+	  if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
+	  else gs->error = GS_DIAGONAL_DIVERGED;
+
+	  COPY (R0, R); /* use previous reaction and delay reaction until the end of loop */
+	}
+
+	/* accumulate relative
+	 * error components */
+	SUB (R, R0, R0);
+	errup += DOT (R0, R0);
+	errlo += DOT (R, R);
+      }
+
+      /* calculate relative error */
+      error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+
+      if (gs->history) gs->rerhist [gs->iters] = error;
+
+      //if (rank == 0 && gs->iters % div == 0 && gs->verbose) printf (fmt, gs->iters, error), div *= 2;
+    }
+    while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+
+    //printf ("DONE in %d ITERATIONS\n", gs->iters);
+
+    clique_destroy (&diamem, &offmem, cli);
+  }
+}
+
+#else
+
 typedef struct gscommpattern GSCOMMPATTERN;
 
 struct gscommpattern
@@ -952,6 +1169,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
   }
 }
+#endif
+
 #else /* ~PARALLEL_OVERLAP */
 
 /* a single row Gauss-Seidel step */
