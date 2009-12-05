@@ -98,7 +98,7 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallbac
 
 gs.variant = 'MID_LOOP'
 
-LOCDYN_BALANCING (solfec, 'GRAPH')
+LOCDYN_BALANCING (solfec, 'OFF')
 
 RUN (solfec, gs, 10 * step)
 

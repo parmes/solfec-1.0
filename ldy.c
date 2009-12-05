@@ -821,6 +821,10 @@ static void locdyn_adjext (LOCDYN *ldy)
   {
     dia = ext->dia;
 
+    bod = ext->bod;
+
+    if (bod->kind == OBS) continue; /* obstacles do not trasnder adjacency */
+
     for (jtem = MAP_First (bod->conext); jtem; jtem = MAP_Next (jtem)) /* for each external constraint */
     {
       exq = jtem->data;
