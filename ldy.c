@@ -784,7 +784,6 @@ static void locdyn_adjext (LOCDYN *ldy)
   for (ext = DOM(ldy->dom)->conext; ext; ext = ext->next) /* for each external constraint in the domain */
   {
     ERRMEM (dia = MEM_Alloc (&ldy->diamem));
-    ERRMEM (dia->condata = MEM_Alloc (&ldy->conmem));
     ext->dia = dia;
     dia->con = ext;
     dia->R = CONEXT(ext)->R;
@@ -816,6 +815,11 @@ static void locdyn_adjext (LOCDYN *ldy)
       c->n = dia->adj;
       dia->adj = c;
     }
+  }
+
+  for (ext = DOM(ldy->dom)->conext; ext; ext = ext->next) /* for each external constraint in the domain */
+  {
+    dia = ext->dia;
 
     for (jtem = MAP_First (bod->conext); jtem; jtem = MAP_Next (jtem)) /* for each external constraint */
     {
@@ -835,6 +839,7 @@ static void locdyn_adjext (LOCDYN *ldy)
       c->SYMW = b->W;
       c->dia = exq->dia;
       c->bod = bod;
+      c->ext = exq;
       c->n = dia->adjext;
       dia->adjext = c;
     }
@@ -1425,6 +1430,8 @@ static void create_mpi (LOCDYN *ldy)
   ldy->ldb_new = ldy->ldb;
   ldy->nexpdia = -1; /* notify that first partitioning is needed */
   ldy->imbalance_tolerance = 1.3;
+
+  ldy->diaext = NULL;
 }
 
 /* destroy MPI related data */
@@ -1899,7 +1906,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
       }
     }
 
-    COMDATA *send, *recv, *cur;
+    COMDATA *send, *recv, *cd;
     int nsend, nrecv;
     int *ii, *ie;
     double *dd;
@@ -1908,16 +1915,16 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     if (nsend) { ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend]))); }
     else send = NULL;
 
-    for (item = MAP_First (sendmap), cur = send; item; item = MAP_Next (item), cur ++)
+    for (item = MAP_First (sendmap), cd = send; item; item = MAP_Next (item), cd ++)
     {
-      cur->rank = (int) (long) item->key;
-      cur->ints = MAP_Size ((MAP*) item->data);
-      cur->doubles = cur->ints * 9;
-      ERRMEM (cur->i = malloc (sizeof (int [cur->ints])));
-      ERRMEM (cur->d = malloc (sizeof (double [cur->doubles])));
-      ii = cur->i;
-      dd = cur->d;
-      for (jtem = MAP_First ((MAP*) item->data); jtem; jtem = MAP_Next (jtem), ii += 1, dd += 9)
+      cd->rank = (int) (long) item->key;
+      cd->ints = MAP_Size (item->data);
+      cd->doubles = cd->ints * 9;
+      ERRMEM (cd->i = malloc (sizeof (int [cd->ints])));
+      ERRMEM (cd->d = malloc (sizeof (double [cd->doubles])));
+      ii = cd->i;
+      dd = cd->d;
+      for (jtem = MAP_First (item->data); jtem; jtem = MAP_Next (jtem), ii += 1, dd += 9)
       {
 	*ii = (int) (long) jtem->key;
 	NNCOPY ((double*) jtem->data, dd);
@@ -1926,9 +1933,9 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
     COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
 
-    for (cur = recv; nrecv; cur ++, nrecv --)
+    for (cd = recv; nrecv; cd ++, nrecv --)
     {
-      for (ii = cur->i, ie = ii + cur->ints, dd = cur->d; ii < ie; ii += 1, dd += 9)
+      for (ii = cd->i, ie = ii + cd->ints, dd = cd->d; ii < ie; ii += 1, dd += 9)
       {
 	ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->diaext, (void*) (long) (*ii), NULL), "Inconsistent diagonal W block id");
 	NNCOPY (dd, dia->W)
@@ -1936,7 +1943,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     }
 
     MEM_Release (&mem);
-    for (cur = send; nsend; cur ++, nsend --) { free (cur->i); free (cur->d); }
+    for (cd = send; nsend; cd ++, nsend --) { free (cd->i); free (cd->d); }
     free (send);
     free (recv);
 

@@ -1179,8 +1179,10 @@ static void conext_remove_all (DOM *dom)
 /* insert an external constraint */
 static void conext_insert (DOM *dom, int rank, CONEXT *ext)
 {
+#if !PARALLEL_OVERLAP
   /* set child rank */
   ext->rank = rank;
+#endif
 
   /* append list */
   ext->next = dom->conext;
@@ -1216,6 +1218,8 @@ static CONEXT* conext_create (DOM *dom, CON *con, BODY *bod)
   }
 
 #if PARALLEL_OVERLAP
+  ext->rank = dom->rank;
+
   for (int i = 0; i < DOM_Z_SIZE; i ++) ext->Z[i] = con->Z[i];
 
   ext->gap = con->gap;
@@ -1240,6 +1244,7 @@ static void conext_pack (CONEXT *ext, int *dsize, double **d, int *doubles, int 
   pack_int (isize, i, ints, ext->sgp - ext->bod->sgp);
 
 #if PARALLEL_OVERLAP
+  pack_int (isize, i, ints, ext->rank);
   pack_doubles (dsize, d, doubles, ext->Z, DOM_Z_SIZE);
   pack_double (dsize, d, doubles, ext->gap);
   pack_int (isize, i, ints, ext->kind);
@@ -1263,6 +1268,7 @@ CONEXT* conext_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, i
   ext->sgp = (SGP*) (long) unpack_int (ipos, i, ints);
 
 #if PARALLEL_OVERLAP
+  ext->rank = unpack_int (ipos, i, ints);
   unpack_doubles (dpos, d, doubles, ext->Z, DOM_Z_SIZE);
   ext->gap = unpack_double (dpos, d, doubles);
   ext->kind = unpack_int (ipos, i, ints);

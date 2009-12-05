@@ -560,10 +560,213 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 
 #if MPI
 #if PARALLEL_OVERLAP
+
+typedef struct gscommpattern GSCOMMPATTERN;
+
+struct gscommpattern
+{
+  COMDATA *send, *recv; /* send and receive data */
+
+  int nsend, nrecv; /* send and receive counts */
+
+  void *pattern; /* COMALL_Pattern data */
+
+  MAP *diamap; /* DIAB* to MAPs of ranks to 'send' data double storage offsets */
+
+  MEM mapmem; /* map items memory */
+};
+
+/* create communication pattern */
+static GSCOMMPATTERN* commpattern (LOCDYN *ldy)
+{
+  GSCOMMPATTERN *pattern;
+  MAP *item, *jtem;
+  COMDATA *cd;
+  DIAB *dia;
+  OFFB *blk;
+  int ncpu,
+      rank,
+      i;
+
+  ncpu = DOM(ldy->dom)->ncpu;
+  rank = DOM(ldy->dom)->rank;
+  ERRMEM (pattern = malloc (sizeof (GSCOMMPATTERN)));
+  ERRMEM (pattern->send = malloc (sizeof (COMDATA) * (ncpu - 1)));
+  pattern->recv = NULL;
+  pattern->nsend = ncpu - 1;
+  pattern->nrecv = 0;
+  pattern->diamap = NULL;
+  MEM_Init (&pattern->mapmem, sizeof (MAP), 128);
+
+  /* initialize send data */
+  for (i = 0, cd = pattern->send; i < ncpu; i ++)
+  {
+    if (i == rank) continue;
+
+    cd->rank = i;
+    cd->ints = 0;
+    cd->doubles = 2; /* errup and errlo go first */
+    cd->i = NULL;
+    cd->d = NULL;
+    cd ++;
+  }
+
+  /* compute send data mapping */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    if (dia->adjext) item = MAP_Insert (&pattern->mapmem, &pattern->diamap, dia, NULL, NULL);
+
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      CONEXT *ext = blk->ext;
+
+      if (MAP_Insert (&pattern->mapmem, (MAP**) &item->data, (void*) (long) ext->rank,
+	             (void*) (long) pattern->send [ext->rank].doubles, NULL))
+      {
+	pattern->send [ext->rank].doubles += 6; /* B, R */
+	pattern->send [ext->rank].ints += 1; /* id */
+      }
+    }
+  }
+
+  /* allocate send storage */
+  for (i = 0, cd = pattern->send; i < pattern->nsend; i ++, cd ++)
+  {
+    ERRMEM (cd->i = malloc (cd->ints * sizeof (int)));
+    ERRMEM (cd->d = malloc (cd->doubles * sizeof (double)));
+
+    cd->ints = 0; /* zero it temporarily (see [#] below) */
+  }
+
+  /* create all to all communication pattern */
+  pattern->pattern = COMALL_Pattern (MPI_COMM_WORLD, pattern->send, pattern->nsend, &pattern->recv, &pattern->nrecv);
+
+  /* set up send->i to id values */
+  for (item = MAP_First (pattern->diamap); item; item = MAP_Next (item))
+  {
+    dia = item->key;
+
+    for (jtem = MAP_First (item->data); jtem; jtem = MAP_Next (jtem))
+    {
+      i = (int) (long) jtem->key;
+      cd = &pattern->send [i];
+      cd->i [cd->ints] = dia->id;
+      cd->ints ++; /* [#] */
+    }
+  }
+
+  return pattern;
+}
+
+/* compute/communicate B(s), R(s) and sum up error components
+ * ----------------------------------------------------------------
+ * communicate ldy->dia->R(s) into ldy->diaext->R(s);
+ * sum up errup and errlo from all cpus;
+ * compute and communicate ldy->dia->B(s) into ldy->diaext->B(s):
+ * for blocks from ldy->dia with adjext != NULL
+ *   compute B_base = dia->B + SUM (ldy->adj, W * R)
+ *   compute B_send [CPU] = B_base + SUM (ldy->adjext, extcpu != CPU, W * R)
+ *   send B_send [CPU] to corresponding ldy->diaext->B(s) */
+static void commdo (GSCOMMPATTERN *pattern, LOCDYN *ldy, double *errup, double *errlo)
+{
+  double B_base [3], *B, *R;
+  int rank, i, *j, *k;
+  MAP *item, *jtem;
+  COMDATA *cd;
+  DIAB *dia;
+  OFFB *blk;
+
+  /* load errup and errlo */
+  for (i = 0, cd = pattern->send; i < pattern->nsend; i ++, cd ++)
+  {
+    cd->d [0] = *errup;
+    cd->d [1] = *errlo;
+  }
+
+  /* for each exported diagonal block */
+  for (item = MAP_First (pattern->diamap); item; item = MAP_Next (item)) 
+  {
+    dia = item->key;
+
+    COPY (dia->B, B_base);
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      double *W = blk->W,
+	     *R = blk->dia->R;
+      NVADDMUL (B_base, W, R, B_base); /* sum up B_base */
+    }
+
+    /* for each rank to which the 'dia' block is exported */
+    for (jtem = MAP_First (item->data); jtem; jtem = MAP_Next (jtem))
+    {
+      rank = (int) (long) jtem->key;
+      i = (int) (long) jtem->data;
+      B = &pattern->send [rank].d [i]; /* get corresponding B and R send storage */
+      R = B + 3;
+
+      COPY (dia->R, R); /* copy current R value */
+      COPY (B_base, B); /* copy B_base into B and */
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	CONEXT *ext = blk->ext;
+
+	if (ext->rank != rank) /* while avoiding terms from the receiver own rank */
+	{
+	  double *W = blk->W,
+		 *R = blk->dia->R;
+	  NVADDMUL (B, W, R, B); /* sum up the remaining B components */
+	}
+      }
+    }
+  }
+
+  COMALL_Repeat (pattern->pattern); /* communicate data */
+
+  /* for each received rank data */
+  for (i = 0, cd = pattern->recv; i < pattern->nrecv; i ++, cd ++)
+  {
+    *errup += cd->d [0]; /* sum up errup */
+    *errlo += cd->d [1]; /* and errlo */
+
+    for (j = cd->i, k = j + cd->ints, B = &cd->d [2]; j < k; j ++, B += 6) /* for each received block data */
+    {
+      R = B + 3;
+      ASSERT_DEBUG_EXT (dia = MAP_Find (ldy->diaext, (void*) (long) (*j), NULL), "Invalid external block id"); /* find external block */
+      COPY (B, dia->B); /* and copy received data */
+      COPY (R, dia->R);
+    }
+  }
+}
+
+/* release communication pattern memory */
+static void commdone (GSCOMMPATTERN *pattern)
+{
+  COMDATA *cd;
+  int i;
+
+  for (i = 0, cd = pattern->send; i < pattern->nsend; i ++, cd ++)
+  {
+    free (cd->i);
+    free (cd->d);
+  }
+
+  free (pattern->send);
+  free (pattern->recv);
+
+  COMALL_Free (pattern->pattern);
+
+  MEM_Release (&pattern->mapmem);
+
+  free (pattern);
+}
+
+/* parallel overlapped nonlinear Gauss-Seidel */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
+  GSCOMMPATTERN *pattern;
   MAP* (*FIRST) (MAP*);
   MAP* (*NEXT) (MAP*);
+  double errup, errlo;
   int diagiters, rank;
   double error, step;
   DIAB *end = NULL;
@@ -589,14 +792,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     NEXT = MAP_Prev;
   }
 
- /* INITIAL compute and communicate ldy->dia->B(s) into ldy->diaext->B(s):
-  * for blocks from ldy->dia with adjext != NULL
-  *   compute B_base = dia->B + SUM (ldy->adj, W * R)
-  *   compute B_send [CPU] = B_base + SUM (ldy->adjext, extcpu != CPU, W * R)
-  *   send B_send [CPU] to corresponding ldy->diaext->B(s) */
-
- /* TODO: use COMALL_Pattern (implement it first) */
-
+  pattern = commpattern (ldy); /* create communication pattern */
+  commdo (pattern, ldy, &errup, &errlo); /* and initially compute/communicate B(s) */
   rank = DOM(ldy->dom)->rank;
   dynamic = DOM(ldy->dom)->dynamic;
   step = DOM(ldy->dom)->step;
@@ -604,12 +801,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   gs->iters = 0;
   do
   {
-    double errup = 0.0,
-	   errlo = 0.0,
-	   errloc [2],
-	   errsum [2];
     OFFB *blk;
     DIAB *dia;
+
+    errup = errlo = 0.0;
 
     for (item = FIRST (ldy->diaext); item; item = NEXT (item)) /* external blocks */
     {
@@ -637,7 +832,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       COPY (R, R0); /* previous reaction */
 
       /* solve local diagonal block problem */
-      CON *con = dia->con;
+      CONEXT *con = dia->con;
       diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
 	         dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
 
@@ -699,22 +894,12 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       errlo += DOT (R, R);
     }
 
-    /* communicate ldy->dia->R(s) into ldy->diaext->R(s);
-     * compute and communicate ldy->dia->B(s) into ldy->diaext->B(s):
-     * for blocks from ldy->dia with adjext != NULL
-     *   compute B_base = dia->B + SUM (ldy->adj, W * R)
-     *   compute B_send [CPU] = B_base + SUM (ldy->adjext, extcpu != CPU, W * R)
-     *   send B_send [CPU] to corresponding ldy->diaext->B(s) */
-
-    /* TODO: use COMALL_Pattern to communicate Rs and Bs in one go (implement it first) */
-
-    /* sum up error */
-    errloc [0] = errup, errloc [1] = errlo;
-    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    errup = errsum [0], errlo = errsum [1];
+    /* compute/communicate B(s), R(s) and sum up error components */
+    commdo (pattern, ldy, &errup, &errlo);
 
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+
     if (gs->history) gs->rerhist [gs->iters] = error;
 
     if (rank == 0 && gs->iters % div == 0 && gs->verbose) printf (fmt, gs->iters, error), div *= 2;
@@ -722,6 +907,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
   if (gs->verbose) printf (fmt, gs->iters, error);
+
+  commdone (pattern); /* release communication pattern */
 
   /* get maximal iterations count of a diagonal block solver (this has been
    * delayed until here to minimize small communication within the loop) */

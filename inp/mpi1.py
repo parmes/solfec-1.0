@@ -1,6 +1,6 @@
 # stack of cubes example (CONVEX and PSEUDO_RIGID)
 
-N = 20
+N = 4
 
 def cube (x, y, z, a, b, c, sur, vol):
 
