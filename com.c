@@ -34,7 +34,7 @@
 
 typedef struct compattern COMPATTERN;
 
-/* integer and doubles
+/* integer and doubles point to point
  * communication pattern */
 struct compattern
 {
@@ -58,6 +58,36 @@ struct compattern
 
   MPI_Request *reqs; /* for sending */
   MPI_Status *stas; /* for sending */
+
+  COMDATA *send,
+	  *recv;
+
+  int nsend,
+      nrecv;
+};
+
+typedef struct comallpattern COMALLPATTERN;
+
+/* integer and doubles all to all
+ * communication pattern */
+struct comallpattern
+{
+  MPI_Comm comm; 
+
+  int ncpu,
+    (*send_sizes) [3],
+     *send_counts,
+     *send_disps,
+     *send_position,
+      send_size,
+    (*recv_sizes) [3],
+     *recv_counts,
+     *recv_disps,
+     *recv_position,
+      recv_size;
+
+  char *send_data,
+       *recv_data;
 
   COMDATA *send,
 	  *recv;
@@ -344,7 +374,7 @@ void COMALL (MPI_Comm comm,
   ERRMEM (recv_position = MEM_CALLOC (ncpu * sizeof (int)));
 
   /* distribute send sizes into receive sizes */
-  MPI_Alltoall (send_sizes, 3, MPI_INT, recv_sizes, 3, MPI_INT, MPI_COMM_WORLD);
+  MPI_Alltoall (send_sizes, 3, MPI_INT, recv_sizes, 3, MPI_INT, comm);
 
   /* compute receive displacements */
   for (recv_size = i = 0; i < ncpu; i ++)
@@ -359,9 +389,7 @@ void COMALL (MPI_Comm comm,
   ERRMEM (recv_data = malloc (recv_size));
 
   /* all to all send and receive */
-  MPI_Alltoallv (send_data, send_counts, send_disps, MPI_PACKED,
-                 recv_data, recv_counts, recv_disps, MPI_PACKED,
-		 MPI_COMM_WORLD);
+  MPI_Alltoallv (send_data, send_counts, send_disps, MPI_PACKED, recv_data, recv_counts, recv_disps, MPI_PACKED, comm);
 
   if (recv_size)
   {
@@ -397,7 +425,6 @@ void COMALL (MPI_Comm comm,
     {
       if (recv_counts [i])
       {
-	recv_counts [*nrecv] = recv_counts [i];
 	(*recv) [*nrecv] = (*recv) [i];
 	(*nrecv) ++;
       }
@@ -895,7 +922,7 @@ void COM_Recv (void *pattern)
   }
 }
 
-/* free communication pattern */
+/* free point to point communication pattern */
 void COM_Free (void *pattern)
 {
   COMPATTERN *cp = pattern;
@@ -919,4 +946,185 @@ void COM_Free (void *pattern)
   free (cp->stas);
 
   free (pattern);
+}
+
+/* create a repetitive all to all communication pattern;
+ * ranks and sizes must not change during the communication;
+ * pointers to send and receive buffers data must not change */
+void* COMALL_Pattern (MPI_Comm comm,
+                      COMDATA *send, int nsend,
+	              COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+{
+  COMALLPATTERN *pattern;
+  COMDATA *cd;
+  int rank,
+      ncpu,
+      i, j, k;
+  void *p;
+
+  MPI_Comm_rank (comm, &rank);
+  MPI_Comm_size (comm, &ncpu);
+
+  ERRMEM (pattern = MEM_CALLOC (sizeof (COMALLPATTERN)));
+  ERRMEM (pattern->send_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
+  ERRMEM (pattern->send_counts = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (pattern->send_disps = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (pattern->send_position = MEM_CALLOC (ncpu * sizeof (int)));
+
+  pattern->ncpu = ncpu;
+  pattern->comm = comm;
+  pattern->send = send;
+  pattern->nsend = nsend;
+
+  /* compute send sizes */
+  for (i = 0, cd = send; i < nsend; i ++, cd ++)
+  {
+    pattern->send_sizes [cd->rank][0] += cd->ints;
+    pattern->send_sizes [cd->rank][1] += cd->doubles;
+    MPI_Pack_size (cd->ints, MPI_INT, comm, &j);
+    MPI_Pack_size (cd->doubles, MPI_DOUBLE, comm, &k);
+    pattern->send_sizes [cd->rank][2] += (j + k);
+  }
+
+  /* compute send displacements */
+  for (pattern->send_size = i = 0; i < ncpu; i ++)
+  {
+    pattern->send_counts [i] = pattern->send_sizes [i][2];
+    pattern->send_size += pattern->send_counts [i];
+    if (i < (ncpu - 1)) pattern->send_disps [i+1] = pattern->send_size;
+  }
+  pattern->send_disps [0] = 0;
+
+  /* allocate send buffer */
+  ERRMEM (pattern->send_data = malloc (pattern->send_size));
+
+  ERRMEM (pattern->recv_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
+  ERRMEM (pattern->recv_counts = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (pattern->recv_disps = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (pattern->recv_position = MEM_CALLOC (ncpu * sizeof (int)));
+
+  /* distribute send sizes into receive sizes */
+  MPI_Alltoall (pattern->send_sizes, 3, MPI_INT, pattern->recv_sizes, 3, MPI_INT, comm);
+
+  /* compute receive displacements */
+  for (pattern->recv_size = i = 0; i < ncpu; i ++)
+  {
+    pattern->recv_counts [i] = pattern->recv_sizes [i][2];
+    pattern->recv_size += pattern->recv_counts [i];
+    if (i < (ncpu - 1)) pattern->recv_disps [i+1] = pattern->recv_size;
+  }
+  pattern->recv_disps [0] = 0;
+
+  /* allocate receive buffer */
+  ERRMEM (pattern->recv_data = malloc (pattern->recv_size));
+
+  if (pattern->recv_size)
+  {
+    /* contiguous receive size */
+    j = ncpu * sizeof (COMDATA);
+    for (i = 0; i < ncpu; i ++)
+    {
+      j += pattern->recv_sizes [i][0] * sizeof (int) + 
+	   pattern->recv_sizes [i][1] * sizeof (double);
+    }
+
+    /* prepare output receive data */
+    ERRMEM (pattern->recv = malloc (j));
+    ERRMEM ((*recv) = malloc (j));
+    p = (*recv) + ncpu;
+    for (i = 0, cd = *recv; i < ncpu; i ++, cd ++)
+    {
+      cd->rank = i;
+      cd->ints = pattern->recv_sizes [i][0];
+      cd->doubles = pattern->recv_sizes [i][1];
+      cd->i = p; p = (cd->i + cd->ints);
+      cd->d = p; p = (cd->d + cd->doubles);
+      pattern->recv [i] = *cd;
+    }
+
+    /* compress receive storage */
+    for (*nrecv = i = 0; i < ncpu; i ++)
+    {
+      if (pattern->recv_counts [i])
+      {
+	(*recv) [*nrecv] = (*recv) [i];
+	(*nrecv) ++;
+      }
+    }
+  }
+  else
+  {
+    *recv = NULL;
+    *nrecv = 0;
+  }
+
+  return pattern;
+}
+
+/* communicate integers and doubles accodring
+ * to the pattern computed by COMALL_Pattern */
+void COMALL_Repeat (void *pattern)
+{
+  COMALLPATTERN *pp = pattern;
+  COMDATA *cd;
+  int i;
+
+  for (i = 0; i < pp->ncpu; i ++) pp->send_position [i] = pp->recv_position [i] = 0;
+
+  /* pack ints */
+  for (i = 0, cd = pp->send; i < pp->nsend; i ++, cd ++)
+  {
+    if (cd->ints)
+    {
+      MPI_Pack (cd->i, cd->ints, MPI_INT, &pp->send_data [pp->send_disps [cd->rank]], pp->send_counts [cd->rank], &pp->send_position [cd->rank], pp->comm);
+    }
+  }
+
+  /* pack doubles */
+  for (i = 0, cd = pp->send; i < pp->nsend; i ++, cd ++)
+  {
+    if (cd->doubles)
+    {
+      MPI_Pack (cd->d, cd->doubles, MPI_DOUBLE, &pp->send_data [pp->send_disps [cd->rank]], pp->send_counts [cd->rank], &pp->send_position [cd->rank], pp->comm); 
+    }
+  }
+
+#if DEBUG
+  for (i = 0; i < pp->ncpu; i ++)
+  {
+    ASSERT_DEBUG (pp->send_position [i] <= pp->send_counts [i], "Incorrect packing");
+  }
+#endif
+
+  /* all to all send and receive */
+  MPI_Alltoallv (pp->send_data, pp->send_counts, pp->send_disps, MPI_PACKED, pp->recv_data, pp->recv_counts, pp->recv_disps, MPI_PACKED, pp->comm);
+
+  if (pp->recv_size)
+  {
+    /* unpack data */
+    for (i = 0; i < pp->ncpu; i ++)
+    {
+      MPI_Unpack (&pp->recv_data [pp->recv_disps [i]], pp->recv_counts [i], &pp->recv_position [i], pp->recv [i].i, pp->recv [i].ints, MPI_INT, pp->comm);
+      MPI_Unpack (&pp->recv_data [pp->recv_disps [i]], pp->recv_counts [i], &pp->recv_position [i], pp->recv [i].d, pp->recv [i].doubles, MPI_DOUBLE, pp->comm);
+    }
+  }
+}
+
+/* free all to all communication pattern */
+void COMALL_Free (void *pattern)
+{
+  COMALLPATTERN *pp = pattern;
+
+  free (pp->send_sizes);
+  free (pp->send_counts);
+  free (pp->send_disps);
+  free (pp->send_position);
+  free (pp->recv_sizes);
+  free (pp->recv_counts);
+  free (pp->recv_disps);
+  free (pp->recv_position);
+  free (pp->send_data);
+  free (pp->recv_data);
+  free (pp->recv);
+  free (pp);
 }

@@ -82,7 +82,7 @@ static int test_simple (int comall)
   return 1;
 }
 
-static int test_pattern ()
+static int test_pattern (int comall)
 {
   const int isize = 32,
 	    dsize = 64,
@@ -108,7 +108,8 @@ static int test_pattern ()
     send[k].d = d;
   }
 
-  pattern = COM_Pattern (MPI_COMM_WORLD, 0, send, nsend, &recv, &nrecv);
+  if (comall) pattern = COMALL_Pattern (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+  else pattern = COM_Pattern (MPI_COMM_WORLD, 0, send, nsend, &recv, &nrecv);
 
   for (m = 0; m < nrep; m ++)
   {
@@ -116,7 +117,8 @@ static int test_pattern ()
 
     for (k = 0; k < dsize; k ++) d[k] = RANK + m;
 
-    COM_Repeat (pattern);
+    if (comall) COMALL_Repeat (pattern);
+    else COM_Repeat (pattern);
 
     for (k = 0; k < nrecv; k ++)
     {
@@ -128,7 +130,8 @@ static int test_pattern ()
     }
   }
 
-  COM_Free (pattern);
+  if (comall) COMALL_Free (pattern);
+  else COM_Free (pattern);
 
   free (recv);
 
@@ -249,7 +252,7 @@ int main (int argc, char **argv)
   if (test_simple (0)) printf ("Rank %d of %d COM OK\n", RANK, SIZE);
   else printf ("Rank %d of %d COM FAILED\n", RANK, SIZE);
 
-  if (test_pattern ()) printf ("Rank %d of %d COM_Pattern OK\n", RANK, SIZE);
+  if (test_pattern (0)) printf ("Rank %d of %d COM_Pattern OK\n", RANK, SIZE);
   else printf ("Rank %d of %d COM_Pattern FAILED\n", RANK, SIZE);
 
   if (test_object ()) printf ("Rank %d of %d COMOBJ OK\n", RANK, SIZE);
@@ -257,6 +260,9 @@ int main (int argc, char **argv)
 
   if (test_simple (1)) printf ("Rank %d of %d COMALL OK\n", RANK, SIZE);
   else printf ("Rank %d of %d COMALL FAILED\n", RANK, SIZE);
+
+  if (test_pattern (1)) printf ("Rank %d of %d COMALL_Pattern OK\n", RANK, SIZE);
+  else printf ("Rank %d of %d COMALL_Pattern FAILED\n", RANK, SIZE);
 
   if (test_objall ()) printf ("Rank %d of %d COMOBJALL OK\n", RANK, SIZE);
   else printf ("Rank %d of %d COMOBJALL FAILED\n", RANK, SIZE);
