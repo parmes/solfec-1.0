@@ -722,7 +722,7 @@ static void ldb_reset (LOCDYN *ldy)
   ldy->nexpdia = -1;
 }
 
-#if PARALLEL_OVERLAP
+#if CLIQUES
 /* clear adjacency of a block */
 static void clear_adj (LOCDYN *ldy, DIAB *dia)
 {
@@ -764,7 +764,7 @@ static void locdyn_adjext (LOCDYN *ldy)
 
   for (dia = ldy->dia; dia; dia = dia->n) clear_adjext (ldy, dia);
 
-#if PARALLEL_OVERLAP
+#if CLIQUES
   CONEXT *exq;
   DIAB *next;
   OFFB *c;
@@ -1885,28 +1885,36 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
       }
     }
 
-#if MPI && PARALLEL_OVERLAP
+#if MPI && CLIQUES
     /* communicate assembled diagonal W blocks from contacts
      * involving child bodies to the external ldy->diaext blocks */
     MAP *item, *jtem;
     MAP *sendmap; /* rank-map of id-maps of W blocks */
     MEM mem;
+    int k;
 
     MEM_Init (&mem, sizeof (MAP), 256);
     sendmap = NULL;
 
     for (dia = ldy->dia; dia; dia = dia->n)
     {
-      for (blk = dia->adjext; blk; blk = blk->n)
+      CON *con = dia->con;
+      BODY *bod [] = {con->master, con->slave};
+
+      for (k = 0; k < 2; k ++)
       {
-        CONEXT *ext = blk->ext;
-
-	if (!(jtem = MAP_Find_Node (sendmap, (void*) (long) ext->rank, NULL)))
+	if (bod [k])
 	{
-	  jtem = MAP_Insert (&mem, &sendmap, (void*) (long) ext->rank, NULL, NULL);
-	}
+	  if (bod [k]->flags & BODY_CHILD)
+	  {
+	    if (!(jtem = MAP_Find_Node (sendmap, (void*) (long) bod [k]->my.parent, NULL)))
+	    {
+	      jtem = MAP_Insert (&mem, &sendmap, (void*) (long) bod [k]->my.parent, NULL, NULL);
+	    }
 
-	MAP_Insert (&mem, (MAP**) &jtem->data, (void*) (long) dia->id, dia, NULL);
+	    MAP_Insert (&mem, (MAP**) &jtem->data, (void*) (long) dia->id, dia, NULL);
+	  }
+	}
       }
     }
 

@@ -115,7 +115,7 @@ struct conext
 
   int rank; /* child rank */
 
-#if PARALLEL_OVERLAP
+#if CLIQUES
   double Z [DOM_Z_SIZE],
 	 gap;
 
