@@ -102,7 +102,21 @@ void COM_Send (void *pattern);
 /* blocking receive */
 void COM_Recv (void *pattern);
 
-/* free communication pattern */
+/* free point to point communication pattern */
 void COM_Free (void *pattern);
+
+/* create a repetitive all to all communication pattern;
+ * ranks and sizes must not change during the communication;
+ * pointers to send and receive buffers data must not change */
+void* COMALL_Pattern (MPI_Comm comm,
+                      COMDATA *send, int nsend,
+	              COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+
+/* communicate integers and doubles accodring
+ * to the pattern computed by COMALL_Pattern */
+void COMALL_Repeat (void *pattern);
+
+/* free all to all communication pattern */
+void COMALL_Free (void *pattern);
 
 #endif
