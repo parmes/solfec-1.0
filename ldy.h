@@ -30,7 +30,7 @@
 #ifndef __ldy__
 #define __ldy__
 
-#define PARALLEL_OVERLAP    1      /* implement parallel overlap of local dynamics (testing, might replace current approach) */
+#define CLIQUES             1      /* implement cliques (testing, might replace current approach) */
 
 #define DOM_Z_SIZE          4      /* size of auxiliary storage in dom.h/constraint */
 
@@ -183,7 +183,7 @@ struct locdyn
 
   int nexpdia; /* number of exported rows */
 
-#if PARALLEL_OVERLAP
+#if CLIQUES
   MAP *diaext; /* external diagonal blocks id-map */
 #endif
 

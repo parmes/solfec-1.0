@@ -1166,7 +1166,7 @@ static void conext_remove_all (DOM *dom)
   {
     if (ext->bod && ext->bod->conext) MAP_Free (&dom->mapmem, &ext->bod->conext);
 
-#if PARALLEL_OVERLAP
+#if CLIQUES
     if (ext->kind == CONTACT) SURFACE_MATERIAL_Destroy_State (&ext->mat);
 #endif
   }
@@ -1179,10 +1179,8 @@ static void conext_remove_all (DOM *dom)
 /* insert an external constraint */
 static void conext_insert (DOM *dom, int rank, CONEXT *ext)
 {
-#if !PARALLEL_OVERLAP
   /* set child rank */
   ext->rank = rank;
-#endif
 
   /* append list */
   ext->next = dom->conext;
@@ -1217,9 +1215,7 @@ static CONEXT* conext_create (DOM *dom, CON *con, BODY *bod)
     COPY (con->spnt, ext->point);
   }
 
-#if PARALLEL_OVERLAP
-  ext->rank = dom->rank;
-
+#if CLIQUES
   for (int i = 0; i < DOM_Z_SIZE; i ++) ext->Z[i] = con->Z[i];
 
   ext->gap = con->gap;
@@ -1243,8 +1239,7 @@ static void conext_pack (CONEXT *ext, int *dsize, double **d, int *doubles, int 
   pack_int (isize, i, ints, ext->isma);
   pack_int (isize, i, ints, ext->sgp - ext->bod->sgp);
 
-#if PARALLEL_OVERLAP
-  pack_int (isize, i, ints, ext->rank);
+#if CLIQUES
   pack_doubles (dsize, d, doubles, ext->Z, DOM_Z_SIZE);
   pack_double (dsize, d, doubles, ext->gap);
   pack_int (isize, i, ints, ext->kind);
@@ -1267,8 +1262,7 @@ CONEXT* conext_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, i
   ext->isma = unpack_int (ipos, i, ints);
   ext->sgp = (SGP*) (long) unpack_int (ipos, i, ints);
 
-#if PARALLEL_OVERLAP
-  ext->rank = unpack_int (ipos, i, ints);
+#if CLIQUES
   unpack_doubles (dpos, d, doubles, ext->Z, DOM_Z_SIZE);
   ext->gap = unpack_double (dpos, d, doubles);
   ext->kind = unpack_int (ipos, i, ints);
@@ -1307,9 +1301,6 @@ static void domain_glue_begin (DOM *dom)
 {
   COMOBJ *send, *recv, *ptr;
   int k, size, nsend, nrecv;
-  SET *item, *jtem, *del;
-  CONEXT *ext;
-  BODY *bod;
   CON *con;
 
   /* Remove all currrently stored external constraints */
@@ -1347,6 +1338,13 @@ static void domain_glue_begin (DOM *dom)
   /* Clean up */
   for (k = 0, ptr = send; k < nsend; k ++, ptr ++) MEM_Free (&dom->extmem, ptr->o);
   free (recv);
+
+#if CLIQUES
+  free (send);
+#else
+  SET *item, *jtem, *del;
+  CONEXT *ext;
+  BODY *bod;
 
   /* Now parent bodies contain complete sets of adjacent constraints;
    * send those sets back to children, ommiting their own constraints */
@@ -1386,6 +1384,7 @@ static void domain_glue_begin (DOM *dom)
   for (item = SET_First (del); item; item = SET_Next (item)) MEM_Free (&dom->extmem, item->data);
   free (send);
   free (recv);
+#endif
 }
 
 /* update external constraint reactions */
