@@ -2866,56 +2866,6 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_history (lng_GAUSS_SEIDEL_SOLVER *self, P
   return 0;
 }
 
-static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_variant (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
-{
-  return PyString_FromString (GAUSS_SEIDEL_Variant (self->gs));
-}
-
-static int lng_GAUSS_SEIDEL_SOLVER_set_variant (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_string (value, "variant")) return -1;
-
-  IFIS (value, "MID_LOOP")
-  {
-    self->gs->variant = GS_MID_LOOP;
-  }
-  ELIF (value, "MID_THREAD")
-  {
-    self->gs->variant = GS_MID_THREAD;
-  }
-  ELIF (value, "MID_TO_ALL")
-  {
-    self->gs->variant = GS_MID_TO_ALL;
-  }
-  ELIF (value, "MID_TO_ONE")
-  {
-    self->gs->variant = GS_MID_TO_ONE;
-  }
-  ELIF (value, "NOB_MID_LOOP")
-  {
-    self->gs->variant = GS_NOB_MID_LOOP;
-  }
-  ELIF (value, "NOB_MID_THREAD")
-  {
-    self->gs->variant = GS_NOB_MID_THREAD;
-  }
-  ELIF (value, "NOB_MID_TO_ALL")
-  {
-    self->gs->variant = GS_NOB_MID_TO_ALL;
-  }
-  ELIF (value, "NOB_MID_TO_ONE")
-  {
-    self->gs->variant = GS_NOB_MID_TO_ONE;
-  }
-  ELSE
-  {
-    PyErr_SetString (PyExc_ValueError, "Invalid diagonal solver");
-    return -1;
-  }
-
-  return 0;
-}
-
 static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_reverse (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
 {
   return PyString_FromString (GAUSS_SEIDEL_Reverse (self->gs));
@@ -2963,7 +2913,6 @@ static PyGetSetDef lng_GAUSS_SEIDEL_SOLVER_getset [] =
   {"diagmaxiter", (getter)lng_GAUSS_SEIDEL_SOLVER_get_diagmaxiter, (setter)lng_GAUSS_SEIDEL_SOLVER_set_diagmaxiter, "diagonal solver iterations bound", NULL},
   {"diagsolver", (getter)lng_GAUSS_SEIDEL_SOLVER_get_diagsolver, (setter)lng_GAUSS_SEIDEL_SOLVER_set_diagsolver, "diagonal solver kind", NULL},
   {"history", (getter)lng_GAUSS_SEIDEL_SOLVER_get_history, (setter)lng_GAUSS_SEIDEL_SOLVER_set_history, "solution history recording", NULL},
-  {"variant", (getter)lng_GAUSS_SEIDEL_SOLVER_get_variant, (setter)lng_GAUSS_SEIDEL_SOLVER_set_variant, "parallel method variant", NULL},
   {"reverse", (getter)lng_GAUSS_SEIDEL_SOLVER_get_reverse, (setter)lng_GAUSS_SEIDEL_SOLVER_set_reverse, "iteration reversion flag", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
@@ -3968,59 +3917,19 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 /* set imbalance tolerances */
-static PyObject* lng_IMBALANCE_TOLERANCES (PyObject *self, PyObject *args, PyObject *kwds)
+static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "timint", "condet", "locdyn");
-  double timint, condet, locdyn;
+  KEYWORDS ("solfec", "tolerance");
+  double tolerance;
   lng_SOLFEC *solfec;
 
-  PARSEKEYS ("Oddd", &solfec, &timint, &condet, &locdyn);
+  PARSEKEYS ("Od", &tolerance);
 
-  TYPETEST (is_solfec (solfec, kwl[0]));
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (tolerance, kwl[1]));
 
 #if MPI
-  solfec->sol->dom->imbalance_tolerance = timint;
-  solfec->sol->aabb->imbalance_tolerance = condet;
-  solfec->sol->dom->ldy->imbalance_tolerance = locdyn;
+  solfec->sol->dom->imbalance_tolerance = tolerance;
 #endif
-
-  Py_RETURN_TRUE;
-}
-
-/* change LOCDYN balancing approach */
-static PyObject* lng_LOCDYN_BALANCING (PyObject *self, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("solfec", "mode");
-  lng_SOLFEC *solfec;
-  PyObject *mode;
-
-  PARSEKEYS ("OO", &solfec, &mode);
-
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (mode, kwl[1]));
-
-  IFIS (mode, "OFF")
-  {
-#if MPI
-    LOCDYN_Balancing (solfec->sol->dom->ldy, LDB_OFF);
-#endif
-  }
-  ELIF (mode, "GEOM")
-  {
-#if MPI
-    LOCDYN_Balancing (solfec->sol->dom->ldy, LDB_GEOM);
-#endif
-  }
-  ELIF (mode, "GRAPH")
-  {
-#if MPI
-    LOCDYN_Balancing (solfec->sol->dom->ldy, LDB_GRAPH);
-#endif
-  }
-  ELSE
-  {
-    PyErr_SetString (PyExc_ValueError, "Invalid balancing mode");
-    return NULL;
-  }
 
   Py_RETURN_TRUE;
 }
@@ -4777,28 +4686,17 @@ static void* get_solver (PyObject *obj)
 /* run analysis */
 static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "solver", "duration", "fulupint");
+  KEYWORDS ("solfec", "solver", "duration");
   PyObject *solver;
   lng_SOLFEC *solfec;
   double duration;
-  double fulupint;
   int error;
 
-  fulupint = 0.0;
-
-  PARSEKEYS ("OOd|d", &solfec, &solver, &duration, &fulupint);
+  PARSEKEYS ("OOd", &solfec, &solver, &duration);
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_solver (solver, kwl[1]) && is_positive (duration, kwl[2]));
 
   if (solfec->sol->mode == SOLFEC_READ) Py_RETURN_NONE; /* skip READ mode */
-
-  if (fulupint < 0.0)
-  {
-    PyErr_SetString (PyExc_RuntimeError, "'fulupint' must not be negative");
-    return NULL;
-  }
-
-  solfec->sol->dom->update_interval = fulupint; /* set up full update interval */
 
 #if OPENGL 
   if (!RND_Is_On ()) /* otherwise interactive run is controlled by the viewer */
@@ -5177,7 +5075,7 @@ static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
   {
 #endif
 
-  SOLFEC *sol = DOM(body->bod->dom)->owner;
+  SOLFEC *sol = body->bod->dom->solfec;
 
   if (sol->mode == SOLFEC_WRITE) Py_RETURN_NONE;
   else
@@ -5378,8 +5276,7 @@ static PyMethodDef lng_methods [] =
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
-  {"IMBALANCE_TOLERANCES", (PyCFunction)lng_IMBALANCE_TOLERANCES, METH_VARARGS|METH_KEYWORDS, "Adjust imbalance tolerances"},
-  {"LOCDYN_BALANCING", (PyCFunction)lng_LOCDYN_BALANCING, METH_VARARGS|METH_KEYWORDS, "Set local dynamics balancing mode"},
+  {"IMBALANCE_TOLERANCE", (PyCFunction)lng_IMBALANCE_TOLERANCE, METH_VARARGS|METH_KEYWORDS, "Adjust parallel imbalance tolerance"},
   {"NCPU", (PyCFunction)lng_NCPU, METH_NOARGS, "Get the number of processors"},
   {"HERE", (PyCFunction)lng_HERE, METH_VARARGS|METH_KEYWORDS, "Test whether an object is located on the current processor"},
   {"VIEWER", (PyCFunction)lng_VIEWER, METH_NOARGS, "Test whether the viewer is enabled"},
@@ -5544,8 +5441,7 @@ int lng (const char *path)
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
-                     "from solfec import IMBALANCE_TOLERANCES\n"
-                     "from solfec import LOCDYN_BALANCING\n"
+                     "from solfec import IMBALANCE_TOLERANCE\n"
                      "from solfec import NCPU\n"
                      "from solfec import HERE\n"
                      "from solfec import VIEWER\n"

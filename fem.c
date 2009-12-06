@@ -1404,22 +1404,6 @@ static void fem_constraints_force (BODY *bod, double *force)
 
     fem_constraints_force_accum (bod, msh, ele, X, con->base, con->R, isma, force);
   }
-
-#if MPI
-  for (MAP *node = MAP_First (bod->conext); node; node = MAP_Next (node))
-  {
-    CONEXT *con = node->data;
-
-    if (bod->msh)
-    {
-      cvx = con->sgp->gobj;
-      ele = stabbed_element (msh, cvx->ele, cvx->nele, con->point); /* TODO: optimize */
-    }
-    else ele = con->sgp->gobj;
-
-    fem_constraints_force_accum (bod, msh, ele, con->point, con->base, con->R, con->isma, force);
-  }
-#endif
 }
 
 /* compute out of balance force = fext - fint */
@@ -1475,10 +1459,10 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
   }
 
   /* gravitation */
-  if (DOM(bod->dom)->gravval)
+  if (bod->dom->gravval)
   {
-    COPY (DOM(bod->dom)->gravdir, f);
-    value = TMS_Value (DOM(bod->dom)->gravval, time);
+    COPY (bod->dom->gravdir, f);
+    value = TMS_Value (bod->dom->gravval, time);
     SCALE (f, value);
 
     for (ele = msh->surfeles, bulk = 0; ele; )

@@ -220,7 +220,7 @@ static short enabled = 0; /* renderin on/off */
 
 static DOM *domain = NULL; /* current domain */
 
-#define solfec ((SOLFEC*)domain->owner) /* current solfec */
+#define solfec domain->solfec /* current solfec */
 
 static MAP *solvers = NULL; /* maps domains to solvers */
 

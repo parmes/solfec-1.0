@@ -35,7 +35,11 @@
 #ifndef __sol__
 #define __sol__
 
+#ifndef SOLFEC_TYPE
+#define SOLFEC_TYPE
 typedef struct solfec SOLFEC;
+#endif
+
 typedef int (*SOLFEC_Callback) (SOLFEC*, void*, void*);
 
 enum solver_kind

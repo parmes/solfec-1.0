@@ -70,6 +70,4 @@ OUTPUT (solfec, step)
 
 UNPHYSICAL_PENETRATION (solfec, 0.01)
 
-LOCDYN_BALANCING (solfec, 'OFF')
-
 RUN (solfec, gs, dura)

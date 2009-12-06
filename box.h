@@ -19,14 +19,20 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#if MPI
-#include <zoltan.h>
-#endif
-
 #include "shp.h"
 #include "mem.h"
 #include "map.h"
 #include "set.h"
+
+#ifndef BODY_TYPE
+#define BODY_TYPE
+typedef struct general_body BODY;
+#endif
+
+#ifndef DOMAIN_TYPE
+#define DOMAIN_TYPE
+typedef struct domain DOM;
+#endif
 
 #ifndef __box__
 #define __box__
@@ -80,25 +86,18 @@ struct box
   void *data; /* extents update data, usually => sgp->shp->data */
   BOX_Extents_Update update; /* extents update callback => update (data, gobj, extents) */
 
-  unsigned int bid; /* owner body id */
-
   GOBJ kind; /* kind of a geometric object */
 
   SGP *sgp; /* shape and geometric object pair */
 
-  void *body, /* owner of the shape */
-       *mark; /* auxiliary marker used by hashing algorithms */
+  BODY *body; /* owner of the shape */
+
+  void *mark; /* auxiliary marker used by hashing algorithms */
 
   MAP *adj; /* map of adjacent boxes to user pointers returned by the overlap create callback */
 
   BOX *prev, /* previous in list */
       *next; /* next in list */
-
-#if MPI
-  SET *children; /* set of child box ranks */
-
-  int parent; /* (parent rank + 1) for a child or 0 for a parent */
-#endif
 };
 
 /* box pointer cast */
@@ -152,24 +151,7 @@ struct aabb
   void *swp,  /* sweep plane data */
        *hsh;  /* hashing data */
 
-  void *dom; /* the underlying domain */
-
-#if MPI
-  SET *delbod; /* set of deleted body ids */
-
-  SET *detached; /* set of detached boxes */
-
-  int nobody_modified, /* used to synchronise 'nobody' */
-      nogobj_modified; /* used to synchronise 'nogobj' */
-
-  BOX **aux; /* auxiliary table of boxes used during balancing */
-
-  struct Zoltan_Struct *zol;
-
-  double imbalance_tolerance; /* imbalance threshold */
-
-  int nexpbox; /* number of exported boxes */
-#endif
+  DOM *dom; /* the underlying domain */
 };
 
 /* get algorithm name string */
@@ -179,21 +161,16 @@ char* AABB_Algorithm_Name (BOXALG alg);
 AABB* AABB_Create (int size);
 
 /* insert geometrical object => return the associated box */
-BOX* AABB_Insert (AABB *aabb, void *body, GOBJ kind, SGP *sgp, void *data, BOX_Extents_Update update);
+BOX* AABB_Insert (AABB *aabb, BODY *body, GOBJ kind, SGP *sgp, void *data, BOX_Extents_Update update);
 
 /* delete geometrical gobject associated with the box */
 void AABB_Delete (AABB *aabb, BOX *box);
 
 /* insert a body */
-void AABB_Insert_Body (AABB *aabb, void *body);
+void AABB_Insert_Body (AABB *aabb, BODY *body);
 
 /* delete a body */
-void AABB_Delete_Body (AABB *aabb, void *body);
-
-#if MPI
-/* detach a body */
-void AABB_Detach_Body (AABB *aabb, void *body);
-#endif
+void AABB_Delete_Body (AABB *aabb, BODY *body);
 
 /* update state => detect created and released overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release);
@@ -213,5 +190,4 @@ void AABB_Destroy (AABB *aabb);
 
 /* get geometrical object extents update callback */
 BOX_Extents_Update SGP_Extents_Update (SGP *sgp);
-
 #endif

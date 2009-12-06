@@ -61,7 +61,6 @@ typedef enum gserror GSERROR;
 typedef enum gsdias GSDIAS;
 typedef enum gsfail GSFAIL;
 typedef enum gsonoff GSONOFF;
-typedef enum gsvariant GSVARIANT;
 
 struct gs
 {
@@ -92,16 +91,6 @@ struct gs
   short verbose; /* verbosity flag */
 
   GSONOFF reverse; /* iterate forward an backward alternately ? */
-
-  GSVARIANT variant; /* variant of the parallel algorithm (exposed hor Python's sake) */
-
-#if MPI
-  struct Zoltan_Struct *zol; /* used by coloring algorithm */
-
-  MEM setmem; /* set items memory */
-
-  SET *adjcpu; /* adjecent processors, based on the balanced W graph */
-#endif
 };
 
 /* create solver */
@@ -126,9 +115,6 @@ char* GAUSS_SEIDEL_History (GAUSS_SEIDEL *gs);
 
 /* return reverse flag string */
 char* GAUSS_SEIDEL_Reverse (GAUSS_SEIDEL *gs);
-
-/* return variant string */
-char* GAUSS_SEIDEL_Variant (GAUSS_SEIDEL *gs);
 
 /* free solver */
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs);

@@ -3027,7 +3027,7 @@ None
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="1">
+<lyxtabular version="3" rows="4" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -3076,7 +3076,7 @@ obj.history
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -3088,32 +3088,6 @@ obj.reverse
 \emph default
  - 'ON' or 'OFF' flag switching iteration reversion modes (whether to alternate
  backward and forward or not, default is 'OFF')
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.variant
-\series default
-\emph default
- - a variant of parallel algorithm (ignored during sequential runs, dafult:
- 'MID_LOOP'), cf.
- Table 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "tab:gs-var"
-
-\end_inset
-
-
 \end_layout
 
 \end_inset
@@ -3234,151 +3208,6 @@ Failure of a diagonal solver (e.g.
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:err-gs"
-
-\end_inset
-
-Error codes of GAUSS_SEIDEL_SOLVER object
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Float table
-wide false
-sideways false
-status open
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="2">
-<features>
-<column alignment="center" valignment="top" width="0">
-<column alignment="center" valignment="top" width="0">
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'MID_LOOP'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Process mid-nodes in a semi-sequential loop with processor coloring
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'MID_THREAD'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Process the loop in a separate thread
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'MID_TO_ALL'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Gather mid nodes at all processors
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'MID_TO_ONE'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Gather mid nodes at one processor (with smallest load)
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'NOB_*'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-e.g.
- 'NOB_MID_LOOP', etc.
- Use non-blocking communication when possible
-\end_layout
-
-\end_inset
-</cell>
-</row>
-</lyxtabular>
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Caption
-
-\begin_layout Plain Layout
-\begin_inset CommandInset label
-LatexCommand label
-name "tab:gs-var"
 
 \end_inset
 
@@ -4443,7 +4272,7 @@ Routines listed in this section control the solution process.
 \end_layout
 
 \begin_layout Subsection*
-RUN (solfec, solver, duration | fulupint)
+RUN (solfec, solver, duration)
 \end_layout
 
 \begin_layout Standard
@@ -4473,22 +4302,6 @@ solver
 duration
 \series default
  - duration of analysis
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-fulupint
-\series default
- - full update interval (default: 0.0).
- Full update detects new contact points and evaluates coefficients of the
- algebraic contact problem.
- It is much more costly then a partial update which updates only the known
- contact points and maintains the last fully updated algebraic contact system.
- For parallel runs, load balancing can only happen during the full update.
- This parameter is of use for stiff deformable problems, where many time
- steps can be skipped between a notable change of the underlying contact
- state.
 \end_layout
 
 \begin_layout Subsection*
@@ -4649,11 +4462,11 @@ Various utility routines are listed below.
 \end_layout
 
 \begin_layout Subsection*
-IMBALANCE_TOLERANCES (solfec, timint, condet, locdyn)
+IMBALANCE_TOLERANCE (solfec, tolerance)
 \end_layout
 
 \begin_layout Standard
-This routine sets the imbalance tolerances for parallel balancing of Solfec
+This routine sets the imbalance tolerance for parallel balancing of Solfec
  data.
  A ratio of maximal to minimal per processor count of objects used.
  Hence, 1.0 indicates perfect balance, while any ratio > 1.0 indicates an
@@ -4673,57 +4486,9 @@ solfec
 \begin_layout Itemize
 
 \series bold
-timint
+tolerance
 \series default
- - time integration imbalance tolerance (default: 1.3)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-condet
-\series default
- - contact detection imbalance tolerance (default: 1.3)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-locdyn
-\series default
- - local dynamics imbalance tolerance (default: 1.3)
-\end_layout
-
-\begin_layout Subsection*
-LOCDYN_BALANCING (solfec, mode)
-\end_layout
-
-\begin_layout Standard
-This routine sets the mode of local dynamics balancing for a parallel run.
- It is ignored in sequential mode.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - SOLFEC object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-mode
-\series default
- - 'OFF' disables balancing (in this case geometrical balancing related
- to contact detection is inherited by local dynamics), 'GEOM' enables geometrica
-l balancing based on spatial constraint points, 'GRAPG' enables topological
- balancing based on the adjacency structure of the 
-\begin_inset Formula $\mathbf{W}$
-\end_inset
-
- operator.
+ - data imbalance tolerance (default: 1.3)
 \end_layout
 
 \begin_layout Subsection*
@@ -5406,6 +5171,14 @@ CONTACT_EXCLUDE_BODIES (solfec, body1, body2)
 \begin_layout Standard
 This routine disables contact detection for a specific pair of bodies.
  By default contact detection is enabled for all possible body pairs.
+ 
+\series bold
+NOTE:
+\series default
+ 
+\emph on
+must be invoked on all processors during a parallel run (do not use from
+ within a callback).
 \end_layout
 
 \begin_layout Itemize
@@ -5442,6 +5215,14 @@ This routine disables contact detection for a specific pair of geometric
  elements, convices, sheres).
  By default, between different bodies, contact detection is enabled for
  all possible object pairs.
+ 
+\series bold
+NOTE:
+\series default
+ 
+\emph on
+must be invoked on all processors during a parallel run (do not use from
+ within a callback).
 \end_layout
 
 \begin_layout Itemize
@@ -5948,10 +5729,9 @@ solfec
 kind
 \series default
  - this is one of: 'TIMINT' (time integration), 'CONDET' (contact detection),
- 'LOCDYN' (local dynamics setup), 'CONSOL' (constraints solution), 'TIMBAL'
- (time integration balancing), 'CONBAL' (contact detection balancing), 'LOCBAL'
- (local dynamics balancing).
- The balancing timings are non-zero only for parallel runs.
+ 'LOCDYN' (local dynamics setup), 'CONSOL' (constraints solution), 'PARBAL'
+ (parallel load balancing).
+ The load balancing timing is non-zero only for parallel runs.
 \end_layout
 
 \begin_layout Subsection*
@@ -6013,90 +5793,11 @@ t1
 \end_layout
 
 \begin_layout Chapter
-\begin_inset CommandInset label
-LatexCommand label
-name "cha:par"
-
-\end_inset
-
-Parallelism
-\end_layout
-
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Enumerate
-One process reads input.
-\end_layout
-
-\begin_layout Enumerate
-Three partitionings are maintained: 
-\end_layout
-
-\begin_deeper
-\begin_layout Enumerate
-one based on corners of body boxes (for time integration)
-\end_layout
-
-\begin_layout Enumerate
-one based on corners of gemetric object boxes (for contact detection)
-\end_layout
-
-\begin_layout Enumerate
-one based on constraint points (for constraint solution)
-\end_layout
-
-\end_deeper
-\begin_layout Enumerate
-In a body partitioning:
-\end_layout
-
-\begin_deeper
-\begin_layout Enumerate
-One parent body is stored in domain body list of a partition containing
- body box corner
-\end_layout
-
-\begin_layout Enumerate
-A child copy of a parent body is stored in the domain id-based body set
- of all partitions crossed by body box
-\end_layout
-
-\end_deeper
-\begin_layout Enumerate
-While interpreting Python code (say, from a callback) routines should be
- executed only if their argument objects are locally stored (e.g.
- only for a parent body).
-\end_layout
-
-\end_inset
-
-
+Tutorials
 \end_layout
 
 \begin_layout Chapter
-\begin_inset CommandInset label
-LatexCommand label
-name "cha:mat"
-
-\end_inset
-
-Material models
-\end_layout
-
-\begin_layout Chapter
-\begin_inset CommandInset label
-LatexCommand label
-name "cha:sol"
-
-\end_inset
-
-Solvers
-\end_layout
-
-\begin_layout Chapter
-Examples
+Theory
 \end_layout
 
 \begin_layout Standard

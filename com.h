@@ -48,42 +48,42 @@ struct comobj
 };
 
 /* communicate integers and doubles using point to point communication */
-void COM (MPI_Comm comm, int tag,
-          COMDATA *send, int nsend,
-	  COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+int COM (MPI_Comm comm, int tag,
+         COMDATA *send, int nsend,
+	 COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate integers and doubles using all to all communication */
-void COMALL (MPI_Comm comm,
-             COMDATA *send, int nsend,
-	     COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+int COMALL (MPI_Comm comm,
+            COMDATA *send, int nsend,
+	    COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate one set of integers and doubles to all other processors */
-void COMONEALL (MPI_Comm comm, COMDATA send,
-	        COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+int COMONEALL (MPI_Comm comm, COMDATA send,
+	       COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate objects using point to point communication */
-void COMOBJS (MPI_Comm comm, int tag,
-	      OBJ_Pack pack,
-	      void *data,
-	      OBJ_Unpack unpack,
-              COMOBJ *send, int nsend,
-	      COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+int COMOBJS (MPI_Comm comm, int tag,
+	     OBJ_Pack pack,
+	     void *data,
+	     OBJ_Unpack unpack,
+             COMOBJ *send, int nsend,
+	     COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate objects using all to all communication */
-void COMOBJSALL (MPI_Comm comm,
-	         OBJ_Pack pack,
-	         void *data,
-	         OBJ_Unpack unpack,
-                 COMOBJ *send, int nsend,
-	         COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
-
-/* communicate an object to all other processors */
-void COMOBJALL (MPI_Comm comm,
+int COMOBJSALL (MPI_Comm comm,
 	        OBJ_Pack pack,
 	        void *data,
 	        OBJ_Unpack unpack,
-		void *object,
+                COMOBJ *send, int nsend,
 	        COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+
+/* communicate an object to all other processors */
+int COMOBJALL (MPI_Comm comm,
+	       OBJ_Pack pack,
+	       void *data,
+	       OBJ_Unpack unpack,
+	       void *object,
+	       COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* create a repetitive point to point communication pattern;
  * ranks and sizes must not change during the communication;
@@ -94,10 +94,10 @@ void* COM_Pattern (MPI_Comm comm, int tag,
 
 /* communicate integers and doubles accodring
  * to the pattern computed by COM_Pattern */
-void COM_Repeat (void *pattern);
+int COM_Repeat (void *pattern);
 
 /* non-blocking send */
-void COM_Send (void *pattern);
+int COM_Send (void *pattern);
 
 /* blocking receive */
 void COM_Recv (void *pattern);
@@ -114,7 +114,7 @@ void* COMALL_Pattern (MPI_Comm comm,
 
 /* communicate integers and doubles accodring
  * to the pattern computed by COMALL_Pattern */
-void COMALL_Repeat (void *pattern);
+int COMALL_Repeat (void *pattern);
 
 /* free all to all communication pattern */
 void COMALL_Free (void *pattern);
