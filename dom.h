@@ -180,10 +180,6 @@ struct domain
 
   SET **delch; /* id sets of children to be deleted for each rank (after removed parent) */
 
-  MEM extmem; /* memory pool of external constraints */
-
-  CON *conext; /* external constraints */
-
   int bytes; /* bytes sent during load balancing */
 #endif
 };

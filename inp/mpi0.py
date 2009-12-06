@@ -100,8 +100,7 @@ RUN (solfec, gs, 10 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 
-  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'TIMBAL', 'CONBAL', 'LOCBAL',
-            'GSINIT', 'GSRUN', 'GSCOM', 'GSMRUN', 'GSMCOM', 'GSERR', 'GSEXIT']
+  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
   dur = DURATION (solfec)
   total = 0.0
   num = 0

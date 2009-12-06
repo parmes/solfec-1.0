@@ -14,12 +14,6 @@ Implement incremental domain gluing instead of the current one
 CORRECTION: in EXPLICIT runs domain gluing takes up 90% of time. This is then one
 of the first optimisations to pursue.
 ----------------------------------------------------------------------------------------
-Prospectively remove the MID_TO_ALL option, or improve it so to introduce consitency
-of min-block reactions
-----------------------------------------------------------------
-Implement reading of multiple output files in separate threads
-(as many threads as there are files to read)
--------------------------------------------------------------
 Test whether inertia scaling by density works correctly
 --------------------------------------------------------
 add void *mat; to TRISURF and inherit material poinetrs
@@ -49,10 +43,7 @@ Explicit solver is unaware of cohesion
 Introduce local (BODY ID, SGP PAIR) to latest reaction value
 cache so to reassign most recent values to reestablished contacts
 -----------------------------------------------------------
-Get rid of separate LOCDYN balancing and merge balancing
-of contact points (hence W assembling, etc.) with the balancing
-of geometrical objects (AABB overlaps); let contact points have
-larger (e.g. 10x) weights than geometrical objects;
+Test PBF file size limitation fixup
 --------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------

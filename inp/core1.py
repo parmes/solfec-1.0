@@ -399,7 +399,7 @@ RUN (solfec, ex, 1.0)
 
 if not VIEWER() and solfec.mode == 'READ':
 
-  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'TIMBAL', 'CONBAL', 'LOCBAL']
+  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
   dur = DURATION (solfec)
   total = 0.0
   num = 0
