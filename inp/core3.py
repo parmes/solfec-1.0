@@ -403,8 +403,6 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 100, failure = 'CONTINUE', diagsolver = 'PROJECT
 
 OUTPUT (solfec, 0.025, compression='FASTLZ')
 
-LOCDYN_BALANCING (solfec, 'OFF')
-
 RUN (solfec, gs, 12.00)
 
 if not VIEWER() and solfec.mode == 'READ':

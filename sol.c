@@ -315,7 +315,7 @@ static void statsout (SOLFEC *sol)
   ctime_r(&timer, string); 
 
 #if MPI
-  const int N = 9;
+  const int N = 5;
   char *stapath;
   FILE *sta;
 
@@ -331,17 +331,13 @@ static void statsout (SOLFEC *sol)
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
   }
 
-  LOCDYN *ldy = sol->dom->ldy;
+  char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "SPARSIFIED", "BYTES SENT"};
 
-  char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "SPARSIFIED", "BLOCKS", 
-                   "BODIES SENT", "CHILDREN SENT", "BOXES SENT", "BLOCKS SENT"};
-
-  int val [] = {dom->nbod, aabb->nlst, dom->ncon, dom->nspa, ldy->ndiab,
-                dom->nexpbod, dom->nexpchild, aabb->nexpbox, ldy->nexpdia};
+  int val [] = {dom->nbod, aabb->nlst, dom->ncon, dom->nspa, dom->bytes};
 
   int i, sum [N], min [N], avg [N], max [N];
 
-  if (PUT_root_int_stats (9, val, sum, min, avg, max))
+  if (PUT_root_int_stats (N, val, sum, min, avg, max))
   {
     for (i = 0; i < N; i ++) 
     {
@@ -374,7 +370,7 @@ static void statsout (SOLFEC *sol)
 static void SOLVE (void *solver, SOLVER_KIND kind, LOCDYN *ldy, int verbose)
 {
 #if MPI
-  if (DOM (ldy->dom)->rank == 0)
+  if (ldy->dom->rank == 0)
 #endif
   if (verbose) printf ("SOLVER:\n");
 
@@ -395,7 +391,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->sps = SPSET_Create ();
   sol->mat = MATSET_Create ();
   sol->dom = DOM_Create (sol->aabb, sol->sps, dynamic, step);
-  sol->dom->owner = sol;
+  sol->dom->solfec = sol;
 
   sol->outpath = copyoutpath (outpath);
   sol->output_interval = step;

@@ -266,22 +266,22 @@ obj/com-mpi.o: com.c com.h map.h alg.h err.h
 obj/pbf-mpi.o: pbf.c pbf.h map.h mem.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h tag.h
+obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/bod-mpi.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h but.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/dom-mpi.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h tag.h
+obj/dom-mpi.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/ldy-mpi.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h tag.h
+obj/ldy-mpi.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h tag.h
+obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/exs-mpi.o: exs.c exs.h dom.h ldy.h err.h alg.h lap.h tag.h
+obj/exs-mpi.o: exs.c exs.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h

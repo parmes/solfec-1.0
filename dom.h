@@ -32,12 +32,25 @@
 #include "pbf.h"
 #include "cmp.h"
 
+#ifndef SOLFEC_TYPE
+#define SOLFEC_TYPE
+typedef struct solfec SOLFEC;
+#endif
+
 #ifndef __dom__
 #define __dom__
 
+#ifndef CONSTRAINT_TYPE
+#define CONSTRAINT_TYPE
 typedef struct constraint CON;
-typedef struct domain DOM;
+#endif
 
+#ifndef DOMAIN_TYPE
+#define DOMAIN_TYPE
+typedef struct domain DOM;
+#endif
+
+#define DOM_Z_SIZE          4      /* size of auxiliary storage in dom.h/constraint */
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
@@ -64,7 +77,8 @@ struct constraint
         CON_COHESIVE = 0x04,
         CON_NEW      = 0x08,
 	CON_IDLOCK   = 0x10, /* locked ID cannot be freed to the pool */
-        CON_DONERND  = 0x20} state; /* constraint state */
+	CON_EXTERNAL = 0x20, /* external constraint migrated into this domain */
+        CON_DONERND  = 0x40} state; /* constraint state */
 
   short paircode; /* geometric object pair code for a contact */
 
@@ -92,58 +106,12 @@ struct constraint
 #define mkind(con) ((BOX*)(con)->msgp->box)->kind
 #define skind(con) ((BOX*)(con)->ssgp->box)->kind
 
-#if MPI
-typedef struct conext CONEXT;
-
-/* external constraints are those created
- * by child bodies and attached to parents */
-struct conext
-{
-  double R [3], /* reaction */
-         point [3],  /* referential point */
-         base [9]; /* spatial base */
-
-  unsigned int id; /* constraint id */
-
-  BODY *bod; /* parent body */
-
-  int isma; /* 1 if the paranet body is a master; 0 otherwise */
-
-  SGP *sgp; /* shape geometric object pair */
-
-  CONEXT *next; /* in-domain list for fast deletion */
-
-  int rank; /* child rank */
-
-#if CLIQUES
-  double Z [DOM_Z_SIZE],
-	 gap;
-
-  short kind;
-
-  SURFACE_MATERIAL_STATE mat;
-
-  DIAB *dia; /* corresponding ldy->diaext entry */
-#endif
-};
-
-/* external constraint pointer cast */
-#define CONEXT(con) ((CONEXT*)(con))
-#endif
-
 /* domain flags */
 typedef enum
 {
   DOM_RUN_ANALYSIS   = 0x01, /* on when the viewer runs analysis for this domain */
   DOM_DEPTH_VIOLATED = 0x02  /* on when unphysical penetration has occured */
 } DOM_FLAGS;
-
-/* update kind */
-typedef enum
-{
-  DOM_UPDATE_PARTIAL, /* update domain using existing contact state (and balance in parallel) */
-  DOM_UPDATE_FULL /* update fully, detecting new contacts (and balancing load in parallel) */
-} DOM_UPDATE;
 
 struct domain
 {
@@ -179,7 +147,7 @@ struct domain
 
   double extents [6]; /* scene extents */
 
-  void *owner; /* SOLFEC */
+  SOLFEC *solfec; /* SOLFEC context */
 
   void *data; /* private data */
 
@@ -193,18 +161,12 @@ struct domain
 
   short verbose; /* verbosity flag */
 
-  DOM_UPDATE update_kind; /* domain update kind */
-
-  double update_interval; /* perform full update every interval of time */
-
-  double update_time; /* previous full update time */
-
 #if MPI
   int rank; /* communicator rank */
 
   int ncpu; /* cummunicator size */
 
-  struct Zoltan_Struct *zol; /* body partitioning */
+  struct Zoltan_Struct *zol; /* domain partitioning */
 
   double imbalance_tolerance; /* imbalance threshold */
 
@@ -220,10 +182,9 @@ struct domain
 
   MEM extmem; /* memory pool of external constraints */
 
-  CONEXT *conext; /* external constraints (parents and children) */
+  CON *conext; /* external constraints */
 
-  int nexpbod, /* number of exported parent bodies */
-      nexpchild; /* number of exported child bodies */
+  int bytes; /* bytes sent during load balancing */
 #endif
 };
 
@@ -231,10 +192,7 @@ struct domain
 char* CON_Kind (CON *con);
 
 /* constraint pointer cast */
-#define CON(con) ((CON*)(con))
-
-/* domain pointer cast */
-#define DOM(dom) ((DOM*)(dom))
+#define CON(con) ((CON*)con)
 
 /* create a domain => 'aabb' is the box overlap solver, 'sps' is the
  * surface pair set, 'dynamic' == 1  indicates a dynamic simulation
@@ -273,6 +231,11 @@ void DOM_Remove_Constraint (DOM *dom, CON *con);
 /* set simulation scene extents */
 void DOM_Extents (DOM *dom, double *extents);
 
+/* go over contact points and remove those whose corresponding
+ * areas are much smaller than those of other points related to
+ * objects directly topologically adjacent in their shape definitions */
+void DOM_Sparsify_Contacts (DOM *dom);
+
 /* domain update initial half-step => bodies and constraints are
  * updated and the unupdated local dynamic problem is returned */
 LOCDYN* DOM_Update_Begin (DOM *dom);
@@ -282,14 +245,6 @@ LOCDYN* DOM_Update_Begin (DOM *dom);
  * problem has been solved (externally), motion of bodies
  * is updated with the help of new constraint reactions */
 void DOM_Update_End (DOM *dom);
-
-#if MPI
-/* balance children according to a given geometric partitioning */
-void DOM_Balance_Children (DOM *dom, struct Zoltan_Struct *zol);
-
-/* update children shapes */
-void DOM_Update_Children (DOM *dom);
-#endif
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);
@@ -305,5 +260,4 @@ int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con);
 
 /* release memory */
 void DOM_Destroy (DOM *dom);
-
 #endif

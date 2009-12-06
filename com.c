@@ -42,6 +42,7 @@ struct compattern
 
   int tag,
      *rankmap, /* maps ranks to send buffers indices */
+      send_size,
     (*send_sizes) [3],
      *send_position,
      *send_rank,
@@ -97,13 +98,14 @@ struct comallpattern
 };
 
 /* communicate integers and doubles using point to point communication */
-void COM (MPI_Comm comm, int tag,
-          COMDATA *send, int nsend,
-	  COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+int COM (MPI_Comm comm, int tag,
+         COMDATA *send, int nsend,
+	 COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
   COMDATA *cd;
   int rank,
       ncpu,
+      send_size,
     (*send_sizes) [3],
      *send_position,
      *send_rank,
@@ -140,12 +142,13 @@ void COM (MPI_Comm comm, int tag,
   }
 
   /* allocate send buffers */
-  for (i = 0; i < ncpu; i ++)
+  for (send_size = i = 0; i < ncpu; i ++)
   {
     if (send_sizes [i][2])
     {
       ERRMEM (send_data [i] = malloc (send_sizes [i][2]));
       send_position [i] = 0;
+      send_size += send_sizes [i][2];
     }
   }
 
@@ -288,12 +291,14 @@ void COM (MPI_Comm comm, int tag,
   free (recv_data);
   free (req);
   free (sta);
+
+  return send_size;
 }
 
 /* communicate integers and doubles using all to all communication */
-void COMALL (MPI_Comm comm,
-             COMDATA *send, int nsend,
-	     COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+int COMALL (MPI_Comm comm,
+            COMDATA *send, int nsend,
+	    COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
   COMDATA *cd;
   int rank,
@@ -447,14 +452,16 @@ void COMALL (MPI_Comm comm,
   free (recv_position);
   free (send_data);
   free (recv_data);
+
+  return send_size;
 }
 
 /* communicate one set of integers and doubles to all other processors */
-void COMONEALL (MPI_Comm comm, COMDATA send,
-	        COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+int COMONEALL (MPI_Comm comm, COMDATA send,
+	       COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
   COMDATA *send_data;
-  int i, j, rank, ncpu;
+  int i, j, rank, ncpu, ret;
 
   MPI_Comm_rank (comm, &rank);
   MPI_Comm_size (comm, &ncpu);
@@ -471,24 +478,27 @@ void COMONEALL (MPI_Comm comm, COMDATA send,
     }
   }
 
-  COMALL (comm, send_data, ncpu - 1, recv, nrecv);
+  ret = COMALL (comm, send_data, ncpu - 1, recv, nrecv);
 
   free (send_data);
+
+  return ret;
 }
 
 /* communicate objects using point to point communication */
-void COMOBJS (MPI_Comm comm, int tag,
-	      OBJ_Pack pack,
-	      void *data,
-	      OBJ_Unpack unpack,
-              COMOBJ *send, int nsend,
-	      COMOBJ **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+int COMOBJS (MPI_Comm comm, int tag,
+	     OBJ_Pack pack,
+	     void *data,
+	     OBJ_Unpack unpack,
+             COMOBJ *send, int nsend,
+	     COMOBJ **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
   COMDATA *send_data,
 	  *recv_data,
 	  *cd, *cc;
   int recv_count,
-      i, n;
+      i, n,
+      ret;
   COMOBJ *co;
   MAP *map;
   MEM mem;
@@ -525,8 +535,8 @@ void COMOBJS (MPI_Comm comm, int tag,
   }
 
   /* send and receive packed data */
-  if (tag == INT_MIN) COMALL (comm, send_data, nsend, &recv_data, &recv_count); /* all to all */
-  else COM (comm, tag, send_data, nsend, &recv_data, &recv_count); /* point to point */
+  if (tag == INT_MIN) ret = COMALL (comm, send_data, nsend, &recv_data, &recv_count); /* all to all */
+  else ret = COM (comm, tag, send_data, nsend, &recv_data, &recv_count); /* point to point */
 
   if (recv_count)
   {
@@ -573,29 +583,31 @@ void COMOBJS (MPI_Comm comm, int tag,
   MEM_Release (&mem);
   free (send_data);
   free (recv_data); /* contiguous */
+
+  return ret;
 }
 
 /* communicate objects using all to all communication */
-void COMOBJSALL (MPI_Comm comm,
-	         OBJ_Pack pack,
-	         void *data,
-	         OBJ_Unpack unpack,
-                 COMOBJ *send, int nsend,
-	         COMOBJ **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
-{
-  COMOBJS (comm, INT_MIN, pack, data, unpack, send, nsend, recv, nrecv); /* this is only a wrapper */
-}
-
-/* communicate an object to all other processors */
-void COMOBJALL (MPI_Comm comm,
+int COMOBJSALL (MPI_Comm comm,
 	        OBJ_Pack pack,
 	        void *data,
 	        OBJ_Unpack unpack,
-		void *object,
+                COMOBJ *send, int nsend,
 	        COMOBJ **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
+  return COMOBJS (comm, INT_MIN, pack, data, unpack, send, nsend, recv, nrecv); /* this is only a wrapper */
+}
+
+/* communicate an object to all other processors */
+int COMOBJALL (MPI_Comm comm,
+	       OBJ_Pack pack,
+	       void *data,
+	       OBJ_Unpack unpack,
+	       void *object,
+	       COMOBJ **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+{
   COMOBJ *send_data;
-  int i, j, rank, ncpu;
+  int i, j, rank, ncpu, ret;
 
   if (object)
   {
@@ -614,11 +626,13 @@ void COMOBJALL (MPI_Comm comm,
       }
     }
 
-    COMOBJSALL (comm, pack, data, unpack, send_data, ncpu - 1, recv, nrecv);
+    ret = COMOBJSALL (comm, pack, data, unpack, send_data, ncpu - 1, recv, nrecv);
 
     free (send_data);
   }
-  else COMOBJSALL (comm, pack, data, unpack, NULL, 0, recv, nrecv);
+  else ret = COMOBJSALL (comm, pack, data, unpack, NULL, 0, recv, nrecv);
+
+  return ret;
 }
 
 /* create a repetitive point to point communication pattern;
@@ -663,12 +677,13 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   }
 
   /* allocate send buffers and prepare rank map */
-  for (i = j = 0; i < ncpu; i ++)
+  for (pattern->send_size = i = j = 0; i < ncpu; i ++)
   {
     if (pattern->send_sizes [i][2])
     {
       ERRMEM (pattern->send_data [i] = malloc (pattern->send_sizes [i][2]));
       pattern->rankmap [i] = j;
+      pattern->send_size += pattern->send_sizes [i][2];
       j ++;
     }
   }
@@ -777,7 +792,7 @@ void* COM_Pattern (MPI_Comm comm, int tag,
 
 /* communicate integers and doubles accodring
  * to the pattern computed by COM_Pattern */
-void COM_Repeat (void *pattern)
+int COM_Repeat (void *pattern)
 {
   COMPATTERN *cp = pattern;
   int *rankmap = cp->rankmap,
@@ -839,10 +854,12 @@ void COM_Repeat (void *pattern)
     MPI_Unpack (recv_data [i], recv_sizes [i][2], &j, cd->i, cd->ints, MPI_INT, comm);
     MPI_Unpack (recv_data [i], recv_sizes [i][2], &j, cd->d, cd->doubles, MPI_DOUBLE, comm);
   }
+
+  return cp->send_size;
 }
 
 /* non-blocking send */
-void COM_Send (void *pattern)
+int COM_Send (void *pattern)
 {
   COMPATTERN *cp = pattern;
   int *rankmap = cp->rankmap,
@@ -886,6 +903,8 @@ void COM_Send (void *pattern)
   {
     MPI_Isend (send_data [i], send_sizes [i][2], MPI_PACKED, send_rank [i], tag, comm, &reqs [i]);
   }
+
+  return cp->send_size;
 }
 
 /* blocking receive */
@@ -1063,7 +1082,7 @@ void* COMALL_Pattern (MPI_Comm comm,
 
 /* communicate integers and doubles accodring
  * to the pattern computed by COMALL_Pattern */
-void COMALL_Repeat (void *pattern)
+int COMALL_Repeat (void *pattern)
 {
   COMALLPATTERN *pp = pattern;
   COMDATA *cd;
@@ -1108,6 +1127,8 @@ void COMALL_Repeat (void *pattern)
       MPI_Unpack (&pp->recv_data [pp->recv_disps [i]], pp->recv_counts [i], &pp->recv_position [i], pp->recv [i].d, pp->recv [i].doubles, MPI_DOUBLE, pp->comm);
     }
   }
+
+  return pp->send_size;
 }
 
 /* free all to all communication pattern */

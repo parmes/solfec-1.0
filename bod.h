@@ -28,15 +28,33 @@
 #include "mat.h"
 #include "msh.h"
 
+#ifndef CLIQUE_TYPE
+#define CLIQUE_TYPE
+typedef struct clique CLIQUE;
+#endif
+
+#ifndef DOMAIN_TYPE
+#define DOMAIN_TYPE
+typedef struct domain DOM;
+#endif
+
+#ifndef SOLFEC_TYPE
+#define SOLFEC_TYPE
+typedef struct solfec SOLFEC;
+#endif
+
 #ifndef __bod__
 #define __bod__
 
 typedef struct general_force FORCE;
-typedef struct general_body BODY;
 typedef void (*FORCE_FUNC) (void *data, void *call, /* user data and user callback pointers */
                             int nq, double *q, int nu, double *u,   /* user defined data, configuration, velocity, time, time step */
                             double t, double h, double *f);  /* for rigid bodies 'f' comprises [spatial force; spatial torque; referential torque];
                                                                 for other types of bodies 'f' is the generalised force */
+#ifndef BODY_TYPE
+#define BODY_TYPE
+typedef struct general_body BODY;
+#endif
 
 /* results
  * value kinds */
@@ -126,7 +144,7 @@ struct general_body
 
   double damping;   /* mass proportional damping */
 
-  void *dom;        /* domain storing the body */
+  DOM *dom;        /* domain storing the body */
 
   BODY *prev,       /* list */
        *next;
@@ -141,11 +159,13 @@ struct general_body
 
   double energy [3]; /* external, kinetic, potential */
 
-#if MPI
-  union { SET *children; /* used by parent */
-          int parent; /* used by children */ } my;
+  CLIQUE *clique;  /* constraints clique */
 
-  MAP *conext; /* external constraints mapped by ids */
+#if MPI
+  int clique_weight;  /* constraints clique wight */
+
+  union { SET *children; /* set of children ranks (used by parents) */
+          int parent; } my; /* parent rank (used by children) */
 #else
   void *rendering; /* rendering data */
 #endif
@@ -241,20 +261,19 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 
 /* unpack body from double and integer buffers (unpacking starts at dpos and ipos in
  * d and i and no more than a specific number of doubles and ints can be red) */
-BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 #if MPI
 /* parent bodies store all body data and serve for time stepping */
 void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
-BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+BODY* BODY_Parent_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 /* child bodies store a minimal subset of needed data and serve for constraint solution */
 void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
-BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+BODY* BODY_Child_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 /* pack/unpack child body state (update shape after unpacking) */
 void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
-void BODY_Child_Unpack_State (void *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+void BODY_Child_Unpack_State (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 #endif
-
 #endif

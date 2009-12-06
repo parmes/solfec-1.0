@@ -263,10 +263,10 @@ static void rig_force (BODY *bod, double *q, double *u, double t, double h,
     }
   }
 
-  if (DOM(bod->dom)->gravval)
+  if (bod->dom->gravval)
   {
-    COPY (DOM(bod->dom)->gravdir, f);
-    v = TMS_Value (DOM(bod->dom)->gravval, t);
+    COPY (bod->dom->gravdir, f);
+    v = TMS_Value (bod->dom->gravval, t);
     SCALE (f, v);
     ADDMUL (linforc, BOD_M0 (bod), f, linforc);
   }
@@ -350,15 +350,6 @@ static void rig_constraints_force (BODY *bod, double *force)
 
     rig_constraints_force_accum (bod, point, con->base, con->R, isma, force);
   }
-
-#if MPI
-  for (MAP *node = MAP_First (bod->conext); node; node = MAP_Next (node))
-  {
-    CONEXT *con = node->data;
-
-    rig_constraints_force_accum (bod, con->point, con->base, con->R, con->isma, force);
-  }
-#endif
 }
 
 /* ------------------- PRB --------------------- */
@@ -540,10 +531,10 @@ static void prb_dynamic_force (BODY *bod, double time, double step, double *fext
     }
   }
 
-  if (DOM(bod->dom)->gravval)
+  if (bod->dom->gravval)
   {
-    COPY (DOM(bod->dom)->gravdir, f);
-    value = TMS_Value (DOM(bod->dom)->gravval, time);
+    COPY (bod->dom->gravdir, f);
+    value = TMS_Value (bod->dom->gravval, time);
     SCALE (f, value);
     ADDMUL (force+9, BOD_M0 (bod), f, force+9);
   }
@@ -619,15 +610,6 @@ static void prb_constraints_force (BODY *bod, double *force)
 
     prb_constraints_force_accum (bod, point, con->base, con->R, isma, force);
   }
-
-#if MPI
-  for (MAP *node = MAP_First (bod->conext); node; node = MAP_Next (node))
-  {
-    CONEXT *con = node->data;
-
-    prb_constraints_force_accum (bod, con->point, con->base, con->R, con->isma, force);
-  }
-#endif
 }
 
 /* calculate cauche stress for a pseudo-rigid body */
@@ -769,7 +751,12 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
   /* initial damping */
   bod->damping = 0.0;
 
+  /* clique */
+  bod->clique = NULL;
+
 #if MPI
+  bod->clique_weight = 0;
+
   bod->my.children = NULL;
 #endif
 
@@ -1719,7 +1706,7 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 }
 
 /* unpack body */
-BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *bod;
   int kind;
@@ -1727,17 +1714,15 @@ BODY* BODY_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   SHAPE *shp;
   char *label;
   BULK_MATERIAL *mat;
-  SOLFEC *sol;
   int ncon, n, id;
   short form;
   DOM *dom;
 
   /* unpack BODY_Create arguments and create body */
-  sol = solfec;
   kind = unpack_int (ipos, i, ints);
   if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
-  if (form < 0) msh = MESH_Unpack (solfec, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
-  shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
+  if (form < 0) msh = MESH_Unpack (sol, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
+  shp = SHAPE_Unpack (sol, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
@@ -1825,7 +1810,7 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
 }
 
 /* unpack parent body */
-BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+BODY* BODY_Parent_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *bod;
   int kind, n, m;
@@ -1833,15 +1818,13 @@ BODY* BODY_Parent_Unpack (void *solfec, int *dpos, double *d, int doubles, int *
   MESH *msh;
   char *label;
   BULK_MATERIAL *mat;
-  SOLFEC *sol;
   short form;
 
   /* unpack BODY_Create arguments and create body */
-  sol = solfec;
   kind = unpack_int (ipos, i, ints);
   if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
-  if (form < 0) msh = MESH_Unpack (solfec, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
-  shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
+  if (form < 0) msh = MESH_Unpack (sol, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
+  shp = SHAPE_Unpack (sol, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
@@ -1907,7 +1890,7 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
 }
 
 /* unpack child body */
-BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+BODY* BODY_Child_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *bod;
   int kind;
@@ -1915,15 +1898,13 @@ BODY* BODY_Child_Unpack (void *solfec, int *dpos, double *d, int doubles, int *i
   MESH *msh;
   char *label;
   BULK_MATERIAL *mat;
-  SOLFEC *sol;
   short form;
 
   /* unpack BODY_Create arguments and create body */
-  sol = solfec;
   kind = unpack_int (ipos, i, ints);
   if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
-  if (form < 0) msh = MESH_Unpack (solfec, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
-  shp = SHAPE_Unpack (solfec, dpos, d, doubles, ipos, i, ints);
+  if (form < 0) msh = MESH_Unpack (sol, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
+  shp = SHAPE_Unpack (sol, dpos, d, doubles, ipos, i, ints);
   label = unpack_string (ipos, i, ints);
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
@@ -1957,14 +1938,13 @@ void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int
   pack_int (isize, i, ints, bod->id);
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
-  pack_int (isize, i, ints, DOM (bod->dom)->rank); /* pack parent rank => same as domain's rank */
+  pack_int (isize, i, ints, bod->dom->rank); /* pack parent rank => same as domain's rank */
 }
 
 /* unpack body state and update the shape */
-void BODY_Child_Unpack_State (void *domain, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+void BODY_Child_Unpack_State (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   unsigned int id;
-  DOM *dom = domain;
   BODY *bod;
 
   id = unpack_int (ipos, i, ints);

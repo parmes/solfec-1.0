@@ -19,24 +19,32 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#if MPI
-#include <zoltan.h>
-#endif
-
 #include "mem.h"
 #include "bod.h"
 #include "sps.h"
 
+#ifndef CONSTRAINT_TYPE
+#define CONSTRAINT_TYPE
+typedef struct constraint CON;
+#endif
+
+#ifndef DOMAIN_TYPE
+#define DOMAIN_TYPE
+typedef struct domain DOM;
+#endif
+
 #ifndef __ldy__
 #define __ldy__
 
-#define CLIQUES             1      /* implement cliques (testing, might replace current approach) */
-
-#define DOM_Z_SIZE          4      /* size of auxiliary storage in dom.h/constraint */
-
 typedef struct offb OFFB;
 typedef struct diab DIAB;
+typedef struct clioff CLIOFF;
 typedef struct locdyn LOCDYN;
+
+#ifndef CLIQUE_TYPE
+#define CLIQUE_TYPE
+typedef struct clique CLIQUE;
+#endif
 
 enum upkind
 {
@@ -46,26 +54,7 @@ enum upkind
 
 typedef enum upkind UPKIND;
 
-#if MPI
-/* eXternal Reaction */
-typedef struct
-{ 
-  double R [3];
-  int id;
-  int rank; /* rank of parent block */
-  short done;
-  double *update; /* auxiliary update pointer */
-} XR;
-
-/* XR pointer cast */
-#define XR(ptr) ((XR*)(ptr))
-
-/* balancing algorithm */
-typedef enum {LDB_OFF, LDB_GEOM, LDB_GRAPH} LDB;
-#endif
-
-/* off-diagonal
- * block entry */
+/* off-diagonal block */
 struct offb
 {
   double W [9], /* generalised inverse inertia block */
@@ -74,39 +63,9 @@ struct offb
   DIAB *dia; /* can be NULL for balanced boundary blocks */
   BODY *bod;
   OFFB *n;
-
-#if MPI
-  unsigned int id; /* adjacent constraint id */
-
-  void *ext; /* external constraint (unbalanced W) */
-
-  XR *x; /* external reaction for boundary blocks (dia == NULL) */
-#endif
 };
 
-#if MPI
-/* local dynamic system entries can be migrated in parallel,
- * hence it is better to copy the necessary members of an
- * underlying constraint, in order to support independent migration */
-typedef struct condata CONDATA;
-
-struct condata
-{
-  double REAC [3],
-	 Z [DOM_Z_SIZE],
-	 point [3],
-	 base [9],
-	 mpnt [3],
-	 gap;
-
-  short kind;
-
-  SURFACE_MATERIAL_STATE mat;
-};
-#endif
-
-/* diagonal
- * block entry */
+/* diagonal block */
 struct diab
 {
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
@@ -117,8 +76,8 @@ struct diab
 	 rho;   /* scaling parameter */
 
   OFFB *adj;
-  void *con;    /* the underlying constraint (and the owner od the reaction R[3]);
-                   NULL for balanced constraints from aabb->diab */
+  CON *con;    /* the underlying constraint (and the owner od the reaction R[3]);
+                  NULL for balanced constraints from aabb->diab */
 
   MX *mH, *mprod, /* master H operator and H inv(M) or inv(M) H^T product */
      *sH, *sprod; /* slave counterpart */
@@ -126,22 +85,21 @@ struct diab
 		           while right product is sligtly faster (serial code) */
 
   DIAB *p, *n;
+};
 
-#if MPI
-  unsigned int id; /* this constraint id */
+/* off-diagonal clique block */
+struct clioff
+{
+  OFFB *off;
+  CLIOFF *n;
+};
 
-  OFFB *adjext; /* external adjacency */
-
-  int rank; /* for a parent: rank of its child, and vice versa */
-
-  int degree; /* the total number of blocks in this row */
-
-  MAP *children; /* balanced boundary nodes map children ranks to local reaction REXT indices */
-
-  SET *rext; /* balanced boundary receiving nodes store pointers to their XR here */
-
-  CONDATA *condata; /* coppied contact data for migrated blocks */
-#endif
+/* diagonal clique block list */
+struct clique
+{
+  DIAB *dia;
+  CLIOFF *adj;
+  CLIQUE *n;
 };
 
 /* local dynamics */
@@ -150,52 +108,21 @@ struct locdyn
   MEM offmem,
       diamem;
 
-  void *dom; /* domain */
-  DIAB *dia; /* list of diagonal blocks (unbalanced) */
+  MEM clioffmem,
+      clidiamem;
+
+  DOM *dom; /* domain */
+  DIAB *dia; /* list of diagonal blocks */
 
   short modified; /* 1 if system structure has changed; otherwise 0 */
-
-#if MPI
-  MAP *insmap; /* maps newly inserted blocks to indices in 'ins' */
-  DIAB **ins; /* newly inserted unbalanced blocks */
-  int nins, sins; /* number of them and size of buffer */
-
-  DIAB **del; /* recently deleted unbalanced blocks */
-  int ndel, sdel; /* number and size */
-
-  MEM mapmem, /* map items memory */
-      setmem, /* set items memory */
-      conmem; /* coppied contact datat memory */
-
-  MAP *idbb; /* id-to-balanced diagonal block map */
-  DIAB *diab; /* list of diagonal blocks (balanced) */
-  int ndiab; /* number of balanced diagonal blocks */
-
-  XR *REXT; /* table of reactions stored at other processors */
-  int REXT_count; /* count of external reactions */
-
-  LDB ldb, /* kind of balancing (default: LDB_OFF) */
-      ldb_new; /* newly set kind of balancing */
-
-  struct Zoltan_Struct *zol;
-
-  double imbalance_tolerance;/* imbalance threshold */
-
-  int nexpdia; /* number of exported rows */
-
-#if CLIQUES
-  MAP *diaext; /* external diagonal blocks id-map */
-#endif
-
-#endif
 };
 
 /* create local dynamics for a domain */
-LOCDYN* LOCDYN_Create (void *dom);
+LOCDYN* LOCDYN_Create (DOM *dom);
 
 /* insert a 'con'straint between a pair of bodies =>
  * return the diagonal entry of the local dynamical system */
-DIAB* LOCDYN_Insert (LOCDYN *ldy, void *con, BODY *one, BODY *two);
+DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two);
 
 /* remove a diagonal entry from local dynamics */
 void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia);
@@ -205,29 +132,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind);
 
 /* update local dynamics => after the solution */
 void LOCDYN_Update_End (LOCDYN *ldy);
-
-#if MPI
-/* change load balancing algorithm */
-void LOCDYN_Balancing (LOCDYN *ldy, LDB ldb);
-
-/* update mapping of balanced external reactions */
-void LOCDYN_REXT_Update (LOCDYN *ldy);
-
-/* return the union of 'inp' sets; return the communication 'pattern' used
- * to gather and scatter reactions in the union; if score < 0 the same union
- * set is created on all processors; if score >= 0 a single set is created
- * on the processor with the minimum score, while other processors get NULL */
-SET* LOCDYN_Union_Create (LOCDYN *ldy, SET *inp, int score, void **pattern);
-
-/* gather reactions */
-void LOCDYN_Union_Gather (void *pattern);
-
-/* scatter reactions */
-void LOCDYN_Union_Scatter (void *pattern);
-
-/* release memory used by the union set */
-void LOCDYN_Union_Destroy (void *pattern);
-#endif
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);
