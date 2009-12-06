@@ -1809,8 +1809,6 @@ static void create_mpi (DOM *dom)
 
   ERRMEM (dom->delch = MEM_CALLOC (dom->ncpu * sizeof (SET*)));
 
-  dom->conext = NULL;
-
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
   dom->imbalance_tolerance = 1.3;
@@ -1853,8 +1851,6 @@ static void destroy_mpi (DOM *dom)
   }
 
   free (dom->delch);
-
-  MEM_Release (&dom->extmem);
 
   Zoltan_Destroy (&dom->zol);
 }

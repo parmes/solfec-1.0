@@ -12,6 +12,3 @@ cannot seemingly work with XDR at all. Reconsider HDF.
 Note that during W assembly when using MX_Matmat (coef, ...)
 the assembly takes much longer than when scaling after (like now).
 Investigate why!
-----------------------------------------------------------------
-Increasing number of CPUs for a fixed model increases number
-of contacts => some are redundant.
