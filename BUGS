@@ -12,3 +12,6 @@ cannot seemingly work with XDR at all. Reconsider HDF.
 Note that during W assembly when using MX_Matmat (coef, ...)
 the assembly takes much longer than when scaling after (like now).
 Investigate why!
+---------------------------------------------------------------------------
+SET_Delete_Node and MAP_Delete_Node do not seem to be correct
+in terms of returning the next node in turn (valgrinded out)

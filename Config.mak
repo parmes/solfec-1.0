@@ -16,7 +16,7 @@ FF = g95
 
 DEBUG = yes
 PROFILE = no
-MEMDEBUG = no
+MEMDEBUG = yes
 GEOMDEBUG = no
 NOTHROW = no
 

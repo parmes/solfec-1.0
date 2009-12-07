@@ -162,8 +162,6 @@ struct general_body
   CLIQUE *clique;  /* constraints clique */
 
 #if MPI
-  int clique_weight;  /* constraints clique wight */
-
   union { SET *children; /* set of children ranks (used by parents) */
           int parent; } my; /* parent rank (used by children) */
 #else

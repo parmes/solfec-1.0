@@ -77,8 +77,9 @@ struct constraint
         CON_COHESIVE = 0x04,
         CON_NEW      = 0x08,
 	CON_IDLOCK   = 0x10, /* locked ID cannot be freed to the pool */
-	CON_EXTERNAL = 0x20, /* external constraint migrated into this domain */
-        CON_DONERND  = 0x40} state; /* constraint state */
+	CON_BOUNDARY = 0x20, /* boundary constraint => between a parent and a child body */
+	CON_EXTERNAL = 0x40, /* a boundary constraint migrated here from another processor */
+        CON_DONERND  = 0x80} state; /* constraint state */
 
   short paircode; /* geometric object pair code for a contact */
 
@@ -178,7 +179,11 @@ struct domain
 
   MAP *children; /* id-to-child map */
 
-  SET **delch; /* id sets of children to be deleted for each rank (after removed parent) */
+  SET **delch; /* id sets of children to be deleted on other ranks (after removed parents) */
+
+  SET **expbnd; /* boundary contacts to be sent to other ranks */
+
+  SET **delbnd; /* ids of boundary contacts to be deleted on other ranks (after deleted constraints) */
 
   int bytes; /* bytes sent during load balancing */
 #endif

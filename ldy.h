@@ -39,6 +39,7 @@ typedef struct domain DOM;
 typedef struct offb OFFB;
 typedef struct diab DIAB;
 typedef struct clioff CLIOFF;
+typedef struct clidia CLIDIA;
 typedef struct locdyn LOCDYN;
 
 #ifndef CLIQUE_TYPE
@@ -94,12 +95,22 @@ struct clioff
   CLIOFF *n;
 };
 
-/* diagonal clique block list */
-struct clique
+/* diagonal clique block */
+struct clidia
 {
   DIAB *dia;
   CLIOFF *adj;
-  CLIQUE *n;
+  CLIDIA *n;
+};
+
+/* W blocks clique */
+struct clique
+{
+  CLIDIA *dia;
+  int size;
+#if MPI
+  int weight;
+#endif
 };
 
 /* local dynamics */
@@ -109,7 +120,8 @@ struct locdyn
       diamem;
 
   MEM clioffmem,
-      clidiamem;
+      clidiamem,
+      cliquemem;
 
   DOM *dom; /* domain */
   DIAB *dia; /* list of diagonal blocks */
