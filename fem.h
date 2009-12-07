@@ -92,4 +92,11 @@ void FEM_Update_Rough_Mesh (BODY *bod);
 /* release FEM memory */
 void FEM_Destroy (BODY *bod);
 
+#if MPI
+/* get configuration packing size */
+int FEM_Conf_Pack_Size (BODY *bod);
+
+/* get velocity packing size */
+int FEM_Velo_Pack_Size (BODY *bod);
+#endif
 #endif

@@ -2383,3 +2383,17 @@ void FEM_Destroy (BODY *bod)
 {
   free (bod->conf);
 }
+
+#if MPI
+/* get configuration packing size */
+int FEM_Conf_Pack_Size (BODY *bod)
+{
+  return bod->dofs;
+}
+
+/* get velocity packing size */
+int FEM_Velo_Pack_Size (BODY *bod)
+{
+  return 5 * bod->dofs;
+}
+#endif
