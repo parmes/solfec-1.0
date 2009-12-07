@@ -67,15 +67,6 @@ static int gobjcmp (OPR *a, OPR *b)
   else return cmp;
 }
 
-/* check for a lack of overlap */
-static int no_overlap (double *a, double *b)
-{
-  if (a[0] > b[3] || b[0] > a[3]) return 1;
-  if (a[1] > b[4] || b[1] > a[4]) return 1;
-  if (a[2] > b[5] || b[2] > a[5]) return 1;
-  return 0;
-}
-
 /* local overlap creation callback => filters our unwnated adjacency */
 static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
 {
@@ -300,11 +291,11 @@ void AABB_Delete_Body (AABB *aabb, BODY *body)
 }
 
 /* update state => detect created and released overlaps */
-void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release)
+void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
 {
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
   BOX *box, *next, *adj;
-  MAP *item, *jtem;
+  MAP *item;
 
 #if MPI
   if (aabb->dom->rank == 0)
@@ -331,7 +322,6 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
     for (item = MAP_First (box->adj); item; item = MAP_Next (item)) /* for each adjacent box */
     {
       adj = item->key;
-      release (data, box, adj, item->data); /* release overlap */
       MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
     }
 
@@ -339,21 +329,6 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
     MEM_Free (&aabb->boxmem, box); /* free box */
   }
   aabb->out = NULL; /* list emptied */
-
-  for (box = aabb->lst; box; box = box->next) /* for each current box */
-  {
-    for (item = MAP_First (box->adj); item; item = jtem) /* for each adjacent box */
-    {
-      adj = item->key;
-      if (no_overlap (box->extents, adj->extents))
-      {
-	release (data, box, adj, item->data); /* release overlap */
-	MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
-	jtem = MAP_Delete_Node (&aabb->mapmem, &box->adj, item); /* remove 'adj' from 'box's adjacency */
-      }
-      else jtem = MAP_Next (item);
-    }
-  }
 
   if (aabb->modified) /* merge insertion and curent lists, update pointer table */
   {

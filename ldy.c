@@ -135,16 +135,15 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
 }
 
 /* create clique */
-static CLIQUE* clique_create (MEM *diamem, MEM *offmem, BODY *bod)
+static CLIQUE* clique_create (MEM *quemem, MEM *diamem, MEM *offmem, BODY *bod)
 {
-#if MPI
-  int weight = 0;
-#endif
-  CLIQUE *list = NULL,
-	 *cli;
+  CLIQUE *que;
+  CLIDIA *cli;
   CLIOFF *off;
   DIAB *dia;
   OFFB *blk;
+
+  ERRMEM (que = MEM_Alloc (quemem));
 
   for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
   {
@@ -152,10 +151,11 @@ static CLIQUE* clique_create (MEM *diamem, MEM *offmem, BODY *bod)
     dia = con->dia;
     ERRMEM (cli = MEM_Alloc (diamem));
     cli->dia = dia;
-    cli->n = list;
-    list = cli;
+    cli->n = que->dia;
+    que->dia = cli;
+    que->size ++;
 #if MPI
-    weight ++;
+    que->weight ++;
 #endif
 
     for (blk = dia->adj; blk; blk = blk->n)
@@ -166,25 +166,22 @@ static CLIQUE* clique_create (MEM *diamem, MEM *offmem, BODY *bod)
       off->n = cli->adj;
       cli->adj = off;
 #if MPI
-      weight ++;
+      que->weight ++;
 #endif
     }
   }
 
-#if MPI
-  bod->clique_weight = weight;
-#endif
-
-  return list;
+  return que;
 }
 
 /* destroy clique */
-static void clique_destroy (MEM *diamem, MEM *offmem, CLIQUE *cli)
+static void clique_destroy (MEM *quemem, MEM *diamem, MEM *offmem, CLIQUE *que)
 {
+  CLIDIA *cli;
   CLIOFF *off;
   void *next;
 
-  for (; cli; cli = next)
+  for (cli = que->dia; cli; cli = next)
   {
     for (off = cli->adj; off; off = next)
     {
@@ -195,6 +192,8 @@ static void clique_destroy (MEM *diamem, MEM *offmem, CLIQUE *cli)
     next = cli->n;
     MEM_Free (diamem, cli);
   }
+
+  MEM_Free (quemem, que);
 }
 
 /* create local dynamics for a domain */
@@ -206,7 +205,8 @@ LOCDYN* LOCDYN_Create (DOM *dom)
   MEM_Init (&ldy->offmem, sizeof (OFFB), BLKSIZE);
   MEM_Init (&ldy->diamem, sizeof (DIAB), BLKSIZE);
   MEM_Init (&ldy->clioffmem, sizeof (CLIOFF), BLKSIZE);
-  MEM_Init (&ldy->clidiamem, sizeof (CLIQUE), BLKSIZE);
+  MEM_Init (&ldy->clidiamem, sizeof (CLIDIA), BLKSIZE);
+  MEM_Init (&ldy->cliquemem, sizeof (CLIQUE), BLKSIZE);
   ldy->dom = dom;
   ldy->dia = NULL;
   ldy->modified = 0;
@@ -512,12 +512,13 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
     /* create cliques */
     MEM *diamem = &ldy->clidiamem,
-	*offmem = &ldy->clioffmem;
+	*offmem = &ldy->clioffmem,
+	*quemem = &ldy->cliquemem;
 
     for (BODY *bod = dom->bod; bod; bod = bod->next)
     {
-      if (bod->clique) clique_destroy (diamem, offmem, bod->clique);
-      bod->clique = clique_create (diamem, offmem, bod);
+      if (bod->clique) clique_destroy (quemem, diamem, offmem, bod->clique);
+      bod->clique = clique_create (quemem, diamem, offmem, bod);
     }
   }
 

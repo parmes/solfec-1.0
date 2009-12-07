@@ -755,8 +755,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
   bod->clique = NULL;
 
 #if MPI
-  bod->clique_weight = 0;
-
   bod->my.children = NULL;
 #endif
 
