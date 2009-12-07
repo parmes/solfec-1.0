@@ -539,6 +539,8 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #endif
       if (tt < 1.0 && verbose) verbose = verbose_off (sol, kind, solver);
       else if (tt >= 1.0) { statsout (sol); verbose = verbose_on (sol, kind, solver); timerstart (&tim); }
+
+      statsout (sol); //FIXME
     }
   }
   else /* READ */

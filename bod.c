@@ -646,6 +646,34 @@ static char* copylabel (char *label)
   return out;
 }
 
+#if MPI
+static int conf_pack_size (BODY *bod)
+{
+  switch (bod->kind)
+  {
+  case OBS: return 0;
+  case RIG: return RIG_CONF_SIZE;
+  case PRB: return PRB_CONF_SIZE;
+  case FEM: return FEM_Conf_Pack_Size (bod);
+  }
+
+  return 0;
+}
+
+static int velo_pack_size (BODY *bod)
+{
+  switch (bod->kind)
+  {
+  case OBS: return 0;
+  case RIG: return RIG_VELO_SIZE;
+  case PRB: return PRB_VELO_SIZE;
+  case FEM: return FEM_Velo_Pack_Size (bod);
+  }
+
+  return 0;
+}
+#endif
+
 /* -------------- interface ------------- */
 
 BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form, MESH *msh)
@@ -756,6 +784,10 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
 
 #if MPI
   bod->my.children = NULL;
+
+  bod->dummies = NULL;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &bod->rank);
 #endif
 
   return bod;
@@ -1175,12 +1207,13 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
     etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
-#if 1
+    /* FIXME: this got broken after the simplification */
+#if 0
     if (!(etot < ENE_TOL * emax || emax < ENE_EPS))
       printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
-#endif
 
     ASSERT (etot < ENE_TOL * emax || emax < ENE_EPS, ERR_BOD_ENERGY_CONSERVATION);
+#endif
 
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
   }
@@ -1588,7 +1621,12 @@ void BODY_Destroy (BODY *bod)
   if (bod->msh) MESH_Destroy (bod->msh);
 
 #if MPI
-  if ((bod->flags & BODY_CHILD) == 0) SET_Free (NULL, &bod->my.children);  /* a parent body => free children ranks */
+  if ((bod->flags & (BODY_CHILD|BODY_DUMMY)) == 0)
+  {
+    SET_Free (NULL, &bod->my.children);  /* a parent body => free children ranks */
+
+    SET_Free (NULL, &bod->dummies); /* and dummy ranks */
+  }
 #elif OPENGL
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
 #endif
@@ -1697,7 +1735,7 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 
   /* pack scheme and flags */
   pack_int (isize, i, ints, bod->scheme);
-  pack_int (isize, i, ints, bod->flags);
+  pack_int (isize, i, ints, bod->flags & BODY_PERMANENT_FLAGS);
 
   /* damping */
   pack_double (dsize, d, doubles, bod->damping);
@@ -1788,15 +1826,15 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   pack_int (isize, i, ints, bod->id);
 
   /* configuration and velocity */
-  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
+  pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod));
+  pack_doubles (dsize, d, doubles, bod->velo, velo_pack_size (bod));
 
   /* pack the list of forces */
   pack_forces (bod->forces, dsize, d, doubles, isize, i, ints);
 
   /* pack scheme and flags */
   pack_int (isize, i, ints, bod->scheme);
-  pack_int (isize, i, ints, bod->flags);
+  pack_int (isize, i, ints, bod->flags & BODY_PERMANENT_FLAGS);
 
   /* damping */
   pack_double (dsize, d, doubles, bod->damping);
@@ -1804,6 +1842,11 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   /* pack children ranks */
   pack_int (isize, i, ints, SET_Size (bod->my.children));
   for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
+    pack_int (isize, i, ints, (int) (long) item->data);
+
+  /* pack dummies ranks */
+  pack_int (isize, i, ints, SET_Size (bod->dummies));
+  for (SET *item = SET_First (bod->dummies); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
 }
 
@@ -1840,8 +1883,8 @@ BODY* BODY_Parent_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *i
   bod->id = unpack_int (ipos, i, ints);
 
   /* configuration and velocity */
-  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+  unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod));
+  unpack_doubles (dpos, d, doubles, bod->velo, velo_pack_size (bod));
 
   /* unpack the list of forces */
   bod->forces = unpack_forces (dpos, d, doubles, ipos, i, ints);
@@ -1857,6 +1900,11 @@ BODY* BODY_Parent_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *i
   m = unpack_int (ipos, i, ints);
   for (n = 0; n < m; n ++)
     SET_Insert (NULL, &bod->my.children, (void*) (long) unpack_int (ipos, i, ints), NULL);
+
+  /* unpack dummies ranks */
+  m = unpack_int (ipos, i, ints);
+  for (n = 0; n < m; n ++)
+    SET_Insert (NULL, &bod->dummies, (void*) (long) unpack_int (ipos, i, ints), NULL);
 
   /* init inverse */
   if (sol->dom->dynamic)
@@ -1935,8 +1983,8 @@ void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int
 {
   pack_int (isize, i, ints, bod->id);
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
-  pack_int (isize, i, ints, bod->dom->rank); /* pack parent rank => same as domain's rank */
+  pack_doubles (dsize, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
+  pack_int (isize, i, ints, bod->rank); /* pack parent rank => same as domain's rank */
 }
 
 /* unpack body state and update the shape */
@@ -1950,7 +1998,7 @@ void BODY_Child_Unpack_State (DOM *dom, int *dpos, double *d, int doubles, int *
   ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) id, NULL), "Invalid child id");
 
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
+  unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
 
   bod->my.parent = unpack_int (ipos, i, ints); /* unpack parent rank */
 

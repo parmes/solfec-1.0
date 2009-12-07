@@ -287,6 +287,7 @@ void AABB_Delete_Body (AABB *aabb, BODY *body)
   for (sgp = body->sgp, sgpe = sgp + body->nsgp; sgp < sgpe; sgp ++)
   {
     AABB_Delete (aabb, sgp->box);
+    sgp->box = NULL;
   }
 }
 

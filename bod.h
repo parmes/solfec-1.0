@@ -105,8 +105,12 @@ struct general_force
 typedef enum
 {
   BODY_DETECT_SELF_CONTACT = 0x01, /* enable self contact detection */
-  BODY_CHILD               = 0x02, /* a child copy of a parent body flag */
+  BODY_CHILD               = 0x02, /* a child copy of a parent body */
+  BODY_DUMMY               = 0x04, /* a dummy copy of a parent body */
 } BODY_FLAGS;
+
+/* flags that are migrated with bodies (the rest is filtered out) */
+#define BODY_PERMANENT_FLAGS (BODY_DETECT_SELF_CONTACT)
 
 struct general_body
 {
@@ -164,6 +168,10 @@ struct general_body
 #if MPI
   union { SET *children; /* set of children ranks (used by parents) */
           int parent; } my; /* parent rank (used by children) */
+
+  SET *dummies; /* set of dummy children ranks (used by parents) */
+
+  int rank; /* current rank (not exported body) or prospective rank (exported body) */
 #else
   void *rendering; /* rendering data */
 #endif

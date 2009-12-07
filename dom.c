@@ -1340,16 +1340,32 @@ static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ip
   sid = unpack_int (ipos, i, ints);
 
   master = MAP_Find (dom->idb, (void*) (long) mid, NULL);
+  if (!master)
+  {
+    master = MAP_Find (dom->children, (void*) (long) mid, NULL);
+    if (!master)
+    {
+      exit (0);
+    }
+  }
   if (!master) { ASSERT_DEBUG_EXT (master = MAP_Find (dom->children, (void*) (long) mid, NULL), "Invalid body id"); }
 
   slave = MAP_Find (dom->idb, (void*) (long) sid, NULL);
+  if (!slave)
+  {
+    slave = MAP_Find (dom->children, (void*) (long) sid, NULL);
+    if (!slave)
+    {
+      exit (0);
+    }
+  }
   if (!slave) { ASSERT_DEBUG_EXT (slave = MAP_Find (dom->children, (void*) (long) sid, NULL), "Invalid body id"); }
 
   con = insert (dom, master, slave);
 
   con->kind = CONTACT;
 
-  con->state |=  (CON_NEW | CON_BOUNDARY | CON_EXTERNAL);
+  con->state |=  (CON_NEW | CON_EXTERNAL);
 
   unpack_doubles (dpos, d, doubles, con->point, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
@@ -1417,22 +1433,17 @@ static void midpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
 /* insert a child body into the domain */
 static void insert_child (DOM *dom, BODY *bod)
 {
-  AABB_Insert_Body (dom->aabb, bod);
+  if (!(bod->flags & BODY_DUMMY)) AABB_Insert_Body (dom->aabb, bod);
 
   /* insert into id based map */
   MAP_Insert (&dom->mapmem, &dom->children, (void*) (long) bod->id, bod, NULL);
 
   bod->dom = dom;
-
-  /* note, that the bounding boxes related to this
-   * body migrate independently in the AABB module */
 }
 
 /* remove a child body from the domain */
 static void remove_child (DOM *dom, BODY *bod)
 {
-  AABB_Delete_Body (dom->aabb, bod);
-
   /* remove child related constraints */
   SET *con = bod->con;
   bod->con = NULL; /* DOM_Remove_Constraint will try to remove the constraint
@@ -1443,6 +1454,10 @@ static void remove_child (DOM *dom, BODY *bod)
     DOM_Remove_Constraint (dom, item->data);
 
   SET_Free (&dom->setmem, &con); /* free body's constraint set */
+
+  /* remove box after constraints were deleted as
+   * AABB_Break_Adjacency is invoked from within */
+  if (!(bod->flags & BODY_DUMMY)) AABB_Delete_Body (dom->aabb, bod);
 
   /* delete from id based map */
   MAP_Delete (&dom->mapmem, &dom->children, (void*) (long) bod->id, NULL);
@@ -1469,8 +1484,6 @@ void insert_migrated_body (DOM *dom, BODY *bod)
 /* remove migrated body from the domain */
 static void remove_migrated_body (DOM *dom, BODY *bod)
 {
-  AABB_Delete_Body (dom->aabb, bod);
-
   /* remove all body related constraints */
   SET *con = bod->con;
   bod->con = NULL; /* DOM_Remove_Constraint will try to remove the constraint
@@ -1493,18 +1506,24 @@ static void remove_migrated_body (DOM *dom, BODY *bod)
   if (bod->prev) bod->prev->next = bod->next;
   else dom->bod = bod->next;
   if (bod->next) bod->next->prev = bod->prev;
+
+  /* remove box after constraints were deleted as
+   * AABB_Break_Adjacency is invoked from within */
+  AABB_Delete_Body (dom->aabb, bod);
 }
 
-/* compute migration of overlap based child bodies */
-static void children_migration_begin (DOM *dom, DBD *dbd)
+/* compute migration of subdomain overlap based children */
+static void compute_children_migration (DOM *dom, DBD *dbd)
 {
   int *procs, numprocs, i;
   SET *procset, *x;
 
   ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
 
-   /* create set 'sndset' of pairs (body, rank) of bodies
-    * to be sent as children to other partitions */
+  /* create set 'delset' of pairs (id, rank) of children
+   * that will need to be removed from their partitions
+   * create set 'sndset' of pairs (body, rank) of bodies
+   * to be sent as children to other partitions */
 
   procset = NULL;
 
@@ -1515,14 +1534,26 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
     Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
     /* create a set copy 'procset' of 'procs' table */
-    for (i = 0; i < numprocs; i ++) 
+    for (i = 0; i < numprocs; i ++)
     {
-      if (dom->rank != procs [i] || !SET_Contains (dbd [procs [i]].export_bod, bod, NULL)) /* skip current or export rank */
-	SET_Insert (&dom->setmem, &procset, (void*) (long) procs [i], NULL);
+      if (bod->rank != procs [i]) /* if this is neither current nor the new body rank */
+        SET_Insert (&dom->setmem, &procset, (void*) (long) procs [i], NULL);
     }
 
-    /* for each x in procset, if not in bod->my.children,
-     * add (bod, x) to sndset, insert x into bod->my.children */
+    /* for each x in bod->my.children, if not in procset,
+     * add (bod->id, x) to delset, remove x from bod->my.children */
+    for (x = SET_First (bod->my.children); x; )
+    {
+      if (!SET_Contains (procset, x->data, NULL))
+      {
+	SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].delset, (void*) (long) bod->id, NULL);
+	x = SET_Delete_Node (NULL, &bod->my.children, x); /* TODO: SET_Delete_Node might be incorrect (not tested enough) */
+      }
+      else x = SET_Next (x);
+    }
+
+     /* for each x in procset, if not in bod->my.children,
+      * add (bod, x) to sndset, insert x into bod->my.children */
     for (x = SET_First (procset); x; x = SET_Next (x))
     {
       if (!SET_Contains (bod->my.children, x->data, NULL))
@@ -1534,16 +1565,19 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
 
     /* reset processors set */
     SET_Free (&dom->setmem, &procset);
+
+    /* prepare children state gossip set */
+    for (x = SET_First (bod->my.children); x; x = SET_Next (x))
+    {
+      SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].gossip, bod, NULL);
+    }
   }
 }
 
 /* pack domain balancing data */
-static void domain_balancing_begin_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
-
-  /* pack penetration depth flag */
-  pack_int (isize, i, ints, dbd->dom->flags & DOM_DEPTH_VIOLATED);
 
   /* pack spare body ids */
   if (dbd->rank == 0) /* if sending to rank 0 */
@@ -1572,24 +1606,29 @@ static void domain_balancing_begin_pack (DBD *dbd, int *dsize, double **d, int *
   for (item = SET_First (dbd->export_con); item; item = SET_Next (item))
     pack_non_contact_constraint (item->data, dsize, d, doubles, isize, i, ints);
 
+  /* pack deleted children ids */
+  pack_int (isize, i, ints, SET_Size (dbd->delset));
+  for (item = SET_First (dbd->delset); item; item = SET_Next (item))
+    pack_int (isize, i, ints, (int) (long) item->data);
+  
   /* pack exported children */
   pack_int (isize, i, ints, SET_Size (dbd->sndset));
   for (item = SET_First (dbd->sndset); item; item = SET_Next (item))
     BODY_Child_Pack (item->data, dsize, d, doubles, isize, i, ints);
 
-  SET_Free (&dbd->dom->setmem, &dbd->sndset); /* empty set */
+  /* pack children configuration updates */
+  pack_int (isize, i, ints, SET_Size (dbd->gossip));
+  for (item = SET_First (dbd->gossip); item; item = SET_Next (item))
+    BODY_Child_Pack_State (item->data, dsize, d, doubles, isize, i, ints);
 }
 
 /* unpack domain balancing data */
-static void* domain_balancing_begin_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   CONAUX *aux;
   int n, j, k;
   BODY *bod;
   MEM mem;
-
-  /* unpack penetration depth flag */
-  k = unpack_int (ipos, i, ints); ASSERT (!k, ERR_DOM_DEPTH);
 
   /* unpack spare body ids */
   if (dom->rank == 0) /* if rank 0 */
@@ -1651,6 +1690,16 @@ static void* domain_balancing_begin_unpack (DOM *dom, int *dpos, double *d, int 
     MEM_Free (&mem, aux);
   }
 
+  /* unpack deleted children ids */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    k = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) k, NULL), "Invalid body id");
+    remove_child (dom, bod);
+    BODY_Destroy (bod);
+  }
+  
   /* unpack exported children */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
@@ -1659,38 +1708,155 @@ static void* domain_balancing_begin_unpack (DOM *dom, int *dpos, double *d, int 
     insert_child (dom, bod);
   }
 
+  /* unpack children configuration updates */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    BODY_Child_Unpack_State (dom, dpos, d, doubles, ipos, i, ints);
+  }
+
   return NULL;
 }
 
-/* complete migration of overlap based and boundary contact related children */
-static void children_migration_end (DOM *dom, DBD *dbd)
+/* domain balancing */
+static void domain_balancing (DOM *dom)
 {
-  int *procs, numprocs, i;
+  int changes,
+      num_gid_entries,
+      num_lid_entries,
+      num_import,
+      *import_procs,
+      num_export,
+      *export_procs;
+
+  ZOLTAN_ID_PTR import_global_ids,
+		import_local_ids,
+		export_global_ids,
+		export_local_ids;
+
+  int val, sum, min, avg, max;
+  unsigned int id;
+  char tol [128];
+  double ratio;
+  SET *item;
+  BODY *bod;
+  DBD *dbd;
+  int i;
+
+  /* allocate balancing data storage */
+  ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
+
+  /* compute inbalance of bodies in partitions */
+  for (val = 0, bod = dom->bod; bod; bod = bod->next) val += body_weight (bod);
+  PUT_int_stats (1, &val, &sum, &min, &avg, &max);
+  ratio = (double) max / (double) MAX (min, 1);
+
+  if (ratio > dom->imbalance_tolerance)
+  {
+    /* adjust imbalance tolerance */
+    snprintf (tol, 128, "%g", dom->imbalance_tolerance);
+    Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", tol);
+
+    /* update body partitioning using mid points of their extents */
+    ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
+	    &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	    &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+    /* SUMMARY: After partitioning update some bodies will be exported to other partitions.
+     *          We need to maintain user prescribed non-contact constraints attached to those
+     *          bodies. For this reason 'bod->con' lists of exported bodies are first scanned
+     *          and the 'export_con' set is created from all such constraints. At the same
+     *          time 'export_bod' set is created, comprising all bodies to be exported; for
+     *          the moment bodies involved in a RIGLNK constraint are not exported (TODO) */
+
+    for (i = 0; i < num_export; i ++) /* for each exported body */
+    {
+      id = export_global_ids [i * num_gid_entries]; /* get id */
+
+      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id"); /* identify body object */
+
+      bod->rank = export_procs [i]; /* set the new rank value of us in compute_children_rank and BODY_Child_Pack_State */
+
+      SET_Insert (&dom->setmem, &dbd [export_procs [i]].export_bod, bod, NULL); /* map this body to its export rank */
+
+      for (item = SET_First (bod->con); item; item = SET_Next (item)) /* search adjacent constraints */
+      {
+	CON *con = item->data;
+
+	if (con->kind == RIGLNK)
+	{
+	  SET_Delete (&dom->setmem, &dbd [export_procs [i]].export_bod, bod, NULL); /* TODO: export these bodies while maintaining RIGLNK constraints */
+	  break;
+	}
+
+	if (con->kind != CONTACT)
+	{
+	  SET_Insert (&dom->setmem, &dbd [export_procs [i]].export_con, con, NULL); /* map constraint to its export rank */
+
+	  con->state |= CON_IDLOCK; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
+				       non-contact constrints should have cluster-wide unique ids, as users
+				       could store some global variables in Python input and might later like
+				       to acces those constraints; this will not be implemented for contacts */
+	}
+      }
+    }
+
+    Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs, &export_global_ids, &export_local_ids, &export_procs);
+  }
+
+  compute_children_migration (dom, dbd); /* prepare children migration sets */
+
+  COMOBJ *send, *recv;
+  int nrecv;
+
+  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
+
+  for (i = 0; i < dom->ncpu; i ++)
+  {
+    dbd [i].rank = send [i].rank = i;
+    send [i].o = &dbd [i];
+    dbd [i].dom = dom;
+  }
+
+  dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_pack, dom, (OBJ_Unpack)domain_balancing_unpack, send, dom->ncpu, &recv, &nrecv);
+
+  for (i = 0; i < dom->ncpu; i ++)
+  {
+    /* remove migrated bodies and their attached constraints */
+    for (item = SET_First (dbd [i].export_bod); item; item = SET_Next (item))
+    {
+      remove_migrated_body (dom, item->data);
+      BODY_Destroy (item->data);
+    }
+
+    /* free dbd memory */
+    SET_Free (&dom->setmem, &dbd [i].export_bod);
+    SET_Free (&dom->setmem, &dbd [i].export_con);
+    SET_Free (&dom->setmem, &dbd [i].delset);
+    SET_Free (&dom->setmem, &dbd [i].sndset);
+    SET_Free (&dom->setmem, &dbd [i].gossip);
+  }
+
+  free (send);
+  free (recv);
+  free (dbd);
+}
+
+/* compute boundary contact related dummy children */
+static void compute_dummies_migration (DOM *dom, DBD *dbd)
+{
   SET *procset, *x;
 
-  ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
-
-  /* create set 'delset' of pairs (id, rank) of children
+  /* create set 'delset' of pairs (id, rank) of dummies
    * that will need to be removed from their partitions
    * create set 'sndset' of pairs (body, rank) of bodies
-   * to be sent as children to other partitions */
+   * to be sent as dummies to other partitions */
 
   procset = NULL;
 
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
-    double *e = bod->extents;
-
-    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
-
-    /* create a set copy 'procset' of 'procs' table */
-    for (i = 0; i < numprocs; i ++) 
-    {
-      if (dom->rank != procs [i]) /* skip current rank */
-	SET_Insert (&dom->setmem, &procset, (void*) (long) procs [i], NULL);
-    }
-
-    /* increase procset by the ranks of parent bodies
+    /* let procset contain the ranks of parent bodies
      * of children involved in contacts with this body;
      * this way we can freely migrate the boundary contacts
      * and insert them into local dynamics as usual, as the
@@ -1703,56 +1869,64 @@ static void children_migration_end (DOM *dom, DBD *dbd)
       if (other->flags & BODY_CHILD) SET_Insert (&dom->setmem, &procset, (void*) (long) other->my.parent, NULL);
     }
 
-     /* for each x in bod->my.children, if not in procset,
-      * add (bod->id, x) to delset, remove x from bod->my.children */
-    for (x = SET_First (bod->my.children); x; )
+    /* dummies and child bodies should not overlap; instead dummies are simply
+     * child bodies on ranks where they would not exist due to lack of geometric
+     * overlap; subtract now from the 'procset' all ranks of already existing child bodies */
+    for (x = SET_First (bod->my.children); x; x = SET_Next (x)) SET_Delete (&dom->setmem, &procset, x->data, NULL);
+
+    /* for each x in bod->dummies, if not in procset,
+     * add (bod->id, x) to delset, remove x from bod->dummies*/
+    for (x = SET_First (bod->dummies); x; )
     {
       if (!SET_Contains (procset, x->data, NULL))
       {
 	SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].delset, (void*) (long) bod->id, NULL);
-	x = SET_Delete_Node (NULL, &bod->my.children, x); /* TODO: SET_Delete_Node might be incorrect (not tested enough) */
+	x = SET_Delete_Node (NULL, &bod->dummies, x); /* TODO: SET_Delete_Node might be incorrect (not tested enough) */
       }
       else x = SET_Next (x);
     }
 
-     /* for each x in procset, if not in bod->my.children,
-      * add (bod, x) to sndset, insert x into bod->my.children */
+    /* for each x in procset, if not in bod->dummies,
+     * add (bod, x) to sndset, insert x into bod->dummies */
     for (x = SET_First (procset); x; x = SET_Next (x))
     {
-      if (!SET_Contains (bod->my.children, x->data, NULL))
+      if (!SET_Contains (bod->dummies, x->data, NULL))
       {
 	SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].sndset, bod, NULL);
-	SET_Insert (NULL, &bod->my.children, x->data, NULL);
+	SET_Insert (NULL, &bod->dummies, x->data, NULL);
       }
     }
 
     /* reset processors set */
     SET_Free (&dom->setmem, &procset);
 
-    /* prepare children state gossip set */
-    for (x = SET_First (bod->my.children); x; x = SET_Next (x))
+    /* prepare dummies state gossip set */
+    for (x = SET_First (bod->dummies); x; x = SET_Next (x))
     {
       SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].gossip, bod, NULL);
     }
   }
 }
 
-/* pack domain balancing data */
-static void domain_balancing_end_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+/* pack domain gluing data */
+static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
 
-  /* pack deleted children ids */
+  /* pack penetration depth flag */
+  pack_int (isize, i, ints, dbd->dom->flags & DOM_DEPTH_VIOLATED);
+
+  /* pack deleted dummies ids */
   pack_int (isize, i, ints, SET_Size (dbd->delset));
   for (item = SET_First (dbd->delset); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
   
-  /* pack exported children */
+  /* pack exported dummies */
   pack_int (isize, i, ints, SET_Size (dbd->sndset));
   for (item = SET_First (dbd->sndset); item; item = SET_Next (item))
     BODY_Child_Pack (item->data, dsize, d, doubles, isize, i, ints);
 
-  /* pack children configuration updates */
+  /* pack dummies configuration updates */
   pack_int (isize, i, ints, SET_Size (dbd->gossip));
   for (item = SET_First (dbd->gossip); item; item = SET_Next (item))
     BODY_Child_Pack_State (item->data, dsize, d, doubles, isize, i, ints);
@@ -1773,13 +1947,16 @@ static void domain_balancing_end_pack (DBD *dbd, int *dsize, double **d, int *do
 }
 
 /* unpack domain balancing data */
-static void* domain_balancing_end_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int n, j, k;
   BODY *bod;
   CON *con;
 
-  /* unpack deleted children ids */
+  /* unpack penetration depth flag */
+  k = unpack_int (ipos, i, ints); ASSERT (!k, ERR_DOM_DEPTH);
+
+  /* unpack deleted dummies ids */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
@@ -1789,15 +1966,17 @@ static void* domain_balancing_end_unpack (DOM *dom, int *dpos, double *d, int do
     BODY_Destroy (bod);
   }
   
-  /* unpack exported children */
+  /* unpack exported dummies */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
     bod = BODY_Child_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
+    bod->flags &= ~BODY_CHILD; /* not a child */
+    bod->flags |= BODY_DUMMY; /* but a dummy */
     insert_child (dom, bod);
   }
 
-  /* unpack children configuration updates */
+  /* unpack dummies configuration updates */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
@@ -1825,83 +2004,16 @@ static void* domain_balancing_end_unpack (DOM *dom, int *dpos, double *d, int do
   return NULL;
 }
 
-/* begin domain balancing */
-static DBD* domain_balancing_begin (DOM *dom)
+/* domain gluing */
+static void domain_gluing (DOM *dom)
 {
-  int changes,
-      num_gid_entries,
-      num_lid_entries,
-      num_import,
-      *import_procs,
-      num_export,
-      *export_procs;
-
-  ZOLTAN_ID_PTR import_global_ids,
-		import_local_ids,
-		export_global_ids,
-		export_local_ids;
-
-  unsigned int id;
-  char tol [128];
-  SET *item;
   DBD *dbd;
   int i;
 
   /* allocate balancing data storage */
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
 
-  /* adjust imbalance tolerance */
-  snprintf (tol, 128, "%g", dom->imbalance_tolerance);
-  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", tol);
-
-  /* update body partitioning using mid points of their extents */
-  ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
-	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
-	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
-
-
-  /* SUMMARY: After partitioning update some bodies will be exported to other partitions.
-   *          We need to maintain user prescribed non-contact constraints attached to those
-   *          bodies. For this reason 'bod->con' lists of exported bodies are first scanned
-   *          and the 'export_con' set is created from all such constraints. At the same
-   *          time 'export_bod' set is created, comprising all bodies to be exported; for
-   *          the moment bodies involved in a RIGLNK constraint are not exported (TODO) */
-
-  for (i = 0; i < num_export; i ++) /* for each exported body */
-  {
-    BODY *bod;
-
-    id = export_global_ids [i * num_gid_entries]; /* get id */
-
-    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id"); /* identify body object */
-
-    SET_Insert (&dom->setmem, &dbd [export_procs [i]].export_bod, bod, NULL); /* map this body to its export rank */
-
-    for (item = SET_First (bod->con); item; item = SET_Next (item)) /* search adjacent constraints */
-    {
-      CON *con = item->data;
-
-      if (con->kind == RIGLNK)
-      {
-	SET_Delete (&dom->setmem, &dbd [export_procs [i]].export_bod, bod, NULL); /* TODO: export these bodies while maintaining RIGLNK constraints */
-	break;
-      }
-
-      if (con->kind != CONTACT)
-      {
-        SET_Insert (&dom->setmem, &dbd [export_procs [i]].export_con, con, NULL); /* map constraint to its export rank */
-
-	con->state |= CON_IDLOCK; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
-				     non-contact constrints should have cluster-wide unique ids, as users
-				     could store some global variables in Python input and might later like
-				     to acces those constraints; this will not be implemented for contacts */
-      }
-    }
-  }
-
-  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs, &export_global_ids, &export_local_ids, &export_procs);
-
-  children_migration_begin (dom, dbd); /* prepare children migration sets */
+  compute_dummies_migration (dom, dbd); /* prepare children migration sets */
 
   COMOBJ *send, *recv;
   int nrecv;
@@ -1915,55 +2027,10 @@ static DBD* domain_balancing_begin (DOM *dom)
     dbd [i].dom = dom;
   }
 
-  dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_begin_pack, dom, (OBJ_Unpack)domain_balancing_begin_unpack, send, dom->ncpu, &recv, &nrecv);
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_pack, dom, (OBJ_Unpack)domain_gluing_unpack, send, dom->ncpu, &recv, &nrecv);
 
   for (i = 0; i < dom->ncpu; i ++)
   {
-    /* remove migrated bodies and their attached constraints */
-    for (item = SET_First (dbd [i].export_bod); item; item = SET_Next (item))
-    {
-      remove_migrated_body (dom, item->data);
-      BODY_Destroy (item->data);
-    }
-
-    /* free dbd memory */
-    SET_Free (&dom->setmem, &dbd [i].export_bod);
-    SET_Free (&dom->setmem, &dbd [i].export_con);
-    SET_Free (&dom->setmem, &dbd [i].delset);
-    SET_Free (&dom->setmem, &dbd [i].sndset);
-    SET_Free (&dom->setmem, &dbd [i].gossip);
-  }
-
-  free (send);
-  free (recv);
-
-  return dbd;
-}
-
-/* end domain balancing */
-static void domain_balancing_end (DOM *dom, DBD *dbd)
-{
-  COMOBJ *send, *recv;
-  int nrecv;
-  int i;
-
-  children_migration_end (dom, dbd); /* complete children migration sets */
-
-  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
-
-  for (i = 0; i < dom->ncpu; i ++)
-  {
-    send [i].rank = i;
-    send [i].o = &dbd [i];
-  }
-
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_end_pack, dom, (OBJ_Unpack)domain_balancing_end_unpack, send, dom->ncpu, &recv, &nrecv);
-
-  for (i = 0; i < dom->ncpu; i ++)
-  {
-    /* free dbd memory */
-    SET_Free (&dom->setmem, &dbd [i].export_bod);
-    SET_Free (&dom->setmem, &dbd [i].export_con);
     SET_Free (&dom->setmem, &dbd [i].delset);
     SET_Free (&dom->setmem, &dbd [i].sndset);
     SET_Free (&dom->setmem, &dbd [i].gossip);
@@ -2182,6 +2249,10 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   /* gather children ids to be deleted during balancing */
   for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
     SET_Insert (&dom->setmem, &dom->delch [(int) (long) item->data], (void*) (long) bod->id, NULL);
+
+  /* gather dummies ids to be deleted during balancing */
+  for (SET *item = SET_First (bod->dummies); item; item = SET_Next (item))
+    SET_Insert (&dom->setmem, &dom->delch [(int) (long) item->data], (void*) (long) bod->id, NULL);
 #endif
 }
 
@@ -2358,16 +2429,20 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 
   if (con->kind == CONTACT)
   {
-    if (con->master->flags & BODY_CHILD)
-      SET_Insert (&dom->setmem, &dom->delbnd [con->master->my.parent], (void*) (long) con->id, NULL); /* schedule for remote deletion */
-    else if (con->slave->flags & BODY_CHILD)
-      SET_Insert (&dom->setmem, &dom->delbnd [con->slave->my.parent], (void*) (long) con->id, NULL); /* schedule for remote deletion */
+    if (con->state & CON_BOUNDARY)
+    {
+      BODY *bod = (con->master->flags & BODY_CHILD ? con->master : con->slave);
+      SET_Insert (&dom->setmem, &dom->delbnd [bod->my.parent], (void*) (long) con->id, NULL); /* schedule for remote deletion */
+    }
   }
 #endif
 
   if (con->kind == CONTACT)
   {
     SURFACE_MATERIAL_Destroy_State (&con->mat); /* free contact material state */
+#if MPI
+    if (!(con->state & CON_EXTERNAL)) /* for external constraints sgp->box is NULL for the adjacent dummy body */
+#endif
     AABB_Break_Adjacency (dom->aabb, con->msgp->box, con->ssgp->box); /* box overlap will be re-detected */
   }
   /* free velocity constraint time history */
@@ -2441,7 +2516,6 @@ void DOM_Sparsify_Contacts (DOM *dom)
     con = itm->data;
     /* remove first from the box adjacency structure => otherwise box engine would try
      * to release this contact at a later point and that would cose memory corruption */
-    AABB_Break_Adjacency (dom->aabb, con->msgp->box, con->ssgp->box); /* box overlap will be re-detected */
     DOM_Remove_Constraint (dom, con); /* now remove from the domain */
   }
 
@@ -2466,11 +2540,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   if (dom->verbose) printf ("DOMAIN ... "), fflush (stdout);
 
 #if MPI
-  SOLFEC_Timer_Start (dom->solfec, "PARBAL");
-
-  DBD *dbd = domain_balancing_begin (dom);
-
-  SOLFEC_Timer_End (dom->solfec, "PARBAL");
+  if (dom->time == 0) domain_balancing (dom); /* initial balancing */
 #endif
 
   SOLFEC_Timer_Start (dom->solfec, "TIMINT");
@@ -2518,6 +2588,16 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 
+#if MPI
+  SOLFEC_Timer_Start (dom->solfec, "PARBAL");
+
+  domain_balancing (dom);
+
+  SOLFEC_Timer_End (dom->solfec, "PARBAL");
+#else
+  ASSERT (!(dom->flags & DOM_DEPTH_VIOLATED), ERR_DOM_DEPTH);
+#endif
+ 
   /* detect contacts */
   timerstart (&timing);
 
@@ -2529,11 +2609,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
-  domain_balancing_end (dom, dbd);
+  domain_gluing (dom);
 
   SOLFEC_Timer_End (dom->solfec, "PARBAL");
-#else
-  ASSERT (!(dom->flags & DOM_DEPTH_VIOLATED), ERR_DOM_DEPTH);
 #endif
 
   SOLFEC_Timer_Start (dom->solfec, "TIMINT");
