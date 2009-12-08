@@ -269,10 +269,10 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
 #if MPI
 /* parent bodies store all body data and serve for time stepping */
 void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
-BODY* BODY_Parent_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 /* child bodies store a minimal subset of needed data and serve for constraint solution */
 void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
-BODY* BODY_Child_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 #endif
 #endif
