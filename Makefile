@@ -194,7 +194,7 @@ obj/cvx.o: cvx.c cvx.h spx.h err.h alg.h hyb.h gjk.h mot.h
 obj/hyb.o: hyb.c hyb.h box.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/box.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h
+obj/box.o: box.c box.h bod.h hyb.h mem.h map.h set.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/msh.o: msh.c msh.h cvx.h spx.h mem.h map.h err.h alg.h mot.h

@@ -127,6 +127,7 @@ struct domain
   double step; /* time step size */
   double time; /* current time */
 
+  SET *sparebid; /* spare constraint ids */
   unsigned int bid; /* last free body identifier */
   MAP *lab; /* bodies mapped by labels (a subset) */
   MAP *idb; /* bodies mapped by identifiers (all bodies) */
@@ -135,6 +136,7 @@ struct domain
   SET *delb; /* set of deleted body ids for time > 0 and before state write */
   SET *newb; /* set of newly created bodies for time > 0 and before state write */
 
+  SET *sparecid; /* spare constraint ids */
   unsigned int cid;  /* last free constraint identifier */
   MAP *idc; /* constraints mapped by identifiers */
   CON *con; /* list of constraints */
@@ -167,17 +169,13 @@ struct domain
 
   int ncpu; /* cummunicator size */
 
+  MAP *allbodies; /* all created bodies mapped by ids (minimises load balancing communication) */
+
   struct Zoltan_Struct *zol; /* domain partitioning */
 
   double imbalance_tolerance; /* imbalance threshold */
 
-  SET *sparecid; /* spare constraint ids */
-
-  SET *sparebid; /* spare body ids */
-
   unsigned int noid; /* constraint id generation ommition flag */
-
-  MAP *children; /* id-to-child map */
 
   SET **delch; /* id sets of children to be deleted on other ranks (after removed parents) */
 

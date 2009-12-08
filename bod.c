@@ -1618,9 +1618,7 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->msh) MESH_Destroy (bod->msh);
 
-#if MPI
-  if (!(bod->flags & (BODY_CHILD|BODY_DUMMY))) MAP_Free (NULL, &bod->my.children);  /* a parent body => free children ranks */
-#elif OPENGL
+#if OPENGL
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
 #endif
 
@@ -1801,20 +1799,6 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
 /* pack parent body */
 void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  /* these are arguments of BODY_Create */
-  pack_int (isize, i, ints, bod->kind);
-  if (bod->kind == FEM) pack_int (isize, i, ints, bod->msh ? -bod->form : bod->form);
-  if (bod->msh) MESH_Pack (bod->msh, dsize, d, doubles, isize, i, ints);
-  SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
-  pack_string (isize, i, ints, bod->mat->label);
-  pack_string (isize, i, ints, bod->label);
-
-  /* characteristics will be overwritten when unpacking */
-  pack_double (dsize, d, doubles, bod->ref_mass);
-  pack_double (dsize, d, doubles, bod->ref_volume);
-  pack_doubles (dsize, d, doubles, bod->ref_center, 3);
-  pack_doubles (dsize, d, doubles, bod->ref_tensor, 9);
-
   /* body id */
   pack_int (isize, i, ints, bod->id);
 
@@ -1822,85 +1806,40 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, velo_pack_size (bod));
 
-  /* pack the list of forces */
-  pack_forces (bod->forces, dsize, d, doubles, isize, i, ints);
-
-  /* pack scheme and flags */
-  pack_int (isize, i, ints, bod->scheme);
-  pack_int (isize, i, ints, bod->flags & BODY_PERMANENT_FLAGS);
-
-  /* damping */
-  pack_double (dsize, d, doubles, bod->damping);
-
   /* pack children ranks */
-  pack_int (isize, i, ints, MAP_Size (bod->my.children));
-  for (MAP *item = MAP_First (bod->my.children); item; item = MAP_Next (item))
-  {
-    pack_int (isize, i, ints, (int) (long) item->key);
+  pack_int (isize, i, ints, SET_Size (bod->my.children));
+  for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
-  }
 }
 
 /* unpack parent body */
-BODY* BODY_Parent_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+BODY* BODY_Parent_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  int id, m, n;
   BODY *bod;
-  int kind, n, m;
-  SHAPE *shp;
-  MESH *msh;
-  char *label;
-  BULK_MATERIAL *mat;
-  short form;
-
-  /* unpack BODY_Create arguments and create body */
-  kind = unpack_int (ipos, i, ints);
-  if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
-  if (form < 0) msh = MESH_Unpack (sol, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
-  shp = SHAPE_Unpack (sol, dpos, d, doubles, ipos, i, ints);
-  label = unpack_string (ipos, i, ints);
-  ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
-  free (label);
-  label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label, form, msh);
-  free (label);
-
-  /* overwritte characteristics */
-  bod->ref_mass = unpack_double (dpos, d, doubles);
-  bod->ref_volume = unpack_double (dpos, d, doubles);
-  unpack_doubles (dpos, d, doubles, bod->ref_center, 3);
-  unpack_doubles (dpos, d, doubles, bod->ref_tensor, 9);
 
   /* body id */
-  bod->id = unpack_int (ipos, i, ints);
+  id = unpack_int (ipos, i, ints);
+  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
+  bod->flags &= ~BODY_CHILD;
+  bod->my.children = NULL;
+  bod->rank = dom->rank;
 
   /* configuration and velocity */
   unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, velo_pack_size (bod));
 
-  /* unpack the list of forces */
-  bod->forces = unpack_forces (dpos, d, doubles, ipos, i, ints);
-
-  /* unpack scheme and flags */
-  bod->scheme = unpack_int (ipos, i, ints);
-  bod->flags = unpack_int (ipos, i, ints);
-
-  /* damping */
-  bod->damping = unpack_double (dpos, d, doubles);
-
   /* unpack children ranks */
   m = unpack_int (ipos, i, ints);
   for (n = 0; n < m; n ++)
-  {
-    int rank = unpack_int (ipos, i, ints), 
-        dummy = unpack_int (ipos, i, ints);
-
-    MAP_Insert (NULL, &bod->my.children, (void*) (long) rank, (void*) (long) dummy, NULL);
-  }
+    SET_Insert (&dom->setmem, &bod->my.children, (void*) (long) unpack_int (ipos, i, ints), NULL);
 
   /* init inverse */
-  if (sol->dom->dynamic)
+  if (dom->dynamic)
     BODY_Dynamic_Init (bod, bod->scheme);
   else BODY_Static_Init (bod);
+
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 
   return bod;
 }
@@ -1908,88 +1847,33 @@ BODY* BODY_Parent_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *i
 /* pack child body */
 void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  /* these are arguments of BODY_Create */
-  pack_int (isize, i, ints, bod->kind);
-  if (bod->kind == FEM) pack_int (isize, i, ints, bod->msh ? -bod->form : bod->form);
-  if (bod->msh) MESH_Pack (bod->msh, dsize, d, doubles, isize, i, ints);
-  SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
-  pack_string (isize, i, ints, bod->mat->label);
-  pack_string (isize, i, ints, bod->label);
-
-  /* characteristics will be overwritten when unpacking */
-  pack_double (dsize, d, doubles, bod->ref_mass);
-  pack_double (dsize, d, doubles, bod->ref_volume);
-  pack_doubles (dsize, d, doubles, bod->ref_center, 3);
-  pack_doubles (dsize, d, doubles, bod->ref_tensor, 9);
-
   /* body id */
-  pack_int (isize, i, ints, bod->id);
-}
-
-/* unpack child body */
-BODY* BODY_Child_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  BODY *bod;
-  int kind;
-  SHAPE *shp;
-  MESH *msh;
-  char *label;
-  BULK_MATERIAL *mat;
-  short form;
-
-  /* unpack BODY_Create arguments and create body */
-  kind = unpack_int (ipos, i, ints);
-  if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
-  if (form < 0) msh = MESH_Unpack (sol, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
-  shp = SHAPE_Unpack (sol, dpos, d, doubles, ipos, i, ints);
-  label = unpack_string (ipos, i, ints);
-  ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
-  free (label);
-  label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label, form, msh);
-  free (label);
-
-  /* overwritte characteristics */
-  bod->ref_mass = unpack_double (dpos, d, doubles);
-  bod->ref_volume = unpack_double (dpos, d, doubles);
-  unpack_doubles (dpos, d, doubles, bod->ref_center, 3);
-  unpack_doubles (dpos, d, doubles, bod->ref_tensor, 9);
-
-  /* body id */
-  bod->id = unpack_int (ipos, i, ints);
-
-  /* init inverse */
-  if (sol->dom->dynamic)
-    BODY_Dynamic_Init (bod, bod->scheme);
-  else BODY_Static_Init (bod);
-
-  return bod;
-}
-
-/* pack body state */
-void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
   pack_int (isize, i, ints, bod->id);
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
   pack_int (isize, i, ints, bod->rank); /* pack parent rank => same as domain's rank */
 }
 
-/* unpack body state and update the shape */
-void BODY_Child_Unpack_State (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+/* unpack child body */
+BODY* BODY_Child_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  unsigned int id;
   BODY *bod;
+  int id;
 
+  /* body id */
   id = unpack_int (ipos, i, ints);
-
-  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) id, NULL), "Invalid child id");
-
+  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
-
   bod->my.parent = unpack_int (ipos, i, ints); /* unpack parent rank */
 
+  /* init inverse */
+  if (dom->dynamic)
+    BODY_Dynamic_Init (bod, bod->scheme);
+  else BODY_Static_Init (bod);
+
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+
+  return bod;
 }
 #endif
