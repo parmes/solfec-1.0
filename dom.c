@@ -1212,6 +1212,7 @@ struct domain_balancing_data
   SET *export_con;
   SET *delset;
   SET *sndset;
+  SET *mutset;
   SET *gossip;
 };
 
@@ -1297,21 +1298,6 @@ CONAUX* unpack_non_contact_constraint (MEM *mem, int *dpos, double *d, int doubl
   return aux;
 }
 
-/* compute body weight */
-static int body_weight (BODY *bod)
-{
-  int cliwgt = (bod->clique ? bod->clique->weight : 0);
-
-  return  bod->dofs + bod->nsgp * 5 + cliwgt * 10;
-}
-
-/* number of bodies */
-static int body_count (DOM *dom, int *ierr)
-{
-  *ierr = ZOLTAN_OK;
-  return dom->nbod;
-}
-
 /* pack contact */
 static void pack_contact (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -1383,6 +1369,21 @@ static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ip
   con->msgp = &master->sgp [n];
   n = unpack_int (ipos, i, ints);
   con->ssgp = &slave->sgp [n];
+}
+
+/* compute body weight */
+static int body_weight (BODY *bod)
+{
+  int cliwgt = (bod->clique ? bod->clique->weight : 0);
+
+  return  bod->nsgp + cliwgt;
+}
+
+/* number of bodies */
+static int body_count (DOM *dom, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  return dom->nbod;
 }
 
 /* list of body identifiers */
@@ -1465,6 +1466,14 @@ static void remove_child (DOM *dom, BODY *bod)
 
   /* delete from id based map */
   MAP_Delete (&dom->mapmem, &dom->children, (void*) (long) bod->id, NULL);
+}
+
+/* mutate a dummy into a regular child body */
+static void mutate_child (DOM *dom, BODY *bod)
+{
+  bod->flags &= ~BODY_DUMMY;
+  bod->flags |=  BODY_CHILD;
+  AABB_Insert_Body (dom->aabb, bod);
 }
 
 /* insert migrated body into the domain */
@@ -1560,10 +1569,15 @@ static void compute_children_migration (DOM *dom, DBD *dbd)
       * add bod to a sndset, insert y into bod->my.children */
     for (y = SET_First (procset); y; y = SET_Next (y))
     {
-      if (!MAP_Find_Node (bod->my.children, y->data, NULL))
+      if (!(x = MAP_Find_Node (bod->my.children, y->data, NULL)))
       {
 	SET_Insert (&dom->setmem, &dbd [(int) (long) y->data].sndset, bod, NULL);
 	MAP_Insert (NULL, &bod->my.children, y->data, NULL, NULL);
+      }
+      else if (x->data) /* this is BODY_DUMMY => order mutation into BODY_CHILD */
+      {
+	SET_Insert (&dom->setmem, &dbd [(int) (long) y->data].mutset, (void*) (long) bod->id, NULL);
+	x->data = NULL; /* mutate on the parent  */
       }
     }
 
@@ -1622,6 +1636,11 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
   pack_int (isize, i, ints, SET_Size (dbd->sndset));
   for (item = SET_First (dbd->sndset); item; item = SET_Next (item))
     BODY_Child_Pack (item->data, dsize, d, doubles, isize, i, ints);
+
+  /* pack mutated children ids */
+  pack_int (isize, i, ints, SET_Size (dbd->mutset));
+  for (item = SET_First (dbd->mutset); item; item = SET_Next (item))
+    pack_int (isize, i, ints, (int) (long) item->data);
 
   /* pack children configuration updates */
   pack_int (isize, i, ints, SET_Size (dbd->gossip));
@@ -1714,6 +1733,16 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
     bod = BODY_Child_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
     bod->flags |= BODY_CHILD; /* a child */
     insert_child (dom, bod);
+  }
+
+  /* unpack mutated children ids */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    k = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->children, (void*) (long) k, NULL), "Invalid body id");
+    ASSERT_DEBUG (bod->flags & BODY_DUMMY, "Trying to mutate a regular child");
+    mutate_child (dom, bod);
   }
 
   /* unpack children configuration updates */
@@ -1852,6 +1881,7 @@ static void domain_balancing (DOM *dom)
     SET_Free (&dom->setmem, &dbd [i].export_con);
     SET_Free (&dom->setmem, &dbd [i].delset);
     SET_Free (&dom->setmem, &dbd [i].sndset);
+    SET_Free (&dom->setmem, &dbd [i].mutset);
     SET_Free (&dom->setmem, &dbd [i].gossip);
   }
 
