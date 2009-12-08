@@ -1864,12 +1864,14 @@ static void domain_balancing (DOM *dom)
 static void compute_dummies_migration (DOM *dom, DBD *dbd)
 {
   SET *procset, *delset, *y;
+  BODY *bod, *other;
+  CON *con;
   MAP *x;
 
   procset = NULL;
   delset = NULL;
 
-  for (BODY *bod = dom->bod; bod; bod = bod->next)
+  for (bod = dom->bod; bod; bod = bod->next)
   {
     /* let procset contain the ranks of parent bodies
      * of children involved in contacts with this body;
@@ -1878,8 +1880,11 @@ static void compute_dummies_migration (DOM *dom, DBD *dbd)
      * "other body" will be waiting in case it was not there */
     for (y = SET_First (bod->con); y; y = SET_Next (y))
     {
-      CON *con = y->data;
-      BODY *other = (bod == con->master ? con->slave : con->master);
+      con = y->data;
+
+      if (con->kind != CONTACT) continue;
+
+      other = (bod == con->master ? con->slave : con->master);
 
       if (other->flags & BODY_CHILD) SET_Insert (&dom->setmem, &procset, (void*) (long) other->my.parent, NULL);
     }
