@@ -1799,9 +1799,6 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
 /* pack parent body */
 void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  /* body id */
-  pack_int (isize, i, ints, bod->id);
-
   /* configuration and velocity */
   pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, velo_pack_size (bod));
@@ -1813,17 +1810,9 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
 }
 
 /* unpack parent body */
-BODY* BODY_Parent_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  int id, m, n;
-  BODY *bod;
-
-  /* body id */
-  id = unpack_int (ipos, i, ints);
-  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
-  bod->flags &= ~BODY_CHILD;
-  bod->my.children = NULL;
-  bod->rank = dom->rank;
+  int m, n;
 
   /* configuration and velocity */
   unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod));
@@ -1840,29 +1829,19 @@ BODY* BODY_Parent_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   else BODY_Static_Init (bod);
 
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
-
-  return bod;
 }
 
 /* pack child body */
 void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  /* body id */
-  pack_int (isize, i, ints, bod->id);
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
   pack_int (isize, i, ints, bod->rank); /* pack parent rank => same as domain's rank */
 }
 
 /* unpack child body */
-BODY* BODY_Child_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  BODY *bod;
-  int id;
-
-  /* body id */
-  id = unpack_int (ipos, i, ints);
-  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
   bod->my.parent = unpack_int (ipos, i, ints); /* unpack parent rank */

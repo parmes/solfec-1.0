@@ -1235,130 +1235,6 @@ struct conaux
   TMS *tms;
 };
 
-/* pack non-contact constraint */
-static void pack_non_contact_constraint (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
-  pack_int (isize, i, ints, con->id);
-  pack_int (isize, i, ints, con->kind);
-  pack_doubles (dsize, d, doubles, con->R, 3);
-  pack_int (isize, i, ints, con->master->id);
-
-  switch (con->kind)
-  {
-  case FIXPNT:
-    pack_doubles (dsize, d, doubles, con->mpnt, 3);
-    break;
-  case FIXDIR:
-    pack_doubles (dsize, d, doubles, con->mpnt, 3);
-    pack_doubles (dsize, d, doubles, con->base + 6, 3);
-    break;
-  case VELODIR:
-    pack_doubles (dsize, d, doubles, con->mpnt, 3);
-    pack_doubles (dsize, d, doubles, con->base + 6, 3);
-    TMS_Pack (con->tms, dsize, d, doubles, isize, i, ints);
-    break;
-  case RIGLNK:
-    pack_int (isize, i, ints, con->slave->id);
-    pack_doubles (dsize, d, doubles, con->mpnt, 3);
-    pack_doubles (dsize, d, doubles, con->spnt, 3);
-    break;
-  case CONTACT:
-    ASSERT_DEBUG (0, "Trying to pack a contact constraint");
-    break;
-  }
-}
-
-/* unpack non-contact constraint */
-CONAUX* unpack_non_contact_constraint (MEM *mem, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  CONAUX *aux;
-
-  ERRMEM (aux = MEM_Alloc (mem));
-
-  aux->id = unpack_int (ipos, i, ints);
-  aux->kind = unpack_int (ipos, i, ints);
-  unpack_doubles (dpos, d, doubles, aux->R, 3);
-  aux->master = unpack_int (ipos, i, ints);
-
-  switch (aux->kind)
-  {
-  case FIXPNT:
-    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
-    break;
-  case FIXDIR:
-    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
-    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
-    break;
-  case VELODIR:
-    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
-    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
-    aux->tms = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
-    break;
-  case RIGLNK:
-    aux->slave = unpack_int (ipos, i, ints);
-    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
-    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
-    break;
-  }
-
-  return aux;
-}
-
-/* pack contact */
-static void pack_contact (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
-  pack_int (isize, i, ints, con->id);
-  pack_int (isize, i, ints, con->master->id);
-  pack_int (isize, i, ints, con->slave->id);
-  pack_doubles (dsize, d, doubles, con->point, 3);
-  pack_doubles (dsize, d, doubles, con->base, 9);
-  pack_double (dsize, d, doubles, con->area);
-  pack_double (dsize, d, doubles, con->gap);
-  pack_int (isize, i, ints, con->paircode);
-  SURFACE_MATERIAL_Pack_State (&con->mat, dsize, d, doubles, isize, i, ints);
-  pack_doubles (dsize, d, doubles, con->mpnt, 3);
-  pack_doubles (dsize, d, doubles, con->spnt, 3);
-  pack_int (isize, i, ints, con->msgp - con->master->sgp);
-  pack_int (isize, i, ints, con->ssgp - con->slave->sgp);
-}
-
-/* unpack contact */
-static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  BODY *master, *slave;
-  int cid, mid, sid, n;
-  CON *con;
-
-  cid = unpack_int (ipos, i, ints);
-  mid = unpack_int (ipos, i, ints);
-  sid = unpack_int (ipos, i, ints);
-
-  master = MAP_Find (dom->idb, (void*) (long) mid, NULL);
-  if (!master) { ASSERT_DEBUG_EXT (master = MAP_Find (dom->allbodies, (void*) (long) mid, NULL), "Invalid body id"); }
-  slave = MAP_Find (dom->idb, (void*) (long) sid, NULL);
-  if (!slave) { ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); }
-
-  dom->noid = cid; /* disable constraint ids generation and use 'noid' instead */
-  con = insert (dom, master, slave);
-  dom->noid = 0; /* enable constraint ids generation */
-
-  con->kind = CONTACT;
-  con->state |=  (CON_NEW | CON_EXTERNAL);
-
-  unpack_doubles (dpos, d, doubles, con->point, 3);
-  unpack_doubles (dpos, d, doubles, con->base, 9);
-  con->area = unpack_double (dpos, d, doubles);
-  con->gap = unpack_double (dpos, d, doubles);
-  con->paircode = unpack_int (ipos, i, ints);
-  SURFACE_MATERIAL_Unpack_State (dom->sps, &con->mat, dpos, d, doubles, ipos, i, ints);
-  unpack_doubles (dpos, d, doubles, con->mpnt, 3);
-  unpack_doubles (dpos, d, doubles, con->spnt, 3);
-  n = unpack_int (ipos, i, ints);
-  con->msgp = &master->sgp [n];
-  n = unpack_int (ipos, i, ints);
-  con->ssgp = &slave->sgp [n];
-}
-
 /* compute body weight */
 static int body_weight (BODY *bod)
 {
@@ -1421,6 +1297,241 @@ static void midpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
   }
 
   *ierr = ZOLTAN_OK;
+}
+
+/* pack non-contact constraint */
+static void pack_non_contact (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, con->id);
+  pack_int (isize, i, ints, con->kind);
+  pack_doubles (dsize, d, doubles, con->R, 3);
+  pack_int (isize, i, ints, con->master->id);
+
+  switch (con->kind)
+  {
+  case FIXPNT:
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    break;
+  case FIXDIR:
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    pack_doubles (dsize, d, doubles, con->base + 6, 3);
+    break;
+  case VELODIR:
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    pack_doubles (dsize, d, doubles, con->base + 6, 3);
+    TMS_Pack (con->tms, dsize, d, doubles, isize, i, ints);
+    break;
+  case RIGLNK:
+    pack_int (isize, i, ints, con->slave->id);
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    pack_doubles (dsize, d, doubles, con->spnt, 3);
+    break;
+  case CONTACT:
+    ASSERT_DEBUG (0, "Trying to pack a contact constraint");
+    break;
+  }
+}
+
+/* unpack non-contact constraint */
+static void unpack_non_contact (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  CONAUX *aux;
+
+  ERRMEM (aux = MEM_CALLOC (sizeof (CONAUX)));
+
+  aux->id = unpack_int (ipos, i, ints);
+  aux->kind = unpack_int (ipos, i, ints);
+  unpack_doubles (dpos, d, doubles, aux->R, 3);
+  aux->master = unpack_int (ipos, i, ints);
+
+  switch (aux->kind)
+  {
+  case FIXPNT:
+    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
+    break;
+  case FIXDIR:
+    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
+    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
+    break;
+  case VELODIR:
+    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
+    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
+    aux->tms = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
+    break;
+  case RIGLNK:
+    aux->slave = unpack_int (ipos, i, ints);
+    unpack_doubles (dpos, d, doubles, aux->vec [0], 3);
+    unpack_doubles (dpos, d, doubles, aux->vec [1], 3);
+    break;
+  }
+
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) aux->master, NULL), "Invalid body id");
+
+    dom->noid = aux->id; /* disable constraint ids generation and use 'noid' instead */
+
+    switch (aux->kind)
+    {
+    case FIXPNT: DOM_Fix_Point (dom, bod, aux->vec [0]); break;
+    case FIXDIR: DOM_Fix_Direction (dom, bod, aux->vec [0], aux->vec [1]); break;
+    case VELODIR: DOM_Set_Velocity (dom, bod, aux->vec [0], aux->vec [1], aux->tms); break;
+    case RIGLNK:
+    {
+      BODY *other;
+
+      ASSERT_DEBUG_EXT (other = MAP_Find (dom->idb, (void*) (long) aux->slave, NULL), "Invalid body id");
+      DOM_Put_Rigid_Link (dom, bod, other, aux->vec [0], aux->vec [1]);
+    }
+    break;
+    }
+
+    dom->noid = 0; /* enable constraint ids generation */
+
+
+
+  return aux;
+}
+
+/* pack contact */
+static void pack_contact (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, con->id);
+  pack_int (isize, i, ints, con->master->id);
+  pack_int (isize, i, ints, con->slave->id);
+  pack_doubles (dsize, d, doubles, con->point, 3);
+  pack_doubles (dsize, d, doubles, con->base, 9);
+  pack_double (dsize, d, doubles, con->area);
+  pack_double (dsize, d, doubles, con->gap);
+  pack_int (isize, i, ints, con->paircode);
+  SURFACE_MATERIAL_Pack_State (&con->mat, dsize, d, doubles, isize, i, ints);
+  pack_doubles (dsize, d, doubles, con->mpnt, 3);
+  pack_doubles (dsize, d, doubles, con->spnt, 3);
+  pack_int (isize, i, ints, con->msgp - con->master->sgp);
+  pack_int (isize, i, ints, con->ssgp - con->slave->sgp);
+}
+
+/* unpack contact */
+static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  BODY *master, *slave;
+  int cid, mid, sid, n;
+  CON *con;
+
+  cid = unpack_int (ipos, i, ints);
+  mid = unpack_int (ipos, i, ints);
+  sid = unpack_int (ipos, i, ints);
+
+  master = MAP_Find (dom->idb, (void*) (long) mid, NULL);
+  if (!master) { ASSERT_DEBUG_EXT (master = MAP_Find (dom->allbodies, (void*) (long) mid, NULL), "Invalid body id"); }
+  slave = MAP_Find (dom->idb, (void*) (long) sid, NULL);
+  if (!slave) { ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); }
+
+  dom->noid = cid; /* disable constraint ids generation and use 'noid' instead */
+  con = insert (dom, master, slave);
+  dom->noid = 0; /* enable constraint ids generation */
+
+  con->kind = CONTACT;
+  con->state |=  (CON_NEW | CON_EXTERNAL);
+
+  unpack_doubles (dpos, d, doubles, con->point, 3);
+  unpack_doubles (dpos, d, doubles, con->base, 9);
+  con->area = unpack_double (dpos, d, doubles);
+  con->gap = unpack_double (dpos, d, doubles);
+  con->paircode = unpack_int (ipos, i, ints);
+  SURFACE_MATERIAL_Unpack_State (dom->sps, &con->mat, dpos, d, doubles, ipos, i, ints);
+  unpack_doubles (dpos, d, doubles, con->mpnt, 3);
+  unpack_doubles (dpos, d, doubles, con->spnt, 3);
+  n = unpack_int (ipos, i, ints);
+  con->msgp = &master->sgp [n];
+  n = unpack_int (ipos, i, ints);
+  con->ssgp = &slave->sgp [n];
+}
+
+/* pack parent body */
+static void pack_parent (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, bod->id);
+  BODY_Parent_Pack (bod, dsize, d, doubles, isize, i, ints);
+
+  /* TODO */
+}
+
+/* unpack parent body */
+static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int id;
+
+  id = unpack_int (ipos, i, ints);
+  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
+
+  if (bod->flags & BODY_CHILD) /* turn boundary contacts into internal ones */
+  {
+    SET *item;
+    CON *con;
+
+    for (item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      con = item->data;
+      if (con->state & CON_BOUNDARY)
+      {
+        SET_Insert (&dom->setmem, &dom->delbnd [bod->my.parent], (void*) (long) con->id, NULL); /* schedule for remote deletion */
+	con->state &= ~CON_BOUNDARY;
+      }
+    }
+  }
+
+  bod->flags &= ~BODY_CHILD;
+  bod->my.children = NULL;
+  bod->rank = dom->rank;
+
+  BODY_Parent_Unpack (bod, dpos, d, doubles, ipos, i, ints);
+
+  /* TODO */
+}
+
+/* pack child body */
+static void pack_child (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, bod->id);
+  BODY_Child_Pack (bod, dsize, d, doubles, isize, i, ints);
+
+  /* TODO */
+}
+
+/* unpack child body */
+static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  BODY *bod;
+  int id;
+
+  id = unpack_int (ipos, i, ints);
+  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
+  BODY_Child_Unpack (dom, dpos, d, doubles, ipos, i, ints);
+
+  if (!(bod->flags & BODY_CHILD)) insert_child (dom, bod);
+
+  /* TODO */
+}
+
+/* pack dummy body */
+static void pack_dummy (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, bod->id);
+  BODY_Child_Pack (bod, dsize, d, doubles, isize, i, ints);
+
+  /* TODO */
+}
+
+/* unpack dummy body */
+static void unpack_dummy (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  BODY *bod;
+  int id;
+
+  id = unpack_int (ipos, i, ints);
+  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
+  BODY_Child_Unpack (dom, dpos, d, doubles, ipos, i, ints);
+
+  /* TODO */
 }
 
 /* insert a child body into the domain */
@@ -1559,12 +1670,12 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
   /* pack exported bodies */
   pack_int (isize, i, ints, SET_Size (dbd->export_bod));
   for (item = SET_First (dbd->export_bod); item; item = SET_Next (item))
-    BODY_Parent_Pack (item->data, dsize, d, doubles, isize, i, ints);
+    pack_parent (item->data, dsize, d, doubles, isize, i, ints);
 
   /* pack exported non-contact constraints */
   pack_int (isize, i, ints, SET_Size (dbd->export_con));
   for (item = SET_First (dbd->export_con); item; item = SET_Next (item))
-    pack_non_contact_constraint (item->data, dsize, d, doubles, isize, i, ints);
+    pack_non_contact (item->data, dsize, d, doubles, isize, i, ints);
 
   /* pack deleted children ids */
   pack_int (isize, i, ints, SET_Size (dbd->delset));
@@ -1574,8 +1685,9 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
   /* pack exported children */
   pack_int (isize, i, ints, SET_Size (dbd->sndset));
   for (item = SET_First (dbd->sndset); item; item = SET_Next (item))
-    BODY_Child_Pack (item->data, dsize, d, doubles, isize, i, ints);
+    pack_child (item->data, dsize, d, doubles, isize, i, ints);
 
+  /* FIXME: is the below right? */
   /* remove migrated bodies and their attached constraints */
   for (item = SET_First (dbd->export_bod); item; item = SET_Next (item))
     remove_migrated_body (dbd->dom, item->data);
@@ -1584,10 +1696,8 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
 /* unpack domain balancing data */
 static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  CONAUX *aux;
   int n, j, k;
   BODY *bod;
-  MEM mem;
 
   /* unpack spare body ids */
   j = unpack_int (ipos, i, ints);
@@ -1601,39 +1711,14 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
-    bod = BODY_Parent_Unpack (dom, dpos, d, doubles, ipos, i, ints);
-    insert_migrated_body (dom, bod);
+    unpack_parent (dom, dpos, d, doubles, ipos, i, ints);
   }
 
   /* unpack exported constraints */
-  MEM_Init (&mem, sizeof (CONAUX), 4);
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
-    aux = unpack_non_contact_constraint (&mem, dpos, d, doubles, ipos, i, ints);
-
-    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) aux->master, NULL), "Invalid body id");
-
-    dom->noid = aux->id; /* disable constraint ids generation and use 'noid' instead */
-
-    switch (aux->kind)
-    {
-    case FIXPNT: DOM_Fix_Point (dom, bod, aux->vec [0]); break;
-    case FIXDIR: DOM_Fix_Direction (dom, bod, aux->vec [0], aux->vec [1]); break;
-    case VELODIR: DOM_Set_Velocity (dom, bod, aux->vec [0], aux->vec [1], aux->tms); break;
-    case RIGLNK:
-    {
-      BODY *other;
-
-      ASSERT_DEBUG_EXT (other = MAP_Find (dom->idb, (void*) (long) aux->slave, NULL), "Invalid body id");
-      DOM_Put_Rigid_Link (dom, bod, other, aux->vec [0], aux->vec [1]);
-    }
-    break;
-    }
-
-    dom->noid = 0; /* enable constraint ids generation */
-
-    MEM_Free (&mem, aux);
+    unpack_non_contact (dpos, d, doubles, ipos, i, ints);
   }
 
   /* unpack deleted children ids */
@@ -1650,8 +1735,7 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
-    bod = BODY_Child_Unpack (dom, dpos, d, doubles, ipos, i, ints);
-    if (!(bod->flags & BODY_CHILD)) insert_child (dom, bod);
+    unpack_child (dpos, d, doubles, ipos, i, ints);
   }
 
   return NULL;
@@ -1812,7 +1896,7 @@ static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
   /* pack updated dummies */
   pack_int (isize, i, ints, SET_Size (dbd->sndset));
   for (item = SET_First (dbd->sndset); item; item = SET_Next (item))
-    BODY_Child_Pack (item->data, dsize, d, doubles, isize, i, ints);
+    pack_dummy (item->data, dsize, d, doubles, isize, i, ints);
 
   /* pack exported boundary contacts */
   pack_int (isize, i, ints, SET_Size (dbd->dom->expbnd  [dbd->rank]));
@@ -1821,7 +1905,7 @@ static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
 
   SET_Free (&dbd->dom->setmem, &dbd->dom->expbnd [dbd->rank]); /* empty set */
 
-  /* pack deleted  boundary contact ids */
+  /* pack deleted  boundary contacts */
   pack_int (isize, i, ints, SET_Size (dbd->dom->delbnd  [dbd->rank]));
   for (item = SET_First (dbd->dom->delbnd [dbd->rank]); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
@@ -1842,7 +1926,7 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
-    BODY_Child_Unpack (dom, dpos, d, doubles, ipos, i, ints);
+    unpack_dummy (dom, dpos, d, doubles, ipos, i, ints);
   }
 
   /* unpack imported boundary contacts */
@@ -1852,7 +1936,7 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
     unpack_contact (dom, dpos, d, doubles, ipos, i, ints);
   }
 
-  /* unpack ids of boundary contacts to be deleted */
+  /* unpack deleted boundary contacts */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
@@ -2291,6 +2375,7 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
     if (con->state & CON_BOUNDARY)
     {
       BODY *bod = (con->master->flags & BODY_CHILD ? con->master : con->slave);
+      ASSERT_DEBUG (bod->my.parent >= 0 && bod->my.parent < dom->ncpu, "Rank out of bounds");
       SET_Insert (&dom->setmem, &dom->delbnd [bod->my.parent], (void*) (long) con->id, NULL); /* schedule for remote deletion */
     }
   }
