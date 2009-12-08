@@ -106,7 +106,6 @@ typedef enum
 {
   BODY_DETECT_SELF_CONTACT = 0x01, /* enable self contact detection */
   BODY_CHILD               = 0x02, /* a child copy of a parent body */
-  BODY_DUMMY               = 0x04, /* a dummy copy of a parent body */
 } BODY_FLAGS;
 
 /* flags that are migrated with bodies (the rest is filtered out) */
@@ -166,7 +165,7 @@ struct general_body
   CLIQUE *clique;  /* constraints clique */
 
 #if MPI
-  union { MAP *children; /* map of children ranks (used by parents) to 0s (BODY_CHILD) or 1s (DUMMY_CHILD) */
+  union { SET *children; /* map of children ranks (used by parents) to 0s (BODY_CHILD) or 1s (DUMMY_CHILD) */
           int parent; } my; /* parent rank (used by children) */
 
   int rank; /* current rank (not exported body) or new rank (exported body) */
@@ -270,14 +269,10 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
 #if MPI
 /* parent bodies store all body data and serve for time stepping */
 void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
-BODY* BODY_Parent_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+BODY* BODY_Parent_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 /* child bodies store a minimal subset of needed data and serve for constraint solution */
 void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
-BODY* BODY_Child_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
-
-/* pack/unpack child body state (update shape after unpacking) */
-void BODY_Child_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
-void BODY_Child_Unpack_State (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+BODY* BODY_Child_Unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 #endif
 #endif

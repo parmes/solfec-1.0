@@ -1693,16 +1693,6 @@ static int ID_TO_BODY (lng_BODY *body)
 
   return 0;
 }
-
-/* get rank */
-static int RANK ()
-{
-  int rank;
-
-  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
-
-  return rank;
-}
 #endif
 
 /* test whether an object is a bulk material or a bulk material label */
@@ -2006,15 +1996,6 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape (shape, kwl[2]) &&
 	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]) &&
 	      is_string (formulation, kwl[5]) && is_mesh ((PyObject*)mesh, kwl[6]));
-
-#if MPI
-    if (RANK() > 0) /* bodies can only be created on process zero */
-    {
-      self->dom = solfec->sol->dom;
-      self->id = 0; /* identifiers start from 1 => always invalid (ID_TO_BODY returns 0) */
-      return (PyObject*)self; /* return a zero initialized objecy (tp_alloc) */
-    }
-#endif
 
     if (label) lab = PyString_AsString (label);
     else lab = NULL;
