@@ -785,8 +785,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
 #if MPI
   bod->my.children = NULL;
 
-  bod->dummies = NULL;
-
   MPI_Comm_rank (MPI_COMM_WORLD, &bod->rank);
 #endif
 
@@ -1621,12 +1619,7 @@ void BODY_Destroy (BODY *bod)
   if (bod->msh) MESH_Destroy (bod->msh);
 
 #if MPI
-  if ((bod->flags & (BODY_CHILD|BODY_DUMMY)) == 0)
-  {
-    SET_Free (NULL, &bod->my.children);  /* a parent body => free children ranks */
-
-    SET_Free (NULL, &bod->dummies); /* and dummy ranks */
-  }
+  if (!(bod->flags & (BODY_CHILD|BODY_DUMMY))) MAP_Free (NULL, &bod->my.children);  /* a parent body => free children ranks */
 #elif OPENGL
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
 #endif
@@ -1840,14 +1833,12 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   pack_double (dsize, d, doubles, bod->damping);
 
   /* pack children ranks */
-  pack_int (isize, i, ints, SET_Size (bod->my.children));
-  for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
+  pack_int (isize, i, ints, MAP_Size (bod->my.children));
+  for (MAP *item = MAP_First (bod->my.children); item; item = MAP_Next (item))
+  {
+    pack_int (isize, i, ints, (int) (long) item->key);
     pack_int (isize, i, ints, (int) (long) item->data);
-
-  /* pack dummies ranks */
-  pack_int (isize, i, ints, SET_Size (bod->dummies));
-  for (SET *item = SET_First (bod->dummies); item; item = SET_Next (item))
-    pack_int (isize, i, ints, (int) (long) item->data);
+  }
 }
 
 /* unpack parent body */
@@ -1899,12 +1890,12 @@ BODY* BODY_Parent_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *i
   /* unpack children ranks */
   m = unpack_int (ipos, i, ints);
   for (n = 0; n < m; n ++)
-    SET_Insert (NULL, &bod->my.children, (void*) (long) unpack_int (ipos, i, ints), NULL);
+  {
+    int rank = unpack_int (ipos, i, ints), 
+        dummy = unpack_int (ipos, i, ints);
 
-  /* unpack dummies ranks */
-  m = unpack_int (ipos, i, ints);
-  for (n = 0; n < m; n ++)
-    SET_Insert (NULL, &bod->dummies, (void*) (long) unpack_int (ipos, i, ints), NULL);
+    MAP_Insert (NULL, &bod->my.children, (void*) (long) rank, (void*) (long) dummy, NULL);
+  }
 
   /* init inverse */
   if (sol->dom->dynamic)
@@ -1971,9 +1962,6 @@ BODY* BODY_Child_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ip
   if (sol->dom->dynamic)
     BODY_Dynamic_Init (bod, bod->scheme);
   else BODY_Static_Init (bod);
-
-  /* set child flag */
-  bod->flags |= BODY_CHILD;
 
   return bod;
 }

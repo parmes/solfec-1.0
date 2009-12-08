@@ -517,8 +517,11 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
     for (BODY *bod = dom->bod; bod; bod = bod->next)
     {
-      if (bod->clique) clique_destroy (quemem, diamem, offmem, bod->clique);
-      bod->clique = clique_create (quemem, diamem, offmem, bod);
+      if (bod->kind != OBS)
+      {
+	if (bod->clique) clique_destroy (quemem, diamem, offmem, bod->clique);
+	bod->clique = clique_create (quemem, diamem, offmem, bod);
+      }
     }
   }
 
@@ -547,6 +550,10 @@ void LOCDYN_Destroy (LOCDYN *ldy)
 {
   MEM_Release (&ldy->diamem);
   MEM_Release (&ldy->offmem);
+
+  MEM_Release (&ldy->clidiamem);
+  MEM_Release (&ldy->clioffmem);
+  MEM_Release (&ldy->cliquemem);
 
   free (ldy);
 }

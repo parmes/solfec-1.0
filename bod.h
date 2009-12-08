@@ -166,12 +166,10 @@ struct general_body
   CLIQUE *clique;  /* constraints clique */
 
 #if MPI
-  union { SET *children; /* set of children ranks (used by parents) */
+  union { MAP *children; /* map of children ranks (used by parents) to 0s (BODY_CHILD) or 1s (DUMMY_CHILD) */
           int parent; } my; /* parent rank (used by children) */
 
-  SET *dummies; /* set of dummy children ranks (used by parents) */
-
-  int rank; /* current rank (not exported body) or prospective rank (exported body) */
+  int rank; /* current rank (not exported body) or new rank (exported body) */
 #else
   void *rendering; /* rendering data */
 #endif

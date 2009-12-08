@@ -1315,6 +1315,7 @@ static int body_count (DOM *dom, int *ierr)
 /* pack contact */
 static void pack_contact (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
+  pack_int (isize, i, ints, con->id);
   pack_int (isize, i, ints, con->master->id);
   pack_int (isize, i, ints, con->slave->id);
   pack_doubles (dsize, d, doubles, con->point, 3);
@@ -1333,9 +1334,10 @@ static void pack_contact (CON *con, int *dsize, double **d, int *doubles, int *i
 static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *master, *slave;
-  int mid, sid, n;
+  int cid, mid, sid, n;
   CON *con;
 
+  cid = unpack_int (ipos, i, ints);
   mid = unpack_int (ipos, i, ints);
   sid = unpack_int (ipos, i, ints);
 
@@ -1361,7 +1363,9 @@ static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ip
   }
   if (!slave) { ASSERT_DEBUG_EXT (slave = MAP_Find (dom->children, (void*) (long) sid, NULL), "Invalid body id"); }
 
+  dom->noid = cid; /* disable constraint ids generation and use 'noid' instead */
   con = insert (dom, master, slave);
+  dom->noid = 0; /* enable constraint ids generation */
 
   con->kind = CONTACT;
 
@@ -1433,7 +1437,7 @@ static void midpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
 /* insert a child body into the domain */
 static void insert_child (DOM *dom, BODY *bod)
 {
-  if (!(bod->flags & BODY_DUMMY)) AABB_Insert_Body (dom->aabb, bod);
+  if (bod->flags & BODY_CHILD) AABB_Insert_Body (dom->aabb, bod);
 
   /* insert into id based map */
   MAP_Insert (&dom->mapmem, &dom->children, (void*) (long) bod->id, bod, NULL);
@@ -1457,7 +1461,7 @@ static void remove_child (DOM *dom, BODY *bod)
 
   /* remove box after constraints were deleted as
    * AABB_Break_Adjacency is invoked from within */
-  if (!(bod->flags & BODY_DUMMY)) AABB_Delete_Body (dom->aabb, bod);
+  if (bod->flags & BODY_CHILD) AABB_Delete_Body (dom->aabb, bod);
 
   /* delete from id based map */
   MAP_Delete (&dom->mapmem, &dom->children, (void*) (long) bod->id, NULL);
@@ -1515,17 +1519,14 @@ static void remove_migrated_body (DOM *dom, BODY *bod)
 /* compute migration of subdomain overlap based children */
 static void compute_children_migration (DOM *dom, DBD *dbd)
 {
+  SET *procset, *delset, *y;
   int *procs, numprocs, i;
-  SET *procset, *x;
+  MAP *x;
 
   ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
 
-  /* create set 'delset' of pairs (id, rank) of children
-   * that will need to be removed from their partitions
-   * create set 'sndset' of pairs (body, rank) of bodies
-   * to be sent as children to other partitions */
-
   procset = NULL;
+  delset = NULL;
 
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
@@ -1541,37 +1542,43 @@ static void compute_children_migration (DOM *dom, DBD *dbd)
     }
 
     /* for each x in bod->my.children, if not in procset,
-     * add (bod->id, x) to delset, remove x from bod->my.children */
-    for (x = SET_First (bod->my.children); x; )
+     * add x to a delset, remove x from bod->my.children */
+    for (x = MAP_First (bod->my.children); x; x = MAP_Next (x))
     {
-      if (!SET_Contains (procset, x->data, NULL))
+      if (!x->data && !SET_Contains (procset, x->key, NULL)) /* !x->data => BODY_CHILD */
       {
-	SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].delset, (void*) (long) bod->id, NULL);
-	x = SET_Delete_Node (NULL, &bod->my.children, x); /* TODO: SET_Delete_Node might be incorrect (not tested enough) */
-      }
-      else x = SET_Next (x);
-    }
-
-     /* for each x in procset, if not in bod->my.children,
-      * add (bod, x) to sndset, insert x into bod->my.children */
-    for (x = SET_First (procset); x; x = SET_Next (x))
-    {
-      if (!SET_Contains (bod->my.children, x->data, NULL))
-      {
-	SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].sndset, bod, NULL);
-	SET_Insert (NULL, &bod->my.children, x->data, NULL);
+	SET_Insert (&dom->setmem, &dbd [(int) (long) x->key].delset, (void*) (long) bod->id, NULL);
+	SET_Insert (&dom->setmem, &delset, x->key, NULL); /* schedule for deletion */
       }
     }
 
-    /* reset processors set */
+    /* remove deleted children */
+    for (y = SET_First (delset); y; y = SET_Next (y))
+      MAP_Delete (NULL, &bod->my.children, y->data, NULL);
+
+     /* for each y in procset, if not in bod->my.children,
+      * add bod to a sndset, insert y into bod->my.children */
+    for (y = SET_First (procset); y; y = SET_Next (y))
+    {
+      if (!MAP_Find_Node (bod->my.children, y->data, NULL))
+      {
+	SET_Insert (&dom->setmem, &dbd [(int) (long) y->data].sndset, bod, NULL);
+	MAP_Insert (NULL, &bod->my.children, y->data, NULL, NULL);
+      }
+    }
+
+    /* reset sets */
     SET_Free (&dom->setmem, &procset);
+    SET_Free (&dom->setmem, &delset);
 
     /* prepare children state gossip set */
-    for (x = SET_First (bod->my.children); x; x = SET_Next (x))
+    for (x = MAP_First (bod->my.children); x; x = MAP_Next (x))
     {
-      SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].gossip, bod, NULL);
+      if (!x->data) SET_Insert (&dom->setmem, &dbd [(int) (long) x->key].gossip, bod, NULL); /* !x->data => BODY_CHILD */
     }
   }
+
+  free (procs);
 }
 
 /* pack domain balancing data */
@@ -1705,6 +1712,7 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
   for (n = 0; n < j; n ++)
   {
     bod = BODY_Child_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
+    bod->flags |= BODY_CHILD; /* a child */
     insert_child (dom, bod);
   }
 
@@ -1735,10 +1743,10 @@ static void domain_balancing (DOM *dom)
 		export_local_ids;
 
   int val, sum, min, avg, max;
+  SET *delset, *item;
   unsigned int id;
-  char tol [128];
   double ratio;
-  SET *item;
+  MAP *jtem;
   BODY *bod;
   DBD *dbd;
   int i;
@@ -1753,10 +1761,6 @@ static void domain_balancing (DOM *dom)
 
   if (ratio > dom->imbalance_tolerance)
   {
-    /* adjust imbalance tolerance */
-    snprintf (tol, 128, "%g", dom->imbalance_tolerance);
-    Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", tol);
-
     /* update body partitioning using mid points of their extents */
     ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
 	    &num_import, &import_global_ids, &import_local_ids, &import_procs,
@@ -1779,7 +1783,21 @@ static void domain_balancing (DOM *dom)
 
       SET_Insert (&dom->setmem, &dbd [export_procs [i]].export_bod, bod, NULL); /* map this body to its export rank */
 
-      for (item = SET_First (bod->con); item; item = SET_Next (item)) /* search adjacent constraints */
+      /* schedule deletion of all dummy bodies associated with this parent */
+      for (delset = NULL, jtem = MAP_First (bod->my.children); jtem; jtem = MAP_Next (jtem))
+      {
+	if (jtem->data) /* BODY_DUMMY => schedule for remote deletion */
+	{
+	  SET_Insert (&dom->setmem, &dbd [(int) (long) jtem->key].delset, (void*) (long) bod->id, NULL);
+	  SET_Insert (&dom->setmem, &delset, jtem->key, NULL);
+	}
+      }
+
+      /* delete all dummies from among body children => let them be reassigned after migration has completed */
+      for (item = SET_First (delset); item; item = SET_Next (item)) MAP_Delete (NULL, &bod->my.children, item->data, NULL);
+
+      /* search adjacent constraints */
+      for (item = SET_First (bod->con); item; item = SET_Next (item))
       {
 	CON *con = item->data;
 
@@ -1845,14 +1863,11 @@ static void domain_balancing (DOM *dom)
 /* compute boundary contact related dummy children */
 static void compute_dummies_migration (DOM *dom, DBD *dbd)
 {
-  SET *procset, *x;
-
-  /* create set 'delset' of pairs (id, rank) of dummies
-   * that will need to be removed from their partitions
-   * create set 'sndset' of pairs (body, rank) of bodies
-   * to be sent as dummies to other partitions */
+  SET *procset, *delset, *y;
+  MAP *x;
 
   procset = NULL;
+  delset = NULL;
 
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
@@ -1861,49 +1876,48 @@ static void compute_dummies_migration (DOM *dom, DBD *dbd)
      * this way we can freely migrate the boundary contacts
      * and insert them into local dynamics as usual, as the
      * "other body" will be waiting in case it was not there */
-    for (x = SET_First (bod->con); x; x = SET_Next (x))
+    for (y = SET_First (bod->con); y; y = SET_Next (y))
     {
-      CON *con = x->data;
+      CON *con = y->data;
       BODY *other = (bod == con->master ? con->slave : con->master);
 
       if (other->flags & BODY_CHILD) SET_Insert (&dom->setmem, &procset, (void*) (long) other->my.parent, NULL);
     }
 
-    /* dummies and child bodies should not overlap; instead dummies are simply
-     * child bodies on ranks where they would not exist due to lack of geometric
-     * overlap; subtract now from the 'procset' all ranks of already existing child bodies */
-    for (x = SET_First (bod->my.children); x; x = SET_Next (x)) SET_Delete (&dom->setmem, &procset, x->data, NULL);
-
     /* for each x in bod->dummies, if not in procset,
-     * add (bod->id, x) to delset, remove x from bod->dummies*/
-    for (x = SET_First (bod->dummies); x; )
+     * add x to delset, remove x from bod->dummies*/
+    for (x = MAP_First (bod->my.children); x; x = MAP_Next (x))
     {
-      if (!SET_Contains (procset, x->data, NULL))
+      if (x->data && !SET_Contains (procset, x->key, NULL)) /* x->data => BODY_DUMMY */
       {
-	SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].delset, (void*) (long) bod->id, NULL);
-	x = SET_Delete_Node (NULL, &bod->dummies, x); /* TODO: SET_Delete_Node might be incorrect (not tested enough) */
+	SET_Insert (&dom->setmem, &dbd [(int) (long) x->key].delset, (void*) (long) bod->id, NULL);
+	SET_Insert (&dom->setmem, &delset, x->key, NULL); /* schedule for deleteion */
       }
-      else x = SET_Next (x);
     }
+
+    /* remove deleted dummies */
+    for (y = SET_First (delset); y; y = SET_Next (y))
+      MAP_Delete (NULL, &bod->my.children, y->data, NULL);
 
     /* for each x in procset, if not in bod->dummies,
-     * add (bod, x) to sndset, insert x into bod->dummies */
-    for (x = SET_First (procset); x; x = SET_Next (x))
+     * add bod to sndset, insert x into bod->dummies */
+    for (y = SET_First (procset); y; y = SET_Next (y))
     {
-      if (!SET_Contains (bod->dummies, x->data, NULL))
+      if (!MAP_Find_Node (bod->my.children, y->data, NULL))
       {
-	SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].sndset, bod, NULL);
-	SET_Insert (NULL, &bod->dummies, x->data, NULL);
+	SET_Insert (&dom->setmem, &dbd [(int) (long) y->data].sndset, bod, NULL);
+	MAP_Insert (NULL, &bod->my.children, y->data, (void*) (long) 1, NULL);
       }
     }
 
-    /* reset processors set */
+    /* reset sets */
     SET_Free (&dom->setmem, &procset);
+    SET_Free (&dom->setmem, &delset);
 
     /* prepare dummies state gossip set */
-    for (x = SET_First (bod->dummies); x; x = SET_Next (x))
+    for (x = MAP_First (bod->my.children); x; x = MAP_Next (x))
     {
-      SET_Insert (&dom->setmem, &dbd [(int) (long) x->data].gossip, bod, NULL);
+      if (x->data) SET_Insert (&dom->setmem, &dbd [(int) (long) x->key].gossip, bod, NULL); /* x->data => BODY_DUMMY */
     }
   }
 }
@@ -1971,8 +1985,7 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   for (n = 0; n < j; n ++)
   {
     bod = BODY_Child_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
-    bod->flags &= ~BODY_CHILD; /* not a child */
-    bod->flags |= BODY_DUMMY; /* but a dummy */
+    bod->flags |= BODY_DUMMY; /* a dummy */
     insert_child (dom, bod);
   }
 
@@ -1995,7 +2008,7 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   for (n = 0; n < j; n ++)
   {
     k = unpack_int (ipos, i, ints);
-    if ((con = MAP_Find (dom->idc, (void*) (long) k, NULL))) /* could have been already deleted with a child body */
+    if ((con = MAP_Find (dom->idc, (void*) (long) k, NULL))) /* could have been already deleted with a dummy body */
     {
       DOM_Remove_Constraint (dom, con);
     }
@@ -2074,7 +2087,7 @@ static void create_mpi (DOM *dom)
  
   /* load balancing parameters */
   Zoltan_Set_Param (dom->zol, "LB_METHOD", "RCB");
-  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", "1.3");
+  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", "1.0");
   Zoltan_Set_Param (dom->zol, "AUTO_MIGRATE", "FALSE"); /* we shall use COMOBJS */
   Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "EXPORT"); /* the rest will be done by COMOBJS */
 
@@ -2247,12 +2260,8 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   SET_Insert (&dom->setmem, &dom->sparebid, (void*) (long) bod->id, NULL);
 
   /* gather children ids to be deleted during balancing */
-  for (SET *item = SET_First (bod->my.children); item; item = SET_Next (item))
-    SET_Insert (&dom->setmem, &dom->delch [(int) (long) item->data], (void*) (long) bod->id, NULL);
-
-  /* gather dummies ids to be deleted during balancing */
-  for (SET *item = SET_First (bod->dummies); item; item = SET_Next (item))
-    SET_Insert (&dom->setmem, &dom->delch [(int) (long) item->data], (void*) (long) bod->id, NULL);
+  for (MAP *item = MAP_First (bod->my.children); item; item = MAP_Next (item))
+    SET_Insert (&dom->setmem, &dom->delch [(int) (long) item->key], (void*) (long) bod->id, NULL);
 #endif
 }
 
