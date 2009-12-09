@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if MPI
+#include <zoltan.h>
+#endif
+
 #include "shp.h"
 #include "mem.h"
 #include "map.h"
@@ -151,6 +155,12 @@ struct aabb
        *hsh;  /* hashing data */
 
   DOM *dom; /* the underlying domain */
+
+#if MPI
+  BOX **aux; /* auxiliary table of boxes used during balancing */
+
+  struct Zoltan_Struct *zol; /* load balancing */
+#endif
 };
 
 /* get algorithm name string */
@@ -186,6 +196,11 @@ void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two);
 
 /* release memory */
 void AABB_Destroy (AABB *aabb);
+
+#if MPI
+/* boxes load balancing */
+void AABB_Balance (AABB *aabb);
+#endif
 
 /* get geometrical object extents update callback */
 BOX_Extents_Update SGP_Extents_Update (SGP *sgp);

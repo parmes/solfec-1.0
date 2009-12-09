@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if MPI
+#include "put.h"
+#endif
+
 #include "sol.h"
 #include "box.h"
 #include "hyb.h"
@@ -167,6 +171,124 @@ static int gobj_kind (SGP *sgp)
   return 0;
 }
 
+#if MPI
+/* number of boxes */
+static int box_count (AABB *aabb, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+
+  return aabb->nin + aabb->nlst;
+}
+
+/* list of box identifiers */
+static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
+{
+  BOX *box, **aux;
+  BODY *bod;
+  int i;
+
+  free (aabb->aux);
+  /* realloc auxiliary table */
+  ERRMEM (aabb->aux = malloc ((aabb->nin + aabb->nlst) * sizeof (BOX*)));
+
+  /* gather inserted boxes */
+  for (aux = aabb->aux, i = 0, box = aabb->in; box; aux ++, i ++, box = box->next)
+  {
+    bod = box->body;
+
+    global_ids [i * num_gid_entries] = bod->id;
+    global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp; /* local SGP index */
+
+    local_ids [i * num_lid_entries] = i;
+
+    *aux = box;
+  }
+
+  /* gather current boxes */
+  for (box = aabb->lst; box; aux ++, i ++, box = box->next)
+  {
+    bod = box->body;
+
+    global_ids [i * num_gid_entries] = bod->id;
+    global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp;
+
+    local_ids [i * num_lid_entries] = i;
+
+    *aux = box;
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* number of spatial dimensions */
+static int dimensions (AABB *aabb, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  return 3;
+}
+
+/* list of body extent low points */
+static void boxpoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int num_obj,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
+{
+  BOX **aux, *box;
+  int i;
+
+  aux = aabb->aux;
+
+  for (i = 0; i < num_obj; i ++, geom_vec += num_dim)
+  {
+    box = aux [local_ids [i * num_lid_entries]];
+    MID (box->extents, box->extents + 3, geom_vec);
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* create MPI related data */
+static void create_mpi (AABB *aabb)
+{
+  aabb->aux = NULL;
+
+  /* zoltan context for body partitioning */
+  ASSERT (aabb->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
+
+  /* general parameters */
+  Zoltan_Set_Param (aabb->zol, "DEBUG_LEVEL", "0");
+  Zoltan_Set_Param (aabb->zol, "DEBUG_MEMORY", "0");
+  Zoltan_Set_Param (aabb->zol, "NUM_GID_ENTRIES", "2"); /* body id, sgp index */
+  Zoltan_Set_Param (aabb->zol, "NUM_LID_ENTRIES", "1"); /* indices in aux table */
+ 
+  /* load balancing parameters */
+  Zoltan_Set_Param (aabb->zol, "LB_METHOD", "RCB");
+  Zoltan_Set_Param (aabb->zol, "IMBALANCE_TOL", "1.2");
+  Zoltan_Set_Param (aabb->zol, "AUTO_MIGRATE", "FALSE"); /* we shall use COMOBJS */
+  Zoltan_Set_Param (aabb->zol, "RETURN_LISTS", "NONE");
+
+  /* RCB parameters */
+  Zoltan_Set_Param (aabb->zol, "RCB_OVERALLOC", "1.3");
+  Zoltan_Set_Param (aabb->zol, "RCB_REUSE", "1");
+  Zoltan_Set_Param (aabb->zol, "RCB_OUTPUT_LEVEL", "0");
+  Zoltan_Set_Param (aabb->zol, "CHECK_GEOM", "1");
+  Zoltan_Set_Param (aabb->zol, "KEEP_CUTS", "1");
+
+  /* callbacks */
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) box_count, aabb);
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) box_list, aabb);
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, aabb);
+  Zoltan_Set_Fn (aabb->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) boxpoints, aabb);
+}
+
+/* destroy MPI related data */
+static void destroy_mpi (AABB *aabb)
+{
+  free (aabb->aux);
+
+  Zoltan_Destroy (&aabb->zol);
+}
+#endif
+
 /* algorithm name */
 char* AABB_Algorithm_Name (BOXALG alg)
 {
@@ -204,6 +326,10 @@ AABB* AABB_Create (int size)
   aabb->ntab = 0;
   aabb->modified = 0;
   aabb->swp = aabb->hsh = NULL;
+
+#if MPI
+  create_mpi (aabb);
+#endif
 
   return aabb;
 }
@@ -441,8 +567,51 @@ void AABB_Destroy (AABB *aabb)
   if (aabb->swp) SWEEP_Destroy (aabb->swp);
   if (aabb->hsh) HASH_Destroy (aabb->hsh);
 
+#if MPI
+  destroy_mpi (aabb);
+#endif
+
   free (aabb);
 }
+
+#if MPI
+/* boxes load balancing */
+void AABB_Balance (AABB *aabb)
+{
+  int val = aabb->nin + aabb->nlst,
+      sum, min, avg, max;
+
+  /* get statistics on boxes counts */
+  PUT_int_stats (1, &val, &sum, &min, &avg, &max);
+
+  /* compute inbalance ratio for boxes */
+  double ratio = (double) max / (double) MAX (min, 1);
+
+  if (aabb->dom->time == 0.0 || ratio > aabb->dom->imbalance_tolerance) /* update partitioning only if not sufficient to balance boxes */
+  {
+      int changes,
+	  num_gid_entries,
+	  num_lid_entries,
+	  num_import,
+	  *import_procs,
+	  num_export,
+	  *export_procs;
+
+      ZOLTAN_ID_PTR import_global_ids,
+		    import_local_ids,
+		    export_global_ids,
+		    export_local_ids;
+
+      /* update box partitioning using low points of their extents */
+      ASSERT (Zoltan_LB_Balance (aabb->zol, &changes, &num_gid_entries, &num_lid_entries,
+	      &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	      &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+      Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+			   &export_global_ids, &export_local_ids, &export_procs);
+  }
+}
+#endif
 
 /* get geometrical object extents update callback */
 BOX_Extents_Update SGP_Extents_Update (SGP *sgp)
