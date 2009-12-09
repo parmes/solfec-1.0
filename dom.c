@@ -1799,9 +1799,13 @@ static void domain_balancing (DOM *dom)
   DBD *dbd;
   int i;
 
+  /* perform boxes balancing */
+  AABB_Balance (dom->aabb);
+  
   /* allocate balancing data storage */
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
 
+#if 0
   /* compute inbalance of bodies in partitions */
   for (val = 0, bod = dom->bod; bod; bod = bod->next) val += body_weight (bod);
   PUT_int_stats (1, &val, &sum, &min, &avg, &max);
@@ -1832,6 +1836,7 @@ static void domain_balancing (DOM *dom)
 	if (con->kind == RIGLNK)
 	{
 	  SET_Delete (&dom->setmem, &dbd [export_procs [i]].bodies, bod, NULL); /* TODO: export these bodies while maintaining RIGLNK constraints */
+	  bod->rank = dom->rank;
 	  continue;
 	}
 	else if (con->kind != CONTACT)
@@ -1851,6 +1856,47 @@ static void domain_balancing (DOM *dom)
 
     Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs, &export_global_ids, &export_local_ids, &export_procs);
   }
+#else
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    double *e = bod->extents,
+	   point [3];
+
+    MID (e, e+3, point);
+
+    Zoltan_LB_Point_Assign (dom->aabb->zol, point, &bod->rank); /* use boxes balancing here */
+
+    if (dom->rank != bod->rank)
+    {
+      SET_Insert (&dom->setmem, &dbd [bod->rank].bodies, bod, NULL); /* map this body to its export rank */
+
+      /* search adjacent constraints */
+      for (item = SET_First (bod->con); item; item = SET_Next (item))
+      {
+	CON *con = item->data;
+
+	if (con->kind == RIGLNK)
+	{
+	  SET_Delete (&dom->setmem, &dbd [bod->rank].bodies, bod, NULL); /* TODO: export these bodies while maintaining RIGLNK constraints */
+	  bod->rank = dom->rank;
+	  continue;
+	}
+	else if (con->kind != CONTACT)
+	{
+	  SET_Insert (&dom->setmem, &dbd [bod->rank].constraints, con, NULL); /* map constraint to its export rank */
+
+	  con->state |= CON_IDLOCK; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
+				       non-contact constrints should have cluster-wide unique ids, as users
+				       could store some global variables in Python input and might later like
+				       to acces those constraints; this will not be implemented for contacts */
+	}
+
+	/* schedule for deletion */
+	SET_Insert (&dom->setmem, &dom->delcon, con, NULL);
+      }
+    }
+  }
+#endif
 
   ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
 
@@ -1861,9 +1907,6 @@ static void domain_balancing (DOM *dom)
     dbd [i].dom = dom;
   }
 
-  /* perform boxes balancing */
-  AABB_Balance (dom->aabb);
-  
   /* compute chidren migration sets */
   children_migration_begin (dom, dbd);
 
