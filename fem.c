@@ -1856,7 +1856,7 @@ void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
 }
 
 /* initialise dynamic time stepping */
-void FEM_Dynamic_Init (BODY *bod, SCHEME scheme)
+void FEM_Dynamic_Init (BODY *bod)
 {
   MESH *msh = FEM_MESH (bod);
   int bulk,

@@ -181,6 +181,8 @@ struct domain
 
   unsigned int noid; /* constraint id generation ommition flag */
 
+  unsigned char breakadj; /* AABB_Break_Adjacency execution flag */
+
   SET **expbnd; /* boundary contacts to be sent to other ranks */
 
   SET **delbnd; /* ids of boundary contacts to be deleted on other ranks (after deleted constraints) */

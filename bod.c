@@ -774,7 +774,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
   bod->flags = 0; /* no flags here */
 
   /* default integration scheme */
-  bod->scheme = SCH_DEFAULT;
+  bod->scheme = kind == RIG ? SCH_RIG_NEG : SCH_DEFAULT;
 
   /* initial damping */
   bod->damping = 0.0;
@@ -955,8 +955,10 @@ void BODY_Material (BODY *bod, int volume, BULK_MATERIAL *mat)
   }
 }
 
-void BODY_Dynamic_Init (BODY *bod, SCHEME scheme)
+void BODY_Dynamic_Init (BODY *bod)
 {
+  if (bod->inverse) return; /* skip if initialized */
+
   switch (bod->kind)
   {
     case OBS:
@@ -967,22 +969,9 @@ void BODY_Dynamic_Init (BODY *bod, SCHEME scheme)
         MX_Zero (bod->inverse); /* fake zero matrix */
       }
       break;
-    case RIG:
-      rig_dynamic_inverse (bod);
-      
-      if (scheme == SCH_DEFAULT)
-	bod->scheme = SCH_RIG_NEG;
-      else { ASSERT (scheme >= SCH_RIG_POS && scheme <= SCH_RIG_IMP, ERR_BOD_SCHEME); }
-      bod->scheme = scheme;
-    break;
-    case PRB:
-      prb_dynamic_inverse (bod);
-      ASSERT (scheme == SCH_DEFAULT, ERR_BOD_SCHEME);
-      bod->scheme = scheme;
-    break;
-    case FEM:
-      FEM_Dynamic_Init (bod, scheme);
-    break;
+    case RIG: rig_dynamic_inverse (bod); break;
+    case PRB: prb_dynamic_inverse (bod); break;
+    case FEM: FEM_Dynamic_Init (bod); break;
   }
 }
 
@@ -1826,7 +1815,7 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
 
   /* init inverse */
   if (bod->dom->dynamic)
-    BODY_Dynamic_Init (bod, bod->scheme);
+    BODY_Dynamic_Init (bod);
   else BODY_Static_Init (bod);
 
   /* update shape */
@@ -1850,7 +1839,7 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
 
   /* init inverse */
   if (bod->dom->dynamic)
-    BODY_Dynamic_Init (bod, bod->scheme);
+    BODY_Dynamic_Init (bod);
   else BODY_Static_Init (bod);
 
   /* update shape */

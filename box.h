@@ -70,6 +70,7 @@ typedef struct aabb AABB; /* overlap detection driver data */
 typedef enum gobj GOBJ; /* kind of geometrical object */
 typedef enum boxalg BOXALG; /* type of overlap detection algorithm */
 typedef void* (*BOX_Overlap_Create)  (void *data, BOX *one, BOX *two); /* created overlap callback => returns a user pointer */
+typedef void  (*BOX_Overlap_Release) (void *data, BOX *one, BOX *two, void *user); /* released overlap callback => uses the user pointer */
 typedef void  (*BOX_Extents_Update)  (void *data, void *gobj, double *extents); /* extents update callback */
 
 /* object pair */
@@ -182,7 +183,7 @@ void AABB_Insert_Body (AABB *aabb, BODY *body);
 void AABB_Delete_Body (AABB *aabb, BODY *body);
 
 /* update state => detect created and released overlaps */
-void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create);
+void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release);
 
 /* never report overlaps betweem this pair of bodies (given by identifiers) */
 void AABB_Exclude_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2);
@@ -198,8 +199,8 @@ void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two);
 void AABB_Destroy (AABB *aabb);
 
 #if MPI
-/* boxes load balancing */
-void AABB_Balance (AABB *aabb);
+/* geomtric partitioning */
+void AABB_Partition (AABB *aabb);
 #endif
 
 /* get geometrical object extents update callback */

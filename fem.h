@@ -39,7 +39,7 @@ void FEM_Overwrite_State (BODY *bod, double *q, double *u);
 void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular);
 
 /* initialise dynamic time stepping */
-void FEM_Dynamic_Init (BODY *bod, SCHEME scheme);
+void FEM_Dynamic_Init (BODY *bod);
 
 /* estimate critical step for the dynamic scheme */
 double FEM_Dynamic_Critical_Step (BODY *bod);
