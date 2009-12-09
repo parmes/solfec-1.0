@@ -59,7 +59,7 @@ def gscallback (gs):
   print gs.error
   return 0
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
 
 OUTPUT (solfec, 1 * step, 'FASTLZ')
 

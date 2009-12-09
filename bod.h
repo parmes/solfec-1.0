@@ -105,7 +105,9 @@ struct general_force
 typedef enum
 {
   BODY_DETECT_SELF_CONTACT = 0x01, /* enable self contact detection */
-  BODY_CHILD               = 0x02, /* a child copy of a parent body */
+  BODY_PARENT              = 0x02, /* a parent body */
+  BODY_CHILD               = 0x04, /* a child body */
+  BODY_CHILD_UPDATED       = 0x08, /* an updated child */
 } BODY_FLAGS;
 
 /* flags that are migrated with bodies (the rest is filtered out) */
@@ -165,10 +167,9 @@ struct general_body
   CLIQUE *clique;  /* constraints clique */
 
 #if MPI
-  union { SET *children; /* map of children ranks (used by parents) to 0s (BODY_CHILD) or 1s (DUMMY_CHILD) */
-          int parent; } my; /* parent rank (used by children) */
+  SET *children; /* set of children ids for a parent */
 
-  int rank; /* current rank (not exported body) or new rank (exported body) */
+  int rank; /* parent => new/current rank; child => parent's rank */
 #else
   void *rendering; /* rendering data */
 #endif

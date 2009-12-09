@@ -76,16 +76,16 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
   if ((onebod->flags & BODY_CHILD) && (twobod->flags & BODY_CHILD)) return NULL; /* only parent-parent and parent-child contacts are valid */
   else if (onebod->flags & BODY_CHILD)
   {
-    if (SET_Contains (twobod->my.children, (void*) (long) onebod->my.parent, NULL)) /* check whether the parent's body child and child's parent are on the same processor */
+    if (SET_Contains (twobod->children, (void*) (long) onebod->rank, NULL)) /* check whether the parent's body child and child's parent are on the same processor */
     {
-      if (onebod->dom->rank < onebod->my.parent) return NULL; /* if so, use processor ordering in order to avoid duplicated contact detection */
+      if (onebod->dom->rank < onebod->rank) return NULL; /* if so, use processor ordering in order to avoid duplicated contact detection */
     }
   }
   else if (twobod->flags & BODY_CHILD)
   {
-    if (SET_Contains (onebod->my.children, (void*) (long) twobod->my.parent, NULL))
+    if (SET_Contains (onebod->children, (void*) (long) twobod->rank, NULL))
     {
-      if (twobod->dom->rank < twobod->my.parent) return NULL;
+      if (twobod->dom->rank < twobod->rank) return NULL;
     }
   }
 #endif

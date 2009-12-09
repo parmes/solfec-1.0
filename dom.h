@@ -171,13 +171,15 @@ struct domain
 
   MAP *allbodies; /* all created bodies mapped by ids (minimises load balancing communication) */
 
+  SET *children; /* current children */
+
+  SET *delcon; /* set of constraints to be deleted after parent migration */
+
   struct Zoltan_Struct *zol; /* domain partitioning */
 
   double imbalance_tolerance; /* imbalance threshold */
 
   unsigned int noid; /* constraint id generation ommition flag */
-
-  SET **delch; /* id sets of children to be deleted on other ranks (after removed parents) */
 
   SET **expbnd; /* boundary contacts to be sent to other ranks */
 
