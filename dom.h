@@ -175,7 +175,7 @@ struct domain
 
   SET *delcon; /* set of constraints to be deleted after parent migration */
 
-  struct Zoltan_Struct *zol; /* domain partitioning */
+  struct Zoltan_Struct *zol; /* load balancing */
 
   double imbalance_tolerance; /* imbalance threshold */
 

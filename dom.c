@@ -1629,6 +1629,7 @@ static void unpack_dummy (DOM *dom, int *dpos, double *d, int doubles, int *ipos
 /* compute ranks of migrating children */
 static void children_migration_begin (DOM *dom, DBD *dbd)
 {
+  struct Zoltan_Struct *zol = dom->aabb->zol;
   int *procs, numprocs, i;
   BODY *bod;
 
@@ -1641,7 +1642,7 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
 
     double *e = bod->extents;
 
-    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+    Zoltan_LB_Box_Assign (zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs); /* use boxes balancing here */
 
     SET_Free (&dom->setmem, &bod->children); /* empty children set */
 
@@ -1859,6 +1860,9 @@ static void domain_balancing (DOM *dom)
     send [i].o = &dbd [i];
     dbd [i].dom = dom;
   }
+
+  /* perform boxes balancing */
+  AABB_Balance (dom->aabb);
   
   /* compute chidren migration sets */
   children_migration_begin (dom, dbd);
