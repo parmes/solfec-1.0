@@ -19,10 +19,6 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#if MPI
-#include "put.h"
-#endif
-
 #include "sol.h"
 #include "box.h"
 #include "hyb.h"
@@ -34,6 +30,10 @@
 #include "swp.h"
 #include "hsh.h"
 #include "err.h"
+
+#if MPI
+#include "put.h"
+#endif
 
 #define SIZE 128 /* mempool size */
 
