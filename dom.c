@@ -34,6 +34,8 @@
 #include "pck.h"
 #include "err.h"
 
+#define SEND_DUMMIES 0 //FIXME: decide on a good solution
+
 #if MPI
 #include "put.h"
 #include "com.h"
@@ -267,6 +269,20 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
   }
 
   return NULL; /* no contact found */
+}
+
+/* box verlap release callback */
+static void overlap_release (DOM *dom, BOX *one, BOX *two, CON *con)
+{
+#if MPI
+  dom->breakadj = 0;
+#endif
+
+  DOM_Remove_Constraint (dom, con);
+
+#if MPI
+  dom->breakadj = 1;
+#endif
 }
 
 /* update contact data */
@@ -1399,6 +1415,14 @@ static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ip
   slave = MAP_Find (dom->idb, (void*) (long) sid, NULL);
   if (!slave) { ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); }
 
+#if !SEND_DUMMIES
+  if (dom->dynamic) BODY_Dynamic_Init (master);
+  else BODY_Static_Init (master);
+
+  if (dom->dynamic) BODY_Dynamic_Init (slave);
+  else BODY_Static_Init (slave);
+#endif
+
   dom->noid = cid; /* disable constraint ids generation and use 'noid' instead */
   con = insert (dom, master, slave);
   dom->noid = 0; /* enable constraint ids generation */
@@ -1436,9 +1460,6 @@ static void pack_parent (BODY *bod, int *dsize, double **d, int *doubles, int *i
 
   /* pack state */
   BODY_Parent_Pack (bod, dsize, d, doubles, isize, i, ints);
-
-  /* remove from box overlap engine */
-  AABB_Delete_Body (dom->aabb, bod);
 
   /* free constraint set */
   SET_Free (&dom->setmem, &bod->con);
@@ -1518,9 +1539,6 @@ static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipo
 
     /* free body constraints set */
     SET_Free (&dom->setmem, &bod->con);
-
-    /* insert into box overlap engine */
-    AABB_Insert_Body (dom->aabb, bod);
   }
 
   /* insert into label map */
@@ -1580,9 +1598,6 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   /* if it was a dummy */
   if ((bod->flags & BODY_CHILD) == 0)
   {
-    /* insert into box overlap engine */
-    AABB_Insert_Body (dom->aabb, bod);
-
     /* insert into children set */
     SET_Insert (&dom->setmem, &dom->children, bod, NULL);
 
@@ -1594,6 +1609,7 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   bod->flags |= BODY_CHILD_UPDATED;
 }
 
+#if SEND_DUMMIES
 /* pack dummy body */
 static void pack_dummy (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -1625,6 +1641,7 @@ static void unpack_dummy (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   /* unpack state */
   BODY_Child_Unpack (bod, dpos, d, doubles, ipos, i, ints);
 }
+#endif
 
 /* compute ranks of migrating children */
 static void children_migration_begin (DOM *dom, DBD *dbd)
@@ -1676,9 +1693,6 @@ static void children_migration_end (DOM *dom)
 
     if ((bod->flags & BODY_CHILD_UPDATED) == 0) /* migrated out as it wasn't updated by a parent */
     {
-      /* remove from box overlap engine */
-      AABB_Delete_Body (dom->aabb, bod);
-
       /* schedule constraints for deletion */ 
       for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
       {
@@ -1799,13 +1813,13 @@ static void domain_balancing (DOM *dom)
   DBD *dbd;
   int i;
 
-  /* perform boxes balancing */
-  AABB_Balance (dom->aabb);
+  /* boxes partitioning */
+  AABB_Partition (dom->aabb);
   
   /* allocate balancing data storage */
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
 
-#if 0
+#if 1
   /* compute inbalance of bodies in partitions */
   for (val = 0, bod = dom->bod; bod; bod = bod->next) val += body_weight (bod);
   PUT_int_stats (1, &val, &sum, &min, &avg, &max);
@@ -1907,6 +1921,17 @@ static void domain_balancing (DOM *dom)
     dbd [i].dom = dom;
   }
 
+#if 0
+  if (dom->rank == 2)
+  {
+    bod = MAP_Find (dom->allbodies, (void*) (long) 3, NULL);
+    printf ("TIME %g, BODY 3: %s before with ", dom->time, bod->flags & BODY_PARENT ? "PARENT" : bod->flags & BODY_CHILD ? "CHILD" : "DUMMY");
+    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
+    { CON *con = item->data; printf ("%s(%d), ", con->state & CON_BOUNDARY ? "B" : con->state & CON_EXTERNAL ? "E" : "I", con->id); }
+    printf ("constraints\n");
+  }
+#endif
+
   /* compute chidren migration sets */
   children_migration_begin (dom, dbd);
 
@@ -1915,6 +1940,17 @@ static void domain_balancing (DOM *dom)
 
   /* delete migrated out children */
   children_migration_end (dom);
+
+#if 0
+  if (dom->rank == 2)
+  {
+    bod = MAP_Find (dom->allbodies, (void*) (long) 3, NULL);
+    printf ("TIME %g, BODY 3: %s after with", dom->time, bod->flags & BODY_PARENT ? "PARENT" : bod->flags & BODY_CHILD ? "CHILD" : "DUMMY");
+    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
+    { CON *con = item->data; printf ("%s(%d), ", con->state & CON_BOUNDARY ? "B" : con->state & CON_EXTERNAL ? "E" : "I", con->id); }
+    printf ("constraints\n");
+  }
+#endif
 
   /* remove constraints */
   for (item = SET_First (dom->delcon); item; item = SET_Next (item))
@@ -1948,6 +1984,7 @@ static void domain_balancing (DOM *dom)
   free (dbd);
 }
 
+#if 0
 /* compute boundary contact related dummy updates */
 static void compute_dummies_migration (DOM *dom, DBD *dbd)
 {
@@ -1979,6 +2016,7 @@ static void compute_dummies_migration (DOM *dom, DBD *dbd)
     }
   }
 }
+#endif
 
 /* pack domain gluing data */
 static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
@@ -1988,10 +2026,12 @@ static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
   /* pack penetration depth flag */
   pack_int (isize, i, ints, dbd->dom->flags & DOM_DEPTH_VIOLATED);
 
+#if SEND_DUMMIES
   /* pack updated dummies */
   pack_int (isize, i, ints, SET_Size (dbd->children));
   for (item = SET_First (dbd->children); item; item = SET_Next (item))
     pack_dummy (item->data, dsize, d, doubles, isize, i, ints);
+#endif
 
   /* pack exported boundary contacts */
   pack_int (isize, i, ints, SET_Size (dbd->dom->expbnd  [dbd->rank]));
@@ -2017,12 +2057,14 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   /* unpack penetration depth flag */
   k = unpack_int (ipos, i, ints); ASSERT (!k, ERR_DOM_DEPTH);
 
+#if SEND_DUMMIES
   /* unpack updated dummies */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
     unpack_dummy (dom, dpos, d, doubles, ipos, i, ints);
   }
+#endif
 
   /* unpack imported boundary contacts */
   j = unpack_int (ipos, i, ints);
@@ -2066,7 +2108,9 @@ static void domain_gluing (DOM *dom)
     dbd [i].dom = dom;
   }
 
+#if SEND_DUMMIES
   compute_dummies_migration (dom, dbd); /* prepare dummies migration */
+#endif
 
   dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_pack, dom, (OBJ_Unpack)domain_gluing_unpack, send, dom->ncpu, &recv, &nrecv);
 
@@ -2096,6 +2140,8 @@ static void create_mpi (DOM *dom)
   dom->cid = (dom->rank + 1); /* overwrite */
 
   dom->noid = 0; /* assign constraint ids in 'insert' routine (turned off when importing non-contacts) */
+
+  dom->breakadj = 1; /* default AABB_Break_Adjacency flag */
 
   ERRMEM (dom->expbnd = MEM_CALLOC (dom->ncpu * sizeof (SET*)));
   ERRMEM (dom->delbnd = MEM_CALLOC (dom->ncpu * sizeof (SET*)));
@@ -2489,7 +2535,7 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
   {
     SURFACE_MATERIAL_Destroy_State (&con->mat); /* free contact material state */
 #if MPI
-    if (con->msgp->box && con->ssgp->box) /* one or both might be NULL in parallel */
+    if (dom->breakadj && (con->state & CON_EXTERNAL) == 0) /* extenral constrains have one of the box pointers NULL */
 #endif
     AABB_Break_Adjacency (dom->aabb, con->msgp->box, con->ssgp->box); /* box overlap will be re-detected */
   }
@@ -2621,7 +2667,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     {
       for (bod = dom->bod; bod; bod = bod->next)
       {
-	BODY_Dynamic_Init (bod, bod->scheme); /* integration scheme is set externally */
+	BODY_Dynamic_Init (bod); /* integration scheme is set externally */
 
 	double h = BODY_Dynamic_Critical_Step (bod);
 
@@ -2666,8 +2712,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   /* detect contacts */
   timerstart (&timing);
 
-  AABB_Update (dom->aabb, aabb_algorithm (dom),
-    dom, (BOX_Overlap_Create) overlap_create);
+  AABB_Update (dom->aabb, aabb_algorithm (dom), dom,
+    (BOX_Overlap_Create) overlap_create, 
+    (BOX_Overlap_Release) overlap_release);
 
   aabb_timing (dom, timerend (&timing));
 

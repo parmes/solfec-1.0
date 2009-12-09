@@ -206,7 +206,7 @@ void BODY_Clear_Forces (BODY *bod);
 void BODY_Material (BODY *bod, int volume, BULK_MATERIAL *mat);
 
 /* initialise dynamic time stepping */
-void BODY_Dynamic_Init (BODY *bod, SCHEME scheme);
+void BODY_Dynamic_Init (BODY *bod);
 
 /* estimate critical step for the dynamic scheme */
 double BODY_Dynamic_Critical_Step (BODY *bod);
