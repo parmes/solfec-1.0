@@ -251,82 +251,81 @@ static void boxpoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int
 }
 
 /* pack migration data */
-static void box_pack (BOX *box, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+static void pack_boxes (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_int (isize, i, ints, box->body->id);
-  pack_int (isize, i, ints, box->sgp - box->body->sgp);
+  SET *item;
+  BOX *box;
+
+  pack_int (isize, i, ints, SET_Size (set));
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    box = item->data;
+    pack_int (isize, i, ints, box->body->id);
+    pack_int (isize, i, ints, box->sgp - box->body->sgp);
+  }
 }
 
 /* unpack migration data */
-static void* box_unpack (AABB *aabb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static void* unpack_boxes (AABB *aabb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   DOM *dom = aabb->dom;
-  int id, kind, nsgp;
+  int n, m, id, kind, nsgp;
   BOX *box;
   BODY *bod;
   SGP *sgp;
 
-  id = unpack_int (ipos, i, ints);
-  nsgp = unpack_int (ipos, i, ints);
+  m = unpack_int (ipos, i, ints);
 
-  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
-  ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Neither child nor parent");
-  sgp = &bod->sgp [nsgp];
-  kind = gobj_kind  (sgp);
-
-  if (sgp->box == NULL) /* do not insert a boxe that already exists */
+  for (n = 0; n < m; n ++)
   {
-    switch (kind)
+    id = unpack_int (ipos, i, ints);
+    nsgp = unpack_int (ipos, i, ints);
+
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
+    ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Neither child nor parent");
+    sgp = &bod->sgp [nsgp];
+    kind = gobj_kind  (sgp);
+
+    if (sgp->box == NULL) /* do not insert a boxe that already exists */
     {
-    case GOBJ_ELEMENT: box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
-    case GOBJ_CONVEX:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
-    case GOBJ_SPHERE:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
+      switch (kind)
+      {
+      case GOBJ_ELEMENT: box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
+      case GOBJ_CONVEX:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
+      case GOBJ_SPHERE:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
+      }
+
+      box->update (box->data, box->sgp->gobj, box->extents);
     }
-
-    box->update (box->data, box->sgp->gobj, box->extents);
-
-    return box;
   }
 
   return NULL;
 }
 
-/* return next pointer and realloc send memory if needed */
-inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
-{
-  if (nsend >= *size)
-  {
-    (*size) *= 2;
-    ERRMEM (*send = realloc (*send, sizeof (COMOBJ [*size])));
-  }
-
-  return &(*send)[nsend];
-}
-
 /* balance boxes */
 static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
 {
-  int *procs, numprocs, rank, size;
-  int nsend, nrecv, i, j, flag;
   SET *delcon, *delbox, *item;
+  int *procs, numprocs, rank;
   COMOBJ *send, *recv, *ptr;
-  BOX **aux, *box;
+  int nrecv, j, flag, ncpu;
   MAP *jtem;
   double *e;
+  BOX *box;
   DOM *dom;
 
-  nsend = 0;
-  size = 256;
   delbox = NULL;
   delcon = NULL;
   dom = aabb->dom;
   rank = dom->rank;
-  ERRMEM (send = malloc (sizeof (COMOBJ [size])));
-  ERRMEM (procs = malloc (sizeof (int [aabb->dom->ncpu])));
+  ncpu = dom->ncpu;
+  ERRMEM (send = MEM_CALLOC (sizeof (COMOBJ [ncpu])));
+  ERRMEM (procs = malloc (sizeof (int [ncpu])));
+  for (j = 0; j < ncpu; j ++) send [j].rank = j;
 
-  for (aux = aabb->aux, ptr = send, i = 0; i < aabb->boxnum; i ++)
+  for (box = aabb->lst, ptr = send; box; box = box->next)
   {
-    box = aux [i];
     e = box->extents;
 
     ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
@@ -337,9 +336,7 @@ static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
       {
         if (!SET_Contains (box->ranks, (void*) (long) procs [j], NULL)) /* wasn't yet sent there */
 	{
-	  ptr->rank = procs [j];
-	  ptr->o = box;
-	  ptr = sendnext (++ nsend, &size, &send);
+	  SET_Insert (&aabb->setmem, (SET**) &send[procs [j]].o, box, NULL);
 	  SET_Insert (&aabb->setmem, &box->ranks, (void*) (long) procs [j], NULL);
 	}
       }
@@ -350,7 +347,7 @@ static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
   }
 
   /* communicate boxes */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)box_pack, aabb, (OBJ_Unpack)box_unpack, send, nsend, &recv, &nrecv);
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_boxes, aabb, (OBJ_Unpack)unpack_boxes, send, ncpu, &recv, &nrecv);
 
   /* delete exported boxes */
   for (item = SET_First (delbox); item; item = SET_Next (item))
@@ -369,6 +366,7 @@ static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
     release (data, item->data);
   }
 
+  for (j = 0; j < ncpu; j ++) SET_Free (&aabb->setmem, (SET**)&send [j].o);
   SET_Free (&aabb->setmem, &delbox);
   SET_Free (&aabb->setmem, &delcon);
   free (procs);
