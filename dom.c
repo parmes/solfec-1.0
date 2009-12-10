@@ -1230,9 +1230,7 @@ struct domain_balancing_data
 /* compute body weight */
 static int body_weight (BODY *bod)
 {
-  int cliwgt = (bod->clique ? bod->clique->weight : 0);
-
-  return  bod->nsgp + cliwgt * 10;
+  return  bod->dofs;
 }
 
 /* number of bodies */
@@ -1442,6 +1440,9 @@ static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ip
   con->msgp = &master->sgp [n];
   n = unpack_int (ipos, i, ints);
   con->ssgp = &slave->sgp [n];
+
+  /* increment counter */
+  dom->numext ++;
 }
 
 /* pack parent body */
@@ -1819,7 +1820,7 @@ static void domain_balancing (DOM *dom)
   /* allocate balancing data storage */
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
 
-#if 1
+#if 0
   /* compute inbalance of bodies in partitions */
   for (val = 0, bod = dom->bod; bod; bod = bod->next) val += body_weight (bod);
   PUT_int_stats (1, &val, &sum, &min, &avg, &max);
@@ -2144,7 +2145,10 @@ static void create_mpi (DOM *dom)
   dom->breakadj = 1; /* default AABB_Break_Adjacency flag */
 
   ERRMEM (dom->expbnd = MEM_CALLOC (dom->ncpu * sizeof (SET*)));
+
   ERRMEM (dom->delbnd = MEM_CALLOC (dom->ncpu * sizeof (SET*)));
+
+  dom->numext = 0;
 
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
@@ -2155,7 +2159,7 @@ static void create_mpi (DOM *dom)
   Zoltan_Set_Param (dom->zol, "DEBUG_MEMORY", "0");
   Zoltan_Set_Param (dom->zol, "NUM_GID_ENTRIES", "1");
   Zoltan_Set_Param (dom->zol, "NUM_LID_ENTRIES", "0");
-  Zoltan_Set_Param (dom->zol, "OBJ_WEIGHT_DIM", "1"); /* bod->ndof */
+  Zoltan_Set_Param (dom->zol, "OBJ_WEIGHT_DIM", "1");
  
   /* load balancing parameters */
   Zoltan_Set_Param (dom->zol, "LB_METHOD", "RCB");
@@ -2534,10 +2538,15 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
   if (con->kind == CONTACT)
   {
     SURFACE_MATERIAL_Destroy_State (&con->mat); /* free contact material state */
+
 #if MPI
     if (dom->breakadj && (con->state & CON_EXTERNAL) == 0) /* extenral constrains have one of the box pointers NULL */
 #endif
     AABB_Break_Adjacency (dom->aabb, con->msgp->box, con->ssgp->box); /* box overlap will be re-detected */
+
+#if MPI
+    if (con->state & CON_EXTERNAL) dom->numext --; /* decrement counter */
+#endif
   }
   /* free velocity constraint time history */
   else if (con->kind == VELODIR) TMS_Destroy (con->tms);

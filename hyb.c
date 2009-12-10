@@ -53,7 +53,7 @@ static void onewayscan (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
 
   for (; Ib < Ie; Ib ++)
   {
-    for (; Pb < Pe && PLT (*Ib, *Pb, 0); Pb ++); /* skip points before 'Ib' */
+    for (; Pb < Pe && PLT (*Pb, *Ib, 0); Pb ++); /* skip points before 'Ib' */
 
     for (P = Pb; P < Pe && (*P)->extents [0] < (*Ib)->extents [3+d]; P ++) /* until 'P' is inside 'Ib' */
     {

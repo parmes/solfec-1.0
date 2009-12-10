@@ -21,6 +21,11 @@
 
 #include "mot.h"
 
+#ifndef BOX_TYPE
+#define BOX_TYPE
+typedef struct box BOX;
+#endif
+
 #ifndef __shp__
 #define __shp__
 
@@ -46,7 +51,7 @@ struct shape_gobj_pair
 {
   SHAPE *shp;
   void *gobj;
-  void *box; /* points to the bounding box */
+  BOX *box;
 };
 
 /* create a general shape */
