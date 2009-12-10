@@ -335,9 +335,13 @@ static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
     {
       if (procs [j] != rank) /* exported */
       {
-	ptr->rank = procs [j];
-	ptr->o = box;
-	ptr = sendnext (++ nsend, &size, &send);
+        if (!SET_Contains (box->ranks, (void*) (long) procs [j], NULL)) /* wasn't yet sent there */
+	{
+	  ptr->rank = procs [j];
+	  ptr->o = box;
+	  ptr = sendnext (++ nsend, &size, &send);
+	  SET_Insert (&aabb->setmem, &box->ranks, (void*) (long) procs [j], NULL);
+	}
       }
       else flag = 0; /* should stay here */
     }
@@ -493,6 +497,8 @@ void AABB_Delete (AABB *aabb, BOX *box)
   if (box == NULL) return; /* possible for a body whose box has migrated away */
 
   box->sgp->box = NULL; /* invalidate pointer */
+
+  SET_Free (&aabb->setmem, &box->ranks); /* free ranks set */
 #endif
 
   MAP *item;
