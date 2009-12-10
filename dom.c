@@ -272,7 +272,7 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
 }
 
 /* box verlap release callback */
-static void overlap_release (DOM *dom, BOX *one, BOX *two, CON *con)
+static void overlap_release (DOM *dom, CON *con)
 {
 #if MPI
   dom->breakadj = 0;
@@ -2584,7 +2584,7 @@ void DOM_Sparsify_Contacts (DOM *dom)
       {
 	adj = itm->data;
 
-	if (adj == con) continue;
+	if (adj == con || adj->kind != CONTACT || (adj->state & CON_EXTERNAL)) continue;
 	
 	if (con->area < threshold * adj->area) /* check whether the area of the diagonal element is too small (this test is cheaper => let it go first) */
 	{
@@ -2717,7 +2717,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #else
   ASSERT (!(dom->flags & DOM_DEPTH_VIOLATED), ERR_DOM_DEPTH);
 #endif
- 
+
   /* detect contacts */
   timerstart (&timing);
 
