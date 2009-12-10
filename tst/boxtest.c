@@ -156,7 +156,7 @@ static void* box_overlap_create (void *data, BOX *one, BOX *two)
   return one; /* return a valid pointer */
 }
 
-static void box_overlap_release (void *data, BOX *one, BOX *two) 
+static void box_overlap_release (void *data, void *user) 
 {
   noverlaps --;
 }

@@ -48,8 +48,7 @@ enum gobj
   GOBJ_DUMMY   = 0x00,
   GOBJ_ELEMENT = 0x01,
   GOBJ_CONVEX  = 0x02,
-  GOBJ_SPHERE  = 0x04,
-  GOBJ_NEW     = 0x08
+  GOBJ_SPHERE  = 0x04
 };
 
 /* detection
@@ -69,7 +68,7 @@ typedef struct aabb AABB; /* overlap detection driver data */
 typedef enum gobj GOBJ; /* kind of geometrical object */
 typedef enum boxalg BOXALG; /* type of overlap detection algorithm */
 typedef void* (*BOX_Overlap_Create)  (void *data, BOX *one, BOX *two); /* created overlap callback => returns a user pointer */
-typedef void  (*BOX_Overlap_Release) (void *data, BOX *one, BOX *two, void *user); /* released overlap callback => uses the user pointer */
+typedef void  (*BOX_Overlap_Release) (void *data, void *user); /* released overlap callback => uses the user pointer */
 typedef void  (*BOX_Extents_Update)  (void *data, void *gobj, double *extents); /* extents update callback */
 
 #ifndef BOX_TYPE
@@ -138,8 +137,6 @@ inline static short GOBJ_Pair_Code (BOX *one, BOX *two)
 struct aabb
 {
   BOX *lst, /* current list of boxes */
-      *in, /* list of boxes inserted before an update */
-      *out, /* list of boxes deleted before an update */
      **tab; /* pointer table of boxes from the current list */
 
   MEM boxmem, /* box memory pool */
@@ -150,9 +147,8 @@ struct aabb
   SET *nobody, /* set of body pairs excluded from overlap tests */
       *nogobj; /* set of geometric object pairs excluded from overlap tests */
 
-  int nin, /* length of the insertion list 'in' */
-      nlst, /* length of the current box list 'lst' */
-      ntab;  /* length of the pointer table 'tab' */
+  int boxnum, /* number of boxes */
+      tabsize; /* size of pointer table */
 
   char modified; /* modification flag => for time coherence */
 

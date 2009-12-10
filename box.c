@@ -194,7 +194,7 @@ static int box_count (AABB *aabb, int *ierr)
 {
   *ierr = ZOLTAN_OK;
 
-  return aabb->nin + aabb->nlst;
+  return aabb->boxnum;
 }
 
 /* list of box identifiers */
@@ -205,25 +205,12 @@ static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
   BODY *bod;
   int i;
 
-  free (aabb->aux);
   /* realloc auxiliary table */
-  ERRMEM (aabb->aux = malloc ((aabb->nin + aabb->nlst) * sizeof (BOX*)));
-
-  /* gather inserted boxes */
-  for (aux = aabb->aux, i = 0, box = aabb->in; box; aux ++, i ++, box = box->next)
-  {
-    bod = box->body;
-
-    global_ids [i * num_gid_entries] = bod->id;
-    global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp; /* local SGP index */
-    local_ids [i * num_lid_entries] = i;
-    obj_wgts [i * wgt_dim] = box_weight (box);
-    box->update (box->data, box->sgp->gobj, box->extents);
-    *aux = box;
-  }
+  free (aabb->aux);
+  ERRMEM (aabb->aux = malloc (aabb->boxnum * sizeof (BOX*)));
 
   /* gather current boxes */
-  for (box = aabb->lst; box; aux ++, i ++, box = box->next)
+  for (aux = aabb->aux, box = aabb->lst, i = 0; box; aux ++, i ++, box = box->next)
   {
     bod = box->body;
 
@@ -317,26 +304,27 @@ inline static COMOBJ* sendnext (int nsend, int *size, COMOBJ **send)
 }
 
 /* balance boxes */
-static void aabb_balance (AABB *aabb)
+static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
 {
-  int nsend, nrecv, i, j, naux, flag;
   int *procs, numprocs, rank, size;
+  int nsend, nrecv, i, j, flag;
+  SET *delcon, *delbox, *item;
   COMOBJ *send, *recv, *ptr;
-  SET *del, *item;
   BOX **aux, *box;
+  MAP *jtem;
   double *e;
   DOM *dom;
 
   nsend = 0;
-  del = NULL;
   size = 256;
+  delbox = NULL;
+  delcon = NULL;
   dom = aabb->dom;
   rank = dom->rank;
-  naux = aabb->nin + aabb->nlst;
   ERRMEM (send = malloc (sizeof (COMOBJ [size])));
   ERRMEM (procs = malloc (sizeof (int [aabb->dom->ncpu])));
 
-  for (aux = aabb->aux, ptr = send, i = 0; i < naux; i ++)
+  for (aux = aabb->aux, ptr = send, i = 0; i < aabb->boxnum; i ++)
   {
     box = aux [i];
     e = box->extents;
@@ -354,16 +342,31 @@ static void aabb_balance (AABB *aabb)
       else flag = 0; /* should stay here */
     }
 
-    if (flag) SET_Insert (&aabb->setmem, &del, box, NULL); /* schedule for deletion */
+    if (flag) SET_Insert (&aabb->setmem, &delbox, box, NULL); /* schedule for deletion */
   }
 
   /* communicate boxes */
   dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)box_pack, aabb, (OBJ_Unpack)box_unpack, send, nsend, &recv, &nrecv);
 
   /* delete exported boxes */
-  for (item = SET_First (del); item; item = SET_Next (item)) AABB_Delete (aabb, item->data);
+  for (item = SET_First (delbox); item; item = SET_Next (item))
+  {
+    box = item->data;
 
-  SET_Free (&aabb->setmem, &del);
+    for (jtem = MAP_First (box->adj); jtem; jtem = MAP_Next (jtem))
+      SET_Insert (&aabb->setmem, &delcon, jtem->data, NULL); /* gather contacts to be released */
+
+    AABB_Delete (aabb, box); /* delete box */
+  }
+
+  /* release abandoned contacts */
+  for (item = SET_First (delcon); item; item = SET_Next (item))
+  {
+    release (data, item->data);
+  }
+
+  SET_Free (&aabb->setmem, &delbox);
+  SET_Free (&aabb->setmem, &delcon);
   free (procs);
   free (send);
   free (recv);
@@ -435,21 +438,19 @@ AABB* AABB_Create (int size)
   AABB *aabb;
 
   ERRMEM (aabb = malloc (sizeof (AABB)));
-  aabb->lst = aabb->in = aabb->out= NULL;
-  aabb->tab = NULL;
-
   MEM_Init (&aabb->boxmem, sizeof (BOX), MIN (size, SIZE));
   MEM_Init (&aabb->mapmem, sizeof (MAP), MIN (size, SIZE));
   MEM_Init (&aabb->setmem, sizeof (SET), MIN (size, SIZE));
   MEM_Init (&aabb->oprmem, sizeof (OPR), MIN (size, SIZE));
-
-  aabb->nobody = aabb->nogobj= NULL;
-
-  aabb->nin = 0;
-  aabb->nlst = 0;
-  aabb->ntab = 0;
+  aabb->lst = NULL;
+  aabb->tab = NULL;
+  aabb->nobody = NULL;
+  aabb->nogobj= NULL;
+  aabb->boxnum = 0;
+  aabb->tabsize = 0;
   aabb->modified = 0;
-  aabb->swp = aabb->hsh = NULL;
+  aabb->swp = NULL;
+  aabb->hsh = NULL;
 
 #if MPI
   create_mpi (aabb);
@@ -466,17 +467,18 @@ BOX* AABB_Insert (AABB *aabb, BODY *body, GOBJ kind, SGP *sgp, void *data, BOX_E
   ERRMEM (box = MEM_Alloc (&aabb->boxmem));
   box->data = data;
   box->update = update;
-  box->kind = kind | GOBJ_NEW; /* mark as new */
+  box->kind = kind;
   box->body = body;
   box->sgp = sgp;
   sgp->box = box;
 
-  /* include into the
-   * insertion list */
-  box->next = aabb->in;
-  if (aabb->in) aabb->in->prev= box;
-  aabb->in = box;
-  aabb->nin ++;
+  /* insert into list */
+  box->next = aabb->lst;
+  if (aabb->lst) aabb->lst->prev= box;
+  aabb->lst = box;
+
+  /* incrememt */
+  aabb->boxnum ++;
 
   /* set modified */
   aabb->modified = 1;
@@ -493,30 +495,28 @@ void AABB_Delete (AABB *aabb, BOX *box)
   box->sgp->box = NULL; /* invalidate pointer */
 #endif
 
-  if (box->kind & GOBJ_NEW) /* still in the insertion list */
-  {
-    /* remove box from the insertion list */
-    if (box->prev) box->prev->next = box->next;
-    else aabb->in = box->next;
-    if (box->next) box->next->prev = box->prev;
-    aabb->nin --;
+  MAP *item;
+  BOX *adj;
 
-    /* free it here */
-    MEM_Free (&aabb->boxmem, box); 
-  }
-  else
+  for (item = MAP_First (box->adj); item; item = MAP_Next (item)) /* for each adjacent box */
   {
-    /* remove box from the current list */
-    if (box->prev) box->prev->next = box->next;
-    else aabb->lst = box->next;
-    if (box->next) box->next->prev = box->prev;
-    aabb->nlst --; /* decrease count */
-
-    /* insert it into
-     * the deletion list */
-    box->next = aabb->out;
-    aabb->out = box;
+    adj = item->key;
+    MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
   }
+
+  /* free adjacency */
+  MAP_Free (&aabb->mapmem, &box->adj);
+
+  /* remove from list */
+  if (box->prev) box->prev->next = box->next;
+  else aabb->lst = box->next;
+  if (box->next) box->next->prev = box->prev;
+
+  /* decrement */
+  aabb->boxnum --;
+
+  /* free box */
+  MEM_Free (&aabb->boxmem, box);
 
   /* set modified */
   aabb->modified = 1;
@@ -548,8 +548,8 @@ void AABB_Delete_Body (AABB *aabb, BODY *body)
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release)
 {
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
-  BOX *box, *next, *adj;
   SET *del, *jtem;
+  BOX *box, *adj;
   MAP *item;
 
 #if MPI
@@ -561,7 +561,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   if (aabb->dom) SOLFEC_Timer_Start (aabb->dom->solfec, "PARBAL");
 
   /* rebalance boxes */
-  aabb_balance (aabb);
+  aabb_balance (aabb, data, release);
 
   if (aabb->dom) SOLFEC_Timer_End (aabb->dom->solfec, "PARBAL"), SOLFEC_Timer_Start (aabb->dom->solfec, "CONDET");
 #else
@@ -570,27 +570,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   /* update extents */
   for (box = aabb->lst; box; box = box->next) /* for each current box */
     box->update (box->data, box->sgp->gobj, box->extents);
-
-  for (box = aabb->in; box; box = box->next) /* for each inserted box */
-    box->update (box->data, box->sgp->gobj, box->extents);
 #endif
-
-  /* check for released overlaps */
-  for (box = aabb->out; box; box = next) /* for each deleted box */
-  {
-    next = box->next;
-
-    for (item = MAP_First (box->adj); item; item = MAP_Next (item)) /* for each adjacent box */
-    {
-      adj = item->key;
-      release (data, box, adj, item->data); /* release overlap */
-      MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
-    }
-
-    MAP_Free (&aabb->mapmem, &box->adj); /* free adjacency */
-    MEM_Free (&aabb->boxmem, box); /* free box */
-  }
-  aabb->out = NULL; /* list emptied */
 
   for (box = aabb->lst; box; box = box->next) /* for each current box */
   {
@@ -599,7 +579,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
       adj = item->key;
       if (no_overlap (box->extents, adj->extents))
       {
-	release (data, box, adj, item->data); /* release overlap */
+	release (data, item->data); /* release overlap */
 	MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
 	SET_Insert (&aabb->setmem, &del, adj, NULL); /* gather adjacent boxes to be released */
       }
@@ -613,21 +593,12 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   {
     BOX **b;
 
-    if (aabb->in)
+    if (aabb->boxnum > aabb->tabsize)
     {
-      for (box = aabb->in; box->next; box = box->next) box->kind &= ~GOBJ_NEW; /* rewind till the last one and unset newness flag */
-      box->kind &= ~GOBJ_NEW; /* unset newness flag */
-      box->next = aabb->lst; /* link it with the current list */
-      if (aabb->lst) aabb->lst->prev = box; /* set previous link */
-      aabb->lst = aabb->in; /* list appended */
-      aabb->nlst += aabb->nin; /* increase number of current boxes */
-      aabb->in = NULL; /* list emptied */
-      aabb->nin = 0;
-      aabb->ntab = aabb->nlst; /* resize the pointer table */
       free (aabb->tab);
-      ERRMEM (aabb->tab = malloc (sizeof (BOX*) * aabb->ntab));
+      aabb->tabsize = 2 * aabb->boxnum;
+      ERRMEM (aabb->tab = malloc (sizeof (BOX*) * aabb->tabsize));
     }
-    else aabb->ntab = aabb->nlst; /* deleted boxes could decrement the counter */
 
     for (box = aabb->lst, b = aabb->tab; box; box = box->next, b ++) *b = box; /* overwrite box pointers */
   }
@@ -648,14 +619,14 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   {
     case HYBRID:
     {
-      hybrid (aabb->tab, aabb->ntab, &aux, (BOX_Overlap_Create)local_create);
+      hybrid (aabb->tab, aabb->boxnum, &aux, (BOX_Overlap_Create)local_create);
     }
     break;
     case HASH3D:
     {
-      if (!aabb->hsh) aabb->hsh = HASH_Create (aabb->ntab);
+      if (!aabb->hsh) aabb->hsh = HASH_Create (aabb->boxnum);
 
-      HASH_Do (aabb->hsh, aabb->ntab, aabb->tab,
+      HASH_Do (aabb->hsh, aabb->boxnum, aabb->tab,
 	       &aux, (BOX_Overlap_Create)local_create); 
     }
     break;
@@ -664,9 +635,9 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
     case SWEEP_HASH2D_XYTREE:
     case SWEEP_XYTREE:
     {
-      if (!aabb->swp) aabb->swp = SWEEP_Create (aabb->ntab, (DRALG)alg);
+      if (!aabb->swp) aabb->swp = SWEEP_Create (aabb->boxnum, (DRALG)alg);
 
-      SWEEP_Do (aabb->swp, (DRALG)alg, aabb->ntab, aabb->tab, &aux, (BOX_Overlap_Create)local_create); 
+      SWEEP_Do (aabb->swp, (DRALG)alg, aabb->boxnum, aabb->tab, &aux, (BOX_Overlap_Create)local_create); 
     }
     break;
   }

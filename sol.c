@@ -335,7 +335,7 @@ static void statsout (SOLFEC *sol)
 
   char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "EXTERNAL", "SPARSIFIED", "BYTES SENT"};
 
-  int val [] = {dom->nbod, aabb->nlst, dom->ncon - dom->numext, dom->numext, dom->nspa, dom->bytes};
+  int val [] = {dom->nbod, aabb->boxnum, dom->ncon - dom->numext, dom->numext, dom->nspa, dom->bytes};
 
   int i, sum [N], min [N], avg [N], max [N];
 
@@ -360,7 +360,7 @@ static void statsout (SOLFEC *sol)
 
   char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "SPARSIFIED"};
 
-  int val [] = {dom->nbod, aabb->nlst, dom->ncon, dom->nspa}, i;
+  int val [] = {dom->nbod, aabb->boxnum, dom->ncon, dom->nspa}, i;
 
   for (i = 0; i < N; i ++) printf ("%11s: %8d\n", name [i], val [i]);
   printf ("%sEstimated end in %d days, %d hours, %d minutes and %d seconds\n", string, days, hours, minutes, seconds);
