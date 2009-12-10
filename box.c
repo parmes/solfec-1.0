@@ -186,7 +186,7 @@ static int gobj_kind (SGP *sgp)
 /* weight of a box */
 static int box_weight (BOX *box)
 {
-  return 1 + MAP_Size (box->adj); /* using adjacency size attempts to balance contacts together with boxes */
+  return 1; //FIXME: + MAP_Size (box->adj); /* using adjacency size attempts to balance contacts together with boxes */
 }
 
 /* number of boxes */
@@ -218,7 +218,6 @@ static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
     global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp;
     local_ids [i * num_lid_entries] = i;
     obj_wgts [i * wgt_dim] = box_weight (box);
-    box->update (box->data, box->sgp->gobj, box->extents);
     *aux = box;
   }
 
@@ -250,66 +249,47 @@ static void boxpoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int
   *ierr = ZOLTAN_OK;
 }
 
-/* pack migration data */
-static void pack_boxes (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+/* attach boxes of current parents and children */
+static void attach (AABB *aabb)
 {
-  SET *item;
-  BOX *box;
-
-  pack_int (isize, i, ints, SET_Size (set));
-
-  for (item = SET_First (set); item; item = SET_Next (item))
-  {
-    box = item->data;
-    pack_int (isize, i, ints, box->body->id);
-    pack_int (isize, i, ints, box->sgp - box->body->sgp);
-  }
-}
-
-/* unpack migration data */
-static void* unpack_boxes (AABB *aabb, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  DOM *dom = aabb->dom;
-  int n, m, id, kind, nsgp;
-  BOX *box;
+  SGP *sgp, *sge;
+  DOM *dom;
   BODY *bod;
-  SGP *sgp;
+  SET *item;
+  
+  dom = aabb->dom;
 
-  m = unpack_int (ipos, i, ints);
-
-  for (n = 0; n < m; n ++)
+  /* attach parents */
+  for (bod = dom->bod; bod; bod = bod->next)
   {
-    id = unpack_int (ipos, i, ints);
-    nsgp = unpack_int (ipos, i, ints);
-
-    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
-    ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Neither child nor parent");
-    sgp = &bod->sgp [nsgp];
-    kind = gobj_kind  (sgp);
-
-    if (sgp->box == NULL) /* do not insert a boxe that already exists */
+    for (sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
     {
-      switch (kind)
+      if (sgp->box == NULL)
       {
-      case GOBJ_ELEMENT: box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)ELEMENT_Extents); break;
-      case GOBJ_CONVEX:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)CONVEX_Extents); break;
-      case GOBJ_SPHERE:  box = AABB_Insert (aabb, bod, kind, sgp, sgp->shp->data, (BOX_Extents_Update)SPHERE_Extents); break;
+        AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, sgp->shp->data, SGP_Extents_Update (sgp));
       }
-
-      box->update (box->data, box->sgp->gobj, box->extents);
     }
   }
 
-  return NULL;
+  /* attach children */
+  for (item = SET_First (dom->children); item; item = SET_Next (item))
+  {
+    for (bod = item->data, sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
+    {
+      if (sgp->box == NULL)
+      {
+        AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, sgp->shp->data, SGP_Extents_Update (sgp));
+      }
+    }
+  }
 }
 
-/* balance boxes */
-static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
+/* detach boxes from outside of the domain */
+static void detach (AABB *aabb, void *data, BOX_Overlap_Release release)
 {
   SET *delcon, *delbox, *item;
   int *procs, numprocs, rank;
-  COMOBJ *send, *recv, *ptr;
-  int nrecv, j, flag, ncpu;
+  int j, ncpu;
   MAP *jtem;
   double *e;
   BOX *box;
@@ -320,34 +300,21 @@ static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
   dom = aabb->dom;
   rank = dom->rank;
   ncpu = dom->ncpu;
-  ERRMEM (send = MEM_CALLOC (sizeof (COMOBJ [ncpu])));
   ERRMEM (procs = malloc (sizeof (int [ncpu])));
-  for (j = 0; j < ncpu; j ++) send [j].rank = j;
 
-  for (box = aabb->lst, ptr = send; box; box = box->next)
+  for (box = aabb->lst; box; box = box->next)
   {
     e = box->extents;
 
     ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-    for (flag = 1, j = 0; j < numprocs; j ++)
+    for (j = 0; j < numprocs; j ++)
     {
-      if (procs [j] != rank) /* exported */
-      {
-        if (!SET_Contains (box->ranks, (void*) (long) procs [j], NULL)) /* wasn't yet sent there */
-	{
-	  SET_Insert (&aabb->setmem, (SET**) &send[procs [j]].o, box, NULL);
-	  SET_Insert (&aabb->setmem, &box->ranks, (void*) (long) procs [j], NULL);
-	}
-      }
-      else flag = 0; /* should stay here */
+      if (procs [j] == rank) break;
     }
 
-    if (flag) SET_Insert (&aabb->setmem, &delbox, box, NULL); /* schedule for deletion */
+    if (j == numprocs) SET_Insert (&aabb->setmem, &delbox, box, NULL); /* schedule for deletion */
   }
-
-  /* communicate boxes */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_boxes, aabb, (OBJ_Unpack)unpack_boxes, send, ncpu, &recv, &nrecv);
 
   /* delete exported boxes */
   for (item = SET_First (delbox); item; item = SET_Next (item))
@@ -366,12 +333,9 @@ static void aabb_balance (AABB *aabb, void *data, BOX_Overlap_Release release)
     release (data, item->data);
   }
 
-  for (j = 0; j < ncpu; j ++) SET_Free (&aabb->setmem, (SET**)&send [j].o);
   SET_Free (&aabb->setmem, &delbox);
   SET_Free (&aabb->setmem, &delcon);
   free (procs);
-  free (send);
-  free (recv);
 }
 
 /* create MPI related data */
@@ -474,6 +438,9 @@ BOX* AABB_Insert (AABB *aabb, BODY *body, GOBJ kind, SGP *sgp, void *data, BOX_E
   box->sgp = sgp;
   sgp->box = box;
 
+  /* initial update */
+  update (data, sgp->gobj, box->extents);
+
   /* insert into list */
   box->next = aabb->lst;
   if (aabb->lst) aabb->lst->prev= box;
@@ -495,8 +462,6 @@ void AABB_Delete (AABB *aabb, BOX *box)
   if (box == NULL) return; /* possible for a body whose box has migrated away */
 
   box->sgp->box = NULL; /* invalidate pointer */
-
-  SET_Free (&aabb->setmem, &box->ranks); /* free ranks set */
 #endif
 
   MAP *item;
@@ -561,19 +526,13 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
 #endif
   if (aabb->dom && aabb->dom->verbose) printf ("CONDET (%s) ... ", AABB_Algorithm_Name (alg)), fflush (stdout);
   
-#if MPI
-  if (aabb->dom) SOLFEC_Timer_Start (aabb->dom->solfec, "PARBAL");
-
-  /* rebalance boxes */
-  aabb_balance (aabb, data, release);
-
-  if (aabb->dom) SOLFEC_Timer_End (aabb->dom->solfec, "PARBAL"), SOLFEC_Timer_Start (aabb->dom->solfec, "CONDET");
-#else
   if (aabb->dom) SOLFEC_Timer_Start (aabb->dom->solfec, "CONDET");
 
-  /* update extents */
-  for (box = aabb->lst; box; box = box->next) /* for each current box */
-    box->update (box->data, box->sgp->gobj, box->extents);
+  for (box = aabb->lst; box; box = box->next) box->update (box->data, box->sgp->gobj, box->extents); /* update box extents */
+
+#if MPI
+  attach (aabb); /* attach all boxes of current parents and children */
+  detach (aabb, data, release); /* detach boxes from outside of the domain */
 #endif
 
   for (box = aabb->lst; box; box = box->next) /* for each current box */

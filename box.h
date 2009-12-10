@@ -104,10 +104,6 @@ struct box
   MAP *adj; /* map of adjacent boxes to user pointers returned by the overlap create callback */
 
   BOX *prev, *next; /* list pointers */
-
-#if MPI
-  SET *ranks; /* the box was already sent there  */
-#endif
 };
 
 /* box pointer cast */
