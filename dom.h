@@ -187,6 +187,8 @@ struct domain
 
   SET **delbnd; /* ids of boundary contacts to be deleted on other ranks (after deleted constraints) */
 
+  int numext; /* number of external constraints */
+
   int bytes; /* bytes sent during load balancing */
 #endif
 };

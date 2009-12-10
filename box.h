@@ -65,13 +65,17 @@ enum boxalg
 };
 
 typedef struct objpair OPR; /* pointer pair used for exclusion tests */
-typedef struct box BOX; /* axis aligned box */
 typedef struct aabb AABB; /* overlap detection driver data */
 typedef enum gobj GOBJ; /* kind of geometrical object */
 typedef enum boxalg BOXALG; /* type of overlap detection algorithm */
 typedef void* (*BOX_Overlap_Create)  (void *data, BOX *one, BOX *two); /* created overlap callback => returns a user pointer */
 typedef void  (*BOX_Overlap_Release) (void *data, BOX *one, BOX *two, void *user); /* released overlap callback => uses the user pointer */
 typedef void  (*BOX_Extents_Update)  (void *data, void *gobj, double *extents); /* extents update callback */
+
+#ifndef BOX_TYPE
+#define BOX_TYPE
+typedef struct box BOX; /* axis aligned box */
+#endif
 
 /* object pair */
 struct objpair

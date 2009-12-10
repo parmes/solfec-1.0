@@ -317,7 +317,7 @@ static void statsout (SOLFEC *sol)
   ctime_r(&timer, string); 
 
 #if MPI
-  const int N = 5;
+  const int N = 6;
   char *stapath;
   FILE *sta;
 
@@ -333,9 +333,9 @@ static void statsout (SOLFEC *sol)
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
   }
 
-  char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "SPARSIFIED", "BYTES SENT"};
+  char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "EXTERNAL", "SPARSIFIED", "BYTES SENT"};
 
-  int val [] = {dom->nbod, aabb->nlst, dom->ncon, dom->nspa, dom->bytes};
+  int val [] = {dom->nbod, aabb->nlst, dom->ncon - dom->numext, dom->numext, dom->nspa, dom->bytes};
 
   int i, sum [N], min [N], avg [N], max [N];
 
