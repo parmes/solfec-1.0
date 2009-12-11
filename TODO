@@ -29,8 +29,10 @@ poisson, etc. Render as fields or coloured constraint.
 -------------------------------------------------------------
 Add menu "top", "bottom", "left", "right", "front", "back"
 to the "render" menu. Or similarly.
---------------------------------------------------------
 Optimize W assembly in parallel by using left product
+--------------------------------------------------------
+Rendering of parallel partitioning, contact states, etc.
+--------------------------------------------------------
 for blocks with dia->adjext != NULL and right product
 for the remaining (internal) nodes.
 -------------------------------------------------
@@ -44,6 +46,10 @@ Introduce local (BODY ID, SGP PAIR) to latest reaction value
 cache so to reassign most recent values to reestablished contacts
 -----------------------------------------------------------
 Test PBF file size limitation fixup
+----------------------------------------------------
+Data compression/decompression in COMALL, etc.
+--------------------------------------------
+Migration of RIGLNK constraints
 --------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------

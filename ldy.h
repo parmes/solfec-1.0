@@ -63,8 +63,8 @@ struct offb
 struct diab
 {
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
-	    *V, /* initial velocity */
-	    *B, /* free velocity */
+	 V [3], /* initial velocity */
+	 B [3], /* free velocity */
 	 U [3], /* final velocity */
          W [9], /* generalised inverse inertia block */
 	 rho;   /* scaling parameter */
@@ -77,6 +77,10 @@ struct diab
      *sH, *sprod; /* slave counterpart */
                   /* NOTE: left product can be applied to adjext assembly (MPI)
 		           while right product is sligtly faster (serial code) */
+
+#if MPI
+  OFFB *adjext;  /* external adjacency */
+#endif
 
   DIAB *p, *n;
 };

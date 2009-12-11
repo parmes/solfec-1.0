@@ -58,9 +58,7 @@ typedef struct domain DOM;
 
 struct constraint
 {
-  double R [3], /* average constraint reaction */
-	 V [3], /* initial velocity */
-	 B [3]; /* free velocity */
+  double R [3]; /* average constraint reaction */
 
   DIAB *dia; /* diagonal entry in the local dynamical system */
 
@@ -274,7 +272,7 @@ void DOM_Update_End (DOM *dom);
 
 #if MPI
 /* send boundary reactions to their external receivers;
- * if 'normal' is > 0 then only normal components are sent */
+ * if 'normal' is > 0 only normal components are sent */
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 #endif
 

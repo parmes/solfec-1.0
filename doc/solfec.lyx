@@ -53,7 +53,7 @@ Tomasz Koziara
 \begin_layout Chapter
 \begin_inset CommandInset label
 LatexCommand label
-name "cha:int"
+name "cha:Introduction"
 
 \end_inset
 
@@ -63,7 +63,7 @@ Introduction
 \begin_layout Chapter
 \begin_inset CommandInset label
 LatexCommand label
-name "cha:inp"
+name "cha:Input language"
 
 \end_inset
 
@@ -1240,7 +1240,7 @@ reference "tab:surfmats"
  and Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "cha:mat"
+reference "cha:Materials"
 
 \end_inset
 
@@ -1544,7 +1544,7 @@ reference "tab:bulkmats"
  and Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "cha:mat"
+reference "cha:Materials"
 
 \end_inset
 
@@ -2883,7 +2883,7 @@ diagsolver
  Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "cha:sol"
+reference "cha:Solvers"
 
 \end_inset
 
@@ -5793,11 +5793,33 @@ t1
 \end_layout
 
 \begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:Tutorials"
+
+\end_inset
+
 Tutorials
 \end_layout
 
 \begin_layout Chapter
-Theory
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:Materials"
+
+\end_inset
+
+Materials
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:Solvers"
+
+\end_inset
+
+Solvers
 \end_layout
 
 \begin_layout Standard
