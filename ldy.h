@@ -38,14 +38,7 @@ typedef struct domain DOM;
 
 typedef struct offb OFFB;
 typedef struct diab DIAB;
-typedef struct clioff CLIOFF;
-typedef struct clidia CLIDIA;
 typedef struct locdyn LOCDYN;
-
-#ifndef CLIQUE_TYPE
-#define CLIQUE_TYPE
-typedef struct clique CLIQUE;
-#endif
 
 enum upkind
 {
@@ -70,9 +63,9 @@ struct offb
 struct diab
 {
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
+	    *V, /* initial velocity */
+	    *B, /* free velocity */
 	 U [3], /* final velocity */
-	 V [3], /* initial velocity */
-	 B [3], /* free velocity */
          W [9], /* generalised inverse inertia block */
 	 rho;   /* scaling parameter */
 
@@ -88,40 +81,11 @@ struct diab
   DIAB *p, *n;
 };
 
-/* off-diagonal clique block */
-struct clioff
-{
-  OFFB *off;
-  CLIOFF *n;
-};
-
-/* diagonal clique block */
-struct clidia
-{
-  DIAB *dia;
-  CLIOFF *adj;
-  CLIDIA *n;
-};
-
-/* W blocks clique */
-struct clique
-{
-  CLIDIA *dia;
-  int size;
-#if MPI
-  int weight;
-#endif
-};
-
 /* local dynamics */
 struct locdyn
 {
   MEM offmem,
       diamem;
-
-  MEM clioffmem,
-      clidiamem,
-      cliquemem;
 
   DOM *dom; /* domain */
   DIAB *dia; /* list of diagonal blocks */
