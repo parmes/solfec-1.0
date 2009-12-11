@@ -35,6 +35,7 @@
 #include "err.h"
 
 #define SEND_DUMMIES 0 //FIXME: decide on a good solution
+#define SEND_CONTACTS 0 //FIXME: decide on a good solution
 
 #if MPI
 #include "put.h"
@@ -1379,6 +1380,7 @@ static void unpack_non_contact (DOM *dom, int *dpos, double *d, int doubles, int
   dom->noid = 0; /* enable constraint ids generation */
 }
 
+#if SEND_CONTACTS
 /* pack contact */
 static void pack_contact (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -1444,6 +1446,7 @@ static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ip
   /* increment counter */
   dom->numext ++;
 }
+#endif
 
 /* pack parent body */
 static void pack_parent (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
@@ -1647,7 +1650,6 @@ static void unpack_dummy (DOM *dom, int *dpos, double *d, int doubles, int *ipos
 /* compute ranks of migrating children */
 static void children_migration_begin (DOM *dom, DBD *dbd)
 {
-  struct Zoltan_Struct *zol = dom->aabb->zol;
   int *procs, numprocs, i;
   BODY *bod;
 
@@ -1660,7 +1662,7 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
 
     double *e = bod->extents;
 
-    Zoltan_LB_Box_Assign (zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs); /* use boxes balancing here */
+    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs); /* use boxes balancing here */
 
     SET_Free (&dom->setmem, &bod->children); /* empty children set */
 
@@ -1806,7 +1808,6 @@ static void domain_balancing (DOM *dom)
 
   int val, sum, min, avg, max;
   COMOBJ *send, *recv;
-  unsigned int id;
   double ratio;
   int nrecv;
   SET *item;
@@ -1814,13 +1815,9 @@ static void domain_balancing (DOM *dom)
   DBD *dbd;
   int i;
 
-  /* boxes partitioning */
-  AABB_Partition (dom->aabb);
-  
   /* allocate balancing data storage */
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
 
-#if 0
   /* compute inbalance of bodies in partitions */
   for (val = 0, bod = dom->bod; bod; bod = bod->next) val += body_weight (bod);
   PUT_int_stats (1, &val, &sum, &min, &avg, &max);
@@ -1833,53 +1830,18 @@ static void domain_balancing (DOM *dom)
 	    &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	    &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-    for (i = 0; i < num_export; i ++) /* for each exported body */
-    {
-      id = export_global_ids [i * num_gid_entries]; /* get id */
-
-      ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id"); /* identify body object */
-
-      bod->rank = export_procs [i]; /* set the new rank value of us in compute_children_rank and BODY_Child_Pack_State */
-
-      SET_Insert (&dom->setmem, &dbd [export_procs [i]].bodies, bod, NULL); /* map this body to its export rank */
-
-      /* search adjacent constraints */
-      for (item = SET_First (bod->con); item; item = SET_Next (item))
-      {
-	CON *con = item->data;
-
-	if (con->kind == RIGLNK)
-	{
-	  SET_Delete (&dom->setmem, &dbd [export_procs [i]].bodies, bod, NULL); /* TODO: export these bodies while maintaining RIGLNK constraints */
-	  bod->rank = dom->rank;
-	  continue;
-	}
-	else if (con->kind != CONTACT)
-	{
-	  SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* map constraint to its export rank */
-
-	  con->state |= CON_IDLOCK; /* this way, constraint's id will not be freed in DOM_Remove_Constraint;
-				       non-contact constrints should have cluster-wide unique ids, as users
-				       could store some global variables in Python input and might later like
-				       to acces those constraints; this will not be implemented for contacts */
-	}
-
-	/* schedule for deletion */
-	SET_Insert (&dom->setmem, &dom->delcon, con, NULL);
-      }
-    }
-
-    Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs, &export_global_ids, &export_local_ids, &export_procs);
+    Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+	                 &export_global_ids, &export_local_ids, &export_procs);
   }
-#else
-  for (bod = dom->bod; bod; bod = bod->next)
+
+  for (bod = dom->bod; bod; bod = bod->next) /* assign all parents to their partitions */
   {
     double *e = bod->extents,
 	   point [3];
 
     MID (e, e+3, point);
 
-    Zoltan_LB_Point_Assign (dom->aabb->zol, point, &bod->rank); /* use boxes balancing here */
+    Zoltan_LB_Point_Assign (dom->zol, point, &bod->rank); /* assign box to partition */
 
     if (dom->rank != bod->rank)
     {
@@ -1911,7 +1873,6 @@ static void domain_balancing (DOM *dom)
       }
     }
   }
-#endif
 
   ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
 
@@ -1922,17 +1883,6 @@ static void domain_balancing (DOM *dom)
     dbd [i].dom = dom;
   }
 
-#if 0
-  if (dom->rank == 2)
-  {
-    bod = MAP_Find (dom->allbodies, (void*) (long) 3, NULL);
-    printf ("TIME %g, BODY 3: %s before with ", dom->time, bod->flags & BODY_PARENT ? "PARENT" : bod->flags & BODY_CHILD ? "CHILD" : "DUMMY");
-    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-    { CON *con = item->data; printf ("%s(%d), ", con->state & CON_BOUNDARY ? "B" : con->state & CON_EXTERNAL ? "E" : "I", con->id); }
-    printf ("constraints\n");
-  }
-#endif
-
   /* compute chidren migration sets */
   children_migration_begin (dom, dbd);
 
@@ -1941,17 +1891,6 @@ static void domain_balancing (DOM *dom)
 
   /* delete migrated out children */
   children_migration_end (dom);
-
-#if 0
-  if (dom->rank == 2)
-  {
-    bod = MAP_Find (dom->allbodies, (void*) (long) 3, NULL);
-    printf ("TIME %g, BODY 3: %s after with", dom->time, bod->flags & BODY_PARENT ? "PARENT" : bod->flags & BODY_CHILD ? "CHILD" : "DUMMY");
-    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-    { CON *con = item->data; printf ("%s(%d), ", con->state & CON_BOUNDARY ? "B" : con->state & CON_EXTERNAL ? "E" : "I", con->id); }
-    printf ("constraints\n");
-  }
-#endif
 
   /* remove constraints */
   for (item = SET_First (dom->delcon); item; item = SET_Next (item))
@@ -1985,7 +1924,7 @@ static void domain_balancing (DOM *dom)
   free (dbd);
 }
 
-#if 0
+#if SEND_DUMMIES
 /* compute boundary contact related dummy updates */
 static void compute_dummies_migration (DOM *dom, DBD *dbd)
 {
@@ -2034,6 +1973,7 @@ static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
     pack_dummy (item->data, dsize, d, doubles, isize, i, ints);
 #endif
 
+#if SEND_CONTACTS
   /* pack exported boundary contacts */
   pack_int (isize, i, ints, SET_Size (dbd->dom->expbnd  [dbd->rank]));
   for (item = SET_First (dbd->dom->expbnd [dbd->rank]); item; item = SET_Next (item))
@@ -2047,6 +1987,7 @@ static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
     pack_int (isize, i, ints, (int) (long) item->data);
 
   SET_Free (&dbd->dom->setmem, &dbd->dom->delbnd [dbd->rank]); /* empty set */
+#endif
 }
 
 /* unpack domain balancing data */
@@ -2067,6 +2008,7 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   }
 #endif
 
+#if SEND_CONTACTS
   /* unpack imported boundary contacts */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
@@ -2084,6 +2026,7 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
       DOM_Remove_Constraint (dom, con);
     }
   }
+#endif
 
   return NULL;
 }
@@ -2164,8 +2107,8 @@ static void create_mpi (DOM *dom)
   /* load balancing parameters */
   Zoltan_Set_Param (dom->zol, "LB_METHOD", "RCB");
   Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", "1.0");
-  Zoltan_Set_Param (dom->zol, "AUTO_MIGRATE", "FALSE"); /* we shall use COMOBJS */
-  Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "EXPORT"); /* the rest will be done by COMOBJS */
+  Zoltan_Set_Param (dom->zol, "AUTO_MIGRATE", "FALSE");
+  Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "NONE");
 
   /* RCB parameters */
   Zoltan_Set_Param (dom->zol, "RCB_OVERALLOC", "1.3");
