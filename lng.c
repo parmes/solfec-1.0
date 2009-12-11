@@ -3901,10 +3901,10 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("solfec", "tolerance");
-  double tolerance;
   lng_SOLFEC *solfec;
+  double tolerance;
 
-  PARSEKEYS ("Od", &tolerance);
+  PARSEKEYS ("Od", &solfec, &tolerance);
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (tolerance, kwl[1]));
 

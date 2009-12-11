@@ -28,11 +28,6 @@
 #include "mat.h"
 #include "msh.h"
 
-#ifndef CLIQUE_TYPE
-#define CLIQUE_TYPE
-typedef struct clique CLIQUE;
-#endif
-
 #ifndef DOMAIN_TYPE
 #define DOMAIN_TYPE
 typedef struct domain DOM;
@@ -164,10 +159,8 @@ struct general_body
 
   double energy [3]; /* external, kinetic, potential */
 
-  CLIQUE *clique;  /* constraints clique */
-
 #if MPI
-  SET *children; /* set of children ids for a parent */
+  SET *children; /* set of children ids for a parent; set of other children for a child */
 
   int rank; /* parent => new/current rank; child => parent's rank */
 #else

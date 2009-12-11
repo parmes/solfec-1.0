@@ -779,9 +779,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
   /* initial damping */
   bod->damping = 0.0;
 
-  /* clique */
-  bod->clique = NULL;
-
 #if MPI
   bod->children = NULL;
 
@@ -1208,6 +1205,8 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
 void BODY_Static_Init (BODY *bod)
 {
+  if (bod->inverse) return; /* skip if initialized */
+
   switch (bod->kind)
   {
     case OBS:
@@ -1828,14 +1827,31 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
   pack_int (isize, i, ints, bod->rank); /* pack parent rank */
+
+  /* pack children ranks */
+  pack_int (isize, i, ints, SET_Size (bod->children));
+  for (SET *item = SET_First (bod->children); item; item = SET_Next (item))
+    pack_int (isize, i, ints, (int) (long) item->data);
 }
 
 /* unpack child body */
 void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  int j, k, l;
+
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
   bod->rank = unpack_int (ipos, i, ints); /* unpack parent rank */
+
+  /* unpack other children ranks */
+  SET_Free (&bod->dom->setmem, &bod->children);
+  k = unpack_int (ipos, i, ints);
+  for (j = 0; j < k; j ++)
+  {
+    l = unpack_int (ipos, i, ints);
+    if (l != bod->dom->rank) /* ommit own rank */
+      SET_Insert (&bod->dom->setmem, &bod->children, (void*) (long) l, NULL);
+  }
 
   /* init inverse */
   if (bod->dom->dynamic)

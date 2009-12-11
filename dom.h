@@ -21,6 +21,7 @@
 
 #if MPI
 #include <zoltan.h>
+#include "com.h"
 #endif
 
 #include "mem.h"
@@ -57,7 +58,9 @@ typedef struct domain DOM;
 
 struct constraint
 {
-  double R [3]; /* average constraint reaction */
+  double R [3], /* average constraint reaction */
+	 V [3], /* initial velocity */
+	 B [3]; /* free velocity */
 
   DIAB *dia; /* diagonal entry in the local dynamical system */
 
@@ -197,11 +200,11 @@ struct domain
 
   unsigned char breakadj; /* AABB_Break_Adjacency execution flag */
 
-  SET **expbnd; /* boundary contacts to be sent to other ranks */
+  MAP *conext; /* id based map of external constraints */
 
-  SET **delbnd; /* ids of boundary contacts to be deleted on other ranks (after deleted constraints) */
+  int prevconextnum; /* previous number of external contacts */
 
-  int numext; /* number of external constraints */
+  COMOBJ *conextsend; /* vector of sets of boundary contacts used for remote value updates */
 
   int bytes; /* bytes sent during load balancing */
 
@@ -268,6 +271,12 @@ LOCDYN* DOM_Update_Begin (DOM *dom);
  * problem has been solved (externally), motion of bodies
  * is updated with the help of new constraint reactions */
 void DOM_Update_End (DOM *dom);
+
+#if MPI
+/* send boundary reactions to their external receivers;
+ * if 'normal' is > 0 then only normal components are sent */
+void DOM_Update_External_Reactions (DOM *dom, short normal);
+#endif
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);

@@ -403,6 +403,8 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJEC
 
 OUTPUT (solfec, 0.0)
 
+IMBALANCE_TOLERANCE (solfec, 1.0);
+
 RUN (solfec, gs, 5 * step)
 
 if not VIEWER() and solfec.mode == 'READ':

@@ -134,68 +134,6 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
   return 1;
 }
 
-/* create clique */
-static CLIQUE* clique_create (MEM *quemem, MEM *diamem, MEM *offmem, BODY *bod)
-{
-  CLIQUE *que;
-  CLIDIA *cli;
-  CLIOFF *off;
-  DIAB *dia;
-  OFFB *blk;
-
-  ERRMEM (que = MEM_Alloc (quemem));
-
-  for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-  {
-    CON *con = item->data;
-    dia = con->dia;
-    ERRMEM (cli = MEM_Alloc (diamem));
-    cli->dia = dia;
-    cli->n = que->dia;
-    que->dia = cli;
-    que->size ++;
-#if MPI
-    que->weight ++;
-#endif
-
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      if (blk->bod != bod) continue;
-      ERRMEM (off = MEM_Alloc (offmem));
-      off->off = blk;
-      off->n = cli->adj;
-      cli->adj = off;
-#if MPI
-      que->weight ++;
-#endif
-    }
-  }
-
-  return que;
-}
-
-/* destroy clique */
-static void clique_destroy (MEM *quemem, MEM *diamem, MEM *offmem, CLIQUE *que)
-{
-  CLIDIA *cli;
-  CLIOFF *off;
-  void *next;
-
-  for (cli = que->dia; cli; cli = next)
-  {
-    for (off = cli->adj; off; off = next)
-    {
-      next = off->n;
-      MEM_Free (offmem, off);
-    }
-
-    next = cli->n;
-    MEM_Free (diamem, cli);
-  }
-
-  MEM_Free (quemem, que);
-}
-
 /* create local dynamics for a domain */
 LOCDYN* LOCDYN_Create (DOM *dom)
 {
@@ -204,9 +142,6 @@ LOCDYN* LOCDYN_Create (DOM *dom)
   ERRMEM (ldy = malloc (sizeof (LOCDYN)));
   MEM_Init (&ldy->offmem, sizeof (OFFB), BLKSIZE);
   MEM_Init (&ldy->diamem, sizeof (DIAB), BLKSIZE);
-  MEM_Init (&ldy->clioffmem, sizeof (CLIOFF), BLKSIZE);
-  MEM_Init (&ldy->clidiamem, sizeof (CLIDIA), BLKSIZE);
-  MEM_Init (&ldy->cliquemem, sizeof (CLIQUE), BLKSIZE);
   ldy->dom = dom;
   ldy->dia = NULL;
   ldy->modified = 0;
@@ -225,7 +160,9 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
   CON *c;
 
   ERRMEM (dia = MEM_Alloc (&ldy->diamem));
-  dia->R = CON(con)->R;
+  dia->R = con->R;
+  dia->V = con->V;
+  dia->B = con->B;
   dia->con = con;
 
   /* insert into list */
@@ -379,25 +316,15 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base,
-	   *V = dia->V,
-	   *B = dia->B,
-	   X0 [3], Y0 [3],
            X [3], Y [9];
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE (C, 3, 3);
 
-    /* relative velocity = slave - master => outward master normal */
-    BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
     if (s)
     {
       sgobj = sgobj(con);
       sshp = sshp(con);
-      BODY_Local_Velo (s, sshp, sgobj, spnt, base, Y0, Y); /* might be NULL for some constraints (one body) */
     }
-    else { SET (Y0, 0.0); SET (Y, 0.0); }
-    
-    SUB (Y0, X0, V); /* previous time step velocity */
-    SUB (Y, X, B); /* local free velocity */
 
     /* diagonal block */
     dia->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
@@ -509,20 +436,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 	MX_Destroy (dia->sprod);
       }
     }
-
-    /* create cliques */
-    MEM *diamem = &ldy->clidiamem,
-	*offmem = &ldy->clioffmem,
-	*quemem = &ldy->cliquemem;
-
-    for (BODY *bod = dom->bod; bod; bod = bod->next)
-    {
-      if (bod->kind != OBS)
-      {
-	if (bod->clique) clique_destroy (quemem, diamem, offmem, bod->clique);
-	bod->clique = clique_create (quemem, diamem, offmem, bod);
-      }
-    }
   }
 
   /* forward variables change */
@@ -550,10 +463,6 @@ void LOCDYN_Destroy (LOCDYN *ldy)
 {
   MEM_Release (&ldy->diamem);
   MEM_Release (&ldy->offmem);
-
-  MEM_Release (&ldy->clidiamem);
-  MEM_Release (&ldy->clioffmem);
-  MEM_Release (&ldy->cliquemem);
 
   free (ldy);
 }
