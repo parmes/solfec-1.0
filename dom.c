@@ -2083,8 +2083,8 @@ static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
   pack_stats (dbd->dom, dbd->rank, dsize, d, doubles, isize, i, ints);
 
   /* pack exported boundary contacts */
-  pack_int (isize, i, ints, SET_Size (dbd->children));
-  for (item = SET_First (dbd->children); item; item = SET_Next (item))
+  pack_int (isize, i, ints, SET_Size (dbd->constraints));
+  for (item = SET_First (dbd->constraints); item; item = SET_Next (item))
     pack_contact (item->data, dsize, d, doubles, isize, i, ints);
 }
 
