@@ -107,6 +107,20 @@ struct constraint
 #define mkind(con) ((BOX*)(con)->msgp->box)->kind
 #define skind(con) ((BOX*)(con)->ssgp->box)->kind
 
+#if MPI
+typedef struct domstats DOMSTATS;
+
+/* domain statistics */
+struct domstats
+{
+  char *name;
+  int sum;
+  int min;
+  int avg;
+  int max;
+};
+#endif
+
 /* domain flags */
 typedef enum
 {
@@ -190,6 +204,10 @@ struct domain
   int numext; /* number of external constraints */
 
   int bytes; /* bytes sent during load balancing */
+
+  DOMSTATS *stats; /* domain statistics */
+
+  int nstats; /* statistics count */
 #endif
 };
 

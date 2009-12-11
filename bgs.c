@@ -466,7 +466,6 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   gs->callback = callback;
   gs->history = GS_OFF;
   gs->rerhist = NULL;
-  gs->verbose = 0;
   gs->reverse = GS_OFF;
 
   return gs;
@@ -475,8 +474,8 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 /* run serial solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
+  int verbose, diagiters;
   double error, step;
-  int diagiters;
   short dynamic;
   char fmt [512];
 #if !MPI
@@ -484,7 +483,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #endif
   DIAB *end;
 
-  if (gs->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+  verbose = ldy->dom->verbose;
+
+  if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
   if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
 
@@ -555,13 +556,13 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     if (gs->history) gs->rerhist [gs->iters] = error;
 
 #if !MPI
-    if (gs->iters % div == 0 && gs->verbose) printf (fmt, gs->iters, error), div *= 2;
+    if (gs->iters % div == 0 && verbose) printf (fmt, gs->iters, error), div *= 2;
 #endif
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
 #if !MPI
-  if (gs->verbose) printf (fmt, gs->iters, error);
+  if (verbose) printf (fmt, gs->iters, error);
 #endif
 
   if (gs->iters >= gs->maxiter)

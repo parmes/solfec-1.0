@@ -56,18 +56,6 @@ static int verbose_on (SOLFEC *sol, short kind, void *solver)
 {
   sol->dom->verbose = 1;
 
-  switch (kind)
-  {
-  case GAUSS_SEIDEL_SOLVER:
-  {
-    GAUSS_SEIDEL *gs = (GAUSS_SEIDEL*)solver;
-    gs->verbose = 1;
-  }
-  break;
-  case EXPLICIT_SOLVER:
-  break;
-  }
-
   return 1;
 }
 
@@ -75,18 +63,6 @@ static int verbose_on (SOLFEC *sol, short kind, void *solver)
 static int verbose_off (SOLFEC *sol, short kind, void *solver)
 {
   sol->dom->verbose = 0;
-
-  switch (kind)
-  {
-  case GAUSS_SEIDEL_SOLVER:
-  {
-    GAUSS_SEIDEL *gs = (GAUSS_SEIDEL*)solver;
-    gs->verbose = 0;
-  }
-  break;
-  case EXPLICIT_SOLVER:
-  break;
-  }
 
   return 0;
 }
@@ -188,37 +164,11 @@ static void write_state (SOLFEC *sol)
 
   /* write timers */
 
-  MAP *item;
-
-#if MPI
-  double *totals, *cur, *avg;
-  int ntimers;
-
-  ntimers = MAP_Size (sol->timers);
-  ERRMEM (totals = malloc(sizeof (double [2 * ntimers])));
-  avg = totals + ntimers;
-
-  /* get average timings over all CPUs */
-  for (cur = totals, item = MAP_First (sol->timers); item; cur ++, item = MAP_Next (item))
-  {
-    TIMING *t = item->data;
-    *cur = t->total;
-  }
-
-  if (PUT_root_double_stats (ntimers, totals, NULL, NULL, avg, NULL))
-  {
-    for (cur = avg, item = MAP_First (sol->timers); item; cur ++, item = MAP_Next (item))
-    {
-      TIMING *t = item->data;
-      t->total = *cur;
-    }
-#endif
-
   int numt = MAP_Size (sol->timers);
   PBF_Label (sol->bf, "TIMERS");
   PBF_Int (sol->bf, &numt, 1);
   
-  for (item = MAP_First (sol->timers); item; item = MAP_Next (item))
+  for (MAP *item = MAP_First (sol->timers); item; item = MAP_Next (item))
   {
     TIMING *t = item->data;
 
@@ -226,12 +176,6 @@ static void write_state (SOLFEC *sol)
     PBF_Double (sol->bf, &t->total, 1);
     PBF_String (sol->bf, (char**) &item->key);
   }
-
-#if MPI
-  }
-
-  free (totals);
-#endif
 
   clean_timers (sol); /* restart total timing */
 }
@@ -256,6 +200,8 @@ static void read_state (SOLFEC *sol)
   DOM_Read_State (sol->dom, sol->bf);
 
   /* read timers */
+
+  clean_timers (sol); /* zero total timing */
 
   int n, numt, found = 0;
   for (PBF *bf = sol->bf; bf; bf = bf->next)
@@ -282,7 +228,7 @@ static void read_state (SOLFEC *sol)
 	  MAP_Insert (&sol->mapmem, &sol->timers, label, t, (MAP_Compare) strcmp);
 	}
 
-	t->total = total; /* update */
+	t->total = MAX (t->total, total); /* update to maximum across all processors */
       }
     }
   }
@@ -304,7 +250,6 @@ static int init (SOLFEC *sol)
 static void statsout (SOLFEC *sol)
 {
   DOM *dom = sol->dom;
-  AABB *aabb = sol->aabb;
   time_t timer = time(NULL);
   double  elapsed = difftime (timer, sol->start), /* elapsed wall clock time for this run */
 	  estimated = (elapsed / (sol->dom->time  - sol->t0)) * sol->duration - elapsed; /* estimated remaining time */
@@ -317,9 +262,9 @@ static void statsout (SOLFEC *sol)
   ctime_r(&timer, string); 
 
 #if MPI
-  const int N = 6;
   char *stapath;
   FILE *sta;
+  int i;
 
   if (dom->rank == 0)
   {
@@ -331,27 +276,16 @@ static void statsout (SOLFEC *sol)
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     fprintf (sta, "TIME: %g\n", sol->dom->time);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
-  }
 
-  char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "EXTERNAL", "SPARSIFIED", "BYTES SENT"};
-
-  int val [] = {dom->nbod, aabb->boxnum, dom->ncon - dom->numext, dom->numext, dom->nspa, dom->bytes};
-
-  int i, sum [N], min [N], avg [N], max [N];
-
-  if (PUT_root_int_stats (N, val, sum, min, avg, max))
-  {
-    for (i = 0; i < N; i ++) 
+    printf ("----------------------------------------------------------------------------------------\n");
+    for (i = 0; i < dom->nstats; i ++) 
     {
-      fprintf (sta, "%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", name [i], sum [i], min [i], avg [i], max [i]);
-      printf ("%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", name [i], sum [i], min [i], avg [i], max [i]);
+      fprintf (sta, "%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", dom->stats [i].name, dom->stats [i].sum, dom->stats [i].min, dom->stats [i].avg, dom->stats [i].max);
+      printf ("%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", dom->stats [i].name, dom->stats [i].sum, dom->stats [i].min, dom->stats [i].avg, dom->stats [i].max); 
     }
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     printf ("----------------------------------------------------------------------------------------\n");
-  }
 
-  if (dom->rank == 0)
-  {
     fclose (sta);
     free (stapath);
   }
@@ -360,7 +294,7 @@ static void statsout (SOLFEC *sol)
 
   char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "SPARSIFIED"};
 
-  int val [] = {dom->nbod, aabb->boxnum, dom->ncon, dom->nspa}, i;
+  int val [] = {dom->nbod, dom->aabb->boxnum, dom->ncon, dom->nspa}, i;
 
   for (i = 0; i < N; i ++) printf ("%11s: %8d\n", name [i], val [i]);
   printf ("%sEstimated end in %d days, %d hours, %d minutes and %d seconds\n", string, days, hours, minutes, seconds);
@@ -369,18 +303,22 @@ static void statsout (SOLFEC *sol)
 }
 
 /* invoke constraint solver */
-static void SOLVE (void *solver, SOLVER_KIND kind, LOCDYN *ldy, int verbose)
+static void SOLVE (SOLFEC *sol, void *solver, SOLVER_KIND kind, LOCDYN *ldy, int verbose)
 {
+  SOLFEC_Timer_Start (sol, "CONSOL");
+
 #if MPI
   if (ldy->dom->rank == 0)
 #endif
-  if (verbose) printf ("SOLVER:\n");
+  if (verbose) printf ("SOLVER ...\n");
 
   switch (kind)
   {
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Solve (solver, ldy); break;
   case EXPLICIT_SOLVER: EXPLICIT_Solve (ldy); break;
   }
+
+  SOLFEC_Timer_End (sol, "CONSOL");
 }
 
 /* create a solfec instance */
@@ -493,7 +431,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #if MPI
       if (sol->dom->rank == 0)
 #endif
-      if (verbose) printf ("TIME: %g\n", sol->dom->time);
+      if (verbose) printf ("TIME: %g ... ", sol->dom->time);
 
       /* begin update of domain */
       ldy = DOM_Update_Begin (sol->dom);
@@ -502,9 +440,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       LOCDYN_Update_Begin (ldy, upkind);
 
       /* solve constraints */
-      SOLFEC_Timer_Start (sol, "CONSOL");
-      SOLVE (solver, kind, ldy, verbose);
-      SOLFEC_Timer_End (sol, "CONSOL");
+      SOLVE (sol, solver, kind, ldy, verbose);
 
       /* end update of local dynamics */
       LOCDYN_Update_End (ldy);
@@ -534,13 +470,10 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
       /* statistics are printed every
        * human perciveable period of time */
-#if MPI
-      tt = PUT_timerend (&tim);
-#else
       tt = timerend (&tim);
-#endif
-      if (tt < 1.0 && verbose) verbose = verbose_off (sol, kind, solver);
-      else if (tt >= 1.0) { statsout (sol); verbose = verbose_on (sol, kind, solver); timerstart (&tim); }
+      if (verbose) statsout (sol);
+      if (tt < 1.0) verbose = verbose_off (sol, kind, solver);
+      else if (tt >= 1.0) verbose = verbose_on (sol, kind, solver), timerstart (&tim);
     }
   }
   else /* READ */

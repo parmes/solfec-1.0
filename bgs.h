@@ -88,8 +88,6 @@ struct gs
 
   double *rerhist; /* relative error history */
 
-  short verbose; /* verbosity flag */
-
   GSONOFF reverse; /* iterate forward an backward alternately ? */
 };
 
