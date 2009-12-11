@@ -146,8 +146,6 @@ int PUT_root_timerend (TIMING *t, double *time)
   double local, timing;
   int rank;
 
-  MPI_Barrier (MPI_COMM_WORLD);
-
   local = timerend (t);
 
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);

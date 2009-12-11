@@ -90,7 +90,6 @@ struct box
 {
   double extents [6]; /* min x, y, z, max x, y, z */
 
-  void *data; /* extents update data, usually => sgp->shp->data */
   BOX_Extents_Update update; /* extents update callback => update (data, gobj, extents) */
 
   GOBJ kind; /* kind of a geometric object */
@@ -155,12 +154,6 @@ struct aabb
        *hsh;  /* hashing data */
 
   DOM *dom; /* the underlying domain */
-
-#if MPI
-  BOX **aux; /* auxiliary table of boxes used during balancing */
-
-  struct Zoltan_Struct *zol; /* load balancing */
-#endif
 };
 
 /* get algorithm name string */
@@ -170,7 +163,7 @@ char* AABB_Algorithm_Name (BOXALG alg);
 AABB* AABB_Create (int size);
 
 /* insert geometrical object => return the associated box */
-BOX* AABB_Insert (AABB *aabb, BODY *body, GOBJ kind, SGP *sgp, void *data, BOX_Extents_Update update);
+BOX* AABB_Insert (AABB *aabb, BODY *body, GOBJ kind, SGP *sgp, BOX_Extents_Update update);
 
 /* delete geometrical gobject associated with the box */
 void AABB_Delete (AABB *aabb, BOX *box);
@@ -196,11 +189,6 @@ void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two);
 
 /* release memory */
 void AABB_Destroy (AABB *aabb);
-
-#if MPI
-/* geomtric partitioning */
-void AABB_Partition (AABB *aabb);
-#endif
 
 /* get geometrical object extents update callback */
 BOX_Extents_Update SGP_Extents_Update (SGP *sgp);

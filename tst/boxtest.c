@@ -77,6 +77,9 @@ static double box_wz = 100.;
 /* global dummy body */
 static BODY bod;
 
+/* global dummy shape */
+static SHAPE shape;
+
 /* shape object pairs */
 SGP *sgp = NULL;
 
@@ -220,8 +223,9 @@ static void generate_box_set (int howmany, short arrange)
       random_velo (box [i].velo);
 
       sgp [i].gobj = &box [i];
+      sgp [i].shp = &shape;
       box [i].sgp = &sgp [i];
-      box [i].box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, &sgp [i], NULL, (BOX_Extents_Update)box_extents_update);
+      box [i].box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, &sgp [i], (BOX_Extents_Update)box_extents_update);
     }
   }
   break;
@@ -246,8 +250,9 @@ static void generate_box_set (int howmany, short arrange)
         random_velo (box [i].velo);
 
         sgp [i].gobj = &box [i];
+        sgp [i].shp = &shape;
         box [i].sgp = &sgp [i];
-	box [i].box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, &sgp [i], NULL, (BOX_Extents_Update)box_extents_update);
+	box [i].box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, &sgp [i], (BOX_Extents_Update)box_extents_update);
 	i ++;
       }
     }
@@ -381,7 +386,7 @@ static void single_computational_step ()
       random_velo (p->velo);
       deleted = p->n; 
 
-      p->box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, p->sgp, NULL, (BOX_Extents_Update)box_extents_update);
+      p->box = AABB_Insert (aabb, &bod, GOBJ_DUMMY, p->sgp, (BOX_Extents_Update)box_extents_update);
       boxsize ++;
     } 
   }

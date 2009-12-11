@@ -183,113 +183,15 @@ static int gobj_kind (SGP *sgp)
 }
 
 #if MPI
-/* weight of a box */
-static int box_weight (BOX *box)
-{
-  return 1; //FIXME: + MAP_Size (box->adj); /* using adjacency size attempts to balance contacts together with boxes */
-}
-
-/* number of boxes */
-static int box_count (AABB *aabb, int *ierr)
-{
-  *ierr = ZOLTAN_OK;
-
-  return aabb->boxnum;
-}
-
-/* list of box identifiers */
-static void box_list (AABB *aabb, int num_gid_entries, int num_lid_entries,
-  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
-{
-  BOX *box, **aux;
-  BODY *bod;
-  int i;
-
-  /* realloc auxiliary table */
-  free (aabb->aux);
-  ERRMEM (aabb->aux = malloc (aabb->boxnum * sizeof (BOX*)));
-
-  /* gather current boxes */
-  for (aux = aabb->aux, box = aabb->lst, i = 0; box; aux ++, i ++, box = box->next)
-  {
-    bod = box->body;
-
-    global_ids [i * num_gid_entries] = bod->id;
-    global_ids [i * num_gid_entries + 1] = box->sgp - bod->sgp;
-    local_ids [i * num_lid_entries] = i;
-    obj_wgts [i * wgt_dim] = box_weight (box);
-    *aux = box;
-  }
-
-  *ierr = ZOLTAN_OK;
-}
-
-/* number of spatial dimensions */
-static int dimensions (AABB *aabb, int *ierr)
-{
-  *ierr = ZOLTAN_OK;
-  return 3;
-}
-
-/* list of body extent low points */
-static void boxpoints (AABB *aabb, int num_gid_entries, int num_lid_entries, int num_obj,
-  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
-{
-  BOX **aux, *box;
-  int i;
-
-  aux = aabb->aux;
-
-  for (i = 0; i < num_obj; i ++, geom_vec += num_dim)
-  {
-    box = aux [local_ids [i * num_lid_entries]];
-    MID (box->extents, box->extents + 3, geom_vec);
-  }
-
-  *ierr = ZOLTAN_OK;
-}
-
-/* attach boxes of current parents and children */
-static void attach (AABB *aabb)
-{
-  SGP *sgp, *sge;
-  DOM *dom;
-  BODY *bod;
-  SET *item;
-  
-  dom = aabb->dom;
-
-  /* attach parents */
-  for (bod = dom->bod; bod; bod = bod->next)
-  {
-    for (sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
-    {
-      if (sgp->box == NULL)
-      {
-        AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, sgp->shp->data, SGP_Extents_Update (sgp));
-      }
-    }
-  }
-
-  /* attach children */
-  for (item = SET_First (dom->children); item; item = SET_Next (item))
-  {
-    for (bod = item->data, sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
-    {
-      if (sgp->box == NULL)
-      {
-        AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, sgp->shp->data, SGP_Extents_Update (sgp));
-      }
-    }
-  }
-}
-
-/* detach boxes from outside of the domain */
-static void detach (AABB *aabb, void *data, BOX_Overlap_Release release)
+/* detach boxes from outside of the domain and attach new incoming boxes */
+static void detach_and_attach (AABB *aabb, void *data, BOX_Overlap_Release release)
 {
   SET *delcon, *delbox, *item;
   int *procs, numprocs, rank;
+  BOX_Extents_Update update;
+  SGP *sgp, *sge;
   int j, ncpu;
+  BODY *bod;
   MAP *jtem;
   double *e;
   BOX *box;
@@ -302,11 +204,12 @@ static void detach (AABB *aabb, void *data, BOX_Overlap_Release release)
   ncpu = dom->ncpu;
   ERRMEM (procs = malloc (sizeof (int [ncpu])));
 
+  /* test existing boxes for overlap with this partition */
   for (box = aabb->lst; box; box = box->next)
   {
     e = box->extents;
 
-    ASSERT (Zoltan_LB_Box_Assign (aabb->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+    ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
     for (j = 0; j < numprocs; j ++)
     {
@@ -314,6 +217,62 @@ static void detach (AABB *aabb, void *data, BOX_Overlap_Release release)
     }
 
     if (j == numprocs) SET_Insert (&aabb->setmem, &delbox, box, NULL); /* schedule for deletion */
+  }
+
+  /* attach parents */
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    for (sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
+    {
+      if (sgp->box == NULL)
+      {
+	update = SGP_Extents_Update (sgp);
+
+	update (sgp->shp->data, sgp->gobj, e);
+
+	ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+	for (j = 0; j < numprocs; j ++)
+	{
+	  if (procs [j] == rank) break;
+	}
+
+	if (j < numprocs)
+	{
+	  box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, update);
+
+	  COPY6 (e, box->extents);
+	}
+      }
+    }
+  }
+
+  /* attach children */
+  for (item = SET_First (dom->children); item; item = SET_Next (item))
+  {
+    for (bod = item->data, sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
+    {
+      if (sgp->box == NULL)
+      {
+	update = SGP_Extents_Update (sgp);
+
+	update (sgp->shp->data, sgp->gobj, e);
+
+	ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+	for (j = 0; j < numprocs; j ++)
+	{
+	  if (procs [j] == rank) break;
+	}
+
+	if (j < numprocs)
+	{
+	  box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, update);
+
+	  COPY6 (e, box->extents);
+	}
+      }
+    }
   }
 
   /* delete exported boxes */
@@ -333,52 +292,10 @@ static void detach (AABB *aabb, void *data, BOX_Overlap_Release release)
     release (data, item->data);
   }
 
+  /* clean */
   SET_Free (&aabb->setmem, &delbox);
   SET_Free (&aabb->setmem, &delcon);
   free (procs);
-}
-
-/* create MPI related data */
-static void create_mpi (AABB *aabb)
-{
-  aabb->aux = NULL;
-
-  /* zoltan context for body partitioning */
-  ASSERT (aabb->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN);
-
-  /* general parameters */
-  Zoltan_Set_Param (aabb->zol, "DEBUG_LEVEL", "0");
-  Zoltan_Set_Param (aabb->zol, "DEBUG_MEMORY", "0");
-  Zoltan_Set_Param (aabb->zol, "NUM_GID_ENTRIES", "2"); /* body id, sgp index */
-  Zoltan_Set_Param (aabb->zol, "NUM_LID_ENTRIES", "1"); /* indices in aux table */
-  Zoltan_Set_Param (aabb->zol, "OBJ_WEIGHT_DIM", "1");
- 
-  /* load balancing parameters */
-  Zoltan_Set_Param (aabb->zol, "LB_METHOD", "RCB");
-  Zoltan_Set_Param (aabb->zol, "IMBALANCE_TOL", "1.3");
-  Zoltan_Set_Param (aabb->zol, "AUTO_MIGRATE", "FALSE"); /* we shall use COMOBJS */
-  Zoltan_Set_Param (aabb->zol, "RETURN_LISTS", "NONE");
-
-  /* RCB parameters */
-  Zoltan_Set_Param (aabb->zol, "RCB_OVERALLOC", "1.3");
-  Zoltan_Set_Param (aabb->zol, "RCB_REUSE", "1");
-  Zoltan_Set_Param (aabb->zol, "RCB_OUTPUT_LEVEL", "0");
-  Zoltan_Set_Param (aabb->zol, "CHECK_GEOM", "1");
-  Zoltan_Set_Param (aabb->zol, "KEEP_CUTS", "1");
-
-  /* callbacks */
-  Zoltan_Set_Fn (aabb->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) box_count, aabb);
-  Zoltan_Set_Fn (aabb->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) box_list, aabb);
-  Zoltan_Set_Fn (aabb->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, aabb);
-  Zoltan_Set_Fn (aabb->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) boxpoints, aabb);
-}
-
-/* destroy MPI related data */
-static void destroy_mpi (AABB *aabb)
-{
-  free (aabb->aux);
-
-  Zoltan_Destroy (&aabb->zol);
 }
 #endif
 
@@ -418,28 +335,20 @@ AABB* AABB_Create (int size)
   aabb->swp = NULL;
   aabb->hsh = NULL;
 
-#if MPI
-  create_mpi (aabb);
-#endif
-
   return aabb;
 }
 
 /* insert geometrical object */
-BOX* AABB_Insert (AABB *aabb, BODY *body, GOBJ kind, SGP *sgp, void *data, BOX_Extents_Update update)
+BOX* AABB_Insert (AABB *aabb, BODY *body, GOBJ kind, SGP *sgp, BOX_Extents_Update update)
 {
   BOX *box;
 
   ERRMEM (box = MEM_Alloc (&aabb->boxmem));
-  box->data = data;
   box->update = update;
   box->kind = kind;
   box->body = body;
   box->sgp = sgp;
   sgp->box = box;
-
-  /* initial update */
-  update (data, sgp->gobj, box->extents);
 
   /* insert into list */
   box->next = aabb->lst;
@@ -498,7 +407,7 @@ void AABB_Insert_Body (AABB *aabb, BODY *body)
 
   for (sgp = body->sgp, sgpe = sgp + body->nsgp; sgp < sgpe; sgp ++)
   {
-    AABB_Insert (aabb, body, gobj_kind (sgp), sgp, sgp->shp->data, SGP_Extents_Update (sgp));
+    AABB_Insert (aabb, body, gobj_kind (sgp), sgp, SGP_Extents_Update (sgp));
   }
 }
 
@@ -528,11 +437,10 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   
   if (aabb->dom) SOLFEC_Timer_Start (aabb->dom->solfec, "CONDET");
 
-  for (box = aabb->lst; box; box = box->next) box->update (box->data, box->sgp->gobj, box->extents); /* update box extents */
+  for (box = aabb->lst; box; box = box->next) box->update (box->sgp->shp->data, box->sgp->gobj, box->extents); /* update box extents */
 
 #if MPI
-  attach (aabb); /* attach all boxes of current parents and children */
-  detach (aabb, data, release); /* detach boxes from outside of the domain */
+  detach_and_attach (aabb, data, release); /* detach boxes from outside of the domain and attach new incoming boxes */
 #endif
 
   for (box = aabb->lst; box; box = box->next) /* for each current box */
@@ -661,47 +569,8 @@ void AABB_Destroy (AABB *aabb)
   if (aabb->swp) SWEEP_Destroy (aabb->swp);
   if (aabb->hsh) HASH_Destroy (aabb->hsh);
 
-#if MPI
-  destroy_mpi (aabb);
-#endif
-
   free (aabb);
 }
-
-#if MPI
-/* geomtric partitioning */
-void AABB_Partition (AABB *aabb)
-{
-  char tol [128];
-
-  int changes,
-      num_gid_entries,
-      num_lid_entries,
-      num_import,
-      *import_procs,
-      num_export,
-      *export_procs;
-
-  ZOLTAN_ID_PTR import_global_ids,
-		import_local_ids,
-		export_global_ids,
-		export_local_ids;
-
-  /* update imbalance tolerance */
-  snprintf (tol, 128, "%g", aabb->dom->imbalance_tolerance);
-  Zoltan_Set_Param (aabb->zol, "IMBALANCE_TOL", tol);
-
-  /* update box partitioning */
-  ASSERT (Zoltan_LB_Balance (aabb->zol, &changes, &num_gid_entries, &num_lid_entries,
-	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
-	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
-
-  
-  /* free auxiliary data *//* free auxiliary data */
-  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-		       &export_global_ids, &export_local_ids, &export_procs);
-}
-#endif
 
 /* get geometrical object extents update callback */
 BOX_Extents_Update SGP_Extents_Update (SGP *sgp)
