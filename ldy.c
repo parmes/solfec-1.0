@@ -134,6 +134,56 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
   return 1;
 }
 
+#if MPI
+/* compute external adjacency */
+static void compute_adjext (LOCDYN *ldy)
+{
+  CON *con, *ext;
+  OFFB *b, *n;
+  BODY *bod;
+  SET *item;
+  MAP *jtem;
+  DIAB *dia;
+
+  /* clear previous external adjacency */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    for (b = dia->adjext; b; b = n)
+    {
+      n = b->n;
+      MEM_Free (&ldy->offmem, b);
+    }
+
+    dia->adjext = NULL;
+  }
+
+  /* walk over all external contacts and build new external adjacency */
+  for (jtem = MAP_First (ldy->dom->conext); jtem; jtem = MAP_Next (jtem))
+  {
+    ext = jtem->data;
+
+    if (ext->master->flags & (BODY_PARENT|BODY_CHILD)) bod = ext->master; /* for all involved bodies (parents and children) */
+    else bod = ext->slave;
+
+    if (bod->kind == OBS) continue; /* obstacles do not trasnder adjacency */
+
+    for (item = SET_First (bod->con); item; item = SET_Next (item)) 
+    {
+      con = item->data;
+
+      if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
+
+      dia = con->dia;
+      ERRMEM (b = MEM_Alloc (&ldy->offmem));
+      b->dia = (DIAB*) ext; /* there is no diagonal block here, but we shall point directly to the external contact */
+      b->bod = bod; /* adjacent through this body */
+      b->n = dia->adjext;
+      dia->adjext = b;
+    }
+  }
+}
+#endif
+
 /* create local dynamics for a domain */
 LOCDYN* LOCDYN_Create (DOM *dom)
 {
@@ -161,8 +211,6 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
 
   ERRMEM (dia = MEM_Alloc (&ldy->diamem));
   dia->R = con->R;
-  dia->V = con->V;
-  dia->B = con->B;
   dia->con = con;
 
   /* insert into list */
@@ -302,6 +350,10 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 
   SOLFEC_Timer_Start (ldy->dom->solfec, "LOCDYN");
 
+#if MPI
+  if (upkind == UPALL) compute_adjext (ldy);
+#endif
+
   /* calculate local velocities and
    * assmeble the force-velocity 'W' operator */
   for (dia = ldy->dia; dia; dia = dia->n)
@@ -316,15 +368,25 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base,
+	   *V = dia->V,
+	   *B = dia->B,
+	   X0 [3], Y0 [3],
            X [3], Y [9];
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE (C, 3, 3);
 
+    /* relative velocity = slave - master => outward master normal */
+    BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
     if (s)
     {
       sgobj = sgobj(con);
       sshp = sshp(con);
+      BODY_Local_Velo (s, sshp, sgobj, spnt, base, Y0, Y); /* might be NULL for some constraints (one body) */
     }
+    else { SET (Y0, 0.0); SET (Y, 0.0); }
+
+    SUB (Y0, X0, V); /* previous time step velocity */
+    SUB (Y, X, B); /* local free velocity */
 
     /* diagonal block */
     dia->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
@@ -411,6 +473,40 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 #endif
 	SCALE9 (W.x, coef);
       }
+
+#if MPI
+      /* off-diagonal external blocks */
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	MX *left, *right;
+	CON *ext = (CON*)blk->dia;
+	BODY *bod = blk->bod;
+	SGP *sgp;
+	MX_DENSE_PTR (W, 3, 3, blk->W);
+	double coef, *point;
+
+	ASSERT_DEBUG (bod == m || bod == s, "Not connected external off-diagonal block");
+
+	if (bod == con->master)
+	{
+	  sgp = con->msgp, point = con->mpnt;
+          coef = (bod == s ? -step : step);
+	}
+	else
+	{
+	  sgp = con->ssgp, point = con->spnt;
+          coef = (bod == m ? -step : step);
+	}
+       
+	left = (bod == m ? dia->mprod : dia->sprod);
+
+	right =  BODY_Gen_To_Loc_Operator (bod, sgp->shp, sgp->gobj, point, ext->base);
+
+	MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
+	SCALE9 (W.x, coef);
+	MX_Destroy (right);
+      }
+#endif
     }
 
     /* use symmetry */

@@ -34,8 +34,6 @@
 #include "pck.h"
 #include "err.h"
 
-#define SEND_CONTACTS 0 //FIXME: as above
-
 #if MPI
 #include "put.h"
 #include "com.h"
@@ -285,37 +283,6 @@ static void overlap_release (DOM *dom, CON *con)
 #endif
 }
 
-/* compute local velocities */
-static void compute_locvel (DOM *dom, CON *con)
-{
-  BODY *m = con->master,
-       *s = con->slave;
-  void *mgobj = mgobj(con),
-       *sgobj;
-  SHAPE *mshp = mshp(con),
-	*sshp;
-  double *mpnt = con->mpnt,
-	 *spnt = con->spnt,
-	 *base = con->base,
-	 *V = con->V,
-	 *B = con->B,
-	 X0 [3], Y0 [3],
-	 X [3], Y [9];
-
-  /* relative velocity = slave - master => outward master normal */
-  BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
-  if (s)
-  {
-    sgobj = sgobj(con);
-    sshp = sshp(con);
-    BODY_Local_Velo (s, sshp, sgobj, spnt, base, Y0, Y); /* might be NULL for some constraints (one body) */
-  }
-  else { SET (Y0, 0.0); SET (Y, 0.0); }
-  
-  SUB (Y0, X0, V); /* previous time step velocity */
-  SUB (Y, X, B); /* local free velocity */
-}
-
 /* update contact data */
 static void update_contact (DOM *dom, CON *con)
 {
@@ -334,9 +301,6 @@ static void update_contact (DOM *dom, CON *con)
 
     /* invalidate newness */
     con->state &= ~CON_NEW;
-
-    /* local velocity */
-    compute_locvel (dom, con);
 
     return; /* new contacts are up to date */
   }
@@ -366,9 +330,6 @@ static void update_contact (DOM *dom, CON *con)
       SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, spair [0], spair [1]); /* find new surface pair description */
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
     }
-
-    /* local velocity */
-    compute_locvel (dom, con);
   }
   else
   {
@@ -380,18 +341,12 @@ static void update_contact (DOM *dom, CON *con)
 static void update_fixpnt (DOM *dom, CON *con)
 {
   BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
-
-  /* local velocity */
-  compute_locvel (dom, con);
 }
 
 /* update fixed direction data */
 static void update_fixdir (DOM *dom, CON *con)
 {
   BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
-
-  /* local velocity */
-  compute_locvel (dom, con);
 }
 
 /* update velocity direction data */
@@ -399,9 +354,6 @@ static void update_velodir (DOM *dom, CON *con)
 {
   VELODIR (con->Z) = TMS_Value (con->tms, dom->time + dom->step);
   BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
-
-  /* local velocity */
-  compute_locvel (dom, con);
 }
 
 /* update rigid link data */
@@ -431,9 +383,6 @@ static void update_riglnk (DOM *dom, CON *con)
   len = 1.0 / len;
   SCALE (n, len);
   localbase (n, con->base);
-
-  /* local velocity */
-  compute_locvel (dom, con);
 }
 
 /* tell whether the geometric objects are topologically adjacent */
@@ -1465,14 +1414,7 @@ static void pack_contact (CON *con, int *dsize, double **d, int *doubles, int *i
   pack_int (isize, i, ints, con->master->id);
   pack_int (isize, i, ints, con->slave->id);
   pack_doubles (dsize, d, doubles, con->R, 3);
-  pack_doubles (dsize, d, doubles, con->V, 3);
-  pack_doubles (dsize, d, doubles, con->B, 3);
-  pack_doubles (dsize, d, doubles, con->point, 3);
   pack_doubles (dsize, d, doubles, con->base, 9);
-  pack_double (dsize, d, doubles, con->area);
-  pack_double (dsize, d, doubles, con->gap);
-  pack_int (isize, i, ints, con->paircode);
-  SURFACE_MATERIAL_Pack_State (&con->mat, dsize, d, doubles, isize, i, ints);
   pack_doubles (dsize, d, doubles, con->mpnt, 3);
   pack_doubles (dsize, d, doubles, con->spnt, 3);
   pack_int (isize, i, ints, con->msgp - con->master->sgp);
@@ -1504,14 +1446,7 @@ static void unpack_contact (DOM *dom, int *dpos, double *d, int doubles, int *ip
   con = insert_external_contact (dom, master, slave, cid);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
-  unpack_doubles (dpos, d, doubles, con->V, 3);
-  unpack_doubles (dpos, d, doubles, con->B, 3);
-  unpack_doubles (dpos, d, doubles, con->point, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
-  con->area = unpack_double (dpos, d, doubles);
-  con->gap = unpack_double (dpos, d, doubles);
-  con->paircode = unpack_int (ipos, i, ints);
-  SURFACE_MATERIAL_Unpack_State (dom->sps, &con->mat, dpos, d, doubles, ipos, i, ints);
   unpack_doubles (dpos, d, doubles, con->mpnt, 3);
   unpack_doubles (dpos, d, doubles, con->spnt, 3);
   n = unpack_int (ipos, i, ints);
@@ -2036,9 +1971,6 @@ static void compute_contacts_migration (DOM *dom, COMOBJ *send)
     /* remove from the body constraint adjacency  */
     SET_Delete (&dom->setmem, &con->master->con, con, NULL);
     if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, NULL);
-
-    /* free contact material state */
-    SURFACE_MATERIAL_Destroy_State (&con->mat);
 
     /* destroy passed data */
     MEM_Free (&dom->conmem, con);
@@ -2612,9 +2544,6 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
     SET_Delete (&dom->setmem, &con->master->con, con, NULL);
     if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, NULL);
 
-    /* free contact material state */
-    SURFACE_MATERIAL_Destroy_State (&con->mat);
-
     /* remove from map */
     MAP_Delete (&dom->mapmem, &dom->conext, (void*) (long) con->id, NULL);
 
@@ -2914,7 +2843,7 @@ void DOM_Update_End (DOM *dom)
 
 #if MPI
 /* send boundary reactions to their external receivers;
- * if 'normal' is > 0 then only normal components are sent */
+ * if 'normal' is > 0 only normal components are sent */
 void DOM_Update_External_Reactions (DOM *dom, short normal)
 {
   COMOBJ *recv;
