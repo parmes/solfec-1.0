@@ -475,8 +475,8 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
-  double error, step, errup, errlo, errloc [2], errsum [2], *R, *REXT;
-  int verbose, diagiters, outer;
+  double errout, error, step, errup, errlo, errloc [2], errsum [2], *R, *REXT;
+  int verbose, diagiters;
   short dynamic;
   char fmt [512];
   int div = 10;
@@ -490,7 +490,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   dynamic = dom->dynamic;
   step = dom->step;
 
-  if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+  if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  inner error:  %%.2e outer error %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
   if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
 
@@ -501,7 +501,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   gs->error = GS_OK;
   gs->iters = 0;
-  for (outer = 0; outer < 3; outer ++)
+  errout = 1.0;
+  do
   {
     do
     {
@@ -543,19 +544,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	{
 	  if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
 	  else gs->error = GS_DIAGONAL_DIVERGED;
-
-	  switch (gs->failure)
-	  {
-	  case GS_FAILURE_CONTINUE:
-	    COPY (R0, R); /* use previous reaction */
-	    break;
-	  case GS_FAILURE_EXIT:
-	    THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
-	    break;
-	  case GS_FAILURE_CALLBACK:
-	    gs->callback (gs->data);
-	    break;
-	  }
+	  COPY (R0, R); /* use previous reaction (postpone error handling till end of outer loop) */
 	}
 
 	/* accumulate relative
@@ -568,7 +557,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       /* calculate relative error */
       error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
       if (gs->history) gs->rerhist [gs->iters] = error;
-      if (dom->rank == 0 && verbose && gs->iters % div == 0) printf (fmt, gs->iters, error), div *= 2;
+      if (dom->rank == 0 && verbose && gs->iters % div == 0) printf (fmt, gs->iters, error, errout), div *= 2;
     }
     while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
@@ -589,23 +578,41 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
 
     errloc [0] = errup, errloc [1] = errlo;
-    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); /* reduce outer error */
     errup = errsum [0], errlo = errsum [1];
-    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+    errout = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+    if (dom->rank == 0 && verbose) printf (fmt, gs->iters, error, errout);
 
-    if (dom->rank == 0) printf ("OUTER error = %e\n", error);
+    diagiters = gs->iters;
+    MPI_Allreduce (&diagiters, &gs->iters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD); /* reduce iters count */
+  }
+  while (++ gs->iters < gs->maxiter && errout > gs->epsilon);
+
+  if (dom->rank == 0 && verbose) printf (fmt, gs->iters, error, errout);
+
+  if (gs->failure != GS_FAILURE_CONTINUE) /* only when lack of convergence is to be reported */
+  {
+    MPI_Allreduce (&gs->error, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD); /* reduce error code */
   }
 
-  if (dom->rank == 0 && verbose) printf (fmt, gs->iters, error);
-
-  if (gs->iters >= gs->maxiter)
+  if (diagiters)
+  {
+    switch ((int) gs->failure)
+    {
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      break;
+    }
+  }
+  else if (gs->iters >= gs->maxiter)
   {
     gs->error = GS_DIVERGED;
 
-    switch (gs->failure)
+    switch ((int) gs->failure)
     {
-    case GS_FAILURE_CONTINUE:
-      break;
     case GS_FAILURE_EXIT:
       THROW (ERR_GAUSS_SEIDEL_DIVERGED);
       break;

@@ -1496,8 +1496,8 @@ static void pack_parent (BODY *bod, int *dsize, double **d, int *doubles, int *i
 /* unpack parent body */
 static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  BODY *bod, *other;
   SET *item;
-  BODY *bod;
   CON *con;
   int id;
 
@@ -1513,7 +1513,7 @@ static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipo
   /* unpack state */
   BODY_Parent_Unpack (bod, dpos, d, doubles, ipos, i, ints);
 
-  /* if it was a child - turn boundary contacts into internal ones */
+  /* if it was a child - turn child-parent boundary contacts into internal ones */
   if (bod->flags & BODY_CHILD)
   {
     for (item = SET_First (bod->con); item; item = SET_Next (item))
@@ -1524,7 +1524,8 @@ static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipo
 
       if (con->state & CON_BOUNDARY)
       {
-	con->state &= ~CON_BOUNDARY;
+	other = (bod == con->master ? con->slave : con->master);
+	if (other->flags & BODY_PARENT) con->state &= ~CON_BOUNDARY;
       }
       else SET_Insert (&dom->setmem, &dom->delcon, con, NULL); /* schedule deletion of remote external constraint */
     }
