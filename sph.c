@@ -333,12 +333,12 @@ void SPHERE_Extents (void *data, SPHERE *sph, double *extents)
 
   radius = sph->cur_radius;
   center = sph->cur_center;
-  extents [0] = center [0] - radius;
-  extents [1] = center [1] - radius;
-  extents [2] = center [2] - radius;
-  extents [3] = center [0] + radius;
-  extents [4] = center [1] + radius;
-  extents [5] = center [2] + radius;
+  extents [0] = center [0] - radius - GEOMETRIC_EPSILON;
+  extents [1] = center [1] - radius - GEOMETRIC_EPSILON;
+  extents [2] = center [2] - radius - GEOMETRIC_EPSILON;
+  extents [3] = center [0] + radius + GEOMETRIC_EPSILON;
+  extents [4] = center [1] + radius + GEOMETRIC_EPSILON;
+  extents [5] = center [2] + radius + GEOMETRIC_EPSILON;
 }
 
 /* compute extents of sphere list */

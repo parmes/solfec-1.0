@@ -401,10 +401,7 @@ void SHAPE_Oriented_Extents (SHAPE *shp, double *vx, double *vy, double *vz, dou
     if (e [5] > extents [5]) extents [5] = e [5];
   }
 
-  SUB (extents+3, extents, e);
-  MAXABS (e, margin);
-  margin *= 0.01;
-
+  margin = 10.0 * GEOMETRIC_EPSILON;
   extents [0] -= margin;
   extents [1] -= margin;
   extents [2] -= margin;

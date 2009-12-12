@@ -1104,6 +1104,13 @@ void MESH_Extents (MESH *msh, double *extents)
     if (e [4] > extents [4]) extents [4] = e [4];
     if (e [5] > extents [5]) extents [5] = e [5];
   }
+
+  extents [0] -= GEOMETRIC_EPSILON;
+  extents [1] -= GEOMETRIC_EPSILON;
+  extents [2] -= GEOMETRIC_EPSILON;
+  extents [3] += GEOMETRIC_EPSILON;
+  extents [4] += GEOMETRIC_EPSILON;
+  extents [5] += GEOMETRIC_EPSILON;
 }
 
 /* compute oriented extents of entire mesh */
