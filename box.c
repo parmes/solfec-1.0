@@ -42,6 +42,9 @@
 /* auxiliary data */
 struct auxdata
 {
+#if MPI
+  int rank;
+#endif
   SET *nobody;
   SET *nogobj;
   MEM *mapmem;
@@ -88,21 +91,17 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
   BODY *onebod = one->body, *twobod = two->body;
 
 #if MPI
-  if ((onebod->flags & BODY_CHILD) && (twobod->flags & BODY_CHILD)) return NULL; /* only parent-parent and parent-child contacts are valid */
-  else if (onebod->flags & BODY_CHILD)
+  SET *item = SET_First (one->ranks), *jtem = SET_First (two->ranks);
+
+  while (item->data != jtem->data) /* find the lowest common rank of two boxes */
   {
-    if (SET_Contains (twobod->children, (void*) (long) onebod->rank, NULL)) /* check whether the parent's body child and child's parent are on the same processor */
-    {
-      if (onebod->dom->rank < onebod->rank) return NULL; /* if so, use processor ordering in order to avoid duplicated contact detection */
-    }
+    if (item->data < jtem->data) item = SET_Next (item);
+    else jtem = SET_Next (jtem);
+
+    ASSERT_DEBUG (item && jtem, "Inconsistent lowest rank search for a box pair");
   }
-  else if (twobod->flags & BODY_CHILD)
-  {
-    if (SET_Contains (onebod->children, (void*) (long) twobod->rank, NULL))
-    {
-      if (twobod->dom->rank < twobod->rank) return NULL;
-    }
-  }
+
+  if (aux->rank > (int) (long) item->data) return NULL; /* filter out overlaps from oter than the lowest common rank of two boxes */
 #endif
 
   /* check if these are two obstacles => no need to report overlap */
@@ -190,10 +189,10 @@ static void detach_and_attach (AABB *aabb, void *data, BOX_Overlap_Release relea
   int *procs, numprocs, rank;
   BOX_Extents_Update update;
   SGP *sgp, *sge;
+  double e [6];
   int j, ncpu;
   BODY *bod;
   MAP *jtem;
-  double *e;
   BOX *box;
   DOM *dom;
 
@@ -207,7 +206,7 @@ static void detach_and_attach (AABB *aabb, void *data, BOX_Overlap_Release relea
   /* test existing boxes for overlap with this partition */
   for (box = aabb->lst; box; box = box->next)
   {
-    e = box->extents;
+    COPY6 (box->extents, e);
 
     ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
@@ -217,6 +216,11 @@ static void detach_and_attach (AABB *aabb, void *data, BOX_Overlap_Release relea
     }
 
     if (j == numprocs) SET_Insert (&aabb->setmem, &delbox, box, NULL); /* schedule for deletion */
+    else
+    {
+      SET_Free (&aabb->setmem, &box->ranks);
+      for (j = 0; j < numprocs; j ++) SET_Insert (&aabb->setmem, &box->ranks, (void*) (long) procs [j], NULL); /* refresh box ranks */
+    }
   }
 
   /* attach parents */
@@ -242,6 +246,8 @@ static void detach_and_attach (AABB *aabb, void *data, BOX_Overlap_Release relea
 	  box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, update);
 
 	  COPY6 (e, box->extents);
+
+	  for (j = 0; j < numprocs; j ++) SET_Insert (&aabb->setmem, &box->ranks, (void*) (long) procs [j], NULL); /* set box ranks */
 	}
       }
     }
@@ -270,6 +276,8 @@ static void detach_and_attach (AABB *aabb, void *data, BOX_Overlap_Release relea
 	  box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, update);
 
 	  COPY6 (e, box->extents);
+
+	  for (j = 0; j < numprocs; j ++) SET_Insert (&aabb->setmem, &box->ranks, (void*) (long) procs [j], NULL); /* set box ranks */
 	}
       }
     }
@@ -371,6 +379,8 @@ void AABB_Delete (AABB *aabb, BOX *box)
   if (box == NULL) return; /* possible for a body whose box has migrated away */
 
   box->sgp->box = NULL; /* invalidate pointer */
+
+  SET_Free (&aabb->setmem, &box->ranks); /* free ranks set */
 #endif
 
   MAP *item;
@@ -425,7 +435,11 @@ void AABB_Delete_Body (AABB *aabb, BODY *body)
 /* update state => detect created and released overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release)
 {
+#if MPI
+  struct auxdata aux = {aabb->dom->rank, aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
+#else
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
+#endif
   SET *del, *jtem;
   BOX *box, *adj;
   MAP *item;

@@ -471,6 +471,151 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   return gs;
 }
 
+#if MPI
+/* run parallel solver */
+void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
+{
+  double error, step, errup, errlo, errloc [2], errsum [2], *R, *REXT;
+  int verbose, diagiters, outer;
+  short dynamic;
+  char fmt [512];
+  int div = 10;
+  DIAB *end;
+  MAP *item;
+  DOM *dom;
+  CON *con;
+
+  dom = ldy->dom;
+  verbose = dom->verbose;
+  dynamic = dom->dynamic;
+  step = dom->step;
+
+  if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+
+  if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+
+  if (gs->reverse && ldy->dia) for (end = ldy->dia; end->n; end = end->n); /* find last block for the backward run */
+  else end = NULL;
+
+  ERRMEM (REXT = malloc (sizeof (double [3]) * MAP_Size (dom->conext)));
+
+  gs->error = GS_OK;
+  gs->iters = 0;
+  for (outer = 0; outer < 3; outer ++)
+  {
+    do
+    {
+      OFFB *blk;
+      DIAB *dia;
+     
+      errup = 0.0, errlo = 0.0;
+
+      for (dia = end && gs->iters % 2 ? end : ldy->dia; dia; dia = end && gs->iters % 2 ? dia->p : dia->n) /* run forward and backward alternately */
+      {
+	double R0 [3],
+	       B [3],
+	       *R = dia->R;
+
+	/* compute local free velocity */
+	COPY (dia->B, B);
+	for (blk = dia->adj; blk; blk = blk->n)
+	{
+	  double *W = blk->W,
+		 *R = blk->dia->R;
+	  NVADDMUL (B, W, R, B);
+	}
+	for (blk = dia->adjext; blk; blk = blk->n)
+	{
+	  con = (CON*) blk->dia;
+	  double *W = blk->W,
+		 *R = con->R;
+	  NVADDMUL (B, W, R, B);
+	}
+	
+	COPY (R, R0); /* previous reaction */
+
+	/* solve local diagonal block problem */
+	CON *con = dia->con;
+	diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+		   dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+
+	if (diagiters > gs->diagmaxiter || diagiters < 0)
+	{
+	  if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
+	  else gs->error = GS_DIAGONAL_DIVERGED;
+
+	  switch (gs->failure)
+	  {
+	  case GS_FAILURE_CONTINUE:
+	    COPY (R0, R); /* use previous reaction */
+	    break;
+	  case GS_FAILURE_EXIT:
+	    THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
+	    break;
+	  case GS_FAILURE_CALLBACK:
+	    gs->callback (gs->data);
+	    break;
+	  }
+	}
+
+	/* accumulate relative
+	 * error components */
+	SUB (R, R0, R0);
+	errup += DOT (R0, R0);
+	errlo += DOT (R, R);
+      }
+
+      /* calculate relative error */
+      error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+      if (gs->history) gs->rerhist [gs->iters] = error;
+      if (dom->rank == 0 && verbose && gs->iters % div == 0) printf (fmt, gs->iters, error), div *= 2;
+    }
+    while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+
+    for (R = REXT, item = MAP_First (dom->conext); item; R += 3, item = MAP_Next (item))
+    {
+      con = item->data;
+      COPY (con->R, R);
+    }
+
+    DOM_Update_External_Reactions (dom, 0);
+
+    for (R = REXT, item = MAP_First (dom->conext); item; R += 3, item = MAP_Next (item))
+    {
+      con = item->data;
+      SUB (con->R, R, R);
+      errup += DOT (R, R);
+      errlo += DOT (con->R, con->R);
+    }
+
+    errloc [0] = errup, errloc [1] = errlo;
+    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    errup = errsum [0], errlo = errsum [1];
+    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+
+    if (dom->rank == 0) printf ("OUTER error = %e\n", error);
+  }
+
+  if (dom->rank == 0 && verbose) printf (fmt, gs->iters, error);
+
+  if (gs->iters >= gs->maxiter)
+  {
+    gs->error = GS_DIVERGED;
+
+    switch (gs->failure)
+    {
+    case GS_FAILURE_CONTINUE:
+      break;
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIVERGED);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      break;
+    }
+  }
+}
+#else
 /* run serial solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
@@ -478,9 +623,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   double error, step;
   short dynamic;
   char fmt [512];
-#if !MPI
   int div = 10;
-#endif
   DIAB *end;
 
   verbose = ldy->dom->verbose;
@@ -554,16 +697,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
     if (gs->history) gs->rerhist [gs->iters] = error;
-
-#if !MPI
     if (gs->iters % div == 0 && verbose) printf (fmt, gs->iters, error), div *= 2;
-#endif
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
-#if !MPI
   if (verbose) printf (fmt, gs->iters, error);
-#endif
 
   if (gs->iters >= gs->maxiter)
   {
@@ -582,6 +720,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
   }
 }
+#endif
 
 /* return faulure string */
 char* GAUSS_SEIDEL_Failure (GAUSS_SEIDEL *gs)
@@ -696,5 +835,3 @@ int DIAGONAL_BLOCK_Solver (GSDIAS diagsolver, double diagepsilon, int diagmaxite
 
   return 0;
 }
-
-
