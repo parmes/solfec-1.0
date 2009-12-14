@@ -471,7 +471,7 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   return gs;
 }
 
-#if MPI
+#if 0
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
@@ -568,6 +568,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
 
     DOM_Update_External_Reactions (dom, 0);
+
+    errup = errlo = 0;
 
     for (R = REXT, item = MAP_First (dom->conext); item; R += 3, item = MAP_Next (item))
     {

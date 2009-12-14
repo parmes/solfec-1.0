@@ -7,7 +7,7 @@ from math import sqrt
 # some parameters
 N_BRICKS = 4
 M_BRICKS = 4
-N_LAYERS = 4
+N_LAYERS = 1
 
 # some constants
 PI = 3.14159265358979323846 
@@ -389,7 +389,7 @@ step = 1E-3
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/core2')
 
-surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
+surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0)
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
 
@@ -399,13 +399,13 @@ GRAVITY (solfec, (0, 0, -1), 10)
 
 gcore_create (0.0003, 0.0002,  0,  0,  0, bulkmat, solfec)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 100, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
 OUTPUT (solfec, 0.0)
 
 IMBALANCE_TOLERANCE (solfec, 1.0);
 
-RUN (solfec, gs, 5 * step)
+RUN (solfec, gs, 3 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 
