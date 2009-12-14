@@ -76,17 +76,8 @@ static int gobjcmp (OPR *a, OPR *b)
   else return cmp;
 }
 
-/* check for a lack of overlap */
-static int no_overlap (double *a, double *b)
-{
-  if (a[0] > b[3] || b[0] > a[3]) return 1;
-  if (a[1] > b[4] || b[1] > a[4]) return 1;
-  if (a[2] > b[5] || b[2] > a[5]) return 1;
-  return 0;
-}
-
 /* local overlap creation callback => filters our unwnated adjacency */
-static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
+static void local_create (struct auxdata *aux, BOX *one, BOX *two)
 {
   BODY *onebod = one->body, *twobod = two->body;
 
@@ -101,17 +92,14 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
     ASSERT_DEBUG (item && jtem, "Inconsistent lowest rank search for a box pair");
   }
 
-  if (aux->rank > (int) (long) item->data) return NULL; /* filter out overlaps from oter than the lowest common rank of two boxes */
+  if (aux->rank > (int) (long) item->data) return; /* filter out overlaps from oter than the lowest common rank of two boxes */
 #endif
 
   /* check if these are two obstacles => no need to report overlap */
-  if (onebod->kind == OBS && twobod->kind == OBS) return NULL;
-
-  /* boxes already adjacent ? */
-  if (MAP_Find (one->adj, two, NULL)) return NULL;
+  if (onebod->kind == OBS && twobod->kind == OBS) return;
 
   /* self-contact ? <=> one->body == two->body */
-  if (onebod == twobod && !(onebod->flags & BODY_DETECT_SELF_CONTACT)) return NULL;
+  if (onebod == twobod && !(onebod->flags & BODY_DETECT_SELF_CONTACT)) return;
 
   int id1 = onebod->id,
       id2 = twobod->id,
@@ -121,10 +109,10 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
   OPR pair = {MIN (id1, id2), MAX (id1, id2), MIN (no1, no2), MAX (no1, no2)};
 
   /* an excluded body pair ? */
-  if (SET_Contains (aux->nobody, &pair, (SET_Compare) bodcmp)) return NULL;
+  if (SET_Contains (aux->nobody, &pair, (SET_Compare) bodcmp)) return;
 
   /* an excluded object pair ? */
-  if (SET_Contains (aux->nogobj, &pair, (SET_Compare) gobjcmp)) return NULL;
+  if (SET_Contains (aux->nogobj, &pair, (SET_Compare) gobjcmp)) return;
 
   /* test topological adjacency */
   switch (GOBJ_Pair_Code (one, two))
@@ -134,36 +122,24 @@ static void* local_create (struct auxdata *aux, BOX *one, BOX *two)
       if (onebod == twobod) /* assuming only one mesh per body is possible,
 			       the two elements are within the same mesh;
 			       exclude topologically adjacent elements */
-	if (ELEMENT_Adjacent (one->sgp->gobj, two->sgp->gobj)) return NULL;
+	if (ELEMENT_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
     }
     break;
     case AABB_CONVEX_CONVEX:
     {
       if (onebod == twobod) /* exclude topologically adjacent convices */
-	if (CONVEX_Adjacent (one->sgp->gobj, two->sgp->gobj)) return NULL;
+	if (CONVEX_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
     }
     break;
     case AABB_SPHERE_SPHERE:
     {
       if (onebod == twobod) /* exclude topologically adjacent spheres */
-	if (SPHERE_Adjacent (one->sgp->gobj, two->sgp->gobj)) return NULL;
+	if (SPHERE_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
     }
   }
  
-  /* report overlap creation and get the user pointer */
-  void *user = aux->create (aux->data, one, two);
-
-  if (user) /* if the user pointer is NULL keep re-detecting the overlap */
-  {
-    MAP_Insert (aux->mapmem, &one->adj, two, user, NULL); /* map overlap symmetrically */
-    MAP_Insert (aux->mapmem, &two->adj, one, user, NULL);
-    /* one might think that only one adjacency (say box with bigger pointer
-     * stores box with smaller pointer) could be used. nevertheless, for box
-     * removal one needs to release all overlaps, and then the complete adjacency
-     * informaltion is necessary; thus the symmetrical mapping */
-  }
-
-  return user;
+  /* report overlap creation */
+  aux->create (aux->data, one, two);
 }
 
 /* get geometrical object kind */
@@ -183,21 +159,19 @@ static int gobj_kind (SGP *sgp)
 
 #if MPI
 /* detach boxes from outside of the domain and attach new incoming boxes */
-static void detach_and_attach (AABB *aabb, void *data, BOX_Overlap_Release release)
+static void detach_and_attach (AABB *aabb)
 {
-  SET *delcon, *delbox, *item;
   int *procs, numprocs, rank;
   BOX_Extents_Update update;
+  SET *delbox, *item;
   SGP *sgp, *sge;
   double e [6];
   int j, ncpu;
   BODY *bod;
-  MAP *jtem;
   BOX *box;
   DOM *dom;
 
   delbox = NULL;
-  delcon = NULL;
   dom = aabb->dom;
   rank = dom->rank;
   ncpu = dom->ncpu;
@@ -286,23 +260,11 @@ static void detach_and_attach (AABB *aabb, void *data, BOX_Overlap_Release relea
   /* delete exported boxes */
   for (item = SET_First (delbox); item; item = SET_Next (item))
   {
-    box = item->data;
-
-    for (jtem = MAP_First (box->adj); jtem; jtem = MAP_Next (jtem))
-      SET_Insert (&aabb->setmem, &delcon, jtem->data, NULL); /* gather contacts to be released */
-
-    AABB_Delete (aabb, box); /* delete box */
-  }
-
-  /* release abandoned contacts */
-  for (item = SET_First (delcon); item; item = SET_Next (item))
-  {
-    release (data, item->data);
+    AABB_Delete (aabb, item->data);
   }
 
   /* clean */
   SET_Free (&aabb->setmem, &delbox);
-  SET_Free (&aabb->setmem, &delcon);
   free (procs);
 }
 #endif
@@ -383,18 +345,6 @@ void AABB_Delete (AABB *aabb, BOX *box)
   SET_Free (&aabb->setmem, &box->ranks); /* free ranks set */
 #endif
 
-  MAP *item;
-  BOX *adj;
-
-  for (item = MAP_First (box->adj); item; item = MAP_Next (item)) /* for each adjacent box */
-  {
-    adj = item->key;
-    MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
-  }
-
-  /* free adjacency */
-  MAP_Free (&aabb->mapmem, &box->adj);
-
   /* remove from list */
   if (box->prev) box->prev->next = box->next;
   else aabb->lst = box->next;
@@ -433,16 +383,14 @@ void AABB_Delete_Body (AABB *aabb, BODY *body)
 }
 
 /* update state => detect created and released overlaps */
-void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release)
+void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
 {
 #if MPI
   struct auxdata aux = {aabb->dom->rank, aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
 #else
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
 #endif
-  SET *del, *jtem;
-  BOX *box, *adj;
-  MAP *item;
+  BOX *box;
 
 #if MPI
   if (aabb->dom->rank == 0)
@@ -454,25 +402,8 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create,
   for (box = aabb->lst; box; box = box->next) box->update (box->sgp->shp->data, box->sgp->gobj, box->extents); /* update box extents */
 
 #if MPI
-  detach_and_attach (aabb, data, release); /* detach boxes from outside of the domain and attach new incoming boxes */
+  detach_and_attach (aabb); /* detach boxes from outside of the domain and attach new incoming boxes */
 #endif
-
-  for (box = aabb->lst; box; box = box->next) /* for each current box */
-  {
-    for (del = NULL, item = MAP_First (box->adj); item; item = MAP_Next (item)) /* for each adjacent box */
-    {
-      adj = item->key;
-      if (no_overlap (box->extents, adj->extents))
-      {
-	release (data, item->data); /* release overlap */
-	MAP_Delete (&aabb->mapmem, &adj->adj, box, NULL); /* remove 'box' from 'adj's adjacency */
-	SET_Insert (&aabb->setmem, &del, adj, NULL); /* gather adjacent boxes to be released */
-      }
-    }
-
-    for (jtem = SET_First (del); jtem; jtem = SET_Next (jtem))
-      MAP_Delete (&aabb->mapmem, &box->adj, jtem->data, NULL); /* release symmetric overlaps */
-  }
 
   if (aabb->modified) /* merge insertion and curent lists, update pointer table */
   {
@@ -560,14 +491,6 @@ void AABB_Exclude_Gobj_Pair (AABB *aabb, unsigned int bod1, int sgp1, unsigned i
   opr->sgp1 = MIN (sgp1, sgp2);
   opr->sgp2 = MAX (sgp1, sgp2);
   SET_Insert (&aabb->setmem, &aabb->nogobj, opr, (SET_Compare) gobjcmp);
-}
-
-/* break box adjacency if boxes associated with the objects are adjacent */
-void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two)
-{
-  /* mutually delete from adjacency lists */
-  MAP_Delete (&aabb->mapmem, &one->adj, two, NULL);
-  MAP_Delete (&aabb->mapmem, &two->adj, one, NULL);
 }
 
 /* release memory */

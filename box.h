@@ -67,9 +67,8 @@ typedef struct objpair OPR; /* pointer pair used for exclusion tests */
 typedef struct aabb AABB; /* overlap detection driver data */
 typedef enum gobj GOBJ; /* kind of geometrical object */
 typedef enum boxalg BOXALG; /* type of overlap detection algorithm */
-typedef void* (*BOX_Overlap_Create)  (void *data, BOX *one, BOX *two); /* created overlap callback => returns a user pointer */
-typedef void  (*BOX_Overlap_Release) (void *data, void *user); /* released overlap callback => uses the user pointer */
-typedef void  (*BOX_Extents_Update)  (void *data, void *gobj, double *extents); /* extents update callback */
+typedef void (*BOX_Overlap_Create)  (void *data, BOX *one, BOX *two); /* created overlap callback => returns a user pointer */
+typedef void (*BOX_Extents_Update)  (void *data, void *gobj, double *extents); /* extents update callback */
 
 #ifndef BOX_TYPE
 #define BOX_TYPE
@@ -99,8 +98,6 @@ struct box
   BODY *body; /* owner of the shape */
 
   void *mark; /* auxiliary marker used by hashing algorithms */
-
-  MAP *adj; /* map of adjacent boxes to user pointers returned by the overlap create callback */
 
 #if MPI
   SET *ranks; /* ranks where this box overalps */
@@ -179,17 +176,13 @@ void AABB_Insert_Body (AABB *aabb, BODY *body);
 void AABB_Delete_Body (AABB *aabb, BODY *body);
 
 /* update state => detect created and released overlaps */
-void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create, BOX_Overlap_Release release);
+void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create);
 
 /* never report overlaps betweem this pair of bodies (given by identifiers) */
 void AABB_Exclude_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2);
 
 /* never report overlaps betweem this pair of objects (bod1, sgp1), (bod1, sgp2) */
 void AABB_Exclude_Gobj_Pair (AABB *aabb, unsigned int bod1, int sgp1, unsigned int bod2, int sgp2);
-
-/* break box adjacency if boxes associated with the objects are adjacent
- * (this will cose re-detection of the overlap during the next update) */
-void AABB_Break_Adjacency (AABB *aabb, BOX *one, BOX *two);
 
 /* release memory */
 void AABB_Destroy (AABB *aabb);

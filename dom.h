@@ -51,7 +51,7 @@ typedef struct constraint CON;
 typedef struct domain DOM;
 #endif
 
-#define DOM_Z_SIZE          4      /* size of auxiliary storage in dom.h/constraint */
+#define DOM_Z_SIZE          4      /* size of auxiliary storage */
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
@@ -188,19 +188,13 @@ struct domain
 
   SET *children; /* current children */
 
-  SET *delcon; /* set of constraints to be deleted after parent migration */
-
   struct Zoltan_Struct *zol; /* load balancing */
 
   double imbalance_tolerance; /* imbalance threshold */
 
   unsigned int noid; /* constraint id generation ommition flag */
 
-  unsigned char breakadj; /* AABB_Break_Adjacency execution flag */
-
   MAP *conext; /* id based map of external constraints */
-
-  int prevconextnum; /* previous number of external contacts */
 
   COMOBJ *conextsend; /* vector of sets of boundary contacts used for remote value updates */
 
