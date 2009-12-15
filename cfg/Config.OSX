@@ -4,15 +4,21 @@
 
 CC = cc
 
+#
+# Specify FORTRAN compiller here
+#
+
+FF = g95
+
 # 
 # Debug or optimized version switch (yes/no)
 #
 
 DEBUG = yes
 PROFILE = no
-MEMDEBUG = no
+MEMDEBUG = yes
 GEOMDEBUG = no
-NOTHROW = yes
+NOTHROW = no
 
 #
 # POSIX
@@ -53,7 +59,6 @@ GLLIB = -framework GLUT -framework OpenGL
 #
 
 MPI = yes
-MPITHREADS = no
-MPILIB = -L/opt/openmpi/lib -lpthread # paths to MPI libs and pthreads library (used when MPITHREADS == yes)
+MPICC = mpicc
 ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
 ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan

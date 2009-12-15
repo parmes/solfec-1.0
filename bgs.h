@@ -45,18 +45,6 @@ enum gsonoff
   GS_ON
 };
 
-enum gsvariant
-{
-  GS_MID_LOOP, /* colored rank loop over mid nodes */
-  GS_MID_THREAD, /* execute the loop in a thread */
-  GS_MID_TO_ALL, /* migrate mid nodes to all ranks */
-  GS_MID_TO_ONE, /* migrate mid nodes to just one processor */
-  GS_NOB_MID_LOOP, /* non-blocking versions of the above */
-  GS_NOB_MID_THREAD,
-  GS_NOB_MID_TO_ALL,
-  GS_NOB_MID_TO_ONE
-};
-
 typedef enum gserror GSERROR;
 typedef enum gsdias GSDIAS;
 typedef enum gsfail GSFAIL;

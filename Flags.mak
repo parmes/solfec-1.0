@@ -46,11 +46,6 @@ else
 endif
 
 ifeq ($(MPI),yes)
-  ifeq ($(MPITHREADS),yes)
-    MPIFLG = -DMPI -DMPITHREADS $(ZOLTANINC)
-  else
-    MPIFLG = -DMPI $(ZOLTANINC)
-    MPILIB =
-  endif
+  MPIFLG = -DMPI $(ZOLTANINC)
   MPILIBS = $(ZOLTANLIB)
 endif

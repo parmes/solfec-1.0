@@ -60,6 +60,7 @@ OBJ =   $(EXTO)   \
 	obj/bgs.o \
 	obj/exs.o \
 	obj/dom.o \
+	obj/dio.o \
 	obj/lng.o \
 	obj/sol.o \
 	obj/fem.o \
@@ -75,6 +76,7 @@ OBJMPI = $(EXTO)       \
 	 obj/bgs-mpi.o \
 	 obj/exs-mpi.o \
 	 obj/dom-mpi.o \
+	 obj/dio-mpi.o \
 	 obj/lng-mpi.o \
 	 obj/com-mpi.o \
 	 obj/sol-mpi.o \
@@ -94,7 +96,7 @@ all: solfec mpi
 mpi: solfec-mpi
 
 solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a
-	$(MPICC) $(MPILIB) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
+	$(MPICC) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
@@ -209,7 +211,10 @@ obj/shp.o: shp.c shp.h cvx.h msh.h sph.h err.h mot.h
 obj/bod.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h but.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/dom.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
+obj/dom.o: dom.c dom.h dio.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/dio.o: dio.c dio.h dom.h cmp.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/ldy.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h mtx.h
@@ -272,7 +277,10 @@ obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h
 obj/bod-mpi.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h but.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/dom-mpi.o: dom.c dom.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
+obj/dom-mpi.o: dom.c dom.h dio.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/dio-mpi.o: dio.c dio.h dom.h cmp.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/ldy-mpi.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h
