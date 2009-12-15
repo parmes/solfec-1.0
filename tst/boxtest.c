@@ -60,6 +60,8 @@ struct testbox
 
   SGP *sgp;
 
+  MAP *adj;
+
   TESTBOX *p, *n; /* list links */
 };
 
@@ -153,15 +155,16 @@ static void box_extents_update (void *data, TESTBOX *box, double *extents)
   ADD (extents+3, epsilon, extents+3);
 }
 
-static void* box_overlap_create (void *data, BOX *one, BOX *two)
+static void box_overlap_create (void *data, BOX *one, BOX *two)
 {
-  noverlaps ++;
-  return one; /* return a valid pointer */
-}
+  TESTBOX *o = one->sgp->gobj,
+	  *t = two->sgp->gobj;
 
-static void box_overlap_release (void *data, void *user) 
-{
-  noverlaps --;
+  if (MAP_Insert (&aabb->mapmem, &o->adj, t, NULL, NULL))
+  {
+    MAP_Insert (&aabb->mapmem, &t->adj, t, NULL, NULL);
+    noverlaps ++;
+  }
 }
 
 /* assign a random coordinate within the
@@ -222,6 +225,7 @@ static void generate_box_set (int howmany, short arrange)
       random_coord (box [i].coord);
       random_velo (box [i].velo);
 
+      box [i].adj = NULL;
       sgp [i].gobj = &box [i];
       sgp [i].shp = &shape;
       box [i].sgp = &sgp [i];
@@ -249,6 +253,7 @@ static void generate_box_set (int howmany, short arrange)
 	box [i].coord [5] = z + step;
         random_velo (box [i].velo);
 
+        box [i].adj = NULL;
         sgp [i].gobj = &box [i];
         sgp [i].shp = &shape;
         box [i].sgp = &sgp [i];
@@ -288,13 +293,12 @@ static void box_motion_step ()
   /* update velocities in order to avoid collisions */
   for (obj = aabb->lst; obj; obj = obj->next)
   {
-    for (item = MAP_First (obj->adj); item; item = MAP_Next (item))
+    r = obj->sgp->gobj;
+    for (item = MAP_First (r->adj); item; item = MAP_Next (item))
     {
-      obi = item->key;
+      p = item->key; 
       if (obi < obj)
       {
-	p = obi->sgp->gobj;
-	r = obj->sgp->gobj;
 	MID (p->coord, p->coord + 3, pmid);
 	MID (r->coord, r->coord + 3, rmid);
 	SUB (rmid, pmid, dir); NORMALIZE (dir);
@@ -404,10 +408,31 @@ static void single_computational_step ()
     }	
   }
 
+  /* test for released overlaps */
+  for (obj = aabb->lst; obj; obj = obj->next)
+  {
+    p = obj->sgp->gobj;
+    for (MAP *item = MAP_First (p->adj); item; )
+    {
+      TESTBOX *r = item->key;
+      int i;
+
+      for (i = 0; i < 3; i ++)
+      {
+	if (p->coord [i] > r->coord [i+3] || p->coord [i+3] < r->coord [i]) break;
+      }
+
+      if (i < 3)
+      {
+	MAP_Delete (&aabb->mapmem, &r->adj, p, NULL);
+	item = MAP_Delete_Node (&aabb->mapmem, &p->adj, item);
+      }
+      else item = MAP_Next (item);
+    }
+  }
+
   /* update box overlaps */
-  AABB_Update (aabb, algorithm, NULL,
-    (BOX_Overlap_Create)box_overlap_create,
-    (BOX_Overlap_Release)box_overlap_release);
+  AABB_Update (aabb, algorithm, NULL, (BOX_Overlap_Create)box_overlap_create);
 
   /* iterate frame */
   frame ++;
@@ -498,7 +523,7 @@ static void view_render3d (void)
 {
   double m1 [3], m2 [3], *ext;
   GLfloat color [3];
-  TESTBOX *p;
+  TESTBOX *p, *r;
   BOX *u, *v;
   MAP *item;
   int n;
@@ -548,9 +573,11 @@ static void view_render3d (void)
     glColor3d (1., 0., 0.);
     for (u = aabb->lst; u; u = u->next)
     {
-      for (item = MAP_First (u->adj); item; item = MAP_Next (item))
+      p = u->sgp->gobj;
+      for (item = MAP_First (p->adj); item; item = MAP_Next (item))
       {
-	v = item->key;
+	r = item->key;
+	v = r->box;
 	if (u < v)
 	{
 	  ext = u->extents;
@@ -627,11 +654,11 @@ static void view_key_spec (int key, int x, int y)
 {
   switch (key)
   {
-    case GLUT_KEY_F1:
+    case GLUT_KEY_LEFT:
       curarr = BRAND;
       generate_box_set (boxsize, BRAND);
     break;
-    case GLUT_KEY_F2:
+    case GLUT_KEY_RIGHT:
       curarr = BADJ;
       generate_box_set (boxsize, BADJ);
     break;
@@ -652,9 +679,7 @@ static int view_idle (void)
   else
   {
     /* update box overlaps only */
-    AABB_Update (aabb, algorithm, NULL,
-      (BOX_Overlap_Create)box_overlap_create,
-      (BOX_Overlap_Release)box_overlap_release);
+    AABB_Update (aabb, algorithm, NULL, (BOX_Overlap_Create)box_overlap_create);
   }
 
   return 1;
@@ -685,8 +710,8 @@ int main (int argc, char **argv)
   printf ("o - overlaps graph drawing on/off\n");
   printf ("SPACE - time stepping on/off\n");
   printf ("UP or DOWN - number of boxes *2 or /2\n");
-  printf ("F1 - random set generation\n");
-  printf ("F2 - adjacent set generation\n");
+  printf ("LEFT - random set generation\n");
+  printf ("RIGHT - adjacent set generation\n");
 
   /* start viewer */
   GLV (&argc, argv, "BOXES test", 400, 400, vextents, NULL,

@@ -132,6 +132,22 @@ static CON* read_constraint (DOM *dom, PBF *bf)
   return con;
 }
 
+/* attach constraints to bodies after reading */
+static void dom_attach_constraints (DOM *dom)
+{
+  BODY *bod;
+  CON *con;
+
+  for (bod = dom->bod; bod; bod = bod->next) SET_Free (&dom->setmem, &bod->con);
+
+  for (con = dom->con; con; con = con->next)
+  {
+    if (con->master) SET_Insert (&dom->setmem, &con->master->con, con, NULL);
+
+    if (con->slave) SET_Insert (&dom->setmem, &con->slave->con, con, NULL);
+  }
+}
+
 /* write compressed domain state */
 void dom_write_state_compressed (DOM *dom, PBF *bf, CMP_ALG alg)
 {
@@ -356,6 +372,8 @@ void dom_read_state_compressed (DOM *dom, PBF *bf)
       free (i);
     }
   }
+
+  dom_attach_constraints (dom); /* attach constraints to bodies */
 }
 
 /* read compressed state of an individual body */
@@ -716,6 +734,8 @@ void dom_read_state (DOM *dom, PBF *bf)
       }
     }
   }
+
+  dom_attach_constraints (dom); /* attach constraints to bodies */
 }
 
 /* read uncompressed state of an individual body */
@@ -804,18 +824,3 @@ int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
   return 0;
 }
 
-/* attach constraints to bodies after reading */
-void dom_attach_constraints (DOM *dom)
-{
-  BODY *bod;
-  CON *con;
-
-  for (bod = dom->bod; bod; bod = bod->next) SET_Free (&dom->setmem, &bod->con);
-
-  for (con = dom->con; con; con = con->next)
-  {
-    if (con->master) SET_Insert (&dom->setmem, &con->master->con, con, NULL);
-
-    if (con->slave) SET_Insert (&dom->setmem, &con->slave->con, con, NULL);
-  }
-}

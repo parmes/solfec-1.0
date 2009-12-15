@@ -105,8 +105,8 @@ struct constraint
 #define sshp(con) ((con)->ssgp->shp)
 #define mgobj(con) ((con)->msgp->gobj)
 #define sgobj(con) ((con)->ssgp->gobj)
-#define mkind(con) ((BOX*)(con)->msgp->box)->kind
-#define skind(con) ((BOX*)(con)->ssgp->box)->kind
+#define mkind(con) GOBJ_Kind ((con)->msgp)
+#define skind(con) GOBJ_Kind ((con)->ssgp)
 
 #if MPI
 typedef struct domstats DOMSTATS;
