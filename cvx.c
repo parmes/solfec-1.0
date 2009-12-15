@@ -373,7 +373,7 @@ static int facsize (CONVEX *cvx)
 }
 
 /* overlap callback for convex adjacency */
-static void* overlap (void *data, BOX *one, BOX *two)
+static void overlap (void *data, BOX *one, BOX *two)
 {
   double p [3], q [3];
   CONVEX *cvx = (CONVEX*)one->sgp,
@@ -386,8 +386,6 @@ static void* overlap (void *data, BOX *one, BOX *two)
     ERRMEM (cvy->adj = realloc (cvy->adj, (++cvy->nadj) * sizeof (BOX*))); 
     cvy->adj [cvy->nadj-1] = cvx;
   }
-
-  return NULL;
 }
 
 /* add new convex to the 'cvx' list and return the appended list */

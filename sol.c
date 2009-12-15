@@ -34,9 +34,13 @@
 #include "err.h"
 #include "tmr.h"
 
-/* ------------------------------------- */
-#define IOVER 1 /* input-output version */
-/* ----------------------------------- */
+/* ============================= INPUT-OUTPUT VERSIOB ============================ */
+/* === Version increments require precise records of causes and affected files === */
+/* =============================================================================== */
+/* 1                         an initial input-output version (dio.c, sol.c, bod.c) */
+/* =============================================================================== */
+#define IOVER 1                                                 /* current version */
+/* =============================================================================== */
 
 /* defulat initial amoung of boxes */
 #define DEFSIZE 1024

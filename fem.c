@@ -1689,7 +1689,7 @@ static void post_process_intersections (double shape_volume, MESH *msh)
 
 /* element and convex bounding boxe intersection callback; compute
  * their volumetric intersection to be later used for integration */
-static void* overlap (void *data, BOX *one, BOX *two)
+static void overlap (void *data, BOX *one, BOX *two)
 {
   double vertices [24], planes [36], *pla;
   ELEMENT *ele;
@@ -1737,7 +1737,7 @@ static void* overlap (void *data, BOX *one, BOX *two)
       if (cvx->ele [n] == ele)
       {
 	free (tri);
-	return NULL;
+	return;
       }
     }
 #endif
@@ -1748,8 +1748,6 @@ static void* overlap (void *data, BOX *one, BOX *two)
     ele->dom [ele->domnum-1].tri = tri;
     ele->dom [ele->domnum-1].m = m;
   }
-
-  return NULL;
 }
 
 /* create FEM internals for a body */

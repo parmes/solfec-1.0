@@ -59,7 +59,6 @@ char* errstring (int error)
     case ERR_DOM_DEPTH: return "Unphysical interpenetration has occurred";
     case ERR_DOM_TOO_MANY_BODIES: return "Too many bodies";
     case ERR_DOM_TOO_MANY_CONSTRAINTS: return "Too many constraints";
-    case ERR_MPI_THREAD_MULTIPLE: return "MPI does not support MPI_THREAD_MULTIPLE";
     case ERR_ZOLTAN_INIT: return "Zoltan initialization failed";
     case ERR_ZOLTAN: return "Zoltan call failed";
     case ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED: return "GAUSS_SEIDEL_SOLVER failed with error code DIAGONAL_DIVERGED";

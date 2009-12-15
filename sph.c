@@ -43,7 +43,7 @@ inline static int point_inside (double *center, double radius, double *point)
 }
 
 /* overlap callback for convex adjacency */
-static void* overlap (void *data, BOX *one, BOX *two)
+static void overlap (void *data, BOX *one, BOX *two)
 {
   double p [3], q [3];
   SPHERE *sph = (SPHERE*)one->sgp,
@@ -56,10 +56,7 @@ static void* overlap (void *data, BOX *one, BOX *two)
     ERRMEM (spg->adj = realloc (spg->adj, (++spg->nadj) * sizeof (BOX*))); 
     spg->adj [spg->nadj-1] = sph;
   }
-
-  return NULL;
 }
-
 
 /* create a sphere (sph == NULL) or append spheres list with another sphere */
 SPHERE* SPHERE_Create (SPHERE *sph, double *center, double radius, int surface, int volume)
