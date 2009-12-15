@@ -44,14 +44,14 @@
 #define CONBLK 128 /* constraints memory block size */
 #define MAPBLK 128 /* map items memory block size */
 #define SETBLK 128 /* set items memory block size */
-#define SIZE (HASH3D+1) /* aabb timing tables size */
+#define AABB_SIZE (HASH3D+1) /* aabb timing tables size */
 
 typedef struct private_data DATA;
 
 struct private_data
 {
-  double aabb_timings [SIZE],
-	 aabb_limits [SIZE+1];
+  double aabb_timings [AABB_SIZE],
+	 aabb_limits [AABB_SIZE+1];
 
   int aabb_counter;
 
@@ -66,7 +66,7 @@ static DATA* data_create (void)
 
   ERRMEM (data = malloc (sizeof (DATA)));
 
-  part = 1.0 / (double) SIZE;
+  part = 1.0 / (double) AABB_SIZE;
   data->aabb_limits [0] = 0.0;
   data->aabb_counter = 0;
   data->aabb_algo = 0;
@@ -78,6 +78,52 @@ static DATA* data_create (void)
 static void data_destroy (DATA *data)
 {
   free (data);
+}
+
+/* fastest box overlap algorithm */
+static BOXALG aabb_algorithm (DOM *dom)
+{
+#if 0
+  DATA *data = dom->data;
+  double num, *tim, *lim;
+  int i;
+
+  if (data->aabb_counter < AABB_SIZE)
+  {
+    data->aabb_algo = data->aabb_counter ++; /* at first test all algorithms */
+  }
+  else /* when all have been tested */
+  {
+    tim = data->aabb_timings;
+    lim = data->aabb_limits;
+
+    for (i = 0; i < AABB_SIZE; i ++) lim [i+1] = lim [i] + tim [i]; /* sum up */
+    for (i = 1; i <= AABB_SIZE; i ++) lim [i] /= lim [AABB_SIZE]; /* normalize */
+
+    num = DRAND(); /* random in [0, 1] */
+
+    for (i = 0; i < AABB_SIZE; i ++)
+    {
+      if (num >= lim [i] && num < lim [i+1])
+      {
+	data->aabb_algo = i;
+	return i;
+      }
+    }
+  }
+
+  return data->aabb_algo;
+#else
+  return HYBRID; /* FIXME: all other algorithms need more tesing */
+#endif
+}
+
+/* update timing related data */
+static void aabb_timing (DOM *dom, double timing)
+{
+  DATA *data = dom->data;
+
+  data->aabb_timings [data->aabb_algo] = timing;
 }
 
 /* calculate orthonormal
@@ -110,14 +156,14 @@ static int constraint_compare (CON *one, CON *two)
   BODY *onebod [2], *twobod [2];
   SGP *onesgp [2], *twosgp [2];
 
-  if (one->slave == NULL) /* TODO: perhaps something more elegant here? also - think about the rightness of not migrating single-point constranits */
+  if (one->slave == NULL) /* left one-body constraint */
   {
-    if (two->slave) return -1;
-    else return (one < two ? -1 : (one > two ? 1 : 0));
+    if (two->slave) return -1; /* one-body constraints always smaller then two body ones */
+    else return (one < two ? -1 : (one == two ? 0 : 1)); /* compare them by pointer within them-selves (note that they always migrate with bodies) */
   }
-  else if (two->slave == NULL) return 1;
+  else if (two->slave == NULL) return 1; /* right one-body constraint */
 
-  if (one->master < one->slave)
+  if (one->master < one->slave) /* two-body constraints remain; order pointers before comparing */
   {
     onebod [0] = one->master;
     onesgp [0] = one->msgp;
@@ -147,7 +193,7 @@ static int constraint_compare (CON *one, CON *two)
     twosgp [1] = two->msgp;
   }
 
-  if (onebod [0] < twobod [0]) return -1;
+  if (onebod [0] < twobod [0]) return -1; /* compare lexicographically by body pointers and sgps */
   else if (onebod [0] == twobod [0])
   {
     if (onebod [1] < twobod [1]) return -1;
@@ -170,9 +216,9 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp)
 {
   CON *con;
 
-  /* make sure one of the body pointers was passed, tollerate
-   * one of them to be NULL, as this indicates a single body constraint */
-  ASSERT_DEBUG (master || slave, "At least one body pointer must be passed");
+  /* ensure that master pointers were passed;
+   * tollerate NULL slave pointers, as this indicates a single body constraint */
+  ASSERT_DEBUG (master && msgp, "At least master body pointers must be passed");
 
   ERRMEM (con = MEM_Alloc (&dom->conmem));
   con->master = master;
@@ -180,115 +226,70 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp)
   con->msgp = msgp;
   con->ssgp = ssgp;
 
-  /* add to the body constraint adjacency */
+  /* insert into body constraint adjacency */
   SET_Insert (&dom->setmem, &master->con, con, CONCMP);
   if (slave) SET_Insert (&dom->setmem, &slave->con, con, CONCMP);
  
-  /* add to list */
+  /* insert into list */
   con->next = dom->con;
-  if (dom->con)
-    dom->con->prev = con;
+  if (dom->con) dom->con->prev = con;
   dom->con = con;
   dom->ncon ++;
 
-  /* constraint identifier */
 #if MPI
-  if (dom->noid == 0)
+  if (dom->noid == 0) /* if id generation is enabled */
   {
 #endif
-    if (SET_Size (dom->sparecid))
-    {
-      SET *item;
-     
-      item = SET_First (dom->sparecid);
-      con->id = (unsigned int) (long) item->data; /* use a previously freed id */
-      SET_Delete (&dom->setmem, &dom->sparecid, item->data, NULL);
-    }
-    else
-    {
-      con->id = dom->cid;
+
+  if (SET_Size (dom->sparecid))
+  {
+    SET *item;
+   
+    item = SET_First (dom->sparecid);
+    con->id = (unsigned int) (long) item->data; /* use a previously freed id */
+    SET_Delete (&dom->setmem, &dom->sparecid, item->data, NULL);
+  }
+  else
+  {
+    con->id = dom->cid;
 
 #if MPI
-      ASSERT (((unsigned long long) dom->cid) + ((unsigned long long) dom->ncpu) < UINT_MAX, ERR_DOM_TOO_MANY_CONSTRAINTS);
-      dom->cid += dom->ncpu; /* every ncpu number */
+    ASSERT (((unsigned long long) dom->cid) + ((unsigned long long) dom->ncpu) < UINT_MAX, ERR_DOM_TOO_MANY_CONSTRAINTS);
+    dom->cid += dom->ncpu; /* every ncpu number */
 #else
-      ASSERT (((unsigned long long) dom->cid) + ((unsigned long long) 1) < UINT_MAX, ERR_DOM_TOO_MANY_CONSTRAINTS);
-      con->id = dom->cid ++;
+    ASSERT (((unsigned long long) dom->cid) + ((unsigned long long) 1) < UINT_MAX, ERR_DOM_TOO_MANY_CONSTRAINTS);
+    con->id = dom->cid ++;
 #endif
-    }
+  }
+
 #if MPI
   }
-  else con->id = dom->noid; /* assign the 'noid' as it was imported with a non-contact constraint */
+  else con->id = dom->noid; /* assign the 'noid' as it was imported with a constraint */
 #endif
 
+  /* map by id */
   MAP_Insert (&dom->mapmem, &dom->idc, (void*) (long) con->id, con, NULL);
 
   return con;
 }
 
-/* fastest box overlap algorithm */
-static BOXALG aabb_algorithm (DOM *dom)
-{
-  DATA *data = dom->data;
-#if 0
-  double num, *tim, *lim;
-  int i;
-
-  if (data->aabb_counter < SIZE)
-    data->aabb_algo = data->aabb_counter ++; /* at first test all algorithms */
-  else /* when all tested */
-  {
-    tim = data->aabb_timings;
-    lim = data->aabb_limits;
-
-    for (i = 0; i < SIZE; i ++) lim [i+1] = lim [i] + tim [i]; /* sum up */
-    for (i = 1; i <= SIZE; i ++) lim [i] /= lim [SIZE]; /* normalize */
-
-    num = DRAND(); /* random in [0, 1] */
-
-    for (i = 0; i < SIZE; i ++)
-    {
-      if (num >= lim [i] && num < lim [i+1])
-      {
-	data->aabb_algo = i;
-	return i;
-      }
-    }
-  }
-
-  return data->aabb_algo;
-#else
-  return (data->aabb_algo = HYBRID); /* FIXME: SWEEP_ gets stuck sometimes (see BUGS) */
-#endif
-}
-
-/* update timing related data */
-static void aabb_timing (DOM *dom, double timing)
-{
-  DATA *data = dom->data;
-
-  data->aabb_timings [data->aabb_algo] = timing;
-}
-
 /* insert a contact into the constraints set */
-static CON* insert_contact (DOM *dom, SGP *msgp, SGP *ssgp, BODY *master, BODY *slave,
-  void *mgobj, SHAPE *mshp, void *sgobj, SHAPE *sshp, double *spampnt, double *spaspnt,
-  double *normal, double gap, double area, SURFACE_MATERIAL *mat, short paircode)
+static void insert_contact (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, double *mpntspa,
+       double *spntspa, double *normal, double area , double gap, SURFACE_MATERIAL *mat, short paircode)
 {
   CON *con;
 
   con = insert (dom, master, slave, msgp, ssgp); /* do not insert into LOCDYN yet, only after sparsification */
   con->kind = CONTACT;
-  COPY (spampnt, con->point);
-  BODY_Ref_Point (master, mshp, mgobj, spampnt, con->mpnt); /* referential image */
-  BODY_Ref_Point (slave, sshp, sgobj, spaspnt, con->spnt); /* ... */
+  COPY (mpntspa, con->point);
+  BODY_Ref_Point (master, msgp->shp, msgp->gobj, mpntspa, con->mpnt); /* referential image */
+  BODY_Ref_Point (slave, ssgp->shp, ssgp->gobj, spntspa, con->spnt);
   localbase (normal, con->base);
-  con->gap = gap;
   con->area = area;
+  con->gap = gap;
   con->paircode = paircode;
   con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
   con->state |= CON_NEW;  /* mark as newly created */
-  return con;
 }
 
 /* does a potential contact already exists ? */
@@ -305,14 +306,14 @@ static int contact_exists (BOX *one, BOX *two)
 }
 
 /* box overlap creation callback */
-static void* overlap_create (DOM *dom, BOX *one, BOX *two)
+static void overlap_create (DOM *dom, BOX *one, BOX *two)
 {
   double onepnt [3], twopnt [3], normal [3], gap, area;
   int state, spair [2];
   short paircode;
   SURFACE_MATERIAL *mat;
 
-  if (contact_exists (one, two)) return NULL;
+  if (contact_exists (one, two)) return;
 
   state = gobjcontact (
     CONTACT_DETECT, GOBJ_Pair_Code (one, two),
@@ -333,18 +334,16 @@ static void* overlap_create (DOM *dom, BOX *one, BOX *two)
     case 1: /* first body is the master */
     {
       paircode = GOBJ_Pair_Code (one, two);
-      return insert_contact (dom, one->sgp, two->sgp, one->body, two->body, one->sgp->gobj, one->sgp->shp,
-	                     two->sgp->gobj, two->sgp->shp, onepnt, twopnt, normal, gap, area, mat, paircode);
+      insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
     }
+    break;
     case 2: /* second body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
-      return insert_contact (dom, two->sgp, one->sgp, two->body, one->body, two->sgp->gobj, two->sgp->shp,
-	                     one->sgp->gobj, one->sgp->shp, twopnt, onepnt, normal, gap, area, mat, paircode);
+      insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
     }
+    break;
   }
-
-  return NULL; /* no contact found */
 }
 
 /* update contact data */
@@ -384,10 +383,7 @@ static void update_contact (DOM *dom, CON *con)
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
     }
   }
-  else
-  {
-    DOM_Remove_Constraint (dom, con);
-  }
+  else DOM_Remove_Constraint (dom, con);
 }
 
 /* update fixed point data */
@@ -475,7 +471,7 @@ static int body_weight (BODY *bod)
   for (item = SET_First (bod->con), ncon = 0; item; item = SET_Next (item))
   {
     con = item->data;
-    if (con->slave) ncon ++; /* one-body constraints migrate with the body and hence increase its weight */
+    if (con->slave) ncon ++; /* one-body constraints migrate with the body, hence they increase its weight */
   }
 
   return  (1 + ncon) * bod->dofs;
@@ -487,7 +483,7 @@ static int constraint_weight (CON *con)
   return con->master->dofs + (con->slave ? con->slave->dofs : 0);
 }
 
-/* number of objects */
+/* number of objects for balacing */
 static int object_count (DOM *dom, int *ierr)
 {
   *ierr = ZOLTAN_OK;
@@ -502,7 +498,7 @@ static int object_count (DOM *dom, int *ierr)
   return dom->nbod + ncon;
 }
 
-/* list of object identifiers */
+/* list of object identifiers for load balancing */
 static void object_list (DOM *dom, int num_gid_entries, int num_lid_entries,
   ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
 {
@@ -536,7 +532,7 @@ static int dimensions (DOM *dom, int *ierr)
   return 3;
 }
 
-/* list of object points */
+/* list of object points exploited during load balancing */
 static void objpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int num_obj,
   ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
 {
@@ -568,13 +564,13 @@ static void objpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
   *ierr = ZOLTAN_OK;
 }
 
-/* pack constraint */
+/* pack constraint migrating out during */
 static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_int (isize, i, ints, con->kind);
+
   pack_int (isize, i, ints, con->id);
   pack_int (isize, i, ints, con->master->id);
-
   if (con->slave) pack_int (isize, i, ints, con->slave->id);
   else pack_int (isize, i, ints, 0);
 
@@ -607,10 +603,10 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
 
   con->state |= CON_IDLOCK; /* prevent id deletion */
 
-  DOM_Remove_Constraint (con->master->dom, con);
+  DOM_Remove_Constraint (con->master->dom, con); /* remove from the domain */
 }
 
-/* unpack constraint */
+/* unpack constraint migrated in during load balancing */
 static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int kind, cid, mid, sid, n;
@@ -619,6 +615,7 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
   CON *con;
 
   kind = unpack_int (ipos, i, ints);
+
   cid = unpack_int (ipos, i, ints);
   mid = unpack_int (ipos, i, ints);
   sid = unpack_int (ipos, i, ints);
@@ -629,12 +626,7 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
   n = unpack_int (ipos, i, ints);
   msgp = &master->sgp [n];
 
-  if (slave)
-  {
-    n = unpack_int (ipos, i, ints);
-    ssgp = &slave->sgp [n];
-  }
-  else ssgp = NULL;
+  if (slave) n = unpack_int (ipos, i, ints), ssgp = &slave->sgp [n]; else ssgp = NULL;
 
   dom->noid = cid; /* disable constraint ids generation and use 'noid' instead */
 
@@ -668,10 +660,10 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
     break;
   }
 
-  con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
+  con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave); /* insert into local dynamics */
 }
 
-/* insert a new external constraint */
+/* insert a new external constraint migrated in during domain gluing */
 static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, unsigned int cid)
 {
   CON *con;
@@ -693,12 +685,12 @@ static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP
   MAP_Insert (&dom->mapmem, &dom->conext, (void*) (long) cid, con, NULL);
 
   /* state */
-  con->state |=  CON_EXTERNAL;
+  con->state |= CON_EXTERNAL;
 
   return con;
 }
 
-/* pack boundary constraint */
+/* pack boundary constraint migrating out during domain gluing */
 static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_int (isize, i, ints, con->id);
@@ -717,7 +709,7 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
   pack_doubles (dsize, d, doubles, con->base, 9);
 }
 
-/* unpack external constraint */
+/* unpack external constraint migrated in during domain gluing */
 static void unpack_external_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *master, *slave;
@@ -757,7 +749,7 @@ static void unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   unpack_doubles (dpos, d, doubles, con->base, 9);
 }
 
-/* pack parent body */
+/* pack migrating out parent body */
 static void pack_parent (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   DOM *dom;
@@ -792,7 +784,7 @@ static void pack_parent (BODY *bod, int *dsize, double **d, int *doubles, int *i
   bod->flags &= ~BODY_PARENT;
 }
 
-/* unpack parent body */
+/* unpack migrated in parent body */
 static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *bod;
@@ -842,12 +834,12 @@ static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipo
   bod->flags |= BODY_PARENT;
 }
 
-/* pack child body */
+/* pack migrating out child body */
 static void pack_child (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   /* must be an exported or an existing parent */
-  ASSERT_DEBUG (((bod->flags & (BODY_PARENT|BODY_CHILD)) == 0 &&
-    bod->rank != bod->dom->rank) || (bod->flags & BODY_PARENT), "Not a parent");
+  ASSERT_DEBUG (((bod->flags & (BODY_PARENT|BODY_CHILD)) == 0 && bod->rank != bod->dom->rank) /* just migrating out parent after being packed (hence unmarked) */
+                || (bod->flags & BODY_PARENT), "Not a parent"); /* or an existing parent */
 
   /* pack id */
   pack_int (isize, i, ints, bod->id);
@@ -972,7 +964,7 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
 
     double *e = bod->extents;
 
-    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs); /* use boxes balancing here */
+    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
     SET_Free (&dom->setmem, &bod->children); /* empty children set */
 
@@ -980,8 +972,8 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
     {
       if (bod->rank != procs [i]) /* if this is neither current nor the new body rank */
       {
-        SET_Insert (&dom->setmem, &dbd [procs [i]].children, bod, NULL); /* schedule for sending a child data */
-	SET_Insert (&dom->setmem, &bod->children, (void*) (long) procs [i], NULL); /* restore children set */
+        SET_Insert (&dom->setmem, &dbd [procs [i]].children, bod, NULL); /* schedule for sending a child */
+	SET_Insert (&dom->setmem, &bod->children, (void*) (long) procs [i], NULL); /* restore parent's children set */
       }
     }
   }
@@ -1005,16 +997,14 @@ static void children_migration_end (DOM *dom)
 
     if ((bod->flags & BODY_CHILD_UPDATED) == 0) /* migrated out as it wasn't updated by a parent */
     {
-      /* unmark child */
-      bod->flags &= ~BODY_CHILD;
-
-      /* schedule deletion from dom->children */
-      SET_Insert (&dom->setmem, &delset, bod, NULL);
+      bod->flags &= ~BODY_CHILD; /* unmark child */
+      
+      SET_Insert (&dom->setmem, &delset, bod, NULL); /* schedule deletion from dom->children */
     }
     else bod->flags &= ~BODY_CHILD_UPDATED; /* invalidate update flag */
   }
 
-  /* adjust children set */
+  /* subtract deleted children from domain children set */
   for (item = SET_First (delset); item; item = SET_Next (item))
   {
     SET_Delete (&dom->setmem, &dom->children, item->data, NULL);
@@ -1086,43 +1076,14 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
   return NULL;
 }
 
-static void clear_external_constraints (DOM *dom)
+/* compute migration of old boundary constraints (those remaining after constraints update) */
+static void old_boundary_constraints_migration (DOM *dom, DBD *dbd)
 {
-  COMOBJ *send;
-  MAP *jtem;
-  CON *con;
-  int i;
-
-  /* empty external contact send sets */
-  for (i = 0, send = dom->conextsend; i < dom->ncpu; i ++, send ++) SET_Free (&dom->setmem, (SET**)&send->o);
-
-  /* delete all external constraints */
-  for (jtem = MAP_First (dom->conext); jtem; jtem = MAP_Next (jtem))
-  {
-    con = jtem->data;
-
-    /* remove from the body constraint adjacency  */
-    SET_Delete (&dom->setmem, &con->master->con, con, CONCMP);
-    if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP);
-
-    /* destroy passed data */
-    MEM_Free (&dom->conmem, con);
-  }
-
-  /* free external contacts map */
-  MAP_Free (&dom->mapmem, &dom->conext);
-}
-
-/* compute boundary contact migration */
-static void compute_boundary_contacts_migration (DOM *dom, DBD *dbd)
-{
-  COMOBJ *send;
+  COMOBJ *send = dom->conextsend;
   SET *item;
   BODY *bod;
   CON *con;
   int i;
-
-  send = dom->conextsend;
 
   /* compute migration sets */
   for (con = dom->con; con; con = con->next)
@@ -1148,11 +1109,12 @@ static void compute_boundary_contacts_migration (DOM *dom, DBD *dbd)
     }
   }
 
+  /* set up 'glue' sets to be used during packing */
   for (i = 0, send = dom->conextsend; i < dom->ncpu; i ++, send ++) dbd [i].glue = send->o;
 }
 
-/* pack domain balancing data */
-static void domain_balancing_pack_2 (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+/* pack old boundary constraints */
+static void old_boundary_constraints_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
 
@@ -1162,8 +1124,8 @@ static void domain_balancing_pack_2 (DBD *dbd, int *dsize, double **d, int *doub
     pack_boundary_constraint (item->data, dsize, d, doubles, isize, i, ints);
 }
 
-/* unpack domain balancing data */
-static void* domain_balancing_unpack_2 (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+/* unpack old external constraints */
+static void* old_external_constraints_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int n, j;
 
@@ -1223,17 +1185,15 @@ static void domain_balancing (DOM *dom)
 
     if (bod)
     {
-      bod->rank = export_procs [i]; /* set the new rank value of us in compute_children_rank and BODY_Child_Pack_State */
+      bod->rank = export_procs [i]; /* set the new rank */
 
       SET_Insert (&dom->setmem, &dbd [export_procs [i]].bodies, bod, NULL); /* map this body to its export rank */
 
       for (item = SET_First (bod->con); item; item = SET_Next (item))
       {
 	con = item->data;
-	if (!con->slave)
-	{
-          SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* single-body constraints migrate with bodies */
-	}
+
+	if (!con->slave) SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* single-body constraints migrate with bodies */
       }
     }
     else
@@ -1284,13 +1244,14 @@ static void domain_balancing (DOM *dom)
   }
 #endif
 
+  /* clean */
   free (recv);
 
-  /* boundary constraints */
-  compute_boundary_contacts_migration (dom, dbd);
+  /* compute old boundary constraints migration sets */
+  old_boundary_constraints_migration (dom, dbd);
 
-  /* communication */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_pack_2, dom, (OBJ_Unpack)domain_balancing_unpack_2, send, dom->ncpu, &recv, &nrecv);
+  /* after this step all bodies contain sets of all old constraints (including contacts); this way during contact detection all existing contacts will get filtered out */
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)old_boundary_constraints_pack, dom, (OBJ_Unpack)old_external_constraints_unpack, send, dom->ncpu, &recv, &nrecv);
 
   /* free auxiliary sets */
   for (i = 0; i < dom->ncpu; i ++)
@@ -1300,13 +1261,14 @@ static void domain_balancing (DOM *dom)
     SET_Free (&dom->setmem, &dbd [i].children);
   }
 
+  /* clean */
   free (send);
   free (recv);
   free (dbd);
 }
 
-/* compute new boundary contact migration */
-static void compute_new_boundary_contacts_migration (DOM *dom, DBD *dbd)
+/* compute new boundary contacts migration */
+static void new_boundary_contacts_migration (DOM *dom, DBD *dbd)
 {
   SET *item;
   BODY *bod;
@@ -1316,7 +1278,7 @@ static void compute_new_boundary_contacts_migration (DOM *dom, DBD *dbd)
   /* compute additional boundary sets */
   for (con = dom->con; con; con = con->next)
   {
-    if (con->state & CON_NEW)
+    if (con->state & CON_NEW) /* only newly created contacts */
     {
       BODY *bodies [] = {con->master, con->slave};
 
@@ -1391,7 +1353,8 @@ static void domain_gluing (DOM *dom)
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
   ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
 
-  compute_new_boundary_contacts_migration (dom, dbd);
+  /* compute migration sets */
+  new_boundary_contacts_migration (dom, dbd);
 
   for (i = 0; i < dom->ncpu; i ++)
   {
@@ -1400,9 +1363,11 @@ static void domain_gluing (DOM *dom)
     dbd [i].dom = dom;
   }
 
+  /* communication */
   dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_pack, dom, (OBJ_Unpack)domain_gluing_unpack, send, dom->ncpu, &recv, &nrecv);
 
-  /* merge new glue sets with the old conextsend sets */
+  /* merge new glue sets with the old sets; this way the complete migration sets of all boundary
+   * constraints are created; they will be of use for constraint updates during solution process */
   for (i = 0, ptr = dom->conextsend, qtr = dbd; i < dom->ncpu; i ++, ptr ++, qtr ++)
   {
     for (item = SET_First (qtr->glue); item; item = SET_Next (item))
@@ -1413,14 +1378,44 @@ static void domain_gluing (DOM *dom)
     SET_Free (&dom->setmem, &qtr->glue);
   }
 
+  /* compute statistics */
   stats_compute (dom);
 
+  /* clean */
   free (send);
   free (recv);
   free (dbd);
 }
 
-/* pack normal reaction components */
+/* remove all external constraints */
+static void clear_external_constraints (DOM *dom)
+{
+  COMOBJ *send;
+  MAP *jtem;
+  CON *con;
+  int i;
+
+  /* empty external contact send sets */
+  for (i = 0, send = dom->conextsend; i < dom->ncpu; i ++, send ++) SET_Free (&dom->setmem, (SET**)&send->o);
+
+  /* delete all external constraints */
+  for (jtem = MAP_First (dom->conext); jtem; jtem = MAP_Next (jtem))
+  {
+    con = jtem->data;
+
+    /* remove from the body constraint adjacency  */
+    SET_Delete (&dom->setmem, &con->master->con, con, CONCMP);
+    if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP);
+
+    /* destroy passed data */
+    MEM_Free (&dom->conmem, con);
+  }
+
+  /* free external contacts map */
+  MAP_Free (&dom->mapmem, &dom->conext);
+}
+
+/* pack normal reaction components (only for contacts) of boundary constraints */
 static void pack_normal_reactions (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
@@ -1432,11 +1427,12 @@ static void pack_normal_reactions (SET *set, int *dsize, double **d, int *double
   {
     con = item->data;
     pack_int (isize, i, ints, con->id);
-    pack_double (dsize, d, doubles, con->R [2]);
+    if (con->kind == CONTACT) pack_double (dsize, d, doubles, con->R [2]);
+    else pack_doubles (dsize, d, doubles, con->R, 3);
   }
 }
 
-/* unpack normal reaction components */
+/* unpack normal reaction components (only for contacts) of external constraints */
 static void* unpack_normal_reactions (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int n, j, id;
@@ -1448,13 +1444,14 @@ static void* unpack_normal_reactions (DOM *dom, int *dpos, double *d, int double
   {
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid contact id");
-    con->R [2] = unpack_double (dpos, d, doubles);
+    if (con->kind == CONTACT) con->R [2] = unpack_double (dpos, d, doubles);
+    else unpack_doubles (dpos, d, doubles, con->R, 3);
   }
 
   return NULL;
 }
 
-/* pack reactions */
+/* pack boundary reactions */
 static void pack_reactions (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
@@ -1470,7 +1467,7 @@ static void pack_reactions (SET *set, int *dsize, double **d, int *doubles, int 
   }
 }
 
-/* unpack reactions */
+/* unpack external reactions */
 static void* unpack_reactions (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int n, j, id;
@@ -1940,7 +1937,7 @@ void DOM_Sparsify_Contacts (DOM *dom)
       {
 	adj = itm->data;
 
-	if (adj == con || adj->kind != CONTACT || (adj->state & CON_EXTERNAL)) continue;
+	if (adj == con || adj->kind != CONTACT) continue;
 	
 	if (con->area < threshold * adj->area) /* check whether the area of the diagonal element is too small (this test is cheaper => let it go first) */
 	{
@@ -2153,7 +2150,7 @@ void DOM_Update_End (DOM *dom)
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
 #if MPI
-  clear_external_constraints (dom);
+  clear_external_constraints (dom); /* remove external constraints */
 #endif
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
@@ -2205,8 +2202,6 @@ void DOM_Read_State (DOM *dom, PBF *bf)
 
     if (cmp == CMP_OFF) dom_read_state (dom, bf);
     else dom_read_state_compressed (dom, bf);
-
-    dom_attach_constraints (dom); /* attach constraints to bodies */
   }
 }
 

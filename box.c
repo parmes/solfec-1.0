@@ -142,21 +142,6 @@ static void local_create (struct auxdata *aux, BOX *one, BOX *two)
   aux->create (aux->data, one, two);
 }
 
-/* get geometrical object kind */
-static int gobj_kind (SGP *sgp)
-{
-  switch (sgp->shp->kind)
-  {
-  case SHAPE_MESH: return GOBJ_ELEMENT;
-  case SHAPE_CONVEX: return GOBJ_CONVEX;
-  case SHAPE_SPHERE: return GOBJ_SPHERE;
-  }
-
-  ASSERT_DEBUG (0, "Invalid shape kind in gobj_kind");
-
-  return 0;
-}
-
 #if MPI
 /* detach boxes from outside of the domain and attach new incoming boxes */
 static void detach_and_attach (AABB *aabb)
@@ -217,7 +202,7 @@ static void detach_and_attach (AABB *aabb)
 
 	if (j < numprocs)
 	{
-	  box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, update);
+	  box = AABB_Insert (aabb, bod, GOBJ_Kind (sgp), sgp, update);
 
 	  COPY6 (e, box->extents);
 
@@ -247,7 +232,7 @@ static void detach_and_attach (AABB *aabb)
 
 	if (j < numprocs)
 	{
-	  box = AABB_Insert (aabb, bod, gobj_kind (sgp), sgp, update);
+	  box = AABB_Insert (aabb, bod, GOBJ_Kind (sgp), sgp, update);
 
 	  COPY6 (e, box->extents);
 
@@ -367,7 +352,7 @@ void AABB_Insert_Body (AABB *aabb, BODY *body)
 
   for (sgp = body->sgp, sgpe = sgp + body->nsgp; sgp < sgpe; sgp ++)
   {
-    AABB_Insert (aabb, body, gobj_kind (sgp), sgp, SGP_Extents_Update (sgp));
+    AABB_Insert (aabb, body, GOBJ_Kind (sgp), sgp, SGP_Extents_Update (sgp));
   }
 }
 
@@ -382,7 +367,7 @@ void AABB_Delete_Body (AABB *aabb, BODY *body)
   }
 }
 
-/* update state => detect created and released overlaps */
+/* update state and detect all created overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
 {
 #if MPI
@@ -522,4 +507,19 @@ BOX_Extents_Update SGP_Extents_Update (SGP *sgp)
   ASSERT_DEBUG (0, "Invalid shape kind in SGP_Extents_Update");
 
   return 0;
+}
+
+/* get geometrical object kind */
+GOBJ GOBJ_Kind (SGP *sgp)
+{
+  switch (sgp->shp->kind)
+  {
+  case SHAPE_MESH: return GOBJ_ELEMENT;
+  case SHAPE_CONVEX: return GOBJ_CONVEX;
+  case SHAPE_SPHERE: return GOBJ_SPHERE;
+  }
+
+  ASSERT_DEBUG (0, "Invalid shape kind in GOBJ_Kind");
+
+  return GOBJ_DUMMY;
 }

@@ -175,7 +175,7 @@ void AABB_Insert_Body (AABB *aabb, BODY *body);
 /* delete a body */
 void AABB_Delete_Body (AABB *aabb, BODY *body);
 
-/* update state => detect created and released overlaps */
+/* update state and detect all created overlaps */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create);
 
 /* never report overlaps betweem this pair of bodies (given by identifiers) */
@@ -189,4 +189,7 @@ void AABB_Destroy (AABB *aabb);
 
 /* get geometrical object extents update callback */
 BOX_Extents_Update SGP_Extents_Update (SGP *sgp);
+
+/* get geometrical object kind */
+GOBJ GOBJ_Kind (SGP *sgp);
 #endif

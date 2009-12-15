@@ -34,8 +34,4 @@ int dom_read_body (DOM *dom, PBF *bf, BODY *bod);
 
 /* read uncompressed state of an individual constraint */
 int dom_read_constraint (DOM *dom, PBF *bf, CON *con);
-
-/* attach constraints to bodies after reading */
-void dom_attach_constraints (DOM *dom);
-
 #endif
