@@ -1998,6 +1998,9 @@ void DOM_Sparsify_Contacts (DOM *dom)
     /* remove first from the box adjacency structure => otherwise box engine would try
      * to release this contact at a later point and that would cose memory corruption */
     DOM_Remove_Constraint (dom, con); /* now remove from the domain */
+#if MPI
+    dom->changes --;
+#endif
   }
 
   dom->nspa = n; /* record the number of sparsified contacts */
