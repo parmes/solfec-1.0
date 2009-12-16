@@ -638,6 +638,19 @@ void SOLFEC_History (SOLFEC *sol, char *label, double *dval, int *ival, int len,
   PBF_Seek (sol->bf, save); /* restore initial time frame */
 }
 
+/* perform abort actions */
+void SOLFEC_Abort (SOLFEC *sol)
+{
+  write_state (sol);
+
+  if (sol->bf)
+  {
+    PBF_Flush (sol->bf);
+    PBF_Close (sol->bf);
+    sol->bf = NULL;
+  }
+}
+
 /* free solfec memory */
 void SOLFEC_Destroy (SOLFEC *sol)
 {
