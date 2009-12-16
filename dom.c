@@ -383,7 +383,11 @@ static void update_contact (DOM *dom, CON *con)
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
     }
   }
+#if MPI
+  else if (dom->balancing == FULL_BALANCING) DOM_Remove_Constraint (dom, con);
+#else
   else DOM_Remove_Constraint (dom, con);
+#endif
 }
 
 /* update fixed point data */
@@ -1168,45 +1172,49 @@ static void domain_balancing (DOM *dom)
   /* allocate balancing data storage */
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
 
-  /* update imbalance tolerance */
-  snprintf (tol, 128, "%g", dom->imbalance_tolerance);
-  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", tol);
-
-  /* update body partitioning */
-  ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
-	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
-	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
-
-  for (i = 0; i < num_export; i ++) /* for each exported body */
+  /* only during full balancing bodies and constraints can migrate */
+  if (dom->balancing == FULL_BALANCING)
   {
-    id = export_global_ids [i * num_gid_entries]; /* get id */
+    /* update imbalance tolerance */
+    snprintf (tol, 128, "%g", dom->imbalance_tolerance);
+    Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", tol);
 
-    bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
+    /* update body partitioning */
+    ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
+	    &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	    &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-    if (bod)
+    for (i = 0; i < num_export; i ++) /* for each exported body */
     {
-      bod->rank = export_procs [i]; /* set the new rank */
+      id = export_global_ids [i * num_gid_entries]; /* get id */
 
-      SET_Insert (&dom->setmem, &dbd [export_procs [i]].bodies, bod, NULL); /* map this body to its export rank */
+      bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
 
-      for (item = SET_First (bod->con); item; item = SET_Next (item))
+      if (bod)
       {
-	con = item->data;
+	bod->rank = export_procs [i]; /* set the new rank */
 
-	if (!con->slave) SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* single-body constraints migrate with bodies */
+	SET_Insert (&dom->setmem, &dbd [export_procs [i]].bodies, bod, NULL); /* map this body to its export rank */
+
+	for (item = SET_First (bod->con); item; item = SET_Next (item))
+	{
+	  con = item->data;
+
+	  if (!con->slave) SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* single-body constraints migrate with bodies */
+	}
+      }
+      else
+      {
+	ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) (id - dom->bid), NULL), "Invalid constraint id");
+
+	SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* map this constraint to its export rank */
       }
     }
-    else
-    {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) (id - dom->bid), NULL), "Invalid constraint id");
 
-      SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* map this constraint to its export rank */
-    }
+    /* free Zoltan data */
+    Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+			 &export_global_ids, &export_local_ids, &export_procs);
   }
-
-  /* free Zoltan data */
-  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-                       &export_global_ids, &export_local_ids, &export_procs);
 
   ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
 
@@ -1244,14 +1252,17 @@ static void domain_balancing (DOM *dom)
   }
 #endif
 
-  /* clean */
-  free (recv);
+  if (dom->balancing == FULL_BALANCING)
+  {
+    /* clean */
+    free (recv);
 
-  /* compute old boundary constraints migration sets */
-  old_boundary_constraints_migration (dom, dbd);
+    /* compute old boundary constraints migration sets */
+    old_boundary_constraints_migration (dom, dbd);
 
-  /* after this step all bodies contain sets of all old constraints (including contacts); this way during contact detection all existing contacts will get filtered out */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)old_boundary_constraints_pack, dom, (OBJ_Unpack)old_external_constraints_unpack, send, dom->ncpu, &recv, &nrecv);
+    /* after this step all bodies contain sets of all old constraints (including contacts); this way during contact detection all existing contacts will get filtered out */
+    dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)old_boundary_constraints_pack, dom, (OBJ_Unpack)old_external_constraints_unpack, send, dom->ncpu, &recv, &nrecv);
+  }
 
   /* free auxiliary sets */
   for (i = 0; i < dom->ncpu; i ++)
@@ -1509,6 +1520,10 @@ static void create_mpi (DOM *dom)
   dom->bytes = 0;
 
   stats_create (dom);
+
+  dom->balancing = FULL_BALANCING;
+
+  dom->counter = 0;
 
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
@@ -2150,7 +2165,13 @@ void DOM_Update_End (DOM *dom)
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
 #if MPI
-  clear_external_constraints (dom); /* remove external constraints */
+  if (++ dom->counter == 10) 
+  {
+    dom->counter = 0;
+    dom->balancing = FULL_BALANCING;
+    clear_external_constraints (dom); /* remove external constraints */
+  }
+  else dom->balancing = PARTIAL_BALANCING;
 #endif
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
