@@ -975,7 +975,11 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
 
     Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
-    SET_Free (&dom->setmem, &bod->children); /* empty children set */
+    if (dom->balancing == FULL_BALANCING) SET_Free (&dom->setmem, &bod->children); /* empty children set */
+
+    /* during PARTIAL_BALANCING only extend the previous set of body children by new ranks;
+     * constraints, which do not migrated in this mode, maintain this way their attachment
+     * to children which cannot migrate out; this could have been possible otherwise */
 
     for (i = 0; i < numprocs; i ++)
     {
@@ -2174,7 +2178,7 @@ void DOM_Update_End (DOM *dom)
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
 #if MPI
-  if (++ dom->counter > 10 || dom->ratio > 0.01) 
+  if (dom->counter ++ > 100 || dom->ratio > 0.01)
   {
     dom->counter = 0;
     dom->deletions  = 0;
