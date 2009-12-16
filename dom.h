@@ -206,9 +206,11 @@ struct domain
 
   enum {FULL_BALANCING, PARTIAL_BALANCING} balancing; /* full balancing sends more data, partial minimises communication size */
 
-  int changes; /* number of attempted deletions and new constraint insertions since a last full balancing */
+  int deletions; /* number of attempted deletions during a partial balancing mode */
 
-  double ratio; /* global ratio of the number of changes over the number of constraints */
+  int counter; /* counter of domain update setps used to decide about the balancing mode */
+
+  double ratio; /* global ratio of the number of deletions over the number of constraints */
 #endif
 };
 
