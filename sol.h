@@ -90,6 +90,9 @@ struct solfec
   /* current run start and duration */
   double t0, duration;
   time_t start;
+
+  /* list structure */
+  SOLFEC *next;
 };
 
 /* create a solfec instance */
@@ -138,6 +141,9 @@ void SOLFEC_Forward (SOLFEC *sol, int steps);
  * a constraint) and invoke the callback for every new state */
 void SOLFEC_History (SOLFEC *sol, char *label, double *dval, int *ival, int len, BODY *bod,
   CON *con, double t0, double t1, void *data, void (*callback) (void *data, double time));
+
+/* perform abort actions */
+void SOLFEC_Abort (SOLFEC *sol);
 
 /* free solfec memory */
 void SOLFEC_Destroy (SOLFEC *sol);

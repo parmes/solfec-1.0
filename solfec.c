@@ -32,6 +32,16 @@
 #include "sol.h"
 #include "err.h"
 
+/* global list of created SOLFEC objects */
+static SOLFEC *solfec = NULL;
+
+/* register new SOLFEC object */
+void REGISTER_SOLFEC (SOLFEC *sol)
+{
+  sol->next = solfec;
+  solfec = sol;
+}
+
 #if MPI_VERSION >= 2
 /* error handler callback */
 static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
@@ -58,8 +68,9 @@ static void MPI_set_error_handling ()
 /* signal handler */
 static void sighnd (int signal)
 {
-  lngfinalize (); /* finalize interpreter: as a result
-		     flush output buffers if possible */
+  for (; solfec; solfec = solfec->next) SOLFEC_Abort (solfec); /* abort SOLFEC (flush buffers) */
+
+  lngfinalize (); /* finalize interpreter */
 #if MPI
   MPI_Finalize ();
 #endif
