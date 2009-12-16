@@ -1,5 +1,5 @@
 /*
- * solfec.c
+ * solfec.h
  * Copyright (C) 2009, Tomasz Koziara (t.koziara AT gmail.com)
  * --------------------------------------------------------------
  * solfec main module

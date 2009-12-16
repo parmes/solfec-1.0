@@ -476,7 +476,9 @@ static int body_weight (BODY *bod)
   for (item = SET_First (bod->con), ncon = 0; item; item = SET_Next (item))
   {
     con = item->data;
-    if (con->slave) ncon ++; /* one-body constraints migrate with the body, hence they increase its weight */
+    if (con->slave) ncon ++; /* one-body constraints migrate with the body, hence they increase its weight;
+				note that this function is called during FULL_BALANCING, hence no external
+				constraints are present in the bod->con set while here */
   }
 
   return  (1 + ncon) * bod->dofs;
