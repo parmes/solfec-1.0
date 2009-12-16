@@ -563,7 +563,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
-#if !MPI
+#if MPI
+  DOM_Update_External_Reactions (ldy->dom, 0);
+#else
   if (verbose) printf (fmt, gs->iters, error);
 #endif
 
