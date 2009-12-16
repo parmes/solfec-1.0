@@ -481,7 +481,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   double error, step;
   short dynamic;
   char fmt [512];
+#if !MPI
   int div = 10;
+#endif
   DIAB *end;
 
   verbose = ldy->dom->verbose;
@@ -555,11 +557,15 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
     if (gs->history) gs->rerhist [gs->iters] = error;
+#if !MPI
     if (gs->iters % div == 0 && verbose) printf (fmt, gs->iters, error), div *= 2;
+#endif
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
+#if !MPI
   if (verbose) printf (fmt, gs->iters, error);
+#endif
 
   if (gs->iters >= gs->maxiter)
   {

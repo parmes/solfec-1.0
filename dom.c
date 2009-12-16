@@ -290,6 +290,9 @@ static void insert_contact (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP 
   con->paircode = paircode;
   con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
   con->state |= CON_NEW;  /* mark as newly created */
+#if MPI
+  dom->changes ++;
+#endif
 }
 
 /* does a potential contact already exists ? */
@@ -385,6 +388,7 @@ static void update_contact (DOM *dom, CON *con)
   }
 #if MPI
   else if (dom->balancing == FULL_BALANCING) DOM_Remove_Constraint (dom, con);
+  else dom->changes ++;
 #else
   else DOM_Remove_Constraint (dom, con);
 #endif
@@ -894,6 +898,7 @@ static void pack_stats (DOM *dom, int rank, int *dsize, double **d, int *doubles
   pack_int (isize, i, ints, dom->ncon);
   pack_int (isize, i, ints, MAP_Size (dom->conext));
   pack_int (isize, i, ints, dom->nspa);
+  pack_int (isize, i, ints, dom->changes);
   pack_int (isize, i, ints, dom->bytes);
 
   if (rank == (dom->ncpu-1)) /* last set was packed => zero current statistics record */
@@ -924,16 +929,17 @@ static void unpack_stats (DOM *dom, int *dpos, double *d, int doubles, int *ipos
 /* create statistics */
 static void stats_create (DOM *dom)
 {
-  ERRMEM (dom->stats = MEM_CALLOC (sizeof (DOMSTATS [6])));
-  
-  dom->nstats = 6;
+  dom->nstats = 7;
 
+  ERRMEM (dom->stats = MEM_CALLOC (sizeof (DOMSTATS [dom->nstats])));
+  
   dom->stats [0].name = "BODIES";
   dom->stats [1].name = "BOXES";
   dom->stats [2].name = "CONSTRAINTS";
   dom->stats [3].name = "EXTERNAL";
   dom->stats [4].name = "SPARSIFIED";
-  dom->stats [5].name = "BYTES SENT";
+  dom->stats [5].name = "CHANGES";
+  dom->stats [6].name = "BYTES SENT";
 }
 
 /* compute statistics */
@@ -945,6 +951,8 @@ static void stats_compute (DOM *dom)
   {
     s->avg = s->sum / dom->ncpu;
   }
+
+  dom->ratio = (double) dom->stats [5].sum / (double) (dom->stats [2].sum + 1);
 }
 
 /* destroy statistics */
@@ -1523,7 +1531,9 @@ static void create_mpi (DOM *dom)
 
   dom->balancing = FULL_BALANCING;
 
-  dom->counter = 0;
+  dom->changes = 0;
+
+  dom->ratio = 0;
 
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
@@ -2165,9 +2175,9 @@ void DOM_Update_End (DOM *dom)
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
 #if MPI
-  if (++ dom->counter == 10) 
+  if (dom->ratio > 0.1) 
   {
-    dom->counter = 0;
+    dom->changes = 0;
     dom->balancing = FULL_BALANCING;
     clear_external_constraints (dom); /* remove external constraints */
   }

@@ -204,9 +204,11 @@ struct domain
 
   int nstats; /* statistics count */
 
-  enum {FULL_BALANCING, PARTIAL_BALANCING} balancing; /* full balancing sends more data, partial minimises data size */
+  enum {FULL_BALANCING, PARTIAL_BALANCING} balancing; /* full balancing sends more data, partial minimises communication size */
 
-  int counter; /* counter is used to decide on the kind of balancing to perform */
+  int changes; /* number of attempted deletions and new constraint insertions since a last full balancing */
+
+  double ratio; /* global ratio of the number of changes over the number of constraints */
 #endif
 };
 
