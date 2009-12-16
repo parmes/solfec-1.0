@@ -203,6 +203,10 @@ struct domain
   DOMSTATS *stats; /* domain statistics */
 
   int nstats; /* statistics count */
+
+  enum {FULL_BALANCING, PARTIAL_BALANCING} balancing; /* full balancing sends more data, partial minimises data size */
+
+  int counter; /* counter is used to decide on the kind of balancing to perform */
 #endif
 };
 
