@@ -22,6 +22,10 @@
 #include <setjmp.h>
 #include <stdio.h>
 
+#if MPI
+#include <mpi.h>
+#endif
+
 #ifndef __err__
 #define __err__
 
@@ -82,6 +86,13 @@ enum
 /* get error string */
 char* errstring (int error);
 
+/* exit function */
+#if MPI
+#define EXIT(code) MPI_Abort (MPI_COMM_WORLD, code)
+#else
+#define EXIT(code) exit (code)
+#endif
+
 /* begin error handling */
 #define TRY()\
   {\
@@ -116,7 +127,7 @@ char* errstring (int error);
       else\
       {\
 	fprintf (stderr, "%s: %d, Unhandled error: %s\n", __FILE__, __LINE__, errstring (__code__));\
-	exit (1);\
+	EXIT (1);\
       }\
     }\
   }
@@ -127,7 +138,7 @@ char* errstring (int error);
   do\
   {\
     fprintf (stderr, "%s: %d, Unhandled error: %s\n", __FILE__, __LINE__, errstring (__error__));\
-    exit (1);\
+    EXIT (1);\
   }\
   while (0)
 #else
@@ -138,7 +149,7 @@ char* errstring (int error);
     else\
     {\
       fprintf (stderr, "%s: %d, Unhandled error: %s\n", __FILE__, __LINE__, errstring (__error__));\
-      exit (1);\
+      EXIT (1);\
     }\
   }\
   while (0)
@@ -166,7 +177,7 @@ char* errstring (int error);
     do {\
     if (! (Test)) { fprintf (stderr, "%s: %d => ", __FILE__, __LINE__);\
       fprintf (stderr, __VA_ARGS__);\
-      fprintf (stderr, "\n"); exit (1); } } while (0)
+      fprintf (stderr, "\n"); EXIT (1); } } while (0)
 #else
   #define ASSERT_DEBUG(Test, ...)
 #endif
@@ -178,7 +189,7 @@ char* errstring (int error);
     do {\
     if (! (Test)) { fprintf (stderr, "%s: %d => ", __FILE__, __LINE__);\
       fprintf (stderr, __VA_ARGS__);\
-      fprintf (stderr, "\n"); exit (1); } } while (0)
+      fprintf (stderr, "\n"); EXIT (1); } } while (0)
 #else
   #define ASSERT_DEBUG_EXT(Test, ...) Test
 #endif
