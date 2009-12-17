@@ -717,7 +717,7 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
 }
 
 /* unpack external constraint migrated in during domain gluing */
-static void unpack_external_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *master, *slave;
   int cid, mid, sid, n;
@@ -754,6 +754,8 @@ static void unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
+
+  return con;
 }
 
 /* pack migrating out parent body */
@@ -1143,15 +1145,20 @@ static void old_boundary_constraints_pack (DBD *dbd, int *dsize, double **d, int
 static void* old_external_constraints_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int n, j;
+  SET **pp;
+  CON *con;
+
+  ERRMEM (pp = MEM_CALLOC (sizeof (SET*)));
 
   /* unpack imporeted external constraints */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
-    unpack_external_constraint (dom, dpos, d, doubles, ipos, i, ints);
+    con = unpack_external_constraint (dom, dpos, d, doubles, ipos, i, ints);
+    SET_Insert (&dom->setmem, pp, con, NULL);
   }
 
-  return NULL;
+  return pp;
 }
 
 /* domain balancing */
@@ -1273,6 +1280,19 @@ static void domain_balancing (DOM *dom)
 
     /* after this step all bodies contain sets of all old constraints (including contacts); this way during contact detection all existing contacts will get filtered out */
     dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)old_boundary_constraints_pack, dom, (OBJ_Unpack)old_external_constraints_unpack, send, dom->ncpu, &recv, &nrecv);
+
+    /* assign external ranks */
+    for (i = 0; i < nrecv; i ++)
+    {
+      for (item = SET_First (*(SET**) recv [i].o); item; item = SET_Next (item))
+      {
+	con = item->data;
+	con->rank = recv [i].rank;
+      }
+
+      SET_Free (&dom->setmem, (SET**) recv [i].o);
+      free (recv [i].o);
+    }
   }
 
   /* free auxiliary sets */
@@ -1346,6 +1366,10 @@ static void domain_gluing_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
 static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int n, j;
+  SET **pp;
+  CON *con;
+
+  ERRMEM (pp = MEM_CALLOC (sizeof (SET*)));
 
   /* unpack penetration depth flag */
   n = unpack_int (ipos, i, ints); ASSERT (!n, ERR_DOM_DEPTH);
@@ -1357,10 +1381,11 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
-    unpack_external_constraint (dom, dpos, d, doubles, ipos, i, ints);
+    con = unpack_external_constraint (dom, dpos, d, doubles, ipos, i, ints);
+    SET_Insert (&dom->setmem, pp, con, NULL);
   }
 
-  return NULL;
+  return pp;
 }
 
 /* domain gluing */
@@ -1370,6 +1395,7 @@ static void domain_gluing (DOM *dom)
   DBD *dbd, *qtr;
   SET *item;
   int nrecv;
+  CON *con;
   int i;
 
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
@@ -1387,6 +1413,19 @@ static void domain_gluing (DOM *dom)
 
   /* communication */
   dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_pack, dom, (OBJ_Unpack)domain_gluing_unpack, send, dom->ncpu, &recv, &nrecv);
+
+  /* assign external ranks */
+  for (i = 0; i < nrecv; i ++)
+  {
+    for (item = SET_First (*(SET**) recv [i].o); item; item = SET_Next (item))
+    {
+      con = item->data;
+      con->rank = recv [i].rank;
+    }
+
+    SET_Free (&dom->setmem, (SET**) recv [i].o);
+    free (recv [i].o);
+  }
 
   /* merge new glue sets with the old sets; this way the complete migration sets of all boundary
    * constraints are created; they will be of use for constraint updates during solution process */

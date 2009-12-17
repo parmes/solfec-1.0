@@ -78,9 +78,8 @@ struct constraint
         CON_COHESIVE = 0x04,
         CON_NEW      = 0x08,
 	CON_IDLOCK   = 0x10, /* locked ID cannot be freed to the pool */
-	CON_BOUNDARY = 0x20, /* boundary constraint => between a parent and a child body */
-	CON_EXTERNAL = 0x40, /* a boundary constraint migrated here from another processor */
-        CON_DONERND  = 0x80} state; /* constraint state */
+	CON_EXTERNAL = 0x20, /* a boundary constraint migrated in from another processor */
+        CON_DONE     = 0x40} state; /* constraint state */
 
   short paircode; /* geometric object pair code for a contact */
 
@@ -96,6 +95,10 @@ struct constraint
 
   SGP *msgp, /* master (shape, gobj, box) triplet */
       *ssgp; /* slave triplet (if any) */
+
+#if MPI
+  int rank; /* origin rank for an external constraint */
+#endif
 
   CON *prev, /* list */
       *next;
