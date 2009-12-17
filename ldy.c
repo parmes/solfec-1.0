@@ -481,20 +481,20 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 	MX *left, *right;
 	CON *ext = (CON*)blk->dia;
 	BODY *bod = blk->bod;
-	SGP *sgp;
 	MX_DENSE_PTR (W, 3, 3, blk->W);
 	double coef, *point;
+	SGP *sgp;
 
 	ASSERT_DEBUG (bod == m || bod == s, "Not connected external off-diagonal block");
 
-	if (bod == con->master)
+	if (bod == ext->master)
 	{
-	  sgp = con->msgp, point = con->mpnt;
+	  sgp = ext->msgp, point = ext->mpnt;
           coef = (bod == s ? -step : step);
 	}
 	else
 	{
-	  sgp = con->ssgp, point = con->spnt;
+	  sgp = ext->ssgp, point = ext->spnt;
           coef = (bod == m ? -step : step);
 	}
        

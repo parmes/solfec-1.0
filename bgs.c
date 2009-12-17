@@ -16,6 +16,7 @@
 
 #if MPI
 #include "com.h"
+#include "lis.h"
 #endif
 
 static int projected_gradient (short dynamic, double epsilon, int maxiter,
@@ -472,7 +473,587 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
 }
 
 #if 0
-/* TODO: bring back best variant of parallel Gauss-Seidel */
+/* create rank coloring using adjacency graph between processors derived from the W graph */
+static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
+{
+  int i, n, m, ncpu, rank, *color, *size, *disp, *adj;
+  SET *adjcpu, *item;
+  MEM setmem;
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+
+  adjcpu = NULL;
+  rank = ldy->dom->rank;
+  ncpu = ldy->dom->ncpu;
+  MEM_Init (&setmem, sizeof (SET), 128);
+  ERRMEM (color = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (disp = malloc (sizeof (int [ncpu + 1])));
+  ERRMEM (size = malloc (sizeof (int [ncpu])));
+
+  /* collaps W adjacency into processor adjacency */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = (CON*) blk->dia;
+      SET_Insert (&setmem, &adjcpu, (void*) (long) con->rank, NULL);
+    }
+  }
+
+  n = SET_Size (adjcpu);
+  MPI_Allgather (&n, 1, MPI_INT, size, 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (i = disp [0] = 0; i < ncpu - 1; i ++) disp [i+1] = disp [i] + size [i];
+  for (i = 0, item = SET_First (adjcpu); item; i ++, item = SET_Next (item)) color [i] = (int) (long) item->data;
+
+  m = disp [ncpu] = (disp [ncpu-1] + size [ncpu-1]);
+  ERRMEM (adj = malloc (sizeof (int [m])));
+
+  MPI_Allgatherv (color, n, MPI_INT, adj, size, disp, MPI_INT, MPI_COMM_WORLD); /* gather graph adjacency */
+
+  for (i = 0; i < ncpu; i ++) color [i] = 0; /* invalidate coloring */
+
+  m = 1; /* free color */
+
+  for (i = 0; i < ncpu; i ++) /* simple BFS coloring */
+  {
+    int *j, *k;
+
+    if (color [i] == 0) color [i] = m ++; /* not colored => do it */
+
+    for (j = &adj[disp[i]], k = &adj[disp[i+1]]; j < k; j ++) /* for each adjacent vertex */
+    {
+      if (color [*j] == 0) color [*j] = m ++; /* not colored => do it */
+      else if (color [*j] == color [i]) color [*j] = m ++; /* conflict => do it again */
+    }
+  }
+
+  MEM_Release (&setmem);
+  free (size);
+  free (disp);
+  free (adj);
+
+  return color;
+}
+
+/* return next pointer and realloc send memory if needed */
+inline static COMDATA* sendnext (int nsend, int *size, COMDATA **send)
+{
+  if (nsend >= *size)
+  {
+    (*size) *= 2;
+    ERRMEM (*send = realloc (*send, sizeof (COMDATA [*size])));
+  }
+
+  return &(*send)[nsend];
+}
+
+/* receive external reactions */
+static void receive_reactions (DOM *dom, COMDATA *recv, int nrecv)
+{
+  COMDATA *ptr;
+  int i, j, *k;
+  double *R;
+  CON *con;
+
+  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+  {
+    for (j = 0, k = ptr->i, R = ptr->d; j < ptr->ints; j ++, k ++, R += 3)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*k), NULL), "Invalid constraint id");
+      COPY (R, con->R);
+      con->state |= CON_DONE;
+    }
+  }
+}
+
+static void receive_middle_reactions (DOM *dom, COMDATA *recv, int nrecv, MEM *setmem, SET **midupd)
+{
+  COMDATA *ptr;
+  int i, j, *k;
+  CON *con;
+
+  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+  {
+    for (j = 0, k = ptr->i; j < ptr->ints; j ++, k ++)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*k), NULL), "Invalid constraint id");
+      SET_Insert (setmem, midupd, con, NULL);
+    }
+  }
+}
+
+/* a single row Gauss-Seidel step */
+static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia, double *errup, double *errlo)
+{
+  double R0 [3], B [3], *R, *W;
+  int diagiters;
+  OFFB *blk;
+  CON *con;
+
+  /* compute local velocity */
+  COPY (dia->B, B);
+  for (blk = dia->adj; blk; blk = blk->n)
+  {
+    W = blk->W;
+    R = blk->dia->R;
+    NVADDMUL (B, W, R, B);
+  }
+  for (blk = dia->adjext; blk; blk = blk->n)
+  {
+    con = (CON*) blk->dia;
+    W = blk->W;
+    R = con->R;
+    NVADDMUL (B, W, R, B);
+  }
+ 
+  R = dia->R; 
+  COPY (R, R0); /* previous reaction */
+
+  /* solve local diagonal block problem */
+  con = dia->con;
+  diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
+	     dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+
+  if (diagiters > gs->diagmaxiter || diagiters < 0) /* failed */
+  {
+    COPY (R0, R); /* use previous reaction */
+  }
+
+  /* accumulate relative
+   * error components */
+  SUB (R, R0, R0);
+  *errup += DOT (R0, R0);
+  *errlo += DOT (R, R);
+
+  return diagiters;
+}
+
+/* a Guss-Seidel sweep over a set of blocks */
+static int gauss_seidel_sweep (SET *set, int reverse, GAUSS_SEIDEL *gs, short dynamic, double step, double *errup, double *errlo)
+{
+  SET* (*first) (SET*);
+  SET* (*next) (SET*);
+  int di, dimax;
+
+  if (reverse) first = SET_Last, next = SET_Prev;
+  else first = SET_First, next = SET_Next;
+
+  dimax = 0;
+
+  for (SET *item = first (set); item; item = next (item))
+  {
+    di = gauss_seidel (gs, dynamic, step, item->data, errup, errlo);
+    dimax = MAX (dimax, di);
+  }
+
+  return dimax;
+}
+
+typedef struct middle_list MIDDLE_LIST;
+
+struct middle_list
+{
+  DIAB *dia;
+  int score;
+  MIDDLE_LIST *next;
+};
+
+#define MLLE(i, j) ((i)->score <= (j)->score)
+IMPLEMENT_LIST_SORT (SINGLE_LINKED, middle_list_sort, MIDDLE_LIST, prev, next, MLLE)
+
+/* perform a Guss-Seidel loop over a set of blocks */
+static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem, int mycolor, int *color, GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
+{
+  SET *requs, *ranks, *item, *jtem;
+  MIDDLE_LIST *list, *cur;
+  int di, dimax;
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+  MEM lstmem, reqmem;
+
+  MEM_Init (&lstmem, sizeof (MIDDLE_LIST), 128);
+  MEM_Init (&reqmem, sizeof (MPI_Request), 128);
+
+  dimax = 0;
+
+  list = NULL;
+
+  requs = NULL;
+
+  for (item = SET_First (middle); item; item = SET_Next (item))
+  {
+    ERRMEM (cur = MEM_Alloc (&lstmem));
+    cur->dia = item->data;
+    cur->score = 0;
+    for (blk = cur->dia->adjext; blk; blk = blk->n)
+    {
+      con = (CON*) blk->dia;
+      cur->score = MIN (cur->score, -color [con->rank]);
+    }
+    cur->next = list;
+    list = cur;
+  }
+
+  list = middle_list_sort (list);
+
+  for (cur = list; cur; cur = cur->next)
+  {
+    dia = cur->dia;
+
+    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = (CON*) blk->dia;
+
+      if (mycolor < color [con->rank] && (con->state & CON_DONE) == 0)
+      {
+	MPI_Status sta;
+	MPI_Recv (con->R, 3, MPI_DOUBLE, con->rank, con->id, MPI_COMM_WORLD, &sta);
+	con->state |= CON_DONE;
+      }
+
+      SET_Insert (setmem, &ranks, (void*) (long) con->rank, NULL);
+    }
+
+    di = gauss_seidel (gs, dynamic, step, dia, errup, errlo);
+    dimax = MAX (dimax, di);
+
+    con = dia->con;
+    for (jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+    {
+      MPI_Request *req;
+      ERRMEM (req = MEM_Alloc (&reqmem));
+      MPI_Isend (con->R, 3, MPI_DOUBLE, (int) (long) jtem->data, con->id, MPI_COMM_WORLD, req);
+      SET_Insert (setmem, &requs, req, NULL);
+    }
+
+    SET_Free (setmem, &ranks);
+  }
+
+  for (item = SET_First (requs); item; item = SET_Next (item))
+  {
+    MPI_Status sta;
+    MPI_Wait (item->data, &sta);
+  }
+
+  for (item = SET_First (midupd); item; item = SET_Next (item))
+  {
+    MPI_Status sta;
+    con = item->data;
+    if ((con->state & CON_DONE) == 0)
+    {
+      MPI_Recv (con->R, 3, MPI_DOUBLE, con->rank, con->id, MPI_COMM_WORLD, &sta);
+      con->state |= CON_DONE;
+    }
+  }
+
+  MEM_Release (&lstmem);
+  MEM_Release (&reqmem);
+
+  return dimax;
+}
+
+/* unset all */
+static void unset_all (LOCDYN *ldy)
+{
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = (CON*) blk->dia;
+      con->state &= ~CON_DONE;
+    }
+  }
+}
+
+/* test all set */
+static int all_set (LOCDYN *ldy)
+{
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = (CON*) blk->dia;
+      if ((con->state & CON_DONE) == 0) return 0;
+    }
+  }
+
+  return 1;
+}
+
+/* run parallel solver */
+void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
+{
+  int div = 10, di, dimax, diagiters, mycolor, rank, *color;
+  double error, step;
+  short dynamic;
+  char fmt [512];
+  SOLFEC *solfec;
+  SET *ranks;
+  MEM setmem;
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+  DOM *dom;
+
+  SET *bottom    = NULL,
+      *top       = NULL,
+      *middle    = NULL,
+      *internal  = NULL,
+      *midupd    = NULL;
+
+  void *bot_pattern, /* communication pattern when sending from lower to higher processors */
+       *top_pattern; /* the reverse communication pattern */
+
+  COMDATA *send_bot, *recv_bot, *ptr_bot,
+	  *send_top, *recv_top, *ptr_top;
+
+  int size_bot, nsend_bot, nrecv_bot,
+      size_top, nsend_top, nrecv_top;
+
+  dom = ldy->dom;
+
+  if (dom->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+
+  if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+
+  color = processor_coloring (gs, ldy); /* color processors */
+  solfec = dom->solfec;
+  rank = dom->rank;
+  mycolor = color [rank];
+
+  MEM_Init (&setmem, sizeof (SET), 256);
+
+  /* create block sets */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    int lo = 0, hi = 0;
+
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = (CON*) blk->dia;
+      int adjcolor = color [con->rank];
+
+      if (adjcolor < mycolor) hi ++;
+      else lo ++;
+    }
+
+    if (lo && hi) SET_Insert (&setmem, &middle, dia, NULL);
+    else if (lo) SET_Insert (&setmem, &bottom, dia, NULL);
+    else if (hi) SET_Insert (&setmem, &top, dia, NULL);
+    else SET_Insert (&setmem, &internal, dia, NULL);
+  }
+
+#if DEBUG
+  if (dom->verbose)
+  {
+    int sizes [4] = {SET_Size (bottom), SET_Size (middle), SET_Size (top), SET_Size (internal)}, result [4];
+
+    MPI_Reduce (sizes, result, 4, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INTERNAL| = %d\n", result [0], result [1], result [2], result [3]);
+  }
+#endif
+
+  size_bot = size_top = 512;
+  nsend_bot = nsend_top = 0;
+
+  ERRMEM (send_bot = MEM_CALLOC (size_bot * sizeof (COMDATA)));
+  ERRMEM (send_top = MEM_CALLOC (size_top * sizeof (COMDATA)));
+
+  ptr_bot = send_bot;
+  ptr_top = send_top;
+
+  /* prepare bottom send buffer */
+  for (SET *item = SET_First (bottom); item; item = SET_Next (item))
+  {
+    dia = item->data;
+
+    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+    { 
+      con = (CON*) blk->dia;
+      SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
+    }
+
+    for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+    {
+      ptr_bot->rank = (int) (long) jtem->data;
+      ptr_bot->ints = 1;
+      ptr_bot->doubles = 3;
+      ptr_bot->i = (int*) &dia->con->id;
+      ptr_bot->d = dia->R;
+      ptr_bot = sendnext (++ nsend_bot, &size_bot, &send_bot);
+    }
+
+    SET_Free (&setmem, &ranks);
+  }
+
+  /* prepare top send buffer */
+  for (SET *item = SET_First (top); item; item = SET_Next (item))
+  {
+    dia = item->data;
+
+    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+    { 
+      con = (CON*) blk->dia;
+      SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
+    }
+
+    for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+    {
+      ptr_top->rank = (int) (long) jtem->data;
+      ptr_top->ints = 1;
+      ptr_top->doubles = 3;
+      ptr_top->i = (int*) &dia->con->id;
+      ptr_top->d = dia->R;
+      ptr_top = sendnext (++ nsend_top, &size_top, &send_top);
+    }
+
+    SET_Free (&setmem, &ranks);
+  }
+
+  bot_pattern = COM_Pattern (MPI_COMM_WORLD, 9999991, send_bot, nsend_bot, &recv_bot, &nrecv_bot);
+  top_pattern = COM_Pattern (MPI_COMM_WORLD, 9999992, send_top, nsend_top, &recv_top, &nrecv_top);
+
+  /* discover which external constraints from top and bottom sets are updated by middle nodes */
+
+  COMDATA *send, *recv, *ptr;
+  int nsend, nrecv, size;
+
+  size = 128;
+  nsend = 0;
+
+  ERRMEM (send = MEM_CALLOC (size * sizeof (COMDATA)));
+
+  ptr = send;
+
+  for (SET *item = SET_First (middle); item; item = SET_Next (item))
+  {
+    dia = item->data;
+
+    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+    { 
+      con = (CON*) blk->dia;
+      SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
+    }
+
+    for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+    {
+      ptr->rank = (int) (long) jtem->data;
+      ptr->ints = 1;
+      ptr->doubles = 0;
+      ptr->i = (int*) &dia->con->id;
+      ptr->d = NULL;
+      ptr= sendnext (++ nsend, &size, &send);
+    }
+
+    SET_Free (&setmem, &ranks);
+  }
+
+  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+
+  receive_middle_reactions (dom, recv, nrecv, &setmem, &midupd);
+
+  free (send);
+  free (recv);
+
+  dynamic = dom->dynamic;
+  step = dom->step;
+  gs->error = GS_OK;
+  gs->iters = 0;
+  dimax = 0;
+  do
+  {
+    double errup = 0.0,
+           errlo = 0.0,
+	   errloc [2],
+	   errsum [2];
+
+    unset_all (ldy);
+
+    di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+    COM_Repeat (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+
+    di = gauss_seidel_loop (middle, midupd, 0, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+
+    di = gauss_seidel_sweep (bottom, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+    COM_Repeat (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
+
+    di = gauss_seidel_sweep (internal, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+
+    ASSERT_DEBUG (all_set (ldy), "Not all external reactions were updated");
+
+    /* sum up error */
+    errloc [0] = errup, errloc [1] = errlo;
+    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    errup = errsum [0], errlo = errsum [1];
+
+    /* calculate relative error */
+    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+
+    if (gs->history) gs->rerhist [gs->iters] = error;
+
+    if (rank == 0 && gs->iters % div == 0 && dom->verbose) printf (fmt, gs->iters, error), div *= 2;
+  }
+  while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+
+  if (rank == 0 && dom->verbose) printf (fmt, gs->iters, error);
+
+  COM_Free (bot_pattern);
+  COM_Free (top_pattern);
+  MEM_Release (&setmem);
+  free (send_bot);
+  free (recv_bot);
+  free (send_top);
+  free (recv_top);
+  free (color);
+
+  /* get maximal iterations count of a diagonal block solver (this has been
+   * delayed until here to minimize small communication within the loop) */
+  MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
+
+  if (diagiters > gs->diagmaxiter || diagiters < 0)
+  {
+    if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
+    else gs->error = GS_DIAGONAL_DIVERGED;
+
+    switch ((int) gs->failure)
+    {
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      break;
+    }
+  }
+  else if (gs->iters >= gs->maxiter)
+  {
+    gs->error = GS_DIVERGED;
+
+    switch (gs->failure)
+    {
+    case GS_FAILURE_CONTINUE:
+      break;
+    case GS_FAILURE_EXIT:
+      THROW (ERR_GAUSS_SEIDEL_DIVERGED);
+      break;
+    case GS_FAILURE_CALLBACK:
+      gs->callback (gs->data);
+      break;
+    }
+  }
+}
 #else
 /* run serial solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
@@ -520,6 +1101,15 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	       *R = blk->dia->R;
 	NVADDMUL (B, W, R, B);
       }
+#if MPI
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	CON *con = (CON*) blk->dia;
+	double *W = blk->W,
+	       *R = con->R;
+	NVADDMUL (B, W, R, B);
+      }
+#endif
       
       COPY (R, R0); /* previous reaction */
 

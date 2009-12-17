@@ -706,7 +706,7 @@ static void update_body_constraint_or_force_values (BODY *bod)
     {
       con = item->data;
 
-      if (con->state & CON_DONERND) continue;
+      if (con->state & CON_DONE) continue;
 
       switch (legend.entity)
       {
@@ -722,7 +722,7 @@ static void update_body_constraint_or_force_values (BODY *bod)
       if (value < legend.extents [0]) legend.extents [0] = value;
       if (value > legend.extents [1]) legend.extents [1] = value;
 
-      con->state |= CON_DONERND;
+      con->state |= CON_DONE;
     }
   }
   else
@@ -1669,7 +1669,7 @@ static void render_body_set_constraints_or_forces (SET *set)
   BODY *bod;
   CON *con;
 
-  for (con = domain->con; con; con = con->next) con->state &= ~CON_DONERND; /* all undone */
+  for (con = domain->con; con; con = con->next) con->state &= ~CON_DONE; /* all undone */
 
   for (item = SET_First (set); item; item = SET_Next (item))
   {
@@ -1684,7 +1684,7 @@ static void render_body_set_constraints_or_forces (SET *set)
       {
 	con = jtem->data;
 
-	if (con->state & CON_DONERND) continue;
+	if (con->state & CON_DONE) continue;
 
 	switch (legend.entity)
 	{
@@ -1707,7 +1707,7 @@ static void render_body_set_constraints_or_forces (SET *set)
 	case RESULTS_R:  value_to_color (LEN (con->R), color); render_r (con, color); break;
 	}
 
-	con->state |= CON_DONERND;
+	con->state |= CON_DONE;
       }
     }
     else /* render force */
@@ -1889,7 +1889,7 @@ static void update ()
 
     if (legend_constraint_based ()) 
     {
-      for (CON *con = domain->con; con; con = con->next) con->state &= ~CON_DONERND; /* all undone */
+      for (CON *con = domain->con; con; con = con->next) con->state &= ~CON_DONE; /* all undone */
     }
 
     for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
