@@ -15,6 +15,7 @@
 #include "err.h"
 
 #if MPI
+#include "tag.h"
 #include "com.h"
 #include "lis.h"
 #endif
@@ -472,7 +473,7 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   return gs;
 }
 
-#if 0
+#if MPI
 /* create rank coloring using adjacency graph between processors derived from the W graph */
 static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
@@ -710,7 +711,7 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
       if (mycolor < color [con->rank] && (con->state & CON_DONE) == 0)
       {
 	MPI_Status sta;
-	MPI_Recv (con->R, 3, MPI_DOUBLE, con->rank, con->id, MPI_COMM_WORLD, &sta);
+	MPI_Recv (con->R, 3, MPI_DOUBLE, con->rank, TAG_LAST+con->id, MPI_COMM_WORLD, &sta);
 	con->state |= CON_DONE;
       }
 
@@ -725,7 +726,7 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
     {
       MPI_Request *req;
       ERRMEM (req = MEM_Alloc (&reqmem));
-      MPI_Isend (con->R, 3, MPI_DOUBLE, (int) (long) jtem->data, con->id, MPI_COMM_WORLD, req);
+      MPI_Isend (con->R, 3, MPI_DOUBLE, (int) (long) jtem->data, TAG_LAST+con->id, MPI_COMM_WORLD, req);
       SET_Insert (setmem, &requs, req, NULL);
     }
 
@@ -744,7 +745,7 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
     con = item->data;
     if ((con->state & CON_DONE) == 0)
     {
-      MPI_Recv (con->R, 3, MPI_DOUBLE, con->rank, con->id, MPI_COMM_WORLD, &sta);
+      MPI_Recv (con->R, 3, MPI_DOUBLE, con->rank, TAG_LAST+con->id, MPI_COMM_WORLD, &sta);
       con->state |= CON_DONE;
     }
   }
@@ -784,7 +785,10 @@ static int all_set (LOCDYN *ldy)
     for (blk = dia->adjext; blk; blk = blk->n)
     {
       con = (CON*) blk->dia;
-      if ((con->state & CON_DONE) == 0) return 0;
+      if ((con->state & CON_DONE) == 0)
+      {
+	return 0;
+      }
     }
   }
 
@@ -810,7 +814,15 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       *top       = NULL,
       *middle    = NULL,
       *internal  = NULL,
-      *midupd    = NULL;
+      *midupd    = NULL,
+      *int1      = NULL,
+      *int2      = NULL;
+
+  int size1 = 0,
+      size2 = 0,
+      size3 = 0,
+      size4,
+      size5;
 
   void *bot_pattern, /* communication pattern when sending from lower to higher processors */
        *top_pattern; /* the reverse communication pattern */
@@ -849,19 +861,38 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
 
     if (lo && hi) SET_Insert (&setmem, &middle, dia, NULL);
-    else if (lo) SET_Insert (&setmem, &bottom, dia, NULL);
-    else if (hi) SET_Insert (&setmem, &top, dia, NULL);
-    else SET_Insert (&setmem, &internal, dia, NULL);
+    else if (lo) SET_Insert (&setmem, &bottom, dia, NULL), size1 ++;
+    else if (hi) SET_Insert (&setmem, &top, dia, NULL), size2 ++;
+    else SET_Insert (&setmem, &internal, dia, NULL), size3 ++;
+  }
+
+  /* size1 + |int2| = size2 + |int1|
+   * |int1| + |int2| = size3
+   * -------------------------------
+   * |int2| = (size3 + size2 - size1) / 2
+   */
+
+  size4 = (size3 + size2 - size1) / 2;
+  size4 = MAX (0, size4);
+  size5 = 0;
+
+  /* create int1 and int2 such that: |bot| + |int2| = |top| + |int1| */
+  for (SET *item = SET_First (internal); item; item = SET_Next (item))
+  {
+    dia = item->data;
+
+    if (size5 < size4) SET_Insert (&setmem, &int2, dia, NULL), size5 ++; /* FIXME: degrees were used */
+    else SET_Insert (&setmem, &int1, dia, NULL);
   }
 
 #if DEBUG
   if (dom->verbose)
   {
-    int sizes [4] = {SET_Size (bottom), SET_Size (middle), SET_Size (top), SET_Size (internal)}, result [4];
+    int sizes [5] = {SET_Size (bottom), SET_Size (middle), SET_Size (top), SET_Size (int1), SET_Size (int2)}, result [5];
 
-    MPI_Reduce (sizes, result, 4, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+    MPI_Reduce (sizes, result, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-    if (rank == 0) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INTERNAL| = %d\n", result [0], result [1], result [2], result [3]);
+    if (rank == 0) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n", result [0], result [1], result [2], result [3], result [4]);
   }
 #endif
 
@@ -922,8 +953,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     SET_Free (&setmem, &ranks);
   }
 
-  bot_pattern = COM_Pattern (MPI_COMM_WORLD, 9999991, send_bot, nsend_bot, &recv_bot, &nrecv_bot);
-  top_pattern = COM_Pattern (MPI_COMM_WORLD, 9999992, send_top, nsend_top, &recv_top, &nrecv_top);
+  bot_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_BOTTOM, send_bot, nsend_bot, &recv_bot, &nrecv_bot);
+  top_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_TOP, send_top, nsend_top, &recv_top, &nrecv_top);
 
   /* discover which external constraints from top and bottom sets are updated by middle nodes */
 
@@ -982,14 +1013,16 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     unset_all (ldy);
 
     di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-    COM_Repeat (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+    COM_Send (top_pattern);
+    di = gauss_seidel_sweep (int2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); /* large |top| => large |int2| */
+    COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
 
     di = gauss_seidel_loop (middle, midupd, 0, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
 
     di = gauss_seidel_sweep (bottom, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-    COM_Repeat (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
-
-    di = gauss_seidel_sweep (internal, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+    COM_Send (bot_pattern);
+    di = gauss_seidel_sweep (int1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+    COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
 
     ASSERT_DEBUG (all_set (ldy), "Not all external reactions were updated");
 

@@ -144,6 +144,7 @@ static void compute_adjext (LOCDYN *ldy)
   SET *item;
   MAP *jtem;
   DIAB *dia;
+  int i;
 
   /* clear previous external adjacency */
   for (dia = ldy->dia; dia; dia = dia->n)
@@ -162,23 +163,27 @@ static void compute_adjext (LOCDYN *ldy)
   {
     ext = jtem->data;
 
-    if (ext->master->flags & (BODY_PARENT|BODY_CHILD)) bod = ext->master; /* for all involved bodies (parents and children) */
-    else bod = ext->slave;
+    BODY *bodies [] = {ext->master, ext->slave}; /* e.g. two remote child bodies of local parents might be in contact */
 
-    if (bod->kind == OBS) continue; /* obstacles do not trasnder adjacency */
-
-    for (item = SET_First (bod->con); item; item = SET_Next (item)) 
+    for (i = 0, bod = bodies [i]; i < 2 && bod; i ++, bod = bodies [i]) /* (i < 2 && bod) skips NULL slaves of single-body constraints */
     {
-      con = item->data;
+      if (bod->kind == OBS) continue; /* obstacles do not trasnder adjacency */
 
-      if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
+      for (item = SET_First (bod->con); item; item = SET_Next (item)) 
+      {
+	con = item->data;
 
-      dia = con->dia;
-      ERRMEM (b = MEM_Alloc (&ldy->offmem));
-      b->dia = (DIAB*) ext; /* there is no diagonal block here, but we shall point directly to the external contact */
-      b->bod = bod; /* adjacent through this body */
-      b->n = dia->adjext;
-      dia->adjext = b;
+	if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
+
+	ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy"); /* we could skip dummies, but this reassures correctness */
+
+	dia = con->dia;
+	ERRMEM (b = MEM_Alloc (&ldy->offmem));
+	b->dia = (DIAB*) ext; /* there is no diagonal block here, but we shall point directly to the external contact */
+	b->bod = bod; /* adjacent through this body */
+	b->n = dia->adjext;
+	dia->adjext = b;
+      }
     }
   }
 }
