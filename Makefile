@@ -50,6 +50,7 @@ BASEO = obj/err.o \
 	obj/mat.o \
 	obj/goc.o \
 	obj/cmp.o \
+	obj/libsolfec.o \
 
 OBJ =   $(EXTO)   \
         $(BASEO)  \
@@ -237,6 +238,9 @@ obj/goc.o: goc.c goc.h shp.h cvi.h box.h alg.h err.h
 
 obj/cmp.o: cmp.c cmp.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/libsolfec.o: solfec.c solfec.h
+	$(CC) -DLIBSOLFEC $(CFLAGS) -c -o $@ $<
 
 obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<

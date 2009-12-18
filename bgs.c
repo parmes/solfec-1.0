@@ -515,20 +515,37 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   for (i = 0; i < ncpu; i ++) color [i] = 0; /* invalidate coloring */
 
-  m = 1; /* free color */
-
   for (i = 0; i < ncpu; i ++) /* simple BFS coloring */
   {
     int *j, *k;
 
-    if (color [i] == 0) color [i] = m ++; /* not colored => do it */
-
-    for (j = &adj[disp[i]], k = &adj[disp[i+1]]; j < k; j ++) /* for each adjacent vertex */
+    if (color [i] == 0) /* if not colored */
     {
-      if (color [*j] == 0) color [*j] = m ++; /* not colored => do it */
-      else if (color [*j] == color [i]) color [*j] = m ++; /* conflict => do it again */
+      do
+      {
+	color [i] ++; /* start from first color */
+
+	for (j = &adj[disp[i]], k = &adj[disp[i+1]]; j < k; j ++) /* for each adjacent vertex */
+	{
+	  if (color [*j] == color [i]) break; /* see whether the trial color exists in the adjacency */
+	}
+      }
+      while (j < k); /* if so try next color */
     }
   }
+
+#if DEBUG
+#if 0
+  printf ("RANK %d [%d] ADJCPU: ", rank, color [rank]);
+  for (item = SET_First (adjcpu); item; item = SET_Next (item)) printf ("%d [%d] ", (int) (long) item->data, color [(int) (long) item->data]);
+  printf ("\n");
+#endif
+  if (rank == 0 && ldy->dom->verbose)
+  {
+    for (m = i = 0; i < ncpu; i ++) m = MAX (m, color [i]); /* get number of colors */
+    printf ("GAUSS_SEIDEL: PROCESSOR COLORS = %d\n", m);
+  }
+#endif
 
   MEM_Release (&setmem);
   free (size);
@@ -684,6 +701,17 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
 
   requs = NULL;
 
+  /* post receives first */
+  for (item = SET_First (midupd); item; item = SET_Next (item))
+  {
+    MPI_Request *req;
+    con = item->data;
+    ASSERT_DEBUG ((con->state & CON_DONE) == 0 && con->dia == NULL, "Invalid external constraint");
+    ERRMEM (req = MEM_Alloc (&reqmem));
+    MPI_Irecv (con->R, 3, MPI_DOUBLE, con->rank, TAG_LAST+con->id, MPI_COMM_WORLD, req);
+    con->dia = (DIAB*) req; /* use spare (NULL) DIAB pointer for the request */
+  }
+
   for (item = SET_First (middle); item; item = SET_Next (item))
   {
     ERRMEM (cur = MEM_Alloc (&lstmem));
@@ -707,11 +735,10 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
     for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
     {
       con = (CON*) blk->dia;
-
       if (mycolor < color [con->rank] && (con->state & CON_DONE) == 0)
       {
 	MPI_Status sta;
-	MPI_Recv (con->R, 3, MPI_DOUBLE, con->rank, TAG_LAST+con->id, MPI_COMM_WORLD, &sta);
+        MPI_Wait ((MPI_Request*)con->dia, &sta);
 	con->state |= CON_DONE;
       }
 
@@ -741,13 +768,14 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
 
   for (item = SET_First (midupd); item; item = SET_Next (item))
   {
-    MPI_Status sta;
     con = item->data;
     if ((con->state & CON_DONE) == 0)
     {
-      MPI_Recv (con->R, 3, MPI_DOUBLE, con->rank, TAG_LAST+con->id, MPI_COMM_WORLD, &sta);
+      MPI_Status sta;
+      MPI_Wait ((MPI_Request*)con->dia, &sta);
       con->state |= CON_DONE;
     }
+    con->dia = NULL;
   }
 
   MEM_Release (&lstmem);

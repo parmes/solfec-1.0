@@ -42,6 +42,7 @@ void REGISTER_SOLFEC (SOLFEC *sol)
   solfec = sol;
 }
 
+#ifndef LIBSOLFEC /* executables */
 #if MPI_VERSION >= 2
 /* error handler callback */
 static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
@@ -178,3 +179,4 @@ int main (int argc, char **argv)
 
   return 0;
 }
+#endif /* ~LIBSOLFEC */
