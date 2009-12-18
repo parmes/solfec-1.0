@@ -54,11 +54,11 @@ struct compattern
   char **send_data,
        **recv_data;
 
-  MPI_Request *req; /* for receiving */
-  MPI_Status *sta; /* for receiving */
+  MPI_Request *recv_req; /* for receiving */
+  MPI_Status *recv_sta; /* for receiving */
 
-  MPI_Request *reqs; /* for sending */
-  MPI_Status *stas; /* for sending */
+  MPI_Request *send_req; /* for sending */
+  MPI_Status *send_sta; /* for sending */
 
   COMDATA *send,
 	  *recv;
@@ -728,22 +728,22 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   }
 
   ERRMEM (pattern->recv_sizes = malloc (pattern->recv_count * sizeof (int [3])));
-  ERRMEM (pattern->req = malloc (pattern->recv_count * sizeof (MPI_Request)));
-  ERRMEM (pattern->sta = malloc (pattern->recv_count * sizeof (MPI_Status)));
-  ERRMEM (pattern->reqs = malloc (pattern->send_count * sizeof (MPI_Request)));
-  ERRMEM (pattern->stas = malloc (pattern->send_count * sizeof (MPI_Status)));
+  ERRMEM (pattern->recv_req = malloc (pattern->recv_count * sizeof (MPI_Request)));
+  ERRMEM (pattern->recv_sta = malloc (pattern->recv_count * sizeof (MPI_Status)));
+  ERRMEM (pattern->send_req = malloc (pattern->send_count * sizeof (MPI_Request)));
+  ERRMEM (pattern->send_sta = malloc (pattern->send_count * sizeof (MPI_Status)));
 
   /* communicate receive sizes */
   for (i = 0; i < pattern->recv_count; i ++)
   {
-    MPI_Irecv (pattern->recv_sizes [i], 3, MPI_INT, pattern->recv_rank [i], tag, comm, &pattern->req [i]);
+    MPI_Irecv (pattern->recv_sizes [i], 3, MPI_INT, pattern->recv_rank [i], tag, comm, &pattern->recv_req [i]);
   }
   MPI_Barrier (comm);
   for (i = 0; i < pattern->send_count; i ++)
   {
     MPI_Rsend (pattern->send_sizes [i], 3, MPI_INT, pattern->send_rank [i], tag, comm);
   }
-  MPI_Waitall (pattern->recv_count, pattern->req, pattern->sta);
+  MPI_Waitall (pattern->recv_count, pattern->recv_req, pattern->recv_sta);
 
   /* contiguous receive size */
   j = pattern->recv_count * sizeof (COMDATA);
@@ -808,8 +808,8 @@ int COM_Repeat (void *pattern)
        i, j;
   char **send_data = cp->send_data,
        **recv_data = cp->recv_data;
-  MPI_Request *req = cp->req;
-  MPI_Status *sta = cp->sta;
+  MPI_Request *recv_req = cp->recv_req;
+  MPI_Status *recv_sta = cp->recv_sta;
   MPI_Comm comm = cp->comm;
   COMDATA *cd;
 
@@ -839,14 +839,14 @@ int COM_Repeat (void *pattern)
   /* communicate data */
   for (i = 0; i < recv_count; i ++)
   {
-    MPI_Irecv (recv_data [i], recv_sizes [i][2], MPI_PACKED, recv_rank [i], tag, comm, &req [i]);
+    MPI_Irecv (recv_data [i], recv_sizes [i][2], MPI_PACKED, recv_rank [i], tag, comm, &recv_req [i]);
   }
   MPI_Barrier (comm);
   for (i = 0; i < send_count; i ++)
   {
     MPI_Rsend (send_data [i], send_sizes [i][2], MPI_PACKED, send_rank [i], tag, comm);
   }
-  MPI_Waitall (recv_count, req, sta);
+  MPI_Waitall (recv_count, recv_req, recv_sta);
 
   /* unpack data */
   for (i = j = 0, cd = cp->recv; i < recv_count; i ++, cd ++, j = 0)
@@ -866,12 +866,17 @@ int COM_Send (void *pattern)
       *send_position = cp->send_position,
      (*send_sizes) [3] = cp->send_sizes,
       *send_rank = cp->send_rank,
+      *recv_rank = cp->recv_rank,
+     (*recv_sizes) [3] = cp->recv_sizes,
        send_count = cp->send_count,
+       recv_count = cp->recv_count,
        tag = cp->tag,
        nsend = cp->nsend,
        i, j;
-  char **send_data = cp->send_data;
-  MPI_Request *reqs = cp->reqs;
+  char **send_data = cp->send_data,
+       **recv_data = cp->recv_data;
+  MPI_Request *send_req = cp->send_req,
+              *recv_req = cp->recv_req;
   MPI_Comm comm = cp->comm;
   COMDATA *cd;
 
@@ -901,7 +906,13 @@ int COM_Send (void *pattern)
   /* send data */
   for (i = 0; i < send_count; i ++)
   {
-    MPI_Isend (send_data [i], send_sizes [i][2], MPI_PACKED, send_rank [i], tag, comm, &reqs [i]);
+    MPI_Isend (send_data [i], send_sizes [i][2], MPI_PACKED, send_rank [i], tag, comm, &send_req [i]);
+  }
+
+  /* receive data */
+  for (i = 0; i < recv_count; i ++)
+  {
+    MPI_Irecv (recv_data [i], recv_sizes [i][2], MPI_PACKED, recv_rank [i], tag, comm, &recv_req [i]);
   }
 
   return cp->send_size;
@@ -911,27 +922,23 @@ int COM_Send (void *pattern)
 void COM_Recv (void *pattern)
 {
   COMPATTERN *cp = pattern;
-  int *recv_rank = cp->recv_rank,
-     (*recv_sizes) [3] = cp->recv_sizes,
-       recv_count = cp->recv_count,
-       send_count = cp->send_count,
-       tag = cp->tag,
-       i, j;
+  int (*recv_sizes) [3] = cp->recv_sizes,
+        recv_count = cp->recv_count,
+        send_count = cp->send_count,
+        i, j;
   char **recv_data = cp->recv_data;
-  MPI_Request *reqs = cp->reqs;
-  MPI_Status *stas = cp->stas;
-  MPI_Status *sta = cp->sta;
+  MPI_Request *send_req = cp->send_req,
+	      *recv_req = cp->recv_req;
+  MPI_Status *send_sta = cp->send_sta,
+             *recv_sta = cp->recv_sta;
   MPI_Comm comm = cp->comm;
   COMDATA *cd;
 
   /* wait until until send is done */
-  MPI_Waitall (send_count, reqs, stas);
+  MPI_Waitall (send_count, send_req, send_sta);
 
-  /* receive data */
-  for (i = 0; i < recv_count; i ++)
-  {
-    MPI_Recv (recv_data [i], recv_sizes [i][2], MPI_PACKED, recv_rank [i], tag, comm, &sta [i]);
-  }
+  /* wait until until receive is done */
+  MPI_Waitall (recv_count, recv_req, recv_sta);
 
   /* unpack data */
   for (i = j = 0, cd = cp->recv; i < recv_count; i ++, cd ++, j = 0)
@@ -959,11 +966,10 @@ void COM_Free (void *pattern)
   for (i = 0; i < cp->recv_count; i ++)
     free (cp->recv_data [i]);
   free (cp->recv_data);
-  free (cp->req);
-  free (cp->sta);
-  free (cp->reqs);
-  free (cp->stas);
-
+  free (cp->recv_req);
+  free (cp->recv_sta);
+  free (cp->send_req);
+  free (cp->send_sta);
   free (pattern);
 }
 
