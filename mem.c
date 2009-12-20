@@ -24,6 +24,10 @@
 #include "mem.h"
 #include "err.h"
 
+#if MEMDEBUG
+#include "set.h"
+#endif
+
 void* MEM_CALLOC (size_t size)
 {
   void *chunk;
@@ -54,8 +58,10 @@ void* MEM_Alloc (MEM *pool)
 #if MEMDEBUG
   void *chunk;
 
-  chunk = malloc (pool->chunksize);
+  if (!(chunk = malloc (pool->chunksize))) return NULL;
   memset (chunk, 0, pool->chunksize);
+
+  SET_Insert (NULL, (SET**) &pool->blocks, chunk, NULL);
 
   return chunk;
 #else
@@ -94,6 +100,8 @@ void* MEM_Alloc (MEM *pool)
 void MEM_Free (MEM *pool, void *chunk)
 {
 #if MEMDEBUG
+  SET_Delete (NULL, (SET**) &pool->blocks, chunk, NULL);
+
   free (chunk);
 #else
   /* insert chunk into dead chunks list */
@@ -105,7 +113,7 @@ void MEM_Free (MEM *pool, void *chunk)
 size_t MEM_Size (MEM *pool)
 {
 #ifdef MEMDEBUG
-  return 0;
+  return SET_Size (pool->blocks) * pool->chunksize;
 #else
   size_t size = 0, chunk = pool->chunksize *
     pool->chunksinblock + sizeof(size_t);
@@ -127,7 +135,11 @@ size_t MEM_Size (MEM *pool)
 
 void MEM_Release (MEM *pool)
 {
-#ifndef MEMDEBUG
+#if MEMDEBUG
+  for (SET *item = SET_First (pool->blocks); item; item = SET_Next (item)) free (item->data);
+
+  SET_Free (NULL, (SET**) &pool->blocks);
+#else
   void *block = pool->blocks;
   size_t next;
   
