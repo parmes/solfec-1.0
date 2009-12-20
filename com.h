@@ -118,5 +118,4 @@ int COMALL_Repeat (void *pattern);
 
 /* free all to all communication pattern */
 void COMALL_Free (void *pattern);
-
 #endif

@@ -487,7 +487,16 @@ static int body_weight (BODY *bod)
 /* compute constraint weight */
 static int constraint_weight (CON *con)
 {
-  return con->master->dofs + (con->slave ? con->slave->dofs : 0);
+  int weight;
+  OFFB *blk;
+
+  weight = con->master->dofs + (con->slave ? con->slave->dofs : 0); /* at least as heavy as attached bodies */
+  
+  for (blk = con->dia->adj; blk; blk = blk->n) weight += 3; /* and heavier proportionally to the adjacency size */
+
+  for (blk = con->dia->adjext; blk; blk = blk->n) weight += 3; /* three adjacent reactions for each block */
+
+  return weight;
 }
 
 /* number of objects for balacing */
@@ -1262,13 +1271,25 @@ static void domain_balancing (DOM *dom)
     }
   }
 
-#if DEBUG
-  for (con = dom->con; con; con = con->next)
   {
-    ASSERT_DEBUG (con->master->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy");
-    if (con->slave) ASSERT_DEBUG (con->slave->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy");
+    /* FIXME: it happens that bodies migrate out abandoning constraints;
+     * FIXME: in such case a child body should be sent here or an abandoned constraint
+     * FIXME: should have migrated out; this is an issue that needs further debugging */
+    CON *next;
+
+    for (con = dom->con; con; con = next)
+    {
+      next = con->next;
+
+      if ((con->master->flags & (BODY_PARENT|BODY_CHILD)) == 0 ||
+	  (con->slave && (con->slave->flags & (BODY_PARENT|BODY_CHILD))) == 0)
+      {
+	WARNING_DEBUG (0, "Regular constraint attached to a dummy during %s balancing", dom->balancing == FULL_BALANCING ? "full" : "partial");
+
+	DOM_Remove_Constraint (dom, con);
+      }
+    }
   }
-#endif
 
   if (dom->balancing == FULL_BALANCING)
   {
