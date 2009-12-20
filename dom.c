@@ -983,7 +983,7 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
 
     /* during PARTIAL_BALANCING only extend the previous set of body children by new ranks;
      * constraints, which do not migrated in this mode, maintain this way their attachment
-     * to children which cannot migrate out; this could have been possible otherwise */
+     * to children which cannot migrate out; this could have been possible otherwise (###) */
 
     for (i = 0; i < numprocs; i ++)
     {
@@ -1012,7 +1012,7 @@ static void children_migration_end (DOM *dom)
     /* must be a child */
     ASSERT_DEBUG (bod->flags & BODY_CHILD, "Not a child");
 
-    if ((bod->flags & BODY_CHILD_UPDATED) == 0) /* migrated out as it wasn't updated by a parent */
+    if (dom->balancing == FULL_BALANCING && (bod->flags & BODY_CHILD_UPDATED) == 0) /* migrated out as it wasn't updated by a parent; see (###) above */
     {
       bod->flags &= ~BODY_CHILD; /* unmark child */
       
