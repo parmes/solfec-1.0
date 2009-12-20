@@ -487,16 +487,7 @@ static int body_weight (BODY *bod)
 /* compute constraint weight */
 static int constraint_weight (CON *con)
 {
-  int weight;
-  OFFB *blk;
-
-  weight = con->master->dofs + (con->slave ? con->slave->dofs : 0); /* at least as heavy as attached bodies */
-  
-  for (blk = con->dia->adj; blk; blk = blk->n) weight += 3; /* and heavier proportionally to the adjacency size */
-
-  for (blk = con->dia->adjext; blk; blk = blk->n) weight += 3; /* three adjacent reactions for each block */
-
-  return weight;
+  return  con->master->dofs + (con->slave ? con->slave->dofs : 0);
 }
 
 /* number of objects for balacing */
