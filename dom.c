@@ -1282,7 +1282,7 @@ static void domain_balancing (DOM *dom)
       next = con->next;
 
       if ((con->master->flags & (BODY_PARENT|BODY_CHILD)) == 0 ||
-	  (con->slave && (con->slave->flags & (BODY_PARENT|BODY_CHILD))) == 0)
+	  (con->slave && (con->slave->flags & (BODY_PARENT|BODY_CHILD)) == 0))
       {
 	WARNING_DEBUG (0, "Regular constraint attached to a dummy during %s balancing", dom->balancing == FULL_BALANCING ? "full" : "partial");
 
