@@ -5,9 +5,9 @@ from math import cos
 from math import sqrt
 
 # some parameters
-N_BRICKS = 4
-M_BRICKS = 4
-N_LAYERS = 2
+N_BRICKS = 2
+M_BRICKS = 2
+N_LAYERS = 3
 
 # some constants
 PI = 3.14159265358979323846 
@@ -405,7 +405,7 @@ OUTPUT (solfec, 0.0)
 
 IMBALANCE_TOLERANCE (solfec, 1.0);
 
-RUN (solfec, gs, 10 * step)
+RUN (solfec, gs, 100 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 
