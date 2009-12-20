@@ -42,14 +42,9 @@ large contact statate change (say point and normal difference relative norm)!
 ----------------------------------------------------
 Explicit solver is unaware of cohesion
 --------------------------------------------------------------------
-Introduce local (BODY ID, SGP PAIR) to latest reaction value
-cache so to reassign most recent values to reestablished contacts
------------------------------------------------------------
 Test PBF file size limitation fixup
 ----------------------------------------------------
 Data compression/decompression in COMALL, etc.
---------------------------------------------
-Migration of RIGLNK constraints
 --------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------
