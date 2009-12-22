@@ -862,14 +862,14 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       size_top, nsend_top, nrecv_top;
 
   dom = ldy->dom;
+  rank = dom->rank;
 
-  if (dom->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+  if (rank == 0 && dom->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
   if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
 
   color = processor_coloring (gs, ldy); /* color processors */
   solfec = dom->solfec;
-  rank = dom->rank;
   mycolor = color [rank];
 
   MEM_Init (&setmem, sizeof (SET), 256);
@@ -914,13 +914,12 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   }
 
 #if DEBUG
-  if (dom->verbose)
   {
     int sizes [5] = {SET_Size (bottom), SET_Size (middle), SET_Size (top), SET_Size (int1), SET_Size (int2)}, result [5];
 
     MPI_Reduce (sizes, result, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-    if (rank == 0) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n", result [0], result [1], result [2], result [3], result [4]);
+    if (rank == 0 && dom->verbose) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n", result [0], result [1], result [2], result [3], result [4]);
   }
 #endif
 
@@ -1064,7 +1063,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     if (gs->history) gs->rerhist [gs->iters] = error;
 
-    if (rank == 0 && gs->iters % div == 0 && dom->verbose) printf (fmt, gs->iters, error), div *= 2;
+    if (gs->iters % div == 0 && rank == 0 && dom->verbose) printf (fmt, gs->iters, error), div *= 2;
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 

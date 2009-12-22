@@ -1477,17 +1477,14 @@ static void new_boundary_contacts_migration (DOM *dom, DBD *dbd)
       {
 	bod = bodies [i];
 
-	if (bod)
+	for (item = SET_First (bod->children); item; item = SET_Next (item))
 	{
-	  for (item = SET_First (bod->children); item; item = SET_Next (item))
-	  {
-	    SET_Insert (&dom->setmem, (SET**)&dbd [(int) (long) item->data].glue, con, NULL); /* schedule for sending to children */
-	  }
+	  SET_Insert (&dom->setmem, (SET**)&dbd [(int) (long) item->data].glue, con, NULL); /* schedule for sending to children */
+	}
 
-	  if (bod->flags & BODY_CHILD)
-	  {
-	    SET_Insert (&dom->setmem, (SET**)&dbd [bod->rank].glue, con, NULL); /* schedule for sending to parent */
-	  }
+	if (bod->flags & BODY_CHILD)
+	{
+	  SET_Insert (&dom->setmem, (SET**)&dbd [bod->rank].glue, con, NULL); /* schedule for sending to parent */
 	}
       }
     }
@@ -1633,7 +1630,7 @@ static void clear_external_constraints (DOM *dom)
       con = item->data;
       if (con->state & CON_EXTERNAL)
       {
-	ASSERT_DEBUG (0, "External constraint %u remained on body %u on ranks %d", con->id, bod->id, dom->rank);
+	ASSERT_DEBUG (0, "External constraint %u remained on body %u on rank %d", con->id, bod->id, dom->rank);
       }
     }
   }
