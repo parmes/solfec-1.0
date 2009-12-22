@@ -430,7 +430,11 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
     for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
     {
+#if DEBUG
+      upkind = UPALL; /* always update all of W and perform consistency checks (even for an explicit solver) */
+#else
       upkind = (kind == EXPLICIT_SOLVER ? UPDIA : UPALL); /* here as user callback can change solver */
+#endif
 
 #if MPI
       if (sol->dom->rank == 0)
