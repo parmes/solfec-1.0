@@ -889,6 +889,38 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   bod->flags |= BODY_CHILD_UPDATED;
 }
 
+/* pack child update */
+static void pack_child_update (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  /* must be an existing parent */
+  ASSERT_DEBUG (bod->flags & BODY_PARENT, "Not a parent");
+
+  /* pack id */
+  pack_int (isize, i, ints, bod->id);
+
+  /* pack state */
+  BODY_Child_Update_Pack (bod, dsize, d, doubles, isize, i, ints);
+}
+
+/* unpack child update */
+static void unpack_child_update (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  BODY *bod;
+  int id;
+
+  /* unpack id */
+  id = unpack_int (ipos, i, ints);
+
+  /* find body */
+  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
+
+  /* must be a child */
+  ASSERT_DEBUG (bod->flags & BODY_CHILD, "Not a child");
+
+  /* unpack state */
+  BODY_Child_Update_Unpack (bod, dpos, d, doubles, ipos, i, ints);
+}
+
 /* pack statistics */
 static void pack_stats (DOM *dom, int rank, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -960,6 +992,71 @@ static void stats_compute (DOM *dom)
 static void stats_destroy (DOM *dom)
 {
   free (dom->stats);
+}
+
+/* pack children update data */
+static void update_children_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  SET *item;
+
+  pack_int (isize, i, ints, SET_Size (dbd->children));
+  for (item = SET_First (dbd->children); item; item = SET_Next (item))
+    pack_child_update (item->data, dsize, d, doubles, isize, i, ints);
+}
+
+/* unpack children udate data */
+static void* update_children_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int n, j;
+
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    unpack_child_update (dom, dpos, d, doubles, ipos, i, ints);
+  }
+
+  return NULL;
+}
+
+/* update children shapes */
+static void update_children (DOM *dom)
+{
+  COMOBJ *send, *recv;
+  int i, nrecv;
+  DBD *dbd;
+  BODY *bod;
+  SET *item;
+
+  ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
+
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    for (item = SET_First (bod->children); item; item = SET_Next (item))
+    {
+      SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].children, bod, NULL); /* map bodies to child rank sets */
+    }
+  }
+
+  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
+
+  for (i = 0; i < dom->ncpu; i ++)
+  {
+    dbd [i].rank = send [i].rank = i;
+    send [i].o = &dbd [i];
+    dbd [i].dom = dom;
+  }
+
+  /* send children updates; since this is the first communication in a sequence, we have here dom->bytes = ... rather than dom->bytes += ... */
+  dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)update_children_pack, dom, (OBJ_Unpack)update_children_unpack, send, dom->ncpu, &recv, &nrecv);
+
+  for (i = 0; i < dom->ncpu; i ++)
+  {
+    SET_Free (&dom->setmem, &dbd [i].children);
+  }
+
+  free (send);
+  free (recv);
+  free (dbd);
 }
 
 /* compute ranks of migrating children */
@@ -1254,16 +1351,22 @@ static void domain_balancing (DOM *dom)
 	  for (j = 0; j < 2; j ++)
 	  {
 	    bod = bodies [j];
-	    double *e = bod->extents;
+	    double e [6];
+
+	    if (bod->flags & BODY_CHILD) SHAPE_Extents (bod->shape, e); /* bod->extents were not be updated for a child */
+	    else { COPY6 (bod->extents, e); }
 
 	    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
-	    for (k = 0; bod && k < numprocs; k ++)
+	    for (k = 0; k < numprocs; k ++)
 	    {
 	      if (export_procs [i] == procs [k]) break;
 	    }
 
-	    ASSERT_DEBUG (k < numprocs, "A constraint is exported where its bodies are not present");
+	    if (k == numprocs)
+	    {
+	      ASSERT_DEBUG (0, "A constraint is exported where its bodies are not present");
+	    }
 	  }
 
 	  free (procs);
@@ -1290,7 +1393,7 @@ static void domain_balancing (DOM *dom)
   children_migration_begin (dom, dbd);
 
   /* communication */
-  dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_pack, dom, (OBJ_Unpack)domain_balancing_unpack, send, dom->ncpu, &recv, &nrecv);
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_pack, dom, (OBJ_Unpack)domain_balancing_unpack, send, dom->ncpu, &recv, &nrecv);
 
   /* delete migrated out children */
   children_migration_end (dom);
@@ -1306,10 +1409,6 @@ static void domain_balancing (DOM *dom)
   }
 
 #if DEBUG
-  /* FIXME: it happens that bodies migrate out abandoning constraints;
-   * FIXME: in such case a child body should be sent here or an abandoned constraint
-   * FIXME: should have migrated out; this is an issue that needs further debugging */
-
   for (con = dom->con; con; con = con->next)
   {
     if ((con->master->flags & (BODY_PARENT|BODY_CHILD)) == 0 ||
@@ -2157,6 +2256,18 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     for (bod = dom->bod; bod; bod = bod->next)
       BODY_Static_Step_Begin (bod, time, step);
 
+  SOLFEC_Timer_End (dom->solfec, "TIMINT");
+
+#if MPI
+  SOLFEC_Timer_Start (dom->solfec, "PARBAL");
+
+  update_children (dom); /* children need to be updated before old constraints (whose update depends on children) */
+
+  SOLFEC_Timer_End (dom->solfec, "PARBAL");
+#endif
+
+  SOLFEC_Timer_Start (dom->solfec, "TIMINT");
+
   /* update old constraints */
   for (con = dom->con; con; con = next)
   {
@@ -2177,7 +2288,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
-  domain_balancing (dom);
+  domain_balancing (dom); /* migrate bodies (parents and children) and constraints */
 
   SOLFEC_Timer_End (dom->solfec, "PARBAL");
 #endif
@@ -2192,7 +2303,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
-  domain_gluing (dom);
+  domain_gluing (dom); /* migrate new external constraints */
 
   SOLFEC_Timer_End (dom->solfec, "PARBAL");
 #else
