@@ -1248,15 +1248,15 @@ static void domain_balancing (DOM *dom)
 	{
 	  BODY *bodies [] = {con->master, con->slave};
 	  int *procs, numprocs, j, k;
-	  double *e = bod->extents;
 
 	  ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
-
-	  Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
 	  for (j = 0; j < 2; j ++)
 	  {
 	    bod = bodies [j];
+	    double *e = bod->extents;
+
+	    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
 	    for (k = 0; bod && k < numprocs; k ++)
 	    {
