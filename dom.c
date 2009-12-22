@@ -1193,6 +1193,23 @@ static void domain_balancing (DOM *dom)
   /* only during full balancing bodies and constraints can migrate */
   if (dom->balancing == FULL_BALANCING)
   {
+#if DEBUG
+    /* test whether constraints attached to bodies have their points inside of body extents */
+    for (bod = dom->bod; bod; bod = bod->next)
+    {
+      for (item = SET_First (bod->con); item; item = SET_Next (item))
+      {
+	con = item->data;
+	if (con->point [0] < bod->extents [0] || con->point [0] > bod->extents [3] ||
+            con->point [1] < bod->extents [1] || con->point [1] > bod->extents [4] ||
+            con->point [2] < bod->extents [2] || con->point [2] > bod->extents [5])
+	{
+	  ASSERT_DEBUG (0, "Constraint point outside of the attached body extents"); /* a debugger catchable assertion */
+	}
+      }
+    }
+#endif
+
     /* update imbalance tolerance */
     snprintf (tol, 128, "%g", dom->imbalance_tolerance);
     Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", tol);
@@ -1262,25 +1279,20 @@ static void domain_balancing (DOM *dom)
     }
   }
 
+#if DEBUG
+  /* FIXME: it happens that bodies migrate out abandoning constraints;
+   * FIXME: in such case a child body should be sent here or an abandoned constraint
+   * FIXME: should have migrated out; this is an issue that needs further debugging */
+
+  for (con = dom->con; con; con = con->next)
   {
-    /* FIXME: it happens that bodies migrate out abandoning constraints;
-     * FIXME: in such case a child body should be sent here or an abandoned constraint
-     * FIXME: should have migrated out; this is an issue that needs further debugging */
-    CON *next;
-
-    for (con = dom->con; con; con = next)
+    if ((con->master->flags & (BODY_PARENT|BODY_CHILD)) == 0 ||
+	(con->slave && (con->slave->flags & (BODY_PARENT|BODY_CHILD)) == 0))
     {
-      next = con->next;
-
-      if ((con->master->flags & (BODY_PARENT|BODY_CHILD)) == 0 ||
-	  (con->slave && (con->slave->flags & (BODY_PARENT|BODY_CHILD)) == 0))
-      {
-	WARNING_DEBUG (0, "Regular constraint attached to a dummy during %s balancing", dom->balancing == FULL_BALANCING ? "full" : "partial");
-
-	DOM_Remove_Constraint (dom, con);
-      }
+      ASSERT_DEBUG (0, "Regular constraint attached to a dummy during %s balancing", dom->balancing == FULL_BALANCING ? "full" : "partial"); /* a debugger catchable assertion */
     }
   }
+#endif
 
   if (dom->balancing == FULL_BALANCING)
   {
