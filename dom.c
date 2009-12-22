@@ -1623,6 +1623,21 @@ static void clear_external_constraints (DOM *dom)
 
   /* free external contacts map */
   MAP_Free (&dom->mapmem, &dom->conext);
+
+#if DEBUG
+  /* make sure no external constraints remained on bodies */
+  for (BODY *bod = dom->bod; bod; bod = bod->next)
+  {
+    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      con = item->data;
+      if (con->state & CON_EXTERNAL)
+      {
+	ASSERT_DEBUG (0, "External constraint %u remained on body %u on ranks %d", con->id, bod->id, dom->rank);
+      }
+    }
+  }
+#endif
 }
 
 /* pack normal reaction components (only for contacts) of boundary constraints */
