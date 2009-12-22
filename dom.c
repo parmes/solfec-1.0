@@ -1243,6 +1243,32 @@ static void domain_balancing (DOM *dom)
 	ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) (id - dom->bid), NULL), "Invalid constraint id");
 
 	SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* map this constraint to its export rank */
+
+#if DEBUG
+	{
+	  BODY *bodies [] = {con->master, con->slave};
+	  int *procs, numprocs, j, k;
+	  double *e = bod->extents;
+
+	  ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
+
+	  Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+	  for (j = 0; j < 2; j ++)
+	  {
+	    bod = bodies [j];
+
+	    for (k = 0; bod && k < numprocs; k ++)
+	    {
+	      if (export_procs [i] == procs [k]) break;
+	    }
+
+	    ASSERT_DEBUG (k < numprocs, "A constraint is exported where its bodies are not present");
+	  }
+
+	  free (procs);
+        }
+#endif
       }
     }
 
