@@ -187,6 +187,97 @@ static void compute_adjext (LOCDYN *ldy)
     }
   }
 }
+
+#if DEBUG
+/* return next pointer and realloc send memory if needed */
+inline static COMDATA* sendnext (int nsend, int *size, COMDATA **send)
+{
+  if (nsend >= *size)
+  {
+    (*size) *= 2;
+    ERRMEM (*send = realloc (*send, sizeof (COMDATA [*size])));
+  }
+
+  return &(*send)[nsend];
+}
+
+/* test consistency of external adjacency */
+static int adjext_test (LOCDYN *ldy)
+{
+  int ssend, nsend, nrecv, i, j, *k, ret;
+  COMDATA *ptr, *send, *recv;
+  SET *ranks, *item;
+  MEM setmem;
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+
+  MEM_Init (&setmem, sizeof (SET), 128);
+
+  ssend = 128;
+  nsend = 0;
+  ERRMEM (send = MEM_CALLOC (ssend * sizeof (COMDATA)));
+  ptr = send;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+    { 
+      con = (CON*) blk->dia;
+      SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
+      con->state &= ~CON_DONE;
+    }
+
+    for (item = SET_First (ranks); item; item = SET_Next (item))
+    {
+      ptr->rank = (int) (long) item->data;
+      ptr->ints = 1;
+      ptr->doubles = 0;
+      ptr->i = (int*) &dia->con->id;
+      ptr->d = NULL;
+      ptr= sendnext (++ nsend, &ssend, &send);
+    }
+
+    SET_Free (&setmem, &ranks);
+  }
+
+  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+
+  for (ret = 1, i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+  {
+    for (j = 0, k = ptr->i; j < ptr->ints; j ++, k ++)
+    {
+      if (!(con = MAP_Find (ldy->dom->conext, (void*) (long) (*k), NULL)))
+      {
+	ret = 0;
+	WARNING_DEBUG (0, "External donstraint %d not FOUND on rank %d", (*k), ldy->dom->rank);
+	goto out;
+      }
+      con->state |= CON_DONE;
+    }
+  }
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = (CON*) blk->dia;
+      if ((con->state & CON_DONE) == 0)
+      {
+	ret = 0;
+	WARNING_DEBUG (0, "External donstraint %u not UPDATED on rank %d", con->id, ldy->dom->rank);
+	goto out;
+      }
+    }
+  }
+
+out:
+  MEM_Release (&setmem);
+  free (send);
+  free (recv);
+  return ret;
+}
+#endif
 #endif
 
 /* create local dynamics for a domain */
@@ -537,6 +628,13 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 	MX_Destroy (dia->sprod);
       }
     }
+
+#if MPI && DEBUG
+    if (adjext_test (ldy) == 0)
+    {
+      ASSERT_DEBUG (0, "Inconsistent adjext"); /* a debugger catchable assertion */
+    }
+#endif
   }
 
   /* forward variables change */
