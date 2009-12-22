@@ -1861,4 +1861,19 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
+
+/* pack child update */
+void BODY_Child_Update_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+}
+
+/* unpack child update */
+void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+
+  /* update shape */
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+}
 #endif
