@@ -107,6 +107,8 @@ int EXPLICIT_Spring_Dashpot_Contact (double gap, double spring, double dashpot,
     R[1] *= det / len;
   }
 
+  /* TODO: make it aware of cohesion */
+
   return 0;
 }
 
@@ -120,6 +122,10 @@ void EXPLICIT_Solve (LOCDYN *ldy)
   {
     con = dia->con;
 
+    /* FIXME: non-contacts will have NULL material */
+
     solver (con->kind, con->mat.base, con->gap, con->Z, con->mpnt, con->point, con->base, dia);
   }
+
+  /* TODO: use Guss-Seidel for non-contacts (not RIGLNK) and penalty for rest */
 }

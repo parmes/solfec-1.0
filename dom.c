@@ -1194,10 +1194,10 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
 static void old_boundary_constraints_migration (DOM *dom, DBD *dbd)
 {
   COMOBJ *send = dom->conextsend;
+  int i, rank;
   SET *item;
   BODY *bod;
   CON *con;
-  int i;
 
   /* compute migration sets */
   for (con = dom->con; con; con = con->next)
@@ -1212,19 +1212,26 @@ static void old_boundary_constraints_migration (DOM *dom, DBD *dbd)
       {
 	for (item = SET_First (bod->children); item; item = SET_Next (item))
 	{
-	  SET_Insert (&dom->setmem, (SET**)&send [(int) (long) item->data].o, con, NULL); /* schedule for sending to children */
+	  rank = (int) (long) item->data;
+
+	  if (!SET_Contains (send [rank].o, con, NULL)) /* avoid redundant sends during partial updates */
+	  {
+	    SET_Insert (&dom->setmem, &dbd [rank].glue, con, NULL); /* schedule for sending to children */
+	    SET_Insert (&dom->setmem, (SET**) &send [rank].o, con, NULL); /* record as sent to rank */
+	  }
 	}
       
 	if (bod->flags & BODY_CHILD)
 	{
-	  SET_Insert (&dom->setmem, (SET**)&send [bod->rank].o, con, NULL); /* schedule for sending to parent */
+	  if (!SET_Contains (send [bod->rank].o, con, NULL)) /* avoid redundant sends during partial updates */
+	  {
+	    SET_Insert (&dom->setmem, &dbd [bod->rank].glue, con, NULL); /* schedule for sending to parent */
+	    SET_Insert (&dom->setmem, (SET**) &send [bod->rank].o, con, NULL); /* record as sent to rank */
+	  }
 	}
       }
     }
   }
-
-  /* set up 'glue' sets to be used during packing */
-  for (i = 0, send = dom->conextsend; i < dom->ncpu; i ++, send ++) dbd [i].glue = send->o;
 }
 
 /* pack old boundary constraints */
@@ -1419,29 +1426,27 @@ static void domain_balancing (DOM *dom)
   }
 #endif
 
-  if (dom->balancing == FULL_BALANCING)
+  /* clean */
+  free (recv);
+
+  /* compute old boundary constraints migration sets */
+  old_boundary_constraints_migration (dom, dbd);
+
+  /* after this step all bodies contain sets of all old constraints (including contacts); this way during contact detection all existing contacts will get filtered out;
+   * note that this update needs to be done during partial balancing because children sets of bodies can extend and hence constraints might need to be sent to new ranks */
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)old_boundary_constraints_pack, dom, (OBJ_Unpack)old_external_constraints_unpack, send, dom->ncpu, &recv, &nrecv);
+
+  /* assign external ranks */
+  for (i = 0; i < nrecv; i ++)
   {
-    /* clean */
-    free (recv);
-
-    /* compute old boundary constraints migration sets */
-    old_boundary_constraints_migration (dom, dbd);
-
-    /* after this step all bodies contain sets of all old constraints (including contacts); this way during contact detection all existing contacts will get filtered out */
-    dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)old_boundary_constraints_pack, dom, (OBJ_Unpack)old_external_constraints_unpack, send, dom->ncpu, &recv, &nrecv);
-
-    /* assign external ranks */
-    for (i = 0; i < nrecv; i ++)
+    for (item = SET_First (*(SET**) recv [i].o); item; item = SET_Next (item))
     {
-      for (item = SET_First (*(SET**) recv [i].o); item; item = SET_Next (item))
-      {
-	con = item->data;
-	con->rank = recv [i].rank;
-      }
-
-      SET_Free (&dom->setmem, (SET**) recv [i].o);
-      free (recv [i].o);
+      con = item->data;
+      con->rank = recv [i].rank;
     }
+
+    SET_Free (&dom->setmem, (SET**) recv [i].o);
+    free (recv [i].o);
   }
 
   /* free auxiliary sets */
@@ -1450,6 +1455,7 @@ static void domain_balancing (DOM *dom)
     SET_Free (&dom->setmem, &dbd [i].bodies);
     SET_Free (&dom->setmem, &dbd [i].constraints);
     SET_Free (&dom->setmem, &dbd [i].children);
+    SET_Free (&dom->setmem, &dbd [i].glue);
   }
 
   /* clean */
@@ -1461,10 +1467,11 @@ static void domain_balancing (DOM *dom)
 /* compute new boundary contacts migration */
 static void new_boundary_contacts_migration (DOM *dom, DBD *dbd)
 {
+  COMOBJ *send = dom->conextsend;
+  int i, rank;
   SET *item;
   BODY *bod;
   CON *con;
-  int i;
 
   /* compute additional boundary sets */
   for (con = dom->con; con; con = con->next)
@@ -1479,12 +1486,15 @@ static void new_boundary_contacts_migration (DOM *dom, DBD *dbd)
 
 	for (item = SET_First (bod->children); item; item = SET_Next (item))
 	{
-	  SET_Insert (&dom->setmem, (SET**)&dbd [(int) (long) item->data].glue, con, NULL); /* schedule for sending to children */
+	  rank = (int) (long) item->data;
+	  SET_Insert (&dom->setmem, &dbd [rank].glue, con, NULL); /* schedule for sending to children */
+	  SET_Insert (&dom->setmem, (SET**) &send [rank].o, con, NULL); /* record as sent to rank */
 	}
 
 	if (bod->flags & BODY_CHILD)
 	{
-	  SET_Insert (&dom->setmem, (SET**)&dbd [bod->rank].glue, con, NULL); /* schedule for sending to parent */
+	  SET_Insert (&dom->setmem, &dbd [bod->rank].glue, con, NULL); /* schedule for sending to parent */
+	  SET_Insert (&dom->setmem, (SET**) &send [bod->rank].o, con, NULL); /* record as sent to rank */
 	}
       }
     }
@@ -1537,11 +1547,11 @@ static void* domain_gluing_unpack (DOM *dom, int *dpos, double *d, int doubles, 
 /* domain gluing */
 static void domain_gluing (DOM *dom)
 {
-  COMOBJ *send, *recv, *ptr;
-  DBD *dbd, *qtr;
+  COMOBJ *send, *recv;
   SET *item;
   int nrecv;
   CON *con;
+  DBD *dbd;
   int i;
 
   ERRMEM (dbd = MEM_CALLOC (sizeof (DBD [dom->ncpu])));
@@ -1573,22 +1583,11 @@ static void domain_gluing (DOM *dom)
     free (recv [i].o);
   }
 
-  /* merge new glue sets with the old sets; this way the complete migration sets of all boundary
-   * constraints are created; they will be of use for constraint updates during solution process */
-  for (i = 0, ptr = dom->conextsend, qtr = dbd; i < dom->ncpu; i ++, ptr ++, qtr ++)
-  {
-    for (item = SET_First (qtr->glue); item; item = SET_Next (item))
-    {
-      SET_Insert (&dom->setmem, (SET**) &ptr->o, item->data, NULL);
-    }
-
-    SET_Free (&dom->setmem, &qtr->glue);
-  }
-
   /* compute statistics */
   stats_compute (dom);
 
   /* clean */
+  for (i = 0; i < dom->ncpu; i ++) SET_Free (&dom->setmem, &dbd [i].glue);
   free (send);
   free (recv);
   free (dbd);

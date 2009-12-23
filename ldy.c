@@ -250,7 +250,7 @@ static int adjext_test (LOCDYN *ldy)
       if (!(con = MAP_Find (ldy->dom->conext, (void*) (long) (*k), NULL)))
       {
 	ret = 0;
-	WARNING_DEBUG (0, "External donstraint %d not FOUND on rank %d", (*k), ldy->dom->rank);
+	WARNING_DEBUG (0, "External donstraint %d from rank %d not FOUND on rank %d", (*k), ptr->rank, ldy->dom->rank);
 	goto out;
       }
       con->state |= CON_DONE;
