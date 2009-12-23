@@ -773,10 +773,10 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
   for (item = SET_First (requs); item; item = SET_Next (item))
   {
     MPI_Status sta;
-    MPI_Wait (item->data, &sta); /* wait until all send complete */
+    MPI_Wait (item->data, &sta); /* wait until all sends complete */
   }
 
-  /* process set of blocks update by middle nodes and look for undone external reactions */
+  /* process set of blocks updated by middle nodes and look for undone external reactions */
   for (item = SET_First (midupd); item; item = SET_Next (item))
   {
     con = item->data;
