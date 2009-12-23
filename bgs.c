@@ -1334,8 +1334,12 @@ int DIAGONAL_BLOCK_Solver (GSDIAS diagsolver, double diagepsilon, int diagmaxite
       }
       break;
     case SPRING_DASHPOT:
-      return EXPLICIT_Spring_Dashpot_Contact (gap, mat->spring, mat->dashpot,
-	                         mat->friction, dia->W, dia->B, dia->V, dia->U, dia->R);
+      {
+	CON *con = dia->con;
+        return EXPLICIT_Spring_Dashpot_Contact (gap, mat->spring, mat->dashpot, mat->friction,
+	                    con->state & CON_COHESIVE, dia->W, dia->B, dia->V, dia->U, dia->R);
+      }
+      break;
     }
     break;
   case FIXPNT:

@@ -507,7 +507,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
 
-    if (upkind != UPDIA) /* diagonal regularization (not needed by the explicit solver) */
+    if (upkind != UPEXS) /* diagonal regularization (not needed by the explicit solver) */
     {
       NNCOPY (W.x, C.x); /* calculate regularisation parameter */
       ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
@@ -515,127 +515,129 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     }
   }
 
-  if (upkind == UPALL) /* off-diagonal blocks update only for FULL domain updates */
+  for (dia = ldy->dia; dia; dia = dia->n) /* off-diagonal blocks update */
   {
-    for (dia = ldy->dia; dia; dia = dia->n)
+    CON *con = dia->con;
+    BODY *m = con->master,
+	 *s = con->slave;
+
+    if (upkind == UPEXS && con->kind == CONTACT) continue; /* update only single-body constraint blocks */
+
+    /* off-diagonal local blocks */
+    for (blk = dia->adj; blk; blk = blk->n)
     {
-      CON *con = dia->con;
-      BODY *m = con->master,
-	   *s = con->slave;
+      if (blk->SYMW) continue; /* skip blocks pointing to their symmetric copies */
 
-      /* off-diagonal local blocks */
-      for (blk = dia->adj; blk; blk = blk->n)
+      MX *left, *right;
+      DIAB *adj = blk->dia;
+      CON *con = adj->con;
+      BODY *bod = blk->bod;
+      MX_DENSE_PTR (W, 3, 3, blk->W);
+      double coef;
+
+      ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
+     
+#if MPI
+      left = (bod == m ? dia->mprod : dia->sprod);
+#else
+      left = (bod == m ? dia->mH : dia->sH);
+#endif
+
+      if (bod == con->master)
       {
-        if (blk->SYMW) continue; /* skip blocks pointing to their symmetric copies */
-
-	MX *left, *right;
-	DIAB *adj = blk->dia;
-	CON *con = adj->con;
-	BODY *bod = blk->bod;
-	MX_DENSE_PTR (W, 3, 3, blk->W);
-	double coef;
-
-	ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
-       
 #if MPI
-	left = (bod == m ? dia->mprod : dia->sprod);
+	right = adj->mH;
 #else
-	left = (bod == m ? dia->mH : dia->sH);
+	right =  adj->mprod;
 #endif
-
-	if (bod == con->master)
-	{
+	coef = (bod == s ? -step : step);
+      }
+      else /* blk->bod == dia->slave */
+      {
 #if MPI
-	  right = adj->mH;
+	right = adj->sH;
 #else
-	  right =  adj->mprod;
+	right =  adj->sprod;
 #endif
-	  coef = (bod == s ? -step : step);
-	}
-	else /* blk->bod == dia->slave */
-	{
-#if MPI
-	  right = adj->sH;
-#else
-	  right =  adj->sprod;
-#endif
-	  coef = (bod == m ? -step : step);
-	}
-
-#if MPI
-	MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
-#else
-	MX_Matmat (1.0, left, right, 0.0, &W);
-#endif
-	SCALE9 (W.x, coef);
+	coef = (bod == m ? -step : step);
       }
 
 #if MPI
-      /* off-diagonal external blocks */
-      for (blk = dia->adjext; blk; blk = blk->n)
-      {
-	MX *left, *right;
-	CON *ext = (CON*)blk->dia;
-	BODY *bod = blk->bod;
-	MX_DENSE_PTR (W, 3, 3, blk->W);
-	double coef, *point;
-	SGP *sgp;
-
-	ASSERT_DEBUG (bod == m || bod == s, "Not connected external off-diagonal block");
-
-	if (bod == ext->master)
-	{
-	  sgp = ext->msgp, point = ext->mpnt;
-          coef = (bod == s ? -step : step);
-	}
-	else
-	{
-	  sgp = ext->ssgp, point = ext->spnt;
-          coef = (bod == m ? -step : step);
-	}
-       
-	left = (bod == m ? dia->mprod : dia->sprod);
-
-	right =  BODY_Gen_To_Loc_Operator (bod, sgp->shp, sgp->gobj, point, ext->base);
-
-	MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
-	SCALE9 (W.x, coef);
-	MX_Destroy (right);
-      }
+      MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
+#else
+      MX_Matmat (1.0, left, right, 0.0, &W);
 #endif
+      SCALE9 (W.x, coef);
     }
 
-    /* use symmetry */
-    for (dia = ldy->dia; dia; dia = dia->n)
-    {  
-      for (blk = dia->adj; blk; blk = blk->n)
-      {
-	if (blk->SYMW)
-	{
-	  TNCOPY (blk->SYMW, blk->W); /* transposed copy of a symmetric block */
-	}
-      }
-    }
-
-    /* clean up */
-    for (dia = ldy->dia; dia; dia = dia->n)
+#if MPI
+    /* off-diagonal external blocks */
+    for (blk = dia->adjext; blk; blk = blk->n)
     {
-      MX_Destroy (dia->mH);
-      MX_Destroy (dia->mprod);
-      if (dia->sH)
+      MX *left, *right;
+      CON *ext = (CON*)blk->dia;
+      BODY *bod = blk->bod;
+      MX_DENSE_PTR (W, 3, 3, blk->W);
+      double coef, *point;
+      SGP *sgp;
+
+      ASSERT_DEBUG (bod == m || bod == s, "Not connected external off-diagonal block");
+
+      if (bod == ext->master)
       {
-	MX_Destroy (dia->sH);
-	MX_Destroy (dia->sprod);
+	sgp = ext->msgp, point = ext->mpnt;
+	coef = (bod == s ? -step : step);
+      }
+      else
+      {
+	sgp = ext->ssgp, point = ext->spnt;
+	coef = (bod == m ? -step : step);
+      }
+     
+      left = (bod == m ? dia->mprod : dia->sprod);
+
+      right =  BODY_Gen_To_Loc_Operator (bod, sgp->shp, sgp->gobj, point, ext->base);
+
+      MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
+      SCALE9 (W.x, coef);
+      MX_Destroy (right);
+    }
+#endif
+  }
+
+  /* use symmetry */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {  
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      if (blk->SYMW)
+      {
+	TNCOPY (blk->SYMW, blk->W); /* transposed copy of a symmetric block */
       }
     }
+  }
+
+  /* clean up */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    MX_Destroy (dia->mH);
+    MX_Destroy (dia->mprod);
+    if (dia->sH)
+    {
+      MX_Destroy (dia->sH);
+      MX_Destroy (dia->sprod);
+    }
+  }
 
 #if MPI && DEBUG
+  if (upkind == UPALL)
+  {
     if (adjext_test (ldy) == 0)
     {
       ASSERT_DEBUG (0, "Inconsistent adjext"); /* a debugger catchable assertion */
     }
-#endif
   }
+#endif
 
   /* forward variables change */
   variables_change_begin (ldy);

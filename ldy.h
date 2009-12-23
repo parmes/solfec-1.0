@@ -42,7 +42,7 @@ typedef struct locdyn LOCDYN;
 
 enum upkind
 {
-  UPDIA, /* update diagonal blocks only */
+  UPEXS, /* update blocks used by the explicit solver */
   UPALL  /* fully update all blocks */
 };
 

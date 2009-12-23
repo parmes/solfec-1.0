@@ -4,9 +4,9 @@ from math import cos
 from math import sqrt
 
 # some parameters
-N_BRICKS = 10
-M_BRICKS = 10
-N_LAYERS = 12
+N_BRICKS = 5
+M_BRICKS = 5
+N_LAYERS = 6
 
 # some constants
 PI = 3.14159265358979323846 
@@ -223,7 +223,7 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec):
   shape = [cv1, cv2, cv3, cv4, cv5]
   ROTATE (shape, pnt, zet, 45.0)
 
-  BODY (solfec, 'PSEUDO_RIGID', shape, material)
+  BODY (solfec, 'RIGID', shape, material)
 
 def gcore_brick (x, y, z):
 
@@ -271,7 +271,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
 	y = -(outd + dfac) + j * (outd + dfac)
 
 	shp = gcore_brick (x, y, z)
-	BODY (solfec , 'PSEUDO_RIGID', shp, material)
+	BODY (solfec , 'RIGID', shp, material)
 
     # loose keys
     lx = keyw - 2.0*loose_gap
