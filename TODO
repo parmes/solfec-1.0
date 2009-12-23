@@ -40,8 +40,6 @@ Further optimize W assembling by introducing norm of constact state
 change and opdating W blocks only corresponding to a sufficiently
 large contact statate change (say point and normal difference relative norm)!
 ----------------------------------------------------
-Explicit solver is unaware of cohesion
---------------------------------------------------------------------
 Test PBF file size limitation fixup
 ----------------------------------------------------
 Data compression/decompression in COMALL, etc.
