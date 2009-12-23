@@ -700,6 +700,8 @@ static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP
 /* pack boundary constraint migrating out during domain gluing */
 static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
+  pack_int (isize, i, ints, con->kind);
+
   pack_int (isize, i, ints, con->id);
   pack_int (isize, i, ints, con->master->id);
 
@@ -714,15 +716,19 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
 
   pack_doubles (dsize, d, doubles, con->R, 3);
   pack_doubles (dsize, d, doubles, con->base, 9);
+
+  if (con->kind == CONTACT) pack_double (dsize, d, doubles, con->area); /* sparsification needs it */
 }
 
 /* unpack external constraint migrated in during domain gluing */
 static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *master, *slave;
-  int cid, mid, sid, n;
+  int kind, cid, mid, sid, n;
   SGP *msgp, *ssgp;
   CON *con;
+
+  kind = unpack_int (ipos, i, ints);
 
   cid = unpack_int (ipos, i, ints);
   mid = unpack_int (ipos, i, ints);
@@ -748,12 +754,15 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   else ssgp = NULL;
 
   con = insert_external_constraint (dom, master, slave, msgp, ssgp, cid);
+  con->kind = kind;
 
   unpack_doubles (dpos, d, doubles, con->mpnt, 3);
   if (slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
+
+  if (kind == CONTACT) con->area = unpack_double (dpos, d, doubles); /* sparsification needs it */
 
   return con;
 }
@@ -2391,7 +2400,7 @@ void DOM_Update_End (DOM *dom)
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
 #if MPI
-  if (dom->counter ++ > 100 || dom->ratio > 0.01)
+  if (++ dom->counter > 10 || dom->ratio > 0.01)
   {
     dom->counter = 0;
     dom->deletions  = 0;
