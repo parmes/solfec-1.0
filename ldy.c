@@ -521,7 +521,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     BODY *m = con->master,
 	 *s = con->slave;
 
-    if (upkind == UPEXS && con->kind == CONTACT) continue; /* update only single-body constraint blocks */
+    if (upkind == UPEXS && con->kind == CONTACT) continue; /* update only non-contact constraint blocks */
 
     /* off-diagonal local blocks */
     for (blk = dia->adj; blk; blk = blk->n)
