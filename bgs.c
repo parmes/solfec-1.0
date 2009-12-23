@@ -534,18 +534,21 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
   }
 
-#if DEBUG
-#if 0
-  printf ("RANK %d [%d] ADJCPU: ", rank, color [rank]);
-  for (item = SET_First (adjcpu); item; item = SET_Next (item)) printf ("%d [%d] ", (int) (long) item->data, color [(int) (long) item->data]);
-  printf ("\n");
-#endif
   if (rank == 0 && ldy->dom->verbose)
   {
+#if DEBUG
+  for (i = 0; i < ncpu; i ++)
+  {
+    int *j, *k;
+
+    printf ("GAUSS_SEIDEL: RANK %d [%d] ADJCPU:", i, color [i]);
+    for (j = &adj[disp[i]], k = &adj[disp[i+1]]; j < k; j ++) printf (" %d [%d]", *j, color [*j]);
+    printf ("\n");
+  }
+#endif
     for (m = i = 0; i < ncpu; i ++) m = MAX (m, color [i]); /* get number of colors */
     printf ("GAUSS_SEIDEL: PROCESSOR COLORS = %d\n", m);
   }
-#endif
 
   MEM_Release (&setmem);
   free (size);
@@ -586,6 +589,7 @@ static void receive_reactions (DOM *dom, COMDATA *recv, int nrecv)
   }
 }
 
+/* receive reactions updated by middle nodes */
 static void receive_middle_reactions (DOM *dom, COMDATA *recv, int nrecv, MEM *setmem, SET **midupd)
 {
   COMDATA *ptr;
@@ -669,36 +673,37 @@ static int gauss_seidel_sweep (SET *set, int reverse, GAUSS_SEIDEL *gs, short dy
   return dimax;
 }
 
-typedef struct middle_list MIDDLE_LIST;
+/* middle node list needs score-based sorting */
+typedef struct middle_list MIDDLE_NODE;
 
 struct middle_list
 {
   DIAB *dia;
   int score;
-  MIDDLE_LIST *next;
+  MIDDLE_NODE *next;
 };
 
+/* middle node list sorting */
 #define MLLE(i, j) ((i)->score <= (j)->score)
-IMPLEMENT_LIST_SORT (SINGLE_LINKED, middle_list_sort, MIDDLE_LIST, prev, next, MLLE)
+IMPLEMENT_LIST_SORT (SINGLE_LINKED, middle_list_sort, MIDDLE_NODE, prev, next, MLLE)
 
 /* perform a Guss-Seidel loop over a set of blocks */
-static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem, int mycolor, int *color, GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
+static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem, int mycolor, int *color,
+                   GAUSS_SEIDEL *gs, LOCDYN *ldy, short dynamic, double step, double *errup, double *errlo)
 {
   SET *requs, *ranks, *item, *jtem;
-  MIDDLE_LIST *list, *cur;
+  MIDDLE_NODE *list, *cur;
   int di, dimax;
   DIAB *dia;
   OFFB *blk;
   CON *con;
   MEM lstmem, reqmem;
 
-  MEM_Init (&lstmem, sizeof (MIDDLE_LIST), 128);
+  MEM_Init (&lstmem, sizeof (MIDDLE_NODE), 128);
   MEM_Init (&reqmem, sizeof (MPI_Request), 128);
 
   dimax = 0;
-
   list = NULL;
-
   requs = NULL;
 
   /* post receives first */
@@ -712,6 +717,7 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
     con->dia = (DIAB*) req; /* use spare (NULL) DIAB pointer for the request */
   }
 
+  /* create middle node list */
   for (item = SET_First (middle); item; item = SET_Next (item))
   {
     ERRMEM (cur = MEM_Alloc (&lstmem));
@@ -720,14 +726,17 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
     for (blk = cur->dia->adjext; blk; blk = blk->n)
     {
       con = (CON*) blk->dia;
-      cur->score = MIN (cur->score, -color [con->rank]);
+      if (reverse) cur->score = MIN (cur->score, color [con->rank]); /* smallest color first in sorted list */
+      else cur->score = MIN (cur->score, -color [con->rank]); /* largest color first in sorted list */
     }
     cur->next = list;
     list = cur;
   }
 
+  /* sort middle node list */
   list = middle_list_sort (list);
 
+  /* process middle nodes */
   for (cur = list; cur; cur = cur->next)
   {
     dia = cur->dia;
@@ -735,25 +744,26 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
     for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
     {
       con = (CON*) blk->dia;
-      if (mycolor < color [con->rank] && (con->state & CON_DONE) == 0)
+      if ((reverse && mycolor > color [con->rank] && (con->state & CON_DONE) == 0) || /* if reversed iterations receive from lower colors */
+          (reverse == 0 && mycolor < color [con->rank] && (con->state & CON_DONE) == 0)) /* else receive from higher colors */
       {
 	MPI_Status sta;
         MPI_Wait ((MPI_Request*)con->dia, &sta);
 	con->state |= CON_DONE;
       }
 
-      SET_Insert (setmem, &ranks, (void*) (long) con->rank, NULL);
+      SET_Insert (setmem, &ranks, (void*) (long) con->rank, NULL); /* schedule for sending to this rank after the reaction is coputed */
     }
 
-    di = gauss_seidel (gs, dynamic, step, dia, errup, errlo);
+    di = gauss_seidel (gs, dynamic, step, dia, errup, errlo); /* compute reaction */
     dimax = MAX (dimax, di);
 
     con = dia->con;
-    for (jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+    for (jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem)) /* update remote external reactions */
     {
       MPI_Request *req;
       ERRMEM (req = MEM_Alloc (&reqmem));
-      MPI_Isend (con->R, 3, MPI_DOUBLE, (int) (long) jtem->data, TAG_LAST+con->id, MPI_COMM_WORLD, req);
+      MPI_Isend (con->R, 3, MPI_DOUBLE, (int) (long) jtem->data, TAG_LAST+con->id, MPI_COMM_WORLD, req); /* send to remote ranks */
       SET_Insert (setmem, &requs, req, NULL);
     }
 
@@ -763,19 +773,20 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
   for (item = SET_First (requs); item; item = SET_Next (item))
   {
     MPI_Status sta;
-    MPI_Wait (item->data, &sta);
+    MPI_Wait (item->data, &sta); /* wait until all send complete */
   }
 
+  /* process set of blocks update by middle nodes and look for undone external reactions */
   for (item = SET_First (midupd); item; item = SET_Next (item))
   {
     con = item->data;
-    if ((con->state & CON_DONE) == 0)
+    if ((con->state & CON_DONE) == 0) /* undone external reaction found */
     {
       MPI_Status sta;
-      MPI_Wait ((MPI_Request*)con->dia, &sta);
-      con->state |= CON_DONE;
+      MPI_Wait ((MPI_Request*)con->dia, &sta); /* receive update */
+      con->state |= CON_DONE; /* mark done */
     }
-    con->dia = NULL;
+    con->dia = NULL; /* release request pointer */
   }
 
   MEM_Release (&lstmem);
@@ -784,8 +795,8 @@ static int gauss_seidel_loop (SET *middle, SET *midupd, int reverse, MEM *setmem
   return dimax;
 }
 
-/* unset all */
-static void unset_all (LOCDYN *ldy)
+/* undo all external reactions */
+static void undo_all (LOCDYN *ldy)
 {
   DIAB *dia;
   OFFB *blk;
@@ -801,8 +812,9 @@ static void unset_all (LOCDYN *ldy)
   }
 }
 
-/* test all set */
-static int all_set (LOCDYN *ldy)
+#if DEBUG
+/* test whether all external reactions are done */
+static int all_done  (LOCDYN *ldy)
 {
   DIAB *dia;
   OFFB *blk;
@@ -822,6 +834,7 @@ static int all_set (LOCDYN *ldy)
 
   return 1;
 }
+#endif
 
 /* run parallel solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
@@ -860,6 +873,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   int size_bot, nsend_bot, nrecv_bot,
       size_top, nsend_top, nrecv_top;
+
+  COMDATA *send, *recv, *ptr;
+
+  int nsend, nrecv, size;
 
   dom = ldy->dom;
   rank = dom->rank;
@@ -909,19 +926,16 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   {
     dia = item->data;
 
-    if (size5 < size4) SET_Insert (&setmem, &int2, dia, NULL), size5 ++; /* FIXME: degrees were used */
+    if (size5 < size4) SET_Insert (&setmem, &int2, dia, NULL), size5 ++; /* TODO: += |adj| rather than += 1 */
     else SET_Insert (&setmem, &int1, dia, NULL);
   }
 
-#if DEBUG
-  {
-    int sizes [5] = {SET_Size (bottom), SET_Size (middle), SET_Size (top), SET_Size (int1), SET_Size (int2)}, result [5];
+  int sizes [5] = {SET_Size (bottom), SET_Size (middle), SET_Size (top), SET_Size (int1), SET_Size (int2)}, result [5];
 
-    MPI_Reduce (sizes, result, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+  MPI_Reduce (sizes, result, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-    if (rank == 0 && dom->verbose) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n", result [0], result [1], result [2], result [3], result [4]);
-  }
-#endif
+  if (rank == 0 && dom->verbose) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n",
+                                                                   result [0], result [1], result [2], result [3], result [4]);
 
   size_bot = size_top = 512;
   nsend_bot = nsend_top = 0;
@@ -983,18 +997,12 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   bot_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_BOTTOM, send_bot, nsend_bot, &recv_bot, &nrecv_bot);
   top_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_TOP, send_top, nsend_top, &recv_top, &nrecv_top);
 
-  /* discover which external constraints from top and bottom sets are updated by middle nodes */
-
-  COMDATA *send, *recv, *ptr;
-  int nsend, nrecv, size;
-
   size = 128;
   nsend = 0;
-
   ERRMEM (send = MEM_CALLOC (size * sizeof (COMDATA)));
-
   ptr = send;
 
+  /* create send sets of external reactions updated by middle nodes */
   for (SET *item = SET_First (middle); item; item = SET_Next (item))
   {
     dia = item->data;
@@ -1018,8 +1026,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     SET_Free (&setmem, &ranks);
   }
 
+  /* send ranks of middle nodes */
   COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
 
+  /* discover which external constraints are updated by middle nodes */
   receive_middle_reactions (dom, recv, nrecv, &setmem, &midupd);
 
   free (send);
@@ -1037,21 +1047,38 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	   errloc [2],
 	   errsum [2];
 
-    unset_all (ldy);
+    undo_all (ldy);
 
-    di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-    COM_Send (top_pattern);
-    di = gauss_seidel_sweep (int2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); /* large |top| => large |int2| */
-    COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+    if (gs->reverse && gs->iters % 2)
+    {
+      di = gauss_seidel_sweep (bottom, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      COM_Send (bot_pattern);
+      di = gauss_seidel_sweep (int1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
 
-    di = gauss_seidel_loop (middle, midupd, 0, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      di = gauss_seidel_loop (middle, midupd, 1, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
 
-    di = gauss_seidel_sweep (bottom, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-    COM_Send (bot_pattern);
-    di = gauss_seidel_sweep (int1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-    COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
+      di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      COM_Send (top_pattern);
+      di = gauss_seidel_sweep (int2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+    }
+    else
+    {
+      di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      COM_Send (top_pattern);
+      di = gauss_seidel_sweep (int2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); /* large |top| => large |int2| */
+      COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
 
-    ASSERT_DEBUG (all_set (ldy), "Not all external reactions were updated");
+      di = gauss_seidel_loop (middle, midupd, 0, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+
+      di = gauss_seidel_sweep (bottom, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      COM_Send (bot_pattern);
+      di = gauss_seidel_sweep (int1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
+    }
+
+    ASSERT_DEBUG (all_done (ldy), "Not all external reactions were updated");
 
     /* sum up error */
     errloc [0] = errup, errloc [1] = errlo;
@@ -1122,9 +1149,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   double error, step;
   short dynamic;
   char fmt [512];
-#if !MPI
   int div = 10;
-#endif
   DIAB *end;
 
   verbose = ldy->dom->verbose;
@@ -1161,15 +1186,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	       *R = blk->dia->R;
 	NVADDMUL (B, W, R, B);
       }
-#if MPI
-      for (blk = dia->adjext; blk; blk = blk->n)
-      {
-	CON *con = (CON*) blk->dia;
-	double *W = blk->W,
-	       *R = con->R;
-	NVADDMUL (B, W, R, B);
-      }
-#endif
       
       COPY (R, R0); /* previous reaction */
 
@@ -1207,17 +1223,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
     if (gs->history) gs->rerhist [gs->iters] = error;
-#if !MPI
     if (gs->iters % div == 0 && verbose) printf (fmt, gs->iters, error), div *= 2;
-#endif
   }
   while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
-#if MPI
-  DOM_Update_External_Reactions (ldy->dom, 0);
-#else
   if (verbose) printf (fmt, gs->iters, error);
-#endif
 
   if (gs->iters >= gs->maxiter)
   {

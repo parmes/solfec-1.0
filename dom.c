@@ -2400,7 +2400,7 @@ void DOM_Update_End (DOM *dom)
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
 #if MPI
-  if (++ dom->counter > 10 || dom->ratio > 0.01)
+  if (++ dom->counter > 100 || dom->ratio > 0.01)
   {
     dom->counter = 0;
     dom->deletions  = 0;
