@@ -722,11 +722,10 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
   if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
 
   pack_doubles (dsize, d, doubles, con->R, 3);
-  pack_doubles (dsize, d, doubles, con->base, 9);
+  pack_doubles (dsize, d, doubles, con->base + 6, 3);
 
   if (con->kind == CONTACT) /* sparsification needs below data  */
   {
-    pack_doubles (dsize, d, doubles, con->point, 3);
     pack_double (dsize, d, doubles, con->area);
   }
 }
@@ -736,6 +735,7 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
 {
   BODY *master, *slave;
   int kind, cid, mid, sid, n;
+  double normal [3];
   SGP *msgp, *ssgp;
   CON *con;
 
@@ -771,12 +771,13 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   if (slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
-  unpack_doubles (dpos, d, doubles, con->base, 9);
+  unpack_doubles (dpos, d, doubles, normal, 3);
+  localbase (normal, con->base);
 
   if (kind == CONTACT) /* sparsification needs below data */
   {
-    unpack_doubles (dpos, d, doubles, con->point, 3);
     con->area = unpack_double (dpos, d, doubles);
+    BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point);
   }
 
   return con;
@@ -791,11 +792,10 @@ static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, i
   if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
 
   pack_doubles (dsize, d, doubles, con->R, 3);
-  pack_doubles (dsize, d, doubles, con->base, 9);
+  pack_doubles (dsize, d, doubles, con->base + 6, 3);
 
   if (con->kind == CONTACT) /* sparsification needs below data  */
   {
-    pack_doubles (dsize, d, doubles, con->point, 3);
     pack_double (dsize, d, doubles, con->area);
   }
 }
@@ -803,6 +803,7 @@ static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, i
 /* unpack external constraint update */
 static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  double normal [3];
   CON *con;
   int id;
 
@@ -813,12 +814,13 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
   if (con->slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
-  unpack_doubles (dpos, d, doubles, con->base, 9);
+  unpack_doubles (dpos, d, doubles, normal, 3);
+  localbase (normal, con->base);
 
   if (con->kind == CONTACT) /* sparsification needs below data */
   {
-    unpack_doubles (dpos, d, doubles, con->point, 3);
     con->area = unpack_double (dpos, d, doubles);
+    BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point);
   }
 
   return con;
