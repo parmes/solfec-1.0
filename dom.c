@@ -61,7 +61,7 @@ static AABB_DATA* aabb_create_data (void)
 }
 
 /* free aabb data */
-static void data_destroy_data (AABB_DATA *data)
+static void aabb_destroy_data (AABB_DATA *data)
 {
   free (data);
 }
@@ -2671,7 +2671,7 @@ void DOM_Destroy (DOM *dom)
 
   if (dom->gravval) TMS_Destroy (dom->gravval);
 
-  data_destroy_data (dom->aabb_data);
+  aabb_destroy_data (dom->aabb_data);
 
   free (dom);
 }
