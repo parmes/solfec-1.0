@@ -97,11 +97,12 @@ struct constraint
       *ssgp; /* slave triplet (if any) */
 
 #if MPI
+  SET *ext; /* ranks of remote external images of this constraint */
+
   int rank; /* origin rank for an external constraint */
 #endif
 
-  CON *prev, /* list */
-      *next;
+  CON *prev, *next; /* list */
 };
 
 #define mshp(con) ((con)->msgp->shp)
@@ -112,10 +113,10 @@ struct constraint
 #define skind(con) GOBJ_Kind ((con)->ssgp)
 
 #if MPI
-typedef struct domstats DOMSTATS;
+typedef struct domain_statistics DOMSTATS;
 
-/* domain statistics */
-struct domstats
+/* parallel statistics */
+struct domain_statistics
 {
   char *name;
   int sum;
@@ -123,7 +124,36 @@ struct domstats
   int avg;
   int max;
 };
+
+typedef struct domain_balancing_data DBD;
+
+/* load balancing send sets */
+struct domain_balancing_data
+{
+  int rank;
+  DOM *dom;
+  SET *bodies;
+  SET *children;
+  SET *constraints;
+  SET *remove;
+  SET *update;
+  SET *glue;
+  SET *ext;
+};
 #endif
+
+/* box overlap algorithm selection data */
+typedef struct aabb_data AABB_DATA;
+
+struct aabb_data
+{
+  double aabb_timings [BOXALG_COUNT],
+	 aabb_limits [BOXALG_COUNT+1];
+
+  int aabb_counter;
+
+  BOXALG aabb_algo;
+};
 
 /* domain flags */
 typedef enum
@@ -132,6 +162,7 @@ typedef enum
   DOM_DEPTH_VIOLATED = 0x02  /* on when unphysical penetration has occured */
 } DOM_FLAGS;
 
+/* domain data */
 struct domain
 {
   MEM conmem, /* constraints memory pool */
@@ -145,8 +176,8 @@ struct domain
   double step; /* time step size */
   double time; /* current time */
 
-  SET *sparebid; /* spare constraint ids */
   unsigned int bid; /* last free body identifier */
+  SET *sparebid; /* spare constraint ids */
   MAP *lab; /* bodies mapped by labels (a subset) */
   MAP *idb; /* bodies mapped by identifiers (all bodies) */
   BODY *bod; /* list of bodies */
@@ -154,67 +185,43 @@ struct domain
   SET *delb; /* set of deleted body ids for time > 0 and before state write */
   SET *newb; /* set of newly created bodies for time > 0 and before state write */
 
-  SET *sparecid; /* spare constraint ids */
   unsigned int cid;  /* last free constraint identifier */
+  SET *sparecid; /* spare constraint ids */
   MAP *idc; /* constraints mapped by identifiers */
   CON *con; /* list of constraints */
   int ncon; /* number of constraints */
   int nspa; /* number of sparsified contacts */
 
   LOCDYN *ldy; /* local dynamics */
+  SOLFEC *solfec; /* SOLFEC context */
+  AABB_DATA *aabb_data; /* box ovrlap algorithm selection data */
 
   double gravdir [3]; /* global gravity direction */
   TMS *gravval; /* global gravity value */
 
   double extents [6]; /* scene extents */
-
-  SOLFEC *solfec; /* SOLFEC context */
-
-  void *data; /* private data */
-
-  DOM *prev, *next; /* list */
-
-  DOM_FLAGS flags;
-
   double threshold; /* sparsification threshold */
-
   double depth; /* unphisical interpenetration depth bound (negative) */
 
+  DOM_FLAGS flags; /* some flags */
   short verbose; /* verbosity flag */
 
 #if MPI
   int rank; /* communicator rank */
-
   int ncpu; /* cummunicator size */
-
   MAP *allbodies; /* all created bodies mapped by ids (minimises load balancing communication) */
-
   SET *children; /* current children */
-
   struct Zoltan_Struct *zol; /* load balancing */
-
   double imbalance_tolerance; /* imbalance threshold */
-
   unsigned int noid; /* constraint id generation ommition flag */
-
   MAP *conext; /* id based map of external constraints */
-
-  COMOBJ *conextsend; /* vector of sets of boundary contacts used for remote value updates */
-
   int bytes; /* bytes sent during load balancing */
-
   DOMSTATS *stats; /* domain statistics */
-
   int nstats; /* statistics count */
-
-  enum {FULL_BALANCING, PARTIAL_BALANCING} balancing; /* full balancing sends more data, partial minimises communication size */
-
-  int deletions; /* number of attempted deletions during a partial balancing mode */
-
-  int counter; /* counter of domain update setps used to decide about the balancing mode */
-
-  double ratio; /* global ratio of the number of deletions over the number of constraints */
+  DBD *dbd; /* load balancing send sets */
 #endif
+
+  DOM *prev, *next; /* list */
 };
 
 /* constraint kind string */

@@ -672,6 +672,33 @@ static int velo_pack_size (BODY *bod)
 
   return 0;
 }
+
+static void update_extents (BODY *bod)
+{
+  double *e = bod->extents, *p;
+  SET *item;
+  CON *con;
+
+  SHAPE_Extents (bod->shape, e);
+
+  /* now make sure that all attached constraint points are within the extents;
+   * due to roundof this could be compromised sometimes, so that constraints might
+   * migrate to partitions where bodies would have no representation (child/parent) */
+
+  for (item = SET_First (bod->con); item; item = SET_Next (item))
+  {
+    con = item->data;
+    p = con->point;
+    if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
+    if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
+    if (p [2] < e [2]) e [2] = p [2] - GEOMETRIC_EPSILON;
+    if (p [0] > e [3]) e [3] = p [0] + GEOMETRIC_EPSILON;
+    if (p [1] > e [4]) e [4] = p [1] + GEOMETRIC_EPSILON;
+    if (p [2] > e [5]) e [5] = p [2] + GEOMETRIC_EPSILON;
+  }
+}
+#else
+#define update_extents(bod) SHAPE_Extents ((bod)->shape, (bod)->extents)
 #endif
 
 /* -------------- interface ------------- */
@@ -1088,7 +1115,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
 
-  SHAPE_Extents (bod->shape, bod->extents); /* update extents at half-step only  */
+  update_extents (bod); /* update extents at half-step only  */
 }
 
 void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
@@ -1275,7 +1302,7 @@ void BODY_Static_Step_Begin (BODY *bod, double time, double step)
     break;
   }
 
-  SHAPE_Extents (bod->shape, bod->extents); /* update extents at half-step only (no difference here) */
+  update_extents (bod); /* update extents at half-step only (no difference here) */
 }
 
 void BODY_Static_Step_End (BODY *bod, double time, double step)

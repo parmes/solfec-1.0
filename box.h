@@ -63,6 +63,7 @@ enum boxalg
   HASH3D
 };
 
+#define BOXALG_COUNT (HASH3D+1) /* count of overlap algorithms */
 typedef struct objpair OPR; /* pointer pair used for exclusion tests */
 typedef struct aabb AABB; /* overlap detection driver data */
 typedef enum gobj GOBJ; /* kind of geometrical object */
