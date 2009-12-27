@@ -2876,6 +2876,36 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_reverse (lng_GAUSS_SEIDEL_SOLVER *self, P
   return 0;
 }
 
+static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_variant (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
+{
+  return PyString_FromString (GAUSS_SEIDEL_Variant (self->gs));
+}
+
+static int lng_GAUSS_SEIDEL_SOLVER_set_variant (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "variant")) return -1;
+
+  IFIS (value, "FULL")
+  {
+    self->gs->variant = GS_FULL;
+  }
+  ELIF (value, "MIDDLE_JACOBI")
+  {
+    self->gs->variant = GS_MIDDLE_JACOBI;
+  }
+  ELIF (value, "BOUNDARY_JACOBI")
+  {
+    self->gs->variant = GS_BOUNDARY_JACOBI;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid variant (FULL/MIDDLE_JACOBI/BOUNDARY_JACOBI accepted)");
+    return -1;
+  }
+
+  return 0;
+}
+
 /* GAUSS_SEIDEL_SOLVER methods */
 static PyMethodDef lng_GAUSS_SEIDEL_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -2898,6 +2928,7 @@ static PyGetSetDef lng_GAUSS_SEIDEL_SOLVER_getset [] =
   {"diagsolver", (getter)lng_GAUSS_SEIDEL_SOLVER_get_diagsolver, (setter)lng_GAUSS_SEIDEL_SOLVER_set_diagsolver, "diagonal solver kind", NULL},
   {"history", (getter)lng_GAUSS_SEIDEL_SOLVER_get_history, (setter)lng_GAUSS_SEIDEL_SOLVER_set_history, "solution history recording", NULL},
   {"reverse", (getter)lng_GAUSS_SEIDEL_SOLVER_get_reverse, (setter)lng_GAUSS_SEIDEL_SOLVER_set_reverse, "iteration reversion flag", NULL},
+  {"variant", (getter)lng_GAUSS_SEIDEL_SOLVER_get_variant, (setter)lng_GAUSS_SEIDEL_SOLVER_set_variant, "parallel update variant", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
