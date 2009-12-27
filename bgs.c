@@ -469,6 +469,9 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   gs->history = GS_OFF;
   gs->rerhist = NULL;
   gs->reverse = GS_OFF;
+#if MPI
+  gs->variant = GS_FULL;
+#endif
 
   return gs;
 }
@@ -857,7 +860,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       *internal  = NULL,
       *midupd    = NULL,
       *int1      = NULL,
-      *int2      = NULL;
+      *int2      = NULL,
+      *all       = NULL;
 
   int size1 = 0,
       size2 = 0,
@@ -866,13 +870,16 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       size5;
 
   void *bot_pattern, /* communication pattern when sending from lower to higher processors */
-       *top_pattern; /* the reverse communication pattern */
+       *top_pattern, /* the reverse communication pattern */
+       *mid_pattern; /* used in case of GS_MIDDLE_JACOBI variant */
 
   COMDATA *send_bot, *recv_bot, *ptr_bot,
-	  *send_top, *recv_top, *ptr_top;
+	  *send_top, *recv_top, *ptr_top,
+	  *send_mid, *recv_mid, *ptr_mid;
 
   int size_bot, nsend_bot, nrecv_bot,
-      size_top, nsend_top, nrecv_top;
+      size_top, nsend_top, nrecv_top,
+      size_mid, nsend_mid, nrecv_mid;
 
   COMDATA *send, *recv, *ptr;
 
@@ -880,160 +887,208 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   dom = ldy->dom;
   rank = dom->rank;
+  solfec = dom->solfec;
 
   if (rank == 0 && dom->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
   if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
 
-  color = processor_coloring (gs, ldy); /* color processors */
-  solfec = dom->solfec;
-  mycolor = color [rank];
-
   MEM_Init (&setmem, sizeof (SET), 256);
 
-  /* create block sets */
-  for (dia = ldy->dia; dia; dia = dia->n)
+  if (gs->variant != GS_BOUNDARY_JACOBI)
   {
-    int lo = 0, hi = 0;
+    color = processor_coloring (gs, ldy); /* color processors */
+    mycolor = color [rank];
 
-    for (blk = dia->adjext; blk; blk = blk->n)
+    /* create block sets */
+    for (dia = ldy->dia; dia; dia = dia->n)
     {
-      con = (CON*) blk->dia;
-      int adjcolor = color [con->rank];
+      int lo = 0, hi = 0;
 
-      if (adjcolor < mycolor) hi ++;
-      else lo ++;
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	con = (CON*) blk->dia;
+	int adjcolor = color [con->rank];
+
+	if (adjcolor < mycolor) hi ++;
+	else lo ++;
+      }
+
+      if (lo && hi) SET_Insert (&setmem, &middle, dia, NULL);
+      else if (lo) SET_Insert (&setmem, &bottom, dia, NULL), size1 ++;
+      else if (hi) SET_Insert (&setmem, &top, dia, NULL), size2 ++;
+      else SET_Insert (&setmem, &internal, dia, NULL), size3 ++;
     }
 
-    if (lo && hi) SET_Insert (&setmem, &middle, dia, NULL);
-    else if (lo) SET_Insert (&setmem, &bottom, dia, NULL), size1 ++;
-    else if (hi) SET_Insert (&setmem, &top, dia, NULL), size2 ++;
-    else SET_Insert (&setmem, &internal, dia, NULL), size3 ++;
-  }
+    /* size1 + |int2| = size2 + |int1|
+     * |int1| + |int2| = size3
+     * -------------------------------
+     * |int2| = (size3 + size2 - size1) / 2
+     */
 
-  /* size1 + |int2| = size2 + |int1|
-   * |int1| + |int2| = size3
-   * -------------------------------
-   * |int2| = (size3 + size2 - size1) / 2
-   */
+    size4 = (size3 + size2 - size1) / 2;
+    size4 = MAX (0, size4);
+    size5 = 0;
 
-  size4 = (size3 + size2 - size1) / 2;
-  size4 = MAX (0, size4);
-  size5 = 0;
-
-  /* create int1 and int2 such that: |bot| + |int2| = |top| + |int1| */
-  for (SET *item = SET_First (internal); item; item = SET_Next (item))
-  {
-    dia = item->data;
-
-    if (size5 < size4) SET_Insert (&setmem, &int2, dia, NULL), size5 ++; /* TODO: += |adj| rather than += 1 */
-    else SET_Insert (&setmem, &int1, dia, NULL);
-  }
-
-  int sizes [5] = {SET_Size (bottom), SET_Size (middle), SET_Size (top), SET_Size (int1), SET_Size (int2)}, result [5];
-
-  MPI_Reduce (sizes, result, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
-
-  if (rank == 0 && dom->verbose) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n",
-                                                                   result [0], result [1], result [2], result [3], result [4]);
-
-  size_bot = size_top = 512;
-  nsend_bot = nsend_top = 0;
-
-  ERRMEM (send_bot = MEM_CALLOC (size_bot * sizeof (COMDATA)));
-  ERRMEM (send_top = MEM_CALLOC (size_top * sizeof (COMDATA)));
-
-  ptr_bot = send_bot;
-  ptr_top = send_top;
-
-  /* prepare bottom send buffer */
-  for (SET *item = SET_First (bottom); item; item = SET_Next (item))
-  {
-    dia = item->data;
-
-    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
-    { 
-      con = (CON*) blk->dia;
-      SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
-    }
-
-    for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+    /* create int1 and int2 such that: |bot| + |int2| = |top| + |int1| */
+    for (SET *item = SET_First (internal); item; item = SET_Next (item))
     {
-      ptr_bot->rank = (int) (long) jtem->data;
-      ptr_bot->ints = 1;
-      ptr_bot->doubles = 3;
-      ptr_bot->i = (int*) &dia->con->id;
-      ptr_bot->d = dia->R;
-      ptr_bot = sendnext (++ nsend_bot, &size_bot, &send_bot);
+      dia = item->data;
+
+      if (size5 < size4) SET_Insert (&setmem, &int2, dia, NULL), size5 ++; /* TODO: += |adj| rather than += 1 */
+      else SET_Insert (&setmem, &int1, dia, NULL);
     }
 
-    SET_Free (&setmem, &ranks);
-  }
+    int sizes [5] = {SET_Size (bottom), SET_Size (middle), SET_Size (top), SET_Size (int1), SET_Size (int2)}, result [5];
 
-  /* prepare top send buffer */
-  for (SET *item = SET_First (top); item; item = SET_Next (item))
-  {
-    dia = item->data;
+    MPI_Reduce (sizes, result, 5, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
 
-    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
-    { 
-      con = (CON*) blk->dia;
-      SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
-    }
+    if (rank == 0 && dom->verbose) printf ("GAUSS_SEIDEL: |BOTTOM| = %d, |MIDDLE| = %d, |TOP| = %d, |INT1| = %d, |INT2| = %d\n",
+								     result [0], result [1], result [2], result [3], result [4]);
 
-    for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+    size_bot = size_top = 512;
+    nsend_bot = nsend_top = 0;
+
+    ERRMEM (send_bot = MEM_CALLOC (size_bot * sizeof (COMDATA)));
+    ERRMEM (send_top = MEM_CALLOC (size_top * sizeof (COMDATA)));
+
+    ptr_bot = send_bot;
+    ptr_top = send_top;
+
+    /* prepare bottom send buffer */
+    for (SET *item = SET_First (bottom); item; item = SET_Next (item))
     {
-      ptr_top->rank = (int) (long) jtem->data;
-      ptr_top->ints = 1;
-      ptr_top->doubles = 3;
-      ptr_top->i = (int*) &dia->con->id;
-      ptr_top->d = dia->R;
-      ptr_top = sendnext (++ nsend_top, &size_top, &send_top);
+      dia = item->data;
+
+      for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+      { 
+	con = (CON*) blk->dia;
+	SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
+      }
+
+      for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+      {
+	ptr_bot->rank = (int) (long) jtem->data;
+	ptr_bot->ints = 1;
+	ptr_bot->doubles = 3;
+	ptr_bot->i = (int*) &dia->con->id;
+	ptr_bot->d = dia->R;
+	ptr_bot = sendnext (++ nsend_bot, &size_bot, &send_bot);
+      }
+
+      SET_Free (&setmem, &ranks);
     }
 
-    SET_Free (&setmem, &ranks);
-  }
-
-  bot_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_BOTTOM, send_bot, nsend_bot, &recv_bot, &nrecv_bot);
-  top_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_TOP, send_top, nsend_top, &recv_top, &nrecv_top);
-
-  size = 128;
-  nsend = 0;
-  ERRMEM (send = MEM_CALLOC (size * sizeof (COMDATA)));
-  ptr = send;
-
-  /* create send sets of external reactions updated by middle nodes */
-  for (SET *item = SET_First (middle); item; item = SET_Next (item))
-  {
-    dia = item->data;
-
-    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
-    { 
-      con = (CON*) blk->dia;
-      SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
-    }
-
-    for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+    /* prepare top send buffer */
+    for (SET *item = SET_First (top); item; item = SET_Next (item))
     {
-      ptr->rank = (int) (long) jtem->data;
-      ptr->ints = 1;
-      ptr->doubles = 0;
-      ptr->i = (int*) &dia->con->id;
-      ptr->d = NULL;
-      ptr= sendnext (++ nsend, &size, &send);
+      dia = item->data;
+
+      for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+      { 
+	con = (CON*) blk->dia;
+	SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
+      }
+
+      for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+      {
+	ptr_top->rank = (int) (long) jtem->data;
+	ptr_top->ints = 1;
+	ptr_top->doubles = 3;
+	ptr_top->i = (int*) &dia->con->id;
+	ptr_top->d = dia->R;
+	ptr_top = sendnext (++ nsend_top, &size_top, &send_top);
+      }
+
+      SET_Free (&setmem, &ranks);
     }
 
-    SET_Free (&setmem, &ranks);
+    bot_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_BOTTOM, send_bot, nsend_bot, &recv_bot, &nrecv_bot);
+    top_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_TOP, send_top, nsend_top, &recv_top, &nrecv_top);
+
+    if (gs->variant == GS_FULL)
+    {
+      size = 128;
+      nsend = 0;
+      ERRMEM (send = MEM_CALLOC (size * sizeof (COMDATA)));
+      ptr = send;
+
+      /* create send sets of external reactions updated by middle nodes */
+      for (SET *item = SET_First (middle); item; item = SET_Next (item))
+      {
+	dia = item->data;
+
+	for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+	{ 
+	  con = (CON*) blk->dia;
+	  SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
+	}
+
+	for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+	{
+	  ptr->rank = (int) (long) jtem->data;
+	  ptr->ints = 1;
+	  ptr->doubles = 0;
+	  ptr->i = (int*) &dia->con->id;
+	  ptr->d = NULL;
+	  ptr= sendnext (++ nsend, &size, &send);
+	}
+
+	SET_Free (&setmem, &ranks);
+      }
+
+      /* send ranks of middle nodes */
+      COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+
+      /* discover which external constraints are updated by middle nodes */
+      receive_middle_reactions (dom, recv, nrecv, &setmem, &midupd);
+
+      free (send);
+      free (recv);
+    }
+    else /* GS_MIDDLE_JACOBI */
+    {
+      size_mid = 512;
+      nsend_mid = 0;
+
+      ERRMEM (send_mid = MEM_CALLOC (size_mid * sizeof (COMDATA)));
+
+      ptr_mid = send_mid;
+
+      /* prepare middle send buffer */
+      for (SET *item = SET_First (middle); item; item = SET_Next (item))
+      {
+	dia = item->data;
+
+	for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
+	{ 
+	  con = (CON*) blk->dia;
+	  SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
+	}
+
+	for (SET *jtem = SET_First (ranks); jtem; jtem = SET_Next (jtem))
+	{
+	  ptr_mid->rank = (int) (long) jtem->data;
+	  ptr_mid->ints = 1;
+	  ptr_mid->doubles = 3;
+	  ptr_mid->i = (int*) &dia->con->id;
+	  ptr_mid->d = dia->R;
+	  ptr_mid = sendnext (++ nsend_mid, &size_mid, &send_mid);
+	}
+
+	SET_Free (&setmem, &ranks);
+      }
+
+      mid_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_BOTTOM, send_mid, nsend_mid, &recv_mid, &nrecv_mid);
+    }
   }
-
-  /* send ranks of middle nodes */
-  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
-
-  /* discover which external constraints are updated by middle nodes */
-  receive_middle_reactions (dom, recv, nrecv, &setmem, &midupd);
-
-  free (send);
-  free (recv);
+  else
+  {
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {
+      SET_Insert (&setmem, &all, dia, NULL);
+    }
+  }
 
   dynamic = dom->dynamic;
   step = dom->step;
@@ -1051,34 +1106,67 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
     if (gs->reverse && gs->iters % 2)
     {
-      di = gauss_seidel_sweep (bottom, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      COM_Send (bot_pattern);
-      di = gauss_seidel_sweep (int1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
+      if (gs->variant != GS_BOUNDARY_JACOBI)
+      {
+	di = gauss_seidel_sweep (bottom, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	COM_Send (bot_pattern);
+	di = gauss_seidel_sweep (int1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
 
-      di = gauss_seidel_loop (middle, midupd, 1, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	if (gs->variant == GS_FULL)
+	{
+	  di = gauss_seidel_loop (middle, midupd, 1, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	}
+	else /* GS_MIDDLE_JACOBI */
+	{
+	  di = gauss_seidel_sweep (middle, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Repeat (mid_pattern); receive_reactions (dom, recv_mid, nrecv_mid);
+	}
 
-      di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      COM_Send (top_pattern);
-      di = gauss_seidel_sweep (int2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+	di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	COM_Send (top_pattern);
+	di = gauss_seidel_sweep (int2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+      }
+      else
+      {
+	di = gauss_seidel_sweep (all, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      }
     }
     else
     {
-      di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      COM_Send (top_pattern);
-      di = gauss_seidel_sweep (int2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); /* large |top| => large |int2| */
-      COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+      if (gs->variant != GS_BOUNDARY_JACOBI)
+      {
+	di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	COM_Send (top_pattern);
+	di = gauss_seidel_sweep (int2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); /* large |top| => large |int2| */
+	COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
 
-      di = gauss_seidel_loop (middle, midupd, 0, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	if (gs->variant == GS_FULL)
+	{
+	  di = gauss_seidel_loop (middle, midupd, 0, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	}
+	else /* GS_MIDDLE_JACOBI */
+	{
+	  di = gauss_seidel_sweep (middle, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Repeat (mid_pattern); receive_reactions (dom, recv_mid, nrecv_mid);
+	}
 
-      di = gauss_seidel_sweep (bottom, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      COM_Send (bot_pattern);
-      di = gauss_seidel_sweep (int1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
+	di = gauss_seidel_sweep (bottom, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	COM_Send (bot_pattern);
+	di = gauss_seidel_sweep (int1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
+      }
+      else
+      {
+	di = gauss_seidel_sweep (all, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      }
     }
 
-    ASSERT_DEBUG (all_done (ldy), "Not all external reactions were updated");
+    if (gs->variant == GS_BOUNDARY_JACOBI) DOM_Update_External_Reactions (dom, 0);
+#if DEBUG
+    else ASSERT_DEBUG (all_done (ldy), "Not all external reactions were updated");
+#endif
 
     /* sum up error */
     errloc [0] = errup, errloc [1] = errlo;
@@ -1096,14 +1184,24 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   if (rank == 0 && dom->verbose) printf (fmt, gs->iters, error);
 
-  COM_Free (bot_pattern);
-  COM_Free (top_pattern);
+  if (gs->variant != GS_BOUNDARY_JACOBI)
+  {
+    COM_Free (bot_pattern);
+    COM_Free (top_pattern);
+    free (send_bot);
+    free (recv_bot);
+    free (send_top);
+    free (recv_top);
+    free (color);
+
+    if (gs->variant == GS_MIDDLE_JACOBI)
+    {
+      COM_Free (mid_pattern);
+      free (send_mid);
+      free (recv_mid);
+    }
+  }
   MEM_Release (&setmem);
-  free (send_bot);
-  free (recv_bot);
-  free (send_top);
-  free (recv_top);
-  free (color);
 
   /* get maximal iterations count of a diagonal block solver (this has been
    * delayed until here to minimize small communication within the loop) */
@@ -1307,6 +1405,19 @@ char* GAUSS_SEIDEL_Reverse (GAUSS_SEIDEL *gs)
   {
   case GS_ON: return "ON";
   case GS_OFF: return "OFF";
+  }
+
+  return NULL;
+}
+
+/* return variant string */
+char* GAUSS_SEIDEL_Variant (GAUSS_SEIDEL *gs)
+{
+  switch (gs->variant)
+  {
+  case GS_FULL: return "FULL";
+  case GS_MIDDLE_JACOBI: return "MIDDLE_JACOBI";
+  case GS_BOUNDARY_JACOBI: return "BOUNDARY_JACOBI";
   }
 
   return NULL;

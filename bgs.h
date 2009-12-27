@@ -45,10 +45,18 @@ enum gsonoff
   GS_ON
 };
 
+enum gsvariant
+{
+  GS_FULL,
+  GS_MIDDLE_JACOBI,
+  GS_BOUNDARY_JACOBI
+};
+
 typedef enum gserror GSERROR;
 typedef enum gsdias GSDIAS;
 typedef enum gsfail GSFAIL;
 typedef enum gsonoff GSONOFF;
+typedef enum gsvariant GSVARIANT;
 
 struct gs
 {
@@ -77,6 +85,8 @@ struct gs
   double *rerhist; /* relative error history */
 
   GSONOFF reverse; /* iterate forward an backward alternately ? */
+
+  GSVARIANT variant; /* parallel algorithm variant (ignored in serial mode) */
 };
 
 /* create solver */
@@ -102,6 +112,9 @@ char* GAUSS_SEIDEL_History (GAUSS_SEIDEL *gs);
 /* return reverse flag string */
 char* GAUSS_SEIDEL_Reverse (GAUSS_SEIDEL *gs);
 
+/* return variant string */
+char* GAUSS_SEIDEL_Variant (GAUSS_SEIDEL *gs);
+
 /* free solver */
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs);
 
@@ -109,5 +122,4 @@ void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs);
 int DIAGONAL_BLOCK_Solver (GSDIAS diagsolver, double diagepsilon, int diagmaxiter,
   short dynamic, double step, short kind, SURFACE_MATERIAL *mat, double gap,
   double *Z, double *base, DIAB *dia, double *B);
-
 #endif
