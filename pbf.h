@@ -39,7 +39,7 @@ struct pbf_marker
 {
   double time; /* time moment */
   unsigned int ipos; /* index position */
-  unsigned int dpos; /* data position */
+  unsigned long long dpos; /* data position */
 };
 
 /* label */
@@ -47,7 +47,7 @@ struct pbf_label
 {
   char *name; /* label name */
   int index; /* unique index */
-  unsigned int dpos; /* data position */
+  unsigned long long dpos; /* data position */
 };
 
 /* file */
@@ -69,11 +69,10 @@ struct pbf
   MAP *labels; /* name mapped labels */
   PBF_MARKER *mtab; /* markers */
   enum {PBF_READ, PBF_WRITE} mode; /* access mode */
-  unsigned int dpos; /* previous data position */
   double time; /* current time (>= 0) */
   int lsize; /* free index (WRITE) or ltab size (READ) */
-  int msize; /* mtab size (READ) */
-  int cur; /* index of current time frame */
+  unsigned int msize; /* mtab size (READ) */
+  unsigned int cur; /* index of current time frame */
   PBF *next; /* list of parallel files (READ) */
 };
 
@@ -122,9 +121,9 @@ void PBF_Limits (PBF *bf, double *start, double *end);
 void PBF_Seek (PBF *bf, double time);
 
 /* make 'steps' backward in read mode */
-void PBF_Backward (PBF *bf, int steps);
+void PBF_Backward (PBF *bf, unsigned int steps);
 
 /* make 'steps' forward in read mode */
-void PBF_Forward (PBF *bf, int steps);
+void PBF_Forward (PBF *bf, unsigned int steps);
 
 #endif
