@@ -7,7 +7,7 @@ from math import sqrt
 # some parameters
 N_BRICKS = 2
 M_BRICKS = 2
-N_LAYERS = 12
+N_LAYERS = 2
 
 # some constants
 PI = 3.14159265358979323846 
@@ -385,13 +385,13 @@ def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, 
 
 ### main module ###
 
-step = 1E-6
+step = 1E-4
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/core3')
 
-surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.6)
+surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
 GRAVITY (solfec, (0, 0, -1), 10)
 
@@ -399,11 +399,13 @@ GRAVITY (solfec, (0, 0, -1), 10)
 
 gcore_create (0.0003, 0.0002,  0,  0,  0, bulkmat, solfec)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 100, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
-OUTPUT (solfec, 0.025, compression='FASTLZ')
+gs.variant = 'SIMPLIFIED'
 
-RUN (solfec, gs, 12.00)
+OUTPUT (solfec, 0.0, compression='FASTLZ')
+
+RUN (solfec, gs, 150 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 

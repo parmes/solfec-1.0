@@ -3113,10 +3113,7 @@ reference "tab:var-gs"
 \end_inset
 
 .
- Note that 'FULL' update, although the slowest, works in all cases.
- The other updates will usually diverge for all-rigid-body models.
- 'MIDDLE_JACOBI' might be of practical use in case of deformable models,
- while 'BOUNDARY_JACOBI' will fail in most cases.
+ Ignored in sequential mode.
 \end_layout
 
 \end_inset
@@ -3264,7 +3261,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="2">
+<lyxtabular version="3" rows="4" columns="2">
 <features>
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="60col%">
@@ -3282,7 +3279,10 @@ status open
 \begin_inset Text
 
 \begin_layout Plain Layout
-Perform full Gauss-Seidel update as in sequential case
+Full Gauss-Seidel update as in sequential case.
+ Although the slowest, it works in all cases.
+ It should be noted, that all of the below variants will usually fail for
+ all-rigid-body models.
 \end_layout
 
 \end_inset
@@ -3302,8 +3302,35 @@ Perform full Gauss-Seidel update as in sequential case
 \begin_inset Text
 
 \begin_layout Plain Layout
-Use Jacobi update for off-processor data of middle nodes (matrix graph nodes
- that communicate with processors of higher and lower colors).
+Jacobi update for off-processor data of 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+ matrix blocks communicating with processors of higher and lower colors.
+ Of use for deformable kinematics, where off-diagonal interactions are weaker.
+ The Gauss-Seidel run-time should be halved for large numbers of processors.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'BOUNDARY_JACOBI'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Use Jacobi update for all off-processor data.
+ This approach will fail in most cases.
+ It servers as illustration.
 \end_layout
 
 \end_inset
@@ -3314,7 +3341,7 @@ Use Jacobi update for off-processor data of middle nodes (matrix graph nodes
 \begin_inset Text
 
 \begin_layout Plain Layout
-'BOUNDARY_JACOBI'
+'SIMPLIFIED'
 \end_layout
 
 \end_inset
@@ -3323,7 +3350,12 @@ Use Jacobi update for off-processor data of middle nodes (matrix graph nodes
 \begin_inset Text
 
 \begin_layout Plain Layout
-Use Jacobi update for all off-processor data.
+A single sweep over contacts is done with previous values of off-processor
+ data.
+ This is followed by local Gauss-Seidel iterations for all non-contact constrain
+ts.
+ This is the fastest and least consistent approach, of use for deformable
+ kinematics dominated models.
 \end_layout
 
 \end_inset
