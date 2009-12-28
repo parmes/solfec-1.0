@@ -38,8 +38,8 @@ typedef struct pbf PBF; /* file type */
 struct pbf_marker
 {
   double time; /* time moment */
-  unsigned int ipos; /* index position */
-  unsigned long long dpos; /* data position */
+  u_int ipos; /* index position */
+  u_quad_t dpos; /* data position */
 };
 
 /* label */
@@ -47,7 +47,7 @@ struct pbf_label
 {
   char *name; /* label name */
   int index; /* unique index */
-  unsigned long long dpos; /* data position */
+  u_quad_t dpos; /* data position */
 };
 
 /* file */
