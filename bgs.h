@@ -49,7 +49,8 @@ enum gsvariant
 {
   GS_FULL,
   GS_MIDDLE_JACOBI,
-  GS_BOUNDARY_JACOBI
+  GS_BOUNDARY_JACOBI,
+  GS_SIMPLIFIED
 };
 
 typedef enum gserror GSERROR;

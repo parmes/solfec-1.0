@@ -861,7 +861,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       *midupd    = NULL,
       *int1      = NULL,
       *int2      = NULL,
-      *all       = NULL;
+      *all       = NULL,
+      *noncon    = NULL;
 
   int size1 = 0,
       size2 = 0,
@@ -895,7 +896,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   MEM_Init (&setmem, sizeof (SET), 256);
 
-  if (gs->variant != GS_BOUNDARY_JACOBI)
+  if (gs->variant < GS_BOUNDARY_JACOBI)
   {
     color = processor_coloring (gs, ldy); /* color processors */
     mycolor = color [rank];
@@ -1082,11 +1083,22 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       mid_pattern = COM_Pattern (MPI_COMM_WORLD, TAG_GAUSS_SEIDEL_BOTTOM, send_mid, nsend_mid, &recv_mid, &nrecv_mid);
     }
   }
-  else
+  else if (gs->variant == GS_BOUNDARY_JACOBI)
   {
     for (dia = ldy->dia; dia; dia = dia->n)
     {
       SET_Insert (&setmem, &all, dia, NULL);
+    }
+  }
+  else /* GS_SIMPLIFIED */
+  {
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {
+      if (dia->con->kind == CONTACT)
+      {
+        SET_Insert (&setmem, &all, dia, NULL);
+      }
+      else SET_Insert (&setmem, &noncon, dia, NULL);
     }
   }
 
@@ -1095,96 +1107,132 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   gs->error = GS_OK;
   gs->iters = 0;
   dimax = 0;
-  do
+
+  if (gs->variant != GS_SIMPLIFIED)
   {
-    double errup = 0.0,
-           errlo = 0.0,
-	   errloc [2],
-	   errsum [2];
-
-    undo_all (ldy);
-
-    if (gs->reverse && gs->iters % 2)
+    do
     {
-      if (gs->variant != GS_BOUNDARY_JACOBI)
+      double errup = 0.0,
+	     errlo = 0.0,
+	     errloc [2],
+	     errsum [2];
+
+      undo_all (ldy);
+
+      if (gs->reverse && gs->iters % 2)
       {
-	di = gauss_seidel_sweep (bottom, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	COM_Send (bot_pattern);
-	di = gauss_seidel_sweep (int1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
-
-	if (gs->variant == GS_FULL)
+	if (gs->variant != GS_BOUNDARY_JACOBI)
 	{
-	  di = gauss_seidel_loop (middle, midupd, 1, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	}
-	else /* GS_MIDDLE_JACOBI */
-	{
-	  di = gauss_seidel_sweep (middle, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	  COM_Repeat (mid_pattern); receive_reactions (dom, recv_mid, nrecv_mid);
-	}
+	  di = gauss_seidel_sweep (bottom, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Send (bot_pattern);
+	  di = gauss_seidel_sweep (int1, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
 
-	di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	COM_Send (top_pattern);
-	di = gauss_seidel_sweep (int2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+	  if (gs->variant == GS_FULL)
+	  {
+	    di = gauss_seidel_loop (middle, midupd, 1, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  }
+	  else /* GS_MIDDLE_JACOBI */
+	  {
+	    di = gauss_seidel_sweep (middle, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	    COM_Repeat (mid_pattern); receive_reactions (dom, recv_mid, nrecv_mid);
+	  }
+
+	  di = gauss_seidel_sweep (top, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Send (top_pattern);
+	  di = gauss_seidel_sweep (int2, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+	}
+	else
+	{
+	  di = gauss_seidel_sweep (all, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	}
       }
       else
       {
-	di = gauss_seidel_sweep (all, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      }
-    }
-    else
-    {
-      if (gs->variant != GS_BOUNDARY_JACOBI)
-      {
-	di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	COM_Send (top_pattern);
-	di = gauss_seidel_sweep (int2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); /* large |top| => large |int2| */
-	COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
-
-	if (gs->variant == GS_FULL)
+	if (gs->variant != GS_BOUNDARY_JACOBI)
 	{
-	  di = gauss_seidel_loop (middle, midupd, 0, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  di = gauss_seidel_sweep (top, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Send (top_pattern);
+	  di = gauss_seidel_sweep (int2, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di); /* large |top| => large |int2| */
+	  COM_Recv (top_pattern); receive_reactions (dom, recv_top, nrecv_top);
+
+	  if (gs->variant == GS_FULL)
+	  {
+	    di = gauss_seidel_loop (middle, midupd, 0, &setmem, mycolor, color, gs, ldy, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  }
+	  else /* GS_MIDDLE_JACOBI */
+	  {
+	    di = gauss_seidel_sweep (middle, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	    COM_Repeat (mid_pattern); receive_reactions (dom, recv_mid, nrecv_mid);
+	  }
+
+	  di = gauss_seidel_sweep (bottom, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Send (bot_pattern);
+	  di = gauss_seidel_sweep (int1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+	  COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
 	}
-	else /* GS_MIDDLE_JACOBI */
+	else
 	{
-	  di = gauss_seidel_sweep (middle, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	  COM_Repeat (mid_pattern); receive_reactions (dom, recv_mid, nrecv_mid);
+	  di = gauss_seidel_sweep (all, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
 	}
-
-	di = gauss_seidel_sweep (bottom, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	COM_Send (bot_pattern);
-	di = gauss_seidel_sweep (int1, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-	COM_Recv (bot_pattern); receive_reactions (dom, recv_bot, nrecv_bot);
       }
-      else
-      {
-	di = gauss_seidel_sweep (all, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
-      }
-    }
 
-    if (gs->variant == GS_BOUNDARY_JACOBI) DOM_Update_External_Reactions (dom, 0);
+      if (gs->variant == GS_BOUNDARY_JACOBI) DOM_Update_External_Reactions (dom, 0);
 #if DEBUG
-    else ASSERT_DEBUG (all_done (ldy), "Not all external reactions were updated");
+      else ASSERT_DEBUG (all_done (ldy), "Not all external reactions were updated");
 #endif
 
-    /* sum up error */
-    errloc [0] = errup, errloc [1] = errlo;
-    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    errup = errsum [0], errlo = errsum [1];
+      /* sum up error */
+      errloc [0] = errup, errloc [1] = errlo;
+      MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+      errup = errsum [0], errlo = errsum [1];
 
-    /* calculate relative error */
-    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+      /* calculate relative error */
+      error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
 
-    if (gs->history) gs->rerhist [gs->iters] = error;
+      if (gs->history) gs->rerhist [gs->iters] = error;
 
-    if (gs->iters % div == 0 && rank == 0 && dom->verbose) printf (fmt, gs->iters, error), div *= 2;
+      if (gs->iters % div == 0 && rank == 0 && dom->verbose) printf (fmt, gs->iters, error), div *= 2;
+    }
+    while (++ gs->iters < gs->maxiter && error > gs->epsilon);
   }
-  while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+  else /* GS_SIMPLIFIED */
+  {
+    double errup = 0.0, errlo = 0.0;
+
+    /* sweep over contacts */
+    di = gauss_seidel_sweep (all, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+
+    /* broadcast reaction updates */
+    DOM_Update_External_Reactions (dom, 0);
+
+    /* loop over non-contacts */
+    do
+    {
+      errup = errlo = 0.0;
+
+      if (gs->reverse && gs->iters % 2)
+      {
+        di = gauss_seidel_sweep (noncon, 1, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      }
+      else
+      {
+	di = gauss_seidel_sweep (noncon, 0, gs, dynamic, step, &errup, &errlo); dimax = MAX (dimax, di);
+      }
+
+      error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+
+      if (gs->history) gs->rerhist [gs->iters] = error;
+
+      if (gs->iters % div == 0 && rank == 0 && dom->verbose) printf (fmt, gs->iters, error), div *= 2;
+    }
+    while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+  }
 
   if (rank == 0 && dom->verbose) printf (fmt, gs->iters, error);
 
-  if (gs->variant != GS_BOUNDARY_JACOBI)
+  if (gs->variant < GS_BOUNDARY_JACOBI)
   {
     COM_Free (bot_pattern);
     COM_Free (top_pattern);
@@ -1418,6 +1466,7 @@ char* GAUSS_SEIDEL_Variant (GAUSS_SEIDEL *gs)
   case GS_FULL: return "FULL";
   case GS_MIDDLE_JACOBI: return "MIDDLE_JACOBI";
   case GS_BOUNDARY_JACOBI: return "BOUNDARY_JACOBI";
+  case GS_SIMPLIFIED: return "SIMPLIFIED";
   }
 
   return NULL;

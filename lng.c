@@ -2897,6 +2897,10 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_variant (lng_GAUSS_SEIDEL_SOLVER *self, P
   {
     self->gs->variant = GS_BOUNDARY_JACOBI;
   }
+  ELIF (value, "SIMPLIFIED")
+  {
+    self->gs->variant = GS_SIMPLIFIED;
+  }
   ELSE
   {
     PyErr_SetString (PyExc_ValueError, "Invalid variant (FULL/MIDDLE_JACOBI/BOUNDARY_JACOBI accepted)");
