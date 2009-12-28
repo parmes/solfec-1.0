@@ -60,9 +60,9 @@
  *  FRAME_i:
  * -------------------------------
  *  [TIME] (double) {current time}
- *  [DOFF] (unsigned long long) {offest of FRAME_i in DAT file}
+ *  [DOFF] (u_quad_t) {offest of FRAME_i in DAT file}
  *  [IDX_0] (int) {index of first label}
- *  [POS_0] (unsigned long long) {position of labeled data in DAT file}
+ *  [POS_0] (u_quad_t) {position of labeled data in DAT file}
  *  [IDX_1]
  *  [POS_1]
  *  ...
@@ -73,7 +73,7 @@
  *  FRAME_INF:
  * -------------------------------
  *  [TIME] (double) {DBL_MAX time}
- *  [DOFF] (unsigned long long) {offest to last data in DAT file}
+ *  [DOFF] (u_quad_t) {offest to last data in DAT file}
  * ----------------------------------
  */
 
@@ -89,7 +89,7 @@
 /* initialise labels and time index */
 static void initialise_reading (PBF *bf)
 {
-  unsigned long long pos;
+  u_quad_t pos;
   int index, num, siz;
   PBF_LABEL *l;
   
@@ -212,7 +212,7 @@ static void finalize_frames (PBF *bf)
 {
   if (bf->mode == PBF_WRITE)
   {
-    unsigned long long pos;
+    u_quad_t pos;
     double time = DBL_MAX;
 
     if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
@@ -222,7 +222,7 @@ static void finalize_frames (PBF *bf)
     }
 
     xdr_double (&bf->x_idx, &time);
-    pos = (unsigned long long) ftello(bf->dat);
+    pos = (u_quad_t) ftello(bf->dat);
     xdr_u_longlong_t (&bf->x_idx, &pos); /* last data position */
   }
 }
@@ -463,14 +463,14 @@ void PBF_Flush (PBF *bf)
 
 void PBF_Time (PBF *bf, double *time)
 {
-  unsigned long long pos;
+  u_quad_t pos;
   int index;
 
   if (bf->mode == PBF_WRITE)
   {
     ASSERT ((*time) >= bf->time, ERR_PBF_OUTPUT_TIME_DECREASED);
 
-    pos = (unsigned long long) ftello (bf->dat);
+    pos = (u_quad_t) ftello (bf->dat);
 
     if (xdr_getpos (&bf->x_idx) > 0) /* mark end of previous time frame */
     {
@@ -492,7 +492,7 @@ void PBF_Time (PBF *bf, double *time)
 
 int PBF_Label (PBF *bf, const char *label)
 {
-  unsigned long long pos;
+  u_quad_t pos;
   PBF_LABEL *l;
 
   if (bf->mode == PBF_WRITE)
@@ -515,7 +515,7 @@ int PBF_Label (PBF *bf, const char *label)
     /* record label and position
      * in the index file */
     xdr_int (&bf->x_idx, &l->index);
-    pos = (unsigned long long) ftello (bf->dat);
+    pos = (u_quad_t) ftello (bf->dat);
     xdr_u_longlong_t (&bf->x_idx, &pos);
   }
   else
