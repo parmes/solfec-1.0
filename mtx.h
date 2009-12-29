@@ -93,7 +93,7 @@ MX* MX_Tran (MX *a);
 MX* MX_Diag (MX *a, int from, int to);
 
 /* returned = undone sparse inverse (a) => IMPORTANT: never use this function to set a pointer;
- * it can only be used "on the fly" in order to modify an input to other routines; Applies only to MXCSC  */
+ * it can only be used "on the fly" in order to modify an input to other routines; Applies only to MXCSC */
 MX* MX_Uninv (MX *a);
 
 /* sum of two matrices => c = alpha * a + beta * b;

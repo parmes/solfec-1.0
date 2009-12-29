@@ -1942,10 +1942,18 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 	*e = u + n;
 
   blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
-  blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-  fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
-  for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
-  if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
+
+  if (bod->scheme == SCH_DEF_EXP)
+  {
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
+    for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
+    if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
+  }
+  else
+  {
+    /* TODO: implement linearly implicit scheme as in the pseudo-rigid case */
+  }
 }
 
 /* perform the final half-step of the dynamic scheme */

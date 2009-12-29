@@ -39,9 +39,5 @@ Test PBF file size limitation fixup
 ----------------------------------------------------
 Data compression/decompression in COMALL, etc.
 --------------------------------------------------
-Let the user given time step be fixed (and decide on W updates).
-Implement sub-cycling defromable bodies as well as time-avaraging
-of B computation for related constraints.
---------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------

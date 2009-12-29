@@ -2530,7 +2530,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="3">
+<lyxtabular version="3" rows="7" columns="3">
 <features>
 <column alignment="center" valignment="top" width="15col%">
 <column alignment="center" valignment="top" width="20col%">
@@ -2549,7 +2549,7 @@ Scheme
 \begin_inset Text
 
 \begin_layout Plain Layout
-Body kind
+Kinematics
 \end_layout
 
 \end_inset
@@ -2607,7 +2607,7 @@ Use a default time integrator regardless of underlying kinematics.
 \begin_inset Text
 
 \begin_layout Plain Layout
-'RIGID'
+rigid
 \end_layout
 
 \end_inset
@@ -2643,7 +2643,7 @@ key "Koziara2008b"
 \begin_inset Text
 
 \begin_layout Plain Layout
-'RIGID'
+rigid
 \end_layout
 
 \end_inset
@@ -2670,7 +2670,7 @@ default
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -2679,16 +2679,16 @@ default
 
 \end_inset
 </cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
-'RIGID'
+rigid
 \end_layout
 
 \end_inset
 </cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -2700,6 +2700,88 @@ key "Koziara2008b"
 \end_inset
 
 : semi-explicit, no energy drift and exact momentum conservation
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'DEF_EXP'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+pseudo-rigid, finite element
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Explicit trapezoidal-like scheme described in Chapter 5 of 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2008PhD"
+
+\end_inset
+
+; 
+\series bold
+default
+\series default
+ for deformable kinematics
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'DEF_IMP'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+pseudo-rigid, finite element
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Linearly implicit trapezoidal scheme from 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Potra2006"
+
+\end_inset
+
+; 
+\series bold
+\color red
+TODO
+\series default
+\color inherit
+: make it default after more testing
 \end_layout
 
 \end_inset
@@ -5992,7 +6074,7 @@ Solvers
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
-bibfiles "/Users/tomek/Devel/tkwork/bibs/rigid-bodies"
+bibfiles "/Users/tomek/Devel/tkwork/bibs/rigid-bodies,/Users/tomek/Devel/tkwork/bibs/contact-related"
 options "plain"
 
 \end_inset

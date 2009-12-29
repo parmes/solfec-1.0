@@ -66,10 +66,11 @@ typedef enum
  * schemes */
 typedef enum 
 {
-  SCH_DEFAULT,
   SCH_RIG_POS,   /* NEW1 with positive energy drift (high accuracy, approximate momentum conservation) */
-  SCH_RIG_NEG,   /* NEW2 with with negative energy drift (exact momentum conservation) */
+  SCH_RIG_NEG,   /* NEW2 with with negative energy drift (exact momentum conservation) (DEFAULT) */
   SCH_RIG_IMP,   /* NEW3 semi-simplict and stable (no energy drift, extact momentum conservation) */
+  SCH_DEF_EXP,   /* explicit scheme for deformable kinematics (DEFAULT) */
+  SCH_DEF_IMP,   /* linearly implicit scheme for deformable kinematics */
 } SCHEME;
 
 struct general_force

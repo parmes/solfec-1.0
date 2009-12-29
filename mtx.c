@@ -36,7 +36,8 @@
 #define MXDSUBLK(a) ((a)->flags & MXDSUBLK)
 #define MXUNINV(a) ((a)->flags & MXUNINV)
 #define TEMPORARY(a) ((a)->flags & (MXTRANS|MXDSUBLK|MXUNINV))
-#define REALLOCED(a) (!MXSTATIC(a) && (a)->x != (double*)((char*)&(a)[1]+(sizeof(double)-sizeof(MX)%sizeof(double))))
+#define MXFIXED(a) ((a)->flags & (MXSTATIC|MXTRANS|MXDSUBLK|MXUNINV))
+#define REALLOCED(a) (!MXFIXED(a) && (a)->x != (double*)((char*)&(a)[1]+(sizeof(double)-sizeof(MX)%sizeof(double))))
 #define MXIFAC(a) ((a)->flags & MXIFAC)
 #define MXIFAC_WORK1(a) ((a)->x + (a)->nzmax)
 #define MXIFAC_WORK2(a) ((a)->x + (a)->nzmax + (a)->n)
@@ -150,13 +151,18 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
   {
   case MXDENSE:
     {
-      if (b->kind == MXDENSE)
+      if (TEMPORARY (b))
+      {
+	if (MXDSUBLK (b) && b->n == 1 && b->m == m && b->m == n) return 1;
+	else return 0;
+      }
+      else if (b->kind == MXDENSE)
       {
 	if (nzmax > b->nz)
 	{
 	  if (REALLOCED (b)) free (b->x);
 
-	  ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
+	  ASSERT_DEBUG (!MXFIXED (b), "Trying to reallocate a static or a temporary matrix");
 
 	  ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
 
@@ -174,7 +180,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	  b->i = NULL;
 	}
 
-	ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
+	ASSERT_DEBUG (!MXFIXED (b), "Trying to reallocate a static or a temporary matrix");
 
         ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
 
@@ -189,7 +195,23 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
     break;
   case MXBD:
     {
-      if (b->kind == MXBD)
+      if (TEMPORARY (b))
+      {
+	if (MXDSUBLK (b) && b->m == m && b->n == n)
+	{
+	  int k;
+
+	  for (k = 0; k < n; k ++)
+	  {
+	    if ((b->i[k+1] - b->i[k]) != (i[k+1] - i[k])) break;
+	  }
+
+	  if (k == n) return 1;
+	}
+
+	return 0;
+      }
+      else if (b->kind == MXBD)
       {
 	if (nzmax > b->nz || n > b->n)
 	{
@@ -200,7 +222,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	    free (b->i);
 	  }
 
-	  ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
+	  ASSERT_DEBUG (!MXFIXED (b), "Trying to reallocate a static or a temporary matrix");
 
 	  ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
 	  ERRMEM (b->p = malloc (sizeof (int [n+1])));
@@ -217,7 +239,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 	  if (b->kind == MXCSC) free (b->p), free (b->i);
 	}
 
-	ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
+	ASSERT_DEBUG (!MXFIXED (b), "Trying to reallocate a static or a termporary matrix");
 
 	ERRMEM (b->x = MEM_CALLOC (nzmax * sizeof (double)));
 	ERRMEM (b->p = malloc (sizeof (int [n+1])));
@@ -236,13 +258,18 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
     break;
   case MXCSC:
     {
-      if (REALLOCED (b))
+      if (TEMPORARY (b))
+      {
+	if (B) MX_Destroy (B);
+	return 0;
+      }
+      else if (REALLOCED (b))
       {
 	free (b->x);
 	if (b->kind != MXDENSE) free (b->p), free (b->i);
       }
 
-      ASSERT_DEBUG (!MXSTATIC (b), "Trying to reallocate a static matrix");
+      ASSERT_DEBUG (!MXFIXED (b), "Trying to reallocate a static or a temporary matrix");
 
       b->kind = kind;
       b->nzmax = nzmax;
@@ -557,6 +584,8 @@ static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
     }
     else
     {
+      ASSERT_DEBUG (!TEMPORARY (b), "Trying to overwrite a temporary matrix");
+
       *c  = *d; /* overwrie (all kinds) */
 
       free (d);
@@ -1141,6 +1170,8 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
     }
     else
     {
+      ASSERT_DEBUG (!TEMPORARY (b), "Trying to overwrite a temporary matrix");
+
       *c = *d; /* overwrite (all kinds) */
 
       free (d);
@@ -1346,9 +1377,8 @@ static MX* dense_inverse (MX *a, MX *b)
 
   ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
   if (b == NULL) b = MX_Create (MXDENSE, a->m, a->n, NULL, NULL);
-  else { ASSERT_DEBUG_EXT (prepare (b, MXDENSE, a->nzmax, a->m, a->n, NULL, NULL), "Invalid output matrix"); }
+  else if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
 
-  if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
   lapack_dgetri (b->n, NULL, b->m, NULL, &w, -1); /* query for workspace size */
   lwork = (int) w;
 
@@ -1369,10 +1399,8 @@ static MX* bd_inverse (MX *a, MX *b)
   double *work, *bx, w;
 
   if (b == NULL) b = MX_Create (MXBD, a->m, a->n, a->p, a->i);
-  else { ASSERT_DEBUG_EXT (prepare (b, MXBD, a->nzmax, a->m, a->n, a->p, a->i), "Invalid output matrix"); }
+  else if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
 
-  if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
- 
   n = b->n;
   pp = b->p;
   ii = b->i; 
@@ -1649,8 +1677,7 @@ void MX_Scale (MX *a, double b)
 MX* MX_Copy (MX *a, MX *b)
 {
   if (b == a) return b;
-  else if (b == NULL) b = MX_Create
-    (a->kind, a->m, a->n, a->p, a->i);
+  else if (b == NULL) b = MX_Create (a->kind, a->m, a->n, a->p, a->i);
   
   if (MXTRANS (a))
   {
@@ -1685,8 +1712,8 @@ MX* MX_Copy (MX *a, MX *b)
   if (MXIFAC (a)) MX_Inverse (b, b); /* it was a sparse inverse => invert its copy */
 
   if (TEMPORARY (a)) free (a);
-
-  return b;
+  if (TEMPORARY (b)) { free (b); return NULL; }
+  else return b;
 }
 
 MX* MX_Tran (MX *a)
@@ -1703,11 +1730,11 @@ MX* MX_Tran (MX *a)
 
 MX* MX_Diag (MX *a, int from, int to)
 {
+  int j, k;
   MX *b;
-  int j;
 
   ASSERT_DEBUG (KIND (a) == MXBD, "Invalid matrix kind");
-  ASSERT_DEBUG (from < to && from >= 0 && to < a->n, "Invalid block index");
+  ASSERT_DEBUG (from <= to && from >= 0 && to < a->n, "Invalid block index");
   ASSERT_DEBUG (!MXDSUBLK (a), "Cannot get sub-block of a sub-block");
   ERRMEM (b = malloc (sizeof (MX)));
   memcpy (b, a, sizeof (MX));
@@ -1716,7 +1743,13 @@ MX* MX_Diag (MX *a, int from, int to)
   b->p = a->p + from;
   b->i = a->i + from;
   b->n = to - from + 1;
-  for (b->m = j = 0; j < b->n; j ++) b->m += b->i[j+1] - b->i[j];
+  for (b->nzmax = b->m = j = 0; j < b->n; j ++)
+  {
+    k = b->i[j+1] - b->i[j];
+    b->m += k;
+    b->nzmax += k*k;
+  }
+  b->nz = b->nzmax;
   if (TEMPORARY (a)) free (a);
   return b;
 }
@@ -1771,13 +1804,12 @@ MX* MX_Add (double alpha, MX *a, double beta, MX *b, MX *c)
 
   if (TEMPORARY (a)) free (a);
   if (TEMPORARY (b)) free (b);
-  return c;
+  if (TEMPORARY (c)) { free (c); return NULL; }
+  else return c;
 }
 
 MX* MX_Matmat (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  ASSERT_DEBUG (!c || (c && !MXTRANS(c)), "In alpha * a *b + beta *c, c cannot be transposed");
-
   switch ((KIND(a)<<4)|KIND(b))
   {
     case 0x11: /* DENSE * DENSE */
@@ -1811,7 +1843,8 @@ MX* MX_Matmat (double alpha, MX *a, MX *b, double beta, MX *c)
 
   if (TEMPORARY (a)) free (a);
   if (TEMPORARY (b)) free (b);
-  return c;
+  if (TEMPORARY (c)) { free (c); return NULL; }
+  else return c;
 }
 
 void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
@@ -1900,7 +1933,8 @@ MX* MX_Inverse (MX *a, MX *b)
   }
 
   if (TEMPORARY (a)) free (a);
-  return b;
+  if (TEMPORARY (b)) { free (b); return NULL; }
+  else return b;
 }
 
 void MX_Eigen (MX *a, int n, double *val, MX *vec)
