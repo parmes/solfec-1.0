@@ -1687,7 +1687,7 @@ static int ID_TO_BODY (lng_BODY *body)
   {
     BODY *bod = MAP_Find (body->dom->idb, (void*) (long) body->id, NULL);
 
-    if (bod && !(bod->flags & BODY_CHILD))
+    if (bod)
     {
       body->bod = bod;
       return 1;

@@ -224,7 +224,8 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec):
   shape = [cv1, cv2, cv3, cv4, cv5]
   ROTATE (shape, pnt, zet, 45.0)
 
-  BODY (solfec, 'PSEUDO_RIGID', shape, material)
+  b = BODY (solfec, 'PSEUDO_RIGID', shape, material)
+  b.scheme = 'DEF_IMP'
 
 def gcore_brick (x, y, z):
 
@@ -272,7 +273,8 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
 	y = -(outd + dfac) + j * (outd + dfac)
 
 	shp = gcore_brick (x, y, z)
-	BODY (solfec , 'PSEUDO_RIGID', shp, material)
+	b = BODY (solfec , 'PSEUDO_RIGID', shp, material)
+	b.scheme = 'DEF_IMP'
 
     # loose keys
     lx = keyw - 2.0*loose_gap
@@ -385,7 +387,7 @@ def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, 
 
 ### main module ###
 
-step = 1E-5
+step = 1E-4
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/core3')
 

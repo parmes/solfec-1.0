@@ -470,10 +470,13 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *fint, 
     mi (bod->mat->young, bod->mat->poisson),
     bod->ref_volume, 9, bod->conf, K.x);
 
-  /* compute internal force increment */
-  MX_Matvec (0.5 * step, &K, bod->velo, 0.0, dfint);
-  NNSUB (force, dfint, force);
-  NNADD (fint, dfint, fint);
+  if (fint && force)
+  {
+    /* account for the internal force increment */
+    MX_Matvec (0.5 * step, &K, bod->velo, 0.0, dfint);
+    NNSUB (force, dfint, force);
+    NNADD (fint, dfint, fint);
+  }
 
   /* calculate tangent operator A = M + h/2 C + h*h/4 K, where C = damping * M (mass proportional damping) */
   MX_Add (1.0 + 0.5 * step * bod->damping, MX_Diag(&M, 0, 2), 0.25*step*step, &K, MX_Diag(A, 0, 0));
@@ -1051,7 +1054,8 @@ void BODY_Dynamic_Init (BODY *bod)
       break;
     case RIG: rig_dynamic_inverse (bod); break;
     case PRB: 
-      if (bod->scheme == SCH_DEF_EXP) prb_dynamic_explicit_inverse (bod); break; /* in the implicit case this will be done during the integration */
+      if (bod->scheme == SCH_DEF_EXP) prb_dynamic_explicit_inverse (bod);
+      else prb_dynamic_implicit_inverse (bod, bod->dom->step, NULL, NULL); break;
     case FEM: FEM_Dynamic_Init (bod); break;
   }
 }
@@ -1291,8 +1295,9 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
     etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
     /* FIXME: energy balance does to work correctly in parallel
-     * FIXME: energy history needs to be passed around in order to fix it */
-#if !MPI
+     * FIXME: energy history needs to be passed around in order to fix it;
+     * FIXME: also in the sequential case it needs adjustment for the implicit scheme */
+#if 0
     if (!(etot < ENE_TOL * emax || emax < ENE_EPS))
       fprintf (stderr, "KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
 
@@ -1895,6 +1900,9 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   pack_int (isize, i, ints, SET_Size (bod->children));
   for (SET *item = SET_First (bod->children); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
+
+  /* pack integration scheme */
+  pack_int (isize, i, ints, bod->scheme);
 }
 
 /* unpack parent body */
@@ -1911,6 +1919,9 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
   k = unpack_int (ipos, i, ints);
   for (j = 0; j < k; j ++)
     SET_Insert (&bod->dom->setmem, &bod->children, (void*) (long) unpack_int (ipos, i, ints), NULL);
+
+  /* unpack integration scheme */
+  bod->scheme = unpack_int (ipos, i, ints);
 
   /* init inverse */
   if (bod->dom->dynamic)
@@ -1932,6 +1943,9 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
   pack_int (isize, i, ints, SET_Size (bod->children));
   for (SET *item = SET_First (bod->children); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
+
+  /* pack integration scheme */
+  pack_int (isize, i, ints, bod->scheme);
 }
 
 /* unpack child body */
@@ -1952,6 +1966,9 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
     if (l != bod->dom->rank) /* ommit own rank */
       SET_Insert (&bod->dom->setmem, &bod->children, (void*) (long) l, NULL);
   }
+
+  /* unpack integration scheme */
+  bod->scheme = unpack_int (ipos, i, ints);
 
   /* init inverse */
   if (bod->dom->dynamic)

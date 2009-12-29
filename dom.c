@@ -748,16 +748,22 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   ASSERT_DEBUG_EXT (master = MAP_Find (dom->allbodies, (void*) (long) mid, NULL), "Invalid body id");
   if (sid) ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); else slave = NULL;
 
-  if (dom->dynamic) BODY_Dynamic_Init (master);
-  else BODY_Static_Init (master);
+  if (master->flags & (BODY_PARENT|BODY_CHILD)) /* update bod->inverse only for parents and children */
+  {                                             /* only they have updated configurations and scheme flags */
+    if (dom->dynamic) BODY_Dynamic_Init (master);
+    else BODY_Static_Init (master);
+  }
 
   n = unpack_int (ipos, i, ints);
   msgp = &master->sgp [n];
 
   if (slave)
   {
-    if (dom->dynamic) BODY_Dynamic_Init (slave);
-    else BODY_Static_Init (slave);
+    if (slave->flags & (BODY_PARENT|BODY_CHILD)) /* update bod->inverse only for parents and children */
+    {                                            /* only they have updated configurations and scheme flags */
+      if (dom->dynamic) BODY_Dynamic_Init (slave);
+      else BODY_Static_Init (slave);
+    }
 
     n = unpack_int (ipos, i, ints);
     ssgp = &slave->sgp [n];
