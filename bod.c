@@ -1290,12 +1290,14 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
     etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
-#if DEBUG
+    /* FIXME: energy balance does to work correctly in parallel
+     * FIXME: energy history needs to be passed around in order to fix it */
+#if !MPI
     if (!(etot < ENE_TOL * emax || emax < ENE_EPS))
-      printf (stderr, "KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
-#endif
+      fprintf (stderr, "KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
 
     ASSERT (etot < ENE_TOL * emax || emax < ENE_EPS, ERR_BOD_ENERGY_CONSERVATION);
+#endif
 
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
   }
