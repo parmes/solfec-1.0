@@ -405,8 +405,8 @@ static void prb_operator_H (BODY *bod, double *X, double *base, double *H)
 }
 
 /* set up inverse of inertia for
- * the dynamic time stepping */
-static void prb_dynamic_inverse (BODY *bod)
+ * the explicit dynamic time stepping */
+static void prb_dynamic_explicit_inverse (BODY *bod)
 {
   double *E0, m, *x;
   MX *M;
@@ -432,12 +432,65 @@ static void prb_dynamic_inverse (BODY *bod)
   MX_Inverse (M, M);
 }
 
+/* set up inverse of inertia for
+ * the implicit dynamic time stepping */
+static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *fint, double *force)
+{
+  int p [] = {0, 9, 18, 27, 36},
+      i [] = {0, 3, 6, 9, 12};
+  double *E0, m, *x, dfint [9];
+  MX_BD (M, 36, 12, 4, p, i);
+  MX_DENSE (K, 9, 9);
+  MX *A;
+
+  /* place-holder for the
+   * tangent operator */
+  if (!bod->inverse)
+  {
+    int p [] = {0, 81, 90},
+        i [] = {0, 9, 12};
+
+    A = MX_Create (MXBD, 12, 2, p, i);
+    bod->inverse = A;
+  }
+  else A = bod->inverse;
+
+  /* set up mass matrix */
+  E0 = bod->ref_tensor;
+  m = bod->ref_mass;
+  x = M.x;
+  NNCOPY (E0, x); x += 9;
+  NNCOPY (E0, x); x += 9;
+  NNCOPY (E0, x); x += 9;
+  IDENTITY (x);
+  SCALEDIAG (x, m);
+
+  /* calculate stiffness matrix */
+  SVK_Tangent_R (lambda (bod->mat->young, bod->mat->poisson),
+    mi (bod->mat->young, bod->mat->poisson),
+    bod->ref_volume, 9, bod->conf, K.x);
+
+  /* compute internal force increment */
+  MX_Matvec (0.5 * step, &K, bod->velo, 0.0, dfint);
+  NNSUB (force, dfint, force);
+  NNADD (fint, dfint, fint);
+
+  /* calculate tangent operator A = M + h/2 C + h*h/4 K, where C = damping * M (mass proportional damping) */
+  MX_Add (1.0 + 0.5 * step * bod->damping, MX_Diag(&M, 0, 2), 0.25*step*step, &K, MX_Diag(A, 0, 0));
+  MX_Copy (MX_Diag (&M, 3, 3), MX_Diag (A, 1, 1));
+
+  /* invert A */
+  MX_Inverse (A, A);
+}
+
+/* set up inverse of inertia for
+ * the implicit static time stepping */
 static void prb_static_inverse (BODY *bod, double step)
 {
   int p [] = {0, 9, 18, 27, 36},
       i [] = {0, 3, 6, 9, 12};
   double *E0, m, *x;
-  MX_BD (M, 36,12, 3, p, i);
+  MX_BD (M, 36, 12, 4, p, i);
   MX_DENSE (K, 9, 9);
   double eigmax;
   MX *IM, *IMK, *A;
@@ -479,7 +532,10 @@ static void prb_static_inverse (BODY *bod, double step)
 
   /* calculate scaled tangent operator */
   MX_Add (eigmax / 4.0, MX_Diag(&M, 0, 2), step*step, &K, MX_Diag(A, 0, 0));
-  MX_Copy (MX_Diag (&M, 3, 3), MX_Diag (A, 2, 2));
+  MX_Copy (MX_Diag (&M, 3, 3), MX_Diag (A, 1, 1));
+
+  /* invert A */
+  MX_Inverse (A, A);
 
   /* clean up */
   MX_Destroy (IMK);
@@ -801,7 +857,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
   bod->flags = 0; /* no flags here */
 
   /* default integration scheme */
-  bod->scheme = kind == RIG ? SCH_RIG_NEG : SCH_DEFAULT;
+  bod->scheme = kind == RIG ? SCH_RIG_NEG : SCH_DEF_EXP;
 
   /* initial damping */
   bod->damping = 0.0;
@@ -994,7 +1050,8 @@ void BODY_Dynamic_Init (BODY *bod)
       }
       break;
     case RIG: rig_dynamic_inverse (bod); break;
-    case PRB: prb_dynamic_inverse (bod); break;
+    case PRB: 
+      if (bod->scheme == SCH_DEF_EXP) prb_dynamic_explicit_inverse (bod); break; /* in the implicit case this will be done during the integration */
     case FEM: FEM_Dynamic_Init (bod); break;
   }
 }
@@ -1011,18 +1068,22 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
     break;
     case PRB:
     {
-      MX_DENSE (K, 9, 9);
-      double eigmax;
-      MX *IMK;
+      if (bod->scheme == SCH_DEF_IMP) step = DBL_MAX;
+      else
+      {
+	MX_DENSE (K, 9, 9);
+	double eigmax;
+	MX *IMK;
 
-      SVK_Tangent_R (
-	lambda (bod->mat->young, bod->mat->poisson), mi (bod->mat->young, bod->mat->poisson),
-	bod->ref_volume, 9, bod->conf, K.x); /* calculate stiffness matrix */
-      IMK = MX_Matmat (1.0, MX_Diag (bod->inverse, 0, 2), &K, 0.0, NULL); /* inv(M) * K => done on a sub-block of M */
-      MX_Eigen (IMK, 1, &eigmax, NULL); /* compute maximal eigenvalue */
-      MX_Destroy (IMK);
-      ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
-      step = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
+	SVK_Tangent_R (
+	  lambda (bod->mat->young, bod->mat->poisson), mi (bod->mat->young, bod->mat->poisson),
+	  bod->ref_volume, 9, bod->conf, K.x); /* calculate stiffness matrix */
+	IMK = MX_Matmat (1.0, MX_Diag (bod->inverse, 0, 2), &K, 0.0, NULL); /* inv(M) * K => done on a sub-block of M */
+	MX_Eigen (IMK, 1, &eigmax, NULL); /* compute maximal eigenvalue */
+	MX_Destroy (IMK);
+	ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
+	step = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
+      }
     }
     break;
     case FEM:
@@ -1102,10 +1163,21 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 
       NNCOPY (L, L0);
       COPY (v, v0);
-      blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-      prb_dynamic_force (bod, time+half, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
-      MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
-      if (c > 0.0) for (v = L+9; L < v; L ++, L0++) (*L) -= c * (*L0); /* u(t+h) -= c * u (t) (deforomable part) */
+
+      if (bod->scheme == SCH_DEF_EXP)
+      {
+	blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+	prb_dynamic_force (bod, time+half, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
+	MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
+	if (c > 0.0) for (v = L+9; L < v; L ++, L0++) (*L) -= c * (*L0); /* u(t+h) -= c * u (t) (deforomable part) */
+      }
+      else /* SCH_DEF_IMP */
+      {
+	prb_dynamic_force (bod, time, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t) = fext (t) - fint (q(t)) */
+	prb_dynamic_implicit_inverse (bod, step, PRB_FINT(bod), force); /* fint += (h/2) K u(t) */
+	blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+	MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (A) * h * f(t+h/2) */
+      }
     }
     break;
     case FEM:
@@ -1218,13 +1290,12 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
     etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
-    /* FIXME: this got broken after the simplification */
-#if 0
+#if DEBUG
     if (!(etot < ENE_TOL * emax || emax < ENE_EPS))
-      printf ("KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
+      printf (stderr, "KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
+#endif
 
     ASSERT (etot < ENE_TOL * emax || emax < ENE_EPS, ERR_BOD_ENERGY_CONSERVATION);
-#endif
 
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
   }

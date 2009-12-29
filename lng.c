@@ -2257,10 +2257,11 @@ static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
 
   switch (self->bod->scheme)
   {
-  case SCH_DEFAULT: return PyString_FromString ("DEFAULT");
   case SCH_RIG_NEG: return PyString_FromString ("RIG_NEG");
   case SCH_RIG_POS: return PyString_FromString ("RIG_POS");
   case SCH_RIG_IMP: return PyString_FromString ("RIG_IMP");
+  case SCH_DEF_EXP: return PyString_FromString ("DEF_EXP");
+  case SCH_DEF_IMP: return PyString_FromString ("DEF_IMP");
   }
 
 #if MPI
@@ -2280,12 +2281,12 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
   {
 #endif
 
-  IFIS (value, "DEFAULT") self->bod->scheme = SCH_DEFAULT;
+  IFIS (value, "DEFAULT") self->bod->scheme = self->bod->kind == RIG ? SCH_RIG_NEG : SCH_DEF_EXP;
   ELIF (value, "RIG_POS")
   {
     if (self->bod->kind != RIG)
     {
-      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme for a rigid body");
+      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
       return -1;
     }
 
@@ -2295,7 +2296,7 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
   {
     if (self->bod->kind != RIG)
     {
-      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme for a rigid body");
+      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
       return -1;
     }
 
@@ -2305,11 +2306,31 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
   {
     if (self->bod->kind != RIG)
     {
-      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme for a rigid body");
+      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
       return -1;
     }
 
     self->bod->scheme = SCH_RIG_IMP;
+  }
+  ELIF (value, "DEF_EXP")
+  {
+    if (self->bod->kind == RIG)
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
+      return -1;
+    }
+
+    self->bod->scheme = SCH_DEF_EXP;
+  }
+  ELIF (value, "DEF_IMP")
+  {
+    if (self->bod->kind == RIG)
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
+      return -1;
+    }
+
+    self->bod->scheme = SCH_DEF_IMP;
   }
   ELSE
   {
