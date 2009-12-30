@@ -586,62 +586,6 @@ void SOLFEC_Forward (SOLFEC *sol, int steps)
 
 /* read the history of an object (a labeled value, a body or
  * a constraint) and invoke the callback for every new state */
-void SOLFEC_History (SOLFEC *sol, char *label, double *dval, int *ival, int len, BODY *bod,
-  CON *con, double t0, double t1, void *data, void (*callback) (void *data, double time))
-{
-  if (sol->mode == SOLFEC_WRITE) return;
-
-  double save, time;
-  PBF *bf;
-
-  init (sol);
-  save = sol->dom->time;
-  PBF_Seek (sol->bf, t0);
-  PBF_Time (sol->bf, &time);
-
-  do
-  {
-    if (label && dval)
-    {
-      for (bf = sol->bf; bf; bf = bf->next)
-      {
-	if (PBF_Label (bf, label))
-	{
-	  PBF_Double (bf, dval, len);
-	  callback (data, time);
-	  break;
-	}
-      }
-    }
-    else if (label && ival)
-    {
-      for (bf = bf; bf; bf = bf->next)
-      {
-	if (PBF_Label (bf, label))
-	{
-	  PBF_Int (sol->bf, ival, len);
-	  callback (data, time);
-	  break;
-	}
-      }
-    }
-    else if (bod)
-    {
-      if (DOM_Read_Body (sol->dom, sol->bf, bod)) callback (data, time);
-    }
-    else if (con)
-    {
-      if (DOM_Read_Constraint (sol->dom, sol->bf, con)) callback (data, time);
-    }
-
-    PBF_Forward (sol->bf, 1);
-    PBF_Time (sol->bf, &time);
-  }
-  while (time < t1);
-
-  PBF_Seek (sol->bf, save); /* restore initial time frame */
-}
-
 /* perform abort actions */
 void SOLFEC_Abort (SOLFEC *sol)
 {
@@ -679,4 +623,65 @@ void SOLFEC_Destroy (SOLFEC *sol)
   MEM_Release (&sol->timemem);
 
   free (sol);
+}
+
+/* read histories of a set of requested items; allocate and fill 'history'  members
+ * of those items; return table of times of the same 'size' as the 'history' members */
+double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, int skip, int *size)
+{
+  if (sol->mode == SOLFEC_WRITE) return NULL;
+
+  double save, *time;
+  int cur, i;
+
+  cur = 0;
+  save = sol->dom->time;
+  SOLFEC_Seek_To (sol, t0);
+  *size = PBF_Span (sol->bf, t0, t1);
+  ERRMEM (time = MEM_CALLOC (sizeof (double [(*size) + 4]))); /* safeguard */
+  time [cur] = sol->dom->time;
+
+  for (i = 0; i < nshi; i ++)
+  {
+    ERRMEM (shi[i].history = MEM_CALLOC (sizeof (double [(*size) + 4])));
+  }
+
+  do
+  {
+    for (i = 0; i < nshi; i ++)
+    {
+      switch (shi[i].item)
+      {
+      case BODY_ENTITY:
+	{
+	  double values [7];
+          BODY_Point_Values (shi[i].bod, shi[i].point, shi[i].entity, values);
+	  shi[i].history [cur] = values [shi[i].index];
+	}
+	break;
+      case ENERGY_VALUE:
+	{
+	  for (SET *item = SET_First (shi[i].bodies); item; item = SET_Next (item))
+	  {
+	    BODY *bod = item->data;
+	    shi[i].history [cur] += bod->energy [shi[i].index];
+	  }
+	}
+	break;
+      case TIMING_VALUE:
+	{
+          shi[i].history [cur] = SOLFEC_Timing (sol, shi[i].label);
+	}
+	break;
+      }
+    }
+
+    SOLFEC_Forward (sol, skip);
+    time [cur ++] = sol->dom->time;
+  }
+  while (sol->dom->time < t1);
+
+  SOLFEC_Seek_To (sol, save); /* restore initial time frame */
+
+  return time;
 }

@@ -5074,150 +5074,124 @@ static PyObject* lng_STRESS (PyObject *self, PyObject *args, PyObject *kwds)
 #endif
 }
 
-/* callback data */
-typedef struct
+/* check whether an object is a SOLFEC, a BODY or a list of bodies */
+static int is_solfec_or_body_or_list_of_bodies (PyObject *obj, char *var)
+{
+  int i, l;
+  char buf [BUFLEN];
+  PyObject *item;
+
+  if (!obj) return 1;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_SOLFEC_TYPE)) return 1;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE)) return 1;
+  else if (PyList_Check (obj))
+  {
+    l = PyList_Size (obj);
+    for (i = 0; i < l; i ++)
+    {
+      item = PyList_GetItem (obj, i);
+      if (!PyObject_IsInstance (item, (PyObject*)&lng_BODY_TYPE)) goto err;
+#if MPI
+      if (!ID_TO_BODY ((lng_BODY*)item))
+      {
+	sprintf (buf, "One of the bodies in '%s' is not on the current processor", var);
+	PyErr_SetString (PyExc_TypeError, buf);
+	return 0;
+      }
+#endif
+    }
+    return 1;
+  }
+ 
+err: 
+  sprintf (buf, "'%s' must be a SOLFEC a BODY object or a list of BODY objects", var);
+  PyErr_SetString (PyExc_TypeError, buf);
+  return 0;
+}
+
+/* conver object argument of ENERGY to a body set */
+static SET* object_to_body_set (PyObject *obj, MEM *setmem, SOLFEC *sol)
 {
   BODY *bod;
-  double p [3];
-  VALUE_KIND kind;
-  int index;
-  PyObject *times;
-  PyObject *values;
-}
-lng_HISTORY_DATA;
+  SET *ret;
+  int i, l;
 
-/* callback for SOLFEC_History */
-static void lng_HISTORY_callback (lng_HISTORY_DATA *data, double time)
-{
-  double x [6];
+  ret = NULL;
 
-  BODY_Point_Values (data->bod, data->p, data->kind, x);
-
-  PyList_Append (data->times, PyFloat_FromDouble (time));
-  PyList_Append (data->values, PyFloat_FromDouble (x [data->index]));
-}
-
-/* history of an entity */
-static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("body", "point", "entity", "t0", "t1");
-  double start, end, t0, t1;
-  PyObject *point, *entity;
-  lng_HISTORY_DATA data;
-  lng_BODY *body;
-
-  PARSEKEYS ("OOOdd", &body, &point, &entity, &t0, &t1);
-
-  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) && is_string (entity, kwl[2]));
-
-#if MPI
-  if (ID_TO_BODY (body))
+  if (!obj)
   {
-#endif
+    for (bod = sol->dom->bod; bod; bod = bod->next)
+    {
+      SET_Insert (setmem, &ret, bod, NULL);
+    }
+  }
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_SOLFEC_TYPE))
+  {
+    lng_SOLFEC *solfec = (lng_SOLFEC*)obj;
 
-  SOLFEC *sol = body->bod->dom->solfec;
+    for (bod = solfec->sol->dom->bod; bod; bod = bod->next)
+    {
+      SET_Insert (setmem, &ret, bod, NULL);
+    }
+  }
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE))
+  {
+    lng_BODY *body = (lng_BODY*)obj;
+    SET_Insert (setmem, &ret, body->bod, NULL);
+  }
+  else if (PyList_Check (obj))
+  {
+    l = PyList_Size (obj);
+    for (i = 0; i < l; i ++)
+    {
+      lng_BODY *body = (lng_BODY*)PyList_GetItem (obj, i);
+      SET_Insert (setmem, &ret, body->bod, NULL);
+    }
+  }
 
-  if (sol->mode == SOLFEC_WRITE) Py_RETURN_NONE;
+  return ret;
+}
+
+/* energy */
+static PyObject* lng_ENERGY (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "object");
+  double energy [BODY_ENERGY_SPACE];
+  SET *bodies, *item;
+  lng_SOLFEC *solfec;
+  PyObject *object;
+  MEM setmem;
+  BODY *bod;
+  int i;
+
+  object = NULL;
+
+  memset (energy, 0, sizeof (energy));
+
+  PARSEKEYS ("O|O", &solfec, &object);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_solfec_or_body_or_list_of_bodies (object, kwl[1]));
+
+  if (object)
+  {
+    MEM_Init (&setmem, sizeof (SET), 128);
+    bodies = object_to_body_set (object, &setmem, solfec->sol);
+    for (item = SET_First (bodies); item; item = SET_Next (item))
+    {
+      bod = item->data;
+      for (i = 0; i < BODY_ENERGY_SIZE(bod); i ++) energy [i] += bod->energy [i];
+    }
+    MEM_Release (&setmem);
+  }
   else
   {
-    SOLFEC_Time_Limits (sol, &start, &end);
-
-    if (t0 < start || t1 > end)
+    for (bod = solfec->sol->dom->bod; bod; bod = bod->next)
     {
-      PyErr_SetString (PyExc_ValueError, "t0 or t1 outside of simulation duration limits");
-      return NULL;
+      for (i = 0; i < BODY_ENERGY_SIZE(bod); i ++) energy [i] += bod->energy [i];
     }
-
-    IFIS (entity, "DX")
-    {
-      data.kind = VALUE_DISPLACEMENT;
-      data.index = 0;
-    }
-    ELIF (entity, "DY")
-    {
-      data.kind = VALUE_DISPLACEMENT;
-      data.index = 1;
-    }
-    ELIF (entity, "DZ")
-    {
-      data.kind = VALUE_DISPLACEMENT;
-      data.index = 2;
-    }
-    ELIF (entity, "VX")
-    {
-      data.kind = VALUE_VELOCITY;
-      data.index = 0;
-    }
-    ELIF (entity, "VY")
-    {
-      data.kind = VALUE_VELOCITY;
-      data.index = 1;
-    }
-    ELIF (entity, "VZ")
-    {
-      data.kind = VALUE_VELOCITY;
-      data.index = 2;
-    }
-    ELIF (entity, "SX")
-    {
-      data.kind = VALUE_STRESS;
-      data.index = 0;
-    }
-    ELIF (entity, "SY")
-    {
-      data.kind = VALUE_STRESS;
-      data.index = 1;
-    }
-    ELIF (entity, "SZ")
-    {
-      data.kind = VALUE_STRESS;
-      data.index = 2;
-    }
-    ELIF (entity, "SXY")
-    {
-      data.kind = VALUE_STRESS;
-      data.index = 3;
-    }
-    ELIF (entity, "SXZ")
-    {
-      data.kind = VALUE_STRESS;
-      data.index = 4;
-    }
-    ELIF (entity, "SYZ")
-    {
-      data.kind = VALUE_STRESS;
-      data.index = 5;
-    }
-    ELIF (entity, "MISES")
-    {
-      data.kind = VALUE_MISES;
-      data.index = 0;
-    }
-    ELSE
-    {
-      PyErr_SetString (PyExc_ValueError, "Invalid entity kind");
-      return NULL;
-    }
-
-    data.bod = body->bod;
-
-    data.p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
-    data.p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
-    data.p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
-
-    ERRMEM (data.times = PyList_New (0));
-    ERRMEM (data.values = PyList_New (0));
-
-    SOLFEC_History (sol, NULL, NULL, NULL, 0, body->bod, NULL,
-      t0, t1, &data, (void (*) (void*, double)) lng_HISTORY_callback);
-
-    return Py_BuildValue ("(O,O)", data.times, data.values);
   }
 
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
+  return Py_BuildValue ("(d, d, d, d, d)", energy [0], energy [1], energy [2], energy [3], energy [4]);
 }
 
 /* timing */
@@ -5243,62 +5217,260 @@ static PyObject* lng_TIMING (PyObject *self, PyObject *args, PyObject *kwds)
   return PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label));
 }
 
-/* callback data */
-typedef struct
+/* parse single item of hitory items list */
+static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi)
 {
-  double val;
-  PyObject *times;
-  PyObject *values;
-}
-lng_TIMING_HISTORY_DATA;
-
-/* callback for SOLFEC_History */
-static void lng_TIMING_HISTORY_callback (lng_TIMING_HISTORY_DATA *data, double time)
-{
-  PyList_Append (data->times, PyFloat_FromDouble (time));
-  PyList_Append (data->values, PyFloat_FromDouble (data->val));
-}
-
-/* timing history */
-static PyObject* lng_TIMING_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("solfec", "kind", "t0", "t1");
-  lng_TIMING_HISTORY_DATA data;
-  double start, end, t0, t1;
-  lng_SOLFEC *solfec;
-  PyObject *kind;
-  char *label;
-
-  PARSEKEYS ("OOdd", &solfec, &kind, &t0, &t1);
-
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]));
-
-  if (solfec->sol->mode == SOLFEC_WRITE) Py_RETURN_NONE;
-  else
+  if (PyTuple_Check (obj))
   {
-    SOLFEC_Time_Limits (solfec->sol, &start, &end);
-
-    if (t0 < start || t1 > end)
+    if (PyTuple_Size (obj) == 3)
     {
-      PyErr_SetString (PyExc_ValueError, "t0 or t1 outside of simulation duration limits");
-      return NULL;
+      PyObject *point, *entity;
+      lng_BODY *body;
+
+      body = (lng_BODY*)PyTuple_GetItem (obj, 0);
+      point = PyTuple_GetItem (obj, 1);
+      entity = PyTuple_GetItem (obj, 2);
+
+      if (!(is_body (body, "body") && is_tuple (point, "point", 3) && is_string (entity, "entity"))) return 0;
+
+      shi->bod = body->bod;
+      shi->point [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+      shi->point [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+      shi->point [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+      IFIS (entity, "DX")
+      {
+	shi->entity = VALUE_DISPLACEMENT;
+	shi->index = 0;
+      }
+      ELIF (entity, "DY")
+      {
+	shi->entity = VALUE_DISPLACEMENT;
+	shi->index = 1;
+      }
+      ELIF (entity, "DZ")
+      {
+	shi->entity = VALUE_DISPLACEMENT;
+	shi->index = 2;
+      }
+      ELIF (entity, "VX")
+      {
+	shi->entity = VALUE_VELOCITY;
+	shi->index = 0;
+      }
+      ELIF (entity, "VY")
+      {
+	shi->entity = VALUE_VELOCITY;
+	shi->index = 1;
+      }
+      ELIF (entity, "VZ")
+      {
+	shi->entity = VALUE_VELOCITY;
+	shi->index = 2;
+      }
+      ELIF (entity, "SX")
+      {
+	shi->entity = VALUE_STRESS;
+	shi->index = 0;
+      }
+      ELIF (entity, "SY")
+      {
+	shi->entity = VALUE_STRESS;
+	shi->index = 1;
+      }
+      ELIF (entity, "SZ")
+      {
+	shi->entity = VALUE_STRESS;
+	shi->index = 2;
+      }
+      ELIF (entity, "SXY")
+      {
+	shi->entity = VALUE_STRESS;
+	shi->index = 3;
+      }
+      ELIF (entity, "SXZ")
+      {
+	shi->entity = VALUE_STRESS;
+	shi->index = 4;
+      }
+      ELIF (entity, "SYZ")
+      {
+	shi->entity = VALUE_STRESS;
+	shi->index = 5;
+      }
+      ELIF (entity, "MISES")
+      {
+	shi->entity = VALUE_MISES;
+	shi->index = 0;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid entity kind");
+	return 0;
+      }
+
+      shi->item = BODY_ENTITY;
     }
+    else if (PyTuple_Size (obj) == 2)
+    {
+      PyObject *object, *kind;
 
-    label = PyString_AsString (kind);
+      object = PyTuple_GetItem (obj, 0);
+      kind = PyTuple_GetItem (obj, 1);
 
-    if (!SOLFEC_Has_Timer (solfec->sol, label))
+      if (!is_solfec_or_body_or_list_of_bodies (object, "object")) return 0;
+
+      IFIS (kind, "KINETIC")
+      {
+	shi->index = KINETIC;
+      }
+      ELIF (kind, "INTERNAL")
+      {
+	shi->index = INTERNAL;
+      }
+      ELIF (kind, "EXTERNAL")
+      {
+	shi->index = EXTERNAL;
+      }
+      ELIF (kind, "CONTACT")
+      {
+	shi->index = CONTWORK;
+      }
+      ELIF (kind, "FRICTION")
+      {
+	shi->index = FRICWORK;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid energy kind");
+	return 0;
+      }
+
+      shi->bodies = object_to_body_set (object, setmem, sol);
+      shi->item = ENERGY_VALUE;
+    }
+    else
+    {
+       PyErr_SetString (PyExc_ValueError, "Invalid tuple size");
+       return 0;
+    }
+  }
+  else if (PyString_Check (obj))
+  {
+    shi->label = PyString_AsString (obj);
+
+    IFIS (obj, "TIMINT") { }
+    ELIF (obj, "CONDET") { }
+    ELIF (obj, "LOCDYN") { }
+    ELIF (obj, "CONSOL") { }
+    ELIF (obj, "PARBAL") { }
+    ELSE
     {
       PyErr_SetString (PyExc_ValueError, "Invalid timing kind");
+      return 0;
+    }
+
+    shi->item = TIMING_VALUE;
+  }
+  else
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid history item");
+    return 0;
+  }
+
+  return 1;
+}
+
+/* parse history items list */
+static SHI* parse_history_items (PyObject *list, MEM *setmem, SOLFEC *sol, int *nshi)
+{
+  SHI *shi;
+  int i;
+
+  if (PyList_Check (list))
+  {
+    *nshi = PyList_Size (list);
+    ERRMEM (shi = MEM_CALLOC (sizeof (SHI [*nshi])));
+    for (i = 0; i < *nshi; i ++)
+    {
+      if (!parse_history_item (PyList_GetItem (list, i), setmem, sol, &shi [i]))
+      {
+        free (shi);
+	return NULL;
+      }
+    }
+  }
+  else
+  {
+    ERRMEM (shi = MEM_CALLOC (sizeof (SHI)));
+    *nshi = 1;
+    if (!parse_history_item (list, setmem, sol, shi))
+    {
+      free (shi);
+      return NULL;
+    }
+  }
+
+  return shi;
+}
+
+/* history of an entity */
+static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "list", "t0", "t1", "skip");
+  double start, end, t0, t1, *time;
+  PyObject *list, *tuple, *vals;
+  int skip, nshi, i, j, size;
+  lng_SOLFEC *solfec;
+  SOLFEC *sol;
+  MEM setmem;
+  SHI *shi;
+
+  skip = 1;
+
+  PARSEKEYS ("OOdd|i", &solfec, &list, &t0, &t1, &skip);
+
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+  sol = solfec->sol;
+
+  if (sol->mode == SOLFEC_WRITE) Py_RETURN_NONE;
+  else
+  {
+    MEM_Init (&setmem, sizeof (SET), 128);
+
+    if (!(shi = parse_history_items (list, &setmem, sol, &nshi)))
+    {
+      MEM_Release (&setmem);
       return NULL;
     }
 
-    ERRMEM (data.times = PyList_New (0));
-    ERRMEM (data.values = PyList_New (0));
+    SOLFEC_Time_Limits (sol, &start, &end);
 
-    SOLFEC_History (solfec->sol, label, &data.val, NULL, 1, NULL, NULL,
-      t0, t1, &data, (void (*) (void*, double)) lng_TIMING_HISTORY_callback);
+    if (t0 < start) t0 = start;
 
-    return Py_BuildValue ("(O,O)", data.times, data.values);
+    if (t1 > end) t1 = end;
+
+    time = SOLFEC_History (sol, shi, nshi, t0, t1, skip, &size);
+
+    ERRMEM (tuple = PyTuple_New (nshi + 1));
+    ERRMEM (vals = PyList_New (size));
+    for (j = 0; j < size; j ++) PyList_SetItem (vals, j, PyFloat_FromDouble (time [j]));
+    PyTuple_SetItem (tuple, 0, vals);
+    free (time);
+
+    for (i = 0; i < nshi; i ++)
+    {
+      ERRMEM (vals = PyList_New (size));
+      for (j = 0; j < size; j ++) PyList_SetItem (vals, j, PyFloat_FromDouble (shi [i].history [j]));
+      PyTuple_SetItem (tuple, i + 1, vals);
+      free (shi [i].history);
+    }
+
+    MEM_Release (&setmem);
+    free (shi);
+
+    return tuple;
   }
 }
 
@@ -5346,9 +5518,9 @@ static PyMethodDef lng_methods [] =
   {"DISPLACEMENT", (PyCFunction)lng_DISPLACEMENT, METH_VARARGS|METH_KEYWORDS, "Get displacement of a referential point"},
   {"VELOCITY", (PyCFunction)lng_VELOCITY, METH_VARARGS|METH_KEYWORDS, "Get velocity of a referential point"},
   {"STRESS", (PyCFunction)lng_STRESS, METH_VARARGS|METH_KEYWORDS, "Get stress of a referential point"},
-  {"HISTORY", (PyCFunction)lng_HISTORY, METH_VARARGS|METH_KEYWORDS, "Get history of an entity for a body"},
+  {"ENERGY", (PyCFunction)lng_ENERGY, METH_VARARGS|METH_KEYWORDS, "Get energy"},
   {"TIMING", (PyCFunction)lng_TIMING, METH_VARARGS|METH_KEYWORDS, "Get timing"},
-  {"TIMING_HISTORY", (PyCFunction)lng_TIMING_HISTORY, METH_VARARGS|METH_KEYWORDS, "Get timing history"},
+  {"HISTORY", (PyCFunction)lng_HISTORY, METH_VARARGS|METH_KEYWORDS, "Get history of entites"},
   {NULL, 0, 0, NULL}
 };
 
@@ -5511,9 +5683,9 @@ int lng (const char *path)
                      "from solfec import DISPLACEMENT\n"
                      "from solfec import VELOCITY\n"
                      "from solfec import STRESS\n"
-                     "from solfec import HISTORY\n"
+                     "from solfec import ENERGY\n"
                      "from solfec import TIMING\n"
-                     "from solfec import TIMING_HISTORY\n");
+                     "from solfec import HISTORY\n");
 
   error = PyRun_SimpleFile (file, path);
 

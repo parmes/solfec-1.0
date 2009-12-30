@@ -126,4 +126,6 @@ void PBF_Backward (PBF *bf, unsigned int steps);
 /* make 'steps' forward in read mode */
 void PBF_Forward (PBF *bf, unsigned int steps);
 
+/* get number of time instants spanned by [t0, t1] */
+unsigned int PBF_Span (PBF *bf, double t0, double t1);
 #endif
