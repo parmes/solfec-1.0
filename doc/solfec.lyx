@@ -4763,10 +4763,10 @@ ret = HERE (solfec, object)
 \begin_layout Standard
 This routine tests whether an object is located on the current processor.
  During parallel runs objects migrate between processors.
- When a function (or a member) for an object not present on the current
- processor, the call will usually return None or be ignored.
- Hence, it is sometimes convenient to check whether an object resides on
- the current processor.
+ When calling a function (or a member) for an object not present on the
+ current processor, the call will usually return None or be ignored.
+ Hence, it is convenient to check whether an object resides on the current
+ processor.
 \end_layout
 
 \begin_layout Itemize
@@ -5790,73 +5790,7 @@ point
 \end_layout
 
 \begin_layout Subsection*
-hist = HISTORY (body, point, entity, t0, t1)
-\end_layout
-
-\begin_layout Standard
-This routine outputs the history of an entity at a referential point.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-hist
-\series default
- - a tuple of list objects storing the history of the entity: 
-\emph on
-(times, values)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-body
-\series default
- - BODY object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-point
-\series default
- - 
-\emph on
-(x, y, z)
-\emph default
- tuple storing the referential point
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-entity
-\series default
- - this is one of: 'DX', 'DY', 'DZ' (displacement), 'VX', 'VY', 'VZ' (velocity),
- 'SX', 'SY', 'SZ', 'SXY', 'SXZ', 'SYZ' (stress), 'MISE' (von Mises norm
- of stress)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-t0
-\series default
- - time interval start
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-t1
-\series default
- - time interval end
-\end_layout
-
-\begin_layout Subsection*
-ene = ENERGY (obj, kind) 
-\color red
-TODO
+ene = ENERGY (solfec | object)
 \end_layout
 
 \begin_layout Standard
@@ -5868,84 +5802,44 @@ The routine outputs the value of energy of a specific object.
 \series bold
 ene
 \series default
- - value of the energy
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-obj
-\series default
- - this can be: a SOLFEC object, a BODY object, or a list of BODY objects
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-kind
-\series default
- - this is one of: 'KINETIC', 'POTENTIAL', 'EXTWORK' (work of external forces,
- including friction), 'FRICWORK' (work of friction forces)
-\end_layout
-
-\begin_layout Subsection*
-hist = ENERGY_HISTORY (obj, kind, t0, t1) 
-\color red
-TODO
-\end_layout
-
-\begin_layout Standard
-This routine outputs the history of energy for a collection of objects.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-hist
-\series default
- - a tuple of list objects storing the history of the entity: 
+ - 
 \emph on
-(times, values)
+(kinetic, internal, external, conact, friction)
+\emph default
+ tuple of energy values; 
+\emph on
+internal
+\emph default
+ energy corresponds to the work of internal forces, 
+\emph on
+external
+\emph default
+ energy corresponds to the work of external forces (including constraint
+ reactions), 
+\emph on
+contact
+\emph default
+ energy corresponds to the work of normal contact reactions, 
+\emph on
+friction
+\emph default
+ energy corresponds to the work of tangential contact reactions
 \end_layout
 
 \begin_layout Itemize
 
 \series bold
-obj
+solfec
 \series default
- - this can be: a SOLFEC object, a BODY object, or a list of BODY objects
+ - SOLFEC object
 \end_layout
 
 \begin_layout Itemize
 
 \series bold
-kind
+object
 \series default
- - same as 
-\series bold
-kind
-\series default
- in 
-\series bold
-ENERGY
-\series default
- routine
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-t0
-\series default
- - time interval start
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-t1
-\series default
- - time interval end
+ - SOLFEC object, BODY object or a list of BODY objects
 \end_layout
 
 \begin_layout Subsection*
@@ -5984,11 +5878,11 @@ kind
 \end_layout
 
 \begin_layout Subsection*
-hist = TIMING_HISTORY (solfec, kind, t0, t1)
+hist = HISTORY (solfec, list, t0, t1 | skip)
 \end_layout
 
 \begin_layout Standard
-This routine outputs the history of timing.
+This routine outputs time histories of entities.
 \end_layout
 
 \begin_layout Itemize
@@ -5996,9 +5890,9 @@ This routine outputs the history of timing.
 \series bold
 hist
 \series default
- - a tuple of list objects storing the history of timing: 
+ - a tuple of list objects storing the histories: 
 \emph on
-(times, values)
+(times, values1, values2, ..., valuesN)
 \end_layout
 
 \begin_layout Itemize
@@ -6012,19 +5906,69 @@ solfec
 \begin_layout Itemize
 
 \series bold
-kind
+list
 \series default
- - same as 
-\series bold
-kind
-\series default
- in 
-\series bold
-TIMING
-\series default
- routine
+ - list of objects 
+\emph on
+[object1, object2, ..., objectN]
+\emph default
+ indicating requested values.
+ The valid objects are: 
 \end_layout
 
+\begin_deeper
+\begin_layout Itemize
+a tuple 
+\emph on
+(body, point, entity)
+\emph default
+ where 
+\emph on
+body
+\emph default
+ is a BODY object, 
+\emph on
+point
+\emph default
+ is a 
+\emph on
+(x, y, z)
+\emph default
+ tuple storing the referential point, and 
+\emph on
+entity
+\emph default
+ is one of: 'DX', 'DY', 'DZ' (displacement), 'VX', 'VY', 'VZ' (velocity),
+ 'SX', 'SY', 'SZ', 'SXY', 'SXZ', 'SYZ' (stress), 'MISES' (von Mises norm
+ of stress) 
+\end_layout
+
+\begin_layout Itemize
+a tuple 
+\emph on
+(object, kind) 
+\emph default
+where 
+\emph on
+object
+\emph default
+ is a SOLFE object, a BODY object or a list of BODY objects,
+\series bold
+ 
+\series default
+and 
+\emph on
+kind
+\emph default
+ is a string 'KINETIC', 'INTERNAL', 'EXTERNAL', 'CONTACT', 'FRICTION' and
+ it corresponds to the energy kind
+\end_layout
+
+\begin_layout Itemize
+a string 'TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL' for timing histories
+\end_layout
+
+\end_deeper
 \begin_layout Itemize
 
 \series bold
@@ -6039,6 +5983,14 @@ t0
 t1
 \series default
  - time interval end
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+skip
+\series default
+ - number of steps to skip between two time instants
 \end_layout
 
 \begin_layout Chapter

@@ -44,7 +44,7 @@ def pinned_bar_create (material, solfec):
 ### main module ###
 
 step = 0.001
-stop = 10.0
+stop = 1.0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/pinnedbar')
 
@@ -64,8 +64,12 @@ OUTPUT (solfec, 0.001)
 
 RUN (solfec, gs, stop)
 
-#if not VIEWER() and solfec.mode == 'READ':
-  #kin = ENERGY_HISTORY (solfec, 'KINETIC', 0, stop)
-  #pot = ENERGY_HISTORY (solfec, 'POTENTIAL', 0, stop)
-  #ext = ENERGY_HISTORY (solfec, 'EXTWORK', 0, stop)
-  #fri = ENERGY_HISTORY (solfec, 'FRICWORK', 0, stop)
+if not VIEWER() and solfec.mode == 'READ':
+  import matplotlib.pyplot as plt
+  th = HISTORY (solfec, [(bod, 'KINETIC'), (bod, 'INTERNAL'), (bod, 'EXTERNAL'), (bod, 'CONTACT'), (bod, 'FRICTION')], 0, 1)
+  plt.plot (th [0], th [1])
+  plt.plot (th [0], th [2])
+  plt.plot (th [0], th [3])
+  plt.plot (th [0], th [4])
+  plt.plot (th [0], th [5])
+  plt.show ()

@@ -39,5 +39,8 @@ Test PBF file size limitation fixup
 ----------------------------------------------------
 Data compression/decompression in COMALL, etc.
 --------------------------------------------------
+Implement batch retrival of time histories (many in one go),
+which will ease off hard-drive intesnsive repetitive searches.
+------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------

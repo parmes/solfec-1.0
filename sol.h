@@ -137,15 +137,29 @@ void SOLFEC_Backward (SOLFEC *sol, int steps);
 /* step forward in READ modes */
 void SOLFEC_Forward (SOLFEC *sol, int steps);
 
-/* read the history of an object (a labeled value, a body or
- * a constraint) and invoke the callback for every new state */
-void SOLFEC_History (SOLFEC *sol, char *label, double *dval, int *ival, int len, BODY *bod,
-  CON *con, double t0, double t1, void *data, void (*callback) (void *data, double time));
-
 /* perform abort actions */
 void SOLFEC_Abort (SOLFEC *sol);
 
 /* free solfec memory */
 void SOLFEC_Destroy (SOLFEC *sol);
 
+/* SOLFEC time history item */
+typedef struct solfec_history_item SHI;
+
+/* history item data */
+struct solfec_history_item
+{
+  BODY *bod;
+  double point [3];
+  short index;
+  VALUE_KIND entity; /* (body, point, index, entity) <=> BODY_ENTITY */
+  SET *bodies; /* (bodies, index) <=> ENERGY_VALUE */
+  char *label; /* label <=> TIMING_VALUE */
+  enum {BODY_ENTITY, ENERGY_VALUE, TIMING_VALUE} item;
+  double *history; /* output */
+};
+
+/* read histories of a set of requested items; allocate and fill 'history'  members
+ * of those items; return table of times of the same 'size' as the 'history' members */
+double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, int skip, int *size);
 #endif

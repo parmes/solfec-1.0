@@ -102,15 +102,13 @@ if not VIEWER() and solfec.mode == 'READ':
 
   timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
   dur = DURATION (solfec)
+  th = HISTORY (solfec, timers, dur[0], dur[1])
   total = 0.0
-  num = 0
 
-  for timer in timers:
-    th = TIMING_HISTORY (solfec, timer, dur[0], dur[1])
+  for i in range (0, 5):
     sum = 0.0
-    for tt in th [1]: sum += tt
-    if num < 7: total += sum
-    num = num + 1
-    print timer, 'TIME:', sum
+    for tt in th [i+1]: sum += tt
+    print timers [i], 'TIME:', sum
+    total += sum
 
   print 'TOTAL TIME:', total

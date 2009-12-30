@@ -653,3 +653,49 @@ void PBF_Forward (PBF *bf, unsigned int steps)
     }
   }
 }
+
+unsigned int PBF_Span (PBF *bf, double t0, double t1)
+{
+  if (bf->mode == PBF_READ)
+  {
+    PBF_MARKER *l, *h, *m0, *m1;
+
+    ASSERT_DEBUG (t0 <= t1, "t0 > t1");
+
+    /* binary search
+     * of marker */
+    l = bf->mtab;
+    h = l + bf->msize - 1;
+    while (l <= h)
+    {
+      m0 = l + (h - l) / 2;
+      if (t0 == m0->time) break;
+      else if (t0 < m0->time) h = m0 - 1;
+      else l = m0 + 1;
+    }
+
+    /* handle limit cases */
+    if (h < bf->mtab) m0 = l;
+    else if (l > (bf->mtab + bf->msize - 1)) m0 = h;
+
+    /* binary search
+     * of marker */
+    l = bf->mtab;
+    h = l + bf->msize - 1;
+    while (l <= h)
+    {
+      m1 = l + (h - l) / 2;
+      if (t1 == m1->time) break;
+      else if (t1 < m1->time) h = m1 - 1;
+      else l = m1 + 1;
+    }
+
+    /* handle limit cases */
+    if (h < bf->mtab) m1 = l;
+    else if (l > (bf->mtab + bf->msize - 1)) m1 = h;
+
+    return m1 - m0;
+  }
+
+  return 0;
+}

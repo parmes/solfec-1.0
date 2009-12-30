@@ -760,6 +760,35 @@ static void update_extents (BODY *bod)
 #define update_extents(bod) SHAPE_Extents ((bod)->shape, (bod)->extents)
 #endif
 
+/* compute work of contact constraints */
+static void compute_contacts_work (BODY *bod, double step)
+{
+  double DU [3], *R, *energy = bod->energy;
+  DIAB *dia;
+  SET *item;
+  CON *con;
+
+  for (item = SET_First (bod->con); item; item = SET_Next (item))
+  {
+    con = item->data;
+    if (con->kind == CONTACT)
+    {
+      dia = con->dia;
+#if MPI
+      if (dia) /* NULL for external constraints; FIXME: figure out a way of not skipping them */
+      {
+#endif
+      R = con->R;
+      SUB (dia->U, dia->V, DU);
+      energy [FRICWORK] += 0.5 * step * DOT2 (DU, R);
+      energy [CONTWORK] += 0.5 * step * DU [2] * R [2];
+#if MPI
+      }
+#endif
+    }
+  }
+}
+
 /* -------------- interface ------------- */
 
 BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form, MESH *msh)
@@ -1288,16 +1317,18 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
   {
     energy [KINETIC] = BODY_Kinetic_Energy (bod);
 
+    compute_contacts_work (bod, step); /* CONTWORK and FRICWORK */
+
+    /* FIXME: energy balance does to work correctly in parallel
+     * FIXME: energy history needs to be passed around in order to fix it;
+     * FIXME: also in the sequential case it needs adjustment for the implicit scheme */
+#if 0
     double emax, etot;
 
     MAXABS (energy, emax);
 
     etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
-    /* FIXME: energy balance does to work correctly in parallel
-     * FIXME: energy history needs to be passed around in order to fix it;
-     * FIXME: also in the sequential case it needs adjustment for the implicit scheme */
-#if 0
     if (!(etot < ENE_TOL * emax || emax < ENE_EPS))
       fprintf (stderr, "KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
 
