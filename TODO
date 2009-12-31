@@ -41,6 +41,10 @@ Data compression/decompression in COMALL, etc.
 --------------------------------------------------
 Implement batch retrival of time histories (many in one go),
 which will ease off hard-drive intesnsive repetitive searches.
+-----------------------------------------------------------------
+Optimize SOLFEC_History in case only labeled data is red.
+-------------------------------------------------
+Add impliciting iteration for u(t+h) at the end of SCH_DEF_IMP
 ------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------

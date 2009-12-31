@@ -2768,7 +2768,7 @@ pseudo-rigid, finite element
 \begin_inset Text
 
 \begin_layout Plain Layout
-Linearly implicit trapezoidal scheme from 
+Linearly implicit trapezoidal scheme similar to 
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Potra2006"

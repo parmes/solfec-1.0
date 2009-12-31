@@ -478,9 +478,11 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *fint, 
     NNADD (fint, dfint, fint);
   }
 
-  /* calculate tangent operator A = M + h/2 C + h*h/4 K, where C = damping * M (mass proportional damping) */
-  MX_Add (1.0 + 0.5 * step * bod->damping, MX_Diag(&M, 0, 2), 0.25*step*step, &K, MX_Diag(A, 0, 0));
+  /* calculate tangent operator A = M + h*h/4 K */
+  MX_Add (1.0, MX_Diag(&M, 0, 2), 0.25*step*step, &K, MX_Diag(A, 0, 0));
   MX_Copy (MX_Diag (&M, 3, 3), MX_Diag (A, 1, 1));
+
+  /* TODO: account for damping, but is it sensible in this case? */
 
   /* invert A */
   MX_Inverse (A, A);
@@ -1206,10 +1208,10 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       }
       else /* SCH_DEF_IMP */
       {
-	prb_dynamic_force (bod, time, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t) = fext (t) - fint (q(t)) */
-	prb_dynamic_implicit_inverse (bod, step, PRB_FINT(bod), force); /* fint += (h/2) K u(t) */
+	prb_dynamic_force (bod, time+half, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t+h/2,q(t)) = fext (t+h/2) - fint (q(t)) */
+	prb_dynamic_implicit_inverse (bod, step, PRB_FINT(bod), force); /* fint += (h/2) K u(t); force -= (h/2) K u (t) */
 	blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-	MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (A) * h * f(t+h/2) */
+	MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (A) * h * force */
       }
     }
     break;
