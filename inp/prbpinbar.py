@@ -57,7 +57,7 @@ def pinned_bar_create (material, solfec, scheme, base):
 def create_simulation (output, step, stop, solver, scheme, base):
 
   solfec = SOLFEC ('DYNAMIC', step, output)
-  surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0)
+  surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 1.0)
   bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.3, density = 1.8E3)
   GRAVITY (solfec, (0, 0, -1), 9.8)
   bod = pinned_bar_create (bulkmat, solfec, scheme, base)
@@ -69,7 +69,7 @@ def create_simulation (output, step, stop, solver, scheme, base):
 
 step = 0.001
 
-stop = 0.5
+stop = 1.5
 
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 

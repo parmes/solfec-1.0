@@ -434,14 +434,13 @@ static void prb_dynamic_explicit_inverse (BODY *bod)
 
 /* set up inverse of inertia for
  * the implicit dynamic time stepping */
-static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *fint, double *force)
+static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *force)
 {
   int p [] = {0, 9, 18, 27, 36},
       i [] = {0, 3, 6, 9, 12};
-  double *E0, m, *x, dfint [9];
   MX_BD (M, 36, 12, 4, p, i);
-  MX_DENSE (K, 9, 9);
-  MX *A;
+  double *E0, m, *x;
+  MX *A, *K;
 
   /* place-holder for the
    * tangent operator */
@@ -452,8 +451,10 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *fint, 
 
     A = MX_Create (MXBD, 12, 2, p, i);
     bod->inverse = A;
+    K = MX_Create (MXDENSE, 9, 9, NULL, NULL);
+    bod->stiffness = K;
   }
-  else A = bod->inverse;
+  else A = bod->inverse, K = bod->stiffness;
 
   /* set up mass matrix */
   E0 = bod->ref_tensor;
@@ -468,18 +469,19 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *fint, 
   /* calculate stiffness matrix */
   SVK_Tangent_R (lambda (bod->mat->young, bod->mat->poisson),
     mi (bod->mat->young, bod->mat->poisson),
-    bod->ref_volume, 9, bod->conf, K.x);
+    bod->ref_volume, 9, bod->conf, K->x);
 
-  if (fint && force)
+  if (force)
   {
+    /* account for the previous velocity */
+    MX_Matvec (1.0 / step, &M, bod->velo, 1.0, force);
+
     /* account for the internal force increment */
-    MX_Matvec (0.5 * step, &K, bod->velo, 0.0, dfint);
-    NNSUB (force, dfint, force);
-    NNADD (fint, dfint, fint);
+    MX_Matvec (-0.25 * step, K, bod->velo, 1.0, force);
   }
 
   /* calculate tangent operator A = M + h*h/4 K */
-  MX_Add (1.0, MX_Diag(&M, 0, 2), 0.25*step*step, &K, MX_Diag(A, 0, 0));
+  MX_Add (1.0, MX_Diag(&M, 0, 2), 0.25*step*step, K, MX_Diag(A, 0, 0));
   MX_Copy (MX_Diag (&M, 3, 3), MX_Diag (A, 1, 1));
 
   /* TODO: account for damping, but is it sensible in this case? */
@@ -1086,7 +1088,7 @@ void BODY_Dynamic_Init (BODY *bod)
     case RIG: rig_dynamic_inverse (bod); break;
     case PRB: 
       if (bod->scheme == SCH_DEF_EXP) prb_dynamic_explicit_inverse (bod);
-      else prb_dynamic_implicit_inverse (bod, bod->dom->step, NULL, NULL); break;
+      else prb_dynamic_implicit_inverse (bod, bod->dom->step, NULL); break;
     case FEM: FEM_Dynamic_Init (bod); break;
   }
 }
@@ -1209,9 +1211,9 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       else /* SCH_DEF_IMP */
       {
 	prb_dynamic_force (bod, time+half, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t+h/2,q(t)) = fext (t+h/2) - fint (q(t)) */
-	prb_dynamic_implicit_inverse (bod, step, PRB_FINT(bod), force); /* fint += (h/2) K u(t); force -= (h/2) K u (t) */
+	prb_dynamic_implicit_inverse (bod, step, force); /* force += (1/h) M u(t) - (h/4) K u (t) */
 	blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-	MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (A) * h * force */
+	MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * force */
       }
     }
     break;
@@ -1306,6 +1308,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       ACC12 (force, fext);
       ADD12 (velo, vel0, force);
       SCALE12 (force, half); /* dq = (h/2) * {u(t) + u(t+h)} */
+      if (bod->scheme == SCH_DEF_IMP) MX_Matvec (0.5, bod->stiffness, force, 1.0, fint); /* fint += (h/4) K (u(t) + u(t+h)) */
       energy [EXTERNAL] += DOT12 (force, fext);
       energy [INTERNAL] += DOT9 (force, fint);
     }
