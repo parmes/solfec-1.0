@@ -5055,7 +5055,23 @@ shape
 \emph on
 (x, y, z)
 \emph default
- tuple.
+ tuple, but then one must use 
+\series bold
+point = SCALE (point, coefs)
+\series default
+ in order to modify the 
+\series bold
+point
+\series default
+ (Python tuples are immutable - they cannot be modified 
+\begin_inset Quotes eld
+\end_inset
+
+in place
+\begin_inset Quotes erd
+\end_inset
+
+ after creation).
 \end_layout
 
 \begin_layout Itemize
@@ -5133,7 +5149,23 @@ shape
 \emph on
 (x, y, z)
 \emph default
- tuple.
+ tuple, but then one must use 
+\series bold
+point = TRANSLATE (point, vector)
+\series default
+ in order to modify the 
+\series bold
+point
+\series default
+ (Python tuples are immutable - they cannot be modified 
+\begin_inset Quotes eld
+\end_inset
+
+in place
+\begin_inset Quotes erd
+\end_inset
+
+ after creation).
 \end_layout
 
 \begin_layout Itemize
@@ -5199,7 +5231,23 @@ shape
 \emph on
 (x, y, z)
 \emph default
- tuple.
+ tuple, but then one must use 
+\series bold
+point1 = ROTATE (point1, point2, vector, angle)
+\series default
+ in order to modify 
+\series bold
+point1
+\series default
+ (Python tuples are immutable - they cannot be modified 
+\begin_inset Quotes eld
+\end_inset
+
+in place
+\begin_inset Quotes erd
+\end_inset
+
+ after creation).
 \end_layout
 
 \begin_layout Itemize
