@@ -4196,6 +4196,9 @@ static PyObject* lng_SCALE (PyObject *self, PyObject *args, PyObject *kwds)
     s [1] = PyFloat_AsDouble (PyTuple_GetItem (shape, 1));
     s [2] = PyFloat_AsDouble (PyTuple_GetItem (shape, 2));
 
+    /* TODO: PyTuple_SetItem (shape, ..., PyFLoat_FromDouble (...));
+     * FIXME: unfortunately the above causes Python exceptions */
+
     return Py_BuildValue ("(d, d, d)", s[0] * c[0], s[1] * c[1], s[2] * c[2]);
   }
   else /* shape */
@@ -4232,6 +4235,9 @@ static PyObject* lng_TRANSLATE (PyObject *self, PyObject *args, PyObject *kwds)
     s [0] = PyFloat_AsDouble (PyTuple_GetItem (shape, 0));
     s [1] = PyFloat_AsDouble (PyTuple_GetItem (shape, 1));
     s [2] = PyFloat_AsDouble (PyTuple_GetItem (shape, 2));
+
+    /* TODO: PyTuple_SetItem (shape, ..., PyFLoat_FromDouble (...));
+     * FIXME: unfortunately the above causes Python exceptions */
 
     return Py_BuildValue ("(d, d, d)", s[0] + v[0], s[1] + v[1], s[2] + v[2]);
   }
@@ -4285,6 +4291,9 @@ static PyObject* lng_ROTATE (PyObject *self, PyObject *args, PyObject *kwds)
     SCALE (t, (ALG_PI * angle / 180.0));
     EXPMAP (t, r);
     NVMUL (r, s, t);
+
+    /* TODO: PyTuple_SetItem (shape, ..., PyFLoat_FromDouble (...));
+     * FIXME: unfortunately the above causes Python exceptions */
 
     return Py_BuildValue ("(d, d, d)", t[0], t[1], t[2]);
   }
