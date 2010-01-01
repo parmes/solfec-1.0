@@ -1315,7 +1315,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
       if (bod->scheme == SCH_DEF_IMP)
       {
-	double aux [12], res [12], save [12];
+	double aux [12], res [12], save [12], error;
 	int iter, imax = 16;
 
 	blas_dcopy (12, velo, 1, save, 1);
@@ -1333,10 +1333,12 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	  MX_Matvec (-1.0, bod->M, aux, 1.0, res);
 	  MX_Matvec (1.0, bod->inverse, res, 0, aux);
 	  ADD12 (velo, aux, velo);
+	  error = DOT12 (velo, velo);
+          error = sqrt (DOT (aux, aux) / MAX (error, 1.0));
 	}
-	while (LEN12 (aux) > 1E-10 && ++ iter < imax);
+	while (error > 1E-10 && ++ iter < imax);
 
-	if (iter == imax) blas_dcopy (12, save, 1, velo, 1); /* degenerates into SCH_DEF_IMP */
+	if (iter == imax) blas_dcopy (12, save, 1, velo, 1); /* falls back on SCH_DEF_LIM */
       }
 
       blas_daxpy (12, half, velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */

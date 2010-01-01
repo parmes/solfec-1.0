@@ -1,9 +1,9 @@
-#LyX 1.6.3 created this file. For more info see http://www.lyx.org/
+#LyX 1.6.5 created this file. For more info see http://www.lyx.org/
 \lyxformat 345
 \begin_document
 \begin_header
-\textclass scrbook
-\use_default_options false
+\textclass book
+\use_default_options true
 \language english
 \inputencoding auto
 \font_roman default
@@ -19,20 +19,27 @@
 \paperfontsize default
 \spacing single
 \use_hyperref false
-\papersize default
-\use_geometry false
+\papersize a4paper
+\use_geometry true
 \use_amsmath 1
 \use_esint 1
 \cite_engine basic
 \use_bibtopic false
 \paperorientation portrait
-\secnumdepth 3
-\tocdepth 3
+\leftmargin 2cm
+\topmargin 4cm
+\rightmargin 2cm
+\bottommargin 4cm
+\headheight 2cm
+\headsep 1cm
+\footskip 2cm
+\secnumdepth 2
+\tocdepth 2
 \paragraph_separation indent
 \defskip medskip
 \quotes_language english
 \papercolumns 1
-\papersides 1
+\papersides 2
 \paperpagestyle default
 \tracking_changes false
 \output_changes false
@@ -48,6 +55,15 @@ Solfec User Manual
 
 \begin_layout Author
 Tomasz Koziara
+\end_layout
+
+\begin_layout Standard
+\begin_inset CommandInset toc
+LatexCommand tableofcontents
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Chapter
@@ -166,6 +182,10 @@ Sections below document Solfec objects and routines used for their manipulation.
 \end_layout
 
 \begin_layout Section
+Solfec objects
+\end_layout
+
+\begin_layout Subsection
 CONVEX
 \end_layout
 
@@ -366,7 +386,7 @@ convex
 obj
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 MESH
 \end_layout
 
@@ -766,22 +786,12 @@ dx =
  shape.
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 SPHERE
 \end_layout
 
 \begin_layout Standard
-An object of type SPHERE is either a 
-\begin_inset Note Note
-status open
-
-\begin_layout Plain Layout
-uniformly deformable
-\end_layout
-
-\end_inset
-
- sphere, or it is a collections of spheres.
+An object of type SPHERE is either a sphere, or it is a collections of spheres.
 \end_layout
 
 \begin_layout Subsection*
@@ -892,7 +902,7 @@ obj.center, obj.radius
 
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 SOLFEC
 \end_layout
 
@@ -1156,7 +1166,7 @@ obj.step
 
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 SURFACE_MATERIAL
 \end_layout
 
@@ -1167,7 +1177,7 @@ An object of type SURFACE_MATERIAL represents material properties on the
 \end_layout
 
 \begin_layout Subsection*
-obj = SURFACE_MATERIAL (solfec| surf1, surf2, model, label, friction, cohesion,
+obj = SURFACE_MATERIAL (solfec | surf1, surf2, model, label, friction, cohesion,
  restitution, spring, dashpot)
 \end_layout
 
@@ -1493,7 +1503,7 @@ Surface material models.
 
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 BULK_MATERIAL
 \end_layout
 
@@ -1761,7 +1771,7 @@ Bulk material models.
 
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
 name "sec:bod"
@@ -2847,7 +2857,7 @@ Time integration schema.
 
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 TIME_SERIES
 \end_layout
 
@@ -2891,7 +2901,7 @@ i < j
 ), or a path to a file storing times and values pairs
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 GAUSS_SEIDEL_SOLVER
 \end_layout
 
@@ -3503,7 +3513,7 @@ Variants of parallel Gauss-Seidel update.
 
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 EXPLICIT_SOLVER
 \end_layout
 
@@ -3531,7 +3541,7 @@ obj
  - created EXPLICIT_SOLVER object
 \end_layout
 
-\begin_layout Section
+\begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
 name "sec:con"
@@ -6081,6 +6091,474 @@ name "cha:Tutorials"
 Tutorials
 \end_layout
 
+\begin_layout Section
+Three basic geometric objects
+\end_layout
+
+\begin_layout Standard
+This example illustrates the three basic geometric objects: CONVEX, MESH
+ and SPHERE.
+ We are going to construct a simple structure and hit it with a ball.
+ Let us first create a horizontal floor.
+\end_layout
+
+\begin_layout LyX-Code
+w = 10
+\end_layout
+
+\begin_layout LyX-Code
+l = 10
+\end_layout
+
+\begin_layout LyX-Code
+h = 1
+\end_layout
+
+\begin_layout LyX-Code
+floor_vid = 1
+\end_layout
+
+\begin_layout LyX-Code
+floor_sid = 1
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+floor = HULL ([-w/2, -l/2, -h,
+\end_layout
+
+\begin_layout LyX-Code
+                w/2, -l/2, -h,
+\end_layout
+
+\begin_layout LyX-Code
+                w/2,  l/2, -h,
+\end_layout
+
+\begin_layout LyX-Code
+               -w/2,  l/2, -h,
+\end_layout
+
+\begin_layout LyX-Code
+               -w/2, -l/2,  0,
+\end_layout
+
+\begin_layout LyX-Code
+                w/2, -l/2,  0,
+\end_layout
+
+\begin_layout LyX-Code
+                w/2,  l/2,  0,
+\end_layout
+
+\begin_layout LyX-Code
+               -w/2,  l/2,  0], floor_vid, floor_sid)
+\end_layout
+
+\begin_layout Standard
+We simply created a convex hull about eight points.
+ This is only a geometric object for the moment.
+ It exists only in Python interperter, but not yet inside of a Solfec model.
+ In order to insert it into a model, we need first to create a SOLFEC object,
+ a BULK_MATERIAL object, and finally a BODY object having the shape described
+ by the 
+\emph on
+floor
+\emph default
+.
+ Here we go.
+\end_layout
+
+\begin_layout LyX-Code
+step = 1E-3
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+solfec = SOLFEC ('DYNAMIC', step, 'out/tutorail/three-basic-geometric-objects')
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+bulk = BULK_MATERIAL (solfec,
+\end_layout
+
+\begin_layout LyX-Code
+                      model = 'KIRCHHOFF',
+\end_layout
+
+\begin_layout LyX-Code
+                      young = 15E9,s
+\end_layout
+
+\begin_layout LyX-Code
+                      poisson = 0.3,
+\end_layout
+
+\begin_layout LyX-Code
+                      density = 2E3)
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+BODY (solfec, 'OBSTACLE', floor, bulk)
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout Standard
+Note, that the floor is simply an obstacle - it does not move.
+ Before creating the floor body we had to create a SOLFEC object.
+ This object gather all necessary data for an individual simulation.
+ In our case this will be a dynamic simulation, pursued with the time step
+ at least as small as the specified one.
+ The time step can be authomatically decreased during a simulation due to
+ stability requirements.
+ The result files of this tutorial will be written to the specified path
+ - relative to from there the 'solfec' command was involed.
+ Once a body has been inserted into a model, we can view the effect as follows
+\end_layout
+
+\begin_layout LyX-Code
+> ./solfec -v inp/tutorial/three-basic-geometric-objects.py
+\end_layout
+
+\begin_layout Standard
+This will create a Solfec viewer, which should result in the following picture
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename three-basic-1.jpg
+	lyxscale 50
+	width 50text%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Le us now construct a stack made of two bodies.
+ The first on comprises five juxtaposed convex objects.
+\end_layout
+
+\begin_layout LyX-Code
+a = 2
+\end_layout
+
+\begin_layout LyX-Code
+b = 2
+\end_layout
+
+\begin_layout LyX-Code
+c = 2
+\end_layout
+
+\begin_layout LyX-Code
+brick_vid = 2
+\end_layout
+
+\begin_layout LyX-Code
+brick_sid = 2
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+brick = CONVEX ([0, 0, 0,
+\end_layout
+
+\begin_layout LyX-Code
+                 a/2, 0, 0,
+\end_layout
+
+\begin_layout LyX-Code
+                 a/2, b/2, 0,
+\end_layout
+
+\begin_layout LyX-Code
+                 0, b/2, 0,
+\end_layout
+
+\begin_layout LyX-Code
+                 0, 0, c/2,
+\end_layout
+
+\begin_layout LyX-Code
+                 a/2, 0, c/2,
+\end_layout
+
+\begin_layout LyX-Code
+                 a/2, b/2, c/2,
+\end_layout
+
+\begin_layout LyX-Code
+                 0, b/2, c/2],
+\end_layout
+
+\begin_layout LyX-Code
+                [4, 0, 3, 2, 1, brick_sid,
+\end_layout
+
+\begin_layout LyX-Code
+                 4, 1, 2, 6, 5, brick_sid,
+\end_layout
+
+\begin_layout LyX-Code
+                 4, 2, 3, 7, 6, brick_sid,
+\end_layout
+
+\begin_layout LyX-Code
+                 4, 3, 0, 4, 7, brick_sid,
+\end_layout
+
+\begin_layout LyX-Code
+                 4, 0, 1, 5, 4, brick_sid,
+\end_layout
+
+\begin_layout LyX-Code
+                 4, 4, 5, 6, 7, brick_sid], brick_vid)
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+b1 = COPY (brick)
+\end_layout
+
+\begin_layout LyX-Code
+b2 = TRANSLATE (COPY (brick), (a, 0, 0))
+\end_layout
+
+\begin_layout LyX-Code
+b3 = TRANSLATE (COPY (brick), (0, b, 0))
+\end_layout
+
+\begin_layout LyX-Code
+b4 = TRANSLATE (COPY (brick), (a, b, 0))
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+shape = [b1, b2, b3, b4]
+\end_layout
+
+\begin_layout LyX-Code
+TRANSLATE (shape, (-a, -b, 0))
+\end_layout
+
+\begin_layout LyX-Code
+BODY (solfec, 'RIGID', shape, bulk)
+\end_layout
+
+\begin_layout Standard
+Note, that a base 
+\emph on
+brick
+\emph default
+ was created first.
+ Then this brick was coppied and manipulated into five different objects:
+ 
+\emph on
+b1,b2, ..., b4
+\emph default
+.
+ The list of those objects was passed as a shape when creating the first
+ rigid body.
+ The second body will be pseudo-rigid and will have its shape defined be
+ a mesh.
+\end_layout
+
+\begin_layout LyX-Code
+nodes = [-1.0, -1.0, 0.0,
+\end_layout
+
+\begin_layout LyX-Code
+          1.0, -1.0, 0.0,
+\end_layout
+
+\begin_layout LyX-Code
+          1.0,  1.0, 0.0,
+\end_layout
+
+\begin_layout LyX-Code
+         -1.0,  1.0, 0.0,
+\end_layout
+
+\begin_layout LyX-Code
+         -1.0, -1.0, 2.0,
+\end_layout
+
+\begin_layout LyX-Code
+          1.0, -1.0, 2.0,
+\end_layout
+
+\begin_layout LyX-Code
+          1.0,  1.0, 1.0,
+\end_layout
+
+\begin_layout LyX-Code
+         -1.0,  1.0, 1.0]
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+mesh = HEX (nodes, 2, 3, 2, 3, [3, 3, 3, 3, 3, 3], dy = [1, 1, 2])
+\end_layout
+
+\begin_layout LyX-Code
+TRANSLATE (mesh, (0, 0, c))
+\end_layout
+
+\begin_layout LyX-Code
+BODY (solfec, 'PSEUDO_RIGID', mesh, bulk) 
+\end_layout
+
+\begin_layout Standard
+The hexahedral mesh is spanned on eight nodes and has an inclined shape
+ due to z level slope.
+ Note, that we have specified the 
+\begin_inset Quotes eld
+\end_inset
+
+dy
+\begin_inset Quotes erd
+\end_inset
+
+ argument of the HEX command, so to illustrate non-uniform meshing along
+ one of the directions.
+ The mesh is translated to rest on top of the previous body.
+ Then a pseudo-rigid body is created.
+ Now, let us create the sphere.
+\end_layout
+
+\begin_layout LyX-Code
+sphere = SPHERE ((0, 0, 5), 1, 1, 1)
+\end_layout
+
+\begin_layout LyX-Code
+body = BODY (solfec, 'RIGID', sphere, bulk)
+\end_layout
+
+\begin_layout LyX-Code
+INITIAL_VELOCITY (body, (0, 0, -10), (0, 0, 0)) 
+\end_layout
+
+\begin_layout Standard
+When creating the rigid body corresponding to the sphere, we have now retriven
+ the 
+\emph on
+body
+\emph default
+ object.
+ It is needed in order to prescribe the initial velocity.
+ The sphere has the initial linear velocity 
+\begin_inset Formula $v_{z}=-10$
+\end_inset
+
+ m/s.
+ Let us have a look at the model so far.
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename three-basic-2.jpg
+	lyxscale 50
+	width 50text%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Now, in order to be able to control contact behaviour, we need to define
+ a surface material.
+ This will be a default material, hence we shall not specify a surface pairing
+ (int this example surface identifiers are not used).
+ Whenever a contact is detected, the following Signorini-Coulomb model is
+ employed
+\end_layout
+
+\begin_layout LyX-Code
+SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB',
+\end_layout
+
+\begin_layout LyX-Code
+                  friction = 0.5, restitution = 0.0)
+\end_layout
+
+\begin_layout Standard
+It will be aslo of use to apply some gravity loading.
+\end_layout
+
+\begin_layout LyX-Code
+GRAVITY (solfec, (0, 0, -1), 10)
+\end_layout
+
+\begin_layout Standard
+Before running the actual simulation, it remains to create a solver object.
+ We use the Gauss-Seidel solver here.
+\end_layout
+
+\begin_layout LyX-Code
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
+\end_layout
+
+\begin_layout Standard
+The relative constraint reaction accuracy was set to 1E-3, while the maximal
+ the maximal number of iterations is 1000.
+ It remains to run the simulation.
+\end_layout
+
+\begin_layout LyX-Code
+RUN (solfec, gs, 1.0)
+\end_layout
+
+\begin_layout Standard
+One second of the simulation was computed.
+ Let us have a look at the dislacement along z at the end of this time.
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename /Users/tomek/Devel/tkwork/codes/solfec/doc/three-basic-3.jpg
+	lyxscale 50
+	width 50text%
+
+\end_inset
+
+
+\end_layout
+
 \begin_layout Chapter
 \begin_inset CommandInset label
 LatexCommand label
@@ -6088,7 +6566,7 @@ name "cha:Materials"
 
 \end_inset
 
-Materials
+Materials 
 \end_layout
 
 \begin_layout Chapter
