@@ -70,7 +70,8 @@ typedef enum
   SCH_RIG_NEG,   /* NEW2 with with negative energy drift (exact momentum conservation) (DEFAULT) */
   SCH_RIG_IMP,   /* NEW3 semi-simplict and stable (no energy drift, extact momentum conservation) */
   SCH_DEF_EXP,   /* explicit scheme for deformable kinematics (DEFAULT) */
-  SCH_DEF_IMP,   /* linearly implicit scheme for deformable kinematics */
+  SCH_DEF_LIM,   /* linearly implicit scheme for deformable kinematics */
+  SCH_DEF_IMP    /* implicit scheme for deformable kinematics */
 } SCHEME;
 
 struct general_force
@@ -146,7 +147,7 @@ struct general_body
 
   MX *inverse;      /* a suitable inverse oprator (e.g. inertia for dynamics) */
 
-  MX *stiffness;    /* stiffness operator */
+  MX *M;            /* inertia operator */
 
   double damping;   /* mass proportional damping */
 

@@ -2530,7 +2530,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="7" columns="3">
+<lyxtabular version="3" rows="8" columns="3">
 <features>
 <column alignment="center" valignment="top" width="15col%">
 <column alignment="center" valignment="top" width="20col%">
@@ -2728,7 +2728,7 @@ pseudo-rigid, finite element
 \begin_inset Text
 
 \begin_layout Plain Layout
-Explicit trapezoidal-like scheme described in Chapter 5 of 
+Explicit scheme described in Chapter 5 of 
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008PhD"
@@ -2740,6 +2740,42 @@ key "Koziara2008PhD"
 default
 \series default
  for deformable kinematics
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'DEF_LIM'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+pseudo-rigid, finite element
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Linearly implicit scheme similar to 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Potra2006"
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -2768,20 +2804,14 @@ pseudo-rigid, finite element
 \begin_inset Text
 
 \begin_layout Plain Layout
-Linearly implicit trapezoidal scheme similar to 
+Implicit scheme similar to 
 \begin_inset CommandInset citation
 LatexCommand cite
-key "Potra2006"
+key "Chawla1998"
 
 \end_inset
 
-; 
-\series bold
-\color red
-TODO
-\series default
-\color inherit
-: make it default after more testing
+
 \end_layout
 
 \end_inset
