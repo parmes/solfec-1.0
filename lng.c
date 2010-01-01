@@ -2261,6 +2261,7 @@ static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
   case SCH_RIG_POS: return PyString_FromString ("RIG_POS");
   case SCH_RIG_IMP: return PyString_FromString ("RIG_IMP");
   case SCH_DEF_EXP: return PyString_FromString ("DEF_EXP");
+  case SCH_DEF_LIM: return PyString_FromString ("DEF_LIM");
   case SCH_DEF_IMP: return PyString_FromString ("DEF_IMP");
   }
 
@@ -2321,6 +2322,16 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
     }
 
     self->bod->scheme = SCH_DEF_EXP;
+  }
+  ELIF (value, "DEF_LIM")
+  {
+    if (self->bod->kind == RIG)
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
+      return -1;
+    }
+
+    self->bod->scheme = SCH_DEF_LIM;
   }
   ELIF (value, "DEF_IMP")
   {

@@ -436,55 +436,57 @@ static void prb_dynamic_explicit_inverse (BODY *bod)
  * the implicit dynamic time stepping */
 static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *force)
 {
-  int p [] = {0, 9, 18, 27, 36},
-      i [] = {0, 3, 6, 9, 12};
-  MX_BD (M, 36, 12, 4, p, i);
-  double *E0, m, *x;
-  MX *A, *K;
+  MX_DENSE (K, 9, 9);
+  MX *M, *A;
 
   /* place-holder for the
    * tangent operator */
   if (!bod->inverse)
   {
-    int p [] = {0, 81, 90},
-        i [] = {0, 9, 12};
+    int pm [] = {0, 9, 18, 27, 36},
+	im [] = {0, 3, 6, 9, 12},
+        pa [] = {0, 81, 90},
+        ia [] = {0, 9, 12};
+    double *E0, m, *x;
 
-    A = MX_Create (MXBD, 12, 2, p, i);
+    M = MX_Create (MXBD, 12, 4, pm, im);
+    bod->M = M;
+
+    /* set up mass matrix */
+    E0 = bod->ref_tensor;
+    m = bod->ref_mass;
+    x = M->x;
+    NNCOPY (E0, x); x += 9;
+    NNCOPY (E0, x); x += 9;
+    NNCOPY (E0, x); x += 9;
+    IDENTITY (x);
+    SCALEDIAG (x, m);
+
+    A = MX_Create (MXBD, 12, 2, pa, ia);
     bod->inverse = A;
-    K = MX_Create (MXDENSE, 9, 9, NULL, NULL);
-    bod->stiffness = K;
   }
-  else A = bod->inverse, K = bod->stiffness;
+  else M = bod->M, A = bod->inverse;
 
-  /* set up mass matrix */
-  E0 = bod->ref_tensor;
-  m = bod->ref_mass;
-  x = M.x;
-  NNCOPY (E0, x); x += 9;
-  NNCOPY (E0, x); x += 9;
-  NNCOPY (E0, x); x += 9;
-  IDENTITY (x);
-  SCALEDIAG (x, m);
 
-  /* calculate stiffness matrix */
+    /* calculate stiffness matrix */
   SVK_Tangent_R (lambda (bod->mat->young, bod->mat->poisson),
     mi (bod->mat->young, bod->mat->poisson),
-    bod->ref_volume, 9, bod->conf, K->x);
+    bod->ref_volume, 9, bod->conf, K.x);
 
   if (force)
   {
     /* account for the previous velocity */
-    MX_Matvec (1.0 / step, &M, bod->velo, 1.0, force);
+    MX_Matvec (1.0 / step, M, bod->velo, 1.0, force);
 
     /* account for the internal force increment */
-    MX_Matvec (-0.25 * step, K, bod->velo, 1.0, force);
+    MX_Matvec (-0.25 * step, &K, bod->velo, 1.0, force);
   }
 
   /* calculate tangent operator A = M + h*h/4 K */
-  MX_Add (1.0, MX_Diag(&M, 0, 2), 0.25*step*step, K, MX_Diag(A, 0, 0));
-  MX_Copy (MX_Diag (&M, 3, 3), MX_Diag (A, 1, 1));
+  MX_Add (1.0, MX_Diag(M, 0, 2), 0.25*step*step, &K, MX_Diag(A, 0, 0));
+  MX_Copy (MX_Diag (M, 3, 3), MX_Diag (A, 1, 1));
 
-  /* TODO: account for damping, but is it sensible in this case? */
+  /* TODO: account for damping */
 
   /* invert A */
   MX_Inverse (A, A);
@@ -1105,8 +1107,7 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
     break;
     case PRB:
     {
-      if (bod->scheme == SCH_DEF_IMP) step = DBL_MAX;
-      else
+      if (bod->scheme == SCH_DEF_EXP)
       {
 	MX_DENSE (K, 9, 9);
 	double eigmax;
@@ -1121,6 +1122,7 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
 	ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
 	step = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
       }
+      else step = DBL_MAX;
     }
     break;
     case FEM:
@@ -1208,7 +1210,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 	MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
 	if (c > 0.0) for (v = L+9; L < v; L ++, L0++) (*L) -= c * (*L0); /* u(t+h) -= c * u (t) (deforomable part) */
       }
-      else /* SCH_DEF_IMP */
+      else /* SCH_DEF_LIM, SCH_DEF_IMP */
       {
 	prb_dynamic_force (bod, time+half, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f(t+h/2,q(t)) = fext (t+h/2) - fint (q(t)) */
 	prb_dynamic_implicit_inverse (bod, step, force); /* force += (1/h) M u(t) - (h/4) K u (t) */
@@ -1298,19 +1300,54 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	    *fint = PRB_FINT(bod),
 	    *velo = PRB_GRADVEL(bod),
 	    *vel0 = PRB_GRADVEL0(bod),
-             force [12];
+             force [12], qorig [12];
+
+      if (bod->scheme == SCH_DEF_IMP)
+      {
+	blas_dcopy (12, bod->conf, 1, qorig, 1);
+        blas_daxpy (12, -half, vel0, 1, qorig, 1); /* q(t) = q(t+h/2) - (h/2) * u(t) */
+      }
       
-      prb_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-      MX_Matvec (step, bod->inverse, force, 1.0, velo); /* u(t+h) += inv (M) * h * r */
+      prb_constraints_force (bod, force); /* force = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+      MX_Matvec (step, bod->inverse, force, 1.0, velo); /* u(t+h) += h * inv (M) * force */
+      
+      ACC12 (force, fext); /* fext += H^T R */
+
+      if (bod->scheme == SCH_DEF_IMP)
+      {
+	double aux [12], res [12], save [12];
+	int iter, imax = 16;
+
+	blas_dcopy (12, velo, 1, save, 1);
+	iter = 0;
+	do
+	{
+	  NNADD (velo, vel0, aux);
+	  SCALE9 (aux, 0.25 * step);
+	  NNADD (qorig, aux, aux);
+	  SVK_Stress_R (lambda (bod->mat->young, bod->mat->poisson), mi (bod->mat->young, bod->mat->poisson), bod->ref_volume, aux, fint);
+	  COPY12 (fext, res);
+	  NNSUB (res, fint, res);
+	  SCALE12 (res, step);
+	  SUB12 (velo, vel0, aux);
+	  MX_Matvec (-1.0, bod->M, aux, 1.0, res);
+	  MX_Matvec (1.0, bod->inverse, res, 0, aux);
+	  ADD12 (velo, aux, velo);
+	}
+	while (LEN12 (aux) > 1E-10 && ++ iter < imax);
+
+	if (iter == imax) blas_dcopy (12, save, 1, velo, 1); /* degenerates into SCH_DEF_IMP */
+      }
+
       blas_daxpy (12, half, velo, 1, bod->conf, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
 
       /* energy */
-      ACC12 (force, fext);
-      ADD12 (velo, vel0, force);
-      SCALE12 (force, half); /* dq = (h/2) * {u(t) + u(t+h)} */
-      if (bod->scheme == SCH_DEF_IMP) MX_Matvec (0.5, bod->stiffness, force, 1.0, fint); /* fint += (h/4) K (u(t) + u(t+h)) */
-      energy [EXTERNAL] += DOT12 (force, fext);
-      energy [INTERNAL] += DOT9 (force, fint);
+      ADD12 (velo, vel0, qorig);
+      SCALE12 (qorig, half); /* dq = (h/2) * {u(t) + u(t+h)} */
+      energy [EXTERNAL] += DOT12 (qorig, fext);
+      if (bod->scheme == SCH_DEF_EXP) energy [INTERNAL] += DOT9 (qorig, fint);
+      else energy [INTERNAL] = SVK_Energy_R (lambda (bod->mat->young, bod->mat->poisson),
+	            mi (bod->mat->young, bod->mat->poisson), bod->ref_volume, bod->conf);
     }
     break;
     case FEM:
@@ -1742,6 +1779,8 @@ void BODY_Destroy (BODY *bod)
   free (bod->sgp);
 
   if (bod->inverse) MX_Destroy (bod->inverse);
+
+  if (bod->M) MX_Destroy (bod->M);
 
   if (bod->kind == FEM) FEM_Destroy (bod);
 
