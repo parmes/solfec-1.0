@@ -469,6 +469,7 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   gs->history = GS_OFF;
   gs->rerhist = NULL;
   gs->reverse = GS_OFF;
+  gs->error = GS_OK;
 #if MPI
   gs->variant = GS_FULL;
 #endif
