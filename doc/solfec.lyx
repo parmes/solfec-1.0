@@ -4,7 +4,7 @@
 \begin_header
 \textclass book
 \use_default_options true
-\language english
+\language british
 \inputencoding auto
 \font_roman default
 \font_sans default
@@ -74,6 +74,1031 @@ name "cha:Introduction"
 \end_inset
 
 Introduction
+\end_layout
+
+\begin_layout Abstract
+Solfec is a computational code aimed at simulation of multi-body systems
+ with constraints.
+ It implements an instance of the Contact Dynamics (CD) method by Moreau
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Moreau01"
+
+\end_inset
+
+ and Jean 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Jean01"
+
+\end_inset
+
+, hence the constraints are solved implicitly.
+ One of the main goals of the software is to provide a user friendly platform
+ for testing formulations and solution methods for the (dynamic) frictional
+ contact problem.
+ It is also meant to serve as a development platform for other aspects of
+ time-stepping methods (e.g.
+ contact detection, time integration).
+ The code implements several kinematic models (rigid, pseudo-rigid, finite
+ element), few contact detection algorithms, several time integrators and
+ a couple of constraint solvers (e.g.
+ penalty, Gauss-Seidel).
+ A distributed memory and a serial versions of the code are available.
+ Solfec is an open-source software and can be downloaded from 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://code.google.com/p/solfec"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Section*
+Basics
+\end_layout
+
+\begin_layout Standard
+It will be useful to introduce some basic notions here.
+ It can be best done by drawing a figure.
+ Let us have a look
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename intro.eps
+	lyxscale 50
+	width 50text%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+There are four bodies in the figure.
+ Placement of each point of every body is determined by the configuration
+ 
+\begin_inset Formula $\mathbf{q}_{i}$
+\end_inset
+
+.
+ Velocity of each point of every body is determined by the velocity 
+\begin_inset Formula $\mathbf{u}_{i}$
+\end_inset
+
+.
+ Let 
+\begin_inset Formula $\mathbf{q}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{u}$
+\end_inset
+
+ collect configurations and velocities of all bodies.
+ If the time history of velocity is known, the configuration can be computed
+ as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{q}\left(t\right)=\mathbf{q}\left(0\right)+\int_{0}^{t}\mathbf{u}dt\label{eq:q-update}\end{equation}
+
+\end_inset
+
+The velocity is determined by integrating Newton's law
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{u}\left(t\right)=\mathbf{u}\left(0\right)+\mathbf{M}^{-1}\int_{0}^{t}\mathbf{f}+\mathbf{H}^{T}\mathbf{R}dt\label{eq:u-update}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{M}$
+\end_inset
+
+ is an inertia operator, 
+\begin_inset Formula $\mathbf{f}$
+\end_inset
+
+ is an out of balance force, 
+\begin_inset Formula $\mathbf{H}$
+\end_inset
+
+ is a linear operator, while 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+ collects some local point forces 
+\begin_inset Formula $\mathbf{R}_{\alpha}$
+\end_inset
+
+.
+ While integrating the motion of bodies, one keeps track of a number of
+ local coordinate systems (local frames).
+ There are four of them in the figure.
+ Each local frame is related to a pair of points, belonging to two distinct
+ bodies.
+ An observer embedded at a local frame calculates the local relative velocity
+ 
+\begin_inset Formula $\mathbf{U}_{\alpha}$
+\end_inset
+
+ of one of the points, viewed from the perspective of the other point.
+ Let 
+\begin_inset Formula $\mathbf{U}$
+\end_inset
+
+ collect all local velocities.
+ Then, we can find a linear transformation 
+\begin_inset Formula $\mathbf{H}$
+\end_inset
+
+, such that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{U}=\mathbf{H}\mathbf{u}\label{eq:UHu}\end{equation}
+
+\end_inset
+
+In our case local frames correspond to 
+\emph on
+constraints
+\emph default
+.
+ We influence the local relative velocities by applying local forces 
+\begin_inset Formula $\mathbf{R}_{\alpha}$
+\end_inset
+
+.
+ This can be collectively described by an implicit relation
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\mathbf{0}\label{eq:CUR}\end{equation}
+
+\end_inset
+
+Hence, in order to integrate equations (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:q-update"
+
+\end_inset
+
+) and (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:u-update"
+
+\end_inset
+
+) at every instant of time we need to solve the implicit relation (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:CUR"
+
+\end_inset
+
+).
+ Here is an example of a numerical approximation of such procedure
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{q}^{t+\frac{h}{2}}=\mathbf{q}^{t}+\frac{h}{2}\mathbf{u}^{t}\label{eq:q(t+h/2)}\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{u}^{t+h}=\mathbf{u}^{t}+\mathbf{M}^{-1}h\mathbf{f}^{t+\frac{h}{2}}+\mathbf{M}^{-1}\mathbf{H}^{T}\mathbf{R}\label{eq:u(t+h)}\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{q}^{t+h}=\mathbf{q}^{t+\frac{h}{2}}+\frac{h}{2}\mathbf{u}^{t+h}\label{eq:q(t+h)}\end{equation}
+
+\end_inset
+
+wher 
+\begin_inset Formula $h$
+\end_inset
+
+ is a discrete time step.
+ As the time step 
+\begin_inset Formula $h$
+\end_inset
+
+ does not appear in 
+\begin_inset Formula $\mathbf{M}^{-1}\mathbf{H}^{T}\mathbf{R}$
+\end_inset
+
+, 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+ should be interpreted as an 
+\emph on
+integral
+\emph default
+ of reactions over 
+\begin_inset Formula $\left[t,t+h\right]$
+\end_inset
+
+.
+ An analysis of the above scheme, as well as a rigid body version of it,
+ can be found in Chapter 5 of 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Koziara2008PhD"
+
+\end_inset
+
+.
+ At a start we have
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{q}^{0}\mbox{ and }\mathbf{u}^{0}\mbox{ as prescribed initial condtions.}\label{eq:ini}\end{equation}
+
+\end_inset
+
+The out of balance force
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{f}^{t+\frac{h}{2}}=\mathbf{f}\left(\mathbf{q}^{t+\frac{h}{2}},t+\frac{h}{2}\right)\end{equation}
+
+\end_inset
+
+incorporates both internal and external forces (cf.
+ Chapter 4 of 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Koziara2008PhD"
+
+\end_inset
+
+).
+ The symmetric and positive-definite inertia operator
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{M}=\mathbf{M}\left(\mathbf{q}^{0}\right)\end{equation}
+
+\end_inset
+
+is computed once (cf.
+ Chapter 4 of 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Koziara2008PhD"
+
+\end_inset
+
+).
+ The linear operator
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{H}=\mathbf{H}\left(\mathbf{q}^{t+\frac{h}{2}}\right)\end{equation}
+
+\end_inset
+
+is computed at every time step.
+ The number of rows of 
+\begin_inset Formula $\mathbf{H}$
+\end_inset
+
+ depends on the number of constraints, while its rank is related to their
+ linear independence (cf.
+ Chapter 6 of 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Koziara2008PhD"
+
+\end_inset
+
+) Finally
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{R}\mbox{ is such that }\mathbf{C}\left(\mathbf{R}\right)=\mathbf{C}\left(\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right)=\mathbf{0}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{C}$
+\end_inset
+
+ is a nonlinear and usually nonsmooth operator.
+ Chapters 8 and 10 of 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Koziara2008PhD"
+
+\end_inset
+
+ discuss derivation of 
+\begin_inset Formula $\mathbf{C}$
+\end_inset
+
+ for joints and frictional contact constraints.
+ In order to obtain 
+\begin_inset Formula $\mathbf{C}$
+\end_inset
+
+, we first need to compute
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{B}=\mathbf{H}\left(\mathbf{u}^{t}+\mathbf{M}^{-1}h\mathbf{f}^{t+\frac{h}{2}}\right)\end{equation}
+
+\end_inset
+
+and
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{W}=\mathbf{H}\mathbf{M}^{-1}\mathbf{H}^{T}\label{eq:W}\end{equation}
+
+\end_inset
+
+which is a symmetric and semi-positive definite (cf.
+ Chapter 7 of 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Koziara2008PhD"
+
+\end_inset
+
+).
+ The linear transformation
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}\end{equation}
+
+\end_inset
+
+maps constraint reactions 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+ into local relative velocities 
+\begin_inset Formula $\mathbf{U}=\mathbf{H}\mathbf{u}^{t+h}$
+\end_inset
+
+ at time 
+\begin_inset Formula $t+h$
+\end_inset
+
+.
+ Hence, 
+\begin_inset Formula $\mathbf{C}\left(\mathbf{R}\right)=\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\mathbf{0}$
+\end_inset
+
+ describes some implicit relations between the velocities and the reactions.
+ A basic Contact Dynamics algorithm can be summarised as follows:
+\end_layout
+
+\begin_layout Enumerate
+Perform first half-step 
+\begin_inset Formula $\mathbf{q}^{t+\frac{h}{2}}=\mathbf{q}^{t}+\frac{h}{2}\mathbf{u}^{t}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Update existing constraints and detect new contact points.
+\end_layout
+
+\begin_layout Enumerate
+Compute 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Solve 
+\begin_inset Formula $\mathbf{C}\left(\mathbf{R}\right)=\mathbf{0}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Update velocity 
+\begin_inset Formula $\mathbf{u}^{t+h}=\mathbf{u}^{t}+\mathbf{M}^{-1}h\mathbf{f}^{t+\frac{h}{2}}+\mathbf{M}^{-1}\mathbf{H}^{T}\mathbf{R}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Perform second half-step 
+\begin_inset Formula $\mathbf{q}^{t+h}=\mathbf{q}^{t+\frac{h}{2}}+\frac{h}{2}\mathbf{u}^{t+h}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:Installation"
+
+\end_inset
+
+Installation
+\end_layout
+
+\begin_layout Standard
+Although there will be perpetual releases of Solfec with some fixed version
+ numbers, it is best to use the most recent development version of the code.
+ This is because Solfec is in active 
+\begin_inset Quotes eld
+\end_inset
+
+beta
+\begin_inset Quotes erd
+\end_inset
+
+ stage of development for the moment.
+ This stage should end at some point in 2012.
+ In order to download the most recent sources, you first need to install
+ 
+\emph on
+Mercurial
+\emph default
+.
+ Have a look at 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://mercurial.selenic.com/"
+
+\end_inset
+
+ for instructions.
+ Once the 
+\emph on
+hg
+\emph default
+ command is available on your command line, type
+\end_layout
+
+\begin_layout LyX-Code
+hg clone https://solfec.googlecode.com/hg/ solfec 
+\end_layout
+
+\begin_layout Standard
+This will create a directory 
+\emph on
+solfec
+\emph default
+ in your current directory.
+ The next thing you need is an ANSI C (and prospectively also FORTAN) developmen
+t environment at your command line.
+ Users of UNIX-like systems (Linux, FreeBSD, Max OS X, etc.) are in privilidged
+ position here.
+ Windows users can cope by installing Cygwin (tested) from 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://www.cygwin.com/"
+
+\end_inset
+
+ or Mingw (not tested) from 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://www.mingw.org/"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+Solfec is written in C and it uses a simple makefile to get compiled.
+ The file 
+\emph on
+solfec/Config.mak
+\emph default
+ needs to be modifed on a new machine so that to set up library paths and
+ compilation flags.
+ Let us have a look at the file 
+\emph on
+solfec/Config.mak
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# Specify C compiller here
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+CC = cc
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# Specify FORTRAN compiller here
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+FF = g95
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# Debug or optimized version switch (yes/no)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+DEBUG = yes
+\end_layout
+
+\begin_layout LyX-Code
+PROFILE = no
+\end_layout
+
+\begin_layout LyX-Code
+MEMDEBUG = no
+\end_layout
+
+\begin_layout LyX-Code
+GEOMDEBUG = no
+\end_layout
+
+\begin_layout LyX-Code
+NOTHROW = no
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# POSIX
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+POSIX = yes
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# BLAS
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+BLAS = -L/usr/lib -lblas
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# LAPACK
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+LAPACK = -L/usr/lib -llapack
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# Python
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+PYTHON = -I/usr/include/python2.5
+\end_layout
+
+\begin_layout LyX-Code
+PYTHONLIB = -L/usr/lib -lpython2.5
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# OpenGL (yes/no)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+OPENGL = yes
+\end_layout
+
+\begin_layout LyX-Code
+GLINC =
+\end_layout
+
+\begin_layout LyX-Code
+GLLIB = -framework GLUT -framework OpenGL
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# MPI (yes/no)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+MPI = yes
+\end_layout
+
+\begin_layout LyX-Code
+MPICC = mpicc
+\end_layout
+
+\begin_layout LyX-Code
+ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
+\end_layout
+
+\begin_layout LyX-Code
+ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
+\end_layout
+
+\begin_layout Standard
+The above configuration works on Mac OS X.
+ Examples for Linux and Cygwin can be found in 
+\emph on
+solfec/cfg
+\emph default
+.
+ At the current point a FORTRAN compiler is not really needed (there will
+ be a need for it soon though due to planned work).
+ What you need is:
+\end_layout
+
+\begin_layout Itemize
+A 
+\series bold
+C
+\series default
+ compiler
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+BLAS
+\series default
+ and 
+\series bold
+LAPACK
+\series default
+ libraries (standard on most systems)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+Python
+\series default
+ together with development files and libraries
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+OpenGL
+\series default
+ libraries and developments files
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+MPI
+\series default
+ libraries and development files
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+Zoltan
+\series default
+ load balancing library
+\end_layout
+
+\begin_layout Standard
+All of them, but Zoltan, should be already installed on your system or are
+ quite easy to install otherwise.
+ Zoltan on the other hand can be obtained from 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://www.cs.sandia.gov/Zoltan/"
+
+\end_inset
+
+.
+ In case of troubles - use the Solfec mailing list at 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://groups.google.com/group/solfec"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+Use 
+\begin_inset Quotes eld
+\end_inset
+
+DEBUG = yes
+\begin_inset Quotes erd
+\end_inset
+
+ most of the time (this is slower but outputs more information in case you
+ would encounter a bug), but for 
+\begin_inset Quotes eld
+\end_inset
+
+proper computations
+\begin_inset Quotes erd
+\end_inset
+
+ compile optimized code by selecting 
+\begin_inset Quotes eld
+\end_inset
+
+DEBUG = no
+\begin_inset Quotes erd
+\end_inset
+
+.
+ After you edit the Config.mak file, the first compilation should look like
+\end_layout
+
+\begin_layout LyX-Code
+cd solfec
+\end_layout
+
+\begin_layout LyX-Code
+make all
+\end_layout
+
+\begin_layout Standard
+This will create files 
+\emph on
+solfec/solfec
+\emph default
+ and 
+\emph on
+solec/solfec-mpi
+\emph default
+, that is the serial and the parallel versions of the code.
+ For every subsequent code update and compilaion you will like to do the
+ following
+\end_layout
+
+\begin_layout Itemize
+Back up your Config.mak file.
+ For example
+\end_layout
+
+\begin_layout LyX-Code
+cd solfec
+\end_layout
+
+\begin_layout LyX-Code
+cp Config.mak ..
+\end_layout
+
+\begin_layout Itemize
+Now update the sources
+\end_layout
+
+\begin_layout LyX-Code
+hg pull
+\end_layout
+
+\begin_layout LyX-Code
+hg update -C
+\end_layout
+
+\begin_layout Itemize
+Recover your Config.mak
+\end_layout
+
+\begin_layout LyX-Code
+cp ../Congig.mak ./
+\end_layout
+
+\begin_layout Itemize
+And finally compile again
+\end_layout
+
+\begin_layout LyX-Code
+make clean
+\end_layout
+
+\begin_layout LyX-Code
+make all
+\end_layout
+
+\begin_layout Standard
+The 
+\emph on
+solfec/inp
+\emph default
+ directory contains example input files.
+ If you haven't used the 
+\begin_inset Quotes eld
+\end_inset
+
+POSIX = yes
+\begin_inset Quotes erd
+\end_inset
+
+ flag, you will need to create all output directories yourself.
+ Normally though this should be done automatically.
+ If you wish to move 
+\emph on
+solfec
+\emph default
+, 
+\emph on
+solfec-mpi
+\emph default
+ and the input files to some other directory - you need to do it by hand.
+ I recommend setting the PATH variable so that the solfec directory is included.
+ This way some computations not related to development can be done 
+\begin_inset Quotes eld
+\end_inset
+
+outside
+\begin_inset Quotes erd
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Chapter
@@ -449,6 +1474,8 @@ status open
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "fig:elements"
@@ -1484,6 +2511,8 @@ spring, dashpot, friction, cohesion
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:surfmats"
@@ -1752,6 +2781,8 @@ young, poisson, density
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:bulkmats"
@@ -2215,6 +3246,8 @@ Use second order elements
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:formulation"
@@ -2363,6 +3396,8 @@ None
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:conf"
@@ -2511,6 +3546,8 @@ None
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:velo"
@@ -2838,6 +3875,8 @@ key "Chawla1998"
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:schema"
@@ -3354,6 +4393,8 @@ Failure of a diagonal solver (e.g.
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:err-gs"
@@ -3494,6 +4535,8 @@ ts.
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:var-gs"
@@ -6255,7 +7298,7 @@ This will create a Solfec viewer, which should result in the following picture
 
 \begin_layout Standard
 Le us now construct a stack made of two bodies.
- The first on comprises five juxtaposed convex objects.
+ The first one comprises four juxtaposed convex objects.
 \end_layout
 
 \begin_layout LyX-Code
@@ -6380,7 +7423,7 @@ Note, that a base
 brick
 \emph default
  was created first.
- Then this brick was coppied and manipulated into five different objects:
+ Then this brick was coppied and manipulated into four different objects:
  
 \emph on
 b1,b2, ..., b4
@@ -6388,7 +7431,7 @@ b1,b2, ..., b4
 .
  The list of those objects was passed as a shape when creating the first
  rigid body.
- The second body will be pseudo-rigid and will have its shape defined be
+ The second body will be pseudo-rigid and will have its shape defined by
  a mesh.
 \end_layout
 
@@ -6540,6 +7583,18 @@ The relative constraint reaction accuracy was set to 1E-3, while the maximal
 
 \begin_layout LyX-Code
 RUN (solfec, gs, 1.0)
+\end_layout
+
+\begin_layout Standard
+And then actually run 
+\emph on
+solfec
+\emph default
+ from the command line
+\end_layout
+
+\begin_layout LyX-Code
+./solfec inp/tutorial/three-basic-geometric-objects.py
 \end_layout
 
 \begin_layout Standard
