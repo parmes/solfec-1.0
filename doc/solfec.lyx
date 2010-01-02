@@ -312,7 +312,7 @@ reference "eq:CUR"
 
 \end_inset
 
-wher 
+where 
 \begin_inset Formula $h$
 \end_inset
 
@@ -568,7 +568,6 @@ beta
 \end_inset
 
  stage of development for the moment.
- This stage should end at some point in 2012.
  In order to download the most recent sources, you first need to install
  
 \emph on
@@ -600,9 +599,9 @@ This will create a directory
 solfec
 \emph default
  in your current directory.
- The next thing you need is an ANSI C (and prospectively also FORTAN) developmen
-t environment at your command line.
- Users of UNIX-like systems (Linux, FreeBSD, Max OS X, etc.) are in privilidged
+ The next thing you need is an ANSI C (and prospectively also FORTRAN) developme
+nt environment at your command line.
+ Users of UNIX-like systems (Linux, FreeBSD, Mac OS X, etc.) are in privileged
  position here.
  Windows users can cope by installing Cygwin (tested) from 
 \begin_inset CommandInset href
@@ -627,7 +626,7 @@ Solfec is written in C and it uses a simple makefile to get compiled.
 \emph on
 solfec/Config.mak
 \emph default
- needs to be modifed on a new machine so that to set up library paths and
+ needs to be modified on a new machine so that to set up library paths and
  compilation flags.
  Let us have a look at the file 
 \emph on
@@ -639,7 +638,7 @@ solfec/Config.mak
 \end_layout
 
 \begin_layout LyX-Code
-# Specify C compiller here
+# Specify C compiler here
 \end_layout
 
 \begin_layout LyX-Code
@@ -663,7 +662,7 @@ CC = cc
 \end_layout
 
 \begin_layout LyX-Code
-# Specify FORTRAN compiller here
+# Specify FORTRAN compiler here
 \end_layout
 
 \begin_layout LyX-Code
@@ -994,11 +993,17 @@ DEBUG = no
 \end_inset
 
 .
- After you edit the Config.mak file, the first compilation should look like
+ After you edit the 
+\emph on
+Config.mak
+\emph default
+ file, the first compilation should look like
 \end_layout
 
 \begin_layout LyX-Code
-cd solfec
+cd 
+\emph on
+solfec
 \end_layout
 
 \begin_layout LyX-Code
@@ -1015,12 +1020,16 @@ solfec/solfec
 solec/solfec-mpi
 \emph default
 , that is the serial and the parallel versions of the code.
- For every subsequent code update and compilaion you will like to do the
+ For every subsequent code update and compilation you will like to do the
  following
 \end_layout
 
 \begin_layout Itemize
-Back up your Config.mak file.
+Back up your 
+\emph on
+Config.mak
+\emph default
+ file.
  For example
 \end_layout
 
@@ -1045,7 +1054,11 @@ hg update -C
 \end_layout
 
 \begin_layout Itemize
-Recover your Config.mak
+Recover your 
+\emph on
+Config.mak
+\emph default
+ file
 \end_layout
 
 \begin_layout LyX-Code
@@ -1089,7 +1102,11 @@ solfec
 solfec-mpi
 \emph default
  and the input files to some other directory - you need to do it by hand.
- I recommend setting the PATH variable so that the solfec directory is included.
+ I recommend setting the PATH variable so that the 
+\emph on
+solfec
+\emph default
+ directory is included.
  This way some computations not related to development can be done 
 \begin_inset Quotes eld
 \end_inset
@@ -1474,8 +1491,6 @@ status open
 \begin_inset Caption
 
 \begin_layout Plain Layout
-
-\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "fig:elements"
@@ -1687,7 +1702,7 @@ x0, y0, z0, x1, y1, z1, ...
 \emph default
 , x7, y7, z7].
  The hexahedral shape will be stretched between those nodes using a linear
- inerpolation.
+ interpolation.
 \end_layout
 
 \begin_layout Itemize
@@ -1741,7 +1756,7 @@ dx =
 \emph on
 1, 1, 5, 5, 1, 1
 \emph default
-] is present, then this scheme will be normalized (actual numbers do not
+] is present, then this scheme will be normalised (actual numbers do not
  matter, but their ratios) and applied to the local x direction of the generated
  shape.
 \end_layout
@@ -1808,7 +1823,7 @@ dx =
 \emph on
 1, 1, 5, 5, 1, 1
 \emph default
-] is present, then this scheme will be normalized (actual numbers do not
+] is present, then this scheme will be normalised (actual numbers do not
  matter, but their ratios) and applied to the local x direction of the generated
  shape.
 \end_layout
@@ -1935,7 +1950,7 @@ SOLFEC
 
 \begin_layout Standard
 An object of type SOLFEC represents the Solfec algorithm.
- One can use several SOLFEC objects to run several analyzes from a single
+ One can use several SOLFEC objects to run several analyses from a single
  input file.
 \end_layout
 
@@ -2267,7 +2282,7 @@ default
 \series bold
 model
 \series default
- - material model name (default: 'SIGNORINI_COULMB'), see Table 
+ - material model name (default: 'SIGNORINI_COULOMB'), see Table 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "tab:surfmats"
@@ -3990,7 +4005,7 @@ failure
  - failure (lack of convergence) action (default: 'CONTINUE').
  Available failure actions are: 'CONTINUE' (simulation is continued), 'EXIT'
  (simulation is stopped and Solfec exits), 'CALLBACK' (a callback function
- is called if it was set or othewise the 'EXIT' scenario is executed).
+ is called if it was set or otherwise the 'EXIT' scenario is executed).
  In all cases 
 \series bold
 \emph on
@@ -4401,6 +4416,8 @@ name "tab:err-gs"
 
 \end_inset
 
+
+\lang british
 Error codes of GAUSS_SEIDEL_SOLVER object
 \end_layout
 
@@ -4543,7 +4560,11 @@ name "tab:var-gs"
 
 \end_inset
 
-Variants of parallel Gauss-Seidel update.
+
+\lang british
+Variants of parallel Gauss-Seidel update
+\lang english
+.
 \end_layout
 
 \end_inset
@@ -4565,7 +4586,7 @@ An object of type EXPLICIT_SOLVER represents a penalty based constraint
  solver.
  When in use, all 'SIGNORONI_COULOMB' type contact interfaces are regarded
  as 'SPRING_DASHPOT' ones.
- One should then remember about specyfying the 
+ One should then remember about specifying the 
 \emph on
 spring
 \emph default
@@ -4607,7 +4628,7 @@ obj = FIX_POINT (solfec, body, point)
 \end_layout
 
 \begin_layout Standard
-This routine creates a fixed point constrint.
+This routine creates a fixed point constraint.
 \end_layout
 
 \begin_layout Itemize
@@ -5328,7 +5349,7 @@ kind
 \series default
  - either 'SPATIAL' or 'CONVECTED'; the 
 \emph on
-spactial
+spatial
 \emph default
  direction remains fixed, while the 
 \emph on
@@ -5487,7 +5508,7 @@ kind
 \series default
  - either 'SPATIAL' or 'CONVECTED'; the 
 \emph on
-spactial
+spatial
 \emph default
  direction remains fixed, while the 
 \emph on
@@ -5541,7 +5562,7 @@ kind
 \series default
  - either 'SPATIAL' or 'CONVECTED'; the 
 \emph on
-spactial
+spatial
 \emph default
  direction remains fixed, while the 
 \emph on
@@ -6447,7 +6468,7 @@ This routine makes a copy of input objects.
 \series bold
 obj
 \series default
- - created collection of coppied objects
+ - created collection of copied objects
 \end_layout
 
 \begin_layout Itemize
@@ -6467,7 +6488,7 @@ obj = BYLABEL (solfec, kind, label)
 \end_layout
 
 \begin_layout Standard
-This routine finds a labeled object inside of a SOLFEC object.
+This routine finds a labelled object inside of a SOLFEC object.
 \end_layout
 
 \begin_layout Itemize
@@ -6479,7 +6500,7 @@ obj
 \emph on
 None
 \emph default
- if a labeled object was not found)
+ if a labelled object was not found)
 \end_layout
 
 \begin_layout Itemize
@@ -6495,7 +6516,7 @@ solfec
 \series bold
 kind
 \series default
- - labeled object: 'SURFACE_MATERIAL', 'BULK_MATERIAL', 'BODY'
+ - labelled object: 'SURFACE_MATERIAL', 'BULK_MATERIAL', 'BODY'
 \end_layout
 
 \begin_layout Itemize
@@ -6642,7 +6663,7 @@ bod2
 \series bold
 point2
 \series default
- - referentail point properly contained in the 2nd geometric object
+ - referential point properly contained in the 2nd geometric object
 \end_layout
 
 \begin_layout Subsection*
@@ -6691,7 +6712,7 @@ value = DURATION (solfec)
 \end_layout
 
 \begin_layout Standard
-This routine returnes the duration of a simulation in SOLFEC's 'READ' mode,
+This routine returns the duration of a simulation in SOLFEC's 'READ' mode,
  or 
 \series bold
 \emph on
@@ -6935,7 +6956,7 @@ ene
 \series default
  - 
 \emph on
-(kinetic, internal, external, conact, friction)
+(kinetic, internal, external, contact, friction)
 \emph default
  tuple of energy values; 
 \emph on
@@ -7204,7 +7225,7 @@ floor = HULL ([-w/2, -l/2, -h,
 \begin_layout Standard
 We simply created a convex hull about eight points.
  This is only a geometric object for the moment.
- It exists only in Python interperter, but not yet inside of a Solfec model.
+ It exists only in Python interpreter, but not yet inside of a Solfec model.
  In order to insert it into a model, we need first to create a SOLFEC object,
  a BULK_MATERIAL object, and finally a BODY object having the shape described
  by the 
@@ -7269,10 +7290,10 @@ Note, that the floor is simply an obstacle - it does not move.
  This object gather all necessary data for an individual simulation.
  In our case this will be a dynamic simulation, pursued with the time step
  at least as small as the specified one.
- The time step can be authomatically decreased during a simulation due to
+ The time step can be automatically decreased during a simulation due to
  stability requirements.
  The result files of this tutorial will be written to the specified path
- - relative to from there the 'solfec' command was involed.
+ - relative to from there the 'solfec' command was involved.
  Once a body has been inserted into a model, we can view the effect as follows
 \end_layout
 
@@ -7423,7 +7444,7 @@ Note, that a base
 brick
 \emph default
  was created first.
- Then this brick was coppied and manipulated into four different objects:
+ Then this brick was copied and manipulated into four different objects:
  
 \emph on
 b1,b2, ..., b4
@@ -7514,7 +7535,7 @@ INITIAL_VELOCITY (body, (0, 0, -10), (0, 0, 0))
 \end_layout
 
 \begin_layout Standard
-When creating the rigid body corresponding to the sphere, we have now retriven
+When creating the rigid body corresponding to the sphere, we have now retrieved
  the 
 \emph on
 body
@@ -7559,7 +7580,7 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB',
 \end_layout
 
 \begin_layout Standard
-It will be aslo of use to apply some gravity loading.
+It will be also of use to apply some gravity loading.
 \end_layout
 
 \begin_layout LyX-Code
@@ -7599,7 +7620,7 @@ solfec
 
 \begin_layout Standard
 One second of the simulation was computed.
- Let us have a look at the dislacement along z at the end of this time.
+ Let us have a look at the displacement along z at the end of this time.
 \end_layout
 
 \begin_layout Standard

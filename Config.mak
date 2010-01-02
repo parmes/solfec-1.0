@@ -1,11 +1,11 @@
 #
-# Specify C compiller here
+# Specify C compiler here
 #
 
 CC = cc
 
 #
-# Specify FORTRAN compiller here
+# Specify FORTRAN compiler here
 #
 
 FF = g95
