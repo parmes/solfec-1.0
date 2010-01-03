@@ -111,7 +111,7 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia);
 void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind);
 
 /* update local dynamics => after the solution */
-void LOCDYN_Update_End (LOCDYN *ldy);
+void LOCDYN_Update_End (LOCDYN *ldy, UPKIND upkind);
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);

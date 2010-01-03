@@ -122,8 +122,7 @@ Basics
 
 \begin_layout Standard
 It will be useful to introduce some basic notions here.
- It can be best done by drawing a figure.
- Let us have a look
+ Let us have a look a figure below
 \end_layout
 
 \begin_layout Standard
@@ -338,15 +337,6 @@ integral
 \end_inset
 
 .
- An analysis of the above scheme, as well as a rigid body version of it,
- can be found in Chapter 5 of 
-\begin_inset CommandInset citation
-LatexCommand citep
-key "Koziara2008PhD"
-
-\end_inset
-
-.
  At a start we have
 \end_layout
 
@@ -365,15 +355,7 @@ The out of balance force
 
 \end_inset
 
-incorporates both internal and external forces (cf.
- Chapter 4 of 
-\begin_inset CommandInset citation
-LatexCommand citep
-key "Koziara2008PhD"
-
-\end_inset
-
-).
+incorporates both internal and external forces.
  The symmetric and positive-definite inertia operator
 \end_layout
 
@@ -383,15 +365,7 @@ key "Koziara2008PhD"
 
 \end_inset
 
-is computed once (cf.
- Chapter 4 of 
-\begin_inset CommandInset citation
-LatexCommand citep
-key "Koziara2008PhD"
-
-\end_inset
-
-).
+is computed once.
  The linear operator
 \end_layout
 
@@ -407,15 +381,8 @@ is computed at every time step.
 \end_inset
 
  depends on the number of constraints, while its rank is related to their
- linear independence (cf.
- Chapter 6 of 
-\begin_inset CommandInset citation
-LatexCommand citep
-key "Koziara2008PhD"
-
-\end_inset
-
-) Finally
+ linear independence.
+ Finally
 \end_layout
 
 \begin_layout Standard
@@ -429,18 +396,6 @@ where
 \end_inset
 
  is a nonlinear and usually nonsmooth operator.
- Chapters 8 and 10 of 
-\begin_inset CommandInset citation
-LatexCommand citep
-key "Koziara2008PhD"
-
-\end_inset
-
- discuss derivation of 
-\begin_inset Formula $\mathbf{C}$
-\end_inset
-
- for joints and frictional contact constraints.
  In order to obtain 
 \begin_inset Formula $\mathbf{C}$
 \end_inset
@@ -463,15 +418,7 @@ and
 
 \end_inset
 
-which is a symmetric and semi-positive definite (cf.
- Chapter 7 of 
-\begin_inset CommandInset citation
-LatexCommand citep
-key "Koziara2008PhD"
-
-\end_inset
-
-).
+which is a symmetric and semi-positive definite.
  The linear transformation
 \end_layout
 
@@ -519,6 +466,10 @@ Compute
 \begin_inset Formula $\mathbf{W}$
 \end_inset
 
+, 
+\begin_inset Formula $\mathbf{B}$
+\end_inset
+
 .
 \end_layout
 
@@ -544,6 +495,17 @@ Perform second half-step
 \end_inset
 
 .
+\end_layout
+
+\begin_layout Standard
+Let us refer the reader to 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Koziara2008PhD"
+
+\end_inset
+
+ and references therein for more details.
 \end_layout
 
 \begin_layout Chapter
@@ -2209,6 +2171,12 @@ obj.step
 \end_layout
 
 \begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:SURFACE_MATERIAL"
+
+\end_inset
+
 SURFACE_MATERIAL
 \end_layout
 
@@ -2548,6 +2516,12 @@ Surface material models.
 \end_layout
 
 \begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:BULK_MATERIAL"
+
+\end_inset
+
 BULK_MATERIAL
 \end_layout
 
@@ -3244,7 +3218,10 @@ Use first order elements
 \begin_inset Text
 
 \begin_layout Plain Layout
-Use second order elements
+Use second order elements 
+\series bold
+\color red
+TODO
 \end_layout
 
 \end_inset
@@ -3261,8 +3238,6 @@ Use second order elements
 \begin_inset Caption
 
 \begin_layout Plain Layout
-
-\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:formulation"
@@ -3419,6 +3394,8 @@ name "tab:conf"
 
 \end_inset
 
+
+\lang british
 Types of configurations.
 \end_layout
 
@@ -3569,7 +3546,11 @@ name "tab:velo"
 
 \end_inset
 
-Types of velocities.
+
+\lang british
+Types of velocities
+\lang english
+.
 \end_layout
 
 \end_inset
@@ -3898,6 +3879,8 @@ name "tab:schema"
 
 \end_inset
 
+
+\lang british
 Time integration schema.
 \end_layout
 
@@ -7104,7 +7087,7 @@ where
 \emph on
 object
 \emph default
- is a SOLFE object, a BODY object or a list of BODY objects,
+ is a SOLFEC object, a BODY object or a list of BODY objects,
 \series bold
  
 \series default
@@ -7645,6 +7628,598 @@ name "cha:Materials"
 Materials 
 \end_layout
 
+\begin_layout Section
+Surface materials
+\end_layout
+
+\begin_layout Standard
+A surface material is assigned to a pairing of surfaces.
+ See Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:SURFACE_MATERIAL"
+
+\end_inset
+
+ for the input syntax.
+ Surface materials will usually correspond to 
+\emph on
+contact conditions 
+\emph default
+requiring definition of a contact point and a normal direction.
+ In Solfec 
+\emph on
+a single oriented contact point results from an overlap of two surface elements
+\emph default
+.
+ This is motivated by two factors:
+\end_layout
+
+\begin_layout Enumerate
+The point and the normal direction derived from an overlap of two elements
+ are well defined for nonsmooth geometry.
+\end_layout
+
+\begin_layout Enumerate
+We wish to use as few contact points as possible, but still be able to control
+ the accuracy of contact resolution by mesh refinement.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status collapsed
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename /Users/tomek/Devel/tkwork/books/tkb0/locus.eps
+	lyxscale 50
+	width 30text%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:locus-x-n"
+
+\end_inset
+
+A contact point 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ and a normal 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+ extracted from the intersection of two convex elements.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Two elements are in contact if their intersection is not empty.
+ The intersection is 
+\begin_inset Formula $d$
+\end_inset
+
+-dimensional, where 
+\begin_inset Formula $d\in\left\{ 0,1,2,3\right\} $
+\end_inset
+
+.
+ Only the 
+\begin_inset Formula $3$
+\end_inset
+
+-dimensional, volumetric intersection is considered.
+ The remaining cases are cast into the volumetric one through a small expansion
+ of the elements.
+ Assume, that two elements 
+\begin_inset Formula $e_{1}$
+\end_inset
+
+ and 
+\begin_inset Formula $e_{2}$
+\end_inset
+
+ overlap like in Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:locus-x-n"
+
+\end_inset
+
+.
+ Their intersection 
+\begin_inset Formula $o=e_{1}\cap e_{2}$
+\end_inset
+
+ is a convex polyhedron, with the surface containing two parts 
+\begin_inset Formula $\partial o_{1}\cup\partial o_{2}\subset\partial o$
+\end_inset
+
+, where 
+\begin_inset Formula $\partial o_{k}\subset\partial e_{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $\partial o_{k}=\partial o\cap\partial\mathcal{B}_{k}$
+\end_inset
+
+.
+ For each part, one can compute the resultant normal
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\bar{\mathbf{n}}_{k}=\int_{\partial o_{k}}\mathbf{n}da\label{eq:nresult}\end{equation}
+
+\end_inset
+
+and the variation of normal
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\tilde{\mathbf{n}}_{k}=\int_{\partial o_{k}}\left(\mathbf{n}-\mathbf{\bar{n}}_{k}\right)^{2}da\label{eq:nvar}\end{equation}
+
+\end_inset
+
+The final outward normal is the one with a smaller variation
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{n}\left(e_{1}\cap e_{2}\right)=\frac{\bar{\mathbf{n}}_{k}}{\left\Vert \bar{\mathbf{n}}_{k}\right\Vert },\,\,\, k=\arg\min_{i}\left(\left\Vert \tilde{\mathbf{n}}_{i}\right\Vert \right)\label{eq:n(e1e2)}\end{equation}
+
+\end_inset
+
+The contact point can be computed as the mass centre of the surface part
+ with the larger variation of normal (hence, it is a deeper submerged point
+ of the two possibly computed this way)
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{x}\left(e_{1}\cap e_{2}\right)=\frac{\int_{\partial o_{k}}\mathbf{x}da}{\int_{\partial o_{k}}da},\,\,\, k=\arg\max_{i}\left(\left\Vert \tilde{\mathbf{n}}_{i}\right\Vert \right)\label{eq:x(e1e2)}\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+Signorini-Coulomb
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+\color red
+TODO
+\end_layout
+
+\begin_layout Subsection
+Spring-dashpot
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename /Users/tomek/Devel/tkwork/books/tkb0/gap.eps
+	lyxscale 50
+	width 40text%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:gap"
+
+\end_inset
+
+Gap according to definition (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:gapdef"
+
+\end_inset
+
+).
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The gap function between a pair of elements 
+\emph on
+
+\begin_inset Formula $e_{1}$
+\end_inset
+
+ 
+\emph default
+and
+\emph on
+ 
+\begin_inset Formula $e_{2}$
+\end_inset
+
+
+\emph default
+ is defined in the following way
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+gap\left(t\right)=\left\{ \begin{array}{ll}
+\min_{\mathbf{x},\mathbf{y}}\left\Vert \mathbf{x}-\mathbf{y}\right\Vert :\mathbf{x}\in\bar{e}_{1},\mathbf{y}\in\bar{e}_{2} & \mbox{when }\bar{e}_{1}\cap\bar{e}_{2}=\emptyset\\
+\min_{\mathbf{y}}\left\langle \mathbf{n},\mathbf{x}-\mathbf{y}\right\rangle :\mathbf{y}\in\partial e_{k},\mathbf{x}\in\bar{e}_{1}\cap\bar{e}_{2} & \mbox{otherwise}\end{array}\right.\label{eq:gapdef}\end{equation}
+
+\end_inset
+
+where in the second line, 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+ are given by (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:x(e1e2)"
+
+\end_inset
+
+) and (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:n(e1e2)"
+
+\end_inset
+
+).
+ The latter formula defines also the 
+\begin_inset Formula $k$
+\end_inset
+
+-index.
+ The first line describes the proximity of the two elements.
+ The second one defines a negative distance along 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+, from 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ towards the surface of the intersection 
+\begin_inset Formula $\bar{e}_{1}\cap\bar{e}_{2}$
+\end_inset
+
+ (Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:gap"
+
+\end_inset
+
+).
+ The normal reaction is computed as follows
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+R_{N}=-spring\cdot gap-dashpot\cdot\frac{U_{N}^{t+h}+U_{N}^{t}}{2}\label{eq:spring-dashpot-1}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $U_{N}$
+\end_inset
+
+ is the normal relative velocity.
+ We use the block diagonal local dynamics equation
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{U}^{t+h}=\mathbf{B}+\mathbf{W}\mathbf{R}\end{equation}
+
+\end_inset
+
+in order to estimate 
+\begin_inset Formula $U_{N}^{t+h}$
+\end_inset
+
+ as follows
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+U_{N}^{t+h}=B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}+W_{NN}R_{N}\end{equation}
+
+\end_inset
+
+where previous tangential reaction 
+\begin_inset Formula $\mathbf{R}_{T}$
+\end_inset
+
+ is employed.
+ Inserting this it into (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:spring-dashpot-1"
+
+\end_inset
+
+) results in
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+R_{N}=\left[-spring\cdot gap-dashpot\cdot\frac{B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}+U_{N}^{t}}{2}\right]/\left[1+dashpot\frac{W_{NN}}{2}\right]\label{eq:spring-dashpot-2}\end{equation}
+
+\end_inset
+
+We then utilise the tangential part of local dynamics and assuming 
+\begin_inset Formula $\mathbf{U}_{T}^{t+h}=0$
+\end_inset
+
+ estimate the tangential 
+\emph on
+stick
+\emph default
+ reaction
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{R}_{T}=-\mathbf{W}_{TT}^{-1}\left(\mathbf{B}_{T}+\mathbf{W}_{TN}R_{N}\right)\end{equation}
+
+\end_inset
+
+The complete interface reads
+\end_layout
+
+\begin_layout LyX-Code
+if not 
+\begin_inset Formula $cohesive$
+\end_inset
+
+ and 
+\begin_inset Formula $gap\ge0$
+\end_inset
+
+ then 
+\begin_inset Formula $\mathbf{R}=\mathbf{0}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+else
+\end_layout
+
+\begin_layout LyX-Code
+  
+\begin_inset Formula $R_{N}=\left[-spring\cdot gap-0.5\cdot dashpot\cdot\left(B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}+U_{N}^{t}\right)\right]/\left[1+0.5\cdot dashpot\cdot W_{NN}\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  
+\begin_inset Formula $\mathbf{R}_{T}=-\mathbf{W}_{TT}^{-1}\left(\mathbf{B}_{T}+\mathbf{W}_{TN}R_{N}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  if 
+\begin_inset Formula $cohesive$
+\end_inset
+
+ and 
+\begin_inset Formula $\left|R_{N}\right|>cohesion$
+\end_inset
+
+ then 
+\begin_inset Formula $cohesive=false$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  if not 
+\begin_inset Formula $cohesive$
+\end_inset
+
+ and 
+\begin_inset Formula $\left\Vert \mathbf{R}_{T}\right\Vert >\mu R_{N}$
+\end_inset
+
+ then 
+\begin_inset Formula $\mathbf{R}_{T}=\mu R_{N}\mathbf{R}_{T}/\left\Vert \mathbf{R}_{T}\right\Vert $
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Bulk materials
+\end_layout
+
+\begin_layout Standard
+A bulk material is assigned to a volume.
+ See Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:BULK_MATERIAL"
+
+\end_inset
+
+ for the input syntax.
+\end_layout
+
+\begin_layout Subsection
+Kirchhoff - Saint Venant
+\end_layout
+
+\begin_layout Standard
+The strain energy function 
+\begin_inset Formula $\Psi$
+\end_inset
+
+ of the Kirchhoff - Saint Venant materials reads
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\Psi=\frac{1}{4}\left[\mathbf{F}^{T}\mathbf{F}-\mathbf{I}\right]:\mathbf{C}:\left[\mathbf{F}^{T}\mathbf{F}-\mathbf{I}\right]\end{equation}
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+C_{ijkl}=\lambda\delta_{ij}\delta_{kl}+\mu\left[\delta_{ik}\delta_{jl}+\delta_{il}\delta_{jk}\right]\end{equation}
+
+\end_inset
+
+In the above 
+\begin_inset Formula $\lambda$
+\end_inset
+
+ and 
+\begin_inset Formula $\mu$
+\end_inset
+
+ are Lam
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+'
+\end_layout
+
+\end_inset
+
+e constants, while 
+\begin_inset Formula $\delta_{ij}$
+\end_inset
+
+ is the Kronecker delta.
+ The Lam
+\begin_inset ERT
+status collapsed
+
+\begin_layout Plain Layout
+
+
+\backslash
+'
+\end_layout
+
+\end_inset
+
+e constants can be expressed in terms of the Young modulus 
+\begin_inset Formula $E$
+\end_inset
+
+ and the Poisson ratio 
+\begin_inset Formula $\nu$
+\end_inset
+
+ as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\lambda=\frac{E\nu}{\left(1+\nu\right)\left(1-2\nu\right)}\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mu=\frac{E}{2+2\nu}\end{equation}
+
+\end_inset
+
+The first Piola stress tensor is computed as a gradient of the hyperelastic
+ potential 
+\begin_inset Formula $\Psi$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{P}=\partial_{\mathbf{F}}\Psi\left(\mathbf{F}\right)\label{eq:matlaw}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{F}$
+\end_inset
+
+ is the deformation gradient.
+\end_layout
+
 \begin_layout Chapter
 \begin_inset CommandInset label
 LatexCommand label
@@ -7653,6 +8228,14 @@ name "cha:Solvers"
 \end_inset
 
 Solvers
+\end_layout
+
+\begin_layout Section
+Gauss-Seidel solver
+\end_layout
+
+\begin_layout Section
+Explicit solver
 \end_layout
 
 \begin_layout Standard
