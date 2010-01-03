@@ -430,11 +430,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
     for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
     {
-#if DEBUG
-      upkind = UPALL; /* always update all blocks of W and perform consistency checks (even for the explicit solver) */
-#else
       upkind = (kind == EXPLICIT_SOLVER ? UPEXS : UPALL); /* here as user callback can change solver */
-#endif
 
 #if MPI
       if (sol->dom->rank == 0)
@@ -451,7 +447,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       SOLVE (sol, solver, kind, ldy, verbose);
 
       /* end update of local dynamics */
-      LOCDYN_Update_End (ldy);
+      LOCDYN_Update_End (ldy, upkind);
 
       /* end update of domain */
       DOM_Update_End (sol->dom);

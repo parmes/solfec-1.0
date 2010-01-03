@@ -1414,7 +1414,7 @@ static void domain_balancing (DOM *dom)
   CON *con;
   int i;
 
-#if DEBUG
+#if PARDEBUG
   /* test whether constraints attached to bodies have their points inside of body extents */
   for (bod = dom->bod; bod; bod = bod->next)
   {
@@ -1468,7 +1468,7 @@ static void domain_balancing (DOM *dom)
 
       SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* map this constraint to its export rank */
 
-#if DEBUG
+#if PARDEBUG
       {
 	BODY *bodies [] = {con->master, con->slave};
 	int *procs, numprocs, j, k;

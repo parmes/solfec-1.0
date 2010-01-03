@@ -12,19 +12,20 @@
 #include "err.h"
 
 /* spring and dashpot based explicit diagonal block contact solver */
-int EXPLICIT_Spring_Dashpot_Contact (double gap, double spring, double dashpot, double friction,
-                           short cohesive, double *W, double *B, double *V, double *U, double *R)
+int EXPLICIT_Spring_Dashpot_Contact (CON *con, double gap, double spring, double dashpot, double friction,
+                                     double cohesion, double *W, double *B, double *V, double *U, double *R)
 {
   double INV [4], WTT[4] = {W[0], W[1], W[3], W[4]}, BT [2], det, len;
+  short cohesive = con->state & CON_COHESIVE;
 
-  if (gap >= 0)
+  if (!cohesive && gap >= 0)
   {
     SET (R, 0);
     COPY (B, U);
     return 0;
   }
 
-  R [2] = - spring * gap - dashpot * V[2];
+  R [2] = - spring * gap - 0.5 * dashpot * (B[2] + W[2]*R[0] + W[5]*R[1] + V[2]) / (1.0 + 0.5 * dashpot * W[8]);
 
   BT [0] = B[0] + W[6] * R[2];
   BT [1] = B[1] + W[7] * R[2];
@@ -35,6 +36,13 @@ int EXPLICIT_Spring_Dashpot_Contact (double gap, double spring, double dashpot, 
 
   R [0] = - INV[0] * BT[0] - INV[2] * BT[1];
   R [1] = - INV[1] * BT[0] - INV[3] * BT[1];
+
+  if (cohesive && fabs (R[2]) > cohesion)
+  {
+    cohesive = 0;
+    con->state &= ~CON_COHESIVE;
+    SURFACE_MATERIAL_Cohesion_Set (&con->mat, 0.0);
+  }
 
   if (!cohesive)
   {
@@ -67,8 +75,8 @@ void EXPLICIT_Solve (LOCDYN *ldy)
 
     if (con->kind == CONTACT)
     {
-      EXPLICIT_Spring_Dashpot_Contact (con->gap, con->mat.base->spring, con->mat.base->dashpot,
-        con->mat.base->friction, con->state & CON_COHESIVE, dia->W, dia->B, dia->V, dia->U, dia->R);
+      EXPLICIT_Spring_Dashpot_Contact (con, con->gap, con->mat.base->spring, con->mat.base->dashpot,
+	  con->mat.base->friction, con->mat.base->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
     }
   }
 

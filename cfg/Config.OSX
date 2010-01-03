@@ -1,11 +1,11 @@
 #
-# Specify C compiller here
+# Specify C compiler here
 #
 
 CC = cc
 
 #
-# Specify FORTRAN compiller here
+# Specify FORTRAN compiler here
 #
 
 FF = g95
@@ -16,8 +16,9 @@ FF = g95
 
 DEBUG = yes
 PROFILE = no
-MEMDEBUG = yes
+MEMDEBUG = no
 GEOMDEBUG = no
+PARDEBUG = no
 NOTHROW = no
 
 #

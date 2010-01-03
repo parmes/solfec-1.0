@@ -40,6 +40,10 @@ static void variables_change_begin (LOCDYN *ldy)
   for (dia = ldy->dia; dia; dia = dia->n)
   {
     CON *con = dia->con;
+
+    if (con->kind != CONTACT) continue; /* skip non-contacts */
+    else if (con->mat.base->model == SPRING_DASHPOT) continue; /* skip spring-dashpots */
+
     double *B = dia->B; /* free velocity will
 			   be eventually modified */
 
@@ -81,6 +85,10 @@ static void variables_change_end (LOCDYN *ldy)
   for (dia = ldy->dia; dia; dia = dia->n)
   {
     CON *con = dia->con;
+
+    if (con->kind != CONTACT) continue; /* skip non-contacts */
+    else if (con->mat.base->model == SPRING_DASHPOT) continue; /* skip spring-dashpots */
+
     short state = con->state;
 
     if (state & CON_COHESIVE) /* cohesive state */
@@ -188,7 +196,7 @@ static void compute_adjext (LOCDYN *ldy)
   }
 }
 
-#if DEBUG
+#if PARDEBUG
 /* return next pointer and realloc send memory if needed */
 inline static COMDATA* sendnext (int nsend, int *size, COMDATA **send)
 {
@@ -629,7 +637,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     }
   }
 
-#if MPI && DEBUG
+#if PARDEBUG
   if (upkind == UPALL)
   {
     if (adjext_test (ldy) == 0)
@@ -640,18 +648,18 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 #endif
 
   /* forward variables change */
-  variables_change_begin (ldy);
+  if (upkind == UPALL) variables_change_begin (ldy);
 
   SOLFEC_Timer_End (ldy->dom->solfec, "LOCDYN");
 }
 
 /* updiae local dynamics => after the solution */
-void LOCDYN_Update_End (LOCDYN *ldy)
+void LOCDYN_Update_End (LOCDYN *ldy, UPKIND upkind)
 {
   SOLFEC_Timer_Start (ldy->dom->solfec, "LOCDYN");
 
   /* backward variables change */
-  variables_change_end (ldy);
+  if (upkind == UPALL) variables_change_end (ldy);
 
   /* not modified */
   ldy->modified = 0;
