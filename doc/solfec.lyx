@@ -676,6 +676,10 @@ GEOMDEBUG = no
 \end_layout
 
 \begin_layout LyX-Code
+PARDEBUG = no
+\end_layout
+
+\begin_layout LyX-Code
 NOTHROW = no
 \end_layout
 
@@ -1190,6 +1194,12 @@ Solfec objects
 \end_layout
 
 \begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:CONVEX"
+
+\end_inset
+
 CONVEX
 \end_layout
 
@@ -1391,6 +1401,12 @@ obj
 \end_layout
 
 \begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:MESH"
+
+\end_inset
+
 MESH
 \end_layout
 
@@ -1791,6 +1807,12 @@ dx =
 \end_layout
 
 \begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:SPHERE"
+
+\end_inset
+
 SPHERE
 \end_layout
 
@@ -3221,7 +3243,7 @@ Use first order elements
 Use second order elements 
 \series bold
 \color red
-TODO
+TODO: implement
 \end_layout
 
 \end_inset
@@ -4718,7 +4740,7 @@ direction
 \begin_layout Subsection*
 obj = FIX_SURFACE (solfec, body, surfid, direction)
 \color red
- TODO
+ TODO: implement
 \end_layout
 
 \begin_layout Standard
@@ -5523,7 +5545,7 @@ value
 \begin_layout Subsection*
 LOAD (body, kind, surfid, direction, value)
 \color red
- TODO
+ TODO: implement
 \end_layout
 
 \begin_layout Standard
@@ -7618,65 +7640,388 @@ One second of the simulation was computed.
 
 \end_layout
 
-\begin_layout Chapter
-\begin_inset CommandInset label
-LatexCommand label
-name "cha:Materials"
-
-\end_inset
-
-Materials 
-\end_layout
-
 \begin_layout Section
-Surface materials
+Ball impact
 \end_layout
 
 \begin_layout Standard
-A surface material is assigned to a pairing of surfaces.
- See Section 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "sub:SURFACE_MATERIAL"
+This example illustrates using multiple SOLFEC objects, application of the
+ EXPLICIT_SOLVER, and using HISTORY to retrieve and then plot time histories.
+ First we define a Python function that will create a model of ball impacting
+ a plate for a specific set of parameters.
+\end_layout
+
+\begin_layout LyX-Code
+def ball_impact (step, stop, spring_value, dashpot_value, output):
+\end_layout
+
+\begin_layout LyX-Code
+  w = 2
+\end_layout
+
+\begin_layout LyX-Code
+  l = 2
+\end_layout
+
+\begin_layout LyX-Code
+  h = 1
+\end_layout
+
+\begin_layout LyX-Code
+  floor_vid = 1
+\end_layout
+
+\begin_layout LyX-Code
+  floor_sid = 1
+\end_layout
+
+\begin_layout LyX-Code
+  floor = HULL ([-w/2, -l/2, -h,
+\end_layout
+
+\begin_layout LyX-Code
+                  w/2, -l/2, -h,
+\end_layout
+
+\begin_layout LyX-Code
+                  w/2, l/2, -h,
+\end_layout
+
+\begin_layout LyX-Code
+                 -w/2, l/2, -h,
+\end_layout
+
+\begin_layout LyX-Code
+                 -w/2, -l/2, 0,
+\end_layout
+
+\begin_layout LyX-Code
+                  w/2, -l/2, 0,
+\end_layout
+
+\begin_layout LyX-Code
+                  w/2, l/2, 0,
+\end_layout
+
+\begin_layout LyX-Code
+                 -w/2, l/2, 0], floor_vid, floor_sid)
+\end_layout
+
+\begin_layout LyX-Code
+  
+\end_layout
+
+\begin_layout LyX-Code
+  solfec = SOLFEC ('DYNAMIC', step, output)
+\end_layout
+
+\begin_layout LyX-Code
+  
+\end_layout
+
+\begin_layout LyX-Code
+  bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF',
+\end_layout
+
+\begin_layout LyX-Code
+                        young = 15E9, poisson = 0.3, density = 2E3)
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+  BODY (solfec, 'OBSTACLE', floor, bulk)
+\end_layout
+
+\begin_layout LyX-Code
+  
+\end_layout
+
+\begin_layout LyX-Code
+  sphere = SPHERE ((0, 0, 1.0), 1, 1, 1)
+\end_layout
+
+\begin_layout LyX-Code
+  body = BODY (solfec, 'RIGID', sphere, bulk)
+\end_layout
+
+\begin_layout LyX-Code
+  INITIAL_VELOCITY (body, (0, 0, -5), (0, 0, 0))
+\end_layout
+
+\begin_layout LyX-Code
+  
+\end_layout
+
+\begin_layout LyX-Code
+  SURFACE_MATERIAL (solfec, model = 'SPRING_DASHPOT', friction = 0.0,
+\end_layout
+
+\begin_layout LyX-Code
+                    spring = spring_value, dashpot = dashpot_value)
+\end_layout
+
+\begin_layout LyX-Code
+  
+\end_layout
+
+\begin_layout LyX-Code
+  GRAVITY (solfec, (0, 0, -1), 10)
+\end_layout
+
+\begin_layout LyX-Code
+  
+\end_layout
+
+\begin_layout LyX-Code
+  xs = EXPLICIT_SOLVER ()
+\end_layout
+
+\begin_layout LyX-Code
+  
+\end_layout
+
+\begin_layout LyX-Code
+  RUN (solfec, xs, stop)
+\end_layout
+
+\begin_layout LyX-Code
+  
+\end_layout
+
+\begin_layout LyX-Code
+  return solfec
+\end_layout
+
+\begin_layout Standard
+The above code is similar to the previous example.
+ Here though the complete model is created inside of a Python function called
+ 
+\emph on
+sphere_impact
+\emph default
+.
+ By itself this will not run any simulation - this function needs to be
+ called from the main module of the input file (we remind that Python uses
+ indentation to decide upon code blocking - in our case no indentation indicates
+ the main module).
+ Above the 'SPRING_DASHPOT' material model is used for the contact interface.
+ The parameters of the spring and damper are passed as arguments of the
+ 
+\emph on
+sphere_impact
+\emph default
+ function.
+ It should be noted, that the SOLFEC object is returned from the routine.
+ Now, here is the main module
+\end_layout
+
+\begin_layout LyX-Code
+stop = 2.0
+\end_layout
+
+\begin_layout LyX-Code
+sol1 = ball_impact (1E-3, stop, 1E+9, 0E0, 'out/tutorial/sphere-impact-1')
+\end_layout
+
+\begin_layout LyX-Code
+sol2 = ball_impact (1E-3, stop, 1E+9, 1E6, 'out/tutorial/sphere-impact-2')
+\end_layout
+
+\begin_layout LyX-Code
+sol3 = ball_impact (1E-3, stop, 1E+9, 1E7, 'out/tutorial/sphere-impact-3')
+\end_layout
+
+\begin_layout Standard
+We simply run three different simulations for three values of the 
+\begin_inset Formula $dashpot$
+\end_inset
+
+ parameter.
+ We can now view the three models by typing
+\end_layout
+
+\begin_layout LyX-Code
+./solfec -v ./inp/tutorial/ball-impact.py
+\end_layout
+
+\begin_layout Standard
+The viewer allows change the current model by using '<' and '>' keyboard
+ shortcuts, or using the right-mouse click for the drop-down menu and then
+ selecting 
+\emph on
+menu: domain: previous
+\emph default
+ or 
+\emph on
+menu: domain: next
+\emph default
+.
+ In this example the three models do not visibly differ.
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename ball-impact.jpg
+	lyxscale 50
+	width 50text%
 
 \end_inset
 
- for the input syntax.
- Surface materials will usually correspond to 
-\emph on
-contact conditions 
-\emph default
-requiring definition of a contact point and a normal direction.
- In Solfec 
-\emph on
-a single oriented contact point results from an overlap of two surface elements
-\emph default
-.
- This is motivated by two factors:
+
 \end_layout
 
-\begin_layout Enumerate
-The point and the normal direction derived from an overlap of two elements
- are well defined for nonsmooth geometry.
+\begin_layout Standard
+We could now run each model in the viewer mode (
+\emph on
+menu: analysis: run
+\emph default
+), but it will be more useful to plot kinetic energy and compare it for
+ all the three values of the 
+\begin_inset Formula $dashpot$
+\end_inset
+
+ parameter.
+ The code below does the job
 \end_layout
 
-\begin_layout Enumerate
-We wish to use as few contact points as possible, but still be able to control
- the accuracy of contact resolution by mesh refinement.
+\begin_layout LyX-Code
+if not VIEWER() and sol1.mode == 'READ':
+\end_layout
+
+\begin_layout LyX-Code
+  import matplotlib.pyplot as plt
+\end_layout
+
+\begin_layout LyX-Code
+  th = HISTORY (sol1, (sol1, 'KINETIC'), 0, stop)
+\end_layout
+
+\begin_layout LyX-Code
+  plt.plot (th [0], th [1], lw = 2, label='kin (0)')
+\end_layout
+
+\begin_layout LyX-Code
+  th = HISTORY (sol2, (sol2, 'KINETIC'), 0, stop)
+\end_layout
+
+\begin_layout LyX-Code
+  plt.plot (th [0], th [1], lw = 2, label='kin (1E6)')
+\end_layout
+
+\begin_layout LyX-Code
+  th = HISTORY (sol3, (sol3, 'KINETIC'), 0, stop)
+\end_layout
+
+\begin_layout LyX-Code
+  plt.plot (th [0], th [1], lw = 2, label='kin (1E7)')
+\end_layout
+
+\begin_layout LyX-Code
+  plt.axis (xmin = 0, xmax = 2, ymin=-10000, ymax=110000)
+\end_layout
+
+\begin_layout LyX-Code
+  plt.legend(loc = 'upper right')
+\end_layout
+
+\begin_layout LyX-Code
+  plt.savefig ('doc/ball-impact.eps', format = 'eps')
+\end_layout
+
+\begin_layout Standard
+First, we check whether Solfec is not run with the 
+\emph on
+-v
+\emph default
+ option and whether it is in 'READ' mode.
+ This is the case, when after running the complete analysis
+\end_layout
+
+\begin_layout LyX-Code
+./solfec ./inp/tutorial/ball-impact.py
+\end_layout
+
+\begin_layout Standard
+we again run
+\end_layout
+
+\begin_layout LyX-Code
+./solfec ./inp/tutorial/ball-impact.py
+\end_layout
+
+\begin_layout Standard
+Now, Solfec will find out that the output files in 
+\emph on
+out/tutorial/sphere-impact-(1,2,3)
+\emph default
+ are present.
+ It will open in 'READ' mode.
+ In order to create the plot we are going to use the 
+\emph on
+matplotlib
+\emph default
+ Python package - please refer to 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://matplotlib.sourceforge.net/index.html"
+
+\end_inset
+
+ in order to learn how to install it.
+ We next use the HISTORY command in order to retrieve the time histories
+ of the kinetic energy for all three created SOLFEC objects.
+ The result in plotted into an EPS file, visible below.
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Graphics
+	filename ball-impact.eps
+	lyxscale 50
+	width 50text%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We can see that the 
+\begin_inset Formula $dashpot=0$
+\end_inset
+
+ results in a fully elastic impact (energy conserving behaviour), 
+\begin_inset Formula $dahspot=1E6$
+\end_inset
+
+ introduces some fractional energy restitution after impacts, while 
+\begin_inset Formula $dashpot=1E7$
+\end_inset
+
+ results in a nearly plastic impact.
+\end_layout
+
+\begin_layout Chapter
+Contact points
 \end_layout
 
 \begin_layout Standard
 \begin_inset Float figure
+placement b
 wide false
 sideways false
-status collapsed
+status open
 
 \begin_layout Plain Layout
 \align center
 \begin_inset Graphics
-	filename /Users/tomek/Devel/tkwork/books/tkb0/locus.eps
+	filename locus.eps
 	lyxscale 50
-	width 30text%
+	width 35text%
 
 \end_inset
 
@@ -7715,6 +8060,63 @@ A contact point
 \end_layout
 
 \begin_layout Standard
+Shapes are defined as juxtapositions of convex objects (Sections 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:CONVEX"
+
+\end_inset
+
+, 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:MESH"
+
+\end_inset
+
+, 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:SPHERE"
+
+\end_inset
+
+).
+ Let us call them 
+\emph on
+elements
+\emph default
+.
+ The 
+\emph on
+surface elements
+\emph default
+ are adjacent to the surface of bodies.
+ Contact points are characterised by a location and a normal direction -
+ they are 
+\emph on
+oriented
+\emph default
+.
+ In Solfec 
+\emph on
+a single oriented contact point results from an overlap of two surface elements
+\emph default
+.
+ This is motivated by two factors:
+\end_layout
+
+\begin_layout Enumerate
+The point and the normal direction derived from an overlap of two elements
+ are well defined for nonsmooth geometry.
+\end_layout
+
+\begin_layout Enumerate
+We wish to use as few contact points as possible, but still be able to control
+ the accuracy of contact resolution by mesh refinement.
+\end_layout
+
+\begin_layout Standard
 Two elements are in contact if their intersection is not empty.
  The intersection is 
 \begin_inset Formula $d$
@@ -7729,10 +8131,10 @@ Two elements are in contact if their intersection is not empty.
 \begin_inset Formula $3$
 \end_inset
 
--dimensional, volumetric intersection is considered.
- The remaining cases are cast into the volumetric one through a small expansion
- of the elements.
- Assume, that two elements 
+-dimensional, volumetric intersection is considered, while the remaining
+ cases are cast into the volumetric one through a small expansion of the
+ elements.
+ Let elements 
 \begin_inset Formula $e_{1}$
 \end_inset
 
@@ -7803,73 +8205,6 @@ The contact point can be computed as the mass centre of the surface part
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Subsection
-Signorini-Coulomb
-\end_layout
-
-\begin_layout Standard
-
-\series bold
-\color red
-TODO
-\end_layout
-
-\begin_layout Subsection
-Spring-dashpot
-\end_layout
-
-\begin_layout Standard
-\begin_inset Float figure
-wide false
-sideways false
-status open
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Graphics
-	filename /Users/tomek/Devel/tkwork/books/tkb0/gap.eps
-	lyxscale 50
-	width 40text%
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Caption
-
-\begin_layout Plain Layout
-\begin_inset CommandInset label
-LatexCommand label
-name "fig:gap"
-
-\end_inset
-
-Gap according to definition (
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "eq:gapdef"
-
-\end_inset
-
-).
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
 The gap function between a pair of elements 
 \emph on
 
@@ -7946,7 +8281,293 @@ reference "fig:gap"
 \end_inset
 
 ).
- The normal reaction is computed as follows
+ 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename gap.eps
+	lyxscale 50
+	width 50text%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:gap"
+
+\end_inset
+
+Gap according to definition (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:gapdef"
+
+\end_inset
+
+).
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:Materials"
+
+\end_inset
+
+Materials 
+\end_layout
+
+\begin_layout Section
+Surface materials
+\end_layout
+
+\begin_layout Standard
+A surface material is assigned to a pairing of surfaces.
+ See Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:SURFACE_MATERIAL"
+
+\end_inset
+
+ for the input syntax.
+\end_layout
+
+\begin_layout Subsection
+Signorini-Coulomb
+\end_layout
+
+\begin_layout Standard
+The velocity-level formulation of the Signorini condition reads
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\bar{U}_{N}\ge0\,\,\, R_{N}\ge0\,\,\,\bar{U}_{N}R_{N}=0\label{eq:sign}\end{equation}
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\bar{U}_{N}=U_{N}^{t+h}+\eta\min\left(0,U_{N}^{t}\right)\label{eq:U-dash-dyn}\end{equation}
+
+\end_inset
+
+
+\begin_inset Formula $U_{N}$
+\end_inset
+
+ is the the normal relative velocity, 
+\begin_inset Formula $R_{N}$
+\end_inset
+
+ is the normal reaction and 
+\begin_inset Formula $\eta$
+\end_inset
+
+ is the velocity 
+\begin_inset Formula $restitution$
+\end_inset
+
+ coefficient.
+ The normal direction is consistent with the positive gap velocity.
+ Thus (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:sign"
+
+\end_inset
+
+) states that any violation of the non-penetration results in a reactive
+ force or velocity driving at the penetration-free configuration.
+ Using the dashed velocity 
+\begin_inset Formula $\bar{U}_{N}$
+\end_inset
+
+ allows to include the simple Newton impact law.
+ 
+\series bold
+\emph on
+One must be aware
+\series default
+\emph default
+, that only the cases 
+\begin_inset Formula $restitution\in\left\{ 0,1\right\} $
+\end_inset
+
+ (
+\begin_inset Formula $\eta=0$
+\end_inset
+
+ or 
+\begin_inset Formula $\eta=1$
+\end_inset
+
+) are energy consistent (cannot cause energy growth, cf.
+ Section 10.5 in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2008PhD"
+
+\end_inset
+
+).
+ 
+\series bold
+\color red
+TODO: improve
+\end_layout
+
+\begin_layout Standard
+The Coulomb's friction law can be expressed in the form of the maximal dissipati
+on principle
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{R}_{T}\in D\left(\mu R_{N}\right)\,\,\,\forall\mathbf{S}\in D\left(\mu R_{N}\right)\,\,\,\left\langle \mathbf{S}-\mathbf{R}_{T},\mathbf{U}_{T}\right\rangle \ge0\label{eq:coul}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $D\left(\mu R_{N}\right)$
+\end_inset
+
+ is the 
+\begin_inset Formula $R_{N}\textrm{-level}$
+\end_inset
+
+ section of the friction cone, 
+\begin_inset Formula $\mathbf{R}_{T}$
+\end_inset
+
+ is the two-component tangential force, 
+\begin_inset Formula $\mathbf{S}$
+\end_inset
+
+ is any force in 
+\begin_inset Formula $D\left(\mu R_{N}\right)$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{U}_{T}$
+\end_inset
+
+ is the tangential relative velocity.
+ In the above 
+\begin_inset Formula $\left\langle \cdot,\cdot\right\rangle $
+\end_inset
+
+ stands for a scalar product in an Euclidean 2-space.
+ Thus a friction force smaller than 
+\begin_inset Formula $\mu R_{N}$
+\end_inset
+
+ implies sticking, while sliding occurs with the force of value 
+\begin_inset Formula $\mu R_{N}$
+\end_inset
+
+ and direction opposite to the slip velocity.
+\end_layout
+
+\begin_layout Standard
+The Signorini-Coulomb law can be expressed in the form of projections
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\left\{ \begin{array}{l}
+R_{N}=\textrm{proj}_{R_{+}}\left(R_{N}-\rho\bar{U}_{N}\right)\\
+\mathbf{R}_{T}=\textrm{proj}_{D\left(\mu R_{N}\right)}\left(\mathbf{R}_{T}-\rho\mathbf{U}_{T}\right)\end{array}\right.\label{eq:Sig-Coul}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\rho>0$
+\end_inset
+
+.
+ Writing
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+d_{N}\left(U_{N},R_{N}\right)=R_{N}-\rho\bar{U}_{N}\label{eq:dN}\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{d}_{T}\left(\mathbf{U}_{T},\mathbf{R}_{T}\right)=\mathbf{R}_{T}-\rho\mathbf{U}_{T}\label{eq:dT}\end{equation}
+
+\end_inset
+
+allows to rewrite the projection formulae as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\left[\begin{array}{c}
+\max\left(\mu d_{N},\left\Vert \mathbf{d}_{T}\right\Vert \right)\mathbf{R}_{T}-\mu\max\left(0,d_{N}\right)\mathbf{d}_{T}\\
+R_{N}-\max\left(0,d_{N}\right)\end{array}\right]\label{eq:CR}\end{equation}
+
+\end_inset
+
+which is a nonsmooth constraint equation of the frictional contact law 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "HSW2006"
+
+\end_inset
+
+.
+ We refer the reader to Chapter 10 of 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2008PhD"
+
+\end_inset
+
+ for more details.
+\end_layout
+
+\begin_layout Subsection
+Spring-dashpot
+\end_layout
+
+\begin_layout Standard
+The normal reaction is computed as follows
 \end_layout
 
 \begin_layout Standard
@@ -8020,7 +8641,12 @@ stick
 
 \end_inset
 
-The complete interface reads
+Let 
+\begin_inset Formula $\mu$
+\end_inset
+
+ stand for the coefficient of friction.
+ The complete interface law reads
 \end_layout
 
 \begin_layout LyX-Code
@@ -8046,6 +8672,22 @@ else
 \begin_layout LyX-Code
   
 \begin_inset Formula $R_{N}=\left[-spring\cdot gap-0.5\cdot dashpot\cdot\left(B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}+U_{N}^{t}\right)\right]/\left[1+0.5\cdot dashpot\cdot W_{NN}\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  if not 
+\begin_inset Formula $cohesive$
+\end_inset
+
+ and 
+\begin_inset Formula $R_{N}<0$
+\end_inset
+
+ then 
+\begin_inset Formula $R_{N}=0$
 \end_inset
 
 
@@ -8112,7 +8754,10 @@ Kirchhoff - Saint Venant
 \end_layout
 
 \begin_layout Standard
-The strain energy function 
+This is a simple extension of the linearly elastic material to the large
+ deformation regime.
+ Suitable for large rotation, small strain problems.
+ The strain energy function 
 \begin_inset Formula $\Psi$
 \end_inset
 

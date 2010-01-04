@@ -972,7 +972,13 @@ void BODY_Initial_Velocity (BODY *bod, double *linear, double *angular)
       if (linear) {COPY (linear, RIG_LINVEL(bod));}
     break;
     case PRB:
-      if (angular) {VECSKEW (angular, PRB_GRADVEL(bod));}
+      if (angular)
+      {
+	double copy [3];
+	COPY (angular, copy);
+	SCALE (copy, -1.0); /* otherwise reversed directions => TODO: why? */
+	VECSKEW (copy, PRB_GRADVEL(bod));
+      }
       if (linear) {COPY (linear, PRB_LINVEL(bod));}
     break;
     case FEM:
