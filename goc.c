@@ -88,7 +88,9 @@ inline static double convex_sphere_gap (double *pla, int npla, double *center, d
     }
   }
 
-  return (max > radius ? radius - max : 0);
+  max = fabs (max);
+
+  return (radius > max ? max - radius : 0);
 }
 
 /* compute semi-negative sphere-sphere gap */

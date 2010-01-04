@@ -27,6 +27,8 @@ int EXPLICIT_Spring_Dashpot_Contact (CON *con, double gap, double spring, double
 
   R [2] = - spring * gap - 0.5 * dashpot * (B[2] + W[2]*R[0] + W[5]*R[1] + V[2]) / (1.0 + 0.5 * dashpot * W[8]);
 
+  if (!cohesive && R[2] < 0.0) R [2] = 0.0;
+
   BT [0] = B[0] + W[6] * R[2];
   BT [1] = B[1] + W[7] * R[2];
 
@@ -65,6 +67,9 @@ int EXPLICIT_Spring_Dashpot_Contact (CON *con, double gap, double spring, double
 /* explcit constraint solver */
 void EXPLICIT_Solve (LOCDYN *ldy)
 {
+  double error, step;
+  short dynamic;
+  int iters;
   DIAB *dia;
   CON *con;
 
@@ -81,10 +86,6 @@ void EXPLICIT_Solve (LOCDYN *ldy)
   }
 
   /* Gauss-Seidel sweep for non-contacts now */
-  double error, step;
-  short dynamic;
-  int iters;
-
   dynamic = ldy->dom->dynamic;
   step = ldy->dom->step;
   iters = 0;
