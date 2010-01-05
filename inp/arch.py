@@ -78,7 +78,7 @@ step = 0.001
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/arch')
 
-CONTACT_SPARSIFY (solfec, 0.0)
+CONTACT_SPARSIFY (solfec, 0.005)
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.4)
 
