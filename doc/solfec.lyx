@@ -3976,12 +3976,26 @@ i < j
 \end_layout
 
 \begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:GAUSS_SEIDEL_SOLVER"
+
+\end_inset
+
 GAUSS_SEIDEL_SOLVER
 \end_layout
 
 \begin_layout Standard
 An object of type GAUSS_SEIDEL_SOLVER represents a nonlinear block Gauss-Seidel
- solver, employed for the calculation of constraint reactions.
+ solver, employed for the calculation of constraint reactions (cd.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Gauss-Seidel-solver"
+
+\end_inset
+
+).
 \end_layout
 
 \begin_layout Subsection*
@@ -4603,7 +4617,15 @@ EXPLICIT_SOLVER
 
 \begin_layout Standard
 An object of type EXPLICIT_SOLVER represents a penalty based constraint
- solver.
+ solver (cf.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Explicit-solver"
+
+\end_inset
+
+).
  When in use, all 'SIGNORONI_COULOMB' type contact interfaces are regarded
  as 'SPRING_DASHPOT' ones.
  One should then remember about specifying the 
@@ -8177,11 +8199,34 @@ reference "fig:spar-2"
 \end_inset
 
 .
- A heuristic sparsification algorithm filters out redundant contact points.
+ A heuristic sparsification algorithm filters out redundant contact points
+ (cf.
+ Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Contact-sparsification"
+
+\end_inset
+
+).
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout LyX-Code
+SPARSIFY 
+\begin_inset Formula $\left(\right)$
+\end_inset
+
+
 \end_layout
 
 \begin_layout LyX-Code
-for each 
+  for each 
 \begin_inset Formula $contact1$
 \end_inset
 
@@ -8189,7 +8234,7 @@ for each
 \end_layout
 
 \begin_layout LyX-Code
-  for each 
+    for each 
 \begin_inset Formula $body$
 \end_inset
 
@@ -8201,7 +8246,7 @@ for each
 \end_layout
 
 \begin_layout LyX-Code
-    for each 
+      for each 
 \begin_inset Formula $contact2$
 \end_inset
 
@@ -8213,7 +8258,7 @@ for each
 \end_layout
 
 \begin_layout LyX-Code
-      if 
+        if 
 \begin_inset Formula $contact1=contact2$
 \end_inset
 
@@ -8221,7 +8266,7 @@ for each
 \end_layout
 
 \begin_layout LyX-Code
-      if 
+        if 
 \begin_inset Formula $area\left(contact1\right)<threshold\cdot area\left(contact2\right)$
 \end_inset
 
@@ -8229,7 +8274,7 @@ for each
 \end_layout
 
 \begin_layout LyX-Code
-         
+           
 \begin_inset Formula $topologically\_adjacent\left(contact1,contact2\right)$
 \end_inset
 
@@ -8241,12 +8286,35 @@ for each
 \end_layout
 
 \begin_layout LyX-Code
-      else if 
+        else if 
 \begin_inset Formula $point\left(contact1\right)=point\left(contact2\right)$
 \end_inset
 
  then remove 
 \begin_inset Formula $contact1$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Contact-sparsification"
+
+\end_inset
+
+Contact sparsification algorithm.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
 \end_inset
 
 
@@ -8289,7 +8357,7 @@ status open
 \begin_inset Graphics
 	filename /Users/tomek/Devel/tkwork/codes/solfec/doc/figures/arch-1.png
 	lyxscale 30
-	width 65text%
+	width 62text%
 
 \end_inset
 
@@ -8322,7 +8390,7 @@ An arch and a detail of two bricks.
 
 \begin_layout Standard
 \begin_inset Float figure
-placement h
+placement H
 wide false
 sideways false
 status open
@@ -8332,7 +8400,7 @@ status open
 \begin_inset Graphics
 	filename figures/arch-2.png
 	lyxscale 30
-	width 65text%
+	width 62text%
 
 \end_inset
 
@@ -8883,18 +8951,1025 @@ name "cha:Solvers"
 Solvers
 \end_layout
 
-\begin_layout Section
-Gauss-Seidel solver
+\begin_layout Standard
+Development of solvers for unilateral dynamics is one of the main driving
+ forces behind Solfec.
+ The two solvers described in Sections 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Gauss-Seidel-solver"
+
+\end_inset
+
+ and 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:Explicit-solver"
+
+\end_inset
+
+ are the classical Gauss-Seidel approach of Contact Dynamics and the classical
+ penalty solver of Discrete Element Method.
+ They are in their own ways inefficient (GS is not scalable while the penalty
+ approach results in stiff differential equations).
+ This motivates development of improved methods - yet to be documented.
 \end_layout
 
 \begin_layout Section
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:Gauss-Seidel-solver"
+
+\end_inset
+
+Gauss-Seidel solver
+\end_layout
+
+\begin_layout Standard
+The equations of local dynamics read
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{U}_{\alpha}=\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{U}_{\alpha}$
+\end_inset
+
+ are relative velocities and 
+\begin_inset Formula $\mathbf{R}_{\alpha}$
+\end_inset
+
+ are reactions at constraint points.
+ 
+\begin_inset Formula $\mathbf{U}_{\alpha},\mathbf{R}_{\alpha},\mathbf{B}_{\alpha}$
+\end_inset
+
+ are 3-vectors, while 
+\begin_inset Formula $\mathbf{W}_{\alpha\beta}$
+\end_inset
+
+ are 
+\begin_inset Formula $3\times3$
+\end_inset
+
+ matrix blocks.
+ Each constraint equation can be formulated as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{C}_{\alpha}\left(\mathbf{U}_{\alpha},\mathbf{R}_{\alpha}\right)=\mathbf{0}\end{equation}
+
+\end_inset
+
+
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout LyX-Code
+SERIAL_GAUSS_SEIDEL 
+\begin_inset Formula $\left(\epsilon\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  do
+\end_layout
+
+\begin_layout LyX-Code
+    for each 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ do
+\end_layout
+
+\begin_layout LyX-Code
+      
+\begin_inset Formula $\mathbf{S}_{\alpha}=\mathbf{R}_{\alpha}$
+\end_inset
+
+  
+\end_layout
+
+\begin_layout LyX-Code
+      find 
+\begin_inset Formula $\mathbf{R}_{\alpha}$
+\end_inset
+
+ such that 
+\begin_inset Formula $\mathbf{C}_{\alpha}\left(\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta},\mathbf{R}_{\alpha}\right)=\mathbf{0}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+                         assuming 
+\begin_inset Formula $\mathbf{R}_{\beta}=\mbox{constant}$
+\end_inset
+
+ for 
+\begin_inset Formula $\beta\ne\alpha$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  while 
+\begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Serial-Gauss-Seidel"
+
+\end_inset
+
+Serial Gauss-Seidel algorithm
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The serial Gauss-Seidel algorithm (cf.
+ Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Serial-Gauss-Seidel"
+
+\end_inset
+
+) is quite simple: diagonal block problems are solved until reaction change
+ is small enough.
+ The Gauss-Seidel paradigm corresponds to the fact, that always the most
+ recent off-diagonal reactions are used when solving the diagonal problem.
+ Of course, because of that, a perfectly parallel implementation is not
+ possible.
+ After all, reactions are updated in a sequence.
+ We can nevertheless relax the need for sequential processing hope for the
+ best when running parallel simulations.
+ Mark Adams has devised perhaps the most scalable parallel Gauss-Seidel
+ approach to date 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Adams01"
+
+\end_inset
+
+.
+ We have implemented it in Solfec.
+ The details are as follows.
+ Each processor owes a subset of constraints 
+\begin_inset Formula $Q_{i}$
+\end_inset
+
+ where 
+\begin_inset Formula $i=1,2,...,n$
+\end_inset
+
+ are processors indices.
+ Therefore in the local velocity update we have
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{U}_{\alpha}=\mathbf{B}_{\alpha}+\sum_{\beta\in Q_{i}}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}+\sum_{\beta\notin Q_{i}}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}\end{equation}
+
+\end_inset
+
+Some of the 
+\begin_inset Formula $\mathbf{W}_{\alpha\beta}$
+\end_inset
+
+ blocks and reactions 
+\begin_inset Formula $\mathbf{R}_{\beta}$
+\end_inset
+
+ correspond to the constraints stored on other processors (
+\begin_inset Formula $\beta\notin Q_{i}$
+\end_inset
+
+).
+ Let us denote the set of corresponding reaction indices by 
+\begin_inset Formula $P_{i}$
+\end_inset
+
+.
+ That is 
+\begin_inset Formula \begin{equation}
+P_{i}=\left\{ \beta:\exists\mathbf{W}_{\alpha\beta}\ne\mathbf{0}\mbox{ and }\alpha\in Q_{i}\mbox{ and }\beta\notin Q_{i}\right\} \end{equation}
+
+\end_inset
+
+For each 
+\begin_inset Formula $\beta\in P_{i}$
+\end_inset
+
+ we know an index of processor 
+\begin_inset Formula $cpu\left(\beta\right)$
+\end_inset
+
+ storing the constraint with index 
+\begin_inset Formula $\beta$
+\end_inset
+
+.
+ For processor 
+\begin_inset Formula $i$
+\end_inset
+
+ we can then define a set of adjacent processors as follows
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+adj\left(i\right)=\left\{ cpu\left(\beta\right):\beta\in P_{i}\right\} \end{equation}
+
+\end_inset
+
+Of course, when updating reactions, a processor needs to communicate only
+ with other adjacent processors.
+ We are going to optimise a pattern of this communication by 
+\emph on
+coloring
+\emph default
+ the processors.
+ That is, we assign to each processor a color, such that no two adjacent
+ processors have the same color.
+ A simple processor coloring is summarised in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Simple-processor-coloring"
+
+\end_inset
+
+.
+ We try to assign as few colors as possible.
+ We then split index sets 
+\begin_inset Formula $Q_{i}$
+\end_inset
+
+ as follows
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout LyX-Code
+COLOR 
+\begin_inset Formula $\left(\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  for 
+\begin_inset Formula $i$
+\end_inset
+
+
+\begin_inset Formula $=1,...,n$
+\end_inset
+
+ do 
+\begin_inset Formula $color\left[i\right]=0$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+    if 
+\begin_inset Formula $color\left[i\right]=0$
+\end_inset
+
+ then
+\end_layout
+
+\begin_layout LyX-Code
+      do
+\end_layout
+
+\begin_layout LyX-Code
+        
+\begin_inset Formula $color\left[i\right]=color\left[i\right]+1$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+      while for any 
+\begin_inset Formula $j\in adj\left(i\right)$
+\end_inset
+
+ there holds 
+\begin_inset Formula $color\left[i\right]=color\left[j\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Simple-processor-coloring"
+
+\end_inset
+
+Simple processor coloring.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+Top_{i}=\left\{ \alpha:\exists\mathbf{W}_{\alpha\beta}:\beta\in P_{i}:\forall\mathbf{W}_{\alpha\beta}\wedge\beta\in P_{i}:color\left[cpu\left(\beta\right)\right]<color\left[i\right]\right\} \end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+Bottom_{i}=\left\{ \alpha:\exists\mathbf{W}_{\alpha\beta}:\beta\in P_{i}:\forall\mathbf{W}_{\alpha\beta}\wedge\beta\in P_{i}:color\left[cpu\left(\beta\right)\right]>color\left[i\right]\right\} \end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+Middle{}_{i}=\left\{ \alpha:\exists\mathbf{W}_{\alpha\beta}:\beta\in P_{i}:\alpha\notin Top_{i}\vee Bottom_{i}\right\} \end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+Inner_{i}=Q_{i}\setminus\left\{ Top_{i}\cup Bottom_{i}\cup Middle_{i}\right\} \end{equation}
+
+\end_inset
+
+The top constraints require communication only with processors of lower
+ colors.
+ The bottom constraints require communication only with processors of higher
+ colors.
+ The middle constraints require communication with either.
+ The inner constraints require no communication.
+ The inner reactions are further split in two sets.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+Inner_{i}=Inner1_{i}\cup Inner2_{i}\end{equation}
+
+\end_inset
+
+so that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\left|Bottom_{i}\right|+\left|Inner2_{i}\right|=\left|Top_{i}\right|+\left|Inner1_{i}\right|\label{eq:gsbalcnd}\end{equation}
+
+\end_inset
+
+The parallel Gauss-Seidel approach is summarised in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Parallel-Gauss-Seidel"
+
+\end_inset
+
+.
+ The presented version is simplified in the respect, that alternate forward
+ and backward runs in terms of constraint ordering are not accounted for.
+ We first process the 
+\begin_inset Formula $Top_{i}$
+\end_inset
+
+ set.
+ A single sweep of diagonal block problem solutions is done in line 3.
+ Then we send the computed top reactions to the processors with lower colors.
+ We try to overlap communication and computation, hence we sweep over the
+ 
+\begin_inset Formula $Inner2_{i}$
+\end_inset
+
+ set in line 5, while sending.
+ We then receive the top reactions.
+ It should be noted that all communication is asynchronous - we only wait
+ to receive the reactions immediately necessary for current computations.
+ In line 7 we enter the loop processing the 
+\begin_inset Formula $Middle_{i}$
+\end_inset
+
+ set.
+ This is the bottleneck of the method - this is where the classical colored
+ Gauss-Seidel approach needs to be executed.
+ Middle nodes communicate with processors of higher and lower colors.
+ This is why they need to be processed in a sequence.
+ The sequential processing is still relaxed by using processor coloring.
+ In the LOOP algorithm we first sort the constraints according to the descending
+ order of maximal colors of their adjacent processors (line 1).
+ We then maintain this ordering while processing constraints.
+ As the top reactions were already sent, some of the constraints from the
+ middle set will have their external reactions from higher colors fully
+ updated.
+ These will be processed first in line 5 of LOOP and then sent to lower
+ and higher processors (by color) in line 6.
+ This way some lower color processors will have the suitable off-diagonal
+ reactions of the middle set constraints fully updated and they will proceed
+ next.
+ And so on.
+ At the end (line 7) we need to receive all remaining reactions that have
+ been sent in line 6 of LOOP.
+ Coming back to PARALLEL_GAUSS_SEIDEL, after the bottleneck of the LOOP,
+ in lines 8-11 we process the 
+\begin_inset Formula $Bottom_{i}$
+\end_inset
+
+ and 
+\begin_inset Formula $Inner1_{i}$
+\end_inset
+
+ sets same way as we did with 
+\begin_inset Formula $Top_{i}$
+\end_inset
+
+ and 
+\begin_inset Formula $Inner2_{i}$
+\end_inset
+
+.
+ The condition (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:gsbalcnd"
+
+\end_inset
+
+) attempts to balance the amount of computations needed to hide the communicatio
+n (e.g.
+ the larger the 
+\begin_inset Formula $Top_{i}$
+\end_inset
+
+ set is, the larger the 
+\begin_inset Formula $Inner2_{i}$
+\end_inset
+
+ set becomes).
+ It should be noted that the convergence criterion in line 12 is global
+ across all processors.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout LyX-Code
+SWEEP 
+\begin_inset Formula $\left(Set\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  for each 
+\begin_inset Formula $\alpha\in Set$
+\end_inset
+
+ do
+\end_layout
+
+\begin_layout LyX-Code
+    
+\begin_inset Formula $\mathbf{S}_{\alpha}=\mathbf{R}_{\alpha}$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout LyX-Code
+    find 
+\begin_inset Formula $\mathbf{R}_{\alpha}$
+\end_inset
+
+ such that 
+\begin_inset Formula $\mathbf{C}_{\alpha}\left(\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta},\mathbf{R}_{\alpha}\right)=\mathbf{0}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+                        assuming 
+\begin_inset Formula $\mathbf{R}_{\beta}=\mbox{constant}$
+\end_inset
+
+ for 
+\begin_inset Formula $\beta\ne\alpha$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+ 
+\end_layout
+
+\begin_layout LyX-Code
+LOOP 
+\begin_inset Formula $\left(Set\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+1  descending sort of 
+\begin_inset Formula $\alpha\in Set$
+\end_inset
+
+ based on 
+\begin_inset Formula $\max\left(color\left[cpu\left(\beta\right)\right]\right)$
+\end_inset
+
+ where 
+\begin_inset Formula $\exists\mathbf{W}_{\alpha\beta}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+2  for each ordered 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ in 
+\begin_inset Formula $Set$
+\end_inset
+
+ do
+\end_layout
+
+\begin_layout LyX-Code
+3    for each 
+\begin_inset Formula $\beta$
+\end_inset
+
+ such that 
+\begin_inset Formula $\exists\mathbf{W}_{\alpha\beta}$
+\end_inset
+
+ and 
+\begin_inset Formula $color\left[cpu\left(\alpha\right)\right]<color\left[cpu\left(\beta\right)\right]$
+\end_inset
+
+ do
+\end_layout
+
+\begin_layout LyX-Code
+4      if not received 
+\begin_inset Formula $\left(\mathbf{R}_{\beta}\right)$
+\end_inset
+
+ then receive 
+\begin_inset Formula $\left(\mathbf{R}_{\beta}\right)$
+\end_inset
+
+ 
+\end_layout
+
+\begin_layout LyX-Code
+5    find 
+\begin_inset Formula $\mathbf{R}_{\alpha}$
+\end_inset
+
+ such that 
+\begin_inset Formula $\mathbf{C}_{\alpha}\left(\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta},\mathbf{R}_{\alpha}\right)=\mathbf{0}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+                        assuming 
+\begin_inset Formula $\mathbf{R}_{\beta}=\mbox{constant}$
+\end_inset
+
+ for 
+\begin_inset Formula $\beta\ne\alpha$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+6    send 
+\begin_inset Formula $\left(\mathbf{R}_{\alpha}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+7  receive all remaining 
+\begin_inset Formula $\mathbf{R}_{\beta}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+ 
+\end_layout
+
+\begin_layout LyX-Code
+PARALLEL_GAUSS_SEIDEL 
+\begin_inset Formula $\left(\epsilon\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+1   COLOR 
+\begin_inset Formula $\left(\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+2   do
+\end_layout
+
+\begin_layout LyX-Code
+3     SWEEP 
+\begin_inset Formula $\left(Top_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+4     send 
+\begin_inset Formula $\left(Top_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+5     SWEEP 
+\begin_inset Formula $\left(Inner2_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+6     receive 
+\begin_inset Formula $\left(Top_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+7     LOOP 
+\begin_inset Formula $\left(Middle_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+8     SWEEP 
+\begin_inset Formula $\left(Bottom_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+9     send 
+\begin_inset Formula $\left(Bottom_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+10    SWEEP 
+\begin_inset Formula $\left(Inner1_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+11    receive 
+\begin_inset Formula $\left(Bottom_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+12  while
+\begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Parallel-Gauss-Seidel"
+
+\end_inset
+
+Parallel Gauss-Seidel algorithm.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+    
+\end_layout
+
+\begin_layout LyX-Code
+    
+\end_layout
+
+\begin_layout Standard
+In Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:GAUSS_SEIDEL_SOLVER"
+
+\end_inset
+
+ several variants of the parallel algorithm are listed.
+ Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Parallel-Gauss-Seidel"
+
+\end_inset
+
+ corresponds to the 'FULL' variant.
+ If we would like to relax the bottleneck of the LOOP algorithm.
+ We can try using the 'MIDDLE_JACOBI' variant of the solver.
+ In such case line 7 of PARALLEL_GAUSS_SEIDEL is replaced by
+\end_layout
+
+\begin_layout LyX-Code
+SWEEP 
+\begin_inset Formula $\left(Middle_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+send 
+\begin_inset Formula $\left(Middle_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+receive 
+\begin_inset Formula $\left(Middle_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+so that the middle nodes are processed in an inconsistent manner - the off-proce
+ssor information corresponds to the previous iteration (just like in the
+ Jacobi method).
+ Usually the 
+\begin_inset Formula $Middle_{i}$
+\end_inset
+
+ sets are small, hence this inconsistency might not lead to divergence -
+ especially so for deformable kinematics, where constraint interactions
+ are weak (
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+ is diagonally dominant).
+ The next possible variant of the solver is named 'BOUNDARY_JACOBI'.
+ This corresponds to a rather gross inconsistency - something usually called
+ 
+\begin_inset Quotes eld
+\end_inset
+
+a processor Gauss-Seidel method
+\begin_inset Quotes erd
+\end_inset
+
+.
+ Let us define the set
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+All_{i}=Top_{i}\cup Bottom_{i}\cup Middle_{i}\cup Inner_{i}\]
+
+\end_inset
+
+We now loop as follows
+\end_layout
+
+\begin_layout LyX-Code
+do
+\end_layout
+
+\begin_layout LyX-Code
+  SWEEP 
+\begin_inset Formula $\left(All_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  send 
+\begin_inset Formula $\left(All_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  receive 
+\begin_inset Formula $\left(All_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+while
+\begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+until convergence - except it usually does not converge.
+ This kind of approach does work as a multi-grid smoother, but apparently
+ as a nonlinear solver it has little use.
+ The final and crudest variant of the solver is called 'SIMPLIFIED'.
+ This one is devised with soft deformable models in mind.
+ We split constraints into 
+\begin_inset Formula $Contacts_{i}$
+\end_inset
+
+ and 
+\begin_inset Formula $Others_{i}$
+\end_inset
+
+, hence we separate contact constraints from bilateral ones.
+ We then do the following
+\end_layout
+
+\begin_layout LyX-Code
+SWEEP 
+\begin_inset Formula $\left(Contacts_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+send 
+\begin_inset Formula $\left(Contacts_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+receive 
+\begin_inset Formula $\left(Contacts_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+do
+\end_layout
+
+\begin_layout LyX-Code
+  SWEEP 
+\begin_inset Formula $\left(Others_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+while
+\begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+A single sweep over contacts is followed by the Gauss-Seidel loop over bilateral
+ constraints.
+ This is possible because bilateral constraints migrate together with bodies
+ and hence are local to the processor (an exception is for the rigid link
+ constraint, for which this approach might break down).
+\end_layout
+
+\begin_layout Section
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:Explicit-solver"
+
+\end_inset
+
 Explicit solver
 \end_layout
 
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
-bibfiles "/Users/tomek/Devel/tkwork/bibs/rigid-bodies,/Users/tomek/Devel/tkwork/bibs/contact-related"
+bibfiles "/Users/tomek/Devel/tkwork/bibs/rigid-bodies,/Users/tomek/Devel/tkwork/bibs/contact-related,/Users/tomek/Devel/tkwork/bibs/phd"
 options "plain"
 
 \end_inset
