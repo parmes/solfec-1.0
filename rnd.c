@@ -162,7 +162,8 @@ enum /* menu items */
   RESULTS_MISES,
   RESULTS_RT,
   RESULTS_RN,
-  RESULTS_R
+  RESULTS_R,
+  RESULTS_GAP
 };
 
 enum mouse_mode
@@ -388,7 +389,7 @@ static short legend_constraint_based (void)
   if ((legend.entity >= KINDS_OF_CONSTRAINTS &&
        legend.entity <= KINDS_OF_FORCES) ||
       (legend.entity >= RESULTS_RT &&
-       legend.entity <= RESULTS_R)) return 1;
+       legend.entity <= RESULTS_GAP)) return 1;
 
   return 0;
 }
@@ -717,6 +718,7 @@ static void update_body_constraint_or_force_values (BODY *bod)
       case RESULTS_RT: value = LEN2 (con->R); break;
       case RESULTS_RN: value = fabs (con->R[2]); break;
       case RESULTS_R: value = LEN (con->R); break;
+      case RESULTS_GAP: value = con->gap; break;
       }
 
       if (value < legend.extents [0]) legend.extents [0] = value;
@@ -985,6 +987,7 @@ static char* legend_caption ()
   case RESULTS_RN: return "RN";
   case RESULTS_RT: return "RT";
   case RESULTS_R: return "R";
+  case RESULTS_GAP: return "GAP";
   }
 
   return NULL;
@@ -1627,6 +1630,121 @@ static void render_r (CON *con, GLfloat color [3])
   arrow3d (other, con->point);
 }
 
+/* draw tube from p to q */
+static void tube3d (double *p, double *q)
+{
+  double R [9],
+	 a [3],
+	 b [3],
+	 c [3],
+	 d [3],
+	 x [3],
+	 y [3],
+	 t [3],
+	 r [3],
+	 n [3],
+	 l,
+	 o,
+	 s,
+	 angle;
+  int i, div = 2;
+
+  SUB (q, p, d);
+  MAXABSIDX (d, i);
+  SET (x, 1.0);
+  ADD (x, d, x);
+  x [i] = 0.0;
+  PRODUCT (d, x, t);
+  l = LEN (d);
+  DIV (d, l, d);
+  COPY (d, n);
+  SCALE (n, -1);
+  NORMALIZE (t);
+  ADDMUL (p, l, d, r);
+  angle = ALG_PI / (double) div;
+  SCALE (d, angle);
+  EXPMAP (d, R);
+  o = 0.075 * l;
+  s = 0.150 * l;
+
+  ADDMUL (p, o, t, a);
+  ADDMUL (r, o, t, b);
+
+  div *= 2;
+
+  for (i = 0; i < div; i ++)
+  {
+    SUB (b, r, x);
+    NVMUL (R, x, y);
+    ADD (r, y, c);
+
+    SUB (a, r, x);
+    NVMUL (R, x, y);
+    ADD (r, y, d);
+
+    glNormal3dv (y);
+    glBegin (GL_QUADS);
+    glVertex3dv (d);
+    glVertex3dv (c);
+    glVertex3dv (b);
+    glVertex3dv (a);
+    glEnd ();
+
+    COPY (c, b);
+    COPY (d, a);
+  }
+
+  ADDMUL (q, o, t, a);
+  glNormal3dv (n);
+  glBegin (GL_POLYGON);
+  glVertex3dv (a);
+  for (i = 0; i < div; i ++)
+  {
+    SUB (a, q, x);
+    NVMUL (R, x, y);
+    ADD (q, y, b);
+    glVertex3dv (b);
+    COPY (b, a);
+  }
+  glEnd ();
+
+  ADDMUL (p, o, t, a);
+  glNormal3dv (n);
+  glBegin (GL_POLYGON);
+  glVertex3dv (a);
+  for (i = 0; i < div; i ++)
+  {
+    SUB (a, p, x);
+    TVMUL (R, x, y);
+    ADD (p, y, b);
+    glVertex3dv (b);
+    COPY (b, a);
+  }
+  glEnd ();
+}
+
+/* render gap */
+static void render_gap (CON *con, GLfloat color [3])
+{
+  double r [3],
+	 first [3],
+	 other [3],
+	 ext = GLV_Minimal_Extent() * arrow_factor,
+	 eps,
+	 len;
+
+  COPY (con->base+6, r);
+  SCALE (r, con->gap);
+  len = LEN (r);
+  if (len == 0.0) len = 1.0;
+  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  ADDMUL (con->point, -0.5 * eps, r, first);
+  ADDMUL (first,  eps, r, other);
+
+  glColor3fv (color);
+  tube3d (first, other);
+}
+
 /* render force constraint */
 static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
 {
@@ -1705,6 +1823,7 @@ static void render_body_set_constraints_or_forces (SET *set)
 	case RESULTS_RT: value_to_color (LEN2 (con->R), color); render_rt (con, color); break;
 	case RESULTS_RN: value_to_color (fabs (con->R[2]), color); render_rn (con, color); break;
 	case RESULTS_R:  value_to_color (LEN (con->R), color); render_r (con, color); break;
+	case RESULTS_GAP:  value_to_color (con->gap, color); render_gap (con, color); break;
 	}
 
 	con->state |= CON_DONE;
@@ -2203,7 +2322,7 @@ static void menu_tools (int item)
   case TOOLS_NEXT_RESULT:
     if (legend.entity)
     {
-      if (legend.entity < RESULTS_R)
+      if (legend.entity < RESULTS_GAP)
       {
 	legend.entity ++;
 	update ();
@@ -2220,7 +2339,7 @@ static void menu_tools (int item)
 	update ();
       }
     }
-    else menu_results (RESULTS_R);
+    else menu_results (RESULTS_GAP);
     break;
   case TOOLS_SMALLER_ARROWS:
     if (arrow_factor > 0.02) arrow_factor -= 0.01;
@@ -2360,6 +2479,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("normal", RESULTS_RN);
   glutAddMenuEntry ("tangent", RESULTS_RT);
   glutAddMenuEntry ("resultant", RESULTS_R);
+  glutAddMenuEntry ("gap", RESULTS_GAP);
 
   menu_name [MENU_RESULTS] = "results";
   menu_code [MENU_RESULTS] = glutCreateMenu (menu_results);

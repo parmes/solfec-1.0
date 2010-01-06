@@ -43,11 +43,13 @@ def ball_impact (step, stop, spring_value, dashpot_value, output):
   return solfec
 
 # main module
+step = 1E-3
 stop = 2.0
+spring = 1E+9
 
-sol1 = ball_impact (1E-3, stop, 1E+9, 0E0, 'out/tutorial/sphere-impact-1')
-sol2 = ball_impact (1E-3, stop, 1E+9, 1E6, 'out/tutorial/sphere-impact-2')
-sol3 = ball_impact (1E-3, stop, 1E+9, 1E7, 'out/tutorial/sphere-impact-3')
+sol1 = ball_impact (step, stop, spring, 0E0, 'out/tutorial/sphere-impact-1')
+sol2 = ball_impact (step, stop, spring, 1E6, 'out/tutorial/sphere-impact-2')
+sol3 = ball_impact (step, stop, spring, 1E7, 'out/tutorial/sphere-impact-3')
 
 # plotting
 if not VIEWER() and sol1.mode == 'READ':
@@ -60,4 +62,4 @@ if not VIEWER() and sol1.mode == 'READ':
   plt.plot (th [0], th [1], lw = 2, label='kin (1E7)')
   plt.axis (xmin = 0, xmax = 2, ymin=-10000, ymax=110000)
   plt.legend(loc = 'upper right')
-  plt.savefig ('doc/ball-impact.eps', format = 'eps')
+  plt.savefig ('doc/figures/ball-impact.eps')

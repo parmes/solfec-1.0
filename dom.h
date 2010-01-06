@@ -73,13 +73,11 @@ struct constraint
 
   enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK} kind; /* constraint kind */
 
-  enum {CON_STICK    = 0x01,
-        CON_OPEN     = 0x02,
-        CON_COHESIVE = 0x04,
-        CON_NEW      = 0x08,
-	CON_IDLOCK   = 0x10, /* locked ID cannot be freed to the pool */
-	CON_EXTERNAL = 0x20, /* a boundary constraint migrated in from another processor */
-        CON_DONE     = 0x40} state; /* constraint state */
+  enum {CON_COHESIVE = 0x01,
+        CON_NEW      = 0x02,
+	CON_IDLOCK   = 0x04, /* locked ID cannot be freed to the pool */
+	CON_EXTERNAL = 0x08, /* a boundary constraint migrated in from another processor */
+        CON_DONE     = 0x10} state; /* constraint state */
 
   short paircode; /* geometric object pair code for a contact */
 

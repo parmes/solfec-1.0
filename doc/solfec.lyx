@@ -7864,19 +7864,31 @@ sphere_impact
 \end_layout
 
 \begin_layout LyX-Code
+step = 1E-3
+\end_layout
+
+\begin_layout LyX-Code
 stop = 2.0
 \end_layout
 
 \begin_layout LyX-Code
-sol1 = ball_impact (1E-3, stop, 1E+9, 0E0, 'out/tutorial/sphere-impact-1')
+spring = 1E+9
 \end_layout
 
 \begin_layout LyX-Code
-sol2 = ball_impact (1E-3, stop, 1E+9, 1E6, 'out/tutorial/sphere-impact-2')
+
 \end_layout
 
 \begin_layout LyX-Code
-sol3 = ball_impact (1E-3, stop, 1E+9, 1E7, 'out/tutorial/sphere-impact-3')
+sol1 = ball_impact (step, stop, spring, 0E0, 'out/tutorial/sphere-impact-1')
+\end_layout
+
+\begin_layout LyX-Code
+sol2 = ball_impact (step, stop, spring, 1E6, 'out/tutorial/sphere-impact-2')
+\end_layout
+
+\begin_layout LyX-Code
+sol3 = ball_impact (step, stop, spring, 1E7, 'out/tutorial/sphere-impact-3')
 \end_layout
 
 \begin_layout Standard
@@ -7974,7 +7986,7 @@ if not VIEWER() and sol1.mode == 'READ':
 \end_layout
 
 \begin_layout LyX-Code
-  plt.savefig ('doc/ball-impact.eps', format = 'eps')
+  plt.savefig ('doc/figures/ball-impact.eps')
 \end_layout
 
 \begin_layout Standard
@@ -8211,7 +8223,7 @@ reference "alg:Contact-sparsification"
 ).
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \begin_inset Float algorithm
 wide false
 sideways false
@@ -8630,12 +8642,21 @@ Spring-dashpot
 \end_layout
 
 \begin_layout Standard
+Let
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+s=spring\mbox{ and }d=dashpot\mbox{ and }g=gap\end{equation}
+
+\end_inset
+
 The normal reaction is computed as follows
 \end_layout
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-R_{N}=-spring\cdot gap-dashpot\cdot\frac{U_{N}^{t+h}+U_{N}^{t}}{2}\label{eq:spring-dashpot-1}\end{equation}
+R_{N}=-s\cdot\frac{g^{t+h}+g^{t}}{2}-d\cdot\frac{U_{N}^{t+h}+U_{N}^{t}}{2}\label{eq:spring-dashpot-1}\end{equation}
 
 \end_inset
 
@@ -8644,7 +8665,43 @@ where
 \end_inset
 
  is the normal relative velocity.
- We use the diagonal block of local dynamics
+ Recall, that the gap function is computed for the configuration 
+\begin_inset Formula $\mathbf{q}^{t}+\frac{h}{2}\mathbf{u}^{t}$
+\end_inset
+
+, so that the gap function value computed during geometrical contact detection
+ reads
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+g=g^{t}+\frac{h}{2}U_{N}^{t}\end{equation}
+
+\end_inset
+
+We then have
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+g^{t+h}=g^{t}+\frac{h}{2}\left(U_{N}^{t+h}+U_{N}^{t}\right)=g+\frac{h}{2}U_{N}^{t+h}\end{equation}
+
+\end_inset
+
+and since 
+\begin_inset Formula $g^{t}=g-\frac{h}{2}U_{N}^{t}$
+\end_inset
+
+ we can estimate
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+R_{N}=-s\cdot\left(g+\frac{h}{4}\left(U_{N}^{t+h}-U_{N}^{t}\right)\right)-\frac{d}{2}\cdot\left(U_{N}^{t+h}+U_{N}^{t}\right)\label{eq:spring-dashpot-2}\end{equation}
+
+\end_inset
+
+We then use the diagonal block of local dynamics
 \end_layout
 
 \begin_layout Standard
@@ -8674,7 +8731,7 @@ where a previous tangential reaction
  Inserting this it into (
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "eq:spring-dashpot-1"
+reference "eq:spring-dashpot-2"
 
 \end_inset
 
@@ -8683,15 +8740,29 @@ reference "eq:spring-dashpot-1"
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-R_{N}=\left[-spring\cdot gap-0.5\cdot dashpot\cdot\left(B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}+U_{N}^{t}\right)\right]/\left[1+0.5\cdot dashpot\cdot W_{NN}\right]\label{eq:spring-dashpot-2}\end{equation}
+\bar{B}_{N}=B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}\end{equation}
 
 \end_inset
 
-We then utilise the tangential part of local dynamics and assuming 
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+R_{N}=\left[-s\cdot\left(g+\frac{h}{4}\left(\bar{B}_{N}-U_{N}^{t}\right)\right)-\frac{d}{2}\cdot\left(\bar{B}_{N}+U_{N}^{t}\right)\right]/\left[1+\left(s\cdot\frac{h}{4}+\frac{d}{2}\right)\cdot W_{NN}\right]\label{eq:spring-dashpot-3}\end{equation}
+
+\end_inset
+
+The reason for using the above, rather than the classical 
+\begin_inset Formula $R_{N}=-s\cdot g-d\cdot U_{N}^{t}$
+\end_inset
+
+ is in an increased stability of the current approach.
+ Assuming 
 \begin_inset Formula $\mathbf{U}_{T}^{t+h}=0$
 \end_inset
 
- estimate the tangential stick reaction
+ we then estimate the tangential stick reaction
 \end_layout
 
 \begin_layout Standard
@@ -8700,40 +8771,57 @@ We then utilise the tangential part of local dynamics and assuming
 
 \end_inset
 
-Let 
+The complete interface law is expressed in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Spring-dashpot"
+
+\end_inset
+
+ (
 \begin_inset Formula $\mu$
 \end_inset
 
- stand for the coefficient of friction.
- The complete interface law reads
+ refers there to the coefficient of friction).
+ We refer the reader to Chapter 7 of 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2008PhD"
+
+\end_inset
+
+ for more details on local dynamics.
 \end_layout
 
-\begin_layout LyX-Code
-if not 
-\begin_inset Formula $cohesive$
-\end_inset
-
- and 
-\begin_inset Formula $gap\ge0$
-\end_inset
-
- then 
-\begin_inset Formula $\mathbf{R}=\mathbf{0}$
-\end_inset
-
-
-\end_layout
+\begin_layout Plain Layout
+\begin_inset Float algorithm
+placement b
+wide false
+sideways false
+status open
 
 \begin_layout LyX-Code
-else
+SPRING_DASHPOT 
+\begin_inset Formula $\left(h,g,s,d,\mu,cohesion,cohesive\right)$
+\end_inset
+
+
 \end_layout
 
 \begin_layout LyX-Code
   
-\begin_inset Formula $R_{N}=\left[-spring\cdot gap-0.5\cdot dashpot\cdot\left(B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}+U_{N}^{t}\right)\right]/\left[1+0.5\cdot dashpot\cdot W_{NN}\right]$
+\begin_inset Formula $\bar{B}_{N}=B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}$
 \end_inset
 
 
+\end_layout
+
+\begin_layout LyX-Code
+  
+\begin_inset Formula $R_{N}=\left[-s\cdot\left(g+\frac{h}{4}\left(\bar{B}_{N}-U_{N}^{t}\right)\right)-\frac{d}{2}\cdot\left(\bar{B}_{N}+U_{N}^{t}\right)\right]/\left[1+\left(s\cdot\frac{h}{4}+\frac{d}{2}\right)\cdot W_{NN}\right]$
+\end_inset
+
+  
 \end_layout
 
 \begin_layout LyX-Code
@@ -8746,10 +8834,10 @@ else
 \end_inset
 
  then 
-\begin_inset Formula $R_{N}=0$
+\begin_inset Formula $\mathbf{R}=0$
 \end_inset
 
-
+ return
 \end_layout
 
 \begin_layout LyX-Code
@@ -8766,7 +8854,39 @@ else
 \end_inset
 
  and 
-\begin_inset Formula $\left|R_{N}\right|>cohesion$
+\begin_inset Formula $R_{N}<-cohesion$
+\end_inset
+
+ then 
+\begin_inset Formula $cohesive=false$
+\end_inset
+
+ and 
+\begin_inset Formula $R_{N}=-cohesion$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  if
+\begin_inset Formula $\left\Vert \mathbf{R}_{T}\right\Vert >\mu\left|R_{N}\right|$
+\end_inset
+
+ then
+\end_layout
+
+\begin_layout LyX-Code
+    
+\begin_inset Formula $\mathbf{R}_{T}=\mu R_{N}\mathbf{R}_{T}/\left\Vert \mathbf{R}_{T}\right\Vert $
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+     if 
+\begin_inset Formula $cohesive$
 \end_inset
 
  then 
@@ -8776,31 +8896,27 @@ else
 
 \end_layout
 
-\begin_layout LyX-Code
-  if not 
-\begin_inset Formula $cohesive$
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Spring-dashpot"
+
 \end_inset
 
- and 
-\begin_inset Formula $\left\Vert \mathbf{R}_{T}\right\Vert >\mu R_{N}$
-\end_inset
+Spring-dashpot reaction calculation.
+\end_layout
 
- then 
-\begin_inset Formula $\mathbf{R}_{T}=\mu R_{N}\mathbf{R}_{T}/\left\Vert \mathbf{R}_{T}\right\Vert $
 \end_inset
 
 
 \end_layout
 
-\begin_layout Standard
-We refer the reader to Chapter 7 of 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "Koziara2008PhD"
-
 \end_inset
 
- for more details on local dynamics.
+
 \end_layout
 
 \begin_layout Section
@@ -8968,11 +9084,8 @@ reference "sec:Explicit-solver"
 
 \end_inset
 
- are the classical Gauss-Seidel approach of Contact Dynamics and the classical
- penalty solver of Discrete Element Method.
- They are in their own ways inefficient (GS is not scalable while the penalty
- approach results in stiff differential equations).
- This motivates development of improved methods - yet to be documented.
+ are the classical Gauss-Seidel approach of Contact Dynamics and a somewhat
+ modified penalty solver of the Discrete Element Method.
 \end_layout
 
 \begin_layout Section
@@ -9034,7 +9147,7 @@ status open
 
 \begin_layout LyX-Code
 SERIAL_GAUSS_SEIDEL 
-\begin_inset Formula $\left(\epsilon\right)$
+\begin_inset Formula $\left(Constraints,\epsilon\right)$
 \end_inset
 
 
@@ -9049,6 +9162,10 @@ SERIAL_GAUSS_SEIDEL
 \begin_inset Formula $\alpha$
 \end_inset
 
+ in 
+\begin_inset Formula $Constraints$
+\end_inset
+
  do
 \end_layout
 
@@ -9057,7 +9174,7 @@ SERIAL_GAUSS_SEIDEL
 \begin_inset Formula $\mathbf{S}_{\alpha}=\mathbf{R}_{\alpha}$
 \end_inset
 
-  
+
 \end_layout
 
 \begin_layout LyX-Code
@@ -9953,7 +10070,13 @@ A single sweep over contacts is followed by the Gauss-Seidel loop over bilateral
  constraints.
  This is possible because bilateral constraints migrate together with bodies
  and hence are local to the processor (an exception is for the rigid link
- constraint, for which this approach might break down).
+ constraint, for which this approach might break down 
+\series bold
+\color red
+TODO
+\series default
+\color inherit
+).
 \end_layout
 
 \begin_layout Section
@@ -9964,6 +10087,142 @@ name "sec:Explicit-solver"
 \end_inset
 
 Explicit solver
+\end_layout
+
+\begin_layout Standard
+The explicit solver is quite straightforward.
+ On each processor we split the constraints into 
+\begin_inset Formula $Contacts_{i}$
+\end_inset
+
+ and 
+\begin_inset Formula $Others_{i}$
+\end_inset
+
+, hence we separate contact constraints from bilateral ones.
+ We then update the contacts using the spring-dashpot model and calculate
+ reactions of bilateral constraints using a local Gauss-Seidel solver.
+ We use the Gauss-Seidel approach for non-contacts because in this case
+ it is quite fast, while it avoids issues related to penalisation of bilateral
+ constraints.
+ Using Gauss-Seidel is possible because bilateral constraints migrate together
+ with bodies and hence are local to the processor (an exception is for the
+ rigid link constraint, for which this approach might break down 
+\series bold
+\color red
+TODO
+\series default
+\color inherit
+).
+ Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Parallel-explicit-solver"
+
+\end_inset
+
+ summarises the method.
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout LyX-Code
+PARALLEL_EXPLICIT_SOLVER 
+\begin_inset Formula $\left(\epsilon\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+1  for all 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ in 
+\begin_inset Formula $Contacts_{i}$
+\end_inset
+
+ do
+\end_layout
+
+\begin_layout LyX-Code
+2    SPRING_DASHPOT 
+\begin_inset Formula $\left(h,gap_{\alpha},spring_{\alpha},dashpot_{\alpha},friction_{\alpha},cohesion_{\alpha},cohesive_{\alpha}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+3  send 
+\begin_inset Formula $\left(Contacts_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+4  receive 
+\begin_inset Formula $\left(Contacts_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+5  SERIAL_GAUSS_SEIDEL 
+\begin_inset Formula $\left(Others_{i},\epsilon\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+6  send 
+\begin_inset Formula $\left(Others_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+7  receive 
+\begin_inset Formula $\left(Others_{i}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:Parallel-explicit-solver"
+
+\end_inset
+
+Parallel explicit solver.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+
 \end_layout
 
 \begin_layout Standard
