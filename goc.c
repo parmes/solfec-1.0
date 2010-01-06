@@ -40,7 +40,7 @@ inline static int lineplane (double *plane, double *point, double *direction, do
  
   d = DOT (plane, direction); 
 
-  if (fabs (d) < GEOMETRIC_EPSILON) return 0;
+  if (fabs (d) < GEOMETRIC_EPSILON * MAGNIFY) return 0; /* the penalty solver is sensitice to ill-computed gaps, hece our caution */
 
   *coef = - PLANE (plane, point) / d;
 

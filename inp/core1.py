@@ -368,7 +368,14 @@ def gcore_base (material, solfec):
   TRANSLATE (cvx, vec)
   shape.append (cvx)
 
-  BODY (solfec, 'OBSTACLE', shape, material)
+  base = BODY (solfec, 'RIGID', shape, material)
+
+  acc = TIME_SERIES ('inp/acc-0.dat')
+  FIX_POINT (solfec, base, (sx, sy, -thick))
+  FIX_DIRECTION (solfec, base, (sx + lx, sy, -thick), (0, 0, 1))
+  FIX_DIRECTION (solfec, base, (sx, sy + ly, -thick), (0, 0, 1))
+  FIX_DIRECTION (solfec, base, (sx + lx, sy + ly, -thick), (0, 0, 1))
+  SET_ACCELERATION (solfec, base, (sx + lx, sy + ly, - thick), (1, 0, 0), acc)
 
 def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, material, solfec):
 
@@ -377,11 +384,11 @@ def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, 
 
 ### main module ###
 
-step = 5E-4
+step = 1E-3
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/core1')
 
-surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', spring = 1E6, dashpot=0, friction = 0.7)
+surfmat = SURFACE_MATERIAL (solfec, model = 'SPRING_DASHPOT', spring = 1E6, dashpot=1E3, friction = 0.7)
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
@@ -395,7 +402,9 @@ ex = EXPLICIT_SOLVER ()
 
 OUTPUT (solfec, 0.0)
 
-RUN (solfec, ex, 0.5)
+UNPHYSICAL_PENETRATION (solfec, 0.05)
+
+RUN (solfec, ex, 1)
 
 if not VIEWER() and solfec.mode == 'READ':
 

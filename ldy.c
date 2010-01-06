@@ -94,16 +94,18 @@ static void variables_change_end (LOCDYN *ldy)
     if (state & CON_COHESIVE) /* cohesive state */
     {
       double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
+	     f = con->mat.base->friction,
+	     e = 1E-8,
 	     *R = dia->R;
 
-      R [2] -= c; /* back change */
-
-      if ((state & CON_OPEN) || /* mode-I decohesion */
-	(!(state & CON_STICK))) /* mode-II decohesion */
+      if (R [2] < e || /* mode-I decohesion */
+	  LEN2 (R) + e >= f * R[2]) /* mode-II decohesion */
       {
 	con->state &= ~CON_COHESIVE;
 	SURFACE_MATERIAL_Cohesion_Set (&con->mat, 0.0);
       }
+
+      R [2] -= c; /* back change */
     }
   }
 }
@@ -144,7 +146,7 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
 
 #if MPI
 /* compute external adjacency */
-static void compute_adjext (LOCDYN *ldy)
+static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 {
   CON *con, *ext;
   OFFB *b, *n;
@@ -182,6 +184,8 @@ static void compute_adjext (LOCDYN *ldy)
 	con = item->data;
 
 	if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
+
+        if (upkind == UPEXS && con->kind == CONTACT) continue; /* skip contacts during partial update */
 
 	ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy"); /* we could skip dummies, but this reassures correctness */
 
@@ -455,7 +459,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   SOLFEC_Timer_Start (ldy->dom->solfec, "LOCDYN");
 
 #if MPI
-  if (upkind == UPALL) compute_adjext (ldy);
+  compute_adjext (ldy, upkind);
 #endif
 
   /* calculate local velocities and
@@ -534,7 +538,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     /* off-diagonal local blocks */
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      if (blk->SYMW) continue; /* skip blocks pointing to their symmetric copies */
+      if (upkind == UPALL && blk->SYMW) continue; /* skip blocks pointing to their symmetric copies (only during full updates) */
 
       MX *left, *right;
       DIAB *adj = blk->dia;
@@ -614,13 +618,16 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
   }
 
   /* use symmetry */
-  for (dia = ldy->dia; dia; dia = dia->n)
-  {  
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      if (blk->SYMW)
+  if (upkind == UPALL)
+  {
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {  
+      for (blk = dia->adj; blk; blk = blk->n)
       {
-	TNCOPY (blk->SYMW, blk->W); /* transposed copy of a symmetric block */
+	if (blk->SYMW)
+	{
+	  TNCOPY (blk->SYMW, blk->W); /* transposed copy of a symmetric block */
+	}
       }
     }
   }

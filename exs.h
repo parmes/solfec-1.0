@@ -11,8 +11,8 @@
 #define __exs__
 
 /* spring and dashpot based explicit diagonal block contact solver */
-int EXPLICIT_Spring_Dashpot_Contact (CON *con, double gap, double spring, double dashpot, double friction,
-                                     double cohesion, double *W, double *B, double *V, double *U, double *R);
+int EXPLICIT_Spring_Dashpot_Contact (CON *con, double step, double gap, double spring, double dashpot,
+              double friction, double cohesion, double *W, double *B, double *V, double *U, double *R);
 
 /* explcit constraint solver */
 void EXPLICIT_Solve (LOCDYN *ldy);
