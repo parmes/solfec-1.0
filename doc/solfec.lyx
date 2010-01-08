@@ -7845,7 +7845,7 @@ The above code is similar to the previous example.
  Here though the complete model is created inside of a Python function called
  
 \emph on
-sphere_impact
+ball_impact
 \emph default
 .
  By itself this will not run any simulation - this function needs to be
@@ -7856,7 +7856,7 @@ sphere_impact
  The parameters of the spring and damper are passed as arguments of the
  
 \emph on
-sphere_impact
+ball_impact
 \emph default
  function.
  It should be noted, that the SOLFEC object is returned from the routine.
@@ -7880,15 +7880,15 @@ spring = 1E+9
 \end_layout
 
 \begin_layout LyX-Code
-sol1 = ball_impact (step, stop, spring, 0E0, 'out/tutorial/sphere-impact-1')
+sol1 = ball_impact (step, stop, spring, 0E0, 'out/tutorial/ball-impact-1')
 \end_layout
 
 \begin_layout LyX-Code
-sol2 = ball_impact (step, stop, spring, 1E6, 'out/tutorial/sphere-impact-2')
+sol2 = ball_impact (step, stop, spring, 1E6, 'out/tutorial/ball-impact-2')
 \end_layout
 
 \begin_layout LyX-Code
-sol3 = ball_impact (step, stop, spring, 1E7, 'out/tutorial/sphere-impact-3')
+sol3 = ball_impact (step, stop, spring, 1E7, 'out/tutorial/ball-impact-3')
 \end_layout
 
 \begin_layout Standard
@@ -8013,7 +8013,7 @@ we again run
 \begin_layout Standard
 Now, Solfec will find out that the output files in 
 \emph on
-out/tutorial/sphere-impact-(1,2,3)
+out/tutorial/ball-impact-(1,2,3)
 \emph default
  are present.
  It will open in 'READ' mode.
@@ -8793,7 +8793,7 @@ key "Koziara2008PhD"
  for more details on local dynamics.
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \begin_inset Float algorithm
 placement b
 wide false
@@ -10124,7 +10124,7 @@ reference "alg:Parallel-explicit-solver"
  summarises the method.
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \begin_inset Float algorithm
 wide false
 sideways false

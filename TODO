@@ -48,6 +48,9 @@ Add impliciting iteration for u(t+h) at the end of SCH_DEF_IMP
 ------------------------------------------
 Improve robustness of gap computation
 (penalty solver sensitive)
+----------------------------------------------------------------------
+Reduce parallel balancing communication during fully explicit runs
+(e.g. external constraints sent only from children to parents)
 ---------------------------------------------------------------
 MUST implement consistency tests NOW 
 --------------------------------------
