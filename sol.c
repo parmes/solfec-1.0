@@ -338,7 +338,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->dom->solfec = sol;
 
   sol->outpath = copyoutpath (outpath);
-  sol->output_interval = step;
+  sol->output_interval = 0;
   sol->output_time = 0;
   sol->output_compression = CMP_OFF;
   if ((sol->bf = readoutpath (outpath))) sol->mode = SOLFEC_READ;
