@@ -1953,6 +1953,7 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
   else
   {
     /* TODO: implement linearly implicit scheme as in the pseudo-rigid case */
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
   }
 }
 

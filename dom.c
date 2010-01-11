@@ -2410,7 +2410,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
 	double h = BODY_Dynamic_Critical_Step (bod);
 
-	if (h < step) step = 0.9 * h;
+	if (h < step) step = 0.5 * h;
       }
     }
     else

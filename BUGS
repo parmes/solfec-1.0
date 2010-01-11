@@ -12,7 +12,3 @@ Investigate why!
 ---------------------------------------------------------------------------
 SET_Delete_Node and MAP_Delete_Node do not seem to be correct
 in terms of returning the next node in turn (valgrinded out)
-------------------------------------------------------------------
-A memory pool somewhere is not released frequently enough so that
-the amount of memory needlessly grows with runtime. Perhaps this is
-around new constraint migration.
