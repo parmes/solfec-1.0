@@ -2572,7 +2572,7 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
   COMOBJ *send, *recv;
   int i, nrecv;
 
-  ERRMEM (send = MEM_CALLOC (sizeof (COMOBJ [dom->ncpu])));
+  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
 
   for (i = 0; i < dom->ncpu; i ++)
   {

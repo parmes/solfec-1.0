@@ -429,6 +429,16 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
     MEM_Free (&ldy->offmem, b);
   }
 
+#if MPI
+  /* destroy externally
+   * adjacent blocks */
+  for (b = dia->adjext; b; b = c)
+  {
+    c = b->n;
+    MEM_Free (&ldy->offmem, b);
+  }
+#endif
+
   /* remove from list */
   if (dia->p)
     dia->p->n = dia->n;
