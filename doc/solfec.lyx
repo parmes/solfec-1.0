@@ -2145,7 +2145,7 @@ obj.nbod
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="2" columns="1">
+<lyxtabular version="3" rows="3" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -2164,13 +2164,31 @@ Read/write
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
 
 \emph on
 obj.step
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.verbose
+\series default
+\emph default
+ - either 'ON' or 'OFF' enabling or disabling writing to standard output
+ (default: 'ON') 
 \end_layout
 
 \end_inset
@@ -3001,7 +3019,7 @@ Some parameters can also be accessed as members of a BODY object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="4" columns="1">
+<lyxtabular version="3" rows="8" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -3062,7 +3080,7 @@ reference "tab:conf"
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -3085,6 +3103,75 @@ reference "tab:velo"
 \end_inset
 
 .
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.mass
+\series default
+\emph default
+ - referential mass of the body
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.volume
+\series default
+\emph default
+ - referential volume of the body
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.center
+\series default
+\emph default
+ - referential mass center of the body
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.tensor
+\series default
+\emph default
+ - referential Euler (pseudo-rigid, finite element kinematics) or inertia
+ tensor (rigid kinematics) of the body
 \end_layout
 
 \end_inset
@@ -6604,7 +6691,7 @@ shape
 \emph on
  
 \emph default
-BODY tuple.
+BODY object.
 \end_layout
 
 \begin_layout Subsection*

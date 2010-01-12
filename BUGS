@@ -1,9 +1,6 @@
 Sweep algorithms get stuck when run on many cpus (e.g. -np 8 with mpi1.py and N=20)
 GUESS: insertion sort is run on badly ordered sets with O(n ^2) complexity
 ------------------------------------------------------------------------------------
-Running drum.py in parallel exposes a contact detection bug: some boxes are
-not tested for intersection and balls are left to interpenetrate the case
---------------------------------------------------------------------------
 MESH_Hex assignes surface identifiers in a wrong manner
 ---------------------------------------------------------
 Note that during W assembly when using MX_Matmat (coef, ...)

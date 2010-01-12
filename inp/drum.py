@@ -23,14 +23,14 @@ def drum_create (material, solfec):
   bod = BODY (solfec, 'RIGID', shape, material)
   FIX_POINT (solfec, bod, (0.0, 0.5, 0.5))
   FIX_POINT (solfec, bod, (1.0, 0.5, 0.5))
-  tms = TIME_SERIES ([0, 10, 100, 10])
+  tms = TIME_SERIES ([0, 20, 50, 60])
   TORQUE (bod, 'SPATIAL', (1, 0, 0), tms)
 
 def spheres_create (material, solfec):
 
   #rng = [0.2, 0.25, 0.3, 0.35,  0.4, 0.45, 0.5, 0.55, 0.6, 0.65, 0.7, 0.75, 0.8]
-  #rng = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
-  rng = [0.5]
+  rng = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8]
+  #rng = [0.5]
 
   for x in rng:
     for y in rng:
@@ -42,7 +42,7 @@ def spheres_create (material, solfec):
 
 step = 0.001
 skip = 10
-dura = 2.0
+dura = 10.0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/drum')
 
@@ -50,7 +50,7 @@ surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.4)
 
 drumat = BULK_MATERIAL (solfec)
 
-sphmat = BULK_MATERIAL (solfec, density = drumat.density / 10)
+sphmat = BULK_MATERIAL (solfec, density = drumat.density / 100)
 
 GRAVITY (solfec, (0, 0, -1), 9.8)
 

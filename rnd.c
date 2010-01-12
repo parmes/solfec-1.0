@@ -1434,7 +1434,7 @@ static void render_velodir (CON *con, GLfloat color [3])
 }
 
 /* render rigid link constraint */
-static void render_riglnk (CON *con, GLfloat color [3])
+static void render_riglnk (CON *con, GLfloat width, GLfloat color [3])
 {
   double other [3];
 
@@ -1449,7 +1449,7 @@ static void render_riglnk (CON *con, GLfloat color [3])
   glEnd ();
   glPointSize (1.0);
   
-  glLineWidth (2.0);
+  glLineWidth (width);
   glBegin (GL_LINES);
     glVertex3dv (con->point);
     glVertex3dv (other);
@@ -1816,7 +1816,7 @@ static void render_body_set_constraints_or_forces (SET *set)
 	    case FIXPNT: render_fixpnt (con, color); break;
 	    case FIXDIR: render_fixdir (con, color); break;
 	    case VELODIR: render_velodir (con, color); break;
-	    case RIGLNK: render_riglnk (con, color); break;
+	    case RIGLNK: render_riglnk (con, 2.0, color); break;
 	  }
 
 	  break;
@@ -1838,6 +1838,33 @@ static void render_body_set_constraints_or_forces (SET *set)
 	value_to_color (TMS_Value (force->data, domain->time), color);
 	render_force (bod, force, color);
       }
+    }
+  }
+}
+
+/* regular rendering of rigid links */
+static void render_rigid_links (SET *set, GLfloat *color)
+{
+  SET *item, *jtem;
+  BODY_DATA *data;
+  BODY *bod;
+  CON *con;
+
+  /* TODO: optimize iteration through all bodies by pre-selecting 
+   * TODO: a set of rigid links when initializing a time step */
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    data = bod->rendering;
+
+    if (data->flags & HIDDEN) continue;
+
+    for (jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
+    {
+      con = jtem->data;
+
+      if (con->kind == RIGLNK) render_riglnk (con, 1.0, color);
     }
   }
 }
@@ -1887,6 +1914,8 @@ static void render_body_set (SET *set)
     {
       render_body_triangles (item->data, TRANSPARENT|HIDDEN);
     }
+
+    render_rigid_links (set, color);
 
     glEnable (GL_BLEND);
     glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

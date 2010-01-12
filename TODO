@@ -24,10 +24,10 @@ poisson, etc. Render as fields or coloured constraint.
 -------------------------------------------------------------
 Add menu "top", "bottom", "left", "right", "front", "back"
 to the "render" menu. Or similarly.
-Optimize W assembly in parallel by using left product
 --------------------------------------------------------
 Rendering of parallel partitioning, contact states, etc.
 --------------------------------------------------------
+Optimize W assembly in parallel by using left product
 for blocks with dia->adjext != NULL and right product
 for the remaining (internal) nodes.
 -------------------------------------------------
@@ -38,12 +38,9 @@ large contact statate change (say point and normal difference relative norm)!
 Test PBF file size limitation fixup
 ----------------------------------------------------
 Data compression/decompression in COMALL, etc.
---------------------------------------------------
-Implement batch retrival of time histories (many in one go),
-which will ease off hard-drive intesnsive repetitive searches.
------------------------------------------------------------------
-Optimize SOLFEC_History in case only labeled data is red.
--------------------------------------------------
+-----------------------------------------------------------
+Optimize SOLFEC_History in case only labeled data is red
+----------------------------------------------------------------
 Add impliciting iteration for u(t+h) at the end of SCH_DEF_IMP
 ------------------------------------------
 Improve robustness of gap computation
@@ -52,5 +49,3 @@ Improve robustness of gap computation
 Reduce parallel balancing communication during fully explicit runs
 (e.g. external constraints sent only from children to parents)
 ---------------------------------------------------------------
-MUST implement consistency tests NOW 
---------------------------------------
