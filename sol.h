@@ -91,6 +91,9 @@ struct solfec
   double t0, duration;
   time_t start;
 
+  /* global verbosity flag */
+  short verbose;
+
   /* list structure */
   SOLFEC *next;
 };

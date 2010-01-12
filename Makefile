@@ -109,6 +109,10 @@ all: solfec
 
 endif
 
+test: solfec
+	make del
+	./solfec inp/tests/serial-tests.py
+
 del:
 	rm -fr out/*
 

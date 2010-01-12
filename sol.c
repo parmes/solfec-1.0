@@ -58,9 +58,12 @@ static void clean_timers (SOLFEC *sol)
 /* turn on verbosity */
 static int verbose_on (SOLFEC *sol, short kind, void *solver)
 {
-  sol->dom->verbose = 1;
+  if (sol->verbose)
+  {
+    sol->dom->verbose = 1;
+  }
 
-  return 1;
+  return sol->verbose;
 }
 
 /* turn off verbosity */
@@ -354,6 +357,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   MEM_Init (&sol->mapmem, sizeof (MAP), 128);
   MEM_Init (&sol->timemem, sizeof (TIMING), 128);
   sol->timers = NULL;
+  sol->verbose = 1;
 
   return sol;
 }

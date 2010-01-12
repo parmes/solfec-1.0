@@ -1205,6 +1205,27 @@ static int lng_SOLFEC_set_step (lng_SOLFEC *self, PyObject *value, void *closure
   return 0;
 }
 
+static PyObject* lng_SOLFEC_get_verbose (lng_SOLFEC *self, void *closure)
+{
+  if (self->sol->verbose) return PyString_FromString ("ON");
+  else return PyString_FromString ("OFF");
+}
+
+static int lng_SOLFEC_set_verbose (lng_SOLFEC *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "verbose")) return -1;
+
+  IFIS (value, "ON") self->sol->verbose = 1;
+  ELIF (value, "OFF") self->sol->verbose = 0;
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid verbose value (ON/OFF accepted)");
+    return -1;
+  }
+
+  return 0;
+}
+
 /* SOLFEC methods */
 static PyMethodDef lng_SOLFEC_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -1224,6 +1245,7 @@ static PyGetSetDef lng_SOLFEC_getset [] =
   {"bodies", (getter)lng_SOLFEC_get_bodies, (setter)lng_SOLFEC_set_bodies, "list of bodies", NULL},
   {"nbod", (getter)lng_SOLFEC_get_nbod, (setter)lng_SOLFEC_set_nbod, "bodies count", NULL},
   {"step", (getter)lng_SOLFEC_get_step, (setter)lng_SOLFEC_set_step, "time step", NULL},
+  {"verbose", (getter)lng_SOLFEC_get_verbose, (setter)lng_SOLFEC_set_verbose, "verbosity", NULL},
   {NULL, 0, 0, NULL, NULL} 
 };
 
@@ -2207,6 +2229,92 @@ static int lng_BODY_set_velo (lng_BODY *self, PyObject *value, void *closure)
   return -1;
 }
 
+static PyObject* lng_BODY_get_mass (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
+  return PyFloat_FromDouble (self->bod->ref_mass);
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_mass (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_BODY_get_volume (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
+  return PyFloat_FromDouble (self->bod->ref_volume);
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_volume (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_BODY_get_center (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
+  double *c = self->bod->ref_center;
+  return Py_BuildValue ("(d, d, d)", c[0], c[1], c[2]);
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_center (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_BODY_get_tensor (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+
+  double *t = self->bod->ref_tensor;
+  return Py_BuildValue ("(d, d, d, d, d, d, d, d, d)", t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8]);
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_tensor (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 static PyObject* lng_BODY_get_selfcontact (lng_BODY *self, void *closure)
 {
 #if MPI
@@ -2400,6 +2508,10 @@ static PyGetSetDef lng_BODY_getset [] =
   {"label", (getter)lng_BODY_get_label, (setter)lng_BODY_set_label, "label", NULL},
   {"conf", (getter)lng_BODY_get_conf, (setter)lng_BODY_set_conf, "configuration", NULL},
   {"velo", (getter)lng_BODY_get_velo, (setter)lng_BODY_set_velo, "velocity", NULL},
+  {"mass", (getter)lng_BODY_get_mass, (setter)lng_BODY_set_mass, "referential mass", NULL},
+  {"volume", (getter)lng_BODY_get_volume, (setter)lng_BODY_set_volume, "referential volume", NULL},
+  {"center", (getter)lng_BODY_get_center, (setter)lng_BODY_set_center, "referential mass center", NULL},
+  {"tensor", (getter)lng_BODY_get_tensor, (setter)lng_BODY_set_tensor, "referential Euler/inertia tensor", NULL},
   {"selfcontact", (getter)lng_BODY_get_selfcontact, (setter)lng_BODY_set_selfcontact, "selfcontact", NULL},
   {"scheme", (getter)lng_BODY_get_scheme, (setter)lng_BODY_set_scheme, "scheme", NULL},
   {"damping", (getter)lng_BODY_get_damping, (setter)lng_BODY_set_damping, "damping", NULL},
