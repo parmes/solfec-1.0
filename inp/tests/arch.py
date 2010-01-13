@@ -1,13 +1,19 @@
-# arch example
-
+# masonry arch test
 from math import sin
 from math import cos
+from sys import stdout
 
-N = 27
-PI = 3.14159265358979323846 
+step = 0.001
+stepnum = 750
+stop = step * stepnum
+T = [] # plots
+E1 = []
+E2 = []
 
 def masonry_arch_create (ratio, material, solfec):
 
+  PI = 3.14159265358979323846 
+  N = 27
   dalpha = PI / N
   radius = 10.0
   thickness = ratio * radius
@@ -72,28 +78,68 @@ def masonry_arch_create (ratio, material, solfec):
     BODY (solfec, 'RIGID', hex, material)
     alpha += dalpha
 
+
+# first run progress
+def progress_callback_one (solfec):
+  print '\b\b\b\b\b%2d %%' % (50.0 * solfec.time / stop) , 
+  stdout.flush ()
+  T.append (solfec.time)
+  E1.append (ENERGY (solfec) [0])
+  return 1
+
+# second run progress
+def progress_callback_two (solfec):
+  print '\b\b\b\b\b%2d %%' % (50.0 + 50.0 * solfec.time / stop) , 
+  stdout.flush ()
+  E2.append (ENERGY (solfec) [0])
+  return 1
+
 ### main module ###
-
-step = 0.001
-
-solfec = SOLFEC ('DYNAMIC', step, 'out/arch')
-
-CONTACT_SPARSIFY (solfec, 0.005)
-
-surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.4)
-
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
-
-GRAVITY (solfec, (0, 0, -1), 9.81)
-
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
-masonry_arch_create (0.1070, bulkmat, solfec)
+gs = GAUSS_SEIDEL_SOLVER (1E-4, 10000)
 
-def gscallback (gs):
-  print gs.error
-  return 0
+# solfec one
+solfec1 = SOLFEC ('DYNAMIC', step, 'out/tests/arch/one')
+solfec1.verbose = 'OFF'
+CONTACT_SPARSIFY (solfec1, 0.005)
+SURFACE_MATERIAL (solfec1, model = 'SIGNORINI_COULOMB', friction = 0.5)
+bulkmat1 = BULK_MATERIAL (solfec1, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
+GRAVITY (solfec1, (0, 0, -1), 9.81)
+masonry_arch_create (0.1095, bulkmat1, solfec1)
+CALLBACK (solfec1, step, solfec1, progress_callback_one)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
+# solfec two
+solfec2 = SOLFEC ('DYNAMIC', step, 'out/tests/arch/two')
+solfec2.verbose = 'OFF'
+CONTACT_SPARSIFY (solfec2, 0.005)
+SURFACE_MATERIAL (solfec2, model = 'SIGNORINI_COULOMB', friction = 0.5)
+bulkmat2 = BULK_MATERIAL (solfec2, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
+GRAVITY (solfec2, (0, 0, -1), 9.81)
+masonry_arch_create (0.1094, bulkmat2, solfec2)
+CALLBACK (solfec2, step, solfec2, progress_callback_two)
 
-RUN (solfec, gs, 2 * step)
+print '    ' , 
+RUN (solfec1, gs, stop)
+RUN (solfec2, gs, stop)
+print '\b\b\b\b\b\b\b' ,
+
+if not VIEWER() and solfec1.mode == 'WRITE' and solfec2.mode == 'WRITE':
+
+    if E1 [stepnum - 1] < 1E-5 and E2 [stepnum - 1] > 1E-3: print 'PASSED'
+    else:
+      print 'FAILED'
+      print '(', 'Kinetic energy out of bounds', ')'
+
+    try:
+      import matplotlib.pyplot as plt
+      plt.clf ()
+      plt.plot (T, E1, label='h/r = 1095')
+      plt.plot (T, E2, label='h/r = 1094')
+      plt.axis (xmin = 0, xmax = stop, ymin = -0.0005, ymax = 0.001)
+      plt.xlabel ('Time [s]')
+      plt.ylabel ('Kinetic energy [J]')
+      plt.legend(loc = 'upper right')
+      plt.savefig ('out/tests/arch/arch.eps')
+    except ImportError:
+      pass # no reaction

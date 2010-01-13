@@ -3889,7 +3889,7 @@ static PyObject* lng_GRAVITY (PyObject *self, PyObject *args, PyObject *kwds)
 }
 
 /* callback for forces defined by a callable object */
-static void lng_FORCE_callback (PyObject *data, PyObject *call, int nq, int nu, double *q, double *u, double t, double h, double *f)
+static void lng_FORCE_callback (PyObject *data, PyObject *call, int nq, double *q, int nu, double *u, double t, double h, double *f)
 {
   PyObject *qtup, *utup;
   PyObject *result;
@@ -3931,7 +3931,7 @@ static void lng_FORCE_callback (PyObject *data, PyObject *call, int nq, int nu, 
       goto err;
     }
 
-    if (!PyTuple_Size (result) != (nu == 6 ? 9 : nu))
+    if (PyTuple_Size (result) != (nu == 6 ? 9 : nu))
     {
       PyErr_SetString (PyExc_ValueError, "Tuple of invalid size was returned from FORCE callback");
       goto err;

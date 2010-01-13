@@ -1777,7 +1777,7 @@ void BODY_Destroy (BODY *bod)
   { 
     next = forc->next;
 
-    if (forc->data) TMS_Destroy (forc->data);
+    if (forc->data && !forc->func) TMS_Destroy (forc->data);
 
     free (forc);
   }
