@@ -129,13 +129,13 @@ if not VIEWER() and solfec1.mode == 'WRITE' and solfec2.mode == 'WRITE':
     if E1 [stepnum - 1] < 1E-5 and E2 [stepnum - 1] > 1E-3: print 'PASSED'
     else:
       print 'FAILED'
-      print '(', 'Kinetic energy out of bounds', ')'
+      print '(', 'Kinetic energy out of bounds: E1 = %g, E2 = %g' % (E1[stepnum-1], E2[stepnum-1]), ')'
 
     try:
       import matplotlib.pyplot as plt
       plt.clf ()
-      plt.plot (T, E1, label='h/r = 1095')
-      plt.plot (T, E2, label='h/r = 1094')
+      plt.plot (T, E1, label='h/r = 0.1095')
+      plt.plot (T, E2, label='h/r = 0.1094')
       plt.axis (xmin = 0, xmax = stop, ymin = -0.0005, ymax = 0.001)
       plt.xlabel ('Time [s]')
       plt.ylabel ('Kinetic energy [J]')
