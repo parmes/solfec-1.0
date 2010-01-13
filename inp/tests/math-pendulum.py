@@ -3,6 +3,11 @@
 PI = 3.14159265358979323846 
 previous = 0.0 # previous velocity component used by the termination callback
 howmany = 0 # counter used by the termination callback
+gravity = PI * PI
+T   = [] # plots
+KIN = []
+POT = []
+TOT = []
 
 def pendulum_create (material, solfec):
   c = (1, 0, 1)
@@ -33,20 +38,28 @@ def termination (sol, bod):
     else: howmany = howmany + 1
 
   previous = bod.velo [5]
+
+  T.append (sol.time)
+  kin = ENERGY (sol, bod) [0]
+  pot = bod.mass * gravity * max (bod.conf [11], 0)
+  KIN.append (kin)
+  POT.append (pot)
+  TOT.append (kin + pot)
+
   return 1
 
 # main module
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
 step = 0.001
-stop = 10
+stop = 2.5
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/math-pendulum')
 solfec.verbose = 'OFF'
 
 bulkmat = BULK_MATERIAL (solfec)
 
-GRAVITY (solfec, (0, 0, -1), PI * PI)
+GRAVITY (solfec, (0, 0, -1), gravity)
 
 bod = pendulum_create (bulkmat, solfec)
 
@@ -56,3 +69,18 @@ if not VIEWER(): CALLBACK (solfec, step, (solfec, bod), termination)
 
 if not VIEWER () and solfec.mode == 'READ': print '\nPrevious test results exist. Please "make del" and rerun tests'
 else: RUN (solfec, gs, stop)
+
+if not VIEWER ():
+  try:
+    import matplotlib.pyplot as plt
+    plt.clf ()
+    plt.plot (T, KIN, label='Kinetic')
+    plt.plot (T, POT, label='Potential')
+    plt.plot (T, TOT, label='Total')
+    plt.axis (xmin = 0, xmax = stop, ymin = 0, ymax = 10)
+    plt.xlabel ('Time [s]')
+    plt.ylabel ('Energy [J]')
+    plt.legend (loc = 'upper right')
+    plt.savefig ('out/tests/math-pendulum/math-pendulum.eps')
+  except ImportError:
+    pass # no reaction

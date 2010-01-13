@@ -111,21 +111,26 @@ else:
 	if error > 1E-3:
 	  passed = 0
 	  print 'FAILED'
-	  print '(', 'Compute total energy was %.3f' % tot[ref[0]], 'while the reference is %.3f' % ref[1]
+	  print '(', 'Computed total energy was %.3f' % tot[ref[0]], 'while the reference is %.3f' % ref[1]
 	  break
 
       if passed: print 'PASSED'
 
       try:
 	import matplotlib.pyplot as plt
-	plt.plot (th [0], th [6], label='x1')
-	plt.plot (th [0], th [7], label='x2')
+        plt.clf ()
+	plt.plot (th [0], th [6], label='$x_1$')
+	plt.plot (th [0], th [7], label='$x_2$')
 	plt.axis (xmin = 0, xmax = stop, ymin = 0, ymax = 1.5)
+	plt.xlabel ('Time [s]')
+	plt.ylabel ('Position [m]')
 	plt.legend(loc = 'upper right')
 	plt.savefig ('out/tests/double-pendulum/double-pendulum-dx.eps')
 	plt.clf ()
 	plt.plot (th [0], tot, label='total energy')
 	plt.axis (xmin = 0, xmax = stop, ymin = 0)
+	plt.xlabel ('Time [s]')
+	plt.ylabel ('Energy [J]')
 	plt.legend(loc = 'upper right')
 	plt.savefig ('out/tests/double-pendulum/double-pendulum-ene.eps')
       except ImportError:

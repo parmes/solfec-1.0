@@ -2,13 +2,9 @@
 from math import sin
 from math import cos
 from math import sqrt
+from solfec import *
 
-# some parameters
-N_BRICKS = 3
-M_BRICKS = 3
-N_LAYERS = 3
-
-# some constants
+# constants
 PI = 3.14159265358979323846 
 FIG9 = 1
 FIG11 = 2
@@ -171,7 +167,7 @@ def gcore_loose_key (pnt, lx, ly, lz, zrot, material, solfec):
 
   BODY (solfec, 'RIGID', cvx, material)
 
-def gcore_integral_key (pnt, l, a, b, h, material, solfec):
+def gcore_integral_key (pnt, l, a, b, h, material, solfec, integral_kind, integral_scheme):
 
   vertices = [1, 0, 0,
               1, 1, 0,
@@ -223,7 +219,11 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec):
   shape = [cv1, cv2, cv3, cv4, cv5]
   ROTATE (shape, pnt, zet, 45.0)
 
-  BODY (solfec, 'RIGID', shape, material)
+  if integral_kind == 'FINITE_ELEMENT':
+    msh = ROUGH_MESH (shape, 1, 1, 2)
+    bod = BODY (solfec, integral_kind, shape, material, mesh = msh)
+  else: bod = BODY (solfec, integral_kind, shape, material)
+  bod.scheme = integral_scheme
 
 def gcore_brick (x, y, z):
 
@@ -249,8 +249,7 @@ def gcore_brick (x, y, z):
 
   return cvx
 
-
-def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
+def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS):
 
   dfac = 0.015
   outd = 0.4598
@@ -271,7 +270,11 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
 	y = -(outd + dfac) + j * (outd + dfac)
 
 	shp = gcore_brick (x, y, z)
-	BODY (solfec , 'RIGID', shp, material)
+	if fuel_kind == 'FINITE_ELEMENT':
+	  msh = ROUGH_MESH (shp, 2, 2, 2)
+	  bod = BODY (solfec , fuel_kind, shp, material, mesh = msh)
+	else: bod = BODY (solfec , fuel_kind, shp, material)
+	bod.scheme = fuel_scheme
 
     # loose keys
     lx = keyw - 2.0*loose_gap
@@ -300,9 +303,9 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec):
       for j in range (M_BRICKS-1):
 
 	pnt = (-0.5*(outd + dfac) + i * (outd + dfac), -0.5*(outd + dfac) + j * (outd + dfac), z)
-	gcore_integral_key (pnt, l, a, b, lz, material, solfec)
+	gcore_integral_key (pnt, l, a, b, lz, material, solfec, integral_kind, integral_scheme)
 
-def gcore_base (material, solfec):
+def gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS):
 
   vertices = [1, 0, 0,
               1, 1, 0,
@@ -370,53 +373,14 @@ def gcore_base (material, solfec):
 
   base = BODY (solfec, 'RIGID', shape, material)
 
-  acc = TIME_SERIES ('inp/acc-0.dat')
+  acc = TIME_SERIES ('inp/cores/inc/acc-0.dat')
   FIX_POINT (solfec, base, (sx, sy, -thick))
   FIX_DIRECTION (solfec, base, (sx + lx, sy, -thick), (0, 0, 1))
   FIX_DIRECTION (solfec, base, (sx, sy + ly, -thick), (0, 0, 1))
   FIX_DIRECTION (solfec, base, (sx + lx, sy + ly, -thick), (0, 0, 1))
   SET_ACCELERATION (solfec, base, (sx + lx, sy + ly, - thick), (1, 0, 0), acc)
 
-def gcore_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angle, material, solfec):
+def simple_core_create (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS):
 
-  gcore_base (material, solfec)
-  gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec)
-
-### main module ###
-
-step = 1E-3
-
-solfec = SOLFEC ('DYNAMIC', step, 'out/core1')
-
-surfmat = SURFACE_MATERIAL (solfec, model = 'SPRING_DASHPOT', spring = 1E6, dashpot=1E3, friction = 0.7)
-
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
-
-GRAVITY (solfec, (0, 0, -1), 10)
-
-#import rpdb2; rpdb2.start_embedded_debugger('a')
-
-gcore_create (0.0003, 0.0002,  0,  0,  0, bulkmat, solfec)
-
-ex = EXPLICIT_SOLVER ()
-
-OUTPUT (solfec, 0.0)
-
-UNPHYSICAL_PENETRATION (solfec, 0.05)
-
-RUN (solfec, ex, 1)
-
-if not VIEWER() and solfec.mode == 'READ':
-
-  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
-  dur = DURATION (solfec)
-  th = HISTORY (solfec, timers, dur[0], dur[1])
-  total = 0.0
-
-  for i in range (0, 5):
-    sum = 0.0
-    for tt in th [i+1]: sum += tt
-    print timers [i], 'TIME:', sum
-    total += sum
-
-  print 'TOTAL TIME:', total
+  gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS)
+  gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS)
