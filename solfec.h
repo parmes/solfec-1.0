@@ -12,4 +12,7 @@
 
 /* register new SOLFEC object */
 void REGISTER_SOLFEC (SOLFEC *sol);
+
+/* get output sub-directory */
+char* OUTPUT_SUBDIR ();
 #endif

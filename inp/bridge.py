@@ -1,16 +1,13 @@
-# arch example (MESH and RIGID)
+# masonry arch bridge example (MESH and RIGID)
 
 from math import sin
 from math import cos
 
-N = 100
 PI = 3.14159265358979323846 
 
-def masonry_arch_create (ratio, material, solfec):
+def masonry_arch_create (base, radius, thickness, material, solfec, N):
 
   dalpha = PI / N
-  radius = 10.0
-  thickness = ratio * radius
   width = 5.0
   edge = radius + width
 
@@ -41,6 +38,7 @@ def masonry_arch_create (ratio, material, solfec):
              xfarup,  width/2.,  zfarup]
 
     hex = HEX (nodes, 1, 1, 1, 0, surfaces)
+    TRANSLATE (hex, base)
     BODY (solfec, 'OBSTACLE', hex, material)
     alpha += (PI+dalpha)
 
@@ -68,15 +66,26 @@ def masonry_arch_create (ratio, material, solfec):
     k = 1 + i % 4
     surfaces = [k, k, k, k, k, k]
 
-    hex = HEX (nodes, 6, 10, 1, 0, surfaces)
+    hex = HEX (nodes, 2, 3, 1, 0, surfaces)
+    TRANSLATE (hex, base)
     BODY (solfec, 'RIGID', hex, material)
     alpha += dalpha
+
+def masonry_bridge_create (material, solfec, N, M):
+
+  ratio = 0.2
+  radius = 10.0
+  thickness = ratio * radius
+  shift = 2.0 * radius + thickness
+
+  for i in range (0, M):
+    masonry_arch_create ((shift * i, 0, 0), radius, thickness, material, solfec, N)
 
 ### main module ###
 
 step = 0.001
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/mpi0')
+solfec = SOLFEC ('DYNAMIC', step, 'out/bridge')
 
 CONTACT_SPARSIFY (solfec, 0.005)
 
@@ -88,7 +97,7 @@ GRAVITY (solfec, (0, 0, -1), 9.81)
 
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
-masonry_arch_create (0.2, bulkmat, solfec)
+masonry_bridge_create (bulkmat, solfec, 27, 4)
 
 def gscallback (gs):
   print gs.error

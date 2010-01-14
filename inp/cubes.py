@@ -1,6 +1,6 @@
 # stack of cubes example (CONVEX and PSEUDO_RIGID)
 
-N = 20
+N = 10
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -41,7 +41,7 @@ def stack_of_cubes_create (numside, material, solfec):
 
 step = 0.001
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/mpi1')
+solfec = SOLFEC ('DYNAMIC', step, 'out/cubes')
 
 CONTACT_SPARSIFY (solfec, 0.005)
 

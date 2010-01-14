@@ -35,11 +35,20 @@
 /* global list of created SOLFEC objects */
 static SOLFEC *solfec = NULL;
 
+/* global output sub-directory */
+static char *SUBDIR = NULL;
+
 /* register new SOLFEC object */
 void REGISTER_SOLFEC (SOLFEC *sol)
 {
   sol->next = solfec;
   solfec = sol;
+}
+
+/* get output sub-directory */
+char* OUTPUT_SUBDIR ()
+{
+  return SUBDIR;
 }
 
 #ifndef LIBSOLFEC /* executables */
@@ -86,17 +95,25 @@ static char* getfile (int argc, char **argv)
   FILE *f;
   int n;
 
-  for (n = 1, f = NULL; n < argc; n ++)
+  for (n = 1, path = NULL; n < argc; n ++)
   {
-    if ((f = fopen (argv [n], "r"))) break;
+    if (strcmp (argv [n], "-s") == 0)
+    {
+      if (++ n < argc)
+      {
+	SUBDIR = argv [n]; /* set sub-directory */
+      }
+    }
+    else if (strcmp (argv [n], "-v") == 0) continue;
+    else if (path == NULL)
+    {
+      if ((f = fopen (argv [n], "r")))
+      {
+        path = argv [n];
+        fclose (f);
+      }
+    }
   }
-
-  if (f)
-  {
-    fclose (f);
-    path = argv [n];
-  }
-  else path = NULL;
 
   return path;
 }
@@ -144,9 +161,9 @@ int main (int argc, char **argv)
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
-    char *synopsis = "SYNOPSIS: solfec [-v] path\n";
+    char *synopsis = "SYNOPSIS: solfec [-v] [-s sub-directory] path\n";
 #else
-    char *synopsis = "SYNOPSIS: solfec path\n";
+    char *synopsis = "SYNOPSIS: solfec [-s sub-directory] path\n";
 #endif
 
     if (!getfile (argc, argv)) printf (synopsis);
