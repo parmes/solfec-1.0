@@ -2028,6 +2028,11 @@ static void update_extents ()
 /* update bodies */
 static void update ()
 {
+  for (BODY *bod = domain->bod; bod; bod = bod->next)
+  {
+    if (bod->rendering == NULL) bod->rendering = create_body_data (bod);
+  }
+
   if (legend.entity)
   {
     legend.extents [0] =  DBL_MAX;
@@ -2281,6 +2286,8 @@ static void menu_domain (int item)
     selection_init ();
 
     update_extents ();
+
+    update ();
 
     glutSetMenu (menu_code [MENU_ANALYSIS]);
 

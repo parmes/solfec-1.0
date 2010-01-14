@@ -30,6 +30,7 @@
 #endif
 #include <string.h>
 #include <float.h>
+#include "solfec.h"
 #include "sol.h"
 #include "err.h"
 #include "tmr.h"
@@ -78,12 +79,20 @@ static int verbose_off (SOLFEC *sol, short kind, void *solver)
 static char* copyoutpath (char *outpath)
 {
   char *out = NULL;
-  int l;
+  int l, k, m;
 
   if ((l = outpath ? strlen (outpath) : 0))
   {
-    ERRMEM (out = malloc (l + 1));
+    m = 0;
+    k = OUTPUT_SUBDIR() ? strlen (OUTPUT_SUBDIR()) : 0;
+    if (k && outpath [l-1] != '/') m = 1;
+    ERRMEM (out = malloc (l + k + m + 1));
     strcpy (out, outpath);
+    if (k)
+    {
+      if (outpath [l-1] != '/') out [l] = '/';
+      strcpy (&out [l+m], OUTPUT_SUBDIR());
+    }
   }
 
   return out;
@@ -344,8 +353,8 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->output_interval = 0;
   sol->output_time = 0;
   sol->output_compression = CMP_OFF;
-  if ((sol->bf = readoutpath (outpath))) sol->mode = SOLFEC_READ;
-  else if ((sol->bf = writeoutpath (outpath))) sol->mode = SOLFEC_WRITE;
+  if ((sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
+  else if ((sol->bf = writeoutpath (sol->outpath))) sol->mode = SOLFEC_WRITE;
   else THROW (ERR_FILE_OPEN);
   sol->iover = -IOVER; /* negative to indicate initial state */
 
