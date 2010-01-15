@@ -4,7 +4,7 @@
 \begin_header
 \textclass book
 \use_default_options true
-\language british
+\language english
 \inputencoding auto
 \font_roman default
 \font_sans default
@@ -1078,7 +1078,161 @@ outside
 \begin_layout Chapter
 \begin_inset CommandInset label
 LatexCommand label
-name "cha:Input language"
+name "cha:Running-Solfec"
+
+\end_inset
+
+Running Solfec
+\end_layout
+
+\begin_layout Standard
+Solfec is a command line program.
+ It can be run sequentially (command: 
+\emph on
+solfec
+\emph default
+) or in parallel using the MPI runtime environment (command: 
+\emph on
+solfec-mpi
+\emph default
+).
+ Running it without parameters
+\end_layout
+
+\begin_layout LyX-Code
+./solfec
+\end_layout
+
+\begin_layout Standard
+results in the hint
+\end_layout
+
+\begin_layout LyX-Code
+SYNOPSIS: solfec [-v] [-s sub-directory] path
+\end_layout
+
+\begin_layout Standard
+The 
+\emph on
+-v
+\emph default
+ switch opens the interactive graphical viewer (cf.
+ Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:Solfec-viewer"
+
+\end_inset
+
+).
+ In this mode the user can view the geometrical mode, run or step through
+ analysis, and view results.
+ The right mouse click on the viewer window expands the menu.
+ The 
+\emph on
+-s
+\emph default
+ switch allows to output or read the results from a sub-directory.
+ This option is useful when one wishes to output results of similar analyses
+ to different sub-directories of a common root directory specified when
+ creating a SOLFEC object (cf.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:SOLFEC"
+
+\end_inset
+
+).
+ For example, the bellow commands would run a parallel example and output
+ the results into different sub-directories denoted by the number of processors
+ involved in the analysis
+\end_layout
+
+\begin_layout LyX-Code
+mpirun -np 4 solfec-mpi -s 4 inp/cubes.py
+\end_layout
+
+\begin_layout LyX-Code
+mpirun -np 16 solfec-mpi -s 16 inp/cubes.py
+\end_layout
+
+\begin_layout Standard
+Because the directory 
+\emph on
+out/cubes
+\emph default
+ is specified when creating the SOLFEC obejct in the 
+\emph on
+inp/cubes.py
+\emph default
+ input file, the above commands result in creation of two output directories:
+ 
+\emph on
+out/cubes/4
+\emph default
+ and 
+\emph on
+out/cubes/16
+\emph default
+.
+ One can then view a specific set of results by running
+\end_layout
+
+\begin_layout LyX-Code
+./solfec -v -s 16 inp/cubes.py
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename figures/viewer-1.png
+	lyxscale 30
+	width 4cm
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+
+\lang british
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:Solfec-viewer"
+
+\end_inset
+
+
+\lang english
+Solfec viewer window.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:Input-language"
 
 \end_inset
 
@@ -1460,13 +1614,17 @@ status open
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "fig:elements"
 
 \end_inset
 
-Element types in Solfec
+
+\lang english
+Element types in Solfec.
 \end_layout
 
 \end_inset
@@ -1920,6 +2078,12 @@ obj.center, obj.radius
 \end_layout
 
 \begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:SOLFEC"
+
+\end_inset
+
 SOLFEC
 \end_layout
 
@@ -2541,12 +2705,16 @@ reference "sub:Spring-dashpot"
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:surfmats"
 
 \end_inset
 
+
+\lang english
 Surface material models.
 \end_layout
 
@@ -2823,16 +2991,12 @@ reference "sub:Kirchhoff"
 \begin_inset Caption
 
 \begin_layout Plain Layout
-
-\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:bulkmats"
 
 \end_inset
 
-
-\lang british
 Bulk material models.
 \end_layout
 
@@ -3362,12 +3526,16 @@ TODO
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:formulation"
 
 \end_inset
 
+
+\lang english
 Bulk material models.
 \end_layout
 
@@ -3510,16 +3678,12 @@ None
 \begin_inset Caption
 
 \begin_layout Plain Layout
-
-\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:conf"
 
 \end_inset
 
-
-\lang british
 Types of configurations.
 \end_layout
 
@@ -3662,19 +3826,13 @@ None
 \begin_inset Caption
 
 \begin_layout Plain Layout
-
-\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:velo"
 
 \end_inset
 
-
-\lang british
-Types of velocities
-\lang english
-.
+Types of velocities.
 \end_layout
 
 \end_inset
@@ -3995,16 +4153,12 @@ key "Chawla1998"
 \begin_inset Caption
 
 \begin_layout Plain Layout
-
-\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:schema"
 
 \end_inset
 
-
-\lang british
 Time integration schema.
 \end_layout
 
@@ -4529,17 +4683,13 @@ Failure of a diagonal solver (e.g.
 \begin_inset Caption
 
 \begin_layout Plain Layout
-
-\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:err-gs"
 
 \end_inset
 
-
-\lang british
-Error codes of GAUSS_SEIDEL_SOLVER object
+Error codes of GAUSS_SEIDEL_SOLVER object.
 \end_layout
 
 \end_inset
@@ -4673,19 +4823,13 @@ ts.
 \begin_inset Caption
 
 \begin_layout Plain Layout
-
-\lang english
 \begin_inset CommandInset label
 LatexCommand label
 name "tab:var-gs"
 
 \end_inset
 
-
-\lang british
-Variants of parallel Gauss-Seidel update
-\lang english
-.
+Variants of parallel Gauss-Seidel update.
 \end_layout
 
 \end_inset
@@ -8400,12 +8544,16 @@ SPARSIFY
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "alg:Contact-sparsification"
 
 \end_inset
 
+
+\lang english
 Contact sparsification algorithm.
 \end_layout
 
@@ -8467,12 +8615,16 @@ status open
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "fig:spar-1"
 
 \end_inset
 
+
+\lang english
 An arch and a detail of two bricks.
  Note the narrow meshing near the edge of inner and outer boundaries.
 \end_layout
@@ -8510,12 +8662,16 @@ status open
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "fig:spar-2"
 
 \end_inset
 
+
+\lang english
 A detail of the arch from Figure 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -8987,12 +9143,16 @@ SPRING_DASHPOT
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "alg:Spring-dashpot"
 
 \end_inset
 
+
+\lang english
 Spring-dashpot reaction calculation.
 \end_layout
 
@@ -9507,12 +9667,16 @@ COLOR
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "alg:Simple-processor-coloring"
 
 \end_inset
 
+
+\lang english
 Simple processor coloring.
 \end_layout
 
@@ -10289,12 +10453,16 @@ PARALLEL_EXPLICIT_SOLVER
 \begin_inset Caption
 
 \begin_layout Plain Layout
+
+\lang british
 \begin_inset CommandInset label
 LatexCommand label
 name "alg:Parallel-explicit-solver"
 
 \end_inset
 
+
+\lang english
 Parallel explicit solver.
 \end_layout
 
