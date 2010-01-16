@@ -4478,7 +4478,7 @@ None
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="1">
+<lyxtabular version="3" rows="6" columns="1">
 <features>
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -4545,7 +4545,7 @@ obj.reverse
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -4564,6 +4564,25 @@ reference "tab:var-gs"
 \end_inset
 
 .
+ Ignored in sequential mode.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.innerloops
+\series default
+\emph default
+ - number of inner Gauss-Seidel loops per one global step during a parallel
+ run (default: 1).
  Ignored in sequential mode.
 \end_layout
 

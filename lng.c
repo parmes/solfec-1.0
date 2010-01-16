@@ -3054,6 +3054,20 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_variant (lng_GAUSS_SEIDEL_SOLVER *self, P
   return 0;
 }
 
+static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_innerloops (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
+{
+  return PyInt_FromLong (self->gs->innerloops);
+}
+
+static int lng_GAUSS_SEIDEL_SOLVER_set_innerloops (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_ge_val (value, "innerloops", 1)) return -1;
+
+  self->gs->innerloops = (int) PyInt_AsLong (value);
+
+  return 0;
+}
+
 /* GAUSS_SEIDEL_SOLVER methods */
 static PyMethodDef lng_GAUSS_SEIDEL_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3077,6 +3091,7 @@ static PyGetSetDef lng_GAUSS_SEIDEL_SOLVER_getset [] =
   {"history", (getter)lng_GAUSS_SEIDEL_SOLVER_get_history, (setter)lng_GAUSS_SEIDEL_SOLVER_set_history, "solution history recording", NULL},
   {"reverse", (getter)lng_GAUSS_SEIDEL_SOLVER_get_reverse, (setter)lng_GAUSS_SEIDEL_SOLVER_set_reverse, "iteration reversion flag", NULL},
   {"variant", (getter)lng_GAUSS_SEIDEL_SOLVER_get_variant, (setter)lng_GAUSS_SEIDEL_SOLVER_set_variant, "parallel update variant", NULL},
+  {"innerloops", (getter)lng_GAUSS_SEIDEL_SOLVER_get_innerloops, (setter)lng_GAUSS_SEIDEL_SOLVER_set_innerloops, "number of inner loops per one parallel step", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 

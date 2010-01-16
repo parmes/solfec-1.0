@@ -16,9 +16,12 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7)
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs.innerloops = 4
+gs.reverse = 'ON'
 
 simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'PSEUDO_RIGID', 'DEFAULT', 'PSEUDO_RIGID', 'DEFAULT', 10, 10, 12)
 
+IMBALANCE_TOLERANCE (solfec, 1.1)
 OUTPUT (solfec, 0.03)
 RUN (solfec, gs, stop)
 

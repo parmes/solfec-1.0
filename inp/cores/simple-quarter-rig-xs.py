@@ -12,13 +12,14 @@ stop = 11
 solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-quarter-rig-xs')
 GRAVITY (solfec, (0, 0, -1), 10)
 
-= SURFACE_MATERIAL (solfec, model = 'SPRING_DASHPOT', spring = 1E6, dashpot=1E3, friction = 0.7)
+SURFACE_MATERIAL (solfec, model = 'SPRING_DASHPOT', spring = 1E6, dashpot=1E3, friction = 0.7)
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
 xs = EXPLICIT_SOLVER ()
 
 simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'RIGID', 'DEFAULT', 'RIGID', 'DEFAULT', 10, 10, 12)
 
+IMBALANCE_TOLERANCE (solfec, 1.1)
 OUTPUT (solfec, 0.03)
 RUN (solfec, xs, stop)
 
