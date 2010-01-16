@@ -88,6 +88,8 @@ struct gs
   GSONOFF reverse; /* iterate forward an backward alternately ? */
 
   GSVARIANT variant; /* parallel algorithm variant (ignored in serial mode) */
+
+  int innerloops; /* number of inner GS loops per one global parallel step (ignored in serial mode) */
 };
 
 /* create solver */
