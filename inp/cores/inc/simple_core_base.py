@@ -155,17 +155,17 @@ def gcore_loose_key (pnt, lx, ly, lz, zrot, material, solfec):
            4, 0, 3, 2, 1, 1,
            4, 4, 5, 6, 7, 1]
 
-  cvx = CONVEX (vertices, faces, 1)
+  hex = HEX (vertices, 1, 1, 3, 1, [1, 1, 1, 1, 1, 1])
 
   scl = (lx, ly, lz)
   vec = (pnt [0] - 0.5*lx, pnt [1] - 0.5*ly, pnt [2])
   zet = (0, 0, 1)
 
-  SCALE (cvx, scl)
-  TRANSLATE (cvx, vec)
-  if zrot != 0.0: ROTATE (cvx, pnt, zet, zrot)
+  SCALE (hex, scl)
+  TRANSLATE (hex, vec)
+  if zrot != 0.0: ROTATE (hex, pnt, zet, zrot)
 
-  BODY (solfec, 'RIGID', cvx, material)
+  BODY (solfec, 'RIGID', hex, material)
 
 def gcore_integral_key (pnt, l, a, b, h, material, solfec, integral_kind, integral_scheme):
 
