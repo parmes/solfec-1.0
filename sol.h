@@ -71,6 +71,7 @@ struct solfec
   DOM *dom; /* bodies, constraints and time integration */
 
   int iover; /* input-output version */
+  int ioparallel; /* parallel output flag */
   CMP_ALG output_compression;
   double output_interval,
 	 output_time;

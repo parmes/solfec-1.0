@@ -143,8 +143,10 @@ enum /* menu items */
   ANALYSIS_BACKWARD,
   ANALYSIS_SKIP,
   KINDS_OF_CONSTRAINTS,
+  KINDS_OF_CONSTRAINT_RANKS,
   KINDS_OF_FORCES,
   KINDS_OF_BODIES,
+  KINDS_OF_BODY_RANKS,
   KINDS_OF_SURFACES,
   KINDS_OF_VOLUMES,
   RESULTS_DX,
@@ -163,6 +165,9 @@ enum /* menu items */
   RESULTS_RT,
   RESULTS_RN,
   RESULTS_R,
+  RESULTS_UT,
+  RESULTS_UN,
+  RESULTS_U,
   RESULTS_GAP
 };
 
@@ -406,6 +411,7 @@ static double sphere_value (BODY *bod, SPHERE *sph)
   case KINDS_OF_BODIES: return bod->kind;
   case KINDS_OF_SURFACES:  return sph->surface;
   case KINDS_OF_VOLUMES: return sph->volume;
+  case KINDS_OF_BODY_RANKS: return bod->rank;
   case RESULTS_DX:
   case RESULTS_DY:
   case RESULTS_DZ:
@@ -715,9 +721,16 @@ static void update_body_constraint_or_force_values (BODY *bod)
         SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) con->kind, NULL);
 	value = con->kind;
 	break;
+      case KINDS_OF_CONSTRAINT_RANKS: 
+        SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) con->rank, NULL);
+	value = con->rank;
+	break;
       case RESULTS_RT: value = LEN2 (con->R); break;
       case RESULTS_RN: value = fabs (con->R[2]); break;
       case RESULTS_R: value = LEN (con->R); break;
+      case RESULTS_UT: value = LEN2 (con->U); break;
+      case RESULTS_UN: value = fabs (con->U[2]); break;
+      case RESULTS_U: value = LEN (con->U); break;
       case RESULTS_GAP: value = con->gap; break;
       }
 
@@ -778,6 +791,12 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
 	if ((double) (long) item->key > legend.extents [1]) legend.extents [1] = (double) (long) item->key;
         SET_Insert (&rndsetmem, &legend.discrete, item->key, NULL);
       }
+      break;
+    case KINDS_OF_BODY_RANKS:
+      for (val = data->vertex_values, end = val + data->triangles_count * 3; val < end; val ++) *val = (double) bod->rank;
+      if (bod->rank < legend.extents [0]) legend.extents [0] = bod->rank;
+      if (bod->rank > legend.extents [1]) legend.extents [1] = bod->rank;
+      SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) bod->rank, NULL);
       break;
     case RESULTS_DX:
     case RESULTS_DY:
@@ -967,8 +986,10 @@ static char* legend_caption ()
   switch (legend.entity)
   {
   case KINDS_OF_CONSTRAINTS: return "CONSTRAINT KINDS";
+  case KINDS_OF_CONSTRAINT_RANKS: return "CONSTRAINT RANKS";
   case KINDS_OF_FORCES: return "FORCE KINDS";
   case KINDS_OF_BODIES: return "BODY KINDS";
+  case KINDS_OF_BODY_RANKS: return "BODY RANKS";
   case KINDS_OF_SURFACES: return "SURFACE KINDS";
   case KINDS_OF_VOLUMES: return "VOLUME KINDS";
   case RESULTS_DX: return "DX";
@@ -984,9 +1005,12 @@ static char* legend_caption ()
   case RESULTS_SXZ: return "SXZ";
   case RESULTS_SYZ: return "SYZ";
   case RESULTS_MISES: return "MISES";
-  case RESULTS_RN: return "RN";
   case RESULTS_RT: return "RT";
+  case RESULTS_RN: return "RN";
   case RESULTS_R: return "R";
+  case RESULTS_UT: return "UT";
+  case RESULTS_UN: return "UN";
+  case RESULTS_U: return "U";
   case RESULTS_GAP: return "GAP";
   }
 
@@ -1569,8 +1593,8 @@ static void arrow3d (double *p, double *q)
   glEnd ();
 }
 
-/* render tangential reactions */
-static void render_rt (CON *con, GLfloat color [3])
+/* render tangential vector */
+static void render_vt (CON *con, double *V, GLfloat color [3])
 {
   double r [3],
 	 other [3],
@@ -1578,8 +1602,8 @@ static void render_rt (CON *con, GLfloat color [3])
 	 eps, len;
 
   COPY (con->base, r);
-  SCALE (r, con->R[0]);
-  ADDMUL (r, con->R[1], con->base+3, r);
+  SCALE (r, V[0]);
+  ADDMUL (r, V[1], con->base+3, r);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
   eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
@@ -1589,8 +1613,8 @@ static void render_rt (CON *con, GLfloat color [3])
   arrow3d (other, con->point);
 }
 
-/* render normal reactions */
-static void render_rn (CON *con, GLfloat color [3])
+/* render normal vector */
+static void render_vn (CON *con, double *V, GLfloat color [3])
 {
   double r [3],
 	 other [3],
@@ -1598,7 +1622,7 @@ static void render_rn (CON *con, GLfloat color [3])
 	 eps, len;
 
   COPY (con->base + 6, r);
-  SCALE (r, con->R[2]);
+  SCALE (r, V[2]);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
   eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
@@ -1608,8 +1632,8 @@ static void render_rn (CON *con, GLfloat color [3])
   arrow3d (other, con->point);
 }
 
-/* render reaction */
-static void render_r (CON *con, GLfloat color [3])
+/* render vector */
+static void render_v (CON *con, double *V, GLfloat color [3])
 {
   double r [3],
 	 other [3],
@@ -1618,9 +1642,9 @@ static void render_r (CON *con, GLfloat color [3])
 	 len;
 
   COPY (con->base, r);
-  SCALE (r, con->R[0]);
-  ADDMUL (r, con->R[1], con->base+3, r);
-  ADDMUL (r, con->R[2], con->base+6, r);
+  SCALE (r, V[0]);
+  ADDMUL (r, V[1], con->base+3, r);
+  ADDMUL (r, V[2], con->base+6, r);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
   eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
@@ -1807,8 +1831,10 @@ static void render_body_set_constraints_or_forces (SET *set)
 	switch (legend.entity)
 	{
 	case KINDS_OF_CONSTRAINTS:
+	case KINDS_OF_CONSTRAINT_RANKS:
 
-	  value_to_color (con->kind, color);
+	  if (legend.entity == (short) KINDS_OF_CONSTRAINTS) value_to_color (con->kind, color);
+	  else value_to_color (con->rank, color);
 
 	  switch (con->kind)
 	  {
@@ -1820,9 +1846,12 @@ static void render_body_set_constraints_or_forces (SET *set)
 	  }
 
 	  break;
-	case RESULTS_RT: value_to_color (LEN2 (con->R), color); render_rt (con, color); break;
-	case RESULTS_RN: value_to_color (fabs (con->R[2]), color); render_rn (con, color); break;
-	case RESULTS_R:  value_to_color (LEN (con->R), color); render_r (con, color); break;
+	case RESULTS_RT: value_to_color (LEN2 (con->R), color); render_vt (con, con->R, color); break;
+	case RESULTS_RN: value_to_color (fabs (con->R[2]), color); render_vn (con, con->R, color); break;
+	case RESULTS_R:  value_to_color (LEN (con->R), color); render_v (con, con->R, color); break;
+	case RESULTS_UT: value_to_color (LEN2 (con->U), color); render_vt (con, con->U, color); break;
+	case RESULTS_UN: value_to_color (fabs (con->U[2]), color); render_vn (con, con->U, color); break;
+	case RESULTS_U:  value_to_color (LEN (con->U), color); render_v (con, con->U, color); break;
 	case RESULTS_GAP:  value_to_color (con->gap, color); render_gap (con, color); break;
 	}
 
@@ -2478,8 +2507,10 @@ int RND_Menu (char ***names, int **codes)
   menu_name [MENU_KINDS] = "kinds of";
   menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
   glutAddMenuEntry ("constraints", KINDS_OF_CONSTRAINTS);
+  glutAddMenuEntry ("constraint ranks", KINDS_OF_CONSTRAINT_RANKS);
   glutAddMenuEntry ("forces", KINDS_OF_FORCES);
   glutAddMenuEntry ("bodies", KINDS_OF_BODIES);
+  glutAddMenuEntry ("body ranks", KINDS_OF_BODY_RANKS);
   glutAddMenuEntry ("surfaces", KINDS_OF_SURFACES);
   glutAddMenuEntry ("volumes", KINDS_OF_VOLUMES);
 
@@ -2512,9 +2543,12 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("syz", RESULTS_SYZ);
   glutAddMenuEntry ("mises", RESULTS_MISES);
   local [3] = glutCreateMenu (menu_results);
-  glutAddMenuEntry ("normal", RESULTS_RN);
-  glutAddMenuEntry ("tangent", RESULTS_RT);
-  glutAddMenuEntry ("resultant", RESULTS_R);
+  glutAddMenuEntry ("RT", RESULTS_RT);
+  glutAddMenuEntry ("RN", RESULTS_RN);
+  glutAddMenuEntry ("R", RESULTS_R);
+  glutAddMenuEntry ("UT", RESULTS_UT);
+  glutAddMenuEntry ("UN", RESULTS_UN);
+  glutAddMenuEntry ("U", RESULTS_U);
   glutAddMenuEntry ("gap", RESULTS_GAP);
 
   menu_name [MENU_RESULTS] = "results";
@@ -2522,7 +2556,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddSubMenu ("displacements", local [0]);
   glutAddSubMenu ("velocities", local [1]);
   glutAddSubMenu ("stresses", local [2]);
-  glutAddSubMenu ("reactions", local [3]);
+  glutAddSubMenu ("constraints", local [3]);
 
   *names = menu_name;
   *codes = menu_code;

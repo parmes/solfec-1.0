@@ -6,6 +6,7 @@
  */
 
 #include <string.h>
+#include "sol.h"
 #include "dio.h"
 #include "pck.h"
 #include "err.h"
@@ -21,6 +22,7 @@ static void pack_constraint_state (CON *con, int *dsize, double **d, int *double
   pack_int (isize, i, ints , kind);
 
   pack_doubles (dsize, d, doubles, con->R, 3);
+  pack_doubles (dsize, d, doubles, con->U, 3);
   pack_doubles (dsize, d, doubles, con->point, 3);
   pack_doubles (dsize, d, doubles, con->base, 9);
 
@@ -36,6 +38,10 @@ static void pack_constraint_state (CON *con, int *dsize, double **d, int *double
   }
 
   if (kind == RIGLNK || kind == VELODIR) pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
+
+#if MPI
+  pack_int (isize, i, ints, con->master->dom->rank);
+#endif
 }
 
 /* unpack constraint state */
@@ -51,6 +57,7 @@ static CON* unpack_constraint_state (DOM *dom, int *dpos, double *d, int doubles
   con->kind = kind = unpack_int (ipos, i, ints);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
+  unpack_doubles (dpos, d, doubles, con->U, 3);
   unpack_doubles (dpos, d, doubles, con->point, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
 
@@ -68,6 +75,11 @@ static CON* unpack_constraint_state (DOM *dom, int *dpos, double *d, int doubles
 
   if (kind == RIGLNK || kind == VELODIR) unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
 
+  if (dom->solfec->ioparallel)
+  {
+    con->rank = unpack_int (ipos, i, ints);
+  }
+
   return con;
 }
 
@@ -81,6 +93,7 @@ static void write_constraint (CON *con, PBF *bf)
   PBF_Int (bf, &kind, 1);
 
   PBF_Double (bf, con->R, 3);
+  PBF_Double (bf, con->U, 3);
   PBF_Double (bf, con->point, 3);
   PBF_Double (bf, con->base, 9);
 
@@ -96,6 +109,10 @@ static void write_constraint (CON *con, PBF *bf)
   }
 
   if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
+
+#if MPI
+  PBF_Int (bf, &con->master->dom->rank, 1);
+#endif
 }
 
 /* read constraint state */
@@ -112,6 +129,7 @@ static CON* read_constraint (DOM *dom, PBF *bf)
   con->kind = kind;
 
   PBF_Double (bf, con->R, 3);
+  PBF_Double (bf, con->U, 3);
   PBF_Double (bf, con->point, 3);
   PBF_Double (bf, con->base, 9);
 
@@ -128,6 +146,11 @@ static CON* read_constraint (DOM *dom, PBF *bf)
   }
 
   if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
+
+  if (dom->solfec->ioparallel)
+  {
+    PBF_Int (bf, &con->rank, 1);
+  }
 
   return con;
 }

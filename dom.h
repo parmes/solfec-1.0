@@ -58,7 +58,8 @@ typedef struct domain DOM;
 
 struct constraint
 {
-  double R [3]; /* average constraint reaction */
+  double R [3], /* average constraint reaction */
+	 U [3]; /* relative velocity */
 
   DIAB *dia; /* diagonal entry in the local dynamical system */
 
@@ -94,10 +95,10 @@ struct constraint
   SGP *msgp, /* master (shape, gobj, box) triplet */
       *ssgp; /* slave triplet (if any) */
 
+  int rank; /* parallel: origin rank for an external constraint;
+               serial read: rank of residence during parallel run */
 #if MPI
   SET *ext; /* ranks of remote external images of this constraint */
-
-  int rank; /* origin rank for an external constraint */
 #endif
 
   CON *prev, *next; /* list */
