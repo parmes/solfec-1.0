@@ -49,3 +49,8 @@ Improve robustness of gap computation
 Reduce parallel balancing communication during fully explicit runs
 (e.g. external constraints sent only from children to parents)
 ---------------------------------------------------------------
+Include (at least in the viewer mode) possibility of dumping
+into a separate sub-directory of a subset of existin results
+-------------------------------------------------------------------
+Implement merging of parallel files
+-------------------------------------------------------------------

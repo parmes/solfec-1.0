@@ -1738,6 +1738,10 @@ void BODY_Write_State (BODY *bod, PBF *bf)
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
   PBF_Double (bf, bod->velo, bod->dofs);
   PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod));
+
+#if MPI
+  PBF_Int (bf, &bod->dom->rank, 1);
+#endif
 }
 
 void BODY_Read_State (BODY *bod, PBF *bf)
@@ -1745,6 +1749,11 @@ void BODY_Read_State (BODY *bod, PBF *bf)
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
   PBF_Double (bf, bod->velo, bod->dofs);
   PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod));
+
+  if (bod->dom->solfec->ioparallel)
+  {
+    PBF_Int (bf, &bod->rank, 1);
+  }
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 

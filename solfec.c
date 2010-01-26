@@ -52,6 +52,10 @@ char* OUTPUT_SUBDIR ()
 }
 
 #ifndef LIBSOLFEC /* executables */
+#if OPENGL
+static int WIDTH = 512, HEIGHT = 512; /* initial width and height of the viewer window */
+#endif
+
 #if MPI_VERSION >= 2
 /* error handler callback */
 static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
@@ -104,6 +108,15 @@ static char* getfile (int argc, char **argv)
 	SUBDIR = argv [n]; /* set sub-directory */
       }
     }
+#if OPENGL
+    else if (strcmp (argv [n], "-g") == 0)
+    {
+      if (++ n < argc)
+      {
+	sscanf (argv[n], "%dx%d", &WIDTH, &HEIGHT);
+      }
+    }
+#endif
     else if (strcmp (argv [n], "-v") == 0) continue;
     else if (path == NULL)
     {
@@ -161,7 +174,7 @@ int main (int argc, char **argv)
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
-    char *synopsis = "SYNOPSIS: solfec [-v] [-s sub-directory] path\n";
+    char *synopsis = "SYNOPSIS: solfec [-v] [-g WIDTHxHEIGHT] [-s sub-directory] path\n";
 #else
     char *synopsis = "SYNOPSIS: solfec [-s sub-directory] path\n";
 #endif
@@ -174,7 +187,7 @@ int main (int argc, char **argv)
     {
       double extents [6] = {-1, -1, -1, 1, 1, 1};
 
-      GLV (&argc, argv, "Solfec", 512, 512, extents, /* run viewer */
+      GLV (&argc, argv, "Solfec", WIDTH, HEIGHT, extents, /* run viewer */
 	   RND_Menu, RND_Init, RND_Idle, RND_Quit, RND_Render,
 	   RND_Key, RND_Keyspec, RND_Mouse, RND_Motion, RND_Passive);
     }

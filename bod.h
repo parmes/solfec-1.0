@@ -166,10 +166,10 @@ struct general_body
 
   double energy [BODY_ENERGY_SPACE]; /* kinetic, external, contwork, fricwork, internal */
 
+  int rank; /* parent => new/current rank; child => parent's rank */
+
 #if MPI
   SET *children; /* set of children ids for a parent; set of other children for a child */
-
-  int rank; /* parent => new/current rank; child => parent's rank */
 #else
   void *rendering; /* rendering data */
 #endif

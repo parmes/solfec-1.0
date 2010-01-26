@@ -165,13 +165,15 @@ static void write_state (SOLFEC *sol)
 
   PBF_Time (sol->bf, &sol->dom->time); /* the only domain member written outside of it */
 
-  /* write version */
+  /* write initial flags */
 
   if (sol->iover < 0)
   {
     sol->iover = -sol->iover; /* make positive */
     PBF_Label (sol->bf, "IOVER");
     PBF_Int (sol->bf, &sol->iover, 1);
+    PBF_Label (sol->bf, "IOPARALLEL");
+    PBF_Int (sol->bf, &sol->ioparallel, 1);
   }
 
   /* write domain */
@@ -203,12 +205,14 @@ static void read_state (SOLFEC *sol)
 
   PBF_Time (sol->bf, &sol->dom->time); /* the only domain member red outside of it */
 
-  /* read version */
+  /* read initial flags */
 
   if (sol->iover < 0)
   {
     ASSERT (PBF_Label (sol->bf, "IOVER"), ERR_FILE_FORMAT);
     PBF_Int (sol->bf, &sol->iover, 1);
+    ASSERT (PBF_Label (sol->bf, "IOPARALLEL"), ERR_FILE_FORMAT);
+    PBF_Int (sol->bf, &sol->ioparallel, 1);
   }
 
   /* read domain */
@@ -357,6 +361,11 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   else if ((sol->bf = writeoutpath (sol->outpath))) sol->mode = SOLFEC_WRITE;
   else THROW (ERR_FILE_OPEN);
   sol->iover = -IOVER; /* negative to indicate initial state */
+#if MPI
+  sol->ioparallel = 1; /* some data specific to parallel run will be outputed */
+#else
+  sol->ioparallel = 0;
+#endif
 
   sol->callback_interval = DBL_MAX;
   sol->callback_time = DBL_MAX;
