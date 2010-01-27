@@ -56,26 +56,30 @@ def create_simulation (output, step, stop, solver, kind, scheme):
   return (solfec, bod)
 
 ### main module ###
-
-step = 0.002
-
-stop = 1
-
 #import rpdb2; rpdb2.start_embedded_debugger('a')
+
+step = 0.001
+stop = 1
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
-s1 = create_simulation ('out/prbpinbar1', step, stop, gs, 'RIGID', 'RIG_NEG')
-
-s2 = create_simulation ('out/prbpinbar2', step, stop, gs, 'PSEUDO_RIGID', 'DEF_IMP')
+s1 = create_simulation ('out/prbpinbar/rig', step, stop, gs, 'RIGID', 'RIG_NEG')
+s2 = create_simulation ('out/prbpinbar/imp', step, stop, gs, 'PSEUDO_RIGID', 'DEF_IMP')
+s3 = create_simulation ('out/prbpinbar/exp', step, stop, gs, 'PSEUDO_RIGID', 'DEF_EXP')
 
 if not VIEWER() and s1[0].mode == 'READ':
-  import matplotlib.pyplot as plt
-  th1 = HISTORY (s1[0], [(s1[1], 'KINETIC'), (s1[1], 'INTERNAL'), (s1[1], 'EXTERNAL'), (s1[1], 'CONTACT'), (s1[1], 'FRICTION')], 0, stop)
-  th2 = HISTORY (s2[0], [(s2[1], 'KINETIC'), (s2[1], 'INTERNAL'), (s2[1], 'EXTERNAL'), (s2[1], 'CONTACT'), (s2[1], 'FRICTION')], 0, stop)
-  plt.plot (th1 [0], th1 [1], label='kinE')
-  plt.plot (th1 [0], th1 [2], label='intE')
-  plt.plot (th2 [0], th2 [1], label='kinI')
-  plt.plot (th2 [0], th2 [2], label='intI')
-  plt.legend(loc=1)
-  plt.show ()
+  try:
+    import matplotlib.pyplot as plt
+    th1 = HISTORY (s1[0], [(s1[1], 'KINETIC'), (s1[1], 'INTERNAL'), (s1[1], 'EXTERNAL'), (s1[1], 'CONTACT'), (s1[1], 'FRICTION')], 0, stop)
+    th2 = HISTORY (s2[0], [(s2[1], 'KINETIC'), (s2[1], 'INTERNAL'), (s2[1], 'EXTERNAL'), (s2[1], 'CONTACT'), (s2[1], 'FRICTION')], 0, stop)
+    th3 = HISTORY (s3[0], [(s3[1], 'KINETIC'), (s3[1], 'INTERNAL'), (s3[1], 'EXTERNAL'), (s3[1], 'CONTACT'), (s3[1], 'FRICTION')], 0, stop)
+    plt.plot (th3 [0], th3 [1], label='PRB-EXP')
+    plt.plot (th2 [0], th2 [1], label='PRB-IMP')
+    plt.plot (th1 [0], th1 [1], label='RIG')
+    plt.axis (xmin = 0, xmax = stop)
+    plt.xlabel ('Time [s]')
+    plt.ylabel ('Kinetic energy [J]')
+    plt.legend(loc = 'upper right')
+    plt.savefig ('out/prbpinbar/prbpinbar.eps')
+  except ImportError:
+    pass # no reaction
