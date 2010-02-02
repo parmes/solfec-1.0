@@ -31,6 +31,7 @@
 #include <float.h>
 #include <time.h>
 #include <math.h>
+#include "ext/gl2ps.h"
 #include "err.h"
 #include "bmp.h"
 #include "glv.h"
@@ -121,6 +122,8 @@ enum
   MENU_ORTHO,
   MENU_OUTLINE,
   MENU_FILL,
+  MENU_EXPORT_PDF,
+  MENU_EXPORT_EPS,
   MENU_EXPORT_BMP,
   MENU_EXPORT_AVI
 };
@@ -354,11 +357,17 @@ static void render2D ()
 /* draw main window */
 static void render3D ()
 {
+  GLint viewport [4];
+
   glClearColor (1, 1, 1, 1);
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-  if (user.render)
-    user.render ();
+  glGetIntegerv (GL_VIEWPORT, viewport);
+  gl2psBeginViewport (viewport);
+
+  if (user.render) user.render ();
+
+  gl2psEndViewport ();
 
   if (rectangle.enabled) render_rectangle ();
 
@@ -370,7 +379,12 @@ static void render3D ()
     if (viewports [i].is3D) basic_reshape3D (ABS (viewports [i].w), ABS (viewports [i].h));
     else basic_reshape2D (ABS (viewports [i].w), ABS (viewports [i].h));
 
+    glGetIntegerv (GL_VIEWPORT, viewport);
+    gl2psBeginViewport (viewport);
+
     viewports [i].render ();
+
+    gl2psEndViewport ();
   }
 
   glutSwapBuffers();
@@ -646,6 +660,60 @@ static void init3D (double *extents)
     user.init ();
 }
 
+/* export PDF */
+static void pdf (char *path)
+{
+  int state = GL2PS_OVERFLOW, buffsize = 0, len;
+  GLint viewport [4] = {0, 0, width, height};
+  FILE *fp;
+
+  if (path)
+  {
+    len = strlen (path);
+    if (strcmp (&path[len-4], ".pdf"))
+      sprintf (&path [len], ".pdf");
+
+    ASSERT (fp = fopen (path, "w"), ERR_FILE_OPEN);
+   
+    while (state == GL2PS_OVERFLOW)
+    {
+      buffsize += 16777216;
+      gl2psBeginPage("Solfec picture", "Solfec", viewport, GL2PS_PDF, GL2PS_SIMPLE_SORT, 0, GL_RGBA, 0, NULL, 8, 8, 8, buffsize, fp, path);
+      render3D ();
+      state = gl2psEndPage();
+    }
+
+    fclose(fp);
+  }
+}
+
+/* export EPS */
+static void eps (char *path)
+{
+  int state = GL2PS_OVERFLOW, buffsize = 0, len;
+  GLint viewport [4] = {0, 0, width, height};
+  FILE *fp;
+
+  if (path)
+  {
+    len = strlen (path);
+    if (strcmp (&path[len-4], ".eps"))
+      sprintf (&path [len], ".eps");
+
+    ASSERT (fp = fopen (path, "w"), ERR_FILE_OPEN);
+   
+    while (state == GL2PS_OVERFLOW)
+    {
+      buffsize += 16777216;
+      gl2psBeginPage("Solfec picture", "Solfec", viewport, GL2PS_EPS, GL2PS_SIMPLE_SORT, 0, GL_RGBA, 0, NULL, 8, 8, 8, buffsize, fp, path);
+      render3D ();
+      state = gl2psEndPage();
+    }
+
+    fclose(fp);
+  }
+}
+
 /* export BMP */
 static void bmp (char *path)
 {
@@ -719,6 +787,12 @@ static void menu3D (int value)
       glutChangeToMenuEntry (6 + menu_shift, "outline", MENU_OUTLINE);
       glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
       updateall ();
+      break;
+    case MENU_EXPORT_PDF:
+      GLV_Read_Text ("PDF FILE NAME", pdf);
+      break;
+    case MENU_EXPORT_EPS:
+      GLV_Read_Text ("EPS FILE NAME", eps);
       break;
     case MENU_EXPORT_BMP:
       GLV_Read_Text ("BMP FILE NAME", bmp);
@@ -817,6 +891,8 @@ void GLV (
   glutAddMenuEntry ("move", MENU_MOVE);
   glutAddMenuEntry ("perspective", MENU_PERSPECTIVE);
   glutAddMenuEntry ("outline", MENU_OUTLINE);
+  glutAddMenuEntry ("PDF", MENU_EXPORT_PDF);
+  glutAddMenuEntry ("EPS", MENU_EXPORT_EPS);
   glutAddMenuEntry ("BMP", MENU_EXPORT_BMP);
   glutAddMenuEntry ("AVI", MENU_EXPORT_AVI);
   glutAddMenuEntry ("quit", MENU_QUIT);
@@ -1038,22 +1114,27 @@ void GLV_Print (double x, double y, double z, int font, char *fmt, ...)
   switch (font)
   {
     case GLV_FONT_8_BY_13:
+      gl2psText (buff, "Courier", 13);
       for (i = 0; buff[i]; i++)
 	glutBitmapCharacter (GLUT_BITMAP_8_BY_13, buff[i]);
       break;
     case GLV_FONT_9_BY_15:
+      gl2psText (buff, "Courier", 15);
       for (i = 0; buff[i]; i++)
 	glutBitmapCharacter (GLUT_BITMAP_9_BY_15, buff[i]);
       break;
     case GLV_FONT_10:
+      gl2psText (buff, "Courier", 10);
       for (i = 0; buff[i]; i++)
 	glutBitmapCharacter (GLUT_BITMAP_HELVETICA_10, buff[i]); /* output characters */
       break;
     case GLV_FONT_12:
+      gl2psText (buff, "Courier", 12);
       for (i = 0; buff[i]; i++)
 	glutBitmapCharacter (GLUT_BITMAP_HELVETICA_12, buff[i]);
       break;
     case GLV_FONT_18:
+      gl2psText (buff, "Courier", 18);
       for (i = 0; buff[i]; i++)
 	glutBitmapCharacter (GLUT_BITMAP_HELVETICA_18, buff[i]);
       break;

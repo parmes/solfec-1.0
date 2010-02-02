@@ -1096,7 +1096,7 @@ static void legend_render ()
   glColor3f (1, 1, 1);
   glRecti (v[0] + 3, v[1] + 3, 3 + legend_caption_width (), 19);
   glColor3f (0, 0, 0);
-  GLV_Print (v[0] + 6, v[1] + 6, 0, LEGEND_FONT, "%s", legend_caption ());
+  GLV_Print (v[0] + 6, v[1] + 6, 1, LEGEND_FONT, "%s", legend_caption ());
 
   if (legend.discrete)
   {
@@ -1113,7 +1113,7 @@ static void legend_render ()
 	l = GLV_Print_Width (LEGEND_FONT, str) + 5;
 	glRecti (v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
         glColor3f (0, 0, 0);
-        GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, str);
+        GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 1, LEGEND_FONT, str);
       }
       else
       {
@@ -1121,7 +1121,7 @@ static void legend_render ()
 	l = GLV_Print_Width (LEGEND_FONT, "%d", (int)item->data) + 5;
 	glRecti (v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
         glColor3f (0, 0, 0);
-	GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%d", (int)item->data);
+	GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 1, LEGEND_FONT, "%d", (int)item->data);
       }
       if (i ++ == LEGEND_ROWS) { i = 1; j ++; }
     }
@@ -1145,7 +1145,7 @@ static void legend_render ()
 	l = GLV_Print_Width (LEGEND_FONT, "%.2e", value) + 5;
 	glRecti (v[0] + j * LEGEND_WIDTH_CONT + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_CONT + 16 + l, v[1] + (i+1) * 16);
 	glColor3f (0, 0, 0);
-	GLV_Print (v[0] + j * LEGEND_WIDTH_CONT + 18, v[1] + i * 16 + 3, 0, LEGEND_FONT, "%.2e", value);
+	GLV_Print (v[0] + j * LEGEND_WIDTH_CONT + 18, v[1] + i * 16 + 3, 1, LEGEND_FONT, "%.2e", value);
 	if (i ++ == LEGEND_ROWS) { i = 1; j ++; }
       }
       glPopMatrix ();
@@ -2287,7 +2287,7 @@ static void time_render ()
   glColor3f (1, 1, 1);
   glRecti (0, 0, time_width (), TIME_HEIGHT);
   glColor3f (0, 0, 0);
-  GLV_Print (3, 3, 0, TIME_FONT, "t=%g", domain->time);
+  GLV_Print (3, 3, 1, TIME_FONT, "t=%g", domain->time);
 
   glEnable (GL_LIGHTING);
   glEnable (GL_DEPTH_TEST);
