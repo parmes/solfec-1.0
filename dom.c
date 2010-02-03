@@ -2599,27 +2599,15 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg)
 {
-  int cmp = alg;
-
-  PBF_Label (bf, "DOMCMP"); /* label domain compression (0 rank file in parallel) */
-  PBF_Int (bf, &cmp, 1); /* 0 rank file as well */
-
-  if (cmp == CMP_OFF) dom_write_state (dom, bf);
+  if (alg == CMP_OFF) dom_write_state (dom, bf);
   else dom_write_state_compressed (dom, bf, alg);
 }
 
 /* read domain state */
-void DOM_Read_State (DOM *dom, PBF *bf)
+void DOM_Read_State (DOM *dom, PBF *bf, CMP_ALG alg)
 {
-  int cmp;
-
-  if (PBF_Label (bf, "DOMCMP")) /* perhaps some other that was outputed more frequently (DOM needs not be in every frame) */
-  {
-    PBF_Int (bf, &cmp, 1);
-
-    if (cmp == CMP_OFF) dom_read_state (dom, bf);
-    else dom_read_state_compressed (dom, bf);
-  }
+  if (alg == CMP_OFF) dom_read_state (dom, bf);
+  else dom_read_state_compressed (dom, bf);
 }
 
 /* read state of an individual body */

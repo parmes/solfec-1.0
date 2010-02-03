@@ -350,6 +350,7 @@ masonry_bridge_create (bulkmat, solfec, 27, 4)
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
+OUTPUT (solfec, 50 * step)
 RUN (solfec, gs, 10000 * step)
 
 if not VIEWER() and solfec.mode == 'READ':

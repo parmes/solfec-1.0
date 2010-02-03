@@ -39,8 +39,6 @@ Test PBF file size limitation fixup
 ----------------------------------------------------
 Data compression/decompression in COMALL, etc.
 -----------------------------------------------------------
-Optimize SOLFEC_History in case only labeled data is red
-----------------------------------------------------------------
 Add impliciting iteration for u(t+h) at the end of SCH_DEF_IMP
 ------------------------------------------
 Improve robustness of gap computation
