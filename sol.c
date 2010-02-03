@@ -178,7 +178,11 @@ static void write_state (SOLFEC *sol)
 
   /* write domain */
 
-  DOM_Write_State (sol->dom, sol->bf, sol->output_compression);
+  int cmp = sol->output_compression;
+
+  PBF_Label (sol->bf, "DOMCMP"); /* label domain compression */
+  PBF_Int (sol->bf, &cmp, 1);
+  DOM_Write_State (sol->dom, sol->bf, cmp);
 
   /* write timers */
 
@@ -198,29 +202,9 @@ static void write_state (SOLFEC *sol)
   clean_timers (sol); /* restart total timing */
 }
 
-/* input state */
-static void read_state (SOLFEC *sol)
+/* read timers alone */
+static void read_timers (SOLFEC *sol)
 {
-  /* read time */
-
-  PBF_Time (sol->bf, &sol->dom->time); /* the only domain member red outside of it */
-
-  /* read initial flags */
-
-  if (sol->iover < 0)
-  {
-    ASSERT (PBF_Label (sol->bf, "IOVER"), ERR_FILE_FORMAT);
-    PBF_Int (sol->bf, &sol->iover, 1);
-    ASSERT (PBF_Label (sol->bf, "IOPARALLEL"), ERR_FILE_FORMAT);
-    PBF_Int (sol->bf, &sol->ioparallel, 1);
-  }
-
-  /* read domain */
-
-  DOM_Read_State (sol->dom, sol->bf);
-
-  /* read timers */
-
   clean_timers (sol); /* zero total timing */
 
   int n, numt, found = 0;
@@ -253,6 +237,39 @@ static void read_state (SOLFEC *sol)
     }
   }
   ASSERT (found, ERR_FILE_FORMAT); /* the former root file should have this section */
+}
+
+/* input state */
+static void read_state (SOLFEC *sol)
+{
+  /* read time */
+
+  PBF_Time (sol->bf, &sol->dom->time); /* the only domain member red outside of it */
+
+  /* read initial flags */
+
+  if (sol->iover < 0)
+  {
+    ASSERT (PBF_Label (sol->bf, "IOVER"), ERR_FILE_FORMAT);
+    PBF_Int (sol->bf, &sol->iover, 1);
+    ASSERT (PBF_Label (sol->bf, "IOPARALLEL"), ERR_FILE_FORMAT);
+    PBF_Int (sol->bf, &sol->ioparallel, 1);
+  }
+
+  /* read domain */
+
+  if (PBF_Label (sol->bf, "DOMCMP")) /* perhaps some other data was outputed more frequently */
+  {
+    int cmp;
+
+    PBF_Int (sol->bf, &cmp, 1);
+    sol->output_compression = cmp;
+    DOM_Read_State (sol->dom, sol->bf, cmp);
+  }
+
+  /* read timers */
+
+  read_timers (sol);
 }
 
 /* read initial state if needed */
@@ -444,6 +461,11 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     int verbose;
     TIMING tim;
     double tt;
+
+#if MPI
+    sol->output_compression = PUT_int_min (sol->output_compression);
+    sol->duration = PUT_double_min (sol->duration);
+#endif
 
     verbose = verbose_on (sol, kind, solver);
     sol->duration = duration;
@@ -650,7 +672,9 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
   if (sol->mode == SOLFEC_WRITE) return NULL;
 
   double save, *time;
-  int cur, i;
+  int cur, i,
+      timers = 0,
+      full_read = 0;
 
   cur = 0;
   save = sol->dom->time;
@@ -662,6 +686,14 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
   for (i = 0; i < nshi; i ++)
   {
     ERRMEM (shi[i].history = MEM_CALLOC (sizeof (double [(*size) + 4])));
+
+    switch (shi [i].item)
+    {
+      case BODY_ENTITY:
+      case ENERGY_VALUE: full_read = 1; break;
+      case TIMING_VALUE: timers = 1; break;
+      default: break;
+    }
   }
 
   do
@@ -691,11 +723,94 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
           shi[i].history [cur] = SOLFEC_Timing (sol, shi[i].label);
 	}
 	break;
+      case LABELED_INT:
+      case LABELED_DOUBLE:
+	{
+	  if (PBF_Label (sol->bf, "DOMCMP"))
+	  {
+	    int cmp;
+
+	    PBF_Int (sol->bf, &cmp, 1);
+
+	    if (cmp == CMP_OFF) /* no compression */
+	    {
+	      int ival = 0;
+	      double dval, total, num = 0;
+
+	      switch (shi [i].op)
+	      {
+		case OP_SUM: total = 0.0; break;
+		case OP_AVG: total = 0.0; break;
+		case OP_MIN: total = DBL_MAX; break;
+		case OP_MAX: total = -DBL_MAX; break;
+	      }
+
+	      for (PBF *bf = sol->bf; bf; bf = bf->next)
+	      {
+		if (PBF_Label (bf, shi [i].label))
+		{
+		  if (shi [i].item == LABELED_INT) { PBF_Int (bf, &ival, 1); dval = ival; }
+		  else PBF_Double (bf, &dval, 1);
+
+		  switch (shi [i].op)
+		  {
+		    case OP_SUM: total += dval; break;
+		    case OP_AVG: total += dval; break;
+		    case OP_MIN: total = MIN (dval, total); break;
+		    case OP_MAX: total = MAX (dval, total); break;
+		  }
+
+		  num += 1.0;
+		}
+	      }
+
+	      switch (shi [i].op)
+	      {
+		case OP_SUM: case OP_MIN: case OP_MAX: break;
+		case OP_AVG: total = (num > 0.0 ? total / num : 0.0); break;
+	      }
+
+	      shi[i].history [cur] = total;
+	    }
+	    else /* compressed */
+	    {
+	      read_state (sol); /* read the whole domain */
+
+	      if (strcmp (shi [i].label, "STEP") == 0)
+	      {
+		shi [i].history [cur] = sol->dom->step;
+	      }
+	      else if (strcmp (shi [i].label, "CONS") == 0)
+	      {
+		shi [i].history [cur] = sol->dom->ncon;
+	      }
+	      else if (strcmp (shi [i].label, "BODS") == 0)
+	      {
+		shi [i].history [cur] = sol->dom->nbod;
+	      }
+	      else /* unable to retrieve */
+	      {
+	        shi[i].history [cur] = 0.0;
+	      }
+	    }
+	  }
+	  else shi[i].history [cur] = 0.0;
+	}
+	break;
       }
     }
 
-    SOLFEC_Forward (sol, skip);
-    time [cur ++] = sol->dom->time;
+    if (full_read) SOLFEC_Forward (sol, skip);
+    else
+    {
+      PBF_Time (sol->bf, &sol->dom->time);
+
+      PBF_Forward (sol->bf, skip);
+
+      if (timers) read_timers (sol);
+    }
+
+    time [cur ++] = sol->dom->time; /* next time frame */
   }
   while (sol->dom->time < t1);
 

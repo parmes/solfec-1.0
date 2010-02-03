@@ -291,7 +291,7 @@ void DOM_Update_External_Reactions (DOM *dom, short normal);
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);
 
 /* read domain state */
-void DOM_Read_State (DOM *dom, PBF *bf);
+void DOM_Read_State (DOM *dom, PBF *bf, CMP_ALG alg);
 
 /* read state of an individual body */
 int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod);

@@ -158,8 +158,10 @@ struct solfec_history_item
   short index;
   VALUE_KIND entity; /* (body, point, index, entity) <=> BODY_ENTITY */
   SET *bodies; /* (bodies, index) <=> ENERGY_VALUE */
-  char *label; /* label <=> TIMING_VALUE */
-  enum {BODY_ENTITY, ENERGY_VALUE, TIMING_VALUE} item;
+  char *label; /* label <=> TIMING_VALUE or LABELED_ */
+  enum {BODY_ENTITY, ENERGY_VALUE, TIMING_VALUE,
+        LABELED_INT, LABELED_DOUBLE} item;
+  enum {OP_SUM, OP_AVG, OP_MAX, OP_MIN} op; /* operation for parallel labeled data */
   double *history; /* output */
 };
 

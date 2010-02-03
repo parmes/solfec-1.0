@@ -406,7 +406,7 @@ which is a symmetric and semi-positive definite.
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}\end{equation}
+\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}\label{eq:locdyn}\end{equation}
 
 \end_inset
 
@@ -7420,6 +7420,23 @@ kind
 a string 'TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL' for timing histories
 \end_layout
 
+\begin_layout Itemize
+a string 'STEP' for time step history
+\end_layout
+
+\begin_layout Itemize
+a string 'CONS', 'BODS' for constraint and body number histories
+\end_layout
+
+\begin_layout Itemize
+a string 'DELBODS', 'NEWBODS' for deleted and inserted (after time 0) body
+ number histories (
+\series bold
+nonzero only for uncompressed outputs
+\series default
+)
+\end_layout
+
 \end_deeper
 \begin_layout Itemize
 
@@ -9365,7 +9382,14 @@ Gauss-Seidel solver
 \end_layout
 
 \begin_layout Standard
-The equations of local dynamics read
+The equations of local dynamics (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:locdyn"
+
+\end_inset
+
+) read
 \end_layout
 
 \begin_layout Standard
@@ -9405,7 +9429,19 @@ where
 
 \end_inset
 
+or in other words
+\end_layout
 
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{C}_{\alpha}\left(\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta},\mathbf{R}_{\alpha}\right)=\mathbf{0}\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 \begin_inset Float algorithm
 wide false
 sideways false
@@ -9495,29 +9531,23 @@ Serial Gauss-Seidel algorithm
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Standard
-The serial Gauss-Seidel algorithm (cf.
- Algorithm 
+Algorithm 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "alg:Serial-Gauss-Seidel"
 
 \end_inset
 
-) is quite simple: diagonal block problems are solved until reaction change
+ is quite simple: diagonal block problems are solved until reaction change
  is small enough.
- The Gauss-Seidel paradigm corresponds to the fact, that always the most
- recent off-diagonal reactions are used when solving the diagonal problem.
+ The Gauss-Seidel paradigm corresponds to the fact, that the most recent
+ off-diagonal reactions are used when solving the diagonal problem.
  Of course, because of that, a perfectly parallel implementation is not
  possible.
  After all, reactions are updated in a sequence.
- We can nevertheless relax the need for sequential processing hope for the
- best when running parallel simulations.
- Mark Adams has devised perhaps the most scalable parallel Gauss-Seidel
- approach to date 
+ We can nevertheless relax the need for sequential processing.
+ Perhaps the most scalable Gauss-Seidel approach to date was devised by
+ Adams 
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Adams01"
@@ -9525,18 +9555,18 @@ key "Adams01"
 \end_inset
 
 .
- We have implemented it in Solfec.
- The details are as follows.
- Each processor owes a subset of constraints 
+ Although originally it was used as a multi-grid smoother, the core idea
+ can be as well applied in our context.
+ Each processor owes a subset of (internal) constraints 
 \begin_inset Formula $Q_{i}$
 \end_inset
 
- where 
+, where 
 \begin_inset Formula $i=1,2,...,n$
 \end_inset
 
- are processors indices.
- Therefore in the local velocity update we have
+ are the processors indices.
+ Therefore the local velocity update can be rewritten as
 \end_layout
 
 \begin_layout Standard
@@ -9553,7 +9583,7 @@ Some of the
 \begin_inset Formula $\mathbf{R}_{\beta}$
 \end_inset
 
- correspond to the constraints stored on other processors (
+ correspond to the (external) constraints stored on other processors (
 \begin_inset Formula $\beta\notin Q_{i}$
 \end_inset
 
@@ -9595,16 +9625,16 @@ adj\left(i\right)=\left\{ cpu\left(\beta\right):\beta\in P_{i}\right\} \end{equa
 
 \end_inset
 
-Of course, when updating reactions, a processor needs to communicate only
- with other adjacent processors.
+When updating reactions, a processor needs to communicate only with other
+ adjacent processors.
  We are going to optimise a pattern of this communication by 
 \emph on
 coloring
 \emph default
  the processors.
- That is, we assign to each processor a color, such that no two adjacent
+ We shall then assign to each processor a color, such that no two adjacent
  processors have the same color.
- A simple processor coloring is summarised in Algorithm 
+ A simple coloring method is summarised in Algorithm 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "alg:Simple-processor-coloring"
@@ -9613,7 +9643,7 @@ reference "alg:Simple-processor-coloring"
 
 .
  We try to assign as few colors as possible.
- We then split index sets 
+ We then split the index sets 
 \begin_inset Formula $Q_{i}$
 \end_inset
 
@@ -9711,7 +9741,7 @@ Simple processor coloring.
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-Top_{i}=\left\{ \alpha:\exists\mathbf{W}_{\alpha\beta}:\beta\in P_{i}:\forall\mathbf{W}_{\alpha\beta}\wedge\beta\in P_{i}:color\left[cpu\left(\beta\right)\right]<color\left[i\right]\right\} \end{equation}
+Top_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge color\left[cpu\left(\beta\right)\right]<color\left[i\right]\right\} \end{equation}
 
 \end_inset
 
@@ -9720,7 +9750,7 @@ Top_{i}=\left\{ \alpha:\exists\mathbf{W}_{\alpha\beta}:\beta\in P_{i}:\forall\ma
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-Bottom_{i}=\left\{ \alpha:\exists\mathbf{W}_{\alpha\beta}:\beta\in P_{i}:\forall\mathbf{W}_{\alpha\beta}\wedge\beta\in P_{i}:color\left[cpu\left(\beta\right)\right]>color\left[i\right]\right\} \end{equation}
+Bottom_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge color\left[cpu\left(\beta\right)\right]>color\left[i\right]\right\} \end{equation}
 
 \end_inset
 
@@ -9729,7 +9759,7 @@ Bottom_{i}=\left\{ \alpha:\exists\mathbf{W}_{\alpha\beta}:\beta\in P_{i}:\forall
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-Middle{}_{i}=\left\{ \alpha:\exists\mathbf{W}_{\alpha\beta}:\beta\in P_{i}:\alpha\notin Top_{i}\vee Bottom_{i}\right\} \end{equation}
+Middle_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge\alpha\notin Top_{i}\cup Bottom_{i}\right\} \end{equation}
 
 \end_inset
 
@@ -9748,7 +9778,7 @@ The top constraints require communication only with processors of lower
  colors.
  The middle constraints require communication with either.
  The inner constraints require no communication.
- The inner reactions are further split in two sets.
+ The inner reactions are further split in two sets
 \end_layout
 
 \begin_layout Standard
@@ -9766,94 +9796,7 @@ so that
 
 \end_inset
 
-The parallel Gauss-Seidel approach is summarised in Algorithm 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "alg:Parallel-Gauss-Seidel"
 
-\end_inset
-
-.
- The presented version is simplified in the respect, that alternate forward
- and backward runs in terms of constraint ordering are not accounted for.
- We first process the 
-\begin_inset Formula $Top_{i}$
-\end_inset
-
- set.
- A single sweep of diagonal block problem solutions is done in line 3.
- Then we send the computed top reactions to the processors with lower colors.
- We try to overlap communication and computation, hence we sweep over the
- 
-\begin_inset Formula $Inner2_{i}$
-\end_inset
-
- set in line 5, while sending.
- We then receive the top reactions.
- It should be noted that all communication is asynchronous - we only wait
- to receive the reactions immediately necessary for current computations.
- In line 7 we enter the loop processing the 
-\begin_inset Formula $Middle_{i}$
-\end_inset
-
- set.
- This is the bottleneck of the method - this is where the classical colored
- Gauss-Seidel approach needs to be executed.
- Middle nodes communicate with processors of higher and lower colors.
- This is why they need to be processed in a sequence.
- The sequential processing is still relaxed by using processor coloring.
- In the LOOP algorithm we first sort the constraints according to the descending
- order of maximal colors of their adjacent processors (line 1).
- We then maintain this ordering while processing constraints.
- As the top reactions were already sent, some of the constraints from the
- middle set will have their external reactions from higher colors fully
- updated.
- These will be processed first in line 5 of LOOP and then sent to lower
- and higher processors (by color) in line 6.
- This way some lower color processors will have the suitable off-diagonal
- reactions of the middle set constraints fully updated and they will proceed
- next.
- And so on.
- At the end (line 7) we need to receive all remaining reactions that have
- been sent in line 6 of LOOP.
- Coming back to PARALLEL_GAUSS_SEIDEL, after the bottleneck of the LOOP,
- in lines 8-11 we process the 
-\begin_inset Formula $Bottom_{i}$
-\end_inset
-
- and 
-\begin_inset Formula $Inner1_{i}$
-\end_inset
-
- sets same way as we did with 
-\begin_inset Formula $Top_{i}$
-\end_inset
-
- and 
-\begin_inset Formula $Inner2_{i}$
-\end_inset
-
-.
- The condition (
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "eq:gsbalcnd"
-
-\end_inset
-
-) attempts to balance the amount of computations needed to hide the communicatio
-n (e.g.
- the larger the 
-\begin_inset Formula $Top_{i}$
-\end_inset
-
- set is, the larger the 
-\begin_inset Formula $Inner2_{i}$
-\end_inset
-
- set becomes).
- It should be noted that the convergence criterion in line 12 is global
- across all processors.
 \end_layout
 
 \begin_layout Standard
@@ -10145,12 +10088,95 @@ Parallel Gauss-Seidel algorithm.
 
 \end_layout
 
-\begin_layout LyX-Code
-    
-\end_layout
+\begin_layout Standard
+The parallel Gauss-Seidel scheme is summarised in Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Parallel-Gauss-Seidel"
 
-\begin_layout LyX-Code
-    
+\end_inset
+
+.
+ The presented version is simplified in the respect, that alternate forward
+ and backward runs are not accounted for (in terms of constraints ordering).
+ We first process the 
+\begin_inset Formula $Top_{i}$
+\end_inset
+
+ set: a single sweep over the corresponding diagonal block problems is performed
+ in line 3.
+ Then we send the computed top reactions to the processors with lower colors.
+ We try to overlap communication and computation, hence we sweep over the
+ 
+\begin_inset Formula $Inner2_{i}$
+\end_inset
+
+ set (line 5) while sending.
+ We then receive the top reactions.
+ It should be noted that all communication is asynchronous - we only wait
+ to receive reactions immediately necessary for computations.
+ In line 7 we enter the loop processing the 
+\begin_inset Formula $Middle_{i}$
+\end_inset
+
+ set.
+ This is the location of the computational bottleneck.
+ Middle nodes communicate with processors of higher and lower colors and
+ hence, they need to be processed in a sequence.
+ The sequential processing is still relaxed by using processor coloring.
+ In the LOOP algorithm we first sort the constraints according to the descending
+ order of maximal colors of their adjacent processors (line 1).
+ We then maintain this ordering while processing constraints.
+ As the top reactions were already sent, some of the constraints from the
+ middle set will have their external reactions from higher colors fully
+ updated.
+ These will be processed first in line 5 of LOOP and then sent to lower
+ and higher (by color) processors in line 6.
+ This way some processors with lower colors will have their higher color
+ off-diagonal reactions of middle set constraints fully updated and they
+ will proceed next.
+ And so on.
+ At the end (line 7), we need to receive all remaining reactions that have
+ been sent in line 6 of LOOP.
+ Coming back to PARALLEL_GAUSS_SEIDEL, after the bottleneck of the LOOP,
+ in lines 8-11 we process the 
+\begin_inset Formula $Bottom_{i}$
+\end_inset
+
+ and 
+\begin_inset Formula $Inner1_{i}$
+\end_inset
+
+ sets in the same way as we did with the 
+\begin_inset Formula $Top_{i}$
+\end_inset
+
+ and 
+\begin_inset Formula $Inner2_{i}$
+\end_inset
+
+ sets.
+ The condition (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:gsbalcnd"
+
+\end_inset
+
+) attempts to balance the amount of computations needed to hide the communicatio
+n (e.g.
+ the larger the 
+\begin_inset Formula $Top_{i}$
+\end_inset
+
+ set is, the larger the 
+\begin_inset Formula $Inner2_{i}$
+\end_inset
+
+ set becomes).
+ It should be noted that the convergence criterion in line 12 is global
+ across all processors.
+ 
 \end_layout
 
 \begin_layout Standard
@@ -10169,14 +10195,19 @@ reference "alg:Parallel-Gauss-Seidel"
 
 \end_inset
 
- corresponds to the 'FULL' variant.
- If we would like to relax the bottleneck of the LOOP algorithm.
- We can try using the 'MIDDLE_JACOBI' variant of the solver.
- In such case line 7 of PARALLEL_GAUSS_SEIDEL is replaced by
+ corresponds to the FULL variant.
+ We might like to relax the bottleneck of LOOP in line 7 of Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Parallel-Gauss-Seidel"
+
+\end_inset
+
+ by replacing it with
 \end_layout
 
 \begin_layout LyX-Code
-SWEEP 
+7.1   SWEEP 
 \begin_inset Formula $\left(Middle_{i}\right)$
 \end_inset
 
@@ -10184,7 +10215,7 @@ SWEEP
 \end_layout
 
 \begin_layout LyX-Code
-send 
+7.2   send 
 \begin_inset Formula $\left(Middle_{i}\right)$
 \end_inset
 
@@ -10192,7 +10223,7 @@ send
 \end_layout
 
 \begin_layout LyX-Code
-receive 
+7.3   receive 
 \begin_inset Formula $\left(Middle_{i}\right)$
 \end_inset
 
@@ -10200,23 +10231,24 @@ receive
 \end_layout
 
 \begin_layout Standard
-so that the middle nodes are processed in an inconsistent manner - the off-proce
-ssor information corresponds to the previous iteration (just like in the
+\noindent
+so that the middle nodes are processed in an inconsistent manner: the off-proces
+sor information corresponds to the previous iteration (just like in the
  Jacobi method).
  Usually the 
 \begin_inset Formula $Middle_{i}$
 \end_inset
 
- sets are small, hence this inconsistency might not lead to divergence -
- especially so for deformable kinematics, where constraint interactions
- are weak (
+ sets are small and hence this inconsistency does not have to lead to divergence
+ (especially for deformable kinematics, where constraint interactions are
+ weak, while 
 \begin_inset Formula $\mathbf{W}$
 \end_inset
 
  is diagonally dominant).
- The next possible variant of the solver is named 'BOUNDARY_JACOBI'.
- This corresponds to a rather gross inconsistency - something usually called
- 
+ This is the MIDDLE_JACOBI variant of the algorithm.
+ The last variant corresponds to a rather gross inconsistency: something
+ usually called 
 \begin_inset Quotes eld
 \end_inset
 
@@ -10229,20 +10261,23 @@ a processor Gauss-Seidel method
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-All_{i}=Top_{i}\cup Bottom_{i}\cup Middle_{i}\cup Inner_{i}\]
+\begin_inset Formula \begin{equation}
+All_{i}=Top_{i}\cup Bottom_{i}\cup Middle_{i}\cup Inner_{i}\end{equation}
 
 \end_inset
 
-We now loop as follows
+In this case, lines 3-11 of PARALLEL_GAUSS_SEIDEL from Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:Parallel-Gauss-Seidel"
+
+\end_inset
+
+ need to be replaced with
 \end_layout
 
 \begin_layout LyX-Code
-do
-\end_layout
-
-\begin_layout LyX-Code
-  SWEEP 
+3   SWEEP 
 \begin_inset Formula $\left(All_{i}\right)$
 \end_inset
 
@@ -10250,7 +10285,7 @@ do
 \end_layout
 
 \begin_layout LyX-Code
-  send 
+4   send 
 \begin_inset Formula $\left(All_{i}\right)$
 \end_inset
 
@@ -10258,27 +10293,20 @@ do
 \end_layout
 
 \begin_layout LyX-Code
-  receive 
+5   receive 
 \begin_inset Formula $\left(All_{i}\right)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout LyX-Code
-while
-\begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
 \end_inset
 
 
 \end_layout
 
 \begin_layout Standard
-until convergence - except it usually does not converge.
- This kind of approach does work as a multi-grid smoother, but apparently
- as a nonlinear solver it has little use.
- The final and crudest variant of the solver is called 'SIMPLIFIED'.
- This one is devised with soft deformable models in mind.
+\noindent
+Although this kind of approach does work as a multi-grid smoother, it has
+ little use in our context.
+ Nevertheless, we use for illustration sake and name the BOUNDARY_JACOBI.
+ The final and crudest variant of the solver is called SIMPLIFIED.
+ This variant is devised with soft deformable models in mind.
  We split constraints into 
 \begin_inset Formula $Contacts_{i}$
 \end_inset
@@ -10292,7 +10320,7 @@ until convergence - except it usually does not converge.
 \end_layout
 
 \begin_layout LyX-Code
-SWEEP 
+1   SWEEP 
 \begin_inset Formula $\left(Contacts_{i}\right)$
 \end_inset
 
@@ -10300,7 +10328,7 @@ SWEEP
 \end_layout
 
 \begin_layout LyX-Code
-send 
+2   send 
 \begin_inset Formula $\left(Contacts_{i}\right)$
 \end_inset
 
@@ -10308,7 +10336,7 @@ send
 \end_layout
 
 \begin_layout LyX-Code
-receive 
+3   receive 
 \begin_inset Formula $\left(Contacts_{i}\right)$
 \end_inset
 
@@ -10316,11 +10344,11 @@ receive
 \end_layout
 
 \begin_layout LyX-Code
-do
+4   do
 \end_layout
 
 \begin_layout LyX-Code
-  SWEEP 
+5     SWEEP 
 \begin_inset Formula $\left(Others_{i}\right)$
 \end_inset
 
@@ -10328,7 +10356,7 @@ do
 \end_layout
 
 \begin_layout LyX-Code
-while
+6   while
 \begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
 \end_inset
 

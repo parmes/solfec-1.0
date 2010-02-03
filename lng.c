@@ -5506,18 +5506,21 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
   {
     shi->label = PyString_AsString (obj);
 
-    IFIS (obj, "TIMINT") { }
-    ELIF (obj, "CONDET") { }
-    ELIF (obj, "LOCDYN") { }
-    ELIF (obj, "CONSOL") { }
-    ELIF (obj, "PARBAL") { }
+    IFIS (obj, "TIMINT") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "CONDET") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "LOCDYN") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "CONSOL") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "PARBAL") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "STEP") { shi->item = LABELED_DOUBLE; shi->op = OP_MIN; }
+    ELIF (obj, "CONS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
+    ELIF (obj, "BODS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
+    ELIF (obj, "NEWCONS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
+    ELIF (obj, "NEWBODS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
     ELSE
     {
-      PyErr_SetString (PyExc_ValueError, "Invalid timing kind");
+      PyErr_SetString (PyExc_ValueError, "Invalid string value");
       return 0;
     }
-
-    shi->item = TIMING_VALUE;
   }
   else
   {
