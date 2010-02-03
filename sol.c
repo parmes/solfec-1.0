@@ -674,6 +674,7 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
   double save, *time;
   int cur, i,
       timers = 0,
+      labeled = 0,
       full_read = 0;
 
   cur = 0;
@@ -692,7 +693,8 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
       case BODY_ENTITY:
       case ENERGY_VALUE: full_read = 1; break;
       case TIMING_VALUE: timers = 1; break;
-      default: break;
+      case LABELED_INT:
+      case LABELED_DOUBLE: labeled = 1; break;
     }
   }
 
@@ -774,8 +776,6 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 	    }
 	    else /* compressed */
 	    {
-	      read_state (sol); /* read the whole domain */
-
 	      if (strcmp (shi [i].label, "STEP") == 0)
 	      {
 		shi [i].history [cur] = sol->dom->step;
@@ -800,17 +800,19 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
       }
     }
 
-    if (full_read) SOLFEC_Forward (sol, skip);
+    time [cur ++] = sol->dom->time; /* store current time and iterate */
+
+    if (full_read) SOLFEC_Forward (sol, skip); /* read complete Solfec state */
     else
     {
-      PBF_Time (sol->bf, &sol->dom->time);
+      PBF_Forward (sol->bf, skip); /* move to next frame */
 
-      PBF_Forward (sol->bf, skip);
+      PBF_Time (sol->bf, &sol->dom->time); /* read time */
 
-      if (timers) read_timers (sol);
+      if (labeled) read_state (sol); /* read whole domain */
+
+      if (timers) read_timers (sol); /* read timers */
     }
-
-    time [cur ++] = sol->dom->time; /* next time frame */
   }
   while (sol->dom->time < t1);
 
