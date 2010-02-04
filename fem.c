@@ -1812,15 +1812,20 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   }
   else msh = shp->data; /* retrive the mesh pointer from the shape */
 
-  if (form == FEM_O1)
+  switch (form)
   {
-    bod->dofs = msh->nodes_count * 3;
-    ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
-    bod->velo = bod->conf + bod->dofs;
-  }
-  else
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    case FEM_O1:
+    {
+      bod->dofs = msh->nodes_count * 3;
+      ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
+      bod->velo = bod->conf + bod->dofs;
+    }
+    break;
+    case FEM_O2:
+    {
+      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    }
+    break;
   }
 }
 

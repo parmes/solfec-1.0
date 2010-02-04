@@ -1,6 +1,6 @@
 # stack of cubes example (CONVEX and PSEUDO_RIGID)
 
-N = 10
+from math import pow
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -43,6 +43,8 @@ step = 0.001
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cubes')
 
+N = int (pow (1000 * NCPU (solfec), 1./3.) + 1.)
+
 CONTACT_SPARSIFY (solfec, 0.005)
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
@@ -61,9 +63,9 @@ def gscallback (gs):
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
 
-OUTPUT (solfec, 1 * step, 'FASTLZ')
+OUTPUT (solfec, 10 * step, 'FASTLZ')
 
-RUN (solfec, gs, 10 * step)
+RUN (solfec, gs, 1000 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 

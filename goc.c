@@ -149,7 +149,7 @@ inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
 inline static double point_and_normal (int negative, TRI *tri, int m,
     int *surf, int nsurf, double *point, double *normal, double *area, int *sout)
 {
-  double a, v [3], dots, max;
+  double a, v [3], p [3], dots, max;
   TRI *t, *e;
   int k;
 
@@ -182,7 +182,20 @@ inline static double point_and_normal (int negative, TRI *tri, int m,
       }
     }
   }
-  DIV (point, *area, point); /* surface mass centere */
+  DIV (point, *area, point); /* point as surface mass center */
+
+  TRI_Char (tri, m, p); /* point as volume mass center */
+
+  for (t = tri, e = t + m; t != e; t ++)
+  {
+    SUB (t->ver [0], p, v);
+    if (DOT (t->out, v) < 0.0) break; /* test whether it falls outside */
+  }
+
+  if (t == e) /* does not fall outside of the volume */
+  {
+    COPY (p, point); /* use volumetric point instead */
+  }
 
   for (t = tri, e = t + m; t != e; t ++) /* compute normal variance */
   {

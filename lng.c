@@ -4115,14 +4115,23 @@ static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObje
 /* return number of CPUs */
 static PyObject* lng_NCPU (PyObject *self, PyObject *args, PyObject *kwds)
 {
-#if MPI
+  KEYWORDS ("solfec");
+  lng_SOLFEC *solfec;
   int ncpu;
 
+  PARSEKEYS ("O", &solfec);
+
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+#if MPI
   MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
-  return PyInt_FromLong (ncpu);
 #else
-  return PyInt_FromLong (1);
+  PBF *bf;
+
+  for (bf = solfec->sol->bf, ncpu = 0; bf; bf = bf->next) ncpu ++;
 #endif
+
+  return PyInt_FromLong (ncpu);
 }
 
 /* test whether an object is on this processor */
@@ -4135,7 +4144,7 @@ static PyObject* lng_HERE (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject *object;
   lng_BODY *body;
 
-  PARSEKEYS ("O", &object);
+  PARSEKEYS ("OO", &solfec, &object);
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_body_or_constraint (object, kwl[1]));
 
@@ -5639,7 +5648,7 @@ static PyMethodDef lng_methods [] =
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
   {"IMBALANCE_TOLERANCE", (PyCFunction)lng_IMBALANCE_TOLERANCE, METH_VARARGS|METH_KEYWORDS, "Adjust parallel imbalance tolerance"},
-  {"NCPU", (PyCFunction)lng_NCPU, METH_NOARGS, "Get the number of processors"},
+  {"NCPU", (PyCFunction)lng_NCPU, METH_VARARGS|METH_KEYWORDS, "Get the number of processors"},
   {"HERE", (PyCFunction)lng_HERE, METH_VARARGS|METH_KEYWORDS, "Test whether an object is located on the current processor"},
   {"VIEWER", (PyCFunction)lng_VIEWER, METH_NOARGS, "Test whether the viewer is enabled"},
   {"BODY_CHARS", (PyCFunction)lng_BODY_CHARS, METH_VARARGS|METH_KEYWORDS, "Overwrite body characteristics"},

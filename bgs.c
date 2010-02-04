@@ -516,25 +516,22 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   MPI_Allgatherv (color, n, MPI_INT, adj, size, disp, MPI_INT, MPI_COMM_WORLD); /* gather graph adjacency */
 
-  for (i = 0; i < ncpu; i ++) color [i] = 0; /* invalidate coloring */
-
   for (i = 0; i < ncpu; i ++) /* simple BFS coloring */
   {
     int *j, *k;
 
-    if (color [i] == 0) /* if not colored */
-    {
-      do
-      {
-	color [i] ++; /* start from first color */
+    color [i] = 0;
 
-	for (j = &adj[disp[i]], k = &adj[disp[i+1]]; j < k; j ++) /* for each adjacent vertex */
-	{
-	  if (color [*j] == color [i]) break; /* see whether the trial color exists in the adjacency */
-	}
+    do
+    {
+      color [i] ++; /* start from first color */
+
+      for (j = &adj[disp[i]], k = &adj[disp[i+1]]; j < k; j ++) /* for each adjacent vertex */
+      {
+	if (color [*j] == color [i]) break; /* see whether the trial color exists in the adjacency */
       }
-      while (j < k); /* if so try next color */
     }
+    while (j < k); /* if so try next color */
   }
 
   if (rank == 0 && ldy->dom->verbose)
