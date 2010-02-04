@@ -6137,7 +6137,7 @@ tolerance
 \end_layout
 
 \begin_layout Subsection*
-num = NCPU ()
+num = NCPU (solfec)
 \end_layout
 
 \begin_layout Standard
@@ -6150,6 +6150,14 @@ This routine returns the number CPUs used in the analysis.
 num
 \series default
  - the number of CPUs
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
 \end_layout
 
 \begin_layout Subsection*
@@ -9164,7 +9172,7 @@ SPRING_DASHPOT
 \end_layout
 
 \begin_layout LyX-Code
-     if 
+    if 
 \begin_inset Formula $cohesive$
 \end_inset
 
@@ -9456,11 +9464,11 @@ SERIAL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-  do
+1  do
 \end_layout
 
 \begin_layout LyX-Code
-    for each 
+2    for each 
 \begin_inset Formula $\alpha$
 \end_inset
 
@@ -9472,7 +9480,7 @@ SERIAL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-      
+3      
 \begin_inset Formula $\mathbf{S}_{\alpha}=\mathbf{R}_{\alpha}$
 \end_inset
 
@@ -9480,7 +9488,7 @@ SERIAL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-      find 
+4      find 
 \begin_inset Formula $\mathbf{R}_{\alpha}$
 \end_inset
 
@@ -9492,7 +9500,7 @@ SERIAL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-                         assuming 
+5                         assuming 
 \begin_inset Formula $\mathbf{R}_{\beta}=\mbox{constant}$
 \end_inset
 
@@ -9504,7 +9512,7 @@ SERIAL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-  while 
+6  while 
 \begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
 \end_inset
 
@@ -9665,7 +9673,7 @@ COLOR
 \end_layout
 
 \begin_layout LyX-Code
-  for 
+1  for 
 \begin_inset Formula $i$
 \end_inset
 
@@ -9673,7 +9681,11 @@ COLOR
 \begin_inset Formula $=1,...,n$
 \end_inset
 
- do 
+ do
+\end_layout
+
+\begin_layout LyX-Code
+2    
 \begin_inset Formula $color\left[i\right]=0$
 \end_inset
 
@@ -9681,19 +9693,11 @@ COLOR
 \end_layout
 
 \begin_layout LyX-Code
-    if 
-\begin_inset Formula $color\left[i\right]=0$
-\end_inset
-
- then
+3    do
 \end_layout
 
 \begin_layout LyX-Code
-      do
-\end_layout
-
-\begin_layout LyX-Code
-        
+4      
 \begin_inset Formula $color\left[i\right]=color\left[i\right]+1$
 \end_inset
 
@@ -9701,7 +9705,7 @@ COLOR
 \end_layout
 
 \begin_layout LyX-Code
-      while for any 
+5    while for any 
 \begin_inset Formula $j\in adj\left(i\right)$
 \end_inset
 
@@ -9814,7 +9818,7 @@ SWEEP
 \end_layout
 
 \begin_layout LyX-Code
-  for each 
+1  for each 
 \begin_inset Formula $\alpha\in Set$
 \end_inset
 
@@ -9822,7 +9826,7 @@ SWEEP
 \end_layout
 
 \begin_layout LyX-Code
-    
+2    
 \begin_inset Formula $\mathbf{S}_{\alpha}=\mathbf{R}_{\alpha}$
 \end_inset
 
@@ -9830,7 +9834,7 @@ SWEEP
 \end_layout
 
 \begin_layout LyX-Code
-    find 
+3    find 
 \begin_inset Formula $\mathbf{R}_{\alpha}$
 \end_inset
 
@@ -9842,7 +9846,7 @@ SWEEP
 \end_layout
 
 \begin_layout LyX-Code
-                        assuming 
+4                       assuming 
 \begin_inset Formula $\mathbf{R}_{\beta}=\mbox{constant}$
 \end_inset
 
@@ -9934,7 +9938,7 @@ LOOP
 \end_layout
 
 \begin_layout LyX-Code
-                        assuming 
+6                       assuming 
 \begin_inset Formula $\mathbf{R}_{\beta}=\mbox{constant}$
 \end_inset
 
@@ -9946,7 +9950,7 @@ LOOP
 \end_layout
 
 \begin_layout LyX-Code
-6    send 
+7    send 
 \begin_inset Formula $\left(\mathbf{R}_{\alpha}\right)$
 \end_inset
 
@@ -9954,7 +9958,7 @@ LOOP
 \end_layout
 
 \begin_layout LyX-Code
-7  receive all remaining 
+8  receive all remaining 
 \begin_inset Formula $\mathbf{R}_{\beta}$
 \end_inset
 
@@ -10131,13 +10135,13 @@ reference "alg:Parallel-Gauss-Seidel"
  middle set will have their external reactions from higher colors fully
  updated.
  These will be processed first in line 5 of LOOP and then sent to lower
- and higher (by color) processors in line 6.
+ and higher (by color) processors in line 7.
  This way some processors with lower colors will have their higher color
  off-diagonal reactions of middle set constraints fully updated and they
  will proceed next.
  And so on.
- At the end (line 7), we need to receive all remaining reactions that have
- been sent in line 6 of LOOP.
+ At the end (line 8), we need to receive all remaining reactions that have
+ been sent in line 7 of LOOP.
  Coming back to PARALLEL_GAUSS_SEIDEL, after the bottleneck of the LOOP,
  in lines 8-11 we process the 
 \begin_inset Formula $Bottom_{i}$
