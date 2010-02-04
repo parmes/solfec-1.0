@@ -44,6 +44,7 @@ step = 0.001
 solfec = SOLFEC ('DYNAMIC', step, 'out/cubes')
 
 N = int (pow (1000 * NCPU (solfec), 1./3.) + 1.)
+N = 6
 
 CONTACT_SPARSIFY (solfec, 0.005)
 
@@ -57,11 +58,7 @@ GRAVITY (solfec, (0, 0, -1), 9.81)
 
 stack_of_cubes_create (N, bulkmat, solfec)
 
-def gscallback (gs):
-  print gs.error
-  return 0
-
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', callback = gscallback, diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
 OUTPUT (solfec, 10 * step, 'FASTLZ')
 

@@ -9681,15 +9681,23 @@ COLOR
 \begin_inset Formula $=1,...,n$
 \end_inset
 
- do
-\end_layout
-
-\begin_layout LyX-Code
-2    
+ do 
 \begin_inset Formula $color\left[i\right]=0$
 \end_inset
 
 
+\end_layout
+
+\begin_layout LyX-Code
+2  for 
+\begin_inset Formula $i$
+\end_inset
+
+
+\begin_inset Formula $=1,...,n$
+\end_inset
+
+ do
 \end_layout
 
 \begin_layout LyX-Code

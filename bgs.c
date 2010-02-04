@@ -516,11 +516,11 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   MPI_Allgatherv (color, n, MPI_INT, adj, size, disp, MPI_INT, MPI_COMM_WORLD); /* gather graph adjacency */
 
+  for (i = 0; i < ncpu; i ++) color [i] = 0; /* zero colors */
+
   for (i = 0; i < ncpu; i ++) /* simple BFS coloring */
   {
     int *j, *k;
-
-    color [i] = 0;
 
     do
     {
