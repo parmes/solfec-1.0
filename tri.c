@@ -358,13 +358,14 @@ double TRI_Char (TRI *tri, int n, double *center)
   double zero [3] = {0, 0, 0},
 	 volume, sx, sy, sz,
 	 J, *a, *b, *c;
+  TRI *t, *e;
 
   volume = sx = sy = sz = 0.0;
-  for (; n > 0; tri ++, n --)
+  for (t = tri, e = t+n; t != e; t++)
   {
-    a = tri->ver [0];
-    b = tri->ver [1];
-    c = tri->ver [2];
+    a = t->ver [0];
+    b = t->ver [1];
+    c = t->ver [2];
     J = simplex_J (zero, a, b, c);
     volume += simplex_1 (J, zero, a, b, c);
     sx += simplex_x (J, zero, a, b, c);
@@ -374,9 +375,27 @@ double TRI_Char (TRI *tri, int n, double *center)
 
   if (center)
   {
-    center [0]  = sx / volume;
-    center [1]  = sy / volume;
-    center [2]  = sz / volume;
+    if (volume > 0.0)
+    {
+      center [0]  = sx / volume;
+      center [1]  = sy / volume;
+      center [2]  = sz / volume;
+    }
+    else if (n)
+    {
+      SET (center, 0.0);
+
+      for (t = tri, e = t+n; t != e; t++)
+      {
+	a = t->ver [0];
+	b = t->ver [1];
+	c = t->ver [2];
+	MID3 (a, b, c, zero);
+        ADD (center, zero, center);
+      }
+
+      DIV (center, (double)n, center);
+    }
   }
 
   return volume;
