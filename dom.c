@@ -722,7 +722,7 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
   if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
 
   pack_doubles (dsize, d, doubles, con->R, 3);
-  pack_doubles (dsize, d, doubles, con->base + 6, 3);
+  pack_doubles (dsize, d, doubles, con->base, 9);
 
   if (con->kind == CONTACT) /* sparsification needs below data  */
   {
@@ -735,7 +735,6 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
 {
   BODY *master, *slave;
   int kind, cid, mid, sid, n;
-  double normal [3];
   SGP *msgp, *ssgp;
   CON *con;
 
@@ -748,29 +747,11 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   ASSERT_DEBUG_EXT (master = MAP_Find (dom->allbodies, (void*) (long) mid, NULL), "Invalid body id");
   if (sid) ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); else slave = NULL;
 
-  /* FIXME: scheduled for deletion => note that child and parent inverses are updated during balancing anyway */
-#if 0
-  if (master->flags & (BODY_PARENT|BODY_CHILD)) /* update bod->inverse only for parents and children */
-  {                                             /* only they have updated configurations and scheme flags */
-    if (dom->dynamic) BODY_Dynamic_Init (master);
-    else BODY_Static_Init (master);
-  }
-#endif
-
   n = unpack_int (ipos, i, ints);
   msgp = &master->sgp [n];
 
   if (slave)
   {
-  /* FIXME: scheduled for deletion => note that child and parent inverses are updated during balancing anyway */
-#if 0
-    if (slave->flags & (BODY_PARENT|BODY_CHILD)) /* update bod->inverse only for parents and children */
-    {                                            /* only they have updated configurations and scheme flags */
-      if (dom->dynamic) BODY_Dynamic_Init (slave);
-      else BODY_Static_Init (slave);
-    }
-#endif
-
     n = unpack_int (ipos, i, ints);
     ssgp = &slave->sgp [n];
   }
@@ -783,8 +764,7 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   if (slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
-  unpack_doubles (dpos, d, doubles, normal, 3);
-  localbase (normal, con->base);
+  unpack_doubles (dpos, d, doubles, con->base, 9);
 
   if (kind == CONTACT) /* sparsification needs below data */
   {
@@ -804,7 +784,7 @@ static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, i
   if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
 
   pack_doubles (dsize, d, doubles, con->R, 3);
-  pack_doubles (dsize, d, doubles, con->base + 6, 3);
+  pack_doubles (dsize, d, doubles, con->base, 9);
 
   if (con->kind == CONTACT) /* sparsification needs below data  */
   {
@@ -815,7 +795,6 @@ static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, i
 /* unpack external constraint update */
 static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  double normal [3];
   CON *con;
   int id;
 
@@ -826,8 +805,7 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
   if (con->slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
-  unpack_doubles (dpos, d, doubles, normal, 3);
-  localbase (normal, con->base);
+  unpack_doubles (dpos, d, doubles, con->base, 9);
 
   if (con->kind == CONTACT) /* sparsification needs below data */
   {
@@ -1406,7 +1384,7 @@ static void domain_balancing (DOM *dom)
 
   COMOBJ *send, *recv;
   unsigned int id;
-  char tol [128];
+  char str [128];
   int nrecv;
   SET *item;
   BODY *bod;
@@ -1434,9 +1412,13 @@ static void domain_balancing (DOM *dom)
   /* load balancing migration sets */
   dbd = dom->dbd;
 
-  /* update imbalance tolerance */
-  snprintf (tol, 128, "%g", dom->imbalance_tolerance);
-  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", tol);
+  /* update RCB parameters */
+  snprintf (str, 128, "%g", dom->imbalance_tolerance);
+  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", str);
+  snprintf (str, 128, "%d", dom->lock_directions);
+  Zoltan_Set_Param (dom->zol, "RCB_LOCK_DIRECTIONS", str);
+  snprintf (str, 128, "%g", dom->degenerate_ratio);
+  Zoltan_Set_Param (dom->zol, "DEGENERATE_RATIO", str);
 
   /* update body partitioning */
   ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
@@ -1895,6 +1877,8 @@ static void create_mpi (DOM *dom)
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
 
   dom->imbalance_tolerance = 1.3;
+  dom->lock_directions = 0;
+  dom->degenerate_ratio = 10.0;
 
   /* general parameters */
   Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
@@ -1915,6 +1899,7 @@ static void create_mpi (DOM *dom)
   Zoltan_Set_Param (dom->zol, "RCB_OUTPUT_LEVEL", "0");
   Zoltan_Set_Param (dom->zol, "CHECK_GEOM", "1");
   Zoltan_Set_Param (dom->zol, "KEEP_CUTS", "1");
+  Zoltan_Set_Param (dom->zol, "REDUCE_DIMENSIONS", "1");
 
   /* callbacks */
   Zoltan_Set_Fn (dom->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) object_count, dom);
