@@ -212,6 +212,8 @@ struct domain
   SET *children; /* current children */
   struct Zoltan_Struct *zol; /* load balancing */
   double imbalance_tolerance; /* imbalance threshold */
+  int lock_directions; /* locked direactions flag */
+  double degenerate_ratio; /* degeneration ratio for domain elongation */
   unsigned int noid; /* constraint id generation ommition flag */
   MAP *conext; /* id based map of external constraints */
   int bytes; /* bytes sent during load balancing */

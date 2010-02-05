@@ -2,49 +2,63 @@
 
 from math import pow
 
+# test kind flag:
+# * 1 => parallel growing along one dimension (Gauss-Seidel with empty middle nodes sets)
+# * 2 => parallel growing along two dimensions
+# * 3 => parallel growing along three dimensions
+# * a number > 3 => fixed size model
+
+TEST = 3
+KINEM = 'PSEUDO_RIGID'
+VARIANT = 'FULL'
+
 def cube (x, y, z, a, b, c, sur, vol):
 
-  cvx = CONVEX (
-	  [0, 0, 0,
+  nodes = [0, 0, 0,
 	   a, 0, 0,
 	   a, b, 0,
 	   0, b, 0,
 	   0, 0, c,
 	   a, 0, c,
 	   a, b, c,
-	   0, b, c],
-	  [4, 0, 3, 2, 1, sur,
-	   4, 1, 2, 6, 5, sur,
-	   4, 2, 3, 7, 6, sur,
-	   4, 3, 0, 4, 7, sur,
-	   4, 0, 1, 5, 4, sur,
-	   4, 4, 5, 6, 7, sur], vol)
+	   0, b, c]
 
-  TRANSLATE (cvx, (x, y, z))
+  shp = HEX (nodes, 1, 1, 1, vol, [sur, sur, sur, sur, sur, sur])
 
-  return cvx
+  TRANSLATE (shp, (x, y, z))
 
-def stack_of_cubes_create (numside, material, solfec):
+  return shp
+
+def stack_of_cubes_create (material, solfec):
+
+  if TEST == 1:
+    N = 10 * NCPU (solfec);
+    M = 10
+  elif TEST == 2:
+    N = 10
+    M = int (pow (100 * NCPU (solfec), .5) + 1.)
+  elif TEST == 3:
+    N = M = int (pow (1000 * NCPU (solfec), 1./3.) + 1.)
+  else:
+    N = M = TEST
 
   # create an obstacle base
-  shp = cube (0, 0, -1, numside, numside, 1, 1, 1)
+  shp = cube (0, 0, -1, M, M, 1, 1, 1)
   BODY (solfec, 'OBSTACLE', shp, material)
 
   # create the remaining bricks
-  for x in range (numside):
-    for y in range (numside):
-      for z in range (numside):
+  for x in range (M):
+    for y in range (M):
+      for z in range (N):
 	shp = cube (x, y, z, 1, 1, 1, 2, 2)
-        BODY (solfec, 'PSEUDO_RIGID', shp, material)
+        BODY (solfec, KINEM, shp, material)
 
 ### main module ###
+#import rpdb2; rpdb2.start_embedded_debugger('a')
 
 step = 0.001
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/cubes')
-
-N = int (pow (1000 * NCPU (solfec), 1./3.) + 1.)
-N = 6
+solfec = SOLFEC ('DYNAMIC', step, 'out/cubes_' + str (TEST) + '_' + KINEM + '_' + VARIANT)
 
 CONTACT_SPARSIFY (solfec, 0.005)
 
@@ -54,13 +68,15 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E5, poisson = 0.2
 
 GRAVITY (solfec, (0, 0, -1), 9.81)
 
-#import rpdb2; rpdb2.start_embedded_debugger('a')
+stack_of_cubes_create (bulkmat, solfec)
 
-stack_of_cubes_create (N, bulkmat, solfec)
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs.variant = VARIANT
 
-OUTPUT (solfec, 10 * step, 'FASTLZ')
+IMBALANCE_TOLERANCE (solfec, 1.1, 'TRUE', 2.0)
+
+OUTPUT (solfec, 50 * step, 'FASTLZ')
 
 RUN (solfec, gs, 1000 * step)
 

@@ -1765,6 +1765,10 @@ void BODY_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
   pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
   pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
   pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
+
+#if MPI
+  pack_int (isize, i, ints, bod->dom->rank);
+#endif
 }
 
 void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
@@ -1772,6 +1776,11 @@ void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
   unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
+
+  if (bod->dom->solfec->ioparallel)
+  {
+    bod->rank = unpack_int (ipos, i, ints);
+  }
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 

@@ -185,7 +185,7 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 
 	if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
 
-        if (upkind == UPEXS && con->kind == CONTACT) continue; /* skip contacts during partial update */
+        if (upkind == UPEXS && con->kind == CONTACT) continue; /* skip contacts during partial update (exs.* uses local dynamics only for non-contacts) */
 
 	ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy"); /* we could skip dummies, but this reassures correctness */
 

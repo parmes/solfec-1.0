@@ -185,6 +185,20 @@ static int is_in_range (double num, char *var, double min, double max)
   return 1;
 }
 
+/* a bigger queal test */
+static int is_ge (double num, char *var, double val)
+{
+  if (num < val)
+  {
+    char buf [BUFLEN];
+    sprintf (buf, "'%s' must be >= %g", var, val);
+    PyErr_SetString (PyExc_ValueError, buf);
+    return 0;
+  }
+
+  return 1;
+}
+
 /* test whether an object is a list and if so check
  * if list length is divisible by div and >= len */
 static int is_list (PyObject *obj, char *var, int div, int len)
@@ -4097,16 +4111,40 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
 /* set imbalance tolerances */
 static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "tolerance");
+  KEYWORDS ("solfec", "tolerance", "lockdir", "degenratio");
   lng_SOLFEC *solfec;
-  double tolerance;
+  PyObject *lockdir;
+  double tolerance,
+	 degenratio;
 
-  PARSEKEYS ("Od", &solfec, &tolerance);
+  lockdir = NULL;
+  degenratio = 10.0;
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (tolerance, kwl[1]));
+  PARSEKEYS ("Od|Od", &solfec, &tolerance, &lockdir, &degenratio);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (tolerance, kwl[1]) &&
+            is_string (lockdir, kwl [2]) && is_ge (degenratio, kwl [3], 1.0));
 
 #if MPI
   solfec->sol->dom->imbalance_tolerance = tolerance;
+  solfec->sol->dom->degenerate_ratio = degenratio;
+
+  if (lockdir)
+  {
+    IFIS (lockdir, "ON")
+    {
+      solfec->sol->dom->lock_directions = 1;
+    }
+    ELIF (lockdir, "OFF")
+    {
+      solfec->sol->dom->lock_directions = 0;
+    }
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid lockdir value: 'ON' or 'OFF' allowed");
+      return NULL;
+    }
+  }
 #endif
 
   Py_RETURN_TRUE;
