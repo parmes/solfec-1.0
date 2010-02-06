@@ -5554,15 +5554,26 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
     shi->label = PyString_AsString (obj);
 
     IFIS (obj, "TIMINT") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "CONUPD") { shi->item = TIMING_VALUE; }
     ELIF (obj, "CONDET") { shi->item = TIMING_VALUE; }
     ELIF (obj, "LOCDYN") { shi->item = TIMING_VALUE; }
     ELIF (obj, "CONSOL") { shi->item = TIMING_VALUE; }
     ELIF (obj, "PARBAL") { shi->item = TIMING_VALUE; }
-    ELIF (obj, "STEP") { shi->item = LABELED_DOUBLE; shi->op = OP_MIN; }
-    ELIF (obj, "CONS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
-    ELIF (obj, "BODS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
-    ELIF (obj, "NEWCONS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
-    ELIF (obj, "NEWBODS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
+    ELIF (obj, "GSINIT") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "GSRUN") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "GSCOM") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "GSMCOM") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "STEP") { shi->item = LABELED_DOUBLE; shi->op = OP_MIN; shi->in_domain = 1; }
+    ELIF (obj, "CONS") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 1; }
+    ELIF (obj, "BODS") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 1; }
+    ELIF (obj, "NEWCONS") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 1; }
+    ELIF (obj, "NEWBODS") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 1; }
+    ELIF (obj, "GSITERS") { shi->item = LABELED_INT; shi->op = OP_MAX; shi->in_domain = 0; }
+    ELIF (obj, "GSCOLORS") { shi->item = LABELED_INT; shi->op = OP_MAX; shi->in_domain = 0; }
+    ELIF (obj, "GSBOT") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 0; }
+    ELIF (obj, "GSMID") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 0; }
+    ELIF (obj, "GSTOP") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 0; }
+    ELIF (obj, "GSINN") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 0; }
     ELSE
     {
       PyErr_SetString (PyExc_ValueError, "Invalid string value");

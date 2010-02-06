@@ -52,3 +52,5 @@ into a separate sub-directory of a subset of existin results
 -------------------------------------------------------------------
 Implement merging of parallel files
 -------------------------------------------------------------------
+Solver labeled statistics output and history reading
+--------------------------------------------------------

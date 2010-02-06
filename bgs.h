@@ -81,6 +81,10 @@ struct gs
 
   int iters; /* most recent number of iterations */
 
+#if MPI
+  int colors, bot, mid, top, inn; /* processor colors, bottom, middle, top and inner set sizes */
+#endif
+
   GSONOFF history; /* error history recording flag */
 
   double *rerhist; /* relative error history */
@@ -117,6 +121,9 @@ char* GAUSS_SEIDEL_Reverse (GAUSS_SEIDEL *gs);
 
 /* return variant string */
 char* GAUSS_SEIDEL_Variant (GAUSS_SEIDEL *gs);
+
+/* write labeled satate values */
+void GAUSS_SEIDEL_Write_State (GAUSS_SEIDEL *gs, PBF *bf);
 
 /* free solver */
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs);
