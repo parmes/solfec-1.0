@@ -2431,7 +2431,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   SOLFEC_Timer_End (dom->solfec, "PARBAL");
 #endif
 
-  SOLFEC_Timer_Start (dom->solfec, "TIMINT");
+  SOLFEC_Timer_Start (dom->solfec, "CONUPD");
 
   /* update old constraints */
   for (con = dom->con; con; con = next)
@@ -2448,7 +2448,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     }
   }
 
-  SOLFEC_Timer_End (dom->solfec, "TIMINT");
+  SOLFEC_Timer_End (dom->solfec, "CONUPD");
 
 #if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
@@ -2481,7 +2481,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   ASSERT (!(dom->flags & DOM_DEPTH_VIOLATED), ERR_DOM_DEPTH);
 #endif
 
-  SOLFEC_Timer_Start (dom->solfec, "TIMINT");
+  SOLFEC_Timer_Start (dom->solfec, "CONUPD");
 
   for (con = dom->con; con; con = con->next) /* update new contacts */
   {
@@ -2492,7 +2492,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     }
   }
 
-  SOLFEC_Timer_End (dom->solfec, "TIMINT");
+  SOLFEC_Timer_End (dom->solfec, "CONUPD");
 
   /* output local dynamics */
   return dom->ldy;

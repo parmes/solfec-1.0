@@ -7352,9 +7352,9 @@ solfec
 \series bold
 kind
 \series default
- - this is one of: 'TIMINT' (time integration), 'CONDET' (contact detection),
- 'LOCDYN' (local dynamics setup), 'CONSOL' (constraints solution), 'PARBAL'
- (parallel load balancing).
+ - this is one of: 'TIMINT' (time integration), 'CONUPD' (constraints update),
+ 'CONDET' (contact detection), 'LOCDYN' (local dynamics setup), 'CONSOL'
+ (constraints solution), 'PARBAL' (parallel load balancing).
  The load balancing timing is non-zero only for parallel runs.
 \end_layout
 
@@ -7446,7 +7446,8 @@ kind
 \end_layout
 
 \begin_layout Itemize
-a string 'TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL' for timing histories
+a string 'TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL' for
+ timing histories
 \end_layout
 
 \begin_layout Itemize
@@ -7459,11 +7460,17 @@ a string 'CONS', 'BODS' for constraint and body number histories
 
 \begin_layout Itemize
 a string 'DELBODS', 'NEWBODS' for deleted and inserted (after time 0) body
- number histories (
-\series bold
-nonzero only for uncompressed outputs
-\series default
-)
+ number histories (nonzero only for uncompressed outputs)
+\end_layout
+
+\begin_layout Itemize
+a string 'GSITERS' (Gauss-Seidel iterations count), 'GSCOLORS' (Gauss-Seidel
+ processor colors count), 'GSBOT', 'GSMID', 'GSTOP', 'GSINN' (Gauss-Seidel
+ bottom, middle, top and inner set sizes), 'GSINIT' (Gauss-Seidel setup
+ time), 'GSRUN' (Gauss-Seidel computations time), 'GSCOM' (Gauss-Seidel
+ communication time, except the middle set), 'GSMCOM' (Gauss-Seidel middle
+ set communication time); values other than 'GSITERS' are non-zero only
+ for parallel runs
 \end_layout
 
 \end_deeper

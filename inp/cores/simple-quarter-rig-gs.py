@@ -28,15 +28,15 @@ RUN (solfec, gs, stop)
 
 if not VIEWER() and solfec.mode == 'READ':
 
-  timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
+  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL', 'GSINIT', 'GSRUN', 'GSCOM', 'GSMCOM']
   dur = DURATION (solfec)
   th = HISTORY (solfec, timers, dur[0], dur[1])
   total = 0.0
 
-  for i in range (0, 5):
+  for i in range (0, len(timers)):
     sum = 0.0
     for tt in th [i+1]: sum += tt
     print timers [i], 'TIME:', sum
-    total += sum
+    if i < 6: total += sum
 
   print 'TOTAL TIME:', total

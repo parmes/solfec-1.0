@@ -159,7 +159,7 @@ static PBF* writeoutpath (char *outpath)
 }
 
 /* output state */
-static void write_state (SOLFEC *sol)
+static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
 {
   /* write time */
 
@@ -179,7 +179,6 @@ static void write_state (SOLFEC *sol)
   /* write domain */
 
   int cmp = sol->output_compression;
-
   PBF_Label (sol->bf, "DOMCMP"); /* label domain compression */
   PBF_Int (sol->bf, &cmp, 1);
   DOM_Write_State (sol->dom, sol->bf, cmp);
@@ -200,6 +199,15 @@ static void write_state (SOLFEC *sol)
   }
 
   clean_timers (sol); /* restart total timing */
+
+  /* write solver state */
+
+  switch (kind)
+  {
+  case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Write_State (solver, sol->bf); break;
+  case EXPLICIT_SOLVER: EXPLICIT_Write_State (solver, sol->bf); break;
+  default: break;
+  }
 }
 
 /* read timers alone */
@@ -242,6 +250,8 @@ static void read_timers (SOLFEC *sol)
 /* input state */
 static void read_state (SOLFEC *sol)
 {
+  int cmp;
+
   /* read time */
 
   PBF_Time (sol->bf, &sol->dom->time); /* the only domain member red outside of it */
@@ -258,14 +268,10 @@ static void read_state (SOLFEC *sol)
 
   /* read domain */
 
-  if (PBF_Label (sol->bf, "DOMCMP")) /* perhaps some other data was outputed more frequently */
-  {
-    int cmp;
-
-    PBF_Int (sol->bf, &cmp, 1);
-    sol->output_compression = cmp;
-    DOM_Read_State (sol->dom, sol->bf, cmp);
-  }
+  ASSERT (PBF_Label (sol->bf, "DOMCMP"),  ERR_FILE_FORMAT);
+  PBF_Int (sol->bf, &cmp, 1);
+  sol->output_compression = cmp;
+  DOM_Read_State (sol->dom, sol->bf, cmp);
 
   /* read timers */
 
@@ -353,6 +359,7 @@ static void SOLVE (SOLFEC *sol, void *solver, SOLVER_KIND kind, LOCDYN *ldy, int
   {
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Solve (solver, ldy); break;
   case EXPLICIT_SOLVER: EXPLICIT_Solve (ldy); break;
+  default: break;
   }
 
   SOLFEC_Timer_End (sol, "CONSOL");
@@ -500,7 +507,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       if (sol->dom->time >= sol->output_time)
       {
 	sol->output_time += sol->output_interval;
-	write_state (sol);
+	write_state (sol, solver, kind);
       }
 
       /* execute callback if needed */
@@ -629,7 +636,7 @@ void SOLFEC_Forward (SOLFEC *sol, int steps)
 /* perform abort actions */
 void SOLFEC_Abort (SOLFEC *sol)
 {
-  write_state (sol);
+  write_state (sol, NULL, SOLVER_NONE);
 
   if (sol->bf)
   {
@@ -728,73 +735,70 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
       case LABELED_INT:
       case LABELED_DOUBLE:
 	{
-	  if (PBF_Label (sol->bf, "DOMCMP"))
+	  int cmp;
+
+	  ASSERT (PBF_Label (sol->bf, "DOMCMP"), ERR_FILE_FORMAT); /* this must be here */
+	  PBF_Int (sol->bf, &cmp, 1);
+
+	  if (cmp == CMP_OFF || !shi[i].in_domain) /* no compression or not in domain */
 	  {
-	    int cmp;
+	    int ival = 0;
+	    double dval, total, num = 0;
 
-	    PBF_Int (sol->bf, &cmp, 1);
-
-	    if (cmp == CMP_OFF) /* no compression */
+	    switch (shi [i].op)
 	    {
-	      int ival = 0;
-	      double dval, total, num = 0;
-
-	      switch (shi [i].op)
-	      {
-		case OP_SUM: total = 0.0; break;
-		case OP_AVG: total = 0.0; break;
-		case OP_MIN: total = DBL_MAX; break;
-		case OP_MAX: total = -DBL_MAX; break;
-	      }
-
-	      for (PBF *bf = sol->bf; bf; bf = bf->next)
-	      {
-		if (PBF_Label (bf, shi [i].label))
-		{
-		  if (shi [i].item == LABELED_INT) { PBF_Int (bf, &ival, 1); dval = ival; }
-		  else PBF_Double (bf, &dval, 1);
-
-		  switch (shi [i].op)
-		  {
-		    case OP_SUM: total += dval; break;
-		    case OP_AVG: total += dval; break;
-		    case OP_MIN: total = MIN (dval, total); break;
-		    case OP_MAX: total = MAX (dval, total); break;
-		  }
-
-		  num += 1.0;
-		}
-	      }
-
-	      switch (shi [i].op)
-	      {
-		case OP_SUM: case OP_MIN: case OP_MAX: break;
-		case OP_AVG: total = (num > 0.0 ? total / num : 0.0); break;
-	      }
-
-	      shi[i].history [cur] = total;
+	      case OP_SUM: total = 0.0; break;
+	      case OP_AVG: total = 0.0; break;
+	      case OP_MIN: total = DBL_MAX; break;
+	      case OP_MAX: total = -DBL_MAX; break;
 	    }
-	    else /* compressed */
+
+	    for (PBF *bf = sol->bf; bf; bf = bf->next)
 	    {
-	      if (strcmp (shi [i].label, "STEP") == 0)
+	      if (PBF_Label (bf, shi [i].label))
 	      {
-		shi [i].history [cur] = sol->dom->step;
+		if (shi [i].item == LABELED_INT) { PBF_Int (bf, &ival, 1); dval = ival; }
+		else PBF_Double (bf, &dval, 1);
+
+		switch (shi [i].op)
+		{
+		  case OP_SUM: total += dval; break;
+		  case OP_AVG: total += dval; break;
+		  case OP_MIN: total = MIN (dval, total); break;
+		  case OP_MAX: total = MAX (dval, total); break;
+		}
+
+		num += 1.0;
 	      }
-	      else if (strcmp (shi [i].label, "CONS") == 0)
-	      {
-		shi [i].history [cur] = sol->dom->ncon;
-	      }
-	      else if (strcmp (shi [i].label, "BODS") == 0)
-	      {
-		shi [i].history [cur] = sol->dom->nbod;
-	      }
-	      else /* unable to retrieve */
-	      {
-	        shi[i].history [cur] = 0.0;
-	      }
+	    }
+
+	    switch (shi [i].op)
+	    {
+	      case OP_SUM: case OP_MIN: case OP_MAX: break;
+	      case OP_AVG: total = (num > 0.0 ? total / num : 0.0); break;
+	    }
+
+	    shi[i].history [cur] = total;
+	  }
+	  else /* compressed and in domain */
+	  {
+	    if (strcmp (shi [i].label, "STEP") == 0)
+	    {
+	      shi [i].history [cur] = sol->dom->step;
+	    }
+	    else if (strcmp (shi [i].label, "CONS") == 0)
+	    {
+	      shi [i].history [cur] = sol->dom->ncon;
+	    }
+	    else if (strcmp (shi [i].label, "BODS") == 0)
+	    {
+	      shi [i].history [cur] = sol->dom->nbod;
+	    }
+	    else /* unable to retrieve */
+	    {
+	      shi[i].history [cur] = 0.0;
 	    }
 	  }
-	  else shi[i].history [cur] = 0.0;
 	}
 	break;
       }

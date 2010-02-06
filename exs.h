@@ -17,4 +17,7 @@ int EXPLICIT_Spring_Dashpot_Contact (CON *con, double step, double gap, double s
 /* explcit constraint solver */
 void EXPLICIT_Solve (LOCDYN *ldy);
 
+/* write labeled satate values */
+void EXPLICIT_Write_State (GAUSS_SEIDEL *gs, PBF *bf);
+
 #endif

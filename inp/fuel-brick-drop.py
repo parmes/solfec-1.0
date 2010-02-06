@@ -86,12 +86,12 @@ if not VIEWER() and pairs [0][0].mode == 'READ':
   for pair in pairs:
     solfec = pair [0]
     kinematics = pair [1]
-    timers = ['TIMINT', 'CONDET', 'LOCDYN', 'CONSOL']
+    timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL']
     dur = DURATION (solfec)
     th = HISTORY (solfec, timers, dur[0], dur[1])
     total = 0.0
 
-    for i in range (0, 4):
+    for i in range (0, len (timers)):
       sum = 0.0
       for tt in th [i+1]: sum += tt
       print kinematics, timers [i], 'TIME:', sum

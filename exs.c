@@ -240,3 +240,9 @@ void EXPLICIT_Solve (LOCDYN *ldy)
   free (recv);
 #endif
 }
+
+/* write labeled satate values */
+void EXPLICIT_Write_State (GAUSS_SEIDEL *gs, PBF *bf)
+{
+  /* nothing to write for the moment */
+}
