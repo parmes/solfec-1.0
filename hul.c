@@ -27,6 +27,7 @@
 #include "err.h"
 #include "alg.h"
 #include "lis.h"
+#include "set.h"
 #include "hul.h"
 
 typedef struct vertex vertex;
@@ -209,7 +210,7 @@ static int mendface (face *f)
   return 1;
 }
 
-
+#if 1
 /* vertex least equal comparison */
 static int vertex_le (vertex *a, vertex  *b)
 {
@@ -331,6 +332,86 @@ static vertex* simplex_vertices (double *v, int n, MEM *mv, double *sv [4])
 
   return o;
 }
+#else
+
+/* compare vertices by first coordinate */
+static int vcmp (double **a, double **b)
+{
+  if ((*a) [0] < (*b) [0]) return -1;
+  else if ((*a) [0] == (*b) [0]) return 0;
+  else return 1; 
+}
+
+/* select vertices of an initial simplex and output the list of remaining vertices */
+static vertex* simplex_vertices (double *v, int n, MEM *mv, double *sv [4])
+{
+  double **pv, **pp, **pq, **pe, **pn, len;
+  SET *points, *item;
+  vertex *out, *x;
+  MEM setmem;
+  int i;
+
+  ERRMEM (pv = MEM_CALLOC (sizeof (double*) * n));
+  MEM_Init (&setmem, sizeof (SET), n);
+  points = NULL;
+  out = NULL;
+
+  for (pp = pv, pe = pv+n; pp < pe; pp ++, v += 3)
+  {
+    SET_Insert (&setmem, &points, v, NULL); /* set of all input points */
+    *pp = v; /* vector of pointers to all input points */
+  }
+
+  /* sort input points along the first coordinate */
+  qsort (pv, n, sizeof (double*), (int (*)(const void*, const void*))vcmp);
+
+  len = 4.0 * GEOMETRIC_EPSILON; /* points are contained in [p - len, p + pen] boxes */
+
+  for (pp = pv; pp < pe; pp = pn) /* for each sorted point */
+  {
+    for (pq = pp+1, pn = pe; pq < pe && (*pq) [0] - len < (*pp) [0] + len; pq ++) /* for each consecutive overlapping point */
+    {
+      for (i = 1; i < 3; i ++)
+      {
+	if ((*pq) [i] - len >= (*pp) [i] + len ||
+	    (*pq) [i] + len <= (*pp) [i] - len) break;
+      }
+
+      if (i == 3) /* if it overlaps along all three directions */
+      {
+	SET_Delete (&setmem, &points, *pq, NULL); /* remove it from the input set */
+      }
+      else if (pn == pe) pn = pq; /* first non-overlaping point */
+    }
+    if (pn == pe) pn = pq; /* next point */
+  }
+
+  i = SET_Size (points); /* number of points left after filtering */
+
+#if GEOMDEBUG
+  ASSERT_DEBUG (i < 4, "Insufficient number of distinct points");
+#else
+  if (i < 4) goto out; /* not enough for a convex hull */
+#endif
+
+  for (i = 0, item = SET_First (points); item; item = SET_Next (item)) /* for each point */
+  {
+    if (i < 4) sv [i ++] = item->data; /* take first four points as initial simplex vertices */
+    else
+    {
+      ERRMEM (x = MEM_Alloc (mv));
+      x->v = item->data;
+      x->n = out;
+      out = x; /* put remaining points into the output list */
+    }
+  }
+
+out:
+  MEM_Release (&setmem);
+  free (pv);
+  return out;
+}
+#endif
 
 /* create a simplex and return the corresponding face list */
 static face* simplex (MEM *me, MEM *mf, double *a, double *b, double *c, double *d)
