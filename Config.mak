@@ -18,7 +18,7 @@ DEBUG = yes
 PROFILE = no
 MEMDEBUG = no
 GEOMDEBUG = no
-PARDEBUG = yes
+PARDEBUG = no
 NOTHROW = no
 
 #

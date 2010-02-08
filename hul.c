@@ -210,7 +210,7 @@ static int mendface (face *f)
   return 1;
 }
 
-#if 1
+#if 0
 /* vertex least equal comparison */
 static int vertex_le (vertex *a, vertex  *b)
 {
@@ -345,11 +345,12 @@ static int vcmp (double **a, double **b)
 /* select vertices of an initial simplex and output the list of remaining vertices */
 static vertex* simplex_vertices (double *v, int n, MEM *mv, double *sv [4])
 {
-  double **pv, **pp, **pq, **pe, **pn, len;
+  double **pv, **pp, **pq, **pe, **pn;
+  double d, a[3], b[3], c[3], u[3];
   SET *points, *item;
   vertex *out, *x;
   MEM setmem;
-  int i;
+  int i, j;
 
   ERRMEM (pv = MEM_CALLOC (sizeof (double*) * n));
   MEM_Init (&setmem, sizeof (SET), n);
@@ -365,16 +366,16 @@ static vertex* simplex_vertices (double *v, int n, MEM *mv, double *sv [4])
   /* sort input points along the first coordinate */
   qsort (pv, n, sizeof (double*), (int (*)(const void*, const void*))vcmp);
 
-  len = 4.0 * GEOMETRIC_EPSILON; /* points are contained in [p - len, p + pen] boxes */
+  d = 10 * GEOMETRIC_EPSILON; /* points are contained in [p - d, p + d] boxes */
 
   for (pp = pv; pp < pe; pp = pn) /* for each sorted point */
   {
-    for (pq = pp+1, pn = pe; pq < pe && (*pq) [0] - len < (*pp) [0] + len; pq ++) /* for each consecutive overlapping point */
+    for (pq = pp+1, pn = pe; pq < pe && (*pq) [0] - d < (*pp) [0] + d; pq ++) /* for each consecutive overlapping point */
     {
       for (i = 1; i < 3; i ++)
       {
-	if ((*pq) [i] - len >= (*pp) [i] + len ||
-	    (*pq) [i] + len <= (*pp) [i] - len) break;
+	if ((*pq) [i] - d >= (*pp) [i] + d ||
+	    (*pq) [i] + d <= (*pp) [i] - d) break;
       }
 
       if (i == 3) /* if it overlaps along all three directions */
@@ -386,24 +387,62 @@ static vertex* simplex_vertices (double *v, int n, MEM *mv, double *sv [4])
     if (pn == pe) pn = pq; /* next point */
   }
 
-  i = SET_Size (points); /* number of points left after filtering */
+  for (pp = pv, item = SET_First (points); item; pp ++, item = SET_Next (item)) /* for each filtered point */
+  {
+    *pp = item->data; /* overwrite 'pv' with filtered points */
+  }
+  pe = pp; /* mark the end */
+
+  /* find well separated vertices */
+  for (pp = pv, j = 0; pp < pe && j < 4; pp ++)
+  {
+    for (i = 0; i < j; i ++)
+    {
+      SUB (sv [i], *pp, u);
+      MAXABS (u, d);
+      if (d < 2.0 * GEOMETRIC_EPSILON) break; /* too close */
+    }
+
+    if (i == j) /* not too close, but maybe ... */
+    {
+      switch (j)
+      {
+	case 2:
+	{
+	  SUB (sv [1], sv [0], a);
+	  PRODUCT (u, a, b);
+	  MAXABS (b, d);
+          if (d < GEOMETRIC_EPSILON) continue; /* ... colinear */
+	}
+	break;
+	case 3:
+	{
+	  SUB (sv [1], sv [0], a);
+	  SUB (sv [2], sv [1], b);
+	  PRODUCT (a, b, c);
+	  d = DOT (u, c);
+          if (ABS (d) < GEOMETRIC_EPSILON) continue; /* ... coplanar */
+	}
+	break;
+      }
+      
+      sv [j++] = *pp; /* add vertex to initial simplex */
+      SET_Delete (&setmem, &points, *pp, NULL); /* remove it from the point set */
+    }
+  }
 
 #if GEOMDEBUG
-  ASSERT_DEBUG (i < 4, "Insufficient number of distinct points");
+  ASSERT_DEBUG (j == 4, "All input points coincide");
 #else
-  if (i < 4) goto out; /* not enough for a convex hull */
+  if (j != 4) goto out;
 #endif
 
-  for (i = 0, item = SET_First (points); item; item = SET_Next (item)) /* for each point */
+  for (item = SET_First (points); item; item = SET_Next (item)) /* for each remaining point */
   {
-    if (i < 4) sv [i ++] = item->data; /* take first four points as initial simplex vertices */
-    else
-    {
-      ERRMEM (x = MEM_Alloc (mv));
-      x->v = item->data;
-      x->n = out;
-      out = x; /* put remaining points into the output list */
-    }
+    ERRMEM (x = MEM_Alloc (mv));
+    x->v = item->data;
+    x->n = out;
+    out = x; /* put into the output list */
   }
 
 out:
