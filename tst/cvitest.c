@@ -29,6 +29,7 @@
 #endif
 
 #include <stdlib.h>
+#include <string.h>
 #include <float.h>
 #include <stdio.h>
 #include <time.h>
@@ -362,6 +363,24 @@ static void key (int key, int x, int y)
 	  pb = TRI_Planes (b, blength, &npb);
 	  GEOMETRIC_EPSILON_ADAPT (va, nva);
 	  GEOMETRIC_EPSILON_ADAPT (vb, nvb);
+
+	  if (nva < limit && nvb < limit &&
+	      npa < limit && npb < limit)
+	  {
+	    asize = nva;
+	    anpla = npa;
+	    bsize = nvb;
+	    bnpla = npb;
+	    memcpy (apoint, va, nva * sizeof (double [3]));
+	    memcpy (aplane, pa, npa * sizeof (double [6]));
+	    memcpy (bpoint, vb, nvb * sizeof (double [3]));
+	    memcpy (bplane, pb, npb * sizeof (double [6]));
+	  }
+	  else
+	  {
+	    asize = anpla =
+	    bsize = bnpla = 0;
+	  }
 	}
 	else
 	{
@@ -394,7 +413,7 @@ static void key (int key, int x, int y)
 
     GLV_Redraw_All ();
   }
-  else if (key == 'e' && DOGEN == 0) export ();
+  else if (key == 'e') export ();
   else if (key == 'k')
   {
     if (kind == REGULARIZED) kind = NON_REGULARIZED, printf ("NON_REGULARIZED\n");
@@ -408,7 +427,7 @@ int main (int argc, char **argv)
   int i, j;
   
   printf ("SPACE - iterate over the test stages\n");
-  printf ("e - export current case (when an input file was given)\n");
+  printf ("e - export current case\n");
   printf ("k - switch between regularized and non-regularized intersection kind\n");
 
   srand ((unsigned) time (NULL));

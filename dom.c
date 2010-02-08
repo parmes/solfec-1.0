@@ -1462,8 +1462,9 @@ static void domain_balancing (DOM *dom)
 	  bod = bodies [j];
 	  double e [6];
 
-	  if (bod->flags & BODY_CHILD) SHAPE_Extents (bod->shape, e); /* bod->extents were not be updated for a child */
-	  else { COPY6 (bod->extents, e); }
+	  if (bod->flags & BODY_CHILD) BODY_Update_Extents (bod); /* bod->extents were not be updated for a child */
+
+	  COPY6 (bod->extents, e);
 
 	  Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
@@ -2447,6 +2448,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case RIGLNK:  update_riglnk  (dom, con); break;
     }
   }
+
+  /* update body extents after constraints update so that constraint points can be incorporated if needed */
+  for (bod = dom->bod; bod; bod = bod->next) BODY_Update_Extents (bod);
 
   SOLFEC_Timer_End (dom->solfec, "CONUPD");
 

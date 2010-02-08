@@ -226,6 +226,9 @@ void BODY_Static_Step_Begin (BODY *bod, double time, double step);
 /* perform the final half-step of the static scheme */
 void BODY_Static_Step_End (BODY *bod, double time, double step);
 
+/* update body extents */
+void BODY_Update_Extents (BODY *bod);
+
 /* motion x = x (X, state) */
 void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
 
