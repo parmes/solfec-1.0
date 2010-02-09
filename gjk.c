@@ -254,12 +254,14 @@ double gjk (double *a, int na, double *b, int nb, double *p, double *q)
 	 l [4];
 
   int toofar = 1,
-      n = 0;
+      n = 0,
+      j = 0,
+      k = (na+nb)*(na+nb);
 
   SUB (a, b, v);
   vlen = LEN (v);
 
-  while (toofar && vlen > GEOMETRIC_EPSILON && n < 4) /* (#) see below */
+  while (toofar && vlen > GEOMETRIC_EPSILON && n < 4 && j ++ < k) /* (#) see below */
   {
     w[n].a = minimal_support_point (a, na, v);
     w[n].b = maximal_support_point (b, nb, v);
@@ -306,14 +308,16 @@ double gjk_convex_sphere (double *a, int na, double *c, double r, double *p, dou
 	 l [4];
 
   int toofar = 1,
-      n = 0;
+      n = 0,
+      j = 0,
+      k = 4*na*na;
 
   COPY (c, b [0]);
   b [0][rand () % 3] += r; /* be is now a point on the sphere */
   SUB (a, b [0], v); /* an initial point in the set A-B */
   vlen = LEN (v);
 
-  while (toofar && vlen > GEOMETRIC_EPSILON && n < 4) /* (#) see below */
+  while (toofar && vlen > GEOMETRIC_EPSILON && n < 4 && j ++ < k) /* (#) see below */
   {
     w[n].a = minimal_support_point (a, na, v);
     w[n].b = maximal_sphere_support_point (w, n, b, c, r, v);
