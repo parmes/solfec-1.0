@@ -223,7 +223,7 @@ char* errstring (int error);
     fclose (__f__);\
   }
 #else
-  #define AUXDUMP(Path, X)
+  #define AUXDUMP(Path, ...)
 #endif
 
 #endif

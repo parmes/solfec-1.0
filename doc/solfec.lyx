@@ -1184,6 +1184,13 @@ out/cubes/16
 \end_layout
 
 \begin_layout Standard
+During a parallel run Solfec updates a file named STATE, placed in the output
+ directory of a simulation.
+ It contains statistics relevant to the run, including an estimated time
+ until the end of the simulation.
+\end_layout
+
+\begin_layout Standard
 \begin_inset Float figure
 placement H
 wide false
