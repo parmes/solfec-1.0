@@ -201,7 +201,7 @@ PFV* TRI_Polarise (TRI *tri, int n, int *m)
   MEM mem; /* memory for map items */
   TRI *t, *s, *e; /* triangle iterators 't' and 's', and table end 'e' */
   double *v, *w, d, x;
-  int i;
+  int i, j;
 
   MEM_Init (&mem, sizeof (MAP), n * 3);
   e = tri + n;
@@ -218,12 +218,12 @@ PFV* TRI_Polarise (TRI *tri, int n, int *m)
 	v = t->ver [i]; /* this is new vertex => new polar face */
 	pfvcnt ++; /* 't' is the first vertex of the new face */
 	
-        for (s = nextaround (t, v); s && s != t; s = nextaround (s, v)) pfvcnt ++; /* add more vertices */
+        for (s = nextaround (t, v), j = 0; s && s != t && j < n; s = nextaround (s, v), j ++) pfvcnt ++; /* add more vertices */
 
 #if GEOMDEBUG	
-	ASSERT_DEBUG (s, "Topological inconsistency in the input triangle mesh (a hole was found)"); /* a hole was found */
+	ASSERT_DEBUG (s && j < n, "Topological inconsistency in the input triangle mesh (a hole was found)"); /* a hole was found */
 #else
-	if (!s) goto error;
+	if (!s || j >= n) goto error;
 #endif
 
 	MAP_Insert (&mem, &vm, v, t, NULL); /* map vertex 'v' to triangle 't' */

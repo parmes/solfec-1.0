@@ -194,39 +194,36 @@ char* errstring (int error);
   #define ASSERT_DEBUG_EXT(Test, ...) Test
 #endif
 
-/* auxiliary numeric file dumps => used for debug plotting */
+/* auxiliary file dump */
 #if DEBUG
-  #define AUXDUMP1(Path, X)\
+  #if MPI
+  #define FOPEN(Path, File)\
   {\
     static char *__o__ = "w";\
-    FILE *__f__;\
-    ASSERT_DEBUG (__f__ = fopen (Path, __o__), "Could not open file");\
-    fprintf (__f__, "%.15e\n", X);\
-    fclose (__f__);\
+    char __path__ [256];\
+    int __rank__;\
+    MPI_Comm_rank (MPI_COMM_WORLD, &__rank__);\
+    snprintf (__path__, 256, "%s%d", Path, __rank__);\
+    ASSERT_DEBUG (File = fopen (__path__, __o__), "File open failed");\
     __o__ = "a";\
   }
-  #define AUXDUMP2(Path, X, Y)\
+  #else
+  #define FOPEN(Path, File)\
   {\
     static char *__o__ = "w";\
-    FILE *__f__;\
-    ASSERT_DEBUG (__f__ = fopen (Path, __o__), "Could not open file");\
-    fprintf (__f__, "%.15e\t%.15e\n", X, Y);\
-    fclose (__f__);\
+    ASSERT_DEBUG (File = fopen (Path, __o__), "File open failed");\
     __o__ = "a";\
   }
-  #define AUXDUMP3(Path, X, Y, Z)\
+  #endif
+  #define AUXDUMP(Path, ...)\
   {\
-    static char *__o__ = "w";\
     FILE *__f__;\
-    ASSERT_DEBUG (__f__ = fopen (Path, __o__), "Could not open file");\
-    fprintf (__f__, "%.15e\t%.15e\t%.15e\n", X, Y, Z);\
+    FOPEN (Path, __f__);\
+    fprintf (__f__, __VA_ARGS__);\
     fclose (__f__);\
-    __o__ = "a";\
   }
 #else
-  #define AUXDUMP1(Path, X)
-  #define AUXDUMP2(Path, X, Y)
-  #define AUXDUMP3(Path, X, Y, Z)
+  #define AUXDUMP(Path, X)
 #endif
 
 #endif
