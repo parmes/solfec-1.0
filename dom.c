@@ -451,28 +451,36 @@ static int gobj_adjacent (short paircode, void *aobj, void *bobj)
 }
 
 #if MPI
-/* compute body weight */
-static int body_weight (BODY *bod)
-{
-  SET *item;
-  CON *con;
-  int ncon;
-
-  for (item = SET_First (bod->con), ncon = 0; item; item = SET_Next (item))
-  {
-    con = item->data;
-    if (con->slave) ncon ++; /* one-body constraints migrate with the body, hence they increase its weight;
-				note that this function is called during FULL_BALANCING, hence no external
-				constraints are present in the bod->con set while here */
-  }
-
-  return  (1 + ncon) * bod->dofs;
-}
-
 /* compute constraint weight */
 static int constraint_weight (CON *con)
 {
-  return  con->master->dofs + (con->slave ? con->slave->dofs : 0);
+  int wgt0 = con->master->dofs + (con->slave ? con->slave->dofs : 0), wgt1 = wgt0;
+
+  if (con->dia)
+  {
+    OFFB *blk;
+
+    for (blk = con->dia->adjext; blk; blk = blk->n) wgt1 += blk->bod->dofs; /* include wight of local dynamics row */
+    for (blk = con->dia->adj; blk; blk = blk->n) wgt1 += blk->bod->dofs;
+  }
+
+  return MIN (10 * wgt0, wgt1); /* but do not allow too large weight variation */
+}
+
+/* compute body weight */
+static int body_weight (BODY *bod)
+{
+  int wgt = bod->dofs;
+  SET *item;
+  CON *con;
+
+  for (item = SET_First (bod->con); item; item = SET_Next (item))
+  {
+    con = item->data;
+    if (!con->slave) wgt += constraint_weight (con); /* one-body constraints migrate with the body, hence they increase its weight */
+  }
+
+  return  wgt;
 }
 
 /* number of objects for balacing */
