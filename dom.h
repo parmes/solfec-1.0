@@ -214,6 +214,7 @@ struct domain
   double imbalance_tolerance; /* imbalance threshold */
   int lock_directions; /* locked direactions flag */
   double degenerate_ratio; /* degeneration ratio for domain elongation */
+  double weight_factor; /* local dynamics weight factor */
   unsigned int noid; /* constraint id generation ommition flag */
   MAP *conext; /* id based map of external constraints */
   int bytes; /* bytes sent during load balancing */

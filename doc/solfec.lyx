@@ -6114,7 +6114,7 @@ Various utility routines are listed below.
 \end_layout
 
 \begin_layout Subsection*
-IMBALANCE_TOLERANCE (solfec, tolerance | lockdir, degenratio)
+IMBALANCE_TOLERANCE (solfec, tolerance | lockdir, degenratio, weightfactor)
 \end_layout
 
 \begin_layout Standard
@@ -6162,6 +6162,19 @@ degenratio
  - a number bigger than 1.0 (default: 10.0).
  If the domain bounding box has an edge ratio smaller than 1.0 / degenratio,
  a lower-dimensional load balancing algorithm is invoked.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+weightfactor
+\series default
+ - a local dynamics weight factor between 0.0 and 1.0 (default: 1.0).
+ Computational load of local dynamics assembling is best balanced when weightfac
+tor equals 1.0.
+ This however can sometimes result in a poor load balance for contact detection
+ or time integration.
+ Making it smaller than 1.0 can improve the overall balance in such cases.
 \end_layout
 
 \begin_layout Subsection*
