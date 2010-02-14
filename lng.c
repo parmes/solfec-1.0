@@ -4111,16 +4111,18 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
 /* set imbalance tolerances */
 static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "tolerance", "lockdir", "degenratio");
+  KEYWORDS ("solfec", "tolerance", "lockdir", "degenratio", "weightfactor");
   lng_SOLFEC *solfec;
   PyObject *lockdir;
   double tolerance,
-	 degenratio;
+	 degenratio,
+	 weightfactor;
 
   lockdir = NULL;
   degenratio = 10.0;
+  weightfactor = 1.0;
 
-  PARSEKEYS ("Od|Od", &solfec, &tolerance, &lockdir, &degenratio);
+  PARSEKEYS ("Od|Odd", &solfec, &tolerance, &lockdir, &degenratio, &weightfactor);
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (tolerance, kwl[1]) &&
             is_string (lockdir, kwl [2]) && is_ge (degenratio, kwl [3], 1.0));
@@ -4128,6 +4130,7 @@ static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObje
 #if MPI
   solfec->sol->dom->imbalance_tolerance = tolerance;
   solfec->sol->dom->degenerate_ratio = degenratio;
+  solfec->sol->dom->weight_factor = weightfactor;
 
   if (lockdir)
   {

@@ -337,13 +337,6 @@ def gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS):
   shape = []
 
   cvx = CONVEX (vertices, faces, 3)
-  scl = (lx,  ly,  thick)
-  vec = (sx, sy, -thick)
-  SCALE (cvx, scl)
-  TRANSLATE (cvx, vec)
-  shape.append (cvx)
-
-  cvx = CONVEX (vertices, faces, 3)
   scl = (lx,  thick,  lz)
   vec = (sx, sy, 0)
   SCALE (cvx, scl)
@@ -371,14 +364,45 @@ def gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS):
   TRANSLATE (cvx, vec)
   shape.append (cvx)
 
-  base = BODY (solfec, 'RIGID', shape, material)
+  wall = BODY (solfec, 'OBSTACLE', shape, material)
 
-  acc = TIME_SERIES ('inp/cores/inc/acc-0.dat')
-  FIX_POINT (solfec, base, (sx, sy, -thick))
-  FIX_DIRECTION (solfec, base, (sx + lx, sy, -thick), (0, 0, 1))
-  FIX_DIRECTION (solfec, base, (sx, sy + ly, -thick), (0, 0, 1))
-  FIX_DIRECTION (solfec, base, (sx + lx, sy + ly, -thick), (0, 0, 1))
-  SET_ACCELERATION (solfec, base, (sx + lx, sy + ly, - thick), (1, 0, 0), acc)
+  for i in range (N_BRICKS):
+    for j in range (M_BRICKS):
+
+      x = -(outd + dfac) + i * (outd + dfac)
+      y = -(outd + dfac) + j * (outd + dfac)
+      sx = x - outd * 0.5 - dfac * 0.25
+      sy = y - outd * 0.5 - dfac * 0.25
+      lx = outd + dfac * 0.5
+      ly = outd + dfac * 0.5
+
+      shape = []
+      cvx = CONVEX (vertices, faces, 3)
+      scl = (lx,  ly,  thick)
+      vec = (sx, sy, -thick)
+      SCALE (cvx, scl)
+      TRANSLATE (cvx, vec)
+      shape.append (cvx)
+
+      keyw = 0.0381
+      keyh = 0.0381
+      vec = (x, y, - 0.1 * height + hstep)
+      shp = gcore_brick_half (0.1315, outd, keyw, 0.05075, 0.05080, keyh, 0.1 * height, hstep, FIG9)
+      TRANSLATE (shp, vec)
+      shape += shp
+
+      base = BODY (solfec, 'RIGID', shape, material)
+
+      CONTACT_EXCLUDE_BODIES (solfec, base, wall)
+
+      acc = TIME_SERIES ('inp/cores/inc/acc-0.dat')
+      FIX_DIRECTION (solfec, base, (sx, sy, -thick), (0, 0, 1))
+      FIX_DIRECTION (solfec, base, (sx + lx, sy, -thick), (0, 0, 1))
+      FIX_DIRECTION (solfec, base, (sx, sy + ly, -thick), (0, 0, 1))
+      FIX_DIRECTION (solfec, base, (sx + lx, sy + ly, -thick), (0, 0, 1))
+      FIX_DIRECTION (solfec, base, (sx, sy, -thick), (0, 1, 0))
+      FIX_DIRECTION (solfec, base, (sx, sy + ly, -thick), (0, 1, 0))
+      SET_ACCELERATION (solfec, base, (sx + 0.5 * lx, sy + 0.5 * ly, - thick), (1, 0, 0), acc)
 
 def simple_core_create (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS):
 

@@ -454,17 +454,19 @@ static int gobj_adjacent (short paircode, void *aobj, void *bobj)
 /* compute constraint weight */
 static int constraint_weight (CON *con)
 {
-  int wgt0 = con->master->dofs + (con->slave ? con->slave->dofs : 0), wgt1 = wgt0;
+  int wgt0 = con->master->dofs + (con->slave ? con->slave->dofs : 0), /* default weight */
+      wgt1 = 0; /* weight of local dynamics row */
+  DOM *dom = con->master->dom;
 
   if (con->dia)
   {
     OFFB *blk;
 
-    for (blk = con->dia->adjext; blk; blk = blk->n) wgt1 += blk->bod->dofs; /* include wight of local dynamics row */
+    for (blk = con->dia->adjext; blk; blk = blk->n) wgt1 += blk->bod->dofs;
     for (blk = con->dia->adj; blk; blk = blk->n) wgt1 += blk->bod->dofs;
   }
 
-  return MIN (10 * wgt0, wgt1); /* but do not allow too large weight variation */
+  return wgt0 + (int) (dom->weight_factor * (double) wgt1);
 }
 
 /* compute body weight */
@@ -1888,6 +1890,7 @@ static void create_mpi (DOM *dom)
   dom->imbalance_tolerance = 1.3;
   dom->lock_directions = 0;
   dom->degenerate_ratio = 10.0;
+  dom->weight_factor = 1.0;
 
   /* general parameters */
   Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
