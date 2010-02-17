@@ -47,7 +47,7 @@ if not VIEWER():
   if solfec.mode == 'READ': print '\nPrevious test results exist. Please "make del" and rerun tests'
   else:
     CALLBACK (solfec, step, (bod, solfec), callback_function)
-    RUN (solfec, EXPLICIT_SOLVER(), stop)
+    RUN (solfec, PENALTY_SOLVER(), stop)
     value = bod.conf [9] / 0.0254 # conver to inches
     exact = 86.138
     error = abs (value - exact) / exact
@@ -70,4 +70,4 @@ if not VIEWER():
     except ImportError:
       pass # no reaction
 
-else: RUN (solfec, EXPLICIT_SOLVER(), stop)
+else: RUN (solfec, PENALTY_SOLVER(), stop)

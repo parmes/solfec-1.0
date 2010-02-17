@@ -3110,44 +3110,80 @@ static PyGetSetDef lng_GAUSS_SEIDEL_SOLVER_getset [] =
 };
 
 /*
- * EXPLICIT_SOLVER => object
+ * PENALTY_SOLVER => object
  */
 
-typedef struct lng_EXPLICIT_SOLVER lng_EXPLICIT_SOLVER;
+typedef struct lng_PENALTY_SOLVER lng_PENALTY_SOLVER;
 
-static PyTypeObject lng_EXPLICIT_SOLVER_TYPE;
+static PyTypeObject lng_PENALTY_SOLVER_TYPE;
 
-struct lng_EXPLICIT_SOLVER
+struct lng_PENALTY_SOLVER
 {
   PyObject_HEAD
+
+  PENALTY *ps;
 };
 
 /* constructor */
-static PyObject* lng_EXPLICIT_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+static PyObject* lng_PENALTY_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  lng_EXPLICIT_SOLVER *self;
+  KEYWORDS ("variant");
+  lng_PENALTY_SOLVER *self;
+  PyObject *variant;
+  short implicit;
 
-  self = (lng_EXPLICIT_SOLVER*)type->tp_alloc (type, 0);
+  self = (lng_PENALTY_SOLVER*)type->tp_alloc (type, 0);
+
+  if (self)
+  {
+    variant = NULL;
+    implicit = 1;
+
+    PARSEKEYS ("|O", &variant);
+
+    TYPETEST (is_string (variant, kwl[0]));
+
+    if (variant)
+    {
+      IFIS (variant, "IMPLICIT")
+      {
+	implicit = 1;
+      }
+      ELIF (variant, "EXPLICIT")
+      {
+	implicit = 0;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid variant");
+	return NULL;
+      }
+    }
+
+    self->ps = PENALTY_Create (implicit);
+  }
 
   return (PyObject*)self;
 }
 
 /* destructor */
-static void lng_EXPLICIT_SOLVER_dealloc (lng_EXPLICIT_SOLVER *self)
+static void lng_PENALTY_SOLVER_dealloc (lng_PENALTY_SOLVER *self)
 {
+  PENALTY_Destroy (self->ps);
+
   self->ob_type->tp_free ((PyObject*)self);
 }
 
-/* EXPLICIT_SOLVER methods */
-static PyMethodDef lng_EXPLICIT_SOLVER_methods [] =
+/* PENALTY_SOLVER methods */
+static PyMethodDef lng_PENALTY_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
 
-/* EXPLICIT_SOLVER members */
-static PyMemberDef lng_EXPLICIT_SOLVER_members [] =
+/* PENALTY_SOLVER members */
+static PyMemberDef lng_PENALTY_SOLVER_members [] =
 { {NULL, 0, 0, 0, NULL} };
 
-/* EXPLICIT_SOLVER getset */
-static PyGetSetDef lng_EXPLICIT_SOLVER_getset [] =
+/* PENALTY_SOLVER getset */
+static PyGetSetDef lng_PENALTY_SOLVER_getset [] =
 { {NULL, 0, 0, NULL, NULL} };
 
 /*
@@ -4889,7 +4925,7 @@ static int is_solver (PyObject *obj, char *var)
   if (obj)
   {
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
-        !PyObject_IsInstance (obj, (PyObject*)&lng_EXPLICIT_SOLVER_TYPE))
+        !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must be a constraint solver object", var);
@@ -4906,8 +4942,8 @@ static int get_solver_kind (PyObject *obj)
 {
   if (PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE))
     return GAUSS_SEIDEL_SOLVER;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_EXPLICIT_SOLVER_TYPE))
-    return EXPLICIT_SOLVER;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
+    return PENALTY_SOLVER;
   else return -1;
 }
 
@@ -4916,7 +4952,8 @@ static void* get_solver (PyObject *obj)
 {
   if (PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE))
     return ((lng_GAUSS_SEIDEL_SOLVER*)obj)->gs;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_EXPLICIT_SOLVER_TYPE)) return NULL;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
+    return ((lng_PENALTY_SOLVER*)obj)->ps;
   else return NULL;
 }
 
@@ -5779,9 +5816,9 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_GAUSS_SEIDEL_SOLVER_dealloc, lng_GAUSS_SEIDEL_SOLVER_new,
     lng_GAUSS_SEIDEL_SOLVER_methods, lng_GAUSS_SEIDEL_SOLVER_members, lng_GAUSS_SEIDEL_SOLVER_getset);
 
-  TYPEINIT (lng_EXPLICIT_SOLVER_TYPE, lng_EXPLICIT_SOLVER, "solfec.EXPLICIT_SOLVER",
-    Py_TPFLAGS_DEFAULT, lng_EXPLICIT_SOLVER_dealloc, lng_EXPLICIT_SOLVER_new,
-    lng_EXPLICIT_SOLVER_methods, lng_EXPLICIT_SOLVER_members, lng_EXPLICIT_SOLVER_getset);
+  TYPEINIT (lng_PENALTY_SOLVER_TYPE, lng_PENALTY_SOLVER, "solfec.PENALTY_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_PENALTY_SOLVER_dealloc, lng_PENALTY_SOLVER_new,
+    lng_PENALTY_SOLVER_methods, lng_PENALTY_SOLVER_members, lng_PENALTY_SOLVER_getset);
 
   TYPEINIT (lng_CONSTRAINT_TYPE, lng_CONSTRAINT, "solfec.CONSTRAINT",
     Py_TPFLAGS_DEFAULT, lng_CONSTRAINT_dealloc, lng_CONSTRAINT_new,
@@ -5796,7 +5833,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_BODY_TYPE) < 0) return;
   if (PyType_Ready (&lng_TIME_SERIES_TYPE) < 0) return;
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
-  if (PyType_Ready (&lng_EXPLICIT_SOLVER_TYPE) < 0) return;
+  if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
   if (!(m =  Py_InitModule3 ("solfec", lng_methods, "Solfec module"))) return;
@@ -5810,7 +5847,7 @@ static void initlng (void)
   Py_INCREF (&lng_BODY_TYPE);
   Py_INCREF (&lng_TIME_SERIES_TYPE);
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
-  Py_INCREF (&lng_EXPLICIT_SOLVER_TYPE);
+  Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
@@ -5822,7 +5859,7 @@ static void initlng (void)
   PyModule_AddObject (m, "BODY", (PyObject*)&lng_BODY_TYPE);
   PyModule_AddObject (m, "TIME_SERIES", (PyObject*)&lng_TIME_SERIES_TYPE);
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
-  PyModule_AddObject (m, "EXPLICIT_SOLVER", (PyObject*)&lng_EXPLICIT_SOLVER_TYPE);
+  PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
 
@@ -5854,7 +5891,7 @@ int lng (const char *path)
                      "from solfec import BODY\n"
                      "from solfec import TIME_SERIES\n"
                      "from solfec import GAUSS_SEIDEL_SOLVER\n"
-                     "from solfec import EXPLICIT_SOLVER\n"
+                     "from solfec import PENALTY_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"

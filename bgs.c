@@ -11,7 +11,7 @@
 #include "dom.h"
 #include "lap.h"
 #include "bgs.h"
-#include "exs.h"
+#include "pes.h"
 #include "err.h"
 
 #if MPI
@@ -1548,8 +1548,8 @@ int DIAGONAL_BLOCK_Solver (GSDIAS diagsolver, double diagepsilon, int diagmaxite
     case SPRING_DASHPOT:
       {
 	CON *con = dia->con;
-        return EXPLICIT_Spring_Dashpot_Contact (con, step, gap, mat->spring, mat->dashpot, mat->friction,
-	                                         mat->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
+        return PENALTY_Spring_Dashpot_Contact (con, 1, step, gap, mat->spring, mat->dashpot, mat->friction,
+	                                       mat->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
       }
       break;
     }

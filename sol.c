@@ -205,7 +205,7 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
   switch (kind)
   {
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Write_State (solver, sol->bf); break;
-  case EXPLICIT_SOLVER: EXPLICIT_Write_State (solver, sol->bf); break;
+  case PENALTY_SOLVER: PENALTY_Write_State (solver, sol->bf); break;
   default: break;
   }
 }
@@ -358,7 +358,7 @@ static void SOLVE (SOLFEC *sol, void *solver, SOLVER_KIND kind, LOCDYN *ldy, int
   switch (kind)
   {
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Solve (solver, ldy); break;
-  case EXPLICIT_SOLVER: EXPLICIT_Solve (ldy); break;
+  case PENALTY_SOLVER: PENALTY_Solve (solver, ldy); break;
   default: break;
   }
 
@@ -481,7 +481,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
     for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
     {
-      upkind = (kind == EXPLICIT_SOLVER ? UPEXS : UPALL); /* here as user callback can change solver */
+      upkind = (kind == PENALTY_SOLVER ? UPEXS : UPALL); /* here as user callback can change solver */
 
 #if MPI
       if (sol->dom->rank == 0)
@@ -636,7 +636,7 @@ void SOLFEC_Forward (SOLFEC *sol, int steps)
 /* perform abort actions */
 void SOLFEC_Abort (SOLFEC *sol)
 {
-  write_state (sol, NULL, SOLVER_NONE);
+  write_state (sol, NULL, NONE_SOLVER);
 
   if (sol->bf)
   {
