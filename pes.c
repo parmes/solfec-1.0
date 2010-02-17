@@ -1,27 +1,37 @@
 /*
- * exs.c
- * Copyright (C) 2007, 2009 Tomasz Koziara (t.koziara AT gmail.com)
+ * pes.c
+ * Copyright (C) 2007-2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * explicit constraints solver
+ * penalty constraints solver
  */
 
 #include "alg.h"
 #include "dom.h"
 #include "bgs.h"
-#include "exs.h"
+#include "pes.h"
 #include "err.h"
 
+#define PENALTY_MAXITER 10000
+#define PENALTY_EPSILON 1E-3
+
 /* spring and dashpot based explicit diagonal block contact solver */
-int EXPLICIT_Spring_Dashpot_Contact (CON *con, double step, double gap, double spring, double dashpot, double friction,
-                                     double cohesion, double *W, double *B, double *V, double *U, double *R)
+int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot,
+                              double friction, double cohesion, double *W, double *B, double *V, double *U, double *R)
 {
   double INV [4], WTT[4] = {W[0], W[1], W[3], W[4]}, BN, BT [2], det, len;
   short cohesive = con->state & CON_COHESIVE;
 
   BN = B[2] + W[2]*R[0] + W[5]*R[1];
 
-  R [2] = (- spring * (gap + 0.25 * step * (BN - V[2])) - 0.5 * dashpot * (BN + V[2]))
-        / (1.0 + (0.25  * step * spring + 0.5 * dashpot) * W[8]);
+  if (implicit)
+  {
+    R [2] = (- spring * (gap + 0.25 * step * (BN - V[2])) - 0.5 * dashpot * (BN + V[2]))
+	  / (1.0 + (0.25  * step * spring + 0.5 * dashpot) * W[8]);
+  }
+  else
+  {
+    R [2] = - spring * gap - dashpot * V[2];
+  }
 
   if (!cohesive && R[2] < 0.0)
   {
@@ -104,15 +114,28 @@ static void receive_noncontact_reactions (DOM *dom, COMDATA *recv, int nrecv)
 }
 #endif
 
+/* create penalty solver */
+PENALTY* PENALTY_Create (short implicit)
+{
+  PENALTY *ps;
+
+  ERRMEM (ps = MEM_CALLOC (sizeof (PENALTY)));
+  ps->implicit = implicit;
+
+  return ps;
+}
+
 /* explcit constraint solver */
-void EXPLICIT_Solve (LOCDYN *ldy)
+void PENALTY_Solve (PENALTY *ps, LOCDYN *ldy)
 {
   double error, step;
+  short implicit;
   short dynamic;
   int iters;
   DIAB *dia;
   CON *con;
 
+  implicit = ps->implicit;
   step = ldy->dom->step;
 
   /* first explicitly process contacts */
@@ -122,8 +145,8 @@ void EXPLICIT_Solve (LOCDYN *ldy)
 
     if (con->kind == CONTACT)
     {
-      EXPLICIT_Spring_Dashpot_Contact (con, step, con->gap, con->mat.base->spring, con->mat.base->dashpot,
-	         con->mat.base->friction, con->mat.base->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
+      PENALTY_Spring_Dashpot_Contact (con, implicit, step, con->gap, con->mat.base->spring, con->mat.base->dashpot,
+	                  con->mat.base->friction, con->mat.base->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
     }
   }
 
@@ -186,9 +209,9 @@ void EXPLICIT_Solve (LOCDYN *ldy)
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
   }
-  while (++ iters < 1000 && error > 1E-3);
+  while (++ iters < PENALTY_MAXITER && error > PENALTY_EPSILON);
 
-  ASSERT_DEBUG (iters < 1000 && error < 1E-3, "Gauss-Seidel part of EXPLICIT_SOLVER not convergent");
+  ASSERT_DEBUG (iters < PENALTY_MAXITER && error < PENALTY_EPSILON, "Gauss-Seidel part of PENALTY_SOLVER not convergent");
 
 #if MPI
   COMDATA *send, *recv, *ptr;
@@ -242,7 +265,13 @@ void EXPLICIT_Solve (LOCDYN *ldy)
 }
 
 /* write labeled satate values */
-void EXPLICIT_Write_State (GAUSS_SEIDEL *gs, PBF *bf)
+void PENALTY_Write_State (PENALTY *ps, PBF *bf)
 {
   /* nothing to write for the moment */
+}
+
+/* destroy penalty solver */
+void PENALTY_Destroy (PENALTY *ps)
+{
+  free (ps);
 }

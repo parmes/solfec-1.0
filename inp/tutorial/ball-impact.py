@@ -36,7 +36,7 @@ def ball_impact (step, stop, spring_value, dashpot_value, output):
 
   GRAVITY (solfec, (0, 0, -1), 10)
 
-  xs = EXPLICIT_SOLVER ()
+  xs = PENALTY_SOLVER ()
 
   RUN (solfec, xs, stop)
 

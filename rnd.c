@@ -2094,7 +2094,12 @@ static void step ()
   SOLVER_DATA *s = MAP_Find (solvers, domain, NULL);
 
   if (s) SOLFEC_Run (solfec, s->kind, s->solver, domain->step);
-  else SOLFEC_Run (solfec, EXPLICIT_SOLVER, NULL, domain->step); /* default and in read mode */
+  else 
+  {
+    PENALTY *ps = PENALTY_Create (1);
+    SOLFEC_Run (solfec, PENALTY_SOLVER, ps, domain->step); /* default and in read mode */
+    PENALTY_Destroy (ps);
+  }
 
   update ();
 }

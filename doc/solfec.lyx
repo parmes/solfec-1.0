@@ -4869,16 +4869,16 @@ Variants of parallel Gauss-Seidel update.
 \end_layout
 
 \begin_layout Subsection
-EXPLICIT_SOLVER
+PENALTY_SOLVER
 \end_layout
 
 \begin_layout Standard
-An object of type EXPLICIT_SOLVER represents a penalty based constraint
- solver (cf.
+An object of type PENALTY_SOLVER represents a penalty based constraint solver
+ (cf.
  Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sec:Explicit-solver"
+reference "sec:Penalty-solver"
 
 \end_inset
 
@@ -4893,7 +4893,7 @@ spring
 \end_layout
 
 \begin_layout Subsection*
-obj = EXPLICIT_SOLVER ()
+obj = PENALTY_SOLVER ( | variant)
 \end_layout
 
 \begin_layout Itemize
@@ -4901,7 +4901,16 @@ obj = EXPLICIT_SOLVER ()
 \series bold
 obj
 \series default
- - created EXPLICIT_SOLVER object
+ - created PENALTY_SOLVER object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+variant
+\series default
+ - 'IMPLICIT' or 'EXPLICIT' normal force computation variant (default: 'IMPLICIT
+')
 \end_layout
 
 \begin_layout Subsection
@@ -5945,7 +5954,7 @@ solfec
 solver
 \series default
  - constraint solver object (e.g.
- GAUSS_SEIDEL_SOLVER, EXPLICIT_SOLVER)
+ GAUSS_SEIDEL_SOLVER, PENALTY_SOLVER)
 \end_layout
 
 \begin_layout Itemize
@@ -8014,7 +8023,7 @@ Ball impact
 
 \begin_layout Standard
 This example illustrates using multiple SOLFEC objects, application of the
- EXPLICIT_SOLVER, and using HISTORY to retrieve and then plot time histories.
+ PENALTY_SOLVER, and using HISTORY to retrieve and then plot time histories.
  First we define a Python function that will create a model of ball impacting
  a plate for a specific set of parameters.
 \end_layout
@@ -8144,7 +8153,7 @@ def ball_impact (step, stop, spring_value, dashpot_value, output):
 \end_layout
 
 \begin_layout LyX-Code
-  xs = EXPLICIT_SOLVER ()
+  xs = PENALTY_SOLVER ()
 \end_layout
 
 \begin_layout LyX-Code
@@ -9419,7 +9428,7 @@ reference "sec:Gauss-Seidel-solver"
  and 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sec:Explicit-solver"
+reference "sec:Penalty-solver"
 
 \end_inset
 
@@ -10440,15 +10449,15 @@ TODO
 \begin_layout Section
 \begin_inset CommandInset label
 LatexCommand label
-name "sec:Explicit-solver"
+name "sec:Penalty-solver"
 
 \end_inset
 
-Explicit solver
+Penalty solver
 \end_layout
 
 \begin_layout Standard
-The explicit solver is quite straightforward.
+The penalty solver is quite straightforward.
  On each processor we split the constraints into 
 \begin_inset Formula $Contacts_{i}$
 \end_inset
@@ -10489,7 +10498,7 @@ sideways false
 status open
 
 \begin_layout LyX-Code
-PARALLEL_EXPLICIT_SOLVER 
+PARALLEL_PENALTY_SOLVER 
 \begin_inset Formula $\left(\epsilon\right)$
 \end_inset
 
@@ -10570,7 +10579,7 @@ name "alg:Parallel-explicit-solver"
 
 
 \lang english
-Parallel explicit solver.
+Parallel penalty solver.
 \end_layout
 
 \end_inset

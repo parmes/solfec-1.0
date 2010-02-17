@@ -26,7 +26,7 @@
 #include "sph.h"
 #include "tms.h"
 #include "bgs.h"
-#include "exs.h"
+#include "pes.h"
 #include "dom.h"
 #include "mat.h"
 #include "pbf.h"
@@ -44,9 +44,9 @@ typedef int (*SOLFEC_Callback) (SOLFEC*, void*, void*);
 
 enum solver_kind
 {
-  SOLVER_NONE,
+  NONE_SOLVER,
   GAUSS_SEIDEL_SOLVER,
-  EXPLICIT_SOLVER
+  PENALTY_SOLVER
 };
 
 typedef enum solver_kind SOLVER_KIND;
