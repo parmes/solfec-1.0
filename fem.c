@@ -625,15 +625,15 @@ inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
   }
 }
 
-/* compute linear tetrahedron internal force contribution */
-inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
+/* compute linear tetrahedron internal force or force derivative contribution */
+inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
   double derivs [12], F0 [9], F [9], P [9], *B, *p;
   double point [3], J, integral;
   double mat_lambda, mat_mi;
   int i, k;
 
-  blas_dscal (12, 0.0, g, 1);
+  blas_dscal (12 * (derivative ? 12 : 1), 0.0, g, 1);
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
@@ -672,6 +672,8 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	    SCALE9 (P, integral);
 
 	    for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
+
+	    /* TODO: force derivative */
 	  }
 	}
       }
@@ -685,6 +687,8 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	SCALE9 (P, integral);
 
 	for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
+
+	/* TODO: force derivative */
       }
     }
   }
@@ -702,23 +706,25 @@ inline static void tet_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
       SCALE9 (P, integral);
 
       for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
+
+      /* TODO: force derivative */
     }
   }
 }
 
-/* compute linear hexahedron internal force contribution */
-inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
+/* compute linear hexahedron internal force or force derivative contribution */
+inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
-  double derivs [24], F0 [9], F [9], P [9], *B, *p;
+  double derivs [24], F0 [9], F [9], P [9], K [81], *B, *p;
   double point [3], J, integral;
   double mat_lambda, mat_mi;
   int i, k;
 
-  blas_dscal (24, 0.0, g, 1);
+  blas_dscal (24 * (derivative ? 24 : 1), 0.0, g, 1);
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
-  if (dom)
+  if (dom) /* integrate over sub-domain */
   {
     double subnodes [4][3], subJ;
     double subpoint [3];
@@ -753,6 +759,8 @@ inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	    SCALE9 (P, integral);
 
 	    for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
+
+            /* TODO: force derivative */
 	  }
 	}
       }
@@ -766,10 +774,12 @@ inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
 	SCALE9 (P, integral);
 
 	for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
+
+        /* TODO: force derivative */
       }
     }
   }
-  else
+  else /* integrate over regular element domain */
   {
     for (k = 0; k < I_HEX2_N; k ++)
     {
@@ -778,11 +788,22 @@ inline static void hex_o1_internal_force (TRISURF *dom, int domnum, node_t nodes
       point [2] = I_HEX2_Z [k];
       J = hex_o1_det (nodes, point, F0);
       hex_o1_gradient (q, point, F0, derivs, F);
-      SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
       integral = J * I_HEX2_W [k];
-      SCALE9 (P, integral);
 
-      for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
+      if (derivative)
+      {
+	SVK_Tangent_C (mat_lambda, mat_mi, 1.0, 9, F, K);
+	blas_dscal (81, integral, K, 1);
+
+	/* TODO: force derivative */
+      }
+      else
+      {
+	SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P);
+	SCALE9 (P, integral);
+
+	for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
+      }
     }
   }
 }
@@ -1181,8 +1202,8 @@ static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
   case FEM_O1:
     switch (ele->type)
     {
-    case 4: tet_o1_internal_force (ele->dom, ele->domnum, nodes, mat, q, g); break;
-    case 8: hex_o1_internal_force (ele->dom, ele->domnum, nodes, mat, q, g); break;
+    case 4: tet_o1_internal_force (0, ele->dom, ele->domnum, nodes, mat, q, g); break;
+    case 8: hex_o1_internal_force (0, ele->dom, ele->domnum, nodes, mat, q, g); break;
     case 5:
       COPY (nodes [4], nodes [5]);
       COPY (nodes [4], nodes [6]);
@@ -1190,7 +1211,7 @@ static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
       COPY (q [4], q [5]);
       COPY (q [4], q [6]);
       COPY (q [4], q [7]);
-      hex_o1_internal_force (ele->dom, ele->domnum, nodes, mat, q, g);
+      hex_o1_internal_force (0, ele->dom, ele->domnum, nodes, mat, q, g);
       break;
     case 6:
       COPY (nodes [5], nodes [7]);
@@ -1203,7 +1224,7 @@ static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
       COPY (q [4], q [5]);
       COPY (q [3], q [4]);
       COPY (q [2], q [3]);
-      hex_o1_internal_force (ele->dom, ele->domnum, nodes, mat, q, g);
+      hex_o1_internal_force (0, ele->dom, ele->domnum, nodes, mat, q, g);
       break;
     }
   break;
