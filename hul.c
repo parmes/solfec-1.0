@@ -714,7 +714,7 @@ TRI* hull (double *v, int n, int *m)
     mark (f, f->w->v, &g);
 
     /* loop over the ridge edges */
-    if (!(k = e = nextonridge (n, g->e, NULL))) goto error;
+    if (!g || !(k = e = nextonridge (n, g->e, NULL))) goto error;
     ehead = etail = NULL;
     head = tail = NULL;
     do
