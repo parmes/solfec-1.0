@@ -1,0 +1,363 @@
+#LyX 1.6.5 created this file. For more info see http://www.lyx.org/
+\lyxformat 345
+\begin_document
+\begin_header
+\textclass book
+\use_default_options true
+\language english
+\inputencoding auto
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_default_family default
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+
+\graphics default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry true
+\use_amsmath 1
+\use_esint 1
+\cite_engine basic
+\use_bibtopic false
+\paperorientation portrait
+\leftmargin 2cm
+\rightmargin 2cm
+\secnumdepth 2
+\tocdepth 2
+\paragraph_separation indent
+\defskip medskip
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\author "" 
+\author "" 
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Solfec notes
+\end_layout
+
+\begin_layout Author
+Tomasz Koziara
+\end_layout
+
+\begin_layout Chapter
+Finite elements
+\end_layout
+
+\begin_layout Standard
+Finite elements are implemenented in files:
+\end_layout
+
+\begin_layout LyX-Code
+fem.h, fem.c
+\end_layout
+
+\begin_layout Standard
+These notes provide extended comments to the implementation.
+ Let's have a look into computation of internal forces and internal force
+ derivatives.
+ Integration over regular element domain looks like this:
+\end_layout
+
+\begin_layout LyX-Code
+shp_order_internal_force 
+\begin_inset Formula $\left(derivative,nodes,q\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+1  for each integration 
+\begin_inset Formula $point$
+\end_inset
+
+ and 
+\begin_inset Formula $weight$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+2    
+\begin_inset Formula $\left(J,F_{0}\right)=$
+\end_inset
+
+ shp_order_det 
+\begin_inset Formula $\left(nodes,point\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+3    
+\begin_inset Formula $\left(derivs,F\right)=$
+\end_inset
+
+ shp_order_gradient 
+\begin_inset Formula $\left(q,point,F_{0}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+4    
+\begin_inset Formula $integral=J\cdot weight$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+5    if 
+\begin_inset Formula $derivative$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+6      
+\begin_inset Formula $K=$
+\end_inset
+
+ dPK1/dF 
+\begin_inset Formula $\left(F\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+7      
+\begin_inset Formula $K=K\cdot integral$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+8      for 
+\begin_inset Formula $j=0$
+\end_inset
+
+ to 
+\begin_inset Formula $8$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+9        for 
+\begin_inset Formula $i=0$
+\end_inset
+
+ to 
+\begin_inset Formula $\dim_{0}\left(nodes\right)-1$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+10         
+\begin_inset Formula $BK\left[3i:3i+3,j\right]=K\left[:,j\right]\cdot derivs\left[3i:3i+3\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+11     for 
+\begin_inset Formula $i=0$
+\end_inset
+
+ to 
+\begin_inset Formula $3\cdot\dim_{0}\left(nodes\right)-1$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+12       for 
+\begin_inset Formula $j=0$
+\end_inset
+
+ to 
+\begin_inset Formula $\dim_{0}\left(nodes\right)-1$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+13         for 
+\begin_inset Formula $l=0$
+\end_inset
+
+ to 
+\begin_inset Formula $2$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+14           
+\begin_inset Formula $df_{int}/dq\left[i,3\cdot j+l\right]\stackrel{+}{=}\sum_{k=0}^{2}BK\left[i,3\cdot k+l\right]\cdot derivs\left[3\cdot j+k\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+15   else
+\end_layout
+
+\begin_layout LyX-Code
+16     
+\begin_inset Formula $P=$
+\end_inset
+
+ PK1 
+\begin_inset Formula $\left(F\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+17     
+\begin_inset Formula $P=P\cdot integral$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+18     for 
+\begin_inset Formula $i=0$
+\end_inset
+
+ to 
+\begin_inset Formula $\dim_{0}\left(nodes\right)-1$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+19       
+\begin_inset Formula $f_{int}\left[3i:3i+3\right]\stackrel{+}{=}P\cdot derivs\left[3i:3i+3\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Examples of 
+\family typewriter
+shp_order_det
+\family default
+ functions are 
+\family typewriter
+tet_o1_det
+\family default
+ and 
+\family typewriter
+hex_o1_det
+\family default
+ for respectively the first order tetrahedron and the first order hexahedorn.
+ Function 
+\family typewriter
+shp_order_det
+\family default
+ computes deteminant and local derivatives of local to global coordinate
+ mapping
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+X\left(\xi\right)=\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}nodes[i,:]\cdot N_{i}\left(\xi\right)\]
+
+\end_inset
+
+where 
+\begin_inset Formula $nodes[:,:]$
+\end_inset
+
+ is of dimension 
+\begin_inset Formula $4\times3$
+\end_inset
+
+ for the linear tetrahedron and 
+\begin_inset Formula $8\times3$
+\end_inset
+
+ for the linear hexahedron.
+ It stores nodal coordinates.
+ 
+\begin_inset Formula $N_{i}\left(\xi\right)$
+\end_inset
+
+ are base element shape functions, where 
+\begin_inset Formula $\xi$
+\end_inset
+
+ is a 
+\begin_inset Formula $3-$
+\end_inset
+
+vector, the local coordinate.
+ We then have
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+F_{0}=\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}nodes[i,:]\otimes dN_{i}\left(\xi\right)/d\xi\]
+
+\end_inset
+
+and
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula \[
+J=\det\left(F_{0}\right)\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+where 
+\begin_inset Formula $F_{0}$
+\end_inset
+
+ is a 
+\begin_inset Formula $3\times3$
+\end_inset
+
+ matrix.
+\end_layout
+
+\end_body
+\end_document

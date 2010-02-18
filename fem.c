@@ -715,10 +715,10 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
 /* compute linear hexahedron internal force or force derivative contribution */
 inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
-  double derivs [24], F0 [9], F [9], P [9], K [81], *B, *p;
+  double derivs [24], F0 [9], F [9], P [9], K [81], BK [216], *B, *p, *K_col;
   double point [3], J, integral;
   double mat_lambda, mat_mi;
-  int i, k;
+  int i, j, k, l;
 
   blas_dscal (24 * (derivative ? 24 : 1), 0.0, g, 1);
   mat_lambda = lambda (mat->young, mat->poisson);
@@ -795,11 +795,25 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
 	SVK_Tangent_C (mat_lambda, mat_mi, 1.0, 9, F, K);
 	blas_dscal (81, integral, K, 1);
 
-	/* TODO: force derivative */
+	for (j = 0, K_col = K, p = BK; j < 9; j ++, K_col += 9) /* BK */
+	{
+	  for (i = 0, B = derivs; i < 8; i ++, B += 3, p += 3) { NVMUL (K_col, B, p); } /* 'p' descends down BK column until the next column is reached */
+	}
+
+	for (i = 0; i < 24; i ++)
+	{
+	  for (j = 0; j < 8; j ++)
+	  {
+            for (l = 0; l < 3; l ++)
+	    {
+	      g [24*(3*j+l) + i] += BK [24*(l+0)+i] * derivs [3*j+0] + BK [24*(l+3)+i] * derivs [3*j+1]+ BK [24*(l+6)+i] * derivs [3*j+2]; /* BK B' */
+	    }
+	  }
+	}
       }
       else
       {
-	SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P);
+	SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
 	SCALE9 (P, integral);
 
 	for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
