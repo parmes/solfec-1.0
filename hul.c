@@ -600,19 +600,20 @@ inline static face* nextaround (face *f, double *v)
 
 /* walk behind the horizon (unvisible side)
  * ridges and return consecutive CCW edges */
-inline static edge* nextonridge (edge* e, face **g)
+inline static edge* nextonridge (int m, edge *e, face **g)
 {
   if (g)
   {
     double *v = e->v[1];
     face *f = e->f;
+    int n;
 
-    for (f = nextaround (f, v); f && f->marked; f = nextaround (f, v)); /* walk around e->v[0] until unmarked face is found */
+    for (n = 1, f = nextaround (f, v); f && f->marked && n < m; f = nextaround (f, v)) n ++; /* walk around e->v[0] until unmarked face is found */
 
 #if GEOMDEBUG
-    ASSERT_DEBUG (f, "Inconsitent topology => first edge on the ridge not found (1 in nextonridge)");
+    ASSERT_DEBUG (f && n < m, "Inconsitent topology => first edge on the ridge not found (1 in nextonridge)");
 #else
-    if (!f) return NULL;
+    if (!f || n == m) return NULL;
 #endif
 
     for (e = f->e; e && e->v [0] != v; e = e->n); /* find an edge adjacent to the marked region */
@@ -713,7 +714,7 @@ TRI* hull (double *v, int n, int *m)
     mark (f, f->w->v, &g);
 
     /* loop over the ridge edges */
-    if (!(k = e = nextonridge (g->e, NULL))) goto error;
+    if (!(k = e = nextonridge (n, g->e, NULL))) goto error;
     ehead = etail = NULL;
     head = tail = NULL;
     do
@@ -744,7 +745,7 @@ TRI* hull (double *v, int n, int *m)
       ehead = j; /* this is the head edge */
       
       j = e; /* back up current outer edge => 'nextonridge' needs an old 'e->f' */
-      if (!(e = nextonridge (j, &g))) goto error; /* next outer edge along the visible set ridge */
+      if (!(e = nextonridge (n, j, &g))) goto error; /* next outer edge along the visible set ridge */
       j->f = cur; /* set up new adjacency (once the old 'e->f' was utilised) */
 
     } while (e != k);
