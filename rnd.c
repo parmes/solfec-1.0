@@ -215,6 +215,7 @@ static void menu_analysis (int);
 static void menu_kinds (int);
 static void menu_results (int);
 static void update ();
+static int  time_width ();
 
 /* global data */
 
@@ -2085,7 +2086,9 @@ static void update ()
 
   for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_data (bod, bod->rendering);
 
-  GLV_Redraw_All ();
+  GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT); /* stretch time window to fit text */
+
+  GLV_Redraw_All (); /* redraw all widgets */
 }
 
 /* one simulation step */
@@ -2093,11 +2096,17 @@ static void step ()
 {
   SOLVER_DATA *s = MAP_Find (solvers, domain, NULL);
 
-  if (s) SOLFEC_Run (solfec, s->kind, s->solver, domain->step);
+  double epsilon = DBL_EPSILON;
+
+  /* find a small number such that added to current time it makes a difference */
+  while (domain->time + epsilon == domain->time) epsilon += DBL_EPSILON;
+
+  /* (***) note that domain->step might be decreased due to stability issues */
+  if (s) SOLFEC_Run (solfec, s->kind, s->solver, epsilon); /* use epsilon as the duration in order to make just one step; see (***) */
   else 
   {
     PENALTY *ps = PENALTY_Create (1);
-    SOLFEC_Run (solfec, PENALTY_SOLVER, ps, domain->step); /* default and in read mode */
+    SOLFEC_Run (solfec, PENALTY_SOLVER, ps, epsilon); /* default and in read mode */
     PENALTY_Destroy (ps);
   }
 
@@ -2284,8 +2293,6 @@ static int time_width ()
 /* render current time */
 static void time_render ()
 {
-  GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT);
-
   glDisable (GL_LIGHTING);
   glDisable (GL_DEPTH_TEST);
 

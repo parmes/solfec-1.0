@@ -3,7 +3,7 @@
 a = 1.0
 b = 1.0
 c = 2.0
-step = 1E-4
+step = 1.0 # let the critical step rule
 
 nodes = [-a, -b, 0,
           a, -b, 0,
@@ -32,6 +32,6 @@ gs = GAUSS_SEIDEL_SOLVER (1E-5, 1000)
 
 GRAVITY (sol, (0, 0, -1), 10)
 
-OUTPUT (sol, 10 * step)
+OUTPUT (sol, 0.01)
 
 RUN (sol, gs, 4.0)

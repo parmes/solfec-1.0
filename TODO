@@ -55,4 +55,6 @@ Implement merging of parallel files
 Solver labeled statistics output and history reading
 --------------------------------------------------------
 Remove #if 0 from hull.c once it proves robust
--------------------------------------------------
+-----------------------------------------------------------------
+Account for damping in PRB implicit prb_dynamic_implicit_inverse
+-----------------------------------------------------------------
