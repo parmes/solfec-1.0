@@ -673,7 +673,7 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
 
 	    for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
 
-	    /* TODO: force derivative */
+	    /* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 	  }
 	}
       }
@@ -688,7 +688,7 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
 
 	for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
 
-	/* TODO: force derivative */
+	/* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
       }
     }
   }
@@ -707,7 +707,7 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
 
       for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
 
-      /* TODO: force derivative */
+      /* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
     }
   }
 }
@@ -715,10 +715,10 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
 /* compute linear hexahedron internal force or force derivative contribution */
 inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
-  double derivs [24], F0 [9], F [9], P [9], K [81], BK [216], *B, *p, *K_col;
+  double derivs [24], F0 [9], F [9], P [9], K [81], KB [9], *B, *p;
   double point [3], J, integral;
   double mat_lambda, mat_mi;
-  int i, j, k, l;
+  int i, j, k;
 
   blas_dscal (24 * (derivative ? 24 : 1), 0.0, g, 1);
   mat_lambda = lambda (mat->young, mat->poisson);
@@ -760,7 +760,7 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
 
 	    for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
 
-            /* TODO: force derivative */
+            /* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 	  }
 	}
       }
@@ -775,7 +775,7 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
 
 	for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
 
-        /* TODO: force derivative */
+        /* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
       }
     }
   }
@@ -795,20 +795,17 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
 	SVK_Tangent_C (mat_lambda, mat_mi, 1.0, 9, F, K);
 	blas_dscal (81, integral, K, 1);
 
-	for (j = 0, K_col = K, p = BK; j < 9; j ++, K_col += 9) /* BK */
-	{
-	  for (i = 0, B = derivs; i < 8; i ++, B += 3, p += 3) { NVMUL (K_col, B, p); } /* 'p' descends down BK column until the next column is reached */
-	}
-
 	for (i = 0; i < 24; i ++)
 	{
-	  for (j = 0; j < 8; j ++)
+	  SET9 (KB, 0);
+	  for (j = 0; j < 3; j ++)
 	  {
-            for (l = 0; l < 3; l ++)
-	    {
-	      g [24*(3*j+l) + i] += BK [24*(l+0)+i] * derivs [3*j+0] + BK [24*(l+3)+i] * derivs [3*j+1]+ BK [24*(l+6)+i] * derivs [3*j+2]; /* BK B' */
-	    }
+	    p = &K [9*((i%3) + (3*j))];
+	    integral = derivs [3*(i/3)+j];
+	    NNADDMUL (KB, integral, p, KB);
 	  }
+
+	  for (j = 0, B = derivs, p = &g[24*i]; j < 8; j ++, B += 3, p += 3) { NVADDMUL (p, KB, B, p); }
 	}
       }
       else
@@ -1196,8 +1193,8 @@ static void body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, double *g
   }
 }
 
-/* copute internal force contribution */
-static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
+/* copute internal force or force derivative contribution */
+static void internal_force (int derivative, BODY *bod, MESH *msh, ELEMENT *ele, double *g)
 {
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
   double nodes [8][3], q [8][3], *p;
@@ -1216,8 +1213,8 @@ static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
   case FEM_O1:
     switch (ele->type)
     {
-    case 4: tet_o1_internal_force (0, ele->dom, ele->domnum, nodes, mat, q, g); break;
-    case 8: hex_o1_internal_force (0, ele->dom, ele->domnum, nodes, mat, q, g); break;
+    case 4: tet_o1_internal_force (derivative, ele->dom, ele->domnum, nodes, mat, q, g); break;
+    case 8: hex_o1_internal_force (derivative, ele->dom, ele->domnum, nodes, mat, q, g); break;
     case 5:
       COPY (nodes [4], nodes [5]);
       COPY (nodes [4], nodes [6]);
@@ -1225,7 +1222,7 @@ static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
       COPY (q [4], q [5]);
       COPY (q [4], q [6]);
       COPY (q [4], q [7]);
-      hex_o1_internal_force (0, ele->dom, ele->domnum, nodes, mat, q, g);
+      hex_o1_internal_force (derivative, ele->dom, ele->domnum, nodes, mat, q, g);
       break;
     case 6:
       COPY (nodes [5], nodes [7]);
@@ -1238,7 +1235,7 @@ static void internal_force (BODY *bod, MESH *msh, ELEMENT *ele, double *g)
       COPY (q [4], q [5]);
       COPY (q [3], q [4]);
       COPY (q [2], q [3]);
-      hex_o1_internal_force (0, ele->dom, ele->domnum, nodes, mat, q, g);
+      hex_o1_internal_force (derivative, ele->dom, ele->domnum, nodes, mat, q, g);
       break;
     }
   break;
@@ -1519,7 +1516,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
   /* internal forces */
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
-    internal_force (bod, msh, ele, g);
+    internal_force (0, bod, msh, ele, g);
 
     for (i = 0, v = g; i < ele->type; i ++, v += 3)
     {
@@ -1536,14 +1533,45 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
   for (double *x = fext, *y = fint, *z = force, *u = z + bod->dofs; z < u; x ++, y ++, z ++) *z = (*x) - (*y);
 }
 
-#if 0
+/* compute global tangent stiffness */
+static MX* tangent_stiffness (BODY *bod)
+{
+  MESH *msh;
+ 
+  msh = FEM_MESH (bod);
+
+  /* TODO: optimize repetitive assembling by storing sparse storage pointetrs at mesh nodes (???) */
+
+  return NULL;
+}
+
+/* set up inverse operator for the implicit dynamic time stepping */
+static void fem_dynamic_implicit_inverse (BODY *bod, double step, double *force)
+{
+  /* TODO: diagonalized mass should be stored once and for all after FEM_Dynamic_Init */
+}
+
 /* compute inv (M) * K for an element */
 static MX* inverse_mass_times_stiffencess (BODY *bod, MESH *msh, ELEMENT *ele)
 {
-  /* TODO */
-  return NULL;
+  double *x, *y;
+  MX *IMK, *IM;
+  int i, j, n;
+
+  ASSERT_DEBUG (bod->scheme == SCH_DEF_EXP, "Not the explit scheme");
+
+  n = ele->type * 3;
+  IM = bod->inverse;
+  IMK = MX_Create (MXDENSE, n, n, NULL, NULL);
+  internal_force (1, bod, msh, ele, IMK->x);
+
+  for (j = 0, x = IMK->x; j < n; j ++) /* compute IMK = IM * K */
+  {
+    for (i = 0, y = IM->x; i < n; i ++, x ++, y ++) (*x) *= (*y); /* scale each column by diagonal IM entries */
+  }
+
+  return IMK;
 }
-#endif
 
 /* attach (element, local point) pairs to cvx->epn placeholder so that
  * current vertices can be updated fast by using FEM_Cur_Point_Ext */
@@ -1939,31 +1967,31 @@ void FEM_Dynamic_Init (BODY *bod)
 /* estimate critical step for the dynamic scheme */
 double FEM_Dynamic_Critical_Step (BODY *bod)
 {
-#if 0
-  MESH *msh = FEM_MESH (bod);
-  double step, tcrit, eigmax;
-  ELEMENT *ele;
-  int bulk;
-  MX *IMK;
-
-  for (ele = msh->surfeles, bulk = 0, step = DBL_MAX; ele; )
+  if (bod->scheme == SCH_DEF_EXP)
   {
-    IMK = inverse_mass_times_stiffencess (bod, msh, ele); /* element inv (M) * K */
-    MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
-    MX_Destroy (IMK);
-    ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
-    tcrit = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
-    if (tcrit < step) step = tcrit;
+    MESH *msh = FEM_MESH (bod);
+    double step, tcrit, eigmax;
+    ELEMENT *ele;
+    int bulk;
+    MX *IMK;
 
-    if (bulk) ele = ele->next;
-    else if (ele->next) ele = ele->next;
-    else ele = msh->bulkeles, bulk = 1;
+    for (ele = msh->surfeles, bulk = 0, step = DBL_MAX; ele; )
+    {
+      IMK = inverse_mass_times_stiffencess (bod, msh, ele); /* element inv (M) * K */
+      MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
+      MX_Destroy (IMK);
+      ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
+      tcrit = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
+      if (tcrit < step) step = tcrit;
+
+      if (bulk) ele = ele->next;
+      else if (ele->next) ele = ele->next;
+      else ele = msh->bulkeles, bulk = 1;
+    }
+
+    return step;
   }
-
-  return step;
-#else
-  return DBL_MAX; /* TODO */
-#endif
+  else return DBL_MAX;
 }
 
 /* perform the initial half-step of the dynamic scheme */

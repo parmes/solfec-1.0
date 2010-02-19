@@ -432,8 +432,7 @@ static void prb_dynamic_explicit_inverse (BODY *bod)
   MX_Inverse (M, M);
 }
 
-/* set up inverse of inertia for
- * the implicit dynamic time stepping */
+/* set up inverse operator for the implicit dynamic time stepping */
 static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *force)
 {
   MX_DENSE (K, 9, 9);
