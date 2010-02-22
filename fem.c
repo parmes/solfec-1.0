@@ -299,524 +299,263 @@ inline static void hex_o1_gradient (node_t q, double *point, double *F0, double 
       for (k = 0; k < 8; k ++) F [3*j+i] += q[k][i] * derivs [3*k+j];
 }
 
+/* integration macro */
+#define INTEGRATE(SCHEME, SUBORD, dom, domnum, nodes, ...)\
+{\
+  double point [3], weight;\
+  int __k__, __l__;\
+\
+  if (dom)\
+  {\
+    double __subnodes__ [4][3], __subJ__;\
+    double __subpoint__ [3];\
+    TRI *__t__, *__e__;\
+    double __volume__;\
+\
+    for (__volume__ = __k__ = 0; __k__ < domnum; __k__ ++) __volume__ += dom [__k__].volume;\
+\
+    for (__l__ = 0; __l__ < domnum; dom ++, __l__ ++)\
+    {\
+      if (dom->volume > DOM_TOL * __volume__)\
+      {\
+	COPY (dom->center, __subnodes__ [3]);\
+\
+	for (__t__ = dom->tri, __e__ = __t__ + dom->m; __t__ < __e__; __t__ ++)\
+	{\
+	  COPY (__t__->ver [0], __subnodes__ [0]);\
+	  COPY (__t__->ver [1], __subnodes__ [1]);\
+	  COPY (__t__->ver [2], __subnodes__ [2]);\
+\
+	  for (__k__ = 0; __k__ < I_TET##SUBORD##_N; __k__ ++)\
+	  {\
+	    __subpoint__ [0] = I_TET##SUBORD##_X [__k__];\
+	    __subpoint__ [1] = I_TET##SUBORD##_Y [__k__];\
+	    __subpoint__ [2] = I_TET##SUBORD##_Z [__k__];\
+	    __subJ__ = tet_o1_det (__subnodes__, __subpoint__, NULL);\
+	    tet_local_to_global (__subnodes__, __subpoint__, point);\
+	    weight = __subJ__ * I_TET##SUBORD##_W [__k__];\
+\
+	    __VA_ARGS__\
+	  }\
+	}\
+      }\
+      else\
+      {\
+	COPY (dom->center, point);\
+	weight = dom->volume;\
+\
+	__VA_ARGS__\
+      }\
+    }\
+  }\
+  else\
+  {\
+    for (__k__ = 0; __k__ < SCHEME##_N; __k__ ++)\
+    {\
+      point [0] = SCHEME##_X [__k__];\
+      point [1] = SCHEME##_Y [__k__];\
+      point [2] = SCHEME##_Z [__k__];\
+      weight = SCHEME##_W [__k__];\
+\
+      __VA_ARGS__\
+    }\
+  }\
+}
+
 /* lump linear tetrahedron mass */
 inline static void tet_o1_lump (TRISURF *dom, int domnum, node_t nodes, double density, double **out)
 {
-  double point [3], J, integral;
+  double J, coef, integral;
   double shapes [4];
-  int i, j, k;
+  int i, j;
 
-  if (dom)
-  {
-    double subnodes [4][3], subJ;
-    double subpoint [3];
-    TRI *t, *e;
+  INTEGRATE (I_TET2, 2, dom, domnum, nodes,
 
-    for (; domnum > 0; dom ++, domnum --)
+    tet_o1_shapes (point, shapes);
+    J = tet_o1_det (nodes, point, NULL);
+    coef = density * J * weight;
+
+    for (i = 0; i < 4; i ++)
     {
-      COPY (dom->center, subnodes [3]);
-
-      for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      for (j = 0; j < 4; j ++)
       {
-	COPY (t->ver [0], subnodes [0]);
-	COPY (t->ver [1], subnodes [1]);
-	COPY (t->ver [2], subnodes [2]);
+	integral = coef * shapes [i] * shapes [j];
 
-	for (k = 0; k < I_TET2_N; k ++)
-	{
-	  subpoint [0] = I_TET2_X [k];
-	  subpoint [1] = I_TET2_Y [k];
-	  subpoint [2] = I_TET2_Z [k];
-	  subJ = tet_o1_det (subnodes, subpoint, NULL);
-	  tet_local_to_global (subnodes, subpoint, point);
-	  tet_o1_shapes (point, shapes);
-	  J = tet_o1_det (nodes, point, NULL);
-
-	  for (i = 0; i < 4; i ++)
-	  {
-	    for (j = 0; j < 4; j ++)
-	    {
-	      integral = density * shapes [i] * shapes [j] * J * subJ * I_TET2_W [k];
-
-	      out [i][0] += integral;
-	      out [i][1] += integral;
-	      out [i][2] += integral;
-	    }
-	  }
-	}
+	out [i][0] += integral;
+	out [i][1] += integral;
+	out [i][2] += integral;
       }
     }
-  }
-  else
-  {
-    for (k = 0; k < I_TET2_N; k ++)
-    {
-      point [0] = I_TET2_X [k];
-      point [1] = I_TET2_Y [k];
-      point [2] = I_TET2_Z [k];
-      tet_o1_shapes (point, shapes);
-      J = tet_o1_det (nodes, point, NULL);
-
-      for (i = 0; i < 4; i ++)
-      {
-	for (j = 0; j < 4; j ++)
-	{
-	  integral = density * shapes [i] * shapes [j] * J * I_TET2_W [k];
-
-	  out [i][0] += integral;
-	  out [i][1] += integral;
-	  out [i][2] += integral;
-	}
-      }
-    }
-  }
+  )
 }
 
 /* lump linear hexahedron mass */
 inline static void hex_o1_lump (TRISURF *dom, int domnum, node_t nodes, double density, double **out)
 {
-  double point [3], J, integral;
+  double J, coef, integral;
   double shapes [8];
-  int i, j, k;
+  int i, j;
 
-  if (dom)
-  {
-    double subnodes [4][3], subJ;
-    double subpoint [3];
-    TRI *t, *e;
+  INTEGRATE (I_HEX2, 2, dom, domnum, nodes,
 
-    for (; domnum > 0; dom ++, domnum --)
+    hex_o1_shapes (point, shapes);
+    J = hex_o1_det (nodes, point, NULL);
+    coef = density * J * weight;
+
+    for (i = 0; i < 8; i ++)
     {
-      COPY (dom->center, subnodes [3]);
-
-      for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      for (j = 0; j < 8; j ++)
       {
-	COPY (t->ver [0], subnodes [0]);
-	COPY (t->ver [1], subnodes [1]);
-	COPY (t->ver [2], subnodes [2]);
+	integral = coef * shapes [i] * shapes [j];
 
-	for (k = 0; k < I_TET2_N; k ++)
-	{
-	  subpoint [0] = I_TET2_X [k];
-	  subpoint [1] = I_TET2_Y [k];
-	  subpoint [2] = I_TET2_Z [k];
-	  subJ = tet_o1_det (subnodes, subpoint, NULL);
-	  tet_local_to_global (subnodes, subpoint, point);
-	  hex_o1_shapes (point, shapes);
-	  J = hex_o1_det (nodes, point, NULL);
-
-	  for (i = 0; i < 8; i ++)
-	  {
-	    for (j = 0; j < 8; j ++)
-	    {
-	      integral = density * shapes [i] * shapes [j] * J * subJ * I_TET2_W [k];
-
-	      out [i][0] += integral;
-	      out [i][1] += integral;
-	      out [i][2] += integral;
-	    }
-	  }
-	}
+	out [i][0] += integral;
+	out [i][1] += integral;
+	out [i][2] += integral;
       }
     }
-  }
-  else
-  {
-    for (k = 0; k < I_HEX2_N; k ++) /* FIXME: underintegration here: O(2) while should be O(4) */
-    {
-      point [0] = I_HEX2_X [k];
-      point [1] = I_HEX2_Y [k];
-      point [2] = I_HEX2_Z [k];
-      hex_o1_shapes (point, shapes);
-      J = hex_o1_det (nodes, point, NULL);
-
-      for (i = 0; i < 8; i ++)
-      {
-	for (j = 0; j < 8; j ++)
-	{
-	  integral = density * shapes [i] * shapes [j] * J * I_HEX2_W [k];
-
-	  out [i][0] += integral;
-	  out [i][1] += integral;
-	  out [i][2] += integral;
-	}
-      }
-    }
-  }
+  )
 }
 
 /* compute linear tetrahedron body force contribution */
 inline static void tet_o1_body_force (TRISURF *dom, int domnum, node_t nodes, double density, double *f, double *g)
 {
-  double point [3], J, integral;
+  double J, coef, integral;
   double shapes [4];
-  int i, k;
+  int i;
 
   blas_dscal (12, 0.0, g, 1);
 
-  if (dom)
-  {
-    double subnodes [4][3], subJ;
-    double subpoint [3];
-    double volume;
-    TRI *t, *e;
+  INTEGRATE (I_TET1, 1, dom, domnum, nodes,
 
-    for (volume = i = 0; i < domnum; i ++) volume += dom [i].volume;
+    tet_o1_shapes (point, shapes);
+    J = tet_o1_det (nodes, point, NULL);
+    coef = density * J * weight;
 
-    for (; domnum > 0; dom ++, domnum --)
+    for (i = 0; i < 4; i ++)
     {
-      if (dom->volume > DOM_TOL * volume) /* large sub-domain are integrated more acurately */
-      {
-	COPY (dom->center, subnodes [3]);
+      integral = coef * shapes [i];
 
-	for (t = dom->tri, e = t + dom->m; t < e; t ++)
-	{
-	  COPY (t->ver [0], subnodes [0]);
-	  COPY (t->ver [1], subnodes [1]);
-	  COPY (t->ver [2], subnodes [2]);
-
-	  for (k = 0; k < I_TET1_N; k ++)
-	  {
-	    subpoint [0] = I_TET1_X [k];
-	    subpoint [1] = I_TET1_Y [k];
-	    subpoint [2] = I_TET1_Z [k];
-	    subJ = tet_o1_det (subnodes, subpoint, NULL);
-	    tet_local_to_global (subnodes, subpoint, point);
-	    tet_o1_shapes (point, shapes);
-	    J = tet_o1_det (nodes, point, NULL);
-
-	    for (i = 0; i < 4; i ++)
-	    {
-	      integral = density * shapes [i] * J * subJ *  I_TET1_W [k];
-
-	      g [3*i+0] += f [0] * integral;
-	      g [3*i+1] += f [1] * integral;
-	      g [3*i+2] += f [2] * integral;
-	    }
-	  }
-	}
-      }
-      else /* one center point per sub-domain */
-      {
-	subJ = dom->volume;
-	tet_o1_shapes (dom->center, shapes);
-	J = tet_o1_det (nodes, dom->center, NULL);
-
-	for (i = 0; i < 4; i ++)
-	{
-	  integral = density * shapes [i] * J * subJ;
-
-	  g [3*i+0] += f [0] * integral;
-	  g [3*i+1] += f [1] * integral;
-	  g [3*i+2] += f [2] * integral;
-	}
-      }
+      g [3*i+0] += f [0] * integral;
+      g [3*i+1] += f [1] * integral;
+      g [3*i+2] += f [2] * integral;
     }
-  }
-  else
-  {
-    for (k = 0; k < I_TET1_N; k ++)
-    {
-      point [0] = I_TET1_X [k];
-      point [1] = I_TET1_Y [k];
-      point [2] = I_TET1_Z [k];
-      tet_o1_shapes (point, shapes);
-      J = tet_o1_det (nodes, point, NULL);
-
-      for (i = 0; i < 4; i ++)
-      {
-	integral = density * shapes [i] * J *  I_TET1_W [k];
-
-	g [3*i+0] += f [0] * integral;
-	g [3*i+1] += f [1] * integral;
-	g [3*i+2] += f [2] * integral;
-      }
-    }
-  }
+  )
 }
 
 /* compute linear hexahedron body force contribution */
 inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, double density, double *f, double *g)
 {
-  double point [3], J, integral;
+  double J, coef, integral;
   double shapes [8];
-  int i, k;
+  int i;
 
   blas_dscal (24, 0.0, g, 1);
 
-  if (dom)
-  {
-    double subnodes [4][3], subJ;
-    double subpoint [3];
-    double volume;
-    TRI *t, *e;
+  INTEGRATE (I_HEX2, 1, dom, domnum, nodes,
 
-    for (volume = i = 0; i < domnum; i ++) volume += dom [i].volume;
+    hex_o1_shapes (point, shapes);
+    J = hex_o1_det (nodes, point, NULL);
+    coef = density * J * weight;
 
-    for (; domnum > 0; dom ++, domnum --)
+    for (i = 0; i < 8; i ++)
     {
-      if (dom->volume > DOM_TOL * volume) /* large sub-domain are integrated more acurately */
-      {
-	COPY (dom->center, subnodes [3]);
+      integral = coef * shapes [i];
 
-	for (t = dom->tri, e = t + dom->m; t < e; t ++)
-	{
-	  COPY (t->ver [0], subnodes [0]);
-	  COPY (t->ver [1], subnodes [1]);
-	  COPY (t->ver [2], subnodes [2]);
-
-	  for (k = 0; k < I_TET1_N; k ++)
-	  {
-	    subpoint [0] = I_TET1_X [k];
-	    subpoint [1] = I_TET1_Y [k];
-	    subpoint [2] = I_TET1_Z [k];
-	    subJ = tet_o1_det (subnodes, subpoint, NULL);
-	    tet_local_to_global (subnodes, subpoint, point);
-	    hex_o1_shapes (point, shapes);
-	    J = hex_o1_det (nodes, point, NULL);
-
-	    for (i = 0; i < 8; i ++)
-	    {
-	      integral = density * shapes [i] * J * subJ *  I_TET1_W [k];
-
-	      g [3*i+0] += f [0] * integral;
-	      g [3*i+1] += f [1] * integral;
-	      g [3*i+2] += f [2] * integral;
-	    }
-	  }
-	}
-      }
-      else /* one center point per sub-domain */
-      {
-	subJ = dom->volume;
-	hex_o1_shapes (dom->center, shapes);
-	J = hex_o1_det (nodes, dom->center, NULL);
-
-	for (i = 0; i < 8; i ++)
-	{
-	  integral = density * shapes [i] * J * subJ;
-
-	  g [3*i+0] += f [0] * integral;
-	  g [3*i+1] += f [1] * integral;
-	  g [3*i+2] += f [2] * integral;
-	}
-      }
+      g [3*i+0] += f [0] * integral;
+      g [3*i+1] += f [1] * integral;
+      g [3*i+2] += f [2] * integral;
     }
-  }
-  else
-  {
-    for (k = 0; k < I_HEX2_N; k ++)
-    {
-      point [0] = I_HEX2_X [k];
-      point [1] = I_HEX2_Y [k];
-      point [2] = I_HEX2_Z [k];
-      hex_o1_shapes (point, shapes);
-      J = hex_o1_det (nodes, point, NULL);
-
-      for (i = 0; i < 8; i ++)
-      {
-	integral = density * shapes [i] * J *  I_HEX2_W [k];
-
-	g [3*i+0] += f [0] * integral;
-	g [3*i+1] += f [1] * integral;
-	g [3*i+2] += f [2] * integral;
-      }
-    }
-  }
+  )
 }
 
 /* compute linear tetrahedron internal force or force derivative contribution */
 inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
-  double derivs [12], F0 [9], F [9], P [9], *B, *p;
-  double point [3], J, integral;
-  double mat_lambda, mat_mi;
-  int i, k;
+  double derivs [12], F0 [9], F [9], P [9], K [81], KB [9], *B, *p;
+  double J, integral, mat_lambda, mat_mi;
+  int i, j;
 
   blas_dscal (12 * (derivative ? 12 : 1), 0.0, g, 1);
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
-  if (dom)
-  {
-    double subnodes [4][3], subJ;
-    double subpoint [3];
-    double volume;
-    TRI *t, *e;
+  INTEGRATE (I_TET1, 1, dom, domnum, nodes,
 
-    for (volume = i = 0; i < domnum; i ++) volume += dom [i].volume;
+    J = tet_o1_det (nodes, point, F0);
+    tet_o1_gradient (q, point, F0, derivs, F);
+    integral = J * weight;
 
-    for (; domnum > 0; dom ++, domnum --)
+    if (derivative)
     {
-      if (dom->volume > DOM_TOL * volume) /* large sub-domain are integrated more acurately */
-      {
-	COPY (dom->center, subnodes [3]);
+      SVK_Tangent_C (mat_lambda, mat_mi, 1.0, 9, F, K);
+      blas_dscal (81, integral, K, 1);
 
-	for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      for (i = 0; i < 12; i ++) /* see doc/notes.lyx for details */
+      {
+	SET9 (KB, 0);
+	for (j = 0; j < 3; j ++)
 	{
-	  COPY (t->ver [0], subnodes [0]);
-	  COPY (t->ver [1], subnodes [1]);
-	  COPY (t->ver [2], subnodes [2]);
-
-	  for (k = 0; k < I_TET1_N; k ++)
-	  {
-	    subpoint [0] = I_TET1_X [k];
-	    subpoint [1] = I_TET1_Y [k];
-	    subpoint [2] = I_TET1_Z [k];
-	    subJ = tet_o1_det (subnodes, subpoint, NULL);
-	    tet_local_to_global (subnodes, subpoint, point);
-	    J = tet_o1_det (nodes, point, F0);
-	    tet_o1_gradient (q, point, F0, derivs, F);
-	    SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-	    integral = J * subJ *  I_TET1_W [k];
-	    SCALE9 (P, integral);
-
-	    for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
-
-	    /* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-	  }
+	  p = &K [9*((i%3) + (3*j))];
+	  integral = derivs [3*(i/3)+j];
+	  NNADDMUL (KB, integral, p, KB);
 	}
-      }
-      else /* one center point per sub-domain */
-      {
-	subJ = dom->volume;
-	J = tet_o1_det (nodes, dom->center, F0);
-	tet_o1_gradient (q, dom->center, F0, derivs, F);
-	SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-	integral = J * subJ;
-	SCALE9 (P, integral);
 
-	for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
-
-	/* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+	for (j = 0, B = derivs, p = &g[12*i]; j < 4; j ++, B += 3, p += 3) { NVADDMUL (p, KB, B, p); }
       }
     }
-  }
-  else
-  {
-    for (k = 0; k < I_TET1_N; k ++)
+    else
     {
-      point [0] = I_TET1_X [k];
-      point [1] = I_TET1_Y [k];
-      point [2] = I_TET1_Z [k];
-      J = tet_o1_det (nodes, point, F0);
-      tet_o1_gradient (q, point, F0, derivs, F);
       SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-      integral = J *  I_TET1_W [k];
       SCALE9 (P, integral);
 
       for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
-
-      /* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
     }
-  }
+  )
 }
 
 /* compute linear hexahedron internal force or force derivative contribution */
 inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
 {
   double derivs [24], F0 [9], F [9], P [9], K [81], KB [9], *B, *p;
-  double point [3], J, integral;
-  double mat_lambda, mat_mi;
-  int i, j, k;
+  double J, integral, mat_lambda, mat_mi;
+  int i, j;
 
   blas_dscal (24 * (derivative ? 24 : 1), 0.0, g, 1);
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
-  if (dom) /* integrate over sub-domain */
-  {
-    double subnodes [4][3], subJ;
-    double subpoint [3];
-    double volume;
-    TRI *t, *e;
+  INTEGRATE (I_HEX2, 1, dom, domnum, nodes,
 
-    for (volume = i = 0; i < domnum; i ++) volume += dom [i].volume;
+    J = hex_o1_det (nodes, point, F0);
+    hex_o1_gradient (q, point, F0, derivs, F);
+    integral = J * weight;
 
-    for (; domnum > 0; dom ++, domnum --)
+    if (derivative)
     {
-      if (dom->volume > DOM_TOL * volume) /* large sub-domain are integrated more acurately */
-      {
-	COPY (dom->center, subnodes [3]);
+      SVK_Tangent_C (mat_lambda, mat_mi, 1.0, 9, F, K);
+      blas_dscal (81, integral, K, 1);
 
-	for (t = dom->tri, e = t + dom->m; t < e; t ++)
+      for (i = 0; i < 24; i ++) /* see doc/notes.lyx for details */
+      {
+	SET9 (KB, 0);
+	for (j = 0; j < 3; j ++)
 	{
-	  COPY (t->ver [0], subnodes [0]);
-	  COPY (t->ver [1], subnodes [1]);
-	  COPY (t->ver [2], subnodes [2]);
-
-	  for (k = 0; k < I_TET1_N; k ++) /* under-integration here (but there are at least 4 sub-volumes) */
-	  {
-	    subpoint [0] = I_TET1_X [k];
-	    subpoint [1] = I_TET1_Y [k];
-	    subpoint [2] = I_TET1_Z [k];
-	    subJ = tet_o1_det (subnodes, subpoint, NULL);
-	    tet_local_to_global (subnodes, subpoint, point);
-	    J = hex_o1_det (nodes, point, F0);
-	    hex_o1_gradient (q, point, F0, derivs, F);
-	    SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-	    integral = J * subJ *  I_TET1_W [k];
-	    SCALE9 (P, integral);
-
-	    for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
-
-            /* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-	  }
+	  p = &K [9*((i%3) + (3*j))];
+	  integral = derivs [3*(i/3)+j];
+	  NNADDMUL (KB, integral, p, KB);
 	}
-      }
-      else /* one center point per sub-domain */
-      {
-	subJ = dom->volume;
-	J = hex_o1_det (nodes, dom->center, F0);
-	hex_o1_gradient (q, dom->center, F0, derivs, F);
-	SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-	integral = J * subJ;
-	SCALE9 (P, integral);
 
-	for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
-
-        /* TODO: force derivative */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+	for (j = 0, B = derivs, p = &g[24*i]; j < 8; j ++, B += 3, p += 3) { NVADDMUL (p, KB, B, p); }
       }
     }
-  }
-  else /* integrate over regular element domain */
-  {
-    for (k = 0; k < I_HEX2_N; k ++)
+    else
     {
-      point [0] = I_HEX2_X [k];
-      point [1] = I_HEX2_Y [k];
-      point [2] = I_HEX2_Z [k];
-      J = hex_o1_det (nodes, point, F0);
-      hex_o1_gradient (q, point, F0, derivs, F);
-      integral = J * I_HEX2_W [k];
+      SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
+      SCALE9 (P, integral);
 
-      if (derivative)
-      {
-	SVK_Tangent_C (mat_lambda, mat_mi, 1.0, 9, F, K);
-	blas_dscal (81, integral, K, 1);
-
-	for (i = 0; i < 24; i ++)
-	{
-	  SET9 (KB, 0);
-	  for (j = 0; j < 3; j ++)
-	  {
-	    p = &K [9*((i%3) + (3*j))];
-	    integral = derivs [3*(i/3)+j];
-	    NNADDMUL (KB, integral, p, KB);
-	  }
-
-	  for (j = 0, B = derivs, p = &g[24*i]; j < 8; j ++, B += 3, p += 3) { NVADDMUL (p, KB, B, p); }
-	}
-      }
-      else
-      {
-	SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-	SCALE9 (P, integral);
-
-	for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
-      }
+      for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
-  }
+  )
 }
 
 /* copy node coordinates into a local table */
@@ -1536,19 +1275,163 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
 /* compute global tangent stiffness */
 static MX* tangent_stiffness (BODY *bod)
 {
+  struct colblock { int row; double val [3]; } *cb; /* column block */
+  int i, j, k, l, *pp, *ii, *kk;
+  double K [576], *A;
+  MAP **col, *item;
+  ELEMENT *ele;
+  short bulk;
   MESH *msh;
- 
+  MEM blkmem,
+      mapmem;
+  MX *tang;
+
+  MEM_Init  (&blkmem, sizeof (struct colblock), bod->dofs * 64);
+  ERRMEM (col = MEM_CALLOC (sizeof (MAP*) * bod->dofs)); /* sparse columns */
+  MEM_Init  (&mapmem, sizeof (MAP), bod->dofs * 64);
   msh = FEM_MESH (bod);
 
-  /* TODO: optimize repetitive assembling by storing sparse storage pointetrs at mesh nodes (???) */
+  for (ele = msh->surfeles, bulk = 0; ele;
+       ele = (ele->next ? ele->next : bulk ? NULL : msh->bulkeles),
+       bulk = (ele == msh->bulkeles ? 1 : bulk)) /* for each element in mesh */
+  {
+    internal_force (1, bod, msh, ele, K); /* compute internal force derivartive: K */
 
-  return NULL;
+    for (k = 0, A = K; k < ele->type; k ++) /* initialize K column block pointer; for element each node */
+    {
+      for (l = 0; l < 3; l ++) /* for each nodal degree of freedom */
+      {
+	j = 3 * ele->nodes [k] + l; /* for each global column index */
+
+	for (i = 0; i < ele->type; i ++, A += 3) /* for each column row-block; shift column block pointer A */
+	{
+	  if (!(cb = MAP_Find (col [j], (void*) (long) ele->nodes [i], NULL))) /* if this row-block was not mapped */
+	  {
+	    ERRMEM (cb = MEM_Alloc (&blkmem));
+	    cb->row = 3 * ele->nodes [i]; /* row-block initial index */
+	    MAP_Insert (&mapmem, &col [j], (void*) (long) ele->nodes [i], cb, NULL); /* map it */
+	  }
+	  ACC (A, cb->val); /* accumulate values */
+	}
+      }
+    }
+  }
+
+  ERRMEM (pp = malloc (sizeof (int [bod->dofs + 1]))); /* column pointers */
+
+  for (pp [0] = 0, j = 0; j < bod->dofs; j ++) pp [j+1] = pp [j] + 3 * MAP_Size (col [j]); /* computed */
+
+  ERRMEM (ii = malloc (sizeof (int [pp [bod->dofs]]))); /* row indices */
+
+  for (j = 0, kk = ii; j < bod->dofs; j ++) /* initialize row index pointer; for each column */
+  {
+    for (item = MAP_First (col [j]); item; item = MAP_Next (item), kk += 3) /* for each row-block; increment column pointer by 3 */
+    {
+      cb = item->data;
+      kk [0] = cb->row; /* set row indices */
+      kk [1] = kk[0] + 1;
+      kk [2] = kk[1] + 1;
+    }
+  }
+
+  tang = MX_Create (MXCSC, bod->dofs, bod->dofs, pp, ii); /* create tangent matrix structure */
+
+  for (j = 0, A = tang->x; j < bod->dofs; j ++) /* initialize column values pointer A; for each column */
+  {
+    for (item = MAP_First (col [j]); item; item = MAP_Next (item), A += 3) /* for each row-block, increment A */
+    {
+      cb = item->data;
+      COPY (cb->val, A); /* copy values */
+    }
+  }
+
+  free (ii);
+  free (pp);
+  free (col);
+  MEM_Release (&mapmem);
+  MEM_Release (&blkmem);
+
+  return tang;
+}
+
+/* compute diagonalized inertia operator */
+static MX* diagonal_inertia (BODY *bod)
+{
+  MESH *msh = FEM_MESH (bod);
+  int bulk,
+     *p,
+     *i,
+      n,
+      k;
+  ELEMENT *ele;
+  double *x;
+  MX *M;
+
+  n = bod->dofs;
+
+  ERRMEM (p = malloc (sizeof (int [n+1])));
+  ERRMEM (i = malloc (sizeof (int [n])));
+
+  for (k = 0, p [n] = n; k < n; k ++) p [k] = i [k] = k; /* diagonal pattern */
+
+  M = MX_Create (MXCSC, n, n, p, i);
+  x = M->x;
+  free (p);
+  free (i);
+
+  for (ele = msh->surfeles, bulk = 0; ele; )
+  {
+    lump_mass_matrix (bod, msh, ele, x);
+
+    if (bulk) ele = ele->next;
+    else if (ele->next) ele = ele->next;
+    else ele = msh->bulkeles, bulk = 1;
+  }
+
+  return M; 
+}
+
+/* set up inverse operator for the explicit dynamic time stepping */
+static void fem_dynamic_explicit_inverse (BODY *bod)
+{
+  double *x, *y;
+
+  bod->inverse = diagonal_inertia (bod);
+
+  for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
+  {
+    ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
+    (*x) = 1.0 / (*x); /* invert diagonal */
+  }
 }
 
 /* set up inverse operator for the implicit dynamic time stepping */
 static void fem_dynamic_implicit_inverse (BODY *bod, double step, double *force)
 {
-  /* TODO: diagonalized mass should be stored once and for all after FEM_Dynamic_Init */
+  MX *M, *K, *A;
+
+  if (bod->inverse) MX_Destroy (bod->inverse);
+
+  M = diagonal_inertia (bod); /* TODO: diagonalized mass should be stored once and for all after FEM_Dynamic_Init */
+
+  K = tangent_stiffness (bod);
+
+  if (force)
+  {
+    /* account for the previous velocity */
+    MX_Matvec (1.0 / step, M, bod->velo, 1.0, force);
+
+    /* account for the internal force increment */
+    MX_Matvec (-0.25 * step, K, bod->velo, 1.0, force);
+  }
+
+  /* calculate tangent operator A = M + h*h/4 K */
+  bod->inverse = A = MX_Add (1.0, M, 0.25*step*step, K, NULL);
+
+  /* TODO: account for damping */
+
+  /* invert A */
+  MX_Inverse (A, A);
 }
 
 /* compute inv (M) * K for an element */
@@ -1924,44 +1807,14 @@ void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
 /* initialise dynamic time stepping */
 void FEM_Dynamic_Init (BODY *bod)
 {
-  MESH *msh = FEM_MESH (bod);
-  int bulk,
-     *p,
-     *i,
-      n,
-      k;
-  ELEMENT *ele;
-  double *x, *y;
-
-  if (bod->inverse) MX_Destroy (bod->inverse);
-
-  n = bod->dofs;
-
-  ERRMEM (p = malloc (sizeof (int [n+1])));
-  ERRMEM (i = malloc (sizeof (int [n])));
-
-  for (k = 0, p [n] = n; k < n; k ++) p [k] = i [k] = k; /* diagonal pattern */
-
-  bod->inverse = MX_Create (MXCSC, n, n, p, i);
-  x = bod->inverse->x;
-  free (p);
-  free (i);
-
-  for (ele = msh->surfeles, bulk = 0; ele; )
+  if (bod->inverse)
   {
-    lump_mass_matrix (bod, msh, ele, x);
-
-    if (bulk) ele = ele->next;
-    else if (ele->next) ele = ele->next;
-    else ele = msh->bulkeles, bulk = 1;
+    MX_Destroy (bod->inverse);
+    bod->inverse = NULL;
   }
 
-  /* invert diagonal */
-  for (y = x + bod->dofs; x < y; x ++)
-  {
-    ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
-    (*x) = 1.0 / (*x);
-  }
+  if (bod->scheme == SCH_DEF_EXP) fem_dynamic_explicit_inverse (bod);
+  else fem_dynamic_implicit_inverse (bod, bod->dom->step, NULL);
 }
 
 /* estimate critical step for the dynamic scheme */

@@ -227,6 +227,13 @@ void GEOMETRIC_EPSILON_ADAPT (double *p, int n);
   (b) [5] = (a) [5];\
 }
 
+#define ACC(a, b)\
+{\
+  (b) [0] += (a) [0];\
+  (b) [1] += (a) [1];\
+  (b) [2] += (a) [2];\
+}
+
 #define ACC6(a, b)\
 {\
   (b) [0] += (a) [0];\
