@@ -466,7 +466,6 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *force)
   }
   else M = bod->M, A = bod->inverse;
 
-
     /* calculate stiffness matrix */
   SVK_Tangent_R (lambda (bod->mat->young, bod->mat->poisson),
     mi (bod->mat->young, bod->mat->poisson),
