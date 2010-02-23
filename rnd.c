@@ -2098,6 +2098,8 @@ static void step ()
 
   double epsilon = DBL_EPSILON;
 
+  int nbod = domain->nbod;
+
   /* find a small number such that added to current time it makes a difference */
   while (domain->time + epsilon == domain->time) epsilon += DBL_EPSILON;
 
@@ -2110,7 +2112,27 @@ static void step ()
     PENALTY_Destroy (ps);
   }
 
+  if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
+
   update ();
+}
+
+static void forward ()
+{
+  int nbod = domain->nbod;
+
+  SOLFEC_Forward (solfec, skip_steps);
+
+  if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
+}
+
+static void backward ()
+{
+  int nbod = domain->nbod;
+
+  SOLFEC_Backward (solfec, skip_steps);
+
+  if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
 }
 
 /* run simulation */
@@ -2119,7 +2141,7 @@ static void run (int dummy)
   if (solfec->mode == SOLFEC_WRITE) step ();
   else 
   {
-    SOLFEC_Forward (solfec, skip_steps);
+    forward ();
     update ();
   }
 
@@ -2466,12 +2488,12 @@ static void menu_analysis (int item)
     break;
   case ANALYSIS_FORWARD:
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
-    SOLFEC_Forward (solfec, skip_steps);
+    forward ();
     update ();
     break;
   case ANALYSIS_BACKWARD:
     if (domain->flags & DOM_RUN_ANALYSIS) menu_analysis (ANALYSIS_STOP);
-    SOLFEC_Backward (solfec, skip_steps);
+    backward ();
     update ();
     break;
   case ANALYSIS_SKIP:
