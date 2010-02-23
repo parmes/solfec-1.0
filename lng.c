@@ -3648,6 +3648,12 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
     {
 #endif
 
+    if (body->bod->kind == OBS)
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
+      return NULL;
+    }
+
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
@@ -3689,6 +3695,12 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
     if (ID_TO_BODY (body))
     {
 #endif
+
+    if (body->bod->kind == OBS)
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
+      return NULL;
+    }
 
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
@@ -3738,6 +3750,12 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
     {
 #endif
 
+    if (body->bod->kind == OBS)
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
+      return NULL;
+    }
+
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
@@ -3785,6 +3803,12 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
     if (ID_TO_BODY (body))
     {
 #endif
+
+    if (body->bod->kind == OBS)
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
+      return NULL;
+    }
 
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
@@ -3836,6 +3860,12 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
     if (ID_TO_BODY (body))
     {
 #endif
+
+    if (body->bod->kind == OBS)
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
+      return NULL;
+    }
 
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
@@ -3897,6 +3927,12 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 	(ID_TO_BODY (body1) && ID_TO_BODY (body2)))
     {
 #endif
+
+    if (body1->bod->kind == OBS && body2->bod->kind == OBS)
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
+      return NULL;
+    }
 
     p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
     p1 [1] = PyFloat_AsDouble (PyTuple_GetItem (point1, 1));
@@ -4045,6 +4081,12 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
   if (ID_TO_BODY (body))
   {
 #endif 
+
+  if (body->bod->kind == OBS)
+  {
+    PyErr_SetString (PyExc_ValueError, "Cannot load an obstacle");
+    return NULL;
+  }
 
   p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
   p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));

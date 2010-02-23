@@ -1177,6 +1177,30 @@ static void fem_constraints_force (BODY *bod, double *force)
   }
 }
 
+/* compute inernal force */
+static void fem_internal_force (BODY *bod, double *q, double *fint)
+{
+  MESH *msh = FEM_MESH (bod);
+  double g [24], *v, *w;
+  ELEMENT *ele;
+  int bulk, i;
+
+  for (ele = msh->surfeles, bulk = 0; ele; )
+  {
+    internal_force (0, bod, msh, ele, g);
+
+    for (i = 0, v = g; i < ele->type; i ++, v += 3)
+    {
+      w = &fint [ele->nodes [i] * 3];
+      ADD (w, v, w);
+    }
+
+    if (bulk) ele = ele->next;
+    else if (ele->next) ele = ele->next;
+    else ele = msh->bulkeles, bulk = 1;
+  }
+}
+ 
 /* compute out of balance force = fext - fint */
 static void fem_dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
 {
@@ -1410,9 +1434,9 @@ static void fem_dynamic_implicit_inverse (BODY *bod, double step, double *force)
 {
   MX *M, *K, *A;
 
-  if (bod->inverse) MX_Destroy (bod->inverse);
+  if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod);
 
-  M = diagonal_inertia (bod); /* TODO: diagonalized mass should be stored once and for all after FEM_Dynamic_Init */
+  if (bod->inverse) MX_Destroy (bod->inverse);
 
   K = tangent_stiffness (bod);
 
@@ -1871,10 +1895,12 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
     for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
     if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
   }
-  else
+  else /* SCH_DEF_LIM, SCH_DEF_IMP */
   {
-    /* TODO: implement linearly implicit scheme as in the pseudo-rigid case */
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t)) = fext (t+h/2) - fint (q(t)) */
+    fem_dynamic_implicit_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
   }
 }
 
@@ -1895,13 +1921,48 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 	*iu = u,
         *q = bod->conf,
 	*e = u + n;
-  
+
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-  for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
+  blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
+
+  if (bod->scheme == SCH_DEF_EXP)
+  {
+    for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
+  }
+  else /* SCH_DEF_LIM, SCH_DEF_IMP */
+  {
+    double *qorig, *aux, *res, *save, error;
+    int i, iter, imax = 16;
+
+    ERRMEM (qorig = malloc (sizeof (double [4 * n])));
+    aux = qorig + n; res = aux + n; save = res + n;
+
+    blas_dcopy (n, q, 1, qorig, 1);
+    blas_daxpy (n, -half, u0, 1, qorig, 1); /* q(t) = q(t+h/2) - (h/2) * u(t) */
+    MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
+    blas_dcopy (n, u, 1, save, 1);
+    iter = 0;
+    do
+    {
+      for (i = 0; i < n; i ++) aux [i] = qorig [i] + 0.25 * (u[i] + u0[i]);
+      fem_internal_force (bod, aux, fint);
+      for (i = 0; i < n; i ++) res [i] = step * (fext [i] - fint [i]), aux [i] = u [i] - u0[i];
+      MX_Matvec (-1.0, bod->M, aux, 1.0, res);
+      MX_Matvec (1.0, bod->inverse, res, 0, aux);
+      for (i = 0; i < n; i ++) u [i] += aux [i];
+      error = blas_ddot (n, u, 1, u, 1);
+      error = sqrt (blas_ddot (n, aux, 1, aux, 1) / MAX (error, 1.0));
+    }
+    while (error > 1E-10 && ++ iter < imax);
+
+    if (iter == imax) blas_dcopy (12, save, 1, u, 1); /* falls back on SCH_DEF_LIM */
+
+    free (qorig);
+  }
+
   blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
 
   /* energy */
-  blas_daxpy (n, 1.0, r, 1, fext, 1);
   for (ir = r, iu = u; iu < e; ir ++, iu ++, iu0 ++) *ir = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
   energy [EXTERNAL] += blas_ddot (n, r, 1, fext, 1);
   energy [INTERNAL] += blas_ddot (n, r, 1, fint, 1);

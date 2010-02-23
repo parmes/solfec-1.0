@@ -481,7 +481,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
     for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
     {
-      upkind = (kind == PENALTY_SOLVER ? UPEXS : UPALL); /* here as user callback can change solver */
+      upkind = (kind == PENALTY_SOLVER ? UPPES : UPALL); /* here as user callback can change solver */
 
 #if MPI
       if (sol->dom->rank == 0)
