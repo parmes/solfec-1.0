@@ -2074,6 +2074,11 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   /* free constraint set */
   SET_Free (&dom->setmem, &con);
 
+#if MPI
+  if (bod->flags & BODY_PARENT) /* only parent bodies are in the list and label/id maps */
+  {
+#endif
+
   /* delete from label based map */
   if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare)strcmp);
 
@@ -2092,6 +2097,11 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   if (dom->time > 0) SET_Insert (&dom->setmem, &dom->delb, (void*) (long) bod->id, NULL);
 
 #if MPI
+  }
+
+  /* remove from the domain childeren set if needed */
+  if (bod->flags & BODY_CHILD) SET_Delete (&dom->setmem, &dom->children, bod, NULL);
+
   /* free children set */
   SET_Free (&dom->setmem, &bod->children);
 

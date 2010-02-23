@@ -6,15 +6,15 @@ from math import sin
 def make_particle (x, y, z, r, kind, material, solfec):
   m = randint (8, 32)
   points = []
-  r = 0.2 * r + 0.8 * r * random ()
+  r = 0.3 * r + 0.7 * r * random ()
   for n in range (m):
     points.append (x + r * (1.0 - random()) * 2.0)
     points.append (y + r * (1.0 - random()) * 2.0)
     points.append (z + r * (1.0 - random()) * 2.0)
 
   hull = HULL (points, 1, 1)
-  BODY (solfec, kind, hull, material)
-
+  bod = BODY (solfec, kind, hull, material)
+  if kind == 'PSEUDO_RIGID': bod.scheme = 'DEF_IMP'
 
 def make_time_history (step, time, per, amp):
 
@@ -26,7 +26,6 @@ def make_time_history (step, time, per, amp):
     t = t + step
 
   return TIME_SERIES (points)
-
 
 def make_box (x, y, z, wx, wy, wz, material, solfec, velo):
   box = HULL ([x, y, z,
@@ -57,24 +56,25 @@ def make_box (x, y, z, wx, wy, wz, material, solfec, velo):
 
 step = 0.001
 stop = 10.0
-velo = make_time_history (step, stop+1, 0.01, 1)
+velo = make_time_history (step, stop+1, 0.01, 0.1)
 n = 10
+m = 5 * n
 
 seed (1)
 solfec = SOLFEC ('DYNAMIC', step, 'out/packing')
-SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5)
-bulk = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 1E5, poisson = 0.25, density = 1E3)
+SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0)
+bulk = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 1E6, poisson = 0.25, density = 1E3)
 GRAVITY (solfec, (0, 0, -1), 10)
-gs = GAUSS_SEIDEL_SOLVER (1E-2, 10)
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 100)
 
 make_box (0, 0, 0, n, n, n, bulk, solfec, velo)
 
-EXTENTS (solfec, (-1, -1, -1, n+1, n+1, n+1))
+EXTENTS (solfec, (-1, -1, -1, n+1, n+1, m+1))
 
 for i in range (1,n-1):
   for j in range (1,n-1):
-    for k in range (1, 5*n):
-      make_particle (i, j, k, 0.5, 'PSEUDO_RIGID', bulk, solfec)
+    for k in range (1, m):
+      make_particle (i, j, k, 0.5, 'RIGID', bulk, solfec)
 
 OUTPUT (solfec, 0.01)
 RUN (solfec, gs, stop)
