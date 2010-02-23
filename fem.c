@@ -1178,7 +1178,7 @@ static void fem_constraints_force (BODY *bod, double *force)
 }
 
 /* compute inernal force */
-static void fem_internal_force (BODY *bod, double *q, double *fint)
+static void fem_internal_force (BODY *bod, double *fint)
 {
   MESH *msh = FEM_MESH (bod);
   double g [24], *v, *w;
@@ -1929,9 +1929,13 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   {
     for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
   }
-  else /* SCH_DEF_LIM, SCH_DEF_IMP */
+  else if (bod->scheme == SCH_DEF_LIM)
   {
-    double *qorig, *aux, *res, *save, error;
+    MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
+  }
+  else /* SCH_DEF_IMP */
+  {
+    double *qorig, *aux, *res, *save, errup, errlo, error;
     int i, iter, imax = 16;
 
     ERRMEM (qorig = malloc (sizeof (double [4 * n])));
@@ -1944,18 +1948,21 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
     iter = 0;
     do
     {
-      for (i = 0; i < n; i ++) aux [i] = qorig [i] + 0.25 * (u[i] + u0[i]);
-      fem_internal_force (bod, aux, fint);
-      for (i = 0; i < n; i ++) res [i] = step * (fext [i] - fint [i]), aux [i] = u [i] - u0[i];
+      for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf ... */
+      fem_internal_force (bod, fint); /* ... as it is used in there */
+      for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
       MX_Matvec (-1.0, bod->M, aux, 1.0, res);
-      MX_Matvec (1.0, bod->inverse, res, 0, aux);
+      MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
       for (i = 0; i < n; i ++) u [i] += aux [i];
-      error = blas_ddot (n, u, 1, u, 1);
-      error = sqrt (blas_ddot (n, aux, 1, aux, 1) / MAX (error, 1.0));
+      errlo = blas_ddot (n, u, 1, u, 1);
+      errup = blas_ddot (n, aux, 1, aux, 1);
+      error = sqrt (errup / MAX (errlo, 1.0));
     }
     while (error > 1E-10 && ++ iter < imax);
 
-    if (iter == imax) blas_dcopy (12, save, 1, u, 1); /* falls back on SCH_DEF_LIM */
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u[i] + u0[i]); /* overwrite bod->conf */
+
+    if (iter == imax) blas_dcopy (n, save, 1, u, 1); /* falls back on SCH_DEF_LIM */
 
     free (qorig);
   }

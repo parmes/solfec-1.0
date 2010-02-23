@@ -3,7 +3,7 @@
 a = 1.0
 b = 1.0
 c = 2.0
-step = 1.0 # let the critical step rule
+step = 0.05 # let the critical step rule
 
 nodes = [-a, -b, 0,
           a, -b, 0,
@@ -25,6 +25,7 @@ bulk = BULK_MATERIAL (sol,
 		      density = 1E2)
 
 bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
+bod.scheme = 'DEF_IMP'
 FIX_POINT (sol, bod, (-a, -b, 0))
 FIX_POINT (sol, bod, (-a, b, 0))
 

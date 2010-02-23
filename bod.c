@@ -1314,7 +1314,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	  SCALE12 (res, step);
 	  SUB12 (velo, vel0, aux);
 	  MX_Matvec (-1.0, bod->M, aux, 1.0, res);
-	  MX_Matvec (1.0, bod->inverse, res, 0, aux);
+	  MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
 	  ADD12 (velo, aux, velo);
 	  error = DOT12 (velo, velo);
           error = sqrt (DOT (aux, aux) / MAX (error, 1.0));
