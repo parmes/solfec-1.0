@@ -549,6 +549,14 @@ static void prb_static_inverse (BODY *bod, double step)
   MX_Destroy (IM);
 }
 
+/* compute internal force for the pseudo-rigid model */
+inline static void prb_internal_force (BODY *bod, double *F, double *P)
+{
+  SVK_Stress_R (lambda (bod->mat->young, bod->mat->poisson),
+                mi (bod->mat->young, bod->mat->poisson),
+		bod->ref_volume, F, P);
+}
+ 
 /* compute force(time) = external(time) - internal(time), provided
  * that the configuration(time) has already been set elsewhere */
 static void prb_dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
@@ -1300,7 +1308,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	  NNADD (velo, vel0, aux);
 	  SCALE9 (aux, 0.25 * step);
 	  NNADD (qorig, aux, aux);
-	  SVK_Stress_R (lambda (bod->mat->young, bod->mat->poisson), mi (bod->mat->young, bod->mat->poisson), bod->ref_volume, aux, fint);
+	  prb_internal_force (bod, aux, fint);
 	  COPY12 (fext, res);
 	  NNSUB (res, fint, res);
 	  SCALE12 (res, step);

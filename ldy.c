@@ -185,7 +185,7 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 
 	if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
 
-        if (upkind == UPEXS && con->kind == CONTACT) continue; /* skip contacts during partial update (exs.* uses local dynamics only for non-contacts) */
+        if (upkind == UPPES && con->kind == CONTACT) continue; /* skip contacts during partial update (exs.* uses local dynamics only for non-contacts) */
 
 	ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy"); /* we could skip dummies, but this reassures correctness */
 
@@ -530,7 +530,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
 
-    if (upkind != UPEXS) /* diagonal regularization (not needed by the explicit solver) */
+    if (upkind != UPPES) /* diagonal regularization (not needed by the explicit solver) */
     {
       NNCOPY (W.x, C.x); /* calculate regularisation parameter */
       ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
@@ -544,7 +544,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
     BODY *m = con->master,
 	 *s = con->slave;
 
-    if (upkind == UPEXS && con->kind == CONTACT) continue; /* update only non-contact constraint blocks */
+    if (upkind == UPPES && con->kind == CONTACT) continue; /* update only non-contact constraint blocks */
 
     /* off-diagonal local blocks */
     for (blk = dia->adj; blk; blk = blk->n)
