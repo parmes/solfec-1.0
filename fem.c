@@ -487,8 +487,7 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
 
     if (derivative)
     {
-      SVK_Tangent_C (mat_lambda, mat_mi, 1.0, 9, F, K);
-      blas_dscal (81, integral, K, 1);
+      SVK_Tangent_C (mat_lambda, mat_mi, integral, 9, F, K);
 
       for (i = 0; i < 12; i ++) /* see doc/notes.lyx for details */
       {
@@ -505,8 +504,7 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
     }
     else
     {
-      SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-      SCALE9 (P, integral);
+      SVK_Stress_C (mat_lambda, mat_mi, integral, F, P); /* column-wise */
 
       for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
@@ -532,8 +530,7 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
 
     if (derivative)
     {
-      SVK_Tangent_C (mat_lambda, mat_mi, 1.0, 9, F, K);
-      blas_dscal (81, integral, K, 1);
+      SVK_Tangent_C (mat_lambda, mat_mi, integral, 9, F, K);
 
       for (i = 0; i < 24; i ++) /* see doc/notes.lyx for details */
       {
@@ -550,8 +547,7 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
     }
     else
     {
-      SVK_Stress_C (mat_lambda, mat_mi, 1.0, F, P); /* column-wise, per unit volume */
-      SCALE9 (P, integral);
+      SVK_Stress_C (mat_lambda, mat_mi, integral, F, P); /* column-wise */
 
       for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
@@ -1185,6 +1181,8 @@ static void fem_internal_force (BODY *bod, double *fint)
   ELEMENT *ele;
   int bulk, i;
 
+  blas_dscal (bod->dofs, 0.0, fint, 1);
+
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
     internal_force (0, bod, msh, ele, g);
@@ -1321,6 +1319,16 @@ static MX* tangent_stiffness (BODY *bod)
   {
     internal_force (1, bod, msh, ele, K); /* compute internal force derivartive: K */
 
+#if 0
+  for (i = 0, l = ele->type * 3; i < l; i ++)
+  {
+    for (j = i+1; j < l; j ++)
+    {
+      ASSERT_DEBUG (fabs (K[l*j+i] - K[l*i+j]) < 1E-10, "Unsymmetry of K: %e, %e", K[l*j+i], K[l*i+j]);
+    }
+  }
+#endif
+
     for (k = 0, A = K; k < ele->type; k ++) /* initialize K column block pointer; for element each node */
     {
       for (l = 0; l < 3; l ++) /* for each nodal degree of freedom */
@@ -1374,6 +1382,25 @@ static MX* tangent_stiffness (BODY *bod)
   free (col);
   MEM_Release (&mapmem);
   MEM_Release (&blkmem);
+
+#if 0
+  for (j = 0; j < tang->n; j ++)
+  {
+    for (k = tang->p [j]; k < tang->p [j+1]; k ++)
+    {
+      i = tang->i [k];
+      for (l = tang->p [i]; l < tang->p [i+1]; l ++)
+      {
+	if (tang->i [l] == j)
+	{
+	  ASSERT_DEBUG (fabs (tang->x [k] - tang->x [l]) < 1E-10, "Unsymmetric K: %e, %e\n", tang->x [k], tang->x [l]);
+	  break;
+	}
+      }
+      ASSERT_DEBUG (l < tang->p [i+1], "Unsymmetric K: matching entry not found");
+    }
+  }
+#endif
 
   return tang;
 }
@@ -1928,10 +1955,12 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   if (bod->scheme == SCH_DEF_EXP)
   {
     for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
+    blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
   }
   else if (bod->scheme == SCH_DEF_LIM)
   {
     MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
+    blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
   }
   else /* SCH_DEF_IMP */
   {
@@ -1948,8 +1977,23 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
     iter = 0;
     do
     {
+#if 1
+      /* simplified way */
       for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf ... */
       fem_internal_force (bod, fint); /* ... as it is used in there */
+      fem_dynamic_implicit_inverse (bod, step, NULL); 
+#else
+      /* Simo-Tarnow way */
+      for (i = 0; i < n; i ++) q [i] = qorig [i];
+      fem_internal_force (bod, aux);
+      for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u[i] + u0[i]);
+      fem_internal_force (bod, res);
+      for (i = 0; i < n; i ++) fint [i] = 0.5 * (aux [i] + res [i]);
+
+      for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]);
+      fem_dynamic_implicit_inverse (bod, step, NULL); 
+#endif
+      
       for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
       MX_Matvec (-1.0, bod->M, aux, 1.0, res);
       MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
@@ -1960,14 +2004,12 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
     }
     while (error > 1E-10 && ++ iter < imax);
 
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u[i] + u0[i]); /* overwrite bod->conf */
-
     if (iter == imax) blas_dcopy (n, save, 1, u, 1); /* falls back on SCH_DEF_LIM */
+
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u[i] + u0[i]); /* overwrite bod->conf */
 
     free (qorig);
   }
-
-  blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
 
   /* energy */
   for (ir = r, iu = u; iu < e; ir ++, iu ++, iu0 ++) *ir = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
