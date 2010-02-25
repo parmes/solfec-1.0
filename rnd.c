@@ -2029,7 +2029,7 @@ static void render_picked_body (void)
 /* update scene extents */
 static void update_extents ()
 {
-  double e [6], extents [6];
+  double e [6], extents [6], margin;
   SET *item;
 
   extents [0] = extents [1] = extents [2] =  DBL_MAX;
@@ -2051,6 +2051,11 @@ static void update_extents ()
     if (e [4] > extents [4]) extents [4] = e [4];
     if (e [5] > extents [5]) extents [5] = e [5];
   }
+
+  SUB (extents+3, extents, e);
+  margin = 1.0 / exp (MAX (e[0], MAX (e[1], e[2])) /  MIN (e[0], MIN (e[1], e[2]))); /* 0.36 for aspect ratio 1.0 extents */
+  SUBMUL (extents, margin, e, extents);
+  ADDMUL (extents+3, margin, e, extents+3);
 
   GLV_Update_Extents (extents);
 }
