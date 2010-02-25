@@ -1294,6 +1294,9 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
   for (double *x = fext, *y = fint, *z = force, *u = z + bod->dofs; z < u; x ++, y ++, z ++) *z = (*x) - (*y);
 }
 
+/* the smame computation for the static case */
+#define fem_static_force(bod, time, step, fext, fint, force) fem_dynamic_force (bod,time,step,fext,fint,force)
+
 /* compute global tangent stiffness */
 static MX* tangent_stiffness (BODY *bod)
 {
@@ -1483,28 +1486,77 @@ static void fem_dynamic_implicit_inverse (BODY *bod, double step, double *force)
 
   /* invert A */
   MX_Inverse (A, A);
+
+  /* clean up */
+  MX_Destroy (K);
 }
 
 /* compute inv (M) * K for an element */
-static MX* inverse_mass_times_stiffencess (BODY *bod, MESH *msh, ELEMENT *ele)
+static MX* inverse_mass_times_stiffencess (int explicit, BODY *bod, MESH *msh, ELEMENT *ele)
 {
+  double mass [24];
   double *x, *y;
   MX *IMK, *IM;
   int i, j, n;
 
-  ASSERT_DEBUG (bod->scheme == SCH_DEF_EXP, "Not the explit scheme");
-
   n = ele->type * 3;
-  IM = bod->inverse;
+  IM = explicit ? bod->inverse : bod->M;
   IMK = MX_Create (MXDENSE, n, n, NULL, NULL);
   internal_force (1, bod, msh, ele, IMK->x);
 
+  for (i = 0; i < ele->type; i ++)
+  {
+    for (j = 0; j < 3; j ++)
+    {
+      mass [3*i+j] = IM->x [ele->nodes [i] * 3 + j];
+      if (explicit == 0) mass [3*i+j] = 1.0 / mass [3*i+j];
+    }
+  }
+
   for (j = 0, x = IMK->x; j < n; j ++) /* compute IMK = IM * K */
   {
-    for (i = 0, y = IM->x; i < n; i ++, x ++, y ++) (*x) *= (*y); /* scale each column by diagonal IM entries */
+    for (i = 0, y = mass; i < n; i ++, x ++, y ++) (*x) *= (*y); /* scale each column by diagonal IM entries */
   }
 
   return IMK;
+}
+
+/* static time-stepping inverse */
+static void fem_static_inverse (BODY *bod, double step)
+{
+  MX *M, *K, *A;
+
+  if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod);
+
+  if (bod->inverse) MX_Destroy (bod->inverse);
+
+  K = tangent_stiffness (bod);
+
+#if 0
+  MESH *msh = FEM_MESH (bod);
+  double eigmax;
+  ELEMENT *ele;
+  MX *IMK;
+
+  /* estimate maximal eigenvalue of inv (M) * K based on just one element */
+  ele = msh->surfeles;
+  IMK = inverse_mass_times_stiffencess (0, bod, msh, ele); /* element inv (M) * K */
+  MX_Scale (IMK, step * step * step);
+  MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
+  ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
+  MX_Destroy (IMK);
+#endif
+
+  /* calculate tangent operator A = coef * M + h*h/4 K, where picking coef
+   * seems tricky (eigmax/4.0 implies good damping, but we need to take care
+   * for allowing a fair amount of the rigid motion as well: TODO: figure out) */
+  bod->inverse = A = MX_Add (step*step*1E+6, M, step*step, K, NULL);
+
+  /* invert A */
+  MX_Inverse (A, A);
+
+  /* clean up */
+  MX_Destroy (K);
 }
 
 /* attach (element, local point) pairs to cvx->epn placeholder so that
@@ -1684,6 +1736,28 @@ static void post_process_intersections (double shape_volume, MESH *msh)
   }
 }
 
+#if 0
+/* dump intersection result for manual inverstigation for with tst/cvitest */
+static void dump_intersection (CONVEX *cvx, double *vertices, double *planes, int n, int k, int m, TRI *tri, double *pla)
+{
+  double d, p[3], q[3];
+
+  d = gjk (cvx->cur, cvx->nver, vertices, n, p, q);
+
+  if ((!tri && d < GEOMETRIC_EPSILON) || (tri && TRI_Char (tri, m, NULL) < 0.0))
+  {
+    int i;
+    printf ("%.24e\n", GEOMETRIC_EPSILON);
+    printf ("%d   %d\n", cvx->nver, cvx->nfac);
+    for (i = 0; i < cvx->nver; i ++) printf ("%.24e   %.24e   %.24e\n", cvx->cur[3*i], cvx->cur[3*i+1], cvx->cur[3*i+2]);
+    for (i = 0; i < cvx->nfac; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", pla[6*i], pla[6*i+1], pla[6*i+2], pla[6*i+3], pla[6*i+4], pla[6*i+5]);
+    printf ("%d   %d\n", n, k);
+    for (i = 0; i < n; i ++) printf ("%.24e   %.24e   %.24e\n", vertices[3*i], vertices[3*i+1], vertices[3*i+2]);
+    for (i = 0; i < k; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", planes[6*i], planes[6*i+1], planes[6*i+2], planes[6*i+3], planes[6*i+4], planes[6*i+5]);
+  }
+}
+#endif
+
 /* element and convex bounding boxe intersection callback; compute
  * their volumetric intersection to be later used for integration */
 static void overlap (void *data, BOX *one, BOX *two)
@@ -1706,37 +1780,14 @@ static void overlap (void *data, BOX *one, BOX *two)
   pla = CONVEX_Planes (cvx);
   tri = cvi (cvx->cur, cvx->nver, pla, cvx->nfac, vertices, n, planes, k, REGULARIZED, &m);
 #if 0
-  double d, p[3], q[3];
-
-  d = gjk (cvx->cur, cvx->nver, vertices, n, p, q);
-
-  if ((!tri && d < GEOMETRIC_EPSILON) || (tri && TRI_Char (tri, m, NULL) < 0.0))
-  {
-    int i;
-    printf ("%.24e\n", GEOMETRIC_EPSILON);
-    printf ("%d   %d\n", cvx->nver, cvx->nfac);
-    for (i = 0; i < cvx->nver; i ++) printf ("%.24e   %.24e   %.24e\n", cvx->cur[3*i], cvx->cur[3*i+1], cvx->cur[3*i+2]);
-    for (i = 0; i < cvx->nfac; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", pla[6*i], pla[6*i+1], pla[6*i+2], pla[6*i+3], pla[6*i+4], pla[6*i+5]);
-    printf ("%d   %d\n", n, k);
-    for (i = 0; i < n; i ++) printf ("%.24e   %.24e   %.24e\n", vertices[3*i], vertices[3*i+1], vertices[3*i+2]);
-    for (i = 0; i < k; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", planes[6*i], planes[6*i+1], planes[6*i+2], planes[6*i+3], planes[6*i+4], planes[6*i+5]);
-  }
+  dump_intersection (cvx, vertices, planes, n, k, m, tri, pla);
 #endif
   free (pla);
 
   if (tri)
   {
-#if DEBUG && 0 /* FIXME: hybrid_ext and twowayscan need to be fixed not to double overlap detection */
+#if DEBUG
     for (n = 0; n < cvx->nele; n ++) { ASSERT_DEBUG (cvx->ele [n] != ele, "CONVEX-ELEMENT intersection detected twice: this should not happen"); }
-#else
-    for (n = 0; n < cvx->nele; n ++)
-    {
-      if (cvx->ele [n] == ele)
-      {
-	free (tri);
-	return;
-      }
-    }
 #endif
 
     ERRMEM (cvx->ele = realloc (cvx->ele, (++cvx->nele) * sizeof (ELEMENT*)));
@@ -1881,7 +1932,7 @@ double FEM_Dynamic_Critical_Step (BODY *bod)
 
     for (ele = msh->surfeles, bulk = 0, step = DBL_MAX; ele; )
     {
-      IMK = inverse_mass_times_stiffencess (bod, msh, ele); /* element inv (M) * K */
+      IMK = inverse_mass_times_stiffencess (1, bod, msh, ele); /* element inv (M) * K */
       MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
       MX_Destroy (IMK);
       ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
@@ -1977,23 +2028,12 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
     iter = 0;
     do
     {
-#if 1
-      /* simplified way */
+      /* in Simo and Tarnow paper, they show that PK2 should be taken as S=C[E(q(t+h)) + E(q(t))]/2,
+       * nevertheless the simpler approach below where we use C[E((q(t+h) + q(t))/2)] did not lead
+       * to energy inconsistent results in our test, but to the contratey. Hence we stick with it */
       for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf ... */
       fem_internal_force (bod, fint); /* ... as it is used in there */
-      fem_dynamic_implicit_inverse (bod, step, NULL); 
-#else
-      /* Simo-Tarnow way */
-      for (i = 0; i < n; i ++) q [i] = qorig [i];
-      fem_internal_force (bod, aux);
-      for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u[i] + u0[i]);
-      fem_internal_force (bod, res);
-      for (i = 0; i < n; i ++) fint [i] = 0.5 * (aux [i] + res [i]);
-
-      for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]);
-      fem_dynamic_implicit_inverse (bod, step, NULL); 
-#endif
-      
+      if (iter % 4 == 0) fem_dynamic_implicit_inverse (bod, step, NULL); /* update tangent every forth iteration */
       for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
       MX_Matvec (-1.0, bod->M, aux, 1.0, res);
       MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
@@ -2030,19 +2070,38 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 /* initialise static time stepping */
 void FEM_Static_Init (BODY *bod)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  fem_static_inverse (bod, bod->dom->step);
 }
 
 /* perform the initial half-step of the static scheme */
 void FEM_Static_Step_Begin (BODY *bod, double time, double step)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  double *force = FEM_FORCE (bod);
+
+  fem_static_inverse (bod, step); /* compute inverse of static tangent operator */
+  fem_static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
+  MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
 }
 
 /* perform the final half-step of the static scheme */
 void FEM_Static_Step_End (BODY *bod, double time, double step)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  double *force = FEM_FORCE (bod);
+
+  fem_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
+  blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
+
+  if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
+  {
+    MESH *msh = bod->msh;
+    double (*cur) [3] = msh->cur_nodes,
+	   (*ref) [3] = msh->ref_nodes,
+	   (*end) [3] = ref + msh->nodes_count,
+	    *q = bod->conf;
+
+    for (; ref < end; cur ++, ref ++, q += 3) { ADD (ref[0], q, cur[0]); }
+  }
 }
 
 /* motion x = x (X, t) */
@@ -2190,12 +2249,19 @@ double FEM_Kinetic_Energy (BODY *bod)
 {
   if (bod->inverse)
   {
-    double *x = bod->inverse->x,
+    double *x = (bod->scheme == SCH_DEF_EXP ? bod->inverse->x : bod->M->x),
 	   *y = x + bod->dofs,
 	   *u = bod->velo,
 	   sum;
 
-    for (sum = 0.0; x < y; x ++, u ++) sum += (*u)*(*u) / (*x);
+    if (bod->scheme == SCH_DEF_EXP)
+    {
+      for (sum = 0.0; x < y; x ++, u ++) sum += (*u)*(*u) / (*x);
+    }
+    else /* SCH_DEF_LIM, SCH_DEF_IMP */
+    {
+      for (sum = 0.0; x < y; x ++, u ++) sum += (*u)*(*u) * (*x);
+    }
 
     return 0.5 * sum;
   }
@@ -2308,11 +2374,11 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
   double point [3] = {0, 0, 0};
   int i, j;
 
-  if (ele == NULL)
+  if (ele == NULL) /* if this node has not been yet mapped to an element */
   {
     for(j = 0; j < 2; j ++)
     {
-      for (ele = start [j]; ele; ele = ele->next)
+      for (ele = start [j]; ele; ele = ele->next) /* make a costly linear search for an element */
       {
 	for (i = 0; i < ele->type; i ++)
 	{
@@ -2357,7 +2423,7 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
 	      break;
 	    }
 
-	    MAP_Insert (&msh->mapmem, &msh->map, node, ele, NULL);
+	    MAP_Insert (&msh->mapmem, &msh->map, node, ele, NULL); /* and map it */
 	    goto ok;
 	  }
 	}
@@ -2384,20 +2450,20 @@ ok:
   break;
   case VALUE_STRESS:
   {
-    fem_element_cauchy (bod, msh, ele, point, values);
+    fem_element_cauchy (bod, msh, ele, point, values); /* TODO: average from neighouring elements */
   }
   break;
   case VALUE_MISES:
   {
     double stress [6];
 
-    fem_element_cauchy (bod, msh, ele, point, stress);
+    fem_element_cauchy (bod, msh, ele, point, stress); /* TODO: average from neighouring elements */
     MISES (stress, values [0]);
   }
   break;
   case VALUE_STRESS_AND_MISES:
   {
-    fem_element_cauchy (bod, msh, ele, point, values);
+    fem_element_cauchy (bod, msh, ele, point, values); /* TODO: average from neighouring elements */
     MISES (values, values [6]);
   }
   break;

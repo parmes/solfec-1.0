@@ -237,6 +237,40 @@ static void stream (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
   }
 }
 
+/* streamed segment tree without twowayscan */
+static void stream_ext (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
+  double lo, double hi, int d, void *data, BOX_Overlap_Create create)
+{
+  if (Ib >= Ie || Pb >= Pe) return;
+  else if (d == 0 || (Ie-Ib) < CUTOFF || (Pe-Pb) < CUTOFF) onewayscan (Ib, Ie, Pb, Pe, d, data, create);
+  else
+  {
+    BOX **Im, **Pm, *P;
+    double mi;
+
+    Im = lo_hi_inside (Ib, Ie, lo, hi, d); /* [Ib, Im) collects intervals containig [lo, hi)
+                                              [Im, Ie) enumerates the remaining intervals */
+
+    /* recurse along lower dimensions */
+    stream_ext (Ib, Im, Pb, Pe, -DBL_MAX, DBL_MAX, d-1, data, create);
+    stream_ext (Pb, Pe, Ib, Im, -DBL_MAX, DBL_MAX, d-1, data, create);
+
+    /* continue down the tree
+     * along 'd'th dimension */
+
+    P = median (Pb, Pe, d, height (Pe-Pb)); /* approximate median of points */
+    mi = P->extents [d];
+    
+    Pm = split (Pb, Pe, mi, d); /* [Pb, Pm) are in [lo, mi); [Pm, Pe) are in [mi, hi) */
+
+    Im = overlaps (Ib, Ie, lo, mi, d); /* intervals [Ib, Im) overlap [lo, mi) */
+    stream_ext (Ib, Im, Pb, Pm, lo, mi, d, data, create);
+
+    Im = overlaps (Ib, Ie, mi, hi, d); /* intervals [Ib, Im) overlap [mi, hi) */
+    stream_ext (Ib, Im, Pm, Pe, mi, hi, d, data, create);
+  }
+}
+
 /* hybrid overlap detection driver */
 void hybrid (BOX **boxes, int n, void *data, BOX_Overlap_Create create)
 {
@@ -256,14 +290,13 @@ void hybrid (BOX **boxes, int n, void *data, BOX_Overlap_Create create)
 /* report overlaps between two sets of boxes */
 void hybrid_ext (BOX **seta, int na, BOX **setb, int nb, void *data, BOX_Overlap_Create create)
 {
-  stream (seta, seta + na, /* these are intervals */
-          setb, setb + nb, /* these are points */
-	 -DBL_MAX, DBL_MAX, /* the top level interval is [-inf, inf] */
-	  2, data, create); /* we go from the thrid (2) dimension down to one (0) */
+  stream_ext (seta, seta + na, /* these are intervals */
+              setb, setb + nb, /* these are points */
+	     -DBL_MAX, DBL_MAX, /* the top level interval is [-inf, inf] */
+	      2, data, create); /* we go from the thrid (2) dimension down to one (0) */
 
-  stream (setb, setb + nb,
-          seta, seta + na,
-	 -DBL_MAX, DBL_MAX,
-	  2, data, create);
+  stream_ext (setb, setb + nb,
+              seta, seta + na,
+	     -DBL_MAX, DBL_MAX,
+	      2, data, create);
 }
-
