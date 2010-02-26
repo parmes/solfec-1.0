@@ -366,11 +366,16 @@ double TRI_Char (TRI *tri, int n, double *center)
     a = t->ver [0];
     b = t->ver [1];
     c = t->ver [2];
+
     J = simplex_J (zero, a, b, c);
     volume += simplex_1 (J, zero, a, b, c);
-    sx += simplex_x (J, zero, a, b, c);
-    sy += simplex_y (J, zero, a, b, c);
-    sz += simplex_z (J, zero, a, b, c);
+
+    if (center)
+    {
+      sx += simplex_x (J, zero, a, b, c);
+      sy += simplex_y (J, zero, a, b, c);
+      sz += simplex_z (J, zero, a, b, c);
+    }
   }
 
   if (center)
