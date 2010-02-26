@@ -105,7 +105,7 @@ solfec1.verbose = 'OFF'
 CONTACT_SPARSIFY (solfec1, 0.005)
 SURFACE_MATERIAL (solfec1, model = 'SIGNORINI_COULOMB', friction = 0.5)
 bulkmat1 = BULK_MATERIAL (solfec1, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
-GRAVITY (solfec1, (0, 0, -1), 9.81)
+GRAVITY (solfec1, (0, 0, -9.81))
 masonry_arch_create (0.1095, bulkmat1, solfec1)
 CALLBACK (solfec1, step, solfec1, progress_callback_one)
 
@@ -115,7 +115,7 @@ solfec2.verbose = 'OFF'
 CONTACT_SPARSIFY (solfec2, 0.005)
 SURFACE_MATERIAL (solfec2, model = 'SIGNORINI_COULOMB', friction = 0.5)
 bulkmat2 = BULK_MATERIAL (solfec2, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
-GRAVITY (solfec2, (0, 0, -1), 9.81)
+GRAVITY (solfec2, (0, 0, -9.81))
 masonry_arch_create (0.1094, bulkmat2, solfec2)
 CALLBACK (solfec2, step, solfec2, progress_callback_two)
 
@@ -126,7 +126,7 @@ print '\b\b\b\b\b\b\b' ,
 
 if not VIEWER() and solfec1.mode == 'WRITE' and solfec2.mode == 'WRITE':
 
-    if E1 [stepnum - 1] < 1E-5 and E2 [stepnum - 1] > 1E-3: print 'PASSED'
+    if E1 [stepnum - 1] < 1E-4 and E2 [stepnum - 1] > 1E-3: print 'PASSED'
     else:
       print 'FAILED'
       print '(', 'Kinetic energy out of bounds: E1 = %g, E2 = %g' % (E1[stepnum-1], E2[stepnum-1]), ')'

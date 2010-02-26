@@ -18,7 +18,7 @@ def pendulum_create (material, solfec):
   sph = SPHERE (p, 0.05, 0, 0);
   bod = BODY (solfec, 'RIGID', sph, material)
   BODY_CHARS (bod, 1.0, 1.0, c, J)
-  PUT_RIGID_LINK (solfec, bod, None, p, q)
+  PUT_RIGID_LINK (bod, None, p, q)
 
   return bod
 
@@ -59,7 +59,7 @@ solfec.verbose = 'OFF'
 
 bulkmat = BULK_MATERIAL (solfec)
 
-GRAVITY (solfec, (0, 0, -1), gravity)
+GRAVITY (solfec, (0, 0, -gravity))
 
 bod = pendulum_create (bulkmat, solfec)
 

@@ -66,7 +66,7 @@ surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E5, poisson = 0.25, density = 1E1)
 
-GRAVITY (solfec, (0, 0, -1), 9.81)
+GRAVITY (solfec, (0, 0, -9.81))
 
 stack_of_cubes_create (bulkmat, solfec)
 

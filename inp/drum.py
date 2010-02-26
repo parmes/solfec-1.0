@@ -21,8 +21,8 @@ def drum_create (material, solfec):
 
   shape = [wallx1, wallx2, wally1, wally2, wallz1, wallz2]
   bod = BODY (solfec, 'RIGID', shape, material)
-  FIX_POINT (solfec, bod, (0.0, 0.5, 0.5))
-  FIX_POINT (solfec, bod, (1.0, 0.5, 0.5))
+  FIX_POINT (bod, (0.0, 0.5, 0.5))
+  FIX_POINT (bod, (1.0, 0.5, 0.5))
   tms = TIME_SERIES ([0, 20, 50, 60])
   TORQUE (bod, 'SPATIAL', (1, 0, 0), tms)
 
@@ -52,7 +52,7 @@ drumat = BULK_MATERIAL (solfec)
 
 sphmat = BULK_MATERIAL (solfec, density = drumat.density / 100)
 
-GRAVITY (solfec, (0, 0, -1), 9.8)
+GRAVITY (solfec, (0, 0, -9.8))
 
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 

@@ -1988,8 +1988,9 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->depth = -DBL_MAX;
   ERRMEM (dom->ldy = LOCDYN_Create (dom));
 
-  SET (dom->gravdir, 0);
-  dom->gravval = NULL;
+  dom->gravity [0] = NULL;
+  dom->gravity [1] = NULL;
+  dom->gravity [2] = NULL;
 
   SET (dom->extents, -DBL_MAX);
   SET (dom->extents + 3, DBL_MAX);
@@ -2681,7 +2682,9 @@ void DOM_Destroy (DOM *dom)
   MEM_Release (&dom->setmem);
   MEM_Release (&dom->mapmem);
 
-  if (dom->gravval) TMS_Destroy (dom->gravval);
+  if (dom->gravity [0]) TMS_Destroy (dom->gravity [0]);
+  if (dom->gravity [1]) TMS_Destroy (dom->gravity [1]);
+  if (dom->gravity [2]) TMS_Destroy (dom->gravity [2]);
 
   aabb_destroy_data (dom->aabb_data);
 

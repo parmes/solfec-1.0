@@ -28,9 +28,9 @@ def pinned_bar_create (material, solfec, kind, scheme):
   bod = BODY (solfec, kind, msh, material)
   bod.scheme = scheme
 
-  FIX_POINT (solfec, bod, fix1)
-  FIX_DIRECTION (solfec, bod, fix2, (1, 0, 0))
-  FIX_DIRECTION (solfec, bod, fix2, (0, 0, 1))
+  FIX_POINT (bod, fix1)
+  FIX_DIRECTION (bod, fix2, (1, 0, 0))
+  FIX_DIRECTION (bod, fix2, (0, 0, 1))
 
   msh = MESH (nodes, elements, 0)
 
@@ -49,7 +49,7 @@ def create_simulation (output, step, stop, solver, kind, scheme):
   solfec = SOLFEC ('DYNAMIC', step, output)
   surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 1.0)
   bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.3, density = 1.8E3)
-  GRAVITY (solfec, (0, 0, -1), 9.8)
+  GRAVITY (solfec, (0, 0, -9.8))
   bod = pinned_bar_create (bulkmat, solfec, kind, scheme)
   RUN (solfec, solver, stop)
 

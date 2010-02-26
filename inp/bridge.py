@@ -344,7 +344,7 @@ surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5)
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.3, density = 1.8E3)
 
-GRAVITY (solfec, (0, 0, -1), 9.81)
+GRAVITY (solfec, (0, 0, -9.81))
 
 masonry_bridge_create (bulkmat, solfec, 27, 4)
 

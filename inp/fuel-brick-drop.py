@@ -65,7 +65,7 @@ def scene_run (solver, kinematics):
   solfec = SOLFEC ('DYNAMIC', step, 'out/fuel-brick-drop/' + kinematics)
   SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
   bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
-  GRAVITY (solfec, (0, 0, -1), 10)
+  GRAVITY (solfec, (0, 0, -10))
   scene_generate (bulkmat, solfec, kinematics)
   OUTPUT (solfec, 0.02)
   RUN (solfec, solver, stop)

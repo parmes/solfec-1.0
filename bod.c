@@ -263,11 +263,12 @@ static void rig_force (BODY *bod, double *q, double *u, double t, double h,
     }
   }
 
-  if (bod->dom->gravval)
+  if (bod->dom->gravity [0])
   {
-    COPY (bod->dom->gravdir, f);
-    v = TMS_Value (bod->dom->gravval, t);
-    SCALE (f, v);
+    f [0] = TMS_Value (bod->dom->gravity [0], t);
+    f [1] = TMS_Value (bod->dom->gravity [1], t);
+    f [2] = TMS_Value (bod->dom->gravity [2], t);
+
     ADDMUL (linforc, BOD_M0 (bod), f, linforc);
   }
 }
@@ -602,11 +603,12 @@ static void prb_dynamic_force (BODY *bod, double time, double step, double *fext
     }
   }
 
-  if (bod->dom->gravval)
+  if (bod->dom->gravity [0])
   {
-    COPY (bod->dom->gravdir, f);
-    value = TMS_Value (bod->dom->gravval, time);
-    SCALE (f, value);
+    f [0] = TMS_Value (bod->dom->gravity [0], time);
+    f [1] = TMS_Value (bod->dom->gravity [1], time);
+    f [2] = TMS_Value (bod->dom->gravity [2], time);
+
     ADDMUL (force+9, BOD_M0 (bod), f, force+9);
   }
 

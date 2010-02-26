@@ -195,8 +195,7 @@ struct domain
   SOLFEC *solfec; /* SOLFEC context */
   AABB_DATA *aabb_data; /* box ovrlap algorithm selection data */
 
-  double gravdir [3]; /* global gravity direction */
-  TMS *gravval; /* global gravity value */
+  TMS *gravity [3]; /* global gravity value */
 
   double extents [6]; /* scene extents */
   double threshold; /* sparsification threshold */

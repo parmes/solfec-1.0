@@ -78,7 +78,7 @@ INITIAL_VELOCITY (body, (0, 0, -10), (0, 0, 0))
 
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5, restitution = 0.0)
 
-GRAVITY (solfec, (0, 0, -1), 10)
+GRAVITY (solfec, (0, 0, -10))
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
 

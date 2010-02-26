@@ -10,7 +10,7 @@ step = 1E-3
 stop = 150 * step
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-small-rig-gs')
-GRAVITY (solfec, (0, 0, -1), 10)
+GRAVITY (solfec, (0, 0, -10))
 
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7)
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)

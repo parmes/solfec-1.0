@@ -47,12 +47,12 @@ def make_box (x, y, z, wx, wy, wz, material, solfec, velo):
 
   shape = [wallx1, wallx2, wally1, wally2, wallz1]
   bod = BODY (solfec, 'RIGID', shape, material)
-  FIX_DIRECTION (solfec, bod, (x, y, z), (0, 0, 1))
-  FIX_DIRECTION (solfec, bod, (x+wx, y, z), (0, 0, 1))
-  FIX_DIRECTION (solfec, bod, (x+wx, y+wy, z), (0, 0, 1))
-  FIX_DIRECTION (solfec, bod, (x, y+wy, z), (0, 0, 1))
-  FIX_DIRECTION (solfec, bod, (x, y, z), (0, 1, 0))
-  SET_VELOCITY (solfec, bod, (x+wx*0.5, y+wy*0.5, z), (1, 0, 0), velo)
+  FIX_DIRECTION (bod, (x, y, z), (0, 0, 1))
+  FIX_DIRECTION (bod, (x+wx, y, z), (0, 0, 1))
+  FIX_DIRECTION (bod, (x+wx, y+wy, z), (0, 0, 1))
+  FIX_DIRECTION (bod, (x, y+wy, z), (0, 0, 1))
+  FIX_DIRECTION (bod, (x, y, z), (0, 1, 0))
+  SET_VELOCITY (bod, (x+wx*0.5, y+wy*0.5, z), (1, 0, 0), velo)
 
 step = 0.001
 stop = 10.0
@@ -64,7 +64,7 @@ seed (1)
 solfec = SOLFEC ('DYNAMIC', step, 'out/packing')
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0)
 bulk = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 1E6, poisson = 0.25, density = 1E3)
-GRAVITY (solfec, (0, 0, -1), 10)
+GRAVITY (solfec, (0, 0, -10))
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 100)
 
 make_box (0, 0, 0, n, n, n, bulk, solfec, velo)

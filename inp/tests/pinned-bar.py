@@ -27,8 +27,8 @@ def pinned_bar_create (material, solfec):
 
   bod = BODY (solfec, 'RIGID', msh, material)
 
-  FIX_POINT (solfec, bod, fix1)
-  FIX_POINT (solfec, bod, fix2)
+  FIX_POINT (bod, fix1)
+  FIX_POINT (bod, fix2)
 
   return bod
 
@@ -56,7 +56,7 @@ solfec.verbose = 'OFF'
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 200e9, poisson = 0.3, density = 1)
 
-GRAVITY (solfec, (0, 0, -1), 9.8)
+GRAVITY (solfec, (0, 0, -9.8))
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'EXIT')
 
