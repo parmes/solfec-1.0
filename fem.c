@@ -423,7 +423,7 @@ inline static void tet_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
   double shapes [4];
   int i;
 
-  blas_dscal (12, 0.0, g, 1);
+  for (i = 0; i < 12; i ++) g [i] = 0.0;
 
   INTEGRATE (I_TET1, 1, dom, domnum, nodes,
 
@@ -449,7 +449,7 @@ inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
   double shapes [8];
   int i;
 
-  blas_dscal (24, 0.0, g, 1);
+  for (i = 0; i < 24; i ++) g [i] = 0.0;
 
   INTEGRATE (I_HEX2, 1, dom, domnum, nodes,
 
@@ -475,7 +475,7 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
   double J, integral, mat_lambda, mat_mi;
   int i, j;
 
-  blas_dscal (12 * (derivative ? 12 : 1), 0.0, g, 1);
+  for (i = 0, j = 12 * (derivative ? 12 : 1); i < j; i ++) g [i] = 0.0;
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
@@ -518,7 +518,7 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
   double J, integral, mat_lambda, mat_mi;
   int i, j;
 
-  blas_dscal (24 * (derivative ? 24 : 1), 0.0, g, 1);
+  for (i = 0, j = 24 * (derivative ? 24 : 1); i < j; i ++) g [i] = 0.0;
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
@@ -1151,10 +1151,11 @@ static void fem_constraints_force (BODY *bod, double *force)
   CONVEX *cvx;
   MESH *msh;
   SET *node;
+  int i;
 
   msh = FEM_MESH (bod);
 
-  blas_dscal (bod->dofs, 0.0, force, 1);
+  for (i = 0; i < bod->dofs; i ++) force [i] = 0.0;
 
   for (node = SET_First (bod->con); node; node = SET_Next (node))
   {
@@ -1181,7 +1182,7 @@ static void fem_internal_force (BODY *bod, double *fint)
   ELEMENT *ele;
   int bulk, i;
 
-  blas_dscal (bod->dofs, 0.0, fint, 1);
+  for (i = 0; i < bod->dofs; i ++) fint [i] = 0.0;
 
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
@@ -1214,8 +1215,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
       i;
 
   /* zero forces */
-  blas_dscal (bod->dofs, 0.0, fext, 1);
-  blas_dscal (bod->dofs, 0.0, fint, 1);
+  for (i = 0; i < bod->dofs; i ++) fext [i] = fint [i] = 0.0;
 
   /* point forces */
   for (FORCE *frc = bod->forces; frc; frc = frc->next)
@@ -1323,11 +1323,17 @@ static MX* tangent_stiffness (BODY *bod)
     internal_force (1, bod, msh, ele, K); /* compute internal force derivartive: K */
 
 #if 0
-  for (i = 0, l = ele->type * 3; i < l; i ++)
   {
-    for (j = i+1; j < l; j ++)
+    double max = K [0];
+
+    for (i = 1, l = ele->type * 3; i < l*l; i ++) max = MAX (max, K [i]);
+
+    for (i = 0; i < l; i ++)
     {
-      ASSERT_DEBUG (fabs (K[l*j+i] - K[l*i+j]) < 1E-10, "Unsymmetry of K: %e, %e", K[l*j+i], K[l*i+j]);
+      for (j = i+1; j < l; j ++)
+      {
+	ASSERT_DEBUG (fabs (K[l*j+i] - K[l*i+j]) < 1E-10 * max, "Unsymmetry of K: %e, %e", K[l*j+i], K[l*i+j]);
+      }
     }
   }
 #endif
@@ -1387,20 +1393,26 @@ static MX* tangent_stiffness (BODY *bod)
   MEM_Release (&blkmem);
 
 #if 0
-  for (j = 0; j < tang->n; j ++)
   {
-    for (k = tang->p [j]; k < tang->p [j+1]; k ++)
+    double max = tang->x [0];
+
+    for (i = 0; i < tang->p [tang->n]; i ++) max = MAX(max, tang-> x[i]);
+
+    for (j = 0; j < tang->n; j ++)
     {
-      i = tang->i [k];
-      for (l = tang->p [i]; l < tang->p [i+1]; l ++)
+      for (k = tang->p [j]; k < tang->p [j+1]; k ++)
       {
-	if (tang->i [l] == j)
+	i = tang->i [k];
+	for (l = tang->p [i]; l < tang->p [i+1]; l ++)
 	{
-	  ASSERT_DEBUG (fabs (tang->x [k] - tang->x [l]) < 1E-10, "Unsymmetric K: %e, %e\n", tang->x [k], tang->x [l]);
-	  break;
+	  if (tang->i [l] == j)
+	  {
+	    ASSERT_DEBUG (fabs (tang->x [k] - tang->x [l]) < 1E-10 * max, "Unsymmetric K: %e, %e\n", tang->x [k], tang->x [l]);
+	    break;
+	  }
 	}
+	ASSERT_DEBUG (l < tang->p [i+1], "Unsymmetric K: matching entry not found");
       }
-      ASSERT_DEBUG (l < tang->p [i+1], "Unsymmetric K: matching entry not found");
     }
   }
 #endif
