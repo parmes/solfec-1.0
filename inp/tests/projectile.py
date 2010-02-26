@@ -35,7 +35,7 @@ step = stop / 1024.0
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/projectile')
 solfec.verbose = 'OFF'
 material = BULK_MATERIAL (solfec)
-GRAVITY (solfec, (0, 0, -1), gravity)
+GRAVITY (solfec, (0, 0, -gravity))
 
 sph = SPHERE (c, 1, 0, 0)
 bod = BODY (solfec, 'RIGID', sph, material);

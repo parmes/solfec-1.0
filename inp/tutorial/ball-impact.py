@@ -34,7 +34,7 @@ def ball_impact (step, stop, spring_value, dashpot_value, output):
 
   SURFACE_MATERIAL (solfec, model = 'SPRING_DASHPOT', friction = 0.0, spring = spring_value, dashpot = dashpot_value)
 
-  GRAVITY (solfec, (0, 0, -1), 10)
+  GRAVITY (solfec, (0, 0, -10))
 
   xs = PENALTY_SOLVER ()
 

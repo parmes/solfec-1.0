@@ -3628,9 +3628,8 @@ static PyObject* lng_ROUGH_HEX (PyObject *self, PyObject *args, PyObject *kwds)
 /* create fixed point constraint */
 static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body", "point");
+  KEYWORDS ("body", "point");
   lng_CONSTRAINT *out;
-  lng_SOLFEC *solfec;
   lng_BODY *body;
   PyObject *point;
   double p [3];
@@ -3639,9 +3638,9 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 
   if (out)
   {
-    PARSEKEYS ("OOO", &solfec, &body, &point);
+    PARSEKEYS ("OO", &body, &point);
 
-    TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) && is_tuple (point, kwl[2], 3));
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
 
 #if MPI
     if (ID_TO_BODY (body))
@@ -3658,7 +3657,7 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-    if (!(out->con = DOM_Fix_Point (solfec->sol->dom, body->bod, p)))
+    if (!(out->con = DOM_Fix_Point (body->bod->dom, body->bod, p)))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
@@ -3675,9 +3674,8 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 /* create fixed direction constraint */
 static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body", "point", "direction");
+  KEYWORDS ("body", "point", "direction");
   lng_CONSTRAINT *out;
-  lng_SOLFEC *solfec;
   lng_BODY *body;
   PyObject *point, *direction;
   double p [3], d [3];
@@ -3686,10 +3684,9 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
 
   if (out)
   {
-    PARSEKEYS ("OOOO", &solfec, &body, &point, &direction);
+    PARSEKEYS ("OOO", &body, &point, &direction);
 
-    TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
-      is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3));
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (direction, kwl[2], 3));
 
 #if MPI
     if (ID_TO_BODY (body))
@@ -3710,7 +3707,7 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    if (!(out->con = DOM_Fix_Direction (solfec->sol->dom, body->bod, p, d)))
+    if (!(out->con = DOM_Fix_Direction (body->bod->dom, body->bod, p, d)))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
@@ -3727,9 +3724,8 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
 /* create prescribed displacement constraint */
 static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body", "point", "direction", "tms");
+  KEYWORDS ("body", "point", "direction", "tms");
   lng_CONSTRAINT *out;
-  lng_SOLFEC *solfec;
   lng_BODY *body;
   PyObject *point, *direction;
   lng_TIME_SERIES *tms;
@@ -3739,11 +3735,10 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
 
   if (out)
   {
-    PARSEKEYS ("OOOOO", &solfec, &body, &point, &direction, &tms);
+    PARSEKEYS ("OOOO", &body, &point, &direction, &tms);
 
-    TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
-      is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&
-      is_time_series (tms, kwl[4]));
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
+	      is_tuple (direction, kwl[2], 3) && is_time_series (tms, kwl[3]));
 
 #if MPI
     if (ID_TO_BODY (body))
@@ -3764,7 +3759,7 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    if (!(out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Derivative (tms->ts))))
+    if (!(out->con = DOM_Set_Velocity (body->bod->dom, body->bod, p, d, TMS_Derivative (tms->ts))))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
@@ -3781,9 +3776,8 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
 /* create prescribed velocity constraint */
 static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body", "point", "direction", "value");
+  KEYWORDS ("body", "point", "direction", "value");
   lng_CONSTRAINT *out;
-  lng_SOLFEC *solfec;
   lng_BODY *body;
   PyObject *point, *direction, *value;
   double p [3], d [3];
@@ -3793,11 +3787,10 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
 
   if (out)
   {
-    PARSEKEYS ("OOOOO", &solfec, &body, &point, &direction, &value);
+    PARSEKEYS ("OOOO", &body, &point, &direction, &value);
 
-    TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
-      is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&
-      is_number_or_time_series (value, kwl[4]));
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
+	      is_tuple (direction, kwl[2], 3) && is_number_or_time_series (value, kwl[3]));
 
 #if MPI
     if (ID_TO_BODY (body))
@@ -3821,7 +3814,7 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
     if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble (value));
     else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
 
-    if (!(out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, ts)))
+    if (!(out->con = DOM_Set_Velocity (body->bod->dom, body->bod, p, d, ts)))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
@@ -3838,9 +3831,8 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
 /* create prescribed acceleration constraint */
 static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body", "point", "direction", "tms");
+  KEYWORDS ("body", "point", "direction", "tms");
   lng_CONSTRAINT *out;
-  lng_SOLFEC *solfec;
   lng_BODY *body;
   PyObject *point, *direction;
   lng_TIME_SERIES *tms;
@@ -3850,11 +3842,10 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
 
   if (out)
   {
-    PARSEKEYS ("OOOOO", &solfec, &body, &point, &direction, &tms);
+    PARSEKEYS ("OOOO", &body, &point, &direction, &tms);
 
-    TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
-      is_tuple (point, kwl[2], 3) && is_tuple (direction, kwl[3], 3) &&
-      is_time_series (tms, kwl[4]));
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
+	      is_tuple (direction, kwl[2], 3) && is_time_series (tms, kwl[3]));
 
 #if MPI
     if (ID_TO_BODY (body))
@@ -3875,7 +3866,7 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    if (!(out->con = DOM_Set_Velocity (solfec->sol->dom, body->bod, p, d, TMS_Integral (tms->ts))))
+    if (!(out->con = DOM_Set_Velocity (body->bod->dom, body->bod, p, d, TMS_Integral (tms->ts))))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
@@ -3892,9 +3883,8 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
 /* create rigid link constraint */
 static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body1", "body2", "point1", "point2");
+  KEYWORDS ("body1", "body2", "point1", "point2");
   lng_CONSTRAINT *out;
-  lng_SOLFEC *solfec;
   lng_BODY *body1, *body2;
   PyObject *point1, *point2;
   double p1 [3], p2 [3];
@@ -3903,22 +3893,26 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 
   if (out)
   {
-    PARSEKEYS ("OOOOO", &solfec, &body1, &body2, &point1, &point2);
+    PARSEKEYS ("OOOO", &body1, &body2, &point1, &point2);
 
     if ((PyObject*)body1 == Py_None)
     {
-      TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body2, kwl[2]) &&
-	        is_tuple (point1, kwl[3], 3) && is_tuple (point2, kwl[4], 3));
+      TYPETEST (is_body (body2, kwl[1]) && is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3));
     }
     else if ((PyObject*)body2 == Py_None)
     {
-      TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body1, kwl[1]) &&
-	        is_tuple (point1, kwl[3], 3) && is_tuple (point2, kwl[4], 3));
+      TYPETEST (is_body (body1, kwl[0]) && is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3));
     }
     else
     {
-      TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body1, kwl[1]) && is_body (body2, kwl[2]) &&
-		is_tuple (point1, kwl[3], 3) && is_tuple (point2, kwl[4], 3));
+      TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]) &&
+		is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3));
+
+      if (body1->bod->dom != body2->bod->dom)
+      {
+	PyErr_SetString (PyExc_ValueError, "Cannot link bodies from different domains");
+	return NULL;
+      }
     }
 
 #if MPI
@@ -3942,9 +3936,9 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
     p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
 
-    if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (solfec->sol->dom, NULL, body2->bod, p1, p2);
-    else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (solfec->sol->dom, body1->bod, NULL, p1, p2);
-    else out->con = DOM_Put_Rigid_Link (solfec->sol->dom, body1->bod, body2->bod, p1, p2);
+    if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (body2->bod->dom, NULL, body2->bod, p1, p2);
+    else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2);
+    else out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, body2->bod, p1, p2);
 
     if (!out->con)
     {
@@ -3963,28 +3957,37 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 /* set gravity */
 static PyObject* lng_GRAVITY (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "direction", "value");
-  PyObject *direction, *value;
+  KEYWORDS ("solfec", "vector");
+  PyObject *vector, *val [3];
   lng_SOLFEC *solfec;
-  double d [3];
+  DOM *dom;
   TMS *ts;
+  int i;
 
-  PARSEKEYS ("OOO", &solfec, &direction, &value);
+  PARSEKEYS ("OO", &solfec, &vector);
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_tuple (direction, kwl[1], 3) &&
-	    is_number_or_time_series (value, kwl[2]));
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_tuple (vector, kwl[1], 3));
 
-  d [0] = PyFloat_AsDouble (PyTuple_GetItem (direction, 0));
-  d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
-  d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
+  
+  val [0] = PyTuple_GetItem (vector, 0);
+  val [1] = PyTuple_GetItem (vector, 1);
+  val [2] = PyTuple_GetItem (vector, 2);
 
-  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value));
-  else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
+  TYPETEST (is_number_or_time_series (val[0], kwl[1]) &&
+            is_number_or_time_series (val[1], kwl[1]) &&
+            is_number_or_time_series (val[2], kwl[1]));
 
-  COPY (d, solfec->sol->dom->gravdir);
-  if  (solfec->sol->dom->gravval)
-    TMS_Destroy (solfec->sol->dom->gravval);
-  solfec->sol->dom->gravval = ts;
+  dom = solfec->sol->dom;
+
+  for (i = 0; i < 3; i ++)
+  {
+    if (PyNumber_Check (val [i])) ts = TMS_Constant (PyFloat_AsDouble(val [i]));
+    else ts = TMS_Copy (((lng_TIME_SERIES*)val [i])->ts);
+
+    if (dom->gravity [i]) TMS_Destroy (dom->gravity [i]);
+
+    dom->gravity [i] = ts;
+  }
 
   Py_RETURN_NONE;
 }

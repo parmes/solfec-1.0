@@ -27,11 +27,11 @@ bulk = BULK_MATERIAL (sol,
 
 bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
 bod.scheme = 'DEF_IMP'
-FIX_POINT (sol, bod, (-a, -b, 0))
-FIX_POINT (sol, bod, (-a, b, 0))
+FIX_POINT (bod, (-a, -b, 0))
+FIX_POINT (bod, (-a, b, 0))
 
 gs = GAUSS_SEIDEL_SOLVER (1E-5, 1000)
-GRAVITY (sol, (0, 0, -1), 10)
+GRAVITY (sol, (0, 0, -10))
 OUTPUT (sol, step)
 RUN (sol, gs, stop)
 

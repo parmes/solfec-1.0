@@ -220,7 +220,7 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec, integral_kind, integr
   ROTATE (shape, pnt, zet, 45.0)
 
   if integral_kind == 'FINITE_ELEMENT':
-    msh = ROUGH_MESH (shape, 1, 1, 2)
+    msh = ROUGH_HEX (shape, 1, 1, 2)
     bod = BODY (solfec, integral_kind, shape, material, mesh = msh)
   else: bod = BODY (solfec, integral_kind, shape, material)
   bod.scheme = integral_scheme
@@ -271,7 +271,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_k
 
 	shp = gcore_brick (x, y, z)
 	if fuel_kind == 'FINITE_ELEMENT':
-	  msh = ROUGH_MESH (shp, 2, 2, 2)
+	  msh = ROUGH_HEX (shp, 2, 2, 2)
 	  bod = BODY (solfec , fuel_kind, shp, material, mesh = msh)
 	else: bod = BODY (solfec , fuel_kind, shp, material)
 	bod.scheme = fuel_scheme
@@ -396,13 +396,13 @@ def gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS):
       CONTACT_EXCLUDE_BODIES (solfec, base, wall)
 
       acc = TIME_SERIES ('inp/cores/inc/acc-0.dat')
-      FIX_DIRECTION (solfec, base, (sx, sy, -thick), (0, 0, 1))
-      FIX_DIRECTION (solfec, base, (sx + lx, sy, -thick), (0, 0, 1))
-      FIX_DIRECTION (solfec, base, (sx, sy + ly, -thick), (0, 0, 1))
-      FIX_DIRECTION (solfec, base, (sx + lx, sy + ly, -thick), (0, 0, 1))
-      FIX_DIRECTION (solfec, base, (sx, sy, -thick), (0, 1, 0))
-      FIX_DIRECTION (solfec, base, (sx, sy + ly, -thick), (0, 1, 0))
-      SET_ACCELERATION (solfec, base, (sx + 0.5 * lx, sy + 0.5 * ly, - thick), (1, 0, 0), acc)
+      FIX_DIRECTION (base, (sx, sy, -thick), (0, 0, 1))
+      FIX_DIRECTION (base, (sx + lx, sy, -thick), (0, 0, 1))
+      FIX_DIRECTION (base, (sx, sy + ly, -thick), (0, 0, 1))
+      FIX_DIRECTION (base, (sx + lx, sy + ly, -thick), (0, 0, 1))
+      FIX_DIRECTION (base, (sx, sy, -thick), (0, 1, 0))
+      FIX_DIRECTION (base, (sx, sy + ly, -thick), (0, 1, 0))
+      SET_ACCELERATION (base, (sx + 0.5 * lx, sy + 0.5 * ly, - thick), (1, 0, 0), acc)
 
 def simple_core_create (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS):
 

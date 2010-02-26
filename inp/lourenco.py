@@ -28,7 +28,7 @@ bulk = BULK_MATERIAL (solfec,
 		      density = 1E3)
 
 
-GRAVITY (solfec, (0, 0, -1), 10)
+GRAVITY (solfec, (0, 0, -10))
 
 a = 0.10
 b = 0.10
@@ -86,7 +86,7 @@ TRANSLATE (base, (a, 0, -c))
 SCALE (base, (NWIDTH + 1, 1, 1))
 TRANSLATE (base, (-2*a, 0, c*(NHEIGHT+1)))
 top = BODY (solfec, 'RIGID', base, bulk)
-#SET_VELOCITY (solfec, top, (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), 0.015)
+#SET_VELOCITY (top, (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), 0.015)
 tms = TIME_SERIES ([0, 0, 50 * step, 0, stop, 20E3])
 FORCE (top, 'SPATIAL', (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), tms)
 FORCE (top, 'SPATIAL', (2 * a * NWIDTH / 2 - a, 0, c * NHEIGHT + c/2), (0, 0, -1), 30E3)

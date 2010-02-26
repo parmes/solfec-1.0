@@ -1252,11 +1252,11 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
   }
 
   /* gravitation */
-  if (bod->dom->gravval)
+  if (bod->dom->gravity [0])
   {
-    COPY (bod->dom->gravdir, f);
-    value = TMS_Value (bod->dom->gravval, time);
-    SCALE (f, value);
+    f [0] = TMS_Value (bod->dom->gravity [0], time);
+    f [1] = TMS_Value (bod->dom->gravity [1], time);
+    f [2] = TMS_Value (bod->dom->gravity [2], time);
 
     for (ele = msh->surfeles, bulk = 0; ele; )
     {

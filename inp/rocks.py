@@ -23,7 +23,7 @@ seed (1)
 solfec = SOLFEC ('DYNAMIC', step, 'out/rocks')
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5)
 bulk = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
-GRAVITY (solfec, (0, 0, -1), 10)
+GRAVITY (solfec, (0, 0, -10))
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
 
 for i in range (n):

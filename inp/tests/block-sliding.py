@@ -45,7 +45,7 @@ solfec.verbose = 'OFF'
 material = BULK_MATERIAL (solfec, density = 111.11111111111111111) # so that 0.3*0.3*0.1*111.(1) = 1.0
 SURFACE_MATERIAL (solfec, friction = 0.8)
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
-GRAVITY (solfec, (0, 0, -1), gravity)
+GRAVITY (solfec, (0, 0, -gravity))
 
 msh = HEX (base, 1, 1, 1, 0, surfaces)
 TRANSLATE (msh, vector)

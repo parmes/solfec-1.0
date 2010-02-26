@@ -9,16 +9,16 @@ from simple_core_base import *
 step = 1E-3
 stop = 11
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-quarter-rig-gs')
+solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-quarter-fem-gs')
 GRAVITY (solfec, (0, 0, -10))
 
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7)
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 10, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 3, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 gs.reverse = 'ON'
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'RIGID', 'DEFAULT', 'RIGID', 'DEFAULT', 10, 10, 12)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'FINITE_ELEMENT', 'DEF_IMP', 'FINITE_ELEMENT', 'DEF_IMP', 10, 10, 12)
 
 UNPHYSICAL_PENETRATION (solfec, 0.02)
 IMBALANCE_TOLERANCE (solfec, 1.1)

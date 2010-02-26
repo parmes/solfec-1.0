@@ -18,12 +18,12 @@ def double_pendulum_create (material, solfec):
   sph = SPHERE (b, 0.05, 1, 1)
   bod1 = BODY (solfec, 'RIGID', sph, material, label = 'BALL1')
   BODY_CHARS (bod1, 1.0, 1.0, b, J)
-  PUT_RIGID_LINK (solfec, bod1, None, b, a)
+  PUT_RIGID_LINK (bod1, None, b, a)
 
   sph = SPHERE (c, 0.05, 1, 1);
   bod2 = BODY (solfec, 'RIGID', sph, material, label = 'BALL2')
   BODY_CHARS (bod2, 1.0, 1.0, c, J)
-  PUT_RIGID_LINK (solfec, bod2, bod1, c, b)
+  PUT_RIGID_LINK (bod2, bod1, c, b)
 
   nodes = [-0.10, -0.2, 0.0,
            -0.05, -0.2, 0.0,
@@ -48,7 +48,7 @@ def double_pendulum_run (step, stop, gravity, skip):
 
   SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', restitution = 0.1, friction = 0.0)
 
-  GRAVITY (solfec, (0, 0, -1), gravity)
+  GRAVITY (solfec, (0, 0, -gravity))
 
   double_pendulum_create (bulkmat, solfec)
 

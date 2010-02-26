@@ -94,7 +94,7 @@ key "Jean01"
 
 \end_inset
 
-, hence the constraints are solved implicitly.
+, hence the constraints are handled implicitly.
  One of the main goals of the software is to provide a user friendly platform
  for testing formulations and solution methods for the (dynamic) frictional
  contact problem.
@@ -148,19 +148,14 @@ It will be useful to introduce some basic notions here.
 \begin_inset VSpace smallskip
 \end_inset
 
-
-\end_layout
-
-\begin_layout Standard
-\noindent
 There are four bodies in the figure.
- Placement of each point of every body is determined by the configuration
+ Placement of each point of every body is determined by a configuration
  
 \begin_inset Formula $\mathbf{q}_{i}$
 \end_inset
 
 .
- Velocity of each point of every body is determined by the velocity 
+ Velocity of each point of every body is determined by a velocity 
 \begin_inset Formula $\mathbf{u}_{i}$
 \end_inset
 
@@ -174,8 +169,8 @@ There are four bodies in the figure.
 \end_inset
 
  collect configurations and velocities of all bodies.
- If the time history of velocity is known, the configuration can be computed
- as
+ If the time history of velocity is known, the configuration time history
+ can be computed as
 \end_layout
 
 \begin_layout Standard
@@ -189,7 +184,7 @@ The velocity is determined by integrating Newton's law
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-\mathbf{u}\left(t\right)=\mathbf{u}\left(0\right)+\mathbf{M}^{-1}\int_{0}^{t}\mathbf{f}+\mathbf{H}^{T}\mathbf{R}dt\label{eq:u-update}\end{equation}
+\mathbf{u}\left(t\right)=\mathbf{u}\left(0\right)+\mathbf{M}^{-1}\int_{0}^{t}\left(\mathbf{f}+\mathbf{H}^{T}\mathbf{R}\right)dt\label{eq:u-update}\end{equation}
 
 \end_inset
 
@@ -197,7 +192,7 @@ where
 \begin_inset Formula $\mathbf{M}$
 \end_inset
 
- is an inertia operator, 
+ is an inertia operator (assumed constant here), 
 \begin_inset Formula $\mathbf{f}$
 \end_inset
 
@@ -205,7 +200,7 @@ where
 \begin_inset Formula $\mathbf{H}$
 \end_inset
 
- is a linear operator, while 
+ is a linear operator, and 
 \begin_inset Formula $\mathbf{R}$
 \end_inset
 
@@ -214,11 +209,18 @@ where
 \end_inset
 
 .
- While integrating the motion of bodies, one keeps track of a number of
- local coordinate systems (local frames).
- There are four of them in the figure.
- Each local frame is related to a pair of points, belonging to two distinct
- bodies.
+ While integrating the motion of bodies, we keep track of a number of local
+ coordinate systems (local frames).
+ There are four of them in Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:Multi-body-system"
+
+\end_inset
+
+.
+ Each local frame is related to a pair of points, usually belonging to two
+ distinct bodies.
  An observer embedded at a local frame calculates the local relative velocity
  
 \begin_inset Formula $\mathbf{U}_{\alpha}$
@@ -276,7 +278,7 @@ reference "eq:u-update"
 
 \end_inset
 
-) at every instant of time we need to solve the implicit relation (
+), at every instant of time we need to solve the implicit relation (
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "eq:CUR"
@@ -400,7 +402,7 @@ and
 
 \end_inset
 
-which is a symmetric and semi-positive definite.
+which is symmetric and semi-positive definite.
  The linear transformation
 \end_layout
 
@@ -423,12 +425,24 @@ maps constraint reactions
 \end_inset
 
 .
+ Relation (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:locdyn"
+
+\end_inset
+
+) will be here referred to as the 
+\emph on
+local dynamics
+\emph default
+.
  Finally
 \end_layout
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-\mathbf{R}\mbox{ is such that }\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\mathbf{C}\left(\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right)=\mathbf{C}\left(\mathbf{R}\right)=\mathbf{0}\end{equation}
+\mathbf{R}\mbox{ is such that }\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\mathbf{C}\left(\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right)=\mathbf{C}\left(\mathbf{R}\right)=\mathbf{0}\label{eq:constraints}\end{equation}
 
 \end_inset
 
@@ -4932,7 +4946,7 @@ An object of type CONSTRAINT represents a constraint and some of its associated
 \end_layout
 
 \begin_layout Subsection*
-obj = FIX_POINT (solfec, body, point)
+obj = FIX_POINT (body, point)
 \end_layout
 
 \begin_layout Standard
@@ -4945,18 +4959,6 @@ This routine creates a fixed point constraint.
 obj
 \series default
  - created CONSTRAINT object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - 
-\series bold
-obj
-\series default
- is created for this SOLFEC object
 \end_layout
 
 \begin_layout Itemize
@@ -4980,7 +4982,7 @@ point
 \end_layout
 
 \begin_layout Subsection*
-obj = FIX_DIRECTION (solfec, body, point, direction)
+obj = FIX_DIRECTION (body, point, direction)
 \end_layout
 
 \begin_layout Standard
@@ -4994,18 +4996,6 @@ This routine fixes the motion of a referential point along a specified spatial
 obj
 \series default
  - created CONSTRAINT object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - 
-\series bold
-obj
-\series default
- is created for this SOLFEC object
 \end_layout
 
 \begin_layout Itemize
@@ -5041,7 +5031,7 @@ direction
 \end_layout
 
 \begin_layout Subsection*
-obj = FIX_SURFACE (solfec, body, surfid, direction)
+obj = FIX_SURFACE (body, surfid, direction)
 \color red
  TODO
 \end_layout
@@ -5057,18 +5047,6 @@ This routine fixes the motion of a referential surface along a specified
 obj
 \series default
  - list of created point CONSTRAINT objects
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - 
-\series bold
-obj
-\series default
- is created for this SOLFEC object
 \end_layout
 
 \begin_layout Itemize
@@ -5115,7 +5093,7 @@ x
 \end_layout
 
 \begin_layout Subsection*
-obj = SET_DISPLACEMENT (solfec, body, point, direction, tms)
+obj = SET_DISPLACEMENT (body, point, direction, tms)
 \end_layout
 
 \begin_layout Standard
@@ -5129,18 +5107,6 @@ This routine prescribes a displacement history of a referential point along
 obj
 \series default
  - created CONSTRAINT object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - 
-\series bold
-obj
-\series default
- is created for this SOLFEC object
 \end_layout
 
 \begin_layout Itemize
@@ -5184,7 +5150,7 @@ tms
 \end_layout
 
 \begin_layout Subsection*
-obj = SET_VELOCITY (solfec, body, point, direction, value)
+obj = SET_VELOCITY (body, point, direction, value)
 \end_layout
 
 \begin_layout Standard
@@ -5198,18 +5164,6 @@ This routine prescribes a velocity history of a referential point along
 obj
 \series default
  - created CONSTRAINT object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - 
-\series bold
-obj
-\series default
- is created for this SOLFEC object
 \end_layout
 
 \begin_layout Itemize
@@ -5253,7 +5207,7 @@ value
 \end_layout
 
 \begin_layout Subsection*
-obj = SET_ACCELERATION (solfec, body, point, direction, tms)
+obj = SET_ACCELERATION (body, point, direction, tms)
 \end_layout
 
 \begin_layout Standard
@@ -5267,18 +5221,6 @@ This routine prescribes an acceleration history of a referential point along
 obj
 \series default
  - created CONSTRAINT object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - 
-\series bold
-obj
-\series default
- is created for this SOLFEC object
 \end_layout
 
 \begin_layout Itemize
@@ -5322,7 +5264,7 @@ tms
 \end_layout
 
 \begin_layout Subsection*
-obj = PUT_RIGID_LINK (solfec, body1, body2, point1, point2)
+obj = PUT_RIGID_LINK (body1, body2, point1, point2)
 \end_layout
 
 \begin_layout Standard
@@ -5336,18 +5278,6 @@ This routine creates a rigid link constraints between two referential points
 obj
 \series default
  - created CONSTRAINT object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - 
-\series bold
-obj
-\series default
- is created for this SOLFEC object
 \end_layout
 
 \begin_layout Itemize
@@ -5599,7 +5529,7 @@ Routines listed in this section apply loads.
 \end_layout
 
 \begin_layout Subsection*
-GRAVITY (solfec, direction, value)
+GRAVITY (solfec, vector)
 \end_layout
 
 \begin_layout Standard
@@ -5617,21 +5547,15 @@ solfec
 \begin_layout Itemize
 
 \series bold
-direction
+vector
 \series default
  - 
 \emph on
 (vx, vy, vz)
 \emph default
- tuple defining the direction
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-value
-\series default
- - a number or a TIME_SERIES object defining the value of the acceleration
+ tuple defining the gravity acceleration.
+ Each entry is a number or a TIME_SERIES object defining the value of the
+ acceleration component.
 \end_layout
 
 \begin_layout Subsection*
