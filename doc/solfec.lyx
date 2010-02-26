@@ -7890,7 +7890,7 @@ It will be also of use to apply some gravity loading.
 \end_layout
 
 \begin_layout LyX-Code
-GRAVITY (solfec, (0, 0, -1), 10)
+GRAVITY (solfec, (0, 0, -10))
 \end_layout
 
 \begin_layout Standard
@@ -8069,7 +8069,7 @@ def ball_impact (step, stop, spring_value, dashpot_value, output):
 \end_layout
 
 \begin_layout LyX-Code
-  GRAVITY (solfec, (0, 0, -1), 10)
+  GRAVITY (solfec, (0, 0, -10))
 \end_layout
 
 \begin_layout LyX-Code

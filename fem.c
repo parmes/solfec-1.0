@@ -35,7 +35,7 @@
 typedef double (*node_t) [3]; /* mesh node */
 
 #define DOM_TOL 0.150
-#define CUT_TOL 0.005
+#define CUT_TOL 0.015
 #define MAX_NODES_COUNT 64
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)
 #define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)

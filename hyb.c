@@ -55,7 +55,7 @@ static void onewayscan (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
   {
     for (; Pb < Pe && PLT (*Pb, *Ib, 0); Pb ++); /* skip points before 'Ib' */
 
-    for (P = Pb; P < Pe && (*P)->extents [0] < (*Ib)->extents [3+d]; P ++) /* until 'P' is inside 'Ib' */
+    for (P = Pb; P < Pe && (*P)->extents [0] < (*Ib)->extents [3]; P ++) /* until 'P' is inside 'Ib' */
     {
       for (n = 1; n <= d; n ++) /* zero overlaps already, check 1,...,d */
       {
