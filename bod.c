@@ -2015,7 +2015,12 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
 /* unpack parent body */
 void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  short dynamic;
+  double half;
   int j, k;
+
+  dynamic = bod->dom->dynamic;
+  half = 0.5 * bod->dom->step;
 
   /* configuration and velocity */
   unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod));
@@ -2030,10 +2035,18 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
   /* unpack integration scheme */
   bod->scheme = unpack_int (ipos, i, ints);
 
+  /* load balancing and migration happen after first half-step
+   * hence we need to copute q(t), before computing K(q(t)) */
+  if (dynamic && (bod->scheme == SCH_DEF_LIM || bod->scheme == SCH_DEF_IMP))
+    blas_daxpy (bod->dofs, -half, bod->velo + bod->dofs, 1, bod->conf, 1); /* q(t) = q(t+h/2) - (h/2) * u(t) */
+
   /* init inverse */
-  if (bod->dom->dynamic)
-    BODY_Dynamic_Init (bod);
+  if (dynamic) BODY_Dynamic_Init (bod);
   else BODY_Static_Init (bod);
+
+  /* ok, now wee need to come back to the half-step configruation */
+  if (dynamic && (bod->scheme == SCH_DEF_LIM || bod->scheme == SCH_DEF_IMP))
+    blas_daxpy (bod->dofs, half, bod->velo + bod->dofs, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
 
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
@@ -2058,7 +2071,12 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
 /* unpack child body */
 void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  short dynamic;
+  double half;
   int j, k, l;
+
+  dynamic = bod->dom->dynamic;
+  half = 0.5 * bod->dom->step;
 
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
@@ -2077,13 +2095,21 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
   /* unpack integration scheme */
   bod->scheme = unpack_int (ipos, i, ints);
 
+  /* load balancing and migration happen after first half-step
+   * hence we need to copute q(t), before computing K(q(t)) */
+  if (dynamic && (bod->scheme == SCH_DEF_LIM || bod->scheme == SCH_DEF_IMP))
+    blas_daxpy (bod->dofs, -half, bod->velo + bod->dofs, 1, bod->conf, 1); /* q(t) = q(t+h/2) - (h/2) * u(t) */
+
   /* init inverse */
-  if (bod->dom->dynamic)
-    BODY_Dynamic_Init (bod);
+  if (dynamic) BODY_Dynamic_Init (bod);
   else BODY_Static_Init (bod);
 
+  /* ok, now wee need to come back to the half-step configruation */
+  if (dynamic && (bod->scheme == SCH_DEF_LIM || bod->scheme == SCH_DEF_IMP))
+    blas_daxpy (bod->dofs, half, bod->velo + bod->dofs, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+
   /* update shape */
-  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
 }
 
 /* pack child update */

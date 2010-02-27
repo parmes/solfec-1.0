@@ -7,7 +7,7 @@ from simple_core_base import *
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
 step = 1E-3
-stop = 11
+stop = 150 * step
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-small-prb-gs')
 GRAVITY (solfec, (0, 0, -10))
