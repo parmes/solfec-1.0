@@ -855,7 +855,7 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
 	  }
 	}
       }
-      else if (bod->kind != OBS)
+      else if (bod->kind != OBS && !(bod->kind == RIG && legend.entity >= RESULTS_SX))
       {
 	for (; src < last; src ++, val ++)
 	{
