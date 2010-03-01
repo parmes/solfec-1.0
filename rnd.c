@@ -1607,7 +1607,7 @@ static void render_vt (CON *con, double *V, GLfloat color [3])
   ADDMUL (r, V[1], con->base+3, r);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
-  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  eps = (ext  / len) * (0.5 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor3fv (color);
@@ -1626,7 +1626,7 @@ static void render_vn (CON *con, double *V, GLfloat color [3])
   SCALE (r, V[2]);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
-  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  eps = (ext  / len) * (0.5 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor3fv (color);
@@ -1648,7 +1648,7 @@ static void render_v (CON *con, double *V, GLfloat color [3])
   ADDMUL (r, V[2], con->base+6, r);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
-  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  eps = (ext  / len) * (0.5 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor3fv (color);
