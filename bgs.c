@@ -641,9 +641,30 @@ static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
   diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
 	     dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
 
-  if (diagiters > gs->diagmaxiter || diagiters < 0) /* failed */
+  if (diagiters >= gs->diagmaxiter || diagiters < 0) /* failed */
   {
-    COPY (R0, R); /* use previous reaction */
+    if (con->kind == CONTACT)
+    {
+      GSDIAS dias [3] = {GS_SEMISMOOTH_NEWTON, GS_PROJECTED_GRADIENT, GS_DE_SAXE_AND_FENG};
+
+      for (int i = 0; i < 3; i ++)
+      {
+	if (dias [i] != gs->diagsolver) /* skip current diagonal solver */
+	{
+	  COPY (R0, R); /* initialize with previous reaction */
+
+	  diagiters = DIAGONAL_BLOCK_Solver (dias [i], gs->diagepsilon, gs->diagmaxiter, /* try another solver */
+	    dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+
+	  if (diagiters < gs->diagmaxiter && diagiters >= 0) break; /* success */
+	}
+      }
+    }
+
+    if (diagiters >= gs->diagmaxiter || diagiters < 0) /* failed */
+    {
+      COPY (R0, R); /* use previous reaction */
+    }
   }
 
   /* accumulate relative
@@ -1278,7 +1299,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
    * delayed until here to minimize small communication within the loop) */
   MPI_Allreduce (&dimax, &diagiters, 1, MPI_INT, MPI_MAX, MPI_COMM_WORLD);
 
-  if (diagiters > gs->diagmaxiter || diagiters < 0)
+  if (diagiters >= gs->diagmaxiter || diagiters < 0)
   {
     if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
     else gs->error = GS_DIAGONAL_DIVERGED;
@@ -1363,7 +1384,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
 	         dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
 
-      if (diagiters > gs->diagmaxiter || diagiters < 0)
+      if (diagiters >= gs->diagmaxiter || diagiters < 0)
       {
 	if (diagiters < 0) gs->error = GS_DIAGONAL_FAILED;
 	else gs->error = GS_DIAGONAL_DIVERGED;
@@ -1371,7 +1392,30 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	switch (gs->failure)
 	{
 	case GS_FAILURE_CONTINUE:
-	  COPY (R0, R); /* use previous reaction */
+
+	  if (con->kind == CONTACT)
+	  {
+	    GSDIAS dias [3] = {GS_SEMISMOOTH_NEWTON, GS_PROJECTED_GRADIENT, GS_DE_SAXE_AND_FENG};
+
+	    for (int i = 0; i < 3; i ++)
+	    {
+	      if (dias [i] != gs->diagsolver) /* skip current diagonal solver */
+	      {
+		COPY (R0, R); /* initialize with previous reaction */
+
+		diagiters = DIAGONAL_BLOCK_Solver (dias [i], gs->diagepsilon, gs->diagmaxiter, /* try another solver */
+		  dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+
+		if (diagiters < gs->diagmaxiter && diagiters >= 0) break; /* success */
+	      }
+	    }
+	  }
+
+	  if (diagiters >= gs->diagmaxiter || diagiters < 0) /* failed */
+	  {
+	    COPY (R0, R); /* use previous reaction */
+	  }
+
 	  break;
 	case GS_FAILURE_EXIT:
 	  THROW (ERR_GAUSS_SEIDEL_DIAGONAL_DIVERGED);
