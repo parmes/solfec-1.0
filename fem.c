@@ -1987,10 +1987,119 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
   }
   else /* SCH_DEF_LIM, SCH_DEF_IMP */
   {
+#if 1
     fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t)) = fext (t+h/2) - fint (q(t)) */
     fem_dynamic_implicit_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
+#else
+
+#if 0
+    double *tmp;
+    MX *M, *K, *A;
+    int i;
+
+    ERRMEM (tmp = malloc (sizeof (double [n])));
+
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+
+    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
+
+    if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod);
+
+    if (bod->inverse) MX_Destroy (bod->inverse);
+
+    K = tangent_stiffness (bod);
+
+    bod->inverse = MX_Copy (bod->M, NULL);
+
+    A = MX_Copy (bod->M, NULL);
+
+    for (i = 0; i < M->n; i ++)
+    {
+      bod->inverse->x [i] = 1.0 / M->x [i];
+      A->x [i] = 1.0;
+    }
+
+    MX_Matmat (0.25 * step * step, K, bod->inverse, 1.0, A);
+
+    MX_Inverse (A, A);
+
+    MX_Matvec (1.0, A, f, 0.0, tmp);
+
+    MX_Matvec (step, bod->inverse, tmp, 1.0, u);
+
+    MX_Destroy (K);
+    MX_Destroy (A);
+    free (tmp);
+#else
+    double *tmp, *qcpy, *dtmp, error;
+    MX *M, *K, *A;
+    int i, iter;
+
+    ERRMEM (tmp = malloc (sizeof (double [3 * n])));
+    qcpy = tmp + n;
+    dtmp = qcpy + n;
+
+    if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod);
+
+    if (bod->inverse) MX_Destroy (bod->inverse);
+
+    bod->inverse = MX_Copy (bod->M, NULL);
+
+    for (i = 0; i < n; i ++)
+    {
+      bod->inverse->x [i] = 1.0 / M->x [i];
+    }
+
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+
+    blas_dcopy (n, q, 1, qcpy, 1);
+
+    for (i = 0; i < n; i ++) tmp [i] = 0.0;
+
+    iter = 0;
+    do
+    {
+      blas_dcopy (n, qcpy, 1, q, 1);
+
+      MX_Matvec (0.25 * step * step, bod->inverse, tmp, 1.0, q); /* q(t+h/2) + h*h/4 inv (M) F */
+
+      fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
+
+      K = tangent_stiffness (bod);
+
+      A = MX_Copy (bod->M, NULL);
+
+      for (i = 0; i < n; i ++)
+      {
+	A->x [i] = 1.0;
+        f [i] -= tmp [i];
+      }
+
+      MX_Matmat (0.25 * step * step, K, bod->inverse, 1.0, A);
+
+      MX_Inverse (A, A);
+
+      MX_Matvec (1.0, A, f, 0.0, dtmp);
+
+      MX_Destroy (A);
+      MX_Destroy (K);
+
+      for (i = 0; i < n; i ++) tmp [i] += dtmp [i];
+
+      error  = sqrt (blas_ddot (n, dtmp, 1, dtmp, 1));
+      printf ("iter = %d, error = %e\n", iter, error);
+
+    } while (error > 1E-4 && iter ++ < 10);
+
+    MX_Matvec (step, bod->inverse, tmp, 1.0, u);
+
+    blas_dcopy (n, qcpy, 1, q, 1);
+
+    free (tmp);
+#endif
+#endif
   }
 }
 

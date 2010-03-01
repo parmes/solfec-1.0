@@ -211,14 +211,7 @@ where
 .
  While integrating the motion of bodies, we keep track of a number of local
  coordinate systems (local frames).
- There are four of them in Figure 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "fig:Multi-body-system"
-
-\end_inset
-
-.
+ There are four of them in the above figure.
  Each local frame is related to a pair of points, usually belonging to two
  distinct bodies.
  An observer embedded at a local frame calculates the local relative velocity
@@ -8712,6 +8705,33 @@ reference "fig:spar-1"
 \end_inset
 
 
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Note Note
+status open
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
+name "cha:Time-integration"
+
+\end_inset
+
+Time integration
+\end_layout
+
+\begin_layout Section
+Rigid kinematics
+\end_layout
+
+\begin_layout Section
+Deformable kinematics
 \end_layout
 
 \end_inset
