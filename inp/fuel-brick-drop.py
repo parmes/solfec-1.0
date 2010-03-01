@@ -55,18 +55,16 @@ def scene_generate (material, solfec, kinematics):
   TRANSLATE (shp, (0, 0, 0.11))
   ROTATE (shp, (0, 0, 0.11), (1, 1, 1), 35)
   msh = ROUGH_HEX (shp, 2, 2, 2)
-  bod = BODY (solfec , kinematics, shp, material, mesh=msh)
-  INITIAL_VELOCITY (bod, (0, 0, -10), (0, 0, 0))
-  if (kinematics == 'FINITE_ELEMENT'): bod.scheme = 'DEF_IMP'
+  BODY (solfec , kinematics, shp, material, mesh=msh)
 
 def scene_run (solver, kinematics):
 
-  step = 1E-2
+  step = 1E-4
   stop = 3.0
 
   solfec = SOLFEC ('DYNAMIC', step, 'out/fuel-brick-drop/' + kinematics)
-  SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7)
-  bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
+  SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
+  bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
   GRAVITY (solfec, (0, 0, -10))
   scene_generate (bulkmat, solfec, kinematics)
   OUTPUT (solfec, 0.02)
