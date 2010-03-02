@@ -51,6 +51,7 @@ char* errstring (int error)
     case ERR_BOD_MAX_FREQ_LE0: return "Maximal eigen frequency of a body not positive";
     case ERR_BOD_KIND: return "Invalid body kind";
     case ERR_BOD_SCHEME: return "Invalid body time integration scheme";
+    case ERR_BOD_SCHEME_NOT_CONVERGED: return "Time integration scheme failed to converge";
     case ERR_BOD_MOTION_INVERT: return "Body motion not invertible";
     case ERR_BOD_ENERGY_CONSERVATION: return "Energy conservation failed";
     case ERR_RND_NO_DOMAIN: return "Nothing to visualise";

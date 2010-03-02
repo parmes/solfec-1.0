@@ -73,6 +73,10 @@ struct general_matrix
  * to be provided; the tables 'p' and 'i' are coppied */
 MX* MX_Create (short kind, int m, int n, int *p, int *i);
 
+/* create identity matrix of dimension n;
+ * only MXDENSE and MXCSC kinds are valid */
+MX* MX_Identity (short kind, int n);
+
 /* set to zero */
 void MX_Zero (MX *a);
 

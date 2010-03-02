@@ -2385,6 +2385,7 @@ static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
   case SCH_DEF_EXP: return PyString_FromString ("DEF_EXP");
   case SCH_DEF_LIM: return PyString_FromString ("DEF_LIM");
   case SCH_DEF_IMP: return PyString_FromString ("DEF_IMP");
+  case SCH_DEF_LIM2: return PyString_FromString ("DEF_LIM2");
   }
 
 #if MPI
@@ -2464,6 +2465,16 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
     }
 
     self->bod->scheme = SCH_DEF_IMP;
+  }
+  ELIF (value, "DEF_LIM2")
+  {
+    if (self->bod->kind == RIG)
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
+      return -1;
+    }
+
+    self->bod->scheme = SCH_DEF_LIM2;
   }
   ELSE
   {

@@ -3869,7 +3869,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="8" columns="3">
+<lyxtabular version="3" rows="9" columns="3">
 <features>
 <column alignment="center" valignment="top" width="15col%">
 <column alignment="center" valignment="top" width="20col%">
@@ -4078,7 +4078,8 @@ key "Koziara2008PhD"
 \series bold
 default
 \series default
- for deformable kinematics
+ for deformable kinematics, energy and momentum conserving, conditionally
+ stable
 \end_layout
 
 \end_inset
@@ -4110,11 +4111,47 @@ pseudo-rigid, finite element
 Linearly implicit scheme similar to 
 \begin_inset CommandInset citation
 LatexCommand cite
+key "Zhang1997"
+
+\end_inset
+
+; energy and momentum conserving, stable for moderate steps
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'DEF_LIM2'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+pseudo-rigid, finite element
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Linearly implicit scheme similar to 
+\begin_inset CommandInset citation
+LatexCommand cite
 key "Potra2006"
 
 \end_inset
 
-
+; strong numerical dissipation, stable for large steps
 \end_layout
 
 \end_inset
@@ -4150,7 +4187,7 @@ key "Chawla1998"
 
 \end_inset
 
-
+; energy and momentum conserving, stable for large steps
 \end_layout
 
 \end_inset
@@ -8712,7 +8749,7 @@ reference "fig:spar-1"
 
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \begin_inset Note Note
 status open
 
@@ -10543,7 +10580,7 @@ Parallel penalty solver.
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
-bibfiles "/Users/tomek/Devel/tkwork/bibs/rigid-bodies,/Users/tomek/Devel/tkwork/bibs/contact-related,/Users/tomek/Devel/tkwork/bibs/phd"
+bibfiles "/Users/tomek/Devel/tkwork/bibs/rigid-bodies,/Users/tomek/Devel/tkwork/bibs/contact-related,/Users/tomek/Devel/tkwork/bibs/phd,/Users/tomek/Devel/tkwork/bibs/time-stepping"
 options "plain"
 
 \end_inset

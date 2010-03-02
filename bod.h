@@ -62,16 +62,26 @@ typedef enum
   VALUE_STRESS_AND_MISES
 } VALUE_KIND;
 
-/* time integration
- * schemes */
+/* time integration schemes */
 typedef enum 
 {
-  SCH_RIG_POS,   /* NEW1 with positive energy drift (high accuracy, approximate momentum conservation) */
-  SCH_RIG_NEG,   /* NEW2 with with negative energy drift (exact momentum conservation) (DEFAULT) */
-  SCH_RIG_IMP,   /* NEW3 semi-simplict and stable (no energy drift, extact momentum conservation) */
-  SCH_DEF_EXP,   /* explicit scheme for deformable kinematics (DEFAULT) */
-  SCH_DEF_LIM,   /* linearly implicit scheme for deformable kinematics */
-  SCH_DEF_IMP    /* implicit scheme for deformable kinematics */
+  SCH_RIG_POS,   /* rigid: NEW1 with positive energy drift (high accuracy, approximate momentum conservation) */
+  SCH_RIG_NEG,   /* rigid: NEW2 with with negative energy drift (exact momentum conservation) (DEFAULT) */
+  SCH_RIG_IMP,   /* rigid: NEW3 semi-simplict and stable (no energy drift, extact momentum conservation) */
+                 /* reference: T. Koziara, N. Bicanic. Simple and efficient integration of rigid rotations suitable for constraint solvers. IJNME, 81:1073-1092, 2009 */
+
+  SCH_DEF_EXP,   /* deformable: explicit scheme (DEFAULT) */
+                 /* reference: T. Koziara, PhD theis: Aspects of computational contact dynamics, University of Glasgow, 2008 */
+
+  SCH_DEF_LIM,   /* deformable: linearly implicit scheme */
+                 /* reference: M. Zhang, R.D. Skeel. Cheap implicit symplectic integrators. Applied Numerical Mathematics, 6:297-302, 1997 */
+
+  SCH_DEF_LIM2,  /* deformable: linearly implicit scheme */
+                 /* reference: F. A. Potra, M. Anitescu,B. Gavrea, J. Trinkle. A linearly implicit trapezoidal method
+		  * for integrating stiff multibody dynamics with contact, joints, and friction, IJNME, 1079-1124, 2006 */
+
+  SCH_DEF_IMP,   /* deformable: implicit scheme */
+                 /* reference: J. C. Simo, N. Tarnow. The discrete energy-momentum method. Conserving algorithms for nonlinear elastodynamics, ZAMP, 757-792, 1992. */
 } SCHEME;
 
 struct general_force
