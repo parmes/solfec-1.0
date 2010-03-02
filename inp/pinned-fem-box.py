@@ -4,7 +4,7 @@ a = 1.0
 b = 1.0
 c = 2.0
 step = 0.01 # let the critical step rule
-stop = 10.0
+stop = 10
 
 nodes = [-a, -b, 0,
           a, -b, 0,

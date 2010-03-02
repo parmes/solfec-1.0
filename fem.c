@@ -1462,7 +1462,11 @@ static void fem_dynamic_explicit_inverse (BODY *bod)
 {
   double *x, *y;
 
-  bod->inverse = diagonal_inertia (bod);
+  ASSERT_DEBUG (!bod->M && !bod->inverse, "Body matrices not nil");
+
+  bod->M = diagonal_inertia (bod);
+
+  bod->inverse = MX_Copy (bod->M, NULL);
 
   for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
   {
@@ -1494,13 +1498,80 @@ static void fem_dynamic_implicit_inverse (BODY *bod, double step, double *force)
   /* calculate tangent operator A = M + h*h/4 K */
   bod->inverse = A = MX_Add (1.0, M, 0.25*step*step, K, NULL);
 
-  /* TODO: account for damping */
-
   /* invert A */
   MX_Inverse (A, A);
 
   /* clean up */
   MX_Destroy (K);
+}
+
+/* solve implicit ingetration nonlineare problem */
+static void fem_dynamic_implicit_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
+{
+  int n = bod->dofs,
+      imax = 16,
+      iter,
+      i;
+
+  double half = 0.5 * step,
+	*fint = FEM_FINT (bod),
+	*u0 = FEM_VEL0 (bod),
+	*u = bod->velo,
+	*q = bod->conf,
+        *qorig, *aux, *res,
+	errup, errlo, error;
+
+  ERRMEM (qorig = malloc (sizeof (double [3 * n])));
+  aux = qorig + n; res = aux + n;
+
+  if (begin)
+  {
+    blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t) */
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
+    fem_dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+    MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
+  }
+  else
+  {
+    blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t+h/2) */
+    blas_daxpy (n, -half, u0, 1, qorig, 1); /* qorig = q(t) = q(t+h/2) - (h/2) * u(t) */
+    MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) += h * inv (M) * force */
+  }
+
+  iter = 0;
+  do
+  {
+    /* in Simo and Tarnow paper, they show that PK2 should be taken as S=C[E(q(t+h)) + E(q(t))]/2,
+     * nevertheless the simpler approach below where we use C[E((q(t+h) + q(t))/2)] did not lead
+     * to energy inconsistent results in our test, but to the contratey. Hence we stick with it */
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf ... */
+    fem_internal_force (bod, fint); /* ... as it is used in there */
+    fem_dynamic_implicit_inverse (bod, step, NULL);
+    for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
+    MX_Matvec (-1.0, bod->M, aux, 1.0, res);
+    MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
+    for (i = 0; i < n; i ++) u [i] += aux [i];
+    errlo = blas_ddot (n, u, 1, u, 1);
+    errup = blas_ddot (n, aux, 1, aux, 1);
+    error = sqrt (errup / MAX (errlo, 1.0));
+  }
+  while (error > 1E-8 && ++ iter < imax);
+
+#if 0
+  printf ("DEF_IMP: iter = %d, error = %e\n", iter, error);
+#endif
+
+  ASSERT (iter < imax, ERR_BOD_SCHEME_NOT_CONVERGED);
+
+  if (begin)
+  {
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * u0[i]; /* q(t+h/2) = q(t) + (h/2) * u(t) */
+  }
+  else
+  {
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
+  }
 }
 
 /* compute inv (M) * K for an element */
@@ -1927,6 +1998,12 @@ void FEM_Dynamic_Init (BODY *bod)
     bod->inverse = NULL;
   }
 
+  if (bod->M)
+  {
+    MX_Destroy (bod->M);
+    bod->M = NULL;
+  }
+
   if (bod->scheme == SCH_DEF_EXP) fem_dynamic_explicit_inverse (bod);
   else fem_dynamic_implicit_inverse (bod, bod->dom->step, NULL);
 }
@@ -1978,129 +2055,45 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 
   blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
 
-  if (bod->scheme == SCH_DEF_EXP)
+  switch (bod->scheme)
+  {
+  case SCH_DEF_EXP:
   {
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2) = fext (t+h/2) - fint (q(t+h/2)) */
-    for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f(t+h/2) */
-    if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
+    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+    for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f */
   }
-  else /* SCH_DEF_LIM, SCH_DEF_IMP */
+  break;
+  case SCH_DEF_LIM:
   {
-#if 1
-    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t)) = fext (t+h/2) - fint (q(t)) */
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+    fem_dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+    MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
+  }
+  break;
+  case SCH_DEF_LIM2:
+  {
+    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t)) */
     fem_dynamic_implicit_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
-#else
-
-#if 0
-    double *tmp;
-    MX *M, *K, *A;
-    int i;
-
-    ERRMEM (tmp = malloc (sizeof (double [n])));
-
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-
-    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
-
-    if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod);
-
-    if (bod->inverse) MX_Destroy (bod->inverse);
-
-    K = tangent_stiffness (bod);
-
-    bod->inverse = MX_Copy (bod->M, NULL);
-
-    A = MX_Copy (bod->M, NULL);
-
-    for (i = 0; i < M->n; i ++)
-    {
-      bod->inverse->x [i] = 1.0 / M->x [i];
-      A->x [i] = 1.0;
-    }
-
-    MX_Matmat (0.25 * step * step, K, bod->inverse, 1.0, A);
-
-    MX_Inverse (A, A);
-
-    MX_Matvec (1.0, A, f, 0.0, tmp);
-
-    MX_Matvec (step, bod->inverse, tmp, 1.0, u);
-
-    MX_Destroy (K);
-    MX_Destroy (A);
-    free (tmp);
-#else
-    double *tmp, *qcpy, *dtmp, error;
-    MX *M, *K, *A;
-    int i, iter;
-
-    ERRMEM (tmp = malloc (sizeof (double [3 * n])));
-    qcpy = tmp + n;
-    dtmp = qcpy + n;
-
-    if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod);
-
-    if (bod->inverse) MX_Destroy (bod->inverse);
-
-    bod->inverse = MX_Copy (bod->M, NULL);
-
-    for (i = 0; i < n; i ++)
-    {
-      bod->inverse->x [i] = 1.0 / M->x [i];
-    }
-
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-
-    blas_dcopy (n, q, 1, qcpy, 1);
-
-    for (i = 0; i < n; i ++) tmp [i] = 0.0;
-
-    iter = 0;
-    do
-    {
-      blas_dcopy (n, qcpy, 1, q, 1);
-
-      MX_Matvec (0.25 * step * step, bod->inverse, tmp, 1.0, q); /* q(t+h/2) + h*h/4 inv (M) F */
-
-      fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
-
-      K = tangent_stiffness (bod);
-
-      A = MX_Copy (bod->M, NULL);
-
-      for (i = 0; i < n; i ++)
-      {
-	A->x [i] = 1.0;
-        f [i] -= tmp [i];
-      }
-
-      MX_Matmat (0.25 * step * step, K, bod->inverse, 1.0, A);
-
-      MX_Inverse (A, A);
-
-      MX_Matvec (1.0, A, f, 0.0, dtmp);
-
-      MX_Destroy (A);
-      MX_Destroy (K);
-
-      for (i = 0; i < n; i ++) tmp [i] += dtmp [i];
-
-      error  = sqrt (blas_ddot (n, dtmp, 1, dtmp, 1));
-      printf ("iter = %d, error = %e\n", iter, error);
-
-    } while (error > 1E-4 && iter ++ < 10);
-
-    MX_Matvec (step, bod->inverse, tmp, 1.0, u);
-
-    blas_dcopy (n, qcpy, 1, q, 1);
-
-    free (tmp);
-#endif
-#endif
   }
+  break;
+  case SCH_DEF_IMP:
+  {
+    /* q(t+h/2) = q(t) + (h/2) * u(t)
+     * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+     * u (t+h) = u (t) + inv (A) * h * f */
+    fem_dynamic_implicit_solve (bod, time, step, fext, f, 1);
+  }
+  break;
+  default:
+  break;
+  }
+
+  if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
 }
 
 /* perform the final half-step of the dynamic scheme */
@@ -2124,52 +2117,32 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
-  if (bod->scheme == SCH_DEF_EXP)
+  switch (bod->scheme)
+  {
+  case SCH_DEF_EXP:
   {
     for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
     blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
   }
-  else if (bod->scheme == SCH_DEF_LIM)
+  break;
+  case SCH_DEF_LIM:
+  case SCH_DEF_LIM2:
   {
     MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
     blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
   }
-  else /* SCH_DEF_IMP */
+  break;
+  case SCH_DEF_IMP:
   {
-    double *qorig, *aux, *res, *save, errup, errlo, error;
-    int i, iter, imax = 16;
-
-    ERRMEM (qorig = malloc (sizeof (double [4 * n])));
-    aux = qorig + n; res = aux + n; save = res + n;
-
-    blas_dcopy (n, q, 1, qorig, 1);
-    blas_daxpy (n, -half, u0, 1, qorig, 1); /* q(t) = q(t+h/2) - (h/2) * u(t) */
-    MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
-    blas_dcopy (n, u, 1, save, 1);
-    iter = 0;
-    do
-    {
-      /* in Simo and Tarnow paper, they show that PK2 should be taken as S=C[E(q(t+h)) + E(q(t))]/2,
-       * nevertheless the simpler approach below where we use C[E((q(t+h) + q(t))/2)] did not lead
-       * to energy inconsistent results in our test, but to the contratey. Hence we stick with it */
-      for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf ... */
-      fem_internal_force (bod, fint); /* ... as it is used in there */
-      if (iter % 4 == 0) fem_dynamic_implicit_inverse (bod, step, NULL); /* update tangent every forth iteration */
-      for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
-      MX_Matvec (-1.0, bod->M, aux, 1.0, res);
-      MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
-      for (i = 0; i < n; i ++) u [i] += aux [i];
-      errlo = blas_ddot (n, u, 1, u, 1);
-      errup = blas_ddot (n, aux, 1, aux, 1);
-      error = sqrt (errup / MAX (errlo, 1.0));
-    }
-    while (error > 1E-10 && ++ iter < imax);
-
-    if (iter == imax) blas_dcopy (n, save, 1, u, 1); /* falls back on SCH_DEF_LIM */
-
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u[i] + u0[i]); /* overwrite bod->conf */
-
-    free (qorig);
+    /* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+     * u (t+h) = u (t) + inv (A) * h * f
+     * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
+    fem_dynamic_implicit_solve (bod, time, step, fext, r, 0);
+  }
+  break;
+  default:
+  break;
   }
 
   /* energy */
@@ -2368,21 +2341,14 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
 /* compute current kinetic energy */
 double FEM_Kinetic_Energy (BODY *bod)
 {
-  if (bod->inverse)
+  if (bod->M)
   {
-    double *x = (bod->scheme == SCH_DEF_EXP ? bod->inverse->x : bod->M->x),
+    double *x = bod->M->x,
 	   *y = x + bod->dofs,
 	   *u = bod->velo,
 	   sum;
 
-    if (bod->scheme == SCH_DEF_EXP)
-    {
-      for (sum = 0.0; x < y; x ++, u ++) sum += (*u)*(*u) / (*x);
-    }
-    else /* SCH_DEF_LIM, SCH_DEF_IMP */
-    {
-      for (sum = 0.0; x < y; x ++, u ++) sum += (*u)*(*u) * (*x);
-    }
+    for (sum = 0.0; x < y; x ++, u ++) sum += (*u)*(*u) * (*x);
 
     return 0.5 * sum;
   }

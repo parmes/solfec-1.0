@@ -1655,6 +1655,36 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
   return a;
 }
 
+MX* MX_Identity (short kind, int n)
+{
+  double *x, *y;
+  MX *a;
+
+  if (kind == MXCSC)
+  {
+    int j, *p, *i;
+
+    ERRMEM (p = malloc (sizeof (int [2 * n + 1])));
+    i = p + n + 1;
+
+    for (j = 0, p [n] = n; j < n; j ++) p [j] = i [j] = j;
+
+    a = MX_Create (MXCSC, n, n, p, i);
+    
+    for (x = a->x, y = x + n; x < y; x ++) *x = 1.0;
+
+    free (p);
+  }
+  else
+  {
+    a = MX_Create (MXDENSE, n, n, NULL, NULL);
+
+    for (x = a->x, y = x + n*n; x < y; x += (n+1)) *x = 1.0;
+  }
+
+  return a;
+}
+
 void MX_Zero (MX *a)
 {
   for (double *x = a->x,
