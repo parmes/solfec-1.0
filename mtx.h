@@ -127,7 +127,10 @@ void MX_Eigen (MX *a, int n, double *val, MX *vec);
 /* compure 2-norm */
 double MX_Norm (MX *a);
 
+/* pack/unpack matrix into/from integer and double storage */
+void MX_Pack (MX *a, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+MX* MX_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+
 /* free matrix */
 void MX_Destroy (MX *a);
-
 #endif

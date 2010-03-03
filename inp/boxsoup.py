@@ -38,8 +38,11 @@ def make_big_box (x, y, z, wx, wy, wz, material, solfec):
   shape = [wallx1, wallx2, wally1, wally2, wallz1]
   BODY (solfec, 'OBSTACLE', shape, material)
 
-kinem = 'FINITE_ELEMENT'
+#kinem = 'FINITE_ELEMENT'
+kinem = 'PSEUDO_RIGID'
 scheme = 'DEF_IMP'
+#kinem = 'RIGID'
+#scheme = 'RIG_NEG'
 step = 0.003
 stop = 10.0
 n = 10
@@ -49,6 +52,8 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0, restituti
 bulk = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E8, poisson = 0.25, density = 1.8E3)
 GRAVITY (solfec, (0, 0, -10))
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
+
+IMBALANCE_TOLERANCE (solfec, 2.0, lockdir = 'ON')
 
 make_big_box (0, 0, 0, n, n, n, bulk, solfec)
 

@@ -27,6 +27,7 @@
 #include "alg.h"
 #include "err.h"
 #include "mtx.h"
+#include "pck.h"
 #include "ext/csparse.h"
 
 /* macros */
@@ -1429,6 +1430,14 @@ static MX* bd_inverse (MX *a, MX *b)
   return b;
 }
 
+/* execute sparse inversion */
+inline static void csc_doinv (MX *b)
+{
+  ERRMEM (b->sym = cs_sqr (2, b, 0));
+  ASSERT (b->num = cs_lu (b, b->sym, 0.1), ERR_MTX_LU_FACTOR);
+  ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + 2 * b->n]))); /* workspace after b->x */
+}
+
 /* invert sparse matrix */
 static MX* csc_inverse (MX *a, MX *b)
 {
@@ -1447,9 +1456,7 @@ static MX* csc_inverse (MX *a, MX *b)
   {
     b->flags |= MXIFAC;
 
-    ERRMEM (b->sym = cs_sqr (2, b, 0));
-    ASSERT (b->num = cs_lu (b, b->sym, 0.1), ERR_MTX_LU_FACTOR);
-    ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + 2 * b->n]))); /* workspace after b->x */
+    csc_doinv (b);
   }
 
   return b;
@@ -1992,6 +1999,92 @@ double MX_Norm (MX *a)
   for (norm = 0.0, x = a->x, y = x + a->nzmax; x < y; x ++) norm += (*x)*(*x);
 
   return sqrt (norm);
+}
+
+void MX_Pack (MX *a, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  pack_int (isize, i, ints, a->kind);
+  pack_int (isize, i, ints, a->nzmax);
+  pack_int (isize, i, ints, a->m);
+  pack_int (isize, i, ints, a->n);
+  pack_int (isize, i, ints, a->nz);
+
+  switch (a->kind)
+  {
+  case MXDENSE:
+  {
+    pack_int (isize, i, ints, a->flags & MXTRANS);
+    pack_doubles (dsize, d, doubles, a->x, a->nzmax);
+  }
+  break;
+  case MXBD:
+  {
+    pack_int (isize, i, ints, a->flags & MXTRANS);
+    pack_ints (isize, i, ints, a->p, a->n + 1);
+    pack_ints (isize, i, ints, a->i, a->n);
+    pack_doubles (dsize, d, doubles, a->x, a->nzmax);
+  }
+  break;
+  case MXCSC:
+  {
+    short IFAC = (a->flags & MXUNINV) ? 0 : MXIFAC;
+    pack_int (isize, i, ints, a->flags & (MXTRANS|IFAC));
+    pack_ints (isize, i, ints, a->p, a->n + 1);
+    pack_ints (isize, i, ints, a->i, a->nzmax);
+    pack_doubles (dsize, d, doubles, a->x, a->nzmax);
+  }
+  break;
+  }
+}
+
+MX* MX_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  MX *a;
+
+  ERRMEM (a = MEM_CALLOC (sizeof (MX)));
+
+  a->kind = unpack_int (ipos, i, ints);
+  a->nzmax = unpack_int (ipos, i, ints);
+  a->m = unpack_int (ipos, i, ints);
+  a->n = unpack_int (ipos, i, ints);
+  a->nz = unpack_int (ipos, i, ints);
+
+  switch (a->kind)
+  {
+  case MXDENSE:
+  {
+    a->flags = unpack_int (ipos, i, ints);
+    ERRMEM (a->x = malloc (sizeof (double [a->nzmax])));
+    unpack_doubles (dpos, d, doubles, a->x, a->nzmax);
+  }
+  break;
+  case MXBD:
+  {
+    a->flags = unpack_int (ipos, i, ints);
+    ERRMEM (a->p = malloc (sizeof (int [a->n + 1])));
+    ERRMEM (a->i = malloc (sizeof (int [a->n])));
+    ERRMEM (a->x = malloc (sizeof (double [a->nzmax])));
+    unpack_ints (ipos, i, ints, a->p, a->n + 1);
+    unpack_ints (ipos, i, ints, a->i, a->n);
+    unpack_doubles (dpos, d, doubles, a->x, a->nzmax);
+  }
+  break;
+  case MXCSC:
+  {
+    a->flags = unpack_int (ipos, i, ints);
+    ERRMEM (a->p = malloc (sizeof (int [a->n + 1])));
+    ERRMEM (a->i = malloc (sizeof (int [a->nzmax])));
+    ERRMEM (a->x = malloc (sizeof (double [a->nzmax])));
+    unpack_ints (ipos, i, ints, a->p, a->n + 1);
+    unpack_ints (ipos, i, ints, a->i, a->nzmax);
+    unpack_doubles (dpos, d, doubles, a->x, a->nzmax);
+
+    if (MXIFAC (a)) csc_doinv (a);
+  }
+  break;
+  }
+
+  return a;
 }
 
 void MX_Destroy (MX *a)
