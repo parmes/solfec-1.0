@@ -1992,20 +1992,11 @@ void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
 /* initialise dynamic time stepping */
 void FEM_Dynamic_Init (BODY *bod)
 {
-  if (bod->inverse)
+  if (bod->scheme == SCH_DEF_EXP)
   {
-    MX_Destroy (bod->inverse);
-    bod->inverse = NULL;
+    if (!bod->inverse) fem_dynamic_explicit_inverse (bod); /* initialize once */
   }
-
-  if (bod->M)
-  {
-    MX_Destroy (bod->M);
-    bod->M = NULL;
-  }
-
-  if (bod->scheme == SCH_DEF_EXP) fem_dynamic_explicit_inverse (bod);
-  else fem_dynamic_implicit_inverse (bod, bod->dom->step, NULL);
+  else fem_dynamic_implicit_inverse (bod, bod->dom->step, NULL); /* update every time */
 }
 
 /* estimate critical step for the dynamic scheme */

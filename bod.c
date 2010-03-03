@@ -1121,18 +1121,25 @@ void BODY_Dynamic_Init (BODY *bod)
   switch (bod->kind)
   {
     case OBS:
-      if (!bod->inverse) 
+      if (!bod->inverse)  /* initialize once */
       {
-	bod->inverse =
-	MX_Create (MXDENSE, 3, 3, NULL, NULL);
+	bod->inverse = MX_Create (MXDENSE, 3, 3, NULL, NULL);
         MX_Zero (bod->inverse); /* fake zero matrix */
       }
       break;
-    case RIG: rig_dynamic_inverse (bod); break;
+    case RIG: 
+      if (!bod->inverse) rig_dynamic_inverse (bod); /* initialize once */
+      break;
     case PRB: 
-      if (bod->scheme == SCH_DEF_EXP) prb_dynamic_explicit_inverse (bod);
-      else prb_dynamic_implicit_inverse (bod, bod->dom->step, NULL, NULL); break;
-    case FEM: FEM_Dynamic_Init (bod); break;
+      if (bod->scheme == SCH_DEF_EXP) 
+      {
+	if (!bod->inverse) prb_dynamic_explicit_inverse (bod); /* initialize once */
+      }
+      else prb_dynamic_implicit_inverse (bod, bod->dom->step, NULL, NULL); /* update every time */
+      break;
+    case FEM:
+      FEM_Dynamic_Init (bod);
+      break;
   }
 }
 
