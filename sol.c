@@ -305,15 +305,34 @@ static void statsout (SOLFEC *sol)
   ctime_r(&timer, string); 
 
 #if MPI
+  double dtimint, dcondet, dconupd, dlocdyn, dconsol, dparbal, dtotal;
+  int timint, condet, conupd, locdyn, consol, parbal, i;
   char *stapath;
   FILE *sta;
-  int i;
 
   if (dom->rank == 0)
   {
+    dtimint = SOLFEC_Timing (sol, "TIMINT");
+    dconupd = SOLFEC_Timing (sol, "CONUPD");
+    dcondet = SOLFEC_Timing (sol, "CONDET");
+    dlocdyn = SOLFEC_Timing (sol, "LOCDYN");
+    dconsol = SOLFEC_Timing (sol, "CONSOL");
+    dparbal = SOLFEC_Timing (sol, "PARBAL");
+
+    dtotal = dtimint + dconupd + dcondet + dlocdyn + dconsol + dparbal;
+
+    timint = round (100.0 * dtimint / dtotal);
+    conupd = round (100.0 * dconupd / dtotal);
+    condet = round (100.0 * dcondet / dtotal);
+    locdyn = round (100.0 * dlocdyn / dtotal);
+    consol = round (100.0 * dconsol / dtotal);
+    parbal = round (100.0 * dparbal / dtotal);
+
+
     ERRMEM (stapath = malloc (strlen (sol->outpath) + 64));
     sprintf (stapath, "%s/STATE", sol->outpath);
     ASSERT (sta = fopen (stapath, "w"), ERR_FILE_OPEN);
+
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     fprintf (sta, "%sEstimated end in %d days, %d hours, %d minutes and %d seconds\n", string, days, hours, minutes, seconds);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
@@ -326,6 +345,10 @@ static void statsout (SOLFEC *sol)
       fprintf (sta, "%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", dom->stats [i].name, dom->stats [i].sum, dom->stats [i].min, dom->stats [i].avg, dom->stats [i].max);
       printf ("%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", dom->stats [i].name, dom->stats [i].sum, dom->stats [i].min, dom->stats [i].avg, dom->stats [i].max); 
     }
+    fprintf (sta, "----------------------------------------------------------------------------------------\n");
+    printf ("----------------------------------------------------------------------------------------\n");
+    fprintf (sta, "TIMINT: %2d%%, CONUPD: %2d%%, CONDET: %2d%%, LOCDYN: %2d%%, CONSOL %2d%%, PARBAL: %2d%%\n", timint, conupd, condet, locdyn, consol, parbal);
+    printf ("TIMINT: %2d%%, CONUPD: %2d%%, CONDET: %2d%%, LOCDYN: %2d%%, CONSOL %2d%%, PARBAL: %2d%%\n", timint, conupd, condet, locdyn, consol, parbal);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     printf ("----------------------------------------------------------------------------------------\n");
 
@@ -470,8 +493,14 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     double tt;
 
 #if MPI
+    /* these values might differ due to clumsy input scripting: make them uniform */
+    sol->callback_interval = PUT_double_min (sol->callback_interval);
     sol->output_compression = PUT_int_min (sol->output_compression);
+    sol->output_interval = PUT_double_min (sol->output_interval);
+    sol->callback_time = PUT_double_min (sol->callback_time);
+    sol->output_time = PUT_double_min (sol->output_time);
     sol->duration = PUT_double_min (sol->duration);
+    /* TODO: make this more efficient by using a single call */
 #endif
 
     verbose = verbose_on (sol, kind, solver);
@@ -503,6 +532,13 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       /* end update of domain */
       DOM_Update_End (sol->dom);
 
+      /* statistics are printed every
+       * human perciveable period of time */
+      tt = timerend (&tim);
+      if (verbose) statsout (sol);
+      if (tt < 1.0) verbose = verbose_off (sol, kind, solver);
+      else if (tt >= 1.0) verbose = verbose_on (sol, kind, solver), timerstart (&tim);
+
       /* write output if needed */
       if (sol->dom->time >= sol->output_time)
       {
@@ -522,13 +558,6 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #endif
 	if (!ret) break; /* interrupt run */
       }
-
-      /* statistics are printed every
-       * human perciveable period of time */
-      tt = timerend (&tim);
-      if (verbose) statsout (sol);
-      if (tt < 1.0) verbose = verbose_off (sol, kind, solver);
-      else if (tt >= 1.0) verbose = verbose_on (sol, kind, solver), timerstart (&tim);
     }
   }
   else /* READ */
