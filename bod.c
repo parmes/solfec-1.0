@@ -434,7 +434,7 @@ static void prb_dynamic_explicit_inverse (BODY *bod)
 }
 
 /* set up inverse operator for the implicit dynamic time stepping */
-static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *force)
+static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *conf, double *force)
 {
   MX_DENSE (K, 9, 9);
   MX *M, *A;
@@ -470,7 +470,7 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *force)
     /* calculate stiffness matrix */
   SVK_Tangent_R (lambda (bod->mat->young, bod->mat->poisson),
     mi (bod->mat->young, bod->mat->poisson),
-    bod->ref_volume, 9, bod->conf, K.x);
+    bod->ref_volume, 9, conf ? conf : bod->conf, K.x);
 
   if (force)
   {
@@ -484,8 +484,6 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *force)
   /* calculate tangent operator A = M + h*h/4 K */
   MX_Add (1.0, MX_Diag(M, 0, 2), 0.25*step*step, &K, MX_Diag(A, 0, 0));
   MX_Copy (MX_Diag (M, 3, 3), MX_Diag (A, 1, 1));
-
-  /* TODO: account for damping */
 
   /* invert A */
   MX_Inverse (A, A);
@@ -631,23 +629,18 @@ static void prb_dynamic_implicit_solve (BODY *bod, double time, double step, dou
 	*fint = PRB_FINT(bod),
 	*velo = PRB_GRADVEL(bod),
 	*vel0 = PRB_GRADVEL0(bod),
-	 force [12], qorig [12],
-         aux [12], res [12], error;
+	 qorig [12],
+	 aux [12],
+	 res [12],
+	 error;
 
   if (begin)
   {
     blas_dcopy (12, bod->conf, 1, qorig, 1);
-#if 0 /* LIM guess does not work */
     blas_daxpy (12, half, velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     prb_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
-    prb_dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
-    MX_Matvec (step, bod->inverse, force, 1.0, velo); /* u(t+h) = u(t) + inv (A) * h * force */
-#else /* LIM2 guess works */
-    prb_dynamic_force (bod, time+half, step, fext, fint, force);  /* f = fext (t+h/2) - fint (q(t)) */
-    prb_dynamic_implicit_inverse (bod, step, force); /* f += (1/h) M u(t) - (h/4) K u (t) */
-    blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * force */
-#endif
+    prb_dynamic_implicit_inverse (bod, step, NULL, NULL); /* A = M + (h*h/4) * K */
+    MX_Matvec (step, bod->inverse, f, 1.0, velo); /* u(t+h) = u(t) + inv (A) * h * f */
   }
   else
   {
@@ -663,6 +656,7 @@ static void prb_dynamic_implicit_solve (BODY *bod, double time, double step, dou
     SCALE9 (aux, 0.25 * step);
     NNADD (qorig, aux, aux);
     prb_internal_force (bod, aux, fint);
+    prb_dynamic_implicit_inverse (bod, step, aux, NULL);
     COPY12 (fext, res);
     NNSUB (res, fint, res);
     SCALE12 (res, step);
@@ -675,8 +669,8 @@ static void prb_dynamic_implicit_solve (BODY *bod, double time, double step, dou
   }
   while (error > 1E-8 && ++ iter < imax);
 
-#if 1
-  printf ("DEF_IMP: iter = %d, error = %e\n", iter, error);
+#if 0
+  printf ("DEF_IMP %c: iter = %d, error = %e\n", begin ? 'B' : 'E', iter, error);
 #endif
 
   ASSERT (iter < imax, ERR_BOD_SCHEME_NOT_CONVERGED);
@@ -1124,8 +1118,6 @@ void BODY_Material (BODY *bod, int volume, BULK_MATERIAL *mat)
 
 void BODY_Dynamic_Init (BODY *bod)
 {
-  if (bod->inverse) return; /* skip if initialized */
-
   switch (bod->kind)
   {
     case OBS:
@@ -1139,7 +1131,7 @@ void BODY_Dynamic_Init (BODY *bod)
     case RIG: rig_dynamic_inverse (bod); break;
     case PRB: 
       if (bod->scheme == SCH_DEF_EXP) prb_dynamic_explicit_inverse (bod);
-      else prb_dynamic_implicit_inverse (bod, bod->dom->step, NULL); break;
+      else prb_dynamic_implicit_inverse (bod, bod->dom->step, NULL, NULL); break;
     case FEM: FEM_Dynamic_Init (bod); break;
   }
 }
@@ -1266,20 +1258,24 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
       {
 	blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
 	prb_dynamic_force (bod, time+half, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
-	prb_dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+	prb_dynamic_implicit_inverse (bod, step, NULL, NULL); /* A = M + (h*h/4) * K */
 	MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) = u (t) + inv (A) * h * f */
       }
       break;
       case SCH_DEF_LIM2:
       {
 	prb_dynamic_force (bod, time+half, step, PRB_FEXT(bod), PRB_FINT(bod), force);  /* f = fext (t+h/2) - fint (q(t)) */
-	prb_dynamic_implicit_inverse (bod, step, force); /* f += (1/h) M u(t) - (h/4) K u (t) */
+	prb_dynamic_implicit_inverse (bod, step, NULL, force); /* f += (1/h) M u(t) - (h/4) K u (t) */
 	blas_daxpy (12, half, bod->velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
 	MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * force */
       }
       break;
       case SCH_DEF_IMP:
       {
+	/* q(t+h/2) = q(t) + (h/2) * u(t)
+	 * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+	 * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+	 * u (t+h) = u (t) + inv (A) * h * f */
         prb_dynamic_implicit_solve (bod, time, step, PRB_FEXT(bod), force, 1);
       }
       default:
@@ -1381,7 +1377,11 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       break;
       case SCH_DEF_IMP:
       {
-        prb_dynamic_implicit_solve (bod, time, step, PRB_FEXT(bod), force, 0);
+	/* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+	 * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+	 * u (t+h) = u (t) + inv (A) * h * f
+	 * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
+        prb_dynamic_implicit_solve (bod, time, step, fext, force, 0);
       }
       break;
       }
@@ -1426,8 +1426,6 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
 void BODY_Static_Init (BODY *bod)
 {
-  if (bod->inverse) return; /* skip if initialized */
-
   switch (bod->kind)
   {
     case OBS:
@@ -1461,6 +1459,9 @@ void BODY_Static_Init (BODY *bod)
        * velocities */ 
       SET9 (L, 0);
       SET (v, 0);
+
+      /* initialise inverse */ 
+      prb_static_inverse (bod, bod->dom->step);
     }
     break;
     case FEM:
@@ -2066,17 +2067,18 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
 
   /* pack integration scheme */
   pack_int (isize, i, ints, bod->scheme);
+
+  /* pack energy */
+  pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
 }
 
 /* unpack parent body */
 void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   short dynamic;
-  double half;
   int j, k;
 
   dynamic = bod->dom->dynamic;
-  half = 0.5 * bod->dom->step;
 
   /* configuration and velocity */
   unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod));
@@ -2090,6 +2092,9 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
 
   /* unpack integration scheme */
   bod->scheme = unpack_int (ipos, i, ints);
+
+  /* unpack energy */
+  unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
 
   /* init inverse */
   if (dynamic) BODY_Dynamic_Init (bod);
@@ -2119,11 +2124,9 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
 void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   short dynamic;
-  double half;
   int j, k, l;
 
   dynamic = bod->dom->dynamic;
-  half = 0.5 * bod->dom->step;
 
   unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
   unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */

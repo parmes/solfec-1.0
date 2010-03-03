@@ -6111,8 +6111,8 @@ tolerance
 \series bold
 lockdir
 \series default
- - 'TRUE' or 'FALSE' flag indicating whether to lock initial space subdivision
- directions (default: 'FALSE').
+ - 'ON' or 'OFF' flag indicating whether to lock initial space subdivision
+ directions (default: 'OFF').
  Locked directions can decrease the communication needs at the cost of a
  lower quality of the domain partitioning.
 \end_layout

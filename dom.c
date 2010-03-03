@@ -2533,6 +2533,16 @@ void DOM_Update_End (DOM *dom)
   SET *del, *item;
   BODY *bod;
 
+#if MPI
+  SOLFEC_Timer_Start (dom->solfec, "PARBAL");
+
+  /* update external reactions after solution has completed;
+   * solvers do not take care of that, hence this is important */
+  DOM_Update_External_Reactions (dom, 0);
+
+  SOLFEC_Timer_End (dom->solfec, "PARBAL");
+#endif
+
   SOLFEC_Timer_Start (dom->solfec, "TIMINT");
 
   /* time and step */
