@@ -206,6 +206,7 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
   {
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Write_State (solver, sol->bf); break;
   case PENALTY_SOLVER: PENALTY_Write_State (solver, sol->bf); break;
+  case PER_BODY_SOLVER: PER_BODY_Write_State (solver, sol->bf); break;
   default: break;
   }
 }
@@ -382,6 +383,7 @@ static void SOLVE (SOLFEC *sol, void *solver, SOLVER_KIND kind, LOCDYN *ldy, int
   {
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Solve (solver, ldy); break;
   case PENALTY_SOLVER: PENALTY_Solve (solver, ldy); break;
+  case PER_BODY_SOLVER: PER_BODY_Solve (solver, ldy); break;
   default: break;
   }
 
@@ -493,6 +495,9 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     double tt;
 
 #if MPI
+    /* per-body solver domain mode affects parallel load balancing */
+    sol->dom->per_body_solver = (kind == PER_BODY_SOLVER);
+
     /* these values might differ due to clumsy input scripting: make them uniform */
     sol->callback_interval = PUT_double_min (sol->callback_interval);
     sol->output_compression = PUT_int_min (sol->output_compression);

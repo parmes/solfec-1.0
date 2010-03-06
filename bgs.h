@@ -7,10 +7,6 @@
 
 #include "ldy.h"
 
-#if MPI
-#include <zoltan.h>
-#endif
-
 #ifndef __bgs__
 #define __bgs__
 

@@ -473,13 +473,17 @@ static int constraint_weight (CON *con)
 static int body_weight (BODY *bod)
 {
   int wgt = bod->dofs;
+  DOM *dom = bod->dom;
+  short pbs = dom->per_body_solver; /* per-body solver mode */
   SET *item;
   CON *con;
 
   for (item = SET_First (bod->con); item; item = SET_Next (item))
   {
     con = item->data;
-    if (!con->slave) wgt += constraint_weight (con); /* one-body constraints migrate with the body, hence they increase its weight */
+    if (!con->slave || pbs) wgt += constraint_weight (con); /* one-body constraints migrate with the body, hence they increase its weight */
+                                                            /* but, in the per-body solver mode we sum up weight of all constraints in order
+							     * to obtain a better body balance and as a result a better solver load balance */
   }
 
   return  wgt;

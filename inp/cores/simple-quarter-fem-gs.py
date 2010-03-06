@@ -20,7 +20,7 @@ gs.reverse = 'ON'
 
 simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'FINITE_ELEMENT', 'DEF_IMP', 'FINITE_ELEMENT', 'DEF_IMP', 10, 10, 12)
 
-UNPHYSICAL_PENETRATION (solfec, 0.02)
+#UNPHYSICAL_PENETRATION (solfec, 0.02)
 IMBALANCE_TOLERANCE (solfec, 1.1)
 OUTPUT (solfec, 0.03)
 RUN (solfec, gs, stop)

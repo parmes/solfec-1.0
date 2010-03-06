@@ -61,6 +61,7 @@ OBJ =   $(EXTO)   \
 	obj/ldy.o \
 	obj/bgs.o \
 	obj/pes.o \
+	obj/pbs.o \
 	obj/dom.o \
 	obj/dio.o \
 	obj/lng.o \
@@ -77,6 +78,7 @@ OBJMPI = $(EXTO)       \
 	 obj/ldy-mpi.o \
 	 obj/bgs-mpi.o \
 	 obj/pes-mpi.o \
+	 obj/pbs-mpi.o \
 	 obj/dom-mpi.o \
 	 obj/dio-mpi.o \
 	 obj/lng-mpi.o \
@@ -85,7 +87,7 @@ OBJMPI = $(EXTO)       \
 	 obj/fem-mpi.o \
 
 solfec: obj/solfec.o obj/libsolfec.a
-	$(CC) -o $@ $< -Lobj -lsolfec $(LIB)
+	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec $(LIB)
 
 obj/libsolfec.a: $(OBJ)
 	ar rcv $@ $(OBJ)
@@ -98,7 +100,7 @@ all: solfec mpi
 mpi: solfec-mpi
 
 solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a
-	$(MPICC) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
+	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
@@ -232,6 +234,9 @@ obj/bgs.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h
 obj/pes.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+obj/pbs.o: pbs.c pbs.h bgs.h dom.h ldy.h err.h alg.h lap.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 obj/sps.o: sps.c sps.h mem.h set.h map.h dom.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -253,7 +258,7 @@ obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
 
-obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h mat.h pbf.h tmr.h
+obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h pbs.h mat.h pbf.h tmr.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 # OPENGL
 
@@ -302,6 +307,9 @@ obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/pes-mpi.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/pbs-mpi.o: pbs.c pbs.h bgs.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
