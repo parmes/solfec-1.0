@@ -220,6 +220,7 @@ struct domain
   DOMSTATS *stats; /* domain statistics */
   int nstats; /* statistics count */
   DBD *dbd; /* load balancing send sets */
+  short per_body_solver; /* per-body solver mode */ 
 #endif
 
   DOM *prev, *next; /* list */

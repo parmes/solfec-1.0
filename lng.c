@@ -3198,6 +3198,87 @@ static PyGetSetDef lng_PENALTY_SOLVER_getset [] =
 { {NULL, 0, 0, NULL, NULL} };
 
 /*
+ * PER_BODY_SOLVER => object
+ */
+
+typedef struct lng_PER_BODY_SOLVER lng_PER_BODY_SOLVER;
+
+static PyTypeObject lng_PER_BODY_SOLVER_TYPE;
+
+struct lng_PER_BODY_SOLVER
+{
+  PyObject_HEAD
+
+  PER_BODY *pb;
+};
+
+/* constructor */
+static PyObject* lng_PER_BODY_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("method", "epsilon", "maxiter");
+  lng_PER_BODY_SOLVER *self;
+  PyObject *method;
+  double epsilon;
+  PBMETHOD mth;
+  int maxiter;
+
+  self = (lng_PER_BODY_SOLVER*)type->tp_alloc (type, 0);
+
+  if (self)
+  {
+    mth = PB_GAUSS_SEIDEL;
+    method = NULL;
+    epsilon = 0.001;
+    maxiter = 1000;
+
+    PARSEKEYS ("|Odi", &method, &epsilon, &maxiter);
+
+    TYPETEST (is_string (method, kwl[0]) && is_positive (epsilon, kwl[1]) && is_positive (maxiter, kwl[2]));
+
+    if (method)
+    {
+      IFIS (method, "GAUSS_SEIDEL")
+      {
+	mth = PB_GAUSS_SEIDEL;
+      }
+      ELIF (method, "NEWTON")
+      {
+	mth = PB_NEWTON;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid method");
+	return NULL;
+      }
+    }
+
+    self->pb = PER_BODY_Create (mth, epsilon, maxiter);
+  }
+
+  return (PyObject*)self;
+}
+
+/* destructor */
+static void lng_PER_BODY_SOLVER_dealloc (lng_PER_BODY_SOLVER *self)
+{
+  PER_BODY_Destroy (self->pb);
+
+  self->ob_type->tp_free ((PyObject*)self);
+}
+
+/* PER_BODY_SOLVER methods */
+static PyMethodDef lng_PER_BODY_SOLVER_methods [] =
+{ {NULL, NULL, 0, NULL} };
+
+/* PER_BODY_SOLVER members */
+static PyMemberDef lng_PER_BODY_SOLVER_members [] =
+{ {NULL, 0, 0, 0, NULL} };
+
+/* PER_BODY_SOLVER getset */
+static PyGetSetDef lng_PER_BODY_SOLVER_getset [] =
+{ {NULL, 0, 0, NULL, NULL} };
+
+/*
  * CONSTRAINT => object
  */
 
@@ -4981,7 +5062,8 @@ static int is_solver (PyObject *obj, char *var)
   if (obj)
   {
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
-        !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
+        !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
+        !PyObject_IsInstance (obj, (PyObject*)&lng_PER_BODY_SOLVER_TYPE))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must be a constraint solver object", var);
@@ -5000,6 +5082,8 @@ static int get_solver_kind (PyObject *obj)
     return GAUSS_SEIDEL_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     return PENALTY_SOLVER;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_PER_BODY_SOLVER_TYPE))
+    return PER_BODY_SOLVER;
   else return -1;
 }
 
@@ -5010,6 +5094,8 @@ static void* get_solver (PyObject *obj)
     return ((lng_GAUSS_SEIDEL_SOLVER*)obj)->gs;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     return ((lng_PENALTY_SOLVER*)obj)->ps;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_PER_BODY_SOLVER_TYPE))
+    return ((lng_PER_BODY_SOLVER*)obj)->pb;
   else return NULL;
 }
 
@@ -5876,6 +5962,10 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_PENALTY_SOLVER_dealloc, lng_PENALTY_SOLVER_new,
     lng_PENALTY_SOLVER_methods, lng_PENALTY_SOLVER_members, lng_PENALTY_SOLVER_getset);
 
+  TYPEINIT (lng_PER_BODY_SOLVER_TYPE, lng_PER_BODY_SOLVER, "solfec.PER_BODY_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_PER_BODY_SOLVER_dealloc, lng_PER_BODY_SOLVER_new,
+    lng_PER_BODY_SOLVER_methods, lng_PER_BODY_SOLVER_members, lng_PER_BODY_SOLVER_getset);
+
   TYPEINIT (lng_CONSTRAINT_TYPE, lng_CONSTRAINT, "solfec.CONSTRAINT",
     Py_TPFLAGS_DEFAULT, lng_CONSTRAINT_dealloc, lng_CONSTRAINT_new,
     lng_CONSTRAINT_methods, lng_CONSTRAINT_members, lng_CONSTRAINT_getset);
@@ -5890,6 +5980,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_TIME_SERIES_TYPE) < 0) return;
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
+  if (PyType_Ready (&lng_PER_BODY_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
   if (!(m =  Py_InitModule3 ("solfec", lng_methods, "Solfec module"))) return;
@@ -5904,6 +5995,7 @@ static void initlng (void)
   Py_INCREF (&lng_TIME_SERIES_TYPE);
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
+  Py_INCREF (&lng_PER_BODY_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
@@ -5916,6 +6008,7 @@ static void initlng (void)
   PyModule_AddObject (m, "TIME_SERIES", (PyObject*)&lng_TIME_SERIES_TYPE);
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
+  PyModule_AddObject (m, "PER_BODY_SOLVER", (PyObject*)&lng_PER_BODY_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
 
@@ -5948,6 +6041,7 @@ int lng (const char *path)
                      "from solfec import TIME_SERIES\n"
                      "from solfec import GAUSS_SEIDEL_SOLVER\n"
                      "from solfec import PENALTY_SOLVER\n"
+                     "from solfec import PER_BODY_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"
