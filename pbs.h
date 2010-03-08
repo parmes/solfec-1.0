@@ -14,7 +14,7 @@ typedef struct pb PER_BODY;
 
 enum pbmethod
 {
-  PB_GAUSS_SEIDEL,
+  PB_GAUSS_SEIDEL = 0,
   PB_NEWTON
 };
 
