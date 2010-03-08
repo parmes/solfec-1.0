@@ -54,7 +54,7 @@ struct offb
   double W [9], /* generalised inverse inertia block */
 	 *SYMW; /* symmetric copy of W block */
 
-  DIAB *dia; /* can be NULL for balanced boundary blocks */
+  DIAB *dia; /* corresponding diagonal block */
   BODY *bod;
   OFFB *n;
 };
@@ -70,8 +70,7 @@ struct diab
 	 rho;   /* scaling parameter */
 
   OFFB *adj;
-  CON *con;    /* the underlying constraint (and the owner od the reaction R[3]);
-                  NULL for balanced constraints from aabb->diab */
+  CON *con;    /* the underlying constraint (and the owner od the reaction R[3] and the velocity U [3]) */
 
   MX *mH, *mprod, /* master H operator and H inv(M) or inv(M) H^T product */
      *sH, *sprod; /* slave counterpart */
