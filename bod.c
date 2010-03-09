@@ -42,7 +42,6 @@
 
 /* energy conservation tolerance */
 #define ENE_TOL 0.01
-#define ENE_EPS 1E-9
 
 /* sizes */
 #define RIG_CONF_SIZE	15	/* rotation matrix, mass center position, auxiliary vector of size 3 */
@@ -1411,20 +1410,17 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
     compute_contacts_work (bod, step); /* CONTWORK and FRICWORK */
 
-    /* FIXME: energy balance does to work correctly in parallel
-     * FIXME: energy history needs to be passed around in order to fix it;
-     * FIXME: also in the sequential case it needs adjustment for the implicit scheme */
-#if 0
+#if 1 /* TODO: remove condition when proved robust */
     double emax, etot;
 
     MAXABS (energy, emax);
 
     etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
-    if (!(etot < ENE_TOL * emax || emax < ENE_EPS))
+    if (!(etot < ENE_TOL * emax || emax < 0))
       fprintf (stderr, "KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
 
-    ASSERT (etot < ENE_TOL * emax || emax < ENE_EPS, ERR_BOD_ENERGY_CONSERVATION);
+    ASSERT (etot < ENE_TOL * emax || emax < 0, ERR_BOD_ENERGY_CONSERVATION);
 #endif
 
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);

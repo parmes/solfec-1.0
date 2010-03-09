@@ -19,8 +19,8 @@
 #include "pck.h"
 #endif
 
-/* Gauss-Seidel solver */
-static void gauss_seidel_solver (BODY *bod, double epsilon, int maxiter, short dynamic, double step)
+/* Gauss-Seidel per-body solver */
+static void per_body_solver (SET *conset, double epsilon, int maxiter, short dynamic, double step)
 {
   double R0 [3], B [3], *R, errup, errlo, error, diagepsilon;
   int iters, diagiters, diagmaxiter;
@@ -38,7 +38,7 @@ static void gauss_seidel_solver (BODY *bod, double epsilon, int maxiter, short d
   {
     errup = errlo = 0.0;
   
-    for (item = SET_First (bod->con); item; item = SET_Next (item)) 
+    for (item = SET_First (conset); item; item = SET_Next (item)) 
     {
       con = item->data;
       dia = con->dia;
@@ -113,15 +113,6 @@ static void gauss_seidel_solver (BODY *bod, double epsilon, int maxiter, short d
   }
   while (++ iters < maxiter && error > epsilon);
 }
-
-/* semismooth Newton solver based on hybrid linearisation and linesearch */
-static void newton_solver (BODY *bod, double epsilon, int maxiter, short dynamic, double step)
-{
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
-}
-
-/* solvers */
-static void (*per_body_solver []) (BODY*, double, int, short, double) = {gauss_seidel_solver, newton_solver};
 
 #if MPI
 /* pack exported local dynamics rows */
@@ -257,16 +248,56 @@ static void* local_dynamics_unpack (LOCDYN *ldy, int *dpos, double *d, int doubl
 
   return NULL;
 }
+
+/* pack boundary reactions */
+static void boundary_reactions_pack (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  SET *item;
+  CON *con;
+
+  pack_int (isize, i, ints, SET_Size (set));
+
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    con = item->data;
+
+    pack_int (isize, i, ints, con->id);
+    pack_doubles (dsize, d, doubles, con->R, 3);
+  }
+}
+
+/* unpack and average boundary reactions */
+static void* boundary_reactions_unpack (LOCDYN *ldy, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  DOM *dom = ldy->dom;
+  double R [3];
+  int j, n, id;
+  CON *con;
+
+  n = unpack_int (ipos, i, ints);
+
+  for (j = 0; j < n; j ++)
+  {
+    id = unpack_int (ipos, i, ints);
+    unpack_doubles (dpos, d, doubles, R, 3);
+
+    con = MAP_Find (dom->idc, (void*) (long) id, NULL);
+    if (!con) { ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid constraint id"); }
+
+    MID (con->R, R, con->R);
+  }
+
+  return NULL;
+}
 #endif
 
 /* create solver */
-PER_BODY* PER_BODY_Create (PBMETHOD method, double epsilon, int maxiter)
+PER_BODY* PER_BODY_Create (double epsilon, int maxiter)
 {
   PER_BODY *pb;
 
   ERRMEM (pb = malloc (sizeof (PER_BODY)));
 
-  pb->method = method;
   pb->epsilon = epsilon;
   pb->maxiter = maxiter;
 
@@ -276,7 +307,7 @@ PER_BODY* PER_BODY_Create (PBMETHOD method, double epsilon, int maxiter)
 /* run solver */
 void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 {
-  int method = pb->method, maxiter = pb->maxiter;
+  int maxiter = pb->maxiter;
   double epsilon = pb->epsilon;
   DOM *dom = ldy->dom;
   short dynamic = dom->dynamic;
@@ -284,20 +315,23 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
   BODY *bod, **perm;
   int i, j, n;
 #if MPI
+  SET **conext, *item, *boundary, *fixed;
   MEM *setmem = &dom->setmem;
   COMDATA *send, *recv, *ptr;
   int nsend, nrecv, ncpu;
   COMOBJ *osend, *orecv;
-  SET **conext, *item;
-  double *d;
   CON *con;
 
   ncpu = dom->ncpu;
+
+  boundary = fixed = NULL;
 
   ERRMEM (conext = MEM_CALLOC (ncpu * sizeof (SET*))); /* rank sets of external constraints used by parent bodies */
 
   for (bod = dom->bod; bod; bod = bod->next) /* find external constraints attached to parent bodies */
   {
+    if (bod->kind == OBS) continue;
+
     for (item = SET_First (bod->con); item; item = SET_Next (item))
     {
       con = item->data;
@@ -307,6 +341,10 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 	SET_Insert (setmem, &conext [con->rank], con, NULL); /* note that dom->conext, although contains all external constraints, might be
 						                notabely larger as it includes constraints attached to children and parents */
       }
+
+      if (!con->dia || con->ext) SET_Insert (setmem, &boundary, bod, NULL); /* mark as a boundary body */
+
+      if (con->kind != CONTACT) SET_Insert (setmem, &fixed, con, NULL); /* mark as a fixed constraint */
     }
   }
 
@@ -347,6 +385,26 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 
   /* send local dynamics rows */
   COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack) local_dynamics_pack, ldy, (OBJ_Unpack) local_dynamics_unpack, osend, ncpu, &orecv, &nrecv);
+
+  /* solve boundary bodies */
+  for (item = SET_First (boundary); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    per_body_solver (bod->con, epsilon, maxiter, dynamic, step);
+  }
+
+  /* create complete send sets comprizing both the exporting and the importing constraints */
+  for (i = 0; i < ncpu; i ++)
+  {
+    for (item = SET_First (conext [i]); item; item = SET_Next (item))
+    {
+      SET_Insert (setmem, (SET**) &osend [i].o, item->data, NULL);
+    }
+  }
+  free (orecv);
+
+  /* negotiate boundary reactions */
+  COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack) boundary_reactions_pack, ldy, (OBJ_Unpack) boundary_reactions_unpack, osend, ncpu, &orecv, &nrecv);
 #endif
 
   srand (time (NULL));
@@ -355,7 +413,11 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 
   for (n = 0, bod = dom->bod; bod; bod = bod->next)
   {
+#if MPI
+    if (bod->kind != OBS && !SET_Contains (boundary, bod, NULL)) /* only inner bodies here */
+#else
     if (bod->kind != OBS)
+#endif
     {
       perm [n ++] = bod; /* initial permutation */
     }
@@ -371,46 +433,16 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 
   for (i = 0; i < n; i ++) /* run sequence of body solvers */
   {
-    per_body_solver [method] (perm [i], epsilon, maxiter, dynamic, step);
+    per_body_solver (perm [i]->con, epsilon, maxiter, dynamic, step);
   }
 
   free (perm);
 
 #if MPI
+  /* additionally iterate on bilateral constraints in order to ensure accuracy */
+  per_body_solver (fixed, epsilon, maxiter, dynamic, step);
 
-#if 0
-  for (nsend = i = j = 0; i < ncpu; i ++)
-  {
-    if (conext [i])
-    {
-      send [j].doubles  = 3 * send [j].ints;
-      ERRMEM (send [j].d = malloc (send [j].doubles * sizeof (double)));
-      for (d = send [j]. d, item = SET_First (conext [i]); item; item = SET_Next (item), d += 3)
-      {
-	con = item->data;
-	COPY (con->R, d);
-      }
-      j ++;
-    }
-  }
-  free (recv);
-
-  /* send locally computed external reactions */
-  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
-
-  for (ptr = recv; ptr < recv + nrecv; ptr ++)
-  {
-    for (j = 0, d = ptr->d; j < ptr->ints; j ++, d += 3)
-    {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ptr->i [j], NULL), "Invalid constraint id");
-      ASSERT_DEBUG (con->dia, "Inconsistent constraints: external constraint in place of parent one");
-
-      MID (d, con->R, con->R); /* average with parent reactions */
-    }
-  }
-#endif
-
-  /* clean */
+  /* clean up */
   for (i = 0; i < dom->ncpu; i ++)
   {
     if (conext [i])
@@ -434,12 +466,12 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
       }
 
       SET_Free (setmem, &conext [i]);
-      free (send [i].i);
-      free (send [i].d);
     }
 
     SET_Free (setmem, (SET**) &osend [i].o);
+    if (i < nsend) free (send [i].i);
   }
+  SET_Free (setmem, &boundary);
   free (conext);
   free (osend);
   free (orecv);
