@@ -152,6 +152,8 @@ static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, i
     {
       CON *con = (CON*) blk->dia; /* external blocks point directly to external contacts <= ldy.c:compute_adjext */
 
+      if (con->kind != CONTACT) continue; /* skip non-contact adjacency */
+
       if (con->rank == pd->rank) n ++; /* if the destination rank is the parent rank of this external constraint: export W */
       else /* otherwise contribute to B only */
       {
@@ -161,9 +163,12 @@ static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, i
 	NVADDMUL (B, W, R, B);
       }
     }
+
     for (blk = dia->adj; blk; blk = blk->n)
     {
       CON *con = blk->dia->con;
+
+      if (con->kind != CONTACT) continue; /* skip non-contact adjacency */
 
       if (SET_Contains (con->ext, (void*) (long) pd->rank, NULL)) n ++; /* if the constraint was exported to the destination rank: export W */
       else /* otherwise contribute to B only */
@@ -181,6 +186,8 @@ static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, i
     {
       CON *con = (CON*) blk->dia; /* external blocks point directly to external contacts <= ldy.c:compute_adjext */
 
+      if (con->kind != CONTACT) continue; /* skip non-contact adjacency */
+
       if (con->rank == pd->rank)
       {
 	pack_int (isize, i, ints, con->id);
@@ -192,6 +199,8 @@ static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, i
     for (blk = dia->adj; blk; blk = blk->n)
     {
       CON *con = blk->dia->con;
+
+      if (con->kind != CONTACT) continue; /* skip non-contact adjacency */
 
       if (SET_Contains (con->ext, (void*) (long) pd->rank, NULL))
       {
