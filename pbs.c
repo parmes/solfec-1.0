@@ -48,14 +48,9 @@ static void per_body_solver (SET *conset, double epsilon, int maxiter, short dyn
       COPY (dia->B, B);
       for (blk = dia->adj; blk; blk = blk->n)
       {
-	double *W = blk->W, *R;
-#if MPI
-        if (blk->dia) R = blk->dia->R; /* local */
-	else if (blk->bod) R = ((CON*)blk->bod)->R; /* imported */
-	else R = blk->SYMW; /* external */
-#else
-	R = blk->dia->R;
-#endif
+	double *W = blk->W,
+	       *R = blk->dia->R;
+
 	NVADDMUL (B, W, R, B);
       }
 
@@ -115,18 +110,22 @@ static void per_body_solver (SET *conset, double epsilon, int maxiter, short dyn
 }
 
 #if MPI
+/* pack data structure */
+typedef struct pack_data { int rank; SET *set; } PD;
+
 /* pack exported local dynamics rows */
-static void local_dynamics_pack (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
+  double B [3];
   SET *item;
   CON *con;
   DIAB *dia;
   OFFB *blk;
   int n;
 
-  pack_int (isize, i, ints, SET_Size (set));
+  pack_int (isize, i, ints, SET_Size (pd->set));
 
-  for (item = SET_First (set); item; item = SET_Next (item))
+  for (item = SET_First (pd->set); item; item = SET_Next (item))
   {
     con = item->data;
 
@@ -147,13 +146,34 @@ static void local_dynamics_pack (SET *set, int *dsize, double **d, int *doubles,
 
     dia = con->dia;
 
-    pack_doubles (dsize, d, doubles, dia->V, 3);
-    pack_doubles (dsize, d, doubles, dia->B, 3);
-    pack_doubles (dsize, d, doubles, dia->W, 9);
-    pack_double (dsize, d, doubles, dia->rho);
+    COPY (dia->B, B);
 
-    for (n = 0, blk = dia->adjext; blk; blk = blk->n) n ++;
-    for (blk = dia->adj; blk; blk = blk->n) n ++;
+    for (n = 0, blk = dia->adjext; blk; blk = blk->n)
+    {
+      CON *con = (CON*) blk->dia; /* external blocks point directly to external contacts <= ldy.c:compute_adjext */
+
+      if (con->rank == pd->rank) n ++; /* if the destination rank is the parent rank of this external constraint: export W */
+      else /* otherwise contribute to B only */
+      {
+	double *W = blk->W,
+	       *R = con->R;
+
+	NVADDMUL (B, W, R, B);
+      }
+    }
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      CON *con = blk->dia->con;
+
+      if (SET_Contains (con->ext, (void*) (long) pd->rank, NULL)) n ++; /* if the constraint was exported to the destination rank: export W */
+      else /* otherwise contribute to B only */
+      {
+	double *W = blk->W,
+	       *R = con->R;
+
+	NVADDMUL (B, W, R, B);
+      }
+    }
 
     pack_int (isize, i, ints, n);
 
@@ -161,19 +181,30 @@ static void local_dynamics_pack (SET *set, int *dsize, double **d, int *doubles,
     {
       CON *con = (CON*) blk->dia; /* external blocks point directly to external contacts <= ldy.c:compute_adjext */
 
-      pack_int (isize, i, ints, con->id);
-      pack_doubles (dsize, d, doubles, blk->W, 9);
-      pack_doubles (dsize, d, doubles, con->R, 3);
+      if (con->rank == pd->rank)
+      {
+	pack_int (isize, i, ints, con->id);
+	pack_doubles (dsize, d, doubles, blk->W, 9);
+	pack_doubles (dsize, d, doubles, con->R, 3);
+      }
     }
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
       CON *con = blk->dia->con;
 
-      pack_int (isize, i, ints, con->id);
-      pack_doubles (dsize, d, doubles, blk->W, 9);
-      pack_doubles (dsize, d, doubles, con->R, 3);
+      if (SET_Contains (con->ext, (void*) (long) pd->rank, NULL))
+      {
+	pack_int (isize, i, ints, con->id);
+	pack_doubles (dsize, d, doubles, blk->W, 9);
+	pack_doubles (dsize, d, doubles, con->R, 3);
+      }
     }
+
+    pack_doubles (dsize, d, doubles, dia->V, 3);
+    pack_doubles (dsize, d, doubles, B, 3);
+    pack_doubles (dsize, d, doubles, dia->W, 9);
+    pack_double (dsize, d, doubles, dia->rho);
   }
 }
 
@@ -193,7 +224,7 @@ static void* local_dynamics_unpack (LOCDYN *ldy, int *dpos, double *d, int doubl
   {
     id = unpack_int (ipos, i, ints);
 
-    ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid external constraint id");
+    ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid constraint id");
 
     switch ((int) con->kind)
     {
@@ -213,11 +244,6 @@ static void* local_dynamics_unpack (LOCDYN *ldy, int *dpos, double *d, int doubl
     dia->U = con->U;
     con->dia = dia;
 
-    unpack_doubles (dpos, d, doubles, dia->V, 3);
-    unpack_doubles (dpos, d, doubles, dia->B, 3);
-    unpack_doubles (dpos, d, doubles, dia->W, 9);
-    dia->rho = unpack_double (dpos, d, doubles);
-
     m = unpack_int (ipos, i, ints);
 
     for (j = 0; j < m; j ++)
@@ -225,39 +251,36 @@ static void* local_dynamics_unpack (LOCDYN *ldy, int *dpos, double *d, int doubl
       id = unpack_int (ipos, i, ints);
 
       CON *con = MAP_Find (dom->idc, (void*) (long) id, NULL);
-      if (!con) con = MAP_Find (dom->conext, (void*) (long) id, NULL);
+      if (!con) { ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid constraint id"); }
 
       ERRMEM (blk = MEM_Alloc (&ldy->offmem));
       unpack_doubles (dpos, d, doubles, blk->W, 9);
       unpack_doubles (dpos, d, doubles, R, 3);
 
-      blk->n = dia->adj;
-      dia->adj = blk;
+      blk->dia = (DIAB*) con; /* use the diagonal block pointer */
 
-      if (con)
-      {
-	blk->bod = (BODY*) con; /* set body pointer: mark as imported */
-      }
-      else
-      {
-	ERRMEM (blk->SYMW = malloc (sizeof (double [3])));
-	COPY (R, blk->SYMW); /* external constraint: constant reaction value */
-      }
+      blk->n = dia->adjext; /* append external adjacency list */
+      dia->adjext = blk;
     }
+
+    unpack_doubles (dpos, d, doubles, dia->V, 3);
+    unpack_doubles (dpos, d, doubles, dia->B, 3);
+    unpack_doubles (dpos, d, doubles, dia->W, 9);
+    dia->rho = unpack_double (dpos, d, doubles);
   }
 
   return NULL;
 }
 
 /* pack boundary reactions */
-static void boundary_reactions_pack (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+static void boundary_reactions_pack (PD *pd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
   CON *con;
 
-  pack_int (isize, i, ints, SET_Size (set));
+  pack_int (isize, i, ints, SET_Size (pd->set));
 
-  for (item = SET_First (set); item; item = SET_Next (item))
+  for (item = SET_First (pd->set); item; item = SET_Next (item))
   {
     con = item->data;
 
@@ -321,6 +344,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
   int nsend, nrecv, ncpu;
   COMOBJ *osend, *orecv;
   CON *con;
+  PD *pd;
 
   ncpu = dom->ncpu;
 
@@ -367,7 +391,12 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
   }
 
   ERRMEM (osend = MEM_CALLOC (ncpu * sizeof (COMOBJ)));
-  for (i = 0; i < ncpu; i ++) osend [i].rank = i;
+  ERRMEM (pd = MEM_CALLOC (ncpu * sizeof (PD)));
+  for (i = 0; i < ncpu; i ++) 
+  {
+    pd [i].rank = osend [i].rank = i;
+    osend [i].o = &pd [i];
+  }
 
   /* send ids of needed external constraints
    * (local dynamics rows) to parent ranks */
@@ -379,7 +408,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
     {
       ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ptr->i [j], NULL), "Invalid constraint id");
       ASSERT_DEBUG (con->dia, "Inconsistent constraints: external constraint in place of parent one");
-      SET_Insert (setmem, (SET**) &osend [ptr->rank].o, con, NULL); /* schedule for sending (local dynamics row) */
+      SET_Insert (setmem, &pd [ptr->rank].set, con, NULL); /* schedule for sending (local dynamics row) */
     }
   }
 
@@ -398,7 +427,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
   {
     for (item = SET_First (conext [i]); item; item = SET_Next (item))
     {
-      SET_Insert (setmem, (SET**) &osend [i].o, item->data, NULL);
+      SET_Insert (setmem, &pd [i].set, item->data, NULL);
     }
   }
   free (orecv);
@@ -447,7 +476,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
   {
     if (conext [i])
     {
-      for (item = SET_First (conext [i]), j = 0; item; item = SET_Next (item), j ++)
+      for (item = SET_First (conext [i]); item; item = SET_Next (item))
       {
 	OFFB *blk, *bne;
 
@@ -455,10 +484,9 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 
 	/* free imported local dynamics rows */
 	ASSERT_DEBUG (con->dia, "Inconsistent constraint data: missing imported row");
-	for (blk = con->dia->adj; blk; blk = bne)
+	for (blk = con->dia->adjext; blk; blk = bne)
 	{
 	  bne = blk->n;
-	  if (blk->SYMW) free (blk->SYMW);
 	  MEM_Free (&ldy->offmem, blk);
 	}
 	MEM_Free (&ldy->diamem, con->dia);
@@ -468,15 +496,17 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
       SET_Free (setmem, &conext [i]);
     }
 
-    SET_Free (setmem, (SET**) &osend [i].o);
+    SET_Free (setmem, &pd [i].set);
     if (i < nsend) free (send [i].i);
   }
   SET_Free (setmem, &boundary);
+  SET_Free (setmem, &fixed);
   free (conext);
   free (osend);
   free (orecv);
   free (send);
   free (recv);
+  free (pd);
 #endif
 }
 
