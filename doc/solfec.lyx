@@ -4991,7 +4991,7 @@ reference "eq:W"
 \end_layout
 
 \begin_layout Subsection*
-obj = PER_BODY_SOLVER ( | method, epsilon, maxiter)
+obj = PER_BODY_SOLVER ( | epsilon, maxiter)
 \end_layout
 
 \begin_layout Itemize
@@ -5000,23 +5000,6 @@ obj = PER_BODY_SOLVER ( | method, epsilon, maxiter)
 obj
 \series default
  - created PER_BODY_SOLVER object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-method
-\series default
- - the implicit per-body problem solution method (default: 'GAUSS_SEIDEL');
- cf.
- Table 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "tab:per-body-method"
-
-\end_inset
-
- for the list of methods.
 \end_layout
 
 \begin_layout Itemize
@@ -5034,93 +5017,6 @@ epsilon
 maxiter
 \series default
  - maximal number of iterations before termination (default: 1000)
-\end_layout
-
-\begin_layout Standard
-\begin_inset Float table
-placement h
-wide false
-sideways false
-status open
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Tabular
-<lyxtabular version="3" rows="2" columns="2">
-<features>
-<column alignment="center" valignment="top" width="0">
-<column alignment="center" valignment="top" width="0">
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'GAUSS_SEIDEL'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Nonlinear block Gauss-Seidel approach
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'NEWTON'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Newton approach 
-\series bold
-\color red
-TODO
-\end_layout
-
-\end_inset
-</cell>
-</row>
-</lyxtabular>
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Caption
-
-\begin_layout Plain Layout
-\begin_inset CommandInset label
-LatexCommand label
-name "tab:per-body-method"
-
-\end_inset
-
-Solution methods of the PER_BODY_SOLVER
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
 \end_layout
 
 \begin_layout Subsection

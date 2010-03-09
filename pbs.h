@@ -12,25 +12,15 @@
 
 typedef struct pb PER_BODY;
 
-enum pbmethod
-{
-  PB_GAUSS_SEIDEL = 0,
-  PB_NEWTON
-};
-
-typedef enum pbmethod PBMETHOD;
-
 struct pb
 {
-  PBMETHOD method; /* solution method */
-
   double epsilon; /* relative accuracy */
 
   int maxiter; /* iterations bound */
 };
 
 /* create solver */
-PER_BODY* PER_BODY_Create (PBMETHOD method, double epsilon, int maxiter);
+PER_BODY* PER_BODY_Create (double epsilon, int maxiter);
 
 /* run solver */
 void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy);

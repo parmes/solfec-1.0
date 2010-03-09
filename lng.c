@@ -3215,44 +3215,23 @@ struct lng_PER_BODY_SOLVER
 /* constructor */
 static PyObject* lng_PER_BODY_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("method", "epsilon", "maxiter");
+  KEYWORDS ("epsilon", "maxiter");
   lng_PER_BODY_SOLVER *self;
-  PyObject *method;
   double epsilon;
-  PBMETHOD mth;
   int maxiter;
 
   self = (lng_PER_BODY_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    mth = PB_GAUSS_SEIDEL;
-    method = NULL;
     epsilon = 0.001;
     maxiter = 1000;
 
-    PARSEKEYS ("|Odi", &method, &epsilon, &maxiter);
+    PARSEKEYS ("|di", &epsilon, &maxiter);
 
-    TYPETEST (is_string (method, kwl[0]) && is_positive (epsilon, kwl[1]) && is_positive (maxiter, kwl[2]));
+    TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]));
 
-    if (method)
-    {
-      IFIS (method, "GAUSS_SEIDEL")
-      {
-	mth = PB_GAUSS_SEIDEL;
-      }
-      ELIF (method, "NEWTON")
-      {
-	mth = PB_NEWTON;
-      }
-      ELSE
-      {
-	PyErr_SetString (PyExc_ValueError, "Invalid method");
-	return NULL;
-      }
-    }
-
-    self->pb = PER_BODY_Create (mth, epsilon, maxiter);
+    self->pb = PER_BODY_Create (epsilon, maxiter);
   }
 
   return (PyObject*)self;
