@@ -473,17 +473,13 @@ static int constraint_weight (CON *con)
 static int body_weight (BODY *bod)
 {
   int wgt = bod->dofs;
-  DOM *dom = bod->dom;
-  short pbs = dom->per_body_solver; /* per-body solver mode */
   SET *item;
   CON *con;
 
   for (item = SET_First (bod->con); item; item = SET_Next (item))
   {
     con = item->data;
-    if (!con->slave || pbs) wgt += constraint_weight (con); /* one-body constraints migrate with the body, hence they increase its weight */
-                                                            /* but, in the per-body solver mode we sum up weight of all constraints in order
-							     * to obtain a better body balance and as a result a better solver load balance */
+    if (!con->slave) wgt += constraint_weight (con); /* one-body constraints migrate with the body, hence they increase its weight */
   }
 
   return  wgt;
@@ -2538,16 +2534,13 @@ void DOM_Update_End (DOM *dom)
   BODY *bod;
 
 #if MPI
-  if (!dom->per_body_solver) /* per-body solver takes care of this update */
-  {
-    SOLFEC_Timer_Start (dom->solfec, "PARBAL");
+  SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
-    /* update external reactions after solution has completed;
-     * solvers do not take care of that, hence this is important */
-    DOM_Update_External_Reactions (dom, 0);
+  /* update external reactions after solution has completed;
+   * solvers do not take care of that, hence this is important */
+  DOM_Update_External_Reactions (dom, 0);
 
-    SOLFEC_Timer_End (dom->solfec, "PARBAL");
-  }
+  SOLFEC_Timer_End (dom->solfec, "PARBAL");
 #endif
 
   SOLFEC_Timer_Start (dom->solfec, "TIMINT");

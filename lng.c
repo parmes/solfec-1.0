@@ -3198,63 +3198,96 @@ static PyGetSetDef lng_PENALTY_SOLVER_getset [] =
 { {NULL, 0, 0, NULL, NULL} };
 
 /*
- * PER_BODY_SOLVER => object
+ * NEWTON_SOLVER => object
  */
 
-typedef struct lng_PER_BODY_SOLVER lng_PER_BODY_SOLVER;
+typedef struct lng_NEWTON_SOLVER lng_NEWTON_SOLVER;
 
-static PyTypeObject lng_PER_BODY_SOLVER_TYPE;
+static PyTypeObject lng_NEWTON_SOLVER_TYPE;
 
-struct lng_PER_BODY_SOLVER
+struct lng_NEWTON_SOLVER
 {
   PyObject_HEAD
 
-  PER_BODY *pb;
+  NEWTON *nt;
 };
 
 /* constructor */
-static PyObject* lng_PER_BODY_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("epsilon", "maxiter");
-  lng_PER_BODY_SOLVER *self;
+  KEYWORDS ("variant", "epsilon", "maxiter");
+  lng_NEWTON_SOLVER *self;
+  PyObject *variant;
+  NTVARIANT ntvar;
   double epsilon;
   int maxiter;
 
-  self = (lng_PER_BODY_SOLVER*)type->tp_alloc (type, 0);
+  self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
+    ntvar = NT_NONSMOOTH_HYBRID;
+    variant = NULL;
     epsilon = 0.001;
     maxiter = 1000;
 
-    PARSEKEYS ("|di", &epsilon, &maxiter);
+    PARSEKEYS ("|Odi", &variant, &epsilon, &maxiter);
 
-    TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]));
+    TYPETEST (is_string (variant, kwl[0]) && is_positive (epsilon, kwl[1]) && is_positive (maxiter, kwl[2]));
 
-    self->pb = PER_BODY_Create (epsilon, maxiter);
+    if (variant)
+    {
+      IFIS (variant, "NONSMOOTH_HSW")
+      {
+	ntvar = NT_NONSMOOTH_HSW;
+      }
+      ELIF (variant, "NONSMOOTH_HYBRID")
+      {
+	ntvar = NT_NONSMOOTH_HYBRID;
+      }
+      ELIF (variant, "NONSMOOTH_VARIATIONAL")
+      {
+	ntvar = NT_NONSMOOTH_VARIATIONAL;
+      }
+      ELIF (variant, "SMOOTHED_VARIATIONAL")
+      {
+	ntvar = NT_SMOOTHED_VARIATIONAL;
+      }
+      ELIF (variant, "FIXED_POINT")
+      {
+	ntvar = NT_FIXED_POINT;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid variant");
+	return NULL;
+      }
+    }
+
+    self->nt = NEWTON_Create (ntvar, epsilon, maxiter);
   }
 
   return (PyObject*)self;
 }
 
 /* destructor */
-static void lng_PER_BODY_SOLVER_dealloc (lng_PER_BODY_SOLVER *self)
+static void lng_NEWTON_SOLVER_dealloc (lng_NEWTON_SOLVER *self)
 {
-  PER_BODY_Destroy (self->pb);
+  NEWTON_Destroy (self->nt);
 
   self->ob_type->tp_free ((PyObject*)self);
 }
 
-/* PER_BODY_SOLVER methods */
-static PyMethodDef lng_PER_BODY_SOLVER_methods [] =
+/* NEWTON_SOLVER methods */
+static PyMethodDef lng_NEWTON_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
 
-/* PER_BODY_SOLVER members */
-static PyMemberDef lng_PER_BODY_SOLVER_members [] =
+/* NEWTON_SOLVER members */
+static PyMemberDef lng_NEWTON_SOLVER_members [] =
 { {NULL, 0, 0, 0, NULL} };
 
-/* PER_BODY_SOLVER getset */
-static PyGetSetDef lng_PER_BODY_SOLVER_getset [] =
+/* NEWTON_SOLVER getset */
+static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
 { {NULL, 0, 0, NULL, NULL} };
 
 /*
@@ -5042,7 +5075,7 @@ static int is_solver (PyObject *obj, char *var)
   {
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
-        !PyObject_IsInstance (obj, (PyObject*)&lng_PER_BODY_SOLVER_TYPE))
+        !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must be a constraint solver object", var);
@@ -5061,8 +5094,8 @@ static int get_solver_kind (PyObject *obj)
     return GAUSS_SEIDEL_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     return PENALTY_SOLVER;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_PER_BODY_SOLVER_TYPE))
-    return PER_BODY_SOLVER;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
+    return NEWTON_SOLVER;
   else return -1;
 }
 
@@ -5073,8 +5106,8 @@ static void* get_solver (PyObject *obj)
     return ((lng_GAUSS_SEIDEL_SOLVER*)obj)->gs;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     return ((lng_PENALTY_SOLVER*)obj)->ps;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_PER_BODY_SOLVER_TYPE))
-    return ((lng_PER_BODY_SOLVER*)obj)->pb;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
+    return ((lng_NEWTON_SOLVER*)obj)->nt;
   else return NULL;
 }
 
@@ -5941,9 +5974,9 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_PENALTY_SOLVER_dealloc, lng_PENALTY_SOLVER_new,
     lng_PENALTY_SOLVER_methods, lng_PENALTY_SOLVER_members, lng_PENALTY_SOLVER_getset);
 
-  TYPEINIT (lng_PER_BODY_SOLVER_TYPE, lng_PER_BODY_SOLVER, "solfec.PER_BODY_SOLVER",
-    Py_TPFLAGS_DEFAULT, lng_PER_BODY_SOLVER_dealloc, lng_PER_BODY_SOLVER_new,
-    lng_PER_BODY_SOLVER_methods, lng_PER_BODY_SOLVER_members, lng_PER_BODY_SOLVER_getset);
+  TYPEINIT (lng_NEWTON_SOLVER_TYPE, lng_NEWTON_SOLVER, "solfec.NEWTON_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_NEWTON_SOLVER_dealloc, lng_NEWTON_SOLVER_new,
+    lng_NEWTON_SOLVER_methods, lng_NEWTON_SOLVER_members, lng_NEWTON_SOLVER_getset);
 
   TYPEINIT (lng_CONSTRAINT_TYPE, lng_CONSTRAINT, "solfec.CONSTRAINT",
     Py_TPFLAGS_DEFAULT, lng_CONSTRAINT_dealloc, lng_CONSTRAINT_new,
@@ -5959,7 +5992,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_TIME_SERIES_TYPE) < 0) return;
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
-  if (PyType_Ready (&lng_PER_BODY_SOLVER_TYPE) < 0) return;
+  if (PyType_Ready (&lng_NEWTON_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
   if (!(m =  Py_InitModule3 ("solfec", lng_methods, "Solfec module"))) return;
@@ -5974,7 +6007,7 @@ static void initlng (void)
   Py_INCREF (&lng_TIME_SERIES_TYPE);
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
-  Py_INCREF (&lng_PER_BODY_SOLVER_TYPE);
+  Py_INCREF (&lng_NEWTON_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
@@ -5987,7 +6020,7 @@ static void initlng (void)
   PyModule_AddObject (m, "TIME_SERIES", (PyObject*)&lng_TIME_SERIES_TYPE);
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
-  PyModule_AddObject (m, "PER_BODY_SOLVER", (PyObject*)&lng_PER_BODY_SOLVER_TYPE);
+  PyModule_AddObject (m, "NEWTON_SOLVER", (PyObject*)&lng_NEWTON_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
 
@@ -6020,7 +6053,7 @@ int lng (const char *path)
                      "from solfec import TIME_SERIES\n"
                      "from solfec import GAUSS_SEIDEL_SOLVER\n"
                      "from solfec import PENALTY_SOLVER\n"
-                     "from solfec import PER_BODY_SOLVER\n"
+                     "from solfec import NEWTON_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"

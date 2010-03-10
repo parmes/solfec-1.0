@@ -4958,42 +4958,17 @@ variant
 \end_layout
 
 \begin_layout Subsection
-PER_BODY_SOLVER 
+NEWTON_SOLVER 
 \color red
-(EXPERIMENTAL: can be removed)
+(Under development)
 \end_layout
 
 \begin_layout Standard
-Object of type PER_BODY_SOLVER represents a simplification of the Contact
- Dynamics formulation, where a sequence of per-body local dynamics problems
- is solved, rather than a single global nonlinear system.
- Constraints attached to a single body usually (e.g.
- for rigid, pseudo rigid or coarse finite element models) form cliques in
- the contact graph (non-zero pattern graph of the 
-\begin_inset Formula $\mathbf{W}$
-\end_inset
-
- (
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "eq:W"
-
-\end_inset
-
-) operator).
- As they are directly adjacent, their interaction is strong.
- The PER_BODY_SOLVER treats each clique as an independent problem and solves
- a single sequence of such problems without regard for a global convergence.
- This approach is scalable in parallel.
- Although inconsistent in theory, in practice it will provide a good estimate
- of the overall dynamics, especially for deformable problems integrated
- on the level of the fast dynamics (explicit integration or linearly-implicit
- integration with a moderate time step), as in such cases distant constraints
- are decoupled due to local deformability.
+Object of type NEWTON_SOLVER represents a family of Newton constraints solvers.
 \end_layout
 
 \begin_layout Subsection*
-obj = PER_BODY_SOLVER ( | epsilon, maxiter)
+obj = NEWTON_SOLVER ( | variant, epsilon, maxiter)
 \end_layout
 
 \begin_layout Itemize
@@ -5001,7 +4976,23 @@ obj = PER_BODY_SOLVER ( | epsilon, maxiter)
 \series bold
 obj
 \series default
- - created PER_BODY_SOLVER object
+ - created NEWTON_SOLVER object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+variant
+\series default
+ - variant of the Newton method (default: 'NONSMOOTH_HYBRID'); cf.
+ Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:newton-variants"
+
+\end_inset
+
+ for other variants.
 \end_layout
 
 \begin_layout Itemize
@@ -5010,7 +5001,7 @@ obj
 epsilon
 \series default
  - relative accuracy of constraint reactions sufficient for termination
- (default: 0.001)
+ (default: 1E-8)
 \end_layout
 
 \begin_layout Itemize
@@ -5019,6 +5010,186 @@ epsilon
 maxiter
 \series default
  - maximal number of iterations before termination (default: 1000)
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="5" columns="2">
+<features>
+<column alignment="center" valignment="top" width="0">
+<column alignment="center" valignment="top" width="0">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'NONSMOOTH_HSW'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Semismooth formulation as described in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "HSW2006"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'NONSMOOTH_HYBRID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Hybrid semismooth linearisation from 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2008"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'NONSMOOTH_VARIATIONAL'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Nonsmooth variational formulation from 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2009"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'SMOOTHED_VARIATIONAL'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Smoothed variational formulation from 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Koziara2009"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'FIXED_POINT'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Classical fixed point iteration on normal contact reactions, e.g.
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "HSW2006"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:newton-variants"
+
+\end_inset
+
+Variants of the NEWTON_SOLVER.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection
