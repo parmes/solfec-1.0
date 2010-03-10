@@ -27,7 +27,7 @@
 #include "tms.h"
 #include "bgs.h"
 #include "pes.h"
-#include "pbs.h"
+#include "nts.h"
 #include "dom.h"
 #include "mat.h"
 #include "pbf.h"
@@ -48,7 +48,7 @@ enum solver_kind
   NONE_SOLVER,
   GAUSS_SEIDEL_SOLVER,
   PENALTY_SOLVER,
-  PER_BODY_SOLVER
+  NEWTON_SOLVER
 };
 
 typedef enum solver_kind SOLVER_KIND;
