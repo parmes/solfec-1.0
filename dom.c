@@ -1792,7 +1792,6 @@ static void pack_normal_reactions (SET *set, int *dsize, double **d, int *double
   SET *item;
   CON *con;
 
-  /* pack exported boundary contacts */
   pack_int (isize, i, ints, SET_Size (set));
   for (item = SET_First (set); item; item = SET_Next (item))
   {
@@ -1809,7 +1808,6 @@ static void* unpack_normal_reactions (DOM *dom, int *dpos, double *d, int double
   int n, j, id;
   CON *con;
 
-  /* unpack imporeted external contacts */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
@@ -1828,7 +1826,6 @@ static void pack_reactions (SET *set, int *dsize, double **d, int *doubles, int 
   SET *item;
   CON *con;
 
-  /* pack exported boundary contacts */
   pack_int (isize, i, ints, SET_Size (set));
   for (item = SET_First (set); item; item = SET_Next (item))
   {
@@ -1844,13 +1841,44 @@ static void* unpack_reactions (DOM *dom, int *dpos, double *d, int doubles, int 
   int n, j, id;
   CON *con;
 
-  /* unpack imporeted external contacts */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid contact id");
     unpack_doubles (dpos, d, doubles, con->R, 3);
+  }
+
+  return NULL;
+}
+
+/* pack boundary reaction numbers */
+static void pack_numbers (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  SET *item;
+  CON *con;
+
+  pack_int (isize, i, ints, SET_Size (set));
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    con = item->data;
+    pack_int (isize, i, ints, con->id);
+    pack_int (isize, i, ints, con->num);
+  }
+}
+
+/* unpack external reaction numbers */
+static void* unpack_numbers (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int n, j, id;
+  CON *con;
+
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    id = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid contact id");
+    con->num = unpack_int (ipos, i, ints);
   }
 
   return NULL;
@@ -2616,6 +2644,52 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
   free (recv);
 }
 #endif
+
+/* assign con->num values */
+void DOM_Number_Constraints (DOM *dom)
+{
+#if MPI
+  int rank = dom->rank,
+      ncpu = dom->ncpu,
+     *ncon, num,
+      nrecv, i;
+
+  COMOBJ *send, *recv;
+
+  CON *con;
+
+  ERRMEM (ncon = malloc (sizeof (int [ncpu + 1])));
+
+  MPI_Allgather  (&dom->ncon, 1, MPI_INT, (ncon + 1), 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (ncon [0] = 0, i = 1; i <= ncpu; i ++) ncon [i] += ncon [i-1];
+
+  for (num = ncon [rank], con = dom->con; con; con = con->next) con->num = num ++; /* number internally */
+
+  /* numbering is such that: [0, 1, ..., ncon(0)-1], [ncon(0), ncon(0)+1, ..., ncon(0)+ncon(1)-1], [ncon(0)+ncon(1), ...]
+   * follow on respectively processors 0, 1, 2, ... */
+
+  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
+
+  for (i = 0; i < ncpu; i ++)
+  {
+    send [i].o = dom->dbd [i].ext;
+    send [i].rank = i;
+  }
+
+  /* update numbers on external constraints */
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_numbers, dom, (OBJ_Unpack)unpack_numbers, send, dom->ncpu, &recv, &nrecv);
+
+  free (send);
+  free (recv);
+  free (ncon);
+#else
+  CON *con;
+  int num;
+
+  for (num = 0, con = dom->con; con; con = con->next) con->num = num ++;
+#endif
+}
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg)

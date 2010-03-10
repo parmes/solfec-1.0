@@ -54,6 +54,8 @@ struct offb
   double W [9], /* generalised inverse inertia block */
 	 *SYMW; /* symmetric copy of W block */
 
+  int *map; /* mapping in a compressed row storage */
+
   DIAB *dia; /* corresponding diagonal block */
   BODY *bod;
   OFFB *n;
@@ -69,6 +71,8 @@ struct diab
          W [9], /* generalised inverse inertia block */
 	 rho;   /* scaling parameter */
 
+  int *map; /* mapping in a compressed row storage */
+
   OFFB *adj;
   CON *con;    /* the underlying constraint (and the owner od the reaction R[3] and the velocity U [3]) */
 
@@ -76,7 +80,6 @@ struct diab
      *sH, *sprod; /* slave counterpart */
                   /* NOTE: left product can be applied to adjext assembly (MPI)
 		           while right product is sligtly faster (serial code) */
-
 #if MPI
   OFFB *adjext;  /* external adjacency */
 #endif

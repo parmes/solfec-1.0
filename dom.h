@@ -72,6 +72,8 @@ struct constraint
 
   unsigned int id; /* identifier */
 
+  int num; /* one of: 0, 1, ..., total constraints count - 1 */
+
   enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK} kind; /* constraint kind */
 
   enum {CON_COHESIVE = 0x01,
@@ -288,6 +290,9 @@ void DOM_Update_End (DOM *dom);
  * if 'normal' is > 0 only normal components are sent */
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 #endif
+
+/* assign con->num values */
+void DOM_Number_Constraints (DOM *dom);
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);

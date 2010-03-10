@@ -63,3 +63,5 @@ MPI = yes
 MPICC = mpicc
 ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
 ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
+HYPREINC = -I/Users/tomek/Devel/lib/hypre/include
+HYPRELIB = -L/Users/tomek/Devel/lib/hypre/lib -lHYPRE

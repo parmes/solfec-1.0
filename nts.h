@@ -6,11 +6,12 @@
  */
 
 #include "ldy.h"
+#include "mem.h"
 
 #ifndef __nts__
 #define __nts__
 
-typedef struct pb NEWTON;
+typedef struct newton NEWTON;
 
 enum ntvariant
 {
@@ -23,13 +24,15 @@ enum ntvariant
 
 typedef enum ntvariant NTVARIANT;
 
-struct pb
+struct newton
 {
   NTVARIANT variant; /* method variant */
 
   double epsilon; /* relative accuracy */
 
   int maxiter; /* iterations bound */
+
+  MEM mapmem; /* memory of DIAB->map and OFFB->map int [3] vectors */
 };
 
 /* create solver */
