@@ -3228,7 +3228,7 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
   {
     ntvar = NT_NONSMOOTH_HYBRID;
     variant = NULL;
-    epsilon = 0.001;
+    epsilon = 1E-8;
     maxiter = 1000;
 
     PARSEKEYS ("|Odi", &variant, &epsilon, &maxiter);
