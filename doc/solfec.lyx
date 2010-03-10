@@ -4958,7 +4958,9 @@ variant
 \end_layout
 
 \begin_layout Subsection
-PER_BODY_SOLVER
+PER_BODY_SOLVER 
+\color red
+(EXPERIMENTAL: can be removed)
 \end_layout
 
 \begin_layout Standard
