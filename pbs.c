@@ -20,7 +20,11 @@
 #endif
 
 /* Gauss-Seidel per-body solver */
+#if MPI
+static void per_body_solver (SET *conset, double epsilon, int maxiter, short dynamic, double step, short skipnoncon)
+#else
 static void per_body_solver (SET *conset, double epsilon, int maxiter, short dynamic, double step)
+#endif
 {
   double R0 [3], B [3], *R, errup, errlo, error, diagepsilon;
   int iters, diagiters, diagmaxiter;
@@ -41,6 +45,11 @@ static void per_body_solver (SET *conset, double epsilon, int maxiter, short dyn
     for (item = SET_First (conset); item; item = SET_Next (item)) 
     {
       con = item->data;
+
+#if MPI
+      if (skipnoncon && con->kind != CONTACT) continue;
+#endif
+
       dia = con->dia;
       R = dia->R;
 
@@ -152,8 +161,6 @@ static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, i
     {
       CON *con = (CON*) blk->dia; /* external blocks point directly to external contacts <= ldy.c:compute_adjext */
 
-      if (con->kind != CONTACT) continue; /* skip non-contact adjacency */
-
       if (con->rank == pd->rank) n ++; /* if the destination rank is the parent rank of this external constraint: export W */
       else /* otherwise contribute to B only */
       {
@@ -167,8 +174,6 @@ static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, i
     for (blk = dia->adj; blk; blk = blk->n)
     {
       CON *con = blk->dia->con;
-
-      if (con->kind != CONTACT) continue; /* skip non-contact adjacency */
 
       if (SET_Contains (con->ext, (void*) (long) pd->rank, NULL)) n ++; /* if the constraint was exported to the destination rank: export W */
       else /* otherwise contribute to B only */
@@ -186,8 +191,6 @@ static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, i
     {
       CON *con = (CON*) blk->dia; /* external blocks point directly to external contacts <= ldy.c:compute_adjext */
 
-      if (con->kind != CONTACT) continue; /* skip non-contact adjacency */
-
       if (con->rank == pd->rank)
       {
 	pack_int (isize, i, ints, con->id);
@@ -199,8 +202,6 @@ static void local_dynamics_pack (PD *pd, int *dsize, double **d, int *doubles, i
     for (blk = dia->adj; blk; blk = blk->n)
     {
       CON *con = blk->dia->con;
-
-      if (con->kind != CONTACT) continue; /* skip non-contact adjacency */
 
       if (SET_Contains (con->ext, (void*) (long) pd->rank, NULL))
       {
@@ -347,7 +348,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
   BODY *bod, **perm;
   int i, j, n;
 #if MPI
-  SET **conext, *item, *boundary, *fixed;
+  SET **conext, *item, *boundary, *noncon;
   MEM *setmem = &dom->setmem;
   COMDATA *send, *recv, *ptr;
   int nsend, nrecv, ncpu;
@@ -357,7 +358,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 
   ncpu = dom->ncpu;
 
-  boundary = fixed = NULL;
+  boundary = noncon = NULL;
 
   ERRMEM (conext = MEM_CALLOC (ncpu * sizeof (SET*))); /* rank sets of external constraints used by parent bodies */
 
@@ -377,7 +378,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 
       if (!con->dia || con->ext) SET_Insert (setmem, &boundary, bod, NULL); /* mark as a boundary body */
 
-      if (con->kind != CONTACT) SET_Insert (setmem, &fixed, con, NULL); /* mark as a fixed constraint */
+      if (con->kind != CONTACT) SET_Insert (setmem, &noncon, con, NULL); /* mark as non-contact */
     }
   }
 
@@ -428,7 +429,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
   for (item = SET_First (boundary); item; item = SET_Next (item))
   {
     bod = item->data;
-    per_body_solver (bod->con, epsilon, maxiter, dynamic, step);
+    per_body_solver (bod->con, epsilon, maxiter, dynamic, step, 1); /* skip non-contacts */
   }
 
   /* create complete send sets comprizing both the exporting and the importing constraints */
@@ -471,14 +472,18 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
 
   for (i = 0; i < n; i ++) /* run sequence of body solvers */
   {
+#if MPI
+    per_body_solver (perm [i]->con, epsilon, maxiter, dynamic, step, 0);
+#else
     per_body_solver (perm [i]->con, epsilon, maxiter, dynamic, step);
+#endif
   }
 
   free (perm);
 
 #if MPI
-  /* additionally iterate on bilateral constraints in order to ensure accuracy */
-  per_body_solver (fixed, epsilon, maxiter, dynamic, step);
+  /* iterate on bilateral constraints at the end in order to ensure accuracy */
+  per_body_solver (noncon, epsilon, maxiter, dynamic, step, 0);
 
   /* clean up */
   for (i = 0; i < dom->ncpu; i ++)
@@ -509,7 +514,7 @@ void PER_BODY_Solve (PER_BODY *pb, LOCDYN *ldy)
     if (i < nsend) free (send [i].i);
   }
   SET_Free (setmem, &boundary);
-  SET_Free (setmem, &fixed);
+  SET_Free (setmem, &noncon);
   free (conext);
   free (osend);
   free (orecv);
