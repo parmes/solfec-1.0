@@ -14,7 +14,7 @@ include Flags.mak
 
 CFLAGS = -std=c99 $(POSIX) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
-LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB)
+LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(SUPERLULIB) $(PYTHONLIB)
 
 ifeq ($(MPI),yes)
   LIBMPI = -lm $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS)
@@ -235,7 +235,7 @@ obj/pes.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/nts.o: nts.c nts.h bgs.h dom.h ldy.h err.h alg.h lap.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(SUPERLUINC) -c -o $@ $<
 
 obj/sps.o: sps.c sps.h mem.h set.h map.h dom.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -310,7 +310,7 @@ obj/pes-mpi.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/nts-mpi.o: nts.c nts.h bgs.h dom.h ldy.h err.h alg.h lap.h
-	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+	$(MPICC) $(CFLAGS) $(MPIFLG) $(HYPREINC) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<

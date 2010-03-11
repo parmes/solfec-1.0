@@ -40,6 +40,13 @@ BLAS = -L/usr/lib -lblas
 LAPACK = -L/usr/lib -llapack
 
 #
+# SuperLU
+#
+
+SUPERLUINC = -I/Users/tomek/Devel/lib/superlu/include
+SUPERLULIB = -L/Users/tomek/Devel/lib/superlu/lib -lsuperlu
+
+#
 # Python
 #
 
@@ -61,7 +68,17 @@ GLLIB = -framework GLUT -framework OpenGL
 
 MPI = yes
 MPICC = mpicc
+
+#
+# Zoltan (MPI == yes)
+#
+
 ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
 ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
+
+#
+# HYPRE (MPI == yes)
+#
+
 HYPREINC = -I/Users/tomek/Devel/lib/hypre/include
 HYPRELIB = -L/Users/tomek/Devel/lib/hypre/lib -lHYPRE

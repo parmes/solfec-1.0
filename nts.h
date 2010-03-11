@@ -15,11 +15,12 @@ typedef struct newton NEWTON;
 
 enum ntvariant
 {
-  NT_NONSMOOTH_HSW,
-  NT_NONSMOOTH_HYBRID,
-  NT_NONSMOOTH_VARIATIONAL,
-  NT_SMOOTHED_VARIATIONAL,
-  NT_FIXED_POINT
+  NT_NONSMOOTH_HSW          =  0x01,
+  NT_NONSMOOTH_HYBRID       =  0x02,
+  NT_FIXED_POINT            =  0x04,
+  NT_NONSMOOTH_VARIATIONAL  =  0x08,
+  NT_SMOOTHED_VARIATIONAL   =  0x10,
+  NT_SYMMETRIZE             =  0x20   /* symmetrize linear equations if possible */
 };
 
 typedef enum ntvariant NTVARIANT;

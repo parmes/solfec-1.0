@@ -67,6 +67,7 @@ char* errstring (int error)
     case ERR_FEM_MASS_NOT_SPD: return "Mass matrix is not symmetric-positive-definite in FEM module";
     case ERR_FEM_COORDS_INVERT: return "Global to local coordinates convertion failed in FEM module";
     case ERR_FEM_CUT_VOLUME: return "Volume cut of FE mesh does not match the shape volume in FEM module";
+    case ERR_SUPERLU_SOLVE: return "SuperLU solution has failed";
   }
 
   return "Unknown";
