@@ -55,6 +55,7 @@ typedef struct domain DOM;
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
+#define CON_RN(Z)	((Z)[0])   /* normal reaction treshold used during fixed point iterations */
 
 struct constraint
 {
