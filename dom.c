@@ -2013,6 +2013,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->prev = dom->next = NULL;
   dom->flags = 0;
   dom->threshold = 0.01;
+  dom->minarea = 0.0;
   dom->depth = -DBL_MAX;
   ERRMEM (dom->ldy = LOCDYN_Create (dom));
 
@@ -2341,6 +2342,7 @@ void DOM_Extents (DOM *dom, double *extents)
 void DOM_Sparsify_Contacts (DOM *dom)
 {
   double threshold = dom->threshold,
+	 minarea = dom->minarea,
 	 margin = 2.0 * GEOMETRIC_EPSILON, d [3], c;
   SET *del, *itm;
   CON *con, *adj;
@@ -2355,44 +2357,51 @@ void DOM_Sparsify_Contacts (DOM *dom)
     {
       SET *set [2] = {con->master->con, con->slave->con};
 
-      for (n = 0; n < 2; n ++) for (itm = SET_First (set [n]); itm; itm = SET_Next (itm))
+      if (con->area < minarea) /* simple criterion first */
       {
-	adj = itm->data;
-
-	if (adj == con || adj->kind != CONTACT) continue;
-	
-	if (con->area < threshold * adj->area) /* check whether the area of the diagonal element is too small (this test is cheaper => let it go first) */
+	SET_Insert (&mem, &del, con, NULL); /* schedule for deletion */
+      }
+      else /* threshold based adjacency test next */
+      {
+	for (n = 0; n < 2; n ++) for (itm = SET_First (set [n]); itm; itm = SET_Next (itm))
 	{
-	  if (con->master == adj->master && con->slave == adj->slave) /* identify contacts pair sharing the same pairs of bodies */
-	  {
-	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), mkind(adj)), mgobj(con), mgobj (adj))) /* check whether the geometric objects are topologically adjacent */
-	       SET_Insert (&mem, &del, con, NULL); /* if so schedule the current contact for deletion */
-	  }
-	  else if (con->master == adj->slave && con->slave == adj->master)
-	  {
-	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), skind(adj)), mgobj(con), sgobj(adj)))
-	      SET_Insert (&mem, &del, con, NULL);
-	  }
-	  else if (con->slave == adj->master && con->master == adj->slave)
-	  {
-	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), mkind(adj)), sgobj(con), mgobj(adj)))
-	      SET_Insert (&mem, &del, con, NULL);
-	  }
-	  else if (con->slave == adj->slave && con->master == adj->master)
-	  {
-	    if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), skind(adj)), sgobj(con), sgobj(adj)))
-	      SET_Insert (&mem, &del, con, NULL);
-	  }
-	}
-	else
-	{
-	  SUB (con->point, adj->point, d);
+	  adj = itm->data;
 
-	  MAXABS (d, c);
+	  if (adj == con || adj->kind != CONTACT) continue;
 
-	  if (c < margin && con->id < adj->id) /* eliminate duplicated contact points (compare ids not to eliminate both) */
+	  if (con->area < threshold * adj->area) /* check whether the area of the diagonal element is too small (this test is cheaper => let it go first) */
 	  {
-	    SET_Insert (&mem, &del, con, NULL);
+	    if (con->master == adj->master && con->slave == adj->slave) /* identify contacts pair sharing the same pairs of bodies */
+	    {
+	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), mkind(adj)), mgobj(con), mgobj (adj))) /* check whether the geometric objects are topologically adjacent */
+		 SET_Insert (&mem, &del, con, NULL); /* if so schedule the current contact for deletion */
+	    }
+	    else if (con->master == adj->slave && con->slave == adj->master)
+	    {
+	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), skind(adj)), mgobj(con), sgobj(adj)))
+		SET_Insert (&mem, &del, con, NULL);
+	    }
+	    else if (con->slave == adj->master && con->master == adj->slave)
+	    {
+	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), mkind(adj)), sgobj(con), mgobj(adj)))
+		SET_Insert (&mem, &del, con, NULL);
+	    }
+	    else if (con->slave == adj->slave && con->master == adj->master)
+	    {
+	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), skind(adj)), sgobj(con), sgobj(adj)))
+		SET_Insert (&mem, &del, con, NULL);
+	    }
+	  }
+	  else
+	  {
+	    SUB (con->point, adj->point, d);
+
+	    MAXABS (d, c);
+
+	    if (c < margin && con->id < adj->id) /* eliminate duplicated contact points (compare ids not to eliminate both) */
+	    {
+	      SET_Insert (&mem, &del, con, NULL);
+	    }
 	  }
 	}
       }
