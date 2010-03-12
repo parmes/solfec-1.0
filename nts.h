@@ -34,6 +34,8 @@ struct newton
   int maxiter; /* iterations bound */
 
   MEM mapmem; /* memory of DIAB->map and OFFB->map int [3] vectors */
+
+  int length; /* nonmonotone merit function buffer length */
 };
 
 /* create solver */

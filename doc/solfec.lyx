@@ -7206,7 +7206,7 @@ point2
 \end_layout
 
 \begin_layout Subsection*
-CONTACT_SPARSIFY (solfec, threshold)
+CONTACT_SPARSIFY (solfec, threshold | minarea)
 \end_layout
 
 \begin_layout Standard
@@ -7243,6 +7243,19 @@ threshold
  - sparsification threshold (default: 0.01) from within the interval [0,
  1].
  Zero corresponds to the lack of sparsification.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+minarea
+\series default
+ - minimal contact area (default: 0.0).
+ Contact points with area smaller then 
+\series bold
+minarea
+\series default
+ are dropped.
 \end_layout
 
 \begin_layout Section

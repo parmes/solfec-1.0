@@ -55,7 +55,8 @@ typedef struct domain DOM;
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
-#define CON_RN(Z)	((Z)[0])   /* normal reaction treshold used during fixed point iterations */
+#define CON_DR(Z)       (Z)        /* reactions increment during Newton solution */
+#define CON_RN(Z)	((Z)[3])   /* normal reaction treshold used during fixed point iterations */
 
 struct constraint
 {
@@ -202,6 +203,7 @@ struct domain
 
   double extents [6]; /* scene extents */
   double threshold; /* sparsification threshold */
+  double minarea; /* minimal contact point area */
   double depth; /* unphisical interpenetration depth bound (negative) */
 
   DOM_FLAGS flags; /* some flags */
