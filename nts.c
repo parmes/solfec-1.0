@@ -352,11 +352,11 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 #if MPI
 	a [map[2]]   = 0.0;
 	a [map[2]+1] = 0.0;
-	a [map[2]+2] = 1.0 * W[8];
+	a [map[2]+2] = W[8];
 #else
 	a [map[0]+2] = 0.0;
 	a [map[1]+2] = 0.0;
-	a [map[2]+2] = 1.0 * W[8];
+	a [map[2]+2] = W[8];
 #endif
 	b [2] = -R[2] * W[8];
 
@@ -1229,6 +1229,7 @@ double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int iter, 
 
     alpha = line_search (variant, ldy, merit, reference);
   }
+  else alpha = 1.0;
 
   /* R = R + dR */
   errup = errlo = 0.0;
@@ -1281,10 +1282,10 @@ double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int iter, 
 /* update noraml bounds and return relative error of the update */
 static double update_normal_bounds (LOCDYN *ldy)
 {
-  double up, lo;
+  double errup, errlo;
   CON *con;
 
-  up = lo = 0.0;
+  errup = errlo = 0.0;
   for (con = ldy->dom->con; con; con = con->next)
   {
     double DRN,
@@ -1293,11 +1294,11 @@ static double update_normal_bounds (LOCDYN *ldy)
     DRN = con->R[2] - CON_RN(con->Z);
     RN = CON_RN(con->Z) = con->R[2];
 
-    up += DRN*DRN;
-    lo += RN*RN;
+    errup += DRN*DRN;
+    errlo += RN*RN;
   }
 
-  return sqrt (up) / MAX (sqrt (lo), 1.0);
+  return sqrt (errup) / MAX (sqrt (errlo), 1.0);
 }
 
 /* destroy linear system */
