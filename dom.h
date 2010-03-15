@@ -55,8 +55,6 @@ typedef struct domain DOM;
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
-#define CON_DR(Z)       (Z)        /* reactions increment during Newton solution */
-#define CON_RN(Z)	((Z)[3])   /* normal reaction treshold used during fixed point iterations */
 
 struct constraint
 {
@@ -71,6 +69,8 @@ struct constraint
 	 gap; /* contact gap */
 
   double Z [DOM_Z_SIZE]; /* auxiliary storage */
+
+  void *data; /* auxiliary solver data */
 
   unsigned int id; /* identifier */
 

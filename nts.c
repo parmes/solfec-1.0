@@ -98,26 +98,48 @@ struct linsys /* SuperLU matrix data and the rest of linear system */
 };
 #endif
 
+typedef struct conaux CONAUX; /* auxiliary constraint data */
+
+struct conaux
+{
+  double RES [3], /* residual */
+	 DR [3],  /* reaction increment */
+	 DU [3],  /* velocity increment */
+	 RN;      /* normal reaction bound during fixed point iterations */
+};
+
+#define CON_RES(con) ((CONAUX*)((con)->data))->RES
+#define CON_DR(con) ((CONAUX*)((con)->data))->DR
+#define CON_DU(con) ((CONAUX*)((con)->data))->DU
+#define CON_RN(con) ((CONAUX*)((con)->data))->RN
+
 /* create linear system */
 #if MPI
-static LINSYS* system_create (MEM *mapmem, LOCDYN *ldy)
+static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 {
   /* TODO */
 
   return NULL;
 }
 #else
-static LINSYS* system_create (MEM *mapmem, LOCDYN *ldy)
+static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 {
   DOM *dom = ldy->dom;
   LINSYS *sys;
   DIAB *dia;
   OFFB *blk;
+  CON *con;
     
   ERRMEM (sys = MEM_CALLOC (sizeof (LINSYS)));
 
   /* number constraints */
   DOM_Number_Constraints (dom);
+
+  /* allocate auxiliary space */
+  for (con = dom->con; con; con = con->next)
+  {
+    ERRMEM (con->data = MEM_Alloc (auxmem));
+  }
   
   /* index diagonal entries and calculate number of nonzeros */
   for (sys->nnz = 0, dia = ldy->dia; dia; dia = dia->n)
@@ -253,7 +275,7 @@ static LINSYS* system_create (MEM *mapmem, LOCDYN *ldy)
 #endif
 
 /* update linear system for NT_NONSMOOTH_HSW, NT_NONSMOOTH_HYBRID, NT_FIXED_POINT variants */
-void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
+static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
 {
   double d [3], norm, lim, udash, step;
   short dynamic, pull;
@@ -261,6 +283,12 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
   DIAB *dia;
   OFFB *blk;
   DOM *dom;
+  CON *con;
+
+#if MPI
+  /* update external reactions (needed below) */
+  DOM_Update_External_Reactions (ldy->dom, 0);
+#endif
 
   dom = ldy->dom;
   dynamic = dom->dynamic;
@@ -268,18 +296,41 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
   a = sys->a;
   b = sys->b;
 
-  for (dia = ldy->dia; dia; dia = dia->n, b += 3)
+  for (con = dom->con; con; con = con->next, b += 3)
   {
-    CON *con = dia->con;
+    dia = con->dia;
+
+    double *W = dia->W,
+	   *B = dia->B,
+	   *U = dia->U,
+	   *R = dia->R,
+	   *RES = CON_RES(con);
+
+    /* update residual */
+    NVADDMUL (B, W, R, RES);
+    SUB (RES, U, RES);
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      double *R = blk->dia->R,
+             *W = blk->W;
+
+      NVADDMUL (RES, W, R, RES);
+    }
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      double *R = ((CON*)blk->dia)->R, /* external reaction */
+             *W = blk->W;
+
+      NVADDMUL (RES, W, R, RES);
+    }
+#endif
 
     switch (con->kind)
     {
     case CONTACT:
     {
-      double *R = dia->R,
-	     *U = dia->U,
-	     *V = dia->V,
-	     *W = dia->W,
+      double *V = dia->V,
 	     rho = dia->rho,
 	     gap = con->gap,
 	     fri = con->mat.base->friction,
@@ -317,7 +368,7 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 	a [map[1]+2] = W[5];
 	a [map[2]+2] = W[8];
 #endif
-	b [2] = -udash;
+	b [2] = -udash - RES[2];
 
 #if MPI
 	{
@@ -398,7 +449,7 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 	  lim = fri * MAX (0, R[2]);
 	  break;
 	case NT_FIXED_POINT:
-	  lim = fri * MAX (0, CON_RN(con->Z));
+	  lim = fri * MAX (0, CON_RN(con));
 	  break;
       }
 
@@ -489,8 +540,8 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 	      a [map[2]]   = rho*(M[0]*W[6] + M[2]*W[7]);
 	      a [map[2]+1] = rho*(M[1]*W[6] + M[3]*W[7]);
 #endif
-	      b [0] = (fri*(d[0]/norm)*CON_RN(con->Z) - R[0]) * W[0];
-	      b [1] = (fri*(d[1]/norm)*CON_RN(con->Z) - R[1]) * W[4];
+	      b [0] = (fri*(d[0]/norm)*CON_RN(con) - R[0]) * W[0] - rho*(M[0]*RES[0] + M[2]*RES[1]); 
+	      b [1] = (fri*(d[1]/norm)*CON_RN(con) - R[1]) * W[4] - rho*(M[1]*RES[0] + M[3]*RES[1]); 
 	    }
 	    else /* HSW, HYBRID */
 	    {
@@ -501,8 +552,8 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 	      a [map[2]]   = rho*(M[0]*W[6] + M[2]*W[7]) - fri*(d[0]/norm) * W[0];
 	      a [map[2]+1] = rho*(M[1]*W[6] + M[3]*W[7]) - fri*(d[1]/norm) * W[4];
 #endif
-	      b [0] = (fri*(d[0]/norm)*R[2] - R[0]) * W[0];
-	      b [1] = (fri*(d[1]/norm)*R[2] - R[1]) * W[4];
+	      b [0] = (fri*(d[0]/norm)*R[2] - R[0]) * W[0] - rho*(M[0]*RES[0] + M[2]*RES[1]);
+	      b [1] = (fri*(d[1]/norm)*R[2] - R[1]) * W[4] - rho*(M[1]*RES[0] + M[3]*RES[1]);
 	    }
 
 #if MPI
@@ -576,8 +627,8 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 	      a [map[2]]   = W[6];
 	      a [map[2]+1] = W[7];
 #endif
-	      b [0] = T[0]*CON_RN(con->Z) - (M[0]*R[0] + M[2]*R[1])/rho;
-	      b [1] = T[1]*CON_RN(con->Z) - (M[1]*R[0] + M[3]*R[1])/rho;
+	      b [0] = T[0]*CON_RN(con) - (M[0]*R[0] + M[2]*R[1])/rho - RES[0];
+	      b [1] = T[1]*CON_RN(con) - (M[1]*R[0] + M[3]*R[1])/rho - RES[1];
 	    }
 	    else /* HSW, HYBRID */
 	    {
@@ -588,8 +639,8 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 	      a [map[2]]   = W[6] - T[0];
 	      a [map[2]+1] = W[7] - T[1];
 #endif
-	      b [0] = T[0]*R[2] - (M[0]*R[0] + M[2]*R[1])/rho;
-	      b [1] = T[1]*R[2] - (M[1]*R[0] + M[3]*R[1])/rho;
+	      b [0] = T[0]*R[2] - (M[0]*R[0] + M[2]*R[1])/rho - RES[0];
+	      b [1] = T[1]*R[2] - (M[1]*R[0] + M[3]*R[1])/rho - RES[1];
 	    }
 
 #if MPI
@@ -705,13 +756,13 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 #endif
 	  if (dynamic)
 	  {
-	    b [0] = -U[0] - V[0]; /* -V = W(R + dR) + B; U = WR + B; -U - V = W dR */
-	    b [1] = -U[1] - V[1];
+	    b [0] = -U[0] - V[0] - RES[0]; /* -V = W(R + dR) + B; U = WR + B; -U - V = W dR */
+	    b [1] = -U[1] - V[1] - RES[1];
 	  }
 	  else
 	  {
-	    b [0] = -U[0];
-	    b [1] = -U[1];
+	    b [0] = -U[0] - RES[0];
+	    b [1] = -U[1] - RES[1];
 	  }
 	}
 	else /* HSW */
@@ -724,8 +775,8 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 	  a [map[2]]   = W[6]+U[0]/d[2];
 	  a [map[2]+1] = W[7]+U[1]/d[2];
 #endif
-	  b [0] = -(1.0 + rho*udash/d[2])*U[0];
-	  b [1] = -(1.0 + rho*udash/d[2])*U[1];
+	  b [0] = -(1.0 + rho*udash/d[2])*U[0] - RES[0];
+	  b [1] = -(1.0 + rho*udash/d[2])*U[1] - RES[1];
 	}
 
 #if MPI
@@ -764,9 +815,7 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
     break;
     case FIXPNT:
     {
-      double *W = dia->W,
-	     *U = dia->U,
-	     *V = dia->V;
+      double *V = dia->V;
 
       int *map = dia->map;
 
@@ -793,15 +842,15 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 #endif
       if (dynamic)
       {
-	b [0] = -U[0] - V[0];
-	b [1] = -U[1] - V[1];
-	b [2] = -U[2] - V[2];
+	b [0] = -U[0] - V[0] - RES[0];
+	b [1] = -U[1] - V[1] - RES[1];
+	b [2] = -U[2] - V[2] - RES[2];
       }
       else
       {
-	b [0] = -U[0];
-	b [1] = -U[1];
-	b [2] = -U[2];
+	b [0] = -U[0] - RES[0];
+	b [1] = -U[1] - RES[1];
+	b [2] = -U[2] - RES[2];
       }
 
 #if MPI
@@ -847,12 +896,7 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
     case VELODIR:
     case RIGLNK:
     {
-      CON *con = dia->con;
-
-      double *W = dia->W,
-	     *R = dia->R,
-	     *U = dia->U,
-	     *V = dia->V;
+      double *V = dia->V;
 
       int *map = dia->map;
 
@@ -882,25 +926,29 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 
       if (dynamic)
       {
-	if (con->kind == VELODIR) b [2] = -U[2] + VELODIR(con->Z); /* V(t+h) = W(R+dR) + B; U = WR + B; -U+V(t+h) = WdR */
-	else b [2] = -U[2] - V[2]; /* FIXDIR, RIGLNK */
+	if (con->kind == VELODIR) b [2] = -U[2] + VELODIR(con->Z) - RES[2]; /* V(t+h) = W(R+dR) + B; U = WR + B; -U+V(t+h) = WdR */
+	else b [2] = -U[2] - V[2] - RES[2]; /* FIXDIR, RIGLNK */
       }
       else
       {
-	if (con->kind == VELODIR) b [2] = -U[2] + VELODIR(con->Z);
-	else if (con->kind == FIXDIR) b [2] = -U[2]; 
+	if (con->kind == VELODIR) b [2] = -U[2] + VELODIR(con->Z) - RES[2];
+	else if (con->kind == FIXDIR) b [2] = -U[2] - RES[2]; 
 	else /* RIGLNK: see doc/notes.lyx for explanation */
 	{
+	  double C [3];
+
+	  ADD (U, RES, C);
+
 	  double d = RIGLNK_LEN (con->Z),
-		 e = step * step * DOT2 (U, U);
+		 e = step * step * DOT2 (C, C);
 
 	  if (d*d > e)
 	  {
-	    b[2] = -U[2] + (-d + sqrt (d*d - e)) / step;
+	    b[2] = -C[2] + (-d + sqrt (d*d - e)) / step;
 	  }
 	  else /* not possible to satisfy: do your best */
 	  {
-	    b[2] = -U[2] - d / step;
+	    b[2] = -C[2] - d / step;
 	  }
 	}
       }
@@ -949,13 +997,13 @@ void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy
 }
 
 /* update linear system NT_NONSMOOTH_VARIATIONAL, NT_SMOOTHED_VARIATIONAL variants */
-void system_update_VARIATIONAL (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
+static void system_update_VARIATIONAL (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
 {
   ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
 }
 
 /* update linear system */
-void system_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
+static void system_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
 {
   switch (VARIANT (variant))
   {
@@ -973,40 +1021,13 @@ void system_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
 
 /* solve linear system */
 #if MPI
-void system_solve (LINSYS *sys, LOCDYN *ldy)
+static void system_solve (LINSYS *sys, LOCDYN *ldy)
 {
-  double *x;
-  DOM *dom;
-  CON *con;
-
-  dom = ldy->dom;
-
-  /* TODO: solve for x (reactions increment) */
-
-  /* write solution into CON_DR(con->Z) */
-  for (con = ldy->dom->con, x = sys->x; con; con = con->next, x += 3)
-  {
-    double *DR = CON_DR(con->Z),
-	   *R = con->R;
-
-    COPY (R, DR); /* copy reactions into old increments */
-    COPY (x, R); /* copy new increments into rections */
-  }
-
-  /* send increments to external constraints */
-  DOM_Update_External_Reactions (dom, 0);
-
-  for (con = ldy->dom->con, x = sys->x; con; con = con->next, x += 3)
-  {
-    double *DR = CON_DR(con->Z),
-	   *R = con->R;
-
-    COPY (DR, R); /* restore reactions */
-    COPY (x, DR); /* set increments */
-  }
+  /* TODO: overwrite con->R with DR and use DOM_Update_External_Reactions in order to store in conext->R th DRs;
+   *       then compute DU using them; note that next call to system_update will write con->R into conext->R again */
 }
 #else
-void system_solve (LINSYS *sys, LOCDYN *ldy)
+static void system_solve (LINSYS *sys, LOCDYN *ldy)
 {
   SuperMatrix B;
   double *b;
@@ -1062,12 +1083,32 @@ void system_solve (LINSYS *sys, LOCDYN *ldy)
     free (b);
   }
 
-  /* write solution into CON_DR(con->Z) */
+  /* write DR */
   for (con = ldy->dom->con, b = sys->x; con; con = con->next, b += 3)
   {
-    double *DR = CON_DR(con->Z);
+    double *DR = CON_DR(con);
 
     COPY (b, DR);
+  }
+
+  /* compute DU */
+  for (con = ldy->dom->con, b = sys->x; con; con = con->next, b += 3)
+  {
+    DIAB *dia = con->dia;
+
+    double *DR = CON_DR(con),
+	   *DU = CON_DU(con),
+	   *W = dia->W;
+
+    NVMUL (W, DR, DU);
+
+    for (OFFB *blk = dia->adj; blk; blk = blk->n)
+    {
+      double *DR = CON_DR(blk->dia->con),
+	     *W = blk->W;
+
+      NVADDMUL (DU, W, DR, DU);
+    }
   }
 }
 #endif
@@ -1078,93 +1119,74 @@ static double merit_function (NTVARIANT variant, LOCDYN *ldy, double alpha)
   double value, step;
   short dynamic;
   DIAB *dia;
-  OFFB *blk;
   DOM *dom;
+  CON *con;
 
   value = 0.0;
   dom = ldy->dom;
   step = dom->step;
   dynamic = dom->dynamic;
-  for (dia = ldy->dia; dia; dia = dia->n)
+  for (con = dom->con; con; con = con->next)
   {
-    CON *con = dia->con;
-
-    double R [3], U [3],
-	   rho = dia->rho,
-	   gap = con->gap,
-	   fri = con->mat.base->friction,
-	   res = con->mat.base->restitution,
-	  *DR = CON_DR(con->Z),
-	  *R0 = dia->R,
-	  *W = dia->W,
-	  *B = dia->B,
-	  *V = dia->V,
-	   G [3],
-	   d [3],
-	   bound,
-	   udash,
-	   norm;
-
-    ADDMUL (R0, alpha, DR, R);
-    NVADDMUL (B, W, R, U);
-
-    for (blk = dia->adj; blk; blk = blk->n)
+    if (con->kind == CONTACT)
     {
-      CON *con = blk->dia->con;
-      double *DR = CON_DR(con->Z),
-             *R0 = con->R,
-	     *W = dia->W;
+      dia = con->dia;
+
+      double R [3], U [3],
+	     rho = dia->rho,
+	     gap = con->gap,
+	     fri = con->mat.base->friction,
+	     res = con->mat.base->restitution,
+	    *RES = CON_RES(con),
+	    *DR = CON_DR(con),
+	    *DU = CON_DU(con),
+	    *R0 = dia->R,
+	    *U0 = dia->U,
+	    *V = dia->V,
+	     G [3],
+	     d [3],
+	     bound,
+	     udash,
+	     norm;
 
       ADDMUL (R0, alpha, DR, R);
-      NVADDMUL (U, W, R, U);
-    }
+      ADDMUL (U0, alpha, DU, U);
+      ADD (U, RES, U);
 
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      CON *con = (CON*)blk->dia;
-      double *DR = CON_DR(con->Z),
-             *R0 = con->R,
-	     *W = dia->W;
+      if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+      else udash = ((MAX(gap, 0)/step) + U[2]);
 
-      ADDMUL (R0, alpha, DR, R);
-      NVADDMUL (U, W, R, U);
-    }
-#endif
+      d [0] = R[0] - rho * U[0];
+      d [1] = R[1] - rho * U[1];
+      d [2] = R[2] - rho * udash;
 
-    if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
-    else udash = ((MAX(gap, 0)/step) + U[2]);
+      norm = sqrt (d[0]*d[0]+d[1]*d[1]);
 
-    d [0] = R[0] - rho * U[0];
-    d [1] = R[1] - rho * U[1];
-    d [2] = R[2] - rho * udash;
-
-    norm = sqrt (d[0]*d[0]+d[1]*d[1]);
-
-    if (variant & (NT_NONSMOOTH_HSW|NT_NONSMOOTH_HYBRID|NT_FIXED_POINT))
-    {
-      switch (VARIANT(variant))
+      if (variant & (NT_NONSMOOTH_HSW|NT_NONSMOOTH_HYBRID|NT_FIXED_POINT))
       {
-	case NT_NONSMOOTH_HSW:
-	  bound = fri * MAX (0, d[2]);
-	  break;
-	case NT_NONSMOOTH_HYBRID:
-	  bound = fri * MAX (0, R[2]);
-	  break;
-	case NT_FIXED_POINT:
-	  bound = fri * MAX (0, CON_RN(con->Z));
-	  break;
+	switch (VARIANT(variant))
+	{
+	  case NT_NONSMOOTH_HSW:
+	    bound = fri * MAX (0, d[2]);
+	    break;
+	  case NT_NONSMOOTH_HYBRID:
+	    bound = fri * MAX (0, R[2]);
+	    break;
+	  case NT_FIXED_POINT:
+	    bound = fri * MAX (0, CON_RN(con));
+	    break;
+	}
+
+	G [0] = MAX (bound, norm)*R[0] - bound*d[0];
+	G [1] = MAX (bound, norm)*R[1] - bound*d[1];
+	G [2] = R [2] - MAX (0, d[2]);
+
+	value += DOT (G,G);
       }
-
-      G [0] = MAX (bound, norm)*R[0] - bound*d[0];
-      G [1] = MAX (bound, norm)*R[1] - bound*d[1];
-      G [2] = R [2] - MAX (0, d[2]);
-
-      value += DOT (G,G);
-    }
-    else
-    {
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+      else
+      {
+	ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+      }
     }
   }
   value *= 0.5;
@@ -1177,7 +1199,6 @@ static double nonmonotone_merit_function (double *values, int length, double mer
 {
   values [index % length] = merit;
 
-  merit = 0.0; 
   for (int n = 0; n < length; n ++)
     if (values [n] > merit) merit = values [n];
 
@@ -1211,11 +1232,9 @@ static double line_search (NTVARIANT variant, LOCDYN *ldy, double reference, dou
 }
 
 /* update constraint reactions */
-double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int iter, int length, double *values)
+static double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int iter, int length, double *values)
 {
   double merit, reference, alpha, errup, errlo;
-  DIAB *dia;
-  OFFB *blk;
   CON *con;
   DOM *dom;
 
@@ -1227,53 +1246,26 @@ double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int iter, 
 
     reference = nonmonotone_merit_function (values, length, merit, iter);
 
-    alpha = line_search (variant, ldy, merit, reference);
+    alpha = line_search (variant, ldy, reference, merit);
   }
   else alpha = 1.0;
 
-  /* R = R + dR */
+  /* R = R + DR, U = U + DU */
   errup = errlo = 0.0;
   for (con = dom->con; con; con = con->next)
   {
-    double *R = con->R,
-	   *DR = CON_DR(con->Z);
+    double *RES = CON_RES(con),
+           *DR = CON_DR(con),
+	   *DU = CON_DU(con),
+	   *R = con->R,
+	   *U = con->U;
 
     ADDMUL (R, alpha, DR, R);
+    ADDMUL (U, alpha, DU, U);
+    ADD (U, RES, U);
 
     errup += alpha*alpha*DOT(DR, DR);
     errlo += DOT(R, R);
-  }
-
-#if MPI
-  /* update external reactions (needed below) */
-  DOM_Update_External_Reactions (ldy->dom, 0);
-#endif
-
-  /* update U: ensure that residual 'WR+B-U' is zero */
-  for (dia = ldy->dia; dia; dia = dia->n)
-  {
-    double *W = dia->W,
-	   *B = dia->B,
-	   *U = dia->U,
-	   *R = dia->R;
-
-    NVADDMUL (B, W, R, U);
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      double *R = blk->dia->R,
-             *W = blk->W;
-
-      NVADDMUL (U, W, R, U);
-    }
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      double *R = ((CON*)blk->dia)->R, /* external reaction */
-             *W = blk->W;
-
-      NVADDMUL (U, W, R, U);
-    }
-#endif
   }
 
   return sqrt (errup) / sqrt (MAX (errlo, 1.0));
@@ -1288,14 +1280,17 @@ static double update_normal_bounds (LOCDYN *ldy)
   errup = errlo = 0.0;
   for (con = ldy->dom->con; con; con = con->next)
   {
-    double DRN,
-	   RN;
+    if (con->kind == CONTACT)
+    {
+      double DRN,
+	     RN;
 
-    DRN = con->R[2] - CON_RN(con->Z);
-    RN = CON_RN(con->Z) = con->R[2];
+      DRN = con->R[2] - CON_RN(con);
+      RN = CON_RN(con) = con->R[2];
 
-    errup += DRN*DRN;
-    errlo += RN*RN;
+      errup += DRN*DRN;
+      errlo += RN*RN;
+    }
   }
 
   return sqrt (errup) / MAX (sqrt (errlo), 1.0);
@@ -1303,12 +1298,12 @@ static double update_normal_bounds (LOCDYN *ldy)
 
 /* destroy linear system */
 #if MPI
-void system_destroy (LINSYS *sys, MEM *mapmem, LOCDYN *ldy)
+static void system_destroy (LINSYS *sys, MEM *mapmem, MEM *auxmeme, LOCDYN *ldy)
 {
   /* TODO */
 }
 #else
-void system_destroy (LINSYS *sys, MEM *mapmem, LOCDYN *ldy)
+static void system_destroy (LINSYS *sys, MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 {
   DIAB *dia;
   OFFB *blk;
@@ -1316,6 +1311,8 @@ void system_destroy (LINSYS *sys, MEM *mapmem, LOCDYN *ldy)
   for (dia = ldy->dia; dia; dia = dia->n)
   {
     MEM_Free (mapmem, dia->map);
+
+    MEM_Free (auxmem, dia->con->data);
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
@@ -1341,8 +1338,6 @@ void system_destroy (LINSYS *sys, MEM *mapmem, LOCDYN *ldy)
 /* create solver */
 NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter)
 {
-  //ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO: remove when useable */
-
   NEWTON *nt;
 
   ERRMEM (nt = malloc (sizeof (NEWTON)));
@@ -1352,6 +1347,7 @@ NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter)
   nt->maxiter = maxiter;
 
   MEM_Init (&nt->mapmem, sizeof (int [3]), MEMBLK);
+  MEM_Init (&nt->auxmem, sizeof (CONAUX), MEMBLK);
 
   nt->length = 10;
 
@@ -1373,7 +1369,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   ERRMEM (values = MEM_CALLOC (sizeof (double [nt->length])));
 
-  sys = system_create (&nt->mapmem, ldy);
+  sys = system_create (&nt->mapmem, &nt->auxmem, ldy);
 
   iter = 0;
 
@@ -1394,7 +1390,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   } while (error > nt->epsilon && ++ iter < nt->maxiter);
 
-  system_destroy (sys, &nt->mapmem, ldy);
+  system_destroy (sys, &nt->mapmem, &nt->auxmem, ldy);
 
   free (values);
 }
@@ -1408,5 +1404,6 @@ void NEWTON_Write_State (NEWTON *nt, PBF *bf)
 void NEWTON_Destroy (NEWTON *nt)
 {
   MEM_Release (&nt->mapmem);
+  MEM_Release (&nt->auxmem);
   free (nt);
 }
