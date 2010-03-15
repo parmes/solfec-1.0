@@ -33,7 +33,8 @@ struct newton
 
   int maxiter; /* iterations bound */
 
-  MEM mapmem; /* memory of DIAB->map and OFFB->map int [3] vectors */
+  MEM mapmem, /* memory of DIAB->map and OFFB->map int [3] vectors */
+      auxmem; /* auxiliary constraint data memory */
 
   int length; /* nonmonotone merit function buffer length */
 };

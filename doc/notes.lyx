@@ -839,5 +839,105 @@ which obviously not always has a real solution - true when looks at the
  constraint surface.
 \end_layout
 
+\begin_layout Section
+Processing residuals
+\end_layout
+
+\begin_layout Standard
+There are two possible ways of updating local velocities during Newton solution.
+ We can take
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{i}+\delta\mathbf{U}=\mathbf{W}\left(\mathbf{R}^{i}+\delta\mathbf{R}\right)+\mathbf{B}\]
+
+\end_inset
+
+and
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{R}^{i+1}=\mathbf{R}^{i}+\alpha\delta\mathbf{R}\]
+
+\end_inset
+
+so
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{i+1}=\mathbf{U}^{i}+\alpha\delta\mathbf{U}\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ is the damping parameter (e.g.
+ due to line-search).
+ In this case, one needs to remember that the residual
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{RES}^{i}=\mathbf{W}\mathbf{R}^{i}+\mathbf{B}-\mathbf{U}^{i}\]
+
+\end_inset
+
+is generally nonzero.
+ When we write
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{VAL}=\mathbf{W}\left(\mathbf{R}^{i}+\delta\mathbf{R}\right)+\mathbf{B}\]
+
+\end_inset
+
+then we can recover the equation for 
+\begin_inset Formula $\delta\mathbf{R}$
+\end_inset
+
+ as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{VAL}-\mathbf{U}^{i}-\mathbf{RES}^{i}=\mathbf{W}\delta\mathbf{R}\]
+
+\end_inset
+
+Another way to go is not to use 
+\begin_inset Formula $\delta\mathbf{U}$
+\end_inset
+
+ at all, but rather after computing 
+\begin_inset Formula $\mathbf{R}^{i}$
+\end_inset
+
+ always update 
+\begin_inset Formula $\mathbf{U}^{i}$
+\end_inset
+
+ as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{i}=\mathbf{W}\mathbf{R}^{i}+\mathbf{B}\]
+
+\end_inset
+
+and this way maintain at all times a zero residual.
+ This however, in experiments, seems to be less numerically robust than
+ actually processing the residual.
+ This might result from the fact that the residual does affect some of the
+ linearisation bits corresponding to frictional contact constraints, which
+ are highly nonlinear and hence sensitive to specific manners of linearisation.
+\end_layout
+
 \end_body
 \end_document
