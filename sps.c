@@ -199,7 +199,7 @@ short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MAT
 
   if (dst->state) free (dst->state), dst->state = NULL;
 
-  ERRMEM (dst->state = malloc (sizeof (double [state_size (src)])));
+  ERRMEM (dst->state = MEM_CALLOC (sizeof (double [state_size (src)])));
   
   if (time == 0.0 && src->cohesion > 0.0) /* contacts created after the initial moment cannot get cohesive */
   {
