@@ -10,6 +10,7 @@
 #include <HYPRE_IJ_mv.h>
 #else
 #include <slu_ddefs.h>
+#include <umfpack.h>
 #endif
 
 #include <stdlib.h>
@@ -106,12 +107,17 @@ struct conaux
 	 DR [3],  /* reaction increment */
 	 DU [3],  /* velocity increment */
 	 RN;      /* normal reaction bound during fixed point iterations */
+
+  short sticks,   /* contact sticking history bits */
+	hits;     /* nuber of alternating stick-slip patterns found */
 };
 
 #define CON_RES(con) ((CONAUX*)((con)->data))->RES
 #define CON_DR(con) ((CONAUX*)((con)->data))->DR
 #define CON_DU(con) ((CONAUX*)((con)->data))->DU
 #define CON_RN(con) ((CONAUX*)((con)->data))->RN
+#define CON_STICKS(con) ((CONAUX*)((con)->data))->sticks
+#define CON_HITS(con) ((CONAUX*)((con)->data))->hits
 
 /* create linear system */
 #if MPI
@@ -125,10 +131,13 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 {
   DOM *dom = ldy->dom;
+  MAP **pcol, *item;
+  int i, j, k, l, n;
   LINSYS *sys;
   DIAB *dia;
   OFFB *blk;
   CON *con;
+  MEM mem;
     
   ERRMEM (sys = MEM_CALLOC (sizeof (LINSYS)));
 
@@ -140,14 +149,37 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   {
     ERRMEM (con->data = MEM_Alloc (auxmem));
   }
-  
-  /* index diagonal entries and calculate number of nonzeros */
-  for (sys->nnz = 0, dia = ldy->dia; dia; dia = dia->n)
+
+  /* allocate colum blocks mapping */
+  MEM_Init (&mem, sizeof (MAP), MEMBLK);
+  ERRMEM (pcol = MEM_CALLOC (dom->ncon * sizeof (MAP*)));
+
+  /* map colum blocks */
+  for (dia = ldy->dia; dia; dia = dia->n)
   {
-    sys->nnz += 9; /* 3x3 block space */
-    for (blk = dia->adj; blk; blk = blk->n) sys->nnz += 9;
+    int col, row;
+
+    col = row = dia->con->num;
+    item = MAP_Insert (&mem, &pcol [col], (void*) (long) row, MEM_Alloc (mapmem), NULL);
+    ERRMEM (item->data);
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      col = blk->dia->con->num;
+
+      if (!MAP_Find (pcol [col], (void*) (long) row, NULL)) /* there are two W(i,j) blocks for two-body constraints */
+      {
+	item = MAP_Insert (&mem, &pcol [col], (void*) (long) row, MEM_Alloc (mapmem), NULL);
+	ERRMEM (item->data);
+      }
+    }
   }
-  sys->dim = dom->ncon * 3; /* actual dimension */
+
+  for (j = 0, sys->nnz = 0; j < dom->ncon; j ++)
+  {
+    sys->nnz += 9 * MAP_Size (pcol [j]); /* number of nonzeros */
+  }
+  sys->dim = dom->ncon * 3; /* system dimension */
 
   /* eallocate compressed column storage */
   ERRMEM (sys->a = malloc (sizeof (double) * sys->nnz));
@@ -155,84 +187,75 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   ERRMEM (sys->cbp = MEM_CALLOC (sizeof (int) * (sys->dim+1))); /* '+ 1' as there is cbp[0] == 0 always */
 
   /* eallocate permutation space and elimination tree */
-  ERRMEM (sys->rowperm = MEM_CALLOC (sizeof (int) * sys->dim));
+  ERRMEM (sys->rowperm = malloc (sizeof (int) * sys->dim));
   ERRMEM (sys->colperm = malloc (sizeof (int) * sys->dim));
   ERRMEM (sys->etree = malloc (sizeof (int) * sys->dim));
 
   int *cri = sys->cri,
       *cbp = sys->cbp,
-      *aux = sys->rowperm; /* used for temporary row entry indexing */
+      *aux = sys->rowperm; /* use temporarily */
 
-  /* count number of row entries in each column */
-  for (dia = ldy->dia; dia; dia = dia->n)
+  /* set up column sizes */
+  for (j = 0; j < dom->ncon; j ++)
   {
-    int col;
-   
-    col = dia->con->num * 3;
-    cbp [col+1] += 3; /* note the '+ 1' shift here => cbp[0] == 0 always */
-    cbp [col+2] += 3;
-    cbp [col+3] += 3;
-    
-    for (blk = dia->adj; blk; blk = blk->n)
+    n = 3 * MAP_Size (pcol [j]);
+
+    cbp [3*j+1] = n; /* '+1' so that cpb[0] == 0 */
+    cbp [3*j+2] = n;
+    cbp [3*j+3] = n;
+  }
+
+  /* compute column pointers */
+  for (n = 1; n <= sys->dim; n ++)
+  {
+    cbp [n] += cbp [n-1];
+    aux [n-1] = cbp [n-1]; /* initialize aux with cpb  */
+  }
+
+  ASSERT_DEBUG (cbp [sys->dim] == sys->nnz, "Inconsistent sparse storage");
+
+  /* set up row pointers */
+  for (j = 0; j < dom->ncon; j ++)
+  {
+    for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
     {
-      col = blk->dia->con->num * 3;
-      cbp [col+1] += 3;
-      cbp [col+2] += 3;
-      cbp [col+3] += 3;
+      k = 3 * (int) (long) item->key; /* base row block index */
+
+      int *map = item->data;
+
+      for (n = 0; n < 3; n ++) map [n] = aux [3*j+n]; /* set row blocks map */
+
+      for (n = 0; n < 3; n ++) /* for each column block sub-column */
+      {
+	for (l = aux [3*j+n], i = 0; i < 3; i ++) /* for each row block sub-row */
+	{
+          cri [l + i] = k + i; /* set up row index */
+	}
+	aux [3*j+n] += 3; /* increment relative row pointers */
+      }
     }
   }
 
-  /* sum up column nonzeros in order to get the final structure  of 'cbp' */
-  for (int n = 1; n <= sys->dim; n ++) cbp [n] += cbp [n-1];
-
-  /* index row entries in each column */
+  /* assign sparse column maps to blocks */
   for (dia = ldy->dia; dia; dia = dia->n)
   {
-    ERRMEM (dia->map = MEM_Alloc (mapmem));
-    int col, row, *map = dia->map;
+    int col, row;
 
-    /* diagonal entry */
-    col = row = dia->con->num * 3;
-    map [0] = cbp [col] + aux[col];
-    map [1] = cbp [col+1] + aux[col+1];
-    map [2] = cbp [col+2] + aux[col+2];
-    cri [map[0]] = row;
-    cri [map[0]+1] = row + 1;
-    cri [map[0]+2] = row + 2;
-    cri [map[1]] = row;
-    cri [map[1]+1] = row + 1;
-    cri [map[1]+2] = row + 2;
-    cri [map[2]] = row;
-    cri [map[2]+1] = row + 1;
-    cri [map[2]+2] = row + 2;
-    aux [col] += 3;
-    aux [col+1] += 3;
-    aux [col+2] += 3;
-   
-    /* off-diagonals */ 
+    col = row = dia->con->num;
+
+    ASSERT_DEBUG_EXT (dia->map = MAP_Find (pcol [col], (void*) (long) row, NULL), "Inconsistent sparse storage");
+
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      ERRMEM (blk->map = MEM_Alloc (mapmem));
-      int *map = blk->map;
+      col = blk->dia->con->num;
 
-      col = blk->dia->con->num * 3;
-      map [0] = cbp [col] + aux[col];
-      map [1] = cbp [col+1] + aux[col+1];
-      map [2] = cbp [col+2] + aux[col+2];
-      cri [map[0]] = row;
-      cri [map[0]+1] = row + 1;
-      cri [map[0]+2] = row + 2;
-      cri [map[1]] = row;
-      cri [map[1]+1] = row + 1;
-      cri [map[1]+2] = row + 2;
-      cri [map[2]] = row;
-      cri [map[2]+1] = row + 1;
-      cri [map[2]+2] = row + 2;
-      aux [col] += 3;
-      aux [col+1] += 3;
-      aux [col+2] += 3;
+      ASSERT_DEBUG_EXT (blk->map = MAP_Find (pcol [col], (void*) (long) row, NULL), "Inconsistent sparse storage");
     }
   }
+
+  /* clean */
+  MEM_Release (&mem);
+  free (pcol);
 
   /* create SuperLU wrapper of tangent operator sys->A */
   dCreate_CompCol_Matrix (&sys->A, sys->dim, sys->dim, sys->nnz, sys->a, sys->cri, sys->cbp, SLU_NC, SLU_D, SLU_GE);
@@ -293,6 +316,7 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
   dom = ldy->dom;
   dynamic = dom->dynamic;
   step = dom->step;
+  for (a = sys->a, b = a + sys->nnz; a < b; a ++) *a = 0.0; /* zero input matrix */
   a = sys->a;
   b = sys->b;
 
@@ -379,9 +403,9 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	    double *W = blk->W;
 	    int *map = blk->map;
 
-	    a [map[2]]   = W[2];
-	    a [map[2]+1] = W[5];
-	    a [map[2]+2] = W[8];
+	    a [map[2]]   += W[2]; /* sum up off-diagonal blocks as pairs of W(i,j) are stored for two-body constraints */
+	    a [map[2]+1] += W[5];
+	    a [map[2]+2] += W[8];
 	  }
 	}
 #else
@@ -390,9 +414,9 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	  double *W = blk->W;
 	  int *map = blk->map;
 
-	  a [map[0]+2] = W[2];
-	  a [map[1]+2] = W[5];
-	  a [map[2]+2] = W[8];
+	  a [map[0]+2] += W[2];
+	  a [map[1]+2] += W[5];
+	  a [map[2]+2] += W[8];
 	}
 #endif
       }
@@ -411,6 +435,8 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 #endif
 	b [2] = -R[2] * W[8];
 
+	/* FIXME: mind zero initialization in the begining; hence below not needed */
+#if 0
 #if MPI
 	{
 	  OFFB *adj [2] = {dia->adj, dia->adjext};
@@ -434,9 +460,12 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	  a [map[2]+2] = 0.0;
 	}
 #endif
+#endif
       }
 
       /* tangential response */
+
+      CON_STICKS(con) = CON_STICKS(con) << 1; /* rewind history */
 
       norm = sqrt (d[0]*d[0]+d[1]*d[1]); /* tangential force value */
 
@@ -565,12 +594,12 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 		double *W = blk->W;
 		int *map = blk->map;
 
-		a [map[0]]   = rho*(M[0]*W[0] + M[2]*W[1]);
-		a [map[1]]   = rho*(M[1]*W[0] + M[3]*W[1]);
-		a [map[0]+1] = rho*(M[0]*W[3] + M[2]*W[4]);
-		a [map[1]+1] = rho*(M[1]*W[3] + M[3]*W[4]);
-		a [map[0]+2] = rho*(M[0]*W[6] + M[2]*W[7]); 
-		a [map[1]+2] = rho*(M[1]*W[6] + M[3]*W[7]);  
+		a [map[0]]   += rho*(M[0]*W[0] + M[2]*W[1]);
+		a [map[1]]   += rho*(M[1]*W[0] + M[3]*W[1]);
+		a [map[0]+1] += rho*(M[0]*W[3] + M[2]*W[4]);
+		a [map[1]+1] += rho*(M[1]*W[3] + M[3]*W[4]);
+		a [map[0]+2] += rho*(M[0]*W[6] + M[2]*W[7]); 
+		a [map[1]+2] += rho*(M[1]*W[6] + M[3]*W[7]);  
 	      }
 	    }
 #else
@@ -579,12 +608,12 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	      double *W = blk->W;
 	      int *map = blk->map;
 
-	      a [map[0]]   = rho*(M[0]*W[0] + M[2]*W[1]);
-	      a [map[0]+1] = rho*(M[1]*W[0] + M[3]*W[1]);
-	      a [map[1]]   = rho*(M[0]*W[3] + M[2]*W[4]);
-	      a [map[1]+1] = rho*(M[1]*W[3] + M[3]*W[4]);
-	      a [map[2]]   = rho*(M[0]*W[6] + M[2]*W[7]); 
-	      a [map[2]+1] = rho*(M[1]*W[6] + M[3]*W[7]);  
+	      a [map[0]]   += rho*(M[0]*W[0] + M[2]*W[1]);
+	      a [map[0]+1] += rho*(M[1]*W[0] + M[3]*W[1]);
+	      a [map[1]]   += rho*(M[0]*W[3] + M[2]*W[4]);
+	      a [map[1]+1] += rho*(M[1]*W[3] + M[3]*W[4]);
+	      a [map[2]]   += rho*(M[0]*W[6] + M[2]*W[7]); 
+	      a [map[2]+1] += rho*(M[1]*W[6] + M[3]*W[7]);  
 	    }
 #endif
 	  }
@@ -652,12 +681,12 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 		double *W = blk->W;
 		int *map = blk->map;
 
-		a [map[0]]   = W[0];
-		a [map[1]]   = W[1];
-		a [map[0]+1] = W[3];
-		a [map[1]+1] = W[4];
-		a [map[0]+2] = W[6];
-		a [map[1]+2] = W[7];
+		a [map[0]]   += W[0];
+		a [map[1]]   += W[1];
+		a [map[0]+1] += W[3];
+		a [map[1]+1] += W[4];
+		a [map[0]+2] += W[6];
+		a [map[1]+2] += W[7];
 	      }
 	    }
 #else
@@ -666,12 +695,12 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	      double *W = blk->W;
 	      int *map = blk->map;
 
-	      a [map[0]]   = W[0];
-	      a [map[0]+1] = W[1];
-	      a [map[1]]   = W[3];
-	      a [map[1]+1] = W[4];
-	      a [map[2]]   = W[6];
-	      a [map[2]+1] = W[7];
+	      a [map[0]]   += W[0];
+	      a [map[0]+1] += W[1];
+	      a [map[1]]   += W[3];
+	      a [map[1]+1] += W[4];
+	      a [map[2]]   += W[6];
+	      a [map[2]+1] += W[7];
 	    }
 #endif
 	  }
@@ -698,6 +727,8 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	  b [0] = -R[0] * W[0];
 	  b [1] = -R[1] * W[4];
 
+	  /* FIXME: mind zero initialization at the beginning: hence below not needed */
+#if 0
 #if MPI
 	  {
 	    OFFB *adj [2] = {dia->adj, dia->adjext};
@@ -727,11 +758,14 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	    a [map[2]+1] = 0.0;
 	  }
 #endif
+#endif
 	}
       }
-      else /* frictional sticking */
+      else /* frictional sticking: inactive tangential set */
       {
-	/* inactive tangential set */
+
+        CON_STICKS(con)	 |= 0x1; /* feed in one bit */
+
 #if MPI
 	a [map[0]]   = W[0];
 	a [map[1]]   = W[1];
@@ -788,12 +822,12 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	    double *W = blk->W;
 	    int *map = blk->map;
 
-	    a [map[0]]   = W[0];
-	    a [map[1]]   = W[1];
-	    a [map[0]+1] = W[3];
-	    a [map[1]+1] = W[4];
-	    a [map[0]+2] = W[6];
-	    a [map[1]+2] = W[7];
+	    a [map[0]]   += W[0];
+	    a [map[1]]   += W[1];
+	    a [map[0]+1] += W[3];
+	    a [map[1]+1] += W[4];
+	    a [map[0]+2] += W[6];
+	    a [map[1]+2] += W[7];
 	  }
 	}
 #else
@@ -802,14 +836,19 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	  double *W = blk->W;
 	  int *map = blk->map;
 
-	  a [map[0]]   = W[0];
-	  a [map[0]+1] = W[1];
-	  a [map[1]]   = W[3];
-	  a [map[1]+1] = W[4];
-	  a [map[2]]   = W[6];
-	  a [map[2]+1] = W[7];
+	  a [map[0]]   += W[0];
+	  a [map[0]+1] += W[1];
+	  a [map[1]]   += W[3];
+	  a [map[1]+1] += W[4];
+	  a [map[2]]   += W[6];
+	  a [map[2]+1] += W[7];
 	}
 #endif
+      }
+
+      if (isnan (b [2]))
+      {
+	ASSERT_DEBUG (0, "b [2] is NAN");
       }
     }
     break;
@@ -862,15 +901,15 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	  double *W = blk->W;
 	  int *map = blk->map;
 
-	  a [map[0]]   = W[0];
-	  a [map[1]]   = W[1];
-	  a [map[2]]   = W[2];
-	  a [map[0]+1] = W[3];
-	  a [map[1]+1] = W[4];
-	  a [map[2]+1] = W[5];
-	  a [map[0]+2] = W[6];
-	  a [map[1]+2] = W[7];
-	  a [map[2]+2] = W[8];
+	  a [map[0]]   += W[0];
+	  a [map[1]]   += W[1];
+	  a [map[2]]   += W[2];
+	  a [map[0]+1] += W[3];
+	  a [map[1]+1] += W[4];
+	  a [map[2]+1] += W[5];
+	  a [map[0]+2] += W[6];
+	  a [map[1]+2] += W[7];
+	  a [map[2]+2] += W[8];
 	}
       }
 #else
@@ -879,15 +918,15 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	double *W = blk->W;
 	int *map = blk->map;
 
-	a [map[0]]   = W[0];
-	a [map[0]+1] = W[1];
-	a [map[0]+2] = W[2];
-	a [map[1]]   = W[3];
-	a [map[1]+1] = W[4];
-	a [map[1]+2] = W[5];
-	a [map[2]]   = W[6];
-	a [map[2]+1] = W[7];
-	a [map[2]+2] = W[8];
+	a [map[0]]   += W[0];
+	a [map[0]+1] += W[1];
+	a [map[0]+2] += W[2];
+	a [map[1]]   += W[3];
+	a [map[1]+1] += W[4];
+	a [map[1]+2] += W[5];
+	a [map[2]]   += W[6];
+	a [map[2]+1] += W[7];
+	a [map[2]+2] += W[8];
       }
 #endif
     }
@@ -962,15 +1001,21 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	  double *W = blk->W;
 	  int *map = blk->map;
 
+#if 0
 	  a [map[0]]   = 0.0;
 	  a [map[1]]   = 0.0;
-	  a [map[2]]   = W[2]; /* maintain tangentail coupling: W(3,:) */
+#endif
+	  a [map[2]]   += W[2]; /* maintain tangentail coupling: W(3,:) */
+#if 0
 	  a [map[0]+1] = 0.0;
 	  a [map[1]+1] = 0.0;
-	  a [map[2]+1] = W[5];
+#endif
+	  a [map[2]+1] += W[5];
+#if 0
 	  a [map[0]+2] = 0.0;
 	  a [map[1]+2] = 0.0;
-	  a [map[2]+2] = W[8];
+#endif
+	  a [map[2]+2] += W[8];
 	}
       }
 #else
@@ -979,15 +1024,21 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	double *W = blk->W;
 	int *map = blk->map;
 
+#if 0
 	a [map[0]]   = 0.0;
 	a [map[0]+1] = 0.0;
-	a [map[0]+2] = W[2];
+#endif
+	a [map[0]+2] += W[2];
+#if 0
 	a [map[1]]   = 0.0;
 	a [map[1]+1] = 0.0;
-	a [map[1]+2] = W[5];
+#endif
+	a [map[1]+2] += W[5];
+#if 0
 	a [map[2]]   = 0.0;
 	a [map[2]+1] = 0.0;
-	a [map[2]+2] = W[8];
+#endif
+	a [map[2]+2] += W[8];
       }
 #endif
     }
@@ -1029,9 +1080,29 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy)
 #else
 static void system_solve (LINSYS *sys, LOCDYN *ldy)
 {
-  SuperMatrix B;
   double *b;
   CON *con;
+
+#if 1
+  void *Symbolic, *Numeric;
+  int status;
+  double *x;
+
+  ERRMEM (x = malloc (sizeof (double [sys->dim])));
+  blas_dcopy (sys->dim, sys->b, 1, x, 1);
+
+  status = umfpack_di_symbolic (sys->dim, sys->dim, sys->cbp, sys->cri, sys->a, &Symbolic, NULL, NULL);
+  ASSERT_DEBUG (status >= 0, "UMFPACK symbolic failed");
+  status = umfpack_di_numeric (sys->cbp, sys->cri, sys->a, Symbolic, &Numeric, NULL, NULL);
+  ASSERT_DEBUG (status >= 0, "UMFPACK numeric failed");
+  status = umfpack_di_solve (UMFPACK_A, sys->cbp, sys->cri, sys->a, sys->b, x, Numeric, NULL, NULL);
+  ASSERT_DEBUG (status >= 0, "UMFPACK solve failed");
+  umfpack_di_free_symbolic (&Symbolic);
+  umfpack_di_free_numeric (&Numeric);
+  free (x);
+
+#else
+  SuperMatrix B;
 
   ERRMEM (b = malloc (sizeof (double) * sys->dim));
   dCreate_Dense_Matrix (&B, sys->dim, 1, b, sys->dim, SLU_DN, SLU_D, SLU_GE); 
@@ -1082,6 +1153,7 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy)
     ASSERT (sys->info == 0, ERR_SUPERLU_SOLVE);
     free (b);
   }
+#endif
 
   /* write DR */
   for (con = ldy->dom->con, b = sys->x; con; con = con->next, b += 3)
@@ -1110,6 +1182,144 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy)
       NVADDMUL (DU, W, DR, DU);
     }
   }
+}
+#endif
+
+#if DEBUG
+static void write_system (LINSYS *sys, const char *matrix, const char *vector)
+{
+#if MPI
+  /* TODO */
+#else
+  int *i, j, k;
+  double *a;
+  FILE *f;
+
+  ASSERT (f = fopen (matrix, "w"), ERR_FILE_OPEN);
+  fprintf (f, "%%%%MatrixMarket matrix coordinate real general\n");
+  fprintf (f, "%d %d %d\n", sys->dim, sys->dim, sys->nnz);
+  for (a = sys->a, i = sys->cri, j = 0; j < sys->dim; j ++)
+  {
+    for (k = sys->cbp [j]; k < sys->cbp [j+1]; k ++, a ++, i ++)
+    {
+      fprintf (f, "%d %d  %.15e\n", ((*i)+1),  (j+1),   *a);
+    }
+  }
+  fclose (f);
+
+  ASSERT (f = fopen (vector, "w"), ERR_FILE_OPEN);
+  for (a = sys->b, j = 0; j < sys->dim; a ++, j ++)
+  {
+    fprintf (f, "%.15e\n", *a);
+  }
+  fclose (f);
+#endif
+}
+
+static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
+{
+  double *a, *b, *x, *e, error, one [3] = {1.0, 1.0, 1.0};
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+
+  for (a = sys->a, b = a + sys->nnz; a < b; a ++) *a = 0.0;
+  a = sys->a;
+  b = sys->b;
+
+  for (con = ldy->dom->con; con; con = con->next, b += 3)
+  {
+    dia = con->dia;
+
+    double *W = dia->W;
+    int *map = dia->map;
+
+#if MPI
+    a [map[0]]   = W[0];
+    a [map[1]]   = W[1];
+    a [map[2]]   = W[2];
+    a [map[0]+1] = W[3];
+    a [map[1]+1] = W[4];
+    a [map[2]+1] = W[5];
+    a [map[0]+2] = W[6];
+    a [map[1]+2] = W[7];
+    a [map[2]+2] = W[8];
+#else
+    a [map[0]]   = W[0];
+    a [map[0]+1] = W[1];
+    a [map[0]+2] = W[2];
+    a [map[1]]   = W[3];
+    a [map[1]+1] = W[4];
+    a [map[1]+2] = W[5];
+    a [map[2]]   = W[6];
+    a [map[2]+1] = W[7];
+    a [map[2]+2] = W[8];
+#endif
+
+    NVMUL (W, one, b);
+
+#if MPI
+    {
+      OFFB *adj [2] = {dia->adj, dia->adjext};
+      for (int i = 0; i < 2; i ++)
+      for (blk = adj [i]; blk; blk = blk->n)
+      {
+	double *W = blk->W;
+	int *map = blk->map;
+
+	a [map[0]]   += W[0];
+	a [map[1]]   += W[1];
+	a [map[2]]   += W[2];
+	a [map[0]+1] += W[3];
+	a [map[1]+1] += W[4];
+	a [map[2]+1] += W[5];
+	a [map[0]+2] += W[6];
+	a [map[1]+2] += W[7];
+	a [map[2]+2] += W[8];
+
+	NVADDMUL (b, W, one, b);
+      }
+    }
+#else
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      double *W = blk->W;
+      int *map = blk->map;
+
+      a [map[0]]   += W[0];
+      a [map[0]+1] += W[1];
+      a [map[0]+2] += W[2];
+      a [map[1]]   += W[3];
+      a [map[1]+1] += W[4];
+      a [map[1]+2] += W[5];
+      a [map[2]]   += W[6];
+      a [map[2]+1] += W[7];
+      a [map[2]+2] += W[8];
+
+      NVADDMUL (b, W, one, b);
+    }
+#endif
+
+#if 0
+    AUXDUMP ("B.vec", "%.15e\n", b [0]);
+    AUXDUMP ("B.vec", "%.15e\n", b [1]);
+    AUXDUMP ("B.vec", "%.15e\n", b [2]);
+#endif
+  }
+
+#if 0
+  write_system (sys, "A.mtx", "B.vec");
+#endif
+
+  system_solve (sys, ldy);
+
+  for (error = 0.0, x = sys->x, e = x + sys->dim; x < e; x ++)
+  {
+    error += (1.0 - (*x))*(1.0 - (*x));
+  }
+  error = sqrt (error);
+
+  printf ("NEWTON LINEAR SOLVER TEST: error = %g, %s\n", error, error < 1E-8 ? "PASSED" : "FAILED");
 }
 #endif
 
@@ -1231,6 +1441,29 @@ static double line_search (NTVARIANT variant, LOCDYN *ldy, double reference, dou
   return alpha;
 }
 
+#if 0
+/* scale regularization parameters */
+static void scale_rhos (DOM *dom, double coef, char limit)
+{
+  CON *con;
+
+  for (con = dom->con; con; con = con->next)
+  {
+    if (con->kind == CONTACT)
+    {
+      if ((CON_STICKS(con) & 0x3) == 1 || (CON_STICKS(con) & 0x3) == 2)
+      {
+	if (CON_HITS(con) < limit)
+	{
+	  con->dia->rho *= coef;
+	  CON_HITS(con) ++;
+	}
+      }
+    }
+  }
+}
+#endif
+
 /* update constraint reactions */
 static double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int iter, int length, double *values)
 {
@@ -1240,7 +1473,7 @@ static double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int
 
   dom = ldy->dom;
 
-  if (VARIANT(variant) != NT_FIXED_POINT) /* TODO: the old code was skipping this for iter == 0 (test it) */
+  if (iter && VARIANT(variant) != NT_FIXED_POINT) /* TODO: the old code was skipping this for iter == 0 (test it) */
   {
     merit = merit_function (variant, ldy, 0.0);
 
@@ -1267,6 +1500,11 @@ static double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int
     errup += alpha*alpha*DOT(DR, DR);
     errlo += DOT(R, R);
   }
+
+#if 0
+  /* scale dia->rho parameters */
+  scale_rhos (dom, 10.0, 8);
+#endif
 
   return sqrt (errup) / sqrt (MAX (errlo, 1.0));
 }
@@ -1371,11 +1609,19 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   sys = system_create (&nt->mapmem, &nt->auxmem, ldy);
 
+#if DEBUG
+  test_linear_solver (sys, ldy);
+#endif
+
   iter = 0;
 
   do
   {
     system_update (sys, nt->variant, ldy); /* assemble A, b */
+
+#if 0
+    write_system (sys, "A.mtx", "B.vec");
+#endif
 
     system_solve (sys, ldy); /* solve x = inv (A) * b  */
 

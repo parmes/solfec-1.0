@@ -47,6 +47,13 @@ SUPERLUINC = -I/Users/tomek/Devel/lib/superlu/include
 SUPERLULIB = -L/Users/tomek/Devel/lib/superlu/lib -lsuperlu
 
 #
+# UMFPACK
+#
+
+UMFPACKINC = -I/Users/tomek/Devel/lib/Davis/UMFPACK/Include -I/Users/tomek/Devel/lib/Davis/UFconfig -I/Users/tomek/Devel/lib/Davis/AMD/Include
+UMFPACKLIB = -L/Users/tomek/Devel/lib/Davis/UMFPACK/Lib -lumfpack -L/Users/tomek/Devel/lib/Davis/AMD/Lib -lamd
+
+#
 # Python
 #
 
