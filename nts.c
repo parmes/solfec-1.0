@@ -22,6 +22,7 @@
 #include "bla.h"
 #include "lap.h"
 #include "err.h"
+#include "lss.h"
 
 #define MEMBLK 256
 
@@ -64,6 +65,8 @@ struct linsys /* HYPRE IJ matrix data and the rest of linear system */
 
   HYPRE_IJVector X; /* HYPRE IJ solution vector */
   HYPRE_ParVector XP; /* HYPRE parallel image of X */
+
+  int nnz, dim;
 };
 #else
 struct linsys /* SuperLU matrix data and the rest of linear system */
@@ -157,23 +160,60 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   /* map colum blocks */
   for (dia = ldy->dia; dia; dia = dia->n)
   {
-    int col, row;
+    int col, row, *map;
 
     col = row = dia->con->num;
-    item = MAP_Insert (&mem, &pcol [col], (void*) (long) row, MEM_Alloc (mapmem), NULL);
-    ERRMEM (item->data);
+    ASSERT_DEBUG (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Diagonal block mapped twice");
+    ERRMEM (map = MEM_Alloc (mapmem));
+    ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL)); /* '+1' not to confuse with NULL */
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
       col = blk->dia->con->num;
 
-      if (!MAP_Find (pcol [col], (void*) (long) row, NULL)) /* there are two W(i,j) blocks for two-body constraints */
+      if (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
       {
-	item = MAP_Insert (&mem, &pcol [col], (void*) (long) row, MEM_Alloc (mapmem), NULL);
-	ERRMEM (item->data);
+        ERRMEM (map = MEM_Alloc (mapmem));
+	ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL));
       }
     }
   }
+
+#if DEBUG
+  /* self consistency checks */
+  for (j = 0; j < dom->ncon; j ++)
+  {
+    for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
+    {
+      int *map = item->data;
+
+      ASSERT_DEBUG (map [0] == 0 && map [1] == 0 && map [2] == 0, "Nonzero triplet: %d, %d, %d", map [0], map [1], map [2]);
+    }
+  }
+
+  for (j = 0; j < dom->ncon; j ++)
+  {
+    for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
+    {
+      int *map = item->data;
+      int i = (((int) (long) item->key) - 1);
+
+      ASSERT_DEBUG (map [0] == 0 && map [1] == 0 && map [2] == 0, "Duplicated map from: %d, %d at %d, %d", map [0], map [1], i, j);
+
+      map [0] = i;
+      map [1] = j;
+    }
+  }
+
+  for (j = 0; j < dom->ncon; j ++)
+  {
+    for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
+    {
+      int *map = item->data;
+      map [0] = map [1] = map [2] = 0;
+    }
+  }
+#endif
 
   for (j = 0, sys->nnz = 0; j < dom->ncon; j ++)
   {
@@ -219,9 +259,11 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   {
     for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
     {
-      k = 3 * (int) (long) item->key; /* base row block index */
+      k = 3 * (((int) (long) item->key) - 1); /* base row block index (-1 as keys == row+1) */
 
       int *map = item->data;
+
+      ASSERT_DEBUG (map [0] == 0 && map [1] == 0 && map [2] == 0, "Reusing the same map triplet: %d, %d, %d", map [0], map [1], map [2]);
 
       for (n = 0; n < 3; n ++) map [n] = aux [3*j+n]; /* set row blocks map */
 
@@ -236,6 +278,24 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
     }
   }
 
+#if DEBUG
+  /* self consistency check */
+  for (j = 0; j < dom->ncon; j ++)
+  {
+    for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
+    {
+      int *map = item->data;
+
+      for (n = 0; n < 3; n ++)
+      {
+	k = 3*j+n;
+
+	ASSERT_DEBUG (map [n] >= cbp[k] && map [n] < cbp [k+1], "Inconsistent column blocks mapping");
+      }
+    }
+  }
+#endif
+
   /* assign sparse column maps to blocks */
   for (dia = ldy->dia; dia; dia = dia->n)
   {
@@ -243,13 +303,13 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 
     col = row = dia->con->num;
 
-    ASSERT_DEBUG_EXT (dia->map = MAP_Find (pcol [col], (void*) (long) row, NULL), "Inconsistent sparse storage");
+    ASSERT_DEBUG_EXT (dia->map = MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Inconsistent sparse storage");
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
       col = blk->dia->con->num;
 
-      ASSERT_DEBUG_EXT (blk->map = MAP_Find (pcol [col], (void*) (long) row, NULL), "Inconsistent sparse storage");
+      ASSERT_DEBUG_EXT (blk->map = MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Inconsistent sparse storage");
     }
   }
 
@@ -1072,18 +1132,20 @@ static void system_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
 
 /* solve linear system */
 #if MPI
-static void system_solve (LINSYS *sys, LOCDYN *ldy)
+static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
 {
   /* TODO: overwrite con->R with DR and use DOM_Update_External_Reactions in order to store in conext->R th DRs;
    *       then compute DU using them; note that next call to system_update will write con->R into conext->R again */
 }
 #else
-static void system_solve (LINSYS *sys, LOCDYN *ldy)
+static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
 {
   double *b;
   CON *con;
 
 #if 1
+
+#if 0
   void *Symbolic, *Numeric;
   int status;
   double *x;
@@ -1100,6 +1162,38 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy)
   umfpack_di_free_symbolic (&Symbolic);
   umfpack_di_free_numeric (&Numeric);
   free (x);
+#else
+
+  void *lss;
+
+  ASSERT_DEBUG (lss = LSS_Create (sys->dim, sys->a, sys->cbp, sys->cri), "LSS creation failed");
+
+  LSS_Set (lss, LSS_PRECONDITIONER, 1);
+  LSS_Set (lss, LSS_DECIMATION, 4);
+  LSS_Set (lss, LSS_RESTART, 75);
+  LSS_Set (lss, LSS_PRESMOOTHING_STEPS, 3);
+  LSS_Set (lss, LSS_POSTSMOOTHING_STEPS, 3);
+  LSS_Set (lss, LSS_ITERATIONS_BOUND, 75);
+  LSS_Set (lss, LSS_RELATIVE_ACCURACY, 1E99);
+  LSS_Set (lss, LSS_ABSOLUTE_ACCURACY, accuracy);
+
+  switch (LSS_Solve (lss, sys->a, sys->x, sys->b))
+  {
+  case LSSERR_INVALID_ARGUMENT: printf ("LSS ERROR: invalid argument\n"); break;
+  case LSSERR_OUT_OF_MEMORY: printf ("LSS ERROR: out of memory\n"); break;
+  case LSSERR_LACK_OF_CONVERGENCE: printf ("LSS ERROR: lack of convergence\n"); break;
+  case LSSERR_EMPTY_COLUMN: printf ("LSS ERROR: empty column\n"); break;
+  case LSSERR_ZERO_ON_DIAGONAL: printf ("LSS ERROR: zero on diagonal\n"); break;
+  case LSSERR_NONE: break;
+  }
+
+  printf ("NEWTON: LSS error rel/abs: %g/%g and iters: %d\n", 
+      LSS_Get (lss, LSS_RELATIVE_ERROR),
+      LSS_Get (lss, LSS_ABSOLUTE_ERROR),
+      (int) LSS_Get (lss, LSS_ITERATIONS));
+
+  LSS_Destroy (lss);
+#endif
 
 #else
   SuperMatrix B;
@@ -1186,6 +1280,7 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy)
 #endif
 
 #if DEBUG
+#if 0
 static void write_system (LINSYS *sys, const char *matrix, const char *vector)
 {
 #if MPI
@@ -1215,6 +1310,7 @@ static void write_system (LINSYS *sys, const char *matrix, const char *vector)
   fclose (f);
 #endif
 }
+#endif
 
 static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
 {
@@ -1307,11 +1403,36 @@ static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
 #endif
   }
 
+#if !MPI && DEBUG
+   {
+      int j, k, *i;
+      double *a;
+
+      for (j = 0, a = sys->a, i = sys->cri; j < sys->dim; j ++)
+      {
+	for (k = sys->cbp [j]; k < sys->cbp [j+1]; k ++, a ++, i ++)
+	{
+	  if (j == *i)
+	  {
+	    if (*a == 0.0)
+	    {
+	      printf ("ERROR: diagonal zero for index %d\n", j);
+	      printf ("ERROR: system dimension is %d and number of nonzeros is %d\n", sys->dim, sys->nnz);
+	      printf ("ERROR: column %d begins at %d and ends at %d\n", j, sys->cbp [j], sys->cbp [j+1]);
+	    }
+	  }
+	}
+      }
+    }
+#endif
+
 #if 0
   write_system (sys, "A.mtx", "B.vec");
 #endif
 
-  system_solve (sys, ldy);
+  double accu = 1E-3;
+
+  system_solve (sys, ldy, accu);
 
   for (error = 0.0, x = sys->x, e = x + sys->dim; x < e; x ++)
   {
@@ -1319,7 +1440,7 @@ static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
   }
   error = sqrt (error);
 
-  printf ("NEWTON LINEAR SOLVER TEST: error = %g, %s\n", error, error < 1E-8 ? "PASSED" : "FAILED");
+  printf ("NEWTON LINEAR SOLVER TEST: error = %g, %s\n", error, error < accu ? "PASSED" : "FAILED");
 }
 #endif
 
@@ -1548,15 +1669,18 @@ static void system_destroy (LINSYS *sys, MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 
   for (dia = ldy->dia; dia; dia = dia->n)
   {
-    MEM_Free (mapmem, dia->map);
+    dia->con->data = NULL;
 
-    MEM_Free (auxmem, dia->con->data);
+    dia->map = NULL;
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      MEM_Free (mapmem, blk->map);
+      blk->map = NULL;
     }
   }
+
+  MEM_Release (mapmem);
+  MEM_Release (auxmem);
 
   free (sys->a);
   free (sys->cri);
@@ -1578,7 +1702,7 @@ NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter)
 {
   NEWTON *nt;
 
-  ERRMEM (nt = malloc (sizeof (NEWTON)));
+  ERRMEM (nt = MEM_CALLOC (sizeof (NEWTON)));
 
   nt->variant = variant;
   nt->epsilon = epsilon;
@@ -1595,7 +1719,7 @@ NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter)
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 {
-  double error, *values;
+  double merit, error, *values;
   char fmt [512];
   LINSYS *sys;
   int iter;
@@ -1603,7 +1727,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   dom = ldy->dom;
 
-  if (dom->verbose) sprintf (fmt, "NEWTON: iteration: %%%dd  error:  %%.2e\n", (int)log10 (nt->maxiter) + 1);
+  if (dom->verbose) sprintf (fmt, "NEWTON: iteration: %%%dd  error:  %%.2e  merit: %%.2e\n", (int)log10 (nt->maxiter) + 1);
 
   ERRMEM (values = MEM_CALLOC (sizeof (double [nt->length])));
 
@@ -1612,6 +1736,8 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 #if DEBUG
   test_linear_solver (sys, ldy);
 #endif
+
+  error = merit = 1.0;
 
   iter = 0;
 
@@ -1623,7 +1749,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
     write_system (sys, "A.mtx", "B.vec");
 #endif
 
-    system_solve (sys, ldy); /* solve x = inv (A) * b  */
+    system_solve (sys, ldy, 0.01 * MIN (error, merit)); /* solve x = inv (A) * b  */
 
     error = reactions_update (sys, nt->variant, ldy, iter, nt->length, values); /* R[iter+1] = R[iter] (x) */
 
@@ -1632,7 +1758,9 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
       error = update_normal_bounds (ldy);
     }
 
-    if (dom->verbose) printf (fmt, iter, error);
+    merit = merit_function (nt->variant, ldy, 0.0);
+
+    if (dom->verbose) printf (fmt, iter, error, merit);
 
   } while (error > nt->epsilon && ++ iter < nt->maxiter);
 

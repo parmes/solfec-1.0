@@ -29,6 +29,7 @@ BASEO = obj/err.o \
 	obj/pck.o \
 	obj/map.o \
 	obj/set.o \
+	obj/ist.o \
 	obj/skp.o \
 	obj/svk.o \
 	obj/mtx.o \
@@ -67,6 +68,7 @@ OBJ =   $(EXTO)   \
 	obj/lng.o \
 	obj/sol.o \
 	obj/fem.o \
+	obj/lss.o \
 	$(GLOBJ)
 
 OBJMPI = $(EXTO)       \
@@ -85,6 +87,7 @@ OBJMPI = $(EXTO)       \
 	 obj/com-mpi.o \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
+	 obj/lss-mpi.o \
 
 solfec: obj/solfec.o obj/libsolfec.a
 	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec $(LIB)
@@ -157,6 +160,9 @@ obj/skp.o: skp.c skp.h mem.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/set.o: set.c set.h mem.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/ist.o: ist.c ist.h mem.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/pbf.o: pbf.c pbf.h map.h mem.h err.h
@@ -255,6 +261,9 @@ obj/libsolfec.o: solfec.c solfec.h
 obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+obj/lss.o: lss.c lss.h mem.h ist.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
 
@@ -321,5 +330,5 @@ obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h
 obj/fem-mpi.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/but-mpi.o: but.c but.h alg.h err.h
+obj/lss-mpi.o: lss.c lss.h mem.h ist.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
