@@ -40,6 +40,15 @@ BLAS = -L/usr/lib -lblas
 LAPACK = -L/usr/lib -llapack -lrpc
 
 #
+# UMFPACK (yes/no)
+#
+
+UMFPACK = no
+
+UMFPACKINC =
+UMFPACKLIB =
+
+#
 # Python
 #
 

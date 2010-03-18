@@ -129,13 +129,7 @@ struct params /* user parameters */
 
   double coarse_absolute_accuracy;
 
-  int presmoother;
-
-  int postsmoother;
-
-  int presmoothing_steps;
-
-  int postsmoothing_steps;
+  int smoothing_steps;
 
   int iterations;
 
@@ -279,7 +273,7 @@ struct lssobj
 
 static void residual (MATRIX *A, VECTOR *b, VECTOR *x, VECTOR *r);
 
-static void gmres (MATRIX*, PRECND*, VECTOR*, VECTOR*, VECTOR*, VECTOR*, VECTOR**,
+PRIVATE (void, gmres, MATRIX*, PRECND*, VECTOR*, VECTOR*, VECTOR*, VECTOR*, VECTOR**,
              VECTOR**, double*, double*, double*, double*, double*, int, PARAMS*);
 
 /* ========== IMPLEMENTATION ========== */
@@ -381,6 +375,46 @@ PRIVATE (void, matrixupdate, MATRIX *A, double *a)
   }
 }
 
+/* normalize matrix rows and return scaling coefficients */
+PRIVATE (double*, matrixscale, MATRIX *A)
+{
+  double *x, *y, *s, *e;
+  int n, m, *i, j;
+
+  n = A->dimension - A->adjust;
+  m = A->kind == CSC ? A->columns [n] : A->rows [n];
+
+  ASSERT (s = calloc (n, sizeof (double)), LSSERR_OUT_OF_MEMORY);
+
+  if (A->kind == CSC)
+  {
+    y = A->elements + m;
+    e = s + n;
+
+    for (i = A->rows, x = A->elements; x < y; x ++, i ++)
+    {
+      s[*i] += (*x) * (*x);
+    }
+
+    for (x = s; x < e; x ++) *x = 1.0 / sqrt (*x); /* row length inverses */
+
+    for (i = A->rows, x = A->elements; x < y; x ++, i ++) (*x) *= s [*i];
+  }
+  else
+  {
+    for (j = 0, e = s; j < n; j ++, e ++)
+    {
+      for (x = &A->elements [A->rows [j]], y = &A->elements [A->rows [j+1]]; x < y; x ++) (*e) += (*x) * (*x);
+
+      *e = 1.0 / sqrt (*e);
+
+      for (x = &A->elements [A->rows [j]], y = &A->elements [A->rows [j+1]]; x < y; x ++) (*x) *= (*e);
+    }
+  }
+
+  return s;
+}
+ 
 /* free matrix */
 static void matrixfree (MATRIX *A)
 {
@@ -470,13 +504,12 @@ PRIVATE (VECTOR*, vectoralloc, int n)
 }
 
 /* create vector wrapper */
-PRIVATE (VECTOR*, vector, double *z, int n, int a)
+PRIVATE (VECTOR*, vector, int n, int a)
 {
   VECTOR *v;
 
   ASSERT (v = malloc (sizeof (VECTOR)), LSSERR_OUT_OF_MEMORY);
-  ASSERT (v->elements = malloc ((n + a) * sizeof (double)), LSSERR_OUT_OF_MEMORY);
-  memcpy (v->elements, z, n * sizeof (double));
+  ASSERT (v->elements = calloc ((n + a), sizeof (double)), LSSERR_OUT_OF_MEMORY);
   v->dimension = n + a;
   v->adjust = a;
 
@@ -484,16 +517,27 @@ PRIVATE (VECTOR*, vector, double *z, int n, int a)
 }
 
 /* update vector form user storage */
-PRIVATE (void, vectorupdate, VECTOR *v, double *z, double a)
+PRIVATE (void, vectorupdate, VECTOR *v, double *z, double *s, double a)
 {
   double *x, *y;
 
   x = v->elements;
   y = x + v->dimension - v->adjust;
 
-  for (;x < y; x ++, z ++) *x = *z;
+  for (;x < y; x ++, z ++, s ++) *x = (*z) * (*s);
 
   for (int i = v->adjust; i > 0; i --, x ++) *x = a;
+}
+
+/* update vector adjust storage */
+PRIVATE (void, vectoradjust, VECTOR *v, double a)
+{
+  double *x, *y;
+
+  x = v->elements + v->dimension - v->adjust;
+  y = x + v->adjust;
+
+  for (;x < y; x ++) *x = a;
 }
 
 /* export vector to user storage */
@@ -585,10 +629,7 @@ static PARAMS* defparams ()
   params->coarse_iterations_bound = 16;
   params->coarse_relative_accuracy = 1E-6;
   params->coarse_absolute_accuracy = 1E-3;
-  params->presmoother = 1;
-  params->postsmoother = 1;
-  params->presmoothing_steps = 1;
-  params->postsmoothing_steps = 1;
+  params->smoothing_steps = 1;
 
   params->iterations = 0;
   if (!(params->relative_error = calloc (params->iterations_bound, sizeof (double)))) return NULL;
@@ -883,6 +924,17 @@ PRIVATE (PRECND*, precnd, WAVEOP *waveop, MATRIX *A, PARAMS *params)
   return M;
 }
 
+/* y = x */
+static void set (VECTOR *x, double y)
+{
+  double *a, *b;
+
+  a = x->elements;
+  b = a + x->dimension;
+
+  for (;a < b; a ++) *a = y;
+}
+
 /* update preconditioner */
 PRIVATE (void, precndupdate, PRECND *M, PARAMS *params)
 {
@@ -891,10 +943,16 @@ PRIVATE (void, precndupdate, PRECND *M, PARAMS *params)
     CALL (matrixupdate, M->csr, NULL);
     CALL (numeric, M->symbol, M->lower->A);
     CALL (precndupdate, M->lower, params);
+    set (M->b, 0.0);
+    set (M->x, 0.0);
+    set (M->r, 0.0);
   }
   else 
   {
     lowparamsupdate (M->params, params);
+
+    set (M->b, 0.0);
+    set (M->x, 0.0);
 
     if (M->worksp->m != params->coarse_restart)
     {
@@ -1057,110 +1115,8 @@ static void gaussseidel (int steps, MATRIX *A, VECTOR *b, VECTOR *x)
   }
 }
 
-/* Jacobi relaxation steps for A x = b */
-static void jacobi (int steps, MATRIX *A, VECTOR *b, VECTOR *x) /* FIXME: optimize */
-{
-  double *xelements, *belements, *aelements, *selements, *delements;
-  double *xx, *bb, *dd, *aa, *ss, *se;
-  int *cc, *ce, *rr, *re;
-  int *arows, *acolumns;
-  VECTOR *s, *d;
-  int err, j;
-
-  ONERROR (err) return;
-
-  s = CALL (vectoralloc, A->dimension);
-  d = CALL (vectoralloc, A->dimension);
-
-  arows = A->rows;
-  acolumns = A->columns;
-  aelements = A->elements;
-  xelements = x->elements;
-  belements = b->elements;
-  selements = s->elements;
-  delements = d->elements;
-  ce = acolumns + A->dimension;
-  se = selements + A->dimension;
-
-  for (; steps > 0; steps --)
-  {
-    for (ss = selements; ss < se; ss ++) *ss = 0.0;
-
-    for (cc = acolumns, ss = selements, dd = delements, xx = xelements, j = 0; cc < ce; cc ++, ss ++, dd ++, xx ++, j ++)
-    {
-      for (aa = &aelements [*cc], rr = &arows [*cc], re = &arows [*(cc+1)]; rr < re; aa ++, rr ++)
-      {
-	if (*rr != j) selements[*rr] += (*aa) * (*xx);
-	else *dd = *aa;
-      }
-    }
-
-    for (ss = selements, dd = delements, xx = xelements, bb = belements; ss < se; ss ++, dd ++, xx ++, bb ++) *xx = (*bb - *ss) / *dd;
-  }
-}
-
-/* Kaczmarz relaxation steps for A x = b */
-static void kaczmarz (int steps, MATRIX *A, VECTOR *b, VECTOR *x) /* FIXME: optimize, randomize */
-{
-  double *xelements, *belements, *aelements;
-  double *bb, *aa, ss1, ss2;
-  int *cc, *ce, *rr, *re;
-  int *arows, *acolumns;
-  int i, j, n;
-
-  arows = A->rows;
-  acolumns = A->columns;
-  aelements = A->elements;
-  xelements = x->elements;
-  belements = b->elements;
-  re = arows + A->dimension;
-  n = A->dimension;
-
-  srand ((unsigned) time (NULL));
-
-  for (; steps > 0; steps --)
-  {
-    for (i = 0; i < n; i ++)
-    {
-      j = rand () % n;
-      bb = &belements [j];
-      rr = &arows [j];
-
-      for (aa = &aelements [*rr], cc = &acolumns [*rr], ce = &acolumns [*(rr+1)], ss1 = 0.0, ss2 = 0.0; cc < ce; aa ++, cc ++)
-      {
-	ss1 += (*aa) * (*aa);
-	ss2 += (*aa) * xelements [*cc];
-      }
-
-      ss1 = (*bb - ss2) / ss1;
-
-      for (aa = &aelements [*rr], cc = &acolumns [*rr], ce = &acolumns [*(rr+1)]; cc < ce; aa ++, cc ++)
-      {
-        xelements [*cc] += ss1 * (*aa);
-      }
-    }
-  }
-}
-
-/* relaxation steps for A x = b */
-static void smoothing (int smoother, int steps, MATRIX *csc, MATRIX *csr, VECTOR *b, VECTOR *x)
-{
-  switch (smoother)
-  {
-    case 1:
-      gaussseidel (steps, csr, b, x);
-      break;
-    case 2:
-      jacobi (steps, csc, b, x);
-      break;
-    case 3:
-      kaczmarz (steps, csr, b, x);
-      break;
-  }
-}
-
 /* approximately solve M x = b */
-static void prevec (PRECND *M, VECTOR *b, VECTOR *x)
+PRIVATE (void, prevec, PRECND *M, VECTOR *b, VECTOR *x)
 {
   if (M == NULL) { copy (b, x); return; }
 
@@ -1168,23 +1124,23 @@ static void prevec (PRECND *M, VECTOR *b, VECTOR *x)
 
   if (M->lower)
   {
-    smoothing (M->user->presmoother, M->user->presmoothing_steps, M->A, M->csr, M->b, M->x);
+    gaussseidel (M->user->smoothing_steps, M->csr, M->b, M->x);
 
     residual (M->A, M->b, M->x, M->r);
 
     restriction (M->waveop, M->r, M->lower->b);
 
-    prevec (M->lower, NULL, NULL);
+    CALL (prevec, M->lower, NULL, NULL);
 
     prolongation (M->waveop, M->lower->x, M->x);
 
-    smoothing (M->user->postsmoother, M->user->postsmoothing_steps, M->A, M->csr, M->b, M->x);
+    gaussseidel (M->user->smoothing_steps, M->csr, M->b, M->x);
   }
   else
   {
     WORKSP *s = M->worksp;
 
-    gmres (M->A, NULL, M->b, M->x, s->r, s->w, s->v, s->z, s->Q, s->R, s->H, s->y, s->g, s->m, M->params);
+    CALL (gmres, M->A, NULL, M->b, M->x, s->r, s->w, s->v, s->z, s->Q, s->R, s->H, s->y, s->g, s->m, M->params);
   }
 
   if (x) copy (M->x, x);
@@ -1301,7 +1257,7 @@ static double minimise (double beta, double *H, double *Q, double *R, double *y,
 }
 
 /* generalized minimal residual with extensions */
-static void gmres (MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VECTOR *w, VECTOR **v,
+PRIVATE (void, gmres, MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VECTOR *w, VECTOR **v,
         VECTOR **z, double *Q, double *R, double *H, double *y, double *g, int m, PARAMS  *params)
 {
   double alpha,
@@ -1327,13 +1283,14 @@ static void gmres (MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VECTOR
   {
     residual (A, b, x, r); /* r = b - A x */
     beta = veclen (r);
+    if (beta == 0.0) break;
     vecmul (r, 1.0/beta, v [0]); /* v[0] = r / |r| (first base vector) */
 
     if (!iteration) omega = beta;
 
     for (j = 0; j < m; j ++)
     {
-      prevec (M, v [j], z [j]); /* z[j] = preconditioned jth base vector */
+      CALL (prevec, M, v [j], z [j]); /* z[j] = preconditioned jth base vector */
       matvec (A, z [j], w); /* w = ((A * M ** (-1)) ** (j+1)) * r */
 
       for (i = 0; i <= j; i ++) /* orthogonalize w so that <w, v[i]> = 0 */
@@ -1343,6 +1300,7 @@ static void gmres (MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VECTOR
       }
 
       H (j+1, j) = veclen (w);
+      ASSERT (H(j+1, j) > 0.0, LSSERR_GMRES_BREAKDOWN);
       if (j < (m-1)) vecmul (w, 1.0/H (j+1, j), v [j+1]); /* v[j+1] = w / |w| (next base vector) */
 
       alpha = minimise (beta, H, Q, R, y, g, m, j); /* solve min (y) [beta * e1 - H y] */
@@ -1363,7 +1321,7 @@ static void gmres (MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VECTOR
 }
 
 /* create internal data */
-PRIVATE (void, create, LSSOBJ *lss, double *a, double *x, double *b)
+PRIVATE (void, create, LSSOBJ *lss, double *a)
 {
   lss->A = CALL (matrix, lss->n, a, lss->p, lss->i);
 
@@ -1381,19 +1339,23 @@ PRIVATE (void, create, LSSOBJ *lss, double *a, double *x, double *b)
     lss->M = NULL;
   }
 
-  lss->x = CALL (vector, x, ABS (lss->n), lss->A->adjust);
-  lss->b = CALL (vector, b, ABS (lss->n), lss->A->adjust);
+  lss->x = CALL (vector, ABS (lss->n), lss->A->adjust);
+  lss->b = CALL (vector, ABS (lss->n), lss->A->adjust);
   lss->worksp = CALL (workspace, lss->A->dimension, lss->params->restart);
   lss->modified = 0;
 }
 
 /* update internal data */
-PRIVATE (void, update, LSSOBJ *lss, double *a, double *x, double *b)
+PRIVATE (void, update, LSSOBJ *lss, double *a, double *b)
 {
+  double *s;
+
   CALL (matrixupdate, lss->A, a);
-  CALL (vectorupdate, lss->x, x, 0.0);
-  CALL (vectorupdate, lss->b, b, 1.0);
+  s = CALL (matrixscale, lss->A);
+  CALL (vectoradjust, lss->x, 0.0);
+  CALL (vectorupdate, lss->b, b, s, 1.0);
   if (lss->M) CALL (precndupdate, lss->M, lss->params);
+  free (s);
 }
 
 /* destroy internal data */
@@ -1420,7 +1382,7 @@ PRIVATE (void, solve, LSSOBJ *lss, double *x)
   WORKSP *s = lss->worksp;
 
   /* solve linear system */
-  gmres (lss->A, lss->M, lss->b, lss->x, s->r, s->w, s->v,
+  CALL (gmres, lss->A, lss->M, lss->b, lss->x, s->r, s->w, s->v,
     s->z, s->Q, s->R, s->H, s->y, s->g, s->m, lss->params);
 
   /* copy solution to user storage */
@@ -1530,21 +1492,9 @@ LSSERR LSS_Set (void *lss, LSSPAR p, double v)
       ASSERT (v >= 1, LSSERR_INVALID_ARGUMENT);
       LSSOBJ(lss)->params->coarse_absolute_accuracy = v;
       break;
-    case LSS_PRESMOOTHER:
-      ASSERT (v == 1 || v == 2 || v == 3, LSSERR_INVALID_ARGUMENT);
-      LSSOBJ(lss)->params->presmoother = (int)v;
-      break;
-    case LSS_POSTSMOOTHER:
-      ASSERT (v == 1 || v == 2 || v == 3, LSSERR_INVALID_ARGUMENT);
-      LSSOBJ(lss)->params->postsmoother = (int)v;
-      break;
-    case LSS_PRESMOOTHING_STEPS:
+    case LSS_SMOOTHING_STEPS:
       ASSERT (v >= 0, LSSERR_INVALID_ARGUMENT);
-      LSSOBJ(lss)->params->presmoothing_steps = (int)v;
-      break;
-    case LSS_POSTSMOOTHING_STEPS:
-      ASSERT (v >= 0, LSSERR_INVALID_ARGUMENT);
-      LSSOBJ(lss)->params->postsmoothing_steps = (int)v;
+      LSSOBJ(lss)->params->smoothing_steps = (int)v;
       break;
     /* read-only */
     default:
@@ -1587,14 +1537,8 @@ double LSS_Get (void *lss, LSSPAR p)
       return LSSOBJ(lss)->params->coarse_relative_accuracy;
     case LSS_COARSE_ABSOLUTE_ACCURACY:
       return LSSOBJ(lss)->params->coarse_absolute_accuracy;
-    case LSS_PRESMOOTHER:
-      return LSSOBJ(lss)->params->presmoother;
-    case LSS_POSTSMOOTHER:
-      return LSSOBJ(lss)->params->postsmoother;
-    case LSS_PRESMOOTHING_STEPS:
-      return LSSOBJ(lss)->params->presmoothing_steps;
-    case LSS_POSTSMOOTHING_STEPS:
-      return LSSOBJ(lss)->params->postsmoothing_steps;
+    case LSS_SMOOTHING_STEPS:
+      return LSSOBJ(lss)->params->smoothing_steps;
     case LSS_ITERATIONS:
       return LSSOBJ(lss)->params->iterations;
     case LSS_RELATIVE_ERROR:
@@ -1651,10 +1595,10 @@ LSSERR LSS_Solve (void *lss, double *a, double *x, double *b)
   if (modified (lss)) /* has system structure been modified? */
   {
     destroy (lss);  /* destroy current data */
-    CALL (create, lss, a, x, b); /* create new data */
+    CALL (create, lss, a); /* create new data */
   }
 
-  CALL (update, lss, a, x, b); /* update current data */
+  CALL (update, lss, a, b); /* update current data */
   CALL (solve, lss, x); /* solve and output */
 
   return LSSERR_NONE; /* successful termination */
