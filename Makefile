@@ -14,7 +14,7 @@ include Flags.mak
 
 CFLAGS = -std=c99 $(POSIX) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
-LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(SUPERLULIB) $(UMFPACKLIB) $(PYTHONLIB)
+LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(UMFPACKLIB) $(PYTHONLIB)
 
 ifeq ($(MPI),yes)
   LIBMPI = -lm $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS)
@@ -241,7 +241,7 @@ obj/pes.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/nts.o: nts.c nts.h bgs.h dom.h ldy.h err.h alg.h lap.h
-	$(CC) $(CFLAGS) $(SUPERLUINC) $(UMFPACKINC) -c -o $@ $<
+	$(CC) $(CFLAGS) $(UMFPACK) -c -o $@ $<
 
 obj/sps.o: sps.c sps.h mem.h set.h map.h dom.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<

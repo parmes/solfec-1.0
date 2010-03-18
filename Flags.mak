@@ -8,6 +8,12 @@ else
   POSIX = 
 endif
 
+ifeq ($(UMFPACK),yes)
+  UMFPACK = -DUMFPACK $(UMFPACKINC)
+else
+  UMFPACK =
+endif
+
 ifeq ($(OPENGL),yes)
   OPENGL = -DOPENGL $(GLINC)
 else

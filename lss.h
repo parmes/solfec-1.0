@@ -31,7 +31,8 @@ enum lsserr                      /*|                                            
   LSSERR_INVALID_ARGUMENT,       /*| invalid argument was used in function call                            */
   LSSERR_LACK_OF_CONVERGENCE,    /*| number of iterations has exceeded the prescribed bound                */
   LSSERR_EMPTY_COLUMN,           /*| system matrix has an empty column                                     */
-  LSSERR_ZERO_ON_DIAGONAL        /*| system matrix has zero on the diagonal                                */
+  LSSERR_ZERO_ON_DIAGONAL,       /*| system matrix has zero on the diagonal                                */
+  LSSERR_GMRES_BREAKDOWN         /*| GMRES has broke down                                                  */
 };                               /*|_______________________________________________________________________*/
 
 typedef enum lsserr LSSERR;
@@ -42,8 +43,8 @@ enum lsspar                      /*|----------|----------|----------------------
 {                                /*|          |          | Read-write parameters, affecting a next call to LSS_Run:              */
                                  /*|----------|----------|-----------------------------------------------------------------------*/
   LSS_ITERATIONS_BOUND,          /*| 1000     | any > 0  | k < VALUE for a sequence of approximate solutions x(k)                */
-  LSS_RELATIVE_ACCURACY,         /*| 1E-6     | any > 0  | |A x(k) - b| < VALUE * |A x(0) - b| when LSS_Run returns 1            */
-  LSS_ABSOLUTE_ACCURACY,         /*| 1E-3     | any > 0  | |A x(k) - b| < VALUE when LSS_Run returns 1                           */
+  LSS_RELATIVE_ACCURACY,         /*| 1E-6     | any > 0  | |A x(k) - b| < VALUE * |A x(0) - b| when LSS_Solve returns 0          */
+  LSS_ABSOLUTE_ACCURACY,         /*| 1E-3     | any > 0  | |A x(k) - b| < VALUE when LSS_Solve returns 0                         */
   LSS_PRECONDITIONER,            /*| 1        | 0 ... 3  | switch between wavelet based preconditioners by Pereira et al. [5]    */
   LSS_DECIMATION,                /*| 4        | any >= 2 | preconditioner wavelet decimation (sub-sampling) value                */
   LSS_CUTOFF,                    /*| 16       | any >= 2 | coarsest level matrix dimension cutoff bound                          */
@@ -52,12 +53,9 @@ enum lsspar                      /*|----------|----------|----------------------
   LSS_COARSE_ITERATIONS_BOUND,   /*| 16       | any >= 1 | iterations bound for coarsest level matrix GMRES run                  */ 
   LSS_COARSE_RELATIVE_ACCURACY,  /*| 1E-6     | any > 0  | relative accuracy for coarsest level GMRES run                        */
   LSS_COARSE_ABSOLUTE_ACCURACY,  /*| 1E-3     | any > 0  | absolute accuracy for coarsest level GMRES run                        */
-  LSS_PRESMOOTHER,               /*| 1        | 1 ... 3  | switch between different pre-smoothers                                */
-  LSS_POSTSMOOTHER,              /*| 1        | 1 ... 3  | switch between different post-smoothers                               */
-  LSS_PRESMOOTHING_STEPS,        /*| 1        | any >= 0 | number of pre-smoothing steps on each level of preconditioning        */
-  LSS_POSTSMOOTHING_STEPS,       /*| 1        | any >= 0 | number of post-smoothing steps on each level of preconditioning       */
+  LSS_SMOOTHING_STEPS,           /*| 1        | any >= 0 | number of Gauss-Seidel sweeps on each level of preconditoning         */
                                  /*|----------|----------|-----------------------------------------------------------------------*/
-                                 /*|          |          | Read-only parameters, corresponding to a recent call to LSS_Run:      */
+                                 /*|          |          | Read-only parameters, corresponding to a recent call to LSS_Solve:    */
                                  /*|----------|----------|-----------------------------------------------------------------------*/
   LSS_ITERATIONS,                /*| none     | none     | number of performed iterations                                        */
   LSS_RELATIVE_ERROR,            /*| none     | none     | history (LSS_Ggetv) or last value (LSS_Get) of relative error         */
@@ -76,10 +74,6 @@ typedef enum lsspar LSSPAR;
 /*           1            | Daubechies-2 (Haar)                */
 /*           2            | Daubechies-4                       */
 /*           3            | Daubechies-6                       */
-/* ====== SMOOTHER ====== | ================================== */
-/*           1            | Gauss-Seidel                       */ 
-/*           2            | Jacobi                             */ 
-/*           3            | Kaczmarz                           */ 
 /*________________________|____________________________________*/
 
 /* n: dimension of n x n system A matrix

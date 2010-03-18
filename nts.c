@@ -8,9 +8,10 @@
 #if MPI
 #include <HYPRE_parcsr_mv.h>
 #include <HYPRE_IJ_mv.h>
-#else
-#include <slu_ddefs.h>
+#elif UMFPACK
 #include <umfpack.h>
+#else
+#include "lss.h"
 #endif
 
 #include <stdlib.h>
@@ -22,7 +23,6 @@
 #include "bla.h"
 #include "lap.h"
 #include "err.h"
-#include "lss.h"
 
 #define MEMBLK 256
 
@@ -66,7 +66,7 @@ struct linsys /* HYPRE IJ matrix data and the rest of linear system */
   HYPRE_IJVector X; /* HYPRE IJ solution vector */
   HYPRE_ParVector XP; /* HYPRE parallel image of X */
 
-  int nnz, dim;
+  int nnz, dim; /* FIXME */
 };
 #else
 struct linsys /* SuperLU matrix data and the rest of linear system */
@@ -78,27 +78,15 @@ struct linsys /* SuperLU matrix data and the rest of linear system */
        nnz, /* number of nonzero entries */
        dim; /* dimension of the rectangular matrix */
 
-  SuperMatrix A, /* SuperLU wrapper for 'a' */
-	      AC; /* 'A' with permuted columns */
-
   double *b; /* right hand side */
 
-  SuperMatrix B; /* SuperLU wrapper for 'b' */
+  double *x; /* solution */
 
-  int *rowperm, /* permutation mappings */
-      *colperm,
-      *etree; /* elimination tree */
-
-  superlu_options_t options;  /* SuperLU options */
-  
-  SuperMatrix L, U; /* numeric factors */
-  void *work; /* work space */
-  int lwork; /* size of work space */
-
-  SuperLUStat_t stat; /* SuperLU statistics */
-  int info; /* termination status */
-
-  double *x; /* solution == b (overwrites) */
+#if UMFPACK
+  void *symbolic; /* UMFPACK symbolic factorization */
+#else
+  void *lss; /* LSS interface */
+#endif
 };
 #endif
 
@@ -226,14 +214,11 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   ERRMEM (sys->cri = malloc (sizeof (int) * sys->nnz));
   ERRMEM (sys->cbp = MEM_CALLOC (sizeof (int) * (sys->dim+1))); /* '+ 1' as there is cbp[0] == 0 always */
 
-  /* eallocate permutation space and elimination tree */
-  ERRMEM (sys->rowperm = malloc (sizeof (int) * sys->dim));
-  ERRMEM (sys->colperm = malloc (sizeof (int) * sys->dim));
-  ERRMEM (sys->etree = malloc (sizeof (int) * sys->dim));
-
   int *cri = sys->cri,
       *cbp = sys->cbp,
-      *aux = sys->rowperm; /* use temporarily */
+      *aux;
+
+  ERRMEM (aux = malloc (sizeof (int) * sys->dim));
 
   /* set up column sizes */
   for (j = 0; j < dom->ncon; j ++)
@@ -316,42 +301,24 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   /* clean */
   MEM_Release (&mem);
   free (pcol);
+  free (aux);
 
-  /* create SuperLU wrapper of tangent operator sys->A */
-  dCreate_CompCol_Matrix (&sys->A, sys->dim, sys->dim, sys->nnz, sys->a, sys->cri, sys->cbp, SLU_NC, SLU_D, SLU_GE);
+  /* alloc right hand side and solution vectors */
+  ERRMEM (sys->b = MEM_CALLOC (sizeof (double) * sys->dim));
+  ERRMEM (sys->x = MEM_CALLOC (sizeof (double) * sys->dim));
 
-  /* realloc and prepare right hand side vector sys->B */
-  ERRMEM (sys->b = realloc (sys->b, sizeof (double) * sys->dim));
-  dCreate_Dense_Matrix (&sys->B, sys->dim, 1, sys->b, sys->dim, SLU_DN, SLU_D, SLU_GE); 
+  /* initialize linear solver */
 
-  /* set up factorization options */
-  superlu_options_t *opt = &sys->options;
+#if UMFPACK
+  ASSERT (umfpack_di_symbolic (sys->dim, sys->dim, sys->cbp, sys->cri, sys->a, &sys->symbolic, NULL, NULL) >= 0,  ERR_UMFPACK_SYMBOLIC);
+#else
+  ERRMEM (sys->lss = LSS_Create (sys->dim, sys->a, sys->cbp, sys->cri));
 
-  /* may seem redundant, but is safer with respect
-   * to option changes in different versions of SuperLU */
-  set_default_options (opt);
- 
-  /* now do it more consciously
-   * on a subset of options */ 
-  opt->Fact = DOFACT; 
-  opt->Equil = NO;
-  opt->ColPerm = MMD_AT_PLUS_A;
-  opt->Trans = NOTRANS;
-  opt->IterRefine = NOREFINE;
-  opt->PrintStat = YES;
-  opt->DiagPivotThresh = 1.0;
-  opt->PivotGrowth = NO;
-  opt->ConditionNumber = NO;
-
-  /* permute columns of matrix A and make it into AC */
-  get_perm_c (opt->ColPerm, &sys->A, sys->colperm); /* fill-in minimising column ordering */
-  sp_preorder (opt, &sys->A, sys->colperm, sys->etree, &sys->AC); /* elimination tree & AC */
-
-  /* initialise statistics placeholder */
-  StatInit (&sys->stat);
-
-  /* solution vector */
-  sys->x = sys->b;
+  LSS_Set (sys->lss, LSS_PRECONDITIONER, 3);
+  LSS_Set (sys->lss, LSS_DECIMATION, 8);
+  LSS_Set (sys->lss, LSS_RESTART, 100);
+  LSS_Set (sys->lss, LSS_SMOOTHING_STEPS, 3);
+#endif
 
   return sys; 
 }
@@ -1143,110 +1110,33 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
   double *b;
   CON *con;
 
-#if 1
+#if UMFPACK
+  void *numeric;
 
-#if 0
-  void *Symbolic, *Numeric;
-  int status;
-  double *x;
-
-  ERRMEM (x = malloc (sizeof (double [sys->dim])));
-  blas_dcopy (sys->dim, sys->b, 1, x, 1);
-
-  status = umfpack_di_symbolic (sys->dim, sys->dim, sys->cbp, sys->cri, sys->a, &Symbolic, NULL, NULL);
-  ASSERT_DEBUG (status >= 0, "UMFPACK symbolic failed");
-  status = umfpack_di_numeric (sys->cbp, sys->cri, sys->a, Symbolic, &Numeric, NULL, NULL);
-  ASSERT_DEBUG (status >= 0, "UMFPACK numeric failed");
-  status = umfpack_di_solve (UMFPACK_A, sys->cbp, sys->cri, sys->a, sys->b, x, Numeric, NULL, NULL);
-  ASSERT_DEBUG (status >= 0, "UMFPACK solve failed");
-  umfpack_di_free_symbolic (&Symbolic);
-  umfpack_di_free_numeric (&Numeric);
-  free (x);
+  ASSERT (umfpack_di_numeric (sys->cbp, sys->cri, sys->a, sys->symbolic, &numeric, NULL, NULL) >= 0, ERR_UMFPACK_NUMERIC);
+  ASSERT (umfpack_di_solve (UMFPACK_A, sys->cbp, sys->cri, sys->a, sys->x, sys->b, numeric, NULL, NULL) >= 0, ERR_UMFPACK_SOLVE);
+  umfpack_di_free_numeric (&numeric);
 #else
 
-  void *lss;
+  LSS_Set (sys->lss, LSS_RESTART, 100);
+  LSS_Set (sys->lss, LSS_SMOOTHING_STEPS, 3);
+  LSS_Set (sys->lss, LSS_ITERATIONS_BOUND, 500);
+  LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 1E99);
+  LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
 
-  ASSERT_DEBUG (lss = LSS_Create (sys->dim, sys->a, sys->cbp, sys->cri), "LSS creation failed");
-
-  LSS_Set (lss, LSS_PRECONDITIONER, 1);
-  LSS_Set (lss, LSS_DECIMATION, 4);
-  LSS_Set (lss, LSS_RESTART, 75);
-  LSS_Set (lss, LSS_PRESMOOTHING_STEPS, 3);
-  LSS_Set (lss, LSS_POSTSMOOTHING_STEPS, 3);
-  LSS_Set (lss, LSS_ITERATIONS_BOUND, 75);
-  LSS_Set (lss, LSS_RELATIVE_ACCURACY, 1E99);
-  LSS_Set (lss, LSS_ABSOLUTE_ACCURACY, accuracy);
-
-  switch (LSS_Solve (lss, sys->a, sys->x, sys->b))
+  switch (LSS_Solve (sys->lss, sys->a, sys->x, sys->b))
   {
   case LSSERR_INVALID_ARGUMENT: printf ("LSS ERROR: invalid argument\n"); break;
   case LSSERR_OUT_OF_MEMORY: printf ("LSS ERROR: out of memory\n"); break;
   case LSSERR_LACK_OF_CONVERGENCE: printf ("LSS ERROR: lack of convergence\n"); break;
   case LSSERR_EMPTY_COLUMN: printf ("LSS ERROR: empty column\n"); break;
   case LSSERR_ZERO_ON_DIAGONAL: printf ("LSS ERROR: zero on diagonal\n"); break;
+  case LSSERR_GMRES_BREAKDOWN: printf ("LSS ERROR: GMRES has broke down\n"); break;
   case LSSERR_NONE: break;
   }
 
-  printf ("NEWTON: LSS error rel/abs: %g/%g and iters: %d\n", 
-      LSS_Get (lss, LSS_RELATIVE_ERROR),
-      LSS_Get (lss, LSS_ABSOLUTE_ERROR),
-      (int) LSS_Get (lss, LSS_ITERATIONS));
-
-  LSS_Destroy (lss);
-#endif
-
-#else
-  SuperMatrix B;
-
-  ERRMEM (b = malloc (sizeof (double) * sys->dim));
-  dCreate_Dense_Matrix (&B, sys->dim, 1, b, sys->dim, SLU_DN, SLU_D, SLU_GE); 
-
-  if (sys->options.Fact == DOFACT) /* new */
-  {
-    /* symbolic factorization was done already: point it out
-     * and go for the numeric factorization with row pivoting */
-
-    sys->options.Fact = SamePattern; /* no column ordering */
-
-    dgstrf (&sys->options, &sys->AC, sp_ienv (2), sp_ienv (1), sys->etree, NULL, -1,
-      sys->colperm, sys->rowperm, &sys->L, &sys->U, &sys->stat, &sys->info); /* guess workspace size */
-#if 0
-    /* below after fixes internal SuperLU bug with the misassesment of space for small matrices */
-    sys->lwork = sys->info + sp_ienv(1)*((sp_ienv(3)+sp_ienv(4)) + sys->dim) * sizeof (double);
-    sys->lwork *= 2; /* just in case (from previous experience) */
-#else
-    sys->lwork = sys->info * sizeof (double); /* TODO: remove the #if after the current SuperLU proves rotbust in this respect */
-#endif
-    ERRMEM (sys->work = MEM_CALLOC (sys->lwork));
-  }
-  else /* consecutive */
-  {
-    /* to save time a factorization flag is changed here in order to
-     * prevent row pivoting for consecutive solves (somewhat risky) */ 
-
-    sys->options.Fact = SamePattern_SameRowPerm; /* no row pivoting */
-  }
-
-  /* update copy of b */
-  blas_dcopy (sys->dim, sys->b, 1, b, 1);
-
-  dgstrf (&sys->options, &sys->AC, sp_ienv (2), sp_ienv (1), sys->etree, sys->work, sys->lwork,
-    sys->colperm, sys->rowperm, &sys->L, &sys->U, &sys->stat, &sys->info); /* numeric factorisation */
-  ASSERT (sys->info == 0, ERR_SUPERLU_SOLVE);
-
-  dgstrs (NOTRANS, &sys->L, &sys->U, sys->colperm, sys->rowperm, &sys->B, &sys->stat, &sys->info); /* system solve */
-  ASSERT (sys->info == 0, ERR_SUPERLU_SOLVE);
-
-  /* iterative refinement */
-  {
-    double ferr, berr;
-    char equed = 'N';
-
-    dgsrfs (NOTRANS, &sys->A, &sys->L, &sys->U, sys->colperm, sys->rowperm,
-      &equed, NULL, NULL, &B, &sys->B, &ferr, &berr, &sys->stat, &sys->info);
-    ASSERT (sys->info == 0, ERR_SUPERLU_SOLVE);
-    free (b);
-  }
+  printf ("NEWTON: LSS error rel/abs: %g/%g and iters: %d\n", LSS_Get (sys->lss, LSS_RELATIVE_ERROR),
+      LSS_Get (sys->lss, LSS_ABSOLUTE_ERROR), (int) LSS_Get (sys->lss, LSS_ITERATIONS));
 #endif
 
   /* write DR */
@@ -1683,16 +1573,17 @@ static void system_destroy (LINSYS *sys, MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   MEM_Release (auxmem);
 
   free (sys->a);
+  free (sys->x);
+  free (sys->b);
   free (sys->cri);
   free (sys->cbp);
-  free (sys->rowperm);
-  free (sys->colperm);
-  free (sys->etree);
-  free (sys->b);
-  free (sys->work);
-  SUPERLU_FREE (sys->L.Store);
-  SUPERLU_FREE (sys->U.Store);
-  Destroy_CompCol_Permuted (&sys->AC);
+
+#if UMFPACK
+  umfpack_di_free_symbolic (&sys->symbolic);
+#else
+  LSS_Destroy (sys->lss);
+#endif
+
   free (sys);
 }
 #endif
@@ -1749,7 +1640,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
     write_system (sys, "A.mtx", "B.vec");
 #endif
 
-    system_solve (sys, ldy, 0.01 * MIN (error, merit)); /* solve x = inv (A) * b  */
+    system_solve (sys, ldy, MIN (error * 0.01, 1E-2)); /* solve x = inv (A) * b  */
 
     error = reactions_update (sys, nt->variant, ldy, iter, nt->length, values); /* R[iter+1] = R[iter] (x) */
 
