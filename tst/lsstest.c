@@ -125,9 +125,9 @@ static void sparsetest (char *path)
 
   lss = LSS_Create (A->n, A->x, A->p, A->i);
 
-  LSS_Set (lss, LSS_PRECONDITIONER, 1);
+  LSS_Set (lss, LSS_PRECONDITIONER, 3);
   LSS_Set (lss, LSS_SMOOTHING_STEPS, 3);
-  LSS_Set (lss, LSS_DECIMATION, 4);
+  LSS_Set (lss, LSS_DECIMATION, 8);
   LSS_Set (lss, LSS_RESTART, 100);
   LSS_Set (lss, LSS_CUTOFF, 16);
   LSS_Set (lss, LSS_ITERATIONS_BOUND, 1000);
@@ -159,34 +159,18 @@ static void sparsetest (char *path)
 
 int main (int argc, char **argv)
 {
-  system ("rm -f *.dat *.eps");
+  if (argc != 2)
+  {
+    printf ("SYNOPSIS: lsstest path/to/matrix-market/square/matrix.mtx\n");
+  }
+  else
+  {
+    system ("rm -f *.dat *.eps");
 
-  sparsetest ("/Users/tomek/Devel/mtx/memplus.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/s3dkt3m2.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/bcsstk18.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/bcsstk21.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/bcsstk26.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/bcsstk28.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/bcsstm25.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/nos4.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/nos5.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/epb1.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/epb2.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/epb3.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/shipsec5.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/crashbasis.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/FEM_3D_thermal1.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/FEM_3D_thermal2.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/viscoplastic2/viscoplastic2.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/thermal1/thermal1.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/ssu/tub100/tub100.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/ssu/pivtol/pivtol.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/ssu/tub1000/tub1000.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/ssu/sherman4/sherman4.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/ssu/cryg10000/cryg10000.mtx");
-  //sparsetest ("/Users/tomek/Devel/mtx/uns/airfoil_2d/airfoil_2d.mtx");
-  
-  system ("gnuplot inp/lsstest.plt");
+    sparsetest (argv [1]);
+
+    system ("gnuplot inp/lsstest.plt");
+  }
 
   return 0;
 }

@@ -1415,12 +1415,15 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
     MAXABS (energy, emax);
 
-    etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
+    if (emax > DBL_EPSILON) /* discard tiny energy balance */
+    {
+      etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
-    if (!(etot < ENE_TOL * emax || emax < 0))
-      fprintf (stderr, "KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
+      if (!(etot < ENE_TOL * emax || emax < 0))
+	fprintf (stderr, "KIN = %g, INT = %g, EXT = %g, TOT = %g\n", energy [KINETIC], energy [INTERNAL], energy [EXTERNAL], etot);
 
-    ASSERT (etot < ENE_TOL * emax || emax < 0, ERR_BOD_ENERGY_CONSERVATION);
+      ASSERT (etot < ENE_TOL * emax || emax < 0, ERR_BOD_ENERGY_CONSERVATION);
+    }
 #endif
 
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);

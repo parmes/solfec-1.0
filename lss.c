@@ -327,7 +327,7 @@ PRIVATE (MATRIX*, matrix, int n, double *a, int *p, int *i)
 {
   MATRIX *A;
 
-  ASSERT (n > 0, LSSERR_INVALID_ARGUMENT); /* FIXME: need to accept compressed row format */
+  ASSERT (n >= 0, LSSERR_INVALID_ARGUMENT); /* FIXME: need to accept compressed row format */
   ASSERT (A = malloc (sizeof (MATRIX)), LSSERR_OUT_OF_MEMORY);
   ASSERT (A->columns = malloc ((n+1) * sizeof (int)), LSSERR_OUT_OF_MEMORY);
   ASSERT (A->rows = malloc (p [n] * sizeof (int)), LSSERR_OUT_OF_MEMORY);
@@ -1210,6 +1210,14 @@ static double veclen (VECTOR *a)
   return sqrt (vecvec (a, a));
 }
 
+/* generate random [0, 1] vector */
+static void vecrand (VECTOR *a)
+{
+  double *x = a->elements, *y = x + a->dimension;
+
+  for (; x < y; x ++) *x = (double) rand () / (double) RAND_MAX;
+}
+
 #define H(i, j) H [(j)*(m+1) + (i)]
 #define R(i, j) R [(j)*(m+1) + (i)]
 
@@ -1277,6 +1285,9 @@ PRIVATE (void, gmres, MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VEC
   relative_error = params->relative_error;
   absolute_error = params->absolute_error;
 
+  if (relative_error) for (i = 0; i < maxiter; i ++) relative_error [i] = -1.0; /* initialize with breakdown codes */
+  if (absolute_error) for (i = 0; i < maxiter; i ++) absolute_error [i] = -1.0;
+
   iteration = 0;
 
   do
@@ -1284,6 +1295,7 @@ PRIVATE (void, gmres, MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VEC
     residual (A, b, x, r); /* r = b - A x */
     beta = veclen (r);
     if (beta == 0.0) break;
+    else if (!isfinite (beta)) { iteration = maxiter; break; } /* breakdown: exit */
     vecmul (r, 1.0/beta, v [0]); /* v[0] = r / |r| (first base vector) */
 
     if (!iteration) omega = beta;
@@ -1300,7 +1312,7 @@ PRIVATE (void, gmres, MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VEC
       }
 
       H (j+1, j) = veclen (w);
-      ASSERT (H(j+1, j) > 0.0, LSSERR_GMRES_BREAKDOWN);
+      if (H(j+1, j) == 0.0 || !isfinite (H(j+1, j))) { vecrand (x); j --; iteration ++; M = NULL; break; } /* breakdown: try continuing without preconditioner */
       if (j < (m-1)) vecmul (w, 1.0/H (j+1, j), v [j+1]); /* v[j+1] = w / |w| (next base vector) */
 
       alpha = minimise (beta, H, Q, R, y, g, m, j); /* solve min (y) [beta * e1 - H y] */
@@ -1459,18 +1471,27 @@ LSSERR LSS_Set (void *lss, LSSPAR p, double v)
       break;
     case LSS_PRECONDITIONER:
       ASSERT (v == 0 || v == 1 || v == 2 || v == 3, LSSERR_INVALID_ARGUMENT);
-      LSSOBJ(lss)->params->preconditioner = (int)v;
-      LSSOBJ(lss)->modified = 1; /* need to rebuild preconditioner */
+      if (LSSOBJ(lss)->params->preconditioner != (int)v)
+      {
+	LSSOBJ(lss)->params->preconditioner = (int)v;
+	LSSOBJ(lss)->modified = 1; /* need to rebuild preconditioner */
+      }
       break;
     case LSS_DECIMATION:
       ASSERT (v >= 2, LSSERR_INVALID_ARGUMENT);
-      LSSOBJ(lss)->params->decimation = (int)v;
-      LSSOBJ(lss)->modified = 1; /* need to rebuild preconditioner */
+      if (LSSOBJ(lss)->params->decimation != (int)v)
+      {
+	LSSOBJ(lss)->params->decimation = (int)v;
+	LSSOBJ(lss)->modified = 1; /* need to rebuild preconditioner */
+      }
       break;
     case LSS_CUTOFF:
       ASSERT (v >= 2, LSSERR_INVALID_ARGUMENT);
-      LSSOBJ(lss)->params->cutoff = (int)v;
-      LSSOBJ(lss)->modified = 1; /* need to rebuild preconditioner */
+      if (LSSOBJ(lss)->params->cutoff != (int)v)
+      {
+	LSSOBJ(lss)->params->cutoff = (int)v;
+	LSSOBJ(lss)->modified = 1; /* need to rebuild preconditioner */
+      }
       break;
     case LSS_RESTART:
       ASSERT (v >= 1, LSSERR_INVALID_ARGUMENT);
@@ -1602,6 +1623,23 @@ LSSERR LSS_Solve (void *lss, double *a, double *x, double *b)
   CALL (solve, lss, x); /* solve and output */
 
   return LSSERR_NONE; /* successful termination */
+}
+
+/* lss: returned by LSS_Create;
+ * return last error message (or NULL) */
+char* LSS_Errmsg (void *lss)
+{
+  switch (LSSOBJ(lss)->error)
+  {
+    case LSSERR_INVALID_ARGUMENT: return "invalid argument";
+    case LSSERR_OUT_OF_MEMORY: return "out of memory";
+    case LSSERR_LACK_OF_CONVERGENCE: return "lack of convergence";
+    case LSSERR_EMPTY_COLUMN: return "empty column";
+    case LSSERR_ZERO_ON_DIAGONAL: return "zero on diagonal";
+    case LSSERR_NONE: return NULL;
+  }
+
+  return NULL;
 }
 
 /* lss: returned by LSS_Create;

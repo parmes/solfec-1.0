@@ -31,8 +31,7 @@ enum lsserr                      /*|                                            
   LSSERR_INVALID_ARGUMENT,       /*| invalid argument was used in function call                            */
   LSSERR_LACK_OF_CONVERGENCE,    /*| number of iterations has exceeded the prescribed bound                */
   LSSERR_EMPTY_COLUMN,           /*| system matrix has an empty column                                     */
-  LSSERR_ZERO_ON_DIAGONAL,       /*| system matrix has zero on the diagonal                                */
-  LSSERR_GMRES_BREAKDOWN         /*| GMRES has broke down                                                  */
+  LSSERR_ZERO_ON_DIAGONAL        /*| system matrix has zero on the diagonal                                */
 };                               /*|_______________________________________________________________________*/
 
 typedef enum lsserr LSSERR;
@@ -109,6 +108,10 @@ double* LSS_Getv (void *lss, LSSPAR p);
  * b: right hand side vector
  * solve linear system A x = b, where A = (a, p, i) */
 LSSERR LSS_Solve (void *lss, double *a, double *x, double *b);
+
+/* lss: returned by LSS_Create;
+ * return last error message (or NULL) */
+char* LSS_Errmsg (void *lss);
 
 /* lss: returned by LSS_Create;
  * release solver memory */

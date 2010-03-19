@@ -56,5 +56,7 @@ Remove #if 0 from hull.c once it proves robust
 -----------------------------------------------------------------
 How to implementing rewinding back of simulations during
 which bodies have been deleted? (do not really delete)
--------------------------------------------------------
-bod->inverse sending for DEF_IMP/LIM/LIM2 schemes in parallel
+------------------------------------------------------------------------------
+Include MERIT_Function based termination into GAUSS_SEIDEL (a la NEWTON)
+--------------------------------------------------------------------------
+bod->inverse sending for DEF_IMP/LIM/LIM2 schemes in parallel !!
