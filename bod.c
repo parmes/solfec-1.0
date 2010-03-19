@@ -1410,12 +1410,12 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
     compute_contacts_work (bod, step); /* CONTWORK and FRICWORK */
 
-#if 1 /* TODO: remove condition when proved robust */
+#if 0 /* TODO: remove condition when proved robust */
     double emax, etot;
 
     MAXABS (energy, emax);
 
-    if (emax > DBL_EPSILON) /* discard tiny energy balance */
+    if (emax > DBL_EPSILON && bod->damping == 0.0) /* discard tiny energy balance and damping */
     {
       etot = energy[KINETIC] + energy[INTERNAL] - energy[EXTERNAL];
 
