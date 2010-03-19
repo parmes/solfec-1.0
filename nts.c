@@ -24,6 +24,12 @@
 #include "lap.h"
 #include "err.h"
 
+#define NEWTON_DEBUG 0 /* 0: no additional debugging
+                        * 1: inexpensive tests
+                        * 2: costly tests */
+
+#define SCALE_RHOS 0 /* regularization paramter scaling */
+
 #define MEMBLK 256
 
 /* mask separating variants from variant options */
@@ -37,6 +43,9 @@ typedef struct linsys LINSYS; /* linear sysetm */
 #if MPI
 struct linsys /* HYPRE IJ matrix data and the rest of linear system */
 {
+  MEM mapmem, /* memory of DIAB->map and OFFB->map int [3] vectors */
+      auxmem; /* auxiliary constraint data memory */
+
   int ilower, /* lower row index == dom->con->num * 3 */
       iupper; /* upper low index == ilowr + dom->ncon * 3 - 1 */
 
@@ -49,6 +58,8 @@ struct linsys /* HYPRE IJ matrix data and the rest of linear system */
      *cols;  /* column indices: depend on local dynamics */
 
   double *a; /* compressed row values */
+
+  int nnz; /* number of nonzeros in a */
 
   HYPRE_IJMatrix A;  /* HYPRE IJ matrix composed from the above data */
   HYPRE_ParCSRMatrix AP; /* reference to the parallel HYPRE CSR image of A */
@@ -66,11 +77,14 @@ struct linsys /* HYPRE IJ matrix data and the rest of linear system */
   HYPRE_IJVector X; /* HYPRE IJ solution vector */
   HYPRE_ParVector XP; /* HYPRE parallel image of X */
 
-  int nnz, dim; /* FIXME */
+  double *nonmonvalues; /* nonmonotone line search merit values history */
 };
 #else
 struct linsys /* SuperLU matrix data and the rest of linear system */
 {
+  MEM mapmem, /* memory of DIAB->map and OFFB->map int [3] vectors */
+      auxmem; /* auxiliary constraint data memory */
+
   double *a; /* compressed column values */
 
   int *cri, /* column row indices */
@@ -87,6 +101,8 @@ struct linsys /* SuperLU matrix data and the rest of linear system */
 #else
   void *lss; /* LSS interface */
 #endif
+
+  double *nonmonvalues; /* nonmonotone line search merit values history */
 };
 #endif
 
@@ -99,8 +115,10 @@ struct conaux
 	 DU [3],  /* velocity increment */
 	 RN;      /* normal reaction bound during fixed point iterations */
 
+#if SCALE_RHOS
   short sticks,   /* contact sticking history bits */
 	hits;     /* nuber of alternating stick-slip patterns found */
+#endif
 };
 
 #define CON_RES(con) ((CONAUX*)((con)->data))->RES
@@ -112,14 +130,14 @@ struct conaux
 
 /* create linear system */
 #if MPI
-static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
+static LINSYS* system_create (NEWTON *nt, LOCDYN *ldy)
 {
   /* TODO */
 
   return NULL;
 }
 #else
-static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
+static LINSYS* system_create (NEWTON *nt, LOCDYN *ldy)
 {
   DOM *dom = ldy->dom;
   MAP **pcol, *item;
@@ -131,6 +149,9 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   MEM mem;
     
   ERRMEM (sys = MEM_CALLOC (sizeof (LINSYS)));
+  MEM_Init (&sys->mapmem, sizeof (int [3]), MEMBLK);
+  MEM_Init (&sys->auxmem, sizeof (CONAUX), MEMBLK);
+  ERRMEM (sys->nonmonvalues = MEM_CALLOC (sizeof (double [nt->nonmonlength])));
 
   /* number constraints */
   DOM_Number_Constraints (dom);
@@ -138,7 +159,7 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   /* allocate auxiliary space */
   for (con = dom->con; con; con = con->next)
   {
-    ERRMEM (con->data = MEM_Alloc (auxmem));
+    ERRMEM (con->data = MEM_Alloc (&sys->auxmem));
   }
 
   /* allocate colum blocks mapping */
@@ -152,7 +173,7 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 
     col = row = dia->con->num;
     ASSERT_DEBUG (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Diagonal block mapped twice");
-    ERRMEM (map = MEM_Alloc (mapmem));
+    ERRMEM (map = MEM_Alloc (&sys->mapmem));
     ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL)); /* '+1' not to confuse with NULL */
 
     for (blk = dia->adj; blk; blk = blk->n)
@@ -161,14 +182,14 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 
       if (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
       {
-        ERRMEM (map = MEM_Alloc (mapmem));
+        ERRMEM (map = MEM_Alloc (&sys->mapmem));
 	ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL));
       }
     }
   }
 
-#if DEBUG
-  /* self consistency checks */
+#if DEBUG && NEWTON_DEBUG > 0
+  /* TODO: remove at some point */
   for (j = 0; j < dom->ncon; j ++)
   {
     for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
@@ -263,8 +284,8 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
     }
   }
 
-#if DEBUG
-  /* self consistency check */
+#if DEBUG && NEWTON_DEBUG > 0
+  /* TODO: remove at some point */
   for (j = 0; j < dom->ncon; j ++)
   {
     for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
@@ -310,14 +331,15 @@ static LINSYS* system_create (MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
   /* initialize linear solver */
 
 #if UMFPACK
-  ASSERT (umfpack_di_symbolic (sys->dim, sys->dim, sys->cbp, sys->cri, sys->a, &sys->symbolic, NULL, NULL) >= 0,  ERR_UMFPACK_SYMBOLIC);
+  ASSERT (umfpack_di_symbolic (sys->dim, sys->dim, sys->cbp, sys->cri,
+    sys->a, &sys->symbolic, NULL, NULL) == UMFPACK_OK,  ERR_UMFPACK_SYMBOLIC);
 #else
   ERRMEM (sys->lss = LSS_Create (sys->dim, sys->a, sys->cbp, sys->cri));
-
-  LSS_Set (sys->lss, LSS_PRECONDITIONER, 3);
+  LSS_Set (sys->lss, LSS_PRECONDITIONER, 3); /* FIXME: make these paramters more intelligently adjustable */
   LSS_Set (sys->lss, LSS_DECIMATION, 8);
   LSS_Set (sys->lss, LSS_RESTART, 100);
   LSS_Set (sys->lss, LSS_SMOOTHING_STEPS, 3);
+  LSS_Set (sys->lss, LSS_ITERATIONS_BOUND, nt->linmaxiter);
 #endif
 
   return sys; 
@@ -452,47 +474,18 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	pull = 1;
 
 #if MPI
-	a [map[2]]   = 0.0;
-	a [map[2]+1] = 0.0;
 	a [map[2]+2] = W[8];
 #else
-	a [map[0]+2] = 0.0;
-	a [map[1]+2] = 0.0;
 	a [map[2]+2] = W[8];
 #endif
 	b [2] = -R[2] * W[8];
-
-	/* FIXME: mind zero initialization in the begining; hence below not needed */
-#if 0
-#if MPI
-	{
-	  OFFB *adj [2] = {dia->adj, dia->adjext};
-	  for (int i = 0; i < 2; i ++)
-	  for (blk = adj [i]; blk; blk = blk->n)
-	  {
-	    int *map = blk->map;
-
-	    a [map[2]]   = 0.0;
-	    a [map[2]+1] = 0.0;
-	    a [map[2]+2] = 0.0;
-	  }
-	}
-#else
-	for (blk = dia->adj; blk; blk = blk->n)
-	{
-	  int *map = blk->map;
-
-	  a [map[0]+2] = 0.0;
-	  a [map[1]+2] = 0.0;
-	  a [map[2]+2] = 0.0;
-	}
-#endif
-#endif
       }
 
       /* tangential response */
 
+#if SCALE_RHOS
       CON_STICKS(con) = CON_STICKS(con) << 1; /* rewind history */
+#endif
 
       norm = sqrt (d[0]*d[0]+d[1]*d[1]); /* tangential force value */
 
@@ -738,60 +731,21 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
   ZERO_TANG:
 #if MPI
 	  a [map[0]]   = W[0];
-	  a [map[1]]   = 0.0;
-	  a [map[0]+1] = 0.0;
 	  a [map[1]+1] = W[4];
-	  a [map[0]+2] = 0.0;
-	  a [map[1]+2] = 0.0;
 #else
 	  a [map[0]]   = W[0];
-	  a [map[0]+1] = 0.0;
-	  a [map[1]]   = 0.0;
 	  a [map[1]+1] = W[4];
-	  a [map[2]]   = 0.0;
-	  a [map[2]+1] = 0.0;
 #endif
 	  b [0] = -R[0] * W[0];
 	  b [1] = -R[1] * W[4];
-
-	  /* FIXME: mind zero initialization at the beginning: hence below not needed */
-#if 0
-#if MPI
-	  {
-	    OFFB *adj [2] = {dia->adj, dia->adjext};
-	    for (int i = 0; i < 2; i ++)
-	    for (blk = adj [i]; blk; blk = blk->n)
-	    {
-	      int *map = blk->map;
-
-	      a [map[0]]   = 0.0;
-	      a [map[1]]   = 0.0;
-	      a [map[0]+1] = 0.0;
-	      a [map[1]+1] = 0.0;
-	      a [map[0]+2] = 0.0;
-	      a [map[1]+2] = 0.0;
-	    }
-	  }
-#else
-	  for (blk = dia->adj; blk; blk = blk->n)
-	  {
-	    int *map = blk->map;
-
-	    a [map[0]]   = 0.0;
-	    a [map[0]+1] = 0.0;
-	    a [map[1]]   = 0.0;
-	    a [map[1]+1] = 0.0;
-	    a [map[2]]   = 0.0;
-	    a [map[2]+1] = 0.0;
-	  }
-#endif
-#endif
 	}
       }
       else /* frictional sticking: inactive tangential set */
       {
 
+#if SCALE_RHOS
         CON_STICKS(con)	 |= 0x1; /* feed in one bit */
+#endif
 
 #if MPI
 	a [map[0]]   = W[0];
@@ -828,7 +782,8 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	}
 	else /* HSW */
 	{
-	  /* TODO: this is quasi-statics; work out dynamics */
+	  /* TODO: this is quasi-statics; work out dynamics;
+	   *       it actually works pretty well in the dynamic case */
 #if MPI
 	  a [map[0]+2] = W[6]+U[0]/d[2];
 	  a [map[1]+2] = W[7]+U[1]/d[2];
@@ -968,23 +923,11 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 
 #if MPI
       a [map[0]]   = W[0];
-      a [map[1]]   = 0.0;
-      a [map[2]]   = 0.0;
-      a [map[0]+1] = 0.0;
       a [map[1]+1] = W[4];
-      a [map[2]+1] = 0.0;
-      a [map[0]+2] = 0.0;
-      a [map[1]+2] = 0.0;
       a [map[2]+2] = W[8];
 #else
       a [map[0]]   = W[0];
-      a [map[0]+1] = 0.0;
-      a [map[0]+2] = 0.0;
-      a [map[1]]   = 0.0;
       a [map[1]+1] = W[4];
-      a [map[1]+2] = 0.0;
-      a [map[2]]   = 0.0;
-      a [map[2]+1] = 0.0;
       a [map[2]+2] = W[8];
 #endif
       b [0] = -R[0] * W[0]; /* keep RT zero: W (-R) = W dR */
@@ -1028,20 +971,8 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	  double *W = blk->W;
 	  int *map = blk->map;
 
-#if 0
-	  a [map[0]]   = 0.0;
-	  a [map[1]]   = 0.0;
-#endif
 	  a [map[2]]   += W[2]; /* maintain tangentail coupling: W(3,:) */
-#if 0
-	  a [map[0]+1] = 0.0;
-	  a [map[1]+1] = 0.0;
-#endif
 	  a [map[2]+1] += W[5];
-#if 0
-	  a [map[0]+2] = 0.0;
-	  a [map[1]+2] = 0.0;
-#endif
 	  a [map[2]+2] += W[8];
 	}
       }
@@ -1051,20 +982,8 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 	double *W = blk->W;
 	int *map = blk->map;
 
-#if 0
-	a [map[0]]   = 0.0;
-	a [map[0]+1] = 0.0;
-#endif
 	a [map[0]+2] += W[2];
-#if 0
-	a [map[1]]   = 0.0;
-	a [map[1]+1] = 0.0;
-#endif
 	a [map[1]+2] += W[5];
-#if 0
-	a [map[2]]   = 0.0;
-	a [map[2]+1] = 0.0;
-#endif
 	a [map[2]+2] += W[8];
       }
 #endif
@@ -1081,21 +1000,54 @@ static void system_update_VARIATIONAL (LINSYS *sys, NTVARIANT variant, LOCDYN *l
 }
 
 /* update linear system */
-static void system_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy)
+static void system_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy)
 {
-  switch (VARIANT (variant))
+  switch (VARIANT (nt->variant))
   {
     case NT_NONSMOOTH_HSW:
     case NT_NONSMOOTH_HYBRID:
     case NT_FIXED_POINT:
-      system_update_HSW_HYBRID_FIXED (sys, variant, ldy);
+      system_update_HSW_HYBRID_FIXED (sys, nt->variant, ldy);
       break;
     case NT_NONSMOOTH_VARIATIONAL:
     case NT_SMOOTHED_VARIATIONAL:
-      system_update_VARIATIONAL (sys, variant, ldy);
+      system_update_VARIATIONAL (sys, nt->variant, ldy);
       break;
   }
 }
+
+#if DEBUG && NEWTON_DEBUG > 1
+/* output linear system */
+static void write_system (LINSYS *sys, const char *matrix, const char *vector)
+{
+#if MPI
+  /* TODO */
+#else
+  int *i, j, k;
+  double *a;
+  FILE *f;
+
+  ASSERT (f = fopen (matrix, "w"), ERR_FILE_OPEN);
+  fprintf (f, "%%%%MatrixMarket matrix coordinate real general\n");
+  fprintf (f, "%d %d %d\n", sys->dim, sys->dim, sys->nnz);
+  for (a = sys->a, i = sys->cri, j = 0; j < sys->dim; j ++)
+  {
+    for (k = sys->cbp [j]; k < sys->cbp [j+1]; k ++, a ++, i ++)
+    {
+      fprintf (f, "%d %d  %.15e\n", ((*i)+1),  (j+1),   *a);
+    }
+  }
+  fclose (f);
+
+  ASSERT (f = fopen (vector, "w"), ERR_FILE_OPEN);
+  for (a = sys->b, j = 0; j < sys->dim; a ++, j ++)
+  {
+    fprintf (f, "%.15e\n", *a);
+  }
+  fclose (f);
+#endif
+}
+#endif
 
 /* solve linear system */
 #if MPI
@@ -1113,30 +1065,39 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
 #if UMFPACK
   void *numeric;
 
-  ASSERT (umfpack_di_numeric (sys->cbp, sys->cri, sys->a, sys->symbolic, &numeric, NULL, NULL) >= 0, ERR_UMFPACK_NUMERIC);
-  ASSERT (umfpack_di_solve (UMFPACK_A, sys->cbp, sys->cri, sys->a, sys->x, sys->b, numeric, NULL, NULL) >= 0, ERR_UMFPACK_SOLVE);
+#if DEBUG && NEWTON_DEBUG > 1
+  if (umfpack_di_numeric (sys->cbp, sys->cri, sys->a, sys->symbolic, &numeric, NULL, NULL) != UMFPACK_OK)
+  {
+    fprintf (stderr, "ERROR: UMFPACK numeric factorization has failed\n");
+    write_system (sys, "A.mtx", "B.vec"); exit (1);
+  }
+  if (umfpack_di_solve (UMFPACK_A, sys->cbp, sys->cri, sys->a, sys->x, sys->b, numeric, NULL, NULL) != UMFPACK_OK)
+  {
+    fprintf (stderr, "ERROR: UMFPACK solution has failed\n");
+    write_system (sys, "A.mtx", "B.vec"); exit (1);
+  }
+#else
+  ASSERT (umfpack_di_numeric (sys->cbp, sys->cri, sys->a, sys->symbolic, &numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_NUMERIC);
+  ASSERT (umfpack_di_solve (UMFPACK_A, sys->cbp, sys->cri, sys->a, sys->x, sys->b, numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
+#endif
+
   umfpack_di_free_numeric (&numeric);
+
 #else
 
-  LSS_Set (sys->lss, LSS_RESTART, 100);
-  LSS_Set (sys->lss, LSS_SMOOTHING_STEPS, 3);
-  LSS_Set (sys->lss, LSS_ITERATIONS_BOUND, 500);
-  LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 1E99);
+  LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 10.0 * accuracy);
   LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
 
-  switch (LSS_Solve (sys->lss, sys->a, sys->x, sys->b))
+  if (LSS_Solve (sys->lss, sys->a, sys->x, sys->b) != LSSERR_NONE)
   {
-  case LSSERR_INVALID_ARGUMENT: printf ("LSS ERROR: invalid argument\n"); break;
-  case LSSERR_OUT_OF_MEMORY: printf ("LSS ERROR: out of memory\n"); break;
-  case LSSERR_LACK_OF_CONVERGENCE: printf ("LSS ERROR: lack of convergence\n"); break;
-  case LSSERR_EMPTY_COLUMN: printf ("LSS ERROR: empty column\n"); break;
-  case LSSERR_ZERO_ON_DIAGONAL: printf ("LSS ERROR: zero on diagonal\n"); break;
-  case LSSERR_GMRES_BREAKDOWN: printf ("LSS ERROR: GMRES has broke down\n"); break;
-  case LSSERR_NONE: break;
+#if DEBUG && NEWTON_DEBUG > 0
+    fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (sys->lss));
+#endif
+#if DEBUG && NEWTON_DEBUG > 1
+    write_system (sys, "A.mtx", "B.vec"); exit (1);
+#endif
   }
 
-  printf ("NEWTON: LSS error rel/abs: %g/%g and iters: %d\n", LSS_Get (sys->lss, LSS_RELATIVE_ERROR),
-      LSS_Get (sys->lss, LSS_ABSOLUTE_ERROR), (int) LSS_Get (sys->lss, LSS_ITERATIONS));
 #endif
 
   /* write DR */
@@ -1169,39 +1130,8 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
 }
 #endif
 
-#if DEBUG
-#if 0
-static void write_system (LINSYS *sys, const char *matrix, const char *vector)
-{
-#if MPI
-  /* TODO */
-#else
-  int *i, j, k;
-  double *a;
-  FILE *f;
-
-  ASSERT (f = fopen (matrix, "w"), ERR_FILE_OPEN);
-  fprintf (f, "%%%%MatrixMarket matrix coordinate real general\n");
-  fprintf (f, "%d %d %d\n", sys->dim, sys->dim, sys->nnz);
-  for (a = sys->a, i = sys->cri, j = 0; j < sys->dim; j ++)
-  {
-    for (k = sys->cbp [j]; k < sys->cbp [j+1]; k ++, a ++, i ++)
-    {
-      fprintf (f, "%d %d  %.15e\n", ((*i)+1),  (j+1),   *a);
-    }
-  }
-  fclose (f);
-
-  ASSERT (f = fopen (vector, "w"), ERR_FILE_OPEN);
-  for (a = sys->b, j = 0; j < sys->dim; a ++, j ++)
-  {
-    fprintf (f, "%.15e\n", *a);
-  }
-  fclose (f);
-#endif
-}
-#endif
-
+#if DEBUG && NEWTON_DEBUG > 1
+/* test accuracy of W inversion */
 static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
 {
   double *a, *b, *x, *e, error, one [3] = {1.0, 1.0, 1.0};
@@ -1285,12 +1215,6 @@ static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
       NVADDMUL (b, W, one, b);
     }
 #endif
-
-#if 0
-    AUXDUMP ("B.vec", "%.15e\n", b [0]);
-    AUXDUMP ("B.vec", "%.15e\n", b [1]);
-    AUXDUMP ("B.vec", "%.15e\n", b [2]);
-#endif
   }
 
 #if !MPI && DEBUG
@@ -1316,13 +1240,9 @@ static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
     }
 #endif
 
-#if 0
-  write_system (sys, "A.mtx", "B.vec");
-#endif
+  double accuracy = 1E-4;
 
-  double accu = 1E-3;
-
-  system_solve (sys, ldy, accu);
+  system_solve (sys, ldy, accuracy);
 
   for (error = 0.0, x = sys->x, e = x + sys->dim; x < e; x ++)
   {
@@ -1330,7 +1250,7 @@ static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
   }
   error = sqrt (error);
 
-  printf ("NEWTON LINEAR SOLVER TEST: error = %g, %s\n", error, error < accu ? "PASSED" : "FAILED");
+  printf ("NEWTON LINEAR SOLVER TEST: error = %g, %s\n", error, error <= accuracy ? "PASSED" : "FAILED");
 }
 #endif
 
@@ -1358,9 +1278,6 @@ static double merit_function (NTVARIANT variant, LOCDYN *ldy, double alpha)
 	     gap = con->gap,
 	     fri = con->mat.base->friction,
 	     res = con->mat.base->restitution,
-	    *RES = CON_RES(con),
-	    *DR = CON_DR(con),
-	    *DU = CON_DU(con),
 	    *R0 = dia->R,
 	    *U0 = dia->U,
 	    *V = dia->V,
@@ -1370,9 +1287,21 @@ static double merit_function (NTVARIANT variant, LOCDYN *ldy, double alpha)
 	     udash,
 	     norm;
 
-      ADDMUL (R0, alpha, DR, R);
-      ADDMUL (U0, alpha, DU, U);
-      ADD (U, RES, U);
+      if (alpha > 0.0)
+      {
+	double *RES = CON_RES(con),
+	       *DR = CON_DR(con),
+	       *DU = CON_DU(con);
+
+	ADDMUL (R0, alpha, DR, R);
+	ADDMUL (U0, alpha, DU, U);
+	ADD (U, RES, U);
+      }
+      else
+      {
+	COPY (R0, R);
+	COPY (U0, U);
+      }
 
       if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
       else udash = ((MAX(gap, 0)/step) + U[2]);
@@ -1452,7 +1381,7 @@ static double line_search (NTVARIANT variant, LOCDYN *ldy, double reference, dou
   return alpha;
 }
 
-#if 0
+#if SCALE_RHOS
 /* scale regularization parameters */
 static void scale_rhos (DOM *dom, double coef, char limit)
 {
@@ -1476,7 +1405,7 @@ static void scale_rhos (DOM *dom, double coef, char limit)
 #endif
 
 /* update constraint reactions */
-static double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int iter, int length, double *values)
+static double reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, int iter)
 {
   double merit, reference, alpha, errup, errlo;
   CON *con;
@@ -1484,13 +1413,13 @@ static double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int
 
   dom = ldy->dom;
 
-  if (iter && VARIANT(variant) != NT_FIXED_POINT) /* TODO: the old code was skipping this for iter == 0 (test it) */
+  if (iter && VARIANT(nt->variant) != NT_FIXED_POINT) /* TODO: the old code was skipping this for iter == 0 (test it) */
   {
-    merit = merit_function (variant, ldy, 0.0);
+    merit = merit_function (nt->variant, ldy, 0.0);
 
-    reference = nonmonotone_merit_function (values, length, merit, iter);
+    reference = nonmonotone_merit_function (sys->nonmonvalues, nt->nonmonlength, merit, iter);
 
-    alpha = line_search (variant, ldy, reference, merit);
+    alpha = line_search (nt->variant, ldy, reference, merit);
   }
   else alpha = 1.0;
 
@@ -1508,11 +1437,11 @@ static double reactions_update (LINSYS *sys, NTVARIANT variant, LOCDYN *ldy, int
     ADDMUL (U, alpha, DU, U);
     ADD (U, RES, U);
 
-    errup += alpha*alpha*DOT(DR, DR);
+    errup += DOT(DR, DR); /* no alpha scaling here */
     errlo += DOT(R, R);
   }
 
-#if 0
+#if SCALE_RHOS
   /* scale dia->rho parameters */
   scale_rhos (dom, 10.0, 8);
 #endif
@@ -1547,12 +1476,12 @@ static double update_normal_bounds (LOCDYN *ldy)
 
 /* destroy linear system */
 #if MPI
-static void system_destroy (LINSYS *sys, MEM *mapmem, MEM *auxmeme, LOCDYN *ldy)
+static void system_destroy (LINSYS *sys, LOCDYN *ldy)
 {
   /* TODO */
 }
 #else
-static void system_destroy (LINSYS *sys, MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
+static void system_destroy (LINSYS *sys, LOCDYN *ldy)
 {
   DIAB *dia;
   OFFB *blk;
@@ -1569,8 +1498,9 @@ static void system_destroy (LINSYS *sys, MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
     }
   }
 
-  MEM_Release (mapmem);
-  MEM_Release (auxmem);
+  MEM_Release (&sys->mapmem);
+  MEM_Release (&sys->auxmem);
+  free (sys->nonmonvalues);
 
   free (sys->a);
   free (sys->x);
@@ -1589,7 +1519,7 @@ static void system_destroy (LINSYS *sys, MEM *mapmem, MEM *auxmem, LOCDYN *ldy)
 #endif
 
 /* create solver */
-NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter)
+NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter, double meritval)
 {
   NEWTON *nt;
 
@@ -1598,11 +1528,10 @@ NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter)
   nt->variant = variant;
   nt->epsilon = epsilon;
   nt->maxiter = maxiter;
+  nt->meritval = meritval;
 
-  MEM_Init (&nt->mapmem, sizeof (int [3]), MEMBLK);
-  MEM_Init (&nt->auxmem, sizeof (CONAUX), MEMBLK);
-
-  nt->length = 10;
+  nt->nonmonlength = 10;
+  nt->linmaxiter = 1000;
 
   return nt;
 }
@@ -1610,7 +1539,7 @@ NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter)
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 {
-  double merit, error, *values;
+  double merit, error;
   char fmt [512];
   LINSYS *sys;
   int iter;
@@ -1618,13 +1547,19 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   dom = ldy->dom;
 
-  if (dom->verbose) sprintf (fmt, "NEWTON: iteration: %%%dd  error:  %%.2e  merit: %%.2e\n", (int)log10 (nt->maxiter) + 1);
+  if (dom->verbose)
+  {
+#if UMFPACK || MPI
+    sprintf (fmt, "NEWTON: iteration: %%%dd  error:  %%.2e  merit: %%.2e\n", (int)log10 (nt->maxiter) + 1);
+#else
+    sprintf (fmt, "NEWTON: (LSS its/rel/abs: %%%dd/%%.2e/%%.2e) iteration: %%%dd  error:  %%.2e  merit: %%.2e\n",
+	     (int)log10 (nt->linmaxiter) + 1, (int)log10 (nt->maxiter) + 1);
+#endif
+  }
 
-  ERRMEM (values = MEM_CALLOC (sizeof (double [nt->length])));
+  sys = system_create (nt, ldy);
 
-  sys = system_create (&nt->mapmem, &nt->auxmem, ldy);
-
-#if DEBUG
+#if DEBUG && NEWTON_DEBUG > 1
   test_linear_solver (sys, ldy);
 #endif
 
@@ -1634,15 +1569,11 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   do
   {
-    system_update (sys, nt->variant, ldy); /* assemble A, b */
-
-#if 0
-    write_system (sys, "A.mtx", "B.vec");
-#endif
+    system_update (nt, sys, ldy); /* assemble A, b */
 
     system_solve (sys, ldy, MIN (error * 0.01, 1E-2)); /* solve x = inv (A) * b  */
 
-    error = reactions_update (sys, nt->variant, ldy, iter, nt->length, values); /* R[iter+1] = R[iter] (x) */
+    error = reactions_update (nt, sys, ldy, iter); /* R[iter+1] = R[iter] (x) */
 
     if ((nt->variant & NT_FIXED_POINT) && error < nt->epsilon)
     {
@@ -1651,13 +1582,16 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
     merit = merit_function (nt->variant, ldy, 0.0);
 
+#if UMFPACK || MPI
     if (dom->verbose) printf (fmt, iter, error, merit);
+#else
+    if (dom->verbose) printf (fmt, (int) LSS_Get (sys->lss, LSS_ITERATIONS),
+      LSS_Get (sys->lss, LSS_RELATIVE_ERROR), LSS_Get (sys->lss, LSS_ABSOLUTE_ERROR), iter, error, merit);
+#endif
 
-  } while (error > nt->epsilon && ++ iter < nt->maxiter);
+  } while ((error > nt->epsilon || merit > nt->meritval) && ++ iter < nt->maxiter);
 
-  system_destroy (sys, &nt->mapmem, &nt->auxmem, ldy);
-
-  free (values);
+  system_destroy (sys, ldy);
 }
 
 /* write labeled satate values */
@@ -1665,10 +1599,30 @@ void NEWTON_Write_State (NEWTON *nt, PBF *bf)
 {
 }
 
+/* return variant string */
+char* NEWTON_Variant (NEWTON *nt)
+{
+  switch (VARIANT (nt->variant))
+  {
+    case NT_NONSMOOTH_HSW: return "NONSMOOTH_HSW";
+    case NT_NONSMOOTH_HYBRID: return "NONMOOTH_HYBRID";
+    case NT_FIXED_POINT: return "FIXED_POINT";
+    case NT_NONSMOOTH_VARIATIONAL: return "NONSMOOTH_VARIATIONAL";
+    case NT_SMOOTHED_VARIATIONAL: return "SMOOTHED_VARIATIONAL";
+  }
+
+  return NULL;
+}
+
 /* destroy solver */
 void NEWTON_Destroy (NEWTON *nt)
 {
-  MEM_Release (&nt->mapmem);
-  MEM_Release (&nt->auxmem);
   free (nt);
+}
+
+/* constraint satisfaction merit function;
+ * (assumes that both dia->R and dia->U are valid) */
+double MERIT_Function (LOCDYN *ldy)
+{
+  return merit_function (NT_NONSMOOTH_HSW, ldy, 0.0);
 }

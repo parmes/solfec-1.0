@@ -3072,7 +3072,7 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_variant (lng_GAUSS_SEIDEL_SOLVER *self, P
   }
   ELSE
   {
-    PyErr_SetString (PyExc_ValueError, "Invalid variant (FULL/MIDDLE_JACOBI/BOUNDARY_JACOBI accepted)");
+    PyErr_SetString (PyExc_ValueError, "Invalid variant");
     return -1;
   }
 
@@ -3215,25 +3215,27 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("variant", "epsilon", "maxiter");
+  KEYWORDS ("variant", "epsilon", "maxiter", "meritval");
+  double epsilon, meritval;
   lng_NEWTON_SOLVER *self;
   PyObject *variant;
   NTVARIANT ntvar;
-  double epsilon;
   int maxiter;
 
   self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    ntvar = NT_NONSMOOTH_HYBRID;
+    ntvar = NT_NONSMOOTH_HSW;
+    meritval = 1E-6;
     variant = NULL;
-    epsilon = 1E-8;
-    maxiter = 1000;
+    epsilon = 1E-6;
+    maxiter = 100;
 
-    PARSEKEYS ("|Odi", &variant, &epsilon, &maxiter);
+    PARSEKEYS ("|Odid", &variant, &epsilon, &maxiter, &meritval);
 
-    TYPETEST (is_string (variant, kwl[0]) && is_positive (epsilon, kwl[1]) && is_positive (maxiter, kwl[2]));
+    TYPETEST (is_string (variant, kwl[0]) && is_positive (epsilon, kwl[1]) &&
+	      is_positive (maxiter, kwl[2]) && is_positive (epsilon, kwl[3]));
 
     if (variant)
     {
@@ -3264,7 +3266,7 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       }
     }
 
-    self->nt = NEWTON_Create (ntvar, epsilon, maxiter);
+    self->nt = NEWTON_Create (ntvar, epsilon, maxiter, meritval);
   }
 
   return (PyObject*)self;
@@ -3278,6 +3280,106 @@ static void lng_NEWTON_SOLVER_dealloc (lng_NEWTON_SOLVER *self)
   self->ob_type->tp_free ((PyObject*)self);
 }
 
+/* setgets */
+
+static PyObject* lng_NEWTON_SOLVER_get_variant (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyString_FromString (NEWTON_Variant (self->nt));
+}
+
+static int lng_NEWTON_SOLVER_set_variant (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "variant")) return -1;
+
+  IFIS (value, "NONSMOOTH_HSW")
+  {
+    self->nt->variant = NT_NONSMOOTH_HSW;
+  }
+  ELIF (value, "NONSMOOTH_HYBRID")
+  {
+    self->nt->variant = NT_NONSMOOTH_HYBRID;
+  }
+  ELIF (value, "FIXED_POINT")
+  {
+    self->nt->variant = NT_FIXED_POINT;
+  }
+  ELIF (value, "NONSMOOTH_VARIATIONAL")
+  {
+    self->nt->variant = NT_NONSMOOTH_VARIATIONAL;
+  }
+  ELIF (value, "SMOOTHED_VARIATIONAL")
+  {
+    self->nt->variant = NT_SMOOTHED_VARIATIONAL;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid variant");
+    return -1;
+  }
+
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_epsilon (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->nt->epsilon);
+}
+
+static int lng_NEWTON_SOLVER_set_epsilon (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "epsilon")) return -1;
+  self->nt->epsilon = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_maxiter (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->nt->maxiter);
+}
+
+static int lng_NEWTON_SOLVER_set_maxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "maxiter")) return -1;
+  self->nt->maxiter = PyInt_AsLong (value);
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_meritval (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->nt->meritval);
+}
+
+static int lng_NEWTON_SOLVER_set_meritval (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "meritval")) return -1;
+  self->nt->meritval = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_nonmonlength (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->nt->nonmonlength);
+}
+
+static int lng_NEWTON_SOLVER_set_nonmonlength (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "nonmonlength")) return -1;
+  self->nt->nonmonlength = PyInt_AsLong (value);
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_linmaxiter (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->nt->linmaxiter);
+}
+
+static int lng_NEWTON_SOLVER_set_linmaxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "linmaxiter")) return -1;
+  self->nt->linmaxiter = PyInt_AsLong (value);
+  return 0;
+}
+
 /* NEWTON_SOLVER methods */
 static PyMethodDef lng_NEWTON_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3288,7 +3390,15 @@ static PyMemberDef lng_NEWTON_SOLVER_members [] =
 
 /* NEWTON_SOLVER getset */
 static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
-{ {NULL, 0, 0, NULL, NULL} };
+{ 
+  {"variant", (getter)lng_NEWTON_SOLVER_get_variant, (setter)lng_NEWTON_SOLVER_set_variant, "linearization variant", NULL},
+  {"epsilon", (getter)lng_NEWTON_SOLVER_get_epsilon, (setter)lng_NEWTON_SOLVER_set_epsilon, "relative accuracy", NULL},
+  {"maxiter", (getter)lng_NEWTON_SOLVER_get_maxiter, (setter)lng_NEWTON_SOLVER_set_maxiter, "iterations bound", NULL},
+  {"meritval", (getter)lng_NEWTON_SOLVER_get_meritval, (setter)lng_NEWTON_SOLVER_set_meritval, "merit function accuracy", NULL},
+  {"nonmonlength", (getter)lng_NEWTON_SOLVER_get_nonmonlength, (setter)lng_NEWTON_SOLVER_set_nonmonlength, "nonmonotone line search memory length", NULL},
+  {"linmaxiter", (getter)lng_NEWTON_SOLVER_get_linmaxiter, (setter)lng_NEWTON_SOLVER_set_linmaxiter, "linear solver iterations bound", NULL},
+  {NULL, 0, 0, NULL, NULL}
+};
 
 /*
  * CONSTRAINT => object

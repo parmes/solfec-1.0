@@ -6,7 +6,6 @@
  */
 
 #include "ldy.h"
-#include "mem.h"
 
 #ifndef __nts__
 #define __nts__
@@ -29,18 +28,19 @@ struct newton
 {
   NTVARIANT variant; /* method variant */
 
-  double epsilon; /* relative accuracy */
+  double epsilon; /* relative accuracy sufficient for termination */
 
   int maxiter; /* iterations bound */
 
-  MEM mapmem, /* memory of DIAB->map and OFFB->map int [3] vectors */
-      auxmem; /* auxiliary constraint data memory */
+  double meritval; /* merit function value sufficient for termination */
 
-  int length; /* nonmonotone merit function buffer length */
+  int nonmonlength; /* nonmonotone merit function buffer length */
+
+  int linmaxiter; /* linear solver iterations bound */
 };
 
 /* create solver */
-NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter);
+NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter, double meritval);
 
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy);
@@ -48,7 +48,13 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy);
 /* write labeled satate values */
 void NEWTON_Write_State (NEWTON *nt, PBF *bf);
 
+/* return variant string */
+char* NEWTON_Variant (NEWTON *nt);
+
 /* destroy solver */
 void NEWTON_Destroy (NEWTON *nt);
 
+/* constraint satisfaction merit function;
+ * (assumes that both dia->R and dia->U are valid) */
+double MERIT_Function (LOCDYN *ldy);
 #endif

@@ -124,7 +124,19 @@ void GAUSS_SEIDEL_Write_State (GAUSS_SEIDEL *gs, PBF *bf);
 /* free solver */
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs);
 
-/* diagonal block solver */
+/* diagsolver: diagonal solver kind
+ * diagepsilon: relative accuracy on termination
+ * diagmaxiter: maximal iterations count
+ * dynamic: simulation kind (dom->dynamic)
+ * step: time step (dom->step)
+ * kind: constraint kind (con->kind)
+ * mat: surface material (kind == CONTACT)
+ * gap: constraint gap
+ * Z: auxiliary Z storage (con->Z)
+ * base: constraint local base (con->base)
+ * dia: diagonal block of local dynamic (con->dia)
+ * B: local free velocity (B = dia->B + sum [dia->adj] (W_i R_i));
+ * diagonal block solver */
 int DIAGONAL_BLOCK_Solver (GSDIAS diagsolver, double diagepsilon, int diagmaxiter,
   short dynamic, double step, short kind, SURFACE_MATERIAL *mat, double gap,
   double *Z, double *base, DIAB *dia, double *B);
