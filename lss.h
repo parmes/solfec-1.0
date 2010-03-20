@@ -31,7 +31,8 @@ enum lsserr                      /*|                                            
   LSSERR_INVALID_ARGUMENT,       /*| invalid argument was used in function call                            */
   LSSERR_LACK_OF_CONVERGENCE,    /*| number of iterations has exceeded the prescribed bound                */
   LSSERR_EMPTY_COLUMN,           /*| system matrix has an empty column                                     */
-  LSSERR_ZERO_ON_DIAGONAL        /*| system matrix has zero on the diagonal                                */
+  LSSERR_ZERO_ON_DIAGONAL,       /*| system matrix has zero on the diagonal                                */
+  LSSERR_GMRES_BREAKDOWN         /*| GMRES has broken down                                                 */
 };                               /*|_______________________________________________________________________*/
 
 typedef enum lsserr LSSERR;
