@@ -396,7 +396,7 @@ PRIVATE (double*, matrixscale, MATRIX *A)
       s[*i] += (*x) * (*x);
     }
 
-    for (x = s; x < e; x ++) *x = 1.0 / sqrt (*x); /* row length inverses */
+    for (x = s; x < e; x ++) *x = 1.0 / sqrt (*x); /* row length inverses */ /* FIXME: implement a better scaling; e.g. Gajulapalli and Lason, 2006 */
 
     for (i = A->rows, x = A->elements; x < y; x ++, i ++) (*x) *= s [*i];
   }
@@ -1294,8 +1294,8 @@ PRIVATE (void, gmres, MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VEC
   {
     residual (A, b, x, r); /* r = b - A x */
     beta = veclen (r);
-    if (beta == 0.0) break;
-    else if (!isfinite (beta)) { iteration = maxiter; break; } /* breakdown: exit */
+    if (beta == 0.0) break; /* solution */
+    ASSERT (isfinite (beta), LSSERR_GMRES_BREAKDOWN); /* breakdown */
     vecmul (r, 1.0/beta, v [0]); /* v[0] = r / |r| (first base vector) */
 
     if (!iteration) omega = beta;
@@ -1312,15 +1312,21 @@ PRIVATE (void, gmres, MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VEC
       }
 
       H (j+1, j) = veclen (w);
-      if (H(j+1, j) == 0.0 || !isfinite (H(j+1, j))) { vecrand (x); j --; iteration ++; M = NULL; break; } /* breakdown: try continuing without preconditioner */
-      if (j < (m-1)) vecmul (w, 1.0/H (j+1, j), v [j+1]); /* v[j+1] = w / |w| (next base vector) */
 
-      alpha = minimise (beta, H, Q, R, y, g, m, j); /* solve min (y) [beta * e1 - H y] */
+      if (H(j+1, j) == 0.0) alpha = 0.0; /* arrived at a solution */
+      else 
+      {
+        ASSERT (isfinite (H(j+j, j)), LSSERR_GMRES_BREAKDOWN); /* breakdown */
+	if (j < (m-1)) vecmul (w, 1.0/H (j+1, j), v [j+1]); /* v[j+1] = w / |w| (next base vector) */
+
+	alpha = minimise (beta, H, Q, R, y, g, m, j); /* solve min (y) [beta * e1 - H y] */
+        ASSERT (isfinite (alpha), LSSERR_GMRES_BREAKDOWN); /* breakdown */
+      }
 
       if (relative_error) relative_error [iteration] = alpha / omega;
       if (absolute_error) absolute_error [iteration] = alpha;
 
-      iteration ++;
+      params->iterations = ++ iteration;
 
       if ((alpha <= epsilon * omega && alpha <= gamma) || iteration >= maxiter) break;
     }
@@ -1328,8 +1334,6 @@ PRIVATE (void, gmres, MATRIX *A, PRECND *M, VECTOR *b, VECTOR *x, VECTOR *r, VEC
     for (i = 0; i <= j && i < m; i ++) vecaddmul (x, y [i], z [i], x); /* x = x + sum (i) [y [i] * z [i]] */
   }
   while ((alpha > epsilon * omega || alpha > gamma) && iteration < maxiter);
-
-  params->iterations = iteration;
 }
 
 /* create internal data */
@@ -1636,6 +1640,7 @@ char* LSS_Errmsg (void *lss)
     case LSSERR_LACK_OF_CONVERGENCE: return "lack of convergence";
     case LSSERR_EMPTY_COLUMN: return "empty column";
     case LSSERR_ZERO_ON_DIAGONAL: return "zero on diagonal";
+    case LSSERR_GMRES_BREAKDOWN: return "GMRES breakdown";
     case LSSERR_NONE: return NULL;
   }
 

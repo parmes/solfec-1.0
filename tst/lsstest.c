@@ -128,15 +128,18 @@ static void sparsetest (char *path)
   LSS_Set (lss, LSS_PRECONDITIONER, 3);
   LSS_Set (lss, LSS_SMOOTHING_STEPS, 3);
   LSS_Set (lss, LSS_DECIMATION, 8);
-  LSS_Set (lss, LSS_RESTART, 100);
+  LSS_Set (lss, LSS_RESTART, 20);
   LSS_Set (lss, LSS_CUTOFF, 16);
-  LSS_Set (lss, LSS_ITERATIONS_BOUND, 1000);
+  LSS_Set (lss, LSS_ITERATIONS_BOUND, 200);
   LSS_Set (lss, LSS_RELATIVE_ACCURACY, 1E-6);
   LSS_Set (lss, LSS_ABSOLUTE_ACCURACY, 1E-6);
 
   printf ("Solving ...\n");
 
-  LSS_Solve (lss, A->x, x, b);
+  if (LSS_Solve (lss, A->x, x, b) != LSSERR_NONE)
+  {
+    printf ("LSS ERROR: %s\n", LSS_Errmsg (lss));
+  }
 
   for (a = 0.0, i = 0; i < n; i ++)
   {
