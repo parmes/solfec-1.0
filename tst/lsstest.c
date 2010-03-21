@@ -125,7 +125,7 @@ static void sparsetest (char *path)
 
   lss = LSS_Create (A->n, A->x, A->p, A->i);
 
-  LSS_Set (lss, LSS_PRECONDITIONER, 3);
+  LSS_Set (lss, LSS_PRECONDITIONER, 0);
   LSS_Set (lss, LSS_SMOOTHING_STEPS, 3);
   LSS_Set (lss, LSS_DECIMATION, 8);
   LSS_Set (lss, LSS_RESTART, 20);

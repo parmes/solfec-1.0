@@ -29,7 +29,7 @@
  * x: row scaling (output)
  * y: column scaling (output)
  * return: 1 when done or 0 when out of memory;
- * try finding x and y such that x[i] a[i, j] y [j] is in [1/16, 1] */
+ * try finding x and y such that x[i] |a[i, j]| y [j] is in [0.5, 1] */
 int gls_csc (int n, double *q, int *p, int *i, double *x, double *y);
 
 #endif

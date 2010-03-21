@@ -1210,14 +1210,6 @@ static double veclen (VECTOR *a)
   return sqrt (vecvec (a, a));
 }
 
-/* generate random [0, 1] vector */
-static void vecrand (VECTOR *a)
-{
-  double *x = a->elements, *y = x + a->dimension;
-
-  for (; x < y; x ++) *x = (double) rand () / (double) RAND_MAX;
-}
-
 #define H(i, j) H [(j)*(m+1) + (i)]
 #define R(i, j) R [(j)*(m+1) + (i)]
 
