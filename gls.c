@@ -21,9 +21,7 @@
 
 #include <stdlib.h>
 #include <math.h>
-#include "gsl.h"
-
-#define BETA 16.0
+#include "gls.h"
 
 /* n: matrix dimension (input)
  * q: matrix coefficient (intput/output); scaled on exit
@@ -32,10 +30,10 @@
  * x: row scaling (output)
  * y: column scaling (output)
  * return: 1 when done or 0 when out of memory;
- * try finding x and y such that x[i] a[i, j] y [j] is in [1/16, 1] */
+ * try finding x and y such that x[i] |a[i, j]| y [j] is in [0.5, 1] */
 int gls_csc (int n, double *q, int *p, int *i, double *x, double *y)
 {
-  double *mem, *mat, *xin, *yin, *a, *b, *r, *c, *e, t, beta;
+  double *mem, *mat, *xin, *yin, *a, *b, *r, *c, *e, t;
   int *col, *row, j, *k, m;
 
   mat = q;
@@ -51,17 +49,18 @@ int gls_csc (int n, double *q, int *p, int *i, double *x, double *y)
 
   /* initialization */
 
-  beta = 1.0 / log (BETA);
-
   for (j = 0; j < n; j ++, p ++, b ++, c ++)
   {
     for (k = i + (*(p+1) - (*p)); i < k; i ++, q ++)
     {
-      t = - log (fabs (*q)) * beta - 0.5;
-      r [*i] += 1.0;
-      (*c) += 1.0;
-      a [*i] += t;
-      (*b) += t;
+      if ((*q) != 0.0)
+      {
+	t = - log2 (fabs (*q)) - 0.5;
+	r [*i] += 1.0;
+	(*c) += 1.0;
+	a [*i] += t;
+	(*b) += t;
+      }
     }
   }
 
@@ -71,7 +70,7 @@ int gls_csc (int n, double *q, int *p, int *i, double *x, double *y)
   c = r + n;
   e = b;
 
-  for (;a < b; a ++, b ++, r ++, c ++)
+  for (;a < e; a ++, b ++, r ++, c ++)
   {
     (*a) /= (*r);
     (*b) /= (*c);
@@ -87,28 +86,44 @@ int gls_csc (int n, double *q, int *p, int *i, double *x, double *y)
     b = a + n;
     r = b + n;
     c = r + n;
+
+    for (x = xin, e = x + n; x < e; x ++, a ++) (*x) = (*a);
    
-    for (j = 0, p = col, i = row, x = xin, y = yin; j < n; j ++, p ++, y ++)
+    for (j = 0, p = col, i = row, x = xin, y = yin, q = mat; j < n; j ++, p ++, y ++)
     {
-      for (k = i + (*(p+1) - (*p)); i < k; i ++)
+      for (k = i + (*(p+1) - (*p)); i < k; i ++, q ++)
       {
-	x [*i] = (double) (int) (a [*i] - (*y) / r [*i]);
+	if ((*q) != 0.0)
+	{
+	  x [*i] -= (*y) / r [*i];
+	}
       }
     }
 
-    for (j = 0, p = col, i = row, x = xin, y = yin; j < n; j ++, p ++, y ++, b ++, c ++)
+    for (x = xin, y = yin; x < e; x ++, y ++, b ++)
     {
-      for (k = i + (*(p+1) - (*p)); i < k; i ++)
+      (*x) = (int) (*x);
+      (*y) = (*b);
+    }
+
+    for (j = 0, p = col, i = row, x = xin, y = yin, q = mat; j < n; j ++, p ++, y ++, c ++)
+    {
+      for (k = i + (*(p+1) - (*p)); i < k; i ++, q ++)
       {
-	(*y)  = (double) (int) ((*b) - x[*i] / (*c));
+	if ((*q) != 0.0)
+	{
+	  (*y)  -= x[*i] / (*c);
+	}
       }
     }
+
+    for (y = yin, e = y + n; y < e; y ++) (*y) = (int) (*y);
   }
 
   for (x = xin, y = yin, e = x + n; x < e; x ++, y ++)
   {
-    (*x) = pow (BETA, *x);
-    (*y) = pow (BETA, *y);
+    (*x) = exp2 (*x);
+    (*y) = exp2 (*y);
   }
 
   for (j = 0, q = mat, p = col, i = row, x = xin, y = yin; j < n; j ++, p ++, y ++)

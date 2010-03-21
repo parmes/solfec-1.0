@@ -21,6 +21,7 @@ TGT = glvtest\
       mtxtest\
       cmptest\
       lsstest\
+      glstest\
 
 ifeq ($(MPI),yes)
 
@@ -123,6 +124,12 @@ lsstest: obj/lsstest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 obj/lsstest.o: lsstest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+glstest: obj/glstest.o $(LIBBRICKS)
+	$(CC) $(CFLAGS) -o $@ $< $(LIB)
+
+obj/glstest.o: glstest.c $(LIBBRICKS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # MPI
