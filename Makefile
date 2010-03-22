@@ -69,7 +69,6 @@ OBJ =   $(EXTO)   \
 	obj/sol.o \
 	obj/fem.o \
 	obj/lss.o \
-	obj/gls.o \
 	$(GLOBJ)
 
 OBJMPI = $(EXTO)       \
@@ -262,9 +261,6 @@ obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lss.o: lss.c lss.h mem.h ist.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-obj/gls.o: gls.c gls.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
