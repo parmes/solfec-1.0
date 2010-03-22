@@ -1,10 +1,11 @@
-# pinned fem box example 
+# bar drop example
 
-a = 0.125
-b = 0.125
-c = 0.25
-step = 0.002 # let the critical step rule
-stop = 10
+a = 0.1
+b = 0.1
+c = 1.0
+step = 0.001
+stop = 5
+V0 = 1.0
 
 nodes = [-a, -b, 0,
           a, -b, 0,
@@ -15,9 +16,9 @@ nodes = [-a, -b, 0,
           a,  b, c,
          -a,  b, c]
 
-msh = HEX (nodes, 2, 2, 2, 0, [0, 1, 2, 3, 4, 5])
+msh = HEX (nodes, 1, 1, 5, 0, [0, 0, 0, 0, 0, 0])
 
-sol = SOLFEC ('DYNAMIC', step, 'out/pinned-fem-box')
+sol = SOLFEC ('DYNAMIC', step, 'out/bar-drop')
 
 bulk = BULK_MATERIAL (sol,
                       model = 'KIRCHHOFF',
@@ -26,11 +27,27 @@ bulk = BULK_MATERIAL (sol,
 		      density = 1.8E3)
 
 bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
-bod.scheme = 'DEF_IMP'
-FIX_POINT (bod, (-a, -b, 0))
-FIX_POINT (bod, (-a, b, 0))
+bod.scheme = 'DEF_LIM'
+INITIAL_VELOCITY (bod, (0, 0, -V0), (0, 0, 0))
 
-gs = GAUSS_SEIDEL_SOLVER (1E-5, 1000)
+a = 2 * a
+b = 2 * b
+c = 0.1
+nodes = [-a, -b, -c,
+          a, -b, -c,
+          a,  b, -c,
+         -a,  b, -c,
+         -a, -b, 0,
+          a, -b, 0,
+          a,  b, 0,
+         -a,  b, 0]
+
+msh = HEX (nodes, 1, 1, 1, 1, [1, 1, 1, 1, 1, 1])
+BODY (sol, 'OBSTACLE', msh, bulk)
+
+SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 0.0)
+
+gs = GAUSS_SEIDEL_SOLVER (1E-10, 1000, diagsolver = 'PROJECTED_GRADIENT')
 GRAVITY (sol, (0, 0, -10))
 OUTPUT (sol, step)
 RUN (sol, gs, stop)
@@ -46,23 +63,9 @@ if not VIEWER() and sol.mode == 'READ':
     for i in range(0, len (th[0])): tot.append (th[1][i] + th[2][i] - th[3][i])
     plt.plot (th [0], tot, label='TOT')
     plt.axis (xmin = 0, xmax = stop)
-    plt.title (bod.scheme)
     plt.xlabel ('Time [s]')
     plt.ylabel ('Energy [J]')
     plt.legend(loc = 'upper right')
-    plt.savefig ('out/pinned-fem-box/pinned-fem-box-' + bod.scheme + '.eps')
+    plt.savefig ('out/bar-drop/bar-drop.eps')
   except ImportError:
     pass # no reaction
-
-  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL']
-  dur = DURATION (sol)
-  th = HISTORY (sol, timers, dur[0], dur[1])
-  total = 0.0
-
-  for i in range (0, len(timers)):
-    sum = 0.0
-    for tt in th [i+1]: sum += tt
-    print timers [i], 'TIME:', sum
-    total += sum
-
-  print 'TOTAL TIME:', total
