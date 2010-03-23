@@ -349,7 +349,7 @@ static LINSYS* system_create (NEWTON *nt, LOCDYN *ldy)
     sys->a, &sys->symbolic, NULL, NULL) == UMFPACK_OK,  ERR_UMFPACK_SYMBOLIC);
 #else
   ERRMEM (sys->lss = LSS_Create (sys->dim, sys->a, sys->cbp, sys->cri));
-  LSS_Set (sys->lss, LSS_PRECONDITIONER, 3); /* FIXME: make these paramters more intelligently adjustable */
+  LSS_Set (sys->lss, LSS_PRECONDITIONER, 0); /* FIXME: make these paramters more intelligently adjustable */
   LSS_Set (sys->lss, LSS_DECIMATION, 8);
   LSS_Set (sys->lss, LSS_RESTART, 100);
   LSS_Set (sys->lss, LSS_SMOOTHING_STEPS, 3);
@@ -1098,6 +1098,24 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
   umfpack_di_free_numeric (&numeric);
 
 #else
+  double *a, *x, delta;
+  int j, *p, *i, *k;
+
+  delta = 0.0; /* FIXME: regularization of ill-conditioned problem */
+
+  if (delta > 0.0) /* FIXME: regularization of ill-conditioned problem */
+  {
+    for (j = 0, p = sys->cbp, i = sys->cri, a = sys->a; j < sys->dim; j ++, p ++)
+    {
+      for  (k = i + ((*(p+1)) - (*p)); i < k; i ++, a ++)
+      {
+	if (j == (*i))
+	{
+	  (*a) += delta;
+	}
+      }
+    }
+  }
 
   LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 10.0 * accuracy);
   LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
@@ -1112,6 +1130,20 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
 #endif
   }
 
+  if (delta > 0.0) /* FIXME: regularization of ill-conditioned problem */
+  {
+    for (j = 0, x = sys->x, b = sys->b; j < sys->dim; j ++, x ++, b ++)
+    {
+      (*b) += delta * (*x);
+    }
+
+    if (LSS_Solve (sys->lss, sys->a, sys->x, sys->b) != LSSERR_NONE)
+    {
+#if DEBUG && NEWTON_DEBUG > 0
+      fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (sys->lss));
+#endif
+    }
+  }
 #endif
 
   /* write DR */

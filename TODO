@@ -60,3 +60,7 @@ which bodies have been deleted? (do not really delete)
 Include MERIT_Function based termination into GAUSS_SEIDEL (a la NEWTON)
 --------------------------------------------------------------------------
 bod->inverse sending for DEF_IMP/LIM/LIM2 schemes in parallel !!
+----------------------------------------------------------------------------------
+Gap computation is not robust. Implicitly integrated core at smaller time steps
+reports unphysical penetration => this is due to numerical instability of gap
+computations for smaller motion increments.

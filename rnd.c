@@ -1786,6 +1786,7 @@ static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
     int n;
 
     if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, force->ref_point)) < 0) return; /* TODO: optimize */
+    sgp = &bod->sgp [n];
     BODY_Cur_Point (bod, sgp->shp, sgp->gobj, force->ref_point, point); /* TODO: optimize */
   }
   else BODY_Cur_Point (bod, NULL, NULL, force->ref_point, point);
