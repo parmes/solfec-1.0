@@ -1101,7 +1101,7 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
   double *a, *x, delta;
   int j, *p, *i, *k;
 
-  delta = 0.0; /* FIXME: regularization of ill-conditioned problem */
+  delta = 1.0E-6; /* FIXME: regularization of ill-conditioned problem */
 
   if (delta > 0.0) /* FIXME: regularization of ill-conditioned problem */
   {
@@ -1387,6 +1387,11 @@ static double merit_function (NTVARIANT variant, LOCDYN *ldy, double alpha)
   }
   value *= 0.5;
 
+#if MPI
+  double val_i = value;
+  MPI_Allreduce (&val_i, &value, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
   return value;
 }
 
@@ -1575,9 +1580,10 @@ NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter, double me
   nt->epsilon = epsilon;
   nt->maxiter = maxiter;
   nt->meritval = meritval;
-
   nt->nonmonlength = 10;
   nt->linmaxiter = 1000;
+  nt->rerhist = NULL;
+  nt->merhist = NULL;
 
   return nt;
 }
@@ -1588,7 +1594,6 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   double merit, error;
   char fmt [512];
   LINSYS *sys;
-  int iter;
   DOM *dom;
 
   dom = ldy->dom;
@@ -1603,6 +1608,9 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 #endif
   }
 
+  nt->rerhist = realloc (nt->rerhist, nt->maxiter * sizeof (double));
+  nt->merhist = realloc (nt->merhist, nt->maxiter * sizeof (double));
+
   sys = system_create (nt, ldy);
 
 #if DEBUG && NEWTON_DEBUG > 1
@@ -1611,7 +1619,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   error = merit = 1.0;
 
-  iter = 0;
+  nt->iters = 0;
 
   do
   {
@@ -1619,7 +1627,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
     system_solve (sys, ldy, MIN (error * 0.01, 1E-2)); /* solve x = inv (A) * b  */
 
-    error = reactions_update (nt, sys, ldy, iter); /* R[iter+1] = R[iter] (x) */
+    error = reactions_update (nt, sys, ldy, nt->iters); /* R[iter+1] = R[iter] (x) */
 
     if ((nt->variant & NT_FIXED_POINT) && error < nt->epsilon)
     {
@@ -1627,15 +1635,18 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
     }
 
     merit = merit_function (nt->variant, ldy, 0.0);
+      
+    nt->rerhist [nt->iters] = error;
+    nt->merhist [nt->iters] = merit;
 
 #if UMFPACK || MPI
-    if (dom->verbose) printf (fmt, iter, error, merit);
+    if (dom->verbose) printf (fmt, nt->iters, error, merit);
 #else
     if (dom->verbose) printf (fmt, (int) LSS_Get (sys->lss, LSS_ITERATIONS),
-      LSS_Get (sys->lss, LSS_RELATIVE_ERROR), LSS_Get (sys->lss, LSS_ABSOLUTE_ERROR), iter, error, merit);
+      LSS_Get (sys->lss, LSS_RELATIVE_ERROR), LSS_Get (sys->lss, LSS_ABSOLUTE_ERROR), nt->iters, error, merit);
 #endif
 
-  } while ((error > nt->epsilon || merit > nt->meritval) && ++ iter < nt->maxiter);
+  } while (++ nt->iters < nt->maxiter && (error > nt->epsilon || merit > nt->meritval));
 
   system_destroy (sys, ldy);
 }
@@ -1663,6 +1674,8 @@ char* NEWTON_Variant (NEWTON *nt)
 /* destroy solver */
 void NEWTON_Destroy (NEWTON *nt)
 {
+  free (nt->rerhist);
+  free (nt->merhist);
   free (nt);
 }
 

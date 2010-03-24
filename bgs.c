@@ -27,6 +27,7 @@
 #include "bgs.h"
 #include "pes.h"
 #include "err.h"
+#include "nts.h"
 
 #if MPI
 #include "tag.h"
@@ -466,7 +467,7 @@ static int riglnk (short dynamic, double epsilon, int maxiter, double step,
 }
 
 /* create solver */
-GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
+GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, double meritval, GSFAIL failure,
                                    double diagepsilon, int diagmaxiter, GSDIAS diagsolver,
 				   void *data, GAUSS_SEIDEL_Callback callback)
 {
@@ -475,14 +476,15 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
   ERRMEM (gs = malloc (sizeof (GAUSS_SEIDEL)));
   gs->epsilon = epsilon;
   gs->maxiter = maxiter;
+  gs->meritval = meritval;
   gs->failure = failure;
   gs->diagepsilon = diagepsilon;
   gs->diagmaxiter = diagmaxiter;
   gs->diagsolver = diagsolver;
   gs->data = data;
   gs->callback = callback;
-  gs->history = GS_OFF;
   gs->rerhist = NULL;
+  gs->merhist = NULL;
   gs->reverse = GS_OFF;
   gs->error = GS_OK;
   gs->variant = GS_FULL;
@@ -892,7 +894,7 @@ static int all_done  (LOCDYN *ldy)
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
   int div = 10, di, dimax, diagiters, mycolor, rank, *color;
-  double error, step;
+  double error, merit, step;
   short dynamic;
   char fmt [512];
   SOLFEC *solfec;
@@ -941,9 +943,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   rank = dom->rank;
   solfec = dom->solfec;
 
-  if (rank == 0 && dom->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+  if (rank == 0 && dom->verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
-  if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+  gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+  gs->merhist = realloc (gs->merhist, gs->maxiter * sizeof (double));
 
   MEM_Init (&setmem, sizeof (SET), 256);
 
@@ -1241,6 +1244,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       else ASSERT_DEBUG (all_done (ldy), "Not all external reactions were updated");
 #endif
 
+      /* merit function */
+      merit = MERIT_Function (ldy);
+
       /* sum up error */
       errloc [0] = errup, errloc [1] = errlo;
       MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
@@ -1249,11 +1255,13 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       /* calculate relative error */
       error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
 
-      if (gs->history) gs->rerhist [gs->iters] = error;
+      /* record values */
+      gs->rerhist [gs->iters] = error;
+      gs->merhist [gs->iters] = merit;
 
-      if (gs->iters % div == 0 && rank == 0 && dom->verbose) printf (fmt, gs->iters, error), div *= 2;
+      if (gs->iters % div == 0 && rank == 0 && dom->verbose) printf (fmt, gs->iters, error, merit), div *= 2;
     }
-    while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+    while (++ gs->iters < gs->maxiter && (error > gs->epsilon || merit > gs->meritval));
   }
   else /* GS_SIMPLIFIED */
   {
@@ -1279,16 +1287,19 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	S("GSRUN"); di = gauss_seidel_sweep (noncon, 0, gs, dynamic, step, 1, &errup, &errlo); dimax = MAX (dimax, di); E("GSRUN");
       }
 
+      merit = MERIT_Function (ldy);
+
       error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
 
-      if (gs->history) gs->rerhist [gs->iters] = error;
+      gs->rerhist [gs->iters] = error;
+      gs->merhist [gs->iters] = merit;
 
-      if (gs->iters % div == 0 && rank == 0 && dom->verbose) printf (fmt, gs->iters, error), div *= 2;
+      if (gs->iters % div == 0 && rank == 0 && dom->verbose) printf (fmt, gs->iters, error, merit), div *= 2;
     }
-    while (++ gs->iters < gs->maxiter && error > gs->epsilon);
+    while (++ gs->iters < gs->maxiter && (error > gs->epsilon || merit > gs->meritval));
   }
 
-  if (rank == 0 && dom->verbose) printf (fmt, gs->iters, error);
+  if (rank == 0 && dom->verbose) printf (fmt, gs->iters, error, merit);
 
   if (gs->variant < GS_BOUNDARY_JACOBI)
   {
@@ -1349,8 +1360,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 /* run serial solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
+  double error, merit, step;
   int verbose, diagiters;
-  double error, step;
   short dynamic;
   char fmt [512];
   int div = 10;
@@ -1358,9 +1369,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   verbose = ldy->dom->verbose;
 
-  if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
+  if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
-  if (gs->history) gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+  gs->rerhist = realloc (gs->rerhist, gs->maxiter * sizeof (double));
+  gs->merhist = realloc (gs->merhist, gs->maxiter * sizeof (double));
 
   if (gs->reverse && ldy->dia) for (end = ldy->dia; end->n; end = end->n); /* find last block for the backward run */
   else end = NULL;
@@ -1447,14 +1459,21 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       errlo += DOT (R, R);
     }
 
+    /* merit function value */
+    merit = MERIT_Function (ldy);
+
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
-    if (gs->history) gs->rerhist [gs->iters] = error;
-    if (gs->iters % div == 0 && verbose) printf (fmt, gs->iters, error), div *= 2;
-  }
-  while (++ gs->iters < gs->maxiter && error > gs->epsilon);
 
-  if (verbose) printf (fmt, gs->iters, error);
+    /* record values */
+    gs->rerhist [gs->iters] = error;
+    gs->merhist [gs->iters] = merit;
+
+    if (gs->iters % div == 0 && verbose) printf (fmt, gs->iters, error, merit), div *= 2;
+  }
+  while (++ gs->iters < gs->maxiter && (error > gs->epsilon || merit > gs->meritval));
+
+  if (verbose) printf (fmt, gs->iters, error, merit);
 
   if (gs->iters >= gs->maxiter)
   {
@@ -1515,18 +1534,6 @@ char* GAUSS_SEIDEL_Error (GAUSS_SEIDEL *gs)
   return NULL;
 }
 
-/* return history flag string */
-char* GAUSS_SEIDEL_History (GAUSS_SEIDEL *gs)
-{
-  switch (gs->history)
-  {
-  case GS_ON: return "ON";
-  case GS_OFF: return "OFF";
-  }
-
-  return NULL;
-}
-
 /* return reverse flag string */
 char* GAUSS_SEIDEL_Reverse (GAUSS_SEIDEL *gs)
 {
@@ -1576,6 +1583,7 @@ void GAUSS_SEIDEL_Write_State (GAUSS_SEIDEL *gs, PBF *bf)
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs)
 {
   free (gs->rerhist);
+  free (gs->merhist);
   free (gs);
 }
 

@@ -4291,8 +4291,8 @@ reference "sec:Gauss-Seidel-solver"
 \end_layout
 
 \begin_layout Subsection*
-obj = GAUSS_SEIDEL_SOLVER (epsilon, maxiter | failure, diagepsilon, diagmaxiter,
- diagsolver, data, callback)
+obj = GAUSS_SEIDEL_SOLVER (epsilon, maxiter | meritval, failure, diagepsilon,
+ diagmaxiter, diagsolver, data, callback)
 \end_layout
 
 \begin_layout Standard
@@ -4313,6 +4313,15 @@ obj
 epsilon
 \series default
  - relative accuracy of constraint reactions sufficient for termination
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+meritval
+\series default
+ - constraints satisfaction merit function value sufficient for termination
+ (default: 1E-2)
 \end_layout
 
 \begin_layout Itemize
@@ -4422,7 +4431,7 @@ Some parameters can also be accessed as members of a GAUSS_SEIDEL_SOLVER
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="1">
+<lyxtabular version="3" rows="6" columns="1">
 <features>
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -4497,7 +4506,7 @@ obj.iters
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -4507,13 +4516,24 @@ obj.iters
 obj.rerhist
 \series default
 \emph default
- - if history recording is on, this is a list of relative error values for
- each iteration of the last run.
- Otherwise a 
+ - a list of relative error values for each iteration of the last run
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
 \emph on
-None
+obj.merhist
+\series default
 \emph default
- object is returned.
+ - a list of merit function values for each iteration of the last run
 \end_layout
 
 \end_inset
@@ -4529,7 +4549,7 @@ None
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="6" columns="1">
+<lyxtabular version="3" rows="5" columns="1">
 <features>
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -4554,24 +4574,8 @@ Read/write
 \begin_layout Plain Layout
 
 \emph on
-obj.epsilon, obj.maxiter, obj.diagepsilon, obj.diagmaxiter, obj.diagsolver
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.history
-\series default
-\emph default
- - 'ON' or 'OFF' flag switching history recording (default is 'OFF')
+obj.epsilon, obj.maxiter, obj.meritval, obj.diagepsilon, obj.diagmaxiter, obj.diagsolv
+er
 \end_layout
 
 \end_inset
@@ -5199,6 +5203,85 @@ Variants of the NEWTON_SOLVER.
 
 Some parameters can also be accessed as members of a NEWTON_SOLVER object.
  These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="4" columns="1">
+<features>
+<column alignment="left" valignment="top" width="95col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.iters
+\series default
+\emph default
+ - number of iterations during a last run of solver
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.rerhist
+\series default
+\emph default
+ - a list of relative error values for each iteration of the last run
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.merhist
+\series default
+\emph default
+ - a list of merit function values for each iteration of the last run
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard

@@ -51,6 +51,12 @@ struct newton
   int nonmonlength; /* nonmonotone merit function buffer length */
 
   int linmaxiter; /* linear solver iterations bound */
+
+  int iters; /* most recent number of iterations */
+
+  double *rerhist; /* relative error history */
+
+  double *merhist; /* merit function history */
 };
 
 /* create solver */
