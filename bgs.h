@@ -75,6 +75,8 @@ struct gs
 
   int maxiter; /* iterations bound */
 
+  double meritval; /* merit function value sufficient for termination */
+
   GSFAIL failure; /* action on failure */
 
   void *data; /* failure callback data */
@@ -95,9 +97,9 @@ struct gs
   int colors, bot, mid, top, inn; /* processor colors, bottom, middle, top and inner set sizes */
 #endif
 
-  GSONOFF history; /* error history recording flag */
-
   double *rerhist; /* relative error history */
+
+  double *merhist; /* merit function history */
 
   GSONOFF reverse; /* iterate forward an backward alternately ? */
 
@@ -107,7 +109,7 @@ struct gs
 };
 
 /* create solver */
-GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, GSFAIL failure,
+GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, double meritval, GSFAIL failure,
                                    double diagepsilon, int diagmaxiter, GSDIAS diagsolver,
 				   void *data, GAUSS_SEIDEL_Callback callback);
 
@@ -122,9 +124,6 @@ char* GAUSS_SEIDEL_Diagsolver (GAUSS_SEIDEL *gs);
 
 /* return error string */
 char* GAUSS_SEIDEL_Error (GAUSS_SEIDEL *gs);
-
-/* return history flag string */
-char* GAUSS_SEIDEL_History (GAUSS_SEIDEL *gs);
 
 /* return reverse flag string */
 char* GAUSS_SEIDEL_Reverse (GAUSS_SEIDEL *gs);

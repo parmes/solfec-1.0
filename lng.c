@@ -2753,10 +2753,10 @@ err:
 /* constructor */
 static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("epsilon", "maxiter", "failure", "diagepsilon", "diagmaxiter", "diagsolver", "data", "callback");
+  KEYWORDS ("epsilon", "maxiter", "meritval", "failure", "diagepsilon", "diagmaxiter", "diagsolver", "data", "callback");
+  double epsilon, meritval, diagepsilon;
   PyObject *failure, *diagsolver;
   lng_GAUSS_SEIDEL_SOLVER *self;
-  double epsilon, diagepsilon;
   int maxiter, diagmaxiter;
   GSFAIL gsfail;
   GSDIAS gsdias;
@@ -2773,14 +2773,14 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
     gsdias = GS_SEMISMOOTH_NEWTON;
     self->data = NULL;
     self->callback = NULL;
+    meritval = 1E-2;
 
-    PARSEKEYS ("di|OdiOOO", &epsilon, &maxiter, &failure,
+    PARSEKEYS ("di|dOdiOOO", &epsilon, &maxiter, &meritval, &failure,
       &diagepsilon, &diagmaxiter, &diagsolver, &self->data, &self->callback);
 
-    TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]) &&
-      is_string (failure, kwl[2]) && is_positive (diagepsilon, kwl[3]) &&
-      is_positive (diagmaxiter, kwl[4]) && is_string (diagsolver, kwl[5]) &&
-      is_callable (self->callback, kwl[7]));
+    TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]) && is_positive (epsilon, kwl[2]) &&
+      is_string (failure, kwl[3]) && is_positive (diagepsilon, kwl[4]) && is_positive (diagmaxiter, kwl[5]) &&
+      is_string (diagsolver, kwl[6]) && is_callable (self->callback, kwl[8]));
 
     if (failure)
     {
@@ -2837,7 +2837,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
     if (diagmaxiter == INT_MAX)
       diagmaxiter = MAX (100, maxiter / 100);
 
-    self->gs = GAUSS_SEIDEL_Create (epsilon, maxiter, gsfail, diagepsilon,
+    self->gs = GAUSS_SEIDEL_Create (epsilon, maxiter, meritval, gsfail, diagepsilon,
       diagmaxiter, gsdias, self, (GAUSS_SEIDEL_Callback)lng_GAUSS_SEIDEL_callback);
   }
 
@@ -2895,12 +2895,6 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_rerhist (lng_GAUSS_SEIDEL_SOLVER *s
   PyObject *list;
   int i;
 
-  if (self->gs->history == GS_OFF)
-  {
-    PyErr_SetString (PyExc_ValueError, "Hisoty recording is switched off");
-    return NULL;
-  }
-
   ERRMEM (list = PyList_New (self->gs->iters));
 
   for (i = 0; i < self->gs->iters; i ++)
@@ -2910,6 +2904,25 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_rerhist (lng_GAUSS_SEIDEL_SOLVER *s
 }
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_rerhist (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_merhist (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
+{
+  PyObject *list;
+  int i;
+
+  ERRMEM (list = PyList_New (self->gs->iters));
+
+  for (i = 0; i < self->gs->iters; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->gs->merhist [i]));
+
+  return list;
+}
+
+static int lng_GAUSS_SEIDEL_SOLVER_set_merhist (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
   PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
   return -1;
@@ -2987,32 +3000,6 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_diagsolver (lng_GAUSS_SEIDEL_SOLVER *self
   ELSE
   {
     PyErr_SetString (PyExc_ValueError, "Invalid diagonal solver");
-    return -1;
-  }
-
-  return 0;
-}
-
-static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_history (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
-{
-  return PyString_FromString (GAUSS_SEIDEL_History (self->gs));
-}
-
-static int lng_GAUSS_SEIDEL_SOLVER_set_history (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_string (value, "history")) return -1;
-
-  IFIS (value, "ON")
-  {
-    self->gs->history = GS_ON;
-  }
-  ELIF (value, "OFF")
-  {
-    self->gs->history = GS_OFF;
-  }
-  ELSE
-  {
-    PyErr_SetString (PyExc_ValueError, "Invalid history switch (ON/OFF accepted)");
     return -1;
   }
 
@@ -3108,12 +3095,12 @@ static PyGetSetDef lng_GAUSS_SEIDEL_SOLVER_getset [] =
   {"error", (getter)lng_GAUSS_SEIDEL_SOLVER_get_error, (setter)lng_GAUSS_SEIDEL_SOLVER_set_error, "error code", NULL},
   {"iters", (getter)lng_GAUSS_SEIDEL_SOLVER_get_iters, (setter)lng_GAUSS_SEIDEL_SOLVER_set_iters, "number of iterations", NULL},
   {"rerhist", (getter)lng_GAUSS_SEIDEL_SOLVER_get_rerhist, (setter)lng_GAUSS_SEIDEL_SOLVER_set_rerhist, "relative error history", NULL},
+  {"merhist", (getter)lng_GAUSS_SEIDEL_SOLVER_get_merhist, (setter)lng_GAUSS_SEIDEL_SOLVER_set_merhist, "merit function history", NULL},
   {"epsilon", (getter)lng_GAUSS_SEIDEL_SOLVER_get_epsilon, (setter)lng_GAUSS_SEIDEL_SOLVER_set_epsilon, "relative accuracy", NULL},
   {"maxiter", (getter)lng_GAUSS_SEIDEL_SOLVER_get_maxiter, (setter)lng_GAUSS_SEIDEL_SOLVER_set_maxiter, "iterations bound", NULL},
   {"diagepsilon", (getter)lng_GAUSS_SEIDEL_SOLVER_get_diagepsilon, (setter)lng_GAUSS_SEIDEL_SOLVER_set_diagepsilon, "diagonal solver relative accuracy", NULL},
   {"diagmaxiter", (getter)lng_GAUSS_SEIDEL_SOLVER_get_diagmaxiter, (setter)lng_GAUSS_SEIDEL_SOLVER_set_diagmaxiter, "diagonal solver iterations bound", NULL},
   {"diagsolver", (getter)lng_GAUSS_SEIDEL_SOLVER_get_diagsolver, (setter)lng_GAUSS_SEIDEL_SOLVER_set_diagsolver, "diagonal solver kind", NULL},
-  {"history", (getter)lng_GAUSS_SEIDEL_SOLVER_get_history, (setter)lng_GAUSS_SEIDEL_SOLVER_set_history, "solution history recording", NULL},
   {"reverse", (getter)lng_GAUSS_SEIDEL_SOLVER_get_reverse, (setter)lng_GAUSS_SEIDEL_SOLVER_set_reverse, "iteration reversion flag", NULL},
   {"variant", (getter)lng_GAUSS_SEIDEL_SOLVER_get_variant, (setter)lng_GAUSS_SEIDEL_SOLVER_set_variant, "parallel update variant", NULL},
   {"innerloops", (getter)lng_GAUSS_SEIDEL_SOLVER_get_innerloops, (setter)lng_GAUSS_SEIDEL_SOLVER_set_innerloops, "number of inner loops per one parallel step", NULL},
@@ -3380,6 +3367,55 @@ static int lng_NEWTON_SOLVER_set_linmaxiter (lng_NEWTON_SOLVER *self, PyObject *
   return 0;
 }
 
+static PyObject* lng_NEWTON_SOLVER_get_rerhist (lng_NEWTON_SOLVER *self, void *closure)
+{
+  PyObject *list;
+  int i;
+
+  ERRMEM (list = PyList_New (self->nt->iters));
+
+  for (i = 0; i < self->nt->iters; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->nt->rerhist [i]));
+
+  return list;
+}
+
+static int lng_NEWTON_SOLVER_set_rerhist (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_merhist (lng_NEWTON_SOLVER *self, void *closure)
+{
+  PyObject *list;
+  int i;
+
+  ERRMEM (list = PyList_New (self->nt->iters));
+
+  for (i = 0; i < self->nt->iters; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->nt->merhist [i]));
+
+  return list;
+}
+
+static int lng_NEWTON_SOLVER_set_merhist (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_iters (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyInt_FromLong (self->nt->iters);
+}
+
+static int lng_NEWTON_SOLVER_set_iters (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* NEWTON_SOLVER methods */
 static PyMethodDef lng_NEWTON_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3397,6 +3433,9 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
   {"meritval", (getter)lng_NEWTON_SOLVER_get_meritval, (setter)lng_NEWTON_SOLVER_set_meritval, "merit function accuracy", NULL},
   {"nonmonlength", (getter)lng_NEWTON_SOLVER_get_nonmonlength, (setter)lng_NEWTON_SOLVER_set_nonmonlength, "nonmonotone line search memory length", NULL},
   {"linmaxiter", (getter)lng_NEWTON_SOLVER_get_linmaxiter, (setter)lng_NEWTON_SOLVER_set_linmaxiter, "linear solver iterations bound", NULL},
+  {"rerhist", (getter)lng_NEWTON_SOLVER_get_rerhist, (setter)lng_NEWTON_SOLVER_set_rerhist, "relative error history", NULL},
+  {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
+  {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 

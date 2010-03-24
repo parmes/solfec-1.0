@@ -432,10 +432,31 @@ GRAVITY (solfec, (0, 0, -10))
 
 box_kite_create (0.0003, 0.0002,  0,  0,  0, SEPARATION, tms, bulkmat, solfec)
 
-def gscallback (gs):
-  print gs.error
-  return 0
+sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
+#sv = NEWTON_SOLVER ('NONSMOOTH_HSW', 1E0, 50, 1E-6)
+#sv.nonmonlength = 1
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CALLBACK', callback=gscallback)
+MERIT = []
 
-RUN (solfec, gs, 10 * step)
+def callback (sv):
+  MERIT.append (sv.merhist)
+  return 1
+
+if not VIEWER(): CALLBACK (solfec, step, sv, callback)
+
+RUN (solfec, sv, 20 * step)
+
+if not VIEWER() and solfec.mode == 'WRITE':
+  try:
+    import matplotlib.pyplot as plt
+
+    for M in MERIT:
+      plt.plot (list (range (0, len(M))), M)
+
+    plt.semilogy (10)
+    plt.xlabel ('Iteration')
+    plt.ylabel ('Merit function f')
+    plt.savefig ('out/boxkite/boxkite.eps')
+ 
+  except ImportError:
+    pass # no reaction
