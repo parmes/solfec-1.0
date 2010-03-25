@@ -42,16 +42,6 @@ def scene_generate (material, solfec, kinematics):
   scene_base (material, solfec)
 
   shp = gcore_brick (0, 0, 0)
-
-  vertices = [0, 0, 0,
-              1, 0, 0,
-              1, 2, 0,
-              0, 2, 0,
-              0, 0, 3,
-              1, 0, 3,
-              1, 2, 3,
-              0, 2, 3]
-
   TRANSLATE (shp, (0, 0, 0.11))
   ROTATE (shp, (0, 0, 0.11), (1, 1, 1), 35)
   msh = ROUGH_HEX (shp, 2, 2, 2)

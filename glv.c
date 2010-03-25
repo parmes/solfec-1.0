@@ -122,10 +122,11 @@ enum
   MENU_ORTHO,
   MENU_OUTLINE,
   MENU_FILL,
+  MENU_EXPORT_AVI_START,
+  MENU_EXPORT_AVI_STOP,
   MENU_EXPORT_PDF,
   MENU_EXPORT_EPS,
-  MENU_EXPORT_BMP,
-  MENU_EXPORT_AVI
+  MENU_EXPORT_BMP
 };
 
 /* menu shift caused by user menu */
@@ -788,6 +789,16 @@ static void menu3D (int value)
       glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
       updateall ();
       break;
+    case MENU_EXPORT_AVI_START:
+      glutSetMenu (main_menu);
+      glutChangeToMenuEntry (7 + menu_shift, "AVI STOP", MENU_EXPORT_AVI_STOP);
+      GLV_Read_Text ("AVI FILE NAME", avi);
+      break;
+    case MENU_EXPORT_AVI_STOP:
+      glutSetMenu (main_menu);
+      glutChangeToMenuEntry (7 + menu_shift, "AVI START", MENU_EXPORT_AVI_START);
+      if (AVI) { AVI_Close (AVI); AVI = NULL; }
+      break;
     case MENU_EXPORT_PDF:
       GLV_Read_Text ("PDF FILE NAME", pdf);
       break;
@@ -796,9 +807,6 @@ static void menu3D (int value)
       break;
     case MENU_EXPORT_BMP:
       GLV_Read_Text ("BMP FILE NAME", bmp);
-      break;
-    case MENU_EXPORT_AVI:
-      GLV_Read_Text ("AVI FILE NAME", avi);
       break;
     case MENU_QUIT:
       if (AVI) AVI_Close (AVI);
@@ -891,10 +899,10 @@ void GLV (
   glutAddMenuEntry ("move", MENU_MOVE);
   glutAddMenuEntry ("perspective", MENU_PERSPECTIVE);
   glutAddMenuEntry ("outline", MENU_OUTLINE);
+  glutAddMenuEntry ("AVI START", MENU_EXPORT_AVI_START);
   glutAddMenuEntry ("PDF", MENU_EXPORT_PDF);
   glutAddMenuEntry ("EPS", MENU_EXPORT_EPS);
   glutAddMenuEntry ("BMP", MENU_EXPORT_BMP);
-  glutAddMenuEntry ("AVI", MENU_EXPORT_AVI);
   glutAddMenuEntry ("quit", MENU_QUIT);
   glutAttachMenu (GLUT_RIGHT_BUTTON);
 

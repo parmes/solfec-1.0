@@ -1101,7 +1101,7 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
   double *a, *x, delta;
   int j, *p, *i, *k;
 
-  delta = 1.0E-6; /* FIXME: regularization of ill-conditioned problem */
+  delta = 0.0E-6; /* FIXME: regularization of ill-conditioned problem */
 
   if (delta > 0.0) /* FIXME: regularization of ill-conditioned problem */
   {

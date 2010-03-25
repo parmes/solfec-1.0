@@ -2518,6 +2518,59 @@ static int lng_BODY_set_damping (lng_BODY *self, PyObject *value, void *closure)
   return 0;
 }
 
+static PyObject* lng_BODY_get_constraints (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+  PyObject *list, *obj;
+  SET *item;
+  CON *con;
+  int n;
+
+  if (!(list = PyList_New (SET_Size (self->bod->con)))) return NULL;
+
+  for (n = 0, item = SET_First (self->bod->con), con = item->data;
+       item; n ++, item = SET_Next (item), con = item->data)
+  {
+    if (!(obj = lng_CONSTRAINT_WRAPPER (con))) return NULL;
+
+    PyList_SetItem (list, n, obj);
+  }
+
+  return list;
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_constraints (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_BODY_get_ncon (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (ID_TO_BODY (self))
+  {
+#endif
+  return PyInt_FromLong (SET_Size (self->bod->con));
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_ncon (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* BODY methods */
 static PyMethodDef lng_BODY_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -2540,6 +2593,8 @@ static PyGetSetDef lng_BODY_getset [] =
   {"selfcontact", (getter)lng_BODY_get_selfcontact, (setter)lng_BODY_set_selfcontact, "selfcontact", NULL},
   {"scheme", (getter)lng_BODY_get_scheme, (setter)lng_BODY_set_scheme, "scheme", NULL},
   {"damping", (getter)lng_BODY_get_damping, (setter)lng_BODY_set_damping, "damping", NULL},
+  {"constraints", (getter)lng_BODY_get_constraints, (setter)lng_BODY_set_constraints, "constraints list", NULL},
+  {"ncon", (getter)lng_BODY_get_ncon, (setter)lng_BODY_set_ncon, "constraints count", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
