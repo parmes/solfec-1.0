@@ -3197,7 +3197,7 @@ Some parameters can also be accessed as members of a BODY object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="8" columns="1">
+<lyxtabular version="3" rows="10" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -3338,7 +3338,7 @@ obj.center
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -3350,6 +3350,48 @@ obj.tensor
 \emph default
  - referential Euler (pseudo-rigid, finite element kinematics) or inertia
  tensor (rigid kinematics) of the body
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.constraints
+\series default
+\emph default
+ - list of constraints attached to the body (cf.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:con"
+
+\end_inset
+
+)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.ncon
+\series default
+\emph default
+ - number of constraints attached to the body
 \end_layout
 
 \end_inset
