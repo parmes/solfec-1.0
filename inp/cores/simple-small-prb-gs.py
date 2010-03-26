@@ -7,7 +7,10 @@ from simple_core_base import *
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
 step = 1E-3
-stop = 150 * step
+stop = 100 * step
+scheme = 'IMP'
+solver = 'GAUSS_SEIDEL_SOLVER'
+plotconv = 0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-small-prb-gs')
 GRAVITY (solfec, (0, 0, -10))
@@ -15,12 +18,41 @@ GRAVITY (solfec, (0, 0, -10))
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7)
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+if solver == 'GAUSS_SEIDEL_SOLVER':
+  sv = GAUSS_SEIDEL_SOLVER (1E0, 500, 1E-6, failure = 'CONTINUE')
+else:
+  sv = NEWTON_SOLVER ('NONSMOOTH_HSW', 1E0, 50, 1E-6)
+  sv.nonmonlength = 1
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'PSEUDO_RIGID', 'DEF_IMP', 'PSEUDO_RIGID', 'DEF_IMP', 2, 2, 2)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'PSEUDO_RIGID', 'DEF_' + scheme, 'PSEUDO_RIGID', 'DEF_' + scheme, 2, 2, 2)
+
+MERIT = []
+
+def callback (sv):
+  MERIT.append (sv.merhist)
+  return 1
 
 OUTPUT (solfec, 0.03)
-RUN (solfec, gs, stop)
+
+if not VIEWER() and plotconv == 1: CALLBACK (solfec, step, sv, callback)
+
+RUN (solfec, sv, stop)
+
+if not VIEWER() and solfec.mode == 'WRITE' and plotconv == 1:
+  try:
+    import matplotlib.pyplot as plt
+
+    for M in MERIT:
+      plt.plot (list (range (0, len(M))), M)
+
+    plt.semilogy (10)
+    plt.title (solver + ': PSEUDO-RIGID MODEL - ' + scheme)
+    plt.xlabel ('Iteration')
+    plt.ylabel ('Merit function f(R)')
+    plt.savefig ('out/cores/simple-small-prb-gs/simple-small-prb-' + solver + '_' + scheme + '.eps')
+ 
+  except ImportError:
+    pass # no reaction
 
 if not VIEWER() and solfec.mode == 'READ':
 
