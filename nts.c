@@ -1098,10 +1098,12 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
   umfpack_di_free_numeric (&numeric);
 
 #else
-  double *a, *x, delta;
-  int j, *p, *i, *k;
 
-  delta = 0.0E-6; /* FIXME: regularization of ill-conditioned problem */
+#define DELTA 1 /* FIXME: regularization of ill-conditioned problem */
+
+#if DELTA 
+  double *a, *x, delta  = 0E-7; /* FIXME: regularization of ill-conditioned problem */
+  int j, *p, *i, *k;
 
   if (delta > 0.0) /* FIXME: regularization of ill-conditioned problem */
   {
@@ -1116,6 +1118,7 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
       }
     }
   }
+#endif
 
   LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 10.0 * accuracy);
   LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
@@ -1130,6 +1133,7 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
 #endif
   }
 
+#if DELTA
   if (delta > 0.0) /* FIXME: regularization of ill-conditioned problem */
   {
     for (j = 0, x = sys->x, b = sys->b; j < sys->dim; j ++, x ++, b ++)
@@ -1144,6 +1148,7 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
 #endif
     }
   }
+#endif
 #endif
 
   /* write DR */
@@ -1624,6 +1629,8 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   do
   {
     system_update (nt, sys, ldy); /* assemble A, b */
+
+    error = MIN (error, merit);  /* TODO: this cannot be ad hock like now */
 
     system_solve (sys, ldy, MIN (error * 0.01, 1E-2)); /* solve x = inv (A) * b  */
 
