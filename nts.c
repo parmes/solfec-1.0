@@ -42,8 +42,6 @@
                         * 1: inexpensive tests
                         * 2: costly tests */
 
-#define SCALE_RHOS 0 /* regularization paramter scaling */
-
 #define MEMBLK 256
 
 /* mask separating variants from variant options */
@@ -101,8 +99,8 @@ struct linsys /* SuperLU matrix data and the rest of linear system */
 
   double *a; /* compressed column values */
 
-  int *cri, /* column row indices */
-      *cbp, /* column beginning pointers */
+  int *rows, /* row indices */
+      *cols, /* column pointers */
        nnz, /* number of nonzero entries */
        dim; /* dimension of the rectangular matrix */
 
@@ -128,19 +126,12 @@ struct conaux
 	 DR [3],  /* reaction increment */
 	 DU [3],  /* velocity increment */
 	 RN;      /* normal reaction bound during fixed point iterations */
-
-#if SCALE_RHOS
-  short sticks,   /* contact sticking history bits */
-	hits;     /* nuber of alternating stick-slip patterns found */
-#endif
 };
 
 #define CON_RES(con) ((CONAUX*)((con)->data))->RES
 #define CON_DR(con) ((CONAUX*)((con)->data))->DR
 #define CON_DU(con) ((CONAUX*)((con)->data))->DU
 #define CON_RN(con) ((CONAUX*)((con)->data))->RN
-#define CON_STICKS(con) ((CONAUX*)((con)->data))->sticks
-#define CON_HITS(con) ((CONAUX*)((con)->data))->hits
 
 /* create linear system */
 #if MPI
@@ -246,11 +237,11 @@ static LINSYS* system_create (NEWTON *nt, LOCDYN *ldy)
 
   /* eallocate compressed column storage */
   ERRMEM (sys->a = malloc (sizeof (double) * sys->nnz));
-  ERRMEM (sys->cri = malloc (sizeof (int) * sys->nnz));
-  ERRMEM (sys->cbp = MEM_CALLOC (sizeof (int) * (sys->dim+1))); /* '+ 1' as there is cbp[0] == 0 always */
+  ERRMEM (sys->rows = malloc (sizeof (int) * sys->nnz));
+  ERRMEM (sys->cols = MEM_CALLOC (sizeof (int) * (sys->dim+1))); /* '+ 1' as there is cols[0] == 0 always */
 
-  int *cri = sys->cri,
-      *cbp = sys->cbp,
+  int *rows = sys->rows,
+      *cols = sys->cols,
       *aux;
 
   ERRMEM (aux = malloc (sizeof (int) * sys->dim));
@@ -260,19 +251,19 @@ static LINSYS* system_create (NEWTON *nt, LOCDYN *ldy)
   {
     n = 3 * MAP_Size (pcol [j]);
 
-    cbp [3*j+1] = n; /* '+1' so that cpb[0] == 0 */
-    cbp [3*j+2] = n;
-    cbp [3*j+3] = n;
+    cols [3*j+1] = n; /* '+1' so that cols[0] == 0 */
+    cols [3*j+2] = n;
+    cols [3*j+3] = n;
   }
 
   /* compute column pointers */
   for (n = 1; n <= sys->dim; n ++)
   {
-    cbp [n] += cbp [n-1];
-    aux [n-1] = cbp [n-1]; /* initialize aux with cpb  */
+    cols [n] += cols [n-1];
+    aux [n-1] = cols [n-1]; /* initialize aux with cols  */
   }
 
-  ASSERT_DEBUG (cbp [sys->dim] == sys->nnz, "Inconsistent sparse storage");
+  ASSERT_DEBUG (cols [sys->dim] == sys->nnz, "Inconsistent sparse storage");
 
   /* set up row pointers */
   for (j = 0; j < dom->ncon; j ++)
@@ -291,7 +282,7 @@ static LINSYS* system_create (NEWTON *nt, LOCDYN *ldy)
       {
 	for (l = aux [3*j+n], i = 0; i < 3; i ++) /* for each row block sub-row */
 	{
-          cri [l + i] = k + i; /* set up row index */
+          rows [l + i] = k + i; /* set up row index */
 	}
 	aux [3*j+n] += 3; /* increment relative row pointers */
       }
@@ -310,7 +301,7 @@ static LINSYS* system_create (NEWTON *nt, LOCDYN *ldy)
       {
 	k = 3*j+n;
 
-	ASSERT_DEBUG (map [n] >= cbp[k] && map [n] < cbp [k+1], "Inconsistent column blocks mapping");
+	ASSERT_DEBUG (map [n] >= cols[k] && map [n] < cols [k+1], "Inconsistent column blocks mapping");
       }
     }
   }
@@ -345,10 +336,10 @@ static LINSYS* system_create (NEWTON *nt, LOCDYN *ldy)
   /* initialize linear solver */
 
 #if UMFPACK
-  ASSERT (umfpack_di_symbolic (sys->dim, sys->dim, sys->cbp, sys->cri,
+  ASSERT (umfpack_di_symbolic (sys->dim, sys->dim, sys->cols, sys->rows,
     sys->a, &sys->symbolic, NULL, NULL) == UMFPACK_OK,  ERR_UMFPACK_SYMBOLIC);
 #else
-  ERRMEM (sys->lss = LSS_Create (sys->dim, sys->a, sys->cbp, sys->cri));
+  ERRMEM (sys->lss = LSS_Create (sys->dim, sys->a, sys->cols, sys->rows));
   LSS_Set (sys->lss, LSS_PRECONDITIONER, 0); /* FIXME: make these paramters more intelligently adjustable */
   LSS_Set (sys->lss, LSS_DECIMATION, 8);
   LSS_Set (sys->lss, LSS_RESTART, 100);
@@ -496,10 +487,6 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
       }
 
       /* tangential response */
-
-#if SCALE_RHOS
-      CON_STICKS(con) = CON_STICKS(con) << 1; /* rewind history */
-#endif
 
       norm = sqrt (d[0]*d[0]+d[1]*d[1]); /* tangential force value */
 
@@ -757,10 +744,6 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
       else /* frictional sticking: inactive tangential set */
       {
 
-#if SCALE_RHOS
-        CON_STICKS(con)	 |= 0x1; /* feed in one bit */
-#endif
-
 #if MPI
 	a [map[0]]   = W[0];
 	a [map[1]]   = W[1];
@@ -842,7 +825,7 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, NTVARIANT variant, LOCD
 #endif
       }
 
-      if (isnan (b [2]))
+      if (isnan (b [2])) /* FIXME */
       {
 	ASSERT_DEBUG (0, "b [2] is NAN");
       }
@@ -1044,9 +1027,9 @@ static void write_system (LINSYS *sys, const char *matrix, const char *vector)
   ASSERT (f = fopen (matrix, "w"), ERR_FILE_OPEN);
   fprintf (f, "%%%%MatrixMarket matrix coordinate real general\n");
   fprintf (f, "%d %d %d\n", sys->dim, sys->dim, sys->nnz);
-  for (a = sys->a, i = sys->cri, j = 0; j < sys->dim; j ++)
+  for (a = sys->a, i = sys->rows, j = 0; j < sys->dim; j ++)
   {
-    for (k = sys->cbp [j]; k < sys->cbp [j+1]; k ++, a ++, i ++)
+    for (k = sys->cols [j]; k < sys->cols [j+1]; k ++, a ++, i ++)
     {
       fprintf (f, "%d %d  %.15e\n", ((*i)+1),  (j+1),   *a);
     }
@@ -1080,19 +1063,19 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
   void *numeric;
 
 #if DEBUG && NEWTON_DEBUG > 1
-  if (umfpack_di_numeric (sys->cbp, sys->cri, sys->a, sys->symbolic, &numeric, NULL, NULL) != UMFPACK_OK)
+  if (umfpack_di_numeric (sys->cols, sys->rows, sys->a, sys->symbolic, &numeric, NULL, NULL) != UMFPACK_OK)
   {
     fprintf (stderr, "ERROR: UMFPACK numeric factorization has failed\n");
     write_system (sys, "A.mtx", "B.vec"); exit (1);
   }
-  if (umfpack_di_solve (UMFPACK_A, sys->cbp, sys->cri, sys->a, sys->x, sys->b, numeric, NULL, NULL) != UMFPACK_OK)
+  if (umfpack_di_solve (UMFPACK_A, sys->cols, sys->rows, sys->a, sys->x, sys->b, numeric, NULL, NULL) != UMFPACK_OK)
   {
     fprintf (stderr, "ERROR: UMFPACK solution has failed\n");
     write_system (sys, "A.mtx", "B.vec"); exit (1);
   }
 #else
-  ASSERT (umfpack_di_numeric (sys->cbp, sys->cri, sys->a, sys->symbolic, &numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_NUMERIC);
-  ASSERT (umfpack_di_solve (UMFPACK_A, sys->cbp, sys->cri, sys->a, sys->x, sys->b, numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
+  ASSERT (umfpack_di_numeric (sys->cols, sys->rows, sys->a, sys->symbolic, &numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_NUMERIC);
+  ASSERT (umfpack_di_solve (UMFPACK_A, sys->cols, sys->rows, sys->a, sys->x, sys->b, numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
 #endif
 
   umfpack_di_free_numeric (&numeric);
@@ -1107,7 +1090,7 @@ static void system_solve (LINSYS *sys, LOCDYN *ldy, double accuracy)
 
   if (delta > 0.0) /* FIXME: regularization of ill-conditioned problem */
   {
-    for (j = 0, p = sys->cbp, i = sys->cri, a = sys->a; j < sys->dim; j ++, p ++)
+    for (j = 0, p = sys->cols, i = sys->rows, a = sys->a; j < sys->dim; j ++, p ++)
     {
       for  (k = i + ((*(p+1)) - (*p)); i < k; i ++, a ++)
       {
@@ -1273,9 +1256,9 @@ static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
       int j, k, *i;
       double *a;
 
-      for (j = 0, a = sys->a, i = sys->cri; j < sys->dim; j ++)
+      for (j = 0, a = sys->a, i = sys->rows; j < sys->dim; j ++)
       {
-	for (k = sys->cbp [j]; k < sys->cbp [j+1]; k ++, a ++, i ++)
+	for (k = sys->cols [j]; k < sys->cols [j+1]; k ++, a ++, i ++)
 	{
 	  if (j == *i)
 	  {
@@ -1283,7 +1266,7 @@ static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
 	    {
 	      printf ("ERROR: diagonal zero for index %d\n", j);
 	      printf ("ERROR: system dimension is %d and number of nonzeros is %d\n", sys->dim, sys->nnz);
-	      printf ("ERROR: column %d begins at %d and ends at %d\n", j, sys->cbp [j], sys->cbp [j+1]);
+	      printf ("ERROR: column %d begins at %d and ends at %d\n", j, sys->cols [j], sys->cols [j+1]);
 	    }
 	  }
 	}
@@ -1437,29 +1420,6 @@ static double line_search (NTVARIANT variant, LOCDYN *ldy, double reference, dou
   return alpha;
 }
 
-#if SCALE_RHOS
-/* scale regularization parameters */
-static void scale_rhos (DOM *dom, double coef, char limit)
-{
-  CON *con;
-
-  for (con = dom->con; con; con = con->next)
-  {
-    if (con->kind == CONTACT)
-    {
-      if ((CON_STICKS(con) & 0x3) == 1 || (CON_STICKS(con) & 0x3) == 2)
-      {
-	if (CON_HITS(con) < limit)
-	{
-	  con->dia->rho *= coef;
-	  CON_HITS(con) ++;
-	}
-      }
-    }
-  }
-}
-#endif
-
 /* update constraint reactions */
 static double reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, int iter)
 {
@@ -1496,11 +1456,6 @@ static double reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, int iter)
     errup += DOT(DR, DR); /* no alpha scaling here */
     errlo += DOT(R, R);
   }
-
-#if SCALE_RHOS
-  /* scale dia->rho parameters */
-  scale_rhos (dom, 10.0, 8);
-#endif
 
   return sqrt (errup) / sqrt (MAX (errlo, 1.0));
 }
@@ -1561,8 +1516,8 @@ static void system_destroy (LINSYS *sys, LOCDYN *ldy)
   free (sys->a);
   free (sys->x);
   free (sys->b);
-  free (sys->cri);
-  free (sys->cbp);
+  free (sys->rows);
+  free (sys->cols);
 
 #if UMFPACK
   umfpack_di_free_symbolic (&sys->symbolic);

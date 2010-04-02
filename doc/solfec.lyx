@@ -622,30 +622,6 @@ CC = cc
 \end_layout
 
 \begin_layout LyX-Code
-# Specify FORTRAN compiler here
-\end_layout
-
-\begin_layout LyX-Code
-#
-\end_layout
-
-\begin_layout LyX-Code
-
-\end_layout
-
-\begin_layout LyX-Code
-FF = g95
-\end_layout
-
-\begin_layout LyX-Code
-
-\end_layout
-
-\begin_layout LyX-Code
-#
-\end_layout
-
-\begin_layout LyX-Code
 # Debug or optimized version switch (yes/no)
 \end_layout
 
@@ -852,8 +828,6 @@ The above configuration works on Mac OS X.
 solfec/cfg
 \emph default
 .
- At the current point a FORTRAN compiler is not really needed (there will
- be a need for it soon though due to planned work).
  What you need is:
 \end_layout
 
