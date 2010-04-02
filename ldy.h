@@ -54,7 +54,7 @@ struct offb
   double W [9], /* generalised inverse inertia block */
 	 *SYMW; /* symmetric copy of W block */
 
-  int *map; /* mapping in a compressed row storage */
+  int *map; /* mapping in a compressed storage */
 
   DIAB *dia; /* corresponding diagonal block */
   BODY *bod;
@@ -71,7 +71,7 @@ struct diab
          W [9], /* generalised inverse inertia block */
 	 rho;   /* scaling parameter */
 
-  int *map; /* mapping in a compressed row storage */
+  int *map; /* mapping in a compressed storage */
 
   OFFB *adj;
   CON *con;    /* the underlying constraint (and the owner od the reaction R[3] and the velocity U [3]) */

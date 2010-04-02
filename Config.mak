@@ -4,12 +4,6 @@
 
 CC = cc
 
-#
-# Specify FORTRAN compiler here
-#
-
-FF = g95
-
 # 
 # Debug or optimized version switch (yes/no)
 #
