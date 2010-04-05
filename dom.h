@@ -38,6 +38,11 @@
 typedef struct solfec SOLFEC;
 #endif
 
+#ifndef LINDATA_TYPE
+#define LINDATA_TYPE
+typedef struct lindata LINDATA;
+#endif
+
 #ifndef __dom__
 #define __dom__
 
@@ -70,7 +75,7 @@ struct constraint
 
   double Z [DOM_Z_SIZE]; /* auxiliary storage */
 
-  void *data; /* auxiliary solver data */
+  LINDATA *lin; /* constraint linearisation data */
 
   unsigned int id; /* identifier */
 
@@ -294,8 +299,9 @@ void DOM_Update_End (DOM *dom);
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 #endif
 
-/* assign con->num values */
-void DOM_Number_Constraints (DOM *dom);
+/* assign con->num values; 'local' is ignored in serial mode;
+ * in parallel local != 0 indicates per-processor numbering  */
+void DOM_Number_Constraints (DOM *dom, short local);
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);

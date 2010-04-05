@@ -34,13 +34,13 @@ BLAS = -L/usr/lib -lblas
 LAPACK = -L/usr/lib -llapack -lrpc
 
 #
-# UMFPACK (yes/no)
+# SPQR (yes/no)
 #
 
-UMFPACK = no
+SPQR = no
 
-UMFPACKINC =
-UMFPACKLIB =
+SPQRINC =
+SPQRLIB =
 
 #
 # Python
