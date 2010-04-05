@@ -14,7 +14,7 @@ include Flags.mak
 
 CFLAGS = -std=c99 $(POSIX) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
-LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(UMFPACKLIB) $(PYTHONLIB)
+LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(SPQRLIB) $(PYTHONLIB)
 
 ifeq ($(MPI),yes)
   LIBMPI = -lm $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS)
@@ -52,6 +52,7 @@ BASEO = obj/err.o \
 	obj/mat.o \
 	obj/goc.o \
 	obj/cmp.o \
+	obj/lss.o \
 	obj/libsolfec.o \
 
 OBJ =   $(EXTO)   \
@@ -63,12 +64,12 @@ OBJ =   $(EXTO)   \
 	obj/bgs.o \
 	obj/pes.o \
 	obj/nts.o \
+	obj/lin.o \
 	obj/dom.o \
 	obj/dio.o \
 	obj/lng.o \
 	obj/sol.o \
 	obj/fem.o \
-	obj/lss.o \
 	$(GLOBJ)
 
 OBJMPI = $(EXTO)       \
@@ -81,6 +82,7 @@ OBJMPI = $(EXTO)       \
 	 obj/bgs-mpi.o \
 	 obj/pes-mpi.o \
 	 obj/nts-mpi.o \
+	 obj/lin-mpi.o \
 	 obj/dom-mpi.o \
 	 obj/dio-mpi.o \
 	 obj/lng-mpi.o \
@@ -233,14 +235,17 @@ obj/dio.o: dio.c dio.h dom.h cmp.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy
 obj/ldy.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h mtx.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/bgs.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h
+obj/bgs.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h lin.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/pes.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/nts.o: nts.c nts.h bgs.h dom.h ldy.h err.h alg.h lap.h
-	$(CC) $(CFLAGS) $(UMFPACK) -c -o $@ $<
+obj/nts.o: nts.c nts.h lin.h dom.h ldy.h err.h alg.h
+	$(CC) $(CFLAGS) $(SPQR) -c -o $@ $<
+
+obj/lin.o: lin.c lin.h lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
+	$(CC) $(CFLAGS) $(SPQR) -c -o $@ $<
 
 obj/sps.o: sps.c sps.h mem.h set.h map.h dom.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -266,7 +271,7 @@ obj/lss.o: lss.c lss.h mem.h ist.h
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
 
-obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h mat.h pbf.h tmr.h
+obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h mat.h pbf.h tmr.h lin.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 # OPENGL
 
@@ -311,19 +316,22 @@ obj/dio-mpi.o: dio.c dio.h dom.h cmp.h bod.h pbf.h mem.h map.h set.h err.h box.h
 obj/ldy-mpi.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h
+obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h lin.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/pes-mpi.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/nts-mpi.o: nts.c nts.h bgs.h dom.h ldy.h err.h alg.h lap.h
+obj/nts-mpi.o: nts.c nts.h lin.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) $(HYPREINC) -c -o $@ $<
+
+obj/lin-mpi.o: lin.c lin.h lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) $(SPQR) $(HYPREINC) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<
 
-obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h mat.h pbf.h tmr.h
+obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h mat.h pbf.h tmr.h lin.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/fem-mpi.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h

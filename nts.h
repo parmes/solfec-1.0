@@ -19,28 +19,16 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#include "ldy.h"
+#include "lin.h"
 
 #ifndef __nts__
 #define __nts__
 
 typedef struct newton NEWTON;
 
-enum ntvariant
-{
-  NT_NONSMOOTH_HSW          =  0x01,
-  NT_NONSMOOTH_HYBRID       =  0x02,
-  NT_FIXED_POINT            =  0x04,
-  NT_NONSMOOTH_VARIATIONAL  =  0x08,
-  NT_SMOOTHED_VARIATIONAL   =  0x10,
-  NT_SYMMETRIZE             =  0x20   /* symmetrize linear equations if possible */
-};
-
-typedef enum ntvariant NTVARIANT;
-
 struct newton
 {
-  NTVARIANT variant; /* method variant */
+  LINVAR variant; /* linearization variant */
 
   double epsilon; /* relative accuracy sufficient for termination */
 
@@ -60,7 +48,7 @@ struct newton
 };
 
 /* create solver */
-NEWTON* NEWTON_Create (NTVARIANT variant, double epsilon, int maxiter, double meritval);
+NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double meritval);
 
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy);
@@ -73,8 +61,4 @@ char* NEWTON_Variant (NEWTON *nt);
 
 /* destroy solver */
 void NEWTON_Destroy (NEWTON *nt);
-
-/* constraint satisfaction merit function;
- * (assumes that both dia->R and dia->U are valid) */
-double MERIT_Function (LOCDYN *ldy);
 #endif

@@ -581,8 +581,8 @@ static PARAMS* defparams ()
   params->iterations_bound = 1000;
   params->relative_accuracy = 1E-6;
   params->absolute_accuracy = 1E-3;
-  params->preconditioner = 1;
-  params->decimation = 4;
+  params->preconditioner = 0;
+  params->decimation = 2;
   params->cutoff = 16;
   params->restart = 32;
   params->coarse_restart = 16;

@@ -45,8 +45,8 @@ enum lsspar                      /*|----------|----------|----------------------
   LSS_ITERATIONS_BOUND,          /*| 1000     | any > 0  | k < VALUE for a sequence of approximate solutions x(k)                */
   LSS_RELATIVE_ACCURACY,         /*| 1E-6     | any > 0  | |A x(k) - b| < VALUE * |A x(0) - b| when LSS_Solve returns 0          */
   LSS_ABSOLUTE_ACCURACY,         /*| 1E-3     | any > 0  | |A x(k) - b| < VALUE when LSS_Solve returns 0                         */
-  LSS_PRECONDITIONER,            /*| 1        | 0 ... 3  | switch between wavelet based preconditioners by Pereira et al. [5]    */
-  LSS_DECIMATION,                /*| 4        | any >= 2 | preconditioner wavelet decimation (sub-sampling) value                */
+  LSS_PRECONDITIONER,            /*| 0        | 0 ... 3  | switch between wavelet based preconditioners by Pereira et al. [5]    */
+  LSS_DECIMATION,                /*| 2        | any >= 2 | preconditioner wavelet decimation (sub-sampling) value                */
   LSS_CUTOFF,                    /*| 16       | any >= 2 | coarsest level matrix dimension cutoff bound                          */
   LSS_RESTART,                   /*| 32       | any >= 1 | restart bound for top level matrix GMRES run                          */ 
   LSS_COARSE_RESTART,            /*| 16       | any >= 1 | restart bound for coarsest level matrix GMRES run                     */ 

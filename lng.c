@@ -3261,14 +3261,14 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
   double epsilon, meritval;
   lng_NEWTON_SOLVER *self;
   PyObject *variant;
-  NTVARIANT ntvar;
+  LINVAR linvar;
   int maxiter;
 
   self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    ntvar = NT_NONSMOOTH_HSW;
+    linvar = NONSMOOTH_HSW;
     meritval = 1E-6;
     variant = NULL;
     epsilon = 1E-6;
@@ -3283,23 +3283,23 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     {
       IFIS (variant, "NONSMOOTH_HSW")
       {
-	ntvar = NT_NONSMOOTH_HSW;
+	linvar = NONSMOOTH_HSW;
       }
       ELIF (variant, "NONSMOOTH_HYBRID")
       {
-	ntvar = NT_NONSMOOTH_HYBRID;
+	linvar = NONSMOOTH_HYBRID;
       }
       ELIF (variant, "NONSMOOTH_VARIATIONAL")
       {
-	ntvar = NT_NONSMOOTH_VARIATIONAL;
+	linvar = NONSMOOTH_VARIATIONAL;
       }
       ELIF (variant, "SMOOTHED_VARIATIONAL")
       {
-	ntvar = NT_SMOOTHED_VARIATIONAL;
+	linvar = SMOOTHED_VARIATIONAL;
       }
       ELIF (variant, "FIXED_POINT")
       {
-	ntvar = NT_FIXED_POINT;
+	linvar = FIXED_POINT;
       }
       ELSE
       {
@@ -3308,7 +3308,7 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       }
     }
 
-    self->nt = NEWTON_Create (ntvar, epsilon, maxiter, meritval);
+    self->nt = NEWTON_Create (linvar, epsilon, maxiter, meritval);
   }
 
   return (PyObject*)self;
@@ -3335,23 +3335,23 @@ static int lng_NEWTON_SOLVER_set_variant (lng_NEWTON_SOLVER *self, PyObject *val
 
   IFIS (value, "NONSMOOTH_HSW")
   {
-    self->nt->variant = NT_NONSMOOTH_HSW;
+    self->nt->variant = NONSMOOTH_HSW;
   }
   ELIF (value, "NONSMOOTH_HYBRID")
   {
-    self->nt->variant = NT_NONSMOOTH_HYBRID;
+    self->nt->variant = NONSMOOTH_HYBRID;
   }
   ELIF (value, "FIXED_POINT")
   {
-    self->nt->variant = NT_FIXED_POINT;
+    self->nt->variant = FIXED_POINT;
   }
   ELIF (value, "NONSMOOTH_VARIATIONAL")
   {
-    self->nt->variant = NT_NONSMOOTH_VARIATIONAL;
+    self->nt->variant = NONSMOOTH_VARIATIONAL;
   }
   ELIF (value, "SMOOTHED_VARIATIONAL")
   {
-    self->nt->variant = NT_SMOOTHED_VARIATIONAL;
+    self->nt->variant = SMOOTHED_VARIATIONAL;
   }
   ELSE
   {

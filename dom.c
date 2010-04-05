@@ -2654,49 +2654,57 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
 }
 #endif
 
-/* assign con->num values */
-void DOM_Number_Constraints (DOM *dom)
+/* assign con->num values; 'local' is ignored in serial mode;
+ * in parallel local != 0 indicates per-processor numbering  */
+void DOM_Number_Constraints (DOM *dom, short local)
 {
 #if MPI
-  int rank = dom->rank,
-      ncpu = dom->ncpu,
-     *ncon, num,
-      nrecv, i;
-
-  COMOBJ *send, *recv;
-
-  CON *con;
-
-  ERRMEM (ncon = malloc (sizeof (int [ncpu + 1])));
-
-  MPI_Allgather  (&dom->ncon, 1, MPI_INT, (ncon + 1), 1, MPI_INT, MPI_COMM_WORLD);
-
-  for (ncon [0] = 0, i = 1; i <= ncpu; i ++) ncon [i] += ncon [i-1];
-
-  for (num = ncon [rank], con = dom->con; con; con = con->next) con->num = num ++; /* number internally */
-
-  /* numbering is such that: [0, 1, ..., ncon(0)-1], [ncon(0), ncon(0)+1, ..., ncon(0)+ncon(1)-1], [ncon(0)+ncon(1), ...]
-   * follow on respectively processors 0, 1, 2, ... */
-
-  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
-
-  for (i = 0; i < ncpu; i ++)
+  if (!local)
   {
-    send [i].o = dom->dbd [i].ext;
-    send [i].rank = i;
+    int rank = dom->rank,
+	ncpu = dom->ncpu,
+       *ncon, num,
+	nrecv, i;
+
+    COMOBJ *send, *recv;
+
+    CON *con;
+
+    ERRMEM (ncon = malloc (sizeof (int [ncpu + 1])));
+
+    MPI_Allgather  (&dom->ncon, 1, MPI_INT, (ncon + 1), 1, MPI_INT, MPI_COMM_WORLD);
+
+    for (ncon [0] = 0, i = 1; i <= ncpu; i ++) ncon [i] += ncon [i-1];
+
+    for (num = ncon [rank], con = dom->con; con; con = con->next) con->num = num ++; /* number internally */
+
+    /* numbering is such that: [0, 1, ..., ncon(0)-1], [ncon(0), ncon(0)+1, ..., ncon(0)+ncon(1)-1], [ncon(0)+ncon(1), ...]
+     * follow on respectively processors 0, 1, 2, ... */
+
+    ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
+
+    for (i = 0; i < ncpu; i ++)
+    {
+      send [i].o = dom->dbd [i].ext;
+      send [i].rank = i;
+    }
+
+    /* update numbers on external constraints */
+    dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_numbers, dom, (OBJ_Unpack)unpack_numbers, send, dom->ncpu, &recv, &nrecv);
+
+    free (send);
+    free (recv);
+    free (ncon);
   }
+  else
+  {
+#endif
+    CON *con;
+    int num;
 
-  /* update numbers on external constraints */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_numbers, dom, (OBJ_Unpack)unpack_numbers, send, dom->ncpu, &recv, &nrecv);
-
-  free (send);
-  free (recv);
-  free (ncon);
-#else
-  CON *con;
-  int num;
-
-  for (num = 0, con = dom->con; con; con = con->next) con->num = num ++;
+    for (num = 0, con = dom->con; con; con = con->next) con->num = num ++;
+#if MPI
+  }
 #endif
 }
 

@@ -8,10 +8,10 @@ else
   POSIX = 
 endif
 
-ifeq ($(UMFPACK),yes)
-  UMFPACK = -DUMFPACK $(UMFPACKINC)
+ifeq ($(SPQR),yes)
+  SPQR = -DSPQR $(SPQRINC)
 else
-  UMFPACK =
+  SPQR =
 endif
 
 ifeq ($(OPENGL),yes)
