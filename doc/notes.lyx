@@ -939,5 +939,49 @@ and this way maintain at all times a zero residual.
  are highly nonlinear and hence sensitive to specific manners of linearisation.
 \end_layout
 
+\begin_layout Section
+Tikhonov regularization
+\end_layout
+
+\begin_layout Standard
+When solving
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{A}\mathbf{x}=\mathbf{b}\]
+
+\end_inset
+
+resulting from linearized constraints, operator 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ is often ill-conditioned.
+ This results from statical overdeterminancy - either there are more constraints
+ in the system that there are kinematic degrees of freedom, or some constraints
+ are too densely clustered which leads to a similar, but local overdeterminancy.
+ The linear system can still be quite accurately solved, because in most
+ cases 
+\begin_inset Formula $\mathbf{b}$
+\end_inset
+
+ belongs to the range of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+.
+ Recasting the above into a minimisation problem
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+x=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert \]
+
+\end_inset
+
+...
+\end_layout
+
 \end_body
 \end_document

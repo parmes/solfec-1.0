@@ -297,6 +297,9 @@ void DOM_Update_End (DOM *dom);
 /* send boundary reactions to their external receivers;
  * if 'normal' is > 0 only normal components are sent */
 void DOM_Update_External_Reactions (DOM *dom, short normal);
+
+/* send boundary reactions increments to CON->Z of their external receivers */
+void DOM_Update_External_Reactions_Increments (DOM *dom);
 #endif
 
 /* assign con->num values; 'local' is ignored in serial mode;

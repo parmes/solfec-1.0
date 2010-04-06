@@ -323,7 +323,7 @@ obj/pes-mpi.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/nts-mpi.o: nts.c nts.h lin.h dom.h ldy.h err.h alg.h lap.h
-	$(MPICC) $(CFLAGS) $(MPIFLG) $(HYPREINC) -c -o $@ $<
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/lin-mpi.o: lin.c lin.h lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) $(SPQR) $(HYPREINC) -c -o $@ $<
