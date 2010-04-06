@@ -34,6 +34,7 @@
 #include "pck.h"
 #include "err.h"
 #include "dio.h"
+#include "lin.h"
 
 #if MPI
 #include "put.h"
@@ -1852,6 +1853,38 @@ static void* unpack_reactions (DOM *dom, int *dpos, double *d, int doubles, int 
   return NULL;
 }
 
+/* pack boundary reactions increments */
+static void pack_reactions_increments (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  SET *item;
+  CON *con;
+
+  pack_int (isize, i, ints, SET_Size (set));
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    con = item->data;
+    pack_int (isize, i, ints, con->id);
+    pack_doubles (dsize, d, doubles, DR(con), 3);
+  }
+}
+
+/* unpack external reactions increments */
+static void* unpack_reactions_increments  (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int n, j, id;
+  CON *con;
+
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    id = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid contact id");
+    unpack_doubles (dpos, d, doubles, con->Z, 3);
+  }
+
+  return NULL;
+}
+
 /* pack boundary reaction numbers */
 static void pack_numbers (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -2651,6 +2684,28 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
 
   free (send);
   free (recv);
+}
+
+/* send boundary reactions increments to CON->Z of their external receivers */
+void DOM_Update_External_Reactions_Increments (DOM *dom)
+{
+  COMOBJ *send, *recv;
+  int i, nrecv;
+
+  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
+
+  for (i = 0; i < dom->ncpu; i ++)
+  {
+    send [i].o = dom->dbd [i].ext;
+    send [i].rank = i;
+  }
+
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_reactions_increments, dom,
+    (OBJ_Unpack)unpack_reactions_increments, send, dom->ncpu, &recv, &nrecv);
+
+  free (send);
+  free (recv);
+
 }
 #endif
 

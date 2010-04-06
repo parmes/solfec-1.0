@@ -21,7 +21,10 @@
 
 #if MPI
 #include <HYPRE_parcsr_mv.h>
+#include <HYPRE_parcsr_ls.h>
+#include <HYPRE_krylov.h>
 #include <HYPRE_IJ_mv.h>
+#include <HYPRE.h>
 #endif
 
 #if SPQR
@@ -47,21 +50,16 @@ typedef struct hypre_data HYPRE_DATA;
 struct hypre_data /* HYPRE IJ matrix data and the rest of linear system */
 {
   int ilower, /* lower row index == dom->con->num * 3 */
-      iupper; /* upper low index == ilowr + dom->ncon * 3 - 1 */
+      iupper; /* upper low index == ilower + dom->ncon * 3 - 1 */
 
   int jlower, /* lower column index == ilower */
       jupper; /* upper column index == iupper */
 
-  int nrows, /* number of rows == dom->ncon * 3 */
-     *ncols, /* number of columns in each row (depends on local dynamics) */
-     *rows,  /* row indices: ilower, ilower + 1, ..., iupper */
-     *cols;  /* column indices: depend on local dynamics */
+  int *ncols, /* number of columns in each row */
+      *rows;  /* row indices: ilower, ilower + 1, ..., iupper */
 
   HYPRE_IJMatrix A;  /* HYPRE IJ matrix composed from the above data */
   HYPRE_ParCSRMatrix AP; /* reference to the parallel HYPRE CSR image of A */
-
-  int nvalues, /* number of vector values */
-     *indices; /* vector indices */
 
   HYPRE_IJVector B; /* HYPRE IJ right hand side vector */
   HYPRE_ParVector BP; /* HYPRE parallel image of B */
@@ -94,23 +92,33 @@ struct linsys
   double *x; /* solution */
 
 #if MPI
-  HYPRE_DATA *hypre;
+  HYPRE_DATA *hyp;
 #endif
 
   void *lss; /* LSS interface */
+
+  int iters; /* iterations count */
+
+  double resnorm; /* residual norm */
 };
 
 /* create linear system resulting from constraints linearization */
 LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
 {
-  DOM *dom = ldy->dom;
-  MAP **pcol, *item;
   int i, j, k, l, n;
   LINSYS *sys;
+  MAP *item;
   DIAB *dia;
   OFFB *blk;
   CON *con;
+  DOM *dom;
   MEM mem;
+#if MPI
+  int *diacnt, /* this-processor coumn counts per row */
+      *offcnt; /* off-processor column counts per row */
+#endif
+
+  dom = ldy->dom;
     
   ERRMEM (sys = MEM_CALLOC (sizeof (LINSYS)));
 
@@ -135,9 +143,11 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
   if (options & LOCAL_SYSTEM) /* create column mapping in DIAB->map and OFFB->map */
   {
 #endif
+    MAP **pcol;
+
     /* allocate colum blocks mapping */
-    MEM_Init (&mem, sizeof (MAP), MEMBLK);
     ERRMEM (pcol = MEM_CALLOC (dom->ncon * sizeof (MAP*)));
+    MEM_Init (&mem, sizeof (MAP), MEMBLK);
 
     /* map colum blocks */
     for (dia = ldy->dia; dia; dia = dia->n)
@@ -246,7 +256,145 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
   }
   else /* create row mapping in DIAB->map and OFFB->map */
   {
-    /* TODO: mind repeated off-diagonal W(i,j) as above */
+    int basenum = 0;
+    MAP **prow;
+
+    /* first constraint number */
+    if (dom->con) basenum = dom->con->num;
+
+    /* allocate colum blocks mapping */
+    ERRMEM (diacnt = MEM_CALLOC (dom->ncon * sizeof (int [3])));
+    ERRMEM (offcnt = MEM_CALLOC (dom->ncon * sizeof (int [3])));
+    ERRMEM (prow = MEM_CALLOC (dom->ncon * sizeof (MAP*)));
+    MEM_Init (&mem, sizeof (MAP), MEMBLK);
+
+    /* map colum blocks */
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {
+      int col, row, *map;
+
+      col = dia->con->num;
+      row = col - basenum; /* use relative numbering for rows */
+      ASSERT_DEBUG (!MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Diagonal block mapped twice");
+      ERRMEM (map = MEM_Alloc (&sys->mapmem));
+      ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL)); /* '+1' not to confuse with NULL */
+
+      for (i = k = row * 3, j = k + 3; i < j; i ++) diacnt [i] = 3; /* diagonal blocks contribute 3 this-processor columns */
+
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	col = blk->dia->con->num;
+
+	if (!MAP_Find (prow [row], (void*) (long) (col+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
+	{
+	  ERRMEM (map = MEM_Alloc (&sys->mapmem));
+	  ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL));
+
+          for (i = k; i < j; i ++) diacnt [i] += 3; /* off-diagonal local blocks contribute 3 this-processor columns */
+	}
+      }
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	col = ((CON*)blk->dia)->num; /* external constraint */
+
+	if (!MAP_Find (prow [row], (void*) (long) (col+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
+	{
+	  ERRMEM (map = MEM_Alloc (&sys->mapmem));
+	  ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL));
+
+          for (i = k; i < j; i ++) offcnt [i] += 3; /* off-diagonal external blocks contribute 3 off-processor columns */
+	}
+      }
+    }
+
+    for (j = 0, sys->nnz = 0; j < dom->ncon; j ++)
+    {
+      sys->nnz += 9 * MAP_Size (prow [j]); /* number of nonzeros */
+    }
+    sys->dim = dom->ncon * 3; /* system dimension */
+
+    /* eallocate compressed column storage */
+    ERRMEM (sys->a = malloc (sizeof (double) * sys->nnz));
+    ERRMEM (sys->cols = malloc (sizeof (int) * sys->nnz));
+    ERRMEM (sys->rows = MEM_CALLOC (sizeof (int) * (sys->dim+1))); /* '+ 1' as there is cols[0] == 0 always */
+
+    int *rows = sys->rows,
+	*cols = sys->cols,
+	*aux;
+
+    ERRMEM (aux = malloc (sizeof (int) * sys->dim));
+
+    /* set up rows sizes */
+    for (j = 0; j < dom->ncon; j ++)
+    {
+      n = 3 * MAP_Size (prow [j]);
+
+      rows [3*j+1] = n; /* '+1' so that cols[0] == 0 */
+      rows [3*j+2] = n;
+      rows [3*j+3] = n;
+    }
+
+    /* compute rows pointers */
+    for (n = 1; n <= sys->dim; n ++)
+    {
+      rows [n] += rows [n-1];
+      aux [n-1] = rows [n-1]; /* initialize aux with cols  */
+    }
+
+    ASSERT_DEBUG (rows [sys->dim] == sys->nnz, "Inconsistent sparse storage");
+
+    /* set up column pointers */
+    for (j = 0; j < dom->ncon; j ++)
+    {
+      for (item = MAP_First (prow [j]); item; item = MAP_Next (item))
+      {
+	k = 3 * (((int) (long) item->key) - 1); /* base column block index (-1 as keys == col+1) */
+
+	int *map = item->data;
+
+	ASSERT_DEBUG (map [0] == 0 && map [1] == 0 && map [2] == 0, "Reusing the same map triplet: %d, %d, %d", map [0], map [1], map [2]);
+
+	for (n = 0; n < 3; n ++) map [n] = aux [3*j+n]; /* set column blocks map */
+
+	for (n = 0; n < 3; n ++) /* for each row block sub-row */
+	{
+	  for (l = aux [3*j+n], i = 0; i < 3; i ++) /* for each column block sub-column */
+	  {
+	    cols [l + i] = k + i; /* set up column index */
+	  }
+	  aux [3*j+n] += 3; /* increment relative column pointers */
+	}
+      }
+    }
+
+    /* assign sparse row maps to blocks */
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {
+      int col, row;
+
+      col = dia->con->num;
+      row = col - basenum; /* use relative numbering for rows */
+
+      ASSERT_DEBUG_EXT (dia->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
+
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	col = blk->dia->con->num;
+
+	ASSERT_DEBUG_EXT (blk->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
+      }
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	col = ((CON*)blk->dia)->num; /* external constraint */
+
+	ASSERT_DEBUG_EXT (blk->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
+      }
+    }
+
+    /* free auxiliary space */
+    MEM_Release (&mem);
+    free (prow);
+    free (aux);
   }
 #endif
 
@@ -272,7 +420,57 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
   }
   else /* initialize HYPRE */
   {
-    /* TODO */
+    HYPRE_DATA *hyp;
+
+    ERRMEM (hyp = MEM_CALLOC (sizeof (HYPRE_DATA)));
+    sys->hyp = hyp;
+
+    if (dom->con)
+    {
+      hyp->ilower = dom->con->num * 3;
+      hyp->iupper = hyp->ilower + dom->ncon * 3 - 1;
+      hyp->jlower = hyp->ilower;
+      hyp->jupper = hyp->iupper;
+      ERRMEM (hyp->ncols = malloc (sizeof (int [sys->dim])));
+      ERRMEM (hyp->rows = malloc (sizeof (int [sys->dim])));
+      for (j = 0, k = hyp->ilower; j < sys->dim; j ++, k ++)
+      {
+	hyp->ncols [j] = sys->rows [j+1] - sys->rows [j];
+	hyp->rows [j] = k;
+      }
+    }
+
+    /* create distributed matrix */
+    HYPRE_IJMatrixCreate (MPI_COMM_WORLD, hyp->ilower, hyp->iupper, hyp->jlower, hyp->jupper, &hyp->A);
+    HYPRE_IJMatrixSetObjectType (hyp->A, HYPRE_PARCSR);
+
+    /* initialize row sizes and per/off-processor column counts to improve assembly efficiency */
+    HYPRE_IJMatrixSetRowSizes (hyp->A, hyp->ncols);
+    HYPRE_IJMatrixSetDiagOffdSizes (hyp->A, diacnt, offcnt);
+    free (diacnt);
+    free (offcnt);
+
+    /* initialize matrix with zeros */
+    HYPRE_IJMatrixInitialize (hyp->A);
+    HYPRE_IJMatrixSetValues (hyp->A, sys->dim, hyp->ncols, hyp->rows, sys->cols, sys->a);
+    HYPRE_IJMatrixAssemble (hyp->A);
+    HYPRE_IJMatrixGetObject (hyp->A, (void **) &hyp->AP);
+
+    /* b */
+    HYPRE_IJVectorCreate (MPI_COMM_WORLD, hyp->jlower, hyp->jupper, &hyp->B);
+    HYPRE_IJVectorSetObjectType (hyp->B, HYPRE_PARCSR);
+    HYPRE_IJVectorInitialize (hyp->B);
+    HYPRE_IJVectorSetValues (hyp->B, sys->dim, hyp->rows, sys->b);
+    HYPRE_IJVectorAssemble (hyp->B);
+    HYPRE_IJVectorGetObject(hyp->B, (void **) &hyp->BP);
+
+    /* x */
+    HYPRE_IJVectorCreate (MPI_COMM_WORLD, hyp->jlower, hyp->jupper, &hyp->X);
+    HYPRE_IJVectorSetObjectType (hyp->X, HYPRE_PARCSR);
+    HYPRE_IJVectorInitialize (hyp->X);
+    HYPRE_IJVectorSetValues (hyp->X, sys->dim, hyp->rows, sys->x);
+    HYPRE_IJVectorAssemble (hyp->X);
+    HYPRE_IJVectorGetObject(hyp->X, (void **) &hyp->XP);
   }
 #endif
 
@@ -1004,6 +1202,8 @@ void LINSYS_Update (LINSYS *sys)
 /* solve linear system for reaction increments DR */
 void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
 {
+  DOM *dom = sys->ldy->dom;
+
 #if MPI
   if (sys->options & LOCAL_SYSTEM)
   {
@@ -1050,6 +1250,10 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
       cholmod_l_finish (cc);
       free (A);
       free (b);
+
+      /* stats */
+      sys->resnorm = 0.0;
+      sys->iters = 0;
     }
 #else
     accuracy = MAX (1E-10, accuracy); /* FIXME */
@@ -1061,18 +1265,83 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     {
       fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (sys->lss));
     }
+
+    /* stats */
+    sys->resnorm = LSS_Get (sys->lss, LSS_ABSOLUTE_ERROR);
+    sys->iters = LSS_Get (sys->lss, LSS_ITERATIONS);
 #endif
 
 #if MPI
   }
   else
   {
-    /* TODO: overwrite con->R with DR and use DOM_Update_External_Reactions in order to store in conext->R th DRs;
-     *       then compute DU using them; note that next call to system_update will write con->R into conext->R again */
+    HYPRE_DATA *hyp = sys->hyp;
+
+   /* A */
+    HYPRE_IJMatrixInitialize (hyp->A);
+    HYPRE_IJMatrixSetValues (hyp->A, sys->dim, hyp->ncols, hyp->rows, sys->cols, sys->a);
+    HYPRE_IJMatrixAssemble (hyp->A);
+
+    /* b */
+    HYPRE_IJVectorInitialize (hyp->B);
+    HYPRE_IJVectorSetValues (hyp->B, sys->dim, hyp->rows, sys->b);
+    HYPRE_IJVectorAssemble (hyp->B);
+
+    /* Flexible GMRES with  AMG Preconditioner */
+    {
+      HYPRE_Solver solver;
+      int restart = 32;
+
+      /* Create solver */
+      HYPRE_ParCSRFlexGMRESCreate(MPI_COMM_WORLD, &solver);
+
+      /* Set some parameters (See Reference Manual for more parameters) */
+      HYPRE_FlexGMRESSetKDim (solver, restart);
+      HYPRE_FlexGMRESSetMaxIter (solver, maxiter); /* max iterations */
+      HYPRE_FlexGMRESSetTol (solver, accuracy); /* conv. tolerance */
+      HYPRE_FlexGMRESSetPrintLevel (solver, 0); /* print solve info */
+      HYPRE_FlexGMRESSetLogging (solver, 1); /* needed to get run info later */
+
+#if 0
+      HYPRE_Solver precond;
+
+      /* Now set up the AMG preconditioner and specify any parameters */
+      HYPRE_BoomerAMGCreate (&precond);
+      HYPRE_BoomerAMGSetPrintLevel (precond, 0); /* print amg solution info */
+      HYPRE_BoomerAMGSetCoarsenType (precond, 6);
+      HYPRE_BoomerAMGSetRelaxType (precond, 6); /* Sym G.S./Jacobi hybrid */ 
+      HYPRE_BoomerAMGSetNumSweeps (precond, 1);
+      HYPRE_BoomerAMGSetTol (precond, 0.0); /* conv. tolerance zero */
+      HYPRE_BoomerAMGSetMaxIter (precond, 1); /* do only one iteration! */
+
+      /* Set the FlexGMRES preconditioner */
+      HYPRE_FlexGMRESSetPrecond (solver, (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSolve,
+                          (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSetup, precond);
+#endif
+
+      /* Now setup and solve! */
+      HYPRE_ParCSRFlexGMRESSetup (solver, hyp->AP, hyp->BP, hyp->XP);
+      HYPRE_ParCSRFlexGMRESSolve (solver, hyp->AP, hyp->BP, hyp->XP);
+
+      /* Run info - needed logging turned on */
+      HYPRE_FlexGMRESGetNumIterations (solver, &sys->iters);
+      HYPRE_FlexGMRESGetFinalRelativeResidualNorm (solver, &sys->resnorm);
+
+      /* Destory solver and preconditioner */
+      HYPRE_ParCSRFlexGMRESDestroy (solver);
+#if 0
+      HYPRE_BoomerAMGDestroy (precond);
+#endif
+    }
+
+    /* x */
+    HYPRE_IJVectorGetValues (hyp->X, sys->dim, hyp->rows, sys->x);
+
+    /* send reaction increments to external constraint CON->Z members: see (***) below */
+    DOM_Update_External_Reactions_Increments (dom);
   }
 #endif
 
-  DOM *dom = sys->ldy->dom;
   double *x;
   CON *con;
 
@@ -1107,7 +1376,7 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     {
       for (OFFB *blk = dia->adjext; blk; blk = blk->n)
       {
-	double *DR = DR((CON*)blk->dia), /* external reaction */
+	double *DR = ((CON*)blk->dia)->Z, /* (***) external reaction increment stored in CON->Z temporarily */
 	       *W = blk->W;
 
 	NVADDMUL (DU, W, DR, DU);
@@ -1349,47 +1618,13 @@ int LINSYS_Global (LINSYS *sys)
 /* most recent iterations count */
 int LINSYS_Iters (LINSYS *sys)
 {
-#if MPI
-  if (sys->options & LOCAL_SYSTEM)
-  {
-#endif
-
-#if SPQR
-    return 0;
-#else
-    return LSS_Get (sys->lss, LSS_ITERATIONS);
-#endif
-
-#if MPI
-  }
-  else
-  {
-    return 0; /* TODO */
-  }
-#endif
+  return sys->iters;
 }
 
 /* most recent residual norm */
 double LINSYS_Resnorm (LINSYS *sys)
 {
-#if MPI
-  if (sys->options & LOCAL_SYSTEM)
-  {
-#endif
-
-#if SPQR
-    return 0.0; /* TODO */
-#else
-    return LSS_Get (sys->lss, LSS_ABSOLUTE_ERROR);
-#endif
-
-#if MPI
-  }
-  else
-  {
-    return 0.0; /* TODO */
-  }
-#endif
+  return sys->resnorm;
 }
 
 /* destroy linear system */
@@ -1408,6 +1643,12 @@ void LINSYS_Destroy (LINSYS *sys)
     {
       blk->map = NULL;
     }
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      blk->map = NULL;
+    }
+#endif
   }
 
   MEM_Release (&sys->mapmem);
@@ -1421,6 +1662,20 @@ void LINSYS_Destroy (LINSYS *sys)
 
 #if ! SPQR
   LSS_Destroy (sys->lss);
+#endif
+
+#if MPI
+  if (sys->hyp)
+  {
+    HYPRE_DATA *hyp = sys->hyp;
+
+    HYPRE_IJMatrixDestroy (hyp->A);
+    HYPRE_IJVectorDestroy (hyp->B);
+    HYPRE_IJVectorDestroy (hyp->X);
+    free (hyp->ncols);
+    free (hyp->rows);
+    free (hyp);
+  }
 #endif
 
   free (sys);
