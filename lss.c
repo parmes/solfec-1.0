@@ -30,6 +30,8 @@
 #include "ist.h"
 #include "lss.h"
 
+#define MATRIXSCALE 0 /* FIXME: make into a user parameter */
+
 /* ========== MACROS ========== */
 
 /* private routine */
@@ -375,6 +377,48 @@ PRIVATE (void, matrixupdate, MATRIX *A, double *a)
   }
 }
 
+#if MATRIXSCALE
+/* normalize matrix rows and return scaling coefficients */
+PRIVATE (double*, matrixscale, MATRIX *A)
+{
+  double *x, *y, *s, *e;
+  int n, m, *i, j;
+
+  n = A->dimension - A->adjust;
+  m = A->kind == CSC ? A->columns [n] : A->rows [n];
+
+  ASSERT (s = calloc (n, sizeof (double)), LSSERR_OUT_OF_MEMORY);
+
+  if (A->kind == CSC)
+  {
+    y = A->elements + m;
+    e = s + n;
+
+    for (i = A->rows, x = A->elements; x < y; x ++, i ++)
+    {
+      s[*i] += (*x) * (*x);
+    }
+
+    for (x = s; x < e; x ++) *x = 1.0 / sqrt (*x); /* row length inverses */ /* FIXME: implement a better scaling; e.g. Gajulapalli and Lason, 2006 */
+
+    for (i = A->rows, x = A->elements; x < y; x ++, i ++) (*x) *= s [*i];
+  }
+  else
+  {
+    for (j = 0, e = s; j < n; j ++, e ++)
+    {
+      for (x = &A->elements [A->rows [j]], y = &A->elements [A->rows [j+1]]; x < y; x ++) (*e) += (*x) * (*x);
+
+      *e = 1.0 / sqrt (*e);
+
+      for (x = &A->elements [A->rows [j]], y = &A->elements [A->rows [j+1]]; x < y; x ++) (*x) *= (*e);
+    }
+  }
+
+  return s;
+}
+#endif
+
 /* free matrix */
 static void matrixfree (MATRIX *A)
 {
@@ -477,14 +521,22 @@ PRIVATE (VECTOR*, vector, int n, int a)
 }
 
 /* update vector form user storage */
+#if MATRIXSCALE
+PRIVATE (void, vectorupdate, VECTOR *v, double *z, double *s, double a)
+#else
 PRIVATE (void, vectorupdate, VECTOR *v, double *z, double a)
+#endif
 {
   double *x, *y;
 
   x = v->elements;
   y = x + v->dimension - v->adjust;
 
+#if MATRIXSCALE
+  for (;x < y; x ++, z ++, s ++) *x = (*z) * (*s);
+#else
   for (;x < y; x ++, z ++) *x = (*z);
+#endif
 
   for (int i = v->adjust; i > 0; i --, x ++) *x = a;
 }
@@ -1316,9 +1368,17 @@ PRIVATE (void, create, LSSOBJ *lss, double *a)
 /* update internal data */
 PRIVATE (void, update, LSSOBJ *lss, double *a, double *b)
 {
+#if MATRIXSCALE
+  double *s;
   CALL (matrixupdate, lss->A, a);
-  CALL (vectoradjust, lss->x, 0.0);
+  s = CALL (matrixscale, lss->A);
+  CALL (vectorupdate, lss->b, b, s, 1.0);
+  free (s);
+#else
+  CALL (matrixupdate, lss->A, a);
   CALL (vectorupdate, lss->b, b, 1.0);
+#endif
+  CALL (vectoradjust, lss->x, 0.0);
   if (lss->M) CALL (precndupdate, lss->M, lss->params);
 }
 

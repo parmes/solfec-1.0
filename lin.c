@@ -452,6 +452,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
             sys->a, &sys->symbolic, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
 #else
     ERRMEM (sys->lss = LSS_Create (sys->dim, sys->a, sys->cols, sys->rows));
+    LSS_Set (sys->lss, LSS_RESTART, 100); /* FIXME: make user adjustable or automatic */
 #endif
 
 #if MPI
@@ -1249,6 +1250,42 @@ void LINSYS_Update (LINSYS *sys)
       system_update_VARIATIONAL (sys->variant, sys->options, sys->ldy, sys->a, sys->b);
       break;
   }
+
+#if 0
+  /* improve conditioning */
+  {
+    int j, k, q, *i, *p;
+    double *a, delta;
+
+    delta = 1E-7;
+
+#if MPI
+    if (!(sys->options & LOCAL_SYSTEM))
+    {
+      i = sys->cols;
+      p = sys->rows;
+      q = sys->hyp->ilower;
+    }
+    else
+#endif
+    {
+      i = sys->rows;
+      p = sys->cols;
+      q = 0;
+    }
+
+    for (j = 0, a = sys->a; j < sys->dim; j ++)
+    {
+      for (k = p [j]; k < p [j+1]; k ++, a ++, i ++)
+      {
+	if ((q+j) == *i)
+	{
+	  *a += delta;
+	}
+      }
+    }
+  }
+#endif
 }
 
 /* solve linear system for reaction increments DR */
@@ -1289,7 +1326,7 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     /* x = A\b */
     LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
     LSS_Set (sys->lss, LSS_ITERATIONS_BOUND, maxiter);
-    LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 1.0);
+    LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 10 * accuracy);
     if (LSS_Solve (sys->lss, sys->a, sys->x, sys->b) != LSSERR_NONE)
     {
       fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (sys->lss));
