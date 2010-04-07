@@ -31,6 +31,7 @@
 #include "lss.h"
 
 #define MATRIXSCALE 0 /* FIXME: make into a user parameter */
+                      /* FIXME: scaling must affect absolute convergence norm accordingly */
 
 /* ========== MACROS ========== */
 
