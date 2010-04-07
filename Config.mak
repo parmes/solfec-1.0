@@ -34,7 +34,7 @@ BLAS = -L/usr/lib -lblas
 LAPACK = -L/usr/lib -llapack
 
 #
-# SPQR (yes/no)
+# SPQR (yes/no) {overwrites UMFPACK}
 #
 
 SPQR = no
@@ -42,6 +42,15 @@ SPQR = no
 SPQRINC = -I/Users/tomek/Devel/lib/Davis/SPQR/Include -I/Users/tomek/Devel/lib/Davis/UFconfig -I/Users/tomek/Devel/lib/Davis/CHOLMOD/Include
 SPQRLIB = -L/Users/tomek/Devel/lib/Davis/SPQR/Lib -lspqr -L/Users/tomek/Devel/lib/Davis/AMD/Lib -lamd -L/Users/tomek/Devel/lib/Davis/CHOLMOD/Lib -lcholmod\
 	  -L/Users/tomek/Devel/lib/Davis/COLAMD/Lib -lcolamd -lstdc++
+
+#
+# UMFPACK (yes/no)
+#
+
+UMFPACK = no
+
+UMFPACKINC = -I/Users/tomek/Devel/lib/Davis/UMFPACK/Include -I/Users/tomek/Devel/lib/Davis/UFconfig -I/Users/tomek/Devel/lib/Davis/AMD/Include
+UMFPACKLIB = -L/Users/tomek/Devel/lib/Davis/UMFPACK/Lib -lumfpack -L/Users/tomek/Devel/lib/Davis/AMD/Lib -lamd
 
 #
 # Python

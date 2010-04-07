@@ -183,7 +183,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   if (dom->verbose)
   {
-    sprintf (fmt, "NEWTON: (LSS its/res: %%%dd/%%.2e) iteration: %%%dd  error:  %%.2e  merit: %%.2e\n",
+    sprintf (fmt, "NEWTON: (LIN its/res: %%%dd/%%.2e) iteration: %%%dd  error:  %%.2e  merit: %%.2e\n",
       (int)log10 (nt->linmaxiter) + 1, (int)log10 (nt->maxiter) + 1);
   }
 
@@ -195,6 +195,14 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   merit = LINSYS_Merit (sys, 0.0);
   nt->iters = 0;
   error = 1.0;
+
+#if DEBUG
+  error = LINSYS_Test (sys, nt->meritval, nt->linmaxiter);
+#if MPI
+  if (dom->rank == 0)
+#endif
+  printf ("NEWTON: W inversion relative accuract: %.2e\n", error);
+#endif
 
   do
   {

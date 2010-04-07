@@ -75,6 +75,10 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter);
 /* compute merit function at (R + alpha * DR) */
 double LINSYS_Merit (LINSYS *sys, double alpha);
 
+/* test solution of W * x = b, where b = W * [1, 1, ..., 1];
+ * return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
+double LINSYS_Test (LINSYS *sys, double accuracy, int maxiter);
+
 /* returns 1 if a global system; 0 otherwise */
 int LINSYS_Global (LINSYS *sys);
 
