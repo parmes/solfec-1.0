@@ -208,7 +208,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   {
     LINSYS_Update (sys); /* assemble A, b */
 
-    LINSYS_Solve (sys, 0.01 * error, nt->linmaxiter); /* x = A\b; TODO: develop into a rigorous inexact step */
+    LINSYS_Solve (sys, 0.01 * MIN (error, merit), nt->linmaxiter); /* x = A\b; TODO: develop into a rigorous inexact step */
 
     error = reactions_update (nt, sys, ldy, nonmonvalues, nt->iters, &merit); /* R(i+1) */
 
