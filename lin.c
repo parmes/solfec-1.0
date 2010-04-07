@@ -1326,7 +1326,7 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     /* x = A\b */
     LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
     LSS_Set (sys->lss, LSS_ITERATIONS_BOUND, maxiter);
-    LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 10 * accuracy);
+    LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 1.0);
     if (LSS_Solve (sys->lss, sys->a, sys->x, sys->b) != LSSERR_NONE)
     {
       fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (sys->lss));

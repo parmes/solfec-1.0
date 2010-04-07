@@ -432,9 +432,9 @@ GRAVITY (solfec, (0, 0, -10))
 
 box_kite_create (0.0003, 0.0002,  0,  0,  0, SEPARATION, tms, bulkmat, solfec)
 
-#sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
-sv = NEWTON_SOLVER ('NONSMOOTH_HSW', 1E0, 50, 1E-6)
-sv.nonmonlength = 1
+sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
+#sv = NEWTON_SOLVER ('NONSMOOTH_HSW', 1E0, 50, 1E-6)
+#sv.nonmonlength = 1
 
 MERIT = []
 
