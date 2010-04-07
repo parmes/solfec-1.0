@@ -10,8 +10,17 @@ endif
 
 ifeq ($(SPQR),yes)
   SPQR = -DSPQR $(SPQRINC)
+  UMFPACK = 
+  UMFPACKLIB = 
 else
   SPQR =
+  SPQRLIB = 
+  ifeq ($(UMFPACK),yes)
+    UMFPACK = -DUMFPACK $(UMFPACKINC)
+  else
+    UMFPACK =
+    UMFPACKLIB =
+  endif
 endif
 
 ifeq ($(OPENGL),yes)

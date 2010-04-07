@@ -29,6 +29,8 @@
 
 #if SPQR
 #include <SuiteSparseQR_C.h>
+#elif UMFPACK
+#include <umfpack.h>
 #else
 #include "lss.h"
 #endif
@@ -49,6 +51,8 @@ typedef struct hypre_data HYPRE_DATA;
 
 struct hypre_data /* HYPRE IJ matrix data and the rest of linear system */
 {
+  MPI_Comm  comm; /* communicator (skips processors with no constrains) */
+
   int ilower, /* lower row index == dom->con->num * 3 */
       iupper; /* upper low index == ilower + dom->ncon * 3 - 1 */
 
@@ -95,7 +99,15 @@ struct linsys
   HYPRE_DATA *hyp;
 #endif
 
+#if SPQR
+  cholmod_sparse *spqr_a; /* A */
+  cholmod_dense *spqr_b; /* b */
+  cholmod_common spqr_c; /* solver data */
+#elif UMFPACK
+  void *symbolic; /* symbolic factorization */
+#else
   void *lss; /* LSS interface */
+#endif
 
   int iters; /* iterations count */
 
@@ -411,7 +423,33 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
 #endif
 
 #if SPQR
-    /* TODO */
+    /* start CHOLMOD */
+    cholmod_l_start (&sys->spqr_c);
+
+    /* allocate A */
+    ERRMEM (sys->spqr_a = MEM_CALLOC (sizeof (cholmod_sparse)));
+    sys->spqr_a->nrow = sys->spqr_a->ncol = sys->dim;
+    sys->spqr_a->nzmax = sys->nnz;
+    sys->spqr_a->p = sys->cols;
+    sys->spqr_a->i = sys->rows;
+    sys->spqr_a->x = sys->a;
+    sys->spqr_a->stype = 0;
+    sys->spqr_a->itype = CHOLMOD_INT;
+    sys->spqr_a->xtype = CHOLMOD_REAL;
+    sys->spqr_a->dtype = CHOLMOD_DOUBLE;
+    sys->spqr_a->sorted = TRUE;
+    sys->spqr_a->packed = TRUE;
+
+    /* allocate b */
+    ERRMEM (sys->spqr_b = MEM_CALLOC (sizeof (cholmod_sparse)));
+    sys->spqr_b->nrow = sys->spqr_b->nzmax = sys->spqr_b->d = sys->dim;
+    sys->spqr_b->ncol = 1;
+    sys->spqr_b->x = sys->b;
+    sys->spqr_b->xtype = CHOLMOD_REAL;
+    sys->spqr_b->dtype = CHOLMOD_DOUBLE;
+#elif UMFPACK
+    ASSERT (umfpack_di_symbolic (sys->dim, sys->dim, sys->cols, sys->rows,
+            sys->a, &sys->symbolic, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
 #else
     ERRMEM (sys->lss = LSS_Create (sys->dim, sys->a, sys->cols, sys->rows));
 #endif
@@ -420,12 +458,34 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
   }
   else /* initialize HYPRE */
   {
+    MPI_Group allcpus, nonzero;
+    int *ncon, *ranks;
     HYPRE_DATA *hyp;
 
+    ERRMEM (ranks = MEM_CALLOC (sizeof (int [dom->ncpu])));
+    ERRMEM (ncon = MEM_CALLOC (sizeof (int [dom->ncpu])));
     ERRMEM (hyp = MEM_CALLOC (sizeof (HYPRE_DATA)));
     sys->hyp = hyp;
 
-    if (dom->con)
+    /* gather numbers of constraints from all subdomains */
+    MPI_Allgather (&dom->ncon, 1, MPI_INT, ncon, 1, MPI_INT, MPI_COMM_WORLD);
+    for (i = j = 0; i < dom->ncpu; i ++)
+    {
+      if (ncon [i]) ranks [j ++] = i;
+    }
+
+    /* create a group of processorss with nonzero constraint counts */
+    MPI_Comm_group (MPI_COMM_WORLD, &allcpus);
+    MPI_Group_incl (allcpus, j, ranks, &nonzero);
+
+    /* create HYPRE communicator */
+    MPI_Comm_create (MPI_COMM_WORLD, nonzero, &hyp->comm);
+
+    /* clean */
+    free (ranks);
+    free (ncon);
+
+    if (dom->con) /* there are some constraints here */
     {
       hyp->ilower = dom->con->num * 3;
       hyp->iupper = hyp->ilower + dom->ncon * 3 - 1;
@@ -440,37 +500,40 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
       }
     }
 
-    /* create distributed matrix */
-    HYPRE_IJMatrixCreate (MPI_COMM_WORLD, hyp->ilower, hyp->iupper, hyp->jlower, hyp->jupper, &hyp->A);
-    HYPRE_IJMatrixSetObjectType (hyp->A, HYPRE_PARCSR);
+    if (hyp->comm != MPI_COMM_NULL) /* skip empty constraints set case */
+    {
+      /* create distributed matrix */
+      HYPRE_IJMatrixCreate (hyp->comm, hyp->ilower, hyp->iupper, hyp->jlower, hyp->jupper, &hyp->A);
+      HYPRE_IJMatrixSetObjectType (hyp->A, HYPRE_PARCSR);
 
-    /* initialize row sizes and per/off-processor column counts to improve assembly efficiency */
-    HYPRE_IJMatrixSetRowSizes (hyp->A, hyp->ncols);
-    HYPRE_IJMatrixSetDiagOffdSizes (hyp->A, diacnt, offcnt);
-    free (diacnt);
-    free (offcnt);
+      /* initialize row sizes and per/off-processor column counts to improve assembly efficiency */
+      HYPRE_IJMatrixSetRowSizes (hyp->A, hyp->ncols);
+      HYPRE_IJMatrixSetDiagOffdSizes (hyp->A, diacnt, offcnt);
+      free (diacnt);
+      free (offcnt);
 
-    /* initialize matrix with zeros */
-    HYPRE_IJMatrixInitialize (hyp->A);
-    HYPRE_IJMatrixSetValues (hyp->A, sys->dim, hyp->ncols, hyp->rows, sys->cols, sys->a);
-    HYPRE_IJMatrixAssemble (hyp->A);
-    HYPRE_IJMatrixGetObject (hyp->A, (void **) &hyp->AP);
+      /* initialize matrix with zeros */
+      HYPRE_IJMatrixInitialize (hyp->A);
+      HYPRE_IJMatrixSetValues (hyp->A, sys->dim, hyp->ncols, hyp->rows, sys->cols, sys->a);
+      HYPRE_IJMatrixAssemble (hyp->A);
+      HYPRE_IJMatrixGetObject (hyp->A, (void **) &hyp->AP);
 
-    /* b */
-    HYPRE_IJVectorCreate (MPI_COMM_WORLD, hyp->jlower, hyp->jupper, &hyp->B);
-    HYPRE_IJVectorSetObjectType (hyp->B, HYPRE_PARCSR);
-    HYPRE_IJVectorInitialize (hyp->B);
-    HYPRE_IJVectorSetValues (hyp->B, sys->dim, hyp->rows, sys->b);
-    HYPRE_IJVectorAssemble (hyp->B);
-    HYPRE_IJVectorGetObject(hyp->B, (void **) &hyp->BP);
+      /* b */
+      HYPRE_IJVectorCreate (hyp->comm, hyp->jlower, hyp->jupper, &hyp->B);
+      HYPRE_IJVectorSetObjectType (hyp->B, HYPRE_PARCSR);
+      HYPRE_IJVectorInitialize (hyp->B);
+      HYPRE_IJVectorSetValues (hyp->B, sys->dim, hyp->rows, sys->b);
+      HYPRE_IJVectorAssemble (hyp->B);
+      HYPRE_IJVectorGetObject(hyp->B, (void **) &hyp->BP);
 
-    /* x */
-    HYPRE_IJVectorCreate (MPI_COMM_WORLD, hyp->jlower, hyp->jupper, &hyp->X);
-    HYPRE_IJVectorSetObjectType (hyp->X, HYPRE_PARCSR);
-    HYPRE_IJVectorInitialize (hyp->X);
-    HYPRE_IJVectorSetValues (hyp->X, sys->dim, hyp->rows, sys->x);
-    HYPRE_IJVectorAssemble (hyp->X);
-    HYPRE_IJVectorGetObject(hyp->X, (void **) &hyp->XP);
+      /* x */
+      HYPRE_IJVectorCreate (hyp->comm, hyp->jlower, hyp->jupper, &hyp->X);
+      HYPRE_IJVectorSetObjectType (hyp->X, HYPRE_PARCSR);
+      HYPRE_IJVectorInitialize (hyp->X);
+      HYPRE_IJVectorSetValues (hyp->X, sys->dim, hyp->rows, sys->x);
+      HYPRE_IJVectorAssemble (hyp->X);
+      HYPRE_IJVectorGetObject(hyp->X, (void **) &hyp->XP);
+    }
   }
 #endif
 
@@ -1095,20 +1158,9 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, LINOPT options, LOCD
 
       int *map = dia->map;
 
-#if MPI
-      if (global)
-      {
-	a [map[0]]   = W[0];
-	a [map[1]+1] = W[4];
-	a [map[2]+2] = W[8];
-      }
-      else
-#endif
-      {
-	a [map[0]]   = W[0];
-	a [map[1]+1] = W[4];
-	a [map[2]+2] = W[8];
-      }
+      a [map[0]]   = W[0]; /* set diagonal to diag (W) */
+      a [map[1]+1] = W[4];
+      a [map[2]+2] = W[8];
 
       b [0] = -R[0] * W[0]; /* keep RT zero: W (-R) = W dR */
       b [1] = -R[1] * W[4];
@@ -1210,57 +1262,34 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
 #endif
 
 #if SPQR
-    {
-      cholmod_common Common, *cc;
-      cholmod_dense *b, *x;
-      cholmod_sparse *A;
+  {
+    /* x = A\b */
+    cholmod_dense *x = SuiteSparseQR_C_backslash_default (sys->spqr_a, sys->spqr_b, &sys->spqr_c);
+    blas_dcopy (sys->dim, x->x, 1, sys->x, 1);
+    cholmod_l_free_dense (&x, &sys->spqr_c) ;
 
-      /* start CHOLMOD */
-      cc = &Common;
-      cholmod_l_start (cc);
+    /* stats */
+    sys->resnorm = 0.0;
+    sys->iters = 0;
+  }
+#elif UMFPACK
+  {
+    /* x = A\b */
+    void *numeric;
+    ASSERT (umfpack_di_numeric (sys->cols, sys->rows, sys->a, sys->symbolic, &numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
+    ASSERT (umfpack_di_solve (UMFPACK_A, sys->cols, sys->rows, sys->a, sys->x, sys->b, numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
+    umfpack_di_free_numeric (&numeric);
 
-      /* allocate A */
-      ERRMEM (A = MEM_CALLOC (sizeof (cholmod_sparse)));
-      A->nrow = A->ncol = sys->dim;
-      A->nzmax = sys->nnz;
-      A->p = sys->cols;
-      A->i = sys->rows;
-      A->x = sys->a;
-      A->stype = 0;
-      A->itype = CHOLMOD_INT;
-      A->xtype = CHOLMOD_REAL;
-      A->dtype = CHOLMOD_DOUBLE;
-      A->sorted = TRUE;
-      A->packed = TRUE;
-
-      /* allocate b */
-      ERRMEM (b = MEM_CALLOC (sizeof (cholmod_sparse)));
-      b->nrow = b->nzmax = b->d = sys->dim;
-      b->ncol = 1;
-      b->x = sys->b;
-      b->xtype = CHOLMOD_REAL;
-      b->dtype = CHOLMOD_DOUBLE;
-
-      /* X = A\B */
-      x = SuiteSparseQR_C_backslash_default (A, b, cc);
-      blas_dcopy (sys->dim, x->x, 1, sys->x, 1);
-
-      /* free everything and finish CHOLMOD */
-      cholmod_l_free_dense (&x, cc) ;
-      cholmod_l_finish (cc);
-      free (A);
-      free (b);
-
-      /* stats */
-      sys->resnorm = 0.0;
-      sys->iters = 0;
-    }
+    /* stats */
+    sys->resnorm = 0.0;
+    sys->iters = 0;
+  }
 #else
-    accuracy = MAX (1E-10, accuracy); /* FIXME */
-    LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, accuracy < 1.0 ? 1.0 / accuracy : 1.0);
+  {
+    /* x = A\b */
     LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
     LSS_Set (sys->lss, LSS_ITERATIONS_BOUND, maxiter);
-
+    LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 1.0);
     if (LSS_Solve (sys->lss, sys->a, sys->x, sys->b) != LSSERR_NONE)
     {
       fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (sys->lss));
@@ -1269,73 +1298,106 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     /* stats */
     sys->resnorm = LSS_Get (sys->lss, LSS_ABSOLUTE_ERROR);
     sys->iters = LSS_Get (sys->lss, LSS_ITERATIONS);
+  }
 #endif
 
 #if MPI
   }
-  else
+  else /* parallel solve */
   {
     HYPRE_DATA *hyp = sys->hyp;
 
-   /* A */
-    HYPRE_IJMatrixInitialize (hyp->A);
-    HYPRE_IJMatrixSetValues (hyp->A, sys->dim, hyp->ncols, hyp->rows, sys->cols, sys->a);
-    HYPRE_IJMatrixAssemble (hyp->A);
-
-    /* b */
-    HYPRE_IJVectorInitialize (hyp->B);
-    HYPRE_IJVectorSetValues (hyp->B, sys->dim, hyp->rows, sys->b);
-    HYPRE_IJVectorAssemble (hyp->B);
-
-    /* Flexible GMRES with  AMG Preconditioner */
+    if (hyp->comm != MPI_COMM_NULL) /* skip empty constraints case */
     {
-      HYPRE_Solver solver;
-      int restart = 32;
+      /* A */
+      HYPRE_IJMatrixInitialize (hyp->A);
+      HYPRE_IJMatrixSetValues (hyp->A, sys->dim, hyp->ncols, hyp->rows, sys->cols, sys->a);
+      HYPRE_IJMatrixAssemble (hyp->A);
 
-      /* Create solver */
-      HYPRE_ParCSRFlexGMRESCreate(MPI_COMM_WORLD, &solver);
+      /* b */
+      HYPRE_IJVectorInitialize (hyp->B);
+      HYPRE_IJVectorSetValues (hyp->B, sys->dim, hyp->rows, sys->b);
+      HYPRE_IJVectorAssemble (hyp->B);
 
-      /* Set some parameters (See Reference Manual for more parameters) */
-      HYPRE_FlexGMRESSetKDim (solver, restart);
-      HYPRE_FlexGMRESSetMaxIter (solver, maxiter); /* max iterations */
-      HYPRE_FlexGMRESSetTol (solver, accuracy); /* conv. tolerance */
-      HYPRE_FlexGMRESSetPrintLevel (solver, 0); /* print solve info */
-      HYPRE_FlexGMRESSetLogging (solver, 1); /* needed to get run info later */
+      /* Flexible GMRES with  AMG Preconditioner */
+      {
+	HYPRE_Solver solver;
 
-#if 0
-      HYPRE_Solver precond;
+	/* Create solver */
+	HYPRE_ParCSRFlexGMRESCreate(hyp->comm, &solver);
 
-      /* Now set up the AMG preconditioner and specify any parameters */
-      HYPRE_BoomerAMGCreate (&precond);
-      HYPRE_BoomerAMGSetPrintLevel (precond, 0); /* print amg solution info */
-      HYPRE_BoomerAMGSetCoarsenType (precond, 6);
-      HYPRE_BoomerAMGSetRelaxType (precond, 6); /* Sym G.S./Jacobi hybrid */ 
-      HYPRE_BoomerAMGSetNumSweeps (precond, 1);
-      HYPRE_BoomerAMGSetTol (precond, 0.0); /* conv. tolerance zero */
-      HYPRE_BoomerAMGSetMaxIter (precond, 1); /* do only one iteration! */
+	/* Set some parameters (See Reference Manual for more parameters) */
+	HYPRE_FlexGMRESSetAbsoluteTol (solver, accuracy); /* conv. absolute tolerance */
+	HYPRE_FlexGMRESSetMaxIter (solver, maxiter); /* max iterations */
+	HYPRE_FlexGMRESSetTol (solver, 0.0); /* conv. tolerance */
+	HYPRE_FlexGMRESSetKDim (solver, 32); /* restart */
+	HYPRE_FlexGMRESSetPrintLevel (solver, 0); /* print solve info */
+	HYPRE_FlexGMRESSetLogging (solver, 1); /* needed to get run info later */
 
-      /* Set the FlexGMRES preconditioner */
-      HYPRE_FlexGMRESSetPrecond (solver, (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSolve,
-                          (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSetup, precond);
+#define PRECND 0
+#define AMG 1
+#define EUCLID 0
+#define PARASAILS 0
+
+#if PRECND
+	HYPRE_Solver precond;
+
+#if AMG
+	/* Now set up the AMG preconditioner and specify any parameters */
+	HYPRE_BoomerAMGCreate (&precond);
+	HYPRE_BoomerAMGSetPrintLevel (precond, 0); /* print amg solution info */
+	HYPRE_BoomerAMGSetCoarsenType (precond, 6);
+	HYPRE_BoomerAMGSetRelaxType (precond, 6); /* Sym G.S./Jacobi hybrid */ 
+	HYPRE_BoomerAMGSetNumSweeps (precond, 2);
+	HYPRE_BoomerAMGSetTol (precond, 0.0); /* conv. tolerance zero */
+	HYPRE_BoomerAMGSetMaxIter (precond, 1); /* do only one iteration! */
+
+	/* Set the FlexGMRES preconditioner */
+	HYPRE_FlexGMRESSetPrecond (solver, (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSolve,
+			    (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSetup, precond);
+#elif EUCLID
+	HYPRE_EuclidCreate (hyp->comm, &precond);
+        HYPRE_EuclidSetLevel(precond, 3);
+
+        HYPRE_FlexGMRESSetPrecond (solver, (HYPRE_PtrToSolverFcn) HYPRE_EuclidSolve,
+	    (HYPRE_PtrToSolverFcn) HYPRE_EuclidSetup, precond);
+#elif PARASAILS 
+      HYPRE_ParaSailsCreate(MPI_COMM_WORLD, &precond);
+
+      HYPRE_ParaSailsSetParams (precond, 0.1, 1);
+      HYPRE_ParaSailsSetFilter (precond, 0.1);
+      HYPRE_ParaSailsSetSym (precond, 0);
+      HYPRE_ParaSailsSetLogging (precond, 0);
+
+      HYPRE_FlexGMRESSetPrecond (solver, (HYPRE_PtrToSolverFcn) HYPRE_ParaSailsSolve,
+                          (HYPRE_PtrToSolverFcn) HYPRE_ParaSailsSetup, precond);
+#endif
 #endif
 
-      /* Now setup and solve! */
-      HYPRE_ParCSRFlexGMRESSetup (solver, hyp->AP, hyp->BP, hyp->XP);
-      HYPRE_ParCSRFlexGMRESSolve (solver, hyp->AP, hyp->BP, hyp->XP);
+	/* Now setup and solve! */
+	HYPRE_ParCSRFlexGMRESSetup (solver, hyp->AP, hyp->BP, hyp->XP);
+	HYPRE_ParCSRFlexGMRESSolve (solver, hyp->AP, hyp->BP, hyp->XP);
 
-      /* Run info - needed logging turned on */
-      HYPRE_FlexGMRESGetNumIterations (solver, &sys->iters);
-      HYPRE_FlexGMRESGetFinalRelativeResidualNorm (solver, &sys->resnorm);
+	/* Run info - needed logging turned on */
+	HYPRE_FlexGMRESGetNumIterations (solver, &sys->iters);
+	HYPRE_FlexGMRESGetFinalRelativeResidualNorm (solver, &sys->resnorm);
 
-      /* Destory solver and preconditioner */
-      HYPRE_ParCSRFlexGMRESDestroy (solver);
-#if 0
-      HYPRE_BoomerAMGDestroy (precond);
+	/* Destory solver and preconditioner */
+	HYPRE_ParCSRFlexGMRESDestroy (solver);
+#if PRECND
+#if AMG
+	HYPRE_BoomerAMGDestroy (precond);
+#elif EUCLID
+	HYPRE_EuclidDestroy (precond);
+#elif PARASAILS
+      HYPRE_ParaSailsDestroy (precond);
 #endif
+#endif
+      }
+
+      /* x */
+      HYPRE_IJVectorGetValues (hyp->X, sys->dim, hyp->rows, sys->x);
     }
-
-    /* x */
-    HYPRE_IJVectorGetValues (hyp->X, sys->dim, hyp->rows, sys->x);
 
     /* send reaction increments to external constraint CON->Z members: see (***) below */
     DOM_Update_External_Reactions_Increments (dom);
@@ -1372,7 +1434,7 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
       NVADDMUL (DU, W, DR, DU);
     }
 #if MPI
-    if ((sys->options & LOCAL_SYSTEM) == 0) /* not a per-processor local system */
+    if (!(sys->options & LOCAL_SYSTEM)) /* not a per-processor local system */
     {
       for (OFFB *blk = dia->adjext; blk; blk = blk->n)
       {
@@ -1385,130 +1447,6 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
 #endif
   }
 }
-
-#if 0
-/* test accuracy of W inversion */
-static void test_linear_solver (LINSYS *sys, LOCDYN *ldy)
-{
-  double *a, *b, *x, *e, error, one [3] = {1.0, 1.0, 1.0};
-  DIAB *dia;
-  OFFB *blk;
-  CON *con;
-
-  for (a = sys->a, b = a + sys->nnz; a < b; a ++) *a = 0.0;
-  a = sys->a;
-  b = sys->b;
-
-  for (con = ldy->dom->con; con; con = con->next, b += 3)
-  {
-    dia = con->dia;
-
-    double *W = dia->W;
-    int *map = dia->map;
-
-#if MPI
-    a [map[0]]   = W[0];
-    a [map[1]]   = W[1];
-    a [map[2]]   = W[2];
-    a [map[0]+1] = W[3];
-    a [map[1]+1] = W[4];
-    a [map[2]+1] = W[5];
-    a [map[0]+2] = W[6];
-    a [map[1]+2] = W[7];
-    a [map[2]+2] = W[8];
-#else
-    a [map[0]]   = W[0];
-    a [map[0]+1] = W[1];
-    a [map[0]+2] = W[2];
-    a [map[1]]   = W[3];
-    a [map[1]+1] = W[4];
-    a [map[1]+2] = W[5];
-    a [map[2]]   = W[6];
-    a [map[2]+1] = W[7];
-    a [map[2]+2] = W[8];
-#endif
-
-    NVMUL (W, one, b);
-
-#if MPI
-    {
-      OFFB *adj [2] = {dia->adj, dia->adjext};
-      for (int i = 0; i < 2; i ++)
-      for (blk = adj [i]; blk; blk = blk->n)
-      {
-	double *W = blk->W;
-	int *map = blk->map;
-
-	a [map[0]]   += W[0];
-	a [map[1]]   += W[1];
-	a [map[2]]   += W[2];
-	a [map[0]+1] += W[3];
-	a [map[1]+1] += W[4];
-	a [map[2]+1] += W[5];
-	a [map[0]+2] += W[6];
-	a [map[1]+2] += W[7];
-	a [map[2]+2] += W[8];
-
-	NVADDMUL (b, W, one, b);
-      }
-    }
-#else
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      double *W = blk->W;
-      int *map = blk->map;
-
-      a [map[0]]   += W[0];
-      a [map[0]+1] += W[1];
-      a [map[0]+2] += W[2];
-      a [map[1]]   += W[3];
-      a [map[1]+1] += W[4];
-      a [map[1]+2] += W[5];
-      a [map[2]]   += W[6];
-      a [map[2]+1] += W[7];
-      a [map[2]+2] += W[8];
-
-      NVADDMUL (b, W, one, b);
-    }
-#endif
-  }
-
-#if !MPI && DEBUG
-   {
-      int j, k, *i;
-      double *a;
-
-      for (j = 0, a = sys->a, i = sys->rows; j < sys->dim; j ++)
-      {
-	for (k = sys->cols [j]; k < sys->cols [j+1]; k ++, a ++, i ++)
-	{
-	  if (j == *i)
-	  {
-	    if (*a == 0.0)
-	    {
-	      printf ("ERROR: diagonal zero for index %d\n", j);
-	      printf ("ERROR: system dimension is %d and number of nonzeros is %d\n", sys->dim, sys->nnz);
-	      printf ("ERROR: column %d begins at %d and ends at %d\n", j, sys->cols [j], sys->cols [j+1]);
-	    }
-	  }
-	}
-      }
-    }
-#endif
-
-  double accuracy = 1E-4;
-
-  system_solve (sys, ldy, accuracy);
-
-  for (error = 0.0, x = sys->x, e = x + sys->dim; x < e; x ++)
-  {
-    error += (1.0 - (*x))*(1.0 - (*x));
-  }
-  error = sqrt (error);
-
-  printf ("LINEAR SOLVER TEST: error = %g, %s\n", error, error <= accuracy ? "PASSED" : "FAILED");
-}
-#endif
 
 /* compute merit function at (R + alpha * DR) */
 double LINSYS_Merit (LINSYS *sys, double alpha)
@@ -1609,6 +1547,159 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   return value;
 }
 
+/* test solution of W * x = b, where b = W * [1, 1, ..., 1];
+ * return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
+double LINSYS_Test (LINSYS *sys, double accuracy, int maxiter)
+{
+  double *a, *b, *x, *e, error, one [3] = {1.0, 1.0, 1.0};
+  LOCDYN *ldy;
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+
+  ldy = sys->ldy;
+
+  for (a = sys->a, b = a + sys->nnz; a < b; a ++) *a = 0.0; /* initialize with zeros */
+  a = sys->a;
+  b = sys->b;
+
+  for (con = ldy->dom->con; con; con = con->next, b += 3)
+  {
+    dia = con->dia;
+
+    double *W = dia->W;
+    int *map = dia->map;
+
+#if MPI
+    a [map[0]]   = W[0];
+    a [map[1]]   = W[1];
+    a [map[2]]   = W[2];
+    a [map[0]+1] = W[3];
+    a [map[1]+1] = W[4];
+    a [map[2]+1] = W[5];
+    a [map[0]+2] = W[6];
+    a [map[1]+2] = W[7];
+    a [map[2]+2] = W[8];
+#else
+    a [map[0]]   = W[0];
+    a [map[0]+1] = W[1];
+    a [map[0]+2] = W[2];
+    a [map[1]]   = W[3];
+    a [map[1]+1] = W[4];
+    a [map[1]+2] = W[5];
+    a [map[2]]   = W[6];
+    a [map[2]+1] = W[7];
+    a [map[2]+2] = W[8];
+#endif
+
+    NVMUL (W, one, b);
+
+#if MPI
+    {
+      OFFB *adj [2] = {dia->adj, dia->adjext};
+      for (int i = 0; i < 2; i ++)
+      for (blk = adj [i]; blk; blk = blk->n)
+      {
+	double *W = blk->W;
+	int *map = blk->map;
+
+	a [map[0]]   += W[0];
+	a [map[1]]   += W[1];
+	a [map[2]]   += W[2];
+	a [map[0]+1] += W[3];
+	a [map[1]+1] += W[4];
+	a [map[2]+1] += W[5];
+	a [map[0]+2] += W[6];
+	a [map[1]+2] += W[7];
+	a [map[2]+2] += W[8];
+
+	NVADDMUL (b, W, one, b);
+      }
+    }
+#else
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      double *W = blk->W;
+      int *map = blk->map;
+
+      a [map[0]]   += W[0];
+      a [map[0]+1] += W[1];
+      a [map[0]+2] += W[2];
+      a [map[1]]   += W[3];
+      a [map[1]+1] += W[4];
+      a [map[1]+2] += W[5];
+      a [map[2]]   += W[6];
+      a [map[2]+1] += W[7];
+      a [map[2]+2] += W[8];
+
+      NVADDMUL (b, W, one, b);
+    }
+#endif
+  }
+
+#if DEBUG
+  /* test for 0 on the diagonal */
+  {
+    int j, k, q, *i, *p;
+    double *a;
+    char *c;
+
+#if MPI
+    if (!(sys->options & LOCAL_SYSTEM))
+    {
+      i = sys->cols;
+      p = sys->rows;
+      c = "row";
+      q = sys->hyp->ilower;
+    }
+    else
+#endif
+    {
+      i = sys->rows;
+      p = sys->cols;
+      c = "column";
+      q = 0;
+    }
+
+    for (j = 0, a = sys->a; j < sys->dim; j ++)
+    {
+      for (k = p [j]; k < p [j+1]; k ++, a ++, i ++)
+      {
+	if ((q+j) == *i)
+	{
+	  if (*a == 0.0)
+	  {
+#if MPI
+	    printf ("LINSYS ERROR: rank %d\n", ldy->dom->rank);
+#endif
+	    printf ("LINSYS ERROR: diagonal zero for index %d\n", j);
+	    printf ("LINSYS ERROR: system dimension is %d and number of nonzeros is %d\n", sys->dim, sys->nnz);
+	    printf ("LINSYS ERROR: %s %d begins at %d and ends at %d\n", c, j, p [j], p [j+1]);
+	  }
+	}
+      }
+    }
+  }
+#endif
+
+  LINSYS_Solve (sys, accuracy, maxiter);
+
+  for (error = 0.0, x = sys->x, e = x + sys->dim; x < e; x ++)
+  {
+    error += (1.0 - (*x))*(1.0 - (*x));
+  }
+
+#if MPI
+  double val_i [2] = {error, sys->dim}, val_o [2];
+  MPI_Allreduce (val_i, val_o, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  error = sqrt (val_o [0] / MAX (val_o [1], 1.0));
+#else
+  error = sqrt (error / (double) MAX (sys->dim, 1));
+#endif
+
+  return error;
+}
+
 /* returns 1 if a global system; 0 otherwise */
 int LINSYS_Global (LINSYS *sys)
 {
@@ -1660,11 +1751,17 @@ void LINSYS_Destroy (LINSYS *sys)
   free (sys->rows);
   free (sys->cols);
 
-#if ! SPQR
+#if SPQR
+  cholmod_l_finish (&sys->spqr_c);
+  free (sys->spqr_a);
+  free (sys->spqr_b);
+#elif UMFPACK
+  umfpack_di_free_symbolic (&sys->symbolic);
+#else
   LSS_Destroy (sys->lss);
 #endif
 
-#if MPI
+#if  MPI
   if (sys->hyp)
   {
     HYPRE_DATA *hyp = sys->hyp;
@@ -1672,6 +1769,7 @@ void LINSYS_Destroy (LINSYS *sys)
     HYPRE_IJMatrixDestroy (hyp->A);
     HYPRE_IJVectorDestroy (hyp->B);
     HYPRE_IJVectorDestroy (hyp->X);
+    MPI_Comm_free (&hyp->comm);
     free (hyp->ncols);
     free (hyp->rows);
     free (hyp);
