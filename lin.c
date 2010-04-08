@@ -1257,7 +1257,7 @@ void LINSYS_Update (LINSYS *sys)
     int j, k, q, *i, *p;
     double *a, delta;
 
-    delta = 1E-7;
+    delta = 1E-6;
 
 #if MPI
     if (!(sys->options & LOCAL_SYSTEM))
@@ -1327,6 +1327,7 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
     LSS_Set (sys->lss, LSS_ITERATIONS_BOUND, maxiter);
     LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 1.0);
+    LSS_Set (sys->lss, LSS_NORMALIZE_ROWS, 1);
     if (LSS_Solve (sys->lss, sys->a, sys->x, sys->b) != LSSERR_NONE)
     {
       fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (sys->lss));
@@ -1584,6 +1585,183 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   return value;
 }
 
+#if 0
+/* qsort comparison */
+static int dblcmp (const void *a, const void *b)
+{
+  if (*(double*)a < *(double*)b) return -1;
+  else if (*(double*)a == *(double*)b) return 0;
+  else return 1;
+}
+
+/* output system matrix in such a way that matrices from serial and parallel runs can be easily compared;
+ * each row of matrix is precedded by the 5-tuple (body1, body2, sgp1, sgp2, row), where row = 1, 2 or 3;
+ * the serial file can be line-sorted by the 5-tuples; the parallel files can be merged and similarly sorted */
+static void output_system_matrix (LINSYS *sys, const char *path)
+{
+  FILE *file;
+  DOM *dom;
+  CON *con;
+
+  ASSERT (file = fopen (path, "w"), ERR_FILE_OPEN);
+
+  dom = sys->ldy->dom;
+
+#if MPI
+  if (sys->options & LOCAL_SYSTEM)
+  {
+#endif
+  int i, j, *n, *r, *c, *e, *arows, *brows, *acolumns, *bcolumns, dimension, nnz;
+  double *aelements, *belements, *a;
+
+  ERRMEM (bcolumns = malloc (sys->cols [sys->dim] * sizeof (int)));
+  ERRMEM (brows = calloc (sys->dim + 1, sizeof (int)));
+  ERRMEM (belements = malloc (sys->cols [sys->dim] * sizeof (double)));
+  ERRMEM (n = calloc (sys->dim,  sizeof (int)));
+
+  /* (brows, bcolumns, belements) stores compressed row version of system matrix */
+
+  nnz = sys->nnz;
+  dimension = sys->dim;
+  arows = sys->rows;
+  acolumns = sys->cols;
+  aelements = sys->a;
+
+  for (i = 0; i < nnz; i ++) brows [arows [i] + 1] ++;
+
+  for (i = 1; i <= dimension; i ++)  brows [i] += brows [i-1];
+
+  for (i = 0; i < dimension; i ++)
+  {
+    for (r = &arows[acolumns [i]], e = &arows [acolumns[i+1]], a = &aelements [acolumns [i]]; r < e; r ++, a ++)
+    {
+      bcolumns [brows [*r] + n [*r]] = i;
+      belements [brows [*r] + n [*r]] = *a;
+      n [*r] ++;
+    }
+  }
+
+  for (con = dom->con, i = 0; con; con = con->next)
+  {
+    for (j = i + 3; i < j; i ++)
+    {
+      c = &bcolumns[brows [i]];
+      e = &bcolumns [brows[i+1]];
+      a = &belements [brows [i]];
+
+      qsort (a, e - c, sizeof (double), dblcmp);
+
+      int body1,
+	  body2,
+	  sgp1,
+	  sgp2;
+
+      if (con->slave)
+      {
+	if (con->master->id < con->slave->id)
+	{
+	  body1 = con->master->id;
+	  body2 = con->slave->id;
+	  sgp1 = con->msgp - con->master->sgp;
+	  sgp2 = con->ssgp - con->slave->sgp;
+	}
+	else
+	{
+	  body1 = con->slave->id;
+	  body2 = con->master->id;
+	  sgp1 = con->ssgp - con->slave->sgp;
+	  sgp2 = con->msgp - con->master->sgp;
+	}
+      }
+      else
+      {
+	body1 = con->master->id;
+	body2 = -1;
+	sgp1 = con->msgp - con->master->sgp;
+	sgp2 = -1;
+      }
+
+      fprintf (file, "%d, %d, %d, %d, %d, %d, ", body1, body2, sgp1, sgp2, j-i, e - c);
+
+      for (; c < e; c ++, a ++) fprintf (file, "%.1e, ", *a);
+
+      fprintf (file, "\n");
+    }
+  }
+
+  free (bcolumns);
+  free (brows);
+  free (belements);
+  free (n);
+
+#if MPI
+  }
+  else
+  {
+    int i, j, *c, *e, *rows, *columns;
+    double *elements, *a, *onerow;
+
+    ERRMEM (onerow = malloc (sys->dim * sizeof (double)));
+
+    rows = sys->rows;
+    columns = sys->cols;
+    elements = sys->a;
+
+    for (con = dom->con, i = 0; con; con = con->next)
+    {
+      for (j = i + 3; i < j; i ++)
+      {
+	c = &columns[rows [i]];
+	e = &columns [rows[i+1]];
+	a = &elements [rows [i]];
+
+        blas_dcopy (e - c, a, 1, onerow, 1);
+	qsort (onerow, e - c, sizeof (double), dblcmp);
+
+	int body1,
+	    body2,
+	    sgp1,
+	    sgp2;
+
+	if (con->slave)
+	{
+	  if (con->master->id < con->slave->id)
+	  {
+	    body1 = con->master->id;
+	    body2 = con->slave->id;
+	    sgp1 = con->msgp - con->master->sgp;
+	    sgp2 = con->ssgp - con->slave->sgp;
+	  }
+	  else
+	  {
+	    body1 = con->slave->id;
+	    body2 = con->master->id;
+	    sgp1 = con->ssgp - con->slave->sgp;
+	    sgp2 = con->msgp - con->master->sgp;
+	  }
+	}
+	else
+	{
+	  body1 = con->master->id;
+	  body2 = -1;
+	  sgp1 = con->msgp - con->master->sgp;
+	  sgp2 = -1;
+	}
+
+	fprintf (file, "%d, %d, %d, %d, %d, %d, ", body1, body2, sgp1, sgp2, j-i, e - c);
+
+	for (a = onerow; c < e; c ++, a ++) fprintf (file, "%.1e, ", *a);
+
+	fprintf (file, "\n");
+      }
+    }
+  }
+#endif
+
+  fclose (file);
+}
+#endif
+
 /* test solution of W * x = b, where b = W * [1, 1, ..., 1];
  * return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
 double LINSYS_Test (LINSYS *sys, double accuracy, int maxiter)
@@ -1732,6 +1910,17 @@ double LINSYS_Test (LINSYS *sys, double accuracy, int maxiter)
   error = sqrt (val_o [0] / MAX (val_o [1], 1.0));
 #else
   error = sqrt (error / (double) MAX (sys->dim, 1));
+#endif
+
+#if 0
+#if MPI
+  char path [128];
+  sprintf (path, "W_parallel_%d", ldy->dom->rank);
+  output_system_matrix (sys, path);
+#else
+  output_system_matrix (sys, "W_serial");
+#endif
+  exit (0);
 #endif
 
   return error;

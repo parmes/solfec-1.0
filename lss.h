@@ -54,6 +54,7 @@ enum lsspar                      /*|----------|----------|----------------------
   LSS_COARSE_RELATIVE_ACCURACY,  /*| 1E-6     | any > 0  | relative accuracy for coarsest level GMRES run                        */
   LSS_COARSE_ABSOLUTE_ACCURACY,  /*| 1E-3     | any > 0  | absolute accuracy for coarsest level GMRES run                        */
   LSS_SMOOTHING_STEPS,           /*| 1        | any >= 0 | number of Gauss-Seidel sweeps on each level of preconditoning         */
+  LSS_NORMALIZE_ROWS,            /*| 0        | 0  or  1 | scale A and b so that rows of A have unit length                      */
                                  /*|----------|----------|-----------------------------------------------------------------------*/
                                  /*|          |          | Read-only parameters, corresponding to a recent call to LSS_Solve:    */
                                  /*|----------|----------|-----------------------------------------------------------------------*/
