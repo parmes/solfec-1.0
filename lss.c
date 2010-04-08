@@ -30,9 +30,6 @@
 #include "ist.h"
 #include "lss.h"
 
-#define MATRIXSCALE 0 /* FIXME: make into a user parameter */
-                      /* FIXME: scaling must affect absolute convergence norm accordingly */
-
 /* ========== MACROS ========== */
 
 /* private routine */
@@ -133,6 +130,8 @@ struct params /* user parameters */
   double coarse_absolute_accuracy;
 
   int smoothing_steps;
+
+  int normalize_rows;
 
   int iterations;
 
@@ -279,6 +278,8 @@ static void residual (MATRIX *A, VECTOR *b, VECTOR *x, VECTOR *r);
 PRIVATE (void, gmres, MATRIX*, PRECND*, VECTOR*, VECTOR*, VECTOR*, VECTOR*, VECTOR**,
              VECTOR**, double*, double*, double*, double*, double*, int, PARAMS*);
 
+PRIVATE (VECTOR*, vectoralloc, int n);
+
 /* ========== IMPLEMENTATION ========== */
 
 /* create index pair */
@@ -378,17 +379,17 @@ PRIVATE (void, matrixupdate, MATRIX *A, double *a)
   }
 }
 
-#if MATRIXSCALE
 /* normalize matrix rows and return scaling coefficients */
-PRIVATE (double*, matrixscale, MATRIX *A)
+PRIVATE (VECTOR*, matrixnormalize, MATRIX *A)
 {
   double *x, *y, *s, *e;
   int n, m, *i, j;
+  VECTOR *v;
 
   n = A->dimension - A->adjust;
   m = A->kind == CSC ? A->columns [n] : A->rows [n];
-
-  ASSERT (s = calloc (n, sizeof (double)), LSSERR_OUT_OF_MEMORY);
+  v = CALL (vectoralloc, n);
+  s = v->elements;
 
   if (A->kind == CSC)
   {
@@ -400,7 +401,7 @@ PRIVATE (double*, matrixscale, MATRIX *A)
       s[*i] += (*x) * (*x);
     }
 
-    for (x = s; x < e; x ++) *x = 1.0 / sqrt (*x); /* row length inverses */ /* FIXME: implement a better scaling; e.g. Gajulapalli and Lason, 2006 */
+    for (x = s; x < e; x ++) *x = 1.0 / sqrt (*x); /* row length inverses */
 
     for (i = A->rows, x = A->elements; x < y; x ++, i ++) (*x) *= s [*i];
   }
@@ -416,9 +417,8 @@ PRIVATE (double*, matrixscale, MATRIX *A)
     }
   }
 
-  return s;
+  return v;
 }
-#endif
 
 /* free matrix */
 static void matrixfree (MATRIX *A)
@@ -522,22 +522,15 @@ PRIVATE (VECTOR*, vector, int n, int a)
 }
 
 /* update vector form user storage */
-#if MATRIXSCALE
 PRIVATE (void, vectorupdate, VECTOR *v, double *z, double *s, double a)
-#else
-PRIVATE (void, vectorupdate, VECTOR *v, double *z, double a)
-#endif
 {
   double *x, *y;
 
   x = v->elements;
   y = x + v->dimension - v->adjust;
 
-#if MATRIXSCALE
-  for (;x < y; x ++, z ++, s ++) *x = (*z) * (*s);
-#else
-  for (;x < y; x ++, z ++) *x = (*z);
-#endif
+  if (s) for (;x < y; x ++, z ++, s ++) *x = (*z) * (*s);
+  else for (;x < y; x ++, z ++) *x = (*z);
 
   for (int i = v->adjust; i > 0; i --, x ++) *x = a;
 }
@@ -629,7 +622,7 @@ static PARAMS* defparams ()
 {
   PARAMS *params;
 
-  if (!(params = malloc (sizeof (PARAMS)))) return NULL;
+  if (!(params = MEM_CALLOC (sizeof (PARAMS)))) return NULL;
 
   params->iterations_bound = 1000;
   params->relative_accuracy = 1E-6;
@@ -643,6 +636,7 @@ static PARAMS* defparams ()
   params->coarse_relative_accuracy = 1E-6;
   params->coarse_absolute_accuracy = 1E-3;
   params->smoothing_steps = 1;
+  params->normalize_rows = 0;
 
   params->iterations = 0;
   if (!(params->relative_error = calloc (params->iterations_bound, sizeof (double)))) return NULL;
@@ -1369,17 +1363,18 @@ PRIVATE (void, create, LSSOBJ *lss, double *a)
 /* update internal data */
 PRIVATE (void, update, LSSOBJ *lss, double *a, double *b)
 {
-#if MATRIXSCALE
-  double *s;
   CALL (matrixupdate, lss->A, a);
-  s = CALL (matrixscale, lss->A);
-  CALL (vectorupdate, lss->b, b, s, 1.0);
-  free (s);
-#else
-  CALL (matrixupdate, lss->A, a);
-  CALL (vectorupdate, lss->b, b, 1.0);
-#endif
+
+  if (LSSOBJ(lss)->params->normalize_rows)
+  {
+    VECTOR *v = CALL (matrixnormalize, lss->A);
+    CALL (vectorupdate, lss->b, b, v->elements, 1.0);
+    vectorfree (v);
+  }
+  else CALL (vectorupdate, lss->b, b, NULL, 1.0);
+
   CALL (vectoradjust, lss->x, 0.0);
+
   if (lss->M) CALL (precndupdate, lss->M, lss->params);
 }
 
@@ -1530,6 +1525,10 @@ LSSERR LSS_Set (void *lss, LSSPAR p, double v)
       ASSERT (v >= 0, LSSERR_INVALID_ARGUMENT);
       LSSOBJ(lss)->params->smoothing_steps = (int)v;
       break;
+    case LSS_NORMALIZE_ROWS:
+      ASSERT (v == 0 || v == 1, LSSERR_INVALID_ARGUMENT);
+      LSSOBJ(lss)->params->normalize_rows = (int)v;
+      break;
     /* read-only */
     default:
       ASSERT (0, LSSERR_INVALID_ARGUMENT);
@@ -1573,6 +1572,8 @@ double LSS_Get (void *lss, LSSPAR p)
       return LSSOBJ(lss)->params->coarse_absolute_accuracy;
     case LSS_SMOOTHING_STEPS:
       return LSSOBJ(lss)->params->smoothing_steps;
+    case LSS_NORMALIZE_ROWS:
+      return LSSOBJ(lss)->params->normalize_rows;
     case LSS_ITERATIONS:
       return LSSOBJ(lss)->params->iterations;
     case LSS_RELATIVE_ERROR:

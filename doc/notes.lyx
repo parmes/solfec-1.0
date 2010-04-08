@@ -976,11 +976,179 @@ resulting from linearized constraints, operator
 
 \begin_layout Standard
 \begin_inset Formula \[
-x=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert \]
+\mathbf{x}=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}\]
 
 \end_inset
 
-...
+we can see that ill-conditioning corresponds to the existence of 
+\begin_inset Quotes eld
+\end_inset
+
+flat minima
+\begin_inset Quotes erd
+\end_inset
+
+: we can always find a minimum on the range of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+, but elements of 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ corresponding to the subsets of linearly dependent columns can be arbitrary
+ as long as they sum up these columns to the appropriate components of the
+ solution.
+ Hence, the minima are flat along some subspaces of 
+\begin_inset Formula $\mathbf{R}^{n}$
+\end_inset
+
+.
+ In order to avoid flat minima we can approximate the original problem with
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{x}_{\alpha}=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}+\alpha\left\Vert \mathbf{x}\right\Vert ^{2}\]
+
+\end_inset
+
+The above approximation removes flatness by adding to the original objective
+ function (that might have been non-convex and was flat along its local
+ minima) a strictly convex function 
+\begin_inset Formula $\alpha\left\Vert \mathbf{x}\right\Vert $
+\end_inset
+
+.
+ Now, traveling along the subspaces of 
+\begin_inset Formula $\mathbf{R}^{n}$
+\end_inset
+
+ spanned by the subsets of linearly dependent columns of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ results in a variation of 
+\begin_inset Formula $\alpha\left\Vert \mathbf{x}\right\Vert ^{2}$
+\end_inset
+
+: from each subset of 
+\begin_inset Formula $\mathbf{R}^{n}$
+\end_inset
+
+ corresponding to a minimum of the original problem we are now forced to
+ select an element with minimal norm 
+\begin_inset Formula $\left\Vert \mathbf{x}\right\Vert $
+\end_inset
+
+.
+ Hence
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{x}_{\alpha}=\underset{\mathbf{x}\in\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}}{\arg\min\left\Vert \mathbf{x}\right\Vert }\]
+
+\end_inset
+
+Just above, the value of 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ is not present and in fact it does not matter as far as the intepretation
+ is concerned.
+ Of course, as soon as it comes to computation with finite precision, one
+ can appreciate that 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ should be such that a 
+\begin_inset Quotes eld
+\end_inset
+
+good balance
+\begin_inset Quotes erd
+\end_inset
+
+ between the original and the added terms can be maintained.
+ If we look in to the first order optimality condition for the regularized
+ minimization problem
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\left[\mathbf{A}^{T}\mathbf{A}+\alpha\mathbf{I}\right]\mathbf{x}=\mathbf{A}^{T}\mathbf{b}\label{eq:tikho}\end{equation}
+
+\end_inset
+
+we can see that 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ makes the linear system invertible.
+ Actually, we end up with a symmetric and positive definite linear system,
+ which should be quite easy to solve.
+ The only trouble is the need to compute a matrix product, which generally
+ results in a dense matrix, even though 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ might be sparse.
+ Still, the above system can be quite efficiently solved using an iterative
+ solver, so that the matrix product does not need to be explicitly computed.
+ Assume now that 
+\begin_inset Formula $\mathbf{b}\in\mbox{range\left(\mathbf{A}\right)}$
+\end_inset
+
+ and that we would like to compute 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ such that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert <\epsilon\label{eq:inexa}\end{equation}
+
+\end_inset
+
+Surely, due to the assumption on 
+\begin_inset Formula $\mathbf{b}$
+\end_inset
+
+ the 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+ can be taken as small as we wish.
+ How large can 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ be so that 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ computed from (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:tikho"
+
+\end_inset
+
+) still satisfies (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:inexa"
+
+\end_inset
+
+)? Can we work out a  formula for 
+\begin_inset Formula $\alpha=\alpha\left(\epsilon\right)$
+\end_inset
+
+?
 \end_layout
 
 \end_body
