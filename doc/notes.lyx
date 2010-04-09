@@ -1151,5 +1151,184 @@ reference "eq:inexa"
 ?
 \end_layout
 
+\begin_layout Standard
+Let us consider singular value decomposition of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{A}=\mathbf{U}\mathbf{S}\mathbf{V}\label{eq:svd}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{U}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{V}$
+\end_inset
+
+ are orthogonal, while 
+\begin_inset Formula $\mathbf{S}$
+\end_inset
+
+ is diagonal with real and non-negative entries.
+ We can then rewrite (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:tikho"
+
+\end_inset
+
+) as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left[\mathbf{V}^{T}\mathbf{S}^{2}\mathbf{V}+\alpha\mathbf{I}\right]\mathbf{x}=\mathbf{V}^{T}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+
+\end_inset
+
+and further
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{V}^{T}\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]\mathbf{V}\mathbf{x}=\mathbf{V}^{T}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\mbox{ hence }\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]\mathbf{V}\mathbf{x}=\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+
+\end_inset
+
+and finally
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{x}=\mathbf{V}^{T}\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]^{-1}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+
+\end_inset
+
+Clearly, the regularization makes the digonal value storing squares of singular
+ values invertible.
+ The above can be further simplified to
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{x}=\mathbf{V}^{T}\left\{ \frac{\sigma_{i}}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{U}^{T}\mathbf{b}\label{eq:xapprox}\end{equation}
+
+\end_inset
+
+where by 
+\begin_inset Formula $\left\{ \cdot\right\} $
+\end_inset
+
+ we mean a suitable diagonal matrix.
+ Inserting (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:xapprox"
+
+\end_inset
+
+) into (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:inexa"
+
+\end_inset
+
+) results in
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\Vert \mathbf{U}\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{U}^{T}\mathbf{b}-\mathbf{b}\right\Vert <\epsilon\]
+
+\end_inset
+
+where again (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:svd"
+
+\end_inset
+
+) was employed.
+ At first the above inequality seems troublesome because for 
+\begin_inset Formula $\sigma_{i}=0$
+\end_inset
+
+ the corresponding 
+\begin_inset Formula $b_{i}$
+\end_inset
+
+ will simply contribute to the norm, withough regard for 
+\begin_inset Formula $\alpha$
+\end_inset
+
+.
+ Hence, for an arbitrary 
+\begin_inset Formula $\mathbf{b}$
+\end_inset
+
+ the residual norm cannot be arbitrarily small.
+ We need to bring back the assumption that 
+\begin_inset Formula $\mathbf{b}\in\mbox{range\left(\mathbf{A}\right)}$
+\end_inset
+
+.
+ Hence
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{b}=\mathbf{A}\mathbf{y}=\mathbf{U}\mathbf{S}\mathbf{V}\mathbf{y}\]
+
+\end_inset
+
+so that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}\left[\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} -\mathbf{I}\right]\mathbf{U}^{T}\mathbf{b}=\mathbf{U}\left[\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} -\mathbf{I}\right]\mathbf{S}\mathbf{V}\mathbf{y}=\mathbf{U}\left\{ \frac{-\sigma_{i}\alpha}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{V}\mathbf{y}\]
+
+\end_inset
+
+which demonstrates that for 
+\begin_inset Formula $\alpha\rightarrow0$
+\end_inset
+
+ the residual tends to zero.
+ Nevertheless, because columns of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ are linearly dependent, 
+\begin_inset Formula $\mathbf{y}$
+\end_inset
+
+ can be made arbitrarily long without affecting 
+\begin_inset Formula $\mathbf{b}$
+\end_inset
+
+.
+ This shows, that although having 
+\begin_inset Formula $\alpha>0$
+\end_inset
+
+ helps to find an approximate solution, accuracy of this solution cannot
+ be guaranteed, even for 
+\begin_inset Formula $\mathbf{b}\in\mbox{range\ensuremath{\left(\mathbf{A}\right)}}$
+\end_inset
+
+.
+\end_layout
+
 \end_body
 \end_document

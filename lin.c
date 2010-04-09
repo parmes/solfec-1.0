@@ -1250,6 +1250,12 @@ void LINSYS_Update (LINSYS *sys)
       system_update_VARIATIONAL (sys->variant, sys->options, sys->ldy, sys->a, sys->b);
       break;
   }
+}
+
+/* solve linear system for reaction increments DR */
+void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
+{
+  DOM *dom = sys->ldy->dom;
 
 #if 0
   /* improve conditioning */
@@ -1257,7 +1263,9 @@ void LINSYS_Update (LINSYS *sys)
     int j, k, q, *i, *p;
     double *a, delta;
 
-    delta = 1E-6;
+    accuracy *= 1E-3;
+    delta = 10 * accuracy;
+    accuracy = delta - accuracy;
 
 #if MPI
     if (!(sys->options & LOCAL_SYSTEM))
@@ -1286,12 +1294,6 @@ void LINSYS_Update (LINSYS *sys)
     }
   }
 #endif
-}
-
-/* solve linear system for reaction increments DR */
-void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
-{
-  DOM *dom = sys->ldy->dom;
 
 #if MPI
   if (sys->options & LOCAL_SYSTEM)
@@ -1327,7 +1329,12 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     LSS_Set (sys->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
     LSS_Set (sys->lss, LSS_ITERATIONS_BOUND, maxiter);
     LSS_Set (sys->lss, LSS_RELATIVE_ACCURACY, 1.0);
-    LSS_Set (sys->lss, LSS_NORMALIZE_ROWS, 1);
+    LSS_Set (sys->lss, LSS_NORMALIZE_ROWS, 0);
+#if 0
+    LSS_Set (sys->lss, LSS_PRECONDITIONER, 3);
+    LSS_Set (sys->lss, LSS_DECIMATION, 16);
+    LSS_Set (sys->lss, LSS_SMOOTHING_STEPS, 5);
+#endif
     if (LSS_Solve (sys->lss, sys->a, sys->x, sys->b) != LSSERR_NONE)
     {
       fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (sys->lss));
@@ -1436,9 +1443,6 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
       /* x */
       HYPRE_IJVectorGetValues (hyp->X, sys->dim, hyp->rows, sys->x);
     }
-
-    /* send reaction increments to external constraint CON->Z members: see (***) below */
-    DOM_Update_External_Reactions_Increments (dom);
   }
 #endif
 
@@ -1452,6 +1456,15 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
 
     COPY (x, DR);
   }
+
+#if MPI
+  if (!(sys->options & LOCAL_SYSTEM))
+  {
+    /* send reaction increments to external
+     * constraint CON->Z members: see (***) below */
+    DOM_Update_External_Reactions_Increments (dom);
+  }
+#endif
 
   /* compute DU */
   for (con = dom->con; con; con = con->next)
