@@ -192,9 +192,8 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   nt->merhist = realloc (nt->merhist, nt->maxiter * sizeof (double));
 
   sys = LINSYS_Create (nt->variant, 0, ldy);
-  merit = LINSYS_Merit (sys, 0.0); /* TODO: update U before */
+  merit = error = 1.0;
   nt->iters = 0;
-  error = 1.0;
 
 #if DEBUG
   error = LINSYS_Test (sys, nt->meritval, nt->linmaxiter);

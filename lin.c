@@ -1263,9 +1263,8 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     int j, k, q, *i, *p;
     double *a, delta;
 
-    accuracy *= 1E-3;
-    delta = 10 * accuracy;
-    accuracy = delta - accuracy;
+    delta = 0.1 * accuracy;
+    accuracy = accuracy - delta;
 
 #if MPI
     if (!(sys->options & LOCAL_SYSTEM))
