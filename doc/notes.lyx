@@ -1330,5 +1330,109 @@ which demonstrates that for
 .
 \end_layout
 
+\begin_layout Standard
+A simpler regularization approach is to solve
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left(\mathbf{A}+\alpha\mathbf{I}\right)\mathbf{x}=\mathbf{b}\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and again ask how big 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ can be so that (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:inexa"
+
+\end_inset
+
+) is still satisfied.
+ Here an estimate can be worked out
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left|\left\Vert \left(\mathbf{A}+\alpha\mathbf{I}\right)\mathbf{x}-\mathbf{b}\right\Vert -\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert \right|<\alpha\]
+
+\end_inset
+
+so that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert <\alpha+\left\Vert \left(\mathbf{A}+\alpha\mathbf{I}\right)\mathbf{x}-\mathbf{b}\right\Vert \]
+
+\end_inset
+
+hence if we can manage
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\Vert \left(\mathbf{A}+\alpha\mathbf{I}\right)\mathbf{x}-\mathbf{b}\right\Vert <\epsilon-\alpha\]
+
+\end_inset
+
+we shall have
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert <\epsilon\]
+
+\end_inset
+
+Hence for given 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+ we can pick any 
+\begin_inset Formula $\alpha\in\left(0,\epsilon\right)$
+\end_inset
+
+, or in other words 
+\begin_inset Formula $\alpha=\beta\epsilon$
+\end_inset
+
+, where 
+\begin_inset Formula $0<\beta<1$
+\end_inset
+
+.
+ A question now is how to select 
+\begin_inset Formula $\beta$
+\end_inset
+
+ in order to most effectively solve
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\Vert \left(\mathbf{A}+\epsilon\beta\mathbf{I}\right)\mathbf{x}-\mathbf{b}\right\Vert <\epsilon\left(1-\beta\right)\mbox{?}\]
+
+\end_inset
+
+If we can afford a direct solution, then using a possibly large 
+\begin_inset Formula $\beta$
+\end_inset
+
+ makes sense.
+ In case of an iterative solver this becomes more elusive.
+\end_layout
+
+\begin_layout Standard
+
+\end_layout
+
 \end_body
 \end_document
