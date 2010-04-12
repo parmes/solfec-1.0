@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <complex.h>
 #include <stdlib.h>
 #include <limits.h>
 #include <stdio.h>
@@ -34,6 +35,11 @@ int main (int argc, char **argv)
   printf ("Size of 'long' is %ld\n", sizeof (long));
   printf ("Size of 'long long' is %ld\n", sizeof (long long));
   printf ("UINT_MAX is %u\n", UINT_MAX);
+
+  double complex a = 1.0 + 2.0 * I;
+  double b = a;
+
+  printf ("real b = complex (1 + 2i) = %g\n", b);
 
   return 0;
 }

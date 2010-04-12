@@ -1340,10 +1340,6 @@ A simpler regularization approach is to solve
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout Standard
 and again ask how big 
 \begin_inset Formula $\alpha$
 \end_inset
@@ -1374,7 +1370,7 @@ so that
 
 \end_inset
 
-hence if we can manage
+hence, if we can manage
 \end_layout
 
 \begin_layout Standard
@@ -1392,7 +1388,7 @@ we shall have
 
 \end_inset
 
-Hence for given 
+For a given 
 \begin_inset Formula $\epsilon$
 \end_inset
 
