@@ -35,6 +35,7 @@
 #include "lss.h"
 #endif
 
+#include <complex.h>
 #include <stdlib.h>
 #include <time.h>
 #include "dom.h"
@@ -82,7 +83,8 @@ struct linsys
   LOCDYN *ldy; /* local dynamics */
 
   MEM mapmem, /* memory of DIAB->map and OFFB->map int [3] vectors */
-      datmem; /* constraint linearization data memory */
+      datmem, /* constraint linearization data memory */
+      ymem;   /* auxiliary con->Y storage memory */
 
   double *a; /* compressed column values */
 
@@ -140,6 +142,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
 
   MEM_Init (&sys->mapmem, sizeof (int [3]), MEMBLK);
   MEM_Init (&sys->datmem, sizeof (LINDATA), MEMBLK);
+  MEM_Init (&sys->ymem, sizeof (double [4]), MEMBLK);
 
   /* constraints numbering */
   DOM_Number_Constraints (dom, options & LOCAL_SYSTEM);
@@ -148,7 +151,18 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
   for (con = dom->con; con; con = con->next)
   {
     ERRMEM (con->lin = MEM_Alloc (&sys->datmem));
+    ERRMEM (con->Y = MEM_Alloc (&sys->ymem));
   }
+#if MPI
+  if (!(options & LOCAL_SYSTEM))
+  {
+    for (item = MAP_First (dom->conext); item; item = MAP_Next (item))
+    {
+      con = item->data;
+      ERRMEM (con->Y = MEM_Alloc (&sys->ymem));
+    }
+  }
+#endif
 
   /* system matrix */
 #if MPI
@@ -551,15 +565,15 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, LINOPT options, LOCD
   DOM *dom;
   CON *con;
 
-#if MPI
-  /* update external reactions (needed below) */
-  DOM_Update_External_Reactions (ldy->dom, 0);
-#endif
-
   dom = ldy->dom;
   dynamic = dom->dynamic;
   step = dom->step;
   global = !(options & LOCAL_SYSTEM);
+
+#if MPI
+  /* update external reactions (needed below) */
+  if (global) DOM_Update_External_Reactions (ldy->dom, 0);
+#endif
 
   for (con = dom->con; con; con = con->next, b += 3) /* constraints numbering corresponds to consecutive b[3]s */
   {
@@ -1227,10 +1241,439 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, LINOPT options, LOCD
   }
 }
 
+/* real normal to friction cone */
+inline static void real_n (double *R, double fri, double *n)
+{
+  double dot, len;
+
+  dot = DOT2(R, R);
+  len = sqrt(dot);
+
+  if (len <= fri * R[2])
+  {
+    SET (n, 0.0);
+  }
+  else if (fri * len + R[2] < 0.0)
+  {
+    dot += R[2]*R[2];
+    len = sqrt (dot);
+    DIV (R, len, n);
+  }
+  else
+  {
+    dot = 1.0 / sqrt (1.0 + fri*fri);
+    DIV2 (R, len, n);
+    R [2] = -fri;
+    SCALE (R, dot);
+  }
+}
+
+/* complex normal to friction cone */
+inline static void complex_n (double complex *R, double complex fri, double complex *n)
+{
+  double complex dot, len;
+
+  dot = DOT2(R, R);
+  len = csqrt(dot);
+
+  if (creal (len) <= creal (fri * R[2]))
+  {
+    SET (n, 0.0);
+  }
+  else if (creal (fri * len + R[2]) < 0.0)
+  {
+    dot += R[2]*R[2];
+    len = csqrt (dot);
+    DIV (R, len, n);
+  }
+  else
+  {
+    dot = 1.0 / csqrt (1.0 + fri*fri);
+    DIV2 (R, len, n);
+    R [2] = -fri;
+    SCALE (R, dot);
+  }
+}
+
+/* real normal ray to friction cone */
+inline static void real_m (CON *con, short smooth, double *R, double eps, double *m)
+{
+  double n [3], fun, fri;
+
+  if (con->kind == CONTACT)
+  {
+    fri = con->mat.base->friction;
+
+    real_n (R, fri, n);
+    fun = DOT (R, n);
+
+    if (smooth && fun >= 0.0 && fun <= eps)
+    {
+      fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
+    }
+
+    MUL (n, fun, m)
+  }
+  else
+  {
+    SET (m, 0.0);
+  }
+}
+
+/* complex normal ray to friction cone */
+inline static void complex_m (CON *con, short smooth, double complex img, double complex *R, double complex eps, double complex *m)
+{
+  double complex n [3], fun, fri;
+
+  if (con->kind == CONTACT)
+  {
+#if MPI
+    if (con->state & CON_EXTERNAL) fri = con->Y [3];
+    else
+#endif
+    fri = con->mat.base->friction;
+
+    complex_n (R, fri, n);
+    fun = DOT (R, n);
+
+    if (smooth && creal (fun) >= 0.0 && creal (fun) <= creal (eps))
+    {
+      fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
+    }
+
+    MUL (n, fun, m)
+  }
+  else
+  {
+    m [0] = 0.0 + 0.0 * img;
+    m [1] = 0.0 + 0.0 * img;
+    m [2] = 0.0 + 0.0 * img;
+  }
+}
+
+/* real variational merit function */
+inline static void real_H (CON *con, double step, short dynamic, short smooth, double *U, double *R, double epsilon, double *H)
+{
+  DIAB *dia = con->dia;
+  double *V = dia->V;
+
+  switch (con->kind)
+  {
+  case CONTACT:
+  {
+    double res = con->mat.base->restitution,
+	   fri = con->mat.base->friction,
+	   gap = con->gap,
+           udash, m [3];
+
+    if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+    else udash = ((MAX(gap, 0)/step) + U[2]);
+ 
+    real_m (con, smooth, R, epsilon, m);
+
+    H [0] = U[0] + m[0];
+    H [1] = U[1] + m[1];
+    H [2] = udash + fri * LEN2(U) + m[2];
+  }
+  break;
+  case FIXPNT:
+  {
+    if (dynamic) { ADD (V, U, H); }
+    else { COPY (U, H); }
+  }
+  break;
+  case FIXDIR:
+  {
+    H [0] = R[0];
+    H [1] = R[1];
+    if (dynamic) H [2] = U[2] + V[2];
+    else H [2] = U[2];
+  }
+  break;
+  case VELODIR:
+  {
+    H [0] = R[0];
+    H [1] = R[1];
+    H [2] = U[2] - VELODIR(con->Z); /* U(t+h) = function of time stored at (t+h) in con->Z */
+  }
+  break;
+  case RIGLNK:
+  {
+    H [0] = R[0];
+    H [1] = R[1];
+    if (dynamic) H[2] = U[2] + V[2];
+    else /* RIGLNK: see doc/notes.lyx for explanation */
+    {
+      double d = RIGLNK_LEN (con->Z),
+	     e = step * step * DOT2 (U, U);
+
+      if (d*d > e)
+      {
+	H[2] = U[2] + (d - sqrt (d*d - e)) / step;
+      }
+      else /* not possible to satisfy: do your best */
+      {
+	H[2] = U[2] + d / step;
+      }
+    }
+  }
+  break;
+  };
+}
+
+/* complex variational auxiliary function */
+inline static void complex_F (CON *con, double step, short dynamic, double complex *U, double complex *R, double complex *H)
+{
+  DIAB *dia = con->dia;
+  double *V = dia->V;
+
+  switch (con->kind)
+  {
+  case CONTACT:
+  {
+    double res = con->mat.base->restitution,
+	   fri = con->mat.base->friction,
+	   gap = con->gap,
+           udash;
+
+    if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+    else udash = ((MAX(gap, 0)/step) + U[2]);
+ 
+    H [0] = U[0];
+    H [1] = U[1];
+    H [2] = udash + fri * csqrt (DOT2(U, U));
+  }
+  break;
+  case FIXPNT:
+  {
+    if (dynamic) { ADD (V, U, H); }
+    else { COPY (U, H); }
+  }
+  break;
+  case FIXDIR:
+  {
+    H [0] = R[0];
+    H [1] = R[1];
+    if (dynamic) H [2] = U[2] + V[2];
+    else H [2] = U[2];
+  }
+  break;
+  case VELODIR:
+  {
+    H [0] = R[0];
+    H [1] = R[1];
+    H [2] = U[2] - VELODIR(con->Z); /* U(t+h) = function of time stored at (t+h) in con->Z */
+  }
+  break;
+  case RIGLNK:
+  {
+    H [0] = R[0];
+    H [1] = R[1];
+    if (dynamic) H[2] = U[2] + V[2];
+    else /* RIGLNK: see doc/notes.lyx for explanation */
+    {
+      double complex d = RIGLNK_LEN (con->Z),
+	             e = step * step * DOT2 (U, U);
+
+      if (creal (d*d) > creal (e))
+      {
+	H[2] = U[2] + (d - csqrt (d*d - e)) / step;
+      }
+      else /* not possible to satisfy: do your best */
+      {
+	H[2] = U[2] + d / step;
+      }
+    }
+  }
+  break;
+  }
+}
+
+#define SMOOTHING_EPSILON 1E-6 /* FIXME: get rid of */
+
 /* update linear system NT_NONSMOOTH_VARIATIONAL, NT_SMOOTHED_VARIATIONAL variants */
 static void system_update_VARIATIONAL (LINVAR variant, LINOPT options, LOCDYN *ldy, double *a, double *b)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+  short smooth, global, dynamic;
+  double epsilon, h, step;
+  double complex img;
+  OFFB *blk;
+  DIAB *dia;
+  CON *con;
+  DOM *dom;
+
+  smooth = variant & SMOOTHED_VARIATIONAL;
+  global = !(options & LOCAL_SYSTEM);
+  epsilon = SMOOTHING_EPSILON; /* FIXME: make into a user parameter */
+  h = 1E-10; /* FIXME: maker into a user parameter */ 
+  dom = ldy->dom;
+  img = csqrt (-1.0); /* imaginary i */
+  step = dom->step;
+  dynamic = dom->dynamic;
+
+  /* S_i = R_i - m(R_i) */
+  for (con = dom->con; con; con = con->next)
+  {
+    double *R = con->R,
+	   *S = con->Y, /* use Y to store S */
+	    m [3];
+
+    real_m (con, smooth, R, epsilon, m);
+    SUB (R, m, S);
+
+#if MPI
+     /* friction needs to be sent to external constraints //see complex_m()// */
+    if (global && con->kind == CONTACT) S [3] = con->mat.base->friction;
+#endif
+  }
+
+#if MPI
+  /* update external CON->Y with (S, friction) */
+  if (global) DOM_Update_External_Y (dom, 4);
+#endif
+
+  /* U_i = SUM_j {W_ij * S_j} + B_i */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    double *W = dia->W,
+	   *B = dia->B,
+	   *S = dia->con->Y,
+	   *U = dia->U;
+
+    NVADDMUL (B, W, S, U);
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      double *W = blk->W,
+	     *S = blk->dia->con->Y;
+
+      NVADDMUL (U, W, S, U);
+    }
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      double *W = blk->W,
+	     *S = global ? CON(blk->dia)->Y : CON(blk->dia)->R;
+
+      NVADDMUL (U, W, S, U);
+    }
+#endif
+  }
+
+  /* d H / d R */
+  for (con = dom->con; con; con = con->next, b += 3)
+  {
+    dia = con->dia;
+
+    double *W = dia->W,
+	   *S = con->Y,
+	   *R = dia->R,
+	   *U = dia->U;
+
+    int *map = dia->map, k;
+
+    double complex cR [3],
+	           cU [3],
+	           cm [3],
+		   cS [3],
+		   cQ [3],
+		   cF [3];
+
+    for (k = 0; k < 3; k ++)
+    {
+      COPY (R, cR);
+      cR [k] += h * img;
+
+      complex_m (con, smooth, img, cR, epsilon, cm);
+      SUB (cR, cm, cS);
+      SUB (cS, S, cQ);
+      NVADDMUL (U, W, cQ, cU);
+      complex_F (con, step, dynamic, cU, cR, cF);
+      if (con->kind == CONTACT) { ADD (cF, cm, cF); }
+
+#if MPI
+      if (global)
+      {
+	a  [map[0] + k] = cimag (cF [0]) / h;
+	a  [map[1] + k] = cimag (cF [1]) / h;
+	a  [map[2] + k] = cimag (cF [2]) / h;
+      }
+      else
+#endif
+      {
+	a  [map[k] + 0] = cimag (cF [0]) / h;
+	a  [map[k] + 1] = cimag (cF [1]) / h;
+	a  [map[k] + 2] = cimag (cF [2]) / h;
+      }
+    }
+
+    real_H (con, step, dynamic, smooth, U, R, epsilon, b);
+    SCALE (b, -1.0);
+
+#if MPI
+    if (global)
+    {
+      OFFB *adj [2] = {dia->adj, dia->adjext};
+      for (int i = 0; i < 2; i ++)
+      for (blk = adj [i]; blk; blk = blk->n)
+      {
+	double *W = blk->W, *R, *S;
+
+	int *map = blk->map;
+
+	CON *adc; /* adjacent constraint */
+
+	if (adj[i] == dia->adj) adc = blk->dia->con;
+	else adc = CON(blk->dia);
+
+	R = adc->R;
+	S = adc->Y;
+
+	for (k = 0; k < 3; k ++)
+	{
+	  COPY (R, cR);
+	  cR [k] += h * img;
+
+	  complex_m (adc, smooth, img, cR, epsilon, cm);
+	  SUB (cR, cm, cS);
+	  SUB (cS, S, cQ);
+	  NVADDMUL (U, W, cQ, cU);
+	  complex_F (con, step, dynamic, cU, cR, cF);
+
+	  a  [map[0] + k] += cimag (cF [0]) / h;
+	  a  [map[1] + k] += cimag (cF [1]) / h;
+	  a  [map[2] + k] += cimag (cF [2]) / h;
+	}
+      }
+    }
+    else
+#endif
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      CON *adc = blk->dia->con;
+
+      double *W = blk->W,
+	     *R = adc->R,
+	     *S = adc->Y;
+
+      int *map = blk->map;
+
+      for (k = 0; k < 3; k ++)
+      {
+	COPY (R, cR);
+	cR [k] += h * img;
+
+	complex_m (adc, smooth, img, cR, epsilon, cm);
+	SUB (cR, cm, cS);
+	SUB (cS, S, cQ);
+	NVADDMUL (U, W, cQ, cU);
+	complex_F (con, step, dynamic, cU, cR, cF);
+
+	a  [map[k] + 0] += cimag (cF [0]) / h;
+	a  [map[k] + 1] += cimag (cF [1]) / h;
+	a  [map[k] + 2] += cimag (cF [2]) / h;
+      }
+    }
+  }
 }
 
 /* update linear system at current R and U */
@@ -1459,9 +1902,18 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
 #if MPI
   if (!(sys->options & LOCAL_SYSTEM))
   {
+    for (con = dom->con; con; con = con->next)
+    {
+      double *DR = DR(con),
+	     *Y  = con->Y;
+
+      COPY (DR, Y);
+    }
+
+
     /* send reaction increments to external
-     * constraint CON->Z members: see (***) below */
-    DOM_Update_External_Reactions_Increments (dom);
+     * constraint CON->Y members: see (***) below */
+    DOM_Update_External_Y (dom, 3);
   }
 #endif
 
@@ -1488,7 +1940,7 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
     {
       for (OFFB *blk = dia->adjext; blk; blk = blk->n)
       {
-	double *DR = ((CON*)blk->dia)->Z, /* (***) external reaction increment stored in CON->Z temporarily */
+	double *DR = CON(blk->dia)->Y, /* (***) external reaction increment stored in CON->Y temporarily */
 	       *W = blk->W;
 
 	NVADDMUL (DU, W, DR, DU);
@@ -1501,9 +1953,9 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
 /* compute merit function at (R + alpha * DR) */
 double LINSYS_Merit (LINSYS *sys, double alpha)
 {
-  double value, step;
+  double value, step, epsilon;
+  short dynamic, smooth;
   LINVAR variant;
-  short dynamic;
   LOCDYN *ldy;
   DIAB *dia;
   DOM *dom;
@@ -1515,53 +1967,58 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   step = dom->step;
   dynamic = dom->dynamic;
   variant = sys->variant;
+  smooth = variant & SMOOTHED_VARIATIONAL;
+  epsilon = SMOOTHING_EPSILON; /* FIXME: make into a user parameter */
+
   for (con = dom->con; con; con = con->next)
   {
-    if (con->kind == CONTACT)
+    dia = con->dia;
+
+    double R [3], U [3],
+	  *R0 = dia->R,
+	  *U0 = dia->U,
+	   G [3];
+
+    if (alpha > 0.0)
     {
-      dia = con->dia;
+      double *RE = RE(con),
+	     *DR = DR(con),
+	     *DU = DU(con);
 
-      double R [3], U [3],
-	     rho = dia->rho,
-	     gap = con->gap,
-	     fri = con->mat.base->friction,
-	     res = con->mat.base->restitution,
-	    *R0 = dia->R,
-	    *U0 = dia->U,
-	    *V = dia->V,
-	     G [3],
-	     d [3],
-	     bound,
-	     udash,
-	     norm;
+      ADDMUL (R0, alpha, DR, R);
+      ADDMUL (U0, alpha, DU, U);
 
-      if (alpha > 0.0)
+      if (variant <= FIXED_POINT) { ADD (U, RE, U); }
+    }
+    else
+    {
+      COPY (R0, R);
+      COPY (U0, U);
+    }
+
+    if (variant <= FIXED_POINT)
+    {
+      if (con->kind == CONTACT)
       {
-	double *RE = RE(con),
-	       *DR = DR(con),
-	       *DU = DU(con);
+	double rho = dia->rho,
+	       gap = con->gap,
+	       fri = con->mat.base->friction,
+	       res = con->mat.base->restitution,
+	      *V = dia->V,
+	       d [3],
+	       bound,
+	       udash,
+	       norm;
 
-	ADDMUL (R0, alpha, DR, R);
-	ADDMUL (U0, alpha, DU, U);
-	ADD (U, RE, U);
-      }
-      else
-      {
-	COPY (R0, R);
-	COPY (U0, U);
-      }
+	if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+	else udash = ((MAX(gap, 0)/step) + U[2]);
 
-      if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
-      else udash = ((MAX(gap, 0)/step) + U[2]);
+	d [0] = R[0] - rho * U[0];
+	d [1] = R[1] - rho * U[1];
+	d [2] = R[2] - rho * udash;
 
-      d [0] = R[0] - rho * U[0];
-      d [1] = R[1] - rho * U[1];
-      d [2] = R[2] - rho * udash;
+	norm = sqrt (d[0]*d[0]+d[1]*d[1]);
 
-      norm = sqrt (d[0]*d[0]+d[1]*d[1]);
-
-      if (variant <= FIXED_POINT)
-      {
 	switch ((int) variant)
 	{
 	  case NONSMOOTH_HSW:
@@ -1578,14 +2035,18 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 	G [0] = MAX (bound, norm)*R[0] - bound*d[0];
 	G [1] = MAX (bound, norm)*R[1] - bound*d[1];
 	G [2] = R [2] - MAX (0, d[2]);
-
-	value += DOT (G,G);
       }
       else
       {
-	ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+	SET (G, 0.0); /* FIXME: complete the code here */
       }
     }
+    else 
+    {
+      real_H (con, step, dynamic, smooth, U, R, epsilon, G);
+    }
+
+    value += DOT (G,G);
   }
   value *= 0.5;
 
@@ -1961,11 +2422,14 @@ void LINSYS_Destroy (LINSYS *sys)
 {
   DIAB *dia;
   OFFB *blk;
+  CON *con;
 
   for (dia = sys->ldy->dia; dia; dia = dia->n)
   {
-    dia->con->lin = NULL;
+    con = dia->con;
 
+    con->lin = NULL;
+    con->Y = NULL;
     dia->map = NULL;
 
     for (blk = dia->adj; blk; blk = blk->n)
@@ -1979,9 +2443,20 @@ void LINSYS_Destroy (LINSYS *sys)
     }
 #endif
   }
+#if MPI
+  if (!(sys->options & LOCAL_SYSTEM))
+  {
+    for (MAP *item = MAP_First (sys->ldy->dom->conext); item; item = MAP_Next (item))
+    {
+      CON *con = item->data;
+      con->Y = NULL;
+    }
+  }
+#endif
 
   MEM_Release (&sys->mapmem);
   MEM_Release (&sys->datmem);
+  MEM_Release (&sys->ymem);
 
   free (sys->a);
   free (sys->x);

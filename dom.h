@@ -73,7 +73,7 @@ struct constraint
 	 area, /* contact area */
 	 gap; /* contact gap */
 
-  double Z [DOM_Z_SIZE]; /* auxiliary storage */
+  double *Y, Z [DOM_Z_SIZE]; /* auxiliary storage */
 
   LINDATA *lin; /* constraint linearisation data */
 
@@ -230,6 +230,7 @@ struct domain
   DOMSTATS *stats; /* domain statistics */
   int nstats; /* statistics count */
   DBD *dbd; /* load balancing send sets */
+  int Y_length; /* external Z update length */
 #endif
 
   DOM *prev, *next; /* list */
@@ -298,8 +299,8 @@ void DOM_Update_End (DOM *dom);
  * if 'normal' is > 0 only normal components are sent */
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 
-/* send boundary reactions increments to CON->Z of their external receivers */
-void DOM_Update_External_Reactions_Increments (DOM *dom);
+/* send boundary reactions CON->Y of their external receivers */
+void DOM_Update_External_Y (DOM *dom, int length);
 #endif
 
 /* assign con->num values; 'local' is ignored in serial mode;
