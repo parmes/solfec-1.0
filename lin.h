@@ -75,6 +75,9 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter);
 /* compute merit function at (R + alpha * DR) */
 double LINSYS_Merit (LINSYS *sys, double alpha);
 
+/* advance solution R = R + alpha * DR; return |DR|/|R| */ 
+double LINSYS_Advance (LINSYS *sys, double alpha);
+
 /* test solution of W * x = b, where b = W * [1, 1, ..., 1];
  * return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
 double LINSYS_Test (LINSYS *sys, double accuracy, int maxiter);
