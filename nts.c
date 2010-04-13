@@ -72,11 +72,7 @@ static double line_search (LINSYS *sys, double reference, double *merit)
 /* update constraint reactions */
 static double reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, double *nonmonvalues, int iter, double *merit)
 {
-  double reference, alpha, errup, errlo;
-  CON *con;
-  DOM *dom;
-
-  dom = ldy->dom;
+  double reference, alpha;
 
   if (iter && nt->variant != FIXED_POINT) /* skip line search during the first iteration */
   {
@@ -88,34 +84,7 @@ static double reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, double *no
   }
   else alpha = 1.0;
 
-  /* R = R + DR, U = U + DU */
-  errup = errlo = 0.0;
-  for (con = dom->con; con; con = con->next)
-  {
-    double *RE = RE(con),
-           *DR = DR(con),
-	   *DU = DU(con),
-	   *R = con->R,
-	   *U = con->U;
-
-    ADDMUL (R, alpha, DR, R);
-    ADDMUL (U, alpha, DU, U);
-    ADD (U, RE, U);
-
-    errup += DOT(DR, DR); /* no alpha scaling here */
-    errlo += DOT(R, R);
-  }
-
-#if MPI
-  if (LINSYS_Global (sys)) /* sum up error */
-  {
-    double errloc [2] = {errup, errlo}, errsum [2];
-    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    errup = errsum [0], errlo = errsum [1];
-  }
-#endif
-
-  return sqrt (errup) / sqrt (MAX (errlo, 1.0));
+  return LINSYS_Advance (sys, alpha); /* R = R + alpha * DR, U = U(R) */
 }
 
 /* update noraml bounds and return relative error of the update */
@@ -222,6 +191,8 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
     if (dom->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, error, merit);
 
   } while (++ nt->iters < nt->maxiter && (error > nt->epsilon || merit > nt->meritval));
+
+  /* FIXME: remember about coordinate change at the end of *_VARIATIONAL case iterations */
 
   LINSYS_Destroy (sys);
   free (nonmonvalues);
