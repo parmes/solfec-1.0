@@ -38,11 +38,6 @@
 typedef struct solfec SOLFEC;
 #endif
 
-#ifndef LINDATA_TYPE
-#define LINDATA_TYPE
-typedef struct lindata LINDATA;
-#endif
-
 #ifndef __dom__
 #define __dom__
 
@@ -74,8 +69,6 @@ struct constraint
 	 gap; /* contact gap */
 
   double *Y, Z [DOM_Z_SIZE]; /* auxiliary storage */
-
-  LINDATA *lin; /* constraint linearisation data */
 
   unsigned int id; /* identifier */
 

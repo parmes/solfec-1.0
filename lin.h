@@ -26,24 +26,6 @@
 
 typedef struct linsys LINSYS;
 
-#ifndef LINDATA_TYPE
-#define LINDATA_TYPE
-typedef struct lindata LINDATA;
-#endif
-
-struct lindata /* constraint linearization data */
-{
-  double RE [3], /* residual */
-	 DR [3], /* reaction increment */
-	 DU [3], /* velocity increment */
-	 RN;     /* normal reaction bound (FIXED_POINT) */
-};
-
-#define RE(con) (con)->lin->RE
-#define DR(con) (con)->lin->DR
-#define DU(con) (con)->lin->DU
-#define RN(con) (con)->lin->RN
-
 enum linvar /* linearization variant */
 {
   NONSMOOTH_HSW,
