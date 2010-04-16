@@ -87,40 +87,6 @@ static double reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, double *no
   return LINSYS_Advance (sys, alpha); /* R = R + alpha * DR, U = U(R) */
 }
 
-/* update noraml bounds and return relative error of the update */
-static double update_normal_bounds (LINSYS *sys, LOCDYN *ldy)
-{
-  double errup, errlo;
-  CON *con;
-
-  errup = errlo = 0.0;
-  for (con = ldy->dom->con; con; con = con->next)
-  {
-    if (con->kind == CONTACT)
-    {
-      double DRN,
-	     RN;
-
-      DRN = con->R[2] - RN(con);
-      RN = RN(con) = con->R[2];
-
-      errup += DRN*DRN;
-      errlo += RN*RN;
-    }
-  }
-
-#if MPI
-  if (LINSYS_Global (sys)) /* sum up error */
-  {
-    double errloc [2] = {errup, errlo}, errsum [2];
-    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-    errup = errsum [0], errlo = errsum [1];
-  }
-#endif
-
-  return sqrt (errup) / MAX (sqrt (errlo), 1.0);
-}
-
 /* create solver */
 NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double meritval)
 {
@@ -164,7 +130,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   merit = error = 1.0;
   nt->iters = 0;
 
-#if DEBUG
+#if 0
   error = LINSYS_Test (sys, nt->meritval, nt->linmaxiter);
 #if MPI
   if (dom->rank == 0)
@@ -180,8 +146,6 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
     error = reactions_update (nt, sys, ldy, nonmonvalues, nt->iters, &merit); /* R(i+1) */
 
-    if (nt->variant == FIXED_POINT && error < nt->epsilon) error = update_normal_bounds (sys, ldy);
-      
     nt->rerhist [nt->iters] = error;
     nt->merhist [nt->iters] = merit;
 

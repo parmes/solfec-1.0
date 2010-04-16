@@ -83,8 +83,7 @@ struct linsys
   LOCDYN *ldy; /* local dynamics */
 
   MEM mapmem, /* memory of DIAB->map and OFFB->map int [3] vectors */
-      datmem, /* constraint linearization data memory */
-      ymem;   /* auxiliary con->Y storage memory */
+      ymem;   /* auxiliary CON->Y storage memory */
 
   double *a; /* compressed column values */
 
@@ -116,6 +115,13 @@ struct linsys
   double resnorm; /* residual norm */
 };
 
+#define DR(con) (con)->Y
+#define DU(con) ((con)->Y+3)
+#define RE(con) ((con)->Y+6)
+#define RN(con) ((con)->Y+7) [0]
+#define S(con) ((con)->Y+3)
+#define FRI(con) ((con)->Y+6) [0]
+
 /* forward coordinates change */
 static void variational_coord_change_forward (LINSYS *sys);
 
@@ -144,8 +150,21 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
   sys->ldy = ldy;
 
   MEM_Init (&sys->mapmem, sizeof (int [3]), MEMBLK);
-  MEM_Init (&sys->datmem, sizeof (LINDATA), MEMBLK);
-  MEM_Init (&sys->ymem, sizeof (double [4]), MEMBLK);
+
+  switch (variant)
+  {
+    case NONSMOOTH_HSW:
+    case NONSMOOTH_HYBRID:
+      MEM_Init (&sys->ymem, sizeof (double [9]), MEMBLK); /* DR, DU, RE */
+      break;
+    case FIXED_POINT:
+      MEM_Init (&sys->ymem, sizeof (double [10]), MEMBLK); /* DR, DU, RE, RN */
+      break;
+    case NONSMOOTH_VARIATIONAL:
+    case SMOOTHED_VARIATIONAL:
+      MEM_Init (&sys->ymem, sizeof (double [7]), MEMBLK); /* DR, S, fri */
+      break;
+  }
 
   /* constraints numbering */
   DOM_Number_Constraints (dom, options & LOCAL_SYSTEM);
@@ -153,7 +172,6 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
   /* auxiliary constraint space */
   for (con = dom->con; con; con = con->next)
   {
-    ERRMEM (con->lin = MEM_Alloc (&sys->datmem));
     ERRMEM (con->Y = MEM_Alloc (&sys->ymem));
   }
 #if MPI
@@ -1315,6 +1333,10 @@ inline static void real_m (CON *con, short smooth, double *R, double eps, double
 
   if (con->kind == CONTACT)
   {
+#if MPI
+    if (con->state & CON_EXTERNAL) fri = FRI(con);
+    else
+#endif
     fri = con->mat.base->friction;
 
     real_n (R, fri, n);
@@ -1355,7 +1377,7 @@ inline static void complex_m (CON *con, short smooth, double complex img, double
   if (con->kind == CONTACT)
   {
 #if MPI
-    if (con->state & CON_EXTERNAL) fri = con->Y [3];
+    if (con->state & CON_EXTERNAL) fri = FRI(con);
     else
 #endif
     fri = con->mat.base->friction;
@@ -1405,6 +1427,7 @@ inline static void real_H (CON *con, double step, short dynamic, short smooth, d
     double res = con->mat.base->restitution,
 	   fri = con->mat.base->friction,
 	   gap = con->gap,
+	   rho = dia->rho,
            udash, m [3];
 
     if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
@@ -1412,9 +1435,9 @@ inline static void real_H (CON *con, double step, short dynamic, short smooth, d
  
     real_m (con, smooth, R, epsilon, m);
 
-    H [0] = U[0] + m[0];
-    H [1] = U[1] + m[1];
-    H [2] = udash + fri * LEN2(U) + m[2];
+    H [0] = rho * U[0] + m[0];
+    H [1] = rho * U[1] + m[1];
+    H [2] = rho * (udash + fri * LEN2(U)) + m[2];
   }
   break;
   case FIXPNT:
@@ -1474,16 +1497,17 @@ inline static void complex_F (CON *con, double step, short dynamic, double compl
   {
     double res = con->mat.base->restitution,
 	   fri = con->mat.base->friction,
-	   gap = con->gap;
+	   gap = con->gap,
+	   rho = dia->rho;
 
     double complex udash;
 
     if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
     else udash = ((MAX(gap, 0)/step) + U[2]);
  
-    H [0] = U[0];
-    H [1] = U[1];
-    H [2] = udash + fri * csqrt (DOT2(U, U));
+    H [0] = rho * U[0];
+    H [1] = rho * U[1];
+    H [2] = rho * (udash + fri * csqrt (DOT2(U, U)));
   }
   break;
   case FIXPNT:
@@ -1596,7 +1620,7 @@ static void system_update_VARIATIONAL (LINVAR variant, LINOPT options, LOCDYN *l
   for (con = dom->con; con; con = con->next)
   {
     double *R = con->R,
-	   *S = con->Y, /* use Y to store S */
+	   *S = S(con),
 	    m [3];
 
     real_m (con, smooth, R, epsilon, m);
@@ -1604,16 +1628,30 @@ static void system_update_VARIATIONAL (LINVAR variant, LINOPT options, LOCDYN *l
 
 #if MPI
      /* friction needs to be sent to external constraints //see complex_m()// */
-    if (global && con->kind == CONTACT) S [3] = con->mat.base->friction;
+    if (global)
+    {
+      if (con->kind == CONTACT) FRI(con) = con->mat.base->friction;
+
+      double *DR = DR(con);
+
+      COPY (R, DR); /* compy temporarily in order to only use DOM_Update_External_Y for communication, see (###) below */
+    }
 #endif
   }
 
 #if MPI
   if (global)
   {
-    DOM_Update_External_Reactions (ldy->dom, 0); /* update external CON->R */
+    DOM_Update_External_Y (dom, 7); /* update external CON->Y with (DR, S, friction) */
 
-    DOM_Update_External_Y (dom, 4); /* update external CON->Y with (S, friction) */
+    for (MAP *item = MAP_First (dom->conext); item; item = MAP_Next (item))
+    {
+      con = item->data;
+      double *R = con->R,
+	     *DR = DR(con);
+
+      COPY (DR, R); /* DR stored R (###) */
+    }
   }
 #endif
 
@@ -1622,14 +1660,14 @@ static void system_update_VARIATIONAL (LINVAR variant, LINOPT options, LOCDYN *l
   {
     double *W = dia->W,
 	   *B = dia->B,
-	   *S = dia->con->Y,
+	   *S = S(dia->con),
 	   *U = dia->U;
 
     NVADDMUL (B, W, S, U);
     for (blk = dia->adj; blk; blk = blk->n)
     {
       double *W = blk->W,
-	     *S = blk->dia->con->Y;
+	     *S = S(blk->dia->con);
 
       NVADDMUL (U, W, S, U);
     }
@@ -1637,7 +1675,7 @@ static void system_update_VARIATIONAL (LINVAR variant, LINOPT options, LOCDYN *l
     for (blk = dia->adjext; blk; blk = blk->n)
     {
       double *W = blk->W,
-	     *S = global ? CON(blk->dia)->Y : CON(blk->dia)->R;
+	     *S = global ? S(CON(blk->dia)) : CON(blk->dia)->R;
 
       NVADDMUL (U, W, S, U);
     }
@@ -1650,7 +1688,7 @@ static void system_update_VARIATIONAL (LINVAR variant, LINOPT options, LOCDYN *l
     dia = con->dia;
 
     double *W = dia->W,
-	   *S = con->Y,
+	   *S = S(con),
 	   *R = dia->R,
 	   *U = dia->U;
 
@@ -1711,7 +1749,7 @@ static void system_update_VARIATIONAL (LINVAR variant, LINOPT options, LOCDYN *l
 	else adc = CON(blk->dia);
 
 	R = adc->R;
-	S = adc->Y;
+	S = S(adc);
 
 	for (k = 0; k < 3; k ++)
 	{
@@ -1738,7 +1776,7 @@ static void system_update_VARIATIONAL (LINVAR variant, LINOPT options, LOCDYN *l
 
       double *W = blk->W,
 	     *R = adc->R,
-	     *S = adc->Y;
+	     *S = S(adc);
 
       int *map = blk->map;
 
@@ -1985,22 +2023,8 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
   }
 
 #if MPI
-  /* update external reactions increments in case of
-   * NONSMOOTH_HSW, NONSMOOTH_HYBRID and FIXED_POINT */
-  if (sys->variant <= FIXED_POINT && LINSYS_Global (sys))
-  {
-    for (con = dom->con; con; con = con->next)
-    {
-      double *DR = DR(con),
-	     *Y  = con->Y;
-
-      COPY (DR, Y);
-    }
-
-    /* send reaction increments to external
-     * constraint CON->Y members: see (***) below */
-    DOM_Update_External_Y (dom, 3);
-  }
+  /* update external reactions increments: see (***) below */
+  if (LINSYS_Global (sys)) DOM_Update_External_Y (dom, 3);
 #endif
 
   /* compute DU in case of NONSMOOTH_HSW,
@@ -2029,7 +2053,7 @@ void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
       {
 	for (OFFB *blk = dia->adjext; blk; blk = blk->n)
 	{
-	  double *DR = CON(blk->dia)->Y, /* (***) external reaction increment stored in CON->Y temporarily */
+	  double *DR = DR(CON(blk->dia)), /* (***) */
 		 *W = blk->W;
 
 	  NVADDMUL (DU, W, DR, DU);
@@ -2067,7 +2091,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
     {
       double *R0 = con->R,
 	     *DR = DR(con),
-	     *S  = con->Y,
+	     *S  = S(con),
 	      R [3], m [3];
 
       ADDMUL (R0, alpha, DR, R);
@@ -2076,7 +2100,22 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
     }
 
 #if MPI
-    if (global) DOM_Update_External_Y (dom, 3);
+    if (global)
+    {
+      for (MAP *item = MAP_First (dom->conext); item; item = MAP_Next (item))
+      {
+	con = item->data;
+
+	double *R0 = con->R,
+	       *DR = DR(con),
+	       *S  = S(con),
+		R [3], m [3];
+
+	ADDMUL (R0, alpha, DR, R);
+	real_m (con, smooth, R, epsilon, m);
+	SUB (R, m, S);
+      }
+    }
 #endif
   }
 
@@ -2155,7 +2194,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
     }
     else /* SMOOTHED_VARIATIONAL, NONSMOOTH_VARIATIONAL */
     {
-      double *S = con->Y,
+      double *S = S(con),
 	     *W = dia->W,
 	     *B = dia->B,
 	     *DR = DR(con),
@@ -2165,7 +2204,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
       NVADDMUL (B, W, S, U);
       for (blk = dia->adj; blk; blk = blk->n)
       {
-	double *S = blk->dia->con->Y,
+	double *S = S(blk->dia->con),
 	       *W = blk->W;
 
 	NVADDMUL (U, W, S, U);
@@ -2174,7 +2213,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
       for (blk = dia->adjext; blk; blk = blk->n)
       {
 	double *W = blk->W,
-	       *S = global ? CON(blk->dia)->Y : CON(blk->dia)->R;
+	       *S = global ? S(CON(blk->dia)) : CON(blk->dia)->R;
 
 	NVADDMUL (U, W, S, U);
       }
@@ -2199,10 +2238,45 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   return value;
 }
 
+/* update noraml bounds and return relative error of the update */
+static double update_normal_bounds (LINSYS *sys)
+{
+  double errup, errlo;
+  CON *con;
+
+  errup = errlo = 0.0;
+  for (con = sys->ldy->dom->con; con; con = con->next)
+  {
+    if (con->kind == CONTACT)
+    {
+      double DRN,
+	     RN;
+
+      DRN = con->R[2] - RN(con);
+      RN = RN(con) = con->R[2];
+
+      errup += DRN*DRN;
+      errlo += RN*RN;
+    }
+  }
+
+#if MPI
+  if (LINSYS_Global (sys)) /* sum up error */
+  {
+    double errloc [2] = {errup, errlo}, errsum [2];
+    MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    errup = errsum [0], errlo = errsum [1];
+  }
+#endif
+
+  return sqrt (errup) / MAX (sqrt (errlo), 1.0);
+}
+
+
 /* advance solution R = R + alpha * DR; return |DR|/|R| */ 
 double LINSYS_Advance (LINSYS *sys, double alpha)
 {
-  double errup, errlo;
+  double errup, errlo, error;
   CON *con;
 
   errup = errlo = 0.0;
@@ -2248,7 +2322,11 @@ double LINSYS_Advance (LINSYS *sys, double alpha)
   }
 #endif
 
-  return sqrt (errup) / sqrt (MAX (errlo, 1.0));
+  error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+
+  if (sys->variant == FIXED_POINT && error < 1E-3) error = update_normal_bounds (sys); /* FIXME: 1E-3 */
+
+  return error;
 }
 
 #if 0
@@ -2627,9 +2705,8 @@ void LINSYS_Destroy (LINSYS *sys)
   {
     con = dia->con;
 
-    con->lin = NULL;
-    con->Y = NULL;
     dia->map = NULL;
+    con->Y = NULL;
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
@@ -2654,7 +2731,6 @@ void LINSYS_Destroy (LINSYS *sys)
 #endif
 
   MEM_Release (&sys->mapmem);
-  MEM_Release (&sys->datmem);
   MEM_Release (&sys->ymem);
 
   free (sys->a);
