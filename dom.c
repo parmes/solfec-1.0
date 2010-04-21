@@ -101,7 +101,7 @@ static BOXALG aabb_algorithm (DOM *dom)
 
   return data->aabb_algo;
 #else
-  return HYBRID; /* FIXME: all other algorithms need more tesing */
+  return HYBRID_ZOMORODIAN; /* FIXME: all other algorithms need more tesing */
 #endif
 }
 

@@ -4334,18 +4334,20 @@ epsilon
 \begin_layout Itemize
 
 \series bold
-meritval
+maxiter
 \series default
- - constraints satisfaction merit function value sufficient for termination
- (default: 1E-2)
+ - maximal number of iterations before termination
 \end_layout
 
 \begin_layout Itemize
 
 \series bold
-maxiter
+meritval
 \series default
- - maximal number of iterations before termination
+ - constraints satisfaction merit function value sufficient for termination
+ (default: 1E+9).
+ Note, that the default value is large because the Gauss-Seidel solver often
+ fails to find a global minimum of the merit function.
 \end_layout
 
 \begin_layout Itemize
@@ -4977,13 +4979,17 @@ variant
 ')
 \end_layout
 
+\begin_layout Plain Layout
+\begin_inset Note Note
+status open
+
 \begin_layout Subsection
 NEWTON_SOLVER 
 \color red
 (Under development)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Object of type NEWTON_SOLVER represents a family of Newton constraints solvers.
 \end_layout
 
@@ -5041,7 +5047,7 @@ meritval
  (default: 1E-6)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Float table
 placement h
 wide false
@@ -5221,7 +5227,7 @@ Some parameters can also be accessed as members of a NEWTON_SOLVER object.
  These are
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="1">
@@ -5300,7 +5306,7 @@ obj.merhist
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="1">
@@ -5371,6 +5377,11 @@ obj.linmaxiter
 </cell>
 </row>
 </lyxtabular>
+
+\end_inset
+
+
+\end_layout
 
 \end_inset
 
