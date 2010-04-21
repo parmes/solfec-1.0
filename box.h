@@ -59,7 +59,7 @@ enum boxalg
   SWEEP_HASH2D_XYTREE, 
   SWEEP_XYTREE,
   SWEEP_HASH1D_XYTREE, /* ... until here */
-  HYBRID,
+  HYBRID_ZOMORODIAN,
   HASH3D
 };
 

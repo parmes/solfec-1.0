@@ -263,7 +263,7 @@ char* AABB_Algorithm_Name (BOXALG alg)
   case SWEEP_HASH2D_XYTREE: return "SWEEP_HASH2D_XYTREE";
   case SWEEP_XYTREE: return "SWEEP_XYTREE";
   case SWEEP_HASH1D_XYTREE: return "SWEEP_HASH1D_XYTREE";
-  case HYBRID: return "HYBRID";
+  case HYBRID_ZOMORODIAN: return "HYBRID_ZOMORODIAN";
   case HASH3D: return "HASH3D";
   }
 
@@ -418,7 +418,7 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
    * specific part */
   switch (alg)
   {
-    case HYBRID:
+    case HYBRID_ZOMORODIAN:
     {
       hybrid (aabb->tab, aabb->boxnum, &aux, (BOX_Overlap_Create)local_create);
     }

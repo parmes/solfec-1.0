@@ -30,6 +30,28 @@
 /* memory block size */
 #define BLKSIZE 128
 
+enum update_kind /* update kind */
+{
+  UPPES, /* penalty solver specific update */
+  UPNOTHING, /* skip update */
+  UPALL /* update all data */
+};
+
+typedef enum update_kind UPKIND;
+
+/* get update kind depending on a solver */
+static UPKIND update_kind (SOLVER_KIND solver)
+{
+  switch (solver)
+  {
+    case PENALTY_SOLVER: return UPPES;
+    case HYBRID_SOLVER: return UPNOTHING;
+    default: return UPALL;
+  }
+
+  return UPNOTHING;
+}
+
 /* apply forward change of variables (nornal
  * contact forces) due to the cohesion, etc. */
 static void variables_change_begin (LOCDYN *ldy)
@@ -455,12 +477,15 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
 }
 
 /* updiae local dynamics => prepare for a solution */
-void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
+void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 {
+  UPKIND upkind = update_kind (solver);
   DOM *dom = ldy->dom;
   double step = dom->step;
   DIAB *dia;
   OFFB *blk;
+
+  if (upkind == UPNOTHING) return; /* skip update */
 
 #if MPI
   if (dom->rank == 0)
@@ -672,8 +697,12 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind)
 }
 
 /* updiae local dynamics => after the solution */
-void LOCDYN_Update_End (LOCDYN *ldy, UPKIND upkind)
+void LOCDYN_Update_End (LOCDYN *ldy, SOLVER_KIND solver)
 {
+  UPKIND upkind = update_kind (solver);
+
+  if (upkind == UPNOTHING) return; /* skip update */
+
   SOLFEC_Timer_Start (ldy->dom->solfec, "LOCDYN");
 
   /* backward variables change */

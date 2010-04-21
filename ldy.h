@@ -40,13 +40,16 @@ typedef struct offb OFFB;
 typedef struct diab DIAB;
 typedef struct locdyn LOCDYN;
 
-enum upkind
+enum solver_kind
 {
-  UPPES, /* update blocks used by the penalty solver */
-  UPALL  /* fully update all blocks */
+  NONE_SOLVER,
+  GAUSS_SEIDEL_SOLVER,
+  PENALTY_SOLVER,
+  NEWTON_SOLVER,
+  HYBRID_SOLVER
 };
 
-typedef enum upkind UPKIND;
+typedef enum solver_kind SOLVER_KIND;
 
 /* off-diagonal block */
 struct offb
@@ -110,10 +113,10 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two);
 void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia);
 
 /* update local dynamics => prepare for a solution */
-void LOCDYN_Update_Begin (LOCDYN *ldy, UPKIND upkind);
+void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver);
 
 /* update local dynamics => after the solution */
-void LOCDYN_Update_End (LOCDYN *ldy, UPKIND upkind);
+void LOCDYN_Update_End (LOCDYN *ldy, SOLVER_KIND solver);
 
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);

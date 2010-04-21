@@ -28,6 +28,7 @@
 #include "bgs.h"
 #include "pes.h"
 #include "nts.h"
+#include "hbs.h"
 #include "dom.h"
 #include "mat.h"
 #include "pbf.h"
@@ -42,16 +43,6 @@ typedef struct solfec SOLFEC;
 #endif
 
 typedef int (*SOLFEC_Callback) (SOLFEC*, void*, void*);
-
-enum solver_kind
-{
-  NONE_SOLVER,
-  GAUSS_SEIDEL_SOLVER,
-  PENALTY_SOLVER,
-  NEWTON_SOLVER
-};
-
-typedef enum solver_kind SOLVER_KIND;
 
 enum solfec_mode
 {

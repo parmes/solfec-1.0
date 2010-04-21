@@ -173,7 +173,7 @@ char* NEWTON_Variant (NEWTON *nt)
   switch (nt->variant)
   {
     case NONSMOOTH_HSW: return "NONSMOOTH_HSW";
-    case NONSMOOTH_HYBRID: return "NONMOOTH_HYBRID";
+    case NONSMOOTH_HYBRID: return "NONSMOOTH_HYBRID";
     case FIXED_POINT: return "FIXED_POINT";
     case NONSMOOTH_VARIATIONAL: return "NONSMOOTH_VARIATIONAL";
     case SMOOTHED_VARIATIONAL: return "SMOOTHED_VARIATIONAL";
