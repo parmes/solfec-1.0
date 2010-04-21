@@ -26,8 +26,15 @@
 
 typedef struct hybrid HYBRID;
 
+struct hybrid
+{
+  double epsilon; /* relative accuracy of velocity projection */
+
+  int maxiter; /* iterations bound of velocity projection */
+};
+
 /* create solver */
-HYBRID* HYBRID_Create ();
+HYBRID* HYBRID_Create (double epsilon, int maxiter);
 
 /* run solver */
 void HYBRID_Solve (HYBRID *hb, DOM *dom);
