@@ -1426,8 +1426,265 @@ If we can afford a direct solution, then using a possibly large
  In case of an iterative solver this becomes more elusive.
 \end_layout
 
-\begin_layout Standard
+\begin_layout Chapter
+Impact models
+\end_layout
 
+\begin_layout Section
+Poisson restitution
+\end_layout
+
+\begin_layout Standard
+A time stepping scheme can be abstracted as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{u}^{+}=\mathbf{u}^{-}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{u}^{+}=\mathbf{u}^{t+h}$
+\end_inset
+
+, 
+\begin_inset Formula $\mathbf{u}^{-}=\mathbf{u}^{t}+\mathbf{A}^{-1}\int_{t}^{t+h}\mathbf{f}dt$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ is a generalized semi-positive definite inertia, depending on a form the
+ time integrator.
+ The energy increment during a time step reads then
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\triangle E=\frac{1}{2}\left(\mathbf{u}^{+}+\mathbf{u}^{-}\right)\mathbf{A}\left(\mathbf{u}^{+}-\mathbf{u}^{-}\right)=\frac{1}{2}\left(\mathbf{u}^{+}+\mathbf{u}^{-}\right)\mathbf{H}^{T}\mathbf{R}\]
+
+\end_inset
+
+and the stability criterion is
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\triangle E\le0\]
+
+\end_inset
+
+Further
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\triangle E=\frac{1}{2}\left\langle \mathbf{u}^{+}+\mathbf{u}^{-},\mathbf{H}^{T}\mathbf{R}\right\rangle =\frac{1}{2}\left\langle \mathbf{U}^{+}+\mathbf{U}^{-},\mathbf{R}\right\rangle \]
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}=\mathbf{H}\mathbf{u}\]
+
+\end_inset
+
+We know that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{+}=\mathbf{U}^{-}+\mathbf{W}\mathbf{R}\]
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{W}=\mathbf{H}\mathbf{A}^{-1}\mathbf{H}^{T}\]
+
+\end_inset
+
+We first consider ideally plastic impacts
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+U_{N}^{+}\ge0,\,\,\, R_{N}\ge0,\,\,\, U_{N}^{+}R_{N}=0\]
+
+\end_inset
+
+together with the Coulomb friction law which assures that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle \le0\]
+
+\end_inset
+
+This way we obtain 
+\begin_inset Formula $R_{N}$
+\end_inset
+
+ corresponding to the compression phase of frictional impacts.
+ We, then consider Poisson's restitution model, where the final normal reaction
+ is 
+\begin_inset Formula $\left(1+\epsilon\right)R_{N}$
+\end_inset
+
+ with 
+\begin_inset Formula $\epsilon\in\left[0,1\right]$
+\end_inset
+
+.
+ Is this substitution energetically consistent? Let
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{Q}=\mbox{diag}\left(\epsilon_{i}\right)\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{1}=\mathbf{U}^{-}+\mathbf{W}\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]=\mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{eqnarray*}
+\triangle E & = & \frac{1}{2}\left\langle \mathbf{U}^{1}+\mathbf{U}^{-},\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+ & = & \frac{1}{2}\left\langle \mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}+\mathbf{U}^{-},\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+ & = & \frac{1}{2}\left\langle 2\mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}-\mathbf{W}\mathbf{R},\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+ & = & \frac{1}{2}\left\langle 2\mathbf{U}^{+}-\left[\begin{array}{cc}
+\mathbf{W}_{TT} & \mathbf{W}_{TN}\\
+\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+ & = & \left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle +\left\langle \mathbf{U}_{N}^{+},\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\right\rangle -\left\langle \left[\begin{array}{cc}
+\mathbf{W}_{TT} & \mathbf{W}_{TN}\\
+\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \end{eqnarray*}
+
+\end_inset
+
+We know that 
+\begin_inset Formula $\left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle \le0$
+\end_inset
+
+ due to friction, and that 
+\begin_inset Formula $\left\langle \mathbf{U}_{N}^{+},\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\right\rangle =0$
+\end_inset
+
+ due to contact complementarity.
+ It remains to show that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \left[\begin{array}{cc}
+\mathbf{W}_{TT} & \mathbf{W}_{TN}\\
+\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \ge0\]
+
+\end_inset
+
+Let
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{Q}^{1}=\left[\begin{array}{cc}
+\mathbf{0} & \mathbf{0}\\
+\mathbf{0} & \mathbf{Q}\end{array}\right]\]
+
+\end_inset
+
+Then we can write
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \left[\begin{array}{cc}
+\mathbf{W}_{TT} & \mathbf{W}_{TN}\\
+\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left(\mathbf{R}-\mathbf{Q}^{1}\mathbf{R}\right),\mathbf{R}+\mathbf{Q}^{1}\mathbf{R}\right\rangle =\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle -\left\langle \mathbf{W}\mathbf{Q}^{1}\mathbf{R},\mathbf{Q}^{1}\mathbf{R}\right\rangle \]
+
+\end_inset
+
+which shows that both positive and negative signs are possible (saddle surface
+ in 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+).
+ We can work out a practical constraint on restitution by taking
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{Q}^{2}=\alpha\mathbf{Q}^{1}\]
+
+\end_inset
+
+and writing
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \mathbf{W}\mathbf{Q}^{2}\mathbf{R},\mathbf{Q}^{2}\mathbf{R}\right\rangle -\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+
+\end_inset
+
+which gives
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\alpha^{2}\le\frac{\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle }{\left\langle \mathbf{W}\mathbf{Q}^{1}\mathbf{R},\mathbf{Q}^{1}\mathbf{R}\right\rangle }\]
+
+\end_inset
+
+so that our restitution model becomes
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+R_{N}^{final}=\left(1+\epsilon\min\left(\alpha,1\right)\right)R_{N}\]
+
+\end_inset
+
+which guarantees energetic consitency.
 \end_layout
 
 \end_body
