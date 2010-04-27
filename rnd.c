@@ -1062,6 +1062,7 @@ char *legend_value_string (void *data)
       case FIXDIR: return "DIR";
       case VELODIR: return "VEL";
       case RIGLNK: return "LNK";
+      case GLUEPNT: return "GLU";
       default: return "???";
     }
   }
@@ -1482,6 +1483,17 @@ static void render_riglnk (CON *con, GLfloat width, GLfloat color [3])
   glLineWidth (1.0);
 }
 
+/* render gluing point */
+static void render_gluepnt (CON *con, GLfloat color [3])
+{
+  glColor3fv (color);
+  glPointSize (4.0);
+  glBegin (GL_POINTS);
+    glVertex3dv (con->point);
+  glEnd ();
+  glPointSize (1.0);
+}
+
 /* draw arrow from p to q */
 static void arrow3d (double *p, double *q)
 {
@@ -1845,6 +1857,7 @@ static void render_body_set_constraints_or_forces (SET *set)
 	    case FIXDIR: render_fixdir (con, color); break;
 	    case VELODIR: render_velodir (con, color); break;
 	    case RIGLNK: render_riglnk (con, 2.0, color); break;
+	    case GLUEPNT: render_gluepnt (con, color); break;
 	  }
 
 	  break;
