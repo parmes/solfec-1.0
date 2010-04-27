@@ -1264,6 +1264,11 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, LINOPT options, LOCD
       }
     }
     break;
+    case GLUEPNT:
+    {
+      /* TODO */
+    }
+    break;
     }
   }
 }
@@ -1482,6 +1487,11 @@ inline static void real_H (CON *con, double step, short dynamic, short smooth, d
     }
   }
   break;
+  case GLUEPNT:
+  {
+    /* TODO */
+  }
+  break;
   };
 }
 
@@ -1550,6 +1560,11 @@ inline static void complex_F (CON *con, double step, short dynamic, double compl
 	H[2] = U[2] + d / step;
       }
     }
+  }
+  break;
+  case GLUEPNT:
+  {
+    /* TODO */
   }
   break;
   }
