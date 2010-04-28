@@ -1710,14 +1710,12 @@ struct lng_BODY
   DOM *dom;
 #endif
 
-  short dodestroy;
-
   BODY *bod;
 };
 
 #if MPI
-/* try assigning a parent body pointer to the id */
-static int ID_TO_BODY (lng_BODY *body)
+/* is a body on this processor? */
+static int IS_HERE (lng_BODY *body)
 {
   if (body->id)
   {
@@ -1875,7 +1873,12 @@ static int is_shape_or_vector (PyObject *obj, char *var)
 /* is this a BODY object? */
 static int is_body_check (PyObject *obj)
 {
-  return PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE);
+  if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE))
+  {
+    lng_BODY *body = (lng_BODY*)obj;
+    return body->bod != NULL;
+  }
+  else return 0;
 }
 
 /* test whether an object is a valid shape or a body object */
@@ -2001,6 +2004,17 @@ static int is_body (lng_BODY *obj, char *var)
       PyErr_SetString (PyExc_TypeError, buf);
       return 0;
     }
+    else
+    {
+      lng_BODY *body = (lng_BODY*)obj;
+      if (body->bod == NULL)
+      {
+	char buf [BUFLEN];
+	sprintf (buf, "'%s' is a recently deleted BODY object", var);
+	PyErr_SetString (PyExc_TypeError, buf);
+	return 0;
+      }
+    }
   }
 
   return 1;
@@ -2022,8 +2036,6 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
   if (self)
   {
-    self->dodestroy = 0; /* never destroy by default as the body will be imediately owned by a domain */
-
     label = NULL;
     formulation = NULL;
     form = FEM_O1;
@@ -2120,8 +2132,6 @@ static PyObject* lng_BODY_WRAPPER (BODY *bod)
 /* destructor */
 static void lng_BODY_dealloc (lng_BODY *self)
 {
-  if (self->dodestroy) BODY_Destroy (self->bod); /* used only when body was removed from the domain */
-
   self->ob_type->tp_free ((PyObject*)self);
 }
 
@@ -2130,7 +2140,7 @@ static void lng_BODY_dealloc (lng_BODY *self)
 static PyObject* lng_BODY_get_kind (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2151,7 +2161,7 @@ static int lng_BODY_set_kind (lng_BODY *self, PyObject *value, void *closure)
 static PyObject* lng_BODY_get_label (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2178,7 +2188,7 @@ static PyObject* lng_BODY_get_conf (lng_BODY *self, void *closure)
   double *q;
 
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2214,7 +2224,7 @@ static PyObject* lng_BODY_get_velo (lng_BODY *self, void *closure)
   double *u;
 
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2246,7 +2256,7 @@ static int lng_BODY_set_velo (lng_BODY *self, PyObject *value, void *closure)
 static PyObject* lng_BODY_get_mass (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2267,7 +2277,7 @@ static int lng_BODY_set_mass (lng_BODY *self, PyObject *value, void *closure)
 static PyObject* lng_BODY_get_volume (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2288,7 +2298,7 @@ static int lng_BODY_set_volume (lng_BODY *self, PyObject *value, void *closure)
 static PyObject* lng_BODY_get_center (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2310,7 +2320,7 @@ static int lng_BODY_set_center (lng_BODY *self, PyObject *value, void *closure)
 static PyObject* lng_BODY_get_tensor (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2332,7 +2342,7 @@ static int lng_BODY_set_tensor (lng_BODY *self, PyObject *value, void *closure)
 static PyObject* lng_BODY_get_selfcontact (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2351,7 +2361,7 @@ static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *clos
   if (!is_string (value, "selfcontact")) return -1;
 
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2373,7 +2383,7 @@ static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *clos
 static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2401,7 +2411,7 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
   if (!is_string (value, "scheme")) return -1;
 
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
 
@@ -2492,7 +2502,7 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
 static PyObject* lng_BODY_get_damping (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
   return PyFloat_FromDouble (self->bod->damping);
@@ -2507,7 +2517,7 @@ static int lng_BODY_set_damping (lng_BODY *self, PyObject *value, void *closure)
   if (!is_number_ge_val (value, "damping", 0.0)) return -1;
 
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
   self->bod->damping = PyFloat_AsDouble (value);  
@@ -2521,7 +2531,7 @@ static int lng_BODY_set_damping (lng_BODY *self, PyObject *value, void *closure)
 static PyObject* lng_BODY_get_constraints (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
   PyObject *list, *obj;
@@ -2555,7 +2565,7 @@ static int lng_BODY_set_constraints (lng_BODY *self, PyObject *value, void *clos
 static PyObject* lng_BODY_get_ncon (lng_BODY *self, void *closure)
 {
 #if MPI
-  if (ID_TO_BODY (self))
+  if (IS_HERE (self))
   {
 #endif
   return PyInt_FromLong (SET_Size (self->bod->con));
@@ -3605,6 +3615,17 @@ static int is_body_or_constraint (PyObject *obj, char *var)
       PyErr_SetString (PyExc_TypeError, buf);
       return 0;
     }
+    else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE))
+    {
+      lng_BODY *body = (lng_BODY*)obj;
+      if (body->bod == NULL)
+      {
+	char buf [BUFLEN];
+	sprintf (buf, "'%s' is a recently deleted BODY object", var);
+	PyErr_SetString (PyExc_TypeError, buf);
+	return 0;
+      }
+    }
   }
 
   return 1;
@@ -4011,7 +4032,7 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
     TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
 
 #if MPI
-    if (ID_TO_BODY (body))
+    if (IS_HERE (body))
     {
 #endif
 
@@ -4057,7 +4078,7 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
     TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (direction, kwl[2], 3));
 
 #if MPI
-    if (ID_TO_BODY (body))
+    if (IS_HERE (body))
     {
 #endif
 
@@ -4109,7 +4130,7 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
 	      is_tuple (direction, kwl[2], 3) && is_time_series (tms, kwl[3]));
 
 #if MPI
-    if (ID_TO_BODY (body))
+    if (IS_HERE (body))
     {
 #endif
 
@@ -4161,7 +4182,7 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
 	      is_tuple (direction, kwl[2], 3) && is_number_or_time_series (value, kwl[3]));
 
 #if MPI
-    if (ID_TO_BODY (body))
+    if (IS_HERE (body))
     {
 #endif
 
@@ -4216,7 +4237,7 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
 	      is_tuple (direction, kwl[2], 3) && is_time_series (tms, kwl[3]));
 
 #if MPI
-    if (ID_TO_BODY (body))
+    if (IS_HERE (body))
     {
 #endif
 
@@ -4281,19 +4302,12 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 	PyErr_SetString (PyExc_ValueError, "Cannot link bodies from different domains");
 	return NULL;
       }
-    }
 
-#if MPI
-    if (((PyObject*)body1 == Py_None && ID_TO_BODY (body2)) ||
-	((PyObject*)body2 == Py_None && ID_TO_BODY (body1)) ||
-	(ID_TO_BODY (body1) && ID_TO_BODY (body2)))
-    {
-#endif
-
-    if (body1->bod->kind == OBS && body2->bod->kind == OBS)
-    {
-      PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
-      return NULL;
+      if (body1->bod->kind == OBS && body2->bod->kind == OBS)
+      {
+	PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
+	return NULL;
+      }
     }
 
     p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
@@ -4303,6 +4317,12 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     p2 [0] = PyFloat_AsDouble (PyTuple_GetItem (point2, 0));
     p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
     p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
+
+#if MPI
+    if (((PyObject*)body1 == Py_None && IS_HERE (body2)) ||
+	((PyObject*)body2 == Py_None && IS_HERE (body1)))
+    {
+#endif
 
     if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (body2->bod->dom, NULL, body2->bod, p1, p2);
     else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2);
@@ -4315,6 +4335,10 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     }
 
 #if MPI
+    }
+    else /* both bodies passed */
+    {
+      DOM_Pending_Two_Body_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2);
     }
 #endif
   }
@@ -4335,7 +4359,9 @@ static PyObject* lng_GLUE_POINTS (PyObject *self, PyObject *args, PyObject *kwds
 
   if (out)
   {
-    PARSEKEYS ("OOOO", &body1, &body2, &point1, &point2);
+    point2 = NULL;
+
+    PARSEKEYS ("OOO|O", &body1, &body2, &point1, &point2);
 
     TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]) &&
 	      is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3));
@@ -4345,11 +4371,6 @@ static PyObject* lng_GLUE_POINTS (PyObject *self, PyObject *args, PyObject *kwds
       PyErr_SetString (PyExc_ValueError, "Cannot glue bodies from different domains");
       return NULL;
     }
-
-#if MPI
-    if ((ID_TO_BODY (body1) && ID_TO_BODY (body2)))
-    {
-#endif
 
     if (body1->bod->kind == OBS && body2->bod->kind == OBS)
     {
@@ -4361,19 +4382,26 @@ static PyObject* lng_GLUE_POINTS (PyObject *self, PyObject *args, PyObject *kwds
     p1 [1] = PyFloat_AsDouble (PyTuple_GetItem (point1, 1));
     p1 [2] = PyFloat_AsDouble (PyTuple_GetItem (point1, 2));
 
-    p2 [0] = PyFloat_AsDouble (PyTuple_GetItem (point2, 0));
-    p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
-    p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
+    if (point2)
+    {
+      p2 [0] = PyFloat_AsDouble (PyTuple_GetItem (point2, 0));
+      p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
+      p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
+    }
+    else
+    {
+      COPY (p1, p2);
+    }
 
+#if MPI
+    DOM_Pending_Two_Body_Constraint (body1->bod->dom, GLUEPNT, body1->bod, body2->bod, p1, p2);
+#else
     out->con = DOM_Glue_Points (body1->bod->dom, body1->bod, body2->bod, p1, p2);
 
     if (!out->con)
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
-    }
-
-#if MPI
     }
 #endif
   }
@@ -4507,11 +4535,6 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_body (body, kwl[0]) && is_string (kind, kwl[1]) && is_tuple (point, kwl[2], 3) &&
             is_tuple (direction, kwl[3], 3) && is_number_or_time_series_or_callable (value, kwl[4]));
 
-#if MPI
-  if (ID_TO_BODY (body))
-  {
-#endif 
-
   if (body->bod->kind == OBS)
   {
     PyErr_SetString (PyExc_ValueError, "Cannot load an obstacle");
@@ -4552,10 +4575,6 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Apply_Force (body->bod, k, p, d, ts, call, func);
 
-#if MPI
-  }
-#endif
-
   Py_RETURN_NONE;
 }
 
@@ -4574,11 +4593,6 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_body (body, kwl[0]) && is_string (kind, kwl[1]) &&
             is_tuple (direction, kwl[2], 3) &&
 	    is_number_or_time_series (value, kwl[3]));
-
-#if MPI
-  if (ID_TO_BODY (body))
-  {
-#endif 
 
   if (body->bod->kind != RIG)
   {
@@ -4608,10 +4622,6 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   }
 
   BODY_Apply_Force (body->bod, k | TORQUE, NULL, d, ts, NULL, NULL);
-
-#if MPI
-  }
-#endif
 
   Py_RETURN_NONE;
 }
@@ -4701,7 +4711,7 @@ static PyObject* lng_HERE (PyObject *self, PyObject *args, PyObject *kwds)
   {
     body = (lng_BODY*)object;
 
-    if (ID_TO_BODY (body)) Py_RETURN_TRUE;
+    if (IS_HERE (body)) Py_RETURN_TRUE;
     else Py_RETURN_FALSE;
   }
   else
@@ -4740,11 +4750,6 @@ static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (center, kwl[3], 3) && is_tuple (tensor, kwl[4], 9));
 
-#if MPI
-  if (ID_TO_BODY (body))
-  {
-#endif
-
   c [0] = PyFloat_AsDouble (PyTuple_GetItem (center, 0));
   c [1] = PyFloat_AsDouble (PyTuple_GetItem (center, 1));
   c [2] = PyFloat_AsDouble (PyTuple_GetItem (center, 2));
@@ -4752,10 +4757,6 @@ static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
   for (i = 0; i < 9; i ++) t [i] = PyFloat_AsDouble (PyTuple_GetItem (tensor, i));
 
   BODY_Overwrite_Chars (body->bod, mass, volume, c, t);
-
-#if MPI
-  }
-#endif
 
   Py_RETURN_NONE;
 }
@@ -4772,11 +4773,6 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (linear, kwl[1], 3) && is_tuple (angular, kwl[2], 3));
 
-#if MPI
-  if (ID_TO_BODY (body))
-  {
-#endif
-
   l [0] = PyFloat_AsDouble (PyTuple_GetItem (linear, 0));
   l [1] = PyFloat_AsDouble (PyTuple_GetItem (linear, 1));
   l [2] = PyFloat_AsDouble (PyTuple_GetItem (linear, 2));
@@ -4786,10 +4782,6 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
   a [2] = PyFloat_AsDouble (PyTuple_GetItem (angular, 2));
 
   BODY_Initial_Velocity (body->bod, l, a);
-
-#if MPI
-  }
-#endif
 
   Py_RETURN_NONE;
 }
@@ -4808,16 +4800,7 @@ static PyObject* lng_MATERIAL (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
             is_bulk_material (solfec->sol, material, kwl[2]));
 
-#if MPI
-  if (ID_TO_BODY (body))
-  {
-#endif
-
   BODY_Material (body->bod, volid, get_bulk_material (solfec->sol, material));
-
-#if MPI
-  }
-#endif
 
   Py_RETURN_NONE;
 }
@@ -4840,12 +4823,13 @@ static PyObject* lng_DELETE (PyObject *self, PyObject *args, PyObject *kwds)
     body = (lng_BODY*)object;
 
 #if MPI
-    if (ID_TO_BODY (body))
+    if (IS_HERE (body))
     {
 #endif
 
     DOM_Remove_Body (solfec->sol->dom, body->bod);
-    body->dodestroy = 1; /* set destruction flag as this body will no longer be destroyed by the domain */
+    BODY_Destroy (body->bod); /* used only when body was removed from the domain */
+    body->bod = NULL;
 
 #if MPI
     }
@@ -5274,17 +5258,8 @@ static PyObject* lng_MASS_CENTER (PyObject *self, PyObject *args, PyObject *kwds
 
   if (is_body_check (shape)) /* body */
   {
-#if MPI
-    if (ID_TO_BODY ((lng_BODY*)shape))
-    {
-#endif
-
     BODY *bod = ((lng_BODY*)shape)->bod;
     SHAPE_Char (bod->shape, &v, c, e);
-
-#if MPI
-    }
-#endif
   }
   else /* shape */
   {
@@ -5299,18 +5274,26 @@ static PyObject* lng_MASS_CENTER (PyObject *self, PyObject *args, PyObject *kwds
 /* exclude a pair of bodies from contact detection */
 static PyObject* lng_CONTACT_EXCLUDE_BODIES (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body1", "body2");
+  KEYWORDS ("body1", "body2");
   lng_BODY *body1, *body2;
-  lng_SOLFEC *solfec;
+  SOLFEC *sol;
 
-  PARSEKEYS ("OOO", &solfec, &body1, &body2);
+  PARSEKEYS ("OO", &body1, &body2);
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body1, kwl[1]) && is_body (body2, kwl[2]));
+  TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]));
+
+  if (body1->bod->dom != body2->bod->dom)
+  {
+    PyErr_SetString (PyExc_ValueError, "Bodies from different domains");
+    return NULL;
+  }
+
+  sol = body1->bod->dom->solfec;
 
 #if MPI
-  AABB_Exclude_Body_Pair (solfec->sol->aabb, body1->id, body2->id);
+  AABB_Exclude_Body_Pair (sol->aabb, body1->id, body2->id);
 #else
-  AABB_Exclude_Body_Pair (solfec->sol->aabb, body1->bod->id, body2->bod->id);
+  AABB_Exclude_Body_Pair (sol->aabb, body1->bod->id, body2->bod->id);
 #endif
 
   Py_RETURN_NONE;
@@ -5319,22 +5302,22 @@ static PyObject* lng_CONTACT_EXCLUDE_BODIES (PyObject *self, PyObject *args, PyO
 /* exclude a pair of geometric objects from contact detection */
 static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "body1", "point1", "body2", "point2");
+  KEYWORDS ("body1", "point1", "body2", "point2");
   PyObject *point1, *point2;
   lng_BODY *body1, *body2;
   double p1 [3], p2 [3];
-  lng_SOLFEC *solfec;
   int sgp1, sgp2;
+  SOLFEC *sol;
 
-  PARSEKEYS ("OOOOO", &solfec, &body1, &point1, &body2, &point2);
+  PARSEKEYS ("OOOO", &body1, &point1, &body2, &point2);
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body1, kwl[1]) &&
-    is_tuple (point1, kwl[2], 3) && is_body (body2, kwl[3]) && is_tuple (point2, kwl[4], 3));
+  TYPETEST (is_body (body1, kwl[0]) && is_tuple (point1, kwl[1], 3) && is_body (body2, kwl[2]) && is_tuple (point2, kwl[3], 3));
 
-#if MPI
-  if (ID_TO_BODY (body1) && ID_TO_BODY (body2))
+  if (body1->bod->dom != body2->bod->dom)
   {
-#endif
+    PyErr_SetString (PyExc_ValueError, "Bodies from different domains");
+    return NULL;
+  }
 
   p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
   p1 [1] = PyFloat_AsDouble (PyTuple_GetItem (point1, 1));
@@ -5360,11 +5343,9 @@ static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, Py
     return NULL;
   }
 
-  AABB_Exclude_Gobj_Pair (solfec->sol->aabb, body1->bod->id, sgp1, body2->bod->id, sgp2);
+  sol = body1->bod->dom->solfec;
 
-#if MPI
-  }
-#endif
+  AABB_Exclude_Gobj_Pair (sol->aabb, body1->bod->id, sgp1, body2->bod->id, sgp2);
 
   Py_RETURN_NONE;
 }
@@ -5713,7 +5694,7 @@ static PyObject* lng_DISPLACEMENT (PyObject *self, PyObject *args, PyObject *kwd
   TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
 
 #if MPI
-  if (ID_TO_BODY (body))
+  if (IS_HERE (body))
   {
 #endif
 
@@ -5744,7 +5725,7 @@ static PyObject* lng_VELOCITY (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
 
 #if MPI
-  if (ID_TO_BODY (body))
+  if (IS_HERE (body))
   {
 #endif
 
@@ -5775,7 +5756,7 @@ static PyObject* lng_STRESS (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
 
 #if MPI
-  if (ID_TO_BODY (body))
+  if (IS_HERE (body))
   {
 #endif
 
@@ -5811,7 +5792,7 @@ static int is_solfec_or_body_or_list_of_bodies (PyObject *obj, char *var)
       item = PyList_GetItem (obj, i);
       if (!PyObject_IsInstance (item, (PyObject*)&lng_BODY_TYPE)) goto err;
 #if MPI
-      if (!ID_TO_BODY ((lng_BODY*)item))
+      if (!IS_HERE ((lng_BODY*)item))
       {
 	sprintf (buf, "One of the bodies in '%s' is not on the current processor", var);
 	PyErr_SetString (PyExc_TypeError, buf);

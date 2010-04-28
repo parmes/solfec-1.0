@@ -167,7 +167,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
   }
 
   /* constraints numbering */
-  DOM_Number_Constraints (dom, options & LOCAL_SYSTEM);
+  DOM_Number_Constraints (dom, options & LOCAL_SYSTEM, NULL);
 
   /* auxiliary constraint space */
   for (con = dom->con; con; con = con->next)
@@ -2789,6 +2789,7 @@ double MERIT_Function (LOCDYN *ldy)
   LINSYS sys;
 
   sys.variant = NONSMOOTH_HSW;
+  sys.options = 0;
   sys.ldy = ldy;
 
   return LINSYS_Merit (&sys, 0.0);

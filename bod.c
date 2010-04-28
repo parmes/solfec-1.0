@@ -2071,8 +2071,12 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   for (SET *item = SET_First (bod->children); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
 
-  /* pack integration scheme */
+  /* pack scheme and flags */
   pack_int (isize, i, ints, bod->scheme);
+  pack_int (isize, i, ints, bod->flags & BODY_PERMANENT_FLAGS);
+
+  /* damping */
+  pack_double (dsize, d, doubles, bod->damping);
 
   /* pack energy */
   pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
@@ -2096,8 +2100,12 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
   for (j = 0; j < k; j ++)
     SET_Insert (&bod->dom->setmem, &bod->children, (void*) (long) unpack_int (ipos, i, ints), NULL);
 
-  /* unpack integration scheme */
+  /* unpack scheme and flags */
   bod->scheme = unpack_int (ipos, i, ints);
+  bod->flags |= unpack_int (ipos, i, ints);
+
+  /* damping */
+  bod->damping = unpack_double (dpos, d, doubles);
 
   /* unpack energy */
   unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));

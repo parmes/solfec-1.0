@@ -298,11 +298,15 @@ void DOM_Update_External_Reactions (DOM *dom, short normal);
 
 /* send boundary reactions CON->Y of their external receivers */
 void DOM_Update_External_Y (DOM *dom, int length);
+
+/* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
+void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt);
 #endif
 
 /* assign con->num values; 'local' is ignored in serial mode;
- * in parallel local != 0 indicates per-processor numbering  */
-void DOM_Number_Constraints (DOM *dom, short local);
+ * in parallel local != 0 indicates per-processor numbering;
+ * if subset != NULL only this subest of constraints is numbered */
+void DOM_Number_Constraints (DOM *dom, short local, SET *subset);
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);

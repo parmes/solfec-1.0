@@ -40,7 +40,7 @@ def run_analysis (step, stop, scheme):
   p8 = msh.node (0) 
   b = BODY (solfec , 'FINITE_ELEMENT', msh, steel, label = 'B')
   b.scheme = scheme
-  CONTACT_EXCLUDE_BODIES (solfec, a, b)
+  CONTACT_EXCLUDE_BODIES (a, b)
   PUT_RIGID_LINK (b, a, p1, p1)
   PUT_RIGID_LINK (b, a, p2, p2)
   PUT_RIGID_LINK (b, a, p3, p3)

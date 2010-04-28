@@ -207,9 +207,12 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 
 	if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
 
-        if (upkind == UPPES && con->kind == CONTACT) continue; /* skip contacts during partial update (exs.* uses local dynamics only for non-contacts) */
+        if (upkind == UPPES && con->kind == CONTACT) continue; /* skip contacts during partial update (pes.c uses local dynamics only for non-contacts) */
 
 	ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy"); /* we could skip dummies, but this reassures correctness */
+
+	ASSERT_DEBUG (con->master == bod || con->slave == bod, "Incorrectly connected constraint in a body constraints list: "
+	              "master->id = %d, slave->id = %d, bod->id = %d", con->master->id, con->slave->id, bod->id);
 
 	dia = con->dia;
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
@@ -299,7 +302,7 @@ static int adjext_test (LOCDYN *ldy)
       if ((con->state & CON_DONE) == 0)
       {
 	ret = 0;
-	WARNING_DEBUG (0, "External donstraint %u not UPDATED on rank %d", con->id, ldy->dom->rank);
+	WARNING_DEBUG (0, "External constraint %u not UPDATED on rank %d", con->id, ldy->dom->rank);
 	goto out;
       }
     }

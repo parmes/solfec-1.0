@@ -10,9 +10,9 @@ CC = cc
 
 DEBUG = yes
 PROFILE = no
-MEMDEBUG = no
+MEMDEBUG = yes
 GEOMDEBUG = no
-PARDEBUG = no
+PARDEBUG = yes
 NOTHROW = yes
 
 #

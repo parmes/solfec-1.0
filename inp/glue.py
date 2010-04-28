@@ -17,33 +17,66 @@ def cube (x, y, z, a, b, c, sur, vol):
 
   return shp
 
-def glued_cube (material, solfec):
+def glued_shape (x, y, z, material, solfec):
+  list = []
+
+  shp = cube (x, y, z, 1, 1, 1, 2, 2)
+  b1 = BODY (solfec, 'RIGID', shp, material)
+  list.append (b1)
+  shp = cube (x+1, y, z, 1, 1, 1, 2, 2)
+  b2 = BODY (solfec, 'RIGID', shp, material)
+  list.append (b2)
+  GLUE_POINTS (b1, b2, (x+1, y, z))
+  GLUE_POINTS (b1, b2, (x+1, y+1, z))
+  GLUE_POINTS (b1, b2, (x+1, y, z+1))
+  GLUE_POINTS (b1, b2, (x+1, y+1, z+1))
+  shp = cube (x-1, y, z, 1, 1, 1, 2, 2)
+  b2 = BODY (solfec, 'RIGID', shp, material)
+  list.append (b2)
+  GLUE_POINTS (b1, b2, (x, y, z))
+  GLUE_POINTS (b1, b2, (x, y+1, z))
+  GLUE_POINTS (b1, b2, (x, y, z+1))
+  GLUE_POINTS (b1, b2, (x, y+1, z+1))
+  shp = cube (x, y+1, z, 1, 1, 1, 2, 2)
+  b2 = BODY (solfec, 'RIGID', shp, material)
+  list.append (b2)
+  GLUE_POINTS (b1, b2, (x, y+1, z))
+  GLUE_POINTS (b1, b2, (x+1, y+1, z))
+  GLUE_POINTS (b1, b2, (x, y+1, z+1))
+  GLUE_POINTS (b1, b2, (x+1, y+1, z+1))
+  shp = cube (x, y-1, z, 1, 1, 1, 2, 2)
+  b2 = BODY (solfec, 'RIGID', shp, material)
+  list.append (b2)
+  GLUE_POINTS (b1, b2, (x, y, z))
+  GLUE_POINTS (b1, b2, (x+1, y, z))
+  GLUE_POINTS (b1, b2, (x, y, z+1))
+  GLUE_POINTS (b1, b2, (x+1, y, z+1))
+  shp = cube (x, y, z+1, 1, 1, 1, 2, 2)
+  b2 = BODY (solfec, 'RIGID', shp, material)
+  list.append (b2)
+  GLUE_POINTS (b1, b2, (x, y, z+1))
+  GLUE_POINTS (b1, b2, (x+1, y, z+1))
+  GLUE_POINTS (b1, b2, (x, y+1, z+1))
+  GLUE_POINTS (b1, b2, (x+1, y+1, z+1))
+  shp = cube (x, y, z-1, 1, 1, 1, 2, 2)
+  b2 = BODY (solfec, 'RIGID', shp, material)
+  list.append (b2)
+  GLUE_POINTS (b1, b2, (x, y, z))
+  GLUE_POINTS (b1, b2, (x+1, y, z))
+  GLUE_POINTS (b1, b2, (x, y+1, z))
+  GLUE_POINTS (b1, b2, (x+1, y+1, z))
+  for a in list:
+    for b in list:
+      CONTACT_EXCLUDE_BODIES (a, b)
+
+def glued_scene (material, solfec):
 
   # create an obstacle base
-  shp = cube (1.5, 0, -1, 1, 1, 1, 1, 1)
+  shp = cube (0, 0, -1, 1, 1, 1, 1, 1)
   BODY (solfec, 'OBSTACLE', shp, material)
 
-  # create the remaining bricks
-  shp = cube (0, 0, 1, 1, 1, 1, 2, 2)
-  b1 = BODY (solfec, 'RIGID', shp, material)
-  shp = cube (1, 0, 1, 1, 1, 1, 2, 2)
-  b2 = BODY (solfec, 'RIGID', shp, material)
-  GLUE_POINTS (b1, b2, (1, 0.0, 1.0), (1, 0.0, 1.0))
-  GLUE_POINTS (b1, b2, (1, 1.0, 1.0), (1, 1.0, 1.0))
-  GLUE_POINTS (b1, b2, (1, 0.0, 2.0), (1, 0.0, 2.0))
-  GLUE_POINTS (b1, b2, (1, 1.0, 2.0), (1, 1.0, 2.0))
-  shp = cube (2, 0, 1, 1, 1, 1, 2, 2)
-  b3 = BODY (solfec, 'RIGID', shp, material)
-  GLUE_POINTS (b2, b3, (2, 0.0, 1.0), (2, 0.0, 1.0))
-  GLUE_POINTS (b2, b3, (2, 1.0, 1.0), (2, 1.0, 1.0))
-  GLUE_POINTS (b2, b3, (2, 0.0, 2.0), (2, 0.0, 2.0))
-  GLUE_POINTS (b2, b3, (2, 1.0, 2.0), (2, 1.0, 2.0))
-  shp = cube (3, 0, 1, 1, 1, 1, 2, 2)
-  b4 = BODY (solfec, 'RIGID', shp, material)
-  GLUE_POINTS (b3, b4, (3, 0.0, 1.0), (3, 0.0, 1.0))
-  GLUE_POINTS (b3, b4, (3, 1.0, 1.0), (3, 1.0, 1.0))
-  GLUE_POINTS (b3, b4, (3, 0.0, 2.0), (3, 0.0, 2.0))
-  GLUE_POINTS (b3, b4, (3, 1.0, 2.0), (3, 1.0, 2.0))
+  # create the remaining shapes
+  glued_shape (0, 0, 2, material, solfec)
 
 ### main module ###
 #import rpdb2; rpdb2.start_embedded_debugger('a')
@@ -56,23 +89,21 @@ CONTACT_SPARSIFY (solfec, 0.005)
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E1)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E15, poisson = 0.25, density = 1E1)
 
 GRAVITY (solfec, (0, 0, -9.81))
 
-glued_cube (bulkmat, solfec)
+glued_scene (bulkmat, solfec)
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 
-OUTPUT (solfec, 50 * step, 'FASTLZ')
-
-RUN (solfec, gs, 1000 * step)
+RUN (solfec, gs, 2 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 
-  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL', 'GSINIT', 'GSRUN', 'GSCOM', 'GSMCOM']
+  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
   dur = DURATION (solfec)
   th = HISTORY (solfec, timers, dur[0], dur[1])
   total = 0.0

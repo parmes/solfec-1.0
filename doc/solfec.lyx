@@ -4979,7 +4979,7 @@ variant
 ')
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \begin_inset Note Note
 status open
 
@@ -7301,7 +7301,7 @@ BODY object.
 \end_layout
 
 \begin_layout Subsection*
-CONTACT_EXCLUDE_BODIES (solfec, body1, body2)
+CONTACT_EXCLUDE_BODIES (body1, body2)
 \end_layout
 
 \begin_layout Standard
@@ -7315,14 +7315,6 @@ NOTE:
 \emph on
 must be invoked on all processors during a parallel run (do not use from
  within a callback).
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - SOLFEC object
 \end_layout
 
 \begin_layout Itemize
@@ -7342,7 +7334,7 @@ body2
 \end_layout
 
 \begin_layout Subsection*
-CONTACT_EXCLUDE_OBJECTS (solfec, body1, point1, body2, point2)
+CONTACT_EXCLUDE_OBJECTS (body1, point1, body2, point2)
 \end_layout
 
 \begin_layout Standard
@@ -7359,14 +7351,6 @@ NOTE:
 \emph on
 must be invoked on all processors during a parallel run (do not use from
  within a callback).
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-solfec
-\series default
- - SOLFEC object
 \end_layout
 
 \begin_layout Itemize
