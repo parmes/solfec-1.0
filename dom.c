@@ -143,6 +143,8 @@ static int constraint_compare (CON *one, CON *two)
   BODY *onebod [2], *twobod [2];
   SGP *onesgp [2], *twosgp [2];
 
+  /* FIXME: remove below zeroed code */
+#if 0
   if (one->slave == NULL) /* left one-body constraint */
   {
     if (two->slave) return -1; /* one-body constraints always smaller then two body ones */
@@ -153,9 +155,15 @@ static int constraint_compare (CON *one, CON *two)
   if (one->kind != CONTACT)
   {
     if (two->kind == CONTACT) return 1; /* non-contacts are bigger than contacts */
-    else return (one < two ? -1 : (one == two ? 0 : 1)); /* compare non->contacts by pointer */
+    else return (one < two ? -1 : (one == two ? 0 : 1)); /* compare non->contacts by pointers */
   }
   else if (two->kind != CONTACT) return -1; /* non-contacts are bigger than contacts */
+#else
+  if (one->kind != CONTACT && two->kind != CONTACT)
+  {
+    return (one < two ? -1 : (one == two ? 0 : 1)); /* compare non-contacts by pointer */
+  }
+#endif
 
   if (one->master < one->slave) /* two-body constraints remain; order pointers before comparing */
   {
@@ -2768,13 +2776,19 @@ void DOM_Update_External_Y (DOM *dom, int length)
 
   free (send);
   free (recv);
+}
 
+/* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
+void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt)
+{
+  /* TODO */
 }
 #endif
 
 /* assign con->num values; 'local' is ignored in serial mode;
- * in parallel local != 0 indicates per-processor numbering  */
-void DOM_Number_Constraints (DOM *dom, short local)
+ * in parallel local != 0 indicates per-processor numbering;
+ * if subset != NULL only this subest of constraints is numbered */
+void DOM_Number_Constraints (DOM *dom, short local, SET *subset)
 {
 #if MPI
   if (!local)
@@ -2782,19 +2796,32 @@ void DOM_Number_Constraints (DOM *dom, short local)
     int rank = dom->rank,
 	ncpu = dom->ncpu,
        *ncon, num,
-	nrecv, i;
-
+	nrecv, i, n;
     COMOBJ *send, *recv;
-
+    SET *item, *jtem;
     CON *con;
+    MEM mem;
+
+    if (subset) MEM_Init (&mem, sizeof (SET), SET_Size (subset));
 
     ERRMEM (ncon = malloc (sizeof (int [ncpu + 1])));
 
-    MPI_Allgather  (&dom->ncon, 1, MPI_INT, (ncon + 1), 1, MPI_INT, MPI_COMM_WORLD);
+    if (subset) n = SET_Size (subset);
+    else n = dom->ncon;
+
+    MPI_Allgather  (&n, 1, MPI_INT, (ncon + 1), 1, MPI_INT, MPI_COMM_WORLD);
 
     for (ncon [0] = 0, i = 1; i <= ncpu; i ++) ncon [i] += ncon [i-1];
 
-    for (num = ncon [rank], con = dom->con; con; con = con->next) con->num = num ++; /* number internally */
+    if (subset)
+    {
+      for (num = ncon [rank], item = SET_First (subset); item; item = SET_Next (item))
+      {
+	con = item->data;
+	con->num = num ++; /* number internally */
+      }
+    }
+    else for (num = ncon [rank], con = dom->con; con; con = con->next) con->num = num ++; /* number internally */
 
     /* numbering is such that: [0, 1, ..., ncon(0)-1], [ncon(0), ncon(0)+1, ..., ncon(0)+ncon(1)-1], [ncon(0)+ncon(1), ...]
      * follow on respectively processors 0, 1, 2, ... */
@@ -2807,9 +2834,24 @@ void DOM_Number_Constraints (DOM *dom, short local)
       send [i].rank = i;
     }
 
+    if (subset)
+    {
+      for (i = 0; i < ncpu; i ++) send [i].o = NULL; /* invalidate previously set global export sets */
+
+      for (item = SET_First (subset); item; item = SET_Next (item))
+      {
+	con = item->data;
+	for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem))
+	{
+	  SET_Insert (&mem, (SET**) &send [(int) (long) jtem->data].o, con, NULL); /* prepare subset export sets */
+	}
+      }
+    }
+
     /* update numbers on external constraints */
     dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_numbers, dom, (OBJ_Unpack)unpack_numbers, send, dom->ncpu, &recv, &nrecv);
 
+    if (subset) MEM_Release (&mem);
     free (send);
     free (recv);
     free (ncon);
@@ -2817,10 +2859,19 @@ void DOM_Number_Constraints (DOM *dom, short local)
   else
   {
 #endif
+    SET *item;
     CON *con;
     int num;
 
-    for (num = 0, con = dom->con; con; con = con->next) con->num = num ++;
+    if (subset)
+    {
+      for (num = 0, item = SET_First (subset); item; item = SET_Next (item))
+      {
+	con = item->data;
+	con->num = num ++;
+      }
+    }
+    else for (num = 0, con = dom->con; con; con = con->next) con->num = num ++;
 #if MPI
   }
 #endif

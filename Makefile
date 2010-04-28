@@ -66,6 +66,7 @@ OBJ =   $(EXTO)   \
 	obj/nts.o \
 	obj/hbs.o \
 	obj/lin.o \
+	obj/glu.o \
 	obj/dom.o \
 	obj/dio.o \
 	obj/lng.o \
@@ -85,6 +86,7 @@ OBJMPI = $(EXTO)       \
 	 obj/nts-mpi.o \
 	 obj/hbs-mpi.o \
 	 obj/lin-mpi.o \
+	 obj/glu-mpi.o \
 	 obj/dom-mpi.o \
 	 obj/dio-mpi.o \
 	 obj/lng-mpi.o \
@@ -249,7 +251,10 @@ obj/nts.o: nts.c nts.h lin.h dom.h ldy.h err.h alg.h
 obj/hbs.o: hbs.c hbs.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/lin.o: lin.c lin.h lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
+obj/lin.o: lin.c lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
+	$(CC) $(CFLAGS) $(SPQR) $(UMFPACK) -c -o $@ $<
+
+obj/glu.o: glu.c glu.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
 	$(CC) $(CFLAGS) $(SPQR) $(UMFPACK) -c -o $@ $<
 
 obj/sps.o: sps.c sps.h mem.h set.h map.h dom.h err.h alg.h
@@ -333,7 +338,10 @@ obj/nts-mpi.o: nts.c nts.h lin.h dom.h ldy.h err.h alg.h lap.h
 obj/hbs-mpi.o: hbs.c hbs.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/lin-mpi.o: lin.c lin.h lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
+obj/lin-mpi.o: lin.c lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) $(SPQR) $(UMFPACK) $(HYPREINC) -c -o $@ $<
+
+obj/glu-mpi.o: glu.c glu.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) $(SPQR) $(UMFPACK) $(HYPREINC) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
