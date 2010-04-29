@@ -393,7 +393,7 @@ def gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS):
 
       base = BODY (solfec, 'RIGID', shape, material)
 
-      CONTACT_EXCLUDE_BODIES (solfec, base, wall)
+      CONTACT_EXCLUDE_BODIES (base, wall)
 
       acc = TIME_SERIES ('inp/cores/inc/acc-0.dat')
       FIX_DIRECTION (base, (sx, sy, -thick), (0, 0, 1))

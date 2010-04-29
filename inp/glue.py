@@ -1,4 +1,7 @@
 # gluing example
+from random import randint
+from random import random
+from random import seed
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -20,66 +23,80 @@ def cube (x, y, z, a, b, c, sur, vol):
 def glued_shape (x, y, z, material, solfec):
   list = []
 
+  KINEM = 'RIGID'
+
   shp = cube (x, y, z, 1, 1, 1, 2, 2)
-  b1 = BODY (solfec, 'RIGID', shp, material)
+  b1 = BODY (solfec, KINEM, shp, material)
   list.append (b1)
   shp = cube (x+1, y, z, 1, 1, 1, 2, 2)
-  b2 = BODY (solfec, 'RIGID', shp, material)
+  b2 = BODY (solfec, KINEM, shp, material)
   list.append (b2)
   GLUE_POINTS (b1, b2, (x+1, y, z))
   GLUE_POINTS (b1, b2, (x+1, y+1, z))
   GLUE_POINTS (b1, b2, (x+1, y, z+1))
   GLUE_POINTS (b1, b2, (x+1, y+1, z+1))
   shp = cube (x-1, y, z, 1, 1, 1, 2, 2)
-  b2 = BODY (solfec, 'RIGID', shp, material)
+  b2 = BODY (solfec, KINEM, shp, material)
   list.append (b2)
   GLUE_POINTS (b1, b2, (x, y, z))
   GLUE_POINTS (b1, b2, (x, y+1, z))
   GLUE_POINTS (b1, b2, (x, y, z+1))
   GLUE_POINTS (b1, b2, (x, y+1, z+1))
   shp = cube (x, y+1, z, 1, 1, 1, 2, 2)
-  b2 = BODY (solfec, 'RIGID', shp, material)
+  b2 = BODY (solfec, KINEM, shp, material)
   list.append (b2)
   GLUE_POINTS (b1, b2, (x, y+1, z))
   GLUE_POINTS (b1, b2, (x+1, y+1, z))
   GLUE_POINTS (b1, b2, (x, y+1, z+1))
   GLUE_POINTS (b1, b2, (x+1, y+1, z+1))
   shp = cube (x, y-1, z, 1, 1, 1, 2, 2)
-  b2 = BODY (solfec, 'RIGID', shp, material)
+  b2 = BODY (solfec, KINEM, shp, material)
   list.append (b2)
   GLUE_POINTS (b1, b2, (x, y, z))
   GLUE_POINTS (b1, b2, (x+1, y, z))
   GLUE_POINTS (b1, b2, (x, y, z+1))
   GLUE_POINTS (b1, b2, (x+1, y, z+1))
   shp = cube (x, y, z+1, 1, 1, 1, 2, 2)
-  b2 = BODY (solfec, 'RIGID', shp, material)
+  b2 = BODY (solfec, KINEM, shp, material)
   list.append (b2)
   GLUE_POINTS (b1, b2, (x, y, z+1))
   GLUE_POINTS (b1, b2, (x+1, y, z+1))
   GLUE_POINTS (b1, b2, (x, y+1, z+1))
   GLUE_POINTS (b1, b2, (x+1, y+1, z+1))
   shp = cube (x, y, z-1, 1, 1, 1, 2, 2)
-  b2 = BODY (solfec, 'RIGID', shp, material)
+  b2 = BODY (solfec, KINEM, shp, material)
   list.append (b2)
   GLUE_POINTS (b1, b2, (x, y, z))
   GLUE_POINTS (b1, b2, (x+1, y, z))
   GLUE_POINTS (b1, b2, (x, y+1, z))
   GLUE_POINTS (b1, b2, (x+1, y+1, z))
   for a in list:
+    if KINEM == 'PSEUDO_RIGID': a.scheme = 'DEF_IMP'
     for b in list:
       CONTACT_EXCLUDE_BODIES (a, b)
 
 def glued_scene (material, solfec):
 
+  N = 3
+
   # create an obstacle base
-  shp = cube (0, 0, -1, 1, 1, 1, 1, 1)
+  shp = cube (0, 0, -1, N, N, 1, 1, 1)
   BODY (solfec, 'OBSTACLE', shp, material)
 
   # create the remaining shapes
-  glued_shape (0, 0, 2, material, solfec)
+  for x in range (0, N, 3):
+    for y in range (0, N, 3):
+      for z in range (0, N, 3):
+	#w = (0.5 - random ())
+	#v = (0.5 - random ())
+	w = 0
+	v = 0
+        glued_shape (x+v, y+v, 2+z, material, solfec)
 
 ### main module ###
 #import rpdb2; rpdb2.start_embedded_debugger('a')
+
+seed (1)
 
 step = 0.001
 
@@ -89,13 +106,14 @@ CONTACT_SPARSIFY (solfec, 0.005)
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E15, poisson = 0.25, density = 1E1)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E1)
 
 GRAVITY (solfec, (0, 0, -9.81))
 
 glued_scene (bulkmat, solfec)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+#gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs = HYBRID_SOLVER ()
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 

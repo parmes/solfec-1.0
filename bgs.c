@@ -27,7 +27,7 @@
 #include "bgs.h"
 #include "pes.h"
 #include "err.h"
-#include "lin.h"
+#include "mrf.h"
 
 #if MPI
 #include "tag.h"

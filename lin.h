@@ -76,7 +76,4 @@ double LINSYS_Resnorm (LINSYS *sys);
 /* destroy linear system */
 void LINSYS_Destroy (LINSYS *sys);
 
-/* constraint satisfaction merit function;
- * (assumes that both dia->R and dia->U are valid) */
-double MERIT_Function (LOCDYN *ldy);
 #endif

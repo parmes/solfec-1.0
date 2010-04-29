@@ -66,6 +66,7 @@ OBJ =   $(EXTO)   \
 	obj/nts.o \
 	obj/hbs.o \
 	obj/lin.o \
+	obj/mrf.o \
 	obj/glu.o \
 	obj/dom.o \
 	obj/dio.o \
@@ -86,6 +87,7 @@ OBJMPI = $(EXTO)       \
 	 obj/nts-mpi.o \
 	 obj/hbs-mpi.o \
 	 obj/lin-mpi.o \
+	 obj/mrf-mpi.o \
 	 obj/glu-mpi.o \
 	 obj/dom-mpi.o \
 	 obj/dio-mpi.o \
@@ -239,7 +241,7 @@ obj/dio.o: dio.c dio.h dom.h cmp.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy
 obj/ldy.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h mtx.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/bgs.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h lin.h
+obj/bgs.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h mrf.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/pes.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
@@ -252,6 +254,9 @@ obj/hbs.o: hbs.c hbs.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lin.o: lin.c lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
+	$(CC) $(CFLAGS) $(SPQR) $(UMFPACK) -c -o $@ $<
+
+obj/mrf.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h
 	$(CC) $(CFLAGS) $(SPQR) $(UMFPACK) -c -o $@ $<
 
 obj/glu.o: glu.c glu.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
@@ -281,7 +286,7 @@ obj/lss.o: lss.c lss.h mem.h ist.h
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
 
-obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h hbs.h mat.h pbf.h tmr.h lin.h
+obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h hbs.h mat.h pbf.h tmr.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 # OPENGL
 
@@ -326,7 +331,7 @@ obj/dio-mpi.o: dio.c dio.h dom.h cmp.h bod.h pbf.h mem.h map.h set.h err.h box.h
 obj/ldy-mpi.o: ldy.c ldy.h bod.h mem.h map.h set.h err.h dom.h sps.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h lin.h
+obj/bgs-mpi.o: bgs.c bgs.h dom.h ldy.h err.h alg.h lap.h mrf.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/pes-mpi.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
@@ -339,6 +344,9 @@ obj/hbs-mpi.o: hbs.c hbs.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/lin-mpi.o: lin.c lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) $(SPQR) $(UMFPACK) $(HYPREINC) -c -o $@ $<
+
+obj/mrf-mpi.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) $(SPQR) $(UMFPACK) $(HYPREINC) -c -o $@ $<
 
 obj/glu-mpi.o: glu.c glu.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
