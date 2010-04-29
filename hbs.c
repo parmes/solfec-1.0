@@ -23,6 +23,8 @@
 #include "alg.h"
 #include "bla.h"
 #include "err.h"
+#include "bgs.c"
+#include "glu.h"
 
 #define ENABLE 0 /* temporary flag before the code compiles */
 
@@ -362,6 +364,83 @@ HYBRID* HYBRID_Create (double epsilon, int maxiter)
   return hb;
 }
 
+static void gluing_solve (LOCDYN *ldy)
+{
+  double error, merit, step;
+  int verbose, diagiters;
+  int div = 10, iters;
+  short dynamic;
+  char fmt [512];
+
+  verbose = ldy->dom->verbose;
+
+  if (verbose) sprintf (fmt, "GLUING: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (1000) + 1);
+
+  int maxiter = 100;
+  double epsilon = 1E-3,
+	 meritval = 1.0E6;
+
+  GLUE *glu = GLUE_Create (ldy);
+
+  dynamic = ldy->dom->dynamic;
+  step = ldy->dom->step;
+  iters = 0;
+  do
+  {
+    double errup = 0.0,
+	   errlo = 0.0;
+    OFFB *blk;
+    DIAB *dia;
+   
+    for (dia = ldy->dia; dia; dia = dia->n)
+    {
+      double R0 [3],
+	     B [3],
+	     *R = dia->R;
+
+      CON *con = dia->con;
+
+      if (con->kind == GLUEPNT) continue;
+
+      /* compute local free velocity */
+      COPY (dia->B, B);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	double *W = blk->W,
+	       *R = blk->dia->R;
+	NVADDMUL (B, W, R, B);
+      }
+      
+      COPY (R, R0); /* previous reaction */
+
+      /* solve local diagonal block problem */
+      diagiters = DIAGONAL_BLOCK_Solver (GS_PROJECTED_GRADIENT, 1E-6, 100,
+	         dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+
+      /* accumulate relative
+       * error components */
+      SUB (R, R0, R0);
+      errup += DOT (R0, R0);
+      errlo += DOT (R, R);
+    }
+
+    /* merit function value */
+    merit = MERIT_Function (ldy);
+
+    /* calculate relative error */
+    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+
+    GLUE_Solve (glu, error*1E-2, 1000);
+
+    if (iters % div == 0 && verbose) printf (fmt, iters, error, merit), div *= 2;
+  }
+  while (++ iters < maxiter && (error > epsilon || merit > meritval));
+
+  if (verbose) printf (fmt, iters, error, merit);
+
+  GLUE_Destroy (glu);
+}
+
 /* run solver */
 void HYBRID_Solve (HYBRID *hb, DOM *dom)
 {
@@ -406,6 +485,8 @@ void HYBRID_Solve (HYBRID *hb, DOM *dom)
   body_data_destroy (data);
 
   /* TODO: scale all reactions by 1/step */
+#else
+  gluing_solve (dom->ldy);
 #endif
 }
 

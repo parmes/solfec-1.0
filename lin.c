@@ -2781,16 +2781,3 @@ void LINSYS_Destroy (LINSYS *sys)
 
   free (sys);
 }
-
-/* constraint satisfaction merit function;
- * (assumes that both dia->R and dia->U are valid) */
-double MERIT_Function (LOCDYN *ldy)
-{
-  LINSYS sys;
-
-  sys.variant = NONSMOOTH_HSW;
-  sys.options = 0;
-  sys.ldy = ldy;
-
-  return LINSYS_Merit (&sys, 0.0);
-}

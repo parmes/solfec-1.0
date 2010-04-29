@@ -254,7 +254,7 @@ static void update_right_hand_side (DOM *dom, SET *subset, double *b)
     dia = con->dia;
     y = &b [con->num * 3];
     B = dia->B;
-    COPY (y, B);
+    COPY (B, y);
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
@@ -884,8 +884,9 @@ void GLUE_Solve (GLUE *glu, double accuracy, int maxiter)
     }
 
     /* stats */
-    glu->resnorm = LSS_Get (glu->lss, LSS_ABSOLUTE_ERROR);
-    glu->iters = LSS_Get (glu->lss, LSS_ITERATIONS);
+    //FIXME: invalid write
+    //glu->resnorm = LSS_Get (glu->lss, LSS_ABSOLUTE_ERROR);
+    //glu->iters = LSS_Get (glu->lss, LSS_ITERATIONS);
   }
 #endif
 #endif

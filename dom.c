@@ -214,7 +214,7 @@ static int constraint_compare (CON *one, CON *two)
 }
 
 /* insert a new constrait between two bodies */
-static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp)
+static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, short kind)
 {
   CON *con;
 
@@ -223,6 +223,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp)
   ASSERT_DEBUG (master && msgp, "At least master body pointers must be passed");
 
   ERRMEM (con = MEM_Alloc (&dom->conmem));
+  con->kind = kind;
   con->master = master;
   con->slave = slave;
   con->msgp = msgp;
@@ -281,8 +282,7 @@ static void insert_contact (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP 
 {
   CON *con;
 
-  con = insert (dom, master, slave, msgp, ssgp); /* do not insert into LOCDYN yet, only after sparsification */
-  con->kind = CONTACT;
+  con = insert (dom, master, slave, msgp, ssgp, CONTACT); /* do not insert into LOCDYN yet, only after sparsification */
   COPY (mpntspa, con->point);
   BODY_Ref_Point (master, msgp->shp, msgp->gobj, mpntspa, con->mpnt); /* referential image */
   BODY_Ref_Point (slave, ssgp->shp, ssgp->gobj, spntspa, con->spnt);
@@ -675,13 +675,11 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
 
   dom->noid = cid; /* disable constraint ids generation and use 'noid' instead */
 
-  con = insert (dom, master, slave, msgp, ssgp);
+  con = insert (dom, master, slave, msgp, ssgp, kind);
 
   dom->noid = 0; /* enable constraint ids generation */
 
   con->ext = ext; /* external ranks */
-
-  con->kind = kind;
 
   unpack_doubles (dpos, d, doubles, con->mpnt, 3);
   if (slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
@@ -711,11 +709,12 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
 }
 
 /* insert a new external constraint migrated in during domain gluing */
-static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, unsigned int cid)
+static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, short kind, unsigned int cid)
 {
   CON *con;
 
   ERRMEM (con = MEM_Alloc (&dom->conmem));
+  con->kind = kind;
   con->master = master;
   con->slave = slave;
   con->msgp = msgp;
@@ -790,8 +789,7 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   }
   else ssgp = NULL;
 
-  con = insert_external_constraint (dom, master, slave, msgp, ssgp, cid);
-  con->kind = kind;
+  con = insert_external_constraint (dom, master, slave, msgp, ssgp, kind, cid);
 
   unpack_doubles (dpos, d, doubles, con->mpnt, 3);
   if (slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
@@ -2220,8 +2218,7 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, sgp, NULL);
-  con->kind = FIXPNT;
+  con = insert (dom, bod, NULL, sgp, NULL, FIXPNT);
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   IDENTITY (con->base);
@@ -2242,8 +2239,7 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, sgp, NULL);
-  con->kind = FIXDIR;
+  con = insert (dom, bod, NULL, sgp, NULL, FIXDIR);
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   localbase (dir, con->base);
@@ -2264,8 +2260,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, sgp, NULL);
-  con->kind = VELODIR;
+  con = insert (dom, bod, NULL, sgp, NULL, VELODIR);
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   localbase (dir, con->base);
@@ -2308,8 +2303,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   
   if (d < GEOMETRIC_EPSILON) /* no point in keeping very short links */
   {
-    con = insert (dom, master, slave, msgp, ssgp);
-    con->kind = FIXPNT;
+    con = insert (dom, master, slave, msgp, ssgp, FIXPNT);
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
@@ -2319,8 +2313,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   }
   else
   {
-    con = insert (dom, master, slave, msgp, ssgp);
-    con->kind = RIGLNK;
+    con = insert (dom, master, slave, msgp, ssgp, RIGLNK);
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
@@ -2357,8 +2350,7 @@ CON* DOM_Glue_Points (DOM *dom, BODY *master, BODY *slave, double *mpnt, double 
   
   if (d < GEOMETRIC_EPSILON) /* no point in keeping very short links */
   {
-    con = insert (dom, master, slave, msgp, ssgp);
-    con->kind = GLUEPNT;
+    con = insert (dom, master, slave, msgp, ssgp, GLUEPNT);
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
