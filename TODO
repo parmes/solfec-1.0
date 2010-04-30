@@ -64,3 +64,11 @@ reports unphysical penetration => this is due to numerical instability of gap
 computations for smaller motion increments.
 -------------------------------------------------------------------------------
 Let solvers decide what kind of LOCDYN update they need
+--------------------------------------------------------------------------
+Optimize LOCDYN assmebly, and especially later - WR product, by storing
+only one off-diagonal W(i,j) block for two-body constraints
+--------------------------------------------------------------------------
+Optimize assembling of the constact gluing blocks of W
+---------------------------------------------------------------------------------------
+Implement discrimination of new contact points in case a gluing
+point exists between a pair of geom. objects (rather then explicit exclusion as now)

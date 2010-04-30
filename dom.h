@@ -77,7 +77,7 @@ struct constraint
   enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK, GLUEPNT} kind; /* constraint kind */
 
   enum {CON_COHESIVE = 0x01,
-        CON_NEW      = 0x02,
+        CON_NEW      = 0x02, /* newly inserted constraint */
 	CON_IDLOCK   = 0x04, /* locked ID cannot be freed to the pool */
 	CON_EXTERNAL = 0x08, /* a boundary constraint migrated in from another processor */
         CON_DONE     = 0x10} state; /* constraint state */
@@ -140,6 +140,20 @@ struct domain_balancing_data
   SET *update;
   SET *glue;
   SET *ext;
+};
+
+typedef struct pending_constraint PNDCON;
+
+/* pending two-body constraint */
+struct pending_constraint
+{
+  short kind;
+
+  BODY *master,
+       *slave;
+
+  double mpnt [3],
+	 spnt [3];
 };
 #endif
 
@@ -223,7 +237,8 @@ struct domain
   DOMSTATS *stats; /* domain statistics */
   int nstats; /* statistics count */
   DBD *dbd; /* load balancing send sets */
-  int Y_length; /* external Z update length */
+  int Y_length; /* external Y update length */
+  SET *pending; /* pending constraints to be inserted in parallel */
 #endif
 
   DOM *prev, *next; /* list */

@@ -2,7 +2,7 @@
  * glu.h
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * gluing solver
+ * linear gluing solver
  */
 
 /* This file is part of Solfec.

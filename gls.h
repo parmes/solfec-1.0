@@ -1,8 +1,8 @@
 /*
- * nts.h
+ * gls.h
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * Hybrid constraints solver
+ * gluing nonlinear constraint solver
  */
 
 /* This file is part of Solfec.
@@ -19,14 +19,14 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#include "dom.h"
+#include "ldy.h"
 
-#ifndef __hbs__
-#define __hbs__
+#ifndef __gls__
+#define __gls__
 
-typedef struct hybrid HYBRID;
+typedef struct gluing GLUING;
 
-struct hybrid
+struct gluing
 {
   double epsilon; /* relative accuracy of velocity projection */
 
@@ -34,15 +34,15 @@ struct hybrid
 };
 
 /* create solver */
-HYBRID* HYBRID_Create (double epsilon, int maxiter);
+GLUING* GLUING_Create (double epsilon, int maxiter);
 
 /* run solver */
-void HYBRID_Solve (HYBRID *hb, DOM *dom);
+void GLUING_Solve (GLUING *gl, LOCDYN *ldy);
 
 /* write labeled satate values */
-void HYBRID_Write_State (HYBRID *hb, PBF *bf);
+void GLUING_Write_State (GLUING *gl, PBF *bf);
 
 /* destroy solver */
-void HYBRID_Destroy (HYBRID *hb);
+void GLUING_Destroy (GLUING *gl);
 
 #endif
