@@ -77,7 +77,7 @@ def glued_shape (x, y, z, material, solfec):
 
 def glued_scene (material, solfec):
 
-  N = 3
+  N = 9
 
   # create an obstacle base
   shp = cube (0, 0, -1, N, N, 1, 1, 1)
@@ -91,7 +91,7 @@ def glued_scene (material, solfec):
 	#v = (0.5 - random ())
 	w = 0
 	v = 0
-        glued_shape (x+v, y+v, 2+z, material, solfec)
+        glued_shape (x+v, y+v, 1.1+z, material, solfec)
 
 ### main module ###
 #import rpdb2; rpdb2.start_embedded_debugger('a')
@@ -112,12 +112,12 @@ GRAVITY (solfec, (0, 0, -9.81))
 
 glued_scene (bulkmat, solfec)
 
-#gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
-gs = HYBRID_SOLVER ()
+#gs = GAUSS_SEIDEL_SOLVER (1E-3, 100, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs = GLUING_SOLVER ()
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 
-RUN (solfec, gs, 2 * step)
+RUN (solfec, gs, 500 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 

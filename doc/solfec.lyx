@@ -5383,6 +5383,56 @@ obj.linmaxiter
 
 \end_layout
 
+\begin_layout Subsection
+GLUING_SOLVER 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Plain Layout
+Object of type GLUING_SOLVER represents a hybrid glugin solver, to be used
+ in combination with gluing constraints, cf.
+ GLUE_POINTS.
+\end_layout
+
+\begin_layout Subsection*
+obj = GLUING_SOLVER ( | epsilon, maxiter, meritval)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created NEWTON_SOLVER object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+epsilon
+\series default
+ - relative accuracy of constraint reactions sufficient for termination
+ (default: 1E-6)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+maxiter
+\series default
+ - maximal number of iterations before termination (default: 100)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+meritval
+\series default
+ - constraints satisfaction merit function value sufficient for termination
+ (default: 1E-6)
+\end_layout
+
 \end_inset
 
 
@@ -5811,6 +5861,77 @@ point2
 (x2, y2, z2)
 \emph default
  tuple with the second referential point coordinates
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Note Note
+status open
+
+\begin_layout Subsection*
+obj = GLUE_POINTS (body1, body2, point1 | point2)
+\end_layout
+
+\begin_layout Plain Layout
+This routine glues two referential points of two distinct bodies.
+ The constraint behaves similarily as the rigid link constraint, although
+ primarily it should be used with point1 = point2.
+ The effectiveness of the gluing depends on Young moduli of the two bodies
+ and the constraint is generally dissipative.
+ Gluing is meant to be combined with the GLUING_SOLVER.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body1
+\series default
+ - BODY object one whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body2
+\series default
+ - BODY object two whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point1
+\series default
+ - 
+\emph on
+(x1, y1, z1)
+\emph default
+ tuple with the first referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point2
+\series default
+ - 
+\emph on
+(x2, y2, z2)
+\emph default
+ tuple with the second referential point coordinates (default: point2 =
+ poin1)
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard

@@ -244,3 +244,13 @@ double PUT_double_min (double val)
 
   return ret;
 }
+
+/* return maximum of all calls */
+double PUT_double_max (double val)
+{
+  double ret;
+
+  MPI_Allreduce (&val, &ret, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+  return ret;
+}

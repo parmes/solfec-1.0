@@ -2,7 +2,7 @@
  * glu.c
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * gluing solver
+ * linear gluing solver
  */
 
 /* This file is part of Solfec.
@@ -93,6 +93,8 @@ struct glue
   double *b; /* right hand side */
 
   double *x; /* solution */
+
+  int basenum; /* number of first constraint on this processor */
 
 #if MPI
   HYPRE_DATA *hyp;
@@ -240,7 +242,7 @@ static void write_system_matrix (DOM *dom, SET *subset, double *a)
 }
 
 /* update right hand side */
-static void update_right_hand_side (DOM *dom, SET *subset, double *b)
+static void update_right_hand_side (DOM *dom, SET *subset, int basenum, double *b)
 {
   double *y, *B, *W, *R;
   SET *item;
@@ -252,7 +254,7 @@ static void update_right_hand_side (DOM *dom, SET *subset, double *b)
   {
     con = item->data;
     dia = con->dia;
-    y = &b [con->num * 3];
+    y = &b [(con->num - basenum) * 3];
     B = dia->B;
     COPY (B, y);
 
@@ -301,7 +303,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
   dom = ldy->dom;
     
   ERRMEM (glu = MEM_CALLOC (sizeof (GLUE)));
-
+  glu->basenum = 0;
   glu->ldy = ldy;
 
   MEM_Init (&glu->mapmem, sizeof (int [3]), MEMBLK);
@@ -322,7 +324,6 @@ GLUE* GLUE_Create (LOCDYN *ldy)
 
   /* matrix structure */
 #if MPI
-  int basenum = 0;
   MAP **prow; /* create row mapping in DIAB->map and OFFB->map */
 
   /* first constraint number */
@@ -330,7 +331,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
   {
     jtem = SET_First (glu->subset);
     con = jtem->data;
-    basenum = con->num;
+    glu->basenum = con->num;
   }
 
   /* allocate colum blocks mapping */
@@ -348,7 +349,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
     dia = con->dia;
 
     col = con->num;
-    row = col - basenum; /* use relative numbering for rows */
+    row = col - glu->basenum; /* use relative numbering for rows */
     ASSERT_DEBUG (!MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Diagonal block mapped twice");
     ERRMEM (map = MEM_Alloc (&glu->mapmem));
     ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL)); /* '+1' not to confuse with NULL */
@@ -398,7 +399,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
   glu->dim = ncon * 3; /* system dimension */
 
   /* eallocate compressed column storage */
-  ERRMEM (glu->a = malloc (sizeof (double) * glu->nnz));
+  ERRMEM (glu->a = MEM_CALLOC (sizeof (double) * glu->nnz));
   ERRMEM (glu->cols = malloc (sizeof (int) * glu->nnz));
   ERRMEM (glu->rows = MEM_CALLOC (sizeof (int) * (glu->dim+1))); /* '+ 1' as there is cols[0] == 0 always */
 
@@ -413,7 +414,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
   {
     n = 3 * MAP_Size (prow [j]);
 
-    rows [3*j+1] = n; /* '+1' so that cols[0] == 0 */
+    rows [3*j+1] = n; /* '+1' so that rows[0] == 0 */
     rows [3*j+2] = n;
     rows [3*j+3] = n;
   }
@@ -460,7 +461,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
     dia = con->dia;
 
     col = dia->con->num;
-    row = col - basenum; /* use relative numbering for rows */
+    row = col - glu->basenum; /* use relative numbering for rows */
 
     ASSERT_DEBUG_EXT (dia->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
 
@@ -476,7 +477,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
     for (blk = dia->adjext; blk; blk = blk->n)
     {
       con = ((CON*)blk->dia);
-      if (con)
+      if (con->kind == GLUEPNT)
       {
 	col = con->num;
 	ASSERT_DEBUG_EXT (blk->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
@@ -651,7 +652,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
 
   if (glu->subset) /* there are some constraints here */
   {
-    hyp->ilower = basenum * 3;
+    hyp->ilower = glu->basenum * 3;
     hyp->iupper = hyp->ilower + ncon * 3 - 1;
     hyp->jlower = hyp->ilower;
     hyp->jupper = hyp->iupper;
@@ -676,7 +677,10 @@ GLUE* GLUE_Create (LOCDYN *ldy)
     free (diacnt);
     free (offcnt);
 
-    /* initialize matrix with zeros */
+    /* prepare A */
+    write_system_matrix (dom, glu->subset, glu->a);
+
+    /* A */
     HYPRE_IJMatrixInitialize (hyp->A);
     HYPRE_IJMatrixSetValues (hyp->A, glu->dim, hyp->ncols, hyp->rows, glu->cols, glu->a);
     HYPRE_IJMatrixAssemble (hyp->A);
@@ -731,10 +735,10 @@ GLUE* GLUE_Create (LOCDYN *ldy)
   ERRMEM (glu->lss = LSS_Create (glu->dim, glu->a, glu->cols, glu->rows));
   LSS_Set (glu->lss, LSS_RESTART, 100); /* FIXME: make user adjustable or automatic */
 #endif
-#endif
 
-  /* prepare system matrix */
+  /* prepare A */
   write_system_matrix (dom, glu->subset, glu->a);
+#endif
 
   return glu; 
 }
@@ -744,7 +748,7 @@ void GLUE_Solve (GLUE *glu, double accuracy, int maxiter)
 {
   DOM *dom = glu->ldy->dom;
 
-  update_right_hand_side (dom, glu->subset, glu->b);
+  update_right_hand_side (dom, glu->subset, glu->basenum, glu->b);
 
 #if MPI
   {
@@ -752,11 +756,6 @@ void GLUE_Solve (GLUE *glu, double accuracy, int maxiter)
 
     if (hyp->comm != MPI_COMM_NULL) /* skip empty constraints case */
     {
-      /* A */
-      HYPRE_IJMatrixInitialize (hyp->A);
-      HYPRE_IJMatrixSetValues (hyp->A, glu->dim, hyp->ncols, hyp->rows, glu->cols, glu->a);
-      HYPRE_IJMatrixAssemble (hyp->A);
-
       /* b */
       HYPRE_IJVectorInitialize (hyp->B);
       HYPRE_IJVectorSetValues (hyp->B, glu->dim, hyp->rows, glu->b);
@@ -941,10 +940,14 @@ void GLUE_Destroy (GLUE *glu)
   {
     HYPRE_DATA *hyp = glu->hyp;
 
-    HYPRE_IJMatrixDestroy (hyp->A);
-    HYPRE_IJVectorDestroy (hyp->B);
-    HYPRE_IJVectorDestroy (hyp->X);
-    MPI_Comm_free (&hyp->comm);
+    if (hyp->comm != MPI_COMM_NULL) /* skip empty constraints set case */
+    {
+      HYPRE_IJMatrixDestroy (hyp->A);
+      HYPRE_IJVectorDestroy (hyp->B);
+      HYPRE_IJVectorDestroy (hyp->X);
+      MPI_Comm_free (&hyp->comm);
+    }
+
     free (hyp->ncols);
     free (hyp->rows);
     free (hyp);

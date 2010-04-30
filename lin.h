@@ -39,8 +39,9 @@ typedef enum linvar LINVAR;
 
 enum linopt /* linear system options */
 {
-  LOCAL_SYSTEM = 0x01, /* in parallel create per-processor local systems */
-  SYMMETRIZE = 0x02 /* symmetrize equations if possible */
+  LOCAL_SYSTEM = 0x01, /* in parallel: create per-processor local systems */
+  NON_GLUING = 0x02, /* assemble only the non-gluing constraints subsystem */
+  SYMMETRIZE = 0x04 /* symmetrize equations if possible */
 };
 
 typedef enum linopt LINOPT;

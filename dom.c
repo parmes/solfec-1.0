@@ -1397,6 +1397,79 @@ static void* old_external_constraints_unpack (DOM *dom, int *dpos, double *d, in
   return pp;
 }
 
+/* insert or delete pending constraints */
+static void insert_pending_constraints (DOM *dom)
+{
+  double *e, *p;
+  PNDCON *pnd;
+  SET *item;
+  CON *con;
+
+  for (item = SET_First (dom->pending); item; item = SET_Next (item))
+  {
+    pnd = item->data;
+
+    /* make sure that all attached body constraint points are within the body extents so that the newly
+     * inserted constraints will migrate to partitions where bodies have representation (child/parent) */
+
+    if (pnd->master->flags & BODY_PARENT)
+    {
+      e = pnd->master->extents;
+      p = pnd->mpnt;
+
+      if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
+      if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
+      if (p [2] < e [2]) e [2] = p [2] - GEOMETRIC_EPSILON;
+      if (p [0] > e [3]) e [3] = p [0] + GEOMETRIC_EPSILON;
+      if (p [1] > e [4]) e [4] = p [1] + GEOMETRIC_EPSILON;
+      if (p [2] > e [5]) e [5] = p [2] + GEOMETRIC_EPSILON;
+    }
+
+    if (pnd->slave->flags & BODY_PARENT)
+    {
+      e = pnd->slave->extents;
+      p = pnd->spnt;
+
+      if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
+      if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
+      if (p [2] < e [2]) e [2] = p [2] - GEOMETRIC_EPSILON;
+      if (p [0] > e [3]) e [3] = p [0] + GEOMETRIC_EPSILON;
+      if (p [1] > e [4]) e [4] = p [1] + GEOMETRIC_EPSILON;
+      if (p [2] > e [5]) e [5] = p [2] + GEOMETRIC_EPSILON;
+    }
+
+    if (pnd->master->flags & BODY_PARENT)
+    {
+      switch (pnd->kind)
+      {
+      case RIGLNK:
+	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt);
+	if (con)
+	{
+	  update_riglnk (dom, con); /* update */
+	  con->state |= CON_NEW;  /* mark as newly created */
+	}
+	WARNING_DEBUG (con, "Failed to insert a pending rigid link");
+	break;
+      case GLUEPNT:
+	con = DOM_Glue_Points (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt);
+	if (con)
+	{
+	  update_gluepnt (dom, con); /* update */
+          con->state |= CON_NEW;  /* mark as newly created */
+	}
+	WARNING_DEBUG (con, "Failed to insert a pending gluing point");
+	break;
+      }
+    }
+
+    free (pnd); /* they were MEM_ALLOCED-ed */
+  }
+
+  /* empty pending constraints set */
+  SET_Free (&dom->setmem, &dom->pending);
+}
+
 /* domain balancing */
 static void domain_balancing (DOM *dom)
 {
@@ -1422,6 +1495,9 @@ static void domain_balancing (DOM *dom)
   DBD *dbd;
   CON *con;
   int i;
+
+  /* pending constraints */
+  insert_pending_constraints (dom);
 
 #if PARDEBUG
   /* test whether constraints attached to bodies have their points inside of body extents */
@@ -1603,8 +1679,8 @@ static void domain_balancing (DOM *dom)
   free (recv);
 }
 
-/* compute new boundary contacts migration */
-static void new_boundary_contacts_migration (DOM *dom, DBD *dbd)
+/* compute new boundary constraints migration */
+static void new_boundary_constraints_migration (DOM *dom, DBD *dbd)
 {
   SET *item;
   BODY *bod;
@@ -1614,7 +1690,7 @@ static void new_boundary_contacts_migration (DOM *dom, DBD *dbd)
   /* compute additional boundary sets */
   for (con = dom->con; con; con = con->next)
   {
-    if (con->state & CON_NEW) /* only newly created contacts */
+    if (con->state & CON_NEW) /* only newly created constraints */
     {
       BODY *bodies [] = {con->master, con->slave};
 
@@ -1689,7 +1765,7 @@ static void domain_gluing_begin (DOM *dom)
   dbd = dom->dbd;
 
   /* compute migration sets */
-  new_boundary_contacts_migration (dom, dbd);
+  new_boundary_constraints_migration (dom, dbd);
 
   for (i = 0; i < dom->ncpu; i ++)
   {
@@ -2640,11 +2716,14 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   SOLFEC_Timer_Start (dom->solfec, "CONUPD");
 
-  for (con = dom->con; con; con = con->next) /* update new contacts */
+  for (con = dom->con; con; con = con->next) /* update new constraints */
   {
-    if (con->kind == CONTACT && (con->state & CON_NEW))
+    if (con->state & CON_NEW)
     {
-      con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave); /* insert into local dynamics */
+      if (con->kind == CONTACT) /* new contacts are inserted into LOCDYN only after sparsification */
+      {
+	con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave); /* insert into local dynamics */
+      }
       con->state &= ~CON_NEW; /* invalidate newness */
     }
   }
@@ -2773,7 +2852,16 @@ void DOM_Update_External_Y (DOM *dom, int length)
 /* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
 void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt)
 {
-  /* TODO */
+  PNDCON *con;
+
+  ERRMEM (con = MEM_CALLOC (sizeof (PNDCON)));
+  con->kind = kind;
+  con->master = master;
+  con->slave = slave;
+  COPY (mpnt, con->mpnt);
+  COPY (spnt, con->spnt);
+
+  SET_Insert (&dom->setmem, &dom->pending, con, NULL); /* they will be inserted or deleted during load balancing */
 }
 #endif
 

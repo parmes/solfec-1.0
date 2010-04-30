@@ -45,7 +45,6 @@ static UPKIND update_kind (SOLVER_KIND solver)
   switch (solver)
   {
     case PENALTY_SOLVER: return UPPES;
-    case HYBRID_SOLVER: return UPALL;
     default: return UPALL;
   }
 
