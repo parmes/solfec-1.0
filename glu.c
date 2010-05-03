@@ -19,230 +19,284 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#if MPI
-#include <HYPRE_parcsr_mv.h>
-#include <HYPRE_parcsr_ls.h>
-#include <HYPRE_krylov.h>
-#include <HYPRE_IJ_mv.h>
-#include <HYPRE.h>
-#endif
-
-#if SPQR
-#include <SuiteSparseQR_C.h>
-#elif UMFPACK
-#include <umfpack.h>
-#else
-#include "lss.h"
-#endif
-
-#include <complex.h>
 #include <stdlib.h>
-#include <time.h>
 #include "dom.h"
 #include "alg.h"
 #include "bla.h"
 #include "lap.h"
 #include "glu.h"
 #include "err.h"
-
-#define MEMBLK 256
+#include "ext/krylov/pcg.h"
 
 #if MPI
-typedef struct hypre_data HYPRE_DATA;
-
-struct hypre_data /* HYPRE IJ matrix data and the rest of linear system */
-{
-  MPI_Comm  comm; /* communicator (skips processors with no constrains) */
-
-  int ilower, /* lower row index == dom->con->num * 3 */
-      iupper; /* upper low index == ilower + dom->ncon * 3 - 1 */
-
-  int jlower, /* lower column index == ilower */
-      jupper; /* upper column index == iupper */
-
-  int *ncols, /* number of columns in each row */
-      *rows;  /* row indices: ilower, ilower + 1, ..., iupper */
-
-  HYPRE_IJMatrix A;  /* HYPRE IJ matrix composed from the above data */
-  HYPRE_ParCSRMatrix AP; /* reference to the parallel HYPRE CSR image of A */
-
-  HYPRE_IJVector B; /* HYPRE IJ right hand side vector */
-  HYPRE_ParVector BP; /* HYPRE parallel image of B */
-
-  HYPRE_IJVector X; /* HYPRE IJ solution vector */
-  HYPRE_ParVector XP; /* HYPRE parallel image of X */
-};
+#include "com.h"
 #endif
+
+struct vect
+{
+  double *x;
+
+  int n;
+};
+
+#define vect(ptr) ((struct vect*)ptr)
 
 struct glue
 {
-  LOCDYN *ldy; /* local dynamics */
+  LOCDYN *ldy;
 
-  SET *subset; /* subset of gluing constraints */
+  SET *subset; /* GLUEPNT constraints */
 
-  MEM mapmem, /* memory of DIAB->map and OFFB->map int [3] vectors */
-      setmem; /* subset items memory */
+  MEM setmem;
 
-  double *a; /* compressed column values */
+  struct vect *x, *b;
 
-  int *rows, /* row indices/pointers */
-      *cols, /* column pointers/indices */
-       nnz, /* number of nonzero entries */
-       dim; /* dimension of the rectangular matrix */
-
-  double *b; /* right hand side */
-
-  double *x; /* solution */
-
-  int basenum; /* number of first constraint on this processor */
+  hypre_PCGFunctions *pcg_functions;
+  void *pcg_vdata;
 
 #if MPI
-  HYPRE_DATA *hyp;
+  COMDATA *send, *recv;
+  int nsend, nrecv;
+  void *pattern;
+  double **R; /* external con->R */
 #endif
-
-#if SPQR
-  cholmod_sparse *spqr_a; /* A */
-  cholmod_dense *spqr_b; /* b */
-  cholmod_common spqr_c; /* solver data */
-#elif UMFPACK
-  void *symbolic; /* symbolic factorization */
-#else
-  void *lss; /* LSS interface */
-#endif
-
-  double resnorm;
-  int iters;
 };
 
-static double glue_stiffness (CON *con, double step)
+static double glue_stiffness (CON *con)
 {
   BULK_MATERIAL *a = con->master->mat,
 		*b = con->slave->mat;
 
-  return step * 2.0 / (1.0/a->young + 1.0/b->young);
+  return 2.0 / (1.0/a->young + 1.0/b->young);
 }
 
-/* write system matrix */
-static void write_system_matrix (DOM *dom, SET *subset, double *a)
+static struct vect* newvect (int n)
 {
-  double *W, K, step;
+  struct vect *v;
+
+  ERRMEM (v = malloc (sizeof (struct vect)));
+  ERRMEM (v->x = MEM_CALLOC (n * sizeof (double)));
+  v->n = n;
+
+  return v;
+}
+
+static char* CAlloc (size_t count, size_t elt_size)
+{
+  char *ptr;
+
+  ERRMEM (ptr = MEM_CALLOC (count * elt_size));
+  return ptr;
+}
+
+static int Free (char *ptr)
+{
+  free (ptr);
+  return 0;
+}
+
+static int CommInfo (void *A, int *my_id, int *num_procs)
+{
+#if MPI
+  GLUE *glu = (GLUE*)A;
+
+  *my_id = glu->ldy->dom->rank;
+  *num_procs = glu->ldy->dom->ncpu;
+#else
+  *my_id = 0;
+  *num_procs = 1;
+#endif
+  return 0;
+}
+
+static void* CreateVector (void *vector)
+{
+  struct vect *a = vect (vector), *v;
+
+  ERRMEM (v = malloc (sizeof (struct vect)));
+  ERRMEM (v->x = MEM_CALLOC (a->n * sizeof (double)));
+  v->n = a->n;
+
+  return v;
+}
+
+static int DestroyVector (void *vector)
+{
+  struct vect *v = vect (vector);
+  free (v->x);
+  free (v);
+
+  return 0;
+}
+
+static void *MatvecCreate (void *A, void *x)
+{
+  return NULL;
+}
+
+static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double beta, void *vy)
+{
+  GLUE *glu = (GLUE*)A;
+  double *x = vect (vx)->x, *y = vect (vy)->x;
+  double step = glu->ldy->dom->step;
+  double *W, C, *z;
   SET *item;
-  DIAB *dia;
-  OFFB *blk;
   CON *con;
-  int *map;
+  OFFB *blk;
+  DIAB *dia;
 
-  step = dom->step;
+#if MPI
+  /* update external reactions */
+  int i, *j, *k;
+  double **r;
+  COMDATA *d;
+  SET *jtem;
 
-  for (item = SET_First (subset); item; item = SET_Next (item))
+  for (item = SET_First (glu->subset), d = glu->send; item; item = SET_Next (item))
+  {
+    con = item->data;
+    for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem), d ++)
+    {
+      d->d = &x [3*con->num];
+    }
+  }
+
+  COMALL_Repeat (glu->pattern);
+
+  for (i = 0, d = glu->recv, r = glu->R; i < glu->nrecv; i ++, d ++)
+  {
+    for (j = d->i, k = d->i + d->ints, z = d->d; j < k; j ++, r ++, z += 3)
+    {
+      COPY (z, *r);
+    }
+  }
+#endif
+
+  /* compute matrix vector product */
+  for (item = SET_First (glu->subset); item; item = SET_Next (item), y += 3)
   {
     con = item->data;
     dia = con->dia;
     W = dia->W;
-    map = dia->map;
-    K = glue_stiffness (con, step);
+    C = 1.0 / (step * glue_stiffness (dia->con));
+    z = &x [3*con->num];
 
-#if MPI
-    /* NOTE:
-     * in parallel global case 'map' references
-     * beginnings of compressed row blocks */
-
-    a [map[0]]   = W[0]*K + 1.0;
-    a [map[1]]   = W[1]*K;
-    a [map[2]]   = W[2]*K;
-    a [map[0]+1] = W[3]*K;
-    a [map[1]+1] = W[4]*K + 1.0;
-    a [map[2]+1] = W[5]*K;
-    a [map[0]+2] = W[6]*K;
-    a [map[1]+2] = W[7]*K;
-    a [map[2]+2] = W[8]*K + 1.0;
+    y [0] = beta * y[0] + alpha * ((W[0]+C)*z[0] + W[3]*z[1] + W[6]*z[2]);
+    y [1] = beta * y[1] + alpha * (W[1]*z[0] + (W[4]+C)*z[1] + W[7]*z[2]);
+    y [2] = beta * y[2] + alpha * (W[2]*z[0] + W[5]*z[1] + (W[8]+C)*z[2]);
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
       con = blk->dia->con;
-
       if (con->kind == GLUEPNT)
       {
 	W = blk->W;
-	map = blk->map;
-	K = glue_stiffness (con, step);
-
-	a [map[0]]   += W[0]*K; /* sum up off-diagonal blocks as pairs of W(i,j) are stored for two-body constraints */
-	a [map[1]]   += W[1]*K;
-	a [map[2]]   += W[2]*K;
-	a [map[0]+1] += W[3]*K;
-	a [map[1]+1] += W[4]*K;
-	a [map[2]+1] += W[5]*K;
-	a [map[0]+2] += W[6]*K;
-	a [map[1]+2] += W[7]*K;
-	a [map[2]+2] += W[8]*K;
+	z = &x [3*con->num];
+	y [0] += alpha * (W[0]*z[0] + W[3]*z[1] + W[6]*z[2]);
+	y [1] += alpha * (W[1]*z[0] + W[4]*z[1] + W[7]*z[2]);
+	y [2] += alpha * (W[2]*z[0] + W[5]*z[1] + W[8]*z[2]);
       }
     }
-
+#if MPI
     for (blk = dia->adjext; blk; blk = blk->n)
     {
-      con = ((CON*)blk->dia);
-
+      con = CON (blk->dia);
       if (con->kind == GLUEPNT)
       {
 	W = blk->W;
-	map = blk->map;
-	K = glue_stiffness (con, step);
-
-	a [map[0]]   += W[0]*K; /* sum up off-diagonal blocks as pairs of W(i,j) are stored for two-body constraints */
-	a [map[1]]   += W[1]*K;
-	a [map[2]]   += W[2]*K;
-	a [map[0]+1] += W[3]*K;
-	a [map[1]+1] += W[4]*K;
-	a [map[2]+1] += W[5]*K;
-	a [map[0]+2] += W[6]*K;
-	a [map[1]+2] += W[7]*K;
-	a [map[2]+2] += W[8]*K;
-      }
-    }
-
-#else
-    /* NOTE:
-     * in sequential or local case 'map' references
-     * beginnings of compressed column blocks */
-
-    a [map[0]]   = W[0]*K + 1.0;
-    a [map[0]+1] = W[1]*K;
-    a [map[0]+2] = W[2]*K;
-    a [map[1]]   = W[3]*K;
-    a [map[1]+1] = W[4]*K + 1.0;
-    a [map[1]+2] = W[5]*K;
-    a [map[2]]   = W[6]*K;
-    a [map[2]+1] = W[7]*K;
-    a [map[2]+2] = W[8]*K + 1.0;
-
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      con = blk->dia->con;
-
-      if (con->kind == GLUEPNT)
-      {
-	W = blk->W;
-	map = blk->map;
-	K = glue_stiffness (con, step);
-
-	a [map[0]]   += W[0]*K; /* sum up off-diagonal blocks as pairs of W(i,j) are stored for two-body constraints */
-	a [map[0]+1] += W[1]*K;
-	a [map[0]+2] += W[2]*K;
-	a [map[1]]   += W[3]*K;
-	a [map[1]+1] += W[4]*K;
-	a [map[1]+2] += W[5]*K;
-	a [map[2]]   += W[6]*K;
-	a [map[2]+1] += W[7]*K;
-	a [map[2]+2] += W[8]*K;
+	z = con->R;
+	y [0] += alpha * (W[0]*z[0] + W[3]*z[1] + W[6]*z[2]);
+	y [1] += alpha * (W[1]*z[0] + W[4]*z[1] + W[7]*z[2]);
+	y [2] += alpha * (W[2]*z[0] + W[5]*z[1] + W[8]*z[2]);
       }
     }
 #endif
   }
+
+  return 0;
 }
 
-/* update right hand side */
-static void update_right_hand_side (DOM *dom, SET *subset, int basenum, double *b)
+static int MatvecDestroy (void *matvec_data)
+{
+  return 0;
+}
+
+static double InnerProd (void *vx, void *vy)
+{
+  double dot = 0.0, *x, *y, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
+  {
+    dot += (*x) * (*y);
+  }
+
+#if MPI
+  double val = dot;
+  MPI_Allreduce (&val, &dot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  return dot;
+}
+
+static int CopyVector (void *vx, void *vy)
+{
+  double *x, *y, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
+  {
+    (*y) = (*x);
+  }
+
+  return 0;
+}
+
+static int ClearVector (void *vx)
+{
+  double *x, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n; x < z; x ++)
+  {
+    (*x) = 0.0;
+  }
+
+  return 0;
+}
+
+static int ScaleVector (double alpha, void *vx)
+{
+  double *x, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n; x < z; x ++)
+  {
+    (*x) *= alpha;
+  }
+
+  return 0;
+}
+
+static int  Axpy (double alpha, void *vx, void *vy )
+{
+  double *x, *y, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
+  {
+    (*y) += alpha * (*x);
+  }
+
+  return 0;
+}
+
+static int PrecondSetup (void *vdata, void *A, void *vb, void *vx)
+{
+  return 0;
+}
+
+static int Precond (void *vdata, void *A, void *vb, void *vx)
+{
+  return CopyVector (vb, vx);
+}
+
+static void right_hand_side (SET *subset, double *b)
 {
   double *y, *B, *W, *R;
   SET *item;
@@ -254,7 +308,7 @@ static void update_right_hand_side (DOM *dom, SET *subset, int basenum, double *
   {
     con = item->data;
     dia = con->dia;
-    y = &b [(con->num - basenum) * 3];
+    y = &b [3 * con->num];
     B = dia->B;
     COPY (B, y);
 
@@ -271,7 +325,7 @@ static void update_right_hand_side (DOM *dom, SET *subset, int basenum, double *
 #if MPI
     for (blk = dia->adjext; blk; blk = blk->n)
     {
-      con = ((CON*)blk->dia);
+      con = CON (blk->dia);
       if (con->kind != GLUEPNT)
       {
 	W = blk->W;
@@ -280,34 +334,20 @@ static void update_right_hand_side (DOM *dom, SET *subset, int basenum, double *
       }
     }
 #endif
+    SCALE (y, -1.0);
   }
 }
 
 /* create gluing solver */
 GLUE* GLUE_Create (LOCDYN *ldy)
 {
-  int i, j, k, l, n, ncon;
+  DOM *dom = ldy->dom;
   GLUE *glu;
-  SET *jtem;
-  MAP *item;
-  DIAB *dia;
-  OFFB *blk;
   CON *con;
-  DOM *dom;
-  MEM mem;
-#if MPI
-  int *diacnt, /* this-processor column counts per row */
-      *offcnt; /* off-processor column counts per row */
-#endif
 
-  dom = ldy->dom;
-    
   ERRMEM (glu = MEM_CALLOC (sizeof (GLUE)));
-  glu->basenum = 0;
+  MEM_Init (&glu->setmem, sizeof (SET), 256);
   glu->ldy = ldy;
-
-  MEM_Init (&glu->mapmem, sizeof (int [3]), MEMBLK);
-  MEM_Init (&glu->setmem, sizeof (SET), MEMBLK);
 
   /* collect gluing constraints */
   for (con = dom->con; con; con = con->next)
@@ -317,642 +357,116 @@ GLUE* GLUE_Create (LOCDYN *ldy)
       SET_Insert (&glu->setmem, &glu->subset, con, NULL);
     }
   }
-  ncon = SET_Size (glu->subset);
 
-  /* gluing constraints numbering */
-  DOM_Number_Constraints (dom, 0, glu->subset);
+  /* gluing constraints local numbering */
+  DOM_Number_Constraints (dom, 1, glu->subset);
 
-  /* matrix structure */
+  /* unknown and right hand size */
+  glu->x = newvect (3 * SET_Size (glu->subset));
+  glu->b = CreateVector (glu->x);
+
+  /* create PCG solver */
+  glu->pcg_functions = hypre_PCGFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, DestroyVector, MatvecCreate,
+    Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
+  glu->pcg_vdata = hypre_PCGCreate (glu->pcg_functions);
+
 #if MPI
-  MAP **prow; /* create row mapping in DIAB->map and OFFB->map */
+  /* communication pattern */
+  SET *item, *jtem;
+  int i, *j, *k, n;
+  COMDATA *d;
+  double **r;
 
-  /* first constraint number */
-  if (glu->subset)
+  for (item = SET_First (glu->subset); item; item = SET_Next (item))
   {
-    jtem = SET_First (glu->subset);
-    con = jtem->data;
-    glu->basenum = con->num;
-  }
-
-  /* allocate colum blocks mapping */
-  ERRMEM (diacnt = MEM_CALLOC (ncon * sizeof (int [3])));
-  ERRMEM (offcnt = MEM_CALLOC (ncon * sizeof (int [3])));
-  ERRMEM (prow = MEM_CALLOC (ncon * sizeof (MAP*)));
-  MEM_Init (&mem, sizeof (MAP), MEMBLK);
-
-  /* map colum blocks */
-  for (jtem = SET_First (glu->subset); jtem; jtem = SET_Next (jtem))
-  {
-    int col, row, *map;
-
-    con = jtem->data;
-    dia = con->dia;
-
-    col = con->num;
-    row = col - glu->basenum; /* use relative numbering for rows */
-    ASSERT_DEBUG (!MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Diagonal block mapped twice");
-    ERRMEM (map = MEM_Alloc (&glu->mapmem));
-    ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL)); /* '+1' not to confuse with NULL */
-
-    for (i = k = row * 3, j = k + 3; i < j; i ++) diacnt [i] = 3; /* diagonal blocks contribute 3 this-processor columns */
-
-    for (blk = dia->adj; blk; blk = blk->n)
+    con = item->data;
+    for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem))
     {
-      con = blk->dia->con;
-
-      if (con->kind == GLUEPNT) /* include only gluing adjacency */
-      {
-	col = con->num;
-
-	if (!MAP_Find (prow [row], (void*) (long) (col+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
-	{
-	  ERRMEM (map = MEM_Alloc (&glu->mapmem));
-	  ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL));
-
-	  for (i = k; i < j; i ++) diacnt [i] += 3; /* off-diagonal local blocks contribute 3 this-processor columns */
-	}
-      }
-    }
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      con = ((CON*)blk->dia);
-
-      if (con->kind == GLUEPNT) /* include only gluing adjacency */
-      {
-	col = con->num; /* external constraint */
-
-	if (!MAP_Find (prow [row], (void*) (long) (col+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
-	{
-	  ERRMEM (map = MEM_Alloc (&glu->mapmem));
-	  ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL));
-
-	  for (i = k; i < j; i ++) offcnt [i] += 3; /* off-diagonal external blocks contribute 3 off-processor columns */
-	}
-      }
+      glu->nsend ++;
     }
   }
 
-  for (j = 0, glu->nnz = 0; j < ncon; j ++)
+  ERRMEM (glu->send = MEM_CALLOC (glu->nsend * sizeof (COMDATA)));
+  d = glu->send;
+
+  for (item = SET_First (glu->subset); item; item = SET_Next (item))
   {
-    glu->nnz += 9 * MAP_Size (prow [j]); /* number of nonzeros */
-  }
-  glu->dim = ncon * 3; /* system dimension */
-
-  /* eallocate compressed column storage */
-  ERRMEM (glu->a = MEM_CALLOC (sizeof (double) * glu->nnz));
-  ERRMEM (glu->cols = malloc (sizeof (int) * glu->nnz));
-  ERRMEM (glu->rows = MEM_CALLOC (sizeof (int) * (glu->dim+1))); /* '+ 1' as there is cols[0] == 0 always */
-
-  int *rows = glu->rows,
-      *cols = glu->cols,
-      *aux;
-
-  ERRMEM (aux = malloc (sizeof (int) * glu->dim));
-
-  /* set up rows sizes */
-  for (j = 0; j < ncon; j ++)
-  {
-    n = 3 * MAP_Size (prow [j]);
-
-    rows [3*j+1] = n; /* '+1' so that rows[0] == 0 */
-    rows [3*j+2] = n;
-    rows [3*j+3] = n;
-  }
-
-  /* compute rows pointers */
-  for (n = 1; n <= glu->dim; n ++)
-  {
-    rows [n] += rows [n-1];
-    aux [n-1] = rows [n-1]; /* initialize aux with cols  */
-  }
-
-  ASSERT_DEBUG (rows [glu->dim] == glu->nnz, "Inconsistent sparse storage");
-
-  /* set up column pointers */
-  for (j = 0; j < ncon; j ++)
-  {
-    for (item = MAP_First (prow [j]); item; item = MAP_Next (item))
+    con = item->data;
+    for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem), d ++)
     {
-      k = 3 * (((int) (long) item->key) - 1); /* base column block index (-1 as keys == col+1) */
-
-      int *map = item->data;
-
-      ASSERT_DEBUG (map [0] == 0 && map [1] == 0 && map [2] == 0, "Reusing the same map triplet: %d, %d, %d", map [0], map [1], map [2]);
-
-      for (n = 0; n < 3; n ++) map [n] = aux [3*j+n]; /* set column blocks map */
-
-      for (n = 0; n < 3; n ++) /* for each row block sub-row */
-      {
-	for (l = aux [3*j+n], i = 0; i < 3; i ++) /* for each column block sub-column */
-	{
-	  cols [l + i] = k + i; /* set up column index */
-	}
-	aux [3*j+n] += 3; /* increment relative column pointers */
-      }
+      d->rank = (int) (long) jtem->data;
+      d->doubles = 3;
+      d->ints = 1;
+      d->d = &vect (glu->x)->x [3*con->num];
+      d->i = (int*) &con->id;
     }
   }
 
-  /* assign sparse row maps to blocks */
-  for (jtem = SET_First (glu->subset); jtem; jtem = SET_Next (jtem))
+  glu->pattern = COMALL_Pattern (MPI_COMM_WORLD, glu->send, glu->nsend, &glu->recv, &glu->nrecv);
+
+  COMALL_Repeat (glu->pattern);
+
+  /* map received reaction pointers */
+  for (i = n = 0, d = glu->recv; i < glu->nrecv; i ++, d ++)
   {
-    int col, row;
-
-    con = jtem->data;
-    dia = con->dia;
-
-    col = dia->con->num;
-    row = col - glu->basenum; /* use relative numbering for rows */
-
-    ASSERT_DEBUG_EXT (dia->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
-
-    for (blk = dia->adj; blk; blk = blk->n)
+    for (j = d->i, k = j + d->ints; j < k; j ++)
     {
-      con = blk->dia->con;
-      if (con->kind == GLUEPNT)
-      {
-	col = con->num;
-	ASSERT_DEBUG_EXT (blk->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
-      }
-    }
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      con = ((CON*)blk->dia);
-      if (con->kind == GLUEPNT)
-      {
-	col = con->num;
-	ASSERT_DEBUG_EXT (blk->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
-      }
+      n ++;
     }
   }
 
-  /* free auxiliary space */
-  MEM_Release (&mem);
-  free (prow);
-  free (aux);
-#else
-  MAP **pcol;
+  ERRMEM (glu->R = MEM_CALLOC (n * sizeof (double*)));
+  r = glu->R;
 
-  /* allocate colum blocks mapping */
-  ERRMEM (pcol = MEM_CALLOC (ncon * sizeof (MAP*)));
-  MEM_Init (&mem, sizeof (MAP), MEMBLK);
-
-  /* map colum blocks */
-  for (jtem = SET_First (glu->subset); jtem; jtem = SET_Next (jtem))
+  for (i = 0, d = glu->recv; i < glu->nrecv; i ++, d ++)
   {
-    int col, row, *map;
-
-    con = jtem->data;
-    dia = con->dia;
-
-    col = row = con->num;
-    ASSERT_DEBUG (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Diagonal block mapped twice");
-    ERRMEM (map = MEM_Alloc (&glu->mapmem));
-    ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL)); /* '+1' not to confuse with NULL */
-
-    for (blk = dia->adj; blk; blk = blk->n)
+    for (j = d->i, k = j + d->ints; j < k; j ++, r ++)
     {
-      con = blk->dia->con;
-      if (con->kind == GLUEPNT) /* include only gluing adjacency */
-      {
-	col = con->num;
-
-	if (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
-	{
-	  ERRMEM (map = MEM_Alloc (&glu->mapmem));
-	  ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL));
-	}
-      }
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid contact id");
+      (*r) = con->R;
     }
   }
-
-  for (j = 0, glu->nnz = 0; j < ncon; j ++)
-  {
-    glu->nnz += 9 * MAP_Size (pcol [j]); /* number of nonzeros */
-  }
-  glu->dim = ncon * 3; /* system dimension */
-
-  /* eallocate compressed column storage */
-  ERRMEM (glu->a = MEM_CALLOC (sizeof (double) * glu->nnz));
-  ERRMEM (glu->rows = malloc (sizeof (int) * glu->nnz));
-  ERRMEM (glu->cols = MEM_CALLOC (sizeof (int) * (glu->dim+1))); /* '+ 1' as there is cols[0] == 0 always */
-
-  int *rows = glu->rows,
-      *cols = glu->cols,
-      *aux;
-
-  ERRMEM (aux = malloc (sizeof (int) * glu->dim));
-
-  /* set up column sizes */
-  for (j = 0; j < ncon; j ++)
-  {
-    n = 3 * MAP_Size (pcol [j]);
-
-    cols [3*j+1] = n; /* '+1' so that cols[0] == 0 */
-    cols [3*j+2] = n;
-    cols [3*j+3] = n;
-  }
-
-  /* compute column pointers */
-  for (n = 1; n <= glu->dim; n ++)
-  {
-    cols [n] += cols [n-1];
-    aux [n-1] = cols [n-1]; /* initialize aux with cols  */
-  }
-
-  ASSERT_DEBUG (cols [glu->dim] == glu->nnz, "Inconsistent sparse storage");
-
-  /* set up row pointers */
-  for (j = 0; j < ncon; j ++)
-  {
-    for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
-    {
-      k = 3 * (((int) (long) item->key) - 1); /* base row block index (-1 as keys == row+1) */
-
-      int *map = item->data;
-
-      ASSERT_DEBUG (map [0] == 0 && map [1] == 0 && map [2] == 0, "Reusing the same map triplet: %d, %d, %d", map [0], map [1], map [2]);
-
-      for (n = 0; n < 3; n ++) map [n] = aux [3*j+n]; /* set row blocks map */
-
-      for (n = 0; n < 3; n ++) /* for each column block sub-column */
-      {
-	for (l = aux [3*j+n], i = 0; i < 3; i ++) /* for each row block sub-row */
-	{
-	  rows [l + i] = k + i; /* set up row index */
-	}
-	aux [3*j+n] += 3; /* increment relative row pointers */
-      }
-    }
-  }
-
-  /* assign sparse column maps to blocks */
-  for (jtem = SET_First (glu->subset); jtem; jtem = SET_Next (jtem))
-  {
-    int col, row;
-
-    con = jtem->data;
-    dia = con->dia;
-
-    col = row = con->num;
-
-    ASSERT_DEBUG_EXT (dia->map = MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Inconsistent sparse storage");
-
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      con = blk->dia->con;
-      if (con->kind == GLUEPNT)
-      {
-	col = con->num;
-
-	ASSERT_DEBUG_EXT (blk->map = MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Inconsistent sparse storage");
-      }
-    }
-  }
-
-  /* free auxiliary space */
-  MEM_Release (&mem);
-  free (pcol);
-  free (aux);
 #endif
 
-  /* right hand side */
-  ERRMEM (glu->b = MEM_CALLOC (sizeof (double) * glu->dim));
-
-  /* solution vector */
-  ERRMEM (glu->x = MEM_CALLOC (sizeof (double) * glu->dim));
-
-  /* linear solver */
-#if MPI
-  MPI_Group allcpus, nonzero;
-  int *nconall, *ranks;
-  HYPRE_DATA *hyp;
-
-  ERRMEM (ranks = MEM_CALLOC (sizeof (int [dom->ncpu])));
-  ERRMEM (nconall = MEM_CALLOC (sizeof (int [dom->ncpu])));
-  ERRMEM (hyp = MEM_CALLOC (sizeof (HYPRE_DATA)));
-  glu->hyp = hyp;
-
-  /* gather numbers of constraints from all subdomains */
-  MPI_Allgather (&ncon, 1, MPI_INT, nconall, 1, MPI_INT, MPI_COMM_WORLD);
-  for (i = j = 0; i < dom->ncpu; i ++)
-  {
-    if (nconall [i]) ranks [j ++] = i;
-  }
-
-  /* create a group of processorss with nonzero constraint counts */
-  MPI_Comm_group (MPI_COMM_WORLD, &allcpus);
-  MPI_Group_incl (allcpus, j, ranks, &nonzero);
-
-  /* create HYPRE communicator */
-  MPI_Comm_create (MPI_COMM_WORLD, nonzero, &hyp->comm);
-
-  /* clean */
-  free (ranks);
-  free (nconall);
-
-  if (glu->subset) /* there are some constraints here */
-  {
-    hyp->ilower = glu->basenum * 3;
-    hyp->iupper = hyp->ilower + ncon * 3 - 1;
-    hyp->jlower = hyp->ilower;
-    hyp->jupper = hyp->iupper;
-    ERRMEM (hyp->ncols = malloc (sizeof (int [glu->dim])));
-    ERRMEM (hyp->rows = malloc (sizeof (int [glu->dim])));
-    for (j = 0, k = hyp->ilower; j < glu->dim; j ++, k ++)
-    {
-      hyp->ncols [j] = glu->rows [j+1] - glu->rows [j];
-      hyp->rows [j] = k;
-    }
-  }
-
-  if (hyp->comm != MPI_COMM_NULL) /* skip empty constraints set case */
-  {
-    /* create distributed matrix */
-    HYPRE_IJMatrixCreate (hyp->comm, hyp->ilower, hyp->iupper, hyp->jlower, hyp->jupper, &hyp->A);
-    HYPRE_IJMatrixSetObjectType (hyp->A, HYPRE_PARCSR);
-
-    /* initialize row sizes and per/off-processor column counts to improve assembly efficiency */
-    HYPRE_IJMatrixSetRowSizes (hyp->A, hyp->ncols);
-    HYPRE_IJMatrixSetDiagOffdSizes (hyp->A, diacnt, offcnt);
-    free (diacnt);
-    free (offcnt);
-
-    /* prepare A */
-    write_system_matrix (dom, glu->subset, glu->a);
-
-    /* A */
-    HYPRE_IJMatrixInitialize (hyp->A);
-    HYPRE_IJMatrixSetValues (hyp->A, glu->dim, hyp->ncols, hyp->rows, glu->cols, glu->a);
-    HYPRE_IJMatrixAssemble (hyp->A);
-    HYPRE_IJMatrixGetObject (hyp->A, (void **) &hyp->AP);
-
-    /* b */
-    HYPRE_IJVectorCreate (hyp->comm, hyp->jlower, hyp->jupper, &hyp->B);
-    HYPRE_IJVectorSetObjectType (hyp->B, HYPRE_PARCSR);
-    HYPRE_IJVectorInitialize (hyp->B);
-    HYPRE_IJVectorSetValues (hyp->B, glu->dim, hyp->rows, glu->b);
-    HYPRE_IJVectorAssemble (hyp->B);
-    HYPRE_IJVectorGetObject(hyp->B, (void **) &hyp->BP);
-
-    /* x */
-    HYPRE_IJVectorCreate (hyp->comm, hyp->jlower, hyp->jupper, &hyp->X);
-    HYPRE_IJVectorSetObjectType (hyp->X, HYPRE_PARCSR);
-    HYPRE_IJVectorInitialize (hyp->X);
-    HYPRE_IJVectorSetValues (hyp->X, glu->dim, hyp->rows, glu->x);
-    HYPRE_IJVectorAssemble (hyp->X);
-    HYPRE_IJVectorGetObject(hyp->X, (void **) &hyp->XP);
-  }
-#else
-#if SPQR
-  /* start CHOLMOD */
-  cholmod_l_start (&glu->spqr_c);
-
-  /* allocate A */
-  ERRMEM (glu->spqr_a = MEM_CALLOC (sizeof (cholmod_sparse)));
-  glu->spqr_a->nrow = glu->spqr_a->ncol = glu->dim;
-  glu->spqr_a->nzmax = glu->nnz;
-  glu->spqr_a->p = glu->cols;
-  glu->spqr_a->i = glu->rows;
-  glu->spqr_a->x = glu->a;
-  glu->spqr_a->stype = 0;
-  glu->spqr_a->itype = CHOLMOD_INT;
-  glu->spqr_a->xtype = CHOLMOD_REAL;
-  glu->spqr_a->dtype = CHOLMOD_DOUBLE;
-  glu->spqr_a->sorted = TRUE;
-  glu->spqr_a->packed = TRUE;
-
-  /* allocate b */
-  ERRMEM (glu->spqr_b = MEM_CALLOC (sizeof (cholmod_sparse)));
-  glu->spqr_b->nrow = glu->spqr_b->nzmax = glu->spqr_b->d = glu->dim;
-  glu->spqr_b->ncol = 1;
-  glu->spqr_b->x = glu->b;
-  glu->spqr_b->xtype = CHOLMOD_REAL;
-  glu->spqr_b->dtype = CHOLMOD_DOUBLE;
-#elif UMFPACK
-  ASSERT (umfpack_di_symbolic (glu->dim, glu->dim, glu->cols, glu->rows,
-	  glu->a, &glu->symbolic, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
-#else
-  ERRMEM (glu->lss = LSS_Create (glu->dim, glu->a, glu->cols, glu->rows));
-  LSS_Set (glu->lss, LSS_RESTART, 100); /* FIXME: make user adjustable or automatic */
-#endif
-
-  /* prepare A */
-  write_system_matrix (dom, glu->subset, glu->a);
-#endif
-
-  return glu; 
+  return glu;
 }
 
 /* compute gluing reactions */
-void GLUE_Solve (GLUE *glu, double accuracy, int maxiter)
+void GLUE_Solve (GLUE *glu, double abstol, int maxiter)
 {
-  DOM *dom = glu->ldy->dom;
-
-  update_right_hand_side (dom, glu->subset, glu->basenum, glu->b);
-
-#if MPI
-  {
-    HYPRE_DATA *hyp = glu->hyp;
-
-    if (hyp->comm != MPI_COMM_NULL) /* skip empty constraints case */
-    {
-      /* b */
-      HYPRE_IJVectorInitialize (hyp->B);
-      HYPRE_IJVectorSetValues (hyp->B, glu->dim, hyp->rows, glu->b);
-      HYPRE_IJVectorAssemble (hyp->B);
-
-      /* Flexible GMRES with  AMG Preconditioner */
-      {
-	HYPRE_Solver solver;
-
-	/* Create solver */
-	HYPRE_ParCSRFlexGMRESCreate(hyp->comm, &solver);
-
-	/* Set some parameters (See Reference Manual for more parameters) */
-	HYPRE_FlexGMRESSetAbsoluteTol (solver, accuracy); /* conv. absolute tolerance */
-	HYPRE_FlexGMRESSetMaxIter (solver, maxiter); /* max iterations */
-	HYPRE_FlexGMRESSetTol (solver, 0.0); /* conv. tolerance */
-	HYPRE_FlexGMRESSetKDim (solver, 32); /* restart */
-	HYPRE_FlexGMRESSetPrintLevel (solver, 0); /* print solve info */
-	HYPRE_FlexGMRESSetLogging (solver, 1); /* needed to get run info later */
-
-#define PRECND 0
-#define AMG 1
-#define EUCLID 0
-#define PARASAILS 0
-
-#if PRECND
-	HYPRE_Solver precond;
-
-#if AMG
-	/* Now set up the AMG preconditioner and specify any parameters */
-	HYPRE_BoomerAMGCreate (&precond);
-	HYPRE_BoomerAMGSetPrintLevel (precond, 0); /* print amg solution info */
-	HYPRE_BoomerAMGSetCoarsenType (precond, 6);
-	HYPRE_BoomerAMGSetRelaxType (precond, 6); /* Sym G.S./Jacobi hybrid */ 
-	HYPRE_BoomerAMGSetNumSweeps (precond, 2);
-	HYPRE_BoomerAMGSetTol (precond, 0.0); /* conv. tolerance zero */
-	HYPRE_BoomerAMGSetMaxIter (precond, 1); /* do only one iteration! */
-
-	/* Set the FlexGMRES preconditioner */
-	HYPRE_FlexGMRESSetPrecond (solver, (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSolve,
-			    (HYPRE_PtrToSolverFcn) HYPRE_BoomerAMGSetup, precond);
-#elif EUCLID
-	HYPRE_EuclidCreate (hyp->comm, &precond);
-        HYPRE_EuclidSetLevel(precond, 3);
-
-        HYPRE_FlexGMRESSetPrecond (solver, (HYPRE_PtrToSolverFcn) HYPRE_EuclidSolve,
-	    (HYPRE_PtrToSolverFcn) HYPRE_EuclidSetup, precond);
-#elif PARASAILS 
-      HYPRE_ParaSailsCreate(MPI_COMM_WORLD, &precond);
-
-      HYPRE_ParaSailsSetParams (precond, 0.1, 1);
-      HYPRE_ParaSailsSetFilter (precond, 0.1);
-      HYPRE_ParaSailsSetSym (precond, 0);
-      HYPRE_ParaSailsSetLogging (precond, 0);
-
-      HYPRE_FlexGMRESSetPrecond (solver, (HYPRE_PtrToSolverFcn) HYPRE_ParaSailsSolve,
-                          (HYPRE_PtrToSolverFcn) HYPRE_ParaSailsSetup, precond);
-#endif
-#endif
-
-	/* Now setup and solve! */
-	HYPRE_ParCSRFlexGMRESSetup (solver, hyp->AP, hyp->BP, hyp->XP);
-	HYPRE_ParCSRFlexGMRESSolve (solver, hyp->AP, hyp->BP, hyp->XP);
-
-	/* Run info - needed logging turned on */
-	HYPRE_FlexGMRESGetNumIterations (solver, &glu->iters);
-	HYPRE_FlexGMRESGetFinalRelativeResidualNorm (solver, &glu->resnorm);
-
-	/* Destory solver and preconditioner */
-	HYPRE_ParCSRFlexGMRESDestroy (solver);
-#if PRECND
-#if AMG
-	HYPRE_BoomerAMGDestroy (precond);
-#elif EUCLID
-	HYPRE_EuclidDestroy (precond);
-#elif PARASAILS
-      HYPRE_ParaSailsDestroy (precond);
-#endif
-#endif
-      }
-
-      /* x */
-      HYPRE_IJVectorGetValues (hyp->X, glu->dim, hyp->rows, glu->x);
-    }
-  }
-#else
-#if SPQR
-  {
-    /* x = A\b */
-    cholmod_dense *x = SuiteSparseQR_C_backslash_default (glu->spqr_a, glu->spqr_b, &glu->spqr_c);
-    blas_dcopy (glu->dim, x->x, 1, glu->x, 1);
-    cholmod_l_free_dense (&x, &glu->spqr_c) ;
-
-    /* stats */
-    glu->resnorm = 0.0;
-    glu->iters = 0;
-  }
-#elif UMFPACK
-  {
-    /* x = A\b */
-    void *numeric;
-    ASSERT (umfpack_di_numeric (glu->cols, glu->rows, glu->a, glu->symbolic, &numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
-    ASSERT (umfpack_di_solve (UMFPACK_A, glu->cols, glu->rows, glu->a, glu->x, glu->b, numeric, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
-    umfpack_di_free_numeric (&numeric);
-
-    /* stats */
-    glu->resnorm = 0.0;
-    glu->iters = 0;
-  }
-#else
-  {
-    /* x = A\b */
-    LSS_Set (glu->lss, LSS_ABSOLUTE_ACCURACY, accuracy);
-    LSS_Set (glu->lss, LSS_ITERATIONS_BOUND, maxiter);
-    LSS_Set (glu->lss, LSS_RELATIVE_ACCURACY, 1.0);
-    LSS_Set (glu->lss, LSS_NORMALIZE_ROWS, 0);
-#if 0
-    LSS_Set (glu->lss, LSS_PRECONDITIONER, 3);
-    LSS_Set (glu->lss, LSS_DECIMATION, 16);
-    LSS_Set (glu->lss, LSS_SMOOTHING_STEPS, 5);
-#endif
-    if (LSS_Solve (glu->lss, glu->a, glu->x, glu->b) != LSSERR_NONE)
-    {
-      fprintf (stderr, "WARNING: LSS failed with message: %s\n", LSS_Errmsg (glu->lss));
-    }
-
-    /* stats */
-    //FIXME: invalid write
-    //glu->resnorm = LSS_Get (glu->lss, LSS_ABSOLUTE_ERROR);
-    //glu->iters = LSS_Get (glu->lss, LSS_ITERATIONS);
-  }
-#endif
-#endif
-
-  double *x;
+  double *x, *z, *R;
   SET *item;
   CON *con;
 
-  /* write R, U */
-  for (item = SET_First (glu->subset), x = glu->x; item; item = SET_Next (item), x += 3)
+  right_hand_side (glu->subset, glu->b->x);
+
+  hypre_PCGSetTol (glu->pcg_vdata, 0.0);
+  hypre_PCGSetMaxIter (glu->pcg_vdata, maxiter);
+  hypre_PCGSetAbsoluteTol (glu->pcg_vdata, abstol);
+  hypre_PCGSetup (glu->pcg_vdata, glu, glu->b, glu->x);
+  hypre_PCGSolve (glu->pcg_vdata, glu, glu->b, glu->x);
+
+  for (item = SET_First (glu->subset), x = vect (glu->x)->x; item; item = SET_Next (item))
   {
     con = item->data;
-
-    double *U = con->U,
-	   *R = con->R,
-	    K = -glue_stiffness (con, dom->step);
-
-    COPY (x, U);
-    MUL (U, K, R);
+    z = &x [3*con->num];
+    R = con->R;
+    COPY (z, R);
   }
-
-#if MPI
-  /* update external gluing R */
-  DOM_Update_External_Reactions (dom, 0); /* FIXME: should be on glu->subset only */
-#endif
 }
 
 /* destroy gluing solver */
 void GLUE_Destroy (GLUE *glu)
 {
-  MEM_Release (&glu->mapmem);
   MEM_Release (&glu->setmem);
-
-  free (glu->a);
-  free (glu->x);
-  free (glu->b);
-  free (glu->rows);
-  free (glu->cols);
-
-#if SPQR
-  cholmod_l_finish (&glu->spqr_c);
-  free (glu->spqr_a);
-  free (glu->spqr_b);
-#elif UMFPACK
-  umfpack_di_free_symbolic (&glu->symbolic);
-#else
-  LSS_Destroy (glu->lss);
+  DestroyVector (glu->x);
+  DestroyVector (glu->b);
+  hypre_PCGDestroy (glu->pcg_vdata);
+#if MPI
+  COMALL_Free (glu->pattern);
+  free (glu->send);
+  free (glu->recv);
+  free (glu->R);
 #endif
-
-#if  MPI
-  if (glu->hyp)
-  {
-    HYPRE_DATA *hyp = glu->hyp;
-
-    if (hyp->comm != MPI_COMM_NULL) /* skip empty constraints set case */
-    {
-      HYPRE_IJMatrixDestroy (hyp->A);
-      HYPRE_IJVectorDestroy (hyp->B);
-      HYPRE_IJVectorDestroy (hyp->X);
-      MPI_Comm_free (&hyp->comm);
-    }
-
-    free (hyp->ncols);
-    free (hyp->rows);
-    free (hyp);
-  }
-#endif
-
   free (glu);
 }
