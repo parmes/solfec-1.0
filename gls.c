@@ -123,6 +123,10 @@ void GLUING_Solve (GLUING *gl, LOCDYN *ldy)
 
     GLUE_Solve (glue, 1E-5, 100);
 
+#if MPI
+    DOM_Update_External_Reactions (ldy->dom, 0);
+#endif
+
     if (iters % div == 0 && verbose) printf (fmt, iters, error, merit), div *= 2;
   }
   while (++ iters < maxiter && (error > epsilon || merit > meritval));

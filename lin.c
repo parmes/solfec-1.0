@@ -19,6 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#define OLDCODE 0
+
+#if OLDCODE 
+
 #if MPI
 #include <HYPRE_parcsr_mv.h>
 #include <HYPRE_parcsr_ls.h>
@@ -121,6 +125,468 @@ struct linsys
 #define RN(con) ((con)->Y+7) [0]
 #define S(con) ((con)->Y+3)
 #define FRI(con) ((con)->Y+6) [0]
+
+#if 0
+/* create gluing solver */
+GLUE* GLUE_Create (LOCDYN *ldy)
+{
+  int i, j, k, l, n, ncon;
+  GLUE *glu;
+  SET *jtem;
+  MAP *item;
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+  DOM *dom;
+  MEM mem;
+#if MPI
+  int *diacnt, /* this-processor column counts per row */
+      *offcnt; /* off-processor column counts per row */
+#endif
+
+  dom = ldy->dom;
+    
+  ERRMEM (glu = MEM_CALLOC (sizeof (GLUE)));
+  glu->basenum = 0;
+  glu->ldy = ldy;
+
+  MEM_Init (&glu->mapmem, sizeof (int [3]), MEMBLK);
+  MEM_Init (&glu->setmem, sizeof (SET), MEMBLK);
+
+  /* collect gluing constraints */
+  for (con = dom->con; con; con = con->next)
+  {
+    if (con->kind == GLUEPNT)
+    {
+      SET_Insert (&glu->setmem, &glu->subset, con, NULL);
+    }
+  }
+  ncon = SET_Size (glu->subset);
+
+  /* gluing constraints numbering */
+  DOM_Number_Constraints (dom, 0, glu->subset);
+
+  /* matrix structure */
+#if MPI
+  MAP **prow; /* create row mapping in DIAB->map and OFFB->map */
+
+  /* first constraint number */
+  if (glu->subset)
+  {
+    jtem = SET_First (glu->subset);
+    con = jtem->data;
+    glu->basenum = con->num;
+  }
+
+  /* allocate colum blocks mapping */
+  ERRMEM (diacnt = MEM_CALLOC (ncon * sizeof (int [3])));
+  ERRMEM (offcnt = MEM_CALLOC (ncon * sizeof (int [3])));
+  ERRMEM (prow = MEM_CALLOC (ncon * sizeof (MAP*)));
+  MEM_Init (&mem, sizeof (MAP), MEMBLK);
+
+  /* map colum blocks */
+  for (jtem = SET_First (glu->subset); jtem; jtem = SET_Next (jtem))
+  {
+    int col, row, *map;
+
+    con = jtem->data;
+    dia = con->dia;
+
+    col = con->num;
+    row = col - glu->basenum; /* use relative numbering for rows */
+    ASSERT_DEBUG (!MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Diagonal block mapped twice");
+    ERRMEM (map = MEM_Alloc (&glu->mapmem));
+    ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL)); /* '+1' not to confuse with NULL */
+
+    for (i = k = row * 3, j = k + 3; i < j; i ++) diacnt [i] = 3; /* diagonal blocks contribute 3 this-processor columns */
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      con = blk->dia->con;
+
+      if (con->kind == GLUEPNT) /* include only gluing adjacency */
+      {
+	col = con->num;
+
+	if (!MAP_Find (prow [row], (void*) (long) (col+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
+	{
+	  ERRMEM (map = MEM_Alloc (&glu->mapmem));
+	  ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL));
+
+	  for (i = k; i < j; i ++) diacnt [i] += 3; /* off-diagonal local blocks contribute 3 this-processor columns */
+	}
+      }
+    }
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = ((CON*)blk->dia);
+
+      if (con->kind == GLUEPNT) /* include only gluing adjacency */
+      {
+	col = con->num; /* external constraint */
+
+	if (!MAP_Find (prow [row], (void*) (long) (col+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
+	{
+	  ERRMEM (map = MEM_Alloc (&glu->mapmem));
+	  ERRMEM (MAP_Insert (&mem, &prow [row], (void*) (long) (col+1), map, NULL));
+
+	  for (i = k; i < j; i ++) offcnt [i] += 3; /* off-diagonal external blocks contribute 3 off-processor columns */
+	}
+      }
+    }
+  }
+
+  for (j = 0, glu->nnz = 0; j < ncon; j ++)
+  {
+    glu->nnz += 9 * MAP_Size (prow [j]); /* number of nonzeros */
+  }
+  glu->dim = ncon * 3; /* system dimension */
+
+  /* eallocate compressed column storage */
+  ERRMEM (glu->a = MEM_CALLOC (sizeof (double) * glu->nnz));
+  ERRMEM (glu->cols = malloc (sizeof (int) * glu->nnz));
+  ERRMEM (glu->rows = MEM_CALLOC (sizeof (int) * (glu->dim+1))); /* '+ 1' as there is cols[0] == 0 always */
+
+  int *rows = glu->rows,
+      *cols = glu->cols,
+      *aux;
+
+  ERRMEM (aux = malloc (sizeof (int) * glu->dim));
+
+  /* set up rows sizes */
+  for (j = 0; j < ncon; j ++)
+  {
+    n = 3 * MAP_Size (prow [j]);
+
+    rows [3*j+1] = n; /* '+1' so that rows[0] == 0 */
+    rows [3*j+2] = n;
+    rows [3*j+3] = n;
+  }
+
+  /* compute rows pointers */
+  for (n = 1; n <= glu->dim; n ++)
+  {
+    rows [n] += rows [n-1];
+    aux [n-1] = rows [n-1]; /* initialize aux with cols  */
+  }
+
+  ASSERT_DEBUG (rows [glu->dim] == glu->nnz, "Inconsistent sparse storage");
+
+  /* set up column pointers */
+  for (j = 0; j < ncon; j ++)
+  {
+    for (item = MAP_First (prow [j]); item; item = MAP_Next (item))
+    {
+      k = 3 * (((int) (long) item->key) - 1); /* base column block index (-1 as keys == col+1) */
+
+      int *map = item->data;
+
+      ASSERT_DEBUG (map [0] == 0 && map [1] == 0 && map [2] == 0, "Reusing the same map triplet: %d, %d, %d", map [0], map [1], map [2]);
+
+      for (n = 0; n < 3; n ++) map [n] = aux [3*j+n]; /* set column blocks map */
+
+      for (n = 0; n < 3; n ++) /* for each row block sub-row */
+      {
+	for (l = aux [3*j+n], i = 0; i < 3; i ++) /* for each column block sub-column */
+	{
+	  cols [l + i] = k + i; /* set up column index */
+	}
+	aux [3*j+n] += 3; /* increment relative column pointers */
+      }
+    }
+  }
+
+  /* assign sparse row maps to blocks */
+  for (jtem = SET_First (glu->subset); jtem; jtem = SET_Next (jtem))
+  {
+    int col, row;
+
+    con = jtem->data;
+    dia = con->dia;
+
+    col = dia->con->num;
+    row = col - glu->basenum; /* use relative numbering for rows */
+
+    ASSERT_DEBUG_EXT (dia->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      con = blk->dia->con;
+      if (con->kind == GLUEPNT)
+      {
+	col = con->num;
+	ASSERT_DEBUG_EXT (blk->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
+      }
+    }
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = ((CON*)blk->dia);
+      if (con->kind == GLUEPNT)
+      {
+	col = con->num;
+	ASSERT_DEBUG_EXT (blk->map = MAP_Find (prow [row], (void*) (long) (col+1), NULL), "Inconsistent sparse storage");
+      }
+    }
+  }
+
+  /* free auxiliary space */
+  MEM_Release (&mem);
+  free (prow);
+  free (aux);
+#else
+  MAP **pcol;
+
+  /* allocate colum blocks mapping */
+  ERRMEM (pcol = MEM_CALLOC (ncon * sizeof (MAP*)));
+  MEM_Init (&mem, sizeof (MAP), MEMBLK);
+
+  /* map colum blocks */
+  for (jtem = SET_First (glu->subset); jtem; jtem = SET_Next (jtem))
+  {
+    int col, row, *map;
+
+    con = jtem->data;
+    dia = con->dia;
+
+    col = row = con->num;
+    ASSERT_DEBUG (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Diagonal block mapped twice");
+    ERRMEM (map = MEM_Alloc (&glu->mapmem));
+    ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL)); /* '+1' not to confuse with NULL */
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      con = blk->dia->con;
+      if (con->kind == GLUEPNT) /* include only gluing adjacency */
+      {
+	col = con->num;
+
+	if (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
+	{
+	  ERRMEM (map = MEM_Alloc (&glu->mapmem));
+	  ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL));
+	}
+      }
+    }
+  }
+
+  for (j = 0, glu->nnz = 0; j < ncon; j ++)
+  {
+    glu->nnz += 9 * MAP_Size (pcol [j]); /* number of nonzeros */
+  }
+  glu->dim = ncon * 3; /* system dimension */
+
+  /* eallocate compressed column storage */
+  ERRMEM (glu->a = MEM_CALLOC (sizeof (double) * glu->nnz));
+  ERRMEM (glu->rows = malloc (sizeof (int) * glu->nnz));
+  ERRMEM (glu->cols = MEM_CALLOC (sizeof (int) * (glu->dim+1))); /* '+ 1' as there is cols[0] == 0 always */
+
+  int *rows = glu->rows,
+      *cols = glu->cols,
+      *aux;
+
+  ERRMEM (aux = malloc (sizeof (int) * glu->dim));
+
+  /* set up column sizes */
+  for (j = 0; j < ncon; j ++)
+  {
+    n = 3 * MAP_Size (pcol [j]);
+
+    cols [3*j+1] = n; /* '+1' so that cols[0] == 0 */
+    cols [3*j+2] = n;
+    cols [3*j+3] = n;
+  }
+
+  /* compute column pointers */
+  for (n = 1; n <= glu->dim; n ++)
+  {
+    cols [n] += cols [n-1];
+    aux [n-1] = cols [n-1]; /* initialize aux with cols  */
+  }
+
+  ASSERT_DEBUG (cols [glu->dim] == glu->nnz, "Inconsistent sparse storage");
+
+  /* set up row pointers */
+  for (j = 0; j < ncon; j ++)
+  {
+    for (item = MAP_First (pcol [j]); item; item = MAP_Next (item))
+    {
+      k = 3 * (((int) (long) item->key) - 1); /* base row block index (-1 as keys == row+1) */
+
+      int *map = item->data;
+
+      ASSERT_DEBUG (map [0] == 0 && map [1] == 0 && map [2] == 0, "Reusing the same map triplet: %d, %d, %d", map [0], map [1], map [2]);
+
+      for (n = 0; n < 3; n ++) map [n] = aux [3*j+n]; /* set row blocks map */
+
+      for (n = 0; n < 3; n ++) /* for each column block sub-column */
+      {
+	for (l = aux [3*j+n], i = 0; i < 3; i ++) /* for each row block sub-row */
+	{
+	  rows [l + i] = k + i; /* set up row index */
+	}
+	aux [3*j+n] += 3; /* increment relative row pointers */
+      }
+    }
+  }
+
+  /* assign sparse column maps to blocks */
+  for (jtem = SET_First (glu->subset); jtem; jtem = SET_Next (jtem))
+  {
+    int col, row;
+
+    con = jtem->data;
+    dia = con->dia;
+
+    col = row = con->num;
+
+    ASSERT_DEBUG_EXT (dia->map = MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Inconsistent sparse storage");
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      con = blk->dia->con;
+      if (con->kind == GLUEPNT)
+      {
+	col = con->num;
+
+	ASSERT_DEBUG_EXT (blk->map = MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Inconsistent sparse storage");
+      }
+    }
+  }
+
+  /* free auxiliary space */
+  MEM_Release (&mem);
+  free (pcol);
+  free (aux);
+#endif
+
+  /* right hand side */
+  ERRMEM (glu->b = MEM_CALLOC (sizeof (double) * glu->dim));
+
+  /* solution vector */
+  ERRMEM (glu->x = MEM_CALLOC (sizeof (double) * glu->dim));
+
+  /* linear solver */
+#if MPI
+  MPI_Group allcpus, nonzero;
+  int *nconall, *ranks;
+  HYPRE_DATA *hyp;
+
+  ERRMEM (ranks = MEM_CALLOC (sizeof (int [dom->ncpu])));
+  ERRMEM (nconall = MEM_CALLOC (sizeof (int [dom->ncpu])));
+  ERRMEM (hyp = MEM_CALLOC (sizeof (HYPRE_DATA)));
+  glu->hyp = hyp;
+
+  /* gather numbers of constraints from all subdomains */
+  MPI_Allgather (&ncon, 1, MPI_INT, nconall, 1, MPI_INT, MPI_COMM_WORLD);
+  for (i = j = 0; i < dom->ncpu; i ++)
+  {
+    if (nconall [i]) ranks [j ++] = i;
+  }
+
+  /* create a group of processorss with nonzero constraint counts */
+  MPI_Comm_group (MPI_COMM_WORLD, &allcpus);
+  MPI_Group_incl (allcpus, j, ranks, &nonzero);
+
+  /* create HYPRE communicator */
+  MPI_Comm_create (MPI_COMM_WORLD, nonzero, &hyp->comm);
+
+  /* clean */
+  free (ranks);
+  free (nconall);
+
+  if (glu->subset) /* there are some constraints here */
+  {
+    hyp->ilower = glu->basenum * 3;
+    hyp->iupper = hyp->ilower + ncon * 3 - 1;
+    hyp->jlower = hyp->ilower;
+    hyp->jupper = hyp->iupper;
+    ERRMEM (hyp->ncols = malloc (sizeof (int [glu->dim])));
+    ERRMEM (hyp->rows = malloc (sizeof (int [glu->dim])));
+    for (j = 0, k = hyp->ilower; j < glu->dim; j ++, k ++)
+    {
+      hyp->ncols [j] = glu->rows [j+1] - glu->rows [j];
+      hyp->rows [j] = k;
+    }
+  }
+
+  if (hyp->comm != MPI_COMM_NULL) /* skip empty constraints set case */
+  {
+    /* create distributed matrix */
+    HYPRE_IJMatrixCreate (hyp->comm, hyp->ilower, hyp->iupper, hyp->jlower, hyp->jupper, &hyp->A);
+    HYPRE_IJMatrixSetObjectType (hyp->A, HYPRE_PARCSR);
+
+    /* initialize row sizes and per/off-processor column counts to improve assembly efficiency */
+    HYPRE_IJMatrixSetRowSizes (hyp->A, hyp->ncols);
+    HYPRE_IJMatrixSetDiagOffdSizes (hyp->A, diacnt, offcnt);
+    free (diacnt);
+    free (offcnt);
+
+    /* prepare A */
+    write_system_matrix (dom, glu->subset, glu->a);
+
+    /* A */
+    HYPRE_IJMatrixInitialize (hyp->A);
+    HYPRE_IJMatrixSetValues (hyp->A, glu->dim, hyp->ncols, hyp->rows, glu->cols, glu->a);
+    HYPRE_IJMatrixAssemble (hyp->A);
+    HYPRE_IJMatrixGetObject (hyp->A, (void **) &hyp->AP);
+
+    /* b */
+    HYPRE_IJVectorCreate (hyp->comm, hyp->jlower, hyp->jupper, &hyp->B);
+    HYPRE_IJVectorSetObjectType (hyp->B, HYPRE_PARCSR);
+    HYPRE_IJVectorInitialize (hyp->B);
+    HYPRE_IJVectorSetValues (hyp->B, glu->dim, hyp->rows, glu->b);
+    HYPRE_IJVectorAssemble (hyp->B);
+    HYPRE_IJVectorGetObject(hyp->B, (void **) &hyp->BP);
+
+    /* x */
+    HYPRE_IJVectorCreate (hyp->comm, hyp->jlower, hyp->jupper, &hyp->X);
+    HYPRE_IJVectorSetObjectType (hyp->X, HYPRE_PARCSR);
+    HYPRE_IJVectorInitialize (hyp->X);
+    HYPRE_IJVectorSetValues (hyp->X, glu->dim, hyp->rows, glu->x);
+    HYPRE_IJVectorAssemble (hyp->X);
+    HYPRE_IJVectorGetObject(hyp->X, (void **) &hyp->XP);
+  }
+#else
+#if SPQR
+  /* start CHOLMOD */
+  cholmod_l_start (&glu->spqr_c);
+
+  /* allocate A */
+  ERRMEM (glu->spqr_a = MEM_CALLOC (sizeof (cholmod_sparse)));
+  glu->spqr_a->nrow = glu->spqr_a->ncol = glu->dim;
+  glu->spqr_a->nzmax = glu->nnz;
+  glu->spqr_a->p = glu->cols;
+  glu->spqr_a->i = glu->rows;
+  glu->spqr_a->x = glu->a;
+  glu->spqr_a->stype = 0;
+  glu->spqr_a->itype = CHOLMOD_INT;
+  glu->spqr_a->xtype = CHOLMOD_REAL;
+  glu->spqr_a->dtype = CHOLMOD_DOUBLE;
+  glu->spqr_a->sorted = TRUE;
+  glu->spqr_a->packed = TRUE;
+
+  /* allocate b */
+  ERRMEM (glu->spqr_b = MEM_CALLOC (sizeof (cholmod_sparse)));
+  glu->spqr_b->nrow = glu->spqr_b->nzmax = glu->spqr_b->d = glu->dim;
+  glu->spqr_b->ncol = 1;
+  glu->spqr_b->x = glu->b;
+  glu->spqr_b->xtype = CHOLMOD_REAL;
+  glu->spqr_b->dtype = CHOLMOD_DOUBLE;
+#elif UMFPACK
+  ASSERT (umfpack_di_symbolic (glu->dim, glu->dim, glu->cols, glu->rows,
+	  glu->a, &glu->symbolic, NULL, NULL) == UMFPACK_OK, ERR_UMFPACK_SOLVE);
+#else
+  ERRMEM (glu->lss = LSS_Create (glu->dim, glu->a, glu->cols, glu->rows));
+  LSS_Set (glu->lss, LSS_RESTART, 100); /* FIXME: make user adjustable or automatic */
+#endif
+
+  /* prepare A */
+  write_system_matrix (dom, glu->subset, glu->a);
+#endif
+
+  return glu; 
+}
+#endif
 
 /* forward coordinates change */
 static void variational_coord_change_forward (LINSYS *sys);
@@ -2781,3 +3247,70 @@ void LINSYS_Destroy (LINSYS *sys)
 
   free (sys);
 }
+#else
+
+#include "lin.h"
+
+struct linsys
+{
+  int dummy;
+};
+
+/* create linear system resulting from constraints linearization */
+LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy)
+{
+  return NULL;
+}
+
+/* update linear system at current R and U */
+void LINSYS_Update (LINSYS *sys)
+{
+}
+
+/* solve linear system for reaction increments DR */
+void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter)
+{
+}
+
+/* compute merit function at (R + alpha * DR) */
+double LINSYS_Merit (LINSYS *sys, double alpha)
+{
+  return 0;
+}
+
+/* advance solution R = R + alpha * DR; return |DR|/|R| */ 
+double LINSYS_Advance (LINSYS *sys, double alpha)
+{
+  return 0;
+}
+
+/* test solution of W * x = b, where b = W * [1, 1, ..., 1];
+ * return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
+double LINSYS_Test (LINSYS *sys, double accuracy, int maxiter)
+{
+  return 0;
+}
+
+/* returns 1 if a global system; 0 otherwise */
+int LINSYS_Global (LINSYS *sys)
+{
+  return 0;
+}
+
+/* most recent iterations count */
+int LINSYS_Iters (LINSYS *sys)
+{
+  return 0;
+}
+
+/* most recent residual norm */
+double LINSYS_Resnorm (LINSYS *sys)
+{
+  return 0;
+}
+
+/* destroy linear system */
+void LINSYS_Destroy (LINSYS *sys)
+{
+}
+#endif

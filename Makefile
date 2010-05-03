@@ -96,8 +96,11 @@ OBJMPI = $(EXTO)       \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
 
-solfec: obj/solfec.o obj/libsolfec.a
-	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec $(LIB)
+solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a 
+	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov $(LIB)
+
+obj/libkrylov.a:
+	(cd ext/krylov && make)
 
 obj/libsolfec.a: $(OBJ)
 	ar rcv $@ $(OBJ)
@@ -109,8 +112,8 @@ all: solfec mpi
 
 mpi: solfec-mpi
 
-solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a
-	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi $(LIBMPI)
+solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a 
+	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)

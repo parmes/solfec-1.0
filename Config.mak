@@ -86,5 +86,7 @@ ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
 # HYPRE (MPI == yes)
 #
 
-HYPREINC = -I/Users/tomek/Devel/lib/hypre/include
-HYPRELIB = -L/Users/tomek/Devel/lib/hypre/lib -lHYPRE
+#HYPREINC = -I/Users/tomek/Devel/lib/hypre/include
+#HYPRELIB = -L/Users/tomek/Devel/lib/hypre/lib -lHYPRE
+HYPREINC =
+HYPRELIB =

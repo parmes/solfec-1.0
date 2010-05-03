@@ -30,7 +30,7 @@ typedef struct glue GLUE;
 GLUE* GLUE_Create (LOCDYN *ldy);
 
 /* compute gluing reactions */
-void GLUE_Solve (GLUE *glu, double accuracy, int maxiter);
+void GLUE_Solve (GLUE *glu, double abstol, int maxiter);
 
 /* destroy gluing solver */
 void GLUE_Destroy (GLUE *glu);
