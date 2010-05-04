@@ -94,7 +94,7 @@ NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double merit
 
   ERRMEM (nt = MEM_CALLOC (sizeof (NEWTON)));
 
-  nt->variant = variant;
+  nt->variant = LINEARIZATION_VARIANT (variant);
   nt->epsilon = epsilon;
   nt->maxiter = maxiter;
   nt->meritval = meritval;
@@ -126,7 +126,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   nt->rerhist = realloc (nt->rerhist, nt->maxiter * sizeof (double));
   nt->merhist = realloc (nt->merhist, nt->maxiter * sizeof (double));
 
-  sys = LINSYS_Create (nt->variant, 0, ldy);
+  sys = LINSYS_Create (nt->variant, ldy);
   merit = error = 1.0;
   nt->iters = 0;
 

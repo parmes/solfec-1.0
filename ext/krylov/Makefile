@@ -11,13 +11,14 @@
 #EHEADER**********************************************************************
 
 include ../../Config.mak
+include ../../Flags.mak
 
 AR     = ar -rcu
 RANLIB = ranlib
 
 CINCLUDES = ${INCLUDES} ${MPIINCLUDE}
  
-C_COMPILE_FLAGS = ${CINCLUDES}
+C_COMPILE_FLAGS = ${CINCLUDES} $(DEBUG) $(PROFILE) 
 
 HEADERS =\
  krylov.h\

@@ -32,6 +32,8 @@
 #include "com.h"
 #endif
 
+#define BLOCKS 256
+
 struct vect
 {
   double *x;
@@ -70,6 +72,36 @@ static double glue_stiffness (CON *con)
   return 2.0 / (1.0/a->young + 1.0/b->young);
 }
 
+#if MPI
+static void update_external_reactions (GLUE *glu, double *x)
+{
+  SET *item, *jtem;
+  double **r, *z;
+  int i, *j, *k;
+  COMDATA *d;
+  CON *con;
+
+  for (item = SET_First (glu->subset), d = glu->send; item; item = SET_Next (item))
+  {
+    con = item->data;
+    for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem), d ++)
+    {
+      d->d = &x [3*con->num];
+    }
+  }
+
+  COMALL_Repeat (glu->pattern);
+
+  for (i = 0, d = glu->recv, r = glu->R; i < glu->nrecv; i ++, d ++)
+  {
+    for (j = d->i, k = d->i + d->ints, z = d->d; j < k; j ++, r ++, z += 3)
+    {
+      COPY (z, *r);
+    }
+  }
+}
+#endif
+
 static struct vect* newvect (int n)
 {
   struct vect *v;
@@ -81,6 +113,7 @@ static struct vect* newvect (int n)
   return v;
 }
 
+/* PCG interface start */
 static char* CAlloc (size_t count, size_t elt_size)
 {
   char *ptr;
@@ -99,9 +132,10 @@ static int CommInfo (void *A, int *my_id, int *num_procs)
 {
 #if MPI
   GLUE *glu = (GLUE*)A;
+  DOM *dom = glu->ldy->dom;
 
-  *my_id = glu->ldy->dom->rank;
-  *num_procs = glu->ldy->dom->ncpu;
+  *my_id = dom->rank;
+  *num_procs = dom->ncpu;
 #else
   *my_id = 0;
   *num_procs = 1;
@@ -146,33 +180,9 @@ static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double be
   DIAB *dia;
 
 #if MPI
-  /* update external reactions */
-  int i, *j, *k;
-  double **r;
-  COMDATA *d;
-  SET *jtem;
-
-  for (item = SET_First (glu->subset), d = glu->send; item; item = SET_Next (item))
-  {
-    con = item->data;
-    for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem), d ++)
-    {
-      d->d = &x [3*con->num];
-    }
-  }
-
-  COMALL_Repeat (glu->pattern);
-
-  for (i = 0, d = glu->recv, r = glu->R; i < glu->nrecv; i ++, d ++)
-  {
-    for (j = d->i, k = d->i + d->ints, z = d->d; j < k; j ++, r ++, z += 3)
-    {
-      COPY (z, *r);
-    }
-  }
+  update_external_reactions (glu, x); /* (###) */
 #endif
 
-  /* compute matrix vector product */
   for (item = SET_First (glu->subset); item; item = SET_Next (item), y += 3)
   {
     con = item->data;
@@ -204,7 +214,7 @@ static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double be
       if (con->kind == GLUEPNT)
       {
 	W = blk->W;
-	z = con->R;
+	z = con->R; /* (###) */
 	y [0] += alpha * (W[0]*z[0] + W[3]*z[1] + W[6]*z[2]);
 	y [1] += alpha * (W[1]*z[0] + W[4]*z[1] + W[7]*z[2]);
 	y [2] += alpha * (W[2]*z[0] + W[5]*z[1] + W[8]*z[2]);
@@ -295,8 +305,9 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
 {
   return CopyVector (vb, vx);
 }
+/* PCG interface end */
 
-static void right_hand_side (SET *subset, double *b)
+static void compute_right_hand_side (SET *subset, double *b)
 {
   double *y, *B, *W, *R;
   SET *item;
@@ -344,9 +355,11 @@ GLUE* GLUE_Create (LOCDYN *ldy)
   DOM *dom = ldy->dom;
   GLUE *glu;
   CON *con;
+  int ncon;
 
+  ncon = dom->ncon;
   ERRMEM (glu = MEM_CALLOC (sizeof (GLUE)));
-  MEM_Init (&glu->setmem, sizeof (SET), 256);
+  MEM_Init (&glu->setmem, sizeof (SET), MAX (ncon, BLOCKS));
   glu->ldy = ldy;
 
   /* collect gluing constraints */
@@ -422,7 +435,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
   {
     for (j = d->i, k = j + d->ints; j < k; j ++, r ++)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid contact id");
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid constraint id");
       (*r) = con->R;
     }
   }
@@ -438,7 +451,7 @@ void GLUE_Solve (GLUE *glu, double abstol, int maxiter)
   SET *item;
   CON *con;
 
-  right_hand_side (glu->subset, glu->b->x);
+  compute_right_hand_side (glu->subset, glu->b->x);
 
   hypre_PCGSetTol (glu->pcg_vdata, 0.0);
   hypre_PCGSetMaxIter (glu->pcg_vdata, maxiter);
@@ -446,7 +459,7 @@ void GLUE_Solve (GLUE *glu, double abstol, int maxiter)
   hypre_PCGSetup (glu->pcg_vdata, glu, glu->b, glu->x);
   hypre_PCGSolve (glu->pcg_vdata, glu, glu->b, glu->x);
 
-  for (item = SET_First (glu->subset), x = vect (glu->x)->x; item; item = SET_Next (item))
+  for (item = SET_First (glu->subset), x = glu->x->x; item; item = SET_Next (item))
   {
     con = item->data;
     z = &x [3*con->num];
@@ -454,6 +467,14 @@ void GLUE_Solve (GLUE *glu, double abstol, int maxiter)
     COPY (z, R);
   }
 }
+
+#if MPI
+/* update external gluing reactions */
+void GLUE_Update_External_Reactions (GLUE *glu)
+{
+  update_external_reactions (glu, glu->x->x);
+}
+#endif
 
 /* destroy gluing solver */
 void GLUE_Destroy (GLUE *glu)

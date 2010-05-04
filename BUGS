@@ -28,3 +28,5 @@ more through testing of cummunication routines would be of use (comtest).
 
 After all we have increased communication by some 48 bytes per contact now again.
 ---------------------------------------------------------------------------------------
+ext/krylov/Makefile does not react to Config.mak flags
+----------------------------------------------------------------------

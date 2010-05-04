@@ -140,6 +140,7 @@ struct domain_balancing_data
   SET *update;
   SET *glue;
   SET *ext;
+  SET *Y;
 };
 
 typedef struct pending_constraint PNDCON;
@@ -312,7 +313,7 @@ void DOM_Update_End (DOM *dom);
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 
 /* send boundary reactions CON->Y of their external receivers */
-void DOM_Update_External_Y (DOM *dom, int length);
+void DOM_Update_External_Y (DOM *dom, int length, SET *subset);
 
 /* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
 void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt);
