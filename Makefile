@@ -137,10 +137,10 @@ clean:
 	rm -f solfec-mpi
 	rm -fr out/*
 	rm -f core obj/*.o
-	rm -f obj/libsolfec.a
-	rm -f obj/libsolfec-mpi.a
+	rm -f obj/*.a
 	rm -fr *dSYM
 	(cd tst && make clean)
+	(cd ext/krylov && make clean)
 
 obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<

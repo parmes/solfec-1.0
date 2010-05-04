@@ -1957,7 +1957,7 @@ static void pack_boundary_Y (DBD *dbd, int *dsize, double **d, int *doubles, int
   CON *con;
 
   length = dbd->dom->Y_length;
-  set = dbd->ext;
+  set = dbd->Y;
 
   pack_int (isize, i, ints, SET_Size (set));
   for (item = SET_First (set); item; item = SET_Next (item))
@@ -2827,10 +2827,12 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
 }
 
 /* send boundary reactions CON->Y of their external receivers */
-void DOM_Update_External_Y (DOM *dom, int length)
+void DOM_Update_External_Y (DOM *dom, int length, SET *subset)
 {
   COMOBJ *send, *recv;
+  SET *item, *jtem;
   int i, nrecv;
+  MEM mem;
 
   ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
 
@@ -2838,6 +2840,23 @@ void DOM_Update_External_Y (DOM *dom, int length)
   {
     send [i].o = &dom->dbd [i];
     send [i].rank = i;
+    dom->dbd [i].Y = dom->dbd [i].ext;
+  }
+
+  if (subset)
+  {
+    for (i = 0; i < dom->ncpu; i ++) dom->dbd [i].Y = NULL; /* invalidate previously set global export sets */
+
+    MEM_Init (&mem, sizeof (SET), SET_Size (subset));
+
+    for (item = SET_First (subset); item; item = SET_Next (item))
+    {
+      CON *con = item->data;
+      for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem))
+      {
+	SET_Insert (&mem, (SET**) &dom->dbd [(int) (long) jtem->data].Y, con, NULL); /* prepare subset export sets */
+      }
+    }
   }
 
   dom->Y_length = length;
@@ -2845,6 +2864,7 @@ void DOM_Update_External_Y (DOM *dom, int length)
   dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_boundary_Y, dom,
     (OBJ_Unpack)unpack_external_Y, send, dom->ncpu, &recv, &nrecv);
 
+  if (subset) MEM_Release (&mem);
   free (send);
   free (recv);
 }

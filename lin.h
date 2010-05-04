@@ -26,34 +26,31 @@
 
 typedef struct linsys LINSYS;
 
-enum linvar /* linearization variant */
+enum linvar
 {
-  NONSMOOTH_HSW,
-  NONSMOOTH_HYBRID,
-  FIXED_POINT,
-  NONSMOOTH_VARIATIONAL,
-  SMOOTHED_VARIATIONAL
+  /* linearization variants */
+  NONSMOOTH_HSW          = 0x0001,
+  NONSMOOTH_HYBRID       = 0x0002,
+  FIXED_POINT            = 0x0004,
+  NONSMOOTH_VARIATIONAL  = 0x0008,
+  SMOOTHED_VARIATIONAL   = 0x0010,
+  /* additional flags */
+  NON_GLUING             = 0x0100
 };
 
 typedef enum linvar LINVAR;
 
-enum linopt /* linear system options */
-{
-  LOCAL_SYSTEM = 0x01, /* in parallel: create per-processor local systems */
-  NON_GLUING = 0x02, /* assemble only the non-gluing constraints subsystem */
-  SYMMETRIZE = 0x04 /* symmetrize equations if possible */
-};
+/* extract linearization variant from linvar */
+#define LINEARIZATION_VARIANT(var) ((var) & 0x00FF)
 
-typedef enum linopt LINOPT;
+/* create linear system resulting from linearization of constraints */
+LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy);
 
-/* create linear system resulting from constraints linearization */
-LINSYS* LINSYS_Create (LINVAR variant, LINOPT options, LOCDYN *ldy);
-
-/* update linear system at current R and U */
+/* update linear system at current reactions R */
 void LINSYS_Update (LINSYS *sys);
 
-/* solve linear system for reaction increments DR */
-void LINSYS_Solve (LINSYS *sys, double accuracy, int maxiter);
+/* solve for reaction increments DR */
+void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter);
 
 /* compute merit function at (R + alpha * DR) */
 double LINSYS_Merit (LINSYS *sys, double alpha);
@@ -61,12 +58,8 @@ double LINSYS_Merit (LINSYS *sys, double alpha);
 /* advance solution R = R + alpha * DR; return |DR|/|R| */ 
 double LINSYS_Advance (LINSYS *sys, double alpha);
 
-/* test solution of W * x = b, where b = W * [1, 1, ..., 1];
- * return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
-double LINSYS_Test (LINSYS *sys, double accuracy, int maxiter);
-
-/* returns 1 if a global system; 0 otherwise */
-int LINSYS_Global (LINSYS *sys);
+/* solve A x = b, where b = A [1, 1, ..., 1]' and return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
+double LINSYS_Test (LINSYS *sys, double abstol, int maxiter);
 
 /* most recent iterations count */
 int LINSYS_Iters (LINSYS *sys);

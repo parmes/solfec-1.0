@@ -32,6 +32,11 @@ GLUE* GLUE_Create (LOCDYN *ldy);
 /* compute gluing reactions */
 void GLUE_Solve (GLUE *glu, double abstol, int maxiter);
 
+#if MPI
+/* update external gluing reactions */
+void GLUE_Update_External_Reactions (GLUE *glu);
+#endif
+
 /* destroy gluing solver */
 void GLUE_Destroy (GLUE *glu);
 

@@ -100,7 +100,7 @@ double MERIT_Function (LOCDYN *ldy)
     }
 #endif
 
-    INVERT (W, A, det);
+    INVERT (W, A, det); /* FIXME: move into local dynamics */
     NVMUL (A, B, Q);
     lower += DOT (Q, Q);
 
