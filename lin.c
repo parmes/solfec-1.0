@@ -34,6 +34,8 @@
 #include "com.h"
 #endif
 
+#define USE_AT 0 /* disable for now */
+
 #define BLOCKS 256
 
 struct vect
@@ -55,21 +57,27 @@ struct linsys
 
   MEM setmem,
       Y_mem,
-      T_ij_mem,
-     *T_ii_mem;
+      T_mem;
 
-  double delta;
+  double fixed_point_tol; /* fixed point normal stress update error tolerance */
+
+  double delta; /* Tikhonov regularaization */
+
+  double epsilon; /* smoothing thickness */
 
   struct vect *x, *b;
 
   hypre_FlexGMRESFunctions *gmres_functions;
   void *gmres_vdata;
+  int iters;
+  double resnorm;
 
 #if MPI
   COMDATA *send, *recv;
   int nsend, nrecv;
   void *pattern;
   double **R; /* external con->R */
+  int *basenum; /* initial constraint numbers on each processor */
 #endif
 };
 
@@ -272,7 +280,7 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, DOM *dom, SET *subse
   DOM_Update_External_Reactions (dom, 0); /* (###) */
 #endif
 
-  for (item = SET_First (subset); item; item = SET_Next (subset))
+  for (item = SET_First (subset); item; item = SET_Next (item))
   {
     con = item->data;
     dia = con->dia;
@@ -368,6 +376,25 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, DOM *dom, SET *subse
 	T [8] = W[8];
 
 	b [2] = -R[2] * W[8];
+
+	for (blk = dia->adj; blk; blk = blk->n)
+	{
+	  if (nonglue && blk->dia->con->kind == GLUEPNT) continue;
+
+	  double *T = blk->T;
+
+	  T [2] = T [5] = T [8] = 0;
+	}
+#if MPI
+	for (blk = dia->adjext; blk; blk = blk->n)
+	{
+	  if (nonglue && CON(blk->dia)->kind == GLUEPNT) continue;
+
+	  double *T = blk->T;
+
+	  T [2] = T [5] = T [8] = 0;
+	}
+#endif
       }
 
       /* tangential response */
@@ -614,77 +641,77 @@ ZERO_TANG:
 }
 
 /* real normal to friction cone */
-inline static void real_n (double *R, double fri, double *n)
+inline static void real_n (double *S, double fri, double *n)
 {
   double dot, len;
 
-  dot = DOT2(R, R);
+  dot = DOT2(S, S);
   len = sqrt(dot);
 
-  if (len == 0 || len <= fri * R[2])
+  if (len == 0 || len <= fri * S[2])
   {
     SET (n, 0.0);
   }
-  else if (fri * len + R[2] < 0.0)
+  else if (fri * len + S[2] < 0.0)
   {
-    dot += R[2]*R[2];
+    dot += S[2]*S[2];
     len = sqrt (dot);
     if (len == 0) { SET (n, 0.0); }
-    else { DIV (R, len, n); }
+    else { DIV (S, len, n); }
   }
   else
   {
     dot = 1.0 / sqrt (1.0 + fri*fri);
-    DIV2 (R, len, n);
+    DIV2 (S, len, n);
     n [2] = -fri;
     SCALE (n, dot);
   }
 }
 
 /* imaginary i */
-static double imaginary_i;
+static double complex imaginary_i;
 
 /* complex normal to friction cone */
-inline static void complex_n (double complex *R, double complex fri, double complex *n)
+inline static void complex_n (double complex *S, double complex fri, double complex *n)
 {
   double complex dot, len;
 
-  dot = DOT2(R, R);
+  dot = DOT2(S, S);
   len = csqrt(dot);
 
-  if (creal (len) == 0 || creal (len) <= creal (fri * R[2]))
+  if (creal (len) == 0 || creal (len) <= creal (fri * S[2]))
   {
     SET (n, 0.0 + 0.0 * imaginary_i);
   }
-  else if (creal (fri * len + R[2]) < 0.0)
+  else if (creal (fri * len + S[2]) < 0.0)
   {
-    dot += R[2]*R[2];
+    dot += S[2]*S[2];
     len = csqrt (dot);
     if (creal (len) == 0) { SET(n, 0.0 + 0.0 * imaginary_i); }
-    DIV (R, len, n);
+    DIV (S, len, n);
   }
   else
   {
     dot = 1.0 / csqrt (1.0 + fri*fri);
-    DIV2 (R, len, n);
+    DIV2 (S, len, n);
     n [2] = -fri;
     SCALE (n, dot);
   }
 }
 
 /* real normal ray to friction cone */
-inline static void real_m (double fri, short smoothing, double *R, double eps, double *m)
+inline static void real_m (double fri, short smooth, double *S, double eps, double *m)
 {
   double n [3], fun;
 
-  real_n (R, fri, n);
-  fun = DOT (R, n);
+  real_n (S, fri, n);
+  fun = DOT (S, n);
 
-  if (smoothing == 1 && fun >= 0.0 && fun <= eps)
+  if (smooth == 1 && fun >= 0.0 && fun <= eps)
   {
     fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
   }
-  else if (smoothing == 2)
+  else if (smooth == 2)
   {
     if (fun >= 0.0 && fun <= eps)
     {
@@ -700,18 +727,18 @@ inline static void real_m (double fri, short smoothing, double *R, double eps, d
 }
 
 /* complex normal ray to friction cone */
-inline static void complex_m (double complex fri, short smoothing, double complex *R, double complex eps, double complex *m)
+inline static void complex_m (double complex fri, short smooth, double complex *S, double complex eps, double complex *m)
 {
   double complex n [3], fun;
 
-  complex_n (R, fri, n);
-  fun = DOT (R, n);
+  complex_n (S, fri, n);
+  fun = DOT (S, n);
 
-  if (smoothing == 1 && creal (fun) >= 0.0 && creal (fun) <= creal (eps))
+  if (smooth == 1 && creal (fun) >= 0.0 && creal (fun) <= creal (eps))
   {
     fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
   }
-  else if (smoothing == 2)
+  else if (smooth == 2)
   {
     if (creal (fun) >= 0.0 && creal (fun) <= creal (eps))
     {
@@ -727,14 +754,9 @@ inline static void complex_m (double complex fri, short smoothing, double comple
 }
 
 /* real F = [UT, UN + fri |UT|]' */
-inline static void real_F (CON *con, double step, short dynamic, double *U, double *R, double *F)
+inline static void real_F (double res, double fri, double gap, double step, short dynamic, double *V, double *U, double *F)
 {
-  DIAB *dia = con->dia;
-  double res = con->mat.base->restitution,
-	 fri = con->mat.base->friction,
-	 gap = con->gap,
-	  *V = dia->V,
-	 udash;
+  double udash;
 
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
@@ -745,14 +767,8 @@ inline static void real_F (CON *con, double step, short dynamic, double *U, doub
 }
  
 /* complex F = [UT, UN + fri |UT|]' */
-inline static void complex_F (CON *con, double step, short dynamic, double complex *U, double complex *R, double complex *F)
+inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double *V, double complex *U, double complex *F)
 {
-  DIAB *dia = con->dia;
-  double res = con->mat.base->restitution,
-	 fri = con->mat.base->friction,
-	 gap = con->gap,
-	  *V = dia->V;
-
   double complex udash;
 
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
@@ -764,18 +780,155 @@ inline static void complex_F (CON *con, double step, short dynamic, double compl
 }
 
 /* update linear system for NONSMOOTH_VARIATIONAL, SMOOTHED_VARIATIONAL variants */
-static void system_update_VARIATIONAL (LINVAR variant, DOM *dom, SET *subset, double *rhs)
+static void system_update_VARIATIONAL (LINVAR variant, double epsilon, DOM *dom, SET *subset, double *rhs)
 {
-#if 0
   short smooth, dynamic, nonglue;
-  double epsilon, step, h;
+  double step, h, *b;
   SET *item;
   OFFB *blk;
   DIAB *dia;
   CON *con;
+
+  if (variant & SMOOTHED_VARIATIONAL) smooth = 1; /* (+++); TODO: decide on best smoothing */
+  h = 1E-6 * epsilon; /* TODO: decide on best choice */
+  nonglue = variant & NON_GLUING;
+  dynamic = dom->dynamic;
+  step = dom->step;
+
+#if MPI
+  DOM_Update_External_Reactions (dom, 0); /* (###) */
 #endif
 
-  /* TODO */
+  for (item = SET_First (subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+    dia = con->dia;
+    b = &rhs [3*con->num];
+
+    double *W = dia->W,
+	   *B = dia->B,
+	   *U = dia->U,
+	   *R = dia->R,
+	   *RE = RE(con);
+
+    /* update residual */
+    NVADDMUL (B, W, R, RE);
+    SUB (RE, U, RE);
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      double *R = blk->dia->R,
+             *W = blk->W;
+
+      NVADDMUL (RE, W, R, RE);
+    }
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      double *R = CON(blk->dia)->R, /* (###) */
+             *W = blk->W;
+
+      NVADDMUL (RE, W, R, RE);
+    }
+#endif
+
+    switch (con->kind)
+    {
+    case CONTACT:
+    {
+      double *V = dia->V,
+	     gap = con->gap,
+	     fri = con->mat.base->friction,
+	     res = con->mat.base->restitution,
+	     *T  = dia->T,
+	     *dm = T + 9,
+	     dF [9],
+             S [3],
+	     F [3],
+	     m [3],
+	     H [3],
+	     J [9];
+
+
+      real_F (res, fri, gap, step, dynamic, V, U, F);
+      SUB (R, F, S);
+      real_m (fri, smooth, S, epsilon, m);
+      ADD (F, m, H);
+
+      double complex cU [3],
+	             cS [3],
+		     cF [3],
+		     cm [3];
+
+      for (int k = 0; k < 3; k ++)
+      {
+	cU [0] = U[0] + 0.0 * imaginary_i;
+	cU [1] = U[1] + 0.0 * imaginary_i;
+	cU [2] = U[2] + 0.0 * imaginary_i;
+	cU [k] += h * imaginary_i;
+        complex_F (res, fri, gap, step, dynamic, V, cU, cF);
+	dF [3*k+0] = cimag (cF [0]) / h;
+	dF [3*k+1] = cimag (cF [1]) / h;
+	dF [3*k+2] = cimag (cF [2]) / h;
+
+        cS [0] = S[0] + 0.0 * imaginary_i;
+	cS [1] = S[1] + 0.0 * imaginary_i;
+	cS [2] = S[2] + 0.0 * imaginary_i;
+	cS [k] += h * imaginary_i;
+        complex_m (fri, smooth, cS, epsilon, cm);
+	dm [3*k+0] = cimag (cm [0]) / h;
+	dm [3*k+1] = cimag (cm [1]) / h;
+	dm [3*k+2] = cimag (cm [2]) / h;
+      }
+
+      IDENTITY (J);
+      NNSUB (J, dm, J);
+      NNMUL (dF, J, T); /* dF/dU [I - dm/dS] */
+
+      NVADDMUL (H, T, RE, b);
+      SCALE (b, -1.0); /* b = - [H(U, R) + dF/dU [I - dm/dS] RE] */
+    }
+    break;
+    default:
+    {
+      system_update_noncontact (con, dynamic, nonglue, step, b);
+    }
+    break;
+    }
+  }
+}
+
+/* update noraml bounds and return relative error of the update */
+static double update_normal_bounds (LINSYS *sys)
+{
+  double errup, errlo;
+  SET *item;
+  CON *con;
+
+  errup = errlo = 0.0;
+
+  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+    if (con->kind == CONTACT)
+    {
+      double DRN,
+	     RN;
+
+      DRN = con->R[2] - RN(con);
+      RN = RN(con) = con->R[2];
+
+      errup += DRN*DRN;
+      errlo += RN*RN;
+    }
+  }
+
+#if MPI
+  double errloc [2] = {errup, errlo}, errsum [2];
+  MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  errup = errsum [0], errlo = errsum [1];
+#endif
+
+  return sqrt (errup / MAX (errlo, 1.0));
 }
 
 #if MPI
@@ -830,9 +983,7 @@ static void A_times_x_equals_y_HSW_HYBRID_FIXED (LINSYS *sys, double *x, double 
     T = dia->T;
     z = &x [3*con->num];
 
-    y [0] = T[0]*z[0] + T[3]*z[1] + T[6]*z[2];
-    y [1] = T[1]*z[0] + T[4]*z[1] + T[7]*z[2];
-    y [2] = T[2]*z[0] + T[5]*z[1] + T[8]*z[2];
+    NVMUL (T, z, y);
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
@@ -840,9 +991,8 @@ static void A_times_x_equals_y_HSW_HYBRID_FIXED (LINSYS *sys, double *x, double 
       if (nonglue && con->kind == GLUEPNT) continue;
       T = blk->T;
       z = &x [3*con->num];
-      y [0] += T[0]*z[0] + T[3]*z[1] + T[6]*z[2];
-      y [1] += T[1]*z[0] + T[4]*z[1] + T[7]*z[2];
-      y [2] += T[2]*z[0] + T[5]*z[1] + T[8]*z[2];
+
+      NVADDMUL (y, T, z, y);
     }
 #if MPI
     for (blk = dia->adjext; blk; blk = blk->n)
@@ -851,25 +1001,286 @@ static void A_times_x_equals_y_HSW_HYBRID_FIXED (LINSYS *sys, double *x, double 
       if (nonglue && con->kind == GLUEPNT) continue;
       T = blk->T;
       z = con->R; /* (###) */
-      y [0] += T[0]*z[0] + T[3]*z[1] + T[6]*z[2];
-      y [1] += T[1]*z[0] + T[4]*z[1] + T[7]*z[2];
-      y [2] += T[2]*z[0] + T[5]*z[1] + T[8]*z[2];
+
+      NVADDMUL (y, T, z, y);
     }
 #endif
   }
 }
 
-static void AT_times_x_equals_y_HSW_HYBRID_FIXED  (LINSYS *sys, double *x, double *y)
+#if USE_AT
+static void AT_times_x_equals_y_HSW_HYBRID_FIXED (LINSYS *sys, double *x, double *y)
 {
+#if MPI
+  int *basenum, ncpu, rank;
+  double *v;
+#endif
+  double *T, *z, *w;
+  short nonglue;
+  SET *item;
+  CON *con;
+  OFFB *blk;
+  DIAB *dia;
+  DOM *dom;
+
+  dom = sys->ldy->dom;
+  nonglue = sys->variant & NON_GLUING;
+#if MPI
+  ncpu = dom->ncpu;
+  rank = dom->rank;
+  basenum = sys->basenum;
+  ERRMEM (v = MEM_CALLOC (basenum [ncpu] * sizeof (double))); /* global result vector */
+#else
+  for (z = y, w = z + sys->b->n; z < w; z ++) (*z) = 0.0; /* zero y */
+#endif
+
+  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+    dia = con->dia;
+    T = dia->T;
+    z = &x [3*con->num];
+#if MPI
+    w = &v [3*(basenum [rank]+con->num)];
+#else
+    w = &y [3*con->num];
+#endif
+
+    TVADDMUL (w, T, z, w);
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      con = blk->dia->con;
+      if (nonglue && con->kind == GLUEPNT) continue;
+      T = blk->T;
+#if MPI
+      w = &v [3*(basenum [rank]+con->num)];
+#else
+      w = &y [3*con->num];
+#endif
+      TVADDMUL (w, T, z, w);
+    }
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = CON (blk->dia);
+      if (nonglue && con->kind == GLUEPNT) continue;
+      T = blk->T;
+      w = &v [3*(basenum [con->rank]+con->num)];
+
+      TVADDMUL (w, T, z, w);
+    }
+#endif
+  }
+
+#if MPI
+  MPI_Allreduce (MPI_IN_PLACE, v, 3*basenum [ncpu], MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  for (w = &v [3*basenum [rank]], z = &v [3*basenum [rank+1]]; w < z; w ++, y ++) (*y) = (*w);
+  free (v);
+#endif
 }
+#endif
 
 static void A_times_x_equals_y_VARIATIONAL (LINSYS *sys, double *x, double *y)
 {
+  double *W, *T, *z, *dm;
+  short nonglue;
+  SET *item;
+  CON *con;
+  OFFB *blk;
+  DIAB *dia;
+
+#if MPI
+  update_external_reactions (sys, x); /* (###) */
+#endif
+
+  nonglue = sys->variant & NON_GLUING;
+
+  for (item = SET_First (sys->subset); item; item = SET_Next (item), y += 3)
+  {
+    con = item->data;
+    dia = con->dia;
+    T = dia->T;
+    z = &x [3*con->num];
+
+    switch (con->kind)
+    {
+    case CONTACT:
+    {
+      double a [3], b [3];
+      dm = T + 9;
+      W = dia->W;
+
+      NVMUL (dm, z, a);
+      NVMUL (W, z, b);
+
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	con = blk->dia->con;
+	if (nonglue && con->kind == GLUEPNT) continue;
+	W = blk->W;
+	z = &x [3*con->num];
+
+	NVADDMUL (b, W, z, b);
+      }
+#if MPI
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	con = CON (blk->dia);
+	if (nonglue && con->kind == GLUEPNT) continue;
+	W = blk->W;
+	z = con->R; /* (###) */
+
+	NVADDMUL (b, W, z, b);
+      }
+#endif
+      NVADDMUL (a, T, b, y); /* y = [dF/dU [I - dm/ds] W + dm/ds] x */
+    }
+    break;
+    default:
+    {
+      NVMUL (T, z, y);
+
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	con = blk->dia->con;
+	if (nonglue && con->kind == GLUEPNT) continue;
+	T = blk->T;
+	z = &x [3*con->num];
+
+	NVADDMUL (y, T, z, y);
+      }
+#if MPI
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	con = CON (blk->dia);
+	if (nonglue && con->kind == GLUEPNT) continue;
+	T = blk->T;
+	z = con->R; /* (###) */
+
+	NVADDMUL (y, T, z, y);
+      }
+#endif
+    }
+    break;
+    }
+  }
 }
 
+#if USE_AT
 static void AT_times_x_equals_y_VARIATIONAL (LINSYS *sys, double *x, double *y)
 {
+#if MPI
+  int *basenum, ncpu, rank;
+  double *v;
+#endif
+  double *T, *W, *dm, *z, *w;
+  short nonglue;
+  SET *item;
+  CON *con;
+  OFFB *blk;
+  DIAB *dia;
+  DOM *dom;
+
+  dom = sys->ldy->dom;
+  nonglue = sys->variant & NON_GLUING;
+#if MPI
+  ncpu = dom->ncpu;
+  rank = dom->rank;
+  basenum = sys->basenum;
+  ERRMEM (v = MEM_CALLOC (basenum [ncpu] * sizeof (double))); /* global result vector */
+#else
+  for (z = y, w = z + sys->b->n; z < w; z ++) (*z) = 0.0; /* zero y */
+#endif
+
+  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+    dia = con->dia;
+    T = dia->T;
+    z = &x [3*con->num];
+#if MPI
+    w = &v [3*(basenum [rank]+con->num)];
+#else
+    w = &y [3*con->num];
+#endif
+
+    switch (con->kind)
+    {
+    case CONTACT:
+    {
+      double a [3], b [3];
+      dm = T + 9;
+      W = dia->W;
+
+      TVMUL (dm, z, a);
+      TVMUL (T, z, b);
+      TVADDMUL (a, W, b, w);
+
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	con = blk->dia->con;
+	if (nonglue && con->kind == GLUEPNT) continue;
+	W = blk->W;
+#if MPI
+	w = &v [3*(basenum [rank]+con->num)];
+#else
+	w = &y [3*con->num];
+#endif
+        TVADDMUL (w, W, b, w);
+      }
+#if MPI
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	con = CON (blk->dia);
+	if (nonglue && con->kind == GLUEPNT) continue;
+	W = blk->W;
+	w = &v [3*(basenum [con->rank]+con->num)];
+
+	TVADDMUL (w, W, b, w);
+      }
+#endif
+    }
+    break;
+    default:
+    {
+      TVADDMUL (w, T, z, w);
+
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	con = blk->dia->con;
+	if (nonglue && con->kind == GLUEPNT) continue;
+	T = blk->T;
+#if MPI
+	w = &v [3*(basenum [rank]+con->num)];
+#else
+	w = &y [3*con->num];
+#endif
+	TVADDMUL (w, T, z, w);
+      }
+#if MPI
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	con = CON (blk->dia);
+	if (nonglue && con->kind == GLUEPNT) continue;
+	T = blk->T;
+	w = &v [3*(basenum [con->rank]+con->num)];
+
+	TVADDMUL (w, T, z, w);
+      }
+#endif
+      }
+      break;
+    }
+  }
+
+#if MPI
+  MPI_Allreduce (MPI_IN_PLACE, v, 3*basenum [ncpu], MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  for (w = &v [3*basenum [rank]], z = &v [3*basenum [rank+1]]; w < z; w ++, y ++) (*y) = (*w);
+  free (v);
+#endif
 }
+#endif
 
 static void A_times_x_equals_y (LINSYS *sys, struct vect *vx, struct vect *vy)
 {
@@ -887,6 +1298,7 @@ static void A_times_x_equals_y (LINSYS *sys, struct vect *vx, struct vect *vy)
   }
 }
 
+#if USE_AT
 static void AT_times_x_equals_y (LINSYS *sys, struct vect *vx, struct vect *vy)
 {
   switch (LINEARIZATION_VARIANT (sys->variant))
@@ -902,6 +1314,7 @@ static void AT_times_x_equals_y (LINSYS *sys, struct vect *vx, struct vect *vy)
       break;
   }
 }
+#endif
 
 static struct vect* newvect (int n)
 {
@@ -1054,11 +1467,15 @@ static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double be
   LINSYS *sys = (LINSYS*)A;
   double delta = sys->delta;
 
-  Axpy (beta, vy, vy);
+  ScaleVector (beta, vy);
   Axpy (delta, vx, vy);
   A_times_x_equals_y (sys, vx, vz);
+#if USE_AT
   AT_times_x_equals_y (sys, vz, vu);
   Axpy (alpha, vu, vy);
+#else
+  Axpy (alpha, vz, vy);
+#endif
 
   DestroyVector (vz);
   DestroyVector (vu);
@@ -1124,20 +1541,16 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
     case NONSMOOTH_HSW:
     case NONSMOOTH_HYBRID:
       MEM_Init (&sys->Y_mem, sizeof (double [9]), MAX (ncon, BLOCKS)); /* DR, DU, RE */
-      MEM_Init (&sys->T_ij_mem, sizeof (double [9]),  MAX (ncon, BLOCKS)); /* dHi/dRj */
-      sys->T_ii_mem = &sys->T_ij_mem;
+      MEM_Init (&sys->T_mem, sizeof (double [9]),  MAX (ncon, BLOCKS)); /* dHi/dRj */
       break;
     case FIXED_POINT:
       MEM_Init (&sys->Y_mem, sizeof (double [10]), MAX (ncon, BLOCKS)); /* DR, DU, RE, RN */
-      MEM_Init (&sys->T_ij_mem, sizeof (double [9]),  MAX (ncon, BLOCKS)); /* dHi/dRj */
-      sys->T_ii_mem = &sys->T_ij_mem;
+      MEM_Init (&sys->T_mem, sizeof (double [9]),  MAX (ncon, BLOCKS)); /* dHi/dRj */
       break;
     case NONSMOOTH_VARIATIONAL:
     case SMOOTHED_VARIATIONAL:
       MEM_Init (&sys->Y_mem, sizeof (double [9]), MAX (ncon, BLOCKS)); /* DR, DU, RE */
-      MEM_Init (&sys->T_ij_mem, sizeof (double [9]),  MAX (ncon, BLOCKS)); /* dFi/dRj */
-      ERRMEM (sys->T_ii_mem = MEM_CALLOC (sizeof (MEM)));
-      MEM_Init (sys->T_ii_mem, sizeof (double [18]),  MAX (ncon, BLOCKS)); /* dFi/dRi, dmi/dRi */
+      MEM_Init (&sys->T_mem, sizeof (double [18]),  MAX (ncon, BLOCKS)); /* dFi/dUi, dmi/dSi */
       break;
   }
 
@@ -1145,21 +1558,26 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
   for (con = dom->con; con; con = con->next)
   {
     if (nonglue && con->kind == GLUEPNT) continue;
-    ERRMEM (con->Y = MEM_Alloc (&sys->Y_mem));
+
     dia = con->dia;
-    ERRMEM (dia->T = MEM_Alloc (sys->T_ii_mem));
-    for (blk = dia->adj; blk; blk = blk->n)
+    ERRMEM (con->Y = MEM_Alloc (&sys->Y_mem));
+    ERRMEM (dia->T = MEM_Alloc (&sys->T_mem));
+
+    if ((variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL)) == 0) /* variational formulations do not need off-diagonal T */
     {
-      if (nonglue && blk->dia->con->kind == GLUEPNT) continue;
-      ERRMEM (blk->T = MEM_Alloc (&sys->T_ij_mem));
-    }
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	if (nonglue && blk->dia->con->kind == GLUEPNT) continue;
+	ERRMEM (blk->T = MEM_Alloc (&sys->T_mem));
+      }
 #if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      if (nonglue && CON(blk->dia)->kind == GLUEPNT) continue;
-      ERRMEM (blk->T = MEM_Alloc (&sys->T_ij_mem));
-    }
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	if (nonglue && CON(blk->dia)->kind == GLUEPNT) continue;
+	ERRMEM (blk->T = MEM_Alloc (&sys->T_mem));
+      }
 #endif
+    }
   }
 #if MPI
   for (MAP *item = MAP_First (dom->conext); item; item = MAP_Next (item))
@@ -1169,6 +1587,36 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
     ERRMEM (con->Y = MEM_Alloc (&sys->Y_mem));
   }
 #endif
+
+  /* default fixed point tolerance */
+  sys->fixed_point_tol = 1E-6;
+
+  /* smoothing thickness */
+  if (variant & SMOOTHED_VARIATIONAL)
+  {
+    double B [4] = {0, 0, 0, 0};
+
+    for (con = dom->con; con; con = con->next)
+    {
+      if (con->kind == CONTACT)
+      {
+        dia = con->dia;
+	ACC (dia->B, B);
+	B [3] ++;
+      }
+    }
+
+#if MPI
+    double C [4];
+    MPI_Allreduce (B, C, 4, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+    COPY4 (C, B);
+#endif
+
+    B [3] = 1.0 / MAX (B [3], 1.0);
+    SCALE (B, B[3]); /* avergae free contact velocity */
+
+    sys->epsilon = 1E-6 * LEN (B); /* TODO: work out a best choice */
+  }
 
   /* unknown and right hand size */
   sys->x = newvect (3 * ncon);
@@ -1235,9 +1683,22 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
       (*r) = con->R;
     }
   }
+
+  /* initial constraint numbers */
+  ERRMEM (sys->basenum = MEM_CALLOC ((dom->ncpu + 1) * sizeof (int)));
+
+  MPI_Allgather  (&ncon, 1, MPI_INT, (sys->basenum + 1), 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (i = 1; i <= dom->ncpu; i ++) sys->basenum [i] += sys->basenum [i-1];
 #endif
 
   return sys;
+}
+
+/* set fixed point approach normal stress update error tolerance */
+void LINSYS_Fixed_Point_Tol (LINSYS *sys, double tol)
+{
+  sys->fixed_point_tol = tol;
 }
 
 /* update linear system at current reactions R */
@@ -1252,47 +1713,325 @@ void LINSYS_Update (LINSYS *sys)
       break;
     case NONSMOOTH_VARIATIONAL:
     case SMOOTHED_VARIATIONAL:
-      system_update_VARIATIONAL (sys->variant, sys->ldy->dom, sys->subset, sys->b->x);
+      system_update_VARIATIONAL (sys->variant, sys->epsilon, sys->ldy->dom, sys->subset, sys->b->x);
       break;
   }
+
+#if USE_AT
+  /* b = (A^T) b */
+  struct vect *c = CreateVector (sys->b);
+  CopyVector (sys->b, c);
+  AT_times_x_equals_y (sys, c, sys->b);
+  DestroyVector (c);
+#endif
 }
 
 /* solve for reaction increments DR */
 void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
 {
+  short nonglue, variational;
+  double *x, *z, *DR;
+  DIAB *dia;
+  SET *item;
+  CON *con;
+
+#if 0
+  sys->delta = 0.1 * abstol; /* FIXME: decide on more inteligent choice */
+  abstol -= sys->delta;
+#endif
+
+  nonglue = sys->variant & NON_GLUING;
+  variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
+
+  hypre_FlexGMRESSetTol (sys->gmres_vdata, 0.0);
+  hypre_FlexGMRESSetMaxIter (sys->gmres_vdata, maxiter);
+  hypre_FlexGMRESSetAbsoluteTol (sys->gmres_vdata, abstol);
+  hypre_FlexGMRESSetup (sys->gmres_vdata, sys, sys->b, sys->x);
+  hypre_FlexGMRESSolve (sys->gmres_vdata, sys, sys->b, sys->x);
+  hypre_FlexGMRESGetNumIterations (sys->gmres_vdata , &sys->iters);
+  hypre_FlexGMRESGetFinalRelativeResidualNorm (sys->gmres_vdata, &sys->resnorm);
+
+  for (item = SET_First (sys->subset), x = sys->x->x; item; item = SET_Next (item))
+  {
+    con = item->data;
+    z = &x [3*con->num];
+    DR = DR (con);
+    COPY (z, DR);
+
+    if (variational && con->kind == CONTACT) /* DR = proj (friction-cone, R+DR) - R */
+    {
+      double *R = con->R,
+	      fri = con->mat.base->friction,
+	      S [3],
+	      m [3];
+
+      ADD (R, DR, S);
+      real_m (fri, 0, S, 0, m);
+      SUB (S, m, S);
+      SUB (S, R, DR);
+    }
+  }
+
+#if MPI
+  DOM_Update_External_Y (sys->ldy->dom, 3, nonglue ? sys->subset : NULL); /* (&&&) */
+#endif
+
+  /* DU  */
+  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+    dia = con->dia;
+
+    double *DR = DR(con),
+	   *DU = DU(con),
+	   *W = dia->W;
+
+    NVMUL (W, DR, DU);
+
+    for (OFFB *blk = dia->adj; blk; blk = blk->n)
+    {
+      con = blk->dia->con;
+
+      if (nonglue && con->kind == GLUEPNT) continue;
+
+      double *DR = DR(con),
+	     *W = blk->W;
+
+      NVADDMUL (DU, W, DR, DU);
+    }
+#if MPI
+    for (OFFB *blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = CON (blk->dia);
+
+      if (nonglue && con->kind == GLUEPNT) continue;
+
+
+      double *DR = DR (con), /* (&&&) */
+	     *W = blk->W;
+
+      NVADDMUL (DU, W, DR, DU);
+    }
+#endif
+  }
 }
 
 /* compute merit function at (R + alpha * DR) */
 double LINSYS_Merit (LINSYS *sys, double alpha)
 {
-  return 0;
+  short variational, dynamic, smooth, variant;
+  double H [3], value, step, epsilon;
+  DIAB *dia;
+  SET *item;
+  CON *con;
+
+  value = 0;
+  step = sys->ldy->dom->dynamic;
+  dynamic = sys->ldy->dom->dynamic;
+  variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
+  if (sys->variant & SMOOTHED_VARIATIONAL) smooth = 1; /* (+++); TODO: make consistent */
+  variant = LINEARIZATION_VARIANT (sys->variant);
+  epsilon = sys->epsilon;
+
+  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+    dia = con->dia;
+
+    if (con->kind == CONTACT)
+    {
+      double R [3], U [3],
+	    *R0 = dia->R,
+	    *U0 = dia->U;
+
+      if (alpha > 0.0)
+      {
+	double *RE = RE(con),
+	       *DR = DR(con),
+	       *DU = DU(con);
+
+	ADDMUL (R0, alpha, DR, R);
+	ADDMUL (U0, alpha, DU, U);
+	ADD (U, RE, U);
+      }
+      else
+      {
+	COPY (R0, R);
+	COPY (U0, U);
+      }
+
+      double rho = dia->rho,
+	     gap = con->gap,
+	     fri = con->mat.base->friction,
+	     res = con->mat.base->restitution,
+	    *V = dia->V,
+	     d [3],
+	     bound,
+	     udash,
+	     norm;
+
+      if (variational)
+      {
+        double S [3],
+	       F [3],
+	       m [3];
+
+	real_F (res, fri, gap, step, dynamic, V, U, F);
+	SUB (R, F, S);
+	real_m (fri, smooth, S, epsilon, m);
+	ADD (F, m, H);
+      }
+      else
+      {
+	if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+	else udash = ((MAX(gap, 0)/step) + U[2]);
+
+	d [0] = R[0] - rho * U[0];
+	d [1] = R[1] - rho * U[1];
+	d [2] = R[2] - rho * udash;
+
+	norm = sqrt (d[0]*d[0]+d[1]*d[1]);
+
+	switch (variant)
+	{
+	  case NONSMOOTH_HSW:
+	    bound = fri * MAX (0, d[2]);
+	    break;
+	  case NONSMOOTH_HYBRID:
+	    bound = fri * MAX (0, R[2]);
+	    break;
+	  case FIXED_POINT:
+	    bound = fri * MAX (0, RN(con));
+	    break;
+	}
+
+	H [0] = MAX (bound, norm)*R[0] - bound*d[0];
+	H [1] = MAX (bound, norm)*R[1] - bound*d[1];
+	H [2] = R [2] - MAX (0, d[2]);
+      }
+
+      value += DOT (H, H);
+    }
+  }
+
+#if MPI
+  double val_i = value;
+  MPI_Allreduce (&val_i, &value, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  return value;
 }
 
 /* advance solution R = R + alpha * DR; return |DR|/|R| */ 
 double LINSYS_Advance (LINSYS *sys, double alpha)
 {
-  return 0;
+  double errup, errlo, error;
+  SET *item;
+  CON *con;
+
+  errup = errlo = 0.0;
+
+  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+
+    double *RE = RE(con),
+	   *DR = DR(con),
+	   *DU = DU(con),
+	   *R = con->R,
+	   *U = con->U;
+
+    ADDMUL (R, alpha, DR, R);
+    ADDMUL (U, alpha, DU, U);
+    ADD (U, RE, U);
+
+    errup += DOT(DR, DR); /* no alpha scaling here */
+    errlo += DOT(R, R);
+  }
+
+#if MPI
+  double errloc [2] = {errup, errlo}, errsum [2];
+  MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  errup = errsum [0], errlo = errsum [1];
+#endif
+
+  error = sqrt (errup / MAX (errlo, 1.0));
+
+  if ((sys->variant & FIXED_POINT) &&
+      error < sys->fixed_point_tol) error = update_normal_bounds (sys);
+
+  return error;
 }
 
 /* solve A x = b, where b = A [1, 1, ..., 1]' and return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
 double LINSYS_Test (LINSYS *sys, double abstol, int maxiter)
 {
-  return 0;
+  double *x, *y, error;
+  struct vect *vx, *vb;
+
+  vx = CreateVector (sys->x);
+  vb = CreateVector (sys->b);
+
+  for (x = vx->x, y = x + vx->n; x < y; x ++) *x = 1.0;
+
+  A_times_x_equals_y (sys, vx, vb);
+
+  for (x = vx->x, y = x + vx->n; x < y; x ++) *x = 0.0;
+
+  hypre_FlexGMRESSetTol (sys->gmres_vdata, 0.0);
+  hypre_FlexGMRESSetMaxIter (sys->gmres_vdata, maxiter);
+  hypre_FlexGMRESSetAbsoluteTol (sys->gmres_vdata, abstol);
+  hypre_FlexGMRESSetup (sys->gmres_vdata, sys, vb, vx);
+  hypre_FlexGMRESSolve (sys->gmres_vdata, sys, vb, vx);
+  hypre_FlexGMRESGetNumIterations (sys->gmres_vdata , &sys->iters);
+  hypre_FlexGMRESGetFinalRelativeResidualNorm (sys->gmres_vdata, &sys->resnorm);
+
+  for (error = 0.0, x = vx->x, y = x + vx->n; x < y; x ++) 
+  {
+    error += (1.0 - (*x))*(1.0 - (*x));
+  }
+
+#if MPI
+  double val_i [2] = {error, vx->n}, val_o [2];
+  MPI_Allreduce (val_i, val_o, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  error = sqrt (val_o [0] / MAX (val_o [1], 1.0));
+#else
+  error = sqrt (error / (double) MAX (vx->n, 1));
+#endif
+
+  DestroyVector (vx);
+  DestroyVector (vb);
+
+  return error;
 }
 
 /* most recent iterations count */
 int LINSYS_Iters (LINSYS *sys)
 {
-  return 0;
+  return sys->iters;
 }
 
-/* most recent residual norm */
+/* most recent relative residual norm */
 double LINSYS_Resnorm (LINSYS *sys)
 {
-  return 0;
+  return sys->resnorm;
 }
 
 /* destroy linear system */
 void LINSYS_Destroy (LINSYS *sys)
 {
+  MEM_Release (&sys->setmem);
+  MEM_Release (&sys->Y_mem);
+  MEM_Release (&sys->T_mem);
+  DestroyVector (sys->x);
+  DestroyVector (sys->b);
+  hypre_FlexGMRESDestroy (sys->gmres_vdata);
+#if MPI
+  COMALL_Free (sys->pattern);
+  free (sys->send);
+  free (sys->recv);
+  free (sys->R);
+  free (sys->basenum);
+#endif
+  free (sys);
 }

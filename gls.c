@@ -112,7 +112,7 @@ void GLUING_Solve (GLUING *gl, LOCDYN *ldy)
     }
 
     /* merit function value */
-    merit = MERIT_Function (ldy);
+    merit = MERIT_Function (ldy, 1);
 
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));

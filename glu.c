@@ -172,7 +172,6 @@ static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double be
 {
   GLUE *glu = (GLUE*)A;
   double *x = vect (vx)->x, *y = vect (vy)->x;
-  double step = glu->ldy->dom->step;
   double *W, C, *z;
   SET *item;
   CON *con;
@@ -188,7 +187,7 @@ static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double be
     con = item->data;
     dia = con->dia;
     W = dia->W;
-    C = 1.0 / (step * glue_stiffness (dia->con));
+    C = con->Z[0]; /* (@@@) */
     z = &x [3*con->num];
 
     y [0] = beta * y[0] + alpha * ((W[0]+C)*z[0] + W[3]*z[1] + W[6]*z[2]);
@@ -353,21 +352,24 @@ static void compute_right_hand_side (SET *subset, double *b)
 GLUE* GLUE_Create (LOCDYN *ldy)
 {
   DOM *dom = ldy->dom;
+  double step;
   GLUE *glu;
   CON *con;
   int ncon;
 
   ncon = dom->ncon;
+  step = dom->step;
   ERRMEM (glu = MEM_CALLOC (sizeof (GLUE)));
   MEM_Init (&glu->setmem, sizeof (SET), MAX (ncon, BLOCKS));
   glu->ldy = ldy;
 
-  /* collect gluing constraints */
+  /* collect gluing constraints and step up gluing compliance */
   for (con = dom->con; con; con = con->next)
   {
     if (con->kind == GLUEPNT)
     {
       SET_Insert (&glu->setmem, &glu->subset, con, NULL);
+      con->Z[0] = 1.0 / (step * glue_stiffness (con)); /* (@@@) *; Z is not used for GLUEPNT */
     }
   }
 
@@ -447,7 +449,7 @@ GLUE* GLUE_Create (LOCDYN *ldy)
 /* compute gluing reactions */
 void GLUE_Solve (GLUE *glu, double abstol, int maxiter)
 {
-  double *x, *z, *R;
+  double *x, *z, *U, *R, C;
   SET *item;
   CON *con;
 
@@ -464,7 +466,10 @@ void GLUE_Solve (GLUE *glu, double abstol, int maxiter)
     con = item->data;
     z = &x [3*con->num];
     R = con->R;
+    U = con->U;
     COPY (z, R);
+    C = -con->Z[0]; /* (@@@) */
+    MUL (R, C, U);
   }
 }
 

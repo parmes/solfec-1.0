@@ -26,7 +26,8 @@
 
 /* constraint satisfaction merit function approximately indicates the
  * amount of spurious momentum due to constraint force inaccuracy;
+ * update_U != 0 implies that U needs to be computed for current R;
  * (it is assumed that all (also external) reactions are updated) */
-double MERIT_Function (LOCDYN *ldy);
+double MERIT_Function (LOCDYN *ldy, short update_U);
 
 #endif

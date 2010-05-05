@@ -1259,7 +1259,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #endif
 
       /* merit function */
-      merit = MERIT_Function (ldy);
+      merit = MERIT_Function (ldy, 1);
 
       /* sum up error */
       errloc [0] = errup, errloc [1] = errlo;
@@ -1301,7 +1301,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	S("GSRUN"); di = gauss_seidel_sweep (noncon, 0, gs, dynamic, step, 1, &errup, &errlo); dimax = MAX (dimax, di); E("GSRUN");
       }
 
-      merit = MERIT_Function (ldy);
+      merit = MERIT_Function (ldy, 1);
 
       error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
 
@@ -1474,7 +1474,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
 
     /* merit function value */
-    merit = MERIT_Function (ldy);
+    merit = MERIT_Function (ldy, 1);
 
     /* calculate relative error */
     error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
