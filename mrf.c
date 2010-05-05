@@ -64,8 +64,9 @@ inline static void real_m (double fri, double *S, double *m)
 
 /* constraint satisfaction merit function approximately indicates the
  * amount of spurious momentum due to constraint force inaccuracy;
+ * update_U != 0 implies that U needs to be computed for current R;
  * (it is assumed that all (also external) reactions are updated) */
-double MERIT_Function (LOCDYN *ldy)
+double MERIT_Function (LOCDYN *ldy, short update_U)
 {
   double step, upper, lower, A [9], det, Q [3], P [3];
   short dynamic;
@@ -86,19 +87,22 @@ double MERIT_Function (LOCDYN *ldy)
 	   *U = dia->U,
 	   *R = dia->R;
 
-    NVADDMUL (B, W, R, U);
-    for (blk = dia->adj; blk; blk = blk->n)
+    if (update_U)
     {
-      double *W = blk->W, *R = blk->dia->R;
-      NVADDMUL (U, W, R, U);
-    }
+      NVADDMUL (B, W, R, U);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	double *W = blk->W, *R = blk->dia->R;
+	NVADDMUL (U, W, R, U);
+      }
 #if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      double *W = blk->W, *R = CON(blk->dia)->R;
-      NVADDMUL (U, W, R, U);
-    }
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	double *W = blk->W, *R = CON(blk->dia)->R;
+	NVADDMUL (U, W, R, U);
+      }
 #endif
+    }
 
     INVERT (W, A, det); /* FIXME: move into local dynamics */
     NVMUL (A, B, Q);

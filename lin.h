@@ -46,6 +46,9 @@ typedef enum linvar LINVAR;
 /* create linear system resulting from linearization of constraints */
 LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy);
 
+/* set fixed point approach normal stress update error tolerance */
+void LINSYS_Fixed_Point_Tol (LINSYS *sys, double tol);
+
 /* update linear system at current reactions R */
 void LINSYS_Update (LINSYS *sys);
 
@@ -64,7 +67,7 @@ double LINSYS_Test (LINSYS *sys, double abstol, int maxiter);
 /* most recent iterations count */
 int LINSYS_Iters (LINSYS *sys);
 
-/* most recent residual norm */
+/* most recent relative residual norm */
 double LINSYS_Resnorm (LINSYS *sys);
 
 /* destroy linear system */
