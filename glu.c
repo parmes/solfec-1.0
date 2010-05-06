@@ -446,10 +446,10 @@ GLUE* GLUE_Create (LOCDYN *ldy)
   return glu;
 }
 
-/* compute gluing reactions */
-void GLUE_Solve (GLUE *glu, double abstol, int maxiter)
+/* compute gluing reactions; return their relative change */
+double GLUE_Solve (GLUE *glu, double abstol, int maxiter)
 {
-  double *x, *z, *U, *R, C;
+  double *x, *z, *U, *R, C, errup, errlo, DR [3];
   SET *item;
   CON *con;
 
@@ -461,16 +461,29 @@ void GLUE_Solve (GLUE *glu, double abstol, int maxiter)
   hypre_PCGSetup (glu->pcg_vdata, glu, glu->b, glu->x);
   hypre_PCGSolve (glu->pcg_vdata, glu, glu->b, glu->x);
 
+  errup = errlo = 0.0;
+
   for (item = SET_First (glu->subset), x = glu->x->x; item; item = SET_Next (item))
   {
     con = item->data;
     z = &x [3*con->num];
     R = con->R;
+    SUB (z, R, DR);
+    errup += DOT (DR, DR);
     U = con->U;
     COPY (z, R);
+    errlo += DOT (R, R);
     C = -con->Z[0]; /* (@@@) */
     MUL (R, C, U);
   }
+
+#if MPI
+  double val_i [2] = {errup, errlo}, val_o [2];
+  MPI_Allreduce (val_i, val_o, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  errup = val_o [0], errlo = val_o [1];
+#endif
+
+  return sqrt (errup / MAX (errlo, 1.0));
 }
 
 #if MPI

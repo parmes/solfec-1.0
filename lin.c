@@ -71,6 +71,8 @@ struct linsys
   void *gmres_vdata;
   int iters;
   double resnorm;
+  hypre_PCGFunctions *pcg_functions;
+  void *pcg_vdata;
 
 #if MPI
   COMDATA *send, *recv;
@@ -233,14 +235,12 @@ static void system_update_noncontact (CON *con, short dynamic, short nonglue, do
     T [4] += C;
     T [8] += C;
 
-    b [0] = -U[0] - RE[0];
-    b [1] = -U[1] - RE[1];
-    b [2] = -U[2] - RE[2];
+    b [0] = -C*R[0] -U[0] - RE[0];
+    b [1] = -C*R[1] -U[1] - RE[1];
+    b [2] = -C*R[2] -U[2] - RE[2];
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      if (nonglue && blk->dia->con->kind == GLUEPNT) continue;
-
       double *W = blk->W,
 	     *T = blk->T;
 
@@ -249,8 +249,6 @@ static void system_update_noncontact (CON *con, short dynamic, short nonglue, do
 #if MPI
     for (blk = dia->adjext; blk; blk = blk->n)
     {
-      if (nonglue && CON(blk->dia)->kind == GLUEPNT) continue;
-
       double *W = blk->W,
 	     *T = blk->T;
 
@@ -1461,7 +1459,7 @@ static void *MatvecCreate (void *A, void *x)
   return NULL;
 }
 
-static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double beta, void *vy)
+static int GMRESMatvec (void *matvec_data, double alpha, void *A, void *vx, double beta, void *vy)
 {
   struct vect *vz = CreateVector (vx), *vu = CreateVector (vx);
   LINSYS *sys = (LINSYS*)A;
@@ -1483,17 +1481,123 @@ static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double be
   return 0;
 }
 
+static int PCGMatvec (void *matvec_data, double alpha, void *A, void *vx, double beta, void *vy)
+{
+  LINSYS *sys = (LINSYS*)A;
+  double *x = vect (vx)->x, *y = vect (vy)->x;
+  double *W, C, *z, step;
+  short nonglue;
+  SET *item;
+  CON *con;
+  OFFB *blk;
+  DIAB *dia;
+
+  nonglue = sys->variant & NON_GLUING;
+  step = sys->ldy->dom->step;
+
+#if MPI
+  update_external_reactions (sys, x); /* (###) */
+#endif
+
+  for (item = SET_First (sys->subset); item; item = SET_Next (item), y += 3)
+  {
+    con = item->data;
+    dia = con->dia;
+    W = dia->W;
+    C = 1.0 / (step * glue_stiffness (con));
+    z = &x [3*con->num];
+
+    y [0] = beta * y[0] + alpha * ((W[0]+C)*z[0] + W[3]*z[1] + W[6]*z[2]);
+    y [1] = beta * y[1] + alpha * (W[1]*z[0] + (W[4]+C)*z[1] + W[7]*z[2]);
+    y [2] = beta * y[2] + alpha * (W[2]*z[0] + W[5]*z[1] + (W[8]+C)*z[2]);
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      con = blk->dia->con;
+      if (nonglue && con->kind == GLUEPNT) continue;
+      W = blk->W;
+      z = &x [3*con->num];
+      y [0] += alpha * (W[0]*z[0] + W[3]*z[1] + W[6]*z[2]);
+      y [1] += alpha * (W[1]*z[0] + W[4]*z[1] + W[7]*z[2]);
+      y [2] += alpha * (W[2]*z[0] + W[5]*z[1] + W[8]*z[2]);
+    }
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      con = CON (blk->dia);
+      if (nonglue && con->kind == GLUEPNT) continue;
+      W = blk->W;
+      z = con->R; /* (###) */
+      y [0] += alpha * (W[0]*z[0] + W[3]*z[1] + W[6]*z[2]);
+      y [1] += alpha * (W[1]*z[0] + W[4]*z[1] + W[7]*z[2]);
+      y [2] += alpha * (W[2]*z[0] + W[5]*z[1] + W[8]*z[2]);
+    }
+#endif
+  }
+
+  return 0;
+}
+
 static int MatvecDestroy (void *matvec_data)
 {
   return 0;
 }
 
-static int PrecondSetup (void *vdata, void *A, void *vb, void *vx)
+static int GMRESPrecondSetup (void *vdata, void *A, void *vb, void *vx)
 {
   return 0;
 }
 
-static int Precond (void *vdata, void *A, void *vb, void *vx)
+static int GMRESPrecond (void *vdata, void *A, void *vb, void *vx)
+{
+#if 1
+  LINSYS *sys = (LINSYS*)A;
+  double *bb = vect (vb)->x, *xx = vect (vx)->x, *b, *x;
+  short variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
+  int ipiv [3];
+  DIAB *dia;
+  SET *item;
+  CON *con;
+
+  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+    dia = con->dia;
+    b = &bb [3*con->num];
+    x = &xx [3*con->num];
+    COPY (b, x);
+
+    double *T = dia->T,
+	   *W = dia->W,
+            S [9];
+
+    if (con->kind == CONTACT && variational)
+    {
+      double *dm = T + 9,
+	     Q [9];
+
+      NNMUL (T, W, Q);
+      NNADD (Q, dm, S);
+    }
+    else
+    {
+      NNCOPY (T, S);
+    }
+
+    lapack_dgesv (3, 1, S, 3, ipiv, x, 3); /* TODO: inv (S) could be precomputed at the start */
+  }
+
+  return 0;
+#endif
+  return CopyVector (vb, vx);
+}
+
+static int PCGPrecondSetup (void *vdata, void *A, void *vb, void *vx)
+{
+  return 0;
+}
+
+static int PCGPrecond (void *vdata, void *A, void *vb, void *vx)
 {
   return CopyVector (vb, vx);
 }
@@ -1624,8 +1728,13 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
 
   /* create GMRES solver */
   sys->gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, CreateVectorArray, DestroyVector,
-    MatvecCreate, Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
+    MatvecCreate, GMRESMatvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, GMRESPrecondSetup, GMRESPrecond);
   sys->gmres_vdata = hypre_FlexGMRESCreate (sys->gmres_functions);
+
+  /* create PCG solver */
+  sys->pcg_functions = hypre_PCGFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, DestroyVector, MatvecCreate,
+    PCGMatvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PCGPrecondSetup, PCGPrecond);
+  sys->pcg_vdata = hypre_PCGCreate (sys->pcg_functions);
 
 #if MPI
   /* communication pattern */
@@ -2017,6 +2126,26 @@ double LINSYS_Resnorm (LINSYS *sys)
   return sys->resnorm;
 }
 
+#if MPI
+/* update computed external reactions (e.g. non-gluing) */
+void LINSYS_Update_External_Reactions (LINSYS *sys)
+{
+  double *xx = sys->x->x, *x, *R;
+  SET *item;
+  CON *con;
+
+  for (item = SET_First (item); item; item = SET_Next (item))
+  {
+    con = item->data;
+    x = &xx [3*con->num];
+    R = con->R;
+    COPY (R, x);
+  }
+
+  update_external_reactions (sys, xx);
+}
+#endif
+
 /* destroy linear system */
 void LINSYS_Destroy (LINSYS *sys)
 {
@@ -2026,6 +2155,7 @@ void LINSYS_Destroy (LINSYS *sys)
   DestroyVector (sys->x);
   DestroyVector (sys->b);
   hypre_FlexGMRESDestroy (sys->gmres_vdata);
+  hypre_PCGDestroy (sys->pcg_vdata);
 #if MPI
   COMALL_Free (sys->pattern);
   free (sys->send);

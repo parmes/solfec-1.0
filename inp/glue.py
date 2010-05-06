@@ -66,7 +66,7 @@ def glued_shape (x, y, z, material, solfec):
   shp = cube (x, y, z-1, 1, 1, 1, 2, 2)
   b2 = BODY (solfec, KINEM, shp, material)
   list.append (b2)
-  GLUE_POINTS (b1, b2, (x, y, z))
+  GLUE_POINTS (b1, b2, (x+0, y+0, z))
   GLUE_POINTS (b1, b2, (x+1, y, z))
   GLUE_POINTS (b1, b2, (x, y+1, z))
   GLUE_POINTS (b1, b2, (x+1, y+1, z))
@@ -91,7 +91,7 @@ def glued_scene (material, solfec):
 	#v = (0.5 - random ())
 	w = 0
 	v = 0
-        glued_shape (x+v, y+v, 1.1+z, material, solfec)
+        glued_shape (x+v, y+v, 1.0+z, material, solfec)
 
 ### main module ###
 #import rpdb2; rpdb2.start_embedded_debugger('a')
@@ -113,11 +113,11 @@ GRAVITY (solfec, (0, 0, -9.81))
 glued_scene (bulkmat, solfec)
 
 #gs = GAUSS_SEIDEL_SOLVER (1E-3, 100, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
-gs = GLUING_SOLVER ()
+gs = GLUING_SOLVER (1E-3, 100)
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 
-RUN (solfec, gs, 500 * step)
+RUN (solfec, gs, 10 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 

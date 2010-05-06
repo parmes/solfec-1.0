@@ -28,7 +28,7 @@ typedef struct newton NEWTON;
 
 struct newton
 {
-  short variant; /* linearization variant */
+  LINVAR variant; /* linearization variant */
 
   double epsilon; /* relative accuracy sufficient for termination */
 

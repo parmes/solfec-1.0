@@ -70,6 +70,11 @@ int LINSYS_Iters (LINSYS *sys);
 /* most recent relative residual norm */
 double LINSYS_Resnorm (LINSYS *sys);
 
+#if MPI
+/* update computed external reactions (e.g. non-gluing) */
+void LINSYS_Update_External_Reactions (LINSYS *sys);
+#endif
+
 /* destroy linear system */
 void LINSYS_Destroy (LINSYS *sys);
 
