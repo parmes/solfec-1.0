@@ -28,7 +28,129 @@
 #include "alg.h"
 #include "bla.h"
 #include "err.h"
-#include "bgs.c"
+#include "bgs.h"
+#include "nts.h"
+#include "dom.h"
+#include "mrf.h"
+
+/* non-monotone globalization merit function value selection */
+static double nonmonotone_merit_function (double *values, int length, double merit, int index)
+{
+  values [index % length] = merit;
+
+  for (int n = 0; n < length; n ++)
+    if (values [n] > merit) merit = values [n];
+
+  return merit;
+}
+
+/* line search */
+static double line_search (LINSYS *sys, double reference, double *merit)
+{
+  double auxiliary,
+	 alpha,
+	 gamma;
+
+  int imax,
+      iter;
+
+  auxiliary = 2.0 * (*merit);
+  alpha = 1.0;
+  gamma = 0.1;
+  imax = 32;
+
+  for (iter = 0; iter < imax; iter ++)
+  {
+    (*merit) = LINSYS_Merit (sys, alpha);
+
+    if ((*merit) <= (reference - gamma*alpha*auxiliary)) break;
+    else alpha *= 0.9;
+  }
+
+  return alpha;
+}
+
+/* update constraint reactions */
+static double reactions_update (int nonmonlength, LINSYS *sys, LOCDYN *ldy, double *nonmonvalues, int iter, double *merit)
+{
+  double reference, alpha;
+
+  if (iter) /* skip line search during the first iteration */
+  {
+    (*merit) = LINSYS_Merit (sys, 0.0);
+
+    reference = nonmonotone_merit_function (nonmonvalues, nonmonlength, (*merit), iter);
+
+    alpha = line_search (sys, reference, merit);
+  }
+  else alpha = 1.0;
+
+  return LINSYS_Advance (sys, alpha); /* R = R + alpha * DR, U = U(R) */
+}
+
+static void gluing_newton_solver (GLUING *gl, LOCDYN *ldy)
+{
+  double merit, error, *nonmonvalues;
+  char fmt [512];
+  LINSYS *sys;
+  GLUE *glue;
+  DOM *dom;
+  int iters, maxiter, linmaxiter, nonmonlength;
+  double epsilon, tol, meritval;
+
+  dom = ldy->dom;
+
+
+  sys = LINSYS_Create (NONSMOOTH_HSW|NON_GLUING, ldy);
+  glue = GLUE_Create (ldy);
+  merit = error = 1.0;
+  iters = 0;
+  maxiter = gl->maxiter;
+  epsilon = gl->epsilon;
+  linmaxiter = 1000;
+  meritval = 1E-3 * gl->epsilon;
+  nonmonlength = 1;
+
+  ERRMEM (nonmonvalues = MEM_CALLOC (nonmonlength * sizeof (double)));
+
+  if (dom->verbose)
+  {
+    sprintf (fmt, "GLUE: (LIN its/res: %%%dd/%%.2e) iteration: %%%dd  error:  %%.2e  merit: %%.2e\n",
+      (int)log10 (linmaxiter) + 1, (int)log10 (maxiter) + 1);
+  }
+
+  do
+  {
+    LINSYS_Update (sys); /* assemble A, b */
+
+    tol = 1E-3 * MIN (error, merit);
+    tol = MAX (tol, 1E-15);
+    LINSYS_Solve (sys, tol, linmaxiter);
+
+    error = reactions_update (nonmonlength, sys, ldy, nonmonvalues, iters, &merit); /* R(i+1) */
+
+    if (error < epsilon && merit < meritval)
+    {
+#if MPI
+      DOM_Update_External_Reactions (dom, 0);
+#endif
+      error = merit = GLUE_Solve (glue, tol, linmaxiter);
+#if MPI
+      GLUE_Update_External_Reactions (glue); 
+#endif
+    }
+
+#if MPI
+    if (dom->rank == 0)
+#endif
+    if (dom->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), iters, error, merit);
+
+  } while (++ iters < maxiter && (error > epsilon || merit > meritval));
+
+  LINSYS_Destroy (sys);
+  GLUE_Destroy (glue);
+  free (nonmonvalues);
+}
 
 /* create solver */
 GLUING* GLUING_Create (double epsilon, int maxiter)
@@ -45,6 +167,7 @@ GLUING* GLUING_Create (double epsilon, int maxiter)
 /* run solver */
 void GLUING_Solve (GLUING *gl, LOCDYN *ldy)
 {
+#if 0
   double error, merit, step;
   int verbose, diagiters;
   int div = 10, iters;
@@ -134,6 +257,9 @@ void GLUING_Solve (GLUING *gl, LOCDYN *ldy)
   if (verbose) printf (fmt, iters, error, merit);
 
    GLUE_Destroy (glue); 
+#else
+   gluing_newton_solver (gl, ldy);
+#endif
 }
 
 /* write labeled satate values */

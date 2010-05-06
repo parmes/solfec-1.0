@@ -94,7 +94,7 @@ NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double merit
 
   ERRMEM (nt = MEM_CALLOC (sizeof (NEWTON)));
 
-  nt->variant = LINEARIZATION_VARIANT (variant);
+  nt->variant = variant;
   nt->epsilon = epsilon;
   nt->maxiter = maxiter;
   nt->meritval = meritval;
@@ -142,7 +142,8 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   {
     LINSYS_Update (sys); /* assemble A, b */
 
-    LINSYS_Solve (sys, 1E-3 * MIN (error, merit), nt->linmaxiter); /* x = A\b; TODO: develop into a rigorous inexact step */
+    error = 1E-3 * MIN (error, merit);
+    LINSYS_Solve (sys,  MAX (error, 1E-15), nt->linmaxiter); /* x = A\b; TODO: develop into a rigorous inexact step */
 
     error = reactions_update (nt, sys, ldy, nonmonvalues, nt->iters, &merit); /* R(i+1) */
 
@@ -170,7 +171,7 @@ void NEWTON_Write_State (NEWTON *nt, PBF *bf)
 /* return variant string */
 char* NEWTON_Variant (NEWTON *nt)
 {
-  switch (nt->variant)
+  switch (LINEARIZATION_VARIANT (nt->variant))
   {
     case NONSMOOTH_HSW: return "NONSMOOTH_HSW";
     case NONSMOOTH_HYBRID: return "NONSMOOTH_HYBRID";

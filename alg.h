@@ -126,6 +126,13 @@ void GEOMETRIC_EPSILON_ADAPT (double *p, int n);
   (b) [2] = (a) [2] * (eps);\
 }
 
+#define AXPY(a, eps, b)\
+{\
+  (b) [0] += (a) [0] * (eps);\
+  (b) [1] += (a) [1] * (eps);\
+  (b) [2] += (a) [2] * (eps);\
+}
+
 #define MUL2(a, eps, b)\
 {\
   (b) [0] = (a) [0] * (eps);\

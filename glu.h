@@ -29,8 +29,8 @@ typedef struct glue GLUE;
 /* create gluing solver */
 GLUE* GLUE_Create (LOCDYN *ldy);
 
-/* compute gluing reactions */
-void GLUE_Solve (GLUE *glu, double abstol, int maxiter);
+/* compute gluing reactions; return their relative change */
+double GLUE_Solve (GLUE *glu, double abstol, int maxiter);
 
 #if MPI
 /* update external gluing reactions */
