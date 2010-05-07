@@ -102,6 +102,7 @@ NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double merit
   nt->linmaxiter = 1000;
   nt->rerhist = NULL;
   nt->merhist = NULL;
+  nt->verbose = 1;
 
   return nt;
 }
@@ -153,7 +154,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 #if MPI
     if (dom->rank == 0)
 #endif
-    if (dom->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, error, merit);
+    if (dom->verbose && nt->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, error, merit);
 
   } while (++ nt->iters < nt->maxiter && (error > nt->epsilon || merit > nt->meritval));
 

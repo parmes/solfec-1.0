@@ -45,6 +45,8 @@ struct newton
   double *rerhist; /* relative error history */
 
   double *merhist; /* merit function history */
+
+  int verbose; /* verbosity flag */
 };
 
 /* create solver */
