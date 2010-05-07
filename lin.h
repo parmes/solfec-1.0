@@ -35,7 +35,7 @@ enum linvar
   NONSMOOTH_VARIATIONAL  = 0x0008,
   SMOOTHED_VARIATIONAL   = 0x0010,
   /* additional flags */
-  NON_GLUING             = 0x0100
+  BOUNDARY_ONLY          = 0x0100
 };
 
 typedef enum linvar LINVAR;

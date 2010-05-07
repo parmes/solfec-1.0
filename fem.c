@@ -1572,6 +1572,8 @@ static void fem_dynamic_implicit_solve (BODY *bod, double time, double step, dou
   {
     for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
   }
+
+  free (qorig);
 }
 
 /* compute inv (M) * K for an element */
