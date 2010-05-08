@@ -3505,29 +3505,29 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
 };
 
 /*
- * GLUING_SOLVER => object
+ * HYBRID_SOLVER => object
  */
 
-typedef struct lng_GLUING_SOLVER lng_GLUING_SOLVER;
+typedef struct lng_HYBRID_SOLVER lng_HYBRID_SOLVER;
 
-static PyTypeObject lng_GLUING_SOLVER_TYPE;
+static PyTypeObject lng_HYBRID_SOLVER_TYPE;
 
-struct lng_GLUING_SOLVER
+struct lng_HYBRID_SOLVER
 {
   PyObject_HEAD
 
-  GLUING *gl;
+  HYBRID *hs;
 };
 
 /* constructor */
-static PyObject* lng_GLUING_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("epsilon", "maxiter");
-  lng_GLUING_SOLVER *self;
+  lng_HYBRID_SOLVER *self;
   double epsilon;
   int maxiter;
 
-  self = (lng_GLUING_SOLVER*)type->tp_alloc (type, 0);
+  self = (lng_HYBRID_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
@@ -3538,30 +3538,30 @@ static PyObject* lng_GLUING_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
 
     TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]));
 
-    self->gl = GLUING_Create (epsilon, maxiter);
+    self->hs = HYBRID_Create (epsilon, maxiter);
   }
 
   return (PyObject*)self;
 }
 
 /* destructor */
-static void lng_GLUING_SOLVER_dealloc (lng_GLUING_SOLVER *self)
+static void lng_HYBRID_SOLVER_dealloc (lng_HYBRID_SOLVER *self)
 {
-  GLUING_Destroy (self->gl);
+  HYBRID_Destroy (self->hs);
 
   self->ob_type->tp_free ((PyObject*)self);
 }
 
-/* GLUING_SOLVER methods */
-static PyMethodDef lng_GLUING_SOLVER_methods [] =
+/* HYBRID_SOLVER methods */
+static PyMethodDef lng_HYBRID_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
 
-/* GLUING_SOLVER members */
-static PyMemberDef lng_GLUING_SOLVER_members [] =
+/* HYBRID_SOLVER members */
+static PyMemberDef lng_HYBRID_SOLVER_members [] =
 { {NULL, 0, 0, 0, NULL} };
 
-/* GLUING_SOLVER getset */
-static PyGetSetDef lng_GLUING_SOLVER_getset [] =
+/* HYBRID_SOLVER getset */
+static PyGetSetDef lng_HYBRID_SOLVER_getset [] =
 { {NULL, 0, 0, NULL, NULL} };
 
 /*
@@ -5383,7 +5383,7 @@ static int is_solver (PyObject *obj, char *var)
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE) &&
-        !PyObject_IsInstance (obj, (PyObject*)&lng_GLUING_SOLVER_TYPE))
+        !PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must be a constraint solver object", var);
@@ -5404,8 +5404,8 @@ static int get_solver_kind (PyObject *obj)
     return PENALTY_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     return NEWTON_SOLVER;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_GLUING_SOLVER_TYPE))
-    return GLUING_SOLVER;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE))
+    return HYBRID_SOLVER;
   else return -1;
 }
 
@@ -5418,8 +5418,8 @@ static void* get_solver (PyObject *obj)
     return ((lng_PENALTY_SOLVER*)obj)->ps;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     return ((lng_NEWTON_SOLVER*)obj)->nt;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_GLUING_SOLVER_TYPE))
-    return ((lng_GLUING_SOLVER*)obj)->gl;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE))
+    return ((lng_HYBRID_SOLVER*)obj)->hs;
   else return NULL;
 }
 
@@ -6291,9 +6291,9 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_NEWTON_SOLVER_dealloc, lng_NEWTON_SOLVER_new,
     lng_NEWTON_SOLVER_methods, lng_NEWTON_SOLVER_members, lng_NEWTON_SOLVER_getset);
 
-  TYPEINIT (lng_GLUING_SOLVER_TYPE, lng_GLUING_SOLVER, "solfec.GLUING_SOLVER",
-    Py_TPFLAGS_DEFAULT, lng_GLUING_SOLVER_dealloc, lng_GLUING_SOLVER_new,
-    lng_GLUING_SOLVER_methods, lng_GLUING_SOLVER_members, lng_GLUING_SOLVER_getset);
+  TYPEINIT (lng_HYBRID_SOLVER_TYPE, lng_HYBRID_SOLVER, "solfec.HYBRID_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_HYBRID_SOLVER_dealloc, lng_HYBRID_SOLVER_new,
+    lng_HYBRID_SOLVER_methods, lng_HYBRID_SOLVER_members, lng_HYBRID_SOLVER_getset);
 
   TYPEINIT (lng_CONSTRAINT_TYPE, lng_CONSTRAINT, "solfec.CONSTRAINT",
     Py_TPFLAGS_DEFAULT, lng_CONSTRAINT_dealloc, lng_CONSTRAINT_new,
@@ -6310,7 +6310,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_NEWTON_SOLVER_TYPE) < 0) return;
-  if (PyType_Ready (&lng_GLUING_SOLVER_TYPE) < 0) return;
+  if (PyType_Ready (&lng_HYBRID_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
   if (!(m =  Py_InitModule3 ("solfec", lng_methods, "Solfec module"))) return;
@@ -6326,7 +6326,7 @@ static void initlng (void)
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
   Py_INCREF (&lng_NEWTON_SOLVER_TYPE);
-  Py_INCREF (&lng_GLUING_SOLVER_TYPE);
+  Py_INCREF (&lng_HYBRID_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
@@ -6340,7 +6340,7 @@ static void initlng (void)
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
   PyModule_AddObject (m, "NEWTON_SOLVER", (PyObject*)&lng_NEWTON_SOLVER_TYPE);
-  PyModule_AddObject (m, "GLUING_SOLVER", (PyObject*)&lng_GLUING_SOLVER_TYPE);
+  PyModule_AddObject (m, "HYBRID_SOLVER", (PyObject*)&lng_HYBRID_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
 
@@ -6374,7 +6374,7 @@ int lng (const char *path)
                      "from solfec import GAUSS_SEIDEL_SOLVER\n"
                      "from solfec import PENALTY_SOLVER\n"
                      "from solfec import NEWTON_SOLVER\n"
-                     "from solfec import GLUING_SOLVER\n"
+                     "from solfec import HYBRID_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"

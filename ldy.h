@@ -46,7 +46,7 @@ enum solver_kind
   GAUSS_SEIDEL_SOLVER,
   PENALTY_SOLVER,
   NEWTON_SOLVER,
-  GLUING_SOLVER
+  HYBRID_SOLVER
 };
 
 typedef enum solver_kind SOLVER_KIND;
@@ -55,10 +55,7 @@ typedef enum solver_kind SOLVER_KIND;
 struct offb
 {
   double W [9], /* generalised inverse inertia block */
-	 *SYMW, /* symmetric copy of W block */
-	 *T;    /* tangent operator data */
-
-  int *map; /* mapping in a compressed storage */
+	 *SYMW; /* symmetric copy of W block */
 
   DIAB *dia; /* corresponding diagonal block */
   BODY *bod;
@@ -70,13 +67,10 @@ struct diab
 {
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
 	    *U, /* relative volocity => points to U[3] member of the underlying constraint */
-	    *T, /* tangent operator data */
 	 V [3], /* initial velocity */
 	 B [3], /* free velocity */
          W [9], /* generalised inverse inertia block */
 	 rho;   /* scaling parameter */
-
-  int *map; /* mapping in a compressed storage */
 
   OFFB *adj; /* note that W(i,j) = W1(i,j) + W2(i,j) {owing to body 1 and 2} and W1 and W2 are SEPARATELY stored here */
   CON *con;  /* the underlying constraint (and the owner od the reaction R[3] and the velocity U [3]) */

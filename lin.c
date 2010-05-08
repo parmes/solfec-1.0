@@ -37,18 +37,63 @@
 #endif
 
 #define USE_AT 0 /* disable for now */
-#define USE_LU (!MPI && 0) /* user LU in serial case */
 
 #define BLOCKS 256
 
-struct vect
+typedef struct vect VECT;
+
+struct vect /* krylov solver's vector */
 {
   double *x;
 
   int n;
 };
 
-#define vect(ptr) ((struct vect*)ptr)
+#define vect(ptr) ((VECT*)ptr)
+
+typedef struct offt OFFT;
+typedef struct diat DIAT;
+
+struct offt /* off-diagonal tangent block */
+{
+  double T [9],
+	*W [2],
+	*R,
+	*DR;
+
+#if MPI
+  int rank; /* rank != dom->rank => external block => use R in matrix-vector product */
+#endif
+
+  int num, /* local number */
+     *map;
+
+  OFFT *n;
+};
+
+struct diat /* diagonal tangent block */
+{
+  double  T [9],
+	 DR [3],
+	 DU [3],
+	 RE [3],
+	 RN,
+	 *R,
+	 *U,
+	 *V,
+	 *W,
+	  rho,
+	  B [3]; /* assembled here, includes WijRj from outside of the constraints subset */
+
+  CON *con;
+
+  int num, /* local number */
+     *map;
+
+  OFFT *adj;
+
+  DIAT *n;
+};
 
 struct linsys
 {
@@ -56,11 +101,13 @@ struct linsys
 
   LOCDYN *ldy;
 
-  SET *subset; /* used constraints */
+  DIAT *dia;
 
-  MEM setmem,
-      Y_mem,
-      T_mem;
+  int ndia;
+
+  MEM diamem,
+      offmem,
+      mapmem; /* {DIAT, OFFT}->map */
 
   double fixed_point_tol; /* fixed point normal stress update error tolerance */
 
@@ -68,15 +115,10 @@ struct linsys
 
   double epsilon; /* smoothing thickness */
 
-#if USE_LU
-  MEM mapmem; /* {DIAB, OFFB}->map */
   MX *A;
-#endif
 
-  struct vect *x, *b;
+  VECT *x, *b;
 
-  hypre_FlexGMRESFunctions *gmres_functions;
-  void *gmres_vdata;
   int iters;
   double resnorm;
 
@@ -89,66 +131,41 @@ struct linsys
 #endif
 };
 
-#define DR(con) (con)->Y
-#define DU(con) ((con)->Y+3)
-#define RE(con) ((con)->Y+6)
-#define RN(con) ((con)->Y+7) [0]
-
-#if USE_LU
+#if !MPI
 /* get compressed structure of system matrix */
 static MX* matrix_create (LINSYS *sys)
 {
-  int i, j, k, l, n, ncon;
-  short boundary;
-  SET *jtem;
-  MAP *item;
-  DIAB *dia;
-  OFFB *blk;
-  CON *con;
+  int i, j, k, l, n, ncon, *rows, *cols, *aux;
+  MAP **pcol, *item;
+  DIAT *dia;
+  OFFT *blk;
   MEM mem;
   MX *A;
 
-  ncon = SET_Size (sys->subset);
-  boundary = sys->variant & BOUNDARY_ONLY;
-  MEM_Init (&sys->mapmem, sizeof (int [3]), BLOCKS);
+  ncon = sys->ndia;
   ERRMEM (A = MEM_CALLOC (sizeof (MX)));
   A->kind = MXCSC;
-
-  /* matrix structure */
-  MAP **pcol;
 
   /* allocate colum blocks mapping */
   ERRMEM (pcol = MEM_CALLOC (ncon * sizeof (MAP*)));
   MEM_Init (&mem, sizeof (MAP), BLOCKS);
 
   /* map colum blocks */
-  for (jtem = SET_First (sys->subset); jtem; jtem = SET_Next (jtem))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
     int col, row, *map;
 
-    con = jtem->data;
-    dia = con->dia;
-
-    col = row = con->num;
+    col = row = dia->num;
     ASSERT_DEBUG (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Diagonal block mapped twice");
     ERRMEM (map = MEM_Alloc (&sys->mapmem));
     ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL)); /* '+1' not to confuse with NULL */
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      con = blk->dia->con;
-
-#if MPI
-      if (boundary && con->dia->adjext == NULL) continue; /* skip internal adjacency */
-#endif
-
-      col = con->num;
-
-      if (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL)) /* there are two W(i,j) blocks for two-body constraints */
-      {
-	ERRMEM (map = MEM_Alloc (&sys->mapmem));
-	ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL));
-      }
+      col = blk->num;
+      ASSERT_DEBUG (!MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Diagonal block mapped twice");
+      ERRMEM (map = MEM_Alloc (&sys->mapmem));
+      ERRMEM (MAP_Insert (&mem, &pcol [col], (void*) (long) (row+1), map, NULL));
     }
   }
 
@@ -159,16 +176,13 @@ static MX* matrix_create (LINSYS *sys)
   A->n = A->m = ncon * 3; /* system dimension */
   A->nz = -1; /* compressed columns */
 
-  /* eallocate compressed column storage */
+  /* allocate compressed column storage */
   ERRMEM (A->x = MEM_CALLOC (sizeof (double) * A->nzmax));
   ERRMEM (A->i = malloc (sizeof (int) * A->nzmax));
   ERRMEM (A->p = MEM_CALLOC (sizeof (int) * (A->n+1))); /* '+ 1' as there is cols[0] == 0 always */
-
-  int *rows = A->i,
-      *cols = A->p,
-      *aux;
-
   ERRMEM (aux = malloc (sizeof (int) * A->n));
+  rows = A->i;
+  cols = A->p;
 
   /* set up column sizes */
   for (j = 0; j < ncon; j ++)
@@ -214,27 +228,16 @@ static MX* matrix_create (LINSYS *sys)
   }
 
   /* assign sparse column maps to blocks */
-  for (jtem = SET_First (sys->subset); jtem; jtem = SET_Next (jtem))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
     int col, row;
 
-    con = jtem->data;
-    dia = con->dia;
-
-    col = row = con->num;
-
+    col = row = dia->num;
     ASSERT_DEBUG_EXT (dia->map = MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Inconsistent sparse storage");
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      con = blk->dia->con;
-
-#if MPI
-      if (boundary && con->dia->adjext == NULL) continue; /* skip internal adjacency */
-#endif
-
-      col = con->num;
-
+      col = blk->num;
       ASSERT_DEBUG_EXT (blk->map = MAP_Find (pcol [col], (void*) (long) (row+1), NULL), "Inconsistent sparse storage");
     }
   }
@@ -250,22 +253,14 @@ static MX* matrix_create (LINSYS *sys)
 /* copy system matrix into A */
 static void matrix_copy (LINSYS *sys, MX *A)
 {
-#if MPI
-  short boundary = sys->variant & BOUNDARY_ONLY;
-#endif
   double *a = A->x;
-  SET *item;
-  DIAB *dia;
-  OFFB *blk;
-  CON *con;
+  DIAT *dia;
+  OFFT *blk;
 
   for (double *b = a, *c = a + A->nzmax; b < c; b ++) *b = 0.0;
 
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    dia = con->dia;
-
     double *T = dia->T;
     int *map = dia->map;
 
@@ -281,10 +276,6 @@ static void matrix_copy (LINSYS *sys, MX *A)
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-#if MPI
-      if (boundary && blk->dia->adjext == NULL) continue;
-#endif
-
       double *T = blk->T;
       int *map = blk->map;
 
@@ -312,18 +303,17 @@ static double glue_stiffness (CON *con)
 }
 
 /* update linearization of a non-contact constraint */
-static void system_update_noncontact (CON *con, short dynamic, short boundary, double step, double *b)
+static void system_update_noncontact (DIAT *dia, short dynamic, double step, double *b)
 {
-  DIAB *dia;
-  OFFB *blk;
+  OFFT *blk;
 
-  dia = con->dia;
+  CON *con = dia->con;
 
   double *W = dia->W,
 	 *U = dia->U,
 	 *R = dia->R,
 	 *T = dia->T,
-	 *RE = RE(con); /* assumed updated */
+	 *RE = dia->RE; /* assumed updated */
 
   switch ((int) con->kind)
   {
@@ -348,24 +338,10 @@ static void system_update_noncontact (CON *con, short dynamic, short boundary, d
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-#if MPI
-      if (boundary && blk->dia->adjext == NULL) continue;
-#endif
-
-      double *W = blk->W,
-	     *T = blk->T;
+      double *W = blk->W [0], *T = blk->T;
 
       NNCOPY (W, T);
     }
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      double *W = blk->W,
-	     *T = blk->T;
-
-      NNCOPY (W, T);
-    }
-#endif
   }
   break;
   case FIXDIR:
@@ -414,30 +390,21 @@ static void system_update_noncontact (CON *con, short dynamic, short boundary, d
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-#if MPI
-      if (boundary && blk->dia->adjext == NULL) continue;
-#endif
+      double **W = blk->W, *T = blk->T;
 
-      double *W = blk->W,
-	     *T = blk->T;
+      T [2] = W[0][2];
+      T [5] = W[0][5];
+      T [8] = W[0][8];
 
-      T [2] = W[2];
-      T [5] = W[5];
-      T [8] = W[8];
+      if (W[1])
+      {
+	T [2] += W[1][2];
+	T [5] += W[1][5];
+	T [8] += W[1][8];
+      }
+
       T [0] = T [1] = T [3] = T [4] = T [6] = T [7] = 0;
     }
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      double *W = blk->W,
-	     *T = blk->T;
-
-      T [2] = W[2];
-      T [5] = W[5];
-      T [8] = W[8];
-      T [0] = T [1] = T [3] = T [4] = T [6] = T [7] = 0;
-    }
-#endif
   }
   break;
   case GLUEPNT:
@@ -455,78 +422,58 @@ static void system_update_noncontact (CON *con, short dynamic, short boundary, d
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-#if MPI
-      if (boundary && blk->dia->adjext == NULL) continue;
-#endif
-      double *W = blk->W,
-	     *T = blk->T;
+      double **W = blk->W, *T = blk->T;
 
-      NNCOPY (W, T);
+      NNCOPY (W[0], T);
+      if (W[1]) { NNADD (T, W[1], T); }
     }
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      double *W = blk->W,
-	     *T = blk->T;
-
-      NNCOPY (W, T);
-    }
-#endif
   }
   break;
   }
 }
 
 /* update linear system for NONSMOOTH_HSW, NONSMOOTH_HYBRID, FIXED_POINT variants */
-static void system_update_HSW_HYBRID_FIXED (LINVAR variant, DOM *dom, SET *subset, double *rhs)
+static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, double *rhs)
 {
   double d [3], norm, lim, udash, step, *b;
-  short dynamic, pull, boundary;
-  DIAB *dia;
-  OFFB *blk;
-  SET *item;
+  short dynamic, pull;
+  LINVAR variant;
+  DIAT *dia;
+  OFFT *blk;
+  DOM *dom;
   CON *con;
 
-  boundary = variant & BOUNDARY_ONLY;
+  variant = sys->variant;
+  dom = sys->ldy->dom;
   dynamic = dom->dynamic;
   step = dom->step;
 
 #if MPI
-  DOM_Update_External_Reactions (dom, 0); /* (###) */
+  LINSYS_Update_External_Reactions (sys); /* (###) */
 #endif
 
-  for (item = SET_First (subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    dia = con->dia;
-    b = &rhs [3*con->num];
+    con = dia->con;
+    b = &rhs [3*dia->num];
 
     double *W = dia->W,
 	   *B = dia->B,
 	   *U = dia->U,
 	   *R = dia->R,
 	   *T = dia->T,
-	   *RE = RE(con);
+	   *RE = dia->RE;
 
     /* update residual */
     NVADDMUL (B, W, R, RE);
     SUB (RE, U, RE);
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      double *R = blk->dia->R,
-             *W = blk->W;
+      double **W = blk->W, *R = blk->R; /* (###) */
 
-      NVADDMUL (RE, W, R, RE);
+      NVADDMUL (RE, W[0], R, RE);
+      if (W[1]) { NVADDMUL (RE, W[1], R, RE); }
     }
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      double *R = CON(blk->dia)->R, /* (###) */
-             *W = blk->W;
-
-      NVADDMUL (RE, W, R, RE);
-    }
-#endif
 
     switch (con->kind)
     {
@@ -559,28 +506,19 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, DOM *dom, SET *subse
 
 	for (blk = dia->adj; blk; blk = blk->n)
 	{
-#if MPI
-	  if (boundary && blk->dia->adjext == NULL) continue;
-#endif
+	  double **W = blk->W, *T = blk->T;
 
-	  double *W = blk->W,
-		 *T = blk->T;
+	  T [2] = W[0][2];
+	  T [5] = W[0][5];
+	  T [8] = W[0][8];
 
-	  T [2] = W[2];
-	  T [5] = W[5];
-	  T [8] = W[8];
+	  if (W[1])
+	  {
+	    T [2] += W[1][2];
+	    T [5] += W[1][5];
+	    T [8] += W[1][8];
+	  }
 	}
-#if MPI
-	for (blk = dia->adjext; blk; blk = blk->n)
-	{
-	  double *W = blk->W,
-		 *T = blk->T;
-
-	  T [2] = W[2];
-	  T [5] = W[5];
-	  T [8] = W[8];
-	}
-#endif
       }
       else  /* inactive normal set */
       {
@@ -594,22 +532,10 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, DOM *dom, SET *subse
 
 	for (blk = dia->adj; blk; blk = blk->n)
 	{
-#if MPI
-	  if (boundary && blk->dia->adjext == NULL) continue;
-#endif
-
 	  double *T = blk->T;
 
 	  T [2] = T [5] = T [8] = 0;
 	}
-#if MPI
-	for (blk = dia->adjext; blk; blk = blk->n)
-	{
-	  double *T = blk->T;
-
-	  T [2] = T [5] = T [8] = 0;
-	}
-#endif
       }
 
       /* tangential response */
@@ -625,7 +551,7 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, DOM *dom, SET *subse
 	  lim = fri * MAX (0, R[2]);
 	  break;
 	case FIXED_POINT:
-	  lim = fri * MAX (0, RN(con));
+	  lim = fri * MAX (0, dia->RN);
 	  break;
       }
 
@@ -703,8 +629,8 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, DOM *dom, SET *subse
 	    T [6] = rho*(M[0]*W[6] + M[2]*W[7]);
 	    T [7] = rho*(M[1]*W[6] + M[3]*W[7]);
 
-	    b [0] = (fri*(d[0]/norm)*RN(con) - R[0]) * W[0] - rho*(M[0]*RE[0] + M[2]*RE[1]); 
-	    b [1] = (fri*(d[1]/norm)*RN(con) - R[1]) * W[4] - rho*(M[1]*RE[0] + M[3]*RE[1]); 
+	    b [0] = (fri*(d[0]/norm)*dia->RN - R[0]) * W[0] - rho*(M[0]*RE[0] + M[2]*RE[1]); 
+	    b [1] = (fri*(d[1]/norm)*dia->RN - R[1]) * W[4] - rho*(M[1]*RE[0] + M[3]*RE[1]); 
 	  }
 	  else /* HSW, HYBRID */
 	  {
@@ -717,34 +643,25 @@ static void system_update_HSW_HYBRID_FIXED (LINVAR variant, DOM *dom, SET *subse
 
 	  for (blk = dia->adj; blk; blk = blk->n)
 	  {
-#if MPI
-	    if (boundary && blk->dia->adjext == NULL) continue;
-#endif
+	    double **W = blk->W, *T = blk->T;
 
-	    double *W = blk->W,
-		   *T = blk->T;
+	    T[0] = rho*(M[0]*W[0][0] + M[2]*W[0][1]);
+	    T[1] = rho*(M[1]*W[0][0] + M[3]*W[0][1]);
+	    T[3] = rho*(M[0]*W[0][3] + M[2]*W[0][4]);
+	    T[4] = rho*(M[1]*W[0][3] + M[3]*W[0][4]);
+	    T[6] = rho*(M[0]*W[0][6] + M[2]*W[0][7]); 
+	    T[7] = rho*(M[1]*W[0][6] + M[3]*W[0][7]);  
 
-	    T[0] = rho*(M[0]*W[0] + M[2]*W[1]);
-	    T[1] = rho*(M[1]*W[0] + M[3]*W[1]);
-	    T[3] = rho*(M[0]*W[3] + M[2]*W[4]);
-	    T[4] = rho*(M[1]*W[3] + M[3]*W[4]);
-	    T[6] = rho*(M[0]*W[6] + M[2]*W[7]); 
-	    T[7] = rho*(M[1]*W[6] + M[3]*W[7]);  
+	    if (W[1])
+	    {
+	      T[0] += rho*(M[0]*W[1][0] + M[2]*W[1][1]);
+	      T[1] += rho*(M[1]*W[1][0] + M[3]*W[1][1]);
+	      T[3] += rho*(M[0]*W[1][3] + M[2]*W[1][4]);
+	      T[4] += rho*(M[1]*W[1][3] + M[3]*W[1][4]);
+	      T[6] += rho*(M[0]*W[1][6] + M[2]*W[1][7]);
+	      T[7] += rho*(M[1]*W[1][6] + M[3]*W[1][7]);
+	    }
 	  }
-#if MPI
-	  for (blk = dia->adjext; blk; blk = blk->n)
-	  {
-	    double *W = blk->W,
-		   *T = blk->T;
-
-	    T[0] = rho*(M[0]*W[0] + M[2]*W[1]);
-	    T[1] = rho*(M[1]*W[0] + M[3]*W[1]);
-	    T[3] = rho*(M[0]*W[3] + M[2]*W[4]);
-	    T[4] = rho*(M[1]*W[3] + M[3]*W[4]);
-	    T[6] = rho*(M[0]*W[6] + M[2]*W[7]); 
-	    T[7] = rho*(M[1]*W[6] + M[3]*W[7]);  
-	  }
-#endif
 	}
 	else /* degenerate case => enforce homogenous tangential tractions.
 		this is discussed in the Section 3.3 of the HSW paper */
@@ -760,22 +677,10 @@ ZERO_TANG:
 
 	  for (blk = dia->adj; blk; blk = blk->n)
 	  {
-#if MPI
-	    if (boundary && blk->dia->adjext == NULL) continue;
-#endif
-
 	    double *T = blk->T;
 
 	    T [0] = T [1] = T [3] = T [4] = T [6] = T [7] = 0;
 	  }
-#if MPI
-	  for (blk = dia->adjext; blk; blk = blk->n)
-	  {
-	    double *T = blk->T;
-
-	    T [0] = T [1] = T [3] = T [4] = T [6] = T [7] = 0;
-	  }
-#endif
 	}
       }
       else /* frictional sticking: inactive tangential set */
@@ -815,40 +720,31 @@ ZERO_TANG:
 
 	for (blk = dia->adj; blk; blk = blk->n)
 	{
-#if MPI
-	  if (boundary && blk->dia->adjext == NULL) continue;
-#endif
+	  double **W = blk->W, *T = blk->T;
 
-	  double *W = blk->W,
-		 *T = blk->T;
+	  T [0] = W[0][0];
+	  T [1] = W[0][1];
+	  T [3] = W[0][3];
+	  T [4] = W[0][4];
+	  T [6] = W[0][6];
+	  T [7] = W[0][7];
 
-	  T [0] = W[0];
-	  T [1] = W[1];
-	  T [3] = W[3];
-	  T [4] = W[4];
-	  T [6] = W[6];
-	  T [7] = W[7];
+	  if (W[1])
+	  {
+	    T [0] += W[1][0];
+	    T [1] += W[1][1];
+	    T [3] += W[1][3];
+	    T [4] += W[1][4];
+	    T [6] += W[1][6];
+	    T [7] += W[1][7];
+	  }
 	}
-#if MPI
-	for (blk = dia->adjext; blk; blk = blk->n)
-	{
-	  double *W = blk->W,
-		 *T = blk->T;
-
-	  T [0] = W[0];
-	  T [1] = W[1];
-	  T [3] = W[3];
-	  T [4] = W[4];
-	  T [6] = W[6];
-	  T [7] = W[7];
-	}
-#endif
       }
     }
     break;
     default:
     {
-      system_update_noncontact (con, dynamic, boundary, step, b);
+      system_update_noncontact (dia, dynamic, step, b);
     }
     break;
     }
@@ -995,56 +891,47 @@ inline static void complex_F (double res, double fri, double gap, double step, s
 }
 
 /* update linear system for NONSMOOTH_VARIATIONAL, SMOOTHED_VARIATIONAL variants */
-static void system_update_VARIATIONAL (LINVAR variant, double epsilon, DOM *dom, SET *subset, double *rhs)
+static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 {
-  short smooth, dynamic, boundary;
-  double step, h, *b;
-  SET *item;
-  OFFB *blk;
-  DIAB *dia;
+  double epsilon, step, h, *b;
+  short smooth, dynamic;
+  OFFT *blk;
+  DIAT *dia;
+  DOM *dom;
   CON *con;
 
-  if (variant & SMOOTHED_VARIATIONAL) smooth = 1; /* (+++); TODO: decide on best smoothing */
+  if (sys->variant & SMOOTHED_VARIATIONAL) smooth = 1; /* (+++); TODO: decide on best smoothing */
+  epsilon = sys->epsilon;
   h = 1E-6 * epsilon; /* TODO: decide on best choice */
-  boundary = variant & BOUNDARY_ONLY;
+  dom = sys->ldy->dom;
   dynamic = dom->dynamic;
   step = dom->step;
 
 #if MPI
-  DOM_Update_External_Reactions (dom, 0); /* (###) */
+  LINSYS_Update_External_Reactions (sys); /* (###) */
 #endif
 
-  for (item = SET_First (subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    dia = con->dia;
-    b = &rhs [3*con->num];
+    con = dia->con;
+    b = &rhs [3*dia->num];
 
     double *W = dia->W,
 	   *B = dia->B,
 	   *U = dia->U,
 	   *R = dia->R,
-	   *RE = RE(con);
+	   *RE = dia->RE;
 
     /* update residual */
     NVADDMUL (B, W, R, RE);
     SUB (RE, U, RE);
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      double *R = blk->dia->R,
-             *W = blk->W;
+      double **W = blk->W, *R = blk->R; /* (###) */
 
-      NVADDMUL (RE, W, R, RE);
+      NVADDMUL (RE, W[0], R, RE);
+      if (W[1]) { NVADDMUL (RE, W[1], R, RE); }
     }
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      double *R = CON(blk->dia)->R, /* (###) */
-             *W = blk->W;
-
-      NVADDMUL (RE, W, R, RE);
-    }
-#endif
 
     switch (con->kind)
     {
@@ -1108,28 +995,21 @@ static void system_update_VARIATIONAL (LINVAR variant, double epsilon, DOM *dom,
 
       for (blk = dia->adj; blk; blk = blk->n)
       {
-#if MPI
-	if (boundary && blk->dia->adjext == NULL) continue;
-#endif
-	double *T = blk->T,
-	       *W = blk->W;
+	double **W = blk->W, *T = blk->T;
 
-        NNMUL (TT, W, T);
-      }
-#if MPI
-      for (blk = dia->adjext; blk; blk = blk->n)
-      {
-	double *T = blk->T,
-	       *W = blk->W;
+        NNMUL (TT, W[0], T);
 
-        NNMUL (TT, W, T);
+	if (W[1])
+	{
+	  NNMUL (TT, W[1], J);
+	  NNADD (T, J, T);
+	}
       }
-#endif
     }
     break;
     default:
     {
-      system_update_noncontact (con, dynamic, boundary, step, b);
+      system_update_noncontact (dia, dynamic, step, b);
     }
     break;
     }
@@ -1140,21 +1020,21 @@ static void system_update_VARIATIONAL (LINVAR variant, double epsilon, DOM *dom,
 static double update_normal_bounds (LINSYS *sys)
 {
   double errup, errlo;
-  SET *item;
+  DIAT *dia;
   CON *con;
 
   errup = errlo = 0.0;
 
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n);
   {
-    con = item->data;
+    con = dia->con;
     if (con->kind == CONTACT)
     {
       double DRN,
 	     RN;
 
-      DRN = con->R[2] - RN(con);
-      RN = RN(con) = con->R[2];
+      DRN = con->R[2] - dia->RN;
+      RN = dia->RN = con->R[2];
 
       errup += DRN*DRN;
       errlo += RN*RN;
@@ -1173,15 +1053,16 @@ static double update_normal_bounds (LINSYS *sys)
 #if MPI
 static void update_external_reactions (LINSYS *sys, double *x)
 {
-  SET *item, *jtem;
   double **r, *z;
   int i, *j, *k;
   COMDATA *d;
+  SET *jtem;
+  DIAT *dia;
   CON *con;
 
-  for (item = SET_First (sys->subset), d = sys->send; item; item = SET_Next (item))
+  for (dia = sys->dia, d = sys->send; dia; dia = dia->n)
   {
-    con = item->data;
+    con = dia->con;
     for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem), d ++)
     {
       d->d = &x [3*con->num];
@@ -1202,49 +1083,35 @@ static void update_external_reactions (LINSYS *sys, double *x)
 
 static void A_times_x_equals_y (LINSYS *sys, double *x, double *y)
 {
-  double *T, *z;
-  short boundary;
-  SET *item;
-  CON *con;
-  OFFB *blk;
-  DIAB *dia;
+  double *T, *z, *v;
+  OFFT *blk;
+  DIAT *dia;
 
 #if MPI
   update_external_reactions (sys, x); /* (###) */
+
+  int rank = sys->ldy->dom->rank;
 #endif
 
-  boundary = sys->variant & BOUNDARY_ONLY;
-
-  for (item = SET_First (sys->subset); item; item = SET_Next (item), y += 3)
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    dia = con->dia;
+    z = &x [3*dia->num];
+    v = &y [3*dia->num];
     T = dia->T;
-    z = &x [3*con->num];
 
-    NVMUL (T, z, y);
+    NVMUL (T, z, v);
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      con = blk->dia->con;
 #if MPI
-      if (boundary && blk->dia->adjext == NULL) continue;
+      if (blk->rank != rank) z = blk->R; /* (###) */
+      else
 #endif
+      z = &x [3*blk->num];
       T = blk->T;
-      z = &x [3*con->num];
 
-      NVADDMUL (y, T, z, y);
+      NVADDMUL (v, T, z, v);
     }
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      con = CON (blk->dia);
-      T = blk->T;
-      z = con->R; /* (###) */
-
-      NVADDMUL (y, T, z, y);
-    }
-#endif
   }
 }
 
@@ -1256,15 +1123,11 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
   double *v;
 #endif
   double *T, *z, *w;
-  short boundary;
-  SET *item;
-  CON *con;
-  OFFB *blk;
-  DIAB *dia;
+  OFFT *blk;
+  DIAT *dia;
   DOM *dom;
 
   dom = sys->ldy->dom;
-  boundary = sys->variant & BOUNDARY_ONLY;
 #if MPI
   ncpu = dom->ncpu;
   rank = dom->rank;
@@ -1274,44 +1137,28 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
   for (z = y, w = z + sys->b->n; z < w; z ++) (*z) = 0.0; /* zero y */
 #endif
 
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    dia = con->dia;
     T = dia->T;
-    z = &x [3*con->num];
+    z = &x [3*dia->num];
 #if MPI
-    w = &v [3*(basenum [rank]+con->num)];
+    w = &v [3*(basenum [rank]+dia->num)];
 #else
-    w = &y [3*con->num];
+    w = &y [3*dia->num];
 #endif
 
     TVADDMUL (w, T, z, w);
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      con = blk->dia->con;
-#if MPI
-      if (boundary && blk->dia->adjext == NULL) continue;
-#endif
       T = blk->T;
 #if MPI
-      w = &v [3*(basenum [rank]+con->num)];
+      w = &v [3*(basenum [blk->rank]+blk->num)];
 #else
       w = &y [3*con->num];
 #endif
       TVADDMUL (w, T, z, w);
     }
-#if MPI
-    for (blk = dia->adjext; blk; blk = blk->n)
-    {
-      con = CON (blk->dia);
-      T = blk->T;
-      w = &v [3*(basenum [con->rank]+con->num)];
-
-      TVADDMUL (w, T, z, w);
-    }
-#endif
   }
 
 #if MPI
@@ -1322,11 +1169,11 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
 }
 #endif
 
-static struct vect* newvect (int n)
+static VECT* newvect (int n)
 {
-  struct vect *v;
+  VECT *v;
 
-  ERRMEM (v = malloc (sizeof (struct vect)));
+  ERRMEM (v = malloc (sizeof (VECT)));
   ERRMEM (v->x = MEM_CALLOC (n * sizeof (double)));
   v->n = n;
 
@@ -1365,9 +1212,9 @@ static int CommInfo (void *A, int *my_id, int *num_procs)
 
 static void* CreateVector (void *vector)
 {
-  struct vect *a = vect (vector), *v;
+  VECT *a = vect (vector), *v;
 
-  ERRMEM (v = malloc (sizeof (struct vect)));
+  ERRMEM (v = malloc (sizeof (VECT)));
   ERRMEM (v->x = MEM_CALLOC (a->n * sizeof (double)));
   v->n = a->n;
 
@@ -1376,10 +1223,10 @@ static void* CreateVector (void *vector)
 
 static void* CreateVectorArray (int size, void *vectors)
 {
-  struct vect **v;
+  VECT **v;
   int i;
 
-  ERRMEM (v = malloc (size * sizeof (struct vect*)));
+  ERRMEM (v = malloc (size * sizeof (VECT*)));
   for (i = 0; i < size; i ++)
   {
     v[i] = CreateVector (vectors);
@@ -1390,7 +1237,7 @@ static void* CreateVectorArray (int size, void *vectors)
 
 static int DestroyVector (void *vector)
 {
-  struct vect *v = vect (vector);
+  VECT *v = vect (vector);
   free (v->x);
   free (v);
 
@@ -1469,7 +1316,7 @@ static void *MatvecCreate (void *A, void *x)
 
 static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double beta, void *vy)
 {
-  struct vect *vz = CreateVector (vx), *vu = CreateVector (vx);
+  VECT *vz = CreateVector (vx), *vu = CreateVector (vx);
   LINSYS *sys = (LINSYS*)A;
   double delta = sys->delta;
 
@@ -1505,16 +1352,12 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
   LINSYS *sys = (LINSYS*)A;
   double *bb = vect (vb)->x, *xx = vect (vx)->x, *b, *x;
   int ipiv [3];
-  DIAB *dia;
-  SET *item;
-  CON *con;
+  DIAT *dia;
 
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    dia = con->dia;
-    b = &bb [3*con->num];
-    x = &xx [3*con->num];
+    b = &bb [3*dia->num];
+    x = &xx [3*dia->num];
     COPY (b, x);
 
     double *T = dia->T, S [9];
@@ -1530,93 +1373,198 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
 /* GMRES interface end */
 
 /* create linear system resulting from linearization of constraints */
-LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
+LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
 {
   DOM *dom = ldy->dom;
-  short boundary;
+  MEM setmem, mapmem;
+  int ncon, blocks;
   LINSYS *sys;
+  SET *item;
   DIAB *dia;
   OFFB *blk;
+  DIAT *dt;
+  OFFT *bt;
   CON *con;
-  int ncon;
+  MAP *map;
 
-  ncon = dom->ncon;
   imaginary_i = csqrt (-1);
-  boundary = variant & BOUNDARY_ONLY;
+
   ERRMEM (sys = MEM_CALLOC (sizeof (LINSYS)));
-  MEM_Init (&sys->setmem, sizeof (SET), MAX (ncon, BLOCKS));
   sys->variant = variant;
   sys->ldy = ldy;
 
-  /* collect constraints */
-  for (con = dom->con; con; con = con->next)
+  MEM_Init (&setmem, sizeof (SET), BLOCKS);
+  MEM_Init (&mapmem, sizeof (MAP), BLOCKS);
+
+  if (!subset)
   {
+    for (con = dom->con; con; con = con->next)
+      SET_Insert (&setmem, &subset, con, NULL);
+  }
+
+  /* number constraints */
+  for (ncon = 0, item = SET_First (subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+    con->num = ncon ++;
+  }
+  sys->ndia = ncon;
+
+  blocks = MAX (ncon, BLOCKS);
+  MEM_Init (&sys->mapmem, sizeof (int [3]), blocks);
+  MEM_Init (&sys->diamem, sizeof (DIAT), blocks);
+  MEM_Init (&sys->offmem, sizeof (OFFT), blocks);
+
 #if MPI
-    if (boundary)
+  /* propagate information about the subset and numbering */
+  COMDATA *send, *recv, *d;
+  int nrecv, i, *j, *k;
+  SET *subext, *jtem;
+
+  ERRMEM (send = MEM_CALLOC (dom->ncpu * sizeof (COMDATA)));
+
+  for (i = 0; i < dom->ncpu; i ++) send [i].rank = i;
+
+  for (item = SET_First (subset); item; item = SET_Next (item))
+  {
+    con = item->data;
+
+    for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem))
     {
-      if (con->dia->adjext)
-      {
-	SET_Insert (&sys->setmem, &sys->subset, con, NULL);
-      }
+      d = &send [(int) (long) jtem->data];
+
+      d->ints += 2;
+      ERRMEM (d->i = realloc (d->i, d->ints * sizeof (int)));
+      d->i [d->ints-2] = con->id;
+      d->i [d->ints-1] = con->num;
     }
-    else 
-#endif
-    SET_Insert (&sys->setmem, &sys->subset, con, NULL);
   }
-  ncon = SET_Size (sys->subset);
 
-  /* constraints local numbering */
-  DOM_Number_Constraints (dom, 1, sys->subset);
+  COMALL (MPI_COMM_WORLD, send, dom->ncpu, &recv, &nrecv);
 
-  /* auxiliary memory pools */
-  switch (LINEARIZATION_VARIANT (variant))
+  for (i = 0, subext = NULL; i < nrecv; i ++)
   {
-    case NONSMOOTH_HSW:
-    case NONSMOOTH_HYBRID:
-    case NONSMOOTH_VARIATIONAL:
-    case SMOOTHED_VARIATIONAL:
-      MEM_Init (&sys->Y_mem, sizeof (double [9]), MAX (ncon, BLOCKS)); /* DR, DU, RE */
-      break;
-    case FIXED_POINT:
-      MEM_Init (&sys->Y_mem, sizeof (double [10]), MAX (ncon, BLOCKS)); /* DR, DU, RE, RN */
-      break;
-      MEM_Init (&sys->Y_mem, sizeof (double [9]), MAX (ncon, BLOCKS)); /* DR, DU, RE */
-      break;
+    d = &recv [i];
+    for (j = d->i, k = j + d->ints; j < k; j += 2)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) j[0], NULL), "Invalid constraint id");
+      con->num = j[1];
+      SET_Insert (&setmem, &subext, con, NULL);
+    }
   }
-  MEM_Init (&sys->T_mem, sizeof (double [9]),  MAX (ncon, BLOCKS)); /* dHi/dRj */
 
-  /* auxiliary constraint space */
-  for (con = dom->con; con; con = con->next)
-  {
-#if MPI
-    if (boundary && con->dia->adjext == NULL) continue;
+  for (i = 0; i < dom->ncpu; i ++) free (send [i].i);
+  free (send);
+  free (recv);
 #endif
 
+  /* create linearized system structure */
+  for (map = NULL, item = SET_First (subset); item; item = SET_Next (item))
+  {
+    con = item->data;
     dia = con->dia;
-    ERRMEM (con->Y = MEM_Alloc (&sys->Y_mem));
-    ERRMEM (dia->T = MEM_Alloc (&sys->T_mem));
+
+    ERRMEM (dt = MEM_Alloc (&sys->diamem));
+    dt->R = dia->R;
+    dt->U = dia->U;
+    dt->V = dia->V;
+    dt->W = dia->W;
+    dt->rho = dia->rho;
+    dt->con = con;
+    dt->num = con->num;
+
+    double *B = dt->B;
+    COPY (dia->B, B);
+
+    MAP_Free (&mapmem, &map);
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
+      con = blk->dia->con;
+      if (SET_Contains (subset, con, NULL))
+      {
+	if ((bt = MAP_Find (map, con, NULL))) /* second Wij adjacent to the same DIAB */
+	{
+	  ASSERT_DEBUG (bt->W [1] == NULL, "Inconsistent mappint of second Wij");
+	  bt->W [1] = blk->W;
+	}
+	else
+	{
+	  ERRMEM (bt = MEM_Alloc (&sys->offmem));
+          bt->W [0] = blk->W;
+	  bt->num = con->num;
+	  bt->R = con->R;
 #if MPI
-      if (boundary && blk->dia->adjext == NULL) continue;
+	  bt->rank = dom->rank;
 #endif
-      ERRMEM (blk->T = MEM_Alloc (&sys->T_mem));
+	  MAP_Insert (&mapmem, &map, con, bt, NULL); /* map first Wij */
+
+	  bt->n = dt->adj;
+	  dt->adj = bt;
+	}
+      }
+      else
+      {
+	double *R = blk->dia->R, *W = blk->W;
+
+	NVADDMUL (B, W, R, B);
+      }
     }
 #if MPI
     for (blk = dia->adjext; blk; blk = blk->n)
     {
-      ERRMEM (blk->T = MEM_Alloc (&sys->T_mem));
+      con = CON (blk->dia);
+      if (SET_Contains (subext, con, NULL))
+      {
+	if ((bt = MAP_Find (map, con, NULL))) /* second Wij adjacent to the same DIAB */
+	{
+	  ASSERT_DEBUG (bt->W[1] == NULL, "Inconsistent mappint of second Wij");
+	  bt->W [1] = blk->W;
+	}
+	else
+	{
+	  ERRMEM (bt = MEM_Alloc (&sys->offmem));
+          bt->W [0] = blk->W;
+	  bt->num = con->num;
+	  bt->R = con->R;
+	  bt->DR = con->R; /* same */
+	  bt->rank = con->rank;
+
+	  MAP_Insert (&mapmem, &map, blk->dia, bt, NULL); /* map first Wij */
+
+	  bt->n = dt->adj;
+	  dt->adj = bt;
+	}
+      }
+      else
+      {
+	double *R = CON(blk->dia)->R, *W = blk->W;
+
+	NVADDMUL (B, W, R, B);
+      }
     }
 #endif
+
+    dt->n = sys->dia;
+    sys->dia = dt;
   }
-#if MPI
-  for (MAP *item = MAP_First (dom->conext); item; item = MAP_Next (item))
+
+  /* map off-diagonal local DR */
+  MAP_Free (&mapmem, &map);
+  for (dt = sys->dia; dt; dt = dt->n)
   {
-    con = item->data;
-    ERRMEM (con->Y = MEM_Alloc (&sys->Y_mem));
+    MAP_Insert (&mapmem, &map, (void*) (long) dt->num, dt->DR, NULL);
   }
-#endif
+  for (dt = sys->dia; dt; dt = dt->n)
+  {
+    for (bt = dt->adj; bt; bt = bt->n)
+    {
+      if (!bt->DR)
+      {
+	ASSERT_DEBUG_EXT (bt->DR = MAP_Find (map, (void*) (long) bt->num, NULL), "Inconsistent OFFT numbering");
+      }
+    }
+  }
 
   /* default fixed point tolerance */
   sys->fixed_point_tol = 1E-6;
@@ -1624,10 +1572,11 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
   /* smoothing thickness */
   if (variant & SMOOTHED_VARIATIONAL)
   {
-    double B [4] = {0, 0, 0, 0};
+    double B [4] = {0, 0, 0, 0}, len;
 
-    for (con = dom->con; con; con = con->next)
+    for (dt = sys->dia; dt; dt = dt->n)
     {
+      con = dt->con;
       if (con->kind == CONTACT)
       {
         dia = con->dia;
@@ -1644,8 +1593,9 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
 
     B [3] = 1.0 / MAX (B [3], 1.0);
     SCALE (B, B[3]); /* avergae free contact velocity */
+    len = LEN (B);
 
-    sys->epsilon = 1E-6 * LEN (B); /* TODO: work out a best choice */
+    sys->epsilon = 1E-6 * MAX (len, 1E-9); /* TODO: work out a best choice */
   }
   else sys->epsilon = 1E-9;
 
@@ -1653,21 +1603,14 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
   sys->x = newvect (3 * ncon);
   sys->b = CreateVector (sys->x);
 
-  /* create GMRES solver */
-  sys->gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, CreateVectorArray, DestroyVector,
-    MatvecCreate, Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
-  sys->gmres_vdata = hypre_FlexGMRESCreate (sys->gmres_functions);
-
 #if MPI
   /* communication pattern */
-  SET *item, *jtem;
-  int i, *j, *k, n;
-  COMDATA *d;
   double **r;
+  int n;
 
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dt = sys->dia; dt; dt = dt->n)
   {
-    con = item->data;
+    con = dt->con;
     for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem))
     {
       sys->nsend ++;
@@ -1677,9 +1620,9 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
   ERRMEM (sys->send = MEM_CALLOC (sys->nsend * sizeof (COMDATA)));
   d = sys->send;
 
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dt = sys->dia; dt; dt = dt->n)
   {
-    con = item->data;
+    con = dt->con;
     for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem), d ++)
     {
       d->rank = (int) (long) jtem->data;
@@ -1723,9 +1666,12 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy)
   for (i = 1; i <= dom->ncpu; i ++) sys->basenum [i] += sys->basenum [i-1];
 #endif
 
-#if USE_LU
-  sys->A = matrix_create (sys); /* used for preconditioning */
+#if !MPI
+  if (variant & DIRECT_SOLVE) sys->A = matrix_create (sys);
 #endif
+
+  MEM_Release (&setmem);
+  MEM_Release (&mapmem);
 
   return sys;
 }
@@ -1744,17 +1690,17 @@ void LINSYS_Update (LINSYS *sys)
     case NONSMOOTH_HSW:
     case NONSMOOTH_HYBRID:
     case FIXED_POINT:
-      system_update_HSW_HYBRID_FIXED (sys->variant, sys->ldy->dom, sys->subset, sys->b->x);
+      system_update_HSW_HYBRID_FIXED (sys, sys->b->x);
       break;
     case NONSMOOTH_VARIATIONAL:
     case SMOOTHED_VARIATIONAL:
-      system_update_VARIATIONAL (sys->variant, sys->epsilon, sys->ldy->dom, sys->subset, sys->b->x);
+      system_update_VARIATIONAL (sys, sys->b->x);
       break;
   }
 
 #if USE_AT
   /* b = (A^T) b */
-  struct vect *c = CreateVector (sys->b);
+  VECT *c = CreateVector (sys->b);
   CopyVector (sys->b, c);
   AT_times_x_equals_y (sys, c, sys->b);
   DestroyVector (c);
@@ -1764,10 +1710,9 @@ void LINSYS_Update (LINSYS *sys)
 /* solve for reaction increments DR */
 void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
 {
-  short boundary, variational;
   double *x, *z, *DR;
-  DIAB *dia;
-  SET *item;
+  short variational;
+  DIAT *dia;
   CON *con;
 
 #if 0
@@ -1775,32 +1720,44 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
   abstol -= sys->delta;
 #endif
 
-  boundary = sys->variant & BOUNDARY_ONLY;
   variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
 
-#if USE_LU
-  double *xx = sys->x->x, *bb = sys->b->x;
-
-  for (x = xx + sys->x->n; xx < x; xx ++, bb ++) *xx = *bb;
-
-  matrix_copy (sys, sys->A);
-
-  cs_lusol (1, sys->A, sys->x->x, 0);
-#else
-  hypre_FlexGMRESSetTol (sys->gmres_vdata, 0.0);
-  hypre_FlexGMRESSetMaxIter (sys->gmres_vdata, maxiter);
-  hypre_FlexGMRESSetAbsoluteTol (sys->gmres_vdata, abstol);
-  hypre_FlexGMRESSetup (sys->gmres_vdata, sys, sys->b, sys->x);
-  hypre_FlexGMRESSolve (sys->gmres_vdata, sys, sys->b, sys->x);
-  hypre_FlexGMRESGetNumIterations (sys->gmres_vdata , &sys->iters);
-  hypre_FlexGMRESGetFinalRelativeResidualNorm (sys->gmres_vdata, &sys->resnorm);
-#endif
-
-  for (item = SET_First (sys->subset), x = sys->x->x; item; item = SET_Next (item))
+#if !MPI
+  if (sys->variant & DIRECT_SOLVE)
   {
-    con = item->data;
-    z = &x [3*con->num];
-    DR = DR (con);
+    double *xx = sys->x->x, *bb = sys->b->x;
+
+    for (x = xx + sys->x->n; xx < x; xx ++, bb ++) *xx = *bb;
+
+    matrix_copy (sys, sys->A);
+
+    cs_lusol (1, sys->A, sys->x->x, 0);
+  }
+  else
+#endif
+  {
+    hypre_FlexGMRESFunctions *gmres_functions;
+    void *gmres_vdata;
+
+    gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, CreateVectorArray, DestroyVector,
+      MatvecCreate, Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
+    gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
+
+    hypre_FlexGMRESSetTol (gmres_vdata, 0.0);
+    hypre_FlexGMRESSetMaxIter (gmres_vdata, maxiter);
+    hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, abstol);
+    hypre_FlexGMRESSetup (gmres_vdata, sys, sys->b, sys->x);
+    hypre_FlexGMRESSolve (gmres_vdata, sys, sys->b, sys->x);
+    hypre_FlexGMRESGetNumIterations (gmres_vdata , &sys->iters);
+    hypre_FlexGMRESGetFinalRelativeResidualNorm (gmres_vdata, &sys->resnorm);
+    hypre_FlexGMRESDestroy (gmres_vdata);
+  }
+
+  for (dia = sys->dia, x = sys->x->x; dia; dia = dia->n)
+  {
+    con = dia->con;
+    z = &x [3*dia->num];
+    DR = dia->DR;
     COPY (z, DR);
 
     if (variational && con->kind == CONTACT) /* DR = proj (friction-cone, R+DR) - R */
@@ -1818,45 +1775,26 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
   }
 
 #if MPI
-  DOM_Update_External_Y (sys->ldy->dom, 3, boundary ? sys->subset : NULL); /* (&&&) */
+  update_external_reactions (sys, sys->x->x); /* (&&&) */
 #endif
 
   /* DU  */
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    dia = con->dia;
-
-    double *DR = DR(con),
-	   *DU = DU(con),
+    double *DR = dia->DR,
+	   *DU = dia->DU,
 	   *W = dia->W;
 
     NVMUL (W, DR, DU);
 
-    for (OFFB *blk = dia->adj; blk; blk = blk->n)
+    for (OFFT *blk = dia->adj; blk; blk = blk->n)
     {
-      con = blk->dia->con;
+      double **W = blk->W;
+      DR = blk->DR; /* (&&&) */
 
-#if MPI
-      if (boundary && blk->dia->adjext == NULL) continue;
-#endif
-
-      double *DR = DR(con),
-	     *W = blk->W;
-
-      NVADDMUL (DU, W, DR, DU);
+      NVADDMUL (DU, W[0], DR, DU);
+      if (W[1]) { NVADDMUL (DU, W[1], DR, DU); }
     }
-#if MPI
-    for (OFFB *blk = dia->adjext; blk; blk = blk->n)
-    {
-      con = CON (blk->dia);
-
-      double *DR = DR (con), /* (&&&) */
-	     *W = blk->W;
-
-      NVADDMUL (DU, W, DR, DU);
-    }
-#endif
   }
 }
 
@@ -1865,8 +1803,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 {
   short variational, dynamic, smooth, variant;
   double H [3], value, step, epsilon;
-  DIAB *dia;
-  SET *item;
+  DIAT *dia;
   CON *con;
 
   value = 0;
@@ -1877,10 +1814,9 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   variant = LINEARIZATION_VARIANT (sys->variant);
   epsilon = sys->epsilon;
 
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    dia = con->dia;
+    con = dia->con;
 
     if (con->kind == CONTACT)
     {
@@ -1890,9 +1826,9 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 
       if (alpha > 0.0)
       {
-	double *RE = RE(con),
-	       *DR = DR(con),
-	       *DU = DU(con);
+	double *RE = dia->RE,
+	       *DR = dia->DR,
+	       *DU = dia->DU;
 
 	ADDMUL (R0, alpha, DR, R);
 	ADDMUL (U0, alpha, DU, U);
@@ -1945,7 +1881,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 	    bound = fri * MAX (0, R[2]);
 	    break;
 	  case FIXED_POINT:
-	    bound = fri * MAX (0, RN(con));
+	    bound = fri * MAX (0, dia->RN);
 	    break;
 	}
 
@@ -1970,20 +1906,17 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 double LINSYS_Advance (LINSYS *sys, double alpha)
 {
   double errup, errlo, error;
-  SET *item;
-  CON *con;
+  DIAT *dia;
 
   errup = errlo = 0.0;
 
-  for (item = SET_First (sys->subset); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-
-    double *RE = RE(con),
-	   *DR = DR(con),
-	   *DU = DU(con),
-	   *R = con->R,
-	   *U = con->U;
+    double *RE = dia->RE,
+	   *DR = dia->DR,
+	   *DU = dia->DU,
+	   *R = dia->R,
+	   *U = dia->U;
 
     ADDMUL (R, alpha, DR, R);
     ADDMUL (U, alpha, DU, U);
@@ -2011,7 +1944,7 @@ double LINSYS_Advance (LINSYS *sys, double alpha)
 double LINSYS_Test (LINSYS *sys, double abstol, int maxiter)
 {
   double *x, *y, error;
-  struct vect *vx, *vb;
+  VECT *vx, *vb;
 
   vx = CreateVector (sys->x);
   vb = CreateVector (sys->b);
@@ -2022,13 +1955,23 @@ double LINSYS_Test (LINSYS *sys, double abstol, int maxiter)
 
   for (x = vx->x, y = x + vx->n; x < y; x ++) *x = 0.0;
 
-  hypre_FlexGMRESSetTol (sys->gmres_vdata, 0.0);
-  hypre_FlexGMRESSetMaxIter (sys->gmres_vdata, maxiter);
-  hypre_FlexGMRESSetAbsoluteTol (sys->gmres_vdata, abstol);
-  hypre_FlexGMRESSetup (sys->gmres_vdata, sys, vb, vx);
-  hypre_FlexGMRESSolve (sys->gmres_vdata, sys, vb, vx);
-  hypre_FlexGMRESGetNumIterations (sys->gmres_vdata , &sys->iters);
-  hypre_FlexGMRESGetFinalRelativeResidualNorm (sys->gmres_vdata, &sys->resnorm);
+  {
+    hypre_FlexGMRESFunctions *gmres_functions;
+    void *gmres_vdata;
+
+    gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, CreateVectorArray, DestroyVector,
+      MatvecCreate, Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
+    gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
+
+    hypre_FlexGMRESSetTol (gmres_vdata, 0.0);
+    hypre_FlexGMRESSetMaxIter (gmres_vdata, maxiter);
+    hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, abstol);
+    hypre_FlexGMRESSetup (gmres_vdata, sys, vb, vx);
+    hypre_FlexGMRESSolve (gmres_vdata, sys, vb, vx);
+    hypre_FlexGMRESGetNumIterations (gmres_vdata , &sys->iters);
+    hypre_FlexGMRESGetFinalRelativeResidualNorm (gmres_vdata, &sys->resnorm);
+    hypre_FlexGMRESDestroy (gmres_vdata);
+  }
 
   for (error = 0.0, x = vx->x, y = x + vx->n; x < y; x ++) 
   {
@@ -2062,18 +2005,16 @@ double LINSYS_Resnorm (LINSYS *sys)
 }
 
 #if MPI
-/* update computed external reactions (e.g. non-gluing) */
+/* update computed here external reactions */
 void LINSYS_Update_External_Reactions (LINSYS *sys)
 {
   double *xx = sys->x->x, *x, *R;
-  SET *item;
-  CON *con;
+  DIAT *dia;
 
-  for (item = SET_First (item); item; item = SET_Next (item))
+  for (dia = sys->dia; dia; dia = dia->n)
   {
-    con = item->data;
-    x = &xx [3*con->num];
-    R = con->R;
+    x = &xx [3*dia->num];
+    R = dia->R;
     COPY (R, x);
   }
 
@@ -2084,16 +2025,14 @@ void LINSYS_Update_External_Reactions (LINSYS *sys)
 /* destroy linear system */
 void LINSYS_Destroy (LINSYS *sys)
 {
-  MEM_Release (&sys->setmem);
-  MEM_Release (&sys->Y_mem);
-  MEM_Release (&sys->T_mem);
-#if USE_LU
   MEM_Release (&sys->mapmem);
+  MEM_Release (&sys->diamem);
+  MEM_Release (&sys->offmem);
+#if !MPI
   if (sys->A) MX_Destroy (sys->A);
 #endif
   DestroyVector (sys->x);
   DestroyVector (sys->b);
-  hypre_FlexGMRESDestroy (sys->gmres_vdata);
 #if MPI
   COMALL_Free (sys->pattern);
   free (sys->send);

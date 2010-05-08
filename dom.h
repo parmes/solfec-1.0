@@ -68,11 +68,11 @@ struct constraint
 	 area, /* contact area */
 	 gap; /* contact gap */
 
-  double *Y, Z [DOM_Z_SIZE]; /* auxiliary storage */
+  double Z [DOM_Z_SIZE]; /* auxiliary storage */
 
   unsigned int id; /* identifier */
 
-  int num; /* one of: 0, 1, ..., total constraints count - 1 */
+  int num; /* auxiliary number */
 
   enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK, GLUEPNT} kind; /* constraint kind */
 
@@ -140,7 +140,6 @@ struct domain_balancing_data
   SET *update;
   SET *glue;
   SET *ext;
-  SET *Y;
 };
 
 typedef struct pending_constraint PNDCON;
@@ -238,7 +237,6 @@ struct domain
   DOMSTATS *stats; /* domain statistics */
   int nstats; /* statistics count */
   DBD *dbd; /* load balancing send sets */
-  int Y_length; /* external Y update length */
   SET *pending; /* pending constraints to be inserted in parallel */
 #endif
 
@@ -312,17 +310,9 @@ void DOM_Update_End (DOM *dom);
  * if 'normal' is > 0 only normal components are sent */
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 
-/* send boundary reactions CON->Y of their external receivers */
-void DOM_Update_External_Y (DOM *dom, int length, SET *subset);
-
 /* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
 void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt);
 #endif
-
-/* assign con->num values; 'local' is ignored in serial mode;
- * in parallel local != 0 indicates per-processor numbering;
- * if subset != NULL only this subest of constraints is numbered */
-void DOM_Number_Constraints (DOM *dom, short local, SET *subset);
 
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);
