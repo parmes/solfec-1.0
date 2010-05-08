@@ -35,7 +35,7 @@ enum linvar
   NONSMOOTH_VARIATIONAL  = 0x0008,
   SMOOTHED_VARIATIONAL   = 0x0010,
   /* additional flags */
-  BOUNDARY_ONLY          = 0x0100
+  DIRECT_SOLVE           = 0x0100
 };
 
 typedef enum linvar LINVAR;
@@ -44,7 +44,7 @@ typedef enum linvar LINVAR;
 #define LINEARIZATION_VARIANT(var) ((var) & 0x00FF)
 
 /* create linear system resulting from linearization of constraints */
-LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy);
+LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset);
 
 /* set fixed point approach normal stress update error tolerance */
 void LINSYS_Fixed_Point_Tol (LINSYS *sys, double tol);
@@ -71,7 +71,7 @@ int LINSYS_Iters (LINSYS *sys);
 double LINSYS_Resnorm (LINSYS *sys);
 
 #if MPI
-/* update computed external reactions (e.g. non-gluing) */
+/* update computed here external reactions */
 void LINSYS_Update_External_Reactions (LINSYS *sys);
 #endif
 

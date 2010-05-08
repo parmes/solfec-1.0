@@ -127,7 +127,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   nt->rerhist = realloc (nt->rerhist, nt->maxiter * sizeof (double));
   nt->merhist = realloc (nt->merhist, nt->maxiter * sizeof (double));
 
-  sys = LINSYS_Create (nt->variant, ldy);
+  sys = LINSYS_Create (nt->variant, ldy, NULL);
   merit = error = 1.0;
   nt->iters = 0;
 

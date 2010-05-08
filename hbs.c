@@ -1,8 +1,8 @@
 /*
- * gls.h
+ * hbs.c
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * gluing nonlinear constraint solver
+ * hybrid constraint solver
  */
 
 /* This file is part of Solfec.
@@ -19,30 +19,42 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#include "ldy.h"
+#include <stdlib.h>
+#include <float.h>
 
-#ifndef __gls__
-#define __gls__
-
-typedef struct gluing GLUING;
-
-struct gluing
-{
-  double epsilon; /* relative accuracy of velocity projection */
-
-  int maxiter; /* iterations bound of velocity projection */
-};
+#include "hbs.h"
+#include "alg.h"
+#include "bla.h"
+#include "err.h"
+#include "bgs.h"
+#include "nts.h"
+#include "dom.h"
+#include "mrf.h"
 
 /* create solver */
-GLUING* GLUING_Create (double epsilon, int maxiter);
+HYBRID* HYBRID_Create (double epsilon, int maxiter)
+{
+  HYBRID *hs;
+
+  ERRMEM (hs = malloc (sizeof (HYBRID)));
+  hs->epsilon = epsilon;
+  hs->maxiter = maxiter;
+
+  return hs;
+}
 
 /* run solver */
-void GLUING_Solve (GLUING *gl, LOCDYN *ldy);
+void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy)
+{
+}
 
 /* write labeled satate values */
-void GLUING_Write_State (GLUING *gl, PBF *bf);
+void HYBRID_Write_State (HYBRID *hs, PBF *bf)
+{
+}
 
 /* destroy solver */
-void GLUING_Destroy (GLUING *gl);
-
-#endif
+void HYBRID_Destroy (HYBRID *hs)
+{
+  free (hs);
+}

@@ -1,8 +1,8 @@
 /*
- * glu.h
+ * hbs.h
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * linear gluing solver
+ * hybrid constraint solver
  */
 
 /* This file is part of Solfec.
@@ -21,23 +21,28 @@
 
 #include "ldy.h"
 
-#ifndef __glu__
-#define __glu__
+#ifndef __hbs__
+#define __hbs__
 
-typedef struct glue GLUE;
+typedef struct hybrid HYBRID;
 
-/* create gluing solver */
-GLUE* GLUE_Create (LOCDYN *ldy);
+struct hybrid
+{
+  double epsilon; /* relative accuracy of velocity projection */
 
-/* compute gluing reactions; return their relative change */
-double GLUE_Solve (GLUE *glu, double abstol, int maxiter);
+  int maxiter; /* iterations bound of velocity projection */
+};
 
-#if MPI
-/* update external gluing reactions */
-void GLUE_Update_External_Reactions (GLUE *glu);
-#endif
+/* create solver */
+HYBRID* HYBRID_Create (double epsilon, int maxiter);
 
-/* destroy gluing solver */
-void GLUE_Destroy (GLUE *glu);
+/* run solver */
+void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy);
+
+/* write labeled satate values */
+void HYBRID_Write_State (HYBRID *hs, PBF *bf);
+
+/* destroy solver */
+void HYBRID_Destroy (HYBRID *hs);
 
 #endif
