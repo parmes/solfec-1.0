@@ -31,6 +31,7 @@
 #include "alg.h"
 #include "bla.h"
 #include "err.h"
+#include "mrf.h"
 
 /* non-monotone globalization merit function value selection */
 static double nonmonotone_merit_function (double *values, int length, double merit, int index)
@@ -143,7 +144,8 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   {
     LINSYS_Update (sys); /* assemble A, b */
 
-    error = 1E-3 * MIN (error, merit);
+    error = 1E-5 * MIN (error, merit);
+    nt->linmaxiter = 10+nt->iters; /* FIXME */
     LINSYS_Solve (sys,  MAX (error, 1E-15), nt->linmaxiter); /* x = A\b; TODO: develop into a rigorous inexact step */
 
     error = reactions_update (nt, sys, ldy, nonmonvalues, nt->iters, &merit); /* R(i+1) */
@@ -158,7 +160,11 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   } while (++ nt->iters < nt->maxiter && (error > nt->epsilon || merit > nt->meritval));
 
-  /* FIXME: remember about coordinate change at the end of *_VARIATIONAL case iterations */
+  merit = MERIT_Function (ldy, 0);
+ #if MPI
+  if (dom->rank == 0)
+#endif
+  if (dom->verbose && nt->verbose) printf ("NEWTON: final momentum merit: %g\n", merit);
 
   LINSYS_Destroy (sys);
   free (nonmonvalues);

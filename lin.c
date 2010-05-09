@@ -120,6 +120,7 @@ struct linsys
   VECT *x, *b;
 
   int iters;
+  double xnorm;
   double resnorm;
 
 #if MPI
@@ -1376,6 +1377,19 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
 }
 /* GMRES interface end */
 
+/* compute residual and solution norms */
+static void compute_resnorm_and_xnorm (LINSYS *sys)
+{
+  VECT *r = CreateVector (sys->b);
+
+  A_times_x_equals_y (sys, sys->x->x, r->x);
+  Axpy (-1.0, sys->b, r);
+  sys->xnorm = sqrt (InnerProd (sys->x, sys->x));
+  sys->resnorm = sqrt (InnerProd (r, r));
+
+  DestroyVector (r);
+}
+
 /* create linear system resulting from linearization of constraints */
 LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
 {
@@ -1606,6 +1620,8 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   /* unknown and right hand size */
   sys->x = newvect (3 * ncon);
   sys->b = CreateVector (sys->x);
+  sys->resnorm = 0.0;
+  sys->xnorm = 1.0;
 
 #if MPI
   /* communication pattern */
@@ -1719,9 +1735,8 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
   DIAT *dia;
   CON *con;
 
-#if 0
-  sys->delta = 0.1 * abstol; /* FIXME: decide on more inteligent choice */
-  abstol -= sys->delta;
+#if 1
+  sys->delta = sys->resnorm / sys->xnorm; /* L-curve */
 #endif
 
   variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
@@ -1753,8 +1768,10 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
     hypre_FlexGMRESSetup (gmres_vdata, sys, sys->b, sys->x);
     hypre_FlexGMRESSolve (gmres_vdata, sys, sys->b, sys->x);
     hypre_FlexGMRESGetNumIterations (gmres_vdata , &sys->iters);
-    hypre_FlexGMRESGetFinalRelativeResidualNorm (gmres_vdata, &sys->resnorm);
+    sys->xnorm = sqrt (InnerProd (sys->x, sys->x));
     hypre_FlexGMRESDestroy (gmres_vdata);
+
+    compute_resnorm_and_xnorm (sys);
   }
 
   for (dia = sys->dia, x = sys->x->x; dia; dia = dia->n)
@@ -2012,17 +2029,17 @@ double LINSYS_Resnorm (LINSYS *sys)
 /* update computed here external reactions */
 void LINSYS_Update_External_Reactions (LINSYS *sys)
 {
-  double *xx = sys->x->x, *x, *R;
+  double *R, *x, *y = sys->b->x;
   DIAT *dia;
 
   for (dia = sys->dia; dia; dia = dia->n)
   {
-    x = &xx [3*dia->num];
+    x = &y [3*dia->num];
     R = dia->R;
     COPY (R, x);
   }
 
-  update_external_reactions (sys, xx);
+  update_external_reactions (sys, y);
 }
 #endif
 
