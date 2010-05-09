@@ -8,7 +8,10 @@ void hypre_error_handler(char *filename, int line, int ierr)
 {
    hypre_error_flag |= ierr;
 
-   fprintf(stderr,
+   if (ierr != HYPRE_ERROR_CONV)
+   {
+     fprintf(stderr,
            "hypre error in file \"%s\", line %d, error code = %d\n",
            filename, line, ierr);
+   }
 }

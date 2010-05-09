@@ -74,6 +74,5 @@ Implement discrimination of new contact points in case a gluing
 point exists between a pair of geom. objects (rather then explicit exclusion as now)
 --------------------------------------------------------------------------------------
 Move diagonal blocks solvers from bgs.c to a separate dbs.c module
------------------------------------------------------------------------
-Optimize MATVEC in linear gluing solver
------------------------------------------------------------------------
+-----------------------------------------------------------------------------
+Parallel SMOOTHED_VAR... take more iterations that serial on inp/cubes.py

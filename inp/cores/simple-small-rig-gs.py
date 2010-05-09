@@ -8,7 +8,7 @@ from simple_core_base import *
 
 step = 1E-3
 stop = 100 * step
-solver = 'GAUSS_SEIDEL_SOLVER'
+solver = 'NEWTON'
 plotconv = 0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-small-rig-gs')
@@ -20,10 +20,10 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.
 if solver == 'GAUSS_SEIDEL_SOLVER':
   sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
 else:
-  sv = NEWTON_SOLVER ('NONSMOOTH_HSW', 1E0, 50, 1E-6)
-  sv.nonmonlength = 1
+  sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E0, 50, 1E-6)
+  sv.nonmonlength = 5
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'RIGID', 'DEFAULT', 'RIGID', 'DEFAULT', 2, 2, 2)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'RIGID', 'DEFAULT', 'RIGID', 'DEFAULT', 4, 4, 4)
 
 MERIT = []
 
