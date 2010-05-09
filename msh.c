@@ -582,9 +582,6 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
   MEM_Release (&facmem);
   MEM_Release (&mapmem);
 
-  /* refine geometric epsilon */
-  GEOMETRIC_EPSILON_ADAPT ((double*)msh->cur_nodes, msh->nodes_count);
-
   return msh;
 }
 

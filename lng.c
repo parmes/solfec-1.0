@@ -5614,6 +5614,21 @@ static PyObject* lng_UNPHYSICAL_PENETRATION (PyObject *self, PyObject *args, PyO
   Py_RETURN_NONE;
 }
 
+/* set geometric epsilon */
+static PyObject* lng_GEOMETRIC_EPSILON (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("epsilon");
+  double epsilon;
+
+  PARSEKEYS ("d", &epsilon);
+
+  TYPETEST (is_positive (epsilon, kwl[0]));
+
+  GEOMETRIC_EPSILON = epsilon;
+
+  Py_RETURN_NONE;
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6225,7 +6240,8 @@ static PyMethodDef lng_methods [] =
   {"OUTPUT", (PyCFunction)lng_OUTPUT, METH_VARARGS|METH_KEYWORDS, "Set data output interval"},
   {"EXTENTS", (PyCFunction)lng_EXTENTS, METH_VARARGS|METH_KEYWORDS, "Set scene extents"},
   {"CALLBACK", (PyCFunction)lng_CALLBACK, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
-  {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
+  {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set unphysical penetration bound"},
+  {"GEOMETRIC_EPSILON", (PyCFunction)lng_GEOMETRIC_EPSILON, METH_VARARGS|METH_KEYWORDS, "Set geometric epsilon"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -6408,6 +6424,7 @@ int lng (const char *path)
                      "from solfec import EXTENTS\n"
                      "from solfec import CALLBACK\n"
                      "from solfec import UNPHYSICAL_PENETRATION\n"
+                     "from solfec import GEOMETRIC_EPSILON\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

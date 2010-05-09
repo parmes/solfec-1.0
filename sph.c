@@ -93,9 +93,6 @@ SPHERE* SPHERE_Create (SPHERE *sph, double *center, double radius, int surface, 
   COPY (rp[2], cp[2]);
   out->mat = NULL;
 
-  /* refine geometric epsilon */
-  GEOMETRIC_EPSILON_ADAPT ((double*)out->cur_points, 3);
-
   return out;
 }
 

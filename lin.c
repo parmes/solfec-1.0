@@ -865,29 +865,29 @@ inline static void complex_m (double complex fri, short smooth, double complex *
 }
 
 /* real F = [UT, UN + fri |UT|]' */
-inline static void real_F (double res, double fri, double gap, double step, short dynamic, double *V, double *U, double *F)
+inline static void real_F (double rho, double res, double fri, double gap, double step, short dynamic, double *V, double *U, double *F)
 {
   double udash;
 
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
 
-  F [0] = U[0];
-  F [1] = U[1];
-  F [2] = (udash + fri * sqrt (DOT2(U, U)));
+  F [0] = rho * U[0];
+  F [1] = rho * U[1];
+  F [2] = rho * (udash + fri * sqrt (DOT2(U, U)));
 }
  
 /* complex F = [UT, UN + fri |UT|]' */
-inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double *V, double complex *U, double complex *F)
+inline static void complex_F (double rho, double res, double fri, double gap, double step, short dynamic, double *V, double complex *U, double complex *F)
 {
   double complex udash;
 
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
 
-  F [0] = U[0];
-  F [1] = U[1];
-  F [2] = (udash + fri * csqrt (DOT2(U, U)));
+  F [0] = rho * U[0];
+  F [1] = rho * U[1];
+  F [2] = rho * (udash + fri * csqrt (DOT2(U, U)));
 }
 
 /* update linear system for NONSMOOTH_VARIATIONAL, SMOOTHED_VARIATIONAL variants */
@@ -952,7 +952,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 	     J [9];
 
 
-      real_F (res, fri, gap, step, dynamic, V, U, F);
+      real_F (1.0, res, fri, gap, step, dynamic, V, U, F); /* TODO: use rho ? */
       SUB (R, F, S);
       real_m (fri, smooth, S, epsilon, m);
       ADD (F, m, H);
@@ -968,7 +968,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 	cU [1] = U[1] + 0.0 * imaginary_i;
 	cU [2] = U[2] + 0.0 * imaginary_i;
 	cU [k] += h * imaginary_i;
-        complex_F (res, fri, gap, step, dynamic, V, cU, cF);
+        complex_F (1.0, res, fri, gap, step, dynamic, V, cU, cF); /* TODO: use rho ? */
 	dF [3*k+0] = cimag (cF [0]) / h;
 	dF [3*k+1] = cimag (cF [1]) / h;
 	dF [3*k+2] = cimag (cF [2]) / h;
@@ -1155,7 +1155,7 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
 #if MPI
       w = &v [3*(basenum [blk->rank]+blk->num)];
 #else
-      w = &y [3*con->num];
+      w = &y [3*blk->num];
 #endif
       TVADDMUL (w, T, z, w);
     }
@@ -1321,7 +1321,7 @@ static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double be
   double delta = sys->delta;
 
   ScaleVector (beta, vy);
-  Axpy (delta, vx, vy);
+  Axpy (alpha*delta, vx, vy);
   A_times_x_equals_y (sys, vect (vx)->x, vz->x);
 #if USE_AT
   AT_times_x_equals_y (sys, vz->x, vu->x);
@@ -1349,8 +1349,9 @@ static int PrecondSetup (void *vdata, void *A, void *vb, void *vx)
 static int Precond (void *vdata, void *A, void *vb, void *vx)
 {
 #if 1
-  LINSYS *sys = (LINSYS*)A;
   double *bb = vect (vb)->x, *xx = vect (vx)->x, *b, *x;
+  LINSYS *sys = (LINSYS*)A;
+  double delta = sys->delta;
   int ipiv [3];
   DIAT *dia;
 
@@ -1363,6 +1364,9 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
     double *T = dia->T, S [9];
 
     NNCOPY (T, S);
+    S [0] += delta;
+    S [4] += delta;
+    S [8] += delta;
     lapack_dgesv (3, 1, S, 3, ipiv, x, 3); /* TODO: inv (S) could be precomputed at the start */
   }
 
@@ -1702,7 +1706,7 @@ void LINSYS_Update (LINSYS *sys)
   /* b = (A^T) b */
   VECT *c = CreateVector (sys->b);
   CopyVector (sys->b, c);
-  AT_times_x_equals_y (sys, c, sys->b);
+  AT_times_x_equals_y (sys, c->x, sys->b->x);
   DestroyVector (c);
 #endif
 }
@@ -1856,7 +1860,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 	       F [3],
 	       m [3];
 
-	real_F (res, fri, gap, step, dynamic, V, U, F);
+	real_F (1.0, res, fri, gap, step, dynamic, V, U, F); /* TODO: use rho ? */
 	SUB (R, F, S);
 	real_m (fri, smooth, S, epsilon, m);
 	ADD (F, m, H);
