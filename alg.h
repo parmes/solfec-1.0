@@ -30,10 +30,6 @@
 
 extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
 
-/* adapt the geometric epsilon to a set
- * of 'n' three-dimensional points 'p' */
-void GEOMETRIC_EPSILON_ADAPT (double *p, int n);
-
 /* some constants and small,
  * scalar macros follow */
 

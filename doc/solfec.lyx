@@ -5384,19 +5384,17 @@ obj.linmaxiter
 \end_layout
 
 \begin_layout Subsection
-GLUING_SOLVER 
+HYBRID_SOLVER 
 \color red
 (Under development)
 \end_layout
 
 \begin_layout Plain Layout
-Object of type GLUING_SOLVER represents a hybrid glugin solver, to be used
- in combination with gluing constraints, cf.
- GLUE_POINTS.
+Object of type HYBRID_SOLVER represents a hybrid solver.
 \end_layout
 
 \begin_layout Subsection*
-obj = GLUING_SOLVER ( | epsilon, maxiter, meritval)
+obj = HYBRID_SOLVER ( | epsilon, maxiter, meritval)
 \end_layout
 
 \begin_layout Itemize
@@ -5404,7 +5402,7 @@ obj = GLUING_SOLVER ( | epsilon, maxiter, meritval)
 \series bold
 obj
 \series default
- - created NEWTON_SOLVER object
+ - created HYBRID_SOLVER object
 \end_layout
 
 \begin_layout Itemize
@@ -5863,7 +5861,7 @@ point2
  tuple with the second referential point coordinates
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \begin_inset Note Note
 status open
 
@@ -5877,7 +5875,6 @@ This routine glues two referential points of two distinct bodies.
  primarily it should be used with point1 = point2.
  The effectiveness of the gluing depends on Young moduli of the two bodies
  and the constraint is generally dissipative.
- Gluing is meant to be combined with the GLUING_SOLVER.
 \end_layout
 
 \begin_layout Itemize
@@ -6612,6 +6609,25 @@ depth
 \end_inset
 
 )
+\end_layout
+
+\begin_layout Subsection*
+GEOMETRIC_EPSILON (epsilon)
+\end_layout
+
+\begin_layout Standard
+This routine sets a numerical tolerance for geometric tests performed within
+ Solfec.
+ The tolerance is a characteristic distance between two distinct points
+ below which they can be regarded as one.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+epsilon
+\series default
+ - geometrical tolerance (default: 1E-4)
 \end_layout
 
 \begin_layout Section

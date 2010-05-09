@@ -21,34 +21,4 @@
 
 #include "alg.h"
 
-#define DELTA 1.0E-4
-#define SAMPLE 8
-
-double GEOMETRIC_EPSILON = DELTA;
-static double DENOM = 1.0;
-
-void GEOMETRIC_EPSILON_ADAPT (double *p, int n)
-{
-  double *a, *b, u [3], e, sum, add;
-  int i, j, k;
-
-  add = 0.0;
-  k = MIN (SAMPLE, n);
-  for (i = j =  0; i < k; i ++)
-  {
-    a = p + (rand () % n)*3;
-    b = p + (rand () % n)*3;
-    SUB (a, b, u);
-    MAXABS (u, e); 
-    add += e;
-    if (e > 0.0) j ++;
-  }
-
-  if (j) 
-  {
-    sum = DENOM * (GEOMETRIC_EPSILON / DELTA);
-    sum += add;
-    DENOM += (double)j;
-    GEOMETRIC_EPSILON = DELTA * (sum / DENOM);
-  }
-}
+double GEOMETRIC_EPSILON = 1E-4;

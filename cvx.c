@@ -435,9 +435,6 @@ CONVEX* CONVEX_Create (CONVEX *cvx, double *ver, int nver, int *fac, int nfac, i
   /* append list */
   cvy->next = cvx;
 
-  /* refine geometric epsilon */
-  GEOMETRIC_EPSILON_ADAPT (cvy->cur, cvy->nver);
-  
   return cvy;
 }
 
