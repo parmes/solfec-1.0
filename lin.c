@@ -1033,7 +1033,7 @@ static double update_normal_bounds (LINSYS *sys)
 
   errup = errlo = 0.0;
 
-  for (dia = sys->dia; dia; dia = dia->n);
+  for (dia = sys->dia; dia; dia = dia->n)
   {
     con = dia->con;
     if (con->kind == CONTACT)

@@ -47,10 +47,15 @@ struct newton
   double *merhist; /* merit function history */
 
   int verbose; /* verbosity flag */
+
+  LINSYS *sys; /* used when created on a subset of constraints */
 };
 
 /* create solver */
 NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double meritval);
+
+/* create on constraints subset */
+NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double epsilon, int maxiter, double meritval);
 
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy);

@@ -3522,9 +3522,9 @@ struct lng_HYBRID_SOLVER
 /* constructor */
 static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("epsilon", "maxiter");
+  KEYWORDS ("epsilon", "maxiter", "meritval");
   lng_HYBRID_SOLVER *self;
-  double epsilon;
+  double epsilon, meritval;
   int maxiter;
 
   self = (lng_HYBRID_SOLVER*)type->tp_alloc (type, 0);
@@ -3533,12 +3533,13 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
   {
     epsilon = 1E-5;
     maxiter = 100;
+    meritval = 1E-5;
 
-    PARSEKEYS ("|di", &epsilon, &maxiter);
+    PARSEKEYS ("|did", &epsilon, &maxiter, &meritval);
 
-    TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]));
+    TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]) && is_positive (meritval, kwl[2]));
 
-    self->hs = HYBRID_Create (epsilon, maxiter);
+    self->hs = HYBRID_Create (epsilon, maxiter, meritval);
   }
 
   return (PyObject*)self;
