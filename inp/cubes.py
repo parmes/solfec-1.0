@@ -70,7 +70,7 @@ GRAVITY (solfec, (0, 0, -9.81))
 
 stack_of_cubes_create (bulkmat, solfec)
 
-#gs = GAUSS_SEIDEL_SOLVER (1E-3, 10000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+#gs = GAUSS_SEIDEL_SOLVER (1E-2, 100, 1E-4, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 #gs.variant = VARIANT
 
 gs = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E1, 10, 1E-8)
@@ -78,9 +78,9 @@ gs.nonmonlength = 5
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 
-OUTPUT (solfec, 50 * step, 'FASTLZ')
+OUTPUT (solfec, 1 * step, 'FASTLZ')
 
-RUN (solfec, gs, 1000 * step)
+RUN (solfec, gs, 10 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
 

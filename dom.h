@@ -72,7 +72,7 @@ struct constraint
 
   unsigned int id; /* identifier */
 
-  int num; /* auxiliary number */
+  int num; /* local number */
 
   enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK, GLUEPNT} kind; /* constraint kind */
 
