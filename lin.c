@@ -36,11 +36,16 @@
 #include "com.h"
 #endif
 
-#define USE_AT 0 /* disable for now */
-
-#define BLOCKS 256
+#define DIFF_FACTOR    1E-6  /* TODO: test sensitivity */
+#define EPSILON_FACTOR 1E-6  /* TODO: -||- */
+#define EPSILON_BASE   1E-9  /* TODO: -||- */
+#define SMOOTHING      1     /* TODO: -||- */
+#define BLOCKS         256
 
 typedef struct vect VECT;
+typedef struct offt OFFT;
+typedef struct offx OFFX;
+typedef struct diat DIAT;
 
 struct vect /* krylov solver's vector */
 {
@@ -51,24 +56,29 @@ struct vect /* krylov solver's vector */
 
 #define vect(ptr) ((VECT*)ptr)
 
-typedef struct offt OFFT;
-typedef struct diat DIAT;
-
 struct offt /* off-diagonal tangent block */
 {
   double T [9],
-	*W [2],
-	*R,
-	*DR;
+	*W [2], /* pairs of same-body-pair constraints have two Wij entries in LOCDYN */
+	*DR,    /* points to DIAT->DR for local constraints or to CON->R for external constraints */
+	*R;     /* points to CON->R */
+
+  int num,      /* local number: CON->num */
+     *map;      /* maps columns of T in CSC storage */
 
 #if MPI
   int rank; /* rank != dom->rank => external block => use R in matrix-vector product */
 #endif
 
-  int num, /* local number */
-     *map;
-
   OFFT *n;
+};
+
+struct offx /* off-diagonal inactive LOCDYN block */
+{
+  double *W,
+	 *R;
+
+  OFFX *n;
 };
 
 struct diat /* diagonal tangent block */
@@ -76,8 +86,8 @@ struct diat /* diagonal tangent block */
   double  T [9],
 	 DR [3],
 	 DU [3],
-	 RE [3],
-	 RN,
+	 RE [3], /* residual */
+	 RN,     /* normal stress: fixed point approach */
 	 *R,
 	 *U,
 	 *V,
@@ -87,10 +97,12 @@ struct diat /* diagonal tangent block */
 
   CON *con;
 
-  int num, /* local number */
+  int num, /* local number: CON->num */
      *map;
 
   OFFT *adj;
+
+  OFFX *adx; /* used to update free velocity only */
 
   DIAT *n;
 };
@@ -98,42 +110,37 @@ struct diat /* diagonal tangent block */
 struct linsys
 {
   LINVAR variant;
-
   LOCDYN *ldy;
+  DIAT *dia;  /* A: tangent matrix */
+  int ndia;   /* blocks count: dim (A) / 3 */
+  MX *A;      /* A: compressed */
 
-  DIAT *dia;
-
-  int ndia;
-
-  MEM diamem,
-      offmem,
+  MEM diamem, /* DIAT */
+      offmem, /* OFFT */
+      ofxmem, /* OFFX */
       mapmem; /* {DIAT, OFFT}->map */
 
-  double fixed_point_tol; /* fixed point normal stress update error tolerance */
+  double fixed_point_tol, /* normal stress update error tolerance: fixed point approach */
+         epsilon,         /* SMOOTHED_VARIATIONAL: smoothing thickness */
+         delta;           /* Tikhonov regularaization */
 
-  double delta; /* Tikhonov regularaization */
+  VECT *x, *b; /* A x = b, where x is composed of reaction increments DR */
 
-  double epsilon; /* smoothing thickness */
-
-  MX *A;
-
-  VECT *x, *b;
-
-  int iters;
-  double xnorm;
-  double resnorm;
+  double resnorm, xnorm; /* |Ax - b|, |x| */
+  int iters,            /* most recent iterations count */
+      smooth;          /* SMOOTHED_VARIATIONAL: smoothing variant */
 
 #if MPI
   COMDATA *send, *recv;
   int nsend, nrecv;
-  void *pattern;
-  double **R; /* external con->R */
-  int *basenum; /* initial constraint numbers on each processor */
+  void *pattern;  /* repetitice communication pattern in matrix-vector products */
+  double **R;    /* external con->R */
+  int *basenum; /* basenum [i] = SUM {0, i-1} ndia [i-1], where i is a processor number; basenum [ncpu] stores the total sum */
 #endif
 };
 
 #if !MPI
-/* get compressed structure of system matrix */
+/* compressed image of system matrix */
 static MX* matrix_create (LINSYS *sys)
 {
   int i, j, k, l, n, ncon, *rows, *cols, *aux;
@@ -752,6 +759,9 @@ ZERO_TANG:
   }
 }
 
+/* imaginary i */
+static double complex imaginary_i;
+
 /* real normal to friction cone */
 inline static void real_n (double *S, double fri, double *n)
 {
@@ -779,9 +789,6 @@ inline static void real_n (double *S, double fri, double *n)
     SCALE (n, dot);
   }
 }
-
-/* imaginary i */
-static double complex imaginary_i;
 
 /* complex normal to friction cone */
 inline static void complex_n (double complex *S, double complex fri, double complex *n)
@@ -866,29 +873,29 @@ inline static void complex_m (double complex fri, short smooth, double complex *
 }
 
 /* real F = [UT, UN + fri |UT|]' */
-inline static void real_F (double rho, double res, double fri, double gap, double step, short dynamic, double *V, double *U, double *F)
+inline static void real_F (double res, double fri, double gap, double step, short dynamic, double *V, double *U, double *F)
 {
   double udash;
 
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
 
-  F [0] = rho * U[0];
-  F [1] = rho * U[1];
-  F [2] = rho * (udash + fri * sqrt (DOT2(U, U)));
+  F [0] = U[0];
+  F [1] = U[1];
+  F [2] = (udash + fri * sqrt (DOT2(U, U)));
 }
  
 /* complex F = [UT, UN + fri |UT|]' */
-inline static void complex_F (double rho, double res, double fri, double gap, double step, short dynamic, double *V, double complex *U, double complex *F)
+inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double *V, double complex *U, double complex *F)
 {
   double complex udash;
 
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
 
-  F [0] = rho * U[0];
-  F [1] = rho * U[1];
-  F [2] = rho * (udash + fri * csqrt (DOT2(U, U)));
+  F [0] = U[0];
+  F [1] = U[1];
+  F [2] = (udash + fri * csqrt (DOT2(U, U)));
 }
 
 /* update linear system for NONSMOOTH_VARIATIONAL, SMOOTHED_VARIATIONAL variants */
@@ -901,9 +908,9 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
   DOM *dom;
   CON *con;
 
-  if (sys->variant & SMOOTHED_VARIATIONAL) smooth = 1; /* (+++); TODO: decide on best smoothing */
+  smooth = sys->smooth;
   epsilon = sys->epsilon;
-  h = 1E-6 * epsilon; /* TODO: decide on best choice */
+  h = DIFF_FACTOR * epsilon;
   dom = sys->ldy->dom;
   dynamic = dom->dynamic;
   step = dom->step;
@@ -953,7 +960,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 	     J [9];
 
 
-      real_F (1.0, res, fri, gap, step, dynamic, V, U, F); /* TODO: use rho ? */
+      real_F (res, fri, gap, step, dynamic, V, U, F);
       SUB (R, F, S);
       real_m (fri, smooth, S, epsilon, m);
       ADD (F, m, H);
@@ -969,7 +976,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 	cU [1] = U[1] + 0.0 * imaginary_i;
 	cU [2] = U[2] + 0.0 * imaginary_i;
 	cU [k] += h * imaginary_i;
-        complex_F (1.0, res, fri, gap, step, dynamic, V, cU, cF); /* TODO: use rho ? */
+        complex_F (res, fri, gap, step, dynamic, V, cU, cF);
 	dF [3*k+0] = cimag (cF [0]) / h;
 	dF [3*k+1] = cimag (cF [1]) / h;
 	dF [3*k+2] = cimag (cF [2]) / h;
@@ -1048,7 +1055,7 @@ static double update_normal_bounds (LINSYS *sys)
   errup = errsum [0], errlo = errsum [1];
 #endif
 
-  return sqrt (errup / MAX (errlo, 1.0));
+  return sqrt (errup / (errlo > 0.0 ? errlo : 1.0));
 }
 
 #if MPI
@@ -1096,8 +1103,8 @@ static void A_times_x_equals_y (LINSYS *sys, double *x, double *y)
 
   for (dia = sys->dia; dia; dia = dia->n)
   {
-    z = &x [3*dia->num];
     v = &y [3*dia->num];
+    z = &x [3*dia->num];
     T = dia->T;
 
     NVMUL (T, z, v);
@@ -1116,7 +1123,6 @@ static void A_times_x_equals_y (LINSYS *sys, double *x, double *y)
   }
 }
 
-#if USE_AT
 static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
 {
 #if MPI
@@ -1140,24 +1146,25 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
 
   for (dia = sys->dia; dia; dia = dia->n)
   {
-    T = dia->T;
-    z = &x [3*dia->num];
 #if MPI
     w = &v [3*(basenum [rank]+dia->num)];
 #else
     w = &y [3*dia->num];
 #endif
+    z = &x [3*dia->num];
+    T = dia->T;
 
     TVADDMUL (w, T, z, w);
 
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      T = blk->T;
 #if MPI
       w = &v [3*(basenum [blk->rank]+blk->num)];
 #else
       w = &y [3*blk->num];
 #endif
+      T = blk->T;
+
       TVADDMUL (w, T, z, w);
     }
   }
@@ -1168,7 +1175,6 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
   free (v);
 #endif
 }
-#endif
 
 static VECT* newvect (int n)
 {
@@ -1202,11 +1208,11 @@ static int CommInfo (void *A, int *my_id, int *num_procs)
   LINSYS *sys = (LINSYS*)A;
   DOM *dom = sys->ldy->dom;
 
-  *my_id = dom->rank;
   *num_procs = dom->ncpu;
+  *my_id = dom->rank;
 #else
-  *my_id = 0;
   *num_procs = 1;
+  *my_id = 0;
 #endif
   return 0;
 }
@@ -1317,22 +1323,24 @@ static void *MatvecCreate (void *A, void *x)
 
 static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double beta, void *vy)
 {
-  VECT *vz = CreateVector (vx), *vu = CreateVector (vx);
+  VECT *vz = CreateVector (vx);
   LINSYS *sys = (LINSYS*)A;
   double delta = sys->delta;
 
   ScaleVector (beta, vy);
-  Axpy (alpha*delta, vx, vy);
+  if (delta > 0.0) Axpy (alpha*delta, vx, vy);
   A_times_x_equals_y (sys, vect (vx)->x, vz->x);
-#if USE_AT
-  AT_times_x_equals_y (sys, vz->x, vu->x);
-  Axpy (alpha, vu, vy);
-#else
-  Axpy (alpha, vz, vy);
-#endif
+
+  if (sys->variant & MULTIPLY_TRANSPOSED)
+  {
+    VECT *vu = CreateVector (vx);
+    AT_times_x_equals_y (sys, vz->x, vu->x);
+    Axpy (alpha, vu, vy);
+    DestroyVector (vu);
+  }
+  else Axpy (alpha, vz, vy);
 
   DestroyVector (vz);
-  DestroyVector (vu);
 
   return 0;
 }
@@ -1402,22 +1410,25 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   OFFB *blk;
   DIAT *dt;
   OFFT *bt;
+  OFFX *bx;
   CON *con;
   MAP *map;
 
   imaginary_i = csqrt (-1);
 
+  MEM_Init (&setmem, sizeof (SET), BLOCKS);
+  MEM_Init (&mapmem, sizeof (MAP), BLOCKS);
+
   ERRMEM (sys = MEM_CALLOC (sizeof (LINSYS)));
   sys->variant = variant;
   sys->ldy = ldy;
 
-  MEM_Init (&setmem, sizeof (SET), BLOCKS);
-  MEM_Init (&mapmem, sizeof (MAP), BLOCKS);
-
   if (!subset)
   {
     for (con = dom->con; con; con = con->next)
-      SET_Insert (&setmem, &subset, con, NULL);
+    {
+      SET_Insert (&setmem, &subset, con, NULL); /* insert all */
+    }
   }
 
   /* number constraints */
@@ -1432,6 +1443,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   MEM_Init (&sys->mapmem, sizeof (int [3]), blocks);
   MEM_Init (&sys->diamem, sizeof (DIAT), blocks);
   MEM_Init (&sys->offmem, sizeof (OFFT), blocks);
+  MEM_Init (&sys->ofxmem, sizeof (OFFX), blocks);
 
 #if MPI
   /* propagate information about the subset and numbering */
@@ -1526,6 +1538,12 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
 	double *R = blk->dia->R, *W = blk->W;
 
 	NVADDMUL (B, W, R, B);
+
+	ERRMEM (bx = MEM_Alloc (&sys->ofxmem));
+	bx->W = W;
+	bx->R = R;
+	bx->n = dt->adx;
+	dt->adx = bx;
       }
     }
 #if MPI
@@ -1559,6 +1577,12 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
 	double *R = CON(blk->dia)->R, *W = blk->W;
 
 	NVADDMUL (B, W, R, B);
+
+	ERRMEM (bx = MEM_Alloc (&sys->ofxmem));
+	bx->W = W;
+	bx->R = R;
+	bx->n = dt->adx;
+	dt->adx = bx;
       }
     }
 #endif
@@ -1577,14 +1601,14 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   {
     for (bt = dt->adj; bt; bt = bt->n)
     {
-      if (!bt->DR)
+      if (bt->DR == NULL)
       {
 	ASSERT_DEBUG_EXT (bt->DR = MAP_Find (map, (void*) (long) bt->num, NULL), "Inconsistent OFFT numbering");
       }
     }
   }
 
-  /* default fixed point tolerance */
+  /* default tolerance: fixed point approach */
   sys->fixed_point_tol = 1E-6;
 
   /* smoothing thickness */
@@ -1598,8 +1622,8 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
       if (con->kind == CONTACT)
       {
         dia = con->dia;
-	ACC (dia->B, B);
-	B [3] ++;
+	ACC (dia->B, B); /* use original free velocity */
+	B [3] += 1.0;
       }
     }
 
@@ -1613,19 +1637,20 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
     SCALE (B, B[3]); /* avergae free contact velocity */
     len = LEN (B);
 
-    sys->epsilon = 1E-6 * MAX (len, 1E-9); /* TODO: work out a best choice */
+    sys->epsilon = EPSILON_FACTOR * MAX (len, EPSILON_BASE);
+    sys->smooth = SMOOTHING;
   }
-  else sys->epsilon = 1E-9;
+  else { sys->epsilon = EPSILON_BASE; sys->smooth = 0; }
 
-  /* unknown and right hand size */
+  /* unknown and right hand side */
   sys->x = newvect (3 * ncon);
   sys->b = CreateVector (sys->x);
-  sys->resnorm = 0.0;
+  sys->resnorm = 0.0; /* => delta = resnorm / xnorm == 0 at first */
   sys->xnorm = 1.0;
 
 #if MPI
   /* communication pattern */
-  double **r;
+  double **r, *x = sys->x->x;
   int n;
 
   for (dt = sys->dia; dt; dt = dt->n)
@@ -1648,7 +1673,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
       d->rank = (int) (long) jtem->data;
       d->doubles = 3;
       d->ints = 1;
-      d->d = &vect (sys->x)->x [3*con->num];
+      d->d = &x [3*con->num];
       d->i = (int*) &con->id;
     }
   }
@@ -1678,11 +1703,9 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
     }
   }
 
-  /* initial constraint numbers */
+  /* global constraint numbering bases */
   ERRMEM (sys->basenum = MEM_CALLOC ((dom->ncpu + 1) * sizeof (int)));
-
   MPI_Allgather  (&ncon, 1, MPI_INT, (sys->basenum + 1), 1, MPI_INT, MPI_COMM_WORLD);
-
   for (i = 1; i <= dom->ncpu; i ++) sys->basenum [i] += sys->basenum [i-1];
 #endif
 
@@ -1702,6 +1725,28 @@ void LINSYS_Fixed_Point_Tol (LINSYS *sys, double tol)
   sys->fixed_point_tol = tol;
 }
 
+/* update free velocity in case of subset based system */
+void LINSYS_Update_Free_Velocity (LINSYS *sys)
+{
+  DIAT *dia;
+  OFFX *blx;
+
+  for (dia = sys->dia; dia; dia = dia->n)
+  {
+    double *B0 = dia->con->dia->B,
+	   *B = dia->B;
+
+    COPY (B0, B);
+
+    for (blx = dia->adx; blx; blx = blx->n)
+    {
+      double *W = blx->W, *R = blx->R;
+
+      NVADDMUL (B, W, R, B);
+    }
+  }
+}
+
 /* update linear system at current reactions R */
 void LINSYS_Update (LINSYS *sys)
 {
@@ -1718,21 +1763,22 @@ void LINSYS_Update (LINSYS *sys)
       break;
   }
 
-#if USE_AT
-  /* b = (A^T) b */
-  VECT *c = CreateVector (sys->b);
-  CopyVector (sys->b, c);
-  AT_times_x_equals_y (sys, c->x, sys->b->x);
-  DestroyVector (c);
-#endif
+  if (sys->variant & MULTIPLY_TRANSPOSED) /* b = (A^T) b */
+  {
+    VECT *c = CreateVector (sys->b);
+    CopyVector (sys->b, c);
+    AT_times_x_equals_y (sys, c->x, sys->b->x);
+    DestroyVector (c);
+  }
 }
 
 /* solve for reaction increments DR */
 void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
 {
-  double *x, *z, *DR;
+  double *DR, *DU, *W, *x, *z;
   short variational;
   DIAT *dia;
+  OFFT *blk;
   CON *con;
 
 #if 1
@@ -1783,10 +1829,10 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
 
     if (variational && con->kind == CONTACT) /* DR = proj (friction-cone, R+DR) - R */
     {
-      double *R = con->R,
-	      fri = con->mat.base->friction,
-	      S [3],
-	      m [3];
+      double fri = con->mat.base->friction,
+            *R = con->R,
+	     S [3],
+	     m [3];
 
       ADD (R, DR, S);
       real_m (fri, 0, S, 0, m);
@@ -1802,13 +1848,13 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
   /* DU  */
   for (dia = sys->dia; dia; dia = dia->n)
   {
-    double *DR = dia->DR,
-	   *DU = dia->DU,
-	   *W = dia->W;
+    DR = dia->DR,
+    DU = dia->DU,
+    W = dia->W;
 
     NVMUL (W, DR, DU);
 
-    for (OFFT *blk = dia->adj; blk; blk = blk->n)
+    for (blk = dia->adj; blk; blk = blk->n)
     {
       double **W = blk->W;
       DR = blk->DR; /* (&&&) */
@@ -1831,9 +1877,9 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   step = sys->ldy->dom->step;
   dynamic = sys->ldy->dom->dynamic;
   variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
-  if (sys->variant & SMOOTHED_VARIATIONAL) smooth = 1; /* (+++); TODO: make consistent */
   variant = LINEARIZATION_VARIANT (sys->variant);
   epsilon = sys->epsilon;
+  smooth = sys->smooth;
 
   for (dia = sys->dia; dia; dia = dia->n)
   {
@@ -1877,7 +1923,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 	       F [3],
 	       m [3];
 
-	real_F (1.0, res, fri, gap, step, dynamic, V, U, F); /* TODO: use rho ? */
+	real_F (res, fri, gap, step, dynamic, V, U, F);
 	SUB (R, F, S);
 	real_m (fri, smooth, S, epsilon, m);
 	ADD (F, m, H);
@@ -1953,7 +1999,7 @@ double LINSYS_Advance (LINSYS *sys, double alpha)
   errup = errsum [0], errlo = errsum [1];
 #endif
 
-  error = sqrt (errup / MAX (errlo, 1.0));
+  error = sqrt (errup / (errlo > 0.0 ? errlo :  1.0));
 
   if ((sys->variant & FIXED_POINT) &&
       error < sys->fixed_point_tol) error = update_normal_bounds (sys);
@@ -2049,6 +2095,7 @@ void LINSYS_Destroy (LINSYS *sys)
   MEM_Release (&sys->mapmem);
   MEM_Release (&sys->diamem);
   MEM_Release (&sys->offmem);
+  MEM_Release (&sys->ofxmem);
 #if !MPI
   if (sys->A) MX_Destroy (sys->A);
 #endif

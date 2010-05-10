@@ -35,7 +35,8 @@ enum linvar
   NONSMOOTH_VARIATIONAL  = 0x0008,
   SMOOTHED_VARIATIONAL   = 0x0010,
   /* additional flags */
-  DIRECT_SOLVE           = 0x0100
+  MULTIPLY_TRANSPOSED    = 0x0100,
+  DIRECT_SOLVE           = 0x0200
 };
 
 typedef enum linvar LINVAR;
@@ -48,6 +49,9 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset);
 
 /* set fixed point approach normal stress update error tolerance */
 void LINSYS_Fixed_Point_Tol (LINSYS *sys, double tol);
+
+/* update free velocity in case of subset based system */
+void LINSYS_Update_Free_Velocity (LINSYS *sys);
 
 /* update linear system at current reactions R */
 void LINSYS_Update (LINSYS *sys);
