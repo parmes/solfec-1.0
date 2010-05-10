@@ -108,6 +108,17 @@ NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double merit
   return nt;
 }
 
+/* create on constraints subset */
+NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double epsilon, int maxiter, double meritval)
+{
+  NEWTON *nt;
+
+  nt = NEWTON_Create (variant, epsilon, maxiter, meritval);
+  nt->sys = LINSYS_Create (variant, ldy, subset);
+
+  return nt;
+}
+
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 {
@@ -128,7 +139,9 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   nt->rerhist = realloc (nt->rerhist, nt->maxiter * sizeof (double));
   nt->merhist = realloc (nt->merhist, nt->maxiter * sizeof (double));
 
-  sys = LINSYS_Create (nt->variant, ldy, NULL);
+  if (nt->sys) sys = nt->sys;
+  else sys = LINSYS_Create (nt->variant, ldy, NULL);
+
   merit = error = 1.0;
   nt->iters = 0;
 
@@ -166,7 +179,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 #endif
   if (dom->verbose && nt->verbose) printf ("NEWTON: final momentum merit: %g\n", merit);
 
-  LINSYS_Destroy (sys);
+  if (nt->sys == NULL) LINSYS_Destroy (sys);
   free (nonmonvalues);
 }
 
@@ -193,6 +206,7 @@ char* NEWTON_Variant (NEWTON *nt)
 /* destroy solver */
 void NEWTON_Destroy (NEWTON *nt)
 {
+  if (nt->sys) LINSYS_Destroy (nt->sys);
   free (nt->rerhist);
   free (nt->merhist);
   free (nt);

@@ -76,3 +76,7 @@ point exists between a pair of geom. objects (rather then explicit exclusion as 
 Move diagonal blocks solvers from bgs.c to a separate dbs.c module
 -----------------------------------------------------------------------------
 Parallel SMOOTHED_VAR... take more iterations that serial on inp/cubes.py
+(Checked - not really - but make sure)
+----------------------------------------------------------------------------
+Show that regularizing |UT| norm in SMOOTHED_VAR... does not do good
+--------------------------------------------------------------------------
