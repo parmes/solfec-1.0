@@ -25,6 +25,7 @@ static void pack_constraint_state (CON *con, int *dsize, double **d, int *double
   pack_doubles (dsize, d, doubles, con->U, 3);
   pack_doubles (dsize, d, doubles, con->point, 3);
   pack_doubles (dsize, d, doubles, con->base, 9);
+  pack_double  (dsize, d, doubles, con->merit);
 
   pack_int (isize, i, ints, con->master->id);
   if (con->slave) pack_int (isize, i, ints, con->slave->id);
@@ -60,6 +61,7 @@ static CON* unpack_constraint_state (DOM *dom, int *dpos, double *d, int doubles
   unpack_doubles (dpos, d, doubles, con->U, 3);
   unpack_doubles (dpos, d, doubles, con->point, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
+  con->merit = unpack_double  (dpos, d, doubles);
 
   id = unpack_int (ipos, i, ints);
   ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid master id");
@@ -96,6 +98,7 @@ static void write_constraint (CON *con, PBF *bf)
   PBF_Double (bf, con->U, 3);
   PBF_Double (bf, con->point, 3);
   PBF_Double (bf, con->base, 9);
+  PBF_Double (bf, &con->merit, 1);
 
   PBF_Uint (bf, &con->master->id, 1);
   if (con->slave) PBF_Uint (bf, &con->slave->id, 1);
@@ -132,6 +135,7 @@ static CON* read_constraint (DOM *dom, PBF *bf)
   PBF_Double (bf, con->U, 3);
   PBF_Double (bf, con->point, 3);
   PBF_Double (bf, con->base, 9);
+  PBF_Double (bf, &con->merit, 1);
 
   PBF_Uint (bf, &id, 1);
   ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid master id");

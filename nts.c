@@ -179,7 +179,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
  #if MPI
   if (dom->rank == 0)
 #endif
-  if (dom->verbose && nt->verbose) printf ("NEWTON: final momentum merit: %g\n", merit);
+  if (dom->verbose && nt->verbose) printf ("NEWTON: final energy merit: %g\n", merit);
 
   if (nt->sys == NULL) LINSYS_Destroy (sys);
   free (nonmonvalues);

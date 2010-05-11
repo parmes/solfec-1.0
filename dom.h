@@ -70,6 +70,8 @@ struct constraint
 
   double Z [DOM_Z_SIZE]; /* auxiliary storage */
 
+  double merit; /* constraint satisfaction */
+
   unsigned int id; /* identifier */
 
   int num; /* local number */

@@ -68,10 +68,11 @@ inline static void real_m (double fri, double *S, double *m)
  * (it is assumed that all (also external) reactions are updated) */
 double MERIT_Function (LOCDYN *ldy, short update_U)
 {
-  double step, upper, lower, A [9], det, Q [3], P [3];
+  double step, up, upper, lower, Q [3], P [3];
   short dynamic;
   DIAB *dia;
   OFFB *blk;
+  CON *con;
 
   upper = lower = 0.0;
   dynamic = ldy->dom->dynamic;
@@ -79,9 +80,10 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
 
   for (dia = ldy->dia; dia; dia = dia->n)
   {
-    CON *con = dia->con;
+    con = dia->con;
 
     double *W = dia->W,
+	   *A = dia->A,
 	   *B = dia->B,
 	   *V = dia->V,
 	   *U = dia->U,
@@ -104,9 +106,8 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
 #endif
     }
 
-    INVERT (W, A, det); /* FIXME: move into local dynamics */
     NVMUL (A, B, Q);
-    lower += DOT (Q, Q);
+    lower += DOT (Q, B);
 
     switch (con->kind)
     {
@@ -127,7 +128,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       real_m (fri, P, m);
       ADD (Q, m, P);
       NVMUL (A, P, Q);
-      upper += DOT (Q, Q);
+      up = DOT (Q, P);
     }
     break;
     case FIXPNT:
@@ -135,7 +136,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       if (dynamic) { ADD (U, V, P); }
       else { COPY (U, P); }
       NVMUL (A, P, Q);
-      upper += DOT (Q, Q);
+      up = DOT (Q, P);
     }
     break;
     case FIXDIR:
@@ -143,14 +144,14 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       if (dynamic) { P[2] = U[2] + V[2]; }
       else { P[2] = U[2]; }
       Q [2] = A[8] * P[2];
-      upper += Q[2] * Q[2];
+      up = Q[2] * P[2];
     }
     break;
     case VELODIR:
     {
       P [2] = VELODIR(con->Z) - U[2];
       Q [2] = A[8] * P[2];
-      upper += Q[2] * Q[2];
+      up = Q[2] * P[2];
     }
     break;
     case RIGLNK:
@@ -158,16 +159,19 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       if (dynamic) { P[2] = RIGLNK_LEN(con->Z)/step + (U[2]+V[2]); }
       else { P [2] = RIGLNK_LEN(con->Z)/step + U[2]; }
       Q [2] = A[8] * P[2];
-      upper += Q[2] * Q[2];
+      up = Q[2] * P[2];
     }
     break;
     case GLUEPNT:
     {
       NVMUL (A, U, Q);
-      upper += DOT (Q, Q);
+      up = DOT (Q, U);
     }
     break;
     }
+
+    con->merit = up; /* per-constraint merit numerator */
+    upper += up;
   }
 
 #if MPI
@@ -176,5 +180,12 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
   lower = val_o [0], upper = val_o [1];
 #endif
 
-  return sqrt (upper / (lower == 0 ? 1 : lower));
+  lower = (lower == 0 ? 1 : lower);
+
+  for (con = ldy->dom->con; con; con = con->next)
+  {
+    con->merit /= lower; /* per-constraint merit denominator */
+  }
+
+  return upper / lower;
 }

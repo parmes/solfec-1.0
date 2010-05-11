@@ -106,6 +106,7 @@ HYBRID* HYBRID_Create (double epsilon, int maxiter, double meritval)
 /* run solver */
 void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy)
 {
+#if 1
   DOM *dom = ldy->dom;
   double error, merit;
 #if MPI
@@ -123,14 +124,16 @@ void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy)
     if (con->ext) SET_Insert (&setmem, &subset, con, NULL);
   }
 
-  nt = NEWTON_Subset_Create (SMOOTHED_VARIATIONAL, ldy, subset, 1.0, 3, 1E-8);
+  nt = NEWTON_Subset_Create (SMOOTHED_VARIATIONAL, ldy, subset, 1.0, 5, 1E-8);
 #endif
 
-  for (int i = 0; i < 5; i ++)
+  for (int i = 0; i < 10; i ++)
   {
     error = gauss_seidel (ldy, dom->dynamic, dom->step, 5);
 
 #if MPI
+    LINSYS_Update_Free_Velocity (nt->sys);
+
     NEWTON_Solve (nt, ldy);
 
     LINSYS_Update_External_Reactions (nt->sys);
@@ -147,6 +150,19 @@ void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy)
 #if MPI
   NEWTON_Destroy (nt);
   MEM_Release (&setmem);
+#endif
+#else
+  GAUSS_SEIDEL *gs;
+  NEWTON *nt;
+
+  gs = GAUSS_SEIDEL_Create (1E-6, 3, 1E-6, GS_FAILURE_CONTINUE, 1E-6, 100, GS_PROJECTED_GRADIENT, NULL, NULL);
+  nt = NEWTON_Create (SMOOTHED_VARIATIONAL, 1E-6, 3, 1E-6);
+
+  NEWTON_Solve (nt, ldy);
+  GAUSS_SEIDEL_Solve (gs, ldy);
+
+  NEWTON_Destroy (nt);
+  GAUSS_SEIDEL_Destroy (gs);
 #endif
 }
 
