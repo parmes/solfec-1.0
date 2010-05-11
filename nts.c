@@ -142,6 +142,8 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   if (nt->sys) sys = nt->sys;
   else sys = LINSYS_Create (nt->variant, ldy, NULL);
 
+  /* TODO: idea => enable MULTIPLY_TRANSPOSED when poor merit improvements occur */
+
   merit = error = 1.0;
   nt->iters = 0;
 

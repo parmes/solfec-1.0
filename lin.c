@@ -1361,6 +1361,7 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
   double *bb = vect (vb)->x, *xx = vect (vx)->x, *b, *x;
   LINSYS *sys = (LINSYS*)A;
   double delta = sys->delta;
+  short trans = sys->variant & MULTIPLY_TRANSPOSED;
   int ipiv [3];
   DIAT *dia;
 
@@ -1372,7 +1373,8 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
 
     double *T = dia->T, S [9];
 
-    NNCOPY (T, S);
+    if (trans) { TNMUL (T, T, S); }
+    else { NNCOPY (T, S); }
     S [0] += delta;
     S [4] += delta;
     S [8] += delta;
@@ -1392,6 +1394,15 @@ static void compute_resnorm_and_xnorm (LINSYS *sys)
 
   A_times_x_equals_y (sys, sys->x->x, r->x);
   Axpy (-1.0, sys->b, r);
+
+  if (sys->variant & MULTIPLY_TRANSPOSED)
+  {
+    VECT *s = CreateVector (sys->b);
+    CopyVector (r, s);
+    AT_times_x_equals_y (sys, s->x, r->x);
+    DestroyVector (s);
+  }
+
   sys->xnorm = sqrt (InnerProd (sys->x, sys->x));
   sys->resnorm = sqrt (InnerProd (r, r));
 
@@ -1800,6 +1811,27 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
   }
   else
 #endif
+  if (sys->variant & MULTIPLY_TRANSPOSED)
+  {
+   hypre_PCGFunctions *pcg_functions;
+    void *pcg_vdata;
+
+    pcg_functions = hypre_PCGFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, DestroyVector, MatvecCreate,
+      Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
+    pcg_vdata = hypre_PCGCreate (pcg_functions);
+
+    hypre_PCGSetTol (pcg_vdata, 0.0);
+    hypre_PCGSetMaxIter (pcg_vdata, maxiter);
+    hypre_PCGSetAbsoluteTol (pcg_vdata, abstol);
+    hypre_PCGSetup (pcg_vdata, sys, sys->b, sys->x);
+    hypre_PCGSolve (pcg_vdata, sys, sys->b, sys->x);
+    hypre_PCGGetNumIterations (pcg_vdata , &sys->iters);
+    sys->xnorm = sqrt (InnerProd (sys->x, sys->x));
+    hypre_PCGDestroy (pcg_vdata);
+
+    compute_resnorm_and_xnorm (sys);
+  }
+  else
   {
     hypre_FlexGMRESFunctions *gmres_functions;
     void *gmres_vdata;
