@@ -418,6 +418,8 @@ def box_kite_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angl
 
 step = 0.001
 
+GEOMETRIC_EPSILON (1E-6)
+
 solfec = SOLFEC ('DYNAMIC', step, 'out/boxkite')
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0)
@@ -433,8 +435,9 @@ GRAVITY (solfec, (0, 0, -10))
 box_kite_create (0.0003, 0.0002,  0,  0,  0, SEPARATION, tms, bulkmat, solfec)
 
 sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
-#sv = NEWTON_SOLVER ('NONSMOOTH_HSW', 1E0, 50, 1E-6)
-#sv.nonmonlength = 1
+
+#sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E0, 50, 1E-8)
+#sv.nonmonlength = 5
 
 MERIT = []
 

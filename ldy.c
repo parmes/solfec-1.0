@@ -519,6 +519,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 	   X0 [3], Y0 [3],
            X [3], Y [9];
     MX_DENSE_PTR (W, 3, 3, dia->W);
+    MX_DENSE_PTR (A, 3, 3, dia->A);
     MX_DENSE (C, 3, 3);
 
     /* relative velocity = slave - master => outward master normal */
@@ -557,11 +558,13 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
 
-    if (upkind != UPPES) /* diagonal regularization (not needed by the explicit solver) */
+    if (upkind != UPPES) /* diagonal regularization and inverse (not needed by the explicit solver) */
     {
       NNCOPY (W.x, C.x); /* calculate regularisation parameter */
       ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
       dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
+      NNCOPY (W.x, A.x);
+      MX_Inverse (&A, &A); /* inverse of diagonal block */
     }
   }
 

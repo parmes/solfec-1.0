@@ -168,7 +168,8 @@ enum /* menu items */
   RESULTS_UT,
   RESULTS_UN,
   RESULTS_U,
-  RESULTS_GAP
+  RESULTS_GAP,
+  RESULTS_MERIT
 };
 
 enum mouse_mode
@@ -395,7 +396,7 @@ static short legend_constraint_based (void)
   if ((legend.entity >= KINDS_OF_CONSTRAINTS &&
        legend.entity <= KINDS_OF_FORCES) ||
       (legend.entity >= RESULTS_RT &&
-       legend.entity <= RESULTS_GAP)) return 1;
+       legend.entity <= RESULTS_MERIT)) return 1;
 
   return 0;
 }
@@ -733,6 +734,7 @@ static void update_body_constraint_or_force_values (BODY *bod)
       case RESULTS_UN: value = fabs (con->U[2]); break;
       case RESULTS_U: value = LEN (con->U); break;
       case RESULTS_GAP: value = con->gap; break;
+      case RESULTS_MERIT: value = con->merit; break;
       }
 
       if (value < legend.extents [0]) legend.extents [0] = value;
@@ -1013,6 +1015,7 @@ static char* legend_caption ()
   case RESULTS_UN: return "UN";
   case RESULTS_U: return "U";
   case RESULTS_GAP: return "GAP";
+  case RESULTS_MERIT: return "MERIT";
   }
 
   return NULL;
@@ -1760,8 +1763,8 @@ static void tube3d (double *p, double *q)
   glEnd ();
 }
 
-/* render gap */
-static void render_gap (CON *con, GLfloat color [3])
+/* render constraint scalar */
+static void render_scalar (CON *con, double scalar, GLfloat color [3])
 {
   double r [3],
 	 first [3],
@@ -1771,7 +1774,7 @@ static void render_gap (CON *con, GLfloat color [3])
 	 len;
 
   COPY (con->base+6, r);
-  SCALE (r, con->gap);
+  SCALE (r, scalar);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
   eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
@@ -1867,7 +1870,8 @@ static void render_body_set_constraints_or_forces (SET *set)
 	case RESULTS_UT: value_to_color (LEN2 (con->U), color); render_vt (con, con->U, color); break;
 	case RESULTS_UN: value_to_color (fabs (con->U[2]), color); render_vn (con, con->U, color); break;
 	case RESULTS_U:  value_to_color (LEN (con->U), color); render_v (con, con->U, color); break;
-	case RESULTS_GAP:  value_to_color (con->gap, color); render_gap (con, color); break;
+	case RESULTS_GAP:  value_to_color (con->gap, color); render_scalar (con, con->gap, color); break;
+	case RESULTS_MERIT:  value_to_color (con->merit, color); render_scalar (con, con->merit, color); break;
 	}
 
 	con->state |= CON_DONE;
@@ -2440,7 +2444,7 @@ static void menu_tools (int item)
   case TOOLS_NEXT_RESULT:
     if (legend.entity)
     {
-      if (legend.entity < RESULTS_GAP)
+      if (legend.entity < RESULTS_MERIT)
       {
 	legend.entity ++;
 	update ();
@@ -2457,7 +2461,7 @@ static void menu_tools (int item)
 	update ();
       }
     }
-    else menu_results (RESULTS_GAP);
+    else menu_results (RESULTS_MERIT);
     break;
   case TOOLS_SMALLER_ARROWS:
     if (arrow_factor > 0.02) arrow_factor -= 0.01;
@@ -2603,6 +2607,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("UN", RESULTS_UN);
   glutAddMenuEntry ("U", RESULTS_U);
   glutAddMenuEntry ("gap", RESULTS_GAP);
+  glutAddMenuEntry ("merit", RESULTS_MERIT);
 
   menu_name [MENU_RESULTS] = "results";
   menu_code [MENU_RESULTS] = glutCreateMenu (menu_results);

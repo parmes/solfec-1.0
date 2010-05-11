@@ -70,6 +70,7 @@ struct diab
 	 V [3], /* initial velocity */
 	 B [3], /* free velocity */
          W [9], /* generalised inverse inertia block */
+	 A [9], /* inverse of W */
 	 rho;   /* scaling parameter */
 
   OFFB *adj; /* note that W(i,j) = W1(i,j) + W2(i,j) {owing to body 1 and 2} and W1 and W2 are SEPARATELY stored here */

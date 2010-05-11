@@ -36,10 +36,11 @@
 #include "com.h"
 #endif
 
-#define DIFF_FACTOR    1E-6  /* TODO: test sensitivity */
-#define EPSILON_FACTOR 1E-6  /* TODO: -||- */
-#define EPSILON_BASE   1E-9  /* TODO: -||- */
-#define SMOOTHING      1     /* TODO: -||- */
+#define DIFF_FACTOR             1E-6  /* TODO: test sensitivity */
+#define EPSILON_FACTOR          1E-6  /* TODO: -||- */
+#define EPSILON_BASE            1E-9  /* TODO: -||- */
+#define SMOOTHING               1     /* TODO: -||- */
+#define DISABLE_NORM_SMOOTHING  1     /* TODO: -||- */
 #define BLOCKS         256
 
 typedef struct vect VECT;
@@ -873,29 +874,37 @@ inline static void complex_m (double complex fri, short smooth, double complex *
 }
 
 /* real F = [UT, UN + fri |UT|]' */
-inline static void real_F (double res, double fri, double gap, double step, short dynamic, double *V, double *U, double *F)
+inline static void real_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double *U, double *F)
 {
   double udash;
 
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
 
+#if DISABLE_NORM_SMOOTHING
+  epsilon = 0;
+#endif
+
   F [0] = U[0];
   F [1] = U[1];
-  F [2] = (udash + fri * sqrt (DOT2(U, U)));
+  F [2] = (udash + fri * sqrt (DOT2(U, U) + epsilon*epsilon));
 }
  
 /* complex F = [UT, UN + fri |UT|]' */
-inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double *V, double complex *U, double complex *F)
+inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double complex *U, double complex *F)
 {
   double complex udash;
 
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
 
+#if DISABLE_NORM_SMOOTHING
+  epsilon = 0;
+#endif
+
   F [0] = U[0];
   F [1] = U[1];
-  F [2] = (udash + fri * csqrt (DOT2(U, U)));
+  F [2] = (udash + fri * csqrt (DOT2(U, U) + epsilon*epsilon));
 }
 
 /* update linear system for NONSMOOTH_VARIATIONAL, SMOOTHED_VARIATIONAL variants */
@@ -910,7 +919,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 
   smooth = sys->smooth;
   epsilon = sys->epsilon;
-  h = DIFF_FACTOR * epsilon;
+  h = DIFF_FACTOR * EPSILON_BASE;
   dom = sys->ldy->dom;
   dynamic = dom->dynamic;
   step = dom->step;
@@ -960,7 +969,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 	     J [9];
 
 
-      real_F (res, fri, gap, step, dynamic, V, U, F);
+      real_F (res, fri, gap, step, dynamic, epsilon, V, U, F);
       SUB (R, F, S);
       real_m (fri, smooth, S, epsilon, m);
       ADD (F, m, H);
@@ -976,7 +985,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 	cU [1] = U[1] + 0.0 * imaginary_i;
 	cU [2] = U[2] + 0.0 * imaginary_i;
 	cU [k] += h * imaginary_i;
-        complex_F (res, fri, gap, step, dynamic, V, cU, cF);
+        complex_F (res, fri, gap, step, dynamic, epsilon, V, cU, cF);
 	dF [3*k+0] = cimag (cF [0]) / h;
 	dF [3*k+1] = cimag (cF [1]) / h;
 	dF [3*k+2] = cimag (cF [2]) / h;
@@ -1139,7 +1148,7 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
   ncpu = dom->ncpu;
   rank = dom->rank;
   basenum = sys->basenum;
-  ERRMEM (v = MEM_CALLOC (basenum [ncpu] * sizeof (double))); /* global result vector */
+  ERRMEM (v = MEM_CALLOC (3 * basenum [ncpu] * sizeof (double))); /* global result vector */
 #else
   for (z = y, w = z + sys->b->n; z < w; z ++) (*z) = 0.0; /* zero y */
 #endif
@@ -1651,7 +1660,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
     sys->epsilon = EPSILON_FACTOR * MAX (len, EPSILON_BASE);
     sys->smooth = SMOOTHING;
   }
-  else { sys->epsilon = EPSILON_BASE; sys->smooth = 0; }
+  else { sys->epsilon = 0; sys->smooth = 0; }
 
   /* unknown and right hand side */
   sys->x = newvect (3 * ncon);
@@ -1955,7 +1964,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 	       F [3],
 	       m [3];
 
-	real_F (res, fri, gap, step, dynamic, V, U, F);
+	real_F (res, fri, gap, step, dynamic, epsilon, V, U, F);
 	SUB (R, F, S);
 	real_m (fri, smooth, S, epsilon, m);
 	ADD (F, m, H);

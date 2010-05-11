@@ -53,13 +53,13 @@ def bar_drop (step, stop, scheme):
   RUN (sol, gs, stop)
 
   if not VIEWER() and sol.mode == 'READ':
-    return (HISTORY (sol, [(sol, 'KINETIC'), (sol, 'INTERNAL'), (sol, 'EXTERNAL'), (bod, (0, 0, 0), 'VZ'), (bod, (0, 0, 0), 'DZ')], 0, stop), sol)
-  else: return (sol, sol)
+    return HISTORY (sol, [(sol, 'KINETIC'), (sol, 'INTERNAL'), (sol, 'EXTERNAL'), (bod, (0, 0, 0), 'VZ'), (bod, (0, 0, 0), 'DZ')], 0, stop)
+  else: return [sol, gs]
 
 stop = 2
-th1 = bar_drop (1E-3, stop, 'DEF_IMP') [0]
-th2 = bar_drop (1E-4, stop, 'DEF_IMP') [0]
-th3 = bar_drop (1E-5, stop, 'DEF_EXP') [0]
+th1 = bar_drop (1E-3, stop, 'DEF_IMP')
+th2 = bar_drop (1E-4, stop, 'DEF_IMP')
+th3 = bar_drop (1E-5, stop, 'DEF_EXP')
 
 if not VIEWER() and isinstance (th1, tuple):
   try:
