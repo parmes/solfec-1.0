@@ -1418,6 +1418,79 @@ static void compute_resnorm_and_xnorm (LINSYS *sys)
   DestroyVector (r);
 }
 
+/* project contact reactions back onto the friction cone */
+static void project_contact_reactions (LINSYS *sys)
+{
+  double S [3], m [3], fri, *R, *a, *x = sys->x->x;
+  DIAT *dia;
+  CON *con;
+
+  if (sys->variant & MULTIPLY_TRANSPOSED)
+  {
+    VECT *v = CreateVector (sys->x);
+    double beta, dot, *b, *y = v->x;
+
+    beta = 1.0;
+    do
+    {
+      for (dia = sys->dia; dia; dia = dia->n)
+      {
+	con = dia->con;
+	if (con->kind == CONTACT)
+	{
+	  a = &x [3*dia->num];
+	  b = &y [3*dia->num];
+	  MUL (a, beta, b);
+	  fri = con->mat.base->friction;
+	  R = con->R;
+	  ADD (R, b, S);
+	  real_m (fri, 0, S, 0, m);
+	  SUB (S, m, S);
+	  SUB (S, R, b); /* v = proj (friction-cone, R+beta*DR) - R */
+	}
+	/* else it is zero */
+      }
+
+      dot = -InnerProd (v, sys->b); /* b = - grad (f), hence <v, -b> = <v, grad (f) < 0 indicates descent */
+
+#if 1
+      if (dot > 0) printf ("LINSYS: dot = %g, beta = %g\n", dot, beta);
+#endif
+    }
+    while (dot > 0.0 && (beta *= 0.9) > 0.05);
+
+    for (dia = sys->dia; dia; dia = dia->n)
+    {
+      con = dia->con;
+      if (con->kind == CONTACT)
+      {
+        a = &x [3*dia->num];
+        b = &y [3*dia->num];
+	COPY (b, a);
+      }
+    }
+
+    DestroyVector (v);
+  }
+  else
+  {
+    for (dia = sys->dia; dia; dia = dia->n)
+    {
+      con = dia->con;
+      if (con->kind == CONTACT) /* DR = proj (friction-cone, R+DR) - R */
+      {
+	fri = con->mat.base->friction;
+	R = con->R;
+        a = &x [3*dia->num];
+	ADD (R, a, S);
+	real_m (fri, 0, S, 0, m);
+	SUB (S, m, S);
+	SUB (S, R, a);
+      }
+    }
+  }
+}
+
 /* create linear system resulting from linearization of constraints */
 LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
 {
@@ -1802,7 +1875,7 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
   CON *con;
 
 #if 1
-  sys->delta = sys->resnorm / sys->xnorm; /* L-curve */
+  sys->delta = sys->resnorm / sys->xnorm; /* sqrt (L-curve) */
 #endif
 
   variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
@@ -1861,25 +1934,14 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
     compute_resnorm_and_xnorm (sys);
   }
 
+  if (variational) project_contact_reactions (sys);
+
   for (dia = sys->dia, x = sys->x->x; dia; dia = dia->n)
   {
     con = dia->con;
     z = &x [3*dia->num];
     DR = dia->DR;
     COPY (z, DR);
-
-    if (variational && con->kind == CONTACT) /* DR = proj (friction-cone, R+DR) - R */
-    {
-      double fri = con->mat.base->friction,
-            *R = con->R,
-	     S [3],
-	     m [3];
-
-      ADD (R, DR, S);
-      real_m (fri, 0, S, 0, m);
-      SUB (S, m, S);
-      SUB (S, R, DR);
-    }
   }
 
 #if MPI
