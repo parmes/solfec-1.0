@@ -33,6 +33,8 @@
 
 #define BLOCKS 256
 
+
+#if 0
 static double gauss_seidel (LOCDYN *ldy, short dynamic, double step, int maxiter)
 {
   double error;
@@ -89,6 +91,7 @@ static double gauss_seidel (LOCDYN *ldy, short dynamic, double step, int maxiter
 
   return error;
 }
+#endif
 
 /* create solver */
 HYBRID* HYBRID_Create (double epsilon, int maxiter, double meritval)
@@ -106,10 +109,9 @@ HYBRID* HYBRID_Create (double epsilon, int maxiter, double meritval)
 /* run solver */
 void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy)
 {
-#if 1
   DOM *dom = ldy->dom;
-  double error, merit;
-#if MPI
+  GAUSS_SEIDEL *gs;
+  double maxrn;
   NEWTON *nt;
   MEM setmem;
   SET *subset;
@@ -117,53 +119,48 @@ void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy)
 
   MEM_Init (&setmem, sizeof (SET), BLOCKS);
 
-  subset = NULL;
+  gs = GAUSS_SEIDEL_Create (1E-6, 3, 1E-6, GS_FAILURE_CONTINUE, 1E-6, 100, GS_PROJECTED_GRADIENT, NULL, NULL);
 
-  for (con = dom->con; con; con = con->next)
+  GAUSS_SEIDEL_Solve (gs, ldy); /* few Gauss-Seidel iteratios identify strong forces */
+
+  for (maxrn = 0.0, con = dom->con; con; con = con->next) /* find maximal normal reaction */
   {
-    if (con->ext) SET_Insert (&setmem, &subset, con, NULL);
+    if (fabs (con->R [2]) > maxrn) maxrn = fabs (con->R [2]);
   }
 
-  nt = NEWTON_Subset_Create (SMOOTHED_VARIATIONAL, ldy, subset, 1.0, 5, 1E-8);
-#endif
-
-  for (int i = 0; i < 10; i ++)
+  for (subset = NULL, con = dom->con; con; con = con->next) /* pick strong constraints */
   {
-    error = gauss_seidel (ldy, dom->dynamic, dom->step, 5);
-
+    if (fabs (con->R [2]) > 0.05 * maxrn)
+    {
+      SET_Insert (&setmem, &subset, con, NULL);
+    }
+  }
 #if MPI
+  if (dom->rank == 0)
+#endif
+  if (dom->verbose) printf ("HYBRID: picked %d%% of constraints for Newton\n", (100 * SET_Size (subset)) / dom->ncon);
+
+  nt = NEWTON_Subset_Create (SMOOTHED_VARIATIONAL, ldy, subset, 1.0, 3, 1E-8);
+
+  for (int iter = 0; iter < 1; iter ++)
+  {
+#if 1
     LINSYS_Update_Free_Velocity (nt->sys);
+#endif
 
     NEWTON_Solve (nt, ldy);
 
+#if MPI
     LINSYS_Update_External_Reactions (nt->sys);
 #endif
 
-    merit =  MERIT_Function (ldy, 1);
-
-#if MPI
-    if (dom->rank == 0)
-#endif
-    if (dom->verbose) printf ("HYBRID: iter: %d, merit: %g\n", i, merit);
+    GAUSS_SEIDEL_Solve (gs, ldy); /* smooth out solution */
+				  /* TODO: variant of GS that avoids initialization in parallel here */
   }
 
-#if MPI
   NEWTON_Destroy (nt);
   MEM_Release (&setmem);
-#endif
-#else
-  GAUSS_SEIDEL *gs;
-  NEWTON *nt;
-
-  gs = GAUSS_SEIDEL_Create (1E-6, 3, 1E-6, GS_FAILURE_CONTINUE, 1E-6, 100, GS_PROJECTED_GRADIENT, NULL, NULL);
-  nt = NEWTON_Create (SMOOTHED_VARIATIONAL, 1E-6, 3, 1E-6);
-
-  NEWTON_Solve (nt, ldy);
-  GAUSS_SEIDEL_Solve (gs, ldy);
-
-  NEWTON_Destroy (nt);
   GAUSS_SEIDEL_Destroy (gs);
-#endif
 }
 
 /* write labeled satate values */

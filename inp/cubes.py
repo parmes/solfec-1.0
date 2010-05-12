@@ -58,7 +58,9 @@ def stack_of_cubes_create (material, solfec):
 
 step = 0.001
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/cubes_' + str (TEST) + '_' + KINEM + '_' + VARIANT)
+outdir = 'out/cubes_' + str (TEST) + '_' + KINEM + '_' + VARIANT
+
+solfec = SOLFEC ('DYNAMIC', step, outdir)
 
 CONTACT_SPARSIFY (solfec, 0.005)
 
@@ -70,17 +72,40 @@ GRAVITY (solfec, (0, 0, -9.81))
 
 stack_of_cubes_create (bulkmat, solfec)
 
-#gs = GAUSS_SEIDEL_SOLVER (1E-2, 100, 1E-4, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
-#gs.variant = VARIANT
+#sv = GAUSS_SEIDEL_SOLVER (1E-2, 100, 1E-4, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+#sv.variant = VARIANT
 
-gs = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E1, 10, 1E-8)
-gs.nonmonlength = 5
+sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E1, 10, 1E-8)
+sv.nonmonlength = 5
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 
 OUTPUT (solfec, 1 * step, 'FASTLZ')
 
-RUN (solfec, gs, 10 * step)
+MERIT = []
+
+def callback (sv):
+  MERIT.append (sv.merhist)
+  return 1
+
+if not VIEWER() and NCPU(solfec) == 1: CALLBACK (solfec, step, sv, callback)
+
+RUN (solfec, sv, 10 * step)
+
+if not VIEWER() and NCPU(solfec) == 1 and solfec.mode == 'WRITE':
+  try:
+    import matplotlib.pyplot as plt
+
+    for M in MERIT:
+      plt.plot (list (range (0, len(M))), M)
+
+    plt.semilogy (10)
+    plt.xlabel ('Iteration')
+    plt.ylabel ('Merit function f')
+    plt.savefig (outdir + '/cubes.eps')
+ 
+  except ImportError:
+    pass # no reaction
 
 if not VIEWER() and solfec.mode == 'READ':
 
