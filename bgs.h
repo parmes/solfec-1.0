@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include "ldy.h"
+#include "dbs.h"
 
 #ifndef __bgs__
 #define __bgs__
@@ -33,13 +34,6 @@ enum gserror
   GS_DIVERGED,
   GS_DIAGONAL_DIVERGED,
   GS_DIAGONAL_FAILED,
-};
-
-enum gsdias
-{
-  GS_PROJECTED_GRADIENT,
-  GS_DE_SAXE_AND_FENG,
-  GS_SEMISMOOTH_NEWTON
 };
 
 enum gsfail
@@ -64,7 +58,6 @@ enum gsvariant
 };
 
 typedef enum gserror GSERROR;
-typedef enum gsdias GSDIAS;
 typedef enum gsfail GSFAIL;
 typedef enum gsonoff GSONOFF;
 typedef enum gsvariant GSVARIANT;
@@ -87,7 +80,7 @@ struct gs
 
   int diagmaxiter; /* diagonal block solver iterations bound */
 
-  GSDIAS diagsolver; /* diagonal block problem solver type */
+  DIAS diagsolver; /* diagonal block problem solver type */
 
   GSERROR error; /* error code */
 
@@ -106,12 +99,18 @@ struct gs
   GSVARIANT variant; /* parallel algorithm variant (ignored in serial mode) */
 
   int innerloops; /* number of inner GS loops per one global parallel step (ignored in serial mode) */
+
+  short verbose; /* verbosity flag */
 };
 
 /* create solver */
 GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, double meritval, GSFAIL failure,
-                                   double diagepsilon, int diagmaxiter, GSDIAS diagsolver,
+                                   double diagepsilon, int diagmaxiter, DIAS diagsolver,
 				   void *data, GAUSS_SEIDEL_Callback callback);
+
+/* create on constraints subset (subset == NULL => entire set); needs to be destroyed and created again for every
+ * new LOCDYN state but allows for more efficient multiple solves in parallel due to single initialization */
+GAUSS_SEIDEL* GAUSS_SEIDEL_Subset_Create (LOCDYN *ldy, SET *subset, double epsilon, int maxiter, double meritval);
 
 /* run solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy);
@@ -137,20 +136,4 @@ void GAUSS_SEIDEL_Write_State (GAUSS_SEIDEL *gs, PBF *bf);
 /* free solver */
 void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs);
 
-/* diagsolver: diagonal solver kind
- * diagepsilon: relative accuracy on termination
- * diagmaxiter: maximal iterations count
- * dynamic: simulation kind (dom->dynamic)
- * step: time step (dom->step)
- * kind: constraint kind (con->kind)
- * mat: surface material (kind == CONTACT)
- * gap: constraint gap
- * Z: auxiliary Z storage (con->Z)
- * base: constraint local base (con->base)
- * dia: diagonal block of local dynamic (con->dia)
- * B: local free velocity (B = dia->B + sum [dia->adj] (W_i R_i));
- * diagonal block solver */
-int DIAGONAL_BLOCK_Solver (GSDIAS diagsolver, double diagepsilon, int diagmaxiter,
-  short dynamic, double step, short kind, SURFACE_MATERIAL *mat, double gap,
-  double *Z, double *base, DIAB *dia, double *B);
 #endif

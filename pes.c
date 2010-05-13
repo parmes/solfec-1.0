@@ -21,7 +21,7 @@
 
 #include "alg.h"
 #include "dom.h"
-#include "bgs.h"
+#include "dbs.h"
 #include "pes.h"
 #include "err.h"
 
@@ -210,7 +210,7 @@ void PENALTY_Solve (PENALTY *ps, LOCDYN *ldy)
       COPY (R, R0); /* previous reaction */
 
       /* solve local diagonal block problem */
-      DIAGONAL_BLOCK_Solver (GS_PROJECTED_GRADIENT, 1E-6, 1000, dynamic, step,
+      DIAGONAL_BLOCK_Solver (DS_PROJECTED_GRADIENT, 1E-6, 1000, dynamic, step,
 	         con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
 
       /* accumulate relative

@@ -108,7 +108,8 @@ NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double merit
   return nt;
 }
 
-/* create on constraints subset */
+/* create on constraints subset (subset == NULL => entire set); needs to be destroyed and created again for every
+ * new LOCDYN state but allows for more efficient multiple solves in parallel due to single initialization */
 NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double epsilon, int maxiter, double meritval)
 {
   NEWTON *nt;

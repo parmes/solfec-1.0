@@ -156,8 +156,8 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     break;
     case RIGLNK:
     {
-      if (dynamic) { P[2] = RIGLNK_LEN(con->Z)/step + (U[2]+V[2]); }
-      else { P [2] = RIGLNK_LEN(con->Z)/step + U[2]; }
+      if (dynamic) { P[2] = (U[2]+V[2]); }
+      else { P [2] = con->gap/step + U[2]; }
       Q [2] = A[8] * P[2];
       up = Q[2] * P[2];
     }
