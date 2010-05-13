@@ -1402,7 +1402,6 @@ static void compute_resnorm_and_xnorm (LINSYS *sys)
   VECT *r = CreateVector (sys->b);
 
   A_times_x_equals_y (sys, sys->x->x, r->x);
-  Axpy (-1.0, sys->b, r);
 
   if (sys->variant & MULTIPLY_TRANSPOSED)
   {
@@ -1411,6 +1410,8 @@ static void compute_resnorm_and_xnorm (LINSYS *sys)
     AT_times_x_equals_y (sys, s->x, r->x);
     DestroyVector (s);
   }
+
+  Axpy (-1.0, sys->b, r);
 
   sys->xnorm = sqrt (InnerProd (sys->x, sys->x));
   sys->resnorm = sqrt (InnerProd (r, r));
@@ -1876,6 +1877,7 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
 
 #if 1
   sys->delta = sys->resnorm / sys->xnorm; /* sqrt (L-curve) */
+  if (sys->variant & MULTIPLY_TRANSPOSED) sys->delta *= 0.1; /* FIXME */
 #endif
 
   variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);

@@ -24,28 +24,20 @@
 #ifndef __hbs__
 #define __hbs__
 
-enum hybrid_variant
-{
-  INNER_GAUSS_SEIDEL_BOUNDARY_NEWTON,
-  INNER_NEWTON_GAUSS_SEIDEL_BOUNDARY_NEWTON,
-  FORCE_CHAIN_NEWTON_GAUSS_SEIDEL,
-};
-
-typedef enum hybrid_variant HYBRID_VARIANT;
-
 typedef struct hybrid HYBRID;
 
 struct hybrid
 {
-  double epsilon; /* relative accuracy */
+  int presmooth,
+      refine,
+      postsmooth;
 
-  int maxiter; /* iterations bound */
-
-  double meritval; /* merit function value sufficient for termination */
+  double droptol,
+	 meritval; /* merit function value sufficient for termination */
 };
 
 /* create solver */
-HYBRID* HYBRID_Create (double epsilon, int maxiter, double meritval);
+HYBRID* HYBRID_Create (int presmooth, int refine, int postsmooth, double droptol, double meritval);
 
 /* run solver */
 void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy);

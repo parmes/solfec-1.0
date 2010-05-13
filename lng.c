@@ -2824,7 +2824,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
   lng_GAUSS_SEIDEL_SOLVER *self;
   int maxiter, diagmaxiter;
   GSFAIL gsfail;
-  GSDIAS gsdias;
+  DIAS dias;
 
   self = (lng_GAUSS_SEIDEL_SOLVER*)type->tp_alloc (type, 0);
 
@@ -2835,7 +2835,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
     diagmaxiter = INT_MAX;
     diagsolver = NULL;
     gsfail = GS_FAILURE_CONTINUE;
-    gsdias = GS_SEMISMOOTH_NEWTON;
+    dias = DS_SEMISMOOTH_NEWTON;
     self->data = NULL;
     self->callback = NULL;
     meritval = 1E+9;
@@ -2879,15 +2879,15 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
     {
       IFIS (diagsolver, "SEMISMOOTH_NEWTON")
       {
-	gsdias = GS_SEMISMOOTH_NEWTON;
+	dias = DS_SEMISMOOTH_NEWTON;
       }
       ELIF (diagsolver, "PROJECTED_GRADIENT")
       {
-	gsdias = GS_PROJECTED_GRADIENT;
+	dias = DS_PROJECTED_GRADIENT;
       }
       ELIF (diagsolver, "DE_SAXE_AND_FENG")
       {
-	gsdias = GS_DE_SAXE_AND_FENG;
+	dias = DS_DE_SAXE_AND_FENG;
       }
       ELSE
       {
@@ -2903,7 +2903,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
       diagmaxiter = MAX (100, maxiter / 100);
 
     self->gs = GAUSS_SEIDEL_Create (epsilon, maxiter, meritval, gsfail, diagepsilon,
-      diagmaxiter, gsdias, self, (GAUSS_SEIDEL_Callback)lng_GAUSS_SEIDEL_callback);
+      diagmaxiter, dias, self, (GAUSS_SEIDEL_Callback)lng_GAUSS_SEIDEL_callback);
   }
 
   return (PyObject*)self;
@@ -3052,15 +3052,15 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_diagsolver (lng_GAUSS_SEIDEL_SOLVER *self
 
   IFIS (value, "SEMISMOOTH_NEWTON")
   {
-    self->gs->diagsolver = GS_SEMISMOOTH_NEWTON;
+    self->gs->diagsolver = DS_SEMISMOOTH_NEWTON;
   }
   ELIF (value, "PROJECTED_GRADIENT")
   {
-    self->gs->diagsolver = GS_PROJECTED_GRADIENT;
+    self->gs->diagsolver = DS_PROJECTED_GRADIENT;
   }
   ELIF (value, "DE_SAXE_AND_FENG")
   {
-    self->gs->diagsolver = GS_DE_SAXE_AND_FENG;
+    self->gs->diagsolver = DS_DE_SAXE_AND_FENG;
   }
   ELSE
   {
@@ -3522,24 +3522,28 @@ struct lng_HYBRID_SOLVER
 /* constructor */
 static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("epsilon", "maxiter", "meritval");
+  KEYWORDS ("presmooth", "refine", "postsmooth", "droptol", "meritval");
   lng_HYBRID_SOLVER *self;
-  double epsilon, meritval;
-  int maxiter;
+  int presmooth, refine, postsmooth;
+  double droptol, meritval;
 
   self = (lng_HYBRID_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    epsilon = 1E-5;
-    maxiter = 100;
-    meritval = 1E-5;
+    presmooth = 3;
+    refine = 3;
+    postsmooth = 2;
+    droptol = 0.05;
+    meritval = 1E-3;
 
-    PARSEKEYS ("|did", &epsilon, &maxiter, &meritval);
+    PARSEKEYS ("|iiidd", &presmooth, &refine, &postsmooth, &droptol, &meritval);
 
-    TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]) && is_positive (meritval, kwl[2]));
+    TYPETEST (is_positive (presmooth, kwl[0]) && is_positive (refine, kwl[1]) &&
+	      is_positive (postsmooth, kwl[2]) && is_positive (droptol, kwl[3]) &&
+	      is_positive (meritval, kwl[4]));
 
-    self->hs = HYBRID_Create (epsilon, maxiter, meritval);
+    self->hs = HYBRID_Create (presmooth, refine, postsmooth, droptol, meritval);
   }
 
   return (PyObject*)self;
