@@ -160,7 +160,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   {
     LINSYS_Update (sys); /* assemble A, b */
 
-    LINSYS_Solve (sys,  0.1 * merit, nt->linmaxiter); /* FIXME */
+    LINSYS_Solve (sys,  0.01 * merit, nt->linmaxiter); /* FIXME */
 
     error = reactions_update (nt, sys, ldy, nonmonvalues, nt->iters, &merit); /* R(i+1) */
 
