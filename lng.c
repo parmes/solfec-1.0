@@ -3522,28 +3522,26 @@ struct lng_HYBRID_SOLVER
 /* constructor */
 static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("presmooth", "refine", "postsmooth", "droptol", "meritval");
+  KEYWORDS ("refine", "smooth", "droptol", "meritval");
   lng_HYBRID_SOLVER *self;
-  int presmooth, refine, postsmooth;
+  int smooth, refine;
   double droptol, meritval;
 
   self = (lng_HYBRID_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    presmooth = 3;
     refine = 3;
-    postsmooth = 2;
+    smooth = 5;
     droptol = 0.05;
     meritval = 1E-3;
 
-    PARSEKEYS ("|iiidd", &presmooth, &refine, &postsmooth, &droptol, &meritval);
+    PARSEKEYS ("|iidd", &refine, &smooth, &droptol, &meritval);
 
-    TYPETEST (is_positive (presmooth, kwl[0]) && is_positive (refine, kwl[1]) &&
-	      is_positive (postsmooth, kwl[2]) && is_positive (droptol, kwl[3]) &&
-	      is_positive (meritval, kwl[4]));
+    TYPETEST (is_positive (refine, kwl[0]) && is_positive (smooth, kwl[1]) &&
+	      is_positive (droptol, kwl[2]) && is_positive (meritval, kwl[3]));
 
-    self->hs = HYBRID_Create (presmooth, refine, postsmooth, droptol, meritval);
+    self->hs = HYBRID_Create (refine, smooth, droptol, meritval);
   }
 
   return (PyObject*)self;

@@ -28,16 +28,15 @@ typedef struct hybrid HYBRID;
 
 struct hybrid
 {
-  int presmooth,
-      refine,
-      postsmooth;
+  int refine,
+      smooth;
 
   double droptol,
 	 meritval; /* merit function value sufficient for termination */
 };
 
 /* create solver */
-HYBRID* HYBRID_Create (int presmooth, int refine, int postsmooth, double droptol, double meritval);
+HYBRID* HYBRID_Create (int refine, int smooth, double droptol, double meritval);
 
 /* run solver */
 void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy);

@@ -5394,7 +5394,7 @@ Object of type HYBRID_SOLVER represents a hybrid solver.
 \end_layout
 
 \begin_layout Subsection*
-obj = HYBRID_SOLVER ( | presmooth, refine, postsmooth, droptol, meritval)
+obj = HYBRID_SOLVER ( | refine, smooth, droptol, meritval)
 \end_layout
 
 \begin_layout Itemize
@@ -5408,14 +5408,6 @@ obj
 \begin_layout Itemize
 
 \series bold
-presmooth
-\series default
- - number of pre-smoothing steps (default: 3)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
 refine
 \series default
  - number of refinements steps (default: 3)
@@ -5424,9 +5416,9 @@ refine
 \begin_layout Itemize
 
 \series bold
-postsmooth
+smooth
 \series default
- - number of post-smoothing steps (default: 2)
+ - number of smoothing steps (default: 5)
 \end_layout
 
 \begin_layout Itemize
