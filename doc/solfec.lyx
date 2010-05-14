@@ -5394,7 +5394,7 @@ Object of type HYBRID_SOLVER represents a hybrid solver.
 \end_layout
 
 \begin_layout Subsection*
-obj = HYBRID_SOLVER ( | epsilon, maxiter, meritval)
+obj = HYBRID_SOLVER ( | presmooth, refine, postsmooth, droptol, meritval)
 \end_layout
 
 \begin_layout Itemize
@@ -5408,18 +5408,35 @@ obj
 \begin_layout Itemize
 
 \series bold
-epsilon
+presmooth
 \series default
- - relative accuracy of constraint reactions sufficient for termination
- (default: 1E-6)
+ - number of pre-smoothing steps (default: 3)
 \end_layout
 
 \begin_layout Itemize
 
 \series bold
-maxiter
+refine
 \series default
- - maximal number of iterations before termination (default: 100)
+ - number of refinements steps (default: 3)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+postsmooth
+\series default
+ - number of post-smoothing steps (default: 2)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+droptol
+\series default
+ - dropping tolerance for linearized refinement sub-problem (default: 0.05).
+ Constraints with the absolute normal reaction smaller than the droptol
+ times the absolute maximal normal reaction are dropped.
 \end_layout
 
 \begin_layout Itemize
@@ -5427,8 +5444,8 @@ maxiter
 \series bold
 meritval
 \series default
- - constraints satisfaction merit function value sufficient for termination
- (default: 1E-6)
+ - constraints satisfaction merit function value sufficient for early terminatio
+n (default: 1E-3)
 \end_layout
 
 \end_inset
@@ -8019,6 +8036,11 @@ a string 'GSITERS' (Gauss-Seidel iterations count), 'GSCOLORS' (Gauss-Seidel
  communication time, except the middle set), 'GSMCOM' (Gauss-Seidel middle
  set communication time); values other than 'GSITERS' are non-zero only
  for parallel runs
+\end_layout
+
+\begin_layout Itemize
+a string 'MERIT' for the time history of the constraints satisfaction merit
+ function
 \end_layout
 
 \end_deeper

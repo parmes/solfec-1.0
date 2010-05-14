@@ -6100,6 +6100,7 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
     ELIF (obj, "GSMID") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 0; }
     ELIF (obj, "GSTOP") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 0; }
     ELIF (obj, "GSINN") { shi->item = LABELED_INT; shi->op = OP_SUM; shi->in_domain = 0; }
+    ELIF (obj, "MERIT") { shi->item = LABELED_DOUBLE; shi->op = OP_MAX; shi->in_domain = 0; }
     ELSE
     {
       PyErr_SetString (PyExc_ValueError, "Invalid string value");

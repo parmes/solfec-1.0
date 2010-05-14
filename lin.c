@@ -1925,6 +1925,7 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
     gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
 
     hypre_FlexGMRESSetTol (gmres_vdata, 0.0);
+    hypre_FlexGMRESSetMinIter (gmres_vdata, 1);
     hypre_FlexGMRESSetMaxIter (gmres_vdata, maxiter);
     hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, abstol);
     hypre_FlexGMRESSetup (gmres_vdata, sys, sys->b, sys->x);

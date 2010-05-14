@@ -68,13 +68,14 @@ inline static void real_m (double fri, double *S, double *m)
  * (it is assumed that all (also external) reactions are updated) */
 double MERIT_Function (LOCDYN *ldy, short update_U)
 {
-  double step, up, upper, lower, Q [3], P [3];
+  double step, up, uplo [2], Q [3], P [3];
   short dynamic;
   DIAB *dia;
   OFFB *blk;
   CON *con;
 
-  upper = lower = 0.0;
+  uplo [0] = 0.0;
+  uplo [1] = ldy->free_energy;
   dynamic = ldy->dom->dynamic;
   step = ldy->dom->step;
 
@@ -105,9 +106,6 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       }
 #endif
     }
-
-    NVMUL (A, B, Q);
-    lower += DOT (Q, B);
 
     switch (con->kind)
     {
@@ -171,21 +169,20 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     }
 
     con->merit = up; /* per-constraint merit numerator */
-    upper += up;
+    uplo [0] += up;
   }
 
 #if MPI
-  double val_i [2] = {lower, upper}, val_o [2];
-  MPI_Allreduce (val_i, val_o, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  lower = val_o [0], upper = val_o [1];
+  MPI_Allreduce (MPI_IN_PLACE, uplo, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); /* sum up */
 #endif
 
-  lower = (lower == 0 ? 1 : lower);
+  uplo [0] *= 0.5; /* was ommited above: E = 0.5 (AU, U) */
+  uplo [1] = (uplo [1] == 0 ? 1 : uplo [1]);
 
   for (con = ldy->dom->con; con; con = con->next)
   {
-    con->merit /= lower; /* per-constraint merit denominator */
+    con->merit /= uplo [1]; /* per-constraint merit denominator */
   }
 
-  return upper / lower;
+  return uplo [0] / uplo [1];
 }

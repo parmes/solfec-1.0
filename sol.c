@@ -34,6 +34,7 @@
 #include "sol.h"
 #include "err.h"
 #include "tmr.h"
+#include "mrf.h"
 
 /* ============================= INPUT-OUTPUT VERSIOB ============================ */
 /* === Version increments require precise records of causes and affected files === */
@@ -199,6 +200,12 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
   }
 
   clean_timers (sol); /* restart total timing */
+
+  /* write constraints merit */
+
+  double merit = MERIT_Function (sol->dom->ldy, 0);
+  PBF_Label (sol->bf, "MERIT");
+  PBF_Double (sol->bf, &merit, 1);
 
   /* write solver state */
 
