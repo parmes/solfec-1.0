@@ -7,8 +7,8 @@ from simple_core_base import *
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
 step = 1E-3
-stop = 100 * step
-solver = 'NEWTON'
+stop = 5
+solver = 'GAUSS_SEIDEL_SOLVER'
 plotconv = 0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-small-rig-gs')
@@ -18,10 +18,12 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7)
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
 if solver == 'GAUSS_SEIDEL_SOLVER':
-  sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
+  sv = GAUSS_SEIDEL_SOLVER (1E0, 8, 1E-6, failure = 'CONTINUE')
+  sv.reverse = 'ON'
 else:
-  sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E0, 50, 1E-6)
-  sv.nonmonlength = 5
+  #sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E0, 50, 1E-6)
+  #sv.nonmonlength = 5
+  sv = HYBRID_SOLVER ()
 
 simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'RIGID', 'DEFAULT', 'RIGID', 'DEFAULT', 4, 4, 4)
 
@@ -31,7 +33,7 @@ def callback (sv):
   MERIT.append (sv.merhist)
   return 1
 
-OUTPUT (solfec, 0.03)
+OUTPUT (solfec, 0.01)
 
 if not VIEWER() and plotconv == 1: CALLBACK (solfec, step, sv, callback)
 
@@ -55,15 +57,20 @@ if not VIEWER() and solfec.mode == 'WRITE' and plotconv == 1:
 
 if not VIEWER() and solfec.mode == 'READ':
 
-  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL', 'GSINIT', 'GSRUN', 'GSCOM', 'GSMCOM']
+  timers = ['CONSOL', 'MERIT']
   dur = DURATION (solfec)
   th = HISTORY (solfec, timers, dur[0], dur[1])
   total = 0.0
 
-  for i in range (0, len(timers)):
-    sum = 0.0
-    for tt in th [i+1]: sum += tt
-    print timers [i], 'TIME:', sum
-    if i < 6: total += sum
+  try:
+    import matplotlib.pyplot as plt
 
-  print 'TOTAL TIME:', total
+    plt.plot (th[0], th[2])
+    plt.semilogy (10)
+    plt.title (solver + ': RIGID MODEL')
+    plt.xlabel ('Time')
+    plt.ylabel ('Merit function f(R)')
+    plt.savefig ('out/cores/simple-small-rig-gs/simple-small-rig-' + solver + '-merit.eps')
+ 
+  except ImportError:
+    pass # no reaction

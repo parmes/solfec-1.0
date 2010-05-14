@@ -99,8 +99,8 @@ NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double merit
   nt->epsilon = epsilon;
   nt->maxiter = maxiter;
   nt->meritval = meritval;
-  nt->nonmonlength = 10;
-  nt->linmaxiter = 1000;
+  nt->nonmonlength = 5;
+  nt->linmaxiter = 10;
   nt->rerhist = NULL;
   nt->merhist = NULL;
   nt->verbose = 1;
@@ -160,9 +160,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   {
     LINSYS_Update (sys); /* assemble A, b */
 
-    error = 1E-5 * MIN (error, merit);
-    nt->linmaxiter = 10+nt->iters; /* FIXME */
-    LINSYS_Solve (sys,  MAX (error, 1E-15), nt->linmaxiter); /* x = A\b; TODO: develop into a rigorous inexact step */
+    LINSYS_Solve (sys,  0.1 * merit, nt->linmaxiter); /* FIXME */
 
     error = reactions_update (nt, sys, ldy, nonmonvalues, nt->iters, &merit); /* R(i+1) */
 

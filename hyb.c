@@ -230,10 +230,12 @@ static void stream (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
     Pm = split (Pb, Pe, mi, d); /* [Pb, Pm) are in [lo, mi); [Pm, Pe) are in [mi, hi) */
 
     Im = overlaps (Ib, Ie, lo, mi, d); /* intervals [Ib, Im) overlap [lo, mi) */
-    stream (Ib, Im, Pb, Pm, lo, mi, d, data, create);
+    if (Im != Ie || Pm != Pe) stream (Ib, Im, Pb, Pm, lo, mi, d, data, create);
+    else stream (Ib, Im, Pb, Pm, -DBL_MAX, DBL_MAX, d-1, data, create);
 
     Im = overlaps (Ib, Ie, mi, hi, d); /* intervals [Ib, Im) overlap [mi, hi) */
-    stream (Ib, Im, Pm, Pe, mi, hi, d, data, create);
+    if (Im != Ie || Pm != Pb) stream (Ib, Im, Pm, Pe, mi, hi, d, data, create);
+    else stream (Ib, Im, Pm, Pe, -DBL_MAX, DBL_MAX, d-1, data, create);
   }
 }
 
@@ -264,10 +266,12 @@ static void stream_ext (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
     Pm = split (Pb, Pe, mi, d); /* [Pb, Pm) are in [lo, mi); [Pm, Pe) are in [mi, hi) */
 
     Im = overlaps (Ib, Ie, lo, mi, d); /* intervals [Ib, Im) overlap [lo, mi) */
-    stream_ext (Ib, Im, Pb, Pm, lo, mi, d, data, create);
+    if (Im != Ie || Pm != Pe) stream_ext (Ib, Im, Pb, Pm, lo, mi, d, data, create);
+    else stream_ext (Ib, Im, Pb, Pm, -DBL_MAX, DBL_MAX, d-1, data, create);
 
     Im = overlaps (Ib, Ie, mi, hi, d); /* intervals [Ib, Im) overlap [mi, hi) */
-    stream_ext (Ib, Im, Pm, Pe, mi, hi, d, data, create);
+    if (Im != Ie || Pm != Pb) stream_ext (Ib, Im, Pm, Pe, mi, hi, d, data, create);
+    else stream_ext (Ib, Im, Pm, Pe, -DBL_MAX, DBL_MAX, d-1, data, create);
   }
 }
 

@@ -500,6 +500,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
   compute_adjext (ldy, upkind);
 #endif
 
+  ldy->free_energy = 0.0;
+
   /* calculate local velocities and
    * assmeble the force-velocity 'W' operator */
   for (dia = ldy->dia; dia; dia = dia->n)
@@ -558,15 +560,21 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
 
-    if (upkind != UPPES) /* diagonal regularization and inverse (not needed by the explicit solver) */
+    if (upkind != UPPES) /* diagonal regularization (not needed by the explicit solver) */
     {
       NNCOPY (W.x, C.x); /* calculate regularisation parameter */
       ASSERT (lapack_dsyev ('N', 'U', 3, C.x, 3, X, Y, 9) == 0, ERR_LDY_EIGEN_DECOMP);
       dia->rho = 1.0 / X [2]; /* inverse of maximal eigenvalue */
-      NNCOPY (W.x, A.x);
-      MX_Inverse (&A, &A); /* inverse of diagonal block */
     }
+
+    NNCOPY (W.x, A.x);
+    MX_Inverse (&A, &A); /* inverse of diagonal block */
+
+    NVMUL (A.x, B, X);
+    ldy->free_energy += DOT (X, B); /* sum up free energy */
   }
+
+  ldy->free_energy *= 0.5; /* 0.5 * DOT (AB, B) */
 
   for (dia = ldy->dia; dia; dia = dia->n) /* off-diagonal blocks update */
   {

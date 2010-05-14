@@ -97,6 +97,8 @@ struct locdyn
   DIAB *dia; /* list of diagonal blocks */
 
   short modified; /* 1 if system structure has changed; otherwise 0 */
+
+  double free_energy; /* approximate amount of kinetic energy of local free velocity (per-processor) */
 };
 
 /* create local dynamics for a domain */

@@ -21,6 +21,7 @@ def create_big_piece (x, y, z, solfec, material):
 	       x, y+1, z+1], 1, 1)
 
 
+  shape = []
   x0 = x
   for row in pattern:
     x = x0
@@ -28,10 +29,12 @@ def create_big_piece (x, y, z, solfec, material):
       if flag:
 	shp = COPY (box)
 	TRANSLATE (shp, (x, y, z))
-        bod = BODY (solfec, KINEM, shp, material)
-	bod.scheme = SCHEME
+	shape.append (shp)
       x = x + 1
     y = y + 1
+
+  bod = BODY (solfec, KINEM, shape, material)
+  bod.scheme = SCHEME
 
 def create_vertical_piece (x, y, z, solfec, material):
 
@@ -49,7 +52,13 @@ def create_vertical_piece (x, y, z, solfec, material):
 	       x+1, y+1, z+1,
 	       x, y+1, z+1], 2, 2)
 
+  eps = 1E-3
+  TRANSLATE (box, (-x, -y, -z))
+  veps = (1-2*eps, 1-2*eps, 1)
+  SCALE (box, veps)
+  TRANSLATE (box, (x+eps, y+eps, z))
 
+  shape = []
   x0 = x
   for row in pattern:
     x = x0
@@ -57,10 +66,12 @@ def create_vertical_piece (x, y, z, solfec, material):
       if flag:
 	shp = COPY (box)
 	TRANSLATE (shp, (x, y, z))
-        bod = BODY (solfec, KINEM, shp, material)
-	bod.scheme = SCHEME
+	shape.append (shp)
       x = x + 1
     y = y + 1
+
+  bod = BODY (solfec, KINEM, shape, material)
+  bod.scheme = SCHEME
 
 def create_horizontal_piece (x, y, z, solfec, material):
 
@@ -77,7 +88,13 @@ def create_horizontal_piece (x, y, z, solfec, material):
 	       x+1, y+1, z+1,
 	       x, y+1, z+1], 2, 2)
 
+  eps = 1E-3
+  TRANSLATE (box, (-x, -y, -z))
+  veps = (1-2*eps, 1-2*eps, 1)
+  SCALE (box, veps)
+  TRANSLATE (box, (x+eps, y+eps, z))
 
+  shape = []
   x0 = x
   for row in pattern:
     x = x0
@@ -85,10 +102,12 @@ def create_horizontal_piece (x, y, z, solfec, material):
       if flag:
 	shp = COPY (box)
 	TRANSLATE (shp, (x, y, z))
-        bod = BODY (solfec, KINEM, shp, material)
-	bod.scheme = SCHEME
+	shape.append (shp)
       x = x + 1
     y = y + 1
+
+  bod = BODY (solfec, KINEM, shape, material)
+  bod.scheme = SCHEME
 
 def create_module (x, y, z, solfec, mat1, mat2):
   create_big_piece (x, y, z, solfec, mat1)
@@ -110,9 +129,9 @@ def create_forced_cube (x, y, z, wx, wy, wz, solfec, material):
 	       x+wx, y+wy, z+wz,
 	       x, y+wy, z+wz], 3, 3)
 
-  point = (x+0.5*wx, y+0.*wy, z + 0.5*wz)
+  point = (x+0.5*wx, y+0.5*wy, z+0.5*wz)
   bod = BODY (solfec, 'RIGID', shp, material)
-  FORCE (bod, 'SPATIAL', point, (0, 1, 0), 1E4)
+  FORCE (bod, 'SPATIAL', point, (0, 1, 0), 1E8)
 
 def create_obstacle_cube (x, y, z, wx, wy, wz, solfec, material):
 
@@ -133,18 +152,20 @@ def create_obstacle_cube (x, y, z, wx, wy, wz, solfec, material):
 
 # main module
 step = 0.001
-stop = 0.1
+stop = 1
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/puzzle')
-SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5, restitution = 0.0)
-bulk1 = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E5, poisson = 0.25, density = 1.8E3)
-bulk2 = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E6, poisson = 0.25, density = 1.8E3)
-GRAVITY (solfec, (0, 0, -10))
+SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7, restitution = 0.0)
+bulk1 = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E8, poisson = 0.25, density = 1.8E3)
+bulk2 = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
+GRAVITY (solfec, (0, 0, 0))
 
-sv = HYBRID_SOLVER(refine = 10, postsmooth=3, meritval = 1E-7)
+#sv = HYBRID_SOLVER (presmooth=3, refine = 3, droptol = 0.05, meritval = 1E-10)
+#sv = GAUSS_SEIDEL_SOLVER (1E-3, 10, 1E-3)
+sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1, 5, 1E-8)
 
-n_i = 6
-n_j = 6
+n_i = 8
+n_j = 4
 
 for i in range (0, n_i):
   for j in range (0, n_j):
@@ -152,8 +173,6 @@ for i in range (0, n_i):
 
 create_forced_cube (1, -2, 0, 2, 2, 1, solfec, bulk2)
 create_forced_cube (9 * n_i - 3, -2, 0, 2, 2, 1, solfec, bulk2)
-
-create_obstacle_cube (-5, -5, -1, 9*n_i + 10, 5*n_j + 10, 1, solfec, bulk2)
 create_obstacle_cube (4.5 * n_i - 1, 5*n_j, 0, 2, 2, 1, solfec, bulk2)
 
 RUN (solfec, sv, stop)
