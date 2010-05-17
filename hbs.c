@@ -150,8 +150,7 @@ void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy)
 #endif
   if (verbose) printf ("HYBRID: refining %d%% of constraints ...\n", (100 * SET_Size (subset)) / dom->ncon);
 
-  nt = NEWTON_Subset_Create (SMOOTHED_VARIATIONAL, ldy, subset, 1E-10, hs->refine, 1E-10);  /* refiner */
-  nt->linmaxiter = 5;
+  nt = NEWTON_Subset_Create (SMOOTHED_VARIATIONAL, ldy, subset, 1E-10, hs->refine);  /* refiner */
   nt->verbose = 1;
 
 #if 0

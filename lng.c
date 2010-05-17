@@ -3267,10 +3267,10 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("variant", "epsilon", "maxiter", "meritval");
-  double epsilon, meritval;
+  KEYWORDS ("variant", "meritval", "maxiter");
   lng_NEWTON_SOLVER *self;
   PyObject *variant;
+  double meritval;
   LINVAR linvar;
   int maxiter;
 
@@ -3279,15 +3279,13 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
   if (self)
   {
     linvar = NONSMOOTH_HSW;
-    meritval = 1E-6;
     variant = NULL;
-    epsilon = 1E-6;
+    meritval = 1E-3;
     maxiter = 100;
 
-    PARSEKEYS ("|Odid", &variant, &epsilon, &maxiter, &meritval);
+    PARSEKEYS ("|Odi", &variant, &meritval, &maxiter);
 
-    TYPETEST (is_string (variant, kwl[0]) && is_positive (epsilon, kwl[1]) &&
-	      is_positive (maxiter, kwl[2]) && is_positive (epsilon, kwl[3]));
+    TYPETEST (is_string (variant, kwl[0]) && is_positive (meritval, kwl[1]) && is_positive (maxiter, kwl[2]));
 
     if (variant)
     {
@@ -3318,7 +3316,7 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       }
     }
 
-    self->nt = NEWTON_Create (linvar, epsilon, maxiter, meritval);
+    self->nt = NEWTON_Create (linvar, meritval, maxiter);
   }
 
   return (PyObject*)self;
@@ -3372,18 +3370,6 @@ static int lng_NEWTON_SOLVER_set_variant (lng_NEWTON_SOLVER *self, PyObject *val
   return 0;
 }
 
-static PyObject* lng_NEWTON_SOLVER_get_epsilon (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->nt->epsilon);
-}
-
-static int lng_NEWTON_SOLVER_set_epsilon (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number (value, "epsilon")) return -1;
-  self->nt->epsilon = PyFloat_AsDouble (value);
-  return 0;
-}
-
 static PyObject* lng_NEWTON_SOLVER_get_maxiter (lng_NEWTON_SOLVER *self, void *closure)
 {
   return PyFloat_FromDouble (self->nt->maxiter);
@@ -3420,35 +3406,16 @@ static int lng_NEWTON_SOLVER_set_nonmonlength (lng_NEWTON_SOLVER *self, PyObject
   return 0;
 }
 
-static PyObject* lng_NEWTON_SOLVER_get_linmaxiter (lng_NEWTON_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_linminiter (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->nt->linmaxiter);
+  return PyFloat_FromDouble (self->nt->linminiter);
 }
 
-static int lng_NEWTON_SOLVER_set_linmaxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_linminiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "linmaxiter")) return -1;
-  self->nt->linmaxiter = PyInt_AsLong (value);
+  if (!is_number (value, "linminiter")) return -1;
+  self->nt->linminiter = PyInt_AsLong (value);
   return 0;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_rerhist (lng_NEWTON_SOLVER *self, void *closure)
-{
-  PyObject *list;
-  int i;
-
-  ERRMEM (list = PyList_New (self->nt->iters));
-
-  for (i = 0; i < self->nt->iters; i ++)
-    PyList_SetItem (list, i, PyFloat_FromDouble (self->nt->rerhist [i]));
-
-  return list;
-}
-
-static int lng_NEWTON_SOLVER_set_rerhist (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
-  return -1;
 }
 
 static PyObject* lng_NEWTON_SOLVER_get_merhist (lng_NEWTON_SOLVER *self, void *closure)
@@ -3493,12 +3460,10 @@ static PyMemberDef lng_NEWTON_SOLVER_members [] =
 static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
 { 
   {"variant", (getter)lng_NEWTON_SOLVER_get_variant, (setter)lng_NEWTON_SOLVER_set_variant, "linearization variant", NULL},
-  {"epsilon", (getter)lng_NEWTON_SOLVER_get_epsilon, (setter)lng_NEWTON_SOLVER_set_epsilon, "relative accuracy", NULL},
-  {"maxiter", (getter)lng_NEWTON_SOLVER_get_maxiter, (setter)lng_NEWTON_SOLVER_set_maxiter, "iterations bound", NULL},
   {"meritval", (getter)lng_NEWTON_SOLVER_get_meritval, (setter)lng_NEWTON_SOLVER_set_meritval, "merit function accuracy", NULL},
+  {"maxiter", (getter)lng_NEWTON_SOLVER_get_maxiter, (setter)lng_NEWTON_SOLVER_set_maxiter, "iterations bound", NULL},
   {"nonmonlength", (getter)lng_NEWTON_SOLVER_get_nonmonlength, (setter)lng_NEWTON_SOLVER_set_nonmonlength, "nonmonotone line search memory length", NULL},
-  {"linmaxiter", (getter)lng_NEWTON_SOLVER_get_linmaxiter, (setter)lng_NEWTON_SOLVER_set_linmaxiter, "linear solver iterations bound", NULL},
-  {"rerhist", (getter)lng_NEWTON_SOLVER_get_rerhist, (setter)lng_NEWTON_SOLVER_set_rerhist, "relative error history", NULL},
+  {"linminiter", (getter)lng_NEWTON_SOLVER_get_linminiter, (setter)lng_NEWTON_SOLVER_set_linminiter, "linear solver iterations bound", NULL},
   {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
   {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}

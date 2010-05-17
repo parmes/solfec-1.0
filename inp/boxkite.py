@@ -435,8 +435,7 @@ GRAVITY (solfec, (0, 0, -10))
 box_kite_create (0.0003, 0.0002,  0,  0,  0, SEPARATION, tms, bulkmat, solfec)
 
 sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
-
-#sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E0, 50, 1E-8)
+#sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E-8, 50)
 #sv.nonmonlength = 5
 
 MERIT = []

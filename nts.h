@@ -28,35 +28,39 @@ typedef struct newton NEWTON;
 
 struct newton
 {
+  /* input */
+
   LINVAR variant; /* linearization variant */
-
-  double epsilon; /* relative accuracy sufficient for termination */
-
-  int maxiter; /* iterations bound */
 
   double meritval; /* merit function value sufficient for termination */
 
-  int nonmonlength; /* nonmonotone merit function buffer length */
+  int maxiter; /* iterations bound */
 
-  int linmaxiter; /* linear solver iterations bound */
+  int linminiter; /* linear solver minimal iterations count */
+
+  int nonmonlength; /* nonmonotone line search buffer length */
+
+  /* output */
 
   int iters; /* most recent number of iterations */
 
-  double *rerhist; /* relative error history */
-
   double *merhist; /* merit function history */
+
+  /* private */
 
   int verbose; /* verbosity flag */
 
   LINSYS *sys; /* used when created on a subset of constraints */
+
+  double inimer; /* initial LINSYS merit */
 };
 
 /* create solver */
-NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double meritval);
+NEWTON* NEWTON_Create (LINVAR variant, double meritval, int maxiter);
 
 /* create on constraints subset (subset == NULL => entire set); needs to be destroyed and created again for every
  * new LOCDYN state but allows for more efficient multiple solves in parallel due to single initialization */
-NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double epsilon, int maxiter, double meritval);
+NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double meritval, int maxiter);
 
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy);
@@ -69,4 +73,5 @@ char* NEWTON_Variant (NEWTON *nt);
 
 /* destroy solver */
 void NEWTON_Destroy (NEWTON *nt);
+
 #endif

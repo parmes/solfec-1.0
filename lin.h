@@ -47,8 +47,8 @@ typedef enum linvar LINVAR;
 /* create linear system resulting from linearization of constraints */
 LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset);
 
-/* set fixed point approach normal stress update error tolerance */
-void LINSYS_Fixed_Point_Tol (LINSYS *sys, double tol);
+/* update normal reactions for the FIXED_POINT variant */
+void LINSYS_Fixed_Point_Update (LINSYS *sys);
 
 /* update free velocity in case of subset based system */
 void LINSYS_Update_Free_Velocity (LINSYS *sys);
@@ -57,13 +57,13 @@ void LINSYS_Update_Free_Velocity (LINSYS *sys);
 void LINSYS_Update (LINSYS *sys);
 
 /* solve for reaction increments DR */
-void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter);
+void LINSYS_Solve (LINSYS *sys, double beta, int maxiter);
 
 /* compute merit function at (R + alpha * DR) */
 double LINSYS_Merit (LINSYS *sys, double alpha);
 
-/* advance solution R = R + alpha * DR; return |DR|/|R| */ 
-double LINSYS_Advance (LINSYS *sys, double alpha);
+/* advance solution R = R + alpha * DR */
+void LINSYS_Advance (LINSYS *sys, double alpha);
 
 /* solve A x = b, where b = A [1, 1, ..., 1]' and return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
 double LINSYS_Test (LINSYS *sys, double abstol, int maxiter);
