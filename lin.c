@@ -121,8 +121,7 @@ struct linsys
       ofxmem, /* OFFX */
       mapmem; /* {DIAT, OFFT}->map */
 
-  double fixed_point_tol, /* normal stress update error tolerance: fixed point approach */
-         epsilon,         /* SMOOTHED_VARIATIONAL: smoothing thickness */
+  double epsilon,         /* SMOOTHED_VARIATIONAL: smoothing thickness */
          delta;           /* Tikhonov regularaization */
 
   VECT *x, *b; /* A x = b, where x is composed of reaction increments DR */
@@ -1033,40 +1032,6 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
   }
 }
 
-/* update noraml bounds and return relative error of the update */
-static double update_normal_bounds (LINSYS *sys)
-{
-  double errup, errlo;
-  DIAT *dia;
-  CON *con;
-
-  errup = errlo = 0.0;
-
-  for (dia = sys->dia; dia; dia = dia->n)
-  {
-    con = dia->con;
-    if (con->kind == CONTACT)
-    {
-      double DRN,
-	     RN;
-
-      DRN = con->R[2] - dia->RN;
-      RN = dia->RN = con->R[2];
-
-      errup += DRN*DRN;
-      errlo += RN*RN;
-    }
-  }
-
-#if MPI
-  double errloc [2] = {errup, errlo}, errsum [2];
-  MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  errup = errsum [0], errlo = errsum [1];
-#endif
-
-  return sqrt (errup / (errlo > 0.0 ? errlo : 1.0));
-}
-
 #if MPI
 static void update_external_reactions (LINSYS *sys, double *x)
 {
@@ -1429,8 +1394,9 @@ static void project_contact_reactions (LINSYS *sys)
   if (sys->variant & MULTIPLY_TRANSPOSED)
   {
     VECT *v = CreateVector (sys->x);
-    double beta, dot, *b, *y = v->x;
+    double beta, dot0, dot1, *b, *y = v->x;
 
+    dot1 = 1.0;
     beta = 1.0;
     do
     {
@@ -1452,13 +1418,17 @@ static void project_contact_reactions (LINSYS *sys)
 	/* else it is zero */
       }
 
-      dot = -InnerProd (v, sys->b); /* b = - grad (f), hence <v, -b> = <v, grad (f) < 0 indicates descent */
+      dot0 = dot1;
+      dot1 = -InnerProd (v, sys->b); /* b = - grad (f), hence <v, -b> = <v, grad (f) < 0 indicates descent */
 
+      if (dot0 == 1.0 && dot1 < 0.0) break; /* skip if first projection is negative */
 #if 1
-      if (dot > 0) printf ("LINSYS: dot = %g, beta = %g\n", dot, beta);
+      printf ("LINSYS: dot = %g, beta = %g\n", dot1, beta);
 #endif
     }
-    while (dot > 0.0 && (beta *= 0.9) > 0.05);
+    while (dot1 < dot0 && (beta *= 0.9) > 0.05);
+
+    if (beta < 1.0) beta /= 0.9; /* corresponds to the minimum of the inner product */
 
     for (dia = sys->dia; dia; dia = dia->n)
     {
@@ -1702,9 +1672,6 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
     }
   }
 
-  /* default tolerance: fixed point approach */
-  sys->fixed_point_tol = 1E-6;
-
   /* smoothing thickness */
   if (variant & SMOOTHED_VARIATIONAL)
   {
@@ -1813,10 +1780,20 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   return sys;
 }
 
-/* set fixed point approach normal stress update error tolerance */
-void LINSYS_Fixed_Point_Tol (LINSYS *sys, double tol)
+/* update normal reactions for the FIXED_POINT variant */
+void LINSYS_Fixed_Point_Update (LINSYS *sys)
 {
-  sys->fixed_point_tol = tol;
+  DIAT *dia;
+  CON *con;
+
+  for (dia = sys->dia; dia; dia = dia->n)
+  {
+    con = dia->con;
+    if (con->kind == CONTACT)
+    {
+      dia->RN = con->R[2];
+    }
+  }
 }
 
 /* update free velocity in case of subset based system */
@@ -1867,20 +1844,16 @@ void LINSYS_Update (LINSYS *sys)
 }
 
 /* solve for reaction increments DR */
-void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
+void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
 {
-  double *DR, *DU, *W, *x, *z;
-  short variational;
+  double *DR, *DU, *W, *x, *z, abstol;
   DIAT *dia;
   OFFT *blk;
   CON *con;
 
-#if 1
   sys->delta = sys->resnorm / sys->xnorm; /* sqrt (L-curve) */
-  if (sys->variant & MULTIPLY_TRANSPOSED) sys->delta *= 0.1; /* FIXME */
-#endif
 
-  variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
+  abstol = beta * sys->resnorm; /* FIXME: initially zero */
 
 #if !MPI
   if (sys->variant & DIRECT_SOLVE)
@@ -1937,7 +1910,11 @@ void LINSYS_Solve (LINSYS *sys, double abstol, int maxiter)
     compute_resnorm_and_xnorm (sys);
   }
 
-  if (variational) project_contact_reactions (sys);
+  /* project for variational formulations, but only in case of iterative solution */
+  if ((sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL)) && (sys->variant & DIRECT_SOLVE) == 0)
+  {
+    project_contact_reactions (sys);
+  }
 
   for (dia = sys->dia, x = sys->x->x; dia; dia = dia->n)
   {
@@ -2075,13 +2052,10 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   return value;
 }
 
-/* advance solution R = R + alpha * DR; return |DR|/|R| */ 
-double LINSYS_Advance (LINSYS *sys, double alpha)
+/* advance solution R = R + alpha * DR */
+void LINSYS_Advance (LINSYS *sys, double alpha)
 {
-  double errup, errlo, error;
   DIAT *dia;
-
-  errup = errlo = 0.0;
 
   for (dia = sys->dia; dia; dia = dia->n)
   {
@@ -2094,23 +2068,7 @@ double LINSYS_Advance (LINSYS *sys, double alpha)
     ADDMUL (R, alpha, DR, R);
     ADDMUL (U, alpha, DU, U);
     ADD (U, RE, U);
-
-    errup += DOT(DR, DR); /* no alpha scaling here */
-    errlo += DOT(R, R);
   }
-
-#if MPI
-  double errloc [2] = {errup, errlo}, errsum [2];
-  MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  errup = errsum [0], errlo = errsum [1];
-#endif
-
-  error = sqrt (errup / (errlo > 0.0 ? errlo :  1.0));
-
-  if ((sys->variant & FIXED_POINT) &&
-      error < sys->fixed_point_tol) error = update_normal_bounds (sys);
-
-  return error;
 }
 
 /* solve A x = b, where b = A [1, 1, ..., 1]' and return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */

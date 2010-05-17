@@ -6,10 +6,10 @@ from simple_core_base import *
 # main module
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
-step = 1E-5
+step = 1E-3
 stop = 100 * step
-scheme = 'EXP'
-solver = 'GAUSS_SEIDEL_SOLVER'
+scheme = 'LIM'
+solver = 'NEWTON'
 plotconv = 0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-small-fem-gs')
@@ -21,11 +21,9 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.
 if solver == 'GAUSS_SEIDEL_SOLVER':
   sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
 else:
-  sv = NEWTON_SOLVER ('NONSMOOTH_HSW', 1E0, 20, 1E-4)
-  sv.nonmonlength = 5
-  sv.linmaxiter = 100
+  sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E-5, 20)
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'FINITE_ELEMENT', 'DEF_' + scheme, 'FINITE_ELEMENT', 'DEF_' + scheme, 2, 2, 2)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'FINITE_ELEMENT', 'DEF_' + scheme, 'FINITE_ELEMENT', 'DEF_' + scheme, 4, 4, 4)
 
 MERIT = []
 

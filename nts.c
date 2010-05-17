@@ -33,6 +33,8 @@
 #include "err.h"
 #include "mrf.h"
 
+#define FIXED_EPSILON 1E-2 /* TODO: tune */
+
 /* non-monotone globalization merit function value selection */
 static double nonmonotone_merit_function (double *values, int length, double merit, int index)
 {
@@ -71,37 +73,63 @@ static double line_search (LINSYS *sys, double reference, double *merit)
 }
 
 /* update constraint reactions */
-static double reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, double *nonmonvalues, int iter, double *merit)
+static void reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, double *nonmonvalues, int iter)
 {
-  double reference, alpha;
+  double reference, alpha, merit;
 
-  if (iter && nt->variant != FIXED_POINT) /* skip line search during the first iteration */
+  /* skip globalization for non-Gauss-Newton variational case;
+   * let the projection onto the friction cone suffice */
+  if (nt->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL) &&
+     (nt->variant & MULTIPLY_TRANSPOSED) == 0 &&
+     (nt->variant & DIRECT_SOLVE) == 0)
   {
-    (*merit) = LINSYS_Merit (sys, 0.0);
-
-    reference = nonmonotone_merit_function (nonmonvalues, nt->nonmonlength, (*merit), iter);
-
-    alpha = line_search (sys, reference, merit);
+    alpha = 1.0;
   }
-  else alpha = 1.0;
+  else if (iter) /* skip line search during the first iteration */
+  {
+    merit = LINSYS_Merit (sys, 0.0);
 
-  return LINSYS_Advance (sys, alpha); /* R = R + alpha * DR, U = U(R) */
+    reference = nonmonotone_merit_function (nonmonvalues, nt->nonmonlength, merit, iter);
+
+    alpha = line_search (sys, reference, &merit);
+  }
+  else
+  {
+    if (nt->variant & FIXED_POINT)
+    {
+      nt->inimer = LINSYS_Merit (sys, 0.0);
+      nt->inimer = MAX (nt->inimer, 1.0);
+    }
+
+    alpha = 1.0;
+  }
+
+  LINSYS_Advance (sys, alpha); /* R = R + alpha * DR, U = U(R) */
+
+  if (nt->variant & FIXED_POINT)
+  {
+    double epsilon = merit / nt->inimer;
+
+    if (epsilon < FIXED_EPSILON)
+    {
+      LINSYS_Fixed_Point_Update (sys);
+      nt->inimer = MAX (merit, 1.0);
+    }
+  }
 }
 
 /* create solver */
-NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double meritval)
+NEWTON* NEWTON_Create (LINVAR variant, double meritval, int maxiter)
 {
   NEWTON *nt;
 
   ERRMEM (nt = MEM_CALLOC (sizeof (NEWTON)));
 
   nt->variant = variant;
-  nt->epsilon = epsilon;
-  nt->maxiter = maxiter;
   nt->meritval = meritval;
+  nt->maxiter = maxiter;
   nt->nonmonlength = 5;
-  nt->linmaxiter = 10;
-  nt->rerhist = NULL;
+  nt->linminiter = 5;
   nt->merhist = NULL;
   nt->verbose = 1;
 
@@ -110,11 +138,11 @@ NEWTON* NEWTON_Create (LINVAR variant, double epsilon, int maxiter, double merit
 
 /* create on constraints subset (subset == NULL => entire set); needs to be destroyed and created again for every
  * new LOCDYN state but allows for more efficient multiple solves in parallel due to single initialization */
-NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double epsilon, int maxiter, double meritval)
+NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double meritval, int maxiter)
 {
   NEWTON *nt;
 
-  nt = NEWTON_Create (variant, epsilon, maxiter, meritval);
+  nt = NEWTON_Create (variant, meritval, maxiter);
   nt->sys = LINSYS_Create (variant, ldy, subset);
 
   return nt;
@@ -123,7 +151,7 @@ NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double e
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 {
-  double merit, error, *nonmonvalues;
+  double merit, *nonmonvalues;
   char fmt [512];
   LINSYS *sys;
   DOM *dom;
@@ -132,24 +160,21 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   if (dom->verbose)
   {
-    sprintf (fmt, "NEWTON: (LIN its/res: %%%dd/%%.2e) iteration: %%%dd  error:  %%.2e  merit: %%.2e\n",
-      (int)log10 (nt->linmaxiter) + 1, (int)log10 (nt->maxiter) + 1);
+    sprintf (fmt, "NEWTON: (LIN its/res: %%%dd/%%.2e) iteration: %%%dd  merit: %%.2e\n",
+      (int)log10 (nt->linminiter * nt->maxiter) + 1, (int)log10 (nt->maxiter) + 1);
   }
 
   ERRMEM (nonmonvalues = MEM_CALLOC (nt->nonmonlength * sizeof (double)));
-  nt->rerhist = realloc (nt->rerhist, nt->maxiter * sizeof (double));
   nt->merhist = realloc (nt->merhist, nt->maxiter * sizeof (double));
 
   if (nt->sys) sys = nt->sys;
   else sys = LINSYS_Create (nt->variant, ldy, NULL);
 
-  /* TODO: idea => enable MULTIPLY_TRANSPOSED when poor merit improvements occur */
-
-  merit = error = 1.0;
+  merit = 1.0;
   nt->iters = 0;
 
 #if 0
-  error = LINSYS_Test (sys, nt->meritval, nt->linmaxiter);
+  double error = LINSYS_Test (sys, 1E-10, 100);
 #if MPI
   if (dom->rank == 0)
 #endif
@@ -160,27 +185,23 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   {
     LINSYS_Update (sys); /* assemble A, b */
 
-    LINSYS_Solve (sys,  0.01 * merit, nt->linmaxiter); /* FIXME */
+    LINSYS_Solve (sys, 0.25, nt->linminiter + nt->iters); /* FIXME: 0.25 => make into a user paramter or work out tuning */
 
-    error = reactions_update (nt, sys, ldy, nonmonvalues, nt->iters, &merit); /* R(i+1) */
+    reactions_update (nt, sys, ldy, nonmonvalues, nt->iters); /* R(i+1) */
 
-    nt->rerhist [nt->iters] = error;
+    merit = MERIT_Function (ldy, 0);
+
     nt->merhist [nt->iters] = merit;
 
 #if MPI
     if (dom->rank == 0)
 #endif
-    if (dom->verbose && nt->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, error, merit);
+    if (dom->verbose && nt->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, merit);
 
-  } while (++ nt->iters < nt->maxiter && (error > nt->epsilon || merit > nt->meritval));
-
-  merit = MERIT_Function (ldy, 0);
- #if MPI
-  if (dom->rank == 0)
-#endif
-  if (dom->verbose && nt->verbose) printf ("NEWTON: final energy merit: %g\n", merit);
+  } while (++ nt->iters < nt->maxiter && merit > nt->meritval);
 
   if (nt->sys == NULL) LINSYS_Destroy (sys);
+
   free (nonmonvalues);
 }
 
@@ -208,7 +229,6 @@ char* NEWTON_Variant (NEWTON *nt)
 void NEWTON_Destroy (NEWTON *nt)
 {
   if (nt->sys) LINSYS_Destroy (nt->sys);
-  free (nt->rerhist);
   free (nt->merhist);
   free (nt);
 }
