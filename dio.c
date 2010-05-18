@@ -46,7 +46,7 @@ static void pack_constraint_state (CON *con, int *dsize, double **d, int *double
 }
 
 /* unpack constraint state */
-static CON* unpack_constraint_state (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static CON* unpack_constraint_state (DOM *dom, int iover, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   unsigned int id;
   CON *con;
@@ -61,7 +61,11 @@ static CON* unpack_constraint_state (DOM *dom, int *dpos, double *d, int doubles
   unpack_doubles (dpos, d, doubles, con->U, 3);
   unpack_doubles (dpos, d, doubles, con->point, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
-  con->merit = unpack_double  (dpos, d, doubles);
+
+  if (iover >= 2)
+  {
+    con->merit = unpack_double  (dpos, d, doubles);
+  }
 
   id = unpack_int (ipos, i, ints);
   ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid master id");
@@ -119,7 +123,7 @@ static void write_constraint (CON *con, PBF *bf)
 }
 
 /* read constraint state */
-static CON* read_constraint (DOM *dom, PBF *bf)
+static CON* read_constraint (DOM *dom, int iover, PBF *bf)
 {
   unsigned int id;
   CON *con;
@@ -135,7 +139,11 @@ static CON* read_constraint (DOM *dom, PBF *bf)
   PBF_Double (bf, con->U, 3);
   PBF_Double (bf, con->point, 3);
   PBF_Double (bf, con->base, 9);
-  PBF_Double (bf, &con->merit, 1);
+
+  if (iover >= 2)
+  {
+    PBF_Double (bf, &con->merit, 1);
+  }
 
   PBF_Uint (bf, &id, 1);
   ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid master id");
@@ -276,7 +284,10 @@ void dom_write_state_compressed (DOM *dom, PBF *bf, CMP_ALG alg)
 /* read compressed domain state */
 void dom_read_state_compressed (DOM *dom, PBF *bf)
 {
-  int ncon;
+  int iover, ncon;
+
+  /* input version */
+  iover = dom->solfec->iover;
 
   /* clear contacts */
   MAP_Free (&dom->mapmem, &dom->idc);
@@ -326,7 +337,7 @@ void dom_read_state_compressed (DOM *dom, PBF *bf)
       {
 	CON *con;
 	
-	con = unpack_constraint_state (dom, &dpos, d, doubles, &ipos, i, ints);
+	con = unpack_constraint_state (dom, iover, &dpos, d, doubles, &ipos, i, ints);
 	MAP_Insert (&dom->mapmem, &dom->idc, (void*) (long) con->id, con, NULL);
 	con->next = dom->con;
 	if (dom->con) dom->con->prev = con;
@@ -485,6 +496,8 @@ int dom_read_body_compressed (DOM *dom, PBF *bf, BODY *bod)
 /* read compressed state of an individual constraint */
 int dom_read_constraint_compressed (DOM *dom, PBF *bf, CON *con)
 {
+  int iover = dom->solfec->iover;
+
   for (; bf; bf = bf->next)
   {
     if (PBF_Label (bf, "DOM"))
@@ -526,7 +539,7 @@ int dom_read_constraint_compressed (DOM *dom, PBF *bf, CON *con)
 
       for (int n = 0; n < ncon; n ++)
       {
-	CON *obj = unpack_constraint_state (dom, &dpos, d, doubles, &ipos, i, ints);
+	CON *obj = unpack_constraint_state (dom, iover, &dpos, d, doubles, &ipos, i, ints);
 
 	if (con->id == obj->id)
 	{
@@ -641,7 +654,10 @@ void dom_write_state (DOM *dom, PBF *bf)
 /* read uncompressed domain state */
 void dom_read_state (DOM *dom, PBF *bf)
 {
-  int ncon;
+  int iover, ncon;
+
+  /* input version */
+  iover = dom->solfec->iover;
 
   /* clear contacts */
   MAP_Free (&dom->mapmem, &dom->idc);
@@ -669,7 +685,7 @@ void dom_read_state (DOM *dom, PBF *bf)
       {
 	CON *con;
 	
-	con = read_constraint (dom, bf);
+	con = read_constraint (dom, iover, bf);
 	MAP_Insert (&dom->mapmem, &dom->idc, (void*) (long) con->id, con, NULL);
 	con->next = dom->con;
 	if (dom->con) dom->con->prev = con;
@@ -825,6 +841,8 @@ int dom_read_body (DOM *dom, PBF *bf, BODY *bod)
 /* read uncompressed state of an individual constraint */
 int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
 {
+  int iover = dom->solfec->iover;
+
   for (; bf; bf = bf->next)
   {
     int ncon;
@@ -835,7 +853,7 @@ int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
 
       for (int n = 0; n < ncon; n ++)
       {
-	CON *obj = read_constraint (dom, bf);
+	CON *obj = read_constraint (dom, iover, bf);
 
 	if (con->id == obj->id)
 	{

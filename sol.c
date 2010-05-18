@@ -40,8 +40,10 @@
 /* === Version increments require precise records of causes and affected files === */
 /* =============================================================================== */
 /* 1                         an initial input-output version (dio.c, sol.c, bod.c) */
+/* ------------------------------------------------------------------------------- */
+/* 2              per-constraint (CON->)merit function value output (dom.h, dio.c) */
 /* =============================================================================== */
-#define IOVER 1                                                 /* current version */
+#define IOVER 2                                                 /* current version */
 /* =============================================================================== */
 
 /* defulat initial amoung of boxes */
