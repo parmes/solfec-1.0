@@ -116,7 +116,7 @@ static double restitution = .9;
 static int frame = 0;
 
 /* algorithm kind */
-BOXALG algorithm = HYBRID;
+BOXALG algorithm = HYBRID_ZOMORODIAN;
 
 /* number of overlaps */
 int noverlaps = 0;
@@ -599,7 +599,7 @@ static void view_key (int key, int x, int y)
   {
   case '1':
     {
-      algorithm = HYBRID;
+      algorithm = HYBRID_ZOMORODIAN;
     }
     break;
   case '2':
