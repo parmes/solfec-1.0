@@ -783,7 +783,7 @@ MESH* MESH_Copy (MESH *msh)
   memcpy (ret->ref_nodes, msh->ref_nodes, sizeof (double [3]) * (msh->nodes_count * 2));
 
   /* create, copy and map elements */
-  for (ele = msh->surfeles; ele; ele = ele->next)
+  for (ele = msh->surfeles, map = NULL; ele; ele = ele->next)
   {
     ERRMEM (cpy = MEM_Alloc (&ret->elemem));
     *cpy = *ele;
