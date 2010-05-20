@@ -35,8 +35,8 @@ enum linvar
   NONSMOOTH_VARIATIONAL  = 0x0008,
   SMOOTHED_VARIATIONAL   = 0x0010,
   /* additional flags */
-  MULTIPLY_TRANSPOSED    = 0x0100,
-  DIRECT_SOLVE           = 0x0200
+  MULTIPLY_TRANSPOSED    = 0x0100, /* solve (A' A) x = (A') b */
+  DIRECT_SOLVE           = 0x0200  /* ignored in parallel */
 };
 
 typedef enum linvar LINVAR;

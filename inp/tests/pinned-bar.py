@@ -52,7 +52,7 @@ step = 0.001
 stop = 0.5
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/pinned-bar')
-solfec.verbose = 'OFF'
+if not VIEWER(): solfec.verbose = 'OFF'
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 200e9, poisson = 0.3, density = 1)
 

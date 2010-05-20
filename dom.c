@@ -143,29 +143,12 @@ static int constraint_compare (CON *one, CON *two)
   BODY *onebod [2], *twobod [2];
   SGP *onesgp [2], *twosgp [2];
 
-  /* FIXME: remove below zeroed code */
-#if 0
-  if (one->slave == NULL) /* left one-body constraint */
+  if (one->kind != CONTACT || two->kind != CONTACT) /* there is a non-contact: compare pointers */
   {
-    if (two->slave) return -1; /* one-body constraints always smaller then two body ones */
-    else return (one < two ? -1 : (one == two ? 0 : 1)); /* compare them by pointer within them-selves (note that they always migrate with bodies) */
+    return (one < two ? -1 : (one == two ? 0 : 1));
   }
-  else if (two->slave == NULL) return 1; /* right one-body constraint */
 
-  if (one->kind != CONTACT)
-  {
-    if (two->kind == CONTACT) return 1; /* non-contacts are bigger than contacts */
-    else return (one < two ? -1 : (one == two ? 0 : 1)); /* compare non->contacts by pointers */
-  }
-  else if (two->kind != CONTACT) return -1; /* non-contacts are bigger than contacts */
-#else
-  if (one->kind != CONTACT && two->kind != CONTACT)
-  {
-    return (one < two ? -1 : (one == two ? 0 : 1)); /* compare non-contacts by pointer */
-  }
-#endif
-
-  if (one->master < one->slave) /* two-body constraints remain; order pointers before comparing */
+  if (one->master < one->slave) /* contacts: order pointers before comparing */
   {
     onebod [0] = one->master;
     onesgp [0] = one->msgp;

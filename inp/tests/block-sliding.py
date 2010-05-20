@@ -41,7 +41,7 @@ step = 0.001
 stop = 10.0
 gravity = 9.81
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/block-sliding')
-solfec.verbose = 'OFF'
+if not VIEWER(): solfec.verbose = 'OFF'
 material = BULK_MATERIAL (solfec, density = 111.11111111111111111) # so that 0.3*0.3*0.1*111.(1) = 1.0
 SURFACE_MATERIAL (solfec, friction = 0.8)
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)

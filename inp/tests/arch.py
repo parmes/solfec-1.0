@@ -101,7 +101,7 @@ gs = GAUSS_SEIDEL_SOLVER (1E-4, 10000)
 
 # solfec one
 solfec1 = SOLFEC ('DYNAMIC', step, 'out/tests/arch/one')
-solfec1.verbose = 'OFF'
+if not VIEWER(): solfec1.verbose = 'OFF'
 CONTACT_SPARSIFY (solfec1, 0.005)
 SURFACE_MATERIAL (solfec1, model = 'SIGNORINI_COULOMB', friction = 0.5)
 bulkmat1 = BULK_MATERIAL (solfec1, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
@@ -111,7 +111,7 @@ CALLBACK (solfec1, step, solfec1, progress_callback_one)
 
 # solfec two
 solfec2 = SOLFEC ('DYNAMIC', step, 'out/tests/arch/two')
-solfec2.verbose = 'OFF'
+if not VIEWER(): solfec2.verbose = 'OFF'
 CONTACT_SPARSIFY (solfec2, 0.005)
 SURFACE_MATERIAL (solfec2, model = 'SIGNORINI_COULOMB', friction = 0.5)
 bulkmat2 = BULK_MATERIAL (solfec2, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
