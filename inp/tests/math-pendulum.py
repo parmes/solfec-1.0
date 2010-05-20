@@ -55,7 +55,7 @@ step = 0.001
 stop = 2.5
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/math-pendulum')
-solfec.verbose = 'OFF'
+if not VIEWER(): solfec.verbose = 'OFF'
 
 bulkmat = BULK_MATERIAL (solfec)
 

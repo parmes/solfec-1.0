@@ -42,7 +42,7 @@ def double_pendulum_create (material, solfec):
 def double_pendulum_run (step, stop, gravity, skip):
 
   solfec = SOLFEC ('DYNAMIC', step, 'out/tests/double-pendulum')
-  solfec.verbose = 'OFF'
+  if not VIEWER(): solfec.verbose = 'OFF'
 
   bulkmat = BULK_MATERIAL (solfec)
 
