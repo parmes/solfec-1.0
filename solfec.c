@@ -150,10 +150,12 @@ int main (int argc, char **argv)
 {
   int error;
 
+#if !defined (__MINGW32__)
   signal (SIGHUP, sighnd);
-  signal (SIGINT, sighnd);
   signal (SIGQUIT, sighnd);
   signal (SIGTSTP, sighnd);
+#endif
+  signal (SIGINT, sighnd);
   signal (SIGTERM, sighnd);
   signal (SIGSEGV, sighnd);
 

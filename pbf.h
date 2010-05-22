@@ -19,11 +19,24 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <stdint.h>
 #include <stdio.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #include "map.h"
 #include "mem.h"
+
+#if __MINGW32__
+  #define FSEEK fseeko64
+  #define FTELL ftello64
+#else
+  #define FSEEK fseeko
+  #define FTELL ftello
+#endif
+
+#if __APPLE__
+  #define xdr_uint64_t xdr_u_int64_t
+#endif
 
 #ifndef __pbf__
 #define __pbf__
@@ -39,7 +52,7 @@ struct pbf_marker
 {
   double time; /* time moment */
   u_int ipos; /* index position */
-  u_quad_t dpos; /* data position */
+  uint64_t dpos; /* data position */
 };
 
 /* label */
@@ -47,7 +60,7 @@ struct pbf_label
 {
   char *name; /* label name */
   int index; /* unique index */
-  u_quad_t dpos; /* data position */
+  uint64_t dpos; /* data position */
 };
 
 /* file */

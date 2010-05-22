@@ -311,9 +311,9 @@ static void statsout (SOLFEC *sol)
       hours = (int) ((estimated - days * 86400.) / 3600.),
       minutes = (int) ((estimated - days * 86400. - hours * 3600.) / 60.),
       seconds = (int) (estimated - days * 86400. - hours * 3600. - minutes * 60.);
-  char string [32];
+  char *string;
 
-  ctime_r(&timer, string); 
+  string = ctime (&timer); 
 
 #if MPI
   double dtimint, dcondet, dconupd, dlocdyn, dconsol, dparbal, dtotal;
