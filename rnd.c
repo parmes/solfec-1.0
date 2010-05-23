@@ -23,6 +23,7 @@
   #include <GLUT/glut.h>
 #else
   #include <GL/glut.h>
+  #include <GL/glext.h>
 #endif
 #include <string.h>
 #include <limits.h>
@@ -54,7 +55,7 @@ typedef struct body_data BODY_DATA; /* body rendering data */
 
 struct body_data
 {
-  enum {TRANSPARENT = 0x01,         /* transparency flag */
+  enum {SEETHROUGH = 0x01,         /* transparency flag */
         HIDDEN      = 0x02,         /* hidden state */
 	ROUGH_MESH  = 0x04} flags;  /* rough mesh rendering */
 
@@ -269,7 +270,7 @@ static LEGEND_DATA legend; /* legend data */
 #define LEGEND_FONT GLV_FONT_8_BY_13
 
 /* body transparency test */
-#define TRANSPARENT(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & TRANSPARENT)
+#define SEETHROUGH(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & SEETHROUGH)
 
 /* body rough mesh flag test */
 #define ROUGH_MESH(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & ROUGH_MESH)
@@ -1951,7 +1952,7 @@ static void render_body_set (SET *set)
 
     for (item = SET_First (set); item; item = SET_Next (item))
     {
-      render_body_lines (item->data, TRANSPARENT|HIDDEN);
+      render_body_lines (item->data, SEETHROUGH|HIDDEN);
     }
 
     glEnable (GL_LIGHTING);
@@ -1960,7 +1961,7 @@ static void render_body_set (SET *set)
 
     for (item = SET_First (set); item; item = SET_Next (item))
     {
-      render_body_triangles (item->data, TRANSPARENT|HIDDEN);
+      render_body_triangles (item->data, SEETHROUGH|HIDDEN);
     }
 
     render_rigid_links (set, color);
@@ -1973,7 +1974,7 @@ static void render_body_set (SET *set)
     {
       if (item->data == picked_body) continue;
 
-      if (TRANSPARENT (item->data))
+      if (SEETHROUGH (item->data))
       {
 	glColor4fv (color);
 	render_body_lines (item->data, HIDDEN);
@@ -2033,7 +2034,7 @@ static void render_picked_body (void)
     }
 
     glDisable (GL_LIGHTING);
-    if (TRANSPARENT (picked_body))
+    if (SEETHROUGH (picked_body))
     {
       glColor3f (0., 0., 0.);
       render_body_lines (picked_body, 0);
@@ -2777,8 +2778,8 @@ void RND_Mouse (int button, int state, int x, int y)
 	switch (tool_mode)
 	{
 	case TOOLS_TRANSPARENT:
-	  if (data->flags & TRANSPARENT) data->flags &= ~TRANSPARENT;
-	  else data->flags |= TRANSPARENT;
+	  if (data->flags & SEETHROUGH) data->flags &= ~SEETHROUGH;
+	  else data->flags |= SEETHROUGH;
 	  break;
 	case TOOLS_HIDE: data->flags |= HIDDEN; break;
 	case TOOLS_ROUGH_MESH:

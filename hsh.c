@@ -201,14 +201,14 @@ void HASH_Do (void *context, int boxnum, BOX **boxes, void *data, BOX_Overlap_Cr
 
   for (ip = boxes, jp = h->boxes; ip != end; ip ++, jp ++)
   {
-    q [0][0] = INT ((*ip)->extents [0], avsize);
-    q [0][1] = INT ((*ip)->extents [3], avsize);
+    q [0][0] = INTEGER ((*ip)->extents [0], avsize);
+    q [0][1] = INTEGER ((*ip)->extents [3], avsize);
   
-    q [1][0] = INT ((*ip)->extents [1], avsize);
-    q [1][1] = INT ((*ip)->extents [4], avsize);
+    q [1][0] = INTEGER ((*ip)->extents [1], avsize);
+    q [1][1] = INTEGER ((*ip)->extents [4], avsize);
 
-    q [2][0] = INT ((*ip)->extents [2], avsize);
-    q [2][1] = INT ((*ip)->extents [5], avsize);
+    q [2][0] = INTEGER ((*ip)->extents [2], avsize);
+    q [2][1] = INTEGER ((*ip)->extents [5], avsize);
 
     m = 0;
     

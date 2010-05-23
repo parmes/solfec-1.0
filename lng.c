@@ -6337,6 +6337,7 @@ static void initlng (void)
 int lng (const char *path)
 {
   FILE *file;
+  char *line;
   int error;
 
   ASSERT (file = fopen (path, "r"), ERR_FILE_OPEN);
@@ -6405,9 +6406,13 @@ int lng (const char *path)
                      "from solfec import TIMING\n"
                      "from solfec import HISTORY\n");
 
-  error = PyRun_SimpleFile (file, path);
+  ERRMEM (line = MEM_CALLOC (128 + strlen (path)));
+  sprintf (line, "execfile ('%s')", path);
 
+  error = PyRun_SimpleString (line); /* we do not run a file directly because FILE destriptors differe
+					between WIN32 and UNIX while Python is often provided in binary form */
   fclose (file);
+  free (line);
 
   return error;
 }
