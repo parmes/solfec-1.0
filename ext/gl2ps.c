@@ -50,6 +50,11 @@
 #include <png.h>
 #endif
 
+#if __MINGW32__
+#include "../alg.h"
+#define M_MPI ALG_PI
+#endif
+
 /********************************************************************* 
  *
  * Private definitions, data structures and prototypes

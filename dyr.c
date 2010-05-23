@@ -107,10 +107,10 @@ static void hash2d_list_insert (DR *dyn, double xmin, double ymin, double xmax,
   double *avglen = dyn->avglen;
   char found;
 
-  imin = INT (xmin, avglen [0]);
-  jmin = INT (ymin, avglen [1]);
-  imax = INT (xmax, avglen [0]);
-  jmax = INT (ymax, avglen [1]);
+  imin = INTEGER (xmin, avglen [0]);
+  jmin = INTEGER (ymin, avglen [1]);
+  imax = INTEGER (xmax, avglen [0]);
+  jmax = INTEGER (ymax, avglen [1]);
 
   for (i = imin; i <= imax; i ++)
   for (j = jmin; j <= jmax; j ++)
@@ -167,8 +167,8 @@ static void hash1d_xytree_insert (DR *dyn, double xmin, double ymin, double xmax
 
   xyaux_init (aux, xmin, xmax, box, data, report);
 
-  imin = INT (xmin, avglen [0]);
-  imax = INT (xmax, avglen [0]);
+  imin = INTEGER (xmin, avglen [0]);
+  imax = INTEGER (xmax, avglen [0]);
 
   r = MEM_Alloc (&dyn->rngpool);
   r->min = xmin;
@@ -203,10 +203,10 @@ static void hash2d_xytree_insert (DR *dyn, double xmin, double ymin, double xmax
 
   xyaux_init (aux, ymin, ymax, box, data, report);
 
-  imin = INT (xmin, avglen [0]);
-  jmin = INT (ymin, avglen [1]);
-  imax = INT (xmax, avglen [0]);
-  jmax = INT (ymax, avglen [0]);
+  imin = INTEGER (xmin, avglen [0]);
+  jmin = INTEGER (ymin, avglen [1]);
+  imax = INTEGER (xmax, avglen [0]);
+  jmax = INTEGER (ymax, avglen [0]);
 
   r = MEM_Alloc (&dyn->rngpool);
   r->min = ymin;
@@ -263,10 +263,10 @@ static void hash2d_list_delete (DR *dyn, double xmin, double ymin, double xmax, 
   MEM *pool = &dyn->rectpool;
   double *avglen = dyn->avglen;
 
-  imin = INT (xmin, avglen [0]);
-  jmin = INT (ymin, avglen [1]);
-  imax = INT (xmax, avglen [0]);
-  jmax = INT (ymax, avglen [1]);
+  imin = INTEGER (xmin, avglen [0]);
+  jmin = INTEGER (ymin, avglen [1]);
+  imax = INTEGER (xmax, avglen [0]);
+  jmax = INTEGER (ymax, avglen [1]);
 
   for (i = imin; i <= imax; i ++)
   for (j = jmin; j <= jmax; j ++)
@@ -307,8 +307,8 @@ static void hash1d_xytree_delete (DR *dyn, double xmin, double ymin, double xmax
   MEM *pool = &dyn->xytreepool;
   double *avglen = dyn->avglen;
 
-  imin = INT (xmin, avglen [0]);
-  imax = INT (xmax, avglen [0]);
+  imin = INTEGER (xmin, avglen [0]);
+  imax = INTEGER (xmax, avglen [0]);
 
   for (i = imin; i <= imax; i ++)
   {
@@ -336,10 +336,10 @@ static void hash2d_xytree_delete (DR *dyn, double xmin, double ymin, double xmax
   MEM *pool = &dyn->xytreepool;
   double *avglen = dyn->avglen;
 
-  imin = INT (xmin, avglen [0]);
-  jmin = INT (ymin, avglen [1]);
-  imax = INT (xmax, avglen [0]);
-  jmax = INT (ymax, avglen [0]);
+  imin = INTEGER (xmin, avglen [0]);
+  jmin = INTEGER (ymin, avglen [1]);
+  imax = INTEGER (xmax, avglen [0]);
+  jmax = INTEGER (ymax, avglen [0]);
 
 
   for (i = imin; i <= imax; i ++)

@@ -66,7 +66,7 @@ extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
 #define C1 73856093
 #define C2 19349663
 #define C3 83492791
-#define INT(x, avgsize) ((int) ((x) / (avgsize)))
+#define INTEGER(x, avgsize) ((int) ((x) / (avgsize)))
 #define HASH1(x, hashsize) ABS (((x) * C1) % (hashsize))
 #define HASH2(x, y, hashsize) ABS ((((x) * C1) ^ ((y) * C2)) % (hashsize))
 #define HASH3(x, y, z, hashsize) ABS ((((x) * C1) ^ ((y) * C2) ^ ((z) * C3)) % (hashsize))
