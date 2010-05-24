@@ -34,12 +34,8 @@ int main (int argc, char **argv)
   printf ("Result of 'isfinite' on %g is %d\n", nan, isfinite (nan));
   printf ("Size of 'long' is %ld\n", sizeof (long));
   printf ("Size of 'long long' is %ld\n", sizeof (long long));
+  printf ("Size of 'off_t' is %ld\n", sizeof (off_t));
   printf ("UINT_MAX is %u\n", UINT_MAX);
-
-  double complex a = 1.0 + 2.0 * I;
-  double b = a;
-
-  printf ("real b = complex (1 + 2i) = %g\n", b);
 
   return 0;
 }

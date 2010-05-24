@@ -40,10 +40,8 @@
 /* === Version increments require precise records of causes and affected files === */
 /* =============================================================================== */
 /* 1                         an initial input-output version (dio.c, sol.c, bod.c) */
-/* ------------------------------------------------------------------------------- */
-/* 2              per-constraint (CON->)merit function value output (dom.h, dio.c) */
 /* =============================================================================== */
-#define IOVER 2                                                 /* current version */
+#define IOVER 1                                                 /* current version */
 /* =============================================================================== */
 
 /* defulat initial amoung of boxes */
@@ -181,10 +179,7 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
 
   /* write domain */
 
-  int cmp = sol->output_compression;
-  PBF_Label (sol->bf, "DOMCMP"); /* label domain compression */
-  PBF_Int (sol->bf, &cmp, 1);
-  DOM_Write_State (sol->dom, sol->bf, cmp);
+  DOM_Write_State (sol->dom, sol->bf);
 
   /* write timers */
 
@@ -261,8 +256,6 @@ static void read_timers (SOLFEC *sol)
 /* input state */
 static void read_state (SOLFEC *sol)
 {
-  int cmp;
-
   /* read time */
 
   PBF_Time (sol->bf, &sol->dom->time); /* the only domain member red outside of it */
@@ -279,10 +272,7 @@ static void read_state (SOLFEC *sol)
 
   /* read domain */
 
-  ASSERT (PBF_Label (sol->bf, "DOMCMP"),  ERR_FILE_FORMAT);
-  PBF_Int (sol->bf, &cmp, 1);
-  sol->output_compression = cmp;
-  DOM_Read_State (sol->dom, sol->bf, cmp);
+  DOM_Read_State (sol->dom, sol->bf);
 
   /* read timers */
 
@@ -416,7 +406,6 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->outpath = copyoutpath (outpath);
   sol->output_interval = 0;
   sol->output_time = 0;
-  sol->output_compression = CMP_OFF;
   if ((sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
   else if ((sol->bf = writeoutpath (sol->outpath))) sol->mode = SOLFEC_WRITE;
   else THROW (ERR_FILE_OPEN);
@@ -507,7 +496,6 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #if MPI
     /* these values might differ due to clumsy input scripting: make them uniform */
     sol->callback_interval = PUT_double_min (sol->callback_interval);
-    sol->output_compression = PUT_int_min (sol->output_compression);
     sol->output_interval = PUT_double_min (sol->output_interval);
     sol->callback_time = PUT_double_min (sol->callback_time);
     sol->output_time = PUT_double_min (sol->output_time);
@@ -581,11 +569,11 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 }
 
 /* set results output interval */
-void SOLFEC_Output (SOLFEC *sol, double interval, CMP_ALG compression)
+void SOLFEC_Output (SOLFEC *sol, double interval, PBF_CMP compression)
 {
   sol->output_interval = interval;
   sol->output_time = sol->dom->time + interval;
-  sol->output_compression = compression;
+  sol->bf->compression = compression;
 }
 
 /* the next time minus the current time */
@@ -679,7 +667,6 @@ void SOLFEC_Abort (SOLFEC *sol)
 
   if (sol->bf)
   {
-    PBF_Flush (sol->bf);
     PBF_Close (sol->bf);
     sol->bf = NULL;
   }

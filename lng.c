@@ -5447,10 +5447,10 @@ static PyObject* lng_OUTPUT (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject *compression;
   lng_SOLFEC *solfec;
   double interval;
-  CMP_ALG cmp;
+  PBF_CMP cmp;
 
   compression = NULL;
-  cmp = CMP_OFF;
+  cmp = PBF_OFF;
 
   PARSEKEYS ("Od|O", &solfec, &interval, &compression);
 
@@ -5462,11 +5462,11 @@ static PyObject* lng_OUTPUT (PyObject *self, PyObject *args, PyObject *kwds)
   {
     IFIS (compression, "OFF")
     {
-      cmp = CMP_OFF;
+      cmp = PBF_OFF;
     }
-    ELIF (compression, "FASTLZ")
+    ELIF (compression, "ON")
     {
-      cmp = CMP_FASTLZ;
+      cmp = PBF_ON;
     }
     ELSE
     {

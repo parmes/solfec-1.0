@@ -6506,7 +6506,7 @@ interval
 \series bold
 compression
 \series default
- - output compression mode: 'OFF' (default) or 'FASTLZ'.
+ - output compression mode: 'OFF' (default) or 'ON'.
  Compressed output files are smaller, although they might not be portable
  between hardware platforms.
 \end_layout
