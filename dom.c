@@ -2757,49 +2757,27 @@ void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *
 #endif
 
 /* write domain state */
-void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg)
+void DOM_Write_State (DOM *dom, PBF *bf)
 {
-  if (alg == CMP_OFF) dom_write_state (dom, bf);
-  else dom_write_state_compressed (dom, bf, alg);
+  dom_write_state (dom, bf);
 }
 
 /* read domain state */
-void DOM_Read_State (DOM *dom, PBF *bf, CMP_ALG alg)
+void DOM_Read_State (DOM *dom, PBF *bf)
 {
-  if (alg == CMP_OFF) dom_read_state (dom, bf);
-  else dom_read_state_compressed (dom, bf);
+  dom_read_state (dom, bf);
 }
 
 /* read state of an individual body */
 int DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
 {
-  int cmp;
-
-  if (PBF_Label (bf, "DOMCMP"))
-  {
-    PBF_Int (bf, &cmp, 1);
-
-    if (cmp == CMP_OFF) return dom_read_body (dom, bf, bod);
-    else return dom_read_body_compressed (dom, bf, bod);
-  }
-
-  return 0;
+  return dom_read_body (dom, bf, bod);
 }
 
 /* read state of an individual constraint */
 int DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
 {
-  int cmp;
-
-  if (PBF_Label (bf, "DOMCMP"))
-  {
-    PBF_Int (bf, &cmp, 1);
-
-    if (cmp == CMP_OFF) return dom_read_constraint (dom, bf, con);
-    else return dom_read_constraint_compressed (dom, bf, con);
-  }
-
-  return 0;
+  return dom_read_constraint (dom, bf, con);
 }
 
 /* release memory */

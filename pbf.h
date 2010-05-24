@@ -29,9 +29,11 @@
 #if __MINGW32__
   #define FSEEK fseeko64
   #define FTELL ftello64
+  #define OFF_T off64_t
 #else
   #define FSEEK fseeko
   #define FTELL ftello
+  #define OFF_T off_t
 #endif
 
 #if __APPLE__
@@ -52,7 +54,7 @@ struct pbf_marker
 {
   double time; /* time moment */
   u_int ipos; /* index position */
-  uint64_t dpos; /* data position */
+  uint64_t doff; /* data offset */
 };
 
 /* label */
@@ -60,8 +62,11 @@ struct pbf_label
 {
   char *name; /* label name */
   int index; /* unique index */
-  uint64_t dpos; /* data position */
+  u_int dpos; /* data position */
 };
+
+/* compression flag */
+typedef enum pbf_cmp { PBF_ON, PBF_OFF } PBF_CMP;
 
 /* file */
 struct pbf
@@ -75,7 +80,8 @@ struct pbf
   XDR x_dat; /* data coding context */
   XDR x_idx; /* index coding context */
   XDR x_lab; /* labels coding context */
-  char *mem; /* x_dat memory (READ) */
+  char *mem; /* x_dat memory */
+  u_int membase, memsize; /* x_dat memory base and size */
   MEM mappool; /* map items pool */
   MEM labpool; /* labels pool */
   PBF_LABEL *ltab; /* table of labels */
@@ -86,6 +92,7 @@ struct pbf
   int lsize; /* free index (WRITE) or ltab size (READ) */
   unsigned int msize; /* mtab size (READ) */
   unsigned int cur; /* index of current time frame */
+  PBF_CMP compression; /* compression flag */
   PBF *next; /* list of parallel files (READ) */
 };
 
@@ -97,9 +104,6 @@ PBF* PBF_Read (const char *path);
 
 /* close file */
 void PBF_Close (PBF *bf);
-
-/* flush buffers */
-void PBF_Flush (PBF *bf);
 
 /* read/write current time */
 void PBF_Time (PBF *bf, double *time);
@@ -141,4 +145,5 @@ void PBF_Forward (PBF *bf, unsigned int steps);
 
 /* get number of time instants spanned by [t0, t1] */
 unsigned int PBF_Span (PBF *bf, double t0, double t1);
+
 #endif

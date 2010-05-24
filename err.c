@@ -36,6 +36,8 @@ char* errstring (int error)
     case ERR_TMS_INTEGRATE_CONSTANT: return "Cannot integrate constant time series (no limits)";
     case ERR_PBF_INDEX_FILE_CORRUPTED: return "PBF index file corrupted";
     case ERR_PBF_OUTPUT_TIME_DECREASED: return "PBF output time decreased";
+    case ERR_PBF_WRITE: return "PBF write error";
+    case ERR_PBF_READ: return "PBF read error";
     case ERR_MTX_LU_FACTOR: return  "LU factorisation failed";
     case ERR_MTX_MATRIX_INVERT: return  "Matrix inversion failed";
     case ERR_MTX_EIGEN_DECOMP: return  "Eigen decomposition failed";

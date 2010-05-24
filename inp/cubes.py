@@ -80,7 +80,7 @@ sv.nonmonlength = 5
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 
-OUTPUT (solfec, 1 * step, 'FASTLZ')
+OUTPUT (solfec, 1 * step, 'ON')
 
 MERIT = []
 

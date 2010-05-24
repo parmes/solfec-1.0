@@ -66,7 +66,6 @@ struct solfec
 
   int iover; /* input-output version */
   int ioparallel; /* parallel output flag */
-  CMP_ALG output_compression;
   double output_interval,
 	 output_time;
   char *outpath;
@@ -115,7 +114,7 @@ char* SOLFEC_Mode (SOLFEC *sol);
 void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration);
 
 /* set results output interval */
-void SOLFEC_Output (SOLFEC *sol, double interval, CMP_ALG compression);
+void SOLFEC_Output (SOLFEC *sol, double interval, PBF_CMP compression);
 
 /* set up callback function */
 void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, SOLFEC_Callback callback);

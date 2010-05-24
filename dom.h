@@ -31,7 +31,6 @@
 #include "bod.h"
 #include "ldy.h"
 #include "pbf.h"
-#include "cmp.h"
 
 #ifndef SOLFEC_TYPE
 #define SOLFEC_TYPE
@@ -317,10 +316,10 @@ void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *
 #endif
 
 /* write domain state */
-void DOM_Write_State (DOM *dom, PBF *bf, CMP_ALG alg);
+void DOM_Write_State (DOM *dom, PBF *bf);
 
 /* read domain state */
-void DOM_Read_State (DOM *dom, PBF *bf, CMP_ALG alg);
+void DOM_Read_State (DOM *dom, PBF *bf);
 
 /* read state of an individual body */
 int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod);

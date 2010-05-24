@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <stdlib.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <string.h>
@@ -33,10 +34,10 @@ static void write (PBF *bf, int n)
   long l = (long)n;
   unsigned int ui = (unsigned int)n;
   int i = n;
-  unsigned short us = (unsigned short)n;
-  short s = (short)n;
-  unsigned char uc = (unsigned char)n;
-  char c = (char)n;
+  unsigned short us = (unsigned short) (n % 32767);
+  short s = (short) (n % 32767);
+  unsigned char uc = (unsigned char) (n % 127);
+  char c = (char) (n % 127);
 
   sprintf (str, "CURRENT NUMBER IS %d", n);
 
@@ -81,7 +82,7 @@ static void write (PBF *bf, int n)
   PBF_Char (bf, &c, 1);
 }
 
-static void read (PBF *bf)
+static int read (PBF *bf, int n)
 {
   char *pstr = NULL;
   double d;
@@ -95,9 +96,22 @@ static void read (PBF *bf)
   unsigned char uc;
   char c;
 
-  printf ("-------------------------------------------\n");
+  char _str [512];
+  double _d = (double)n;
+  float _f = (float)n;
+  unsigned long _ul = (unsigned long)n;
+  long _l = (long)n;
+  unsigned int _ui = (unsigned int)n;
+  int _i = n;
+  unsigned short _us = (unsigned short) (n % 32767);
+  short _s = (short) (n % 32767);
+  unsigned char _uc = (unsigned char) (n % 127);
+  char _c = (char) (n % 127);
+
+  sprintf (_str, "CURRENT NUMBER IS %d", n);
+
   PBF_Time (bf, &d);
-  printf ("TIME: %f\n", d);
+  if (d != (double)n) return 0;
 
   PBF_String (bf, &pstr);
   PBF_Double (bf, &d, 1);
@@ -111,18 +125,10 @@ static void read (PBF *bf)
   PBF_Uchar (bf, &uc, 1);
   PBF_Char (bf, &c, 1);
 
-  printf ("*** UNLABELED:\n");
-  printf ("STRING: %s\n", pstr);
-  printf ("DOUBLE: %lf\n", d);
-  printf ("FLOAT: %f\n", f);
-  printf ("ULONG: %lu\n", ul);
-  printf ("LONG: %ld\n", l);
-  printf ("UINT: %u\n", ui);
-  printf ("INT: %d\n", i);
-  printf ("USHORT: %u\n", us);
-  printf ("SHORT: %d\n", s);
-  printf ("UCHAR: %u\n", uc);
-  printf ("CHAR: %d\n", c);
+  if (strcmp (pstr, _str) != 0 ||
+      d != _d || f != _f || ul != _ul ||
+      l != _l || ui != _ui || i != _i ||
+      us != _us || s != _s || uc != _uc || c != _c) return 0;
 
   free (pstr); pstr = NULL;
   d = 0.; f = 0.; ul = 0; l = 0;
@@ -152,87 +158,119 @@ static void read (PBF *bf)
   PBF_Label (bf, "CHAR");
   PBF_Char (bf, &c, 1);
 
-  printf ("*** LABELED:\n");
-  printf ("STRING: %s\n", pstr);
-  printf ("DOUBLE: %lf\n", d);
-  printf ("FLOAT: %f\n", f);
-  printf ("ULONG: %lu\n", ul);
-  printf ("LONG: %ld\n", l);
-  printf ("UINT: %u\n", ui);
-  printf ("INT: %d\n", i);
-  printf ("USHORT: %u\n", us);
-  printf ("SHORT: %d\n", s);
-  printf ("UCHAR: %u\n", uc);
-  printf ("CHAR: %d\n", c);
+  if (strcmp (pstr, _str) != 0 ||
+      d != _d || f != _f || ul != _ul ||
+      l != _l || ui != _ui || i != _i ||
+      us != _us || s != _s || uc != _uc || c != _c) return 0;
+
   free (pstr);
+
+  return 1;
 }
 
 int main (int argc, char **argv)
 {
-  PBF *bf;
+  char *s, str [512];
   int n, nmax;
   double d;
-  char *s;
+  PBF *bf;
+
+  if (argc == 1)
+  {
+    printf ("pbftest [NUMBER OF SAMPLES] [COMPRESSION FLAG]\n");
+    return 0;
+  }
 
   if (argc >= 2 && isdigit (argv [1][0]))
     nmax = atoi (argv [1]);
   else nmax = 10;
 
   bf = PBF_Write ("pbftest.state");
+
+  if (argc >= 3)
+  {
+    if (atoi (argv [2]) == 1)
+    {
+      bf->compression = PBF_ON; /* enable compression */
+    }
+  }
+
   for (n = 1; n <= nmax; n ++) write (bf, n);
   PBF_Close (bf);
 
   bf = PBF_Read ("pbftest.state");
   for (n = 1; n <= nmax; n ++) 
   {
-    read (bf);
+    if (!read (bf, n))
+    {
+      fprintf (stderr, "FAILED (reading all)\n");
+      return 1;
+    }
     PBF_Forward (bf, 1);
   }
 
-  /* go every third and select one
-   * labeled value */
+  /* read every third double */
   PBF_Seek (bf, 0);
   for (n = 1; n <= nmax; n += 3)
   {
     PBF_Label (bf, "DOUBLE");
     PBF_Double (bf, &d, 1);
-    printf ("Selected every third DOUBLE = %f\n", d);
+    if (d != (double) n)
+    {
+      fprintf (stderr, "FAILED (forward reading every 3rd labeled double)\n");
+      return 1;
+    }
     PBF_Forward (bf, 3);
   }
 
-  /* go every fifth and select one
-   * labeled value */
+  /* read every fifth string */
   PBF_Seek (bf, 0);
   for (n = 1; n <= nmax; n += 5)
   {
     PBF_Label (bf, "STRING");
     s = NULL;
     PBF_String (bf, &s);
-    printf ("Selected every fifth STRING = %s\n", s);
+    sprintf (str, "CURRENT NUMBER IS %d", n);
+    if (strcmp (s, str) != 0)
+    {
+      fprintf (stderr, "FAILED (forward reading every 5th labeled string)\n");
+      return 1;
+    }
     PBF_Forward (bf, 5);
     free (s);
   }
 
   /* do the same backwards */
   PBF_Seek (bf, nmax);
-  for (n = 1; n <= nmax; n += 3)
+  for (n = nmax; n >= 1; n -= 3)
   {
     PBF_Label (bf, "DOUBLE");
     PBF_Double (bf, &d, 1);
-    printf ("Selected every third DOUBLE = %f\n", d);
+    if (d != (double) n)
+    {
+      fprintf (stderr, "FAILED (backward reading every 3rd labeled double)\n");
+      return 1;
+    }
     PBF_Backward (bf, 3);
   }
   PBF_Seek (bf, nmax);
-  for (n = 1; n <= nmax; n += 5)
+  for (n = nmax; n >= 1; n -= 5)
   {
     PBF_Label (bf, "STRING");
     s = NULL;
     PBF_String (bf, &s);
-    printf ("Selected every fifth STRING = %s\n", s);
+    sprintf (str, "CURRENT NUMBER IS %d", n);
+    if (strcmp (s, str) != 0)
+    {
+      fprintf (stderr, "FAILED (forward reading every 5th labeled string)\n");
+      return 1;
+    }
     PBF_Backward (bf, 5);
     free (s);
   }
  
   PBF_Close (bf);
+
+  printf ("PASSED\n");
   return 0;
 }
