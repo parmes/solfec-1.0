@@ -65,33 +65,37 @@ struct pbf_label
   u_int dpos; /* data position */
 };
 
+/* access mode */
+typedef enum {PBF_READ, PBF_WRITE} PBF_ACC;
+
 /* compression flag */
-typedef enum pbf_cmp { PBF_ON, PBF_OFF } PBF_CMP;
+typedef enum { PBF_ON, PBF_OFF } PBF_CMP;
 
 /* file */
 struct pbf
 {
-  char *dph; /* data path */
-  char *iph; /* index path */
-  char *lph; /* label path */
-  FILE *dat; /* data file */
-  FILE *idx; /* index file */
-  FILE *lab; /* label file */
-  XDR x_dat; /* data coding context */
-  XDR x_idx; /* index coding context */
-  XDR x_lab; /* labels coding context */
-  char *mem; /* x_dat memory */
-  u_int membase, memsize; /* x_dat memory base and size */
-  MEM mappool; /* map items pool */
-  MEM labpool; /* labels pool */
+  PBF_ACC mode; /* access mode */
+  char *dph, /* data path */
+       *iph, /* index path */
+       *lph; /* label path */
+  FILE *dat, /* data file */
+       *idx, /* index file */
+       *lab; /* label file */
+  XDR x_dat, /* data stream */
+      x_idx, /* index stream */
+      x_lab; /* labels stream */
+  char *mem; /* read/write memory */
+  u_int membase, /* memory base */
+	memsize; /* memory size */
+  MEM mappool, /* map items pool */
+      labpool; /* labels pool */
   PBF_LABEL *ltab; /* table of labels */
   MAP *labels; /* name mapped labels */
   PBF_MARKER *mtab; /* markers */
-  enum {PBF_READ, PBF_WRITE} mode; /* access mode */
-  double time; /* current time (>= 0) */
   int lsize; /* free index (WRITE) or ltab size (READ) */
-  unsigned int msize; /* mtab size (READ) */
-  unsigned int cur; /* index of current time frame */
+  u_int msize, /* mtab size (READ) */
+        cur; /* index of current time frame */
+  double time; /* current time */
   PBF_CMP compression; /* compression flag */
   PBF *next; /* list of parallel files (READ) */
 };

@@ -79,6 +79,7 @@
  * -------------------------------
  *  [TIME] (double) {DBL_MAX time}
  *  [DOFF] (uint64_t) {offest to last data in DAT file}
+ *  [-2] (int) {INF frame marker}
  * ----------------------------------
  */
 
@@ -106,7 +107,7 @@ static u_int fileread (char **mem, u_int size, FILE *f)
     char *inp;
 
     ERRMEM (inp = malloc (size));
-    fread (inp, 1, size, f);
+    ASSERT (fread (inp, 1, size, f) == size, ERR_PBF_READ);
     maxout = 2 * size;
     do
     {
@@ -122,7 +123,7 @@ static u_int fileread (char **mem, u_int size, FILE *f)
   {
     free (*mem);
     ERRMEM (*mem = malloc (size));
-    fread (*mem, 1, size, f);
+    ASSERT (fread (*mem, 1, size, f) == size, ERR_PBF_READ);
   }
 
   return size;
@@ -142,10 +143,10 @@ static void filewrite (char *mem, u_int size, FILE *f, char cmp)
 
     ERRMEM (out = malloc ((int) (1.15) * (double) MAX (size, 66))); /* see ext/fastlz.h */
     num = fastlz_compress (mem, size, out);
-    fwrite (out, 1, num, f);
+    ASSERT (fwrite (out, 1, num, f) == (unsigned)num, ERR_PBF_WRITE);
     free (out);
   }
-  else fwrite (mem, 1, size, f);
+  else ASSERT (fwrite (mem, 1, size, f) == size, ERR_PBF_WRITE);
 }
 
 /* grow memory buffer in WRITE mode */
@@ -172,12 +173,6 @@ static void initialise_frame (PBF *bf, int frm)
   bf->cur = frm; /* set current frame */
   bf->time = bf->mtab [frm].time; /* and time */
 
-  /* empty current labels set */
-  MAP_Free (&bf->mappool,&bf->labels);
- 
-  /* seek to the frame in IDX file */ 
-  xdr_setpos (&bf->x_idx, bf->mtab [frm].ipos);
-
   /* create new memory XDR stream for DATA chunk */
   bf->memsize = bf->mtab [frm+1].doff - bf->mtab [frm].doff;
   FSEEK (bf->dat, (OFF_T) bf->mtab [frm].doff, SEEK_SET);
@@ -185,9 +180,15 @@ static void initialise_frame (PBF *bf, int frm)
   xdr_destroy (&bf->x_dat);
   xdrmem_create (&bf->x_dat, bf->mem, bf->memsize, XDR_DECODE);
 
+  /* empty current labels set */
+  MAP_Free (&bf->mappool, &bf->labels);
+ 
+  /* seek to the frame in IDX file */ 
+  ASSERT (xdr_setpos (&bf->x_idx, bf->mtab [frm].ipos), ERR_PBF_INDEX_FILE_CORRUPTED);
+
   /* read labels */
-  xdr_int (&bf->x_idx, &index);
-  while (index >= 0 && (!feof (bf->idx)))
+  ASSERT (xdr_int (&bf->x_idx, &index), ERR_PBF_INDEX_FILE_CORRUPTED);
+  while (index >= 0)
   {
     ASSERT (index < bf->lsize, ERR_PBF_INDEX_FILE_CORRUPTED);
     l = &bf->ltab [index];
@@ -196,10 +197,10 @@ static void initialise_frame (PBF *bf, int frm)
     MAP_Insert (&bf->mappool, &bf->labels, l->name, l, (MAP_Compare) strcmp);
 
     /* read position */
-    xdr_u_int (&bf->x_idx, &l->dpos);
+    ASSERT (xdr_u_int (&bf->x_idx, &l->dpos), ERR_PBF_INDEX_FILE_CORRUPTED);
 
     /* get next label */
-    xdr_int (&bf->x_idx, &index);
+    ASSERT (xdr_int (&bf->x_idx, &index), ERR_PBF_INDEX_FILE_CORRUPTED);
   }
 }
 
@@ -231,26 +232,26 @@ static void initialise_reading (PBF *bf)
   while (! feof (bf->idx))
   {
     /* time and unlabeled data position */
-    if (xdr_double (&bf->x_idx, &bf->mtab [num].time))
-    {
-      xdr_uint64_t (&bf->x_idx, &bf->mtab [num].doff);
-      bf->mtab [num].ipos = xdr_getpos (&bf->x_idx);
+    ASSERT (xdr_double (&bf->x_idx, &bf->mtab [num].time), ERR_PBF_INDEX_FILE_CORRUPTED);
+    ASSERT (xdr_uint64_t (&bf->x_idx, &bf->mtab [num].doff), ERR_PBF_INDEX_FILE_CORRUPTED);
+    bf->mtab [num].ipos = xdr_getpos (&bf->x_idx);
 
-      /* skip labels */
-      xdr_int (&bf->x_idx, &index);
-      while (index >= 0 && (! feof (bf->idx)))
-      {
-        ASSERT (index < bf->lsize, ERR_PBF_INDEX_FILE_CORRUPTED);
-	xdr_u_int (&bf->x_idx, &dpos);
-	xdr_int (&bf->x_idx, &index);
-      }
-      
-      if (++ num >= siz) { siz += CHUNK; ERRMEM (bf->mtab = realloc (bf->mtab, sizeof (PBF_MARKER) * siz)); }
+    /* skip labels */
+    ASSERT (xdr_int (&bf->x_idx, &index), ERR_PBF_INDEX_FILE_CORRUPTED);
+    while (index >= 0)
+    {
+      ASSERT (index < bf->lsize, ERR_PBF_INDEX_FILE_CORRUPTED);
+      ASSERT (xdr_u_int (&bf->x_idx, &dpos), ERR_PBF_INDEX_FILE_CORRUPTED);
+      ASSERT (xdr_int (&bf->x_idx, &index), ERR_PBF_INDEX_FILE_CORRUPTED); 
     }
-    else break;
+
+    if (index == -2) break; /* infinite frame */
+    
+    if (++ num >= siz) { siz += CHUNK; ERRMEM (bf->mtab = realloc (bf->mtab, sizeof (PBF_MARKER) * siz)); }
   }
-  bf->mtab = realloc (bf->mtab, sizeof (PBF_MARKER) * num); /* shrink */
-  bf->msize = num - 1; /* subtract last "infinite" frame */
+  ASSERT (index == -2, ERR_PBF_INDEX_FILE_CORRUPTED);
+  bf->mtab = realloc (bf->mtab, sizeof (PBF_MARKER) * (num + 1)); /* shrink (add INF frame) */
+  bf->msize = num;
 
   /* read first frame */
   initialise_frame (bf, 0);
@@ -263,7 +264,7 @@ static void write_frame (PBF *bf)
   {
     /* mark end of frame labels */
     int index = -1;
-    xdr_int (&bf->x_idx, &index); 
+    ASSERT (xdr_int (&bf->x_idx, &index), ERR_PBF_WRITE);
 
     /* write from XDR stream to file */
     filewrite (bf->mem, bf->membase + xdr_getpos (&bf->x_dat),
@@ -283,14 +284,16 @@ static void finalize_frames (PBF *bf)
   {
     uint64_t doff;
     double time = DBL_MAX;
+    int index = -2;
 
     /* write last frame */
     write_frame (bf);
 
     /* write infinite frame marker */
-    xdr_double (&bf->x_idx, &time);
+    ASSERT (xdr_double (&bf->x_idx, &time), ERR_PBF_WRITE);
     doff = (uint64_t) FTELL (bf->dat);
-    xdr_uint64_t (&bf->x_idx, &doff);
+    ASSERT (xdr_uint64_t (&bf->x_idx, &doff), ERR_PBF_WRITE);
+    ASSERT (xdr_int (&bf->x_idx, &index), ERR_PBF_WRITE);
   }
 }
  
@@ -499,7 +502,9 @@ void PBF_Close (PBF *bf)
       int k;
 
       for (k = 0; k < bf->lsize; k ++)
+      {
 	free (bf->ltab [k].name);
+      }
 
       free (bf->ltab);
       free (bf->mtab);
@@ -508,8 +513,7 @@ void PBF_Close (PBF *bf)
     {
       MAP *k;
 
-      for (k = MAP_First (bf->labels);
-	k; k = MAP_Next (k))
+      for (k = MAP_First (bf->labels); k; k = MAP_Next (k))
       {
 	PBF_LABEL *l = (PBF_LABEL*)k->data;
 	free (l->name);
@@ -540,8 +544,8 @@ void PBF_Time (PBF *bf, double *time)
     doff = (uint64_t) FTELL (bf->dat);
 
     /* output current data position and time */
-    xdr_double (&bf->x_idx, time);
-    xdr_uint64_t (&bf->x_idx, &doff); /* data position */
+    ASSERT (xdr_double (&bf->x_idx, time), ERR_PBF_WRITE);
+    ASSERT (xdr_uint64_t (&bf->x_idx, &doff), ERR_PBF_WRITE);
 
     /* set time */
     bf->time = *time;
@@ -569,20 +573,20 @@ int PBF_Label (PBF *bf, const char *label)
       MAP_Insert (&bf->mappool, &bf->labels, l->name, l, (MAP_Compare) strcmp);
 
       /* output definition */
-      xdr_string (&bf->x_lab, (char**)&label, PBF_MAXSTRING);
+      ASSERT (xdr_string (&bf->x_lab, (char**)&label, PBF_MAXSTRING), ERR_PBF_WRITE);
     }
 
     /* record label and position in the index file */
-    xdr_int (&bf->x_idx, &l->index);
+    ASSERT (xdr_int (&bf->x_idx, &l->index), ERR_PBF_WRITE);
     dpos = bf->membase + xdr_getpos (&bf->x_dat);
-    xdr_u_int (&bf->x_idx, &dpos);
+    ASSERT (xdr_u_int (&bf->x_idx, &dpos), ERR_PBF_WRITE);
   }
   else
   {
     if ((l = MAP_Find (bf->labels, (void*)label, (MAP_Compare) strcmp)))
     {
       /* seek to labeled data begining (relative displacement) */
-      xdr_setpos (&bf->x_dat, l->dpos);
+      ASSERT (xdr_setpos (&bf->x_dat, l->dpos), ERR_PBF_READ);
     }
     else return 0;
   }
