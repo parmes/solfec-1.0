@@ -40,6 +40,8 @@ struct newton
 
   int nonmonlength; /* nonmonotone line search buffer length */
 
+  double resdec; /* linear solver residual decrease factor */
+
   /* output */
 
   int iters; /* most recent number of iterations */

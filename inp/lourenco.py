@@ -92,7 +92,7 @@ FORCE (top, 'SPATIAL', (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), tms)
 FORCE (top, 'SPATIAL', (2 * a * NWIDTH / 2 - a, 0, c * NHEIGHT + c/2), (0, 0, -1), 30E3)
 
 #gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
-gs = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E-9, 100)
+gs = NEWTON_SOLVER (1E-9, 100)
 
 OUTPUT (solfec, 1E-3, compression = 'ON')
 

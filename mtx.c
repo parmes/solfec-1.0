@@ -585,7 +585,7 @@ static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
     }
     else
     {
-      ASSERT_DEBUG (!TEMPORARY (b), "Trying to overwrite a temporary matrix");
+      ASSERT_DEBUG (!TEMPORARY (c), "Trying to overwrite a temporary matrix");
 
       *c  = *d; /* overwrie (all kinds) */
 
@@ -1171,7 +1171,7 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
     }
     else
     {
-      ASSERT_DEBUG (!TEMPORARY (b), "Trying to overwrite a temporary matrix");
+      ASSERT_DEBUG (!TEMPORARY (c), "Trying to overwrite a temporary matrix");
 
       *c = *d; /* overwrite (all kinds) */
 
@@ -1378,7 +1378,7 @@ static MX* dense_inverse (MX *a, MX *b)
 
   ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
   if (b == NULL) b = MX_Create (MXDENSE, a->m, a->n, NULL, NULL);
-  else if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
+  if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
 
   lapack_dgetri (b->n, NULL, b->m, NULL, &w, -1); /* query for workspace size */
   lwork = (int) w;
@@ -1400,7 +1400,7 @@ static MX* bd_inverse (MX *a, MX *b)
   double *work, *bx, w;
 
   if (b == NULL) b = MX_Create (MXBD, a->m, a->n, a->p, a->i);
-  else if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
+  if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
 
   n = b->n;
   pp = b->p;

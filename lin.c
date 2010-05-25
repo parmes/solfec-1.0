@@ -1853,7 +1853,7 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
 
   sys->delta = sys->resnorm / sys->xnorm; /* sqrt (L-curve) */
 
-  abstol = beta * sys->resnorm; /* FIXME: initially zero */
+  abstol = beta * sys->resnorm; /* initially zero => maxiter is reached */
 
 #if !MPI
   if (sys->variant & DIRECT_SOLVE)

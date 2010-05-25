@@ -690,6 +690,42 @@ POSIX = yes
 \end_layout
 
 \begin_layout LyX-Code
+# XDR
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+XDR = no
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+XDRINC =
+\end_layout
+
+\begin_layout LyX-Code
+XDRLIB =
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
 # BLAS
 \end_layout
 
@@ -794,6 +830,30 @@ GLLIB = -framework GLUT -framework OpenGL
 \end_layout
 
 \begin_layout LyX-Code
+# VBO (OPENGL == yes)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+VBO = yes
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
 # MPI (yes/no)
 \end_layout
 
@@ -811,6 +871,26 @@ MPI = yes
 
 \begin_layout LyX-Code
 MPICC = mpicc
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# Zoltan (MPI == yes)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
 \end_layout
 
 \begin_layout LyX-Code
@@ -842,6 +922,14 @@ C
 \begin_layout Itemize
 
 \series bold
+XDR
+\series default
+ (standard part of RPC on all Unix-like systems)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
 BLAS
 \series default
  and 
@@ -865,6 +953,14 @@ Python
 OpenGL
 \series default
  libraries and developments files
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+VBO
+\series default
+ (Vertex Buffer Object extension of OpenGL for faster rendering, optional)
 \end_layout
 
 \begin_layout Itemize
@@ -4979,22 +5075,19 @@ variant
 ')
 \end_layout
 
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
 \begin_layout Subsection
 NEWTON_SOLVER 
 \color red
 (Under development)
 \end_layout
 
-\begin_layout Plain Layout
-Object of type NEWTON_SOLVER represents a family of Newton constraints solvers.
+\begin_layout Standard
+Object of type NEWTON_SOLVER represents a family of inexact Newton constraints
+ solvers.
 \end_layout
 
 \begin_layout Subsection*
-obj = NEWTON_SOLVER ( | variant, epsilon, maxiter, meritval)
+obj = NEWTON_SOLVER ( | meritval, maxiter, variant)
 \end_layout
 
 \begin_layout Itemize
@@ -5008,9 +5101,26 @@ obj
 \begin_layout Itemize
 
 \series bold
+meritval
+\series default
+ - constraints satisfaction merit function value sufficient for termination
+ (default: 1E-3)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+maxiter
+\series default
+ - maximal number of iterations before termination (default: 10)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
 variant
 \series default
- - variant of the Newton method (default: 'NONSMOOTH_HSW'); cf.
+ - variant of the Newton method (default: 'SMOOTHED_VARIATIONAL'); cf.
  Table 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -5021,33 +5131,7 @@ reference "tab:newton-variants"
  for other variants.
 \end_layout
 
-\begin_layout Itemize
-
-\series bold
-epsilon
-\series default
- - relative accuracy of constraint reactions sufficient for termination
- (default: 1E-6)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-maxiter
-\series default
- - maximal number of iterations before termination (default: 100)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-meritval
-\series default
- - constraints satisfaction merit function value sufficient for termination
- (default: 1E-6)
-\end_layout
-
-\begin_layout Plain Layout
+\begin_layout Standard
 \begin_inset Float table
 placement h
 wide false
@@ -5227,10 +5311,10 @@ Some parameters can also be accessed as members of a NEWTON_SOLVER object.
  These are
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="4" columns="1">
+<lyxtabular version="3" rows="3" columns="1">
 <features>
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -5266,23 +5350,6 @@ obj.iters
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.rerhist
-\series default
-\emph default
- - a list of relative error values for each iteration of the last run
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
@@ -5306,10 +5373,10 @@ obj.merhist
 
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="4" columns="1">
+<lyxtabular version="3" rows="5" columns="1">
 <features>
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -5334,7 +5401,7 @@ Read/write
 \begin_layout Plain Layout
 
 \emph on
-obj.variant, obj.epsilon, obj.maxiter, obj.meritval
+obj.variant, obj.maxiter, obj.meritval
 \end_layout
 
 \end_inset
@@ -5351,8 +5418,25 @@ obj.variant, obj.epsilon, obj.maxiter, obj.meritval
 obj.nonmonlength
 \series default
 \emph default
- - length of the nonmonotone line search memory buffer (default: 10); making
+ - length of the nonmonotone line search memory buffer (default: 5); making
  it equal 1 restores the monotone line search
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.linminiter
+\series default
+\emph default
+ - linear iterative solver minimal iterations count (default: 5)
 \end_layout
 
 \end_inset
@@ -5366,11 +5450,10 @@ obj.nonmonlength
 
 \series bold
 \emph on
-obj.linmaxiter
+obj.resdec
 \series default
 \emph default
- - maximal number of iterations before termination of a linear iterative
- solver (default: 1000)
+ - linear iterative solver residual decrease factor (default: 0.25)
 \end_layout
 
 \end_inset
@@ -5382,6 +5465,10 @@ obj.linmaxiter
 
 
 \end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
 
 \begin_layout Subsection
 HYBRID_SOLVER 
@@ -5548,13 +5635,17 @@ direction
  tuple with spatial direction components
 \end_layout
 
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
 \begin_layout Subsection*
 obj = FIX_SURFACE (body, surfid, direction)
 \color red
  TODO
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 This routine fixes the motion of a referential surface along a specified
  spatial direction.
 \end_layout
@@ -5608,6 +5699,11 @@ x
  direction if the surface is horizontal.
  The second tangent direction ('TANGENT2') is such that the local ('TANGENT1',
  'TANGENT2', 'NORMAL') coordinate system is right-handed.
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection*
@@ -6357,13 +6453,17 @@ value
  - a number or a TIME_SERIES object defining the value of the applied torque
 \end_layout
 
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
 \begin_layout Subsection*
 LOAD (body, kind, surfid, direction, value)
 \color red
  TODO
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 This routine applies a surface load.
 \end_layout
 
@@ -6428,6 +6528,11 @@ x
 value
 \series default
  - a number or a TIME_SERIES object defining the value of the applied load
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Section

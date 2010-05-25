@@ -52,7 +52,7 @@
 
 #if __MINGW32__
 #include "../alg.h"
-#define M_MPI ALG_PI
+#define M_PI ALG_PI
 #endif
 
 /********************************************************************* 

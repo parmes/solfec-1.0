@@ -21,7 +21,7 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.
 if solver == 'GAUSS_SEIDEL_SOLVER':
   sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
 else:
-  sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E-5, 20)
+  sv = NEWTON_SOLVER (1E-5, 20)
 
 simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'FINITE_ELEMENT', 'DEF_' + scheme, 'FINITE_ELEMENT', 'DEF_' + scheme, 4, 4, 4)
 
