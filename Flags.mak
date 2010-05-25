@@ -8,23 +8,17 @@ else
   POSIX = 
 endif
 
-ifeq ($(SPQR),yes)
-  SPQR = -DSPQR $(SPQRINC)
-  UMFPACK = 
-  UMFPACKLIB = 
-else
-  SPQR =
-  SPQRLIB = 
-  ifeq ($(UMFPACK),yes)
-    UMFPACK = -DUMFPACK $(UMFPACKINC)
-  else
-    UMFPACK =
-    UMFPACKLIB =
-  endif
+ifneq ($(XDR),yes)
+  XDRINC =
+  XDRLIB = 
 endif
 
 ifeq ($(OPENGL),yes)
-  OPENGL = -DOPENGL $(GLINC)
+  ifeq ($(VBO),yes)
+    OPENGL = -DOPENGL -DVBO $(GLINC)
+  else
+    OPENGL = -DOPENGL $(GLINC)
+  endif
 else
   OPENGL =
   GLLIB = 

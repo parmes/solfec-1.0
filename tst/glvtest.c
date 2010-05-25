@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if OPENGL
 #if __APPLE__
   #include <GLUT/glut.h>
 #else
@@ -47,3 +48,6 @@ int main (int argc, char **argv)
 
   return 0;
 }
+#else
+int main (int argc, char **argv) { return 0; }
+#endif

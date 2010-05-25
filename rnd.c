@@ -59,8 +59,13 @@ struct body_data
         HIDDEN      = 0x02,         /* hidden state */
 	ROUGH_MESH  = 0x04} flags;  /* rough mesh rendering */
 
+#if VBO
   GLuint triangles, /* VBO of triangle vertices, normals and colors */
 	 lines; /* VBO of line vertices */
+#else
+  GLfloat *ver, /* vertex array data */
+	  *lin;
+#endif
 
   GLsizei triangles_count,
 	  lines_count;
@@ -682,6 +687,7 @@ static BODY_DATA* create_body_data (BODY *bod)
     }
   }
 
+#if VBO
   glGenBuffersARB (1, &data->lines);
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
   glBufferDataARB (GL_ARRAY_BUFFER_ARB, data->lines_count * sizeof (GLfloat) * 6, lin, GL_DYNAMIC_DRAW_ARB);
@@ -692,6 +698,11 @@ static BODY_DATA* create_body_data (BODY *bod)
 
   free (lin);
   free (ver);
+#else
+  data->lin = lin;
+  data->ver = ver;
+#endif
+
   MEM_Release (&setmem);
   MEM_Release (&mapmem);
   MEM_Release (&pairmem);
@@ -905,8 +916,12 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
   double **vsr, **nsr, **lsr, **end, *val, *tail;
   GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
   lin = glMapBufferARB (GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+#else
+  lin = data->lin;
+#endif
 
   for (lsr = data->line_sources,
        end = lsr + data->lines_count * 2,
@@ -915,10 +930,15 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
     COPY (*lsr, l);
   }
 
+#if VBO
   glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
 
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
   ver = glMapBufferARB (GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+#else
+  ver = data->ver;
+#endif
+
   nor = ver + data->triangles_count * 9;
   col = nor + data->triangles_count * 9;
 
@@ -938,7 +958,9 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
   }
   else for (c = col, l = c + data->triangles_count * 9; c < l;  c += 3) { COPY (neutral_color, c); }
 
+#if VBO
   glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
+#endif
 
   if (data->spheres_count)
   {
@@ -1230,15 +1252,23 @@ static void render_body_triangles (BODY *bod, short skip)
   if (bod == picked_body ||           /* do not render a picked body */
       data->flags & skip) return;
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+#endif
 
   glEnableClientState (GL_VERTEX_ARRAY);
   glEnableClientState (GL_NORMAL_ARRAY);
   glEnableClientState (GL_COLOR_ARRAY);
 
+#if VBO
   glVertexPointer (3, GL_FLOAT, 0, 0);
   glNormalPointer (GL_FLOAT, 0, (void*) (data->triangles_count * sizeof (GLfloat) * 9));
   glColorPointer (3, GL_FLOAT, 0, (void*) (data->triangles_count * sizeof (GLfloat) * 18));
+#else
+  glVertexPointer (3, GL_FLOAT, 0, data->ver);
+  glNormalPointer (GL_FLOAT, 0, data->ver +  (data->triangles_count * 9));
+  glColorPointer (3, GL_FLOAT, 0, data->ver + (data->triangles_count * 18));
+#endif
 
   glDrawArrays (GL_TRIANGLES, 0, data->triangles_count * 3);
 
@@ -1246,7 +1276,9 @@ static void render_body_triangles (BODY *bod, short skip)
   glDisableClientState (GL_NORMAL_ARRAY);
   glDisableClientState (GL_COLOR_ARRAY);
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+#endif
 
   SPHERE **sph, **end;
   GLfloat *col;
@@ -1266,17 +1298,25 @@ static void render_body_lines (BODY *bod, short skip)
 
   if (data->flags & skip) return;
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
+#endif
 
   glEnableClientState (GL_VERTEX_ARRAY);
 
+#if VBO
   glVertexPointer (3, GL_FLOAT, 0, 0);
+#else
+  glVertexPointer (3, GL_FLOAT, 0, data->lin);
+#endif
 
   glDrawArrays (GL_LINES, 0, data->lines_count * 2);
 
   glDisableClientState (GL_VERTEX_ARRAY);
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+#endif
 
   SPHERE **sph, **end;
 
@@ -1291,20 +1331,29 @@ static void selection_render_body_triangles (BODY *bod)
 
   if (data->flags & HIDDEN) return;
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+#endif
 
   glEnableClientState (GL_VERTEX_ARRAY);
   glEnableClientState (GL_NORMAL_ARRAY);
 
+#if VBO
   glVertexPointer (3, GL_FLOAT, 0, 0);
   glNormalPointer (GL_FLOAT, 0, (void*) (data->triangles_count * sizeof (GLfloat) * 9));
+#else
+  glVertexPointer (3, GL_FLOAT, 0, data->ver);
+  glNormalPointer (GL_FLOAT, 0, data->ver + (data->triangles_count * 9));
+#endif
 
   glDrawArrays (GL_TRIANGLES, 0, data->triangles_count * 3);
 
   glDisableClientState (GL_VERTEX_ARRAY);
   glDisableClientState (GL_NORMAL_ARRAY);
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+#endif
 
   SPHERE **sph, **end;
 
@@ -1332,34 +1381,51 @@ static void render_rough_mesh (BODY *bod)
 
   glColor4f (0.0, 0.0, 0.0, 0.2);
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, rough->lines);
+#endif
 
   glEnableClientState (GL_VERTEX_ARRAY);
 
+#if VBO
   glVertexPointer (3, GL_FLOAT, 0, 0);
+#else
+  glVertexPointer (3, GL_FLOAT, 0, rough->lin);
+#endif
 
   glDrawArrays (GL_LINES, 0, rough->lines_count * 2);
 
   glDisableClientState (GL_VERTEX_ARRAY);
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+#endif
 
   glColor4f (0.9, 0.9, 0.9, 0.3);
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, rough->triangles);
+#endif
 
   glEnableClientState (GL_VERTEX_ARRAY);
   glEnableClientState (GL_NORMAL_ARRAY);
 
+#if VBO 
   glVertexPointer (3, GL_FLOAT, 0, 0);
   glNormalPointer (GL_FLOAT, 0, (void*) (rough->triangles_count * sizeof (GLfloat) * 9));
+#else
+  glVertexPointer (3, GL_FLOAT, 0, rough->ver);
+  glNormalPointer (GL_FLOAT, 0, rough->ver + (rough->triangles_count * 9));
+#endif
 
   glDrawArrays (GL_TRIANGLES, 0, rough->triangles_count * 3);
 
   glDisableClientState (GL_VERTEX_ARRAY);
   glDisableClientState (GL_NORMAL_ARRAY);
 
+#if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+#endif
 }
 
 /* render contact */
@@ -2878,8 +2944,13 @@ void RND_Free_Rendering_Data (void *ptr)
   free (data->spheres);
   free (data->sphere_colors);
 
+#if VBO
   glDeleteBuffersARB (1, &data->triangles);
   glDeleteBuffersARB (1, &data->lines);
+#else
+  free (data->ver);
+  free (data->lin);
+#endif
 
   if (data->rough) RND_Free_Rendering_Data (data->rough);
 
