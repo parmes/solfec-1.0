@@ -21,7 +21,7 @@ if solver == 'GAUSS_SEIDEL_SOLVER':
   sv = GAUSS_SEIDEL_SOLVER (1E0, 8, 1E-6, failure = 'CONTINUE')
   sv.reverse = 'ON'
 else:
-  sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E-5, 20)
+  sv = NEWTON_SOLVER (1E-5, 20)
 
 simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'RIGID', 'DEFAULT', 'RIGID', 'DEFAULT', 4, 4, 4)
 

@@ -112,8 +112,7 @@ GRAVITY (solfec, (0, 0, -9.81))
 
 glued_scene (bulkmat, solfec)
 
-#gs = GAUSS_SEIDEL_SOLVER (1E-3, 100, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
-gs = NEWTON_SOLVER ()
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 100, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 

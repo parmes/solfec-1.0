@@ -130,6 +130,7 @@ NEWTON* NEWTON_Create (LINVAR variant, double meritval, int maxiter)
   nt->maxiter = maxiter;
   nt->nonmonlength = 5;
   nt->linminiter = 5;
+  nt->resdec = 0.25;
   nt->merhist = NULL;
   nt->verbose = 1;
 
@@ -185,7 +186,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   {
     LINSYS_Update (sys); /* assemble A, b */
 
-    LINSYS_Solve (sys, 0.25, nt->linminiter + nt->iters); /* FIXME: 0.25 => make into a user paramter or work out tuning */
+    LINSYS_Solve (sys, nt->resdec, nt->linminiter + nt->iters);
 
     reactions_update (nt, sys, ldy, nonmonvalues, nt->iters); /* R(i+1) */
 

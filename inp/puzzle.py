@@ -160,9 +160,8 @@ bulk1 = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E8, poisson = 0.25, densit
 bulk2 = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 GRAVITY (solfec, (0, 0, 0))
 
-#sv = HYBRID_SOLVER (meritval = 1E-10)
 #sv = GAUSS_SEIDEL_SOLVER (1E-3, 10, 1E-3)
-sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E-5, 10)
+sv = NEWTON_SOLVER (1E-5, 10)
 
 n_i = 8
 n_j = 4

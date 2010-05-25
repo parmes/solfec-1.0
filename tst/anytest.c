@@ -34,7 +34,9 @@ int main (int argc, char **argv)
   printf ("Result of 'isfinite' on %g is %d\n", nan, isfinite (nan));
   printf ("Size of 'long' is %ld\n", sizeof (long));
   printf ("Size of 'long long' is %ld\n", sizeof (long long));
+#if !defined (__MINGW32__)
   printf ("Size of 'off_t' is %ld\n", sizeof (off_t));
+#endif
   printf ("UINT_MAX is %u\n", UINT_MAX);
 
   return 0;

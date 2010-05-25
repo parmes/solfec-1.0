@@ -88,8 +88,8 @@ static struct
 	   right,
 	   bottom,
 	   top,
-	   near,
-	   far;
+	   neardst,
+	   fardst;
 } oldlook,
   look;
 
@@ -258,12 +258,12 @@ static void basic_reshape3D (int w, int h)
 	glOrtho (look.left, look.right,
 	  look.bottom * (GLdouble)h/(GLdouble)w,
 	  look.top * (GLdouble)h/(GLdouble)w,
-	  look.near, look.far);
+	  look.neardst, look.fardst);
       else
 	glOrtho (look.left * (GLdouble)w/(GLdouble)h,
 	  look.right * (GLdouble)w/(GLdouble)h,
 	  look.bottom, look.top,
-	  look.near, look.far);
+	  look.neardst, look.fardst);
 
       gluLookAt (
 	look.from [0], look.from [1], look.from [2],
@@ -275,8 +275,8 @@ static void basic_reshape3D (int w, int h)
     {
       gluPerspective (70.,
 	(double)w/(double)h,
-	look.near,
-	look.far);
+	look.neardst,
+	look.fardst);
 
       gluLookAt (
 	look.from [0], look.from [1], look.from [2],
@@ -654,8 +654,8 @@ static void init3D (double *extents)
   look.right = 0.5*mx;
   look.bottom = -0.5*mx;
   look.top = 0.5*mx;
-  look.far = 1000.0 * mx;
-  look.near = 0.001 * MIN (rl, MIN (tb, nf));
+  look.fardst = 1000.0 * mx;
+  look.neardst = 0.001 * MIN (rl, MIN (tb, nf));
 
   if (user.init)
     user.init ();
@@ -949,8 +949,8 @@ void GLV_Update_Extents (double *extents)
   look.right = 0.5*mx;
   look.bottom = -0.5*mx;
   look.top = 0.5*mx;
-  look.far = 1000.0 * mx;
-  look.near = 0.001 * MIN (rl, MIN (tb, nf));
+  look.fardst = 1000.0 * mx;
+  look.neardst = 0.001 * MIN (rl, MIN (tb, nf));
 
   updateall ();
 }
@@ -1180,12 +1180,12 @@ void GLV_SetProjectionMatrix (int w, int h)
 	glOrtho (look.left, look.right,
 	  look.bottom * (GLdouble)h/(GLdouble)w,
 	  look.top * (GLdouble)h/(GLdouble)w,
-	  look.near, look.far);
+	  look.neardst, look.fardst);
       else
 	glOrtho (look.left * (GLdouble)w/(GLdouble)h,
 	  look.right * (GLdouble)w/(GLdouble)h,
 	  look.bottom, look.top,
-	  look.near, look.far);
+	  look.neardst, look.fardst);
 
       gluLookAt (
 	look.from [0], look.from [1], look.from [2],
@@ -1197,8 +1197,8 @@ void GLV_SetProjectionMatrix (int w, int h)
     {
       gluPerspective (70.,
 	(double)w/(double)h,
-	look.near,
-	look.far);
+	look.neardst,
+	look.fardst);
 
       gluLookAt (
 	look.from [0], look.from [1], look.from [2],

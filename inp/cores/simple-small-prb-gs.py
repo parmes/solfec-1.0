@@ -22,7 +22,7 @@ if solver == 'GAUSS_SEIDEL':
   sv = GAUSS_SEIDEL_SOLVER (1E0, 100, 1E-5)
   sv.reverse = 'ON'
 else:
-  sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E-5, 20)
+  sv = NEWTON_SOLVER (1E-5, 20)
 
 simple_core_create (0.0003, 0.0002, bulkmat, solfec, 'PSEUDO_RIGID', 'DEF_' + scheme, 'PSEUDO_RIGID', 'DEF_' + scheme, 4, 4, 4)
 

@@ -4,9 +4,9 @@ include ../Flags.mak
 LIBBRICKS = ../obj/libsolfec.a
 LIBBRICKSMPI = ../obj/libsolfec-mpi.a
 CFLAGS = -std=c99 $(DEBUG) $(PROFILE) $(OPENGL) $(XDRINC) -I..
-LIB = -L../obj -lsolfec -lkrylov -lm $(BLAS) $(LAPACK) $(GLLIB) $(PYTHONLIB) $(XDRLIB)
+LIB = -L../obj -lsolfec -lkrylov -lm $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB)
 ifeq ($(MPI),yes)
-  LIBMPI = -L../obj -lsolfec-mpi -lkrylov -lm $(BLAS) $(LAPACK) $(MPILIBS) $(XDRLIB)
+  LIBMPI = -L../obj -lsolfec-mpi -lkrylov -lm $(LAPACK) $(BLAS) $(MPILIBS) $(XDRLIB)
 endif
 
 TGT = glvtest\

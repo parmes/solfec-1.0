@@ -3267,7 +3267,7 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("variant", "meritval", "maxiter");
+  KEYWORDS ("meritval", "maxiter", "variant");
   lng_NEWTON_SOLVER *self;
   PyObject *variant;
   double meritval;
@@ -3278,14 +3278,14 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
 
   if (self)
   {
-    linvar = NONSMOOTH_HSW;
-    variant = NULL;
+    linvar = SMOOTHED_VARIATIONAL;
     meritval = 1E-3;
-    maxiter = 100;
+    maxiter = 10;
+    variant = NULL;
 
-    PARSEKEYS ("|Odi", &variant, &meritval, &maxiter);
+    PARSEKEYS ("|diO", &meritval, &maxiter, &variant);
 
-    TYPETEST (is_string (variant, kwl[0]) && is_positive (meritval, kwl[1]) && is_positive (maxiter, kwl[2]));
+    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (variant, kwl[2]));
 
     if (variant)
     {
@@ -3297,6 +3297,10 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       {
 	linvar = NONSMOOTH_HYBRID;
       }
+      ELIF (variant, "FIXED_POINT")
+      {
+	linvar = FIXED_POINT;
+      }
       ELIF (variant, "NONSMOOTH_VARIATIONAL")
       {
 	linvar = NONSMOOTH_VARIATIONAL;
@@ -3304,10 +3308,6 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       ELIF (variant, "SMOOTHED_VARIATIONAL")
       {
 	linvar = SMOOTHED_VARIATIONAL;
-      }
-      ELIF (variant, "FIXED_POINT")
-      {
-	linvar = FIXED_POINT;
       }
       ELSE
       {
@@ -3418,6 +3418,18 @@ static int lng_NEWTON_SOLVER_set_linminiter (lng_NEWTON_SOLVER *self, PyObject *
   return 0;
 }
 
+static PyObject* lng_NEWTON_SOLVER_get_resdec (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->nt->resdec);
+}
+
+static int lng_NEWTON_SOLVER_set_resdec (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "resdec")) return -1;
+  self->nt->resdec = PyFloat_AsDouble (value);
+  return 0;
+}
+
 static PyObject* lng_NEWTON_SOLVER_get_merhist (lng_NEWTON_SOLVER *self, void *closure)
 {
   PyObject *list;
@@ -3463,7 +3475,8 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
   {"meritval", (getter)lng_NEWTON_SOLVER_get_meritval, (setter)lng_NEWTON_SOLVER_set_meritval, "merit function accuracy", NULL},
   {"maxiter", (getter)lng_NEWTON_SOLVER_get_maxiter, (setter)lng_NEWTON_SOLVER_set_maxiter, "iterations bound", NULL},
   {"nonmonlength", (getter)lng_NEWTON_SOLVER_get_nonmonlength, (setter)lng_NEWTON_SOLVER_set_nonmonlength, "nonmonotone line search memory length", NULL},
-  {"linminiter", (getter)lng_NEWTON_SOLVER_get_linminiter, (setter)lng_NEWTON_SOLVER_set_linminiter, "linear solver iterations bound", NULL},
+  {"linminiter", (getter)lng_NEWTON_SOLVER_get_linminiter, (setter)lng_NEWTON_SOLVER_set_linminiter, "linear solver minimal iterations count", NULL},
+  {"resdec", (getter)lng_NEWTON_SOLVER_get_resdec, (setter)lng_NEWTON_SOLVER_set_resdec, "linear solver residual decrease factor", NULL},
   {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
   {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}
