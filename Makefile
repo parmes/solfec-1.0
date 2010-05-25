@@ -12,12 +12,12 @@ endif
 
 include Flags.mak
 
-CFLAGS = -std=c99 $(POSIX) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
+CFLAGS = -std=c99 $(POSIX) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(XDRINC)
 
-LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(SPQRLIB) $(UMFPACKLIB) $(PYTHONLIB)
+LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(SPQRLIB) $(UMFPACKLIB) $(PYTHONLIB) $(XDRLIB)
 
 ifeq ($(MPI),yes)
-  LIBMPI = -lm $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS)
+  LIBMPI = -lm $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB)
 endif
 
 EXTO  = obj/fastlz.o\

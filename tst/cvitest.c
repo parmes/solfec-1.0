@@ -26,7 +26,6 @@
   #include <GL/glut.h>
 #endif
 #include "glv.h"
-#endif
 
 #include <stdlib.h>
 #include <string.h>
@@ -474,3 +473,6 @@ int main (int argc, char **argv)
 
   return 0;
 }
+#else
+int main (int argc, char **atgv) { return 0; }
+#endif
