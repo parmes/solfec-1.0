@@ -155,7 +155,6 @@ struct solfec_history_item
   enum {BODY_ENTITY, ENERGY_VALUE, TIMING_VALUE,
         LABELED_INT, LABELED_DOUBLE} item;
   enum {OP_SUM, OP_AVG, OP_MAX, OP_MIN} op; /* operation for parallel labeled data */
-  unsigned char in_domain; /* flag > 0 when labeled data in inside domain data */
   double *history; /* output */
 };
 

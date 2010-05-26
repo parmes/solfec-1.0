@@ -758,73 +758,46 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
           shi[i].history [cur] = SOLFEC_Timing (sol, shi[i].label);
 	}
 	break;
-      case LABELED_INT:
       case LABELED_DOUBLE:
+      case LABELED_INT:
 	{
-	  int cmp;
+	  int ival = 0;
+	  double dval, total, num = 0;
 
-	  ASSERT (PBF_Label (sol->bf, "DOMCMP"), ERR_FILE_FORMAT); /* this must be here */
-	  PBF_Int (sol->bf, &cmp, 1);
-
-	  if (cmp == CMP_OFF || !shi[i].in_domain) /* no compression or not in domain */
+	  switch (shi [i].op)
 	  {
-	    int ival = 0;
-	    double dval, total, num = 0;
+	    case OP_SUM: total = 0.0; break;
+	    case OP_AVG: total = 0.0; break;
+	    case OP_MIN: total = DBL_MAX; break;
+	    case OP_MAX: total = -DBL_MAX; break;
+	  }
 
-	    switch (shi [i].op)
+	  for (PBF *bf = sol->bf; bf; bf = bf->next)
+	  {
+	    if (PBF_Label (bf, shi [i].label))
 	    {
-	      case OP_SUM: total = 0.0; break;
-	      case OP_AVG: total = 0.0; break;
-	      case OP_MIN: total = DBL_MAX; break;
-	      case OP_MAX: total = -DBL_MAX; break;
-	    }
+	      if (shi [i].item == LABELED_INT) { PBF_Int (bf, &ival, 1); dval = ival; }
+	      else PBF_Double (bf, &dval, 1);
 
-	    for (PBF *bf = sol->bf; bf; bf = bf->next)
-	    {
-	      if (PBF_Label (bf, shi [i].label))
+	      switch (shi [i].op)
 	      {
-		if (shi [i].item == LABELED_INT) { PBF_Int (bf, &ival, 1); dval = ival; }
-		else PBF_Double (bf, &dval, 1);
-
-		switch (shi [i].op)
-		{
-		  case OP_SUM: total += dval; break;
-		  case OP_AVG: total += dval; break;
-		  case OP_MIN: total = MIN (dval, total); break;
-		  case OP_MAX: total = MAX (dval, total); break;
-		}
-
-		num += 1.0;
+		case OP_SUM: total += dval; break;
+		case OP_AVG: total += dval; break;
+		case OP_MIN: total = MIN (dval, total); break;
+		case OP_MAX: total = MAX (dval, total); break;
 	      }
-	    }
 
-	    switch (shi [i].op)
-	    {
-	      case OP_SUM: case OP_MIN: case OP_MAX: break;
-	      case OP_AVG: total = (num > 0.0 ? total / num : 0.0); break;
+	      num += 1.0;
 	    }
-
-	    shi[i].history [cur] = total;
 	  }
-	  else /* compressed and in domain */
+
+	  switch (shi [i].op)
 	  {
-	    if (strcmp (shi [i].label, "STEP") == 0)
-	    {
-	      shi [i].history [cur] = sol->dom->step;
-	    }
-	    else if (strcmp (shi [i].label, "CONS") == 0)
-	    {
-	      shi [i].history [cur] = sol->dom->ncon;
-	    }
-	    else if (strcmp (shi [i].label, "BODS") == 0)
-	    {
-	      shi [i].history [cur] = sol->dom->nbod;
-	    }
-	    else /* unable to retrieve */
-	    {
-	      shi[i].history [cur] = 0.0;
-	    }
+	    case OP_SUM: case OP_MIN: case OP_MAX: break;
+	    case OP_AVG: total = (num > 0.0 ? total / num : 0.0); break;
 	  }
+
+	  shi[i].history [cur] = total;
 	}
 	break;
       }
