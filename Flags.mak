@@ -61,5 +61,5 @@ ifeq ($(MPI),yes)
     PARDEBUG =
   endif
   MPIFLG = -DMPI $(ZOLTANINC) $(PARDEBUG)
-  MPILIBS = $(ZOLTANLIB) $(HYPRELIB)
+  MPILIBS = $(ZOLTANLIB)
 endif

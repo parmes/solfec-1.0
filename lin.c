@@ -36,11 +36,10 @@
 #include "com.h"
 #endif
 
-#define DIFF_FACTOR             1E-6  /* TODO: test sensitivity */
-#define EPSILON_FACTOR          1E-6  /* TODO: -||- */
-#define EPSILON_BASE            1E-9  /* TODO: -||- */
-#define SMOOTHING               1     /* TODO: -||- */
-#define DISABLE_NORM_SMOOTHING  1     /* TODO: -||- */
+#define DIFF_FACTOR             1E-10  /* TODO: test sensitivity */
+#define EPSILON_FACTOR          1E-6   /* TODO: -||- */
+#define SMOOTHING               1      /* TODO: -||- */
+#define DISABLE_NORM_SMOOTHING  1      /* TODO: -||- */
 #define BLOCKS         256
 
 typedef struct vect VECT;
@@ -457,6 +456,7 @@ static void system_update_HSW_HYBRID_FIXED (LINSYS *sys, double *rhs)
   step = dom->step;
 
 #if MPI
+  /* TODO: update residual only for the first linear subproblem; then set to zero */
   LINSYS_Update_External_Reactions (sys); /* (###) */
 #endif
 
@@ -918,12 +918,13 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 
   smooth = sys->smooth;
   epsilon = sys->epsilon;
-  h = DIFF_FACTOR * EPSILON_BASE;
+  h = DIFF_FACTOR * (epsilon == 0.0 ? 1.0 : epsilon);
   dom = sys->ldy->dom;
   dynamic = dom->dynamic;
   step = dom->step;
 
 #if MPI
+  /* TODO: update residual only for the first linear subproblem; then set to zero */
   LINSYS_Update_External_Reactions (sys); /* (###) */
 #endif
 
@@ -1698,7 +1699,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
     SCALE (B, B[3]); /* avergae free contact velocity */
     len = LEN (B);
 
-    sys->epsilon = EPSILON_FACTOR * MAX (len, EPSILON_BASE);
+    sys->epsilon = EPSILON_FACTOR * len;
     sys->smooth = SMOOTHING;
   }
   else { sys->epsilon = 0; sys->smooth = 0; }
