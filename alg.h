@@ -249,6 +249,13 @@ extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
   (b) [2] += (a) [2];\
 }
 
+#define ACCABS(a, b)\
+{\
+  (b) [0] += fabs ((a) [0]);\
+  (b) [1] += fabs ((a) [1]);\
+  (b) [2] += fabs ((a) [2]);\
+}
+
 #define ACC6(a, b)\
 {\
   (b) [0] += (a) [0];\

@@ -132,6 +132,9 @@ inline static int bdseq (int n, int *pa, int *ia, int *pb, int *ib)
   return 1;
 }
 
+/* declare matrix copy routine */
+static MX* copy_matrix (MX *a, MX *b);
+
 /* matrix preparation modes */
 typedef enum {PREP_RESET, PREP_COPY} PREPOP;
 
@@ -144,7 +147,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
   if (op == PREP_COPY && b->kind != kind && b->m == m && b->n == b->n && b->nzmax <= nzmax)
   {
     ASSERT_DEBUG (b->kind != MXBD && kind != MXBD, "Invalid prepare_copy call (to or from MXBD)");
-    B = MX_Copy (b, NULL);
+    B = copy_matrix (b, NULL);
   }
   else B = NULL;
 
@@ -338,6 +341,47 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
 
 /* prepare a copy of input matrix (e.g. change kind and keep values) */
 #define prepare_copy(b, kind, nzmax, m, n, p, i) prepare_matrix (PREP_COPY, b, kind, nzmax, m, n, p, i)
+
+/* copy a matrix */
+static MX* copy_matrix (MX *a, MX *b)
+{
+  if (b == a) return b;
+  else if (b == NULL) b = MX_Create (a->kind, a->m, a->n, a->p, a->i);
+  
+  if (MXTRANS (a))
+  {
+    switch (a->kind)
+    { 
+      case MXDENSE:
+        ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->n,
+	  a->m, NULL, NULL), "Invalid output matrix");
+        dense_transpose_copy (a, b);
+      break;
+      case MXBD:
+        ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->m,
+	  a->n, a->p, a->i), "Invalid output matrix");
+	bd_transpose_copy (a, b);
+      break;
+      case MXCSC:
+        ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->n,
+	  a->m, a->p, a->i), "Invalid output matrix");
+	csc_transpose_copy (a, b);
+      break;
+    }
+  }
+  else
+  {
+    ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->m,
+      a->n, a->p, a->i), "Invalid output matrix");
+
+    for (double *y = b->x, *x = a->x,
+     *e = (a->x+a->nzmax); x < e; y ++, x++) *y = *x;
+  }
+
+  if (MXIFAC (a)) MX_Inverse (b, b); /* it was a sparse inverse => invert its copy */
+
+  return b;
+}
 
 /* sparse to dense conversion */
 static MX* csc_to_dense (MX *a)
@@ -1045,7 +1089,7 @@ static MX* matmat_inv_general (int reverse, double alpha, MX *a, MX *b, double b
   else if (c)
   {
     if (alpha != 1.0) MX_Scale (d, alpha);
-    MX_Copy (d, c);
+    copy_matrix (d, c);
     MX_Destroy (d);
   }
   else
@@ -1377,8 +1421,7 @@ static MX* dense_inverse (MX *a, MX *b)
   double *work, w;
 
   ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
-  if (b == NULL) b = MX_Create (MXDENSE, a->m, a->n, NULL, NULL);
-  if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
+  if (a != b) b = copy_matrix (a, b); /* copy content of 'a' into 'b' */
 
   lapack_dgetri (b->n, NULL, b->m, NULL, &w, -1); /* query for workspace size */
   lwork = (int) w;
@@ -1399,8 +1442,7 @@ static MX* bd_inverse (MX *a, MX *b)
   int m, n, k, lwork, *ipiv, *pp, *ii;
   double *work, *bx, w;
 
-  if (b == NULL) b = MX_Create (MXBD, a->m, a->n, a->p, a->i);
-  if (a != b) MX_Copy (a, b); /* copy content of 'a' into 'b' */
+  if (a != b) b = copy_matrix (a, b); /* copy content of 'a' into 'b' */
 
   n = b->n;
   pp = b->p;
@@ -1443,7 +1485,7 @@ static MX* csc_inverse (MX *a, MX *b)
 {
   ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
 
-  if (b != a) b = MX_Copy (a, b);
+  if (b != a) b = copy_matrix (a, b);
 
   if (MXIFAC (b))
   {
@@ -1476,7 +1518,7 @@ static void dense_eigen (MX *a, int n, double *val, MX *vec)
   ASSERT_DEBUG (!vec || (vec && KIND (vec) == MXDENSE), "Not a dense matrix passed for eigenvectors");
   ASSERT_DEBUG (!vec || (vec && ABS (n) == vec->n && a->m == vec->m), "Incompatible dimension of the eigenvectors matrix");
 
-  b = MX_Copy (a, NULL);  /* copy, not to modify the input */
+  b = copy_matrix (a, NULL);  /* copy, not to modify the input */
   jobz = vec ? 'V' : 'N';
   bn = b->n;
   bm = b->m;
@@ -1515,7 +1557,7 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
   ASSERT_DEBUG (vec && KIND (vec) == MXDENSE, "Not a dense matrix passed for eigenvectors");
   ASSERT_DEBUG (vec && ABS (n) == vec->n && a->m == vec->m, "Incompatible dimension of the eigenvectors matrix");
 
-  b = MX_Copy (a, NULL);  /* copy not to modify the input */
+  b = copy_matrix (a, NULL);  /* copy not to modify the input */
   
   for (lwork = k = 0; k < n; k ++) /* find largest block */
   {
@@ -1708,45 +1750,13 @@ void MX_Scale (MX *a, double b)
     *e = (a->x+a->nzmax);
     x < e; x ++) *x *= b;
 
-  if (MXIFAC (a)) MX_Inverse (a, a), MX_Inverse (a, a); /* a is a sparse inverse => cancel the inverse and redo it */
+  if (MXIFAC (a)) MX_Inverse (a, a), MX_Inverse (a, a); /* a is a sparse inverse => cancel the inverse and redo it;
+							 TODO: optimize => it should be enough to scale factors */
 }
 
 MX* MX_Copy (MX *a, MX *b)
 {
-  if (b == a) return b;
-  else if (b == NULL) b = MX_Create (a->kind, a->m, a->n, a->p, a->i);
-  
-  if (MXTRANS (a))
-  {
-    switch (a->kind)
-    { 
-      case MXDENSE:
-        ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->n,
-	  a->m, NULL, NULL), "Invalid output matrix");
-        dense_transpose_copy (a, b);
-      break;
-      case MXBD:
-        ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->m,
-	  a->n, a->p, a->i), "Invalid output matrix");
-	bd_transpose_copy (a, b);
-      break;
-      case MXCSC:
-        ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->n,
-	  a->m, a->p, a->i), "Invalid output matrix");
-	csc_transpose_copy (a, b);
-      break;
-    }
-  }
-  else
-  {
-    ASSERT_DEBUG_EXT (prepare (b, a->kind, a->nzmax, a->m,
-      a->n, a->p, a->i), "Invalid output matrix");
-
-    for (double *y = b->x, *x = a->x,
-     *e = (a->x+a->nzmax); x < e; y ++, x++) *y = *x;
-  }
-
-  if (MXIFAC (a)) MX_Inverse (b, b); /* it was a sparse inverse => invert its copy */
+  b = copy_matrix (a, b);
 
   if (TEMPORARY (a)) free (a);
   if (TEMPORARY (b)) { free (b); return NULL; }

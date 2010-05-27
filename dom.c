@@ -2266,7 +2266,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
  * pointers is NULL then the link acts between the other body and the fixed (spatial) point */
 CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt)
 {
-  double v [3], d;
+  double v [3], d, *tmp;
   CON *con;
   SGP *msgp, *ssgp;
   int m, s;
@@ -2274,7 +2274,9 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   if (!master)
   {
     master = slave;
+    tmp = mpnt;
     mpnt = spnt;
+    spnt = tmp;
     slave = NULL;
   }
 

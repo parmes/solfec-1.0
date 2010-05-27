@@ -840,7 +840,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
       errup = errsum [0], errlo = errsum [1];
 
       /* calculate relative error */
-      error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+      error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);
 
       /* record values */
       gs->rerhist [gs->iters] = error;
@@ -876,7 +876,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
       merit = MERIT_Function (ldy, 1);
 
-      error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+      error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);
 
       gs->rerhist [gs->iters] = error;
       gs->merhist [gs->iters] = merit;
@@ -1050,7 +1050,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     merit = MERIT_Function (ldy, 1);
 
     /* calculate relative error */
-    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
+    error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);
 
     /* record values */
     gs->rerhist [gs->iters] = error;

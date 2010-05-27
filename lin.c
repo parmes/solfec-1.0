@@ -37,7 +37,9 @@
 #endif
 
 #define DIFF_FACTOR             1E-10  /* TODO: test sensitivity */
+#define EPSILON_BASE            1E-10  /* TODO: -||- */
 #define EPSILON_FACTOR          1E-6   /* TODO: -||- */
+#define ABSTOL_BASE             1E-15  /* TODO: -||- */ 
 #define SMOOTHING               1      /* TODO: -||- */
 #define DISABLE_NORM_SMOOTHING  1      /* TODO: -||- */
 #define BLOCKS         256
@@ -1101,7 +1103,7 @@ static void A_times_x_equals_y (LINSYS *sys, double *x, double *y)
 static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
 {
 #if MPI
-  int *basenum, ncpu, rank;
+  int *basenum, ncpu, rank, gdim;
   double *v;
 #endif
   double *T, *z, *w;
@@ -1114,7 +1116,8 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
   ncpu = dom->ncpu;
   rank = dom->rank;
   basenum = sys->basenum;
-  ERRMEM (v = MEM_CALLOC (3 * basenum [ncpu] * sizeof (double))); /* global result vector */
+  gdim = 3 * basenum [ncpu];
+  ERRMEM (v = MEM_CALLOC (2 * gdim * sizeof (double))); /* global result vector */
 #else
   for (z = y, w = z + sys->b->n; z < w; z ++) (*z) = 0.0; /* zero y */
 #endif
@@ -1145,7 +1148,8 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
   }
 
 #if MPI
-  MPI_Allreduce (MPI_IN_PLACE, v, 3*basenum [ncpu], MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  blas_dcopy (gdim, v, 1, v + gdim, 1);
+  MPI_Allreduce (v + gdim, v, gdim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   for (w = &v [3*basenum [rank]], z = &v [3*basenum [rank+1]]; w < z; w ++, y ++) (*y) = (*w);
   free (v);
 #endif
@@ -1684,7 +1688,12 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
       if (con->kind == CONTACT)
       {
         dia = con->dia;
-	ACC (dia->B, B); /* use original free velocity */
+	ACCABS (dia->B, B); /* use original free velocity */
+	B [3] += 1.0;
+      }
+      else if (con->kind == VELODIR)
+      {
+	B [2] += fabs (VELODIR(con->Z));
 	B [3] += 1.0;
       }
     }
@@ -1699,7 +1708,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
     SCALE (B, B[3]); /* avergae free contact velocity */
     len = LEN (B);
 
-    sys->epsilon = EPSILON_FACTOR * len;
+    sys->epsilon = EPSILON_FACTOR * (len == 0.0 ? EPSILON_BASE : len);
     sys->smooth = SMOOTHING;
   }
   else { sys->epsilon = 0; sys->smooth = 0; }
@@ -1856,6 +1865,12 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
 
   abstol = beta * sys->resnorm; /* initially zero => maxiter is reached */
 
+  if (abstol == 0)
+  {
+    abstol = ABSTOL_BASE * sqrt (InnerProd (sys->b, sys->b));
+    if (abstol == 0) abstol = ABSTOL_BASE;
+  }
+
 #if !MPI
   if (sys->variant & DIRECT_SOLVE)
   {
@@ -1884,7 +1899,6 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
     hypre_PCGSetup (pcg_vdata, sys, sys->b, sys->x);
     hypre_PCGSolve (pcg_vdata, sys, sys->b, sys->x);
     hypre_PCGGetNumIterations (pcg_vdata , &sys->iters);
-    sys->xnorm = sqrt (InnerProd (sys->x, sys->x));
     hypre_PCGDestroy (pcg_vdata);
 
     compute_resnorm_and_xnorm (sys);
@@ -1905,7 +1919,6 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
     hypre_FlexGMRESSetup (gmres_vdata, sys, sys->b, sys->x);
     hypre_FlexGMRESSolve (gmres_vdata, sys, sys->b, sys->x);
     hypre_FlexGMRESGetNumIterations (gmres_vdata , &sys->iters);
-    sys->xnorm = sqrt (InnerProd (sys->x, sys->x));
     hypre_FlexGMRESDestroy (gmres_vdata);
 
     compute_resnorm_and_xnorm (sys);

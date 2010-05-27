@@ -589,15 +589,24 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
  * division numbers along three edges adjacent to the 1st node */
 MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, int volume, double *dx, double *dy, double *dz)
 {
-  double (*nod) [3],
-	 x, y, z,
-	 ddx, ddy, ddz;
-  int *ele, *ee, *ss,
-      *sur, n, m,
-      mx, my, mz,
-      ii, jj, kk, nn;
+  int *ele, *ee, *ss, *sur, n, m, mx, my, mz, ii, jj, kk, nn;
+  double (*nod) [3], x, y, z, ddx, ddy, ddz;
+  double vx [3], vy [3], vz [3], vxvy [3];
   MESH *msh;
 
+
+  SUB (nodes [1], nodes [0], vx);
+  SUB (nodes [2], nodes [1], vy);
+  SUB (nodes [4], nodes [0], vz);
+  PRODUCT (vx, vy, vxvy);
+  if (DOT (vxvy, vz) < 0) /* change orientation: swap upper and lowe nodes */
+  {
+    double copy [4][3];
+
+    for (ii = 0; ii < 4; ii ++) { COPY (nodes [ii], copy [ii]); }
+    for (ii = 0; ii < 4; ii ++) { COPY (nodes [ii+4], nodes [ii]); }
+    for (ii = 0; ii < 4; ii ++) { COPY (copy [ii], nodes [ii+4]); }
+  }
 
   ERRMEM (nod = malloc (sizeof (double [3])*(i+1)*(j+1)*(k+1)));
   ERRMEM (ele = malloc (sizeof (int [10])*i*j*k + sizeof (int)));
