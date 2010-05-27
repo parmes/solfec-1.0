@@ -129,6 +129,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       up = DOT (Q, P);
     }
     break;
+#if 0
     case FIXPNT:
     {
       if (dynamic) { ADD (U, V, P); }
@@ -166,6 +167,12 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       up = DOT (Q, U);
     }
     break;
+#endif
+    default:
+    {
+      up = 0; /* FIXME: think about that */
+    }
+    break;
     }
 
     con->merit = up; /* per-constraint merit numerator */
@@ -173,7 +180,8 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
   }
 
 #if MPI
-  MPI_Allreduce (MPI_IN_PLACE, uplo, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); /* sum up */
+  double inp [2] = {uplo [0], uplo [1]};
+  MPI_Allreduce (inp, uplo, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD); /* sum up */
 #endif
 
   uplo [0] *= 0.5; /* was ommited above: E = 0.5 (AU, U) */

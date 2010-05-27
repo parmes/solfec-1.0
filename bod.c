@@ -307,14 +307,14 @@ static void rig_static_force (BODY *bod, double time, double step, double *force
 }
 
 /* accumulate constraints reaction */
-inline static void rig_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short isma, double *force)
+inline static void rig_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short subr, double *force)
 {
   double H [18], r [6];
 
   rig_operator_H (bod, point, base, H);
   blas_dgemv ('T', 3, 6, 1.0, H, 3, R, 1, 0.0, r, 1);
 
-  if (isma)
+  if (subr)
   {
     force [0] -= r[0];
     force [1] -= r[1];
@@ -346,9 +346,10 @@ static void rig_constraints_force (BODY *bod, double *force)
   {
     CON *con = node->data;
     short isma = (bod == con->master);
+    short tpc = TWO_POINT_CONSTRAINT (con);
     double *point = (isma ? con->mpnt : con->spnt);
 
-    rig_constraints_force_accum (bod, point, con->base, con->R, isma, force);
+    rig_constraints_force_accum (bod, point, con->base, con->R, isma && tpc, force);
   }
 }
 
@@ -681,14 +682,14 @@ static void prb_dynamic_implicit_solve (BODY *bod, double time, double step, dou
 #define prb_static_force(bod, time, step, fext, fint, force) prb_dynamic_force (bod,time,step,fext,fint,force)
 
 /* accumulate constraints reaction */
-inline static void prb_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short isma, double *force)
+inline static void prb_constraints_force_accum (BODY *bod, double *point, double *base, double *R, short subr, double *force)
 {
   double H [36], r [12];
 
   prb_operator_H (bod, point, base, H);
   blas_dgemv ('T', 3, 12, 1.0, H, 3, R, 1, 0.0, r, 1);
 
-  if (isma)
+  if (subr)
   {
     force [0]  -= r[0];
     force [1]  -= r[1];
@@ -734,9 +735,10 @@ static void prb_constraints_force (BODY *bod, double *force)
   {
     CON *con = node->data;
     short isma = (bod == con->master);
+    short tpc = TWO_POINT_CONSTRAINT (con);
     double *point = (isma ? con->mpnt : con->spnt);
 
-    prb_constraints_force_accum (bod, point, con->base, con->R, isma, force);
+    prb_constraints_force_accum (bod, point, con->base, con->R, isma && tpc, force);
   }
 }
 
