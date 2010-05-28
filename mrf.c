@@ -129,7 +129,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       up = DOT (Q, P);
     }
     break;
-#if 0
+#if 1
     case FIXPNT:
     {
       if (dynamic) { ADD (U, V, P); }
@@ -167,12 +167,13 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       up = DOT (Q, U);
     }
     break;
-#endif
+#else
     default:
     {
       up = 0; /* FIXME: think about that */
     }
     break;
+#endif
     }
 
     con->merit = up; /* per-constraint merit numerator */

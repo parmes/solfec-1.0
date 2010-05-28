@@ -580,6 +580,9 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 
     NVMUL (A.x, B, X);
     ldy->free_energy += DOT (X, B); /* sum up free energy */
+
+    /* add up prescribed velocity contribution if any */
+    if (con->kind == VELODIR) ldy->free_energy += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
   }
 
   ldy->free_energy *= 0.5; /* 0.5 * DOT (AB, B) */

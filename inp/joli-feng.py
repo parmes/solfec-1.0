@@ -25,7 +25,7 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 210E9, poisson = 0
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-BODY (solfec, 'OBSTACLE', table, bulkmat)
+#BODY (solfec, 'OBSTACLE', table, bulkmat)
 
 box = HEX ([0, 0, 0,
 	    c, 0, 0,
@@ -38,14 +38,19 @@ box = HEX ([0, 0, 0,
 
 point = []
 for i in range (18, 27): point.append (box.node (i))
-pp = box.node (4)
+
+q = []
+for i in range (0, 9): q.append (box.node (i))
 
 bod = BODY (solfec, 'FINITE_ELEMENT', box, bulkmat)
 for i in range (0, 9): SET_VELOCITY (bod, point [i], (0, 0, -1), 1E-3)
+for i in range (0, 9): FIX_DIRECTION (bod, point [i], (1, 0, 0))
+for i in range (0, 9): FIX_DIRECTION (bod, point [i], (0, 1, 0))
+for i in range (0, 9): FIX_POINT (bod, q[i])
 
-sv = NEWTON_SOLVER (1E-10, 100, 'NONSMOOTH_HYBRID')
-sv.linminiter = 20
-sv.resdec = 0.001
+sv = NEWTON_SOLVER (1E-10, 100)
+sv.linminiter = 100
+sv.resdec = 0.01
 #sv = GAUSS_SEIDEL_SOLVER (1E-5, 100, 1E-5)
 
 RUN (solfec, sv, 100 * step)
