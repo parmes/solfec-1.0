@@ -1,8 +1,6 @@
 Sweep algorithms get stuck when run on many cpus (e.g. -np 8 with mpi1.py and N=20)
 GUESS: insertion sort is run on badly ordered sets with O(n ^2) complexity
 ------------------------------------------------------------------------------------
-MESH_Hex assignes surface identifiers in a wrong manner
----------------------------------------------------------
 Note that during W assembly when using MX_Matmat (coef, ...)
 the assembly takes much longer than when scaling after (like now).
 Investigate why!
@@ -28,6 +26,5 @@ more through testing of cummunication routines would be of use (comtest).
 
 After all we have increased communication by some 48 bytes per contact now again.
 ---------------------------------------------------------------------------------------
-ext/krylov/Makefile does not react to Config.mak flags
-----------------------------------------------------------------------------------
 HASH3D detects much too few constraints (e.g. for inp/puzzle.py ~1000 from 5666)
+--------------------------------------------------------------------------
