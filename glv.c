@@ -198,7 +198,7 @@ static void globals3D ()
   GLfloat pos [4] =
    {look.from [0],
     look.from [1],
-    look.from [2], 0.0},
+    look.from [2], 1.0},
     specular [4] =
     {0.0, 0.0, 0.0, 1.0},
     emission [4] =
@@ -331,8 +331,8 @@ static void updateall ()
 /* draw input window */
 static void render2D ()
 {
-  GLint mode;
-  glGetIntegerv (GL_POLYGON_MODE, &mode);
+  GLint mode [2];
+  glGetIntegerv (GL_POLYGON_MODE, mode);
   glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
   glDisable (GL_LIGHTING);
   glDisable (GL_DEPTH_TEST);
@@ -352,7 +352,7 @@ static void render2D ()
 
   glEnable (GL_LIGHTING);
   glEnable (GL_DEPTH_TEST);
-  glPolygonMode (GL_FRONT_AND_BACK, mode);
+  glPolygonMode (GL_FRONT_AND_BACK, mode [0]);
 }
 
 /* draw main window */
@@ -1097,7 +1097,6 @@ void GLV_Close_Viewport (int viewport)
 void GLV_Read_Text (char *title, void (*done) (char *text))
 {
   input.id = GLV_Open_Viewport (0, -(height / 2 - 6), -width, 24, 0, render2D);
-  glutKeyboardFunc (key3D);
   input.title = title;
   input.done = done;
   input.cursor = 0;

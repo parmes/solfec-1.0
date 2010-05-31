@@ -280,7 +280,7 @@ static FACE* create_faces (MEM *facmem, MEM *mapmem, MAP **faces, ELEMENT *ele, 
       fac->ele->neighs ++;
       ele->neighs ++;
 
-      fac->ele = NULL; /* mark as the inner face */
+      fac->ele = NULL; /* mark as the inner face (***) */
     }
     else
     {
@@ -560,7 +560,7 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
   /* set up faces */
   for (fac = flist; fac; fac = fac->next)
   {
-    if (fac->ele)
+    if (fac->ele) /* see (***) */
     {
       ele = fac->ele;
 
@@ -708,32 +708,32 @@ MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, int vol
       ss [5] = surfaces [0];
       ss += 6;
     }
-    if (ii == 0) /* face 2 */
+    if (jj == 0) /* face 2 */
     {
       ss [0] = 4;
       for (m = 0; m < 4; m ++) ss [m+1] = ee[hex[1][m]];
-      ss [5] = surfaces [1];
+      ss [5] = surfaces [4];
       ss += 6;
     }
-    if (jj == (j-1)) /* face 3 */
+    if (ii == (i-1)) /* face 3 */
     {
       ss [0] = 4;
       for (m = 0; m < 4; m ++) ss [m+1] = ee[hex[2][m]];
-      ss [5] = surfaces [2];
-      ss += 6;
-    }
-    if (ii == (i-1)) /* face 4 */
-    {
-      ss [0] = 4;
-      for (m = 0; m < 4; m ++) ss [m+1] = ee[hex[3][m]];
       ss [5] = surfaces [3];
       ss += 6;
     }
-    if (jj == 0) /* face 5 */
+    if (jj == (j-1)) /* face 4 */
+    {
+      ss [0] = 4;
+      for (m = 0; m < 4; m ++) ss [m+1] = ee[hex[3][m]];
+      ss [5] = surfaces [2];
+      ss += 6;
+    }
+    if (ii == 0) /* face 5 */
     {
       ss [0] = 4;
       for (m = 0; m < 4; m ++) ss [m+1] = ee[hex[4][m]];
-      ss [5] = surfaces [4];
+      ss [5] = surfaces [1];
       ss += 6;
     }
     if (kk == (k-1)) /* face 6 */

@@ -10,7 +10,7 @@ step = 1E-3
 
 GEOMETRIC_EPSILON (1E-8)
 
-solfec = SOLFEC ('QUASI_STATIC', step, 'out/joli-feng')
+solfec = SOLFEC ('DYNAMIC', step, 'out/joli-feng')
 
 table = HEX ([-d, -d,  0,
 	       c+d, -d,  0,
@@ -43,6 +43,7 @@ q = []
 for i in range (0, 9): q.append (box.node (i))
 
 bod = BODY (solfec, 'FINITE_ELEMENT', box, bulkmat)
+bod.scheme = 'DEF_IMP'
 for i in range (0, 9): SET_VELOCITY (bod, point [i], (0, 0, -1), 1E-3)
 for i in range (0, 9): FIX_DIRECTION (bod, point [i], (1, 0, 0))
 for i in range (0, 9): FIX_DIRECTION (bod, point [i], (0, 1, 0))
