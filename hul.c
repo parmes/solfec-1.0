@@ -210,130 +210,6 @@ static int mendface (face *f)
   return 1;
 }
 
-#if 0
-/* vertex least equal comparison */
-static int vertex_le (vertex *a, vertex  *b)
-{
-  if ((a->v[0]+GEOMETRIC_EPSILON) < (b->v[0]-GEOMETRIC_EPSILON)) return 1;
-  else if (fabs (a->v[0]-b->v[0]) <= (2.0*GEOMETRIC_EPSILON))
-  { 
-    if ((a->v[1]+GEOMETRIC_EPSILON) < (b->v[1]-GEOMETRIC_EPSILON)) return 1;
-    else if (fabs (a->v[1]-b->v[1]) <= (2.0*GEOMETRIC_EPSILON))
-    {
-     if ((a->v[2]+GEOMETRIC_EPSILON) < (b->v[2]-GEOMETRIC_EPSILON)) return 1;
-     else if (fabs (a->v[2]-b->v[2]) <= (2.0*GEOMETRIC_EPSILON)) return 1;
-    }
-  }
-
-  return 0;
-}
-
-/* vertex equal comparison */
-static int vertex_eq (vertex *a, vertex  *b)
-{
-  if ((fabs (a->v[0]-b->v[0]) <= (2.0*GEOMETRIC_EPSILON)) &&
-      (fabs (a->v[1]-b->v[1]) <= (2.0*GEOMETRIC_EPSILON)) &&
-      (fabs (a->v[2]-b->v[2]) <= (2.0*GEOMETRIC_EPSILON))) return 1;
-
-  return 0;
-}
-
-/* lexicographical list sort of verex list */
-IMPLEMENT_LIST_SORT (SINGLE_LINKED, sort_vertices, vertex, p, n, vertex_le)
-
-/* select vertices of an initial simplex and output the list of remaining vertices */
-static vertex* simplex_vertices (double *v, int n, MEM *mv, double *sv [4])
-{
-  double *e = v+3*n, *w, a [3], b [3], c [3], u [3], d;
-  vertex *o, *x, *y;
-  int i, j;
-
-  /* find well separated vertices */
-  for (w = v, j = 0; w < e && j < 4; w += 3)
-  {
-    for (i = 0; i < j; i ++)
-    {
-      SUB (sv [i], w, u);
-      MAXABS (u, d);
-      if (d < 2.0 * GEOMETRIC_EPSILON) break; /* too close */
-    }
-
-    if (i == j) /* not too close, but maybe ... */
-    {
-      switch (j)
-      {
-	case 2:
-	{
-	  SUB (sv [1], sv [0], a);
-	  PRODUCT (u, a, b);
-	  MAXABS (b, d);
-          if (d < GEOMETRIC_EPSILON) continue; /* ... colinear */
-	}
-	break;
-	case 3:
-	{
-	  SUB (sv [1], sv [0], a);
-	  SUB (sv [2], sv [1], b);
-	  PRODUCT (a, b, c);
-	  d = DOT (u, c);
-          if (ABS (d) < GEOMETRIC_EPSILON) continue; /* ... coplanar */
-	}
-	break;
-      }
-      
-      sv [j++] = w; /* add vertex */
-    }
-  }
-
-#if GEOMDEBUG
-  ASSERT_DEBUG (j == 4, "All input points coincide");
-#else
-  if (j != 4) return NULL;
-#endif
-
-  /* copy the remaining vertices */
-  for (o = NULL, w = v; w < e; w += 3)
-  {
-    for (i = 0; i < 4; i ++)
-    { if (sv [i] == w) break; } /* skip already selected */
-
-    if (i == 4) /* this one was not selected */
-    {
-      ERRMEM (x = MEM_Alloc (mv));
-      x->v = w;
-      x->n = o; /* add to list */
-      o = x; /* ... */
-    }
-  }
-
-  o = sort_vertices (o); /* lexicographicaly sort vertices */
-
-  /* remove duplicates */
-  for (x = o, o = NULL; x; x = y)
-  {
-    for (y = x->n; y; y = y->n) /* skip duplicates within the list */
-    {
-      if (!vertex_eq (x, y)) break;
-    }
-
-    for (i = 0; i < 4; i ++) /* skip x if it dupilcates one of the output vertices */
-    {
-      SUB (x->v, sv [i], u);
-      MAXABS (u, d);
-      if (d <= 2.0 * GEOMETRIC_EPSILON) break;
-    }
-
-    if (i == 4) /* does not duplicate output vertices */
-    {
-      x->n = o;
-      o = x;
-    }
-  }
-
-  return o;
-}
-#else
-
 /* compare vertices by first coordinate */
 static int vcmp (double **a, double **b)
 {
@@ -450,7 +326,6 @@ out:
   free (pv);
   return out;
 }
-#endif
 
 /* create a simplex and return the corresponding face list */
 static face* simplex (MEM *me, MEM *mf, double *a, double *b, double *c, double *d)

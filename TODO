@@ -8,9 +8,9 @@ Compute per-block merit functions and sort blocks
 according to their values.  During Gauss-Seidel
 iterations process blocks in the descending order
 of such ordering.
------------------------------------------------------------------------------
+---------------------------------------------------------
 Test whether inertia scaling by density works correctly
---------------------------------------------------------
+-------------------------------------------------------------
 add void *mat; to TRISURF and inherit material poinetrs
 from convices when intersecting; use them when integrating
 over material properties
@@ -25,58 +25,45 @@ poisson, etc. Render as fields or coloured constraint.
 Add menu "top", "bottom", "left", "right", "front", "back"
 to the "render" menu. Or similarly.
 --------------------------------------------------------
-Rendering of parallel partitioning, contact states, etc.
+Rendering of contact states
 --------------------------------------------------------
 Optimize W assembly in parallel by using left product
 for blocks with dia->adjext != NULL and right product
 for the remaining (internal) nodes.
--------------------------------------------------
+-----------------------------------------------------------------------
 Further optimize W assembling by introducing norm of constact state
 change and opdating W blocks only corresponding to a sufficiently
-large contact statate change (say point and normal difference relative norm)!
-----------------------------------------------------
+large contact statate change (say point and normal difference relative norm)
+-------------------------------------------------------------------------------
 Test PBF file size limitation fixup
-----------------------------------------------------
-Data compression/decompression in COMALL, etc.
+-------------------------------------------------------
+Data compression/decompression in COMALL and others ?
 -----------------------------------------------------------
-Improve robustness of gap computation
-(penalty solver sensitive)
-----------------------------------------------------------------------
 Reduce parallel balancing communication during fully explicit runs
 (e.g. external constraints sent only from children to parents)
 ---------------------------------------------------------------
 Include (at least in the viewer mode) possibility of dumping
 into a separate sub-directory of a subset of existin results
 -------------------------------------------------------------------
-Implement merging of parallel files
--------------------------------------------------------------------
-Solver labeled statistics output and history reading
---------------------------------------------------------
-Remove #if 0 from hull.c once it proves robust
------------------------------------------------------------------
 How to implementing rewinding back of simulations during
 which bodies have been deleted? (do not really delete)
 ------------------------------------------------------------------------------
 bod->inverse sending for DEF_IMP/LIM/LIM2 schemes in parallel !!
+Currently bod->inverse is inconsistently updated in parallel for implicit schemes
 ----------------------------------------------------------------------------------
 Gap computation is not robust. Implicitly integrated core at smaller time steps
 reports unphysical penetration => this is due to numerical instability of gap
 computations for smaller motion increments.
 -------------------------------------------------------------------------------
-Let solvers decide what kind of LOCDYN update they need
+Optimize WR product by summing up preated off-diagonal W(i,j) blocks for two-point two-body constraints
 --------------------------------------------------------------------------
-Optimize LOCDYN assmebly, and especially later - WR product, by storing
-only one off-diagonal W(i,j) block for two-body constraints
---------------------------------------------------------------------------
-Optimize assembling of the constact gluing blocks of W
----------------------------------------------------------------------------------------
-Implement discrimination of new contact points in case a gluing
-point exists between a pair of geom. objects (rather then explicit exclusion as now)
---------------------------------------------------------------------------------------
-Move diagonal blocks solvers from bgs.c to a separate dbs.c module
------------------------------------------------------------------------------
-Parallel SMOOTHED_VAR... take more iterations that serial on inp/cubes.py
-(Checked - not really - but make sure)
-----------------------------------------------------------------------------
 Show that regularizing |UT| norm in SMOOTHED_VAR... does not do good
 --------------------------------------------------------------------------
+Optimize LINSYS:
+  a) Update residual only for firts Newton step; then use zero
+     (this save communication in parallel)
+  b) Do not assemble T(i, j) = TT (i, i) * W (i, j) for SMOOTHED_;
+     instead sum up W(i,j) into T(i,j) and store TT separately;
+     multiply accordingly in Matvec
+  c) Precompute and invert preconditioner right after matrix update;
+     (this will save time spent on iversions of diagonal blocks)

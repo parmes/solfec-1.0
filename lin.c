@@ -302,15 +302,6 @@ static void matrix_copy (LINSYS *sys, MX *A)
 }
 #endif
 
-/* gluing constraint stiffness */
-static double glue_stiffness (CON *con)
-{
-  BULK_MATERIAL *a = con->master->mat,
-		*b = con->slave->mat;
-
-  return 2.0 / (1.0/a->young + 1.0/b->young);
-}
-
 /* update linearization of a non-contact constraint */
 static void system_update_noncontact (DIAT *dia, short dynamic, double step, double *b)
 {
@@ -413,28 +404,6 @@ static void system_update_noncontact (DIAT *dia, short dynamic, double step, dou
       }
 
       T [0] = T [1] = T [3] = T [4] = T [6] = T [7] = 0;
-    }
-  }
-  break;
-  case GLUEPNT:
-  {
-    double C = 1.0 / (step * glue_stiffness (con));
-
-    NNCOPY (W, T);
-    T [0] += C;
-    T [4] += C;
-    T [8] += C;
-
-    b [0] = -C*R[0] -U[0] - RE[0];
-    b [1] = -C*R[1] -U[1] - RE[1];
-    b [2] = -C*R[2] -U[2] - RE[2];
-
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      double **W = blk->W, *T = blk->T;
-
-      NNCOPY (W[0], T);
-      if (W[1]) { NNADD (T, W[1], T); }
     }
   }
   break;

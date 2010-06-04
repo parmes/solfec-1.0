@@ -519,7 +519,7 @@ Installation
 \begin_layout Standard
 Although there will be perpetual releases of Solfec with some fixed version
  numbers, it is best to use the most recent development version of the code.
- This is because Solfec is in active 
+ This is because Solfec is in an active 
 \begin_inset Quotes eld
 \end_inset
 
@@ -554,23 +554,23 @@ hg clone https://solfec.googlecode.com/hg/ solfec
 \end_layout
 
 \begin_layout Standard
-This will create a directory 
+This will create the directory 
 \emph on
 solfec
 \emph default
  in your current directory.
- The next thing you need is an ANSI C (and prospectively also FORTRAN) developme
-nt environment at your command line.
+ The next thing you need is an ANSI C development environment at your command
+ line.
  Users of UNIX-like systems (Linux, FreeBSD, Mac OS X, etc.) are in privileged
  position here.
- Windows users can cope by installing Cygwin (tested) from 
+ Windows users can cope by installing Cygwin from 
 \begin_inset CommandInset href
 LatexCommand href
 target "http://www.cygwin.com/"
 
 \end_inset
 
- or Mingw (not tested) from 
+ or Mingw from 
 \begin_inset CommandInset href
 LatexCommand href
 target "http://www.mingw.org/"
@@ -924,7 +924,24 @@ C
 \series bold
 XDR
 \series default
- (standard part of RPC on all Unix-like systems)
+ (standard part of RPC on all Unix-like systems; on MinGW you will need
+ 
+\begin_inset CommandInset href
+LatexCommand href
+name "PortableXDR version 4.9.1"
+target "http://people.redhat.com/~rjones/portablexdr/"
+
+\end_inset
+
+ with this 
+\begin_inset CommandInset href
+LatexCommand href
+name "patch"
+target "http://wiki.solfec.googlecode.com/hg/xdr_float.patch"
+
+\end_inset
+
+)
 \end_layout
 
 \begin_layout Itemize
@@ -936,7 +953,14 @@ BLAS
 \series bold
 LAPACK
 \series default
- libraries (standard on most systems)
+ libraries (standard on most systems; available from 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://www.netlib.org/lapack/"
+
+\end_inset
+
+)
 \end_layout
 
 \begin_layout Itemize
@@ -960,7 +984,7 @@ OpenGL
 \series bold
 VBO
 \series default
- (Vertex Buffer Object extension of OpenGL for faster rendering, optional)
+ (Vertex Buffer Object extension of OpenGL for faster rendering; optional)
 \end_layout
 
 \begin_layout Itemize
@@ -998,6 +1022,7 @@ target "http://groups.google.com/group/solfec"
 \end_inset
 
 .
+ 
 \end_layout
 
 \begin_layout Standard
@@ -1185,7 +1210,7 @@ results in the hint
 \end_layout
 
 \begin_layout LyX-Code
-SYNOPSIS: solfec [-v] [-s sub-directory] path
+SYNOPSIS: solfec [-v] [-g WIDTHxHEIGHT] [-s sub-directory] path
 \end_layout
 
 \begin_layout Standard
@@ -1205,6 +1230,12 @@ reference "fig:Solfec-viewer"
  In this mode the user can view the geometrical mode, run or step through
  analysis, and view results.
  The right mouse click on the viewer window expands the menu.
+ The 
+\emph on
+-g
+\emph default
+ switch allows to specify the initial width and height of the viewer window
+ (512 by default).
  The 
 \emph on
 -s
@@ -1279,7 +1310,7 @@ status open
 \begin_inset Graphics
 	filename figures/viewer-1.png
 	lyxscale 30
-	width 4cm
+	width 50text%
 
 \end_inset
 
@@ -5967,76 +5998,6 @@ point2
 \end_layout
 
 \begin_layout Standard
-\begin_inset Note Note
-status open
-
-\begin_layout Subsection*
-obj = GLUE_POINTS (body1, body2, point1 | point2)
-\end_layout
-
-\begin_layout Plain Layout
-This routine glues two referential points of two distinct bodies.
- The constraint behaves similarily as the rigid link constraint, although
- primarily it should be used with point1 = point2.
- The effectiveness of the gluing depends on Young moduli of the two bodies
- and the constraint is generally dissipative.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-obj
-\series default
- - created CONSTRAINT object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-body1
-\series default
- - BODY object one whose motion is constrained
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-body2
-\series default
- - BODY object two whose motion is constrained
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-point1
-\series default
- - 
-\emph on
-(x1, y1, z1)
-\emph default
- tuple with the first referential point coordinates
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-point2
-\series default
- - 
-\emph on
-(x2, y2, z2)
-\emph default
- tuple with the second referential point coordinates (default: point2 =
- poin1)
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
 Some parameters can also be accessed as members of a CONSTRAINT object.
  These are
 \end_layout
@@ -9878,7 +9839,7 @@ SPRING_DASHPOT
 \end_layout
 
 \begin_layout LyX-Code
-  if
+  if 
 \begin_inset Formula $\left\Vert \mathbf{R}_{T}\right\Vert >\mu\left|R_{N}\right|$
 \end_inset
 

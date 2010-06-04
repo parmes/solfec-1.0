@@ -437,12 +437,6 @@ static void update_riglnk (DOM *dom, CON *con)
   localbase (n, con->base);
 }
 
-/* update gluing point data */
-static void update_gluepnt (DOM *dom, CON *con)
-{
-  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
-}
-
 /* tell whether the geometric objects are topologically adjacent */
 static int gobj_adjacent (short paircode, void *aobj, void *bobj)
 {
@@ -1434,15 +1428,6 @@ static void insert_pending_constraints (DOM *dom)
 	}
 	WARNING_DEBUG (con, "Failed to insert a pending rigid link");
 	break;
-      case GLUEPNT:
-	con = DOM_Glue_Points (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt);
-	if (con)
-	{
-	  update_gluepnt (dom, con); /* update */
-          con->state |= CON_NEW;  /* mark as newly created */
-	}
-	WARNING_DEBUG (con, "Failed to insert a pending gluing point");
-	break;
       }
     }
 
@@ -2024,7 +2009,6 @@ char* CON_Kind (CON *con)
   case FIXDIR: return "FIXDIR";
   case VELODIR: return "VELODIR";
   case RIGLNK: return "RIGLNK";
-  case GLUEPNT: return "GLUEPNT";
   }
 
   return NULL;
@@ -2319,45 +2303,6 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   return con;
 }
 
-/* insert gluing point between two bodies; note, that the elastic properties
- * of the gluing will be related to the material properties of both bodies */
-CON* DOM_Glue_Points (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt)
-{
-  double v [3], d;
-  CON *con;
-  SGP *msgp, *ssgp;
-  int m, s;
-
-  ASSERT_DEBUG (master && slave && mpnt && spnt, "Both body and point pointers must not be NULL");
-
-  if ((m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
-
-  if ((s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
-
-  msgp = &master->sgp [m];
-  ssgp = &slave->sgp [s];
-
-  SUB (mpnt, spnt, v);
-  d = LEN (v);
-  
-  if (d < GEOMETRIC_EPSILON) /* no point in keeping very short links */
-  {
-    con = insert (dom, master, slave, msgp, ssgp, GLUEPNT);
-    COPY (mpnt, con->point);
-    COPY (mpnt, con->mpnt);
-    COPY (spnt, con->spnt);
-    IDENTITY (con->base);
-
-    AABB_Exclude_Gobj_Pair (dom->aabb, master->id, m, slave->id, s); /* no contact between this pair */
-  }
-  else return NULL;
-  
-  /* insert into local dynamics */
-  con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
-
-  return con;
-}
-
 /* remove a constraint from the domain */
 void DOM_Remove_Constraint (DOM *dom, CON *con)
 {
@@ -2590,7 +2535,6 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case FIXDIR:  update_fixdir  (dom, con); break;
       case VELODIR: update_velodir (dom, con); break;
       case RIGLNK:  update_riglnk  (dom, con); break;
-      case GLUEPNT: update_gluepnt (dom, con); break;
     }
   }
 

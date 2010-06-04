@@ -4327,69 +4327,6 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
   return (PyObject*)out;
 }
 
-/* create gluing point constraint */
-static PyObject* lng_GLUE_POINTS (PyObject *self, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("body1", "body2", "point1", "point2");
-  lng_CONSTRAINT *out;
-  lng_BODY *body1, *body2;
-  PyObject *point1, *point2;
-  double p1 [3], p2 [3];
-
-  out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
-
-  if (out)
-  {
-    point2 = NULL;
-
-    PARSEKEYS ("OOO|O", &body1, &body2, &point1, &point2);
-
-    TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]) &&
-	      is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3));
-
-    if (body1->bod->dom != body2->bod->dom)
-    {
-      PyErr_SetString (PyExc_ValueError, "Cannot glue bodies from different domains");
-      return NULL;
-    }
-
-    if (body1->bod->kind == OBS && body2->bod->kind == OBS)
-    {
-      PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
-      return NULL;
-    }
-
-    p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
-    p1 [1] = PyFloat_AsDouble (PyTuple_GetItem (point1, 1));
-    p1 [2] = PyFloat_AsDouble (PyTuple_GetItem (point1, 2));
-
-    if (point2)
-    {
-      p2 [0] = PyFloat_AsDouble (PyTuple_GetItem (point2, 0));
-      p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
-      p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
-    }
-    else
-    {
-      COPY (p1, p2);
-    }
-
-#if MPI
-    DOM_Pending_Two_Body_Constraint (body1->bod->dom, GLUEPNT, body1->bod, body2->bod, p1, p2);
-#else
-    out->con = DOM_Glue_Points (body1->bod->dom, body1->bod, body2->bod, p1, p2);
-
-    if (!out->con)
-    {
-      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
-      return NULL;
-    }
-#endif
-  }
-
-  return (PyObject*)out;
-}
-
 /* set gravity */
 static PyObject* lng_GRAVITY (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6196,7 +6133,6 @@ static PyMethodDef lng_methods [] =
   {"SET_VELOCITY", (PyCFunction)lng_SET_VELOCITY, METH_VARARGS|METH_KEYWORDS, "Create a prescribed velocity constraint"},
   {"SET_ACCELERATION", (PyCFunction)lng_SET_ACCELERATION, METH_VARARGS|METH_KEYWORDS, "Create a prescribed acceleration constraint"},
   {"PUT_RIGID_LINK", (PyCFunction)lng_PUT_RIGID_LINK, METH_VARARGS|METH_KEYWORDS, "Create a rigid linke constraint"},
-  {"GLUE_POINTS", (PyCFunction)lng_GLUE_POINTS, METH_VARARGS|METH_KEYWORDS, "Create a gluing point constraint"},
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
@@ -6380,7 +6316,6 @@ int lng (const char *path)
                      "from solfec import SET_VELOCITY\n"
                      "from solfec import SET_ACCELERATION\n"
                      "from solfec import PUT_RIGID_LINK\n"
-                     "from solfec import GLUE_POINTS\n"
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
