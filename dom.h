@@ -231,6 +231,8 @@ struct domain
   DOM_FLAGS flags; /* some flags */
   short verbose; /* verbosity flag */
 
+  double merit; /* most recent constraints satisfaction merit function value */
+
 #if MPI
   int rank; /* communicator rank */
   int ncpu; /* cummunicator size */
@@ -338,4 +340,5 @@ int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con);
 
 /* release memory */
 void DOM_Destroy (DOM *dom);
+
 #endif

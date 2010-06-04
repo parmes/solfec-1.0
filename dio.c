@@ -114,7 +114,13 @@ void dom_write_state (DOM *dom, PBF *bf)
 
   PBF_Double (bf, &dom->step, 1);
 
-  /* write contacts */
+  /* write constraints merit */
+
+  PBF_Label (bf, "MERIT");
+
+  PBF_Double (bf, &dom->merit, 1);
+
+  /* write constraints */
 
   PBF_Label (bf, "CONS");
  
@@ -215,6 +221,12 @@ void dom_read_state (DOM *dom, PBF *bf)
       ASSERT (PBF_Label (bf, "STEP"), ERR_FILE_FORMAT);
 
       PBF_Double (bf, &dom->step, 1);
+
+      /* read constraints merit */
+
+      ASSERT (PBF_Label (bf, "MERIT"), ERR_FILE_FORMAT);
+
+      PBF_Double (bf, &dom->merit, 1);
 
       /* read contacts */
 

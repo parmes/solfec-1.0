@@ -152,12 +152,13 @@ NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double m
 /* run solver */
 void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 {
-  double merit, *nonmonvalues;
+  double *merit, *nonmonvalues;
   char fmt [512];
   LINSYS *sys;
   DOM *dom;
 
   dom = ldy->dom;
+  merit = &dom->merit;
 
   if (dom->verbose)
   {
@@ -171,7 +172,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   if (nt->sys) sys = nt->sys;
   else sys = LINSYS_Create (nt->variant, ldy, NULL);
 
-  merit = 1.0;
+  *merit = 1.0;
   nt->iters = 0;
 
 #if 0
@@ -190,16 +191,16 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
     reactions_update (nt, sys, ldy, nonmonvalues, nt->iters); /* R(i+1) */
 
-    merit = MERIT_Function (ldy, 0);
+    *merit = MERIT_Function (ldy, 0);
 
-    nt->merhist [nt->iters] = merit;
+    nt->merhist [nt->iters] = *merit;
 
 #if MPI
     if (dom->rank == 0)
 #endif
-    if (dom->verbose && nt->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, merit);
+    if (dom->verbose && nt->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, *merit);
 
-  } while (++ nt->iters < nt->maxiter && merit > nt->meritval);
+  } while (++ nt->iters < nt->maxiter && *merit > nt->meritval);
 
   if (nt->sys == NULL) LINSYS_Destroy (sys);
 

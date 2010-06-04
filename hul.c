@@ -659,7 +659,7 @@ static int testsimplex (face *h)
 /* compute convex hull */
 TRI* hull (double *v, int n, int *m)
 {
-  face *f, *g, *h, *u, *head, *cur, *tail;
+  face *f, *g, *h, *head, *cur, *tail;
   edge *e, *k, *i, *j, *ehead, *etail;
   double d, dmax, *sv [4];
   vertex *x, *y, *z, *l;
@@ -810,7 +810,7 @@ TRI* hull (double *v, int n, int *m)
     }
 
     /* for each marked face f */
-    for (u = NULL, f = h; f; f = g)
+    for (f = h, h = NULL; f; f = g)
     {
       g = f->n;
       if (f->marked)
@@ -825,12 +825,12 @@ TRI* hull (double *v, int n, int *m)
 
         /* delete f */
 	MEM_Free (&mf, f);
-
-	/* update 'h' list */
-	if (u) u->n= g; /* skip */
-	else h = g; /* new head */
       }
-      else u = f; /* previous unmarked face */
+      else /* output unmarked faces */
+      {
+	f->n = h;
+	h = f;
+      }
     }
 
     /* append h with

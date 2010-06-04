@@ -480,7 +480,7 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Subset_Create (LOCDYN *ldy, SET *subset, double epsil
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
   int div = 10, di, dimax, diagiters, mycolor, rank, *color;
-  double error, merit, step;
+  double error, *merit, step;
   short dynamic, verbose;
   char fmt [512];
   SOLFEC *solfec;
@@ -527,6 +527,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   dom = ldy->dom;
   rank = dom->rank;
+  merit = &dom->merit;
   solfec = dom->solfec;
   verbose = dom->verbose && gs->verbose;
 
@@ -832,7 +833,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #endif
 
       /* merit function */
-      merit = MERIT_Function (ldy, 1);
+      *merit = MERIT_Function (ldy, 1);
 
       /* sum up error */
       errloc [0] = errup, errloc [1] = errlo;
@@ -844,11 +845,11 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
       /* record values */
       gs->rerhist [gs->iters] = error;
-      gs->merhist [gs->iters] = merit;
+      gs->merhist [gs->iters] = *merit;
 
-      if (gs->iters % div == 0 && rank == 0 && verbose) printf (fmt, gs->iters, error, merit), div *= 2;
+      if (gs->iters % div == 0 && rank == 0 && verbose) printf (fmt, gs->iters, error, *merit), div *= 2;
     }
-    while (++ gs->iters < gs->maxiter && (error > gs->epsilon || merit > gs->meritval));
+    while (++ gs->iters < gs->maxiter && (error > gs->epsilon || *merit > gs->meritval));
   }
   else /* GS_SIMPLIFIED */
   {
@@ -874,19 +875,19 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	S("GSRUN"); di = gauss_seidel_sweep (noncon, 0, gs, dynamic, step, 1, &errup, &errlo); dimax = MAX (dimax, di); E("GSRUN");
       }
 
-      merit = MERIT_Function (ldy, 1);
+      *merit = MERIT_Function (ldy, 1);
 
       error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);
 
       gs->rerhist [gs->iters] = error;
-      gs->merhist [gs->iters] = merit;
+      gs->merhist [gs->iters] = *merit;
 
-      if (gs->iters % div == 0 && rank == 0 && verbose) printf (fmt, gs->iters, error, merit), div *= 2;
+      if (gs->iters % div == 0 && rank == 0 && verbose) printf (fmt, gs->iters, error, *merit), div *= 2;
     }
-    while (++ gs->iters < gs->maxiter && (error > gs->epsilon || merit > gs->meritval));
+    while (++ gs->iters < gs->maxiter && (error > gs->epsilon || *merit > gs->meritval));
   }
 
-  if (rank == 0 && verbose) printf (fmt, gs->iters, error, merit);
+  if (rank == 0 && verbose) printf (fmt, gs->iters, error, *merit);
 
   if (gs->variant < GS_BOUNDARY_JACOBI)
   {
@@ -947,7 +948,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 /* run serial solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
-  double error, merit, step;
+  double error, *merit, step;
   int verbose, diagiters;
   short dynamic;
   char fmt [512];
@@ -955,6 +956,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   DIAB *end;
 
   verbose = ldy->dom->verbose && gs->verbose;
+  merit = &ldy->dom->merit;
 
   if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -1047,20 +1049,20 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
 
     /* merit function value */
-    merit = MERIT_Function (ldy, 1);
+    *merit = MERIT_Function (ldy, 1);
 
     /* calculate relative error */
     error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);
 
     /* record values */
     gs->rerhist [gs->iters] = error;
-    gs->merhist [gs->iters] = merit;
+    gs->merhist [gs->iters] = *merit;
 
-    if (gs->iters % div == 0 && verbose) printf (fmt, gs->iters, error, merit), div *= 2;
+    if (gs->iters % div == 0 && verbose) printf (fmt, gs->iters, error, *merit), div *= 2;
   }
-  while (++ gs->iters < gs->maxiter && (error > gs->epsilon || merit > gs->meritval));
+  while (++ gs->iters < gs->maxiter && (error > gs->epsilon || *merit > gs->meritval));
 
-  if (verbose) printf (fmt, gs->iters, error, merit);
+  if (verbose) printf (fmt, gs->iters, error, *merit);
 
   if (gs->iters >= gs->maxiter)
   {
