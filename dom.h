@@ -79,8 +79,7 @@ struct constraint
         FIXPNT  = 0x02,
 	FIXDIR  = 0x04,
 	VELODIR = 0x08,
-	RIGLNK  = 0x10,
-	GLUEPNT = 0x20} kind; /* constraint kind */
+	RIGLNK  = 0x10} kind; /* constraint kind */
 
   enum {CON_COHESIVE = 0x01,
         CON_NEW      = 0x02, /* newly inserted constraint */
@@ -121,7 +120,7 @@ struct constraint
 #define skind(con) GOBJ_Kind ((con)->ssgp)
 
 /* two-point constraint test */
-#define TWO_POINT_CONSTRAINT(con) (con->kind & (CONTACT|RIGLNK|GLUEPNT))
+#define TWO_POINT_CONSTRAINT(con) (con->kind & (CONTACT|RIGLNK))
 
 #if MPI
 typedef struct domain_statistics DOMSTATS;
@@ -291,10 +290,6 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel);
 /* insert rigid link constraint between two (referential) points of bodies; if one of the body
  * pointers is NULL then the link acts between the other body and the fixed (spatial) point */
 CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt);
-
-/* insert gluing point between two bodies; note, that the elastic properties
- * of the gluing will be related to the material properties of both bodies */
-CON* DOM_Glue_Points (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt);
 
 /* remove a constraint from the domain (destroy it) */
 void DOM_Remove_Constraint (DOM *dom, CON *con);

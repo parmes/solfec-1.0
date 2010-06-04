@@ -460,20 +460,6 @@ static int riglnk (short dynamic, double epsilon, int maxiter, double step,
   return 0;
 }
 
-static int gluepnt (double step, BULK_MATERIAL *a, BULK_MATERIAL *b, double *W, double *B, double *U, double *R)
-{
-  double K = step * 2.0 / (1.0/a->young + 1.0/b->young),
-	 A [9], G [9], det;
-
-  IDENTITY (A);
-  NNADDMUL (A, K, W, A);
-  INVERT (A, G, det);
-  NVMUL (G, B, U);
-  MUL (U, -K, R);
-
-  return 0;
-}
-
 /* diagsolver: diagonal solver kind
  * diagepsilon: relative accuracy on termination
  * diagmaxiter: maximal iterations count
@@ -528,11 +514,6 @@ int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
   case RIGLNK:
     return riglnk (dynamic, diagepsilon, diagmaxiter,
 	    step, base, Z, dia->W, B, dia->V, dia->U, dia->R);
-  case GLUEPNT:
-    {
-      CON *con = dia->con;
-      return gluepnt (step, con->master->mat, con->slave->mat, dia->W, B, dia->U, dia->R);
-    }
   }
 
   return 0;

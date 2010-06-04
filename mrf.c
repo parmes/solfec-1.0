@@ -161,12 +161,6 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       up = Q[2] * P[2];
     }
     break;
-    case GLUEPNT:
-    {
-      NVMUL (A, U, Q);
-      up = DOT (Q, U);
-    }
-    break;
 #else
     default:
     {
