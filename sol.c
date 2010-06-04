@@ -198,12 +198,6 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
 
   clean_timers (sol); /* restart total timing */
 
-  /* write constraints merit */
-
-  double merit = MERIT_Function (sol->dom->ldy, 0);
-  PBF_Label (sol->bf, "MERIT");
-  PBF_Double (sol->bf, &merit, 1);
-
   /* write solver state */
 
   switch (kind)
