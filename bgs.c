@@ -28,12 +28,21 @@
 #include "pes.h"
 #include "err.h"
 #include "mrf.h"
+#include "sol.h"
 
 #if MPI
 #include "tag.h"
 #include "com.h"
 #include "lis.h"
-#include "sol.h"
+#endif
+
+/* timers */
+#if TIMERS
+#define S(LABEL) SOLFEC_Timer_Start (ldy->dom->solfec, LABEL)
+#define E(LABEL) SOLFEC_Timer_End (ldy->dom->solfec, LABEL)
+#else
+#define S(LABEL)
+#define E(LABEL)
 #endif
 
 #if MPI
@@ -275,10 +284,6 @@ struct middle_list
   int score;
   MIDDLE_NODE *next;
 };
-
-/* timers */
-#define S(LABEL) SOLFEC_Timer_Start (ldy->dom->solfec, LABEL)
-#define E(LABEL) SOLFEC_Timer_End (ldy->dom->solfec, LABEL)
 
 /* middle node list sorting */
 #define MLLE(i, j) ((i)->score <= (j)->score)
@@ -955,6 +960,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   int div = 10;
   DIAB *end;
 
+  S("GSRUN");
+
   verbose = ldy->dom->verbose && gs->verbose;
   merit = &ldy->dom->merit;
 
@@ -1063,6 +1070,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   while (++ gs->iters < gs->maxiter && (error > gs->epsilon || *merit > gs->meritval));
 
   if (verbose) printf (fmt, gs->iters, error, *merit);
+
+  E("GSRUN");
 
   if (gs->iters >= gs->maxiter)
   {

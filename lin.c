@@ -37,6 +37,7 @@
 #include "com.h"
 #endif
 
+#define DUMP                    0      /* FIXME: debug dump */
 #define DIFF_FACTOR             1E-10  /* TODO: test sensitivity */
 #define EPSILON_BASE            1E-10  /* TODO: -||- */
 #define EPSILON_FACTOR          1E-6   /* TODO: -||- */
@@ -46,9 +47,15 @@
 #define BLOCKS         256
 
 /* timers */
+#if TIMERS
 #define INIT_TIMERS(sys) SOLFEC *solfec = sys->ldy->dom->solfec
-#define TS(name) SOLFEC_Timer_Start (solfec, name)
-#define TE(name) SOLFEC_Timer_End (solfec, name)
+#define S(LABEL) SOLFEC_Timer_Start (solfec, LABEL)
+#define E(LABEL) SOLFEC_Timer_End (solfec, LABEL)
+#else
+#define INIT_TIMERS(sys)
+#define S(LABEL)
+#define E(LABEL)
+#endif
 
 typedef struct vect VECT;
 typedef struct offt OFFT;
@@ -1015,14 +1022,14 @@ static void A_times_x_equals_y (LINSYS *sys, double *x, double *y)
   DIAT *dia;
 
 #if MPI
-  TS ("LINCOM");
+  S("LINCOM");
   update_external_reactions (sys, x); /* (###) */
-  TE ("LINCOM");
+  E("LINCOM");
 
   int rank = sys->ldy->dom->rank;
 #endif
 
-  TS ("LINMV");
+  S("LINMV");
   for (dia = sys->dia; dia; dia = dia->n)
   {
     v = &y [3*dia->num];
@@ -1043,7 +1050,7 @@ static void A_times_x_equals_y (LINSYS *sys, double *x, double *y)
       NVADDMUL (v, T, z, v);
     }
   }
-  TE ("LINMV");
+  E("LINMV");
 }
 
 static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
@@ -1058,7 +1065,7 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
   DIAT *dia;
   DOM *dom;
 
-  TS ("LINMV");
+  S("LINMV");
   dom = sys->ldy->dom;
 #if MPI
   ncpu = dom->ncpu;
@@ -1094,15 +1101,15 @@ static void AT_times_x_equals_y (LINSYS *sys, double *x, double *y)
       TVADDMUL (w, T, z, w);
     }
   }
-  TE ("LINMV");
+  E("LINMV");
 
 #if MPI
-  TS ("LINCOM");
+  S("LINCOM");
   blas_dcopy (gdim, v, 1, v + gdim, 1);
   MPI_Allreduce (v + gdim, v, gdim, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   for (w = &v [3*basenum [rank]], z = &v [3*basenum [rank+1]]; w < z; w ++, y ++) (*y) = (*w);
   free (v);
-  TE ("LINCOM");
+  E("LINCOM");
 #endif
 }
 
@@ -1188,18 +1195,18 @@ static double InnerProd (void *vx, void *vy)
   INIT_TIMERS (vect (vx)->sys);
   double dot = 0.0, *x, *y, *z;
 
-  TS ("LINRUN");
+  S("LINRUN");
   for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
   {
     dot += (*x) * (*y);
   }
-  TE ("LINRUN");
+  E("LINRUN");
 
 #if MPI
-  TS ("LINCOM");
+  S("LINCOM");
   double val = dot;
   MPI_Allreduce (&val, &dot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  TE ("LINCOM");
+  E("LINCOM");
 #endif
 
   return dot;
@@ -1210,12 +1217,12 @@ static int CopyVector (void *vx, void *vy)
   INIT_TIMERS (vect (vx)->sys);
   double *x, *y, *z;
 
-  TS ("LINRUN");
+  S("LINRUN");
   for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
   {
     (*y) = (*x);
   }
-  TE ("LINRUN");
+  E("LINRUN");
 
   return 0;
 }
@@ -1225,12 +1232,12 @@ static int ClearVector (void *vx)
   INIT_TIMERS (vect (vx)->sys);
   double *x, *z;
 
-  TS ("LINRUN");
+  S("LINRUN");
   for (x = vect (vx)->x, z = x + vect (vx)->n; x < z; x ++)
   {
     (*x) = 0.0;
   }
-  TE ("LINRUN");
+  E("LINRUN");
 
   return 0;
 }
@@ -1240,12 +1247,12 @@ static int ScaleVector (double alpha, void *vx)
   INIT_TIMERS (vect (vx)->sys);
   double *x, *z;
 
-  TS ("LINRUN");
+  S("LINRUN");
   for (x = vect (vx)->x, z = x + vect (vx)->n; x < z; x ++)
   {
     (*x) *= alpha;
   }
-  TE ("LINRUN");
+  E("LINRUN");
 
   return 0;
 }
@@ -1255,12 +1262,12 @@ static int  Axpy (double alpha, void *vx, void *vy )
   INIT_TIMERS (vect (vx)->sys);
   double *x, *y, *z;
 
-  TS ("LINRUN");
+  S("LINRUN");
   for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
   {
     (*y) += alpha * (*x);
   }
-  TE ("LINRUN");
+  E("LINRUN");
 
   return 0;
 }
@@ -1314,7 +1321,7 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
   int ipiv [3];
   DIAT *dia;
 
-  TS ("LINPRE");
+  S("LINPRE");
   for (dia = sys->dia; dia; dia = dia->n)
   {
     b = &bb [3*dia->num];
@@ -1330,7 +1337,7 @@ static int Precond (void *vdata, void *A, void *vb, void *vx)
     S [8] += delta;
     lapack_dgesv (3, 1, S, 3, ipiv, x, 3); /* TODO: inv (S) could be precomputed at the start */
   }
-  TE ("LINPRE");
+  E("LINPRE");
 
   return 0;
 }
@@ -1397,7 +1404,8 @@ static void project_contact_reactions (LINSYS *sys)
       dot1 = -InnerProd (v, sys->b); /* b = - grad (f), hence <v, -b> = <v, grad (f) < 0 indicates descent */
 
       if (dot0 == 1.0 && dot1 < 0.0) break; /* skip if first projection is negative */
-#if 1
+#if 0
+      /* FIXME: remove */
       printf ("LINSYS: dot = %g, beta = %g\n", dot1, beta);
 #endif
     }
@@ -1437,6 +1445,133 @@ static void project_contact_reactions (LINSYS *sys)
   }
 }
 
+#if DUMP
+static int dump_cmp (const void *a, const void *b)
+{
+  double *x = (double*)a, *y = (double*)b;
+  int i;
+
+  for (i = 0; i < 9; i ++)
+  {
+    if (x [i] < y [i]) return -1;
+    else if (x [i] > y [i]) return 1;
+  }
+
+  return 0;
+}
+
+#if 0
+static void linsys_dump (LINSYS *sys, const char *path)
+{
+  char fullpath [512];
+  double *x, *b;
+  DIAT *dia;
+  OFFT *blk;
+  CON *con;
+  FILE *f;
+  int i, n;
+
+#if MPI
+  int rank;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  snprintf (fullpath, 512, "%s.%d", path, rank);
+#else
+  snprintf (fullpath, 512, "%s", path);
+#endif
+  ASSERT (f = fopen (fullpath, "w"), ERR_FILE_OPEN);
+
+  for (dia = sys->dia; dia; dia = dia->n)
+  {
+    con = dia->con;
+
+    b = &sys->b->x [3*dia->num];
+
+    fprintf (f, "(%.6g, %.6g, %.6g) (%.6g, %.6g, %.6g)", con->point [0], con->point [1], con->point [2], b [0], b [1], b [2]);
+
+    for (n = 1, blk = dia->adj; blk; blk = blk->n, n ++);
+
+    ERRMEM (x = malloc (n * sizeof (double [9])));
+
+    NNCOPY (dia->T, x);
+    for (n = 9, blk = dia->adj; blk; blk = blk->n, n += 9)
+    { 
+      NNCOPY (blk->T, &x[n]);
+    }
+
+    qsort (x, n/9, sizeof (double [9]), dump_cmp);
+
+    for (i = 0; i < n; i += 9)
+    {
+      fprintf (f, " (%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g )",
+        x [i], x [i+1], x [i+2], x [i+3], x [i+4], x [i+5], x [i+6], x [i+7], x [i+8]);
+    }
+
+    free (x);
+
+    fprintf (f, "\n");
+  }
+
+  fclose (f);
+}
+#endif
+
+static void locdyn_dump (LINSYS *sys, const char *path)
+{
+  char fullpath [512];
+  double *x;
+  DIAT *dia;
+  OFFT *blk;
+  CON *con;
+  FILE *f;
+  int i, n;
+
+#if MPI
+  int rank;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  snprintf (fullpath, 512, "%s.%d", path, rank);
+#else
+  snprintf (fullpath, 512, "%s", path);
+#endif
+  ASSERT (f = fopen (fullpath, "w"), ERR_FILE_OPEN);
+
+  for (dia = sys->dia; dia; dia = dia->n)
+  {
+    con = dia->con;
+
+    fprintf (f, "(%.6g, %.6g, %.6g) (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] ",
+      con->point [0], con->point [1], con->point [2], dia->B [0], dia->B [1], dia->B [2],
+      con->base [0], con->base [1], con->base [2], con->base [3], con->base [4], con->base [5], con->base [6], con->base [7], con->base [8]);
+
+    for (n = 1, blk = dia->adj; blk; blk = blk->n, n ++);
+
+    ERRMEM (x = malloc (n * sizeof (double [9])));
+
+    NNCOPY (dia->W, x);
+    for (n = 9, blk = dia->adj; blk; blk = blk->n, n += 9)
+    { 
+      NNCOPY (blk->W [0], &x[n]);
+      if (blk->W [1]) { NNADD (blk->W[1], &x[n], &x[n]); }
+    }
+
+    qsort (x, n/9, sizeof (double [9]), dump_cmp);
+
+    for (i = 0; i < n; i += 9)
+    {
+      fprintf (f, " (%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g )",
+        x [i], x [i+1], x [i+2], x [i+3], x [i+4], x [i+5], x [i+6], x [i+7], x [i+8]);
+    }
+
+    free (x);
+
+    fprintf (f, "\n");
+  }
+
+  fclose (f);
+}
+#endif
+
 /* create linear system resulting from linearization of constraints */
 LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
 {
@@ -1458,7 +1593,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   sys->ldy = ldy;
   INIT_TIMERS (sys);
 
-  TS ("LININIT");
+  S("LININIT");
   MEM_Init (&setmem, sizeof (SET), BLOCKS);
   MEM_Init (&mapmem, sizeof (MAP), BLOCKS);
 
@@ -1758,7 +1893,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
 
   MEM_Release (&setmem);
   MEM_Release (&mapmem);
-  TE ("LININIT");
+  E("LININIT");
 
   return sys;
 }
@@ -1770,7 +1905,7 @@ void LINSYS_Fixed_Point_Update (LINSYS *sys)
   DIAT *dia;
   CON *con;
 
-  TS ("LINRUN");
+  S("LINRUN");
   for (dia = sys->dia; dia; dia = dia->n)
   {
     con = dia->con;
@@ -1779,7 +1914,7 @@ void LINSYS_Fixed_Point_Update (LINSYS *sys)
       dia->RN = con->R[2];
     }
   }
-  TE ("LINRUN");
+  E("LINRUN");
 }
 
 /* update free velocity in case of subset based system */
@@ -1789,7 +1924,7 @@ void LINSYS_Update_Free_Velocity (LINSYS *sys)
   DIAT *dia;
   OFFX *blx;
 
-  TS ("LINRUN");
+  S("LINRUN");
   for (dia = sys->dia; dia; dia = dia->n)
   {
     double *B0 = dia->con->dia->B,
@@ -1804,7 +1939,7 @@ void LINSYS_Update_Free_Velocity (LINSYS *sys)
       NVADDMUL (B, W, R, B);
     }
   }
-  TE ("LINRUN");
+  E("LINRUN");
 }
 
 /* update linear system at current reactions R */
@@ -1820,7 +1955,7 @@ void LINSYS_Update (LINSYS *sys, short first)
     LINSYS_Update_External_Reactions (sys); /* (###) */ 
 #endif
 
-    TS ("LINUPD");
+    S("LINUPD");
     for (dia = sys->dia; dia; dia = dia->n)
     {
       double *W = dia->W,
@@ -1839,20 +1974,20 @@ void LINSYS_Update (LINSYS *sys, short first)
 	if (W[1]) { NVADDMUL (RE, W[1], R, RE); }
       }
     }
-    TE ("LINUPD");
+    E("LINUPD");
   }
   else /* otherwise set to zero */
   {
-    TS ("LINUPD");
+    S("LINUPD");
     for (dia = sys->dia; dia; dia = dia->n)
     {
       double *RE = dia->RE;
       SET (RE, 0);
     }
-    TE ("LINUPD");
+    E("LINUPD");
   }
 
-  TS ("LINUPD");
+  S("LINUPD");
   switch (LINEARIZATION_VARIANT (sys->variant))
   {
     case NONSMOOTH_HSW:
@@ -1865,17 +2000,21 @@ void LINSYS_Update (LINSYS *sys, short first)
       system_update_VARIATIONAL (sys, sys->b->x);
       break;
   }
-  TE ("LINUPD");
+  E("LINUPD");
 
   if (sys->variant & MULTIPLY_TRANSPOSED) /* b = (A^T) b */
   {
-    TS ("LINMV");
+    S("LINMV");
     VECT *c = CreateVector (sys->b);
     CopyVector (sys->b, c);
-    TE ("LINMV");
+    E("LINMV");
     AT_times_x_equals_y (sys, c->x, sys->b->x);
     DestroyVector (c);
   }
+
+#if DUMP
+  locdyn_dump (sys, "LOCDYN");
+#endif
 }
 
 /* solve for reaction increments DR */
@@ -1900,7 +2039,7 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
 #if !MPI
   if (sys->variant & DIRECT_SOLVE)
   {
-    TS ("LINRUN");
+    S("LINRUN");
     double *xx = sys->x->x, *bb = sys->b->x;
 
     for (x = xx + sys->x->n; xx < x; xx ++, bb ++) *xx = *bb;
@@ -1908,7 +2047,7 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
     matrix_copy (sys, sys->A);
 
     cs_lusol (1, sys->A, sys->x->x, 0);
-    TE ("LINRUN");
+    E("LINRUN");
   }
   else
 #endif
@@ -1952,7 +2091,7 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
     compute_resnorm_and_xnorm (sys);
   }
 
-  TS ("LINRUN");
+  S("LINRUN");
   /* project for variational formulations, but only in case of iterative solution */
   if ((sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL)) && (sys->variant & DIRECT_SOLVE) == 0)
   {
@@ -1966,16 +2105,16 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
     DR = dia->DR;
     COPY (z, DR);
   }
-  TE ("LINRUN");
+  E("LINRUN");
 
 #if MPI
-  TS ("LINCOM");
+  S("LINCOM");
   update_external_reactions (sys, sys->x->x); /* (&&&) */
-  TE ("LINCOM");
+  E("LINCOM");
 #endif
 
   /* DU  */
-  TS ("LINRUN");
+  S("LINRUN");
   for (dia = sys->dia; dia; dia = dia->n)
   {
     DR = dia->DR,
@@ -1993,7 +2132,7 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
       if (W[1]) { NVADDMUL (DU, W[1], DR, DU); }
     }
   }
-  TE ("LINRUN");
+  E("LINRUN");
 }
 
 /* compute merit function at (R + alpha * DR) */
@@ -2005,7 +2144,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   DIAT *dia;
   CON *con;
 
-  TS ("LINRUN");
+  S("LINRUN");
   value = 0;
   step = sys->ldy->dom->step;
   dynamic = sys->ldy->dom->dynamic;
@@ -2093,13 +2232,13 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
       value += DOT (H, H);
     }
   }
-  TE ("LINRUN");
+  E("LINRUN");
 
 #if MPI
-  TS ("LINCOM");
+  S("LINCOM");
   double val_i = value;
   MPI_Allreduce (&val_i, &value, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  TE ("LINCOM");
+  E("LINCOM");
 #endif
 
   return value;
@@ -2111,7 +2250,7 @@ void LINSYS_Advance (LINSYS *sys, double alpha)
   INIT_TIMERS (sys);
   DIAT *dia;
 
-  TS ("LINRUN");
+  S("LINRUN");
   for (dia = sys->dia; dia; dia = dia->n)
   {
     double *RE = dia->RE,
@@ -2124,7 +2263,7 @@ void LINSYS_Advance (LINSYS *sys, double alpha)
     ADDMUL (U, alpha, DU, U);
     ADD (U, RE, U);
   }
-  TE ("LINRUN");
+  E("LINRUN");
 }
 
 /* solve A x = b, where b = A [1, 1, ..., 1]' and return |x - [1, 1, ..., 1]| / |[1, 1, ..., 1]| */
@@ -2199,7 +2338,7 @@ void LINSYS_Update_External_Reactions (LINSYS *sys)
   INIT_TIMERS (sys);
   DIAT *dia;
 
-  TS ("LINCOM");
+  S("LINCOM");
   for (dia = sys->dia; dia; dia = dia->n)
   {
     x = &y [3*dia->num];
@@ -2208,7 +2347,7 @@ void LINSYS_Update_External_Reactions (LINSYS *sys)
   }
 
   update_external_reactions (sys, y);
-  TE ("LINCOM");
+  E("LINCOM");
 }
 #endif
 

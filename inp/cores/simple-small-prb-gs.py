@@ -7,10 +7,10 @@ from simple_core_base import *
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
 step = 1E-3
-stop = 100 * step
+stop = 2 * step
 scheme = 'IMP'
-solver = 'GAUSS_SEIDEL'
-plotconv = 1
+solver = 'NEWTON'
+plotconv = 0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cores/simple-small-prb-gs')
 GRAVITY (solfec, (0, 0, -10))

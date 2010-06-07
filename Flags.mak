@@ -13,6 +13,12 @@ ifneq ($(XDR),yes)
   XDRLIB = 
 endif
 
+ifeq ($(TIMERS),yes)
+  TIMERS = -DTIMERS
+else
+  TIMERS = 
+endif
+
 ifeq ($(OPENGL),yes)
   ifeq ($(VBO),yes)
     OPENGL = -DOPENGL -DVBO $(GLINC)
