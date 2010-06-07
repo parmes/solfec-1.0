@@ -16,6 +16,12 @@ PARDEBUG = no
 NOTHROW = yes
 
 #
+# TIMERS (enable/disable detailed solver timings)
+#
+
+TIMERS = yes
+
+#
 # POSIX
 #
 

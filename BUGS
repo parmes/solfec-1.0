@@ -27,4 +27,14 @@ more through testing of cummunication routines would be of use (comtest).
 After all we have increased communication by some 48 bytes per contact now again.
 ---------------------------------------------------------------------------------------
 HASH3D detects much too few constraints (e.g. for inp/puzzle.py ~1000 from 5666)
---------------------------------------------------------------------------
+-----------------------------------------------------------------------------------
+Small PRB core, Newton smoothed formulation, first step, serial run converges well
+while parallel runs convergence degenerates with growing number of CPUs
+
+** this seems to be related to handling non-contact constrains; when replacing
+   base body with an obstacle, same convergence for various CPU numbers is obtained
+
+** perhaps the bug is in recent ldy.c modification related to W assmebly
+
+** OK, that was the case (the last one); NOT FIXED YET
+   (amended in ldy.c adjext section of W assmbly, but still wrong)

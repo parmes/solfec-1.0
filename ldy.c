@@ -623,7 +623,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 #else
 	right =  adj->mprod;
 #endif
-	coef = (bod == s ? (tpc_r ? -step : step) : (tpc_l == tpc_r ? step : -step));
+	coef = (bod == s ? (tpc_r ? -step : step) : (tpc_l == tpc_r ? step : -step)); /* (&&&) */
 
 	/* left slave (two-point) && right two-point master => negative;
 	 * left slave (two-point) && right single-point master => positive;
@@ -639,7 +639,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 #else
 	right =  adj->sprod;
 #endif
-	coef = (tpc_l && bod == m ? -step : step);
+	coef = (tpc_l && bod == m ? -step : step); /* (***) */
 
 	/* left two-point master && right slave (two-point) => negative;
 	 * left single-point master && right slave (two->point) => postive;
@@ -661,6 +661,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
       MX *left, *right;
       CON *ext = (CON*)blk->dia;
       BODY *bod = blk->bod;
+      short tpc_r = TWO_POINT_CONSTRAINT (ext);
       MX_DENSE_PTR (W, 3, 3, blk->W);
       double coef, *point;
       SGP *sgp;
@@ -670,12 +671,14 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
       if (bod == ext->master)
       {
 	sgp = ext->msgp, point = ext->mpnt;
-	coef = (bod == s ? -step : step);
+
+	coef = (bod == s ? (tpc_r ? -step : step) : (tpc_l == tpc_r ? step : -step)); /* (&&&) */
       }
       else
       {
 	sgp = ext->ssgp, point = ext->spnt;
-	coef = (bod == m ? -step : step);
+
+	coef = (tpc_l && bod == m ? -step : step); /* (***) */
       }
      
       left = (bod == m ? dia->mprod : dia->sprod);
