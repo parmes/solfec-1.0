@@ -264,9 +264,13 @@ static BODY *picked_body = NULL; /* currently picked body */
 
 static double arrow_factor = 0.05; /* arrow drawing constant */
 
-static int time_window = 0; /* time window handler */
+static int time_window = 0; /* time window handle */
 #define TIME_HEIGHT 16 /* time window height */
 #define TIME_FONT GLV_FONT_8_BY_13
+
+static int coord_window = 0; /* coordinates window handle */
+#define COORD_WIDTH 64
+#define COORD_HEIGHT 36
 
 static LEGEND_DATA legend; /* legend data */
 #define LEGEND_ROWS 8 /* number of rows in the legend */
@@ -2404,6 +2408,28 @@ static void time_render ()
   glEnable (GL_DEPTH_TEST);
 }
 
+/* render coordinates */
+static void coord_render ()
+{
+  glDisable (GL_LIGHTING);
+
+  glColor3d (0., 0., 0.);
+  glBegin (GL_LINES);
+  glVertex3d (0., 0., 0.);
+  glVertex3d (.7, 0., 0.);
+  glVertex3d (0., 0., 0.);
+  glVertex3d (0., .7, 0.);
+  glVertex3d (0., 0., 0.);
+  glVertex3d (0., 0., .7);
+  glEnd ();
+
+  GLV_Print (.7, 0, .2, TIME_FONT, "x");
+  GLV_Print (0, .7, .2, TIME_FONT, "y");
+  GLV_Print (0,  0, .8, TIME_FONT, "z");
+
+  glEnable (GL_LIGHTING);
+}
+
 /* menus */
 
 static void menu_domain (int item)
@@ -2697,6 +2723,8 @@ void RND_Init ()
   GLV_Sizes (&w, &h);
 
   time_window = GLV_Open_Viewport (0, -(h - TIME_HEIGHT), time_width (), TIME_HEIGHT, 0, time_render);
+
+  coord_window = GLV_Open_Viewport (-(w - COORD_WIDTH), 0, COORD_WIDTH, COORD_HEIGHT, 1, coord_render);
 }
 
 int  RND_Idle ()

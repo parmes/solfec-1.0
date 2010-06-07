@@ -185,7 +185,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 
   do
   {
-    LINSYS_Update (sys); /* assemble A, b */
+    LINSYS_Update (sys, nt->iters == 0); /* assemble A, b */
 
     LINSYS_Solve (sys, nt->resdec, nt->linminiter + nt->iters);
 
@@ -210,6 +210,8 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 /* write labeled satate values */
 void NEWTON_Write_State (NEWTON *nt, PBF *bf)
 {
+  PBF_Label (bf, "NTITERS");
+  PBF_Int (bf, &nt->iters, 1);
 }
 
 /* return variant string */

@@ -54,7 +54,7 @@ void LINSYS_Fixed_Point_Update (LINSYS *sys);
 void LINSYS_Update_Free_Velocity (LINSYS *sys);
 
 /* update linear system at current reactions R */
-void LINSYS_Update (LINSYS *sys);
+void LINSYS_Update (LINSYS *sys, short first);
 
 /* solve for reaction increments DR */
 void LINSYS_Solve (LINSYS *sys, double beta, int maxiter);

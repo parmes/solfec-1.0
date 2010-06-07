@@ -85,10 +85,10 @@ void GLV_Close_Window (int window);
 /* open a viewport whose content
  * is exported in BMP and AVI format */
 int GLV_Open_Viewport (
-  int x,
-  int y,
-  int w,
-  int h,
+  int x, /* negtive => maintain relative position when resizing */
+  int y, /* -||- */
+  int w, /* negative => maintain aspect ratio when resizing */
+  int h, /* -||- */
   int is3D,
   View_Render render);
 

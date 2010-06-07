@@ -1,13 +1,13 @@
-Time step control
----------------------------
-Energy balance
+Energy balance is not robust
 -----------------------------------------
 Merit function for convergence control
+needs more thought
 --------------------------------------------------
 Compute per-block merit functions and sort blocks
 according to their values.  During Gauss-Seidel
 iterations process blocks in the descending order
 of such ordering.
+(tested and wasn't great at all)
 ---------------------------------------------------------
 Test whether inertia scaling by density works correctly
 -------------------------------------------------------------
@@ -22,9 +22,6 @@ Add menu "material" between "kinds of" and "results". Within
 this menu add friction, cohesio, spring, dahspot, young,
 poisson, etc. Render as fields or coloured constraint.
 -------------------------------------------------------------
-Add menu "top", "bottom", "left", "right", "front", "back"
-to the "render" menu. Or similarly.
---------------------------------------------------------
 Rendering of contact states
 --------------------------------------------------------
 Optimize W assembly in parallel by using left product
@@ -43,7 +40,7 @@ Reduce parallel balancing communication during fully explicit runs
 (e.g. external constraints sent only from children to parents)
 ---------------------------------------------------------------
 Include (at least in the viewer mode) possibility of dumping
-into a separate sub-directory of a subset of existin results
+into a separate sub-directory of a subset of results
 -------------------------------------------------------------------
 How to implementing rewinding back of simulations during
 which bodies have been deleted? (do not really delete)
@@ -58,6 +55,11 @@ computations for smaller motion increments.
 Optimize WR product by summing up preated off-diagonal W(i,j) blocks for two-point two-body constraints
 --------------------------------------------------------------------------
 Show that regularizing |UT| norm in SMOOTHED_VAR... does not do good
+--------------------------------------------------------------------------------------------
+Implement FULL body migration (as it used to be): let bodies be stored only where
+they are needed at a time (rather than on all processors as now); make the current way
+of storing bodies optional - indicate that it saves communication time and pays off
+in case of not too large models
 --------------------------------------------------------------------------
 Optimize LINSYS:
   a) Update residual only for firts Newton step; then use zero
