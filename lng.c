@@ -6002,6 +6002,12 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
     ELIF (obj, "GSRUN") { shi->item = TIMING_VALUE; }
     ELIF (obj, "GSCOM") { shi->item = TIMING_VALUE; }
     ELIF (obj, "GSMCOM") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "LININIT") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "LINUPD") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "LINMV") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "LINPRE") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "LINRUN") { shi->item = TIMING_VALUE; }
+    ELIF (obj, "LINCOM") { shi->item = TIMING_VALUE; }
     ELIF (obj, "STEP") { shi->item = LABELED_DOUBLE; shi->op = OP_MIN; }
     ELIF (obj, "CONS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
     ELIF (obj, "BODS") { shi->item = LABELED_INT; shi->op = OP_SUM; }
@@ -6014,6 +6020,7 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
     ELIF (obj, "GSTOP") { shi->item = LABELED_INT; shi->op = OP_SUM; }
     ELIF (obj, "GSINN") { shi->item = LABELED_INT; shi->op = OP_SUM; }
     ELIF (obj, "MERIT") { shi->item = LABELED_DOUBLE; shi->op = OP_MAX; }
+    ELIF (obj, "NTITERS") { shi->item = LABELED_INT; shi->op = OP_MAX; }
     ELSE
     {
       PyErr_SetString (PyExc_ValueError, "Invalid string value");

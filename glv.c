@@ -44,7 +44,9 @@
 static int windows [MAXWINDOWS],
 	   windowscount = 0;
 
-static int main_menu = 0;
+static int main_menu = 0,
+	   view_menu = 0,
+	   export_menu = 0;
 
 #define MAXVIEWPORTS 128
 static struct
@@ -118,10 +120,16 @@ enum
   MENU_SPIN,
   MENU_ZOOM,
   MENU_MOVE,
-  MENU_PERSPECTIVE,
-  MENU_ORTHO,
-  MENU_OUTLINE,
-  MENU_FILL,
+  MENU_VIEW_PERSPECTIVE,
+  MENU_VIEW_ORTHO,
+  MENU_VIEW_OUTLINE,
+  MENU_VIEW_FILL,
+  MENU_VIEW_FRONT,
+  MENU_VIEW_BACK,
+  MENU_VIEW_LEFT,
+  MENU_VIEW_RIGHT,
+  MENU_VIEW_TOP,
+  MENU_VIEW_BOTTOM,
   MENU_EXPORT_AVI_START,
   MENU_EXPORT_AVI_STOP,
   MENU_EXPORT_PDF,
@@ -241,12 +249,70 @@ static void reshape2D (int w, int h)
 /* basic reshape 3D */
 static void basic_reshape3D (int w, int h)
 {
+  double from [3], to [3], up [3],
+	 left, right, bottom, top,
+	 neardst, fardst, d;
+
+  SUB (look.from, look.to, from);
+  NORMALIZE (from);
+  SCALE (from, 2);
+  SET (to, 0);
+  COPY (look.up, up);
+  d = MAX (MAX (look.left, look.right),
+           MAX (look.top, look.bottom));
+  left = look.left / d;
+  right = look.right / d;
+  bottom = look.bottom / d;
+  top = look.top / d;
+  neardst = look.neardst;
+  fardst = look.fardst;
+
+  glMatrixMode (GL_PROJECTION);
+  glLoadIdentity ();
+
+  switch (reshapemode)
+  {
+    case RESHAPE_MODE_ORTHO:
+    {
+      if (w <= h)
+	glOrtho (left, right,
+	  bottom * (GLdouble)h/(GLdouble)w,
+	  top * (GLdouble)h/(GLdouble)w,
+	  neardst, fardst);
+      else
+	glOrtho (left * (GLdouble)w/(GLdouble)h,
+	  right * (GLdouble)w/(GLdouble)h,
+	  bottom, top, neardst, fardst);
+    }
+    break;
+    case RESHAPE_MODE_PERSPECTIVE:
+    {
+      gluPerspective (70.,
+	(double)w/(double)h,
+	neardst,
+	fardst);
+    }
+    break;
+  }
+
+  gluLookAt (from [0], from [1], from [2],
+             to [0], to [1], to [2],
+	     up [0], up [1], up [2]);
+ 
+  globals3D ();
+  glMatrixMode (GL_MODELVIEW);
+  glLoadIdentity ();
+}
+
+/* reshape the main window */
+static void reshape3D (int w, int h)
+{
   if (h == 0) h = 1;
   if (w == 0) w = 1;
-
   width = w;
   height = h;
   glViewport (0, 0, w, h);
+
   glMatrixMode (GL_PROJECTION);
   glLoadIdentity ();
 
@@ -264,11 +330,6 @@ static void basic_reshape3D (int w, int h)
 	  look.right * (GLdouble)w/(GLdouble)h,
 	  look.bottom, look.top,
 	  look.neardst, look.fardst);
-
-      gluLookAt (
-	look.from [0], look.from [1], look.from [2],
-	look.to [0], look.to [1], look.to [2],
-	look.up [0], look.up [1], look.up [2]);
     }
     break;
     case RESHAPE_MODE_PERSPECTIVE:
@@ -277,24 +338,18 @@ static void basic_reshape3D (int w, int h)
 	(double)w/(double)h,
 	look.neardst,
 	look.fardst);
-
-      gluLookAt (
-	look.from [0], look.from [1], look.from [2],
-	look.to [0], look.to [1], look.to [2],
-	look.up [0], look.up [1], look.up [2]);
     }
     break;
   }
+
+  gluLookAt (
+    look.from [0], look.from [1], look.from [2],
+    look.to [0], look.to [1], look.to [2],
+    look.up [0], look.up [1], look.up [2]);
  
   globals3D ();
   glMatrixMode (GL_MODELVIEW);
   glLoadIdentity ();
-}
-
-/* reshape the main window */
-static void reshape3D (int w, int h)
-{
-  basic_reshape3D (w, h);
 
   for (int i = 0; i < viewportscount; i ++)
   {
@@ -748,7 +803,138 @@ static void avi (char *path)
   AVI = AVI_Open (width, height, 16, path);
 }
 
-/* menu callback */
+/* view menu */
+static void menu_view3D (int value)
+{
+  switch (value)
+  {
+    case MENU_VIEW_PERSPECTIVE:
+      glutSetMenu (view_menu);
+      glutChangeToMenuEntry (1, "ortho", MENU_VIEW_ORTHO);
+      reshapemode = RESHAPE_MODE_PERSPECTIVE;
+      updateall ();
+      break;
+    case MENU_VIEW_ORTHO:
+      glutSetMenu (view_menu);
+      glutChangeToMenuEntry (1, "perspective", MENU_VIEW_PERSPECTIVE);
+      reshapemode = RESHAPE_MODE_ORTHO;
+      updateall ();
+      break;
+    case MENU_VIEW_OUTLINE:
+      glutSetMenu (view_menu);
+      glutChangeToMenuEntry (2, "fill", MENU_VIEW_FILL);
+      glPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
+      updateall ();
+      break;
+    case MENU_VIEW_FILL:
+      glutSetMenu (view_menu);
+      glutChangeToMenuEntry (2, "outline", MENU_VIEW_OUTLINE);
+      glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
+      updateall ();
+      break;
+    case MENU_VIEW_FRONT:
+      {
+	double vec [3], len;
+	SUB (look.from, look. to, vec);
+	len = LEN (vec);
+	COPY (look.to, look.from);
+	look.from [1] += len;
+	SET (look.up, 0);
+	look.up [2] = 1;
+      }
+      updateall ();
+      break;
+    case MENU_VIEW_BACK:
+      {
+	double vec [3], len;
+	SUB (look.from, look. to, vec);
+	len = LEN (vec);
+	COPY (look.to, look.from);
+	look.from [1] -= len;
+	SET (look.up, 0);
+	look.up [2] = 1;
+      }
+      updateall ();
+      break;
+    case MENU_VIEW_LEFT:
+      {
+	double vec [3], len;
+	SUB (look.from, look. to, vec);
+	len = LEN (vec);
+	COPY (look.to, look.from);
+	look.from [0] -= len;
+	SET (look.up, 0);
+	look.up [2] = 1;
+      }
+      updateall ();
+      break;
+    case MENU_VIEW_RIGHT:
+      {
+	double vec [3], len;
+	SUB (look.from, look. to, vec);
+	len = LEN (vec);
+	COPY (look.to, look.from);
+	look.from [0] += len;
+	SET (look.up, 0);
+	look.up [2] = 1;
+      }
+      updateall ();
+      break;
+    case MENU_VIEW_TOP:
+      {
+	double vec [3], len;
+	SUB (look.from, look. to, vec);
+	len = LEN (vec);
+	COPY (look.to, look.from);
+	look.from [2] += len;
+	SET (look.up, 0);
+	look.up [1] = 1;
+      }
+      updateall ();
+      break;
+    case MENU_VIEW_BOTTOM:
+      {
+	double vec [3], len;
+	SUB (look.from, look. to, vec);
+	len = LEN (vec);
+	COPY (look.to, look.from);
+	look.from [2] -= len;
+	SET (look.up, 0);
+	look.up [1] = 1;
+      }
+      updateall ();
+      break;
+  }
+}
+
+/* export menu */
+static void menu_export3D (int value)
+{
+  switch (value)
+  {
+    case MENU_EXPORT_AVI_START:
+      glutSetMenu (export_menu);
+      glutChangeToMenuEntry (1, "AVI STOP", MENU_EXPORT_AVI_STOP);
+      GLV_Read_Text ("AVI FILE NAME", avi);
+      break;
+    case MENU_EXPORT_AVI_STOP:
+      glutSetMenu (export_menu);
+      glutChangeToMenuEntry (1, "AVI START", MENU_EXPORT_AVI_START);
+      if (AVI) { AVI_Close (AVI); AVI = NULL; }
+      break;
+    case MENU_EXPORT_PDF:
+      GLV_Read_Text ("PDF FILE NAME", pdf);
+      break;
+    case MENU_EXPORT_EPS:
+      GLV_Read_Text ("EPS FILE NAME", eps);
+      break;
+    case MENU_EXPORT_BMP:
+      GLV_Read_Text ("BMP FILE NAME", bmp);
+      break;
+  }
+}
+
+/* main menu */
 static void menu3D (int value)
 {
   switch (value)
@@ -764,49 +950,6 @@ static void menu3D (int value)
       break;
     case  MENU_MOVE:
       activemode = MOUSE_MODE_MOVE;
-      break;
-    case MENU_PERSPECTIVE:
-      glutSetMenu (main_menu);
-      glutChangeToMenuEntry (5 + menu_shift, "ortho", MENU_ORTHO);
-      reshapemode = RESHAPE_MODE_PERSPECTIVE;
-      updateall ();
-      break;
-    case MENU_ORTHO:
-      glutSetMenu (main_menu);
-      glutChangeToMenuEntry (5 + menu_shift, "perspective", MENU_PERSPECTIVE);
-      reshapemode = RESHAPE_MODE_ORTHO;
-      updateall ();
-      break;
-    case MENU_OUTLINE:
-      glutSetMenu (main_menu);
-      glutChangeToMenuEntry (6 + menu_shift, "fill", MENU_FILL);
-      glPolygonMode (GL_FRONT_AND_BACK, GL_LINE);
-      updateall ();
-      break;
-    case MENU_FILL:
-      glutSetMenu (main_menu);
-      glutChangeToMenuEntry (6 + menu_shift, "outline", MENU_OUTLINE);
-      glPolygonMode (GL_FRONT_AND_BACK, GL_FILL);
-      updateall ();
-      break;
-    case MENU_EXPORT_AVI_START:
-      glutSetMenu (main_menu);
-      glutChangeToMenuEntry (7 + menu_shift, "AVI STOP", MENU_EXPORT_AVI_STOP);
-      GLV_Read_Text ("AVI FILE NAME", avi);
-      break;
-    case MENU_EXPORT_AVI_STOP:
-      glutSetMenu (main_menu);
-      glutChangeToMenuEntry (7 + menu_shift, "AVI START", MENU_EXPORT_AVI_START);
-      if (AVI) { AVI_Close (AVI); AVI = NULL; }
-      break;
-    case MENU_EXPORT_PDF:
-      GLV_Read_Text ("PDF FILE NAME", pdf);
-      break;
-    case MENU_EXPORT_EPS:
-      GLV_Read_Text ("EPS FILE NAME", eps);
-      break;
-    case MENU_EXPORT_BMP:
-      GLV_Read_Text ("BMP FILE NAME", bmp);
       break;
     case MENU_QUIT:
       if (AVI) AVI_Close (AVI);
@@ -889,20 +1032,36 @@ void GLV (
   glutMotionFunc (motion3D);
   glutPassiveMotionFunc (passive3D);
   glutIdleFunc (idle3D);
-  if (menu) menu_shift = menu (&names, &codes);
-  else menu_shift = 0;
-  main_menu = glutCreateMenu (menu3D);
-  for (i = 0; i < menu_shift; i ++) glutAddSubMenu (names [i], codes [i]);
-  glutAddMenuEntry ("trackball", MENU_TRACKBALL);
-  glutAddMenuEntry ("spin", MENU_SPIN);
-  glutAddMenuEntry ("zoom", MENU_ZOOM);
-  glutAddMenuEntry ("move", MENU_MOVE);
-  glutAddMenuEntry ("perspective", MENU_PERSPECTIVE);
-  glutAddMenuEntry ("outline", MENU_OUTLINE);
+
+  view_menu = glutCreateMenu (menu_view3D);
+  glutAddMenuEntry ("perspective", MENU_VIEW_PERSPECTIVE);
+  glutAddMenuEntry ("outline", MENU_VIEW_OUTLINE);
+  glutAddMenuEntry ("front", MENU_VIEW_FRONT);
+  glutAddMenuEntry ("back", MENU_VIEW_BACK);
+  glutAddMenuEntry ("left", MENU_VIEW_LEFT);
+  glutAddMenuEntry ("right", MENU_VIEW_RIGHT);
+  glutAddMenuEntry ("top", MENU_VIEW_TOP);
+  glutAddMenuEntry ("bottom", MENU_VIEW_BOTTOM);
+
+  export_menu = glutCreateMenu (menu_export3D);
   glutAddMenuEntry ("AVI START", MENU_EXPORT_AVI_START);
   glutAddMenuEntry ("PDF", MENU_EXPORT_PDF);
   glutAddMenuEntry ("EPS", MENU_EXPORT_EPS);
   glutAddMenuEntry ("BMP", MENU_EXPORT_BMP);
+
+  if (menu) menu_shift = menu (&names, &codes) + 2;
+  else menu_shift = 2;
+
+  main_menu = glutCreateMenu (menu3D);
+  for (i = 0; i < menu_shift - 2; i ++) glutAddSubMenu (names [i], codes [i]);
+
+  glutAddSubMenu ("view", view_menu);
+  glutAddSubMenu ("export", export_menu);
+
+  glutAddMenuEntry ("trackball", MENU_TRACKBALL);
+  glutAddMenuEntry ("spin", MENU_SPIN);
+  glutAddMenuEntry ("zoom", MENU_ZOOM);
+  glutAddMenuEntry ("move", MENU_MOVE);
   glutAddMenuEntry ("quit", MENU_QUIT);
   glutAttachMenu (GLUT_RIGHT_BUTTON);
 
@@ -1185,11 +1344,6 @@ void GLV_SetProjectionMatrix (int w, int h)
 	  look.right * (GLdouble)w/(GLdouble)h,
 	  look.bottom, look.top,
 	  look.neardst, look.fardst);
-
-      gluLookAt (
-	look.from [0], look.from [1], look.from [2],
-	look.to [0], look.to [1], look.to [2],
-	look.up [0], look.up [1], look.up [2]);
     }
     break;
     case RESHAPE_MODE_PERSPECTIVE:
@@ -1198,14 +1352,14 @@ void GLV_SetProjectionMatrix (int w, int h)
 	(double)w/(double)h,
 	look.neardst,
 	look.fardst);
-
-      gluLookAt (
-	look.from [0], look.from [1], look.from [2],
-	look.to [0], look.to [1], look.to [2],
-	look.up [0], look.up [1], look.up [2]);
     }
     break;
   }
+
+  gluLookAt (
+    look.from [0], look.from [1], look.from [2],
+    look.to [0], look.to [1], look.to [2],
+    look.up [0], look.up [1], look.up [2]);
 }
 
 void GLV_Rectangle_On (int x1, int y1, int x2, int y2)
