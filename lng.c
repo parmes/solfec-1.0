@@ -5547,6 +5547,25 @@ static PyObject* lng_GEOMETRIC_EPSILON (PyObject *self, PyObject *args, PyObject
   Py_RETURN_NONE;
 }
 
+/* dump local dynamics */
+static PyObject* lng_LOCDYN_DUMP (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "path");
+  lng_SOLFEC *solfec;
+  PyObject *path;
+  char *pstr;
+
+  PARSEKEYS ("OO", &solfec, &path);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[1]));
+
+  pstr = PyString_AsString (path);
+
+  LOCDYN_Dump (solfec->sol->dom->ldy, pstr);
+
+  Py_RETURN_NONE;
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6167,6 +6186,7 @@ static PyMethodDef lng_methods [] =
   {"CALLBACK", (PyCFunction)lng_CALLBACK, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
   {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set unphysical penetration bound"},
   {"GEOMETRIC_EPSILON", (PyCFunction)lng_GEOMETRIC_EPSILON, METH_VARARGS|METH_KEYWORDS, "Set geometric epsilon"},
+  {"LOCDYN_DUMP", (PyCFunction)lng_LOCDYN_DUMP, METH_VARARGS|METH_KEYWORDS, "Dump local dynamics"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -6350,6 +6370,7 @@ int lng (const char *path)
                      "from solfec import CALLBACK\n"
                      "from solfec import UNPHYSICAL_PENETRATION\n"
                      "from solfec import GEOMETRIC_EPSILON\n"
+                     "from solfec import LOCDYN_DUMP\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

@@ -7650,6 +7650,32 @@ minarea
  are dropped.
 \end_layout
 
+\begin_layout Subsection*
+LOCDYN_DUMP (solfec, path)
+\end_layout
+
+\begin_layout Standard
+This routine dumps into a file the most recent state of local dynamics.
+ It is meant for debugging and test purposes, e.g.
+ comparing local dynamics between runs on various processor counts.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - Solfec object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - file path
+\end_layout
+
 \begin_layout Section
 Results access
 \end_layout

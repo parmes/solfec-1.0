@@ -1460,7 +1460,6 @@ static int dump_cmp (const void *a, const void *b)
   return 0;
 }
 
-#if 0
 static void linsys_dump (LINSYS *sys, const char *path)
 {
   char fullpath [512];
@@ -1497,62 +1496,6 @@ static void linsys_dump (LINSYS *sys, const char *path)
     for (n = 9, blk = dia->adj; blk; blk = blk->n, n += 9)
     { 
       NNCOPY (blk->T, &x[n]);
-    }
-
-    qsort (x, n/9, sizeof (double [9]), dump_cmp);
-
-    for (i = 0; i < n; i += 9)
-    {
-      fprintf (f, " (%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g )",
-        x [i], x [i+1], x [i+2], x [i+3], x [i+4], x [i+5], x [i+6], x [i+7], x [i+8]);
-    }
-
-    free (x);
-
-    fprintf (f, "\n");
-  }
-
-  fclose (f);
-}
-#endif
-
-static void locdyn_dump (LINSYS *sys, const char *path)
-{
-  char fullpath [512];
-  double *x;
-  DIAT *dia;
-  OFFT *blk;
-  CON *con;
-  FILE *f;
-  int i, n;
-
-#if MPI
-  int rank;
-
-  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
-  snprintf (fullpath, 512, "%s.%d", path, rank);
-#else
-  snprintf (fullpath, 512, "%s", path);
-#endif
-  ASSERT (f = fopen (fullpath, "w"), ERR_FILE_OPEN);
-
-  for (dia = sys->dia; dia; dia = dia->n)
-  {
-    con = dia->con;
-
-    fprintf (f, "(%.6g, %.6g, %.6g) (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] ",
-      con->point [0], con->point [1], con->point [2], dia->B [0], dia->B [1], dia->B [2],
-      con->base [0], con->base [1], con->base [2], con->base [3], con->base [4], con->base [5], con->base [6], con->base [7], con->base [8]);
-
-    for (n = 1, blk = dia->adj; blk; blk = blk->n, n ++);
-
-    ERRMEM (x = malloc (n * sizeof (double [9])));
-
-    NNCOPY (dia->W, x);
-    for (n = 9, blk = dia->adj; blk; blk = blk->n, n += 9)
-    { 
-      NNCOPY (blk->W [0], &x[n]);
-      if (blk->W [1]) { NNADD (blk->W[1], &x[n], &x[n]); }
     }
 
     qsort (x, n/9, sizeof (double [9]), dump_cmp);
@@ -2013,7 +1956,7 @@ void LINSYS_Update (LINSYS *sys, short first)
   }
 
 #if DUMP
-  locdyn_dump (sys, "LOCDYN");
+  linsys_dump (sys, "LINSYS");
 #endif
 }
 

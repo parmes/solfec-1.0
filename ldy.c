@@ -316,6 +316,18 @@ out:
 #endif
 #endif
 
+/* dump comparison */
+static int dumpcmp (CON *a, CON *b)
+{
+  for (int i = 0; i < 3; i ++)
+  {
+    if (a->point [i] < b->point [i]) return -1;
+    else if (a->point [i] > b->point [i]) return 1;
+  }
+
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
 /* create local dynamics for a domain */
 LOCDYN* LOCDYN_Create (DOM *dom)
 {
@@ -728,6 +740,113 @@ void LOCDYN_Update_End (LOCDYN *ldy, SOLVER_KIND solver)
   ldy->modified = 0;
 
   SOLFEC_Timer_End (ldy->dom->solfec, "LOCDYN");
+}
+
+/* dump local dynamics to file */
+void LOCDYN_Dump (LOCDYN *ldy, const char *path)
+{
+  MEM mapmem, offmem;
+  MAP *adj, *item;
+  char *fullpath;
+  OFFB *blk, *q;
+  DIAB *dia;
+  CON *con;
+  FILE *f;
+
+#if MPI
+  ERRMEM (fullpath = malloc (strlen (path) + 64));
+  snprintf (fullpath, strlen (path) + 64, "%s.%d", path, ldy->dom->rank);
+#else
+  fullpath = (char*) path;
+#endif
+
+  ASSERT (f = fopen (fullpath, "w"), ERR_FILE_OPEN);
+
+  MEM_Init (&mapmem, sizeof (MAP), BLKSIZE);
+  MEM_Init (&offmem, sizeof (MAP), BLKSIZE);
+
+  adj = NULL;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    con = dia->con;
+
+    fprintf (f, "%s (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] (%u, %d, %u, %d) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] => ",
+      CON_Kind (con), con->point [0], con->point [1], con->point [2],
+      con->base [0], con->base [1], con->base [2], con->base [3], con->base [4], con->base [5], con->base [6], con->base [7], con->base [8],
+      con->master->id, con->msgp - con->master->sgp, con->slave ? con->slave->id : 0, con->slave ? con->ssgp - con->slave->sgp : 0,
+      dia->W [0], dia->W [1], dia->W [2], dia->W [3], dia->W [4], dia->W [5], dia->W [6], dia->W [7], dia->W [8]);
+
+    MAP_Free (&mapmem, &adj);
+    MEM_Release (&offmem);
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      if (!(q = MAP_Find (adj, blk->dia->con, (MAP_Compare) dumpcmp)))
+      {
+	ERRMEM (q = MEM_Alloc (&offmem));
+	ERRMEM (MAP_Insert (&mapmem, &adj, blk->dia->con, q, (MAP_Compare) dumpcmp));
+      }
+      NNADD (q->W, blk->W, q->W);
+    }
+
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      if (!(q = MAP_Find (adj, blk->dia, (MAP_Compare) dumpcmp)))
+      {
+	ERRMEM (q = MEM_Alloc (&offmem));
+	ERRMEM (MAP_Insert (&mapmem, &adj, blk->dia, q, (MAP_Compare) dumpcmp));
+      }
+      NNADD (q->W, blk->W, q->W);
+    }
+#endif
+
+    for (item = MAP_First (adj); item; item = MAP_Next (item))
+    {
+      con = item->key;
+      q = item->data;
+
+      fprintf (f, "%s (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] ",
+        CON_Kind (con), con->point [0], con->point [1], con->point [2],
+	q->W [0], q->W [1], q->W [2], q->W [3], q->W [4], q->W [5], q->W [6], q->W [7], q->W [8]);
+
+    }
+
+    fprintf (f, "\n");
+  }
+
+  MEM_Release (&mapmem);
+  MEM_Release (&offmem);
+  fclose (f);
+
+#if MPI
+  if (ldy->dom->rank == 0)
+  {
+    ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);
+    for (int i = 0; i < ldy->dom->ncpu; i ++)
+    {
+      char *buf;
+      long len;
+      FILE *g;
+
+      snprintf (fullpath, strlen (path) + 64, "%s.%d", path, i);
+      ASSERT (g = fopen (fullpath, "r"), ERR_FILE_OPEN);
+      fseek (g, 0, SEEK_END);
+      len = ftell (g);
+      ERRMEM (buf = malloc (len + 64));
+      fseek (g, 0, SEEK_SET);
+      fread (buf, 1, len, g);
+      fwrite (buf, 1, len, f);
+      fclose (g);
+      free (buf);
+      remove (fullpath);
+    }
+    fclose (f);
+  }
+
+  free (fullpath);
+#endif
 }
 
 /* free memory */
