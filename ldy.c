@@ -534,16 +534,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     }
     else { SET (Y0, 0.0); SET (Y, 0.0); }
 
-    if (TWO_POINT_CONSTRAINT(con)) /* relative velocities */
-    {
-      SUB (Y0, X0, V); /* previous time step velocity */
-      SUB (Y, X, B); /* local free velocity */
-    }
-    else /* not relative */
-    {
-      COPY (X0, V);
-      COPY (X, B);
-    }
+    SUB (X0, Y0, V); /* previous time step velocity */
+    SUB (X, Y, B); /* local free velocity */
 
     /* diagonal block */
     dia->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
@@ -581,7 +573,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     NVMUL (A.x, B, X);
     ldy->free_energy += DOT (X, B); /* sum up free energy */
 
-    /* add up prescribed velocity contribution if any */
+    /* add up prescribed velocity contribution */
     if (con->kind == VELODIR) ldy->free_energy += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
   }
 
@@ -590,8 +582,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
   for (dia = ldy->dia; dia; dia = dia->n) /* off-diagonal blocks update */
   {
     CON *con = dia->con;
-    BODY *m = con->master, *s = con->slave;
-    short tpc_l = TWO_POINT_CONSTRAINT (con);
+    BODY *m = con->master,
+	 *s = con->slave;
 
     if (upkind == UPPES && con->kind == CONTACT) continue; /* update only non-contact constraint blocks */
 
@@ -604,7 +596,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
       DIAB *adj = blk->dia;
       CON *con = adj->con;
       BODY *bod = blk->bod;
-      short tpc_r = TWO_POINT_CONSTRAINT (con);
       MX_DENSE_PTR (W, 3, 3, blk->W);
       double coef;
 
@@ -623,27 +614,16 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 #else
 	right =  adj->mprod;
 #endif
-	coef = (bod == s ? (tpc_r ? -step : step) : (tpc_l == tpc_r ? step : -step)); /* (&&&) */
-
-	/* left slave (two-point) && right two-point master => negative;
-	 * left slave (two-point) && right single-point master => positive;
-	 * left two-point master && right two-point master => positive;
-	 * left two-point master && right single-point master => negative;
-	 * left single-point master && right single-point master => positive;
-	 * left single-point master && right two->point master => negative */
+	coef = (bod == s ? -step : step);
       }
-      else /* blk->bod == dia->con->slave (slave on the right) */
+      else /* blk->bod == con->slave (slave on the right) */
       {
 #if MPI
 	right = adj->sH;
 #else
 	right =  adj->sprod;
 #endif
-	coef = (tpc_l && bod == m ? -step : step); /* (***) */
-
-	/* left two-point master && right slave (two-point) => negative;
-	 * left single-point master && right slave (two->point) => postive;
-	 * left slave (two-point) && right slave (two->point) => positive */
+	coef = (bod == m ? -step : step);
       }
 
 #if MPI
@@ -661,7 +641,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
       MX *left, *right;
       CON *ext = (CON*)blk->dia;
       BODY *bod = blk->bod;
-      short tpc_r = TWO_POINT_CONSTRAINT (ext);
       MX_DENSE_PTR (W, 3, 3, blk->W);
       double coef, *point;
       SGP *sgp;
@@ -671,14 +650,12 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
       if (bod == ext->master)
       {
 	sgp = ext->msgp, point = ext->mpnt;
-
-	coef = (bod == s ? (tpc_r ? -step : step) : (tpc_l == tpc_r ? step : -step)); /* (&&&) */
+	coef = (bod == s ? -step : step);
       }
       else
       {
 	sgp = ext->ssgp, point = ext->spnt;
-
-	coef = (tpc_l && bod == m ? -step : step); /* (***) */
+	coef = (bod == m ? -step : step);
       }
      
       left = (bod == m ? dia->mprod : dia->sprod);

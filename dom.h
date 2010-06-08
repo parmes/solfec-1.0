@@ -75,11 +75,7 @@ struct constraint
 
   int num; /* local number */
 
-  enum {CONTACT = 0x01,
-        FIXPNT  = 0x02,
-	FIXDIR  = 0x04,
-	VELODIR = 0x08,
-	RIGLNK  = 0x10} kind; /* constraint kind */
+  enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK} kind; /* constraint kind */
 
   enum {CON_COHESIVE = 0x01,
         CON_NEW      = 0x02, /* newly inserted constraint */
@@ -118,9 +114,6 @@ struct constraint
 #define sgobj(con) ((con)->ssgp->gobj)
 #define mkind(con) GOBJ_Kind ((con)->msgp)
 #define skind(con) GOBJ_Kind ((con)->ssgp)
-
-/* two-point constraint test */
-#define TWO_POINT_CONSTRAINT(con) (con->kind & (CONTACT|RIGLNK))
 
 #if MPI
 typedef struct domain_statistics DOMSTATS;

@@ -41,7 +41,8 @@ typedef enum
  *                    return 1 for updated contact with no surface pair change
  *                    return 2 for updated contact when the surface pair has changed
  *                    ---------------------------------------------------------------
- *                    in an updated contact the 'gap' can be positive
+ *                    in an updated contact the 'gap' can be positive;
+ *                    normal is assumed and kept outward to the first body
  * ----------------------------------------------------------------------------------
  *  the returned 'area' will always be equal 1.0 if one of the objects is curved;
  *  otherwise this is the actual flat area of contact between two object surfaces
