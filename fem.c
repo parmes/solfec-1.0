@@ -1129,7 +1129,7 @@ static MX* gen_to_loc_operator (BODY *bod, MESH *msh, ELEMENT *ele, double *X, d
 }
 
 /* accumulate constraints reaction */
-inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short subr, double *force)
+inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *force)
 {
   double shapes [MAX_NODES_COUNT], P [3], point [3], *f;
   int numbers [MAX_NODES_COUNT], i, n;
@@ -1140,8 +1140,8 @@ inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *e
 
   NVMUL (base, R, P);
 
-  if (subr) for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; SUBMUL (f, shapes [i], P, f); }
-  else for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; ADDMUL (f, shapes [i], P, f); }
+  if (isma) for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; ADDMUL (f, shapes [i], P, f); }
+  else for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; SUBMUL (f, shapes [i], P, f); }
 }
 
 /* compute constraints force */
@@ -1161,7 +1161,6 @@ static void fem_constraints_force (BODY *bod, double *force)
   {
     CON *con = node->data;
     short isma = (bod == con->master);
-    short tpc = TWO_POINT_CONSTRAINT (con);
     double *X = (isma ? con->mpnt : con->spnt);
 
     if (bod->msh)
@@ -1171,7 +1170,7 @@ static void fem_constraints_force (BODY *bod, double *force)
     }
     else ele = (isma ? mgobj(con) : sgobj(con));
 
-    fem_constraints_force_accum (bod, msh, ele, X, con->base, con->R, isma && tpc, force);
+    fem_constraints_force_accum (bod, msh, ele, X, con->base, con->R, isma, force);
   }
 }
 

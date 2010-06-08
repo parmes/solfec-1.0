@@ -140,13 +140,13 @@ static void localbase (double *n, double *loc)
 #define CONCMP ((SET_Compare) constraint_compare)
 static int constraint_compare (CON *one, CON *two)
 {
+  short oc = (one->kind == CONTACT), tc = (two->kind == CONTACT);
   BODY *onebod [2], *twobod [2];
   SGP *onesgp [2], *twosgp [2];
 
-  if (one->kind != CONTACT || two->kind != CONTACT) /* there is a non-contact: compare pointers */
-  {
-    return (one < two ? -1 : (one == two ? 0 : 1));
-  }
+  if (oc > tc) return -1; /* contacts are smaller than non-contacts */
+  else if (oc < tc) return 1; /* -||- */
+  else if ((oc + tc) == 0) return (one < two ? -1 : (one == two ? 0 : 1)); /* non-contacts: compare pointers */
 
   if (one->master < one->slave) /* contacts: order pointers before comparing */
   {
@@ -317,16 +317,16 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
 
   switch (state)
   {
-    case 1: /* first body is the master */
+    case 1: /* first body has outward normal => second body is the master */
     {
       paircode = GOBJ_Pair_Code (one, two);
-      insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
+      insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
     }
     break;
-    case 2: /* second body is the master */
+    case 2:  /* second body has outward normal => first body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
-      insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
+      insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
     }
     break;
   }
@@ -362,8 +362,8 @@ static void update_contact (DOM *dom, CON *con)
   /* update contact data => during an update 'master' and 'slave' relation does not change */
   state = gobjcontact (
     CONTACT_UPDATE, con->paircode,
-    mshp, mgobj, sshp, sgobj,
-    mpnt, spnt, normal, &con->gap, /* 'mpnt' and 'spnt' are updated here */
+    sshp, sgobj, mshp, mgobj, /* the slave body holds the outward normal */
+    spnt, mpnt, normal, &con->gap, /* 'mpnt' and 'spnt' are updated here */
     &con->area, spair); /* surface pair might change though */
 
   if (state)
