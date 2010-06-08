@@ -117,6 +117,10 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver);
 /* update local dynamics => after the solution */
 void LOCDYN_Update_End (LOCDYN *ldy, SOLVER_KIND solver);
 
+/* dump local dynamics to file */
+void LOCDYN_Dump (LOCDYN *ldy, const char *path);
+
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);
+
 #endif
