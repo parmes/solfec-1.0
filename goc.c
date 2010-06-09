@@ -310,6 +310,18 @@ static int detect_convex_sphere (
   return 0;
 }
 
+/* compare two points */
+inline static int pntcmp (double *a, double *b)
+{
+  for (int i = 0; i < 3 ; i ++)
+  {
+    if (a [i] < b [i]) return -1;
+    else if (a [i] > b [i]) return 1;
+  }
+
+  return 0;
+}
+
 /* detect contact between spheres 'a' and 'b' */
 static int detect_sphere_sphere (
   double *ca, double ra, int sa, /* center, radius, surface */
@@ -323,13 +335,25 @@ static int detect_sphere_sphere (
 {
   if (((*gap) = gjk_sphere_sphere (ca, ra, cb, rb, onepnt, twopnt)) < GEOMETRIC_EPSILON)
   {
-    SUB (onepnt, ca, normal);
-    NORMALIZE (normal);
     spair [0] = sa;
     spair [1] = sb;
+
     *area = 1.0;
-    *gap = sphere_sphere_gap (ca, ra, cb, rb, normal);
-    return 1;
+
+    if (pntcmp (ca, cb) <= 0) /* same normal orientation regardless of sphere processing order */
+    {
+      SUB (onepnt, ca, normal);
+      NORMALIZE (normal);
+      *gap = sphere_sphere_gap (ca, ra, cb, rb, normal);
+      return 1;
+    }
+    else
+    {
+      SUB (twopnt, cb, normal);
+      NORMALIZE (normal);
+      *gap = sphere_sphere_gap (cb, rb, ca, ra, normal);
+      return 2;
+    }
   }
 
   return 0;
