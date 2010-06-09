@@ -762,8 +762,8 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
 
   ASSERT (f = fopen (fullpath, "w"), ERR_FILE_OPEN);
 
+  MEM_Init (&offmem, sizeof (OFFB), BLKSIZE);
   MEM_Init (&mapmem, sizeof (MAP), BLKSIZE);
-  MEM_Init (&offmem, sizeof (MAP), BLKSIZE);
 
   adj = NULL;
 
@@ -821,6 +821,8 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
   fclose (f);
 
 #if MPI
+  MPI_Barrier (MPI_COMM_WORLD);
+
   if (ldy->dom->rank == 0)
   {
     ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);

@@ -1,8 +1,9 @@
 # stack of cubes
 
 KINEM = 'PSEUDO_RIGID'
-M = 2
-N = 1
+I = 4
+J = 4
+N = 4
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -24,12 +25,12 @@ def cube (x, y, z, a, b, c, sur, vol):
 def stack_of_cubes_create (material, solfec):
 
   # create an obstacle base
-  shp = cube (0, 0, -1, M, M, 1, 1, 1)
+  shp = cube (0, 0, -1, I, J, 1, 1, 1)
   BODY (solfec, 'OBSTACLE', shp, material)
 
   # create the remaining bricks
-  for x in range (M):
-    for y in range (M):
+  for x in range (I):
+    for y in range (J):
       for z in range (N):
 	#shp = cube (x, y, z, 1, 1, 1, 2, 2)
 	shp = SPHERE ((x+0.5, y+0.5, z+0.5), 0.5, 2, 2)
@@ -41,6 +42,8 @@ def stack_of_cubes_create (material, solfec):
 step = 0.001
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/locdyn')
+
+if not VIEWER(): solfec.verbose = 'OFF'
 
 CONTACT_SPARSIFY (solfec, 0.005, 0.001)
 
@@ -60,4 +63,4 @@ OUTPUT (solfec, step)
 
 RUN (solfec, sv, step)
 
-LOCDYN_DUMP (solfec, 'out/tests/locdyn-' + str (NCPU (solfec)))
+LOCDYN_DUMP (solfec, 'out/tests/locdyn/locdyn-' + str (NCPU(solfec)))
