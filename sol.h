@@ -159,6 +159,7 @@ struct solfec_history_item
 };
 
 /* read histories of a set of requested items; allocate and fill 'history'  members
- * of those items; return table of times of the same 'size' as the 'history' members */
+ * of those items; return table of times of the same 'size' as the 'history' members;
+ * skip every 'skip' steps; if 'skip' < 0 then print out a percentage based progress bar */
 double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, int skip, int *size);
 #endif

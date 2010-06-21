@@ -6091,20 +6091,21 @@ static SHI* parse_history_items (PyObject *list, MEM *setmem, SOLFEC *sol, int *
 /* history of an entity */
 static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "list", "t0", "t1", "skip");
+  KEYWORDS ("solfec", "list", "t0", "t1", "skip", "progress");
   double start, end, t0, t1, *time;
-  PyObject *list, *tuple, *vals;
+  PyObject *list, *tuple, *vals, *progress;
   int skip, nshi, i, j, size;
   lng_SOLFEC *solfec;
   SOLFEC *sol;
   MEM setmem;
   SHI *shi;
 
+  progress = NULL;
   skip = 1;
 
-  PARSEKEYS ("OOdd|i", &solfec, &list, &t0, &t1, &skip);
+  PARSEKEYS ("OOdd|iO", &solfec, &list, &t0, &t1, &skip, &progress);
 
-  TYPETEST (is_solfec (solfec, kwl[0]));
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (skip, kwl [4]) && is_string (progress, kwl[5]));
 
   sol = solfec->sol;
 
@@ -6124,6 +6125,23 @@ static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
     if (t0 < start) t0 = start;
 
     if (t1 > end) t1 = end;
+
+    if (progress)
+    {
+      IFIS (progress, "ON")
+      {
+	skip = -skip;
+      }
+      ELIF (progress, "OFF")
+      {
+	/* do nothing */
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid progress value (neither 'ON' nor 'OFF')");
+	return NULL;
+      }
+    }
 
     time = SOLFEC_History (sol, shi, nshi, t0, t1, skip, &size);
 

@@ -68,7 +68,7 @@ RUN (solfec, gs, stop)
 if not VIEWER() and solfec.mode == 'READ':
   try:
     import matplotlib.pyplot as plt
-    th = HISTORY (solfec, [(solfec, 'KINETIC'), (solfec, 'INTERNAL'), (solfec, 'EXTERNAL'), (solfec, 'CONTACT') ], 0, stop)
+    th = HISTORY (solfec, [(solfec, 'KINETIC'), (solfec, 'INTERNAL'), (solfec, 'EXTERNAL'), (solfec, 'CONTACT') ], 0, stop, progress = 'ON')
     plt.plot (th [0], th [1], label='KIN')
     plt.plot (th [0], th [2], label='INT')
     plt.plot (th [0], th [3], label='EXT')
