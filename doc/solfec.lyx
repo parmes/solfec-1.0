@@ -8008,7 +8008,7 @@ kind
 \end_layout
 
 \begin_layout Subsection*
-hist = HISTORY (solfec, list, t0, t1 | skip)
+hist = HISTORY (solfec, list, t0, t1 | skip, progress)
 \end_layout
 
 \begin_layout Standard
@@ -8162,6 +8162,15 @@ t1
 skip
 \series default
  - number of steps to skip between two time instants
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+progress
+\series default
+ - 'ON' or 'OFF'; print out a percentage based progress bar (default: 'OFF');
+ useful for large output files and slow hard disks
 \end_layout
 
 \begin_layout Chapter

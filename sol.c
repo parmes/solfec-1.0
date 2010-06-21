@@ -693,16 +693,20 @@ void SOLFEC_Destroy (SOLFEC *sol)
 }
 
 /* read histories of a set of requested items; allocate and fill 'history'  members
- * of those items; return table of times of the same 'size' as the 'history' members */
+ * of those items; return table of times of the same 'size' as the 'history' members;
+ * skip every 'skip' steps; if 'skip' < 0 then print out a percentage based progress bar */
 double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, int skip, int *size)
 {
   if (sol->mode == SOLFEC_WRITE) return NULL;
 
   double save, *time;
   int cur, i,
+      dodel = 0,
       timers = 0,
       labeled = 0,
       full_read = 0;
+
+  if (skip < 0) printf ("Reading history ... "); /* progress begin */
 
   cur = 0;
   save = sol->dom->time;
@@ -799,10 +803,10 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 
     time [cur ++] = sol->dom->time; /* store current time and iterate */
 
-    if (full_read) SOLFEC_Forward (sol, skip); /* read complete Solfec state */
+    if (full_read) SOLFEC_Forward (sol, ABS (skip)); /* read complete Solfec state */
     else
     {
-      PBF_Forward (sol->bf, skip); /* move to next frame */
+      PBF_Forward (sol->bf, ABS (skip)); /* move to next frame */
 
       PBF_Time (sol->bf, &sol->dom->time); /* read time */
 
@@ -810,10 +814,19 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 
       if (timers) read_timers (sol); /* read timers */
     }
+
+    if (skip < 0) /* print out progress */
+    {
+      if (dodel) printf ("\b\b\b\b");
+      int progress = (int) (100. * ((sol->dom->time - t0) / (t1 - t0)));
+      printf ("%3d%%", progress); dodel = 1;
+    }
   }
   while (sol->dom->time < t1);
 
   SOLFEC_Seek_To (sol, save); /* restore initial time frame */
+
+  if (skip < 0) printf ("\n"); /* progress end */
 
   return time;
 }

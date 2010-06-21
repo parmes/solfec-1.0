@@ -28,7 +28,7 @@ if not VIEWER() and solfec.mode == 'READ':
 
   timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
   dur = DURATION (solfec)
-  th = HISTORY (solfec, timers, dur[0], dur[1])
+  th = HISTORY (solfec, timers, dur[0], dur[1], progress = 'ON')
   total = 0.0
 
   for i in range (0, len (timers)):
