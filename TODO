@@ -69,3 +69,8 @@ Optimize LINSYS:
      multiply accordingly in Matvec
   c) Precompute and invert preconditioner right after matrix update;
      (this will save time spent on iversions of diagonal blocks)
+----------------------------------------------------------------------------------------------
+Implement fixed point aproach on S = |UT| for De Saxce formulation as suggested by V. Acary
+--------------------------------------------------------------------------------------------
+Add optional "progress bar" to the HISTORY command (useful for large files)
+-----------------------------------------------------------------------------

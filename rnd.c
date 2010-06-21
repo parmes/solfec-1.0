@@ -449,6 +449,8 @@ static double sphere_value (BODY *bod, SPHERE *sph)
     kind = VALUE_MISES;
     index = 0;
     break;
+  default:
+    return 0.0;
   }
 
   BODY_Point_Values (bod, sph->ref_center, kind, values);
