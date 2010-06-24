@@ -78,9 +78,9 @@ if not VIEWER() and solfec.mode == 'READ':
   try:
     import matplotlib.pyplot as plt
 
-    plt.plot (th[0], th[2])
+    plt.plot (th[0], th[17])
     plt.semilogy (10)
-    plt.title (kinstr + solstr)
+    plt.title (solver + ': ' + str (int(stop/step)) + ' steps, ' + kinem + ' model')
     plt.xlabel ('Time')
     plt.ylabel ('Merit function f(R)')
     plt.savefig (outdir + '/merit-history' + kinstr + solstr + '.eps')
