@@ -4511,7 +4511,7 @@ diagepsilon
  - diagonal block solver relative accuracy of constraint reactions (default:
  
 \emph on
-epsilon / 100
+min (epsilon, meritval, 1E-4) / 100
 \emph default
 )
 \end_layout
@@ -4535,7 +4535,7 @@ diagsolver
 \series default
  - diagonal block solver kind (default: 'SEMISMOOTH_NEWTON').
  Available diagonal solvers are 'SEMISMOOTH_NEWTON', 'PROJECTED_GRADIENT',
- 'DE_SAXE_AND_FENG', cf.
+ 'DE_SAXCE_FENG', cf.
  Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref

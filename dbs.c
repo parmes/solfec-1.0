@@ -87,7 +87,7 @@ static int projected_gradient (short dynamic, double epsilon, int maxiter,
   return iter;
 }
 
-static int de_saxe_and_feng (short dynamic, double epsilon, int maxiter,
+static int de_saxce_feng (short dynamic, double epsilon, int maxiter,
   double step, double friction, double restitution, double gap, double rho,
   double *W, double *B, double *V, double *U, double *R)
 {
@@ -119,9 +119,9 @@ static int de_saxe_and_feng (short dynamic, double epsilon, int maxiter,
      * reactions */
     tau [0] = R[0] - rho * U[0];
     tau [1] = R[1] - rho * U[1];
-    tau [2] = R[2] - rho * (UN + friction * sqrt(U[0]*U[0]+U[1]*U[1]));
+    tau [2] = R[2] - rho * (UN + friction * LEN2 (U));
    
-    scalar = sqrt (tau[0]*tau[0]+tau[1]*tau[1]);
+    scalar = LEN2 (tau);
     if (friction * scalar < -tau [2]) { SET (R, 0.0); }
     else if (scalar <= friction * tau [2]) { COPY (tau, R); }
     else
@@ -488,8 +488,8 @@ int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
       case DS_PROJECTED_GRADIENT:
 	return projected_gradient (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
 			   mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
-      case DS_DE_SAXE_AND_FENG:
-	return de_saxe_and_feng (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
+      case DS_DE_SAXCE_FENG:
+	return de_saxce_feng (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
 			 mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
       case DS_SEMISMOOTH_NEWTON:
 	return semismooth_newton (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
