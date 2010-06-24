@@ -213,7 +213,7 @@ static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
   {
     if (con->kind == CONTACT)
     {
-      DIAS dias [3] = {DS_SEMISMOOTH_NEWTON, DS_PROJECTED_GRADIENT, DS_DE_SAXE_AND_FENG};
+      DIAS dias [3] = {DS_SEMISMOOTH_NEWTON, DS_PROJECTED_GRADIENT, DS_DE_SAXCE_FENG};
 
       for (int i = 0; i < 3; i ++)
       {
@@ -1017,7 +1017,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
 	  if (con->kind == CONTACT)
 	  {
-	    DIAS dias [3] = {DS_SEMISMOOTH_NEWTON, DS_PROJECTED_GRADIENT, DS_DE_SAXE_AND_FENG};
+	    DIAS dias [3] = {DS_SEMISMOOTH_NEWTON, DS_PROJECTED_GRADIENT, DS_DE_SAXCE_FENG};
 
 	    for (int i = 0; i < 3; i ++)
 	    {
@@ -1111,7 +1111,7 @@ char* GAUSS_SEIDEL_Diagsolver (GAUSS_SEIDEL *gs)
   switch (gs->diagsolver)
   {
   case DS_PROJECTED_GRADIENT: return "PROJECTED_GRADIENT";
-  case DS_DE_SAXE_AND_FENG: return "DE_SAXE_AND_FENG";
+  case DS_DE_SAXCE_FENG: return "DE_SAXCE_FENG";
   case DS_SEMISMOOTH_NEWTON: return "SEMISMOOTH_NEWTON";
   }
 

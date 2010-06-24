@@ -396,7 +396,7 @@ def gcore_central_bricks (loangle, hiangle, keywayangle, kind, tms, material, so
 	dir = ROTATE (nl, zero, oz, 90)
       else: dir = nl
 
-      SCALE (dir, (-1, -1, -1))
+      dir = SCALE (dir, (-1, -1, -1))
       FORCE (bod, 'SPATIAL', MASS_CENTER (bod), dir, tms)
 
     elif i == 3:
@@ -414,51 +414,99 @@ def box_kite_create (loose_gap, integral_gap, high_angle, low_angle, keyway_angl
   gcore_outer_bricks_and_keys (loose_gap, integral_gap, material, solfec)
   gcore_central_bricks (low_angle, high_angle, keyway_angle, kind, tms, material, solfec)
 
+def box_kite_test (case_name, time_step, duration, friction_coef,
+                  load_case, load_hist, solver,
+                  loose_gap, integral_gap, high_angle, low_angle, keyway_angle):
+
+  solfec = SOLFEC ('DYNAMIC', time_step, 'out/boxkite/' + case_name)
+  surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = friction_coef)
+  bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 5E6, poisson = 0.25, density = 1E3)
+  GRAVITY (solfec, (0, 0, -10))
+  box_kite_create (loose_gap, integral_gap,  high_angle, low_angle, keyway_angle, load_case, load_hist, bulkmat, solfec)
+  RUN (solfec, solver, duration)
+
+  return solfec
+
+def box_kite_print_history (solfec, case_name, load_case, high_angle):
+
+  zero = (0, 0, 0)
+  ox = (1, 0, 0)
+  oz = (0, 0, 1)
+
+  if solfec.mode == 'WRITE': return
+
+  bod0 = BYLABEL (solfec, 'BODY', 'HALF2')
+  bod1 = BYLABEL (solfec, 'BODY', 'HALF3')
+  pnt0 = MASS_CENTER (bod0)
+  pnt1 = MASS_CENTER (bod1)
+  dur = DURATION (solfec)
+
+  th = HISTORY (solfec, [(bod0, pnt0, 'DX'), (bod0, pnt0, 'DY'),
+                         (bod1, pnt1, 'DX'), (bod1, pnt1, 'DY')], dur[0], dur[1])
+
+  if load_case == SHEAR:
+    dir = ROTATE (ox, zero, oz, high_angle + 90)
+  else:
+    dir = ROTATE (ox, zero, oz, high_angle)
+
+  time = th [0]
+  disp = []
+  for i in range (0, len (th[0])):
+    disp.append (dir [0] * (th[1][i] - th[3][i]) + dir [1] * (th[2][i] - th[4][i]))
+    disp [i] = abs (disp [i])
+
+  file = open ('out/boxkite/' + case_name + '/disp.txt', 'w')
+
+  for i in range (0, len (time)):
+    file.write (str(time [i])  + '   ' +  str (disp [i]) + '\n')
+
 ### main module ###
 
-step = 0.001
+save = []
 
 GEOMETRIC_EPSILON (1E-6)
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/boxkite')
+step = 0.001
+duration = 0.01
+load_hist = TIME_SERIES ([0, 10, 1, 10])
+friction = 0.0
 
-surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0)
+solver = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 5E6, poisson = 0.25, density = 1E3)
+allcases = [
+# large clearance
+            ('29-LT', SHEAR, 0.0015, 0.0013, 0, 0, 0),
+            ('29-LN', SEPARATION, 0.0015, 0.0013, 0, 0, 0), 
+            ('31-LT', SHEAR, 0.0015, 0.0013, 45, 0, 45),
+            ('31-LN', SEPARATION, 0.0015, 0.0013, 45, 0, 45),
+            ('33-LT', SHEAR, 0.0015, 0.0013,  0,   0, 45),
+            ('33-LN', SEPARATION, 0.0015, 0.0013,  0,   0, 45),
+            ('39-LT', SHEAR, 0.0015, 0.0013, 45,   0,  0),
+            ('39-LN', SEPARATION, 0.0015, 0.0013, 45,   0,  0),
+            ('44-LT', SHEAR, 0.0015, 0.0013, 45, 135,  0),
+            ('44-LN', SEPARATION, 0.0015, 0.0013, 45, 135,  0),
+# small clearance
+            ('46-ST', SHEAR, 0.0003, 0.0002, 0, 0, 0),
+            ('46-SN', SEPARATION, 0.0003, 0.0002, 0, 0, 0), 
+            ('48-ST', SHEAR, 0.0003, 0.0002, 45, 0, 45),
+            ('48-SN', SEPARATION, 0.0003, 0.0002, 45, 0, 45),
+            ('50-ST', SHEAR, 0.0015, 0.0002,  0,   0, 45),
+            ('50-SN', SEPARATION, 0.0015, 0.0002,  0,   0, 45),
+            ('56-ST', SHEAR, 0.0003, 0.0002, 45,   0,  0),
+            ('56-SN', SEPARATION, 0.0003, 0.0002, 45,   0,  0),
+            ('61-ST', SHEAR, 0.0003, 0.0002, 45, 135,  0),
+            ('61-SN', SEPARATION, 0.0003, 0.0002, 45, 135,  0)
+	    ]
 
-tms = TIME_SERIES ([0, 10, 1, 10])
+for case in allcases:
+  sol = box_kite_test (case [0], step, duration, friction, case [1], load_hist, solver, case [2], case [3], case [4], case [5], case [6])
+  save.append (sol)
+  box_kite_print_history (sol, case [0], case [1], case [4])
 
-GRAVITY (solfec, (0, 0, -10))
+def one_test (number):
+  case = allcases [number]
+  sol = box_kite_test (case [0], step, duration, friction, case [1], load_hist, solver, case [2], case [3], case [4], case [5], case [6])
+  save.append (sol)
+  box_kite_print_history (sol, case [0], case [1], case [4])
 
-#import rpdb2; rpdb2.start_embedded_debugger('a')
-
-box_kite_create (0.0003, 0.0002,  0,  0,  0, SEPARATION, tms, bulkmat, solfec)
-
-sv = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6, failure = 'CONTINUE')
-#sv = NEWTON_SOLVER ('SMOOTHED_VARIATIONAL', 1E-8, 50)
-#sv.nonmonlength = 5
-
-MERIT = []
-
-def callback (sv):
-  MERIT.append (sv.merhist)
-  return 1
-
-if not VIEWER(): CALLBACK (solfec, step, sv, callback)
-
-RUN (solfec, sv, 20 * step)
-
-if not VIEWER() and solfec.mode == 'WRITE':
-  try:
-    import matplotlib.pyplot as plt
-
-    for M in MERIT:
-      plt.plot (list (range (0, len(M))), M)
-
-    plt.semilogy (10)
-    plt.xlabel ('Iteration')
-    plt.ylabel ('Merit function f')
-    plt.savefig ('out/boxkite/boxkite.eps')
- 
-  except ImportError:
-    pass # no reaction
+#one_test (0)

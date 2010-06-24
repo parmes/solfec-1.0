@@ -2885,9 +2885,9 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
       {
 	dias = DS_PROJECTED_GRADIENT;
       }
-      ELIF (diagsolver, "DE_SAXE_AND_FENG")
+      ELIF (diagsolver, "DE_SAXCE_FENG")
       {
-	dias = DS_DE_SAXE_AND_FENG;
+	dias = DS_DE_SAXCE_FENG;
       }
       ELSE
       {
@@ -2897,7 +2897,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
     }
 
     if (diagepsilon == DBL_MAX)
-      diagepsilon = 0.01 * epsilon;
+      diagepsilon = 0.01 * MIN (epsilon, MIN (meritval, 1E-4));
 
     if (diagmaxiter == INT_MAX)
       diagmaxiter = MAX (100, maxiter / 100);
@@ -3058,9 +3058,9 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_diagsolver (lng_GAUSS_SEIDEL_SOLVER *self
   {
     self->gs->diagsolver = DS_PROJECTED_GRADIENT;
   }
-  ELIF (value, "DE_SAXE_AND_FENG")
+  ELIF (value, "DE_SAXCE_FENG")
   {
-    self->gs->diagsolver = DS_DE_SAXE_AND_FENG;
+    self->gs->diagsolver = DS_DE_SAXCE_FENG;
   }
   ELSE
   {
