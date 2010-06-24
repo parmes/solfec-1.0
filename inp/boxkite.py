@@ -462,8 +462,6 @@ def box_kite_print_history (solfec, case_name, load_case, high_angle):
 
 ### main module ###
 
-save = []
-
 GEOMETRIC_EPSILON (1E-6)
 
 step = 0.001
@@ -500,13 +498,11 @@ allcases = [
 
 for case in allcases:
   sol = box_kite_test (case [0], step, duration, friction, case [1], load_hist, solver, case [2], case [3], case [4], case [5], case [6])
-  save.append (sol)
   box_kite_print_history (sol, case [0], case [1], case [4])
 
 def one_test (number):
   case = allcases [number]
   sol = box_kite_test (case [0], step, duration, friction, case [1], load_hist, solver, case [2], case [3], case [4], case [5], case [6])
-  save.append (sol)
   box_kite_print_history (sol, case [0], case [1], case [4])
 
 #one_test (0)
