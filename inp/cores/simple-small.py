@@ -6,7 +6,7 @@ from simple_core_base import *
 # main module
 
 step = 1E-3
-stop = 0.01
+stop = 0.1
 outfrq = step
 kinem = 'PSEUDO_RIGID'
 solver = 'GAUSS_SEIDEL'
@@ -43,9 +43,9 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7, spring = 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
 if solver == 'GAUSS_SEIDEL':
-  sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-3, diagsolver = 'PROJECTED_GRADIENT')
+  sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-5, diagsolver = 'PROJECTED_GRADIENT')
 elif solver == 'NEWTON':
-  sv = NEWTON_SOLVER (1E-3, 20)
+  sv = NEWTON_SOLVER (1E-5, 20)
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 
@@ -54,7 +54,7 @@ def callback (sv):
   MERIT.append (sv.merhist)
   return 1
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, kinem, scheme, shake, 2, 2, 2)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, kinem, scheme, shake, 4, 4, 4)
 
 UNPHYSICAL_PENETRATION (solfec, 0.02)
 IMBALANCE_TOLERANCE (solfec, 1.1)
@@ -70,7 +70,7 @@ if not VIEWER() and solfec.mode == 'WRITE' and plotconv == 1:
       plt.plot (list (range (0, len(M))), M)
 
     plt.semilogy (10)
-    plt.title (solver + ': 100 iterations, pseudo-rigid model')
+    plt.title (solver + ': ' + str (int(stop/step)) + ' steps, ' + kinem + ' model')
     plt.xlabel ('Iteration')
     plt.ylabel ('Merit function f(R)')
     plt.savefig (outdir + '/iter-history' + kinstr + solstr + '.eps')
@@ -100,9 +100,9 @@ if not VIEWER() and solfec.mode == 'READ':
   try:
     import matplotlib.pyplot as plt
 
-    plt.plot (th[0], th[2])
+    plt.plot (th[0], th[17])
     plt.semilogy (10)
-    plt.title (kinstr + '/' + solstr)
+    plt.title (solver + ': ' + str (int(stop/step)) + ' steps, ' + kinem + ' model')
     plt.xlabel ('Time')
     plt.ylabel ('Merit function f(R)')
     plt.savefig (outdir + '/merit-history' + kinstr + solstr + '.eps')
