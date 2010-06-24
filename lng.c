@@ -1089,6 +1089,10 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
 /* destructor */
 static void lng_SOLFEC_dealloc (lng_SOLFEC *self)
 {
+#if OPENGL
+  if (RND_Is_On ()) return; /* do not delete in viewer mode */
+  else
+#endif
   SOLFEC_Destroy (self->sol);
 
   self->ob_type->tp_free ((PyObject*)self);
@@ -2912,10 +2916,14 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
 /* destructor */
 static void lng_GAUSS_SEIDEL_SOLVER_dealloc (lng_GAUSS_SEIDEL_SOLVER *self)
 {
+#if OPENGL
+  if (RND_Is_On ()) return; /* do not delete in viewer mode */
+  else
+#endif
+  GAUSS_SEIDEL_Destroy (self->gs);
+
   Py_XDECREF (self->callback);
   Py_XDECREF (self->data);
-
-  GAUSS_SEIDEL_Destroy (self->gs);
 
   self->ob_type->tp_free ((PyObject*)self);
 }
@@ -3232,6 +3240,10 @@ static PyObject* lng_PENALTY_SOLVER_new (PyTypeObject *type, PyObject *args, PyO
 /* destructor */
 static void lng_PENALTY_SOLVER_dealloc (lng_PENALTY_SOLVER *self)
 {
+#if OPENGL
+  if (RND_Is_On ()) return; /* do not delete in viewer mode */
+  else
+#endif
   PENALTY_Destroy (self->ps);
 
   self->ob_type->tp_free ((PyObject*)self);
@@ -3325,6 +3337,10 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
 /* destructor */
 static void lng_NEWTON_SOLVER_dealloc (lng_NEWTON_SOLVER *self)
 {
+#if OPENGL
+  if (RND_Is_On ()) return; /* do not delete in viewer mode */
+  else
+#endif
   NEWTON_Destroy (self->nt);
 
   self->ob_type->tp_free ((PyObject*)self);
@@ -3528,6 +3544,10 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
 /* destructor */
 static void lng_HYBRID_SOLVER_dealloc (lng_HYBRID_SOLVER *self)
 {
+#if OPENGL
+  if (RND_Is_On ()) return; /* do not delete in viewer mode */
+  else
+#endif
   HYBRID_Destroy (self->hs);
 
   self->ob_type->tp_free ((PyObject*)self);

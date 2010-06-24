@@ -305,7 +305,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_k
 	pnt = (-0.5*(outd + dfac) + i * (outd + dfac), -0.5*(outd + dfac) + j * (outd + dfac), z)
 	gcore_integral_key (pnt, l, a, b, lz, material, solfec, integral_kind, integral_scheme)
 
-def gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS):
+def gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
 
   vertices = [1, 0, 0,
               1, 1, 0,
@@ -391,20 +391,21 @@ def gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS):
       TRANSLATE (shp, vec)
       shape += shp
 
-      base = BODY (solfec, 'RIGID', shape, material)
+      if shake_base == 'TRUE':
+	base = BODY (solfec, 'RIGID', shape, material)
+	CONTACT_EXCLUDE_BODIES (base, wall)
+	acc = TIME_SERIES ('inp/cores/inc/acc-0.dat')
+	FIX_DIRECTION (base, (sx, sy, -thick), (0, 0, 1))
+	FIX_DIRECTION (base, (sx + lx, sy, -thick), (0, 0, 1))
+	FIX_DIRECTION (base, (sx, sy + ly, -thick), (0, 0, 1))
+	FIX_DIRECTION (base, (sx + lx, sy + ly, -thick), (0, 0, 1))
+	FIX_DIRECTION (base, (sx, sy, -thick), (0, 1, 0))
+	FIX_DIRECTION (base, (sx, sy + ly, -thick), (0, 1, 0))
+	SET_ACCELERATION (base, (sx + 0.5 * lx, sy + 0.5 * ly, - thick), (1, 0, 0), acc)
+      else:
+	BODY (solfec, 'OBSTACLE', shape, material)
 
-      CONTACT_EXCLUDE_BODIES (base, wall)
+def simple_core_create (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
 
-      acc = TIME_SERIES ('inp/cores/inc/acc-0.dat')
-      FIX_DIRECTION (base, (sx, sy, -thick), (0, 0, 1))
-      FIX_DIRECTION (base, (sx + lx, sy, -thick), (0, 0, 1))
-      FIX_DIRECTION (base, (sx, sy + ly, -thick), (0, 0, 1))
-      FIX_DIRECTION (base, (sx + lx, sy + ly, -thick), (0, 0, 1))
-      FIX_DIRECTION (base, (sx, sy, -thick), (0, 1, 0))
-      FIX_DIRECTION (base, (sx, sy + ly, -thick), (0, 1, 0))
-      SET_ACCELERATION (base, (sx + 0.5 * lx, sy + 0.5 * ly, - thick), (1, 0, 0), acc)
-
-def simple_core_create (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS):
-
-  gcore_base (material, solfec, N_BRICKS, M_BRICKS, N_LAYERS)
+  gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS)
   gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS)
