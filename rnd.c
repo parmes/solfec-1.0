@@ -141,6 +141,7 @@ enum /* menu items */
   TOOLS_NEXT_RESULT,
   TOOLS_SMALLER_ARROWS,
   TOOLS_BIGGER_ARROWS,
+  TOOLS_OUTPATH,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -283,6 +284,8 @@ static LEGEND_DATA legend; /* legend data */
 
 /* body rough mesh flag test */
 #define ROUGH_MESH(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & ROUGH_MESH)
+
+static short show_outpath = 0; /* output path printing flag */
 
 /* initialize selection */
 static void selection_init ()
@@ -2392,6 +2395,7 @@ static int modes_off ()
 /* time window width */
 static int time_width ()
 {
+  if (show_outpath) return GLV_Print_Width (TIME_FONT, "t=%g [%s]", domain->time, solfec->outpath) + 6;
   return GLV_Print_Width (TIME_FONT, "t=%g", domain->time) + 6;
 }
 
@@ -2404,7 +2408,8 @@ static void time_render ()
   glColor3f (1, 1, 1);
   glRecti (0, 0, time_width (), TIME_HEIGHT);
   glColor3f (0, 0, 0);
-  GLV_Print (3, 3, 1, TIME_FONT, "t=%g", domain->time);
+  if (show_outpath) GLV_Print (3, 3, 1, TIME_FONT, "t=%g [%s]", domain->time, solfec->outpath);
+  else GLV_Print (3, 3, 1, TIME_FONT, "t=%g", domain->time);
 
   glEnable (GL_LIGHTING);
   glEnable (GL_DEPTH_TEST);
@@ -2553,6 +2558,10 @@ static void menu_tools (int item)
     if (arrow_factor < 0.10) arrow_factor += 0.01;
     GLV_Redraw_All ();
     break;
+  case TOOLS_OUTPATH:
+    show_outpath = !show_outpath;
+    GLV_Redraw_All ();
+    break;
   }
 }
 
@@ -2642,6 +2651,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("previous result /-/", TOOLS_PREVIOUS_RESULT);
   glutAddMenuEntry ("bigger arrows /]/", TOOLS_BIGGER_ARROWS);
   glutAddMenuEntry ("smaller arrows /[/", TOOLS_SMALLER_ARROWS);
+  glutAddMenuEntry ("toggle output path /o/", TOOLS_OUTPATH);
 
   menu_name [MENU_KINDS] = "kinds of";
   menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
@@ -2736,8 +2746,18 @@ int  RND_Idle ()
 
 void RND_Quit ()
 {
+  DOM *next;
+
   for (MAP *item = MAP_First (solvers); item; item = MAP_Next (item)) free (item->data); /* free solver interfaces */
   MAP_Free (NULL, &solvers);
+
+  /* delete all SOLFEC objects */
+  while (domain->prev) domain = domain->prev; /* rewind back */
+  for (; domain; domain = next)
+  {
+    next = domain->next;
+    SOLFEC_Destroy (solfec); /* see macro at the top */
+  }
 
   lngfinalize (); /* finalize Python */
 }
@@ -2791,7 +2811,7 @@ void RND_Key (int key, int x, int y)
   case 'r':
     menu_tools (TOOLS_ROUGH_MESH);
     break;
-  case '=':
+  case '+':
     menu_tools (TOOLS_NEXT_RESULT);
     break;
   case '-':
@@ -2802,6 +2822,9 @@ void RND_Key (int key, int x, int y)
     break;
   case ']':
     menu_tools (TOOLS_BIGGER_ARROWS);
+    break;
+  case 'o':
+    menu_tools (TOOLS_OUTPATH);
     break;
   }
 }
@@ -2930,9 +2953,15 @@ int  RND_Is_On ()
 
 void RND_Domain (DOM *dom)
 {
-  dom->next = domain;
-  if (domain) domain->prev = dom;
-  domain = dom;
+  static DOM *tail = NULL;
+
+  if (tail)
+  {
+    tail->next = dom;
+    dom->prev = tail;
+    tail = dom;
+  }
+  else domain = tail = dom;
 }
 
 void RND_Solver (DOM *dom, int kind, void *solver)
