@@ -159,6 +159,27 @@ static PBF* writeoutpath (char *outpath)
   return bf;
 }
 
+/* copy a file */
+static void copyfile (char *from, char *to)
+{
+  FILE *f, *t;
+  char c;
+
+  ASSERT (f = fopen (from, "rb"), ERR_FILE_OPEN);
+  ASSERT (t = fopen (to, "wb"), ERR_FILE_OPEN);
+
+  while (!feof(f))
+  {
+    c = fgetc(f);
+    ASSERT (!ferror(f), ERR_FILE_READ);
+    if(!feof(f)) fputc(c, t);
+    ASSERT (!ferror(t), ERR_FILE_WRITE);
+  }
+
+  ASSERT (fclose (f) == 0, ERR_FILE_CLOSE);
+  ASSERT (fclose (t) == 0, ERR_FILE_CLOSE);
+}
+
 /* output state */
 static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
 {
@@ -401,7 +422,18 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->output_interval = 0;
   sol->output_time = 0;
   if ((sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
-  else if ((sol->bf = writeoutpath (sol->outpath))) sol->mode = SOLFEC_WRITE;
+  else if ((sol->bf = writeoutpath (sol->outpath)))
+  {
+    char *copy, *path = getpath (sol->outpath);
+
+    ERRMEM (copy = malloc (strlen (path) + 8));
+    sprintf (copy, "%s.py", path);
+    copyfile (INPUT_FILE (), copy);
+    free (copy);
+    free (path);
+
+    sol->mode = SOLFEC_WRITE;
+  }
   else THROW (ERR_FILE_OPEN);
   sol->iover = -IOVER; /* negative to indicate initial state */
 #if MPI

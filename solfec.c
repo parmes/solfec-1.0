@@ -38,6 +38,9 @@ static SOLFEC *solfec = NULL;
 /* global output sub-directory */
 static char *SUBDIR = NULL;
 
+/* global input file path */
+static char *INPUTFILE = NULL;
+
 /* register new SOLFEC object */
 void REGISTER_SOLFEC (SOLFEC *sol)
 {
@@ -49,6 +52,12 @@ void REGISTER_SOLFEC (SOLFEC *sol)
 char* OUTPUT_SUBDIR ()
 {
   return SUBDIR;
+}
+
+/* get input file path */
+char* INPUT_FILE ()
+{
+  return INPUTFILE;
 }
 
 #ifndef LIBSOLFEC /* executables */
@@ -127,6 +136,8 @@ static char* getfile (int argc, char **argv)
       }
     }
   }
+
+  INPUTFILE = path;
 
   return path;
 }

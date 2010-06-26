@@ -666,6 +666,30 @@ NOTHROW = no
 \end_layout
 
 \begin_layout LyX-Code
+# TIMERS (enable/disable detailed solver timings)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+TIMERS = yes
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
 # POSIX
 \end_layout
 
@@ -1296,6 +1320,9 @@ During a parallel run Solfec updates a file named STATE, placed in the output
  directory of a simulation.
  It contains statistics relevant to the run, including an estimated time
  until the end of the simulation.
+ The output directory contains as well a copy of the input file, which makes
+ reading results more self-contained (it is harder to mismatch input and
+ output files this way).
 \end_layout
 
 \begin_layout Standard
