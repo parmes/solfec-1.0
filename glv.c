@@ -841,6 +841,8 @@ static void menu_view3D (int value)
 	look.from [1] += len;
 	SET (look.up, 0);
 	look.up [2] = 1;
+	SUB (look.from, look.to, vec);
+	PRODUCT (look.up, vec, look.rhs);
       }
       updateall ();
       break;
@@ -853,6 +855,8 @@ static void menu_view3D (int value)
 	look.from [1] -= len;
 	SET (look.up, 0);
 	look.up [2] = 1;
+	SUB (look.from, look.to, vec);
+	PRODUCT (look.up, vec, look.rhs);
       }
       updateall ();
       break;
@@ -865,6 +869,8 @@ static void menu_view3D (int value)
 	look.from [0] -= len;
 	SET (look.up, 0);
 	look.up [2] = 1;
+	SUB (look.from, look.to, vec);
+	PRODUCT (look.up, vec, look.rhs);
       }
       updateall ();
       break;
@@ -877,6 +883,8 @@ static void menu_view3D (int value)
 	look.from [0] += len;
 	SET (look.up, 0);
 	look.up [2] = 1;
+	SUB (look.from, look.to, vec);
+	PRODUCT (look.up, vec, look.rhs);
       }
       updateall ();
       break;
@@ -889,6 +897,8 @@ static void menu_view3D (int value)
 	look.from [2] += len;
 	SET (look.up, 0);
 	look.up [1] = 1;
+	SUB (look.from, look.to, vec);
+	PRODUCT (look.up, vec, look.rhs);
       }
       updateall ();
       break;
@@ -901,6 +911,8 @@ static void menu_view3D (int value)
 	look.from [2] -= len;
 	SET (look.up, 0);
 	look.up [1] = 1;
+	SUB (look.from, look.to, vec);
+	PRODUCT (look.up, vec, look.rhs);
       }
       updateall ();
       break;

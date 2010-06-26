@@ -15,4 +15,8 @@ void REGISTER_SOLFEC (SOLFEC *sol);
 
 /* get output sub-directory */
 char* OUTPUT_SUBDIR ();
+
+/* get input file path */
+char* INPUT_FILE ();
+
 #endif
