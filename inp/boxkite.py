@@ -420,7 +420,7 @@ def box_kite_test (case_name, time_step, duration, friction_coef,
 
   solfec = SOLFEC ('DYNAMIC', time_step, 'out/boxkite/' + case_name)
   surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = friction_coef)
-  bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 5E6, poisson = 0.25, density = 1E3)
+  bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.3, density = 1150)
   GRAVITY (solfec, (0, 0, -10))
   box_kite_create (loose_gap, integral_gap,  high_angle, low_angle, keyway_angle, load_case, load_hist, bulkmat, solfec)
   RUN (solfec, solver, duration)
@@ -437,12 +437,15 @@ def box_kite_print_history (solfec, case_name, load_case, high_angle):
 
   bod0 = BYLABEL (solfec, 'BODY', 'HALF2')
   bod1 = BYLABEL (solfec, 'BODY', 'HALF3')
-  pnt0 = MASS_CENTER (bod0)
-  pnt1 = MASS_CENTER (bod1)
+  cnt0 = MASS_CENTER (bod0)
+  cnt1 = MASS_CENTER (bod1)
+  zero = (0, 0, 0)
   dur = DURATION (solfec)
 
-  th = HISTORY (solfec, [(bod0, pnt0, 'DX'), (bod0, pnt0, 'DY'),
-                         (bod1, pnt1, 'DX'), (bod1, pnt1, 'DY')], dur[0], dur[1])
+  th = HISTORY (solfec, [(bod0, cnt0, 'DX'), (bod0, cnt0, 'DY'),
+                         (bod1, cnt1, 'DX'), (bod1, cnt1, 'DY'),
+                         (bod0, zero, 'DX'), (bod0, zero, 'DY'),
+                         (bod1, zero, 'DX'), (bod1, zero, 'DY')], dur[0], dur[1])
 
   if load_case == SHEAR:
     dir = ROTATE (ox, zero, oz, high_angle + 90)
@@ -450,22 +453,44 @@ def box_kite_print_history (solfec, case_name, load_case, high_angle):
     dir = ROTATE (ox, zero, oz, high_angle)
 
   time = th [0]
-  disp = []
+  disp_center = []
+  disp_zero = []
   for i in range (0, len (th[0])):
-    disp.append (dir [0] * (th[1][i] - th[3][i]) + dir [1] * (th[2][i] - th[4][i]))
-    disp [i] = abs (disp [i])
+    disp_center.append (dir [0] * (th[1][i] - th[3][i]) + dir [1] * (th[2][i] - th[4][i]))
+    disp_center [i] = abs (disp_center [i])
+    disp_zero.append (dir [0] * (th[5][i] - th[7][i]) + dir [1] * (th[6][i] - th[8][i]))
+    disp_zero [i] = abs (disp_zero [i])
 
-  file = open ('out/boxkite/' + case_name + '/disp.txt', 'w')
+  file_center = open ('out/boxkite/' + case_name + '/disp-center-' + case_name + '.txt', 'w')
+  file_zero = open ('out/boxkite/' + case_name + '/disp-zero-' + case_name + '.txt', 'w')
 
   for i in range (0, len (time)):
-    file.write (str(time [i])  + '   ' +  str (disp [i]) + '\n')
+    file_center.write (str(time [i])  + '   ' +  str (disp_center [i]) + '\n')
+    file_zero.write (str(time [i])  + '   ' +  str (disp_zero [i]) + '\n')
+
+  file_center.close ()
+  file_zero.close ()
+
+  # make graph
+  try:
+    import matplotlib.pyplot as plt
+    plt.clf ()
+    plt.plot (time, disp_center, label='center-center')
+    plt.plot (time, disp_zero, label='zero-zero')
+    plt.legend (loc = 'lower right')
+    plt.title (case_name)
+    plt.xlabel ('Time [s]')
+    plt.ylabel ('Relative displacement [m]')
+    plt.savefig ('out/boxkite/' + case_name + '/disp-' + case_name + '.png')
+  except ImportError:
+    pass # no reaction
 
 ### main module ###
 
 GEOMETRIC_EPSILON (1E-6)
 
 step = 0.001
-duration = 0.01
+duration = 1.0
 load_hist = TIME_SERIES ([0, 10, 1, 10])
 friction = 0.0
 
@@ -496,13 +521,13 @@ allcases = [
             ('61-SN', SEPARATION, 0.0003, 0.0002, 45, 135,  0)
 	    ]
 
-for case in allcases:
-  sol = box_kite_test (case [0], step, duration, friction, case [1], load_hist, solver, case [2], case [3], case [4], case [5], case [6])
-  box_kite_print_history (sol, case [0], case [1], case [4])
+#for case in allcases:
+#  sol = box_kite_test (case [0], step, duration, friction, case [1], load_hist, solver, case [2], case [3], case [4], case [5], case [6])
+#  box_kite_print_history (sol, case [0], case [1], case [4])
 
 def one_test (number):
   case = allcases [number]
   sol = box_kite_test (case [0], step, duration, friction, case [1], load_hist, solver, case [2], case [3], case [4], case [5], case [6])
   box_kite_print_history (sol, case [0], case [1], case [4])
 
-#one_test (0)
+one_test (0)
