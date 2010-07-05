@@ -26,8 +26,15 @@
 #ifndef __fem__
 #define __fem__
 
-/* formulation kind */
-typedef enum {FEM_O1 = 1, FEM_O2} FEMFORM; /* must start with > 1 (see BODY_Pack) */
+/* formulation */
+typedef enum
+{                    /* must be > 1 (see BODY_Pack in bod.c) */
+  FEM_O1     = 0x01, /* first order; overwrites FEM_O2 */
+  FEM_O2     = 0x02, /* second order; TODO */
+  FEM_BODCOR = 0x04, /* body co-rotational; overwrites FEM_ELECOR */
+  FEM_ELECOR = 0x08  /* element co-rotational; TODO */
+}                    /* Total Lagrangian formulation is used, if co-rotational is disabled */
+FEMFORM;
 
 /* create FEM internals for a body (note that 'msh' might be NULL so that shp->data is a mesh) */
 void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod);
