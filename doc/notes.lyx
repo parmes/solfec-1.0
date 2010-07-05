@@ -1687,5 +1687,265 @@ R_{N}^{final}=\left(1+\epsilon\min\left(\alpha,1\right)\right)R_{N}\]
 which guarantees energetic consitency.
 \end_layout
 
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Section
+Discrete dynamics
+\end_layout
+
+\begin_layout Plain Layout
+A set of bodies has configuration 
+\begin_inset Formula $\mathbf{q}$
+\end_inset
+
+ and velocity 
+\begin_inset Formula $\mathbf{u}$
+\end_inset
+
+.
+ We can abstract a semi-implicit velocity update as
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\mathbf{u}^{t+h}=\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\label{eq:u}\end{equation}
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\mathbf{b}^{t+h}=\mathbf{u}^{t}+h\mathbf{A}^{-1}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)\mathbf{f}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)\label{eq:b}\end{equation}
+
+\end_inset
+
+is the free velocity, not accounting for the influence of constraints.
+ 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ can be a mass matrix for an explicit scheme or a combination of mass and
+ stiffness matrices for an implicit scheme, while 
+\begin_inset Formula $\mathbf{f}$
+\end_inset
+
+ is an out of balance force.
+ While (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:b"
+
+\end_inset
+
+) represents a regular velocity update for an unconstrained system, (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:u"
+
+\end_inset
+
+) approximately accounts for the constraints by adding a contribution of
+ their reactions 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+.
+ Update (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:u"
+
+\end_inset
+
+) is approximate, because 
+\begin_inset Formula $\mathbf{A}=\mathbf{A}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)$
+\end_inset
+
+, 
+\begin_inset Formula $\mathbf{H}=\mathbf{H}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{R}=\int_{t}^{t+h}d\mathbf{R}$
+\end_inset
+
+.
+ 
+\begin_inset Formula $\mathbf{H}$
+\end_inset
+
+ is a linear operator mapping the body-space velocity 
+\begin_inset Formula $\mathbf{u}$
+\end_inset
+
+ into the constraint-space velocity 
+\begin_inset Formula $\mathbf{U}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\mathbf{U}=\mathbf{H}\mathbf{u}\label{eq:H}\end{equation}
+
+\end_inset
+
+Having 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+, the configuration can be updated as 
+\begin_inset Formula \begin{equation}
+\mathbf{q}^{t+h}=\mathbf{q}^{t}+\frac{h}{2}\left(\mathbf{u}^{t+h}+\mathbf{u}^{t}\right)\label{eq:q}\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Energetic consistency
+\end_layout
+
+\begin_layout Plain Layout
+We assume, that the eployed time integrator is energy consistent in absence
+ of constraints
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\triangle E=\left(\mathbf{q}^{t+h}-\mathbf{q}^{t}\right)\mathbf{f}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)=\frac{h}{2}\left(\mathbf{b}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}-\mathbf{u}^{t}\right)\le0\label{eq:E}\end{equation}
+
+\end_inset
+
+and demand similar consitency if constraints are present
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\triangle E=\frac{h}{2}\left(\mathbf{u}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{u}^{t+h}-\mathbf{u}^{t}\right)\le0\]
+
+\end_inset
+
+This leads to the condition
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left(\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}-\mathbf{u}^{t}\right)\le0\]
+
+\end_inset
+
+which simplifies to
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left(\mathbf{b}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}-\mathbf{u}^{t}\right)+\left(2\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\right)^{T}\mathbf{H}^{T}\mathbf{R}\le0\]
+
+\end_inset
+
+Because of (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:E"
+
+\end_inset
+
+), it is sufficient to demand
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left(2\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\right)^{T}\mathbf{H}^{T}\mathbf{R}\le0\]
+
+\end_inset
+
+which can be rewritten as
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left\langle 2\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\mathbf{B}=\mathbf{H}\mathbf{b}^{t+h}\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\mathbf{W}=\mathbf{H}\mathbf{A}^{-1}\mathbf{H}^{T}\]
+
+\end_inset
+
+Taking 
+\begin_inset Formula \[
+\mathbf{U}=\mathbf{H}\mathbf{u}^{t+h}\]
+
+\end_inset
+
+from (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:u"
+
+\end_inset
+
+) we have
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}\]
+
+\end_inset
+
+and the consistency condition takes form
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left\langle 2\mathbf{U}-\mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+
+\end_inset
+
+or in other words
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\mathbf{\left\langle \mathbf{U},\mathbf{R}\right\rangle }\le\frac{1}{2}\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+ is symmetric and semi-positive definite.
+ Whether this condition is verified depends on a particular realization
+ of constraints.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
 \end_body
 \end_document

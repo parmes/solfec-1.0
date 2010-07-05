@@ -37,6 +37,10 @@ typedef double (*node_t) [3]; /* mesh node */
 #define DOM_TOL 0.150
 #define CUT_TOL 0.015
 #define MAX_NODES_COUNT 64
+#define ORDER(form) ((form) & (FEM_O1|FEM_O2))
+#define BODCOR(form) ((form) & FEM_BODCOR)
+#define ELECOR(form) ((form) & FEM_ELECOR)
+#define COROT(form) ((form) & (FEM_BODCOR|FEM_ELECOR))
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)
 #define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 3)
@@ -577,7 +581,7 @@ static void lump_mass_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
 
   for (i = 0; i < ele->type; i ++) out [i] = &x [3 * ele->nodes [i]];
  
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
   {
@@ -624,7 +628,7 @@ static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *po
     COPY (p, q[i]);
   }
 
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
   {
@@ -678,7 +682,7 @@ static MX* shape_functions (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
 {
   MX *N = NULL;
 
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
   {
@@ -778,7 +782,7 @@ static MX* shape_functions (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
 static int shape_functions_ext (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *shapes)
 {
 
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
   {
@@ -808,7 +812,7 @@ static void load_displacements (BODY *bod, MESH *msh, ELEMENT *ele, double (*q) 
   double *conf = bod->conf, *p;
   int i;
 
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
   {
@@ -833,7 +837,7 @@ static void load_velocities (BODY *bod, MESH *msh, ELEMENT *ele, double (*u0) [3
   double *vel0 = FEM_VEL0 (bod), *velo = bod->velo, *p;
   int i, j;
 
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
   {
@@ -860,7 +864,7 @@ static int load_node_numbers (BODY *bod, MESH *msh, ELEMENT *ele, int *numbers)
 {
   int i;
 
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
   {
@@ -897,7 +901,7 @@ static void body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, double *g
 
   load_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
 
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
     switch (ele->type)
@@ -943,7 +947,7 @@ static void internal_force (int derivative, BODY *bod, MESH *msh, ELEMENT *ele, 
     COPY (p, q[i]);
   }
 
-  switch (bod->form)
+  switch (ORDER (bod->form))
   {
   case FEM_O1:
     switch (ele->type)
@@ -1059,21 +1063,28 @@ static void local_to_global (double (*mesh_nodes) [3], ELEMENT *ele, double *poi
 #define local_to_referential(msh, ele, X, point) local_to_global ((msh)->ref_nodes, ele, X, point)
 
 /* compute Cauchy stress at local point */
-static void fem_element_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
+static void element_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
 {
-  BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-  double P [9], J, F [9];
+  if (COROT (bod->form))
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  else /* TL */
+  {
+    BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+    double P [9], J, F [9];
 
-  deformation_gradient (bod, msh, ele, point, F);
+    deformation_gradient (bod, msh, ele, point, F);
 
-  J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P); /* column-wise, per unit volume */
+    J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P); /* column-wise, per unit volume */
 
-  values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
-  values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
-  values [2] = (F[2]*P[6]+F[5]*P[7]+F[8]*P[8])/J; /* sz  */
-  values [3] = (F[0]*P[3]+F[3]*P[4]+F[6]*P[5])/J; /* sxy */
-  values [4] = (F[0]*P[6]+F[3]*P[7]+F[6]*P[8])/J; /* sxz */
-  values [5] = (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
+    values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
+    values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
+    values [2] = (F[2]*P[6]+F[5]*P[7]+F[8]*P[8])/J; /* sz  */
+    values [3] = (F[0]*P[3]+F[3]*P[4]+F[6]*P[5])/J; /* sxy */
+    values [4] = (F[0]*P[6]+F[3]*P[7]+F[6]*P[8])/J; /* sxz */
+    values [5] = (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
+  }
 }
 
 /* return element stabbed by a spatial point */
@@ -1883,6 +1894,78 @@ static void overlap (void *data, BOX *one, BOX *two)
   }
 }
 
+/* body co-rotational initialise dynamic time stepping */
+static void bodcor_dynamic_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational perform the initial half-step of the dynamic scheme */
+static void bodcor_dynamic_step_begin (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational perform the final half-step of the dynamic scheme */
+static void bodcor_dynamic_step_end (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational initialise static time stepping */
+static void bodcor_static_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational perform the initial half-step of the static scheme */
+static void bodcor_static_step_begin (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational perform the final half-step of the static scheme */
+static void bodcor_static_step_end (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational initialise dynamic time stepping */
+static void elecor_dynamic_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational perform the initial half-step of the dynamic scheme */
+static void elecor_dynamic_step_begin (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational perform the final half-step of the dynamic scheme */
+static void elecor_dynamic_step_end (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational initialise static time stepping */
+static void elecor_static_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational perform the initial half-step of the static scheme */
+static void elecor_static_step_begin (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational perform the final half-step of the static scheme */
+static void elecor_static_step_end (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
 /* create FEM internals for a body */
 void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 {
@@ -1945,21 +2028,48 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   }
   else msh = shp->data; /* retrive the mesh pointer from the shape */
 
-  switch (form)
+  /* resolve incorect order flags */
+  if ((form & FEM_O1) && (form & FEM_O2))
   {
-    case FEM_O1:
-    {
-      bod->dofs = msh->nodes_count * 3;
-      ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
-      bod->velo = bod->conf + bod->dofs;
-    }
-    break;
-    case FEM_O2:
-    {
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-    }
-    break;
+    form &= ~(FEM_O1|FEM_O2);
+    form |= FEM_O1;
   }
+
+  /* resolve incorect corotational flags */
+  if ((form & FEM_BODCOR) && (form & FEM_ELECOR))
+  {
+    form &= ~(FEM_BODCOR|FEM_ELECOR);
+    form |= FEM_BODCOR;
+  }
+
+  /* allocate dofs */
+  if (COROT (form)) /* co-rotational */
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  else /* TL */
+  {
+    switch (ORDER (form))
+    {
+      case FEM_O1:
+      {
+	bod->dofs = msh->nodes_count * 3;
+	ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
+	bod->velo = bod->conf + bod->dofs;
+      }
+      break;
+      case FEM_O2:
+      {
+	/* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+      }
+      break;
+    }
+  }
+
+  /* save formulation
+   * and rough mesh */
+  bod->form = form;
+  bod->msh = msh;
 }
 
 /* overwrite state */
@@ -1994,17 +2104,29 @@ void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
 /* initialise dynamic time stepping */
 void FEM_Dynamic_Init (BODY *bod)
 {
-  if (bod->scheme == SCH_DEF_EXP)
+  if (BODCOR (bod->form))
   {
-    if (!bod->inverse) fem_dynamic_explicit_inverse (bod); /* initialize once */
+    bodcor_dynamic_init (bod);
   }
-  else fem_dynamic_implicit_inverse (bod, bod->dom->step, NULL); /* update every time */
+  else if (ELECOR (bod->form))
+  {
+    elecor_dynamic_init (bod);
+  }
+  else /* TL */
+  {
+    if (bod->scheme == SCH_DEF_EXP)
+    {
+      if (!bod->inverse) fem_dynamic_explicit_inverse (bod); /* initialize once */
+    }
+    else fem_dynamic_implicit_inverse (bod, bod->dom->step, NULL); /* update every time */
+  }
 }
 
 /* estimate critical step for the dynamic scheme */
 double FEM_Dynamic_Critical_Step (BODY *bod)
 {
-  if (bod->scheme == SCH_DEF_EXP)
+  if (COROT (bod->form) || bod->scheme != SCH_DEF_EXP) return DBL_MAX;
+  else /* explicit Total Lagrangian */
   {
     MESH *msh = FEM_MESH (bod);
     double step, tcrit, eigmax;
@@ -2028,127 +2150,149 @@ double FEM_Dynamic_Critical_Step (BODY *bod)
 
     return step;
   }
-  else return DBL_MAX;
 }
 
 /* perform the initial half-step of the dynamic scheme */
 void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
-  int n = bod->dofs;
-  double half = 0.5 * step,
-	 c = bod->damping,
-	*x = bod->inverse->x,
-	*u0 = FEM_VEL0 (bod),
-	*f = FEM_FORCE (bod),
-	*fext = FEM_FEXT (bod),
-	*fint = FEM_FINT (bod),
-	*q = bod->conf,
-	*u = bod->velo,
-	*e = u + n;
+  if (BODCOR (bod->form))
+  {
+    bodcor_dynamic_step_begin (bod, time, step);
+  }
+  else if (ELECOR (bod->form))
+  {
+    elecor_dynamic_step_begin (bod, time, step);
+  }
+  else /* TL */
+  {
+    int n = bod->dofs;
+    double half = 0.5 * step,
+	   c = bod->damping,
+	  *x = bod->inverse->x,
+	  *u0 = FEM_VEL0 (bod),
+	  *f = FEM_FORCE (bod),
+	  *fext = FEM_FEXT (bod),
+	  *fint = FEM_FINT (bod),
+	  *q = bod->conf,
+	  *u = bod->velo,
+	  *e = u + n;
 
-  blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
+    blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
 
-  switch (bod->scheme)
-  {
-  case SCH_DEF_EXP:
-  {
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
-    for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f */
-  }
-  break;
-  case SCH_DEF_LIM:
-  {
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
-    fem_dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
-    MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
-  }
-  break;
-  case SCH_DEF_LIM2:
-  {
-    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t)) */
-    fem_dynamic_implicit_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
-  }
-  break;
-  case SCH_DEF_IMP:
-  {
-    /* q(t+h/2) = q(t) + (h/2) * u(t)
-     * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
-     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
-     * u (t+h) = u (t) + inv (A) * h * f */
-    fem_dynamic_implicit_solve (bod, time, step, fext, f, 1);
-  }
-  break;
-  default:
-  break;
-  }
+    switch (bod->scheme)
+    {
+    case SCH_DEF_EXP:
+    {
+      blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+      fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+      for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f */
+    }
+    break;
+    case SCH_DEF_LIM:
+    {
+      blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+      fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+      fem_dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+      MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
+    }
+    break;
+    case SCH_DEF_LIM2:
+    {
+      fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t)) */
+      fem_dynamic_implicit_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
+      blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+      MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
+    }
+    break;
+    case SCH_DEF_IMP:
+    {
+      /* q(t+h/2) = q(t) + (h/2) * u(t)
+       * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+       * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+       * u (t+h) = u (t) + inv (A) * h * f */
+      fem_dynamic_implicit_solve (bod, time, step, fext, f, 1);
+    }
+    break;
+    default:
+    break;
+    }
 
-  if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
+    if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
+  }
 }
 
 /* perform the final half-step of the dynamic scheme */
 void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 {
-  int n = bod->dofs;
-  double half = 0.5 * step,
-	*energy = bod->energy,
-	*x = bod->inverse->x,
-	*r = FEM_FORCE (bod),
-	*ir = r,
-	*fext = FEM_FEXT (bod),
-	*fint = FEM_FINT (bod),
-	*u0 = FEM_VEL0 (bod),
-	*iu0 = u0,
-	*u = bod->velo,
-	*iu = u,
-        *q = bod->conf,
-	*e = u + n;
+  if (BODCOR (bod->form))
+  {
+    bodcor_dynamic_step_end (bod, time, step);
+  }
+  else if (ELECOR (bod->form))
+  {
+    elecor_dynamic_step_end (bod, time, step);
+  }
+  else /* TL */
+  {
+    int n = bod->dofs;
+    double half = 0.5 * step,
+	  *energy = bod->energy,
+	  *x = bod->inverse->x,
+	  *r = FEM_FORCE (bod),
+	  *ir = r,
+	  *fext = FEM_FEXT (bod),
+	  *fint = FEM_FINT (bod),
+	  *u0 = FEM_VEL0 (bod),
+	  *iu0 = u0,
+	  *u = bod->velo,
+	  *iu = u,
+	  *q = bod->conf,
+	  *e = u + n;
 
-  fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-  blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
+    fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+    blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
-  switch (bod->scheme)
-  {
-  case SCH_DEF_EXP:
-  {
-    for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
-    blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-  }
-  break;
-  case SCH_DEF_LIM:
-  case SCH_DEF_LIM2:
-  {
-    MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
-    blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-  }
-  break;
-  case SCH_DEF_IMP:
-  {
-    /* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
-     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
-     * u (t+h) = u (t) + inv (A) * h * f
-     * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
-    fem_dynamic_implicit_solve (bod, time, step, fext, r, 0);
-  }
-  break;
-  default:
-  break;
-  }
+    switch (bod->scheme)
+    {
+    case SCH_DEF_EXP:
+    {
+      for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
+      blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+    }
+    break;
+    case SCH_DEF_LIM:
+    case SCH_DEF_LIM2:
+    {
+      MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
+      blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+    }
+    break;
+    case SCH_DEF_IMP:
+    {
+      /* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+       * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+       * u (t+h) = u (t) + inv (A) * h * f
+       * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
+      fem_dynamic_implicit_solve (bod, time, step, fext, r, 0);
+    }
+    break;
+    default:
+    break;
+    }
 
-  /* energy */
-  for (ir = r, iu = u; iu < e; ir ++, iu ++, iu0 ++) *ir = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
-  energy [EXTERNAL] += blas_ddot (n, r, 1, fext, 1);
-  energy [INTERNAL] += blas_ddot (n, r, 1, fint, 1);
+    /* energy */
+    for (ir = r, iu = u; iu < e; ir ++, iu ++, iu0 ++) *ir = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
+    energy [EXTERNAL] += blas_ddot (n, r, 1, fext, 1);
+    energy [INTERNAL] += blas_ddot (n, r, 1, fint, 1);
+  }
 
   if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
   {
     MESH *msh = bod->msh;
     double (*cur) [3] = msh->cur_nodes,
 	   (*ref) [3] = msh->ref_nodes,
-	   (*end) [3] = ref + msh->nodes_count;
+	   (*end) [3] = ref + msh->nodes_count,
+	    *q = bod->conf;
 
     for (; ref < end; cur ++, ref ++, q += 3) { ADD (ref[0], q, cur[0]); }
   }
@@ -2157,27 +2301,57 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 /* initialise static time stepping */
 void FEM_Static_Init (BODY *bod)
 {
-  fem_static_inverse (bod, bod->dom->step);
+  if (BODCOR (bod->form))
+  {
+    bodcor_static_init (bod);
+  }
+  else if (ELECOR (bod->form))
+  {
+    elecor_static_init (bod);
+  }
+  else fem_static_inverse (bod, bod->dom->step);
 }
 
 /* perform the initial half-step of the static scheme */
 void FEM_Static_Step_Begin (BODY *bod, double time, double step)
 {
-  double *force = FEM_FORCE (bod);
+  if (BODCOR (bod->form))
+  {
+    bodcor_static_step_begin (bod, time, step);
+  }
+  else if (ELECOR (bod->form))
+  {
+    elecor_static_step_begin (bod, time, step);
+  }
+  else /* TL */
+  {
+    double *force = FEM_FORCE (bod);
 
-  fem_static_inverse (bod, step); /* compute inverse of static tangent operator */
-  fem_static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
-  MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
+    fem_static_inverse (bod, step); /* compute inverse of static tangent operator */
+    fem_static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
+    MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
+  }
 }
 
 /* perform the final half-step of the static scheme */
 void FEM_Static_Step_End (BODY *bod, double time, double step)
 {
-  double *force = FEM_FORCE (bod);
+  if (BODCOR (bod->form))
+  {
+    bodcor_static_step_end (bod, time, step);
+  }
+  else if (ELECOR (bod->form))
+  {
+    elecor_static_step_end (bod, time, step);
+  }
+  else /* TL */
+  {
+    double *force = FEM_FORCE (bod);
 
-  fem_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-  MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
-  blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
+    fem_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+    MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
+    blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
+  }
 
   if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
   {
@@ -2380,20 +2554,20 @@ void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
     break;
     case VALUE_STRESS:
     {
-      fem_element_cauchy (bod, msh, ele, point, values);
+      element_cauchy (bod, msh, ele, point, values);
     }
     break;
     case VALUE_MISES:
     {
       double stress [6];
 
-      fem_element_cauchy (bod, msh, ele, point, stress);
+      element_cauchy (bod, msh, ele, point, stress);
       MISES (stress, values [0]);
     }
     break;
     case VALUE_STRESS_AND_MISES:
     {
-      fem_element_cauchy (bod, msh, ele, point, values);
+      element_cauchy (bod, msh, ele, point, values);
       MISES (values, values [6]);
     }
     break;
@@ -2424,20 +2598,20 @@ void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIN
   break;
   case VALUE_STRESS:
   {
-    fem_element_cauchy (bod, msh, ele, point, values);
+    element_cauchy (bod, msh, ele, point, values);
   }
   break;
   case VALUE_MISES:
   {
     double stress [6];
 
-    fem_element_cauchy (bod, msh, ele, point, stress);
+    element_cauchy (bod, msh, ele, point, stress);
     MISES (stress, values [0]);
   }
   break;
   case VALUE_STRESS_AND_MISES:
   {
-    fem_element_cauchy (bod, msh, ele, point, values);
+    element_cauchy (bod, msh, ele, point, values);
     MISES (values, values [6]);
   }
   break;
@@ -2530,20 +2704,20 @@ ok:
   break;
   case VALUE_STRESS:
   {
-    fem_element_cauchy (bod, msh, ele, point, values); /* TODO: average from neighouring elements */
+    element_cauchy (bod, msh, ele, point, values); /* TODO: average from neighouring elements */
   }
   break;
   case VALUE_MISES:
   {
     double stress [6];
 
-    fem_element_cauchy (bod, msh, ele, point, stress); /* TODO: average from neighouring elements */
+    element_cauchy (bod, msh, ele, point, stress); /* TODO: average from neighouring elements */
     MISES (stress, values [0]);
   }
   break;
   case VALUE_STRESS_AND_MISES:
   {
-    fem_element_cauchy (bod, msh, ele, point, values); /* TODO: average from neighouring elements */
+    element_cauchy (bod, msh, ele, point, values); /* TODO: average from neighouring elements */
     MISES (values, values [6]);
   }
   break;

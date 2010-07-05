@@ -3284,7 +3284,7 @@ formulation
 \series bold
 kind
 \series default
- equals 'FINITE_ELEMENT', ignored otherwise (default: 'FEM_O1').
+ equals 'FINITE_ELEMENT', ignored otherwise (default: 'TL_O1').
  This argument specifies a formulation of the finite element method.
  See Table 
 \begin_inset CommandInset ref
@@ -3661,7 +3661,7 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-'FEM_O1'
+'TL_O1'
 \end_layout
 
 \end_inset
@@ -3670,7 +3670,7 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-Use first order elements
+First order Total Lagrangian
 \end_layout
 
 \end_inset
@@ -3681,7 +3681,7 @@ Use first order elements
 \begin_inset Text
 
 \begin_layout Plain Layout
-'FEM_O2'
+'CR_B1'
 \end_layout
 
 \end_inset
@@ -3690,10 +3690,8 @@ Use first order elements
 \begin_inset Text
 
 \begin_layout Plain Layout
-Use second order elements 
-\series bold
-\color red
-TODO
+First order body co-rotational (one co-rotated frame per body; suitable
+ for stiff bodies)
 \end_layout
 
 \end_inset
@@ -3720,7 +3718,7 @@ name "tab:formulation"
 
 
 \lang english
-Bulk material models.
+Finite elment formulations
 \end_layout
 
 \end_inset

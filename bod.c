@@ -895,8 +895,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
     case FEM:
       ERRMEM (bod = alloc_body (FEM));
       FEM_Create (form, msh, shp, mat, bod);
-      bod->form = form;
-      bod->msh = msh;
     break;
     default:
       ASSERT (0, ERR_BOD_KIND);

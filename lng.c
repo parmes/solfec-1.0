@@ -2078,13 +2078,13 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
       if (formulation)
       {
-	IFIS (formulation, "FEM_O1")
+        IFIS (formulation, "TL_O1")
 	{
 	  form = FEM_O1;
 	}
-	ELIF (formulation, "FEM_O2")
+	ELIF (formulation, "CR_B1")
 	{
-	  form = FEM_O2;
+	  form = FEM_O1|FEM_BODCOR;
 	}
 	ELSE
 	{

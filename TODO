@@ -72,5 +72,7 @@ Optimize LINSYS:
 ----------------------------------------------------------------------------------------------
 Implement fixed point aproach on S = |UT| for De Saxce formulation as suggested by V. Acary
 --------------------------------------------------------------------------------------------
-Add optional "progress bar" to the HISTORY command (useful for large files)
------------------------------------------------------------------------------
+Implement automated splitting of FEM bodies (a'la Metis) into a user
+defined number of glued sub-bodies (parallelism for large meshes);
+mind disabling contact detection on gluing interfaces
+-----------------------------------------------------------------------
