@@ -34,13 +34,9 @@
 
 typedef double (*node_t) [3]; /* mesh node */
 
+#define MAX_NODES 20
 #define DOM_TOL 0.150
 #define CUT_TOL 0.015
-#define MAX_NODES_COUNT 64
-#define ORDER(form) ((form) & (FEM_O1|FEM_O2))
-#define BODCOR(form) ((form) & FEM_BODCOR)
-#define ELECOR(form) ((form) & FEM_ELECOR)
-#define COROT(form) ((form) & (FEM_BODCOR|FEM_ELECOR))
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)
 #define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 3)
@@ -52,20 +48,142 @@ static const double I_TET1_X[] = {0.25};
 static const double I_TET1_Y[] = {0.25};
 static const double I_TET1_Z[] = {0.25};
 static const double I_TET1_W[] = {0.16666666666666666};
-static const int    I_TET1_N   =  1;
+#define             I_TET1_N      1
+
+static const double I_PYR1_X[] = {0}; /* TODO */
+static const double I_PYR1_Y[] = {0};
+static const double I_PYR1_Z[] = {0};
+static const double I_PYR1_W[] = {0};
+#define             I_PYR1_N      0
+
+static const double I_WED1_X[] = {0}; /* TODO */
+static const double I_WED1_Y[] = {0};
+static const double I_WED1_Z[] = {0};
+static const double I_WED1_W[] = {0};
+#define             I_WED1_N      0
+
+static const double I_HEX1_X[] = {0}; /* TODO */
+static const double I_HEX1_Y[] = {0};
+static const double I_HEX1_Z[] = {0};
+static const double I_HEX1_W[] = {0};
+#define             I_HEX1_N      0
 
 static const double I_TET2_X [] = {0.13819660112501052, 0.13819660112501052, 0.13819660112501052, 0.58541019662496840};
 static const double I_TET2_Y [] = {0.13819660112501052, 0.13819660112501052, 0.58541019662496840, 0.13819660112501052};
 static const double I_TET2_Z [] = {0.13819660112501052, 0.58541019662496840, 0.13819660112501052, 0.13819660112501052};
 static const double I_TET2_W [] = {0.04166666666666666, 0.04166666666666666, 0.04166666666666666, 0.04166666666666666};
-static const int    I_TET2_N    =  4;
+#define             I_TET2_N       4
+
+static const double I_PYR2_X[] = {0}; /* TODO */
+static const double I_PYR2_Y[] = {0};
+static const double I_PYR2_Z[] = {0};
+static const double I_PYR2_W[] = {0};
+#define             I_PYR2_N      0
+
+static const double I_WED2_X[] = {0}; /* TODO */
+static const double I_WED2_Y[] = {0};
+static const double I_WED2_Z[] = {0};
+static const double I_WED2_W[] = {0};
+#define             I_WED2_N      0
 
 #define ISQR3 0.57735026918962584 
 static const double I_HEX2_X [] = {-ISQR3, ISQR3, ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3, -ISQR3};
 static const double I_HEX2_Y [] = {-ISQR3, -ISQR3, ISQR3, ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3};
 static const double I_HEX2_Z [] = {-ISQR3, -ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3, ISQR3, ISQR3};
 static const double I_HEX2_W [] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
-static const int    I_HEX2_N    = 8;
+#define             I_HEX2_N       8
+
+static const double I_TRI1_X[] = {0.333333333333333333};
+static const double I_TRI1_Y[] = {0.333333333333333333};
+static const double I_TRI1_W[] = {0.5};
+#define             I_TRI1_N      1
+
+static const double I_QUA2_X [] = {-ISQR3, ISQR3, ISQR3, -ISQR3};
+static const double I_QUA2_Y [] = {-ISQR3, -ISQR3, ISQR3, ISQR3};
+static const double I_QUA2_W [] = {1.0, 1.0, 1.0, 1.0};
+#define             I_QUA2_N       4
+
+#define MAX_ORDER 2 /* TODO: complete up to four */
+
+static const double *I_TET_X [] = {I_TET1_X, I_TET2_X};
+static const double *I_TET_Y [] = {I_TET1_Y, I_TET2_Y};
+static const double *I_TET_Z [] = {I_TET1_Z, I_TET2_Z};
+static const double *I_TET_W [] = {I_TET1_Z, I_TET2_W};
+static const int     I_TET_N [] = {I_TET1_N, I_TET2_N};
+
+static const double *I_PYR_X [] = {I_PYR1_X, I_PYR2_X};
+static const double *I_PYR_Y [] = {I_PYR1_Y, I_PYR2_Y};
+static const double *I_PYR_Z [] = {I_PYR1_Z, I_PYR2_Z};
+static const double *I_PYR_W [] = {I_PYR1_Z, I_PYR2_W};
+static const int     I_PYR_N [] = {I_PYR1_N, I_PYR2_N};
+
+static const double *I_WED_X [] = {I_WED1_X, I_WED2_X};
+static const double *I_WED_Y [] = {I_WED1_Y, I_WED2_Y};
+static const double *I_WED_Z [] = {I_WED1_Z, I_WED2_Z};
+static const double *I_WED_W [] = {I_WED1_Z, I_WED2_W};
+static const int     I_WED_N [] = {I_WED1_N, I_WED2_N};
+
+static const double *I_HEX_X [] = {I_HEX1_X, I_HEX2_X};
+static const double *I_HEX_Y [] = {I_HEX1_Y, I_HEX2_Y};
+static const double *I_HEX_Z [] = {I_HEX1_Z, I_HEX2_Z};
+static const double *I_HEX_W [] = {I_HEX1_Z, I_HEX2_W};
+static const int     I_HEX_N [] = {I_HEX1_N, I_HEX2_N};
+
+/* load integrator data */
+inline static int load_integrator (int type, int order, const double **X, const double **Y, const double **Z, const double **W)
+{
+  int N;
+
+  ASSERT_DEBUG (order >= 1 && order < MAX_ORDER, "Integration order out of bounds");
+
+  order --;
+
+  switch (type)
+  {
+  case 4:
+  case 10:
+  {
+    *X = I_TET_X [order];
+    *Y = I_TET_Y [order];
+    *Z = I_TET_Z [order];
+    *W = I_TET_W [order];
+     N = I_TET_N [order];
+  }
+  break;
+  case 5:
+  case 13:
+  {
+    *X = I_PYR_X [order];
+    *Y = I_PYR_Y [order];
+    *Z = I_PYR_Z [order];
+    *W = I_PYR_W [order];
+     N = I_PYR_N [order];
+  }
+  break;
+  case 6:
+  case 15:
+  {
+    *X = I_WED_X [order];
+    *Y = I_WED_Y [order];
+    *Z = I_WED_Z [order];
+    *W = I_WED_W [order];
+     N = I_WED_N [order];
+  }
+  break;
+  case 8:
+  case 20:
+  {
+    *X = I_HEX_X [order];
+    *Y = I_HEX_Y [order];
+    *Z = I_HEX_Z [order];
+    *W = I_HEX_W [order];
+     N = I_HEX_N [order];
+  }
+  break;
+  }
+
+  return N;
+}
 
 /* linear tetrahedron shape functions */
 inline static void tet_o1_shapes (double *point, double *shapes)
@@ -89,7 +207,19 @@ inline static void hex_o1_shapes (double *point, double *shapes)
   shapes [7] = 0.125 * (1.0 - point [0]) * (1.0 + point [1]) * (1.0 + point [2]);
 }
 
-/* linear tetrahedron shape functions */
+/* linear pyramid shape functions */
+inline static void pyr_o1_shapes (double *point, double *shapes)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* linear wedge shape functions */
+inline static void wed_o1_shapes (double *point, double *shapes)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* linear tetrahedron shape derivatives */
 inline static void tet_o1_derivs (double *point, double *derivs)
 {
   derivs [0] = derivs [4] = derivs [8] = 1.0;
@@ -97,7 +227,7 @@ inline static void tet_o1_derivs (double *point, double *derivs)
   derivs [9] = derivs [10] = derivs [11] = -1.0;
 }
 
-/* linear hexahedron shape functions */
+/* linear hexahedron shape derivatives */
 inline static void hex_o1_derivs (double *point, double *derivs)
 {
   derivs[0] = -0.125 * (1 - point[1]) * (1 - point[2]);
@@ -112,7 +242,7 @@ inline static void hex_o1_derivs (double *point, double *derivs)
   derivs[7] =  0.125 * (1 + point[0]) * (1 - point[2]);
   derivs[8] = -0.125 * (1 + point[0]) * (1 + point[1]);
 
-  derivs[9] = -0.125 * (1 + point[1]) * (1 - point[2]);
+  derivs[9]  = -0.125 * (1 + point[1]) * (1 - point[2]);
   derivs[10] =  0.125 * (1 - point[0]) * (1 - point[2]);
   derivs[11] = -0.125 * (1 - point[0]) * (1 + point[1]);
 
@@ -133,8 +263,68 @@ inline static void hex_o1_derivs (double *point, double *derivs)
   derivs[23] =  0.125 * (1 - point[0]) * (1 + point[1]);  
 }
 
+/* linear pyramid shape derivatives  */
+inline static void pyr_o1_derivs (double *point, double *derivs)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* linear wedge shape derivatives  */
+inline static void wed_o1_derivs (double *point, double *derivs)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* quadratic tetrahedron shape functions */
+inline static void tet_o2_shapes (double *point, double *shapes)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* quadratic hexahedron shape functions */
+inline static void hex_o2_shapes (double *point, double *shapes)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* quadratic pyramid shape functions */
+inline static void pyr_o2_shapes (double *point, double *shapes)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* quadratic wedge shape functions */
+inline static void wed_o2_shapes (double *point, double *shapes)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* quadratic tetrahedron shape derivatives */
+inline static void tet_o2_derivs (double *point, double *derivs)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* quadratic hexahedron shape derivatives */
+inline static void hex_o2_derivs (double *point, double *derivs)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* quadratic pyramid shape derivatives  */
+inline static void pyr_o2_derivs (double *point, double *derivs)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* quadratic wedge shape derivatives  */
+inline static void wed_o2_derivs (double *point, double *derivs)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
 /* linear tetrahedron local to global point transformation */
-inline static void tet_local_to_global (node_t nodes, double *local, double *global)
+static void tet_o1_local_to_global (node_t nodes, double *local, double *global)
 {
   double shapes [4];
   int i, j;
@@ -148,67 +338,101 @@ inline static void tet_local_to_global (node_t nodes, double *local, double *glo
       global [i] += nodes [j][i] * shapes [j];
 }
 
-/* linear tetrahedron global to local point transformation */
-inline static void tet_global_to_local (node_t nodes, double *global, double *local)
+/* finite element shape functions; returns the number of nodes */
+inline static int element_shapes (int type, double *point, double *shapes)
 {
-  double A [9], B [3], I [9], det;
+  switch (type)
+  {
+  case 4: tet_o1_shapes (point, shapes); return 4;
+  case 5: pyr_o1_shapes (point, shapes); return 5;
+  case 6: wed_o1_shapes (point, shapes); return 6;
+  case 8: hex_o1_shapes (point, shapes); return 8;
+  case 10: tet_o2_shapes (point, shapes); return 10;
+  case 13: pyr_o2_shapes (point, shapes); return 13;
+  case 15: wed_o2_shapes (point, shapes); return 15;
+  case 20: hex_o2_shapes (point, shapes); return 20;
+  }
 
-  SUB (nodes [0], nodes [3], A);
-  SUB (nodes [1], nodes [3], A+3);
-  SUB (nodes [2], nodes [3], A+6);
-  SUB (global, nodes [3], B);
-  INVERT (A, I, det);
-  ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
-  NVMUL (I, B, local);
-
-#if 0
-  ASSERT_DEBUG (local [0] >= 0.0 && local [1] >= 0.0 local [2] >= 0.0 &&
-  (local [0] + local [1] + local [2]) <= 1.0, "Local coords out of bounds");
-#endif
+  return 0;
 }
 
-/* linear hexahedron local to global point transformation */
-inline static void hex_local_to_global (node_t nodes, double *local, double *global)
+/* finite element shape derivatives; returns the number of nodes */
+inline static int element_derivs (int type, double *point, double *derivs)
 {
-  double shapes [8];
-  int i, j;
+  switch (type)
+  {
+  case 4: tet_o1_derivs (point, derivs); return 4;
+  case 5: pyr_o1_derivs (point, derivs); return 5;
+  case 6: wed_o1_derivs (point, derivs); return 6;
+  case 8: hex_o1_derivs (point, derivs); return 8;
+  case 10: tet_o2_derivs (point, derivs); return 10;
+  case 13: pyr_o2_derivs (point, derivs); return 13;
+  case 15: wed_o2_derivs (point, derivs); return 15;
+  case 20: hex_o2_derivs (point, derivs); return 20;
+  }
 
-  hex_o1_shapes (local, shapes);
+  return 0;
+}
+
+/* copy element node coordinates into a local table */
+inline static int load_element_nodes (node_t heap, int type, int *nodes, node_t stack)
+{
+  int n;
+
+  for (n = 0; n < type; n ++)
+  { 
+    COPY (heap [nodes [n]], stack [n]);
+  }
+
+  return n;
+}
+
+/* local to global point transformation */
+static void local_to_global (node_t heap, ELEMENT *ele, double *local, double *global)
+{
+  double nodes [MAX_NODES][3], shapes [MAX_NODES];
+  int i, j, n;
+
+  load_element_nodes (heap, ele->type, ele->nodes, nodes);
+
+  n = element_shapes (ele->type, local, shapes);
 
   SET (global, 0.0);
 
   for (i = 0; i < 3; i ++)
-    for (j = 0; j < 8; j ++)
+    for (j = 0; j < n; j ++)
       global [i] += nodes [j][i] * shapes [j];
 }
 
-/* linear hexahedron global to local point transformation */
-inline static void hex_global_to_local (node_t nodes, double *global, double *local)
+/* global to local point transformation */
+static void global_to_local (node_t heap, ELEMENT *ele, double *global, double *local)
 {
+  double nodes [MAX_NODES][3], derivs [3*MAX_NODES], shapes [MAX_NODES];
   double A [9], B [3], I [9], det, error;
-  double shapes [8], derivs [24];
-  int i, j, k, l;
+  int i, j, k, l, n;
+
+  load_element_nodes (heap, ele->type, ele->nodes, nodes);
 
   SET (local, 0.0);
   l = 0;
 
   do
   {
-    hex_o1_shapes (local, shapes);
+    n = element_shapes (ele->type, local, shapes);
 
     COPY (global, B);
 
     for (i = 0; i < 3; i ++)
-      for (j = 0; j < 8; j ++)
+      for (j = 0; j < n; j ++)
 	B [i] -= nodes [j][i] * shapes [j];
 
-    hex_o1_derivs (local, derivs);
+    element_derivs (ele->type, local, derivs);
 
     SET9 (A, 0.0);
 
     for (i = 0; i < 3; i ++)
       for (j = 0; j < 3; j ++)
-	for (k = 0; k < 8; k ++) A [3*j+i] += nodes[k][i] * derivs [3*k+j];
+	for (k = 0; k < n; k ++) A [3*j+i] += nodes[k][i] * derivs [3*k+j];
 
     INVERT (A, I, det);
     ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
@@ -227,13 +451,25 @@ inline static void hex_global_to_local (node_t nodes, double *global, double *lo
 #endif
 }
 
-/* linear tetrahedron transformation determinant at local point */
-inline static double tet_o1_det (node_t nodes, double *point, double *F)
-{
-  double derivs [12], G [9];
-  int i, j, k;
+/* compute local coordinates of a spatial point */
+#define spatial_to_local(msh, ele, x, point) global_to_local ((msh)->cur_nodes, ele, x, point)
 
-  tet_o1_derivs (point, derivs);
+/* compute local coordinates of a referential point */
+#define referential_to_local(msh, ele, X, point) global_to_local ((msh)->ref_nodes, ele, X, point)
+
+/* compute spatial coordinates of a local point */
+#define local_to_spatial(msh, ele, x, point) local_to_global ((msh)->cur_nodes, ele, x, point)
+
+/* compute referential coordinates of a local point */
+#define local_to_referential(msh, ele, X, point) local_to_global ((msh)->ref_nodes, ele, X, point)
+
+/* coordinates transformation determinant at local point */
+inline static double element_det (int type, node_t nodes, double *point, double *F)
+{
+  double derivs [3*MAX_NODES], G [9];
+  int i, j, k, n;
+
+  n = element_derivs (type, point, derivs);
 
   if (!F) F = G;
 
@@ -241,103 +477,110 @@ inline static double tet_o1_det (node_t nodes, double *point, double *F)
 
   for (i = 0; i < 3; i ++)
     for (j = 0; j < 3; j ++)
-      for (k = 0; k < 4; k ++) F [3*j+i] += nodes[k][i] * derivs [3*k+j];
+      for (k = 0; k < n; k ++) F [3*j+i] += nodes[k][i] * derivs [3*k+j];
 
   return DET (F);
 }
 
-/* linear hexahedron transformation determinant at local point */
-inline static double hex_o1_det (node_t nodes, double *point, double *F)
+/* element deformation determinant at local point */
+inline static void element_gradient (int type, node_t q, double *point, double *F0, double *derivs, double *F)
 {
-  double derivs [24], G [9];
-  int i, j, k;
+  double local_derivs [3*MAX_NODES], IF0 [9], det, *l, *d;
+  int i, j, k, n;
 
-  hex_o1_derivs (point, derivs);
-
-  if (!F) F = G;
-
-  SET9 (F, 0.0);
-
-  for (i = 0; i < 3; i ++)
-    for (j = 0; j < 3; j ++)
-      for (k = 0; k < 8; k ++) F [3*j+i] += nodes[k][i] * derivs [3*k+j];
-
-  return DET (F);
-}
-
-/* linear tetrahedron deformation determinant at local point */
-inline static void tet_o1_gradient (node_t q, double *point, double *F0, double *derivs, double *F)
-{
-  double local_derivs [12], IF0 [9], det, *l, *d;
-  int i, j, k;
-
-  tet_o1_derivs (point, local_derivs);
+  n = element_derivs (type, point, local_derivs);
 
   INVERT (F0, IF0, det);
   ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
-  for (k = 0, l = local_derivs, d = derivs; k < 4; k ++, l += 3, d += 3) { TVMUL (IF0, l, d); }
+  for (k = 0, l = local_derivs, d = derivs; k < n; k ++, l += 3, d += 3) { TVMUL (IF0, l, d); }
 
   IDENTITY (F);
 
   for (i = 0; i < 3; i ++)
     for (j = 0; j < 3; j ++)
-      for (k = 0; k < 4; k ++) F [3*j+i] += q[k][i] * derivs [3*k+j];
+      for (k = 0; k < n; k ++) F [3*j+i] += q[k][i] * derivs [3*k+j];
 }
 
-/* linear hexahedron deformation determinant at local point */
-inline static void hex_o1_gradient (node_t q, double *point, double *F0, double *derivs, double *F)
+/* compute element shape functions at a local point and return global matrix */
+static MX* element_shapes_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
 {
-  double local_derivs [24], IF0 [9], det, *l, *d;
-  int i, j, k;
+  static int *p, *i, *q, *u, k, n, m, o;
+  double shapes [MAX_NODES], *x, *y;
+  MX *N;
 
-  hex_o1_derivs (point, local_derivs);
+  o = element_shapes (ele->type, point, shapes);
 
-  INVERT (F0, IF0, det);
-  ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
-  for (k = 0, l = local_derivs, d = derivs; k < 8; k ++, l += 3, d += 3) { TVMUL (IF0, l, d); }
+  n = bod->dofs;
 
-  IDENTITY (F);
+  ERRMEM (p = MEM_CALLOC ((2*n+1) * sizeof (int)));
+  i = p + n + 1;
 
-  for (i = 0; i < 3; i ++)
-    for (j = 0; j < 3; j ++)
-      for (k = 0; k < 8; k ++) F [3*j+i] += q[k][i] * derivs [3*k+j];
+  for (k = 0, u = i; k < o; k ++, u += 3)
+  {
+    m = ele->nodes [k] * 3;
+    q = &p [m + 1];
+    q [0] = 1; q [1] = 1; q [2] = 1;
+    u [0] = 0; u [1] = 1; u [2] = 2;
+  }
+
+  for (q = p + 1; q < i; q ++) *q += *(q-1);
+
+  N = MX_Create (MXCSC, 3, n, p, i);
+  x = N->x;
+  free (p);
+  p = N->p;
+
+  for (k = 0; k < o; k ++)
+  {
+    m = ele->nodes [k] * 3;
+    y = &x [p [m]];
+    SET (y, shapes [k]);
+  }
+
+  return N;
 }
 
-/* integration macro */
-#define INTEGRATE(SCHEME, SUBORD, dom, domnum, nodes, ...)\
+/* element integration */
+#define INTEGRATE3D(TYPE, ORDER, DOM, DOMNUM, ...)\
 {\
+  const double *__X__, *__Y__, *__Z__, *__W__;\
   double point [3], weight;\
+  TRISURF *__dom__ = DOM;\
   int __k__, __l__;\
+  const int __N__;\
 \
-  if (dom)\
+  if (__dom__)\
   {\
+    int __domnum__ = DOMNUM;\
     double __subnodes__ [4][3], __subJ__;\
     double __subpoint__ [3];\
     TRI *__t__, *__e__;\
     double __volume__;\
 \
-    for (__volume__ = __k__ = 0; __k__ < domnum; __k__ ++) __volume__ += dom [__k__].volume;\
+    __N__ = load_integrator (4, order, &__X__, &__Y__, &__Z__, &__W__);\
 \
-    for (__l__ = 0; __l__ < domnum; dom ++, __l__ ++)\
+    for (__volume__ = __k__ = 0; __k__ < __domnum__; __k__ ++) __volume__ += __dom__ [__k__].volume;\
+\
+    for (__l__ = 0; __l__ < __domnum__; __dom__ ++, __l__ ++)\
     {\
-      if (dom->volume > DOM_TOL * __volume__)\
+      if (__dom__->volume > DOM_TOL * __volume__)\
       {\
-	COPY (dom->center, __subnodes__ [3]);\
+	COPY (__dom__->center, __subnodes__ [3]);\
 \
-	for (__t__ = dom->tri, __e__ = __t__ + dom->m; __t__ < __e__; __t__ ++)\
+	for (__t__ = __dom__->tri, __e__ = __t__ + __dom__->m; __t__ < __e__; __t__ ++)\
 	{\
 	  COPY (__t__->ver [0], __subnodes__ [0]);\
 	  COPY (__t__->ver [1], __subnodes__ [1]);\
 	  COPY (__t__->ver [2], __subnodes__ [2]);\
 \
-	  for (__k__ = 0; __k__ < I_TET##SUBORD##_N; __k__ ++)\
+	  for (__k__ = 0; __k__ < __N__; __k__ ++)\
 	  {\
-	    __subpoint__ [0] = I_TET##SUBORD##_X [__k__];\
-	    __subpoint__ [1] = I_TET##SUBORD##_Y [__k__];\
-	    __subpoint__ [2] = I_TET##SUBORD##_Z [__k__];\
-	    __subJ__ = tet_o1_det (__subnodes__, __subpoint__, NULL);\
-	    tet_local_to_global (__subnodes__, __subpoint__, point);\
-	    weight = __subJ__ * I_TET##SUBORD##_W [__k__];\
+	    __subpoint__ [0] = __X__ [__k__];\
+	    __subpoint__ [1] = __Y__ [__k__];\
+	    __subpoint__ [2] = __Z__ [__k__];\
+	    __subJ__ = element_det (4, __subnodes__, __subpoint__, NULL);\
+	    tet_o1_local_to_global (__subnodes__, __subpoint__, point);\
+	    weight = __subJ__ * __W__ [__k__];\
 \
 	    __VA_ARGS__\
 	  }\
@@ -345,8 +588,8 @@ inline static void hex_o1_gradient (node_t q, double *point, double *F0, double 
       }\
       else\
       {\
-	COPY (dom->center, point);\
-	weight = dom->volume;\
+	COPY (__dom__->center, point);\
+	weight = __dom__->volume;\
 \
 	__VA_ARGS__\
       }\
@@ -354,61 +597,54 @@ inline static void hex_o1_gradient (node_t q, double *point, double *F0, double 
   }\
   else\
   {\
-    for (__k__ = 0; __k__ < SCHEME##_N; __k__ ++)\
+    __N__ = load_integrator (type, order, &__X__, &__Y__, &__Z__, &__W__);\
+    for (__k__ = 0; __k__ < __N__; __k__ ++)\
     {\
-      point [0] = SCHEME##_X [__k__];\
-      point [1] = SCHEME##_Y [__k__];\
-      point [2] = SCHEME##_Z [__k__];\
-      weight = SCHEME##_W [__k__];\
+      point [0] = __X__ [__k__];\
+      point [1] = __Y__ [__k__];\
+      point [2] = __Z__ [__k__];\
+      weight = __W__ [__k__];\
 \
       __VA_ARGS__\
     }\
   }\
 }
 
-/* lump linear tetrahedron mass */
-inline static void tet_o1_lump (TRISURF *dom, int domnum, node_t nodes, double density, double **out)
+/* integration order predictor */
+typedef enum {MASS, EXTF, INTF} ENTITY;
+static int integration_order (int type, ENTITY entity)
 {
-  double J, coef, integral;
-  double shapes [4];
-  int i, j;
+  /* TODO */
 
-  INTEGRATE (I_TET2, 2, dom, domnum, nodes,
-
-    tet_o1_shapes (point, shapes);
-    J = tet_o1_det (nodes, point, NULL);
-    coef = density * J * weight;
-
-    for (i = 0; i < 4; i ++)
-    {
-      for (j = 0; j < 4; j ++)
-      {
-	integral = coef * shapes [i] * shapes [j];
-
-	out [i][0] += integral;
-	out [i][1] += integral;
-	out [i][2] += integral;
-      }
-    }
-  )
+  return 2;
 }
 
-/* lump linear hexahedron mass */
-inline static void hex_o1_lump (TRISURF *dom, int domnum, node_t nodes, double density, double **out)
+/* lump contribution of the element mass into the diagonal */
+static void lump_mass_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
 {
-  double J, coef, integral;
-  double shapes [8];
-  int i, j;
+  double J, coef, integral, density,
+         nodes [MAX_NODES][3],
+	 shapes [MAX_NODES],
+	*out [MAX_NODES];
+  int i, j, n, order;
 
-  INTEGRATE (I_HEX2, 2, dom, domnum, nodes,
+  density = ele->mat ? ele->mat->density : bod->mat->density;
 
-    hex_o1_shapes (point, shapes);
-    J = hex_o1_det (nodes, point, NULL);
+  n = load_element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
+
+  for (i = 0; i < n; i ++) out [i] = &x [3 * ele->nodes [i]];
+
+  order = integration_order (ele->type, MASS);
+ 
+  INTEGRATE3D (ele->type, order, ele->dom, ele->domnum,
+
+    element_shapes (ele->type, point, shapes);
+    J = element_det (ele->type, nodes, point, NULL);
     coef = density * J * weight;
 
-    for (i = 0; i < 8; i ++)
+    for (i = 0; i < n; i ++)
     {
-      for (j = 0; j < 8; j ++)
+      for (j = 0; j < n; j ++)
       {
 	integral = coef * shapes [i] * shapes [j];
 
@@ -429,7 +665,7 @@ inline static void tet_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
 
   for (i = 0; i < 12; i ++) g [i] = 0.0;
 
-  INTEGRATE (I_TET1, 1, dom, domnum, nodes,
+  INTEGRATE3D (I_TET1, 1, dom, domnum, nodes,
 
     tet_o1_shapes (point, shapes);
     J = tet_o1_det (nodes, point, NULL);
@@ -455,7 +691,7 @@ inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
 
   for (i = 0; i < 24; i ++) g [i] = 0.0;
 
-  INTEGRATE (I_HEX2, 1, dom, domnum, nodes,
+  INTEGRATE3D (I_HEX2, 1, dom, domnum, nodes,
 
     hex_o1_shapes (point, shapes);
     J = hex_o1_det (nodes, point, NULL);
@@ -483,7 +719,7 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
-  INTEGRATE (I_TET1, 1, dom, domnum, nodes,
+  INTEGRATE3D (I_TET1, 1, dom, domnum, nodes,
 
     J = tet_o1_det (nodes, point, F0);
     tet_o1_gradient (q, point, F0, derivs, F);
@@ -526,7 +762,7 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
-  INTEGRATE (I_HEX2, 1, dom, domnum, nodes,
+  INTEGRATE3D (I_HEX2, 1, dom, domnum, nodes,
 
     J = hex_o1_det (nodes, point, F0);
     hex_o1_gradient (q, point, F0, derivs, F);
@@ -556,62 +792,6 @@ inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int do
       for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
   )
-}
-
-/* copy node coordinates into a local table */
-static void load_nodes (node_t heap, int type, int *nodes, node_t stack)
-{
-  int n;
-
-  for (n = 0; n < type; n ++)
-  { COPY (heap [nodes [n]], stack [n]); }
-}
-
-/* lump contribution of the element mass into the diagonal */
-static void lump_mass_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
-{
-  double nodes [8][3],
-	 density,
-	*out [8];
-  int i;
-
-  density = ele->mat ? ele->mat->density : bod->mat->density;
-
-  load_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
-
-  for (i = 0; i < ele->type; i ++) out [i] = &x [3 * ele->nodes [i]];
- 
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    switch (ele->type)
-    {
-    case 4: tet_o1_lump (ele->dom, ele->domnum, nodes, density, out); break;
-    case 8: hex_o1_lump (ele->dom, ele->domnum, nodes, density, out); break;
-    case 5:
-      COPY (nodes [4], nodes [5]); out [5] = out [4];
-      COPY (nodes [4], nodes [6]); out [6] = out [4];
-      COPY (nodes [4], nodes [7]); out [7] = out [4];
-      hex_o1_lump (ele->dom, ele->domnum, nodes, density, out);
-      break;
-    case 6:
-      COPY (nodes [5], nodes [7]); out [7] = out [5];
-      COPY (nodes [5], nodes [6]); out [6] = out [5];
-      COPY (nodes [4], nodes [5]); out [5] = out [4];
-      COPY (nodes [3], nodes [4]); out [4] = out [3];
-      COPY (nodes [2], nodes [3]); out [3] = out [2];
-      hex_o1_lump (ele->dom, ele->domnum, nodes, density, out);
-      break;
-    }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
 }
 
 /* compute deformation gradient at a local point */
@@ -677,109 +857,8 @@ static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *po
   }
 }
 
-/* compute element shape functions at a local point and return global matrix */
-static MX* shape_functions (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
-{
-  MX *N = NULL;
-
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    static int *p, *i, *q, *u, k, n, m;
-    double shapes [8], sum, *x, *y;
-
-    n = bod->dofs;
-
-    ERRMEM (p = MEM_CALLOC ((2*n+1) * sizeof (int)));
-    i = p + n + 1;
-
-    for (k = 0, u = i; k < ele->type; k ++, u += 3)
-    {
-      m = ele->nodes [k] * 3;
-      q = &p [m + 1];
-      q [0] = 1; q [1] = 1; q [2] = 1;
-      u [0] = 0; u [1] = 1; u [2] = 2;
-    }
-
-    for (q = p + 1; q < i; q ++) *q += *(q-1);
-
-    N = MX_Create (MXCSC, 3, n, p, i);
-    x = N->x;
-    free (p);
-    p = N->p;
-
-    switch (ele->type)
-    {
-      case 4:
-	tet_o1_shapes (point, shapes);
-	for (k = 0; k < 4; k ++)
-	{
-	  m = ele->nodes [k] * 3;
-	  y = &x [p [m]];
-	  SET (y, shapes [k]);
-	}
-	break;
-      case 8:
-	hex_o1_shapes (point, shapes);
-	for (k = 0; k < 8; k ++)
-	{
-	  m = ele->nodes [k] * 3;
-	  y = &x [p [m]];
-	  SET (y, shapes [k]);
-	}
-	break;
-      case 5:
-	hex_o1_shapes (point, shapes);
-	for (k = 0; k < 4; k ++)
-	{
-	  m = ele->nodes [k] * 3;
-	  y = &x [p [m]];
-	  SET (y, shapes [k]);
-	}
-	m = ele->nodes [k] * 3;
-	y = &x [p [m]];
-	sum = (shapes [4] + shapes [5] + shapes [6] + shapes [7]);
-	SET (y, sum);
-	break;
-      case 6:
-	hex_o1_shapes (point, shapes);
-	for (k = 0; k < 2; k ++)
-	{
-	  m = ele->nodes [k] * 3;
-	  y = &x [p [m]];
-	  SET (y, shapes [k]);
-	}
-	m = ele->nodes [2] * 3;
-	y = &x [p [m]];
-	sum = (shapes [2] + shapes [3]);
-	SET (y, sum);
-	for (k = 4; k < 6; k ++)
-	{
-	  m = ele->nodes [k-1] * 3;
-	  y = &x [p [m]];
-	  SET (y, shapes [k]);
-	}
-	m = ele->nodes [5] * 3;
-	y = &x [p [m]];
-	sum = (shapes [6] + shapes [7]);
-	SET (y, sum);
-	break;
-    }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-
-  return N;
-}
-
 /* compute element shape functions at a local point and output them into a local matrix */
-static int shape_functions_ext (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *shapes)
+static int element_shapes_ext (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *shapes)
 {
 
   switch (ORDER (bod->form))
@@ -806,8 +885,8 @@ static int shape_functions_ext (BODY *bod, MESH *msh, ELEMENT *ele, double *poin
   return 0;
 }
 
-/* load displacemnts into a local buffer */
-static void load_displacements (BODY *bod, MESH *msh, ELEMENT *ele, double (*q) [3])
+/* load element displacemnts into a local buffer */
+static void element_displacements (BODY *bod, MESH *msh, ELEMENT *ele, double (*q) [3])
 {
   double *conf = bod->conf, *p;
   int i;
@@ -819,6 +898,128 @@ static void load_displacements (BODY *bod, MESH *msh, ELEMENT *ele, double (*q) 
     for (i = 0; i < ele->type; i ++)
     {
       p = &conf [3 * ele->nodes [i]];
+      COPY (p, q[i]);
+    }
+  }
+  break;
+  case FEM_O2:
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  break;
+  }
+}
+
+/* compute face shape functions at a local 2-point and output them into a local matrix */
+inline static int face_shapes (BODY *bod, MESH *msh, FACE *fac, double *point, double *shapes)
+{
+  switch (ORDER (bod->form))
+  {
+  case FEM_O1:
+  {
+    if (fac->type == 3) /* triangle */
+    {
+      shapes [0] = point [0];
+      shapes [1] = point [1];
+      shapes [2] = 1.0 - point [0] - point [1];
+      return 3;
+    }
+    else /* quad */
+    {
+      shapes [0] = 0.25 * (1.0 - point [0]) * (1.0 - point [1]);
+      shapes [1] = 0.25 * (1.0 + point [0]) * (1.0 - point [1]);
+      shapes [2] = 0.25 * (1.0 + point [0]) * (1.0 + point [1]);
+      shapes [3] = 0.25 * (1.0 - point [0]) * (1.0 + point [1]);
+      return 4;
+    }
+  }
+  break;
+  case FEM_O2:
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  break;
+  }
+
+  return 0;
+}
+
+/* compute face shape function derivatices at a local 2-point and output them into a local matrix */
+inline static int face_derivs (BODY *bod, MESH *msh, FACE *fac, double *point, double *derivs)
+{
+  switch (ORDER (bod->form))
+  {
+  case FEM_O1:
+  {
+    if (fac->type == 3) /* triangle */
+    {
+      derivs [0] =  1.0;
+      derivs [1] =  0.0;
+      derivs [2] =  0.0;
+      derivs [3] =  1.0;
+      derivs [4] = -1.0;
+      derivs [5] = -1.0;
+      return 3;
+    }
+    else /* quad */
+    {
+      derivs [0] =  0.25 * (point [1] - 1.0);
+      derivs [1] =  0.25 * (point [0] - 1.0);
+      derivs [2] =  0.25 * (1.0 - point [1]);
+      derivs [3] = -0.25 * (1.0 + point [0]);
+      derivs [4] =  0.25 * (1.0 + point [1]);
+      derivs [5] =  0.25 * (1.0 + point [0]);
+      derivs [6] = -0.25 * (1.0 + point [1]);
+      derivs [7] =  0.25 * (1.0 - point [0]);
+      return 4;
+    }
+  }
+  break;
+  case FEM_O2:
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  break;
+  }
+
+  return 0;
+}
+
+/* get global to local face coordinates transformation determinant at a local 2-point */
+inline static double face_det (BODY *bod, MESH *msh, FACE *fac, node_t nodes, double *point)
+{
+  double derivs [16], d0 [3], d1[3], normal [3], *d;
+  int i, n;
+
+  n = face_derivs (bod, msh, fac, point, derivs);
+
+  SET (d0, 0);
+  SET (d1, 0);
+
+  for (i = 0, d = derivs; i < n; i ++, d += 2)
+  {
+    ADDMUL (d0, d[0], nodes[i], d0);
+    ADDMUL (d1, d[1], nodes[i], d1);
+  }
+
+  PRODUCT (d0, d1, normal);
+
+  return LEN (normal);
+}
+
+/* load face displacemnts into a local buffer */
+inline static void face_displacements (BODY *bod, MESH *msh, FACE *fac, double *conf, double (*q) [3])
+{
+  double *p;
+  int i;
+
+  switch (ORDER (bod->form))
+  {
+  case FEM_O1:
+  {
+    for (i = 0; i < fac->type; i ++)
+    {
+      p = &conf [3 * fac->nodes [i]];
       COPY (p, q[i]);
     }
   }
@@ -886,7 +1087,7 @@ static int load_node_numbers (BODY *bod, MESH *msh, ELEMENT *ele, int *numbers)
 /* copute point force contribution */
 static void point_force (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *f, double *force)
 {
-  MX *N = shape_functions (bod, msh, ele, point);
+  MX *N = element_shapes (bod, msh, ele, point);
   MX_Matvec (1.0, MX_Tran (N), f, 1.0, force);
   MX_Destroy (N);
 }
@@ -986,82 +1187,6 @@ static void internal_force (int derivative, BODY *bod, MESH *msh, ELEMENT *ele, 
   }
 }
 
-/* compute local coordinates of a global point */
-static void global_to_local (double (*mesh_nodes) [3], ELEMENT *ele, double *point, double *local)
-{
-  double nodes [8][3];
-
-  load_nodes (mesh_nodes, ele->type, ele->nodes, nodes);
-
-  switch (ele->type)
-  {
-    case 4: tet_global_to_local (nodes, point, local); break;
-    case 8: hex_global_to_local (nodes, point, local); break;
-    case 5:
-    {
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [4], nodes [6]);
-      COPY (nodes [4], nodes [7]);
-      hex_global_to_local (nodes, point, local);
-    }
-    break;
-    case 6:
-    {
-      COPY (nodes [5], nodes [7]);
-      COPY (nodes [5], nodes [6]);
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [3], nodes [4]);
-      COPY (nodes [2], nodes [3]);
-      hex_global_to_local (nodes, point, local);
-    }
-    break;
-  }
-}
-
-/* compute local coordinates of a spatial point */
-#define spatial_to_local(msh, ele, x, point) global_to_local ((msh)->cur_nodes, ele, x, point)
-
-/* compute local coordinates of a referential point */
-#define referential_to_local(msh, ele, X, point) global_to_local ((msh)->ref_nodes, ele, X, point)
-
-/* copute global coordinates of a local point */
-static void local_to_global (double (*mesh_nodes) [3], ELEMENT *ele, double *point, double *X)
-{
-  double nodes [8][3];
-
-  load_nodes (mesh_nodes, ele->type, ele->nodes, nodes);
-
-  switch (ele->type)
-  {
-    case 4: tet_local_to_global (nodes, point, X); break;
-    case 8: hex_local_to_global (nodes, point, X); break;
-    case 5:
-    {
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [4], nodes [6]);
-      COPY (nodes [4], nodes [7]);
-      hex_local_to_global (nodes, point, X); break;
-    }
-    break;
-    case 6:
-    {
-      COPY (nodes [5], nodes [7]);
-      COPY (nodes [5], nodes [6]);
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [3], nodes [4]);
-      COPY (nodes [2], nodes [3]);
-      hex_local_to_global (nodes, point, X); break;
-    }
-    break;
-  }
-}
-
-/* compute spatial coordinates of a local point */
-#define local_to_spatial(msh, ele, x, point) local_to_global ((msh)->cur_nodes, ele, x, point)
-
-/* compute referential coordinates of a local point */
-#define local_to_referential(msh, ele, X, point) local_to_global ((msh)->ref_nodes, ele, X, point)
-
 /* compute Cauchy stress at local point */
 static void element_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
 {
@@ -1133,7 +1258,7 @@ static MX* gen_to_loc_operator (BODY *bod, MESH *msh, ELEMENT *ele, double *X, d
 
   TNCOPY (base, base_trans.x);
   referential_to_local (msh, ele, X, point);
-  N = shape_functions (bod, msh, ele, point);
+  N = element_shapes (bod, msh, ele, point);
   H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
   MX_Destroy (N);
   return H;
@@ -1142,11 +1267,11 @@ static MX* gen_to_loc_operator (BODY *bod, MESH *msh, ELEMENT *ele, double *X, d
 /* accumulate constraints reaction */
 inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *force)
 {
-  double shapes [MAX_NODES_COUNT], P [3], point [3], *f;
-  int numbers [MAX_NODES_COUNT], i, n;
+  double shapes [MAX_NODES], P [3], point [3], *f;
+  int numbers [MAX_NODES], i, n;
 
   referential_to_local (msh, ele, X, point);
-  n = shape_functions_ext (bod, msh, ele, point, shapes);
+  n = element_shapes_ext (bod, msh, ele, point, shapes);
   load_node_numbers (bod, msh, ele, numbers);
 
   NVMUL (base, R, P);
@@ -1655,9 +1780,145 @@ static void fem_static_inverse (BODY *bod, double step)
   MX_Destroy (K);
 }
 
+/* compute surface integral = INT { skew [N] A Shapes (x) q } */
+static void bodcor_surface_integral (BODY *bod, MESH *msh, double *conf, double *A, double *integral)
+{
+ double q [8][3], nodes [8][3], B [3], C [3], shapes [8], point [2], J, coef;
+ const double *X, *Y, *W, *N;
+ int i, j, n, m;
+  ELEMENT *ele;
+  FACE *fac;
+
+  SET (integral, 0);
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    for (fac = ele->faces; fac; fac = fac->next)
+    {
+      load_nodes (msh->ref_nodes, fac->type, fac->nodes, nodes);
+      face_displacements (bod, msh, fac, conf, q);
+      for (j = 0; j < fac->type; j ++) { ADD (nodes [j], q [j], nodes [j]); } /* sub-parametric coords transformation for FEM_O2 */
+      N = fac->normal + 3;
+
+      if (fac->type == 3)
+      {
+	X = I_TRI1_X;
+	Y = I_TRI1_Y;
+	W = I_TRI1_W;
+	m = I_TRI1_N;
+	/* TODO: FEM_O2 */
+      }
+      else
+      {
+	X = I_QUA2_X;
+	Y = I_QUA2_Y;
+	W = I_QUA2_W;
+	m = I_QUA2_N;
+	/* TODO: FEM_O2 */
+      }
+      
+      for (i = 0; i < m; i ++)
+      {
+	point [0] = X[i];
+	point [1] = Y[i];
+        n = face_shapes (bod, msh, fac, point, shapes);
+	J = face_det (bod, msh, fac, nodes, point);
+	coef = J * W [i];
+
+        SET (B, 0);
+	for (j = 0; j < n; j ++) { ADDMUL (B, shapes [j], q [j], B); }
+	NVMUL (A, B, C);
+	SCALE (C, coef);
+	PRODUCTADD (N, C, integral);
+      }
+    }
+  }
+}
+
+/* update rotation for given configuration;
+ * bod - input body
+ * msh - input mesh
+ * q   - input configuration
+ * R   - input/output rotation */
+static void bodcor_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
+{
+}
+
+/* body co-rotational initialise dynamic time stepping */
+static void bodcor_dynamic_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational perform the initial half-step of the dynamic scheme */
+static void bodcor_dynamic_step_begin (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational perform the final half-step of the dynamic scheme */
+static void bodcor_dynamic_step_end (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational initialise static time stepping */
+static void bodcor_static_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational perform the initial half-step of the static scheme */
+static void bodcor_static_step_begin (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational perform the final half-step of the static scheme */
+static void bodcor_static_step_end (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational initialise dynamic time stepping */
+static void elecor_dynamic_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational perform the initial half-step of the dynamic scheme */
+static void elecor_dynamic_step_begin (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational perform the final half-step of the dynamic scheme */
+static void elecor_dynamic_step_end (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational initialise static time stepping */
+static void elecor_static_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational perform the initial half-step of the static scheme */
+static void elecor_static_step_begin (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* element co-rotational perform the final half-step of the static scheme */
+static void elecor_static_step_end (BODY *bod, double time, double step)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
 /* attach (element, local point) pairs to cvx->epn placeholder so that
  * current vertices can be updated fast by using FEM_Cur_Point_Ext */
-static void post_proces_convices (SHAPE *shp, MESH *msh)
+static void post_proces_convices (SHAPE *shp, MESH *msh, FEMFORM form)
 {
   CONVEX *cvx;
   ELEPNT *epn;
@@ -1894,78 +2155,6 @@ static void overlap (void *data, BOX *one, BOX *two)
   }
 }
 
-/* body co-rotational initialise dynamic time stepping */
-static void bodcor_dynamic_init (BODY *bod)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* body co-rotational perform the initial half-step of the dynamic scheme */
-static void bodcor_dynamic_step_begin (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* body co-rotational perform the final half-step of the dynamic scheme */
-static void bodcor_dynamic_step_end (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* body co-rotational initialise static time stepping */
-static void bodcor_static_init (BODY *bod)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* body co-rotational perform the initial half-step of the static scheme */
-static void bodcor_static_step_begin (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* body co-rotational perform the final half-step of the static scheme */
-static void bodcor_static_step_end (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational initialise dynamic time stepping */
-static void elecor_dynamic_init (BODY *bod)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational perform the initial half-step of the dynamic scheme */
-static void elecor_dynamic_step_begin (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational perform the final half-step of the dynamic scheme */
-static void elecor_dynamic_step_end (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational initialise static time stepping */
-static void elecor_static_init (BODY *bod)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational perform the initial half-step of the static scheme */
-static void elecor_static_step_begin (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational perform the final half-step of the static scheme */
-static void elecor_static_step_end (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
 /* create FEM internals for a body */
 void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 {
@@ -1973,6 +2162,20 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   SHAPE_Char (shp, &bod->ref_volume, bod->ref_center, bod->ref_tensor);
   bod->ref_mass = bod->ref_volume * mat->density;
   SCALE9 (bod->ref_tensor, mat->density);
+
+  /* resolve incorect order flags */
+  if ((form & FEM_O1) && (form & FEM_O2))
+  {
+    form &= ~(FEM_O1|FEM_O2);
+    form |= FEM_O1;
+  }
+
+  /* resolve incorect corotational flags */
+  if ((form & FEM_BODCOR) && (form & FEM_ELECOR))
+  {
+    form &= ~(FEM_BODCOR|FEM_ELECOR);
+    form |= FEM_BODCOR;
+  }
 
   if (msh) /* the given mesh is assumed to properly contain the shape */
   {
@@ -2024,23 +2227,9 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     post_process_intersections (bod->ref_volume, msh);
 
     /* post-proces convices */
-    post_proces_convices (shp, msh);
+    post_proces_convices (shp, msh, form);
   }
   else msh = shp->data; /* retrive the mesh pointer from the shape */
-
-  /* resolve incorect order flags */
-  if ((form & FEM_O1) && (form & FEM_O2))
-  {
-    form &= ~(FEM_O1|FEM_O2);
-    form |= FEM_O1;
-  }
-
-  /* resolve incorect corotational flags */
-  if ((form & FEM_BODCOR) && (form & FEM_ELECOR))
-  {
-    form &= ~(FEM_BODCOR|FEM_ELECOR);
-    form |= FEM_BODCOR;
-  }
 
   /* allocate dofs */
   if (COROT (form)) /* co-rotational */
@@ -2066,10 +2255,11 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     }
   }
 
-  /* save formulation
-   * and rough mesh */
+  /* save formulation */
   bod->form = form;
-  bod->msh = msh;
+
+  /* save rought mesh if needed */
+  if (msh != shp->data) bod->msh = msh;
 }
 
 /* overwrite state */
@@ -2368,7 +2558,7 @@ void FEM_Static_Step_End (BODY *bod, double time, double step)
 /* motion x = x (X, t) */
 void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 {
-  double shapes [MAX_NODES_COUNT], q [MAX_NODES_COUNT][3], point [3];
+  double shapes [MAX_NODES], q [MAX_NODES][3], point [3];
   ELEMENT *ele;
   CONVEX *cvx;
   MESH *msh;
@@ -2390,8 +2580,8 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
   if (ele)
   {
     referential_to_local (msh, ele, X, point);
-    n = shape_functions_ext (bod, msh, ele, point, shapes);
-    load_displacements (bod, msh, ele, q);
+    n = element_shapes_ext (bod, msh, ele, point, shapes);
+    element_displacements (bod, msh, ele, q);
 
     COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
   }
@@ -2407,12 +2597,12 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 /* motion x = x (element, ref point, local point) */
 void FEM_Cur_Point_Ext (BODY *bod, ELEMENT *ele, double *X, double *point, double *x)
 {
-  double shapes [MAX_NODES_COUNT], q [MAX_NODES_COUNT][3];
+  double shapes [MAX_NODES], q [MAX_NODES][3];
   MESH *msh = FEM_MESH (bod);
   int n, i;
 
-  n = shape_functions_ext (bod, msh, ele, point, shapes);
-  load_displacements (bod, msh, ele, q);
+  n = element_shapes_ext (bod, msh, ele, point, shapes);
+  element_displacements (bod, msh, ele, q);
 
   COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
 }
@@ -2446,7 +2636,7 @@ void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
 void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel)
 {
-  double shapes [MAX_NODES_COUNT], u0 [MAX_NODES_COUNT][3], u [MAX_NODES_COUNT][3], point [3], vglo [3];
+  double shapes [MAX_NODES], u0 [MAX_NODES][3], u [MAX_NODES][3], point [3], vglo [3];
   ELEMENT *ele;
   CONVEX *cvx;
   MESH *msh;
@@ -2466,7 +2656,7 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
   }
 
   referential_to_local (msh, ele, X, point);
-  n = shape_functions_ext (bod, msh, ele, point, shapes);
+  n = element_shapes_ext (bod, msh, ele, point, shapes);
   load_velocities (bod, bod->msh, ele, u0, u);
 
   if (prevel)
@@ -2540,14 +2730,14 @@ void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
     {
     case VALUE_DISPLACEMENT:
     {
-      MX *N = shape_functions (bod, msh, ele, point);
+      MX *N = element_shapes (bod, msh, ele, point);
       MX_Matvec (1.0, N, bod->conf, 0.0, values);
       MX_Destroy (N);
     }
     break;
     case VALUE_VELOCITY:
     {
-      MX *N = shape_functions (bod, msh, ele, point);
+      MX *N = element_shapes (bod, msh, ele, point);
       MX_Matvec (1.0, N, bod->velo, 0.0, values);
       MX_Destroy (N);
     }
@@ -2584,14 +2774,14 @@ void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIN
   {
   case VALUE_DISPLACEMENT:
   {
-    MX *N = shape_functions (bod, msh, ele, point);
+    MX *N = element_shapes (bod, msh, ele, point);
     MX_Matvec (1.0, N, bod->conf, 0.0, values);
     MX_Destroy (N);
   }
   break;
   case VALUE_VELOCITY:
   {
-    MX *N = shape_functions (bod, msh, ele, point);
+    MX *N = element_shapes (bod, msh, ele, point);
     MX_Matvec (1.0, N, bod->velo, 0.0, values);
     MX_Destroy (N);
   }
@@ -2747,11 +2937,13 @@ void FEM_Destroy (BODY *bod)
 int FEM_Conf_Pack_Size (BODY *bod)
 {
   return bod->dofs;
+  /* FIXME: make sure this is OK for co-rot */
 }
 
 /* get velocity packing size */
 int FEM_Velo_Pack_Size (BODY *bod)
 {
   return 5 * bod->dofs;
+  /* FIXME: make sure this is OK for co-rot */
 }
 #endif

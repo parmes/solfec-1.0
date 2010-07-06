@@ -3284,7 +3284,7 @@ formulation
 \series bold
 kind
 \series default
- equals 'FINITE_ELEMENT', ignored otherwise (default: 'TL_O1').
+ equals 'FINITE_ELEMENT', ignored otherwise (default: 'TOTAL_LAGRANGIAN').
  This argument specifies a formulation of the finite element method.
  See Table 
 \begin_inset CommandInset ref
@@ -3632,7 +3632,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="2">
+<lyxtabular version="3" rows="4" columns="2">
 <features>
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
@@ -3661,7 +3661,7 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-'TL_O1'
+'TOTAL_LAGRANGIAN'
 \end_layout
 
 \end_inset
@@ -3670,7 +3670,29 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-First order Total Lagrangian
+
+\series bold
+default
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'BODY_COROTATIONAL'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+one co-rotated frame per body; suitable for stiff bodies
 \end_layout
 
 \end_inset
@@ -3681,7 +3703,7 @@ First order Total Lagrangian
 \begin_inset Text
 
 \begin_layout Plain Layout
-'CR_B1'
+'ELEMENT_COROTATIONAL'
 \end_layout
 
 \end_inset
@@ -3690,8 +3712,7 @@ First order Total Lagrangian
 \begin_inset Text
 
 \begin_layout Plain Layout
-First order body co-rotational (one co-rotated frame per body; suitable
- for stiff bodies)
+one co-rotated frame per element
 \end_layout
 
 \end_inset

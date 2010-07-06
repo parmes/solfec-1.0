@@ -2042,7 +2042,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
   {
     label = NULL;
     formulation = NULL;
-    form = FEM_O1;
+    form = TOTAL_LAGRANGIAN;
     mesh = NULL;
     msh = NULL;
 
@@ -2078,13 +2078,17 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
       if (formulation)
       {
-        IFIS (formulation, "TL_O1")
+        IFIS (formulation, "TOTAL_LAGRANGIAN")
 	{
-	  form = FEM_O1;
+	  form = TOTAL_LAGRANGIAN;
 	}
-	ELIF (formulation, "CR_B1")
+	ELIF (formulation, "BODY_COROTATIONAL")
 	{
-	  form = FEM_O1|FEM_BODCOR;
+	  form = BODY_COROTATIONAL;
+	}
+	ELIF (formulation, "ELEMENT_COROTATIONAL")
+	{
+	  form = ELEMENT_COROTATIONAL;
 	}
 	ELSE
 	{

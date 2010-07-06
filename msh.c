@@ -186,6 +186,12 @@ static void setup_face (ELEMENT *ele, int n, FACE *fac, int dosort)
       fac->nodes [3] = ele->nodes [hex [n][3]-1];
       if (dosort) sort (fac->nodes, fac->nodes+3);
     break;
+    case 10:
+    case 13:
+    case 15:
+    case 20:
+      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    break;
   }
 }
 
@@ -238,6 +244,12 @@ static int* setup_face_vertices (ELEMENT *ele, int n, int *fac)
       fac [3] = hex [n][2]-1;
       fac [4] = hex [n][3]-1;
       return (fac + 5);
+    break;
+    case 10:
+    case 13:
+    case 15:
+    case 20:
+      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
     break;
   }
   return NULL;
@@ -467,7 +479,11 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
       eleptr [0] == 4 || /* tetrahedron */
       eleptr [0] == 5 || /* pyramid */
       eleptr [0] == 6 || /* wedge */
-      eleptr [0] == 8,   /* hexahedron */
+      eleptr [0] == 8 || /* hexahedron */
+      eleptr [0] == 10 || /* 2nd order tetrahedron */
+      eleptr [0] == 13 || /* 2nd order pyramid */
+      eleptr [0] == 15 || /* 2nd order wedge */
+      eleptr [0] == 20,   /* 2nd order hexahedron */
       ERR_MSH_UNSUPPORTED_ELEMENT);
 
     ele = create_element (elemem, eleptr);
@@ -568,7 +584,8 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
       setup_face (ele, fac->index, cac, 0); /* setup face nodes without sorting them */
       cac->index = fac->index;
       cac->ele = fac->ele;
-      setup_normal (msh->cur_nodes, cac); /* calculate outer normal */
+      setup_normal (msh->cur_nodes, cac); /* calculate outer spatial normal */
+      COPY (cac->normal, cac->normal+3); /* set referential normal */
       cac->next = ele->faces; /* append element face list */
       ele->faces = cac;
 
