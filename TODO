@@ -76,3 +76,9 @@ Implement automated splitting of FEM bodies (a'la Metis) into a user
 defined number of glued sub-bodies (parallelism for large meshes);
 mind disabling contact detection on gluing interfaces
 -----------------------------------------------------------------------
+Adjust msh.h, msh.c so to handle second order elements 
+--------------------------------------------------------------------------
+Adjust MESH object in Python interface so to handle second order meshes
+------------------------------------------------------------------------
+Sort out volumetric integration order in FEM module
+------------------------------------------------------

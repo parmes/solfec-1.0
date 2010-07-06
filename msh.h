@@ -40,10 +40,11 @@ typedef struct mesh MESH;
 /* triangular or quadrilateral face */
 struct face
 {
-  double normal [3];
+  double normal [6]; /* spatial, referential */
 
-  int type, /* 3, 4 => triangle, quadrilateral */
-      nodes [4],
+  int type, /* 3, 4 => triangle, quadrilateral;
+	       6, 8 => second order triangle, quadrilateral */
+      nodes [8], /* TODO: optimize space usage */
       index, /* index within the element */
       surface; /* surface identifier */
 
@@ -55,8 +56,9 @@ struct face
 /* finite element */
 struct element
 {
-  int type, /* 4, 5, 6, 8 => tetrahedron, pyramid, wedge, hexahedron */
-      nodes [8], /* node indices */
+  int type, /* 4, 5, 6, 8 => tetrahedron, pyramid, wedge, hexahedron;
+               10, 13, 15, 20 => second order tetrahedron, pyramid, wedge, hexahedron */
+      nodes [20], /* TODO: optimize space usage */
       neighs, /* number of neighbours */
       domnum, /* number of integration domains */
       volume; /* volume identifier */
