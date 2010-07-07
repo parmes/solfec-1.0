@@ -25,6 +25,7 @@
 #include "mot.h"
 #include "tri.h"
 #include "map.h"
+#include "set.h"
 
 #ifndef ELEMENT_TYPE
 #define ELEMENT_TYPE
@@ -91,7 +92,7 @@ struct mesh
        bulkeles_count,
        nodes_count;
 
-  MAP *map; /* auxiliary */
+  MAP *map; /* MESH_Element_With_Node uses it */
 };
 
 /* create mesh from vector of nodes, element list in format =>
@@ -103,6 +104,9 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces);
  * division numbers along three edges adjacent to the 1st node */
 MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, /* six surfaces are given */
                 int volume, double *dx, double *dy, double *dz); /* spacing of divisions */
+
+/* convert first order mesh into second order one */
+void MESH_Second_Order (MESH *msh);
 
 /* dummy adjacency update (needed in shp.c) */
 void MESH_Update_Adjacency (MESH *msh);
@@ -129,6 +133,12 @@ void MESH_Char (MESH *msh, double *volume, double *center, double *euler);
 
 /* find an element containing a spatial or referential point */
 ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref);
+
+/* find an element with a given node; output corresponding local point (if !NULL) */
+ELEMENT* MESH_Element_With_Node (MESH *msh, int node, double *point);
+
+/* collect elements around a node (ele->node [i] == node && *set == NULL initially assumed) */
+void MESH_Elements_Around_Node (ELEMENT *ele, int node, SET **set);
 
 /* update mesh according to the given motion */
 void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion);

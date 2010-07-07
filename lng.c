@@ -2086,10 +2086,6 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	{
 	  form = BODY_COROTATIONAL;
 	}
-	ELIF (formulation, "ELEMENT_COROTATIONAL")
-	{
-	  form = ELEMENT_COROTATIONAL;
-	}
 	ELSE
 	{
 	  PyErr_SetString (PyExc_ValueError, "Invalid FEM formulation");

@@ -44,6 +44,9 @@ typedef double (*node_t) [3]; /* mesh node */
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
 
+/* ==================== INTEGRATION ======================= */
+
+/* order 1 */
 static const double I_TET1_X[] = {0.25};
 static const double I_TET1_Y[] = {0.25};
 static const double I_TET1_Z[] = {0.25};
@@ -68,6 +71,17 @@ static const double I_HEX1_Z[] = {0};
 static const double I_HEX1_W[] = {0};
 #define             I_HEX1_N      0
 
+static const double I_TRI1_X[] = {0.333333333333333333};
+static const double I_TRI1_Y[] = {0.333333333333333333};
+static const double I_TRI1_W[] = {0.5};
+#define             I_TRI1_N      1
+
+static const double I_QUA1_X [] = {0}; /* TODO */
+static const double I_QUA1_Y [] = {0};
+static const double I_QUA1_W [] = {0};
+#define             I_QUA1_N       0
+
+/* order 2 */
 static const double I_TET2_X [] = {0.13819660112501052, 0.13819660112501052, 0.13819660112501052, 0.58541019662496840};
 static const double I_TET2_Y [] = {0.13819660112501052, 0.13819660112501052, 0.58541019662496840, 0.13819660112501052};
 static const double I_TET2_Z [] = {0.13819660112501052, 0.58541019662496840, 0.13819660112501052, 0.13819660112501052};
@@ -93,50 +107,128 @@ static const double I_HEX2_Z [] = {-ISQR3, -ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3,
 static const double I_HEX2_W [] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 #define             I_HEX2_N       8
 
-static const double I_TRI1_X[] = {0.333333333333333333};
-static const double I_TRI1_Y[] = {0.333333333333333333};
-static const double I_TRI1_W[] = {0.5};
-#define             I_TRI1_N      1
+static const double I_TRI2_X[] = {0}; /* TODO */
+static const double I_TRI2_Y[] = {0};
+static const double I_TRI2_W[] = {0};
+#define             I_TRI2_N      0
 
 static const double I_QUA2_X [] = {-ISQR3, ISQR3, ISQR3, -ISQR3};
 static const double I_QUA2_Y [] = {-ISQR3, -ISQR3, ISQR3, ISQR3};
 static const double I_QUA2_W [] = {1.0, 1.0, 1.0, 1.0};
 #define             I_QUA2_N       4
 
-#define MAX_ORDER 2 /* TODO: complete up to four */
+/* order 3 */
+static const double I_TET3_X[] = {0}; /* TODO */
+static const double I_TET3_Y[] = {0};
+static const double I_TET3_Z[] = {0};
+static const double I_TET3_W[] = {0};
+#define             I_TET3_N      0
 
-static const double *I_TET_X [] = {I_TET1_X, I_TET2_X};
-static const double *I_TET_Y [] = {I_TET1_Y, I_TET2_Y};
-static const double *I_TET_Z [] = {I_TET1_Z, I_TET2_Z};
-static const double *I_TET_W [] = {I_TET1_Z, I_TET2_W};
-static const int     I_TET_N [] = {I_TET1_N, I_TET2_N};
+static const double I_PYR3_X[] = {0}; /* TODO */
+static const double I_PYR3_Y[] = {0};
+static const double I_PYR3_Z[] = {0};
+static const double I_PYR3_W[] = {0};
+#define             I_PYR3_N      0
 
-static const double *I_PYR_X [] = {I_PYR1_X, I_PYR2_X};
-static const double *I_PYR_Y [] = {I_PYR1_Y, I_PYR2_Y};
-static const double *I_PYR_Z [] = {I_PYR1_Z, I_PYR2_Z};
-static const double *I_PYR_W [] = {I_PYR1_Z, I_PYR2_W};
-static const int     I_PYR_N [] = {I_PYR1_N, I_PYR2_N};
+static const double I_WED3_X[] = {0}; /* TODO */
+static const double I_WED3_Y[] = {0};
+static const double I_WED3_Z[] = {0};
+static const double I_WED3_W[] = {0};
+#define             I_WED3_N      0
 
-static const double *I_WED_X [] = {I_WED1_X, I_WED2_X};
-static const double *I_WED_Y [] = {I_WED1_Y, I_WED2_Y};
-static const double *I_WED_Z [] = {I_WED1_Z, I_WED2_Z};
-static const double *I_WED_W [] = {I_WED1_Z, I_WED2_W};
-static const int     I_WED_N [] = {I_WED1_N, I_WED2_N};
+static const double I_HEX3_X[] = {0}; /* TODO */
+static const double I_HEX3_Y[] = {0};
+static const double I_HEX3_Z[] = {0};
+static const double I_HEX3_W[] = {0};
+#define             I_HEX3_N      0
 
-static const double *I_HEX_X [] = {I_HEX1_X, I_HEX2_X};
-static const double *I_HEX_Y [] = {I_HEX1_Y, I_HEX2_Y};
-static const double *I_HEX_Z [] = {I_HEX1_Z, I_HEX2_Z};
-static const double *I_HEX_W [] = {I_HEX1_Z, I_HEX2_W};
-static const int     I_HEX_N [] = {I_HEX1_N, I_HEX2_N};
+static const double I_TRI3_X[] = {0}; /* TODO */
+static const double I_TRI3_Y[] = {0};
+static const double I_TRI3_W[] = {0};
+#define             I_TRI3_N      0
 
-/* load integrator data */
-inline static int load_integrator (int type, int order, const double **X, const double **Y, const double **Z, const double **W)
+static const double I_QUA3_X [] = {0}; /* TODO */
+static const double I_QUA3_Y [] = {0};
+static const double I_QUA3_W [] = {0};
+#define             I_QUA3_N       0
+
+/* order 4 */
+static const double I_TET4_X[] = {0}; /* TODO */
+static const double I_TET4_Y[] = {0};
+static const double I_TET4_Z[] = {0};
+static const double I_TET4_W[] = {0};
+#define             I_TET4_N      0
+
+static const double I_PYR4_X[] = {0}; /* TODO */
+static const double I_PYR4_Y[] = {0};
+static const double I_PYR4_Z[] = {0};
+static const double I_PYR4_W[] = {0};
+#define             I_PYR4_N      0
+
+static const double I_WED4_X[] = {0}; /* TODO */
+static const double I_WED4_Y[] = {0};
+static const double I_WED4_Z[] = {0};
+static const double I_WED4_W[] = {0};
+#define             I_WED4_N      0
+
+static const double I_HEX4_X[] = {0}; /* TODO */
+static const double I_HEX4_Y[] = {0};
+static const double I_HEX4_Z[] = {0};
+static const double I_HEX4_W[] = {0};
+#define             I_HEX4_N      0
+
+static const double I_TRI4_X[] = {0}; /* TODO */
+static const double I_TRI4_Y[] = {0};
+static const double I_TRI4_W[] = {0};
+#define             I_TRI4_N      0
+
+static const double I_QUA4_X [] = {0}; /* TODO */
+static const double I_QUA4_Y [] = {0};
+static const double I_QUA4_W [] = {0};
+#define             I_QUA4_N       0
+
+#define MAX_ORDER 4
+
+static const double *I_TET_X [] = {NULL, I_TET1_X, I_TET2_X, I_TET3_X, I_TET4_X};
+static const double *I_TET_Y [] = {NULL, I_TET1_Y, I_TET2_Y, I_TET3_Y, I_TET4_Y};
+static const double *I_TET_Z [] = {NULL, I_TET1_Z, I_TET2_Z, I_TET3_Z, I_TET4_Z};
+static const double *I_TET_W [] = {NULL, I_TET1_W, I_TET2_W, I_TET3_W, I_TET4_W};
+static const int     I_TET_N [] = {   0, I_TET1_N, I_TET2_N, I_TET3_N, I_TET4_N};
+
+static const double *I_PYR_X [] = {NULL, I_PYR1_X, I_PYR2_X, I_PYR3_X, I_PYR4_X};
+static const double *I_PYR_Y [] = {NULL, I_PYR1_Y, I_PYR2_Y, I_PYR3_Y, I_PYR4_Y};
+static const double *I_PYR_Z [] = {NULL, I_PYR1_Z, I_PYR2_Z, I_PYR3_Z, I_PYR4_Z};
+static const double *I_PYR_W [] = {NULL, I_PYR1_W, I_PYR2_W, I_PYR3_W, I_PYR4_W};
+static const int     I_PYR_N [] = {   0, I_PYR1_N, I_PYR2_N, I_PYR3_N, I_PYR4_N};
+
+static const double *I_WED_X [] = {NULL, I_WED1_X, I_WED2_X, I_WED3_X, I_WED4_X};
+static const double *I_WED_Y [] = {NULL, I_WED1_Y, I_WED2_Y, I_WED3_Y, I_WED4_Y};
+static const double *I_WED_Z [] = {NULL, I_WED1_Z, I_WED2_Z, I_WED3_Z, I_WED4_Z};
+static const double *I_WED_W [] = {NULL, I_WED1_W, I_WED2_W, I_WED3_W, I_WED4_W};
+static const int     I_WED_N [] = {   0, I_WED1_N, I_WED2_N, I_WED3_N, I_WED4_N};
+
+static const double *I_HEX_X [] = {NULL, I_HEX1_X, I_HEX2_X, I_HEX3_X, I_HEX4_X};
+static const double *I_HEX_Y [] = {NULL, I_HEX1_Y, I_HEX2_Y, I_HEX3_Y, I_HEX4_Y};
+static const double *I_HEX_Z [] = {NULL, I_HEX1_Z, I_HEX2_Z, I_HEX3_Z, I_HEX4_Z};
+static const double *I_HEX_W [] = {NULL, I_HEX1_W, I_HEX2_W, I_HEX3_W, I_HEX4_W};
+static const int     I_HEX_N [] = {   0, I_HEX1_N, I_HEX2_N, I_HEX3_N, I_HEX4_N};
+
+static const double *I_TRI_X [] = {NULL, I_TRI1_X, I_TRI2_X, I_TRI3_X, I_TRI4_X};
+static const double *I_TRI_Y [] = {NULL, I_TRI1_Y, I_TRI2_Y, I_TRI3_Y, I_TRI4_Y};
+static const double *I_TRI_W [] = {NULL, I_TRI1_W, I_TRI2_W, I_TRI3_W, I_TRI4_W};
+static const int     I_TRI_N [] = {   0, I_TRI1_N, I_TRI2_N, I_TRI3_N, I_TRI4_N};
+
+static const double *I_QUA_X [] = {NULL, I_QUA1_X, I_QUA2_X, I_QUA3_X, I_QUA4_X};
+static const double *I_QUA_Y [] = {NULL, I_QUA1_Y, I_QUA2_Y, I_QUA3_Y, I_QUA4_Y};
+static const double *I_QUA_W [] = {NULL, I_QUA1_W, I_QUA2_W, I_QUA3_W, I_QUA4_W};
+static const int     I_QUA_N [] = {   0, I_QUA1_N, I_QUA2_N, I_QUA3_N, I_QUA4_N};
+
+/* load 3D integrator data */
+inline static int integrator3d_load (int type, int order, const double **X, const double **Y, const double **Z, const double **W)
 {
   int N;
 
   ASSERT_DEBUG (order >= 1 && order < MAX_ORDER, "Integration order out of bounds");
-
-  order --;
 
   switch (type)
   {
@@ -184,6 +276,237 @@ inline static int load_integrator (int type, int order, const double **X, const 
 
   return N;
 }
+
+/* predict 3D integration order */
+typedef enum {MASS, EXTF, INTF} ENTITY;
+static int integrator3d_order (int type, ENTITY entity)
+{
+  /* FIXME */
+
+  return 2;
+}
+
+/* load 2D integrator data */
+inline static int integrator2d_load (int type, int order, const double **X, const double **Y, const double **W)
+{
+  int N;
+
+  ASSERT_DEBUG (order >= 1 && order < MAX_ORDER, "Integration order out of bounds");
+
+  switch (type)
+  {
+  case 3:
+  case 6:
+  {
+    *X = I_TRI_X [order];
+    *Y = I_TRI_Y [order];
+    *W = I_TRI_W [order];
+     N = I_TRI_N [order];
+  }
+  break;
+  case 4:
+  case 8:
+  {
+    *X = I_QUA_X [order];
+    *Y = I_QUA_Y [order];
+    *W = I_QUA_W [order];
+     N = I_QUA_N [order];
+  }
+  break;
+  }
+
+  return N;
+}
+
+/* element integration */
+#define INTEGRATE3D(TYPE, ENTITY, DOM, DOMNUM, ...)\
+{\
+  const double *__X__, *__Y__, *__Z__, *__W__;\
+  double point [3], weight;\
+  int __N__, __k__, __l__;\
+  TRISURF *__d__ = DOM;\
+\
+  if (__d__)\
+  {\
+    double __subnodes__ [4][3], __subJ__;\
+    double __subpoint__ [3];\
+    int __domnum__ = DOMNUM;\
+    TRI *__t__, *__e__;\
+    double __volume__;\
+\
+    __N__ = integrator3d_load (4, integrator3d_order (TYPE, ENTITY), &__X__, &__Y__, &__Z__, &__W__);\
+\
+    for (__volume__ = __k__ = 0; __k__ < __domnum__; __k__ ++) __volume__ += __d__ [__k__].volume;\
+\
+    for (__l__ = 0; __l__ < __domnum__; __d__ ++, __l__ ++)\
+    {\
+      if (__d__->volume > DOM_TOL * __volume__)\
+      {\
+	COPY (__d__->center, __subnodes__ [3]);\
+\
+	for (__t__ = __d__->tri, __e__ = __t__ + __d__->m; __t__ < __e__; __t__ ++)\
+	{\
+	  COPY (__t__->ver [0], __subnodes__ [0]);\
+	  COPY (__t__->ver [1], __subnodes__ [1]);\
+	  COPY (__t__->ver [2], __subnodes__ [2]);\
+\
+	  for (__k__ = 0; __k__ < __N__; __k__ ++)\
+	  {\
+	    __subpoint__ [0] = __X__ [__k__];\
+	    __subpoint__ [1] = __Y__ [__k__];\
+	    __subpoint__ [2] = __Z__ [__k__];\
+	    __subJ__ = element_det (4, __subnodes__, __subpoint__, NULL);\
+	    tet_o1_local_to_global (__subnodes__, __subpoint__, point);\
+	    weight = __subJ__ * __W__ [__k__];\
+\
+	    __VA_ARGS__\
+	  }\
+	}\
+      }\
+      else\
+      {\
+	COPY (__d__->center, point);\
+	weight = __d__->volume;\
+\
+	__VA_ARGS__\
+      }\
+    }\
+  }\
+  else\
+  {\
+    __N__ = integrator3d_load (TYPE, integrator3d_order (TYPE, ENTITY), &__X__, &__Y__, &__Z__, &__W__);\
+    for (__k__ = 0; __k__ < __N__; __k__ ++)\
+    {\
+      point [0] = __X__ [__k__];\
+      point [1] = __Y__ [__k__];\
+      point [2] = __Z__ [__k__];\
+      weight = __W__ [__k__];\
+\
+      __VA_ARGS__\
+    }\
+  }\
+}
+
+/* face integration */
+#define INTEGRATE2D(TYPE, ORDER, ...)\
+{\
+  const double *__X__, *__Y__, *__W__;\
+  double point [2], weight;\
+  int __N__, __k__;\
+\
+  __N__ = integrator2d_load (TYPE, ORDER, &__X__, &__Y__, &__W__);\
+  for (__k__ = 0; __k__ < __N__; __k__ ++)\
+  {\
+    point [0] = __X__ [__k__];\
+    point [1] = __Y__ [__k__];\
+    weight = __W__ [__k__];\
+\
+    __VA_ARGS__\
+  }\
+}
+
+/* ==================== FACE ======================= */
+
+/* face shape functions at a local 2-point */
+inline static int face_shapes (FACE *fac, double *point, double *shapes)
+{
+  switch (fac->type)
+  {
+  case 3: /* 1st order triangle */
+    shapes [0] = point [0];
+    shapes [1] = point [1];
+    shapes [2] = 1.0 - point [0] - point [1];
+    return 3;
+  case 4: /* 1st order quadrilateral */
+    shapes [0] = 0.25 * (1.0 - point [0]) * (1.0 - point [1]);
+    shapes [1] = 0.25 * (1.0 + point [0]) * (1.0 - point [1]);
+    shapes [2] = 0.25 * (1.0 + point [0]) * (1.0 + point [1]);
+    shapes [3] = 0.25 * (1.0 - point [0]) * (1.0 + point [1]);
+    return 4;
+  case 6:
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    return 6;
+  case 8:
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    return 8;
+  }
+
+  return 0;
+}
+
+/* face shape derivatices at a local 2-point */
+inline static int face_derivs (FACE *fac, double *point, double *derivs)
+{
+  switch (fac->type)
+  {
+  case 3:
+    derivs [0] =  1.0;
+    derivs [1] =  0.0;
+    derivs [2] =  0.0;
+    derivs [3] =  1.0;
+    derivs [4] = -1.0;
+    derivs [5] = -1.0;
+    return 3;
+  case 4:
+    derivs [0] =  0.25 * (point [1] - 1.0);
+    derivs [1] =  0.25 * (point [0] - 1.0);
+    derivs [2] =  0.25 * (1.0 - point [1]);
+    derivs [3] = -0.25 * (1.0 + point [0]);
+    derivs [4] =  0.25 * (1.0 + point [1]);
+    derivs [5] =  0.25 * (1.0 + point [0]);
+    derivs [6] = -0.25 * (1.0 + point [1]);
+    derivs [7] =  0.25 * (1.0 - point [0]);
+    return 4;
+  case 6:
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    return 6;
+  case 8:
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    return 8;
+  }
+
+  return 0;
+}
+
+/* compute face coordinates transformation determinant at a local 2-point */
+inline static double face_det (FACE *fac, node_t nodes, double *point)
+{
+  double derivs [16], d0 [3], d1[3], normal [3], *d;
+  int i, n;
+
+  n = face_derivs (fac, point, derivs);
+
+  SET (d0, 0);
+  SET (d1, 0);
+
+  for (i = 0, d = derivs; i < n; i ++, d += 2)
+  {
+    ADDMUL (d0, d[0], nodes[i], d0);
+    ADDMUL (d1, d[1], nodes[i], d1);
+  }
+
+  PRODUCT (d0, d1, normal);
+
+  return LEN (normal);
+}
+
+/* load face node coordinates into a local table */
+#define face_nodes(heap, type, nodes, stack) element_nodes (heap, type, nodes, stack)
+
+/* load face displacemnts into a local table */
+inline static void face_displacements (double *heap, FACE *fac, double (*q) [3])
+{
+  double *p;
+  int i;
+
+  for (i = 0; i < fac->type; i ++)
+  {
+    p = &heap [3 * fac->nodes [i]];
+    COPY (p, q[i]);
+  }
+}
+
+/* =============================== ELEMENT ================================ */
 
 /* linear tetrahedron shape functions */
 inline static void tet_o1_shapes (double *point, double *shapes)
@@ -375,27 +698,70 @@ inline static int element_derivs (int type, double *point, double *derivs)
 }
 
 /* copy element node coordinates into a local table */
-inline static int load_element_nodes (node_t heap, int type, int *nodes, node_t stack)
+inline static int element_nodes (node_t heap, int type, int *nodes, node_t stack)
 {
-  int n;
+  int i;
 
-  for (n = 0; n < type; n ++)
+  for (i = 0; i < type; i ++)
   { 
-    COPY (heap [nodes [n]], stack [n]);
+    COPY (heap [nodes [i]], stack [i]);
   }
 
-  return n;
+  return i;
 }
 
+/* copy element node displacemnts into a local table */
+static int element_displacements (double *heap, ELEMENT *ele, double (*q) [3])
+{
+  double *p;
+  int i;
+
+  for (i = 0; i < ele->type; i ++)
+  {
+    p = &heap [3 * ele->nodes [i]];
+    COPY (p, q[i]);
+  }
+
+  return i;
+}
+
+/* copy element node velocities into a local table */
+static int element_velocities (BODY *bod, ELEMENT *ele, double (*u0) [3], double (*u) [3])
+{
+  double *vel0 = FEM_VEL0 (bod), *velo = bod->velo, *p;
+  int i, j;
+
+  for (i = 0; i < ele->type; i ++)
+  {
+    j = 3 * ele->nodes [i];
+    p = &vel0 [j];
+    COPY (p, u0[i]);
+    p = &velo [j];
+    COPY (p, u[i]);
+  }
+
+  return i;
+}
+
+/* copy element node numbers into a local table */
+static int element_node_numbers (ELEMENT *ele, int *numbers)
+{
+  int i;
+
+  for (i = 0; i < ele->type; i ++) numbers [i] = ele->nodes [i];
+
+  return i;
+}
+ 
 /* local to global point transformation */
 static void local_to_global (node_t heap, ELEMENT *ele, double *local, double *global)
 {
   double nodes [MAX_NODES][3], shapes [MAX_NODES];
   int i, j, n;
 
-  load_element_nodes (heap, ele->type, ele->nodes, nodes);
+  n = element_nodes (heap, ele->type, ele->nodes, nodes);
 
-  n = element_shapes (ele->type, local, shapes);
+  element_shapes (ele->type, local, shapes);
 
   SET (global, 0.0);
 
@@ -411,7 +777,7 @@ static void global_to_local (node_t heap, ELEMENT *ele, double *global, double *
   double A [9], B [3], I [9], det, error;
   int i, j, k, l, n;
 
-  load_element_nodes (heap, ele->type, ele->nodes, nodes);
+  element_nodes (heap, ele->type, ele->nodes, nodes);
 
   SET (local, 0.0);
   l = 0;
@@ -540,103 +906,22 @@ static MX* element_shapes_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *po
   return N;
 }
 
-/* element integration */
-#define INTEGRATE3D(TYPE, ORDER, DOM, DOMNUM, ...)\
-{\
-  const double *__X__, *__Y__, *__Z__, *__W__;\
-  double point [3], weight;\
-  TRISURF *__dom__ = DOM;\
-  int __k__, __l__;\
-  const int __N__;\
-\
-  if (__dom__)\
-  {\
-    int __domnum__ = DOMNUM;\
-    double __subnodes__ [4][3], __subJ__;\
-    double __subpoint__ [3];\
-    TRI *__t__, *__e__;\
-    double __volume__;\
-\
-    __N__ = load_integrator (4, order, &__X__, &__Y__, &__Z__, &__W__);\
-\
-    for (__volume__ = __k__ = 0; __k__ < __domnum__; __k__ ++) __volume__ += __dom__ [__k__].volume;\
-\
-    for (__l__ = 0; __l__ < __domnum__; __dom__ ++, __l__ ++)\
-    {\
-      if (__dom__->volume > DOM_TOL * __volume__)\
-      {\
-	COPY (__dom__->center, __subnodes__ [3]);\
-\
-	for (__t__ = __dom__->tri, __e__ = __t__ + __dom__->m; __t__ < __e__; __t__ ++)\
-	{\
-	  COPY (__t__->ver [0], __subnodes__ [0]);\
-	  COPY (__t__->ver [1], __subnodes__ [1]);\
-	  COPY (__t__->ver [2], __subnodes__ [2]);\
-\
-	  for (__k__ = 0; __k__ < __N__; __k__ ++)\
-	  {\
-	    __subpoint__ [0] = __X__ [__k__];\
-	    __subpoint__ [1] = __Y__ [__k__];\
-	    __subpoint__ [2] = __Z__ [__k__];\
-	    __subJ__ = element_det (4, __subnodes__, __subpoint__, NULL);\
-	    tet_o1_local_to_global (__subnodes__, __subpoint__, point);\
-	    weight = __subJ__ * __W__ [__k__];\
-\
-	    __VA_ARGS__\
-	  }\
-	}\
-      }\
-      else\
-      {\
-	COPY (__dom__->center, point);\
-	weight = __dom__->volume;\
-\
-	__VA_ARGS__\
-      }\
-    }\
-  }\
-  else\
-  {\
-    __N__ = load_integrator (type, order, &__X__, &__Y__, &__Z__, &__W__);\
-    for (__k__ = 0; __k__ < __N__; __k__ ++)\
-    {\
-      point [0] = __X__ [__k__];\
-      point [1] = __Y__ [__k__];\
-      point [2] = __Z__ [__k__];\
-      weight = __W__ [__k__];\
-\
-      __VA_ARGS__\
-    }\
-  }\
-}
-
-/* integration order predictor */
-typedef enum {MASS, EXTF, INTF} ENTITY;
-static int integration_order (int type, ENTITY entity)
-{
-  /* TODO */
-
-  return 2;
-}
-
-/* lump contribution of the element mass into the diagonal */
-static void lump_mass_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
+/* lump contribution of the element mass into the global diagonal matrix */
+static void element_lump_mass (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
 {
   double J, coef, integral, density,
          nodes [MAX_NODES][3],
 	 shapes [MAX_NODES],
 	*out [MAX_NODES];
-  int i, j, n, order;
+  int i, j, n;
 
   density = ele->mat ? ele->mat->density : bod->mat->density;
 
-  n = load_element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
+  n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
 
   for (i = 0; i < n; i ++) out [i] = &x [3 * ele->nodes [i]];
 
-  order = integration_order (ele->type, MASS);
- 
-  INTEGRATE3D (ele->type, order, ele->dom, ele->domnum,
+  INTEGRATE3D (ele->type, MASS, ele->dom, ele->domnum,
 
     element_shapes (ele->type, point, shapes);
     J = element_det (ele->type, nodes, point, NULL);
@@ -656,22 +941,27 @@ static void lump_mass_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
   )
 }
 
-/* compute linear tetrahedron body force contribution */
-inline static void tet_o1_body_force (TRISURF *dom, int domnum, node_t nodes, double density, double *f, double *g)
+/* copute element body force contribution */
+static void element_body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, double *g)
 {
-  double J, coef, integral;
-  double shapes [4];
-  int i;
+  double J, coef, integral, density,
+         nodes [MAX_NODES][3],
+         shapes [MAX_NODES];
+  int i, n;
 
-  for (i = 0; i < 12; i ++) g [i] = 0.0;
+  density = ele->mat ? ele->mat->density : bod->mat->density;
 
-  INTEGRATE3D (I_TET1, 1, dom, domnum, nodes,
+  n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
 
-    tet_o1_shapes (point, shapes);
-    J = tet_o1_det (nodes, point, NULL);
+  for (i = 0; i < 3*n; i ++) g [i] = 0.0;
+
+  INTEGRATE3D (ele->type, EXTF, ele->dom, ele->domnum, 
+
+    element_shapes (ele->type, point, shapes);
+    J = element_det (ele->type, nodes, point, NULL);
     coef = density * J * weight;
 
-    for (i = 0; i < 4; i ++)
+    for (i = 0; i < n; i ++)
     {
       integral = coef * shapes [i];
 
@@ -682,54 +972,40 @@ inline static void tet_o1_body_force (TRISURF *dom, int domnum, node_t nodes, do
   )
 }
 
-/* compute linear hexahedron body force contribution */
-inline static void hex_o1_body_force (TRISURF *dom, int domnum, node_t nodes, double density, double *f, double *g)
+/* copute element internal force or force derivative contribution */
+static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMENT *ele, double *g)
 {
-  double J, coef, integral;
-  double shapes [8];
-  int i;
+  double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES],
+	 F0 [9], F [9], P [9], K [81], KB [9], J, integral, *B, *p;
+  BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+  double mat_lambda, mat_mi;
+  int i, j, n, m;
 
-  for (i = 0; i < 24; i ++) g [i] = 0.0;
+  n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
 
-  INTEGRATE3D (I_HEX2, 1, dom, domnum, nodes,
+  m = 3 * n;
 
-    hex_o1_shapes (point, shapes);
-    J = hex_o1_det (nodes, point, NULL);
-    coef = density * J * weight;
+  for (i = 0; i < n; i ++)
+  {
+    p = &bod->conf [3 * ele->nodes [i]];
+    COPY (p, q[i]);
+  }
 
-    for (i = 0; i < 8; i ++)
-    {
-      integral = coef * shapes [i];
-
-      g [3*i+0] += f [0] * integral;
-      g [3*i+1] += f [1] * integral;
-      g [3*i+2] += f [2] * integral;
-    }
-  )
-}
-
-/* compute linear tetrahedron internal force or force derivative contribution */
-inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
-{
-  double derivs [12], F0 [9], F [9], P [9], K [81], KB [9], *B, *p;
-  double J, integral, mat_lambda, mat_mi;
-  int i, j;
-
-  for (i = 0, j = 12 * (derivative ? 12 : 1); i < j; i ++) g [i] = 0.0;
+  for (i = 0, j = m * (derivative ? m : 1); i < j; i ++) g [i] = 0.0;
   mat_lambda = lambda (mat->young, mat->poisson);
   mat_mi  = mi (mat->young, mat->poisson);
 
-  INTEGRATE3D (I_TET1, 1, dom, domnum, nodes,
+  INTEGRATE3D (ele->type, INTF, ele->dom, ele->domnum,
 
-    J = tet_o1_det (nodes, point, F0);
-    tet_o1_gradient (q, point, F0, derivs, F);
+    J = element_det (ele->type, nodes, point, F0);
+    element_gradient (ele->type, q, point, F0, derivs, F);
     integral = J * weight;
 
     if (derivative)
     {
-      SVK_Tangent_C (mat_lambda, mat_mi, integral, 9, F, K);
+      SVK_Tangent_C (mat_lambda, mat_mi, integral, 9, F, K); /* TODO: generalize in BULK_MATERIAL interface */
 
-      for (i = 0; i < 12; i ++) /* see doc/notes.lyx for details */
+      for (i = 0; i < m; i ++) /* see doc/notes.lyx for details */
       {
 	SET9 (KB, 0);
 	for (j = 0; j < 3; j ++)
@@ -739,481 +1015,78 @@ inline static void tet_o1_internal_force (short derivative, TRISURF *dom, int do
 	  NNADDMUL (KB, integral, p, KB);
 	}
 
-	for (j = 0, B = derivs, p = &g[12*i]; j < 4; j ++, B += 3, p += 3) { NVADDMUL (p, KB, B, p); }
+	for (j = 0, B = derivs, p = &g[m*i]; j < n; j ++, B += 3, p += 3) { NVADDMUL (p, KB, B, p); }
       }
     }
     else
     {
-      SVK_Stress_C (mat_lambda, mat_mi, integral, F, P); /* column-wise */
+      SVK_Stress_C (mat_lambda, mat_mi, integral, F, P); /* TODO: generalize in BULK_MATERIAL interface */
 
-      for (i = 0, B = derivs, p = g; i < 4; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
+      for (i = 0, B = derivs, p = g; i < n; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
   )
 }
 
-/* compute linear hexahedron internal force or force derivative contribution */
-inline static void hex_o1_internal_force (short derivative, TRISURF *dom, int domnum, node_t nodes, BULK_MATERIAL *mat, double (*q) [3], double *g)
-{
-  double derivs [24], F0 [9], F [9], P [9], K [81], KB [9], *B, *p;
-  double J, integral, mat_lambda, mat_mi;
-  int i, j;
-
-  for (i = 0, j = 24 * (derivative ? 24 : 1); i < j; i ++) g [i] = 0.0;
-  mat_lambda = lambda (mat->young, mat->poisson);
-  mat_mi  = mi (mat->young, mat->poisson);
-
-  INTEGRATE3D (I_HEX2, 1, dom, domnum, nodes,
-
-    J = hex_o1_det (nodes, point, F0);
-    hex_o1_gradient (q, point, F0, derivs, F);
-    integral = J * weight;
-
-    if (derivative)
-    {
-      SVK_Tangent_C (mat_lambda, mat_mi, integral, 9, F, K);
-
-      for (i = 0; i < 24; i ++) /* see doc/notes.lyx for details */
-      {
-	SET9 (KB, 0);
-	for (j = 0; j < 3; j ++)
-	{
-	  p = &K [9*((i%3) + (3*j))];
-	  integral = derivs [3*(i/3)+j];
-	  NNADDMUL (KB, integral, p, KB);
-	}
-
-	for (j = 0, B = derivs, p = &g[24*i]; j < 8; j ++, B += 3, p += 3) { NVADDMUL (p, KB, B, p); }
-      }
-    }
-    else
-    {
-      SVK_Stress_C (mat_lambda, mat_mi, integral, F, P); /* column-wise */
-
-      for (i = 0, B = derivs, p = g; i < 8; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
-    }
-  )
-}
+/* =========================== GENERAL ================================== */
 
 /* compute deformation gradient at a local point */
 static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *F)
 {
-  double derivs [24], nodes [8][3], q [8][3], F0 [9], *p;
-  int i;
+  double derivs [3*MAX_NODES], nodes [MAX_NODES][3], q [MAX_NODES][3], F0 [9], *p;
+  int i, n;
 
-  load_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
+  n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
 
-  for (i = 0; i < ele->type; i ++)
+  for (i = 0; i < n; i ++)
   {
     p = &bod->conf [3 * ele->nodes [i]];
     COPY (p, q[i]);
   }
 
-  switch (ORDER (bod->form))
+  element_det (ele->type, nodes, point, F0);
+  element_gradient (ele->type, q, point, F0, derivs, F);
+}
+
+/* compute Cauchy stress at a local point */
+static void cauchy_stress (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
+{
+  switch (bod->form)
   {
-  case FEM_O1:
-  {
-    switch (ele->type)
+    case TOTAL_LAGRANGIAN:
     {
-    case 4: 
-      tet_o1_det (nodes, point, F0);
-      tet_o1_gradient (q, point, F0, derivs, F);
-      break;
-    case 8:
-      hex_o1_det (nodes, point, F0);
-      hex_o1_gradient (q, point, F0, derivs, F);
-      break;
-    case 5:
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [4], nodes [6]);
-      COPY (nodes [4], nodes [7]);
-      COPY (q [4], q [5]);
-      COPY (q [4], q [6]);
-      COPY (q [4], q [7]);
-      hex_o1_det (nodes, point, F0);
-      hex_o1_gradient (q, point, F0, derivs, F);
-      break;
-    case 6:
-      COPY (nodes [5], nodes [7]);
-      COPY (nodes [5], nodes [6]);
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [3], nodes [4]);
-      COPY (nodes [2], nodes [3]);
-      COPY (q [5], q [7]);
-      COPY (q [5], q [6]);
-      COPY (q [4], q [5]);
-      COPY (q [3], q [4]);
-      COPY (q [2], q [3]);
-      hex_o1_det (nodes, point, F0);
-      hex_o1_gradient (q, point, F0, derivs, F);
-      break;
+      BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+      double P [9], J, F [9];
+
+      deformation_gradient (bod, msh, ele, point, F);
+
+      J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P);  /* TODO: generalize in BULK_MATERIAL interface */
+
+      values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
+      values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
+      values [2] = (F[2]*P[6]+F[5]*P[7]+F[8]*P[8])/J; /* sz  */
+      values [3] = (F[0]*P[3]+F[3]*P[4]+F[6]*P[5])/J; /* sxy */
+      values [4] = (F[0]*P[6]+F[3]*P[7]+F[6]*P[8])/J; /* sxz */
+      values [5] = (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
     }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
+    break;
+    case BODY_COROTATIONAL:
+    {
+      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    }
+    break;
   }
 }
 
-/* compute element shape functions at a local point and output them into a local matrix */
-static int element_shapes_ext (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *shapes)
+/* accumulate point force contribution into the body force vector */
+static void accumulate_point_force (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *f, double *force)
 {
-
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    switch (ele->type)
-    {
-      case 4: tet_o1_shapes (point, shapes); return 4;
-      case 8: hex_o1_shapes (point, shapes); return 8;
-      case 5: hex_o1_shapes (point, shapes); shapes [4] += shapes [5] + shapes [6] + shapes [7]; return 5;
-      case 6: hex_o1_shapes (point, shapes); shapes [2] += shapes [3];  shapes [3] = shapes [4];
-	                          shapes [4] = shapes [5]; shapes [5] = shapes [6] + shapes [7]; return 6;
-    }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-
-  return 0;
-}
-
-/* load element displacemnts into a local buffer */
-static void element_displacements (BODY *bod, MESH *msh, ELEMENT *ele, double (*q) [3])
-{
-  double *conf = bod->conf, *p;
-  int i;
-
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    for (i = 0; i < ele->type; i ++)
-    {
-      p = &conf [3 * ele->nodes [i]];
-      COPY (p, q[i]);
-    }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-}
-
-/* compute face shape functions at a local 2-point and output them into a local matrix */
-inline static int face_shapes (BODY *bod, MESH *msh, FACE *fac, double *point, double *shapes)
-{
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    if (fac->type == 3) /* triangle */
-    {
-      shapes [0] = point [0];
-      shapes [1] = point [1];
-      shapes [2] = 1.0 - point [0] - point [1];
-      return 3;
-    }
-    else /* quad */
-    {
-      shapes [0] = 0.25 * (1.0 - point [0]) * (1.0 - point [1]);
-      shapes [1] = 0.25 * (1.0 + point [0]) * (1.0 - point [1]);
-      shapes [2] = 0.25 * (1.0 + point [0]) * (1.0 + point [1]);
-      shapes [3] = 0.25 * (1.0 - point [0]) * (1.0 + point [1]);
-      return 4;
-    }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-
-  return 0;
-}
-
-/* compute face shape function derivatices at a local 2-point and output them into a local matrix */
-inline static int face_derivs (BODY *bod, MESH *msh, FACE *fac, double *point, double *derivs)
-{
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    if (fac->type == 3) /* triangle */
-    {
-      derivs [0] =  1.0;
-      derivs [1] =  0.0;
-      derivs [2] =  0.0;
-      derivs [3] =  1.0;
-      derivs [4] = -1.0;
-      derivs [5] = -1.0;
-      return 3;
-    }
-    else /* quad */
-    {
-      derivs [0] =  0.25 * (point [1] - 1.0);
-      derivs [1] =  0.25 * (point [0] - 1.0);
-      derivs [2] =  0.25 * (1.0 - point [1]);
-      derivs [3] = -0.25 * (1.0 + point [0]);
-      derivs [4] =  0.25 * (1.0 + point [1]);
-      derivs [5] =  0.25 * (1.0 + point [0]);
-      derivs [6] = -0.25 * (1.0 + point [1]);
-      derivs [7] =  0.25 * (1.0 - point [0]);
-      return 4;
-    }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-
-  return 0;
-}
-
-/* get global to local face coordinates transformation determinant at a local 2-point */
-inline static double face_det (BODY *bod, MESH *msh, FACE *fac, node_t nodes, double *point)
-{
-  double derivs [16], d0 [3], d1[3], normal [3], *d;
-  int i, n;
-
-  n = face_derivs (bod, msh, fac, point, derivs);
-
-  SET (d0, 0);
-  SET (d1, 0);
-
-  for (i = 0, d = derivs; i < n; i ++, d += 2)
-  {
-    ADDMUL (d0, d[0], nodes[i], d0);
-    ADDMUL (d1, d[1], nodes[i], d1);
-  }
-
-  PRODUCT (d0, d1, normal);
-
-  return LEN (normal);
-}
-
-/* load face displacemnts into a local buffer */
-inline static void face_displacements (BODY *bod, MESH *msh, FACE *fac, double *conf, double (*q) [3])
-{
-  double *p;
-  int i;
-
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    for (i = 0; i < fac->type; i ++)
-    {
-      p = &conf [3 * fac->nodes [i]];
-      COPY (p, q[i]);
-    }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-}
-
-/* load velocities into a local buffers */
-static void load_velocities (BODY *bod, MESH *msh, ELEMENT *ele, double (*u0) [3], double (*u) [3])
-{
-  double *vel0 = FEM_VEL0 (bod), *velo = bod->velo, *p;
-  int i, j;
-
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    for (i = 0; i < ele->type; i ++)
-    {
-      j = 3 * ele->nodes [i];
-      p = &vel0 [j];
-      COPY (p, u0[i]);
-      p = &velo [j];
-      COPY (p, u[i]);
-    }
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-}
-
-/* load node number into local buffer */
-static int load_node_numbers (BODY *bod, MESH *msh, ELEMENT *ele, int *numbers)
-{
-  int i;
-
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-  {
-    for (i = 0; i < ele->type; i ++) numbers [i] = ele->nodes [i];
-
-    return i;
-  }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-
-  return 0;
-}
- 
-/* copute point force contribution */
-static void point_force (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *f, double *force)
-{
-  MX *N = element_shapes (bod, msh, ele, point);
+  MX *N = element_shapes_matrix (bod, msh, ele, point);
   MX_Matvec (1.0, MX_Tran (N), f, 1.0, force);
   MX_Destroy (N);
 }
 
-/* copute body force contribution */
-static void body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, double *g)
-{
-  double nodes [8][3],
-	 density;
-
-  density = ele->mat ? ele->mat->density : bod->mat->density;
-
-  load_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
-
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-    switch (ele->type)
-    {
-    case 4: tet_o1_body_force (ele->dom, ele->domnum, nodes, density, f, g); break;
-    case 8: hex_o1_body_force (ele->dom, ele->domnum, nodes, density, f, g); break;
-    case 5:
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [4], nodes [6]);
-      COPY (nodes [4], nodes [7]);
-      hex_o1_body_force (ele->dom, ele->domnum, nodes, density, f, g);
-      break;
-    case 6:
-      COPY (nodes [5], nodes [7]);
-      COPY (nodes [5], nodes [6]);
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [3], nodes [4]);
-      COPY (nodes [2], nodes [3]);
-      hex_o1_body_force (ele->dom, ele->domnum, nodes, density, f, g);
-      break;
-    }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-}
-
-/* copute internal force or force derivative contribution */
-static void internal_force (int derivative, BODY *bod, MESH *msh, ELEMENT *ele, double *g)
-{
-  BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-  double nodes [8][3], q [8][3], *p;
-  int i;
-
-  load_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
-
-  for (i = 0; i < ele->type; i ++)
-  {
-    p = &bod->conf [3 * ele->nodes [i]];
-    COPY (p, q[i]);
-  }
-
-  switch (ORDER (bod->form))
-  {
-  case FEM_O1:
-    switch (ele->type)
-    {
-    case 4: tet_o1_internal_force (derivative, ele->dom, ele->domnum, nodes, mat, q, g); break;
-    case 8: hex_o1_internal_force (derivative, ele->dom, ele->domnum, nodes, mat, q, g); break;
-    case 5:
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [4], nodes [6]);
-      COPY (nodes [4], nodes [7]);
-      COPY (q [4], q [5]);
-      COPY (q [4], q [6]);
-      COPY (q [4], q [7]);
-      hex_o1_internal_force (derivative, ele->dom, ele->domnum, nodes, mat, q, g);
-      break;
-    case 6:
-      COPY (nodes [5], nodes [7]);
-      COPY (nodes [5], nodes [6]);
-      COPY (nodes [4], nodes [5]);
-      COPY (nodes [3], nodes [4]);
-      COPY (nodes [2], nodes [3]);
-      COPY (q [5], q [7]);
-      COPY (q [5], q [6]);
-      COPY (q [4], q [5]);
-      COPY (q [3], q [4]);
-      COPY (q [2], q [3]);
-      hex_o1_internal_force (derivative, ele->dom, ele->domnum, nodes, mat, q, g);
-      break;
-    }
-  break;
-  case FEM_O2:
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  break;
-  }
-}
-
-/* compute Cauchy stress at local point */
-static void element_cauchy (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
-{
-  if (COROT (bod->form))
-  {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  else /* TL */
-  {
-    BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-    double P [9], J, F [9];
-
-    deformation_gradient (bod, msh, ele, point, F);
-
-    J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P); /* column-wise, per unit volume */
-
-    values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
-    values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
-    values [2] = (F[2]*P[6]+F[5]*P[7]+F[8]*P[8])/J; /* sz  */
-    values [3] = (F[0]*P[3]+F[3]*P[4]+F[6]*P[5])/J; /* sxy */
-    values [4] = (F[0]*P[6]+F[3]*P[7]+F[6]*P[8])/J; /* sxz */
-    values [5] = (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
-  }
-}
-
 /* return element stabbed by a spatial point */
-static ELEMENT* stabbed_element_cur (MESH *msh, ELEMENT **ele, int nele, double *x)
+static ELEMENT* stabbed_spatial_element (MESH *msh, ELEMENT **ele, int nele, double *x)
 {
   ELEMENT **cur = ele, *ret;
   double dist, d;
@@ -1231,7 +1104,7 @@ static ELEMENT* stabbed_element_cur (MESH *msh, ELEMENT **ele, int nele, double 
 }
 
 /* return element stabbed by a referential point */
-static ELEMENT* stabbed_element (MESH *msh, ELEMENT **ele, int nele, double *X)
+static ELEMENT* stabbed_referential_element (MESH *msh, ELEMENT **ele, int nele, double *X)
 {
   ELEMENT **cur = ele, *ret;
   double dist, d;
@@ -1258,21 +1131,21 @@ static MX* gen_to_loc_operator (BODY *bod, MESH *msh, ELEMENT *ele, double *X, d
 
   TNCOPY (base, base_trans.x);
   referential_to_local (msh, ele, X, point);
-  N = element_shapes (bod, msh, ele, point);
+  N = element_shapes_matrix (bod, msh, ele, point);
   H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
   MX_Destroy (N);
   return H;
 }
 
 /* accumulate constraints reaction */
-inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *force)
+inline static void accumulate_constraints_force (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *force)
 {
   double shapes [MAX_NODES], P [3], point [3], *f;
   int numbers [MAX_NODES], i, n;
 
   referential_to_local (msh, ele, X, point);
-  n = element_shapes_ext (bod, msh, ele, point, shapes);
-  load_node_numbers (bod, msh, ele, numbers);
+  n = element_shapes (ele->type, point, shapes);
+  element_node_numbers (ele, numbers);
 
   NVMUL (base, R, P);
 
@@ -1281,7 +1154,7 @@ inline static void fem_constraints_force_accum (BODY *bod, MESH *msh, ELEMENT *e
 }
 
 /* compute constraints force */
-static void fem_constraints_force (BODY *bod, double *force)
+static void constraints_force (BODY *bod, double *force)
 {
   ELEMENT *ele;
   CONVEX *cvx;
@@ -1302,16 +1175,16 @@ static void fem_constraints_force (BODY *bod, double *force)
     if (bod->msh)
     {
       cvx = (isma ? mgobj(con) : sgobj(con));
-      ele = stabbed_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
+      ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
     }
     else ele = (isma ? mgobj(con) : sgobj(con));
 
-    fem_constraints_force_accum (bod, msh, ele, X, con->base, con->R, isma, force);
+    accumulate_constraints_force (bod, msh, ele, X, con->base, con->R, isma, force);
   }
 }
 
 /* compute inernal force */
-static void fem_internal_force (BODY *bod, double *fint)
+static void internal_force (BODY *bod, double *fint)
 {
   MESH *msh = FEM_MESH (bod);
   double g [24], *v, *w;
@@ -1322,7 +1195,7 @@ static void fem_internal_force (BODY *bod, double *fint)
 
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
-    internal_force (0, bod, msh, ele, g);
+    element_internal_force (0, bod, msh, ele, g);
 
     for (i = 0, v = g; i < ele->type; i ++, v += 3)
     {
@@ -1337,7 +1210,7 @@ static void fem_internal_force (BODY *bod, double *fint)
 }
  
 /* compute out of balance force = fext - fint */
-static void fem_dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
+static void dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
 {
   MESH *msh = FEM_MESH (bod);
   ELEMENT *ele;
@@ -1382,7 +1255,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
 	  COPY (g+9, f);
 	}
 
-	point_force (bod, msh, ele, point, f, fext);
+	accumulate_point_force (bod, msh, ele, point, f, fext);
       }
     }
   }
@@ -1396,7 +1269,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
 
     for (ele = msh->surfeles, bulk = 0; ele; )
     {
-      body_force (bod, msh, ele, f, g);
+      element_body_force (bod, msh, ele, f, g);
 
       for (i = 0, v = g; i < ele->type; i ++, v += 3)
       {
@@ -1413,7 +1286,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
   /* internal forces */
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
-    internal_force (0, bod, msh, ele, g);
+    element_internal_force (0, bod, msh, ele, g);
 
     for (i = 0, v = g; i < ele->type; i ++, v += 3)
     {
@@ -1431,7 +1304,7 @@ static void fem_dynamic_force (BODY *bod, double time, double step, double *fext
 }
 
 /* the smame computation for the static case */
-#define fem_static_force(bod, time, step, fext, fint, force) fem_dynamic_force (bod,time,step,fext,fint,force)
+#define static_force(bod, time, step, fext, fint, force) dynamic_force (bod,time,step,fext,fint,force)
 
 /* compute global tangent stiffness */
 static MX* tangent_stiffness (BODY *bod)
@@ -1456,7 +1329,7 @@ static MX* tangent_stiffness (BODY *bod)
        ele = (ele->next ? ele->next : bulk ? NULL : msh->bulkeles),
        bulk = (ele == msh->bulkeles ? 1 : bulk)) /* for each element in mesh */
   {
-    internal_force (1, bod, msh, ele, K); /* compute internal force derivartive: K */
+    element_internal_force (1, bod, msh, ele, K); /* compute internal force derivartive: K */
 
 #if 0
   {
@@ -1583,7 +1456,7 @@ static MX* diagonal_inertia (BODY *bod)
 
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
-    lump_mass_matrix (bod, msh, ele, x);
+    element_lump_mass (bod, msh, ele, x);
 
     if (bulk) ele = ele->next;
     else if (ele->next) ele = ele->next;
@@ -1594,7 +1467,7 @@ static MX* diagonal_inertia (BODY *bod)
 }
 
 /* set up inverse operator for the explicit dynamic time stepping */
-static void fem_dynamic_explicit_inverse (BODY *bod)
+static void dynamic_explicit_inverse (BODY *bod)
 {
   double *x, *y;
 
@@ -1612,7 +1485,7 @@ static void fem_dynamic_explicit_inverse (BODY *bod)
 }
 
 /* set up inverse operator for the implicit dynamic time stepping */
-static void fem_dynamic_implicit_inverse (BODY *bod, double step, double *force)
+static void dynamic_implicit_inverse (BODY *bod, double step, double *force)
 {
   MX *M, *K, *A;
 
@@ -1642,7 +1515,7 @@ static void fem_dynamic_implicit_inverse (BODY *bod, double step, double *force)
 }
 
 /* solve implicit ingetration nonlineare problem */
-static void fem_dynamic_implicit_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
+static void dynamic_implicit_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
 {
   int n = bod->dofs,
       imax = 16,
@@ -1664,8 +1537,8 @@ static void fem_dynamic_implicit_solve (BODY *bod, double time, double step, dou
   {
     blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t) */
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
-    fem_dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+    dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
+    dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
     MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
   }
   else
@@ -1682,8 +1555,8 @@ static void fem_dynamic_implicit_solve (BODY *bod, double time, double step, dou
      * nevertheless the simpler approach below where we use C[E((q(t+h) + q(t))/2)] did not lead
      * to energy inconsistent results in our test, but to the contratey. Hence we stick with it */
     for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf ... */
-    fem_internal_force (bod, fint); /* ... as it is used in there */
-    fem_dynamic_implicit_inverse (bod, step, NULL);
+    internal_force (bod, fint); /* ... as it is used in there */
+    dynamic_implicit_inverse (bod, step, NULL);
     for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
     MX_Matvec (-1.0, bod->M, aux, 1.0, res);
     MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
@@ -1723,7 +1596,7 @@ static MX* inverse_mass_times_stiffencess (int explicit, BODY *bod, MESH *msh, E
   n = ele->type * 3;
   IM = explicit ? bod->inverse : bod->M;
   IMK = MX_Create (MXDENSE, n, n, NULL, NULL);
-  internal_force (1, bod, msh, ele, IMK->x);
+  element_internal_force (1, bod, msh, ele, IMK->x);
 
   for (i = 0; i < ele->type; i ++)
   {
@@ -1743,7 +1616,7 @@ static MX* inverse_mass_times_stiffencess (int explicit, BODY *bod, MESH *msh, E
 }
 
 /* static time-stepping inverse */
-static void fem_static_inverse (BODY *bod, double step)
+static void static_inverse (BODY *bod, double step)
 {
   MX *M, *K, *A;
 
@@ -1780,14 +1653,196 @@ static void fem_static_inverse (BODY *bod, double step)
   MX_Destroy (K);
 }
 
-/* compute surface integral = INT { skew [N] A Shapes (x) q } */
-static void bodcor_surface_integral (BODY *bod, MESH *msh, double *conf, double *A, double *integral)
+/* =================== TOAL LAGRANGIAN =================== */
+
+/* total lagrangian initialise dynamic time stepping */
+static void TL_dynamic_init (BODY *bod)
 {
- double q [8][3], nodes [8][3], B [3], C [3], shapes [8], point [2], J, coef;
- const double *X, *Y, *W, *N;
- int i, j, n, m;
+  if (bod->scheme == SCH_DEF_EXP)
+  {
+    if (!bod->inverse) dynamic_explicit_inverse (bod); /* initialize once */
+  }
+  else dynamic_implicit_inverse (bod, bod->dom->step, NULL); /* update every time */
+}
+
+/* total lagrangian estimate critical step for the dynamic scheme */
+static double TL_dynamic_critical_step (BODY *bod)
+{
+  if (bod->scheme == SCH_DEF_EXP)
+  {
+    MESH *msh = FEM_MESH (bod);
+    double step, tcrit, eigmax;
+    ELEMENT *ele;
+    int bulk;
+    MX *IMK;
+
+    for (ele = msh->surfeles, bulk = 0, step = DBL_MAX; ele; )
+    {
+      IMK = inverse_mass_times_stiffencess (1, bod, msh, ele); /* element inv (M) * K */
+      MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
+      MX_Destroy (IMK);
+      ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
+      tcrit = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
+      if (tcrit < step) step = tcrit;
+
+      if (bulk) ele = ele->next;
+      else if (ele->next) ele = ele->next;
+      else ele = msh->bulkeles, bulk = 1;
+    }
+
+    return step;
+  }
+  else return DBL_MAX;
+}
+
+/* total lagrangian perform the initial half-step of the dynamic scheme */
+static void TL_dynamic_step_begin (BODY *bod, double time, double step)
+{
+  int n = bod->dofs;
+  double half = 0.5 * step,
+	 c = bod->damping,
+	*x = bod->inverse->x,
+	*u0 = FEM_VEL0 (bod),
+	*f = FEM_FORCE (bod),
+	*fext = FEM_FEXT (bod),
+	*fint = FEM_FINT (bod),
+	*q = bod->conf,
+	*u = bod->velo,
+	*e = u + n;
+
+  blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
+
+  switch (bod->scheme)
+  {
+  case SCH_DEF_EXP:
+  {
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+    for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f */
+  }
+  break;
+  case SCH_DEF_LIM:
+  {
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+    dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+    MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
+  }
+  break;
+  case SCH_DEF_LIM2:
+  {
+    dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t)) */
+    dynamic_implicit_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
+  }
+  break;
+  case SCH_DEF_IMP:
+  {
+    /* q(t+h/2) = q(t) + (h/2) * u(t)
+     * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+     * u (t+h) = u (t) + inv (A) * h * f */
+    dynamic_implicit_solve (bod, time, step, fext, f, 1);
+  }
+  break;
+  default:
+  break;
+  }
+
+  if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
+}
+
+/* total lagrangian perform the final half-step of the dynamic scheme */
+static void TL_dynamic_step_end (BODY *bod, double time, double step)
+{
+  int n = bod->dofs;
+  double half = 0.5 * step,
+	*energy = bod->energy,
+	*x = bod->inverse->x,
+	*r = FEM_FORCE (bod),
+	*ir = r,
+	*fext = FEM_FEXT (bod),
+	*fint = FEM_FINT (bod),
+	*u0 = FEM_VEL0 (bod),
+	*iu0 = u0,
+	*u = bod->velo,
+	*iu = u,
+	*q = bod->conf,
+	*e = u + n;
+
+  constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
+
+  switch (bod->scheme)
+  {
+  case SCH_DEF_EXP:
+  {
+    for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
+    blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+  }
+  break;
+  case SCH_DEF_LIM:
+  case SCH_DEF_LIM2:
+  {
+    MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
+    blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+  }
+  break;
+  case SCH_DEF_IMP:
+  {
+    /* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+     * u (t+h) = u (t) + inv (A) * h * f
+     * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
+    dynamic_implicit_solve (bod, time, step, fext, r, 0);
+  }
+  break;
+  default:
+  break;
+  }
+
+  /* energy */
+  for (ir = r, iu = u; iu < e; ir ++, iu ++, iu0 ++) *ir = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
+  energy [EXTERNAL] += blas_ddot (n, r, 1, fext, 1);
+  energy [INTERNAL] += blas_ddot (n, r, 1, fint, 1);
+}
+
+/* total lagrangian initialise static time stepping */
+static void TL_static_init (BODY *bod)
+{
+  static_inverse (bod, bod->dom->step);
+}
+
+/* total lagrangian perform the initial half-step of the static scheme */
+static void TL_static_step_begin (BODY *bod, double time, double step)
+{
+  double *force = FEM_FORCE (bod);
+
+  static_inverse (bod, step); /* compute inverse of static tangent operator */
+  static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
+  MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
+}
+
+/* total lagrangian perform the final half-step of the static scheme */
+static void TL_static_step_end (BODY *bod, double time, double step)
+{
+  double *force = FEM_FORCE (bod);
+
+  constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
+  blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
+}
+
+/* =================== BODY COROTATIONAL =================== */
+
+/* compute surface integral = INT { skew [N] A Shapes (x) q } */
+static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, double *A, double *integral)
+{
+  double q [8][3], nodes [8][3], B [3], C [3], shapes [8], J, coef, *N;
   ELEMENT *ele;
   FACE *fac;
+  int j, n;
 
   SET (integral, 0);
 
@@ -1795,42 +1850,24 @@ static void bodcor_surface_integral (BODY *bod, MESH *msh, double *conf, double 
   {
     for (fac = ele->faces; fac; fac = fac->next)
     {
-      load_nodes (msh->ref_nodes, fac->type, fac->nodes, nodes);
-      face_displacements (bod, msh, fac, conf, q);
+      face_nodes (msh->ref_nodes, fac->type, fac->nodes, nodes);
+      face_displacements (conf, fac, q);
       for (j = 0; j < fac->type; j ++) { ADD (nodes [j], q [j], nodes [j]); } /* sub-parametric coords transformation for FEM_O2 */
       N = fac->normal + 3;
-
-      if (fac->type == 3)
-      {
-	X = I_TRI1_X;
-	Y = I_TRI1_Y;
-	W = I_TRI1_W;
-	m = I_TRI1_N;
-	/* TODO: FEM_O2 */
-      }
-      else
-      {
-	X = I_QUA2_X;
-	Y = I_QUA2_Y;
-	W = I_QUA2_W;
-	m = I_QUA2_N;
-	/* TODO: FEM_O2 */
-      }
       
-      for (i = 0; i < m; i ++)
-      {
-	point [0] = X[i];
-	point [1] = Y[i];
-        n = face_shapes (bod, msh, fac, point, shapes);
-	J = face_det (bod, msh, fac, nodes, point);
-	coef = J * W [i];
+      INTEGRATE2D (fac->type, 2, /* FIXME: order */
+
+        n = face_shapes (fac, point, shapes);
+	J = face_det (fac, nodes, point);
+	coef = J * weight;
 
         SET (B, 0);
 	for (j = 0; j < n; j ++) { ADDMUL (B, shapes [j], q [j], B); }
 	NVMUL (A, B, C);
 	SCALE (C, coef);
 	PRODUCTADD (N, C, integral);
-      }
+
+      )
     }
   }
 }
@@ -1840,81 +1877,53 @@ static void bodcor_surface_integral (BODY *bod, MESH *msh, double *conf, double 
  * msh - input mesh
  * q   - input configuration
  * R   - input/output rotation */
-static void bodcor_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
+static void BC_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
 {
 }
 
 /* body co-rotational initialise dynamic time stepping */
-static void bodcor_dynamic_init (BODY *bod)
+static void BC_dynamic_init (BODY *bod)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
+/* body co-rotational estimate critical step for the dynamic scheme */
+static double BC_dynamic_critical_step (BODY *bod)
 {
   /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
 /* body co-rotational perform the initial half-step of the dynamic scheme */
-static void bodcor_dynamic_step_begin (BODY *bod, double time, double step)
+static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 {
   /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
 /* body co-rotational perform the final half-step of the dynamic scheme */
-static void bodcor_dynamic_step_end (BODY *bod, double time, double step)
+static void BC_dynamic_step_end (BODY *bod, double time, double step)
 {
   /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
 /* body co-rotational initialise static time stepping */
-static void bodcor_static_init (BODY *bod)
+static void BC_static_init (BODY *bod)
 {
   /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
 /* body co-rotational perform the initial half-step of the static scheme */
-static void bodcor_static_step_begin (BODY *bod, double time, double step)
+static void BC_static_step_begin (BODY *bod, double time, double step)
 {
   /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
 /* body co-rotational perform the final half-step of the static scheme */
-static void bodcor_static_step_end (BODY *bod, double time, double step)
+static void BC_static_step_end (BODY *bod, double time, double step)
 {
   /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
-/* element co-rotational initialise dynamic time stepping */
-static void elecor_dynamic_init (BODY *bod)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational perform the initial half-step of the dynamic scheme */
-static void elecor_dynamic_step_begin (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational perform the final half-step of the dynamic scheme */
-static void elecor_dynamic_step_end (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational initialise static time stepping */
-static void elecor_static_init (BODY *bod)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational perform the initial half-step of the static scheme */
-static void elecor_static_step_begin (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* element co-rotational perform the final half-step of the static scheme */
-static void elecor_static_step_end (BODY *bod, double time, double step)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
+/* ================== INTERSECTIONS ==================== */
 
 /* attach (element, local point) pairs to cvx->epn placeholder so that
  * current vertices can be updated fast by using FEM_Cur_Point_Ext */
@@ -1933,7 +1942,7 @@ static void post_proces_convices (SHAPE *shp, MESH *msh, FEMFORM form)
 
       for (epn = cvx->epn, ref = cvx->ref, n = 0; n < cvx->nver; epn ++, ref += 3, n ++)
       {
-	epn->ele = stabbed_element (msh, cvx->ele, cvx->nele, ref);
+	epn->ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, ref);
 	ASSERT_DEBUG (epn->ele, "Invalid referential point stabbing an element");
         referential_to_local (msh, epn->ele, ref, epn->pnt);
       }
@@ -1956,7 +1965,7 @@ static void post_process_intersections (double shape_volume, MESH *msh)
   FACE *fac;
   TRI *tri;
 
-  /* 1. */
+  /* 1. Test whether the shape_volume == volume cut of the mesh */
  
   for (cut_volume = 0.0, ele = msh->surfeles; ele; ele = ele->next)
     for (surf = ele->dom, n = 0; n < ele->domnum; surf ++, n ++)
@@ -1974,7 +1983,8 @@ static void post_process_intersections (double shape_volume, MESH *msh)
 #endif
   ASSERT (fabs (shape_volume - cut_volume) < CUT_TOL * shape_volume, ERR_FEM_CUT_VOLUME);
 
-  /* 2. */
+  /* 2. Delete elements whose volume (ele->dom) < TOL * volume (ele)
+   *    or delte ele->dom when volume (ele->dom) == volume (ele) */
 
   for (ele = msh->surfeles, bulk = 0; ele; ele = next)
   {
@@ -2009,7 +2019,7 @@ static void post_process_intersections (double shape_volume, MESH *msh)
     if (!next && !bulk) next = msh->bulkeles, bulk = 1;
   }
 
-  /* 3. */
+  /* 3. Delete nodes unattached to elements */
 
   int *node_map, m;
 
@@ -2059,7 +2069,7 @@ static void post_process_intersections (double shape_volume, MESH *msh)
 
   free (node_map);
 
- /* 4. */
+  /* 4. Transform global ele->dom points into local element coordinates */
 
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
@@ -2155,6 +2165,8 @@ static void overlap (void *data, BOX *one, BOX *two)
   }
 }
 
+/* ================== INTERFACE ==================== */
+
 /* create FEM internals for a body */
 void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 {
@@ -2162,20 +2174,6 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   SHAPE_Char (shp, &bod->ref_volume, bod->ref_center, bod->ref_tensor);
   bod->ref_mass = bod->ref_volume * mat->density;
   SCALE9 (bod->ref_tensor, mat->density);
-
-  /* resolve incorect order flags */
-  if ((form & FEM_O1) && (form & FEM_O2))
-  {
-    form &= ~(FEM_O1|FEM_O2);
-    form |= FEM_O1;
-  }
-
-  /* resolve incorect corotational flags */
-  if ((form & FEM_BODCOR) && (form & FEM_ELECOR))
-  {
-    form &= ~(FEM_BODCOR|FEM_ELECOR);
-    form |= FEM_BODCOR;
-  }
 
   if (msh) /* the given mesh is assumed to properly contain the shape */
   {
@@ -2232,27 +2230,20 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   else msh = shp->data; /* retrive the mesh pointer from the shape */
 
   /* allocate dofs */
-  if (COROT (form)) /* co-rotational */
+  switch (form)
   {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  }
-  else /* TL */
-  {
-    switch (ORDER (form))
+    case TOTAL_LAGRANGIAN:
     {
-      case FEM_O1:
-      {
-	bod->dofs = msh->nodes_count * 3;
-	ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
-	bod->velo = bod->conf + bod->dofs;
-      }
-      break;
-      case FEM_O2:
-      {
-	/* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-      }
-      break;
+      bod->dofs = msh->nodes_count * 3;
+      ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
+      bod->velo = bod->conf + bod->dofs;
     }
+    break;
+    case BODY_COROTATIONAL:
+    {
+      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    }
+    break;
   }
 
   /* save formulation */
@@ -2294,186 +2285,57 @@ void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
 /* initialise dynamic time stepping */
 void FEM_Dynamic_Init (BODY *bod)
 {
-  if (BODCOR (bod->form))
+  switch (bod->form)
   {
-    bodcor_dynamic_init (bod);
-  }
-  else if (ELECOR (bod->form))
-  {
-    elecor_dynamic_init (bod);
-  }
-  else /* TL */
-  {
-    if (bod->scheme == SCH_DEF_EXP)
-    {
-      if (!bod->inverse) fem_dynamic_explicit_inverse (bod); /* initialize once */
-    }
-    else fem_dynamic_implicit_inverse (bod, bod->dom->step, NULL); /* update every time */
+    case TOTAL_LAGRANGIAN:
+      TL_dynamic_init (bod);
+      break;
+    case BODY_COROTATIONAL:
+      BC_dynamic_init (bod);
+      break;
   }
 }
 
 /* estimate critical step for the dynamic scheme */
 double FEM_Dynamic_Critical_Step (BODY *bod)
 {
-  if (COROT (bod->form) || bod->scheme != SCH_DEF_EXP) return DBL_MAX;
-  else /* explicit Total Lagrangian */
+  switch (bod->form)
   {
-    MESH *msh = FEM_MESH (bod);
-    double step, tcrit, eigmax;
-    ELEMENT *ele;
-    int bulk;
-    MX *IMK;
-
-    for (ele = msh->surfeles, bulk = 0, step = DBL_MAX; ele; )
-    {
-      IMK = inverse_mass_times_stiffencess (1, bod, msh, ele); /* element inv (M) * K */
-      MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
-      MX_Destroy (IMK);
-      ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
-      tcrit = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
-      if (tcrit < step) step = tcrit;
-
-      if (bulk) ele = ele->next;
-      else if (ele->next) ele = ele->next;
-      else ele = msh->bulkeles, bulk = 1;
-    }
-
-    return step;
+    case TOTAL_LAGRANGIAN:
+      return TL_dynamic_critical_step (bod);
+    case BODY_COROTATIONAL:
+      return BC_dynamic_critical_step (bod);
   }
+
+  return DBL_MAX;
 }
 
 /* perform the initial half-step of the dynamic scheme */
 void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
-  if (BODCOR (bod->form))
+  switch (bod->form)
   {
-    bodcor_dynamic_step_begin (bod, time, step);
+    case TOTAL_LAGRANGIAN:
+      TL_dynamic_step_begin (bod, time, step);
+      break;
+    case BODY_COROTATIONAL:
+      BC_dynamic_step_begin (bod, time, step);
+      break;
   }
-  else if (ELECOR (bod->form))
-  {
-    elecor_dynamic_step_begin (bod, time, step);
-  }
-  else /* TL */
-  {
-    int n = bod->dofs;
-    double half = 0.5 * step,
-	   c = bod->damping,
-	  *x = bod->inverse->x,
-	  *u0 = FEM_VEL0 (bod),
-	  *f = FEM_FORCE (bod),
-	  *fext = FEM_FEXT (bod),
-	  *fint = FEM_FINT (bod),
-	  *q = bod->conf,
-	  *u = bod->velo,
-	  *e = u + n;
 
-    blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
-
-    switch (bod->scheme)
-    {
-    case SCH_DEF_EXP:
-    {
-      blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-      fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
-      for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f */
-    }
-    break;
-    case SCH_DEF_LIM:
-    {
-      blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-      fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
-      fem_dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
-      MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
-    }
-    break;
-    case SCH_DEF_LIM2:
-    {
-      fem_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t)) */
-      fem_dynamic_implicit_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
-      blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-      MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
-    }
-    break;
-    case SCH_DEF_IMP:
-    {
-      /* q(t+h/2) = q(t) + (h/2) * u(t)
-       * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
-       * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
-       * u (t+h) = u (t) + inv (A) * h * f */
-      fem_dynamic_implicit_solve (bod, time, step, fext, f, 1);
-    }
-    break;
-    default:
-    break;
-    }
-
-    if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
-  }
 }
 
 /* perform the final half-step of the dynamic scheme */
 void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 {
-  if (BODCOR (bod->form))
+  switch (bod->form)
   {
-    bodcor_dynamic_step_end (bod, time, step);
-  }
-  else if (ELECOR (bod->form))
-  {
-    elecor_dynamic_step_end (bod, time, step);
-  }
-  else /* TL */
-  {
-    int n = bod->dofs;
-    double half = 0.5 * step,
-	  *energy = bod->energy,
-	  *x = bod->inverse->x,
-	  *r = FEM_FORCE (bod),
-	  *ir = r,
-	  *fext = FEM_FEXT (bod),
-	  *fint = FEM_FINT (bod),
-	  *u0 = FEM_VEL0 (bod),
-	  *iu0 = u0,
-	  *u = bod->velo,
-	  *iu = u,
-	  *q = bod->conf,
-	  *e = u + n;
-
-    fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-    blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
-
-    switch (bod->scheme)
-    {
-    case SCH_DEF_EXP:
-    {
-      for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
-      blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-    }
-    break;
-    case SCH_DEF_LIM:
-    case SCH_DEF_LIM2:
-    {
-      MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
-      blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-    }
-    break;
-    case SCH_DEF_IMP:
-    {
-      /* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
-       * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
-       * u (t+h) = u (t) + inv (A) * h * f
-       * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
-      fem_dynamic_implicit_solve (bod, time, step, fext, r, 0);
-    }
-    break;
-    default:
-    break;
-    }
-
-    /* energy */
-    for (ir = r, iu = u; iu < e; ir ++, iu ++, iu0 ++) *ir = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
-    energy [EXTERNAL] += blas_ddot (n, r, 1, fext, 1);
-    energy [INTERNAL] += blas_ddot (n, r, 1, fint, 1);
+    case TOTAL_LAGRANGIAN:
+      TL_dynamic_step_end (bod, time, step);
+      break;
+    case BODY_COROTATIONAL:
+      BC_dynamic_step_end (bod, time, step);
+      break;
   }
 
   if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
@@ -2491,56 +2353,42 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 /* initialise static time stepping */
 void FEM_Static_Init (BODY *bod)
 {
-  if (BODCOR (bod->form))
+  switch (bod->form)
   {
-    bodcor_static_init (bod);
+    case TOTAL_LAGRANGIAN:
+      TL_static_init (bod);
+      break;
+    case BODY_COROTATIONAL:
+      BC_static_init (bod);
+      break;
   }
-  else if (ELECOR (bod->form))
-  {
-    elecor_static_init (bod);
-  }
-  else fem_static_inverse (bod, bod->dom->step);
 }
 
 /* perform the initial half-step of the static scheme */
 void FEM_Static_Step_Begin (BODY *bod, double time, double step)
 {
-  if (BODCOR (bod->form))
+  switch (bod->form)
   {
-    bodcor_static_step_begin (bod, time, step);
-  }
-  else if (ELECOR (bod->form))
-  {
-    elecor_static_step_begin (bod, time, step);
-  }
-  else /* TL */
-  {
-    double *force = FEM_FORCE (bod);
-
-    fem_static_inverse (bod, step); /* compute inverse of static tangent operator */
-    fem_static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
-    MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
+    case TOTAL_LAGRANGIAN:
+      TL_static_step_begin (bod, time, step);
+      break;
+    case BODY_COROTATIONAL:
+      BC_static_step_begin (bod, time, step);
+      break;
   }
 }
 
 /* perform the final half-step of the static scheme */
 void FEM_Static_Step_End (BODY *bod, double time, double step)
 {
-  if (BODCOR (bod->form))
+  switch (bod->form)
   {
-    bodcor_static_step_end (bod, time, step);
-  }
-  else if (ELECOR (bod->form))
-  {
-    elecor_static_step_end (bod, time, step);
-  }
-  else /* TL */
-  {
-    double *force = FEM_FORCE (bod);
-
-    fem_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-    MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
-    blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
+    case TOTAL_LAGRANGIAN:
+      TL_static_step_end (bod, time, step);
+      break;
+    case BODY_COROTATIONAL:
+      BC_static_step_end (bod, time, step);
+      break;
   }
 
   if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
@@ -2568,7 +2416,7 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
   {
     msh = bod->msh;
     ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
-    ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+    ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X);
     ASSERT_DEBUG (ele, "Invalid referential point stabbing an element");
   }
   else
@@ -2580,8 +2428,8 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
   if (ele)
   {
     referential_to_local (msh, ele, X, point);
-    n = element_shapes_ext (bod, msh, ele, point, shapes);
-    element_displacements (bod, msh, ele, q);
+    n = element_shapes (ele->type, point, shapes);
+    element_displacements (bod->conf, ele, q);
 
     COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
   }
@@ -2598,11 +2446,10 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
 void FEM_Cur_Point_Ext (BODY *bod, ELEMENT *ele, double *X, double *point, double *x)
 {
   double shapes [MAX_NODES], q [MAX_NODES][3];
-  MESH *msh = FEM_MESH (bod);
-  int n, i;
+  int i, n;
 
-  n = element_shapes_ext (bod, msh, ele, point, shapes);
-  element_displacements (bod, msh, ele, q);
+  n = element_shapes (ele->type, point, shapes);
+  element_displacements (bod->conf, ele, q);
 
   COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
 }
@@ -2619,7 +2466,7 @@ void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
   {
     msh = bod->msh;
     ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
-    ele = stabbed_element_cur (msh, cvx->ele, cvx->nele, x);
+    ele = stabbed_spatial_element (msh, cvx->ele, cvx->nele, x);
     ASSERT_DEBUG (ele, "Invalid spatial point stabbing an element");
   }
   else
@@ -2646,7 +2493,7 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
   {
     msh = bod->msh;
     ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
-    ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+    ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X);
     ASSERT_DEBUG (ele, "Invalid referential point stabbing an element");
   }
   else
@@ -2656,8 +2503,8 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
   }
 
   referential_to_local (msh, ele, X, point);
-  n = element_shapes_ext (bod, msh, ele, point, shapes);
-  load_velocities (bod, bod->msh, ele, u0, u);
+  n = element_shapes (ele->type, point, shapes);
+  element_velocities (bod, ele, u0, u);
 
   if (prevel)
   {
@@ -2683,7 +2530,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   {
     msh = bod->msh;
     ASSERT_DEBUG_EXT ((cvx = gobj), "NULL geometric object for the separate mesh FEM scenario");
-    ele = stabbed_element (msh, cvx->ele, cvx->nele, X);
+    ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X);
     ASSERT_DEBUG (ele, "Invalid referential point stabbing an element");
   }
   else
@@ -2713,6 +2560,49 @@ double FEM_Kinetic_Energy (BODY *bod)
   return 0.0;
 }
 
+/* get some values at a local point of an element */
+void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIND kind, double *values)
+{
+  MESH *msh = FEM_MESH (bod);
+
+  switch (kind)
+  {
+  case VALUE_DISPLACEMENT:
+  {
+    MX *N = element_shapes_matrix (bod, msh, ele, point);
+    MX_Matvec (1.0, N, bod->conf, 0.0, values);
+    MX_Destroy (N);
+  }
+  break;
+  case VALUE_VELOCITY:
+  {
+    MX *N = element_shapes_matrix (bod, msh, ele, point);
+    MX_Matvec (1.0, N, bod->velo, 0.0, values);
+    MX_Destroy (N);
+  }
+  break;
+  case VALUE_STRESS:
+  {
+    cauchy_stress (bod, msh, ele, point, values);
+  }
+  break;
+  case VALUE_MISES:
+  {
+    double stress [6];
+
+    cauchy_stress (bod, msh, ele, point, stress);
+    MISES (stress, values [0]);
+  }
+  break;
+  case VALUE_STRESS_AND_MISES:
+  {
+    cauchy_stress (bod, msh, ele, point, values);
+    MISES (values, values [6]);
+  }
+  break;
+  }
+}
+
 /* get some values at a referential point */
 void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
 {
@@ -2726,192 +2616,59 @@ void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
   {
     referential_to_local (msh, ele, X, point);
 
-    switch (kind)
-    {
-    case VALUE_DISPLACEMENT:
-    {
-      MX *N = element_shapes (bod, msh, ele, point);
-      MX_Matvec (1.0, N, bod->conf, 0.0, values);
-      MX_Destroy (N);
-    }
-    break;
-    case VALUE_VELOCITY:
-    {
-      MX *N = element_shapes (bod, msh, ele, point);
-      MX_Matvec (1.0, N, bod->velo, 0.0, values);
-      MX_Destroy (N);
-    }
-    break;
-    case VALUE_STRESS:
-    {
-      element_cauchy (bod, msh, ele, point, values);
-    }
-    break;
-    case VALUE_MISES:
-    {
-      double stress [6];
-
-      element_cauchy (bod, msh, ele, point, stress);
-      MISES (stress, values [0]);
-    }
-    break;
-    case VALUE_STRESS_AND_MISES:
-    {
-      element_cauchy (bod, msh, ele, point, values);
-      MISES (values, values [6]);
-    }
-    break;
-    }
+    FEM_Element_Point_Values (bod, ele, point, kind, values);
   }
 }
 
-/* get some values at a local point of an element */
-void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIND kind, double *values)
-{
-  MESH *msh = FEM_MESH (bod);
-
-  switch (kind)
-  {
-  case VALUE_DISPLACEMENT:
-  {
-    MX *N = element_shapes (bod, msh, ele, point);
-    MX_Matvec (1.0, N, bod->conf, 0.0, values);
-    MX_Destroy (N);
-  }
-  break;
-  case VALUE_VELOCITY:
-  {
-    MX *N = element_shapes (bod, msh, ele, point);
-    MX_Matvec (1.0, N, bod->velo, 0.0, values);
-    MX_Destroy (N);
-  }
-  break;
-  case VALUE_STRESS:
-  {
-    element_cauchy (bod, msh, ele, point, values);
-  }
-  break;
-  case VALUE_MISES:
-  {
-    double stress [6];
-
-    element_cauchy (bod, msh, ele, point, stress);
-    MISES (stress, values [0]);
-  }
-  break;
-  case VALUE_STRESS_AND_MISES:
-  {
-    element_cauchy (bod, msh, ele, point, values);
-    MISES (values, values [6]);
-  }
-  break;
-  }
-}
-
-/* get some values at a curent mesh node */
+/* get some values at a curent mesh node (node points inside MESH->cur_nodes) */
 void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *values)
 {
+  int i, j;
+  double point [3];
   MESH *msh = FEM_MESH (bod);
   int n = (node_t) node - msh->cur_nodes;
-  ELEMENT *ele = MAP_Find (msh->map, node, NULL),
-	  *start [2] = {msh->surfeles, msh->bulkeles};
-  double point [3] = {0, 0, 0};
-  int i, j;
+  ELEMENT *ele = MESH_Element_With_Node (msh, n, point);
+  ASSERT (ele, ERR_MSH_ELEMENT_WITH_NODE);
 
-  if (ele == NULL) /* if this node has not been yet mapped to an element */
+  if (kind >= VALUE_STRESS) /* average from neigbouring elements */
   {
-    for(j = 0; j < 2; j ++)
+    double X [3], v [7];
+    SET *set, *item;
+    int m;
+
+    local_to_referential (msh, ele, point, X);
+
+    set = NULL;
+
+    MESH_Elements_Around_Node (ele, n, &set);
+
+    switch ((int) kind)
     {
-      for (ele = start [j]; ele; ele = ele->next) /* make a costly linear search for an element */
-      {
-	for (i = 0; i < ele->type; i ++)
-	{
-	  if (ele->nodes [i] == n)
-	  {
-	    switch (ele->type)
-	    {
-	    case 4: if (i < 3) point [i] = 1.0; break;
-	    case 8:
-	      switch (i)
-	      {
-	      case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
-	      case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
-	      case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
-	      case 3: point [0] = -1; point [1] =  1; point [2] = -1; break;
-	      case 4: point [0] = -1; point [1] = -1; point [2] =  1; break;
-	      case 5: point [0] =  1; point [1] = -1; point [2] =  1; break;
-	      case 6: point [0] =  1; point [1] =  1; point [2] =  1; break;
-	      case 7: point [0] = -1; point [1] =  1; point [2] =  1; break;
-	      }
-	      break;
-	    case 6:
-	      switch (i)
-	      {
-	      case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
-	      case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
-	      case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
-	      case 3: point [0] = -1; point [1] = -1; point [2] =  1; break;
-	      case 4: point [0] =  1; point [1] = -1; point [2] =  1; break;
-	      case 5: point [0] =  1; point [1] =  1; point [2] =  1; break;
-	      }
-	      break;
-	    case 5:
-	      switch (i)
-	      {
-	      case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
-	      case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
-	      case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
-	      case 3: point [0] = -1; point [1] =  1; point [2] = -1; break;
-	      case 4: point [0] = -1; point [1] = -1; point [2] =  1; break;
-	      }
-	      break;
-	    }
-
-	    MAP_Insert (&msh->mapmem, &msh->map, node, ele, NULL); /* and map it */
-	    goto ok;
-	  }
-	}
-      }
+    case VALUE_STRESS: m = 6; break;
+    case VALUE_MISES: m = 1; break;
+    case VALUE_STRESS_AND_MISES: m = 7; break;
     }
-  }
 
-  ASSERT_DEBUG (ele, "Element with specified node number was not found");
+    for (j = 0; j < m; j ++) values [j] = 0;
 
-ok:
-  switch (kind)
-  {
-  case VALUE_DISPLACEMENT:
-  {
-    double *q = &bod->conf [3 * n];
-    COPY (q, values);
-  }
-  break;
-  case VALUE_VELOCITY:
-  {
-    double *u = &bod->velo [3 * n];
-    COPY (u, values);
-  }
-  break;
-  case VALUE_STRESS:
-  {
-    element_cauchy (bod, msh, ele, point, values); /* TODO: average from neighouring elements */
-  }
-  break;
-  case VALUE_MISES:
-  {
-    double stress [6];
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      ele = item->data;
 
-    element_cauchy (bod, msh, ele, point, stress); /* TODO: average from neighouring elements */
-    MISES (stress, values [0]);
+      referential_to_local (msh, ele, X, point);
+
+      FEM_Element_Point_Values (bod, ele, point, kind, v);
+
+      for (j = 0; j < m; j ++) values [j] += v [j];
+    }
+
+    i = SET_Size (set);
+
+    for (j = 0; j < m; j ++) values [j] /= (double)i;
+
+    SET_Free (NULL, &set);
   }
-  break;
-  case VALUE_STRESS_AND_MISES:
-  {
-    element_cauchy (bod, msh, ele, point, values); /* TODO: average from neighouring elements */
-    MISES (values, values [6]);
-  }
-  break;
-  }
+  else FEM_Element_Point_Values (bod, ele, point, kind, values);
 }
 
 /* issued by state reading routines of body interface */
