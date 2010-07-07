@@ -1216,85 +1216,97 @@ if (((DET) =\
 	 aux [9],\
          tmp [3];\
   x = DOT(OMEGA, OMEGA);\
-  c = 1.0 / x;\
-  if (x < DEG_10_SQ)\
+  if (x < 1E-16 * DEG_10_SQ)\
   {\
-    a = 1.0 +\
-    (-1.666666666666667E-1 +\
-    (8.333333333333333E-3 +\
-    (-1.984126984126984E-4 +\
-    (2.755731922398589E-6 +\
-    (-2.505210838544172E-8 +\
-     1.605904383682161E-10 * x\
-    )* x\
-    )* x\
-    )* x\
-    )* x\
-    )* x;\
-    b = c - 0.5 +\
-    (4.166666666666667E-2 +\
-    (-1.388888888888889E-3 +\
-    (2.480158730158730E-5 +\
-    (-2.755731922398589E-7 +\
-    (2.087675698786810E-9 -\
-     1.147074559772972E-11 * x\
-    )* x\
-    )* x\
-    )* x\
-    )* x\
-    )* x;\
+    R0[0]=R0[1]=R0[2]=R0[3]=R0[4]=R0[6]=R0[8]=0;\
+    R1[0]=R1[1]=R1[3]=R1[4]=R1[5]=R1[7]=R1[8]=0;\
+    R2[0]=R2[2]=R2[4]=R2[5]=R2[6]=R2[7]=R2[8]=0;\
+    R0[5]=1.0; R0[7]=-1.0;\
+    R1[2]=-1.0; R1[6]=1.0;\
+    R2[1]=1.0; R2[3]=-1.0;\
   }\
   else\
   {\
-    x = sqrt (x);\
-    a = sin (x) / x;\
-    b = c * cos (x);\
+    c = 1.0 / x;\
+    if (x < DEG_10_SQ)\
+    {\
+      a = 1.0 +\
+      (-1.666666666666667E-1 +\
+      (8.333333333333333E-3 +\
+      (-1.984126984126984E-4 +\
+      (2.755731922398589E-6 +\
+      (-2.505210838544172E-8 +\
+       1.605904383682161E-10 * x\
+      )* x\
+      )* x\
+      )* x\
+      )* x\
+      )* x;\
+      b = c - 0.5 +\
+      (4.166666666666667E-2 +\
+      (-1.388888888888889E-3 +\
+      (2.480158730158730E-5 +\
+      (-2.755731922398589E-7 +\
+      (2.087675698786810E-9 -\
+       1.147074559772972E-11 * x\
+      )* x\
+      )* x\
+      )* x\
+      )* x\
+      )* x;\
+    }\
+    else\
+    {\
+      x = sqrt (x);\
+      a = sin (x) / x;\
+      b = c * cos (x);\
+    }\
+    b_ac = b - a*c;\
+    ac_2cc_2bc = (a - 2.0 * (c - b)) * c;\
+    c_b = c - b;\
+    DIADIC (OMEGA, OMEGA, aux);\
+    SCALE9 (aux, ac_2cc_2bc);\
+    COPY (OMEGA, tmp);\
+    SCALE (tmp, b_ac);\
+    aux [0] -= a;\
+    aux [1] += tmp[2];\
+    aux [2] -= tmp[1];\
+    aux [3] -= tmp[2];\
+    aux [4] -=  a;\
+    aux [5] += tmp[0];\
+    aux [6] += tmp[1];\
+    aux [7] -= tmp[0];\
+    aux [8] -= a;\
+    COPY (OMEGA, tmp);\
+    SCALE (tmp, c_b);\
+    (R0) [0] = aux[0] * (OMEGA)[0] + 2.0 * tmp[0];\
+    (R0) [1] = aux[1] * (OMEGA)[0] + tmp[1];\
+    (R0) [2] = aux[2] * (OMEGA)[0] + tmp[2];\
+    (R0) [3] = aux[3] * (OMEGA)[0] + tmp[1];\
+    (R0) [4] = aux[4] * (OMEGA)[0];\
+    (R0) [5] = aux[5] * (OMEGA)[0] + a;\
+    (R0) [6] = aux[6] * (OMEGA)[0] + tmp[2];\
+    (R0) [7] = aux[7] * (OMEGA)[0] - a;\
+    (R0) [8] = aux[8] * (OMEGA)[0];\
+    (R1) [0] = aux[0] * (OMEGA)[1];\
+    (R1) [1] = aux[1] * (OMEGA)[1] + tmp[0];\
+    (R1) [2] = aux[2] * (OMEGA)[1] - a;\
+    (R1) [3] = aux[3] * (OMEGA)[1] + tmp[0];\
+    (R1) [4] = aux[4] * (OMEGA)[1] + 2.0 * tmp[1];\
+    (R1) [5] = aux[5] * (OMEGA)[1] + tmp[2];\
+    (R1) [6] = aux[6] * (OMEGA)[1] + a;\
+    (R1) [7] = aux[7] * (OMEGA)[1] + tmp[2];\
+    (R1) [8] = aux[8] * (OMEGA)[1];\
+    (R2) [0] = aux[0] * (OMEGA)[2];\
+    (R2) [1] = aux[1] * (OMEGA)[2] + a;\
+    (R2) [2] = aux[2] * (OMEGA)[2] + tmp[0];\
+    (R2) [3] = aux[3] * (OMEGA)[2] - a;\
+    (R2) [4] = aux[4] * (OMEGA)[2];\
+    (R2) [5] = aux[5] * (OMEGA)[2] + tmp[1];\
+    (R2) [6] = aux[6] * (OMEGA)[2] + tmp[0];\
+    (R2) [7] = aux[7] * (OMEGA)[2] + tmp[1];\
+    (R2) [8] = aux[8] * (OMEGA)[2] + 2.0 * tmp[2];\
   }\
-  b_ac = b - a*c;\
-  ac_2cc_2bc = (a - 2.0 * (c - b)) * c;\
-  c_b = c - b;\
-  DIADIC (OMEGA, OMEGA, aux);\
-  SCALE9 (aux, ac_2cc_2bc);\
-  COPY (OMEGA, tmp);\
-  SCALE (tmp, b_ac);\
-  aux [0] -= a;\
-  aux [1] += tmp[2];\
-  aux [2] -= tmp[1];\
-  aux [3] -= tmp[2];\
-  aux [4] -=  a;\
-  aux [5] += tmp[0];\
-  aux [6] += tmp[1];\
-  aux [7] -= tmp[0];\
-  aux [8] -= a;\
-  COPY (OMEGA, tmp);\
-  SCALE (tmp, c_b);\
-  (R0) [0] = aux[0] * (OMEGA)[0] + 2.0 * tmp[0];\
-  (R0) [1] = aux[1] * (OMEGA)[0] + tmp[1];\
-  (R0) [2] = aux[2] * (OMEGA)[0] + tmp[2];\
-  (R0) [3] = aux[3] * (OMEGA)[0] + tmp[1];\
-  (R0) [4] = aux[4] * (OMEGA)[0];\
-  (R0) [5] = aux[5] * (OMEGA)[0] + a;\
-  (R0) [6] = aux[6] * (OMEGA)[0] + tmp[2];\
-  (R0) [7] = aux[7] * (OMEGA)[0] - a;\
-  (R0) [8] = aux[8] * (OMEGA)[0];\
-  (R1) [0] = aux[0] * (OMEGA)[1];\
-  (R1) [1] = aux[1] * (OMEGA)[1] + tmp[0];\
-  (R1) [2] = aux[2] * (OMEGA)[1] - a;\
-  (R1) [3] = aux[3] * (OMEGA)[1] + tmp[0];\
-  (R1) [4] = aux[4] * (OMEGA)[1] + 2.0 * tmp[1];\
-  (R1) [5] = aux[5] * (OMEGA)[1] + tmp[2];\
-  (R1) [6] = aux[6] * (OMEGA)[1] + a;\
-  (R1) [7] = aux[7] * (OMEGA)[1] + tmp[2];\
-  (R1) [8] = aux[8] * (OMEGA)[1];\
-  (R2) [0] = aux[0] * (OMEGA)[2];\
-  (R2) [1] = aux[1] * (OMEGA)[2] + a;\
-  (R2) [2] = aux[2] * (OMEGA)[2] + tmp[0];\
-  (R2) [3] = aux[3] * (OMEGA)[2] - a;\
-  (R2) [4] = aux[4] * (OMEGA)[2];\
-  (R2) [5] = aux[5] * (OMEGA)[2] + tmp[1];\
-  (R2) [6] = aux[6] * (OMEGA)[2] + tmp[0];\
-  (R2) [7] = aux[7] * (OMEGA)[2] + tmp[1];\
-  (R2) [8] = aux[8] * (OMEGA)[2] + 2.0 * tmp[2];\
 }
 
 /* compute Mises norm of a Cauchy stress */
