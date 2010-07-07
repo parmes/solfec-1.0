@@ -159,6 +159,8 @@ struct general_body
 
   MX *M;            /* inertia operator */
 
+  MX *K;            /* stiffness operator */
+
   double damping;   /* mass proportional damping */
 
   DOM *dom;        /* domain storing the body */

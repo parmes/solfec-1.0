@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include <float.h>
+#include "lap.h"
 #include "mem.h"
 #include "dom.h"
 #include "fem.h"
@@ -41,6 +42,7 @@ typedef double (*node_t) [3]; /* mesh node */
 #define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 3)
 #define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 4)
+#define FEM_ROT(bod) ((bod)->velo + (bod)->dofs * 5)
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
 
@@ -101,19 +103,19 @@ static const double I_WED2_W[] = {0};
 #define             I_WED2_N      0
 
 #define ISQR3 0.57735026918962584 
-static const double I_HEX2_X [] = {-ISQR3, ISQR3, ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3, -ISQR3};
-static const double I_HEX2_Y [] = {-ISQR3, -ISQR3, ISQR3, ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3};
-static const double I_HEX2_Z [] = {-ISQR3, -ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3, ISQR3, ISQR3};
+static const double I_HEX2_X [] = {-ISQR3,  ISQR3,  ISQR3, -ISQR3, -ISQR3,  ISQR3, ISQR3, -ISQR3};
+static const double I_HEX2_Y [] = {-ISQR3, -ISQR3,  ISQR3,  ISQR3, -ISQR3, -ISQR3, ISQR3,  ISQR3};
+static const double I_HEX2_Z [] = {-ISQR3, -ISQR3, -ISQR3, -ISQR3,  ISQR3,  ISQR3, ISQR3,  ISQR3};
 static const double I_HEX2_W [] = {1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0};
 #define             I_HEX2_N       8
 
-static const double I_TRI2_X[] = {0}; /* TODO */
-static const double I_TRI2_Y[] = {0};
-static const double I_TRI2_W[] = {0};
-#define             I_TRI2_N      0
+static const double I_TRI2_X[] = {0.66666666666666667, 0.16666666666666667, 0.16666666666666667};
+static const double I_TRI2_Y[] = {0.16666666666666667, 0.66666666666666667, 0.16666666666666667};
+static const double I_TRI2_W[] = {0.16666666666666667, 0.16666666666666667, 0.16666666666666667};
+#define             I_TRI2_N      3
 
-static const double I_QUA2_X [] = {-ISQR3, ISQR3, ISQR3, -ISQR3};
-static const double I_QUA2_Y [] = {-ISQR3, -ISQR3, ISQR3, ISQR3};
+static const double I_QUA2_X [] = {-ISQR3,  ISQR3, ISQR3, -ISQR3};
+static const double I_QUA2_Y [] = {-ISQR3, -ISQR3, ISQR3,  ISQR3};
 static const double I_QUA2_W [] = {1.0, 1.0, 1.0, 1.0};
 #define             I_QUA2_N       4
 
@@ -318,6 +320,14 @@ inline static int integrator2d_load (int type, int order, const double **X, cons
   return N;
 }
 
+/* predict 2D integration order */
+static int integrator2d_order (int type)
+{
+  /* FIXME */
+
+  return 2;
+}
+
 /* element integration */
 #define INTEGRATE3D(TYPE, ENTITY, DOM, DOMNUM, ...)\
 {\
@@ -387,21 +397,25 @@ inline static int integrator2d_load (int type, int order, const double **X, cons
   }\
 }
 
-/* face integration */
-#define INTEGRATE2D(TYPE, ORDER, ...)\
+/* face integral begins */
+#define INTEGRAL2D_BEGIN(TYPE)\
 {\
   const double *__X__, *__Y__, *__W__;\
   double point [2], weight;\
   int __N__, __k__;\
 \
-  __N__ = integrator2d_load (TYPE, ORDER, &__X__, &__Y__, &__W__);\
+  __N__ = integrator2d_load (TYPE, integrator2d_order (TYPE), &__X__, &__Y__, &__W__);\
   for (__k__ = 0; __k__ < __N__; __k__ ++)\
   {\
     point [0] = __X__ [__k__];\
     point [1] = __Y__ [__k__];\
     weight = __W__ [__k__];\
-\
-    __VA_ARGS__\
+
+/* integration code in between
+ * uses point and weight values */
+
+/* face integral ends */
+#define INTEGRAL2D_END()\
   }\
 }
 
@@ -1836,15 +1850,15 @@ static void TL_static_step_end (BODY *bod, double time, double step)
 
 /* =================== BODY COROTATIONAL =================== */
 
-/* compute surface integral = INT { skew [N] A Shapes (x) q } */
-static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, double *A, double *integral)
+/* compute surface integral = INT { skew [N] A [X + Shapes (X) q] } */
+static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, double *A, double *integral)
 {
-  double q [8][3], nodes [8][3], B [3], C [3], shapes [8], J, coef, *N;
+  double q [8][3], nodes [8][3], B [3], C [3], shapes [8], J, coef, *N, *Y, *i, *e;
   ELEMENT *ele;
-  FACE *fac;
   int j, n;
+  FACE *fac;
 
-  SET (integral, 0);
+  for (i = integral, e = i + 3 * num; i < e; i += 3) SET (i, 0);
 
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
@@ -1852,22 +1866,27 @@ static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, double *A, 
     {
       face_nodes (msh->ref_nodes, fac->type, fac->nodes, nodes);
       face_displacements (conf, fac, q);
-      for (j = 0; j < fac->type; j ++) { ADD (nodes [j], q [j], nodes [j]); } /* sub-parametric coords transformation for FEM_O2 */
+      for (j = 0; j < fac->type; j ++) ADD (nodes [j], q [j], nodes [j]);
       N = fac->normal + 3;
-      
-      INTEGRATE2D (fac->type, 2, /* FIXME: order */
 
-        n = face_shapes (fac, point, shapes);
+      INTEGRAL2D_BEGIN (fac->type)
+      {
+	n = face_shapes (fac, point, shapes);
 	J = face_det (fac, nodes, point);
 	coef = J * weight;
 
-        SET (B, 0);
-	for (j = 0; j < n; j ++) { ADDMUL (B, shapes [j], q [j], B); }
-	NVMUL (A, B, C);
-	SCALE (C, coef);
-	PRODUCTADD (N, C, integral);
+	SET (B, 0);
+	for (j = 0; j < n; j ++)
+	  ADDMUL (B, shapes [j], nodes [j], B);
+	SCALE (B, coef);
 
-      )
+	for (i = integral, Y = A; i < e; i += 3, Y += 9)
+	{
+	  NVMUL (Y, B, C);
+	  PRODUCTADD (N, C, i);
+	}
+      }
+      INTEGRAL2D_END ()
     }
   }
 }
@@ -1879,24 +1898,87 @@ static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, double *A, 
  * R   - input/output rotation */
 static void BC_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
 {
+  double h [12], *dh, dJ [3], ddJ [9], O [3], A [36], dO [3][9], error;
+  int iter;
+
+  SET (O, 0);
+  iter = 0;
+  dh = h+3;
+
+  do
+  {
+    SCALE (O, -1);
+    EXPMAP (O, A+9);
+    TNMUL (R, A+9, A); /* A = [exp (O) R]' */
+
+    EXPMAP123 (O, dO[0], dO[1], dO[2]);
+    SCALE9 (dO[0], -1);
+    SCALE9 (dO[1], -1);
+    SCALE9 (dO[2], -1);
+    TNMUL (R, dO[0], A+9); /* A = R' dexp(-O) / dO */
+    TNMUL (R, dO[1], A+18);
+    TNMUL (R, dO[2], A+27);
+    SCALE (O, -1);
+
+    BC_surface_integral (bod, msh, q, 4, A, h); /* h = INT { skew [N] R' exp (-O) x }; dh = INT { skew [N] R' dexp (-O) / dO x } */
+
+    TVMUL (dh, h, dJ); /* dJ = h' dh */
+    TNMUL (dh, dh, ddJ); /* dJ = dh' dh */
+
+    if (lapack_dposv ('U', 3, 1, ddJ, 3, dJ, 3) != 0)
+    {
+      ASSERT_DEBUG (0, "SINGULAR ddJ at iter %d", iter); /* FIXME */
+    }
+
+    SUB (O, dJ, O);
+    error = sqrt (DOT (dJ, dJ) / (1.0 + DOT (O, O)));
+  }
+  while (++ iter < 64 && error > 1E-9);
+
+  EXPMAP (O, A);
+  NNCOPY (R, A+9);
+  NNMUL (A, A+9, R); /* R = exp (O) R */
+
+  printf ("O = %g, %g, %g after %d iterations\n", O[0], O[1], O[2], iter);
+
+  ASSERT_DEBUG (iter < 64, "DIVERGED rotation update"); /* FIXME */
 }
 
 /* body co-rotational initialise dynamic time stepping */
 static void BC_dynamic_init (BODY *bod)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  if (!bod->M && !bod->K)
+  {
+    bod->M = diagonal_inertia (bod);
+
+    bod->K = tangent_stiffness (bod);
+  }
 }
 
 /* body co-rotational estimate critical step for the dynamic scheme */
 static double BC_dynamic_critical_step (BODY *bod)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  return DBL_MAX;
 }
 
 /* body co-rotational perform the initial half-step of the dynamic scheme */
 static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  int n = bod->dofs;
+  MESH *msh = FEM_MESH (bod);
+  double half = 0.5 * step,
+	*u0 = FEM_VEL0 (bod),
+	*R = FEM_ROT (bod),
+	*q = bod->conf,
+	*u = bod->velo;
+
+  blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
+
+  blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+
+  BC_update_rotation (bod, msh, q, R);
+
+  /* FIXME: continue */
 }
 
 /* body co-rotational perform the final half-step of the dynamic scheme */
@@ -2230,18 +2312,21 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   else msh = shp->data; /* retrive the mesh pointer from the shape */
 
   /* allocate dofs */
+  bod->dofs = msh->nodes_count * 3;
   switch (form)
   {
     case TOTAL_LAGRANGIAN:
     {
-      bod->dofs = msh->nodes_count * 3;
       ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
       bod->velo = bod->conf + bod->dofs;
     }
     break;
     case BODY_COROTATIONAL:
     {
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+      ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint, rotation */
+      bod->velo = bod->conf + bod->dofs;
+      double *R = FEM_ROT (bod);
+      IDENTITY (R);
     }
     break;
   }
