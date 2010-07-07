@@ -1707,6 +1707,7 @@ reference "fig:elements"
 \end_inset
 
 ).
+ First order elements are currently supported.
 \end_layout
 
 \begin_layout Standard
@@ -3632,7 +3633,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="4" columns="2">
+<lyxtabular version="3" rows="3" columns="2">
 <features>
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
@@ -3679,7 +3680,7 @@ default
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -3688,31 +3689,11 @@ default
 
 \end_inset
 </cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-one co-rotated frame per body; suitable for stiff bodies
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'ELEMENT_COROTATIONAL'
-\end_layout
-
-\end_inset
-</cell>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
-one co-rotated frame per element
+one co-rotated frame per body; suitable for stiff bodies
 \end_layout
 
 \end_inset

@@ -186,12 +186,6 @@ static void setup_face (ELEMENT *ele, int n, FACE *fac, int dosort)
       fac->nodes [3] = ele->nodes [hex [n][3]-1];
       if (dosort) sort (fac->nodes, fac->nodes+3);
     break;
-    case 10:
-    case 13:
-    case 15:
-    case 20:
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-    break;
   }
 }
 
@@ -244,12 +238,6 @@ static int* setup_face_vertices (ELEMENT *ele, int n, int *fac)
       fac [3] = hex [n][2]-1;
       fac [4] = hex [n][3]-1;
       return (fac + 5);
-    break;
-    case 10:
-    case 13:
-    case 15:
-    case 20:
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
     break;
   }
   return NULL;
@@ -479,11 +467,7 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
       eleptr [0] == 4 || /* tetrahedron */
       eleptr [0] == 5 || /* pyramid */
       eleptr [0] == 6 || /* wedge */
-      eleptr [0] == 8 || /* hexahedron */
-      eleptr [0] == 10 || /* 2nd order tetrahedron */
-      eleptr [0] == 13 || /* 2nd order pyramid */
-      eleptr [0] == 15 || /* 2nd order wedge */
-      eleptr [0] == 20,   /* 2nd order hexahedron */
+      eleptr [0] == 8,   /* hexahedron */
       ERR_MSH_UNSUPPORTED_ELEMENT);
 
     ele = create_element (elemem, eleptr);
@@ -775,6 +759,12 @@ MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, int vol
   return msh;
 }
 
+/* convert first order mesh into second order one */
+void MESH_Second_Order (MESH *msh)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+}
+
 /* dummy adjacency update (needed in shp.c) */
 void MESH_Update_Adjacency (MESH *msh)
 {
@@ -1053,6 +1043,102 @@ ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref)
   }
 
   return NULL;
+}
+
+/* find an element with a given node; output corresponding local point (if !NULL) */
+ELEMENT* MESH_Element_With_Node (MESH *msh, int node, double *point)
+{
+  ELEMENT *ele = MAP_Find (msh->map, (void*) (long) node, NULL),
+	  *start [2] = {msh->surfeles, msh->bulkeles};
+  int i, j;
+
+  if (point) SET (point, 0);
+
+  if (ele == NULL) /* if this node has not been yet mapped to an element */
+  {
+    for(j = 0; j < 2; j ++)
+    {
+      for (ele = start [j]; ele; ele = ele->next) /* make a costly linear search for an element */
+      {
+	for (i = 0; i < ele->type; i ++)
+	{
+	  if (ele->nodes [i] == node)
+	  {
+	    if (point)
+	    {
+	      switch (ele->type)
+	      {
+	      case 4: if (i < 3) point [i] = 1.0; break;
+	      case 5:
+		switch (i)
+		{
+		case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
+		case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
+		case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
+		case 3: point [0] = -1; point [1] =  1; point [2] = -1; break;
+		case 4: point [0] = -1; point [1] = -1; point [2] =  1; break;
+		}
+		break;
+	      case 6:
+		switch (i)
+		{
+		case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
+		case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
+		case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
+		case 3: point [0] = -1; point [1] = -1; point [2] =  1; break;
+		case 4: point [0] =  1; point [1] = -1; point [2] =  1; break;
+		case 5: point [0] =  1; point [1] =  1; point [2] =  1; break;
+		}
+		break;
+	      case 8:
+		switch (i)
+		{
+		case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
+		case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
+		case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
+		case 3: point [0] = -1; point [1] =  1; point [2] = -1; break;
+		case 4: point [0] = -1; point [1] = -1; point [2] =  1; break;
+		case 5: point [0] =  1; point [1] = -1; point [2] =  1; break;
+		case 6: point [0] =  1; point [1] =  1; point [2] =  1; break;
+		case 7: point [0] = -1; point [1] =  1; point [2] =  1; break;
+		}
+		break;
+	      }
+	    }
+
+	    MAP_Insert (&msh->mapmem, &msh->map, (void*) (long) node, ele, NULL); /* and map it */
+	    return ele;
+	  }
+	}
+      }
+    }
+  }
+
+  return ele;
+}
+
+/* collect elements around a node (ele->node [i] == node && *set == NULL initially assumed) */
+void MESH_Elements_Around_Node (ELEMENT *ele, int node, SET **set)
+{
+  ELEMENT *nei;
+  int i, j;
+
+  SET_Insert (NULL, set, ele, NULL);
+
+  for (i = 0; i < ele->neighs; i ++)
+  {
+    nei = ele->adj [i];
+    for (j = 0; j < nei->type; j ++)
+    {
+      if (nei->nodes [j] == node)
+      {
+	if (!SET_Contains (*set, nei, NULL))
+	{ 
+	  MESH_Elements_Around_Node (nei, node, set);
+	}
+      }
+    }
+  }
 }
 
 /* find an element containing a referential point */

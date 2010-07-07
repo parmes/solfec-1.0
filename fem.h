@@ -27,7 +27,7 @@
 #define __fem__
 
 /* formulation */
-typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL, ELEMENT_COROTATIONAL} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
+typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
 
 /* create FEM internals for a body (note that 'msh' might be NULL so that shp->data is a mesh) */
 void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod);
@@ -77,13 +77,13 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
 /* compute current kinetic energy */
 double FEM_Kinetic_Energy (BODY *bod);
 
-/* get some values at a referential point */
-void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values);
-
 /* get some values at a local point of an element */
 void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIND kind, double *values);
 
-/* get some values at a curent mesh node */
+/* get some values at a referential point */
+void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values);
+
+/* get some values at a curent mesh node (node points inside MESH->cur_nodes) */
 void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *values);
 
 /* issued by state reading routines of body interface */

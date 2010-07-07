@@ -48,6 +48,7 @@ char* errstring (int error)
     case ERR_MTX_IFAC: return "Invalid operation involving a factorised sparse inverse matrix";
     case ERR_MSH_UNSUPPORTED_ELEMENT: return "An element has an unsupported type";
     case ERR_MSH_UNSUPPORTED_FACE: return "An element face has an unsupported type";
+    case ERR_MSH_ELEMENT_WITH_NODE: return "An element with a given node was not found";
     case ERR_CVX_ZERO_NORMAL: return "Zero face normal generated during a CONVEX face update";
     case ERR_LDY_EIGEN_DECOMP: return  "Eigen decomposition of a diagonal W block failed";
     case ERR_GLV_WINDOW: return "Creation of a viewer window failed";
@@ -72,8 +73,6 @@ char* errstring (int error)
     case ERR_FEM_MASS_NOT_SPD: return "Mass matrix is not symmetric-positive-definite in FEM module";
     case ERR_FEM_COORDS_INVERT: return "Global to local coordinates convertion failed in FEM module";
     case ERR_FEM_CUT_VOLUME: return "Volume cut of FE mesh does not match the shape volume in FEM module";
-    case ERR_UMFPACK_SOLVE: return "UMFPACK solution has failed";
-    case ERR_SPQR_SOLVE: return "SPQR solution has failed";
   }
 
   return "Unknown";
