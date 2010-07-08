@@ -2008,7 +2008,8 @@ static int PrecondSetup (void *vdata, void *A, void *vb, void *vx)
 
 static int Precond (void *vdata, void *A, void *vb, void *vx)
 {
-  CopyVector (vb, vx);
+  BODY *bod = A;
+  MX_Matvec (1.0, bod->inverse, vect(vb)->x, 0.0, vect(vx)->x);
   return 0;
 }
 /* PCG interface end */
@@ -2159,15 +2160,16 @@ static void BC_right_hand_side (BODY *bod, double time, double step, double *u, 
 }
 
 /* compute approximate inverse of (M + (h*h/4) R K R') */
-static void BC_inverse (BODY *bod, MX *M, MX *K, double *R)
+static void BC_inverse (BODY *bod, double step, MX *M, MX *K, double *R)
 {
+#if 0
   MX *inverse = bod->inverse;
+  int n = bod->dofs / 3;
 
   if (!inverse)
   {
-    int *p, *i, j, n;
+    int *p, *i, j;
 
-    n = bod->dofs / 3;
     ERRMEM (p = MEM_CALLOC (sizeof (int [2*n+2])));
     i = p + n + 1;
 
@@ -2182,7 +2184,47 @@ static void BC_inverse (BODY *bod, MX *M, MX *K, double *R)
     free (p);
   }
 
-  /* FIXME: continue */
+  int *j, *k, l, o, s;
+  double *x, *y;
+
+  /* copy diagonal 3x3 blocks of K into inverse */
+  for (l = 0, x = inverse->x, y = K->x; l < n; l ++)
+  {
+    s = 3*l;
+    for (o = 0; o < 3; o ++, x += 3)
+    {
+      for (j = &K->i [K->p [s+o]], k = &K->i [K->p[s+o+1]], y = &K->x [K->p [s+o]]; j < k; j ++, y ++)
+      {
+	if (*j >= s && *j < s+3)
+	{
+	  x [*j-s] = *y;
+	}
+      }
+    }
+  }
+
+  double A [9], quad = 0.25*step*step;
+
+  /* for each block compute block = M_diag + (h*h/4) R block R' */
+  for (l = 0, x = inverse->x, y = M->x; l < n; l ++, x += 9, y += 3)
+  {
+    NTMUL (x, R, A);
+    NNMUL (R, A, x);
+    SCALE9 (x, quad);
+    x [0] += y [0];
+    x [4] += y [1];
+    x [8] += y [2];
+  }
+
+  /* invert */
+  MX_Inverse (inverse, inverse);
+#else
+  if (bod->inverse) MX_Destroy (bod->inverse);
+
+  bod->inverse = MX_Copy (M, NULL);
+
+  MX_Inverse (bod->inverse, bod->inverse);
+#endif
 }
 
 /* compute u = alpha * inv (A) * b + beta * u */
@@ -2197,7 +2239,7 @@ static void BC_velocity_solve (double alpha, BODY *bod, double *b, double beta, 
   vx = (beta != 0.0 ? NewVector (bod->dofs, NULL) : NewVector (bod->dofs, u));
   vb = NewVector (bod->dofs, b);
 
-  if (alpha != 1.0) ScaleVector (alpha, b);
+  if (alpha != 1.0) ScaleVector (alpha, vb);
 
   pcg_functions = hypre_PCGFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, DestroyVector, MatvecCreate,
       Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
@@ -2261,7 +2303,7 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 
   blas_dcopy (n, u, 1, qu0, 1); /* save u (t) */
 
-  BC_inverse (bod, bod->M, bod->K, R); /* bod->inverse = approx (inv (M + (h*h/4) R1 K R1')); used for constraints assembling and as PCG preconditioner */
+  BC_inverse (bod, step, bod->M, bod->K, R); /* bod->inverse = approx (inv (M + (h*h/4) R1 K R1')); used for constraints assembling and as PCG preconditioner */
 
   BC_velocity_solve (1.0, bod, b, 0.0, u); /* u(t+h) = inv (M + (h*h/4) R1 K R1') b */
 }
