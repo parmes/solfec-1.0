@@ -1875,6 +1875,8 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->M) MX_Destroy (bod->M);
 
+  if (bod->K) MX_Destroy (bod->K);
+
   if (bod->kind == FEM) FEM_Destroy (bod);
 
   if (bod->msh) MESH_Destroy (bod->msh);

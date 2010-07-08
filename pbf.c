@@ -457,6 +457,7 @@ PBF* PBF_Read (const char *path)
   return out;
   
 failure: 
+  free (bf->mem);
   free (bf);
   free (txt);
   return NULL;
