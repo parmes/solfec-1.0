@@ -32,6 +32,7 @@
 #include "svk.h"
 #include "gjk.h"
 #include "err.h"
+#include "ext/krylov/krylov.h"
 
 typedef double (*node_t) [3]; /* mesh node */
 
@@ -1222,9 +1223,9 @@ static void internal_force (BODY *bod, double *fint)
     else ele = msh->bulkeles, bulk = 1;
   }
 }
- 
-/* compute out of balance force = fext - fint */
-static void dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
+
+/* compute external force */
+static void external_force (BODY *bod, double time, double step, double *fext)
 {
   MESH *msh = FEM_MESH (bod);
   ELEMENT *ele;
@@ -1238,7 +1239,7 @@ static void dynamic_force (BODY *bod, double time, double step, double *fext, do
       i;
 
   /* zero forces */
-  for (i = 0; i < bod->dofs; i ++) fext [i] = fint [i] = 0.0;
+  for (i = 0; i < bod->dofs; i ++) fext [i] = 0.0;
 
   /* point forces */
   for (FORCE *frc = bod->forces; frc; frc = frc->next)
@@ -1296,24 +1297,16 @@ static void dynamic_force (BODY *bod, double time, double step, double *fext, do
       else ele = msh->bulkeles, bulk = 1;
     }
   }
+}
+ 
+/* compute out of balance force = fext - fint */
+static void dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
+{
 
-  /* internal forces */
-  for (ele = msh->surfeles, bulk = 0; ele; )
-  {
-    element_internal_force (0, bod, msh, ele, g);
+  external_force (bod, time, step, fext);
 
-    for (i = 0, v = g; i < ele->type; i ++, v += 3)
-    {
-      w = &fint [ele->nodes [i] * 3];
-      ADD (w, v, w);
-    }
+  internal_force (bod, fint);
 
-    if (bulk) ele = ele->next;
-    else if (ele->next) ele = ele->next;
-    else ele = msh->bulkeles, bulk = 1;
-  }
-
-  /* force = fext - fint */
   for (double *x = fext, *y = fint, *z = force, *u = z + bod->dofs; z < u; x ++, y ++, z ++) *z = (*x) - (*y);
 }
 
@@ -1772,14 +1765,10 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
 {
   int n = bod->dofs;
   double half = 0.5 * step,
-	*energy = bod->energy,
 	*x = bod->inverse->x,
 	*r = FEM_FORCE (bod),
 	*ir = r,
 	*fext = FEM_FEXT (bod),
-	*fint = FEM_FINT (bod),
-	*u0 = FEM_VEL0 (bod),
-	*iu0 = u0,
 	*u = bod->velo,
 	*iu = u,
 	*q = bod->conf,
@@ -1815,11 +1804,6 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
   default:
   break;
   }
-
-  /* energy */
-  for (ir = r, iu = u; iu < e; ir ++, iu ++, iu0 ++) *ir = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
-  energy [EXTERNAL] += blas_ddot (n, r, 1, fext, 1);
-  energy [INTERNAL] += blas_ddot (n, r, 1, fint, 1);
 }
 
 /* total lagrangian initialise static time stepping */
@@ -1849,6 +1833,185 @@ static void TL_static_step_end (BODY *bod, double time, double step)
 }
 
 /* =================== BODY COROTATIONAL =================== */
+
+/* PCG interface start */
+typedef struct vect { double *x; int n; } VECT;
+#define vect(ptr) ((VECT*)ptr)
+
+static char* CAlloc (size_t count, size_t elt_size)
+{
+  char *ptr;
+
+  ERRMEM (ptr = MEM_CALLOC (count * elt_size));
+  return ptr;
+}
+
+static int Free (char *ptr)
+{
+  free (ptr);
+  return 0;
+}
+
+static int CommInfo (void *A, int *my_id, int *num_procs)
+{
+  *num_procs = 1;
+  *my_id = 0;
+  return 0;
+}
+
+static VECT* NewVector (int n, double *x)
+{
+  VECT *v;
+
+  if (x)
+  {
+    ERRMEM (v = malloc (sizeof (VECT)));
+    else v->x = x;
+  }
+  else
+  {
+    ERRMEM (v = MEM_CALLOC (sizeof (VECT) + sizeof (double [n])));
+    v->x = (double*) (v+1);
+  }
+  v->n = n;
+
+  return v;
+}
+
+static void* CreateVector (void *vector)
+{
+  VECT *a = vect (vector), *v;
+
+  ERRMEM (v = MEM_CALLOC (sizeof (VECT) + sizeof (double [a->n])));
+  v->x = (double*) (v+1);
+  v->n = a->n;
+
+  return v;
+}
+
+static int DestroyVector (void *vector)
+{
+  free (vector);
+
+  return 0;
+}
+
+static double InnerProd (void *vx, void *vy)
+{
+  double dot = 0.0, *x, *y, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
+  {
+    dot += (*x) * (*y);
+  }
+
+  return dot;
+}
+
+static int CopyVector (void *vx, void *vy)
+{
+  double *x, *y, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
+  {
+    (*y) = (*x);
+  }
+
+  return 0;
+}
+
+static int ClearVector (void *vx)
+{
+  double *x, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n; x < z; x ++)
+  {
+    (*x) = 0.0;
+  }
+
+  return 0;
+}
+
+static int ScaleVector (double alpha, void *vx)
+{
+  double *x, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n; x < z; x ++)
+  {
+    (*x) *= alpha;
+  }
+
+  return 0;
+}
+
+static int  Axpy (double alpha, void *vx, void *vy )
+{
+  double *x, *y, *z;
+
+  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
+  {
+    (*y) += alpha * (*x);
+  }
+
+  return 0;
+}
+
+static void *MatvecCreate (void *A, void *x)
+{
+  return NULL;
+}
+
+/* y = alpha (M + (h*h/4) R K R') x + beta * y */
+static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double beta, void *vy)
+{
+  BODY *bod = A;
+  MX *M = bod->M, *K = bod->K;
+  double h = bod->dom->step, quad = 0.25 * h * h;
+  double *a, *b, *x, *y, *z, *R = FEM_ROT (bod);
+  int n = K->n;
+
+  ERRMEM (a = MEM_CALLOC (2 * sizeof (double [n])));
+  b = a + n;
+
+  for (x = vect(vx)->x, y = x + n, z = a; x < y; x += 3, z += 3)
+  {
+    TVMUL (R, x, z); /* a = R' x */
+  }
+
+  MX_Matvec (quad, K, a, 0, b); /* b = (h*h/4) * K a */
+
+  for (x = b, y = b + n, z = a; x < y; x += 3, z += 3)
+  {
+    NVMUL (R, x, z); /* a = R b = (h*h/4) * R K R' x */
+  }
+
+  MX_Matvec (1.0, M, vect(vx)->x, 1.0, a); /* a = (M + (h*h/4) R K R') x */
+
+  ScaleVector (beta, vy);
+
+  blas_daxpy (n, alpha, a, 1, vect(vy)->x, 1);
+
+  free (a);
+
+  return 0;
+}
+
+static int MatvecDestroy (void *matvec_data)
+{
+  return 0;
+}
+
+static int PrecondSetup (void *vdata, void *A, void *vb, void *vx)
+{
+  return 0;
+}
+
+static int Precond (void *vdata, void *A, void *vb, void *vx)
+{
+  CopyVector (vb, vx);
+  return 0;
+}
+/* PCG interface end */
 
 /* compute surface integral = INT { skew [N] A [X + Shapes (X) q] } */
 static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, double *A, double *integral)
@@ -1944,6 +2107,119 @@ static void BC_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
   ASSERT_DEBUG (iter < 64, "DIVERGED rotation update"); /* FIXME */
 }
 
+/* fint = alpha * R K R' q + beta * fint */
+static void BC_internal_force (double alpha, MX *K, double *R, double *q, double beta, double *fint)
+{
+  double *a, *b, c [3], *x, *y, *z;
+  int n = K->n;
+
+  ERRMEM (a = MEM_CALLOC (2 * sizeof (double [n])));
+  b = a + n;
+
+  for (x = q, y = q + n, z = a; x < y; x += 3, z += 3)
+  {
+    TVMUL (R, x, z); /* a = R' q */
+  }
+
+  MX_Matvec (alpha, K, a, 0, b); /* b = alpha * K a */
+
+  for (x = b, y = b + n, z = fint; x < y; x += 3, z += 3)
+  {
+    NVMUL (R, x, c);
+    ADDMUL (c, beta, z, z); /* fint = R b + beta * fint */
+  }
+
+  free (a);
+}
+
+/* b = M u(t) + h fext(t+h/2) - h R K R' [(I-R)Z + q(t) + (h/4) u(t)] */
+static void BC_right_hand_side (BODY *bod, double time, double step, double *u, double *q, double *R, double *fext, double *fint, double *b)
+{
+  double *d, *v, (*Z) [3], (*e) [3], Y [3], quad = 0.25 * step;
+  MESH *msh = FEM_MESH (bod);
+  int n = bod->dofs;
+
+  for (Z = msh->ref_nodes, e = Z + msh->nodes_count, d = fext, v = u; Z < e; Z ++, d += 3, v += 3, q += 3)
+  {
+    NVMUL (R, Z[0], Y);
+    SUB (Z[0], Y, Y);
+    ADD (Y, q, Y);
+    ADDMUL (Y, quad, v, d); /* d = (I-R)Z + q - (h/4)u */
+  }
+
+  BC_internal_force (1.0, bod->K, R, fext, 0.0, fint); /* fint = R K R' d */
+
+  external_force (bod, time + 0.5*step, step, fext);
+
+  MX_Matvec (1.0, bod->M, u, 0.0, b);
+
+  blas_daxpy (n, step, fext, 1, b, 1);
+
+  blas_daxpy (n, -step, fint, 1, b, 1);
+}
+
+/* compute approximate inverse of (M + (h*h/4) R K R') */
+static void BC_inverse (BODY *bod, MX *M, MX *K, double *R)
+{
+  MX *inverse = bod->inverse;
+
+  if (!inverse)
+  {
+    int *p, *i, j, n;
+
+    n = bod->dofs / 3;
+    ERRMEM (p = MEM_CALLOC (sizeof (int [2*n+2])));
+    i = p + n + 1;
+
+    for (j = 1; j <= n; j ++)
+    {
+      p [j] = p [j-1] + 9;
+      i [j] = 3 * j;
+    }
+
+    inverse = bod->inverse = MX_Create (MXBD, bod->dofs, n, p, i);
+
+    free (p);
+  }
+
+  /* FIXME: continue */
+}
+
+/* compute u = alpha * inv (A) * b + beta * u */
+static void BC_velocity_solve (double alpha, BODY *bod, double *b, double beta, double *u)
+{
+  hypre_PCGFunctions *pcg_functions;
+  void *pcg_vdata;
+  VECT *vx, *vb;
+  double resnorm;
+  int iters;
+
+  vx = (beta != 0.0 ? NewVector (bod->dofs, NULL) : NewVector (bod->dofs, u));
+  vb = NewVector (bod->dofs, b);
+
+  if (alpha != 1.0) ScaleVector (alpha, b);
+
+  pcg_functions = hypre_PCGFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, DestroyVector, MatvecCreate,
+      Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
+  pcg_vdata = hypre_PCGCreate (pcg_functions);
+
+  hypre_PCGSetPrintLevel (pcg_vdata , 1); /* FIXME */
+  hypre_PCGSetTol (pcg_vdata, 1E-9);
+  hypre_PCGSetMaxIter (pcg_vdata, 100);
+  hypre_PCGSetup (pcg_vdata, bod, vb, vx);
+  hypre_PCGSolve (pcg_vdata, bod, vb, vx);
+  hypre_PCGGetNumIterations (pcg_vdata , &iters);
+  hypre_PCGGetFinalRelativeResidualNorm (pcg_vdata, &resnorm);
+  hypre_PCGDestroy (pcg_vdata);
+
+  if (beta != 0.0) blas_daxpy (vx->n, beta, vx->x, 1, u, 1);
+
+  DestroyVector (vx);
+  DestroyVector (vb);
+
+  printf ("Velocity solution within %d iterations until relative residual was %g\n", iters, resnorm);
+}
+
 /* body co-rotational initialise dynamic time stepping */
 static void BC_dynamic_init (BODY *bod)
 {
@@ -1967,24 +2243,53 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
   int n = bod->dofs;
   MESH *msh = FEM_MESH (bod);
   double half = 0.5 * step,
-	*u0 = FEM_VEL0 (bod),
+	*qu0 = FEM_VEL0 (bod),
 	*R = FEM_ROT (bod),
+	*b = FEM_FORCE (bod),
+	*fext = FEM_FEXT (bod),
+	*fint = FEM_FINT (bod),
 	*q = bod->conf,
 	*u = bod->velo;
 
-  blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
+  blas_dcopy (n, q, 1, qu0, 1); /* save q (t) */
 
   blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
 
-  BC_update_rotation (bod, msh, q, R);
+  BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
 
-  /* FIXME: continue */
+  BC_right_hand_side (bod, time, step, u, qu0, R, fext, fint, b); /* b = M u(t) + h fext(t+h/2) - h R1 K R1' [(I-R1)Z + q(t) + (h/4) u(t)] */
+
+  blas_dcopy (n, u, 1, qu0, 1); /* save u (t) */
+
+  BC_inverse (bod, bod->M, bod->K, R); /* bod->inverse = approx (inv (M + (h*h/4) R1 K R1')); used for constraints assembling and as PCG preconditioner */
+
+  BC_velocity_solve (1.0, bod, b, 0.0, u); /* u(t+h) = inv (M + (h*h/4) R1 K R1') b */
 }
 
 /* body co-rotational perform the final half-step of the dynamic scheme */
 static void BC_dynamic_step_end (BODY *bod, double time, double step)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  int n = bod->dofs;
+  MESH *msh = FEM_MESH (bod);
+  double half = 0.5 * step,
+	*r = FEM_FORCE (bod),
+	*fext = FEM_FEXT (bod),
+	*fint = FEM_FINT (bod),
+	*R = FEM_ROT (bod),
+	*q = bod->conf,
+	*u = bod->velo;
+
+  constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+
+  blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
+
+  BC_velocity_solve (step, bod, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
+
+  BC_internal_force (half*half, bod->K, R, u, 1.0, fint); /* fint += (h*h/4) R1 K R1' u(t+h) */
+
+  blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+
+  BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
 }
 
 /* body co-rotational initialise static time stepping */
@@ -2413,6 +2718,20 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
 /* perform the final half-step of the dynamic scheme */
 void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 {
+  int n = bod->dofs;
+  double half = 0.5 * step,
+	*energy = bod->energy,
+	*dq = FEM_FORCE (bod),
+	*fext = FEM_FEXT (bod),
+	*fint = FEM_FINT (bod),
+	*u0 = FEM_VEL0 (bod),
+	*u = bod->velo,
+	*ue = u + n,
+	*idq = dq,
+	*iu0 = u0,
+	*iu = u;
+
+
   switch (bod->form)
   {
     case TOTAL_LAGRANGIAN:
@@ -2422,6 +2741,10 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
       BC_dynamic_step_end (bod, time, step);
       break;
   }
+
+  for (; iu < ue; idq ++, iu ++, iu0 ++) *idq = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
+  energy [EXTERNAL] += blas_ddot (n, dq, 1, fext, 1);
+  energy [INTERNAL] += blas_ddot (n, dq, 1, fint, 1);
 
   if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
   {
