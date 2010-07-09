@@ -1701,22 +1701,6 @@ MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, 
   return H;
 }
 
-int BODY_W_Block (BODY *bod, SHAPE *l_shp, void *l_gobj, double *l_point, double *l_base,
-                  SHAPE *r_shp, void *r_gobj, double *r_point, double *r_base, double *W)
-{
-  switch (bod->kind)
-  {
-    case OBS:
-    case RIG:
-    case PRB:
-      return 0;
-    case FEM:
-      return FEM_W_Block (bod, l_shp, l_gobj, l_point, l_base, r_shp, r_gobj, r_point, r_base, W);
-  }
-
-  return 0;
-}
-
 double BODY_Kinetic_Energy (BODY *bod)
 {
   double energy = 0.0;
