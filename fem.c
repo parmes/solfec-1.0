@@ -1164,22 +1164,6 @@ static ELEMENT* stabbed_referential_element (MESH *msh, ELEMENT **ele, int nele,
   return ret;
 }
 
-/* return transformation operator from the generalised to the local velocity space */
-static MX* gen_to_loc_operator (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base)
-{
-  int i [] = {0, 1, 2, 0, 1, 2, 0, 1, 2}, p [] = {0, 3, 6, 9};
-  MX_CSC (base_trans, 9, 3, 3, p, i);
-  double point [3];
-  MX *N, *H;
-
-  TNCOPY (base, base_trans.x);
-  referential_to_local (msh, ele, X, point);
-  N = element_shapes_matrix (bod, msh, ele, point);
-  H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
-  MX_Destroy (N);
-  return H;
-}
-
 /* accumulate constraints reaction */
 inline static void accumulate_constraints_force (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *force)
 {
@@ -1913,7 +1897,9 @@ static void BC_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
   NNCOPY (R, A+9);
   NNMUL (A, A+9, R); /* R = exp (O) R */
 
+#if 0
   printf ("O = %g, %g, %g after %d iterations\n", O[0], O[1], O[2], iter);
+#endif
 
   ASSERT_DEBUG (iter < 64, "DIVERGED rotation update"); /* FIXME */
 }
@@ -1977,8 +1963,8 @@ static void BC_inverse (BODY *bod, double step, MX *M, MX *K)
     /* assemble */
     bod->inverse = MX_Add (1.0, M, 0.25*step*step, K, NULL);
 
-    /* factorizate */
-    MX_Cholsol (bod->inverse, NULL);
+    /* invert */
+    MX_Inverse (bod->inverse, bod->inverse);
   }
 }
 
@@ -1987,18 +1973,21 @@ static void BC_velocity_solve (double alpha, BODY *bod, double *b, double beta, 
 {
   double *R = FEM_ROT (bod), *x, *y, *z, *w;
   MX *A = bod->inverse;
+  int n = A->n;
 
-  ERRMEM (x = MEM_CALLOC (A->n * sizeof (double)));
+  ERRMEM (x = MEM_CALLOC (2 * n * sizeof (double)));
 
-  for (y = x, z = x + A->n, w = b; y < z; y += 3, w += 3)
+  for (y = x, z = x + n, w = b; y < z; y += 3, w += 3)
   {
     TVMUL (R, w, y);
     SCALE (y, alpha);
   }
 
-  MX_Cholsol (A, x);
+  y = x + n;
+  blas_dcopy (n, x, 1, y, 1);
+  MX_Matvec (1.0, A, y, 0.0, x);
 
-  for (y = x, z = x + A->n, w = u; y < z; y += 3, w += 3)
+  for (y = x, z = x + n, w = u; y < z; y += 3, w += 3)
   {
     SCALE (w, beta);
     NVADDMUL (w, R, y, w);
@@ -2734,131 +2723,32 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
     ele = gobj;
   }
 
-  return gen_to_loc_operator (bod, msh, ele, X, base);
-}
+  int i [] = {0, 1, 2, 0, 1, 2, 0, 1, 2}, p [] = {0, 3, 6, 9};
+  MX_CSC (base_trans, 9, 3, 3, p, i);
+  double point [3];
+  MX *N, *H;
 
-/* optimized assembling of W block, rather than explicit H inverse H'; returns 1 if capable of it, 0 otherwise */
-int FEM_W_Block (BODY *bod, SHAPE *l_shp, void *l_gobj, double *l_point, double *l_base,
-                 SHAPE *r_shp, void *r_gobj, double *r_point, double *r_base, double *W)
-{
-  if (bod->form == TOTAL_LAGRANGIAN) return 0; /* FIXME */
+  TNCOPY (base, base_trans.x);
+  referential_to_local (msh, ele, X, point);
+  N = element_shapes_matrix (bod, msh, ele, point);
+  H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
+  MX_Destroy (N);
 
-  double l_shapes [MAX_NODES], r_shapes [MAX_NODES], point [3];
-  ELEMENT *l_ele, *r_ele;
-  CONVEX *cvx;
-  MESH *msh;
-
-  if (bod->msh)
+  if (bod->form == BODY_COROTATIONAL)
   {
-    msh = bod->msh;
-    ASSERT_DEBUG_EXT ((cvx = l_gobj), "NULL geometric object for the separate mesh FEM scenario");
-    l_ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, l_point);
-    ASSERT_DEBUG (l_ele, "Invalid referential point stabbing an element");
-    ASSERT_DEBUG_EXT ((cvx = r_gobj), "NULL geometric object for the separate mesh FEM scenario");
-    r_ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, r_point);
-    ASSERT_DEBUG (r_ele, "Invalid referential point stabbing an element");
-  }
-  else
-  {
-    msh = bod->shape->data;
-    l_ele = l_gobj;
-    r_ele = r_gobj;
-  }
+    double *x = H->x, *y = x + H->nzmax,
+           *R = FEM_ROT (bod), T [9];
 
-  referential_to_local (msh, l_ele, l_point, point);
-  element_shapes (l_ele->type, point, l_shapes);
+    ASSERT_DEBUG ((y-x) % 9 == 0, "Number of nonzeros in H not divisble by 9");
 
-  referential_to_local (msh, r_ele, r_point, point);
-  element_shapes (r_ele->type, point, r_shapes);
-
-  double *R = FEM_ROT (bod), A [9], B [9];
-  int i, j, n = bod->dofs;
-  double *x, *y, *z;
-
-  ERRMEM (x = MEM_CALLOC (sizeof (double [n * 3])));
-  y = x + n;
-  z = y + n;
-
-  switch (bod->form)
-  {
-  case TOTAL_LAGRANGIAN:
-  {
-    /* [x, y, z] = rN' */
-    for (i = 0; i < r_ele->type; i ++)
+    for (; x < y; x += 9)
     {
-      j = 3 * r_ele->nodes [i];
-
-      x [j+0] = r_shapes [i];
-      y [j+1] = r_shapes [i];
-      z [j+2] = r_shapes [i];
-    }
-
-    /* FIXME: either use MX_Cholsol in this case everywhere
-     * FIXME: or use MX_Matvec with LU based inverse here */
-#if 0
-    /* [x, y, z] = inverse rN' */
-    MX_Cholsol (bod->inverse, x);
-    MX_Cholsol (bod->inverse, y);
-    MX_Cholsol (bod->inverse, z);
-#endif
-
-    SET9 (A, 0.0);
-    for (i = 0; i < l_ele->type; i ++)
-    {
-      j = 3 * l_ele->nodes [i];
-
-      A [0] += x[j+0] * l_shapes [i];
-      A [3] += y[j+0] * l_shapes [i];
-      A [6] += z[j+0] * l_shapes [i];
-      A [1] += x[j+1] * l_shapes [i];
-      A [4] += y[j+1] * l_shapes [i];
-      A [7] += z[j+1] * l_shapes [i];
-      A [2] += x[j+2] * l_shapes [i];
-      A [5] += y[j+2] * l_shapes [i];
-      A [8] += z[j+2] * l_shapes [i]; /* lN inverse rN' */
+      NNMUL (x, R, T);
+      NNCOPY (T, x); /* H = E' N R <=> rotaions gets shifted to H */
     }
   }
-  break;
-  case BODY_COROTATIONAL:
-  {
-    /* [x, y, z] = R' rN' */
-    for (i = 0; i < r_ele->type; i ++)
-    {
-      j = 3 * r_ele->nodes [i];
 
-      x [j+0] = R[0] * r_shapes [i];
-      x [j+1] = R[3] * r_shapes [i];
-      x [j+2] = R[6] * r_shapes [i];
-      y [j+0] = R[1] * r_shapes [i];
-      y [j+1] = R[4] * r_shapes [i];
-      y [j+2] = R[7] * r_shapes [i];
-      z [j+0] = R[2] * r_shapes [i];
-      z [j+1] = R[5] * r_shapes [i];
-      z [j+2] = R[8] * r_shapes [i];
-    }
-
-    /* [x, y, z] = inverse R' rN' */
-    MX_Cholsol (bod->inverse, x);
-    MX_Cholsol (bod->inverse, y);
-    MX_Cholsol (bod->inverse, z);
-
-    SET9 (A, 0.0);
-    for (i = 0; i < l_ele->type; i ++)
-    {
-      j = 3 * l_ele->nodes [i];
-
-      blas_dgemm ('N', 'N', 3, 3, 3, l_shapes [i], R, 3, x + j, n, 1.0, A, 3); /* lN R inverse R' rN' */
-    }
-  }
-  break;
-  }
-
-  NNMUL (A, r_base, B);
-  TNMUL (l_base, B, W); /* W = lE' lN R inverse R' rN' rE */
-
-  free (x);
-
-  return 1;
+  return H;
 }
 
 /* compute current kinetic energy */
