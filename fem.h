@@ -74,6 +74,10 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
 /* return transformation operator from the generalised to the local velocity space at (element, ref. point, base) */
 MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base);
 
+/* optimized assembling of W block, rather than explicit H inverse H'; returns 1 if capable of it, 0 otherwise */
+int FEM_W_Block (BODY *bod, SHAPE *l_shp, void *l_gobj, double *l_point, double *l_base,
+                 SHAPE *r_shp, void *r_gobj, double *r_point, double *r_base, double *W);
+
 /* compute current kinetic energy */
 double FEM_Kinetic_Energy (BODY *bod);
 
