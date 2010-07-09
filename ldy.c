@@ -136,6 +136,9 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
 {
   if (bod->kind == FEM)
   {
+    /* XXX: for diagonal inverse matrix (explicit integration) only in case of a common node W_one_two and W_two_one will be != 0;
+     * XXX: for implicit integration (due to full inverse of K) this is only a filtering technique increasing sparsity of W */
+
     if (bod->msh)
     {
       ELEMENT **e1, **f1, **e2, **f2;
@@ -158,7 +161,7 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
       ELEMENT *e1 = (bod == one->master ? mgobj(one) : sgobj(one)),
 	      *e2 = (bod == two->master ? mgobj(two) : sgobj(two));
 
-      return ELEMENT_Adjacent (e1, e2); /* only in case of a common node W_one_two and W_two_one will be != 0 */
+      return ELEMENT_Adjacent (e1, e2);
     }
   }
 
@@ -550,24 +553,31 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     SUB (X, Y, B); /* local free velocity */
 
     /* diagonal block */
-    dia->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+    if (!BODY_W_Block (m, mshp, mgobj, mpnt, base, mshp, mgobj, mpnt, base, W.x))
+    {
+      dia->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
 #if MPI
-    dia->mprod = MX_Matmat (1.0, dia->mH, m->inverse, 0.0, NULL);
-    MX_Matmat (1.0, dia->mprod, MX_Tran (dia->mH), 0.0, &W); /* H * inv (M) * H^T */
+      dia->mprod = MX_Matmat (1.0, dia->mH, m->inverse, 0.0, NULL);
+      MX_Matmat (1.0, dia->mprod, MX_Tran (dia->mH), 0.0, &W); /* H * inv (M) * H^T */
 #else
-    dia->mprod = MX_Matmat (1.0, m->inverse, MX_Tran (dia->mH), 0.0, NULL);
-    MX_Matmat (1.0, dia->mH, dia->mprod, 0.0, &W); /* H * inv (M) * H^T */
+      dia->mprod = MX_Matmat (1.0, m->inverse, MX_Tran (dia->mH), 0.0, NULL);
+      MX_Matmat (1.0, dia->mH, dia->mprod, 0.0, &W); /* H * inv (M) * H^T */
 #endif
+    }
+
     if (s)
-    { 
-      dia->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+    {
+      if (!BODY_W_Block (s, sshp, sgobj, spnt, base, sshp, sgobj, spnt, base, C.x))
+      {
+	dia->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
 #if MPI
-      dia->sprod = MX_Matmat (1.0, dia->sH, s->inverse, 0.0, NULL);
-      MX_Matmat (1.0, dia->sprod, MX_Tran (dia->sH), 0.0, &C); /* H * inv (M) * H^T */
+	dia->sprod = MX_Matmat (1.0, dia->sH, s->inverse, 0.0, NULL);
+	MX_Matmat (1.0, dia->sprod, MX_Tran (dia->sH), 0.0, &C); /* H * inv (M) * H^T */
 #else
-      dia->sprod = MX_Matmat (1.0, s->inverse, MX_Tran (dia->sH), 0.0, NULL);
-      MX_Matmat (1.0, dia->sH, dia->sprod, 0.0, &C); /* H * inv (M) * H^T */
+	dia->sprod = MX_Matmat (1.0, s->inverse, MX_Tran (dia->sH), 0.0, NULL);
+	MX_Matmat (1.0, dia->sH, dia->sprod, 0.0, &C); /* H * inv (M) * H^T */
 #endif
+      }
       NNADD (W.x, C.x, W.x);
     }
     SCALE9 (W.x, step); /* W = h * ( ... ) */
@@ -593,9 +603,13 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 
   for (dia = ldy->dia; dia; dia = dia->n) /* off-diagonal blocks update */
   {
+    double *l_pnt, *r_pnt, *l_base, *r_base;
+    SGP *l_sgp, *r_sgp;
     CON *con = dia->con;
     BODY *m = con->master,
 	 *s = con->slave;
+
+    l_base = con->base;
 
     if (upkind == UPPES && con->kind == CONTACT) continue; /* update only non-contact constraint blocks */
 
@@ -606,21 +620,40 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 
       MX *left, *right;
       DIAB *adj = blk->dia;
-      CON *con = adj->con;
+      CON *adjcon = adj->con;
       BODY *bod = blk->bod;
       MX_DENSE_PTR (W, 3, 3, blk->W);
       double coef;
 
       ASSERT_DEBUG (bod == m || bod == s, "Off diagonal block is not connected!");
-     
-#if MPI
-      left = (bod == m ? dia->mprod : dia->sprod);
-#else
-      left = (bod == m ? dia->mH : dia->sH);
-#endif
 
-      if (bod == con->master) /* master on the right */
+      r_base = adjcon->base;
+
+      if (bod == m) /* master on the left */
       {
+	l_sgp = con->msgp;
+	l_pnt = con->mpnt;
+#if MPI
+	left = dia->mprod;
+#else
+	left = dia->mH;
+#endif
+      }
+      else
+      {
+	l_sgp = con->ssgp;
+	l_pnt = con->spnt;
+#if MPI
+	left = dia->sprod;
+#else
+	left = dia->sH;
+#endif
+      }
+     
+      if (bod == adjcon->master) /* master on the right */
+      {
+	r_sgp = adjcon->msgp;
+	r_pnt = adjcon->mpnt;
 #if MPI
 	right = adj->mH;
 #else
@@ -628,8 +661,10 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 #endif
 	coef = (bod == s ? -step : step);
       }
-      else /* blk->bod == con->slave (slave on the right) */
+      else /* blk->bod == adjcon->slave (slave on the right) */
       {
+	l_sgp = adjcon->ssgp;
+	l_pnt = adjcon->spnt;
 #if MPI
 	right = adj->sH;
 #else
@@ -638,11 +673,15 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 	coef = (bod == m ? -step : step);
       }
 
+      if (!BODY_W_Block (bod, l_sgp->shp, l_sgp->gobj, l_pnt, l_base, r_sgp->shp, r_sgp->gobj, r_pnt, r_base, W.x))
+      {
 #if MPI
-      MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
+	MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
 #else
-      MX_Matmat (1.0, left, right, 0.0, &W);
+	MX_Matmat (1.0, left, right, 0.0, &W);
 #endif
+      }
+
       SCALE9 (W.x, coef);
     }
 
@@ -654,27 +693,45 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
       CON *ext = (CON*)blk->dia;
       BODY *bod = blk->bod;
       MX_DENSE_PTR (W, 3, 3, blk->W);
-      double coef, *point;
-      SGP *sgp;
+      double coef;
 
       ASSERT_DEBUG (bod == m || bod == s, "Not connected external off-diagonal block");
 
-      if (bod == ext->master)
+      r_base = ext->base;
+
+      if (bod == m) /* master on the left */
       {
-	sgp = ext->msgp, point = ext->mpnt;
+	l_sgp = con->msgp;
+	l_pnt = con->mpnt;
+      }
+      else
+      {
+	l_sgp = con->ssgp;
+	l_pnt = con->spnt;
+      }
+
+      if (bod == ext->master) /* master on the right */
+      {
+	r_sgp = ext->msgp;
+	r_pnt = ext->mpnt;
 	coef = (bod == s ? -step : step);
       }
       else
       {
-	sgp = ext->ssgp, point = ext->spnt;
+	r_sgp = ext->ssgp;
+        r_pnt = ext->spnt;
 	coef = (bod == m ? -step : step);
       }
      
-      left = (bod == m ? dia->mprod : dia->sprod);
+      if (!BODY_W_Block (bod, l_sgp->gobj, l_sgp->gobj, l_pnt, l_base, r_sgp->shp, r_sgp->gobj, r_pnt, r_base, W.x))
+      {
+	left = (bod == m ? dia->mprod : dia->sprod);
 
-      right =  BODY_Gen_To_Loc_Operator (bod, sgp->shp, sgp->gobj, point, ext->base);
+	right =  BODY_Gen_To_Loc_Operator (bod, r_sgp->shp, r_sgp->gobj, r_pnt, r_base);
 
-      MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
+	MX_Matmat (1.0, left, MX_Tran (right), 0.0, &W);
+      }
+
       SCALE9 (W.x, coef);
       MX_Destroy (right);
     }

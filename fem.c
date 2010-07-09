@@ -2992,6 +2992,14 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   return gen_to_loc_operator (bod, msh, ele, X, base);
 }
 
+/* optimized assembling of W block, rather than explicit H inverse H'; returns 1 if capable of it, 0 otherwise */
+int FEM_W_Block (BODY *bod, SHAPE *l_shp, void *l_gobj, double *l_point, double *l_base,
+                 SHAPE *r_shp, void *r_gobj, double *r_point, double *r_base, double *W)
+{
+  /* TODO */
+  return 0;
+}
+
 /* compute current kinetic energy */
 double FEM_Kinetic_Energy (BODY *bod)
 {
