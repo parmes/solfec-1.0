@@ -119,6 +119,10 @@ MX* MX_Trimat (MX *a, MX *b, MX *c, MX *d);
  * if 'b' == NULL return new matrix; otherwise return 'b' */
 MX* MX_Inverse (MX *a, MX *b);
 
+/* Cholesky solve => b = inv(a) b; if b == NULL and a was not factorized before, factorize a;
+ * if b == NULL and a was factorized, update numeric factorization assuming unchanged structure  */
+void MX_Cholsol (MX *a, double *b);
+
 /* compute |n| eigenvalues & eigenvectors (vec != NULL) in the upper or
  * lower range (n < 0 or n > 0) => symmetry of 'a' is assumed and the
  * results are outputed according to the ascending order of eigenvalues */

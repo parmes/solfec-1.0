@@ -32,7 +32,6 @@
 #include "svk.h"
 #include "gjk.h"
 #include "err.h"
-#include "ext/krylov/krylov.h"
 
 typedef double (*node_t) [3]; /* mesh node */
 
@@ -1042,6 +1041,35 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   )
 }
 
+/* compute inv (M) * K for an element */
+static MX* element_inv_M_K (BODY *bod, MESH *msh, ELEMENT *ele)
+{
+  double mass [24];
+  double *x, *y;
+  MX *IMK, *IM;
+  int i, j, n;
+
+  n = ele->type * 3;
+  IM = bod->M;
+  IMK = MX_Create (MXDENSE, n, n, NULL, NULL);
+  element_internal_force (1, bod, msh, ele, IMK->x);
+
+  for (i = 0; i < ele->type; i ++)
+  {
+    for (j = 0; j < 3; j ++)
+    {
+      mass [3*i+j] = 1.0 / IM->x [ele->nodes [i] * 3 + j];
+    }
+  }
+
+  for (j = 0, x = IMK->x; j < n; j ++) /* compute IMK = IM * K */
+  {
+    for (i = 0, y = mass; i < n; i ++, x ++, y ++) (*x) *= (*y); /* scale each column by diagonal IM entries */
+  }
+
+  return IMK;
+}
+
 /* =========================== GENERAL ================================== */
 
 /* compute deformation gradient at a local point */
@@ -1473,34 +1501,18 @@ static MX* diagonal_inertia (BODY *bod)
   return M; 
 }
 
-/* set up inverse operator for the explicit dynamic time stepping */
-static void dynamic_explicit_inverse (BODY *bod)
+/* =================== TOAL LAGRANGIAN =================== */
+
+/* compute inverse operator for the implicit dynamic time stepping */
+static void TL_dynamic_inverse (BODY *bod, double step, double *force)
 {
-  double *x, *y;
-
-  ASSERT_DEBUG (!bod->M && !bod->inverse, "Body matrices not nil");
-
-  bod->M = diagonal_inertia (bod);
-
-  bod->inverse = MX_Copy (bod->M, NULL);
-
-  for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
-  {
-    ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
-    (*x) = 1.0 / (*x); /* invert diagonal */
-  }
-}
-
-/* set up inverse operator for the implicit dynamic time stepping */
-static void dynamic_implicit_inverse (BODY *bod, double step, double *force)
-{
-  MX *M, *K, *A;
-
-  if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod);
+  MX *M, *K;
 
   if (bod->inverse) MX_Destroy (bod->inverse);
 
   K = tangent_stiffness (bod);
+
+  M = bod->M;
 
   if (force)
   {
@@ -1512,17 +1524,17 @@ static void dynamic_implicit_inverse (BODY *bod, double step, double *force)
   }
 
   /* calculate tangent operator A = M + h*h/4 K */
-  bod->inverse = A = MX_Add (1.0, M, 0.25*step*step, K, NULL);
+  bod->inverse = MX_Add (1.0, M, 0.25*step*step, K, NULL);
 
   /* invert A */
-  MX_Inverse (A, A);
+  MX_Inverse (bod->inverse, bod->inverse);
 
   /* clean up */
   MX_Destroy (K);
 }
 
 /* solve implicit ingetration nonlineare problem */
-static void dynamic_implicit_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
+static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
 {
   int n = bod->dofs,
       imax = 16,
@@ -1545,7 +1557,7 @@ static void dynamic_implicit_solve (BODY *bod, double time, double step, double 
     blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t) */
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
-    dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+    TL_dynamic_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
     MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
   }
   else
@@ -1563,7 +1575,7 @@ static void dynamic_implicit_solve (BODY *bod, double time, double step, double 
      * to energy inconsistent results in our test, but to the contratey. Hence we stick with it */
     for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf ... */
     internal_force (bod, fint); /* ... as it is used in there */
-    dynamic_implicit_inverse (bod, step, NULL);
+    TL_dynamic_inverse (bod, step, NULL);
     for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
     MX_Matvec (-1.0, bod->M, aux, 1.0, res);
     MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
@@ -1592,38 +1604,8 @@ static void dynamic_implicit_solve (BODY *bod, double time, double step, double 
   free (qorig);
 }
 
-/* compute inv (M) * K for an element */
-static MX* inverse_mass_times_stiffencess (int explicit, BODY *bod, MESH *msh, ELEMENT *ele)
-{
-  double mass [24];
-  double *x, *y;
-  MX *IMK, *IM;
-  int i, j, n;
-
-  n = ele->type * 3;
-  IM = explicit ? bod->inverse : bod->M;
-  IMK = MX_Create (MXDENSE, n, n, NULL, NULL);
-  element_internal_force (1, bod, msh, ele, IMK->x);
-
-  for (i = 0; i < ele->type; i ++)
-  {
-    for (j = 0; j < 3; j ++)
-    {
-      mass [3*i+j] = IM->x [ele->nodes [i] * 3 + j];
-      if (explicit == 0) mass [3*i+j] = 1.0 / mass [3*i+j];
-    }
-  }
-
-  for (j = 0, x = IMK->x; j < n; j ++) /* compute IMK = IM * K */
-  {
-    for (i = 0, y = mass; i < n; i ++, x ++, y ++) (*x) *= (*y); /* scale each column by diagonal IM entries */
-  }
-
-  return IMK;
-}
-
 /* static time-stepping inverse */
-static void static_inverse (BODY *bod, double step)
+static void TL_static_inverse (BODY *bod, double step)
 {
   MX *M, *K, *A;
 
@@ -1641,7 +1623,7 @@ static void static_inverse (BODY *bod, double step)
 
   /* estimate maximal eigenvalue of inv (M) * K based on just one element */
   ele = msh->surfeles;
-  IMK = inverse_mass_times_stiffencess (0, bod, msh, ele); /* element inv (M) * K */
+  IMK = element_inv_M_K (bod, msh, ele); /* element inv (M) * K */
   MX_Scale (IMK, step * step * step);
   MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
   ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
@@ -1660,16 +1642,24 @@ static void static_inverse (BODY *bod, double step)
   MX_Destroy (K);
 }
 
-/* =================== TOAL LAGRANGIAN =================== */
-
 /* total lagrangian initialise dynamic time stepping */
 static void TL_dynamic_init (BODY *bod)
 {
-  if (bod->scheme == SCH_DEF_EXP)
+  if (!bod->M) bod->M = diagonal_inertia (bod);
+
+  if (bod->scheme == SCH_DEF_EXP && !bod->inverse) /* initialize once */
   {
-    if (!bod->inverse) dynamic_explicit_inverse (bod); /* initialize once */
+    double *x, *y;
+
+    bod->inverse = MX_Copy (bod->M, NULL);
+
+    for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
+    {
+      ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
+      (*x) = 1.0 / (*x); /* invert diagonal */
+    }
   }
-  else dynamic_implicit_inverse (bod, bod->dom->step, NULL); /* update every time */
+  else TL_dynamic_inverse (bod, bod->dom->step, NULL); /* update every time */
 }
 
 /* total lagrangian estimate critical step for the dynamic scheme */
@@ -1685,7 +1675,7 @@ static double TL_dynamic_critical_step (BODY *bod)
 
     for (ele = msh->surfeles, bulk = 0, step = DBL_MAX; ele; )
     {
-      IMK = inverse_mass_times_stiffencess (1, bod, msh, ele); /* element inv (M) * K */
+      IMK = element_inv_M_K (bod, msh, ele); /* element inv (M) * K */
       MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
       MX_Destroy (IMK);
       ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
@@ -1732,14 +1722,14 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
   {
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
-    dynamic_implicit_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+    TL_dynamic_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
     MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
   }
   break;
   case SCH_DEF_LIM2:
   {
     dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t)) */
-    dynamic_implicit_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
+    TL_dynamic_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
   }
@@ -1750,7 +1740,7 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
      * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
      * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
      * u (t+h) = u (t) + inv (A) * h * f */
-    dynamic_implicit_solve (bod, time, step, fext, f, 1);
+    TL_dynamic_solve (bod, time, step, fext, f, 1);
   }
   break;
   default:
@@ -1798,7 +1788,7 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
      * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
      * u (t+h) = u (t) + inv (A) * h * f
      * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
-    dynamic_implicit_solve (bod, time, step, fext, r, 0);
+    TL_dynamic_solve (bod, time, step, fext, r, 0);
   }
   break;
   default:
@@ -1809,7 +1799,7 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
 /* total lagrangian initialise static time stepping */
 static void TL_static_init (BODY *bod)
 {
-  static_inverse (bod, bod->dom->step);
+  TL_static_inverse (bod, bod->dom->step);
 }
 
 /* total lagrangian perform the initial half-step of the static scheme */
@@ -1817,7 +1807,7 @@ static void TL_static_step_begin (BODY *bod, double time, double step)
 {
   double *force = FEM_FORCE (bod);
 
-  static_inverse (bod, step); /* compute inverse of static tangent operator */
+  TL_static_inverse (bod, step); /* compute inverse of static tangent operator */
   static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
   MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
 }
@@ -1833,186 +1823,6 @@ static void TL_static_step_end (BODY *bod, double time, double step)
 }
 
 /* =================== BODY COROTATIONAL =================== */
-
-/* PCG interface start */
-typedef struct vect { double *x; int n; } VECT;
-#define vect(ptr) ((VECT*)ptr)
-
-static char* CAlloc (size_t count, size_t elt_size)
-{
-  char *ptr;
-
-  ERRMEM (ptr = MEM_CALLOC (count * elt_size));
-  return ptr;
-}
-
-static int Free (char *ptr)
-{
-  free (ptr);
-  return 0;
-}
-
-static int CommInfo (void *A, int *my_id, int *num_procs)
-{
-  *num_procs = 1;
-  *my_id = 0;
-  return 0;
-}
-
-static VECT* NewVector (int n, double *x)
-{
-  VECT *v;
-
-  if (x)
-  {
-    ERRMEM (v = malloc (sizeof (VECT)));
-    else v->x = x;
-  }
-  else
-  {
-    ERRMEM (v = MEM_CALLOC (sizeof (VECT) + sizeof (double [n])));
-    v->x = (double*) (v+1);
-  }
-  v->n = n;
-
-  return v;
-}
-
-static void* CreateVector (void *vector)
-{
-  VECT *a = vect (vector), *v;
-
-  ERRMEM (v = MEM_CALLOC (sizeof (VECT) + sizeof (double [a->n])));
-  v->x = (double*) (v+1);
-  v->n = a->n;
-
-  return v;
-}
-
-static int DestroyVector (void *vector)
-{
-  free (vector);
-
-  return 0;
-}
-
-static double InnerProd (void *vx, void *vy)
-{
-  double dot = 0.0, *x, *y, *z;
-
-  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
-  {
-    dot += (*x) * (*y);
-  }
-
-  return dot;
-}
-
-static int CopyVector (void *vx, void *vy)
-{
-  double *x, *y, *z;
-
-  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
-  {
-    (*y) = (*x);
-  }
-
-  return 0;
-}
-
-static int ClearVector (void *vx)
-{
-  double *x, *z;
-
-  for (x = vect (vx)->x, z = x + vect (vx)->n; x < z; x ++)
-  {
-    (*x) = 0.0;
-  }
-
-  return 0;
-}
-
-static int ScaleVector (double alpha, void *vx)
-{
-  double *x, *z;
-
-  for (x = vect (vx)->x, z = x + vect (vx)->n; x < z; x ++)
-  {
-    (*x) *= alpha;
-  }
-
-  return 0;
-}
-
-static int  Axpy (double alpha, void *vx, void *vy )
-{
-  double *x, *y, *z;
-
-  for (x = vect (vx)->x, z = x + vect (vx)->n, y = vect (vy)->x; x < z; x ++, y ++)
-  {
-    (*y) += alpha * (*x);
-  }
-
-  return 0;
-}
-
-static void *MatvecCreate (void *A, void *x)
-{
-  return NULL;
-}
-
-/* y = alpha (M + (h*h/4) R K R') x + beta * y */
-static int Matvec (void *matvec_data, double alpha, void *A, void *vx, double beta, void *vy)
-{
-  BODY *bod = A;
-  MX *M = bod->M, *K = bod->K;
-  double h = bod->dom->step, quad = 0.25 * h * h;
-  double *a, *b, *x, *y, *z, *R = FEM_ROT (bod);
-  int n = K->n;
-
-  ERRMEM (a = MEM_CALLOC (2 * sizeof (double [n])));
-  b = a + n;
-
-  for (x = vect(vx)->x, y = x + n, z = a; x < y; x += 3, z += 3)
-  {
-    TVMUL (R, x, z); /* a = R' x */
-  }
-
-  MX_Matvec (quad, K, a, 0, b); /* b = (h*h/4) * K a */
-
-  for (x = b, y = b + n, z = a; x < y; x += 3, z += 3)
-  {
-    NVMUL (R, x, z); /* a = R b = (h*h/4) * R K R' x */
-  }
-
-  MX_Matvec (1.0, M, vect(vx)->x, 1.0, a); /* a = (M + (h*h/4) R K R') x */
-
-  ScaleVector (beta, vy);
-
-  blas_daxpy (n, alpha, a, 1, vect(vy)->x, 1);
-
-  free (a);
-
-  return 0;
-}
-
-static int MatvecDestroy (void *matvec_data)
-{
-  return 0;
-}
-
-static int PrecondSetup (void *vdata, void *A, void *vb, void *vx)
-{
-  return 0;
-}
-
-static int Precond (void *vdata, void *A, void *vb, void *vx)
-{
-  BODY *bod = A;
-  MX_Matvec (1.0, bod->inverse, vect(vb)->x, 0.0, vect(vx)->x);
-  return 0;
-}
-/* PCG interface end */
 
 /* compute surface integral = INT { skew [N] A [X + Shapes (X) q] } */
 static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, double *A, double *integral)
@@ -2159,107 +1969,42 @@ static void BC_right_hand_side (BODY *bod, double time, double step, double *u, 
   blas_daxpy (n, -step, fint, 1, b, 1);
 }
 
-/* compute approximate inverse of (M + (h*h/4) R K R') */
-static void BC_inverse (BODY *bod, double step, MX *M, MX *K, double *R)
+/* compute inverse of (M + (h*h/4) K) */
+static void BC_inverse (BODY *bod, double step, MX *M, MX *K)
 {
-#if 0
-  MX *inverse = bod->inverse;
-  int n = bod->dofs / 3;
-
-  if (!inverse)
+  if (!bod->inverse) 
   {
-    int *p, *i, j;
+    /* assemble */
+    bod->inverse = MX_Add (1.0, M, 0.25*step*step, K, NULL);
 
-    ERRMEM (p = MEM_CALLOC (sizeof (int [2*n+2])));
-    i = p + n + 1;
-
-    for (j = 1; j <= n; j ++)
-    {
-      p [j] = p [j-1] + 9;
-      i [j] = 3 * j;
-    }
-
-    inverse = bod->inverse = MX_Create (MXBD, bod->dofs, n, p, i);
-
-    free (p);
+    /* factorizate */
+    MX_Cholsol (bod->inverse, NULL);
   }
-
-  int *j, *k, l, o, s;
-  double *x, *y;
-
-  /* copy diagonal 3x3 blocks of K into inverse */
-  for (l = 0, x = inverse->x, y = K->x; l < n; l ++)
-  {
-    s = 3*l;
-    for (o = 0; o < 3; o ++, x += 3)
-    {
-      for (j = &K->i [K->p [s+o]], k = &K->i [K->p[s+o+1]], y = &K->x [K->p [s+o]]; j < k; j ++, y ++)
-      {
-	if (*j >= s && *j < s+3)
-	{
-	  x [*j-s] = *y;
-	}
-      }
-    }
-  }
-
-  double A [9], quad = 0.25*step*step;
-
-  /* for each block compute block = M_diag + (h*h/4) R block R' */
-  for (l = 0, x = inverse->x, y = M->x; l < n; l ++, x += 9, y += 3)
-  {
-    NTMUL (x, R, A);
-    NNMUL (R, A, x);
-    SCALE9 (x, quad);
-    x [0] += y [0];
-    x [4] += y [1];
-    x [8] += y [2];
-  }
-
-  /* invert */
-  MX_Inverse (inverse, inverse);
-#else
-  if (bod->inverse) MX_Destroy (bod->inverse);
-
-  bod->inverse = MX_Copy (M, NULL);
-
-  MX_Inverse (bod->inverse, bod->inverse);
-#endif
 }
 
 /* compute u = alpha * inv (A) * b + beta * u */
 static void BC_velocity_solve (double alpha, BODY *bod, double *b, double beta, double *u)
 {
-  hypre_PCGFunctions *pcg_functions;
-  void *pcg_vdata;
-  VECT *vx, *vb;
-  double resnorm;
-  int iters;
+  double *R = FEM_ROT (bod), *x, *y, *z, *w;
+  MX *A = bod->inverse;
 
-  vx = (beta != 0.0 ? NewVector (bod->dofs, NULL) : NewVector (bod->dofs, u));
-  vb = NewVector (bod->dofs, b);
+  ERRMEM (x = MEM_CALLOC (A->n * sizeof (double)));
 
-  if (alpha != 1.0) ScaleVector (alpha, vb);
+  for (y = x, z = x + A->n, w = b; y < z; y += 3, w += 3)
+  {
+    TVMUL (R, w, y);
+    SCALE (y, alpha);
+  }
 
-  pcg_functions = hypre_PCGFunctionsCreate (CAlloc, Free, CommInfo, CreateVector, DestroyVector, MatvecCreate,
-      Matvec, MatvecDestroy, InnerProd, CopyVector, ClearVector, ScaleVector, Axpy, PrecondSetup, Precond);
-  pcg_vdata = hypre_PCGCreate (pcg_functions);
+  MX_Cholsol (A, x);
 
-  hypre_PCGSetPrintLevel (pcg_vdata , 1); /* FIXME */
-  hypre_PCGSetTol (pcg_vdata, 1E-9);
-  hypre_PCGSetMaxIter (pcg_vdata, 100);
-  hypre_PCGSetup (pcg_vdata, bod, vb, vx);
-  hypre_PCGSolve (pcg_vdata, bod, vb, vx);
-  hypre_PCGGetNumIterations (pcg_vdata , &iters);
-  hypre_PCGGetFinalRelativeResidualNorm (pcg_vdata, &resnorm);
-  hypre_PCGDestroy (pcg_vdata);
+  for (y = x, z = x + A->n, w = u; y < z; y += 3, w += 3)
+  {
+    SCALE (w, beta);
+    NVADDMUL (w, R, y, w);
+  }
 
-  if (beta != 0.0) blas_daxpy (vx->n, beta, vx->x, 1, u, 1);
-
-  DestroyVector (vx);
-  DestroyVector (vb);
-
-  printf ("Velocity solution within %d iterations until relative residual was %g\n", iters, resnorm);
+  free (x);
 }
 
 /* body co-rotational initialise dynamic time stepping */
@@ -2303,7 +2048,7 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 
   blas_dcopy (n, u, 1, qu0, 1); /* save u (t) */
 
-  BC_inverse (bod, step, bod->M, bod->K, R); /* bod->inverse = approx (inv (M + (h*h/4) R1 K R1')); used for constraints assembling and as PCG preconditioner */
+  BC_inverse (bod, step, bod->M, bod->K);
 
   BC_velocity_solve (1.0, bod, b, 0.0, u); /* u(t+h) = inv (M + (h*h/4) R1 K R1') b */
 }
@@ -2996,8 +2741,124 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
 int FEM_W_Block (BODY *bod, SHAPE *l_shp, void *l_gobj, double *l_point, double *l_base,
                  SHAPE *r_shp, void *r_gobj, double *r_point, double *r_base, double *W)
 {
-  /* TODO */
-  return 0;
+  if (bod->form == TOTAL_LAGRANGIAN) return 0; /* FIXME */
+
+  double l_shapes [MAX_NODES], r_shapes [MAX_NODES], point [3];
+  ELEMENT *l_ele, *r_ele;
+  CONVEX *cvx;
+  MESH *msh;
+
+  if (bod->msh)
+  {
+    msh = bod->msh;
+    ASSERT_DEBUG_EXT ((cvx = l_gobj), "NULL geometric object for the separate mesh FEM scenario");
+    l_ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, l_point);
+    ASSERT_DEBUG (l_ele, "Invalid referential point stabbing an element");
+    ASSERT_DEBUG_EXT ((cvx = r_gobj), "NULL geometric object for the separate mesh FEM scenario");
+    r_ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, r_point);
+    ASSERT_DEBUG (r_ele, "Invalid referential point stabbing an element");
+  }
+  else
+  {
+    msh = bod->shape->data;
+    l_ele = l_gobj;
+    r_ele = r_gobj;
+  }
+
+  referential_to_local (msh, l_ele, l_point, point);
+  element_shapes (l_ele->type, point, l_shapes);
+
+  referential_to_local (msh, r_ele, r_point, point);
+  element_shapes (r_ele->type, point, r_shapes);
+
+  double *R = FEM_ROT (bod), A [9], B [9];
+  int i, j, n = bod->dofs;
+  double *x, *y, *z;
+
+  ERRMEM (x = MEM_CALLOC (sizeof (double [n * 3])));
+  y = x + n;
+  z = y + n;
+
+  switch (bod->form)
+  {
+  case TOTAL_LAGRANGIAN:
+  {
+    /* [x, y, z] = rN' */
+    for (i = 0; i < r_ele->type; i ++)
+    {
+      j = 3 * r_ele->nodes [i];
+
+      x [j+0] = r_shapes [i];
+      y [j+1] = r_shapes [i];
+      z [j+2] = r_shapes [i];
+    }
+
+    /* FIXME: either use MX_Cholsol in this case everywhere
+     * FIXME: or use MX_Matvec with LU based inverse here */
+#if 0
+    /* [x, y, z] = inverse rN' */
+    MX_Cholsol (bod->inverse, x);
+    MX_Cholsol (bod->inverse, y);
+    MX_Cholsol (bod->inverse, z);
+#endif
+
+    SET9 (A, 0.0);
+    for (i = 0; i < l_ele->type; i ++)
+    {
+      j = 3 * l_ele->nodes [i];
+
+      A [0] += x[j+0] * l_shapes [i];
+      A [3] += y[j+0] * l_shapes [i];
+      A [6] += z[j+0] * l_shapes [i];
+      A [1] += x[j+1] * l_shapes [i];
+      A [4] += y[j+1] * l_shapes [i];
+      A [7] += z[j+1] * l_shapes [i];
+      A [2] += x[j+2] * l_shapes [i];
+      A [5] += y[j+2] * l_shapes [i];
+      A [8] += z[j+2] * l_shapes [i]; /* lN inverse rN' */
+    }
+  }
+  break;
+  case BODY_COROTATIONAL:
+  {
+    /* [x, y, z] = R' rN' */
+    for (i = 0; i < r_ele->type; i ++)
+    {
+      j = 3 * r_ele->nodes [i];
+
+      x [j+0] = R[0] * r_shapes [i];
+      x [j+1] = R[3] * r_shapes [i];
+      x [j+2] = R[6] * r_shapes [i];
+      y [j+0] = R[1] * r_shapes [i];
+      y [j+1] = R[4] * r_shapes [i];
+      y [j+2] = R[7] * r_shapes [i];
+      z [j+0] = R[2] * r_shapes [i];
+      z [j+1] = R[5] * r_shapes [i];
+      z [j+2] = R[8] * r_shapes [i];
+    }
+
+    /* [x, y, z] = inverse R' rN' */
+    MX_Cholsol (bod->inverse, x);
+    MX_Cholsol (bod->inverse, y);
+    MX_Cholsol (bod->inverse, z);
+
+    SET9 (A, 0.0);
+    for (i = 0; i < l_ele->type; i ++)
+    {
+      j = 3 * l_ele->nodes [i];
+
+      blas_dgemm ('N', 'N', 3, 3, 3, l_shapes [i], R, 3, x + j, n, 1.0, A, 3); /* lN R inverse R' rN' */
+    }
+  }
+  break;
+  }
+
+  NNMUL (A, r_base, B);
+  TNMUL (l_base, B, W); /* W = lE' lN R inverse R' rN' rE */
+
+  free (x);
+
+  return 1;
 }
 
 /* compute current kinetic energy */

@@ -42,6 +42,8 @@ char* errstring (int error)
     case ERR_PBF_WRITE: return "PBF write error";
     case ERR_PBF_READ: return "PBF read error";
     case ERR_MTX_LU_FACTOR: return  "LU factorisation failed";
+    case ERR_MTX_CHOL_FACTOR: return  "Cholesky factorisation failed";
+    case ERR_MTX_CHOL_SOLVE: return  "Cholesky solution failed";
     case ERR_MTX_MATRIX_INVERT: return  "Matrix inversion failed";
     case ERR_MTX_EIGEN_DECOMP: return  "Eigen decomposition failed";
     case ERR_MTX_KIND: return "Invalid matrix kind";
