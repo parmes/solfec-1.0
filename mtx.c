@@ -1504,6 +1504,96 @@ static MX* csc_inverse (MX *a, MX *b)
   return b;
 }
 
+/* Cholesky dense factorize */
+inline static void dense_cholfact (MX *a)
+{
+  MX *b;
+
+  ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
+  if (!a->num) a->num = copy_matrix (a, NULL);
+  else b = a->num;
+
+  ASSERT (lapack_dpotrf ('U', b->m, b->x, b->m) == 0, ERR_MTX_CHOL_FACTOR);
+}
+
+/* Cholesky dense solve */
+inline static void dense_cholsol (MX *a, double *b)
+{
+  ASSERT (lapack_dposv ('U', a->m, 1, a->x, a->m, b, a->m) == 0, ERR_MTX_CHOL_SOLVE);
+}
+
+/* Cholesky block factorize */
+inline static void bd_cholfact (MX *a)
+{
+  int m, n, k, *pp, *ii;
+  double *bx;
+  MX *b;
+
+  if (!a->num) a->num = copy_matrix (a, NULL);
+  else b = a->num;
+
+  n = b->n;
+  pp = b->p;
+  ii = b->i; 
+  bx = b->x;
+  
+  for (k = 0; k < n; k ++)
+  {
+    m = ii[k+1] - ii[k];
+    ASSERT (lapack_dpotrf ('U', m, &bx [pp[k]], m) == 0, ERR_MTX_CHOL_FACTOR);
+  }
+}
+
+/* Cholesky block solve */
+inline static void bd_cholsol (MX *a, double *b)
+{
+  int m, n, k, *pp, *ii;
+  double *ax;
+
+  n = a->n;
+  pp = a->p;
+  ii = a->i; 
+  ax = a->x;
+  
+  for (k = 0; k < n; k ++)
+  {
+    m = ii[k+1] - ii[k];
+    ASSERT (lapack_dposv ('U', m, 1, &ax [pp[k]], m, &b[ii[k]], m) == 0, ERR_MTX_CHOL_SOLVE);
+  }
+}
+
+/* Cholesky sparse factorize */
+inline static void csc_cholfact (MX *a)
+{
+  if (!a->sym) a->sym = cs_schol (1, a); /* once */
+
+  if (a->num) cs_nfree (a->num);
+
+  a->num = cs_chol (a, a->sym); /* always */
+
+  ASSERT (a->sym && a->num, ERR_MTX_CHOL_FACTOR);
+}
+
+/* Cholesky sparse solve */
+inline static void csc_cholsol (MX *a, double *b)
+{
+  double *x;
+  css *S;
+  csn *N;
+  int n;
+
+  n = a->n;
+  S = a->sym;
+  N = a->num;
+  ERRMEM (x = cs_malloc (n, sizeof (double)));
+
+  cs_ipvec (S->pinv, b, x, n) ;   /* x = P*b */
+  cs_lsolve (N->L, x) ;           /* x = L\x */
+  cs_ltsolve (N->L, x) ;          /* x = L'\x */
+  cs_pvec (S->pinv, x, b, n) ;    /* b = P'*x */
+  cs_free (x);
+}
+
 /* compute dense matrix eigenvalues */
 static void dense_eigen (MX *a, int n, double *val, MX *vec)
 {
@@ -1984,6 +2074,27 @@ MX* MX_Inverse (MX *a, MX *b)
   else return b;
 }
 
+void MX_Cholsol (MX *a, double *b)
+{
+  ASSERT_DEBUG (!TEMPORARY (a), "Cholesky solve with temporary matrix");
+
+  switch (a->kind)
+  {
+    case MXDENSE:
+      if (!b || !a->num) dense_cholfact (a);
+      if (b) dense_cholsol (a->num, b);
+    break;
+    case MXBD:
+      if (!b || !a->num) bd_cholfact (a);
+      if (b) bd_cholsol (a->num, b);
+    break;
+    case MXCSC:
+      if (!b || !a->num) csc_cholfact (a);
+      if (b) csc_cholsol (a, b);
+    break;
+  }
+}
+
 void MX_Eigen (MX *a, int n, double *val, MX *vec)
 {
   switch (a->kind)
@@ -2109,6 +2220,7 @@ void MX_Destroy (MX *a)
 	free (a->x);
 	if (a->kind == MXBD) free (a->p), free (a->i);
       }
+      if (a->num) MX_Destroy (a->num); /* factorized copy */
       free (a);
     break;
     case MXCSC:

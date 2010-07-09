@@ -134,10 +134,10 @@ static void variables_change_end (LOCDYN *ldy)
 /* test whether two constraints are able to be adjacent */
 static int adjacentable (BODY *bod, CON *one, CON *two)
 {
-  if (bod->kind == FEM)
+  if (bod->kind == FEM && bod->scheme == SCH_DEF_EXP)
   {
-    /* XXX: for diagonal inverse matrix (explicit integration) only in case of a common node W_one_two and W_two_one will be != 0;
-     * XXX: for implicit integration (due to full inverse of K) this is only a filtering technique increasing sparsity of W */
+    /* XXX: for diagonal inverse matrix (explicit integration) only
+     * XXX: in case of a common node W_one_two and W_two_one will be != 0 */
 
     if (bod->msh)
     {
@@ -756,8 +756,12 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
   /* clean up */
   for (dia = ldy->dia; dia; dia = dia->n)
   {
-    MX_Destroy (dia->mH);
-    MX_Destroy (dia->mprod);
+    if (dia->mH)
+    {
+      MX_Destroy (dia->mH);
+      MX_Destroy (dia->mprod);
+    }
+
     if (dia->sH)
     {
       MX_Destroy (dia->sH);
