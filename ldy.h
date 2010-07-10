@@ -46,7 +46,7 @@ enum solver_kind
   GAUSS_SEIDEL_SOLVER,
   PENALTY_SOLVER,
   NEWTON_SOLVER,
-  HYBRID_SOLVER
+  BODY_SPACE_SOLVER
 };
 
 typedef enum solver_kind SOLVER_KIND;
