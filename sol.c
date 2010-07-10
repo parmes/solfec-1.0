@@ -226,7 +226,7 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Write_State (solver, sol->bf); break;
   case PENALTY_SOLVER: PENALTY_Write_State (solver, sol->bf); break;
   case NEWTON_SOLVER: NEWTON_Write_State (solver, sol->bf); break;
-  case HYBRID_SOLVER: HYBRID_Write_State (solver, sol->bf); break;
+  case BODY_SPACE_SOLVER: BSS_Write_State (solver, sol->bf); break;
   default: break;
   }
 }
@@ -399,7 +399,7 @@ static void SOLVE (SOLFEC *sol, void *solver, SOLVER_KIND kind, LOCDYN *ldy, int
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Solve (solver, ldy); break;
   case PENALTY_SOLVER: PENALTY_Solve (solver, ldy); break;
   case NEWTON_SOLVER: NEWTON_Solve (solver, ldy); break;
-  case HYBRID_SOLVER: HYBRID_Solve (solver, ldy); break;
+  case BODY_SPACE_SOLVER: BSS_Solve (solver, ldy); break;
   default: break;
   }
 

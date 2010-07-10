@@ -65,7 +65,7 @@ OBJ =   $(EXTO)   \
 	obj/bgs.o \
 	obj/pes.o \
 	obj/nts.o \
-	obj/hbs.o \
+	obj/bss.o \
 	obj/lin.o \
 	obj/mrf.o \
 	obj/dom.o \
@@ -85,7 +85,7 @@ OBJMPI = $(EXTO)       \
 	 obj/bgs-mpi.o \
 	 obj/pes-mpi.o \
 	 obj/nts-mpi.o \
-	 obj/hbs-mpi.o \
+	 obj/bss-mpi.o \
 	 obj/lin-mpi.o \
 	 obj/mrf-mpi.o \
 	 obj/dom-mpi.o \
@@ -256,7 +256,7 @@ obj/pes.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 obj/nts.o: nts.c nts.h lin.h dom.h ldy.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/hbs.o: hbs.c hbs.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
+obj/bss.o: bss.c bss.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lin.o: lin.c lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
@@ -292,7 +292,7 @@ obj/dbs.o: dbs.c dbs.h ldy.h dom.h alg.h lap.h bla.h err.h
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
 
-obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h hbs.h mat.h pbf.h tmr.h
+obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h bss.h mat.h pbf.h tmr.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 # OPENGL
 
@@ -346,7 +346,7 @@ obj/pes-mpi.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 obj/nts-mpi.o: nts.c nts.h lin.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/hbs-mpi.o: hbs.c hbs.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
+obj/bss-mpi.o: bss.c bss.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/lin-mpi.o: lin.c lin.h dom.h ldy.h err.h alg.h lap.h bla.h lss.h
@@ -358,7 +358,7 @@ obj/mrf-mpi.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h
 obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<
 
-obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h hbs.h mat.h pbf.h tmr.h lin.h
+obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h bss.h mat.h pbf.h tmr.h lin.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/fem-mpi.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h

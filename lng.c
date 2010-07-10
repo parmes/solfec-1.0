@@ -3499,70 +3499,67 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
 };
 
 /*
- * HYBRID_SOLVER => object
+ * BODY_SPACE_SOLVER => object
  */
 
-typedef struct lng_HYBRID_SOLVER lng_HYBRID_SOLVER;
+typedef struct lng_BODY_SPACE_SOLVER lng_BODY_SPACE_SOLVER;
 
-static PyTypeObject lng_HYBRID_SOLVER_TYPE;
+static PyTypeObject lng_BODY_SPACE_SOLVER_TYPE;
 
-struct lng_HYBRID_SOLVER
+struct lng_BODY_SPACE_SOLVER
 {
   PyObject_HEAD
 
-  HYBRID *hs;
+  BSS *bs;
 };
 
 /* constructor */
-static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+static PyObject* lng_BODY_SPACE_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("refine", "smooth", "droptol", "meritval");
-  lng_HYBRID_SOLVER *self;
-  int smooth, refine;
-  double droptol, meritval;
+  KEYWORDS ("maxiter", "meritval");
+  lng_BODY_SPACE_SOLVER *self;
+  int maxiter;
+  double meritval;
 
-  self = (lng_HYBRID_SOLVER*)type->tp_alloc (type, 0);
+  self = (lng_BODY_SPACE_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    refine = 3;
-    smooth = 5;
-    droptol = 0.05;
+    maxiter = 16;
     meritval = 1E-3;
 
-    PARSEKEYS ("|iidd", &refine, &smooth, &droptol, &meritval);
+    PARSEKEYS ("|id", &maxiter, &meritval);
 
-    TYPETEST (is_positive (refine, kwl[0]) && is_positive (smooth, kwl[1]) &&
-	      is_positive (droptol, kwl[2]) && is_positive (meritval, kwl[3]));
+    TYPETEST (is_positive (maxiter, kwl[0]) && is_positive (meritval, kwl[1]));
 
-    self->hs = HYBRID_Create (refine, smooth, droptol, meritval);
+    self->bs = BSS_Create (maxiter, meritval);
   }
 
   return (PyObject*)self;
 }
 
 /* destructor */
-static void lng_HYBRID_SOLVER_dealloc (lng_HYBRID_SOLVER *self)
+static void lng_BODY_SPACE_SOLVER_dealloc (lng_BODY_SPACE_SOLVER *self)
 {
 #if OPENGL
   if (RND_Is_On ()) return; /* do not delete in viewer mode */
   else
 #endif
-  HYBRID_Destroy (self->hs);
+  BSS_Destroy (self->bs);
 
   self->ob_type->tp_free ((PyObject*)self);
 }
 
-/* HYBRID_SOLVER methods */
-static PyMethodDef lng_HYBRID_SOLVER_methods [] =
+/* BODY_SPACE_SOLVER methods */
+static PyMethodDef lng_BODY_SPACE_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
 
-/* HYBRID_SOLVER members */
-static PyMemberDef lng_HYBRID_SOLVER_members [] =
+/* BODY_SPACE_SOLVER members */
+static PyMemberDef lng_BODY_SPACE_SOLVER_members [] =
 { {NULL, 0, 0, 0, NULL} };
 
-/* HYBRID_SOLVER getset */
-static PyGetSetDef lng_HYBRID_SOLVER_getset [] =
+/* BODY_SPACE_SOLVER getset */
+static PyGetSetDef lng_BODY_SPACE_SOLVER_getset [] =
 { {NULL, 0, 0, NULL, NULL} };
 
 /*
@@ -5321,7 +5318,7 @@ static int is_solver (PyObject *obj, char *var)
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE) &&
-        !PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE))
+        !PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must be a constraint solver object", var);
@@ -5342,8 +5339,8 @@ static int get_solver_kind (PyObject *obj)
     return PENALTY_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     return NEWTON_SOLVER;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE))
-    return HYBRID_SOLVER;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
+    return BODY_SPACE_SOLVER;
   else return -1;
 }
 
@@ -5356,8 +5353,8 @@ static void* get_solver (PyObject *obj)
     return ((lng_PENALTY_SOLVER*)obj)->ps;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     return ((lng_NEWTON_SOLVER*)obj)->nt;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE))
-    return ((lng_HYBRID_SOLVER*)obj)->hs;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
+    return ((lng_BODY_SPACE_SOLVER*)obj)->bs;
   else return NULL;
 }
 
@@ -6290,9 +6287,9 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_NEWTON_SOLVER_dealloc, lng_NEWTON_SOLVER_new,
     lng_NEWTON_SOLVER_methods, lng_NEWTON_SOLVER_members, lng_NEWTON_SOLVER_getset);
 
-  TYPEINIT (lng_HYBRID_SOLVER_TYPE, lng_HYBRID_SOLVER, "solfec.HYBRID_SOLVER",
-    Py_TPFLAGS_DEFAULT, lng_HYBRID_SOLVER_dealloc, lng_HYBRID_SOLVER_new,
-    lng_HYBRID_SOLVER_methods, lng_HYBRID_SOLVER_members, lng_HYBRID_SOLVER_getset);
+  TYPEINIT (lng_BODY_SPACE_SOLVER_TYPE, lng_BODY_SPACE_SOLVER, "solfec.BODY_SPACE_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_BODY_SPACE_SOLVER_dealloc, lng_BODY_SPACE_SOLVER_new,
+    lng_BODY_SPACE_SOLVER_methods, lng_BODY_SPACE_SOLVER_members, lng_BODY_SPACE_SOLVER_getset);
 
   TYPEINIT (lng_CONSTRAINT_TYPE, lng_CONSTRAINT, "solfec.CONSTRAINT",
     Py_TPFLAGS_DEFAULT, lng_CONSTRAINT_dealloc, lng_CONSTRAINT_new,
@@ -6309,7 +6306,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_NEWTON_SOLVER_TYPE) < 0) return;
-  if (PyType_Ready (&lng_HYBRID_SOLVER_TYPE) < 0) return;
+  if (PyType_Ready (&lng_BODY_SPACE_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
   if (!(m =  Py_InitModule3 ("solfec", lng_methods, "Solfec module"))) return;
@@ -6325,7 +6322,7 @@ static void initlng (void)
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
   Py_INCREF (&lng_NEWTON_SOLVER_TYPE);
-  Py_INCREF (&lng_HYBRID_SOLVER_TYPE);
+  Py_INCREF (&lng_BODY_SPACE_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
@@ -6339,7 +6336,7 @@ static void initlng (void)
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
   PyModule_AddObject (m, "NEWTON_SOLVER", (PyObject*)&lng_NEWTON_SOLVER_TYPE);
-  PyModule_AddObject (m, "HYBRID_SOLVER", (PyObject*)&lng_HYBRID_SOLVER_TYPE);
+  PyModule_AddObject (m, "BODY_SPACE_SOLVER", (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
 
@@ -6374,7 +6371,7 @@ int lng (const char *path)
                      "from solfec import GAUSS_SEIDEL_SOLVER\n"
                      "from solfec import PENALTY_SOLVER\n"
                      "from solfec import NEWTON_SOLVER\n"
-                     "from solfec import HYBRID_SOLVER\n"
+                     "from solfec import BODY_SPACE_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"

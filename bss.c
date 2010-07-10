@@ -1,8 +1,8 @@
 /*
- * hbs.h
+ * bss.c
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * hybrid constraint solver
+ * body space solver
  */
 
 /* This file is part of Solfec.
@@ -19,32 +19,31 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#include "ldy.h"
+#include <stdlib.h>
+#include <float.h>
 
-#ifndef __hbs__
-#define __hbs__
-
-typedef struct hybrid HYBRID;
-
-struct hybrid
-{
-  int refine,
-      smooth;
-
-  double droptol,
-	 meritval; /* merit function value sufficient for termination */
-};
+#include "bss.h"
+#include "alg.h"
+#include "err.h"
+#include "mrf.h"
 
 /* create solver */
-HYBRID* HYBRID_Create (int refine, int smooth, double droptol, double meritval);
+BSS* BSS_Create (int maxiter, double meritval)
+{
+  return NULL;
+}
 
 /* run solver */
-void HYBRID_Solve (HYBRID *hs, LOCDYN *ldy);
+void BSS_Solve (BSS *bs, LOCDYN *ldy)
+{
+}
 
 /* write labeled satate values */
-void HYBRID_Write_State (HYBRID *hs, PBF *bf);
+void BSS_Write_State (BSS *bs, PBF *bf)
+{
+}
 
 /* destroy solver */
-void HYBRID_Destroy (HYBRID *hs);
-
-#endif
+void BSS_Destroy (BSS *bs)
+{
+}
