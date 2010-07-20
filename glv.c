@@ -843,6 +843,8 @@ static void menu_view3D (int value)
 	look.up [2] = 1;
 	SUB (look.from, look.to, vec);
 	PRODUCT (look.up, vec, look.rhs);
+	NORMALIZE (look.rhs);
+	NORMALIZE (look.up);
       }
       updateall ();
       break;
@@ -857,6 +859,8 @@ static void menu_view3D (int value)
 	look.up [2] = 1;
 	SUB (look.from, look.to, vec);
 	PRODUCT (look.up, vec, look.rhs);
+	NORMALIZE (look.rhs);
+	NORMALIZE (look.up);
       }
       updateall ();
       break;
@@ -871,6 +875,8 @@ static void menu_view3D (int value)
 	look.up [2] = 1;
 	SUB (look.from, look.to, vec);
 	PRODUCT (look.up, vec, look.rhs);
+	NORMALIZE (look.rhs);
+	NORMALIZE (look.up);
       }
       updateall ();
       break;
@@ -885,6 +891,8 @@ static void menu_view3D (int value)
 	look.up [2] = 1;
 	SUB (look.from, look.to, vec);
 	PRODUCT (look.up, vec, look.rhs);
+	NORMALIZE (look.rhs);
+	NORMALIZE (look.up);
       }
       updateall ();
       break;
@@ -899,6 +907,8 @@ static void menu_view3D (int value)
 	look.up [1] = 1;
 	SUB (look.from, look.to, vec);
 	PRODUCT (look.up, vec, look.rhs);
+	NORMALIZE (look.rhs);
+	NORMALIZE (look.up);
       }
       updateall ();
       break;
@@ -913,6 +923,8 @@ static void menu_view3D (int value)
 	look.up [1] = 1;
 	SUB (look.from, look.to, vec);
 	PRODUCT (look.up, vec, look.rhs);
+	NORMALIZE (look.rhs);
+	NORMALIZE (look.up);
       }
       updateall ();
       break;

@@ -32,7 +32,8 @@
 
 enum update_kind /* update kind */
 {
-  UPPES, /* penalty solver specific update */
+  UPPES, /* penalty solver update */
+  UPBSS, /* body space solver update */
   UPNOTHING, /* skip update */
   UPALL /* update all data */
 };
@@ -45,6 +46,7 @@ static UPKIND update_kind (SOLVER_KIND solver)
   switch (solver)
   {
     case PENALTY_SOLVER: return UPPES;
+    case BODY_SPACE_SOLVER: return UPBSS;
     default: return UPALL;
   }
 
@@ -750,8 +752,10 @@ void LOCDYN_Update_End (LOCDYN *ldy, SOLVER_KIND solver)
 /* dump local dynamics to file */
 void LOCDYN_Dump (LOCDYN *ldy, const char *path)
 {
+#define WTOL 1E-15
   MEM mapmem, offmem;
   MAP *adj, *item;
+  double W [9], Z;
   char *fullpath;
   OFFB *blk, *q;
   DIAB *dia;
@@ -776,11 +780,15 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
   {
     con = dia->con;
 
+    COPY (dia->W, W);
+    MAXABSN (W, 9, Z);
+    FILTERN (W, 9, Z * WTOL);
+
     fprintf (f, "%s (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] (%u, %d, %u, %d) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] => ",
       CON_Kind (con), con->point [0], con->point [1], con->point [2],
       con->base [0], con->base [1], con->base [2], con->base [3], con->base [4], con->base [5], con->base [6], con->base [7], con->base [8],
       con->master->id, con->msgp - con->master->sgp, con->slave ? con->slave->id : 0, con->slave ? con->ssgp - con->slave->sgp : 0,
-      dia->W [0], dia->W [1], dia->W [2], dia->W [3], dia->W [4], dia->W [5], dia->W [6], dia->W [7], dia->W [8]);
+      W [0], W [1], W [2], W [3], W [4], W [5], W [6], W [7], W [8]);
 
     MAP_Free (&mapmem, &adj);
     MEM_Release (&offmem);
@@ -812,9 +820,13 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
       con = item->key;
       q = item->data;
 
+      COPY (q->W, W);
+      MAXABSN (W, 9, Z);
+      FILTERN (W, 9, Z * WTOL);
+
       fprintf (f, "%s (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] ",
         CON_Kind (con), con->point [0], con->point [1], con->point [2],
-	q->W [0], q->W [1], q->W [2], q->W [3], q->W [4], q->W [5], q->W [6], q->W [7], q->W [8]);
+	W [0], W [1], W [2], W [3], W [4], W [5], W [6], W [7], W [8]);
 
     }
 
