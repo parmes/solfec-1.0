@@ -406,6 +406,25 @@ extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
   if ((maximum) < a1) (maximum) = a1;\
 }
 
+#define MAXABSN(a, n, maximum)\
+{\
+  (maximum) = ABS((a)[0]);\
+  for (int i = 1; i < (n); i ++)\
+  {\
+    double ai = ABS((a)[i]);\
+    if ((maximum) < ai) (maximum) = ai;\
+  }\
+}
+
+#define FILTERN(a, n, tol)\
+{\
+  for (int i = 0; i < (n); i ++)\
+  {\
+    double ai = ABS((a)[i]);\
+    if (ai <= tol) (a)[i] = 0;\
+  }\
+}
+
 #define NORMALIZE4(a)\
 {\
   double len = LEN4 (a);\

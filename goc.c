@@ -105,25 +105,6 @@ inline static double sphere_sphere_gap (double *ca, double ra, double *cb, doubl
   return (e > d ? d - e : 0);
 }
 
-/* return plane normal nearest to a given direction */
-inline static double* nearest_normal (double *direction, double *pla, int n)
-{
-  double d, max = -DBL_MAX, *ret = pla;
-
-  for (; n > 0; n --, pla += 6)
-  {
-    d = DOT (direction, pla);
-
-    if (d > max)
-    {
-      max = d;
-      ret = pla;
-    }
-  }
-
-  return ret;
-}
-
 /* return a surface code with the input point closest to an input plane */
 inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
 {
@@ -285,19 +266,15 @@ static int detect_convex_sphere (
   double *area,
   int spair [2])
 {
-  double dir [3], g, h, *nn;
+  double g, h;
 
-  if ((g = gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  if (gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt) < GEOMETRIC_EPSILON)
   {
     for (h = r; g < GEOMETRIC_EPSILON && h > GEOMETRIC_EPSILON; h *= 0.5)
       g = gjk_convex_sphere (vc, nvc, c, h, onepnt, twopnt); /* shrink sphere and redo => find projection
 								of the sphere center on the convex surface */
-
-    SUB (c, onepnt, dir);
-    NORMALIZE (dir);
-    nn = nearest_normal (dir, pc, npc);
-    COPY (nn, normal);
-
+    SUB (c, onepnt, normal);
+    NORMALIZE (normal);
     ADDMUL (c, -r, normal, twopnt);
 
     spair [0] = nearest_surface (onepnt, pc, sc, nsc);
@@ -438,19 +415,16 @@ static int update_convex_sphere (
   double *area,
   int spair [2])
 {
-  double dir [3], g, h, *nn;
+  double g, h;
   int s0;
 
   if (((*gap) = gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt)) < GEOMETRIC_EPSILON * MAGNIFY)
   {
-    for (h = r, g = *gap; g < GEOMETRIC_EPSILON * MAGNIFY && h > GEOMETRIC_EPSILON; h *= 0.5)
+    for (h = r, g = *gap; g < GEOMETRIC_EPSILON && h > GEOMETRIC_EPSILON; h *= 0.5)
       g = gjk_convex_sphere (vc, nvc, c, h, onepnt, twopnt); /* shrink sphere and redo => find projection
 								of the sphere center on the convex surface */
-    SUB (c, onepnt, dir);
-    NORMALIZE (dir);
-    nn = nearest_normal (dir, pc, npc);
-    COPY (nn, normal);
-
+    SUB (c, onepnt, normal);
+    NORMALIZE (normal);
     ADDMUL (c, -r, normal, twopnt);
 
     s0 = spair [0];

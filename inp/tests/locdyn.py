@@ -5,6 +5,8 @@ I = 4
 J = 4
 N = 4
 
+GEOMETRIC_EPSILON (1E-20)
+
 def cube (x, y, z, a, b, c, sur, vol):
 
   nodes = [0, 0, 0,
