@@ -301,7 +301,7 @@ def masonry_arch_create (base, radius, thickness, material, solfec, N, span):
 
   NX = N
   NY = 6
-  NZ = 10
+  NZ = 15
   dx = (2.0 * radius + thickness) / NX
   dy = (width - 2.0 * thick) / NY
   dz = dy
@@ -348,9 +348,9 @@ GRAVITY (solfec, (0, 0, -9.81))
 
 masonry_bridge_create (bulkmat, solfec, 27, 4)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-4, 500, 1E-4, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
-OUTPUT (solfec, 50 * step)
+OUTPUT (solfec, 100 * step)
 RUN (solfec, gs, 10000 * step)
 
 if not VIEWER() and solfec.mode == 'READ':
