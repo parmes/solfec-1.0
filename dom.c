@@ -309,6 +309,8 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
 
   if (state)
   {
+    ASSERT_DEBUG (gap <= 0, "A contact with positive gap was detected which indicates a bug in goc.c");
+
     if (gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
 
     /* set surface pair data if there was a contact */
@@ -378,6 +380,11 @@ static void update_contact (DOM *dom, CON *con)
     {
       SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, spair [0], spair [1]); /* find new surface pair description */
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
+    }
+
+    if (dom->dynamic && con->gap > 0) /* dynamic open contact */
+    {
+      SET (con->R, 0);  /* has zero reaction (NOTE: this will propagate to external reactions in parallel) */
     }
   }
   else

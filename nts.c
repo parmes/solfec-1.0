@@ -118,6 +118,39 @@ static void reactions_update (NEWTON *nt, LINSYS *sys, LOCDYN *ldy, double *nonm
   }
 }
 
+/* update open contact velocities */
+static void update_open_contacts (DOM *dom)
+{
+  CON *con;
+
+  for (con = dom->con; con; con = con->next)
+  {
+    if (con->kind == CONTACT && con->gap > 0) /* open */
+    {
+      DIAB *dia = con->dia;
+      OFFB *blk;
+      double *W = dia->W,
+	     *B = dia->B,
+	     *U = dia->U,
+	     *R = dia->R;
+
+      NVADDMUL (B, W, R, U);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	double *W = blk->W, *R = blk->dia->R;
+	NVADDMUL (U, W, R, U);
+      }
+#if MPI
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	double *W = blk->W, *R = CON(blk->dia)->R;
+	NVADDMUL (U, W, R, U);
+      }
+#endif
+    }
+  }
+}
+
 /* create solver */
 NEWTON* NEWTON_Create (LINVAR variant, double meritval, int maxiter)
 {
@@ -142,9 +175,31 @@ NEWTON* NEWTON_Create (LINVAR variant, double meritval, int maxiter)
 NEWTON* NEWTON_Subset_Create (LINVAR variant, LOCDYN *ldy, SET *subset, double meritval, int maxiter)
 {
   NEWTON *nt;
+  MEM setmem;
+
+  if (ldy->dom->dynamic) /* exclude open contacts */
+  {
+    SET *temp = NULL, *item;
+
+    MEM_Init (&setmem, sizeof (SET), SET_Size (subset));
+
+    for (item = SET_First (subset); item; item = SET_Next (item))
+    {
+      CON *con = item->data;
+
+      if (con->kind == CONTACT && con->gap > 0) continue; /* skip open contact */
+
+      SET_Insert (&setmem, &temp, con, NULL);
+    }
+
+    subset = temp; /* overwrite */
+  }
 
   nt = NEWTON_Create (variant, meritval, maxiter);
+
   nt->sys = LINSYS_Create (variant, ldy, subset);
+
+  if (ldy->dom->dynamic) MEM_Release (&setmem);
 
   return nt;
 }
@@ -203,6 +258,10 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
   } while (++ nt->iters < nt->maxiter && *merit > nt->meritval);
 
   if (nt->sys == NULL) LINSYS_Destroy (sys);
+
+   /* update open contact velocities as
+    * these contacts were skipped in LINSYS */
+  if (dom->dynamic) update_open_contacts (dom);
 
   free (nonmonvalues);
 }

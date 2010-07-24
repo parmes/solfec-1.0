@@ -116,17 +116,24 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
 	     gap = con->gap,
 	     udash, m [3];
 
-      if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
-      else udash = ((MAX(gap, 0)/step) + U[2]);
+      if (dynamic && gap > 0) /* open dynamic contact */
+      {
+	up = 0.0; /* has zero R regardless of U */
+      }
+      else
+      {
+	if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+	else udash = ((MAX(gap, 0)/step) + U[2]);
 
-      Q [0] = U[0];
-      Q [1] = U[1];
-      Q [2] = (udash + fri * LEN2(U));
-      SUB (R, Q, P);
-      real_m (fri, P, m);
-      ADD (Q, m, P);
-      NVMUL (A, P, Q);
-      up = DOT (Q, P);
+	Q [0] = U[0];
+	Q [1] = U[1];
+	Q [2] = (udash + fri * LEN2(U));
+	SUB (R, Q, P);
+	real_m (fri, P, m);
+	ADD (Q, m, P);
+	NVMUL (A, P, Q);
+	up = DOT (Q, P);
+      }
     }
     break;
 #if 1
