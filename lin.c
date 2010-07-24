@@ -1521,6 +1521,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   DOM *dom = ldy->dom;
   MEM setmem, mapmem;
   int ncon, blocks;
+  short dynamic;
   LINSYS *sys;
   SET *item;
   DIAB *dia;
@@ -1531,6 +1532,7 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   CON *con;
   MAP *map;
 
+  dynamic = dom->dynamic;
   ERRMEM (sys = MEM_CALLOC (sizeof (LINSYS)));
   sys->variant = variant;
   sys->ldy = ldy;
@@ -1546,7 +1548,9 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   {
     for (con = dom->con; con; con = con->next)
     {
-      SET_Insert (&setmem, &subset, con, NULL); /* insert all */
+      if (dynamic && con->kind == CONTACT && con->gap > 0) continue; /* skip open dynamic contact */
+
+      SET_Insert (&setmem, &subset, con, NULL); /* insert all but the open contacts */
     }
   }
 

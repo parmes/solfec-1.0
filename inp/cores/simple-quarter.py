@@ -5,10 +5,10 @@ from simple_core_base import *
 
 # main module
 
-step = 1E-3
-stop = 11
-outfrq = 0.03
-kinem = 'RIGID'
+step = 0.001
+stop = 5
+outfrq = 0.1
+kinem = 'PSEUDO_RIGID'
 solver = 'GAUSS_SEIDEL'
 scheme = 'DEFAULT'
 shake = 'TRUE'
@@ -38,12 +38,12 @@ else:
   acc = TIME_SERIES ('inp/cores/inc/acc-0.dat')
   GRAVITY (solfec, (acc, 0, -10))
 
-
-SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7, spring = 1E6, dashpot = 1E3)
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
+SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5, spring = 1E6, dashpot = 1E3)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.3, density = 1.8E3)
 
 if solver == 'GAUSS_SEIDEL':
-  sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-3, diagsolver = 'PROJECTED_GRADIENT')
+  sv = GAUSS_SEIDEL_SOLVER (1E-3, 160, 1E-4, diagsolver = 'SEMISMOOTH_NEWTON')
+  sv.reverse = 'ON'
 elif solver == 'NEWTON':
   sv = NEWTON_SOLVER (1E-3, 20)
 elif solver == 'PENALTY':

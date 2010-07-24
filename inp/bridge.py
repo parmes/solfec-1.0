@@ -348,7 +348,8 @@ GRAVITY (solfec, (0, 0, -9.81))
 
 masonry_bridge_create (bulkmat, solfec, 27, 4)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-4, 500, 1E-4, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 160, 1E-4, diagsolver = 'SEMISMOOTH_NEWTON')
+gs.reverse = 'ON'
 
 OUTPUT (solfec, 100 * step)
 RUN (solfec, gs, 10000 * step)
