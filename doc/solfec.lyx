@@ -323,7 +323,7 @@ where
 \begin_inset Formula $\mathbf{R}$
 \end_inset
 
- should be interpreted as an 
+ should now be interpreted as an impulse (an 
 \emph on
 integral
 \emph default
@@ -331,7 +331,7 @@ integral
 \begin_inset Formula $\left[t,t+h\right]$
 \end_inset
 
-.
+).
  At a start we have
 \end_layout
 
@@ -496,14 +496,16 @@ Perform second half-step
 \end_layout
 
 \begin_layout Standard
-Let us refer the reader to 
+It should be stressed that the above presentation exemplifies only a particular
+ instance of Contact Dynamics.
+ Let us refer the reader to 
 \begin_inset CommandInset citation
-LatexCommand citep
-key "Koziara2008PhD"
+LatexCommand cite
+key "MoreauBook,Moreau1999b,BrogliatoBook,Moreau01,Jean01,Glocker2001book,Acary2008,LeineStability,Studer2009book,Koziara2008PhD"
 
 \end_inset
 
- and references therein for more details.
+ for more details.
 \end_layout
 
 \begin_layout Chapter
@@ -918,11 +920,11 @@ MPICC = mpicc
 \end_layout
 
 \begin_layout LyX-Code
-ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
+ZOLTANINC = -I/Users/tomek/Dropbox/lib/zoltan/include
 \end_layout
 
 \begin_layout LyX-Code
-ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
+ZOLTANLIB = -L/Users/tomek/Dropbox/lib/zoltan/lib -lzoltan
 \end_layout
 
 \begin_layout Standard
@@ -4499,9 +4501,7 @@ maxiter
 meritval
 \series default
  - constraints satisfaction merit function value sufficient for termination
- (default: 1E+9).
- Note, that the default value is large because the Gauss-Seidel solver often
- fails to find a global minimum of the merit function.
+ (default: 1E-3)
 \end_layout
 
 \begin_layout Itemize
@@ -9376,7 +9376,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Graphics
-	filename /Users/tomek/Devel/tkwork/codes/solfec/doc/figures/arch-1.png
+	filename /Users/tomek/Dropbox/tkwork/codes/solfec/doc/figures/arch-1.png
 	lyxscale 30
 	width 62text%
 
@@ -10116,7 +10116,7 @@ Solvers
 \end_layout
 
 \begin_layout Standard
-Development of solvers for unilateral dynamics is one of the main driving
+Dropboxopment of solvers for unilateral dynamics is one of the main driving
  forces behind Solfec.
  The two solvers described in Sections 
 \begin_inset CommandInset ref
@@ -11299,7 +11299,7 @@ Parallel penalty solver.
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
-bibfiles "/Users/tomek/Devel/tkwork/bibs/rigid-bodies,/Users/tomek/Devel/tkwork/bibs/contact-related,/Users/tomek/Devel/tkwork/bibs/phd,/Users/tomek/Devel/tkwork/bibs/time-stepping"
+bibfiles "/Users/tomek/Dropbox/tkwork/bibs/rigid-bodies,/Users/tomek/Dropbox/tkwork/bibs/contact-related,/Users/tomek/Dropbox/tkwork/bibs/phd,/Users/tomek/Dropbox/tkwork/bibs/time-stepping"
 options "plain"
 
 \end_inset
