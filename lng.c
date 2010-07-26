@@ -2842,7 +2842,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
     dias = DS_SEMISMOOTH_NEWTON;
     self->data = NULL;
     self->callback = NULL;
-    meritval = 1E+9;
+    meritval = 1E-3;
 
     PARSEKEYS ("di|dOdiOOO", &epsilon, &maxiter, &meritval, &failure,
       &diagepsilon, &diagmaxiter, &diagsolver, &self->data, &self->callback);
