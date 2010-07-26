@@ -501,6 +501,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
   UPKIND upkind = update_kind (solver);
   DOM *dom = ldy->dom;
   double step = dom->step;
+  short dynamic = dom->dynamic;
   DIAB *dia;
   OFFB *blk;
 
@@ -588,8 +589,11 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     NNCOPY (W.x, A.x);
     MX_Inverse (&A, &A); /* inverse of diagonal block */
 
-    NVMUL (A.x, B, X);
-    ldy->free_energy += DOT (X, B); /* sum up free energy */
+    if (!(dynamic && con->kind == CONTACT && con->gap > 0)) /* skip open dynamic contacts */
+    {
+      NVMUL (A.x, B, X);
+      ldy->free_energy += DOT (X, B); /* sum up free energy */
+    }
 
     /* add up prescribed velocity contribution */
     if (con->kind == VELODIR) ldy->free_energy += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
