@@ -771,7 +771,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	     errloc [2],
 	     errsum [2];
 
-      undo_all (ldy);
+      S("GSRUN"); undo_all (ldy); E("GSRUN"); 
 
       if (gs->reverse && gs->iters % 2)
       {
@@ -838,12 +838,14 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #endif
 
       /* merit function */
-      *merit = MERIT_Function (ldy, 1);
+      S("GSRUN"); *merit = MERIT_Function (ldy, 1); E("GSRUN"); 
 
       /* sum up error */
+      S("GSCOM"); 
       errloc [0] = errup, errloc [1] = errlo;
       MPI_Allreduce (errloc, errsum, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
       errup = errsum [0], errlo = errsum [1];
+      E("GSCOM"); 
 
       /* calculate relative error */
       error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);
@@ -880,7 +882,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	S("GSRUN"); di = gauss_seidel_sweep (noncon, 0, gs, dynamic, step, 1, &errup, &errlo); dimax = MAX (dimax, di); E("GSRUN");
       }
 
-      *merit = MERIT_Function (ldy, 1);
+      S("GSRUN"); *merit = MERIT_Function (ldy, 1); E("GSRUN"); 
 
       error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);
 
