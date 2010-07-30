@@ -920,11 +920,11 @@ MPICC = mpicc
 \end_layout
 
 \begin_layout LyX-Code
-ZOLTANINC = -I/Users/tomek/Dropbox/lib/zoltan/include
+ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
 \end_layout
 
 \begin_layout LyX-Code
-ZOLTANLIB = -L/Users/tomek/Dropbox/lib/zoltan/lib -lzoltan
+ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
 \end_layout
 
 \begin_layout Standard
@@ -4501,7 +4501,15 @@ maxiter
 meritval
 \series default
  - constraints satisfaction merit function value sufficient for termination
- (default: 1E-3)
+ (default: 1E-3), cf.
+ Chapter 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "cha:Constraints-accuracy"
+
+\end_inset
+
+ for more details.
 \end_layout
 
 \begin_layout Itemize
@@ -5162,7 +5170,15 @@ obj
 meritval
 \series default
  - constraints satisfaction merit function value sufficient for termination
- (default: 1E-3)
+ (default: 1E-3), cf.
+ Chapter 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "cha:Constraints-accuracy"
+
+\end_inset
+
+ for more details.
 \end_layout
 
 \begin_layout Itemize
@@ -9643,11 +9659,7 @@ R_{N}-\max\left(0,d_{N}\right)\end{array}\right]\label{eq:CR}\end{equation}
 
 \end_inset
 
-where 
-\begin_inset Formula $\rho>0$
-\end_inset
-
- and
+where
 \end_layout
 
 \begin_layout Standard
@@ -9665,7 +9677,12 @@ d_{N}=R_{N}-\rho\bar{U}_{N}\label{eq:dN}\end{equation}
 
 \end_inset
 
-We refer the reader to Chapter 10 of 
+and 
+\begin_inset Formula $\rho>0$
+\end_inset
+
+.
+ We refer the reader to Chapter 10 of 
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008PhD"
@@ -10108,6 +10125,324 @@ where
 \begin_layout Chapter
 \begin_inset CommandInset label
 LatexCommand label
+name "cha:Constraints-accuracy"
+
+\end_inset
+
+Constraints accuracy
+\end_layout
+
+\begin_layout Standard
+As explained in Chapter 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "cha:Introduction"
+
+\end_inset
+
+, at every time step an implicit equation 
+\begin_inset Formula $\mathbf{C}\left(\mathbf{R}\right)=\mathbf{0}$
+\end_inset
+
+ is solved.
+ Ideally, when for some 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+ there holds 
+\begin_inset Formula $\mathbf{C}\left(\mathbf{R}\right)=\mathbf{0}$
+\end_inset
+
+ we have an exact solution.
+ Of course, in numerical terms this is not possible.
+ For very large problems, and especially for problems where the amount of
+ constraints exceeds the amount of kinematic freedom, obtaining very accurate
+ solutions is hard and often unpractical.
+ In any case, it is useful to have an accuracy measure that has some physical
+ interpretation.
+ In order to compute constraints accuracy, we formulate 
+\begin_inset Formula $\mathbf{C}\left(\mathbf{R}\right)$
+\end_inset
+
+ in terms of velocity (cf.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:SC-velo"
+
+\end_inset
+
+ for the Signorini-Coulomb law) and use
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+g\left(\mathbf{R}\right)=\sum_{\alpha}\left\langle \mathbf{W}_{\alpha\alpha}^{-1}\mathbf{C}_{\alpha}\left(\mathbf{R}\right),\mathbf{C}_{\alpha}\left(\mathbf{R}\right)\right\rangle /\sum_{\alpha}\left\langle \mathbf{W}_{\alpha\alpha}^{-1}\mathbf{B}_{\alpha},\mathbf{B}_{\alpha}\right\rangle \label{eq:accuracy}\end{equation}
+
+\end_inset
+
+in order to approximately measure the relative amount of spurious energy,
+ due to an inexact satisfaction of constraints.
+ The denominator corresponds to the kinetic energy of the relative free
+ motion, hence 
+\begin_inset Formula $g\left(\mathbf{R}\right)$
+\end_inset
+
+ is the ratio of the spurious energy over the nominal amount of the energy
+ available at the constraints.
+ Since inverting 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+ would be unpractical or impossible due to singularity, we only use the
+ diagonal blocks, which are always positive definite.
+ 
+\end_layout
+
+\begin_layout Section
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:SC-velo"
+
+\end_inset
+
+Signorini-Coulomb revisited
+\end_layout
+
+\begin_layout Standard
+We express the Signorini-Coulomb law defined in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sub:Signorini-Coulomb"
+
+\end_inset
+
+ in the form suitable for (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:accuracy"
+
+\end_inset
+
+).
+ The friction cone 
+\begin_inset Formula $FC_{\alpha}$
+\end_inset
+
+ is defined as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+FC_{\alpha}=\left\{ \mathbf{R}_{\alpha}:\left\Vert \mathbf{R}_{\alpha T}\right\Vert \le\mu_{\alpha}R_{\alpha N},R_{\alpha N}\ge0\right\} \end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mu_{\alpha}$
+\end_inset
+
+ is the coefficient of friction.
+ It has been shown by De Saxc
+\begin_inset ERT
+status open
+
+\begin_layout Plain Layout
+
+
+\backslash
+'
+\end_layout
+
+\end_inset
+
+e and Feng 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "DeSaxce1998"
+
+\end_inset
+
+, that the Signorini-Coulomb law can be expressed in a compact form
+\end_layout
+
+\begin_layout Standard
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\noun off
+\color none
+\begin_inset Formula \begin{equation}
+-\left[\begin{array}{c}
+\mathbf{U}_{\alpha T}\\
+\bar{U}_{\alpha N}+\mu_{\alpha}\left\Vert \mathbf{U}_{\alpha T}\right\Vert \end{array}\right]\in N_{FC_{\alpha}}\left(\mathbf{R}_{\alpha}\right)\label{eq:DSF}\end{equation}
+
+\end_inset
+
+
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\noun default
+\color inherit
+where 
+\begin_inset Formula $N_{FC_{\alpha}}$
+\end_inset
+
+ stands for the normal cone of the set 
+\begin_inset Formula $FC_{\alpha}$
+\end_inset
+
+.
+ For a convex set 
+\begin_inset Formula $A$
+\end_inset
+
+ the normal cone 
+\begin_inset Formula $N_{A}\left(\mathbf{R}\right)$
+\end_inset
+
+ at point 
+\begin_inset Formula $\mathbf{R}\in A$
+\end_inset
+
+ is defined as the set of all vectors 
+\begin_inset Formula $\mathbf{V}$
+\end_inset
+
+ such that 
+\begin_inset Formula $\left\langle \mathbf{V},\mathbf{S}-\mathbf{R}\right\rangle \le0$
+\end_inset
+
+ for all 
+\begin_inset Formula $\mathbf{S}\in A$
+\end_inset
+
+.
+ Let 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{F}\left(\mathbf{R}\right)=\left[\begin{array}{c}
+...\\
+\mathbf{U}_{\alpha T}\left(\mathbf{R}\right)\\
+\bar{U}_{\alpha N}\left(\mathbf{R}\right)+\mu_{\alpha}\left\Vert \mathbf{U}_{\alpha T}\left(\mathbf{R}\right)\right\Vert \\
+...\end{array}\right]\label{eq:F}\end{equation}
+
+\end_inset
+
+and
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+FC=\bigcup_{\alpha}FC_{\alpha}\end{equation}
+
+\end_inset
+
+where the dependence 
+\begin_inset Formula $\mathbf{U}_{\alpha}\left(\mathbf{R}\right)$
+\end_inset
+
+ is defined in (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:locdyn"
+
+\end_inset
+
+).
+ Formula (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:DSF"
+
+\end_inset
+
+) states, that the frictional contact constraints are satisfied if 
+\begin_inset Formula $-\mathbf{F}\left(\mathbf{R}\right)$
+\end_inset
+
+ belongs to the normal cone of the friction cone at 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+.
+ Hence
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+-\mathbf{F}\left(\mathbf{R}\right)=\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)-\mbox{proj}_{FC}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)\end{equation}
+
+\end_inset
+
+which can be reduced to the usual projection formula 
+\begin_inset Formula $\mathbf{R}=\mbox{proj}_{FC}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)$
+\end_inset
+
+.
+ Let us not do it though, but rather define a vector field
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{m}\left(\mathbf{S}\right)=\mathbf{S}-\mbox{proj}_{FC}\left(\mathbf{S}\right)=\mathbf{n}\left(\mathbf{S}\right)\left\langle \mathbf{n}\left(\mathbf{S}\right),\mathbf{S}\right\rangle \end{equation}
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{n}_{\alpha}\left(\mathbf{S}_{\alpha}\right)=\left\{ \begin{array}{lll}
+\mathbf{0} & \mbox{if} & \left\Vert \mathbf{S}_{\alpha T}\right\Vert -\mu_{\alpha}S_{\alpha N}\le0\\
+\mathbf{S}_{\alpha}/\left\Vert \mathbf{S}_{\alpha}\right\Vert  & \mbox{if} & \mu_{\alpha}\left\Vert \mathbf{S}_{\alpha T}\right\Vert +S_{\alpha N}<0\\
+\frac{1}{\sqrt{1+\mu_{\alpha}^{2}}}\left[\begin{array}{c}
+\mathbf{S}_{\alpha T}/\left\Vert \mathbf{S}_{\alpha T}\right\Vert \\
+-\mu_{\alpha}\end{array}\right] & \mbox{} & \mbox{otherwise}\end{array}\right.\label{eq:n}\end{equation}
+
+\end_inset
+
+We can rewrite (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:DSF"
+
+\end_inset
+
+) as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{C}\left(\mathbf{R}\right)=\mathbf{F}\left(\mathbf{R}\right)+\mathbf{m}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)=\mathbf{0}\mbox{ and }\mathbf{R}\in FC\label{eq:C1}\end{equation}
+
+\end_inset
+
+Note, that 
+\begin_inset Formula $\mathbf{F}\left(\mathbf{R}\right)$
+\end_inset
+
+ is expressed in terms of velocity, and so is 
+\begin_inset Formula $\mathbf{C}\left(\mathbf{R}\right)$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Chapter
+\begin_inset CommandInset label
+LatexCommand label
 name "cha:Solvers"
 
 \end_inset
@@ -10116,7 +10451,7 @@ Solvers
 \end_layout
 
 \begin_layout Standard
-Dropboxopment of solvers for unilateral dynamics is one of the main driving
+Development of solvers for unilateral dynamics is one of the main driving
  forces behind Solfec.
  The two solvers described in Sections 
 \begin_inset CommandInset ref
@@ -10214,7 +10549,7 @@ status open
 
 \begin_layout LyX-Code
 SERIAL_GAUSS_SEIDEL 
-\begin_inset Formula $\left(Constraints,\epsilon\right)$
+\begin_inset Formula $\left(Constraints,\epsilon,\gamma\right)$
 \end_inset
 
 
@@ -10271,6 +10606,10 @@ SERIAL_GAUSS_SEIDEL
 \begin_layout LyX-Code
 6  while 
 \begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
+\end_inset
+
+ and 
+\begin_inset Formula $g\left(\mathbf{R}\right)>\gamma$
 \end_inset
 
 
@@ -10591,15 +10930,7 @@ SWEEP
 \end_layout
 
 \begin_layout LyX-Code
-2    
-\begin_inset Formula $\mathbf{S}_{\alpha}=\mathbf{R}_{\alpha}$
-\end_inset
-
- 
-\end_layout
-
-\begin_layout LyX-Code
-3    find 
+2    find 
 \begin_inset Formula $\mathbf{R}_{\alpha}$
 \end_inset
 
@@ -10611,7 +10942,7 @@ SWEEP
 \end_layout
 
 \begin_layout LyX-Code
-4                       assuming 
+3                       assuming 
 \begin_inset Formula $\mathbf{R}_{\beta}=\mbox{constant}$
 \end_inset
 
@@ -10736,7 +11067,7 @@ LOOP
 
 \begin_layout LyX-Code
 PARALLEL_GAUSS_SEIDEL 
-\begin_inset Formula $\left(\epsilon\right)$
+\begin_inset Formula $\left(\epsilon,\gamma\right)$
 \end_inset
 
 
@@ -10827,8 +11158,12 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-12  while
+12  while 
 \begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
+\end_inset
+
+ and 
+\begin_inset Formula $g\left(\mathbf{R}\right)>\gamma$
 \end_inset
 
 
@@ -11125,8 +11460,12 @@ Although this kind of approach does work as a multi-grid smoother, it has
 \end_layout
 
 \begin_layout LyX-Code
-6   while
+6   while 
 \begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
+\end_inset
+
+ and 
+\begin_inset Formula $g\left(\mathbf{R}\right)>\gamma$
 \end_inset
 
 
@@ -11289,10 +11628,6 @@ Parallel penalty solver.
 
 \end_inset
 
-
-\end_layout
-
-\begin_layout LyX-Code
 
 \end_layout
 
