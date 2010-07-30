@@ -1827,7 +1827,7 @@ static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, do
       for (j = 0; j < fac->type; j ++) ADD (nodes [j], q [j], nodes [j]);
       N = fac->normal + 3;
 
-      INTEGRAL2D_BEGIN (fac->type)
+      INTEGRAL2D_BEGIN (fac->type) /* defines point and weight */
       {
 	n = face_shapes (fac, point, shapes);
 	J = face_det (fac, nodes, point);
@@ -2734,7 +2734,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
   MX_Destroy (N);
 
-  if (bod->form == BODY_COROTATIONAL)
+  if (bod->form == BODY_COROTATIONAL) /* FIXME: the BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
   {
     double *x = H->x, *y = x + H->nzmax,
            *R = FEM_ROT (bod), T [9];
