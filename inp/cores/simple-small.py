@@ -30,7 +30,7 @@ else:
   print 'Uknown solver'
   sys.exit (1)
 
-outdir =  'out/cores/simple-quarter' + kinstr + solstr
+outdir =  'out/cores/simple-small' + kinstr + solstr
 solfec = SOLFEC ('DYNAMIC', step, outdir)
 
 if shake == 'TRUE':

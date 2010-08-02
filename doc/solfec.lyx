@@ -337,7 +337,7 @@ integral
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-\mathbf{q}^{0}\mbox{ and }\mathbf{u}^{0}\mbox{ as prescribed initial condtions.}\label{eq:ini}\end{equation}
+\mathbf{q}^{0}\mbox{ and }\mathbf{u}^{0}\mbox{ as prescribed initial conditions.}\label{eq:ini}\end{equation}
 
 \end_inset
 
@@ -10157,7 +10157,7 @@ reference "cha:Introduction"
  Of course, in numerical terms this is not possible.
  For very large problems, and especially for problems where the amount of
  constraints exceeds the amount of kinematic freedom, obtaining very accurate
- solutions is hard and often unpractical.
+ solutions is hard and often impractical.
  In any case, it is useful to have an accuracy measure that has some physical
  interpretation.
  In order to compute constraints accuracy, we formulate 
