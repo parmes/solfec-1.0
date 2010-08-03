@@ -4,7 +4,8 @@ from math import cos
 
 theta = 3.14159 / 8.0
 step = 0.001
-stop = 10
+stop = 150
+ofrq = 0.01
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/newton-cradle')
 
@@ -30,6 +31,8 @@ for i in range (0, 5):
   bod = BODY (solfec, 'RIGID', sph, bulkmat)
   PUT_RIGID_LINK (bod, None, c, p)
 
+
+OUTPUT (solfec, ofrq)
 RUN (solfec, gs, stop)
 
 if not VIEWER() and solfec.mode == 'READ':

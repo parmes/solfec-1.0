@@ -418,20 +418,23 @@ int SPHERE_Contains_Point (void *dummy, SPHERE *sph, double *point)
 /* update sphere list according to the given motion */
 void SPHERE_Update (SPHERE *sph, void *body, void *shp, MOTION motion)
 {
-  double pnew [3],
-	 dpnt [3],
-         *ref = sph->ref_center,
-	 (*ref_pnt) [3] = sph->ref_points,
-	 *cur = sph->cur_center,
-	 (*cur_pnt) [3] = sph->cur_points;
+  for (; sph; sph = sph->next)
+  {
+    double pnew [3],
+	   dpnt [3],
+	   *ref = sph->ref_center,
+	   (*ref_pnt) [3] = sph->ref_points,
+	   *cur = sph->cur_center,
+	   (*cur_pnt) [3] = sph->cur_points;
 
-  motion (body, shp, sph, ref, pnew); /* move center */
-  SUB (pnew, cur, dpnt);
-  COPY (pnew, cur);
+    motion (body, shp, sph, ref, pnew); /* move center */
+    SUB (pnew, cur, dpnt);
+    COPY (pnew, cur);
 
-  motion (body, shp, sph, ref_pnt [0], cur_pnt [0]); /* move marker points */
-  motion (body, shp, sph, ref_pnt [1], cur_pnt [1]);
-  motion (body, shp, sph, ref_pnt [2], cur_pnt [2]);
+    motion (body, shp, sph, ref_pnt [0], cur_pnt [0]); /* move marker points */
+    motion (body, shp, sph, ref_pnt [1], cur_pnt [1]);
+    motion (body, shp, sph, ref_pnt [2], cur_pnt [2]);
+  }
 }
 
 /* test wether two spheres are adjacent */

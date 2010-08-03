@@ -163,6 +163,8 @@ extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
 
 #define DOT4(a, b) (DOT(a,b) + (a)[3]*(b)[3])
 
+#define DOT5(a, b) (DOT4(a,b) + (a)[4]*(b)[4])
+
 #define LEN(a) (sqrt (DOT (a, a)))
 
 #define LEN2(a) (sqrt (DOT2 (a, a)))

@@ -366,98 +366,54 @@ static int velodir (double *Z, double *W, double *B, double *U, double *R)
 static int riglnk (short dynamic, double epsilon, int maxiter, double step,
   double *base, double *Z, double *W, double *B, double *V, double *U, double *R)
 {
-  double B0 [3], b,
-	 C [3],
-	 D [9],
-	 LRR [9],
-	 LRl [3],
-	 LL [16],
-	 DX [4],
-	 TMP [9],
-	 l, len,
-	 tmp,
-	 error;
-  int iter,
-      ipiv [4];
+  double X [2],
+	 Y [3],
+         C [3],
+	 D [4],
+	 L [4],
+	 l, len, error;
+  int ipiv [4], iter;
 
-  if (DOT (B, B) == 0.0)
-  {
-    SET (R, 0);
-    COPY (B, U);
-  }
-  else if (dynamic) /* q(n+1) = q(n) + (h/2) * (u(n) + u(n+1)) */
-  {
-    U [0] =  B[0]; 
-    U [1] =  B[1]; 
-    U [2] = -V[2];
-    R [0] =  0.0;
-    R [1] =  0.0;
-    R [2] = (U[2] - B[2])/W[8];
-  }
-  else /* q(n+1) = q(n) + h * u(n+1) */
-  {
-    NVMUL (base, B, B0);
-    SCALE (B0, step);
-    ADD (B0, RIGLNK_VEC(Z), B0);
-    b = DOT (B0, B0) - RIGLNK_LEN(Z)*RIGLNK_LEN(Z);
-    TVMUL (base, B0, TMP);
-    NVMUL (W, TMP, C);
-    SCALE (C, step);
-    NNMUL (base, W, LL);
-    TNMUL (base, LL, TMP);
-    NNMUL (W, TMP, D);
-    SCALE9 (D, step*step);
+  /* dynamic: q(n+1) = q(n) + (h/2) * (u(n) + u(n+1))  = q(n+1/2) + (h/2) * u(n+1);
+   * static: q(n+1) = q(n) + h * u(n+1);
+   * minimize 0.5 WNN RN^2 , subject to h(R) = |Z + h([WTN;WNN] RN + B)|^2 - d^2 = 0 */
 
-    /* initial R, l */
-    l = 0.0;
-    if (DOT (R, R) == 0.0) /* use old value if non-zero */
-    {
-      R [0] = 0.0;
-      R [1] = 0.0;
-      R [2] = epsilon;
-    }
+  TVMUL (base, RIGLNK_VEC(Z), Y); /* local Z */
+  if (dynamic) step *= 0.5;
+  len = RIGLNK_LEN(Z);
+  SET2 (R, 0);
+  iter = 0;
+  l = 0;
+  do
+  {
+    /* gradient of h(R) = 2(Z + h([WTN; WNN] RN + B))' h [WTN; WNN] */
 
+    ADDMUL (B, R[2], W+6, C);
+    ADDMUL (Y, step, C, D);
+    X [1] = DOT (D, D) - len*len;
+    D [3] = DOT (W+6, D) * 2.0 * step;
+    X[0] = W[8]*R[2] + l*D[3];
+    L[0] = W[8]; L[2] = D[3];
+    L[1] = D[3]; L[3] = 0.0;
+
+    if (lapack_dgesv (2, 1, L, 2, ipiv, X, 2)) return -1;
+
+    R[2] -= X[0];
+    l -= X [1];
+
+    error = sqrt (DOT2(X,X)/(R[2]*R[2] + l*l));
+
+  } while (error > epsilon && ++iter < maxiter);
+
+  if (dynamic && iter >= maxiter) /* fall back on the explicit velocity formula */
+  {
+    R [2] = (U[2] - B[2]) / W[8];
     iter = 0;
-    do
-    {
-      len = DOT (R, R);
-      tmp = 1.0 / len;
-      len = sqrt (len);
-      DIADIC (R, R, TMP);
-      SCALE9 (TMP, tmp);
-      IDENTITY (LRR);
-      NNSUB (LRR, TMP, LRR);
-      tmp = 1.0 / len;
-      SCALE9 (LRR, tmp);
-      NNADDMUL (LRR, l, D, LRR);
-      NVMUL (D, R, TMP);
-      ADD (C, TMP, LRl);
-      COPY (R, DX);
-      SCALE (DX, tmp);
-      ADDMUL (DX, l, LRl, DX);
-      DX [3] = b + DOT (C, R);
-      DX [3] += DOT (R, TMP);
-
-      LL[0] = LRR[0]; LL[4] = LRR[3]; LL[8]  = LRR[6]; LL[12] = LRl[0];
-      LL[1] = LRR[1]; LL[5] = LRR[4]; LL[9]  = LRR[7]; LL[13] = LRl[1];
-      LL[2] = LRR[2]; LL[6] = LRR[5]; LL[10] = LRR[8]; LL[14] = LRl[2];
-      LL[3] = LRl[0]; LL[7] = LRl[1]; LL[11] = LRl[2]; LL[15] = 0.0;
-
-      if (lapack_dgesv (4, 1, LL, 4, ipiv, DX, 4)) return -1;
-
-      SUB (R, DX, R);
-      l -= DX [3];
-
-      error = sqrt (DOT(DX,DX)/DOT(R,R));
-
-    } while (error > epsilon && ++iter < maxiter);
-
-    NVADDMUL (B, W, R, U);
-   
-    return iter;
   }
 
-  return 0;
+  NVADDMUL (B, W, R, U);
+ 
+  return iter;
 }
 
 /* diagsolver: diagonal solver kind

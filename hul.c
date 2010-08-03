@@ -219,19 +219,19 @@ static int vcmp (double **a, double **b)
 }
 
 /* select vertices of an initial simplex and output the list of remaining vertices */
-static vertex* simplex_vertices (double *v, int n, MEM *mv, double *sv [4])
+static int simplex_vertices (double *v, int n, MEM *mv, double *sv [4], vertex **out)
 {
   double **pv, **pp, **pq, **pe, **pn;
   double d, a[3], b[3], c[3], u[3];
   SET *points, *item;
-  vertex *out, *x;
   MEM setmem;
+  vertex *x;
   int i, j;
 
   ERRMEM (pv = MEM_CALLOC (sizeof (double*) * n));
   MEM_Init (&setmem, sizeof (SET), n);
   points = NULL;
-  out = NULL;
+  *out = NULL;
 
   for (pp = pv, pe = pv+n; pp < pe; pp ++, v += 3)
   {
@@ -310,21 +310,25 @@ static vertex* simplex_vertices (double *v, int n, MEM *mv, double *sv [4])
 #if GEOMDEBUG
   ASSERT_DEBUG (j == 4, "All input points coincide");
 #else
-  if (j != 4) goto out;
+  if (j != 4)
+  {
+    MEM_Release (&setmem);
+    free (pv);
+    return 0;
+  }
 #endif
 
   for (item = SET_First (points); item; item = SET_Next (item)) /* for each remaining point */
   {
     ERRMEM (x = MEM_Alloc (mv));
     x->v = item->data;
-    x->n = out;
-    out = x; /* put into the output list */
+    x->n = *out;
+    *out = x; /* put into the output list */
   }
 
-out:
   MEM_Release (&setmem);
   free (pv);
-  return out;
+  return 1;
 }
 
 /* create a simplex and return the corresponding face list */
@@ -547,7 +551,7 @@ TRI* hull (double *v, int n, int *m)
   tri = NULL;
 
   /* select vertices of an initial simplex into 'sv' */
-  if (!(l = simplex_vertices (v, n, &mv, sv))) goto error;
+  if (!simplex_vertices (v, n, &mv, sv, &l)) goto error;
  
   /* create the initial simplex */ 
   if (!(h = simplex (&me, &mf, sv[0], sv[1], sv[2], sv[3]))) goto error;

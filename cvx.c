@@ -491,9 +491,11 @@ CONVEX* CONVEX_Hull (CONVEX *cvx, double *pnt, int npnt, int surface, int volume
 
   cvy = CONVEX_Create (cvx, ver, n, fac, m, surfaces, volume);
 
+  free (tri);
   free (ver);
   free (fac);
   free (surfaces);
+  MEM_Release (&mem);
 
   return cvy;
 }
