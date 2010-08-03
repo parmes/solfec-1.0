@@ -3823,10 +3823,13 @@ static PyObject* lng_HULL (PyObject *self, PyObject *args, PyObject *kwds)
     }
     ENDTRY ()
 
-    if (cvx)
+    if (out->cvx == NULL)
     {
-      convex->cvx = NULL; /* empty */
+      PyErr_SetString (PyExc_RuntimeError, "Failed to create convex hull");
+      return NULL;
     }
+
+    if (cvx) convex->cvx = NULL; /* empty */
 
     free (pnt);
   }

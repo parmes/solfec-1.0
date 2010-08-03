@@ -435,8 +435,8 @@ static void update_riglnk (DOM *dom, CON *con)
   }
 
   COPY (m, con->point);
-  SUB (s, m, RIGLNK_VEC (con->Z));
-  SUB (s, m, n);
+  SUB (m, s, RIGLNK_VEC (con->Z));
+  SUB (m, s, n);
   len = LEN (n);
   con->gap = len - RIGLNK_LEN(con->Z);
   len = 1.0 / len;

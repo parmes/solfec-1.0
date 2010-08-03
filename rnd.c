@@ -1542,7 +1542,7 @@ static void render_riglnk (CON *con, GLfloat width, GLfloat color [3])
 {
   double other [3];
 
-  ADD (con->point, RIGLNK_VEC (con->Z), other);
+  SUB (con->point, RIGLNK_VEC (con->Z), other);
 
   glColor3fv (color);
 

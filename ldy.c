@@ -542,7 +542,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     MX_DENSE_PTR (A, 3, 3, dia->A);
     MX_DENSE (C, 3, 3);
 
-    /* relative velocity = slave - master => outward master normal */
+    /* relative velocity = master - slave => outward slave normal */
     BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
     if (s)
     {
