@@ -4339,6 +4339,12 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     }
     else /* both bodies passed */
     {
+      if (body1->bod->dom->time != 0.0)
+      {
+	PyErr_SetString (PyExc_ValueError, "Rigid links can be inserted only at time zero");
+	return NULL;
+      }
+
       DOM_Pending_Two_Body_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2);
     }
 #endif

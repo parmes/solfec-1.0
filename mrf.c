@@ -168,7 +168,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
 #else
       double coef = dynamic ? 0.5 * step : step;
       ADDMUL (RIGLNK_VEC(con->Z), coef, U, P);
-      P[2] = LEN (P) - RIGLNK_LEN(con->Z);
+      P[2] = (LEN (P) - RIGLNK_LEN(con->Z)) / step;
 #endif
 
       Q [2] = A[8] * P[2];
