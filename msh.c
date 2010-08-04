@@ -251,7 +251,7 @@ static void setup_normal (double (*nodes) [3], FACE *fac)
 
   n0 = fac->nodes [0];
   n1 = fac->nodes [1];
-  n2 = fac->nodes [3];
+  n2 = fac->nodes [2];
   normal = fac->normal;
   NORMAL (nodes [n0], nodes [n1], nodes [n2], normal);
   NORMALIZE (normal);

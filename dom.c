@@ -1063,6 +1063,57 @@ static void stats_destroy (DOM *dom)
   free (dom->stats);
 }
 
+/* update con->point members of external rigid link constraints */
+static void update_external_riglnk_points (DOM *dom)
+{
+  int nsend, nrecv, *isize, *dsize, i, *j, *k;
+  COMDATA *send, *recv, *ptr;
+  double *p;
+  SET *item;
+  CON *con;
+
+  nsend = dom->ncpu;
+  ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend])));
+  ERRMEM (isize = MEM_CALLOC (sizeof (int [nsend])));
+  ERRMEM (dsize = MEM_CALLOC (sizeof (int [nsend])));
+
+  for (i = 0; i < nsend; i ++) send [i].rank = i;
+
+  for (con = dom->con; con; con = con->next)
+  {
+    for (item = SET_First (con->ext); item; item = SET_Next (item))
+    {
+      i = (int) (long) item->data;
+      ptr = &send [i];
+      pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
+      pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, con->point, 3);
+    }
+  }
+
+  dom->bytes += COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+
+  for (i = 0; i < nrecv; i ++)
+  {
+    ptr = &recv [i];
+    for (j = ptr->i, k = j + ptr->ints, p = ptr->d; j < k; j ++, p += 3)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid constraint id");
+      COPY (p, con->point);
+    }
+  }
+
+  for (i = 0; i < nsend; i ++)
+  {
+    ptr = &send [i];
+    free (ptr->i);
+    free (ptr->d);
+  }
+  free (send);
+  free (isize);
+  free (dsize);
+  free (recv); /* includes recv[]->i and recv[]->d memory */
+}
+
 /* pack children update data */
 static void update_children_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -1411,15 +1462,21 @@ static void insert_pending_constraints (DOM *dom)
 
     if (pnd->slave->flags & BODY_PARENT)
     {
+      double *pp [] = {pnd->mpnt, pnd->spnt};
       e = pnd->slave->extents;
-      p = pnd->spnt;
 
-      if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
-      if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
-      if (p [2] < e [2]) e [2] = p [2] - GEOMETRIC_EPSILON;
-      if (p [0] > e [3]) e [3] = p [0] + GEOMETRIC_EPSILON;
-      if (p [1] > e [4]) e [4] = p [1] + GEOMETRIC_EPSILON;
-      if (p [2] > e [5]) e [5] = p [2] + GEOMETRIC_EPSILON;
+      for (int i = 0; i < 2; i ++)
+      {
+        p = pp [i]; /* make sure that slave knows about both points since it can on a processor different that
+		       the parant and can have no other means of knowing where to migrate the needed child */
+
+	if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
+	if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
+	if (p [2] < e [2]) e [2] = p [2] - GEOMETRIC_EPSILON;
+	if (p [0] > e [3]) e [3] = p [0] + GEOMETRIC_EPSILON;
+	if (p [1] > e [4]) e [4] = p [1] + GEOMETRIC_EPSILON;
+	if (p [2] > e [5]) e [5] = p [2] + GEOMETRIC_EPSILON;
+      }
     }
 
     if (pnd->master->flags & BODY_PARENT)
@@ -1438,7 +1495,7 @@ static void insert_pending_constraints (DOM *dom)
       }
     }
 
-    free (pnd); /* they were MEM_ALLOCED-ed */
+    free (pnd); /* they were MEM_ALLOC-ed */
   }
 
   /* empty pending constraints set */
@@ -1616,7 +1673,10 @@ static void domain_balancing (DOM *dom)
     if ((con->master->flags & (BODY_PARENT|BODY_CHILD)) == 0 ||
 	(con->slave && (con->slave->flags & (BODY_PARENT|BODY_CHILD)) == 0))
     {
-      ASSERT_DEBUG (0, "Regular constraint attached to a dummy"); /* a debugger catchable assertion */
+      ASSERT_DEBUG (0, "Regular constraint (id = %d, %s) attached to a dummy (id = %d, %s)", /* a debugger catchable assertion */
+        con->id, CON_Kind (con),
+	(con->master->flags & (BODY_PARENT|BODY_CHILD)) == 0  ? con->master->id : con->slave->id,
+	(con->master->flags & (BODY_PARENT|BODY_CHILD)) == 0  ? "master" : "slave");
     }
   }
 #endif
@@ -2544,6 +2604,12 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case RIGLNK:  update_riglnk  (dom, con); break;
     }
   }
+
+#if MPI
+  /* external rigid link con->point elements need to be updated before the update of body extents;
+   * this way slave bodies suitably update their extents and maintain children on the constraint owner processor */
+  update_external_riglnk_points (dom);
+#endif
 
   /* update body extents after constraints update so that constraint points can be incorporated if needed */
   for (bod = dom->bod; bod; bod = bod->next) BODY_Update_Extents (bod);
