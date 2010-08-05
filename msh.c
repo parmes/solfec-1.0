@@ -1151,8 +1151,11 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
 	 (*cur) [3] = msh->cur_nodes;
   int m = msh->nodes_count, n;
 
-  for (n = 0; n < m; n ++)
-    motion (body, shp, NULL, ref [n], cur [n]); /* move current nodes (NULL for gobj implies nodal update) */
+  if (motion)
+  {
+    for (n = 0; n < m; n ++)
+      motion (body, shp, NULL, ref [n], cur [n]); /* move current nodes (NULL for gobj implies nodal update) */
+  }
 
   for (ele = msh->surfeles; ele; ele = ele->next)
     for (fac = ele->faces; fac; fac = fac->next)

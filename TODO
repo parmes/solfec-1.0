@@ -82,3 +82,4 @@ Adjust MESH object in Python interface so to handle second order meshes
 ------------------------------------------------------------------------
 Sort out volumetric integration order in FEM module
 ------------------------------------------------------
+Sort out damping (better stiffness proportional)

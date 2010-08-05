@@ -41,6 +41,9 @@ static char *SUBDIR = NULL;
 /* global input file path */
 static char *INPUTFILE = NULL;
 
+/* global write mode flag */
+static int WRITEMODEFLAG = 0;
+
 /* register new SOLFEC object */
 void REGISTER_SOLFEC (SOLFEC *sol)
 {
@@ -58,6 +61,12 @@ char* OUTPUT_SUBDIR ()
 char* INPUT_FILE ()
 {
   return INPUTFILE;
+}
+
+/* get write mode flag */
+int WRITE_MODE_FLAG ()
+{
+  return WRITEMODEFLAG;
 }
 
 #ifndef LIBSOLFEC /* executables */
@@ -127,6 +136,7 @@ static char* getfile (int argc, char **argv)
     }
 #endif
     else if (strcmp (argv [n], "-v") == 0) continue;
+    else if (strcmp (argv [n], "-w") == 0) WRITEMODEFLAG = 1;
     else if (path == NULL)
     {
       if ((f = fopen (argv [n], "r")))
@@ -187,7 +197,7 @@ int main (int argc, char **argv)
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
-    char *synopsis = "SYNOPSIS: solfec [-v] [-g WIDTHxHEIGHT] [-s sub-directory] path\n";
+    char *synopsis = "SYNOPSIS: solfec [-v] [-w] [-g WIDTHxHEIGHT] [-s sub-directory] path\n";
 #else
     char *synopsis = "SYNOPSIS: solfec [-s sub-directory] path\n";
 #endif

@@ -421,7 +421,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->outpath = copyoutpath (outpath);
   sol->output_interval = 0;
   sol->output_time = 0;
-  if ((sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
+  if (!WRITE_MODE_FLAG() && (sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
   else if ((sol->bf = writeoutpath (sol->outpath)))
   {
     char *copy, *path = getpath (sol->outpath);

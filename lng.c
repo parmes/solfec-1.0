@@ -5144,6 +5144,105 @@ static PyObject* lng_COPY (PyObject *self, PyObject *args, PyObject *kwds)
   return out;
 }
 
+/* bend shape */
+static PyObject* lng_BEND (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("shape", "point", "direction", "angle");
+  PyObject *point, *direction;
+  double p [3], d [3], angle;
+  lng_MESH *shape;
+  MESH *msh;
+
+  PARSEKEYS ("OOOd", &shape, &point, &direction, &angle);
+
+  TYPETEST (is_mesh ((PyObject*)shape, kwl[0]) && is_tuple (point, kwl[1], 3)
+         && is_tuple (direction, kwl[2], 3) && is_positive (angle, kwl[3]));
+
+  p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+  p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+  p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+  d [0] = PyFloat_AsDouble (PyTuple_GetItem (direction, 0));
+  d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
+  d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
+
+  msh = shape->msh;
+
+  angle = ALG_PI * angle / 180.0;
+
+  double (*nod) [3], (*end) [3], proj [3], dif [3],
+	 dot, dmin, (*sel) [3], q [3], v [3], rmin, r, alpha;
+
+  dmin = DBL_MAX;
+  for (nod = msh->ref_nodes, end = nod + msh->nodes_count; nod != end; nod ++)
+  {
+    PROJECT_POINT_ON_LINE (nod[0], p, d, proj);
+    if (MESH_Element_Containing_Point (msh, proj, 1))
+    {
+      PyErr_SetString (PyExc_ValueError, "Bending axis is stabbing the mesh");
+      return NULL;
+    }
+    SUB (nod[0], proj, dif);
+    dot = DOT (dif, dif);
+    if (dot < dmin) { dmin = dot; sel = nod; } /* find closest mesh node */
+  }
+  PROJECT_POINT_ON_LINE (sel[0], p, d, proj);
+  SUB (sel[0], proj, dif);
+  PRODUCT (d, dif, v);
+  rmin = sqrt (dmin); /* shortest bending radius */
+  NORMALIZE (v); /* v is the direction of angle growth */
+
+  for (nod = msh->ref_nodes, sel = msh->cur_nodes, end = nod + msh->nodes_count; nod != end; nod ++, sel ++)
+  {
+    PROJECT_POINT_ON_LINE (nod[0], p, d, proj);
+    SUB (nod[0], proj, dif);
+    dot = DOT (v, dif); /* arc length */
+    if (dot > 0)
+    {
+      SUBMUL (nod[0], dot, v, q); /* project node on (axis, v) plane */
+      PROJECT_POINT_ON_LINE (q, p, d, proj);
+      SUB (q, proj, dif);
+      r = LEN (dif); /* bending radius  = |proj (line, proj (plane, node)) - proj (plane, node)| */
+      alpha = dot / rmin;
+
+      if (alpha <= angle)
+      {
+        nod[0][0] = proj[0] + cos (alpha) * dif [0] + r * sin (alpha) * v [0];
+        nod[0][1] = proj[1] + cos (alpha) * dif [1] + r * sin (alpha) * v [1];
+        nod[0][2] = proj[2] + cos (alpha) * dif [2] + r * sin (alpha) * v [2];
+      }
+      else
+      {
+	double u [3], len;
+
+	/* bend up to the angle */
+        nod[0][0] = proj[0] + cos (angle) * dif [0] + r * sin (angle) * v [0]; 
+        nod[0][1] = proj[1] + cos (angle) * dif [1] + r * sin (angle) * v [1];
+        nod[0][2] = proj[2] + cos (angle) * dif [2] + r * sin (angle) * v [2];
+
+	/* and extend along the normalize curve derivative */
+	u [0] = - sin (angle) * dif [0] + r * cos (angle) * v [0];
+	u [1] = - sin (angle) * dif [1] + r * cos (angle) * v [1];
+	u [2] = - sin (angle) * dif [2] + r * cos (angle) * v [2];
+	NORMALIZE (u);
+
+	/* by the remaining length */
+	len = dot - angle * rmin;
+	ADDMUL (nod[0], len, u, nod[0]);
+      }
+
+      COPY (nod[0], sel[0]);
+    }
+  }
+
+  /* update face normals */
+  MESH_Update (msh, NULL, NULL, NULL);
+
+  Py_INCREF (shape);
+  return (PyObject*)shape;
+}
+
+
 /* get object by label */
 static PyObject* lng_BYLABEL (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6219,6 +6318,7 @@ static PyMethodDef lng_methods [] =
   {"ROTATE", (PyCFunction)lng_ROTATE, METH_VARARGS|METH_KEYWORDS, "Rotate shape"},
   {"SPLIT", (PyCFunction)lng_SPLIT, METH_VARARGS|METH_KEYWORDS, "Split shape by plane"},
   {"COPY", (PyCFunction)lng_COPY, METH_VARARGS|METH_KEYWORDS, "Copy shape"},
+  {"BEND", (PyCFunction)lng_BEND, METH_VARARGS|METH_KEYWORDS, "Bend shape"},
   {"BYLABEL", (PyCFunction)lng_BYLABEL, METH_VARARGS|METH_KEYWORDS, "Get object by label"},
   {"MASS_CENTER", (PyCFunction)lng_MASS_CENTER, METH_VARARGS|METH_KEYWORDS, "Get mass center"},
   {"CONTACT_EXCLUDE_BODIES", (PyCFunction)lng_CONTACT_EXCLUDE_BODIES, METH_VARARGS|METH_KEYWORDS, "Exclude body pair from contact detection"},
@@ -6403,6 +6503,7 @@ int lng (const char *path)
                      "from solfec import ROTATE\n"
                      "from solfec import SPLIT\n"
                      "from solfec import COPY\n"
+                     "from solfec import BEND\n"
                      "from solfec import BYLABEL\n"
                      "from solfec import MASS_CENTER\n"
                      "from solfec import CONTACT_EXCLUDE_BODIES\n"
