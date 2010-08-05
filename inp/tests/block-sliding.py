@@ -71,12 +71,13 @@ if not VIEWER():
     passed = 1
 
     for ref in REF:
-      if ref [0] == 0: error = abs (X[ref[1]] - ref[2]) / max (1, ref[2])
-      else: error = abs (V[ref[1]] - ref[2]) / max (1, ref[2])
+      if ref [0] == 0: val = X[ref[1]]
+      else: error = val = V[ref[1]]
+      error = abs (val - ref[2]) / max (1, ref[2])
       if error > 1E-3:
 	passed = 0
 	print 'FAILED'
-	print '(', 'Computed value was %.3f' % tot[ref[0]], 'while the reference is %.3f' % ref[1]
+	print '(', 'Computed value was %.3f' % val, 'while the reference is %.3f' % ref[2], ')'
 	break
 
     if passed: print 'PASSED'

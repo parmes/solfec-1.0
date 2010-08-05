@@ -7479,7 +7479,7 @@ This routine bends a shape around an axis.
  The bending is performed from the section of the shape closest to the axis
  onward.
  The orientation of the axis direction determines the orientation of the
- bending as follows.
+ bending according to the right hand rule.
  Let 
 \begin_inset Formula $\mathbf{q}$
 \end_inset

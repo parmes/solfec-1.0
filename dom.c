@@ -155,12 +155,27 @@ static int constraint_compare (CON *one, CON *two)
     onebod [1] = one->slave;
     onesgp [1] = one->ssgp;
   }
-  else
+  else if (one->master > one->slave)
   {
     onebod [0] = one->slave;
     onesgp [0] = one->ssgp;
     onebod [1] = one->master;
     onesgp [1] = one->msgp;
+  }
+  else
+  {
+    onebod [0] = onebod [1] = one->master;
+
+    if (one->msgp < one->ssgp)
+    {
+      onesgp [0] = one->msgp;
+      onesgp [1] = one->ssgp;
+    }
+    else
+    {
+      onesgp [0] = one->ssgp;
+      onesgp [1] = one->msgp;
+    }
   }
 
   if (two->master < two->slave)
@@ -170,12 +185,27 @@ static int constraint_compare (CON *one, CON *two)
     twobod [1] = two->slave;
     twosgp [1] = two->ssgp;
   }
-  else
+  else if (two->master > two->slave)
   {
     twobod [0] = two->slave;
     twosgp [0] = two->ssgp;
     twobod [1] = two->master;
     twosgp [1] = two->msgp;
+  }
+  else
+  {
+    twobod [0] = twobod [1] = two->master;
+
+    if (two->msgp < two->ssgp)
+    {
+      twosgp [0] = two->msgp;
+      twosgp [1] = two->ssgp;
+    }
+    else
+    {
+      twosgp [0] = two->ssgp;
+      twosgp [1] = two->msgp;
+    }
   }
 
   if (onebod [0] < twobod [0]) return -1; /* compare lexicographically by body pointers and sgps */

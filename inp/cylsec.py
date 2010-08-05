@@ -24,7 +24,7 @@ def CYLINDER_SECTION (center, radius, thick, height, angle, div_thick, div_heigh
 step = 0.001
 stop = 1
 
-sol = SOLFEC ('DYNAMIC', step, 'out/bend')
+sol = SOLFEC ('DYNAMIC', step, 'out/cycsec')
 
 bulk = BULK_MATERIAL (sol,
                       model = 'KIRCHHOFF',
