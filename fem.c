@@ -1207,6 +1207,20 @@ static void constraints_force (BODY *bod, double *force)
     else ele = (isma ? mgobj(con) : sgobj(con));
 
     accumulate_constraints_force (bod, msh, ele, X, con->base, con->R, isma, force);
+
+    if (isma && bod == con->slave) /* self-contact */
+    {
+      X = con->spnt;
+
+      if (bod->msh)
+      {
+	cvx = sgobj(con);
+	ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
+      }
+      else ele = sgobj(con);
+
+      accumulate_constraints_force (bod, msh, ele, X, con->base, con->R, 0, force);
+    }
   }
 }
 

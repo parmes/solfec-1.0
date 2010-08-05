@@ -5170,18 +5170,32 @@ static PyObject* lng_BEND (PyObject *self, PyObject *args, PyObject *kwds)
 
   angle = ALG_PI * angle / 180.0;
 
-  double (*nod) [3], (*end) [3], proj [3], dif [3],
-	 dot, dmin, (*sel) [3], q [3], v [3], rmin, r, alpha;
+  double (*nod) [3], (*end) [3], (*sel) [3], proj [3],
+	 dif [3], q [3], v [3], dot, dmin, rmin, r, alpha;
+  ELEMENT *ele;
+
+  /* test for element-axis intersection */
+  for (ele = msh->surfeles, nod = msh->ref_nodes; ele; ele = ele->next)
+  {
+    SET (q, 0.0);
+    for (int i = 0; i < ele->type; i ++)
+    {
+      sel = &nod [ele->nodes [i]];
+      ACC (sel[0], q);
+    }
+    DIV (q, (double) ele->type, q);
+    PROJECT_POINT_ON_LINE (q, p, d, proj); /* project element center on the bending axis */
+    if (ELEMENT_Contains_Ref_Point (msh, ele, proj))
+    {
+      PyErr_SetString (PyExc_ValueError, "Bending axis is stabbing the mesh");
+      return NULL;
+    }
+  }
 
   dmin = DBL_MAX;
   for (nod = msh->ref_nodes, end = nod + msh->nodes_count; nod != end; nod ++)
   {
     PROJECT_POINT_ON_LINE (nod[0], p, d, proj);
-    if (MESH_Element_Containing_Point (msh, proj, 1))
-    {
-      PyErr_SetString (PyExc_ValueError, "Bending axis is stabbing the mesh");
-      return NULL;
-    }
     SUB (nod[0], proj, dif);
     dot = DOT (dif, dif);
     if (dot < dmin) { dmin = dot; sel = nod; } /* find closest mesh node */
