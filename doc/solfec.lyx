@@ -1236,7 +1236,7 @@ results in the hint
 \end_layout
 
 \begin_layout LyX-Code
-SYNOPSIS: solfec [-v] [-g WIDTHxHEIGHT] [-s sub-directory] path
+SYNOPSIS: solfec [-v] [-w] [-g WIDTHxHEIGHT] [-s sub-directory] path
 \end_layout
 
 \begin_layout Standard
@@ -1256,6 +1256,12 @@ reference "fig:Solfec-viewer"
  In this mode the user can view the geometrical mode, run or step through
  analysis, and view results.
  The right mouse click on the viewer window expands the menu.
+ The 
+\emph on
+-w
+\emph default
+ switch forces the computation (write) mode: if some results are present,
+ they will be overwritten.
  The 
 \emph on
 -g
@@ -5545,17 +5551,18 @@ obj.resdec
 status open
 
 \begin_layout Subsection
-HYBRID_SOLVER 
+BODY_SPACE_SOLVER 
 \color red
 (Under development)
 \end_layout
 
 \begin_layout Plain Layout
-Object of type HYBRID_SOLVER represents a hybrid solver.
+Object of type BODY_SPACE_SOLVER represents a Newton solver implemented
+ in the body space.
 \end_layout
 
 \begin_layout Subsection*
-obj = HYBRID_SOLVER ( | refine, smooth, droptol, meritval)
+obj = BODY_SPACE_SOLVER (| meritval, maxiter, variant)
 \end_layout
 
 \begin_layout Itemize
@@ -5563,33 +5570,7 @@ obj = HYBRID_SOLVER ( | refine, smooth, droptol, meritval)
 \series bold
 obj
 \series default
- - created HYBRID_SOLVER object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-refine
-\series default
- - number of refinements steps (default: 3)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-smooth
-\series default
- - number of smoothing steps (default: 5)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-droptol
-\series default
- - dropping tolerance for linearized refinement sub-problem (default: 0.05).
- Constraints with the absolute normal reaction smaller than the droptol
- times the absolute maximal normal reaction are dropped.
+ - created BODY_SPACE_SOLVER object
 \end_layout
 
 \begin_layout Itemize
@@ -5597,8 +5578,24 @@ droptol
 \series bold
 meritval
 \series default
- - constraints satisfaction merit function value sufficient for early terminatio
-n (default: 1E-3)
+ - constraints satisfaction merit function value sufficient for termination
+ (default: 1E-3), cf.
+ Chapter 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "cha:Constraints-accuracy"
+
+\end_inset
+
+ for more details.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+maxiter
+\series default
+ - maximal number of iterations before termination (default: 10)
 \end_layout
 
 \end_inset
@@ -7471,6 +7468,87 @@ shape
 [a, b, c, ...]
 \emph default
  of objects of type CONVEX, MESH, SPHERE
+\end_layout
+
+\begin_layout Subsection*
+obj = BEND (shape, point, direction, angle)
+\end_layout
+
+\begin_layout Standard
+This routine bends a shape around an axis.
+ The bending is performed from the section of the shape closest to the axis
+ onward.
+ The orientation of the axis direction determines the orientation of the
+ bending as follows.
+ Let 
+\begin_inset Formula $\mathbf{q}$
+\end_inset
+
+ be the closest to the axis mesh node.
+ Then 
+\begin_inset Formula $\mathbf{v}=\mathbf{d}\times\left(\mathbf{q}-\mbox{proj}\left(\mathbf{q}\right)\right)$
+\end_inset
+
+, where 
+\begin_inset Formula $\mathbf{d}$
+\end_inset
+
+ is the axis direction and 
+\begin_inset Formula $\mbox{proj\left[\cdot\right]}$
+\end_inset
+
+ projects a point onto the axis.
+ Bending starts from the section containing 
+\begin_inset Formula $\mathbf{q}$
+\end_inset
+
+ and proceeds in the direction of 
+\begin_inset Formula $\mathbf{v}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - same as 
+\series bold
+shape
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ - object of type MESH
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - axis point
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - axis direction
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+angle
+\series default
+ - positive bending angle in degrees
 \end_layout
 
 \begin_layout Subsection*
@@ -11534,7 +11612,7 @@ reference "alg:Parallel-explicit-solver"
 \begin_inset Float algorithm
 wide false
 sideways false
-status open
+status collapsed
 
 \begin_layout LyX-Code
 PARALLEL_PENALTY_SOLVER 

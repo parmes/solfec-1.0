@@ -18,7 +18,7 @@ floor = HULL (
 
 step = 1E-3
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/tutorail/three-basic-geometric-objects')
+solfec = SOLFEC ('DYNAMIC', step, 'out/tutorial/three-basic-geometric-objects')
 
 bulk = BULK_MATERIAL (solfec,
                       model = 'KIRCHHOFF',

@@ -19,4 +19,7 @@ char* OUTPUT_SUBDIR ();
 /* get input file path */
 char* INPUT_FILE ();
 
+/* get write mode flag */
+int WRITE_MODE_FLAG ();
+
 #endif

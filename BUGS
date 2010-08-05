@@ -31,3 +31,5 @@ HASH3D detects much too few constraints (e.g. for inp/puzzle.py ~1000 from 5666)
 Diagonal DE_SAXCE_FENG solver performs poorely on simple-small-prb-gs example
 even for one brick. Investigate!
 ---------------------------------------------------------------------------------------
+Self-contact handling is incorrect
+---------------------------------------------------------------------------------------

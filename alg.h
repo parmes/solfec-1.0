@@ -1340,4 +1340,16 @@ if (((DET) =\
   v = .707106781186548 * sqrt (a + b + c + d);\
   } while (0)
 
+#define PROJECT_POINT_ON_LINE(point, line_point, line_direction, projection)\
+{\
+  double dif [3], dot1, dot2, eps;\
+  \
+  dot1 = DOT (line_direction, line_direction);\
+  if (dot1 == 0.0) COPY (line_point, projection);\
+  SUB (point, line_point, dif);\
+  dot2 = DOT (dif, line_direction);\
+  eps = dot2 / dot1;\
+  ADDMUL (line_point, eps, line_direction, projection);\
+}
+
 #endif
