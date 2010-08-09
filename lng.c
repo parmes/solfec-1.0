@@ -5705,6 +5705,73 @@ static PyObject* lng_LOCDYN_DUMP (PyObject *self, PyObject *args, PyObject *kwds
   Py_RETURN_NONE;
 }
 
+/* partition a finite element body */
+static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "parts");
+  int parts, numglue, *gluenodes, *g, numadj, *adjeles, *e, i, j;
+  PyObject *list, *obj;
+  BODY **out, *bod, *b;
+  lng_BODY *body;
+  MESH **msh;
+  DOM *dom;
+
+  PARSEKEYS ("Od", &body, &parts);
+
+  TYPETEST (is_body (body, kwl[0]) && is_positive (parts, kwl[1]));
+
+  bod = body->bod;
+  dom = bod->dom;
+
+  if (bod->kind != FEM || bod->msh)
+  {
+    PyErr_SetString (PyExc_ValueError, "Only regular finite element bodies can be partitioned");
+    return NULL;
+  }
+
+  msh = MESH_Partition (bod->shape->data, parts, &numglue, &gluenodes, &numadj, &adjeles); /* partition mesh */
+  ERRMEM (out = MEM_CALLOC (parts * sizeof (BODY*)));
+  if (!(list = PyList_New (parts))) return NULL;
+
+  for (i = 0; i < parts; i ++) /* create partitioned bodies */
+  {
+    char *label;
+    int l = strlen (bod->label);
+    ERRMEM (label = malloc (l + 64));
+    sprintf ("%s_PART%d", bod->label, i+1);
+    b = BODY_Create (FEM, SHAPE_Create (SHAPE_MESH, msh [i]), bod->mat, label, bod->form, NULL);
+    if (!(obj = lng_BODY_WRAPPER (b))) return NULL;
+    PyList_SetItem (list, i, obj);
+    DOM_Insert_Body (dom, b);
+    out [i] = b;
+    free (label);
+  }
+
+  DOM_Remove_Body (dom, bod); /* remove original */
+  BODY_Destroy (bod); /* used only when body was removed from the domain */
+  body->bod = NULL; /* empty */
+
+  for (i = 0, g = gluenodes; i < numglue; i ++, g += 4) /* insert gluing constraints */
+  {
+    DOM_Put_Rigid_Link (dom, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]]);
+  }
+
+  for (i = 0, e = adjeles; i < numadj; i ++, e += 4+e[3]) /* exclude contact detection between adjacent surface elements */
+  {
+    for (j = 0; j < e [3]; j ++)
+    {
+      AABB_Exclude_Gobj_Pair (dom->aabb, out [e[0]]->id, e[2], out[e[1]]->id, e[4+j]);
+    }
+  }
+
+  free (gluenodes);
+  free (adjeles);
+  free (msh);
+  free (out);
+
+  return list;
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6345,6 +6412,7 @@ static PyMethodDef lng_methods [] =
   {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set unphysical penetration bound"},
   {"GEOMETRIC_EPSILON", (PyCFunction)lng_GEOMETRIC_EPSILON, METH_VARARGS|METH_KEYWORDS, "Set geometric epsilon"},
   {"LOCDYN_DUMP", (PyCFunction)lng_LOCDYN_DUMP, METH_VARARGS|METH_KEYWORDS, "Dump local dynamics"},
+  {"PARTITION", (PyCFunction)lng_PARTITION, METH_VARARGS|METH_KEYWORDS, "Partition a finite element body"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -6530,6 +6598,7 @@ int lng (const char *path)
                      "from solfec import UNPHYSICAL_PENETRATION\n"
                      "from solfec import GEOMETRIC_EPSILON\n"
                      "from solfec import LOCDYN_DUMP\n"
+                     "from solfec import PARTITION\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

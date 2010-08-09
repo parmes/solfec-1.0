@@ -1263,6 +1263,23 @@ void* MESH_First_Bulk_Material (MESH *msh)
   return NULL;
 }
 
+/* Metis recursive partitioning (<= 8 partitions) */
+void METIS_PartGraphRecursive (int *, int *, int *, int *, int *, int *, int *, int *, int *, int *, int *); 
+
+/* Metis k-way partitioning (> 8 partitions) */
+void METIS_PartGraphKway (int *, int *, int *, int *, int *, int *, int *, int *, int *, int *, int *); 
+
+/* partition mesh; return the resultant mesh parts; output a table of tuples (m1, m2, n1, n2) of gluing nodes,
+ * where m1, m2 is a pair of the output meshes and n1, n2 are their corresponding coincident nodes;
+ * additionally output tuples (m1, m2, e1, n1, e2_1, e2_2, ..., e2_n1) of topologically adjacent surface element
+ * pairs from the partitions boundaries (indexed as stored in lists and outputed by SGP_Create) */
+MESH** MESH_Partition (MESH *msh, int parts, int *numglue, int **gluenodes, int *numadj, int **adjeles)
+{
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+
+  return NULL;
+}
+
 /* free mesh memory */
 void MESH_Destroy (MESH *msh)
 {

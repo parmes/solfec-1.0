@@ -7797,6 +7797,63 @@ path
  - file path
 \end_layout
 
+\begin_layout Subsection*
+obj = PARTITION (body, parts)
+\color red
+ under development
+\end_layout
+
+\begin_layout Standard
+This routine partitions a finite element body into parts glued by compatibility
+ constraints.
+ This allows to improve parallel scalability of simulations with large FE
+ meshes.
+ Metis 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Metis"
+
+\end_inset
+
+ is employed as the partitioner.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - list of bodies obtained as a result of partitioning.
+ If the label of an input body was 'BOD', then the partitioned bodies have
+ labels 'BOD_PART1', 'BOD_PART2', etc.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ (emptied) - a finite element body (cannot have 
+\begin_inset Quotes eld
+\end_inset
+
+rough mesh
+\begin_inset Quotes erd
+\end_inset
+
+).
+ After partitioning the input body is removed from the domain and replaced
+ by the glued parts.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+parts
+\series default
+ - number of partitions
+\end_layout
+
 \begin_layout Section
 Results access
 \end_layout
@@ -11712,7 +11769,7 @@ Parallel penalty solver.
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
-bibfiles "/Users/tomek/Dropbox/tkwork/bibs/rigid-bodies,/Users/tomek/Dropbox/tkwork/bibs/contact-related,/Users/tomek/Dropbox/tkwork/bibs/phd,/Users/tomek/Dropbox/tkwork/bibs/time-stepping"
+bibfiles "/Users/tomek/Dropbox/tkwork/bibs/rigid-bodies,/Users/tomek/Dropbox/tkwork/bibs/contact-related,/Users/tomek/Dropbox/tkwork/bibs/phd,/Users/tomek/Dropbox/tkwork/bibs/time-stepping,/Users/tomek/Dropbox/tkwork/bibs/algo"
 options "plain"
 
 \end_inset
