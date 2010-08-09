@@ -52,8 +52,8 @@ LAPACK = -L/usr/lib -llapack
 # Python
 #
 
-PYTHON = -I/usr/include/python2.5
-PYTHONLIB = -L/usr/lib -lpython2.5
+PYTHON = -I/Library/Frameworks/Python.framework/Versions/Current/include/python2.7
+PYTHONLIB = -framework Python
 
 #
 # OpenGL (yes/no)

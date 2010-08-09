@@ -95,11 +95,14 @@ OBJMPI = $(EXTO)       \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
 
-solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a 
-	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov $(LIB)
+solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a
+	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -lmetis $(LIB)
 
 obj/libkrylov.a:
 	(cd ext/krylov && make)
+
+obj/libmetis.a:
+	(cd ext/metis && make)
 
 obj/libsolfec.a: $(OBJ)
 	ar rcv $@ $(OBJ)
@@ -144,6 +147,7 @@ clean:
 	rm -fr *dSYM
 	(cd tst && make clean)
 	(cd ext/krylov && make clean)
+	(cd ext/metis && make clean)
 
 obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
