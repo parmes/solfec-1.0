@@ -4345,7 +4345,11 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 	return NULL;
       }
 
-      DOM_Pending_Two_Body_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2);
+      if (!DOM_Pending_Two_Body_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2))
+      {
+	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+	return NULL;
+      }
     }
 #endif
   }
@@ -4515,6 +4519,15 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
   {
     PyErr_SetString (PyExc_ValueError, "Invalid force kind");
     return NULL;
+  }
+
+  if (body->bod->kind == FEM)
+  {
+    if (SHAPE_Sgp (body->bod->sgp, body->bod->nsgp, p) < 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of a finite-element body shape");
+      return NULL;
+    }
   }
 
   BODY_Apply_Force (body->bod, k, p, d, ts, call, func);
@@ -5709,14 +5722,15 @@ static PyObject* lng_LOCDYN_DUMP (PyObject *self, PyObject *args, PyObject *kwds
 static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("body", "parts");
-  int parts, numglue, *gluenodes, *g, numadj, *adjeles, *e, i, j;
+  int parts, numglue, *gluenodes, *g, numadj, *adjeles, *e, i;
   PyObject *list, *obj;
   BODY **out, *bod, *b;
+  MESH **msh, *in;
   lng_BODY *body;
-  MESH **msh;
+  SET *item;
   DOM *dom;
 
-  PARSEKEYS ("Od", &body, &parts);
+  PARSEKEYS ("Oi", &body, &parts);
 
   TYPETEST (is_body (body, kwl[0]) && is_positive (parts, kwl[1]));
 
@@ -5729,16 +5743,21 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   }
 
-  msh = MESH_Partition (bod->shape->data, parts, &numglue, &gluenodes, &numadj, &adjeles); /* partition mesh */
+  in = bod->shape->data;
+  if (in->surfeles_count + in->bulkeles_count < parts)
+  {
+    PyErr_SetString (PyExc_ValueError, "Number of elements is smaller than the number of partitions");
+    return NULL;
+  }
+
+  msh = MESH_Partition (in, parts, &numglue, &gluenodes, &numadj, &adjeles); /* partition mesh */
   ERRMEM (out = MEM_CALLOC (parts * sizeof (BODY*)));
   if (!(list = PyList_New (parts))) return NULL;
 
   for (i = 0; i < parts; i ++) /* create partitioned bodies */
   {
-    char *label;
-    int l = strlen (bod->label);
-    ERRMEM (label = malloc (l + 64));
-    sprintf ("%s_PART%d", bod->label, i+1);
+    char *label = NULL;
+    if (bod->label) { int l = strlen (bod->label); ERRMEM (label = malloc (l + 64)); sprintf ("%s_PART%d", bod->label, i+1); }
     b = BODY_Create (FEM, SHAPE_Create (SHAPE_MESH, msh [i]), bod->mat, label, bod->form, NULL);
     if (!(obj = lng_BODY_WRAPPER (b))) return NULL;
     PyList_SetItem (list, i, obj);
@@ -5747,21 +5766,74 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
     free (label);
   }
 
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
+
+  for (item = SET_First (bod->con); item; item = SET_Next (item)) /* transfer existing constraints */
+  {
+    CON *con = item->data;
+    ELEMENT *ele = con->msgp->gobj;
+
+    switch (con->kind)
+    {
+    case CONTACT:
+      ASSERT_DEBUG (0, "Contact constraint found while partitioning a body");
+      break;
+    case FIXPNT:
+      DOM_Fix_Point (dom, out [ele->domnum], con->mpnt);
+      break;
+    case FIXDIR:
+      DOM_Fix_Direction (dom, out [ele->domnum], con->mpnt, con->base+6);
+      break;
+    case VELODIR:
+      DOM_Set_Velocity (dom, out [ele->domnum], con->mpnt, con->base+6, TMS_Copy (con->tms));
+      break;
+    case RIGLNK:
+      if (bod == con->slave)
+      {
+	ele = con->ssgp->gobj;
+        DOM_Put_Rigid_Link (dom, con->master, out [ele->domnum], con->mpnt, con->spnt);
+      }
+      else DOM_Put_Rigid_Link (dom, out [ele->domnum], con->slave, con->mpnt, con->spnt);
+      break;
+    }
+  }
+
+#if MPI
+  for (item = SET_First (dom->pending); item; item = SET_Next (item)) /* modify pending constraints */
+  {
+    PNDCON *con = item->data;
+    if (con->master == bod)
+    {
+      ELEMENT *ele = bod->sgp [con->msgp].gobj;
+      con->master = out [ele->domnum];
+    }
+    else if (con->slave == bod)
+    {
+      ELEMENT *ele = bod->sgp [con->ssgp].gobj;
+      con->slave = out [ele->domnum];
+    }
+  }
+#endif
+
   DOM_Remove_Body (dom, bod); /* remove original */
   BODY_Destroy (bod); /* used only when body was removed from the domain */
   body->bod = NULL; /* empty */
+
+#if MPI
+  }
+#endif
 
   for (i = 0, g = gluenodes; i < numglue; i ++, g += 4) /* insert gluing constraints */
   {
     DOM_Put_Rigid_Link (dom, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]]);
   }
 
-  for (i = 0, e = adjeles; i < numadj; i ++, e += 4+e[3]) /* exclude contact detection between adjacent surface elements */
+  for (i = 0, e = adjeles; i < numadj; i ++, e += 4) /* exclude contact detection between adjacent surface elements */
   {
-    for (j = 0; j < e [3]; j ++)
-    {
-      AABB_Exclude_Gobj_Pair (dom->aabb, out [e[0]]->id, e[2], out[e[1]]->id, e[4+j]);
-    }
+    AABB_Exclude_Gobj_Pair (dom->aabb, out [e[0]]->id, e[2], out[e[1]]->id, e[3]);
   }
 
   free (gluenodes);

@@ -1283,7 +1283,7 @@ static void external_force (BODY *bod, double time, double step, double *fext)
       COPY (frc->direction, f);
       SCALE (f, value);
 
-      ele = MESH_Element_Containing_Point (msh, frc->ref_point, 1);
+      ele = MESH_Element_Containing_Point (msh, frc->ref_point, 1); /* TODO: optimize */
 
       if (ele)
       {
@@ -1298,6 +1298,9 @@ static void external_force (BODY *bod, double time, double step, double *fext)
 
 	accumulate_point_force (bod, msh, ele, point, f, fext);
       }
+#if DEBUG
+      else WARNING_DEBUG (0, "Point force outside of FE mesh");
+#endif
     }
   }
 

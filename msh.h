@@ -61,7 +61,7 @@ struct element
                10, 13, 15, 20 => second order tetrahedron, pyramid, wedge, hexahedron */
       nodes [20], /* TODO: optimize space usage */
       neighs, /* number of neighbours */
-      domnum, /* number of integration domains */
+      domnum, /* number of integration domains; or destination partition after MESH_Partition */
       volume; /* volume identifier */
 
   BULK_MATERIAL *mat;
@@ -158,9 +158,10 @@ void* MESH_First_Bulk_Material (MESH *msh);
 
 /* partition mesh; return the resultant mesh parts; output a table of tuples (m1, m2, n1, n2) of gluing nodes,
  * where m1, m2 is a pair of the output meshes and n1, n2 are their corresponding coincident nodes;
- * additionally output tuples (m1, m2, e1, n1, e2_1, e2_2, ..., e2_n1) of topologically adjacent surface element
- * pairs from the partitions boundaries (indexed as stored in lists and outputed by SGP_Create) */
-MESH** MESH_Partition (MESH *msh, int parts, int *numglue, int **gluenodes, int *numadj, int **adjeles);
+ * additionally output tuples (m1, m2, e1, e2) of topologically adjacent surface element
+ * pairs from the partitions boundaries (indexed as stored in lists and outputed by SGP_Create);
+ * upon exit the 'domnum' element values of the input mesh indicate destination partitions of the elements */
+MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int *numadj, int **adjeles);
 
 /* free mesh memory */
 void MESH_Destroy (MESH *msh);

@@ -1269,15 +1269,317 @@ void METIS_PartGraphRecursive (int *, int *, int *, int *, int *, int *, int *, 
 /* Metis k-way partitioning (> 8 partitions) */
 void METIS_PartGraphKway (int *, int *, int *, int *, int *, int *, int *, int *, int *, int *, int *); 
 
+/* partitioning related element copy */
+static ELEMENT* copy_element (MEM *elemem, ELEMENT *ele, int part, MEM *facmem)
+{
+  FACE *fac, *gac;
+  ELEMENT *out;
+  int i;
+
+  ERRMEM (out = MEM_Alloc (elemem));
+  out->type = ele->type;
+  for (i = 0; i < ele->type; i ++) out->nodes [i] = ele->nodes [i];
+  out->volume = ele->volume;
+  out->mat = ele->mat;
+  for (i = 0; i < ele->neighs; i ++)
+  {
+    if (ele->adj [i]->domnum == part)
+    {
+      out->adj [out->neighs ++] = ele->adj [i]; /* to be later repaced by out->adj[]->dom (***) */
+    }
+  }
+
+  ele->dom = (TRISURF*)out; /* map copy to original (***) */
+
+  for (fac = ele->faces; fac; fac = fac->next)
+  {
+    ERRMEM (gac = MEM_Alloc (facmem));
+    COPY6 (fac->normal, gac->normal);
+    gac->type = fac->type;
+    for (i = 0; i < fac->type; i ++) gac->nodes [i] = fac->nodes [i];
+    gac->index = fac->index;
+    gac->surface = fac->surface;
+    gac->ele = out;
+    gac->next = out->faces;
+    out->faces = gac;
+  }
+
+  return out;
+}
+
+/* starting with ele gather elements with node and with ele->domnum != domnum into the out set */
+static void elements_with_node_and_not_domnum (int node, int domnum, ELEMENT *ele, MEM *mem, SET **out)
+{
+  if (!SET_Contains (*out, ele, NULL))
+  {
+    SET_Insert (mem, out, ele, NULL);
+    for (int i = 0; i < ele->neighs; i ++)
+    {
+      if (ele->adj[i]->domnum != domnum)
+      {
+	for (int j = 0; j < ele->adj [i]->type; j ++)
+	{
+	  if (ele->adj [i]->nodes [j] == node)
+	    elements_with_node_and_not_domnum (node, domnum, ele->adj [i], mem, out);
+	}
+      }
+    }
+  }
+}
+
 /* partition mesh; return the resultant mesh parts; output a table of tuples (m1, m2, n1, n2) of gluing nodes,
  * where m1, m2 is a pair of the output meshes and n1, n2 are their corresponding coincident nodes;
- * additionally output tuples (m1, m2, e1, n1, e2_1, e2_2, ..., e2_n1) of topologically adjacent surface element
- * pairs from the partitions boundaries (indexed as stored in lists and outputed by SGP_Create) */
-MESH** MESH_Partition (MESH *msh, int parts, int *numglue, int **gluenodes, int *numadj, int **adjeles)
+ * additionally output tuples (m1, m2, e1, e2) of topologically adjacent surface element
+ * pairs from the partitions boundaries (indexed as stored in lists and outputed by SGP_Create);
+ * upon exit the 'domnum' element values of the input mesh indicate destination partitions of the elements */
+MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int *numadj, int **adjeles)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  int i, j, n, m, *xadj, *adjncy, *vwgt, wgtflag, numflag, options, edgecut, *part;
+  SET *aux, **n2p, *jtem, *ktem;
+  ELEMENT *ele, *nel;
+  MEM setmem, mapmem;
+  MAP **nod, *item;
+  double *x, *y;
+  MESH **out;
+  FACE *fac;
 
-  return NULL;
+  for (n = 0, ele = msh->surfeles; ele; ele = ele->next) ele->domnum = n ++; /* number elements */
+  for (ele = msh->bulkeles; ele; ele = ele->next) ele->domnum = n ++;
+
+  ASSERT_DEBUG (n >= nparts, "Number of elements is smaller than the number of partitions");
+
+  for (m = 0, ele = msh->surfeles; ele; ele = ele->next) m += ele->neighs; /* compute adjacency size */
+  for (ele = msh->bulkeles; ele; ele = ele->next) m += ele->neighs;
+
+  ERRMEM (xadj = MEM_CALLOC (sizeof (int [n+1])));
+  ERRMEM (adjncy = MEM_CALLOC (sizeof (int [m])));
+  ERRMEM (vwgt = MEM_CALLOC (sizeof (int [n])));
+  ERRMEM (part = MEM_CALLOC (sizeof (int [n])));
+  ERRMEM (out = MEM_CALLOC (nparts * sizeof (MESH*)));
+
+  for (n = 0, ele = msh->surfeles; ele; ele = ele->next, n ++)
+  {
+    vwgt [n] = ele->type;
+    xadj [n+1] = xadj [n] + ele->neighs;
+    for (m = 0; m < ele->neighs; m ++) adjncy [xadj [n]+m] = ele->adj [m]->domnum;
+  }
+  for (ele = msh->bulkeles; ele; ele = ele->next, n ++)
+  {
+    vwgt [n] = ele->type;
+    xadj [n+1] = xadj [n] + ele->neighs;
+    for (m = 0; m < ele->neighs; m ++) adjncy [xadj [n]+m] = ele->adj [m]->domnum;
+  }
+
+  options = 0;
+  wgtflag = 2;
+  numflag = 0;
+
+  if (nparts <= 8) /* partition */
+    METIS_PartGraphRecursive (&n, xadj, adjncy, vwgt, NULL, &wgtflag, &numflag, &nparts, &options, &edgecut, part);
+  else METIS_PartGraphKway (&n, xadj, adjncy, vwgt, NULL, &wgtflag, &numflag, &nparts, &options, &edgecut, part);
+
+  ELEMENT *head[] = {msh->surfeles, msh->bulkeles};
+
+  for (m = 0; m < nparts; m ++) /* initialize output meshes */
+  {
+    ERRMEM (out [m] = MEM_CALLOC (sizeof (MESH)));
+    MEM_Init (&out [m]->elemem, sizeof (ELEMENT), n);
+    MEM_Init (&out [m]->facmem, sizeof (FACE), MEMCHUNK);
+    MEM_Init (&out [m]->mapmem, sizeof (MAP), MIN (n, MAPMEMCHUNK));
+  }
+
+  for (n = 0; n < 2; n ++) for (ele = head [n]; ele; ele = ele->next) /* copy elements */
+  { 
+    m = ele->domnum = part [ele->domnum]; /* set destination partitions */
+
+    nel = copy_element (&out [m]->elemem, ele, m, &out [m]->facmem);
+
+    if (ele->faces)
+    {
+      out [m]->surfeles_count ++;
+      nel->next = out [m]->surfeles;
+      if (out [m]->surfeles) out [m]->surfeles->prev = nel;
+      out [m]->surfeles = nel;
+    }
+    else
+    {
+      out [m]->bulkeles_count ++;
+      nel->next = out [m]->bulkeles;
+      if (out [m]->bulkeles) out [m]->bulkeles->prev = nel;
+      out [m]->bulkeles = nel;
+    }
+  }
+
+  for (m = 0; m < nparts; m ++) /* map adjacency */
+  {
+    ELEMENT *head[] = {out [m]->surfeles, out [m]->bulkeles};
+
+    for (n = j = 0; n < 2; n ++) for (ele = head [n]; ele; ele = ele->next)
+    {
+      if (n == 0) ele->domnum = j ++; /* number surface elements (@@@) */
+
+      for (i = 0; i < ele->neighs; i ++) ele->adj [i] = (ELEMENT*)ele->adj [i]->dom;
+    }
+  }
+
+  j = 256;
+  *numadj = 0;
+  ERRMEM (*adjeles = malloc (j * sizeof (int [4])));
+  MEM_Init (&setmem, sizeof (SET), MAPMEMCHUNK);
+
+  for (ele = msh->surfeles; ele; ele = ele->next) /* output partition boundary surface elements pairs */
+  {
+    for (i = 0; i < ele->neighs; i ++)
+    {
+      if (ele->domnum != ele->adj[i]->domnum && ele->adj[i]->faces)
+      {
+	for (int k = 0; k < ele->type; k ++)
+	{
+	  for (int l = 0; l < ele->adj[i]->type; l ++)
+	  {
+	    if (ele->nodes [k] == ele->adj [i]->nodes [l])
+	    {
+	      aux = NULL;
+	      elements_with_node_and_not_domnum (ele->nodes [k], ele->domnum, ele->adj [i], &setmem, &aux);
+
+	      for (jtem = SET_First (aux); jtem; jtem = SET_Next (jtem))
+	      {
+		(*numadj) ++;
+
+		if (*numadj == j)
+		{
+		  j *= 2;
+		  ERRMEM (*adjeles = realloc (*adjeles, j * sizeof (int [4])));
+		}
+
+		int *e = &(*adjeles)[4*((*numadj) - 1)];
+
+		nel = jtem->data;
+		e [0] = ele->domnum;
+		e [1] = nel->domnum;
+		e [2] = ((ELEMENT*)ele->dom)->domnum; /* (@@@) */
+		e [3] = ((ELEMENT*)nel->dom)->domnum; /* (@@@) */
+	      }
+
+	      SET_Free (&setmem, &aux);
+	    }
+	  }
+	}
+      }
+    }
+  }
+
+  for (ele = msh->surfeles; ele; ele = ele->next) ele->dom = NULL; /* clear pointers */
+  for (ele = msh->bulkeles; ele; ele = ele->next) ele->dom = NULL;
+
+  MEM_Init (&mapmem, sizeof (MAP), MAPMEMCHUNK);
+  ERRMEM (nod = MEM_CALLOC (nparts * sizeof (MAP*)));
+  ERRMEM (n2p = MEM_CALLOC (msh->nodes_count * sizeof (SET*)));
+
+  for (m = 0; m < nparts; m ++) /* map nodes */
+  {
+    ELEMENT *head[] = {out [m]->surfeles, out [m]->bulkeles};
+    j = 0; /* local node numbering */
+
+    for (n = 0; n < 2; n ++) for (ele = head [n]; ele; ele = ele->next)
+    {
+      if (ele->domnum) ele->domnum = 0; /* unmark (@@@) */
+
+      for (i = 0; i < ele->type; i ++)
+      {
+        SET_Insert (&setmem, &n2p [ele->nodes [i]], (void*) (long) m, NULL); /* map old node number to partition */
+
+	if ((item = MAP_Find_Node (nod [m], (void*) (long) ele->nodes [i], NULL)))
+	{
+	  ele->nodes [i] = (int) (long) item->data; /* map local number */
+	}
+	else
+	{
+	  MAP_Insert (&mapmem, &nod [m], (void*) (long) ele->nodes [i], (void*) (long) j, NULL);
+	  ele->nodes [i] = j ++; /* increment */
+	}
+      }
+
+      for (fac = ele->faces; fac; fac = fac->next)
+      {
+	for (i = 0; i < fac->type; i ++)
+	{
+	  if ((item = MAP_Find_Node (nod [m], (void*) (long) fac->nodes [i], NULL)))
+	  {
+	    fac->nodes [i] = (int) (long) item->data;
+	  }
+	  else
+	  {
+	    MAP_Insert (&mapmem, &nod [m], (void*) (long) fac->nodes [i], (void*) (long) j, NULL);
+	    fac->nodes [i] = j ++ /* increment */;
+	  }
+	}
+      }
+    }
+
+    ERRMEM (out [m]->ref_nodes = malloc (2 * j * sizeof (double [3])));
+    out [m]->cur_nodes = out [m]->ref_nodes + j;
+    out [m]->nodes_count = j;
+
+    for (item = MAP_First (nod [m]); item; item = MAP_Next (item))
+    {
+      i = (int) (long) item->key;
+      j = (int) (long) item->data;
+
+      x = msh->ref_nodes [i],
+      y = out [m]->ref_nodes [j];
+      COPY (x, y);
+
+      x = msh->cur_nodes [i],
+      y = out [m]->cur_nodes [j];
+      COPY (x, y);
+    }
+  }
+
+
+  j = 256;
+  *numglue = 0;
+  ERRMEM (*gluenodes = malloc (j * sizeof (int [4])));
+
+  for (i = 0; i < msh->nodes_count; i ++) /* generate gluing nodes pairs */
+  {
+    ASSERT_DEBUG (SET_Size (n2p [i]) >= 1, "Not all nodes has been mapped");
+
+    for (jtem = SET_First (n2p [i]); jtem; jtem = SET_Next (jtem))
+    {
+      for (ktem = SET_First (n2p [i]); ktem; ktem = SET_Next (ktem))
+      {
+	if (jtem && jtem != ktem)
+	{
+	  (*numglue) ++;
+
+	  if (*numglue == j)
+	  {
+	    j *= 2;
+	    ERRMEM (*gluenodes = realloc (*gluenodes, j * sizeof (int [4])));
+	  }
+
+	  int *e = &(*gluenodes)[4*((*numglue) - 1)];
+
+	  e [0] = (int) (long) jtem->data;
+	  e [1] = (int) (long) ktem->data;
+	  e [2] = (int) (long) MAP_Find (nod [e[0]], (void*) (long) i, NULL);
+	  e [3] = (int) (long) MAP_Find (nod [e[1]], (void*) (long) i, NULL);
+	}
+      }
+    }
+  }
+
+  free (xadj);
+  free (adjncy);
+  free (vwgt);
+  free (part);
+  free (nod);
+  free (n2p);
+  MEM_Release (&mapmem);
+  MEM_Release (&setmem);
+
+  return out;
 }
 
 /* free mesh memory */
@@ -1288,14 +1590,20 @@ void MESH_Destroy (MESH *msh)
 
   for (ele = msh->bulkeles; ele; ele = ele->next)
   {
-    for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
-    free (ele->dom);
+    if (ele->dom)
+    {
+      for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
+      free (ele->dom);
+    }
   }
 
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
-    for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
-    free (ele->dom);
+    if (ele->dom)
+    {
+      for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
+      free (ele->dom);
+    }
   }
 
   MEM_Release (&msh->facmem);
@@ -1470,7 +1778,7 @@ double ELEMENT_Volume (MESH *msh, ELEMENT *ele, int ref)
 /* pack face */
 static void face_pack (FACE *fac, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_doubles (dsize, d, doubles, fac->normal, 3);
+  pack_doubles (dsize, d, doubles, fac->normal, 6);
   pack_int (isize, i, ints, fac->type);
   pack_ints (isize, i, ints, fac->nodes, fac->type);
   pack_int (isize, i, ints, fac->index);
@@ -1484,7 +1792,7 @@ static FACE* face_unpack (MESH *msh, int *dpos, double *d, int doubles, int *ipo
 
   ERRMEM (fac = MEM_Alloc (&msh->facmem));
 
-  unpack_doubles (dpos, d, doubles, fac->normal, 3);
+  unpack_doubles (dpos, d, doubles, fac->normal, 6);
   fac->type = unpack_int (ipos, i, ints);
   unpack_ints (ipos, i, ints, fac->nodes, fac->type);
   fac->index = unpack_int (ipos, i, ints);
