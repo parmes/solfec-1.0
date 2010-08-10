@@ -2790,7 +2790,7 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
 }
 
 /* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
-void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt)
+int DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt)
 {
   PNDCON *con;
 
@@ -2800,8 +2800,12 @@ void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *
   con->slave = slave;
   COPY (mpnt, con->mpnt);
   COPY (spnt, con->spnt);
+  if ((con->msgp = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return 0;
+  if ((con->ssgp = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return 0;
 
   SET_Insert (&dom->setmem, &dom->pending, con, NULL); /* they will be inserted or deleted during load balancing */
+
+  return 1;
 }
 #endif
 

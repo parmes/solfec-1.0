@@ -156,6 +156,9 @@ struct pending_constraint
 
   double mpnt [3],
 	 spnt [3];
+
+  int msgp,
+      ssgp;
 };
 #endif
 
@@ -311,7 +314,7 @@ void DOM_Update_End (DOM *dom);
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 
 /* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
-void DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt);
+int DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt);
 #endif
 
 /* write domain state */

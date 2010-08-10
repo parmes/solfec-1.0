@@ -114,8 +114,8 @@ all: solfec mpi
 
 mpi: solfec-mpi
 
-solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a 
-	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov $(LIBMPI)
+solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a
+	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -lmetis $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
