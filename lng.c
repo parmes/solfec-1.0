@@ -4325,9 +4325,9 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     {
 #endif
 
-    if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (body2->bod->dom, NULL, body2->bod, p1, p2);
-    else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2);
-    else out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, body2->bod, p1, p2);
+    if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (body2->bod->dom, NULL, body2->bod, p1, p2, -1, -1);
+    else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2, -1, -1);
+    else out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, body2->bod, p1, p2, -1, -1);
 
     if (!out->con)
     {
@@ -4345,7 +4345,7 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 	return NULL;
       }
 
-      if (!DOM_Pending_Two_Body_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2))
+      if (!DOM_Pending_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2, NULL, NULL, -1, -1))
       {
 	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
 	return NULL;
@@ -5734,6 +5734,8 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_positive (parts, kwl[1]));
 
+  if (parts == 1) Py_RETURN_NONE;
+
   bod = body->bod;
   dom = bod->dom;
 
@@ -5762,15 +5764,55 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
     if (!(obj = lng_BODY_WRAPPER (b))) return NULL;
     PyList_SetItem (list, i, obj);
     DOM_Insert_Body (dom, b);
+    b->scheme = bod->scheme;
     out [i] = b;
     free (label);
   }
 
 #if MPI
-  if (IS_HERE (body))
+  for (item = SET_First (bod->con); item; item = SET_Next (item)) /* transfer existing constraints */
   {
-#endif
+    CON *con = item->data;
+    ELEMENT *ele = con->msgp->gobj;
 
+    switch (con->kind)
+    {
+    case CONTACT:
+      ASSERT_DEBUG (0, "Contact constraint found while partitioning a body");
+      break;
+    case FIXPNT:
+      DOM_Pending_Constraint (dom, FIXPNT, out [ele->domnum], NULL, con->mpnt, NULL, NULL, NULL, -1, -1);
+      break;
+    case FIXDIR:
+      DOM_Pending_Constraint (dom, FIXDIR, out [ele->domnum], NULL, con->mpnt, NULL, con->base+6, NULL, -1, -1);
+      break;
+    case VELODIR:
+      DOM_Pending_Constraint (dom, VELODIR, out [ele->domnum], NULL, con->mpnt, NULL, con->base+6, TMS_Copy (con->tms), -1, -1);
+      break;
+    case RIGLNK:
+      if (bod == con->slave)
+      {
+	ele = con->ssgp->gobj;
+        DOM_Pending_Constraint (dom, RIGLNK, con->master, out [ele->domnum], con->mpnt, con->spnt, NULL, NULL, -1, -1);
+      }
+      else DOM_Pending_Constraint (dom, RIGLNK, out [ele->domnum], con->slave, con->mpnt, con->spnt, NULL, NULL, -1, -1);
+      break;
+    }
+  }
+
+  for (item = SET_First (dom->pending); item; item = SET_Next (item)) /* modify pending constraints */
+  {
+    PNDCON *pnd = item->data;
+    if (pnd->master == bod)
+    {
+      pnd->master = out [pnd->mele->domnum];
+    }
+    else if (pnd->slave == bod)
+    {
+      pnd->slave = out [pnd->sele->domnum];
+    }
+  }
+#else
   for (item = SET_First (bod->con); item; item = SET_Next (item)) /* transfer existing constraints */
   {
     CON *con = item->data;
@@ -5794,26 +5836,10 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
       if (bod == con->slave)
       {
 	ele = con->ssgp->gobj;
-        DOM_Put_Rigid_Link (dom, con->master, out [ele->domnum], con->mpnt, con->spnt);
+        DOM_Put_Rigid_Link (dom, con->master, out [ele->domnum], con->mpnt, con->spnt, -1, -1);
       }
-      else DOM_Put_Rigid_Link (dom, out [ele->domnum], con->slave, con->mpnt, con->spnt);
+      else DOM_Put_Rigid_Link (dom, out [ele->domnum], con->slave, con->mpnt, con->spnt, -1, -1);
       break;
-    }
-  }
-
-#if MPI
-  for (item = SET_First (dom->pending); item; item = SET_Next (item)) /* modify pending constraints */
-  {
-    PNDCON *con = item->data;
-    if (con->master == bod)
-    {
-      ELEMENT *ele = bod->sgp [con->msgp].gobj;
-      con->master = out [ele->domnum];
-    }
-    else if (con->slave == bod)
-    {
-      ELEMENT *ele = bod->sgp [con->ssgp].gobj;
-      con->slave = out [ele->domnum];
     }
   }
 #endif
@@ -5822,13 +5848,13 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
   BODY_Destroy (bod); /* used only when body was removed from the domain */
   body->bod = NULL; /* empty */
 
-#if MPI
-  }
-#endif
-
   for (i = 0, g = gluenodes; i < numglue; i ++, g += 4) /* insert gluing constraints */
   {
-    DOM_Put_Rigid_Link (dom, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]]);
+#if MPI
+    DOM_Pending_Constraint (dom, RIGLNK, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]], NULL, NULL, g[2], g[3]);
+#else
+    DOM_Put_Rigid_Link (dom, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]], g[2], g[3]);
+#endif
   }
 
   for (i = 0, e = adjeles; i < numadj; i ++, e += 4) /* exclude contact detection between adjacent surface elements */

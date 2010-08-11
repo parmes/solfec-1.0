@@ -141,7 +141,7 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
     /* XXX: for diagonal inverse matrix (explicit integration) only
      * XXX: in case of a common node W_one_two and W_two_one will be != 0 */
 
-    if (bod->msh)
+    if (bod->msh) /* rough mesh */
     {
       ELEMENT **e1, **f1, **e2, **f2;
       CONVEX *c1 = (bod == one->master ? mgobj(one) : sgobj(one)),
@@ -158,12 +158,44 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
 
       return 0;
     }
-    else
+    else /* regular mesh */
     {
-      ELEMENT *e1 = (bod == one->master ? mgobj(one) : sgobj(one)),
-	      *e2 = (bod == two->master ? mgobj(two) : sgobj(two));
+      MESH *m1, *m2;
+      ELEMENT *e1, *e2;
+      double *p1, *p2;
+      int n1, n2;
 
-      return ELEMENT_Adjacent (e1, e2);
+      if (bod == one->master)
+      {
+	m1 = mshp (one)->data;
+	e1 = mgobj (one);
+	p1 = one->mpnt;
+      }
+      else
+      {
+	m1 = sshp (one)->data;
+	e1 = sgobj (one);
+	p1 = one->spnt;
+      }
+
+      if (bod == two->master)
+      {
+	m2 = mshp (two)->data;
+	e2 = mgobj (two);
+	p2 = two->mpnt;
+      }
+      else
+      {
+	m2 = sshp (two)->data;
+	e2 = sgobj (two);
+	p2 = two->spnt;
+      }
+
+      n1 = ELEMENT_Ref_Point_To_Node (m1, e1, p1);
+      n2 = ELEMENT_Ref_Point_To_Node (m2, e2, p2);
+
+      if (n1 >= 0 && n2 >= 0 && n1 != n2) return 0; /* distinct mesh nodes */
+      else return ELEMENT_Adjacent (e1, e2); /* (non)adjacent elements */
     }
   }
 
@@ -218,12 +250,15 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 	ASSERT_DEBUG (con->master == bod || con->slave == bod, "Incorrectly connected constraint in a body constraints list: "
 	              "master->id = %d, slave->id = %d, bod->id = %d", con->master->id, con->slave->id, bod->id);
 
-	dia = con->dia;
-	ERRMEM (b = MEM_Alloc (&ldy->offmem));
-	b->dia = (DIAB*) ext; /* there is no diagonal block here, but we shall point directly to the external contact */
-	b->bod = bod; /* adjacent through this body */
-	b->n = dia->adjext;
-	dia->adjext = b;
+	if (adjacentable (bod, ext, con)) /* if constraints interact insert W block */
+	{
+	  dia = con->dia;
+	  ERRMEM (b = MEM_Alloc (&ldy->offmem));
+	  b->dia = (DIAB*) ext; /* there is no diagonal block here, but we shall point directly to the external contact */
+	  b->bod = bod; /* adjacent through this body */
+	  b->n = dia->adjext;
+	  dia->adjext = b;
+	}
       }
     }
   }
@@ -330,7 +365,23 @@ static int dumpcmp (CON *a, CON *b)
     else if (a->point [i] > b->point [i]) return 1;
   }
 
-  return a < b ? -1 : a > b ? 1 : 0;
+  int _aid [2] = {(int)a->master->id, a->slave ? (int)a->slave->id : -1},
+      _bid [2] = {(int)b->master->id, b->slave ? (int)b->slave->id : -1},
+       aid [2] = {MIN (_aid[0], _aid[1]), MAX (_aid[0], _aid[1])},
+       bid [2] = {MIN (_bid[0], _bid[1]), MAX (_bid[0], _bid[1])};
+
+  for (int i = 0; i < 2; i ++)
+  {
+    if (aid [i] < bid [i]) return -1;
+    else if (aid [i] > bid [i]) return 1;
+  }
+
+  if (a->kind < b->kind) return -1;
+  else if (a->kind > b->kind) return 1;
+
+  ASSERT_DEBUG (a == b, "Two different constraints between same pair of bodies have same spatial point");
+
+  return 0;
 }
 
 /* create local dynamics for a domain */
@@ -810,14 +861,15 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
   {
     con = dia->con;
 
-    COPY (dia->W, W);
+    NNCOPY (dia->W, W);
     MAXABSN (W, 9, Z);
-    FILTERN (W, 9, Z * WTOL);
+    Z *= WTOL; /* drop tolerance */
+    FILTERN (W, 9, Z); /* fill with zeros below the Z tolerance */
 
-    fprintf (f, "%s (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] (%u, %d, %u, %d) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] => ",
+    fprintf (f, "%s (%.6g, %.6g, %.6g) (%d, %d) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] => ",
       CON_Kind (con), con->point [0], con->point [1], con->point [2],
+      (int)con->master->id, con->slave ? (int)con->slave->id : -1,
       con->base [0], con->base [1], con->base [2], con->base [3], con->base [4], con->base [5], con->base [6], con->base [7], con->base [8],
-      con->master->id, con->msgp - con->master->sgp, con->slave ? con->slave->id : 0, con->slave ? con->ssgp - con->slave->sgp : 0,
       W [0], W [1], W [2], W [3], W [4], W [5], W [6], W [7], W [8]);
 
     MAP_Free (&mapmem, &adj);
@@ -850,9 +902,8 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
       con = item->key;
       q = item->data;
 
-      COPY (q->W, W);
-      MAXABSN (W, 9, Z);
-      FILTERN (W, 9, Z * WTOL);
+      NNCOPY (q->W, W);
+      FILTERN (W, 9, Z); /* use diagonal Z */
 
       fprintf (f, "%s (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] ",
         CON_Kind (con), con->point [0], con->point [1], con->point [2],

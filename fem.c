@@ -1648,16 +1648,19 @@ static void TL_dynamic_init (BODY *bod)
 {
   if (!bod->M) bod->M = diagonal_inertia (bod);
 
-  if (bod->scheme == SCH_DEF_EXP && !bod->inverse) /* initialize once */
+  if (bod->scheme == SCH_DEF_EXP)
   {
-    double *x, *y;
-
-    bod->inverse = MX_Copy (bod->M, NULL);
-
-    for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
+    if (!bod->inverse) /* initialize once */
     {
-      ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
-      (*x) = 1.0 / (*x); /* invert diagonal */
+      double *x, *y;
+
+      bod->inverse = MX_Copy (bod->M, NULL);
+
+      for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
+      {
+	ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
+	(*x) = 1.0 / (*x); /* invert diagonal */
+      }
     }
   }
   else TL_dynamic_inverse (bod, bod->dom->step, NULL); /* update every time */

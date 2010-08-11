@@ -488,6 +488,43 @@ static int gobj_adjacent (short paircode, void *aobj, void *bobj)
 }
 
 #if MPI
+/* return an SGP index:
+ * a) semi-positive index indicates regular surface SGP
+ * b) negative index indicates a node of a non-surface FEM mesh element */
+static int SGP_index (BODY *bod, SGP *sgp)
+{
+  long n = sgp - bod->sgp;
+
+  if (n < 0 || n >= bod->nsgp) /* non-surface ELEMENT */
+  {
+    ASSERT_DEBUG (bod->kind == FEM && !bod->msh, "Regular FEM body expected");
+    n = - (int) (long) sgp->box;
+  }
+
+  return n;
+}
+#endif
+
+/* recreate an SGP from an index returned by SGP_index */
+static SGP* SGP_from_index (DOM *dom, BODY *bod, int n)
+{
+  SGP *sgp;
+
+  if (n >= 0 && n < bod->nsgp) sgp = &bod->sgp [n];
+  else
+  {
+    ASSERT_DEBUG (bod->kind == FEM && !bod->msh, "Regular FEM body expected");
+    ASSERT_DEBUG (n < 0, "Negative index expected");
+    ERRMEM (sgp = MEM_Alloc (&dom->sgpmem));
+    sgp->shp = bod->shape;
+    ASSERT_DEBUG_EXT (sgp->gobj = MESH_Element_With_Node (bod->shape->data, -n-1, NULL), "Element with given node number not found");
+    sgp->box = (BOX*) (long) (-n);
+  }
+
+  return sgp;
+}
+
+#if MPI
 /* compute constraint weight */
 static int constraint_weight (CON *con)
 {
@@ -618,8 +655,8 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
   if (con->slave) pack_int (isize, i, ints, con->slave->id);
   else pack_int (isize, i, ints, 0);
 
-  pack_int (isize, i, ints, con->msgp - con->master->sgp);
-  if (con->slave) pack_int (isize, i, ints, con->ssgp - con->slave->sgp);
+  pack_int (isize, i, ints, SGP_index (con->master, con->msgp));
+  if (con->slave) pack_int (isize, i, ints, SGP_index (con->slave, con->ssgp));
 
   pack_doubles (dsize, d, doubles, con->mpnt, 3);
   if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
@@ -683,9 +720,9 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
   if (sid) ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); else slave = NULL;
 
   n = unpack_int (ipos, i, ints);
-  msgp = &master->sgp [n];
+  msgp = SGP_from_index (dom, master, n);
 
-  if (slave) n = unpack_int (ipos, i, ints), ssgp = &slave->sgp [n]; else ssgp = NULL;
+  if (slave) n = unpack_int (ipos, i, ints), ssgp = SGP_from_index (dom, slave, n); else ssgp = NULL;
 
   dom->noid = cid; /* disable constraint ids generation and use 'noid' instead */
 
@@ -761,8 +798,8 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
   if (con->slave) pack_int (isize, i, ints, con->slave->id);
   else pack_int (isize, i, ints, 0);
 
-  pack_int (isize, i, ints, con->msgp - con->master->sgp);
-  if (con->slave) pack_int (isize, i, ints, con->ssgp - con->slave->sgp);
+  pack_int (isize, i, ints, SGP_index (con->master, con->msgp));
+  if (con->slave) pack_int (isize, i, ints, SGP_index (con->slave, con->ssgp));
 
   pack_doubles (dsize, d, doubles, con->mpnt, 3);
   if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
@@ -794,12 +831,12 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   if (sid) ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); else slave = NULL;
 
   n = unpack_int (ipos, i, ints);
-  msgp = &master->sgp [n];
+  msgp = SGP_from_index (dom, master, n);
 
   if (slave)
   {
     n = unpack_int (ipos, i, ints);
-    ssgp = &slave->sgp [n];
+    ssgp = SGP_from_index (dom, slave, n);
   }
   else ssgp = NULL;
 
@@ -814,8 +851,9 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   if (kind == CONTACT) /* sparsification needs below data */
   {
     con->area = unpack_double (dpos, d, doubles);
-    BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point);
   }
+
+  BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point); /* update point */
 
   return con;
 }
@@ -855,8 +893,9 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
   if (con->kind == CONTACT) /* sparsification needs below data */
   {
     con->area = unpack_double (dpos, d, doubles);
-    BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point);
   }
+
+  BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point); /* update point */
 
   return con;
 }
@@ -1497,8 +1536,8 @@ static void insert_pending_constraints (DOM *dom)
 
       for (int i = 0; i < 2; i ++)
       {
-        p = pp [i]; /* make sure that slave knows about both points since it can on a processor different that
-		       the parant and can have no other means of knowing where to migrate the needed child */
+        p = pp [i]; /* make sure that slave knows about both points since it can be on a processor different that
+		       the parent and can have no other means of knowing where to migrate the needed child */
 
 	if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
 	if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
@@ -1509,20 +1548,37 @@ static void insert_pending_constraints (DOM *dom)
       }
     }
 
-    if (pnd->master->flags & BODY_PARENT)
+    if (pnd->master->flags & BODY_PARENT) /* insert only those having parent master */
     {
       switch (pnd->kind)
       {
+      case FIXPNT:
+	con = DOM_Fix_Point (dom, pnd->master, pnd->mpnt);
+	break;
+      case FIXDIR:
+	con = DOM_Fix_Direction (dom, pnd->master, pnd->mpnt, pnd->dir);
+	break;
+      case VELODIR:
+	con = DOM_Set_Velocity (dom, pnd->master, pnd->mpnt, pnd->dir, pnd->val);
+	break;
       case RIGLNK:
-	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt);
-	if (con)
-	{
-	  update_riglnk (dom, con); /* update */
-	  con->state |= CON_NEW;  /* mark as newly created */
-	}
-	WARNING_DEBUG (con, "Failed to insert a pending rigid link");
+	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt, pnd->mnode, pnd->snode);
 	break;
       }
+
+      if (con)
+      {
+	switch ((int)con->kind)
+	{
+	case FIXPNT: update_fixpnt (dom, con); break;
+	case FIXDIR: update_fixdir (dom, con); break;
+	case VELODIR: update_velodir (dom, con); break;
+	case RIGLNK: update_riglnk (dom, con); break;
+	}
+
+	con->state |= CON_NEW;  /* mark as newly created */
+      }
+      WARNING_DEBUG (con, "Failed to insert a pending rigid link");
     }
 
     free (pnd); /* they were MEM_ALLOC-ed */
@@ -2127,6 +2183,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   MEM_Init (&dom->conmem, sizeof (CON), CONBLK);
   MEM_Init (&dom->mapmem, sizeof (MAP), MAPBLK);
   MEM_Init (&dom->setmem, sizeof (SET), SETBLK);
+  MEM_Init (&dom->sgpmem, sizeof (SGP), CONBLK);
   dom->sparebid = NULL;
   dom->bid = 1;
   dom->lab = NULL;
@@ -2267,10 +2324,10 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
 
   /* delete from the set of all created bodies */
   MAP_Delete (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, NULL);
-
-  /* free body id => spare ids from ranks > 0 will be sent to rank 0 during balancing */
-  SET_Insert (&dom->setmem, &dom->sparebid, (void*) (long) bod->id, NULL);
 #endif
+
+  /* free body id => union of spare ids from all ranks is created during balancing */
+  SET_Insert (&dom->setmem, &dom->sparebid, (void*) (long) bod->id, NULL);
 }
 
 /* find labeled body */
@@ -2344,8 +2401,10 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
 }
 
 /* insert rigid link constraint between two (referential) points of bodies; if one of the body
- * pointers is NULL then the link acts between the other body and the fixed (spatial) point */
-CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt)
+ * pointers is NULL then the link acts between the other body and the fixed (spatial) point;
+ * if the points coincide then a gluing FIXPNT constraint is inserted instead; if mnode >= 0 or snode >= 0
+ * then mpnt or spnt are regarded as mesh nodes of a single mesh constituting the shape of respective bodies */
+CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt, int mnode, int snode)
 {
   double v [3], d, *tmp;
   CON *con;
@@ -2355,34 +2414,43 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   if (!master)
   {
     master = slave;
+    slave = NULL;
     tmp = mpnt;
     mpnt = spnt;
     spnt = tmp;
-    slave = NULL;
+    mnode = snode;
   }
 
   ASSERT_DEBUG (master, "At least one body pointer must not be NULL");
 
-  if (master && (m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
+  if (mnode >= 0) msgp = SGP_from_index (dom, master, -mnode-1);
+  else
+  {
+    if ((m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
+    msgp = &master->sgp [m];
+  }
 
-  if (slave && (s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
-
-  msgp = &master->sgp [m];
-  if (slave) ssgp = &slave->sgp [s];
+  if (slave)
+  { 
+    if (snode >= 0) ssgp = SGP_from_index (dom, slave, -snode-1);
+    else
+    {
+      if ((s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
+      ssgp = &slave->sgp [s];
+    }
+  }
   else ssgp = NULL;
 
   SUB (mpnt, spnt, v);
   d = LEN (v);
   
-  if (d < GEOMETRIC_EPSILON) /* no point in keeping very short links */
+  if (d < GEOMETRIC_EPSILON) /* glue points */
   {
     con = insert (dom, master, slave, msgp, ssgp, FIXPNT);
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
     IDENTITY (con->base);
-
-    if (slave) AABB_Exclude_Gobj_Pair (dom->aabb, master->id, m, slave->id, s); /* no contact between this pair */
   }
   else
   {
@@ -2403,6 +2471,15 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
 /* remove a constraint from the domain */
 void DOM_Remove_Constraint (DOM *dom, CON *con)
 {
+  long n = con->msgp - con->master->sgp;
+  if (n < 0 || n >= con->master->nsgp) MEM_Free (&dom->sgpmem, con->msgp);
+
+  if (con->slave)
+  {
+    n = con->ssgp - con->slave->sgp;
+    if (n < 0 || n >= con->slave->nsgp) MEM_Free (&dom->sgpmem, con->ssgp);
+  }
+
 #if MPI
   if (con->state & CON_EXTERNAL)
   {
@@ -2789,21 +2866,42 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
   free (recv);
 }
 
-/* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
-int DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt)
+/* schedule parallel insertion of a constraint (to be called on all processors) */
+int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
+    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode)
 {
-  PNDCON *con;
+  PNDCON *pnd;
 
-  ERRMEM (con = MEM_CALLOC (sizeof (PNDCON)));
-  con->kind = kind;
-  con->master = master;
-  con->slave = slave;
-  COPY (mpnt, con->mpnt);
-  COPY (spnt, con->spnt);
-  if ((con->msgp = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return 0;
-  if ((con->ssgp = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return 0;
+  ERRMEM (pnd = MEM_CALLOC (sizeof (PNDCON)));
+  pnd->kind = kind;
+  pnd->master = master;
+  pnd->slave = slave;
+  COPY (mpnt, pnd->mpnt);
+  if (spnt) COPY (spnt, pnd->spnt);
+  if (dir) COPY (dir, pnd->dir);
+  pnd->val = val;
+  pnd->mnode = mnode;
+  pnd->snode = snode;
 
-  SET_Insert (&dom->setmem, &dom->pending, con, NULL); /* they will be inserted or deleted during load balancing */
+  if (master->kind == FEM && !master->msh)
+  {
+    if (mnode >= 0) pnd->mele = MESH_Element_With_Node (master->shape->data, mnode, NULL);
+    else pnd->mele = MESH_Element_Containing_Point (master->shape->data, mpnt, 1);
+
+    if (!pnd->mele) return 0;
+  }
+  else if (SHAPE_Sgp (master->sgp, master->nsgp, mpnt) < 0) return 0;
+
+  if (slave->kind == FEM && !slave->msh)
+  {
+    if (snode >= 0) pnd->sele = MESH_Element_With_Node (slave->shape->data, snode, NULL);
+    else pnd->sele = MESH_Element_Containing_Point (slave->shape->data, spnt, 1);
+
+    if (!pnd->sele) return 0;
+  }
+  else if (SHAPE_Sgp (master->sgp, master->nsgp, mpnt) < 0) return 0;
+
+  SET_Insert (&dom->setmem, &dom->pending, pnd, NULL); /* they will be inserted or deleted during load balancing */
 
   return 1;
 }
@@ -2861,6 +2959,7 @@ void DOM_Destroy (DOM *dom)
   MEM_Release (&dom->conmem);
   MEM_Release (&dom->setmem);
   MEM_Release (&dom->mapmem);
+  MEM_Release (&dom->sgpmem);
 
   if (dom->gravity [0]) TMS_Destroy (dom->gravity [0]);
   if (dom->gravity [1]) TMS_Destroy (dom->gravity [1]);
