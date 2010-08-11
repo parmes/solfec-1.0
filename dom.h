@@ -155,10 +155,16 @@ struct pending_constraint
        *slave;
 
   double mpnt [3],
-	 spnt [3];
+	 spnt [3],
+	 dir  [3];
 
-  int msgp,
-      ssgp;
+  TMS *val;
+
+  int mnode, /* used only for regular FEM bodies */
+      snode;
+
+  ELEMENT *mele, /* used only for regular FEM bodies */
+	  *sele;
 };
 #endif
 
@@ -187,7 +193,8 @@ struct domain
 {
   MEM conmem, /* constraints memory pool */
       mapmem, /* map items memory pool */
-      setmem; /* set items memory pool */
+      setmem, /* set items memory pool */
+      sgpmem; /* non-surface SGPs memory */
 
   AABB *aabb; /* box overlap engine */
   SPSET *sps; /* surface pairs */
@@ -284,8 +291,10 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir);
 CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel);
 
 /* insert rigid link constraint between two (referential) points of bodies; if one of the body
- * pointers is NULL then the link acts between the other body and the fixed (spatial) point */
-CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt);
+ * pointers is NULL then the link acts between the other body and a fixed (spatial) point;
+ * if the points coincide then a gluing FIXPNT constraint is inserted instead; if mnode >= 0 or snode >= 0
+ * then mpnt or spnt are regarded as mesh nodes of a single mesh constituting the shape of respective bodies */
+CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt, int mnode, int snode);
 
 /* remove a constraint from the domain (destroy it) */
 void DOM_Remove_Constraint (DOM *dom, CON *con);
@@ -313,8 +322,9 @@ void DOM_Update_End (DOM *dom);
  * if 'normal' is > 0 only normal components are sent */
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 
-/* schedule insertion of a two-body constraint (note that bodies could be active on two different processors) */
-int DOM_Pending_Two_Body_Constraint (DOM *dom, short kind, BODY *master, BODY *slave, double *mpnt, double *spnt);
+/* schedule parallel insertion of a constraint (to be called on all processors) */
+int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
+    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode);
 #endif
 
 /* write domain state */

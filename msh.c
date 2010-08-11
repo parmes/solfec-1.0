@@ -1549,7 +1549,7 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
     {
       for (ktem = SET_First (n2p [i]); ktem; ktem = SET_Next (ktem))
       {
-	if (jtem && jtem != ktem)
+	if (jtem->data < ktem->data)
 	{
 	  (*numglue) ++;
 
@@ -1631,6 +1631,23 @@ int ELEMENT_Contains_Ref_Point (MESH *msh, ELEMENT *ele, double *point)
   return point_inside (neighs (ele->type), pla, point);
 }
 
+/* return >= node index if point == node[index] or -1 otherwise */
+int ELEMENT_Ref_Point_To_Node (MESH *msh, ELEMENT *ele, double *point)
+{
+  double nodes [8][3], d [3], a;
+  int  i;
+
+  load_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
+
+  for (i = 0; i < ele->type; i ++)
+  {
+    SUB (nodes [i], point, d);
+    MAXABS (d, a);
+    if (a < GEOMETRIC_EPSILON) return ele->nodes [i];
+  }
+
+  return -1;
+}
 
 /* return distance of a spatial (ref == 0) or referential (ref == 1) point to the element */
 double ELEMENT_Point_Distance (MESH *msh, ELEMENT *ele, double *point, int ref)

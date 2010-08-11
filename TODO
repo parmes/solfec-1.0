@@ -83,3 +83,7 @@ Adjust MESH object in Python interface so to handle second order meshes
 Sort out volumetric integration order in FEM module
 ------------------------------------------------------
 Sort out damping (better stiffness proportional)
+----------------------------------------------------------
+OPTIMIZE:
+a) sending constrains with fixed bases (e.g. FIXPNT, do not send the base)
+b) assembling W parts for constraints with fxied bases and points (e.g. FIXPNT)
