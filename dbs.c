@@ -462,6 +462,7 @@ int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
     }
     break;
   case FIXPNT:
+  case GLUE:
     return fixpnt (dynamic, dia->W, B, dia->V, dia->U, dia->R);
   case FIXDIR:
     return fixdir (dynamic, dia->W, B, dia->V, dia->U, dia->R);

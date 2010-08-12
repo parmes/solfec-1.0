@@ -474,6 +474,12 @@ static void update_riglnk (DOM *dom, CON *con)
   localbase (n, con->base);
 }
 
+/* update glue data */
+static void update_glue (DOM *dom, CON *con)
+{
+  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
+}
+
 /* tell whether the geometric objects are topologically adjacent */
 static int gobj_adjacent (short paircode, void *aobj, void *bobj)
 {
@@ -862,16 +868,18 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
 static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_int (isize, i, ints, con->id);
-
-  pack_doubles (dsize, d, doubles, con->mpnt, 3);
-  if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
-
   pack_doubles (dsize, d, doubles, con->R, 3);
-  pack_doubles (dsize, d, doubles, con->base, 9);
 
-  if (con->kind == CONTACT) /* sparsification needs below data  */
+  if (con->kind == CONTACT)
   {
-    pack_double (dsize, d, doubles, con->area);
+    pack_doubles (dsize, d, doubles, con->mpnt, 3);
+    pack_doubles (dsize, d, doubles, con->spnt, 3);
+    pack_doubles (dsize, d, doubles, con->base, 9);
+    pack_double (dsize, d, doubles, con->area); /* for sparsification */
+  }
+  else if (con->kind == RIGLNK)
+  {
+    pack_doubles (dsize, d, doubles, con->base, 9);
   }
 }
 
@@ -883,16 +891,18 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
 
   id = unpack_int (ipos, i, ints);
   ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid constraint id");
-
-  unpack_doubles (dpos, d, doubles, con->mpnt, 3);
-  if (con->slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
-
   unpack_doubles (dpos, d, doubles, con->R, 3);
-  unpack_doubles (dpos, d, doubles, con->base, 9);
 
   if (con->kind == CONTACT) /* sparsification needs below data */
   {
+    unpack_doubles (dpos, d, doubles, con->mpnt, 3);
+    unpack_doubles (dpos, d, doubles, con->spnt, 3);
+    unpack_doubles (dpos, d, doubles, con->base, 9);
     con->area = unpack_double (dpos, d, doubles);
+  }
+  else if (con->kind == RIGLNK)
+  {
+    unpack_doubles (dpos, d, doubles, con->base, 9);
   }
 
   BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point); /* update point */
@@ -1562,7 +1572,10 @@ static void insert_pending_constraints (DOM *dom)
 	con = DOM_Set_Velocity (dom, pnd->master, pnd->mpnt, pnd->dir, pnd->val);
 	break;
       case RIGLNK:
-	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt, pnd->mnode, pnd->snode);
+	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt);
+	break;
+      case GLUE:
+	con = DOM_Glue_Nodes (dom, pnd->master, pnd->slave, pnd->mnode, pnd->snode);
 	break;
       }
 
@@ -1574,6 +1587,7 @@ static void insert_pending_constraints (DOM *dom)
 	case FIXDIR: update_fixdir (dom, con); break;
 	case VELODIR: update_velodir (dom, con); break;
 	case RIGLNK: update_riglnk (dom, con); break;
+	case GLUE: update_glue (dom, con); break;
 	}
 
 	con->state |= CON_NEW;  /* mark as newly created */
@@ -2162,6 +2176,7 @@ char* CON_Kind (CON *con)
   case FIXDIR: return "FIXDIR";
   case VELODIR: return "VELODIR";
   case RIGLNK: return "RIGLNK";
+  case GLUE: return "GLUE";
   }
 
   return NULL;
@@ -2402,14 +2417,13 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
 
 /* insert rigid link constraint between two (referential) points of bodies; if one of the body
  * pointers is NULL then the link acts between the other body and the fixed (spatial) point;
- * if the points coincide then a gluing FIXPNT constraint is inserted instead; if mnode >= 0 or snode >= 0
- * then mpnt or spnt are regarded as mesh nodes of a single mesh constituting the shape of respective bodies */
-CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt, int mnode, int snode)
+ * if the points coincide then a gluing FIXPNT constraint is inserted instead */
+CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt)
 {
   double v [3], d, *tmp;
-  CON *con;
   SGP *msgp, *ssgp;
   int m, s;
+  CON *con;
 
   if (!master)
   {
@@ -2418,26 +2432,17 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     tmp = mpnt;
     mpnt = spnt;
     spnt = tmp;
-    mnode = snode;
   }
 
   ASSERT_DEBUG (master, "At least one body pointer must not be NULL");
 
-  if (mnode >= 0) msgp = SGP_from_index (dom, master, -mnode-1);
-  else
-  {
-    if ((m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
-    msgp = &master->sgp [m];
-  }
+  if ((m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
+  msgp = &master->sgp [m];
 
   if (slave)
   { 
-    if (snode >= 0) ssgp = SGP_from_index (dom, slave, -snode-1);
-    else
-    {
-      if ((s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
-      ssgp = &slave->sgp [s];
-    }
+    if ((s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
+    ssgp = &slave->sgp [s];
   }
   else ssgp = NULL;
 
@@ -2462,6 +2467,35 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     update_riglnk (dom, con); /* initial update */
   }
   
+  /* insert into local dynamics */
+  con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
+
+  return con;
+}
+
+/* insert gluging constraint between nodes of regular FEM bodies */
+CON* DOM_Glue_Nodes (DOM *dom, BODY *master, BODY *slave, int mnode, int snode)
+{
+  MESH *mmsh, *smsh;
+  double *mpnt, *spnt;
+  SGP *msgp, *ssgp;
+  CON *con;
+
+  ASSERT_DEBUG (master && slave, "Both body pointer must be valid");
+
+  msgp = SGP_from_index (dom, master, -mnode-1);
+  ssgp = SGP_from_index (dom, slave, -snode-1);
+  mmsh = msgp->shp->data;
+  smsh = ssgp->shp->data;
+  mpnt = &mmsh->ref_nodes [mnode][0];
+  spnt = &smsh->ref_nodes [snode][0];
+
+  con = insert (dom, master, slave, msgp, ssgp, GLUE);
+  COPY (mpnt, con->point);
+  COPY (mpnt, con->mpnt);
+  COPY (spnt, con->spnt);
+  IDENTITY (con->base);
+
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
 
@@ -2709,6 +2743,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case FIXDIR:  update_fixdir  (dom, con); break;
       case VELODIR: update_velodir (dom, con); break;
       case RIGLNK:  update_riglnk  (dom, con); break;
+      case GLUE:    update_glue (dom, con); break;
     }
   }
 
@@ -2876,7 +2911,7 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
   pnd->kind = kind;
   pnd->master = master;
   pnd->slave = slave;
-  COPY (mpnt, pnd->mpnt);
+  if (mpnt) COPY (mpnt, pnd->mpnt);
   if (spnt) COPY (spnt, pnd->spnt);
   if (dir) COPY (dir, pnd->dir);
   pnd->val = val;

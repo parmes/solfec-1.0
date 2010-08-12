@@ -7799,8 +7799,6 @@ path
 
 \begin_layout Subsection*
 obj = PARTITION (body, parts)
-\color red
- under development
 \end_layout
 
 \begin_layout Standard
