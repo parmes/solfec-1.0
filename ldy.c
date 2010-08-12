@@ -411,18 +411,13 @@ inline static int body_has_changed (BODY *bod)
 /* block updatable test */
 static int needs_update (CON *dia, BODY *bod, CON *off, double *W)
 {
-  if (W [8] == 0.0 || /* not initialized yet */
-      dia->kind == CONTACT ||
-      dia->kind == RIGLNK || /* rigid link and contact constraints change bases */
-      off->kind == CONTACT ||
-      off->kind == RIGLNK) return 1;
-  else if (bod) return body_has_changed (bod);
-  else /* diagonal block => dia == off */
-  {
-    ASSERT_DEBUG (dia == off, "Invalid call");
-    if (dia->slave) return body_has_changed (dia->master) || body_has_changed (dia->slave);
-    else return body_has_changed (dia->master);
-  }
+  if (body_has_changed (bod)) return 1;
+  else if (W [8] == 0.0) return 1; /* not initialized */
+  else if (dia == off && dia->slave && body_has_changed (dia->slave)) return 1; /* diagonal */
+  else if (dia->kind == CONTACT || dia->kind == RIGLNK ||
+           off->kind == CONTACT || off->kind == RIGLNK) return 1; /* bases change */
+
+  return 0;
 }
 
 /* row updatable test */
@@ -431,7 +426,7 @@ static int row_needs_update (DIAB *dia)
   CON *con = dia->con;
   OFFB *blk;
 
-  if (needs_update (con, NULL, con, dia->W)) return 1; /* diagonal */
+  if (needs_update (con, con->master, con, dia->W)) return 1; /* diagonal */
 
   for (blk = dia->adj; blk; blk = blk->n) /* off-diagonal */
   {
@@ -657,7 +652,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     MX_DENSE_PTR (A, 3, 3, dia->A);
     MX_DENSE (C, 3, 3);
     dia->rowupdate = row_needs_update (dia);
-    int up = needs_update (con, NULL, con, dia->W);
+    int up = needs_update (con, m, con, dia->W);
 
     /* relative velocity = master - slave => outward slave normal */
     BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
@@ -710,7 +705,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 
 	MX_Destroy (mH);
 	MX_Destroy (sH);
-
 #if MPI
 	dia->mprod = MX_Matmat (1.0, dia->mH, m->inverse, 0.0, NULL);
 	dia->sprod = MX_Copy (dia->mprod, NULL);
@@ -721,6 +715,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 	if (up) MX_Matmat (1.0, dia->mH, dia->mprod, 0.0, &W); /* H * inv (M) * H^T */
 #endif
       }
+
       if (up)
       {
 	SCALE9 (W.x, step); /* W = h * ( ... ) */
