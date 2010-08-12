@@ -333,6 +333,7 @@ static void system_update_noncontact (DIAT *dia, short dynamic, double step, dou
   switch ((int) con->kind)
   {
   case FIXPNT:
+  case GLUE:
   {
     double *V = dia->V;
 

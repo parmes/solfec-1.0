@@ -4325,9 +4325,9 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     {
 #endif
 
-    if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (body2->bod->dom, NULL, body2->bod, p1, p2, -1, -1);
-    else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2, -1, -1);
-    else out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, body2->bod, p1, p2, -1, -1);
+    if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (body2->bod->dom, NULL, body2->bod, p1, p2);
+    else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2);
+    else out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, body2->bod, p1, p2);
 
     if (!out->con)
     {
@@ -5752,6 +5752,28 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   }
 
+  for (item = SET_First (bod->con); item; item = SET_Next (item))
+  {
+    CON *con = item->data;
+    if (con->kind == GLUE)
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot partition an already partitioned body");
+      return NULL;
+    }
+  }
+
+#if MPI
+  for (item = SET_First (dom->pending); item; item = SET_Next (item))
+  {
+    PNDCON *pnd = item->data;
+    if (pnd->kind == GLUE && (pnd->master == bod || pnd->slave == bod))
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot partition an already partitioned body");
+      return NULL;
+    }
+  }
+#endif
+
   msh = MESH_Partition (in, parts, &numglue, &gluenodes, &numadj, &adjeles); /* partition mesh */
   ERRMEM (out = MEM_CALLOC (parts * sizeof (BODY*)));
   if (!(list = PyList_New (parts))) return NULL;
@@ -5781,7 +5803,8 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
       ASSERT_DEBUG (0, "Contact constraint found while partitioning a body");
       break;
     case FIXPNT:
-      DOM_Pending_Constraint (dom, FIXPNT, out [ele->domnum], NULL, con->mpnt, NULL, NULL, NULL, -1, -1);
+      if (con->slave) goto riglnk; /* FIXPNT from zero-length RIGLNK */
+      else DOM_Pending_Constraint (dom, FIXPNT, out [ele->domnum], NULL, con->mpnt, NULL, NULL, NULL, -1, -1);
       break;
     case FIXDIR:
       DOM_Pending_Constraint (dom, FIXDIR, out [ele->domnum], NULL, con->mpnt, NULL, con->base+6, NULL, -1, -1);
@@ -5790,13 +5813,19 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
       DOM_Pending_Constraint (dom, VELODIR, out [ele->domnum], NULL, con->mpnt, NULL, con->base+6, TMS_Copy (con->tms), -1, -1);
       break;
     case RIGLNK:
-      if (bod == con->slave)
+riglnk:
+      if (con->master == con->slave)
+      {
+        DOM_Pending_Constraint (dom, RIGLNK, out [ele->domnum], out [ele->domnum], con->mpnt, con->spnt, NULL, NULL, -1, -1);
+      }
+      else if (bod == con->slave)
       {
 	ele = con->ssgp->gobj;
         DOM_Pending_Constraint (dom, RIGLNK, con->master, out [ele->domnum], con->mpnt, con->spnt, NULL, NULL, -1, -1);
       }
       else DOM_Pending_Constraint (dom, RIGLNK, out [ele->domnum], con->slave, con->mpnt, con->spnt, NULL, NULL, -1, -1);
       break;
+    case GLUE: ASSERT_DEBUG (0, "Impossible happend (trashed memory)"); break;
     }
   }
 
@@ -5824,7 +5853,8 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
       ASSERT_DEBUG (0, "Contact constraint found while partitioning a body");
       break;
     case FIXPNT:
-      DOM_Fix_Point (dom, out [ele->domnum], con->mpnt);
+      if (con->slave) goto riglnk; /* FIXPNT from zero-length RIGLNK */
+      else DOM_Fix_Point (dom, out [ele->domnum], con->mpnt);
       break;
     case FIXDIR:
       DOM_Fix_Direction (dom, out [ele->domnum], con->mpnt, con->base+6);
@@ -5833,13 +5863,19 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
       DOM_Set_Velocity (dom, out [ele->domnum], con->mpnt, con->base+6, TMS_Copy (con->tms));
       break;
     case RIGLNK:
-      if (bod == con->slave)
+riglnk:
+      if (con->master == con->slave)
+      {
+        DOM_Put_Rigid_Link (dom, out [ele->domnum], out [ele->domnum], con->mpnt, con->spnt);
+      }
+      else if (bod == con->slave)
       {
 	ele = con->ssgp->gobj;
-        DOM_Put_Rigid_Link (dom, con->master, out [ele->domnum], con->mpnt, con->spnt, -1, -1);
+        DOM_Put_Rigid_Link (dom, con->master, out [ele->domnum], con->mpnt, con->spnt);
       }
-      else DOM_Put_Rigid_Link (dom, out [ele->domnum], con->slave, con->mpnt, con->spnt, -1, -1);
+      else DOM_Put_Rigid_Link (dom, out [ele->domnum], con->slave, con->mpnt, con->spnt);
       break;
+    case GLUE: ASSERT_DEBUG (0, "Impossible happend (trashed memory)"); break;
     }
   }
 #endif
@@ -5851,9 +5887,9 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
   for (i = 0, g = gluenodes; i < numglue; i ++, g += 4) /* insert gluing constraints */
   {
 #if MPI
-    DOM_Pending_Constraint (dom, RIGLNK, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]], NULL, NULL, g[2], g[3]);
+    DOM_Pending_Constraint (dom, GLUE, out [g[0]], out [g[1]], NULL, NULL, NULL, NULL, g[2], g[3]);
 #else
-    DOM_Put_Rigid_Link (dom, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]], g[2], g[3]);
+    DOM_Glue_Nodes (dom, out [g[0]], out [g[1]], g[2], g[3]);
 #endif
   }
 

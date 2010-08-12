@@ -138,6 +138,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     break;
 #if 1
     case FIXPNT:
+    case GLUE:
     {
       if (dynamic) { ADD (U, V, P); }
       else { COPY (U, P); }

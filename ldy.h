@@ -76,6 +76,8 @@ struct diab
   OFFB *adj; /* note that W(i,j) = W1(i,j) + W2(i,j) {owing to body 1 and 2} and W1 and W2 are SEPARATELY stored here */
   CON *con;  /* the underlying constraint (and the owner od the reaction R[3] and the velocity U [3]) */
 
+  char rowupdate; /* row update flag */
+
   MX *mH, *mprod, /* master H operator and H inv(M) or inv(M) H^T product */
      *sH, *sprod; /* slave counterpart */
                   /* NOTE: left product can be applied to adjext assembly (MPI)

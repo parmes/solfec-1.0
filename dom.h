@@ -75,7 +75,7 @@ struct constraint
 
   int num; /* local number */
 
-  enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK} kind; /* constraint kind */
+  enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK, GLUE} kind; /* constraint kind */
 
   enum {CON_COHESIVE = 0x01,
         CON_NEW      = 0x02, /* newly inserted constraint */
@@ -292,9 +292,11 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel);
 
 /* insert rigid link constraint between two (referential) points of bodies; if one of the body
  * pointers is NULL then the link acts between the other body and a fixed (spatial) point;
- * if the points coincide then a gluing FIXPNT constraint is inserted instead; if mnode >= 0 or snode >= 0
- * then mpnt or spnt are regarded as mesh nodes of a single mesh constituting the shape of respective bodies */
-CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt, int mnode, int snode);
+ * if the points coincide then a gluing FIXPNT constraint is inserted instead */
+CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt);
+
+/* insert gluging constraint between nodes of regular FEM bodies */
+CON* DOM_Glue_Nodes (DOM *dom, BODY *master, BODY *slave, int mnode, int snode);
 
 /* remove a constraint from the domain (destroy it) */
 void DOM_Remove_Constraint (DOM *dom, CON *con);
