@@ -146,7 +146,7 @@ static int constraint_compare (CON *one, CON *two)
 
   if (oc > tc) return -1; /* contacts are smaller than non-contacts */
   else if (oc < tc) return 1; /* -||- */
-  else if ((oc + tc) == 0) return (one < two ? -1 : (one == two ? 0 : 1)); /* non-contacts: compare pointers */
+  else if ((oc + tc) == 0) return (one->id < two->id ? -1 : (one->id == two->id ? 0 : 1)); /* non-contacts: compare IDs */
 
   if (one->master < one->slave) /* contacts: order pointers before comparing */
   {
@@ -242,10 +242,6 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, s
   con->msgp = msgp;
   con->ssgp = ssgp;
 
-  /* insert into body constraint adjacency */
-  SET_Insert (&dom->setmem, &master->con, con, CONCMP);
-  if (slave) SET_Insert (&dom->setmem, &slave->con, con, CONCMP);
- 
   /* insert into list */
   con->next = dom->con;
   if (dom->con) dom->con->prev = con;
@@ -281,6 +277,20 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, s
 #if MPI
   }
   else con->id = dom->noid; /* assign the 'noid' as it was imported with a constraint */
+#endif
+
+#if PARDEBUG
+  ASSERT_DEBUG (!SET_Contains (master->con, con, CONCMP), "Constraint %s with id %d already in body list", CON_Kind (con), con->id);
+  ASSERT_DEBUG (!slave || (slave && !SET_Contains (slave->con, con, CONCMP)), "Constraint %s with id %d already in body list", CON_Kind (con), con->id);
+#endif
+
+  /* insert into body constraint adjacency */
+  SET_Insert (&dom->setmem, &master->con, con, CONCMP);
+  if (slave) SET_Insert (&dom->setmem, &slave->con, con, CONCMP);
+
+#if PARDEBUG
+  ASSERT_DEBUG (SET_Contains (master->con, con, CONCMP), "Failed to insert constraint %s with id %d into body list", CON_Kind (con), con->id);
+  ASSERT_DEBUG (!slave || (slave && SET_Contains (slave->con, con, CONCMP)), "Failed to insert constraint %s with id %d already into body list", CON_Kind (con), con->id);
 #endif
 
   /* map by id */
@@ -777,18 +787,28 @@ static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP
   con->msgp = msgp;
   con->ssgp = ssgp;
 
-  /* add to the body constraint adjacency */
-  SET_Insert (&dom->setmem, &master->con, con, CONCMP);
-  if (slave) SET_Insert (&dom->setmem, &slave->con, con, CONCMP);
- 
   /* constraint identifier */
   con->id = cid;
 
-  /* insert into external map */
-  MAP_Insert (&dom->mapmem, &dom->conext, (void*) (long) cid, con, NULL);
-
   /* state */
   con->state |= CON_EXTERNAL;
+
+#if PARDEBUG
+  ASSERT_DEBUG (!SET_Contains (master->con, con, CONCMP), "Constraint %s with id %d already in body list", CON_Kind (con), con->id);
+  ASSERT_DEBUG (!slave || (slave && !SET_Contains (slave->con, con, CONCMP)), "Constraint %s with id %d already in body list", CON_Kind (con), con->id);
+#endif
+
+  /* add to the body constraint adjacency */
+  SET_Insert (&dom->setmem, &master->con, con, CONCMP);
+  if (slave) SET_Insert (&dom->setmem, &slave->con, con, CONCMP);
+
+#if PARDEBUG
+  ASSERT_DEBUG (SET_Contains (master->con, con, CONCMP), "Failed to insert constraint %s with id %d into body list", CON_Kind (con), con->id);
+  ASSERT_DEBUG (!slave || (slave && SET_Contains (slave->con, con, CONCMP)), "Failed to insert constraint %s with id %d already into body list", CON_Kind (con), con->id);
+#endif
+ 
+  /* insert into external map */
+  MAP_Insert (&dom->mapmem, &dom->conext, (void*) (long) cid, con, NULL);
 
   return con;
 }
@@ -1589,8 +1609,6 @@ static void insert_pending_constraints (DOM *dom)
 	case RIGLNK: update_riglnk (dom, con); break;
 	case GLUE: update_glue (dom, con); break;
 	}
-
-	con->state |= CON_NEW;  /* mark as newly created */
       }
       WARNING_DEBUG (con, "Failed to insert a pending rigid link");
     }
@@ -2507,20 +2525,29 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 {
   long n = con->msgp - con->master->sgp;
   if (n < 0 || n >= con->master->nsgp) MEM_Free (&dom->sgpmem, con->msgp);
-
   if (con->slave)
   {
     n = con->ssgp - con->slave->sgp;
     if (n < 0 || n >= con->slave->nsgp) MEM_Free (&dom->sgpmem, con->ssgp);
   }
 
+#if PARDEBUG
+  ASSERT_DEBUG (SET_Contains (con->master->con, con, CONCMP), "Constraint %s with id %d not present in body list", CON_Kind (con), con->id);
+  ASSERT_DEBUG (!con->slave || (con->slave && SET_Contains (con->slave->con, con, CONCMP)), "Constraint %s with id %d not present in body list", CON_Kind (con), con->id);
+#endif
+
+  /* remove from the body constraint adjacency  */
+  SET_Delete (&dom->setmem, &con->master->con, con, CONCMP);
+  if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP);
+
+#if PARDEBUG
+  ASSERT_DEBUG (!SET_Contains (con->master->con, con, CONCMP), "Failed to delete constraint %s with id %d from body list", CON_Kind (con), con->id);
+  ASSERT_DEBUG (!con->slave || (con->slave && !SET_Contains (con->slave->con, con, CONCMP)), "Failed to delete constraint %s with id %d from body list", CON_Kind (con), con->id);
+#endif
+
 #if MPI
   if (con->state & CON_EXTERNAL)
   {
-    /* remove from the body constraint adjacency  */
-    SET_Delete (&dom->setmem, &con->master->con, con, CONCMP);
-    if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP);
-
     /* remove from map */
     MAP_Delete (&dom->mapmem, &dom->conext, (void*) (long) con->id, NULL);
 
@@ -2530,42 +2557,39 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
   else
   {
 #endif
-  /* remove from the body constraint adjacency  */
-  SET_Delete (&dom->setmem, &con->master->con, con, CONCMP);
-  if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP);
+    /* remove from id-based map */
+    MAP_Delete (&dom->mapmem, &dom->idc, (void*) (long) con->id, NULL);
 
-  /* remove from id-based map */
-  MAP_Delete (&dom->mapmem, &dom->idc, (void*) (long) con->id, NULL);
+    /* remove from list */
+    if (con->prev)
+      con->prev->next = con->next;
+    else dom->con = con->next;
+    if (con->next)
+      con->next->prev = con->prev;
+    dom->ncon --;
 
-  /* remove from list */
-  if (con->prev)
-    con->prev->next = con->next;
-  else dom->con = con->next;
-  if (con->next)
-    con->next->prev = con->prev;
-  dom->ncon --;
-
-  /* remove from local dynamics */
-  if (con->dia) LOCDYN_Remove (dom->ldy, con->dia);
+    /* remove from local dynamics */
+    if (con->dia) LOCDYN_Remove (dom->ldy, con->dia);
 
 #if MPI
-  /* free external ranks */
-  SET_Free (&dom->setmem, &con->ext);
+    /* free external ranks */
+    SET_Free (&dom->setmem, &con->ext);
 
-  /* free constraint id if possible */
-  if (!(con->state & CON_IDLOCK))
+    /* free constraint id if possible */
+    if (!(con->state & CON_IDLOCK))
 #endif
-  SET_Insert (&dom->setmem, &dom->sparecid, (void*) (long) con->id, NULL);
+    SET_Insert (&dom->setmem, &dom->sparecid, (void*) (long) con->id, NULL);
 
-  if (con->kind == CONTACT) SURFACE_MATERIAL_Destroy_State (&con->mat); /* free contact material state */
-  /* free velocity constraint time history */
-  else if (con->kind == VELODIR) TMS_Destroy (con->tms);
+    if (con->kind == CONTACT) SURFACE_MATERIAL_Destroy_State (&con->mat); /* free contact material state */
+    /* free velocity constraint time history */
+    else if (con->kind == VELODIR) TMS_Destroy (con->tms);
 
-  /* destroy passed data */
-  MEM_Free (&dom->conmem, con);
+    /* destroy passed data */
+    MEM_Free (&dom->conmem, con);
 #if MPI
   }
 #endif
+
 }
 
 /* set simulation scene extents */

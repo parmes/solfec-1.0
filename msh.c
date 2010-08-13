@@ -373,8 +373,9 @@ static double point_distance (int npla, double *pla, double *point)
   return dist;
 }
 
+#if 0
 /* check if edge [nod1, nod2] belongs to the element */
-int element_has_edge (ELEMENT *ele, int nod1, int nod2)
+static int element_has_edge (ELEMENT *ele, int nod1, int nod2)
 {
   int *nodes = ele->nodes,
       type = ele->type, n, j;
@@ -384,6 +385,19 @@ int element_has_edge (ELEMENT *ele, int nod1, int nod2)
 	nodes [n] == nod2) j ++;
 
   return (j == 2 ? 1 : 0);
+}
+#endif
+
+/* check if element has nodes */
+static int element_has_nodes (ELEMENT *ele, int n, int *nodes)
+{
+  int *e = ele->nodes, m = ele->type, k = 0, i, j;
+
+  for (i = 0; i < m; i ++)
+    for (j = 0; j < n; j ++)
+      if (e [i] == nodes [j]) k ++;
+
+  return (k == n ? 1 : 0); 
 }
 
 /* compute planes - CCW oriented faces */
@@ -880,7 +894,10 @@ void MESH_Scale (MESH *msh, double *vector)
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
     for (fac = ele->faces; fac; fac = fac->next)
+    {
       setup_normal (cur, fac);
+      COPY (fac->normal, fac->normal+3); /* set referential normal */
+    }
   }
 }
 
@@ -930,7 +947,10 @@ void MESH_Rotate (MESH *msh, double *point, double *vector, double angle)
   cur = msh->cur_nodes;
   for (ele = msh->surfeles; ele; ele = ele->next)
     for (fac = ele->faces; fac; fac = fac->next)
+    {
       setup_normal (cur, fac);
+      COPY (fac->normal, fac->normal+3); /* set referential normal */
+    }
 }
 
 /* compute current partial characteristic: 'vo'lume and static momenta
@@ -1159,7 +1179,10 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
 
   for (ele = msh->surfeles; ele; ele = ele->next)
     for (fac = ele->faces; fac; fac = fac->next)
+    {
       setup_normal (cur, fac); /* update normals */
+      if (motion == NULL) { COPY (fac->normal, fac->normal+3); /* set referential normal */ }
+    }
 }
 
 /* convert mesh into a list of convices;
@@ -1388,9 +1411,14 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
     MEM_Init (&out [m]->mapmem, sizeof (MAP), MIN (n, MAPMEMCHUNK));
   }
 
+  for (n = 0; n < 2; n ++) for (ele = head [n]; ele; ele = ele->next) /* set destination partitions */
+  { 
+    ele->domnum = part [ele->domnum];
+  }
+
   for (n = 0; n < 2; n ++) for (ele = head [n]; ele; ele = ele->next) /* copy elements */
   { 
-    m = ele->domnum = part [ele->domnum]; /* set destination partitions */
+    m = ele->domnum; /* destination partition */
 
     nel = copy_element (&out [m]->elemem, ele, m, &out [m]->facmem);
 
@@ -1578,6 +1606,64 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
   free (n2p);
   MEM_Release (&mapmem);
   MEM_Release (&setmem);
+
+  /* FIXME: the below code is almost fine, although I need to figure out how to handle additional boundary in terms
+   * FIXME: of contact detection exclusion or faster integration the surface loop of BODY_COROTATIONAL (that would be uglier) */
+#if 0
+  for (i = 0; i < nparts; i ++) /* discover new free faces */
+  {
+    FACE faces [6], *fac;
+    int o;
+
+    msh = out [i];
+
+    ELEMENT *list [] = {msh->surfeles, msh->bulkeles};
+
+    for (j = 0; j < 2; j ++)
+    for (ele = list [j]; ele; ele = nel)
+    {
+      nel = ele->next;
+      m = neighs (ele->type); 
+
+      for (n = 0; n < m; n ++)
+	setup_face (ele, n, &faces [n], 0);
+
+      for (n = 0; n < m; n ++) /* for each potential free face */
+      {
+	for (fac = ele->faces; fac; fac = fac->next)
+	  if (face_compare (&faces [n], fac) == 0) break; /* surface face found */
+
+	for (o = 0; o < ele->neighs; o ++)
+	  if (element_has_nodes (ele->adj [o], faces [n].type, faces [n].nodes)) break; /* neighbor found */
+
+	if (fac == NULL && o == ele->neighs) /* neither a surface face nor having a neighbor => free surface */
+	{
+          ERRMEM (fac = MEM_Alloc (&msh->facmem));
+	  fac->type = faces [n].type;
+	  for (o = 0; o < fac->type; o ++) fac->nodes [o] = faces [n].nodes [o];
+	  fac->index = n;
+	  fac->ele = ele;
+	  setup_normal (msh->ref_nodes, fac);
+	  COPY (fac->normal, fac->normal + 3); /* referential normal */
+	  fac->next = ele->faces;
+	  ele->faces = fac;
+	}
+      }
+#if 0
+      if (j == 1 && ele->faces) /* move to surface elements */
+      {
+	if (ele->next) ele->next->prev = ele->prev;
+	if (ele->prev) ele->prev->next = ele->next;
+	else msh->bulkeles = ele->next;
+
+	ele->prev = NULL;
+	ele->next = msh->surfeles;
+	msh->surfeles = ele;
+      }
+#endif
+    }
+  }
+#endif
 
   return out;
 }
