@@ -42,7 +42,7 @@ typedef double (*node_t) [3]; /* mesh node */
 #define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 3)
 #define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 4)
-#define FEM_ROT(bod) ((bod)->velo + (bod)->dofs * 5)
+#define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
 
@@ -1960,15 +1960,23 @@ static void BC_right_hand_side (BODY *bod, double time, double step, double *u, 
   {
     NVMUL (R, Z[0], Y);
     SUB (Z[0], Y, Y);
-    ADD (Y, q, Y);
-    ADDMUL (Y, quad, v, d); /* d = (I-R)Z + q - (h/4)u */
+    if (u) /* implicit */
+    {
+      ADD (Y, q, Y);
+      ADDMUL (Y, quad, v, d); /* d = (I-R)Z + q - (h/4)u */
+    }
+    else /* explicit */
+    {
+      ADD (Y, q, d); /* d = (I-R)Z + q */
+    }
   }
 
   BC_internal_force (1.0, bod->K, R, fext, 0.0, fint); /* fint = R K R' d */
 
   external_force (bod, time + 0.5*step, step, fext);
 
-  MX_Matvec (1.0, bod->M, u, 0.0, b);
+  if (u) MX_Matvec (1.0, bod->M, u, 0.0, b); /* implicit */
+  else { for (d = b, v = b + n; d != v; d ++) *d = 0.0; } /* explicit */
 
   blas_daxpy (n, step, fext, 1, b, 1);
 
@@ -1980,11 +1988,24 @@ static void BC_inverse (BODY *bod, double step, MX *M, MX *K)
 {
   if (!bod->inverse) 
   {
-    /* assemble */
-    bod->inverse = MX_Add (1.0, M, 0.25*step*step, K, NULL);
+    if (bod->scheme == SCH_DEF_EXP)
+    {
+      double *x, *y;
 
-    /* invert */
-    MX_Inverse (bod->inverse, bod->inverse);
+      bod->inverse = MX_Copy (M, NULL);
+
+      for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
+      {
+	ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
+	(*x) = 1.0 / (*x); /* invert diagonal */
+      }
+    }
+    else
+    {
+      bod->inverse = MX_Add (1.0, M, 0.25*step*step, K, NULL);
+
+      MX_Inverse (bod->inverse, bod->inverse);
+    }
   }
 }
 
@@ -2024,13 +2045,16 @@ static void BC_dynamic_init (BODY *bod)
     bod->M = diagonal_inertia (bod);
 
     bod->K = tangent_stiffness (bod);
+
+    if (bod->scheme == SCH_DEF_EXP) BC_inverse (bod, 0.0, bod->M, NULL); /* initialize once */
+    else BC_inverse (bod, bod->dom->step, bod->M, bod->K);
   }
 }
 
 /* body co-rotational estimate critical step for the dynamic scheme */
 static double BC_dynamic_critical_step (BODY *bod)
 {
-  return DBL_MAX;
+  return TL_dynamic_critical_step (bod);
 }
 
 /* body co-rotational perform the initial half-step of the dynamic scheme */
@@ -2047,19 +2071,43 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 	*q = bod->conf,
 	*u = bod->velo;
 
-  blas_dcopy (n, q, 1, qu0, 1); /* save q (t) */
+  switch (bod->scheme)
+  {
+  case SCH_DEF_EXP:
+  {
+    blas_dcopy (n, u, 1, qu0, 1); /* save u (t) */
 
-  blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
 
-  BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
+    BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
 
-  BC_right_hand_side (bod, time, step, u, qu0, R, fext, fint, b); /* b = M u(t) + h fext(t+h/2) - h R1 K R1' [(I-R1)Z + q(t) + (h/4) u(t)] */
+    BC_right_hand_side (bod, time, step, NULL, q, R, fext, fint, b); /* b = h fext(t+h/2) - h R1 K R1' [(I-R1)Z + q(t+h/2)] */
 
-  blas_dcopy (n, u, 1, qu0, 1); /* save u (t) */
+    MX_Matvec (1.0, bod->inverse, b, 1.0, u); /* u(t+h) = u(t) + inv (M) * b */
+  }
+  break;
+  case SCH_DEF_LIM:
+  case SCH_DEF_LIM2:
+  case SCH_DEF_IMP:
+  {
+    blas_dcopy (n, q, 1, qu0, 1); /* save q (t) */
 
-  BC_inverse (bod, step, bod->M, bod->K);
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
 
-  BC_velocity_solve (1.0, bod, b, 0.0, u); /* u(t+h) = inv (M + (h*h/4) R1 K R1') b */
+    BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
+
+    BC_right_hand_side (bod, time, step, u, qu0, R, fext, fint, b); /* b = M u(t) + h fext(t+h/2) - h R1 K R1' [(I-R1)Z + q(t) + (h/4) u(t)] */
+
+    blas_dcopy (n, u, 1, qu0, 1); /* save u (t) */
+
+    BC_inverse (bod, step, bod->M, bod->K);
+
+    BC_velocity_solve (1.0, bod, b, 0.0, u); /* u(t+h) = inv (M + (h*h/4) R1 K R1') b */
+  }
+  break;
+  default:
+  break;
+  }
 }
 
 /* body co-rotational perform the final half-step of the dynamic scheme */
@@ -2079,13 +2127,37 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
 
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
-  BC_velocity_solve (step, bod, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
+  switch (bod->scheme)
+  {
+  case SCH_DEF_EXP:
+  {
+    MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += inv (M) * h * r */
 
-  BC_internal_force (half*half, bod->K, R, u, 1.0, fint); /* fint += (h*h/4) R1 K R1' u(t+h) */
+    blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
 
-  blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+    BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
+  }
+  break;
+  case SCH_DEF_LIM:
+  case SCH_DEF_LIM2:
+  {
+    BC_velocity_solve (step, bod, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
 
-  BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
+    BC_internal_force (half*half, bod->K, R, u, 1.0, fint); /* fint += (h*h/4) R1 K R1' u(t+h) */
+
+    blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
+
+    BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
+  }
+  break;
+  case SCH_DEF_IMP:
+  {
+    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  break;
+  default:
+  break;
+  }
 }
 
 /* body co-rotational initialise static time stepping */
@@ -2424,8 +2496,8 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     break;
     case BODY_COROTATIONAL:
     {
-      ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint, rotation */
-      bod->velo = bod->conf + bod->dofs;
+      ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, rotation, velocity, previous velocity, force, fext, fint */
+      bod->velo = bod->conf + bod->dofs + 9;
       double *R = FEM_ROT (bod);
       IDENTITY (R);
     }
@@ -2754,7 +2826,8 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
   MX_Destroy (N);
 
-  if (bod->form == BODY_COROTATIONAL) /* FIXME: the BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
+  if (bod->form == BODY_COROTATIONAL
+      && bod->scheme != SCH_DEF_EXP) /* FIXME: the BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
   {
     double *x = H->x, *y = x + H->nzmax,
            *R = FEM_ROT (bod), T [9];
@@ -2922,14 +2995,12 @@ void FEM_Destroy (BODY *bod)
 /* get configuration packing size */
 int FEM_Conf_Pack_Size (BODY *bod)
 {
-  return bod->dofs;
-  /* FIXME: make sure this is OK for co-rot */
+  return bod->dofs + (bod->form == BODY_COROTATIONAL ? 9 : 0);
 }
 
 /* get velocity packing size */
 int FEM_Velo_Pack_Size (BODY *bod)
 {
   return 5 * bod->dofs;
-  /* FIXME: make sure this is OK for co-rot */
 }
 #endif

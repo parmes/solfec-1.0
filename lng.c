@@ -2143,17 +2143,7 @@ static void lng_BODY_dealloc (lng_BODY *self)
 
 static PyObject* lng_BODY_get_kind (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
-
   return PyString_FromString (BODY_Kind (self->bod));
-
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 static int lng_BODY_set_kind (lng_BODY *self, PyObject *value, void *closure)
@@ -2164,19 +2154,9 @@ static int lng_BODY_set_kind (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_label (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
-
   if (self->bod->label)
     return PyString_FromString (self->bod->label);
   else return PyString_FromString (""); /* an empty label */
-
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 static int lng_BODY_set_label (lng_BODY *self, PyObject *value, void *closure)
@@ -2259,17 +2239,7 @@ static int lng_BODY_set_velo (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_mass (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
-
   return PyFloat_FromDouble (self->bod->ref_mass);
-
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 static int lng_BODY_set_mass (lng_BODY *self, PyObject *value, void *closure)
@@ -2280,17 +2250,7 @@ static int lng_BODY_set_mass (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_volume (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
-
   return PyFloat_FromDouble (self->bod->ref_volume);
-
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 static int lng_BODY_set_volume (lng_BODY *self, PyObject *value, void *closure)
@@ -2301,18 +2261,8 @@ static int lng_BODY_set_volume (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_center (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
-
   double *c = self->bod->ref_center;
   return Py_BuildValue ("(d, d, d)", c[0], c[1], c[2]);
-
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 static int lng_BODY_set_center (lng_BODY *self, PyObject *value, void *closure)
@@ -2323,18 +2273,8 @@ static int lng_BODY_set_center (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_tensor (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
-
   double *t = self->bod->ref_tensor;
   return Py_BuildValue ("(d, d, d, d, d, d, d, d, d)", t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8]);
-
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 static int lng_BODY_set_tensor (lng_BODY *self, PyObject *value, void *closure)
@@ -2345,29 +2285,14 @@ static int lng_BODY_set_tensor (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_selfcontact (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
-
   if (self->bod->flags & BODY_DETECT_SELF_CONTACT)
     return PyString_FromString ("ON");
   else return PyString_FromString ("OFF");
-
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *closure)
 {
   if (!is_string (value, "selfcontact")) return -1;
-
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
 
   IFIS (value, "ON") self->bod->flags |= BODY_DETECT_SELF_CONTACT;
   ELIF (value, "OFF") self->bod->flags &= ~BODY_DETECT_SELF_CONTACT;
@@ -2377,20 +2302,11 @@ static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *clos
     return -1;
   }
 
-#if MPI
-  }
-#endif
-
   return 0;
 }
 
 static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
-
   switch (self->bod->scheme)
   {
   case SCH_RIG_NEG: return PyString_FromString ("RIG_NEG");
@@ -2402,22 +2318,12 @@ static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
   case SCH_DEF_LIM2: return PyString_FromString ("DEF_LIM2");
   }
 
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
-
   return NULL;
 }
 
 static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
 {
   if (!is_string (value, "scheme")) return -1;
-
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
 
   IFIS (value, "DEFAULT") self->bod->scheme = self->bod->kind == RIG ? SCH_RIG_NEG : SCH_DEF_EXP;
   ELIF (value, "RIG_POS")
@@ -2496,38 +2402,19 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
     return -1;
   }
 
-#if MPI
-  }
-#endif
-
   return 0;
 }
 
 static PyObject* lng_BODY_get_damping (lng_BODY *self, void *closure)
 {
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
   return PyFloat_FromDouble (self->bod->damping);
-#if MPI
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 static int lng_BODY_set_damping (lng_BODY *self, PyObject *value, void *closure)
 {
   if (!is_number_ge_val (value, "damping", 0.0)) return -1;
 
-#if MPI
-  if (IS_HERE (self))
-  {
-#endif
   self->bod->damping = PyFloat_AsDouble (value);  
-#if MPI
-  }
-#endif
 
   return 0;
 }
@@ -5787,6 +5674,8 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
     PyList_SetItem (list, i, obj);
     DOM_Insert_Body (dom, b);
     b->scheme = bod->scheme;
+    b->flags |= (bod->flags & BODY_DETECT_SELF_CONTACT);
+    b->damping = bod->damping;
     out [i] = b;
     free (label);
   }
@@ -5887,7 +5776,8 @@ riglnk:
   for (i = 0, g = gluenodes; i < numglue; i ++, g += 4) /* insert gluing constraints */
   {
 #if MPI
-    DOM_Pending_Constraint (dom, GLUE, out [g[0]], out [g[1]], NULL, NULL, NULL, NULL, g[2], g[3]);
+    /* mpnt and spnt are needed here (apart from mnode and snode) because of the extents enlargement in 'insert_pending_constraints' in dom.c */
+    DOM_Pending_Constraint (dom, GLUE, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]], NULL, NULL, g[2], g[3]);
 #else
     DOM_Glue_Nodes (dom, out [g[0]], out [g[1]], g[2], g[3]);
 #endif
