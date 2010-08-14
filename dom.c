@@ -1026,7 +1026,7 @@ static void pack_child (BODY *bod, int *dsize, double **d, int *doubles, int *is
   pack_int (isize, i, ints, bod->id);
 
   /* pack state */
-  BODY_Child_Pack (bod, dsize, d, doubles, isize, i, ints);
+  BODY_Child_Pack (bod, bod->dom->chfull, dsize, d, doubles, isize, i, ints);
 }
 
 /* unpack child body */
@@ -1045,7 +1045,7 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   ASSERT_DEBUG ((bod->flags & BODY_PARENT) == 0, "Neither child nor dummy");
 
   /* unpack state */
-  BODY_Child_Unpack (bod, dpos, d, doubles, ipos, i, ints);
+  BODY_Child_Unpack (bod, dom->chfull, dpos, d, doubles, ipos, i, ints);
 
   /* if it was a dummy */
   if ((bod->flags & BODY_CHILD) == 0)
@@ -2688,7 +2688,7 @@ void DOM_Sparsify_Contacts (DOM *dom)
 
 /* domain update initial half-step => bodies and constraints are
  * updated and the current local dynamic problem is returned */
-LOCDYN* DOM_Update_Begin (DOM *dom)
+LOCDYN* DOM_Update_Begin (DOM *dom, SOLVER_KIND solver)
 {
   double time, step;
   CON *con, *next;
@@ -2696,6 +2696,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   BODY *bod;
 
 #if MPI
+  if (solver == BODY_SPACE_SOLVER) dom->chfull = 0; /* partial children packing is sufficient */
+  else dom->chfull = 1; /* see argument 'full' of BODY_Child_Pack and BODY_Child_Unpack */
+
   if (dom->rank == 0)
 #endif
   if (dom->verbose) printf ("DOMAIN ... "), fflush (stdout);

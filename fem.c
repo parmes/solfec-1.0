@@ -1165,7 +1165,7 @@ static ELEMENT* stabbed_referential_element (MESH *msh, ELEMENT **ele, int nele,
 }
 
 /* accumulate constraints reaction */
-inline static void accumulate_constraints_force (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *force)
+inline static void accumulate_reac (BODY *bod, MESH *msh, ELEMENT *ele, double *X, double *base, double *R, short isma, double *force)
 {
   double shapes [MAX_NODES], P [3], point [3], *f;
   int numbers [MAX_NODES], i, n;
@@ -1178,50 +1178,6 @@ inline static void accumulate_constraints_force (BODY *bod, MESH *msh, ELEMENT *
 
   if (isma) for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; ADDMUL (f, shapes [i], P, f); }
   else for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; SUBMUL (f, shapes [i], P, f); }
-}
-
-/* compute constraints force */
-static void constraints_force (BODY *bod, double *force)
-{
-  ELEMENT *ele;
-  CONVEX *cvx;
-  MESH *msh;
-  SET *node;
-  int i;
-
-  msh = FEM_MESH (bod);
-
-  for (i = 0; i < bod->dofs; i ++) force [i] = 0.0;
-
-  for (node = SET_First (bod->con); node; node = SET_Next (node))
-  {
-    CON *con = node->data;
-    short isma = (bod == con->master);
-    double *X = (isma ? con->mpnt : con->spnt);
-
-    if (bod->msh)
-    {
-      cvx = (isma ? mgobj(con) : sgobj(con));
-      ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
-    }
-    else ele = (isma ? mgobj(con) : sgobj(con));
-
-    accumulate_constraints_force (bod, msh, ele, X, con->base, con->R, isma, force);
-
-    if (isma && bod == con->slave) /* self-contact */
-    {
-      X = con->spnt;
-
-      if (bod->msh)
-      {
-	cvx = sgobj(con);
-	ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
-      }
-      else ele = sgobj(con);
-
-      accumulate_constraints_force (bod, msh, ele, X, con->base, con->R, 0, force);
-    }
-  }
 }
 
 /* compute inernal force */
@@ -1768,7 +1724,7 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
 	*q = bod->conf,
 	*e = u + n;
 
-  constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  FEM_Reac (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
   switch (bod->scheme)
@@ -1821,7 +1777,7 @@ static void TL_static_step_end (BODY *bod, double time, double step)
 {
   double *force = FEM_FORCE (bod);
 
-  constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  FEM_Reac (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
   blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
 }
@@ -2005,8 +1961,8 @@ static void BC_inverse (BODY *bod, double step, MX *M, MX *K)
   }
 }
 
-/* compute u = alpha * inv (A) * b + beta * u */
-static void BC_velocity_solve (double alpha, BODY *bod, double *b, double beta, double *u)
+/* compute u = alpha * inv (A) * b + beta * u for uninv == 0 or u = alpha * A * b + beta * u otherwise */
+static void BC_velocity_solve (int uninv, double alpha, BODY *bod, double *b, double beta, double *u)
 {
   double *R = FEM_ROT (bod), *x, *y, *z, *w;
   MX *A = bod->inverse;
@@ -2022,7 +1978,8 @@ static void BC_velocity_solve (double alpha, BODY *bod, double *b, double beta, 
 
   y = x + n;
   blas_dcopy (n, x, 1, y, 1);
-  MX_Matvec (1.0, A, y, 0.0, x);
+  if (uninv) MX_Matvec (1.0, MX_Uninv (A), y, 0.0, x);
+  else MX_Matvec (1.0, A, y, 0.0, x);
 
   for (y = x, z = x + n, w = u; y < z; y += 3, w += 3)
   {
@@ -2098,7 +2055,7 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 
     BC_inverse (bod, step, bod->M, bod->K);
 
-    BC_velocity_solve (1.0, bod, b, 0.0, u); /* u(t+h) = inv (M + (h*h/4) R1 K R1') b */
+    BC_velocity_solve (0, 1.0, bod, b, 0.0, u); /* u(t+h) = inv (M + (h*h/4) R1 K R1') b */
   }
   break;
   default:
@@ -2119,7 +2076,7 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
 	*q = bod->conf,
 	*u = bod->velo;
 
-  constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  FEM_Reac (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
 
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
@@ -2137,7 +2094,7 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
   case SCH_DEF_LIM:
   case SCH_DEF_LIM2:
   {
-    BC_velocity_solve (step, bod, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
+    BC_velocity_solve (0, step, bod, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
 
     BC_internal_force (half*half, bod->K, R, u, 1.0, fint); /* fint += (h*h/4) R1 K R1' u(t+h) */
 
@@ -3000,3 +2957,76 @@ int FEM_Velo_Pack_Size (BODY *bod)
   return 5 * bod->dofs;
 }
 #endif
+
+/* compute c = alpha * OPERATOR (bod) * b + beta * c */
+void FEM_Matvec (double alpha, BODY *bod, double *b, double beta, double *c)
+{
+  switch (bod->form)
+  {
+  case TOTAL_LAGRANGIAN:
+    if (bod->scheme == SCH_DEF_EXP) MX_Matvec (alpha, bod->M, b, beta, c);
+    else MX_Matvec (alpha, MX_Uninv (bod->inverse), b, beta, c); /* uninvert tentatitvely */
+    break;
+  case BODY_COROTATIONAL:
+    BC_velocity_solve (1, alpha, bod, b, beta, c);
+    break;
+  }
+}
+
+/* compute c = alpha * INVERSE (bod) * b + beta * c */
+void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
+{
+  switch (bod->form)
+  {
+  case TOTAL_LAGRANGIAN:
+    MX_Matvec (alpha, bod->inverse, b, beta, c);
+    break;
+  case BODY_COROTATIONAL:
+    BC_velocity_solve (0, alpha, bod, b, beta, c);
+    break;
+  }
+}
+
+/* compute r = SUM H' R */
+void FEM_Reac (BODY *bod, double *r)
+{
+  ELEMENT *ele;
+  CONVEX *cvx;
+  MESH *msh;
+  SET *node;
+  int i;
+
+  msh = FEM_MESH (bod);
+
+  for (i = 0; i < bod->dofs; i ++) r [i] = 0.0;
+
+  for (node = SET_First (bod->con); node; node = SET_Next (node))
+  {
+    CON *con = node->data;
+    short isma = (bod == con->master);
+    double *X = (isma ? con->mpnt : con->spnt);
+
+    if (bod->msh)
+    {
+      cvx = (isma ? mgobj(con) : sgobj(con));
+      ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
+    }
+    else ele = (isma ? mgobj(con) : sgobj(con));
+
+    accumulate_reac (bod, msh, ele, X, con->base, con->R, isma, r);
+
+    if (isma && bod == con->slave) /* self-contact */
+    {
+      X = con->spnt;
+
+      if (bod->msh)
+      {
+	cvx = sgobj(con);
+	ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
+      }
+      else ele = sgobj(con);
+
+      accumulate_reac (bod, msh, ele, X, con->base, con->R, 0, r);
+    }
+  }
+}

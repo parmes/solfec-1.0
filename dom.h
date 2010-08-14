@@ -252,6 +252,7 @@ struct domain
   int nstats; /* statistics count */
   DBD *dbd; /* load balancing send sets */
   SET *pending; /* pending constraints to be inserted in parallel */
+  int chfull; /* children packing flag see BODY_Child_Pack / Unpack */
 #endif
 
   DOM *prev, *next; /* list */
@@ -311,7 +312,7 @@ void DOM_Sparsify_Contacts (DOM *dom);
 
 /* domain update initial half-step => bodies and constraints are
  * updated and the unupdated local dynamic problem is returned */
-LOCDYN* DOM_Update_Begin (DOM *dom);
+LOCDYN* DOM_Update_Begin (DOM *dom, SOLVER_KIND solver);
 
 /* (end update of local dynamics before calling this routine)
  * domain update final half-step => once the local dynamic

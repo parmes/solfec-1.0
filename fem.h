@@ -100,4 +100,13 @@ int FEM_Conf_Pack_Size (BODY *bod);
 int FEM_Velo_Pack_Size (BODY *bod);
 #endif
 
+/* compute c = alpha * OPERATOR (bod) * b + beta * c */
+void FEM_Matvec (double alpha, BODY *bod, double *b, double beta, double *c);
+
+/* compute c = alpha * INVERSE (bod) * b + beta * c */
+void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
+
+/* compute r = SUM H' R */
+void FEM_Reac (BODY *bod, double *r);
+
 #endif
