@@ -33,7 +33,6 @@
 enum update_kind /* update kind */
 {
   UPPES, /* penalty solver update */
-  UPBSS, /* body space solver update */
   UPNOTHING, /* skip update */
   UPALL /* update all data */
 };
@@ -46,7 +45,7 @@ static UPKIND update_kind (SOLVER_KIND solver)
   switch (solver)
   {
     case PENALTY_SOLVER: return UPPES;
-    case BODY_SPACE_SOLVER: return UPBSS;
+    case BODY_SPACE_SOLVER: return UPNOTHING;
     default: return UPALL;
   }
 

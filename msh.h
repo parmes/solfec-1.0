@@ -51,7 +51,7 @@ struct face
 
   ELEMENT *ele;
 
-  FACE *next;
+  FACE *next, *n; /* element, mesh list */
 };
 
 /* finite element */
@@ -88,6 +88,8 @@ struct mesh
   ELEMENT *surfeles,
 	  *bulkeles;
   
+  FACE *faces;
+
   int  surfeles_count,
        bulkeles_count,
        nodes_count;

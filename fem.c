@@ -1832,40 +1832,36 @@ static void TL_static_step_end (BODY *bod, double time, double step)
 static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, double *A, double *integral)
 {
   double q [8][3], nodes [8][3], B [3], C [3], shapes [8], J, coef, *N, *Y, *i, *e;
-  ELEMENT *ele;
   int j, n;
   FACE *fac;
 
   for (i = integral, e = i + 3 * num; i < e; i += 3) SET (i, 0);
 
-  for (ele = msh->surfeles; ele; ele = ele->next)
+  for (fac = msh->faces; fac; fac = fac->n)
   {
-    for (fac = ele->faces; fac; fac = fac->next)
+    face_nodes (msh->ref_nodes, fac->type, fac->nodes, nodes);
+    face_displacements (conf, fac, q);
+    for (j = 0; j < fac->type; j ++) ADD (nodes [j], q [j], nodes [j]);
+    N = fac->normal + 3;
+
+    INTEGRAL2D_BEGIN (fac->type) /* defines point and weight */
     {
-      face_nodes (msh->ref_nodes, fac->type, fac->nodes, nodes);
-      face_displacements (conf, fac, q);
-      for (j = 0; j < fac->type; j ++) ADD (nodes [j], q [j], nodes [j]);
-      N = fac->normal + 3;
+      n = face_shapes (fac, point, shapes);
+      J = face_det (fac, nodes, point);
+      coef = J * weight;
 
-      INTEGRAL2D_BEGIN (fac->type) /* defines point and weight */
+      SET (B, 0);
+      for (j = 0; j < n; j ++)
+	ADDMUL (B, shapes [j], nodes [j], B);
+      SCALE (B, coef);
+
+      for (i = integral, Y = A; i < e; i += 3, Y += 9)
       {
-	n = face_shapes (fac, point, shapes);
-	J = face_det (fac, nodes, point);
-	coef = J * weight;
-
-	SET (B, 0);
-	for (j = 0; j < n; j ++)
-	  ADDMUL (B, shapes [j], nodes [j], B);
-	SCALE (B, coef);
-
-	for (i = integral, Y = A; i < e; i += 3, Y += 9)
-	{
-	  NVMUL (Y, B, C);
-	  PRODUCTADD (N, C, i);
-	}
+	NVMUL (Y, B, C);
+	PRODUCTADD (N, C, i);
       }
-      INTEGRAL2D_END ()
     }
+    INTEGRAL2D_END ()
   }
 }
 
