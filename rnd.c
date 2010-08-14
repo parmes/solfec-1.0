@@ -512,7 +512,6 @@ static BODY_DATA* create_body_data (BODY *bod)
   SET *lset, *item;
   BODY_DATA *data;
   int i, j, *f;
-  ELEMENT *ele;
   SPHERE *sph;
   CONVEX *cvx;
   SHAPE *shp;
@@ -533,18 +532,15 @@ static BODY_DATA* create_body_data (BODY *bod)
     {
     case SHAPE_MESH:
       msh = shp->data;
-      for (ele = msh->surfeles; ele; ele = ele->next)
+      for (fac = msh->faces; fac; fac = fac->n)
       {
-	for (fac = ele->faces; fac; fac = fac->next)
-	{
-	  data->triangles_count += (fac->type - 2);
+	data->triangles_count += (fac->type - 2);
 
-	  for (i = 0; i < fac->type; i ++) MAP_Insert (&mapmem, &vmap, &msh->cur_nodes [fac->nodes [i]][0], NULL, NULL);
+	for (i = 0; i < fac->type; i ++) MAP_Insert (&mapmem, &vmap, &msh->cur_nodes [fac->nodes [i]][0], NULL, NULL);
 
-	  for (i = 0; i < fac->type - 1; i ++)
-	    register_line (&pairmem, &setmem, &lset, &msh->cur_nodes [fac->nodes [i]][0], &msh->cur_nodes[fac->nodes [i+1]][0]);
-	  register_line (&pairmem, &setmem, &lset, &msh->cur_nodes [fac->nodes [i]][0], &msh->cur_nodes [fac->nodes [0]][0]);
-	}
+	for (i = 0; i < fac->type - 1; i ++)
+	  register_line (&pairmem, &setmem, &lset, &msh->cur_nodes [fac->nodes [i]][0], &msh->cur_nodes[fac->nodes [i+1]][0]);
+	register_line (&pairmem, &setmem, &lset, &msh->cur_nodes [fac->nodes [i]][0], &msh->cur_nodes [fac->nodes [0]][0]);
       }
       break;
     case SHAPE_CONVEX:
@@ -605,23 +601,20 @@ static BODY_DATA* create_body_data (BODY *bod)
     {
     case SHAPE_MESH:
       msh = shp->data;
-      for (ele = msh->surfeles; ele; ele = ele->next)
+      for (fac = msh->faces; fac; fac = fac->n)
       {
-	for (fac = ele->faces; fac; fac = fac->next)
+	for (i = 1; i < fac->type - 1; i ++, vsr += 3, nsr += 3, val += 3)
 	{
-	  for (i = 1; i < fac->type - 1; i ++, vsr += 3, nsr += 3, val += 3)
-	  {
-	    vsr [0] = &msh->cur_nodes [fac->nodes [0]][0];
-	    vsr [1] = &msh->cur_nodes [fac->nodes [i]][0];
-	    vsr [2] = &msh->cur_nodes [fac->nodes [i+1]][0];
-	    nsr [0] = nsr [1] = nsr [2] = fac->normal;
-	    register_identifier (&data->surfaces, fac->surface, &val [0]);
-	    register_identifier (&data->surfaces, fac->surface, &val [1]);
-	    register_identifier (&data->surfaces, fac->surface, &val [2]);
-	    register_identifier (&data->volumes, ele->volume, &val [0]);
-	    register_identifier (&data->volumes, ele->volume, &val [1]);
-	    register_identifier (&data->volumes, ele->volume, &val [2]);
-	  }
+	  vsr [0] = &msh->cur_nodes [fac->nodes [0]][0];
+	  vsr [1] = &msh->cur_nodes [fac->nodes [i]][0];
+	  vsr [2] = &msh->cur_nodes [fac->nodes [i+1]][0];
+	  nsr [0] = nsr [1] = nsr [2] = fac->normal;
+	  register_identifier (&data->surfaces, fac->surface, &val [0]);
+	  register_identifier (&data->surfaces, fac->surface, &val [1]);
+	  register_identifier (&data->surfaces, fac->surface, &val [2]);
+	  register_identifier (&data->volumes, fac->ele->volume, &val [0]);
+	  register_identifier (&data->volumes, fac->ele->volume, &val [1]);
+	  register_identifier (&data->volumes, fac->ele->volume, &val [2]);
 	}
       }
       break;

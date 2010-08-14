@@ -458,7 +458,7 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
   faces_count = 0;
 
   /* create mesh storage */
-  ERRMEM (msh = malloc (sizeof (MESH)));
+  ERRMEM (msh = MEM_CALLOC (sizeof (MESH)));
   elemem = &msh->elemem;
  
   /* calculate elements */ 
@@ -590,6 +590,16 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
       /* set the mapped surface kind if possible => otherwise the global one */
       gac = MAP_Find (smap, fac, (MAP_Compare) face_compare); 
       cac->surface = (gac ? gac->surface : surfaces [0]);
+    }
+  }
+
+  /* create mesh face list */
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    for (fac = ele->faces; fac; fac = fac->next)
+    {
+      fac->n = msh->faces;
+      msh->faces = fac;
     }
   }
 
@@ -1598,19 +1608,7 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
     }
   }
 
-  free (xadj);
-  free (adjncy);
-  free (vwgt);
-  free (part);
-  free (nod);
-  free (n2p);
-  MEM_Release (&mapmem);
-  MEM_Release (&setmem);
-
-  /* FIXME: the below code is almost fine, although I need to figure out how to handle additional boundary in terms
-   * FIXME: of contact detection exclusion or faster integration the surface loop of BODY_COROTATIONAL (that would be uglier) */
-#if 0
-  for (i = 0; i < nparts; i ++) /* discover new free faces */
+  for (i = 0; i < nparts; i ++) /* create mesh faces list */
   {
     FACE faces [6], *fac;
     int o;
@@ -1620,50 +1618,54 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
     ELEMENT *list [] = {msh->surfeles, msh->bulkeles};
 
     for (j = 0; j < 2; j ++)
-    for (ele = list [j]; ele; ele = nel)
+    for (ele = list [j]; ele; ele = ele->next)
     {
-      nel = ele->next;
       m = neighs (ele->type); 
 
-      for (n = 0; n < m; n ++)
-	setup_face (ele, n, &faces [n], 0);
-
-      for (n = 0; n < m; n ++) /* for each potential free face */
+      if (ele->neighs < m) /* discover new faces */
       {
-	for (fac = ele->faces; fac; fac = fac->next)
-	  if (face_compare (&faces [n], fac) == 0) break; /* surface face found */
+	for (n = 0; n < m; n ++)
+	  setup_face (ele, n, &faces [n], 0);
 
-	for (o = 0; o < ele->neighs; o ++)
-	  if (element_has_nodes (ele->adj [o], faces [n].type, faces [n].nodes)) break; /* neighbor found */
-
-	if (fac == NULL && o == ele->neighs) /* neither a surface face nor having a neighbor => free surface */
+	for (n = 0; n < m; n ++) /* for each potential free face */
 	{
-          ERRMEM (fac = MEM_Alloc (&msh->facmem));
-	  fac->type = faces [n].type;
-	  for (o = 0; o < fac->type; o ++) fac->nodes [o] = faces [n].nodes [o];
-	  fac->index = n;
-	  fac->ele = ele;
-	  setup_normal (msh->ref_nodes, fac);
-	  COPY (fac->normal, fac->normal + 3); /* referential normal */
-	  fac->next = ele->faces;
-	  ele->faces = fac;
+	  for (fac = ele->faces; fac; fac = fac->next)
+	    if (face_compare (&faces [n], fac) == 0) break; /* surface face found */
+
+	  for (o = 0; o < ele->neighs; o ++)
+	    if (element_has_nodes (ele->adj [o], faces [n].type, faces [n].nodes)) break; /* neighbor found */
+
+	  if (fac == NULL && o == ele->neighs) /* neither a surface face nor having a neighbor => free surface */
+	  {
+	    ERRMEM (fac = MEM_Alloc (&msh->facmem));
+	    fac->type = faces [n].type;
+	    for (o = 0; o < fac->type; o ++) fac->nodes [o] = faces [n].nodes [o];
+	    fac->index = n;
+	    fac->ele = ele;
+	    setup_normal (msh->ref_nodes, fac);
+	    COPY (fac->normal, fac->normal + 3); /* referential normal */
+	    fac->next = ele->faces;
+	    ele->faces = fac;
+	  }
 	}
       }
-#if 0
-      if (j == 1 && ele->faces) /* move to surface elements */
-      {
-	if (ele->next) ele->next->prev = ele->prev;
-	if (ele->prev) ele->prev->next = ele->next;
-	else msh->bulkeles = ele->next;
 
-	ele->prev = NULL;
-	ele->next = msh->surfeles;
-	msh->surfeles = ele;
+      for (fac = ele->faces; fac; fac = fac->next) /* append mesh faces list */
+      {
+	fac->n = msh->faces;
+	msh->faces = fac;
       }
-#endif
     }
   }
-#endif
+
+  free (xadj);
+  free (adjncy);
+  free (vwgt);
+  free (part);
+  free (nod);
+  free (n2p);
+  MEM_Release (&mapmem);
+  MEM_Release (&setmem);
 
   return out;
 }
