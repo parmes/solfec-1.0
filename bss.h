@@ -39,7 +39,7 @@ BSS* BSS_Create (int maxiter, double meritval);
 /* run solver */
 void BSS_Solve (BSS *bs, LOCDYN *ldy);
 
-/* write labeled satate values */
+/* write labeled state values */
 void BSS_Write_State (BSS *bs, PBF *bf);
 
 /* destroy solver */

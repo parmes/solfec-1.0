@@ -174,7 +174,7 @@ static void rig_operator_H (BODY *bod, double *X, double *base, double *H)
 static void rig_dynamic_inverse (BODY *bod)
 {
   double *J, *x, m;
-  MX *M;
+  MX *M, *I;
 
   if (!bod->inverse)
   {
@@ -182,9 +182,12 @@ static void rig_dynamic_inverse (BODY *bod)
 	i [] = {0, 3, 6};
 
     M = MX_Create (MXBD, 6, 2, p, i);
-    bod->inverse = M;
+    bod->M = M;
+
+    I = MX_Create (MXBD, 6, 2, p, i);
+    bod->inverse = I;
   }
-  else M = bod->inverse;
+  else M = bod->M, I = bod->inverse;
 
   J = BOD_J0 (bod);
   m = BOD_M0 (bod);
@@ -193,7 +196,7 @@ static void rig_dynamic_inverse (BODY *bod)
   x += 9;
   IDENTITY (x);
   SCALEDIAG (x, m);
-  MX_Inverse (M, M);
+  MX_Inverse (M, I);
 }
  
 /* no difference for the static inverse routine */
@@ -409,7 +412,7 @@ static void prb_operator_H (BODY *bod, double *X, double *base, double *H)
 static void prb_dynamic_explicit_inverse (BODY *bod)
 {
   double *E0, m, *x;
-  MX *M;
+  MX *M, *I;
 
   if (!bod->inverse)
   {
@@ -417,9 +420,12 @@ static void prb_dynamic_explicit_inverse (BODY *bod)
         i [] = {0, 3, 6, 9, 12};
 
     M = MX_Create (MXBD, 12, 4, p, i);
-    bod->inverse = M;
+    bod->M = M;
+
+    I = MX_Create (MXBD, 12, 4, p, i);
+    bod->inverse = I;
   }
-  else M = bod->inverse;
+  else M = bod->M, I = bod->inverse;
 
   E0 = bod->ref_tensor; /* referential Euler tensor */
   m = bod->ref_mass;
@@ -429,14 +435,14 @@ static void prb_dynamic_explicit_inverse (BODY *bod)
   NNCOPY (E0, x); x += 9;
   IDENTITY (x);
   SCALEDIAG (x, m);
-  MX_Inverse (M, M);
+  MX_Inverse (M, I);
 }
 
 /* set up inverse operator for the implicit dynamic time stepping */
 static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *conf, double *force)
 {
   MX_DENSE (K, 9, 9);
-  MX *M, *A;
+  MX *M, *A, *I;
 
   /* place-holder for the
    * tangent operator */
@@ -462,11 +468,14 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *conf, 
     SCALEDIAG (x, m);
 
     A = MX_Create (MXBD, 12, 2, pa, ia);
-    bod->inverse = A;
-  }
-  else M = bod->M, A = bod->inverse;
+    bod->A = A;
 
-    /* calculate stiffness matrix */
+    I = MX_Create (MXBD, 12, 2, pa, ia);
+    bod->inverse = I;
+  }
+  else M = bod->M, A = bod->A, I = bod->inverse;
+
+  /* calculate stiffness matrix */
   SVK_Tangent_R (lambda (bod->mat->young, bod->mat->poisson),
     mi (bod->mat->young, bod->mat->poisson),
     bod->ref_volume, 9, conf ? conf : bod->conf, K.x);
@@ -485,7 +494,7 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *conf, 
   MX_Copy (MX_Diag (M, 3, 3), MX_Diag (A, 1, 1));
 
   /* invert A */
-  MX_Inverse (A, A);
+  MX_Inverse (A, I);
 }
 
 /* set up inverse of inertia for
@@ -1877,6 +1886,8 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->K) MX_Destroy (bod->K);
 
+  if (bod->A) MX_Destroy (bod->A);
+
   if (bod->kind == FEM) FEM_Destroy (bod);
 
   if (bod->msh) MESH_Destroy (bod->msh);
@@ -2119,35 +2130,32 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
 }
 
 /* pack child body */
-void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+void BODY_Child_Pack (BODY *bod, int full, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  pack_doubles (dsize, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
   pack_int (isize, i, ints, bod->rank); /* pack parent rank */
 
-  /* pack children ranks */
-  pack_int (isize, i, ints, SET_Size (bod->children));
+  pack_int (isize, i, ints, SET_Size (bod->children)); /* pack children ranks */
   for (SET *item = SET_First (bod->children); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
 
-  /* pack integration scheme */
-  pack_int (isize, i, ints, bod->scheme);
+  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod)); /* configuration */
+
+  if (full)
+  {
+    pack_doubles (dsize, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
+    pack_int (isize, i, ints, bod->scheme); /* pack integration scheme */
+  }
 }
 
 /* unpack child body */
-void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+void BODY_Child_Unpack (BODY *bod, int full, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  short dynamic;
   int j, k, l;
 
-  dynamic = bod->dom->dynamic;
-
-  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
   bod->rank = unpack_int (ipos, i, ints); /* unpack parent rank */
 
-  /* unpack other children ranks */
-  SET_Free (&bod->dom->setmem, &bod->children);
+ 
+  SET_Free (&bod->dom->setmem, &bod->children); /* unpack other children ranks */
   k = unpack_int (ipos, i, ints);
   for (j = 0; j < k; j ++)
   {
@@ -2156,15 +2164,20 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
       SET_Insert (&bod->dom->setmem, &bod->children, (void*) (long) l, NULL);
   }
 
-  /* unpack integration scheme */
-  bod->scheme = unpack_int (ipos, i, ints);
+  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod)); /* configuration */
 
-  /* init inverse */
-  if (dynamic) BODY_Dynamic_Init (bod);
-  else BODY_Static_Init (bod);
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); /* update shape */
 
-  /* update shape */
-  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+  if (full)
+  {
+    short dynamic = bod->dom->dynamic;
+
+    unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
+    bod->scheme = unpack_int (ipos, i, ints);  /* unpack integration scheme */
+
+    if (dynamic) BODY_Dynamic_Init (bod); /* init inverse */
+    else BODY_Static_Init (bod);
+  }
 }
 
 /* pack child update */
@@ -2182,3 +2195,59 @@ void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
 }
 #endif
+
+/* compute c = alpha * INVERSE (bod) * b + beta * c */
+void BODY_Matvec (double alpha, BODY *bod, double *b, double beta, double *c)
+{
+  switch (bod->kind)
+  {
+    case RIG:
+      MX_Matvec (alpha, bod->M, b, beta, c);
+      break;
+    case PRB:
+      if (bod->scheme == SCH_DEF_EXP) MX_Matvec (alpha, bod->M, b, beta, c);
+      else MX_Matvec (alpha, bod->A, b, beta, c);
+      break;
+    case FEM:
+      FEM_Matvec (alpha, bod, b, beta, c);
+      break;
+    case OBS:
+      break;
+  }
+}
+
+/* compute c = alpha * INVERSE (bod) * b + beta * c */
+void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
+{
+  switch (bod->kind)
+  {
+    case RIG:
+    case PRB:
+      MX_Matvec (alpha, bod->inverse, b, beta, c);
+      break;
+    case FEM:
+      FEM_Invvec (alpha, bod, b, beta, c);
+      break;
+    case OBS:
+      break;
+  }
+}
+
+/* compute r = SUM H' R */
+void BODY_Reac (BODY *bod, double *r)
+{
+  switch (bod->kind)
+  {
+    case RIG:
+      rig_constraints_force (bod, r);
+      break;
+    case PRB:
+      prb_constraints_force (bod, r);
+      break;
+    case FEM:
+      FEM_Reac (bod, r);
+      break;
+    case OBS:
+      break;
+  }
+}

@@ -542,7 +542,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       if (verbose) printf ("TIME: %g ... ", sol->dom->time);
 
       /* begin update of domain */
-      ldy = DOM_Update_Begin (sol->dom);
+      ldy = DOM_Update_Begin (sol->dom, kind);
 
       /* begin update of local dynamics */
       LOCDYN_Update_Begin (ldy, kind);
