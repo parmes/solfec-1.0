@@ -28,13 +28,27 @@ typedef struct body_space_solver BSS;
 
 struct body_space_solver
 {
-  int maxiter;
+  /* input */
 
-  double meritval;
+  double meritval; /* merit function value sufficient for termination */
+
+  int maxiter; /* iterations bound */
+
+  int linminiter; /* linear solver minimal iterations count */
+
+  double resdec; /* linear solver residual decrease factor */
+
+  int verbose; /* verbosity flag */
+
+  /* output */
+
+  int iters; /* most recent number of iterations */
+
+  double *merhist; /* merit function history */
 };
 
 /* create solver */
-BSS* BSS_Create (int maxiter, double meritval);
+BSS* BSS_Create (double meritval, int maxiter);
 
 /* run solver */
 void BSS_Solve (BSS *bs, LOCDYN *ldy);

@@ -710,11 +710,8 @@ riglnk
 bgs.c
 \emph default
  Gauss-Seidel code.
- This leads to a 
-\begin_inset Formula $4\times4$
-\end_inset
-
- nonlinear system and is not suitable for the global Newton solver.
+ This leads to a nonlinear system and is not suitable for the global Newton
+ solver.
  Another way is to observe that whatever the tangential velocity 
 \begin_inset Formula $\mathbf{U}_{T}$
 \end_inset
