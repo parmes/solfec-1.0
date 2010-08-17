@@ -1657,8 +1657,8 @@ void BODY_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *point, double *
   switch (bod->kind)
   {
     case OBS:
-      SET (prevel, 0.0);
-      SET (curvel, 0.0);
+      if (prevel) SET (prevel, 0.0);
+      if (curvel) SET (curvel, 0.0);
     break;
     case RIG:
     {
