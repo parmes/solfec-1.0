@@ -740,16 +740,14 @@ static int element_displacements (double *heap, ELEMENT *ele, double (*q) [3])
 }
 
 /* copy element node velocities into a local table */
-static int element_velocities (BODY *bod, ELEMENT *ele, double (*u0) [3], double (*u) [3])
+static int element_velocities (BODY *bod, ELEMENT *ele, double *velo, double (*u) [3])
 {
-  double *vel0 = FEM_VEL0 (bod), *velo = bod->velo, *p;
+  double *p;
   int i, j;
 
   for (i = 0; i < ele->type; i ++)
   {
     j = 3 * ele->nodes [i];
-    p = &vel0 [j];
-    COPY (p, u0[i]);
     p = &velo [j];
     COPY (p, u[i]);
   }
@@ -1312,9 +1310,9 @@ static MX* tangent_stiffness (BODY *bod)
       mapmem;
   MX *tang;
 
-  MEM_Init  (&blkmem, sizeof (struct colblock), bod->dofs * 64);
+  MEM_Init  (&blkmem, sizeof (struct colblock), bod->dofs);
   ERRMEM (col = MEM_CALLOC (sizeof (MAP*) * bod->dofs)); /* sparse columns */
-  MEM_Init  (&mapmem, sizeof (MAP), bod->dofs * 64);
+  MEM_Init  (&mapmem, sizeof (MAP), bod->dofs);
   msh = FEM_MESH (bod);
 
   for (ele = msh->surfeles, bulk = 0; ele;
@@ -2712,7 +2710,7 @@ void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
 void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel)
 {
-  double shapes [MAX_NODES], u0 [MAX_NODES][3], u [MAX_NODES][3], point [3], vglo [3];
+  double shapes [MAX_NODES], u [MAX_NODES][3], point [3], vglo [3];
   ELEMENT *ele;
   CONVEX *cvx;
   MESH *msh;
@@ -2733,16 +2731,17 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
 
   referential_to_local (msh, ele, X, point);
   n = element_shapes (ele->type, point, shapes);
-  element_velocities (bod, ele, u0, u);
 
   if (prevel)
   {
-    SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u0 [i], vglo); } /* vglo = N u0 */
+    element_velocities (bod, ele, FEM_VEL0 (bod), u);
+    SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u [i], vglo); } /* vglo = N u0 */
     TVMUL (base, vglo, prevel); /* prevel = base' vglo */
   }
 
   if (curvel)
   {
+    element_velocities (bod, ele, bod->velo, u);
     SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u [i], vglo); } /* vglo = N u */
     TVMUL (base, vglo, curvel); /* prevel = base' vglo */
   }

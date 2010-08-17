@@ -3403,7 +3403,7 @@ struct lng_BODY_SPACE_SOLVER
 /* constructor */
 static PyObject* lng_BODY_SPACE_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("maxiter", "meritval");
+  KEYWORDS ("meritval", "maxiter");
   lng_BODY_SPACE_SOLVER *self;
   int maxiter;
   double meritval;
@@ -3412,14 +3412,14 @@ static PyObject* lng_BODY_SPACE_SOLVER_new (PyTypeObject *type, PyObject *args, 
 
   if (self)
   {
-    maxiter = 16;
     meritval = 1E-3;
+    maxiter = 16;
 
-    PARSEKEYS ("|id", &maxiter, &meritval);
+    PARSEKEYS ("|di", &meritval, &maxiter);
 
-    TYPETEST (is_positive (maxiter, kwl[0]) && is_positive (meritval, kwl[1]));
+    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]));
 
-    self->bs = BSS_Create (maxiter, meritval);
+    self->bs = BSS_Create (meritval, maxiter);
   }
 
   return (PyObject*)self;

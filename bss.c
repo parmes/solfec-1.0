@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <complex.h>
 #include <stdlib.h>
 #include <float.h>
 
@@ -35,7 +36,11 @@
 #include "pck.h"
 #endif
 
-#define ABSTOL_BASE 1E-15
+#define DIFF_FACTOR             1E-10  /* TODO: test sensitivity */
+#define SMOOTHING		1      /* TODO: -||- */
+#define SMOOTHING_EPSILON	1E-10  /* TODO: -||- */
+#define DISABLE_NORM_SMOOTHING	1      /* TODO: -||- */
+#define ABSTOL			1E-15  /* TODO: -||- */ 
 #define CON_RHS_SET(con, value) (con)->dia->mprod = (MX*)(value)
 #define CON_RHS_GET(con) ((double*)(con)->dia->mprod)
 #define CON_X_SET(con, value) (con)->dia->sprod = (MX*)(value)
@@ -56,16 +61,15 @@ struct bss_data
   VECTOR *b, /* right hand side */
          *x; /* nprimal, ndual unknowns */
 
-  double *r, /* body space reaction of size MAX { bod->dofs } */
-          delta, /* dual regularisation */
-          resnorm, /* dual residual norm */
-          xnorm; /* dual solution norm */
+  double *r, /* reaction workspace of size MAX [bod in dom->bod] { bod->dofs } */
+          resnorm; /* linear (dual) residual norm */
 
   int iters; /* number of linear solver iterations */
 
 #if MPI
-  COMDATA send, recv; /* communication buffers */
-  int nsend, nrecv; /* sizes */
+  MEM mem; /* integer pairs memory */
+  COMDATA *send, *recv; /* communication buffers */
+  int ssend, nsend, nrecv; /* sizes */
   void *pattern; /* and pattern */
 #endif
 };
@@ -77,10 +81,8 @@ struct vector
   int n;
 };
 
-#if MPI
 /* update needed before matrix vector product */
 static void* update_constraints_data (BSS_DATA *A, double *x);
-#endif
 
 static VECTOR* newvector (int n)
 {
@@ -225,32 +227,24 @@ static void *MatvecCreate (void *A, void *x)
 
 static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, double beta, VECTOR *y)
 {
-  double *U, *R, *X, *Y, *a, *b, *r, step;
+  double c [3], *U, *R, *X, *Y, *a, *b, *r, step;
+  DOM *dom = A->dom;
   BODY *bod;
   CON *con;
-  DOM *dom;
   int n;
 
-#if MPI
-  update_constraints_data (A, x->x);
-#endif
-
-  dom = A->dom;
   step = dom->step;
 
-  ScaleVector (beta, y);
+  update_constraints_data (A, x->x);
 
-  if (A->delta > 0.0)
-  {
-    blas_daxpy (A->ndual, A->delta, &x->x[A->nprimal], 1, &y->x[A->nprimal], 1);
-  }
+  ScaleVector (beta, y);
 
   for (bod = dom->bod, r = A->r, a = x->x, b = y->x; bod; a += n, b += n, bod = bod->next)
   {
     n = bod->dofs;
-    BODY_Matvec (1.0, bod, a, 1.0, b);
+    BODY_Matvec (alpha, bod, a, 1.0, b);
     BODY_Reac (bod, r);
-    blas_daxpy (n, -step, r, 1, b, 1);
+    blas_daxpy (n, -step*alpha, r, 1, b, 1);
   }
 
   for (con = dom->con, r = A->b->x; con; con = con->next)
@@ -264,13 +258,11 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
     {
     case FIXPNT:
     case GLUE:
-      b [0] += U[0];
-      b [1] += U[1];
-      b [2] += U[2];
+      ADDMUL (b, alpha, U, b);
       break;
     case FIXDIR:
     case VELODIR:
-      b [0] += U[2];
+      b [0] += alpha * U[2];
       break;
     case RIGLNK:
       /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
@@ -278,8 +270,9 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
     case CONTACT:
       X = CONTACT_X (con);
       Y = CONTACT_Y (con);
-      NVADDMUL (b, X, U, b);
-      NVADDMUL (b, Y, R, b);
+      NVMUL (X, U, c);
+      NVADDMUL (c, Y, R, c);
+      ADDMUL (b, alpha, c, b);
       break;
     }
   }
@@ -299,67 +292,215 @@ static int PrecondSetup (void *vdata, void *A, void *b, void *x)
 
 static int Precond (void *vdata, BSS_DATA *A, VECTOR *b, VECTOR *x)
 {
-  double T [9], *Y, *p, *q, *r, delta;
-  int ipiv [3], n;
+  double *p, *q;
   BODY *bod;
-  CON *con;
-  DOM *dom;
+  int n;
 
-  delta = A->delta;
-  dom = A->dom;
-
-
-  for  (bod = dom->bod, p = b->x, q = x->x; bod; p += n, q += n, bod = bod->next)
+  for  (bod = A->dom->bod, p = b->x, q = x->x; bod; p += n, q += n, bod = bod->next)
   {
     n = bod->dofs;
     BODY_Invvec (1.0, bod, p, 0.0, q);
   }
 
-  for (con = dom->con, r = &A->b->x [A->nprimal]; con; con = con->next)
-  {
-    n = CON_RHS_GET (con) - r;
-    p = &b->x [n];
-    q = &x->x [n];
-
-    COPY (p, q); /* A == identity so far */
-
-    switch ((int)con->kind)
-    {
-    case RIGLNK:
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-      break;
-    case CONTACT:
-      Y = CONTACT_Y (con);
-      NNCOPY (Y, T);
-      T [0] += delta;
-      T [4] += delta;
-      T [8] += delta;
-      lapack_dgesv (3, 1, T, 3, ipiv, q, 3);
-      break;
-    }
-  }
+  blas_dcopy (A->ndual, &b->x[A->nprimal], 1, &x->x[A->nprimal], 1);
 
   return 0;
 }
 /* GMRES interface end */
 
 #if MPI
+/* allocate a send buffer item */
+static COMDATA* send_item (COMDATA **send, int *size, int *count)
+{
+  if (++ (*count) >= (*size))
+  {
+    (*size) *= 2;
+    ERRMEM ((*send) = realloc ((*send), (*size) * sizeof (COMDATA)));
+  }
+
+  return &(*send)[(*count) - 1];
+}
+#endif
+
 /* update constraints velocities and reactions or
  * create the necessary for that communication pattern */
 static void* update_constraints_data (BSS_DATA *A, double *x)
 {
+  double *R, *U, *B, *D, *u, *velo;
+  DOM *dom = A->dom;
+  BODY *bod;
+  SET *item;
+  CON *con;
+  int i;
+#if MPI
+  COMDATA *ptr;
+  int *j, *k;
+#endif
+
+#if MPI
   if (A->pattern)
   {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+#endif
+    /* update local velocities of local constraints */
+    for (bod = dom->bod, u = x; bod; u += bod->dofs, bod = bod->next)
+    {
+      velo = bod->velo;
+      bod->velo = u;
+      for (item = SET_First (bod->con); item; item = SET_Next (item))
+      {
+	con = item->data;
+#if MPI
+	if (!(con->state & CON_EXTERNAL)) /* local */
+	{
+#endif
+	  if (bod == con->master) BODY_Local_Velo (bod, mshp(con), mgobj(con), con->mpnt, con->base, NULL, con->U);
+	  else BODY_Local_Velo (bod, sshp(con), sgobj(con), con->spnt, con->base, NULL, con->dia->B);
+#if MPI
+	}
+#endif
+      }
+      bod->velo = velo;
+    }
+
+    /* update local constraints reactions */
+    for (con = dom->con, u = A->x->x; con; con = con->next)
+    {
+      i = CON_X_GET (con) - u;
+      D = &x [i];
+      R = con->R;
+      switch (con->kind)
+      {
+      case CONTACT:
+      case FIXPNT:
+      case GLUE:
+        COPY (D, R);
+	break;
+      case VELODIR:
+      case FIXDIR:
+      case RIGLNK:
+	R [2] = D [0];
+	break;
+      }
+    }
+#if MPI
   }
   else
   {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    A->nsend = 0;
+    A->ssend = dom->ncon + 8;
+    MEM_Init (&A->mem, sizeof (int [2]), 128);
+    ERRMEM (A->send = malloc (sizeof (COMDATA [A->ssend])));
+
+    for (bod = dom->bod; bod; bod = bod->next) /* for all parents */
+    {
+      for (item = SET_First (bod->con); item; item = SET_Next (item))
+      {
+	con = item->data;
+	if (con->state & CON_EXTERNAL) /* needs local velocity update */
+	{
+	  ASSERT_DEBUG (MAP_Find (dom->conext, (void*) (long) con->id, NULL), "Invalid external constraint %s %d", CON_Kind (con), con->id);
+	  ptr = send_item (&A->send, &A->ssend, &A->nsend);
+	  ptr->rank = con->rank;
+	  ERRMEM (ptr->i = MEM_Alloc (&A->mem));
+	  ptr->i [0] = -con->id; /* negative indicates local velocity update */
+	  ptr->ints = 2;
+	  ptr->d = con->U;
+	  ptr->doubles = 3;
+
+	  if (bod == con->master)
+	  {
+	    ptr->i [1] = 1; /* master */
+	    BODY_Local_Velo (bod, mshp(con), mgobj(con), con->mpnt, con->base, NULL, con->U);
+	  }
+	  else
+	  {
+	    ptr->i [1] = 0; /* slave */
+	    BODY_Local_Velo (bod, sshp(con), sgobj(con), con->spnt, con->base, NULL, con->U);
+	  }
+	}
+      }
+    }
+
+    for (con = dom->con; con; con = con->next) /* for all constraints */
+    {
+      for (item = SET_First (con->ext); item; item = SET_Next (item))
+      {
+	ptr = send_item (&A->send, &A->ssend, &A->nsend);
+	ptr->rank = (int) (long) item->data; /* external rank */
+	ERRMEM (ptr->i = MEM_Alloc (&A->mem));
+	ptr->i [0] = con->id; /* positive indicates external reaction update */
+	ptr->ints = 2;
+	ptr->d = con->R;
+	ptr->doubles = 3;
+      }
+    }
+
+    A->pattern = COMALL_Pattern (MPI_COMM_WORLD, A->send, A->nsend, &A->recv, &A->nrecv);
+
+    return A->pattern; /* initialized */
   }
 
-  return A->pattern;
-}
+  for (bod = dom->bod, u = x; bod; u += bod->dofs, bod = bod->next)
+  {
+    velo = bod->velo;
+    bod->velo = u;
+    for (item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      con = item->data;
+      if (con->state & CON_EXTERNAL) /* update local velocities of external constraints attached to parents, before sending */
+      {
+	if (bod == con->master) BODY_Local_Velo (bod, mshp(con), mgobj(con), con->mpnt, con->base, NULL, con->U);
+	else BODY_Local_Velo (bod, sshp(con), sgobj(con), con->spnt, con->base, NULL, con->U);
+      }
+    }
+    bod->velo = velo;
+  }
+
+  COMALL_Repeat (A->pattern); /* send and receive */
+
+  for (i = 0; i < A->nrecv; i ++)
+  {
+    ptr = &A->recv [i];
+    for (j = ptr->i, k = j + ptr->ints, D = ptr->d; j < k; j += 2, D += 3)
+    {
+      if ((*j) < 0) /* local velocity */
+      {
+	ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) (-(*j)), NULL), "Invalid constraint id: %d", -(*j));
+	if ((*(j+1))) /* master */
+	{
+	  U = con->U;
+	  COPY (D, U);
+	}
+	else /* slave */
+	{
+	  B = con->dia->B;
+	  COPY (D, B);
+	}
+      }
+      else /* external reaction */
+      {
+	ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid external constraint id: %d", (*j));
+	R = con->R;
+	COPY (D, R);
+      }
+    }
+  }
 #endif
+
+  /* compute relative velocities */
+  for (con = dom->con; con; con = con->next)
+  {
+    if (con->slave)
+    {
+      U = con->U;
+      B = con->dia->B;
+
+      SUB (U, B, U); /* relative = master - slave */
+    }
+  }
+
+  return NULL;
+}
 
 /* update previous local velocities */
 static void update_previous_local_velocities (DOM *dom)
@@ -561,7 +702,7 @@ static BSS_DATA *create_data (DOM *dom)
     case CONTACT:
     {
       b += 3; /* increment */
-      x += 1;
+      x += 3;
     }
     break;
     case RIGLNK:
@@ -581,19 +722,175 @@ static BSS_DATA *create_data (DOM *dom)
   return A;
 }
 
+/* imaginary i */
+static double complex imaginary_i;
+
+/* real normal to friction cone */
+inline static void real_n (double *S, double fri, double *n)
+{
+  double dot, len;
+
+  dot = DOT2(S, S);
+  len = sqrt(dot);
+
+  if (len == 0 || len <= fri * S[2])
+  {
+    SET (n, 0.0);
+  }
+  else if (fri * len + S[2] < 0.0)
+  {
+    dot += S[2]*S[2];
+    len = sqrt (dot);
+    if (len == 0) { SET (n, 0.0); }
+    else { DIV (S, len, n); }
+  }
+  else
+  {
+    dot = 1.0 / sqrt (1.0 + fri*fri);
+    DIV2 (S, len, n);
+    n [2] = -fri;
+    SCALE (n, dot);
+  }
+}
+
+/* complex normal to friction cone */
+inline static void complex_n (double complex *S, double complex fri, double complex *n)
+{
+  double complex dot, len;
+
+  dot = DOT2(S, S);
+  len = csqrt(dot);
+
+  if (creal (len) == 0 || creal (len) <= creal (fri * S[2]))
+  {
+    SET (n, 0.0 + 0.0 * imaginary_i);
+  }
+  else if (creal (fri * len + S[2]) < 0.0)
+  {
+    dot += S[2]*S[2];
+    len = csqrt (dot);
+    if (creal (len) == 0) { SET(n, 0.0 + 0.0 * imaginary_i); }
+    DIV (S, len, n);
+  }
+  else
+  {
+    dot = 1.0 / csqrt (1.0 + fri*fri);
+    DIV2 (S, len, n);
+    n [2] = -fri;
+    SCALE (n, dot);
+  }
+}
+
+/* real normal ray to friction cone */
+inline static void real_m (double fri, short smooth, double *S, double eps, double *m)
+{
+  double n [3], fun;
+
+  real_n (S, fri, n);
+  fun = DOT (S, n);
+
+  if (smooth == 1 && fun >= 0.0 && fun <= eps)
+  {
+    fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
+  }
+  else if (smooth == 2)
+  {
+    if (fun >= 0.0 && fun <= eps)
+    {
+      fun = (fun*fun) / (2.0 * eps);
+    }
+    else if (fun > eps)
+    {
+      fun = fun - 0.5 * eps;
+    }
+  }
+
+  MUL (n, fun, m)
+}
+
+/* complex normal ray to friction cone */
+inline static void complex_m (double complex fri, short smooth, double complex *S, double complex eps, double complex *m)
+{
+  double complex n [3], fun;
+
+  complex_n (S, fri, n);
+  fun = DOT (S, n);
+
+  if (smooth == 1 && creal (fun) >= 0.0 && creal (fun) <= creal (eps))
+  {
+    fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
+  }
+  else if (smooth == 2)
+  {
+    if (creal (fun) >= 0.0 && creal (fun) <= creal (eps))
+    {
+      fun = (fun*fun) / (2.0 * eps);
+    }
+    else if (creal (fun) > creal (eps))
+    {
+      fun = fun - 0.5 * eps;
+    }
+  }
+
+  MUL (n, fun, m)
+}
+
+/* real F = [UT, UN + fri |UT|]' */
+inline static void real_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double *U, double *F)
+{
+  double udash;
+
+  if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+  else udash = ((MAX(gap, 0)/step) + U[2]);
+
+#if DISABLE_NORM_SMOOTHING
+  epsilon = 0;
+#endif
+
+  F [0] = U[0];
+  F [1] = U[1];
+  F [2] = (udash + fri * sqrt (DOT2(U, U) + epsilon*epsilon));
+}
+ 
+/* complex F = [UT, UN + fri |UT|]' */
+inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double complex *U, double complex *F)
+{
+  double complex udash;
+
+  if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+  else udash = ((MAX(gap, 0)/step) + U[2]);
+
+#if DISABLE_NORM_SMOOTHING
+  epsilon = 0;
+#endif
+
+  F [0] = U[0];
+  F [1] = U[1];
+  F [2] = (udash + fri * csqrt (DOT2(U, U) + epsilon*epsilon));
+}
+
 /* update linear system */
 static void update_system (BSS_DATA *A)
 {
+  double h, step;
   short dynamic;
   DOM *dom;
   CON *con;
 
   dom = A->dom;
   dynamic = dom->dynamic;
+  step = dom->step;
+  h = DIFF_FACTOR * SMOOTHING_EPSILON;
+  imaginary_i = csqrt (-1);
 
   /* contact constraints linearisation */
   for (con = dom->con; con; con = con->next)
   {
+    DIAB *dia = con->dia;
+    double *U = con->U,
+	   *R = con->R,
+	   *b = CON_RHS_GET (con);
+
     switch ((int)con->kind)
     {
     case RIGLNK:
@@ -603,20 +900,71 @@ static void update_system (BSS_DATA *A)
     break;
     case CONTACT:
     {
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+      double *V = dia->V,
+	     *X = CONTACT_X (con),
+	     *Y = CONTACT_Y (con),
+	     gap = con->gap,
+	     fri = con->mat.base->friction,
+	     res = con->mat.base->restitution,
+	     dF[9],
+	     F [3],
+             S [3],
+	     m [3],
+	     H [3],
+	     J [9];
+
+      double complex cU [3],
+	             cS [3],
+		     cF [3],
+		     cm [3];
+
+
+      real_F (res, fri, gap, step, dynamic, SMOOTHING_EPSILON, V, U, F);
+      SUB (R, F, S);
+      real_m (fri, SMOOTHING, S, SMOOTHING_EPSILON, m);
+      ADD (F, m, H);
+
+      for (int k = 0; k < 3; k ++)
+      {
+	cU [0] = U[0] + 0.0 * imaginary_i;
+	cU [1] = U[1] + 0.0 * imaginary_i;
+	cU [2] = U[2] + 0.0 * imaginary_i;
+	cU [k] += h * imaginary_i;
+        complex_F (res, fri, gap, step, dynamic, SMOOTHING_EPSILON, V, cU, cF);
+	dF [3*k+0] = cimag (cF [0]) / h;
+	dF [3*k+1] = cimag (cF [1]) / h;
+	dF [3*k+2] = cimag (cF [2]) / h;
+
+        cS [0] = S[0] + 0.0 * imaginary_i;
+	cS [1] = S[1] + 0.0 * imaginary_i;
+	cS [2] = S[2] + 0.0 * imaginary_i;
+	cS [k] += h * imaginary_i;
+        complex_m (fri, SMOOTHING, cS, SMOOTHING_EPSILON, cm);
+	Y [3*k+0] = cimag (cm [0]) / h; /* Y = dm/dS */
+	Y [3*k+1] = cimag (cm [1]) / h;
+	Y [3*k+2] = cimag (cm [2]) / h;
+      }
+
+      IDENTITY (J);
+      NNSUB (J, Y, J);
+      NNMUL (dF, J, X); /* X = dF/dU [I - dm/dS] */
+
+      NVMUL (X, U, b);
+      NVADDMUL (b, Y, R, b);
+      SUB (b, H, b); /* b = X U + Y R - H(U,R) */
     }
     break;
     }
   }
 }
 
-/* compute residual and solution norms */
-static void compute_norms (BSS_DATA *A)
+/* linear dual residual norm */
+static double resnorm (BSS_DATA *A)
 {
-  double G [3], *U, *R, *X, *Y, *b, rdot, xdot;
+  double G [3], *U, *R, *X, *Y, *b, dot;
   CON *con;
 
-  for (rdot = xdot = 0, con = A->dom->con; con; con = con->next)
+  for (dot = 0, con = A->dom->con; con; con = con->next)
   {
     b = CON_RHS_GET (con);
     U = con->U;
@@ -627,12 +975,12 @@ static void compute_norms (BSS_DATA *A)
     case FIXPNT:
     case GLUE:
       SUB (U, b, G);
-      rdot += DOT (G, G);
+      dot += DOT (G, G);
       break;
     case FIXDIR:
     case VELODIR:
       G [0] = U[2] - b[0];
-      rdot += G[0]*G[0];
+      dot += G[0]*G[0];
       break;
     case RIGLNK:
       /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
@@ -643,15 +991,12 @@ static void compute_norms (BSS_DATA *A)
       NVMUL (X, U, G);
       NVADDMUL (G, Y, R, G);
       SUB (G, b, G);
-      rdot += DOT (G, G);
+      dot += DOT (G, G);
       break;
     }
-
-    xdot += DOT (R, R);
   }
 
-  A->resnorm = sqrt (rdot);
-  A->xnorm = sqrt (xdot);
+  return sqrt (dot);
 }
 
 /* solve linear system */
@@ -661,14 +1006,12 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
   void *gmres_vdata;
   double abstol;
 
-  A->delta = A->resnorm / A->xnorm; /* sqrt (L-curve) */
-
   abstol = resdec * A->resnorm;
 
   if (abstol == 0.0) /* initially */
   {
-    abstol = ABSTOL_BASE * sqrt (InnerProd (A->b, A->b));
-    if (abstol == 0.0) abstol = ABSTOL_BASE;
+    abstol = ABSTOL * sqrt (InnerProd (A->b, A->b));
+    if (abstol == 0.0) abstol = ABSTOL;
   }
 
   gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
@@ -688,13 +1031,13 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
   hypre_FlexGMRESGetNumIterations (gmres_vdata , &A->iters);
   hypre_FlexGMRESDestroy (gmres_vdata);
 
-  compute_norms (A);
+  A->resnorm = resnorm (A);
 }
 
 /* update solution */
 static void update_solution (BSS_DATA *A)
 {
-  double *R, *x;
+  double m [3], *R, *x, fri;
   CON *con;
 
   for (con = A->dom->con; con; con = con->next)
@@ -705,6 +1048,12 @@ static void update_solution (BSS_DATA *A)
     switch (con->kind)
     {
     case CONTACT:
+    {
+      fri = con->mat.base->friction;
+      real_m (fri, 0, x, 0, m);
+      SUB (x, m, R); /* project onto the friction cone */
+    }
+    break;
     case FIXPNT:
     case GLUE:
       COPY (x, R);
@@ -721,14 +1070,72 @@ static void update_solution (BSS_DATA *A)
 /* compute merit function value */
 static double merit_function (BSS_DATA *A)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-  return 0.0;
+  double G [3], *U, *b, step, dot;
+  DOM *dom = A->dom;
+  short dynamic;
+  CON *con;
+
+  dynamic = dom->dynamic;
+  step = dom->step;
+
+  for (dot = 0, con = dom->con; con; con = con->next)
+  {
+    b = CON_RHS_GET (con);
+    U = con->U;
+
+    switch (con->kind)
+    {
+    case FIXPNT:
+    case GLUE:
+      SUB (U, b, G);
+      dot += DOT (G, G);
+      break;
+    case FIXDIR:
+    case VELODIR:
+      G [0] = U[2] - b[0];
+      dot += G[0]*G[0];
+      break;
+    case RIGLNK:
+      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+      break;
+    case CONTACT:
+      {
+	 double *V = con->dia->V,
+		*R = con->R,
+	         gap = con->gap,
+	         fri = con->mat.base->friction,
+	         res = con->mat.base->restitution,
+	         F [3],
+	         S [3],
+	         m [3];
+
+	real_F (res, fri, gap, step, dynamic, SMOOTHING_EPSILON, V, U, F);
+	SUB (R, F, S);
+	real_m (fri, SMOOTHING, S, SMOOTHING_EPSILON, m);
+	ADD (F, m, G);
+        dot += DOT (G, G);
+      }
+      break;
+    }
+  }
+
+  return sqrt (dot);
 }
 
 /* destroy BSS data */
 static void destroy_data (BSS_DATA *A)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  DestroyVector (A->b);
+  DestroyVector (A->x);
+  free (A->r);
+
+#if MPI
+  MEM_Release (&A->mem);
+  free (A->send);
+  free (A->recv);
+#endif
+
+  free (A);
 }
 
 /* create solver */
@@ -761,6 +1168,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
   dom = ldy->dom;
   A = create_data (dom);
   merit = &dom->merit;
+  bs->iters = 0;
 
   do
   {
