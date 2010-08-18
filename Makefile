@@ -54,6 +54,7 @@ BASEO = obj/err.o \
 	obj/cmp.o \
 	obj/lss.o \
 	obj/dbs.o \
+	obj/vic.o \
 	obj/libsolfec.o \
 
 OBJ =   $(EXTO)   \
@@ -293,11 +294,15 @@ obj/lss.o: lss.c lss.h mem.h ist.h
 obj/dbs.o: dbs.c dbs.h ldy.h dom.h alg.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+obj/vic.o: vic.c vic.h ldy.h dom.h alg.h lap.h bla.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
 
 obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h bss.h mat.h pbf.h tmr.h
 	$(CC) $(CFLAGS) -c -o $@ $<
+
 # OPENGL
 
 obj/glv.o: glv.c glv.h bmp.h err.h
@@ -312,7 +317,7 @@ obj/rnd.o: rnd.c rnd.h alg.h dom.h shp.h cvx.h msh.h sph.h err.h
 obj/gl2ps.o: ext/gl2ps.c ext/gl2ps.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-#MPI
+# MPI
 
 obj/solfec-mpi.o: solfec.c
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<

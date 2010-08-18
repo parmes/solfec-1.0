@@ -87,3 +87,9 @@ Sort out damping (better stiffness proportional)
 OPTIMIZE:
 a) sending constrains with fixed bases (e.g. FIXPNT, do not send the base)
 b) assembling W parts for constraints with fxied bases and points (e.g. FIXPNT)
+-------------------------------------------------------------------------------------
+Remove bod->A and BODY_Matvec once you sort out BSS
+---------------------------------------------------------------------
+Switch to increments in BSS (rather than total values as now);
+this might have to do with better handing of regularization (like in LINSYS)
+when working with increments;

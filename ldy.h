@@ -67,8 +67,8 @@ struct diab
 {
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
 	    *U, /* relative volocity => points to U[3] member of the underlying constraint */
-	 V [3], /* initial velocity */
-	 B [3], /* free velocity */
+	 V [6], /* initial velocity (3:5 indices used in bss.c) */
+	 B [6], /* free velocity (3:5 indices used in bss.c) */
          W [9], /* generalised inverse inertia block */
 	 A [9], /* inverse of W */
 	 rho;   /* scaling parameter */

@@ -22,45 +22,7 @@
 #include "dom.h"
 #include "mrf.h"
 #include "alg.h"
-
-
-/* real normal to friction cone */
-inline static void real_n (double *R, double fri, double *n)
-{
-  double dot, len;
-
-  dot = DOT2(R, R);
-  len = sqrt(dot);
-
-  if (len == 0 || len <= fri * R[2])
-  {
-    SET (n, 0.0);
-  }
-  else if (fri * len + R[2] < 0.0)
-  {
-    dot += R[2]*R[2];
-    len = sqrt (dot);
-    if (len == 0) { SET (n, 0.0); }
-    else { DIV (R, len, n); }
-  }
-  else
-  {
-    dot = 1.0 / sqrt (1.0 + fri*fri);
-    DIV2 (R, len, n);
-    n [2] = -fri;
-    SCALE (n, dot);
-  }
-}
-
-/* real normal ray to friction cone */
-inline static void real_m (double fri, double *S, double *m)
-{
-  double n [3], fun;
-
-  real_n (S, fri, n);
-  fun = DOT (S, n);
-  MUL (n, fun, m)
-}
+#include "vic.h"
 
 /* constraint satisfaction merit function approximately indicates the
  * amount of spurious momentum due to constraint force inaccuracy;
@@ -111,32 +73,18 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     {
     case CONTACT:
     {
-      double res = con->mat.base->restitution,
-	     fri = con->mat.base->friction,
-	     gap = con->gap,
-	     udash, m [3];
-
-      if (dynamic && gap > 0) /* open dynamic contact */
+      if (dynamic && con->gap > 0) /* open dynamic contact */
       {
 	up = 0.0; /* has zero R regardless of U */
       }
       else
       {
-	if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
-	else udash = ((MAX(gap, 0)/step) + U[2]);
-
-	Q [0] = U[0];
-	Q [1] = U[1];
-	Q [2] = (udash + fri * LEN2(U));
-	SUB (R, Q, P);
-	real_m (fri, P, m);
-	ADD (Q, m, P);
+	VIC_Linearize (con, 0, P, NULL, NULL);
 	NVMUL (A, P, Q);
 	up = DOT (Q, P);
       }
     }
     break;
-#if 1
     case FIXPNT:
     case GLUE:
     {
@@ -163,7 +111,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     break;
     case RIGLNK:
     {
-#if 1
+#if 1 /* FIXME: work it out */
       if (dynamic) { P[2] = 2.0*con->gap/step + U[2]; }
       else { P [2] = con->gap/step + U[2]; }
 #else
@@ -171,18 +119,10 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       ADDMUL (RIGLNK_VEC(con->Z), coef, U, P);
       P[2] = (LEN (P) - RIGLNK_LEN(con->Z)) / step;
 #endif
-
       Q [2] = A[8] * P[2];
       up = Q[2] * P[2];
     }
     break;
-#else
-    default:
-    {
-      up = 0; /* FIXME: think about that */
-    }
-    break;
-#endif
     }
 
     con->merit = up; /* per-constraint merit numerator */

@@ -30,6 +30,7 @@
 #include "lin.h"
 #include "err.h"
 #include "mtx.h"
+#include "vic.h"
 #include "ext/csparse.h"
 #include "ext/krylov/krylov.h"
 
@@ -143,8 +144,7 @@ struct linsys
   VECT *x, *b; /* A x = b, where x is composed of reaction increments DR */
 
   double resnorm, xnorm; /* |Ax - b|, |x| */
-  int iters,            /* most recent iterations count */
-      smooth;          /* SMOOTHED_VARIATIONAL: smoothing variant */
+  int iters;            /* most recent iterations count */
 
 #if MPI
   COMDATA *send, *recv;
@@ -728,167 +728,17 @@ ZERO_TANG:
   }
 }
 
-/* imaginary i */
-static double complex imaginary_i;
-
-/* real normal to friction cone */
-inline static void real_n (double *S, double fri, double *n)
-{
-  double dot, len;
-
-  dot = DOT2(S, S);
-  len = sqrt(dot);
-
-  if (len == 0 || len <= fri * S[2])
-  {
-    SET (n, 0.0);
-  }
-  else if (fri * len + S[2] < 0.0)
-  {
-    dot += S[2]*S[2];
-    len = sqrt (dot);
-    if (len == 0) { SET (n, 0.0); }
-    else { DIV (S, len, n); }
-  }
-  else
-  {
-    dot = 1.0 / sqrt (1.0 + fri*fri);
-    DIV2 (S, len, n);
-    n [2] = -fri;
-    SCALE (n, dot);
-  }
-}
-
-/* complex normal to friction cone */
-inline static void complex_n (double complex *S, double complex fri, double complex *n)
-{
-  double complex dot, len;
-
-  dot = DOT2(S, S);
-  len = csqrt(dot);
-
-  if (creal (len) == 0 || creal (len) <= creal (fri * S[2]))
-  {
-    SET (n, 0.0 + 0.0 * imaginary_i);
-  }
-  else if (creal (fri * len + S[2]) < 0.0)
-  {
-    dot += S[2]*S[2];
-    len = csqrt (dot);
-    if (creal (len) == 0) { SET(n, 0.0 + 0.0 * imaginary_i); }
-    DIV (S, len, n);
-  }
-  else
-  {
-    dot = 1.0 / csqrt (1.0 + fri*fri);
-    DIV2 (S, len, n);
-    n [2] = -fri;
-    SCALE (n, dot);
-  }
-}
-
-/* real normal ray to friction cone */
-inline static void real_m (double fri, short smooth, double *S, double eps, double *m)
-{
-  double n [3], fun;
-
-  real_n (S, fri, n);
-  fun = DOT (S, n);
-
-  if (smooth == 1 && fun >= 0.0 && fun <= eps)
-  {
-    fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
-  }
-  else if (smooth == 2)
-  {
-    if (fun >= 0.0 && fun <= eps)
-    {
-      fun = (fun*fun) / (2.0 * eps);
-    }
-    else if (fun > eps)
-    {
-      fun = fun - 0.5 * eps;
-    }
-  }
-
-  MUL (n, fun, m)
-}
-
-/* complex normal ray to friction cone */
-inline static void complex_m (double complex fri, short smooth, double complex *S, double complex eps, double complex *m)
-{
-  double complex n [3], fun;
-
-  complex_n (S, fri, n);
-  fun = DOT (S, n);
-
-  if (smooth == 1 && creal (fun) >= 0.0 && creal (fun) <= creal (eps))
-  {
-    fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
-  }
-  else if (smooth == 2)
-  {
-    if (creal (fun) >= 0.0 && creal (fun) <= creal (eps))
-    {
-      fun = (fun*fun) / (2.0 * eps);
-    }
-    else if (creal (fun) > creal (eps))
-    {
-      fun = fun - 0.5 * eps;
-    }
-  }
-
-  MUL (n, fun, m)
-}
-
-/* real F = [UT, UN + fri |UT|]' */
-inline static void real_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double *U, double *F)
-{
-  double udash;
-
-  if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
-  else udash = ((MAX(gap, 0)/step) + U[2]);
-
-#if DISABLE_NORM_SMOOTHING
-  epsilon = 0;
-#endif
-
-  F [0] = U[0];
-  F [1] = U[1];
-  F [2] = (udash + fri * sqrt (DOT2(U, U) + epsilon*epsilon));
-}
- 
-/* complex F = [UT, UN + fri |UT|]' */
-inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double complex *U, double complex *F)
-{
-  double complex udash;
-
-  if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
-  else udash = ((MAX(gap, 0)/step) + U[2]);
-
-#if DISABLE_NORM_SMOOTHING
-  epsilon = 0;
-#endif
-
-  F [0] = U[0];
-  F [1] = U[1];
-  F [2] = (udash + fri * csqrt (DOT2(U, U) + epsilon*epsilon));
-}
-
 /* update linear system for NONSMOOTH_VARIATIONAL, SMOOTHED_VARIATIONAL variants */
 static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 {
-  double epsilon, step, h, *b;
-  short smooth, dynamic;
+  double epsilon, step, *b;
+  short dynamic;
   OFFT *blk;
   DIAT *dia;
   DOM *dom;
   CON *con;
 
-  smooth = sys->smooth;
   epsilon = sys->epsilon;
-  h = DIFF_FACTOR * (epsilon == 0.0 ? 1.0 : epsilon);
-  dom = sys->ldy->dom;
   dynamic = dom->dynamic;
   step = dom->step;
 
@@ -901,76 +751,31 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
     {
     case CONTACT:
     {
-      double *V = dia->V,
-	     *W = dia->W,
-	     *U = dia->U,
-	     *R = dia->R,
+      double *W = dia->W,
 	     *T  = dia->T,
 	     *RE = dia->RE,
-	     gap = con->gap,
-	     fri = con->mat.base->friction,
-	     res = con->mat.base->restitution,
-	     TT [9],
-	     dm [9],
-	     dF [9],
-             S [3],
-	     F [3],
-	     m [3],
-	     H [3],
-	     J [9];
+	      H [3],
+	      X [9],
+	      Y [9];
+	
+      VIC_Linearize (con, epsilon, H, X, Y);
 
-
-      real_F (res, fri, gap, step, dynamic, epsilon, V, U, F);
-      SUB (R, F, S);
-      real_m (fri, smooth, S, epsilon, m);
-      ADD (F, m, H);
-
-      double complex cU [3],
-	             cS [3],
-		     cF [3],
-		     cm [3];
-
-      for (int k = 0; k < 3; k ++)
-      {
-	cU [0] = U[0] + 0.0 * imaginary_i;
-	cU [1] = U[1] + 0.0 * imaginary_i;
-	cU [2] = U[2] + 0.0 * imaginary_i;
-	cU [k] += h * imaginary_i;
-        complex_F (res, fri, gap, step, dynamic, epsilon, V, cU, cF);
-	dF [3*k+0] = cimag (cF [0]) / h;
-	dF [3*k+1] = cimag (cF [1]) / h;
-	dF [3*k+2] = cimag (cF [2]) / h;
-
-        cS [0] = S[0] + 0.0 * imaginary_i;
-	cS [1] = S[1] + 0.0 * imaginary_i;
-	cS [2] = S[2] + 0.0 * imaginary_i;
-	cS [k] += h * imaginary_i;
-        complex_m (fri, smooth, cS, epsilon, cm);
-	dm [3*k+0] = cimag (cm [0]) / h;
-	dm [3*k+1] = cimag (cm [1]) / h;
-	dm [3*k+2] = cimag (cm [2]) / h;
-      }
-
-      IDENTITY (J);
-      NNSUB (J, dm, J);
-      NNMUL (dF, J, TT); /* dF/dU [I - dm/dS] */
-
-      NVADDMUL (H, TT, RE, b);
+      NVADDMUL (H, X, RE, b);
       SCALE (b, -1.0); /* b = - [H(U, R) + dF/dU [I - dm/dS] RE] */
 
-      NNMUL (TT, W, T);
-      NNADD (T, dm, T);
+      NNMUL (X, W, T);
+      NNADD (T, Y, T);
 
       for (blk = dia->adj; blk; blk = blk->n)
       {
 	double **W = blk->W, *T = blk->T;
 
-        NNMUL (TT, W[0], T);
+        NNMUL (X, W[0], T);
 
 	if (W[1])
 	{
-	  NNMUL (TT, W[1], J);
-	  NNADD (T, J, T);
+	  NNMUL (X, W[1], Y);
+	  NNADD (T, Y, T);
 	}
       }
     }
@@ -1370,7 +1175,7 @@ static void compute_resnorm_and_xnorm (LINSYS *sys)
 /* project contact reactions back onto the friction cone */
 static void project_contact_reactions (LINSYS *sys)
 {
-  double S [3], m [3], fri, *R, *a, *x = sys->x->x;
+  double S [3], fri, *R, *a, *x = sys->x->x;
   DIAT *dia;
   CON *con;
 
@@ -1394,8 +1199,7 @@ static void project_contact_reactions (LINSYS *sys)
 	  fri = con->mat.base->friction;
 	  R = con->R;
 	  ADD (R, b, S);
-	  real_m (fri, 0, S, 0, m);
-	  SUB (S, m, S);
+	  VIC_Project (fri, S, S);
 	  SUB (S, R, b); /* v = proj (friction-cone, R+beta*DR) - R */
 	}
 	/* else it is zero */
@@ -1438,8 +1242,7 @@ static void project_contact_reactions (LINSYS *sys)
 	R = con->R;
         a = &x [3*dia->num];
 	ADD (R, a, S);
-	real_m (fri, 0, S, 0, m);
-	SUB (S, m, S);
+	VIC_Project (fri, S, S);
 	SUB (S, R, a);
       }
     }
@@ -1542,8 +1345,6 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
   S("LININIT");
   MEM_Init (&setmem, sizeof (SET), BLOCKS);
   MEM_Init (&mapmem, sizeof (MAP), BLOCKS);
-
-  imaginary_i = csqrt (-1);
 
   if (!subset)
   {
@@ -1764,9 +1565,8 @@ LINSYS* LINSYS_Create (LINVAR variant, LOCDYN *ldy, SET *subset)
     len = LEN (B);
 
     sys->epsilon = EPSILON_FACTOR * (len == 0.0 ? EPSILON_BASE : len);
-    sys->smooth = SMOOTHING;
   }
-  else { sys->epsilon = 0; sys->smooth = 0; }
+  else sys->epsilon = 0;
 
   /* unknown and right hand side */
   sys->x = newvect (3 * ncon, sys);
@@ -2086,7 +1886,7 @@ void LINSYS_Solve (LINSYS *sys, double beta, int maxiter)
 /* compute merit function at (R + alpha * DR) */
 double LINSYS_Merit (LINSYS *sys, double alpha)
 {
-  short variational, dynamic, smooth, variant;
+  short variational, dynamic, variant;
   double H [3], value, step, epsilon;
   INIT_TIMERS (sys);
   DIAT *dia;
@@ -2099,7 +1899,6 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
   variational = sys->variant & (SMOOTHED_VARIATIONAL|NONSMOOTH_VARIATIONAL);
   variant = LINEARIZATION_VARIANT (sys->variant);
   epsilon = sys->epsilon;
-  smooth = sys->smooth;
 
   for (dia = sys->dia; dia; dia = dia->n)
   {
@@ -2139,14 +1938,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 
       if (variational)
       {
-        double S [3],
-	       F [3],
-	       m [3];
-
-	real_F (res, fri, gap, step, dynamic, epsilon, V, U, F);
-	SUB (R, F, S);
-	real_m (fri, smooth, S, epsilon, m);
-	ADD (F, m, H);
+	VIC_Linearize (con, epsilon, H, NULL, NULL);
       }
       else
       {
