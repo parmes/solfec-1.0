@@ -117,3 +117,5 @@ tri.* => trianglulated surfaces
 --------------------------------------------------------
 xyt.* => priority search tree
 --------------------------------------------------------
+vic.* => variational inequality contact formulation
+--------------------------------------------------------
