@@ -307,6 +307,8 @@ extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
   (a) [2] = b;\
 }
 
+#define SETN(a, n, b) for (double *x = (a), *y = x + (n); x != y; x ++) (*x) = (b)
+
 #define SETRAND(a, b)\
 {\
   (a) [0] = DRANDEXT(-b, b);\

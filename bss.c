@@ -39,43 +39,57 @@
 
 #define SMOOTHING_EPSILON	1E-10  /* TODO */
 #define ABSTOL			1E-15  /* TODO */
-#define CON_RHS_SET(con, value) (con)->dia->mprod = (MX*)(value)
-#define CON_RHS(con) ((double*)(con)->dia->mprod)
-#define CON_X_SET(con, value) (con)->dia->sprod = (MX*)(value)
-#define CON_X(con) ((double*)(con)->dia->sprod)
-#define CON_INDEX_SET(con, value) ((con)->dia->mH = (MX*)value)
-#define CON_INDEX(con) (int)(long)(con)->dia->mH
-#define CONTACT_X(con) (con)->dia->W
-#define CONTACT_Y(con) (con)->dia->A
 
+typedef struct bss_con_data BSS_CON_DATA;
 typedef struct bss_data BSS_DATA;
 typedef struct vector VECTOR;
 
+struct bss_con_data
+{
+  MX *mH; /* master H */
+  int mi; /* shift to mH in global velocity space */
+
+  MX *sH;
+  int si;
+
+  int n; /* constraint index */
+
+  double *R, /* con->R */
+	 *U, /* con->U */
+         *V, /* con->dia->V */
+	 *B, /* con->dia->B */
+	 *W, /* con->dia->W */
+	 *A, /* con->dia->A */
+	  X [9],
+	  Y [9],
+	  T [9];
+
+  short kind; /* con->kind */
+
+  CON *con; /* constraint */
+};
+
 struct bss_data
 {
-  DOM *dom;
+  int nprimal, /* SUM [bod in dom->bod] { bod->dofs } */ 
+      ndual; /* 3 * dom->ncon */
 
-  int ndual; /* SUM [con in dom->con] { size (con->R) } */
+  BSS_CON_DATA *dat; /* constraints data of dom->ncon */
 
-  VECTOR *b, /* right hand side */
-         *x, /* reactions */
-	 *z; /* increments of reactions */
+  VECTOR *b, /* right hand side (of size ndual) */
+         *x, /* reactions (-||-) */
+	 *y, /* increments of velocities (-||-) */
+	 *z; /* increments of reactions (-||-) */
 
-  double *r, /* reaction workspace of size MAX [bod in dom->bod] { bod->dofs } */
-	 *u, /* global replacement velocity of size SUM [bod in dom->bod] { bod->dofs } */
-	 *W, /* approximate diagonal W blocks */
-          resnorm, /* linear residual norm */
-	  xnorm, /* x norm */
-	  delta; /* regularisation */
+  double *r, /* global reaction (of size nprimal) */
+	 *u, /* global velocity (-||-) */
+          resnorm, /* |A z - b| */
+	  znorm, /* |z| */
+	  delta; /* regularisation = |A z - b| / |z| */
 
-  int iters; /* number of linear solver iterations */
+  int iters; /* linear solver iterations */
 
-#if MPI
-  MEM mem; /* communication memory */
-  COMDATA *send, *recv; /* buffers */
-  int ssend, nsend, nrecv; /* sizes */
-  void *pattern; /* and pattern */
-#endif
+  DOM *dom; /* domain */
 };
 
 struct vector
@@ -84,9 +98,6 @@ struct vector
 
   int n;
 };
-
-/* needed in matrix vector product */
-static void* update_local_velocities (BSS_DATA *A);
 
 static VECTOR* newvector (int n)
 {
@@ -97,6 +108,65 @@ static VECTOR* newvector (int n)
   v->n = n;
 
   return v;
+}
+
+/* y = H' x */
+static void H_trans_vector (BSS_CON_DATA *dat, int n, double *x, double *y)
+{
+  for (; n > 0; dat ++, n --)
+  {
+    double *p = &x [dat->n],
+	   *q = &y [dat->mi];
+
+    MX_Matvec (1.0, MX_Tran (dat->mH), p, 0.0, q);
+
+    if (dat->sH)
+    {
+      q = &y [dat->si];
+
+      MX_Matvec (1.0, MX_Tran (dat->sH), p, 1.0, q);
+    }
+  }
+}
+
+/* y = H' x */
+static void H_times_vector (BSS_CON_DATA *dat, int n, double *x, double *y)
+{
+  for (; n > 0; dat ++, n --)
+  {
+    double *p = &x [dat->mi],
+	   *q = &y [dat->n];
+
+    MX_Matvec (1.0, dat->mH, p, 0.0, q);
+
+    if (dat->sH)
+    {
+      p = &x [dat->si];
+
+      MX_Matvec (1.0, dat->sH, p, 1.0, q);
+    }
+  }
+}
+
+/* y = alpha W x */
+static void W_times_vector (double alpha, BSS_DATA *A, double *x, double *y)
+{
+  double *r = A->r, *u = A->u;
+  BSS_CON_DATA *dat = A->dat;
+  DOM *dom = A->dom;
+  int n = dom->ncon;
+  BODY *bod;
+
+  SETN (r, A->nprimal, 0.0);
+  H_trans_vector (dat, n, x, r);
+
+  for (bod = dom->bod; bod; r += bod->dofs, u += bod->dofs, bod = bod->next)
+  {
+    BODY_Invvec (alpha, bod, r, 0.0, u);
+  }
+
+  SETN (y, A->ndual, 0.0);
+  H_times_vector (dat, n, A->u, y);
 }
 
 /* GMRES interface start */
@@ -231,80 +301,42 @@ static void *MatvecCreate (void *A, void *x)
 
 static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, double beta, VECTOR *y)
 {
-  double c [3], *U, *R, *X, *Y, *b, *r, *u, step, delta;
+  double Z [3], *Y, *X, *R, *U, *Q, *u, *q, *r;
+  BSS_CON_DATA *dat = A->dat;
   DOM *dom = A->dom;
-  BODY *bod;
-  CON *con;
-  int n;
+  int n = dom->ncon;
 
-  step = dom->step;
-  delta = A->delta;
+  W_times_vector (alpha * dom->step, A, x->x, A->y->x); /* dU = alpha h W dR */
 
-  ScaleVector (beta, y);
-
-  if (delta > 0.0) Axpy (alpha*delta, x, y);
-
-  for (con = dom->con; con; con = con->next) /* copy x to con->R */
+  for (u = A->y->x, q = y->x, r = x->x; n > 0; dat ++, n --)
   {
-    r = &x->x [CON_INDEX (con)];
-    R = con->R;
+    U = &u [dat->n];
+    Q = &q [dat->n];
+    R = &r [dat->n];
 
-    switch (con->kind)
+    if (dat->kind == VELODIR || dat->kind == FIXDIR)
     {
-    case CONTACT:
-    case FIXPNT:
-    case GLUE:
-      COPY (r, R);
-      break;
-    case VELODIR:
-    case FIXDIR:
-    case RIGLNK:
-      R [2] = r [0];
-      break;
+      Z [0] = R [0] * alpha;
+      Z [1] = R [1] * alpha;
+      Z [2] = U [2];
+
+      U = Z;
     }
-  }
-
-#if MPI
-  DOM_Update_External_Reactions  (dom, 0);
-#endif
-
-  for (bod = dom->bod, r = A->r, u = A->u; bod; u += n, bod = bod->next)
-  {
-    n = bod->dofs;
-    BODY_Reac (bod, r);
-    BODY_Invvec (step, bod, r, 0.0, u); /* would be velocity (***) */
-  }
-
-  update_local_velocities (A); /* compute con->U based on (***) */
-
-  for (con = dom->con; con; con = con->next)
-  {
-    b = &y->x [CON_INDEX (con)];
-    U = con->U;
-    R = con->R;
-
-    switch (con->kind)
+    else if (dat->kind == CONTACT)
     {
-    case FIXPNT:
-    case GLUE:
-      ADDMUL (b, alpha, U, b);
-      break;
-    case FIXDIR:
-    case VELODIR:
-      b [0] += alpha * U[2];
-      break;
-    case RIGLNK:
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-      break;
-    case CONTACT:
-      X = CONTACT_X (con);
-      Y = CONTACT_Y (con);
-      NVMUL (X, U, c);
-      NVADDMUL (c, Y, R, c);
-      ADDMUL (b, alpha, c, b);
-      break;
+      X = dat->X;
+      Y = dat->Y;
+
+      NVMUL (X, U, Z);
+      NVADDMUL (Z, Y, R, Z);  /* Z = X dU + Y *dR */
+
+      U = Z;
     }
+
+    ADDMUL (U, beta, Q, Q); 
   }
+
+  if (A->delta > 0.0) Axpy (alpha * A->delta, x, y);
 
   return 0;
 }
@@ -321,218 +353,63 @@ static int PrecondSetup (void *vdata, void *A, void *b, void *x)
 
 static int Precond (void *vdata, BSS_DATA *A, VECTOR *b, VECTOR *x)
 {
-#if 1
-  double *W, *X, *Y, *bx, *xx, delta, T [9];
-  int ipiv [3];
-  CON *con;
+  BSS_CON_DATA *dat, *end;
+  double *T, *p, *q;
 
-  delta = A->delta;
-
-  for (con = A->dom->con, W = A->W, bx = b->x, xx = x->x; con; con = con->next, W += 9)
+  for (dat = A->dat, end = dat + A->dom->ncon; dat != end; dat ++)
   {
-    switch (con->kind)
-    {
-    case FIXPNT:
-    case GLUE:
-      NNCOPY (W, T);
-      T [0] += delta;
-      T [4] += delta;
-      T [8] += delta;
-      COPY (bx, xx);
-      lapack_dgesv (3, 1, T, 3, ipiv, xx, 3);
-      bx += 3;
-      xx += 3;
-      break;
-    case VELODIR:
-    case FIXDIR:
-      T[8] = W[8] + delta;
-      xx [0] = bx [0] / T[8];
-      bx += 1;
-      xx += 1;
-      break;
-    case RIGLNK:
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-      break;
-    case CONTACT:
-      X = CONTACT_X (con);
-      Y = CONTACT_Y (con);
-      NNMUL (X, W, T);
-      NNADD (T, Y, T);
-      T [0] += delta;
-      T [4] += delta;
-      T [8] += delta;
-      COPY (bx, xx);
-      lapack_dgesv (3, 1, T, 3, ipiv, xx, 3);
-      bx += 3;
-      xx += 3;
-      break;
-    }
+    p = &b->x[dat->n];
+    q = &x->x[dat->n];
+    T = dat->T;
+    NVMUL (T, p, q);
   }
-#else
-  CopyVector (b, x);
-#endif
 
   return 0;
 }
 /* GMRES interface end */
 
-#if MPI
-/* allocate a send buffer item */
-static COMDATA* send_item (COMDATA **send, int *size, int *count)
+/* update previous and free local velocities V, B */
+static void update_V_and_B (DOM *dom)
 {
-  if (++ (*count) >= (*size))
-  {
-    (*size) *= 2;
-    ERRMEM ((*send) = realloc ((*send), (*size) * sizeof (COMDATA)));
-  }
-
-  return &(*send)[(*count) - 1];
-}
-#endif
-
-/* update local constraints velocities or create
- * the necessary for that communication pattern */
-static void* update_local_velocities (BSS_DATA *A)
-{
-  double *U, *B, *u, *velo;
-  DOM *dom = A->dom;
-  BODY *bod;
-  SET *item;
+  double X [6], *V, *B;
   CON *con;
-#if MPI
-  int i, *j, *k;
-  COMDATA *ptr;
-  double *D;
-#endif
 
-#if MPI
-  if (A->pattern)
-  {
-#endif
-    /* update local velocities of local constraints */
-    for (bod = dom->bod, u = A->u; bod; u += bod->dofs, bod = bod->next)
-    {
-      velo = bod->velo;
-      bod->velo = u;
-      for (item = SET_First (bod->con); item; item = SET_Next (item))
-      {
-	con = item->data;
-#if MPI
-	if (!(con->state & CON_EXTERNAL)) /* local */
-	{
-#endif
-	  if (bod == con->master) BODY_Local_Velo (bod, mshp(con), mgobj(con), con->mpnt, con->base, NULL, con->U);
-	  else BODY_Local_Velo (bod, sshp(con), sgobj(con), con->spnt, con->base, NULL, con->dia->B+3);
-#if MPI
-	}
-#endif
-      }
-      bod->velo = velo;
-    }
-#if MPI
-  }
-  else
-  {
-    A->nsend = 0;
-    A->ssend = dom->ncon + 8;
-    MEM_Init (&A->mem, sizeof (int), 128);
-    ERRMEM (A->send = malloc (sizeof (COMDATA [A->ssend])));
-
-    for (bod = dom->bod; bod; bod = bod->next) /* for all parents */
-    {
-      for (item = SET_First (bod->con); item; item = SET_Next (item))
-      {
-	con = item->data;
-	if (con->state & CON_EXTERNAL) /* parent needs local velocity update */
-	{
-	  ASSERT_DEBUG (MAP_Find (dom->conext, (void*) (long) con->id, NULL), "Invalid external constraint %s %d", CON_Kind (con), con->id);
-	  ptr = send_item (&A->send, &A->ssend, &A->nsend);
-	  ptr->rank = con->rank;
-	  ERRMEM (ptr->i = MEM_Alloc (&A->mem));
-	  ptr->ints = 1;
-	  ptr->d = con->U;
-	  ptr->doubles = 3;
-
-	  if (bod == con->master)
-	  {
-	    ptr->i [0] = -con->id; /* negative indicates master */
-	  }
-	  else
-	  {
-	    ptr->i [0] = con->id; /* positive indicates slave */
-	  }
-	}
-      }
-    }
-
-    A->pattern = COMALL_Pattern (MPI_COMM_WORLD, A->send, A->nsend, &A->recv, &A->nrecv);
-
-    return A->pattern; /* initialized */
-  }
-
-  for (bod = dom->bod, u = A->u; bod; u += bod->dofs, bod = bod->next)
-  {
-    velo = bod->velo;
-    bod->velo = u;
-    for (item = SET_First (bod->con); item; item = SET_Next (item))
-    {
-      con = item->data;
-      if (con->state & CON_EXTERNAL) /* update local velocities of external constraints attached to parents, before sending */
-      {
-	if (bod == con->master) BODY_Local_Velo (bod, mshp(con), mgobj(con), con->mpnt, con->base, NULL, con->U);
-	else BODY_Local_Velo (bod, sshp(con), sgobj(con), con->spnt, con->base, NULL, con->U);
-      }
-    }
-    bod->velo = velo;
-  }
-
-  COMALL_Repeat (A->pattern); /* send and receive */
-
-  for (i = 0; i < A->nrecv; i ++)
-  {
-    ptr = &A->recv [i];
-    for (j = ptr->i, k = j + ptr->ints, D = ptr->d; j < k; j ++, D += 3)
-    {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ABS(*j), NULL), "Invalid constraint id: %d", ABS(*j));
-
-      if ((*j) < 0) /* master */
-      {
-	U = con->U;
-	COPY (D, U);
-      }
-      else /* slave */
-      {
-	B = con->dia->B+3;
-	COPY (D, B);
-      }
-    }
-  }
-#endif
-
-  /* compute relative velocities */
   for (con = dom->con; con; con = con->next)
   {
+    V = con->dia->V;
+    B = con->dia->B;
+
+    SET (V, 0);
+    SET (B, 0);
+
+#if MPI
+    if (con->master->flags & BODY_PARENT) /* local parent */
+#endif
+    {
+      BODY_Local_Velo (con->master, mshp(con), mgobj(con), con->mpnt, con->base, X, X+3);
+      ADD (V, X, V);
+      ADD (B, X+3, B);
+    }
+
     if (con->slave)
     {
-      U = con->U;
-      B = con->dia->B+3;
-
-      SUB (U, B, U); /* relative = master - slave */
+#if MPI
+      if (con->slave->flags & BODY_PARENT) /* local slave */
+#endif
+      {
+        BODY_Local_Velo (con->slave, sshp(con), sgobj(con), con->spnt, con->base, X, X+3);
+	SUB (V, X, V); /* relative = master - slave */
+	SUB (B, X+3, B);
+      }
     }
   }
 
-  return NULL;
-}
-
-/* update previous and free local velocities */
-static void update_const_local_velocities (DOM *dom)
-{
-  double *V, *B;
-  CON *con;
 #if MPI
+  /* in parallel, parent bodies calculate local velocities of their external constraints and send them to the constraint parents;
+   * upon arrival these are added or subtracted from the constraint parents B and V members, depending on the master/slave relation */
   int nsend, nrecv, *isize, *dsize, i, *j, *k;
   COMDATA *send, *recv, *ptr;
-  double X [6], *D;
+  double *D;
   BODY *bod;
   SET *item;
 
@@ -580,13 +457,13 @@ static void update_const_local_velocities (DOM *dom)
       B = con->dia->B;
       if ((*j) < 0) /* master */
       {
-        COPY (D, V);
-        COPY (D+3, B);
+	ADD (V, D, V);
+	ADD (B, D+3, B);
       }
       else /* slave */
       {
-        COPY (D, V+3);
-        COPY (D+3, B+3);
+	SUB (V, D, V);
+	SUB (B, D+3, B);
       }
     }
   }
@@ -602,43 +479,29 @@ static void update_const_local_velocities (DOM *dom)
   free (dsize);
   free (recv); /* includes recv[]->i and recv[]->d memory */
 #endif
-
-  /* remote master and slave previous local velocities are now stored in V and B members of con->dia;
-   * compute the final values of con->dia->V, completing the local computations if needed */
-  for (con = dom->con; con; con = con->next)
-  {
-    V = con->dia->V;
-    B = con->dia->B;
-
-#if MPI
-    if (con->master->flags & BODY_PARENT) /* local parent */
-#endif
-    {
-      BODY_Local_Velo (con->master, mshp(con), mgobj(con), con->mpnt, con->base, V, B);
-    }
-
-    if (con->slave)
-    {
-#if MPI
-      if (con->slave->flags & BODY_PARENT) /* local slave */
-#endif
-      {
-        BODY_Local_Velo (con->slave, sshp(con), sgobj(con), con->spnt, con->base, V+3, B+3);
-      }
-
-      SUB (V, V+3, V); /* relative = master - slave */
-      SUB (B, B+3, B);
-    }
-  }
 }
 
-/* approximate diagonal W blocks */
-static void approximate_diagobal_blocks (CON *con, double *W)
+/* create constraints data */
+static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
 {
-  double step = con ? con->master->dom->step : 0;
+  BSS_CON_DATA *out, *dat;
+  double step;
+  BODY *bod;
+  CON *con;
+  MAP *map;
+  int n;
 
-  for (; con; con = con->next, W += 9)
+  ERRMEM (out = MEM_CALLOC (dom->ncon * sizeof (BSS_CON_DATA)));
+  step = dom->step;
+
+  for (bod = dom->bod, map = NULL, n = 0; bod; n += bod->dofs, bod = bod->next)
   {
+    MAP_Insert (NULL, &map, bod, (void*) (long) n, NULL);
+  }
+
+  for (con = dom->con, dat = out, n = 0; con; con = con->next, dat ++, n += 3, x += 3)
+  {
+    DIAB *dia = con->dia;
     BODY *m = con->master,
 	 *s = con->slave;
     void *mgobj = mgobj(con),
@@ -648,8 +511,10 @@ static void approximate_diagobal_blocks (CON *con, double *W)
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base;
-    MX_DENSE_PTR (A, 3, 3, W);
-    MX *H, *prod;
+    MX_DENSE_PTR (W, 3, 3, dia->W);
+    MX_DENSE_PTR (A, 3, 3, dia->A);
+    short up = dia->W[8] == 0.0;
+    MX *prod;
 
     if (s)
     {
@@ -657,110 +522,99 @@ static void approximate_diagobal_blocks (CON *con, double *W)
       sshp = sshp(con);
     }
 
-    H = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
-    prod = MX_Matmat (1.0, m->inverse, MX_Tran (H), 0.0, NULL);
-    MX_Matmat (step, H, prod, 0.0, &A); /* H * inv (M) * H^T */
-    MX_Destroy (prod);
-    MX_Destroy (H);
+    dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+    dat->mi = (int) (long) MAP_Find (map, m, NULL);
+
+    if (up)
+    {
+      prod = MX_Matmat (1.0, m->inverse, MX_Tran (dat->mH), 0.0, NULL);
+      MX_Matmat (step, dat->mH, prod, 0.0, &W); /* H * inv (M) * H^T */
+      MX_Destroy (prod);
+    }
 
     if (s)
     {
-      H = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
-      prod = MX_Matmat (1.0, s->inverse, MX_Tran (H), 0.0, NULL);
-      MX_Matmat (step, H, prod, 1.0, &A); /* H * inv (M) * H^T */
-      MX_Destroy (prod);
-      MX_Destroy (H);
+      dat->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+      dat->mi = (int) (long) MAP_Find (map, s, NULL);
+      MX_Scale (dat->sH, -1.0);
+
+      if (up)
+      {
+	prod = MX_Matmat (1.0, s->inverse, MX_Tran (dat->sH), 0.0, NULL);
+	MX_Matmat (step, dat->sH, prod, 1.0, &A); /* H * inv (M) * H^T */
+	MX_Destroy (prod);
+      }
     }
+
+    if (up)
+    {
+      MX_Copy (&W, &A);
+      MX_Inverse (&A, &A);
+    }
+
+    dat->n = n;
+    dat->R = con->R;
+    dat->U = con->U;
+    dat->V = dia->V;
+    dat->B = dia->B;
+    dat->W = dia->W;
+    dat->A = dia->A;
+    dat->kind = con->kind;
+    dat->con = con;
+
+    COPY (dat->R, x); /* initialize with previous solution */
   }
+
+  MAP_Free (NULL, &map);
+
+  return out;
+}
+
+static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
+{
+  BSS_CON_DATA *ptr = dat;
+
+  for (; n > 0; dat ++, n --)
+  {
+    MX_Destroy (dat->mH);
+    if (dat->sH) MX_Destroy (dat->sH);
+  }
+
+  free (ptr);
 }
 
 /* create BSS data */
 static BSS_DATA *create_data (DOM *dom)
 {
-  double *R, *U, *B, *b, *x, *r, *u, step;
-  int n, m, nprimal;
-  short dynamic;
+  BSS_CON_DATA *dat, *end;
   BSS_DATA *A;
+  double *u;
   BODY *bod;
-  CON *con;
+
+  update_V_and_B (dom);
 
   ERRMEM (A = MEM_CALLOC (sizeof (BSS_DATA)));
-  dynamic = dom->dynamic;
-  step = dom->step;
-  A->xnorm = 1.0;
+  A->znorm = 1.0;
   A->dom = dom;
-  for (bod = dom->bod, nprimal = m = 0; bod; bod = bod->next)
-  {
-    n = bod->dofs;
-    nprimal += n;
-    if (n > m) m = n;
-  }
-  for (con = dom->con; con; con = con->next)
-  {
-    switch (con->kind)
-    {
-    case CONTACT:
-    case FIXPNT:
-    case GLUE: A->ndual += 3; break;
-    case FIXDIR:
-    case VELODIR: SET2 (con->R, 0.0); A->ndual += 1; break; /* only normal component */
-    case RIGLNK: SET2 (con->R, 0.0); A->ndual += 2; break; /* normal component and multiplier */
-    }
-  }
+  for (bod = dom->bod; bod; bod = bod->next) A->nprimal += bod->dofs;
+  A->ndual = dom->ncon * 3;
   A->b = newvector (A->ndual);
   A->x = newvector (A->ndual);
+  A->y = newvector (A->ndual);
   A->z = newvector (A->ndual);
-  ERRMEM (A->r = MEM_CALLOC (sizeof (double [m])));
-  ERRMEM (A->u = MEM_CALLOC (sizeof (double [nprimal])));
-  ERRMEM (A->W = MEM_CALLOC (A->ndual * sizeof (double [9])));
+  ERRMEM (A->r = MEM_CALLOC (sizeof (double [A->nprimal])));
+  ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
 
-  /* update previous and free local velocities V, B */
-  if (dynamic) update_const_local_velocities (dom);
+  A->dat = create_constraints_data (dom, A->x->x); /* A->x initialized with con->R */
 
-  /* set up constraint pointers and initialize x */
-  for (con = dom->con, b = A->b->x, x = A->x->x; con; con = con->next)
+  /* since W and B changed U != W R + B; compute U = W R + B */
+  W_times_vector (dom->step, A, A->x->x, A->y->x);
+  for (dat = A->dat, end = dat + dom->ncon, u = A->y->x; dat != end; dat ++)
   {
-    n = x - A->x->x;
-    R = con->R;
+    double *Q = &u [dat->n], *B = dat->B, *U = dat->U;
 
-    CON_INDEX_SET (con, n);
-    CON_RHS_SET (con, b);
-    CON_X_SET (con, x);
-
-    switch (con->kind)
-    {
-    case CONTACT:
-    case FIXPNT:
-    case GLUE: COPY (R, x); b += 3; x += 3; break;
-    case FIXDIR:
-    case VELODIR: x [0] = R [2]; b += 1; x += 1; break;
-    case RIGLNK: x [0] = R [2]; b += 2; x += 2; break;
-    }
+    ADD (B, Q, U);
   }
-
-#if MPI
-  A->pattern = update_local_velocities (A);
-#endif
-
-  /* since W and B are new, we update U with old reactions: U = W R + B */
-  for (bod = dom->bod, r = A->r, u = A->u; bod; u += bod->dofs, bod = bod->next)
-  {
-    BODY_Reac (bod, r);
-    BODY_Invvec (step, bod, r, 0.0, u); /* would be velocity (***) */
-  }
-
-  update_local_velocities (A); /* U = W R, based on (***) */
-
-  for (con = dom->con; con; con = con->next)
-  {
-    B = con->dia->B;
-    U = con->U;
-
-    ACC (B, U); /* U = W R + B */
-  }
-
-  /* approximate diagonal W blocks */
-  approximate_diagobal_blocks (dom->con, A->W);
 
   return A;
 }
@@ -768,15 +622,21 @@ static BSS_DATA *create_data (DOM *dom)
 /* update linear system */
 static void update_system (BSS_DATA *A)
 {
-  short dynamic = A->dom->dynamic;
+  DOM *dom = A->dom;
+  short dynamic = dom->dynamic;
+  BSS_CON_DATA *dat, *end;
+  double *Abx = A->b->x, delta = A->delta;
 
-  for (CON *con = A->dom->con; con; con = con->next)
+  for (dat = A->dat, end = dat + dom->ncon; dat != end; dat ++)
   {
-    double *U = con->U,
-	   *V = con->dia->V,
-	   *b = CON_RHS (con);
+    double *U = dat->U,
+	   *R = dat->R,
+	   *V = dat->V,
+	   *W = dat->W,
+	   *T = dat->T,
+	   *b = &Abx [dat->n];
 
-    switch (con->kind)
+    switch (dat->kind)
     {
     case FIXPNT:
     case GLUE:
@@ -793,17 +653,35 @@ static void update_system (BSS_DATA *A)
 	b [1] = -U[1];
 	b [2] = -U[2];
       }
+
+      NNCOPY (W, T);
     }
     break;
     case FIXDIR:
     {
-      if (dynamic) b [0] = -V[2]-U[2];
-      else b [0] = -U[2];
+      b [0] = -R[0];
+      b [1] = -R[1];
+      if (dynamic) b [2] = -V[2]-U[2];
+      else b [2] = -U[2];
+
+      T [1] = T [3] = T [6] = T [7] = 0.0;
+      T [0] = T [4] = 1.0;
+      T [2] = W [2];
+      T [5] = W [5];
+      T [8] = W [8];
     }
     break;
     case VELODIR:
     {
-      b [0] = VELODIR(con->Z)-U[2];
+      b [0] = -R[0];
+      b [1] = -R[1];
+      b [2] = VELODIR(dat->con->Z)-U[2];
+
+      T [1] = T [3] = T [6] = T [7] = 0.0;
+      T [0] = T [4] = 1.0;
+      T [2] = W [2];
+      T [5] = W [5];
+      T [8] = W [8];
     }
     break;
     case RIGLNK:
@@ -813,15 +691,24 @@ static void update_system (BSS_DATA *A)
     break;
     case CONTACT:
     {
-      double *X = CONTACT_X (con),
-	     *Y = CONTACT_Y (con);
+      double *X = dat->X, *Y = dat->Y;
 
-      VIC_Linearize (con, SMOOTHING_EPSILON, b, X, Y);
+      VIC_Linearize (dat->con, SMOOTHING_EPSILON, b, X, Y);
 
       SCALE (b, -1.0);
+
+      NVMUL (W, X, T);
+      NNADD (T, Y, T);
     }
     break;
     }
+
+    T [0] += delta;
+    T [4] += delta;
+    T [8] += delta;
+
+    MX_DENSE_PTR (S, 3, 3, T);
+    MX_Inverse (&S, &S);
   }
 }
 
@@ -832,28 +719,13 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
   void *gmres_vdata;
   double abstol;
 
-#if 1
-  A->delta = A->resnorm / A->xnorm; /* sqrt (L-curve) */
-#else
-  A->delta = 0; /* FIXME */
-#endif
-
   abstol = resdec * A->resnorm;
 
-#if 1
   if (abstol == 0.0) /* initially */
   {
     abstol = ABSTOL * sqrt (InnerProd (A->b, A->b));
     if (abstol == 0.0) abstol = ABSTOL;
   }
-#else
-  abstol = 1E-10;
-  maxiter = 100;
-#endif
-
-#if 0
-  printf ("A->resnorm = %g, A->xnorm %g, A->delta = %g, abstol = %g\n", A->resnorm, A->xnorm, A->delta, abstol);
-#endif
 
   gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
     (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
@@ -870,80 +742,44 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
   hypre_FlexGMRESSetup (gmres_vdata, A, A->b, A->z);
   hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->z);
   hypre_FlexGMRESGetNumIterations (gmres_vdata , &A->iters);
-  hypre_FlexGMRESGetFinalRelativeResidualNorm (gmres_vdata, &A->resnorm);
   hypre_FlexGMRESDestroy (gmres_vdata);
 
-  A->resnorm *= sqrt (InnerProd (A->b, A->b)); /* relative = |Az-b|/|b| */ /* FIXME: compute yourself like in lin.c (seems to matter) */
-
-#if 1
-  {
-    VECTOR *r = CreateVector (A->b);
-    CopyVector (A->b, r);
-    A->delta = 0;
-    Matvec (NULL, -1, A, A->z, 1.0, r);
-    double resnorm = sqrt (InnerProd (r, r));
-    DestroyVector (r);
-    //printf ("resnorm from GMRES = %g and from hand computation = %g\n", A->resnorm, resnorm);
-    A->resnorm = resnorm;
-  }
-#endif
-
-  A->xnorm = sqrt (InnerProd (A->z, A->z));
+  A->delta = 0;
+  CopyVector (A->b, A->y);
+  Matvec (NULL, -1.0, A, A->z, 1.0, A->y);
+  A->resnorm = sqrt (InnerProd (A->y, A->y)); /* residual without regularisation (delta = 0) */
+  A->znorm = sqrt (InnerProd (A->z, A->z));
+  A->delta = A->resnorm / A->znorm; /* sqrt (L-curve) */
 }
 
 /* update solution */
 static void update_solution (BSS_DATA *A)
 {
-  double *B, *U, *R, *x, *r, *u, step;
+  double *R, *x, *u, *Axx = A->x->x;
+  BSS_CON_DATA *dat, *end;
   DOM *dom = A->dom;
-  BODY *bod;
-  CON *con;
-
-  step = dom->step;
 
   Axpy (1.0, A->z, A->x); /* x = x + dx */
 
-  for (con = dom->con; con; con = con->next)
+  for (dat = A->dat, end = dat + dom->ncon; dat != end; dat ++)
   {
-    x = CON_X (con);
-    R = con->R;
+    x = &Axx [dat->n];
+    R = dat->R;
 
-    switch (con->kind)
+    if (dat->kind == CONTACT)
     {
-    case CONTACT:
-    {
-      VIC_Project (con->mat.base->friction, x, R); /* project onto the friction cone */
+      VIC_Project (dat->con->mat.base->friction, x, R); /* project onto the friction cone */
     }
-    break;
-    case FIXPNT:
-    case GLUE:
-      COPY (x, R);
-      break;
-    case FIXDIR:
-    case VELODIR:
-    case RIGLNK:
-      R [2] = x [0];
-      break;
-    }
+    else COPY (x, R);
   }
 
-  /* FIXME: make sure that the last update from Matvec cannot be used instead */
-
-  /* update U = W R + B */
-  for (bod = dom->bod, r = A->r, u = A->u; bod; u += bod->dofs, bod = bod->next)
+  /* compute U = W R + B */
+  W_times_vector (dom->step, A, Axx, A->y->x);
+  for (dat = A->dat, end = dat + dom->ncon, u = A->y->x; dat != end; dat ++)
   {
-    BODY_Reac (bod, r);
-    BODY_Invvec (step, bod, r, 0.0, u); /* would be velocity (***) */
-  }
+    double *Q = &u [dat->n], *B = dat->B, *U = dat->U;
 
-  update_local_velocities (A); /* U = W R, based on (***) */
-
-  for (con = dom->con; con; con = con->next)
-  {
-    B = con->dia->B;
-    U = con->U;
-
-    ACC (B, U); /* U = W R + B */
+    ADD (B, Q, U);
   }
 }
 
@@ -997,19 +833,13 @@ static double merit_function (BSS_DATA *A)
 /* destroy BSS data */
 static void destroy_data (BSS_DATA *A)
 {
+  destroy_constraints_data (A->dat, A->dom->ncon);
   DestroyVector (A->b);
   DestroyVector (A->x);
+  DestroyVector (A->y);
   DestroyVector (A->z);
   free (A->r);
   free (A->u);
-  free (A->W);
-
-#if MPI
-  MEM_Release (&A->mem);
-  free (A->send);
-  free (A->recv);
-#endif
-
   free (A);
 }
 
