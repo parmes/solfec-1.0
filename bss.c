@@ -62,7 +62,8 @@ struct bss_con_data
 	 *A, /* con->dia->A */
 	  X [9],
 	  Y [9],
-	  T [9];
+	  T [9],
+	  RE [3];
 
   short kind; /* con->kind */
 
@@ -118,7 +119,7 @@ static void H_trans_vector (BSS_CON_DATA *dat, int n, double *x, double *y)
     double *p = &x [dat->n],
 	   *q = &y [dat->mi];
 
-    MX_Matvec (1.0, MX_Tran (dat->mH), p, 0.0, q);
+    MX_Matvec (1.0, MX_Tran (dat->mH), p, 1.0, q);
 
     if (dat->sH)
     {
@@ -137,7 +138,7 @@ static void H_times_vector (BSS_CON_DATA *dat, int n, double *x, double *y)
     double *p = &x [dat->mi],
 	   *q = &y [dat->n];
 
-    MX_Matvec (1.0, dat->mH, p, 0.0, q);
+    MX_Matvec (1.0, dat->mH, p, 1.0, q);
 
     if (dat->sH)
     {
@@ -535,13 +536,13 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
     if (s)
     {
       dat->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
-      dat->mi = (int) (long) MAP_Find (map, s, NULL);
+      dat->si = (int) (long) MAP_Find (map, s, NULL);
       MX_Scale (dat->sH, -1.0);
 
       if (up)
       {
 	prod = MX_Matmat (1.0, s->inverse, MX_Tran (dat->sH), 0.0, NULL);
-	MX_Matmat (step, dat->sH, prod, 1.0, &A); /* H * inv (M) * H^T */
+	MX_Matmat (step, dat->sH, prod, 1.0, &W); /* H * inv (M) * H^T */
 	MX_Destroy (prod);
       }
     }
@@ -586,9 +587,7 @@ static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
 /* create BSS data */
 static BSS_DATA *create_data (DOM *dom)
 {
-  BSS_CON_DATA *dat, *end;
   BSS_DATA *A;
-  double *u;
   BODY *bod;
 
   update_V_and_B (dom);
@@ -607,34 +606,37 @@ static BSS_DATA *create_data (DOM *dom)
 
   A->dat = create_constraints_data (dom, A->x->x); /* A->x initialized with con->R */
 
-  /* since W and B changed U != W R + B; compute U = W R + B */
-  W_times_vector (dom->step, A, A->x->x, A->y->x);
-  for (dat = A->dat, end = dat + dom->ncon, u = A->y->x; dat != end; dat ++)
-  {
-    double *Q = &u [dat->n], *B = dat->B, *U = dat->U;
-
-    ADD (B, Q, U);
-  }
-
   return A;
 }
 
 /* update linear system */
 static void update_system (BSS_DATA *A)
 {
+  double *Abx = A->b->x, *Axx = A->x->x, *Ayx = A->y->x, delta = A->delta;
   DOM *dom = A->dom;
   short dynamic = dom->dynamic;
   BSS_CON_DATA *dat, *end;
-  double *Abx = A->b->x, delta = A->delta;
 
+
+  /* residual = W R + B - U */
+  W_times_vector (dom->step, A, Axx, Ayx);
   for (dat = A->dat, end = dat + dom->ncon; dat != end; dat ++)
+  {
+    double *Q = &Ayx [dat->n], *B = dat->B, *U = dat->U, *RE = dat->RE;
+
+    ACC (B, Q);
+    SUB (Q, U, RE);
+  }
+
+  for (dat = A->dat; dat != end; dat ++)
   {
     double *U = dat->U,
 	   *R = dat->R,
 	   *V = dat->V,
 	   *W = dat->W,
 	   *T = dat->T,
-	   *b = &Abx [dat->n];
+	   *b = &Abx [dat->n],
+	   *RE = &Ayx [dat->n];
 
     switch (dat->kind)
     {
@@ -643,15 +645,15 @@ static void update_system (BSS_DATA *A)
     {
       if (dynamic)
       {
-	b [0] = -V[0]-U[0];
-	b [1] = -V[1]-U[1];
-	b [2] = -V[2]-U[2];
+	b [0] = -V[0]-U[0]-RE[0];
+	b [1] = -V[1]-U[1]-RE[1];
+	b [2] = -V[2]-U[2]-RE[2];
       }
       else
       {
-	b [0] = -U[0];
-	b [1] = -U[1];
-	b [2] = -U[2];
+	b [0] = -U[0]-RE[0];
+	b [1] = -U[1]-RE[1];
+	b [2] = -U[2]-RE[2];
       }
 
       NNCOPY (W, T);
@@ -661,8 +663,8 @@ static void update_system (BSS_DATA *A)
     {
       b [0] = -R[0];
       b [1] = -R[1];
-      if (dynamic) b [2] = -V[2]-U[2];
-      else b [2] = -U[2];
+      if (dynamic) b [2] = -V[2]-U[2]-RE[2];
+      else b [2] = -U[2]-RE[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -675,7 +677,7 @@ static void update_system (BSS_DATA *A)
     {
       b [0] = -R[0];
       b [1] = -R[1];
-      b [2] = VELODIR(dat->con->Z)-U[2];
+      b [2] = VELODIR(dat->con->Z)-U[2]-RE[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -691,13 +693,14 @@ static void update_system (BSS_DATA *A)
     break;
     case CONTACT:
     {
-      double *X = dat->X, *Y = dat->Y;
+      double *X = dat->X, *Y = dat->Y, G [3];
 
-      VIC_Linearize (dat->con, SMOOTHING_EPSILON, b, X, Y);
+      VIC_Linearize (dat->con, SMOOTHING_EPSILON, G, X, Y);
 
+      NVADDMUL (G, X, RE, b);
       SCALE (b, -1.0);
 
-      NVMUL (W, X, T);
+      NNMUL (X, W, T);
       NNADD (T, Y, T);
     }
     break;
@@ -745,9 +748,8 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
   hypre_FlexGMRESDestroy (gmres_vdata);
 
   A->delta = 0;
-  CopyVector (A->b, A->y);
-  Matvec (NULL, -1.0, A, A->z, 1.0, A->y);
-  A->resnorm = sqrt (InnerProd (A->y, A->y)); /* residual without regularisation (delta = 0) */
+  Matvec (NULL, -1.0, A, A->z, 1.0, A->b);
+  A->resnorm = sqrt (InnerProd (A->b, A->b)); /* residual without regularisation (delta = 0) */
   A->znorm = sqrt (InnerProd (A->z, A->z));
   A->delta = A->resnorm / A->znorm; /* sqrt (L-curve) */
 }
@@ -755,31 +757,35 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
 /* update solution */
 static void update_solution (BSS_DATA *A)
 {
-  double *R, *x, *u, *Axx = A->x->x;
+  double S [3], *R, *x, *z, *Azx = A->z->x, *Ayx = A->y->x, *Axx = A->x->x;
   BSS_CON_DATA *dat, *end;
   DOM *dom = A->dom;
-
-  Axpy (1.0, A->z, A->x); /* x = x + dx */
 
   for (dat = A->dat, end = dat + dom->ncon; dat != end; dat ++)
   {
     x = &Axx [dat->n];
+    z = &Azx [dat->n];
     R = dat->R;
 
     if (dat->kind == CONTACT)
     {
-      VIC_Project (dat->con->mat.base->friction, x, R); /* project onto the friction cone */
+      ADD (x, z, S);
+      VIC_Project (dat->con->mat.base->friction, S, S); /* project onto the friction cone */
+      SUB (S, x, z);
     }
-    else COPY (x, R);
+
+    ACC (z, x); /* R = R + dR */
+    COPY (x, R);
   }
 
-  /* compute U = W R + B */
-  W_times_vector (dom->step, A, Axx, A->y->x);
-  for (dat = A->dat, end = dat + dom->ncon, u = A->y->x; dat != end; dat ++)
+  /* dU = W dR, U = U + dU */
+  W_times_vector (dom->step, A, Azx, Ayx);
+  for (dat = A->dat; dat != end; dat ++)
   {
-    double *Q = &u [dat->n], *B = dat->B, *U = dat->U;
+    double *dU = &Ayx [dat->n], *U = dat->U, *RE = dat->RE;
 
-    ADD (B, Q, U);
+    ACC (dU, U);
+    ACC (RE, U);
   }
 }
 
