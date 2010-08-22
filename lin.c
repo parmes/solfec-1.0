@@ -39,12 +39,9 @@
 #endif
 
 #define DUMP                    0      /* FIXME: debug dump */
-#define DIFF_FACTOR             1E-10  /* TODO: test sensitivity */
 #define EPSILON_BASE            1E-10  /* TODO: -||- */
 #define EPSILON_FACTOR          1E-6   /* TODO: -||- */
 #define ABSTOL_BASE             1E-15  /* TODO: -||- */ 
-#define SMOOTHING               1      /* TODO: -||- */
-#define DISABLE_NORM_SMOOTHING  1      /* TODO: -||- */
 #define BLOCKS         256
 
 /* timers */
