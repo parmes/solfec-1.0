@@ -116,10 +116,14 @@ static void H_trans_vector (BSS_CON_DATA *dat, int n, double *x, double *y)
 {
   for (; n > 0; dat ++, n --)
   {
-    double *p = &x [dat->n],
-	   *q = &y [dat->mi];
+    double *p = &x [dat->n], *q;
 
-    MX_Matvec (1.0, MX_Tran (dat->mH), p, 1.0, q);
+    if (dat->mH)
+    {
+      q = &y [dat->mi];
+
+      MX_Matvec (1.0, MX_Tran (dat->mH), p, 1.0, q);
+    }
 
     if (dat->sH)
     {
@@ -135,10 +139,14 @@ static void H_times_vector (BSS_CON_DATA *dat, int n, double *x, double *y)
 {
   for (; n > 0; dat ++, n --)
   {
-    double *p = &x [dat->mi],
-	   *q = &y [dat->n];
+    double *p, *q = &y [dat->n];
 
-    MX_Matvec (1.0, dat->mH, p, 1.0, q);
+    if (dat->mH)
+    {
+      p = &x [dat->mi];
+
+      MX_Matvec (1.0, dat->mH, p, 1.0, q);
+    }
 
     if (dat->sH)
     {
@@ -307,18 +315,18 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
   DOM *dom = A->dom;
   int n = dom->ncon;
 
-  W_times_vector (alpha * dom->step, A, x->x, A->y->x); /* dU = alpha h W dR */
+  W_times_vector (dom->step, A, x->x, A->y->x); /* dU = h W dR */
 
-  for (u = A->y->x, q = y->x, r = x->x; n > 0; dat ++, n --)
+  for (u = A->y->x, r = x->x, q = y->x; n > 0; dat ++, n --)
   {
     U = &u [dat->n];
-    Q = &q [dat->n];
     R = &r [dat->n];
+    Q = &q [dat->n];
 
     if (dat->kind == VELODIR || dat->kind == FIXDIR)
     {
-      Z [0] = R [0] * alpha;
-      Z [1] = R [1] * alpha;
+      Z [0] = R [0];
+      Z [1] = R [1];
       Z [2] = U [2];
 
       U = Z;
@@ -329,12 +337,13 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
       Y = dat->Y;
 
       NVMUL (X, U, Z);
-      NVADDMUL (Z, Y, R, Z);  /* Z = X dU + Y *dR */
+      NVADDMUL (Z, Y, R, Z);  /* Z = X dU + Y dR */
 
       U = Z;
     }
 
-    ADDMUL (U, beta, Q, Q); 
+    SCALE (Q, beta);
+    ADDMUL (Q, alpha, U, Q)
   }
 
   if (A->delta > 0.0) Axpy (alpha * A->delta, x, y);
@@ -514,8 +523,10 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
 	   *base = con->base;
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE_PTR (A, 3, 3, dia->A);
-    short up = dia->W[8] == 0.0;
+    short up = dia->W[8] == 0.0; //FIXME: update every few times
     MX *prod;
+
+    ASSERT_DEBUG (con->gap <= 0.0, "Invalid gap"); // FIXME: eliminate these in the dynamic case
 
     if (s)
     {
@@ -523,17 +534,20 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
       sshp = sshp(con);
     }
 
-    dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
-    dat->mi = (int) (long) MAP_Find (map, m, NULL);
-
-    if (up)
+    if (m->kind != OBS)
     {
-      prod = MX_Matmat (1.0, m->inverse, MX_Tran (dat->mH), 0.0, NULL);
-      MX_Matmat (step, dat->mH, prod, 0.0, &W); /* H * inv (M) * H^T */
-      MX_Destroy (prod);
+      dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+      dat->mi = (int) (long) MAP_Find (map, m, NULL);
+
+      if (up)
+      {
+	prod = MX_Matmat (1.0, m->inverse, MX_Tran (dat->mH), 0.0, NULL);
+	MX_Matmat (step, dat->mH, prod, 0.0, &W); /* H * inv (M) * H^T */
+	MX_Destroy (prod);
+      }
     }
 
-    if (s)
+    if (s && s->kind != OBS)
     {
       dat->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
       dat->si = (int) (long) MAP_Find (map, s, NULL);
@@ -577,7 +591,7 @@ static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
 
   for (; n > 0; dat ++, n --)
   {
-    MX_Destroy (dat->mH);
+    if (dat->mH) MX_Destroy (dat->mH);
     if (dat->sH) MX_Destroy (dat->sH);
   }
 
@@ -617,7 +631,6 @@ static void update_system (BSS_DATA *A)
   short dynamic = dom->dynamic;
   BSS_CON_DATA *dat, *end;
 
-
   /* residual = W R + B - U */
   W_times_vector (dom->step, A, Axx, Ayx);
   for (dat = A->dat, end = dat + dom->ncon; dat != end; dat ++)
@@ -635,8 +648,8 @@ static void update_system (BSS_DATA *A)
 	   *V = dat->V,
 	   *W = dat->W,
 	   *T = dat->T,
-	   *b = &Abx [dat->n],
-	   *RE = &Ayx [dat->n];
+	   *RE = dat->RE,
+	   *b = &Abx [dat->n];
 
     switch (dat->kind)
     {
