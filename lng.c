@@ -3437,6 +3437,84 @@ static void lng_BODY_SPACE_SOLVER_dealloc (lng_BODY_SPACE_SOLVER *self)
   self->ob_type->tp_free ((PyObject*)self);
 }
 
+static PyObject* lng_BODY_SPACE_SOLVER_get_maxiter (lng_BODY_SPACE_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->bs->maxiter);
+}
+
+static int lng_BODY_SPACE_SOLVER_set_maxiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "maxiter")) return -1;
+  self->bs->maxiter = PyInt_AsLong (value);
+  return 0;
+}
+
+static PyObject* lng_BODY_SPACE_SOLVER_get_meritval (lng_BODY_SPACE_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->bs->meritval);
+}
+
+static int lng_BODY_SPACE_SOLVER_set_meritval (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "meritval")) return -1;
+  self->bs->meritval = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_BODY_SPACE_SOLVER_get_linminiter (lng_BODY_SPACE_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->bs->linminiter);
+}
+
+static int lng_BODY_SPACE_SOLVER_set_linminiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "linminiter")) return -1;
+  self->bs->linminiter = PyInt_AsLong (value);
+  return 0;
+}
+
+static PyObject* lng_BODY_SPACE_SOLVER_get_resdec (lng_BODY_SPACE_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->bs->resdec);
+}
+
+static int lng_BODY_SPACE_SOLVER_set_resdec (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number (value, "resdec")) return -1;
+  self->bs->resdec = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_BODY_SPACE_SOLVER_get_merhist (lng_BODY_SPACE_SOLVER *self, void *closure)
+{
+  PyObject *list;
+  int i;
+
+  ERRMEM (list = PyList_New (self->bs->iters));
+
+  for (i = 0; i < self->bs->iters; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->bs->merhist [i]));
+
+  return list;
+}
+
+static int lng_BODY_SPACE_SOLVER_set_merhist (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_BODY_SPACE_SOLVER_get_iters (lng_BODY_SPACE_SOLVER *self, void *closure)
+{
+  return PyInt_FromLong (self->bs->iters);
+}
+
+static int lng_BODY_SPACE_SOLVER_set_iters (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* BODY_SPACE_SOLVER methods */
 static PyMethodDef lng_BODY_SPACE_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3447,7 +3525,15 @@ static PyMemberDef lng_BODY_SPACE_SOLVER_members [] =
 
 /* BODY_SPACE_SOLVER getset */
 static PyGetSetDef lng_BODY_SPACE_SOLVER_getset [] =
-{ {NULL, 0, 0, NULL, NULL} };
+{ 
+  {"meritval", (getter)lng_BODY_SPACE_SOLVER_get_meritval, (setter)lng_BODY_SPACE_SOLVER_set_meritval, "merit function accuracy", NULL},
+  {"maxiter", (getter)lng_BODY_SPACE_SOLVER_get_maxiter, (setter)lng_BODY_SPACE_SOLVER_set_maxiter, "iterations bound", NULL},
+  {"linminiter", (getter)lng_BODY_SPACE_SOLVER_get_linminiter, (setter)lng_BODY_SPACE_SOLVER_set_linminiter, "linear solver minimal iterations count", NULL},
+  {"resdec", (getter)lng_BODY_SPACE_SOLVER_get_resdec, (setter)lng_BODY_SPACE_SOLVER_set_resdec, "linear solver residual decrease factor", NULL},
+  {"merhist", (getter)lng_BODY_SPACE_SOLVER_get_merhist, (setter)lng_BODY_SPACE_SOLVER_set_merhist, "merit function history", NULL},
+  {"iters", (getter)lng_BODY_SPACE_SOLVER_get_iters, (setter)lng_BODY_SPACE_SOLVER_set_iters, "iterations count", NULL},
+  {NULL, 0, 0, NULL, NULL}
+};
 
 /*
  * CONSTRAINT => object
