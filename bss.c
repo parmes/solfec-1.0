@@ -30,6 +30,7 @@
 #include "lap.h"
 #include "err.h"
 #include "vic.h"
+#include "mrf.h"
 #include "ext/krylov/krylov.h"
 
 #if MPI
@@ -73,9 +74,10 @@ struct bss_con_data
 struct bss_data
 {
   int nprimal, /* SUM [bod in dom->bod] { bod->dofs } */ 
-      ndual; /* 3 * dom->ncon */
+      ndual, /* 3 * ndat */
+      ndat; /* number of active constraints */
 
-  BSS_CON_DATA *dat; /* constraints data of dom->ncon */
+  BSS_CON_DATA *dat; /* active constraints data */
 
   VECTOR *b, /* right hand side (of size ndual) */
          *x, /* reactions (-||-) */
@@ -163,11 +165,16 @@ static void W_times_vector (double alpha, BSS_DATA *A, double *x, double *y)
   double *r = A->r, *u = A->u;
   BSS_CON_DATA *dat = A->dat;
   DOM *dom = A->dom;
-  int n = dom->ncon;
+  int n = A->ndat;
   BODY *bod;
 
   SETN (r, A->nprimal, 0.0);
   H_trans_vector (dat, n, x, r);
+
+#if MPI
+  /* TODO: send x to external reactions
+   * TODO: sum up external reaction contributions into r */
+#endif
 
   for (bod = dom->bod; bod; r += bod->dofs, u += bod->dofs, bod = bod->next)
   {
@@ -176,6 +183,12 @@ static void W_times_vector (double alpha, BSS_DATA *A, double *x, double *y)
 
   SETN (y, A->ndual, 0.0);
   H_times_vector (dat, n, A->u, y);
+
+#if MPI
+  /* TODO: compute local velocities needed by constraints established by child bodies
+   * TODO: and send them from parent to local constraints => into y */
+#endif
+
 }
 
 /* GMRES interface start */
@@ -313,7 +326,7 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
   double Z [3], *Y, *X, *R, *U, *Q, *u, *q, *r;
   BSS_CON_DATA *dat = A->dat;
   DOM *dom = A->dom;
-  int n = dom->ncon;
+  int n = A->ndat;
 
   W_times_vector (dom->step, A, x->x, A->y->x); /* dU = h W dR */
 
@@ -341,6 +354,10 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
 
       U = Z;
     }
+    else if (dat->kind == RIGLNK)
+    {
+      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    }
 
     SCALE (Q, beta);
     ADDMUL (Q, alpha, U, Q)
@@ -366,7 +383,7 @@ static int Precond (void *vdata, BSS_DATA *A, VECTOR *b, VECTOR *x)
   BSS_CON_DATA *dat, *end;
   double *T, *p, *q;
 
-  for (dat = A->dat, end = dat + A->dom->ncon; dat != end; dat ++)
+  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
     p = &b->x[dat->n];
     q = &x->x[dat->n];
@@ -492,25 +509,33 @@ static void update_V_and_B (DOM *dom)
 }
 
 /* create constraints data */
-static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
+static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, double *free_energy)
 {
   BSS_CON_DATA *out, *dat;
-  double step;
+  double step, *x;
+  short dynamic;
   BODY *bod;
   CON *con;
   MAP *map;
   int n;
 
+  dynamic = dom->dynamic;
+  (*free_energy) = 0.0;
+
   ERRMEM (out = MEM_CALLOC (dom->ncon * sizeof (BSS_CON_DATA)));
+  (*v) = newvector (dom->ncon * 3);
   step = dom->step;
+  x = (*v)->x;
 
   for (bod = dom->bod, map = NULL, n = 0; bod; n += bod->dofs, bod = bod->next)
   {
     MAP_Insert (NULL, &map, bod, (void*) (long) n, NULL);
   }
 
-  for (con = dom->con, dat = out, n = 0; con; con = con->next, dat ++, n += 3, x += 3)
+  for (con = dom->con, dat = out, n = 0; con; con = con->next)
   {
+    if (dynamic && con->kind == CONTACT && con->gap > 0.0) continue; /* skip open dynamic contacts */
+
     DIAB *dia = con->dia;
     BODY *m = con->master,
 	 *s = con->slave;
@@ -520,19 +545,23 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
 	  *sshp;
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
-	   *base = con->base;
+	   *base = con->base,
+	   *B = dia->B,
+	    X [3];
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE_PTR (A, 3, 3, dia->A);
     short up = dia->W[8] == 0.0; //FIXME: update every few times
     MX *prod;
-
-    ASSERT_DEBUG (con->gap <= 0.0, "Invalid gap"); // FIXME: eliminate these in the dynamic case
 
     if (s)
     {
       sgobj = sgobj(con);
       sshp = sshp(con);
     }
+
+#if MPI
+    /* TODO: if master is a child body then dat->mH is NULL */
+#endif
 
     if (m->kind != OBS)
     {
@@ -546,6 +575,10 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
 	MX_Destroy (prod);
       }
     }
+
+#if MPI
+    /* TODO: if slave is a child body then dat->sH is NULL */
+#endif
 
     if (s && s->kind != OBS)
     {
@@ -567,6 +600,12 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
       MX_Inverse (&A, &A);
     }
 
+    NVMUL (A.x, B, X);
+    (*free_energy) += DOT (X, B); /* sum up free energy */
+
+    /* add up prescribed velocity contribution */
+    if (con->kind == VELODIR) (*free_energy) += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
+
     dat->n = n;
     dat->R = con->R;
     dat->U = con->U;
@@ -578,7 +617,15 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, double *x)
     dat->con = con;
 
     COPY (dat->R, x); /* initialize with previous solution */
+
+    dat ++;
+    n += 3;
+    x += 3;
   }
+
+  (*free_energy) *= 0.5;
+  (*ndat) = n / 3;
+  (*v)->n = n;
 
   MAP_Free (NULL, &map);
 
@@ -610,15 +657,13 @@ static BSS_DATA *create_data (DOM *dom)
   A->znorm = 1.0;
   A->dom = dom;
   for (bod = dom->bod; bod; bod = bod->next) A->nprimal += bod->dofs;
-  A->ndual = dom->ncon * 3;
+  A->dat = create_constraints_data (dom, &A->ndat, &A->x, &dom->ldy->free_energy); /* A->x initialized with con->R */
+  A->ndual = A->ndat * 3;
   A->b = newvector (A->ndual);
-  A->x = newvector (A->ndual);
   A->y = newvector (A->ndual);
   A->z = newvector (A->ndual);
   ERRMEM (A->r = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
-
-  A->dat = create_constraints_data (dom, A->x->x); /* A->x initialized with con->R */
 
   return A;
 }
@@ -633,12 +678,12 @@ static void update_system (BSS_DATA *A)
 
   /* residual = W R + B - U */
   W_times_vector (dom->step, A, Axx, Ayx);
-  for (dat = A->dat, end = dat + dom->ncon; dat != end; dat ++)
+  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
     double *Q = &Ayx [dat->n], *B = dat->B, *U = dat->U, *RE = dat->RE;
 
     ACC (B, Q);
-    SUB (Q, U, RE);
+    SUB (Q, U, RE); /* TODO: experiment with lack of residual, but updated first U = WR + B instead */
   }
 
   for (dat = A->dat; dat != end; dat ++)
@@ -774,7 +819,7 @@ static void update_solution (BSS_DATA *A)
   BSS_CON_DATA *dat, *end;
   DOM *dom = A->dom;
 
-  for (dat = A->dat, end = dat + dom->ncon; dat != end; dat ++)
+  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
     x = &Axx [dat->n];
     z = &Azx [dat->n];
@@ -798,61 +843,14 @@ static void update_solution (BSS_DATA *A)
     double *dU = &Ayx [dat->n], *U = dat->U, *RE = dat->RE;
 
     ACC (dU, U);
-    ACC (RE, U);
+    ACC (RE, U); /* TODO: update U using total reaction rather then the increment and residual */
   }
-}
-
-/* compute merit function value */
-static double merit_function (BSS_DATA *A)
-{
-  double G [3], *U, *V, dot;
-  DOM *dom = A->dom;
-  short dynamic = dom->dynamic;
-  CON *con;
-
-  for (dot = 0, con = dom->con; con; con = con->next)
-  {
-    V = con->dia->V;
-    U = con->U;
-
-    switch (con->kind)
-    {
-    case FIXPNT:
-    case GLUE:
-      if (dynamic) { ADD (U, V, G); }
-      else { COPY (U, G); }
-      dot += DOT (G, G);
-      break;
-    case FIXDIR:
-      if (dynamic) G [0] = U[2] - V[2];
-      else G [0] = U[2];
-      dot += G[0]*G[0];
-      break;
-    case VELODIR:
-      G [0] = VELODIR(con->Z) - U[2];
-      dot += G[0]*G[0];
-      break;
-    case RIGLNK:
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-      break;
-    case CONTACT:
-      VIC_Linearize (con, 0, G, NULL, NULL);
-      dot += DOT (G, G);
-      break;
-    }
-  }
-
-#if MPI
-  /* TODO: sum up dots in parallel */
-#endif
-
-  return sqrt (dot);
 }
 
 /* destroy BSS data */
 static void destroy_data (BSS_DATA *A)
 {
-  destroy_constraints_data (A->dat, A->dom->ncon);
+  destroy_constraints_data (A->dat, A->ndat);
   DestroyVector (A->b);
   DestroyVector (A->x);
   DestroyVector (A->y);
@@ -902,7 +900,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 
     update_solution (A);
 
-    *merit = merit_function (A);
+    *merit = MERIT_Function (ldy, 0);
 
     bs->merhist [bs->iters] = *merit;
 
