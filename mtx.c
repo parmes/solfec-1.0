@@ -1178,7 +1178,7 @@ static MX* matmat_csc_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 
   if (beta != 0.0 && c)
   {
-    add_csc_csc (alpha, d, beta, c, c);
+    MX_Add (alpha, d, beta, c, c);
     cs_spfree (d);
   }
   else if (c)
