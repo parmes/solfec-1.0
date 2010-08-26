@@ -9,7 +9,7 @@ step = 1E-3
 stop = 0.1
 outfrq = step
 kinem = 'PSEUDO_RIGID'
-solver = 'GAUSS_SEIDEL'
+solver = 'BODY_SPACE'
 scheme = 'DEFAULT'
 shake = 'TRUE'
 plotconv = 1
@@ -25,6 +25,7 @@ else:
 
 if solver == 'GAUSS_SEIDEL': solstr = 'gs'
 elif solver == 'NEWTON': solstr = 'nt'
+elif solver == 'BODY_SPACE': solstr = 'bs'
 elif solver == 'PENALTY': solstr = 'pn'
 else:
   print 'Uknown solver'
@@ -46,6 +47,9 @@ if solver == 'GAUSS_SEIDEL':
   sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-5, diagsolver = 'PROJECTED_GRADIENT')
 elif solver == 'NEWTON':
   sv = NEWTON_SOLVER (1E-5, 20)
+elif solver == 'BODY_SPACE':
+  sv = BODY_SPACE_SOLVER (1E-5, 20)
+  sv.resdec = 0.5
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 
