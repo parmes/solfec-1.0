@@ -2705,6 +2705,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom, SOLVER_KIND solver)
 
   SOLFEC_Timer_Start (dom->solfec, "TIMINT");
 
+  /* set solver */
+  dom->solver = solver;
+
   /* time and step */
   time = dom->time;
   step = dom->step;

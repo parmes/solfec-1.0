@@ -806,7 +806,7 @@ MESH* MESH_Copy (MESH *msh)
 
   /* initialise space */
   MEM_Init (&mapmem, sizeof (MAP), msh->surfeles_count + msh->bulkeles_count);
-  ERRMEM (ret = malloc (sizeof (MESH)));
+  ERRMEM (ret = MEM_CALLOC (sizeof (MESH)));
   MEM_Init (&ret->elemem, sizeof (ELEMENT), msh->surfeles_count + msh->bulkeles_count);
   ret->surfeles_count = msh->surfeles_count;
   ret->bulkeles_count = msh->bulkeles_count;
@@ -875,6 +875,16 @@ MESH* MESH_Copy (MESH *msh)
   {
     for (n = 0; n < ele->neighs; n ++)
       ele->adj [n] = MAP_Find (map, ele->adj [n], NULL);
+  }
+
+  /* create mesh face list */
+  for (ele = ret->surfeles; ele; ele = ele->next)
+  {
+    for (fac = ele->faces; fac; fac = fac->next)
+    {
+      fac->n = ret->faces;
+      ret->faces = fac;
+    }
   }
 
   MEM_Release (&mapmem);

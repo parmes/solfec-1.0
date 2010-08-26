@@ -235,6 +235,8 @@ struct domain
 
   double merit; /* most recent constraints satisfaction merit function value */
 
+  SOLVER_KIND solver; /* currently used solver */
+
 #if MPI
   int rank; /* communicator rank */
   int ncpu; /* cummunicator size */

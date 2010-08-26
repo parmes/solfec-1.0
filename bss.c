@@ -48,10 +48,12 @@ typedef struct vector VECTOR;
 struct bss_con_data
 {
   MX *mH; /* master H */
-  int mi; /* shift to mH in global velocity space */
+  int mi, /* shift to mH in global velocity space */
+     *mj; /* index mapping for mH converted by csc_to_dense () */
 
   MX *sH;
-  int si;
+  int si,
+     *sj;
 
   int n; /* constraint index */
 
@@ -61,10 +63,10 @@ struct bss_con_data
 	 *B, /* con->dia->B */
 	 *W, /* con->dia->W */
 	 *A, /* con->dia->A */
-	  X [9],
-	  Y [9],
-	  T [9],
-	  RE [3];
+	  X [9], /* U-linearization */
+	  Y [9], /* R-linearization */
+	  T [9], /* diagonal preconditioner */
+	  S [3]; /* S = W R + B - U */
 
   short kind; /* con->kind */
 
@@ -86,6 +88,7 @@ struct bss_data
 
   double *r, /* global reaction (of size nprimal) */
 	 *u, /* global velocity (-||-) */
+	 *a, /* auxiliary vector (of size MAX [bod in bod->dom] { bod->dofs }) */
           resnorm, /* |A z - b| */
 	  znorm, /* |z| */
 	  delta; /* regularisation = |A z - b| / |z| */
@@ -102,6 +105,7 @@ struct vector
   int n;
 };
 
+/* allocate vector */
 static VECTOR* newvector (int n)
 {
   VECTOR *v;
@@ -113,63 +117,145 @@ static VECTOR* newvector (int n)
   return v;
 }
 
+/* convert a sparse matrix into a dense one */
+static MX* csc_to_dense (MX *a, int **map)
+{
+  int n, m, *i, *k, *p, *q, *f, *g;
+  double *ax, *bx;
+  MX *b;
+
+  ERRMEM (f = MEM_CALLOC (sizeof (int [a->n]))); /* nonempty column flags */
+  
+  for (n = 0, m = a->m, p = a->p, q = p + a->n, ax = a->x, g = f; p < q; p ++, g ++)
+  {
+    if (*p < *(p+1)) /* if column is nonempty */
+    {
+      for (i = &a->i [*p], k = &a->i [*(p+1)]; i < k; i ++, ax ++)
+      {
+	if (*ax != 0.0) (*g) ++; /* and it really is */
+      }
+
+      if (*g > 0) n ++; /* account for it */
+    }
+  }
+
+  b = MX_Create (MXDENSE, m, n, NULL, NULL);
+  ERRMEM ((*map) = MEM_CALLOC (sizeof (int [n])));
+
+  for (n = 0, p = a->p, bx = b->x, g = f; p < q; p ++, g ++)
+  {
+    if (*g > 0)  /* for each nonempty column */
+    {
+      for (i = &a->i [*p], k = &a->i [*(p+1)], ax = &a->x [*p]; i < k; i ++, ax ++)
+      {
+	bx [*i] = *ax; /* write it into dense storage */
+      }
+      
+      (*map) [n] = p - a->p; /* map dense blocks to body-dofs indices */
+      bx += m, n ++; /* next dense column */
+    }
+  }
+
+  MX_Destroy (a);
+  free (f);
+
+  return b;
+}
+
+/* scatter and add to sparse vector */
+inline static void scatter (double *a, int *j, int n, double *q)
+{
+  if (j)
+  {
+    for (int *k = j + n; j < k; j ++, a ++) q [*j] += *a;
+  }
+}
+
+/* gather values of sparse vector */
+inline static double* gather (double *q, int *j, int n, double *a)
+{
+  if (j)
+  {
+    for (int *k = j + n; j < k; j ++, a ++) *a = q [*j];
+
+    return (a-n);
+  }
+
+  return q;
+}
+
 /* y = H' x */
-static void H_trans_vector (BSS_CON_DATA *dat, int n, double *x, double *y)
+static void H_trans_vector (double *a, BSS_CON_DATA *dat, int n, double *x, double *y)
 {
   for (; n > 0; dat ++, n --)
   {
-    double *p = &x [dat->n], *q;
+    double *p = &x [dat->n], *q, *r, c;
 
     if (dat->mH)
     {
       q = &y [dat->mi];
 
-      MX_Matvec (1.0, MX_Tran (dat->mH), p, 1.0, q);
+      if (dat->mj) c = 0.0, r = a;
+      else c = 1.0, r = q;
+
+      MX_Matvec (1.0, MX_Tran (dat->mH), p, c, r);
+
+      scatter (r, dat->mj, dat->mH->n, q);
     }
 
     if (dat->sH)
     {
       q = &y [dat->si];
 
-      MX_Matvec (1.0, MX_Tran (dat->sH), p, 1.0, q);
+      if (dat->sj) c = 0.0, r = a;
+      else c = 1.0, r = q;
+
+      MX_Matvec (1.0, MX_Tran (dat->sH), p, c, r);
+
+      scatter (r, dat->sj, dat->sH->n, q);
     }
   }
 }
 
 /* y = H' x */
-static void H_times_vector (BSS_CON_DATA *dat, int n, double *x, double *y)
+static void H_times_vector (double *a, BSS_CON_DATA *dat, int n, double *x, double *y)
 {
   for (; n > 0; dat ++, n --)
   {
-    double *p, *q = &y [dat->n];
+    double *p, *q = &y [dat->n], *r;
 
     if (dat->mH)
     {
       p = &x [dat->mi];
 
-      MX_Matvec (1.0, dat->mH, p, 1.0, q);
+      r = gather (p, dat->mj, dat->mH->n, a);
+
+      MX_Matvec (1.0, dat->mH, r, 1.0, q);
     }
 
     if (dat->sH)
     {
       p = &x [dat->si];
 
-      MX_Matvec (1.0, dat->sH, p, 1.0, q);
+      r = gather (p, dat->sj, dat->sH->n, a);
+
+      MX_Matvec (1.0, dat->sH, r, 1.0, q);
     }
   }
 }
 
 /* y = alpha W x */
-static void W_times_vector (double alpha, BSS_DATA *A, double *x, double *y)
+static void W_times_vector (BSS_DATA *A, double *x, double *y)
 {
-  double *r = A->r, *u = A->u;
+  double *r = A->r, *u = A->u, *a = A->a, step;
   BSS_CON_DATA *dat = A->dat;
   DOM *dom = A->dom;
   int n = A->ndat;
   BODY *bod;
 
+  step = dom->step;
   SETN (r, A->nprimal, 0.0);
-  H_trans_vector (dat, n, x, r);
+  H_trans_vector (a, dat, n, x, r);
 
 #if MPI
   /* TODO: send x to external reactions
@@ -178,11 +264,11 @@ static void W_times_vector (double alpha, BSS_DATA *A, double *x, double *y)
 
   for (bod = dom->bod; bod; r += bod->dofs, u += bod->dofs, bod = bod->next)
   {
-    BODY_Invvec (alpha, bod, r, 0.0, u);
+    BODY_Invvec (step, bod, r, 0.0, u);
   }
 
   SETN (y, A->ndual, 0.0);
-  H_times_vector (dat, n, A->u, y);
+  H_times_vector (a, dat, n, A->u, y);
 
 #if MPI
   /* TODO: compute local velocities needed by constraints established by child bodies
@@ -191,7 +277,7 @@ static void W_times_vector (double alpha, BSS_DATA *A, double *x, double *y)
 
 }
 
-/* GMRES interface start */
+/* GMSS interface start */
 static char* CAlloc (size_t count, size_t elt_size)
 {
   char *ptr;
@@ -325,10 +411,9 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
 {
   double Z [3], *Y, *X, *R, *U, *Q, *u, *q, *r;
   BSS_CON_DATA *dat = A->dat;
-  DOM *dom = A->dom;
   int n = A->ndat;
 
-  W_times_vector (dom->step, A, x->x, A->y->x); /* dU = h W dR */
+  W_times_vector (A, x->x, A->y->x); /* dU = h W dR */
 
   for (u = A->y->x, r = x->x, q = y->x; n > 0; dat ++, n --)
   {
@@ -393,7 +478,7 @@ static int Precond (void *vdata, BSS_DATA *A, VECTOR *b, VECTOR *x)
 
   return 0;
 }
-/* GMRES interface end */
+/* GMSS interface end */
 
 /* update previous and free local velocities V, B */
 static void update_V_and_B (DOM *dom)
@@ -550,7 +635,7 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
 	    X [3];
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE_PTR (A, 3, 3, dia->A);
-    short up = dia->W[8] == 0.0; //FIXME: update every few times
+    short up = dia->W[8] == 0.0; /* needed only as a preconditioner => update once */
     MX *prod;
 
     if (s)
@@ -574,6 +659,11 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
 	MX_Matmat (step, dat->mH, prod, 0.0, &W); /* H * inv (M) * H^T */
 	MX_Destroy (prod);
       }
+
+      if (m->kind == FEM)
+      {
+	dat->mH = csc_to_dense (dat->mH, &dat->mj);
+      }
     }
 
 #if MPI
@@ -591,6 +681,11 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
 	prod = MX_Matmat (1.0, s->inverse, MX_Tran (dat->sH), 0.0, NULL);
 	MX_Matmat (step, dat->sH, prod, 1.0, &W); /* H * inv (M) * H^T */
 	MX_Destroy (prod);
+      }
+
+      if (s->kind == FEM)
+      {
+	dat->sH = csc_to_dense (dat->sH, &dat->sj);
       }
     }
 
@@ -640,6 +735,8 @@ static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
   {
     if (dat->mH) MX_Destroy (dat->mH);
     if (dat->sH) MX_Destroy (dat->sH);
+    free (dat->mj);
+    free (dat->sj);
   }
 
   free (ptr);
@@ -650,13 +747,19 @@ static BSS_DATA *create_data (DOM *dom)
 {
   BSS_DATA *A;
   BODY *bod;
+  int m, n;
 
   update_V_and_B (dom);
 
   ERRMEM (A = MEM_CALLOC (sizeof (BSS_DATA)));
   A->znorm = 1.0;
   A->dom = dom;
-  for (bod = dom->bod; bod; bod = bod->next) A->nprimal += bod->dofs;
+  for (bod = dom->bod, m = 0; bod; bod = bod->next)
+  {
+    n = bod->dofs;
+    if (n > m) m = n;
+    A->nprimal += n;
+  }
   A->dat = create_constraints_data (dom, &A->ndat, &A->x, &dom->ldy->free_energy); /* A->x initialized with con->R */
   A->ndual = A->ndat * 3;
   A->b = newvector (A->ndual);
@@ -664,6 +767,7 @@ static BSS_DATA *create_data (DOM *dom)
   A->z = newvector (A->ndual);
   ERRMEM (A->r = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
+  ERRMEM (A->a = MEM_CALLOC (sizeof (double [m])));
 
   return A;
 }
@@ -671,19 +775,23 @@ static BSS_DATA *create_data (DOM *dom)
 /* update linear system */
 static void update_system (BSS_DATA *A)
 {
-  double *Abx = A->b->x, *Axx = A->x->x, *Ayx = A->y->x, delta = A->delta;
+  double *Abx = A->b->x, *Ayx = A->y->x, delta = A->delta;
   DOM *dom = A->dom;
   short dynamic = dom->dynamic;
   BSS_CON_DATA *dat, *end;
 
-  /* residual = W R + B - U */
-  W_times_vector (dom->step, A, Axx, Ayx);
+  /* residual S = WR + B - U */
+  W_times_vector (A, A->x->x, Ayx);
   for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
-    double *Q = &Ayx [dat->n], *B = dat->B, *U = dat->U, *RE = dat->RE;
+    double *WR = &Ayx [dat->n],
+	   *B  = dat->B,
+	   *U  = dat->U,
+	   *S  = dat->S;
 
-    ACC (B, Q);
-    SUB (Q, U, RE); /* TODO: experiment with lack of residual, but updated first U = WR + B instead */
+    S [0] = WR[0] + B[0] - U[0];
+    S [1] = WR[1] + B[1] - U[1];
+    S [2] = WR[2] + B[2] - U[2];
   }
 
   for (dat = A->dat; dat != end; dat ++)
@@ -693,7 +801,7 @@ static void update_system (BSS_DATA *A)
 	   *V = dat->V,
 	   *W = dat->W,
 	   *T = dat->T,
-	   *RE = dat->RE,
+	   *S = dat->S,
 	   *b = &Abx [dat->n];
 
     switch (dat->kind)
@@ -703,15 +811,15 @@ static void update_system (BSS_DATA *A)
     {
       if (dynamic)
       {
-	b [0] = -V[0]-U[0]-RE[0];
-	b [1] = -V[1]-U[1]-RE[1];
-	b [2] = -V[2]-U[2]-RE[2];
+	b [0] = -V[0]-U[0]-S[0];
+	b [1] = -V[1]-U[1]-S[1];
+	b [2] = -V[2]-U[2]-S[2];
       }
       else
       {
-	b [0] = -U[0]-RE[0];
-	b [1] = -U[1]-RE[1];
-	b [2] = -U[2]-RE[2];
+	b [0] = -U[0]-S[0];
+	b [1] = -U[1]-S[1];
+	b [2] = -U[2]-S[2];
       }
 
       NNCOPY (W, T);
@@ -721,8 +829,8 @@ static void update_system (BSS_DATA *A)
     {
       b [0] = -R[0];
       b [1] = -R[1];
-      if (dynamic) b [2] = -V[2]-U[2]-RE[2];
-      else b [2] = -U[2]-RE[2];
+      if (dynamic) b [2] = -V[2]-U[2]-S[2];
+      else b [2] = -U[2]-S[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -735,7 +843,7 @@ static void update_system (BSS_DATA *A)
     {
       b [0] = -R[0];
       b [1] = -R[1];
-      b [2] = VELODIR(dat->con->Z)-U[2]-RE[2];
+      b [2] = VELODIR(dat->con->Z)-U[2]-S[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -755,7 +863,7 @@ static void update_system (BSS_DATA *A)
 
       VIC_Linearize (dat->con, SMOOTHING_EPSILON, G, X, Y);
 
-      NVADDMUL (G, X, RE, b);
+      NVADDMUL (G, X, S, b);
       SCALE (b, -1.0);
 
       NNMUL (X, W, T);
@@ -768,8 +876,8 @@ static void update_system (BSS_DATA *A)
     T [4] += delta;
     T [8] += delta;
 
-    MX_DENSE_PTR (S, 3, 3, T);
-    MX_Inverse (&S, &S);
+    MX_DENSE_PTR (P, 3, 3, T);
+    MX_Inverse (&P, &P);
   }
 }
 
@@ -815,9 +923,8 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
 /* update solution */
 static void update_solution (BSS_DATA *A)
 {
-  double S [3], *R, *x, *z, *Azx = A->z->x, *Ayx = A->y->x, *Axx = A->x->x;
+  double *R, *x, *z, *Azx = A->z->x, *Ayx = A->y->x, *Axx = A->x->x;
   BSS_CON_DATA *dat, *end;
-  DOM *dom = A->dom;
 
   for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
@@ -827,6 +934,7 @@ static void update_solution (BSS_DATA *A)
 
     if (dat->kind == CONTACT)
     {
+      double S [3];
       ADD (x, z, S);
       VIC_Project (dat->con->mat.base->friction, S, S); /* project onto the friction cone */
       SUB (S, x, z);
@@ -836,14 +944,17 @@ static void update_solution (BSS_DATA *A)
     COPY (x, R);
   }
 
-  /* dU = W dR, U = U + dU */
-  W_times_vector (dom->step, A, Azx, Ayx);
+  /* DU = W DR, U = U + DU + S */
+  W_times_vector (A, Azx, Ayx);
   for (dat = A->dat; dat != end; dat ++)
   {
-    double *dU = &Ayx [dat->n], *U = dat->U, *RE = dat->RE;
+    double *DU = &Ayx [dat->n],
+	   *U  = dat->U,
+	   *S  = dat->S;
 
-    ACC (dU, U);
-    ACC (RE, U); /* TODO: update U using total reaction rather then the increment and residual */
+    U [0] += DU [0] + S [0];
+    U [1] += DU [1] + S [1];
+    U [2] += DU [2] + S [2];
   }
 }
 
@@ -857,6 +968,7 @@ static void destroy_data (BSS_DATA *A)
   DestroyVector (A->z);
   free (A->r);
   free (A->u);
+  free (A->a);
   free (A);
 }
 

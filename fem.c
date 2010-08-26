@@ -2778,8 +2778,8 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
   MX_Destroy (N);
 
-  if (bod->form == BODY_COROTATIONAL
-      && bod->scheme != SCH_DEF_EXP) /* FIXME: the BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
+  if (bod->form == BODY_COROTATIONAL && bod->scheme != SCH_DEF_EXP
+      && bod->dom->solver != BODY_SPACE_SOLVER) /* BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
   {
     double *x = H->x, *y = x + H->nzmax,
            *R = FEM_ROT (bod), T [9];

@@ -35,3 +35,4 @@ Self-contact handling is incorrect: inp/selfcontact.py
 (Algebraic stuff has been fixed; Now this is the matter of contact detection;
  In the mentioned example, near contradictory contact points are detected)
 ---------------------------------------------------------------------------------------
+Merit function gets stuck at the beginning the Newton craddle example
