@@ -745,6 +745,7 @@ static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
 /* create BSS data */
 static BSS_DATA *create_data (DOM *dom)
 {
+  BSS_CON_DATA *dat, *end;
   BSS_DATA *A;
   BODY *bod;
   int m, n;
@@ -769,18 +770,9 @@ static BSS_DATA *create_data (DOM *dom)
   ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->a = MEM_CALLOC (sizeof (double [m])));
 
-  return A;
-}
 
-/* update linear system */
-static void update_system (BSS_DATA *A)
-{
-  double *Abx = A->b->x, *Ayx = A->y->x, delta = A->delta;
-  DOM *dom = A->dom;
-  short dynamic = dom->dynamic;
-  BSS_CON_DATA *dat, *end;
-
-  /* residual S = WR + B - U */
+  /* initial residual S = WR + B - U */
+  double *Ayx = A->y->x;
   W_times_vector (A, A->x->x, Ayx);
   for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
@@ -794,7 +786,18 @@ static void update_system (BSS_DATA *A)
     S [2] = WR[2] + B[2] - U[2];
   }
 
-  for (dat = A->dat; dat != end; dat ++)
+  return A;
+}
+
+/* update linear system */
+static void update_system (BSS_DATA *A)
+{
+  double *Abx = A->b->x, delta = A->delta;
+  DOM *dom = A->dom;
+  short dynamic = dom->dynamic;
+  BSS_CON_DATA *dat, *end;
+
+  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
     double *U = dat->U,
 	   *R = dat->R,
@@ -887,6 +890,8 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
   hypre_FlexGMRESFunctions *gmres_functions;
   void *gmres_vdata;
   double abstol;
+  VECTOR *r;
+  int ret;
 
   abstol = resdec * A->resnorm;
 
@@ -904,20 +909,31 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
     PrecondSetup, (int (*) (void*,void*,void*,void*))Precond);
   gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
 
+  hypre_error_flag = 0;
   hypre_FlexGMRESSetTol (gmres_vdata, 0.0);
   hypre_FlexGMRESSetMinIter (gmres_vdata, 1);
   hypre_FlexGMRESSetMaxIter (gmres_vdata, maxiter);
   hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, abstol);
   hypre_FlexGMRESSetup (gmres_vdata, A, A->b, A->z);
-  hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->z);
+  ret = hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->z);
   hypre_FlexGMRESGetNumIterations (gmres_vdata , &A->iters);
-  hypre_FlexGMRESDestroy (gmres_vdata);
+  hypre_FlexGMRESGetResidual (gmres_vdata, (void**) &r);
 
-  A->delta = 0;
-  Matvec (NULL, -1.0, A, A->z, 1.0, A->b);
-  A->resnorm = sqrt (InnerProd (A->b, A->b)); /* residual without regularisation (delta = 0) */
+  if (ret & HYPRE_ERROR_CONV) /* failed to converge => invalid residual */
+  {
+    A->delta = 0;
+    Matvec (NULL, -1.0, A, A->z, 1.0, A->b); /* residual without regularisation (delta = 0) */
+    A->resnorm = sqrt (InnerProd (A->b, A->b));
+  }
+  else /* converged => valid residual */
+  {
+    Axpy (A->delta, A->z, r); /* residua without regularisation */
+    A->resnorm = sqrt (InnerProd (r, r));
+  }
   A->znorm = sqrt (InnerProd (A->z, A->z));
   A->delta = A->resnorm / A->znorm; /* sqrt (L-curve) */
+
+  hypre_FlexGMRESDestroy (gmres_vdata);
 }
 
 /* update solution */
@@ -935,26 +951,36 @@ static void update_solution (BSS_DATA *A)
     if (dat->kind == CONTACT)
     {
       double S [3];
-      ADD (x, z, S);
+      ADD (x, z, S); /* S = R + DR */
       VIC_Project (dat->con->mat.base->friction, S, S); /* project onto the friction cone */
-      SUB (S, x, z);
+      SUB (S, x, z); /* DR = proj (R + DR) - R */
     }
 
-    ACC (z, x); /* R = R + dR */
+    ACC (z, x); /* R = R + DR */
     COPY (x, R);
   }
 
-  /* DU = W DR, U = U + DU + S */
+  /* DU = W DR
+   * U1 = U0 + DU + S
+   * S  = W (R + DR) + B - U1
+   *    = S0 + U0 + DU - U1 */
   W_times_vector (A, Azx, Ayx);
   for (dat = A->dat; dat != end; dat ++)
   {
     double *DU = &Ayx [dat->n],
 	   *U  = dat->U,
-	   *S  = dat->S;
+	   *S  = dat->S,
+	    U0 [3];
 
-    U [0] += DU [0] + S [0];
-    U [1] += DU [1] + S [1];
-    U [2] += DU [2] + S [2];
+    COPY (U, U0);
+
+    U [0] = (U [0] + DU [0]) + S [0];
+    U [1] = (U [1] + DU [1]) + S [1];
+    U [2] = (U [2] + DU [2]) + S [2];
+
+    S [0] = ((S [0] + U0 [0]) + DU [0]) - U [0];
+    S [1] = ((S [1] + U0 [1]) + DU [1]) - U [1];
+    S [2] = ((S [2] + U0 [2]) + DU [2]) - U [2];
   }
 }
 

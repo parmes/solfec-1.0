@@ -25,10 +25,10 @@
 #include "alg.h"
 #include "err.h"
 
-#define DIFF_FACTOR 1E-10
-#define DIFF_BASE   1E-10
-#define SMOOTHING   1
-#define DISABLE_NORM_SMOOTHING 1
+#define DIFF_FACTOR 1E-10        /* TODO */
+#define DIFF_BASE   1E-10        /* TODO */
+#define SMOOTHING   1            /* TODO */
+#define DISABLE_NORM_SMOOTHING 1 /* TODO */
 
 /* imaginary i */
 static double complex imaginary_i = 0.0;
