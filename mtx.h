@@ -34,14 +34,14 @@ struct general_matrix
 	MXSTATIC = 0x02,        /* static matrix */
         MXDSUBLK = 0x04,        /* diagonal sub-block */
         MXIFAC   = 0x08,        /* factorised sparse inverse */
-        MXUNINV  = 0x10} flags; /* on-the-fly undone sparse inverse */
+        MXUNINV  = 0x10,        /* on-the-fly undone sparse inverse */
+	MXSPD    = 0x20} flags; /* symmetric positive definite; MXCSC assumes that only the lower trinagle is given */
 
   int nzmax,   /* number of nonzero entries */
           m,   /* number of rows (DENSE, BD (and columns), CSC) */
 	  n,   /* number of columns (DENSE, CSC), or number of blocks (BD) */
 	 *p,   /* pointers to columns (CSC), or blocks (BD); p[n] == nzmax */
-	 *i,   /* indices of column row entries (CSC, i[0...nzmax-1]), or indices
-		  of the first block row/column (BD, i[n] = m) */
+	 *i,   /* indices of column row entries (CSC, i[0...nzmax-1]), or indices of the first block row/column (BD, i[n] = m) */
 	 nz;   /* CSC: number of entries in triplet matrix, -1 for compressed-col; otherwise nzmax <= nz */
 
   double *x;   /* values, x[0...nzmax-1] */
@@ -111,17 +111,9 @@ MX* MX_Matmat (double alpha, MX *a, MX *b, double beta, MX *c);
 /* matrix vector product => c = alpha * a *b + beta * c */
 void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c);
 
-/* triple matrix product => d = a * b * c;
- * if 'd' == NULL return new matrix; otherwise return 'd' */
-MX* MX_Trimat (MX *a, MX *b, MX *c, MX *d);
-
-/* inverse => b = inv (a); factorization is used for CSC;
+/* inverse => b = inv (a); LU factorization is used for CSC;
  * if 'b' == NULL return new matrix; otherwise return 'b' */
 MX* MX_Inverse (MX *a, MX *b);
-
-/* Cholesky solve => b = inv(a) b; if b == NULL and a was not factorized before, factorize a;
- * if b == NULL and a was factorized, update numeric factorization assuming unchanged structure  */
-void MX_Cholsol (MX *a, double *b);
 
 /* compute |n| eigenvalues & eigenvectors (vec != NULL) in the upper or
  * lower range (n < 0 or n > 0) => symmetry of 'a' is assumed and the
@@ -137,4 +129,5 @@ MX* MX_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 /* free matrix */
 void MX_Destroy (MX *a);
+
 #endif

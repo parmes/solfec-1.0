@@ -442,7 +442,7 @@ static void prb_dynamic_explicit_inverse (BODY *bod)
 static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *conf, double *force)
 {
   MX_DENSE (K, 9, 9);
-  MX *M, *A, *I;
+  MX *M, *A;
 
   /* place-holder for the
    * tangent operator */
@@ -468,12 +468,9 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *conf, 
     SCALEDIAG (x, m);
 
     A = MX_Create (MXBD, 12, 2, pa, ia);
-    bod->A = A;
-
-    I = MX_Create (MXBD, 12, 2, pa, ia);
-    bod->inverse = I;
+    bod->inverse = A;
   }
-  else M = bod->M, A = bod->A, I = bod->inverse;
+  else M = bod->M, A = bod->inverse;
 
   /* calculate stiffness matrix */
   SVK_Tangent_R (lambda (bod->mat->young, bod->mat->poisson),
@@ -494,7 +491,7 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *conf, 
   MX_Copy (MX_Diag (M, 3, 3), MX_Diag (A, 1, 1));
 
   /* invert A */
-  MX_Inverse (A, I);
+  MX_Inverse (A, A);
 }
 
 /* set up inverse of inertia for
@@ -1886,8 +1883,6 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->K) MX_Destroy (bod->K);
 
-  if (bod->A) MX_Destroy (bod->A);
-
   if (bod->kind == FEM) FEM_Destroy (bod);
 
   if (bod->msh) MESH_Destroy (bod->msh);
@@ -2197,26 +2192,6 @@ void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int
 #endif
 
 /* compute c = alpha * INVERSE (bod) * b + beta * c */
-void BODY_Matvec (double alpha, BODY *bod, double *b, double beta, double *c)
-{
-  switch (bod->kind)
-  {
-    case RIG:
-      MX_Matvec (alpha, bod->M, b, beta, c);
-      break;
-    case PRB:
-      if (bod->scheme == SCH_DEF_EXP) MX_Matvec (alpha, bod->M, b, beta, c);
-      else MX_Matvec (alpha, bod->A, b, beta, c);
-      break;
-    case FEM:
-      FEM_Matvec (alpha, bod, b, beta, c);
-      break;
-    case OBS:
-      break;
-  }
-}
-
-/* compute c = alpha * INVERSE (bod) * b + beta * c */
 void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
 {
   switch (bod->kind)
@@ -2227,25 +2202,6 @@ void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
       break;
     case FEM:
       FEM_Invvec (alpha, bod, b, beta, c);
-      break;
-    case OBS:
-      break;
-  }
-}
-
-/* compute r = SUM H' R */
-void BODY_Reac (BODY *bod, double *r)
-{
-  switch (bod->kind)
-  {
-    case RIG:
-      rig_constraints_force (bod, r);
-      break;
-    case PRB:
-      prb_constraints_force (bod, r);
-      break;
-    case FEM:
-      FEM_Reac (bod, r);
       break;
     case OBS:
       break;

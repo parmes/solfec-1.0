@@ -161,8 +161,6 @@ struct general_body
 
   MX *K;            /* stiffness operator */
 
-  MX *A;            /* combined inertia and stiffnes: inverse = inv (A) */
-
   double damping;   /* mass proportional damping */
 
   DOM *dom;        /* domain storing the body */
@@ -298,13 +296,7 @@ void BODY_Child_Update_Pack (BODY *bod, int *dsize, double **d, int *doubles, in
 void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 #endif
 
-/* compute c = alpha * OPERATOR (bod) * b + beta * c */
-void BODY_Matvec (double alpha, BODY *bod, double *b, double beta, double *c);
-
 /* compute c = alpha * INVERSE (bod) * b + beta * c */
 void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
-
-/* compute r = SUM H' R */
-void BODY_Reac (BODY *bod, double *r);
 
 #endif

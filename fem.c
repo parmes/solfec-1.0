@@ -437,12 +437,6 @@ inline static int face_shapes (FACE *fac, double *point, double *shapes)
     shapes [2] = 0.25 * (1.0 + point [0]) * (1.0 + point [1]);
     shapes [3] = 0.25 * (1.0 - point [0]) * (1.0 + point [1]);
     return 4;
-  case 6:
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-    return 6;
-  case 8:
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-    return 8;
   }
 
   return 0;
@@ -471,12 +465,6 @@ inline static int face_derivs (FACE *fac, double *point, double *derivs)
     derivs [6] = -0.25 * (1.0 + point [1]);
     derivs [7] =  0.25 * (1.0 - point [0]);
     return 4;
-  case 6:
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-    return 6;
-  case 8:
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-    return 8;
   }
 
   return 0;
@@ -612,54 +600,6 @@ inline static void wed_o1_derivs (double *point, double *derivs)
   /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
-/* quadratic tetrahedron shape functions */
-inline static void tet_o2_shapes (double *point, double *shapes)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* quadratic hexahedron shape functions */
-inline static void hex_o2_shapes (double *point, double *shapes)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* quadratic pyramid shape functions */
-inline static void pyr_o2_shapes (double *point, double *shapes)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* quadratic wedge shape functions */
-inline static void wed_o2_shapes (double *point, double *shapes)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* quadratic tetrahedron shape derivatives */
-inline static void tet_o2_derivs (double *point, double *derivs)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* quadratic hexahedron shape derivatives */
-inline static void hex_o2_derivs (double *point, double *derivs)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* quadratic pyramid shape derivatives  */
-inline static void pyr_o2_derivs (double *point, double *derivs)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
-/* quadratic wedge shape derivatives  */
-inline static void wed_o2_derivs (double *point, double *derivs)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
 /* linear tetrahedron local to global point transformation */
 static void tet_o1_local_to_global (node_t nodes, double *local, double *global)
 {
@@ -684,10 +624,6 @@ inline static int element_shapes (int type, double *point, double *shapes)
   case 5: pyr_o1_shapes (point, shapes); return 5;
   case 6: wed_o1_shapes (point, shapes); return 6;
   case 8: hex_o1_shapes (point, shapes); return 8;
-  case 10: tet_o2_shapes (point, shapes); return 10;
-  case 13: pyr_o2_shapes (point, shapes); return 13;
-  case 15: wed_o2_shapes (point, shapes); return 15;
-  case 20: hex_o2_shapes (point, shapes); return 20;
   }
 
   return 0;
@@ -702,10 +638,6 @@ inline static int element_derivs (int type, double *point, double *derivs)
   case 5: pyr_o1_derivs (point, derivs); return 5;
   case 6: wed_o1_derivs (point, derivs); return 6;
   case 8: hex_o1_derivs (point, derivs); return 8;
-  case 10: tet_o2_derivs (point, derivs); return 10;
-  case 13: pyr_o2_derivs (point, derivs); return 13;
-  case 15: wed_o2_derivs (point, derivs); return 15;
-  case 20: hex_o2_derivs (point, derivs); return 20;
   }
 
   return 0;
@@ -1176,6 +1108,50 @@ inline static void accumulate_reac (BODY *bod, MESH *msh, ELEMENT *ele, double *
 
   if (isma) for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; ADDMUL (f, shapes [i], P, f); }
   else for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; SUBMUL (f, shapes [i], P, f); }
+}
+
+/* compute constraints force r = SUM H' R */
+static void fem_constraints_force (BODY *bod, double *r)
+{
+  ELEMENT *ele;
+  CONVEX *cvx;
+  MESH *msh;
+  SET *node;
+  int i;
+
+  msh = FEM_MESH (bod);
+
+  for (i = 0; i < bod->dofs; i ++) r [i] = 0.0;
+
+  for (node = SET_First (bod->con); node; node = SET_Next (node))
+  {
+    CON *con = node->data;
+    short isma = (bod == con->master);
+    double *X = (isma ? con->mpnt : con->spnt);
+
+    if (bod->msh)
+    {
+      cvx = (isma ? mgobj(con) : sgobj(con));
+      ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
+    }
+    else ele = (isma ? mgobj(con) : sgobj(con));
+
+    accumulate_reac (bod, msh, ele, X, con->base, con->R, isma, r);
+
+    if (isma && bod == con->slave) /* self-contact */
+    {
+      X = con->spnt;
+
+      if (bod->msh)
+      {
+	cvx = sgobj(con);
+	ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
+      }
+      else ele = sgobj(con);
+
+      accumulate_reac (bod, msh, ele, X, con->base, con->R, 0, r);
+    }
+  }
 }
 
 /* compute inernal force */
@@ -1722,7 +1698,7 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
 	*q = bod->conf,
 	*e = u + n;
 
-  FEM_Reac (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
   switch (bod->scheme)
@@ -1775,7 +1751,7 @@ static void TL_static_step_end (BODY *bod, double time, double step)
 {
   double *force = FEM_FORCE (bod);
 
-  FEM_Reac (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  fem_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
   blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
 }
@@ -2074,7 +2050,7 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
 	*q = bod->conf,
 	*u = bod->velo;
 
-  FEM_Reac (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
 
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
@@ -2957,21 +2933,6 @@ int FEM_Velo_Pack_Size (BODY *bod)
 }
 #endif
 
-/* compute c = alpha * OPERATOR (bod) * b + beta * c */
-void FEM_Matvec (double alpha, BODY *bod, double *b, double beta, double *c)
-{
-  switch (bod->form)
-  {
-  case TOTAL_LAGRANGIAN:
-    if (bod->scheme == SCH_DEF_EXP) MX_Matvec (alpha, bod->M, b, beta, c);
-    else MX_Matvec (alpha, MX_Uninv (bod->inverse), b, beta, c); /* uninvert tentatitvely */
-    break;
-  case BODY_COROTATIONAL:
-    BC_velocity_solve (1, alpha, bod, b, beta, c);
-    break;
-  }
-}
-
 /* compute c = alpha * INVERSE (bod) * b + beta * c */
 void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
 {
@@ -2983,49 +2944,5 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
   case BODY_COROTATIONAL:
     BC_velocity_solve (0, alpha, bod, b, beta, c);
     break;
-  }
-}
-
-/* compute r = SUM H' R */
-void FEM_Reac (BODY *bod, double *r)
-{
-  ELEMENT *ele;
-  CONVEX *cvx;
-  MESH *msh;
-  SET *node;
-  int i;
-
-  msh = FEM_MESH (bod);
-
-  for (i = 0; i < bod->dofs; i ++) r [i] = 0.0;
-
-  for (node = SET_First (bod->con); node; node = SET_Next (node))
-  {
-    CON *con = node->data;
-    short isma = (bod == con->master);
-    double *X = (isma ? con->mpnt : con->spnt);
-
-    if (bod->msh)
-    {
-      cvx = (isma ? mgobj(con) : sgobj(con));
-      ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
-    }
-    else ele = (isma ? mgobj(con) : sgobj(con));
-
-    accumulate_reac (bod, msh, ele, X, con->base, con->R, isma, r);
-
-    if (isma && bod == con->slave) /* self-contact */
-    {
-      X = con->spnt;
-
-      if (bod->msh)
-      {
-	cvx = sgobj(con);
-	ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
-      }
-      else ele = sgobj(con);
-
-      accumulate_reac (bod, msh, ele, X, con->base, con->R, 0, r);
-    }
   }
 }
