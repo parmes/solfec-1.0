@@ -44,9 +44,11 @@ into a separate sub-directory of a subset of results
 -------------------------------------------------------------------
 How to implementing rewinding back of simulations during
 which bodies have been deleted? (do not really delete)
-------------------------------------------------------------------------------
-bod->inverse sending for DEF_IMP/LIM/LIM2 schemes in parallel !!
+----------------------------------------------------------------------------------
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+bod->inverse sending for DEF_IMP/LIM/LIM2 schemes in parallel
 Currently bod->inverse is inconsistently updated in parallel for implicit schemes
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 ----------------------------------------------------------------------------------
 Gap computation is not robust. Implicitly integrated core at smaller time steps
 reports unphysical penetration => this is due to numerical instability of gap
@@ -72,14 +74,6 @@ Optimize LINSYS:
 ----------------------------------------------------------------------------------------------
 Implement fixed point aproach on S = |UT| for De Saxce formulation as suggested by V. Acary
 --------------------------------------------------------------------------------------------
-Implement automated splitting of FEM bodies (a'la Metis) into a user
-defined number of glued sub-bodies (parallelism for large meshes);
-mind disabling contact detection on gluing interfaces
------------------------------------------------------------------------
-Adjust msh.h, msh.c so to handle second order elements 
---------------------------------------------------------------------------
-Adjust MESH object in Python interface so to handle second order meshes
-------------------------------------------------------------------------
 Sort out volumetric integration order in FEM module
 ------------------------------------------------------
 Sort out damping (better stiffness proportional)
@@ -88,9 +82,3 @@ OPTIMIZE:
 a) sending constrains with fixed bases (e.g. FIXPNT, do not send the base)
 b) assembling W parts for constraints with fxied bases and points (e.g. FIXPNT)
 -------------------------------------------------------------------------------------
-Remove bod->A and BODY_Matvec, BODY_Reac once you sort out BSS
------------------------------------------------------------------------
-Incorporate TAUCS into ./ext/ and make it do MX_Cholsol for MXCSC;
-then use MX_Cholsol in FEM_Invvec and replace MX_Matvec (bod->inverse)
-with FEM_Invvec in this module
-----------------------------------------------

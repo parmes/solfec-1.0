@@ -783,12 +783,6 @@ MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, int vol
   return msh;
 }
 
-/* convert first order mesh into second order one */
-void MESH_Second_Order (MESH *msh)
-{
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
-}
-
 /* dummy adjacency update (needed in shp.c) */
 void MESH_Update_Adjacency (MESH *msh)
 {

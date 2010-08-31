@@ -1,4 +1,10 @@
 #
+# Operating System (WIN32, SOLARIS, LINUX, AIX, IRIX, OSX)
+#
+
+OS = OSX
+
+#
 # Specify C compiler here
 #
 

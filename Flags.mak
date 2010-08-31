@@ -2,6 +2,30 @@
 # Compilation flags setup
 #
 
+ifeq ($(OS),WIN32)
+  OS = -DOSTYPE_WIN32
+endif
+
+ifeq ($(OS),SOLARIS)
+  OS = -DOSTYPE_SOLARIS
+endif
+
+ifeq ($(OS),LINUX)
+  OS = -DOSTYPE_LINUX
+endif
+
+ifeq ($(OS),AIX)
+  OS = -DOSTYPE_AIX
+endif
+
+ifeq ($(OS),IRIX)
+  OS = -DOSTYPE_IRIX
+endif
+
+ifeq ($(OS),OSX)
+  OS = -DOSTYPE_OSX
+endif
+
 ifeq ($(POSIX),yes)
   POSIX = -DPOSIX
 else

@@ -29,6 +29,7 @@
 #include "mtx.h"
 #include "pck.h"
 #include "ext/csparse.h"
+#include "ext/taucs/taucs.h"
 
 /* macros */
 #define KIND(a) ((a)->kind)
@@ -42,6 +43,7 @@
 #define MXIFAC(a) ((a)->flags & MXIFAC)
 #define MXIFAC_WORK1(a) ((a)->x + (a)->nzmax)
 #define MXIFAC_WORK2(a) ((a)->x + (a)->nzmax + (a)->n)
+#define MXSPD(a) ((a)->flags & MXSPD)
 
 /* types */
 typedef int (*qcmp_t) (const void*, const void*);
@@ -866,27 +868,41 @@ static MX* matmat_bd_bd (double alpha, MX *a, MX *b, double beta, MX *c)
 /* c = inv (a) * b */
 static void inv_vec (MX *a, double *b, double *c)
 {
-  double *x = MXIFAC_WORK1(a);
-  css *S = a->sym;
-  csn *N = a->num;
+  if (MXSPD (a))
+  {
+    taucs_linsolve (a->sym, &a->num, 1, c, b, NULL, NULL);
+  }
+  else
+  {
+    double *x = MXIFAC_WORK2(a);
+    css *S = a->sym;
+    csn *N = a->num;
 
-  cs_ipvec (N->pinv, b, x, a->n);  /* x = permute (b) */
-  cs_lsolve (N->L, x);             /* x = L \ x */
-  cs_usolve (N->U, x);             /* x = U \ x */
-  cs_ipvec (S->q, x, c, a->n);     /* c = inv-permute (x) */
+    cs_ipvec (N->pinv, b, x, a->n);  /* x = permute (b) */
+    cs_lsolve (N->L, x);             /* x = L \ x */
+    cs_usolve (N->U, x);             /* x = U \ x */
+    cs_ipvec (S->q, x, c, a->n);     /* c = inv-permute (x) */
+  }
 }
 
 /* c = b * inv (a) */
 static void vec_inv (double *b, MX *a, double *c)
 {
-  double *x = MXIFAC_WORK1(a);
-  css *S = a->sym;
-  csn *N = a->num;
+  if (MXSPD (a))
+  {
+    taucs_linsolve (a->sym, &a->num, 1, c, b, NULL, NULL); /* same as above due to the symmetry of LL' */
+  }
+  else
+  {
+    double *x = MXIFAC_WORK2(a);
+    css *S = a->sym;
+    csn *N = a->num;
 
-  cs_pvec (S->q, b, x, a->m);     /* x = read-col-perm (b) */
-  cs_utsolve (N->U, x);           /* x = U' \ x */
-  cs_ltsolve (N->L, x);           /* x = L' \ x */
-  cs_pvec (N->pinv, x, c, a->m);  /* x = write-row-perm (x) */
+    cs_pvec (S->q, b, x, a->m);     /* x = read-col-perm (b) */
+    cs_utsolve (N->U, x);           /* x = U' \ x */
+    cs_ltsolve (N->L, x);           /* x = L' \ x */
+    cs_pvec (N->pinv, x, c, a->m);  /* x = write-row-perm (x) */
+  }
 }
 
 /* c = inv (a)' * b */
@@ -1414,96 +1430,7 @@ static MX* matmat_csc_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   return c;
 }
 
-/* invert dense matrix */
-static MX* dense_inverse (MX *a, MX *b)
-{
-  int lwork, *ipiv;
-  double *work, w;
-
-  ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
-  if (a != b) b = copy_matrix (a, b); /* copy content of 'a' into 'b' */
-
-  lapack_dgetri (b->n, NULL, b->m, NULL, &w, -1); /* query for workspace size */
-  lwork = (int) w;
-
-  ERRMEM (ipiv = malloc (sizeof (int) * b->m));
-  ERRMEM (work = malloc (sizeof (double) * lwork));
-  ASSERT (lapack_dgetrf (b->m, b->n, b->x, b->m, ipiv) == 0, ERR_MTX_LU_FACTOR);
-  ASSERT (lapack_dgetri (b->n, b->x, b->m, ipiv, work, lwork) == 0, ERR_MTX_MATRIX_INVERT);
-  free (work);
-  free (ipiv);
-
-  return b;
-}
-
-/* invert diagonal block matrix */
-static MX* bd_inverse (MX *a, MX *b)
-{
-  int m, n, k, lwork, *ipiv, *pp, *ii;
-  double *work, *bx, w;
-
-  if (a != b) b = copy_matrix (a, b); /* copy content of 'a' into 'b' */
-
-  n = b->n;
-  pp = b->p;
-  ii = b->i; 
-  bx = b->x;
-  
-  for (lwork = k = 0; k < n; k ++)
-  {
-    m = ii[k+1] - ii[k];
-    lapack_dgetri (m, NULL, m, NULL, &w, -1); /* query for workspace size */
-    if ((int)w > lwork) lwork = (int)w;
-  }
-
-  ERRMEM (ipiv = malloc (sizeof (int) * lwork/4));
-  ERRMEM (work = malloc (sizeof (double) * lwork));
-  
-  for (k = 0; k < n; k ++)
-  {
-    m = ii[k+1] - ii[k];
-    ASSERT (lapack_dgetrf (m, m, &bx [pp[k]], m, ipiv) == 0, ERR_MTX_LU_FACTOR);
-    ASSERT (lapack_dgetri (m, &bx[pp[k]], m, ipiv, work, lwork) == 0, ERR_MTX_MATRIX_INVERT);
-  }
-
-  free (work);
-  free (ipiv);
-
-  return b;
-}
-
-/* execute sparse inversion */
-inline static void csc_doinv (MX *b)
-{
-  ERRMEM (b->sym = cs_sqr (2, b, 0));
-  ASSERT (b->num = cs_lu (b, b->sym, 0.1), ERR_MTX_LU_FACTOR);
-  ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + 2 * b->n]))); /* workspace after b->x */
-}
-
-/* invert sparse matrix */
-static MX* csc_inverse (MX *a, MX *b)
-{
-  ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
-
-  if (b != a) b = copy_matrix (a, b);
-
-  if (MXIFAC (b))
-  {
-    b->flags &= ~MXIFAC;
-    cs_sfree (b->sym);
-    cs_nfree (b->num);
-    b->sym = b->num = NULL;
-  }
-  else
-  {
-    b->flags |= MXIFAC;
-
-    csc_doinv (b);
-  }
-
-  return b;
-}
-
+#if 0
 /* Cholesky dense factorize */
 inline static void dense_cholfact (MX *a)
 {
@@ -1565,11 +1492,25 @@ inline static void bd_cholsol (MX *a, double *b)
 /* Cholesky sparse factorize */
 inline static void csc_cholfact (MX *a)
 {
-  if (!a->sym) a->sym = cs_schol (1, a); /* once */
+  char *options[] = {"taucs.factor.mf=true", "taucs.factor.ordering=metis", NULL};
 
-  if (a->num) cs_nfree (a->num);
+  if (!a->sym)
+  {
+    taucs_ccs_matrix *b;
 
-  a->num = cs_chol (a, a->sym); /* always */
+    ERRMEM (b = MEM_CALLOC (sizeof (taucs_ccs_matrix)));
+    b->n = a->n;
+    b->m = a->m;
+    b->flags = TAUCS_DOUBLE|TAUCS_SYMMETRIC;
+    b->colptr = a->p;
+    b->rowind = a->i;
+    b->values.d = a->x;
+    a->sym = b;
+  }
+
+  if (a->num) taucs_linsolve (NULL, &a->num, 0, NULL, NULL, NULL, NULL);  /* clear factorization */
+
+  taucs_linsolve (a->sym, &a->num, 0, NULL, NULL, options, NULL);
 
   ASSERT (a->sym && a->num, ERR_MTX_CHOL_FACTOR);
 }
@@ -1578,20 +1519,154 @@ inline static void csc_cholfact (MX *a)
 inline static void csc_cholsol (MX *a, double *b)
 {
   double *x;
-  css *S;
-  csn *N;
-  int n;
 
-  n = a->n;
-  S = a->sym;
-  N = a->num;
-  ERRMEM (x = cs_malloc (n, sizeof (double)));
+  ERRMEM (x = malloc (a->n * sizeof (double)));
 
-  cs_ipvec (S->pinv, b, x, n) ;   /* x = P*b */
-  cs_lsolve (N->L, x) ;           /* x = L\x */
-  cs_ltsolve (N->L, x) ;          /* x = L'\x */
-  cs_pvec (S->pinv, x, b, n) ;    /* b = P'*x */
-  cs_free (x);
+  blas_dcopy (a->n, b, 1, x, 1);
+
+  taucs_linsolve (a->sym, &a->num, 1, b, x, NULL, NULL);
+
+  free (x);
+}
+#endif
+
+/* invert dense matrix */
+static MX* dense_inverse (MX *a, MX *b)
+{
+  int lwork, *ipiv;
+  double *work, w;
+
+  ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
+  if (a != b) b = copy_matrix (a, b); /* copy content of 'a' into 'b' */
+
+  if (MXSPD (b))
+  {
+    ASSERT (lapack_dpotrf ('L', b->m, b->x, b->m) == 0, ERR_MTX_CHOL_FACTOR);
+    ASSERT (lapack_dpotri ('L', b->m, b->x, b->m) == 0, ERR_MTX_MATRIX_INVERT);
+  }
+  else
+  {
+    lapack_dgetri (b->n, NULL, b->m, NULL, &w, -1); /* query for workspace size */
+    lwork = (int) w;
+
+    ERRMEM (ipiv = malloc (sizeof (int) * b->m));
+    ERRMEM (work = malloc (sizeof (double) * lwork));
+    ASSERT (lapack_dgetrf (b->m, b->n, b->x, b->m, ipiv) == 0, ERR_MTX_LU_FACTOR);
+    ASSERT (lapack_dgetri (b->n, b->x, b->m, ipiv, work, lwork) == 0, ERR_MTX_MATRIX_INVERT);
+    free (work);
+    free (ipiv);
+  }
+
+  return b;
+}
+
+/* invert diagonal block matrix */
+static MX* bd_inverse (MX *a, MX *b)
+{
+  int m, n, k, lwork, *ipiv, *pp, *ii;
+  double *work, *bx, w;
+
+  if (a != b) b = copy_matrix (a, b); /* copy content of 'a' into 'b' */
+
+  n = b->n;
+  pp = b->p;
+  ii = b->i; 
+  bx = b->x;
+
+  if (MXSPD (b))
+  {
+    for (k = 0; k < n; k ++)
+    {
+      m = ii[k+1] - ii[k];
+      ASSERT (lapack_dpotrf ('L', m, &bx [pp[k]], m) == 0, ERR_MTX_CHOL_FACTOR);
+      ASSERT (lapack_dpotri ('L', m, &bx [pp[k]], m) == 0, ERR_MTX_MATRIX_INVERT);
+    }
+  }
+  else
+  {
+    for (lwork = k = 0; k < n; k ++)
+    {
+      m = ii[k+1] - ii[k];
+      lapack_dgetri (m, NULL, m, NULL, &w, -1); /* query for workspace size */
+      if ((int)w > lwork) lwork = (int)w;
+    }
+
+    ERRMEM (ipiv = malloc (sizeof (int) * lwork/4));
+    ERRMEM (work = malloc (sizeof (double) * lwork));
+    
+    for (k = 0; k < n; k ++)
+    {
+      m = ii[k+1] - ii[k];
+      ASSERT (lapack_dgetrf (m, m, &bx [pp[k]], m, ipiv) == 0, ERR_MTX_LU_FACTOR);
+      ASSERT (lapack_dgetri (m, &bx[pp[k]], m, ipiv, work, lwork) == 0, ERR_MTX_MATRIX_INVERT);
+    }
+
+    free (work);
+    free (ipiv);
+  }
+
+  return b;
+}
+
+/* execute sparse inversion */
+inline static void csc_doinv (MX *b)
+{
+  if (MXSPD (b))
+  {
+    char *options[] = {"taucs.factor.mf=true", "taucs.factor.ordering=metis", NULL};
+    taucs_ccs_matrix *c;
+
+    ERRMEM (c = MEM_CALLOC (sizeof (taucs_ccs_matrix)));
+    c->flags = TAUCS_DOUBLE | TAUCS_SYMMETRIC;
+    c->values.d = b->x;
+    c->colptr = b->p;
+    c->rowind = b->i;
+    c->n = b->n;
+    c->m = b->m;
+    b->sym = c;
+
+    taucs_linsolve (b->sym, &b->num, 0, NULL, NULL, options, NULL);
+    ASSERT (b->num, ERR_MTX_CHOL_FACTOR);
+    ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + b->n]))); /* workspace 1 after b->x */
+  }
+  else
+  {
+    ERRMEM (b->sym = cs_sqr (2, b, 0));
+    ASSERT (b->num = cs_lu (b, b->sym, 0.1), ERR_MTX_LU_FACTOR);
+    ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + 2 * b->n]))); /* workspace 1, 2 after b->x */
+  }
+}
+
+/* invert sparse matrix */
+static MX* csc_inverse (MX *a, MX *b)
+{
+  ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
+
+  if (b != a) b = copy_matrix (a, b);
+
+  if (MXIFAC (b))
+  {
+    if (MXSPD (b)) /* TAUCS */
+    {
+      free (a->sym);
+      taucs_linsolve (NULL, &a->num, 0, NULL, NULL, NULL, NULL);
+    }
+    else /* CSparse */
+    {
+      b->flags &= ~MXIFAC;
+      cs_sfree (b->sym);
+      cs_nfree (b->num);
+    }
+    b->sym = b->num = NULL;
+  }
+  else
+  {
+    b->flags |= MXIFAC;
+
+    csc_doinv (b);
+  }
+
+  return b;
 }
 
 /* compute dense matrix eigenvalues */
@@ -1732,8 +1807,7 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
 /* compute sparse matrix eigenvalues */
 static void csc_eigen (MX *a, int n, double *val, MX *vec)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  //TODO
+  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
 /* ------------ interface ------------- */
@@ -2008,7 +2082,7 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
     {
       if (MXIFAC (a))
       {
-	double *y = MXIFAC_WORK2(a);
+	double *y = MXIFAC_WORK1(a);
 
 	if (MXTRANS (a)) inv_tran_vec (a, b, y);
 	else inv_vec (a, b, y);
@@ -2020,21 +2094,28 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
 	int *p = a->p, *i = a->i, m = a->m, n = a->n, *j, *k, l;
 	double *x = a->x, *y;
 
-	if (MXTRANS (a))
+	if (MXSPD (a))
 	{
-	  for (l = 0; l < n; l ++, c ++)
-	  {
-	    (*c) *= beta;
-	    for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
-	      (*c) += alpha * (*y) * b[*j];
-	  }
+          /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
 	}
 	else
 	{
-	  for (l = 0; l < m; l ++) c [l] *= beta;
-	  for (l = 0; l < n; l ++, b ++)
-	    for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
-	      c [*j] += alpha * (*y) * (*b);
+	  if (MXTRANS (a))
+	  {
+	    for (l = 0; l < n; l ++, c ++)
+	    {
+	      (*c) *= beta;
+	      for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
+		(*c) += alpha * (*y) * b[*j];
+	    }
+	  }
+	  else
+	  {
+	    for (l = 0; l < m; l ++) c [l] *= beta;
+	    for (l = 0; l < n; l ++, b ++)
+	      for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
+		c [*j] += alpha * (*y) * (*b);
+	  }
 	}
       }
     }
@@ -2042,16 +2123,6 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
   }
 
   if (TEMPORARY (a)) free (a);
-}
-
-MX* MX_Trimat (MX *a, MX *b, MX *c, MX *d)
-{
-  MX *t;
-
-  t = MX_Matmat (1.0, b, c, 0.0, NULL);
-  d = MX_Matmat (1.0, a, t, 0.0, d);
-  MX_Destroy (t);
-  return d;
 }
 
 MX* MX_Inverse (MX *a, MX *b)
@@ -2072,27 +2143,6 @@ MX* MX_Inverse (MX *a, MX *b)
   if (TEMPORARY (a)) free (a);
   if (TEMPORARY (b)) { free (b); return NULL; }
   else return b;
-}
-
-void MX_Cholsol (MX *a, double *b)
-{
-  ASSERT_DEBUG (!TEMPORARY (a), "Cholesky solve with temporary matrix");
-
-  switch (a->kind)
-  {
-    case MXDENSE:
-      if (!b || !a->num) dense_cholfact (a);
-      if (b) dense_cholsol (a->num, b);
-    break;
-    case MXBD:
-      if (!b || !a->num) bd_cholfact (a);
-      if (b) bd_cholsol (a->num, b);
-    break;
-    case MXCSC:
-      if (!b || !a->num) csc_cholfact (a);
-      if (b) csc_cholsol (a, b);
-    break;
-  }
 }
 
 void MX_Eigen (MX *a, int n, double *val, MX *vec)
@@ -2227,8 +2277,19 @@ void MX_Destroy (MX *a)
       free (a->p);
       free (a->i);
       free (a->x);
-      if (a->sym) cs_sfree (a->sym);
-      if (a->num) cs_nfree (a->num);
+      if (MXIFAC (a))
+      {
+	if (MXSPD (a)) /* TAUCS */
+	{
+	  free (a->sym);
+	  taucs_linsolve (NULL, &a->num, 0, NULL, NULL, NULL, NULL);
+	}
+	else /* CSparse */
+	{
+	  cs_sfree (a->sym);
+	  cs_nfree (a->num);
+	}
+      }
       free (a);
     break;
   }
