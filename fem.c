@@ -1285,7 +1285,7 @@ static void dynamic_force (BODY *bod, double time, double step, double *fext, do
 #define static_force(bod, time, step, fext, fint, force) dynamic_force (bod,time,step,fext,fint,force)
 
 /* compute global tangent stiffness */
-static MX* tangent_stiffness (BODY *bod)
+static MX* tangent_stiffness (BODY *bod, short spd)
 {
   struct colblock { int row; double val [3]; } *cb; /* column block */
   int i, j, k, l, n, *pp, *ii, *kk;
@@ -1298,6 +1298,7 @@ static MX* tangent_stiffness (BODY *bod)
       mapmem;
   MX *tang;
 
+  if (spd) spd = 1;
   MEM_Init  (&blkmem, sizeof (struct colblock), bod->dofs);
   ERRMEM (col = MEM_CALLOC (sizeof (MAP*) * bod->dofs)); /* sparse columns */
   MEM_Init  (&mapmem, sizeof (MAP), bod->dofs);
@@ -1333,7 +1334,7 @@ static MX* tangent_stiffness (BODY *bod)
 
 	for (i = 0; i < ele->type; i ++, A += 3) /* for each column row-block; shift column block pointer A */
 	{
-	  if (ele->nodes [k] > ele->nodes [i]) continue; /* lower triangle */
+	  if (spd && ele->nodes [k] > ele->nodes [i]) continue; /* lower triangle */
 
 	  if (!(cb = MAP_Find (col [j], (void*) (long) ele->nodes [i], NULL))) /* if this row-block was not mapped */
 	  {
@@ -1349,7 +1350,7 @@ static MX* tangent_stiffness (BODY *bod)
 
   ERRMEM (pp = malloc (sizeof (int [bod->dofs + 1]))); /* column pointers */
 
-  for (pp [0] = 0, j = 0; j < bod->dofs; j ++) pp [j+1] = pp [j] + 3 * MAP_Size (col [j]) - j % 3; /* subtract upper triangular j % 3 sticking out bits */
+  for (pp [0] = 0, j = 0; j < bod->dofs; j ++) pp [j+1] = pp [j] + 3 * MAP_Size (col [j]) - spd * (j % 3); /* subtract upper triangular j % 3 sticking out bits */
 
   ERRMEM (ii = malloc (sizeof (int [pp [bod->dofs]]))); /* row indices */
 
@@ -1358,7 +1359,7 @@ static MX* tangent_stiffness (BODY *bod)
     for (item = MAP_First (col [j]); item; item = MAP_Next (item)) /* for each row-block */
     {
       cb = item->data;
-      if (cb->row < j) /* diagonal block with sticking out upper triangle */
+      if (spd && cb->row < j) /* diagonal block with sticking out upper triangle */
       {
 	for (n = 0; n < 3 - j % 3; n ++, kk ++) kk [0] = j + n;
       }
@@ -1373,14 +1374,14 @@ static MX* tangent_stiffness (BODY *bod)
   }
 
   tang = MX_Create (MXCSC, bod->dofs, bod->dofs, pp, ii); /* create tangent matrix structure */
-  tang->flags |= MXSPD;
+  if (spd) tang->flags |= MXSPD;
 
   for (j = 0, A = tang->x; j < bod->dofs; j ++) /* initialize column values pointer A; for each column */
   {
     for (item = MAP_First (col [j]); item; item = MAP_Next (item)) /* for each row-block */
     {
       cb = item->data;
-      if (cb->row < j) /* diagonal block with sticking out upper triangle */
+      if (spd && cb->row < j) /* diagonal block with sticking out upper triangle */
       {
 	for (n = 0; n < 3 - j % 3; n ++, A ++) A [0] = cb->val [j % 3 + n];
       }
@@ -1402,7 +1403,7 @@ static MX* tangent_stiffness (BODY *bod)
 }
 
 /* compute diagonalized inertia operator */
-static MX* diagonal_inertia (BODY *bod)
+static MX* diagonal_inertia (BODY *bod, short spd)
 {
   MESH *msh = FEM_MESH (bod);
   int bulk,
@@ -1422,7 +1423,7 @@ static MX* diagonal_inertia (BODY *bod)
   for (k = 0, p [n] = n; k < n; k ++) p [k] = i [k] = k; /* diagonal pattern */
 
   M = MX_Create (MXCSC, n, n, p, i);
-  M->flags |= MXSPD;
+  if (spd) M->flags |= MXSPD;
   x = M->x;
   free (p);
   free (i);
@@ -1448,7 +1449,7 @@ static void TL_dynamic_inverse (BODY *bod, double step, double *force)
 
   if (bod->inverse) MX_Destroy (bod->inverse);
 
-  K = tangent_stiffness (bod);
+  K = tangent_stiffness (bod, 0);
 
   M = bod->M;
 
@@ -1547,11 +1548,11 @@ static void TL_static_inverse (BODY *bod, double step)
 {
   MX *M, *K, *A;
 
-  if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod);
+  if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod, 0);
 
   if (bod->inverse) MX_Destroy (bod->inverse);
 
-  K = tangent_stiffness (bod);
+  K = tangent_stiffness (bod, 0);
 
 #if 0
   MESH *msh = FEM_MESH (bod);
@@ -1583,7 +1584,7 @@ static void TL_static_inverse (BODY *bod, double step)
 /* total lagrangian initialise dynamic time stepping */
 static void TL_dynamic_init (BODY *bod)
 {
-  if (!bod->M) bod->M = diagonal_inertia (bod);
+  if (!bod->M) bod->M = diagonal_inertia (bod, 0);
 
   if (bod->scheme == SCH_DEF_EXP)
   {
@@ -1987,9 +1988,9 @@ static void BC_dynamic_init (BODY *bod)
 {
   if (!bod->M && !bod->K)
   {
-    bod->M = diagonal_inertia (bod);
+    bod->M = diagonal_inertia (bod, 1);
 
-    bod->K = tangent_stiffness (bod);
+    bod->K = tangent_stiffness (bod, 1);
 
     if (bod->scheme == SCH_DEF_EXP) BC_inverse (bod, 0.0, bod->M, NULL); /* initialize once */
     else BC_inverse (bod, bod->dom->step, bod->M, bod->K);

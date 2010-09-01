@@ -735,6 +735,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
   DOM *dom;
   CON *con;
 
+  dom = sys->ldy->dom;
   epsilon = sys->epsilon;
   dynamic = dom->dynamic;
   step = dom->step;
