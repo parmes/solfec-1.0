@@ -565,6 +565,8 @@ static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
 
   ASSERT (!(MXIFAC (a) || MXIFAC (b)), ERR_MTX_IFAC); /* adding factorized inverses is invalid */
 
+  ASSERT_DEBUG ((MXSPD (a) && MXSPD (b)) || ((!MXSPD (a)) && (!MXSPD (b))), "Cannot add an SPD and a non-SPD matrix");
+
   switch (MXTRANS(a)<<4|MXTRANS(b))
   {
     case 0x00:
@@ -642,6 +644,8 @@ static MX* add_csc_csc (double alpha, MX *a, double beta, MX *b, MX *c)
 
   if (A != a) cs_spfree (A);
   if (B != b) cs_spfree (B);
+
+  if (MXSPD (a) && MXSPD (b)) c->flags |= MXSPD;
 
   return c;
 }
@@ -870,7 +874,9 @@ static void inv_vec (MX *a, double *b, double *c)
 {
   if (MXSPD (a))
   {
-    taucs_linsolve (a->sym, &a->num, 1, c, b, NULL, NULL);
+    char *options[] = {"taucs.factor=false", NULL};
+
+    taucs_linsolve (a->sym, &a->num, 1, c, b, options, NULL);
   }
   else
   {
@@ -890,7 +896,9 @@ static void vec_inv (double *b, MX *a, double *c)
 {
   if (MXSPD (a))
   {
-    taucs_linsolve (a->sym, &a->num, 1, c, b, NULL, NULL); /* same as above due to the symmetry of LL' */
+    char *options[] = {"taucs.factor=false", NULL};
+
+    taucs_linsolve (a->sym, &a->num, 1, c, b, options, NULL); /* same as above due to the symmetry of LL' */
   }
   else
   {
@@ -1430,106 +1438,6 @@ static MX* matmat_csc_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   return c;
 }
 
-#if 0
-/* Cholesky dense factorize */
-inline static void dense_cholfact (MX *a)
-{
-  MX *b;
-
-  ASSERT_DEBUG (a->m == a->n, "Not a square matrix");
-  if (!a->num) a->num = copy_matrix (a, NULL);
-  else b = a->num;
-
-  ASSERT (lapack_dpotrf ('U', b->m, b->x, b->m) == 0, ERR_MTX_CHOL_FACTOR);
-}
-
-/* Cholesky dense solve */
-inline static void dense_cholsol (MX *a, double *b)
-{
-  ASSERT (lapack_dposv ('U', a->m, 1, a->x, a->m, b, a->m) == 0, ERR_MTX_CHOL_SOLVE);
-}
-
-/* Cholesky block factorize */
-inline static void bd_cholfact (MX *a)
-{
-  int m, n, k, *pp, *ii;
-  double *bx;
-  MX *b;
-
-  if (!a->num) a->num = copy_matrix (a, NULL);
-  else b = a->num;
-
-  n = b->n;
-  pp = b->p;
-  ii = b->i; 
-  bx = b->x;
-  
-  for (k = 0; k < n; k ++)
-  {
-    m = ii[k+1] - ii[k];
-    ASSERT (lapack_dpotrf ('U', m, &bx [pp[k]], m) == 0, ERR_MTX_CHOL_FACTOR);
-  }
-}
-
-/* Cholesky block solve */
-inline static void bd_cholsol (MX *a, double *b)
-{
-  int m, n, k, *pp, *ii;
-  double *ax;
-
-  n = a->n;
-  pp = a->p;
-  ii = a->i; 
-  ax = a->x;
-  
-  for (k = 0; k < n; k ++)
-  {
-    m = ii[k+1] - ii[k];
-    ASSERT (lapack_dposv ('U', m, 1, &ax [pp[k]], m, &b[ii[k]], m) == 0, ERR_MTX_CHOL_SOLVE);
-  }
-}
-
-/* Cholesky sparse factorize */
-inline static void csc_cholfact (MX *a)
-{
-  char *options[] = {"taucs.factor.mf=true", "taucs.factor.ordering=metis", NULL};
-
-  if (!a->sym)
-  {
-    taucs_ccs_matrix *b;
-
-    ERRMEM (b = MEM_CALLOC (sizeof (taucs_ccs_matrix)));
-    b->n = a->n;
-    b->m = a->m;
-    b->flags = TAUCS_DOUBLE|TAUCS_SYMMETRIC;
-    b->colptr = a->p;
-    b->rowind = a->i;
-    b->values.d = a->x;
-    a->sym = b;
-  }
-
-  if (a->num) taucs_linsolve (NULL, &a->num, 0, NULL, NULL, NULL, NULL);  /* clear factorization */
-
-  taucs_linsolve (a->sym, &a->num, 0, NULL, NULL, options, NULL);
-
-  ASSERT (a->sym && a->num, ERR_MTX_CHOL_FACTOR);
-}
-
-/* Cholesky sparse solve */
-inline static void csc_cholsol (MX *a, double *b)
-{
-  double *x;
-
-  ERRMEM (x = malloc (a->n * sizeof (double)));
-
-  blas_dcopy (a->n, b, 1, x, 1);
-
-  taucs_linsolve (a->sym, &a->num, 1, b, x, NULL, NULL);
-
-  free (x);
-}
-#endif
-
 /* invert dense matrix */
 static MX* dense_inverse (MX *a, MX *b)
 {
@@ -1613,11 +1521,12 @@ inline static void csc_doinv (MX *b)
 {
   if (MXSPD (b))
   {
-    char *options[] = {"taucs.factor.mf=true", "taucs.factor.ordering=metis", NULL};
+    char *options[] = {"taucs.factor.LLT=true", "taucs.factor.mf=true", "taucs.factor.ordering=metis", NULL};
     taucs_ccs_matrix *c;
 
+    ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + b->n]))); /* workspace 1 after b->x */
     ERRMEM (c = MEM_CALLOC (sizeof (taucs_ccs_matrix)));
-    c->flags = TAUCS_DOUBLE | TAUCS_SYMMETRIC;
+    c->flags = TAUCS_DOUBLE | TAUCS_SYMMETRIC | TAUCS_LOWER;
     c->values.d = b->x;
     c->colptr = b->p;
     c->rowind = b->i;
@@ -1627,13 +1536,12 @@ inline static void csc_doinv (MX *b)
 
     taucs_linsolve (b->sym, &b->num, 0, NULL, NULL, options, NULL);
     ASSERT (b->num, ERR_MTX_CHOL_FACTOR);
-    ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + b->n]))); /* workspace 1 after b->x */
   }
   else
   {
+    ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + 2 * b->n]))); /* workspace 1 and 2 after b->x */
     ERRMEM (b->sym = cs_sqr (2, b, 0));
     ASSERT (b->num = cs_lu (b, b->sym, 0.1), ERR_MTX_LU_FACTOR);
-    ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + 2 * b->n]))); /* workspace 1, 2 after b->x */
   }
 }
 
@@ -2092,31 +2000,56 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
       else
       {
 	int *p = a->p, *i = a->i, m = a->m, n = a->n, *j, *k, l;
-	double *x = a->x, *y;
+	double *x = a->x, *y, *ab, stemp, rtemp;
+
+	ERRMEM (ab = MEM_CALLOC (sizeof (double [m])));
+
+	if (beta == 0.0) {for (y = c+m; c < y; c ++) (*c) = 0.0; c -= m;}
+	else if (beta != 1.0) {for (y = c+m; c < y; c ++) (*c) *= beta; c -= m;}
 
 	if (MXSPD (a))
 	{
-          /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+	  for (l = 0; l < n; l ++)
+	  {
+	    j = &i[p[l]];
+	    y = &x[p[l]];
+	    rtemp = b [l];
+	    stemp = (*y) * rtemp;
+	    ASSERT_DEBUG (*j == l, "MXSPD must have index[pointer[i]] == i");
+
+	    for (j ++, y ++, k = &i[p[l+1]]; j < k; j ++, y ++)
+	    {
+	      stemp += (*y) * b [*j];
+	      ab [*j] += (*y) * rtemp;
+	    }
+	    ab [l] += stemp;
+	  }
 	}
 	else
 	{
 	  if (MXTRANS (a))
 	  {
-	    for (l = 0; l < n; l ++, c ++)
+	    for (l = 0; l < n; l ++, ab ++)
 	    {
-	      (*c) *= beta;
 	      for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
-		(*c) += alpha * (*y) * b[*j];
+		(*ab) += (*y) * b[*j];
 	    }
+	    ab -= n;
 	  }
 	  else
 	  {
-	    for (l = 0; l < m; l ++) c [l] *= beta;
 	    for (l = 0; l < n; l ++, b ++)
 	      for (j = &i[p[l]], k = &i[p[l+1]], y = &x[p[l]]; j < k; j ++, y ++)
-		c [*j] += alpha * (*y) * (*b);
+		ab [*j] += (*y) * (*b);
 	  }
 	}
+
+	if (MXTRANS (a)) m = n;
+	if (alpha == 1.0) for (y = c+m; c < y; ab ++, c ++) (*c) += (*ab);
+	else if (alpha == -1.0) for (y = c+m; c < y; ab ++, c ++) (*c) -= (*ab);
+	else for (y = c+m; c < y; ab ++, c ++) (*c) += alpha * (*ab);
+
+	free (ab-m);
       }
     }
     break;

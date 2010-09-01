@@ -38,11 +38,11 @@ typedef double (*node_t) [3]; /* mesh node */
 #define MAX_NODES 20
 #define DOM_TOL 0.150
 #define CUT_TOL 0.015
-#define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)
-#define FEM_FORCE(bod) ((bod)->velo + (bod)->dofs * 2)
-#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 3)
-#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 4)
-#define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)
+#define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
+#define FEM_FBOD(bod) ((bod)->velo + (bod)->dofs * 2) /* unit body force */
+#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 3) /* external force */
+#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 4) /* internal force */
+#define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)      /* rotation */
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
 
@@ -78,10 +78,10 @@ static const double I_TRI1_Y[] = {0.333333333333333333};
 static const double I_TRI1_W[] = {0.5};
 #define             I_TRI1_N      1
 
-static const double I_QUA1_X [] = {0}; /* TODO */
-static const double I_QUA1_Y [] = {0};
-static const double I_QUA1_W [] = {0};
-#define             I_QUA1_N       0
+static const double I_QUA1_X [] = {0.0};
+static const double I_QUA1_Y [] = {0.0};
+static const double I_QUA1_W [] = {4.0};
+#define             I_QUA1_N       1
 
 /* order 2 */
 static const double I_TET2_X [] = {0.13819660112501052, 0.13819660112501052, 0.13819660112501052, 0.58541019662496840};
@@ -280,8 +280,8 @@ inline static int integrator3d_load (int type, int order, const double **X, cons
 }
 
 /* predict 3D integration order */
-typedef enum {MASS, EXTF, INTF} ENTITY;
-static int integrator3d_order (int type, ENTITY entity)
+typedef enum {MASS, BODF, INTF} ENTITY3D;
+static int integrator3d_order (int type, ENTITY3D entity)
 {
   /* FIXME */
 
@@ -321,11 +321,12 @@ inline static int integrator2d_load (int type, int order, const double **X, cons
 }
 
 /* predict 2D integration order */
-static int integrator2d_order (int type)
+typedef enum {SURF, DROT} ENTITY2D;
+static int integrator2d_order (int type, ENTITY2D entity)
 {
   /* FIXME */
 
-  return 2;
+  return 1;
 }
 
 /* element integration */
@@ -398,13 +399,13 @@ static int integrator2d_order (int type)
 }
 
 /* face integral begins */
-#define INTEGRAL2D_BEGIN(TYPE)\
+#define INTEGRAL2D_BEGIN(TYPE, ENTITY)\
 {\
   const double *__X__, *__Y__, *__W__;\
   double point [2], weight;\
   int __N__, __k__;\
 \
-  __N__ = integrator2d_load (TYPE, integrator2d_order (TYPE), &__X__, &__Y__, &__W__);\
+  __N__ = integrator2d_load (TYPE, integrator2d_order (TYPE, ENTITY), &__X__, &__Y__, &__W__);\
   for (__k__ = 0; __k__ < __N__; __k__ ++)\
   {\
     point [0] = __X__ [__k__];\
@@ -899,7 +900,7 @@ static void element_body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, d
 
   for (i = 0; i < 3*n; i ++) g [i] = 0.0;
 
-  INTEGRATE3D (ele->type, EXTF, ele->dom, ele->domnum, 
+  INTEGRATE3D (ele->type, BODF, ele->dom, ele->domnum, 
 
     element_shapes (ele->type, point, shapes);
     J = element_det (ele->type, nodes, point, NULL);
@@ -1180,19 +1181,40 @@ static void internal_force (BODY *bod, double *fint)
   }
 }
 
+/* initialize unit body force */
+static void unit_body_force (BODY *bod)
+{
+  double g [24], f [3], *v, *w;
+  double *ubf = FEM_FBOD (bod);
+  MESH *msh = FEM_MESH (bod);
+  ELEMENT *ele;
+  int bulk, i;
+
+  SET (f, 1.0);
+  for (ele = msh->surfeles, bulk = 0; ele; )
+  {
+    element_body_force (bod, msh, ele, f, g);
+
+    for (i = 0, v = g; i < ele->type; i ++, v += 3)
+    {
+      w = &ubf [ele->nodes [i] * 3];
+      ADD (w, v, w);
+    }
+
+    if (bulk) ele = ele->next;
+    else if (ele->next) ele = ele->next;
+    else ele = msh->bulkeles, bulk = 1;
+  }
+}
+
 /* compute external force */
 static void external_force (BODY *bod, double time, double step, double *fext)
 {
+  double g [24], f [3], point [3], value, *v;
+  double *ubf = FEM_FBOD (bod);
   MESH *msh = FEM_MESH (bod);
   ELEMENT *ele;
-  double g [24],
-	 f [3],
-	 point [3],
-	 value,
-	*v,
-	*w;
-  int bulk,
-      i;
+  int i;
 
   /* zero forces */
   for (i = 0; i < bod->dofs; i ++) fext [i] = 0.0;
@@ -1241,20 +1263,10 @@ static void external_force (BODY *bod, double time, double step, double *fext)
     f [1] = TMS_Value (bod->dom->gravity [1], time);
     f [2] = TMS_Value (bod->dom->gravity [2], time);
 
-    for (ele = msh->surfeles, bulk = 0; ele; )
-    {
-      element_body_force (bod, msh, ele, f, g);
-
-      for (i = 0, v = g; i < ele->type; i ++, v += 3)
-      {
-	w = &fext [ele->nodes [i] * 3];
-	ADD (w, v, w);
-      }
-
-      if (bulk) ele = ele->next;
-      else if (ele->next) ele = ele->next;
-      else ele = msh->bulkeles, bulk = 1;
-    }
+    i = bod->dofs / 3;
+    blas_daxpy (i, f[0], ubf, 3, fext, 3);
+    blas_daxpy (i, f[1], ubf+1, 3, fext+1, 3);
+    blas_daxpy (i, f[2], ubf+2, 3, fext+2, 3);
   }
 }
  
@@ -1276,7 +1288,7 @@ static void dynamic_force (BODY *bod, double time, double step, double *fext, do
 static MX* tangent_stiffness (BODY *bod)
 {
   struct colblock { int row; double val [3]; } *cb; /* column block */
-  int i, j, k, l, *pp, *ii, *kk;
+  int i, j, k, l, n, *pp, *ii, *kk;
   double K [576], *A;
   MAP **col, *item;
   ELEMENT *ele;
@@ -1321,6 +1333,8 @@ static MX* tangent_stiffness (BODY *bod)
 
 	for (i = 0; i < ele->type; i ++, A += 3) /* for each column row-block; shift column block pointer A */
 	{
+	  if (ele->nodes [k] > ele->nodes [i]) continue; /* lower triangle */
+
 	  if (!(cb = MAP_Find (col [j], (void*) (long) ele->nodes [i], NULL))) /* if this row-block was not mapped */
 	  {
 	    ERRMEM (cb = MEM_Alloc (&blkmem));
@@ -1335,29 +1349,46 @@ static MX* tangent_stiffness (BODY *bod)
 
   ERRMEM (pp = malloc (sizeof (int [bod->dofs + 1]))); /* column pointers */
 
-  for (pp [0] = 0, j = 0; j < bod->dofs; j ++) pp [j+1] = pp [j] + 3 * MAP_Size (col [j]); /* computed */
+  for (pp [0] = 0, j = 0; j < bod->dofs; j ++) pp [j+1] = pp [j] + 3 * MAP_Size (col [j]) - j % 3; /* subtract upper triangular j % 3 sticking out bits */
 
   ERRMEM (ii = malloc (sizeof (int [pp [bod->dofs]]))); /* row indices */
 
   for (j = 0, kk = ii; j < bod->dofs; j ++) /* initialize row index pointer; for each column */
   {
-    for (item = MAP_First (col [j]); item; item = MAP_Next (item), kk += 3) /* for each row-block; increment column pointer by 3 */
+    for (item = MAP_First (col [j]); item; item = MAP_Next (item)) /* for each row-block */
     {
       cb = item->data;
-      kk [0] = cb->row; /* set row indices */
-      kk [1] = kk[0] + 1;
-      kk [2] = kk[1] + 1;
+      if (cb->row < j) /* diagonal block with sticking out upper triangle */
+      {
+	for (n = 0; n < 3 - j % 3; n ++, kk ++) kk [0] = j + n;
+      }
+      else /* lower triangle block */
+      {
+	kk [0] = cb->row;
+	kk [1] = kk[0] + 1;
+	kk [2] = kk[1] + 1;
+	kk += 3;
+      }
     }
   }
 
   tang = MX_Create (MXCSC, bod->dofs, bod->dofs, pp, ii); /* create tangent matrix structure */
+  tang->flags |= MXSPD;
 
   for (j = 0, A = tang->x; j < bod->dofs; j ++) /* initialize column values pointer A; for each column */
   {
-    for (item = MAP_First (col [j]); item; item = MAP_Next (item), A += 3) /* for each row-block, increment A */
+    for (item = MAP_First (col [j]); item; item = MAP_Next (item)) /* for each row-block */
     {
       cb = item->data;
-      COPY (cb->val, A); /* copy values */
+      if (cb->row < j) /* diagonal block with sticking out upper triangle */
+      {
+	for (n = 0; n < 3 - j % 3; n ++, A ++) A [0] = cb->val [j % 3 + n];
+      }
+      else /* lower triangle block */
+      {
+        COPY (cb->val, A); /* copy values */
+	A += 3;
+      }
     }
   }
 
@@ -1366,31 +1397,6 @@ static MX* tangent_stiffness (BODY *bod)
   free (col);
   MEM_Release (&mapmem);
   MEM_Release (&blkmem);
-
-#if 0
-  {
-    double max = tang->x [0];
-
-    for (i = 0; i < tang->p [tang->n]; i ++) max = MAX(max, tang-> x[i]);
-
-    for (j = 0; j < tang->n; j ++)
-    {
-      for (k = tang->p [j]; k < tang->p [j+1]; k ++)
-      {
-	i = tang->i [k];
-	for (l = tang->p [i]; l < tang->p [i+1]; l ++)
-	{
-	  if (tang->i [l] == j)
-	  {
-	    ASSERT_DEBUG (fabs (tang->x [k] - tang->x [l]) < 1E-10 * max, "Unsymmetric K: %e, %e\n", tang->x [k], tang->x [l]);
-	    break;
-	  }
-	}
-	ASSERT_DEBUG (l < tang->p [i+1], "Unsymmetric K: matching entry not found");
-      }
-    }
-  }
-#endif
 
   return tang;
 }
@@ -1416,6 +1422,7 @@ static MX* diagonal_inertia (BODY *bod)
   for (k = 0, p [n] = n; k < n; k ++) p [k] = i [k] = k; /* diagonal pattern */
 
   M = MX_Create (MXCSC, n, n, p, i);
+  M->flags |= MXSPD;
   x = M->x;
   free (p);
   free (i);
@@ -1634,12 +1641,14 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
 	 c = bod->damping,
 	*x = bod->inverse->x,
 	*u0 = FEM_VEL0 (bod),
-	*f = FEM_FORCE (bod),
 	*fext = FEM_FEXT (bod),
 	*fint = FEM_FINT (bod),
 	*q = bod->conf,
 	*u = bod->velo,
-	*e = u + n;
+	*e = u + n,
+	*f, *g;
+
+  ERRMEM (f = malloc (sizeof (double [n])));
 
   blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
 
@@ -1649,7 +1658,7 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
   {
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
-    for (; u < e; u ++, x ++, f ++) (*u) += step * (*x) * (*f); /* u(t+h) = u(t) + inv (M) * h * f */
+    for (g = f; u < e; u ++, x ++, g ++) (*u) += step * (*x) * (*g); /* u(t+h) = u(t) + inv (M) * h * f */
   }
   break;
   case SCH_DEF_LIM:
@@ -1682,6 +1691,8 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
   }
 
   if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
+
+  free (f);
 }
 
 /* total lagrangian perform the final half-step of the dynamic scheme */
@@ -1690,13 +1701,14 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
   int n = bod->dofs;
   double half = 0.5 * step,
 	*x = bod->inverse->x,
-	*r = FEM_FORCE (bod),
-	*ir = r,
 	*fext = FEM_FEXT (bod),
 	*u = bod->velo,
 	*iu = u,
 	*q = bod->conf,
-	*e = u + n;
+	*e = u + n,
+	*r, *ir;
+
+  ERRMEM (ir = r = malloc (sizeof (double [n])));
 
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
@@ -1728,6 +1740,8 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
   default:
   break;
   }
+
+  free (r);
 }
 
 /* total lagrangian initialise static time stepping */
@@ -1739,21 +1753,25 @@ static void TL_static_init (BODY *bod)
 /* total lagrangian perform the initial half-step of the static scheme */
 static void TL_static_step_begin (BODY *bod, double time, double step)
 {
-  double *force = FEM_FORCE (bod);
+  double *f;
 
+  ERRMEM (f = malloc (sizeof (double [bod->dofs])));
   TL_static_inverse (bod, step); /* compute inverse of static tangent operator */
-  static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), force);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
-  MX_Matvec (step, bod->inverse, force, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
+  static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), f);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
+  MX_Matvec (step, bod->inverse, f, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
+  free (f);
 }
 
 /* total lagrangian perform the final half-step of the static scheme */
 static void TL_static_step_end (BODY *bod, double time, double step)
 {
-  double *force = FEM_FORCE (bod);
+  double *r;
 
-  fem_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-  MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
+  ERRMEM (r = malloc (sizeof (double [bod->dofs])));
+  fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  MX_Matvec (step, bod->inverse, r, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
   blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
+  free (r);
 }
 
 /* =================== BODY COROTATIONAL =================== */
@@ -1774,7 +1792,7 @@ static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, do
     for (j = 0; j < fac->type; j ++) ADD (nodes [j], q [j], nodes [j]);
     N = fac->normal + 3;
 
-    INTEGRAL2D_BEGIN (fac->type) /* defines point and weight */
+    INTEGRAL2D_BEGIN (fac->type, DROT) /* defines point and weight */
     {
       n = face_shapes (fac, point, shapes);
       J = face_det (fac, nodes, point);
@@ -1992,11 +2010,13 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
   double half = 0.5 * step,
 	*qu0 = FEM_VEL0 (bod),
 	*R = FEM_ROT (bod),
-	*b = FEM_FORCE (bod),
 	*fext = FEM_FEXT (bod),
 	*fint = FEM_FINT (bod),
 	*q = bod->conf,
-	*u = bod->velo;
+	*u = bod->velo,
+	*b;
+
+  ERRMEM (b = malloc (sizeof (double [n])));
 
   switch (bod->scheme)
   {
@@ -2035,6 +2055,8 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
   default:
   break;
   }
+
+  free (b);
 }
 
 /* body co-rotational perform the final half-step of the dynamic scheme */
@@ -2043,12 +2065,14 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
   int n = bod->dofs;
   MESH *msh = FEM_MESH (bod);
   double half = 0.5 * step,
-	*r = FEM_FORCE (bod),
 	*fext = FEM_FEXT (bod),
 	*fint = FEM_FINT (bod),
 	*R = FEM_ROT (bod),
 	*q = bod->conf,
-	*u = bod->velo;
+	*u = bod->velo,
+	*r;
+
+  ERRMEM (r = malloc (sizeof (double [n])));
 
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
 
@@ -2085,6 +2109,8 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
   default:
   break;
   }
+
+  free (r);
 }
 
 /* body co-rotational initialise static time stepping */
@@ -2479,6 +2505,8 @@ void FEM_Dynamic_Init (BODY *bod)
       BC_dynamic_init (bod);
       break;
   }
+
+  unit_body_force (bod);
 }
 
 /* estimate critical step for the dynamic scheme */
@@ -2516,16 +2544,16 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   int n = bod->dofs;
   double half = 0.5 * step,
 	*energy = bod->energy,
-	*dq = FEM_FORCE (bod),
 	*fext = FEM_FEXT (bod),
 	*fint = FEM_FINT (bod),
 	*u0 = FEM_VEL0 (bod),
 	*u = bod->velo,
 	*ue = u + n,
-	*idq = dq,
 	*iu0 = u0,
-	*iu = u;
+	*iu = u,
+	*dq, *idq;
 
+  ERRMEM (idq = dq = malloc (sizeof (double [n])));
 
   switch (bod->form)
   {
@@ -2551,6 +2579,8 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 
     for (; ref < end; cur ++, ref ++, q += 3) { ADD (ref[0], q, cur[0]); }
   }
+
+  free (dq);
 }
 
 /* initialise static time stepping */
@@ -2565,6 +2595,8 @@ void FEM_Static_Init (BODY *bod)
       BC_static_init (bod);
       break;
   }
+
+  unit_body_force (bod);
 }
 
 /* perform the initial half-step of the static scheme */
