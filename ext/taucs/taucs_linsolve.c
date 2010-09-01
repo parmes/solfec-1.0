@@ -544,13 +544,16 @@ int taucs_linsolve(taucs_ccs_matrix* A,
     default:
       assert(0);
     }
-    
-    taucs_printf("taucs_linsolve: pre-solve permuting of A\n");
-    if (!PAPT) PAPT = taucs_ccs_permute_symmetrically(A,f->rowperm,f->colperm);
-    if (!PAPT) {
-      taucs_printf("taucs_factor: permute rows and columns failed\n");
-      retcode = TAUCS_ERROR_NOMEM;
-      goto release_and_return;
+   
+    if (opt_cg || opt_minres) /* TK: not needed for multifrontal solvers */
+    { 
+      taucs_printf("taucs_linsolve: pre-solve permuting of A\n");
+      if (!PAPT) PAPT = taucs_ccs_permute_symmetrically(A,f->rowperm,f->colperm);
+      if (!PAPT) {
+	taucs_printf("taucs_factor: permute rows and columns failed\n");
+	retcode = TAUCS_ERROR_NOMEM;
+	goto release_and_return;
+      }
     }
 
     for (j=0; j<nrhs; j++) {
