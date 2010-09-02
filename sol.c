@@ -743,7 +743,7 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
   cur = 0;
   save = sol->dom->time;
   SOLFEC_Seek_To (sol, t0);
-  *size = PBF_Span (sol->bf, t0, t1);
+  *size = PBF_Span (sol->bf, t0, t1) / ABS (skip);
   ERRMEM (time = MEM_CALLOC (sizeof (double [(*size) + 4]))); /* safeguard */
   time [cur] = sol->dom->time;
 
