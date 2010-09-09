@@ -3547,20 +3547,20 @@ struct lng_CONSTRAINT
 {
   PyObject_HEAD
 
-#if MPI
   unsigned int id;
-#endif
+
+  DOM *dom;
 
   CON *con;
 };
 
-#if MPI
-/* try assigning a constraint pointer to the id */
-static int ID_TO_CONSTRAINT (lng_SOLFEC *solfec, lng_CONSTRAINT *constraint)
+/* try assigning a constraint pointer to the id (constraints get
+ * deleted and recreated in READ mode and they migrate in parallel) */
+static int ID_TO_CONSTRAINT (DOM *dom, lng_CONSTRAINT *constraint)
 {
-  if (constraint->id)
+  if (dom && constraint->id)
   {
-    CON *con = MAP_Find (solfec->sol->dom->idc, (void*) (long) constraint->id, NULL);
+    CON *con = MAP_Find (dom->idc, (void*) (long) constraint->id, NULL);
 
     if (con)
     {
@@ -3571,7 +3571,6 @@ static int ID_TO_CONSTRAINT (lng_SOLFEC *solfec, lng_CONSTRAINT *constraint)
 
   return 0;
 }
-#endif
 
 /* test whether an object is of BODY or CONSTRAINT type */
 static int is_body_or_constraint (PyObject *obj, char *var)
@@ -3616,10 +3615,8 @@ static PyObject* lng_CONSTRAINT_WRAPPER (CON *con)
 
   self = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
 
-#if MPI
+  self->dom = con->master->dom;
   self->id = con->id;
-#endif
-
   self->con = con;
 
   return (PyObject*)self;
@@ -3635,7 +3632,11 @@ static void lng_CONSTRAINT_dealloc (lng_CONSTRAINT *self)
 
 static PyObject* lng_CONSTRAINT_get_kind (lng_CONSTRAINT *self, void *closure)
 {
-  return PyString_FromString (CON_Kind (self->con));
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    return PyString_FromString (CON_Kind (self->con));
+  }
+  else Py_RETURN_NONE;
 }
 
 static int lng_CONSTRAINT_set_kind (lng_CONSTRAINT *self, PyObject *value, void *closure)
@@ -3646,8 +3647,12 @@ static int lng_CONSTRAINT_set_kind (lng_CONSTRAINT *self, PyObject *value, void 
 
 static PyObject* lng_CONSTRAINT_get_R (lng_CONSTRAINT *self, void *closure)
 {
-  double *R = self->con->dia->R;
-  return Py_BuildValue ("(d, d, d)", R[0], R[1], R[2]);
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    double *R = self->con->R;
+    return Py_BuildValue ("(d, d, d)", R[0], R[1], R[2]);
+  }
+  else Py_RETURN_NONE;
 }
 
 static int lng_CONSTRAINT_set_R (lng_CONSTRAINT *self, PyObject *value, void *closure)
@@ -3658,31 +3663,43 @@ static int lng_CONSTRAINT_set_R (lng_CONSTRAINT *self, PyObject *value, void *cl
 
 static PyObject* lng_CONSTRAINT_get_base (lng_CONSTRAINT *self, void *closure)
 {
-  double *base = self->con->base;
-  return Py_BuildValue ("(d, d, d, d, d, d, d, d, d)", base [0], base [1],
-     base [2], base [3], base [4], base [5], base [6], base [7], base [8]);
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    double *base = self->con->base;
+    return Py_BuildValue ("(d, d, d, d, d, d, d, d, d)", base [0], base [1],
+       base [2], base [3], base [4], base [5], base [6], base [7], base [8]);
+  }
+  else Py_RETURN_NONE;
 }
 
 static int lng_CONSTRAINT_set_base (lng_CONSTRAINT *self, PyObject *value, void *closure)
 {
-  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
-  return -1;
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+    return -1;
+  }
+  else return -1;
 }
 
 static PyObject* lng_CONSTRAINT_get_point (lng_CONSTRAINT *self, void *closure)
 {
-  double *point = self->con->point;
-
-  if (self->con->kind == RIGLNK)
+  if (ID_TO_CONSTRAINT (self->dom, self))
   {
-    double other [3];
+    double *point = self->con->point;
 
-    ADD (point, RIGLNK_VEC (self->con->Z), other);
-    return Py_BuildValue ("(d, d, d, d, d, d)", point[0],
-	point[1], point[2], other[0], other[1], other[2]);
+    if (self->con->kind == RIGLNK)
+    {
+      double other [3];
+
+      ADD (point, RIGLNK_VEC (self->con->Z), other);
+      return Py_BuildValue ("(d, d, d, d, d, d)", point[0],
+	  point[1], point[2], other[0], other[1], other[2]);
+    }
+
+    return Py_BuildValue ("(d, d, d)", point[0], point[1], point[2]);
   }
-
-  return Py_BuildValue ("(d, d, d)", point[0], point[1], point[2]);
+  else Py_RETURN_NONE;
 }
 
 static int lng_CONSTRAINT_set_point (lng_CONSTRAINT *self, PyObject *value, void *closure)
@@ -3693,20 +3710,24 @@ static int lng_CONSTRAINT_set_point (lng_CONSTRAINT *self, PyObject *value, void
 
 static PyObject* lng_CONSTRAINT_get_adjbod (lng_CONSTRAINT *self, void *closure)
 {
-  BODY *master = self->con->master,
-       *slave = self->con->slave;
-  PyObject *m, *s;
-
-
-  if (master && slave)
+  if (ID_TO_CONSTRAINT (self->dom, self))
   {
-    m = lng_BODY_WRAPPER (master);
-    s = lng_BODY_WRAPPER (slave);
+    BODY *master = self->con->master,
+	 *slave = self->con->slave;
+    PyObject *m, *s;
 
-    if (!m || !s) return NULL;
-    else return Py_BuildValue ("(O, O)", m, s);
+
+    if (master && slave)
+    {
+      m = lng_BODY_WRAPPER (master);
+      s = lng_BODY_WRAPPER (slave);
+
+      if (!m || !s) return NULL;
+      else return Py_BuildValue ("(O, O)", m, s);
+    }
+    else return lng_BODY_WRAPPER (master);
   }
-  else return lng_BODY_WRAPPER (master);
+  else Py_RETURN_NONE;
 }
 
 static int lng_CONSTRAINT_set_adjbod (lng_CONSTRAINT *self, PyObject *value, void *closure)
@@ -3717,10 +3738,13 @@ static int lng_CONSTRAINT_set_adjbod (lng_CONSTRAINT *self, PyObject *value, voi
 
 static PyObject* lng_CONSTRAINT_get_matlab (lng_CONSTRAINT *self, void *closure)
 {
-  if (self->con->kind == CONTACT)
-    return PyString_FromString (self->con->mat.base->label);
-
-  Py_RETURN_NONE;
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    if (self->con->kind == CONTACT)
+      return PyString_FromString (self->con->mat.base->label);
+    else Py_RETURN_NONE;
+  }
+  else Py_RETURN_NONE;
 }
 
 static int lng_CONSTRAINT_set_matlab (lng_CONSTRAINT *self, PyObject *value, void *closure)
@@ -4010,6 +4034,8 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
     {
 #endif
 
+    out->dom = body->bod->dom;
+
     if (body->bod->kind == OBS)
     {
       PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
@@ -4025,6 +4051,7 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
     }
+    else out->id = out->con->id;
 
 #if MPI
     }
@@ -4056,6 +4083,8 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
     {
 #endif
 
+    out->dom = body->bod->dom;
+
     if (body->bod->kind == OBS)
     {
       PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
@@ -4075,6 +4104,7 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
     }
+    else out->id = out->con->id;
 
 #if MPI
     }
@@ -4108,6 +4138,8 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
     {
 #endif
 
+    out->dom = body->bod->dom;
+
     if (body->bod->kind == OBS)
     {
       PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
@@ -4127,6 +4159,7 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
     }
+    else out->id = out->con->id;
 
 #if MPI
     }
@@ -4160,6 +4193,8 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
     {
 #endif
 
+    out->dom = body->bod->dom;
+
     if (body->bod->kind == OBS)
     {
       PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
@@ -4182,6 +4217,7 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
     }
+    else out->id = out->con->id;
 
 #if MPI
     }
@@ -4215,6 +4251,8 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
     {
 #endif
 
+    out->dom = body->bod->dom;
+
     if (body->bod->kind == OBS)
     {
       PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle");
@@ -4234,6 +4272,7 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
     }
+    else out->id = out->con->id;
 
 #if MPI
     }
@@ -4302,11 +4341,14 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2);
     else out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, body2->bod, p1, p2);
 
+    out->dom = (PyObject*)body1 == Py_None ? body2->bod->dom : body1->bod->dom;
+
     if (!out->con)
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
     }
+    else out->id = out->con->id;
 
 #if MPI
     }
@@ -4648,7 +4690,7 @@ static PyObject* lng_HERE (PyObject *self, PyObject *args, PyObject *kwds)
   {
     constraint = (lng_CONSTRAINT*)object;
 
-    if (ID_TO_CONSTRAINT (solfec, constraint)) Py_RETURN_TRUE;
+    if (ID_TO_CONSTRAINT (solfec->sol->dom, constraint)) Py_RETURN_TRUE;
     else Py_RETURN_FALSE;
   }
 #else
@@ -4769,16 +4811,10 @@ static PyObject* lng_DELETE (PyObject *self, PyObject *args, PyObject *kwds)
   {
     constraint = (lng_CONSTRAINT*)object;
 
-#if MPI
-    if (ID_TO_CONSTRAINT (solfec, constraint))
+    if (ID_TO_CONSTRAINT (solfec->sol->dom, constraint))
     {
-#endif
-
-    DOM_Remove_Constraint (solfec->sol->dom, constraint->con);
-
-#if MPI
+      DOM_Remove_Constraint (solfec->sol->dom, constraint->con);
     }
-#endif
   }
 
   Py_RETURN_NONE;
