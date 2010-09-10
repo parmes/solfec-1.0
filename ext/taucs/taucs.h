@@ -79,9 +79,11 @@
 #endif 
 
 #ifdef OSTYPE_WIN32
+#ifndef __MINGW32__
 typedef unsigned long ssize_t;
 typedef int mode_t;
 typedef int perm_t;
+#endif
 #define random    rand
 #define srandom   srand
 #endif
@@ -789,9 +791,11 @@ extern int genmmd_(int*, int*, int*, int*, int*, int*, int*, int*, int*,
 #elif defined(OSTYPE_WIN32)
 
 #include <float.h>
+#ifndef __MINGW32__
 #define isnan(x)  (_isnan(x))
 #define isinf(x)  (!(_finite(x)) && !(_isnan(x)))
 #define finite(x) (_finite(x))
+#endif
 
 #endif
 

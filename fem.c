@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <string.h>
 #include <float.h>
 #include "lap.h"
 #include "mem.h"
@@ -35,6 +36,8 @@
 
 typedef double (*node_t) [3]; /* mesh node */
 
+#define IMP_EPS 1E-8
+#define MAX_ITERS 16
 #define MAX_NODES 20
 #define DOM_TOL 0.150
 #define CUT_TOL 0.015
@@ -1472,11 +1475,10 @@ static void TL_dynamic_inverse (BODY *bod, double step, double *force)
   MX_Destroy (K);
 }
 
-/* solve implicit ingetration nonlineare problem */
+/* solve implicit ingetration nonlinear equations */
 static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
 {
   int n = bod->dofs,
-      imax = 16,
       iter,
       i;
 
@@ -1523,13 +1525,13 @@ static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext,
     errup = blas_ddot (n, aux, 1, aux, 1);
     error = sqrt (errup / MAX (errlo, 1.0));
   }
-  while (error > 1E-8 && ++ iter < imax);
+  while (error > IMP_EPS && ++ iter < MAX_ITERS);
 
 #if 0
   printf ("DEF_IMP: iter = %d, error = %e\n", iter, error);
 #endif
 
-  ASSERT (iter < imax, ERR_BOD_SCHEME_NOT_CONVERGED);
+  ASSERT (iter < MAX_ITERS, ERR_BOD_SCHEME_NOT_CONVERGED);
 
   if (begin)
   {
@@ -1962,6 +1964,80 @@ static void BC_matvec (double alpha, MX *A, double *R, double *b, double beta, d
   free (x);
 }
 
+/* solve implicit ingetration nonlinear equations */
+static void BL_dynamic_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
+{
+  MESH *msh = FEM_MESH (bod);
+
+  int n = bod->dofs,
+      iter,
+      i;
+
+  double half = 0.5 * step,
+	*fint = FEM_FINT (bod),
+	*u0 = FEM_VEL0 (bod),
+	*R = FEM_ROT (bod),
+	*u = bod->velo,
+	*q = bod->conf,
+        *qorig, *aux, *res,
+	errup, errlo, error;
+
+  ERRMEM (qorig = malloc (sizeof (double [3 * n])));
+  aux = qorig + n; res = aux + n;
+
+  if (begin)
+  {
+    blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t) */
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
+    external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
+    BC_internal_force (step, bod, R, q, NULL, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
+    memset (f, 0, sizeof (double [n])); 
+    blas_daxpy (n, step, fext, 1, f, 1);
+    blas_daxpy (n, -step, fint, 1, f, 1); /* f = h (fext - fint) */
+    BC_matvec (1.0, bod->inverse, R, f, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') f */
+  }
+  else
+  {
+    blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t+h/2) */
+    blas_daxpy (n, -half, u0, 1, qorig, 1); /* qorig = q(t) = q(t+h/2) - (h/2) * u(t) */
+    BC_matvec (step, bod->inverse, R, f, 1.0, u); /* u(t+h) += inv (M + (h*h/4) R1 K R1') f */
+  }
+
+  iter = 0;
+  do
+  {
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf */
+    BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
+    BC_internal_force (step, bod, R, q, NULL, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
+    for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
+    MX_Matvec (-1.0, bod->M, aux, 1.0, res);
+    BC_matvec (1.0, bod->inverse, R, res, 0.0, aux);
+    for (i = 0; i < n; i ++) u [i] += aux [i];
+    errlo = blas_ddot (n, u, 1, u, 1);
+    errup = blas_ddot (n, aux, 1, aux, 1);
+    error = sqrt (errup / MAX (errlo, 1.0));
+  }
+  while (error > IMP_EPS && ++ iter < MAX_ITERS);
+
+#if 0
+  printf ("DEF_IMP: iter = %d, error = %e\n", iter, error);
+#endif
+
+  ASSERT (iter < MAX_ITERS, ERR_BOD_SCHEME_NOT_CONVERGED);
+
+  if (begin)
+  {
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * u0[i]; /* q(t+h/2) = q(t) + (h/2) * u(t) */
+  }
+  else
+  {
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
+  }
+
+  free (qorig);
+}
+
 /* body co-rotational initialise dynamic time stepping */
 static void BC_dynamic_init (BODY *bod)
 {
@@ -1987,7 +2063,7 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
   int n = bod->dofs;
   MESH *msh = FEM_MESH (bod);
   double half = 0.5 * step,
-	*qu0 = FEM_VEL0 (bod),
+	*u0 = FEM_VEL0 (bod),
 	*R = FEM_ROT (bod),
 	*fext = FEM_FEXT (bod),
 	*fint = FEM_FINT (bod),
@@ -1995,14 +2071,14 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 	*u = bod->velo,
 	*b;
 
+  blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
+
   ERRMEM (b = MEM_CALLOC (sizeof (double [n])));
 
   switch (bod->scheme)
   {
   case SCH_DEF_EXP:
   {
-    blas_dcopy (n, u, 1, qu0, 1); /* save u (t) */
-
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
 
     BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
@@ -2020,28 +2096,23 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
   case SCH_DEF_LIM:
   case SCH_DEF_LIM2:
   {
-    blas_dcopy (n, q, 1, qu0, 1); /* save q (t) */
-
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
 
     BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
 
     external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
 
-    BC_internal_force (step, bod, R, qu0, u, fint); /* fint = R1 K R1' [(I-R1)Z + q(t) + (h/4) u(t)] */
+    BC_internal_force (step, bod, R, q, NULL, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
 
-    MX_Matvec (1.0, bod->M, u, 0.0, b);
     blas_daxpy (n, step, fext, 1, b, 1);
     blas_daxpy (n, -step, fint, 1, b, 1); /* b = M u(t) + h (fext - fint) */
 
-    blas_dcopy (n, u, 1, qu0, 1); /* save u (t) */
-
-    BC_matvec (1.0, bod->inverse, R, b, 0.0, u); /* u(t+h) = inv (M + (h*h/4) R1 K R1') b */
+    BC_matvec (1.0, bod->inverse, R, b, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') b */
   }
   break;
   case SCH_DEF_IMP:
   {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    BL_dynamic_solve (bod, time, step, fext, b, 1);
   }
   break;
   default:
@@ -2087,17 +2158,12 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
 
     blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
 
-    /* FIXME */
-#if 0
-    BC_internal_force (half*half, bod->K, R, u, 1.0, fint); /* fint += (h*h/4) R1 K R1' u(t+h) */
-#endif
-
     BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
   }
   break;
   case SCH_DEF_IMP:
   {
-    /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    BL_dynamic_solve (bod, time, step, fext, r, 0);
   }
   break;
   default:
