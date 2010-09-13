@@ -36,3 +36,5 @@ Self-contact handling is incorrect: inp/selfcontact.py
  In the mentioned example, near contradictory contact points are detected)
 ---------------------------------------------------------------------------------------
 Merit function gets stuck at the beginning the Newton craddle example
+-------------------------------------------------------------------------
+Tetrahedral element needs fixing (e.g. enable FEM in tetpart.py)

@@ -600,6 +600,30 @@ solfec/Config.mak
 \end_layout
 
 \begin_layout LyX-Code
+# Operating System (WIN32, SOLARIS, LINUX, AIX, IRIX, OSX)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+OS = OSX 
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
 # Specify C compiler here
 \end_layout
 
@@ -789,6 +813,10 @@ BLAS = -L/usr/lib -lblas
 
 \begin_layout LyX-Code
 LAPACK = -L/usr/lib -llapack
+\end_layout
+
+\begin_layout LyX-Code
+
 \end_layout
 
 \begin_layout LyX-Code
@@ -3176,7 +3204,7 @@ An object of type BODY represents a solid body.
 \end_layout
 
 \begin_layout Subsection*
-obj = BODY (solfec, kind, shape, material | label, formulation, mesh)
+obj = BODY (solfec, kind, shape, material | label, form, mesh)
 \end_layout
 
 \begin_layout Standard
@@ -3287,13 +3315,13 @@ label
 \begin_layout Itemize
 
 \series bold
-formulation
+form
 \series default
  - valid when 
 \series bold
 kind
 \series default
- equals 'FINITE_ELEMENT', ignored otherwise (default: 'TOTAL_LAGRANGIAN').
+ equals 'FINITE_ELEMENT', ignored otherwise (default: 'TL').
  This argument specifies a formulation of the finite element method.
  See Table 
 \begin_inset CommandInset ref
@@ -3670,7 +3698,7 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-'TOTAL_LAGRANGIAN'
+'TL'
 \end_layout
 
 \end_inset
@@ -3679,9 +3707,7 @@ Remarks
 \begin_inset Text
 
 \begin_layout Plain Layout
-
-\series bold
-default
+Total Lagrangian (default)
 \end_layout
 
 \end_inset
@@ -3692,7 +3718,7 @@ default
 \begin_inset Text
 
 \begin_layout Plain Layout
-'BODY_COROTATIONAL'
+'BC'
 \end_layout
 
 \end_inset
@@ -3701,7 +3727,7 @@ default
 \begin_inset Text
 
 \begin_layout Plain Layout
-one co-rotated frame per body; suitable for stiff bodies
+Body Co-rotational (one co-rotated frame per body, suitable for stiff bodies)
 \end_layout
 
 \end_inset

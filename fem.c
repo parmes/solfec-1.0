@@ -42,9 +42,9 @@ typedef double (*node_t) [3]; /* mesh node */
 #define DOM_TOL 0.150
 #define CUT_TOL 0.015
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
-#define FEM_FBOD(bod) ((bod)->velo + (bod)->dofs * 2) /* unit body force */
-#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 3) /* external force */
-#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 4) /* internal force */
+#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2) /* external force */
+#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3) /* internal force */
+#define FEM_FBOD(bod) ((bod)->velo + (bod)->dofs * 4) /* unit body force */
 #define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)      /* rotation */
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
@@ -1194,6 +1194,7 @@ static void unit_body_force (BODY *bod)
   int bulk, i;
 
   SET (f, 1.0);
+  blas_dscal (bod->dofs, 0.0, ubf, 1);
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
     element_body_force (bod, msh, ele, f, g);
@@ -1483,12 +1484,13 @@ static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext,
       i;
 
   double half = 0.5 * step,
-	*fint = FEM_FINT (bod),
-	*u0 = FEM_VEL0 (bod),
+	 quad = 0.25 * step,
+        *fint = FEM_FINT (bod),
+        *u0 = FEM_VEL0 (bod),
 	*u = bod->velo,
 	*q = bod->conf,
         *qorig, *aux, *res,
-	errup, errlo, error;
+	 errup, errlo, error;
 
   ERRMEM (qorig = malloc (sizeof (double [3 * n])));
   aux = qorig + n; res = aux + n;
@@ -1514,9 +1516,9 @@ static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext,
     /* in Simo and Tarnow paper, they show that PK2 should be taken as S=C[E(q(t+h)) + E(q(t))]/2,
      * nevertheless the simpler approach below where we use C[E((q(t+h) + q(t))/2)] did not lead
      * to energy inconsistent results in our test, but to the contratey. Hence we stick with it */
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf ... */
-    internal_force (bod, fint); /* ... as it is used in there */
-    TL_dynamic_inverse (bod, step, NULL);
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + quad * (u0[i] + u[i]); /* overwrite bod->conf ... */
+    internal_force (bod, fint); /* ... as it is used in there ... */
+    TL_dynamic_inverse (bod, step, NULL); /* ... and there */
     for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
     MX_Matvec (-1.0, bod->M, aux, 1.0, res);
     MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
@@ -1535,11 +1537,11 @@ static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext,
 
   if (begin)
   {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * u0[i]; /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + half * u0[i]; /* q(t+h/2) = q(t) + (h/2) * u(t) */
   }
   else
   {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + half * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
   }
 
   free (qorig);
@@ -1872,9 +1874,9 @@ static void BC_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
 }
 
 /* fint = R K R' [(I-R)Z + q + (h/4) u] */
-static void BC_internal_force (double step, BODY *bod, double *R, double *q, double *u, double *fint)
+static void BC_internal_force (BODY *bod, double *R, double *q, double *fint)
 {
-  double *a, *b, *x, *y, *z, *d, *v, (*Z) [3], (*e) [3], Y [3], quad = 0.25 * step;
+  double *a, *b, *x, *y, *z, *d, (*Z) [3], (*e) [3], Y [3];
   MESH *msh = FEM_MESH (bod);
   MX *K = bod->K;
   int n = K->n;
@@ -1882,25 +1884,16 @@ static void BC_internal_force (double step, BODY *bod, double *R, double *q, dou
   ERRMEM (a = MEM_CALLOC (2 * sizeof (double [n])));
   b = a + n;
 
-  for (Z = msh->ref_nodes, e = Z + msh->nodes_count, d = b, v = u; Z < e; Z ++, d += 3, v += 3, q += 3)
+  for (Z = msh->ref_nodes, e = Z + msh->nodes_count, d = b; Z < e; Z ++, d += 3, q += 3)
   {
     NVMUL (R, Z[0], Y);
     SUB (Z[0], Y, Y);
-
-    if (u) /* implicit */
-    {
-      ADD (Y, q, Y);
-      ADDMUL (Y, quad, v, d); /* d = (I-R)Z + q - (h/4)u */
-    }
-    else /* explicit */
-    {
-      ADD (Y, q, d); /* d = (I-R)Z + q */
-    }
+    ADD (Y, q, d); /* d = (I-R)Z + q */
   }
 
   for (x = b, y = b + n, z = a; x < y; x += 3, z += 3)
   {
-    TVMUL (R, x, z); /* a = R' [(I-R)Z + q + (h/4) u] */
+    TVMUL (R, x, z); /* a = R' [(I-R)Z + q] */
   }
 
   MX_Matvec (1.0, K, a, 0.0, b); /* b = K a */
@@ -1965,7 +1958,7 @@ static void BC_matvec (double alpha, MX *A, double *R, double *b, double beta, d
 }
 
 /* solve implicit ingetration nonlinear equations */
-static void BL_dynamic_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
+static void BC_dynamic_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
 {
   MESH *msh = FEM_MESH (bod);
 
@@ -1974,6 +1967,7 @@ static void BL_dynamic_solve (BODY *bod, double time, double step, double *fext,
       i;
 
   double half = 0.5 * step,
+	 quad = 0.25 * step,
 	*fint = FEM_FINT (bod),
 	*u0 = FEM_VEL0 (bod),
 	*R = FEM_ROT (bod),
@@ -1991,7 +1985,7 @@ static void BL_dynamic_solve (BODY *bod, double time, double step, double *fext,
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
     external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
-    BC_internal_force (step, bod, R, q, NULL, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
+    BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
     memset (f, 0, sizeof (double [n])); 
     blas_daxpy (n, step, fext, 1, f, 1);
     blas_daxpy (n, -step, fint, 1, f, 1); /* f = h (fext - fint) */
@@ -2007,9 +2001,9 @@ static void BL_dynamic_solve (BODY *bod, double time, double step, double *fext,
   iter = 0;
   do
   {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.25 * step * (u[i] + u0[i]); /* overwrite bod->conf */
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + quad * (u0[i] + u[i]); /* overwrite bod->conf */
     BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
-    BC_internal_force (step, bod, R, q, NULL, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
+    BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
     for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
     MX_Matvec (-1.0, bod->M, aux, 1.0, res);
     BC_matvec (1.0, bod->inverse, R, res, 0.0, aux);
@@ -2028,11 +2022,11 @@ static void BL_dynamic_solve (BODY *bod, double time, double step, double *fext,
 
   if (begin)
   {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * u0[i]; /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + half * u0[i]; /* q(t+h/2) = q(t) + (h/2) * u(t) */
   }
   else
   {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + 0.5 * step * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
+    for (i = 0; i < n; i ++) q [i] = qorig [i] + half * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
   }
 
   free (qorig);
@@ -2080,13 +2074,10 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
   case SCH_DEF_EXP:
   {
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-
     BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
 
     external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
-
-    BC_internal_force (step, bod, R, q, NULL, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
-
+    BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
     blas_daxpy (n, step, fext, 1, b, 1);
     blas_daxpy (n, -step, fint, 1, b, 1); /* b = h (fext - fint) */
 
@@ -2094,25 +2085,39 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
   }
   break;
   case SCH_DEF_LIM:
-  case SCH_DEF_LIM2:
   {
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-
     BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
 
     external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
-
-    BC_internal_force (step, bod, R, q, NULL, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
-
+    BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
     blas_daxpy (n, step, fext, 1, b, 1);
-    blas_daxpy (n, -step, fint, 1, b, 1); /* b = M u(t) + h (fext - fint) */
+    blas_daxpy (n, -step, fint, 1, b, 1); /* b = h (fext - fint) */
 
     BC_matvec (1.0, bod->inverse, R, b, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') b */
   }
   break;
-  case SCH_DEF_IMP:
+  case SCH_DEF_LIM2:
   {
-    BL_dynamic_solve (bod, time, step, fext, b, 1);
+    external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
+    BC_internal_force (bod, R, q, fint); /* fint = R K R' [(I-R)Z + q(t)] */
+    blas_daxpy (n, 1.0, fext, 1, b, 1);
+    blas_daxpy (n, -1.0, fint, 1, b, 1); /* b = fext - fint */
+    MX_Matvec (1.0 / step, bod->M, u, 1.0, b); /* b += (1/h) M u (t) */
+    BC_matvec (-0.25 * step, bod->K, R, u, 1.0, b); /* b -= (h/4) K u (t) */
+    /* FIXME: dampnig effect is absent here - unlike in TL */
+
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    BC_matvec (step, bod->inverse, R, b, 0.0, u); /* u(t+h) = inv (A) * h * b */
+  }
+  break;
+  case SCH_DEF_IMP:
+  { 
+    /* q(t+h/2) = q(t) + (h/2) * u(t)
+     * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+     * u (t+h) = u (t) + inv (A) * h * f */
+    BC_dynamic_solve (bod, time, step, fext, b, 1);
   }
   break;
   default:
@@ -2147,7 +2152,6 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
     MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += inv (M) * h * r */
 
     blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-
     BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
   }
   break;
@@ -2157,13 +2161,16 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
     BC_matvec (step, bod->inverse, R, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
 
     blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-
     BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
   }
   break;
   case SCH_DEF_IMP:
   {
-    BL_dynamic_solve (bod, time, step, fext, r, 0);
+    /* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
+     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
+     * u (t+h) = u (t) + inv (A) * h * f
+     * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
+    BC_dynamic_solve (bod, time, step, fext, r, 0);
   }
   break;
   default:
@@ -2503,13 +2510,13 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   {
     case TOTAL_LAGRANGIAN:
     {
-      ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, force, fext, fint */
+      ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, fext, fint, fbod */
       bod->velo = bod->conf + bod->dofs;
     }
     break;
     case BODY_COROTATIONAL:
     {
-      ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, rotation, velocity, previous velocity, force, fext, fint */
+      ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, rotation, velocity, previous velocity, fext, fint, fbod */
       bod->velo = bod->conf + bod->dofs + 9;
       double *R = FEM_ROT (bod);
       IDENTITY (R);
@@ -3021,7 +3028,7 @@ int FEM_Conf_Pack_Size (BODY *bod)
 /* get velocity packing size */
 int FEM_Velo_Pack_Size (BODY *bod)
 {
-  return 5 * bod->dofs;
+  return 4 * bod->dofs; /* velo, vel0, fext, fint */
 }
 #endif
 

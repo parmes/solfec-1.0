@@ -2027,7 +2027,7 @@ static int is_body (lng_BODY *obj, char *var)
 /* body object constructor */
 static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "kind", "shape", "material", "label", "formulation", "mesh");
+  KEYWORDS ("solfec", "kind", "shape", "material", "label", "form", "mesh");
   PyObject *kind, *shape, *material, *label, *formulation;
   lng_SOLFEC *solfec;
   lng_BODY *self;
@@ -2078,11 +2078,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
       if (formulation)
       {
-        IFIS (formulation, "TOTAL_LAGRANGIAN")
+        IFIS (formulation, "TL")
 	{
 	  form = TOTAL_LAGRANGIAN;
 	}
-	ELIF (formulation, "BODY_COROTATIONAL")
+	ELIF (formulation, "BC")
 	{
 	  form = BODY_COROTATIONAL;
 	}
