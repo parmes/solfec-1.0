@@ -40,6 +40,10 @@
 #include "but.h"
 #include "rnd.h"
 
+/* implicit PRB integration */
+#define IMP_EPS 1E-8
+#define MAX_ITERS 16
+
 /* energy conservation tolerance */
 #define ENE_TOL 0.01
 
@@ -628,12 +632,14 @@ static void prb_dynamic_force (BODY *bod, double time, double step, double *fext
 /* solve implicit ingetration nonlineare problem */
 static void prb_dynamic_implicit_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
 {
-  int iter, imax = 16;
+  int iter;
 
   double half = 0.5 * step,
+	 quad = 0.25 * step,
 	*fint = PRB_FINT(bod),
 	*velo = PRB_GRADVEL(bod),
 	*vel0 = PRB_GRADVEL0(bod),
+	*conf = PRB_GRADIENT(bod),
 	 qorig [12],
 	 aux [12],
 	 res [12],
@@ -641,15 +647,15 @@ static void prb_dynamic_implicit_solve (BODY *bod, double time, double step, dou
 
   if (begin)
   {
-    blas_dcopy (12, bod->conf, 1, qorig, 1);
-    blas_daxpy (12, half, velo, 1, bod->conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    blas_dcopy (12, conf, 1, qorig, 1);
+    blas_daxpy (12, half, velo, 1, conf, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     prb_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
     prb_dynamic_implicit_inverse (bod, step, NULL, NULL); /* A = M + (h*h/4) * K */
     MX_Matvec (step, bod->inverse, f, 1.0, velo); /* u(t+h) = u(t) + inv (A) * h * f */
   }
   else
   {
-    blas_dcopy (12, bod->conf, 1, qorig, 1);
+    blas_dcopy (12, conf, 1, qorig, 1);
     blas_daxpy (12, -half, vel0, 1, qorig, 1); /* q(t) = q(t+h/2) - (h/2) * u(t) */
     MX_Matvec (step, bod->inverse, f, 1.0, velo); /* u(t+h) += h * inv (M) * f */
   }
@@ -657,9 +663,9 @@ static void prb_dynamic_implicit_solve (BODY *bod, double time, double step, dou
   iter = 0;
   do
   {
-    NNADD (velo, vel0, aux);
-    SCALE9 (aux, 0.25 * step);
-    NNADD (qorig, aux, aux);
+    NNADD (vel0, velo, aux);
+    SCALE9 (aux, quad)
+    NNADD (qorig, aux, aux); /* q(t+h/2) = q(t) + (h/4) [u(t) + u(t+h)] */
     prb_internal_force (bod, aux, fint);
     prb_dynamic_implicit_inverse (bod, step, aux, NULL);
     COPY12 (fext, res);
@@ -672,15 +678,15 @@ static void prb_dynamic_implicit_solve (BODY *bod, double time, double step, dou
     error = DOT12 (velo, velo);
     error = sqrt (DOT (aux, aux) / MAX (error, 1.0));
   }
-  while (error > 1E-8 && ++ iter < imax);
+  while (error > IMP_EPS && ++ iter < MAX_ITERS);
 
 #if 0
   printf ("DEF_IMP %c: iter = %d, error = %e\n", begin ? 'B' : 'E', iter, error);
 #endif
 
-  ASSERT (iter < imax, ERR_BOD_SCHEME_NOT_CONVERGED);
+  ASSERT (iter < MAX_ITERS, ERR_BOD_SCHEME_NOT_CONVERGED);
 
-  if (!begin) blas_daxpy (12, half, velo, 1, bod->conf, 1); /* q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
+  if (!begin) blas_daxpy (12, half, velo, 1, conf, 1); /* q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
 }
 
 /* the smame computation for the static case */
@@ -2092,6 +2098,7 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
 void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   short dynamic;
+  double coef;
   int j, k;
 
   dynamic = bod->dom->dynamic;
@@ -2117,7 +2124,44 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
   unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
 
   /* init inverse */
-  if (dynamic) BODY_Dynamic_Init (bod);
+  if (dynamic) 
+  {
+    switch (bod->scheme)
+    {
+    case SCH_DEF_LIM2:
+      coef = 0.5 * bod->dom->step;
+      blas_daxpy (bod->dofs, -coef, bod->velo, 1, bod->conf, 1); /* q(t) = q(t+h/2) - (h/2) u(t) => K = K(q(t)) */
+      break;
+    case SCH_DEF_LIM:
+      if (!(bod->kind == FEM && bod->form == BODY_COROTATIONAL))
+      {
+	coef = 0.25 * bod->dom->step;
+	blas_daxpy (bod->dofs, -coef, bod->velo+bod->dofs, 1, bod->conf, 1); /* q(t) + (h/2) u (t) - (h/4) u(t) */
+	blas_daxpy (bod->dofs, coef, bod->velo, 1, bod->conf, 1); /* q(t) + (h/2) u (t) - (h/4) u(t) + (h/4) u(t+h) = [q(t) + q(t+h)]/2 => K = K([q(t) + q(t+h)]/2) */
+      }
+      break;
+    default:
+      break;
+    }
+
+    BODY_Dynamic_Init (bod); /* init inverse */
+
+    switch (bod->scheme) /* undo */
+    {
+    case SCH_DEF_LIM2:
+      blas_daxpy (bod->dofs, coef, bod->velo, 1, bod->conf, 1);
+      break;
+    case SCH_DEF_LIM:
+      if (!(bod->kind == FEM && bod->form == BODY_COROTATIONAL))
+      {
+	blas_daxpy (bod->dofs, coef, bod->velo+bod->dofs, 1, bod->conf, 1);
+	blas_daxpy (bod->dofs, -coef, bod->velo, 1, bod->conf, 1);
+      }
+      break;
+    default:
+      break;
+    }
+  }
   else BODY_Static_Init (bod);
 
   /* update shape */
@@ -2146,9 +2190,9 @@ void BODY_Child_Pack (BODY *bod, int full, int *dsize, double **d, int *doubles,
 void BODY_Child_Unpack (BODY *bod, int full, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int j, k, l;
+  double coef;
 
   bod->rank = unpack_int (ipos, i, ints); /* unpack parent rank */
-
  
   SET_Free (&bod->dom->setmem, &bod->children); /* unpack other children ranks */
   k = unpack_int (ipos, i, ints);
@@ -2170,7 +2214,44 @@ void BODY_Child_Unpack (BODY *bod, int full, int *dpos, double *d, int doubles, 
     unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
     bod->scheme = unpack_int (ipos, i, ints);  /* unpack integration scheme */
 
-    if (dynamic) BODY_Dynamic_Init (bod); /* init inverse */
+    if (dynamic)
+    {
+      switch (bod->scheme)
+      {
+      case SCH_DEF_LIM2:
+	coef = 0.5 * bod->dom->step;
+	blas_daxpy (bod->dofs, -coef, bod->velo, 1, bod->conf, 1); /* q(t) = q(t+h/2) - (h/2) u(t) => K = K(q(t)) */
+	break;
+      case SCH_DEF_LIM:
+	if (!(bod->kind == FEM && bod->form == BODY_COROTATIONAL))
+	{
+	  coef = 0.25 * bod->dom->step;
+	  blas_daxpy (bod->dofs, -coef, bod->velo+bod->dofs, 1, bod->conf, 1); /* q(t) + (h/2) u (t) - (h/4) u(t) */
+	  blas_daxpy (bod->dofs, coef, bod->velo, 1, bod->conf, 1); /* q(t) + (h/2) u (t) - (h/4) u(t) + (h/4) u(t+h) = [q(t) + q(t+h)]/2 => K = K([q(t) + q(t+h)]/2) */
+	}
+	break;
+      default:
+	break;
+      }
+
+      BODY_Dynamic_Init (bod); /* init inverse */
+
+      switch (bod->scheme) /* undo */
+      {
+      case SCH_DEF_LIM2:
+	blas_daxpy (bod->dofs, coef, bod->velo, 1, bod->conf, 1);
+	break;
+      case SCH_DEF_LIM:
+	if (!(bod->kind == FEM && bod->form == BODY_COROTATIONAL))
+	{
+	  blas_daxpy (bod->dofs, coef, bod->velo+bod->dofs, 1, bod->conf, 1);
+	  blas_daxpy (bod->dofs, -coef, bod->velo, 1, bod->conf, 1);
+	}
+	break;
+      default:
+	break;
+      }
+    }
     else BODY_Static_Init (bod);
   }
 }

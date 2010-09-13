@@ -45,11 +45,6 @@ into a separate sub-directory of a subset of results
 How to implementing rewinding back of simulations during
 which bodies have been deleted? (do not really delete)
 ----------------------------------------------------------------------------------
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-bod->inverse sending for DEF_IMP/LIM/LIM2 schemes in parallel
-Currently bod->inverse is inconsistently updated in parallel for implicit schemes
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-----------------------------------------------------------------------------------
 Gap computation is not robust. Implicitly integrated core at smaller time steps
 reports unphysical penetration => this is due to numerical instability of gap
 computations for smaller motion increments.
@@ -82,5 +77,6 @@ OPTIMIZE:
 a) sending constrains with fixed bases (e.g. FIXPNT, do not send the base)
 b) assembling W parts for constraints with fxied bases and points (e.g. FIXPNT)
 -------------------------------------------------------------------------------------
-Energy balance of co-rotational formulation (e.g. boxsoup.py)
-Investigate parallel stability issues with this example!
+Investigate parallel stability issues with the boxsoup.py example!
+---------------------------------------------------------------------
+Finish BODY_SPACE_SOLVER (parallel bits)
