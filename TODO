@@ -28,10 +28,6 @@ Optimize W assembly in parallel by using left product
 for blocks with dia->adjext != NULL and right product
 for the remaining (internal) nodes.
 -----------------------------------------------------------------------
-Further optimize W assembling by introducing norm of constact state
-change and opdating W blocks only corresponding to a sufficiently
-large contact statate change (say point and normal difference relative norm)
--------------------------------------------------------------------------------
 Test PBF file size limitation fixup
 -------------------------------------------------------
 Data compression/decompression in COMALL and others ?
@@ -76,7 +72,8 @@ Sort out damping (better stiffness proportional)
 OPTIMIZE:
 a) sending constrains with fixed bases (e.g. FIXPNT, do not send the base)
 b) assembling W parts for constraints with fxied bases and points (e.g. FIXPNT)
+c) full domain load balancing only every N steps (communication)
 -------------------------------------------------------------------------------------
-Investigate parallel stability issues with the boxsoup.py example!
----------------------------------------------------------------------
 Finish BODY_SPACE_SOLVER (parallel bits)
+-----------------------------------------------------
+Work on quasi-static BC and lourenco.py

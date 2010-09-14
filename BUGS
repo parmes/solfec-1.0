@@ -38,3 +38,6 @@ Self-contact handling is incorrect: inp/selfcontact.py
 Merit function gets stuck at the beginning the Newton craddle example
 -------------------------------------------------------------------------
 Tetrahedral element needs fixing (e.g. enable FEM in tetpart.py)
+---------------------------------------------------------------------------
+First step for quasi-static lourenco.py for TL and BC should be the same
+(it seems to have to do with using MXSPD for BC)

@@ -2177,7 +2177,7 @@ void BODY_Child_Pack (BODY *bod, int full, int *dsize, double **d, int *doubles,
   for (SET *item = SET_First (bod->children); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
 
-  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod)); /* configuration */
+  pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod)); /* configuration */
 
   if (full)
   {
@@ -2203,7 +2203,7 @@ void BODY_Child_Unpack (BODY *bod, int full, int *dpos, double *d, int doubles, 
       SET_Insert (&bod->dom->setmem, &bod->children, (void*) (long) l, NULL);
   }
 
-  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod)); /* configuration */
+  unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod)); /* configuration */
 
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); /* update shape */
 
@@ -2259,13 +2259,13 @@ void BODY_Child_Unpack (BODY *bod, int full, int *dpos, double *d, int doubles, 
 /* pack child update */
 void BODY_Child_Update_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod));
 }
 
 /* unpack child update */
 void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
+  unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod));
 
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
