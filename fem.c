@@ -238,7 +238,6 @@ inline static int integrator3d_load (int type, int order, const double **X, cons
   switch (type)
   {
   case 4:
-  case 10:
   {
     *X = I_TET_X [order];
     *Y = I_TET_Y [order];
@@ -248,7 +247,6 @@ inline static int integrator3d_load (int type, int order, const double **X, cons
   }
   break;
   case 5:
-  case 13:
   {
     *X = I_PYR_X [order];
     *Y = I_PYR_Y [order];
@@ -258,7 +256,6 @@ inline static int integrator3d_load (int type, int order, const double **X, cons
   }
   break;
   case 6:
-  case 15:
   {
     *X = I_WED_X [order];
     *Y = I_WED_Y [order];
@@ -268,7 +265,6 @@ inline static int integrator3d_load (int type, int order, const double **X, cons
   }
   break;
   case 8:
-  case 20:
   {
     *X = I_HEX_X [order];
     *Y = I_HEX_Y [order];
@@ -301,7 +297,6 @@ inline static int integrator2d_load (int type, int order, const double **X, cons
   switch (type)
   {
   case 3:
-  case 6:
   {
     *X = I_TRI_X [order];
     *Y = I_TRI_Y [order];
@@ -310,7 +305,6 @@ inline static int integrator2d_load (int type, int order, const double **X, cons
   }
   break;
   case 4:
-  case 8:
   {
     *X = I_QUA_X [order];
     *Y = I_QUA_Y [order];
@@ -517,10 +511,10 @@ inline static void face_displacements (double *heap, FACE *fac, double (*q) [3])
 /* linear tetrahedron shape functions */
 inline static void tet_o1_shapes (double *point, double *shapes)
 {
-  shapes [0] = point [0];
-  shapes [1] = point [1];
-  shapes [2] = point [2];
-  shapes [3] = 1.0 - (point [0] + point [1] + point [2]);
+  shapes [0] = 1.0 - (point [0] + point [1] + point [2]);
+  shapes [1] = point [0];
+  shapes [2] = point [1];
+  shapes [3] = point [2];
 }
 
 /* linear hexahedron shape functions */
@@ -551,9 +545,21 @@ inline static void wed_o1_shapes (double *point, double *shapes)
 /* linear tetrahedron shape derivatives */
 inline static void tet_o1_derivs (double *point, double *derivs)
 {
-  derivs [0] = derivs [4] = derivs [8] = 1.0;
-  derivs [1] = derivs [2] = derivs [3] = derivs [5] = derivs [6] = derivs [7] = 0.0;
-  derivs [9] = derivs [10] = derivs [11] = -1.0;
+  derivs [0] = -1.0;
+  derivs [1] = -1.0;
+  derivs [2] = -1.0;
+
+  derivs [3] = 1.0;
+  derivs [4] = 0.0;
+  derivs [5] = 0.0;
+
+  derivs [6] = 0.0;
+  derivs [7] = 1.0;
+  derivs [8] = 0.0;
+
+  derivs [9]  = 0.0;
+  derivs [10] = 0.0;
+  derivs [11] = 1.0;
 }
 
 /* linear hexahedron shape derivatives */
@@ -933,10 +939,20 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
 
   m = 3 * n;
 
-  for (i = 0; i < n; i ++)
+  if (bod->form == BODY_COROTATIONAL)
   {
-    p = &bod->conf [3 * ele->nodes [i]];
-    COPY (p, q[i]);
+    for (i = 0; i < n; i ++)
+    {
+      SET (q[i], 0); /* initial displacement */
+    }
+  }
+  else
+  {
+    for (i = 0; i < n; i ++)
+    {
+      p = &bod->conf [3 * ele->nodes [i]];
+      COPY (p, q[i]); /* current displacement */
+    }
   }
 
   for (i = 0, j = m * (derivative ? m : 1); i < j; i ++) g [i] = 0.0;
@@ -1027,31 +1043,49 @@ static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *po
 /* compute Cauchy stress at a local point */
 static void cauchy_stress (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
 {
+  BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+  double P [9], J, F [9];
+
   switch (bod->form)
   {
     case TOTAL_LAGRANGIAN:
     {
-      BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-      double P [9], J, F [9];
-
       deformation_gradient (bod, msh, ele, point, F);
 
       J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P);  /* TODO: generalize in BULK_MATERIAL interface */
-
-      values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
-      values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
-      values [2] = (F[2]*P[6]+F[5]*P[7]+F[8]*P[8])/J; /* sz  */
-      values [3] = (F[0]*P[3]+F[3]*P[4]+F[6]*P[5])/J; /* sxy */
-      values [4] = (F[0]*P[6]+F[3]*P[7]+F[6]*P[8])/J; /* sxz */
-      values [5] = (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
     }
     break;
     case BODY_COROTATIONAL:
     {
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+      double Q [9], G [9], K [81], *R = FEM_ROT (bod);
+
+      SET9 (F, 0.0); /* hence initial tangent */
+
+      SVK_Tangent_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, 9, F, K);  /* TODO: generalize in BULK_MATERIAL interface */
+
+      deformation_gradient (bod, msh, ele, point, F); /* true gradient */
+
+      J = DET (F);
+
+      TVMUL (R, F, G);
+      TVMUL (R, F+3, G+3);
+      TVMUL (R, F+6, G+6); /* rotated back */
+
+      blas_dgemv ('N', 9, 9, 1.0, K, 9, G, 1, 0.0, Q, 1); /* linearized PK1 */
+
+      NVMUL (R, Q, P);
+      NVMUL (R, Q+3, P+3);
+      NVMUL (R, Q+6, P+6); /* rotated forth */
     }
     break;
   }
+
+  values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
+  values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
+  values [2] = (F[2]*P[6]+F[5]*P[7]+F[8]*P[8])/J; /* sz  */
+  values [3] = (F[0]*P[3]+F[3]*P[4]+F[6]*P[5])/J; /* sxy */
+  values [4] = (F[0]*P[6]+F[3]*P[7]+F[6]*P[8])/J; /* sxz */
+  values [5] = (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
 }
 
 /* accumulate point force contribution into the body force vector */
@@ -1550,7 +1584,7 @@ static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext,
 /* static time-stepping inverse */
 static void TL_static_inverse (BODY *bod, double step)
 {
-  MX *M, *K, *A;
+  MX *M, *K;
 
   if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod, 0);
 
@@ -1558,30 +1592,10 @@ static void TL_static_inverse (BODY *bod, double step)
 
   K = tangent_stiffness (bod, 0);
 
-#if 0
-  MESH *msh = FEM_MESH (bod);
-  double eigmax;
-  ELEMENT *ele;
-  MX *IMK;
+  bod->inverse = MX_Add (1.0, M, step*step, K, NULL); /* TODO: figure out alpha and beta scaling */
 
-  /* estimate maximal eigenvalue of inv (M) * K based on just one element */
-  ele = msh->surfeles;
-  IMK = element_inv_M_K (bod, msh, ele); /* element inv (M) * K */
-  MX_Scale (IMK, step * step * step);
-  MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
-  ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
-  MX_Destroy (IMK);
-#endif
+  MX_Inverse (bod->inverse, bod->inverse);
 
-  /* calculate tangent operator A = coef * M + h*h/4 K, where picking coef
-   * seems tricky (eigmax/4.0 implies good damping, but we need to take care
-   * for allowing a fair amount of the rigid motion as well: TODO: figure out) */
-  bod->inverse = A = MX_Add (step*step*1E+6, M, step*step, K, NULL);
-
-  /* invert A */
-  MX_Inverse (A, A);
-
-  /* clean up */
   MX_Destroy (K);
 }
 
@@ -1906,32 +1920,6 @@ static void BC_internal_force (BODY *bod, double *R, double *q, double *fint)
   free (a);
 }
 
-/* compute inverse of (M + (h*h/4) K) */
-static void BC_inverse (BODY *bod, double step, MX *M, MX *K)
-{
-  if (!bod->inverse) 
-  {
-    if (bod->scheme == SCH_DEF_EXP)
-    {
-      double *x, *y;
-
-      bod->inverse = MX_Copy (M, NULL);
-
-      for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
-      {
-	ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
-	(*x) = 1.0 / (*x); /* invert diagonal */
-      }
-    }
-    else
-    {
-      bod->inverse = MX_Add (1.0, M, 0.25*step*step, K, NULL);
-
-      MX_Inverse (bod->inverse, bod->inverse);
-    }
-  }
-}
-
 /* compute u = alpha * R A R' b + beta * u  */
 static void BC_matvec (double alpha, MX *A, double *R, double *b, double beta, double *u)
 {
@@ -2041,7 +2029,26 @@ static void BC_dynamic_init (BODY *bod)
 
     bod->K = tangent_stiffness (bod, 1);
 
-    BC_inverse (bod, bod->dom->step, bod->M, bod->K); /* initialize once */
+    if (bod->scheme == SCH_DEF_EXP)
+    {
+      double *x, *y;
+
+      bod->inverse = MX_Copy (bod->M, NULL);
+
+      for (x = bod->inverse->x, y = x + bod->dofs; x < y; x ++)
+      {
+	ASSERT (*x > 0.0, ERR_FEM_MASS_NOT_SPD);
+	(*x) = 1.0 / (*x); /* invert diagonal */
+      }
+    }
+    else
+    {
+      double step = bod->dom->step;
+
+      bod->inverse = MX_Add (1.0, bod->M, 0.25*step*step, bod->K, NULL);
+
+      MX_Inverse (bod->inverse, bod->inverse);
+    }
   }
 }
 
@@ -2183,19 +2190,65 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
 /* body co-rotational initialise static time stepping */
 static void BC_static_init (BODY *bod)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  if (!bod->M && !bod->K)
+  {
+    double step = bod->dom->step;
+
+    bod->M = diagonal_inertia (bod, 1);
+
+    bod->K = tangent_stiffness (bod, 1);
+
+    bod->inverse = MX_Add (1.0, bod->M, step*step, bod->K, NULL); /* TODO: figure out alpha and beta scaling */
+
+    MX_Inverse (bod->inverse, bod->inverse);
+  }
 }
 
 /* body co-rotational perform the initial half-step of the static scheme */
 static void BC_static_step_begin (BODY *bod, double time, double step)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  int n = bod->dofs;
+  double *fext = FEM_FEXT (bod),
+	 *fint = FEM_FINT (bod),
+	 *R = FEM_ROT (bod),
+	 *q = bod->conf,
+	 *u = bod->velo,
+         *b;
+
+  ERRMEM (b = malloc (sizeof (double [n])));
+
+  external_force (bod, time+step, step, fext); /* fext = fext (t+h) */
+  BC_internal_force (bod, R, q, fint); /* fint = R K R' [(I-R)Z + q(t)] */
+  blas_daxpy (n, step, fext, 1, b, 1);
+  blas_daxpy (n, -step, fint, 1, b, 1); /* b = h (fext - fint) */
+
+  BC_matvec (1.0, bod->inverse, R, b, 0.0, u); /* u(t+h) = inv (A) b */
+
+  free (b);
 }
 
 /* body co-rotational perform the final half-step of the static scheme */
 static void BC_static_step_end (BODY *bod, double time, double step)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  MESH *msh = FEM_MESH (bod);
+  int n = bod->dofs;
+  double *fext = FEM_FEXT (bod),
+	 *R = FEM_ROT (bod),
+	 *q = bod->conf,
+	 *u = bod->velo,
+	 *r;
+
+  ERRMEM (r = malloc (sizeof (double [n])));
+
+  fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
+
+  BC_matvec (step, bod->inverse, R, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
+
+  blas_daxpy (n, step, u, 1, q, 1); /* q (t+h) = q(t) + h * u(t+h) */
+  BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
+
+  free (r);
 }
 
 /* ================== INTERSECTIONS ==================== */
@@ -2844,6 +2897,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
 
   int i [] = {0, 1, 2, 0, 1, 2, 0, 1, 2}, p [] = {0, 3, 6, 9};
   MX_CSC (base_trans, 9, 3, 3, p, i);
+  DOM *dom = bod->dom;
   double point [3];
   MX *N, *H;
 
@@ -2853,8 +2907,9 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
   MX_Destroy (N);
 
-  if (bod->form == BODY_COROTATIONAL && bod->scheme != SCH_DEF_EXP
-      && bod->dom->solver != BODY_SPACE_SOLVER) /* BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
+  if (bod->form == BODY_COROTATIONAL &&
+      !(dom->dynamic && bod->scheme == SCH_DEF_EXP) &&
+      dom->solver != BODY_SPACE_SOLVER) /* BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
   {
     double *x = H->x, *y = x + H->nzmax,
            *R = FEM_ROT (bod), T [9];

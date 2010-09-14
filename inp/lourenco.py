@@ -1,12 +1,11 @@
 # Lourenco wall example
 import math
 
-step = 0.001
+step = 0.0001
 stop = step * 500
 NWIDTH = 5
 NHEIGHT = 9
-scheme = 'DEF_EXP'
-damping = 1.0
+formul = 'TL'
 
 solfec = SOLFEC ('QUASI_STATIC', step, 'out/lourenco')
 
@@ -27,9 +26,6 @@ bulk = BULK_MATERIAL (solfec,
 		      poisson = 0.2,
 		      density = 1E3)
 
-
-GRAVITY (solfec, (0, 0, -10))
-
 a = 0.10
 b = 0.10
 c = 0.10
@@ -49,31 +45,23 @@ for j in range (NHEIGHT):
     brick = HEX (nodes, 2, 2, 2, 1, [1, 1, 1, 1, 1, 1])
     SCALE (brick, (0.5, 1, 1))
     TRANSLATE (brick, point)
-    b = BODY (solfec, 'FINITE_ELEMENT', brick, bulk)
-    b.scheme = scheme
-    b.damping = damping
+    BODY (solfec, 'FINITE_ELEMENT', brick, bulk, form = formul)
     point = ((NWIDTH-1)*a*2+a/2, 0, j*c)
     brick = HEX (nodes, 2, 2, 2, 1, [1, 1, 1, 1, 1, 1])
     SCALE (brick, (0.5, 1, 1))
     TRANSLATE (brick, point)
-    b = BODY (solfec, 'FINITE_ELEMENT', brick, bulk)
-    b.scheme = scheme
-    b.damping = damping
+    BODY (solfec, 'FINITE_ELEMENT', brick, bulk, form = formul)
     for i in range (0, NWIDTH-1):
       point = (a+i*a*2, 0, j*c)
       brick = HEX (nodes, 2, 2, 2, 1, [1, 1, 1, 1, 1, 1])
       TRANSLATE (brick, point)
-      b = BODY (solfec, 'FINITE_ELEMENT', brick, bulk)
-      b.scheme = scheme
-      b.damping = damping
+      BODY (solfec, 'FINITE_ELEMENT', brick, bulk, form = formul)
   else:
     for i in range (NWIDTH):
       point = (i*a*2, 0, j*c)
       brick = HEX (nodes, 2, 2, 2, 1, [1, 1, 1, 1, 1, 1])
       TRANSLATE (brick, point)
-      b = BODY (solfec, 'FINITE_ELEMENT', brick, bulk)
-      b.scheme = scheme
-      b.damping = damping
+      BODY (solfec, 'FINITE_ELEMENT', brick, bulk, form = formul)
 
 base = HEX (nodes, 1, 1, 1, 2, [2, 2, 2, 2, 2, 2])
 TRANSLATE (base, (a, 0, -c))
@@ -91,8 +79,8 @@ tms = TIME_SERIES ([0, 0, 50 * step, 0, stop, 20E3])
 FORCE (top, 'SPATIAL', (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), tms)
 FORCE (top, 'SPATIAL', (2 * a * NWIDTH / 2 - a, 0, c * NHEIGHT + c/2), (0, 0, -1), 30E3)
 
-#gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
-gs = NEWTON_SOLVER (1E-9, 100)
+gs = GAUSS_SEIDEL_SOLVER (1E-5, 1000)
+#gs = NEWTON_SOLVER (1E-9, 100)
 
 OUTPUT (solfec, 1E-3, compression = 'ON')
 

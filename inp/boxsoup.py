@@ -3,7 +3,7 @@ from random import random
 from random import seed
 from math import sin
 
-def make_wee_box (x, y, z, r, kinem, scheme, material, solfec):
+def make_wee_box (x, y, z, r, kinem, scheme, formul, material, solfec):
   nodes = [x - r, y - r, z - r,
            x + r, y - r, z - r,
 	   x + r, y + r, z - r,
@@ -14,8 +14,9 @@ def make_wee_box (x, y, z, r, kinem, scheme, material, solfec):
 	   x - r, y + r, z + r]
 
   msh = HEX (nodes, 1, 1, 1, 0, [0, 0, 0, 0, 0, 0])
-  bod = BODY (solfec, kinem, msh, material)
+  bod = BODY (solfec, kinem, msh, material, form = formul)
   bod.scheme = scheme
+  return bod
 
 def make_big_box (x, y, z, wx, wy, wz, material, solfec):
   box = HULL ([x, y, z,
@@ -38,37 +39,43 @@ def make_big_box (x, y, z, wx, wy, wz, material, solfec):
   shape = [wallx1, wallx2, wally1, wally2, wallz1]
   BODY (solfec, 'OBSTACLE', shape, material)
 
-#kinem = 'FINITE_ELEMENT'
-kinem = 'PSEUDO_RIGID'
-scheme = 'DEF_IMP'
+# main module
+
+kinem = 'FINITE_ELEMENT'
+#kinem = 'PSEUDO_RIGID'
 #kinem = 'RIGID'
 #scheme = 'RIG_NEG'
+scheme = 'DEF_IMP'
+formul = 'BC'
 step = 0.003
-stop = 10.0
+stop = 10
+m = 10
 n = 10
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/boxsoup')
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 1.0)
 bulk = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E8, poisson = 0.25, density = 1.8E3)
 GRAVITY (solfec, (0, 0, -10))
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
+gs = GAUSS_SEIDEL_SOLVER (1E-7, 1000)
+#gs = NEWTON_SOLVER (1E-6, 100)
 
 IMBALANCE_TOLERANCE (solfec, 2.0, lockdir = 'ON')
 
 make_big_box (0, 0, 0, n, n, n, bulk, solfec)
 
-for i in range (2,n-1, 2):
-  for j in range (2,n-1, 2):
+boxes = []
+for i in range (2, m-1, 2):
+  for j in range (2, m-1, 2):
     for k in range (2, n-1, 2):
-      make_wee_box (i, j, k, 0.5, kinem, scheme, bulk, solfec)
+      boxes.append (make_wee_box (i, j, k, 0.5, kinem, scheme, formul, bulk, solfec))
 
-#OUTPUT (solfec, 0.01)
 RUN (solfec, gs, stop)
 
 if not VIEWER() and solfec.mode == 'READ':
   try:
     import matplotlib.pyplot as plt
-    th = HISTORY (solfec, [(solfec, 'KINETIC'), (solfec, 'INTERNAL'), (solfec, 'EXTERNAL'), (solfec, 'CONTACT') ], 0, stop, progress = 'ON')
+
+    th = HISTORY (solfec, [(solfec, 'KINETIC'), (solfec, 'INTERNAL'), (solfec, 'EXTERNAL'), (solfec, 'CONTACT')], 0, stop, progress = 'ON')
     plt.plot (th [0], th [1], label='KIN')
     plt.plot (th [0], th [2], label='INT')
     plt.plot (th [0], th [3], label='EXT')
@@ -80,5 +87,15 @@ if not VIEWER() and solfec.mode == 'READ':
     plt.ylabel ('Energy [J]')
     plt.legend(loc = 'upper right')
     plt.savefig ('out/boxsoup/boxsoup.eps')
+
+    '''
+    SEEK (solfec, 0)
+    while solfec.time < stop:
+      print solfec.time,
+      for box in boxes:
+        print box.conf[2],
+      print '\n'
+      FORWARD (solfec, 1)
+    '''
   except ImportError:
     pass # no reaction
