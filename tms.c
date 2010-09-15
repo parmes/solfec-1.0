@@ -28,15 +28,6 @@
 
 #define CHUNK 512
 
-static int compare (double *a, double *b)
-{
-  if (a[0] < b[0]) return -1;
-  else if (a[0] > b[0]) return 1;
-  else return 0;
-}
-
-typedef int (*qcmp) (const void*, const void*);
-
 static int findmarker (double (*begin)[2], double (*end)[2], double time)
 {
   double (*low)[2] = begin,
@@ -87,19 +78,24 @@ TMS* TMS_Copy (TMS *ts)
 TMS* TMS_Create (int size, double *times, double *values)
 {
   TMS *ts;
+  int i;
 
   ASSERT_DEBUG (size > 1, "Time series size must be greater than one");
   ERRMEM (ts = malloc (sizeof (TMS)));
   ERRMEM (ts->points = malloc (sizeof (double [2]) * size));
   ts->marker = 0;
   ts->size = size;
-  for (size --; size >= 0; size --)
-  {
-    ts->points [size][0] = times [size];
-    ts->points [size][1] = values [size];
-  }
 
-  qsort (ts->points, ts->size, sizeof (double [2]), (qcmp)compare);
+  for (i = 0; i < size; i ++)
+  {
+    ts->points [i][0] = times [i];
+    ts->points [i][1] = values [i];
+
+    if (i)
+    {
+      ASSERT (times [i] > times [i-1], ERR_TMS_TIME_NOT_INCREASED);
+    }
+  }
 
   return ts;
 }
@@ -126,11 +122,14 @@ TMS* TMS_File (char *path)
       np += CHUNK;
       ERRMEM (ts->points = realloc (ts->points, sizeof (double [2]) * np));
     }
+
+    if (ts->size)
+    {
+      ASSERT (ts->points [ts->size][0] > ts->points [ts->size-1][0], ERR_TMS_TIME_NOT_INCREASED);
+    }
   }
 
   ts->size --;
-
-  qsort (ts->points, ts->size, sizeof (double [2]), (qcmp)compare);
 
   if (ts->size == 0)
   {
@@ -224,9 +223,9 @@ double TMS_Value (TMS *ts, double time)
   else if (time > ts->points[ts->size-1][0]) return ts->points[ts->size-1][1];
 
   lo = ts->points[ts->marker > 0 ? ts->marker - 1 : ts->marker][0];
-  hi = ts->points[ts->marker < ts->size - 1 ? ts->marker + 2 : ts->marker][0];
+  hi = ts->points[ts->marker < ts->size - 1 ? ts->marker + 1 : ts->marker][0];
 
-  if (time < lo ||time > hi)
+  if (time < lo || time > hi)
   {
     ts->marker = findmarker (ts->points, ts->points + ts->size - 1, time);
   }

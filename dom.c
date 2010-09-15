@@ -2102,6 +2102,64 @@ static void* unpack_reactions (DOM *dom, int *dpos, double *d, int doubles, int 
   return NULL;
 }
 
+/* pack boundary R, U, V */
+static void pack_RUV (SET *set, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  SET *item;
+  CON *con;
+
+  pack_int (isize, i, ints, SET_Size (set));
+  for (item = SET_First (set); item; item = SET_Next (item))
+  {
+    con = item->data;
+    pack_int (isize, i, ints, con->id);
+    pack_doubles (dsize, d, doubles, con->R, 3);
+    pack_doubles (dsize, d, doubles, con->U, 3);
+    pack_doubles (dsize, d, doubles, con->V, 3);
+  }
+}
+
+/* unpack external R, U, V */
+static void* unpack_RUV (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int n, j, id;
+  CON *con;
+
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    id = unpack_int (ipos, i, ints);
+    ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid contact id");
+    unpack_doubles (dpos, d, doubles, con->R, 3);
+    unpack_doubles (dpos, d, doubles, con->U, 3);
+    unpack_doubles (dpos, d, doubles, con->V, 3);
+  }
+
+  return NULL;
+}
+
+/* send boundary R, U, V to their external receivers;
+ * U and V are needed in bod.c: compute_contact_work */
+void update_external_RUV (DOM *dom)
+{
+  COMOBJ *send, *recv;
+  int i, nrecv;
+
+  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
+
+  for (i = 0; i < dom->ncpu; i ++)
+  {
+    send [i].o = dom->dbd [i].ext;
+    send [i].rank = i;
+  }
+
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_RUV, dom,
+    (OBJ_Unpack)unpack_RUV, send, dom->ncpu, &recv, &nrecv);
+
+  free (send);
+  free (recv);
+}
+
 /* create MPI related data */
 static void create_mpi (DOM *dom)
 {
@@ -2851,9 +2909,8 @@ void DOM_Update_End (DOM *dom)
 #if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
-  /* update external reactions after solution has completed;
-   * solvers do not take care of that, hence this is important */
-  DOM_Update_External_Reactions (dom, 0);
+  /* update external R, U, V after solution has completed */
+  update_external_RUV (dom);
 
   SOLFEC_Timer_End (dom->solfec, "PARBAL");
 #endif

@@ -58,7 +58,8 @@ typedef struct domain DOM;
 struct constraint
 {
   double R [3], /* average constraint reaction */
-	 U [3]; /* relative velocity */
+	 U [3], /* relative velocity */
+	 V [3]; /* initial relative velocity */
 
   DIAB *dia; /* diagonal entry in the local dynamical system */
 

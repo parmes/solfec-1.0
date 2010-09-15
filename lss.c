@@ -331,7 +331,7 @@ PRIVATE (MATRIX*, matrix, int n, double *a, int *p, int *i)
 {
   MATRIX *A;
 
-  ASSERT (n >= 0, LSSERR_INVALID_ARGUMENT); /* FIXME: need to accept compressed row format */
+  ASSERT (n >= 0, LSSERR_INVALID_ARGUMENT); /* TODO: need to accept compressed row format */
   ASSERT (A = malloc (sizeof (MATRIX)), LSSERR_OUT_OF_MEMORY);
   ASSERT (A->columns = malloc ((n+1) * sizeof (int)), LSSERR_OUT_OF_MEMORY);
   ASSERT (A->rows = malloc (p [n] * sizeof (int)), LSSERR_OUT_OF_MEMORY);

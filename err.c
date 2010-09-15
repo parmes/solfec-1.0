@@ -37,6 +37,7 @@ char* errstring (int error)
     case ERR_FILE_FORMAT: return "Invalid file format";
     case ERR_NOT_IMPLEMENTED: return "Not implemented";
     case ERR_TMS_INTEGRATE_CONSTANT: return "Cannot integrate constant time series (no limits)";
+    case ERR_TMS_TIME_NOT_INCREASED: return "Time series time instants must be increasing";
     case ERR_PBF_INDEX_FILE_CORRUPTED: return "PBF index file corrupted";
     case ERR_PBF_OUTPUT_TIME_DECREASED: return "PBF output time decreased";
     case ERR_PBF_WRITE: return "PBF write error";
@@ -75,6 +76,8 @@ char* errstring (int error)
     case ERR_FEM_MASS_NOT_SPD: return "Mass matrix is not symmetric-positive-definite in FEM module";
     case ERR_FEM_COORDS_INVERT: return "Global to local coordinates convertion failed in FEM module";
     case ERR_FEM_CUT_VOLUME: return "Volume cut of FE mesh does not match the shape volume in FEM module";
+    case ERR_FEM_ROT_SINGULAR_JACOBIAN: return "FEM rotation update singular Jacobian";
+    case ERR_FEM_ROT_NEWTON_DIVERGENCE: return "FEM rotation update Newton method divergence";
   }
 
   return "Unknown";
