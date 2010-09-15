@@ -3,7 +3,7 @@ from random import random
 from random import seed
 from math import sin
 
-def make_wee_box (x, y, z, r, kinem, scheme, formul, material, solfec):
+def make_wee_box (x, y, z, r, kinem, scheme, damping, formul, material, solfec):
   nodes = [x - r, y - r, z - r,
            x + r, y - r, z - r,
 	   x + r, y + r, z - r,
@@ -16,6 +16,7 @@ def make_wee_box (x, y, z, r, kinem, scheme, formul, material, solfec):
   msh = HEX (nodes, 1, 1, 1, 0, [0, 0, 0, 0, 0, 0])
   bod = BODY (solfec, kinem, msh, material, form = formul)
   bod.scheme = scheme
+  bod.damping = damping
   return bod
 
 def make_big_box (x, y, z, wx, wy, wz, material, solfec):
@@ -47,6 +48,7 @@ kinem = 'FINITE_ELEMENT'
 #scheme = 'RIG_NEG'
 scheme = 'DEF_IMP'
 formul = 'BC'
+damping = 0.0
 step = 0.003
 stop = 10
 m = 10
@@ -67,7 +69,7 @@ boxes = []
 for i in range (2, m-1, 2):
   for j in range (2, m-1, 2):
     for k in range (2, n-1, 2):
-      boxes.append (make_wee_box (i, j, k, 0.5, kinem, scheme, formul, bulk, solfec))
+      boxes.append (make_wee_box (i, j, k, 0.5, kinem, scheme, damping, formul, bulk, solfec))
 
 RUN (solfec, gs, stop)
 

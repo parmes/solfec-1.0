@@ -67,7 +67,7 @@ struct diab
 {
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
 	    *U, /* relative volocity => points to U[3] member of the underlying constraint */
-	 V [3], /* initial velocity */
+	    *V, /* initial velocity => points to V[3] member of the underlying constraint */ 
 	 B [3], /* free velocity */
          W [9], /* generalised inverse inertia block */
 	 A [9], /* inverse of W */

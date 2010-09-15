@@ -1,6 +1,6 @@
 # bar drop example
 
-def bar_drop (step, stop, scheme):
+def bar_drop (step, stop, formul, scheme, damp):
 
   a = 0.1
   b = 0.1
@@ -26,8 +26,9 @@ def bar_drop (step, stop, scheme):
 			poisson = 0.25,
 			density = 1.8E3)
 
-  bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
+  bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk, form = formul)
   bod.scheme = scheme
+  bod.damping = damp
   INITIAL_VELOCITY (bod, (0, 0, -V0), (0, 0, 0))
 
   a = 2 * a
@@ -56,33 +57,39 @@ def bar_drop (step, stop, scheme):
     return HISTORY (sol, [(sol, 'KINETIC'), (sol, 'INTERNAL'), (sol, 'EXTERNAL'), (bod, (0, 0, 0), 'VZ'), (bod, (0, 0, 0), 'DZ')], 0, stop)
   else: return [sol, gs]
 
+step = 1E-4
 stop = 1
-th1 = bar_drop (1E-3, stop, 'DEF_IMP')
-th2 = bar_drop (1E-4, stop, 'DEF_IMP')
-th3 = bar_drop (1E-5, stop, 'DEF_EXP')
+damp = 2E-5
+formul = 'BC'
+th1 = bar_drop (step, stop, formul, 'DEF_LIM', damp)
+th2 = bar_drop (step, stop, formul, 'DEF_LIM2', damp)
+th3 = bar_drop (step, stop, formul, 'DEF_IMP', damp)
 
 if not VIEWER() and isinstance (th1, tuple):
   try:
     import matplotlib.pyplot as plt
-    plt.plot (th1 [0], th1 [1], label='KIN-IMP(1E-3)')
-    plt.plot (th2 [0], th2 [1], label='KIN-IMP(1E-4)')
-    plt.plot (th3 [0], th3 [1], label='KIN-EXP(1E-5)')
+    plt.title ('ENE')
+    plt.plot (th1 [0], th1 [1], label='LIM')
+    plt.plot (th2 [0], th2 [1], label='LIM2')
+    plt.plot (th3 [0], th3 [1], label='IMP')
     plt.axis (xmin = 0, xmax = stop)
     plt.xlabel ('Time [s]')
     plt.ylabel ('Energy [J]')
     plt.legend(loc = 'upper right')
     plt.savefig ('out/bar-drop/bar-drop-ene.eps')
     plt.clf ()
-    plt.plot (th1 [0], th1 [4], label='VZ-IMP(1E-3)')
-    plt.plot (th2 [0], th2 [4], label='VZ-IMP(1E-4)')
-    plt.plot (th3 [0], th3 [4], label='VZ-EXP(1E-5)')
+    plt.title ('VZ')
+    plt.plot (th1 [0], th1 [4], label='LIM')
+    plt.plot (th2 [0], th2 [4], label='LIM2')
+    plt.plot (th3 [0], th3 [4], label='IMP')
     plt.ylabel ('Velocity [m/s]')
     plt.legend(loc = 'upper right')
     plt.savefig ('out/bar-drop/bar-drop-vz.eps')
     plt.clf ()
-    plt.plot (th1 [0], th1 [5], label='DZ-IMP(1E-3)')
-    plt.plot (th2 [0], th2 [5], label='DZ-IMP(1E-4)')
-    plt.plot (th3 [0], th3 [5], label='DZ-EXP(1E-5)')
+    plt.title ('DZ')
+    plt.plot (th1 [0], th1 [5], label='LIM')
+    plt.plot (th2 [0], th2 [5], label='LIM2')
+    plt.plot (th3 [0], th3 [5], label='IMP')
     plt.ylabel ('Displacement [m]')
     plt.legend(loc = 'upper right')
     plt.savefig ('out/bar-drop/bar-drop-dz.eps')

@@ -3647,7 +3647,8 @@ reference "tab:schema"
 obj.damping
 \series default
 \emph default
- - mass proportional damping coefficient (default: 0.0) for the dynamic case.
+ - stiffness proportional damping coefficient (default: 0.0) for the dynamic
+ case.
 \end_layout
 
 \end_inset
@@ -3754,7 +3755,7 @@ name "tab:formulation"
 
 
 \lang english
-Finite elment formulations
+Finite element formulations
 \end_layout
 
 \end_inset

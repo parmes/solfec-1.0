@@ -470,6 +470,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
   ERRMEM (dia = MEM_Alloc (&ldy->diamem));
   dia->R = con->R;
   dia->U = con->U;
+  dia->V = con->V;
   dia->con = con;
 
   /* insert into list */

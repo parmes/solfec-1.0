@@ -15,7 +15,7 @@ surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0,
 
 GRAVITY (solfec, (0, 0, -9.81))
 
-gs = GAUSS_SEIDEL_SOLVER (1E-10, 10000)
+gs = GAUSS_SEIDEL_SOLVER (1E-10, 100)
 
 GEOMETRIC_EPSILON (1E-15)
 

@@ -36,8 +36,8 @@
 
 typedef double (*node_t) [3]; /* mesh node */
 
-#define IMP_EPS 1E-8
-#define MAX_ITERS 16
+#define IMP_EPS 1E-9
+#define MAX_ITERS 64
 #define MAX_NODES 20
 #define DOM_TOL 0.150
 #define CUT_TOL 0.015
@@ -1727,7 +1727,7 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
 	*e = u + n,
 	*r, *ir;
 
-  ERRMEM (ir = r = malloc (sizeof (double [n])));
+  ERRMEM (r = malloc (sizeof (double [n])));
 
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
@@ -1736,7 +1736,7 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
   {
   case SCH_DEF_EXP:
   {
-    for (; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
+    for (ir = r; iu < e; iu ++, x ++, ir ++) (*iu) += step * (*x) * (*ir); /* u(t+h) += inv (M) * h * r */
     blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
   }
   break;
@@ -1788,6 +1788,7 @@ static void TL_static_step_end (BODY *bod, double time, double step)
 
   ERRMEM (r = malloc (sizeof (double [bod->dofs])));
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+  blas_daxpy (bod->dofs, 1.0, r, 1, FEM_FEXT (bod), 1);  /* fext += r */
   MX_Matvec (step, bod->inverse, r, 1.0, bod->velo); /* u(t+h) += inv (A) * h * r */
   blas_daxpy (bod->dofs, step, bod->velo, 1, bod->conf, 1); /* q (t+h) = q(t) + h * u(t+h) */
   free (r);
@@ -1866,15 +1867,12 @@ static void BC_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
     TVMUL (dh, h, dJ); /* dJ = h' dh */
     TNMUL (dh, dh, ddJ); /* dJ = dh' dh */
 
-    if (lapack_dposv ('U', 3, 1, ddJ, 3, dJ, 3) != 0)
-    {
-      ASSERT_DEBUG (0, "SINGULAR ddJ at iter %d", iter); /* FIXME */
-    }
+    ASSERT (lapack_dposv ('U', 3, 1, ddJ, 3, dJ, 3) == 0, ERR_FEM_ROT_SINGULAR_JACOBIAN);
 
     SUB (O, dJ, O);
     error = sqrt (DOT (dJ, dJ) / (1.0 + DOT (O, O)));
   }
-  while (++ iter < 64 && error > 1E-10);
+  while (error > IMP_EPS && ++ iter < MAX_ITERS);
 
   EXPMAP (O, A);
   NNCOPY (R, A+9);
@@ -1884,7 +1882,7 @@ static void BC_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
   printf ("O = %g, %g, %g after %d iterations\n", O[0], O[1], O[2], iter);
 #endif
 
-  ASSERT_DEBUG (iter < 64, "DIVERGED rotation update"); /* FIXME */
+  ASSERT (iter < MAX_ITERS, ERR_FEM_ROT_NEWTON_DIVERGENCE);
 }
 
 /* fint = R K R' [(I-R)Z + q + (h/4) u] */
@@ -1923,23 +1921,23 @@ static void BC_internal_force (BODY *bod, double *R, double *q, double *fint)
 /* compute u = alpha * R A R' b + beta * u  */
 static void BC_matvec (double alpha, MX *A, double *R, double *b, double beta, double *u)
 {
-  double *x, *y, *z, *w;
+  double *x, *y, *z;
   int n = A->n;
 
   ERRMEM (x = MEM_CALLOC (2 * sizeof (double [n])));
 
-  for (y = x, z = x + n, w = b; y < z; y += 3, w += 3)
+  for (y = x, z = x + n; y < z; y += 3, b += 3)
   {
-    TVMUL (R, w, y);
+    TVMUL (R, b, y);
   }
 
-  y = x + n;
   MX_Matvec (alpha, A, x, 0.0, y);
 
-  for (z = y + n, w = u; y < z; y += 3, w += 3)
+  if (beta != 1.0) blas_dscal (n, beta, u, 1);
+
+  for (z = y + n; y < z; y += 3, u += 3)
   {
-    SCALE (w, beta);
-    NVADDMUL (w, R, y, w);
+    NVADDMUL (u, R, y, u);
   }
 
   free (x);
@@ -1974,10 +1972,10 @@ static void BC_dynamic_solve (BODY *bod, double time, double step, double *fext,
     BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
     external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
     BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
-    memset (f, 0, sizeof (double [n])); 
-    blas_daxpy (n, step, fext, 1, f, 1);
-    blas_daxpy (n, -step, fint, 1, f, 1); /* f = h (fext - fint) */
-    BC_matvec (1.0, bod->inverse, R, f, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') f */
+    blas_dcopy (n, fext, 1, f, 1);
+    blas_daxpy (n, -1.0, fint, 1, f, 1); /* f = h (fext - fint) */
+    if (bod->damping > 0.0) BC_matvec (-bod->damping, bod->K, R, u, 1.0, f); /* b -= damping K u (t) */
+    BC_matvec (step, bod->inverse, R, f, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') f */
   }
   else
   {
@@ -1993,6 +1991,7 @@ static void BC_dynamic_solve (BODY *bod, double time, double step, double *fext,
     BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
     BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
     for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
+    if (bod->damping > 0.0) BC_matvec (-step * bod->damping, bod->K, R, u, 1.0, res); /* res -= h * damping K u(t+h) */
     MX_Matvec (-1.0, bod->M, aux, 1.0, res);
     BC_matvec (1.0, bod->inverse, R, res, 0.0, aux);
     for (i = 0; i < n; i ++) u [i] += aux [i];
@@ -2045,7 +2044,7 @@ static void BC_dynamic_init (BODY *bod)
     {
       double step = bod->dom->step;
 
-      bod->inverse = MX_Add (1.0, bod->M, 0.25*step*step, bod->K, NULL);
+      bod->inverse = MX_Add (1.0, bod->M, bod->damping*step + 0.25*step*step, bod->K, NULL);
 
       MX_Inverse (bod->inverse, bod->inverse);
     }
@@ -2074,7 +2073,7 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 
   blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
 
-  ERRMEM (b = MEM_CALLOC (sizeof (double [n])));
+  ERRMEM (b = malloc (sizeof (double [n])));
 
   switch (bod->scheme)
   {
@@ -2085,10 +2084,11 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 
     external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
     BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
-    blas_daxpy (n, step, fext, 1, b, 1);
-    blas_daxpy (n, -step, fint, 1, b, 1); /* b = h (fext - fint) */
+    blas_dcopy (n, fext, 1, b, 1);
+    blas_daxpy (n, -1.0, fint, 1, b, 1); /* b = h (fext - fint) */
+    if (bod->damping > 0.0) BC_matvec (-bod->damping, bod->K, R, u, 1.0, b); /* b -= damping K u (t) */
 
-    MX_Matvec (1.0, bod->inverse, b, 1.0, u); /* u(t+h) = u(t) + inv (M) * b */
+    MX_Matvec (step, bod->inverse, b, 1.0, u); /* u(t+h) = u(t) + inv (M) * b */
   }
   break;
   case SCH_DEF_LIM:
@@ -2098,24 +2098,30 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
 
     external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
     BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
-    blas_daxpy (n, step, fext, 1, b, 1);
-    blas_daxpy (n, -step, fint, 1, b, 1); /* b = h (fext - fint) */
+    blas_dcopy (n, fext, 1, b, 1);
+    blas_daxpy (n, -1.0, fint, 1, b, 1); /* b = h (fext - fint) */
+    if (bod->damping > 0.0) BC_matvec (-bod->damping, bod->K, R, u, 1.0, b); /* b -= damping K u (t) */
 
-    BC_matvec (1.0, bod->inverse, R, b, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') b */
+    BC_matvec (step, bod->inverse, R, b, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') b */
   }
   break;
   case SCH_DEF_LIM2:
   {
+    blas_dcopy (n, q, 1, b, 1);
+    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
+
     external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
-    BC_internal_force (bod, R, q, fint); /* fint = R K R' [(I-R)Z + q(t)] */
-    blas_daxpy (n, 1.0, fext, 1, b, 1);
+    BC_internal_force (bod, R, b, fint); /* fint = R K R' [(I-R)Z + q(t)] */
+    blas_dcopy (n, fext, 1, b, 1);
     blas_daxpy (n, -1.0, fint, 1, b, 1); /* b = fext - fint */
     MX_Matvec (1.0 / step, bod->M, u, 1.0, b); /* b += (1/h) M u (t) */
-    BC_matvec (-0.25 * step, bod->K, R, u, 1.0, b); /* b -= (h/4) K u (t) */
-    /* FIXME: dampnig effect is absent here - unlike in TL */
+    BC_matvec (-0.25 * step - bod->damping, bod->K, R, u, 1.0, b); /* b -= (h/4) K u (t) + damping K u (t) */
 
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     BC_matvec (step, bod->inverse, R, b, 0.0, u); /* u(t+h) = inv (A) * h * b */
+
+    /* XXX: this is not exactly LIM2 as for TL (if mimicked, it has positive drift)
+     * XXX: strong dampnig effect is absent here (unlike in TL) */
   }
   break;
   case SCH_DEF_IMP:
@@ -2149,7 +2155,6 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
   ERRMEM (r = malloc (sizeof (double [n])));
 
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
-
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
   switch (bod->scheme)
@@ -2215,7 +2220,7 @@ static void BC_static_step_begin (BODY *bod, double time, double step)
 	 *u = bod->velo,
          *b;
 
-  ERRMEM (b = malloc (sizeof (double [n])));
+  ERRMEM (b = MEM_CALLOC (sizeof (double [n])));
 
   external_force (bod, time+step, step, fext); /* fext = fext (t+h) */
   BC_internal_force (bod, R, q, fint); /* fint = R K R' [(I-R)Z + q(t)] */

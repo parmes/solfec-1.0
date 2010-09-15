@@ -35,9 +35,9 @@ static ITEM* skip_item (LIST *list, void *key, void *data)
 
   item->key = key;
   item->data = data;
-  item->forward = (ITEM**) (item + 1); /* TODO: rather than this, length of 'forward' should vary depending on the number of stored items;
-                                          TODO: 'forward' could be 'malloc'ed here and 'realloc'ated later, when the number of items exceeds
-                                          TODO: consecutive powers of two; the drawback would be in greater memory fragmentation */
+  item->forward = (ITEM**) (item + 1); /* XXX: rather than this, length of 'forward' should vary depending on the number of stored items;
+                                          XXX: 'forward' could be 'malloc'ed here and 'realloc'ated later, when the number of items exceeds
+                                          XXX: consecutive powers of two; the drawback would be in greater memory fragmentation */
 
   return item;
 }

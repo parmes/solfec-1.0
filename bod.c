@@ -817,28 +817,22 @@ static int velo_pack_size (BODY *bod)
 /* compute work of contact constraints */
 static void compute_contacts_work (BODY *bod, double step)
 {
-  double DU [3], *R, *energy = bod->energy;
-  DIAB *dia;
+  double DU [3], *R, *energy = bod->energy, coef;
+  short dynamic = bod->dom->dynamic;
   SET *item;
   CON *con;
 
+  coef = dynamic ? 0.5 * step : step;
   for (item = SET_First (bod->con); item; item = SET_Next (item))
   {
     con = item->data;
     if (con->kind == CONTACT)
     {
-      dia = con->dia;
-#if MPI
-      if (dia) /* NULL for external constraints; FIXME: figure out a way of not skipping them */
-      {
-#endif
       R = con->R;
-      ADD (dia->U, dia->V, DU);
-      energy [FRICWORK] += 0.5 * step * DOT2 (DU, R);
-      energy [CONTWORK] += 0.5 * step * DU [2] * R [2];
-#if MPI
-      }
-#endif
+      if (dynamic) { ADD (con->U, con->V, DU); }
+      else { COPY (con->U, DU); }
+      energy [FRICWORK] += coef * DOT2 (DU, R);
+      energy [CONTWORK] += coef * DU [2] * R [2];
     }
   }
 }
