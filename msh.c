@@ -851,7 +851,7 @@ MESH* MESH_Copy (MESH *msh)
 
     /* maintain list */
     cpy->prev = NULL;
-    cpy->next = ret->surfeles;
+    cpy->next = ret->bulkeles;
     if (ret->bulkeles) ret->bulkeles->prev = cpy;
     ret->bulkeles = cpy;
    
@@ -863,12 +863,16 @@ MESH* MESH_Copy (MESH *msh)
   for (ele = ret->surfeles; ele; ele = ele->next)
   {
     for (n = 0; n < ele->neighs; n ++)
+    {
       ele->adj [n] = MAP_Find (map, ele->adj [n], NULL); /* find a new pointer corresponding to the old one */
+    }
   }
   for (ele = ret->bulkeles; ele; ele = ele->next)
   {
     for (n = 0; n < ele->neighs; n ++)
+    {
       ele->adj [n] = MAP_Find (map, ele->adj [n], NULL);
+    }
   }
 
   /* create mesh face list */

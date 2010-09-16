@@ -3648,7 +3648,7 @@ obj.damping
 \series default
 \emph default
  - stiffness proportional damping coefficient (default: 0.0) for the dynamic
- case.
+ case (ignored for rigid bodies).
 \end_layout
 
 \end_inset
