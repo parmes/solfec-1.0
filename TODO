@@ -66,13 +66,13 @@ Optimize LINSYS:
 Implement fixed point aproach on S = |UT| for De Saxce formulation as suggested by V. Acary
 --------------------------------------------------------------------------------------------
 Sort out volumetric integration order in FEM module
-------------------------------------------------------
+--------------------------------------------------------------------------------------
 OPTIMIZE:
 a) sending constrains with fixed bases (e.g. FIXPNT, do not send the base)
 b) assembling W parts for constraints with fxied bases and points (e.g. FIXPNT)
 c) full domain load balancing only every N steps (communication)
--------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
 Finish BODY_SPACE_SOLVER (parallel bits)
--------------------------------------------------------------------------------------
-Sort out damping for Total Lagrangian FEM (BC is done)
-----------------------------------------------------------
+------------------------------------------------------------------------------------------------------------
+Use 0.5 coefficent before bod->damping everywhere? (now: c K (u0 + u1), while nicer is c K 0.5 (u0 + u1))
+------------------------------------------------------------------------------------------------------------

@@ -1483,31 +1483,26 @@ static MX* diagonal_inertia (BODY *bod, short spd)
 /* compute inverse operator for the implicit dynamic time stepping */
 static void TL_dynamic_inverse (BODY *bod, double step, double *force)
 {
-  MX *M, *K;
-
   if (bod->inverse) MX_Destroy (bod->inverse);
 
-  K = tangent_stiffness (bod, 0);
+  if (bod->K) MX_Destroy (bod->K);
 
-  M = bod->M;
+  bod->K = tangent_stiffness (bod, 0);
 
   if (force)
   {
     /* account for the previous velocity */
-    MX_Matvec (1.0 / step, M, bod->velo, 1.0, force);
+    MX_Matvec (1.0 / step, bod->M, bod->velo, 1.0, force);
 
     /* account for the internal force increment */
-    MX_Matvec (-0.25 * step, K, bod->velo, 1.0, force);
+    MX_Matvec (-0.25 * step, bod->K, bod->velo, 1.0, force);
   }
 
-  /* calculate tangent operator A = M + h*h/4 K */
-  bod->inverse = MX_Add (1.0, M, 0.25*step*step, K, NULL);
+  /* calculate tangent operator A = M + (damping*h + h*h/4) K */
+  bod->inverse = MX_Add (1.0, bod->M, bod->damping*step + 0.25*step*step, bod->K, NULL);
 
   /* invert A */
   MX_Inverse (bod->inverse, bod->inverse);
-
-  /* clean up */
-  MX_Destroy (K);
 }
 
 /* solve implicit ingetration nonlinear equations */
@@ -1535,6 +1530,7 @@ static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext,
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
     TL_dynamic_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+    if (bod->damping > 0.0) MX_Matvec (-bod->damping, bod->K, u, 1.0, f); /* f -= damping K u (t) */
     MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
   }
   else
@@ -1554,6 +1550,7 @@ static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext,
     internal_force (bod, fint); /* ... as it is used in there ... */
     TL_dynamic_inverse (bod, step, NULL); /* ... and there */
     for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
+    if (bod->damping > 0.0) MX_Matvec (-step * bod->damping, bod->K, u, 1.0, res); /* res -= h * damping K u(t+h) */
     MX_Matvec (-1.0, bod->M, aux, 1.0, res);
     MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
     for (i = 0; i < n; i ++) u [i] += aux [i];
@@ -1657,7 +1654,6 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
 {
   int n = bod->dofs;
   double half = 0.5 * step,
-	 c = bod->damping,
 	*x = bod->inverse->x,
 	*u0 = FEM_VEL0 (bod),
 	*fext = FEM_FEXT (bod),
@@ -1677,6 +1673,12 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
   {
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+    if (bod->damping > 0.0)
+    {
+      if (bod->K) MX_Destroy (bod->K);
+      bod->K = tangent_stiffness (bod, 1);
+      MX_Matvec (-bod->damping, bod->K, u, 1.0, f); /* f -= damping K u (t) */
+    }
     for (g = f; u < e; u ++, x ++, g ++) (*u) += step * (*x) * (*g); /* u(t+h) = u(t) + inv (M) * h * f */
   }
   break;
@@ -1685,6 +1687,7 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
     dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
     TL_dynamic_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
+    if (bod->damping > 0.0) MX_Matvec (-bod->damping, bod->K, u, 1.0, f); /* f -= damping K u (t) */
     MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
   }
   break;
@@ -1693,6 +1696,7 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
     dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t)) */
     TL_dynamic_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
+    if (bod->damping > 0.0) MX_Matvec (-bod->damping, bod->K, u, 1.0, f); /* f -= damping K u (t) */
     MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
   }
   break;
@@ -1708,8 +1712,6 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
   default:
   break;
   }
-
-  if (c > 0.0) for (u = bod->velo; u < e; u ++, u0++) (*u) -= c * (*u0); /* u(t+h) -= c * u (t) */
 
   free (f);
 }
@@ -2044,6 +2046,7 @@ static void BC_dynamic_init (BODY *bod)
     {
       double step = bod->dom->step;
 
+      /* calculate initial tangent operator A(0) = M + (damping*h + h*h/4) K(q(0)) */
       bod->inverse = MX_Add (1.0, bod->M, bod->damping*step + 0.25*step*step, bod->K, NULL);
 
       MX_Inverse (bod->inverse, bod->inverse);
