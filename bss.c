@@ -25,6 +25,7 @@
 
 #include "bss.h"
 #include "dom.h"
+#include "fem.h"
 #include "alg.h"
 #include "bla.h"
 #include "lap.h"
@@ -59,7 +60,7 @@ struct bss_con_data
 
   double *R, /* con->R */
 	 *U, /* con->U */
-         *V, /* con->dia->V */
+         *V, /* con->V */
 	 *B, /* con->dia->B */
 	 *W, /* con->dia->W */
 	 *A, /* con->dia->A */
@@ -75,9 +76,12 @@ struct bss_con_data
 
 struct bss_data
 {
-  int nprimal, /* SUM [bod in dom->bod] { bod->dofs } */ 
+  BODY **bod; /* bodies with constraints */
+
+  int nprimal, /* SUM [bod in bod[]] { bod->dofs } */ 
       ndual, /* 3 * ndat */
-      ndat; /* number of active constraints */
+      ndat, /* number of active constraints */
+      nbod; /* size of bod[] */
 
   BSS_CON_DATA *dat; /* active constraints data */
 
@@ -248,10 +252,10 @@ static void H_times_vector (double *a, BSS_CON_DATA *dat, int n, double *x, doub
 static void W_times_vector (BSS_DATA *A, double *x, double *y)
 {
   double *r = A->r, *u = A->u, *a = A->a, step;
+  int n = A->ndat, m = A->nbod, i;
   BSS_CON_DATA *dat = A->dat;
+  BODY **bod = A->bod;
   DOM *dom = A->dom;
-  int n = A->ndat;
-  BODY *bod;
 
   step = dom->step;
   SETN (r, A->nprimal, 0.0);
@@ -262,9 +266,9 @@ static void W_times_vector (BSS_DATA *A, double *x, double *y)
    * TODO: sum up external reaction contributions into r */
 #endif
 
-  for (bod = dom->bod; bod; r += bod->dofs, u += bod->dofs, bod = bod->next)
+  for (i = 0; i < m; r += bod [i]->dofs, u += bod [i]->dofs, i++)
   {
-    BODY_Invvec (step, bod, r, 0.0, u);
+    BODY_Invvec (step, bod [i], r, 0.0, u);
   }
 
   SETN (y, A->ndual, 0.0);
@@ -594,15 +598,14 @@ static void update_V_and_B (DOM *dom)
 }
 
 /* create constraints data */
-static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, double *free_energy)
+static BSS_CON_DATA *create_constraints_data (DOM *dom, BODY **bod, int nbod, int *ndat, VECTOR **v, double *free_energy)
 {
   BSS_CON_DATA *out, *dat;
   double step, *x;
+  MAP *map, *fem;
   short dynamic;
-  BODY *bod;
   CON *con;
-  MAP *map;
-  int n;
+  int i, n;
 
   dynamic = dom->dynamic;
   (*free_energy) = 0.0;
@@ -612,9 +615,25 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
   step = dom->step;
   x = (*v)->x;
 
-  for (bod = dom->bod, map = NULL, n = 0; bod; n += bod->dofs, bod = bod->next)
+  for (i = 0, map = NULL, n = 0; i < nbod; n += bod [i]->dofs, i ++)
   {
-    MAP_Insert (NULL, &map, bod, (void*) (long) n, NULL);
+    MAP_Insert (NULL, &map, bod [i], (void*) (long) n, NULL); /* map bodies to DOF shifts */
+  }
+
+  for (con = dom->con, fem = NULL; con; con = con->next)
+  {
+    BODY *m = con->master,
+	 *s = con->slave;
+
+    if (m->kind == FEM && !MAP_Find (fem, m, NULL))
+    {
+      MAP_Insert (NULL, &fem, m, FEM_Approx_Inverse (m), NULL); /* map approximate inverses */
+    }
+
+    if (s && s->kind == FEM && !MAP_Find (fem, s, NULL))
+    {
+      MAP_Insert (NULL, &fem, s, FEM_Approx_Inverse (s), NULL); /* map approximate inverses */
+    }
   }
 
   for (con = dom->con, dat = out, n = 0; con; con = con->next)
@@ -636,7 +655,7 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE_PTR (A, 3, 3, dia->A);
     short up = dia->W[8] == 0.0; /* needed only as a preconditioner => update once */
-    MX *prod;
+    MX *prod, *inv;
 
     if (s)
     {
@@ -655,7 +674,8 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
 
       if (up)
       {
-	prod = MX_Matmat (1.0, m->inverse, MX_Tran (dat->mH), 0.0, NULL);
+	if (m->kind == FEM) inv = MAP_Find (fem, m, NULL); else inv = m->inverse;
+	prod = MX_Matmat (1.0, inv, MX_Tran (dat->mH), 0.0, NULL);
 	MX_Matmat (step, dat->mH, prod, 0.0, &W); /* H * inv (M) * H^T */
 	MX_Destroy (prod);
       }
@@ -678,7 +698,8 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
 
       if (up)
       {
-	prod = MX_Matmat (1.0, s->inverse, MX_Tran (dat->sH), 0.0, NULL);
+	if (s->kind == FEM) inv = MAP_Find (fem, s, NULL); else inv = s->inverse;
+	prod = MX_Matmat (1.0, inv, MX_Tran (dat->sH), 0.0, NULL);
 	MX_Matmat (step, dat->sH, prod, 1.0, &W); /* H * inv (M) * H^T */
 	MX_Destroy (prod);
       }
@@ -704,7 +725,7 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
     dat->n = n;
     dat->R = con->R;
     dat->U = con->U;
-    dat->V = dia->V;
+    dat->V = con->V;
     dat->B = dia->B;
     dat->W = dia->W;
     dat->A = dia->A;
@@ -723,6 +744,9 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, int *ndat, VECTOR **v, d
   (*v)->n = n;
 
   MAP_Free (NULL, &map);
+  for (map = MAP_First (fem); map;
+       map = MAP_Next (map)) MX_Destroy (map->data);
+  MAP_Free (NULL, &fem);
 
   return out;
 }
@@ -757,11 +781,20 @@ static BSS_DATA *create_data (DOM *dom)
   A->dom = dom;
   for (bod = dom->bod, m = 0; bod; bod = bod->next)
   {
-    n = bod->dofs;
-    if (n > m) m = n;
-    A->nprimal += n;
+    if (bod->con) /* body with constraints */
+    {
+      n = bod->dofs;
+      if (n > m) m = n;
+      A->nprimal += n;
+      A->nbod ++;
+    }
   }
-  A->dat = create_constraints_data (dom, &A->ndat, &A->x, &dom->ldy->free_energy); /* A->x initialized with con->R */
+  ERRMEM (A->bod = malloc (A->nbod * sizeof (BODY*)));
+  for (bod = dom->bod, n = 0; bod; bod = bod->next)
+  {
+    if (bod->con) A->bod [n ++] = bod;
+  }
+  A->dat = create_constraints_data (dom, A->bod, A->nbod, &A->ndat, &A->x, &dom->ldy->free_energy); /* A->x initialized with con->R */
   A->ndual = A->ndat * 3;
   A->b = newvector (A->ndual);
   A->y = newvector (A->ndual);
@@ -992,6 +1025,7 @@ static void destroy_data (BSS_DATA *A)
   DestroyVector (A->x);
   DestroyVector (A->y);
   DestroyVector (A->z);
+  free (A->bod);
   free (A->r);
   free (A->u);
   free (A->a);

@@ -4,15 +4,15 @@ sys.path.append ('inp/mesh')
 from netgenread import *
 
 step = 1E-3
-stop = 10
+stop = 1
 frc = 1E6
-ni = 10
-nj = 10
-nk = 10
+ni = 3
+nj = 3
+nk = 3
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/tetcrush')
 
-solver = GAUSS_SEIDEL_SOLVER (1E-3, 50)
+solver = GAUSS_SEIDEL_SOLVER (1E-4, 100)
 
 material = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.3, density = 1.8E3)
 
@@ -74,3 +74,16 @@ GRAVITY (solfec, (0, 0, -10))
 OUTPUT (solfec, 0.01)
 
 RUN (solfec, solver, stop)
+
+if not VIEWER() and solfec.mode == 'READ':
+
+  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
+  dur = DURATION (solfec)
+  th = HISTORY (solfec, timers, dur[0], dur[1])
+  total = 0.0
+  for i in range (0, len(timers)):
+    sum = 0.0
+    for tt in th [i+1]: sum += tt
+    print timers [i], 'TIME:', sum
+    if i < 6: total += sum
+  print 'TOTAL TIME:', total
