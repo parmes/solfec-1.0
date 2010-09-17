@@ -76,3 +76,10 @@ Finish BODY_SPACE_SOLVER (parallel bits)
 ------------------------------------------------------------------------------------------------------------
 Use 0.5 coefficent before bod->damping everywhere? (now: c K (u0 + u1), while nicer is c K 0.5 (u0 + u1))
 ------------------------------------------------------------------------------------------------------------
+Balancing of FEM bodies - decrease constraint weight (too many DOFs)
+-----------------------------------------------------------------------
+Consider optional approximate LOCDYN via FEM_Approx_Inverse
+-----------------------------------------------------------------------
+Consider using diagonal 3x3 blocks in FEM_Approx_Inverse
+-----------------------------------------------------------------------------
+Approx LOCDYN + GS as a smoother for the BSS solver (feels right)

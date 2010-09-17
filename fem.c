@@ -1044,41 +1044,11 @@ static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *po
 static void cauchy_stress (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
 {
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-  double P [9], J, F [9];
+  double P [9], F [9], J;
 
-  switch (bod->form)
-  {
-    case TOTAL_LAGRANGIAN:
-    {
-      deformation_gradient (bod, msh, ele, point, F);
+  deformation_gradient (bod, msh, ele, point, F);
 
-      J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P);  /* TODO: generalize in BULK_MATERIAL interface */
-    }
-    break;
-    case BODY_COROTATIONAL:
-    {
-      double Q [9], G [9], K [81], *R = FEM_ROT (bod);
-
-      SET9 (F, 0.0); /* hence initial tangent */
-
-      SVK_Tangent_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, 9, F, K);  /* TODO: generalize in BULK_MATERIAL interface */
-
-      deformation_gradient (bod, msh, ele, point, F); /* true gradient */
-
-      J = DET (F);
-
-      TVMUL (R, F, G);
-      TVMUL (R, F+3, G+3);
-      TVMUL (R, F+6, G+6); /* rotated back */
-
-      blas_dgemv ('N', 9, 9, 1.0, K, 9, G, 1, 0.0, Q, 1); /* linearized PK1 */
-
-      NVMUL (R, Q, P);
-      NVMUL (R, Q+3, P+3);
-      NVMUL (R, Q+6, P+6); /* rotated forth */
-    }
-    break;
-  }
+  J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P);  /* TODO: generalize in BULK_MATERIAL interface */
 
   values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
   values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
@@ -1086,6 +1056,8 @@ static void cauchy_stress (BODY *bod, MESH *msh, ELEMENT *ele, double *point, do
   values [3] = (F[0]*P[3]+F[3]*P[4]+F[6]*P[5])/J; /* sxy */
   values [4] = (F[0]*P[6]+F[3]*P[7]+F[6]*P[8])/J; /* sxz */
   values [5] = (F[2]*P[0]+F[5]*P[1]+F[8]*P[2])/J; /* syz */
+
+  /* XXX: BODY_COROTATIONAL case is handled the same ways as TOTAL_LAGRANGIAN (simplification) */
 }
 
 /* accumulate point force contribution into the body force vector */
@@ -3106,5 +3078,46 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
   case BODY_COROTATIONAL:
     BC_matvec (alpha, bod->inverse, FEM_ROT (bod), b, beta, c);
     break;
+  }
+}
+
+/* create approximate inverse operator */
+MX* FEM_Approx_Inverse (BODY *bod)
+{
+  if (bod->scheme == SCH_DEF_EXP) return MX_Copy (bod->inverse, NULL); /* diagonal */
+  else
+  {
+    int n, k, j, *p, *i;
+    double *x, *y;
+    MX *I;
+
+    n = bod->dofs;
+
+    ERRMEM (p = malloc (sizeof (int [n+1])));
+    ERRMEM (i = malloc (sizeof (int [n])));
+
+    for (k = 0, p [n] = n; k < n; k ++) p [k] = i [k] = k; /* diagonal pattern */
+    I = MX_Create (MXCSC, n, n, p, i);
+    x = I->x;
+    free (p);
+    free (i);
+    
+    p = bod->inverse->p;
+    i = bod->inverse->i;
+    y = bod->inverse->x;
+
+    for (j = 0; j < n; j ++)
+    {
+      for (k = p[j]; k < p[j+1]; k ++)
+      {
+	if (i[k] == j) /* diagonal element */
+	{
+	  ASSERT_DEBUG (y [k] >= 0.0, "Non-positive diagonal element of M + (h*h/4) K");
+	  x [j] = 1.0 / y [k];
+	}
+      }
+    }
+
+    return I;
   }
 }

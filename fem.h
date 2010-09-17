@@ -103,4 +103,7 @@ int FEM_Velo_Pack_Size (BODY *bod);
 /* compute c = alpha * INVERSE (bod) * b + beta * c */
 void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
 
+/* create approximate inverse operator */
+MX* FEM_Approx_Inverse (BODY *bod);
+
 #endif
