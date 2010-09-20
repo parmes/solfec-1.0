@@ -114,18 +114,18 @@ TMS* TMS_File (char *path)
   ts->size = 0;
   while (feof (fp) == 0)
   {
-    fscanf (fp, "%lf", &ts->points [ts->size][0]);
-    fscanf (fp, "%lf", &ts->points [ts->size][1]);
+    if (fscanf (fp, "%lf", &ts->points [ts->size][0]) == EOF) break;
+    if (fscanf (fp, "%lf", &ts->points [ts->size][1]) == EOF) break;
+
+    if (ts->size)
+    {
+      ASSERT (ts->points [ts->size][0] > ts->points [ts->size-1][0], ERR_TMS_TIME_NOT_INCREASED);
+    }
 
     if (++ ts->size >= np)
     {
       np += CHUNK;
       ERRMEM (ts->points = realloc (ts->points, sizeof (double [2]) * np));
-    }
-
-    if (ts->size)
-    {
-      ASSERT (ts->points [ts->size][0] > ts->points [ts->size-1][0], ERR_TMS_TIME_NOT_INCREASED);
     }
   }
 

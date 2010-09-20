@@ -556,7 +556,11 @@ static int constraint_weight (CON *con)
     for (blk = con->dia->adj; blk; blk = blk->n) wgt1 += blk->bod->dofs;
   }
 
-  return wgt0 + (int) (dom->weight_factor * (double) wgt1);
+  wgt0 += (int) (dom->weight_factor * (double) wgt1);
+
+  if (con->master->kind == FEM || (con->slave && con->slave->kind == FEM)) wgt0 /= 10; /* avoid excess */
+
+  return wgt0;
 }
 
 /* compute body weight */
