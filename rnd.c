@@ -2975,13 +2975,15 @@ void RND_Solver (DOM *dom, int kind, void *solver)
   SOLVER_DATA *data;
   MAP *item;
 
-  ERRMEM (data = malloc (sizeof (SOLVER_DATA)));
+  if ((item = MAP_Find (solvers, dom, NULL))) data = item->data; /* already mapped */
+  else
+  {
+    ERRMEM (data = malloc (sizeof (SOLVER_DATA)));
+    MAP_Insert (NULL, &solvers, dom, data, NULL); /* map to domain */
+  }
+
   data->solver = solver;
   data->kind = kind;
-
-  if ((item = MAP_Find (solvers, dom, NULL))) free (item->data); /* if mapped, free it */
-
-  MAP_Insert (NULL, &solvers, dom, data, NULL); /* map to domain */
 }
 
 void RND_Free_Rendering_Data (void *ptr)

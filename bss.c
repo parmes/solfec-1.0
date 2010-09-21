@@ -425,7 +425,10 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
     R = &r [dat->n];
     Q = &q [dat->n];
 
-    if (dat->kind == VELODIR || dat->kind == FIXDIR)
+    switch (dat->kind)
+    {
+    case VELODIR:
+    case FIXDIR:
     {
       Z [0] = R [0];
       Z [1] = R [1];
@@ -433,7 +436,8 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
 
       U = Z;
     }
-    else if (dat->kind == CONTACT)
+    break;
+    case CONTACT:
     {
       X = dat->X;
       Y = dat->Y;
@@ -443,9 +447,12 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
 
       U = Z;
     }
-    else if (dat->kind == RIGLNK)
+    break;
+    case RIGLNK:
     {
       /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+    }
+    break;
     }
 
     SCALE (Q, beta);

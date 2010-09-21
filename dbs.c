@@ -26,6 +26,7 @@
 #include "dom.h"
 #include "lap.h"
 #include "dbs.h"
+#include "vic.h"
 #include "err.h"
 
 static int projected_gradient (short dynamic, double epsilon, int maxiter,
@@ -93,7 +94,7 @@ static int de_saxce_feng (short dynamic, double epsilon, int maxiter,
 {
   double vector [3], scalar; /* auxiliary vector & scalar */
   int iter = 0; /* current iteration counter */
-  double tau [3], UN, coef;
+  double tau [3], UN;
 
   if (dynamic && gap > 0)
   {
@@ -120,17 +121,9 @@ static int de_saxce_feng (short dynamic, double epsilon, int maxiter,
     tau [0] = R[0] - rho * U[0];
     tau [1] = R[1] - rho * U[1];
     tau [2] = R[2] - rho * (UN + friction * LEN2 (U));
-   
-    scalar = LEN2 (tau);
-    if (friction * scalar < -tau [2]) { SET (R, 0.0); }
-    else if (scalar <= friction * tau [2]) { COPY (tau, R); }
-    else
-    {
-      coef = (scalar - friction * tau [2]) / (1.0 + friction*friction);
-      R [0] = tau [0] - coef * (tau [0] / scalar);
-      R [1] = tau [1] - coef * (tau [1] / scalar);
-      R [2] = tau [2] - coef * friction;
-    }
+ 
+    /* project onto friction cone */ 
+    VIC_Project (friction, tau, R);
 
     SUB (R, vector, vector); /* absolute difference */
     scalar = DOT (R, R); /* length of current solution */

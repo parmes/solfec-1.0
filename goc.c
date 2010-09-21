@@ -47,29 +47,6 @@ inline static int lineplane (double *plane, double *point, double *direction, do
   return 1;
 }
 
-/* compute semi-negative penetration gap from surface triangles */
-inline static double convex_convex_gap (TRI *tri, int m, double *point, double *normal)
-{
-  double plane [4],
-         min = DBL_MAX,
-         max = -min,
-         coef;
-
-  for (; m > 0; tri ++, m --)
-  {
-    COPY (tri->out, plane);
-    plane [3] = - DOT (plane, tri->ver [0]);
-
-    if (lineplane (plane, point, normal, &coef))
-    {
-      if (coef < min) min = coef;
-      if (coef > max) max = coef;
-    }
-  }
-
-  return (min < 0 && max > 0 ? min - max : 0);
-}
-
 /* compute semi-negative convex-sphere gap */
 inline static double convex_sphere_gap (double *pla, int npla, double *center, double radius, double *normal)
 {
@@ -126,69 +103,77 @@ inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
   return ret;
 }
 
-/* compute average point and resultant normal; return normal variance */
-inline static double point_and_normal (int negative, TRI *tri, int m,
-    int *surf, int nsurf, double *point, double *normal, double *area, int *sout)
+/* if m > 0 return surface outward normal index (1 or 2);
+ * if m < 0 assume outward a-normal and return 1 if spair did not change or 2 otherwise;
+ * return 0 if a geometrical error occured */
+inline static int point_normal_spair_area_gap
+ (TRI *tri, int m, double *pa, int npa, double *pb, int npb, int *sa, int nsa, int *sb, int nsb, /* input */
+  double *point, double *normal, int *spair, double *area, double *gap) /* output */
 {
-  double a, v [3], p [3], dots, max;
+  double plane [4], v [3], p [3], pos = DBL_MAX, neg = -pos, a, b;
   TRI *t, *e;
-  int k;
+  int j, k;
 
-  max = -DBL_MAX;
-  SET (v, 0.0);
-  SET (point, 0.0);
   SET (normal, 0.0);
+  SET (point, 0.0);
+  SET (p, 0.0);
   *area = 0.0;
-  dots = 0.0;
+  k = 1;
 
-  for (t = tri, e = t + m; t != e; t ++)
+  for (t = tri, e = t + ABS (m); t != e; t ++)
   {
-    if ((negative && t->flg < 0) ||
-	(!negative && t->flg > 0))
-    {
-      TRIANGLE_AREA (t->ver[0], t->ver[1], t->ver[2], a);
-      SCALE (t->out, a); /* scale here and reuse there (#) */
-      ADD (normal, t->out, normal); /* resultant normal */
-      MID3 (t->ver[0], t->ver[1], t->ver[2], v); /* triangle midpoint */
-      ADDMUL (point, a, v, point); /* integrate */
-      *area += a;
+    TRIANGLE_AREA (t->ver[0], t->ver[1], t->ver[2], a); b = a*a; /* eliminate influence of manute areas */
+    if (t->flg > 0 &&  t->flg < nsa + 1) ADDMUL (normal, b, t->out, normal); /* add from one surface */
+    if (t->flg < 0 && -t->flg < nsb + 1) SUBMUL (normal, b, t->out, normal); /* subtract from another */
+    MID3 (t->ver[0], t->ver[1], t->ver[2], v);
+    ADDMUL (point, a, v, point);
+    ACC (v, p);
+    *area += a;
+  }
+  DIV (point, *area, point); /* surface mass center */
+  NORMALIZE (normal); /* resultant normal */
 
-      if (a > max)
+  for (t = tri; t != e; t ++) /* test whether point falls outside of intersection volume */
+  {
+    SUB (t->ver [0], point, v);
+    if (DOT (t->out, v) < 0.0) /* it does */
+    {
+      a = (double) ABS (m);
+      DIV (p, a, point); /* use average point instead */
+      break;
+    }
+  }
+
+  if (m > 0)
+  {
+    spair [0] = nearest_surface (point, pa, sa, nsa);
+    spair [1] = nearest_surface (point, pb, sb, nsb);
+  }
+  else
+  {
+    if ((j = nearest_surface (point, pa, sa, nsa)) != spair [0]) spair [0] = j, k = 2;
+    if ((j = nearest_surface (point, pb, sb, nsb)) != spair [1]) spair [1] = j, k = 2;
+  }
+
+  for (t = tri; t != e; t ++) /* compute semi-negative penetration gap from surface triangles */
+  {
+    if ((t->flg > 0 &&  t->flg < nsa + 1) ||
+	(t->flg < 0 && -t->flg < nsb + 1)) /* belonging to outer surfaces */
+    {
+      COPY (t->out, plane);
+      plane [3] = - DOT (plane, t->ver [0]);
+
+      if (lineplane (plane, point, normal, &a))
       {
-	k = ABS (t->flg) - 1;
-	ASSERT_DEBUG (k >= 0, "A negative face index: %d\n", k);
-	if (k < nsurf) (*sout) = surf [k]; /* identifier of surface with maximal area */
-	else (*sout) = INT_MAX; /* set an invalid index */
-	max = a;
+	if (a >= 0.0 && a < pos) pos = a;
+	else if (a <= 0.0 && a > neg) neg = a;
       }
     }
   }
-  DIV (point, *area, point); /* point as surface mass center */
+  if (pos == DBL_MAX || neg == -DBL_MAX) *gap = 0.0;
+  else *gap = neg - pos;
 
-  TRI_Char (tri, m, p); /* point as volume mass center */
-
-  for (t = tri, e = t + m; t != e; t ++)
-  {
-    SUB (t->ver [0], p, v);
-    if (DOT (t->out, v) < 0.0) break; /* test whether it falls outside */
-  }
-
-  if (t == e) /* does not fall outside of the volume */
-  {
-    COPY (p, point); /* use volumetric point instead */
-  }
-
-  for (t = tri, e = t + m; t != e; t ++) /* compute normal variance */
-  {
-    if ((negative && t->flg < 0) ||
-	(!negative && t->flg > 0))
-    {
-      SUB (t->out, normal, v); /* (#) scaling reused here */
-      dots += DOT (v, v);
-    }
-  }
-
-  return dots;
+  return k;
 }
 
 /* detect contact between two convex polyhedrons 'a' and 'b', where
@@ -209,50 +194,24 @@ static int detect_convex_convex (
   double *area,
   int spair [2])
 {
-  double a, b, an [3], bn [3], ap [3], bp [3], aa, ba, sanity;
+  double sanity;
+  int k = 0, m;
   TRI *tri;
-  int m;
 
-  *gap = gjk (va, nva, vb, nvb, onepnt, twopnt);
+  sanity = gjk (va, nva, vb, nvb, onepnt, twopnt);
 
-  if (*gap < GEOMETRIC_EPSILON)
+  if (sanity < GEOMETRIC_EPSILON)
   {
     if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
-    a = point_and_normal (0, tri, m, sa, nsa, ap, an, &aa, &spair [0]);
-    b = point_and_normal (1, tri, m, sb, nsb, bp, bn, &ba, &spair [1]);
-
-    if (a < b)
-    {
-      NORMALIZE (an);
-      COPY (an, normal);
-      COPY (ap, onepnt);
-      COPY (ap, twopnt);
-      *area = aa;
-      *gap = convex_convex_gap (tri, m, ap, an);
-      free (tri);
-
-      sanity = (ap[0]+ap[1]+ap[2]+an[0]+an[1]+an[2]+aa+(*gap));
-      if (!isfinite (sanity)) return 0;
-      else return 1;
-    }
-    else
-    {
-      NORMALIZE (bn);
-      COPY (bn, normal);
-      COPY (bp, onepnt);
-      COPY (bp, twopnt);
-      *area = ba;
-      *gap = convex_convex_gap (tri, m, bp, bn);
-      free (tri);
-
-      sanity = (bp[0]+bp[1]+bp[2]+bn[0]+bn[1]+bn[2]+ba+(*gap));
-      if (!isfinite (sanity)) return 0;
-      else return 2;
-    }
+    k = point_normal_spair_area_gap (tri, m, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
+    sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
+    COPY (onepnt, twopnt);
+    free (tri);
   }
 
-  return 0;
+  if (!isfinite (sanity)) return 0;
+  else return k;
 }
 
 /* detect contact between a convex and a sphere */
@@ -354,54 +313,36 @@ static int update_convex_convex (
   double *area,
   int spair [2])
 {
-  double a, b, an [3], bn [3], ap [3], bp [3], aa, ba, sanity;
-  int s [2];
+  double sanity;
+  int k = 0, m;
   TRI *tri;
-  int m;
 
-  *gap = gjk (va, nva, vb, nvb, onepnt, twopnt);
+  sanity = gjk (va, nva, vb, nvb, onepnt, twopnt);
 
-  if (*gap < GEOMETRIC_EPSILON)
+  if (sanity < GEOMETRIC_EPSILON)
   {
     if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
-    s [0] = spair [0];
-    s [1] = spair [1];
-
-    a = point_and_normal (0, tri, m, sa, nsa, ap, an, &aa, &spair [0]);
-    b = point_and_normal (1, tri, m, sb, nsb, bp, bn, &ba, &spair [1]);
-
-    NORMALIZE (an);
-    COPY (an, normal);
-    COPY (ap, onepnt);
-    COPY (ap, twopnt);
-    *area = aa;
-    *gap = convex_convex_gap (tri, m, ap, an);
+    k = point_normal_spair_area_gap (tri, -m, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
+    sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
+    COPY (onepnt, twopnt);
     free (tri);
-
-    sanity = (ap[0]+ap[1]+ap[2]+an[0]+an[1]+an[2]+aa+(*gap));
-    if (!isfinite (sanity)) return 0;
-    else if (s [0] == spair [0] && s [1] == spair [1]) return 1;
-    else return 2;
   }
-  else if (*gap < GEOMETRIC_EPSILON * MAGNIFY)
+  else if (sanity < GEOMETRIC_EPSILON * MAGNIFY)
   {
     SUB (twopnt, onepnt, normal);
     NORMALIZE (normal);
+    *area = 0.0;
+    k = 1;
 
-    s [0] = spair [0];
-    s [1] = spair [1];
-
-    spair [0] = nearest_surface (onepnt, pa, sa, nsa);
-    spair [1] = nearest_surface (onepnt, pb, sb, nsb);
+    if ((m = nearest_surface (onepnt, pa, sa, nsa)) != spair [0]) spair [0] = m, k = 2;
+    if ((m = nearest_surface (onepnt, pb, sb, nsb)) != spair [1]) spair [1] = m, k = 2;
 
     sanity = (normal[0]+normal[1]+normal[2]+(*gap));
-    if (!isfinite (sanity)) return 0;
-    else if (s [0] == spair [0] && s [1] == spair [1]) return 1;
-    else return 2;
   }
 
-  return 0;
+  if (!isfinite (sanity)) return 0;
+  else return k;
 }
 
 /* update contact between a convex and a sphere */

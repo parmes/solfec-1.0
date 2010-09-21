@@ -2888,7 +2888,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   MX_Destroy (N);
 
   if (bod->form == BODY_COROTATIONAL &&
-      !(dom->dynamic && bod->scheme == SCH_DEF_EXP) &&
+      bod->scheme != SCH_DEF_EXP &&
       dom->solver != BODY_SPACE_SOLVER) /* BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
   {
     double *x = H->x, *y = x + H->nzmax,

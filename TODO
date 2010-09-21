@@ -82,3 +82,4 @@ Consider optional approximate LOCDYN via FEM_Approx_Inverse
 -----------------------------------------------------------------------
 Consider using diagonal 3x3 blocks in FEM_Approx_Inverse
 -----------------------------------------------------------------------------
+Handle cohesion in the BODY_SPACE_SOLVER
