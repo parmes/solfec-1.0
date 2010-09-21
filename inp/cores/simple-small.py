@@ -9,7 +9,7 @@ step = 1E-3
 stop = 0.1
 outfrq = step
 kinem = 'PSEUDO_RIGID'
-solver = 'BODY_SPACE'
+solver = 'GAUSS_SEIDEL'
 scheme = 'DEFAULT'
 shake = 'TRUE'
 plotconv = 1
@@ -44,7 +44,7 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7, spring = 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
 if solver == 'GAUSS_SEIDEL':
-  sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-5, diagsolver = 'PROJECTED_GRADIENT')
+  sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-5, diagsolver = 'SEMISMOOTH_NEWTON')
 elif solver == 'NEWTON':
   sv = NEWTON_SOLVER (1E-5, 20)
 elif solver == 'BODY_SPACE':

@@ -2107,6 +2107,9 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
 
+    if (solfec->sol->dom->dynamic == 0
+	&& self->bod->kind != RIG) self->bod->scheme = SCH_DEF_LIM2; /* LIM2 is closest to the quasi-static time stepping;
+                                                      some code parts test body->scheme without checking for quasi-statics */
 #if MPI
     self->id = self->bod->id;
     self->dom = solfec->sol->dom;
@@ -2324,6 +2327,12 @@ static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
 static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
 {
   if (!is_string (value, "scheme")) return -1;
+
+  if (self->bod->dom->dynamic == 0)
+  {
+    PyErr_Warn (NULL, "Unable to set integration scheme for quasi-statics");
+    return 0;
+  }
 
   IFIS (value, "DEFAULT") self->bod->scheme = self->bod->kind == RIG ? SCH_RIG_NEG : SCH_DEF_EXP;
   ELIF (value, "RIG_POS")

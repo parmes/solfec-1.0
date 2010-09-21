@@ -28,10 +28,3 @@ After all we have increased communication by some 48 bytes per contact now again
 ---------------------------------------------------------------------------------------
 HASH3D detects much too few constraints (e.g. for inp/puzzle.py ~1000 from 5666)
 -----------------------------------------------------------------------------------
-Diagonal DE_SAXCE_FENG solver performs poorely on simple-small-prb-gs example
-even for one brick. Investigate!
----------------------------------------------------------------------------------------
-Self-contact handling is incorrect: inp/selfcontact.py
-(Algebraic stuff has been fixed; Now this is the matter of contact detection;
- In the mentioned example, near contradictory contact points are detected)
----------------------------------------------------------------------------------------

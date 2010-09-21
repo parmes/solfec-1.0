@@ -54,3 +54,19 @@ if not VIEWER() and sol.mode == 'READ':
     if i < 6: total += sum
 
   print 'TOTAL TIME:', total
+
+  try:
+    import matplotlib.pyplot as plt
+    dur = DURATION (sol)
+    th = HISTORY (sol, [(sol, 'KINETIC'), (sol, 'INTERNAL'), (sol, 'EXTERNAL'), (sol, 'CONTACT'), (sol, 'FRICTION')], dur [0], dur [1])
+    plt.plot (th [0], th [1], label='KIN')
+    plt.plot (th [0], th [2], label='INT')
+    plt.plot (th [0], th [3], label='EXT')
+    plt.plot (th [0], th [4], label='CON')
+    plt.plot (th [0], th [5], label='FRI')
+    plt.xlabel ('Time [s]')
+    plt.ylabel ('Energy [J]')
+    plt.legend(loc = 'upper right')
+    plt.savefig ('out/bend/bendene.eps')
+  except ImportError:
+    pass # no reaction
