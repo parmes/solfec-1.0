@@ -37,6 +37,7 @@
 #if MPI
 #include "com.h"
 #include "pck.h"
+#include "put.h"
 #endif
 
 #define SMOOTHING_EPSILON	1E-10  /* TODO */
@@ -56,7 +57,7 @@ struct bss_con_data
   int si,
      *sj;
 
-  int n; /* constraint index */
+  int n; /* constraint shift index */
 
   double *R, /* con->R */
 	 *U, /* con->U */
@@ -810,11 +811,49 @@ static BSS_DATA *create_data (DOM *dom)
   ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->a = MEM_CALLOC (sizeof (double [m])));
 
+  double *Axx = A->x->x,
+	 *Ayx = A->y->x,
+	 *Abx = A->b->x;
+
+  /* account for cohesion */
+  for (m = 0, dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
+  {
+    CON *con = dat->con;
+    double *X = &Axx [dat->n],
+	   *Y = &Abx [dat->n],
+	   *R = dat->R;
+
+    if (con->kind == CONTACT && (con->state & CON_COHESIVE))
+    {
+      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
+
+      R [2] += c; /* R_n_new = R_n + c <=> (R_n + c) >= 0 */
+      X [2] += c;
+      Y [2] = c;
+      m ++;
+    }
+  }
+
+#if MPI
+  m = PUT_int_max (m); /* global flag */
+#endif
+
+  if (m) /* cohesion enabled */
+  {
+    W_times_vector (A, Abx, Ayx); /* Ayx = W[:,N] * {..., 0, 0, coh, ...} */
+
+    for (dat = A->dat; dat != end; dat ++)
+    {
+      double *Y = &Ayx [dat->n],
+	     *B = dat->B;
+
+      SUB (B, Y, B); /* B -= W[:,N] * {..., 0, 0, coh, ...} */
+    }
+  }
 
   /* initial residual S = WR + B - U */
-  double *Ayx = A->y->x;
-  W_times_vector (A, A->x->x, Ayx);
-  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
+  W_times_vector (A, Axx, Ayx);
+  for (dat = A->dat; dat != end; dat ++)
   {
     double *WR = &Ayx [dat->n],
 	   *B  = dat->B,
@@ -1027,11 +1066,36 @@ static void update_solution (BSS_DATA *A)
 /* destroy BSS data */
 static void destroy_data (BSS_DATA *A)
 {
+  /* account for cohesion */
+  for (BSS_CON_DATA *dat = A->dat, *end = dat + A->ndat; dat != end; dat ++)
+  {
+    CON *con = dat->con;
+
+    if (con->kind == CONTACT && (con->state & CON_COHESIVE))
+    {
+      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
+	     f = con->mat.base->friction,
+	     e = COHESION_EPSILON * c,
+            *R = dat->R;
+
+      if (R [2] < e || /* mode-I decohesion */
+	  LEN2 (R) + e >= f * R[2]) /* mode-II decohesion */
+      {
+	con->state &= ~CON_COHESIVE;
+	SURFACE_MATERIAL_Cohesion_Set (&con->mat, 0.0);
+      }
+
+      R [2] -= c; /* back change */
+    }
+  }
+
   destroy_constraints_data (A->dat, A->ndat);
+
   DestroyVector (A->b);
   DestroyVector (A->x);
   DestroyVector (A->y);
   DestroyVector (A->z);
+
   free (A->bod);
   free (A->r);
   free (A->u);

@@ -560,6 +560,8 @@ static int constraint_weight (CON *con)
 
   if (con->master->kind == FEM || (con->slave && con->slave->kind == FEM)) wgt0 /= 10; /* avoid excess */
 
+  /* TODO: constraint wights require more thought (/ 10 for FEM is very much ad hoc) */
+
   return wgt0;
 }
 
@@ -2296,6 +2298,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->flags = 0;
   dom->threshold = 0.01;
   dom->minarea = 0.0;
+  dom->mindist = GEOMETRIC_EPSILON;
   dom->depth = -DBL_MAX;
   ERRMEM (dom->ldy = LOCDYN_Create (dom));
 
@@ -2667,7 +2670,7 @@ void DOM_Sparsify_Contacts (DOM *dom)
 {
   double threshold = dom->threshold,
 	 minarea = dom->minarea,
-	 margin = 2.0 * GEOMETRIC_EPSILON, d [3], c;
+	 margin = 2.0 * dom->mindist, d [3], c;
   SET *del, *itm;
   CON *con, *adj;
   MEM mem;
