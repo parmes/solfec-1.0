@@ -132,6 +132,7 @@ inline static int point_normal_spair_area_gap
   }
   DIV (point, *area, point); /* surface mass center */
   NORMALIZE (normal); /* resultant normal */
+  *area *= 0.5; /* half surface */
 
   for (t = tri; t != e; t ++) /* test whether point falls outside of intersection volume */
   {

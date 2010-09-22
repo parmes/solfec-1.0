@@ -229,6 +229,7 @@ struct domain
   double extents [6]; /* scene extents */
   double threshold; /* sparsification threshold */
   double minarea; /* minimal contact point area */
+  double mindist; /* minimal distance between contact points */
   double depth; /* unphisical interpenetration depth bound (negative) */
 
   DOM_FLAGS flags; /* some flags */

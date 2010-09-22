@@ -3106,16 +3106,15 @@ MX* FEM_Approx_Inverse (BODY *bod)
     i = bod->inverse->i;
     y = bod->inverse->x;
 
+    for (k = 0; k < p[n]; k ++)
+    {
+      x [i[k]] += y [k]; /* sum of rows */
+    }
+
     for (j = 0; j < n; j ++)
     {
-      for (k = p[j]; k < p[j+1]; k ++)
-      {
-	if (i[k] == j) /* diagonal element */
-	{
-	  ASSERT_DEBUG (y [k] >= 0.0, "Non-positive diagonal element of M + (h*h/4) K");
-	  x [j] = 1.0 / y [k];
-	}
-      }
+      ASSERT_DEBUG (x [j] != 0.0, "Zero row sum in M + (h*h/4) K");
+      x [j] = 1.0 / fabs (x [j]); /* positive inverse */
     }
 
     return I;

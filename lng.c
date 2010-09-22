@@ -5441,15 +5441,16 @@ static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, Py
 /* set contact sparsification threshold */
 static PyObject* lng_CONTACT_SPARSIFY (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "threshold", "minarea");
+  KEYWORDS ("solfec", "threshold", "minarea", "mindist");
+  double threshold, minarea, mindist;
   lng_SOLFEC *solfec;
-  double threshold, minarea;
 
+  mindist = GEOMETRIC_EPSILON;
   minarea = 0.0;
 
-  PARSEKEYS ("Od|d", &solfec, &threshold, &minarea);
+  PARSEKEYS ("Od|dd", &solfec, &threshold, &minarea, &mindist);
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_non_negative (minarea, kwl[2]));
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_non_negative (minarea, kwl[2]) && is_non_negative (mindist, kwl[3]));;
 
   if (threshold < 0 || threshold > 1.0)
   {
@@ -5459,6 +5460,7 @@ static PyObject* lng_CONTACT_SPARSIFY (PyObject *self, PyObject *args, PyObject 
 
   solfec->sol->dom->threshold = threshold;
   solfec->sol->dom->minarea = minarea;
+  solfec->sol->dom->mindist = mindist;
 
   Py_RETURN_NONE;
 }

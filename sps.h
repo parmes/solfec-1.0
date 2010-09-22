@@ -31,6 +31,8 @@ typedef struct surfmat_state SURFACE_MATERIAL_STATE;
 typedef struct surfmat SURFACE_MATERIAL;
 typedef struct spset SPSET;
 
+#define COHESION_EPSILON 1E-8
+
 struct surfmat_state
 {
   SURFACE_MATERIAL *base; /* base material */

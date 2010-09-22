@@ -117,7 +117,7 @@ static void variables_change_end (LOCDYN *ldy)
     {
       double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
 	     f = con->mat.base->friction,
-	     e = 1E-8,
+	     e = COHESION_EPSILON * c,
 	     *R = dia->R;
 
       if (R [2] < e || /* mode-I decohesion */

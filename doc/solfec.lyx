@@ -7746,7 +7746,7 @@ point2
 \end_layout
 
 \begin_layout Subsection*
-CONTACT_SPARSIFY (solfec, threshold | minarea)
+CONTACT_SPARSIFY (solfec, threshold | minarea, mindist)
 \end_layout
 
 \begin_layout Standard
@@ -7796,6 +7796,14 @@ minarea
 minarea
 \series default
  are dropped.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+mindist
+\series default
+ - minimal distance between distinct contact points (default: GEOMETRIC_EPSILON).
 \end_layout
 
 \begin_layout Subsection*
