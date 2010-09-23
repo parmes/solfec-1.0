@@ -40,12 +40,19 @@
 #include "put.h"
 #endif
 
-#define SMOOTHING_EPSILON	1E-10  /* TODO */
-#define ABSTOL			1E-15  /* TODO */
-
 typedef struct bss_con_data BSS_CON_DATA;
 typedef struct bss_data BSS_DATA;
 typedef struct vector VECTOR;
+
+#if MPI
+typedef struct bss_com_pattern BSS_COM_PATTERN;
+struct bss_com_pattern
+{
+  COMDATA *send, *recv;
+  int nsend, nrecv;
+  void *pattern;
+};
+#endif
 
 struct bss_con_data
 {
@@ -94,6 +101,7 @@ struct bss_data
   double *r, /* global reaction (of size nprimal) */
 	 *u, /* global velocity (-||-) */
 	 *a, /* auxiliary vector (of size MAX [bod in bod->dom] { bod->dofs }) */
+	  epsilon, /* smoothing epsilon */
           resnorm, /* |A z - b| */
 	  znorm, /* |z| */
 	  delta; /* regularisation = |A z - b| / |z| */
@@ -101,6 +109,13 @@ struct bss_data
   int iters; /* linear solver iterations */
 
   DOM *dom; /* domain */
+
+#if MPI
+  BSS_COM_PATTERN *x_to_ext, *ext_to_y; /* communication patterns */
+  BSS_CON_DATA *datext; /* external active constraints data */
+  int ndatext, next; /* number of them, size of 'ext' (== ndatext * 3) */
+  double *ext; /* storage for R_ext and U_ext */
+#endif
 };
 
 struct vector
@@ -249,6 +264,138 @@ static void H_times_vector (double *a, BSS_CON_DATA *dat, int n, double *x, doub
   }
 }
 
+#if MPI
+/* create x_to_ext communication pattern */
+static BSS_COM_PATTERN* x_to_ext_create (BSS_DATA *A)
+{
+  BSS_CON_DATA *dat, *end;
+  BSS_COM_PATTERN *pat;
+  COMDATA *ptr;
+  SET *item;
+
+  ERRMEM (pat = MEM_CALLOC (sizeof (BSS_COM_PATTERN)));
+
+  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
+  {
+    pat->nsend += SET_Size (dat->con->ext);
+  }
+
+  ERRMEM (pat->send = MEM_CALLOC (sizeof (COMDATA [pat->nsend])));
+
+  for (dat = A->dat, ptr = pat->send; dat != end; dat ++)
+  {
+    for (item = SET_First (dat->con->ext); item; item = SET_Next (item), ptr ++)
+    {
+      ptr->rank = (int) (long) item->data;
+      ptr->i = (int*) &dat->con->id;
+      ptr->doubles = 3;
+      ptr->d = dat->R;
+      ptr->ints = 1;
+    }
+  }
+
+  pat->pattern = COMALL_Pattern (MPI_COMM_WORLD, pat->send, pat->nsend, &pat->recv, &pat->nrecv);
+
+  return pat;
+}
+
+/* create ext_to_y communication pattern */
+static BSS_COM_PATTERN* ext_to_y_create (BSS_DATA *A)
+{
+  BSS_CON_DATA *dat, *end;
+  BSS_COM_PATTERN *pat;
+  COMDATA *ptr;
+
+  ERRMEM (pat = MEM_CALLOC (sizeof (BSS_COM_PATTERN)));
+  pat->nsend = A->ndatext;
+  ERRMEM (pat->send = MEM_CALLOC (sizeof (COMDATA [pat->nsend])));
+
+  for (dat = A->datext, ptr = pat->send, end = dat + A->ndatext; dat != end; dat ++, ptr ++)
+  {
+    ptr->i = (int*) &dat->con->id;
+    ptr->rank = dat->con->rank;
+    ptr->doubles = 3;
+    ptr->d = dat->U;
+    ptr->ints = 1;
+  }
+
+  pat->pattern = COMALL_Pattern (MPI_COMM_WORLD, pat->send, pat->nsend, &pat->recv, &pat->nrecv);
+
+  return pat;
+}
+
+/* destroy communication pattern */
+static void bss_comm_pattern_destroy (BSS_COM_PATTERN *pat)
+{
+  COMALL_Free (pat->pattern);
+  free (pat->send);
+  free (pat->recv);
+  free (pat);
+}
+
+/* send x local reactions to xext external reaction */
+static void x_to_ext (BSS_DATA *A, double *x, double *ext)
+{
+  BSS_COM_PATTERN *pat = A->x_to_ext;
+  MAP *conext = A->dom->conext;
+  BSS_CON_DATA *dat, *end;
+  COMDATA *ptr, *qtr;
+  double *a, *b, *c;
+  SET *item;
+  CON *con;
+  int *i;
+
+  for (dat = A->dat, ptr = pat->send, end = dat + A->ndat; dat != end; dat ++)
+  {
+    for (item = SET_First (dat->con->ext); item; item = SET_Next (item), ptr ++)
+    {
+      ptr->d = &x [dat->n];
+    }
+  }
+
+  COMALL_Repeat (pat);
+
+  for (ptr = pat->recv, qtr = ptr + pat->nrecv; ptr != qtr; ptr ++)
+  {
+    for (a = ptr->d, i = ptr->i, b = a + ptr->doubles; a < b; a += 3, i ++)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (conext, (void*) (long) (*i), NULL), "Invalid ext id");
+      c = &ext [con->num];
+      ACC (a, c);
+    }
+  }
+}
+
+/* send yext external velocities to y local velocities */
+static void ext_to_y (BSS_DATA *A, double *ext, double *y)
+{
+  BSS_COM_PATTERN *pat = A->ext_to_y;
+  MAP *idc = A->dom->idc;
+  BSS_CON_DATA *dat, *end;
+  COMDATA *ptr, *qtr;
+  double *a, *b, *c;
+  CON *con;
+  int *i;
+
+  for (dat = A->datext, ptr = pat->send, end = dat + A->ndatext; dat != end; dat ++, ptr ++)
+  {
+    ptr->d = &ext [dat->n];
+  }
+
+  COMALL_Repeat (pat);
+
+  for (ptr = pat->recv, qtr = ptr + pat->nrecv; ptr != qtr; ptr ++)
+  {
+    for (a = ptr->d, i = ptr->i, b = a + ptr->doubles; a < b; a += 3, i ++)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (idc, (void*) (long) (*i), NULL), "Invalid con id");
+      c = &y [con->num];
+      ACC (a, c);
+    }
+  }
+}
+#endif
+
 /* y = alpha W x */
 static void W_times_vector (BSS_DATA *A, double *x, double *y)
 {
@@ -263,8 +410,9 @@ static void W_times_vector (BSS_DATA *A, double *x, double *y)
   H_trans_vector (a, dat, n, x, r);
 
 #if MPI
-  /* TODO: send x to external reactions
-   * TODO: sum up external reaction contributions into r */
+   SETN (A->ext, A->next, 0.0);
+   x_to_ext (A, x, A->ext); /* R_ext = x */
+   H_trans_vector (a, A->datext, A->ndatext, A->ext, r); /* r += H' R_ext */
 #endif
 
   for (i = 0; i < m; r += bod [i]->dofs, u += bod [i]->dofs, i++)
@@ -276,10 +424,10 @@ static void W_times_vector (BSS_DATA *A, double *x, double *y)
   H_times_vector (a, dat, n, A->u, y);
 
 #if MPI
-  /* TODO: compute local velocities needed by constraints established by child bodies
-   * TODO: and send them from parent to local constraints => into y */
+  SETN (A->ext, A->next, 0.0);
+  H_times_vector (a, A->datext, A->ndatext, A->u, A->ext); /* U_ext = H_ext u */
+  ext_to_y (A, A->ext, y); /* y += U_ext */
 #endif
-
 }
 
 /* GMSS interface start */
@@ -606,10 +754,10 @@ static void update_V_and_B (DOM *dom)
 }
 
 /* create constraints data */
-static BSS_CON_DATA *create_constraints_data (DOM *dom, BODY **bod, int nbod, int *ndat, VECTOR **v, double *free_energy)
+static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod, int nbod, int *ndat, VECTOR **v, double *free_energy, double *epsilon)
 {
   BSS_CON_DATA *out, *dat;
-  double step, *x;
+  double Bavg [3], step, *x;
   MAP *map, *fem;
   short dynamic;
   CON *con;
@@ -617,6 +765,7 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BODY **bod, int nbod, in
 
   dynamic = dom->dynamic;
   (*free_energy) = 0.0;
+  SET (Bavg, 0.0);
 
   ERRMEM (out = MEM_CALLOC (dom->ncon * sizeof (BSS_CON_DATA)));
   (*v) = newvector (dom->ncon * 3);
@@ -672,9 +821,8 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BODY **bod, int nbod, in
     }
 
 #if MPI
-    /* TODO: if master is a child body then dat->mH is NULL */
+    if (m->flags & BODY_PARENT) /* master is a child => dat->mH == NULL */
 #endif
-
     if (m->kind != OBS)
     {
       dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
@@ -695,9 +843,8 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BODY **bod, int nbod, in
     }
 
 #if MPI
-    /* TODO: if slave is a child body then dat->sH is NULL */
+    if (s && s->flags & BODY_PARENT) /* slave is a child => dat->sH == NULL */
 #endif
-
     if (s && s->kind != OBS)
     {
       dat->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
@@ -726,9 +873,14 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BODY **bod, int nbod, in
 
     NVMUL (A.x, B, X);
     (*free_energy) += DOT (X, B); /* sum up free energy */
+    ACCABS (B, Bavg);
 
     /* add up prescribed velocity contribution */
-    if (con->kind == VELODIR) (*free_energy) += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
+    if (con->kind == VELODIR)
+    {
+      (*free_energy) += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
+      Bavg [2] += fabs (VELODIR(con->Z));
+    }
 
     dat->n = n;
     dat->R = con->R;
@@ -739,6 +891,9 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BODY **bod, int nbod, in
     dat->A = dia->A;
     dat->kind = con->kind;
     dat->con = con;
+#if MPI
+    con->num = n; /* ext_to_y */
+#endif
 
     COPY (dat->R, x); /* initialize with previous solution */
 
@@ -747,14 +902,82 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BODY **bod, int nbod, in
     x += 3;
   }
 
+  DIV (Bavg, (double) (n/3), Bavg);
+  (*epsilon) *= LEN (Bavg); /* smoothing epsilon = (smoothing factor) * LEN (average absolute free velocity) */
   (*free_energy) *= 0.5;
   (*ndat) = n / 3;
   (*v)->n = n;
 
-  MAP_Free (NULL, &map);
   for (map = MAP_First (fem); map;
        map = MAP_Next (map)) MX_Destroy (map->data);
   MAP_Free (NULL, &fem);
+
+#if MPI
+  /* create external constraints related data */
+  A->ndatext = MAP_Size (dom->conext);
+  ERRMEM (A->datext = MEM_CALLOC (sizeof (BSS_CON_DATA [A->ndatext])));
+
+  for (fem = MAP_First (dom->conext), dat = A->datext, n = 0; fem; fem = MAP_Next (fem), dat ++, n += 3)
+  {
+    con = fem->data;
+    if (dynamic && con->kind == CONTACT && con->gap > 0.0) continue; /* skip open dynamic contacts */
+
+    BODY *m = con->master,
+	 *s = con->slave;
+    void *mgobj = mgobj(con),
+	 *sgobj;
+    SHAPE *mshp = mshp(con),
+	  *sshp;
+    double *mpnt = con->mpnt,
+	   *spnt = con->spnt,
+	   *base = con->base;
+
+    if (s)
+    {
+      sgobj = sgobj(con);
+      sshp = sshp(con);
+    }
+
+    if (m->flags & BODY_PARENT && m->kind != OBS)
+    {
+      dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+      dat->mi = (int) (long) MAP_Find (map, m, NULL);
+
+      if (m->kind == FEM)
+      {
+	dat->mH = csc_to_dense (dat->mH, &dat->mj);
+      }
+    }
+
+    if (s && s->flags & BODY_PARENT && s->kind != OBS)
+    {
+      dat->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+      dat->si = (int) (long) MAP_Find (map, s, NULL);
+      MX_Scale (dat->sH, -1.0);
+
+      if (s->kind == FEM)
+      {
+	dat->sH = csc_to_dense (dat->sH, &dat->sj);
+      }
+    }
+
+    dat->n = n;
+    dat->R = con->R;
+    dat->U = con->U;
+    dat->V = con->V;
+    dat->kind = con->kind;
+    dat->con = con;
+    con->num = n; /* x_to_ext */
+  }
+
+  A->ndatext = n / 3;
+  A->next = n;
+  ERRMEM (A->ext = MEM_CALLOC (sizeof (double [n])));
+  A->x_to_ext = x_to_ext_create (A);
+  A->ext_to_y = ext_to_y_create (A);
+#endif
+
+  MAP_Free (NULL, &map);
 
   return out;
 }
@@ -775,7 +998,7 @@ static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
 }
 
 /* create BSS data */
-static BSS_DATA *create_data (DOM *dom)
+static BSS_DATA *create_data (DOM *dom, BSS *bs)
 {
   BSS_CON_DATA *dat, *end;
   BSS_DATA *A;
@@ -802,7 +1025,8 @@ static BSS_DATA *create_data (DOM *dom)
   {
     if (bod->con) A->bod [n ++] = bod;
   }
-  A->dat = create_constraints_data (dom, A->bod, A->nbod, &A->ndat, &A->x, &dom->ldy->free_energy); /* A->x initialized with con->R */
+  A->epsilon = bs->smooth;
+  A->dat = create_constraints_data (dom, A, A->bod, A->nbod, &A->ndat, &A->x, &dom->ldy->free_energy, &A->epsilon); /* A->x initialized with con->R */
   A->ndual = A->ndat * 3;
   A->b = newvector (A->ndual);
   A->y = newvector (A->ndual);
@@ -871,7 +1095,7 @@ static BSS_DATA *create_data (DOM *dom)
 /* update linear system */
 static void update_system (BSS_DATA *A)
 {
-  double *Abx = A->b->x, delta = A->delta;
+  double *Abx = A->b->x, delta = A->delta, epsilon = A->epsilon;
   DOM *dom = A->dom;
   short dynamic = dom->dynamic;
   BSS_CON_DATA *dat, *end;
@@ -943,7 +1167,7 @@ static void update_system (BSS_DATA *A)
     {
       double *X = dat->X, *Y = dat->Y, G [3];
 
-      VIC_Linearize (dat->con, SMOOTHING_EPSILON, G, X, Y);
+      VIC_Linearize (dat->con, epsilon, G, X, Y);
 
       NVADDMUL (G, X, S, b);
       SCALE (b, -1.0);
@@ -976,8 +1200,8 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
 
   if (abstol == 0.0) /* initially */
   {
-    abstol = ABSTOL * sqrt (InnerProd (A->b, A->b));
-    if (abstol == 0.0) abstol = ABSTOL;
+    abstol = DBL_EPSILON * sqrt (InnerProd (A->b, A->b));
+    if (abstol == 0.0) abstol = DBL_EPSILON;
   }
 
   gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
@@ -1091,6 +1315,13 @@ static void destroy_data (BSS_DATA *A)
 
   destroy_constraints_data (A->dat, A->ndat);
 
+#if MPI
+  destroy_constraints_data (A->datext, A->ndatext);
+  bss_comm_pattern_destroy (A->x_to_ext);
+  bss_comm_pattern_destroy (A->ext_to_y);
+  free (A->ext);
+#endif
+
   DestroyVector (A->b);
   DestroyVector (A->x);
   DestroyVector (A->y);
@@ -1113,6 +1344,7 @@ BSS* BSS_Create (double meritval, int maxiter)
   bs->maxiter = maxiter;
   bs->linminiter = 5;
   bs->resdec = 0.25;
+  bs->smooth = 0.0;
   bs->verbose = 1;
 
   return bs;
@@ -1131,7 +1363,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 
   ERRMEM (bs->merhist = realloc (bs->merhist, bs->maxiter * sizeof (double)));
   dom = ldy->dom;
-  A = create_data (dom);
+  A = create_data (dom, bs);
   merit = &dom->merit;
   bs->iters = 0;
 
@@ -1160,7 +1392,8 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 /* write labeled state values */
 void BSS_Write_State (BSS *bs, PBF *bf)
 {
-  /* TODO */
+  PBF_Label (bf, "BSITERS");
+  PBF_Int (bf, &bs->iters, 1);
 }
 
 /* destroy solver */

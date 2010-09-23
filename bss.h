@@ -38,6 +38,8 @@ struct body_space_solver
 
   double resdec; /* linear solver residual decrease factor */
 
+  double smooth; /* derivative smoothing coefficient */
+
   int verbose; /* verbosity flag */
 
   /* output */
