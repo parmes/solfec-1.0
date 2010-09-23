@@ -267,7 +267,36 @@ static int is_number (PyObject *obj, char *var)
   return 1;
 }
 
-/* test whether an object is a number */
+/* test whether an object is a number > val */
+static int is_number_gt_val (PyObject *obj, char *var, double val)
+{
+  if (obj)
+  {
+    char buf [BUFLEN];
+
+    if (!PyNumber_Check (obj))
+    {
+      sprintf (buf, "'%s' must be a number", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+    else
+    {
+      double num = PyFloat_AsDouble (obj);
+
+      if (num <= val)
+      {
+	sprintf (buf, "'%s' must be a number >= %g", var, val);
+	PyErr_SetString (PyExc_TypeError, buf);
+	return 0;
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* test whether an object is a number >= val */
 static int is_number_ge_val (PyObject *obj, char *var, double val)
 {
   if (obj)
@@ -287,6 +316,35 @@ static int is_number_ge_val (PyObject *obj, char *var, double val)
       if (num < val)
       {
 	sprintf (buf, "'%s' must be a number >= %g", var, val);
+	PyErr_SetString (PyExc_TypeError, buf);
+	return 0;
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* test whether an object is a number >= val0 and < val1 */
+static int is_number_ge_val0_lt_val1 (PyObject *obj, char *var, double val0, double val1)
+{
+  if (obj)
+  {
+    char buf [BUFLEN];
+
+    if (!PyNumber_Check (obj))
+    {
+      sprintf (buf, "'%s' must be a number", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+    else
+    {
+      double num = PyFloat_AsDouble (obj);
+
+      if (num < val0 || num >= val1)
+      {
+	sprintf (buf, "'%s' must be a number >= %g and <= %g", var, val0, val1);
 	PyErr_SetString (PyExc_TypeError, buf);
 	return 0;
       }
@@ -1212,12 +1270,8 @@ static int lng_SOLFEC_set_step (lng_SOLFEC *self, PyObject *value, void *closure
 {
   double step;
 
-  if (!is_number (value, "step")) return -1;
-  
+  if (!is_number_gt_val (value, "step", 0)) return -1;
   step = PyFloat_AsDouble (value);
-
-  if (!is_positive (step, "step")) return -1;
-
   self->sol->dom->step = step;
 
   return 0;
@@ -1439,7 +1493,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_friction (lng_SURFACE_MATERIAL *self, 
 
 static int lng_SURFACE_MATERIAL_set_friction (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "friction")) return -1;
+  if (!is_number_ge_val (value, "friction", 0)) return -1;
   self->mat->friction = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1451,7 +1505,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_cohesion (lng_SURFACE_MATERIAL *self, 
 
 static int lng_SURFACE_MATERIAL_set_cohesion (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "cohesion")) return -1;
+  if (!is_number_ge_val (value, "cohesion", 0)) return -1;
   self->mat->cohesion = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1463,7 +1517,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_restitution (lng_SURFACE_MATERIAL *sel
 
 static int lng_SURFACE_MATERIAL_set_restitution (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "restitution")) return -1;
+  if (!is_number_ge_val (value, "restitution", 0)) return -1;
   self->mat->restitution = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1475,7 +1529,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_spring (lng_SURFACE_MATERIAL *self, vo
 
 static int lng_SURFACE_MATERIAL_set_spring (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "spring")) return -1;
+  if (!is_number_ge_val (value, "spring", 0)) return -1;
   self->mat->spring = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1487,7 +1541,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_dashpot (lng_SURFACE_MATERIAL *self, v
 
 static int lng_SURFACE_MATERIAL_set_dashpot (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "dashpot")) return -1;
+  if (!is_number_ge_val (value, "dashpot", 0)) return -1;
   self->mat->dashpot = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1648,7 +1702,7 @@ static PyObject* lng_BULK_MATERIAL_get_young (lng_BULK_MATERIAL *self, void *clo
 
 static int lng_BULK_MATERIAL_set_young (lng_BULK_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "young")) return -1;
+  if (!is_number_ge_val (value, "young", 0)) return -1;
   self->mat->young = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1660,7 +1714,7 @@ static PyObject* lng_BULK_MATERIAL_get_poisson (lng_BULK_MATERIAL *self, void *c
 
 static int lng_BULK_MATERIAL_set_poisson (lng_BULK_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "poisson")) return -1;
+  if (!is_number_ge_val (value, "poisson", 0)) return -1;
   self->mat->poisson = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1672,7 +1726,7 @@ static PyObject* lng_BULK_MATERIAL_get_density (lng_BULK_MATERIAL *self, void *c
 
 static int lng_BULK_MATERIAL_set_density (lng_BULK_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "density")) return -1;
+  if (!is_number_ge_val (value, "density", 0)) return -1;
   self->mat->density = PyFloat_AsDouble (value);
   return 0;
 }
@@ -2904,7 +2958,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_epsilon (lng_GAUSS_SEIDEL_SOLVER *s
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_epsilon (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "epsilon")) return -1;
+  if (!is_number_gt_val (value, "epsilon", 0)) return -1;
   self->gs->epsilon = PyFloat_AsDouble (value);
   return 0;
 }
@@ -2916,7 +2970,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_maxiter (lng_GAUSS_SEIDEL_SOLVER *s
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_maxiter (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "maxiter")) return -1;
+  if (!is_number_gt_val (value, "maxiter", 0)) return -1;
   self->gs->maxiter = PyInt_AsLong (value);
   return 0;
 }
@@ -2928,7 +2982,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_diagepsilon (lng_GAUSS_SEIDEL_SOLVE
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_diagepsilon (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "diagepsilon")) return -1;
+  if (!is_number_gt_val (value, "diagepsilon", 0)) return -1;
   self->gs->diagepsilon = PyFloat_AsDouble (value);
   return 0;
 }
@@ -2940,7 +2994,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_diagmaxiter (lng_GAUSS_SEIDEL_SOLVE
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_diagmaxiter (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "diagmaxiter")) return -1;
+  if (!is_number_gt_val (value, "diagmaxiter", 0)) return -1;
   self->gs->diagmaxiter = PyInt_AsLong (value);
   return 0;
 }
@@ -3289,7 +3343,7 @@ static PyObject* lng_NEWTON_SOLVER_get_maxiter (lng_NEWTON_SOLVER *self, void *c
 
 static int lng_NEWTON_SOLVER_set_maxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "maxiter")) return -1;
+  if (!is_number_gt_val (value, "maxiter", 0)) return -1;
   self->nt->maxiter = PyInt_AsLong (value);
   return 0;
 }
@@ -3301,7 +3355,7 @@ static PyObject* lng_NEWTON_SOLVER_get_meritval (lng_NEWTON_SOLVER *self, void *
 
 static int lng_NEWTON_SOLVER_set_meritval (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "meritval")) return -1;
+  if (!is_number_gt_val (value, "meritval", 0)) return -1;
   self->nt->meritval = PyFloat_AsDouble (value);
   return 0;
 }
@@ -3313,7 +3367,7 @@ static PyObject* lng_NEWTON_SOLVER_get_nonmonlength (lng_NEWTON_SOLVER *self, vo
 
 static int lng_NEWTON_SOLVER_set_nonmonlength (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "nonmonlength")) return -1;
+  if (!is_number_gt_val (value, "nonmonlength", 0)) return -1;
   self->nt->nonmonlength = PyInt_AsLong (value);
   return 0;
 }
@@ -3325,7 +3379,7 @@ static PyObject* lng_NEWTON_SOLVER_get_linminiter (lng_NEWTON_SOLVER *self, void
 
 static int lng_NEWTON_SOLVER_set_linminiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "linminiter")) return -1;
+  if (!is_number_ge_val (value, "linminiter", 1)) return -1;
   self->nt->linminiter = PyInt_AsLong (value);
   return 0;
 }
@@ -3337,7 +3391,7 @@ static PyObject* lng_NEWTON_SOLVER_get_resdec (lng_NEWTON_SOLVER *self, void *cl
 
 static int lng_NEWTON_SOLVER_set_resdec (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "resdec")) return -1;
+  if (!is_number_ge_val (value, "resdec", 0)) return -1;
   self->nt->resdec = PyFloat_AsDouble (value);
   return 0;
 }
@@ -3453,7 +3507,7 @@ static PyObject* lng_BODY_SPACE_SOLVER_get_maxiter (lng_BODY_SPACE_SOLVER *self,
 
 static int lng_BODY_SPACE_SOLVER_set_maxiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "maxiter")) return -1;
+  if (!is_number_gt_val (value, "maxiter", 0)) return -1;
   self->bs->maxiter = PyInt_AsLong (value);
   return 0;
 }
@@ -3465,7 +3519,7 @@ static PyObject* lng_BODY_SPACE_SOLVER_get_meritval (lng_BODY_SPACE_SOLVER *self
 
 static int lng_BODY_SPACE_SOLVER_set_meritval (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "meritval")) return -1;
+  if (!is_number_gt_val (value, "meritval", 0)) return -1;
   self->bs->meritval = PyFloat_AsDouble (value);
   return 0;
 }
@@ -3477,7 +3531,7 @@ static PyObject* lng_BODY_SPACE_SOLVER_get_linminiter (lng_BODY_SPACE_SOLVER *se
 
 static int lng_BODY_SPACE_SOLVER_set_linminiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "linminiter")) return -1;
+  if (!is_number_ge_val (value, "linminiter", 1)) return -1;
   self->bs->linminiter = PyInt_AsLong (value);
   return 0;
 }
@@ -3489,8 +3543,20 @@ static PyObject* lng_BODY_SPACE_SOLVER_get_resdec (lng_BODY_SPACE_SOLVER *self, 
 
 static int lng_BODY_SPACE_SOLVER_set_resdec (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number (value, "resdec")) return -1;
+  if (!is_number_gt_val (value, "resdec", 0)) return -1;
   self->bs->resdec = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_BODY_SPACE_SOLVER_get_smooth (lng_BODY_SPACE_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->bs->smooth);
+}
+
+static int lng_BODY_SPACE_SOLVER_set_smooth (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_ge_val0_lt_val1 (value, "smooth", 0, 1)) return -1;
+  self->bs->smooth = PyFloat_AsDouble (value);
   return 0;
 }
 
@@ -3539,6 +3605,7 @@ static PyGetSetDef lng_BODY_SPACE_SOLVER_getset [] =
   {"maxiter", (getter)lng_BODY_SPACE_SOLVER_get_maxiter, (setter)lng_BODY_SPACE_SOLVER_set_maxiter, "iterations bound", NULL},
   {"linminiter", (getter)lng_BODY_SPACE_SOLVER_get_linminiter, (setter)lng_BODY_SPACE_SOLVER_set_linminiter, "linear solver minimal iterations count", NULL},
   {"resdec", (getter)lng_BODY_SPACE_SOLVER_get_resdec, (setter)lng_BODY_SPACE_SOLVER_set_resdec, "linear solver residual decrease factor", NULL},
+  {"smooth", (getter)lng_BODY_SPACE_SOLVER_get_smooth, (setter)lng_BODY_SPACE_SOLVER_set_smooth, "derivative smoothing coefficient", NULL},
   {"merhist", (getter)lng_BODY_SPACE_SOLVER_get_merhist, (setter)lng_BODY_SPACE_SOLVER_set_merhist, "merit function history", NULL},
   {"iters", (getter)lng_BODY_SPACE_SOLVER_get_iters, (setter)lng_BODY_SPACE_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}

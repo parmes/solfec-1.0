@@ -5584,12 +5584,12 @@ BODY_SPACE_SOLVER
 \end_layout
 
 \begin_layout Plain Layout
-Object of type BODY_SPACE_SOLVER represents a Newton solver implemented
- in the body space.
+Object of type BODY_SPACE_SOLVER represents the projected inexact Newton
+ solver implemented in the body space (without assembling local dynamics).
 \end_layout
 
 \begin_layout Subsection*
-obj = BODY_SPACE_SOLVER (| meritval, maxiter, variant)
+obj = BODY_SPACE_SOLVER (| meritval, maxiter)
 \end_layout
 
 \begin_layout Itemize
@@ -5606,7 +5606,7 @@ obj
 meritval
 \series default
  - constraints satisfaction merit function value sufficient for termination
- (default: 1E-3), cf.
+ (default: 1E-4), cf.
  Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -5622,7 +5622,168 @@ reference "cha:Constraints-accuracy"
 \series bold
 maxiter
 \series default
- - maximal number of iterations before termination (default: 10)
+ - maximal number of iterations before termination (default: 20)
+\end_layout
+
+\begin_layout Plain Layout
+Some parameters can also be accessed as members of a BODY_SPACE_SOLVER object.
+ These are
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="1">
+<features>
+<column alignment="left" valignment="top" width="95col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.iters
+\series default
+\emph default
+ - number of iterations during a last run of solver
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.merhist
+\series default
+\emph default
+ - a list of merit function values for each iteration of the last run
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="5" columns="1">
+<features>
+<column alignment="left" valignment="top" width="95col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read/write
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.maxiter, obj.meritval
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.linminiter
+\series default
+\emph default
+ - linear iterative solver minimal iterations count (default: 5)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.resdec
+\series default
+\emph default
+ - linear iterative solver residual decrease factor (default: 0.25)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.smooth
+\series default
+\emph default
+ - derivative smoothing coefficient (smoothing is disabled by default: 0.0).
+ This should be > 0 and << 1 (e.g.
+ 1E-6) in order to enable smoothing.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
