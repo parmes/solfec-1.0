@@ -42,11 +42,11 @@ typedef struct locdyn LOCDYN;
 
 enum solver_kind
 {
-  NONE_SOLVER,
-  GAUSS_SEIDEL_SOLVER,
-  PENALTY_SOLVER,
-  NEWTON_SOLVER,
-  BODY_SPACE_SOLVER
+  NONE_SOLVER          = 0x00,
+  GAUSS_SEIDEL_SOLVER  = 0x01,
+  PENALTY_SOLVER       = 0x02,
+  NEWTON_SOLVER        = 0x04,
+  BODY_SPACE_SOLVER    = 0x08
 };
 
 typedef enum solver_kind SOLVER_KIND;

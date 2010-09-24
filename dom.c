@@ -684,6 +684,7 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
   if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
 
   pack_doubles (dsize, d, doubles, con->R, 3);
+  pack_doubles (dsize, d, doubles, con->U, 3);
   pack_doubles (dsize, d, doubles, con->point, 3);
   pack_doubles (dsize, d, doubles, con->base, 9);
   pack_double  (dsize, d, doubles, con->gap);
@@ -758,6 +759,7 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
   if (slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
+  unpack_doubles (dpos, d, doubles, con->U, 3);
   unpack_doubles (dpos, d, doubles, con->point, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
   con->gap = unpack_double  (dpos, d, doubles);
@@ -837,20 +839,21 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
   if (con->slave) pack_doubles (dsize, d, doubles, con->spnt, 3);
 
   pack_doubles (dsize, d, doubles, con->R, 3);
+  pack_doubles (dsize, d, doubles, con->U, 3);
   pack_doubles (dsize, d, doubles, con->base, 9);
 
   if (con->kind == CONTACT) /* sparsification || BBS need below data  */
   {
     pack_double (dsize, d, doubles, con->area);
-    if (con->master->dom->solver == BODY_SPACE_SOLVER) pack_double (dsize, d, doubles, con->gap);
+    pack_double (dsize, d, doubles, con->gap);
   }
 }
 
 /* unpack external constraint migrated in during domain gluing */
 static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  BODY *master, *slave;
   int kind, cid, mid, sid, n;
+  BODY *master, *slave;
   SGP *msgp, *ssgp;
   CON *con;
 
@@ -879,12 +882,13 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   if (slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
+  unpack_doubles (dpos, d, doubles, con->U, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
 
   if (kind == CONTACT) /* sparsification || BBS need below data */
   {
     con->area = unpack_double (dpos, d, doubles);
-    if (dom->solver == BODY_SPACE_SOLVER) con->gap = unpack_double (dpos, d, doubles);
+    con->gap = unpack_double (dpos, d, doubles);
   }
 
   BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point); /* update point */
@@ -897,6 +901,7 @@ static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, i
 {
   pack_int (isize, i, ints, con->id);
   pack_doubles (dsize, d, doubles, con->R, 3);
+  pack_doubles (dsize, d, doubles, con->U, 3);
 
   if (con->kind == CONTACT) /* sparsification || BBS need below data */
   {
@@ -904,7 +909,7 @@ static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, i
     pack_doubles (dsize, d, doubles, con->spnt, 3);
     pack_doubles (dsize, d, doubles, con->base, 9);
     pack_double (dsize, d, doubles, con->area);
-    if (con->master->dom->solver == BODY_SPACE_SOLVER) pack_double (dsize, d, doubles, con->gap);
+    pack_double (dsize, d, doubles, con->gap);
   }
   else if (con->kind == RIGLNK)
   {
@@ -921,6 +926,7 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
   id = unpack_int (ipos, i, ints);
   ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid constraint id");
   unpack_doubles (dpos, d, doubles, con->R, 3);
+  unpack_doubles (dpos, d, doubles, con->U, 3);
 
   if (con->kind == CONTACT) /* sparsification || BBS need below data */
   {
@@ -928,7 +934,7 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
     unpack_doubles (dpos, d, doubles, con->spnt, 3);
     unpack_doubles (dpos, d, doubles, con->base, 9);
     con->area = unpack_double (dpos, d, doubles);
-    if (dom->solver == BODY_SPACE_SOLVER) con->gap = unpack_double (dpos, d, doubles);
+    con->gap = unpack_double (dpos, d, doubles);
   }
   else if (con->kind == RIGLNK)
   {
