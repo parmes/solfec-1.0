@@ -494,7 +494,8 @@ duration = 1.0
 load_hist = TIME_SERIES ([0, 10, 1, 10])
 friction = 0.0
 
-solver = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6)
+#solver = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6)
+solver = BODY_SPACE_SOLVER ()
 
 allcases = [
 # large clearance
@@ -528,6 +529,6 @@ allcases = [
 def one_test (number):
   case = allcases [number]
   sol = box_kite_test (case [0], step, duration, friction, case [1], load_hist, solver, case [2], case [3], case [4], case [5], case [6])
-  box_kite_print_history (sol, case [0], case [1], case [4])
+  if not VIEWER(): box_kite_print_history (sol, case [0], case [1], case [4])
 
 one_test (0)

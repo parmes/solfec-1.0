@@ -353,13 +353,13 @@ static void x_to_ext (BSS_DATA *A, double *x, double *ext)
     }
   }
 
-  COMALL_Repeat (pat);
+  COMALL_Repeat (pat->pattern);
 
   for (ptr = pat->recv, qtr = ptr + pat->nrecv; ptr != qtr; ptr ++)
   {
     for (a = ptr->d, i = ptr->i, b = a + ptr->doubles; a < b; a += 3, i ++)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (conext, (void*) (long) (*i), NULL), "Invalid ext id");
+      ASSERT_DEBUG_EXT (con = MAP_Find (conext, (void*) (long) (*i), NULL), "Invalid ext id: %d", *i);
       c = &ext [con->num];
       ACC (a, c);
     }
@@ -382,13 +382,13 @@ static void ext_to_y (BSS_DATA *A, double *ext, double *y)
     ptr->d = &ext [dat->n];
   }
 
-  COMALL_Repeat (pat);
+  COMALL_Repeat (pat->pattern);
 
   for (ptr = pat->recv, qtr = ptr + pat->nrecv; ptr != qtr; ptr ++)
   {
     for (a = ptr->d, i = ptr->i, b = a + ptr->doubles; a < b; a += 3, i ++)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (idc, (void*) (long) (*i), NULL), "Invalid con id");
+      ASSERT_DEBUG_EXT (con = MAP_Find (idc, (void*) (long) (*i), NULL), "Invalid con id: %d", *i);
       c = &y [con->num];
       ACC (a, c);
     }
@@ -566,7 +566,7 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
   BSS_CON_DATA *dat = A->dat;
   int n = A->ndat;
 
-  W_times_vector (A, x->x, A->y->x); /* dU = h W dR */
+  W_times_vector (A, x->x, A->y->x); /* dU = W dR */
 
   for (u = A->y->x, r = x->x, q = y->x; n > 0; dat ++, n --)
   {
@@ -717,14 +717,14 @@ static void update_V_and_B (DOM *dom)
     }
   }
 
-  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv); /* send V, B */
 
   for (i = 0; i < nrecv; i ++)
   {
     ptr = &recv [i];
     for (j = ptr->i, k = j + ptr->ints, D = ptr->d; j < k; j ++, D += 6)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ABS(*j), NULL), "Invalid constraint id: %d", ABS(*j));
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ABS(*j), NULL), "Invalid con id: %d", ABS(*j));
       V = con->dia->V;
       B = con->dia->B;
       if ((*j) < 0) /* master */
@@ -756,7 +756,7 @@ static void update_V_and_B (DOM *dom)
 /* create constraints data */
 static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod, int nbod, int *ndat, VECTOR **v, double *free_energy, double *epsilon)
 {
-  BSS_CON_DATA *out, *dat;
+  BSS_CON_DATA *out, *dat, *end;
   double Bavg [3], step, *x;
   MAP *map, *fem;
   short dynamic;
@@ -772,27 +772,17 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
   step = dom->step;
   x = (*v)->x;
 
-  for (i = 0, map = NULL, n = 0; i < nbod; n += bod [i]->dofs, i ++)
+  for (i = 0, map = fem = NULL, n = 0; i < nbod; n += bod [i]->dofs, i ++)
   {
     MAP_Insert (NULL, &map, bod [i], (void*) (long) n, NULL); /* map bodies to DOF shifts */
-  }
 
-  for (con = dom->con, fem = NULL; con; con = con->next)
-  {
-    BODY *m = con->master,
-	 *s = con->slave;
-
-    if (m->kind == FEM && !MAP_Find (fem, m, NULL))
+    if (bod [i]->con && bod [i]->kind == FEM)
     {
-      MAP_Insert (NULL, &fem, m, FEM_Approx_Inverse (m), NULL); /* map approximate inverses */
-    }
-
-    if (s && s->kind == FEM && !MAP_Find (fem, s, NULL))
-    {
-      MAP_Insert (NULL, &fem, s, FEM_Approx_Inverse (s), NULL); /* map approximate inverses */
+      MAP_Insert (NULL, &fem, bod [i], FEM_Approx_Inverse (bod [i]), NULL); /* map approximate inverses */
     }
   }
 
+  /* create internal constraints data */
   for (con = dom->con, dat = out, n = 0; con; con = con->next)
   {
     if (dynamic && con->kind == CONTACT && con->gap > 0.0) continue; /* skip open dynamic contacts */
@@ -806,12 +796,9 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
 	  *sshp;
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
-	   *base = con->base,
-	   *B = dia->B,
-	    X [3];
+	   *base = con->base;
     MX_DENSE_PTR (W, 3, 3, dia->W);
-    MX_DENSE_PTR (A, 3, 3, dia->A);
-    short up = dia->W[8] == 0.0; /* needed only as a preconditioner => update once */
+    dia->rowupdate = dia->W[8] == 0.0; /* needed only as a preconditioner => update once */
     MX *prod, *inv;
 
     if (s)
@@ -828,7 +815,7 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
       dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
       dat->mi = (int) (long) MAP_Find (map, m, NULL);
 
-      if (up)
+      if (dia->rowupdate)
       {
 	if (m->kind == FEM) inv = MAP_Find (fem, m, NULL); else inv = m->inverse;
 	prod = MX_Matmat (1.0, inv, MX_Tran (dat->mH), 0.0, NULL);
@@ -851,7 +838,7 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
       dat->si = (int) (long) MAP_Find (map, s, NULL);
       MX_Scale (dat->sH, -1.0);
 
-      if (up)
+      if (dia->rowupdate)
       {
 	if (s->kind == FEM) inv = MAP_Find (fem, s, NULL); else inv = s->inverse;
 	prod = MX_Matmat (1.0, inv, MX_Tran (dat->sH), 0.0, NULL);
@@ -863,23 +850,6 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
       {
 	dat->sH = csc_to_dense (dat->sH, &dat->sj);
       }
-    }
-
-    if (up)
-    {
-      MX_Copy (&W, &A);
-      MX_Inverse (&A, &A);
-    }
-
-    NVMUL (A.x, B, X);
-    (*free_energy) += DOT (X, B); /* sum up free energy */
-    ACCABS (B, Bavg);
-
-    /* add up prescribed velocity contribution */
-    if (con->kind == VELODIR)
-    {
-      (*free_energy) += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
-      Bavg [2] += fabs (VELODIR(con->Z));
     }
 
     dat->n = n;
@@ -901,25 +871,59 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
     n += 3;
     x += 3;
   }
-
-  DIV (Bavg, (double) (n/3), Bavg);
-  (*epsilon) *= LEN (Bavg); /* smoothing epsilon = (smoothing factor) * LEN (average absolute free velocity) */
-  (*free_energy) *= 0.5;
   (*ndat) = n / 3;
   (*v)->n = n;
 
-  for (map = MAP_First (fem); map;
-       map = MAP_Next (map)) MX_Destroy (map->data);
-  MAP_Free (NULL, &fem);
-
 #if MPI
-  /* create external constraints related data */
+  COMDATA *send, *recv, *ptr, *qtr;
+  int nsend, nrecv, *j, *k;
+  double *W1, *W2;
+  MAP *item;
+  SET *jtem;
+
+  /* mark external constraints that would require Wii updates */
+  for (item = MAP_First (dom->conext); item; item = MAP_Next (item))
+  {
+    con = item->data;
+    con->paircode = 0; /* zero before using (will store dia->rowupdate) */
+  }
+  for (dat = out, nsend = 0, end = out + (*ndat); dat != end; dat ++)
+  {
+    for (jtem = SET_First (dat->con->ext); jtem; jtem = SET_Next (jtem)) nsend ++;
+  }
+  ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend]) + 2 * sizeof (int [nsend])));
+  for (dat = out, ptr = send, j = (int*) (send + nsend); dat != end; dat ++)
+  {
+    con = dat->con;
+    for (jtem = SET_First (con->ext); jtem; jtem = SET_Next (jtem), ptr ++, j += 2)
+    {
+      ptr->rank = (int) (long) jtem->data;
+      j [1] = con->dia->rowupdate;
+      j [0] = con->id;
+      ptr->ints = 2;
+      ptr->i = j;
+    }
+  }
+
+  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv); /* send rowupdate flags */
+
+  for (ptr = recv, qtr = ptr + nrecv; ptr != qtr; ptr ++)
+  {
+    for (j = ptr->i, k = j + ptr->ints; j < k; j += 2)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) j[0], NULL), "Invalid con id: %d", j[0]);
+      con->paircode = j[1]; /* otherwise unused for external constraints */
+    }
+  }
+  free (send);
+  free (recv);
+
+  /* create external constraints data */
   A->ndatext = MAP_Size (dom->conext);
   ERRMEM (A->datext = MEM_CALLOC (sizeof (BSS_CON_DATA [A->ndatext])));
-
-  for (fem = MAP_First (dom->conext), dat = A->datext, n = 0; fem; fem = MAP_Next (fem), dat ++, n += 3)
+  for (item = MAP_First (dom->conext), dat = A->datext, n = 0; item; item = MAP_Next (item), dat ++)
   {
-    con = fem->data;
+    con = item->data;
     if (dynamic && con->kind == CONTACT && con->gap > 0.0) continue; /* skip open dynamic contacts */
 
     BODY *m = con->master,
@@ -931,6 +935,8 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base;
+    MX_DENSE_PTR (W, 3, 3, dat->T);
+    MX *prod, *inv;
 
     if (s)
     {
@@ -943,6 +949,14 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
       dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
       dat->mi = (int) (long) MAP_Find (map, m, NULL);
 
+      if (con->paircode)
+      {
+	if (m->kind == FEM) inv = MAP_Find (fem, m, NULL); else inv = m->inverse;
+	prod = MX_Matmat (1.0, inv, MX_Tran (dat->mH), 0.0, NULL);
+	MX_Matmat (step, dat->mH, prod, 0.0, &W); /* H * inv (M) * H^T */
+	MX_Destroy (prod);
+      }
+
       if (m->kind == FEM)
       {
 	dat->mH = csc_to_dense (dat->mH, &dat->mj);
@@ -954,6 +968,14 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
       dat->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
       dat->si = (int) (long) MAP_Find (map, s, NULL);
       MX_Scale (dat->sH, -1.0);
+
+      if (con->paircode)
+      {
+	if (s->kind == FEM) inv = MAP_Find (fem, s, NULL); else inv = s->inverse;
+	prod = MX_Matmat (1.0, inv, MX_Tran (dat->sH), 0.0, NULL);
+	MX_Matmat (step, dat->sH, prod, 1.0, &W); /* H * inv (M) * H^T */
+	MX_Destroy (prod);
+      }
 
       if (s->kind == FEM)
       {
@@ -968,16 +990,85 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
     dat->kind = con->kind;
     dat->con = con;
     con->num = n; /* x_to_ext */
+    n += 3;
+  }
+  A->next = n;
+  A->ndatext = n / 3;
+  ERRMEM (A->ext = MEM_CALLOC (sizeof (double [n])));
+
+  /* send remote Wii contributions to parent constraints */
+  ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [A->ndatext])));
+  for (dat = A->datext, ptr = send, end = dat + A->ndatext; dat != end; dat ++)
+  {
+    con = dat->con;
+    if (con->paircode)
+    {
+      ptr->i = (int*) &con->id;
+      ptr->rank = con->rank;
+      ptr->doubles = 9;
+      ptr->d = dat->T;
+      ptr->ints = 1;
+      ptr ++;
+    }
   }
 
-  A->ndatext = n / 3;
-  A->next = n;
-  ERRMEM (A->ext = MEM_CALLOC (sizeof (double [n])));
-  A->x_to_ext = x_to_ext_create (A);
-  A->ext_to_y = ext_to_y_create (A);
+  COMALL (MPI_COMM_WORLD, send, ptr - send, &recv, &nrecv); /* send Wii */
+
+  for (ptr = recv, qtr = ptr + nrecv; ptr != qtr; ptr ++)
+  {
+    for (j = ptr->i, k = j + ptr->ints, W1 = ptr->d; j < k; j ++, W1 += 9)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) (*j), NULL), "Invalid con id: %d", *j);
+      ASSERT_DEBUG (con->dia->rowupdate, "Inconsistent row update flag");
+      dat = &out [con->num / 3];
+      W2 = dat->W;
+      NNADD (W2, W1, W2);
+    }
+  }
+  free (send);
+  free (recv);
 #endif
 
+  /* process Wii */
+  for (dat = out, end = dat + (*ndat); dat != end; dat ++)
+  {
+    con = dat->con;
+    DIAB *dia = con->dia;
+    MX_DENSE_PTR (W, 3, 3, dia->W);
+    MX_DENSE_PTR (A, 3, 3, dia->A);
+    double *B = dia->B, X [3];
+
+    if (con->dia->rowupdate)
+    {
+      MX_Copy (&W, &A);
+      MX_Inverse (&A, &A);
+    }
+
+    NVMUL (A.x, B, X);
+    (*free_energy) += DOT (X, B); /* sum up free energy */
+    ACCABS (B, Bavg);
+
+    /* add up prescribed velocity contribution */
+    if (con->kind == VELODIR)
+    {
+      (*free_energy) += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
+      Bavg [2] += fabs (VELODIR(con->Z));
+    }
+  }
+#if MPI
+  double C [4] = {Bavg[0], Bavg[1], Bavg[2], (*ndat)}, D [4];
+  MPI_Allreduce (C, D, 4, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  DIV (D, D[3], Bavg);
+#else
+  DIV (Bavg, (double) (*ndat), Bavg);
+#endif
+  (*epsilon) *= LEN (Bavg); /* smoothing epsilon = (smoothing factor) * LEN (average absolute free velocity) */
+  (*free_energy) *= 0.5;
+
   MAP_Free (NULL, &map);
+  for (map = MAP_First (fem); map;
+       map = MAP_Next (map)) MX_Destroy (map->data);
+  MAP_Free (NULL, &fem);
 
   return out;
 }
@@ -1034,6 +1125,10 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
   ERRMEM (A->r = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->a = MEM_CALLOC (sizeof (double [m])));
+#if MPI
+  A->x_to_ext = x_to_ext_create (A);
+  A->ext_to_y = ext_to_y_create (A);
+#endif
 
   double *Axx = A->x->x,
 	 *Ayx = A->y->x,
