@@ -327,19 +327,14 @@ static int fixdir (short dynamic, double *W, double *B, double *V, double *U, do
     R [0] = 0.0;
     R [1] = 0.0;
     R [2] = -(V[2] + B[2]) / W[8];
-    U [0] =  B [0]; 
-    U [1] =  B [1]; 
-    U [2] = -V [2];
   }
   else
   {
     R [0] = 0.0;
     R [1] = 0.0;
     R [2] = -B[2] / W[8];
-    U [0] = B [0]; 
-    U [1] = B [1]; 
-    U [2] = 0.0;
   }
+  ADDMUL (B, R[2], W+6, U);
 
   return 0;
 }
@@ -349,9 +344,7 @@ static int velodir (double *Z, double *W, double *B, double *U, double *R)
   R [0] = 0.0;
   R [1] = 0.0;
   R [2] = (VELODIR(Z) - B[2]) / W[8];
-  U [0] = B [0]; 
-  U [1] = B [1]; 
-  U [2] = VELODIR(Z);
+  ADDMUL (B, R[2], W+6, U);
 
   return 0;
 }
@@ -398,13 +391,19 @@ static int riglnk (short dynamic, double epsilon, int maxiter, double step,
 
   } while (error > epsilon && ++iter < maxiter);
 
-  if (dynamic && iter >= maxiter) /* fall back on the explicit velocity formula */
+  /* XXX: the above minimisation of R[2] under |Z+hU|=d results in a more stable
+   *      behaviour of the GAUSS_SEIDEL solver; direct imposition of the constraint
+   *      like in the case of BODY_SPACE and NEWTON solvers can produce too large
+   *      reactions and inject energy, since GS in unable to accurately resolve
+   *      multi-connected rigid link problems (likie in inp/links.py) */
+
+  if (dynamic && iter >= maxiter) /* fall back on the velocity zeroing formula */
   {
-    R [2] = (U[2] - B[2]) / W[8];
+    R [2] = -B[2] / W[8];
     iter = 0;
   }
 
-  NVADDMUL (B, W, R, U);
+  ADDMUL (B, R[2], W+6, U);
  
   return iter;
 }

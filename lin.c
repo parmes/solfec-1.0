@@ -372,33 +372,31 @@ static void system_update_noncontact (DIAT *dia, short dynamic, double step, dou
     b [0] = -R[0] * W[0]; /* keep RT zero: W (-R) = W dR */
     b [1] = -R[1] * W[4];
 
-    if (dynamic)
+    switch ((int)con->kind)
     {
-      if (con->kind == VELODIR) b [2] = -U[2] + VELODIR(con->Z) - RE[2]; /* V(t+h) = W(R+dR) + B; U = WR + B; -U+V(t+h) = WdR */
-      else b [2] = -U[2] - V[2] - RE[2]; /* FIXDIR, RIGLNK */
+    case FIXDIR:
+    {
+      if (dynamic) b [2] = -U[2] - V[2] - RE[2];
+      else b [2] = -U[2] - RE[2]; 
     }
-    else
+    break;
+    case VELODIR:
     {
-      if (con->kind == VELODIR) b [2] = -U[2] + VELODIR(con->Z) - RE[2];
-      else if (con->kind == FIXDIR) b [2] = -U[2] - RE[2]; 
-      else /* RIGLNK: see doc/notes.lyx for explanation */
-      {
-	double C [3];
+      b [2] = -U[2] + VELODIR(con->Z) - RE[2]; /* V(t+h) = W(R+dR) + B; U = WR + B; -U+V(t+h) = WdR */
+    }
+    break;
+    case RIGLNK:
+    {
+      double h = step * (dynamic ? 0.5 : 1.0),
+             d = RIGLNK_LEN (con->Z),
+	     delta, A [3];
 
-	ADD (U, RE, C);
-
-	double d = RIGLNK_LEN (con->Z),
-	       e = step * step * DOT2 (C, C);
-
-	if (d*d > e)
-	{
-	  b[2] = -C[2] + (-d + sqrt (d*d - e)) / step;
-	}
-	else /* not possible to satisfy: do your best */
-	{
-	  b[2] = -C[2] - d / step;
-	}
-      }
+      ADD (U, RE, A);
+      delta = d*d - h*h*DOT2(A,A);
+      if (delta >= 0.0) b [2] = (sqrt (delta) - d)/h - A[2]; /* doc/notes.lyx for explanation */
+      else b[2] = -A[2];
+    }
+    break;
     }
 
     for (blk = dia->adj; blk; blk = blk->n)

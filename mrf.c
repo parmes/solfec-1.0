@@ -31,6 +31,7 @@
 double MERIT_Function (LOCDYN *ldy, short update_U)
 {
   double step, up, uplo [2], Q [3], P [3];
+  SOLVER_KIND solver;
   short dynamic;
   DIAB *dia;
   OFFB *blk;
@@ -39,6 +40,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
   uplo [0] = 0.0;
   uplo [1] = ldy->free_energy;
   dynamic = ldy->dom->dynamic;
+  solver = ldy->dom->solver;
   step = ldy->dom->step;
 
   for (dia = ldy->dia; dia; dia = dia->n)
@@ -111,8 +113,22 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     break;
     case RIGLNK:
     {
-      if (dynamic) { P[2] = 2.0*con->gap/step + U[2]; }
-      else { P [2] = con->gap/step + U[2]; }
+      double h = step * (dynamic ? 0.5 : 1.0);
+
+      if (solver == GAUSS_SEIDEL_SOLVER)
+      {
+        P[2] = con->gap/h + U[2]; /* XXX: this is rough since dbb.c:riglnk is minimising R[2] under |Z+hU|=d */
+      }
+      else
+      {
+	double d = RIGLNK_LEN (con->Z),
+	       delta;
+
+	delta = d*d - h*h*DOT2(U,U);
+	if (delta >= 0.0) P [2] = (sqrt (delta) - d)/h - U[2];
+	else P[2] = -U[2];
+      }
+
       Q [2] = A[8] * P[2];
       up = Q[2] * P[2];
     }
