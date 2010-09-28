@@ -88,54 +88,32 @@ inline static void complex_n (double complex *S, double complex fri, double comp
 }
 
 /* real normal ray to friction cone */
-inline static void real_m (double fri, short smoothing, double *S, double eps, double *m)
+inline static void real_m (double fri, double *S, double eps, double *m)
 {
   double n [3], fun;
 
   real_n (S, fri, n);
   fun = DOT (S, n);
 
-  if (smoothing == 1 && fun >= 0.0 && fun <= eps)
+  if (fun > 0.0 && fun < eps)
   {
     fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
-  }
-  else if (smoothing == 2)
-  {
-    if (fun >= 0.0 && fun <= eps)
-    {
-      fun = (fun*fun) / (2.0 * eps);
-    }
-    else if (fun > eps)
-    {
-      fun = fun - 0.5 * eps;
-    }
   }
 
   MUL (n, fun, m)
 }
 
 /* complex normal ray to friction cone */
-inline static void complex_m (double complex fri, short smoothing, double complex *S, double complex eps, double complex *m)
+inline static void complex_m (double complex fri, double complex *S, double complex eps, double complex *m)
 {
   double complex n [3], fun;
 
   complex_n (S, fri, n);
   fun = DOT (S, n);
 
-  if (smoothing == 1 && creal (fun) >= 0.0 && creal (fun) <= creal (eps))
+  if (creal (fun) > 0.0 && creal (fun) < creal (eps))
   {
     fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
-  }
-  else if (smoothing == 2)
-  {
-    if (creal (fun) >= 0.0 && creal (fun) <= creal (eps))
-    {
-      fun = (fun*fun) / (2.0 * eps);
-    }
-    else if (creal (fun) > creal (eps))
-    {
-      fun = fun - 0.5 * eps;
-    }
   }
 
   MUL (n, fun, m)
@@ -171,8 +149,7 @@ inline static void complex_F (double res, double fri, double gap, double step, s
 void VIC_Linearize (CON *con, double smoothing_epsilon, double *G, double *X, double *Y)
 {
   DOM *dom = con->master->dom;
-  short dynamic = dom->dynamic,
-	smoothing = smoothing_epsilon > 0.0 ? 1 : 0;
+  short dynamic = dom->dynamic;
   DIAB *dia = con->dia;
   double *V = dia->V,
 	 *U = con->U,
@@ -198,7 +175,7 @@ void VIC_Linearize (CON *con, double smoothing_epsilon, double *G, double *X, do
   {
     real_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, U, F);
     SUB (R, F, S);
-    real_m (fri, smoothing, S, smoothing_epsilon, m);
+    real_m (fri, S, smoothing_epsilon, m);
     ADD (F, m, G);
   }
 
@@ -226,7 +203,7 @@ void VIC_Linearize (CON *con, double smoothing_epsilon, double *G, double *X, do
       cS [1] = S[1] + 0.0 * imaginary_i;
       cS [2] = S[2] + 0.0 * imaginary_i;
       cS [k] += h * imaginary_i;
-      complex_m (fri, smoothing, cS, smoothing_epsilon, cm);
+      complex_m (fri, cS, smoothing_epsilon, cm);
       Y [3*k+0] = cimag (cm [0]) / h; /* Y = dm/dS */
       Y [3*k+1] = cimag (cm [1]) / h;
       Y [3*k+2] = cimag (cm [2]) / h;
@@ -243,6 +220,6 @@ void VIC_Project (double friction, double *S, double *R)
 {
   double m [3];
 
-  real_m (friction, 0, S, 0, m);
+  real_m (friction, S, 0, m);
   SUB (S, m, R);
 }
