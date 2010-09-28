@@ -3475,8 +3475,8 @@ static PyObject* lng_BODY_SPACE_SOLVER_new (PyTypeObject *type, PyObject *args, 
 
   if (self)
   {
-    meritval = 1E-3;
-    maxiter = 16;
+    meritval = 1E-5;
+    maxiter = 20;
 
     PARSEKEYS ("|di", &meritval, &maxiter);
 

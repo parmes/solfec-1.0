@@ -5182,7 +5182,7 @@ NEWTON_SOLVER
 
 \begin_layout Standard
 Object of type NEWTON_SOLVER represents a family of inexact Newton constraints
- solvers.
+ solvers (formulated on the level of local dynamics).
 \end_layout
 
 \begin_layout Subsection*
@@ -5573,19 +5573,15 @@ obj.resdec
 
 \end_layout
 
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
 \begin_layout Subsection
 BODY_SPACE_SOLVER 
 \color red
 (Under development)
 \end_layout
 
-\begin_layout Plain Layout
-Object of type BODY_SPACE_SOLVER represents the projected inexact Newton
- solver implemented in the body space (without assembling local dynamics).
+\begin_layout Standard
+Object of type BODY_SPACE_SOLVER represents a projected inexact Newton solver
+ implemented in the body space (without assembling local dynamics).
 \end_layout
 
 \begin_layout Subsection*
@@ -5606,7 +5602,7 @@ obj
 meritval
 \series default
  - constraints satisfaction merit function value sufficient for termination
- (default: 1E-4), cf.
+ (default: 1E-5), cf.
  Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -5625,12 +5621,12 @@ maxiter
  - maximal number of iterations before termination (default: 20)
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 Some parameters can also be accessed as members of a BODY_SPACE_SOLVER object.
  These are
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
@@ -5692,7 +5688,7 @@ obj.merhist
 
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="1">
@@ -5780,11 +5776,6 @@ obj.smooth
 </cell>
 </row>
 </lyxtabular>
-
-\end_inset
-
-
-\end_layout
 
 \end_inset
 

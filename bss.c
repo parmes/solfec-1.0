@@ -578,6 +578,7 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
     {
     case VELODIR:
     case FIXDIR:
+    case RIGLNK:
     {
       Z [0] = R [0];
       Z [1] = R [1];
@@ -595,11 +596,6 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
       NVADDMUL (Z, Y, R, Z);  /* Z = X dU + Y dR */
 
       U = Z;
-    }
-    break;
-    case RIGLNK:
-    {
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
     }
     break;
     }
@@ -1255,7 +1251,22 @@ static void update_system (BSS_DATA *A)
     break;
     case RIGLNK:
     {
-      /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+      double h = dom->step * (dynamic ? 0.5 : 1.0),
+             d = RIGLNK_LEN (dat->con->Z),
+	     delta, A [3];
+
+      b [0] = -R[0];
+      b [1] = -R[1];
+      ADD (U, S, A);
+      delta = d*d - h*h*DOT2(A,A);
+      if (delta >= 0.0) b [2] = (sqrt (delta) - d)/h - A[2];
+      else b[2] = -A[2];
+
+      T [1] = T [3] = T [6] = T [7] = 0.0;
+      T [0] = T [4] = 1.0;
+      T [2] = W [2];
+      T [5] = W [5];
+      T [8] = W [8];
     }
     break;
     case CONTACT:
@@ -1283,7 +1294,7 @@ static void update_system (BSS_DATA *A)
 }
 
 /* solve linear system */
-static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
+static int linear_solve (BSS_DATA *A, double resdec, int maxiter)
 {
   hypre_FlexGMRESFunctions *gmres_functions;
   void *gmres_vdata;
@@ -1332,6 +1343,8 @@ static void linear_solve (BSS_DATA *A, double resdec, int maxiter)
   A->delta = A->resnorm / A->znorm; /* sqrt (L-curve) */
 
   hypre_FlexGMRESDestroy (gmres_vdata);
+
+  return isfinite (A->resnorm) && A->znorm > 0.0 ? 1 : 0;
 }
 
 /* update solution */
@@ -1466,7 +1479,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
   {
     update_system (A);
 
-    linear_solve (A, bs->resdec, bs->linminiter + bs->iters);
+    if (!linear_solve (A, bs->resdec, bs->linminiter + bs->iters)) break;
 
     update_solution (A);
 

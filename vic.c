@@ -25,10 +25,8 @@
 #include "alg.h"
 #include "err.h"
 
-#define DIFF_FACTOR 1E-10        /* TODO */
-#define DIFF_BASE   1E-10        /* TODO */
-#define SMOOTHING   1            /* TODO */
-#define DISABLE_NORM_SMOOTHING 1 /* TODO */
+#define DIFF_FACTOR 1E-10
+#define DIFF_BASE   1E-05
 
 /* imaginary i */
 static double complex imaginary_i = 0.0;
@@ -151,10 +149,6 @@ inline static void real_F (double res, double fri, double gap, double step, shor
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
 
-#if DISABLE_NORM_SMOOTHING
-  epsilon = 0;
-#endif
-
   F [0] = U[0];
   F [1] = U[1];
   F [2] = (udash + fri * sqrt (DOT2(U, U) + epsilon*epsilon));
@@ -168,10 +162,6 @@ inline static void complex_F (double res, double fri, double gap, double step, s
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
 
-#if DISABLE_NORM_SMOOTHING
-  epsilon = 0;
-#endif
-
   F [0] = U[0];
   F [1] = U[1];
   F [2] = (udash + fri * csqrt (DOT2(U, U) + epsilon*epsilon));
@@ -182,7 +172,7 @@ void VIC_Linearize (CON *con, double smoothing_epsilon, double *G, double *X, do
 {
   DOM *dom = con->master->dom;
   short dynamic = dom->dynamic,
-	smoothing = smoothing_epsilon > 0.0 ? SMOOTHING : 0;
+	smoothing = smoothing_epsilon > 0.0 ? 1 : 0;
   DIAB *dia = con->dia;
   double *V = dia->V,
 	 *U = con->U,
