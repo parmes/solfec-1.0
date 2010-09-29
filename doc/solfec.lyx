@@ -8632,26 +8632,26 @@ entity
 \end_layout
 
 \begin_layout Itemize
-'R', for the time history of the resultant constraint reactions along the
+'R' for the time history of the resultant constraint reactions along the
  directions: normal or given by the 
 \emph on
 direction
 \end_layout
 
 \begin_layout Itemize
-'U', for the time history of the average constraint velocities along the
+'U' for the time history of the average constraint velocities along the
  directions: normal or given by the 
 \emph on
 direction
 \end_layout
 
 \begin_layout Itemize
-'CR', for time histories like in 'RN' and 'RD' case, but for contact constraints
+'CR' for time histories like in the 'R' case, but for contact constraints
  only
 \end_layout
 
 \begin_layout Itemize
-'CU', for time histories like in 'UN' and 'UD' case, but for contact constraints
+'CU' for time histories like in the 'U' case, but for contact constraints
  only
 \end_layout
 
