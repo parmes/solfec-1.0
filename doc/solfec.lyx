@@ -8562,7 +8562,11 @@ a string 'LININIT' (linear system initialization), 'LINUPD' (linear system
 \end_layout
 
 \begin_layout Itemize
-a string 'NTITERS' for Newton solver iterations count
+a string 'NTITERS' for the NEWTON_SOLVER iterations count
+\end_layout
+
+\begin_layout Itemize
+a string 'BSITERS' for the BODY_SPACE_SOLVER iterations count
 \end_layout
 
 \begin_layout Itemize
