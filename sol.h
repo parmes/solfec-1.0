@@ -143,17 +143,22 @@ void SOLFEC_Destroy (SOLFEC *sol);
 /* SOLFEC time history item */
 typedef struct solfec_history_item SHI;
 
+/* auxiliary 'index' values */
+enum {CONSTRAINT_GAP, CONSTRAINT_R, CONSTRAINT_U};
+
 /* history item data */
 struct solfec_history_item
 {
   BODY *bod;
-  double point [3];
   short index;
+  double point [3], vector [3];
+  int surf1, surf2; /* surface pair */
+  unsigned char contacts_only; /* contact filtering flag */
   VALUE_KIND entity; /* (body, point, index, entity) <=> BODY_ENTITY */
-  SET *bodies; /* (bodies, index) <=> ENERGY_VALUE */
+  SET *bodies; /* (bodies, index) <=> ENERGY_VALUE, CONSTRAINT_VALUE */
   char *label; /* label <=> TIMING_VALUE or LABELED_ */
   enum {BODY_ENTITY, ENERGY_VALUE, TIMING_VALUE,
-        LABELED_INT, LABELED_DOUBLE} item;
+        CONSTRAINT_VALUE, LABELED_INT, LABELED_DOUBLE} item;
   enum {OP_SUM, OP_AVG, OP_MAX, OP_MIN} op; /* operation for parallel labeled data */
   double *history; /* output */
 };

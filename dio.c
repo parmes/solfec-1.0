@@ -35,6 +35,7 @@ static void write_constraint (CON *con, PBF *bf)
     SURFACE_MATERIAL_Write_State (&con->mat, bf);
     PBF_Double (bf, &con->area, 1);
     PBF_Double (bf, &con->gap, 1);
+    PBF_Int (bf, con->spair, 2);
   }
 
   if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
@@ -73,6 +74,7 @@ static CON* read_constraint (DOM *dom, int iover, PBF *bf)
     con->state |= SURFACE_MATERIAL_Read_State (dom->sps, &con->mat, bf);
     PBF_Double (bf, &con->area, 1);
     PBF_Double (bf, &con->gap, 1);
+    PBF_Int (bf, con->spair, 2);
   }
 
   if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);

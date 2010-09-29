@@ -3784,6 +3784,51 @@ static int lng_CONSTRAINT_set_point (lng_CONSTRAINT *self, PyObject *value, void
   return -1;
 }
 
+static PyObject* lng_CONSTRAINT_get_area (lng_CONSTRAINT *self, void *closure)
+{
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    return PyFloat_FromDouble (self->con->area);
+  }
+  else Py_RETURN_NONE;
+}
+
+static int lng_CONSTRAINT_set_area (lng_CONSTRAINT *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_CONSTRAINT_get_gap (lng_CONSTRAINT *self, void *closure)
+{
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    return PyFloat_FromDouble (self->con->gap);
+  }
+  else Py_RETURN_NONE;
+}
+
+static int lng_CONSTRAINT_set_gap (lng_CONSTRAINT *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_CONSTRAINT_get_merit (lng_CONSTRAINT *self, void *closure)
+{
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    return PyFloat_FromDouble (self->con->merit);
+  }
+  else Py_RETURN_NONE;
+}
+
+static int lng_CONSTRAINT_set_merit (lng_CONSTRAINT *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 static PyObject* lng_CONSTRAINT_get_adjbod (lng_CONSTRAINT *self, void *closure)
 {
   if (ID_TO_CONSTRAINT (self->dom, self))
@@ -3844,6 +3889,9 @@ static PyGetSetDef lng_CONSTRAINT_getset [] =
   {"R", (getter)lng_CONSTRAINT_get_R, (setter)lng_CONSTRAINT_set_R, "constraint reaction", NULL},
   {"base", (getter)lng_CONSTRAINT_get_base, (setter)lng_CONSTRAINT_set_base, "constraint local base", NULL},
   {"point", (getter)lng_CONSTRAINT_get_point, (setter)lng_CONSTRAINT_set_point, "constraint spatial point", NULL},
+  {"area", (getter)lng_CONSTRAINT_get_area, (setter)lng_CONSTRAINT_set_area, "constraint area", NULL},
+  {"gap", (getter)lng_CONSTRAINT_get_gap, (setter)lng_CONSTRAINT_set_gap, "constraint gap", NULL},
+  {"merit", (getter)lng_CONSTRAINT_get_merit, (setter)lng_CONSTRAINT_set_merit, "constraint merit function", NULL},
   {"adjbod", (getter)lng_CONSTRAINT_get_adjbod, (setter)lng_CONSTRAINT_set_adjbod, "constraint adjacent bodies", NULL},
   {"matlab", (getter)lng_CONSTRAINT_get_matlab, (setter)lng_CONSTRAINT_set_matlab, "contact constraint material", NULL},
   {NULL, 0, 0, NULL, NULL}
@@ -6299,6 +6347,58 @@ static PyObject* lng_TIMING (PyObject *self, PyObject *args, PyObject *kwds)
   return PyFloat_FromDouble (SOLFEC_Timing (solfec->sol, label));
 }
 
+/* parse constraint related history item */
+static int parse_constraint_history_item (SHI *shi, PyObject *entity, double *direction, int surf1, int surf2)
+{
+  if (direction)
+  {
+    COPY (direction, shi->vector);
+  }
+  else
+  {
+    SET (shi->vector, 0.0);
+  }
+
+  shi->surf1 = surf1;
+  shi->surf2 = surf2;
+
+  IFIS (entity, "GAP")
+  {
+    shi->item = CONSTRAINT_VALUE;
+    shi->index = CONSTRAINT_GAP;
+    shi->op = OP_MIN;
+  }
+  ELIF (entity, "R")
+  {
+    shi->item = CONSTRAINT_VALUE;
+    shi->index = CONSTRAINT_R;
+    shi->op = OP_SUM;
+  }
+  ELIF (entity, "CR")
+  {
+    shi->item = CONSTRAINT_VALUE;
+    shi->index = CONSTRAINT_R;
+    shi->contacts_only = 1;
+    shi->op = OP_SUM;
+  }
+  ELIF (entity, "U")
+  {
+    shi->item = CONSTRAINT_VALUE;
+    shi->index = CONSTRAINT_U;
+    shi->op = OP_AVG;
+  }
+  ELIF (entity, "CU")
+  {
+    shi->item = CONSTRAINT_VALUE;
+    shi->index = CONSTRAINT_U;
+    shi->contacts_only = 1;
+    shi->op = OP_AVG;
+  }
+  ELSE return 0;
+
+  return 1;
+}
+
 /* parse single item of hitory items list */
 static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi)
 {
@@ -6400,36 +6500,86 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
       object = PyTuple_GetItem (obj, 0);
       kind = PyTuple_GetItem (obj, 1);
 
-      if (!is_solfec_or_body_or_list_of_bodies (object, "object")) return 0;
+      if (!(is_solfec_or_body_or_list_of_bodies (object, "object") && is_string (kind, "kind"))) return 0;
 
       IFIS (kind, "KINETIC")
       {
 	shi->index = KINETIC;
+        shi->item = ENERGY_VALUE;
       }
       ELIF (kind, "INTERNAL")
       {
 	shi->index = INTERNAL;
+        shi->item = ENERGY_VALUE;
       }
       ELIF (kind, "EXTERNAL")
       {
 	shi->index = EXTERNAL;
+        shi->item = ENERGY_VALUE;
       }
       ELIF (kind, "CONTACT")
       {
 	shi->index = CONTWORK;
+        shi->item = ENERGY_VALUE;
       }
       ELIF (kind, "FRICTION")
       {
 	shi->index = FRICWORK;
+        shi->item = ENERGY_VALUE;
       }
       ELSE
       {
-	PyErr_SetString (PyExc_ValueError, "Invalid energy kind");
+	if (!parse_constraint_history_item (shi, kind, NULL, INT_MAX, INT_MAX))
+	{
+	  char text [BUFLEN];
+	  snprintf (text, BUFLEN, "Invalid entity kind: %s", PyString_AsString (kind));
+	  PyErr_SetString (PyExc_ValueError, text);
+	  return 0;
+	}
+      }
+
+      shi->bodies = object_to_body_set (object, setmem, sol);
+    }
+    else if (PyTuple_Size (obj) == 4)
+    {
+      PyObject *object, *direction, *pair, *entity, *surf1, *surf2;
+      double d [3];
+      int s [2];
+
+      object = PyTuple_GetItem (obj, 0);
+      direction = PyTuple_GetItem (obj, 1);
+      pair = PyTuple_GetItem (obj, 2);
+      entity = PyTuple_GetItem (obj, 3);
+
+      if (!(is_solfec_or_body_or_list_of_bodies (object, "object") && is_string (entity, "entity"))) return 0;
+      if (direction != Py_None && !is_tuple (direction, "direction", 3)) return 0;
+      if (pair != Py_None && !is_tuple (pair, "pair", 2)) return 0;
+
+      if (pair != Py_None)
+      {
+	surf1 = PyTuple_GetItem (pair, 0); surf2 = PyTuple_GetItem (pair, 1);
+	if (!(is_number (surf1, "surf1") && is_number (surf2, "surf2"))) return 0;
+	s [0] = PyInt_AsLong (surf1);
+	s [1] = PyInt_AsLong (surf2);
+      }
+      else  s [0] = s [1] = INT_MAX;
+
+      if (direction != Py_None)
+      {
+	for (int i = 0; i < 3; i ++)
+	  d [i] = PyFloat_AsDouble (PyTuple_GetItem (direction, i));
+      }
+      else SET (d, 0);
+
+      if (!parse_constraint_history_item (shi, entity, d, s[0], s[1]))
+      {
+	char text [BUFLEN];
+	snprintf (text, BUFLEN, "Invalid entity kind: %s", PyString_AsString (entity));
+	PyErr_SetString (PyExc_ValueError, text);
 	return 0;
       }
 
       shi->bodies = object_to_body_set (object, setmem, sol);
-      shi->item = ENERGY_VALUE;
     }
     else
     {

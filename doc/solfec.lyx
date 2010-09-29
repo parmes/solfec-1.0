@@ -4469,7 +4469,19 @@ ti < tj
 \emph on
 i < j
 \emph default
-), or a path to a file storing times and values pairs
+), or a path to a file storing times and values pairs in format:
+\end_layout
+
+\begin_layout LyX-Code
+t0 v0
+\end_layout
+
+\begin_layout LyX-Code
+t1 v1
+\end_layout
+
+\begin_layout LyX-Code
+...
 \end_layout
 
 \begin_layout Subsection
@@ -6224,7 +6236,7 @@ Some parameters can also be accessed as members of a CONSTRAINT object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="7" columns="1">
+<lyxtabular version="3" rows="10" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -6332,6 +6344,57 @@ obj.point
 (x1, y1, z1, x2, y2, z2)
 \emph default
  tuple.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.area
+\series default
+\emph default
+ - current area for contact constraints or zero otherwise
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.gap
+\series default
+\emph default
+ - current gap for contact constraints or zero otherwise
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.merit
+\series default
+\emph default
+ - current value of the per-constraint merit function
 \end_layout
 
 \end_inset
@@ -8502,6 +8565,97 @@ a string 'LININIT' (linear system initialization), 'LINUPD' (linear system
 a string 'NTITERS' for Newton solver iterations count
 \end_layout
 
+\begin_layout Itemize
+a tuple 
+\emph on
+(object, entity)
+\emph default
+ or 
+\emph on
+(object, direction
+\emph default
+, 
+\emph on
+pair,
+\emph default
+ 
+\emph on
+entity)
+\emph default
+ where 
+\emph on
+object
+\emph default
+ is a SOLFEC object, a BODY object or a list of BODY objects, 
+\emph on
+direction
+\emph default
+ is a tuple 
+\begin_inset Formula $\left(d_{x},d_{y},d_{z}\right)$
+\end_inset
+
+ storing a direction (use 
+\series bold
+\emph on
+None
+\series default
+\emph default
+ if the 
+\emph on
+normal
+\emph default
+ direction is preferred), tuple (
+\emph on
+surf1,
+\emph default
+ 
+\emph on
+surf2)
+\emph default
+ defining a surface pair (use 
+\series bold
+\emph on
+None
+\series default
+\emph default
+ if no surface pair is preferred), and 
+\emph on
+entity
+\emph default
+ is:
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+'GAP' for the time history of the minimal contact gap among constraints
+ attached to given bodies (negative gap corresponds to the penetration depth)
+\end_layout
+
+\begin_layout Itemize
+'R', for the time history of the resultant constraint reactions along the
+ directions: normal or given by the 
+\emph on
+direction
+\end_layout
+
+\begin_layout Itemize
+'U', for the time history of the average constraint velocities along the
+ directions: normal or given by the 
+\emph on
+direction
+\end_layout
+
+\begin_layout Itemize
+'CR', for time histories like in 'RN' and 'RD' case, but for contact constraints
+ only
+\end_layout
+
+\begin_layout Itemize
+'CU', for time histories like in 'UN' and 'UD' case, but for contact constraints
+ only
+\end_layout
+
+\end_deeper
 \end_deeper
 \begin_layout Itemize
 

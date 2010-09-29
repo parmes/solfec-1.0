@@ -300,7 +300,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, s
 }
 
 /* insert a contact into the constraints set */
-static void insert_contact (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, double *mpntspa,
+static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, double *mpntspa,
        double *spntspa, double *normal, double area , double gap, SURFACE_MATERIAL *mat, short paircode)
 {
   CON *con;
@@ -315,6 +315,7 @@ static void insert_contact (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP 
   con->paircode = paircode;
   con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
   con->state |= CON_NEW;  /* mark as newly created */
+  return con;
 }
 
 /* does a potential contact already exists ? */
@@ -335,9 +336,10 @@ static int contact_exists (BOX *one, BOX *two)
 static void overlap_create (DOM *dom, BOX *one, BOX *two)
 {
   double onepnt [3], twopnt [3], normal [3], gap, area;
+  SURFACE_MATERIAL *mat;
   int state, spair [2];
   short paircode;
-  SURFACE_MATERIAL *mat;
+  CON *con;
 
   if (contact_exists (one, two)) return;
 
@@ -362,13 +364,17 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
     case 1: /* first body has outward normal => second body is the master */
     {
       paircode = GOBJ_Pair_Code (one, two);
-      insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
+      con = insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
+      con->spair [0] = spair [1];
+      con->spair [1] = spair [0];
     }
     break;
     case 2:  /* second body has outward normal => first body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
-      insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
+      con = insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
+      con->spair [0] = spair [0];
+      con->spair [1] = spair [1];
     }
     break;
   }
@@ -389,12 +395,11 @@ static void ext_to_remove (DOM *dom, CON *con)
 static void update_contact (DOM *dom, CON *con)
 {
   double mpnt [3], spnt [3], normal [3];
-  int state, spair [2] = {con->mat.base->surf1,
-                          con->mat.base->surf2};
   void *mgobj = mgobj(con),
        *sgobj = sgobj(con);
   SHAPE *mshp = mshp(con),
 	*sshp = sshp(con);
+  int state;
 
   /* current spatial points and normal */
   BODY_Cur_Point (con->master, mshp, mgobj, con->mpnt, mpnt);
@@ -406,7 +411,7 @@ static void update_contact (DOM *dom, CON *con)
     CONTACT_UPDATE, con->paircode,
     sshp, sgobj, mshp, mgobj, /* the slave body holds the outward normal */
     spnt, mpnt, normal, &con->gap, /* 'mpnt' and 'spnt' are updated here */
-    &con->area, spair); /* surface pair might change though */
+    &con->area, con->spair); /* surface pair might change though */
 
   if (state)
   {
@@ -418,7 +423,7 @@ static void update_contact (DOM *dom, CON *con)
     localbase (normal, con->base);
     if (state > 1) /* surface pair has changed */
     {
-      SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, spair [0], spair [1]); /* find new surface pair description */
+      SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, con->spair [0], con->spair [1]); /* find new surface pair description */
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
     }
 
