@@ -86,6 +86,8 @@ struct constraint
 
   short paircode; /* geometric object pair code for a contact */
 
+  int spair [2]; /* surface pair */
+
   SURFACE_MATERIAL_STATE mat; /* surface pair material data */
 
   TMS *tms; /* time series data (if any) */

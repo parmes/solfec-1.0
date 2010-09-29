@@ -29,6 +29,7 @@
 #include <sys/stat.h>
 #endif
 #include <string.h>
+#include <limits.h>
 #include <float.h>
 #include "solfec.h"
 #include "sol.h"
@@ -756,6 +757,7 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
       case BODY_ENTITY:
       case ENERGY_VALUE: full_read = 1; break;
       case TIMING_VALUE: timers = 1; break;
+      case CONSTRAINT_VALUE: full_read = 1; break;
       case LABELED_INT:
       case LABELED_DOUBLE: labeled = 1; break;
     }
@@ -786,6 +788,68 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
       case TIMING_VALUE:
 	{
           shi[i].history [cur] = SOLFEC_Timing (sol, shi[i].label);
+	}
+	break;
+      case CONSTRAINT_VALUE:
+	{
+	  double value, vec [3],
+		 div = 1.0,
+	        *dir = shi[i].vector;
+	  int s1 = shi[i].surf1,
+	      s2 = shi[i].surf2;
+	  short usedir = DOT (dir, dir) > 0.0 ? 1 : 0;
+
+	  switch (shi[i].op)
+	  {
+	  case OP_SUM:
+	  case OP_AVG: value = 0.0; break;
+	  case OP_MAX: value = -DBL_MAX; break;
+	  case OP_MIN: value = DBL_MAX; break;
+	  }
+
+	  for (SET *item = SET_First (shi[i].bodies); item; item = SET_Next (item))
+	  {
+	    BODY *bod = item->data;
+	    for (SET *jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
+	    {
+	      CON *con = jtem->data;
+	      double *conbase = con->base;
+
+	      if (shi[i].contacts_only && con->kind != CONTACT) continue;
+	      else if (con->kind == CONTACT && s1 != INT_MAX && s2 != INT_MAX)
+	      {
+		int r1 = con->spair[0], r2 = con->spair[1];
+		if (!((s1 == r1 && s2 == r2) || (s1 == r2 && s2 == r1))) continue;
+	      }
+
+	      switch (shi[i].index)
+	      {
+	      case CONSTRAINT_GAP:
+		if (con->kind == CONTACT) value = MIN (value, con->gap); break;
+	      case CONSTRAINT_R:
+		if (usedir)
+		{
+		  TVMUL (conbase, con->R, vec);
+		  value += DOT (dir, vec);
+		}
+		else value += con->R[2];
+                break;
+	      case CONSTRAINT_U:
+		if (usedir)
+		{
+		  TVMUL (conbase, con->U, vec);
+		  value += DOT (dir, vec);
+		}
+		else value += con->U[2];
+		div += 1.0;
+                break;
+	      }
+	    }
+	  }
+
+	  if (fabs (value) == DBL_MAX) value = 0.0;
+
+          shi[i].history [cur] = value / div;
 	}
 	break;
       case LABELED_DOUBLE:
