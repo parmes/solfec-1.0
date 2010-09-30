@@ -96,7 +96,8 @@ struct bss_data
   VECTOR *b, /* right hand side (of size ndual) */
          *x, /* reactions (-||-) */
 	 *y, /* increments of velocities (-||-) */
-	 *z; /* increments of reactions (-||-) */
+	 *z, /* increments of reactions (-||-) */
+	 *s; /* scaling (-||-) */
 
   double *r, /* global reaction (of size nprimal) */
 	 *u, /* global velocity (-||-) */
@@ -562,17 +563,18 @@ static void *MatvecCreate (void *A, void *x)
 
 static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, double beta, VECTOR *y)
 {
-  double Z [3], *Y, *X, *R, *U, *Q, *u, *q, *r;
+  double Z [3], *Y, *X, *R, *U, *Q, *S, *u, *q, *r, *s;
   BSS_CON_DATA *dat = A->dat;
   int n = A->ndat;
 
   W_times_vector (A, x->x, A->y->x); /* dU = W dR */
 
-  for (u = A->y->x, r = x->x, q = y->x; n > 0; dat ++, n --)
+  for (u = A->y->x, r = x->x, q = y->x, s = A->s->x; n > 0; dat ++, n --)
   {
     U = &u [dat->n];
     R = &r [dat->n];
     Q = &q [dat->n];
+    S = &s [dat->n];
 
     switch (dat->kind)
     {
@@ -599,6 +601,10 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
     }
     break;
     }
+
+    U[0] *= S[0];
+    U[1] *= S[1];
+    U[2] *= S[2];
 
     SCALE (Q, beta);
     ADDMUL (Q, alpha, U, Q)
@@ -1118,6 +1124,7 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
   A->b = newvector (A->ndual);
   A->y = newvector (A->ndual);
   A->z = newvector (A->ndual);
+  A->s = newvector (A->ndual);
   ERRMEM (A->r = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->a = MEM_CALLOC (sizeof (double [m])));
@@ -1128,10 +1135,23 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
 
   double *Axx = A->x->x,
 	 *Ayx = A->y->x,
-	 *Abx = A->b->x;
+	 *Abx = A->b->x,
+	 *Asx = A->s->x;
+
+  /* account for scaling */
+  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
+  {
+    CON *con = dat->con;
+    double *s = &Asx [dat->n], v = 0.0;
+    if (con->master->ref_mass > 0.0) v += 1.0 / con->master->ref_mass;
+    if (con->slave && con->slave->ref_mass > 0.0) v += 1.0 / con->slave->ref_mass;
+    ASSERT_DEBUG (v != 0.0, "Strange constraint found: attached to a no-mass body(ies)");
+    v = 1.0/v;
+    SET (s, v);
+  }
 
   /* account for cohesion */
-  for (m = 0, dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
+  for (m = 0, dat = A->dat; dat != end; dat ++)
   {
     CON *con = dat->con;
     double *X = &Axx [dat->n],
@@ -1186,7 +1206,7 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
 /* update linear system */
 static void update_system (BSS_DATA *A)
 {
-  double *Abx = A->b->x, delta = A->delta, epsilon = A->epsilon;
+  double *Abx = A->b->x, *Asx = A->s->x, delta = A->delta, epsilon = A->epsilon;
   DOM *dom = A->dom;
   short dynamic = dom->dynamic;
   BSS_CON_DATA *dat, *end;
@@ -1199,6 +1219,7 @@ static void update_system (BSS_DATA *A)
 	   *W = dat->W,
 	   *T = dat->T,
 	   *S = dat->S,
+	   *s = &Asx [dat->n],
 	   *b = &Abx [dat->n];
 
     switch (dat->kind)
@@ -1283,6 +1304,14 @@ static void update_system (BSS_DATA *A)
     }
     break;
     }
+
+    SCALE (T+0, s[0]);
+    SCALE (T+3, s[1]);
+    SCALE (T+6, s[2]);
+
+    b [0] *= s[0];
+    b [1] *= s[1];
+    b [2] *= s[2];
 
     T [0] += delta;
     T [4] += delta;
@@ -1434,6 +1463,7 @@ static void destroy_data (BSS_DATA *A)
   DestroyVector (A->x);
   DestroyVector (A->y);
   DestroyVector (A->z);
+  DestroyVector (A->s);
 
   free (A->bod);
   free (A->r);

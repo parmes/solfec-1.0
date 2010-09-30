@@ -354,9 +354,9 @@ static int integrator2d_order (int type, ENTITY2D entity)
 \
 	for (__t__ = __d__->tri, __e__ = __t__ + __d__->m; __t__ < __e__; __t__ ++)\
 	{\
-	  COPY (__t__->ver [0], __subnodes__ [0]);\
+	  COPY (__t__->ver [0], __subnodes__ [2]);\
 	  COPY (__t__->ver [1], __subnodes__ [1]);\
-	  COPY (__t__->ver [2], __subnodes__ [2]);\
+	  COPY (__t__->ver [2], __subnodes__ [0]);\
 \
 	  for (__k__ = 0; __k__ < __N__; __k__ ++)\
 	  {\
