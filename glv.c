@@ -1043,7 +1043,7 @@ void GLV (
   glutInit (argc, argv);
   glutInitWindowPosition (0, 0); 
   glutInitWindowSize (width, height);
-  glutInitDisplayMode (GLUT_RGB | GLUT_DEPTH | GLUT_DOUBLE | GLUT_STENCIL);
+  glutInitDisplayMode (GLUT_RGBA | GLUT_DEPTH | GLUT_DOUBLE | GLUT_STENCIL);
 
   /* set up the main window */
   ASSERT (windows [windowscount ++] =
