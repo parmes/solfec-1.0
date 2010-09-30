@@ -798,6 +798,10 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 	  int s1 = shi[i].surf1,
 	      s2 = shi[i].surf2;
 	  short usedir = DOT (dir, dir) > 0.0 ? 1 : 0;
+	  SET *conset = NULL;
+	  MEM conmem;
+
+	  MEM_Init (&conmem, sizeof (SET), 128);
 
 	  switch (shi[i].op)
 	  {
@@ -812,44 +816,51 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 	    BODY *bod = item->data;
 	    for (SET *jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
 	    {
-	      CON *con = jtem->data;
-	      double *conbase = con->base;
+	      SET_Insert (&conmem, &conset, jtem->data, NULL); /* collect constraints (avoid duplicates) */
+	    }
+	  }
 
-	      if (shi[i].contacts_only && con->kind != CONTACT) continue;
-	      else if (con->kind == CONTACT && s1 != INT_MAX && s2 != INT_MAX)
-	      {
-		int r1 = con->spair[0], r2 = con->spair[1];
-		if (!((s1 == r1 && s2 == r2) || (s1 == r2 && s2 == r1))) continue;
-	      }
+	  for (SET *jtem = SET_First (conset); jtem; jtem = SET_Next (jtem))
+	  {
+	    CON *con = jtem->data;
+	    double *conbase = con->base;
 
-	      switch (shi[i].index)
+	    if (shi[i].contacts_only && con->kind != CONTACT) continue;
+	    else if (con->kind == CONTACT && s1 != INT_MAX && s2 != INT_MAX)
+	    {
+	      int r1 = con->spair[0], r2 = con->spair[1];
+	      if (!((s1 == r1 && s2 == r2) || (s1 == r2 && s2 == r1))) continue;
+	    }
+
+	    switch (shi[i].index)
+	    {
+	    case CONSTRAINT_GAP:
+	      if (con->kind == CONTACT) value = MIN (value, con->gap); break;
+	    case CONSTRAINT_R:
+	      if (usedir)
 	      {
-	      case CONSTRAINT_GAP:
-		if (con->kind == CONTACT) value = MIN (value, con->gap); break;
-	      case CONSTRAINT_R:
-		if (usedir)
-		{
-		  TVMUL (conbase, con->R, vec);
-		  value += DOT (dir, vec);
-		}
-		else value += con->R[2];
-                break;
-	      case CONSTRAINT_U:
-		if (usedir)
-		{
-		  TVMUL (conbase, con->U, vec);
-		  value += DOT (dir, vec);
-		}
-		else value += con->U[2];
-		div += 1.0;
-                break;
+		TVMUL (conbase, con->R, vec);
+		value += DOT (dir, vec);
 	      }
+	      else value += con->R[2];
+	      break;
+	    case CONSTRAINT_U:
+	      if (usedir)
+	      {
+		TVMUL (conbase, con->U, vec);
+		value += DOT (dir, vec);
+	      }
+	      else value += con->U[2];
+	      div += 1.0;
+	      break;
 	    }
 	  }
 
 	  if (fabs (value) == DBL_MAX) value = 0.0;
 
           shi[i].history [cur] = value / div;
+
+	  MEM_Release (&conmem);
 	}
 	break;
       case LABELED_DOUBLE:
