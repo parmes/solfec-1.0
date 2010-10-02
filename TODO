@@ -81,5 +81,5 @@ Consider optional approximate LOCDYN via FEM_Approx_Inverse
 Consider using diagonal 3x3 blocks in FEM_Approx_Inverse
 -----------------------------------------------------------------------------
 Optimize stress plotting (batch calculation for a set of nodes)
------------------------------------------------------------------
-BODY_SPACE_SOLVER: RIGLNK bits
+------------------------------------------------------------------------------
+NEWTON_SOLVER: when BODY_SPACE_SOLVER is done make NEWTON_SOLVER mimick it

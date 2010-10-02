@@ -754,7 +754,7 @@ static void system_update_VARIATIONAL (LINSYS *sys, double *rhs)
 	      X [9],
 	      Y [9];
 	
-      VIC_Linearize (con, epsilon, H, X, Y);
+      VIC_Linearize (con, con->U, con->R, epsilon, H, X, Y);
 
       NVADDMUL (H, X, RE, b);
       SCALE (b, -1.0); /* b = - [H(U, R) + dF/dU [I - dm/dS] RE] */
@@ -1934,7 +1934,7 @@ double LINSYS_Merit (LINSYS *sys, double alpha)
 
       if (variational)
       {
-	VIC_Linearize (con, epsilon, H, NULL, NULL);
+	VIC_Linearize (con, U, R, epsilon, H, NULL, NULL);
       }
       else
       {

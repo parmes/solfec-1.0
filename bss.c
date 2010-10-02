@@ -74,8 +74,7 @@ struct bss_con_data
 	 *A, /* con->dia->A */
 	  X [9], /* U-linearization */
 	  Y [9], /* R-linearization */
-	  T [9], /* diagonal preconditioner */
-	  S [3]; /* S = W R + B - U */
+	  T [9]; /* diagonal preconditioner */
 
   short kind; /* con->kind */
 
@@ -96,8 +95,7 @@ struct bss_data
   VECTOR *b, /* right hand side (of size ndual) */
          *x, /* reactions (-||-) */
 	 *y, /* increments of velocities (-||-) */
-	 *z, /* increments of reactions (-||-) */
-	 *s; /* scaling (-||-) */
+	 *z; /* increments of reactions (-||-) */
 
   double *r, /* global reaction (of size nprimal) */
 	 *u, /* global velocity (-||-) */
@@ -563,18 +561,17 @@ static void *MatvecCreate (void *A, void *x)
 
 static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, double beta, VECTOR *y)
 {
-  double Z [3], *Y, *X, *R, *U, *Q, *S, *u, *q, *r, *s;
+  double Z [3], *Y, *X, *R, *U, *Q, *u, *q, *r;
   BSS_CON_DATA *dat = A->dat;
   int n = A->ndat;
 
   W_times_vector (A, x->x, A->y->x); /* dU = W dR */
 
-  for (u = A->y->x, r = x->x, q = y->x, s = A->s->x; n > 0; dat ++, n --)
+  for (u = A->y->x, r = x->x, q = y->x; n > 0; dat ++, n --)
   {
     U = &u [dat->n];
     R = &r [dat->n];
     Q = &q [dat->n];
-    S = &s [dat->n];
 
     switch (dat->kind)
     {
@@ -601,10 +598,6 @@ static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, doub
     }
     break;
     }
-
-    U[0] *= S[0];
-    U[1] *= S[1];
-    U[2] *= S[2];
 
     SCALE (Q, beta);
     ADDMUL (Q, alpha, U, Q)
@@ -1124,7 +1117,6 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
   A->b = newvector (A->ndual);
   A->y = newvector (A->ndual);
   A->z = newvector (A->ndual);
-  A->s = newvector (A->ndual);
   ERRMEM (A->r = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->a = MEM_CALLOC (sizeof (double [m])));
@@ -1135,23 +1127,10 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
 
   double *Axx = A->x->x,
 	 *Ayx = A->y->x,
-	 *Abx = A->b->x,
-	 *Asx = A->s->x;
-
-  /* account for scaling */
-  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
-  {
-    CON *con = dat->con;
-    double *s = &Asx [dat->n], v = 0.0;
-    if (con->master->ref_mass > 0.0) v += 1.0 / con->master->ref_mass;
-    if (con->slave && con->slave->ref_mass > 0.0) v += 1.0 / con->slave->ref_mass;
-    ASSERT_DEBUG (v != 0.0, "Strange constraint found: attached to a no-mass body(ies)");
-    v = 1.0/v;
-    SET (s, v);
-  }
+	 *Abx = A->b->x;
 
   /* account for cohesion */
-  for (m = 0, dat = A->dat; dat != end; dat ++)
+  for (m = 0, dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
     CON *con = dat->con;
     double *X = &Axx [dat->n],
@@ -1186,27 +1165,26 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
     }
   }
 
-  /* initial residual S = WR + B - U */
+  /* initial U = WR + B */
   W_times_vector (A, Axx, Ayx);
   for (dat = A->dat; dat != end; dat ++)
   {
     double *WR = &Ayx [dat->n],
 	   *B  = dat->B,
-	   *U  = dat->U,
-	   *S  = dat->S;
+	   *U  = dat->U;
 
-    S [0] = WR[0] + B[0] - U[0];
-    S [1] = WR[1] + B[1] - U[1];
-    S [2] = WR[2] + B[2] - U[2];
+    U [0] = WR[0] + B[0];
+    U [1] = WR[1] + B[1];
+    U [2] = WR[2] + B[2];
   }
 
   return A;
 }
 
 /* update linear system */
-static void update_system (BSS_DATA *A)
+static double update_system (BSS_DATA *A, int nocontact)
 {
-  double *Abx = A->b->x, *Asx = A->s->x, delta = A->delta, epsilon = A->epsilon;
+  double *Abx = A->b->x, delta = A->delta, epsilon = A->epsilon;
   DOM *dom = A->dom;
   short dynamic = dom->dynamic;
   BSS_CON_DATA *dat, *end;
@@ -1218,8 +1196,6 @@ static void update_system (BSS_DATA *A)
 	   *V = dat->V,
 	   *W = dat->W,
 	   *T = dat->T,
-	   *S = dat->S,
-	   *s = &Asx [dat->n],
 	   *b = &Abx [dat->n];
 
     switch (dat->kind)
@@ -1229,15 +1205,15 @@ static void update_system (BSS_DATA *A)
     {
       if (dynamic)
       {
-	b [0] = -V[0]-U[0]-S[0];
-	b [1] = -V[1]-U[1]-S[1];
-	b [2] = -V[2]-U[2]-S[2];
+	b [0] = -V[0]-U[0];
+	b [1] = -V[1]-U[1];
+	b [2] = -V[2]-U[2];
       }
       else
       {
-	b [0] = -U[0]-S[0];
-	b [1] = -U[1]-S[1];
-	b [2] = -U[2]-S[2];
+	b [0] = -U[0];
+	b [1] = -U[1];
+	b [2] = -U[2];
       }
 
       NNCOPY (W, T);
@@ -1247,8 +1223,8 @@ static void update_system (BSS_DATA *A)
     {
       b [0] = -R[0];
       b [1] = -R[1];
-      if (dynamic) b [2] = -V[2]-U[2]-S[2];
-      else b [2] = -U[2]-S[2];
+      if (dynamic) b [2] = -V[2]-U[2];
+      else b [2] = -U[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -1261,7 +1237,7 @@ static void update_system (BSS_DATA *A)
     {
       b [0] = -R[0];
       b [1] = -R[1];
-      b [2] = VELODIR(dat->con->Z)-U[2]-S[2];
+      b [2] = VELODIR(dat->con->Z)-U[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -1274,14 +1250,13 @@ static void update_system (BSS_DATA *A)
     {
       double h = dom->step * (dynamic ? 0.5 : 1.0),
              d = RIGLNK_LEN (dat->con->Z),
-	     delta, A [3];
+	     delta;
 
       b [0] = -R[0];
       b [1] = -R[1];
-      ADD (U, S, A);
-      delta = d*d - h*h*DOT2(A,A);
-      if (delta >= 0.0) b [2] = (sqrt (delta) - d)/h - A[2];
-      else b[2] = -A[2];
+      delta = d*d - h*h*DOT2(U,U);
+      if (delta >= 0.0) b [2] = (sqrt (delta) - d)/h - U[2];
+      else b[2] = -U[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -1292,26 +1267,25 @@ static void update_system (BSS_DATA *A)
     break;
     case CONTACT:
     {
-      double *X = dat->X, *Y = dat->Y, G [3];
+      double *X = dat->X, *Y = dat->Y;
 
-      VIC_Linearize (dat->con, epsilon, G, X, Y);
-
-      NVADDMUL (G, X, S, b);
-      SCALE (b, -1.0);
+      if (nocontact)
+      {
+	SET9 (X, 0.0);
+	IDENTITY (Y);
+	SET (b, 0.0);
+      }
+      else
+      {
+	VIC_Linearize (dat->con, U, R, epsilon, b, X, Y);
+	SCALE (b, -1.0);
+      }
 
       NNMUL (X, W, T);
       NNADD (T, Y, T);
     }
     break;
     }
-
-    SCALE (T+0, s[0]);
-    SCALE (T+3, s[1]);
-    SCALE (T+6, s[2]);
-
-    b [0] *= s[0];
-    b [1] *= s[1];
-    b [2] *= s[2];
 
     T [0] += delta;
     T [4] += delta;
@@ -1320,24 +1294,17 @@ static void update_system (BSS_DATA *A)
     MX_DENSE_PTR (P, 3, 3, T);
     MX_Inverse (&P, &P);
   }
+
+  return sqrt (InnerProd (A->b, A->b));
 }
 
 /* solve linear system */
-static int linear_solve (BSS_DATA *A, double resdec, int maxiter)
+static int linear_solve (BSS_DATA *A, double abstol, int maxiter)
 {
   hypre_FlexGMRESFunctions *gmres_functions;
   void *gmres_vdata;
-  double abstol;
   VECTOR *r;
   int ret;
-
-  abstol = resdec * A->resnorm;
-
-  if (abstol == 0.0) /* initially */
-  {
-    abstol = DBL_EPSILON * sqrt (InnerProd (A->b, A->b));
-    if (abstol == 0.0) abstol = DBL_EPSILON;
-  }
 
   gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
     (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
@@ -1400,27 +1367,17 @@ static void update_solution (BSS_DATA *A)
     COPY (x, R);
   }
 
-  /* DU = W DR
-   * U1 = U0 + DU + S
-   * S  = W (R + DR) + B - U1
-   *    = S0 + U0 + DU - U1 */
-  W_times_vector (A, Azx, Ayx);
+  /* U = WR + B */
+  W_times_vector (A, Axx, Ayx);
   for (dat = A->dat; dat != end; dat ++)
   {
-    double *DU = &Ayx [dat->n],
-	   *U  = dat->U,
-	   *S  = dat->S,
-	    U0 [3];
+    double *WR = &Ayx [dat->n],
+	   *B  = dat->B,
+	   *U  = dat->U;
 
-    COPY (U, U0);
-
-    U [0] = (U [0] + DU [0]) + S [0];
-    U [1] = (U [1] + DU [1]) + S [1];
-    U [2] = (U [2] + DU [2]) + S [2];
-
-    S [0] = ((S [0] + U0 [0]) + DU [0]) - U [0];
-    S [1] = ((S [1] + U0 [1]) + DU [1]) - U [1];
-    S [2] = ((S [2] + U0 [2]) + DU [2]) - U [2];
+    U [0] = WR[0] + B[0];
+    U [1] = WR[1] + B[1];
+    U [2] = WR[2] + B[2];
   }
 }
 
@@ -1463,7 +1420,6 @@ static void destroy_data (BSS_DATA *A)
   DestroyVector (A->x);
   DestroyVector (A->y);
   DestroyVector (A->z);
-  DestroyVector (A->s);
 
   free (A->bod);
   free (A->r);
@@ -1491,8 +1447,8 @@ BSS* BSS_Create (double meritval, int maxiter)
 /* run solver */
 void BSS_Solve (BSS *bs, LOCDYN *ldy)
 {
+  double *merit, tirem;
   char fmt [512];
-  double *merit;
   BSS_DATA *A;
   DOM *dom;
 
@@ -1507,9 +1463,9 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 
   do
   {
-    update_system (A);
+    tirem = update_system (A, 0);
 
-    if (!linear_solve (A, bs->resdec, bs->linminiter + bs->iters)) break;
+    if (!linear_solve (A, bs->resdec * tirem, bs->linminiter + bs->iters)) break;
 
     update_solution (A);
 
@@ -1523,6 +1479,15 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
     if (dom->verbose && bs->verbose) printf (fmt, A->iters, A->resnorm, bs->iters, *merit);
 
   } while (++ bs->iters < bs->maxiter && *merit > bs->meritval);
+
+  A->delta = 0.0;
+  update_system (A, 1); /* freeze contacts */
+  if (linear_solve (A, bs->meritval, bs->linminiter + bs->iters))
+  {
+    update_solution (A); /* refine equality constraints */
+    *merit = MERIT_Function (ldy, 0);
+    bs->merhist [bs->iters-1] = *merit;
+  }
 
   destroy_data (A);
 }
