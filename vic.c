@@ -146,14 +146,11 @@ inline static void complex_F (double res, double fri, double gap, double step, s
 }
 
 /* G(U,R) + X dU + Y dR  = 0 */
-void VIC_Linearize (CON *con, double smoothing_epsilon, double *G, double *X, double *Y)
+void VIC_Linearize (CON *con, double *U, double *R, double smoothing_epsilon, double *G, double *X, double *Y)
 {
   DOM *dom = con->master->dom;
   short dynamic = dom->dynamic;
-  DIAB *dia = con->dia;
-  double *V = dia->V,
-	 *U = con->U,
-	 *R = con->R,
+  double *V = con->V,
 	  gap = con->gap,
 	  fri = con->mat.base->friction,
 	  res = con->mat.base->restitution,

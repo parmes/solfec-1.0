@@ -25,7 +25,7 @@
 #define __vic__
 
 /* G(U,R) + X dU + Y dR  = 0 */
-void VIC_Linearize (CON *con, double smoothing_epsilon, double *G, double *X, double *Y);
+void VIC_Linearize (CON *con, double *U, double *R, double smoothing_epsilon, double *G, double *X, double *Y);
 
 /* R = project-on-friction-cone (S) */
 void VIC_Project (double friction, double *S, double *R);
