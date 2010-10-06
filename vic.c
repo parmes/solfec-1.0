@@ -208,7 +208,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double smoothing_epsilon, do
 
     IDENTITY (J);
     NNSUB (J, Y, J);
-    NNMUL (dF, J, X); /* X = dF/dU [I - dm/dS] */
+    NNMUL (J, dF, X); /* X = [I - dm/dS] dF/dU */
   }
 }
 

@@ -103,6 +103,7 @@ struct bss_data
 	  epsilon, /* smoothing epsilon */
           resnorm, /* |A z - b| */
 	  znorm, /* |z| */
+	  bnorm, /* |b| */
 	  delta; /* regularisation = |A z - b| / |z| */
 
   int iters; /* linear solver iterations */
@@ -1182,7 +1183,7 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
 }
 
 /* update linear system */
-static double update_system (BSS_DATA *A, int nocontact)
+static void update_system (BSS_DATA *A, int nocontact)
 {
   double *Abx = A->b->x, delta = A->delta, epsilon = A->epsilon;
   DOM *dom = A->dom;
@@ -1295,7 +1296,7 @@ static double update_system (BSS_DATA *A, int nocontact)
     MX_Inverse (&P, &P);
   }
 
-  return sqrt (InnerProd (A->b, A->b));
+  A->bnorm = sqrt (InnerProd (A->b, A->b));
 }
 
 /* solve linear system */
@@ -1336,7 +1337,7 @@ static int linear_solve (BSS_DATA *A, double abstol, int maxiter)
     A->resnorm = sqrt (InnerProd (r, r));
   }
   A->znorm = sqrt (InnerProd (A->z, A->z));
-  A->delta = A->resnorm / A->znorm; /* sqrt (L-curve) */
+  A->delta = 0.5 * A->resnorm / A->znorm; /* 0.5 * L-curve */ /* TODO: 0.5 */
 
   hypre_FlexGMRESDestroy (gmres_vdata);
 
@@ -1447,8 +1448,8 @@ BSS* BSS_Create (double meritval, int maxiter)
 /* run solver */
 void BSS_Solve (BSS *bs, LOCDYN *ldy)
 {
-  double *merit, tirem;
   char fmt [512];
+  double *merit;
   BSS_DATA *A;
   DOM *dom;
 
@@ -1463,9 +1464,9 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 
   do
   {
-    tirem = update_system (A, 0);
+    update_system (A, 0);
 
-    if (!linear_solve (A, bs->resdec * tirem, bs->linminiter + bs->iters)) break;
+    if (!linear_solve (A, bs->resdec * A->bnorm,  bs->linminiter + bs->iters)) break;
 
     update_solution (A);
 
@@ -1480,13 +1481,16 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 
   } while (++ bs->iters < bs->maxiter && *merit > bs->meritval);
 
-  A->delta = 0.0;
-  update_system (A, 1); /* freeze contacts */
-  if (linear_solve (A, bs->meritval, bs->linminiter + bs->iters))
+  if (bs->iters >= bs->maxiter)
   {
-    update_solution (A); /* refine equality constraints */
-    *merit = MERIT_Function (ldy, 0);
-    bs->merhist [bs->iters-1] = *merit;
+    A->delta = 0.0;
+    update_system (A, 1); /* freeze contacts */
+    if (linear_solve (A, bs->meritval, bs->linminiter + bs->iters)) /* TODO: abstol */
+    {
+      update_solution (A); /* refine equality constraints */
+      *merit = MERIT_Function (ldy, 0);
+      bs->merhist [bs->iters-1] = *merit;
+    }
   }
 
   destroy_data (A);
