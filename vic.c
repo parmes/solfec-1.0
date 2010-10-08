@@ -120,7 +120,7 @@ inline static void complex_m (double complex fri, double complex *S, double comp
 }
 
 /* real F = [UT, UN + fri |UT|]' */
-inline static void real_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double *U, double *F)
+inline static void real_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double *U, double UT, double *F)
 {
   double udash;
 
@@ -129,11 +129,12 @@ inline static void real_F (double res, double fri, double gap, double step, shor
 
   F [0] = U[0];
   F [1] = U[1];
-  F [2] = (udash + fri * sqrt (DOT2(U, U) + epsilon*epsilon));
+  if (UT >= 0.0) F [2] = (udash + fri * UT);
+  else F [2] = (udash + fri * sqrt (DOT2(U, U) + epsilon*epsilon));
 }
  
 /* complex F = [UT, UN + fri |UT|]' */
-inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double complex *U, double complex *F)
+inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double complex *U, double complex UT, double complex *F)
 {
   double complex udash;
 
@@ -142,11 +143,12 @@ inline static void complex_F (double res, double fri, double gap, double step, s
 
   F [0] = U[0];
   F [1] = U[1];
-  F [2] = (udash + fri * csqrt (DOT2(U, U) + epsilon*epsilon));
+  if (creal(UT) >= 0) F [2] = (udash + fri * UT);
+  else F [2] = (udash + fri * csqrt (DOT2(U, U) + epsilon*epsilon));
 }
 
-/* G(U,R) + X dU + Y dR  = 0 */
-void VIC_Linearize (CON *con, double *U, double *R, double smoothing_epsilon, double *G, double *X, double *Y)
+/* C(U,R) + X dU + Y dR, where C(U,R) = F(U) + m(R - F(U)) */
+void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_epsilon, double *C, double *X, double *Y)
 {
   DOM *dom = con->master->dom;
   short dynamic = dom->dynamic;
@@ -168,12 +170,12 @@ void VIC_Linearize (CON *con, double *U, double *R, double smoothing_epsilon, do
 		 cm [3];
   int k;
 
-  if (G)
+  if (C)
   {
-    real_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, U, F);
+    real_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, U, UT, F);
     SUB (R, F, S);
     real_m (fri, S, smoothing_epsilon, m);
-    ADD (F, m, G);
+    ADD (F, m, C);
   }
 
   if (X)
@@ -191,7 +193,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double smoothing_epsilon, do
       cU [1] = U[1] + 0.0 * imaginary_i;
       cU [2] = U[2] + 0.0 * imaginary_i;
       cU [k] += h * imaginary_i;
-      complex_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, cU, cF);
+      complex_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, cU, UT, cF);
       dF [3*k+0] = cimag (cF [0]) / h;
       dF [3*k+1] = cimag (cF [1]) / h;
       dF [3*k+2] = cimag (cF [2]) / h;

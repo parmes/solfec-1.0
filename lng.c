@@ -6620,6 +6620,7 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
     ELIF (obj, "GSINN") { shi->item = LABELED_INT; shi->op = OP_SUM; }
     ELIF (obj, "MERIT") { shi->item = LABELED_DOUBLE; shi->op = OP_MAX; }
     ELIF (obj, "NTITERS") { shi->item = LABELED_INT; shi->op = OP_MAX; }
+    ELIF (obj, "BSITERS") { shi->item = LABELED_INT; shi->op = OP_MAX; }
     ELSE
     {
       PyErr_SetString (PyExc_ValueError, "Invalid string value");
