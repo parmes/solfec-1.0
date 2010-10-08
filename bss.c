@@ -1278,7 +1278,7 @@ static void update_system (BSS_DATA *A, int nocontact)
       }
       else
       {
-	VIC_Linearize (dat->con, U, R, epsilon, b, X, Y);
+	VIC_Linearize (dat->con, U, R, -1, epsilon, b, X, Y);
 	SCALE (b, -1.0);
       }
 

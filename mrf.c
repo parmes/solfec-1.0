@@ -81,7 +81,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       }
       else
       {
-	VIC_Linearize (con, U, R, 0, P, NULL, NULL);
+	VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
 	NVMUL (A, P, Q);
 	up = DOT (Q, P);
       }
