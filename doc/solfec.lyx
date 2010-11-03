@@ -5186,13 +5186,17 @@ variant
 ')
 \end_layout
 
+\begin_layout Plain Layout
+\begin_inset Note Note
+status open
+
 \begin_layout Subsection
 NEWTON_SOLVER 
 \color red
 (Under development)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Object of type NEWTON_SOLVER represents a family of inexact Newton constraints
  solvers (formulated on the level of local dynamics).
 \end_layout
@@ -5250,7 +5254,7 @@ reference "tab:newton-variants"
  for other variants.
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \begin_inset Float table
 placement h
 wide false
@@ -5430,7 +5434,7 @@ Some parameters can also be accessed as members of a NEWTON_SOLVER object.
  These are
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
@@ -5492,7 +5496,7 @@ obj.merhist
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="1">
@@ -5591,7 +5595,7 @@ BODY_SPACE_SOLVER
 (Under development)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Object of type BODY_SPACE_SOLVER represents a projected inexact Newton solver
  implemented in the body space (without assembling local dynamics).
 \end_layout
@@ -5633,12 +5637,12 @@ maxiter
  - maximal number of iterations before termination (default: 20)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Some parameters can also be accessed as members of a BODY_SPACE_SOLVER object.
  These are
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
@@ -5700,7 +5704,7 @@ obj.merhist
 
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="1">
@@ -5788,6 +5792,11 @@ obj.smooth
 </cell>
 </row>
 </lyxtabular>
+
+\end_inset
+
+
+\end_layout
 
 \end_inset
 
@@ -8608,7 +8617,11 @@ None
 \emph on
 normal
 \emph default
- direction is preferred), tuple (
+ direction is preferred), 
+\emph on
+pair
+\emph default
+ is a tuple (
 \emph on
 surf1,
 \emph default

@@ -50,8 +50,6 @@ struct newton
 
   /* private */
 
-  int verbose; /* verbosity flag */
-
   LINSYS *sys; /* used when created on a subset of constraints */
 
   double inimer; /* initial LINSYS merit */

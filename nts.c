@@ -165,7 +165,6 @@ NEWTON* NEWTON_Create (LINVAR variant, double meritval, int maxiter)
   nt->linminiter = 5;
   nt->resdec = 0.25;
   nt->merhist = NULL;
-  nt->verbose = 1;
 
   return nt;
 }
@@ -253,7 +252,7 @@ void NEWTON_Solve (NEWTON *nt, LOCDYN *ldy)
 #if MPI
     if (dom->rank == 0)
 #endif
-    if (dom->verbose && nt->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, *merit);
+    if (dom->verbose) printf (fmt, LINSYS_Iters (sys), LINSYS_Resnorm (sys), nt->iters, *merit);
 
   } while (++ nt->iters < nt->maxiter && *merit > nt->meritval);
 

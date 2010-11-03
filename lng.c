@@ -325,6 +325,7 @@ static int is_number_ge_val (PyObject *obj, char *var, double val)
   return 1;
 }
 
+#if 0
 /* test whether an object is a number >= val0 and < val1 */
 static int is_number_ge_val0_lt_val1 (PyObject *obj, char *var, double val0, double val1)
 {
@@ -353,6 +354,7 @@ static int is_number_ge_val0_lt_val1 (PyObject *obj, char *var, double val0, dou
 
   return 1;
 }
+#endif
 
 /* test whether an object is a list (details as above) or a number */
 static int is_list_or_number (PyObject *obj, char *var, int div, int len)
@@ -3500,18 +3502,6 @@ static void lng_BODY_SPACE_SOLVER_dealloc (lng_BODY_SPACE_SOLVER *self)
   self->ob_type->tp_free ((PyObject*)self);
 }
 
-static PyObject* lng_BODY_SPACE_SOLVER_get_maxiter (lng_BODY_SPACE_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->bs->maxiter);
-}
-
-static int lng_BODY_SPACE_SOLVER_set_maxiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number_gt_val (value, "maxiter", 0)) return -1;
-  self->bs->maxiter = PyInt_AsLong (value);
-  return 0;
-}
-
 static PyObject* lng_BODY_SPACE_SOLVER_get_meritval (lng_BODY_SPACE_SOLVER *self, void *closure)
 {
   return PyFloat_FromDouble (self->bs->meritval);
@@ -3524,39 +3514,27 @@ static int lng_BODY_SPACE_SOLVER_set_meritval (lng_BODY_SPACE_SOLVER *self, PyOb
   return 0;
 }
 
-static PyObject* lng_BODY_SPACE_SOLVER_get_linminiter (lng_BODY_SPACE_SOLVER *self, void *closure)
+static PyObject* lng_BODY_SPACE_SOLVER_get_maxiter (lng_BODY_SPACE_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->bs->linminiter);
+  return PyFloat_FromDouble (self->bs->maxiter);
 }
 
-static int lng_BODY_SPACE_SOLVER_set_linminiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+static int lng_BODY_SPACE_SOLVER_set_maxiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "linminiter", 1)) return -1;
-  self->bs->linminiter = PyInt_AsLong (value);
+  if (!is_number_gt_val (value, "maxiter", 0)) return -1;
+  self->bs->maxiter = PyInt_AsLong (value);
   return 0;
 }
 
-static PyObject* lng_BODY_SPACE_SOLVER_get_resdec (lng_BODY_SPACE_SOLVER *self, void *closure)
+static PyObject* lng_BODY_SPACE_SOLVER_get_linmaxiter (lng_BODY_SPACE_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->bs->resdec);
+  return PyFloat_FromDouble (self->bs->linmaxiter);
 }
 
-static int lng_BODY_SPACE_SOLVER_set_resdec (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+static int lng_BODY_SPACE_SOLVER_set_linmaxiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_gt_val (value, "resdec", 0)) return -1;
-  self->bs->resdec = PyFloat_AsDouble (value);
-  return 0;
-}
-
-static PyObject* lng_BODY_SPACE_SOLVER_get_smooth (lng_BODY_SPACE_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->bs->smooth);
-}
-
-static int lng_BODY_SPACE_SOLVER_set_smooth (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number_ge_val0_lt_val1 (value, "smooth", 0, 1)) return -1;
-  self->bs->smooth = PyFloat_AsDouble (value);
+  if (!is_number_ge_val (value, "linmaxiter", 1)) return -1;
+  self->bs->linmaxiter = PyInt_AsLong (value);
   return 0;
 }
 
@@ -3603,9 +3581,7 @@ static PyGetSetDef lng_BODY_SPACE_SOLVER_getset [] =
 { 
   {"meritval", (getter)lng_BODY_SPACE_SOLVER_get_meritval, (setter)lng_BODY_SPACE_SOLVER_set_meritval, "merit function accuracy", NULL},
   {"maxiter", (getter)lng_BODY_SPACE_SOLVER_get_maxiter, (setter)lng_BODY_SPACE_SOLVER_set_maxiter, "iterations bound", NULL},
-  {"linminiter", (getter)lng_BODY_SPACE_SOLVER_get_linminiter, (setter)lng_BODY_SPACE_SOLVER_set_linminiter, "linear solver minimal iterations count", NULL},
-  {"resdec", (getter)lng_BODY_SPACE_SOLVER_get_resdec, (setter)lng_BODY_SPACE_SOLVER_set_resdec, "linear solver residual decrease factor", NULL},
-  {"smooth", (getter)lng_BODY_SPACE_SOLVER_get_smooth, (setter)lng_BODY_SPACE_SOLVER_set_smooth, "derivative smoothing coefficient", NULL},
+  {"linmaxiter", (getter)lng_BODY_SPACE_SOLVER_get_linmaxiter, (setter)lng_BODY_SPACE_SOLVER_set_linmaxiter, "linear solver maximal iterations count", NULL},
   {"merhist", (getter)lng_BODY_SPACE_SOLVER_get_merhist, (setter)lng_BODY_SPACE_SOLVER_set_merhist, "merit function history", NULL},
   {"iters", (getter)lng_BODY_SPACE_SOLVER_get_iters, (setter)lng_BODY_SPACE_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}

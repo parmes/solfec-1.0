@@ -630,7 +630,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 
   ldy->free_energy = 0.0;
 
-  /* calculate local velocities and * assmeble
+  /* calculate local velocities and assmeble
    * the diagonal force-velocity 'W' operator */
   for (dia = ldy->dia; dia; dia = dia->n)
   {

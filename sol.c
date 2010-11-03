@@ -59,7 +59,7 @@ static void clean_timers (SOLFEC *sol)
 }
 
 /* turn on verbosity */
-static int verbose_on (SOLFEC *sol, short kind, void *solver)
+static int verbose_on (SOLFEC *sol)
 {
   if (sol->verbose)
   {
@@ -70,7 +70,7 @@ static int verbose_on (SOLFEC *sol, short kind, void *solver)
 }
 
 /* turn off verbosity */
-static int verbose_off (SOLFEC *sol, short kind, void *solver)
+static int verbose_off (SOLFEC *sol)
 {
   sol->dom->verbose = 0;
 
@@ -530,7 +530,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     /* TODO: make this more efficient by using a single call */
 #endif
 
-    verbose = verbose_on (sol, kind, solver);
+    verbose = verbose_on (sol);
     sol->duration = duration;
     sol->start = time (NULL);
     timerstart (&tim);
@@ -561,8 +561,8 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
        * human perciveable period of time */
       tt = timerend (&tim);
       if (verbose) statsout (sol);
-      if (tt < 1.0) verbose = verbose_off (sol, kind, solver);
-      else if (tt >= 1.0) verbose = verbose_on (sol, kind, solver), timerstart (&tim);
+      if (tt < 1.0) verbose = verbose_off (sol);
+      else if (tt >= 1.0) verbose = verbose_on (sol), timerstart (&tim);
 
       /* write output if needed */
       if (sol->dom->time >= sol->output_time)

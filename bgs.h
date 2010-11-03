@@ -99,8 +99,6 @@ struct gs
   GSVARIANT variant; /* parallel algorithm variant (ignored in serial mode) */
 
   int innerloops; /* number of inner GS loops per one global parallel step (ignored in serial mode) */
-
-  short verbose; /* verbosity flag */
 };
 
 /* create solver */
