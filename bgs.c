@@ -106,7 +106,7 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   for (m = i = 0; i < ncpu; i ++) m = MAX (m, color [i]); /* compute number of colors */
   gs->colors = m; /* record number of colors */
 
-  if (rank == 0 && ldy->dom->verbose && gs->verbose)
+  if (rank == 0 && ldy->dom->verbose)
   {
 #if DEBUG
   for (i = 0; i < ncpu; i ++)
@@ -462,7 +462,6 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, double meritval,
   gs->error = GS_OK;
   gs->variant = GS_FULL;
   gs->innerloops = 1;
-  gs->verbose = 1;
 
   return gs;
 }
@@ -534,7 +533,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   rank = dom->rank;
   merit = &dom->merit;
   solfec = dom->solfec;
-  verbose = dom->verbose && gs->verbose;
+  verbose = dom->verbose;
 
   if (rank == 0 && verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -964,7 +963,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   S("GSRUN");
 
-  verbose = ldy->dom->verbose && gs->verbose;
+  verbose = ldy->dom->verbose;
   merit = &ldy->dom->merit;
 
   if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);

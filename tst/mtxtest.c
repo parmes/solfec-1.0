@@ -137,6 +137,16 @@ static MX* read_matrix (OP op, FILE *file, int m, int n, short kind)
   return mat;
 }
 
+static MX* Trimat (MX *a, MX *b, MX *c, MX *d)
+{
+  MX *t;
+
+  t = MX_Matmat (1.0, b, c, 0.0, NULL);
+  d = MX_Matmat (1.0, a, t, 0.0, d);
+  MX_Destroy (t);
+  return d;
+}
+
 static int test_run_0 (FILE *file, MX *A, MX *B, MX *C, MX *D, MX *E, double alpha, double beta, short kind)
 {
   MX *X, *Y, *Z, *invA, *invB;
@@ -288,7 +298,7 @@ static int test_run_0 (FILE *file, MX *A, MX *B, MX *C, MX *D, MX *E, double alp
   else { printf ("FAILED\n"); return 0; }
 
   printf ("TEST: E * A * D ... ");
-  MX_Trimat (E, A, D, X);
+  Trimat (E, A, D, X);
   Y = read_matrix (OUTPUT, file, E->m, D->n, kind);
   MX_Add (1.0, X, -1.0, Y, Z);
   MX_Destroy (Y);
@@ -296,7 +306,7 @@ static int test_run_0 (FILE *file, MX *A, MX *B, MX *C, MX *D, MX *E, double alp
   else { printf ("FAILED\n"); return 0; }
 
   printf ("TEST: D' * inv(B) * D ... ");
-  MX_Trimat (MX_Tran (D), invB, D, X);
+  Trimat (MX_Tran (D), invB, D, X);
   Y = read_matrix (OUTPUT, file, D->n, D->n, kind);
   MX_Add (1.0, X, -1.0, Y, Z);
   MX_Destroy (Y);
@@ -307,7 +317,7 @@ static int test_run_0 (FILE *file, MX *A, MX *B, MX *C, MX *D, MX *E, double alp
   MX_Destroy (Z);
 
   printf ("TEST: E * inv(A) * E' ... ");
-  X = MX_Trimat (E, invA, MX_Tran (E), NULL);
+  X = Trimat (E, invA, MX_Tran (E), NULL);
   Y = read_matrix (OUTPUT, file, E->m, E->m, kind);
   Z = MX_Add (1.0, X, -1.0, Y, NULL);
   MX_Destroy (Y);

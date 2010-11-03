@@ -1112,7 +1112,7 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
   {
     if (bod->con) A->bod [n ++] = bod;
   }
-  A->epsilon = bs->smooth;
+  A->epsilon = 0.0; /* FIXME */
   A->dat = create_constraints_data (dom, A, A->bod, A->nbod, &A->ndat, &A->x, &dom->ldy->free_energy, &A->epsilon); /* A->x initialized with con->R */
   A->ndual = A->ndat * 3;
   A->b = newvector (A->ndual);
@@ -1437,10 +1437,7 @@ BSS* BSS_Create (double meritval, int maxiter)
   ERRMEM (bs = MEM_CALLOC (sizeof (BSS)));
   bs->meritval = meritval;
   bs->maxiter = maxiter;
-  bs->linminiter = 5;
-  bs->resdec = 0.25;
-  bs->smooth = 0.0;
-  bs->verbose = 1;
+  bs->linmaxiter = maxiter * 10;
 
   return bs;
 }
@@ -1454,7 +1451,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
   DOM *dom;
 
   sprintf (fmt, "BODY_SPACE_SOLVER: (LIN its/res: %%%dd/%%.2e) iteration: %%%dd merit: %%.2e\n",
-           (int)log10 (bs->linminiter * bs->maxiter) + 1, (int)log10 (bs->maxiter) + 1);
+           (int)log10 (bs->linmaxiter) + 1, (int)log10 (bs->maxiter) + 1);
 
   ERRMEM (bs->merhist = realloc (bs->merhist, bs->maxiter * sizeof (double)));
   dom = ldy->dom;
@@ -1466,7 +1463,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
   {
     update_system (A, 0);
 
-    if (!linear_solve (A, bs->resdec * A->bnorm,  bs->linminiter + bs->iters)) break;
+    if (!linear_solve (A, 0.25 * A->bnorm,  bs->linmaxiter)) break; /* TODO: react */
 
     update_solution (A);
 
@@ -1477,7 +1474,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 #if MPI
     if (dom->rank == 0)
 #endif
-    if (dom->verbose && bs->verbose) printf (fmt, A->iters, A->resnorm, bs->iters, *merit);
+    if (dom->verbose) printf (fmt, A->iters, A->resnorm, bs->iters, *merit);
 
   } while (++ bs->iters < bs->maxiter && *merit > bs->meritval);
 
@@ -1485,7 +1482,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
   {
     A->delta = 0.0;
     update_system (A, 1); /* freeze contacts */
-    if (linear_solve (A, bs->meritval, bs->linminiter + bs->iters)) /* TODO: abstol */
+    if (linear_solve (A, bs->meritval, bs->linmaxiter)) /* TODO: abstol */
     {
       update_solution (A); /* refine equality constraints */
       *merit = MERIT_Function (ldy, 0);

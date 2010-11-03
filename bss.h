@@ -34,19 +34,13 @@ struct body_space_solver
 
   int maxiter; /* iterations bound */
 
-  int linminiter; /* linear solver minimal iterations count */
-
-  double resdec; /* linear solver residual decrease factor */
-
-  double smooth; /* derivative smoothing coefficient */
-
-  int verbose; /* verbosity flag */
+  int linmaxiter; /* linear solver iterations bound */
 
   /* output */
 
-  int iters; /* most recent number of iterations */
-
   double *merhist; /* merit function history */
+
+  int iters; /* iterations count */
 };
 
 /* create solver */
