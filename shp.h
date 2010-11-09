@@ -41,8 +41,6 @@ struct shape
 
   void *data; /* representation */
 
-  void *epr; /* EPR element (when owned by an EPR body) */
-
   SHAPE *next;
 };
 
