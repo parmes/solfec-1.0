@@ -60,31 +60,27 @@ typedef void* (*unpack_func) (void*, int*, double*, int, int*, int*, int);
 static unpack_func unpack [] = {(unpack_func)MESH_Unpack, (unpack_func)CONVEX_Unpack, (unpack_func)SPHERE_Unpack};
 
 /* append shape */
-static SHAPE* append (SHAPE *shp, short kind, void *data)
+static SHAPE* append (SHAPE *list, short kind, void *data)
 {
-  SHAPE *shq;
+  SHAPE *shp;
 
-  ERRMEM (shq = malloc (sizeof (SHAPE)));
-  shq->kind = kind;
-  shq->data = data;
-  shq->epr = NULL;
-  shq->next = shp;
+  shp = SHAPE_Create (kind, data);
+  shp->next = list;
 
-  return shq;
+  return shp;
 }
 
 /* create a general shape */
 SHAPE* SHAPE_Create (short kind, void *data)
 {
-  SHAPE *shq;
+  SHAPE *shp;
 
-  ERRMEM (shq = malloc (sizeof (SHAPE)));
-  shq->kind = kind;
-  shq->data = data;
-  shq->epr = NULL;
-  shq->next = NULL;
+  ERRMEM (shp = malloc (sizeof (SHAPE)));
+  shp->kind = kind;
+  shp->data = data;
+  shp->next = NULL;
 
-  return shq;
+  return shp;
 }
 
 /* create shape geometric object pairs */
@@ -188,7 +184,7 @@ SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq)
     {
     case SHAPE_MESH:
       shq->next = out; /* meshes are copied */
-      out = shp;
+      out = shq;
       break;
     case SHAPE_CONVEX:
       cvx = CONVEX_Glue (shq->data, cvx); /* convices are lumped together */
