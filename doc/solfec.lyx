@@ -5186,7 +5186,7 @@ variant
 ')
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \begin_inset Note Note
 status open
 
@@ -8109,6 +8109,62 @@ rough mesh
 parts
 \series default
  - number of partitions
+\end_layout
+
+\begin_layout Subsection*
+obj = OVERLAPPING (obstacles, shapes | not, gap)
+\end_layout
+
+\begin_layout Standard
+This routine looks for shapes (not) overlapping the obstacles.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - list of shapes (not) ovrelapping the obstacles.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obstacles
+\series default
+ - object, collection of objects, or a list 
+\emph on
+[a, b, c, ...]
+\emph default
+ of objects of type CONVEX, MESH, SPHERE.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shapes
+\series default
+ (emptied) - object, collection of objects, or a list 
+\emph on
+[a, b, c, ...]
+\emph default
+ of objects of type CONVEX, MESH, SPHERE.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+not
+\series default
+ - 'NOT' string.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+gap
+\series default
+ - maximal negative gap.
 \end_layout
 
 \begin_layout Section

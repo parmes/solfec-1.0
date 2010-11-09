@@ -275,7 +275,7 @@ AABB* AABB_Create (int size)
 {
   AABB *aabb;
 
-  ERRMEM (aabb = malloc (sizeof (AABB)));
+  ERRMEM (aabb = MEM_CALLOC (sizeof (AABB)));
   MEM_Init (&aabb->boxmem, sizeof (BOX), MIN (size, SIZE));
   MEM_Init (&aabb->mapmem, sizeof (MAP), MIN (size, SIZE));
   MEM_Init (&aabb->setmem, sizeof (SET), MIN (size, SIZE));
