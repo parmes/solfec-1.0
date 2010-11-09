@@ -10,7 +10,7 @@ def read_shapes (path, volid, surid):
 
   # read nodes
   if lst [0] != 'Points':
-    print 'Invalid torrent formar'
+    print 'Invalid cascade formar'
     return None
 
   m = int (lst [1])
@@ -117,15 +117,15 @@ def create_balls (shapes, numbers, radius, leyers, thickness):
 step = 0.01
 stop = 60
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/torrent')
-SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1)
+solfec = SOLFEC ('DYNAMIC', step, 'out/cascade')
+SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 bulk = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 GRAVITY (solfec, (0, 0, -10))
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 3)
 
-shapes = read_shapes ('inp/mesh/torrent.dat', 1, 1)
+shapes = read_shapes ('inp/mesh/cascade.dat', 1, 1)
 
-balls = create_balls (shapes, [260], 2, 5, 10)
+balls = create_balls (shapes, [91, 86], 0.2, 5, 1)
 
 for shp in shapes:
   BODY (solfec, 'OBSTACLE', shp, bulk)

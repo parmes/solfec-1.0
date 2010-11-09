@@ -29,6 +29,8 @@
 #include "rnd.h"
 #include "lng.h"
 #include "fem.h"
+#include "box.h"
+#include "goc.h"
 #include "err.h"
 
 #if MPI
@@ -286,7 +288,7 @@ static int is_number_gt_val (PyObject *obj, char *var, double val)
 
       if (num <= val)
       {
-	sprintf (buf, "'%s' must be a number >= %g", var, val);
+	sprintf (buf, "'%s' must be a number > %g", var, val);
 	PyErr_SetString (PyExc_TypeError, buf);
 	return 0;
       }
@@ -320,6 +322,21 @@ static int is_number_ge_val (PyObject *obj, char *var, double val)
 	return 0;
       }
     }
+  }
+
+  return 1;
+}
+
+/* test whether a number <= val */
+static int is_le (double num, char *var, double val)
+{
+  char buf [BUFLEN];
+
+  if (num > val)
+  {
+    sprintf (buf, "'%s' must be a number <= %g", var, val);
+    PyErr_SetString (PyExc_TypeError, buf);
+    return 0;
   }
 
   return 1;
@@ -2040,8 +2057,9 @@ static SHAPE* create_shape (PyObject *obj, short empty)
       for (i = 0; i < n; i ++)
       {
 	it = PyList_GetItem (obj, i);
-	if (empty) out = SHAPE_Glue (SHAPE_Create (shape_kind (it), get_shape (it, empty)), out); /* glue simple shapes (destructive for simple shape lists) */
-	else out = SHAPE_Glue_Simple (SHAPE_Create (shape_kind (it), get_shape (it, empty)), out); /* do not glue simple shape (non destructive) */
+	if (empty > 0) out = SHAPE_Glue (SHAPE_Create (shape_kind (it), get_shape (it, 1)), out); /* empty and glue simple shapes (destructive for simple shape lists) */
+	else if (empty < 0) out = SHAPE_Glue_Simple (SHAPE_Create (shape_kind (it), get_shape (it, 1)), out); /* empty and do not glue simple shape (non destructive) */
+	else out = SHAPE_Glue_Simple (SHAPE_Create (shape_kind (it), get_shape (it, 0)), out); /* do not empty and do not glue simple shape (non destructive) */
       }
 
       return out;
@@ -6020,6 +6038,147 @@ riglnk:
   return list;
 }
 
+/* overlap callback data */
+typedef struct 
+{
+  SET *set;
+  BODY *bod;
+  double gap;
+} OCD;
+
+/* overlap callback */
+static void overlap_create (OCD *ocd, BOX *one, BOX *two)
+{
+  double onepnt [3], twopnt [3], normal [3], gap, area;
+  int state, spair [2];
+
+  if (one->body == two->body) return;
+
+  state = gobjcontact (
+    CONTACT_DETECT, GOBJ_Pair_Code (one, two),
+    one->sgp->shp, one->sgp->gobj,
+    two->sgp->shp, two->sgp->gobj,
+    onepnt, twopnt, normal, &gap, &area, spair);
+
+  if (state && gap >= ocd->gap)
+  {
+    if (ocd->bod == one->body)
+    {
+      SET_Insert (NULL, &ocd->set, one->sgp->shp, NULL);
+    }
+    else
+    {
+      SET_Insert (NULL, &ocd->set, two->sgp->shp, NULL);
+    }
+  }
+}
+
+/* calculate overlaps */
+static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("obstacles", "shapes", "not", "gap");
+  PyObject *obstacles, *shapes, *notobj;
+  SET *item, *add, *sub;
+  SHAPE *outshp, *ptr;
+  BODY *obs, *shp;
+  SGP *sgp, *sgpe;
+  AABB *aabb;
+  OCD ocd;
+  int not;
+
+  notobj = NULL;
+  not = 0;
+  ocd.gap = 0;
+
+  PARSEKEYS ("OO|Od)", &obstacles, &shapes, &notobj, &ocd.gap);
+
+  TYPETEST (is_shape (obstacles, kwl[0]) && is_shape (shapes, kwl[1]) &&
+            is_string (notobj, kwl [2]) && is_le (ocd.gap, kwl[3], 0));
+
+  if (notobj)
+  {
+    IFIS (notobj, "NOT")
+    {
+      not = 1;
+    }
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Only 'NOT' is valid");
+      return NULL;
+    }
+  }
+
+  ERRMEM (obs = MEM_CALLOC (sizeof (BODY)));
+  ERRMEM (shp = MEM_CALLOC (sizeof (BODY)));
+  obs->shape = create_shape (obstacles, 0);
+  shp->shape = create_shape (shapes, -1); /* empty and simple glue */
+  obs->sgp = SGP_Create (obs->shape, &obs->nsgp);
+  shp->sgp = SGP_Create (shp->shape, &shp->nsgp);
+  aabb = AABB_Create (obs->nsgp + shp->nsgp);
+  obs->kind = shp->kind = RIG;
+  ocd.bod = shp;
+  ocd.set = NULL;
+  add = NULL;
+  sub = NULL;
+
+  for (sgp = obs->sgp, sgpe = sgp + obs->nsgp; sgp < sgpe; sgp ++)
+  {
+    AABB_Insert (aabb, obs, GOBJ_Kind (sgp), sgp, SGP_Extents_Update (sgp));
+  }
+  for (sgp = shp->sgp, sgpe = sgp + shp->nsgp; sgp < sgpe; sgp ++)
+  {
+    AABB_Insert (aabb, shp, GOBJ_Kind (sgp), sgp, SGP_Extents_Update (sgp));
+  }
+
+  /* detect overlaps */
+  AABB_Update (aabb, HYBRID, &ocd, (BOX_Overlap_Create) overlap_create);
+
+  if (not)
+  {
+    for (sgp = shp->sgp, sgpe = sgp + shp->nsgp; sgp < sgpe; sgp ++)
+    {
+      if (SET_Contains (ocd.set, sgp->shp, NULL)) SET_Insert (NULL, &sub, sgp->shp, NULL);
+      else SET_Insert (NULL, &add, sgp->shp, NULL);
+      sgp->shp->next = NULL;
+    }
+  }
+  else
+  {
+    for (sgp = shp->sgp, sgpe = sgp + shp->nsgp; sgp < sgpe; sgp ++)
+    {
+      if (SET_Contains (ocd.set, sgp->shp, NULL)) SET_Insert (NULL, &add, sgp->shp, NULL);
+      else SET_Insert (NULL, &sub, sgp->shp, NULL);
+      sgp->shp->next = NULL;
+    }
+  }
+
+  /* create output shape list */
+  for (outshp = NULL, item = SET_First (add); item; item = SET_Next (item))
+  {
+    ptr = item->data;
+    ptr->next = outshp;
+    outshp = ptr;
+  }
+
+  /* destroy remaining shapes */
+  for (item = SET_First (sub); item; item = SET_Next (item))
+  {
+    SHAPE_Destroy (item->data);
+  }
+
+  free (obs->sgp);
+  free (shp->sgp);
+  AABB_Destroy (aabb);
+  SET_Free (NULL, &add);
+  SET_Free (NULL, &sub);
+  SET_Free (NULL, &ocd.set);
+  SHAPE_Destroy_Wrapper (obs->shape);
+  free (obs);
+  free (shp);
+
+  return shape_to_list (outshp);
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6764,6 +6923,7 @@ static PyMethodDef lng_methods [] =
   {"GEOMETRIC_EPSILON", (PyCFunction)lng_GEOMETRIC_EPSILON, METH_VARARGS|METH_KEYWORDS, "Set geometric epsilon"},
   {"LOCDYN_DUMP", (PyCFunction)lng_LOCDYN_DUMP, METH_VARARGS|METH_KEYWORDS, "Dump local dynamics"},
   {"PARTITION", (PyCFunction)lng_PARTITION, METH_VARARGS|METH_KEYWORDS, "Partition a finite element body"},
+  {"OVERLAPPING", (PyCFunction)lng_OVERLAPPING, METH_VARARGS|METH_KEYWORDS, "Detect shapes (not) overlapping obstacles"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -6950,6 +7110,7 @@ int lng (const char *path)
                      "from solfec import GEOMETRIC_EPSILON\n"
                      "from solfec import LOCDYN_DUMP\n"
                      "from solfec import PARTITION\n"
+                     "from solfec import OVERLAPPING\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

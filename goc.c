@@ -228,7 +228,7 @@ static int detect_convex_sphere (
 {
   double g, h;
 
-  if (gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt) < GEOMETRIC_EPSILON)
+  if ((g = gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt)) < GEOMETRIC_EPSILON)
   {
     for (h = r; g < GEOMETRIC_EPSILON && h > GEOMETRIC_EPSILON; h *= 0.5)
       g = gjk_convex_sphere (vc, nvc, c, h, onepnt, twopnt); /* shrink sphere and redo => find projection
