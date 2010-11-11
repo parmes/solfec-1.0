@@ -192,6 +192,52 @@ void SPSET_Destroy (SPSET *set)
   free (set);
 }
 
+/* export MBFCP definition */
+void SPSET_2_MBFCP (SPSET *set, FILE *out)
+{
+  SURFACE_MATERIAL **tab;
+  int i;
+
+  ERRMEM (tab = malloc ((set->size + 1) * sizeof (SURFACE_MATERIAL*)));
+  for (i = 1, tab [0] = &set->def; i <= set->size; i ++) tab [i] = set->tab [i-1];
+
+  fprintf (out, "SURFACE_MATERIALS:\t%d\n", set->size + 1);
+
+  for (i = 0; i < set->size + 1; i ++)
+  {
+    if (i)
+    {
+      fprintf (out, "SURF1:\t%d\n", tab [i]->surf1);
+      fprintf (out, "SURF2:\t%d\n", tab [i]->surf2);
+    }
+    else
+    {
+      fprintf (out, "SURF1:\t%s\n", "ANY");
+      fprintf (out, "SURF2:\t%s\n", "ANY");
+    }
+
+    switch (tab [i]->model)
+    {
+    case SIGNORINI_COULOMB:
+      fprintf (out, "MODEL:\t%s\n", "SIGNORINI_COULOMB");
+      fprintf (out, "FRICTION:\t%g\n", tab [i]->friction);
+      fprintf (out, "COHESION:\t%g\n", tab [i]->cohesion);
+      fprintf (out, "RESTITUTION:\t%g\n", tab [i]->restitution);
+      break;
+    case SPRING_DASHPOT:
+      fprintf (out, "MODEL:\t%s\n", "SPRING_DASHPOT");
+      fprintf (out, "FRICTION:\t%g\n", tab [i]->friction);
+      fprintf (out, "COHESION:\t%g\n", tab [i]->cohesion);
+      fprintf (out, "SPRING:\t%g\n", tab [i]->spring);
+      fprintf (out, "DASHPOT:\t%g\n", tab [i]->dashpot);
+      break;
+    }
+  }
+
+  fprintf (out, "\n");
+  free (tab);
+}
+
 /* transfer data from the source 'src' to a destiny 'dst' at the given 'time' */
 short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MATERIAL_STATE *dst)
 {

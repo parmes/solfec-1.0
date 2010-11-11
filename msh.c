@@ -2073,3 +2073,45 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   return msh;
 }
+
+/* export MBFCP definition */
+void MESH_2_MBFCP (MESH *msh, FILE *out)
+{
+  ELEMENT *ele;
+  FACE *fac;
+  int n;
+
+  fprintf (out, "NODES:\t%d\n", msh->nodes_count);
+
+  for (n = 0; n < msh->nodes_count; n ++)
+  {
+    fprintf (out, "%g  %g  %g\n", msh->ref_nodes [n][0], msh->ref_nodes [n][1], msh->ref_nodes [n][2]);
+  }
+
+  fprintf (out, "ELEMENTS:\t%d\n", msh->surfeles_count + msh->bulkeles_count);
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    fprintf (out, "%d", ele->type);
+    for (n = 0; n < ele->type; n ++) fprintf (out, "  %d", ele->nodes [n]);
+    fprintf (out, "\n");
+  }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    fprintf (out, "%d", ele->type);
+    for (n = 0; n < ele->type; n ++) fprintf (out, "  %d", ele->nodes [n]);
+    fprintf (out, "\n");
+  }
+
+  for (fac = msh->faces, n = 0; fac; fac = fac->n, n ++);
+
+  fprintf (out, "FACES:\t%d\n", n);
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    fprintf (out, "%d", fac->type);
+    for (n = 0; n < fac->type; n ++) fprintf (out, "  %d", fac->nodes [n]);
+    fprintf (out, "  %d\n", fac->surface);
+  }
+}

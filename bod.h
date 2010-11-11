@@ -161,7 +161,7 @@ struct general_body
 
   MX *K;            /* stiffness operator */
 
-  double damping;   /* mass proportional damping */
+  double damping;   /* stiffness proportional damping */
 
   DOM *dom;        /* domain storing the body */
 
@@ -298,5 +298,8 @@ void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int
 
 /* compute c = alpha * INVERSE (bod) * b + beta * c */
 void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
+
+/* export MBFCP definition */
+void BODY_2_MBFCP (BODY *bod, FILE *out);
 
 #endif

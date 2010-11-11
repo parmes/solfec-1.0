@@ -660,29 +660,35 @@ void SOLFEC_Seek_To (SOLFEC *sol, double time)
 }
 
 /* step backward in READ modes */
-void SOLFEC_Backward (SOLFEC *sol, int steps)
+int SOLFEC_Backward (SOLFEC *sol, int steps)
 {
   if (sol->mode == SOLFEC_READ)
   {
     if (init (sol))
     {
-      PBF_Backward (sol->bf, steps);
+      int ret = PBF_Backward (sol->bf, steps);
       read_state (sol);
+      return ret;
     }
   }
+
+  return 0;
 }
 
 /* step forward in READ modes */
-void SOLFEC_Forward (SOLFEC *sol, int steps)
+int SOLFEC_Forward (SOLFEC *sol, int steps)
 {
   if (sol->mode == SOLFEC_READ)
   {
     if (init (sol))
     {
-      PBF_Forward (sol->bf, steps);
+      int ret = PBF_Forward (sol->bf, steps);
       read_state (sol);
+      return ret;
     }
   }
+
+  return 0;
 }
 
 /* read the history of an object (a labeled value, a body or
@@ -936,4 +942,14 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
   if (skip < 0) printf ("\n"); /* progress end */
 
   return time;
+}
+
+/* export MBFCP definition*/
+void SOLFEC_2_MBFCP (SOLFEC *sol, FILE *out)
+{
+  SPSET_2_MBFCP (sol->sps, out);
+
+  MATSET_2_MBFCP (sol->mat, out);
+
+  DOM_2_MBFCP (sol->dom, out);
 }

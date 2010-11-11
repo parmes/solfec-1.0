@@ -702,34 +702,42 @@ void PBF_Seek (PBF *bf, double time)
   }
 }
 
-void PBF_Backward (PBF *bf, unsigned int steps)
+int PBF_Backward (PBF *bf, unsigned int steps)
 {
   if (bf->mode == PBF_READ)
   {
-    int pos;
+    int pos, ret;
 
     for (; bf; bf = bf->next)
     {
-      if (bf->cur < steps) pos = 0;
-      else pos = bf->cur - steps;
+      if (bf->cur < steps) pos = 0, ret = 0;
+      else pos = bf->cur - steps, ret = 1;
       initialise_frame (bf, pos);
     }
+
+    return ret;
   }
+
+  return 0;
 }
 
-void PBF_Forward (PBF *bf, unsigned int steps)
+int PBF_Forward (PBF *bf, unsigned int steps)
 {
   if (bf->mode == PBF_READ)
   {
-    int pos;
+    int pos, ret;
 
     for (; bf; bf = bf->next)
     {
-      if (bf->cur + steps >=  bf->msize) pos = bf->msize - 1;
-      else pos = bf->cur + steps;
+      if (bf->cur + steps >=  bf->msize) pos = bf->msize - 1, ret = 0;
+      else pos = bf->cur + steps, ret = 1;
       initialise_frame (bf, pos);
     }
+
+    return ret;
   }
+
+  return 0;
 }
 
 unsigned int PBF_Span (PBF *bf, double t0, double t1)

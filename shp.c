@@ -478,3 +478,43 @@ SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
 
   return head;
 }
+
+/* export MBFCP definition */
+void SHAPE_2_MBFCP (SHAPE *shp, FILE *out)
+{
+  SET *msh = NULL, *item;
+  SHAPE *ptr;
+  int n;
+
+  for (ptr = shp, n = 0; ptr; ptr = ptr->next, n ++);
+
+  fprintf (out, "SHAPES:\t%d\n", n);
+
+  for (ptr = shp; ptr; ptr = ptr->next)
+  {
+    switch (ptr->kind)
+    {
+    case SHAPE_MESH:
+      SET_Insert (NULL, &msh, ptr->data, NULL);
+      break;
+    case SHAPE_CONVEX:
+      CONVEX_2_MBFCP (ptr->data, out);
+      break;
+    case SHAPE_SPHERE:
+      SPHERE_2_MBFCP (ptr->data, out);
+      break;
+    }
+  }
+
+  if (SET_Size (msh))
+  {
+    fprintf (out, "MESHES:\t%d\n", SET_Size (msh));
+
+    for (item = SET_First (msh); item; item = SET_Next (item))
+    {
+      MESH_2_MBFCP (item->data, out);
+    }
+
+    SET_Free (NULL, &msh);
+  }
+}

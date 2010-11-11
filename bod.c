@@ -2301,3 +2301,40 @@ void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
       break;
   }
 }
+
+/* export MBFCP definition */
+void BODY_2_MBFCP (BODY *bod, FILE *out)
+{
+  char *kind [] = {"OBSTACLE", "RIGID", "PSEUDO_RIGID", "FINITE_ELEMENT"};
+  FORCE *f;
+  int n;
+
+  fprintf (out, "ID:\t%d\n", bod->id);
+  fprintf (out, "LABEL:\t%s\n", bod->label);
+  fprintf (out, "KINEMATICS:\t%s\n", kind [bod->kind]);
+  fprintf (out, "BULK_MATERIAL:\t%s\n", bod->mat->label);
+
+  SHAPE_2_MBFCP (bod->shape, out);
+
+  fprintf (out, "VELOCITY:");
+  for (n = 0; n < bod->dofs; n ++) fprintf (out, "  %g", bod->velo [n]);
+  fprintf (out, "\n");
+
+  for (f = bod->forces, n = 0; f; f = f->next, n ++);
+  fprintf (out, "FORCES:\t%d\n", n);
+  for (f = bod->forces; f; f = f->next)
+  {
+    fprintf (out, "KIND:\t");
+    if (f->kind & SPATIAL) fprintf (out, "SPATIAL");
+    else fprintf (out, "CONVECTED");
+    if (f->kind & TORQUE) fprintf (out, "_TORQUE\n");
+    else fprintf (out, "\n");
+
+    fprintf (out, "POINT:\t%g  %g  %g\n", f->ref_point [0], f->ref_point [1], f->ref_point [2]);
+    fprintf (out, "DIRECTION:\t%g  %g  %g\n", f->direction [0], f->direction [1], f->direction [2]);
+
+    TMS_2_MBFCP (f->data, out);
+  }
+
+  fprintf (out, "\n");
+}

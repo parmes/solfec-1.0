@@ -118,4 +118,7 @@ void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize,
  * d and i and no more than a specific number of doubles and ints can be red) */
 SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
+/* export MBFCP definition */
+void SPHERE_2_MBFCP (SPHERE *sph, FILE *out);
+
 #endif

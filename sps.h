@@ -104,6 +104,9 @@ int SPSET_Has (SPSET *set, int surf1, int surf2);
 /* release memory */
 void SPSET_Destroy (SPSET *set);
 
+/* export MBFCP definition */
+void SPSET_2_MBFCP (SPSET *set, FILE *out);
+
 /* transfer data from the source 'src' to a destiny 'dst'
  * at the given time => e.g. cohesion will be >0 only for 'time' == 0 */
 short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MATERIAL_STATE *dst);
@@ -128,4 +131,6 @@ double SURFACE_MATERIAL_Cohesion_Get (SURFACE_MATERIAL_STATE *mat);
 
 /* cohesion state set */
 void SURFACE_MATERIAL_Cohesion_Set (SURFACE_MATERIAL_STATE *mat, double value);
+
+
 #endif

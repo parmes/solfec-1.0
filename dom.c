@@ -3113,3 +3113,73 @@ void DOM_Destroy (DOM *dom)
 
   free (dom);
 }
+
+/* export MBFCP definition */
+void DOM_2_MBFCP (DOM *dom, FILE *out)
+{
+  BODY *bod;
+  CON *con;
+  int n;
+
+  if (dom->gravity [0])
+  {
+    fprintf (out, "GRAVITY:\n");
+    TMS_2_MBFCP (dom->gravity [0], out);
+    TMS_2_MBFCP (dom->gravity [1], out);
+    TMS_2_MBFCP (dom->gravity [2], out);
+    fprintf (out, "\n");
+  }
+
+  fprintf (out, "BODIES:\t%d\n\n", dom->nbod);
+
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    BODY_2_MBFCP (bod, out);
+  }
+
+  for (con = dom->con, n = 0; con; con = con->next)
+  {
+    if (con->kind != CONTACT && con->kind != GLUE) n ++;
+  }
+
+  fprintf (out, "CONSTRAINTS:\t%d\n\n", n);
+
+  for (con = dom->con; con; con = con->next)
+  {
+    fprintf (out, "ID:\t%d\n", con->id);
+
+    switch (con->kind)
+    {
+    case FIXPNT:
+      fprintf (out, "KIND:\tFIXPNT\n");
+      fprintf (out, "BODY:\t%d\n", con->master->id);
+      fprintf (out, "POINT:\t%g  %g  %g\n", con->mpnt [0], con->mpnt [1], con->mpnt [2]);
+      break;
+    case FIXDIR:
+      fprintf (out, "KIND:\tFIXDIR\n");
+      fprintf (out, "BODY:\t%d\n", con->master->id);
+      fprintf (out, "POINT:\t%g  %g  %g\n", con->mpnt [0], con->mpnt [1], con->mpnt [2]);
+      fprintf (out, "DIRECTION:\t%g  %g  %g\n", con->base [6], con->base [7], con->base [8]);
+      break;
+    case VELODIR:
+      fprintf (out, "KIND:\tVELODIR\n");
+      fprintf (out, "BODY:\t%d\n", con->master->id);
+      fprintf (out, "POINT:\t%g  %g  %g\n", con->mpnt [0], con->mpnt [1], con->mpnt [2]);
+      fprintf (out, "DIRECTION:\t%g  %g  %g\n", con->base [6], con->base [7], con->base [8]);
+      TMS_2_MBFCP (con->tms, out);
+      break;
+    case RIGLNK:
+      fprintf (out, "KIND:\tRIGLNK\n");
+      fprintf (out, "BODY1:\t%d\n", con->master->id);
+      if (con->slave) fprintf (out, "BODY2:\t%d\n", con->slave->id);
+      else fprintf (out, "BODY2:\t%s\n", "NONE");
+      fprintf (out, "POINT1:\t%g  %g  %g\n", con->mpnt [0], con->mpnt [1], con->mpnt [2]);
+      fprintf (out, "POINT2:\t%g  %g  %g\n", con->spnt [0], con->spnt [1], con->spnt [2]);
+      break;
+    default:
+      break;
+    }
+
+    fprintf (out, "\n");
+  }
+}

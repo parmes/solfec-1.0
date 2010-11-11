@@ -102,3 +102,29 @@ void MATSET_Destroy (MATSET *set)
   MEM_Release (&set->mapmem);
   free (set);
 }
+
+/* export MBFCP definition */
+void MATSET_2_MBFCP (MATSET *set, FILE *out)
+{
+  BULK_MATERIAL *mat;
+  MAP *item;
+
+  fprintf (out, "BULK_MATERIALS:\t%d\n", set->size);
+
+  for (item = MAP_First (set->map); item; item = MAP_Next (item))
+  {
+    mat = item->data;
+    switch (mat->model)
+    {
+    case KIRCHHOFF:
+      fprintf (out, "LABEL:\t%s\n", mat->label);
+      fprintf (out, "MODEL:\t%s\n", "KIRCHHOFF");
+      fprintf (out, "YOUNG:\t%g\n", mat->young);
+      fprintf (out, "POISSON:\t%g\n", mat->poisson);
+      fprintf (out, "DENSITY:\t%g\n", mat->density);
+      break;
+    }
+  }
+
+  fprintf (out, "\n");
+}
