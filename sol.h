@@ -129,10 +129,10 @@ void SOLFEC_Time_Limits (SOLFEC *sol, double *start, double *end);
 void SOLFEC_Seek_To (SOLFEC *sol, double time);
 
 /* step backward in READ modes */
-void SOLFEC_Backward (SOLFEC *sol, int steps);
+int SOLFEC_Backward (SOLFEC *sol, int steps);
 
 /* step forward in READ modes */
-void SOLFEC_Forward (SOLFEC *sol, int steps);
+int SOLFEC_Forward (SOLFEC *sol, int steps);
 
 /* perform abort actions */
 void SOLFEC_Abort (SOLFEC *sol);
@@ -167,4 +167,8 @@ struct solfec_history_item
  * of those items; return table of times of the same 'size' as the 'history' members;
  * skip every 'skip' steps; if 'skip' < 0 then print out a percentage based progress bar */
 double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, int skip, int *size);
+
+/* export MBFCP definition */
+void SOLFEC_2_MBFCP (SOLFEC *sol, FILE *out);
+
 #endif

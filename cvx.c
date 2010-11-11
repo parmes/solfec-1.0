@@ -1045,3 +1045,31 @@ CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 
   return head;
 }
+
+/* export MBFCP definition */
+void CONVEX_2_MBFCP (CONVEX *cvx, FILE *out)
+{
+  int i, n, *f, *s;
+  CONVEX *ptr;
+  double *d;
+
+  for (ptr = cvx, n = 0; ptr; ptr = ptr->next, n ++);
+
+  fprintf (out, "CONVEXES:\t%d\n", n);
+
+  for (ptr = cvx; ptr; ptr = ptr->next)
+  {
+    fprintf (out, "VERTEXES:\t%d\n", ptr->nver);
+    for (d = ptr->ref, n = 0; n < ptr->nver; d += 3, n ++)
+    {
+      fprintf (out, "%g  %g  %g\n", d [0], d [1], d [2]);
+    }
+    fprintf (out, "FACES:\t%d\n", ptr->nfac);
+    for (f = ptr->fac, s = ptr->surface, n = 0; n < ptr->nfac; f += f[0]+1, n ++, s ++)
+    {
+      fprintf (out, "%d  ", f [0]);
+      for (i = 0; i < f [0]; i ++) fprintf (out, "%d  ", f [i+1]);
+      fprintf (out, "%d\n", s [0]);
+    }
+  }
+}

@@ -351,4 +351,7 @@ int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con);
 /* release memory */
 void DOM_Destroy (DOM *dom);
 
+/* export MBFCP definition */
+void DOM_2_MBFCP (DOM *dom, FILE *out);
+
 #endif

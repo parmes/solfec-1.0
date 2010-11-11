@@ -70,4 +70,7 @@ void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **
  * d and i and no more than a specific number of doubles and ints can be red) */
 TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
+/* export MBFCP definition */
+void TMS_2_MBFCP (TMS *tms, FILE *out);
+
 #endif

@@ -302,3 +302,19 @@ TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 
   return ts;
 }
+
+/* export MBFCP definition */
+void TMS_2_MBFCP (TMS *tms, FILE *out)
+{
+  int n;
+
+  if (tms->size == 0)
+  {
+    fprintf (out, "CONSTANT:\t%g\n", tms->value);
+  }
+  else
+  {
+    fprintf (out, "TIME_SERIES:\t%d\n", tms->size);
+    for (n = 0; n < tms->size; n ++) fprintf (out, "%g\t%g\n", tms->points [n][0], tms->points[n][1]);
+  }
+}

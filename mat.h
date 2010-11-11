@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <stdio.h>
 #include "mem.h"
 #include "map.h"
 
@@ -61,5 +62,8 @@ BULK_MATERIAL* MATSET_Find (MATSET *set, char *label);
 
 /* release memory */
 void MATSET_Destroy (MATSET *set);
+
+/* export MBFCP definition */
+void MATSET_2_MBFCP (MATSET *set, FILE *out);
 
 #endif

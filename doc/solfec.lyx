@@ -8167,6 +8167,31 @@ gap
  - maximal negative gap.
 \end_layout
 
+\begin_layout Subsection*
+MBFCP_EXPORT (solfec, path)
+\end_layout
+
+\begin_layout Standard
+This routine exports Solfec model into the MBFCP problem definition format.
+ See http://code.google.com/p/mbfcp/ for details.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - Solfec object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - output path
+\end_layout
+
 \begin_layout Section
 Results access
 \end_layout

@@ -1400,3 +1400,8 @@ void GLV_Rectangle_Off ()
 {
   rectangle.enabled = 0;
 }
+
+void GLV_AVI_Stop ()
+{
+  if (AVI) { AVI_Close (AVI); AVI = NULL; }
+}

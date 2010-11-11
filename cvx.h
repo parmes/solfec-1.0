@@ -149,4 +149,7 @@ void CONVEX_Pack (CONVEX *cvx, int *dsize, double **d, int *doubles, int *isize,
  * in d and i and no more than a specific number of doubles and ints can be red) */
 CONVEX* CONVEX_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
+/* export MBFCP definition */
+void CONVEX_2_MBFCP (CONVEX *cvx, FILE *out);
+
 #endif

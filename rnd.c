@@ -1377,7 +1377,7 @@ static void render_rough_mesh (BODY *bod)
 
   if (!rough)
   {
-    SHAPE shape = {SHAPE_MESH, bod->msh, NULL, NULL};
+    SHAPE shape = {SHAPE_MESH, bod->msh, NULL};
     BODY body = bod [0];
     body.shape = &shape;
     body.msh = NULL;
@@ -2213,22 +2213,26 @@ static void step ()
   update ();
 }
 
-static void forward ()
+static int forward ()
 {
   int nbod = domain->nbod;
 
-  SOLFEC_Forward (solfec, skip_steps);
+  int ret = SOLFEC_Forward (solfec, skip_steps);
 
   if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
+
+  return ret;
 }
 
-static void backward ()
+static int backward ()
 {
   int nbod = domain->nbod;
 
-  SOLFEC_Backward (solfec, skip_steps);
+  int ret = SOLFEC_Backward (solfec, skip_steps);
 
   if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
+
+  return ret;
 }
 
 /* run simulation */
@@ -2237,8 +2241,8 @@ static void run (int dummy)
   if (solfec->mode == SOLFEC_WRITE) step ();
   else 
   {
-    forward ();
-    update ();
+    if (forward ()) update ();
+    else GLV_AVI_Stop ();
   }
 
   if (domain->flags & DOM_RUN_ANALYSIS) glutTimerFunc (1000 * SOLFEC_Time_Skip (solfec), run, 0);

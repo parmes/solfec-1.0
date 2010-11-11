@@ -568,3 +568,21 @@ SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
 
   return head;
 }
+
+/* export MBFCP definition */
+void SPHERE_2_MBFCP (SPHERE *sph, FILE *out)
+{
+  SPHERE *ptr;
+  int n;
+
+  for (ptr = sph, n = 0; ptr; ptr = ptr->next, n ++);
+
+  fprintf (out, "SPHERES:\t%d\n", n);
+
+  for (ptr = sph; ptr; ptr = ptr->next)
+  {
+    fprintf (out, "CENTER:\t%g  %g  %g\n", ptr->ref_center [0], ptr->ref_center [1], ptr->ref_center [2]);
+    fprintf (out, "RADIUS:\t%g\n", ptr->ref_radius);
+    fprintf (out, "SURFID:\t%d\n", ptr->surface);
+  }
+}

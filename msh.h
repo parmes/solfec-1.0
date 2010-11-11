@@ -204,4 +204,7 @@ void MESH_Pack (MESH *msh, int *dsize, double **d, int *doubles, int *isize, int
  * d and i and no more than a specific number of doubles and ints can be red) */
 MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
+/* export MBFCP definition */
+void MESH_2_MBFCP (MESH *msh, FILE *out);
+
 #endif

@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <stdio.h>
 #include "mot.h"
 
 #ifndef BOX_TYPE
@@ -118,5 +119,8 @@ void SHAPE_Pack (SHAPE *shp, int *dsize, double **d, int *doubles, int *isize, i
 /* unpack shape from double and integer buffers (unpacking starts at dpos and ipos in
  * d and i and no more than a specific number of doubles and ints can be red) */
 SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+
+/* export MBFCP definition */
+void SHAPE_2_MBFCP (SHAPE *shp, FILE *out);
 
 #endif

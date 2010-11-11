@@ -131,4 +131,7 @@ void GLV_Rectangle_On (int x1, int y1, int x2, int y2);
 /* disable drawing rectangle */
 void GLV_Rectangle_Off ();
 
+/* stop filming */
+void GLV_AVI_Stop ();
+
 #endif

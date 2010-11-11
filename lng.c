@@ -6179,6 +6179,46 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   return shape_to_list (outshp);
 }
 
+/* MBFCP export */
+static PyObject* lng_MBFCP_EXPORT (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "path");
+  lng_SOLFEC *solfec;
+  PyObject *path;
+  char *outpath;
+  FILE *out;
+#if MPI
+  int rank;
+#endif
+
+  PARSEKEYS ("OO", &solfec, &path);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[1]));
+
+#if MPI
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+  ERRMEM (outpath = malloc (strlen (PyString_AsString (path)) + 64));
+  sprintf ("%s.%d", PyString_AsString (path), rank);
+#else
+  outpath = PyString_AsString (path);
+#endif
+
+  if (!(out = fopen (outpath, "w")))
+  {
+    PyErr_SetString (PyExc_RuntimeError, "File open failed");
+    return NULL;
+  }
+
+  SOLFEC_2_MBFCP (solfec->sol, out);
+
+#if MPI
+  free (outpath);
+#endif
+
+  Py_RETURN_NONE;
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6924,6 +6964,7 @@ static PyMethodDef lng_methods [] =
   {"LOCDYN_DUMP", (PyCFunction)lng_LOCDYN_DUMP, METH_VARARGS|METH_KEYWORDS, "Dump local dynamics"},
   {"PARTITION", (PyCFunction)lng_PARTITION, METH_VARARGS|METH_KEYWORDS, "Partition a finite element body"},
   {"OVERLAPPING", (PyCFunction)lng_OVERLAPPING, METH_VARARGS|METH_KEYWORDS, "Detect shapes (not) overlapping obstacles"},
+  {"MBFCP_EXPORT", (PyCFunction)lng_MBFCP_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MBFCP definition"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -7111,6 +7152,7 @@ int lng (const char *path)
                      "from solfec import LOCDYN_DUMP\n"
                      "from solfec import PARTITION\n"
                      "from solfec import OVERLAPPING\n"
+                     "from solfec import MBFCP_EXPORT\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

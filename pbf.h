@@ -142,10 +142,10 @@ void PBF_Limits (PBF *bf, double *start, double *end);
 void PBF_Seek (PBF *bf, double time);
 
 /* make 'steps' backward in read mode */
-void PBF_Backward (PBF *bf, unsigned int steps);
+int PBF_Backward (PBF *bf, unsigned int steps);
 
 /* make 'steps' forward in read mode */
-void PBF_Forward (PBF *bf, unsigned int steps);
+int PBF_Forward (PBF *bf, unsigned int steps);
 
 /* get number of time instants spanned by [t0, t1] */
 unsigned int PBF_Span (PBF *bf, double t0, double t1);
