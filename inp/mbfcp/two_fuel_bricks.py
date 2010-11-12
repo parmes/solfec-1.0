@@ -277,7 +277,7 @@ def interstitial_brick(
 #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 # epsilon
-GEOMETRIC_EPSILON (1E-6)
+GEOMETRIC_EPSILON (1E-7)
 
 # geometry parameters
 translation = 0.4589
