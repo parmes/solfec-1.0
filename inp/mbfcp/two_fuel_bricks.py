@@ -290,7 +290,7 @@ itransy = 0.1785
 iheight = 0.9217
 
 # control parameters
-timestep = 1.0E-3
+timestep = 1.0E-4
 duration = 5          # simulation length, s
 
 # setup analysis object
@@ -370,64 +370,27 @@ SET_VELOCITY (fuels[0], (0,inr,0.5), (0,1,0), motionHistory)
 
 # Run analysis
 OUTPUT(solfec, 1E-2)
-gs = GAUSS_SEIDEL_SOLVER (1E-4, 100)
+gs = GAUSS_SEIDEL_SOLVER (1E-5, 100)
 MBFCP_EXPORT (solfec, outpath + '/two_fuel_bricks.mbfcp')
 RUN (solfec, gs, duration)
 
 # Post-processing
+def write_data (t, v, path):
+  out = open (path, 'w')
+  n = min (len(t), len(v))
+  for i in range (n):
+    out.write ('%g\t%g\n' % (t[i], v[i]))
+  out.close ()
+
 if not VIEWER() and solfec.mode == 'READ':
 
   dur = DURATION (solfec)
   th = HISTORY (solfec, [
 	(fuels [1], fuels [1].center, 'DY'),
-        (fuels [1], fuels [1].center, 'VY'),
 	(fuels [1], fuels [1].center, 'DX'),
-        (fuels [1], fuels [1].center, 'VX'),
-        (loosekey, loosekey.center, 'DY')
+        (loosekey, loosekey.center, 'DY'),
+        (loosekey, loosekey.center, 'DX')
        ], dur[0], dur [1])
 
-  try:
-    import matplotlib.pyplot as plt
-
-    plt.clf ()
-    plt.title ('Fuel brick 2 - DY')
-    plt.plot (th [0], th [1], label='DY')
-    plt.xlabel ('Time [s]')
-    plt.ylabel ('Displacement [m]')
-    plt.legend(loc = 'upper right')
-    plt.savefig (outpath + '/fuel_brick_2_dy.png')
-
-    plt.clf ()
-    plt.title ('Fuel brick 2 - VY')
-    plt.plot (th [0], th [2], label='VY')
-    plt.xlabel ('Time [s]')
-    plt.ylabel ('Velocity [m/s]')
-    plt.legend(loc = 'upper right')
-    plt.savefig (outpath + '/fuel_brick_2_vy.png')
- 
-    plt.clf ()
-    plt.title ('Fuel brick 2 - DX')
-    plt.plot (th [0], th [3], label='DX')
-    plt.xlabel ('Time [s]')
-    plt.ylabel ('Displacement [m]')
-    plt.legend(loc = 'upper right')
-    plt.savefig (outpath + '/fuel_brick_2_dx.png')
-
-    plt.clf ()
-    plt.title ('Fuel brick 2 - VX')
-    plt.plot (th [0], th [4], label='VX')
-    plt.xlabel ('Time [s]')
-    plt.ylabel ('Velocity [m/s]')
-    plt.legend(loc = 'upper right')
-    plt.savefig (outpath + '/fuel_brick_2_vx.png')
-
-    plt.clf ()
-    plt.title ('Loose key - DY')
-    plt.plot (th [0], th [5], label='DY')
-    plt.xlabel ('Time [s]')
-    plt.ylabel ('Displacement [m]')
-    plt.legend(loc = 'upper right')
-    plt.savefig (outpath + '/loose_key_dy.png')
-
-  except ImportError:
-    pass # no reaction
+  write_data (th[0], th[1], outpath + '/Solfec_1E-4_fuel_2_dy.dat')
+  write_data (th[0], th[3], outpath + '/Solfec_1E-4_loose_dy.dat')
