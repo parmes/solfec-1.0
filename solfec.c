@@ -31,6 +31,7 @@
 #include "lng.h"
 #include "sol.h"
 #include "err.h"
+#include "ext/predicates.h"
 
 /* global list of created SOLFEC objects */
 static SOLFEC *solfec = NULL;
@@ -170,6 +171,8 @@ static int vieweron (int argc, char **argv)
 int main (int argc, char **argv)
 {
   int error;
+
+  exactinit ();
 
 #if !defined (__MINGW32__)
   signal (SIGHUP, sighnd);

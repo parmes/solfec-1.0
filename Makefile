@@ -22,6 +22,7 @@ endif
 
 EXTO  = obj/fastlz.o\
 	obj/csparse.o\
+	obj/predicates.o\
 
 BASEO = obj/err.o \
 	obj/alg.o \
@@ -162,6 +163,9 @@ obj/fastlz.o: ext/fastlz.c ext/fastlz.h
 
 obj/csparse.o: ext/csparse.c ext/csparse.h
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/predicates.o: ext/predicates.c ext/predicates.h
+	$(CC) $(OS) -O0 -c -o $@ $<
 
 obj/err.o: err.c err.h
 	$(CC) $(CFLAGS) -c -o $@ $<

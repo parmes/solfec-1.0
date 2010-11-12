@@ -29,6 +29,7 @@
 #include "lis.h"
 #include "set.h"
 #include "hul.h"
+#include "ext/predicates.h"
 
 typedef struct vertex vertex;
 typedef struct edge edge;
@@ -56,6 +57,21 @@ struct face
   char marked; /* marker used for visible faces */
   TRI *tri; /* auxiliary adjacent triangle (used to create the output table) */
 };
+
+/* robust orientation */
+static double orient (face *f, double *d)
+{
+  double *a, *b, *c;
+  edge *e1, *e2;
+
+  e1 = f->e;
+  e2 = e1->n;
+  a = e1->v[0];
+  b = e1->v[1];
+  c = e2->v[1];
+
+  return orient3d (c, b, a, d);
+}
 
 /* set up facial plane */
 static int setplane (face *f)
@@ -430,7 +446,7 @@ static face* simplex (MEM *me, MEM *mf, double *a, double *b, double *c, double 
 #else
     if (!setplane (f[i])) return NULL; /* set face plane */
 #endif
-    if (PLANE (f[i]->pla, o [i]) > GEOMETRIC_EPSILON) /* the other vertex should be behind => reorient the face */
+    if (orient (f[i], o [i]) > 0.0) /* the other vertex should be behind => reorient the face */
     {
       for (edg = f[i]->e; edg; edg = edg->n) /* reverse order of edge vertices */
       { u = edg->v [0]; edg->v [0] = edg->v [1]; edg->v [1] = u; }
@@ -452,7 +468,7 @@ static face* simplex (MEM *me, MEM *mf, double *a, double *b, double *c, double 
 /* mark faces visible from 'v'ertex */
 static void mark (face *f, double *v, face **g)
 {
-  double d = PLANE (f->pla, v);
+  double d = orient (f, v);
     
   if (!f->marked && d > 0.0)
   {
@@ -564,8 +580,8 @@ TRI* hull (double *v, int n, int *m)
     for (z = NULL, x = l, dmax = 0.0; x; x = y)
     {
       y = x->n; 
-      d = PLANE (f->pla, x->v);
-      if (d > GEOMETRIC_EPSILON)
+      d = orient (f, x->v);
+      if (d > 0.0)
       {
 	if (d > dmax) /* and select maximal elements */
 	{
@@ -664,8 +680,8 @@ TRI* hull (double *v, int n, int *m)
 	    {
 	      y = x->n;
 
-	      d = PLANE (g->pla, x->v);
-	      if (d > GEOMETRIC_EPSILON) /* x is above g->pla */
+	      d = orient (g, x->v);
+	      if (d > 0.0) /* x is above g->pla */
 	      {
 		if (d > dmax) /* and is maximal */
 		{

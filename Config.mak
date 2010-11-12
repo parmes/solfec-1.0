@@ -1,5 +1,5 @@
 #
-# Operating System (WIN32, SOLARIS, LINUX, AIX, IRIX, OSX)
+# Operating System (WIN32, SOLARIS, LINUX, AIX, IRIX, OSX, FREEBSD)
 #
 
 OS = OSX

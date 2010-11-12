@@ -26,6 +26,10 @@ ifeq ($(OS),OSX)
   OS = -DOSTYPE_OSX
 endif
 
+ifeq ($(OS),FREEBSD)
+  OS = -DOSTYPE_FREEBSD
+endif
+
 ifeq ($(POSIX),yes)
   POSIX = -DPOSIX
 else
