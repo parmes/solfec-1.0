@@ -95,9 +95,9 @@ inline static void real_m (double fri, double *S, double eps, double *m)
   real_n (S, fri, n);
   fun = DOT (S, n);
 
-  if (fun > 0.0 && fun < eps)
+  if (fun > 0.0)
   {
-    fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
+    fun = sqrt (fun*fun + eps) - eps;
   }
 
   MUL (n, fun, m)
@@ -111,16 +111,16 @@ inline static void complex_m (double complex fri, double complex *S, double comp
   complex_n (S, fri, n);
   fun = DOT (S, n);
 
-  if (creal (fun) > 0.0 && creal (fun) < creal (eps))
+  if (creal (fun) > 0.0)
   {
-    fun = ((2.0/eps) - (1.0/(eps*eps))*fun)*(fun*fun);
+    fun = csqrt (fun*fun + eps) - eps;
   }
 
   MUL (n, fun, m)
 }
 
 /* real F = [UT, UN + fri |UT|]' */
-inline static void real_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double *U, double UT, double *F)
+inline static void real_F (double res, double fri, double gap, double step, short dynamic, double eps, double *V, double *U, double UT, double *F)
 {
   double udash;
 
@@ -130,11 +130,11 @@ inline static void real_F (double res, double fri, double gap, double step, shor
   F [0] = U[0];
   F [1] = U[1];
   if (UT >= 0.0) F [2] = (udash + fri * UT);
-  else F [2] = (udash + fri * sqrt (DOT2(U, U) + epsilon*epsilon));
+  else F [2] = (udash + fri * (sqrt (DOT2(U, U) + eps) - eps));
 }
  
 /* complex F = [UT, UN + fri |UT|]' */
-inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double epsilon, double *V, double complex *U, double complex UT, double complex *F)
+inline static void complex_F (double res, double fri, double gap, double step, short dynamic, double eps, double *V, double complex *U, double complex UT, double complex *F)
 {
   double complex udash;
 
@@ -144,7 +144,7 @@ inline static void complex_F (double res, double fri, double gap, double step, s
   F [0] = U[0];
   F [1] = U[1];
   if (creal(UT) >= 0) F [2] = (udash + fri * UT);
-  else F [2] = (udash + fri * csqrt (DOT2(U, U) + epsilon*epsilon));
+  else F [2] = (udash + fri * (csqrt (DOT2(U, U) + eps) - eps));
 }
 
 /* C(U,R) + X dU + Y dR, where C(U,R) = F(U) + m(R - F(U)) */

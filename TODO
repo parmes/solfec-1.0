@@ -84,3 +84,8 @@ Optimize stress plotting (batch calculation for a set of nodes)
 ----------------------------------------------------------------------------------
 Remove current implementation of the NEWTON_SOLVER; let BODY_SPACE_SOLVER decide
 whether to use local dynamics or not; move BODY_SPACE_SOLVER into NEWTON_SOLVER; 
+--------------------------------------------------------------------------------------
+Implement configuration update: q(t+h3/2) = q(t+h/2) + h * u(t+h). This will allow
+to minimise communication in the domain update code.
+--------------------------------------------------------------------------------------
+Add ANALAYSIS kind and body->DAMPING to MBFCP format

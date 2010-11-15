@@ -3232,243 +3232,6 @@ static PyGetSetDef lng_PENALTY_SOLVER_getset [] =
 { {NULL, 0, 0, NULL, NULL} };
 
 /*
- * NEWTON_SOLVER => object
- */
-
-typedef struct lng_NEWTON_SOLVER lng_NEWTON_SOLVER;
-
-static PyTypeObject lng_NEWTON_SOLVER_TYPE;
-
-struct lng_NEWTON_SOLVER
-{
-  PyObject_HEAD
-
-  NEWTON *nt;
-};
-
-/* constructor */
-static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("meritval", "maxiter", "variant");
-  lng_NEWTON_SOLVER *self;
-  PyObject *variant;
-  double meritval;
-  LINVAR linvar;
-  int maxiter;
-
-  self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
-
-  if (self)
-  {
-    linvar = SMOOTHED_VARIATIONAL;
-    meritval = 1E-3;
-    maxiter = 10;
-    variant = NULL;
-
-    PARSEKEYS ("|diO", &meritval, &maxiter, &variant);
-
-    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (variant, kwl[2]));
-
-    if (variant)
-    {
-      IFIS (variant, "NONSMOOTH_HSW")
-      {
-	linvar = NONSMOOTH_HSW;
-      }
-      ELIF (variant, "NONSMOOTH_HYBRID")
-      {
-	linvar = NONSMOOTH_HYBRID;
-      }
-      ELIF (variant, "FIXED_POINT")
-      {
-	linvar = FIXED_POINT;
-      }
-      ELIF (variant, "NONSMOOTH_VARIATIONAL")
-      {
-	linvar = NONSMOOTH_VARIATIONAL;
-      }
-      ELIF (variant, "SMOOTHED_VARIATIONAL")
-      {
-	linvar = SMOOTHED_VARIATIONAL;
-      }
-      ELSE
-      {
-	PyErr_SetString (PyExc_ValueError, "Invalid variant");
-	return NULL;
-      }
-    }
-
-    self->nt = NEWTON_Create (linvar, meritval, maxiter);
-  }
-
-  return (PyObject*)self;
-}
-
-/* destructor */
-static void lng_NEWTON_SOLVER_dealloc (lng_NEWTON_SOLVER *self)
-{
-#if OPENGL
-  if (RND_Is_On ()) return; /* do not delete in viewer mode */
-  else
-#endif
-  NEWTON_Destroy (self->nt);
-
-  self->ob_type->tp_free ((PyObject*)self);
-}
-
-/* setgets */
-
-static PyObject* lng_NEWTON_SOLVER_get_variant (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyString_FromString (NEWTON_Variant (self->nt));
-}
-
-static int lng_NEWTON_SOLVER_set_variant (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_string (value, "variant")) return -1;
-
-  IFIS (value, "NONSMOOTH_HSW")
-  {
-    self->nt->variant = NONSMOOTH_HSW;
-  }
-  ELIF (value, "NONSMOOTH_HYBRID")
-  {
-    self->nt->variant = NONSMOOTH_HYBRID;
-  }
-  ELIF (value, "FIXED_POINT")
-  {
-    self->nt->variant = FIXED_POINT;
-  }
-  ELIF (value, "NONSMOOTH_VARIATIONAL")
-  {
-    self->nt->variant = NONSMOOTH_VARIATIONAL;
-  }
-  ELIF (value, "SMOOTHED_VARIATIONAL")
-  {
-    self->nt->variant = SMOOTHED_VARIATIONAL;
-  }
-  ELSE
-  {
-    PyErr_SetString (PyExc_ValueError, "Invalid variant");
-    return -1;
-  }
-
-  return 0;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_maxiter (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->nt->maxiter);
-}
-
-static int lng_NEWTON_SOLVER_set_maxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number_gt_val (value, "maxiter", 0)) return -1;
-  self->nt->maxiter = PyInt_AsLong (value);
-  return 0;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_meritval (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->nt->meritval);
-}
-
-static int lng_NEWTON_SOLVER_set_meritval (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number_gt_val (value, "meritval", 0)) return -1;
-  self->nt->meritval = PyFloat_AsDouble (value);
-  return 0;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_nonmonlength (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->nt->nonmonlength);
-}
-
-static int lng_NEWTON_SOLVER_set_nonmonlength (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number_gt_val (value, "nonmonlength", 0)) return -1;
-  self->nt->nonmonlength = PyInt_AsLong (value);
-  return 0;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_linminiter (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->nt->linminiter);
-}
-
-static int lng_NEWTON_SOLVER_set_linminiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number_ge_val (value, "linminiter", 1)) return -1;
-  self->nt->linminiter = PyInt_AsLong (value);
-  return 0;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_resdec (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->nt->resdec);
-}
-
-static int lng_NEWTON_SOLVER_set_resdec (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number_ge_val (value, "resdec", 0)) return -1;
-  self->nt->resdec = PyFloat_AsDouble (value);
-  return 0;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_merhist (lng_NEWTON_SOLVER *self, void *closure)
-{
-  PyObject *list;
-  int i;
-
-  ERRMEM (list = PyList_New (self->nt->iters));
-
-  for (i = 0; i < self->nt->iters; i ++)
-    PyList_SetItem (list, i, PyFloat_FromDouble (self->nt->merhist [i]));
-
-  return list;
-}
-
-static int lng_NEWTON_SOLVER_set_merhist (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
-  return -1;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_iters (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyInt_FromLong (self->nt->iters);
-}
-
-static int lng_NEWTON_SOLVER_set_iters (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
-  return -1;
-}
-
-/* NEWTON_SOLVER methods */
-static PyMethodDef lng_NEWTON_SOLVER_methods [] =
-{ {NULL, NULL, 0, NULL} };
-
-/* NEWTON_SOLVER members */
-static PyMemberDef lng_NEWTON_SOLVER_members [] =
-{ {NULL, 0, 0, 0, NULL} };
-
-/* NEWTON_SOLVER getset */
-static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
-{ 
-  {"variant", (getter)lng_NEWTON_SOLVER_get_variant, (setter)lng_NEWTON_SOLVER_set_variant, "linearization variant", NULL},
-  {"meritval", (getter)lng_NEWTON_SOLVER_get_meritval, (setter)lng_NEWTON_SOLVER_set_meritval, "merit function accuracy", NULL},
-  {"maxiter", (getter)lng_NEWTON_SOLVER_get_maxiter, (setter)lng_NEWTON_SOLVER_set_maxiter, "iterations bound", NULL},
-  {"nonmonlength", (getter)lng_NEWTON_SOLVER_get_nonmonlength, (setter)lng_NEWTON_SOLVER_set_nonmonlength, "nonmonotone line search memory length", NULL},
-  {"linminiter", (getter)lng_NEWTON_SOLVER_get_linminiter, (setter)lng_NEWTON_SOLVER_set_linminiter, "linear solver minimal iterations count", NULL},
-  {"resdec", (getter)lng_NEWTON_SOLVER_get_resdec, (setter)lng_NEWTON_SOLVER_set_resdec, "linear solver residual decrease factor", NULL},
-  {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
-  {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
-  {NULL, 0, 0, NULL, NULL}
-};
-
-/*
  * BODY_SPACE_SOLVER => object
  */
 
@@ -5581,7 +5344,6 @@ static int is_solver (PyObject *obj, char *var)
   {
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
-        !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
     {
       char buf [BUFLEN];
@@ -5601,8 +5363,6 @@ static int get_solver_kind (PyObject *obj)
     return GAUSS_SEIDEL_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     return PENALTY_SOLVER;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
-    return NEWTON_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
     return BODY_SPACE_SOLVER;
   else return -1;
@@ -5615,8 +5375,6 @@ static void* get_solver (PyObject *obj)
     return ((lng_GAUSS_SEIDEL_SOLVER*)obj)->gs;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     return ((lng_PENALTY_SOLVER*)obj)->ps;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
-    return ((lng_NEWTON_SOLVER*)obj)->nt;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
     return ((lng_BODY_SPACE_SOLVER*)obj)->bs;
   else return NULL;
@@ -7026,10 +6784,6 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_PENALTY_SOLVER_dealloc, lng_PENALTY_SOLVER_new,
     lng_PENALTY_SOLVER_methods, lng_PENALTY_SOLVER_members, lng_PENALTY_SOLVER_getset);
 
-  TYPEINIT (lng_NEWTON_SOLVER_TYPE, lng_NEWTON_SOLVER, "solfec.NEWTON_SOLVER",
-    Py_TPFLAGS_DEFAULT, lng_NEWTON_SOLVER_dealloc, lng_NEWTON_SOLVER_new,
-    lng_NEWTON_SOLVER_methods, lng_NEWTON_SOLVER_members, lng_NEWTON_SOLVER_getset);
-
   TYPEINIT (lng_BODY_SPACE_SOLVER_TYPE, lng_BODY_SPACE_SOLVER, "solfec.BODY_SPACE_SOLVER",
     Py_TPFLAGS_DEFAULT, lng_BODY_SPACE_SOLVER_dealloc, lng_BODY_SPACE_SOLVER_new,
     lng_BODY_SPACE_SOLVER_methods, lng_BODY_SPACE_SOLVER_members, lng_BODY_SPACE_SOLVER_getset);
@@ -7048,7 +6802,6 @@ static void initlng (void)
   if (PyType_Ready (&lng_TIME_SERIES_TYPE) < 0) return;
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
-  if (PyType_Ready (&lng_NEWTON_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_BODY_SPACE_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
@@ -7064,7 +6817,6 @@ static void initlng (void)
   Py_INCREF (&lng_TIME_SERIES_TYPE);
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
-  Py_INCREF (&lng_NEWTON_SOLVER_TYPE);
   Py_INCREF (&lng_BODY_SPACE_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
@@ -7078,7 +6830,6 @@ static void initlng (void)
   PyModule_AddObject (m, "TIME_SERIES", (PyObject*)&lng_TIME_SERIES_TYPE);
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
-  PyModule_AddObject (m, "NEWTON_SOLVER", (PyObject*)&lng_NEWTON_SOLVER_TYPE);
   PyModule_AddObject (m, "BODY_SPACE_SOLVER", (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
@@ -7113,7 +6864,6 @@ int lng (const char *path)
                      "from solfec import TIME_SERIES\n"
                      "from solfec import GAUSS_SEIDEL_SOLVER\n"
                      "from solfec import PENALTY_SOLVER\n"
-                     "from solfec import NEWTON_SOLVER\n"
                      "from solfec import BODY_SPACE_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"

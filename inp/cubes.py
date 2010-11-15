@@ -76,7 +76,6 @@ stack_of_cubes_create (bulkmat, solfec)
 #sv.variant = VARIANT
 
 sv = NEWTON_SOLVER (1E-5, 20)
-sv.nonmonlength = 5
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 

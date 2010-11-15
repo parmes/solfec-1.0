@@ -5197,12 +5197,11 @@ NEWTON_SOLVER
 \end_layout
 
 \begin_layout Plain Layout
-Object of type NEWTON_SOLVER represents a family of inexact Newton constraints
- solvers (formulated on the level of local dynamics).
+Object of type NEWTON_SOLVER represents an inexact Newton constraints solver.
 \end_layout
 
 \begin_layout Subsection*
-obj = NEWTON_SOLVER ( | meritval, maxiter, variant)
+obj = NEWTON_SOLVER (| meritval, maxiter)
 \end_layout
 
 \begin_layout Itemize
@@ -5210,7 +5209,7 @@ obj = NEWTON_SOLVER ( | meritval, maxiter, variant)
 \series bold
 obj
 \series default
- - created NEWTON_SOLVER object
+ - created BODY_SPACE_SOLVER object
 \end_layout
 
 \begin_layout Itemize
@@ -5219,7 +5218,7 @@ obj
 meritval
 \series default
  - constraints satisfaction merit function value sufficient for termination
- (default: 1E-3), cf.
+ (default: 1E-8), cf.
  Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -5227,7 +5226,7 @@ reference "cha:Constraints-accuracy"
 
 \end_inset
 
- for more details.
+ for more details
 \end_layout
 
 \begin_layout Itemize
@@ -5235,201 +5234,10 @@ reference "cha:Constraints-accuracy"
 \series bold
 maxiter
 \series default
- - maximal number of iterations before termination (default: 10)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-variant
-\series default
- - variant of the Newton method (default: 'SMOOTHED_VARIATIONAL'); cf.
- Table 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "tab:newton-variants"
-
-\end_inset
-
- for other variants.
+ - maximal number of iterations before termination (default: 50)
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Float table
-placement h
-wide false
-sideways false
-status open
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="2">
-<features>
-<column alignment="center" valignment="top" width="0">
-<column alignment="center" valignment="top" width="0">
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'NONSMOOTH_HSW'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Semismooth formulation as described in 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "HSW2006"
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'NONSMOOTH_HYBRID'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Hybrid semismooth linearisation from 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "Koziara2008"
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'FIXED_POINT'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Fixed point iteration on normal contact reactions from 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "HSW2006"
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'NONSMOOTH_VARIATIONAL'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Nonsmooth variational formulation from 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "Koziara2009"
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'SMOOTHED_VARIATIONAL'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Smoothed variational formulation from 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "Koziara2009"
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-</cell>
-</row>
-</lyxtabular>
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Caption
-
-\begin_layout Plain Layout
-\begin_inset CommandInset label
-LatexCommand label
-name "tab:newton-variants"
-
-\end_inset
-
-Variants of the NEWTON_SOLVER.
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
 Some parameters can also be accessed as members of a NEWTON_SOLVER object.
  These are
 \end_layout
@@ -5499,215 +5307,7 @@ obj.merhist
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="1">
-<features>
-<column alignment="left" valignment="top" width="95col%">
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-Read/write
-\series default
- members
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\emph on
-obj.variant, obj.maxiter, obj.meritval
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.nonmonlength
-\series default
-\emph default
- - length of the nonmonotone line search memory buffer (default: 5); making
- it equal 1 restores the monotone line search
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.linminiter
-\series default
-\emph default
- - linear iterative solver minimal iterations count (default: 5)
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.resdec
-\series default
-\emph default
- - linear iterative solver residual decrease factor (default: 0.25)
-\end_layout
-
-\end_inset
-</cell>
-</row>
-</lyxtabular>
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Subsection
-BODY_SPACE_SOLVER 
-\color red
-(Under development)
-\end_layout
-
-\begin_layout Plain Layout
-Object of type BODY_SPACE_SOLVER represents a projected inexact Newton solver
- implemented in the body space (without assembling local dynamics).
-\end_layout
-
-\begin_layout Subsection*
-obj = BODY_SPACE_SOLVER (| meritval, maxiter)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-obj
-\series default
- - created BODY_SPACE_SOLVER object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-meritval
-\series default
- - constraints satisfaction merit function value sufficient for termination
- (default: 1E-5), cf.
- Chapter 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "cha:Constraints-accuracy"
-
-\end_inset
-
- for more details.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-maxiter
-\series default
- - maximal number of iterations before termination (default: 20)
-\end_layout
-
-\begin_layout Plain Layout
-Some parameters can also be accessed as members of a BODY_SPACE_SOLVER object.
- These are
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
-<features>
-<column alignment="left" valignment="top" width="95col%">
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-Read-only
-\series default
- members
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.iters
-\series default
-\emph default
- - number of iterations during a last run of solver
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.merhist
-\series default
-\emph default
- - a list of merit function values for each iteration of the last run
-\end_layout
-
-\end_inset
-</cell>
-</row>
-</lyxtabular>
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="1">
 <features>
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -5739,40 +5339,6 @@ obj.maxiter, obj.meritval
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.linminiter
-\series default
-\emph default
- - linear iterative solver minimal iterations count (default: 5)
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.resdec
-\series default
-\emph default
- - linear iterative solver residual decrease factor (default: 0.25)
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
@@ -5780,12 +5346,18 @@ obj.resdec
 
 \series bold
 \emph on
-obj.smooth
+obj.linmaxiter
 \series default
 \emph default
- - derivative smoothing coefficient (smoothing is disabled by default: 0.0).
- This should be > 0 and << 1 (e.g.
- 1E-6) in order to enable smoothing.
+ - linear iterative solver iterations bound (default: 
+\series bold
+maxiter
+\series default
+
+\begin_inset Formula $\cdot$
+\end_inset
+
+10)
 \end_layout
 
 \end_inset
