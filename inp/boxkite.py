@@ -494,8 +494,7 @@ duration = 1.0
 load_hist = TIME_SERIES ([0, 10, 1, 10])
 friction = 0.0
 
-#solver = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6)
-solver = BODY_SPACE_SOLVER ()
+solver = GAUSS_SEIDEL_SOLVER (1E0, 50, 1E-6)
 
 allcases = [
 # large clearance

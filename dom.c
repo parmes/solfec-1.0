@@ -34,7 +34,6 @@
 #include "pck.h"
 #include "err.h"
 #include "dio.h"
-#include "lin.h"
 
 #if MPI
 #include "put.h"

@@ -110,6 +110,8 @@ struct bss_data
 
   DOM *dom; /* domain */
 
+  LOCDYN *ldy; /* local dynamics */
+
 #if MPI
   BSS_COM_PATTERN *x_to_ext, *ext_to_y; /* communication patterns */
   BSS_CON_DATA *datext; /* external active constraints data */
@@ -1084,10 +1086,17 @@ static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
   free (ptr);
 }
 
+/* decide whether to use local dynamics; if so assemble it */
+static LOCDYN* local_dynamics (LOCDYN *ldy)
+{
+  return NULL; /* TODO */
+}
+
 /* create BSS data */
-static BSS_DATA *create_data (DOM *dom, BSS *bs)
+static BSS_DATA *create_data (LOCDYN *ldy, BSS *bs)
 {
   BSS_CON_DATA *dat, *end;
+  DOM *dom = ldy->dom;
   BSS_DATA *A;
   BODY *bod;
   int m, n;
@@ -1096,7 +1105,8 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
 
   ERRMEM (A = MEM_CALLOC (sizeof (BSS_DATA)));
   A->znorm = 1.0;
-  A->dom = dom;
+  A->dom = ldy->dom;
+  A->ldy = local_dynamics (ldy);
   for (bod = dom->bod, m = 0; bod; bod = bod->next)
   {
     if (bod->con) /* body with constraints */
@@ -1112,7 +1122,7 @@ static BSS_DATA *create_data (DOM *dom, BSS *bs)
   {
     if (bod->con) A->bod [n ++] = bod;
   }
-  A->epsilon = 0.0; /* FIXME */
+  A->epsilon = 1E-4; /* FIXME */
   A->dat = create_constraints_data (dom, A, A->bod, A->nbod, &A->ndat, &A->x, &dom->ldy->free_energy, &A->epsilon); /* A->x initialized with con->R */
   A->ndual = A->ndat * 3;
   A->b = newvector (A->ndual);
@@ -1337,7 +1347,7 @@ static int linear_solve (BSS_DATA *A, double abstol, int maxiter)
     A->resnorm = sqrt (InnerProd (r, r));
   }
   A->znorm = sqrt (InnerProd (A->z, A->z));
-  A->delta = 0.5 * A->resnorm / A->znorm; /* 0.5 * L-curve */ /* TODO: 0.5 */
+  A->delta = 0.5 * A->resnorm / A->znorm; /* L-curve */ /* FIXME */
 
   hypre_FlexGMRESDestroy (gmres_vdata);
 
@@ -1455,7 +1465,7 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 
   ERRMEM (bs->merhist = realloc (bs->merhist, bs->maxiter * sizeof (double)));
   dom = ldy->dom;
-  A = create_data (dom, bs);
+  A = create_data (ldy, bs);
   merit = &dom->merit;
   bs->iters = 0;
 
@@ -1470,6 +1480,8 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
     *merit = MERIT_Function (ldy, 0);
 
     bs->merhist [bs->iters] = *merit;
+
+    A->epsilon *= 0.1; /* FIXME */
 
 #if MPI
     if (dom->rank == 0)
