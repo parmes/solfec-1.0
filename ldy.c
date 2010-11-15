@@ -45,7 +45,7 @@ static UPKIND update_kind (SOLVER_KIND solver)
   switch (solver)
   {
     case PENALTY_SOLVER: return UPPES;
-    case BODY_SPACE_SOLVER: return UPNOTHING;
+    case NEWTON_SOLVER: return UPNOTHING;
     default: return UPALL;
   }
 

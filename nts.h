@@ -1,8 +1,8 @@
 /*
- * bss.h
+ * nts.h
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * body space solver
+ * Newton solver
  */
 
 /* This file is part of Solfec.
@@ -21,12 +21,12 @@
 
 #include "ldy.h"
 
-#ifndef __bss__
-#define __bss__
+#ifndef __nts__
+#define __nts__
 
-typedef struct body_space_solver BSS;
+typedef struct newton_solver NEWTON;
 
-struct body_space_solver
+struct newton_solver
 {
   /* input */
 
@@ -44,15 +44,15 @@ struct body_space_solver
 };
 
 /* create solver */
-BSS* BSS_Create (double meritval, int maxiter);
+NEWTON* NEWTON_Create (double meritval, int maxiter);
 
 /* run solver */
-void BSS_Solve (BSS *bs, LOCDYN *ldy);
+void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy);
 
 /* write labeled state values */
-void BSS_Write_State (BSS *bs, PBF *bf);
+void NEWTON_Write_State (NEWTON *ns, PBF *bf);
 
 /* destroy solver */
-void BSS_Destroy (BSS *bs);
+void NEWTON_Destroy (NEWTON *bs);
 
 #endif

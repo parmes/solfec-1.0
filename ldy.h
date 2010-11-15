@@ -45,7 +45,7 @@ enum solver_kind
   NONE_SOLVER          = 0x00,
   GAUSS_SEIDEL_SOLVER  = 0x01,
   PENALTY_SOLVER       = 0x02,
-  BODY_SPACE_SOLVER    = 0x04
+  NEWTON_SOLVER        = 0x04
 };
 
 typedef enum solver_kind SOLVER_KIND;

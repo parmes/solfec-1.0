@@ -1,5 +1,5 @@
 /*
- * bss.c
+ * nts.c
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
  * body space solver
@@ -23,7 +23,7 @@
 #include <stdlib.h>
 #include <float.h>
 
-#include "bss.h"
+#include "nts.h"
 #include "dom.h"
 #include "fem.h"
 #include "alg.h"
@@ -40,13 +40,13 @@
 #include "put.h"
 #endif
 
-typedef struct bss_con_data BSS_CON_DATA;
-typedef struct bss_data BSS_DATA;
+typedef struct newton_con_data NEWTON_CON_DATA;
+typedef struct newton_data NEWTON_DATA;
 typedef struct vector VECTOR;
 
 #if MPI
-typedef struct bss_com_pattern BSS_COM_PATTERN;
-struct bss_com_pattern
+typedef struct newton_com_pattern NEWTON_COM_PATTERN;
+struct newton_com_pattern
 {
   COMDATA *send, *recv;
   int nsend, nrecv;
@@ -54,7 +54,7 @@ struct bss_com_pattern
 };
 #endif
 
-struct bss_con_data
+struct newton_con_data
 {
   MX *mH; /* master H */
   int mi, /* shift to mH in global velocity space */
@@ -81,7 +81,7 @@ struct bss_con_data
   CON *con; /* constraint */
 };
 
-struct bss_data
+struct newton_data
 {
   BODY **bod; /* bodies with constraints */
 
@@ -90,7 +90,7 @@ struct bss_data
       ndat, /* number of active constraints */
       nbod; /* size of bod[] */
 
-  BSS_CON_DATA *dat; /* active constraints data */
+  NEWTON_CON_DATA *dat; /* active constraints data */
 
   VECTOR *b, /* right hand side (of size ndual) */
          *x, /* reactions (-||-) */
@@ -113,8 +113,8 @@ struct bss_data
   LOCDYN *ldy; /* local dynamics */
 
 #if MPI
-  BSS_COM_PATTERN *x_to_ext, *ext_to_y; /* communication patterns */
-  BSS_CON_DATA *datext; /* external active constraints data */
+  NEWTON_COM_PATTERN *x_to_ext, *ext_to_y; /* communication patterns */
+  NEWTON_CON_DATA *datext; /* external active constraints data */
   int ndatext, next; /* number of them, size of 'ext' (== ndatext * 3) */
   double *ext; /* storage for R_ext and U_ext */
 #endif
@@ -207,7 +207,7 @@ inline static double* gather (double *q, int *j, int n, double *a)
 }
 
 /* y = H' x */
-static void H_trans_vector (double *a, BSS_CON_DATA *dat, int n, double *x, double *y)
+static void H_trans_vector (double *a, NEWTON_CON_DATA *dat, int n, double *x, double *y)
 {
   for (; n > 0; dat ++, n --)
   {
@@ -240,7 +240,7 @@ static void H_trans_vector (double *a, BSS_CON_DATA *dat, int n, double *x, doub
 }
 
 /* y = H' x */
-static void H_times_vector (double *a, BSS_CON_DATA *dat, int n, double *x, double *y)
+static void H_times_vector (double *a, NEWTON_CON_DATA *dat, int n, double *x, double *y)
 {
   for (; n > 0; dat ++, n --)
   {
@@ -268,14 +268,14 @@ static void H_times_vector (double *a, BSS_CON_DATA *dat, int n, double *x, doub
 
 #if MPI
 /* create x_to_ext communication pattern */
-static BSS_COM_PATTERN* x_to_ext_create (BSS_DATA *A)
+static NEWTON_COM_PATTERN* x_to_ext_create (NEWTON_DATA *A)
 {
-  BSS_CON_DATA *dat, *end;
-  BSS_COM_PATTERN *pat;
+  NEWTON_CON_DATA *dat, *end;
+  NEWTON_COM_PATTERN *pat;
   COMDATA *ptr;
   SET *item;
 
-  ERRMEM (pat = MEM_CALLOC (sizeof (BSS_COM_PATTERN)));
+  ERRMEM (pat = MEM_CALLOC (sizeof (NEWTON_COM_PATTERN)));
 
   for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
@@ -302,13 +302,13 @@ static BSS_COM_PATTERN* x_to_ext_create (BSS_DATA *A)
 }
 
 /* create ext_to_y communication pattern */
-static BSS_COM_PATTERN* ext_to_y_create (BSS_DATA *A)
+static NEWTON_COM_PATTERN* ext_to_y_create (NEWTON_DATA *A)
 {
-  BSS_CON_DATA *dat, *end;
-  BSS_COM_PATTERN *pat;
+  NEWTON_CON_DATA *dat, *end;
+  NEWTON_COM_PATTERN *pat;
   COMDATA *ptr;
 
-  ERRMEM (pat = MEM_CALLOC (sizeof (BSS_COM_PATTERN)));
+  ERRMEM (pat = MEM_CALLOC (sizeof (NEWTON_COM_PATTERN)));
   pat->nsend = A->ndatext;
   ERRMEM (pat->send = MEM_CALLOC (sizeof (COMDATA [pat->nsend])));
 
@@ -327,7 +327,7 @@ static BSS_COM_PATTERN* ext_to_y_create (BSS_DATA *A)
 }
 
 /* destroy communication pattern */
-static void bss_comm_pattern_destroy (BSS_COM_PATTERN *pat)
+static void comm_pattern_destroy (NEWTON_COM_PATTERN *pat)
 {
   COMALL_Free (pat->pattern);
   free (pat->send);
@@ -336,11 +336,11 @@ static void bss_comm_pattern_destroy (BSS_COM_PATTERN *pat)
 }
 
 /* send x local reactions to xext external reaction */
-static void x_to_ext (BSS_DATA *A, double *x, double *ext)
+static void x_to_ext (NEWTON_DATA *A, double *x, double *ext)
 {
-  BSS_COM_PATTERN *pat = A->x_to_ext;
+  NEWTON_COM_PATTERN *pat = A->x_to_ext;
   MAP *conext = A->dom->conext;
-  BSS_CON_DATA *dat, *end;
+  NEWTON_CON_DATA *dat, *end;
   COMDATA *ptr, *qtr;
   double *a, *b, *c;
   SET *item;
@@ -369,11 +369,11 @@ static void x_to_ext (BSS_DATA *A, double *x, double *ext)
 }
 
 /* send yext external velocities to y local velocities */
-static void ext_to_y (BSS_DATA *A, double *ext, double *y)
+static void ext_to_y (NEWTON_DATA *A, double *ext, double *y)
 {
-  BSS_COM_PATTERN *pat = A->ext_to_y;
+  NEWTON_COM_PATTERN *pat = A->ext_to_y;
   MAP *idc = A->dom->idc;
-  BSS_CON_DATA *dat, *end;
+  NEWTON_CON_DATA *dat, *end;
   COMDATA *ptr, *qtr;
   double *a, *b, *c;
   CON *con;
@@ -399,11 +399,11 @@ static void ext_to_y (BSS_DATA *A, double *ext, double *y)
 #endif
 
 /* y = alpha W x */
-static void W_times_vector (BSS_DATA *A, double *x, double *y)
+static void W_times_vector (NEWTON_DATA *A, double *x, double *y)
 {
   double *r = A->r, *u = A->u, *a = A->a, step;
   int n = A->ndat, m = A->nbod, i;
-  BSS_CON_DATA *dat = A->dat;
+  NEWTON_CON_DATA *dat = A->dat;
   BODY **bod = A->bod;
   DOM *dom = A->dom;
 
@@ -447,7 +447,7 @@ static int Free (char *ptr)
   return 0;
 }
 
-static int CommInfo (BSS_DATA *A, int *my_id, int *num_procs)
+static int CommInfo (NEWTON_DATA *A, int *my_id, int *num_procs)
 {
 #if MPI
   *num_procs = A->dom->ncpu;
@@ -562,10 +562,10 @@ static void *MatvecCreate (void *A, void *x)
   return NULL;
 }
 
-static int Matvec (void *matvec_data, double alpha, BSS_DATA *A, VECTOR *x, double beta, VECTOR *y)
+static int Matvec (void *matvec_data, double alpha, NEWTON_DATA *A, VECTOR *x, double beta, VECTOR *y)
 {
   double Z [3], *Y, *X, *R, *U, *Q, *u, *q, *r;
-  BSS_CON_DATA *dat = A->dat;
+  NEWTON_CON_DATA *dat = A->dat;
   int n = A->ndat;
 
   W_times_vector (A, x->x, A->y->x); /* dU = W dR */
@@ -621,9 +621,9 @@ static int PrecondSetup (void *vdata, void *A, void *b, void *x)
   return 0;
 }
 
-static int Precond (void *vdata, BSS_DATA *A, VECTOR *b, VECTOR *x)
+static int Precond (void *vdata, NEWTON_DATA *A, VECTOR *b, VECTOR *x)
 {
-  BSS_CON_DATA *dat, *end;
+  NEWTON_CON_DATA *dat, *end;
   double *T, *p, *q;
 
   for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
@@ -752,9 +752,9 @@ static void update_V_and_B (DOM *dom)
 }
 
 /* create constraints data */
-static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod, int nbod, int *ndat, VECTOR **v, double *free_energy, double *epsilon)
+static NEWTON_CON_DATA *create_constraints_data (DOM *dom, NEWTON_DATA *A, BODY **bod, int nbod, int *ndat, VECTOR **v, double *free_energy, double *epsilon)
 {
-  BSS_CON_DATA *out, *dat, *end;
+  NEWTON_CON_DATA *out, *dat, *end;
   double Bavg [3], step, *x;
   MAP *map, *fem;
   short dynamic;
@@ -765,7 +765,7 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
   (*free_energy) = 0.0;
   SET (Bavg, 0.0);
 
-  ERRMEM (out = MEM_CALLOC (dom->ncon * sizeof (BSS_CON_DATA)));
+  ERRMEM (out = MEM_CALLOC (dom->ncon * sizeof (NEWTON_CON_DATA)));
   (*v) = newvector (dom->ncon * 3);
   step = dom->step;
   x = (*v)->x;
@@ -918,7 +918,7 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
 
   /* create external constraints data */
   A->ndatext = MAP_Size (dom->conext);
-  ERRMEM (A->datext = MEM_CALLOC (sizeof (BSS_CON_DATA [A->ndatext])));
+  ERRMEM (A->datext = MEM_CALLOC (sizeof (NEWTON_CON_DATA [A->ndatext])));
   for (item = MAP_First (dom->conext), dat = A->datext, n = 0; item; item = MAP_Next (item), dat ++)
   {
     con = item->data;
@@ -1071,9 +1071,9 @@ static BSS_CON_DATA *create_constraints_data (DOM *dom, BSS_DATA *A, BODY **bod,
   return out;
 }
 
-static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
+static void destroy_constraints_data (NEWTON_CON_DATA *dat, int n)
 {
-  BSS_CON_DATA *ptr = dat;
+  NEWTON_CON_DATA *ptr = dat;
 
   for (; n > 0; dat ++, n --)
   {
@@ -1089,21 +1089,25 @@ static void destroy_constraints_data (BSS_CON_DATA *dat, int n)
 /* decide whether to use local dynamics; if so assemble it */
 static LOCDYN* local_dynamics (LOCDYN *ldy)
 {
+
+  /* TODO: make sure that FEM_Gen_To_Loc_Operator knows how to act
+   *       in case corotational FEM and local dynamics */
+
   return NULL; /* TODO */
 }
 
-/* create BSS data */
-static BSS_DATA *create_data (LOCDYN *ldy, BSS *bs)
+/* create NEWTON data */
+static NEWTON_DATA *create_data (LOCDYN *ldy, NEWTON *ns)
 {
-  BSS_CON_DATA *dat, *end;
+  NEWTON_CON_DATA *dat, *end;
   DOM *dom = ldy->dom;
-  BSS_DATA *A;
+  NEWTON_DATA *A;
   BODY *bod;
   int m, n;
 
   update_V_and_B (dom);
 
-  ERRMEM (A = MEM_CALLOC (sizeof (BSS_DATA)));
+  ERRMEM (A = MEM_CALLOC (sizeof (NEWTON_DATA)));
   A->znorm = 1.0;
   A->dom = ldy->dom;
   A->ldy = local_dynamics (ldy);
@@ -1193,12 +1197,12 @@ static BSS_DATA *create_data (LOCDYN *ldy, BSS *bs)
 }
 
 /* update linear system */
-static void update_system (BSS_DATA *A, int nocontact)
+static void update_system (NEWTON_DATA *A, int nocontact)
 {
   double *Abx = A->b->x, delta = A->delta, epsilon = A->epsilon;
   DOM *dom = A->dom;
   short dynamic = dom->dynamic;
-  BSS_CON_DATA *dat, *end;
+  NEWTON_CON_DATA *dat, *end;
 
   for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
@@ -1310,7 +1314,7 @@ static void update_system (BSS_DATA *A, int nocontact)
 }
 
 /* solve linear system */
-static int linear_solve (BSS_DATA *A, double abstol, int maxiter)
+static int linear_solve (NEWTON_DATA *A, double abstol, int maxiter)
 {
   hypre_FlexGMRESFunctions *gmres_functions;
   void *gmres_vdata;
@@ -1355,10 +1359,10 @@ static int linear_solve (BSS_DATA *A, double abstol, int maxiter)
 }
 
 /* update solution */
-static void update_solution (BSS_DATA *A)
+static void update_solution (NEWTON_DATA *A)
 {
   double *R, *x, *z, *Azx = A->z->x, *Ayx = A->y->x, *Axx = A->x->x;
-  BSS_CON_DATA *dat, *end;
+  NEWTON_CON_DATA *dat, *end;
 
   for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
   {
@@ -1392,11 +1396,11 @@ static void update_solution (BSS_DATA *A)
   }
 }
 
-/* destroy BSS data */
-static void destroy_data (BSS_DATA *A)
+/* destroy NEWTON data */
+static void destroy_data (NEWTON_DATA *A)
 {
   /* account for cohesion */
-  for (BSS_CON_DATA *dat = A->dat, *end = dat + A->ndat; dat != end; dat ++)
+  for (NEWTON_CON_DATA *dat = A->dat, *end = dat + A->ndat; dat != end; dat ++)
   {
     CON *con = dat->con;
 
@@ -1422,8 +1426,8 @@ static void destroy_data (BSS_DATA *A)
 
 #if MPI
   destroy_constraints_data (A->datext, A->ndatext);
-  bss_comm_pattern_destroy (A->x_to_ext);
-  bss_comm_pattern_destroy (A->ext_to_y);
+  comm_pattern_destroy (A->x_to_ext);
+  comm_pattern_destroy (A->ext_to_y);
   free (A->ext);
 #endif
 
@@ -1440,65 +1444,65 @@ static void destroy_data (BSS_DATA *A)
 }
 
 /* create solver */
-BSS* BSS_Create (double meritval, int maxiter)
+NEWTON* NEWTON_Create (double meritval, int maxiter)
 {
-  BSS *bs;
+  NEWTON *ns;
 
-  ERRMEM (bs = MEM_CALLOC (sizeof (BSS)));
-  bs->meritval = meritval;
-  bs->maxiter = maxiter;
-  bs->linmaxiter = maxiter * 10;
+  ERRMEM (ns = MEM_CALLOC (sizeof (NEWTON)));
+  ns->meritval = meritval;
+  ns->maxiter = maxiter;
+  ns->linmaxiter = maxiter * 10;
 
-  return bs;
+  return ns;
 }
 
 /* run solver */
-void BSS_Solve (BSS *bs, LOCDYN *ldy)
+void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
   char fmt [512];
   double *merit;
-  BSS_DATA *A;
+  NEWTON_DATA *A;
   DOM *dom;
 
-  sprintf (fmt, "BODY_SPACE_SOLVER: (LIN its/res: %%%dd/%%.2e) iteration: %%%dd merit: %%.2e\n",
-           (int)log10 (bs->linmaxiter) + 1, (int)log10 (bs->maxiter) + 1);
+  sprintf (fmt, "NEWTON_SOLVER: (LIN its/res: %%%dd/%%.2e) iteration: %%%dd merit: %%.2e\n",
+           (int)log10 (ns->linmaxiter) + 1, (int)log10 (ns->maxiter) + 1);
 
-  ERRMEM (bs->merhist = realloc (bs->merhist, bs->maxiter * sizeof (double)));
+  ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
   dom = ldy->dom;
-  A = create_data (ldy, bs);
+  A = create_data (ldy, ns);
   merit = &dom->merit;
-  bs->iters = 0;
+  ns->iters = 0;
 
   do
   {
     update_system (A, 0);
 
-    if (!linear_solve (A, 0.25 * A->bnorm,  bs->linmaxiter)) break; /* TODO: react */
+    if (!linear_solve (A, 0.25 * A->bnorm, ns->linmaxiter)) break; /* TODO: react */
 
     update_solution (A);
 
     *merit = MERIT_Function (ldy, 0);
 
-    bs->merhist [bs->iters] = *merit;
+    ns->merhist [ns->iters] = *merit;
 
     A->epsilon *= 0.1; /* FIXME */
 
 #if MPI
     if (dom->rank == 0)
 #endif
-    if (dom->verbose) printf (fmt, A->iters, A->resnorm, bs->iters, *merit);
+    if (dom->verbose) printf (fmt, A->iters, A->resnorm, ns->iters, *merit);
 
-  } while (++ bs->iters < bs->maxiter && *merit > bs->meritval);
+  } while (++ ns->iters < ns->maxiter && *merit > ns->meritval);
 
-  if (bs->iters >= bs->maxiter)
+  if (ns->iters >= ns->maxiter)
   {
     A->delta = 0.0;
     update_system (A, 1); /* freeze contacts */
-    if (linear_solve (A, bs->meritval, bs->linmaxiter)) /* TODO: abstol */
+    if (linear_solve (A, ns->meritval, ns->linmaxiter)) /* TODO: abstol */
     {
       update_solution (A); /* refine equality constraints */
       *merit = MERIT_Function (ldy, 0);
-      bs->merhist [bs->iters-1] = *merit;
+      ns->merhist [ns->iters-1] = *merit;
     }
   }
 
@@ -1506,15 +1510,15 @@ void BSS_Solve (BSS *bs, LOCDYN *ldy)
 }
 
 /* write labeled state values */
-void BSS_Write_State (BSS *bs, PBF *bf)
+void NEWTON_Write_State (NEWTON *ns, PBF *bf)
 {
-  PBF_Label (bf, "BSITERS");
-  PBF_Int (bf, &bs->iters, 1);
+  PBF_Label (bf, "NTITERS");
+  PBF_Int (bf, &ns->iters, 1);
 }
 
 /* destroy solver */
-void BSS_Destroy (BSS *bs)
+void NEWTON_Destroy (NEWTON *ns)
 {
-  free (bs->merhist);
-  free (bs);
+  free (ns->merhist);
+  free (ns);
 }
