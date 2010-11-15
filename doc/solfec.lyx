@@ -8216,19 +8216,7 @@ a string 'MERIT' for the time history of the constraints satisfaction merit
 \end_layout
 
 \begin_layout Itemize
-a string 'LININIT' (linear system initialization), 'LINUPD' (linear system
- update time), 'LINMV' (linear system matrix-vector product time), 'LINPRE'
- (linear system preconditioner time), 'LINRUN' (other linear system computations
- time), 'LINCOM' (linear system communication time) for runtime statistics
- related to the Newton solver linear subproblems; 
-\end_layout
-
-\begin_layout Itemize
 a string 'NTITERS' for the NEWTON_SOLVER iterations count
-\end_layout
-
-\begin_layout Itemize
-a string 'BSITERS' for the BODY_SPACE_SOLVER iterations count
 \end_layout
 
 \begin_layout Itemize

@@ -3232,29 +3232,29 @@ static PyGetSetDef lng_PENALTY_SOLVER_getset [] =
 { {NULL, 0, 0, NULL, NULL} };
 
 /*
- * BODY_SPACE_SOLVER => object
+ * NEWTON_SOLVER => object
  */
 
-typedef struct lng_BODY_SPACE_SOLVER lng_BODY_SPACE_SOLVER;
+typedef struct lng_NEWTON_SOLVER lng_NEWTON_SOLVER;
 
-static PyTypeObject lng_BODY_SPACE_SOLVER_TYPE;
+static PyTypeObject lng_NEWTON_SOLVER_TYPE;
 
-struct lng_BODY_SPACE_SOLVER
+struct lng_NEWTON_SOLVER
 {
   PyObject_HEAD
 
-  BSS *bs;
+  NEWTON *ns;
 };
 
 /* constructor */
-static PyObject* lng_BODY_SPACE_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("meritval", "maxiter");
-  lng_BODY_SPACE_SOLVER *self;
+  lng_NEWTON_SOLVER *self;
   int maxiter;
   double meritval;
 
-  self = (lng_BODY_SPACE_SOLVER*)type->tp_alloc (type, 0);
+  self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
@@ -3265,106 +3265,106 @@ static PyObject* lng_BODY_SPACE_SOLVER_new (PyTypeObject *type, PyObject *args, 
 
     TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]));
 
-    self->bs = BSS_Create (meritval, maxiter);
+    self->ns = NEWTON_Create (meritval, maxiter);
   }
 
   return (PyObject*)self;
 }
 
 /* destructor */
-static void lng_BODY_SPACE_SOLVER_dealloc (lng_BODY_SPACE_SOLVER *self)
+static void lng_NEWTON_SOLVER_dealloc (lng_NEWTON_SOLVER *self)
 {
 #if OPENGL
   if (RND_Is_On ()) return; /* do not delete in viewer mode */
   else
 #endif
-  BSS_Destroy (self->bs);
+  NEWTON_Destroy (self->ns);
 
   self->ob_type->tp_free ((PyObject*)self);
 }
 
-static PyObject* lng_BODY_SPACE_SOLVER_get_meritval (lng_BODY_SPACE_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_meritval (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->bs->meritval);
+  return PyFloat_FromDouble (self->ns->meritval);
 }
 
-static int lng_BODY_SPACE_SOLVER_set_meritval (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_meritval (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
   if (!is_number_gt_val (value, "meritval", 0)) return -1;
-  self->bs->meritval = PyFloat_AsDouble (value);
+  self->ns->meritval = PyFloat_AsDouble (value);
   return 0;
 }
 
-static PyObject* lng_BODY_SPACE_SOLVER_get_maxiter (lng_BODY_SPACE_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_maxiter (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->bs->maxiter);
+  return PyFloat_FromDouble (self->ns->maxiter);
 }
 
-static int lng_BODY_SPACE_SOLVER_set_maxiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_maxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
   if (!is_number_gt_val (value, "maxiter", 0)) return -1;
-  self->bs->maxiter = PyInt_AsLong (value);
+  self->ns->maxiter = PyInt_AsLong (value);
   return 0;
 }
 
-static PyObject* lng_BODY_SPACE_SOLVER_get_linmaxiter (lng_BODY_SPACE_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_linmaxiter (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->bs->linmaxiter);
+  return PyFloat_FromDouble (self->ns->linmaxiter);
 }
 
-static int lng_BODY_SPACE_SOLVER_set_linmaxiter (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_linmaxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
   if (!is_number_ge_val (value, "linmaxiter", 1)) return -1;
-  self->bs->linmaxiter = PyInt_AsLong (value);
+  self->ns->linmaxiter = PyInt_AsLong (value);
   return 0;
 }
 
-static PyObject* lng_BODY_SPACE_SOLVER_get_merhist (lng_BODY_SPACE_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_merhist (lng_NEWTON_SOLVER *self, void *closure)
 {
   PyObject *list;
   int i;
 
-  ERRMEM (list = PyList_New (self->bs->iters));
+  ERRMEM (list = PyList_New (self->ns->iters));
 
-  for (i = 0; i < self->bs->iters; i ++)
-    PyList_SetItem (list, i, PyFloat_FromDouble (self->bs->merhist [i]));
+  for (i = 0; i < self->ns->iters; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->ns->merhist [i]));
 
   return list;
 }
 
-static int lng_BODY_SPACE_SOLVER_set_merhist (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_merhist (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
   PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
   return -1;
 }
 
-static PyObject* lng_BODY_SPACE_SOLVER_get_iters (lng_BODY_SPACE_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_iters (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyInt_FromLong (self->bs->iters);
+  return PyInt_FromLong (self->ns->iters);
 }
 
-static int lng_BODY_SPACE_SOLVER_set_iters (lng_BODY_SPACE_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_iters (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
   PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
   return -1;
 }
 
-/* BODY_SPACE_SOLVER methods */
-static PyMethodDef lng_BODY_SPACE_SOLVER_methods [] =
+/* NEWTON_SOLVER methods */
+static PyMethodDef lng_NEWTON_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
 
-/* BODY_SPACE_SOLVER members */
-static PyMemberDef lng_BODY_SPACE_SOLVER_members [] =
+/* NEWTON_SOLVER members */
+static PyMemberDef lng_NEWTON_SOLVER_members [] =
 { {NULL, 0, 0, 0, NULL} };
 
-/* BODY_SPACE_SOLVER getset */
-static PyGetSetDef lng_BODY_SPACE_SOLVER_getset [] =
+/* NEWTON_SOLVER getset */
+static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
 { 
-  {"meritval", (getter)lng_BODY_SPACE_SOLVER_get_meritval, (setter)lng_BODY_SPACE_SOLVER_set_meritval, "merit function accuracy", NULL},
-  {"maxiter", (getter)lng_BODY_SPACE_SOLVER_get_maxiter, (setter)lng_BODY_SPACE_SOLVER_set_maxiter, "iterations bound", NULL},
-  {"linmaxiter", (getter)lng_BODY_SPACE_SOLVER_get_linmaxiter, (setter)lng_BODY_SPACE_SOLVER_set_linmaxiter, "linear solver maximal iterations count", NULL},
-  {"merhist", (getter)lng_BODY_SPACE_SOLVER_get_merhist, (setter)lng_BODY_SPACE_SOLVER_set_merhist, "merit function history", NULL},
-  {"iters", (getter)lng_BODY_SPACE_SOLVER_get_iters, (setter)lng_BODY_SPACE_SOLVER_set_iters, "iterations count", NULL},
+  {"meritval", (getter)lng_NEWTON_SOLVER_get_meritval, (setter)lng_NEWTON_SOLVER_set_meritval, "merit function accuracy", NULL},
+  {"maxiter", (getter)lng_NEWTON_SOLVER_get_maxiter, (setter)lng_NEWTON_SOLVER_set_maxiter, "iterations bound", NULL},
+  {"linmaxiter", (getter)lng_NEWTON_SOLVER_get_linmaxiter, (setter)lng_NEWTON_SOLVER_set_linmaxiter, "linear solver maximal iterations count", NULL},
+  {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
+  {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
@@ -5344,7 +5344,7 @@ static int is_solver (PyObject *obj, char *var)
   {
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
-        !PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
+        !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must be a constraint solver object", var);
@@ -5363,8 +5363,8 @@ static int get_solver_kind (PyObject *obj)
     return GAUSS_SEIDEL_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     return PENALTY_SOLVER;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
-    return BODY_SPACE_SOLVER;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
+    return NEWTON_SOLVER;
   else return -1;
 }
 
@@ -5375,8 +5375,8 @@ static void* get_solver (PyObject *obj)
     return ((lng_GAUSS_SEIDEL_SOLVER*)obj)->gs;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE))
     return ((lng_PENALTY_SOLVER*)obj)->ps;
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE))
-    return ((lng_BODY_SPACE_SOLVER*)obj)->bs;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
+    return ((lng_NEWTON_SOLVER*)obj)->ns;
   else return NULL;
 }
 
@@ -6784,9 +6784,9 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_PENALTY_SOLVER_dealloc, lng_PENALTY_SOLVER_new,
     lng_PENALTY_SOLVER_methods, lng_PENALTY_SOLVER_members, lng_PENALTY_SOLVER_getset);
 
-  TYPEINIT (lng_BODY_SPACE_SOLVER_TYPE, lng_BODY_SPACE_SOLVER, "solfec.BODY_SPACE_SOLVER",
-    Py_TPFLAGS_DEFAULT, lng_BODY_SPACE_SOLVER_dealloc, lng_BODY_SPACE_SOLVER_new,
-    lng_BODY_SPACE_SOLVER_methods, lng_BODY_SPACE_SOLVER_members, lng_BODY_SPACE_SOLVER_getset);
+  TYPEINIT (lng_NEWTON_SOLVER_TYPE, lng_NEWTON_SOLVER, "solfec.NEWTON_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_NEWTON_SOLVER_dealloc, lng_NEWTON_SOLVER_new,
+    lng_NEWTON_SOLVER_methods, lng_NEWTON_SOLVER_members, lng_NEWTON_SOLVER_getset);
 
   TYPEINIT (lng_CONSTRAINT_TYPE, lng_CONSTRAINT, "solfec.CONSTRAINT",
     Py_TPFLAGS_DEFAULT, lng_CONSTRAINT_dealloc, lng_CONSTRAINT_new,
@@ -6802,7 +6802,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_TIME_SERIES_TYPE) < 0) return;
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
-  if (PyType_Ready (&lng_BODY_SPACE_SOLVER_TYPE) < 0) return;
+  if (PyType_Ready (&lng_NEWTON_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
   if (!(m =  Py_InitModule3 ("solfec", lng_methods, "Solfec module"))) return;
@@ -6817,7 +6817,7 @@ static void initlng (void)
   Py_INCREF (&lng_TIME_SERIES_TYPE);
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
-  Py_INCREF (&lng_BODY_SPACE_SOLVER_TYPE);
+  Py_INCREF (&lng_NEWTON_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
@@ -6830,7 +6830,7 @@ static void initlng (void)
   PyModule_AddObject (m, "TIME_SERIES", (PyObject*)&lng_TIME_SERIES_TYPE);
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
-  PyModule_AddObject (m, "BODY_SPACE_SOLVER", (PyObject*)&lng_BODY_SPACE_SOLVER_TYPE);
+  PyModule_AddObject (m, "NEWTON_SOLVER", (PyObject*)&lng_NEWTON_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
 
@@ -6864,7 +6864,7 @@ int lng (const char *path)
                      "from solfec import TIME_SERIES\n"
                      "from solfec import GAUSS_SEIDEL_SOLVER\n"
                      "from solfec import PENALTY_SOLVER\n"
-                     "from solfec import BODY_SPACE_SOLVER\n"
+                     "from solfec import NEWTON_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"

@@ -2889,7 +2889,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
 
   if (bod->form == BODY_COROTATIONAL &&
       bod->scheme != SCH_DEF_EXP &&
-      dom->solver != BODY_SPACE_SOLVER) /* BODY_SPACE_SOLVER must see the regular H = E' N , rather than H R */
+      dom->solver != NEWTON_SOLVER) /* FIXME: NEWTON_SOLVER must see the regular H = E' N , rather than H R if it uses the "body-space" mode (TODO: detect) */
   {
     double *x = H->x, *y = x + H->nzmax,
            *R = FEM_ROT (bod), T [9];

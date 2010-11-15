@@ -2775,7 +2775,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom, SOLVER_KIND solver)
   BODY *bod;
 
 #if MPI
-  if (solver == BODY_SPACE_SOLVER) dom->chfull = 0; /* partial children packing is sufficient */
+  if (solver == NEWTON_SOLVER) dom->chfull = 0; /* partial children packing is sufficient */
   else dom->chfull = 1; /* see argument 'full' of BODY_Child_Pack and BODY_Child_Unpack */
 
   if (dom->rank == 0)
