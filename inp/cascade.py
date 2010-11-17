@@ -114,24 +114,43 @@ def create_balls (shapes, numbers, radius, leyers, thickness):
   return OVERLAPPING (shapes, up, 'NOT')
 
 # main module
-step = 0.01
+step = 0.005
 stop = 60
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/cascade')
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 bulk = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 GRAVITY (solfec, (0, 0, -10))
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 3)
+gs = GAUSS_SEIDEL_SOLVER (1E-3, 10)
 
 shapes = read_shapes ('inp/mesh/cascade.dat', 1, 1)
 
-balls = create_balls (shapes, [91, 86], 0.2, 5, 1)
+balls = create_balls (shapes, [86], 0.5, 5, 1)
 
 for shp in shapes:
   BODY (solfec, 'OBSTACLE', shp, bulk)
 
+bv = []
+id = 1
 for shp in balls:
-  BODY (solfec, 'RIGID', shp, bulk)
+  b = BODY (solfec, 'RIGID', shp, bulk, label = str(id))
+  bv.append (b)
+  id = id + 1
 
-OUTPUT (solfec, 0.05)
 RUN (solfec, gs, stop)
+
+if not VIEWER() and solfec.mode == 'READ':
+
+  dur = DURATION (solfec)
+  while solfec.time < dur [1]:
+
+    print '\nTime: %g' % solfec.time
+
+    for b in bv:
+      disp = DISPLACEMENT (b, b.center)
+      pos = (b.center[0] + disp[0],
+	     b.center[1] + disp[1],
+	     b.center[2] + disp[2])
+      print 'Body (%s) position = (%g, %g, %g)' % (b.label, pos[0], pos[1], pos[2])
+
+    FORWARD (solfec, 1)
