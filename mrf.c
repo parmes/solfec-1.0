@@ -28,7 +28,7 @@
  * amount of spurious momentum due to constraint force inaccuracy;
  * update_U != 0 implies that U needs to be computed for current R;
  * (it is assumed that all (also external) reactions are updated) */
-double MERIT_Function (LOCDYN *ldy, short update_U)
+double MERIT_Function (LOCDYN *ldy, short update_U, short friction_scaling)
 {
   double step, up, uplo [2], Q [3], P [3];
   SOLVER_KIND solver;
@@ -81,7 +81,22 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       }
       else
       {
-	VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
+	if (friction_scaling)
+	{
+	  double A [3], B [3],
+		 fri = con->mat.base->friction;
+
+	  if (fri == 0.0) VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
+	  else
+	  {
+	    COPY (U, A);
+	    COPY (R, B);
+	    A [2] *= fri;
+	    B [2] /= fri;
+            VIC_Linearize (con, A, B, -1, 0, P, NULL, NULL);
+	  }
+	}
+	else VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
 	NVMUL (A, P, Q);
 	up = DOT (Q, P);
       }
