@@ -72,8 +72,8 @@ struct newton_con_data
 	 *B, /* con->dia->B */
 	 *W, /* con->dia->W */
 	 *A, /* con->dia->A */
-	  X [9], /* U linearization */
-	  Y [9], /* R linearization */
+	  X [9], /* U-linearization */
+	  Y [9], /* R-linearization */
 	  T [9], /* diagonal preconditioner */
 	  UT,    /* fixed point |UT| */
 	  fri,   /* friction */
@@ -95,17 +95,31 @@ struct newton_data
 
   NEWTON_CON_DATA *dat; /* active constraints data */
 
-  VECTOR *C,  /* -C (U,R) (of size ndual) */
+  /* C(U,R) + X dU + Y dR = 0
+   * W R + B - U - dU + W dR = 0
+   * ------------------------------
+   *  (XW + Y) dR = -C(U,R) - X S 
+   *  dU = W dR + [W R + B - U] 
+   *  --------------------------
+   *  A dR = b
+   *  dU = W dR + S
+   *  ---------------
+   *  A = XW + Y
+   *  b = -C(U,R) - X S
+   *  S = W R + B - U */
+
+  VECTOR *b,  /* right hand side (of size ndual) */
 	 *dU, /* increments of velocities (-||-) */
-	 *dR; /* increments of reactions (-||-) */
+	 *dR, /* increments of reactions (-||-) */
+	 *S;  /* linear residual */
 
   double *u, /* body space velocity (of size nprimal) */
          *r, /* body space reaction (-||-) */
-	 *a, /* auxiliary vector (of size MAX [bod in bod->dom] { bod->dofs }) */
-	 *b, /* auxiliary vector (of size ndual) */
+	 *a0, /* auxiliary vector (of size MAX [bod in bod->dom] { bod->dofs }) */
+	 *a1, /* auxiliary vector (of size ndual) */
 	  epsilon, /* W regularization */
 	  omega,   /* projection smoothing regularization */
-	  Cnorm;   /* |C| */
+	  bnorm;   /* |b| */
 
   int iters; /* linear solver iterations */
 
@@ -402,7 +416,7 @@ static void ext_to_y (NEWTON_DATA *A, double *ext, double *y)
 /* y = alpha W x */
 static void W_times_vector (NEWTON_DATA *A, double *x, double *y)
 {
-  double *r = A->r, *u = A->u, *a = A->a, *b = A->b, step;
+  double *r = A->r, *u = A->u, *a = A->a0, *b = A->a1, step;
   int n = A->ndat, m = A->nbod, i;
   NEWTON_CON_DATA *dat, *end;
   BODY **bod = A->bod;
@@ -455,7 +469,7 @@ static void W_times_vector (NEWTON_DATA *A, double *x, double *y)
     }
   }
 
-  blas_daxpy (A->epsilon, A->ndual, x, 1, y, 1); /* W + epsilon I */
+  blas_daxpy (A->ndual, A->epsilon, x, 1, y, 1); /* W + epsilon I */
 }
 
 /* GMSS interface start */
@@ -882,10 +896,16 @@ static NEWTON_CON_DATA *create_constraints_data (DOM *dom, NEWTON_DATA *A, BODY 
     dat->con = con;
     if (dat->kind == CONTACT)
     {
+      if (con->state & CON_COHESIVE)
+      {
+	dat->coh = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
+      }
+
       dat->fri = con->mat.base->friction;
-      dat->coh = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
+
       if (dat->fri != 0.0)
       {
+	dat->coh  *= dat->fri;
 	con->R[2] *= dat->fri;
 	con->U[2] /= dat->fri; /* friction scaling */ 
       }
@@ -1143,19 +1163,46 @@ static NEWTON_DATA *create_data (LOCDYN *ldy, NEWTON *ns)
   }
   A->dat = create_constraints_data (dom, A, A->bod, A->nbod, &A->ndat, &dom->ldy->free_energy);
   A->ndual = A->ndat * 3;
-  A->C = newvector (A->ndual);
+  A->b = newvector (A->ndual);
   A->dU = newvector (A->ndual);
   A->dR = newvector (A->ndual);
+  A->S = newvector (A->ndual);
   ERRMEM (A->u = MEM_CALLOC (sizeof (double [A->nprimal])));
   ERRMEM (A->r = MEM_CALLOC (sizeof (double [A->nprimal])));
-  ERRMEM (A->a = MEM_CALLOC (sizeof (double [m])));
-  ERRMEM (A->b = MEM_CALLOC (sizeof (double [A->ndual])));
+  ERRMEM (A->a0 = MEM_CALLOC (sizeof (double [m])));
+  ERRMEM (A->a1 = MEM_CALLOC (sizeof (double [A->ndual])));
 #if MPI
   A->x_to_ext = x_to_ext_create (A);
   A->ext_to_y = ext_to_y_create (A);
 #endif
 
   return A;
+}
+
+/* smoothed max (0, alpha) */
+inline static double g (double alpha, double omega)
+{
+  if (omega == 0.0) return MAX (0.0, alpha);
+  else
+  {
+    alpha /= omega;
+    return 0.5 * omega * (sqrt (alpha*alpha + 4.0) + alpha);
+  }
+}
+
+/* smoothed derivative of max (0, alpha) */
+inline static double dgdt (double alpha, double omega)
+{
+  if (omega == 0.0)
+  {
+    if (alpha < 0.0) return 0.0;
+    else return 1.0;
+  }
+  else
+  {
+    alpha /= omega;
+    return 0.5 * (alpha / sqrt(alpha*alpha + 4.0) + 1.0);
+  }
 }
 
 /* projectio onto second order cone */
@@ -1166,8 +1213,8 @@ static void projection (double omega, double *Z, double *Q, double *l1, double *
   (*l1) = Z[2] - len;
   (*l2) = Z[2] + len;
 
-  j1 = MAX (0.0, (*l1));
-  j2 = MAX (0.0, (*l2));
+  j1 = g ((*l1), omega);
+  j2 = g ((*l2), omega);
 
   if (len == 0.0)
   {
@@ -1183,22 +1230,36 @@ static void projection (double omega, double *Z, double *Q, double *l1, double *
   }
 }
 
-/* smoothing function */
-inline static double g (double alpha)
+/* S = WR + B - U */
+static void update_residual (NEWTON_DATA *A)
 {
-  return 0.5 * (sqrt (alpha*alpha + 4.0) + alpha);
-}
+  double *r = A->dU->x, *s = A->S->x;
+  NEWTON_CON_DATA *dat, *end;
 
-/* smoothing function derivative */
-inline static double dgdt (double alpha)
-{
-  return 0.5 * (alpha / sqrt(alpha*alpha + 4.0) + 1.0);
+  for (dat = A->dat, end = dat + A->ndat; dat != end; dat ++)
+  {
+    double *R0 = dat->R, *R1 = &r [dat->n];
+    COPY (R0, R1);
+  }
+
+  W_times_vector (A, r, s);
+
+  for (dat = A->dat; dat != end; dat ++)
+  {
+    double *S = &s [dat->n],
+	   *B = dat->B,
+	   *U = dat->U;
+
+    ACC (B, S);
+    SCC (U, S);
+  }
 }
 
 /* update linear system */
 static double update_system (NEWTON_DATA *A)
 {
-  double *Cx = A->C->x, epsilon = A->epsilon, omega = A->omega;
+  double epsilon = A->epsilon, omega = A->omega;
+  double *B = A->b->x, *s = A->S->x;
   DOM *dom = A->dom;
   short dynamic = dom->dynamic;
   NEWTON_CON_DATA *dat, *end;
@@ -1210,7 +1271,8 @@ static double update_system (NEWTON_DATA *A)
 	   *V = dat->V,
 	   *W = dat->W,
 	   *T = dat->T,
-	   *C = &Cx [dat->n];
+	   *S = &s [dat->n],
+	   *b = &B [dat->n];
 
     switch (dat->kind)
     {
@@ -1219,15 +1281,15 @@ static double update_system (NEWTON_DATA *A)
     {
       if (dynamic)
       {
-	C [0] = -V[0]-U[0];
-	C [1] = -V[1]-U[1];
-	C [2] = -V[2]-U[2];
+	b [0] = -V[0]-U[0]-S[0];
+	b [1] = -V[1]-U[1]-S[1];
+	b [2] = -V[2]-U[2]-S[2];
       }
       else
       {
-	C [0] = -U[0];
-	C [1] = -U[1];
-	C [2] = -U[2];
+	b [0] = -U[0]-S[0];
+	b [1] = -U[1]-S[1];
+	b [2] = -U[2]-S[2];
       }
 
       NNCOPY (W, T);
@@ -1238,10 +1300,10 @@ static double update_system (NEWTON_DATA *A)
     break;
     case FIXDIR:
     {
-      C [0] = -R[0];
-      C [1] = -R[1];
-      if (dynamic) C [2] = -V[2]-U[2];
-      else C [2] = -U[2];
+      b [0] = -R[0];
+      b [1] = -R[1];
+      if (dynamic) b [2] = -V[2]-U[2]-S[2];
+      else b [2] = -U[2]-S[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -1253,9 +1315,9 @@ static double update_system (NEWTON_DATA *A)
     break;
     case VELODIR:
     {
-      C [0] = -R[0];
-      C [1] = -R[1];
-      C [2] = VELODIR(dat->con->Z)-U[2];
+      b [0] = -R[0];
+      b [1] = -R[1];
+      b [2] = VELODIR(dat->con->Z)-U[2]-S[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -1271,11 +1333,11 @@ static double update_system (NEWTON_DATA *A)
              d = RIGLNK_LEN (dat->con->Z),
 	     delta;
 
-      C [0] = -R[0];
-      C [1] = -R[1];
+      b [0] = -R[0];
+      b [1] = -R[1];
       delta = d*d - h*h*DOT2(U,U);
-      if (delta >= 0.0) C [2] = (sqrt (delta) - d)/h - U[2];
-      else C[2] = -U[2];
+      if (delta >= 0.0) b [2] = (sqrt (delta) - d)/h - U[2]-S[2];
+      else b[2] = -U[2]-S[2];
 
       T [1] = T [3] = T [6] = T [7] = 0.0;
       T [0] = T [4] = 1.0;
@@ -1292,64 +1354,82 @@ static double update_system (NEWTON_DATA *A)
 	     res = con->mat.base->restitution,
 	     step = dom->step,
 	     gap = con->gap,
+	     W1 [9],
 	     udash;
 
       if (dynamic) udash = res * MIN (V[2], 0);
       else udash = (MAX(gap, 0)/step);
 
+      NNCOPY (W, W1);
+
       if (dat->fri == 0.0)
       {
 	double Z = (R[2]+dat->coh) - (U[2]+udash);
 
-	C [0] = -R[0];
-	C [1] = -R[1];
-	C [2] = g(Z) - (R[2]+dat->coh);
+	b [0] = -R[0];
+	b [1] = -R[1];
+	b [2] = g (Z, omega) - (R[2]+dat->coh);
 	IDENTITY (Y);
-	Y [8] = 1.0 - dgdt (Z);
-	X [8] = dgdt (Z);
+	Y [8] = 1.0 - dgdt (Z, omega);
+	X [8] = dgdt (Z, omega);
       }
       else
       {
-	double Z [3], J [9], dot, l1, l2, a, b, c;
+	double Z [3], J [9], dot, len, l1, l2;
 
 	SUB (R, U, Z);
 	udash += dat->UT;
 	Z [2] += (dat->coh - udash);
-	projection (omega, Z, C, &l1, &l2);
-	SUB (C, R, C);
-	C [2] -= dat->coh; /* -C = proj [R_coh - F_S(U)] - R_coh */
+	projection (omega, Z, b, &l1, &l2);
+	SUB (b, R, b);
+	b [2] -= dat->coh; /* -C = proj [R_coh - F_S(U)] - R_coh */
 	dot = DOT2 (Z, Z);
+	len = sqrt (dot);
 
-	if (dot == 0.0)
+	if (len == 0.0)
 	{
-	  IDENTITY (X);
-	  X[0] = X[4] = X[8] = dgdt (Z [2] / omega);
+	  X[1] = X[2] = X[3] = X[5] = X[6] = X[7] = 0.0;
+	  X[0] = X[4] = X[8] = dgdt (Z [2], omega);
 	}
 	else
 	{
-	  l1 /= omega;
-	  l2 /= omega;
-	  a = (g (l2) - g(l1)) / (l2 - l1);
-	  b = 0.5 * (dgdt (l2) + dgdt (l1));
-	  c = 0.5 * (dgdt (l2) - dgdt (l1));
+	  double a, b, c;
+
+	  //a = omega * (g (l2, omega) - g(l1, omega)) / (l2 - l1);
+          a = 0.5 * (1 + (l1+l2)/(sqrt(l1*l1+4*omega*omega)+sqrt(l2*l2+4*omega*omega))); /* FIXME */
+#define  DGDT(lmd,mu) (0.5*(1 + lmd/sqrt(lmd*lmd+4*mu*mu)))
+	  b = 0.5 * (DGDT (l2, omega) + DGDT (l1, omega));
+	  c = 0.5 * (DGDT (l2, omega) - DGDT (l1, omega));
 
 	  X [0] = a + (b - a) * Z[0]*Z[0] / dot;
 	  X [1] = (b - a) * Z[1]*Z[0] / dot;
-	  X [2] = c * Z[0] / sqrt (dot);
+	  X [2] = c * Z[0] / len;
 	  X [3] = X[1];
 	  X [4] = a + (b - a) * Z[1]*Z[1] / dot;
-	  X [5] = c * Z[1] / sqrt (dot);;
+	  X [5] = c * Z[1] / len;
 	  X [6] = X[2];
 	  X [7] = X[5];
 	  X [8] = b;
 	}
 
 	IDENTITY (J);
-	SUB (J, X, Y);
+	NNSUB (J, X, Y);
+
+	double inv = 1.0 / dat->fri;
+	W1 [2] *= inv;
+	W1 [5] *= inv;
+	W1 [6] *= inv;
+	W1 [7] *= inv;
+	W1 [8] *= inv*inv; /* friction scaling */
       }
 
-      NNMUL (X, W, T);
-      NNADDMUL (T, epsilon, X, T);
+      NVSUBMUL (b, X, S, b);
+
+      W1[0] += epsilon;
+      W1[1] += epsilon;
+      W1[2] += epsilon;
+
+      NNMUL (X, W1, T);
       NNADD (T, Y, T);
     }
     break;
@@ -1359,13 +1439,13 @@ static double update_system (NEWTON_DATA *A)
     MX_Inverse (&P, &P);
   }
 
-  return sqrt (InnerProd (A->C, A->C));
+  return sqrt (InnerProd (A->b, A->b));
 }
 
 /* regularized merit function */
 static double merit_function (NEWTON_DATA *A, double epsilon, double omega, double theta)
 {
-  double merit = 0.0, *dr = A->dR->x, *du = A->dU->x;
+  double merit = 0.0, *dr = A->dR->x, *du = A->dU->x, *s = A->S->x;
   DOM *dom = A->dom;
   short dynamic = dom->dynamic;
   NEWTON_CON_DATA *dat, *end;
@@ -1376,11 +1456,13 @@ static double merit_function (NEWTON_DATA *A, double epsilon, double omega, doub
 	   *R0 = dat->R,
 	   *dR = &dr [dat->n],
 	   *dU = &du [dat->n],
+	   *S0 = &s [dat->n],
 	   *V = dat->V,
-	   U [3], R [3], C [3];
+	   U [3], R [3], C [3], S [3];
 
     ADDMUL (R0, theta, dR, R);
     ADDMUL (U0, theta, dU, U);
+    MUL (S0, (1.0-theta), S);
 
     switch (dat->kind)
     {
@@ -1446,7 +1528,7 @@ static double merit_function (NEWTON_DATA *A, double epsilon, double omega, doub
 
 	C [0] = -R[0];
 	C [1] = -R[1];
-	C [2] = g(Z) - (R[2]+dat->coh);
+	C [2] = g (Z, omega) - (R[2]+dat->coh);
       }
       else
       {
@@ -1463,7 +1545,7 @@ static double merit_function (NEWTON_DATA *A, double epsilon, double omega, doub
     break;
     }
 
-    merit += DOT (C, C);
+    merit += DOT (C, C) + DOT (S, S);
   }
 
 #if MPI
@@ -1567,8 +1649,6 @@ static void linear_solve (NEWTON_DATA *A, double abstol, int maxiter)
 {
   hypre_FlexGMRESFunctions *gmres_functions;
   void *gmres_vdata;
-  VECTOR *r;
-  int ret;
 
   gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
     (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
@@ -1583,12 +1663,12 @@ static void linear_solve (NEWTON_DATA *A, double abstol, int maxiter)
   hypre_FlexGMRESSetMinIter (gmres_vdata, 1);
   hypre_FlexGMRESSetMaxIter (gmres_vdata, maxiter);
   hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, abstol);
-  hypre_FlexGMRESSetup (gmres_vdata, A, A->C, A->dR);
-  ret = hypre_FlexGMRESSolve (gmres_vdata, A, A->C, A->dR);
+  hypre_FlexGMRESSetup (gmres_vdata, A, A->b, A->dR);
+  hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->dR);
   hypre_FlexGMRESGetNumIterations (gmres_vdata , &A->iters);
-  hypre_FlexGMRESGetResidual (gmres_vdata, (void**) &r);
   hypre_FlexGMRESDestroy (gmres_vdata);
   W_times_vector (A, A->dR->x, A->dU->x);
+  Axpy (1.0, A->S, A->dU);
 }
 
 /* destroy NEWTON data */
@@ -1603,6 +1683,7 @@ static void destroy_data (NEWTON_DATA *A)
     {
       if (dat->fri != 0.0)
       {
+	dat->coh   /= dat->fri;
 	con->R [2] /= dat->fri;
 	con->U [2] *= dat->fri; /* friction scaling */
       }
@@ -1632,15 +1713,16 @@ static void destroy_data (NEWTON_DATA *A)
   free (A->ext);
 #endif
 
-  DestroyVector (A->C);
+  DestroyVector (A->b);
   DestroyVector (A->dU);
   DestroyVector (A->dR);
+  DestroyVector (A->S);
 
   free (A->bod);
   free (A->u);
   free (A->r);
-  free (A->a);
-  free (A->b);
+  free (A->a0);
+  free (A->a1);
   free (A);
 }
 
@@ -1660,7 +1742,7 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
 /* run solver */
 void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
-  double eta, rho, sigma, ksi, eta1, kappa, kappa1, kappa2, theta, beta, tau, *merit, innmer, a [3];
+  double tau, eta, rho, sigma, ksi, eta1, kappa, kappa1, kappa2, theta, beta, *merit, innmer, innmer0, a [3];
   char fmt_out [512], fmt_inn [512];
   NEWTON_DATA *A;
   DOM *dom;
@@ -1668,48 +1750,59 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   sprintf (fmt_out, "NEWTON_SOLVER: OUTER iteration: %%%dd, OUTER merit: %%.2e\n",
            (int)log10 (ns->maxiter) + 1);
 
-  sprintf (fmt_inn, "NEWTON_SOLVER: INNER iteration: %%%dd, INNER merit: %%.2e, linear iterations: %%%dd) \n",
+  sprintf (fmt_inn, "NEWTON_SOLVER: INNER iteration: %%%dd, INNER merit: %%.2e, (linear iterations: %%%dd)\n",
            (int)log10 (ns->maxiter) + 1, (int)log10 (ns->linmaxiter) + 1);
 
   ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
   A = create_data (ldy, ns);
   dom = ldy->dom;
   merit = &dom->merit;
+  tau = 1E-4;
   ns->iters = 0;
+  update_residual (A);
   A->epsilon = A->omega = merit_function (A, 0.0, 0.0, 0.0);
   beta = merit_function (A, A->epsilon, A->omega, 0.0);
   eta = 0.01;
   eta1 = 0.001;
-  rho = 0.5;
-  sigma = 0.1;
+  rho = 0.01;
+  sigma = 0.01;
   kappa = kappa1 = 0.01;
   kappa2 = 1.0;
   ksi = 0.9;
-  tau = 1E-4;
 
-  while ((*merit = MERIT_Function (ldy, 0, 0)) > ns->meritval && ns->iters < ns->maxiter)
+  do
   {
-    ns->merhist [ns->iters] = *merit;
-#if MPI
-    if (dom->rank == 0)
+#if 0
+    for (NEWTON_CON_DATA *dat = A->dat, *end = dat + A->ndat; dat != end; dat ++)
+    {
+      if (dat->kind == CONTACT)
+      {
+	dat->UT = LEN2 (dat->U);
+      }
+    }
 #endif
-    if (dom->verbose) printf (fmt_out, ns->iters, *merit);
 
-    ns->iters ++;
+    update_residual (A);
+
+    innmer = merit_function (A, A->epsilon, A->omega, 0.0);
 
     do
     {
       theta = 1.0;
 
-      A->Cnorm = update_system (A);
+      update_residual (A);
 
-      linear_solve (A, sigma * A->Cnorm, ns->linmaxiter);
+      A->bnorm = update_system (A);
+
+      linear_solve (A, sigma * A->bnorm, ns->linmaxiter);
+
+      innmer0 = innmer;
 
       innmer = merit_function (A, A->epsilon, A->omega, theta);
 
       if (innmer >= beta)
       {
-	while (innmer > (1.0 - theta * rho * (1.0 - sigma)) * A->Cnorm && theta >= 1E-6)
+	while (innmer > (1.0 - theta * rho * (1.0 - sigma)) * innmer0 && theta >= 1E-6)
 	{
 	  theta *= ksi;
           innmer = merit_function (A, A->epsilon, A->omega, theta);
@@ -1718,7 +1811,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 #if MPI
       if (dom->rank == 0)
 #endif
-      if (theta < 1E-6) fprintf (stderr, "NEWTON_SOLVER: line search failed.\n");
+      if (theta < 1E-6) fprintf (stderr, "NEWTON_SOLVER: line search failed, epsilon = %g, omega = %g\n", A->epsilon, A->omega);
 
       update_solution (A, theta);
 
@@ -1728,7 +1821,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 #endif
       if (dom->verbose) printf (fmt_inn, ns->iters, innmer, A->iters);
 
-    } while  (innmer >= beta && ++ns->iters < ns->maxiter);
+    } while  (innmer > beta && ++ns->iters < ns->maxiter);
 
     innmer = merit_function (A, 0.0, 0.0, 0.0);
 
@@ -1740,7 +1833,20 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
     a [1] = eta1 * A->epsilon;
     A->epsilon = min_func (a, 2);
     beta = eta * beta;
-  }
+
+#if 0
+    *merit = MERIT_Function (ldy, 0, 1);
+    ns->merhist [ns->iters] = *merit;
+
+    beta = MAX (eta * (*merit), beta);
+#endif
+
+#if MPI
+    if (dom->rank == 0)
+#endif
+    if (dom->verbose) printf (fmt_out, ns->iters, innmer);
+
+  } while (innmer > ns->meritval && ++ns->iters < ns->maxiter);
 
   destroy_data (A);
 }
