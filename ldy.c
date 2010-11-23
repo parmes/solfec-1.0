@@ -27,29 +27,39 @@
 #include "msh.h"
 #include "err.h"
 
+#if MPI
+#include "com.h"
+#include "pck.h"
+#endif
+
 /* memory block size */
 #define BLKSIZE 128
 
 enum update_kind /* update kind */
 {
   UPPES, /* penalty solver update */
-  UPNOTHING, /* skip update */
+  UPMIN, /* minimal update */
   UPALL /* update all data */
 };
 
 typedef enum update_kind UPKIND;
 
 /* get update kind depending on a solver */
-static UPKIND update_kind (SOLVER_KIND solver)
+static UPKIND update_kind (SOLFEC *sol)
 {
-  switch (solver)
+  switch (sol->kind)
   {
     case PENALTY_SOLVER: return UPPES;
-    case NEWTON_SOLVER: return UPNOTHING;
+    case NEWTON_SOLVER:
+    {
+      NEWTON *ns = sol->solver;
+      if (ns->locdyn == LOCDYN_OFF) return UPMIN;
+      else return UPALL;
+    }
     default: return UPALL;
   }
 
-  return UPNOTHING;
+  return UPALL;
 }
 
 /* apply forward change of variables (nornal
@@ -442,6 +452,119 @@ static int row_needs_update (DIAB *dia)
   return 0;
 }
 
+/* update previous and free local velocities */
+static void update_V_and_B (DOM *dom)
+{
+  double X [6], *V, *B;
+  CON *con;
+
+  for (con = dom->con; con; con = con->next)
+  {
+    V = con->V;
+    B = con->dia->B;
+
+    SET (V, 0);
+    SET (B, 0);
+
+#if MPI
+    if (con->master->flags & BODY_PARENT) /* local parent */
+#endif
+    {
+      BODY_Local_Velo (con->master, mshp(con), mgobj(con), con->mpnt, con->base, X, X+3);
+      ADD (V, X, V);
+      ADD (B, X+3, B);
+    }
+
+    if (con->slave)
+    {
+#if MPI
+      if (con->slave->flags & BODY_PARENT) /* local slave */
+#endif
+      {
+        BODY_Local_Velo (con->slave, sshp(con), sgobj(con), con->spnt, con->base, X, X+3);
+	SUB (V, X, V); /* relative = master - slave */
+	SUB (B, X+3, B);
+      }
+    }
+  }
+
+#if MPI
+  /* in parallel, parent bodies calculate local velocities of their external constraints and send them to the constraint parents;
+   * upon arrival these are added or subtracted from the constraint parents B and V members, depending on the master/slave relation */
+  int nsend, nrecv, *isize, *dsize, i, *j, *k;
+  COMDATA *send, *recv, *ptr;
+  double *D;
+  BODY *bod;
+  SET *item;
+
+  nsend = dom->ncpu;
+  ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend])));
+  ERRMEM (isize = MEM_CALLOC (sizeof (int [nsend])));
+  ERRMEM (dsize = MEM_CALLOC (sizeof (int [nsend])));
+
+  for (i = 0; i < nsend; i ++) send [i].rank = i;
+
+  for (bod = dom->bod; bod; bod = bod->next) /* for all parents */
+  {
+    for (item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      con = item->data;
+      if (con->state & CON_EXTERNAL) /* needs local velocity update */
+      {
+	ASSERT_DEBUG (MAP_Find (dom->conext, (void*) (long) con->id, NULL), "Invalid external constraint %s %d", CON_Kind (con), con->id);
+	i = con->rank;
+	ptr = &send [i];
+	if (bod == con->master)
+	{
+	  pack_int (&isize [i], &ptr->i, &ptr->ints, -con->id);
+	  BODY_Local_Velo (bod, mshp(con), mgobj(con), con->mpnt, con->base, X, X+3);
+	}
+	else
+	{
+	  pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
+	  BODY_Local_Velo (bod, sshp(con), sgobj(con), con->spnt, con->base, X, X+3);
+	}
+        pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, X, 6);
+      }
+    }
+  }
+
+  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv); /* send V, B */
+
+  for (i = 0; i < nrecv; i ++)
+  {
+    ptr = &recv [i];
+    for (j = ptr->i, k = j + ptr->ints, D = ptr->d; j < k; j ++, D += 6)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) ABS(*j), NULL), "Invalid con id: %d", ABS(*j));
+      V = con->V;
+      B = con->dia->B;
+      if ((*j) < 0) /* master */
+      {
+	ADD (V, D, V);
+	ADD (B, D+3, B);
+      }
+      else /* slave */
+      {
+	SUB (V, D, V);
+	SUB (B, D+3, B);
+      }
+    }
+  }
+
+  for (i = 0; i < nsend; i ++)
+  {
+    ptr = &send [i];
+    free (ptr->i);
+    free (ptr->d);
+  }
+  free (send);
+  free (isize);
+  free (dsize);
+  free (recv); /* includes recv[]->i and recv[]->d memory */
+#endif
+}
+
 /* create local dynamics for a domain */
 LOCDYN* LOCDYN_Create (DOM *dom)
 {
@@ -606,16 +729,14 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
 }
 
 /* updiae local dynamics => prepare for a solution */
-void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
+void LOCDYN_Update_Begin (LOCDYN *ldy)
 {
-  UPKIND upkind = update_kind (solver);
   DOM *dom = ldy->dom;
+  UPKIND upkind = update_kind (dom->solfec);
   double step = dom->step;
   short dynamic = dom->dynamic;
   DIAB *dia;
   OFFB *blk;
-
-  if (upkind == UPNOTHING) return; /* skip update */
 
 #if MPI
   if (dom->rank == 0)
@@ -623,6 +744,11 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
   if (dom->verbose) printf ("LOCDYN ... "), fflush (stdout);
 
   SOLFEC_Timer_Start (ldy->dom->solfec, "LOCDYN");
+
+  /* update previous and free velocites */
+  update_V_and_B (dom);
+
+  if (upkind == UPMIN) goto end; /* skip update */
 
 #if MPI
   compute_adjext (ldy, upkind);
@@ -644,9 +770,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base,
-	   *V = dia->V,
 	   *B = dia->B,
-	   X0 [3], Y0 [3],
            X [3], Y [9];
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE_PTR (A, 3, 3, dia->A);
@@ -654,18 +778,26 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
     dia->rowupdate = row_needs_update (dia);
     int up = needs_update (con, m, con, dia->W);
 
-    /* relative velocity = master - slave => outward slave normal */
-    BODY_Local_Velo (m, mshp, mgobj, mpnt, base, X0, X); /* master body pointer cannot be NULL */
+#if MPI
+    if (m->flags & BODY_CHILD)
+    {
+      if (dynamic) BODY_Dynamic_Init (m);
+      else BODY_Static_Init (m);
+    }
+#endif
+
     if (s)
     {
       sgobj = sgobj(con);
       sshp = sshp(con);
-      BODY_Local_Velo (s, sshp, sgobj, spnt, base, Y0, Y); /* might be NULL for some constraints (one body) */
+#if MPI
+      if (s->flags & BODY_CHILD)
+      {
+	if (dynamic) BODY_Dynamic_Init (s);
+	else BODY_Static_Init (s);
+      }
+#endif
     }
-    else { SET (Y0, 0.0); SET (Y, 0.0); }
-
-    SUB (X0, Y0, V); /* previous time step velocity */
-    SUB (X, Y, B); /* local free velocity */
 
     /* diagonal block */
     if (dia->rowupdate)
@@ -730,16 +862,16 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
 	NNCOPY (W.x, A.x);
 	MX_Inverse (&A, &A); /* inverse of diagonal block */
       }
-    } /* rowupdate */
+    }
 
     if (!(dynamic && con->kind == CONTACT && con->gap > 0)) /* skip open dynamic contacts */
     {
       NVMUL (A.x, B, X);
       ldy->free_energy += DOT (X, B); /* sum up free energy */
-    }
 
-    /* add up prescribed velocity contribution */
-    if (con->kind == VELODIR) ldy->free_energy += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
+      /* add up prescribed velocity contribution */
+      if (con->kind == VELODIR) ldy->free_energy += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
+    }
   }
 
   ldy->free_energy *= 0.5; /* 0.5 * DOT (AB, B) */
@@ -894,15 +1026,14 @@ void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver)
   /* forward variables change */
   if (upkind == UPALL) variables_change_begin (ldy);
 
+end:
   SOLFEC_Timer_End (ldy->dom->solfec, "LOCDYN");
 }
 
 /* updiae local dynamics => after the solution */
-void LOCDYN_Update_End (LOCDYN *ldy, SOLVER_KIND solver)
+void LOCDYN_Update_End (LOCDYN *ldy)
 {
-  UPKIND upkind = update_kind (solver);
-
-  if (upkind == UPNOTHING) return; /* skip update */
+  UPKIND upkind = update_kind (ldy->dom->solfec);
 
   SOLFEC_Timer_Start (ldy->dom->solfec, "LOCDYN");
 

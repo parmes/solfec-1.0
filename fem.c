@@ -23,7 +23,7 @@
 #include <float.h>
 #include "lap.h"
 #include "mem.h"
-#include "dom.h"
+#include "sol.h"
 #include "fem.h"
 #include "but.h"
 #include "alg.h"
@@ -2877,9 +2877,17 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
 
   int i [] = {0, 1, 2, 0, 1, 2, 0, 1, 2}, p [] = {0, 3, 6, 9};
   MX_CSC (base_trans, 9, 3, 3, p, i);
+  short body_space = 0;
   DOM *dom = bod->dom;
+  SOLFEC *sol = dom->solfec;
   double point [3];
   MX *N, *H;
+
+  if (sol->kind == NEWTON_SOLVER)
+  {
+    NEWTON *ns = sol->solver;
+    body_space = (ns->locdyn == LOCDYN_OFF);
+  }
 
   TNCOPY (base, base_trans.x);
   referential_to_local (msh, ele, X, point);
@@ -2889,7 +2897,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
 
   if (bod->form == BODY_COROTATIONAL &&
       bod->scheme != SCH_DEF_EXP &&
-      dom->solver != NEWTON_SOLVER) /* FIXME: NEWTON_SOLVER must see the regular H = E' N , rather than H R if it uses the "body-space" mode (TODO: detect) */
+      body_space == 0) /* NEWTON_SOLVER sees the regular H = E' N , rather than H R when using the body-space mode, XXX */
   {
     double *x = H->x, *y = x + H->nzmax,
            *R = FEM_ROT (bod), T [9];
@@ -3088,7 +3096,7 @@ MX* FEM_Approx_Inverse (BODY *bod)
   else
   {
     int n, k, j, *p, *i;
-    double *x, *y;
+    double *x, *y, z;
     MX *I;
 
     n = bod->dofs;
@@ -3105,10 +3113,14 @@ MX* FEM_Approx_Inverse (BODY *bod)
     p = bod->inverse->p;
     i = bod->inverse->i;
     y = bod->inverse->x;
+    z = 1.0 / (double) n;
 
-    for (k = 0; k < p[n]; k ++)
+    for (k = 0; k < n; k ++)
     {
-      x [i[k]] += y [k]; /* sum of rows */
+      for (j = p[k]; j < p[k+1]; j++)
+      {
+	if (k == i[j]) x [k] = z * y[j]; /* scaled diagonal element (adjusted to NEWTON_SOLVER behavior) */
+      }
     }
 
     for (j = 0; j < n; j ++)

@@ -97,7 +97,7 @@ inline static void real_m (double fri, double *S, double eps, double *m)
 
   if (fun > 0.0)
   {
-    fun = sqrt (fun*fun + eps) - eps;
+    fun = sqrt (fun*fun + eps*eps) - eps;
   }
 
   MUL (n, fun, m)
@@ -113,7 +113,7 @@ inline static void complex_m (double complex fri, double complex *S, double comp
 
   if (creal (fun) > 0.0)
   {
-    fun = csqrt (fun*fun + eps) - eps;
+    fun = csqrt (fun*fun + eps*eps) - eps;
   }
 
   MUL (n, fun, m)
@@ -130,7 +130,7 @@ inline static void real_F (double res, double fri, double gap, double step, shor
   F [0] = U[0];
   F [1] = U[1];
   if (UT >= 0.0) F [2] = (udash + fri * UT);
-  else F [2] = (udash + fri * (sqrt (DOT2(U, U) + eps) - eps));
+  else F [2] = (udash + fri * (sqrt (DOT2(U, U) + eps*eps) - eps));
 }
  
 /* complex F = [UT, UN + fri |UT|]' */
@@ -215,10 +215,10 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 }
 
 /* R = project-on-friction-cone (S) */
-void VIC_Project (double friction, double *S, double *R)
+void VIC_Project (double smoothing_epsilon, double friction, double *S, double *R)
 {
   double m [3];
 
-  real_m (friction, S, 0, m);
+  real_m (friction, S, smoothing_epsilon, m);
   SUB (S, m, R);
 }

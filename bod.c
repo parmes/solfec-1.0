@@ -2182,7 +2182,7 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
 }
 
 /* pack child body */
-void BODY_Child_Pack (BODY *bod, int full, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_int (isize, i, ints, bod->rank); /* pack parent rank */
 
@@ -2190,20 +2190,52 @@ void BODY_Child_Pack (BODY *bod, int full, int *dsize, double **d, int *doubles,
   for (SET *item = SET_First (bod->children); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
 
-  pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod)); /* configuration */
+  /* send adjusted configuration depending on
+   * kinematic model and integration scheme */
+  double *q = bod->conf, coef;
+  int n = conf_pack_size (bod);
 
-  if (full)
+  if (bod->dom->dynamic)
   {
-    pack_doubles (dsize, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
-    pack_int (isize, i, ints, bod->scheme); /* pack integration scheme */
+    if (!(bod->kind == FEM && bod->form == BODY_COROTATIONAL)) /* PRB or TL-FEM */
+    {
+      switch (bod->scheme)
+      {
+      case SCH_DEF_LIM2:
+	n = 2 * bod->dofs;
+	coef = 0.5 * bod->dom->step;
+	ERRMEM (q = malloc (sizeof (double [n])));
+	blas_dcopy (bod->dofs, bod->conf, 1, q, 1);
+	blas_dcopy (bod->dofs, q, 1, q+bod->dofs, 1);
+	blas_daxpy (bod->dofs, -coef, bod->velo, 1, q+bod->dofs, 1); /* q(t) = q(t+h/2) - (h/2) u(t) => K = K(q(t)) */
+	break;
+      case SCH_DEF_IMP:
+	n = 2 * bod->dofs;
+	coef = 0.25 * bod->dom->step;
+	ERRMEM (q = malloc (sizeof (double [n])));
+	blas_dcopy (bod->dofs, bod->conf, 1, q, 1);
+	blas_dcopy (bod->dofs, q, 1, q+bod->dofs, 1);
+	blas_daxpy (bod->dofs, -coef, bod->velo+bod->dofs, 1, q+bod->dofs, 1); /* q(t) + (h/2) u (t) - (h/4) u(t) */
+	blas_daxpy (bod->dofs, coef, bod->velo, 1, q+bod->dofs, 1); /* q(t) + (h/2) u (t) - (h/4) u(t) + (h/4) u(t+h) =
+							     = [q(t) + q(t+h)]/2 => K = K([q(t) + q(t+h)]/2) */
+	break;
+      default:
+	break;
+      }
+    }
   }
+
+  pack_doubles (dsize, d, doubles, q, n); /* configuration */
+
+  if (q != bod->conf) free (q);
+
+  pack_int (isize, i, ints, bod->scheme); /* pack integration scheme */
 }
 
 /* unpack child body */
-void BODY_Child_Unpack (BODY *bod, int full, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int j, k, l;
-  double coef;
 
   bod->rank = unpack_int (ipos, i, ints); /* unpack parent rank */
  
@@ -2220,53 +2252,23 @@ void BODY_Child_Unpack (BODY *bod, int full, int *dpos, double *d, int doubles, 
 
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); /* update shape */
 
-  if (full)
+  if (bod->dom->dynamic)
   {
-    short dynamic = bod->dom->dynamic;
-
-    unpack_doubles (dpos, d, doubles, bod->velo, 2 * bod->dofs); /* current and previous velocity */
-    bod->scheme = unpack_int (ipos, i, ints);  /* unpack integration scheme */
-
-    if (dynamic)
+    if (!(bod->kind == FEM && bod->form == BODY_COROTATIONAL)) /* PRB or TL-FEM */
     {
       switch (bod->scheme)
       {
       case SCH_DEF_LIM2:
-	coef = 0.5 * bod->dom->step;
-	blas_daxpy (bod->dofs, -coef, bod->velo, 1, bod->conf, 1); /* q(t) = q(t+h/2) - (h/2) u(t) => K = K(q(t)) */
-	break;
-      case SCH_DEF_LIM:
-	if (!(bod->kind == FEM && bod->form == BODY_COROTATIONAL))
-	{
-	  coef = 0.25 * bod->dom->step;
-	  blas_daxpy (bod->dofs, -coef, bod->velo+bod->dofs, 1, bod->conf, 1); /* q(t) + (h/2) u (t) - (h/4) u(t) */
-	  blas_daxpy (bod->dofs, coef, bod->velo, 1, bod->conf, 1); /* q(t) + (h/2) u (t) - (h/4) u(t) + (h/4) u(t+h) = [q(t) + q(t+h)]/2 => K = K([q(t) + q(t+h)]/2) */
-	}
-	break;
-      default:
-	break;
-      }
-
-      BODY_Dynamic_Init (bod); /* init inverse */
-
-      switch (bod->scheme) /* undo */
-      {
-      case SCH_DEF_LIM2:
-	blas_daxpy (bod->dofs, coef, bod->velo, 1, bod->conf, 1);
-	break;
-      case SCH_DEF_LIM:
-	if (!(bod->kind == FEM && bod->form == BODY_COROTATIONAL))
-	{
-	  blas_daxpy (bod->dofs, coef, bod->velo+bod->dofs, 1, bod->conf, 1);
-	  blas_daxpy (bod->dofs, -coef, bod->velo, 1, bod->conf, 1);
-	}
+      case SCH_DEF_IMP:
+        unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod)); /* configuration (for stiffness update) */
 	break;
       default:
 	break;
       }
     }
-    else BODY_Static_Init (bod);
   }
+
+  bod->scheme = unpack_int (ipos, i, ints);  /* unpack integration scheme */
 }
 
 /* pack child update */

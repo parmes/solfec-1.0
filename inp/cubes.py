@@ -75,7 +75,7 @@ stack_of_cubes_create (bulkmat, solfec)
 #sv = GAUSS_SEIDEL_SOLVER (1E-2, 100, 1E-4, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 #sv.variant = VARIANT
 
-sv = NEWTON_SOLVER (1E-5, 20)
+sv = NEWTON_SOLVER (1E-6, 100)
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 

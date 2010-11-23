@@ -40,16 +40,6 @@ typedef struct offb OFFB;
 typedef struct diab DIAB;
 typedef struct locdyn LOCDYN;
 
-enum solver_kind
-{
-  NONE_SOLVER          = 0x00,
-  GAUSS_SEIDEL_SOLVER  = 0x01,
-  PENALTY_SOLVER       = 0x02,
-  NEWTON_SOLVER        = 0x04
-};
-
-typedef enum solver_kind SOLVER_KIND;
-
 /* off-diagonal block */
 struct offb
 {
@@ -113,10 +103,10 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two);
 void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia);
 
 /* update local dynamics => prepare for a solution */
-void LOCDYN_Update_Begin (LOCDYN *ldy, SOLVER_KIND solver);
+void LOCDYN_Update_Begin (LOCDYN *ldy);
 
 /* update local dynamics => after the solution */
-void LOCDYN_Update_End (LOCDYN *ldy, SOLVER_KIND solver);
+void LOCDYN_Update_End (LOCDYN *ldy);
 
 /* dump local dynamics to file */
 void LOCDYN_Dump (LOCDYN *ldy, const char *path);
