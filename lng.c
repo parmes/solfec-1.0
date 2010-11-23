@@ -201,6 +201,36 @@ static int is_ge (double num, char *var, double val)
   return 1;
 }
 
+/* test whether a number <= val */
+static int is_le (double num, char *var, double val)
+{
+  char buf [BUFLEN];
+
+  if (num > val)
+  {
+    sprintf (buf, "'%s' must be a number <= %g", var, val);
+    PyErr_SetString (PyExc_TypeError, buf);
+    return 0;
+  }
+
+  return 1;
+}
+
+/* test whether a num is in (lo, hi] */
+static int is_gt_le (double num, char *var, double lo, double hi)
+{
+  char buf [BUFLEN];
+
+  if (num <= lo || num > hi)
+  {
+    sprintf (buf, "'%s' must be a number > %g and <= %g", var, lo, hi);
+    PyErr_SetString (PyExc_TypeError, buf);
+    return 0;
+  }
+
+  return 1;
+}
+
 /* test whether an object is a list and if so check
  * if list length is divisible by div and >= len */
 static int is_list (PyObject *obj, char *var, int div, int len)
@@ -270,7 +300,7 @@ static int is_number (PyObject *obj, char *var)
 }
 
 /* test whether an object is a number > val */
-static int is_number_gt_val (PyObject *obj, char *var, double val)
+static int is_number_gt (PyObject *obj, char *var, double val)
 {
   if (obj)
   {
@@ -299,7 +329,7 @@ static int is_number_gt_val (PyObject *obj, char *var, double val)
 }
 
 /* test whether an object is a number >= val */
-static int is_number_ge_val (PyObject *obj, char *var, double val)
+static int is_number_ge (PyObject *obj, char *var, double val)
 {
   if (obj)
   {
@@ -327,24 +357,8 @@ static int is_number_ge_val (PyObject *obj, char *var, double val)
   return 1;
 }
 
-/* test whether a number <= val */
-static int is_le (double num, char *var, double val)
-{
-  char buf [BUFLEN];
-
-  if (num > val)
-  {
-    sprintf (buf, "'%s' must be a number <= %g", var, val);
-    PyErr_SetString (PyExc_TypeError, buf);
-    return 0;
-  }
-
-  return 1;
-}
-
-#if 0
 /* test whether an object is a number >= val0 and < val1 */
-static int is_number_ge_val0_lt_val1 (PyObject *obj, char *var, double val0, double val1)
+static int is_number_gt_le (PyObject *obj, char *var, double lo, double hi)
 {
   if (obj)
   {
@@ -360,9 +374,9 @@ static int is_number_ge_val0_lt_val1 (PyObject *obj, char *var, double val0, dou
     {
       double num = PyFloat_AsDouble (obj);
 
-      if (num < val0 || num >= val1)
+      if (num <= lo || num > hi)
       {
-	sprintf (buf, "'%s' must be a number >= %g and <= %g", var, val0, val1);
+	sprintf (buf, "'%s' must be a number > %g and <= %g", var, lo, hi);
 	PyErr_SetString (PyExc_TypeError, buf);
 	return 0;
       }
@@ -371,7 +385,6 @@ static int is_number_ge_val0_lt_val1 (PyObject *obj, char *var, double val0, dou
 
   return 1;
 }
-#endif
 
 /* test whether an object is a list (details as above) or a number */
 static int is_list_or_number (PyObject *obj, char *var, int div, int len)
@@ -1289,7 +1302,7 @@ static int lng_SOLFEC_set_step (lng_SOLFEC *self, PyObject *value, void *closure
 {
   double step;
 
-  if (!is_number_gt_val (value, "step", 0)) return -1;
+  if (!is_number_gt (value, "step", 0)) return -1;
   step = PyFloat_AsDouble (value);
   self->sol->dom->step = step;
 
@@ -1512,7 +1525,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_friction (lng_SURFACE_MATERIAL *self, 
 
 static int lng_SURFACE_MATERIAL_set_friction (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "friction", 0)) return -1;
+  if (!is_number_ge (value, "friction", 0)) return -1;
   self->mat->friction = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1524,7 +1537,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_cohesion (lng_SURFACE_MATERIAL *self, 
 
 static int lng_SURFACE_MATERIAL_set_cohesion (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "cohesion", 0)) return -1;
+  if (!is_number_ge (value, "cohesion", 0)) return -1;
   self->mat->cohesion = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1536,7 +1549,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_restitution (lng_SURFACE_MATERIAL *sel
 
 static int lng_SURFACE_MATERIAL_set_restitution (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "restitution", 0)) return -1;
+  if (!is_number_ge (value, "restitution", 0)) return -1;
   self->mat->restitution = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1548,7 +1561,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_spring (lng_SURFACE_MATERIAL *self, vo
 
 static int lng_SURFACE_MATERIAL_set_spring (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "spring", 0)) return -1;
+  if (!is_number_ge (value, "spring", 0)) return -1;
   self->mat->spring = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1560,7 +1573,7 @@ static PyObject* lng_SURFACE_MATERIAL_get_dashpot (lng_SURFACE_MATERIAL *self, v
 
 static int lng_SURFACE_MATERIAL_set_dashpot (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "dashpot", 0)) return -1;
+  if (!is_number_ge (value, "dashpot", 0)) return -1;
   self->mat->dashpot = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1721,7 +1734,7 @@ static PyObject* lng_BULK_MATERIAL_get_young (lng_BULK_MATERIAL *self, void *clo
 
 static int lng_BULK_MATERIAL_set_young (lng_BULK_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "young", 0)) return -1;
+  if (!is_number_ge (value, "young", 0)) return -1;
   self->mat->young = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1733,7 +1746,7 @@ static PyObject* lng_BULK_MATERIAL_get_poisson (lng_BULK_MATERIAL *self, void *c
 
 static int lng_BULK_MATERIAL_set_poisson (lng_BULK_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "poisson", 0)) return -1;
+  if (!is_number_ge (value, "poisson", 0)) return -1;
   self->mat->poisson = PyFloat_AsDouble (value);
   return 0;
 }
@@ -1745,7 +1758,7 @@ static PyObject* lng_BULK_MATERIAL_get_density (lng_BULK_MATERIAL *self, void *c
 
 static int lng_BULK_MATERIAL_set_density (lng_BULK_MATERIAL *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "density", 0)) return -1;
+  if (!is_number_ge (value, "density", 0)) return -1;
   self->mat->density = PyFloat_AsDouble (value);
   return 0;
 }
@@ -2495,7 +2508,7 @@ static PyObject* lng_BODY_get_damping (lng_BODY *self, void *closure)
 
 static int lng_BODY_set_damping (lng_BODY *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "damping", 0.0)) return -1;
+  if (!is_number_ge (value, "damping", 0.0)) return -1;
 
   self->bod->damping = PyFloat_AsDouble (value);  
 
@@ -2978,7 +2991,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_epsilon (lng_GAUSS_SEIDEL_SOLVER *s
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_epsilon (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_gt_val (value, "epsilon", 0)) return -1;
+  if (!is_number_gt (value, "epsilon", 0)) return -1;
   self->gs->epsilon = PyFloat_AsDouble (value);
   return 0;
 }
@@ -2990,7 +3003,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_maxiter (lng_GAUSS_SEIDEL_SOLVER *s
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_maxiter (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_gt_val (value, "maxiter", 0)) return -1;
+  if (!is_number_gt (value, "maxiter", 0)) return -1;
   self->gs->maxiter = PyInt_AsLong (value);
   return 0;
 }
@@ -3002,7 +3015,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_diagepsilon (lng_GAUSS_SEIDEL_SOLVE
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_diagepsilon (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_gt_val (value, "diagepsilon", 0)) return -1;
+  if (!is_number_gt (value, "diagepsilon", 0)) return -1;
   self->gs->diagepsilon = PyFloat_AsDouble (value);
   return 0;
 }
@@ -3014,7 +3027,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_diagmaxiter (lng_GAUSS_SEIDEL_SOLVE
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_diagmaxiter (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_gt_val (value, "diagmaxiter", 0)) return -1;
+  if (!is_number_gt (value, "diagmaxiter", 0)) return -1;
   self->gs->diagmaxiter = PyInt_AsLong (value);
   return 0;
 }
@@ -3116,7 +3129,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_innerloops (lng_GAUSS_SEIDEL_SOLVER
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_innerloops (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "innerloops", 1)) return -1;
+  if (!is_number_ge (value, "innerloops", 1)) return -1;
 
   self->gs->innerloops = (int) PyInt_AsLong (value);
 
@@ -3249,23 +3262,47 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("meritval", "maxiter");
+  KEYWORDS ("meritval", "maxiter", "locdyn", "theta", "epsilon");
+  double meritval, theta, epsilon;
   lng_NEWTON_SOLVER *self;
+  PyObject *locdyn;
   int maxiter;
-  double meritval;
 
   self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    meritval = 1E-5;
-    maxiter = 20;
+    meritval = 1E-8;
+    maxiter = 100;
+    locdyn = NULL;
+    theta = 0.25;
+    epsilon = 1E-9;
 
-    PARSEKEYS ("|di", &meritval, &maxiter);
+    PARSEKEYS ("|diOdd", &meritval, &maxiter, &locdyn, &theta, &epsilon);
 
-    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]));
+    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) &&
+      is_string (locdyn, kwl[2]) && is_gt_le (theta, kwl[3], 0, 0.5) && is_non_negative (epsilon, kwl[4]));
 
     self->ns = NEWTON_Create (meritval, maxiter);
+    self->ns->theta = theta;
+    self->ns->epsilon = epsilon;
+
+    if (locdyn)
+    {
+      IFIS (locdyn, "ON")
+      {
+	self->ns->locdyn = LOCDYN_ON;
+      }
+      ELIF (locdyn, "OFF")
+      {
+	self->ns->locdyn = LOCDYN_OFF;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid locdyn value: neither ON nor OFF");
+	return NULL;
+      }
+    }
   }
 
   return (PyObject*)self;
@@ -3290,7 +3327,7 @@ static PyObject* lng_NEWTON_SOLVER_get_meritval (lng_NEWTON_SOLVER *self, void *
 
 static int lng_NEWTON_SOLVER_set_meritval (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_gt_val (value, "meritval", 0)) return -1;
+  if (!is_number_gt (value, "meritval", 0)) return -1;
   self->ns->meritval = PyFloat_AsDouble (value);
   return 0;
 }
@@ -3302,20 +3339,59 @@ static PyObject* lng_NEWTON_SOLVER_get_maxiter (lng_NEWTON_SOLVER *self, void *c
 
 static int lng_NEWTON_SOLVER_set_maxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_gt_val (value, "maxiter", 0)) return -1;
+  if (!is_number_gt (value, "maxiter", 0)) return -1;
   self->ns->maxiter = PyInt_AsLong (value);
   return 0;
 }
 
-static PyObject* lng_NEWTON_SOLVER_get_linmaxiter (lng_NEWTON_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_locdyn (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->ns->linmaxiter);
+  if (self->ns->locdyn == LOCDYN_ON) return PyString_FromString ("ON");
+  else return PyString_FromString ("ON");
 }
 
-static int lng_NEWTON_SOLVER_set_linmaxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_locdyn (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge_val (value, "linmaxiter", 1)) return -1;
-  self->ns->linmaxiter = PyInt_AsLong (value);
+  if (!is_string (value, "locdyn")) return -1;
+
+  IFIS (value, "ON")
+  {
+    self->ns->locdyn = LOCDYN_ON;
+  }
+  ELIF (value, "OFF")
+  {
+    self->ns->locdyn = LOCDYN_OFF;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid locdyn value: neither ON nor OFF");
+    return -1;
+  }
+
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_theta (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ns->theta);
+}
+
+static int lng_NEWTON_SOLVER_set_theta (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_gt_le (value, "theta", 0, 0.5)) return -1;
+  self->ns->theta = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_epsilon (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ns->epsilon);
+}
+
+static int lng_NEWTON_SOLVER_set_epsilon (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_ge (value, "epsilon", 0)) return -1;
+  self->ns->epsilon = PyFloat_AsDouble (value);
   return 0;
 }
 
@@ -3362,9 +3438,148 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
 { 
   {"meritval", (getter)lng_NEWTON_SOLVER_get_meritval, (setter)lng_NEWTON_SOLVER_set_meritval, "merit function accuracy", NULL},
   {"maxiter", (getter)lng_NEWTON_SOLVER_get_maxiter, (setter)lng_NEWTON_SOLVER_set_maxiter, "iterations bound", NULL},
-  {"linmaxiter", (getter)lng_NEWTON_SOLVER_get_linmaxiter, (setter)lng_NEWTON_SOLVER_set_linmaxiter, "linear solver maximal iterations count", NULL},
+  {"locdyn", (getter)lng_NEWTON_SOLVER_get_locdyn, (setter)lng_NEWTON_SOLVER_set_locdyn, "local dynamics assembling", NULL},
+  {"theta", (getter)lng_NEWTON_SOLVER_get_theta, (setter)lng_NEWTON_SOLVER_set_theta, "relaxation parameter", NULL},
+  {"epsilon", (getter)lng_NEWTON_SOLVER_get_epsilon, (setter)lng_NEWTON_SOLVER_set_epsilon, "smoothing epsilon", NULL},
   {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
   {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
+  {NULL, 0, 0, NULL, NULL}
+};
+
+/*
+ * TEST_SOLVER => object
+ */
+
+typedef struct lng_TEST_SOLVER lng_TEST_SOLVER;
+
+static PyTypeObject lng_TEST_SOLVER_TYPE;
+
+struct lng_TEST_SOLVER
+{
+  PyObject_HEAD
+
+  TEST *ts;
+};
+
+/* constructor */
+static PyObject* lng_TEST_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("meritval", "maxiter");
+  lng_TEST_SOLVER *self;
+  int maxiter;
+  double meritval;
+
+  self = (lng_TEST_SOLVER*)type->tp_alloc (type, 0);
+
+  if (self)
+  {
+    meritval = 1E-5;
+    maxiter = 20;
+
+    PARSEKEYS ("|di", &meritval, &maxiter);
+
+    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]));
+
+    self->ts = TEST_Create (meritval, maxiter);
+  }
+
+  return (PyObject*)self;
+}
+
+/* destructor */
+static void lng_TEST_SOLVER_dealloc (lng_TEST_SOLVER *self)
+{
+#if OPENGL
+  if (RND_Is_On ()) return; /* do not delete in viewer mode */
+  else
+#endif
+  TEST_Destroy (self->ts);
+
+  self->ob_type->tp_free ((PyObject*)self);
+}
+
+static PyObject* lng_TEST_SOLVER_get_meritval (lng_TEST_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ts->meritval);
+}
+
+static int lng_TEST_SOLVER_set_meritval (lng_TEST_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_gt (value, "meritval", 0)) return -1;
+  self->ts->meritval = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_TEST_SOLVER_get_maxiter (lng_TEST_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ts->maxiter);
+}
+
+static int lng_TEST_SOLVER_set_maxiter (lng_TEST_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_gt (value, "maxiter", 0)) return -1;
+  self->ts->maxiter = PyInt_AsLong (value);
+  return 0;
+}
+
+static PyObject* lng_TEST_SOLVER_get_linmaxiter (lng_TEST_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ts->linmaxiter);
+}
+
+static int lng_TEST_SOLVER_set_linmaxiter (lng_TEST_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_ge (value, "linmaxiter", 1)) return -1;
+  self->ts->linmaxiter = PyInt_AsLong (value);
+  return 0;
+}
+
+static PyObject* lng_TEST_SOLVER_get_merhist (lng_TEST_SOLVER *self, void *closure)
+{
+  PyObject *list;
+  int i;
+
+  ERRMEM (list = PyList_New (self->ts->iters));
+
+  for (i = 0; i < self->ts->iters; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->ts->merhist [i]));
+
+  return list;
+}
+
+static int lng_TEST_SOLVER_set_merhist (lng_TEST_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_TEST_SOLVER_get_iters (lng_TEST_SOLVER *self, void *closure)
+{
+  return PyInt_FromLong (self->ts->iters);
+}
+
+static int lng_TEST_SOLVER_set_iters (lng_TEST_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+/* TEST_SOLVER methods */
+static PyMethodDef lng_TEST_SOLVER_methods [] =
+{ {NULL, NULL, 0, NULL} };
+
+/* TEST_SOLVER members */
+static PyMemberDef lng_TEST_SOLVER_members [] =
+{ {NULL, 0, 0, 0, NULL} };
+
+/* TEST_SOLVER getset */
+static PyGetSetDef lng_TEST_SOLVER_getset [] =
+{ 
+  {"meritval", (getter)lng_TEST_SOLVER_get_meritval, (setter)lng_TEST_SOLVER_set_meritval, "merit function accuracy", NULL},
+  {"maxiter", (getter)lng_TEST_SOLVER_get_maxiter, (setter)lng_TEST_SOLVER_set_maxiter, "iterations bound", NULL},
+  {"linmaxiter", (getter)lng_TEST_SOLVER_get_linmaxiter, (setter)lng_TEST_SOLVER_set_linmaxiter, "linear solver maximal iterations count", NULL},
+  {"merhist", (getter)lng_TEST_SOLVER_get_merhist, (setter)lng_TEST_SOLVER_set_merhist, "merit function history", NULL},
+  {"iters", (getter)lng_TEST_SOLVER_get_iters, (setter)lng_TEST_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
@@ -5344,7 +5559,8 @@ static int is_solver (PyObject *obj, char *var)
   {
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
-        !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
+        !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE) &&
+        !PyObject_IsInstance (obj, (PyObject*)&lng_TEST_SOLVER_TYPE))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must be a constraint solver object", var);
@@ -5365,6 +5581,8 @@ static int get_solver_kind (PyObject *obj)
     return PENALTY_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     return NEWTON_SOLVER;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_TEST_SOLVER_TYPE))
+    return TEST_SOLVER;
   else return -1;
 }
 
@@ -5377,6 +5595,8 @@ static void* get_solver (PyObject *obj)
     return ((lng_PENALTY_SOLVER*)obj)->ps;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     return ((lng_NEWTON_SOLVER*)obj)->ns;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_TEST_SOLVER_TYPE))
+    return ((lng_TEST_SOLVER*)obj)->ts;
   else return NULL;
 }
 
@@ -5957,7 +6177,7 @@ static PyObject* lng_MBFCP_EXPORT (PyObject *self, PyObject *args, PyObject *kwd
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);
 
   ERRMEM (outpath = malloc (strlen (PyString_AsString (path)) + 64));
-  sprintf ("%s.%d", PyString_AsString (path), rank);
+  sprintf (outpath, "%s.%d", PyString_AsString (path), rank);
 #else
   outpath = PyString_AsString (path);
 #endif
@@ -6788,6 +7008,10 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_NEWTON_SOLVER_dealloc, lng_NEWTON_SOLVER_new,
     lng_NEWTON_SOLVER_methods, lng_NEWTON_SOLVER_members, lng_NEWTON_SOLVER_getset);
 
+  TYPEINIT (lng_TEST_SOLVER_TYPE, lng_TEST_SOLVER, "solfec.TEST_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_TEST_SOLVER_dealloc, lng_TEST_SOLVER_new,
+    lng_TEST_SOLVER_methods, lng_TEST_SOLVER_members, lng_TEST_SOLVER_getset);
+
   TYPEINIT (lng_CONSTRAINT_TYPE, lng_CONSTRAINT, "solfec.CONSTRAINT",
     Py_TPFLAGS_DEFAULT, lng_CONSTRAINT_dealloc, lng_CONSTRAINT_new,
     lng_CONSTRAINT_methods, lng_CONSTRAINT_members, lng_CONSTRAINT_getset);
@@ -6803,6 +7027,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_NEWTON_SOLVER_TYPE) < 0) return;
+  if (PyType_Ready (&lng_TEST_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
   if (!(m =  Py_InitModule3 ("solfec", lng_methods, "Solfec module"))) return;
@@ -6818,6 +7043,7 @@ static void initlng (void)
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
   Py_INCREF (&lng_NEWTON_SOLVER_TYPE);
+  Py_INCREF (&lng_TEST_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
@@ -6831,6 +7057,7 @@ static void initlng (void)
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
   PyModule_AddObject (m, "NEWTON_SOLVER", (PyObject*)&lng_NEWTON_SOLVER_TYPE);
+  PyModule_AddObject (m, "TEST_SOLVER", (PyObject*)&lng_TEST_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
 
@@ -6865,6 +7092,7 @@ int lng (const char *path)
                      "from solfec import GAUSS_SEIDEL_SOLVER\n"
                      "from solfec import PENALTY_SOLVER\n"
                      "from solfec import NEWTON_SOLVER\n"
+                     "from solfec import TEST_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"

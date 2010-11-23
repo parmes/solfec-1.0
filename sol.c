@@ -227,6 +227,7 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Write_State (solver, sol->bf); break;
   case PENALTY_SOLVER: PENALTY_Write_State (solver, sol->bf); break;
   case NEWTON_SOLVER: NEWTON_Write_State (solver, sol->bf); break;
+  case TEST_SOLVER: TEST_Write_State (solver, sol->bf); break;
   default: break;
   }
 }
@@ -399,6 +400,7 @@ static void SOLVE (SOLFEC *sol, void *solver, SOLVER_KIND kind, LOCDYN *ldy, int
   case GAUSS_SEIDEL_SOLVER: GAUSS_SEIDEL_Solve (solver, ldy); break;
   case PENALTY_SOLVER: PENALTY_Solve (solver, ldy); break;
   case NEWTON_SOLVER: NEWTON_Solve (solver, ldy); break;
+  case TEST_SOLVER: TEST_Solve (solver, ldy); break;
   default: break;
   }
 
@@ -518,6 +520,10 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     TIMING tim;
     double tt;
 
+    /* set current solver */
+    sol->solver = solver;
+    sol->kind = kind;
+
 #if MPI
     /* these values might differ due to clumsy input scripting: make them uniform */
     sol->callback_interval = PUT_double_min (sol->callback_interval);
@@ -541,16 +547,16 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       if (verbose) printf ("TIME: %g ... ", sol->dom->time);
 
       /* begin update of domain */
-      ldy = DOM_Update_Begin (sol->dom, kind);
+      ldy = DOM_Update_Begin (sol->dom);
 
       /* begin update of local dynamics */
-      LOCDYN_Update_Begin (ldy, kind);
+      LOCDYN_Update_Begin (ldy);
 
       /* solve constraints */
       SOLVE (sol, solver, kind, ldy, verbose);
 
       /* end update of local dynamics */
-      LOCDYN_Update_End (ldy, kind);
+      LOCDYN_Update_End (ldy);
 
       /* end update of domain */
       DOM_Update_End (sol->dom);

@@ -19,7 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#include "dom.h"
+#include "sol.h"
 #include "mrf.h"
 #include "alg.h"
 #include "vic.h"
@@ -28,7 +28,7 @@
  * amount of spurious momentum due to constraint force inaccuracy;
  * update_U != 0 implies that U needs to be computed for current R;
  * (it is assumed that all (also external) reactions are updated) */
-double MERIT_Function (LOCDYN *ldy, short update_U, short friction_scaling)
+double MERIT_Function (LOCDYN *ldy, short update_U)
 {
   double step, up, uplo [2], Q [3], P [3];
   SOLVER_KIND solver;
@@ -40,8 +40,8 @@ double MERIT_Function (LOCDYN *ldy, short update_U, short friction_scaling)
   uplo [0] = 0.0;
   uplo [1] = ldy->free_energy;
   dynamic = ldy->dom->dynamic;
-  solver = ldy->dom->solver;
   step = ldy->dom->step;
+  solver = ldy->dom->solfec->kind;
 
   for (dia = ldy->dia; dia; dia = dia->n)
   {
@@ -81,20 +81,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U, short friction_scaling)
       }
       else
       {
-	double fri = con->mat.base->friction;
-
-	if (friction_scaling && fri != 0.0)
-	{
-	  double A [3], B [3];
-
-	  COPY (U, A);
-	  COPY (R, B);
-	  A [2] *= fri;
-	  B [2] /= fri;
-	  VIC_Linearize (con, A, B, -1, 0, P, NULL, NULL);
-	}
-	else VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
-
+	VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
 	NVMUL (A, P, Q);
 	up = DOT (Q, P);
       }

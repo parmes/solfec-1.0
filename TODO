@@ -89,3 +89,5 @@ Implement configuration update: q(t+h3/2) = q(t+h/2) + h * u(t+h). This will all
 to minimise communication in the domain update code.
 --------------------------------------------------------------------------------------
 Add ANALAYSIS kind and body->DAMPING to MBFCP format
+--------------------------------------------------------------------------------------
+Sort our cohesion in NEWTON_SOLVER and vic.c

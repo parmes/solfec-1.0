@@ -123,7 +123,7 @@ static int de_saxce_feng (short dynamic, double epsilon, int maxiter,
     tau [2] = R[2] - rho * (UN + friction * LEN2 (U));
  
     /* project onto friction cone */ 
-    VIC_Project (friction, tau, R);
+    VIC_Project (0.0, friction, tau, R);
 
     SUB (R, vector, vector); /* absolute difference */
     scalar = DOT (R, R); /* length of current solution */

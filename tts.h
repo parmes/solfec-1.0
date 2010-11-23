@@ -1,8 +1,8 @@
 /*
- * nts.h
+ * tts.h
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * projected quasi-Newton solver
+ * test solver
  */
 
 /* This file is part of Solfec.
@@ -21,24 +21,20 @@
 
 #include "ldy.h"
 
-#ifndef __nts__
-#define __nts__
+#ifndef __tts__
+#define __tts__
 
-typedef struct newton NEWTON;
+typedef struct test TEST;
 
-struct newton
+struct test
 {
   /* input */
 
-  double meritval; /* value of merit function sufficient for termination */
+  double meritval; /* merit function value sufficient for termination */
 
   int maxiter; /* iterations bound */
 
-  enum {LOCDYN_ON, LOCDYN_OFF} locdyn; /* local dynamics assembling */
-
-  double theta; /* relaxation parameter */
-
-  double epsilon; /* smoothing epsilon */
+  int linmaxiter; /* linear solver iterations bound */
 
   /* output */
 
@@ -48,15 +44,15 @@ struct newton
 };
 
 /* create solver */
-NEWTON* NEWTON_Create (double meritval, int maxiter);
+TEST* TEST_Create (double meritval, int maxiter);
 
 /* run solver */
-void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy);
+void TEST_Solve (TEST *ts, LOCDYN *ldy);
 
 /* write labeled state values */
-void NEWTON_Write_State (NEWTON *ns, PBF *bf);
+void TEST_Write_State (TEST *ts, PBF *bf);
 
 /* destroy solver */
-void NEWTON_Destroy (NEWTON *bs);
+void TEST_Destroy (TEST *ts);
 
 #endif

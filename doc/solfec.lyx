@@ -5186,22 +5186,19 @@ variant
 ')
 \end_layout
 
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
 \begin_layout Subsection
 NEWTON_SOLVER 
 \color red
 (Under development)
 \end_layout
 
-\begin_layout Plain Layout
-Object of type NEWTON_SOLVER represents an inexact Newton constraints solver.
+\begin_layout Standard
+Object of type NEWTON_SOLVER represents a projected quasi-Newton constraints
+ solver.
 \end_layout
 
 \begin_layout Subsection*
-obj = NEWTON_SOLVER (| meritval, maxiter)
+obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, theta, epsilon)
 \end_layout
 
 \begin_layout Itemize
@@ -5209,7 +5206,7 @@ obj = NEWTON_SOLVER (| meritval, maxiter)
 \series bold
 obj
 \series default
- - created BODY_SPACE_SOLVER object
+ - created NEWTON_SOLVER object
 \end_layout
 
 \begin_layout Itemize
@@ -5217,8 +5214,7 @@ obj
 \series bold
 meritval
 \series default
- - constraints satisfaction merit function value sufficient for termination
- (default: 1E-8), cf.
+ - value of merit function sufficient for termination (default: 1E-8), cf.
  Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -5234,15 +5230,42 @@ reference "cha:Constraints-accuracy"
 \series bold
 maxiter
 \series default
- - maximal number of iterations before termination (default: 50)
+ - iterations bound (default: 100)
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Itemize
+
+\series bold
+locdyn
+\series default
+ - 'ON' or 'OFF' deciding whether to fully assemble local dynamics (default:
+ 'ON')
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+theta
+\series default
+ - relaxation parameter greater than 0 and not greater than 0.5 (default:
+ 0.25); theta is automatically decreased in case of numerical instability;
+ smaller initial theta may improve overall convergence behavior
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+epsilon
+\series default
+ - non-negative smoothing epsilon (default: 1E-9)
+\end_layout
+
+\begin_layout Standard
 Some parameters can also be accessed as members of a NEWTON_SOLVER object.
  These are
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
@@ -5304,10 +5327,10 @@ obj.merhist
 
 \end_layout
 
-\begin_layout Plain Layout
+\begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="1">
+<lyxtabular version="3" rows="2" columns="1">
 <features>
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -5326,49 +5349,19 @@ Read/write
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\emph on
-obj.maxiter, obj.meritval
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
 
-\series bold
 \emph on
-obj.linmaxiter
-\series default
-\emph default
- - linear iterative solver iterations bound (default: 
-\series bold
-maxiter
-\series default
-
-\begin_inset Formula $\cdot$
-\end_inset
-
-10)
+obj.meritval, obj.maxiter, obj.locdyn, obj.refine, obj.theta, obj.epsilon
 \end_layout
 
 \end_inset
 </cell>
 </row>
 </lyxtabular>
-
-\end_inset
-
-
-\end_layout
 
 \end_inset
 
