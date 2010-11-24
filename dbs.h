@@ -41,13 +41,14 @@ typedef enum dias DIAS;
  * kind: constraint kind (con->kind)
  * mat: surface material (kind == CONTACT)
  * gap: constraint gap
+ * area: constraint area
  * Z: auxiliary Z storage (con->Z)
  * base: constraint local base (con->base)
  * dia: diagonal block of local dynamic (con->dia)
  * B: local free velocity (B = dia->B + sum [dia->adj] (W_i R_i));
  * diagonal block solver */
 int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
-  short dynamic, double step, short kind, SURFACE_MATERIAL *mat, double gap,
-  double *Z, double *base, DIAB *dia, double *B);
+  short dynamic, double step, short kind, SURFACE_MATERIAL_STATE *mat, double gap,
+  double area, double *Z, double *base, DIAB *dia, double *B);
 
 #endif

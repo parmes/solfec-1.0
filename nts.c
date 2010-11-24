@@ -673,7 +673,8 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
 
     if (con->kind == CONTACT)
     {
-      VIC_Project (0.0, con->mat.base->friction, R, R);
+      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
+      VIC_Project (con->mat.base->friction, c, R, R);
     }
   }
 }
@@ -746,7 +747,8 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 
     if (*merit > prevm && ++gt > 10 && *merit > 10)
     {
-      ns->theta *= 0.5;
+      if (ns->theta < 0.0009765625) ns->theta = 0.5; /* < 0.5**10 */
+      else ns->theta *= 0.5;
       reset (A);
       gt = 0;
     }

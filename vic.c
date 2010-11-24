@@ -154,9 +154,10 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
   short dynamic = dom->dynamic;
   double *V = con->V,
 	  gap = con->gap,
+	  step = dom->step,
 	  fri = con->mat.base->friction,
 	  res = con->mat.base->restitution,
-	  step = dom->step,
+	  coh = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
 	  h = DIFF_FACTOR * smoothing_epsilon > 0.0 ? smoothing_epsilon : DIFF_BASE,
 	  dF [9],
           S [3],
@@ -174,6 +175,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
   {
     real_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, U, UT, F);
     SUB (R, F, S);
+    S [2] += coh;
     real_m (fri, S, smoothing_epsilon, m);
     ADD (F, m, C);
   }
@@ -215,10 +217,12 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 }
 
 /* R = project-on-friction-cone (S) */
-void VIC_Project (double smoothing_epsilon, double friction, double *S, double *R)
+void VIC_Project (double friction, double cohesion, double *S, double *R)
 {
   double m [3];
 
-  real_m (friction, S, smoothing_epsilon, m);
+  S [2] += cohesion;
+  real_m (friction, S, 0.0, m);
+  S [2] -= cohesion;
   SUB (S, m, R);
 }

@@ -159,8 +159,9 @@ void PENALTY_Solve (PENALTY *ps, LOCDYN *ldy)
 
     if (con->kind == CONTACT)
     {
-      PENALTY_Spring_Dashpot_Contact (con, implicit, step, con->gap, con->mat.base->spring, con->mat.base->dashpot,
-	                  con->mat.base->friction, con->mat.base->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
+      SURFACE_MATERIAL *bas = con->mat.base;
+      PENALTY_Spring_Dashpot_Contact (con, implicit, step, con->gap, bas->spring, bas->dashpot,
+	                  bas->friction, bas->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
     }
   }
 
@@ -211,7 +212,7 @@ void PENALTY_Solve (PENALTY *ps, LOCDYN *ldy)
 
       /* solve local diagonal block problem */
       DIAGONAL_BLOCK_Solver (DS_PROJECTED_GRADIENT, 1E-6, 1000, dynamic, step,
-	         con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+	 con->kind, &con->mat, con->gap, con->area, con->Z, con->base, dia, B);
 
       /* accumulate relative
        * error components */

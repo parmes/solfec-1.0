@@ -245,11 +245,16 @@ short SURFACE_MATERIAL_Transfer (double time, SURFACE_MATERIAL *src, SURFACE_MAT
 
   if (dst->state) free (dst->state), dst->state = NULL;
 
-  ERRMEM (dst->state = MEM_CALLOC (sizeof (double [state_size (src)])));
-  
-  if (time == 0.0 && src->cohesion > 0.0) /* contacts created after the initial moment cannot get cohesive */
+  int size = state_size (src);
+
+  if (size)
   {
-    dst->state [COHESION] = src->cohesion;
+    ERRMEM (dst->state = MEM_CALLOC (sizeof (double [size])));
+    
+    if (time == 0.0 && src->cohesion > 0.0) /* contacts created after the initial moment cannot get cohesive */
+    {
+      dst->state [COHESION] = src->cohesion;
+    }
   }
 
   return state_flags (dst);

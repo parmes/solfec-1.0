@@ -161,7 +161,7 @@ bulk2 = BULK_MATERIAL (solfec, 'KIRCHHOFF', young = 15E9, poisson = 0.25, densit
 GRAVITY (solfec, (0, 0, 0))
 
 #sv = GAUSS_SEIDEL_SOLVER (1E-3, 10, 1E-3)
-sv = NEWTON_SOLVER (1E-5, 10)
+sv = NEWTON_SOLVER (1E-5, 100)
 
 n_i = 8
 n_j = 4
