@@ -62,11 +62,9 @@ static UPKIND update_kind (SOLFEC *sol)
   return UPALL;
 }
 
-/* apply forward change of variables (nornal
- * contact forces) due to the cohesion, etc. */
-static void variables_change_begin (LOCDYN *ldy)
+/* sort out cohesion states */
+static void update_cohesion (LOCDYN *ldy)
 {
-  OFFB *blk;
   DIAB *dia;
 
   for (dia = ldy->dia; dia; dia = dia->n)
@@ -75,69 +73,20 @@ static void variables_change_begin (LOCDYN *ldy)
 
     if (con->kind != CONTACT) continue; /* skip non-contacts */
     else if (con->mat.base->model == SPRING_DASHPOT) continue; /* skip spring-dashpots */
-
-    double *B = dia->B; /* free velocity will
-			   be eventually modified */
 
     if (con->state & CON_COHESIVE) /* cohesive state */
     {
       double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
-	     *W = dia->W,
-	     *R = dia->R;
-
-      R [2] += c;       /* R_n_new = R_n + c <=> (R_n + c) >= 0 */
-      B[0] -= (W[6]*c); /* in consequnce 'W_tn * c' gets subtracted */
-      B[1] -= (W[7]*c); /* ... */
-      B[2] -= (W[8]*c); /* and 'W_nn * c' here */
-    }
-
-    /* off-diagonal subtractions */
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      CON *con = blk->dia->con;
-      if (con->state & CON_COHESIVE) /* cohesive state */
-      {
-	double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
-	       *W = blk->W;
-
-	B[0] -= (W[6]*c);
-	B[1] -= (W[7]*c);
-	B[2] -= (W[8]*c);
-      }
-    }
-  }
-}
-
-/* apply back change of variables (nornal
- * contact forces) due to the cohesion, etc. */
-static void variables_change_end (LOCDYN *ldy)
-{
-  DIAB *dia;
-
-  for (dia = ldy->dia; dia; dia = dia->n)
-  {
-    CON *con = dia->con;
-
-    if (con->kind != CONTACT) continue; /* skip non-contacts */
-    else if (con->mat.base->model == SPRING_DASHPOT) continue; /* skip spring-dashpots */
-
-    short state = con->state;
-
-    if (state & CON_COHESIVE) /* cohesive state */
-    {
-      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
 	     f = con->mat.base->friction,
 	     e = COHESION_EPSILON * c,
-	     *R = dia->R;
+	    *R = con->R;
 
-      if (R [2] < e || /* mode-I decohesion */
-	  LEN2 (R) + e >= f * R[2]) /* mode-II decohesion */
+      if ((R [2]+c) < e || /* mode-I decohesion */
+	  LEN2 (R) + e >= f * (R[2]+c)) /* mode-II decohesion */
       {
 	con->state &= ~CON_COHESIVE;
 	SURFACE_MATERIAL_Cohesion_Set (&con->mat, 0.0);
       }
-
-      R [2] -= c; /* back change */
     }
   }
 }
@@ -1023,9 +972,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
   }
 #endif
 
-  /* forward variables change */
-  if (upkind == UPALL) variables_change_begin (ldy);
-
 end:
   SOLFEC_Timer_End (ldy->dom->solfec, "LOCDYN");
 }
@@ -1037,8 +983,8 @@ void LOCDYN_Update_End (LOCDYN *ldy)
 
   SOLFEC_Timer_Start (ldy->dom->solfec, "LOCDYN");
 
-  /* backward variables change */
-  if (upkind == UPALL) variables_change_end (ldy);
+  /* update cohesion states */
+  if (upkind != UPPES) update_cohesion (ldy);
 
   /* not modified */
   ldy->modified = 0;

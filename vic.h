@@ -28,6 +28,6 @@
 void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_epsilon, double *C, double *X, double *Y);
 
 /* R = project-on-friction-cone (S) */
-void VIC_Project (double smoothing_epsilon, double friction, double *S, double *R);
+void VIC_Project (double friction, double cohesion, double *S, double *R);
 
 #endif

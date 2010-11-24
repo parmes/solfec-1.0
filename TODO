@@ -90,4 +90,4 @@ to minimise communication in the domain update code.
 --------------------------------------------------------------------------------------
 Add ANALAYSIS kind and body->DAMPING to MBFCP format
 --------------------------------------------------------------------------------------
-Sort our cohesion in NEWTON_SOLVER and vic.c
+Swap epsilon and meritval arguments in GAUSS_SEIDEL_SOLVER

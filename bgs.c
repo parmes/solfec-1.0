@@ -206,8 +206,8 @@ static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
 
   /* solve local diagonal block problem */
   con = dia->con;
-  diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
-	     dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+  diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter, dynamic,
+                    step, con->kind, &con->mat, con->gap, con->area, con->Z, con->base, dia, B);
 
   if (diagiters >= gs->diagmaxiter || diagiters < 0) /* failed */
   {
@@ -222,7 +222,7 @@ static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
 	  COPY (R0, R); /* initialize with previous reaction */
 
 	  diagiters = DIAGONAL_BLOCK_Solver (dias [i], gs->diagepsilon, gs->diagmaxiter, /* try another solver */
-	    dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+	    dynamic, step, con->kind, &con->mat, con->gap, con->area, con->Z, con->base, dia, B);
 
 	  if (diagiters < gs->diagmaxiter && diagiters >= 0) break; /* success */
 	}
@@ -1004,8 +1004,8 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
       /* solve local diagonal block problem */
       CON *con = dia->con;
-      diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter,
-	         dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+      diagiters = DIAGONAL_BLOCK_Solver (gs->diagsolver, gs->diagepsilon, gs->diagmaxiter, dynamic,
+	                step, con->kind, &con->mat, con->gap, con->area, con->Z, con->base, dia, B);
 
       if (diagiters >= gs->diagmaxiter || diagiters < 0)
       {
@@ -1027,7 +1027,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 		COPY (R0, R); /* initialize with previous reaction */
 
 		diagiters = DIAGONAL_BLOCK_Solver (dias [i], gs->diagepsilon, gs->diagmaxiter, /* try another solver */
-		  dynamic, step, con->kind, con->mat.base, con->gap, con->Z, con->base, dia, B);
+		  dynamic, step, con->kind, &con->mat, con->gap, con->area, con->Z, con->base, dia, B);
 
 		if (diagiters < gs->diagmaxiter && diagiters >= 0) break; /* success */
 	      }

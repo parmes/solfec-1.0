@@ -30,8 +30,8 @@
 #include "err.h"
 
 static int projected_gradient (short dynamic, double epsilon, int maxiter,
-  double step, double friction, double restitution, double gap, double rho,
-  double *W, double *B, double *V, double *U, double *R)
+  double step, double friction, double restitution, double cohesion, double gap,
+  double rho, double *W, double *B, double *V, double *U, double *R)
 {
   double vector [3], scalar; /* auxiliary vector & scalar */
   int iter = 0; /* current iteration counter */
@@ -61,7 +61,7 @@ static int projected_gradient (short dynamic, double epsilon, int maxiter,
      * reactions */
     R [0] -= rho * U[0];
     R [1] -= rho * U[1];
-    R [2] -= rho * UN;
+    R [2] -= rho * UN - cohesion;
    
     /* project normal reaction
      * into its feasible domain */ 
@@ -78,6 +78,8 @@ static int projected_gradient (short dynamic, double epsilon, int maxiter,
       R [0] *= scalar;
       R [1] *= scalar;
     }
+
+    R [2] -= cohesion;
     
     SUB (R, vector, vector); /* absolute difference */
     scalar = DOT (R, R); /* length of current solution */
@@ -89,8 +91,8 @@ static int projected_gradient (short dynamic, double epsilon, int maxiter,
 }
 
 static int de_saxce_feng (short dynamic, double epsilon, int maxiter,
-  double step, double friction, double restitution, double gap, double rho,
-  double *W, double *B, double *V, double *U, double *R)
+  double step, double friction, double restitution, double cohesion, double gap,
+  double rho, double *W, double *B, double *V, double *U, double *R)
 {
   double vector [3], scalar; /* auxiliary vector & scalar */
   int iter = 0; /* current iteration counter */
@@ -123,7 +125,7 @@ static int de_saxce_feng (short dynamic, double epsilon, int maxiter,
     tau [2] = R[2] - rho * (UN + friction * LEN2 (U));
  
     /* project onto friction cone */ 
-    VIC_Project (0.0, friction, tau, R);
+    VIC_Project (friction, cohesion, tau, R);
 
     SUB (R, vector, vector); /* absolute difference */
     scalar = DOT (R, R); /* length of current solution */
@@ -135,8 +137,8 @@ static int de_saxce_feng (short dynamic, double epsilon, int maxiter,
 }
 
 static int semismooth_newton (short dynamic, double epsilon, int maxiter,
-  double step, double friction, double restitution, double gap, double rho,
-  double *W, double *B, double *V, double *U, double *R)
+  double step, double friction, double restitution, double cohesion, double gap,
+  double rho, double *W, double *B, double *V, double *U, double *R)
 {
   double RES [3], UN, norm, lim, a [9], b [3], c [3], d [3], R0 [3], error;
   int divi, ipiv [3], iter;
@@ -163,7 +165,7 @@ static int semismooth_newton (short dynamic, double epsilon, int maxiter,
      * reactions */
     d [0] = R[0] - rho * U[0];
     d [1] = R[1] - rho * U[1];
-    d [2] = R[2] - rho * UN;
+    d [2] = (R[2]+cohesion) - rho * UN;
 
     /* calculate residum RES = W*R + B - U */
     NVADDMUL (B, W, R, RES);
@@ -219,8 +221,8 @@ static int semismooth_newton (short dynamic, double epsilon, int maxiter,
 	  a [7] = rho*(M[1]*W[6] + M[3]*W[7]) - friction*(d[1]/norm);
 	  a [8] = W[8];
 
-	  b [0] = friction*(d[0]/norm)*R[2] - R[0] - rho*(M[0]*RES[0] + M[2]*RES[1]);
-	  b [1] = friction*(d[1]/norm)*R[2] - R[1] - rho*(M[1]*RES[0] + M[3]*RES[1]);
+	  b [0] = friction*(d[0]/norm)*(R[2]+cohesion) - R[0] - rho*(M[0]*RES[0] + M[2]*RES[1]);
+	  b [1] = friction*(d[1]/norm)*(R[2]+cohesion) - R[1] - rho*(M[1]*RES[0] + M[3]*RES[1]);
 	  b [2] = -UN - RES[2];
 	}
 	else /* degenerate case => enforce homogenous tangential tractions */
@@ -416,43 +418,49 @@ static int riglnk (short dynamic, double epsilon, int maxiter, double step,
  * kind: constraint kind (con->kind)
  * mat: surface material (kind == CONTACT)
  * gap: constraint gap
+ * area: constraint area
  * Z: auxiliary Z storage (con->Z)
  * base: constraint local base (con->base)
  * dia: diagonal block of local dynamic (con->dia)
  * B: local free velocity (B = dia->B + sum [dia->adj] (W_i R_i));
  * diagonal block solver */
 int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
-  short dynamic, double step, short kind, SURFACE_MATERIAL *mat, double gap,
-  double *Z, double *base, DIAB *dia, double *B)
+  short dynamic, double step, short kind, SURFACE_MATERIAL_STATE *mat, double gap,
+  double area, double *Z, double *base, DIAB *dia, double *B)
 {
   switch (kind)
   {
   case CONTACT:
-    switch (mat->model)
+  {
+    double cohesion = SURFACE_MATERIAL_Cohesion_Get (mat) * area;
+    SURFACE_MATERIAL *bas = mat->base;
+
+    switch (bas->model)
     {
     case SIGNORINI_COULOMB:
       switch (diagsolver)
       {
       case DS_PROJECTED_GRADIENT:
-	return projected_gradient (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
-			   mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
+	return projected_gradient (dynamic, diagepsilon, diagmaxiter, step, bas->friction,
+	       bas->restitution, cohesion, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
       case DS_DE_SAXCE_FENG:
-	return de_saxce_feng (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
-			 mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
+	return de_saxce_feng (dynamic, diagepsilon, diagmaxiter, step, bas->friction,
+	       bas->restitution, cohesion, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
       case DS_SEMISMOOTH_NEWTON:
-	return semismooth_newton (dynamic, diagepsilon, diagmaxiter, step, mat->friction,
-			  mat->restitution, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
+	return semismooth_newton (dynamic, diagepsilon, diagmaxiter, step, bas->friction,
+               bas->restitution, cohesion, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
       }
       break;
     case SPRING_DASHPOT:
       {
 	CON *con = dia->con;
-        return PENALTY_Spring_Dashpot_Contact (con, 1, step, gap, mat->spring, mat->dashpot, mat->friction,
-	                                       mat->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
+        return PENALTY_Spring_Dashpot_Contact (con, 1, step, gap, bas->spring, bas->dashpot, bas->friction,
+	                                       bas->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
       }
       break;
     }
-    break;
+  }
+  break;
   case FIXPNT:
   case GLUE:
     return fixpnt (dynamic, dia->W, B, dia->V, dia->U, dia->R);
