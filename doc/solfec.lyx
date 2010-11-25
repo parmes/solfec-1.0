@@ -5198,7 +5198,7 @@ Object of type NEWTON_SOLVER represents a projected quasi-Newton constraints
 \end_layout
 
 \begin_layout Subsection*
-obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, theta, epsilon)
+obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, theta, epsilon, presmooth)
 \end_layout
 
 \begin_layout Itemize
@@ -5258,6 +5258,19 @@ theta
 epsilon
 \series default
  - non-negative smoothing epsilon (default: 1E-9)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+presmooth
+\series default
+ - number of Gauss-Seidel pre-smoothing steps (default: 10); pre-smoothing
+ is only performed when 
+\series bold
+locdyn
+\series default
+ value is 'ON'
 \end_layout
 
 \begin_layout Standard
