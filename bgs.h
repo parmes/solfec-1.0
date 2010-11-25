@@ -99,16 +99,16 @@ struct gs
   GSVARIANT variant; /* parallel algorithm variant (ignored in serial mode) */
 
   int innerloops; /* number of inner GS loops per one global parallel step (ignored in serial mode) */
+
+  short verbose; /* local verbosity flag */
+
+  short nomerit; /* merit function evaluation flag */
 };
 
 /* create solver */
 GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, double meritval, GSFAIL failure,
                                    double diagepsilon, int diagmaxiter, DIAS diagsolver,
 				   void *data, GAUSS_SEIDEL_Callback callback);
-
-/* create on constraints subset (subset == NULL => entire set); needs to be destroyed and created again for every
- * new LOCDYN state but allows for more efficient multiple solves in parallel due to single initialization */
-GAUSS_SEIDEL* GAUSS_SEIDEL_Subset_Create (LOCDYN *ldy, SET *subset, double epsilon, int maxiter, double meritval);
 
 /* run solver */
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy);

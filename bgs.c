@@ -462,19 +462,8 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, double meritval,
   gs->error = GS_OK;
   gs->variant = GS_FULL;
   gs->innerloops = 1;
-
-  return gs;
-}
-
-/* create on constraints subset (subset == NULL => entire set); needs to be destroyed and created again for every
- * new LOCDYN state but allows for more efficient multiple solves in parallel due to single initialization */
-GAUSS_SEIDEL* GAUSS_SEIDEL_Subset_Create (LOCDYN *ldy, SET *subset, double epsilon, int maxiter, double meritval)
-{
-  GAUSS_SEIDEL *gs;
-  
-  gs = GAUSS_SEIDEL_Create (epsilon, maxiter, meritval, GS_FAILURE_CONTINUE, 1E-6, 1000, DS_PROJECTED_GRADIENT, NULL, NULL);
-
-  /* TODO */
+  gs->verbose = 1;
+  gs->nomerit = 0;
 
   return gs;
 }
@@ -533,7 +522,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   rank = dom->rank;
   merit = &dom->merit;
   solfec = dom->solfec;
-  verbose = dom->verbose;
+  verbose = dom->verbose && gs->verbose;
+
+  if (gs->nomerit) *merit = 0.0;
 
   if (rank == 0 && verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -837,7 +828,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #endif
 
       /* merit function */
-      S("GSRUN"); *merit = MERIT_Function (ldy, 1); E("GSRUN"); 
+      if (!gs->nomerit)
+      {
+        S("GSRUN"); *merit = MERIT_Function (ldy, 1); E("GSRUN"); 
+      }
 
       /* sum up error */
       S("GSCOM"); 
@@ -881,7 +875,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 	S("GSRUN"); di = gauss_seidel_sweep (noncon, 0, gs, dynamic, step, 1, &errup, &errlo); dimax = MAX (dimax, di); E("GSRUN");
       }
 
-      S("GSRUN"); *merit = MERIT_Function (ldy, 1); E("GSRUN"); 
+      if (!gs->nomerit)
+      {
+        S("GSRUN"); *merit = MERIT_Function (ldy, 1); E("GSRUN"); 
+      }
 
       error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);
 
@@ -963,8 +960,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
   S("GSRUN");
 
-  verbose = ldy->dom->verbose;
+  verbose = ldy->dom->verbose && gs->verbose;
   merit = &ldy->dom->merit;
+
+  if (gs->nomerit) *merit = 0.0;
 
   if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -1057,7 +1056,10 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
 
     /* merit function value */
-    *merit = MERIT_Function (ldy, 1);
+    if (!gs->nomerit)
+    {
+      *merit = MERIT_Function (ldy, 1);
+    }
 
     /* calculate relative error */
     error = sqrt (errup) / sqrt (errlo == 0.0 ? 1.0 : errlo);

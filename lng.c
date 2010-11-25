@@ -3262,11 +3262,11 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("meritval", "maxiter", "locdyn", "theta", "epsilon");
+  KEYWORDS ("meritval", "maxiter", "locdyn", "theta", "epsilon", "presmooth");
   double meritval, theta, epsilon;
   lng_NEWTON_SOLVER *self;
+  int maxiter, presmooth;
   PyObject *locdyn;
-  int maxiter;
 
   self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
 
@@ -3277,15 +3277,17 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     locdyn = NULL;
     theta = 0.25;
     epsilon = 1E-9;
+    presmooth = 10;
 
-    PARSEKEYS ("|diOdd", &meritval, &maxiter, &locdyn, &theta, &epsilon);
+    PARSEKEYS ("|diOddi", &meritval, &maxiter, &locdyn, &theta, &epsilon, &presmooth);
 
-    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) &&
-      is_string (locdyn, kwl[2]) && is_gt_le (theta, kwl[3], 0, 0.5) && is_non_negative (epsilon, kwl[4]));
+    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (locdyn, kwl[2]) &&
+      is_gt_le (theta, kwl[3], 0, 0.5) && is_non_negative (epsilon, kwl[4]) && is_non_negative (presmooth, kwl[5]));
 
     self->ns = NEWTON_Create (meritval, maxiter);
     self->ns->theta = theta;
     self->ns->epsilon = epsilon;
+    self->ns->presmooth = presmooth;
 
     if (locdyn)
     {

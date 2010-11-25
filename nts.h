@@ -40,6 +40,8 @@ struct newton
 
   double epsilon; /* smoothing epsilon */
 
+  int presmooth; /* presmoothing steps */
+
   /* output */
 
   double *merhist; /* merit function history */

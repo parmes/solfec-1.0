@@ -22,6 +22,7 @@
 #include <stdlib.h>
 #include <float.h>
 
+#include "bgs.h"
 #include "nts.h"
 #include "dom.h"
 #include "fem.h"
@@ -33,26 +34,8 @@
 #include "mrf.h"
 #include "ext/krylov/krylov.h"
 
-typedef struct con_block CON_BLOCK;
 typedef struct con_data CON_DATA;
 typedef struct private PRIVATE;
-
-#define MAXBLK 10
-
-struct con_block
-{
-  double b [3], /* right hand side */
-	 X [9], /* U-linearization */
-	 T [9], /* diagonal linearization */
-	 x [3]; /* added up solution */
-
-  int size, /* block size */
-      nadd; /* added up solutions count */
-
-  CON_DATA *dat [MAXBLK]; /* block data */
-
-  double *W [MAXBLK][MAXBLK][2]; /* W blocks (Wij doublets handled) */
-};
 
 struct con_data
 {
@@ -68,8 +51,6 @@ struct con_data
 
   double DR [3], /* reaction increment */
 	 R0 [3]; /* initial reaction */
-
-  CON_BLOCK *blk;
 };
 
 struct private
@@ -514,13 +495,12 @@ static void locdyn_constraints_data (DOM *dom, PRIVATE *A)
   short dynamic;
   CON_DATA *dat;
   CON *con;
-  int n;
 
   dynamic = dom->dynamic;
   ERRMEM (A->dat = MEM_CALLOC (dom->ncon * sizeof (CON_DATA)));
 
   /* create internal constraints data */
-  for (con = dom->con, n = 0, dat = A->dat; con; con = con->next)
+  for (con = dom->con, dat = A->dat; con; con = con->next)
   {
     if (dynamic && con->kind == CONTACT && con->gap > 0.0)
     {
@@ -530,9 +510,7 @@ static void locdyn_constraints_data (DOM *dom, PRIVATE *A)
 
     COPY (con->R, dat->R0);
     dat->con = con;
-    con->num = n;
     dat ++;
-    n ++;
   }
   A->end = dat;
 }
@@ -546,51 +524,11 @@ static void destroy_constraints_data (CON_DATA *dat, CON_DATA *end)
   {
     if (dat->mH) MX_Destroy (dat->mH);
     if (dat->sH) MX_Destroy (dat->sH);
-    free (dat->blk);
     free (dat->mj);
     free (dat->sj);
   }
 
   free (ptr);
-}
-
-/* create blocks */
-static void create_blocks (CON_DATA *begin, CON_DATA *end, int size)
-{
-  CON_DATA *dat, *adj;
-  CON_BLOCK *blk;
-  OFFB *off;
-  int i, j;
-
-  size = MIN (MAXBLK, size);
-  for (dat = begin; dat != end; dat ++)
-  {
-    ERRMEM (blk = MEM_CALLOC (sizeof (CON_BLOCK)));
-    dat->blk = blk;
-    blk->dat [blk->size ++] = dat;
-    for (off = dat->con->dia->adj; off && blk->size < size; off = off->n)
-    {
-      if (dat->con->master == off->bod) /* constraints adjacent through same body form cliques */
-      {
-        blk->dat [blk->size ++] = &begin [off->dia->con->num];
-      }
-    }
-    for (i = 0; i < blk->size; i ++)
-    {
-      for (off = blk->dat [i]->con->dia->adj; off; off = off->n)
-      {
-	adj = &begin [off->dia->con->num];
-	for (j = 0; j < blk->size; j ++)
-	{
-	  if (adj == blk->dat [j])
-	  {
-	    if (blk->W[i][j][0]) blk->W[i][j][1] = off->W; /* Wij doublets handling */
-	    else blk->W[i][j][0] = off->W;
-	  }
-	}
-      }
-    }
-  }
 }
 
 /* create private data */
@@ -610,11 +548,7 @@ static PRIVATE *create_private_data (NEWTON *ns, LOCDYN *ldy)
     ERRMEM (A->r = MEM_CALLOC (sizeof (double [A->ndofs])));
     ERRMEM (A->a = MEM_CALLOC (sizeof (double [n])));
   }
-  else 
-  {
-    locdyn_constraints_data (ldy->dom, A);
-    create_blocks (A->dat, A->end, 2); /* XXX */
-  }
+  else locdyn_constraints_data (ldy->dom, A);
 
   U_WR_B (A); /* U = W R + B */
 
@@ -746,190 +680,6 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
   }
 }
 
-/* single blocked projected semi-Newton step */
-static void solve_blocks (CON_DATA *begin, CON_DATA *end, short dynamic, double step, double theta, double epsilon)
-{
-  CON_DATA *dat;
-
-  for (dat = begin; dat != end; dat ++)
-  {
-    CON *con = dat->con;
-    DIAB *dia = con->dia;
-    CON_BLOCK *blk = dat->blk;
-#if MPI
-    if (!dia) break; /* skip external */
-#endif
-    double *U = con->U,
-	   *V = con->V,
-	   *R = con->R,
-	   *W = dia->W,
-	   *T = blk->T,
-	   *X = blk->X,
-	   *b = blk->b;
-
-    switch (con->kind)
-    {
-    case FIXPNT:
-    case GLUE:
-    {
-      if (dynamic)
-      {
-	b [0] = -V[0]-U[0];
-	b [1] = -V[1]-U[1];
-	b [2] = -V[2]-U[2];
-      }
-      else
-      {
-	b [0] = -U[0];
-	b [1] = -U[1];
-	b [2] = -U[2];
-      }
-
-      NNCOPY (W, T);
-      IDENTITY (X);
-    }
-    break;
-    case FIXDIR:
-    {
-      b [0] = -R[0];
-      b [1] = -R[1];
-      if (dynamic) b [2] = -V[2]-U[2];
-      else b [2] = -U[2];
-
-      T [1] = T [3] = T [6] = T [7] = 0.0;
-      T [0] = T [4] = 1.0;
-      T [2] = W [2];
-      T [5] = W [5];
-      T [8] = W [8];
-      X [8] = 0.0;
-    }
-    break;
-    case VELODIR:
-    {
-      b [0] = -R[0];
-      b [1] = -R[1];
-      b [2] = VELODIR(dat->con->Z)-U[2];
-
-      T [1] = T [3] = T [6] = T [7] = 0.0;
-      T [0] = T [4] = 1.0;
-      T [2] = W [2];
-      T [5] = W [5];
-      T [8] = W [8];
-      X [8] = 0.0;
-    }
-    break;
-    case RIGLNK:
-    {
-      double h = step * (dynamic ? 0.5 : 1.0),
-             d = RIGLNK_LEN (dat->con->Z),
-	     delta;
-
-      b [0] = -R[0];
-      b [1] = -R[1];
-      delta = d*d - h*h*DOT2(U,U);
-      if (delta >= 0.0) b [2] = (sqrt (delta) - d)/h - U[2];
-      else b[2] = -U[2];
-
-      T [1] = T [3] = T [6] = T [7] = 0.0;
-      T [0] = T [4] = 1.0;
-      T [2] = W [2];
-      T [5] = W [5];
-      T [8] = W [8];
-      X [8] = 0.0;
-    }
-    break;
-    case CONTACT:
-    {
-      double Y [9];
-
-      VIC_Linearize (dat->con, U, R, -1, epsilon, b, X, Y);
-      SCALE (b, -1.0);
-
-      NNMUL (X, W, T);
-      NNADD (T, Y, T);
-    }
-    break;
-    }
-
-    SET (blk->x, 0.0);
-    blk->nadd = 0;
-  }
-
-  double gamma = 1.0 - theta,
-	 A [9 * MAXBLK * MAXBLK],
-	 x [3 * MAXBLK];
-  int i, j, n, ipiv [3 * MAXBLK];
-
-  for (dat = begin; dat != end; dat ++)
-  {
-    CON_BLOCK *blk = dat->blk;
-#if MPI
-    CON *con = dat->con;
-    DIAB *dia = con->dia;
-    if (!dia) break; /* skip external */
-#endif
-    n = 3 * blk->size;
-    for (i = 0; i < blk->size; i ++)
-    {
-      double *dA = &A[i*3*n + i*3],
-	     *T = blk->dat [i]->blk->T;
-      for (j = 0; j < 3; j ++)
-      {
-	COPY (&T[3*j], dA+j*n); /* diagonal */
-      }
-      for (j = 0; j < blk->size; j ++)
-      {
-	if (i == j) continue;
-	blas_dgemm ('N', 'N', 3, 3, 3, 1.0, blk->dat [i]->blk->X, 3,
-	            blk->W [i][j][0], 3, 0.0, &A[j*3*n + i*3], n); /* off-diagonal */
-	if (blk->W[i][j][1])
-	  blas_dgemm ('N', 'N', 3, 3, 3, 1.0, blk->dat [i]->blk->X, 3,
-		      blk->W [i][j][1], 3, 1.0, &A[j*3*n + i*3], n); /* off-diagonal */
-      }
-      COPY (blk->dat [i]->blk->b, &x[3*i]); /* rhs */
-    }
-
-    ASSERT_DEBUG_EXT (lapack_dgesv (n, 1, A, n, ipiv, x, n) == 0, "Lapack failed");
-
-    for (i = 0; i < blk->size; i ++)
-    {
-      ACC (&x[3*i], blk->dat [i]->blk->x);
-      blk->dat [i]->blk->nadd ++;
-    }
-  }
-
-  for (dat = begin; dat != end; dat ++)
-  {
-    CON_BLOCK *blk = dat->blk;
-    CON *con = dat->con;
-#if MPI
-    DIAB *dia = con->dia;
-    if (!dia) break; /* skip external */
-#endif
-
-    double *DR = dat->DR,
-	   *R = con->R,
-	   *x = blk->x,
-	   coef = 1.0 / (double) blk->nadd;
-
-    SCALE (x, coef);
-    DR [0] = gamma * DR[0] + theta * x[0];
-    DR [1] = gamma * DR[1] + theta * x[1];
-    DR [2] = gamma * DR[2] + theta * x[2];
-    ACC (DR, R);
-
-    if (con->kind == CONTACT)
-    {
-      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
-      VIC_Project (con->mat.base->friction, c, R, R);
-    }
-  }
-
-  /* TODO: test avergaing first (better for small blocks);
-   * TODO: also test adding unique blocks only (some dat->blk == NULL)
-   * TODO: without averaging (better for large blocks) */
-}
-
 /* reset solution */
 static void reset (PRIVATE *A)
 {
@@ -960,6 +710,7 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->locdyn = LOCDYN_ON;
   ns->theta = 0.25;
   ns->epsilon = 1E-9;
+  ns->presmooth = 10;
 
   return ns;
 }
@@ -968,10 +719,30 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
 void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
   double *merit, prevm, step;
+  GAUSS_SEIDEL *gs;
   char fmt [512];
   short dynamic;
   int div, gt;
   PRIVATE *A;
+
+  if (ns->locdyn == LOCDYN_ON && ns->presmooth > 0)
+  {
+    gs = GAUSS_SEIDEL_Create (1E-10, ns->presmooth, 1.0, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
+    gs->verbose = 0;
+    gs->nomerit = 1;
+#if MPI
+    if (ldy->dom->rank == 0)
+    {
+#endif
+    if (ldy->dom->verbose) printf ("NEWTON_SOLVER: presmoothing ");
+    for (gt = 0; gt < ns->presmooth; gt ++) printf (".");
+    printf ("\n");
+#if MPI
+    }
+#endif
+    GAUSS_SEIDEL_Solve (gs, ldy);
+    GAUSS_SEIDEL_Destroy (gs);
+  }
 
   sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
   ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
@@ -979,15 +750,14 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   dynamic = ldy->dom->dynamic;
   merit = &ldy->dom->merit;
   step = ldy->dom->step;
-  *merit = DBL_MAX;
+  *merit = MERIT_Function (ldy, 0);
   ns->iters = 0;
   div = 1;
   gt = 0;
 
-  do
+  while (ns->iters < ns->maxiter && *merit > ns->meritval)
   {
-    if (ns->locdyn == LOCDYN_OFF) solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
-    else solve_blocks (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
+    solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
 
     U_WR_B (A);
 
@@ -1010,7 +780,8 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 #endif
     if (ldy->dom->verbose && ns->iters % div == 0) printf (fmt, ns->theta, ns->iters, *merit), div *= 2;
 
-  } while (++ ns->iters < ns->maxiter && *merit > ns->meritval);
+    ns->iters ++;
+  }
 
 #if MPI
   if (ldy->dom->rank == 0)
