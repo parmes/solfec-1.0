@@ -732,14 +732,13 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
     gs->nomerit = 1;
 #if MPI
     if (ldy->dom->rank == 0)
+#endif
+    if (ldy->dom->verbose)
     {
-#endif
-    if (ldy->dom->verbose) printf ("NEWTON_SOLVER: presmoothing ");
-    for (gt = 0; gt < ns->presmooth; gt ++) printf (".");
-    printf ("\n");
-#if MPI
+      printf ("NEWTON_SOLVER: presmoothing ");
+      for (gt = 0; gt < ns->presmooth; gt ++) printf (".");
+      printf ("\n");
     }
-#endif
     GAUSS_SEIDEL_Solve (gs, ldy);
     GAUSS_SEIDEL_Destroy (gs);
   }
