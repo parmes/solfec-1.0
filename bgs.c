@@ -106,7 +106,7 @@ static int* processor_coloring (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   for (m = i = 0; i < ncpu; i ++) m = MAX (m, color [i]); /* compute number of colors */
   gs->colors = m; /* record number of colors */
 
-  if (rank == 0 && ldy->dom->verbose)
+  if (rank == 0 && ldy->dom->verbose && gs->verbose)
   {
 #if DEBUG
   for (i = 0; i < ncpu; i ++)
