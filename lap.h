@@ -31,6 +31,9 @@ int dgetrs_ (char *trans, int *n, int *nrhs, double *a,
 int dgesv_ (int *n, int *nrhs, double *a, int *lda,
   int *ipiv, double *b, int *ldb, int *info);
 
+int dgels_ (char *trans, int *m, int *n, int *nrhs, double *a, int *lda,
+            double *b, int *ldb, double *work, int *lwork, int *info);
+
 int dgetri_ (int *n,double *a, int *lda,
   int *ipiv, double *work, int *lwork, int *info);
 
@@ -80,6 +83,14 @@ inline static int lapack_dgesv (int  n,
 {
   int info;
   dgesv_ (&n, &nrhs, a, &lda, ipiv, b, &ldb, &info);
+  return info;
+}
+
+inline static int lapack_dgels (char trans, int m, int n, int nrhs,
+  double *a, int lda, double *b, int ldb, double *work, int lwork)
+{
+  int info;
+  dgels_ (&trans, &m, &n, &nrhs, a, &lda, b, &ldb, work, &lwork, &info);
   return info;
 }
 

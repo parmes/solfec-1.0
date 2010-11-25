@@ -5,7 +5,7 @@ from simple_core_base import *
 
 # main module
 
-step = 1E-3
+step = 0.0001
 stop = 0.1
 outfrq = step
 kinem = 'PSEUDO_RIGID'
@@ -45,7 +45,7 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.
 if solver == 'GAUSS_SEIDEL':
   sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-5, diagsolver = 'SEMISMOOTH_NEWTON')
 elif solver == 'NEWTON':
-  sv = NEWTON_SOLVER (1E-6, 20)
+  sv = NEWTON_SOLVER (1E-5, 200, theta = 0.15)
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 
