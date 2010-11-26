@@ -44,27 +44,15 @@ which bodies have been deleted? (do not really delete)
 Gap computation is not robust. Implicitly integrated core at smaller time steps
 reports unphysical penetration => this is due to numerical instability of gap
 computations for smaller motion increments.
+(this has been now improved; needs to be checked again)
 -------------------------------------------------------------------------------
-Optimize WR product by summing up preated off-diagonal W(i,j) blocks for two-point two-body constraints
+Optimize WR product by summing up repeated off-diagonal W(i,j) blocks for two-point two-body constraints
 --------------------------------------------------------------------------
-Show that regularizing |UT| norm in SMOOTHED_VAR... does not do good
---------------------------------------------------------------------------------------------
 Implement FULL body migration (as it used to be): let bodies be stored only where
 they are needed at a time (rather than on all processors as now); make the current way
 of storing bodies optional - indicate that it saves communication time and pays off
 in case of not too large models
 --------------------------------------------------------------------------
-Optimize LINSYS:
-  a) Update residual only for firts Newton step; then use zero
-     (this save communication in parallel)
-  b) Do not assemble T(i, j) = TT (i, i) * W (i, j) for SMOOTHED_;
-     instead sum up W(i,j) into T(i,j) and store TT separately;
-     multiply accordingly in Matvec
-  c) Precompute and invert preconditioner right after matrix update;
-     (this will save time spent on iversions of diagonal blocks)
-----------------------------------------------------------------------------------------------
-Implement fixed point aproach on S = |UT| for De Saxce formulation as suggested by V. Acary
---------------------------------------------------------------------------------------------
 Sort out volumetric integration order in FEM module
 --------------------------------------------------------------------------------------
 OPTIMIZE:
@@ -82,9 +70,6 @@ Consider using diagonal 3x3 blocks in FEM_Approx_Inverse
 -----------------------------------------------------------------------------
 Optimize stress plotting (batch calculation for a set of nodes)
 ----------------------------------------------------------------------------------
-Remove current implementation of the NEWTON_SOLVER; let BODY_SPACE_SOLVER decide
-whether to use local dynamics or not; move BODY_SPACE_SOLVER into NEWTON_SOLVER; 
---------------------------------------------------------------------------------------
 Implement configuration update: q(t+h3/2) = q(t+h/2) + h * u(t+h). This will allow
 to minimise communication in the domain update code.
 --------------------------------------------------------------------------------------
