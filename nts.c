@@ -428,7 +428,6 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       sshp = sshp(con);
     }
 
-
     if ((jtem = MAP_Find_Node (A->bod, m, NULL)))
     {
       dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
@@ -569,7 +568,8 @@ static void destroy_private_data (PRIVATE *A)
 /* single projected semi-Newton step */
 static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, double theta, double epsilon)
 {
-  double T [9], b [3], x [3], gamma = 1.0 - theta;
+  double T [9], b [3], gamma = 1.0 - theta;
+  int ipiv [3];
 
   for (; dat != end; dat ++)
   {
@@ -664,12 +664,10 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
     break;
     }
 
-    MX_DENSE_PTR (P, 3, 3, T);
-    MX_Inverse (&P, &P);
-    NVMUL (T, b, x);
-    DR [0] = gamma * DR[0] + theta * x[0];
-    DR [1] = gamma * DR[1] + theta * x[1];
-    DR [2] = gamma * DR[2] + theta * x[2];
+    ASSERT (lapack_dgesv (3, 1, T, 3, ipiv, b, 3) == 0, ERR_MTX_LU_FACTOR);
+    DR [0] = gamma * DR[0] + theta * b[0];
+    DR [1] = gamma * DR[1] + theta * b[1];
+    DR [2] = gamma * DR[2] + theta * b[2];
     ACC (DR, R);
 
     if (con->kind == CONTACT)
