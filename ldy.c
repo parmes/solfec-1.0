@@ -30,6 +30,7 @@
 #if MPI
 #include "com.h"
 #include "pck.h"
+#include "put.h"
 #endif
 
 /* memory block size */
@@ -1109,6 +1110,56 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
 
   free (fullpath);
 #endif
+}
+
+/* export W in MatrixMarket format */
+void LOCDYN_W_MatrixMarket (LOCDYN *ldy, const char *path)
+{
+  int i, j, n, m, nnz;
+  double *W;
+  DIAB *dia;
+  OFFB *blk;
+  CON *con;
+  FILE *f;
+
+#if MPI
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+#endif
+
+  for (dia = ldy->dia, n = nnz = 0; dia; dia = dia->n)
+  {
+    con = dia->con;
+    con->num = n+1;
+    n += 3;
+    nnz += 9;
+    for (blk = dia->adj; blk; blk = blk->n) nnz += 9;
+  }
+
+  ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);
+  fprintf (f, "%%%%MatrixMarket matrix coordinate real general\n");
+  fprintf (f, "%d  %d  %d\n", n, n, nnz);
+
+  for (dia = ldy->dia, n = nnz = 0; dia; dia = dia->n)
+  {
+    con = dia->con;
+    n = m = con->num;
+    W = dia->W;
+    for (i = 0; i < 3; i ++)
+      for (j = 0; j < 3; j ++)
+	fprintf (f, "%d  %d  %.15g\n", n+i, m+j, W[3*j+i]);
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      con = blk->dia->con;
+      m = con->num;
+      W = blk->W;
+      for (i = 0; i < 3; i ++)
+	for (j = 0; j < 3; j ++)
+	  fprintf (f, "%d  %d  %.15g\n", n+i, m+j, W[3*j+i]);
+    }
+  }
+
+  fclose (f);
 }
 
 /* free memory */

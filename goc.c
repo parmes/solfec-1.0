@@ -31,8 +31,6 @@
 #include "goc.h"
 #include "err.h"
 
-#define MAGNIFY 10.0 /* contact is lost if gap >= GEOMETRIC_EPSILON * MAGNIFY */
-
 /* line-plane intersection => intersection = point + direction * coef if 1 is returned */
 inline static int lineplane (double *plane, double *point, double *direction, double *coef)
 {
@@ -40,7 +38,7 @@ inline static int lineplane (double *plane, double *point, double *direction, do
  
   d = DOT (plane, direction); 
 
-  if (fabs (d) < GEOMETRIC_EPSILON * MAGNIFY) return 0; /* the penalty solver is sensitice to ill-computed gaps, hece our caution */
+  if (fabs (d) < GEOMETRIC_EPSILON) return 0; /* the penalty solver is sensitice to ill-computed gaps, hece our caution */
 
   *coef = - PLANE (plane, point) / d;
 
@@ -329,18 +327,6 @@ static int update_convex_convex (
     COPY (onepnt, twopnt);
     free (tri);
   }
-  else if (sanity < GEOMETRIC_EPSILON * MAGNIFY)
-  {
-    SUB (twopnt, onepnt, normal);
-    NORMALIZE (normal);
-    *area = 0.0;
-    k = 1;
-
-    if ((m = nearest_surface (onepnt, pa, sa, nsa)) != spair [0]) spair [0] = m, k = 2;
-    if ((m = nearest_surface (onepnt, pb, sb, nsb)) != spair [1]) spair [1] = m, k = 2;
-
-    sanity = (normal[0]+normal[1]+normal[2]+(*gap));
-  }
 
   if (!isfinite (sanity)) return 0;
   else return k;
@@ -360,7 +346,7 @@ static int update_convex_sphere (
   double g, h;
   int s0;
 
-  if (((*gap) = gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt)) < GEOMETRIC_EPSILON * MAGNIFY)
+  if (((*gap) = gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt)) < GEOMETRIC_EPSILON)
   {
     for (h = r, g = *gap; g < GEOMETRIC_EPSILON && h > GEOMETRIC_EPSILON; h *= 0.5)
       g = gjk_convex_sphere (vc, nvc, c, h, onepnt, twopnt); /* shrink sphere and redo => find projection
@@ -371,8 +357,7 @@ static int update_convex_sphere (
 
     s0 = spair [0];
     spair [0] = nearest_surface (onepnt, pc, sc, nsc);
-    if ((*gap) < GEOMETRIC_EPSILON)
-      *gap = convex_sphere_gap (pc, npc, c, r, normal);
+    *gap = convex_sphere_gap (pc, npc, c, r, normal);
 
     if (s0 == spair [0]) return 1;
     else return 2;
@@ -392,12 +377,11 @@ static int update_sphere_sphere (
   double *area,
   int spair [2])
 {
-  if (((*gap) = gjk_sphere_sphere (ca, ra, cb, rb, onepnt, twopnt)) < GEOMETRIC_EPSILON * MAGNIFY)
+  if (((*gap) = gjk_sphere_sphere (ca, ra, cb, rb, onepnt, twopnt)) < GEOMETRIC_EPSILON)
   {
     SUB (onepnt, ca, normal);
     NORMALIZE (normal);
-    if ((*gap) < GEOMETRIC_EPSILON)
-      *gap = sphere_sphere_gap (ca, ra, cb, rb, normal);
+    *gap = sphere_sphere_gap (ca, ra, cb, rb, normal);
     return 1;
   }
 

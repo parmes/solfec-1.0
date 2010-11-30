@@ -39,6 +39,9 @@ int PUT_root_timerend (TIMING *t, double *time);
 /* parallel timer end: return maximum of all calls */
 double PUT_timerend (TIMING *t);
 
+/* return sum of all calls */
+int PUT_int_sum (int val);
+
 /* return maximum of all calls */
 int PUT_int_max (int val);
 

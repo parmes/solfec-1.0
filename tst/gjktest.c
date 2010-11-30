@@ -196,7 +196,7 @@ static void key (int key, int x, int y)
       break;
       case GJK:
       {
-	double *va, *vb;
+	double *va, *vb, d [3];
 	int nva, nvb;
 
 	va = TRI_Vertices (a, alength, &nva);
@@ -208,6 +208,9 @@ static void key (int key, int x, int y)
 	  free (vb);
 	}
 	else gjk_convex_sphere (va, nva, center, radius, p, q);
+
+	SUB (p, q, d);
+	printf ("|p-q|=%g\n", LEN (d));
 
 	free (va);
 	mode = GEN;
