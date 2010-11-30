@@ -111,6 +111,9 @@ void LOCDYN_Update_End (LOCDYN *ldy);
 /* dump local dynamics to file */
 void LOCDYN_Dump (LOCDYN *ldy, const char *path);
 
+/* export W in MatrixMarket format */
+void LOCDYN_W_MatrixMarket (LOCDYN *ldy, const char *path);
+
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);
 

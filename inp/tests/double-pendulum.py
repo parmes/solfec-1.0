@@ -4,6 +4,8 @@ from math import cos
 
 PI = 3.14159265358979323846 
 
+GEOMETRIC_EPSILON (1E-5)
+
 def double_pendulum_create (material, solfec):
   x1 =  sin (PI/3.0)
   z1 = -cos (PI/3.0)

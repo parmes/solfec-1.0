@@ -23,7 +23,6 @@
 #include <stdlib.h>
 #include <float.h>
 
-#include "bgs.h"
 #include "tts.h"
 #include "dom.h"
 #include "fem.h"
@@ -484,46 +483,29 @@ static void update_system (PRIVATE *A)
 }
 
 /* solve linear system */
-static void linear_solve (PRIVATE *A, double abstol, int maxiter, double theta)
+static void linear_solve (PRIVATE *A, double abstol, int maxiter)
 {
-  if (0) /* no complaints */
-  {
-    hypre_FlexGMRESFunctions *gmres_functions;
-    void *gmres_vdata;
-    int ret;
+  hypre_FlexGMRESFunctions *gmres_functions;
+  void *gmres_vdata;
+  int ret;
 
-    gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
-      (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
-      MatvecCreate, (int (*) (void*,double,void*,void*,double,void*))Matvec, MatvecDestroy,
-      (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
-      (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
-      PrecondSetup, (int (*) (void*,void*,void*,void*))Precond);
-    gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
+  gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
+    (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
+    MatvecCreate, (int (*) (void*,double,void*,void*,double,void*))Matvec, MatvecDestroy,
+    (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
+    (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
+    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond);
+  gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
 
-    hypre_error_flag = 0;
-    hypre_FlexGMRESSetTol (gmres_vdata, 0.0);
-    hypre_FlexGMRESSetMinIter (gmres_vdata, 1);
-    hypre_FlexGMRESSetMaxIter (gmres_vdata, maxiter);
-    hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, abstol);
-    hypre_FlexGMRESSetup (gmres_vdata, A, A->b, A->x);
-    ret = hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->x);
-    hypre_FlexGMRESGetNumIterations (gmres_vdata , &A->iters);
-    hypre_FlexGMRESDestroy (gmres_vdata);
-  }
-  else
-  {
-    double O [3], *T, *R, *Q;
-    CON_DATA *dat;
-
-    for (dat = A->start, R = A->x->x, Q = A->b->x; dat != A->end; dat ++, R += 3, Q += 3)
-    {
-      T = dat->T;
-      NVMUL (T, Q, O);
-      R [0] = (1.0 - theta) * R[0] + theta * O[0];
-      R [1] = (1.0 - theta) * R[1] + theta * O[1];
-      R [2] = (1.0 - theta) * R[2] + theta * O[2];
-    }
-  }
+  hypre_error_flag = 0;
+  hypre_FlexGMRESSetTol (gmres_vdata, 0.0);
+  hypre_FlexGMRESSetMinIter (gmres_vdata, 1);
+  hypre_FlexGMRESSetMaxIter (gmres_vdata, maxiter);
+  hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, abstol);
+  hypre_FlexGMRESSetup (gmres_vdata, A, A->b, A->x);
+  ret = hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->x);
+  hypre_FlexGMRESGetNumIterations (gmres_vdata , &A->iters);
+  hypre_FlexGMRESDestroy (gmres_vdata);
 }
 
 /* update solution */
@@ -541,7 +523,8 @@ static void update_solution (PRIVATE *A)
 
     if (con->kind == CONTACT)
     {
-      VIC_Project (0.0, con->mat.base->friction, R, R);
+      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
+      VIC_Project (con->mat.base->friction, c, R, R);
     }
   }
 
@@ -595,7 +578,7 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
   ASSERT (0, ERR_NOT_IMPLEMENTED);
 #endif
 
-  sprintf (fmt, "TEST_SOLVER: (LIN its: %%%dd) iteration: %%%dd merit: %%.2e delta: %%.2e epsilon: %%.2e theta = %%.2e\n",
+  sprintf (fmt, "TEST_SOLVER: (LIN its: %%%dd) iteration: %%%dd merit: %%.2e\n",
            (int)log10 (ts->linmaxiter) + 1, (int)log10 (ts->maxiter) + 1);
 
   ERRMEM (ts->merhist = realloc (ts->merhist, ts->maxiter * sizeof (double)));
@@ -606,15 +589,11 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
   A->delta = 0;
   A->epsilon = 1E-9;
 
-  double theta;
-
-  theta = 0.1;
-
   do
   {
     update_system (A);
 
-    linear_solve (A, 0.25 * A->bnorm,  ts->linmaxiter, theta);
+    linear_solve (A, 0.25 * A->bnorm,  ts->linmaxiter);
 
     update_solution (A);
 
@@ -625,23 +604,9 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
 #if MPI
     if (dom->rank == 0)
 #endif
-    if (dom->verbose) printf (fmt, A->iters, ts->iters, *merit, A->delta, A->epsilon, theta);
+    if (dom->verbose) printf (fmt, A->iters, ts->iters, *merit);
 
   } while (++ ts->iters < ts->maxiter && *merit > ts->meritval);
-
-#if MPI
-  if (dom->rank == 0)
-#endif
-  if (dom->verbose) printf (fmt, A->iters, ts->iters, *merit, A->delta, A->epsilon, theta);
-
-#if 0
-  if (ts->iters >= ts->maxiter)
-  {
-    GAUSS_SEIDEL *gs = GAUSS_SEIDEL_Create (1E-10, 300, ts->meritval, GS_FAILURE_CONTINUE, 1E-6, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
-    GAUSS_SEIDEL_Solve (gs, ldy);
-    GAUSS_SEIDEL_Destroy (gs);
-  }
-#endif
 
   destroy_data (A);
 }
