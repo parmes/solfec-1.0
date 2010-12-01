@@ -95,8 +95,8 @@ OBJMPI = $(EXTO)       \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
 
-solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a
-	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ltaucs -lmetis $(LIB)
+solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a obj/libtet.a
+	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ltaucs -lmetis -ltet $(LIB)
 
 obj/libkrylov.a:
 	(cd ext/krylov && make)
@@ -106,6 +106,9 @@ obj/libmetis.a:
 
 obj/libtaucs.a:
 	(cd ext/taucs && make)
+
+obj/libtet.a:
+	(cd ext/tetgen && make)
 
 obj/libsolfec.a: $(OBJ)
 	ar rcv $@ $(OBJ)
@@ -117,8 +120,8 @@ all: solfec mpi
 
 mpi: solfec-mpi
 
-solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a
-	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ltaucs -lmetis $(LIBMPI)
+solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a obj/libtet.a
+	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ltaucs -lmetis -ltet $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
@@ -152,6 +155,7 @@ clean:
 	(cd ext/krylov && make clean)
 	(cd ext/metis && make clean)
 	(cd ext/taucs && make clean)
+	(cd ext/tetgen && make clean)
 
 obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<

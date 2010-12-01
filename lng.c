@@ -3277,7 +3277,7 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     locdyn = NULL;
     theta = 0.25;
     epsilon = 1E-9;
-    presmooth = 10;
+    presmooth = 0;
 
     PARSEKEYS ("|diOddi", &meritval, &maxiter, &locdyn, &theta, &epsilon, &presmooth);
 

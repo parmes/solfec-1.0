@@ -32,3 +32,4 @@ Run inp/boxsoup.py with BODY_SPACE_SOLVER: fem.c: 3116 => Zero row sum in M + (h
 ------------------------------------------------------------------------------------------
 cvi.c needs a better input point selection, see: ./cvitest inp/cvi.13
 -----------------------------------------------------------------------------
+Contact detection still crude: see inp/tetpart.py

@@ -5265,7 +5265,7 @@ epsilon
 \series bold
 presmooth
 \series default
- - number of Gauss-Seidel pre-smoothing steps (default: 10); pre-smoothing
+ - number of Gauss-Seidel pre-smoothing steps (default: 0); pre-smoothing
  is only performed when 
 \series bold
 locdyn
