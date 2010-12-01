@@ -10,6 +10,12 @@ OS = OSX
 
 CC = cc
 
+#
+# Specify C++ compiler here
+#
+
+CXX = g++
+
 # 
 # Debug or optimized version switch (yes/no)
 #
