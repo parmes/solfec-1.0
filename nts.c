@@ -716,7 +716,7 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
 /* run solver */
 void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
-  double *merit, prevm, step, theta0;
+  double *merit, prevm, step, theta0, merit0;
   GAUSS_SEIDEL *gs;
   char fmt [512];
   short dynamic;
@@ -749,6 +749,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   step = ldy->dom->step;
   *merit = MERIT_Function (ldy, 0);
   theta0 = ns->theta;
+  merit0 = *merit;
   ns->iters = 0;
   div = 1;
   gt = 0;
@@ -785,6 +786,18 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   if (ldy->dom->rank == 0)
 #endif
   if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
+
+  if (*merit > merit0)
+  {
+    reset (A);
+
+    *merit = MERIT_Function (ldy, 0);
+
+#if MPI
+    if (ldy->dom->rank == 0)
+#endif
+    if (ldy->dom->verbose) printf ("NEWTON_SOLVER: DIVERGED => Reusing previous solution (merit: %.2e)\n", *merit);
+  }
 
   destroy_private_data (A);
 
