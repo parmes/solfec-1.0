@@ -213,9 +213,9 @@ static int gauss_seidel (GAUSS_SEIDEL *gs, short dynamic, double step, DIAB *dia
   {
     if (con->kind == CONTACT)
     {
-      DIAS dias [3] = {DS_SEMISMOOTH_NEWTON, DS_PROJECTED_GRADIENT, DS_DE_SAXCE_FENG};
+      DIAS dias [4] = {DS_SEMISMOOTH_NEWTON, DS_PROJECTED_GRADIENT, DS_DE_SAXCE_FENG, DS_PROJECTED_NEWTON};
 
-      for (int i = 0; i < 3; i ++)
+      for (int i = 0; i < 4; i ++)
       {
 	if (dias [i] != gs->diagsolver) /* skip current diagonal solver */
 	{
@@ -1017,9 +1017,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 
 	  if (con->kind == CONTACT)
 	  {
-	    DIAS dias [3] = {DS_SEMISMOOTH_NEWTON, DS_PROJECTED_GRADIENT, DS_DE_SAXCE_FENG};
+	    DIAS dias [4] = {DS_SEMISMOOTH_NEWTON, DS_PROJECTED_GRADIENT, DS_DE_SAXCE_FENG, DS_PROJECTED_NEWTON};
 
-	    for (int i = 0; i < 3; i ++)
+	    for (int i = 0; i < 4; i ++)
 	    {
 	      if (dias [i] != gs->diagsolver) /* skip current diagonal solver */
 	      {
@@ -1116,6 +1116,7 @@ char* GAUSS_SEIDEL_Diagsolver (GAUSS_SEIDEL *gs)
   case DS_PROJECTED_GRADIENT: return "PROJECTED_GRADIENT";
   case DS_DE_SAXCE_FENG: return "DE_SAXCE_FENG";
   case DS_SEMISMOOTH_NEWTON: return "SEMISMOOTH_NEWTON";
+  case DS_PROJECTED_NEWTON: return "PROJECTED_NEWTON";
   }
 
   return NULL;
