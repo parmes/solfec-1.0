@@ -2876,6 +2876,10 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
       {
 	dias = DS_DE_SAXCE_FENG;
       }
+      ELIF (diagsolver, "PROJECTED_NEWTON")
+      {
+	dias = DS_PROJECTED_NEWTON;
+      }
       ELSE
       {
 	PyErr_SetString (PyExc_ValueError, "Invalid diagonal solver");
@@ -3052,6 +3056,10 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_diagsolver (lng_GAUSS_SEIDEL_SOLVER *self
   ELIF (value, "DE_SAXCE_FENG")
   {
     self->gs->diagsolver = DS_DE_SAXCE_FENG;
+  }
+  ELIF (value, "PROJECTED_NEWTON")
+  {
+    self->gs->diagsolver = DS_PROJECTED_NEWTON;
   }
   ELSE
   {

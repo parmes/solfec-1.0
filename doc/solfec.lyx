@@ -4615,7 +4615,7 @@ diagsolver
 \series default
  - diagonal block solver kind (default: 'SEMISMOOTH_NEWTON').
  Available diagonal solvers are 'SEMISMOOTH_NEWTON', 'PROJECTED_GRADIENT',
- 'DE_SAXCE_FENG', cf.
+ 'DE_SAXCE_FENG', 'PROJECTED_NEWTON', cf.
  Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref

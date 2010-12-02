@@ -716,7 +716,7 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
 /* run solver */
 void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
-  double *merit, prevm, step;
+  double *merit, prevm, step, theta0;
   GAUSS_SEIDEL *gs;
   char fmt [512];
   short dynamic;
@@ -748,6 +748,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   merit = &ldy->dom->merit;
   step = ldy->dom->step;
   *merit = MERIT_Function (ldy, 0);
+  theta0 = ns->theta;
   ns->iters = 0;
   div = 1;
   gt = 0;
@@ -786,6 +787,8 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
 
   destroy_private_data (A);
+
+  ns->theta = theta0;
 }
 
 /* write labeled state values */

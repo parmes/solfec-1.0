@@ -299,6 +299,29 @@ static int semismooth_newton (short dynamic, double epsilon, int maxiter,
   return iter;
 }
 
+static int projected_newton (double epsilon, int maxiter, double friction, double cohesion, CON *con, double *W, double *B, double *U, double *R)
+{
+  double T [9], X [9], Y [9], C [3], merit;
+  int ipiv [3], iter;
+
+  iter = 0;
+  NVADDMUL (B, W, R, U);
+  VIC_Linearize (con, U, R, -1, 0, C, X, Y);
+  do
+  {
+    NNMUL (X, W, T);
+    NNADD (T, Y, T);
+    ASSERT (lapack_dgesv (3, 1, T, 3, ipiv, C, 3) == 0, ERR_MTX_LU_FACTOR);
+    SCC (C, R);
+    VIC_Project (friction, cohesion, R, R);
+    NVADDMUL (B, W, R, U);
+    VIC_Linearize (con, U, R, -1, 0, C, X, Y);
+    merit = LEN (C);
+  } while (merit > epsilon && ++iter < maxiter);
+
+  return iter;
+}
+
 static int fixpnt (short dynamic, double *W, double *B, double *V, double *U, double *R)
 {
   double A [9];
@@ -449,6 +472,8 @@ int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
       case DS_SEMISMOOTH_NEWTON:
 	return semismooth_newton (dynamic, diagepsilon, diagmaxiter, step, bas->friction,
                bas->restitution, cohesion, gap, dia->rho, dia->W, B, dia->V, dia->U, dia->R);
+      case DS_PROJECTED_NEWTON:
+	return projected_newton (diagepsilon, diagmaxiter, bas->friction, cohesion, dia->con, dia->W, B, dia->U, dia->R);
       }
       break;
     case SPRING_DASHPOT:
