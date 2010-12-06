@@ -183,6 +183,7 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
     }
 
     dia->adjext = NULL;
+    dia->nadjext = 0;
   }
 
   /* walk over all external contacts and build new external adjacency */
@@ -203,7 +204,7 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 	if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
 
         if (upkind == UPPES && con->kind == CONTACT) continue; /* skip contacts during partial update (pes.c uses local dynamics only for non-contacts) */
-
+ 
 	ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy"); /* we could skip dummies, but this reassures correctness */
 
 	ASSERT_DEBUG (con->master == bod || con->slave == bod, "Incorrectly connected constraint in a body constraints list: "
@@ -217,6 +218,7 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 	  b->bod = bod; /* adjacent through this body */
 	  b->n = dia->adjext;
 	  dia->adjext = b;
+	  dia->nadjext ++;
 	}
       }
     }
@@ -370,8 +372,9 @@ inline static int body_has_changed (BODY *bod)
 /* block updatable test */
 static int needs_update (CON *dia, BODY *bod, CON *off, double *W)
 {
-  if (body_has_changed (bod)) return 1;
+  if (!W) return 1; /* not allocated */
   else if (W [8] == 0.0) return 1; /* not initialized */
+  else if (body_has_changed (bod)) return 1;
   else if (dia == off && dia->slave && body_has_changed (dia->slave)) return 1; /* diagonal */
   else if (dia->kind == CONTACT || dia->kind == RIGLNK ||
            off->kind == CONTACT || off->kind == RIGLNK) return 1; /* bases change */
@@ -400,6 +403,37 @@ static int row_needs_update (DIAB *dia)
 #endif
 
   return 0;
+}
+
+static void allocate_W (LOCDYN *ldy)
+{
+  double *W;
+  DIAB *dia;
+  OFFB *blk;
+  int n;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    n = 1 + dia->nadj;
+#if MPI
+    n += dia->nadjext;
+#endif
+
+    dia->rowupdate = row_needs_update (dia);
+
+    if (dia->rowupdate)
+    {
+      free (dia->W);
+      ERRMEM (dia->W = MEM_CALLOC (n * sizeof (double [9])));
+    }
+
+    for (blk = dia->adj, W = dia->W + 9; blk; blk = blk->n, W += 9) blk->W = W;
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n, W += 9) blk->W = W;
+#endif
+  }
+
+  ldy->allocated = 1; /* memory has been allocated at least once */
 }
 
 /* update previous and free local velocities */
@@ -523,9 +557,9 @@ LOCDYN* LOCDYN_Create (DOM *dom)
   ERRMEM (ldy = malloc (sizeof (LOCDYN)));
   MEM_Init (&ldy->offmem, sizeof (OFFB), BLKSIZE);
   MEM_Init (&ldy->diamem, sizeof (DIAB), BLKSIZE);
+  ldy->allocated = 0;
   ldy->dom = dom;
   ldy->dia = NULL;
-  ldy->modified = 0;
 
   return ldy;
 }
@@ -535,7 +569,6 @@ LOCDYN* LOCDYN_Create (DOM *dom)
 DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
 {
   DIAB *dia, *nei;
-  double *SYMW;
   SET *item;
   OFFB *b;
   CON *c;
@@ -567,17 +600,17 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
 	b->dia = dia; /* adjacent with 'dia' */
 	b->bod = one; /* adjacent trough body 'one' */
-	SYMW = b->W, b->SYMW = NULL; /* compute when assembling */
 	b->n = nei->adj; /* extend list ... */
 	nei->adj = b; /* ... */
+	nei->nadj ++;
 
 	/* allocate block and put into 'dia->adj' list */ 
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
 	b->dia = nei; /* adjacent with 'nei' */
 	b->bod = one; /* ... trough 'one' */
-	b->SYMW = SYMW; /* compy when assembling */
 	b->n = dia->adj;
 	dia->adj = b;
+	dia->nadj ++;
       }
     }
   }
@@ -597,23 +630,20 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
 	b->dia = dia; /* adjacent with 'dia' */
 	b->bod = two; /* adjacent trough body 'two' */
-	SYMW = b->W, b->SYMW = NULL; /* compute when assembling */
 	b->n = nei->adj; /* extend list ... */
 	nei->adj = b; /* ... */
+	nei->nadj ++;
 
 	/* allocate block and put into 'dia->adj' list */ 
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
 	b->dia = nei; /* adjacent with 'nei' */
 	b->bod = two; /* ... trough 'two' */
-	b->SYMW = SYMW; /* compy when assembling */
 	b->n = dia->adj;
 	dia->adj = b;
+	dia->nadj ++;
       }
     }
   }
-
-  /* mark as modified */
-  ldy->modified = 1;
 
   return dia;
 }
@@ -635,8 +665,7 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
     }
     else for (; c; c = c->n)
     {
-      if (c->n &&
-	  c->n->dia == dia)
+      if (c->n && c->n->dia == dia)
       {
 	r = c->n;
         c->n = c->n->n;
@@ -644,6 +673,7 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
 	break;
       }
     }
+    b->dia->nadj --;
   }
 
   /* destroy directly
@@ -671,22 +701,21 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
   if (dia->n)
     dia->n->p = dia->p;
 
+  /* free W block-row */
+  free (dia->W);
+
   /* destroy passed dia */
   MEM_Free (&ldy->diamem, dia);
-
-  /* mark as modified */
-  ldy->modified = 1;
 }
 
-/* updiae local dynamics => prepare for a solution */
 void LOCDYN_Update_Begin (LOCDYN *ldy)
 {
   DOM *dom = ldy->dom;
   UPKIND upkind = update_kind (dom->solfec);
   double step = dom->step;
   short dynamic = dom->dynamic;
+  OFFB *blk, *blj;
   DIAB *dia;
-  OFFB *blk;
 
 #if MPI
   if (dom->rank == 0)
@@ -703,6 +732,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 #if MPI
   compute_adjext (ldy, upkind);
 #endif
+
+  allocate_W (ldy);
 
   ldy->free_energy = 0.0;
 
@@ -725,7 +756,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX_DENSE_PTR (A, 3, 3, dia->A);
     MX_DENSE (C, 3, 3);
-    dia->rowupdate = row_needs_update (dia);
     int up = needs_update (con, m, con, dia->W);
 
 #if MPI
@@ -839,7 +869,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     /* off-diagonal local blocks */
     for (blk = dia->adj; blk; blk = blk->n)
     {
-      if (upkind == UPALL && blk->SYMW) continue; /* skip blocks pointing to their symmetric copies (only during full updates) */
+      if (upkind == UPALL && blk->dia < dia) continue; /* skip lower triangle */
 
       MX *left, *right;
       DIAB *adj = blk->dia;
@@ -936,9 +966,11 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
       {
 	for (blk = dia->adj; blk; blk = blk->n)
 	{
-	  if (blk->SYMW)
+	  if (blk->dia < dia) /* lower triangle = transposed upper triangle */
 	  {
-	    TNCOPY (blk->SYMW, blk->W); /* transposed copy of a symmetric block */
+	    for (blj = blk->dia->adj; blj && (blj->dia != dia || blj->bod != blk->bod); blj = blj->n); /* find upper triangle symmetric block */
+	    ASSERT_DEBUG (blj, "Inconsistent W adjacency");
+	    TNCOPY (blj->W, blk->W); /* transposed copy of a symmetric block */
 	  }
 	}
       }
@@ -987,9 +1019,6 @@ void LOCDYN_Update_End (LOCDYN *ldy)
   /* update cohesion states */
   if (upkind != UPPES) update_cohesion (ldy);
 
-  /* not modified */
-  ldy->modified = 0;
-
   SOLFEC_Timer_End (ldy->dom->solfec, "LOCDYN");
 }
 
@@ -1006,6 +1035,8 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
   CON *con;
   FILE *f;
 
+  if (!ldy->allocated) return;
+
 #if MPI
   ERRMEM (fullpath = malloc (strlen (path) + 64));
   snprintf (fullpath, strlen (path) + 64, "%s.%d", path, ldy->dom->rank);
@@ -1015,7 +1046,7 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
 
   ASSERT (f = fopen (fullpath, "w"), ERR_FILE_OPEN);
 
-  MEM_Init (&offmem, sizeof (OFFB), BLKSIZE);
+  MEM_Init (&offmem, sizeof (OFFB) + sizeof (double [9]), BLKSIZE);
   MEM_Init (&mapmem, sizeof (MAP), BLKSIZE);
 
   adj = NULL;
@@ -1043,6 +1074,7 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
       if (!(q = MAP_Find (adj, blk->dia->con, (MAP_Compare) dumpcmp)))
       {
 	ERRMEM (q = MEM_Alloc (&offmem));
+	q->W = (double*) (q + 1);
 	ERRMEM (MAP_Insert (&mapmem, &adj, blk->dia->con, q, (MAP_Compare) dumpcmp));
       }
       NNADD (q->W, blk->W, q->W);
@@ -1054,6 +1086,7 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
       if (!(q = MAP_Find (adj, blk->dia, (MAP_Compare) dumpcmp)))
       {
 	ERRMEM (q = MEM_Alloc (&offmem));
+	q->W = (double*) (q + 1);
 	ERRMEM (MAP_Insert (&mapmem, &adj, blk->dia, q, (MAP_Compare) dumpcmp));
       }
       NNADD (q->W, blk->W, q->W);
@@ -1165,8 +1198,8 @@ void LOCDYN_W_MatrixMarket (LOCDYN *ldy, const char *path)
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy)
 {
+  for (DIAB *dia = ldy->dia; dia; dia = dia->n) free (dia->W);
   MEM_Release (&ldy->diamem);
   MEM_Release (&ldy->offmem);
-
   free (ldy);
 }

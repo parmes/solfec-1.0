@@ -370,9 +370,10 @@ SET_VELOCITY (fuels[0], (0,inr,0.5), (0,1,0), motionHistory)
 
 # Run analysis
 OUTPUT(solfec, 1E-2)
-gs = GAUSS_SEIDEL_SOLVER (1E-5, 100)
+#gs = GAUSS_SEIDEL_SOLVER (1E-5, 100)
+gs = NEWTON_SOLVER (1E-10, 200, theta = 0.1)
 MBFCP_EXPORT (solfec, outpath + '/two_fuel_bricks.mbfcp')
-RUN (solfec, gs, duration)
+RUN (solfec, gs, 0.5)
 
 # Post-processing
 def write_data (t, v, path):
@@ -385,6 +386,16 @@ def write_data (t, v, path):
 if not VIEWER() and solfec.mode == 'READ':
 
   dur = DURATION (solfec)
+  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL']
+  th = HISTORY (solfec, timers, dur[0], dur[1])
+  total = 0.0
+  for i in range (0, len(timers)):
+    sum = 0.0
+    for tt in th [i+1]: sum += tt
+    print timers [i], 'TIME:', sum
+    if i < 6: total += sum
+  print 'TOTAL TIME:', total
+
   th = HISTORY (solfec, [
 	(fuels [1], fuels [1].center, 'DY'),
 	(fuels [1], fuels [1].center, 'DX'),

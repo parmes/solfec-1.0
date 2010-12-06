@@ -43,9 +43,7 @@ typedef struct locdyn LOCDYN;
 /* off-diagonal block */
 struct offb
 {
-  double W [9], /* generalised inverse inertia block */
-	 *SYMW; /* symmetric copy of W block */
-
+  double *W;
   DIAB *dia; /* corresponding diagonal block */
   BODY *bod;
   OFFB *n;
@@ -57,23 +55,26 @@ struct diab
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
 	    *U, /* relative volocity => points to U[3] member of the underlying constraint */
 	    *V, /* initial velocity => points to V[3] member of the underlying constraint */ 
+            *W, /* block-row of W (local inverse of inertia) => allocated */
+	 A [9], /* inverse of diagonal W block */
 	 B [3], /* free velocity */
-         W [9], /* generalised inverse inertia block */
-	 A [9], /* inverse of W */
 	 rho;   /* scaling parameter */
 
   OFFB *adj; /* note that W(i,j) = W1(i,j) + W2(i,j) {owing to body 1 and 2} and W1 and W2 are SEPARATELY stored here */
-  CON *con;  /* the underlying constraint (and the owner od the reaction R[3] and the velocity U [3]) */
+  int nadj; /* number of adjacent blocks */
 
-  char rowupdate; /* row update flag */
+#if MPI
+  OFFB *adjext;  /* external adjacency */
+  int nadjext;
+#endif
+
+  CON *con;  /* the underlying constraint (and the owner od the reaction R[3] and the velocity U [3]) */
 
   MX *mH, *mprod, /* master H operator and H inv(M) or inv(M) H^T product */
      *sH, *sprod; /* slave counterpart */
                   /* NOTE: left product can be applied to adjext assembly (MPI)
 		           while right product is sligtly faster (serial code) */
-#if MPI
-  OFFB *adjext;  /* external adjacency */
-#endif
+  char rowupdate; /* update flag */
 
   DIAB *p, *n;
 };
@@ -87,9 +88,9 @@ struct locdyn
   DOM *dom; /* domain */
   DIAB *dia; /* list of diagonal blocks */
 
-  short modified; /* 1 if system structure has changed; otherwise 0 */
-
   double free_energy; /* approximate amount of kinetic energy of local free velocity (per-processor) */
+
+  short allocated; /* flag */
 };
 
 /* create local dynamics for a domain */

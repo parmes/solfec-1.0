@@ -9,6 +9,7 @@ stop = step * stepnum
 T = [] # plots
 E1 = []
 E2 = []
+GEOMETRIC_EPSILON (1E-4)
 
 def masonry_arch_create (ratio, material, solfec):
 
