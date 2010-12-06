@@ -197,17 +197,12 @@ static int detect_convex_convex (
   int k = 0, m;
   TRI *tri;
 
-  sanity = gjk (va, nva, vb, nvb, onepnt, twopnt);
+  if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
-  if (sanity < GEOMETRIC_EPSILON)
-  {
-    if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
-
-    k = point_normal_spair_area_gap (tri, m, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
-    sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
-    COPY (onepnt, twopnt);
-    free (tri);
-  }
+  k = point_normal_spair_area_gap (tri, m, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
+  sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
+  COPY (onepnt, twopnt);
+  free (tri);
 
   if (!isfinite (sanity)) return 0;
   else return k;
@@ -316,17 +311,12 @@ static int update_convex_convex (
   int k = 0, m;
   TRI *tri;
 
-  sanity = gjk (va, nva, vb, nvb, onepnt, twopnt);
+  if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
-  if (sanity < GEOMETRIC_EPSILON)
-  {
-    if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
-
-    k = point_normal_spair_area_gap (tri, -m, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
-    sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
-    COPY (onepnt, twopnt);
-    free (tri);
-  }
+  k = point_normal_spair_area_gap (tri, -m, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
+  sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
+  COPY (onepnt, twopnt);
+  free (tri);
 
   if (!isfinite (sanity)) return 0;
   else return k;
