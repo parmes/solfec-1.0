@@ -3,14 +3,15 @@
 #**********************************************************************
 
 include ../../Config.mak
-include ../../Flags.mak
+
+ifeq ($(DEBUG),yes)
+  CFLAGS = -g -I.
+else
+  CFLAGS = -O2 -I.
+endif
 
 AR     = ar -rcu
 RANLIB = ranlib
-
-CINCLUDES = ${INCLUDES} ${MPIINCLUDE}
- 
-CFLAGS = -std=c99 $(OS) ${CINCLUDES} $(DEBUG) $(PROFILE) 
 
 HEADERS =\
  taucs.h\

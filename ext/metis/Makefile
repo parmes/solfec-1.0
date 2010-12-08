@@ -5,6 +5,7 @@ ifeq ($(DEBUG),yes)
 else
   CFLAGS = -O2 -I.
 endif
+
 LD = $(CC) -L. 
 RANLIB = ranlib
 AR = ar rv

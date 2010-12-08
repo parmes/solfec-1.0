@@ -93,6 +93,7 @@ enum
   ERR_FEM_CUT_VOLUME,
   ERR_FEM_ROT_SINGULAR_JACOBIAN,
   ERR_FEM_ROT_NEWTON_DIVERGENCE,
+  ERR_CUDA
 };
 
 /* get error string */
