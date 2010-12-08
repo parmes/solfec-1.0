@@ -30,10 +30,22 @@ ifeq ($(OS),FREEBSD)
   OS = -DOSTYPE_FREEBSD
 endif
 
-ifeq ($(POSIX),yes)
-  POSIX = -DPOSIX
+ifeq ($(CUDA),yes)
+  NVCC = nvcc
+  CUDA = -DCUDA
+  ifeq ($(DEBUG),yes)
+    NVFLAGS = -g -DDEBUG
+  else
+    NVFLAGS = -O
+  endif
 else
-  POSIX = 
+  CUDA =
+endif
+
+ifeq ($(POSIX),yes)
+  STD = -std=c99 -DPOSIX
+else
+  STD = -std=c99
 endif
 
 ifneq ($(XDR),yes)

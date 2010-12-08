@@ -1,23 +1,35 @@
 include Config.mak
 
 ifeq ($(OPENGL),yes)
-  GLOBJ = \
+  OPENGLO = \
 	obj/bmp.o \
 	obj/glv.o \
 	obj/rnd.o \
 	obj/gl2ps.o 
 else
-  GLOBJ =
+  OPENGLO =
+endif
+
+ifeq ($(CUDA),yes)
+  CUDAO = \
+	obj/spmv.o
+
+  ifeq ($(MPI),yes)
+    CUDAMPIO = \
+	  obj/spmv-mpi.o
+  endif
+else
+  CUDAO =
 endif
 
 include Flags.mak
 
-CFLAGS = -std=c99 $(POSIX) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(XDRINC)
+CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(XDRINC) $(CUDA)
 
-LIB = -lm $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB)
+LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(CUDALIB)
 
 ifeq ($(MPI),yes)
-  LIBMPI = -lm $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB)
+  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB) $(CUDALIB)
 endif
 
 EXTO  = obj/fastlz.o\
@@ -60,6 +72,7 @@ BASEO = obj/err.o \
 
 OBJ =   $(EXTO)   \
         $(BASEO)  \
+        $(CUDAO)  \
 	obj/pbf.o \
 	obj/box.o \
 	obj/bod.o \
@@ -74,10 +87,11 @@ OBJ =   $(EXTO)   \
 	obj/lng.o \
 	obj/sol.o \
 	obj/fem.o \
-	$(GLOBJ)
+	$(OPENGLO)
 
 OBJMPI = $(EXTO)       \
          $(BASEO)      \
+         $(CUDAMPIO)   \
 	 obj/pbf-mpi.o \
 	 obj/put-mpi.o \
 	 obj/box-mpi.o \
@@ -143,6 +157,7 @@ partest: solfec solfec-mpi
 
 del:
 	rm -fr out/*
+	rm -fr *cubin
 
 clean:
 	rm -f solfec
@@ -151,6 +166,7 @@ clean:
 	rm -f core obj/*.o
 	rm -f obj/*.a
 	rm -fr *dSYM
+	rm -fr *cubin
 	(cd tst && make clean)
 	(cd ext/krylov && make clean)
 	(cd ext/metis && make clean)
@@ -159,6 +175,12 @@ clean:
 
 obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
+
+obj/spmv.o: cuda/spmv.cu cuda/cuda.h
+	$(NVCC) $(NVFLAGS) -c -o $@ $<
+
+obj/spmv-mpi.o: cuda/spmv.cu cuda/cuda.h
+	$(NVCC) $(NVFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/fastlz.o: ext/fastlz.c ext/fastlz.h
 	$(CC) $(CFLAGS) -c -o $@ $<

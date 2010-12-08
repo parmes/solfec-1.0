@@ -34,6 +34,10 @@
 #include "mrf.h"
 #include "ext/krylov/krylov.h"
 
+#if CUDA
+#include "cuda/cuda.h"
+#endif
+
 typedef struct con_data CON_DATA;
 typedef struct private PRIVATE;
 
@@ -68,6 +72,9 @@ struct private
   double *u, /* body space velocity */
          *r, /* body space reaction */
 	 *a; /* auxiliary vector */
+#if CUDA
+  void *U_WR_B;
+#endif
 };
 
 /* convert a sparse matrix into a dense one */
@@ -209,6 +216,9 @@ static void U_WR_B (PRIVATE *A)
 
   if (A->ns->locdyn == LOCDYN_ON)
   {
+#if CUDA
+    CUDA_U_WR_B (A->U_WR_B);
+#else
     double *W, *R, *U, *B;
     CON_DATA *dat;
     DIAB *dia;
@@ -239,6 +249,7 @@ static void U_WR_B (PRIVATE *A)
       }
 #endif
     }
+#endif
   }
   else
   {
@@ -549,6 +560,10 @@ static PRIVATE *create_private_data (NEWTON *ns, LOCDYN *ldy)
   }
   else locdyn_constraints_data (ldy->dom, A);
 
+#if CUDA
+  A->U_WR_B = CUDA_U_WR_B_Create (ldy);
+#endif
+
   U_WR_B (A); /* U = W R + B */
 
   return A;
@@ -557,6 +572,9 @@ static PRIVATE *create_private_data (NEWTON *ns, LOCDYN *ldy)
 /* destroy private data */
 static void destroy_private_data (PRIVATE *A)
 {
+#if CUDA
+  CUDA_U_WR_B_Destroy (A->U_WR_B);
+#endif
   destroy_constraints_data (A->dat, A->end);
   MAP_Free (NULL, &A->bod);
   free (A->u);

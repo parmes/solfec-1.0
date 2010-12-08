@@ -5,6 +5,13 @@
 OS = OSX
 
 #
+# CUDA
+#
+
+CUDA = no
+CUDALIB = -L/usr/local/cuda/lib -lcuda -lcudart
+
+#
 # Specify C compiler here
 #
 
@@ -72,7 +79,6 @@ PYTHONLIB = -framework Python
 #
 
 OPENGL = yes
-
 GLINC =
 GLLIB = -framework GLUT -framework OpenGL
 
@@ -88,6 +94,7 @@ VBO = yes
 
 MPI = yes
 MPICC = mpicc
+MPICXX = mpicxx
 
 #
 # Zoltan (MPI == yes)
