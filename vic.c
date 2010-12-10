@@ -76,7 +76,7 @@ inline static void complex_n (double complex *S, double complex fri, double comp
     dot += S[2]*S[2];
     len = csqrt (dot);
     if (creal (len) == 0) { SET(n, 0.0 + 0.0 * imaginary_i); }
-    DIV (S, len, n);
+    else { DIV (S, len, n); }
   }
   else
   {
@@ -144,7 +144,7 @@ inline static void complex_F (double res, double fri, double gap, double step, s
   F [0] = U[0];
   F [1] = U[1];
   if (creal(UT) >= 0) F [2] = (udash + fri * UT);
-  else F [2] = (udash + fri * (csqrt (DOT2(U, U) + eps) - eps));
+  else F [2] = (udash + fri * (csqrt (DOT2(U, U) + eps*eps) - eps));
 }
 
 /* C(U,R) + X dU + Y dR, where C(U,R) = F(U) + m(R - F(U)) */
@@ -171,6 +171,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 		 cm [3];
   int k;
 
+#if 1
   if (C)
   {
     real_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, U, UT, F);
@@ -214,6 +215,99 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
     NNSUB (J, Y, J);
     NNMUL (J, dF, X); /* X = [I - dm/dS] dF/dU */
   }
+#else
+
+#define dgdt(lmd,mu) (0.5*(1.0+(lmd)/sqrt((lmd)*(lmd)+4.0*(mu)*(mu))))
+#define eps smoothing_epsilon 
+  double udash, ulen, sdot, slen, l1, l2, u1[3], u2[3], g1, g2;
+  double eps2, fri2, dg1, dg2, a, b, c, d;
+
+  eps2 = eps*eps;
+  fri2 = fri*fri;
+  if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
+  else udash = ((MAX(gap, 0)/step) + U[2]);
+  ulen = sqrt (DOT2(U, U) + eps2);
+
+  F [0] = U[0];
+  F [1] = U[1];
+  if (UT >= 0.0) F [2] = (udash + fri * UT);
+  else F [2] = (udash + fri * (ulen - eps));
+
+  SUB (R, F, S);
+  S [2] += coh;
+
+  sdot = DOT2 (S, S);
+  slen = sqrt (sdot);
+  l1 = -(S[2] + fri*slen) / (1.0 + fri2);
+  l2 =  (slen - fri*S[2]) / (1.0 + fri2);
+  if (slen != 0.0)
+  {
+    u2[0] = S[0]/slen;
+    u2[1] = S[1]/slen;
+    u2[2] = -fri;
+    u1[0] = -fri*u2[0];
+    u1[1] = -fri*u2[1];
+    u1[2] = -1.0;
+  }
+  else
+  {
+    u2[0] =  1.0;
+    u2[1] =  0.0;
+    u2[2] = -fri;
+    u1[0] = -fri;
+    u1[1] =  0.0;
+    u1[2] = -1.0;
+  }
+  g1 = 0.5*(sqrt (l1*l1 + 4.0*eps2) + l1);
+  g2 = 0.5*(sqrt (l2*l2 + 4.0*eps2*fri2) + l2);
+
+  m [0] = g1*u1[0] + g2*u2[0];
+  m [1] = g1*u1[1] + g2*u2[1];
+  m [2] = g1*u1[2] + g2*u2[2];
+
+  ASSERT_DEBUG (C, "C needs to be not NULL in VIC_Linearize");
+  ADD (F, m, C);
+
+  if (X)
+  {
+    ASSERT_DEBUG (Y, "X needs to be accompanied by Y in VIC_Linearize");
+
+    dF [1] = dF [3] = dF [6] = dF [7] = 0.0;
+    dF [0] = dF [4] = dF [8] = 1.0;
+    dF [2] = U[0] / ulen;
+    dF [5] = U[1] / ulen;
+
+    dg1 = dgdt (l1, eps);
+    dg2 = dgdt (l2, fri*eps);
+
+    a = 0.5 * (1.0 + (l2 + fri*l1)/(sqrt(l2*l2+4.0*fri2*eps2) + fri*sqrt(l1*l1+4.0*eps2)));
+    b = (fri2 * dg1 + dg2) / (1.0 + fri2);
+    c = (fri * (dg1 - dg2)) / (1.0 + fri2);
+    d = (dg1 + fri2 * dg2) / (1.0 + fri2);
+
+    if (slen != 0.0)
+    {
+      Y [0] = a + (b - a) * S[0]*S[0] / sdot;
+      Y [1] = (b - a) * S[1]*S[0] / sdot;
+      Y [2] = c * S[0] / slen;
+      Y [3] = Y[1];
+      Y [4] = a + (b - a) * S[1]*S[1] / sdot;
+      Y [5] = c * S[1] / slen;
+      Y [6] = Y[2];
+      Y [7] = Y[5];
+      Y [8] = d;
+    }
+    else
+    {
+      Y[1] = Y[2] = Y[3] = Y[5] = Y[6] = Y[7] = 0.0;
+      Y[0] = Y[4] = Y[8] = dg1;
+    }
+
+    IDENTITY (J);
+    NNSUB (J, Y, J);
+    NNMUL (J, dF, X); /* X = [I - dm/dS] dF/dU */
+  }
+#endif
 }
 
 /* R = project-on-friction-cone (S) */
@@ -222,7 +316,39 @@ void VIC_Project (double friction, double cohesion, double *S, double *R)
   double m [3];
 
   S [2] += cohesion;
+#if 1
   real_m (friction, S, 0.0, m);
+#else
+#define fri friction
+  double slen, l1, l2, u1[3], u2[3], g1, g2, fri2;
+  fri2 = fri*fri;
+  slen = LEN2 (S);
+  l1 = -(S[2] + fri*slen) / (1.0 + fri2);
+  l2 =  (slen - fri*S[2]) / (1.0 + fri2);
+  if (slen != 0.0)
+  {
+    u2[0] = S[0]/slen;
+    u2[1] = S[1]/slen;
+    u2[2] = -fri;
+    u1[0] = -fri*u2[0];
+    u1[1] = -fri*u2[1];
+    u1[2] = -1.0;
+  }
+  else
+  {
+    u2[0] =  1.0;
+    u2[1] =  0.0;
+    u2[2] = -fri;
+    u1[0] = -fri;
+    u1[1] =  0.0;
+    u1[2] = -1.0;
+  }
+  g1 = MAX (l1, 0.0);
+  g2 = MAX (l2, 0.0);
+  m [0] = g1*u1[0] + g2*u2[0];
+  m [1] = g1*u1[1] + g2*u2[1];
+  m [2] = g1*u1[2] + g2*u2[2];
+#endif
   S [2] -= cohesion;
   SUB (S, m, R);
 }
