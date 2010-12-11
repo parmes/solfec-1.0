@@ -171,7 +171,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 		 cm [3];
   int k;
 
-#if 1
+#if 0
   if (C)
   {
     real_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, U, UT, F);
@@ -216,14 +216,13 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
     NNMUL (J, dF, X); /* X = [I - dm/dS] dF/dU */
   }
 #else
-
-#define dgdt(lmd,mu) (0.5*(1.0+(lmd)/sqrt((lmd)*(lmd)+4.0*(mu)*(mu))))
 #define eps smoothing_epsilon 
-  double udash, ulen, sdot, slen, l1, l2, u1[3], u2[3], g1, g2;
-  double eps2, fri2, dg1, dg2, a, b, c, d;
+  double udash, ulen, sdot, slen, l1, l2, u1[3], u2[3], eps2,
+       fri2, onefri2, sq1, sq2, g1, g2, dg1, dg2, a, b, c, d;
 
   eps2 = eps*eps;
   fri2 = fri*fri;
+  onefri2 = 1.0 + fri2;
   if (dynamic) udash = (U[2] + res * MIN (V[2], 0));
   else udash = ((MAX(gap, 0)/step) + U[2]);
   ulen = sqrt (DOT2(U, U) + eps2);
@@ -238,8 +237,8 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 
   sdot = DOT2 (S, S);
   slen = sqrt (sdot);
-  l1 = -(S[2] + fri*slen) / (1.0 + fri2);
-  l2 =  (slen - fri*S[2]) / (1.0 + fri2);
+  l1 = -(S[2] + fri*slen) / onefri2;
+  l2 =  (slen - fri*S[2]) / onefri2;
   if (slen != 0.0)
   {
     u2[0] = S[0]/slen;
@@ -258,8 +257,10 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
     u1[1] =  0.0;
     u1[2] = -1.0;
   }
-  g1 = 0.5*(sqrt (l1*l1 + 4.0*eps2) + l1);
-  g2 = 0.5*(sqrt (l2*l2 + 4.0*eps2*fri2) + l2);
+  sq1 = sqrt (l1*l1 + 4.0*eps2);
+  sq2 = sqrt (l2*l2 + 4.0*eps2*fri2);
+  g1 = 0.5 * (sq1 + l1);
+  g2 = 0.5 * (sq2 + l2);
 
   m [0] = g1*u1[0] + g2*u2[0];
   m [1] = g1*u1[1] + g2*u2[1];
@@ -274,16 +275,15 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 
     dF [1] = dF [3] = dF [6] = dF [7] = 0.0;
     dF [0] = dF [4] = dF [8] = 1.0;
-    dF [2] = U[0] / ulen;
-    dF [5] = U[1] / ulen;
+    dF [2] = fri * U[0] / ulen;
+    dF [5] = fri * U[1] / ulen;
 
-    dg1 = dgdt (l1, eps);
-    dg2 = dgdt (l2, fri*eps);
-
-    a = 0.5 * (1.0 + (l2 + fri*l1)/(sqrt(l2*l2+4.0*fri2*eps2) + fri*sqrt(l1*l1+4.0*eps2)));
-    b = (fri2 * dg1 + dg2) / (1.0 + fri2);
-    c = (fri * (dg1 - dg2)) / (1.0 + fri2);
-    d = (dg1 + fri2 * dg2) / (1.0 + fri2);
+    dg1 = 0.5*(1.0+l1/sq1);
+    dg2 = 0.5*(1.0+l2/sq2);
+    a = 0.5*(1.0+(l2 + fri*l1)/(sq2 + fri*sq1));
+    b = (fri2 * dg1 + dg2) / onefri2;
+    c = (fri * (dg1 - dg2)) / onefri2;
+    d = (dg1 + fri2 * dg2) / onefri2;
 
     if (slen != 0.0)
     {
@@ -303,9 +303,8 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
       Y[0] = Y[4] = Y[8] = dg1;
     }
 
-    IDENTITY (J);
-    NNSUB (J, Y, J);
-    NNMUL (J, dF, X); /* X = [I - dm/dS] dF/dU */
+    NNMUL (Y, dF, X);
+    NNSUB (dF, X, X); /* X = [I - dm/dS] dF/dU */
   }
 #endif
 }
@@ -316,7 +315,7 @@ void VIC_Project (double friction, double cohesion, double *S, double *R)
   double m [3];
 
   S [2] += cohesion;
-#if 1
+#if 0
   real_m (friction, S, 0.0, m);
 #else
 #define fri friction

@@ -373,7 +373,7 @@ OUTPUT(solfec, 1E-2)
 #gs = GAUSS_SEIDEL_SOLVER (1E-5, 100)
 gs = NEWTON_SOLVER (1E-10, 200, theta = 0.1)
 MBFCP_EXPORT (solfec, outpath + '/two_fuel_bricks.mbfcp')
-RUN (solfec, gs, 0.5)
+RUN (solfec, gs, duration)
 
 # Post-processing
 def write_data (t, v, path):
