@@ -19,6 +19,8 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <limits.h>
+
 #ifndef __lis__
 #define __lis__
 
@@ -32,7 +34,7 @@ static LIST* CALL (LIST *list)\
   LIST *i, *j, *k, *h, *t;\
   int l, m, n;\
 \
-  for (l = 1;;l *= 2)\
+  for (l = 1; l < INT_MAX;l *= 2)\
   {\
     h = t = NULL;\
 \

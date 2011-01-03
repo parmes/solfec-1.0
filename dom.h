@@ -76,7 +76,7 @@ struct constraint
 
   int num; /* local number */
 
-  enum {CONTACT, FIXPNT, FIXDIR, VELODIR, RIGLNK, GLUE} kind; /* constraint kind */
+  enum {CONTACT = 0, FIXPNT, FIXDIR, VELODIR, RIGLNK, GLUE} kind; /* constraint kind */
 
   enum {CON_COHESIVE = 0x01,
         CON_NEW      = 0x02, /* newly inserted constraint */
