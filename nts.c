@@ -72,9 +72,6 @@ struct private
   double *u, /* body space velocity */
          *r, /* body space reaction */
 	 *a; /* auxiliary vector */
-#if CUDA
-  void *U_WR_B;
-#endif
 };
 
 /* convert a sparse matrix into a dense one */
@@ -216,9 +213,6 @@ static void U_WR_B (PRIVATE *A)
 
   if (A->ns->locdyn == LOCDYN_ON)
   {
-#if CUDA
-    CUDA_U_WR_B (A->U_WR_B);
-#else
     double *W, *R, *U, *B;
     CON_DATA *dat;
     DIAB *dia;
@@ -249,7 +243,6 @@ static void U_WR_B (PRIVATE *A)
       }
 #endif
     }
-#endif
   }
   else
   {
@@ -560,10 +553,6 @@ static PRIVATE *create_private_data (NEWTON *ns, LOCDYN *ldy)
   }
   else locdyn_constraints_data (ldy->dom, A);
 
-#if CUDA
-  A->U_WR_B = CUDA_U_WR_B_Create (ldy);
-#endif
-
   U_WR_B (A); /* U = W R + B */
 
   return A;
@@ -572,9 +561,6 @@ static PRIVATE *create_private_data (NEWTON *ns, LOCDYN *ldy)
 /* destroy private data */
 static void destroy_private_data (PRIVATE *A)
 {
-#if CUDA
-  CUDA_U_WR_B_Destroy (A->U_WR_B);
-#endif
   destroy_constraints_data (A->dat, A->end);
   MAP_Free (NULL, &A->bod);
   free (A->u);
@@ -734,92 +720,102 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
 /* run solver */
 void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
-  double *merit, prevm, step, theta0, merit0;
-  GAUSS_SEIDEL *gs;
-  char fmt [512];
-  short dynamic;
-  int div, gt;
-  PRIVATE *A;
-
-  if (ns->locdyn == LOCDYN_ON && ns->presmooth > 0)
+#if CUDA && !MPI
+  if (ns->locdyn == LOCDYN_ON)
   {
-    gs = GAUSS_SEIDEL_Create (1E-10, ns->presmooth, 1.0, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
-    gs->verbose = 0;
-    gs->nomerit = 1;
+    ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
+    ns->iters = CUDA_PQN_Solve (ldy, ns->meritval, ns->maxiter, ns->theta, ns->epsilon, ns->merhist);
+  }
+  else
+#endif
+  {
+    double *merit, prevm, step, theta0, merit0;
+    GAUSS_SEIDEL *gs;
+    char fmt [512];
+    short dynamic;
+    int div, gt;
+    PRIVATE *A;
+
+    if (ns->locdyn == LOCDYN_ON && ns->presmooth > 0)
+    {
+      gs = GAUSS_SEIDEL_Create (1E-10, ns->presmooth, 1.0, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
+      gs->verbose = 0;
+      gs->nomerit = 1;
+#if MPI
+      if (ldy->dom->rank == 0)
+#endif
+      if (ldy->dom->verbose)
+      {
+	printf ("NEWTON_SOLVER: presmoothing ");
+	for (gt = 0; gt < ns->presmooth; gt ++) printf (".");
+	printf ("\n");
+      }
+      GAUSS_SEIDEL_Solve (gs, ldy);
+      GAUSS_SEIDEL_Destroy (gs);
+    }
+
+    sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
+    ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
+    A = create_private_data (ns, ldy);
+    dynamic = ldy->dom->dynamic;
+    merit = &ldy->dom->merit;
+    step = ldy->dom->step;
+    *merit = MERIT_Function (ldy, 0);
+    theta0 = ns->theta;
+    merit0 = *merit;
+    ns->iters = 0;
+    div = 1;
+    gt = 0;
+
+    while (ns->iters < ns->maxiter && *merit > ns->meritval)
+    {
+      solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
+
+      U_WR_B (A);
+
+      prevm = *merit;
+
+      *merit = MERIT_Function (ldy, 0);
+
+      ns->merhist [ns->iters] = *merit;
+
+      if (*merit > prevm && ++gt > 10 && *merit > 10)
+      {
+	if (ns->theta < 0.0009765625) ns->theta = 0.5; /* < 0.5**10 */
+	else ns->theta *= 0.5;
+	reset (A);
+	gt = 0;
+      }
+
+#if MPI
+      if (ldy->dom->rank == 0)
+#endif
+      if (ldy->dom->verbose && ns->iters % div == 0) printf (fmt, ns->theta, ns->iters, *merit), div *= 2;
+
+      ns->iters ++;
+    }
+
 #if MPI
     if (ldy->dom->rank == 0)
 #endif
-    if (ldy->dom->verbose)
+    if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
+
+    if (*merit > merit0)
     {
-      printf ("NEWTON_SOLVER: presmoothing ");
-      for (gt = 0; gt < ns->presmooth; gt ++) printf (".");
-      printf ("\n");
-    }
-    GAUSS_SEIDEL_Solve (gs, ldy);
-    GAUSS_SEIDEL_Destroy (gs);
-  }
-
-  sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
-  ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
-  A = create_private_data (ns, ldy);
-  dynamic = ldy->dom->dynamic;
-  merit = &ldy->dom->merit;
-  step = ldy->dom->step;
-  *merit = MERIT_Function (ldy, 0);
-  theta0 = ns->theta;
-  merit0 = *merit;
-  ns->iters = 0;
-  div = 1;
-  gt = 0;
-
-  while (ns->iters < ns->maxiter && *merit > ns->meritval)
-  {
-    solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
-
-    U_WR_B (A);
-
-    prevm = *merit;
-
-    *merit = MERIT_Function (ldy, 0);
-
-    ns->merhist [ns->iters] = *merit;
-
-    if (*merit > prevm && ++gt > 10 && *merit > 10)
-    {
-      if (ns->theta < 0.0009765625) ns->theta = 0.5; /* < 0.5**10 */
-      else ns->theta *= 0.5;
       reset (A);
-      gt = 0;
+
+      *merit = MERIT_Function (ldy, 0);
+
+#if MPI
+      if (ldy->dom->rank == 0)
+#endif
+      if (ldy->dom->verbose) printf ("NEWTON_SOLVER: DIVERGED => Reusing previous solution (merit: %.2e)\n", *merit);
     }
 
-#if MPI
-    if (ldy->dom->rank == 0)
-#endif
-    if (ldy->dom->verbose && ns->iters % div == 0) printf (fmt, ns->theta, ns->iters, *merit), div *= 2;
+    destroy_private_data (A);
 
-    ns->iters ++;
+    ns->theta = theta0;
   }
-
-#if MPI
-  if (ldy->dom->rank == 0)
-#endif
-  if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
-
-  if (*merit > merit0)
-  {
-    reset (A);
-
-    *merit = MERIT_Function (ldy, 0);
-
-#if MPI
-    if (ldy->dom->rank == 0)
-#endif
-    if (ldy->dom->verbose) printf ("NEWTON_SOLVER: DIVERGED => Reusing previous solution (merit: %.2e)\n", *merit);
-  }
-
-  destroy_private_data (A);
-
-  ns->theta = theta0;
 }
 
 /* write labeled state values */

@@ -12,12 +12,8 @@ endif
 
 ifeq ($(CUDA),yes)
   CUDAO = \
-	obj/spmv.o
-
-  ifeq ($(MPI),yes)
-    CUDAMPIO = \
-	  obj/spmv-mpi.o
-  endif
+	obj/spmv.o \
+	obj/pqns.o
 else
   CUDAO =
 endif
@@ -29,7 +25,7 @@ CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS
 LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(CUDALIB)
 
 ifeq ($(MPI),yes)
-  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB) $(CUDALIB)
+  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB)
 endif
 
 EXTO  = obj/fastlz.o\
@@ -91,7 +87,6 @@ OBJ =   $(EXTO)   \
 
 OBJMPI = $(EXTO)       \
          $(BASEO)      \
-         $(CUDAMPIO)   \
 	 obj/pbf-mpi.o \
 	 obj/put-mpi.o \
 	 obj/box-mpi.o \
@@ -179,8 +174,8 @@ obj/solfec.o: solfec.c
 obj/spmv.o: cuda/spmv.cu cuda/cuda.h
 	$(NVCC) $(NVFLAGS) -c -o $@ $<
 
-obj/spmv-mpi.o: cuda/spmv.cu cuda/cuda.h
-	$(NVCC) $(NVFLAGS) $(MPIFLG) -c -o $@ $<
+obj/pqns.o: cuda/pqns.cu cuda/cuda.h
+	$(NVCC) $(NVFLAGS) -c -o $@ $<
 
 obj/fastlz.o: ext/fastlz.c ext/fastlz.h
 	$(CC) $(CFLAGS) -c -o $@ $<
