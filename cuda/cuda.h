@@ -28,6 +28,6 @@ void CUDA_U_WR_B (void *U_WR_B);
 void CUDA_U_WR_B_Destroy (void *U_WR_B);
 
 /* PQN solver; returns the number of iterations and writes the merit function history */
-int CUDA_PQN_Solve (LOCDYN *ldy, float meritval, int maxiter, float theta, float epsilon, double *merhist);
+int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, double epsilon, double *merhist);
 
 #endif
