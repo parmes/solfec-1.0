@@ -12,7 +12,6 @@ endif
 
 ifeq ($(CUDA),yes)
   CUDAO = \
-	obj/spmv.o \
 	obj/pqns.o
 else
   CUDAO =
@@ -105,7 +104,7 @@ OBJMPI = $(EXTO)       \
 	 obj/fem-mpi.o \
 
 solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a obj/libtet.a
-	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ltaucs -lmetis -ltet $(LIB)
+	$(LL) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ltaucs -lmetis -ltet $(LIB)
 
 obj/libkrylov.a:
 	(cd ext/krylov && make)
@@ -130,7 +129,7 @@ all: solfec mpi
 mpi: solfec-mpi
 
 solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a obj/libtet.a
-	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ltaucs -lmetis -ltet $(LIBMPI)
+	$(MPILL) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ltaucs -lmetis -ltet $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
@@ -171,11 +170,8 @@ clean:
 obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
 
-obj/spmv.o: cuda/spmv.cu cuda/cuda.h
-	$(NVCC) $(NVFLAGS) -c -o $@ $<
-
 obj/pqns.o: cuda/pqns.cu cuda/cuda.h
-	$(NVCC) $(NVFLAGS) -c -o $@ $<
+	$(CC) $(CUFLAGS) -c -o $@ $<
 
 obj/fastlz.o: ext/fastlz.c ext/fastlz.h
 	$(CC) $(CFLAGS) -c -o $@ $<

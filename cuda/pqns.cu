@@ -35,13 +35,14 @@ __global__ void U_WR_B (const int num, const int *ptr, const int *adj,
 
   if (con < num)
   {
-    const float *W = W0;
     const float *B = &B0[con*3];
     float WR[3] = {B[0], B[1], B[2]};
     int j, j0 = ptr [con], j1 = ptr [con+1];
+    const float *W = &W0[j0*9];
     for (j = j0; j < j1; j ++, W += 9)
     { 
-      const float *R = &R0[adj[j]*3];
+      const int nei = adj[j];
+      const float *R = &R0[nei*3];
       NVADDMUL (WR, W, R, WR);
     }
     float *U = &U0[con*3];
@@ -419,7 +420,7 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
   ASSERT_CUDA (cudaMalloc((void**)&d_out, sizeof(float)));
   ASSERT_CUDA (cudaMalloc((void**)&d_kind, num * sizeof(int)));
   ASSERT_CUDA (cudaMalloc((void**)&d_ptr, (num+1) * sizeof(int)));
-  ASSERT_CUDA (cudaMalloc((void**)&d_adj, (size) * sizeof(int)));
+  ASSERT_CUDA (cudaMalloc((void**)&d_adj, size * sizeof(int)));
 
   /* allocate host memory */
   ERRMEM (mem = malloc (size * sizeof (float [9])));
@@ -561,7 +562,7 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
     ASSERT_CUDA (cudaMemcpy(mem, d_R, num * sizeof(float [3]), cudaMemcpyDeviceToHost));
     for (dia = ldy->dia, fmem = (float*) mem; dia; dia = dia->n, fmem += 3) { double *R = dia->R; COPY (fmem, R); }
     ASSERT_CUDA (cudaMemcpy(mem, d_U, num * sizeof(float [3]), cudaMemcpyDeviceToHost));
-    for (dia = ldy->dia, fmem = (float*) mem; dia; dia = dia->n, fmem += 3) { double *R = dia->R; COPY (fmem, R); }
+    for (dia = ldy->dia, fmem = (float*) mem; dia; dia = dia->n, fmem += 3) { double *U = dia->U; COPY (fmem, U); }
     ASSERT_CUDA (cudaMemcpy(mem, d_mer, num * sizeof(float), cudaMemcpyDeviceToHost));
     for (dia = ldy->dia, fmem = (float*) mem; dia; dia = dia->n, fmem ++) { con = dia->con; con->merit = fmem [0] / mden; }
   }
