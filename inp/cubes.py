@@ -108,9 +108,7 @@ if not VIEWER() and NCPU(solfec) == 1 and solfec.mode == 'WRITE':
 
 if not VIEWER() and solfec.mode == 'READ':
 
-  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL',
-            'GSINIT', 'GSRUN', 'GSCOM', 'GSMCOM',
-            'LININIT', 'LINUPD', 'LINMV', 'LINPRE', 'LINRUN', 'LINCOM']
+  timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
   dur = DURATION (solfec)
   th = HISTORY (solfec, timers, dur[0], dur[1])
   total = 0.0

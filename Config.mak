@@ -8,7 +8,7 @@ OS = OSX
 # CUDA
 #
 
-CUDA = yes
+CUDA = no
 CUDALIB = -L/usr/local/cuda/lib -lcuda -lcudart
 
 #

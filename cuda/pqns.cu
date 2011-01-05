@@ -27,7 +27,81 @@ using std::endl;
 /* constraint kinds */
 enum {_CONTACT_ = 0, _FIXPNT_, _FIXDIR_, _VELODIR_, _RIGLNK_, _GLUE_};
 
-/* update local velocity U = WR + B */
+/* R texture sampler */
+texture <float, 1, cudaReadModeElementType> texR;
+
+#define VECTOR_U_WR_B 1  /* vector version of U = WR + B */
+
+#if VECTOR_U_WR_B /* vector version of U = WR + B */
+/* vector update local velocity U = WR + B */
+__global__ void U_WR_B (const int num, const int *ptr, const int *adj,
+  const float *W0, const float *R0, const float *B0, float *U0)
+{
+  __shared__ float vals [1024];
+  int thread_id = blockDim.x * blockIdx.x + threadIdx.x ; /* global thread index */
+  int warp_id = thread_id / 32; /* global warp index */
+  int lane = thread_id & (32 - 1); /* thread index within the warp */
+  int con = warp_id;  /* one warp per row */
+
+  if (con < num)
+  {
+    const float *W;
+    float *WR = &vals [threadIdx.x*3];
+    int j, j0 = ptr [con], j1 = ptr [con+1];
+
+    /* compute running sum per thread */
+    SET (WR, 0.0);
+    for (j = j0 + lane, W = &W0[j*9]; j < j1; j += 32, W += 288) /* 32*9 = 288 */
+    {
+      const int nei = adj[j]*3;
+#if 0
+      const float *R = &R0[nei];
+#else
+      const float R [3] = { tex1Dfetch (texR, nei),
+                            tex1Dfetch (texR, nei+1),
+                            tex1Dfetch (texR, nei+2) };
+#endif
+      NVADDMUL (WR, W, R, WR);
+    }
+  
+    /* parallel reduction in shared memory */
+    if (lane < 16)
+    {
+      float *WR1 = &vals [(threadIdx.x + 16)*3];
+      ACC (WR1, WR);
+    }
+    if (lane < 8)
+    {
+      float *WR1 = &vals [(threadIdx.x + 8)*3];
+      ACC (WR1, WR);
+    }
+    if (lane < 4)
+    {
+      float *WR1 = &vals [(threadIdx.x + 4)*3];
+      ACC (WR1, WR);
+    }
+    if (lane < 2)
+    {
+      float *WR1 = &vals [(threadIdx.x + 2)*3];
+      ACC (WR1, WR);
+    }
+    if (lane < 1)
+    {
+      float *WR1 = &vals [(threadIdx.x + 1)*3];
+      ACC (WR1, WR);
+    }
+
+    /* first thread writes the result */
+    if (lane == 0)
+    {
+      const float *B = &B0[con*3];
+      float *U = &U0[con*3];
+      ADD (WR, B, U);
+    }
+  }
+}
+#else
+/* scalar update local velocity U = WR + B */
 __global__ void U_WR_B (const int num, const int *ptr, const int *adj,
   const float *W0, const float *R0, const float *B0, float *U0)
 {
@@ -41,14 +115,21 @@ __global__ void U_WR_B (const int num, const int *ptr, const int *adj,
     const float *W = &W0[j0*9];
     for (j = j0; j < j1; j ++, W += 9)
     { 
-      const int nei = adj[j];
-      const float *R = &R0[nei*3];
+      const int nei = adj[j]*3;
+#if 0
+      const float *R = &R0[nei];
+#else
+      const float R [3] = { tex1Dfetch (texR, nei),
+                            tex1Dfetch (texR, nei+1),
+                            tex1Dfetch (texR, nei+2) };
+#endif
       NVADDMUL (WR, W, R, WR);
     }
     float *U = &U0[con*3];
     COPY (WR, U);
   }
 }
+#endif
 
 /* compute reaction increments and per-constraint merit function numerators */
 __global__ void increments_and_merits (const int dynamic, const float step, const float theta, const float eps,
@@ -366,7 +447,13 @@ if((call) != cudaSuccess)\
 
 /* LOCDYN diagobal block list sorting */
 #define DIABLE(i, j) ((i)->con->kind <= (j)->con->kind)
-IMPLEMENT_LIST_SORT (DOUBLY_LINKED, locdyn_sort, DIAB, p, n, DIABLE)
+IMPLEMENT_LIST_SORT (DOUBLY_LINKED, diab_sort, DIAB, p, n, DIABLE)
+
+#if VECTOR_U_WR_B
+/* LOCDYN off-diagobal block list sorting */
+#define OFFBLE(i, j) ((i)->dia->con->num <= (j)->dia->con->num)
+IMPLEMENT_LIST_SORT (SINGLE_LINKED, offb_sort, OFFB, p, n, OFFBLE)
+#endif
 
 /* PQN solver; returns the number of iterations and writes the merit function history */
 int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, double epsilon, double *merhist)
@@ -396,7 +483,7 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
   CON *con;
 
   /* sort constraints by kind */
-  ldy->dia = locdyn_sort (ldy->dia);
+  ldy->dia = diab_sort (ldy->dia);
 
   /* number constraints */
   for (dia = ldy->dia, size = num = 0; dia; dia = dia->n, num ++)
@@ -405,6 +492,14 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
     con->num = num;
     size += dia->nadj + 1;
   }
+
+#if VECTOR_U_WR_B
+  /* sort off-diagonal blocks */
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    dia->adj = offb_sort (dia->adj);
+  }
+#endif
 
   /* allocate device memory */
   ASSERT_CUDA (cudaMalloc((void**)&d_R, num * sizeof(float [3])));
@@ -428,6 +523,7 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
   /* copy R, R0 */
   for (dia = ldy->dia, fmem = (float*) mem; dia; dia = dia->n, fmem += 3) { double *R = dia->R; COPY (R, fmem); }
   ASSERT_CUDA (cudaMemcpy(d_R, mem, num * sizeof(float [3]), cudaMemcpyHostToDevice));
+  ASSERT_CUDA (cudaBindTexture (0, texR, d_R, num * sizeof (float [3])));
   ASSERT_CUDA (cudaMemcpy(d_R0, mem, num * sizeof(float [3]), cudaMemcpyHostToDevice));
   /* copy U */
   for (dia = ldy->dia, fmem = (float*) mem; dia; dia = dia->n, fmem += 3) { double *U = dia->U; COPY (U, fmem); }
@@ -514,7 +610,12 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
 
   while (iters < maxiter && *merit > meritval)
   {
+#if VECTOR_U_WR_B
+    int vbpg = (32*num + tpb - 1) / tpb;
+    U_WR_B <<<vbpg, tpb>>> (num, d_ptr, d_adj, d_W, d_R, d_B, d_U);
+#else
     U_WR_B <<<bpg, tpb>>> (num, d_ptr, d_adj, d_W, d_R, d_B, d_U);
+#endif
 
     increments_and_merits <<<bpg, tpb>>> (dynamic, step, theta, epsilon, num, d_kind, d_mat, d_ptr, d_W, d_A, d_V, d_U, d_R, d_DR, d_mer);
 
@@ -569,6 +670,7 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
 
   /* free memory */
   ASSERT_CUDA (cudaFree(d_R));
+  ASSERT_CUDA (cudaUnbindTexture (texR));
   ASSERT_CUDA (cudaFree(d_R0));
   ASSERT_CUDA (cudaFree(d_U));
   ASSERT_CUDA (cudaFree(d_V));
