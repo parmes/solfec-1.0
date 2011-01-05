@@ -59,15 +59,13 @@ RUN (solfec, sv, stop)
 if not VIEWER() and solfec.mode == 'READ':
 
   data = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL',
-          'GSINIT', 'GSRUN', 'GSCOM', 'GSMCOM',
-          'LININIT', 'LINUPD', 'LINMV', 'LINPRE', 'LINRUN', 'LINCOM',
 	  'MERIT']
 
   dur = DURATION (solfec)
   th = HISTORY (solfec, data, dur[0], dur[1], progress = 'ON')
 
   total = 0.0
-  for i in range (0, 16):
+  for i in range (0, 6):
     sum = 0.0
     for tt in th [i+1]: sum += tt
     print data [i], 'TIME:', sum
@@ -78,7 +76,7 @@ if not VIEWER() and solfec.mode == 'READ':
   try:
     import matplotlib.pyplot as plt
 
-    plt.plot (th[0], th[17])
+    plt.plot (th[0], th[7])
     plt.semilogy (10)
     plt.title (solver + ': ' + str (int(stop/step)) + ' steps, ' + kinem + ' model')
     plt.xlabel ('Time')
