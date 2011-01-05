@@ -30,18 +30,6 @@ ifeq ($(OS),FREEBSD)
   OS = -DOSTYPE_FREEBSD
 endif
 
-ifeq ($(CUDA),yes)
-  NVCC = nvcc
-  CUDA = -DCUDA
-  ifeq ($(DEBUG),yes)
-    NVFLAGS = -g -DDEBUG
-  else
-    NVFLAGS = -O
-  endif
-else
-  CUDA =
-endif
-
 ifeq ($(POSIX),yes)
   STD = -std=c99 -DPOSIX
 else
@@ -71,6 +59,7 @@ else
 endif
 
 ifeq ($(DEBUG),yes)
+  DBG = yes
   DEBUG =  -W -Wall -Wno-unused-parameter -pedantic -g -DDEBUG
   ifeq ($(PROFILE),yes)
     PROFILE = -p
@@ -93,6 +82,7 @@ ifeq ($(DEBUG),yes)
     GEOMDEBUG =
   endif
 else
+  DBG = no
   DEBUG =  -w -pedantic -O3 -funroll-loops
   PROFILE =
   MEMDEBUG =
@@ -108,4 +98,25 @@ ifeq ($(MPI),yes)
   endif
   MPIFLG = -DMPI $(ZOLTANINC) $(PARDEBUG)
   MPILIBS = $(ZOLTANLIB)
+endif
+
+ifeq ($(CUDA),yes)
+  CC = nvcc
+  MPICC = nvcc
+  CUDA = -DCUDA
+  ifeq ($(POSIX),yes)
+    STD = --compiler-options "-std=c99" -DPOSIX
+  else
+    STD = --compiler-options "-std=c99"
+  endif
+  ifeq ($(DBG),yes)
+    DEBUG = -g -DDEBUG
+    CUFLAGS = -g -DDEBUG
+  else
+    DEBUG = -O3
+    CUFLAGS = -O
+  endif
+else
+  CUDA =
+  CUDALIB =
 endif

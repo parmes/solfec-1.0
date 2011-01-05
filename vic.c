@@ -158,20 +158,19 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 	  fri = con->mat.base->friction,
 	  res = con->mat.base->restitution,
 	  coh = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area,
-	  h = DIFF_FACTOR * smoothing_epsilon > 0.0 ? smoothing_epsilon : DIFF_BASE,
 	  dF [9],
           S [3],
 	  F [3],
-	  m [3],
-	  J [9];
+	  m [3];
 
+#if 0
+  double h = DIFF_FACTOR * smoothing_epsilon > 0.0 ? smoothing_epsilon : DIFF_BASE, J [9];
   double complex cU [3],
 		 cS [3],
 		 cF [3],
 		 cm [3];
   int k;
 
-#if 0
   if (C)
   {
     real_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, U, UT, F);
