@@ -523,7 +523,7 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
   /* copy R, R0 */
   for (dia = ldy->dia, fmem = (float*) mem; dia; dia = dia->n, fmem += 3) { double *R = dia->R; COPY (R, fmem); }
   ASSERT_CUDA (cudaMemcpy(d_R, mem, num * sizeof(float [3]), cudaMemcpyHostToDevice));
-  ASSERT_CUDA (cudaBindTexture (0, texR, d_R, num * sizeof (float [3])));
+  if (num) ASSERT_CUDA (cudaBindTexture (0, texR, d_R, num * sizeof (float [3])));
   ASSERT_CUDA (cudaMemcpy(d_R0, mem, num * sizeof(float [3]), cudaMemcpyHostToDevice));
   /* copy U */
   for (dia = ldy->dia, fmem = (float*) mem; dia; dia = dia->n, fmem += 3) { double *U = dia->U; COPY (U, fmem); }
@@ -670,7 +670,7 @@ int CUDA_PQN_Solve (LOCDYN *ldy, double meritval, int maxiter, double theta, dou
 
   /* free memory */
   ASSERT_CUDA (cudaFree(d_R));
-  ASSERT_CUDA (cudaUnbindTexture (texR));
+  if (num) ASSERT_CUDA (cudaUnbindTexture (texR));
   ASSERT_CUDA (cudaFree(d_R0));
   ASSERT_CUDA (cudaFree(d_U));
   ASSERT_CUDA (cudaFree(d_V));
