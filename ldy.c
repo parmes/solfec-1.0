@@ -372,8 +372,7 @@ inline static int body_has_changed (BODY *bod)
 /* block updatable test */
 static int needs_update (CON *dia, BODY *bod, CON *off, double *W)
 {
-  if (!W) return 1; /* not allocated */
-  else if (W [8] == 0.0) return 1; /* not initialized */
+  if (W [8] == 0.0) return 1; /* not initialized */
   else if (body_has_changed (bod)) return 1;
   else if (dia == off && dia->slave && body_has_changed (dia->slave)) return 1; /* diagonal */
   else if (dia->kind == CONTACT || dia->kind == RIGLNK ||
@@ -574,6 +573,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
   CON *c;
 
   ERRMEM (dia = MEM_Alloc (&ldy->diamem));
+  ERRMEM (dia->W = MEM_CALLOC (sizeof (double [9]))); /* initial diagonal block */
   dia->R = con->R;
   dia->U = con->U;
   dia->V = con->V;
