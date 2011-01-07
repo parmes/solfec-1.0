@@ -72,7 +72,7 @@ GRAVITY (solfec, (0, 0, -9.81))
 
 stack_of_cubes_create (bulkmat, solfec)
 
-#sv = GAUSS_SEIDEL_SOLVER (1E-2, 100, 1E-4, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
+#sv = GAUSS_SEIDEL_SOLVER (1E-2, 100, 1E-6)
 #sv.variant = VARIANT
 
 sv = NEWTON_SOLVER (1E-6, 100)
@@ -84,7 +84,7 @@ OUTPUT (solfec, 1 * step, 'ON')
 MERIT = []
 
 def callback (sv):
-  MERIT.append (sv.merhist)
+  if solfec.time > step: MERIT.append (sv.merhist)
   return 1
 
 if not VIEWER() and NCPU(solfec) == 1: CALLBACK (solfec, step, sv, callback)

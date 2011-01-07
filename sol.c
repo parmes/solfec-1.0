@@ -306,6 +306,15 @@ static int init (SOLFEC *sol)
   else return 1;
 }
 
+/* initial statistics */
+static void initstatsout (DOM *dom)
+{
+  printf ("----------------------------------------------------------------------------------------\n");
+  printf ("INITAILLY DOFS %d, BODIES: %d (OBS: %d, RIG %d, PRB: %d, FEM: %d)\n",
+      dom->dofs, dom->nbod, dom->nobs, dom->nrig, dom->nprb, dom->nfem);
+  printf ("----------------------------------------------------------------------------------------\n");
+}
+
 /* output statistics */
 static void statsout (SOLFEC *sol)
 {
@@ -532,7 +541,10 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     sol->output_time = PUT_double_min (sol->output_time);
     sol->duration = PUT_double_min (sol->duration);
     /* TODO: make this more efficient by using a single call */
+
+    if (sol->dom->rank == 0)
 #endif
+    if (sol->dom->time == 0.0) initstatsout (sol->dom); /* print out initial statistics */
 
     verbose = verbose_on (sol);
     sol->duration = duration;

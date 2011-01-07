@@ -2352,6 +2352,16 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   /* assign domain */
   bod->dom = dom;
 
+  /* detailed stats */
+  switch (bod->kind)
+  {
+  case OBS: dom->nobs ++; break;
+  case RIG: dom->nrig ++; break;
+  case PRB: dom->nprb ++; break;
+  case FEM: dom->nfem ++; break;
+  }
+  dom->dofs += bod->dofs;
+
 #if MPI
   /* insert into the set of all created bodies */
   MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
@@ -2402,6 +2412,16 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
 
   /* free constraint set */
   SET_Free (&dom->setmem, &con);
+
+  /* detailed stats */
+  switch (bod->kind)
+  {
+  case OBS: dom->nobs --; break;
+  case RIG: dom->nrig --; break;
+  case PRB: dom->nprb --; break;
+  case FEM: dom->nfem --; break;
+  }
+  dom->dofs -= bod->dofs;
 
 #if MPI
   if (bod->flags & BODY_PARENT) /* only parent bodies are in the list and label/id maps */

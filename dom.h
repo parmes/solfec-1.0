@@ -215,6 +215,12 @@ struct domain
   SET *delb; /* set of deleted body ids for time > 0 and before state write */
   SET *newb; /* set of newly created bodies for time > 0 and before state write */
 
+  int nobs, /* obstacles */
+      nrig, /* rigid */
+      nprb, /* pseudo-rigid */
+      nfem, /* finite element */
+      dofs; /* total number of degrees of freedom */
+
   unsigned int cid;  /* last free constraint identifier */
   SET *sparecid; /* spare constraint ids */
   MAP *idc; /* constraints mapped by identifiers */

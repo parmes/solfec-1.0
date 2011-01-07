@@ -2780,7 +2780,7 @@ static void lng_GAUSS_SEIDEL_callback (lng_GAUSS_SEIDEL_SOLVER *sol)
     {
       fprintf (stderr, "GAUSS_SEIDEL_SOLVER failed with error code %s\n", GAUSS_SEIDEL_Error (sol->gs));
 #if MPI
-      MPI_Abort (MPI_COMM_WORLD, 0);
+      MPI_Abort (MPI_COMM_WORLD, 1000);
 #else
       lngfinalize ();
 #endif
@@ -2794,7 +2794,7 @@ static void lng_GAUSS_SEIDEL_callback (lng_GAUSS_SEIDEL_SOLVER *sol)
 err:
     PyErr_Print (); /* print traceback */
 #if MPI
-    MPI_Abort (MPI_COMM_WORLD, 0);
+    MPI_Abort (MPI_COMM_WORLD, 1001);
 #else
     lngfinalize ();
 #endif
@@ -2888,7 +2888,10 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
     }
 
     if (diagepsilon == DBL_MAX)
+    {
       diagepsilon = 0.01 * MIN (epsilon, MIN (meritval, 1E-4));
+      if (diagepsilon < DBL_EPSILON) diagepsilon = DBL_EPSILON;
+    }
 
     if (diagmaxiter == INT_MAX)
       diagmaxiter = MAX (100, maxiter / 100);
@@ -3920,7 +3923,7 @@ static PyObject* lng_HULL (PyObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, errstring (error));
 #if MPI
       PyErr_Print ();
-      MPI_Abort (MPI_COMM_WORLD, 0);
+      MPI_Abort (MPI_COMM_WORLD, 2000+error);
 #endif
       return NULL;
     }
@@ -4575,7 +4578,7 @@ static void lng_FORCE_callback (PyObject *data, PyObject *call, int nq, double *
 err:
     PyErr_Print (); /* print traceback */
 #if MPI
-    MPI_Abort (MPI_COMM_WORLD, 0);
+    MPI_Abort (MPI_COMM_WORLD, 3000);
 #else
     lngfinalize ();
 #endif
@@ -5215,7 +5218,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
     PyErr_SetString (PyExc_RuntimeError, errstring (error));
 #if MPI
       PyErr_Print ();
-      MPI_Abort (MPI_COMM_WORLD, 0);
+      MPI_Abort (MPI_COMM_WORLD, 4000+error);
 #endif
     return NULL;
   }
@@ -5641,7 +5644,7 @@ static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
       PyErr_SetString (PyExc_RuntimeError, errstring (error));
 #if MPI
       PyErr_Print ();
-      MPI_Abort (MPI_COMM_WORLD, 0);
+      MPI_Abort (MPI_COMM_WORLD, 5000+error);
 #endif
       return NULL;
     }
@@ -5750,7 +5753,7 @@ static int lng_CALLBACK_callback (SOLFEC *sol, PyObject *data, PyObject *callbac
   {
     PyErr_Print (); /* print traceback */
 #if MPI
-    MPI_Abort (MPI_COMM_WORLD, 0);
+    MPI_Abort (MPI_COMM_WORLD, 6000);
 #else
     lngfinalize ();
 #endif

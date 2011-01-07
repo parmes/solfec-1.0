@@ -5,8 +5,8 @@ from simple_core_base import *
 
 # main module
 
-step = 0.001
-stop = 5
+step = 0.0001
+stop = 1
 outfrq = 0.1
 kinem = 'PSEUDO_RIGID'
 solver = 'GAUSS_SEIDEL'
@@ -42,10 +42,10 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5, spring = 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.3, density = 1.8E3)
 
 if solver == 'GAUSS_SEIDEL':
-  sv = GAUSS_SEIDEL_SOLVER (1E-3, 160, 1E-4, diagsolver = 'SEMISMOOTH_NEWTON')
+  sv = GAUSS_SEIDEL_SOLVER (1E-1, 200, 1E-6)
   sv.reverse = 'ON'
 elif solver == 'NEWTON':
-  sv = NEWTON_SOLVER (1E-6, 20)
+  sv = NEWTON_SOLVER (1E-6, 200, presmooth = 5, theta = 0.1)
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 
