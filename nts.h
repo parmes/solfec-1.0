@@ -40,13 +40,15 @@ struct newton
 
   double epsilon; /* smoothing epsilon */
 
-  int presmooth; /* presmoothing steps */
+  int presmooth; /* presmoothing steps bound */
 
   /* output */
 
   double *merhist; /* merit function history */
 
   int iters; /* iterations count */
+
+  int gsits; /* presmoother iterations count (Gauss-Seidel) */
 };
 
 /* create solver */

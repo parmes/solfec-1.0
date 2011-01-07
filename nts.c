@@ -722,6 +722,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
   ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
   ns->iters = 0;
+  ns->gsits = 0;
 
 #if CUDA && !MPI
   if (ns->locdyn == LOCDYN_ON)
@@ -743,6 +744,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
       gs = GAUSS_SEIDEL_Create (1.0, ns->presmooth, ns->meritval, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
       gs->verbose = 0;
       GAUSS_SEIDEL_Solve (gs, ldy);
+      ns->gsits = gs->iters;
 #if MPI
       if (ldy->dom->rank == 0)
 #endif
@@ -823,6 +825,8 @@ end:
 /* write labeled state values */
 void NEWTON_Write_State (NEWTON *ns, PBF *bf)
 {
+  PBF_Label (bf, "GSITERS");
+  PBF_Int (bf, &ns->gsits, 1);
   PBF_Label (bf, "NTITERS");
   PBF_Int (bf, &ns->iters, 1);
 }
