@@ -311,7 +311,7 @@ static int projected_newton (double epsilon, int maxiter, double friction, doubl
   {
     NNMUL (X, W, T);
     NNADD (T, Y, T);
-    ASSERT (lapack_dgesv (3, 1, T, 3, ipiv, C, 3) == 0, ERR_MTX_LU_FACTOR);
+    if (lapack_dgesv (3, 1, T, 3, ipiv, C, 3)) return -1;
     SCC (C, R);
     VIC_Project (friction, cohesion, R, R);
     NVADDMUL (B, W, R, U);

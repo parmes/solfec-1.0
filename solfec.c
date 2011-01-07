@@ -82,7 +82,7 @@ static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
   lngfinalize (); /* finalize interpreter: as a result
 		     flush output buffers if possible */
 
-  MPI_Abort (MPI_COMM_WORLD, 0);
+  MPI_Abort (MPI_COMM_WORLD, 999);
 
   exit (1);
 }

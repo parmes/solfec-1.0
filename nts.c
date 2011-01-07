@@ -720,10 +720,12 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
 /* run solver */
 void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
+  ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
+  ns->iters = 0;
+
 #if CUDA && !MPI
   if (ns->locdyn == LOCDYN_ON)
   {
-    ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
     ns->iters = CUDA_PQN_Solve (ldy, ns->meritval, ns->maxiter, ns->theta, ns->epsilon, ns->merhist);
   }
   else
@@ -738,24 +740,24 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 
     if (ns->locdyn == LOCDYN_ON && ns->presmooth > 0)
     {
-      gs = GAUSS_SEIDEL_Create (1E-10, ns->presmooth, 1.0, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
+      gs = GAUSS_SEIDEL_Create (1.0, ns->presmooth, ns->meritval, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
       gs->verbose = 0;
-      gs->nomerit = 1;
+      GAUSS_SEIDEL_Solve (gs, ldy);
 #if MPI
       if (ldy->dom->rank == 0)
 #endif
       if (ldy->dom->verbose)
       {
 	printf ("NEWTON_SOLVER: presmoothing ");
-	for (gt = 0; gt < ns->presmooth; gt ++) printf (".");
+	for (gt = 0; gt < gs->iters; gt ++) printf (".");
 	printf ("\n");
       }
-      GAUSS_SEIDEL_Solve (gs, ldy);
       GAUSS_SEIDEL_Destroy (gs);
+
+      if (ldy->dom->merit <= ns->meritval) goto end;
     }
 
     sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
-    ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
     A = create_private_data (ns, ldy);
     dynamic = ldy->dom->dynamic;
     merit = &ldy->dom->merit;
@@ -763,7 +765,6 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
     *merit = MERIT_Function (ldy, 0);
     theta0 = ns->theta;
     merit0 = *merit;
-    ns->iters = 0;
     div = 1;
     gt = 0;
 
@@ -795,11 +796,6 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
       ns->iters ++;
     }
 
-#if MPI
-    if (ldy->dom->rank == 0)
-#endif
-    if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
-
     if (*merit > merit0)
     {
       reset (A);
@@ -815,6 +811,12 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
     destroy_private_data (A);
 
     ns->theta = theta0;
+
+end:
+#if MPI
+    if (ldy->dom->rank == 0)
+#endif
+    if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
   }
 }
 
