@@ -3293,7 +3293,7 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     PARSEKEYS ("|diOddi", &meritval, &maxiter, &locdyn, &theta, &epsilon, &presmooth);
 
     TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (locdyn, kwl[2]) &&
-      is_gt_le (theta, kwl[3], 0, 0.5) && is_non_negative (epsilon, kwl[4]) && is_non_negative (presmooth, kwl[5]));
+      is_gt_le (theta, kwl[3], 0, 1.0) && is_non_negative (epsilon, kwl[4]) && is_non_negative (presmooth, kwl[5]));
 
     self->ns = NEWTON_Create (meritval, maxiter);
     self->ns->theta = theta;

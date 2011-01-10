@@ -5247,7 +5247,7 @@ locdyn
 \series bold
 theta
 \series default
- - relaxation parameter greater than 0 and not greater than 0.5 (default:
+ - relaxation parameter greater than 0 and not greater than 1 (default:
  0.25); theta is automatically decreased in case of numerical instability;
  smaller initial theta may improve overall convergence behavior
 \end_layout
