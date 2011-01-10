@@ -79,6 +79,8 @@ static int WIDTH = 512, HEIGHT = 512; /* initial width and height of the viewer 
 /* error handler callback */
 static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
 {
+  for (; solfec; solfec = solfec->next) SOLFEC_Abort (solfec); /* abort SOLFEC (flush buffers) */
+
   lngfinalize (); /* finalize interpreter: as a result
 		     flush output buffers if possible */
 

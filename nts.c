@@ -739,6 +739,8 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
     int div, gt;
     PRIVATE *A;
 
+    sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
+
     if (ns->locdyn == LOCDYN_ON && ns->presmooth > 0)
     {
       gs = GAUSS_SEIDEL_Create (1.0, ns->presmooth, ns->meritval, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
@@ -759,7 +761,6 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
       if (ldy->dom->merit <= ns->meritval) goto end;
     }
 
-    sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
     A = create_private_data (ns, ldy);
     dynamic = ldy->dom->dynamic;
     merit = &ldy->dom->merit;
