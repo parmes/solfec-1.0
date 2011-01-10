@@ -372,7 +372,8 @@ inline static int body_has_changed (BODY *bod)
 /* block updatable test */
 static int needs_update (CON *dia, BODY *bod, CON *off, double *W)
 {
-  if (W [8] == 0.0) return 1; /* not initialized */
+  if (!W) return 1; /* new off-diagonal blocks */
+  else if (W [8] == 0.0) return 1; /* not initialized */
   else if (body_has_changed (bod)) return 1;
   else if (dia == off && dia->slave && body_has_changed (dia->slave)) return 1; /* diagonal */
   else if (dia->kind == CONTACT || dia->kind == RIGLNK ||
