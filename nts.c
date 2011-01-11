@@ -32,10 +32,15 @@
 #include "err.h"
 #include "vic.h"
 #include "mrf.h"
+#include "lis.h"
 #include "ext/krylov/krylov.h"
 
 #if CUDA
 #include "cuda/cuda.h"
+#endif
+
+#if MPI
+#include "pck.h"
 #endif
 
 typedef struct con_data CON_DATA;
@@ -55,6 +60,8 @@ struct con_data
 
   double DR [3], /* reaction increment */
 	 R0 [3]; /* initial reaction */
+
+  CON_DATA *next; /* list */
 };
 
 struct private
@@ -200,6 +207,98 @@ static void H_times_u (double *a, CON_DATA *dat, CON_DATA *end, double *u)
       r = gather (p, dat->sj, dat->sH->n, a);
 
       MX_Matvec (1.0, dat->sH, r, 1.0, q);
+    }
+  }
+}
+
+/* subset U = W R + B */
+static void U_WR_B_list (PRIVATE *A, CON_DATA *list)
+{
+#if MPI
+  /* send reactions from the 'list' to their external locations */
+  int nsend, nrecv, *isize, *dsize, i, *j, *k;
+  COMDATA *send, *recv, *ptr;
+  CON_DATA *dat;
+  double *R;
+  CON *con;
+  SET *item;
+  DOM *dom;
+
+  dom = A->dom;
+  nsend = dom->ncpu;
+  ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend])));
+  ERRMEM (isize = MEM_CALLOC (sizeof (int [nsend])));
+  ERRMEM (dsize = MEM_CALLOC (sizeof (int [nsend])));
+
+  for (i = 0; i < nsend; i ++) send [i].rank = i;
+
+  for (dat = list; dat; dat = dat->next)
+  {
+    con = dat->con;
+    for (item = SET_First (con->ext); item; item = SET_Next (item))
+    {
+      i = (int) (long) item->data;
+      ptr = &send [i];
+      pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
+      pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, con->R, 3);
+    }
+  }
+
+  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+
+  for (i = 0; i < nrecv; i ++)
+  {
+    ptr = &recv [i];
+    for (j = ptr->i, k = j + ptr->ints, R = ptr->d; j < k; j ++, R += 3)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) ABS(*j), NULL), "Invalid con id: %d", ABS(*j));
+      COPY (R, con->R);
+    }
+  }
+
+  for (i = 0; i < nsend; i ++)
+  {
+    ptr = &send [i];
+    free (ptr->i);
+    free (ptr->d);
+  }
+  free (send);
+  free (isize);
+  free (dsize);
+  free (recv); /* includes recv[]->i and recv[]->d memory */
+#endif
+
+  if (A->ns->locdyn == LOCDYN_ON)
+  {
+    double *W, *R, *U, *B;
+    CON_DATA *dat;
+    DIAB *dia;
+    OFFB *blk;
+    CON *con;
+
+    for (dat = list; dat; dat = dat->next)
+    {
+      con = dat->con;
+      dia = con->dia;
+      W = dia->W;
+      R = con->R;
+      U = con->U;
+      B = dia->B;
+      NVADDMUL (B, W, R, U);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	R = blk->dia->R;
+	W = blk->W;
+	NVADDMUL (U, W, R, U);
+      }
+#if MPI
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	R = CON (blk->dia)->R;
+	W = blk->W;
+	NVADDMUL (U, W, R, U);
+      }
+#endif
     }
   }
 }
@@ -575,7 +674,7 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
   double T [9], b [3], gamma = 1.0 - theta;
   int ipiv [3];
 
-  for (; dat != end; dat ++)
+  for (; dat != end; dat = end ? dat + 1 : dat->next)
   {
     CON *con = dat->con;
     DIAB *dia = con->dia;
@@ -701,6 +800,10 @@ static void reset (PRIVATE *A)
   U_WR_B (A);
 }
 
+/* constraint data sort */
+#define DLE(i, j) ((i)->con->merit >= (j)->con->merit)
+IMPLEMENT_LIST_SORT (SINGLE_LINKED, list_sort, CON_DATA, prev, next, DLE)
+
 /* create solver */
 NEWTON* NEWTON_Create (double meritval, int maxiter)
 {
@@ -712,7 +815,8 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->locdyn = LOCDYN_ON;
   ns->theta = 0.25;
   ns->epsilon = 1E-9;
-  ns->presmooth = 10;
+  ns->presmooth = 0;
+  ns->refine = 8;
 
   return ns;
 }
@@ -773,6 +877,21 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 
     while (ns->iters < ns->maxiter && *merit > ns->meritval)
     {
+      if (ns->locdyn == LOCDYN_ON && ns->iters)
+      {
+	int i, n;
+	CON_DATA *list = NULL, *dat;
+	for (dat = A->dat; dat != A->end; dat ++) { dat->next = list; list = dat; } /* create list */
+	list = list_sort (list); /* sort => biggest merit first */
+	for (n = ns->refine; n >= 1; n /= 2)
+	{
+	  for (dat = list, i = 0; dat && i < n; dat = dat->next);
+	  if (dat) dat->next = NULL;
+	  solve (list, NULL, dynamic, step, ns->theta, ns->epsilon);
+	  U_WR_B_list (A, list);
+	}
+      }
+
       solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
 
       U_WR_B (A);

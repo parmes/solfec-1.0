@@ -77,16 +77,28 @@ static int WIDTH = 512, HEIGHT = 512; /* initial width and height of the viewer 
 
 #if MPI_VERSION >= 2
 /* error handler callback */
-static void MPI_error_handling (MPI_Comm *comm, int *arg, ...)
+static void MPI_error_handling (MPI_Comm *comm, int *err, ...)
 {
-  for (; solfec; solfec = solfec->next) SOLFEC_Abort (solfec); /* abort SOLFEC (flush buffers) */
+  if (*err != MPI_SUCCESS)
+  {
+    if (*err == MPI_ERR_COMM)
+    {
+      fprintf (stderr, "MPI error: Invalid communicator\n"), fflush (stderr);
+    }
+    else if (*err == MPI_ERR_OTHER)
+    {
+      char str [MPI_MAX_ERROR_STRING];
+      int len;
 
-  lngfinalize (); /* finalize interpreter: as a result
-		     flush output buffers if possible */
+      MPI_Error_string (*err, str, &len);
+      fprintf (stderr, "MPI error: %s\n", str), fflush (stderr);
+    }
 
-  MPI_Abort (MPI_COMM_WORLD, 999);
+    for (; solfec; solfec = solfec->next) SOLFEC_Abort (solfec); /* abort SOLFEC (flush buffers) */
 
-  exit (1);
+    lngfinalize (); /* finalize interpreter: as a result
+		       flush output buffers if possible */
+  }
 }
 
 /* set up MPI global error handler */

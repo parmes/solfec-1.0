@@ -5198,7 +5198,8 @@ Object of type NEWTON_SOLVER represents a projected quasi-Newton constraints
 \end_layout
 
 \begin_layout Subsection*
-obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, theta, epsilon, presmooth)
+obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, theta, epsilon, presmooth,
+ refine)
 \end_layout
 
 \begin_layout Itemize
@@ -5271,6 +5272,15 @@ presmooth
 locdyn
 \series default
  value is 'ON'
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+refine
+\series default
+ - number of constraints with largest error to be refined at each iteration
+ (default: 8)
 \end_layout
 
 \begin_layout Standard

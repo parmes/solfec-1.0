@@ -309,10 +309,21 @@ static int init (SOLFEC *sol)
 /* initial statistics */
 static void initstatsout (DOM *dom)
 {
-  printf ("----------------------------------------------------------------------------------------\n");
-  printf ("INITAILLY DOFS %d, BODIES: %d (OBS: %d, RIG %d, PRB: %d, FEM: %d)\n",
-      dom->dofs, dom->nbod, dom->nobs, dom->nrig, dom->nprb, dom->nfem);
-  printf ("----------------------------------------------------------------------------------------\n");
+#if MPI
+  int inp[] = {dom->dofs, dom->nbod, dom->nobs, dom->nrig, dom->nprb, dom->nfem}, vec[6];
+
+  MPI_Reduce (inp, vec, 6, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+  if (dom->rank == 0)
+#else
+  int vec[] = {dom->dofs, dom->nbod, dom->nobs, dom->nrig, dom->nprb, dom->nfem};
+#endif
+  {
+    printf ("----------------------------------------------------------------------------------------\n");
+    printf ("INITAILLY DOFS %d, BODIES: %d (OBS: %d, RIG %d, PRB: %d, FEM: %d)\n",
+	    vec [0], vec [1], vec [2], vec [3], vec [4], vec [5]);
+    printf ("----------------------------------------------------------------------------------------\n");
+  }
 }
 
 /* output statistics */
@@ -542,7 +553,6 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     sol->duration = PUT_double_min (sol->duration);
     /* TODO: make this more efficient by using a single call */
 
-    if (sol->dom->rank == 0)
 #endif
     if (sol->dom->time == 0.0) initstatsout (sol->dom); /* print out initial statistics */
 
