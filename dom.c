@@ -2352,16 +2352,6 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   /* assign domain */
   bod->dom = dom;
 
-  /* detailed stats */
-  switch (bod->kind)
-  {
-  case OBS: dom->nobs ++; break;
-  case RIG: dom->nrig ++; break;
-  case PRB: dom->nprb ++; break;
-  case FEM: dom->nfem ++; break;
-  }
-  dom->dofs += bod->dofs;
-
 #if MPI
   /* insert into the set of all created bodies */
   MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
@@ -2389,6 +2379,16 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
     /* increment */
     dom->nbod ++;
 
+    /* detailed stats */
+    switch (bod->kind)
+    {
+    case OBS: dom->nobs ++; break;
+    case RIG: dom->nrig ++; break;
+    case PRB: dom->nprb ++; break;
+    case FEM: dom->nfem ++; break;
+    }
+    dom->dofs += bod->dofs;
+
     /* schedule insertion mark in the output */
     if (dom->time > 0) SET_Insert (&dom->setmem, &dom->newb, bod, NULL);
 #if MPI
@@ -2413,38 +2413,36 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   /* free constraint set */
   SET_Free (&dom->setmem, &con);
 
-  /* detailed stats */
-  switch (bod->kind)
-  {
-  case OBS: dom->nobs --; break;
-  case RIG: dom->nrig --; break;
-  case PRB: dom->nprb --; break;
-  case FEM: dom->nfem --; break;
-  }
-  dom->dofs -= bod->dofs;
-
 #if MPI
   if (bod->flags & BODY_PARENT) /* only parent bodies are in the list and label/id maps */
   {
 #endif
+    /* delete from label based map */
+    if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare)strcmp);
 
-  /* delete from label based map */
-  if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare)strcmp);
+    /* delete from id based map */
+    MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) bod->id, NULL);
 
-  /* delete from id based map */
-  MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) bod->id, NULL);
+    /* remove from list */
+    if (bod->prev) bod->prev->next = bod->next;
+    else dom->bod = bod->next;
+    if (bod->next) bod->next->prev = bod->prev;
 
-  /* remove from list */
-  if (bod->prev) bod->prev->next = bod->next;
-  else dom->bod = bod->next;
-  if (bod->next) bod->next->prev = bod->prev;
+    /* decrement */
+    dom->nbod --;
 
-  /* decrement */
-  dom->nbod --;
+    /* detailed stats */
+    switch (bod->kind)
+    {
+    case OBS: dom->nobs --; break;
+    case RIG: dom->nrig --; break;
+    case PRB: dom->nprb --; break;
+    case FEM: dom->nfem --; break;
+    }
+    dom->dofs -= bod->dofs;
 
-  /* schedule deletion mark in the output */
-  if (dom->time > 0) SET_Insert (&dom->setmem, &dom->delb, (void*) (long) bod->id, NULL);
-
+    /* schedule deletion mark in the output */
+    if (dom->time > 0) SET_Insert (&dom->setmem, &dom->delb, (void*) (long) bod->id, NULL);
 #if MPI
   }
 
