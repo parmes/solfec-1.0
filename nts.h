@@ -42,7 +42,7 @@ struct newton
 
   int presmooth; /* presmoothing steps bound */
 
-  int refine; /* refined constraints count */
+  double refine; /* % of refined constraints */
 
   /* output */
 

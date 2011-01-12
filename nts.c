@@ -40,7 +40,7 @@
 #endif
 
 #if MPI
-#include "pck.h"
+#include "tag.h"
 #endif
 
 typedef struct con_data CON_DATA;
@@ -79,6 +79,13 @@ struct private
   double *u, /* body space velocity */
          *r, /* body space reaction */
 	 *a; /* auxiliary vector */
+
+#if MPI
+  SET *inner, *boundary;
+  COMDATA *send, *recv;
+  int nsend, nrecv;
+  void *pattern; /* non-blocking communication pattern */
+#endif
 };
 
 /* convert a sparse matrix into a dense one */
@@ -216,7 +223,7 @@ static void U_WR_B_list (PRIVATE *A, CON_DATA *list)
 {
 #if MPI
   /* send reactions from the 'list' to their external locations */
-  int nsend, nrecv, *isize, *dsize, i, *j, *k;
+  int nsend, nrecv, i, *j, *k;
   COMDATA *send, *recv, *ptr;
   CON_DATA *dat;
   double *R;
@@ -225,22 +232,19 @@ static void U_WR_B_list (PRIVATE *A, CON_DATA *list)
   DOM *dom;
 
   dom = A->dom;
-  nsend = dom->ncpu;
+  for (dat = list, nsend = 0; dat; dat = dat->next) nsend += SET_Size (dat->con->ext);
   ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend])));
-  ERRMEM (isize = MEM_CALLOC (sizeof (int [nsend])));
-  ERRMEM (dsize = MEM_CALLOC (sizeof (int [nsend])));
 
-  for (i = 0; i < nsend; i ++) send [i].rank = i;
-
-  for (dat = list; dat; dat = dat->next)
+  for (dat = list, ptr = send; dat; dat = dat->next)
   {
     con = dat->con;
-    for (item = SET_First (con->ext); item; item = SET_Next (item))
+    for (item = SET_First (con->ext); item; item = SET_Next (item), ptr ++)
     {
-      i = (int) (long) item->data;
-      ptr = &send [i];
-      pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
-      pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, con->R, 3);
+      ptr->ints = 1;
+      ptr->d = con->R;
+      ptr->doubles = 3;
+      ptr->i = (int*) &con->id;
+      ptr->rank = (int) (long) item->data;
     }
   }
 
@@ -251,21 +255,13 @@ static void U_WR_B_list (PRIVATE *A, CON_DATA *list)
     ptr = &recv [i];
     for (j = ptr->i, k = j + ptr->ints, R = ptr->d; j < k; j ++, R += 3)
     {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) ABS(*j), NULL), "Invalid con id: %d", ABS(*j));
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid con id: %d", *j);
       COPY (R, con->R);
     }
   }
 
-  for (i = 0; i < nsend; i ++)
-  {
-    ptr = &send [i];
-    free (ptr->i);
-    free (ptr->d);
-  }
   free (send);
-  free (isize);
-  free (dsize);
-  free (recv); /* includes recv[]->i and recv[]->d memory */
+  free (recv);
 #endif
 
   if (A->ns->locdyn == LOCDYN_ON)
@@ -303,15 +299,122 @@ static void U_WR_B_list (PRIVATE *A, CON_DATA *list)
   }
 }
 
+#if MPI
+static void update_external_reactions (PRIVATE *A)
+{
+  DOM *dom = A->dom;
+  int i, *j, *k;
+  COMDATA *ptr;
+  double *R;
+  CON *con;
+
+  for (i = 0; i < A->nrecv; i ++)
+  {
+    ptr = &A->recv [i];
+    for (j = ptr->i, k = j + ptr->ints, R = ptr->d; j < k; j ++, R += 3)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid con id: %d", *j);
+      COPY (R, con->R);
+    }
+  }
+}
+#endif
+
 /* U = W R + B */
 static void U_WR_B (PRIVATE *A)
 {
 #if MPI
-  DOM_Update_External_Reactions (A->dom, 0);
+  if (A->pattern == NULL) /* initialize communication pattern */
+  {
+    CON_DATA *dat;
+    COMDATA *ptr;
+    SET *item;
+    CON *con;
+
+    for (dat = A->dat, A->nsend = 0, A->inner = A->boundary = NULL; dat != A->end; dat ++) 
+    {
+      con = dat->con;
+      if (con->ext)
+      {
+        A->nsend += SET_Size (con->ext);
+	SET_Insert (NULL, &A->boundary, con, NULL); /* boundary constraints */
+      }
+      else SET_Insert (NULL, &A->inner, con, NULL); /* inner constraints */
+    }
+    ERRMEM (A->send = MEM_CALLOC (sizeof (COMDATA [A->nsend])));
+
+    for (dat = A->dat, ptr = A->send; dat != A->end; dat ++)
+    {
+      con = dat->con;
+      for (item = SET_First (con->ext); item; item = SET_Next (item), ptr ++)
+      {
+	ptr->ints = 1;
+	ptr->d = con->R;
+	ptr->doubles = 3;
+	ptr->i = (int*) &con->id;
+	ptr->rank = (int) (long) item->data;
+      }
+    }
+
+    A->pattern = COM_Pattern (MPI_COMM_WORLD, TAG_NEWTON, A->send, A->nsend, &A->recv, &A->nrecv);
+  }
 #endif
 
   if (A->ns->locdyn == LOCDYN_ON)
   {
+#if MPI
+    double *W, *R, *U, *B;
+    SET *item;
+    DIAB *dia;
+    OFFB *blk;
+    CON *con;
+
+    COM_Send (A->pattern);
+
+    for (item = SET_First (A->inner); item; item = SET_Next (item)) /* process inner constraints while sending */
+    {
+      con = item->data;
+      dia = con->dia;
+      W = dia->W;
+      R = con->R;
+      U = con->U;
+      B = dia->B;
+      NVADDMUL (B, W, R, U);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	R = blk->dia->R;
+	W = blk->W;
+	NVADDMUL (U, W, R, U);
+      }
+      ASSERT_DEBUG (dia->adjext == NULL, "Inconsistent inner constraint");
+    }
+
+    COM_Recv (A->pattern);
+    update_external_reactions (A);
+
+    for (item = SET_First (A->boundary); item; item = SET_Next (item)) /* process boundary constraints */
+    {
+      con = item->data;
+      dia = con->dia;
+      W = dia->W;
+      R = con->R;
+      U = con->U;
+      B = dia->B;
+      NVADDMUL (B, W, R, U);
+      for (blk = dia->adj; blk; blk = blk->n)
+      {
+	R = blk->dia->R;
+	W = blk->W;
+	NVADDMUL (U, W, R, U);
+      }
+      for (blk = dia->adjext; blk; blk = blk->n)
+      {
+	R = CON (blk->dia)->R;
+	W = blk->W;
+	NVADDMUL (U, W, R, U);
+      }
+    }
+#else
     double *W, *R, *U, *B;
     CON_DATA *dat;
     DIAB *dia;
@@ -333,15 +436,8 @@ static void U_WR_B (PRIVATE *A)
 	W = blk->W;
 	NVADDMUL (U, W, R, U);
       }
-#if MPI
-      for (blk = dia->adjext; blk; blk = blk->n)
-      {
-	R = CON (blk->dia)->R;
-	W = blk->W;
-	NVADDMUL (U, W, R, U);
-      }
-#endif
     }
+#endif
   }
   else
   {
@@ -351,6 +447,11 @@ static void U_WR_B (PRIVATE *A)
     DIAB *dia;
     CON *con;
     int n;
+
+#if MPI
+    COM_Repeat (A->pattern);
+    update_external_reactions (A);
+#endif
 
     step = A->dom->step;
     SETN (A->r, A->ndofs, 0.0);
@@ -665,13 +766,22 @@ static void destroy_private_data (PRIVATE *A)
   free (A->u);
   free (A->r);
   free (A->a);
+
+#if MPI
+  SET_Free (NULL, &A->boundary);
+  SET_Free (NULL, &A->inner);
+  free (A->send);
+  free (A->recv);
+  COM_Free (A->pattern);
+#endif
+
   free (A);
 }
 
 /* single projected semi-Newton step */
-static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, double theta, double epsilon)
+static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, double theta, double epsilon, short locdyn)
 {
-  double T [9], b [3], gamma = 1.0 - theta;
+  double T [9], S [3], b [3], gamma = 1.0 - theta;
   int ipiv [3];
 
   for (; dat != end; dat = end ? dat + 1 : dat->next)
@@ -767,6 +877,11 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
     break;
     }
 
+    if (locdyn == LOCDYN_ON)
+    {
+      COPY (R, S);
+    }
+
     ASSERT (lapack_dgesv (3, 1, T, 3, ipiv, b, 3) == 0, ERR_MTX_LU_FACTOR);
     DR [0] = gamma * DR[0] + theta * b[0];
     DR [1] = gamma * DR[1] + theta * b[1];
@@ -777,6 +892,17 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
     {
       double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
       VIC_Project (con->mat.base->friction, c, R, R);
+    }
+
+    if (locdyn == LOCDYN_ON)
+    {
+      SUB (R, S, S); /* DR = R1 - R0 */
+
+      for (OFFB *blk = dia->adj; blk; blk = blk->n) /* local Gauss-Seidel like update (allows to enlarge stable theta) */
+      {
+	double *U = blk->dia->U, *W = blk->W;
+	TVADDMUL (U, W, S, U); /* U = U0 + W DR */
+      }
     }
   }
 }
@@ -816,7 +942,7 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->theta = 0.25;
   ns->epsilon = 1E-9;
   ns->presmooth = 0;
-  ns->refine = 8;
+  ns->refine = 5;
 
   return ns;
 }
@@ -844,6 +970,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
     PRIVATE *A;
 
     sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
+    merit = &ldy->dom->merit;
 
     if (ns->locdyn == LOCDYN_ON && ns->presmooth > 0)
     {
@@ -867,7 +994,6 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 
     A = create_private_data (ns, ldy);
     dynamic = ldy->dom->dynamic;
-    merit = &ldy->dom->merit;
     step = ldy->dom->step;
     *merit = MERIT_Function (ldy, 0);
     theta0 = ns->theta;
@@ -879,20 +1005,20 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
     {
       if (ns->locdyn == LOCDYN_ON && ns->iters)
       {
-	int i, n;
-	CON_DATA *list = NULL, *dat;
-	for (dat = A->dat; dat != A->end; dat ++) { dat->next = list; list = dat; } /* create list */
-	list = list_sort (list); /* sort => biggest merit first */
-	for (n = ns->refine; n >= 1; n /= 2)
+	int i, n = ns->refine * A->dom->ncon;
+	if (n)
 	{
-	  for (dat = list, i = 0; dat && i < n; dat = dat->next);
+	  CON_DATA *list = NULL, *dat;
+	  for (dat = A->dat; dat != A->end; dat ++) { dat->next = list; list = dat; } /* create list */
+	  list = list_sort (list); /* sort => biggest merit first */
+	  for (dat = list, i = 0; dat && i < n; dat = dat->next) i ++;
 	  if (dat) dat->next = NULL;
-	  solve (list, NULL, dynamic, step, ns->theta, ns->epsilon);
+	  solve (list, NULL, dynamic, step, ns->theta, ns->epsilon, ns->locdyn);
 	  U_WR_B_list (A, list);
 	}
       }
 
-      solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
+      solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon, ns->locdyn);
 
       U_WR_B (A);
 

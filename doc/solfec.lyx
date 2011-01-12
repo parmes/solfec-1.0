@@ -5279,8 +5279,12 @@ locdyn
 \series bold
 refine
 \series default
- - number of constraints with largest error to be refined at each iteration
- (default: 8)
+ - percentage of constraints with largest error to be refined at each iteration
+ (default: 5); refinement is only performed when 
+\series bold
+locdyn
+\series default
+ value is 'ON'
 \end_layout
 
 \begin_layout Standard
