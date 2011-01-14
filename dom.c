@@ -1200,7 +1200,7 @@ static void update_external_riglnk_points (DOM *dom)
 
   for (con = dom->con; con; con = con->next)
   {
-    for (item = SET_First (con->ext); item; item = SET_Next (item))
+    for (item = SET_First (con->ext); item; item = SET_Next (item)) /* FIXME: why for all kinds => riglnk ? */
     {
       i = (int) (long) item->data;
       ptr = &send [i];
@@ -1696,6 +1696,13 @@ static void domain_balancing (DOM *dom)
   Zoltan_Set_Param (dom->zol, "RCB_LOCK_DIRECTIONS", str);
   snprintf (str, 128, "%g", dom->degenerate_ratio);
   Zoltan_Set_Param (dom->zol, "DEGENERATE_RATIO", str);
+
+#if MPI && DEBUG
+  for (con = dom->con, i = 0; con; con = con->next, i ++);
+  ASSERT_DEBUG (i == dom->ncon, "Inconsistent constraints count");
+  for (bod = dom->bod, i = 0; bod; bod = bod->next, i ++);
+  ASSERT_DEBUG (i == dom->nbod, "Inconsistent bodies count");
+#endif
 
   /* update body partitioning */
   ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
@@ -2686,7 +2693,6 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 #if MPI
   }
 #endif
-
 }
 
 /* set simulation scene extents */

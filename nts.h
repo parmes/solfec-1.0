@@ -42,8 +42,6 @@ struct newton
 
   int presmooth; /* presmoothing steps bound */
 
-  double refine; /* % of refined constraints */
-
   /* output */
 
   double *merhist; /* merit function history */

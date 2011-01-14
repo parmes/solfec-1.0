@@ -45,7 +45,7 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.
 if solver == 'GAUSS_SEIDEL':
   sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-5, diagsolver = 'SEMISMOOTH_NEWTON')
 elif solver == 'NEWTON':
-  sv = NEWTON_SOLVER (1E-5, 200, theta = 0.3, refine = 10, presmooth = 5)
+  sv = NEWTON_SOLVER (1E-5, 200, theta = 0.15, presmooth = 5)
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 
