@@ -60,8 +60,6 @@ struct con_data
 
   double DR [3], /* reaction increment */
 	 R0 [3]; /* initial reaction */
-
-  CON_DATA *next; /* list */
 };
 
 struct private
@@ -214,87 +212,6 @@ static void H_times_u (double *a, CON_DATA *dat, CON_DATA *end, double *u)
       r = gather (p, dat->sj, dat->sH->n, a);
 
       MX_Matvec (1.0, dat->sH, r, 1.0, q);
-    }
-  }
-}
-
-/* subset U = W R + B */
-static void U_WR_B_list (PRIVATE *A, CON_DATA *list)
-{
-#if MPI
-  /* send reactions from the 'list' to their external locations */
-  int nsend, nrecv, i, *j, *k;
-  COMDATA *send, *recv, *ptr;
-  CON_DATA *dat;
-  double *R;
-  CON *con;
-  SET *item;
-  DOM *dom;
-
-  dom = A->dom;
-  for (dat = list, nsend = 0; dat; dat = dat->next) nsend += SET_Size (dat->con->ext);
-  ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend])));
-
-  for (dat = list, ptr = send; dat; dat = dat->next)
-  {
-    con = dat->con;
-    for (item = SET_First (con->ext); item; item = SET_Next (item), ptr ++)
-    {
-      ptr->ints = 1;
-      ptr->d = con->R;
-      ptr->doubles = 3;
-      ptr->i = (int*) &con->id;
-      ptr->rank = (int) (long) item->data;
-    }
-  }
-
-  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
-
-  for (i = 0; i < nrecv; i ++)
-  {
-    ptr = &recv [i];
-    for (j = ptr->i, k = j + ptr->ints, R = ptr->d; j < k; j ++, R += 3)
-    {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid con id: %d", *j);
-      COPY (R, con->R);
-    }
-  }
-
-  free (send);
-  free (recv);
-#endif
-
-  if (A->ns->locdyn == LOCDYN_ON)
-  {
-    double *W, *R, *U, *B;
-    CON_DATA *dat;
-    DIAB *dia;
-    OFFB *blk;
-    CON *con;
-
-    for (dat = list; dat; dat = dat->next)
-    {
-      con = dat->con;
-      dia = con->dia;
-      W = dia->W;
-      R = con->R;
-      U = con->U;
-      B = dia->B;
-      NVADDMUL (B, W, R, U);
-      for (blk = dia->adj; blk; blk = blk->n)
-      {
-	R = blk->dia->R;
-	W = blk->W;
-	NVADDMUL (U, W, R, U);
-      }
-#if MPI
-      for (blk = dia->adjext; blk; blk = blk->n)
-      {
-	R = CON (blk->dia)->R;
-	W = blk->W;
-	NVADDMUL (U, W, R, U);
-      }
-#endif
     }
   }
 }
@@ -779,12 +696,12 @@ static void destroy_private_data (PRIVATE *A)
 }
 
 /* single projected semi-Newton step */
-static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, double theta, double epsilon, short locdyn)
+static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, double theta, double epsilon)
 {
-  double T [9], S [3], b [3], gamma = 1.0 - theta;
+  double T [9], b [3], gamma = 1.0 - theta;
   int ipiv [3];
 
-  for (; dat != end; dat = end ? dat + 1 : dat->next)
+  for (; dat != end; dat ++)
   {
     CON *con = dat->con;
     DIAB *dia = con->dia;
@@ -877,11 +794,6 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
     break;
     }
 
-    if (locdyn == LOCDYN_ON)
-    {
-      COPY (R, S);
-    }
-
     ASSERT (lapack_dgesv (3, 1, T, 3, ipiv, b, 3) == 0, ERR_MTX_LU_FACTOR);
     DR [0] = gamma * DR[0] + theta * b[0];
     DR [1] = gamma * DR[1] + theta * b[1];
@@ -892,17 +804,6 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
     {
       double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
       VIC_Project (con->mat.base->friction, c, R, R);
-    }
-
-    if (locdyn == LOCDYN_ON)
-    {
-      SUB (R, S, S); /* DR = R1 - R0 */
-
-      for (OFFB *blk = dia->adj; blk; blk = blk->n) /* local Gauss-Seidel like update (allows to enlarge stable theta) */
-      {
-	double *U = blk->dia->U, *W = blk->W;
-	TVADDMUL (U, W, S, U); /* U = U0 + W DR */
-      }
     }
   }
 }
@@ -926,10 +827,6 @@ static void reset (PRIVATE *A)
   U_WR_B (A);
 }
 
-/* constraint data sort */
-#define DLE(i, j) ((i)->con->merit >= (j)->con->merit)
-IMPLEMENT_LIST_SORT (SINGLE_LINKED, list_sort, CON_DATA, prev, next, DLE)
-
 /* create solver */
 NEWTON* NEWTON_Create (double meritval, int maxiter)
 {
@@ -942,7 +839,6 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->theta = 0.25;
   ns->epsilon = 1E-9;
   ns->presmooth = 0;
-  ns->refine = 5;
 
   return ns;
 }
@@ -1003,22 +899,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 
     while (ns->iters < ns->maxiter && *merit > ns->meritval)
     {
-      if (ns->locdyn == LOCDYN_ON && ns->iters)
-      {
-	int i, n = ns->refine * A->dom->ncon;
-	if (n)
-	{
-	  CON_DATA *list = NULL, *dat;
-	  for (dat = A->dat; dat != A->end; dat ++) { dat->next = list; list = dat; } /* create list */
-	  list = list_sort (list); /* sort => biggest merit first */
-	  for (dat = list, i = 0; dat && i < n; dat = dat->next) i ++;
-	  if (dat) dat->next = NULL;
-	  solve (list, NULL, dynamic, step, ns->theta, ns->epsilon, ns->locdyn);
-	  U_WR_B_list (A, list);
-	}
-      }
-
-      solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon, ns->locdyn);
+      solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
 
       U_WR_B (A);
 

@@ -19,10 +19,6 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#if OWNASYNC
-#include <pthread.h>
-#endif
-
 #include <stdlib.h>
 #include <limits.h>
 #include <mpi.h>
