@@ -28,6 +28,8 @@
 #include "set.h"
 #endif
 
+typedef struct { void *p; size_t margin; } PTR; /* pointer with margin */
+
 void* MEM_CALLOC (size_t size)
 {
   void *chunk;
@@ -45,7 +47,7 @@ void MEM_Init (MEM *pool, size_t chunksize, size_t chunksinblock)
 
   /* set chunksize not less than 'unsigned long' size
    * as wee plan to use chunks as items of 'deadchunks' list */
-  pool->chunksize = (chunksize > sizeof(size_t) ? chunksize : sizeof(size_t));
+  pool->chunksize = (chunksize > sizeof(PTR) ? chunksize : sizeof(PTR));
   pool->chunksinblock = chunksinblock;
   pool->blocks = NULL;
   pool->freechunk = NULL;
@@ -71,7 +73,7 @@ void* MEM_Alloc (MEM *pool)
   { /* if there are deallocated chunks, get one */
 	  
     chunk = pool->deadchunks;
-    pool->deadchunks = (void *)*((size_t*)pool->deadchunks);
+    pool->deadchunks = ((PTR*)pool->deadchunks)->p;
     memset (chunk, 0, pool->chunksize);
     return chunk;
   }
@@ -79,15 +81,15 @@ void* MEM_Alloc (MEM *pool)
   { /* else if we need to allocate a new block ... */
    
     /* allocate a block of memory */
-    block = malloc (pool->chunksize * pool->chunksinblock + sizeof(size_t));
+    block = malloc (pool->chunksize * pool->chunksinblock + sizeof(PTR));
     if (!block) return NULL; /* do not exit() here */
-    memset (block, 0, pool->chunksize * pool->chunksinblock + sizeof(size_t));
+    memset (block, 0, pool->chunksize * pool->chunksinblock + sizeof(PTR));
    
     /* insert allocated block into the list */
-    *((size_t*)block) = (size_t)pool->blocks;
+    ((PTR*)block)->p = pool->blocks;
     pool->blocks = block;
     /* set free and last chunk */
-    pool->freechunk = (char *)block + sizeof(size_t);
+    pool->freechunk = (char*)block + sizeof(PTR);
     pool->lastchunk = pool->freechunk + pool->chunksize * pool->chunksinblock;
   }
 
@@ -105,7 +107,7 @@ void MEM_Free (MEM *pool, void *chunk)
   free (chunk);
 #else
   /* insert chunk into dead chunks list */
-  *((size_t*)chunk) = (size_t)pool->deadchunks;
+  ((PTR*)chunk)->p = pool->deadchunks;
   pool->deadchunks = chunk;
 #endif
 }
@@ -116,16 +118,14 @@ size_t MEM_Size (MEM *pool)
   return SET_Size (pool->blocks) * pool->chunksize;
 #else
   size_t size = 0, chunk = pool->chunksize *
-    pool->chunksinblock + sizeof(size_t);
+    pool->chunksinblock + sizeof(PTR);
 
   void *block = pool->blocks;
-  size_t next;
 
   /* loop over all blocks */  
   while (block)
   {
-    next = *((size_t*)block);
-    block = (void*)next;
+    block = ((PTR*)block)->p;
     size += chunk;
   }
 
