@@ -9,8 +9,9 @@ from math import pow
 # * a number > 3 => fixed size model
 
 TEST = 8
-KINEM = 'PSEUDO_RIGID'
-VARIANT = 'FULL'
+KINEM = 'RIGID'
+SOLVER = 'nt'
+SAREA = 0.05
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -51,31 +52,32 @@ def stack_of_cubes_create (material, solfec):
     for y in range (M):
       for z in range (N):
 	shp = cube (x, y, z, 1, 1, 1, 2, 2)
-        BODY (solfec, KINEM, shp, material)
+        b = BODY (solfec, KINEM, shp, material)
+	if KINEM != 'RIGID': b.scheme = 'DEF_LIM2'
 
 ### main module ###
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
 step = 0.001
 
-outdir = 'out/cubes_' + str (TEST) + '_' + KINEM + '_' + VARIANT
+outdir = 'out/cubes_' + str (TEST) + '_' + KINEM
 
 solfec = SOLFEC ('DYNAMIC', step, outdir)
 
-CONTACT_SPARSIFY (solfec, 0.005)
+CONTACT_SPARSIFY (solfec, 0.005, SAREA)
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E5, poisson = 0.25, density = 1E1)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
 
-GRAVITY (solfec, (0, 0, -9.81))
+GRAVITY (solfec, (0, 0, -10))
 
 stack_of_cubes_create (bulkmat, solfec)
 
-#sv = GAUSS_SEIDEL_SOLVER (1E-2, 100, 1E-6)
-#sv.variant = VARIANT
-
-sv = NEWTON_SOLVER (1E-6, 100)
+if SOLVER == 'gs':
+  sv = GAUSS_SEIDEL_SOLVER (1E-2, 1000, 1E-7)
+else:
+  sv = NEWTON_SOLVER (1E-7, 1000)
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 
@@ -84,19 +86,35 @@ OUTPUT (solfec, 1 * step, 'ON')
 MERIT = []
 
 def callback (sv):
-  if solfec.time > step: MERIT.append (sv.merhist)
+  if solfec.time > 0: MERIT.append (sv.merhist)
   return 1
 
 if not VIEWER() and NCPU(solfec) == 1: CALLBACK (solfec, step, sv, callback)
 
-RUN (solfec, sv, 10 * step)
+RUN (solfec, sv, 1 * step)
+
+# Post-processing
+def write_data (t, v, path):
+  out = open (path, 'w')
+  n = min (len(t), len(v))
+  for i in range (n):
+    out.write ('%g\t%g\n' % (t[i], v[i]))
+  out.close ()
 
 if not VIEWER() and NCPU(solfec) == 1 and solfec.mode == 'WRITE':
   try:
     import matplotlib.pyplot as plt
 
+    i = 0
     for M in MERIT:
-      plt.plot (list (range (0, len(M))), M)
+      t = list (range (0, len(M)))
+      plt.plot (t, M)
+      if i == 0:
+	if SAREA > 0.0: kind = 'welld'
+	else: kind = 'overd'
+	path = 'out/cubes_' + SOLVER + '_' + kind + '.dat'
+	write_data (t, M, path)
+      i = i + 1
 
     plt.semilogy (10)
     plt.xlabel ('Iteration')
