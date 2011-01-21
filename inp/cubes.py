@@ -12,6 +12,8 @@ TEST = 8
 KINEM = 'RIGID'
 SOLVER = 'nt'
 SAREA = 0.05
+step = 0.001
+duration = 100 * step
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -58,8 +60,6 @@ def stack_of_cubes_create (material, solfec):
 ### main module ###
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
-step = 0.001
-
 outdir = 'out/cubes_' + str (TEST) + '_' + KINEM
 
 solfec = SOLFEC ('DYNAMIC', step, outdir)
@@ -77,7 +77,7 @@ stack_of_cubes_create (bulkmat, solfec)
 if SOLVER == 'gs':
   sv = GAUSS_SEIDEL_SOLVER (1E-2, 1000, 1E-7)
 else:
-  sv = NEWTON_SOLVER (1E-7, 1000)
+  sv = NEWTON_SOLVER (1E-7, 1000, theta = 0.5)
 
 IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
 
@@ -91,7 +91,7 @@ def callback (sv):
 
 if not VIEWER() and NCPU(solfec) == 1: CALLBACK (solfec, step, sv, callback)
 
-RUN (solfec, sv, 1 * step)
+RUN (solfec, sv, duration)
 
 # Post-processing
 def write_data (t, v, path):
