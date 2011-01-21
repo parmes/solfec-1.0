@@ -47,8 +47,6 @@ struct newton
   double *merhist; /* merit function history */
 
   int iters; /* iterations count */
-
-  int gsits; /* presmoother iterations count (Gauss-Seidel) */
 };
 
 /* create solver */
