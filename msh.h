@@ -105,6 +105,11 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces);
 MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, /* six surfaces are given */
                 int volume, double *dx, double *dy, double *dz); /* spacing of divisions */
 
+/* create pipe like mesh using a point, a direction, an inner radius,
+ * a thickness and subdivison counts along the direction, radius and thickness */
+MESH* MESH_Pipe (double *pnt, double *dir, double rin, double thi,
+                 int ndir, int nrad, int nthi, int *surfaces, int volume); /* surfaces: bottom, top, inner, outer */
+
 /* dummy adjacency update (needed in shp.c) */
 void MESH_Update_Adjacency (MESH *msh);
 

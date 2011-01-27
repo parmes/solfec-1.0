@@ -2134,6 +2134,89 @@ dx =
  shape.
 \end_layout
 
+\begin_layout Subsection*
+obj = PIPE (pnt, dir, rin, thi, ndir, nrad, nthi, volid, surfids)
+\end_layout
+
+\begin_layout Standard
+This routine creates a MESH object corresponding to a pipe (hexahedral elements
+ are used).
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created MESH object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+pnt
+\series default
+ - base point tuple 
+\emph on
+(x, y, z)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+dir
+\series default
+ - direction tuple 
+\emph on
+(dx, dy, dz)
+\emph default
+; length of the pipe equals to the length of the direction
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+rin
+\series default
+ - inner radius
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+thi
+\series default
+ - thickness
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+ndir, nrad, nthi
+\series default
+ - number of subdivisions along the direction, radius and thickness
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfids
+\series default
+ - list of six surface identifiers: [
+\emph on
+s1, s2, ..., s6
+\emph default
+], corresponding to the faces of the hexahedral shape
+\end_layout
+
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label

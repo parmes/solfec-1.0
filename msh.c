@@ -783,6 +783,153 @@ MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, int vol
   return msh;
 }
 
+/* create pipe like mesh using a point, a direction, an inner radius,
+ * a thickness and subdivison counts along the direction, radius and thickness */
+MESH* MESH_Pipe (double *pnt, double *dir, double rin, double thi,
+                 int ndir, int nrad, int nthi, int *surfaces, int volume) /* surfaces: bottom, top, inner, outer */
+{
+  double (*nodes) [3], (*nn) [3];
+  int *elems, *surfs, *ee, *ss;
+
+  int nodes_count = (ndir+1)*nrad*(nthi+1),
+      elems_count = ndir*nrad*nthi;
+
+  double ksi_d, ksi_r, ksi_t, d_ksi_d, d_ksi_r, d_ksi_t;
+  double normal [3], a [3], b [3];
+  int i, j, k;
+  MESH *msh;
+
+  COPY (dir, normal);
+  NORMALIZE (normal);
+  d_ksi_d = LEN (dir) / (double)ndir;
+  d_ksi_r = 2.0*ALG_PI / (double)nrad;
+  d_ksi_t = thi / (double)nthi;
+  a [0] = 1; a [1] = a [2] = 0;
+  PRODUCT (normal, a, b);
+  if (LEN (b) < 1E-10)
+  {
+    a [1] = 1; a [0] = a [2] = 0;
+    PRODUCT (normal, a, b);
+    if (LEN (b) < 1E-10)
+    {
+      a [2] = 1; a [0] = a [1] = 0;
+      PRODUCT (normal, a, b);
+      if (LEN (b) < 1E-10)
+      {
+	ASSERT_DEBUG (0, "Failed to select another direction");
+	return NULL;
+      }
+    }
+  }
+  PRODUCT (normal, b, a); /* a, b PERP normal */
+
+  ERRMEM (nodes = malloc (nodes_count * sizeof (double [3])));
+
+  for (nn = nodes, i = 0, ksi_d = 0.0; i < ndir + 1; i ++, ksi_d += d_ksi_d)
+  {
+    for (j = 0, ksi_r = 0; j < nrad; j ++, ksi_r += d_ksi_r)
+    {
+      for (k = 0, ksi_t = rin; k < nthi + 1; k ++, nn ++, ksi_t += d_ksi_t)
+      {
+	nn [0][0] = pnt [0] + normal [0] * ksi_d + a [0] * ksi_t * sin (ksi_r) + b [0] * ksi_t * cos (ksi_r);
+	nn [0][1] = pnt [1] + normal [1] * ksi_d + a [1] * ksi_t * sin (ksi_r) + b [1] * ksi_t * cos (ksi_r);
+	nn [0][2] = pnt [2] + normal [2] * ksi_d + a [2] * ksi_t * sin (ksi_r) + b [2] * ksi_t * cos (ksi_r);
+      }
+    }
+  }
+
+  ERRMEM (elems = malloc (elems_count * sizeof (int [10]) + sizeof (int)));
+  ERRMEM (surfs = malloc (elems_count * sizeof (int [36]) + sizeof (int [2]))); /* too many */
+  surfs [0] = surfaces [0];
+
+  for (ee = elems, ss = surfs + 1, i = 0; i < ndir; i ++)
+  {
+    for (j = 0; j < nrad; j ++)
+    {
+      for (k = 0; k < nthi; k ++, ee += 10)
+      {
+	if (j < nrad - 1)
+	{
+	  ee [0] = 8;
+	  ee [1] = i*nrad*(nthi+1) + j*(nthi+1) + k;
+	  ee [2] = ee [1] + 1;
+	  ee [3] = i*nrad*(nthi+1) + (j+1)*(nthi+1) + k+1;
+	  ee [4] = ee [3] - 1;
+	  ee [5] = ee [1] + nrad*(nthi+1);
+	  ee [6] = ee [2] + nrad*(nthi+1);
+	  ee [7] = ee [3] + nrad*(nthi+1);
+	  ee [8] = ee [4] + nrad*(nthi+1);
+	  ee [9] = volume;
+	}
+	else
+	{
+	  ee [0] = 8;
+	  ee [1] = i*nrad*(nthi+1) + j*(nthi+1) + k;
+	  ee [2] = ee [1] + 1;
+	  ee [3] = i*nrad*(nthi+1) + k+1;
+	  ee [4] = ee [3] - 1;
+	  ee [5] = ee [1] + nrad*(nthi+1);
+	  ee [6] = ee [2] + nrad*(nthi+1);
+	  ee [7] = ee [3] + nrad*(nthi+1);
+	  ee [8] = ee [4] + nrad*(nthi+1);
+	  ee [9] = volume;
+	}
+
+	if (i == 0)
+	{
+	  ss [0] = 4;
+	  ss [1] = ee [1];
+	  ss [2] = ee [2];
+	  ss [3] = ee [3];
+	  ss [4] = ee [4];
+	  ss [5] = surfaces [0];
+	  ss += 6;
+	}
+	if (i == ndir - 1)
+	{
+          ss [0] = 4;
+	  ss [1] = ee [5];
+	  ss [2] = ee [6];
+	  ss [3] = ee [7];
+	  ss [4] = ee [8];
+	  ss [5] = surfaces [1];
+	  ss += 6;
+	}
+	if (k == 0)
+	{
+          ss [0] = 4;
+	  ss [1] = ee [1];
+	  ss [2] = ee [4];
+	  ss [3] = ee [5];
+	  ss [4] = ee [8];
+	  ss [5] = surfaces [2];
+	  ss += 6;
+	}
+        if (k == nthi - 1)
+	{
+          ss [0] = 4;
+	  ss [1] = ee [2];
+	  ss [2] = ee [3];
+	  ss [3] = ee [6];
+	  ss [4] = ee [7];
+	  ss [5] = surfaces [3];
+	  ss += 6;
+	}
+      }
+    }
+  }
+  ee [0] = 0;
+  ss [0] = 0;
+
+  msh = MESH_Create (nodes, elems, surfs);
+
+  free (nodes);
+  free (elems);
+  free (surfs);
+
+  return msh;
+}
+
 /* dummy adjacency update (needed in shp.c) */
 void MESH_Update_Adjacency (MESH *msh)
 {

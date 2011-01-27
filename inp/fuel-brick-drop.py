@@ -41,11 +41,11 @@ def scene_generate (material, solfec, kinematics):
 
   scene_base (material, solfec)
 
-  shp = gcore_brick (0, 0, 0)
-  TRANSLATE (shp, (0, 0, 0.11))
+  shp = gcore_brick (0, 0, 0.11)
+  msh = PIPE ((0, 0, 0.11), (0, 0, 0.45), 0.125, 0.13, 3, 8, 2, 0, [0, 0, 0, 0])
   ROTATE (shp, (0, 0, 0.11), (1, 1, 1), 35)
-  msh = ROUGH_HEX (shp, 2, 2, 2)
-  BODY (solfec , kinematics, shp, material, mesh=msh)
+  ROTATE (msh, (0, 0, 0.11), (1, 1, 1), 35)
+  BODY (solfec , kinematics, shp, material, mesh = msh)
 
 def scene_run (solver, kinematics):
 
