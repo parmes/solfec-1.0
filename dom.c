@@ -44,6 +44,15 @@
 #define MAPBLK 128 /* map items memory block size */
 #define SETBLK 128 /* set items memory block size */
 
+/* excluded surface pairs comparison */
+static int pair_compare (int *a, int *b)
+{
+  if (a[0] < b[0]) return -1;
+  else if (a[0] == b[0] && a[1] < b[1]) return -1;
+  else if (a[0] == b[0] && a[1] == b[1]) return 0;
+  else return 1;
+}
+
 /* create aabb data */
 static AABB_DATA* aabb_create_data (void)
 {
@@ -335,8 +344,8 @@ static int contact_exists (BOX *one, BOX *two)
 static void overlap_create (DOM *dom, BOX *one, BOX *two)
 {
   double onepnt [3], twopnt [3], normal [3], gap, area;
+  int state, spair [2], pair [2];
   SURFACE_MATERIAL *mat;
-  int state, spair [2];
   short paircode;
   CON *con;
 
@@ -356,6 +365,14 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
 
     /* set surface pair data if there was a contact */
     mat = SPSET_Find (dom->sps, spair [0], spair [1]);
+
+    if (dom->excluded)
+    {
+      if (spair [0] <= spair [1]) { pair [0] = spair [0]; pair [1] = spair [1]; }
+      else { pair [0] = spair [1]; pair [1] = spair [0]; }
+
+      if (SET_Contains (dom->excluded, pair, (SET_Compare) pair_compare)) return; /* exluded pair */
+    }
   }
 
   switch (state)
@@ -2302,6 +2319,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   MEM_Init (&dom->mapmem, sizeof (MAP), MAPBLK);
   MEM_Init (&dom->setmem, sizeof (SET), SETBLK);
   MEM_Init (&dom->sgpmem, sizeof (SGP), CONBLK);
+  MEM_Init (&dom->excmem, sizeof (int [2]), SETBLK);
   dom->sparebid = NULL;
   dom->bid = 1;
   dom->lab = NULL;
@@ -2311,6 +2329,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->delb = NULL;
   dom->newb = NULL;
   dom->sparecid = NULL;
+  dom->excluded = NULL;
   dom->cid = 1;
   dom->idc= NULL;
   dom->con = NULL;
@@ -3092,6 +3111,25 @@ int DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con)
   return dom_read_constraint (dom, bf, con);
 }
 
+/* exclude contact between a pair of surfaces */
+void DOM_Exclude_Contact (DOM *dom, int surf1, int surf2)
+{
+  int *pair;
+
+  ERRMEM (pair = MEM_Alloc (&dom->excmem));
+  if (surf1 <= surf2)
+  {
+    pair [0] = surf1;
+    pair [1] = surf2;
+  }
+  else
+  {
+    pair [0] = surf2;
+    pair [1] = surf1;
+  }
+  SET_Insert (&dom->setmem, &dom->excluded, pair, (SET_Compare)pair_compare);
+}
+
 /* release memory */
 void DOM_Destroy (DOM *dom)
 {
@@ -3121,6 +3159,7 @@ void DOM_Destroy (DOM *dom)
   MEM_Release (&dom->setmem);
   MEM_Release (&dom->mapmem);
   MEM_Release (&dom->sgpmem);
+  MEM_Release (&dom->excmem);
 
   if (dom->gravity [0]) TMS_Destroy (dom->gravity [0]);
   if (dom->gravity [1]) TMS_Destroy (dom->gravity [1]);
