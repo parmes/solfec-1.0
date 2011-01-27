@@ -4029,6 +4029,44 @@ static PyObject* lng_HEX (PyObject *self, PyObject *args, PyObject *kwds)
   return (PyObject*)out;
 }
 
+/* create a mesh object */
+static PyObject* lng_PIPE (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("pnt", "dir", "rin", "thi", "ndri", "nrad", "nthi", "volid", "surids");
+  int ndir, nrad, nthi, volid, surfaces [4];
+  double point [3], direct [3], rin, thi;
+  PyObject *pnt, *dir, *surfids;
+  lng_MESH *out;
+
+  out = (lng_MESH*)lng_MESH_TYPE.tp_alloc (&lng_MESH_TYPE, 0);
+
+  if (out)
+  {
+    PARSEKEYS ("OOddiiiiO", &pnt, &dir, &rin, &thi, &ndir, &nrad, &nthi, &volid, &surfids);
+
+    TYPETEST (is_tuple (pnt, kwl[0], 3) && is_tuple (dir, kwl[1], 3) &&
+	      is_positive (rin, kwl[2]) && is_positive (thi, kwl[3]) && is_positive (ndir, kwl[4]) &&
+	      is_positive (nrad, kwl[5]) && is_positive (nthi, kwl[6]) && is_list (surfids, kwl[8], 1, 4));
+
+    point [0] = PyFloat_AsDouble (PyTuple_GetItem (pnt, 0));
+    point [1] = PyFloat_AsDouble (PyTuple_GetItem (pnt, 1));
+    point [2] = PyFloat_AsDouble (PyTuple_GetItem (pnt, 2));
+
+    direct [0] = PyFloat_AsDouble (PyTuple_GetItem (dir, 0));
+    direct [1] = PyFloat_AsDouble (PyTuple_GetItem (dir, 1));
+    direct [2] = PyFloat_AsDouble (PyTuple_GetItem (dir, 2));
+
+    surfaces [0] = PyInt_AsLong (PyList_GetItem (surfids, 0));
+    surfaces [1] = PyInt_AsLong (PyList_GetItem (surfids, 1));
+    surfaces [2] = PyInt_AsLong (PyList_GetItem (surfids, 2));
+    surfaces [3] = PyInt_AsLong (PyList_GetItem (surfids, 3));
+
+    if (!(out->msh = MESH_Pipe (point, direct, rin, thi, ndir, nrad, nthi, surfaces, volid))) return NULL;
+  }
+
+  return (PyObject*)out;
+}
+
 /* create a rough mesh object */
 static PyObject* lng_ROUGH_HEX (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6930,6 +6968,7 @@ static PyMethodDef lng_methods [] =
 {
   {"HULL", (PyCFunction)lng_HULL, METH_VARARGS|METH_KEYWORDS, "Create convex hull from a point set"},
   {"HEX", (PyCFunction)lng_HEX, METH_VARARGS|METH_KEYWORDS, "Create mesh of a hexahedral shape"},
+  {"PIPE", (PyCFunction)lng_PIPE, METH_VARARGS|METH_KEYWORDS, "Create mesh of a pipe shape"},
   {"ROUGH_HEX", (PyCFunction)lng_ROUGH_HEX, METH_VARARGS|METH_KEYWORDS, "Create a rough hexahedral mesh containing a given shape"},
   {"FIX_POINT", (PyCFunction)lng_FIX_POINT, METH_VARARGS|METH_KEYWORDS, "Create a fixed point constraint"},
   {"FIX_DIRECTION", (PyCFunction)lng_FIX_DIRECTION, METH_VARARGS|METH_KEYWORDS, "Create a fixed direction constraint"},
@@ -7108,6 +7147,7 @@ int lng (const char *path)
                      "from solfec import HULL\n"
                      "from solfec import MESH\n"
                      "from solfec import HEX\n"
+                     "from solfec import PIPE\n"
                      "from solfec import ROUGH_HEX\n"
                      "from solfec import SPHERE\n"
                      "from solfec import SOLFEC\n"
