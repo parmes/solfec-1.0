@@ -7579,6 +7579,47 @@ body2
 \end_layout
 
 \begin_layout Subsection*
+CONTACT_EXCLUDE_SURFACES (solfec, surf1, surf2)
+\end_layout
+
+\begin_layout Standard
+This routine disables contact detection for a specific pair of surfaces.
+ By default contact detection is enabled for all possible surface pairs.
+ 
+\series bold
+NOTE:
+\series default
+ 
+\emph on
+must be invoked on all processors during a parallel run (do not use from
+ within a callback).
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surf1
+\series default
+ - first BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surf2
+\series default
+ - second BODY object
+\end_layout
+
+\begin_layout Subsection*
 CONTACT_EXCLUDE_OBJECTS (body1, point1, body2, point2)
 \end_layout
 

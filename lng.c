@@ -5538,6 +5538,22 @@ static PyObject* lng_CONTACT_EXCLUDE_BODIES (PyObject *self, PyObject *args, PyO
   Py_RETURN_NONE;
 }
 
+/* exclude a pair of surfaces from contact detection */
+static PyObject* lng_CONTACT_EXCLUDE_SURFACES (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "surf1", "surf2");
+  lng_SOLFEC *solfec;
+  int surf1, surf2;
+
+  PARSEKEYS ("Oii", &solfec, &surf1, &surf2);
+
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+  DOM_Exclude_Contact (solfec->sol->dom, surf1, surf2);
+
+  Py_RETURN_NONE;
+}
+
 /* exclude a pair of geometric objects from contact detection */
 static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6996,6 +7012,7 @@ static PyMethodDef lng_methods [] =
   {"BYLABEL", (PyCFunction)lng_BYLABEL, METH_VARARGS|METH_KEYWORDS, "Get object by label"},
   {"MASS_CENTER", (PyCFunction)lng_MASS_CENTER, METH_VARARGS|METH_KEYWORDS, "Get mass center"},
   {"CONTACT_EXCLUDE_BODIES", (PyCFunction)lng_CONTACT_EXCLUDE_BODIES, METH_VARARGS|METH_KEYWORDS, "Exclude body pair from contact detection"},
+  {"CONTACT_EXCLUDE_SURFACES", (PyCFunction)lng_CONTACT_EXCLUDE_SURFACES, METH_VARARGS|METH_KEYWORDS, "Exclude surface pair from contact detection"},
   {"CONTACT_EXCLUDE_OBJECTS", (PyCFunction)lng_CONTACT_EXCLUDE_OBJECTS, METH_VARARGS|METH_KEYWORDS, "Exclude geometric object pair from contact detection"},
   {"CONTACT_SPARSIFY", (PyCFunction)lng_CONTACT_SPARSIFY, METH_VARARGS|METH_KEYWORDS, "Adjust contact sparsification"},
   {"RUN", (PyCFunction)lng_RUN, METH_VARARGS|METH_KEYWORDS, "Run analysis"},
@@ -7185,6 +7202,7 @@ int lng (const char *path)
                      "from solfec import BYLABEL\n"
                      "from solfec import MASS_CENTER\n"
                      "from solfec import CONTACT_EXCLUDE_BODIES\n"
+                     "from solfec import CONTACT_EXCLUDE_SURFACES\n"
                      "from solfec import CONTACT_EXCLUDE_OBJECTS\n"
                      "from solfec import CONTACT_SPARSIFY\n"
                      "from solfec import RUN\n"

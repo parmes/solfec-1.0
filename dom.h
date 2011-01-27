@@ -197,7 +197,8 @@ struct domain
   MEM conmem, /* constraints memory pool */
       mapmem, /* map items memory pool */
       setmem, /* set items memory pool */
-      sgpmem; /* non-surface SGPs memory */
+      sgpmem, /* non-surface SGPs memory */
+      excmem; /* excluded surface pairs memory */
 
   AABB *aabb; /* box overlap engine */
   SPSET *sps; /* surface pairs */
@@ -227,6 +228,7 @@ struct domain
   CON *con; /* list of constraints */
   int ncon; /* number of constraints */
   int nspa; /* number of sparsified contacts */
+  SET *excluded; /* excluded surface pairs */
 
   LOCDYN *ldy; /* local dynamics */
   SOLFEC *solfec; /* SOLFEC context */
@@ -350,6 +352,9 @@ int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod);
 
 /* read state of an individual constraint */
 int  DOM_Read_Constraint (DOM *dom, PBF *bf, CON *con);
+
+/* exclude contact between a pair of surfaces */
+void DOM_Exclude_Contact (DOM *dom, int surf1, int surf2);
 
 /* release memory */
 void DOM_Destroy (DOM *dom);
