@@ -167,7 +167,7 @@ def gcore_loose_key (pnt, lx, ly, lz, zrot, material, solfec):
 
   BODY (solfec, 'RIGID', hex, material)
 
-def gcore_integral_key (pnt, l, a, b, h, material, solfec, integral_kind, integral_scheme):
+def gcore_integral_key (pnt, l, a, b, h, material, solfec, kinem_kind, integ_scheme):
 
   vertices = [1, 0, 0,
               1, 1, 0,
@@ -219,11 +219,10 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec, integral_kind, integr
   shape = [cv1, cv2, cv3, cv4, cv5]
   ROTATE (shape, pnt, zet, 45.0)
 
-  if integral_kind == 'FINITE_ELEMENT':
-    msh = ROUGH_HEX (shape, 1, 1, 2)
-    bod = BODY (solfec, integral_kind, shape, material, mesh = msh)
-  else: bod = BODY (solfec, integral_kind, shape, material)
-  bod.scheme = integral_scheme
+  if kinem_kind != 'RIGID':
+    bod = BODY (solfec, 'PSEUDO_RIGID', shape, material)
+  else: bod = BODY (solfec, 'RIGID', shape, material)
+  bod.scheme = integ_scheme
 
 def gcore_brick (x, y, z):
 
@@ -249,7 +248,7 @@ def gcore_brick (x, y, z):
 
   return cvx
 
-def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS):
+def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, N_BRICKS, M_BRICKS, N_LAYERS):
 
   dfac = 0.015
   outd = 0.4598
@@ -270,11 +269,11 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_k
 	y = -(outd + dfac) + j * (outd + dfac)
 
 	shp = gcore_brick (x, y, z)
-	if fuel_kind == 'FINITE_ELEMENT':
-	  msh = ROUGH_HEX (shp, 2, 2, 2)
-	  bod = BODY (solfec , fuel_kind, shp, material, mesh = msh)
-	else: bod = BODY (solfec , fuel_kind, shp, material)
-	bod.scheme = fuel_scheme
+	if kinem_kind == 'FINITE_ELEMENT':
+          msh = PIPE ((x, y, z), (0, 0, 0.45), 0.125, 0.13, 3, 8, 2, 0, [0, 0, 0, 0])
+	  bod = BODY (solfec , kinem_kind, shp, material, mesh = msh, form = 'BC')
+	else: bod = BODY (solfec , kinem_kind, shp, material)
+	bod.scheme = integ_scheme
 
     # loose keys
     lx = keyw - 2.0*loose_gap
@@ -303,7 +302,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_k
       for j in range (M_BRICKS-1):
 
 	pnt = (-0.5*(outd + dfac) + i * (outd + dfac), -0.5*(outd + dfac) + j * (outd + dfac), z)
-	gcore_integral_key (pnt, l, a, b, lz, material, solfec, integral_kind, integral_scheme)
+	gcore_integral_key (pnt, l, a, b, lz, material, solfec, kinem_kind, integ_scheme)
 
 def gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
 
@@ -405,7 +404,7 @@ def gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
       else:
 	BODY (solfec, 'OBSTACLE', shape, material)
 
-def simple_core_create (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
+def simple_core_create (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
 
   gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS)
-  gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, integral_kind, integral_scheme, fuel_kind, fuel_scheme, N_BRICKS, M_BRICKS, N_LAYERS)
+  gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, N_BRICKS, M_BRICKS, N_LAYERS)

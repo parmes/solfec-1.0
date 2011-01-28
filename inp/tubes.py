@@ -1,10 +1,10 @@
 # balls
 
-step = 1E-3
-stop = 5
-outd = 0.02
+step = 1E-4
+stop = 5.0
+outd = 0.01
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/domino')
+solfec = SOLFEC ('DYNAMIC', step, 'out/tubes')
 
 GRAVITY (solfec, (0, 0, -10))
 
@@ -17,9 +17,9 @@ table = HULL ([0, 0, 0,
 	       1, 1, -0.1,
 	       1, 0, -0.1], 1, 1)
 
-pipmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E5, poisson = 0.3, density = 300)
+pipmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 6E6, poisson = 0.3, density = 300)
 
-balmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E5, poisson = 0.3, density = 600)
+balmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 6E6, poisson = 0.3, density = 400)
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5, restitution = 0)
 
@@ -41,7 +41,7 @@ for i in range (0, 10):
 
 shp = SPHERE ((2, 2, 5), 2, 3, 3)
 bod = BODY (solfec, 'RIGID', shp, balmat)
-INITIAL_VELOCITY (bod, (1, 1, -1), (0, 0, 0))
+INITIAL_VELOCITY (bod, (3, 3, -3), (0, 0, 0))
 
 CONTACT_EXCLUDE_SURFACES (solfec, 1, 2)
 

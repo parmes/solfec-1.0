@@ -8,7 +8,7 @@ from simple_core_base import *
 step = 0.0001
 stop = 0.01
 outfrq = step
-kinem = 'PSEUDO_RIGID'
+kinem = 'FINITE_ELEMENT'
 solver = 'NEWTON'
 scheme = 'DEFAULT'
 shake = 'TRUE'
@@ -54,7 +54,7 @@ def callback (sv):
   MERIT.append (sv.merhist)
   return 1
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, kinem, scheme, shake, 4, 4, 4)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, shake, 4, 4, 4)
 
 UNPHYSICAL_PENETRATION (solfec, 0.02)
 IMBALANCE_TOLERANCE (solfec, 1.1)

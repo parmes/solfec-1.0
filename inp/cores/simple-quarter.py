@@ -49,7 +49,7 @@ elif solver == 'NEWTON':
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, kinem, scheme, shake, 10, 10, 12)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, shake, 10, 10, 12)
 
 UNPHYSICAL_PENETRATION (solfec, 0.02)
 IMBALANCE_TOLERANCE (solfec, 1.1)
