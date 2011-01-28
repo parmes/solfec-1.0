@@ -534,6 +534,31 @@ int COMOBJS (MPI_Comm comm, int tag,
   if (tag == INT_MIN) ret = COMALL (comm, send_data, nsend, &recv_data, &recv_count); /* all to all */
   else ret = COM (comm, tag, send_data, nsend, &recv_data, &recv_count); /* point to point */
 
+#if PARDEBUG
+  {
+    COMDATA *debug_send_data;
+    int debug_send_count;
+
+    /* send backwards */
+    if (tag == INT_MIN) COMALL (comm, recv_data, recv_count, &debug_send_data, &debug_send_count);
+    else COM (comm, tag, recv_data, recv_count, &debug_send_data, &debug_send_count);
+
+    ASSERT_DEBUG (debug_send_count == nsend, "reversed send count does not match");
+    for (i = 0, cd = send_data, cc = debug_send_data; i < nsend; i ++, cd ++, cc ++)
+    {
+      ASSERT_DEBUG (cd->rank == cc->rank, "reversed rank does not match");
+      ASSERT_DEBUG (cd->ints == cc->ints, "reversed ints count does not match");
+      ASSERT_DEBUG (cd->doubles == cc->doubles, "reversed doubles count does not match");
+      for (int *ia = cd->i, *ie = ia + cd->ints, *ib = cc->i; ia < ie; ia ++, ib ++)
+      { ASSERT_DEBUG (*ia == *ib, "reversed integer value does not match"); }
+      for (double *ia = cd->d, *ie = ia + cd->doubles, *ib = cc->d; ia < ie; ia ++, ib ++)
+      { ASSERT_DEBUG (*ia == *ib, "reversed double value does not match"); }
+    }
+
+    free (debug_send_data);
+  }
+#endif
+
   if (recv_count)
   {
     *nrecv = recv_count;

@@ -76,3 +76,6 @@ to minimise communication in the domain update code.
 Add ANALAYSIS kind and body->DAMPING to MBFCP format
 --------------------------------------------------------------------------------------
 Swap epsilon and meritval arguments in GAUSS_SEIDEL_SOLVER
+--------------------------------------------------------------------------------------
+Consider coming back to the previous way of storing W blocks
+(memory fragmentation, efficienct for explicit FEM and skipped updates, etc.)

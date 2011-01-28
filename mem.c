@@ -102,6 +102,11 @@ void* MEM_Alloc (MEM *pool)
 void MEM_Free (MEM *pool, void *chunk)
 {
 #if MEMDEBUG
+  if (!SET_Contains ((SET*)pool->blocks, chunk, NULL))
+  {
+    ASSERT_DEBUG (0, "Deletion from invalid memory pool");
+  }
+
   SET_Delete (NULL, (SET**) &pool->blocks, chunk, NULL);
 
   free (chunk);
