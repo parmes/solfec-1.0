@@ -6,13 +6,14 @@ from simple_core_base import *
 # main module
 
 step = 0.0001
-stop = 0.01
+stop = 12
 outfrq = step
 kinem = 'FINITE_ELEMENT'
 solver = 'NEWTON'
 scheme = 'DEFAULT'
 shake = 'TRUE'
-plotconv = 1
+plotconv = 0
+GEOMETRIC_EPSILON (1E-5)
 
 if kinem == 'PSEUDO_RIGID' or kinem == 'FINITE_ELEMENT': scheme = 'DEF_IMP'
 
@@ -45,7 +46,7 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.
 if solver == 'GAUSS_SEIDEL':
   sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-5, diagsolver = 'SEMISMOOTH_NEWTON')
 elif solver == 'NEWTON':
-  sv = NEWTON_SOLVER (1E-5, 200, theta = 0.15, presmooth = 5)
+  sv = NEWTON_SOLVER (1E-5, 200, theta = 0.15, locdyn = 'OFF')
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 

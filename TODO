@@ -66,8 +66,6 @@ Balancing of FEM bodies - decrease constraint weight (too many DOFs)
 -----------------------------------------------------------------------
 Consider optional approximate LOCDYN via FEM_Approx_Inverse
 -----------------------------------------------------------------------
-Consider using diagonal 3x3 blocks in FEM_Approx_Inverse
------------------------------------------------------------------------------
 Optimize stress plotting (batch calculation for a set of nodes)
 ----------------------------------------------------------------------------------
 Implement configuration update: q(t+h3/2) = q(t+h/2) + h * u(t+h). This will allow
