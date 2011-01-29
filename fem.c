@@ -3096,16 +3096,31 @@ MX* FEM_Approx_Inverse (BODY *bod)
   else
   {
     int n, k, j, *p, *i;
-    double *x, *y, z;
+    double *x, *y;
     MX *I;
 
     n = bod->dofs;
 
     ERRMEM (p = malloc (sizeof (int [n+1])));
-    ERRMEM (i = malloc (sizeof (int [n])));
+    ERRMEM (i = malloc (sizeof (int [n+2*(n-1)])));
 
-    for (k = 0, p [n] = n; k < n; k ++) p [k] = i [k] = k; /* diagonal pattern */
+    p [0] = 0;
+    p [1] = 2;
+    i [0] = 0;
+    i [1] = 1;
+    p [n] = n+2*(n-1);
+    p [n-1] = p[n] - 2;
+    i [p [n-1]] = n-2;
+    i [p [n-1]+1] = n-1;
+    for (k = 1; k < n-1; k ++) /* tri-diagonal pattern */
+    {
+      (&i[2])[(k-1)*3] = k-1;
+      (&i[2])[(k-1)*3+1] = k;
+      (&i[2])[(k-1)*3+2] = k+1;
+      p [k+1] = p [k] + 3;
+    }
     I = MX_Create (MXCSC, n, n, p, i);
+    I->flags |= MXSPD; /* (@@@) */
     x = I->x;
     free (p);
     free (i);
@@ -3113,22 +3128,35 @@ MX* FEM_Approx_Inverse (BODY *bod)
     p = bod->inverse->p;
     i = bod->inverse->i;
     y = bod->inverse->x;
-    z = 1.0 / (double) n;
 
     for (k = 0; k < n; k ++)
     {
       for (j = p[k]; j < p[k+1]; j++)
       {
-	if (k == i[j]) x [k] = z * y[j]; /* scaled diagonal element (adjusted to NEWTON_SOLVER behavior) */
+	if (k == i[j])
+	{
+	  if (k == 0)
+	  {
+	    x [0] = y [j];
+	    x [1] = y [j+1];
+	    x += 2;
+	  }
+	  else if (k < n-1)
+	  {
+	    x [0] = y [j-1];
+	    x [1] = y [j];
+	    x [2] = y [j+1];
+	    x += 3;
+	  }
+	  else /* k == n-1 */
+	  {
+	    x [0] = y [j-1];
+	    x [1] = y [j];
+	  }
+	}
       }
     }
 
-    for (j = 0; j < n; j ++)
-    {
-      ASSERT_DEBUG (x [j] != 0.0, "Zero row sum in M + (h*h/4) K");
-      x [j] = 1.0 / fabs (x [j]); /* positive inverse */
-    }
-
-    return I;
+    return MX_Inverse (I, I); /* (@@@) use TAUCS */
   }
 }
