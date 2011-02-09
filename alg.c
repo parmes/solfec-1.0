@@ -21,4 +21,4 @@
 
 #include "alg.h"
 
-double GEOMETRIC_EPSILON = 1E-4;
+double GEOMETRIC_EPSILON = 1E-6;

@@ -37,7 +37,6 @@ BASEO = obj/err.o \
 	obj/pck.o \
 	obj/map.o \
 	obj/set.o \
-	obj/ist.o \
 	obj/skp.o \
 	obj/svk.o \
 	obj/mtx.o \
@@ -60,7 +59,6 @@ BASEO = obj/err.o \
 	obj/mat.o \
 	obj/goc.o \
 	obj/cmp.o \
-	obj/lss.o \
 	obj/dbs.o \
 	obj/vic.o \
 	obj/libsolfec.o \
@@ -203,9 +201,6 @@ obj/skp.o: skp.c skp.h mem.h
 obj/set.o: set.c set.h mem.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/ist.o: ist.c ist.h mem.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
 obj/pbf.o: pbf.c pbf.h map.h mem.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -306,9 +301,6 @@ obj/libsolfec.o: solfec.c solfec.h
 	$(CC) -DLIBSOLFEC $(CFLAGS) -c -o $@ $<
 
 obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
-obj/lss.o: lss.c lss.h mem.h ist.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/dbs.o: dbs.c dbs.h ldy.h dom.h alg.h lap.h bla.h err.h

@@ -5270,9 +5270,7 @@ variant
 \end_layout
 
 \begin_layout Subsection
-NEWTON_SOLVER 
-\color red
-(Under development)
+NEWTON_SOLVER
 \end_layout
 
 \begin_layout Standard
@@ -6654,7 +6652,7 @@ This routine sets a numerical tolerance for geometric tests performed within
 \series bold
 epsilon
 \series default
- - geometrical tolerance (default: 1E-4)
+ - geometrical tolerance (default: 1E-6)
 \end_layout
 
 \begin_layout Section

@@ -5,10 +5,14 @@
 include ../../Config.mak
 
 ifeq ($(DEBUG),yes)
-  CFLAGS = -g -I.
+  FLAGS = -g -I.
 else
-  CFLAGS = -O2 -I.
+  FLAGS = -O2 -I.
 endif
+
+include ../../Flags.mak
+
+CFLAGS = $(OS) $(FLAGS)
 
 AR     = ar -rcu
 RANLIB = ranlib
