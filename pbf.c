@@ -406,7 +406,6 @@ PBF* PBF_Read (const char *path)
     dat = fopen (txt, "r");
   } while (dat && fclose (dat) == 0 && ++ m); /* m incremented as last */
 
-
   /* open input files */
   out = NULL;
   n = 0;

@@ -61,11 +61,9 @@ struct diab
 	 rho;   /* scaling parameter */
 
   OFFB *adj; /* note that W(i,j) = W1(i,j) + W2(i,j) {owing to body 1 and 2} and W1 and W2 are SEPARATELY stored here */
-  int nadj; /* number of adjacent blocks */
 
 #if MPI
   OFFB *adjext;  /* external adjacency */
-  int nadjext;
 #endif
 
   CON *con;  /* the underlying constraint (and the owner od the reaction R[3] and the velocity U [3]) */

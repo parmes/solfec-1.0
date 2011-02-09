@@ -5,21 +5,13 @@
 OS = OSX
 
 #
-# CUDA
-#
-
-CUDA = no
-CUDALIB = -L/usr/local/cuda/lib -lcuda -lcudart
-
-#
-# Specify C compiler and linker here
+# Specify C compiler
 #
 
 CC = cc
-LL = cc
 
 #
-# Specify C++ compiler here
+# Specify C++ compiler
 #
 
 CXX = g++
@@ -95,7 +87,6 @@ VBO = yes
 
 MPI = yes
 MPICC = mpicc
-MPILL = mpicc
 
 #
 # Zoltan (MPI == yes)

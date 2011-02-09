@@ -10,18 +10,11 @@ else
   OPENGLO =
 endif
 
-ifeq ($(CUDA),yes)
-  CUDAO = \
-	obj/pqns.o
-else
-  CUDAO =
-endif
-
 include Flags.mak
 
-CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(XDRINC) $(CUDA)
+CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(XDRINC)
 
-LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(CUDALIB)
+LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB)
 
 ifeq ($(MPI),yes)
   LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB)
@@ -65,7 +58,6 @@ BASEO = obj/err.o \
 
 OBJ =   $(EXTO)   \
         $(BASEO)  \
-        $(CUDAO)  \
 	obj/pbf.o \
 	obj/box.o \
 	obj/bod.o \
@@ -102,7 +94,7 @@ OBJMPI = $(EXTO)       \
 	 obj/fem-mpi.o \
 
 solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a obj/libtet.a
-	$(LL) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ltaucs -lmetis -ltet $(LIB)
+	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ltaucs -lmetis -ltet $(LIB)
 
 obj/libkrylov.a:
 	(cd ext/krylov && make)
@@ -127,7 +119,7 @@ all: solfec mpi
 mpi: solfec-mpi
 
 solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a obj/libtet.a
-	$(MPILL) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ltaucs -lmetis -ltet $(LIBMPI)
+	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ltaucs -lmetis -ltet $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)

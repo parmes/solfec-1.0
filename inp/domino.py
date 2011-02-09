@@ -49,4 +49,4 @@ gs = GAUSS_SEIDEL_SOLVER (1E-3, 100)
 
 OUTPUT (solfec, step)
 
-RUN (solfec, gs, 1.0)
+RUN (solfec, gs, 0.01)

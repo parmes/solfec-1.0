@@ -99,24 +99,3 @@ ifeq ($(MPI),yes)
   MPIFLG = -DMPI $(ZOLTANINC) $(PARDEBUG)
   MPILIBS = $(ZOLTANLIB)
 endif
-
-ifeq ($(CUDA),yes)
-  CC = nvcc
-  MPICC = nvcc
-  CUDA = -DCUDA
-  ifeq ($(POSIX),yes)
-    STD = --compiler-options "-std=c99" -DPOSIX
-  else
-    STD = --compiler-options "-std=c99"
-  endif
-  ifeq ($(DBG),yes)
-    DEBUG = -g -DDEBUG
-    CUFLAGS = -g -DDEBUG
-  else
-    DEBUG = -O3
-    CUFLAGS = -O
-  endif
-else
-  CUDA =
-  CUDALIB =
-endif
