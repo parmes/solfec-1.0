@@ -132,5 +132,4 @@ double SURFACE_MATERIAL_Cohesion_Get (SURFACE_MATERIAL_STATE *mat);
 /* cohesion state set */
 void SURFACE_MATERIAL_Cohesion_Set (SURFACE_MATERIAL_STATE *mat, double value);
 
-
 #endif

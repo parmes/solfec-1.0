@@ -183,7 +183,6 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
     }
 
     dia->adjext = NULL;
-    dia->nadjext = 0;
   }
 
   /* walk over all external contacts and build new external adjacency */
@@ -218,7 +217,6 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 	  b->bod = bod; /* adjacent through this body */
 	  b->n = dia->adjext;
 	  dia->adjext = b;
-	  dia->nadjext ++;
 	}
       }
     }
@@ -414,26 +412,31 @@ static void allocate_W (LOCDYN *ldy)
 
   for (dia = ldy->dia; dia; dia = dia->n)
   {
-    n = 1 + dia->nadj;
-#if MPI
-    n += dia->nadjext;
-#endif
-
     dia->rowupdate = row_needs_update (dia);
 
     if (dia->rowupdate)
     {
-      free (dia->W);
-      ERRMEM (dia->W = MEM_CALLOC (n * sizeof (double [9])));
-    }
-
-    for (blk = dia->adj, W = dia->W + 9; blk; blk = blk->n, W += 9) blk->W = W;
+      for (blk = dia->adj, n = 9;
+	   blk; blk = blk->n) n += 9;
 #if MPI
-    for (blk = dia->adjext; blk; blk = blk->n, W += 9) blk->W = W;
+      for (blk = dia->adjext; blk;
+	   blk = blk->n) n += 9;
 #endif
+
+      free (dia->W);
+
+      ERRMEM (dia->W = MEM_CALLOC (sizeof (double [n])));
+
+      for (blk = dia->adj, W = dia->W + 9;
+	   blk; blk = blk->n, W += 9) blk->W = W;
+#if MPI
+      for (blk = dia->adjext; blk;
+	   blk = blk->n, W += 9) blk->W = W;
+#endif
+    }
   }
 
-  ldy->allocated = 1; /* memory has been allocated at least once */
+  ldy->allocated = 1; /* allocated at least once */
 }
 
 /* update previous and free local velocities */
@@ -603,7 +606,6 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
 	b->bod = one; /* adjacent trough body 'one' */
 	b->n = nei->adj; /* extend list ... */
 	nei->adj = b; /* ... */
-	nei->nadj ++;
 
 	/* allocate block and put into 'dia->adj' list */ 
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
@@ -611,7 +613,6 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
 	b->bod = one; /* ... trough 'one' */
 	b->n = dia->adj;
 	dia->adj = b;
-	dia->nadj ++;
       }
     }
   }
@@ -633,7 +634,6 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
 	b->bod = two; /* adjacent trough body 'two' */
 	b->n = nei->adj; /* extend list ... */
 	nei->adj = b; /* ... */
-	nei->nadj ++;
 
 	/* allocate block and put into 'dia->adj' list */ 
 	ERRMEM (b = MEM_Alloc (&ldy->offmem));
@@ -641,7 +641,6 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
 	b->bod = two; /* ... trough 'two' */
 	b->n = dia->adj;
 	dia->adj = b;
-	dia->nadj ++;
       }
     }
   }
@@ -674,7 +673,6 @@ void LOCDYN_Remove (LOCDYN *ldy, DIAB *dia)
 	break;
       }
     }
-    b->dia->nadj --;
   }
 
   /* destroy directly
@@ -1026,7 +1024,7 @@ void LOCDYN_Update_End (LOCDYN *ldy)
 /* dump local dynamics to file */
 void LOCDYN_Dump (LOCDYN *ldy, const char *path)
 {
-#define WTOL 1E-15
+#define WTOL 1E-15 /* XXX */
   MEM mapmem, offmem;
   MAP *adj, *item;
   double W [9], Z;

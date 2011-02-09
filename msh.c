@@ -32,7 +32,7 @@
 #include "pck.h"
 
 /* used in some pools */
-#define MEMCHUNK 1024
+#define MEMCHUNK 256
 #define MAPMEMCHUNK 128
 
 /* linear shape functions for the hexahedron */
