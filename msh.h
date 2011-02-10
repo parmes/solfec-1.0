@@ -136,8 +136,8 @@ void MESH_Char (MESH *msh, double *volume, double *center, double *euler);
 /* find an element containing a spatial or referential point */
 ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref);
 
-/* find an element with a given node; output corresponding local point (if !NULL) */
-ELEMENT* MESH_Element_With_Node (MESH *msh, int node, double *point);
+/* find an element with a given node */
+ELEMENT* MESH_Element_With_Node (MESH *msh, int node);
 
 /* collect elements around a node (ele->node [i] == node && *set == NULL initially assumed) */
 void MESH_Elements_Around_Node (ELEMENT *ele, int node, SET **set);

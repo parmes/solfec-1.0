@@ -1230,14 +1230,12 @@ ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref)
   return NULL;
 }
 
-/* find an element with a given node; output corresponding local point (if !NULL) */
-ELEMENT* MESH_Element_With_Node (MESH *msh, int node, double *point)
+/* find an element with a given node */
+ELEMENT* MESH_Element_With_Node (MESH *msh, int node)
 {
   ELEMENT *ele = MAP_Find (msh->map, (void*) (long) node, NULL),
 	  *start [2] = {msh->surfeles, msh->bulkeles};
   int i, j;
-
-  if (point) SET (point, 0);
 
   if (ele == NULL) /* if this node has not been yet mapped to an element */
   {
@@ -1249,48 +1247,6 @@ ELEMENT* MESH_Element_With_Node (MESH *msh, int node, double *point)
 	{
 	  if (ele->nodes [i] == node)
 	  {
-	    if (point)
-	    {
-	      switch (ele->type)
-	      {
-	      case 4: if (i < 3) point [i] = 1.0; break;
-	      case 5:
-		switch (i)
-		{
-		case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
-		case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
-		case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
-		case 3: point [0] = -1; point [1] =  1; point [2] = -1; break;
-		case 4: point [0] = -1; point [1] = -1; point [2] =  1; break;
-		}
-		break;
-	      case 6:
-		switch (i)
-		{
-		case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
-		case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
-		case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
-		case 3: point [0] = -1; point [1] = -1; point [2] =  1; break;
-		case 4: point [0] =  1; point [1] = -1; point [2] =  1; break;
-		case 5: point [0] =  1; point [1] =  1; point [2] =  1; break;
-		}
-		break;
-	      case 8:
-		switch (i)
-		{
-		case 0: point [0] = -1; point [1] = -1; point [2] = -1; break;
-		case 1: point [0] =  1; point [1] = -1; point [2] = -1; break;
-		case 2: point [0] =  1; point [1] =  1; point [2] = -1; break;
-		case 3: point [0] = -1; point [1] =  1; point [2] = -1; break;
-		case 4: point [0] = -1; point [1] = -1; point [2] =  1; break;
-		case 5: point [0] =  1; point [1] = -1; point [2] =  1; break;
-		case 6: point [0] =  1; point [1] =  1; point [2] =  1; break;
-		case 7: point [0] = -1; point [1] =  1; point [2] =  1; break;
-		}
-		break;
-	      }
-	    }
-
 	    MAP_Insert (&msh->mapmem, &msh->map, (void*) (long) node, ele, NULL); /* and map it */
 	    return ele;
 	  }

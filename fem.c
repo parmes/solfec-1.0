@@ -58,23 +58,23 @@ static const double I_TET1_Z[] = {0.25};
 static const double I_TET1_W[] = {0.16666666666666666};
 #define             I_TET1_N      1
 
-static const double I_PYR1_X[] = {0}; /* TODO */
-static const double I_PYR1_Y[] = {0};
-static const double I_PYR1_Z[] = {0};
-static const double I_PYR1_W[] = {0};
-#define             I_PYR1_N      0
+static const double I_PYR1_X[] = {0.00};
+static const double I_PYR1_Y[] = {0.00};
+static const double I_PYR1_Z[] = {0.25};
+static const double I_PYR1_W[] = {1.333333333333333333};
+#define             I_PYR1_N      1
 
-static const double I_WED1_X[] = {0}; /* TODO */
-static const double I_WED1_Y[] = {0};
-static const double I_WED1_Z[] = {0};
-static const double I_WED1_W[] = {0};
-#define             I_WED1_N      0
+static const double I_WED1_X[] = {0.25};
+static const double I_WED1_Y[] = {0.25};
+static const double I_WED1_Z[] = {0.00};
+static const double I_WED1_W[] = {0.333333333333333333};
+#define             I_WED1_N      1
 
-static const double I_HEX1_X[] = {0}; /* TODO */
-static const double I_HEX1_Y[] = {0};
-static const double I_HEX1_Z[] = {0};
-static const double I_HEX1_W[] = {0};
-#define             I_HEX1_N      0
+static const double I_HEX1_X[] = {0.0};
+static const double I_HEX1_Y[] = {0.0};
+static const double I_HEX1_Z[] = {0.0};
+static const double I_HEX1_W[] = {8.0};
+#define             I_HEX1_N      1
 
 static const double I_TRI1_X[] = {0.333333333333333333};
 static const double I_TRI1_Y[] = {0.333333333333333333};
@@ -93,19 +93,25 @@ static const double I_TET2_Z [] = {0.13819660112501052, 0.58541019662496840, 0.1
 static const double I_TET2_W [] = {0.04166666666666666, 0.04166666666666666, 0.04166666666666666, 0.04166666666666666};
 #define             I_TET2_N       4
 
-static const double I_PYR2_X[] = {0}; /* TODO */
-static const double I_PYR2_Y[] = {0};
-static const double I_PYR2_Z[] = {0};
-static const double I_PYR2_W[] = {0};
-#define             I_PYR2_N      0
-
-static const double I_WED2_X[] = {0}; /* TODO */
-static const double I_WED2_Y[] = {0};
-static const double I_WED2_Z[] = {0};
-static const double I_WED2_W[] = {0};
-#define             I_WED2_N      0
+#define ISQR3_PYR1 0.263184055569714
+#define ISQR3_PYR2 0.506616303349788
+#define _1SUB_PYR1 0.544151844011225
+#define _1SUB_PYR2 0.122514822655441
+#define _1_WPYR1 0.100785882079825
+#define _1_WPYR2 0.232547451253508
+static const double I_PYR2_X[] = {-ISQR3_PYR1,  ISQR3_PYR1, ISQR3_PYR1, -ISQR3_PYR1, -ISQR3_PYR2,  ISQR3_PYR2, ISQR3_PYR2, -ISQR3_PYR2};
+static const double I_PYR2_Y[] = {-ISQR3_PYR1, -ISQR3_PYR1, ISQR3_PYR1,  ISQR3_PYR1, -ISQR3_PYR2, -ISQR3_PYR2, ISQR3_PYR2,  ISQR3_PYR2};
+static const double I_PYR2_Z[] = {_1SUB_PYR1,  _1SUB_PYR1,  _1SUB_PYR1,  _1SUB_PYR1,  _1SUB_PYR2,  _1SUB_PYR2, _1SUB_PYR2,  _1SUB_PYR2};
+static const double I_PYR2_W[] = {_1_WPYR1, _1_WPYR1, _1_WPYR1, _1_WPYR1, _1_WPYR2, _1_WPYR2, _1_WPYR2,  _1_WPYR2};
+#define             I_PYR2_N      8
 
 #define ISQR3 0.57735026918962584 
+static const double I_WED2_X[] = {0.66666666666666667, 0.16666666666666667, 0.16666666666666667, 0.66666666666666667, 0.16666666666666667, 0.16666666666666667};
+static const double I_WED2_Y[] = {0.16666666666666667, 0.66666666666666667, 0.16666666666666667, 0.16666666666666667, 0.66666666666666667, 0.16666666666666667};
+static const double I_WED2_Z[] = {-ISQR3, -ISQR3, -ISQR3, ISQR3, ISQR3, ISQR3};
+static const double I_WED2_W[] = {0.16666666666666667, 0.16666666666666667, 0.16666666666666667, 0.16666666666666667, 0.16666666666666667, 0.16666666666666667};
+#define             I_WED2_N      6
+
 static const double I_HEX2_X [] = {-ISQR3,  ISQR3,  ISQR3, -ISQR3, -ISQR3,  ISQR3, ISQR3, -ISQR3};
 static const double I_HEX2_Y [] = {-ISQR3, -ISQR3,  ISQR3,  ISQR3, -ISQR3, -ISQR3, ISQR3,  ISQR3};
 static const double I_HEX2_Z [] = {-ISQR3, -ISQR3, -ISQR3, -ISQR3,  ISQR3,  ISQR3, ISQR3,  ISQR3};
@@ -122,118 +128,48 @@ static const double I_QUA2_Y [] = {-ISQR3, -ISQR3, ISQR3,  ISQR3};
 static const double I_QUA2_W [] = {1.0, 1.0, 1.0, 1.0};
 #define             I_QUA2_N       4
 
-/* order 3 */
-static const double I_TET3_X[] = {0}; /* TODO */
-static const double I_TET3_Y[] = {0};
-static const double I_TET3_Z[] = {0};
-static const double I_TET3_W[] = {0};
-#define             I_TET3_N      0
+static const double *I_TET_X [] = {NULL, I_TET1_X, I_TET2_X};
+static const double *I_TET_Y [] = {NULL, I_TET1_Y, I_TET2_Y};
+static const double *I_TET_Z [] = {NULL, I_TET1_Z, I_TET2_Z};
+static const double *I_TET_W [] = {NULL, I_TET1_W, I_TET2_W};
+static const int     I_TET_N [] = {   0, I_TET1_N, I_TET2_N};
 
-static const double I_PYR3_X[] = {0}; /* TODO */
-static const double I_PYR3_Y[] = {0};
-static const double I_PYR3_Z[] = {0};
-static const double I_PYR3_W[] = {0};
-#define             I_PYR3_N      0
+static const double *I_PYR_X [] = {NULL, I_PYR1_X, I_PYR2_X};
+static const double *I_PYR_Y [] = {NULL, I_PYR1_Y, I_PYR2_Y};
+static const double *I_PYR_Z [] = {NULL, I_PYR1_Z, I_PYR2_Z};
+static const double *I_PYR_W [] = {NULL, I_PYR1_W, I_PYR2_W};
+static const int     I_PYR_N [] = {   0, I_PYR1_N, I_PYR2_N};
 
-static const double I_WED3_X[] = {0}; /* TODO */
-static const double I_WED3_Y[] = {0};
-static const double I_WED3_Z[] = {0};
-static const double I_WED3_W[] = {0};
-#define             I_WED3_N      0
+static const double *I_WED_X [] = {NULL, I_WED1_X, I_WED2_X};
+static const double *I_WED_Y [] = {NULL, I_WED1_Y, I_WED2_Y};
+static const double *I_WED_Z [] = {NULL, I_WED1_Z, I_WED2_Z};
+static const double *I_WED_W [] = {NULL, I_WED1_W, I_WED2_W};
+static const int     I_WED_N [] = {   0, I_WED1_N, I_WED2_N};
 
-static const double I_HEX3_X[] = {0}; /* TODO */
-static const double I_HEX3_Y[] = {0};
-static const double I_HEX3_Z[] = {0};
-static const double I_HEX3_W[] = {0};
-#define             I_HEX3_N      0
+static const double *I_HEX_X [] = {NULL, I_HEX1_X, I_HEX2_X};
+static const double *I_HEX_Y [] = {NULL, I_HEX1_Y, I_HEX2_Y};
+static const double *I_HEX_Z [] = {NULL, I_HEX1_Z, I_HEX2_Z};
+static const double *I_HEX_W [] = {NULL, I_HEX1_W, I_HEX2_W};
+static const int     I_HEX_N [] = {   0, I_HEX1_N, I_HEX2_N};
 
-static const double I_TRI3_X[] = {0}; /* TODO */
-static const double I_TRI3_Y[] = {0};
-static const double I_TRI3_W[] = {0};
-#define             I_TRI3_N      0
+static const double *I_TRI_X [] = {NULL, I_TRI1_X, I_TRI2_X};
+static const double *I_TRI_Y [] = {NULL, I_TRI1_Y, I_TRI2_Y};
+static const double *I_TRI_W [] = {NULL, I_TRI1_W, I_TRI2_W};
+static const int     I_TRI_N [] = {   0, I_TRI1_N, I_TRI2_N};
 
-static const double I_QUA3_X [] = {0}; /* TODO */
-static const double I_QUA3_Y [] = {0};
-static const double I_QUA3_W [] = {0};
-#define             I_QUA3_N       0
+static const double *I_QUA_X [] = {NULL, I_QUA1_X, I_QUA2_X};
+static const double *I_QUA_Y [] = {NULL, I_QUA1_Y, I_QUA2_Y};
+static const double *I_QUA_W [] = {NULL, I_QUA1_W, I_QUA2_W};
+static const int     I_QUA_N [] = {   0, I_QUA1_N, I_QUA2_N};
 
-/* order 4 */
-static const double I_TET4_X[] = {0}; /* TODO */
-static const double I_TET4_Y[] = {0};
-static const double I_TET4_Z[] = {0};
-static const double I_TET4_W[] = {0};
-#define             I_TET4_N      0
-
-static const double I_PYR4_X[] = {0}; /* TODO */
-static const double I_PYR4_Y[] = {0};
-static const double I_PYR4_Z[] = {0};
-static const double I_PYR4_W[] = {0};
-#define             I_PYR4_N      0
-
-static const double I_WED4_X[] = {0}; /* TODO */
-static const double I_WED4_Y[] = {0};
-static const double I_WED4_Z[] = {0};
-static const double I_WED4_W[] = {0};
-#define             I_WED4_N      0
-
-static const double I_HEX4_X[] = {0}; /* TODO */
-static const double I_HEX4_Y[] = {0};
-static const double I_HEX4_Z[] = {0};
-static const double I_HEX4_W[] = {0};
-#define             I_HEX4_N      0
-
-static const double I_TRI4_X[] = {0}; /* TODO */
-static const double I_TRI4_Y[] = {0};
-static const double I_TRI4_W[] = {0};
-#define             I_TRI4_N      0
-
-static const double I_QUA4_X [] = {0}; /* TODO */
-static const double I_QUA4_Y [] = {0};
-static const double I_QUA4_W [] = {0};
-#define             I_QUA4_N       0
-
-#define MAX_ORDER 4
-
-static const double *I_TET_X [] = {NULL, I_TET1_X, I_TET2_X, I_TET3_X, I_TET4_X};
-static const double *I_TET_Y [] = {NULL, I_TET1_Y, I_TET2_Y, I_TET3_Y, I_TET4_Y};
-static const double *I_TET_Z [] = {NULL, I_TET1_Z, I_TET2_Z, I_TET3_Z, I_TET4_Z};
-static const double *I_TET_W [] = {NULL, I_TET1_W, I_TET2_W, I_TET3_W, I_TET4_W};
-static const int     I_TET_N [] = {   0, I_TET1_N, I_TET2_N, I_TET3_N, I_TET4_N};
-
-static const double *I_PYR_X [] = {NULL, I_PYR1_X, I_PYR2_X, I_PYR3_X, I_PYR4_X};
-static const double *I_PYR_Y [] = {NULL, I_PYR1_Y, I_PYR2_Y, I_PYR3_Y, I_PYR4_Y};
-static const double *I_PYR_Z [] = {NULL, I_PYR1_Z, I_PYR2_Z, I_PYR3_Z, I_PYR4_Z};
-static const double *I_PYR_W [] = {NULL, I_PYR1_W, I_PYR2_W, I_PYR3_W, I_PYR4_W};
-static const int     I_PYR_N [] = {   0, I_PYR1_N, I_PYR2_N, I_PYR3_N, I_PYR4_N};
-
-static const double *I_WED_X [] = {NULL, I_WED1_X, I_WED2_X, I_WED3_X, I_WED4_X};
-static const double *I_WED_Y [] = {NULL, I_WED1_Y, I_WED2_Y, I_WED3_Y, I_WED4_Y};
-static const double *I_WED_Z [] = {NULL, I_WED1_Z, I_WED2_Z, I_WED3_Z, I_WED4_Z};
-static const double *I_WED_W [] = {NULL, I_WED1_W, I_WED2_W, I_WED3_W, I_WED4_W};
-static const int     I_WED_N [] = {   0, I_WED1_N, I_WED2_N, I_WED3_N, I_WED4_N};
-
-static const double *I_HEX_X [] = {NULL, I_HEX1_X, I_HEX2_X, I_HEX3_X, I_HEX4_X};
-static const double *I_HEX_Y [] = {NULL, I_HEX1_Y, I_HEX2_Y, I_HEX3_Y, I_HEX4_Y};
-static const double *I_HEX_Z [] = {NULL, I_HEX1_Z, I_HEX2_Z, I_HEX3_Z, I_HEX4_Z};
-static const double *I_HEX_W [] = {NULL, I_HEX1_W, I_HEX2_W, I_HEX3_W, I_HEX4_W};
-static const int     I_HEX_N [] = {   0, I_HEX1_N, I_HEX2_N, I_HEX3_N, I_HEX4_N};
-
-static const double *I_TRI_X [] = {NULL, I_TRI1_X, I_TRI2_X, I_TRI3_X, I_TRI4_X};
-static const double *I_TRI_Y [] = {NULL, I_TRI1_Y, I_TRI2_Y, I_TRI3_Y, I_TRI4_Y};
-static const double *I_TRI_W [] = {NULL, I_TRI1_W, I_TRI2_W, I_TRI3_W, I_TRI4_W};
-static const int     I_TRI_N [] = {   0, I_TRI1_N, I_TRI2_N, I_TRI3_N, I_TRI4_N};
-
-static const double *I_QUA_X [] = {NULL, I_QUA1_X, I_QUA2_X, I_QUA3_X, I_QUA4_X};
-static const double *I_QUA_Y [] = {NULL, I_QUA1_Y, I_QUA2_Y, I_QUA3_Y, I_QUA4_Y};
-static const double *I_QUA_W [] = {NULL, I_QUA1_W, I_QUA2_W, I_QUA3_W, I_QUA4_W};
-static const int     I_QUA_N [] = {   0, I_QUA1_N, I_QUA2_N, I_QUA3_N, I_QUA4_N};
+#define MAX_ORDER 2 /* integration order bound */
 
 /* load 3D integrator data */
 inline static int integrator3d_load (int type, int order, const double **X, const double **Y, const double **Z, const double **W)
 {
   int N;
 
-  ASSERT_DEBUG (order >= 1 && order < MAX_ORDER, "Integration order out of bounds");
+  ASSERT_DEBUG (order >= 1 && order <= MAX_ORDER, "Integration order out of bounds");
 
   switch (type)
   {
@@ -282,9 +218,7 @@ inline static int integrator3d_load (int type, int order, const double **X, cons
 typedef enum {MASS, BODF, INTF} ENTITY3D;
 static int integrator3d_order (int type, ENTITY3D entity)
 {
-  /* FIXME */
-
-  return 2;
+  return 2; /* XXX */
 }
 
 /* load 2D integrator data */
@@ -292,7 +226,7 @@ inline static int integrator2d_load (int type, int order, const double **X, cons
 {
   int N;
 
-  ASSERT_DEBUG (order >= 1 && order < MAX_ORDER, "Integration order out of bounds");
+  ASSERT_DEBUG (order >= 1 && order <= MAX_ORDER, "Integration order out of bounds");
 
   switch (type)
   {
@@ -321,9 +255,7 @@ inline static int integrator2d_load (int type, int order, const double **X, cons
 typedef enum {SURF, DROT} ENTITY2D;
 static int integrator2d_order (int type, ENTITY2D entity)
 {
-  /* FIXME */
-
-  return 1;
+  return 1; /* XXX */
 }
 
 /* element integration */
@@ -533,13 +465,27 @@ inline static void hex_o1_shapes (double *point, double *shapes)
 /* linear pyramid shape functions */
 inline static void pyr_o1_shapes (double *point, double *shapes)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  double ratio;
+
+  if (point [2] != 1.0) ratio = (point[0]*point[1]*point[2]) / (1 - point[2]);
+  else ratio = 0.0; /* XXX */
+
+  shapes [0] = 0.25 * ((1.0 + point[0])*(1.0 + point[1]) - point[2] + ratio); /* rabbit functions */
+  shapes [1] = 0.25 * ((1.0 - point[0])*(1.0 + point[1]) - point[2] - ratio);
+  shapes [2] = 0.25 * ((1.0 - point[0])*(1.0 - point[1]) - point[2] + ratio);
+  shapes [3] = 0.25 * ((1.0 + point[0])*(1.0 - point[1]) - point[2] - ratio);
+  shapes [4] = point [2];
 }
 
 /* linear wedge shape functions */
 inline static void wed_o1_shapes (double *point, double *shapes)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  shapes [0] = 0.5 * (1.0 - point[0] - point[1])*(1.0 - point[2]);
+  shapes [1] = 0.5 * point[0]*(1.0 - point[2]);
+  shapes [2] = 0.5 * point[1]*(1.0 - point[2]);
+  shapes [3] = 0.5 * (1.0 - point[0] - point[1])*(1.0 + point[2]);
+  shapes [4] = 0.5 * point[0]*(1.0 + point[2]);
+  shapes [5] = 0.5 * point[1]*(1.0 + point[2]);
 }
 
 /* linear tetrahedron shape derivatives */
@@ -601,13 +547,63 @@ inline static void hex_o1_derivs (double *point, double *derivs)
 /* linear pyramid shape derivatives  */
 inline static void pyr_o1_derivs (double *point, double *derivs)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  double drat0, drat1, drat2;
+
+  if (point [2] != 1.0)
+  {
+    drat0 = (point[1]*point[2]) / (1.0 - point[2]),
+    drat1 = (point[0]*point[2]) / (1.0 - point[2]),
+    drat2 = (point[0]*point[1]) / (1.0 - point[2])*(1.0 - point[2]);
+  }
+  else drat0 = drat1 = drat2 = 0.0; /* XXX */
+
+  derivs [0] = 0.25 * ((1.0 + point[1]) + drat0);
+  derivs [1] = 0.25 * ((1.0 + point[0]) + drat1);
+  derivs [2] = 0.25 * (-1.0 + drat2);
+
+  derivs [3] = 0.25 * (-(1.0 + point[1]) - drat0);
+  derivs [4] = 0.25 * ((1.0 - point[0]) - drat1);
+  derivs [5] = 0.25 * (-1.0 - drat2);
+
+  derivs [6] = 0.25 * (-(1.0 - point[1]) + drat0);
+  derivs [7] = 0.25 * (-(1.0 - point[0]) + drat1);
+  derivs [8] = 0.25 * (-1.0 + drat2);
+
+  derivs [ 9] = 0.25 * ((1.0 - point[1]) - drat0);
+  derivs [10] = 0.25 * (-(1.0 + point[0]) - drat1);
+  derivs [11] = 0.25 * (-1.0 - drat2);
+
+  derivs [12] = 0.0;
+  derivs [13] = 0.0;
+  derivs [14] = 1.0;
 }
 
 /* linear wedge shape derivatives  */
 inline static void wed_o1_derivs (double *point, double *derivs)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  derivs [0] = -0.5 * (1.0 - point[2]);
+  derivs [1] = -0.5 * (1.0 - point[2]);
+  derivs [2] = -0.5 * (1.0 - point[0] - point[1]);
+
+  derivs [3] =  0.5 * (1.0 - point[2]);
+  derivs [4] =  0.0;
+  derivs [5] = -0.5 * point[0];
+
+  derivs [6] =  0.0;
+  derivs [7] =  0.5 * (1.0 - point[2]);
+  derivs [8] = -0.5 * point[1];
+
+  derivs [ 9] = -0.5 * (1.0 + point[2]);
+  derivs [10] = -0.5 * (1.0 + point[2]);
+  derivs [11] =  0.5 * (1.0 - point[0] - point[1]);
+
+  derivs [12] = 0.5 * (1.0 + point[2]);
+  derivs [13] = 0.0;
+  derivs [14] = 0.5 * point[0];
+
+  derivs [15] = 0.0;
+  derivs [16] = 0.5 * (1.0 + point[2]);
+  derivs [17] = 0.5 * point[1];
 }
 
 /* linear tetrahedron local to global point transformation */
@@ -859,6 +855,39 @@ static MX* element_shapes_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *po
 
   return N;
 }
+
+#if DEBUG
+/* simplex integrated volume ==
+ * shape functions integrated volume test */
+static void test_volume_integral (MESH *msh, double ref_volume)
+{
+  double J, volume,
+         nodes [MAX_NODES][3],
+	 shapes [MAX_NODES];
+  ELEMENT *ele;
+  int bulk;
+
+
+  for (ele = msh->surfeles, bulk = 0, volume = 0.0; ele; )
+  {
+    element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
+
+    INTEGRATE3D (ele->type, MASS, ele->dom, ele->domnum,
+
+      element_shapes (ele->type, point, shapes);
+      J = element_det (ele->type, nodes, point, NULL);
+      volume += J * weight;
+    )
+
+    if (bulk) ele = ele->next;
+    else if (ele->next) ele = ele->next;
+    else ele = msh->bulkeles, bulk = 1;
+  }
+
+  ASSERT_DEBUG (volume > 0.0 && fabs (ref_volume - volume) < 1E-10 * ref_volume,
+    "FEM ERROR: simplex_volume = %g, integrated_volume = %g\n", ref_volume, volume);
+}
+#endif
 
 /* lump contribution of the element mass into the global diagonal matrix */
 static void element_lump_mass (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
@@ -1459,7 +1488,7 @@ static void TL_dynamic_inverse (BODY *bod, double step, double *force)
 
   if (bod->K) MX_Destroy (bod->K);
 
-  bod->K = tangent_stiffness (bod, 0);
+  bod->K = tangent_stiffness (bod, 1);
 
   if (force)
   {
@@ -1555,11 +1584,11 @@ static void TL_static_inverse (BODY *bod, double step)
 {
   MX *M, *K;
 
-  if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod, 0);
+  if (bod->M) M = bod->M; else bod->M = M = diagonal_inertia (bod, 1);
 
   if (bod->inverse) MX_Destroy (bod->inverse);
 
-  K = tangent_stiffness (bod, 0);
+  K = tangent_stiffness (bod, 1);
 
   bod->inverse = MX_Add (1.0, M, step*step, K, NULL); /* TODO: figure out alpha and beta scaling */
 
@@ -1571,7 +1600,7 @@ static void TL_static_inverse (BODY *bod, double step)
 /* total lagrangian initialise dynamic time stepping */
 static void TL_dynamic_init (BODY *bod)
 {
-  if (!bod->M) bod->M = diagonal_inertia (bod, 0);
+  if (!bod->M) bod->M = diagonal_inertia (bod, 1);
 
   if (bod->scheme == SCH_DEF_EXP)
   {
@@ -2562,6 +2591,12 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
 
   /* save rought mesh if needed */
   if (msh != shp->data) bod->msh = msh;
+
+#if DEBUG
+  /* simplex integrated volume ==
+   * shape functions integrated volume test */
+  test_volume_integral (msh, bod->ref_volume);
+#endif
 }
 
 /* overwrite state */
@@ -2999,16 +3034,16 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
   double point [3];
   MESH *msh = FEM_MESH (bod);
   int n = (node_t) node - msh->cur_nodes;
-  ELEMENT *ele = MESH_Element_With_Node (msh, n, point);
-  ASSERT (ele, ERR_MSH_ELEMENT_WITH_NODE);
 
   if (kind >= VALUE_STRESS) /* average from neigbouring elements */
   {
+    ELEMENT *ele = MESH_Element_With_Node (msh, n);
+    ASSERT (ele, ERR_MSH_ELEMENT_WITH_NODE);
     double X [3], v [7];
     SET *set, *item;
     int m;
 
-    local_to_referential (msh, ele, point, X);
+    COPY (msh->ref_nodes [n], X);
 
     set = NULL;
 
@@ -3040,7 +3075,24 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
 
     SET_Free (NULL, &set);
   }
-  else FEM_Element_Point_Values (bod, ele, point, kind, values);
+  else
+  {
+    switch ((int)kind)
+    {
+    case VALUE_DISPLACEMENT:
+    {
+      double *q = &bod->conf [3*n];
+      COPY (q, values);
+    }
+    break;
+    case VALUE_VELOCITY:
+    {
+      double *u = &bod->velo [3*n];
+      COPY (u, values);
+    }
+    break;
+    }
+  }
 }
 
 /* issued by state reading routines of body interface */

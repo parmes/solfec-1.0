@@ -78,4 +78,6 @@ Swap epsilon and meritval arguments in GAUSS_SEIDEL_SOLVER
 Consider coming back to the previous way of storing W blocks
 (memory fragmentation, efficienct for explicit FEM and skipped updates, etc.)
 --------------------------------------------------------------------------------------
-Use TAUCS also for TL FEM
+Consider a separate linear solve at the end for all equality constraints.
+This will simplify the penalty solver as well as it might improve accuracy.
+--------------------------------------------------------------------------------------
