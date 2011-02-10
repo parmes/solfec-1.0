@@ -26,7 +26,7 @@
 #include "err.h"
 
 #define PENALTY_MAXITER 10000
-#define PENALTY_EPSILON 1E-3
+#define PENALTY_EPSILON 1E-3 /* XXX */
 
 /* spring and dashpot based explicit diagonal block contact solver */
 int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot,

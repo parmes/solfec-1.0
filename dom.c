@@ -554,7 +554,7 @@ static SGP* SGP_from_index (DOM *dom, BODY *bod, int n)
     ASSERT_DEBUG (n < 0, "Negative index expected");
     ERRMEM (sgp = MEM_Alloc (&dom->sgpmem));
     sgp->shp = bod->shape;
-    ASSERT_DEBUG_EXT (sgp->gobj = MESH_Element_With_Node (bod->shape->data, -n-1, NULL), "Element with given node number not found");
+    ASSERT_DEBUG_EXT (sgp->gobj = MESH_Element_With_Node (bod->shape->data, -n-1), "Element with given node number not found");
     sgp->box = (BOX*) (long) (-n);
   }
 
@@ -3065,7 +3065,7 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
 
   if (master->kind == FEM && !master->msh)
   {
-    if (mnode >= 0) pnd->mele = MESH_Element_With_Node (master->shape->data, mnode, NULL);
+    if (mnode >= 0) pnd->mele = MESH_Element_With_Node (master->shape->data, mnode);
     else pnd->mele = MESH_Element_Containing_Point (master->shape->data, mpnt, 1);
 
     if (!pnd->mele) return 0;
@@ -3074,7 +3074,7 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
 
   if (slave->kind == FEM && !slave->msh)
   {
-    if (snode >= 0) pnd->sele = MESH_Element_With_Node (slave->shape->data, snode, NULL);
+    if (snode >= 0) pnd->sele = MESH_Element_With_Node (slave->shape->data, snode);
     else pnd->sele = MESH_Element_Containing_Point (slave->shape->data, spnt, 1);
 
     if (!pnd->sele) return 0;
