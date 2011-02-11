@@ -6661,8 +6661,8 @@ WARNINGS (state)
 
 \begin_layout Standard
 This routine disables or enables Solfec warnings.
- It is a good practice to have the warnings enabled only switch them off
- after making sure that they can be ignored (or there are none).
+ It is a good practice to have the warnings enabled and only switch them
+ off after making sure, that they can be ignored.
 \end_layout
 
 \begin_layout Itemize

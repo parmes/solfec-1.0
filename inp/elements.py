@@ -37,23 +37,16 @@ hex = MESH ([0, 0, 0,
 	     0, 1, 0,
              0, 0, 1,
              1, 0, 1,
-	     1, 1, 1.1,
-	     0, 1, 1.1],
+	     1, 1, 1,
+	     0, 1, 1],
 	     [8, 0, 1, 2, 3, 4, 5, 6, 7, 4], 4)
 
-#TRANSLATE (hex, (2, 2, 0))
+TRANSLATE (hex, (2, 2, 0))
 
-#BODY (solfec, 'FINITE_ELEMENT', tet, bulkmat)
-#BODY (solfec, 'FINITE_ELEMENT', pyr, bulkmat)
-#BODY (solfec, 'FINITE_ELEMENT', wed, bulkmat)
-
-
-shp = HULL ([0, 0, 0,
-             1, 0, 0,
-	     0, 1, 0,
-	     0, 0, 1], 0, 0)
-
-BODY (solfec, 'FINITE_ELEMENT', shp, bulkmat, mesh = hex)
+BODY (solfec, 'FINITE_ELEMENT', tet, bulkmat)
+BODY (solfec, 'FINITE_ELEMENT', pyr, bulkmat)
+BODY (solfec, 'FINITE_ELEMENT', wed, bulkmat)
+BODY (solfec, 'FINITE_ELEMENT', hex, bulkmat)
 
 table = HULL ([0, 0, 0,
                0, 1, 0,
