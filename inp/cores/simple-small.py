@@ -5,15 +5,16 @@ from simple_core_base import *
 
 # main module
 
-step = 0.0001
-stop = 12
-outfrq = step
+step = 0.0002
+stop = 10
+outfrq = 0.03
 kinem = 'FINITE_ELEMENT'
 solver = 'NEWTON'
 scheme = 'DEFAULT'
 shake = 'TRUE'
 plotconv = 0
-GEOMETRIC_EPSILON (1E-5)
+GEOMETRIC_EPSILON (1E-6)
+WARNINGS ('OFF')
 
 if kinem == 'PSEUDO_RIGID' or kinem == 'FINITE_ELEMENT': scheme = 'DEF_IMP'
 
@@ -44,9 +45,10 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.7, spring = 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3)
 
 if solver == 'GAUSS_SEIDEL':
-  sv = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-5, diagsolver = 'SEMISMOOTH_NEWTON')
+  sv = GAUSS_SEIDEL_SOLVER (1E-3, 260, 1E-6, diagsolver = 'SEMISMOOTH_NEWTON')
+  sv.reverse = 'ON'
 elif solver == 'NEWTON':
-  sv = NEWTON_SOLVER (1E-5, 200, theta = 0.15, locdyn = 'OFF')
+  sv = NEWTON_SOLVER (1E-6, 250, theta = 0.15, presmooth = 10)
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 

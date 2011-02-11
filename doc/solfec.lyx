@@ -6655,6 +6655,24 @@ epsilon
  - geometrical tolerance (default: 1E-6)
 \end_layout
 
+\begin_layout Subsection*
+WARNINGS (state)
+\end_layout
+
+\begin_layout Standard
+This routine disables or enables Solfec warnings.
+ It is a good practice to have the warnings enabled only switch them off
+ after making sure that they can be ignored (or there are none).
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+state
+\series default
+ - 'ON' or 'OFF' (default: 'ON')
+\end_layout
+
 \begin_layout Section
 \begin_inset CommandInset label
 LatexCommand label

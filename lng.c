@@ -5886,6 +5886,33 @@ static PyObject* lng_GEOMETRIC_EPSILON (PyObject *self, PyObject *args, PyObject
   Py_RETURN_NONE;
 }
 
+/* set geometric epsilon */
+static PyObject* lng_WARNINGS (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("state");
+  PyObject *state;
+
+  PARSEKEYS ("O", &state);
+
+  TYPETEST (is_string (state, kwl[0]));
+
+  IFIS (state, "ON")
+  {
+    WARNINGS_ENABLED = 1;
+  }
+  ELIF (state, "OFF")
+  {
+    WARNINGS_ENABLED = 0;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Only 'ON' or 'OFF' are valid states");
+    return NULL;
+  }
+
+  Py_RETURN_NONE;
+}
+
 /* dump local dynamics */
 static PyObject* lng_LOCDYN_DUMP (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -7021,6 +7048,7 @@ static PyMethodDef lng_methods [] =
   {"CALLBACK", (PyCFunction)lng_CALLBACK, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
   {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set unphysical penetration bound"},
   {"GEOMETRIC_EPSILON", (PyCFunction)lng_GEOMETRIC_EPSILON, METH_VARARGS|METH_KEYWORDS, "Set geometric epsilon"},
+  {"WARNINGS", (PyCFunction)lng_WARNINGS, METH_VARARGS|METH_KEYWORDS, "Enable or disable warnings"},
   {"LOCDYN_DUMP", (PyCFunction)lng_LOCDYN_DUMP, METH_VARARGS|METH_KEYWORDS, "Dump local dynamics"},
   {"PARTITION", (PyCFunction)lng_PARTITION, METH_VARARGS|METH_KEYWORDS, "Partition a finite element body"},
   {"OVERLAPPING", (PyCFunction)lng_OVERLAPPING, METH_VARARGS|METH_KEYWORDS, "Detect shapes (not) overlapping obstacles"},
@@ -7211,6 +7239,7 @@ int lng (const char *path)
                      "from solfec import CALLBACK\n"
                      "from solfec import UNPHYSICAL_PENETRATION\n"
                      "from solfec import GEOMETRIC_EPSILON\n"
+                     "from solfec import WARNINGS\n"
                      "from solfec import LOCDYN_DUMP\n"
                      "from solfec import PARTITION\n"
                      "from solfec import OVERLAPPING\n"

@@ -40,7 +40,7 @@ PREDCXXFLAGS = -O0
 #   down the speed of TetGen.  They can be skipped by define the -DNDEBUG
 #   switch.
 
-SWITCHES = -Wall -DSELF_CHECK
+SWITCHES = -w -DSELF_CHECK
 
 # SWITCHES = -Wall -Wabi -Wctor-dtor-privacy \
 #            -Woverloaded-virtual -Wno-pmf-conversions -Wsign-promo \

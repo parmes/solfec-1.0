@@ -39,8 +39,8 @@ typedef double (*node_t) [3]; /* mesh node */
 #define IMP_EPS 1E-9
 #define MAX_ITERS 64
 #define MAX_NODES 20
-#define DOM_TOL 0.150
-#define CUT_TOL 0.015
+#define DOM_TOL 0.01
+#define CUT_TOL 0.001
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2) /* external force */
 #define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3) /* internal force */
@@ -258,7 +258,7 @@ static int integrator2d_order (int type, ENTITY2D entity)
   return 1; /* XXX */
 }
 
-/* element integration */
+/* element integration; note that below __t__->ver, __t__->center are in local element coordinates already */
 #define INTEGRATE3D(TYPE, ENTITY, DOM, DOMNUM, ...)\
 {\
   const double *__X__, *__Y__, *__Z__, *__W__;\
@@ -274,7 +274,7 @@ static int integrator2d_order (int type, ENTITY2D entity)
     TRI *__t__, *__e__;\
     double __volume__;\
 \
-    __N__ = integrator3d_load (4, integrator3d_order (TYPE, ENTITY), &__X__, &__Y__, &__Z__, &__W__);\
+    __N__ = integrator3d_load (4, integrator3d_order (4, ENTITY), &__X__, &__Y__, &__Z__, &__W__);\
 \
     for (__volume__ = __k__ = 0; __k__ < __domnum__; __k__ ++) __volume__ += __d__ [__k__].volume;\
 \
@@ -856,17 +856,13 @@ static MX* element_shapes_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *po
   return N;
 }
 
-#if DEBUG
 /* simplex integrated volume ==
  * shape functions integrated volume test */
-static void test_volume_integral (MESH *msh, double ref_volume)
+static void test_volume_integral (MESH *msh, double ref_volume, int body_id)
 {
-  double J, volume,
-         nodes [MAX_NODES][3],
-	 shapes [MAX_NODES];
+  double J, volume, nodes [MAX_NODES][3];
   ELEMENT *ele;
   int bulk;
-
 
   for (ele = msh->surfeles, bulk = 0, volume = 0.0; ele; )
   {
@@ -874,7 +870,6 @@ static void test_volume_integral (MESH *msh, double ref_volume)
 
     INTEGRATE3D (ele->type, MASS, ele->dom, ele->domnum,
 
-      element_shapes (ele->type, point, shapes);
       J = element_det (ele->type, nodes, point, NULL);
       volume += J * weight;
     )
@@ -884,10 +879,13 @@ static void test_volume_integral (MESH *msh, double ref_volume)
     else ele = msh->bulkeles, bulk = 1;
   }
 
-  ASSERT_DEBUG (volume > 0.0 && fabs (ref_volume - volume) < 1E-10 * ref_volume,
-    "FEM ERROR: simplex_volume = %g, integrated_volume = %g\n", ref_volume, volume);
+  WARNING (fabs (volume - ref_volume) < CUT_TOL * ref_volume,
+    "FEM WARNING for BODY %d:\nShape volume is %g.\nIntegrated volume is %g.\n"
+    "Error %g is beyound tolerance of %g.\n"
+    "This issue occures when you backgrand hexahedrons are not rectilinear.\n"
+    "Refine the background mesh or make it rectilinear. Alternately, use a tetrahedral background mesh.\n",
+    body_id, ref_volume, volume, fabs (ref_volume - volume) / ref_volume, CUT_TOL);
 }
-#endif
 
 /* lump contribution of the element mass into the global diagonal matrix */
 static void element_lump_mass (BODY *bod, MESH *msh, ELEMENT *ele, double *x)
@@ -1276,22 +1274,20 @@ static void external_force (BODY *bod, double time, double step, double *fext)
 
       ele = MESH_Element_Containing_Point (msh, frc->ref_point, 1); /* TODO: optimize */
 
-      if (ele)
-      {
-	referential_to_local (msh, ele, frc->ref_point, point);
+      ASSERT_TEXT (ele, "Point force seems to be applied outside of FEM mesh.\n"
+	                "This should have been detected when interpreting input.\n"
+			"Please report this bug!\n");
 
-	if (frc->kind & CONVECTED)
-	{ 
-	  deformation_gradient (bod, msh, ele, point, g);
-	  NVMUL (g, f, g+9);
-	  COPY (g+9, f);
-	}
+      referential_to_local (msh, ele, frc->ref_point, point);
 
-	accumulate_point_force (bod, msh, ele, point, f, fext);
+      if (frc->kind & CONVECTED)
+      { 
+	deformation_gradient (bod, msh, ele, point, g);
+	NVMUL (g, f, g+9);
+	COPY (g+9, f);
       }
-#if DEBUG
-      else WARNING_DEBUG (0, "Point force outside of FE mesh");
-#endif
+
+      accumulate_point_force (bod, msh, ele, point, f, fext);
     }
   }
 
@@ -2592,11 +2588,9 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   /* save rought mesh if needed */
   if (msh != shp->data) bod->msh = msh;
 
-#if DEBUG
   /* simplex integrated volume ==
    * shape functions integrated volume test */
-  test_volume_integral (msh, bod->ref_volume);
-#endif
+  test_volume_integral (msh, bod->ref_volume, bod->id);
 }
 
 /* overwrite state */
