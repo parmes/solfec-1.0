@@ -1122,53 +1122,17 @@ void MESH_Rotate (MESH *msh, double *point, double *vector, double angle)
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
 void MESH_Char_Partial (MESH *msh, double *vo, double *sx, double *sy, double *sz, double *eul)
 {
-  double zero [3] = {0, 0, 0},
-	 J, (*cur) [3] = msh->cur_nodes,
-	 a [3], b [3], c [3];
   ELEMENT *ele;
-  FACE *fac;
 
-  /* loop over the surface faces and use simplex integration
-   * in order to calculate the volume characteristics */
+  /* previously we looped over the surface faces and used simplex integration,
+   * but since partitioned meshes do not have all surface elements (in order to
+   * decrease contact detection effort) we now iterate over all elements */
+
   for (ele = msh->surfeles; ele; ele = ele->next)
-  {
-    for (fac = ele->faces; fac; fac = fac->next)
-    {
-      COPY (cur [fac->nodes [0]], a);
-      COPY (cur [fac->nodes [1]], b);
-      COPY (cur [fac->nodes [2]], c);
+    ELEMENT_Char_Partial (msh, ele, vo, sx, sy, sz, eul);
 
-      J = simplex_J (zero, a, b, c);
-      *vo += simplex_1 (J, zero, a, b, c);
-      *sx += simplex_x (J, zero, a, b, c);
-      *sy += simplex_y (J, zero, a, b, c);
-      *sz += simplex_z (J, zero, a, b, c);
-      eul [0] += simplex_xx (J, zero, a, b, c);
-      eul [3] += simplex_xy (J, zero, a, b, c);
-      eul [4] += simplex_yy (J, zero, a, b, c);
-      eul [6] += simplex_xz (J, zero, a, b, c);
-      eul [7] += simplex_yz (J, zero, a, b, c);
-      eul [8] += simplex_zz (J, zero, a, b, c);
-
-      if (fac->type == 4)
-      {
-	COPY (c, b);
-	COPY (cur [fac->nodes [3]], c);
-
-	J = simplex_J (zero, a, b, c);
-	*vo += simplex_1 (J, zero, a, b, c);
-	*sx += simplex_x (J, zero, a, b, c);
-	*sy += simplex_y (J, zero, a, b, c);
-	*sz += simplex_z (J, zero, a, b, c);
-	eul [0] += simplex_xx (J, zero, a, b, c);
-	eul [3] += simplex_xy (J, zero, a, b, c);
-	eul [4] += simplex_yy (J, zero, a, b, c);
-	eul [6] += simplex_xz (J, zero, a, b, c);
-	eul [7] += simplex_yz (J, zero, a, b, c);
-	eul [8] += simplex_zz (J, zero, a, b, c);
-      }
-    }
-  }
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+    ELEMENT_Char_Partial (msh, ele, vo, sx, sy, sz, eul);
 }
 
 /* get 'cur' characteristics of the meshed shape:
@@ -1969,7 +1933,7 @@ CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele)
 
   for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
   for (FACE *fac = ele->faces; fac; fac = fac->next) surfaces [fac->index] = fac->surface; /* set surface identifiers */
-  cvx = CONVEX_Create (NULL, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
+  cvx = CONVEX_Create (NULL, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* create convex */
 
   return cvx;
 }
@@ -1985,10 +1949,21 @@ double ELEMENT_Volume (MESH *msh, ELEMENT *ele, int ref)
   load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
   nfac = neighs (ele->type); /* number of faces */
   for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
-  cvx = CONVEX_Create (NULL, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
+  cvx = CONVEX_Create (NULL, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* create convex */
   volume = CONVEX_Volume (cvx, ref);
   CONVEX_Destroy (cvx);
   return volume;
+}
+
+/* compute current partial characteristic of an element: 'vo'lume and static momenta
+ * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
+void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, double *vo, double *sx, double *sy, double *sz, double *eul)
+{
+  CONVEX *cvx;
+
+  cvx = ELEMENT_Convex (msh, ele);
+  CONVEX_Char_Partial (cvx, vo, sx, sy, sz, eul);
+  CONVEX_Destroy (cvx);
 }
 
 /* pack face */

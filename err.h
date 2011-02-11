@@ -40,6 +40,8 @@ struct errstack /* error stack */
 
 extern ERRSTACK *__errstack__; /* global error stack */
 
+extern short WARNINGS_ENABLED; /* warnings flag */
+
 /* error codes */
 enum
 {
@@ -93,7 +95,7 @@ enum
   ERR_FEM_CUT_VOLUME,
   ERR_FEM_ROT_SINGULAR_JACOBIAN,
   ERR_FEM_ROT_NEWTON_DIVERGENCE, /* 50 */
-  ERR_CUDA
+  ERR_BUG_FOUND
 };
 
 /* get error string */
@@ -171,8 +173,21 @@ char* errstring (int error);
 /* general assertion */
 #define ASSERT(__test__, __error__) if (! (__test__)) THROW (__error__)
 
+/* textual assertion */
+#define ASSERT_TEXT(Test, ...)\
+  do {\
+  if (! (Test)) { fprintf (stderr, "%s: %d => ", __FILE__, __LINE__);\
+    fprintf (stderr, __VA_ARGS__);\
+    fprintf (stderr, "\n"); THROW (ERR_BUG_FOUND); } } while (0)
+
 /* memory validity assertion */
 #define ERRMEM(__pointer__) if (! (__pointer__)) THROW (ERR_OUT_OF_MEMORY)
+
+/* general warning */
+#define WARNING(Test, ...)\
+  if (! (Test) && WARNINGS_ENABLED) { fprintf (stderr, "%s: %d => ", __FILE__, __LINE__);\
+    fprintf (stderr, __VA_ARGS__);\
+    fprintf (stderr, "\n"); }
 
 /* warning executed only in debug mode */
 #if DEBUG

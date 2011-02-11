@@ -1636,18 +1636,17 @@ static void insert_pending_constraints (DOM *dom)
 	break;
       }
 
-      if (con)
+      ASSERT_TEXT (con, "Failed to insert a pending constraint.\n"
+	                "Please report this bug!\n");
+
+      switch ((int)con->kind)
       {
-	switch ((int)con->kind)
-	{
-	case FIXPNT: update_fixpnt (dom, con); break;
-	case FIXDIR: update_fixdir (dom, con); break;
-	case VELODIR: update_velodir (dom, con); break;
-	case RIGLNK: update_riglnk (dom, con); break;
-	case GLUE: update_glue (dom, con); break;
-	}
+      case FIXPNT: update_fixpnt (dom, con); break;
+      case FIXDIR: update_fixdir (dom, con); break;
+      case VELODIR: update_velodir (dom, con); break;
+      case RIGLNK: update_riglnk (dom, con); break;
+      case GLUE: update_glue (dom, con); break;
       }
-      WARNING_DEBUG (con, "Failed to insert a pending rigid link");
     }
 
     free (pnd); /* they were MEM_ALLOC-ed */
