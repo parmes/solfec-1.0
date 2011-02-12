@@ -44,7 +44,7 @@ struct link
 struct mybox
 {
   BOX *box;
-  SGP *mark;
+  int num, mark;
 };
 
 struct hash
@@ -90,7 +90,9 @@ static void onewayscan (LINK *list, int d,
 
   for (jp = list->next; jp && LE (jp->extents [d], list->extents [3 + d]); jp = jp->next)
   {
-    if (MYBOX (jp)->mark >= BOXO (list)->sgp) continue;
+    if (MYBOX (jp)->mark >= MYBOX (list)->num) continue; /* hash list links are created in order of "my" boxes vector and then scanned
+							    in the order of their consicutive creation; hence lower number boxes find
+							    intersections with higher number ones; the reverse case can be skipped */
 
     for (n = 0; n < 3; n ++)
       if (d != n)  
@@ -101,7 +103,7 @@ static void onewayscan (LINK *list, int d,
     if (n == 3)
     {
       report (data, BOXO (list), BOXO (jp));
-      MYBOX (jp)->mark = BOXO (list)->sgp;
+      MYBOX (jp)->mark = MYBOX (list)->num;
     }
   }
 }
@@ -168,6 +170,7 @@ void HASH_Do (void *context, int boxnum, BOX **boxes, void *data, BOX_Overlap_Cr
   htable = h->htable;
   hsize = h->hsize;
 
+  /* compute average extents and scene ranges */
   for (ip = boxes, jp = h->boxes; ip != end; ip ++, jp ++)
   {
     avsize += (*ip)->extents [3] - (*ip)->extents [0];
@@ -184,13 +187,15 @@ void HASH_Do (void *context, int boxnum, BOX **boxes, void *data, BOX_Overlap_Cr
     a [1][2] = MAX (a [1][2],(*ip)->extents [5]);
 
     jp->box = *ip;
-    jp->mark = NULL;
+    jp->num = (ip - boxes);
+    jp->mark = 0;
   }
 
   a [1][0] -= a [0][0];
   a [1][1] -= a [0][1];
   a [1][2] -= a [0][2];
 
+  /* maximally elongated dimension */
   if (a [1][0] > a [1][1]) dmax = 0;
   else dmax = 1;
   if (a [1][2] > a [1][dmax]) dmax = 2;
@@ -199,6 +204,7 @@ void HASH_Do (void *context, int boxnum, BOX **boxes, void *data, BOX_Overlap_Cr
 
   for (i = 0; i < hsize; i++) htable [i] = NULL;
 
+  /* compute integer voxel ranges */
   for (ip = boxes, jp = h->boxes; ip != end; ip ++, jp ++)
   {
     q [0][0] = INTEGER ((*ip)->extents [0], avsize);
@@ -223,22 +229,22 @@ loop:
     }
 
 out:
-    qsort (keys, m, sizeof (int), (qcmp) keyscmp);
+    qsort (keys, m, sizeof (int), (qcmp) keyscmp); /* keys can repeat */
 
     for (n = 0; n < m; n ++)
     {
       p = keys [n];
 
-      if (n && p == keys [n-1]) continue;
+      if (n && p == keys [n-1]) continue; /* skip repeated keys */
 
       lnk = linkalloc (h);
 
       lnk->extents = (*ip)->extents;
       lnk->box = jp;
-      lnk->next = htable [p];
+      lnk->next = htable [p]; /* hash entry list */
       htable [p] = lnk;
 
-      if (tail) tail->snext = lnk;
+      if (tail) tail->snext = lnk; /* list of successively created links */
       else list = lnk;
       tail = lnk;
     }
@@ -253,11 +259,11 @@ out:
   for (i = 0; i < hsize; i ++)
     if (htable [i])
     {
-      htable [i] = sort [dmax] (htable [i]);
+      htable [i] = sort [dmax] (htable [i]); /* short hash entry lists */
     }
 
-  for (; list; list = list->snext)
-    onewayscan (list, dmax, data, report);
+  for (; list; list = list->snext) /* in the order of successively created links */
+    onewayscan (list, dmax, data, report); /* one way scan from their position onward (reduces work) */
 
   linksclear (h);
 }

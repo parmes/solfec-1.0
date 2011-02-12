@@ -155,7 +155,7 @@ struct general_body
 
   SCHEME scheme;    /* integration scheme */
 
-  MX *inverse;      /* a suitable inverse oprator (e.g. inertia for dynamics) */
+  MX *inverse;      /* a suitable inverse oprator (e.g. of inertia for explicit dynamics) */
 
   MX *M;            /* inertia operator */
 
@@ -174,7 +174,7 @@ struct general_body
 
   short form; /* FEM formulation */
 
-  MESH *msh; /* FEM mesh when 'shape' is made of CONVEX objects ("rough mesh") */
+  MESH *msh; /* background FEM mesh when shape is made of CONVEX objects */
 
   double energy [BODY_ENERGY_SPACE]; /* kinetic, external, contwork, fricwork, internal */
 
