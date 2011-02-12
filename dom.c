@@ -78,12 +78,12 @@ static void aabb_destroy_data (AABB_DATA *data)
 /* fastest box overlap algorithm */
 static BOXALG aabb_algorithm (DOM *dom)
 {
-#if 0
-  AABB_DATA *data = dom->data;
+#if 1
+  AABB_DATA *data = dom->aabb_data;
   double num, *tim, *lim;
   int i;
 
-  if (data->aabb_counter < AABB_SIZE)
+  if (data->aabb_counter < BOXALG_COUNT)
   {
     data->aabb_algo = data->aabb_counter ++; /* at first test all algorithms */
   }
@@ -92,12 +92,12 @@ static BOXALG aabb_algorithm (DOM *dom)
     tim = data->aabb_timings;
     lim = data->aabb_limits;
 
-    for (i = 0; i < AABB_SIZE; i ++) lim [i+1] = lim [i] + tim [i]; /* sum up */
-    for (i = 1; i <= AABB_SIZE; i ++) lim [i] /= lim [AABB_SIZE]; /* normalize */
+    for (i = 0; i < BOXALG_COUNT; i ++) lim [i+1] = lim [i] + tim [i]; /* sum up */
+    for (i = 1; i <= BOXALG_COUNT; i ++) lim [i] /= lim [BOXALG_COUNT]; /* normalize */
 
     num = DRAND(); /* random in [0, 1] */
 
-    for (i = 0; i < AABB_SIZE; i ++)
+    for (i = 0; i < BOXALG_COUNT; i ++)
     {
       if (num >= lim [i] && num < lim [i+1])
       {
@@ -109,7 +109,7 @@ static BOXALG aabb_algorithm (DOM *dom)
 
   return data->aabb_algo;
 #else
-  return HYBRID; /* FIXME: all other algorithms need more tesing */
+  return HYBRID; /* TODO: remove when the above proves robust */
 #endif
 }
 
@@ -1217,12 +1217,15 @@ static void update_external_riglnk_points (DOM *dom)
 
   for (con = dom->con; con; con = con->next)
   {
-    for (item = SET_First (con->ext); item; item = SET_Next (item)) /* FIXME: why for all kinds => riglnk ? */
+    if (con->kind == RIGLNK) /* rigid links only */
     {
-      i = (int) (long) item->data;
-      ptr = &send [i];
-      pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
-      pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, con->point, 3);
+      for (item = SET_First (con->ext); item; item = SET_Next (item))
+      {
+	i = (int) (long) item->data;
+	ptr = &send [i];
+	pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
+	pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, con->point, 3);
+      }
     }
   }
 

@@ -26,10 +26,6 @@ more through testing of cummunication routines would be of use (comtest).
 
 After all we have increased communication by some 48 bytes per contact now again.
 ---------------------------------------------------------------------------------------
-HASH3D detects much too few constraints (e.g. for inp/puzzle.py ~1000 from 5666)
-----------------------------------------------------------------------------------------
-Run inp/boxsoup.py with BODY_SPACE_SOLVER: fem.c: 3116 => Zero row sum in M + (h*h/4) K
-------------------------------------------------------------------------------------------
 cvi.c needs a better input point selection, see: ./cvitest inp/cvi.13
 -----------------------------------------------------------------------------
 Contact detection still crude: see inp/tetpart.py
