@@ -78,7 +78,7 @@ static void aabb_destroy_data (AABB_DATA *data)
 /* fastest box overlap algorithm */
 static BOXALG aabb_algorithm (DOM *dom)
 {
-#if 1
+#if 0
   AABB_DATA *data = dom->aabb_data;
   double num, *tim, *lim;
   int i;

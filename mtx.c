@@ -1929,6 +1929,9 @@ MX* MX_Add (double alpha, MX *a, double beta, MX *b, MX *c)
 
 MX* MX_Matmat (double alpha, MX *a, MX *b, double beta, MX *c)
 {
+  ASSERT_DEBUG (!((MXSPD(a) && !MXIFAC(a)) || (MXSPD(b) && !MXIFAC(b))),
+    "Matrix-matrix product for lower triangular SPD matrices is not implemented");
+
   switch ((KIND(a)<<4)|KIND(b))
   {
     case 0x11: /* DENSE * DENSE */

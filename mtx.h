@@ -111,8 +111,8 @@ MX* MX_Matmat (double alpha, MX *a, MX *b, double beta, MX *c);
 /* matrix vector product => c = alpha * a *b + beta * c */
 void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c);
 
-/* inverse => b = inv (a); LU factorization is used for CSC;
- * if 'b' == NULL return new matrix; otherwise return 'b' */
+/* inverse => b = inv (a); LU factorization is used for general CSC,
+ * Cholesky for MXSPD; if 'b' == NULL return new matrix; otherwise return 'b' */
 MX* MX_Inverse (MX *a, MX *b);
 
 /* compute |n| eigenvalues & eigenvectors (vec != NULL) in the upper or

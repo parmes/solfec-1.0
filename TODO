@@ -81,3 +81,4 @@ Consider coming back to the previous way of storing W blocks
 Consider a separate linear solve at the end for all equality constraints.
 This will simplify the penalty solver as well as it might improve accuracy.
 --------------------------------------------------------------------------------------
+Integrate with PARADISO via MKL
