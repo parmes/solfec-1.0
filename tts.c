@@ -553,6 +553,28 @@ static void destroy_data (PRIVATE *A)
   free (A);
 }
 
+/* return average abs (Wij) */
+static double average_abs_Wij (LOCDYN *ldy)
+{
+  double Wij = 0.0,
+	 n = 0.0;
+
+  for (DIAB *dia = ldy->dia; dia; dia = dia->n)
+  {
+    double *W = dia->W;
+    for (int i = 0; i < 9; i ++) Wij += fabs (W[i]);
+    n += 9;
+    for (OFFB *blk = dia->adj; blk; blk = blk->n)
+    {
+      W = blk->W;
+      for (int i = 0; i < 9; i ++) Wij += fabs (W[i]);
+      n += 9;
+    }
+  }
+
+  return Wij / n;
+}
+
 /* create solver */
 TEST* TEST_Create (double meritval, int maxiter)
 {
@@ -586,8 +608,8 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
   A = create_data (ts, ldy);
   merit = &dom->merit;
   ts->iters = 0;
-  A->delta = 0;
-  A->epsilon = 1E-9;
+  A->delta = 0.1 * average_abs_Wij (ldy);
+  A->epsilon = 1E-8;
 
   do
   {
