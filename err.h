@@ -185,7 +185,7 @@ char* errstring (int error);
 
 /* general warning */
 #define WARNING(Test, ...)\
-  if (! (Test) && WARNINGS_ENABLED) { fprintf (stderr, "%s: %d => ", __FILE__, __LINE__);\
+  if (! (Test) && WARNINGS_ENABLED) { fprintf (stderr, "WARNING %s: %d => ", __FILE__, __LINE__);\
     fprintf (stderr, __VA_ARGS__);\
     fprintf (stderr, "\n"); }
 

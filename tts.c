@@ -60,6 +60,8 @@ struct private
 
   int iters; /* linear solver iterations */
 
+  int matvec; /* counter */
+
   DOM *dom; /* domain */
 };
 
@@ -220,6 +222,47 @@ static int Matvec (void *matvec_data, double alpha, PRIVATE *A, VECTOR *x, doubl
   DIAB *dia;
   OFFB *blk;
 
+#if MPI
+  {
+    COMDATA *send, *recv, *ptr;
+    DOM *dom = A->dom;
+    int nsend, nrecv;
+    int i, *j, *k;
+    SET *item;
+
+    for (dat = A->start, nsend = 0; dat != A->end; dat ++) 
+    {
+      con = dat->con;
+      nsend += SET_Size (con->ext);
+    }
+    ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend])));
+    for (dat = A->start, ptr = send; dat != A->end; dat ++)
+    {
+      con = dat->con;
+      for (item = SET_First (con->ext); item; item = SET_Next (item), ptr ++)
+      {
+	ptr->ints = 1;
+	ptr->d = &x->x [con->num];
+	ptr->doubles = 3;
+	ptr->i = (int*) &con->id;
+	ptr->rank = (int) (long) item->data;
+      }
+    }
+    COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+    for (i = 0; i < nrecv; i ++)
+    {
+      ptr = &recv [i];
+      for (j = ptr->i, k = j + ptr->ints, R = ptr->d; j < k; j ++, R += 3)
+      {
+	ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid con id: %d", *j);
+	COPY (R, con->R);
+      }
+    }
+    free (send);
+    free (recv);
+  }
+#endif
+
   for (dat = A->start, R = r = x->x, Q = y->x; dat != A->end; dat ++, R += 3, Q += 3)
   {
     con = dat->con;
@@ -237,6 +280,14 @@ static int Matvec (void *matvec_data, double alpha, PRIVATE *A, VECTOR *x, doubl
 	NVADDMUL (U, W, v, U);
       }
     }
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      v = CON(blk->dia)->R;
+      W = blk->W;
+      NVADDMUL (U, W, v, U);
+    }
+#endif
 
     switch (con->kind)
     {
@@ -267,6 +318,8 @@ static int Matvec (void *matvec_data, double alpha, PRIVATE *A, VECTOR *x, doubl
 
   Axpy (alpha * A->delta, x, y);
 
+  A->matvec ++;
+
   return 0;
 }
 
@@ -280,9 +333,8 @@ static int PrecondSetup (void *vdata, void *A, void *b, void *x)
   return 0;
 }
 
-static int Precond (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
+static int Precond0 (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
 {
-#if 1
   double *T, *Q, *R;
   CON_DATA *dat;
 
@@ -291,35 +343,117 @@ static int Precond (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
     T = dat->T;
     NVMUL (T, Q, R);
   }
-#else
-  double U [3], *T, *W, *R, *Q, *r, *v;
-  CON *con, *adj;
-  CON_DATA *dat;
-  DIAB *dia;
-  OFFB *blk;
-
-  for (dat = A->start, R = r = x->x, Q = b->x; dat != A->end; dat ++, R += 3, Q += 3)
-  {
-    con = dat->con;
-    dia = con->dia;
-    COPY (Q, U);
-    for (blk = dia->adj; blk; blk = blk->n)
-    {
-      adj = blk->dia->con;
-      if (adj->num >= 0)
-      {
-	v = &r [adj->num];
-	W = blk->W;
-	NVADDMUL (U, W, v, U);
-      }
-    }
-    T = dat->T;
-    NVMUL (T, U, R);
-  }
-#endif
 
   return 0;
 }
+
+#if 0
+static int Precond1 (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
+{
+  hypre_FlexGMRESFunctions *gmres_functions;
+  void *gmres_vdata;
+  int ret;
+
+  gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
+    (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
+    MatvecCreate, (int (*) (void*,double,void*,void*,double,void*))Matvec, MatvecDestroy,
+    (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
+    (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
+    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond0);
+  gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
+
+  hypre_FlexGMRESSetMinIter (gmres_vdata, 3);
+  hypre_FlexGMRESSetMaxIter (gmres_vdata, 3);
+  hypre_FlexGMRESSetup (gmres_vdata, A, b, x);
+  ret = hypre_FlexGMRESSolve (gmres_vdata, A, b, x);
+  hypre_FlexGMRESDestroy (gmres_vdata);
+
+  return 0;
+}
+#endif
+
+#if 0
+static int Precond2 (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
+{
+  int n = A->end - A->start, i, j;
+  MEM mapmem, dblmem;
+  MAP **col;
+
+  ERRMEM (col = MEM_CALLOC (3*n*sizeof (SET*)));
+  MEM_Init (&mapmem, sizeof (MAP), 1204);
+  MEM_Init (&dblmem, sizeof (double [9]), 256);
+
+  for (CON_DATA *dat = A->start; dat != A->end; dat ++)
+  {
+    double *X = dat->X, *Y = dat->Y;
+    CON *con = dat->con;
+    DIAB *dia = con->dia;
+    double *W = dia->W;
+    i = con->num, j = i;
+    double *T = MEM_Alloc (&dblmem);
+    int ii, jj;
+    NNMUL (X, W, T);
+    NNADD (T, Y, T);
+    T [0] += A->delta;
+    T [4] += A->delta;
+    T [8] += A->delta;
+    for (ii = 0; ii < 3; ii ++)
+      for (jj = 0; jj < 3; jj ++)
+        MAP_Insert (&mapmem, &col [j+jj], (void*) (long) (i+ii), &T[3*jj+ii], NULL);
+
+#if 0
+    for (OFFB *blk = dia->adj; blk; blk = blk->n)
+    {
+      j = blk->dia->con->num;
+      if (ABS (i-j) == 3)
+      {
+	double XW [9];
+	W = blk->W;
+	if (!(T = MAP_Find (col [j], (void*) (long) i, NULL))) T = MEM_Alloc (&dblmem);
+	NNMUL (X, W, XW);
+	NNADD (T, XW, T);
+	for (ii = 0; ii < 3; ii ++)
+	  for (jj = 0; jj < 3; jj ++)
+	    MAP_Insert (&mapmem, &col [j+jj], (void*) (long) (i+ii), &T[3*jj+ii], NULL);
+      }
+    }
+#endif
+  }
+
+  MX *P;
+  ERRMEM (P = MEM_CALLOC (sizeof (MX)));
+  P->nz = -1;
+  P->kind = MXCSC;
+  P->m = P->n = 3*n;
+  ERRMEM (P->p = MEM_CALLOC (sizeof (int [P->m+1])));
+  for (j = 1; j < P->m+1; j ++)
+  {
+    P->p [j] = P->p[j-1] + MAP_Size (col [j-1]);
+  }
+  P->nzmax = P->p [P->m];
+  ERRMEM (P->i = MEM_CALLOC (sizeof (int [P->nzmax])));
+  ERRMEM (P->x = MEM_CALLOC (sizeof (double [P->nzmax])));
+  for (j = 0, i = 0; j < P->m; j ++)
+  {
+    MAP *item;
+    for (item = MAP_First (col [j]); item; item = MAP_Next (item), i ++)
+    {
+      P->i [i] = (int) (long) item->key;
+      P->x [i] = *((double*) item->data);
+    }
+  }
+
+  MX_Inverse (P, P);
+  MX_Matvec (1.0, P, b->x, 0.0, x->x);
+  MX_Destroy (P);
+  MEM_Release (&mapmem);
+  MEM_Release (&dblmem);
+  free (col);
+
+  return 0;
+}
+#endif
+
 /* GMRES interface end */
 
 /* create private data */
@@ -364,10 +498,18 @@ static PRIVATE *create_data (TEST *ts, LOCDYN *ldy)
     NVADDMUL (dia->B, W, con->R, U);
     for (OFFB *blk = dia->adj; blk; blk = blk->n)
     {
-      dia = blk->dia;
+      double *R = blk->dia->R;
       W = blk->W;
-      NVADDMUL (U, W, dia->R, U);
+      NVADDMUL (U, W, R, U);
     }
+#if MPI
+    for (OFFB *blk = dia->adjext; blk; blk = blk->n)
+    {
+      double *R = CON(blk->dia)->R;
+      W = blk->W;
+      NVADDMUL (U, W, R, U);
+    }
+#endif
   }
 
   return A;
@@ -494,7 +636,7 @@ static void linear_solve (PRIVATE *A, double abstol, int maxiter)
     MatvecCreate, (int (*) (void*,double,void*,void*,double,void*))Matvec, MatvecDestroy,
     (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
     (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
-    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond);
+    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond0);
   gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
 
   hypre_error_flag = 0;
@@ -529,6 +671,45 @@ static void update_solution (PRIVATE *A)
   }
 
   /* U = W R + B */
+#if MPI
+  COMDATA *send, *recv, *ptr;
+  DOM *dom = A->dom;
+  int nsend, nrecv;
+  int i, *j, *k;
+  SET *item;
+
+  for (dat = A->start, nsend = 0; dat != A->end; dat ++) 
+  {
+    con = dat->con;
+    nsend += SET_Size (con->ext);
+  }
+  ERRMEM (send = MEM_CALLOC (sizeof (COMDATA [nsend])));
+  for (dat = A->start, ptr = send; dat != A->end; dat ++)
+  {
+    con = dat->con;
+    for (item = SET_First (con->ext); item; item = SET_Next (item), ptr ++)
+    {
+      ptr->ints = 1;
+      ptr->d = con->R;
+      ptr->doubles = 3;
+      ptr->i = (int*) &con->id;
+      ptr->rank = (int) (long) item->data;
+    }
+  }
+  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+  for (i = 0; i < nrecv; i ++)
+  {
+    ptr = &recv [i];
+    for (j = ptr->i, k = j + ptr->ints, R = ptr->d; j < k; j ++, R += 3)
+    {
+      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*j), NULL), "Invalid con id: %d", *j);
+      COPY (R, con->R);
+    }
+  }
+  free (send);
+  free (recv);
+#endif
+
   for (dat = A->start; dat != A->end; dat ++)
   {
     CON *con = dat->con;
@@ -537,10 +718,18 @@ static void update_solution (PRIVATE *A)
     NVADDMUL (dia->B, W, con->R, U);
     for (OFFB *blk = dia->adj; blk; blk = blk->n)
     {
-      dia = blk->dia;
+      double *R = blk->dia->R;
       W = blk->W;
-      NVADDMUL (U, W, dia->R, U);
+      NVADDMUL (U, W, R, U);
     }
+#if MPI
+     for (OFFB *blk = dia->adjext; blk; blk = blk->n)
+    {
+      double *R = CON(blk->dia)->R;
+      W = blk->W;
+      NVADDMUL (U, W, R, U);
+    }
+#endif
   }
 }
 
@@ -553,26 +742,24 @@ static void destroy_data (PRIVATE *A)
   free (A);
 }
 
-/* return average abs (Wij) */
-static double average_abs_Wij (LOCDYN *ldy)
+/* return average abs (Wii) */
+static double average_abs_Wii (LOCDYN *ldy)
 {
-  double Wij = 0.0,
-	 n = 0.0;
+  double Wii [2] = {0, 0};
 
   for (DIAB *dia = ldy->dia; dia; dia = dia->n)
   {
     double *W = dia->W;
-    for (int i = 0; i < 9; i ++) Wij += fabs (W[i]);
-    n += 9;
-    for (OFFB *blk = dia->adj; blk; blk = blk->n)
-    {
-      W = blk->W;
-      for (int i = 0; i < 9; i ++) Wij += fabs (W[i]);
-      n += 9;
-    }
+    for (int i = 0; i < 9; i ++) Wii[0] += fabs (W[i]);
+    Wii [1] += 9.0;
   }
 
-  return Wij / n;
+#if MPI
+  double Wjj [2] = {Wii [0], Wii [1]};
+  MPI_Allreduce (Wjj, Wii, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  return Wii [0] / Wii [1];
 }
 
 /* create solver */
@@ -596,10 +783,6 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
   PRIVATE *A;
   DOM *dom;
 
-#if MPI
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-#endif
-
   sprintf (fmt, "TEST_SOLVER: (LIN its: %%%dd) iteration: %%%dd merit: %%.2e\n",
            (int)log10 (ts->linmaxiter) + 1, (int)log10 (ts->maxiter) + 1);
 
@@ -608,7 +791,7 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
   A = create_data (ts, ldy);
   merit = &dom->merit;
   ts->iters = 0;
-  A->delta = 0.1 * average_abs_Wij (ldy);
+  A->delta = 0.1 * average_abs_Wii (ldy);
   A->epsilon = 1E-8;
 
   do
@@ -629,6 +812,11 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
     if (dom->verbose) printf (fmt, A->iters, ts->iters, *merit);
 
   } while (++ ts->iters < ts->maxiter && *merit > ts->meritval);
+
+#if MPI
+    if (dom->rank == 0)
+#endif
+    if (dom->verbose) printf ("TEST_SOLVER: total MATVECs: %d\n", A->matvec);
 
   destroy_data (A);
 }

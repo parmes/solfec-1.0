@@ -4803,6 +4803,20 @@ static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObje
   Py_RETURN_TRUE;
 }
 
+/* return current rank */
+static PyObject* lng_RANK (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  int rank;
+
+#if MPI
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+#else
+  rank = 0;
+#endif
+
+  return PyInt_FromLong (rank);
+}
+
 /* return number of CPUs */
 static PyObject* lng_NCPU (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -7023,6 +7037,7 @@ static PyMethodDef lng_methods [] =
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
   {"IMBALANCE_TOLERANCE", (PyCFunction)lng_IMBALANCE_TOLERANCE, METH_VARARGS|METH_KEYWORDS, "Adjust parallel imbalance tolerance"},
+  {"RANK", (PyCFunction)lng_RANK, METH_NOARGS, "Get current processor rank"},
   {"NCPU", (PyCFunction)lng_NCPU, METH_VARARGS|METH_KEYWORDS, "Get the number of processors"},
   {"HERE", (PyCFunction)lng_HERE, METH_VARARGS|METH_KEYWORDS, "Test whether an object is located on the current processor"},
   {"VIEWER", (PyCFunction)lng_VIEWER, METH_NOARGS, "Test whether the viewer is enabled"},
@@ -7214,6 +7229,7 @@ int lng (const char *path)
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
                      "from solfec import IMBALANCE_TOLERANCE\n"
+                     "from solfec import RANK\n"
                      "from solfec import NCPU\n"
                      "from solfec import HERE\n"
                      "from solfec import VIEWER\n"

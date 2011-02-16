@@ -545,6 +545,12 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     sol->kind = kind;
 
 #if MPI
+    /* make sure that all nodes execute callback */
+    int mincallback = PUT_int_min (sol->callback ? 1 : 0);
+    WARNING (!(mincallback == 0 && sol->callback),
+      "The CALLBACK has not been defined on all processors and it will be ignored.\n");
+    if (mincallback == 0 && sol->callback) sol->callback = NULL;
+
     /* these values might differ due to clumsy input scripting: make them uniform */
     sol->callback_interval = PUT_double_min (sol->callback_interval);
     sol->output_interval = PUT_double_min (sol->output_interval);
@@ -598,7 +604,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       }
 
       /* execute callback if needed */
-      if (sol->dom->time >= sol->callback_time)
+      if (sol->callback && sol->dom->time >= sol->callback_time)
       {
 	int ret;
 
