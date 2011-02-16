@@ -6756,6 +6756,22 @@ tor equals 1.0.
 \end_layout
 
 \begin_layout Subsection*
+num = RANK ()
+\end_layout
+
+\begin_layout Standard
+This routine returns the rank of the CPU that runs the current copy of Solfec.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+num
+\series default
+ - the CPU rank
+\end_layout
+
+\begin_layout Subsection*
 num = NCPU (solfec)
 \end_layout
 
