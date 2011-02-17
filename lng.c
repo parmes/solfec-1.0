@@ -3579,6 +3579,25 @@ static int lng_TEST_SOLVER_set_merhist (lng_TEST_SOLVER *self, PyObject *value, 
   return -1;
 }
 
+static PyObject* lng_TEST_SOLVER_get_mvhist (lng_TEST_SOLVER *self, void *closure)
+{
+  PyObject *list;
+  int i;
+
+  ERRMEM (list = PyList_New (self->ts->iters));
+
+  for (i = 0; i < self->ts->iters; i ++)
+    PyList_SetItem (list, i, PyInt_FromLong (self->ts->mvhist [i]));
+
+  return list;
+}
+
+static int lng_TEST_SOLVER_set_mvhist (lng_TEST_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 static PyObject* lng_TEST_SOLVER_get_iters (lng_TEST_SOLVER *self, void *closure)
 {
   return PyInt_FromLong (self->ts->iters);
@@ -3605,6 +3624,7 @@ static PyGetSetDef lng_TEST_SOLVER_getset [] =
   {"maxiter", (getter)lng_TEST_SOLVER_get_maxiter, (setter)lng_TEST_SOLVER_set_maxiter, "iterations bound", NULL},
   {"linmaxiter", (getter)lng_TEST_SOLVER_get_linmaxiter, (setter)lng_TEST_SOLVER_set_linmaxiter, "linear solver maximal iterations count", NULL},
   {"merhist", (getter)lng_TEST_SOLVER_get_merhist, (setter)lng_TEST_SOLVER_set_merhist, "merit function history", NULL},
+  {"mvhist", (getter)lng_TEST_SOLVER_get_mvhist, (setter)lng_TEST_SOLVER_set_mvhist, "merit function history", NULL},
   {"iters", (getter)lng_TEST_SOLVER_get_iters, (setter)lng_TEST_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}
 };

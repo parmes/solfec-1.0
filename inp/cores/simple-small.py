@@ -9,7 +9,7 @@ step = 0.0002
 stop = 10
 outfrq = 0.03
 kinem = 'FINITE_ELEMENT'
-solver = 'NEWTON'
+solver = 'TEST'
 scheme = 'DEFAULT'
 shake = 'TRUE'
 plotconv = 0
@@ -28,6 +28,7 @@ else:
 if solver == 'GAUSS_SEIDEL': solstr = 'gs'
 elif solver == 'NEWTON': solstr = 'nt'
 elif solver == 'PENALTY': solstr = 'pn'
+elif solver == 'TEST': solstr = 'ts'
 else:
   print 'Uknown solver'
   sys.exit (1)
@@ -51,6 +52,8 @@ elif solver == 'NEWTON':
   sv = NEWTON_SOLVER (1E-6, 250, theta = 0.15, presmooth = 10)
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
+elif solver == 'TEST':
+  sv = TEST_SOLVER (1E-6, 250)
 
 MERIT = []
 def callback (sv):
