@@ -515,6 +515,88 @@ static PRIVATE *create_data (TEST *ts, LOCDYN *ldy)
   return A;
 }
 
+/* returns average fabs (Tii) */
+static double average_abs_Tii (PRIVATE *A)
+{
+  double Tii [2] = {0, 0},
+	 avg;
+
+  for (CON_DATA *dat = A->start; dat != A->end; dat ++)
+  {
+    double *T = dat->T;
+    Tii [0] += fabs (T[8]);
+    Tii [1] += 1.0;
+  }
+
+#if MPI
+  double Tjj [2] = {Tii [0], Tii [1]};
+  MPI_Allreduce (Tjj, Tii, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_TORLD);
+#endif
+
+  avg = Tii [0] / Tii [1];
+
+#if 0
+  double sde;
+
+  Tii [0] = 0.0;
+  for (CON_DATA *dat = A->start; dat != A->end; dat ++)
+  {
+    double *T = dat->T;
+    Tii [0] += (fabs (T[8]) - avg) * (fabs (T[8]) - avg);
+  }
+
+#if MPI
+  Tjj [0] = Tii [0];
+  MPI_Allreduce (Tjj, Tii, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_TORLD);
+#endif
+
+  sde = sqrt (Tii [0] / Tii [1]);
+
+  printf ("avg = %g, sde = %g\n", avg, sde);
+#endif
+
+  return avg;
+}
+
+static double power_iters (PRIVATE *A, int nit)
+{
+  VECTOR *v = newvector (3*(A->end-A->start));
+  VECTOR *w = newvector (3*(A->end-A->start));
+  double ret;
+
+  for (int i = 0; i < v->n; i ++) v->x [i] = 1.0;
+
+  for (int i = 0; i < nit; i ++)
+  {
+    for (CON_DATA *dat = A->start; dat != A->end; dat ++)
+    {
+      CON *con = dat->con;
+      DIAB *dia = con->dia;
+      double *W = dia->W;
+      double *x = &v->x [con->num];
+      double *y = &w->x [con->num];
+      NVMUL (W, x, y);
+      for (OFFB *blk = dia->adj; blk; blk = blk->n)
+      {
+	double *W = blk->W;
+	double *x = &v->x [blk->dia->con->num];
+	NVADDMUL (y, W, x, y);
+      }
+    }
+
+    double wlen = sqrt (InnerProd (w, w)),
+	   vlen = sqrt (InnerProd (v, v));
+    ScaleVector (1.0 / wlen, w);
+    CopyVector (w, v);
+    ret = wlen / vlen;
+    printf ("ret = %g\n", ret); /* XXX */
+  }
+
+  DestroyVector (v);
+  DestroyVector (w);
+  return ret;
+}
+
 /* update linear system */
 static void update_system (PRIVATE *A)
 {
@@ -612,6 +694,13 @@ static void update_system (PRIVATE *A)
     }
     break;
     }
+  }
+
+  A->delta = 1E-7 * average_abs_Tii (A); /* XXX */
+
+  for (dat = A->start; dat != A->end; dat ++)
+  {
+    double *T = dat->T;
 
     T [0] += A->delta;
     T [4] += A->delta;
@@ -627,6 +716,7 @@ static void update_system (PRIVATE *A)
 /* solve linear system */
 static void linear_solve (PRIVATE *A, double abstol, int maxiter)
 {
+#if 1
   hypre_FlexGMRESFunctions *gmres_functions;
   void *gmres_vdata;
   int ret;
@@ -648,6 +738,30 @@ static void linear_solve (PRIVATE *A, double abstol, int maxiter)
   ret = hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->x);
   hypre_FlexGMRESGetNumIterations (gmres_vdata , &A->iters);
   hypre_FlexGMRESDestroy (gmres_vdata);
+#else
+  hypre_BiCGSTABFunctions *gmres_functions;
+  void *gmres_vdata;
+  int ret;
+
+  gmres_functions = hypre_BiCGSTABFunctionsCreate (CAlloc, Free,
+    (void* (*) (void*))CreateVector, (int (*) (void*))DestroyVector,
+    MatvecCreate, (int (*) (void*,double,void*,void*,double,void*))Matvec, MatvecDestroy,
+    (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
+    (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
+    (int (*) (void*,int*,int*)) CommInfo,
+    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond0);
+  gmres_vdata = hypre_BiCGSTABCreate (gmres_functions);
+
+  hypre_error_flag = 0;
+  hypre_BiCGSTABSetTol (gmres_vdata, 0.0);
+  hypre_BiCGSTABSetMinIter (gmres_vdata, 1);
+  hypre_BiCGSTABSetMaxIter (gmres_vdata, maxiter);
+  hypre_BiCGSTABSetAbsoluteTol (gmres_vdata, abstol);
+  hypre_BiCGSTABSetup (gmres_vdata, A, A->b, A->x);
+  ret = hypre_BiCGSTABSolve (gmres_vdata, A, A->b, A->x);
+  hypre_BiCGSTABGetNumIterations (gmres_vdata , &A->iters);
+  hypre_BiCGSTABDestroy (gmres_vdata);
+#endif
 }
 
 /* update solution */
@@ -742,26 +856,6 @@ static void destroy_data (PRIVATE *A)
   free (A);
 }
 
-/* return average abs (Wii) */
-static double average_abs_Wii (LOCDYN *ldy)
-{
-  double Wii [2] = {0, 0};
-
-  for (DIAB *dia = ldy->dia; dia; dia = dia->n)
-  {
-    double *W = dia->W;
-    for (int i = 0; i < 9; i ++) Wii[0] += fabs (W[i]);
-    Wii [1] += 9.0;
-  }
-
-#if MPI
-  double Wjj [2] = {Wii [0], Wii [1]};
-  MPI_Allreduce (Wjj, Wii, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  return Wii [0] / Wii [1];
-}
-
 /* create solver */
 TEST* TEST_Create (double meritval, int maxiter)
 {
@@ -787,12 +881,13 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
            (int)log10 (ts->linmaxiter) + 1, (int)log10 (ts->maxiter) + 1);
 
   ERRMEM (ts->merhist = realloc (ts->merhist, ts->maxiter * sizeof (double)));
+  ERRMEM (ts->mvhist = realloc (ts->mvhist, ts->maxiter * sizeof (int)));
   dom = ldy->dom;
   A = create_data (ts, ldy);
   merit = &dom->merit;
   ts->iters = 0;
-  A->delta = 0.1 * average_abs_Wii (ldy);
-  A->epsilon = 1E-8;
+  A->delta = 0;
+  A->epsilon = 1E-11;
 
   do
   {
@@ -805,6 +900,7 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
     *merit = MERIT_Function (ldy, 0);
 
     ts->merhist [ts->iters] = *merit;
+    ts->mvhist [ts->iters] = A->matvec;
 
 #if MPI
     if (dom->rank == 0)
@@ -832,5 +928,6 @@ void TEST_Write_State (TEST *ts, PBF *bf)
 void TEST_Destroy (TEST *ts)
 {
   free (ts->merhist);
+  free (ts->mvhist);
   free (ts);
 }

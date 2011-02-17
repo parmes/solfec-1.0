@@ -40,6 +40,8 @@ struct test
 
   double *merhist; /* merit function history */
 
+  int *mvhist; /* matrix-vector products history */
+
   int iters; /* iterations count */
 };
 
