@@ -530,7 +530,7 @@ static double average_abs_Tii (PRIVATE *A)
 
 #if MPI
   double Tjj [2] = {Tii [0], Tii [1]};
-  MPI_Allreduce (Tjj, Tii, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_TORLD);
+  MPI_Allreduce (Tjj, Tii, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
   avg = Tii [0] / Tii [1];
@@ -558,6 +558,7 @@ static double average_abs_Tii (PRIVATE *A)
   return avg;
 }
 
+#if 0
 static double power_iters (PRIVATE *A, int nit)
 {
   VECTOR *v = newvector (3*(A->end-A->start));
@@ -596,6 +597,7 @@ static double power_iters (PRIVATE *A, int nit)
   DestroyVector (w);
   return ret;
 }
+#endif
 
 /* update linear system */
 static void update_system (PRIVATE *A)

@@ -245,7 +245,8 @@ static int is_list (PyObject *obj, char *var, int div, int len)
       return 0;
     }
 
-    if (!(PyList_Size (obj) % div == 0 && PyList_Size (obj) >= len))
+    if (div > 0 && len > 0 &&
+	!(PyList_Size (obj) % div == 0 && PyList_Size (obj) >= len))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must have N * %d elements, where N >= %d", var, div, len / div);
@@ -270,7 +271,7 @@ static int is_tuple (PyObject *obj, char *var, int len)
       return 0;
     }
 
-    if (PyTuple_Size (obj) != len)
+    if (len > 0 && PyTuple_Size (obj) != len)
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must have %d elements", var, len);
@@ -4778,6 +4779,23 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+/* prescribed cracks */
+static PyObject* lng_PRESCRIBED_CRACKS (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "planes", "criterion", "params");
+  PyObject *planes, *criterion, *params;
+  lng_BODY *body;
+
+  PARSEKEYS ("OOOO", &body, &planes, &criterion, &params);
+
+  TYPETEST (is_body (body, kwl[0]) && is_list (planes, kwl[1], -1, -1) &&
+            is_string (criterion, kwl[2]) && is_tuple (params, kwl[3], -1));
+
+  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+
+  Py_RETURN_NONE;
+}
+
 /* set imbalance tolerances */
 static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -7056,6 +7074,7 @@ static PyMethodDef lng_methods [] =
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
+  {"PRESCRIBED_CRACKS", (PyCFunction)lng_PRESCRIBED_CRACKS, METH_VARARGS|METH_KEYWORDS, "Prescribe cracks"},
   {"IMBALANCE_TOLERANCE", (PyCFunction)lng_IMBALANCE_TOLERANCE, METH_VARARGS|METH_KEYWORDS, "Adjust parallel imbalance tolerance"},
   {"RANK", (PyCFunction)lng_RANK, METH_NOARGS, "Get current processor rank"},
   {"NCPU", (PyCFunction)lng_NCPU, METH_VARARGS|METH_KEYWORDS, "Get the number of processors"},
@@ -7248,6 +7267,7 @@ int lng (const char *path)
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
+                     "from solfec import PRESCRIBED_CRACKS\n"
                      "from solfec import IMBALANCE_TOLERANCE\n"
                      "from solfec import RANK\n"
                      "from solfec import NCPU\n"

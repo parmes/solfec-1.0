@@ -34,6 +34,7 @@
 #include "pck.h"
 #include "err.h"
 #include "dio.h"
+#include "cra.h"
 
 #if MPI
 #include "put.h"
@@ -3013,6 +3014,8 @@ void DOM_Update_End (DOM *dom)
   }
 
   SET_Free (&dom->setmem, &del); /* free up deletion set */
+
+  CRACKS_Propagate (dom); /* do cracking (if any) */
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 }

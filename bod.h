@@ -27,6 +27,7 @@
 #include "mtx.h"
 #include "mat.h"
 #include "msh.h"
+#include "cra.h"
 
 #ifndef DOMAIN_TYPE
 #define DOMAIN_TYPE
@@ -145,6 +146,8 @@ struct general_body
 
   FORCE *forces;   /* applied external forces */
   
+  CRACKS *cra;     /* cracks */
+
   SHAPE *shape;    /* shape of the body */
 
   SGP *sgp;        /* shape and geometric object pairs */

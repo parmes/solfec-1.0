@@ -68,6 +68,7 @@ OBJ =   $(EXTO)   \
 	obj/tts.o \
 	obj/mrf.o \
 	obj/dom.o \
+	obj/cra.o \
 	obj/dio.o \
 	obj/lng.o \
 	obj/sol.o \
@@ -87,6 +88,7 @@ OBJMPI = $(EXTO)       \
 	 obj/tts-mpi.o \
 	 obj/mrf-mpi.o \
 	 obj/dom-mpi.o \
+	 obj/cra-mpi.o \
 	 obj/dio-mpi.o \
 	 obj/lng-mpi.o \
 	 obj/com-mpi.o \
@@ -256,6 +258,9 @@ obj/bod.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat
 obj/dom.o: dom.c dom.h dio.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+obj/cra.o: cra.c cra.h dom.h bod.h msh.h cvx.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 obj/dio.o: dio.c dio.h dom.h cmp.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -342,6 +347,9 @@ obj/bod-mpi.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/dom-mpi.o: dom.c dom.h dio.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/cra-mpi.o: cra.c cra.h dom.h bod.h msh.h cvx.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/dio-mpi.o: dio.c dio.h dom.h cmp.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
