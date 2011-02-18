@@ -1896,6 +1896,8 @@ void BODY_Destroy (BODY *bod)
 
   free (bod->sgp);
 
+  if (bod->cra) CRACKS_Destroy (bod->cra);
+
   if (bod->inverse) MX_Destroy (bod->inverse);
 
   if (bod->M) MX_Destroy (bod->M);
