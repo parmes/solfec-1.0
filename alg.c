@@ -22,3 +22,20 @@
 #include "alg.h"
 
 double GEOMETRIC_EPSILON = 1E-6;
+
+/* lexicographical comparison */
+int POINTS_COMPARE (double *a, double *b)
+{
+  if (LT (a[0], b[0])) return -1;
+  else if (EQ (a[0], b[0]))
+  {
+    if (LT (a[1], b[1])) return -1;
+    else if (EQ (a[1], b[1]))
+    {
+      if (LT (a[2], b[2])) return -1;
+      else if (EQ (a[2], b[2])) return 0;
+    }
+  }
+
+  return 1;
+}

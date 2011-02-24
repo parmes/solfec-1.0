@@ -21,6 +21,7 @@
 
 #include "mat.h"
 #include "mot.h"
+#include "tri.h"
 
 #ifndef __sph__
 #define __sph__
@@ -70,6 +71,11 @@ void SPHERE_Translate (SPHERE *sph, double *vector);
 
 /* rotation of a list */
 void SPHERE_Rotate (SPHERE *sph, double *point, double *vector, double angle);
+
+/* cut through spheres with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m);
 
 /* split sphere lists in two lists with plane defined by (point, normal);
  * adjacencies between the split lists elements need to be recomputed */

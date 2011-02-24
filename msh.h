@@ -125,6 +125,11 @@ void MESH_Translate (MESH *msh, double *vector);
 /* rotation of a mesh */
 void MESH_Rotate (MESH *msh, double *point, double *vector, double angle);
 
+/* cut through mesh with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m);
+
 /* compute current partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
 void MESH_Char_Partial (MESH *msh, double *vo, double *sx, double *sy, double *sz, double *eul);
@@ -146,7 +151,8 @@ void MESH_Elements_Around_Node (ELEMENT *ele, int node, SET **set);
 void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion);
 
 /* convert mesh into a list of convices;
- * surfonly > 0 => use only surface elements */
+ * surfonly > 0 => use only surface elements;
+ * CONVEX->ele[0] == corresponding element */
 CONVEX* MESH_Convex (MESH *msh, int surfonly);
 
 /* compute extents of entire mesh */

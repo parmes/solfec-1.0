@@ -38,6 +38,8 @@ typedef void (*translate_func) (void*, double*);
 static translate_func translate [] = {(translate_func)MESH_Translate, (translate_func)CONVEX_Translate, (translate_func)SPHERE_Translate};
 typedef void (*rotate_func) (void*, double*, double*, double);
 static rotate_func rotate [] = {(rotate_func)MESH_Rotate, (rotate_func)CONVEX_Rotate, (rotate_func)SPHERE_Rotate};
+typedef TRI* (*cut_func) (void*, double*, double*, int*);
+static cut_func cut [] = {(cut_func)MESH_Cut, (cut_func)CONVEX_Cut, (cut_func)SPHERE_Cut};
 typedef void (*gcha_func) (void*, double*, double*, double*, double*, double*);
 static gcha_func gcha [] = {(gcha_func)MESH_Char_Partial, (gcha_func)CONVEX_Char_Partial, (gcha_func)SPHERE_Char_Partial};
 typedef void* (*gobj_func) (void*, double*);
@@ -243,6 +245,100 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle)
 {
   for (; shp; shp = shp->next)
     rotate [shp->kind] (shp->data, point, vector, angle);
+}
+
+/* cut through shape with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m)
+{
+  TRI **tri, *out, *t, *e, *q;
+  int *ntr, n, s, i, j, k;
+  MAP *vertices, *item;
+  MEM mapmem;
+  double *v;
+
+  if (shp->next == NULL) /* one subshape case */
+  {
+    return cut [shp->kind] (shp->data, point, normal, m);
+  }
+
+  j = 0;
+  n = 0;
+  s = 128;
+  (*m) = 0;
+  vertices = NULL;
+  MEM_Init (&mapmem, sizeof (MAP), 128);
+  ERRMEM (tri = malloc (s * sizeof (TRI*)));
+  ERRMEM (ntr = malloc (s * sizeof (int)));
+
+  for (; shp; shp = shp->next)
+  {
+    tri [n] = cut [shp->kind] (shp->data, point, normal, &ntr [n]); /* find intersection */
+
+    if (tri [n]) /* found */
+    {
+      for (t = tri [n], e = t + ntr [n]; t != e; t ++)
+      {
+	for (i = 0; i < 3; i++)
+	{
+	  if (!MAP_Find_Node (vertices, t->ver [i], (MAP_Compare) POINTS_COMPARE)) /* vertex not mapped */
+	  {
+	    MAP_Insert (&mapmem, &vertices, t->ver [i], (void*) (long) j, (MAP_Compare) POINTS_COMPARE); /* map it */
+	    j ++;
+	  }
+	}
+      }
+      (*m) += ntr [n];
+      n ++;
+    }
+
+    if (n == s)
+    {
+      s *= 2;
+      ERRMEM (tri = realloc (tri, s * sizeof (TRI*)));
+      ERRMEM (ntr = realloc (ntr, s * sizeof (int)));
+    }
+  }
+
+  if (n == 0) goto out;
+
+  i = MAP_Size (vertices);
+  ERRMEM (out = malloc ((*m) * sizeof (TRI) + i * sizeof (double [3])));
+  v = (double*) (out + (*m));
+
+  /* copy vertices  */
+  for (item = MAP_First (vertices); item; item = MAP_Next (item))
+  {
+    i = (int)(long)item->data;
+    double *a = item->key, *b = &v [3 * i];
+    COPY (a, b);
+  }
+
+  /* compile output */
+  for (i = 0, q = out; i < n; i ++)
+  {
+    for (t = tri [i], e = t + ntr [i]; t != e; t ++)
+    {
+      for (k = 0; k < 3; k ++)
+      {
+	item = MAP_Find_Node (vertices, t->ver [k], (MAP_Compare) POINTS_COMPARE);
+	ASSERT_DEBUG (item, "A vertex was not mapped during shape-plane cutting");
+	if (!item) break;
+	j = 3*((int) (long) item->data);
+	q->ver [k] = &v [j]; /* map to new storage */
+	q->adj [0] = t->adj [0];
+      }
+      if (item) q ++; /* skip faults */
+    }
+  }
+out:
+  for (i = 0; i < n; i ++) free (tri [i]);
+  free (tri);
+  free (ntr);
+  MEM_Release (&mapmem);
+
+  return out;
 }
 
 /* get cur characteristics => volume, mass center, and Euler tensor (centered) */

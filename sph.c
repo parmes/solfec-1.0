@@ -215,6 +215,17 @@ void SPHERE_Rotate (SPHERE *sph, double *point, double *vector, double angle)
   }
 }
 
+/* cut through spheres with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m)
+{
+  WARNING_DEBUG (0, "Sphere cutting has not been implemented yet");
+  /* TODO */
+  *m = 0;
+  return NULL;
+}
+
 /* split sphere lists in two lists with plane defined by (point, normal) */
 void SPHERE_Split (SPHERE *sph, double *point, double *normal, SPHERE **one, SPHERE **two)
 {
