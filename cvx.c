@@ -196,6 +196,133 @@ static int vector_compare (double *a, double *b)
   return 1;
 }
 
+/* cut single convex with a plane */
+TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
+{
+  double val [3], pla [4], *ver, *hv, *vv, *ov;
+  TRI *t, *q, *s, *hul, *out;
+  MEM edgemem, setmem;
+  SET *edges, *item;
+  int k, n, *f, *g;
+  EDGE *e;
+
+  /* initialize pools */
+  MEM_Init (&edgemem, sizeof (EDGE), 64);
+  MEM_Init (&setmem, sizeof (SET), 64);
+  out = hul = NULL;
+  ver = cvx->cur;
+  edges = NULL;
+
+  /* create edges */
+  for (f = cvx->fac, n = 0; n < cvx->nfac; f += f[0]+1, n ++)
+  {
+    for (g = f+1; g < f+f[0]; g ++) /* create edges from consecutive vertex pairs */
+    {
+      e = edge_new (&edgemem, &ver [*g], &ver [*(g+1)]);
+      if (!SET_Insert (&setmem, &edges, e, (SET_Compare) edge_compare))
+	MEM_Free (&edgemem, e);
+    }
+
+    /* now the edge created by the last and the first face vertex */
+    e = edge_new (&edgemem, &ver [*g], &ver [*(f+1)]);
+    if (!SET_Insert (&setmem, &edges, e, (SET_Compare) edge_compare))
+      MEM_Free (&edgemem, e);
+  }
+
+  /* 4-plane */
+  COPY (normal, pla);
+  NORMALIZE (pla);
+  pla [3] = - DOT (normal, point);
+
+  /* hull vertices */
+  ERRMEM (hv = malloc ((1 + SET_Size (edges)) * sizeof (double [3])));
+  vv = hv;
+  n = 0;
+
+  /* split edges */
+  for (item = SET_First (edges); item; item = SET_Next (item))
+  {
+    e = item->data;
+    val [0] = PLANE (pla, e->v);
+    val [1] = PLANE (pla, e->w);
+
+    if (val [0] * val [1] < - GEOMETRIC_EPSILON * GEOMETRIC_EPSILON)
+    {
+      planeseg (pla, e->v, e->w, val);
+      COPY (val, vv);
+      vv += 3;
+      n ++;
+    }
+    else if (fabs (val [0]) <= GEOMETRIC_EPSILON)
+    {
+      COPY (e->v, vv);
+      vv += 3;
+      n ++;
+    }
+    else if (fabs (val [1]) <= GEOMETRIC_EPSILON)
+    {
+      COPY (e->w, vv);
+      vv += 3;
+      n ++;
+    }
+  }
+
+  if (n == 0)
+  {
+    k = 0;
+    goto out;
+  }
+
+  /* add third vertex */
+  SUB (hv, pla, vv);
+
+  /* compute hull */
+  hul = hull (hv, n+1, m);
+
+  if (!hul)
+  {
+    k = 0;
+    goto out;
+  }
+
+  /* select output triangles */
+  for (k = 0, t = hul, q = t + (*m); t != q; t ++)
+  {
+    if (t->ver [0] != vv &&
+	t->ver [1] != vv &&
+	t->ver [2] != vv)
+    {
+      k ++;
+    }
+  }
+  ERRMEM (out = MEM_CALLOC (k * sizeof (TRI) + n * sizeof (double [3])));
+  ov = (double*) (out + k);
+  memcpy (ov, hv, n * sizeof (double [3]));
+  for (t = hul, q = t + (*m), s = out; t != q; t ++)
+  {
+    if (t->ver [0] != vv &&
+	t->ver [1] != vv &&
+	t->ver [2] != vv)
+    {
+      s->ver [0] = &ov [t->ver [0] - hv];
+      s->ver [1] = &ov [t->ver [1] - hv];
+      s->ver [2] = &ov [t->ver [2] - hv];
+      s->adj [0] = (TRI*) cvx;
+      s ++;
+    }
+  }
+
+out:
+  /* clean */
+  free (hv);
+  if (hul) free (hul);
+  MEM_Release (&setmem);
+  MEM_Release (&edgemem);
+
+  *m = k;
+  return out;
+}
+
 /* split convex in two halves, using plane (point 'pt, normal 'nl') */
 static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **two)
 {
@@ -632,6 +759,96 @@ void CONVEX_Rotate (CONVEX *cvx, double *point, double *vector, double angle)
 
     computeplanes (cvx);
   }
+}
+
+/* cut through convices with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m)
+{
+  TRI **tri, *out, *t, *e, *q;
+  int *ntr, n, s, i, j, k;
+  MAP *vertices, *item;
+  MEM mapmem;
+  double *v;
+
+  j = 0;
+  n = 0;
+  s = 128;
+  (*m) = 0;
+  out = NULL;
+  vertices = NULL;
+  MEM_Init (&mapmem, sizeof (MAP), 128);
+  ERRMEM (tri = malloc (s * sizeof (TRI*)));
+  ERRMEM (ntr = malloc (s * sizeof (int)));
+
+  for (; cvx; cvx = cvx->next)
+  {
+    tri [n] = cut (cvx, point, normal, &ntr [n]); /* find intersection */
+
+    if (tri [n]) /* found */
+    {
+      for (t = tri [n], e = t + ntr [n]; t != e; t ++)
+      {
+	for (i = 0; i < 3; i++)
+	{
+	  if (!MAP_Find_Node (vertices, t->ver [i], (MAP_Compare) POINTS_COMPARE)) /* vertex not mapped */
+	  {
+	    MAP_Insert (&mapmem, &vertices, t->ver [i], (void*) (long) j, (MAP_Compare) POINTS_COMPARE); /* map it */
+	    j ++;
+	  }
+	}
+      }
+      (*m) += ntr [n];
+      n ++;
+    }
+
+    if (n == s)
+    {
+      s *= 2;
+      ERRMEM (tri = realloc (tri, s * sizeof (TRI*)));
+      ERRMEM (ntr = realloc (ntr, s * sizeof (int)));
+    }
+  }
+
+  if (n == 0) goto out;
+
+  i = MAP_Size (vertices);
+  ERRMEM (out = malloc ((*m) * sizeof (TRI) + i * sizeof (double [3])));
+  v = (double*) (out + (*m));
+
+  /* copy vertices  */
+  for (item = MAP_First (vertices); item; item = MAP_Next (item))
+  {
+    i = (int)(long)item->data;
+    double *a = item->key, *b = &v [3 * i];
+    COPY (a, b);
+  }
+
+  /* compile output */
+  for (i = 0, q = out; i < n; i ++)
+  {
+    for (t = tri [i], e = t + ntr [i]; t != e; t ++)
+    {
+      for (k = 0; k < 3; k ++)
+      {
+	item = MAP_Find_Node (vertices, t->ver [k], (MAP_Compare) POINTS_COMPARE);
+	ASSERT_DEBUG (item, "A vertex was not mapped during convex-plane cutting");
+	if (!item) break;
+	j = 3*((int) (long) item->data);
+	q->ver [k] = &v [j]; /* map to new storage */
+	q->adj [0] = t->adj [0];
+      }
+      if (item) q ++; /* skip faults */
+    }
+  }
+out:
+  for (i = 0; i < n; i ++) free (tri [i]);
+  free (tri);
+  free (ntr);
+  MEM_Release (&mapmem);
+
+  return out;
 }
 
 /* split convex list by a plane */

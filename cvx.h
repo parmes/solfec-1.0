@@ -21,6 +21,7 @@
 
 #include "mat.h"
 #include "mot.h"
+#include "tri.h"
 
 #ifndef ELEMENT_TYPE
 #define ELEMENT_TYPE
@@ -91,6 +92,11 @@ void CONVEX_Translate (CONVEX *cvx, double *vector);
 
 /* rotation of a list */
 void CONVEX_Rotate (CONVEX *cvx, double *point, double *vector, double angle);
+
+/* cut through convices with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m);
 
 /* split convices in two lists with plane defined by (point, normal);
  * adjacencies between the split lists elements need to be recomputed */

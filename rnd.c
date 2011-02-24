@@ -51,6 +51,19 @@ union value_source
   double *pnt;
 };
 
+typedef struct cut_data CUT_DATA;
+
+struct cut_data
+{
+  BODY *bod;
+
+  TRI *tri;
+
+  int m;
+
+  CUT_DATA *next;
+};
+
 typedef struct body_data BODY_DATA; /* body rendering data */
 
 struct body_data
@@ -134,6 +147,8 @@ enum /* menu items */
   RENDER_SELECTION_3D,
   RENDER_PREVIOUS_SELECTION,
   TOOLS_TRANSPARENT,
+  TOOLS_CUT,
+  TOOLS_CLEAR_CUTS,
   TOOLS_HIDE,
   TOOLS_SHOW_ALL,
   TOOLS_ROUGH_MESH,
@@ -184,7 +199,8 @@ enum mouse_mode
   MOUSE_NONE,
   MOUSE_SELECTION_BEGIN,
   MOUSE_SELECTION_END,
-  MOUSE_PICK_BODY
+  MOUSE_PICK_BODY,
+  MOUSE_CUTTING_PLANE
 };
 
 typedef enum mouse_mode MOUSE_MODE;
@@ -279,6 +295,8 @@ static LEGEND_DATA legend; /* legend data */
 #define LEGEND_WIDTH_CONT 100 /* legend width for continuous data */
 #define LEGEND_FONT GLV_FONT_8_BY_13
 
+static char *tip; /* tip upper */
+
 /* body transparency test */
 #define SEETHROUGH(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & SEETHROUGH)
 
@@ -286,6 +304,13 @@ static LEGEND_DATA legend; /* legend data */
 #define ROUGH_MESH(body) (((BODY_DATA*)((BODY*)(body))->rendering)->flags & ROUGH_MESH)
 
 static short show_outpath = 0; /* output path printing flag */
+
+static double global_extents [6] = {0, 0, 0, 1, 1, 1}; /* global scene extents */
+
+static short cut_sketch = 0; /* sketch cut plane */
+static double cut_point [3] = {0, 0, 0}; /* current cut point */
+static double cut_normal [3] = {0, 0, 1}; /* current cut normal */
+static CUT_DATA *cuts = NULL; /* cuts through bodies */
 
 /* initialize selection */
 static void selection_init ()
@@ -2117,11 +2142,85 @@ static void render_picked_body (void)
   }
 }
 
+/* render the sketch of the cut plane */
+static void render_cut_sketch (void)
+{
+  if (!cut_sketch) return;
+
+  GLfloat color [4] = {1.0, 0.75, 0.75, 0.4};
+  double v [3], w [3], u [3], q [4][3], d;
+  int i;
+
+  MAXABS (cut_normal, d);
+  i = 0; v[0] = fabs (cut_normal [0]);
+  if (fabs (cut_normal [1]) < d) i = 1, d = cut_normal [1];
+  if (fabs (cut_normal [2]) < d) i = 2, d = cut_normal [2];
+  COPY (cut_normal, w);
+  w [i] += d;
+  PRODUCT (cut_normal, w, v);
+  PRODUCT (cut_normal, v, w);
+  SUB (global_extents+3, global_extents, u);
+  MAXABS (u, d);
+  d *= 10.0;
+  ADDMUL (cut_point, -d, v, q[0]);
+  ADDMUL (cut_point, -d, w, q[1]);
+  ADDMUL (cut_point,  d, v, q[2]);
+  ADDMUL (cut_point,  d, w, q[3]);
+
+  glDisable (GL_LIGHTING);
+  glDisable (GL_CULL_FACE);
+  glEnable (GL_BLEND);
+  glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glNormal3dv (cut_normal);
+  glColor4fv (color);
+  glBegin (GL_QUADS);
+  glVertex3dv (q[0]);
+  glVertex3dv (q[1]);
+  glVertex3dv (q[2]);
+  glVertex3dv (q[3]);
+  glEnd ();
+  glDisable (GL_BLEND);
+  glEnable (GL_CULL_FACE);
+  glEnable (GL_LIGHTING);
+}
+
+/* render cuts */
+static void render_cuts (void)
+{
+  GLfloat color [3] = {0, 0.75, 0};
+  CUT_DATA *cut;
+  TRI *t, *e;
+
+  glDisable (GL_LIGHTING);
+  glDisable (GL_CULL_FACE);
+  for (cut = cuts; cut; cut = cut->next)
+  {
+    if (!SET_Contains (selection->set, cut->bod, NULL)) continue;
+    BODY_DATA *data = cut->bod->rendering;
+    if (data->flags & HIDDEN) continue;
+
+    for (t = cut->tri, e = t + cut->m; t != e; t ++)
+    {
+      glColor3fv (color);
+      glBegin (GL_TRIANGLES);
+      glNormal3dv (t->out);
+      glVertex3dv (t->ver[0]);
+      glVertex3dv (t->ver[1]);
+      glVertex3dv (t->ver[2]);
+      glEnd ();
+    }
+  }
+  glEnable (GL_CULL_FACE);
+  glEnable (GL_LIGHTING);
+}
+
 /* update scene extents */
 static void update_extents ()
 {
-  double e [6], extents [6], margin;
+  double e [6], *extents, margin;
   SET *item;
+
+  extents = global_extents;
 
   extents [0] = extents [1] = extents [2] =  DBL_MAX;
   extents [3] = extents [4] = extents [5] = -DBL_MAX;
@@ -2280,6 +2379,24 @@ static void set_skip_steps (char *text)
   }
 }
 
+/* read cut normal */
+static void read_cut_normal (char *text)
+{
+  if (text)
+  {
+    SET (cut_normal, 0.0)
+    sscanf (text, "%lf%lf%lf", cut_normal, cut_normal+1, cut_normal+2);
+    if (LEN (cut_normal) > 0.0)
+    {
+      NORMALIZE (cut_normal);
+      MID (global_extents, global_extents + 3, cut_point);
+      cut_sketch = 1;
+      mouse_mode = MOUSE_CUTTING_PLANE;
+      tip = "Press 'c' in order create the cut";
+    }
+  }
+}
+
 /* 2D selection using indexed coloring */
 static void select_2D (int x1, int y1, int x2, int y2)
 {
@@ -2410,7 +2527,8 @@ static int modes_off ()
 static int time_width ()
 {
   if (show_outpath) return GLV_Print_Width (TIME_FONT, "t=%g [%s]", domain->time, solfec->outpath) + 6;
-  return GLV_Print_Width (TIME_FONT, "t=%g", domain->time) + 6;
+  else if (tip) return GLV_Print_Width (TIME_FONT, "t=%g (%s)", domain->time, tip) + 6;
+  else return GLV_Print_Width (TIME_FONT, "t=%g", domain->time) + 6;
 }
 
 /* render current time */
@@ -2423,6 +2541,7 @@ static void time_render ()
   glRecti (0, 0, time_width (), TIME_HEIGHT);
   glColor3f (0, 0, 0);
   if (show_outpath) GLV_Print (3, 3, 1, TIME_FONT, "t=%g [%s]", domain->time, solfec->outpath);
+  else if (tip) GLV_Print (3, 3, 1, TIME_FONT, "t=%g (%s)", domain->time, tip);
   else GLV_Print (3, 3, 1, TIME_FONT, "t=%g", domain->time);
 
   glEnable (GL_LIGHTING);
@@ -2529,6 +2648,57 @@ static void menu_tools (int item)
 {
   switch (item)
   {
+  case TOOLS_CUT:
+    if (mouse_mode == MOUSE_CUTTING_PLANE)
+    {
+      for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
+      {
+	BODY *bod = item->data;
+	BODY_DATA *data = bod->rendering;
+	CUT_DATA *cut;
+	TRI *tri;
+	int m;
+
+	if (data->flags & HIDDEN) continue;
+
+	tri = SHAPE_Cut (bod->shape, cut_point, cut_normal, &m);
+
+	if (tri)
+	{
+	  data->flags |= SEETHROUGH; /* make the body transparent if it was cut */
+	  ERRMEM (cut = MEM_CALLOC (sizeof (CUT_DATA)));
+	  cut->bod = bod;
+	  cut->tri = tri;
+	  cut->m = m;
+	  cut->next = cuts;
+	  cuts = cut;
+	}
+      }
+
+      tip = NULL;
+      cut_sketch = 0;
+      mouse_mode = MOUSE_NONE;
+      update ();
+    }
+    else GLV_Read_Text ("Give normal (format: nx ny nz)", read_cut_normal);
+    break;
+  case TOOLS_CLEAR_CUTS:
+    {
+      CUT_DATA *cut, *next;
+
+      for (cut = cuts; cut; cut = next)
+      {
+        BODY_DATA *data = cut->bod->rendering;	
+	data->flags &= ~SEETHROUGH;
+	next = cut->next;
+	free (cut->tri);
+	free (cut);
+      }
+
+      cuts = NULL; /* clear cuts list */
+      update ();
+    }
+    break;
   case TOOLS_TRANSPARENT:
   case TOOLS_ROUGH_MESH:
   case TOOLS_HIDE:
@@ -2658,6 +2828,8 @@ int RND_Menu (char ***names, int **codes)
   menu_name [MENU_TOOLS] = "tools";
   menu_code [MENU_TOOLS] = glutCreateMenu (menu_tools);
   glutAddMenuEntry ("toggle transparent /t/", TOOLS_TRANSPARENT);
+  glutAddMenuEntry ("cut /c/", TOOLS_CUT);
+  glutAddMenuEntry ("clear cuts /s/", TOOLS_CLEAR_CUTS);
   glutAddMenuEntry ("hide /h/", TOOLS_HIDE);
   glutAddMenuEntry ("show all /a/", TOOLS_SHOW_ALL);
   glutAddMenuEntry ("toggle rough mesh /r/", TOOLS_ROUGH_MESH);
@@ -2778,9 +2950,13 @@ void RND_Quit ()
 
 void RND_Render ()
 {
+  render_cuts ();
+
   render_body_set (selection->set);
 
   render_picked_body ();
+
+  render_cut_sketch ();
 }
 
 void RND_Key (int key, int x, int y)
@@ -2815,6 +2991,12 @@ void RND_Key (int key, int x, int y)
     break;
   case 't':
     menu_tools (TOOLS_TRANSPARENT);
+    break;
+  case 'c':
+    menu_tools (TOOLS_CUT);
+    break;
+  case 's':
+    menu_tools (TOOLS_CLEAR_CUTS);
     break;
   case 'h':
     menu_tools (TOOLS_HIDE);
@@ -2950,6 +3132,21 @@ void RND_Passive (int x, int y)
   {
     picked_body = pick_body (x, y);
     GLV_Redraw_All ();
+  }
+  else if (mouse_mode == MOUSE_CUTTING_PLANE)
+  {
+    int w, h, ystart;
+    double v [3], u, d;
+
+    GLV_Sizes (&w, &h);
+    ystart = h / 2;
+    SUB (global_extents+3, global_extents, v);
+    MAXABS (v, d);
+    u = -(double)(y - ystart) / (double) MIN (w, h); 
+    MID (global_extents+3, global_extents, v);
+    ADDMUL (v, u*d, cut_normal, cut_point);
+    cut_sketch = 1;
+    update ();
   }
 }
 

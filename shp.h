@@ -21,6 +21,7 @@
 
 #include <stdio.h>
 #include "mot.h"
+#include "tri.h"
 
 #ifndef BOX_TYPE
 #define BOX_TYPE
@@ -79,6 +80,11 @@ void SHAPE_Translate (SHAPE *shp, double *vector);
 
 /* rotate cur shape (set ref = cur), around the line (point, vector) */
 void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle);
+
+/* cut through shape with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m);
 
 /* get cur characteristics => volume, mass center, and Euler tensor (centered) */
 void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler);

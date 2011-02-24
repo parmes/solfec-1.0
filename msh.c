@@ -1118,6 +1118,26 @@ void MESH_Rotate (MESH *msh, double *point, double *vector, double angle)
     }
 }
 
+/* cut through mesh with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m)
+{
+  TRI *out, *t, *e;
+  CONVEX *cvx, *q;
+
+  cvx = MESH_Convex (msh, 0);
+  out = CONVEX_Cut (cvx, point, normal, m);
+  for (t = out, e = t + (*m); t != e; t ++)
+  {
+    q = (CONVEX*) t->adj [0];
+    t->adj [0] = (TRI*) q->ele [0]; /* see (&&&) */
+  }
+  CONVEX_Destroy (cvx);
+
+  return out;
+}
+
 /* compute current partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
 void MESH_Char_Partial (MESH *msh, double *vo, double *sx, double *sy, double *sz, double *eul)
@@ -1271,7 +1291,8 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
 }
 
 /* convert mesh into a list of convices;
- * surfonly > 0 => use only surface elements */
+ * surfonly > 0 => use only surface elements;
+ * CONVEX->ele[0] == corresponding element */
 CONVEX* MESH_Convex (MESH *msh, int surfonly)
 {
   int fac [30], surfaces [6] = {INT_MAX, INT_MAX,
@@ -1288,6 +1309,9 @@ CONVEX* MESH_Convex (MESH *msh, int surfonly)
     for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
     for (FACE *fac = ele->faces; fac; fac = fac->next) surfaces [fac->index] = fac->surface; /* set surface identifiers */
     cvx = CONVEX_Create (cvx, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
+    ERRMEM (cvx->ele = malloc (sizeof (ELEMENT*)));
+    cvx->ele [0] = ele; /* store the corresponding element */ /* (&&&) */
+    cvx->nele = 1;
   }
   if (!surfonly) /* include bulk elements */
   {
@@ -1298,6 +1322,9 @@ CONVEX* MESH_Convex (MESH *msh, int surfonly)
       for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
       for (FACE *fac = ele->faces; fac; fac = fac->next) surfaces [fac->index] = fac->surface; /* set surface identifiers */
       cvx = CONVEX_Create (cvx, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
+      ERRMEM (cvx->ele = malloc (sizeof (ELEMENT*)));
+      cvx->ele [0] = ele; /* store the corresponding element */ /* (&&&) */
+      cvx->nele = 1;
     }
   }
 

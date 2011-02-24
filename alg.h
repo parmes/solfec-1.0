@@ -30,6 +30,11 @@
 
 extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
 
+/* global functuins */
+
+/* lexicographical comparison */
+int POINTS_COMPARE (double *a, double *b);
+
 /* some constants and small,
  * scalar macros follow */
 
@@ -46,12 +51,12 @@ extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
 #define SGN(v) ((v) > 0 ? 1 : ((v) < 0 ? -1 : 0))
 #define ABS(v) ((v) > 0 ? (v) : -(v))
 
-#define LT(x, y) ((x) < (y))
-#define GT(x, y) ((x) > (y))
-#define GE(x, y) ((x) >= (y))
-#define LE(x, y) ((x) <= (y))
-#define EQ(x, y) ((x) == (y))
-#define NE(x, y) ((x) != (y))
+#define LT(x, y) ((x)+GEOMETRIC_EPSILON < (y)-GEOMETRIC_EPSILON)
+#define GT(x, y) ((x)-GEOMETRIC_EPSILON > (y)+GEOMETRIC_EPSILON)
+#define GE(x, y) ((y) - (x) <= 2*GEOMETRIC_EPSILON)
+#define LE(x, y) ((x) - (y) <= 2*GEOMETRIC_EPSILON)
+#define EQ(x, y) (fabs ((x) - (y)) <= 2*GEOMETRIC_EPSILON)
+#define NE(x, y) (!EQ(X, y))
 
 #define DRAND() ((double) rand () / (double) RAND_MAX)
 #define DRANDEXT(x, y) ((x) + ((y) - (x))*DRAND())

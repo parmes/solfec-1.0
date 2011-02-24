@@ -800,7 +800,7 @@ static void avi (char *path)
   sprintf (&path [len], ".avi");
 
   if (AVI) AVI_Close (AVI);
-  AVI = AVI_Open (width, height, 16, path);
+  AVI = AVI_Open (width, height, 24, path);
 }
 
 /* view menu */
