@@ -80,8 +80,8 @@ double FEM_Kinetic_Energy (BODY *bod);
 /* get some values at a local point of an element */
 void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIND kind, double *values);
 
-/* get some values at a referential point */
-void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values);
+/* get some values at a referential point (ele cam be NULL if not known) */
+void FEM_Point_Values (BODY *bod, ELEMENT *ele, double *X, VALUE_KIND kind, double *values);
 
 /* get some values at a curent mesh node (node points inside MESH->cur_nodes) */
 void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *values);

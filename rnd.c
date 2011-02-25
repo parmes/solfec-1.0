@@ -55,11 +55,25 @@ typedef struct cut_data CUT_DATA;
 
 struct cut_data
 {
+  enum {EULER, LAGRANGE} kind;
+
+  double point [3],
+	 normal [3];
+
   BODY *bod;
 
   TRI *tri;
 
-  int m;
+  SGP *sgp;
+
+  double *ref, /* referential counterpartes of triangle vertices */
+	 *cur, /* pointed in 'tri' */
+	 *val; /* vertex value */
+
+  int m, /* triangles */
+      n; /* vertices */
+
+  short values_updated; /* update flag */
 
   CUT_DATA *next;
 };
@@ -146,8 +160,12 @@ enum /* menu items */
   RENDER_SELECTION_2D,
   RENDER_SELECTION_3D,
   RENDER_PREVIOUS_SELECTION,
+  RENDER_BODIES,
   TOOLS_TRANSPARENT,
-  TOOLS_CUT,
+  TOOLS_TRANSPARENT_ALL,
+  TOOLS_TRANSPARENT_NONE,
+  TOOLS_EULER_CUT,
+  TOOLS_LAGRANGE_CUT,
   TOOLS_CLEAR_CUTS,
   TOOLS_HIDE,
   TOOLS_SHOW_ALL,
@@ -310,7 +328,11 @@ static double global_extents [6] = {0, 0, 0, 1, 1, 1}; /* global scene extents *
 static short cut_sketch = 0; /* sketch cut plane */
 static double cut_point [3] = {0, 0, 0}; /* current cut point */
 static double cut_normal [3] = {0, 0, 1}; /* current cut normal */
+static short cut_kind = EULER; /* cut kind */
 static CUT_DATA *cuts = NULL; /* cuts through bodies */
+static SET *euler_cuts = NULL; /* points and normal of current Euler cuts */
+
+static short render_bodies = 1; /* body rendering flag */
 
 /* initialize selection */
 static void selection_init ()
@@ -443,8 +465,8 @@ static short legend_constraint_based (void)
   return 0;
 }
 
-/* obtain scalar sphere point value */
-static double sphere_value (BODY *bod, SPHERE *sph)
+/* obtain (referential) point value */
+static double point_value (BODY *bod, SHAPE *shp, void *gobj, double *X)
 {
   double values [7];
   VALUE_KIND kind;
@@ -452,10 +474,6 @@ static double sphere_value (BODY *bod, SPHERE *sph)
 
   switch (legend.entity)
   {
-  case KINDS_OF_BODIES: return bod->kind;
-  case KINDS_OF_SURFACES:  return sph->surface;
-  case KINDS_OF_VOLUMES: return sph->volume;
-  case KINDS_OF_BODY_RANKS: return bod->rank;
   case RESULTS_DX:
   case RESULTS_DY:
   case RESULTS_DZ:
@@ -485,9 +503,59 @@ static double sphere_value (BODY *bod, SPHERE *sph)
     return 0.0;
   }
 
-  BODY_Point_Values (bod, sph->ref_center, kind, values);
+  if (bod->kind == FEM)
+  {
+    ELEMENT *ele = NULL;
+
+    if (shp->kind == SHAPE_CONVEX) /* convices with background mesh */
+    {
+      MESH *msh = bod->msh;
+      CONVEX *cvx = gobj;
+      double dist, d;
+      int i;
+
+      ASSERT_DEBUG (msh, "Background mesh is missing!");
+
+      for (i = 0; i < cvx->nele; i ++)
+      {
+	if (ELEMENT_Contains_Ref_Point (msh, cvx->ele [i], X)) /* look through overlapped elements */
+	{
+	  ele = cvx->ele [i];
+	  break;
+	}
+      }
+
+      if (!ele) /* none was contained X => find the closest one */
+      {
+        for (dist = DBL_MAX, i = 0; i < cvx->nele; i ++)
+	{
+	  d = ELEMENT_Point_Distance (msh, cvx->ele [i], X, 1);
+	  if (d < dist) dist = d, ele = cvx->ele [i];
+	}
+      }
+    }
+    else ele = gobj;
+
+    FEM_Point_Values (bod, ele, X, kind, values);
+  }
+  else BODY_Point_Values (bod, X, kind, values);
 
   return values [index];
+}
+
+/* obtain scalar sphere point value */
+static double sphere_value (BODY *bod, SPHERE *sph)
+{
+  switch (legend.entity)
+  {
+  case KINDS_OF_BODIES: return bod->kind;
+  case KINDS_OF_SURFACES:  return sph->surface;
+  case KINDS_OF_VOLUMES: return sph->volume;
+  case KINDS_OF_BODY_RANKS: return bod->rank;
+  default: return point_value (bod, NULL, NULL, sph->ref_center);
+  }
+
+  return 0.0;
 }
 
 /* compare pointer pair */
@@ -1014,6 +1082,123 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
   }
 
   if (data->rough) update_body_data (bod, data->rough);
+}
+
+/* update cut */
+static void update_cuts (void)
+{
+  CUT_DATA *cut, *next, *list;
+
+  /* delete current Euler cuts */
+  for (list = NULL, cut = cuts; cut; cut = next)
+  {
+    next = cut->next;
+
+    if (cut->kind == EULER)
+    {
+      BODY_DATA *data = cut->bod->rendering;
+      data->flags &= ~SEETHROUGH;
+      free (cut->tri);
+      free (cut);
+    }
+    else cut->next = list, list = cut; /* put aside Lagrange cuts */
+  }
+
+  /* update Lagrange cuts */
+  for (cut = list; cut; cut = cut->next)
+  {
+    for (int i = 0; i < cut->n; i ++)
+    {
+      double *X = &cut->ref[3*i], *x = &cut->cur[3*i];
+      SGP *sgp = &cut->sgp [i];
+      BODY_Cur_Point (cut->bod, sgp->shp, sgp->gobj, X, x);
+    }
+  }
+
+  /* create new Euler cuts */
+  for (SET *jtem = SET_First (euler_cuts); jtem; jtem = SET_Next (jtem))
+  {
+    double *point = jtem->data, *normal = point + 3;
+    for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
+    {
+      BODY *bod = item->data;
+      BODY_DATA *data = bod->rendering;
+      double *ref, *cur;
+      CUT_DATA *cut;
+      SGP *sgp;
+      TRI *tri;
+      int m, n;
+
+      if (bod->kind == OBS) continue;
+      if (data->flags & HIDDEN) continue;
+
+      tri = SHAPE_Cut (bod->shape, point, normal, &m, bod, (MOTION)BODY_Ref_Point, &sgp, &ref, &cur, &n);
+
+      if (tri)
+      {
+	data->flags |= SEETHROUGH; /* make the body transparent if it was cut */
+	ERRMEM (cut = MEM_CALLOC (sizeof (CUT_DATA) + sizeof (double [n])));
+	cut->val = (double*) (cut+1);
+	cut->kind = cut_kind;
+	COPY (point, cut->point);
+	COPY (normal, cut->normal);
+	cut->bod = bod;
+	cut->tri = tri;
+	cut->sgp = sgp;
+	cut->ref = ref;
+	cut->cur = cur;
+	cut->m = m;
+	cut->n = n;
+	cut->next = list;
+	list = cut;
+      }
+    }
+  }
+
+  /* reset list */
+  cuts = list;
+}
+
+/* update cut values */
+static void update_cut_values (CUT_DATA *cut)
+{
+  if (legend.entity >= RESULTS_DX && legend.entity < RESULTS_RT)
+  {
+    for (int i = 0; i < cut->n; i ++)
+    {
+      double val = point_value (cut->bod, cut->sgp[i].shp, cut->sgp[i].gobj, &cut->ref [3*i]);
+      if (val < legend.extents [0])  legend.extents [0] = val;
+      if (val > legend.extents [1])  legend.extents [1] = val;
+      cut->val [i] = val;
+    }
+  }
+  else
+  {
+    for (int i = 0; i < cut->n; i ++) cut->val [i] = 0.0;
+  }
+
+  switch (cut->bod->kind)
+  {
+  case OBS:
+    cut->values_updated = legend.entity < RESULTS_DX;
+    break;
+  case RIG:
+    cut->values_updated = legend.entity < RESULTS_SX;
+    break;
+  default:
+    cut->values_updated = 1;
+    break;
+  }
+}
+
+/* update cuts values */
+static void update_cuts_values (void)
+{
+  /* update cut point values */
+  for (CUT_DATA *cut = cuts; cut; cut = cut->next)
+  {
+    update_cut_values (cut);
+  }
 }
 
 /* render sphere triangles */
@@ -2021,6 +2206,8 @@ static void render_body_set (SET *set)
   GLfloat color [4] = {0.0, 0.0, 0.0, 0.4};
   SET *item;
 
+  if (!render_bodies) return;
+
   if (legend_constraint_based ()) /* render constraints or forces over transparent volumes */
   {
     glDisable (GL_LIGHTING);
@@ -2151,10 +2338,11 @@ static void render_cut_sketch (void)
   double v [3], w [3], u [3], q [4][3], d;
   int i;
 
+
   MAXABS (cut_normal, d);
   i = 0; v[0] = fabs (cut_normal [0]);
-  if (fabs (cut_normal [1]) < d) i = 1, d = cut_normal [1];
-  if (fabs (cut_normal [2]) < d) i = 2, d = cut_normal [2];
+  if (fabs (cut_normal [1]) < v[0]) i = 1, v[0] = cut_normal [1];
+  if (fabs (cut_normal [2]) < v[0]) i = 2, v[0] = cut_normal [2];
   COPY (cut_normal, w);
   w [i] += d;
   PRODUCT (cut_normal, w, v);
@@ -2188,8 +2376,10 @@ static void render_cut_sketch (void)
 static void render_cuts (void)
 {
   GLfloat color [3] = {0, 0.75, 0};
+  double *cur, *val;
   CUT_DATA *cut;
   TRI *t, *e;
+  int i, j;
 
   glDisable (GL_LIGHTING);
   glDisable (GL_CULL_FACE);
@@ -2199,14 +2389,29 @@ static void render_cuts (void)
     BODY_DATA *data = cut->bod->rendering;
     if (data->flags & HIDDEN) continue;
 
+    cur = cut->cur;
+    val = cut->val;
+
     for (t = cut->tri, e = t + cut->m; t != e; t ++)
     {
-      glColor3fv (color);
       glBegin (GL_TRIANGLES);
       glNormal3dv (t->out);
-      glVertex3dv (t->ver[0]);
-      glVertex3dv (t->ver[1]);
-      glVertex3dv (t->ver[2]);
+      if (cut->values_updated)
+      {
+	for (i = 0; i < 3; i ++)
+	{
+	  j = (t->ver [i] - cur)/3;
+	  value_to_color (val [j], color);
+	  glColor3fv (color);
+	  glVertex3dv (t->ver[i]);
+	}
+      }
+      else
+      {
+	COPY (neutral_color, color);
+	glColor3fv (color);
+	for (i = 0; i < 3; i ++) glVertex3dv (t->ver[i]);
+      }
       glEnd ();
     }
   }
@@ -2253,6 +2458,8 @@ static void update_extents ()
 /* update bodies */
 static void update ()
 {
+  update_cuts ();
+
   for (BODY *bod = domain->bod; bod; bod = bod->next)
   {
     if (bod->rendering == NULL) bod->rendering = create_body_data (bod);
@@ -2270,16 +2477,24 @@ static void update ()
       for (CON *con = domain->con; con; con = con->next) con->state &= ~CON_DONE; /* all undone */
     }
 
-    for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
+    if (render_bodies)
     {
-      BODY *bod = item->data;
-      update_body_values (bod, bod->rendering);
+      for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
+      {
+	BODY *bod = item->data;
+	update_body_values (bod, bod->rendering);
+      }
     }
+
+    update_cuts_values ();
 
     legend_enable ();
   }
 
-  for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_data (bod, bod->rendering);
+  if (render_bodies)
+  {
+    for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_data (bod, bod->rendering);
+  }
 
   GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT); /* stretch time window to fit text */
 
@@ -2393,6 +2608,7 @@ static void read_cut_normal (char *text)
       cut_sketch = 1;
       mouse_mode = MOUSE_CUTTING_PLANE;
       tip = "Press 'c' in order create the cut";
+      GLV_Redraw_All ();
     }
   }
 }
@@ -2516,6 +2732,8 @@ static int modes_off ()
   mouse_mode = MOUSE_NONE;
   selection_mode = SELECTION_NONE;
   tool_mode = 0;
+  tip = NULL;
+  cut_sketch = 0;
   picked_body = NULL;
   GLV_Rectangle_Off ();
   GLV_Release_Mouse ();
@@ -2571,6 +2789,7 @@ static void coord_render ()
 }
 
 /* menus */
+static void menu_tools (int item);
 
 static void menu_domain (int item)
 {
@@ -2580,15 +2799,19 @@ static void menu_domain (int item)
   switch (item)
   {
   case DOMAIN_NEXT:
-    if (domain->next) domain = domain->next; break;
+    if (domain->next) domain = domain->next;
+    break;
   case DOMAIN_PREVIOUS:
-    if (domain->prev) domain = domain->prev; break;
+    if (domain->prev) domain = domain->prev;
+    break;
   }
 
   /* update analysis menu */
 
   if (domain != prevdom)
   {
+    menu_tools (TOOLS_CLEAR_CUTS);
+
     selection_init ();
 
     update_extents ();
@@ -2641,6 +2864,10 @@ static void menu_render (int item)
     update_extents ();
     update ();
     break;
+  case RENDER_BODIES:
+    render_bodies = !render_bodies;
+    update ();
+    break;
   }
 }
 
@@ -2648,43 +2875,78 @@ static void menu_tools (int item)
 {
   switch (item)
   {
-  case TOOLS_CUT:
+  case TOOLS_EULER_CUT:
+  case TOOLS_LAGRANGE_CUT:
     if (mouse_mode == MOUSE_CUTTING_PLANE)
     {
       for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
       {
 	BODY *bod = item->data;
 	BODY_DATA *data = bod->rendering;
+	double *ref, *cur;
 	CUT_DATA *cut;
+	SGP *sgp;
 	TRI *tri;
-	int m;
+	int m, n;
 
+	if (bod->kind == OBS) continue;
 	if (data->flags & HIDDEN) continue;
 
-	tri = SHAPE_Cut (bod->shape, cut_point, cut_normal, &m);
+	tri = SHAPE_Cut (bod->shape, cut_point, cut_normal, &m, bod, (MOTION)BODY_Ref_Point, &sgp, &ref, &cur, &n);
 
 	if (tri)
 	{
 	  data->flags |= SEETHROUGH; /* make the body transparent if it was cut */
-	  ERRMEM (cut = MEM_CALLOC (sizeof (CUT_DATA)));
+	  ERRMEM (cut = MEM_CALLOC (sizeof (CUT_DATA) + sizeof (double [n])));
+	  cut->val = (double*) (cut+1);
+	  cut->kind = cut_kind;
+	  COPY (cut_point, cut->point);
+	  COPY (cut_normal, cut->normal);
 	  cut->bod = bod;
 	  cut->tri = tri;
+	  cut->sgp = sgp;
+	  cut->ref = ref;
+          cut->cur = cur;
 	  cut->m = m;
+	  cut->n = n;
 	  cut->next = cuts;
 	  cuts = cut;
+	  update_cut_values (cut);
 	}
+      }
+
+      if (cut_kind == EULER)
+      {
+	double *point_normal;
+	ERRMEM (point_normal = malloc (sizeof (double [6])));
+	COPY (cut_point, point_normal);
+	COPY (cut_normal, point_normal + 3);
+	SET_Insert (NULL, &euler_cuts, point_normal, NULL); /* record Euler cut */
       }
 
       tip = NULL;
       cut_sketch = 0;
       mouse_mode = MOUSE_NONE;
-      update ();
+      GLV_Redraw_All ();
     }
-    else GLV_Read_Text ("Give normal (format: nx ny nz)", read_cut_normal);
+    else 
+    {
+      if (item == TOOLS_EULER_CUT)
+      {
+        cut_kind = EULER;
+        GLV_Read_Text ("Euler cut normal (format: nx ny nz)", read_cut_normal);
+      }
+      else
+      {
+        cut_kind = LAGRANGE;
+        GLV_Read_Text ("Lagrange cut normal (format: nx ny nz)", read_cut_normal);
+      }
+    }
     break;
   case TOOLS_CLEAR_CUTS:
     {
       CUT_DATA *cut, *next;
+      SET *item;
 
       for (cut = cuts; cut; cut = next)
       {
@@ -2695,6 +2957,12 @@ static void menu_tools (int item)
 	free (cut);
       }
 
+      for (item = SET_First (euler_cuts); item; item = SET_Next (item))
+      {
+	free (item->data);
+      }
+
+      SET_Free (NULL, &euler_cuts);
       cuts = NULL; /* clear cuts list */
       update ();
     }
@@ -2706,6 +2974,18 @@ static void menu_tools (int item)
     mouse_mode = MOUSE_PICK_BODY;
     tool_mode = item;
     GLV_Hold_Mouse ();
+    break;
+  case TOOLS_TRANSPARENT_ALL:
+    for (BODY *bod = domain->bod; bod; bod = bod->next)
+    { BODY_DATA *data = bod->rendering; data->flags |= SEETHROUGH; }
+    GLV_Redraw_All ();
+    break;
+  case TOOLS_TRANSPARENT_NONE:
+    for (BODY *bod = domain->bod; bod; bod = bod->next)
+    { BODY_DATA *data = bod->rendering; data->flags &= ~SEETHROUGH; }
+    for (CUT_DATA *cut = cuts; cut; cut = cut->next)
+    { BODY_DATA *data = cut->bod->rendering;	data->flags |= SEETHROUGH; }
+    GLV_Redraw_All ();
     break;
   case TOOLS_SHOW_ALL:
     for (BODY *bod = domain->bod; bod; bod = bod->next)
@@ -2824,11 +3104,15 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("2D selection /2/", RENDER_SELECTION_2D);
   glutAddMenuEntry ("3D selection /3/", RENDER_SELECTION_3D);
   glutAddMenuEntry ("previous selection /p/", RENDER_PREVIOUS_SELECTION);
+  glutAddMenuEntry ("toggle bodies /b/", RENDER_BODIES);
 
   menu_name [MENU_TOOLS] = "tools";
   menu_code [MENU_TOOLS] = glutCreateMenu (menu_tools);
   glutAddMenuEntry ("toggle transparent /t/", TOOLS_TRANSPARENT);
-  glutAddMenuEntry ("cut /c/", TOOLS_CUT);
+  glutAddMenuEntry ("transparent all /T/", TOOLS_TRANSPARENT_ALL);
+  glutAddMenuEntry ("transparent none /n/", TOOLS_TRANSPARENT_NONE);
+  glutAddMenuEntry ("Euler cut /c/", TOOLS_EULER_CUT);
+  glutAddMenuEntry ("Lagrange cut /C/", TOOLS_LAGRANGE_CUT);
   glutAddMenuEntry ("clear cuts /s/", TOOLS_CLEAR_CUTS);
   glutAddMenuEntry ("hide /h/", TOOLS_HIDE);
   glutAddMenuEntry ("show all /a/", TOOLS_SHOW_ALL);
@@ -2934,6 +3218,9 @@ void RND_Quit ()
 {
   DOM *next;
 
+  /* clear cuts memory */
+  menu_tools (TOOLS_CLEAR_CUTS);
+
   for (MAP *item = MAP_First (solvers); item; item = MAP_Next (item)) free (item->data); /* free solver interfaces */
   MAP_Free (NULL, &solvers);
 
@@ -2989,11 +3276,23 @@ void RND_Key (int key, int x, int y)
   case 'p':
     menu_render (RENDER_PREVIOUS_SELECTION);
     break;
+  case 'b':
+    menu_render (RENDER_BODIES);
+    break;
   case 't':
     menu_tools (TOOLS_TRANSPARENT);
     break;
+  case 'T':
+    menu_tools (TOOLS_TRANSPARENT_ALL);
+    break;
+  case 'n':
+    menu_tools (TOOLS_TRANSPARENT_NONE);
+    break;
   case 'c':
-    menu_tools (TOOLS_CUT);
+    menu_tools (TOOLS_EULER_CUT);
+    break;
+  case 'C':
+    menu_tools (TOOLS_LAGRANGE_CUT);
     break;
   case 's':
     menu_tools (TOOLS_CLEAR_CUTS);
@@ -3146,7 +3445,7 @@ void RND_Passive (int x, int y)
     MID (global_extents+3, global_extents, v);
     ADDMUL (v, u*d, cut_normal, cut_point);
     cut_sketch = 1;
-    update ();
+    GLV_Redraw_All ();
   }
 }
 

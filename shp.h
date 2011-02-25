@@ -81,10 +81,13 @@ void SHAPE_Translate (SHAPE *shp, double *vector);
 /* rotate cur shape (set ref = cur), around the line (point, vector) */
 void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle);
 
-/* cut through shape with a plane; return triangulated cross-section; vertices in the triangles
- * point to the memory allocated after the triangles memory; adjacency is not maintained;
- * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
-TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m);
+/* cut through shape with a plane; return triangulated cross-section; all returned data
+ * points to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle;
+ * (body, cur_to_ref, ref, cur, n) can be either all NULL or all valid pointers; if not NULL then
+ * 'n' reference and current vertices are calculated (triagnle vertices are the current ones) */
+TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
+  void *body, MOTION cur_to_ref, SGP **sgp, double **ref, double **cur, int *n);
 
 /* get cur characteristics => volume, mass center, and Euler tensor (centered) */
 void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler);
