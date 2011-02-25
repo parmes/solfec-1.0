@@ -1820,7 +1820,7 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
   }
   break;
   case FEM:
-    FEM_Point_Values (bod, point, kind, values);
+    FEM_Point_Values (bod, NULL, point, kind, values);
   break;
   }
 }

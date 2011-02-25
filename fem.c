@@ -164,6 +164,24 @@ static const int     I_QUA_N [] = {   0, I_QUA1_N, I_QUA2_N};
 
 #define MAX_ORDER 2 /* integration order bound */
 
+/* minimal local coords */
+static double mincoord [9][3] =
+{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0},
+ {0, 0, 0}, /* tet */
+ {-1, -1, 0}, /* pyr */
+ {0, 0, -1}, /* wed */
+ {0, 0, 0},
+ {-1, -1, -1}}; /* hex */
+
+/* maximal local coords */
+static double maxcoord [9][3] =
+{{0, 0, 0}, {0, 0, 0}, {0, 0, 0}, {0, 0, 0},
+ {1, 1, 1}, /* tet */
+ {1, 1, 1}, /* pyr */
+ {1, 1, 1}, /* wed */
+ {0, 0, 0},
+ {1, 1, 1}}; /* hex */
+
 /* load 3D integrator data */
 inline static int integrator3d_load (int type, int order, const double **X, const double **Y, const double **Z, const double **W)
 {
@@ -751,7 +769,7 @@ static void global_to_local (node_t heap, ELEMENT *ele, double *global, double *
 	for (k = 0; k < n; k ++) A [3*j+i] += nodes[k][i] * derivs [3*k+j];
 
     INVERT (A, I, det);
-    ASSERT (det > 0.0, ERR_FEM_COORDS_INVERT);
+    ASSERT (det != 0.0, ERR_FEM_COORDS_INVERT); /* allow for negative (outside of element) determinant, but ... */
     NVMUL (I, B, A);
     ADD (local, A, local);
     error = sqrt (DOT (A,A) / (1.0 + DOT (local, local)));
@@ -760,11 +778,11 @@ static void global_to_local (node_t heap, ELEMENT *ele, double *global, double *
 
   ASSERT (l < 64, ERR_FEM_COORDS_INVERT);
 
-#if 0
-  ASSERT_DEBUG (local [0] >= 0.0 && local [0] <= 1.0 &&
-                local [1] >= 0.0 && local [1] <= 1.0 &&
-		local [2] >= 0.0 && local [2] <= 1.0, "Local coords out of bounds");
-#endif
+  for (i = 0; i < 3; i ++) /* ... project back onto the element */
+  {
+    if (local [i] < mincoord [ele->type][i]) local [i] = mincoord [ele->type][i];
+    else if (local [i] > maxcoord [ele->type][i]) local [i] = maxcoord [ele->type][i];
+  }
 }
 
 /* compute local coordinates of a spatial point */
@@ -3004,14 +3022,16 @@ void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIN
   }
 }
 
-/* get some values at a referential point */
-void FEM_Point_Values (BODY *bod, double *X, VALUE_KIND kind, double *values)
+/* get some values at a referential point (ele can be NULL if not known) */
+void FEM_Point_Values (BODY *bod, ELEMENT *ele, double *X, VALUE_KIND kind, double *values)
 {
   MESH *msh = FEM_MESH (bod);
   double point [3];
-  ELEMENT *ele;
 
-  ele = MESH_Element_Containing_Point (msh, X, 1);
+  if (ele == NULL)
+  {
+    ele = MESH_Element_Containing_Point (msh, X, 1);
+  }
 
   if (ele)
   {

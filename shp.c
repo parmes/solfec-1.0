@@ -247,53 +247,66 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle)
     rotate [shp->kind] (shp->data, point, vector, angle);
 }
 
-/* cut through shape with a plane; return triangulated cross-section; vertices in the triangles
- * point to the memory allocated after the triangles memory; adjacency is not maintained;
- * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
-TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m)
+/* cut through shape with a plane; return triangulated cross-section; all returned data
+ * points to the memory allocated after the triangles memory; adjacency is not maintained;
+ * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle;
+ * (cur_to_ref, sgp, ref, cur, n) can be either all NULL or all valid pointers; if not NULL then
+ * 'n' reference and current vertices are calculated (triagnle vertices are the current ones) */
+TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
+  void *body, MOTION cur_to_ref, SGP **sgp, double **ref, double **cur, int *n)
 {
   TRI **tri, *out, *t, *e, *q;
-  int *ntr, n, s, i, j, k;
+  int *ntr, l, s, i, j, k;
   MAP *vertices, *item;
-  MEM mapmem;
+  MEM mapmem, setmem;
   double *v;
+  SET *set;
 
-  if (shp->next == NULL) /* one subshape case */
+  ASSERT_DEBUG ((body && cur_to_ref && sgp && ref && cur && n) ||
+                (!body && !cur_to_ref && !sgp && !ref && !cur && !n),
+		"cur_to_ref, sgp, ref, cur, n must all be either NULL or valid pointers");
+
+  if (shp->next == NULL && cur_to_ref == NULL) /* one subshape case */
   {
     return cut [shp->kind] (shp->data, point, normal, m);
   }
 
   j = 0;
-  n = 0;
+  l = 0;
   s = 128;
   (*m) = 0;
+  set = NULL;
+  out = NULL;
   vertices = NULL;
   MEM_Init (&mapmem, sizeof (MAP), 128);
+  MEM_Init (&setmem, sizeof (SET), 128);
   ERRMEM (tri = malloc (s * sizeof (TRI*)));
   ERRMEM (ntr = malloc (s * sizeof (int)));
 
   for (; shp; shp = shp->next)
   {
-    tri [n] = cut [shp->kind] (shp->data, point, normal, &ntr [n]); /* find intersection */
+    tri [l] = cut [shp->kind] (shp->data, point, normal, &ntr [l]); /* find intersection */
 
-    if (tri [n]) /* found */
+    if (tri [l]) /* found */
     {
-      for (t = tri [n], e = t + ntr [n]; t != e; t ++)
+      for (t = tri [l], e = t + ntr [l]; t != e; t ++)
       {
 	for (i = 0; i < 3; i++)
 	{
-	  if (!MAP_Find_Node (vertices, t->ver [i], (MAP_Compare) POINTS_COMPARE)) /* vertex not mapped */
+	  if (!MAP_Find_Node (vertices, t->ver [i], (MAP_Compare) POINTS_COMPARE)) /* vertex not mapped; FIXME: replace with kd-tree */
 	  {
-	    MAP_Insert (&mapmem, &vertices, t->ver [i], (void*) (long) j, (MAP_Compare) POINTS_COMPARE); /* map it */
-	    j ++;
+	    item = MAP_Insert (&mapmem, &vertices, t->ver [i], (void*) (long) j, (MAP_Compare) POINTS_COMPARE); /* map it; FIXME: replace with kd-tree */
+	    ASSERT_DEBUG (item, "Failed to map vertex during shape-plane cutting");
+	    if (item) j ++;
 	  }
 	}
+	t->adj [1] = (TRI*) shp; /* record the corresponding shape */
       }
-      (*m) += ntr [n];
-      n ++;
+      (*m) += ntr [l];
+      l ++;
     }
 
-    if (n == s)
+    if (l == s)
     {
       s *= 2;
       ERRMEM (tri = realloc (tri, s * sizeof (TRI*)));
@@ -301,11 +314,24 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m)
     }
   }
 
-  if (n == 0) goto out;
+  if (l == 0) goto out;
 
   i = MAP_Size (vertices);
-  ERRMEM (out = malloc ((*m) * sizeof (TRI) + i * sizeof (double [3])));
-  v = (double*) (out + (*m));
+
+  if (cur_to_ref)
+  {
+    ERRMEM (out = malloc ((*m) * sizeof (TRI) + 2 * i * sizeof (double [3]) + i * sizeof (SGP)));
+    v = (double*) (out + (*m));
+    (*sgp) = (SGP*) (v + 6 * i);
+    (*ref) = v + 3 * i;
+    (*cur) = v;
+    (*n) = i;
+  }
+  else
+  {
+    ERRMEM (out = malloc ((*m) * sizeof (TRI) + i * sizeof (double [3])));
+    v = (double*) (out + (*m));
+  }
 
   /* copy vertices  */
   for (item = MAP_First (vertices); item; item = MAP_Next (item))
@@ -316,27 +342,55 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m)
   }
 
   /* compile output */
-  for (i = 0, q = out; i < n; i ++)
+  for (i = 0, q = out; i < l; i ++)
   {
     for (t = tri [i], e = t + ntr [i]; t != e; t ++)
     {
       for (k = 0; k < 3; k ++)
       {
-	item = MAP_Find_Node (vertices, t->ver [k], (MAP_Compare) POINTS_COMPARE);
+	item = MAP_Find_Node (vertices, t->ver [k], (MAP_Compare) POINTS_COMPARE); /* FIXME: replace with kd-tree */
+	if (item == NULL)
+	{
+	  double d2 = DBL_MAX, d [4], *v = t->ver [k];
+	  for (MAP *jtem = MAP_First (vertices); jtem; jtem = MAP_Next (jtem)) /* find closest point; FIXME: replace with kd-tree */
+	  {
+	    double *w = jtem->key;
+	    SUB (v, w, d);
+	    d [3] = DOT (d, d);
+	    if (d [3] < d2)
+	    {
+	      item = jtem;
+	      d2 = d [3];
+	    }
+	  }
+	}
 	ASSERT_DEBUG (item, "A vertex was not mapped during shape-plane cutting");
 	if (!item) break;
 	j = 3*((int) (long) item->data);
 	q->ver [k] = &v [j]; /* map to new storage */
 	q->adj [0] = t->adj [0];
+
+        /* map referential to current if needed,
+	 * but without repititions; set up SGP pair */
+	if (cur_to_ref && !SET_Contains (set, item, NULL))
+	{
+	  double *Ver = &(*ref) [j];
+	  SGP *sg = &(*sgp) [j/3];
+	  sg->shp = (SHAPE*)t->adj [1];
+	  sg->gobj = t->adj [0];
+	  cur_to_ref (body, sg->shp, sg->gobj, q->ver [k], Ver);
+	  SET_Insert (&setmem, &set, item, NULL);
+	}
       }
       if (item) q ++; /* skip faults */
     }
   }
 out:
-  for (i = 0; i < n; i ++) free (tri [i]);
+  for (i = 0; i < l; i ++) free (tri [i]);
+  MEM_Release (&mapmem);
+  MEM_Release (&setmem);
   free (tri);
   free (ntr);
-  MEM_Release (&mapmem);
 
   return out;
 }
