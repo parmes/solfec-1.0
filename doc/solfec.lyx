@@ -2217,6 +2217,95 @@ s1, s2, ..., s6
 ], corresponding to the faces of the hexahedral shape
 \end_layout
 
+\begin_layout Subsection*
+obj = TETRAHEDRALIZE (shape | volume, quality, volid, surfid)
+\end_layout
+
+\begin_layout Standard
+This routine creates an all-tetrahedral mesh.
+ Tetgen is invoked internally, 
+\begin_inset CommandInset href
+LatexCommand href
+name "http://tetgen.berlios.de/"
+target "http://tetgen.berlios.de/"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created MESH object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+shape
+\series default
+ - an input shape can be:
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+another MESH object
+\end_layout
+
+\begin_layout Itemize
+a path (e.g.
+ 'path/to/file.stl') to an input file supported by Tetgen (e.g.
+ 
+\begin_inset CommandInset href
+LatexCommand href
+name "http://tetgen.berlios.de/fformats.html"
+target "http://tetgen.berlios.de/fformats.html"
+
+\end_inset
+
+)
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+
+\series bold
+volume
+\series default
+ - maximum element volume (default: not enforced)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+quality
+\series default
+ - value > 1.0 indicating element quality (default: not enforced); values
+ close to 1.0 result in better mesh quality (mesh generation may fail for
+ small values)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier (default: 0); if not specified, inherited from the
+ input; otherwise overwriting the input
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ - surface identifier (default: 0); if not specified, inherited from the
+ input; otherwise overwriting the input
+\end_layout
+
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
