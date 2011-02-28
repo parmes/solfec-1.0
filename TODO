@@ -82,3 +82,8 @@ Consider a separate linear solve at the end for all equality constraints.
 This will simplify the penalty solver as well as it might improve accuracy.
 --------------------------------------------------------------------------------------
 Integrate with PARADISO via MKL
+--------------------------------------------------------------------------------------
+Implement kd-tree: seee FIXMEs in shp.c and cvx.c and ext/tetgen/tetsol.cxx
+--------------------------------------------------------------------------------------
+Complete volume identifier mapping in ext/tetgen/tetsol.cxx
+--------------------------------------------------------------------------------------

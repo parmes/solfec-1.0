@@ -23,6 +23,7 @@
 #include <structmember.h>
 #include <limits.h>
 #include <float.h>
+#include "ext/tetgen/tetsol.h"
 #include "solfec.h"
 #include "alg.h"
 #include "sol.h"
@@ -4050,6 +4051,68 @@ static PyObject* lng_HEX (PyObject *self, PyObject *args, PyObject *kwds)
   return (PyObject*)out;
 }
 
+/* create tetrahedral mesh */
+static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("shape", "volume", "quality", "volid", "surid");
+  double volume, quality;
+  int volid, surfid;
+  PyObject *shape;
+  lng_MESH *out;
+
+  out = (lng_MESH*)lng_MESH_TYPE.tp_alloc (&lng_MESH_TYPE, 0);
+
+  if (out)
+  {
+    volume = -DBL_MAX;
+    quality = -DBL_MAX; 
+    volid = -INT_MAX;
+    surfid = -INT_MAX;
+
+    PARSEKEYS ("O|ddii", &shape, &volume, &quality, &volid, &surfid);
+
+    if (volume != -DBL_MAX && volume <= 0.0)
+    {
+      PyErr_SetString (PyExc_ValueError, "Maximal volume must be positive");
+      return NULL;
+    }
+    if (volume == -DBL_MAX) volume = 0.0;
+
+    if (quality != -DBL_MAX && quality <= 1.0)
+    {
+      PyErr_SetString (PyExc_ValueError, "Quality must be > 1.0");
+      return NULL;
+    }
+    if (quality == -DBL_MAX) quality = 0.0;
+
+    if (PyObject_IsInstance (shape, (PyObject*)&lng_MESH_TYPE))
+    {
+      out->msh = tetrahedralize1 (((lng_MESH*)shape)->msh, volume, quality, volid, surfid);
+      if (!out->msh)
+      {
+        PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");
+	return NULL;
+      }
+    }
+    else if (PyString_Check (shape))
+    {
+      out->msh = tetrahedralize2 (PyString_AsString (shape), volume, quality, volid, surfid);
+      if (!out->msh)
+      {
+        PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");
+	return NULL;
+      }
+    }
+    else
+    {
+      PyErr_SetString (PyExc_ValueError, "Shape must be aither a MESH object or string");
+      return NULL;
+    }
+  }
+
+  return (PyObject*)out;
+}
+
 /* create a mesh object */
 static PyObject* lng_PIPE (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -7063,6 +7126,7 @@ static PyMethodDef lng_methods [] =
 {
   {"HULL", (PyCFunction)lng_HULL, METH_VARARGS|METH_KEYWORDS, "Create convex hull from a point set"},
   {"HEX", (PyCFunction)lng_HEX, METH_VARARGS|METH_KEYWORDS, "Create mesh of a hexahedral shape"},
+  {"TETRAHEDRALIZE", (PyCFunction)lng_TETRAHEDRALIZE, METH_VARARGS|METH_KEYWORDS, "Generate tetrahedral mesh"},
   {"PIPE", (PyCFunction)lng_PIPE, METH_VARARGS|METH_KEYWORDS, "Create mesh of a pipe shape"},
   {"ROUGH_HEX", (PyCFunction)lng_ROUGH_HEX, METH_VARARGS|METH_KEYWORDS, "Create a rough hexahedral mesh containing a given shape"},
   {"FIX_POINT", (PyCFunction)lng_FIX_POINT, METH_VARARGS|METH_KEYWORDS, "Create a fixed point constraint"},
@@ -7246,6 +7310,7 @@ int lng (const char *path)
                      "from solfec import HULL\n"
                      "from solfec import MESH\n"
                      "from solfec import HEX\n"
+                     "from solfec import TETRAHEDRALIZE\n"
                      "from solfec import PIPE\n"
                      "from solfec import ROUGH_HEX\n"
                      "from solfec import SPHERE\n"

@@ -16,18 +16,18 @@ include ../../Config.mak
 # CXXFLAGS is the level of optimiztion, default is -O. One should try
 # -O2, -O3 ... to find the best optimization level.
 # ===================================================================
-
-ifeq ($(DEBUG),yes)
-  CXXFLAGS = -g
-else
-  CXXFLAGS = -O
-endif
-
+#
 # PREDCXXFLAGS is for compiling J. Shewchuk's predicates. It should
 # always be equal to -O0 (no optimization). Otherwise, TetGen may not
 # work properly.
 
-PREDCXXFLAGS = -O0
+ifeq ($(DEBUG),yes)
+  CXXFLAGS = -g
+  PREDCXXFLAGS = -g
+else
+  CXXFLAGS = -O
+  PREDCXXFLAGS = -O0
+endif
 
 # SWITCHES is a list of switches to compile TetGen.
 # =================================================
@@ -55,12 +55,17 @@ RM = /bin/rm -f
 
 # The action starts here.
 
-tetlib: tetgen.cxx predicates.o
-	$(CXX) $(CXXFLAGS) $(SWITCHES) -DTETLIBRARY -c tetgen.cxx
-	ar r ../../obj/libtet.a tetgen.o predicates.o
+tetlib: tetgen.o predicates.o tetsol.o
+	ar -rcu ../../obj/libtet.a tetgen.o predicates.o tetsol.o
 
 tetgen:	tetgen.cxx predicates.o
 	$(CXX) $(CXXFLAGS) $(SWITCHES) -o tetgen tetgen.cxx predicates.o -lm
+
+tetgen.o: tetgen.cxx tetgen.h
+	$(CXX) $(CXXFLAGS) $(SWITCHES) -DTETLIBRARY -c tetgen.cxx
+
+tetsol.o: tetsol.cxx tetsol.h
+	$(CXX)  $(CXXFLAGS) $(SWITCHES) -DTETLIBRARY  -c tetsol.cxx
 
 predicates.o: predicates.cxx
 	$(CXX) $(PREDCXXFLAGS) -c predicates.cxx
