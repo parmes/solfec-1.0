@@ -22,7 +22,7 @@ include ../../Config.mak
 # work properly.
 
 ifeq ($(DEBUG),yes)
-  CXXFLAGS = -g
+  CXXFLAGS = -g -DDEBUG
   PREDCXXFLAGS = -g
 else
   CXXFLAGS = -O

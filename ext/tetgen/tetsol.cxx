@@ -28,6 +28,7 @@ extern "C"
 #include "../../mem.h"
 #include "../../err.h"
 #include "../../alg.h"
+#include "../../kdt.h"
 
 /* generate tetrahedrons based on an input mesh object; pass -INT_MAX for (vol/surf)ids to inherit from the mesh */
 MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid)
@@ -35,12 +36,12 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
   tetgenio in, out;
   tetgenio::facet *f;
   tetgenio::polygon *p;
+  double *a, *b, extents [6];
   int *elements, *surfaces;
   int i, j, n, *ele, *tet;
   char params [512];
   MESH *ret = NULL;
   MAP *map, *item;
-  double *a, *b;
   MEM mapmem;
   FACE *fac;
 
@@ -126,8 +127,14 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
   }
   ele [0] = 0;
 
+  /* creake input mesh based kd-tree for volume identifiers mapping */
+  KDT *kd = KDT_Create (shape->nodes_count, (double*)shape->cur_nodes, 0.0);
+  for (ELEMENT *ele = shape->surfeles; ele; ele = ele->next)
+  { ELEMENT_Extents (shape, ele, extents); KDT_Drop (kd, extents, ele); }
+  for (ELEMENT *ele = shape->bulkeles; ele; ele = ele->next)
+  { ELEMENT_Extents (shape, ele, extents); KDT_Drop (kd, extents, ele); }
+
   /* read tetrahedrons */
-  if (volid == -INT_MAX) volid = shape->surfeles->volume;
   ERRMEM (elements =  (int*)malloc ((out.numberoftetrahedra+1) * sizeof (int [6])));
   if (out.numberofpoints == 0 || out.numberoftetrahedra == 0) goto err;
   for (i = 0, ele = elements, tet = out.tetrahedronlist;
@@ -138,7 +145,31 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
     ele [2] = tet [1];
     ele [3] = tet [2];
     ele [4] = tet [3];
-    ele [5] = volid; /* FIXME: use kd-tree based mid-point to volume id mapping */
+
+    double *v [4] = {&out.pointlist [tet[0]*3],
+                     &out.pointlist [tet[1]*3],
+                     &out.pointlist [tet[2]*3],
+                     &out.pointlist [tet[3]*3]};
+
+    double p [3] = {.25*(v[0][0]+v[1][0]+v[2][0]+v[3][0]),
+                    .25*(v[0][1]+v[1][1]+v[2][1]+v[3][1]),
+                    .25*(v[0][2]+v[1][2]+v[2][2]+v[3][2])};
+
+    void **data;
+    int ndat;
+
+    KDT_Pick (kd, p, &data, &ndat);
+    ASSERT_DEBUG (data && ndat, "Inconsistent kd-tree query");
+#if !DEBUG
+    if (data == NULL)
+    {
+      WARNING (data, "Kd-tree based volid mapping has failed: please report this bug!");
+      ele [5] = (volid == -INT_MAX ? 0 : volid); continue;
+    }
+#endif
+    ELEMENT *ptr = (ELEMENT*) data [0];
+    ele [5] = ptr->volume;
+    free (data);
   }
   ele [0] = 0;
 
@@ -149,6 +180,7 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
 err:
   free (elements);
   free (surfaces);
+  KDT_Destroy (kd);
   MEM_Release (&mapmem);
   
   return ret;
@@ -214,7 +246,8 @@ MESH* tetrahedralize2 (char *path, double volume, double quality, int volid, int
     ele [2] = tet [1] - out.firstnumber;
     ele [3] = tet [2] - out.firstnumber;
     ele [4] = tet [3] - out.firstnumber;
-    if (out.tetrahedronattributelist) ele [5] = (int) out.tetrahedronattributelist [i];
+    if (out.tetrahedronattributelist) ele [5] = (int)
+      out.tetrahedronattributelist [i*out.numberoftetrahedronattributes]; /* the first attribute as volid */
     else ele [5] = volid;
   }
   ele [0] = 0;
