@@ -2222,7 +2222,7 @@ obj = TETRAHEDRALIZE (shape | volume, quality, volid, surfid)
 \end_layout
 
 \begin_layout Standard
-This routine creates an all-tetrahedral mesh.
+This routine creates a tetrahedral mesh.
  Tetgen is invoked internally, 
 \begin_inset CommandInset href
 LatexCommand href
@@ -2293,8 +2293,8 @@ quality
 \series bold
 volid
 \series default
- - volume identifier (default: 0); if not specified, inherited from the
- input; otherwise overwriting the input
+ - volume identifier (default: 0); if only possible it is inherited from
+ the input
 \end_layout
 
 \begin_layout Itemize
@@ -2302,8 +2302,8 @@ volid
 \series bold
 surfid
 \series default
- - surface identifier (default: 0); if not specified, inherited from the
- input; otherwise overwriting the input
+ - surface identifier (default: 0); if only possible it is inherited from
+ the input
 \end_layout
 
 \begin_layout Subsection

@@ -28,6 +28,7 @@ BASEO = obj/err.o \
 	obj/alg.o \
 	obj/mem.o \
 	obj/pck.o \
+	obj/kdt.o \
 	obj/map.o \
 	obj/set.o \
 	obj/skp.o \
@@ -184,6 +185,9 @@ obj/mem.o: mem.c mem.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/pck.o: pck.c pck.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/kdt.o: kdt.c kdt.h mem.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/map.o: map.c map.h mem.h err.h

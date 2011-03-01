@@ -4,9 +4,9 @@ include ../Flags.mak
 LIBBRICKS = ../obj/libsolfec.a
 LIBBRICKSMPI = ../obj/libsolfec-mpi.a
 CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(OPENGL) $(XDRINC) -I..
-LIB = -L../obj -lsolfec -lkrylov -lmetis -ltaucs -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(CUDALIB)
+LIB = -L../obj -lsolfec -lkrylov -lmetis -ltaucs -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(CUDALIB)
 ifeq ($(MPI),yes)
-  LIBMPI = -L../obj -lsolfec-mpi -lkrylov -lmetis -ltaucs -lm -lstdc++ $(LAPACK) $(BLAS) $(MPILIBS) $(XDRLIB) $(CUDALIB)
+  LIBMPI = -L../obj -lsolfec-mpi -lkrylov -lmetis -ltaucs -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(MPILIBS) $(XDRLIB) $(CUDALIB)
 endif
 
 TGT = glvtest\
@@ -20,6 +20,7 @@ TGT = glvtest\
       maptest\
       mtxtest\
       cmptest\
+      kdttest\
 
 ifeq ($(MPI),yes)
 
@@ -116,6 +117,12 @@ cmptest: obj/cmptest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 obj/cmptest.o: cmptest.c $(LIBBRICKS)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+kdttest: obj/kdttest.o $(LIBBRICKS)
+	$(CC) $(CFLAGS) -o $@ $< $(LIB)
+
+obj/kdttest.o: kdttest.c $(LIBBRICKS)
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 # MPI
