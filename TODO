@@ -83,7 +83,5 @@ This will simplify the penalty solver as well as it might improve accuracy.
 --------------------------------------------------------------------------------------
 Integrate with PARADISO via MKL
 --------------------------------------------------------------------------------------
-Implement kd-tree: seee FIXMEs in shp.c and cvx.c and ext/tetgen/tetsol.cxx
---------------------------------------------------------------------------------------
 Sensivity of FEM to the quality of tetragedral meshes (inp/tetgen.py)
 --------------------------------------------------------------------------------------

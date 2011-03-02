@@ -293,10 +293,10 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
       {
 	for (i = 0; i < 3; i++)
 	{
-	  if (!MAP_Find_Node (vertices, t->ver [i], (MAP_Compare) POINTS_COMPARE)) /* vertex not mapped; FIXME: replace with kd-tree */
+	  if (!MAP_Find_Node (vertices, t->ver [i], NULL)) /* not mapped yet */
 	  {
-	    item = MAP_Insert (&mapmem, &vertices, t->ver [i], (void*) (long) j, (MAP_Compare) POINTS_COMPARE); /* map it; FIXME: replace with kd-tree */
-	    ASSERT_DEBUG (item, "Failed to map vertex during shape-plane cutting");
+	    item = MAP_Insert (&mapmem, &vertices, t->ver [i], (void*) (long) j, NULL); /* map it */
+	    ASSERT_DEBUG (item, "Failed to map vertex during shape cutting");
 	    if (item) j ++;
 	  }
 	}
@@ -344,28 +344,12 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
   /* compile output */
   for (i = 0, q = out; i < l; i ++)
   {
-    for (t = tri [i], e = t + ntr [i]; t != e; t ++)
+    for (t = tri [i], e = t + ntr [i]; t != e; t ++, q ++)
     {
       for (k = 0; k < 3; k ++)
       {
-	item = MAP_Find_Node (vertices, t->ver [k], (MAP_Compare) POINTS_COMPARE); /* FIXME: replace with kd-tree */
-	if (item == NULL)
-	{
-	  double d2 = DBL_MAX, d [4], *v = t->ver [k];
-	  for (MAP *jtem = MAP_First (vertices); jtem; jtem = MAP_Next (jtem)) /* find closest point; FIXME: replace with kd-tree */
-	  {
-	    double *w = jtem->key;
-	    SUB (v, w, d);
-	    d [3] = DOT (d, d);
-	    if (d [3] < d2)
-	    {
-	      item = jtem;
-	      d2 = d [3];
-	    }
-	  }
-	}
-	ASSERT_DEBUG (item, "A vertex was not mapped during shape-plane cutting");
-	if (!item) break;
+	item = MAP_Find_Node (vertices, t->ver [k], NULL);
+	ASSERT_DEBUG (item, "Invalid vertex mapping during shape cutting");
 	j = 3*((int) (long) item->data);
 	q->ver [k] = &v [j]; /* map to new storage */
 	q->adj [0] = t->adj [0];
@@ -382,7 +366,6 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
 	  SET_Insert (&setmem, &set, item, NULL);
 	}
       }
-      if (item) q ++; /* skip faults */
     }
   }
 out:

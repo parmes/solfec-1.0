@@ -23,7 +23,7 @@
 
 double GEOMETRIC_EPSILON = 1E-6;
 
-/* lexicographical comparison */
+/* lexicographical point comparison accounting for the GEOMETRIC_EPSILON */
 int POINTS_COMPARE (double *a, double *b)
 {
   if (LT (a[0], b[0])) return -1;

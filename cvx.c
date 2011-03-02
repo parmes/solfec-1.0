@@ -34,6 +34,7 @@
 #include "hul.h"
 #include "pck.h"
 #include "fem.h"
+#include "kdt.h"
 
 #define MEMINC 64 /* memory increment size used in convex manipulations */
 
@@ -768,17 +769,19 @@ TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m)
 {
   TRI **tri, *out, *t, *e, *q;
   int *ntr, n, s, i, j, k;
-  MAP *vertices, *item;
-  MEM mapmem;
-  double *v;
+  SET *vertices, *item;
+  double *v, *w, *z;
+  KDT *kdtree, *kd;
+  MEM setmem;
 
-  j = 0;
   n = 0;
   s = 128;
   (*m) = 0;
+  z = NULL;
   out = NULL;
+  kdtree = NULL;
   vertices = NULL;
-  MEM_Init (&mapmem, sizeof (MAP), 128);
+  MEM_Init (&setmem, sizeof (SET), 128);
   ERRMEM (tri = malloc (s * sizeof (TRI*)));
   ERRMEM (ntr = malloc (s * sizeof (int)));
 
@@ -792,12 +795,7 @@ TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m)
       {
 	for (i = 0; i < 3; i++)
 	{
-	  if (!MAP_Find_Node (vertices, t->ver [i], (MAP_Compare) POINTS_COMPARE)) /* vertex not mapped; FIXME: replace with kd-tree */
-	  {
-	    item = MAP_Insert (&mapmem, &vertices, t->ver [i], (void*) (long) j, (MAP_Compare) POINTS_COMPARE); /* map it; FIXME: replace with kd-tree */
-	    ASSERT_DEBUG (item, "Failed to map vertex during convex-plane cutting");
-	    if (item) j ++;
-	  }
+	  SET_Insert (&setmem, &vertices, t->ver [i], NULL); /* collect vertices */
 	}
       }
       (*m) += ntr [n];
@@ -814,55 +812,50 @@ TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m)
 
   if (n == 0) goto out;
 
-  i = MAP_Size (vertices);
+  /* create kd-tree */
+  i = SET_Size (vertices);
+  ERRMEM (z = malloc (i * sizeof (double [3])));
+  for (item = SET_First (vertices), v = z; item; item = SET_Next (item), v += 3)
+  {
+    w = item->data;
+    COPY (w, v);
+  }
+  kdtree = KDT_Create (i, z, GEOMETRIC_EPSILON);
+  i = KDT_Size (kdtree);
+
+  /* output memory */
   ERRMEM (out = malloc ((*m) * sizeof (TRI) + i * sizeof (double [3])));
   v = (double*) (out + (*m));
 
-  /* copy vertices  */
-  for (item = MAP_First (vertices); item; item = MAP_Next (item))
+  /* copy vertices */
+  for (kd = KDT_First (kdtree); kd; kd = KDT_Next (kd))
   {
-    i = (int)(long)item->data;
-    double *a = item->key, *b = &v [3 * i];
+    double *a = kd->p, *b = &v [3 * kd->n];
     COPY (a, b);
   }
 
   /* compile output */
   for (i = 0, q = out; i < n; i ++)
   {
-    for (t = tri [i], e = t + ntr [i]; t != e; t ++)
+    for (t = tri [i], e = t + ntr [i]; t != e; t ++, q ++)
     {
       for (k = 0; k < 3; k ++)
       {
-	item = MAP_Find_Node (vertices, t->ver [k], (MAP_Compare) POINTS_COMPARE); /* FIXME: replace with kd-tree */
-	if (item == NULL)
-	{
-	  double d2 = DBL_MAX, d [4], *v = t->ver [k];
-	  for (MAP *jtem = MAP_First (vertices); jtem; jtem = MAP_Next (jtem)) /* find closest point; FIXME: replace with kd-tree */
-	  {
-	    double *w = jtem->key;
-	    SUB (v, w, d);
-	    d [3] = DOT (d, d);
-	    if (d [3] < d2)
-	    {
-	      item = jtem;
-	      d2 = d [3];
-	    }
-	  }
-	}
-	ASSERT_DEBUG (item, "A vertex was not mapped during convex-plane cutting");
-	if (!item) break;
-	j = 3*((int) (long) item->data);
+	kd = KDT_Nearest (kdtree, t->ver [k], GEOMETRIC_EPSILON);
+	ASSERT_DEBUG (kd, "Kd-tree nearest point query failed");
+	j = 3 * kd->n;
 	q->ver [k] = &v [j]; /* map to new storage */
 	q->adj [0] = t->adj [0];
       }
-      if (item) q ++; /* skip faults */
     }
   }
 out:
   for (i = 0; i < n; i ++) free (tri [i]);
+  MEM_Release (&setmem);
+  KDT_Destroy (kdtree);
   free (tri);
   free (ntr);
-  MEM_Release (&mapmem);
+  free (z);
 
   return out;
 }
