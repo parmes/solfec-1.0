@@ -26,15 +26,24 @@
 
 int main (int argc, char **argv)
 {
-  double *p, *q, *points, d [6], l;
+  double *p, *points, d [6], l, epsilon;
   int i, n, k, m;
+  KDT *kd, *q;
   void **data;
-  KDT *kd;
 
-  if (argc > 1) n = atoi (argv [1]);
+  epsilon = 0.0;
+  n = 128;
+
+  if (argc == 2) n = atoi (argv [1]);
+  else if (argc == 3)
+  {
+    n = atoi (argv [1]);
+    epsilon = atof (argv [2]);
+  }
+  else printf ("SYNOPSIS: kdttest [n] [eps]\n");
+
+  printf ("Running kd-tree test now for n = %d, eps = %g\n", n, epsilon);
   
-  n = MAX (128, n);
-
   ERRMEM (points = malloc (n * sizeof (double [3])));
 
   printf ("Generating %d random points ...\n", n);
@@ -46,17 +55,17 @@ int main (int argc, char **argv)
   }
 
   printf ("Building kd-tree ... "), fflush (stdout);
-  kd = KDT_Create (n, points, 0.0);
+  kd = KDT_Create (n, points, epsilon);
   if (kd) printf ("OK\n");
   else printf ("FAILED\n");
 
   printf ("Finding nearest neighbours of the same points ... "), fflush (stdout);
   for (i = 0, p = points; i < n; i ++, p += 3)
   {
-    q = KDT_Nearest (kd, p);
-    SUB (p, q, d);
+    q = KDT_Nearest (kd, p, epsilon);
+    SUB (p, q->p, d);
     l = LEN (d);
-    if (l != 0.0) break;
+    if (l > epsilon) break;
   }
   if (i == n) printf ("OK\n");
   else printf ("FAILED: |q-p| = %g\n", l);

@@ -24,6 +24,7 @@
 #include <string.h>
 #include "kdt.h"
 #include "mem.h"
+#include "set.h"
 #include "alg.h"
 #include "err.h"
 #include "hyb.h"
@@ -56,8 +57,8 @@ static int (*qcmp [3]) (const void*, const void*) =
 
 static void overlap (void *data, BOX *one, BOX *two)
 {
-  if (one->sgp < two->sgp) two->mark = (void*) 1; /* mark higher */
-  else one->mark = (void*) 1;
+  SET_Insert (NULL, (SET**)&one->body, two, NULL);
+  SET_Insert (NULL, (SET**)&two->body, one, NULL);
 }
 
 /* filter out epsilon margin separated points */
@@ -65,7 +66,11 @@ static int separate (int n, double **q, double epsilon)
 {
   if (epsilon <= 0.0) return n;
 
+  double epshalf = .5 * epsilon,
+	 epsq = epsilon * epsilon,
+	 d [3], r;
   BOX *b, *g, **pb;
+  SET *item;
   int i, m;
 
   ERRMEM (b = malloc (n * sizeof (BOX)));
@@ -73,14 +78,16 @@ static int separate (int n, double **q, double epsilon)
 
   for (i = 0, g = b; i < n; i ++, g ++)
   {
-    double *e = g->extents;
-    e [0] = q [i][0] - epsilon;
-    e [1] = q [i][1] - epsilon;
-    e [2] = q [i][2] - epsilon;
-    e [3] = e [0] + 2 * epsilon;
-    e [4] = e [1] + 2 * epsilon;
-    e [5] = e [2] + 2 * epsilon;
-    g->sgp = (SGP*) q [i];
+    double *e = g->extents,
+	   *p = q [i];
+    e [0] = p [0] - epshalf;
+    e [1] = p [1] - epshalf;
+    e [2] = p [2] - epshalf;
+    e [3] = p [0] + epshalf;
+    e [4] = p [1] + epshalf;
+    e [5] = p [2] + epshalf;
+    g->sgp = (SGP*) p;
+    g->body = NULL;
     g->mark = NULL;
     pb [i] = g;
   }
@@ -89,7 +96,22 @@ static int separate (int n, double **q, double epsilon)
 
   for (i = m = 0, g = b; i < n; i ++, g ++)
   {
-    if (!g->mark) q [m ++] = (double*) g->sgp;
+    if (!g->mark)
+    {
+      double *a =  (double*) g->sgp;
+      q [m ++] = a;
+
+      for (item = SET_First ((SET*)g->body); item; item = SET_Next (item))
+      {
+	BOX *adj = item->data;
+	double *b = (double*) adj->sgp;
+	SUB (a, b, d);
+	r = DOT (d, d);
+	if (r < epsq) adj->mark = (void*) 1; /* epsilon separation */
+      }
+    }
+
+    SET_Free (NULL, (SET**) &g->body);
   }
 
   free (pb);
@@ -130,38 +152,46 @@ static int split (int n, double **q, double *p, int *d)
 back:
   qsort (q, n, sizeof (double*), qcmp [*d]);
   k = n / 2;
-  x = &q[k];
+  x = &q [k];
   while (x < (y-1) && x [0][*d] == (x+1) [0][*d]) { k ++; x ++; } /* q [3*l+d] <= q [3*k+d] for l <= k */
   while (k == n && i < 2) /* no good splitting along current dimension */
   {
     *d = t [i ++];
     goto back;
   }
-  if (k == n && i == 2) return -1; /* coincident points */
   COPY (x [0], p);
 
-  return k;
+  if (k == n && i == 2) return -1; /* coincident points */
+  else return k;
 }
 
 /* recursive create */
-static KDT* create (int n, double **q)
+static KDT* create (KDT *u, int n, double **q)
 {
   KDT *kd;
   int k;
 
   ERRMEM (kd = MEM_CALLOC (sizeof (KDT)));
+  kd->u = u;
 
-  if (n == 1)
+  if (n == 0)
   {
-    COPY (q [0], kd->p);
     kd->d = -1; /* leaf */
     return kd;
   }
 
   k = split (n, q, kd->p, &kd->d);
-  if (k < 0) { free (kd); return NULL; } /* coincident points */
-  kd->l = create (k, q);
-  kd->r = create (n-k, q+k);
+
+  if (k == -1) /* coincident points */
+  {
+    kd->l = create (kd, 0, NULL);
+    kd->r = create (kd, 0, NULL);
+  }
+  else
+  {
+    kd->l = create (kd, k, q); /* ends at q [k-1] */
+    kd->r = create (kd, n-k-1, q+k+1); /* starts at q [k+1] */
+  }
 
   return kd;
 }
@@ -180,8 +210,20 @@ static void pick (KDT *kd, double *p, void ***data, int *n)
   else pick (kd->r, p, data, n);
 }
 
-/* create kd-tree for n points separated by epsilon
- * margin; returns NULL for coincident points */
+/* index tree nodes */
+static void index_nodes (KDT *kd, int *n)
+{
+  if (kd->d >= 0)
+  {
+    kd->n = *n;
+    (*n) ++;
+    index_nodes (kd->l, n);
+    index_nodes (kd->r, n);
+  }
+}
+
+/* create kd-tree for n points; epsilon separation is ensured
+ * between the input points and the remaining points are filtered our */
 KDT* KDT_Create (int n, double *p, double epsilon)
 {
   double **q;
@@ -191,7 +233,7 @@ KDT* KDT_Create (int n, double *p, double epsilon)
   ERRMEM (q = malloc (n * sizeof (double*)));
   for (i = 0; i < n; i ++) q [i] = &p [3*i];
   n = separate (n, q, epsilon);
-  kd = create (n, q);
+  kd = create (NULL, n, q);
   free (q);
 
   return kd;
@@ -223,30 +265,92 @@ void KDT_Pick (KDT *kd, double *p, void ***data, int *n)
   pick (kd, p, data, n);
 }
 
-/* return nearest point in kd-tree */
-double* KDT_Nearest (KDT *kd, double *p)
+/* return nearest node in kd-tree within epsilon radius */
+KDT* KDT_Nearest (KDT *kd, double *p, double epsilon)
 {
-  double a [3], d, dmax, *c;
+  double a [3], d, dmax;
+  KDT *c, *l, *r;
 
   dmax = DBL_MAX;
   c = NULL;
 
-  while (kd)
+  while (kd->d >= 0)
   {
     SUB (p, kd->p, a);
     d = DOT (a, a);
-    if (d < dmax)
-    {
-      dmax = d;
-      c = kd->p;
-    }
+    if (d < dmax) { dmax = d; c = kd; }
 
-    if (kd->d < 0) break; /* leaf */
-    else if (p [kd->d] <= kd->p [kd->d]) kd = kd->l;
-    else kd = kd->r;
+    if ((p [kd->d] + epsilon) <= kd->p [kd->d]) kd = kd->l;
+    else if ((p [kd->d] - epsilon) > kd->p [kd->d]) kd = kd->r;
+    else
+    {
+      l = KDT_Nearest (kd->l, p, epsilon);
+
+      if (l)
+      {
+	SUB (p, l->p, a);
+	d = DOT (a, a);
+	if (d < dmax) { dmax = d; c = l; }
+      }
+
+      r = KDT_Nearest (kd->r, p, epsilon);
+
+      if (r)
+      {
+	SUB (p, r->p, a);
+	d = DOT (a, a);
+	if (d < dmax) { dmax = d; c = r; }
+      }
+
+      break;
+    }
   }
  
-  return c; 
+  return c;
+}
+
+/* return the number kd-tree nodes; note that kd->n indices
+ * become valid for tree nodes only after KDT_Size was called */
+int KDT_Size (KDT *kd)
+{
+  int n = 0;
+  index_nodes (kd, &n);
+  return n;
+}
+
+/* first node */
+KDT* KDT_First (KDT *kd)
+{
+  while (kd->l->d != -1) kd = kd->l;
+  return kd;
+}
+
+/* next node */
+KDT* KDT_Next (KDT *kd)
+{
+  KDT *y;
+  
+  if (kd == NULL) return NULL;
+
+  if (kd->r->d == -1)
+  {
+    if (kd->u == NULL) return NULL; /* this is the only r node of root */
+  
+    if (kd == kd->u->l) return kd->u; /* p is the predecessor */
+
+    y = kd->u;
+    while (y->u && y == y->u->r) y = y->u; /* all the keys along this path are smaller then 'kd' key */
+
+    if (y->u == NULL) return NULL; /* root is reached - node wast the very r tree element */
+
+    return y->u; /* y was r descendant of y->u so the parent must be the predecessor */
+  }
+  else
+  {
+    y = kd->r;
+    while (y->l->d != -1) y = y->l;
+    return y;
+  }
 }
 
 /* destroy kd-tree */

@@ -32,7 +32,7 @@ extern double GEOMETRIC_EPSILON; /* 1.0E-4 by default */
 
 /* global functuins */
 
-/* lexicographical comparison */
+/* lexicographical point comparison accounting for the GEOMETRIC_EPSILON */
 int POINTS_COMPARE (double *a, double *b);
 
 /* some constants and small,
@@ -51,6 +51,7 @@ int POINTS_COMPARE (double *a, double *b);
 #define SGN(v) ((v) > 0 ? 1 : ((v) < 0 ? -1 : 0))
 #define ABS(v) ((v) > 0 ? (v) : -(v))
 
+/* comparisons accounting for the GEOMETRIC_EPSILON */
 #define LT(x, y) ((x)+GEOMETRIC_EPSILON < (y)-GEOMETRIC_EPSILON)
 #define GT(x, y) ((x)-GEOMETRIC_EPSILON > (y)+GEOMETRIC_EPSILON)
 #define GE(x, y) ((y) - (x) <= 2*GEOMETRIC_EPSILON)

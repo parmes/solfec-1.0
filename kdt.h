@@ -26,19 +26,19 @@ typedef struct kdt KDT;
 
 struct kdt
 {
-  double p [3]; /* splitting point */
+  double p [3]; /* point or invalid for a leaf */
 
-  int d; /* splitting dimension */
+  int d; /* splitting dimension or -1 for a leaf */
 
-  KDT *l, *r; /* left and right branch */
+  KDT *u, *l, *r; /* upper, left and right branch */
 
-  int n; /* leaf data items */
+  int n; /* tree node index or leaf data items count */
 
-  void **data; /* leaf data */
+  void **data; /* leaf data items */
 };
 
-/* create kd-tree for n points separated by epsilon
- * margin; returns NULL for coincident points */
+/* create kd-tree for n points; epsilon separation is ensured
+ * between the input points and the remaining points are filtered our */
 KDT* KDT_Create (int n, double *p, double epsilon);
 
 /* drop data down the kd-tree */
@@ -47,8 +47,18 @@ void KDT_Drop (KDT *kd, double *extents, void *data);
 /* pick data for a point; free buffer after use */
 void KDT_Pick (KDT *kd, double *p, void ***data, int *n);
 
-/* return nearest point in kd-tree */
-double* KDT_Nearest (KDT *kd, double *p);
+/* return nearest node in kd-tree within epsilon radius */
+KDT* KDT_Nearest (KDT *kd, double *p, double epsilon);
+
+/* return the number kd-tree nodes; note that kd->n indices
+ * become valid for tree nodes only after KDT_Size was called */
+int KDT_Size (KDT *kd);
+
+/* first node */
+KDT* KDT_First (KDT *kd);
+
+/* next node */
+KDT* KDT_Next (KDT *kd);
 
 /* destroy kd-tree */
 void KDT_Destroy (KDT *kd);
