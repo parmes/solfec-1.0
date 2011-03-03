@@ -54,9 +54,9 @@ int POINTS_COMPARE (double *a, double *b);
 /* comparisons accounting for the GEOMETRIC_EPSILON */
 #define LT(x, y) ((x)+GEOMETRIC_EPSILON < (y)-GEOMETRIC_EPSILON)
 #define GT(x, y) ((x)-GEOMETRIC_EPSILON > (y)+GEOMETRIC_EPSILON)
-#define GE(x, y) ((y) - (x) <= 2*GEOMETRIC_EPSILON)
-#define LE(x, y) ((x) - (y) <= 2*GEOMETRIC_EPSILON)
-#define EQ(x, y) (fabs ((x) - (y)) <= 2*GEOMETRIC_EPSILON)
+#define GE(x, y) ((y) - (x) <= 2.0*GEOMETRIC_EPSILON)
+#define LE(x, y) ((x) - (y) <= 2.0*GEOMETRIC_EPSILON)
+#define EQ(x, y) (fabs ((x) - (y)) <= 2.0*GEOMETRIC_EPSILON)
 #define NE(x, y) (!EQ(X, y))
 
 #define DRAND() ((double) rand () / (double) RAND_MAX)
@@ -94,6 +94,14 @@ int POINTS_COMPARE (double *a, double *b);
   (c) [2] = (a) [2] + (b) [2];\
 }
 
+#define ADD4(a, b, c)\
+{\
+  (c) [0] = (a) [0] + (b) [0];\
+  (c) [1] = (a) [1] + (b) [1];\
+  (c) [2] = (a) [2] + (b) [2];\
+  (c) [3] = (a) [3] + (b) [3];\
+}
+
 #define ADDMUL(a, eps, b, c)\
 {\
   (c) [0] = (a) [0] + (eps)*(b) [0];\
@@ -112,6 +120,14 @@ int POINTS_COMPARE (double *a, double *b);
 {\
   (c) [0] = (a) [0] - (b) [0];\
   (c) [1] = (a) [1] - (b) [1];\
+}
+
+#define SUB4(a, b, c)\
+{\
+  (c) [0] = (a) [0] - (b) [0];\
+  (c) [1] = (a) [1] - (b) [1];\
+  (c) [2] = (a) [2] - (b) [2];\
+  (c) [3] = (a) [3] - (b) [3];\
 }
 
 #define SUBMUL(a, eps, b, c)\
@@ -385,6 +401,20 @@ int POINTS_COMPARE (double *a, double *b);
 }
 
 #define PLANE(pln, pnt) (DOT (pln, pnt) + (pln) [3])
+
+/* p = 4-plane and line segment (a, b) intersection; call only for intersecting entities */
+inline static void PLANESEG (double *plane, double *a, double *b, double *p)
+{
+  double l [3], s;
+  
+  l [0] = b [0] - a [0];
+  l [1] = b [1] - a [1];
+  l [2] = b [2] - a [2];
+  s = PLANE (plane, a) / DOT (plane, l);
+  p [0] = a [0] - l [0] * s;
+  p [1] = a [1] - l [1] * s;
+  p [2] = a [2] - l [2] * s;
+}
 
 #define PLANECOPY(a, b)\
 {\

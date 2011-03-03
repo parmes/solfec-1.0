@@ -1,28 +1,9 @@
 # tetrahedral mesh example
 
-def CYLINDER_SECTION (center, radius, thick, height, angle, div_thick, div_height, div_angle, volid = 0, surfid = 0):
-
-  nodes = [0, 0, 0,
-	   1, 0, 0,
-	   1, 1, 0,
-	   0, 1, 0,
-	   0, 0, 1,
-	   1, 0, 1,
-	   1, 1, 1,
-	   0, 1, 1]
-
-  msh = HEX (nodes, div_thick, div_angle, div_height, volid, [surfid, surfid, surfid, surfid, surfid, surfid])
-  SCALE (msh, (thick, 3.14159 * (angle / 180.0) * radius, height))
-  TRANSLATE (msh, (-thick-radius, 0, 0))
-  BEND (msh, (0, 0, 0), (0, 0, -1), angle)
-
-  return TRANSLATE (msh, center)
-
-
-# main module
-
+#GEOMETRIC_EPSILON (1E-4)
 step = 0.001
 stop = 1
+sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
 
 sol = SOLFEC ('DYNAMIC', step, 'out/cycsec')
 
@@ -34,21 +15,20 @@ bulk = BULK_MATERIAL (sol,
 
 SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-CONTACT_SPARSIFY (sol, 0.005, 0.005)
-
-shp = CYLINDER_SECTION ((0, 0, 0), 1, 1, 2, 90, 1, 1, 6)
-shp = TETRAHEDRALIZE (shp, quality = 1.5)
-
-bod = BODY (sol, 'FINITE_ELEMENT', shp, bulk)
-
-shp = CYLINDER_SECTION ((0, 0, -3), 1, 1, 0.5, 90, 2, 1, 10)
-
-bod = BODY (sol, 'OBSTACLE', shp, bulk)
-
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
-
 GRAVITY (sol, (0, 0, -10))
 
-OUTPUT (sol, step)
+shp = PIPE  ((0, 0, 0), (0, 0, 2), 0.5, 1, 1, 8, 1, 1, [1, 1, 1, 1, 1, 1])
+#shp = TETRAHEDRALIZE (shp, quality = 1.5)
 
-RUN (sol, gs, stop)
+(b, a) = SPLIT (COPY (shp), (0, 0, 1), (1, 1, 1))
+#a = TETRAHEDRALIZE (a, quality = 1.5) #FIXME: this will not work
+
+bod = BODY (sol, 'FINITE_ELEMENT', a, bulk)
+bod = BODY (sol, 'FINITE_ELEMENT', b, bulk)
+
+
+shp = PIPE  ((0, 0, -1), (0, 0, -1), 0.5, 1, 2, 8, 1, 1, [1, 1, 1, 1, 1, 1])
+bod = BODY (sol, 'OBSTACLE', shp, bulk)
+
+OUTPUT (sol, step)
+RUN (sol, sv, stop)

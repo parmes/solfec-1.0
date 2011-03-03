@@ -7680,7 +7680,7 @@ angle
 \end_layout
 
 \begin_layout Subsection*
-(one, two) = SPLIT (shape, point, normal)
+(one, two) = SPLIT (shape, point, normal | surfid)
 \end_layout
 
 \begin_layout Standard
@@ -7721,7 +7721,7 @@ shape
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX or SPHERE
+ of objects of type CONVEX, SPHERE or MESH
 \end_layout
 
 \begin_layout Itemize
@@ -7746,6 +7746,14 @@ normal
 (nx, ny, nz)
 \emph default
  tuple defining the splitting plane normal
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ - surface identidier of a newly created surface (default: 0)
 \end_layout
 
 \begin_layout Subsection*

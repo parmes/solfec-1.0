@@ -60,6 +60,9 @@ int TRI_Addadj (TRI *p, TRI *q);
  * vertices are placed right after the returned table */
 TRI* TRI_Copy (TRI *tri, int n);
 
+/* merge two triangulations; adjacency is not maintained */
+TRI* TRI_Merge (TRI *one, int none, TRI *two, int ntwo, int *m);
+
 /* compute adjacency structure */
 void TRI_Compadj (TRI *tri, int n);
 

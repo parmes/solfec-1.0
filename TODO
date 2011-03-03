@@ -85,3 +85,4 @@ Integrate with PARADISO via MKL
 --------------------------------------------------------------------------------------
 Sensivity of FEM to the quality of tetragedral meshes (inp/tetgen.py)
 --------------------------------------------------------------------------------------
+Tetrahedralization of a piece of a split mesh fails => sort out (element containment test)

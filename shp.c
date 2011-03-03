@@ -346,13 +346,15 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
   {
     for (t = tri [i], e = t + ntr [i]; t != e; t ++, q ++)
     {
+      q->adj [0] = t->adj [0];
+      COPY (t->out, q->out);
+
       for (k = 0; k < 3; k ++)
       {
 	item = MAP_Find_Node (vertices, t->ver [k], NULL);
 	ASSERT_DEBUG (item, "Invalid vertex mapping during shape cutting");
 	j = 3*((int) (long) item->data);
 	q->ver [k] = &v [j]; /* map to new storage */
-	q->adj [0] = t->adj [0];
 
         /* map referential to current if needed,
 	 * but without repititions; set up SGP pair */
