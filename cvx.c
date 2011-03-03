@@ -68,23 +68,6 @@ static int point_inside (int npla, double *pla, double *point)
   return 1;
 }
 
-/* calculates plane 'pla' - line segment (sa, sb)
- * intersection and returnes it in 'p';
- * called only for intersecting entities */
-inline static void planeseg (double *pla,
-  double *sa, double *sb, double *p)
-{
-  double l [3], s;
-  
-  l [0] = sb [0] - sa [0];
-  l [1] = sb [1] - sa [1];
-  l [2] = sb [2] - sa [2];
-  s = PLANE (pla, sa) / DOT (pla, l);
-  p [0] = sa [0] - l [0]*s;
-  p [1] = sa [1] - l [1]*s;
-  p [2] = sa [2] - l [2]*s;
-}
-
 /* compute planes - CCW oriented faces */
 inline static void computeplanes (CONVEX *cvx)
 {
@@ -180,27 +163,10 @@ static int edge_compare (EDGE *a, EDGE *b)
   else return 1;
 }
 
-/* 3D vector comparison */
-static int vector_compare (double *a, double *b)
-{
-  if ((a[0]+GEOMETRIC_EPSILON) < (b[0]-GEOMETRIC_EPSILON)) return -1;
-  else if (fabs (a[0]-b[0]) <= (2.0*GEOMETRIC_EPSILON))
-  { 
-    if ((a[1]+GEOMETRIC_EPSILON) < (b[1]-GEOMETRIC_EPSILON)) return -1;
-    else if (fabs (a[1]-b[1]) <= (2.0*GEOMETRIC_EPSILON))
-    {
-     if ((a[2]+GEOMETRIC_EPSILON) < (b[2]-GEOMETRIC_EPSILON)) return -1;
-     else if (fabs (a[2]-b[2]) <= (2.0*GEOMETRIC_EPSILON)) return 0;
-    }
-  }
-
-  return 1;
-}
-
 /* cut single convex with a plane */
 TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
 {
-  double val [3], pla [4], *ver, *hv, *vv, *ov;
+  double val [3], pla [4], dpl [4], dp0, *ver, *hv, *vv, *ov, *pl;
   TRI *t, *q, *s, *hul, *out;
   MEM edgemem, setmem;
   SET *edges, *item;
@@ -214,9 +180,22 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
   ver = cvx->cur;
   edges = NULL;
 
+  /* 4-plane */
+  COPY (normal, pla);
+  NORMALIZE (pla);
+  pla [3] = - DOT (pla, point);
+
   /* create edges */
-  for (f = cvx->fac, n = 0; n < cvx->nfac; f += f[0]+1, n ++)
+  for (f = cvx->fac, pl = cvx->pla, n = 0;
+       n < cvx->nfac; f += f[0]+1, pl += 4, n ++)
   {
+    ADD4 (pla, pl, dpl);
+    dp0 = LEN4 (dpl);
+    if (dp0 < GEOMETRIC_EPSILON) /* coplanar oposit face => skip this cut */
+    {
+      *m = 0; return NULL; /* useful for pairs of internally adjacent convices; negligible on the boundary */
+    }
+
     for (g = f+1; g < f+f[0]; g ++) /* create edges from consecutive vertex pairs */
     {
       e = edge_new (&edgemem, &ver [*g], &ver [*(g+1)]);
@@ -229,11 +208,6 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
     if (!SET_Insert (&setmem, &edges, e, (SET_Compare) edge_compare))
       MEM_Free (&edgemem, e);
   }
-
-  /* 4-plane */
-  COPY (normal, pla);
-  NORMALIZE (pla);
-  pla [3] = - DOT (normal, point);
 
   /* hull vertices */
   ERRMEM (hv = malloc ((1 + SET_Size (edges)) * sizeof (double [3])));
@@ -249,7 +223,7 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
 
     if (val [0] * val [1] < - GEOMETRIC_EPSILON * GEOMETRIC_EPSILON)
     {
-      planeseg (pla, e->v, e->w, val);
+      PLANESEG (pla, e->v, e->w, val);
       COPY (val, vv);
       vv += 3;
       n ++;
@@ -309,6 +283,7 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
       s->ver [1] = &ov [t->ver [1] - hv];
       s->ver [2] = &ov [t->ver [2] - hv];
       s->adj [0] = (TRI*) cvx;
+      COPY (t->out, s->out);
       s ++;
     }
   }
@@ -325,9 +300,9 @@ out:
 }
 
 /* split convex in two halves, using plane (point 'pt, normal 'nl') */
-static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **two)
+static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one, CONVEX **two)
 {
-  double val [3], pla [4], *ver, *ov, *tv, *vv, *oo, *tt;
+  double val [3], pla [4], dpla [4], dl, *ver, *ov, *tv, *vv, *oo, *tt;
   MEM edgemem, setmem, mapmem;
   int n, *f, *g, nov, ntv;
   MAP *normals, *jtem;
@@ -399,7 +374,7 @@ static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **tw
 
     if (val [0] * val [1] < - GEOMETRIC_EPSILON * GEOMETRIC_EPSILON)
     {
-      planeseg (pla, e->v, e->w, val);
+      PLANESEG (pla, e->v, e->w, val);
       COPY (val, oo);
       COPY (val, tt);
       oo += 3;
@@ -439,7 +414,7 @@ static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **tw
 
   /* map normals to surface identifiers */
   for (oo = cvx->pla, f = cvx->surface, n = 0; n < cvx->nfac; oo += 4, f ++, n ++)
-    MAP_Insert (&mapmem, &normals, oo, (void*) (long) (*f), (MAP_Compare) vector_compare);
+    MAP_Insert (&mapmem, &normals, oo, (void*) (long) (*f), (MAP_Compare) POINTS_COMPARE);
 
   /* try to associate normals of split
    * convices with surface identifiers */
@@ -447,7 +422,13 @@ static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **tw
   {
     for (oo = (*one)->pla, f = (*one)->surface, n = 0; n < (*one)->nfac; oo += 4, f ++, n ++)
     {
-      if ((jtem = MAP_Find_Node (normals, oo, (MAP_Compare) vector_compare)))
+      SUB4 (oo, pla, dpla); /* below => same plane orientation */
+      dl = LEN4 (dpla);
+      if (dl < GEOMETRIC_EPSILON) /* cutting plane */
+      {
+	*f = surfid;
+      }
+      else if ((jtem = MAP_Find_Node (normals, oo, (MAP_Compare) POINTS_COMPARE)))
       {
 	*f = (int) (long) jtem->data;
       }
@@ -458,7 +439,13 @@ static int split (CONVEX *cvx, double *pt, double *nl, CONVEX **one, CONVEX **tw
   {
     for (oo = (*two)->pla, f = (*two)->surface, n = 0; n < (*two)->nfac; oo += 4, f ++, n ++)
     {
-      if ((jtem = MAP_Find_Node (normals, oo, (MAP_Compare) vector_compare)))
+      ADD4 (oo, pla, dpla); /* above => reversed plane orientation */
+      dl = LEN4 (dpla);
+      if (dl < GEOMETRIC_EPSILON) /* cutting plane */
+      {
+	*f = surfid;
+      }
+      else if ((jtem = MAP_Find_Node (normals, oo, (MAP_Compare) POINTS_COMPARE)))
       {
 	*f = (int) (long) jtem->data;
       }
@@ -839,13 +826,15 @@ TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m)
   {
     for (t = tri [i], e = t + ntr [i]; t != e; t ++, q ++)
     {
+      q->adj [0] = t->adj [0];
+      COPY (t->out, q->out);
+
       for (k = 0; k < 3; k ++)
       {
 	kd = KDT_Nearest (kdtree, t->ver [k], GEOMETRIC_EPSILON);
 	ASSERT_DEBUG (kd, "Kd-tree nearest point query failed");
 	j = 3 * kd->n;
 	q->ver [k] = &v [j]; /* map to new storage */
-	q->adj [0] = t->adj [0];
       }
     }
   }
@@ -860,12 +849,13 @@ out:
   return out;
 }
 
-/* split convex list by a plane */
-void CONVEX_Split (CONVEX *cvx, double *point, double *normal, CONVEX **one, CONVEX **two)
+/* split convices in two lists with plane defined by (point, normal); adjacencies between
+ * the split lists elements need to be recomputed; surfid corresponds to the new surface */
+void CONVEX_Split (CONVEX *cvx, double *point, double *normal, int surfid, CONVEX **one, CONVEX **two)
 {
   *one = *two = NULL;
   for (; cvx; cvx = cvx->next)
-    split (cvx, point, normal, one, two);
+    split (cvx, point, normal, surfid, one, two);
 }
 
 /* compute current partial characteristic: 'vo'lume and static momenta

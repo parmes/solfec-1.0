@@ -226,28 +226,30 @@ TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m)
   return NULL;
 }
 
-/* split sphere lists in two lists with plane defined by (point, normal) */
-void SPHERE_Split (SPHERE *sph, double *point, double *normal, SPHERE **one, SPHERE **two)
+/* split sphere lists in two lists with plane defined by (point, normal); adjacencies between
+ * the split lists elements need to be recomputed; surfid corresponds to the new surface */
+void SPHERE_Split (SPHERE *sph, double *point, double *normal, int surfid, SPHERE **one, SPHERE **two)
 {
-  SPHERE *next;
   double v [3];
+  SPHERE *o;
 
   *one = *two = NULL;
 
-  for (; sph; sph = next)
+  for (; sph; sph = sph->next)
   {
-    next = sph->next;
+    o = SPHERE_Copy (sph);
 
-    SUB (sph->cur_center, point, v);
+    SUB (o->cur_center, point, v);
+
     if (DOT (v, normal) >= 0)
     {
-      sph->next = *two;
-      *two = sph;
+      o->next = *two;
+      *two = o;
     }
     else
     {
-      sph->next = *one;
-      *one = sph;
+      o->next = *one;
+      *one = o;
     }
   }
 }

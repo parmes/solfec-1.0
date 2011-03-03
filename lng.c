@@ -5326,13 +5326,15 @@ static PyObject* shape_to_list (SHAPE *shp)
 /* split shape by plane */
 static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("shape", "point", "normal");
+  KEYWORDS ("shape", "point", "normal", "surfid");
   PyObject *shape, *point, *normal, *out, *b, *f;
   SHAPE *shp, *shq, *back, *front;
   double p [3], n [3];
-  int error;
+  int error, surfid;
 
-  PARSEKEYS ("OOO", &shape, &point, &normal);
+  surfid = 0;
+
+  PARSEKEYS ("OOO|d", &shape, &point, &normal, &surfid);
 
   TYPETEST (is_shape (shape, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (normal, kwl[2], 3));
 
@@ -5346,15 +5348,6 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 
   shp = create_shape (shape, 1); /* empty */
 
-  for (shq = shp; shq; shq = shq->next)
-  {
-    if (shq->kind == SHAPE_MESH)
-    {
-      PyErr_SetString (PyExc_ValueError, "MESH object cannot be SPLIT");
-      return NULL;
-    }
-  }
-
   back = front = NULL;
 
   TRY ()
@@ -5365,17 +5358,25 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	CONVEX *one = NULL, *two = NULL;
 
-	CONVEX_Split (shq->data, p, n, &one, &two);
+	CONVEX_Split (shq->data, p, n, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
       }
-      else
+      else if (shq->kind == SHAPE_SPHERE)
       {
 	SPHERE *one = NULL, *two = NULL;
 
-	SPHERE_Split (shq->data, p, n, &one, &two);
+	SPHERE_Split (shq->data, p, n, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
+      }
+      else if (shq->kind == SHAPE_MESH)
+      {
+	MESH *one = NULL, *two = NULL;
+
+	MESH_Split (shq->data, p, n, surfid, &one, &two);
+	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, one), back);
+	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, two), front);
       }
     }
   }

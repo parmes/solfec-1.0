@@ -98,9 +98,9 @@ void CONVEX_Rotate (CONVEX *cvx, double *point, double *vector, double angle);
  * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
 TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m);
 
-/* split convices in two lists with plane defined by (point, normal);
- * adjacencies between the split lists elements need to be recomputed */
-void CONVEX_Split (CONVEX *cvx, double *point, double *normal, CONVEX **one, CONVEX **two);
+/* split convices in two lists with plane defined by (point, normal); adjacencies between
+ * the split lists elements need to be recomputed; surfid corresponds to the new surface */
+void CONVEX_Split (CONVEX *cvx, double *point, double *normal, int surfid, CONVEX **one, CONVEX **two);
 
 /* compute current partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */

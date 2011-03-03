@@ -130,6 +130,9 @@ void MESH_Rotate (MESH *msh, double *point, double *vector, double angle);
  * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
 TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m);
 
+/* split mesh in two with plane defined by (point, normal); output meshes are tetrahedral */
+void MESH_Split (MESH *msh, double *point, double *normal, int surfid, MESH **one, MESH **two);
+
 /* compute current partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
 void MESH_Char_Partial (MESH *msh, double *vo, double *sx, double *sy, double *sz, double *eul);

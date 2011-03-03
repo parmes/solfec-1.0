@@ -77,9 +77,9 @@ void SPHERE_Rotate (SPHERE *sph, double *point, double *vector, double angle);
  * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
 TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m);
 
-/* split sphere lists in two lists with plane defined by (point, normal);
- * adjacencies between the split lists elements need to be recomputed */
-void SPHERE_Split (SPHERE *sph, double *point, double *normal, SPHERE **one, SPHERE **two);
+/* split sphere lists in two lists with plane defined by (point, normal); adjacencies between
+ * the split lists elements need to be recomputed; surfid corresponds to the new surface */
+void SPHERE_Split (SPHERE *sph, double *point, double *normal, int surfid, SPHERE **one, SPHERE **two);
 
 /* compute current partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */

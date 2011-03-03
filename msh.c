@@ -22,6 +22,7 @@
 #include <limits.h>
 #include <float.h>
 #include <string.h>
+#include "ext/tetgen/tetsol.h"
 #include "sol.h"
 #include "spx.h"
 #include "err.h"
@@ -30,6 +31,7 @@
 #include "alg.h"
 #include "msh.h"
 #include "pck.h"
+#include "kdt.h"
 
 /* used in some pools */
 #define MEMCHUNK 256
@@ -430,6 +432,148 @@ inline static void updateplanes (CONVEX *cvx)
     nl =  &cvx->pla [n * 4];
     nl [3] = - DOT (a, nl);
   }
+}
+
+/* trim the surface by the plane; output triangle vertices points either to mesh vertices or is allocated after the triangles */
+static void trim (MESH *msh, double *point, double *normal, TRI **below, int *mbelow, TRI **above, int *mabove)
+{
+  double pla [4], val [2], *ver [5], *av [6], *bv [6], *pnt;
+  double (*cur) [3] = msh->cur_nodes;
+  SET *verts, *at, *bt, *item;
+  MEM setmem, pntmem, trimem;
+  KDT *kdtree, *kd;
+  int nav, nbv, i;
+  TRI *t, *s;
+  FACE *fac;
+
+  MEM_Init (&pntmem, sizeof (double [3]), 128);
+  MEM_Init (&trimem, sizeof (TRI), 128);
+  MEM_Init (&setmem, sizeof (SET), 128);
+  verts = at = bt = NULL;
+
+  COPY (normal, pla);
+  NORMALIZE (pla);
+  pla [3] = - DOT (pla, point);
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    ver [0] = cur [fac->nodes [fac->type-1]];
+    for (i = 0; i < fac->type; i ++) ver [i+1] = cur [fac->nodes [i]];
+
+    val [0] = PLANE (pla, ver [0]);
+    for (nav = nbv = 0, i = 1; i <= fac->type; i ++)
+    {
+      val [1] = PLANE (pla, ver [i]);
+
+      if (val [0] * val [1] < - GEOMETRIC_EPSILON * GEOMETRIC_EPSILON)
+      {
+	ERRMEM (pnt = MEM_Alloc (&pntmem));
+	PLANESEG (pla, ver [i-1], ver [i], pnt);
+	bv [nbv ++] = pnt;
+	av [nav ++] = pnt;
+	SET_Insert (&setmem, &verts, pnt, NULL);
+      }
+
+      if (val [1] <= GEOMETRIC_EPSILON)
+      {
+	bv [nbv ++] = ver [i];
+      }
+
+      if (val [1] >= -GEOMETRIC_EPSILON)
+      {
+	av [nav ++] = ver [i];
+      }
+
+      val [0] = val [1];
+    }
+
+    ASSERT_DEBUG (nbv <= 6 && nav <= 6, "Too many vertices of a trimmed face");
+
+    for (i = 2; i < nbv; i ++)
+    {
+      ERRMEM (t = MEM_Alloc (&trimem));
+      t->ver [0] = bv [0];
+      t->ver [1] = bv [i-1];
+      t->ver [2] = bv [i];
+      t->flg = fac->surface;
+      COPY (fac->normal, t->out);
+      SET_Insert (&trimem, &bt, t, NULL);
+    }
+
+    for (i = 2; i < nav; i ++)
+    {
+      ERRMEM (t = MEM_Alloc (&trimem));
+      t->ver [0] = av [0];
+      t->ver [1] = av [i-1];
+      t->ver [2] = av [i];
+      t->flg = fac->surface;
+      COPY (fac->normal, t->out);
+      SET_Insert (&trimem, &at, t, NULL);
+    }
+  }
+
+  i = SET_Size (verts);
+  ERRMEM (pnt = malloc (i * sizeof (double [3])));
+  for (item = SET_First (verts), ver [1] = pnt; item; item = SET_Next (item), ver [1] += 3)
+  {
+    ver [0] = item->data;
+    COPY (ver [0], ver [1]);
+  }
+  kdtree = KDT_Create (i, pnt, GEOMETRIC_EPSILON);
+  free (pnt);
+
+  i = KDT_Size (kdtree); /* index kd-tree nodes => KDT->n */
+  *mbelow = SET_Size (bt);
+  *mabove = SET_Size (at);
+  ERRMEM (*below = MEM_CALLOC (i * sizeof (double [3]) + (*mbelow) * sizeof (TRI)));
+  ERRMEM (*above = MEM_CALLOC ((*mabove) * sizeof (TRI)));
+  pnt = (double*) ((*below) + *mbelow);
+
+  for (kd = KDT_First (kdtree); kd; kd = KDT_Next (kd))
+  {
+    ver [0] = kd->p;
+    ver [1] = &pnt [3*kd->n];
+    COPY (ver[0], ver[1]);
+  }
+
+  for (item = SET_First (bt), t = *below; item; item = SET_Next (item), t ++)
+  {
+    s = item->data;
+    t->flg = s->flg;
+    COPY (s->out, t->out);
+    for (i = 0; i < 3; i ++)
+    {
+      if (SET_Contains (verts, s->ver [i], NULL))
+      {
+	kd = KDT_Nearest (kdtree, s->ver [i], GEOMETRIC_EPSILON);
+	ASSERT_DEBUG (kd, "Kd-tree point query failed");
+	t->ver [i] = &pnt [3*kd->n];
+      }
+      else t->ver [i] = s->ver [i];
+    }
+  }
+
+  for (item = SET_First (at), t = *above; item; item = SET_Next (item), t ++)
+  {
+    s = item->data;
+    t->flg = s->flg;
+    COPY (s->out, t->out);
+    for (i = 0; i < 3; i ++)
+    {
+      if (SET_Contains (verts, s->ver [i], NULL))
+      {
+	kd = KDT_Nearest (kdtree, s->ver [i], GEOMETRIC_EPSILON);
+	ASSERT_DEBUG (kd, "Kd-tree point query failed");
+	t->ver [i] = &pnt [3*kd->n];
+      }
+      else t->ver [i] = s->ver [i];
+    }
+  }
+
+  MEM_Release (&setmem);
+  MEM_Release (&trimem);
+  MEM_Release (&pntmem);
+  KDT_Destroy (kdtree);
 }
 
 /* create mesh from vector of nodes, element list in format =>
@@ -1136,6 +1280,54 @@ TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m)
   CONVEX_Destroy (cvx);
 
   return out;
+}
+
+/* split mesh in two with plane defined by (point, normal); output meshes are tetrahedral */
+void MESH_Split (MESH *msh, double *point, double *normal, int surfid, MESH **one, MESH **two)
+{
+  TRI *c, *b, *a, *t, *e, *q;
+  int mc, mb, ma, mq;
+
+  c = MESH_Cut (msh, point, normal, &mc);
+
+  for (t = c, e = t + mc; t != e; t ++) t->flg = surfid;
+
+  if (c)
+  {
+    trim (msh, point, normal, &b, &mb, &a, &ma);
+    
+    q = TRI_Merge (b, mb, c, mc, &mq);
+    *one = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
+    free (q);
+
+    /* TODO: map volume materials */
+ 
+    q = TRI_Merge (a, ma, c, mc, &mq);
+    *two = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
+    free (q);
+
+    /* TODO: map volume materials */
+
+    free (c);
+    free (b);
+    free (a);
+  }
+  else
+  {
+    double d [3];
+
+    SUB (msh->cur_nodes [0], point, d);
+    if (DOT (d, normal) <= 0.0)
+    {
+      *one = MESH_Copy (msh);
+      *two = NULL;
+    }
+    else
+    {
+      *two = MESH_Copy (msh);
+      *one = NULL;
+    }
+  }
 }
 
 /* compute current partial characteristic: 'vo'lume and static momenta

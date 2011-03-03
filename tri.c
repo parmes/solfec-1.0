@@ -27,6 +27,7 @@
 #include "err.h"
 #include "alg.h"
 #include "spx.h"
+#include "kdt.h"
 
 /* auxiliary pointer pair */
 struct pp { void *a, *b; };
@@ -150,6 +151,97 @@ TRI* TRI_Copy (TRI *tri, int n)
   MEM_Release (&mem);
 
   return o;
+}
+
+/* merge two triangulations; adjacency is not maintained */
+TRI* TRI_Merge (TRI *one, int none, TRI *two, int ntwo, int *m)
+{
+  TRI *out, *t, *e, *q;
+  KDT *kdtree, *kd;
+  SET *ver, *item;
+  double *v, *w;
+  MEM setmem;
+  int i, j;
+
+  MEM_Init (&setmem, sizeof (SET), 3*(none+ntwo));
+  ver = NULL;
+
+  for (t = one, e = t + none; t != e; t ++)
+  {
+    for (i = 0; i < 3; i ++) SET_Insert (&setmem, &ver, t->ver [i], NULL);
+  }
+
+  for (t = two, e = t + ntwo; t != e; t ++)
+  {
+    for (i = 0; i < 3; i ++) SET_Insert (&setmem, &ver, t->ver [i], NULL);
+  }
+
+  i = SET_Size (ver);
+  ERRMEM (v = malloc (i * sizeof (double [3])));
+  for (item = SET_First (ver), w = v; item; item = SET_Next (item), w += 3)
+  {
+    double *p = item->data;
+    COPY (p, w);
+  }
+  kdtree = KDT_Create (i, v, GEOMETRIC_EPSILON);
+  free (v);
+  i = KDT_Size (kdtree);
+  ERRMEM (out = MEM_CALLOC (i * sizeof (double [3]) + (none+ntwo) * sizeof (TRI)));
+  v = (double*) (out + none + ntwo);
+
+  /* copy vertices */
+  for (kd = KDT_First (kdtree); kd; kd = KDT_Next (kd))
+  {
+    double *p = kd->p;
+    w = &v [3*kd->n];
+    COPY (p, w);
+  }
+
+  /* copy triangles */
+  for (t = one, e = t + none, q = out; t != e; t ++)
+  {
+    for (i = 0; i < 3; i ++)
+    {
+      kd = KDT_Nearest (kdtree, t->ver [i], GEOMETRIC_EPSILON);
+      ASSERT_DEBUG (kd, "Kd-tree point query failed");
+      q->ver [i] = &v [3*kd->n];
+      for (j = 0; j < i; j ++)
+	if (q->ver [j] == q->ver [i]) break;
+      if (j < i) break;  /* degenerate */
+    }
+    if (i == 3)
+    {
+      COPY (t->out, q->out);
+      q->flg = t->flg;
+      q ++;
+    }
+  }
+
+  for (t = two, e = t + ntwo; t != e; t ++)
+  {
+    for (i = 0; i < 3; i ++)
+    {
+      kd = KDT_Nearest (kdtree, t->ver [i], GEOMETRIC_EPSILON);
+      ASSERT_DEBUG (kd, "Kd-tree point query failed");
+      q->ver [i] = &v [3*kd->n];
+      for (j = 0; j < i; j ++)
+	if (q->ver [j] == q->ver [i]) break;
+      if (j < i) break;  /* degenerate */
+    }
+    if (i == 3)
+    {
+      COPY (t->out, q->out);
+      q->flg = t->flg;
+      q ++;
+    }
+  }
+
+  *m = q - out; /* nondegenerate triangles count */
+
+  MEM_Release (&setmem);
+  KDT_Destroy (kdtree);
+
+  return out;
 }
 
 /* compute adjacency structure */

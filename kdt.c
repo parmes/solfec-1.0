@@ -321,6 +321,7 @@ int KDT_Size (KDT *kd)
 /* first node */
 KDT* KDT_First (KDT *kd)
 {
+  if (kd->d == -1 || kd == NULL) return NULL;
   while (kd->l->d != -1) kd = kd->l;
   return kd;
 }
@@ -330,7 +331,7 @@ KDT* KDT_Next (KDT *kd)
 {
   KDT *y;
   
-  if (kd == NULL) return NULL;
+  if (kd->d == -1 || kd == NULL) return NULL;
 
   if (kd->r->d == -1)
   {

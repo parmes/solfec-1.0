@@ -98,8 +98,7 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
       j = (int) (long) item->data;
       p->vertexlist [i] = j;
     }
-    if (surfid > -INT_MAX) in.facetmarkerlist [n] = surfid;
-    else in.facetmarkerlist [n] = fac->surface;
+    in.facetmarkerlist [n] = fac->surface;
   }
 
   /* set up parameters */
@@ -167,7 +166,10 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
       ele [5] = (volid == -INT_MAX ? 0 : volid); continue;
     }
 #endif
-    ELEMENT *ptr = (ELEMENT*) data [0];
+    ELEMENT *ptr = (ELEMENT*) data [0], *end = ptr + ndat;
+    for (; ptr != end; ptr ++)
+      if (ELEMENT_Contains_Point (shape, ptr, p)) break;
+    ASSERT_DEBUG (ptr != end, "Element containing a spatial point has not been found");
     ele [5] = ptr->volume;
     free (data);
   }
@@ -259,6 +261,127 @@ err:
   /* clean up */
   free (elements);
   free (surfaces);
+  
+  return ret;
+}
+
+/* generate tetrahedrons bounded by triangular surfaces; TRI->flg store surfids */
+MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid)
+{
+  tetgenio in, out;
+  tetgenio::facet *f;
+  tetgenio::polygon *p;
+  int *elements, *surfaces;
+  int i, j, n, *ele, *tet;
+  char params [512];
+  MESH *ret = NULL;
+  MAP *map, *item;
+  double *a, *b;
+  MEM mapmem;
+  TRI *t, *e;
+
+  /* map memory */
+  MEM_Init (&mapmem, sizeof (MAP), 128);
+
+  /* calculate faces and map face vertices */
+  for (t = tri, e = t + m, j = n = 0, map = NULL; t != e; t ++, n ++)
+  {
+    for (i = 0; i < 3; i ++)
+    {
+      if (!MAP_Find_Node (map, t->ver [i], NULL))
+      {
+	MAP_Insert (&mapmem, &map, t->ver [i], (void*) (long) j, NULL);
+	j ++;
+      }
+    }
+  }
+
+  /* 0-based indexing */
+  in.firstnumber = 0;
+
+  /* input vertices */
+  in.numberofpoints = MAP_Size (map);
+  in.pointlist = new REAL[in.numberofpoints * 3];
+  for (item = MAP_First (map); item; item = MAP_Next (item))
+  {
+    j = (int) (long) item->data;
+    a = (double*) item->key;
+    b = &in.pointlist [3*j];
+
+    COPY (a, b);
+  }
+
+  /* input faces */
+  in.numberoffacets = n;
+  in.facetlist = new tetgenio::facet[in.numberoffacets];
+  in.facetmarkerlist = new int[in.numberoffacets];
+  for (t = tri, e = t + m, n = 0; t != e; t ++, n ++)
+  {
+    f = &in.facetlist [n];
+    f->numberofpolygons = 1;
+    f->polygonlist = new tetgenio::polygon[f->numberofpolygons];
+    f->numberofholes = 0;
+    f->holelist = NULL;
+    p = &f->polygonlist[0];
+    p->numberofvertices = 3;
+    p->vertexlist = new int [p->numberofvertices];
+    for (i = 0; i < 3; i ++)
+    {
+      item = MAP_Find_Node (map, t->ver [i], NULL);
+      ASSERT_DEBUG (item, "Inconsistent face vertex mapping");
+      j = (int) (long) item->data;
+      p->vertexlist [i] = j;
+    }
+    in.facetmarkerlist [n] = t->flg;
+  }
+
+  /* set up parameters */
+  if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g", volume, quality);
+  else if (volume > 0.0) sprintf (params, "Qpa%g", volume);
+  else if (quality > 0.0) sprintf (params, "Qpq%g", quality);
+  else sprintf (params, "Qp");
+
+  /* generate mesh */
+  tetrahedralize (params, &in, &out);
+
+  /* read triangles */
+  ERRMEM (surfaces = (int*)malloc (out.numberoftrifaces * sizeof (int [5]) + sizeof (int [2])));
+  surfaces [0] = tri->flg;
+
+  for (i = 0, ele = surfaces+1, tet = out.trifacelist;
+       i < out.numberoftrifaces; i ++, ele += 5, tet += 3)
+  {
+    ele [0] = 3;
+    ele [1] = tet [0];
+    ele [2] = tet [1];
+    ele [3] = tet [2];
+    ele [4] = out.trifacemarkerlist [i];
+  }
+  ele [0] = 0;
+
+  /* read tetrahedrons */
+  ERRMEM (elements =  (int*)malloc ((out.numberoftetrahedra+1) * sizeof (int [6])));
+  if (out.numberofpoints == 0 || out.numberoftetrahedra == 0) goto err;
+  for (i = 0, ele = elements, tet = out.tetrahedronlist;
+       i < out.numberoftetrahedra; i ++, ele += 6, tet += 4)
+  {
+    ele [0] = 4;
+    ele [1] = tet [0];
+    ele [2] = tet [1];
+    ele [3] = tet [2];
+    ele [4] = tet [3];
+    ele [5] = volid;
+  }
+  ele [0] = 0;
+
+  /* create output mesh */
+  ret = MESH_Create ((double (*)[3])out.pointlist, elements, surfaces);
+
+  /* clean up */
+err:
+  free (elements);
+  free (surfaces);
+  MEM_Release (&mapmem);
   
   return ret;
 }
