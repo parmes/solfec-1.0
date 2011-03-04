@@ -5334,7 +5334,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 
   surfid = 0;
 
-  PARSEKEYS ("OOO|d", &shape, &point, &normal, &surfid);
+  PARSEKEYS ("OOO|i", &shape, &point, &normal, &surfid);
 
   TYPETEST (is_shape (shape, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (normal, kwl[2], 3));
 
