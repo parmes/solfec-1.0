@@ -265,6 +265,64 @@ err:
   return ret;
 }
 
+#if 0
+/* recursively gather coplanar and adjacent triangles */
+static void gathercoplanar (int *mark, TRI *tri, TRI *t, int fac, MEM *setmem, SET **copla)
+{
+  double *n0, *n1, prod [3];
+  int i;
+
+  SET_Insert (setmem, copla, t, NULL);
+  mark [t-tri] = fac;
+  n0 = t->out;
+
+  for (i = 0; i < 3; i ++)
+  {
+    if (t->adj [i] && !mark [t->adj[i]-tri] && t->flg == t->adj [i]->flg) /* same face marker */
+    {
+      n1 = t->adj [i]->out;
+      PRODUCT (n0, n1, prod);
+      if (DOT (n0, n1) > 0.0 && LEN (prod) < GEOMETRIC_EPSILON) /* coplanar */
+      {
+	gathercoplanar (mark, tri, t->adj [i], fac, setmem, copla);
+      }
+    }
+  }
+}
+
+/* returns set of sets of coplanar and adjacent triangles and a map of unique vertices */
+static SET* coplanartriangles (MEM *setmem, TRI *tri, int m)
+{
+  SET *coplasets, *copla;
+  int i, j, *mark, fac;
+  TRI *t, *e;
+  MAP *item;
+
+  fac = 0;
+
+  coplasets = NULL;
+
+  TRI_Compadj (tri, m);
+
+  ERRMEM (mark = (int*)MEM_CALLOC (sizeof (int [m])));
+
+  for (t = tri, e = t + m; t != e; t ++) /* collect coplanar and adjacent triangle sets */
+  {
+    if (mark [t-tri] == 0)
+    {
+      fac ++;
+      copla = NULL;
+      gathercoplanar (mark, tri, t, fac, setmem, &copla);
+      SET_Insert (setmem, &coplasets, copla, NULL);
+    }
+  }
+
+  free (mark);
+
+  return coplasets;
+}
+#endif
+
 /* generate tetrahedrons bounded by triangular surfaces; TRI->flg store surfids */
 MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid)
 {
@@ -273,36 +331,40 @@ MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid
   tetgenio::polygon *p;
   int *elements, *surfaces;
   int i, j, n, *ele, *tet;
+  MAP *ver, *pol, *item;
   char params [512];
-  MESH *ret = NULL;
-  MAP *map, *item;
   double *a, *b;
   MEM mapmem;
   TRI *t, *e;
+  MESH *ret;
 
-  /* map memory */
+  ver = NULL;
+  pol = NULL;
+  ret = NULL;
+
+  /* memory pools */
   MEM_Init (&mapmem, sizeof (MAP), 128);
 
+  /* 0-based indexing */
+  in.firstnumber = 0;
+
   /* calculate faces and map face vertices */
-  for (t = tri, e = t + m, j = n = 0, map = NULL; t != e; t ++, n ++)
+  for (t = tri, e = t + m, j = n = 0; t != e; t ++, n ++)
   {
     for (i = 0; i < 3; i ++)
     {
-      if (!MAP_Find_Node (map, t->ver [i], NULL))
+      if (!MAP_Find_Node (ver, t->ver [i], NULL))
       {
-	MAP_Insert (&mapmem, &map, t->ver [i], (void*) (long) j, NULL);
+	MAP_Insert (&mapmem, &ver, t->ver [i], (void*) (long) j, NULL);
 	j ++;
       }
     }
   }
 
-  /* 0-based indexing */
-  in.firstnumber = 0;
-
   /* input vertices */
-  in.numberofpoints = MAP_Size (map);
+  in.numberofpoints = MAP_Size (ver);
   in.pointlist = new REAL[in.numberofpoints * 3];
-  for (item = MAP_First (map); item; item = MAP_Next (item))
+  for (item = MAP_First (ver); item; item = MAP_Next (item))
   {
     j = (int) (long) item->data;
     a = (double*) item->key;
@@ -327,7 +389,7 @@ MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid
     p->vertexlist = new int [p->numberofvertices];
     for (i = 0; i < 3; i ++)
     {
-      item = MAP_Find_Node (map, t->ver [i], NULL);
+      item = MAP_Find_Node (ver, t->ver [i], NULL);
       ASSERT_DEBUG (item, "Inconsistent face vertex mapping");
       j = (int) (long) item->data;
       p->vertexlist [i] = j;
