@@ -851,6 +851,23 @@ static void compute_contacts_work (BODY *bod, double step)
   }
 }
 
+void overwrite_state (double *q, double *u, BODY *bod)
+{
+  switch (bod->kind)
+  {
+    case OBS: break;
+    case RIG:
+      memcpy (bod->conf, q, sizeof (double [RIG_CONF_SIZE]));
+      memcpy (bod->velo, u, sizeof (double [RIG_VELO_SIZE]));
+    break;
+    case PRB:
+      memcpy (bod->conf, q, sizeof (double [PRB_CONF_SIZE]));
+      memcpy (bod->velo, u, sizeof (double [PRB_VELO_SIZE]));
+    break;
+    case FEM: break;
+  }
+}
+
 /* -------------- interface ------------- */
 
 BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form, MESH *msh)
@@ -1825,6 +1842,57 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
   }
 }
 
+void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one, BODY **two)
+{
+  switch (bod->kind)
+  {
+  case OBS:
+  case RIG:
+  case PRB:
+    {
+      SHAPE *sone, *stwo;
+      char *label;
+
+      SHAPE_Split (bod->shape, point, normal, surfid, &sone, &stwo);
+
+      if (bod->label) ERRMEM (label = malloc (strlen (bod->label) + 8));
+      else label = NULL;
+
+      if (sone)
+      {
+	if (bod->label) sprintf (label, "%s/1", bod->label);
+	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, 0, NULL);
+	overwrite_state (bod->conf, bod->velo, *one);
+      }
+
+      if (stwo)
+      {
+	if (bod->label) sprintf (label, "%s/2", bod->label);
+	(*two) = BODY_Create (bod->kind, stwo, bod->mat, label, 0, NULL);
+	overwrite_state (bod->conf, bod->velo, *two);
+      }
+
+      if (bod->label) free (label);
+    }
+    break;
+  case FEM:
+    FEM_Split (bod, point, normal, surfid, one, two);
+    break;
+  }
+
+  BODY *out [] = {*one, *two};
+  for (int i = 0; i < 2; i ++)
+  {
+    if (out [i])
+    {
+      COPY6 (bod->extents, out[i]->extents);
+      out [i]->scheme = bod->scheme;
+      out [i]->damping = bod->damping;
+      out [i]->flags = (bod->flags & BODY_PERMANENT_FLAGS);
+    }
+  }
+}
+
 void BODY_Write_State (BODY *bod, PBF *bf)
 {
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
@@ -1896,7 +1964,7 @@ void BODY_Destroy (BODY *bod)
 
   free (bod->sgp);
 
-  if (bod->cra) CRACKS_Destroy (bod->cra);
+  CRACK_Destroy_List (bod->cra);
 
   if (bod->inverse) MX_Destroy (bod->inverse);
 

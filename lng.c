@@ -4842,19 +4842,57 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
-/* prescribed cracks */
-static PyObject* lng_PRESCRIBED_CRACKS (PyObject *self, PyObject *args, PyObject *kwds)
+/* simplified crack */
+static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body", "planes", "criterion", "params");
-  PyObject *planes, *criterion, *params;
+  KEYWORDS ("body", "point", "normal", "surfid", "criterion", "ft", "Gf");
+  PyObject *point, *normal, *criterion;
+  double p [3], n [3], ft, Gf;
   lng_BODY *body;
+  CRACK *cra;
+  int surfid;
 
-  PARSEKEYS ("OOOO", &body, &planes, &criterion, &params);
+  ft = 0.0;
+  Gf = 0.0;
 
-  TYPETEST (is_body (body, kwl[0]) && is_list (planes, kwl[1], -1, -1) &&
-            is_string (criterion, kwl[2]) && is_tuple (params, kwl[3], -1));
+  PARSEKEYS ("OOOiO|dd", &body, &point, &normal,
+             &surfid, &criterion, &ft, &Gf);
 
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
+            is_tuple (normal, kwl[2], 3) && is_string (criterion, kwl[2]));
+
+  if (!(body->bod->kind == PRB || body->bod->kind == FEM))
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid body kind: only PSEUDO_RIGID and FINITE_ELEMENT bodies can crack");
+    return NULL;
+  }
+
+  p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+  p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+  p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+  n [0] = PyFloat_AsDouble (PyTuple_GetItem (normal, 0));
+  n [1] = PyFloat_AsDouble (PyTuple_GetItem (normal, 1));
+  n [2] = PyFloat_AsDouble (PyTuple_GetItem (normal, 2));
+
+  cra = CRACK_Create ();
+  COPY (p, cra->point);
+  COPY (n, cra->normal);
+
+  IFIS (criterion, "TENSILE")
+  {
+    cra->crit = TENSILE;
+    cra->ft = ft;
+    cra->Gf = Gf;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid criterion");
+    return NULL;
+  }
+
+  cra->next = body->bod->cra;
+  body->bod->cra = cra;
 
   Py_RETURN_NONE;
 }
@@ -7139,7 +7177,7 @@ static PyMethodDef lng_methods [] =
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
-  {"PRESCRIBED_CRACKS", (PyCFunction)lng_PRESCRIBED_CRACKS, METH_VARARGS|METH_KEYWORDS, "Prescribe cracks"},
+  {"SIMPLIFIED_CRACK", (PyCFunction)lng_SIMPLIFIED_CRACK, METH_VARARGS|METH_KEYWORDS, "Prescribe crack"},
   {"IMBALANCE_TOLERANCE", (PyCFunction)lng_IMBALANCE_TOLERANCE, METH_VARARGS|METH_KEYWORDS, "Adjust parallel imbalance tolerance"},
   {"RANK", (PyCFunction)lng_RANK, METH_NOARGS, "Get current processor rank"},
   {"NCPU", (PyCFunction)lng_NCPU, METH_VARARGS|METH_KEYWORDS, "Get the number of processors"},
@@ -7333,7 +7371,7 @@ int lng (const char *path)
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
-                     "from solfec import PRESCRIBED_CRACKS\n"
+                     "from solfec import SIMPLIFIED_CRACK\n"
                      "from solfec import IMBALANCE_TOLERANCE\n"
                      "from solfec import RANK\n"
                      "from solfec import NCPU\n"

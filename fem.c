@@ -3121,6 +3121,12 @@ void FEM_Update_Rough_Mesh (BODY *bod)
   for (; ref < end; ref ++, cur ++, q += 3) { ADD (ref[0], q, cur[0]); }
 }
 
+/* split body by plane; output two bodies with inherited state of the input body */
+void FEM_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one, BODY **two)
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+}
+
 /* release FEM memory */
 void FEM_Destroy (BODY *bod)
 {

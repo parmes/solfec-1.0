@@ -27,27 +27,31 @@ typedef struct domain DOM;
 #ifndef __cra__
 #define __cra__
 
-typedef struct cracks CRACKS;
+typedef struct crack CRACK;
 
-struct cracks
+struct crack
 {
-  double (*pla) [6];
-
-  int npla;
+  double point [3],
+	 normal [3];
 
   enum {TENSILE} crit;
 
   double ft,
 	 Gf;
+
+  CRACK *next;
 };
 
-/* create empty cracks object */
-CRACKS* CRACKS_Create ();
+/* create crack object */
+CRACK* CRACK_Create ();
 
-/* delete cracks data */
-void CRACKS_Destroy (CRACKS *cra);
+/* delete crack object */
+void CRACK_Destroy (CRACK *cra);
+
+/* delete list of cracks */
+void CRACK_Destroy_List (CRACK *cra);
 
 /* propagate cracks and adjust the domain */
-void CRACKS_Propagate (DOM *dom);
+void Propagate_Cracks (DOM *dom);
 
 #endif

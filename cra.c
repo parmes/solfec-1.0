@@ -21,23 +21,35 @@
 
 #include "dom.h"
 #include "cra.h"
+#include "mem.h"
 #include "err.h"
 
-/* create empty cracks object */
-CRACKS* CRACKS_Create ()
+/* create crack object */
+CRACK* CRACK_Create ()
 {
-  /* TODO */
-  return NULL;
+  return MEM_CALLOC (sizeof (CRACK));
 }
 
-/* delete cracks data */
-void CRACKS_Destroy (CRACKS *cra)
+/* delete crack object */
+void CRACK_Destroy (CRACK *cra)
 {
-  /* TODO */
+  free (cra);
+}
+
+/* delete list of cracks */
+void CRACK_Destroy_List (CRACK *cra)
+{
+  CRACK *next;
+
+  for (; cra; cra = next)
+  {
+    next = cra->next;
+    CRACK_Destroy (cra);
+  }
 }
 
 /* propagate cracks and adjust the domain */
-void CRACKS_Propagate (DOM *dom)
+void Propagate_Cracks (DOM *dom)
 {
   /* TODO */
 }
