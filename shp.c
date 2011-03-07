@@ -380,6 +380,45 @@ out:
   return out;
 }
 
+/* split shape by plane; output two parts of the split shape */
+void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE **one, SHAPE **two)
+{
+  SHAPE *shq, *back, *front;
+
+  back = front = NULL;
+
+  for (shq = shp; shq; shq = shq->next)
+  {
+    if (shq->kind == SHAPE_CONVEX)
+    {
+      CONVEX *one = NULL, *two = NULL;
+
+      CONVEX_Split (shq->data, point, normal, surfid, &one, &two);
+      if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
+      if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
+    }
+    else if (shq->kind == SHAPE_SPHERE)
+    {
+      SPHERE *one = NULL, *two = NULL;
+
+      SPHERE_Split (shq->data, point, normal, surfid, &one, &two);
+      if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
+      if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
+    }
+    else if (shq->kind == SHAPE_MESH)
+    {
+      MESH *one = NULL, *two = NULL;
+
+      MESH_Split (shq->data, point, normal, surfid, &one, &two);
+      if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, one), back);
+      if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, two), front);
+    }
+  }
+
+  *one = back;
+  *two = front;
+}
+
 /* get cur characteristics => volume, mass center, and Euler tensor (centered) */
 void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler)
 {

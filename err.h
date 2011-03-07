@@ -181,7 +181,7 @@ char* errstring (int error);
     fprintf (stderr, "\n"); THROW (ERR_BUG_FOUND); } } while (0)
 
 /* memory validity assertion */
-#define ERRMEM(__pointer__) if (! (__pointer__)) THROW (ERR_OUT_OF_MEMORY)
+#define ERRMEM(__pointer__) do { if (! (__pointer__)) THROW (ERR_OUT_OF_MEMORY); } while (0)
 
 /* general warning */
 #define WARNING(Test, ...)\

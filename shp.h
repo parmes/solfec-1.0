@@ -89,6 +89,9 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle);
 TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
   void *body, MOTION cur_to_ref, SGP **sgp, double **ref, double **cur, int *n);
 
+/* split shape by plane; output two parts of the split shape */
+void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE **one, SHAPE **two);
+
 /* get cur characteristics => volume, mass center, and Euler tensor (centered) */
 void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler);
 

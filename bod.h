@@ -146,7 +146,7 @@ struct general_body
 
   FORCE *forces;   /* applied external forces */
   
-  CRACKS *cra;     /* cracks */
+  CRACK *cra;     /* cracks */
 
   SHAPE *shape;    /* shape of the body */
 
@@ -261,6 +261,9 @@ double BODY_Kinetic_Energy (BODY *bod);
 
 /* get some values at a referential point */
 void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values);
+
+/* split body by plane; output two bodies with inherited state of the input body */
+void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one, BODY **two);
 
 /* write body state */
 void BODY_Write_State (BODY *bod, PBF *bf);

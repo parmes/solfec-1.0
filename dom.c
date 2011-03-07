@@ -3015,7 +3015,7 @@ void DOM_Update_End (DOM *dom)
 
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
-  CRACKS_Propagate (dom); /* do cracking (if any) */
+  Propagate_Cracks (dom); /* do cracking */
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 }

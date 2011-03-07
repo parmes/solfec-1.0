@@ -6552,14 +6552,16 @@ Routines listed in this section control cracking of bodies.
 \end_layout
 
 \begin_layout Subsection*
-PRESCRIBED_CRACKS (body, planes, criterion, params) 
+SIMPLIFIED_CRACK (body, point, normal, surfid, criterion | ft, Gf) 
 \color red
 (Under development)
 \end_layout
 
 \begin_layout Standard
-This routine prescribes a set of potential body-wise planar cracks together
- with a cracking criterion.
+This routine prescribes a potential body-wise planar cracks together with
+ a cracking criterion.
+ Creation of a simplified crack results in splitting of the body in two
+ parts.
 \end_layout
 
 \begin_layout Itemize
@@ -6573,25 +6575,33 @@ body
 \begin_layout Itemize
 
 \series bold
-planes
+point
 \series default
- - list of tuples [
-\begin_inset Formula $\left(p_{x},p_{y},p_{z},n_{x},n_{y},n_{z}\right)_{1},...,\left(p_{x},p_{y},p_{z},n_{x},n_{y},n_{z}\right)_{n}$
+ - crack plane referential point 
+\begin_inset Formula $\left(x,y,z\right)$
 \end_inset
 
-] defining referential points 
-\begin_inset Formula $\left(p_{x},p_{y},p_{z}\right)$
-\end_inset
 
- and normals 
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+normal
+\series default
+ - crack plane referential normal 
 \begin_inset Formula $\left(n_{x},n_{y},n_{z}\right)$
 \end_inset
 
- of 
-\begin_inset Formula $n$
-\end_inset
 
- potential cracks
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ - crack surface identifier
 \end_layout
 
 \begin_layout Itemize
@@ -6613,17 +6623,17 @@ reference "tab:Cracking-criteria"
 \begin_layout Itemize
 
 \series bold
-params
+ft
 \series default
- - tuple of cracking parameters, cf.
- Table 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "tab:Cracking-params"
+ - tensile strength (default: 0.0)
+\end_layout
 
-\end_inset
+\begin_layout Itemize
 
-
+\series bold
+Gf
+\series default
+ - fracture energy (default: 0.0)
 \end_layout
 
 \begin_layout Standard
@@ -6633,22 +6643,28 @@ sideways false
 status open
 
 \begin_layout Plain Layout
-
-\end_layout
-
-\begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="2" columns="2">
+<lyxtabular version="3" rows="2" columns="3">
 <features>
 <column alignment="center" valignment="top" width="0">
-<column alignment="center" valignment="top" width="80col%">
+<column alignment="center" valignment="top" width="20col%">
+<column alignment="center" valignment="top" width="50col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
 Criterion
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Parameters
 \end_layout
 
 \end_inset
@@ -6669,6 +6685,15 @@ Description
 
 \begin_layout Plain Layout
 'TENSILE'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+ft, Gf
 \end_layout
 
 \end_inset
@@ -6702,100 +6727,6 @@ name "tab:Cracking-criteria"
 \end_inset
 
 Cracking criteria.
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Float table
-wide false
-sideways false
-status open
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Tabular
-<lyxtabular version="3" rows="2" columns="2">
-<features>
-<column alignment="center" valignment="top" width="0">
-<column alignment="center" valignment="top" width="80col%">
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Criterion
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Parameters
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'TENSILE'
-\end_layout
-
-\end_inset
-</cell>
-<cell multicolumn="1" alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-\begin_inset Formula $\left(f_{t},G_{f}\right)$
-\end_inset
-
-, where 
-\begin_inset Formula $f_{t}$
-\end_inset
-
- is the tensile strength, and 
-\begin_inset Formula $G_{f}$
-\end_inset
-
- is the fracture energy.
-\end_layout
-
-\end_inset
-</cell>
-</row>
-</lyxtabular>
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Caption
-
-\begin_layout Plain Layout
-\begin_inset CommandInset label
-LatexCommand label
-name "tab:Cracking-params"
-
-\end_inset
-
-Cracking parameters.
 \end_layout
 
 \end_inset
