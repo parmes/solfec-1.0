@@ -32,6 +32,7 @@
 #include "cvi.h"
 #include "svk.h"
 #include "gjk.h"
+#include "kdt.h"
 #include "err.h"
 
 typedef double (*node_t) [3]; /* mesh node */
@@ -680,8 +681,8 @@ inline static int element_nodes (node_t heap, int type, int *nodes, node_t stack
   return i;
 }
 
-/* copy element node displacemnts into a local table */
-static int element_displacements (double *heap, ELEMENT *ele, double (*q) [3])
+/* copy element nodal values into a local table */
+static int element_nodal_values (double *heap, ELEMENT *ele, double (*q) [3])
 {
   double *p;
   int i;
@@ -690,22 +691,6 @@ static int element_displacements (double *heap, ELEMENT *ele, double (*q) [3])
   {
     p = &heap [3 * ele->nodes [i]];
     COPY (p, q[i]);
-  }
-
-  return i;
-}
-
-/* copy element node velocities into a local table */
-static int element_velocities (BODY *bod, ELEMENT *ele, double *velo, double (*u) [3])
-{
-  double *p;
-  int i, j;
-
-  for (i = 0; i < ele->type; i ++)
-  {
-    j = 3 * ele->nodes [i];
-    p = &velo [j];
-    COPY (p, u[i]);
   }
 
   return i;
@@ -2516,6 +2501,49 @@ static void overlap (void *data, BOX *one, BOX *two)
   }
 }
 
+/* map m1 values onto m2 values */
+static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, double *u2)
+{
+  double shapes [MAX_NODES], val [MAX_NODES][3], point [3];
+  double extents [6], (* nod) [3], (*end) [3];
+  ELEMENT *ele;
+  int i, n;
+  KDT *kd;
+
+  /* creake input mesh based kd-tree */
+  kd = KDT_Create (m1->nodes_count, (double*)m1->cur_nodes, 0.0);
+  for (ele = m1->surfeles; ele; ele = ele->next)
+  { ELEMENT_Extents (m1, ele, extents); KDT_Drop (kd, extents, ele); }
+  for (ele = m1->bulkeles; ele; ele = ele->next)
+  { ELEMENT_Extents (m1, ele, extents); KDT_Drop (kd, extents, ele); }
+
+  /* map m2 nodal values */
+  for (nod = m2->cur_nodes, end = nod + m2->nodes_count; nod != end; nod ++, q2 +=3, u2 += 3)
+  {
+    void **data;
+    int ndat;
+
+    KDT_Pick (kd, nod [0], &data, &ndat);
+    ASSERT_DEBUG (data && ndat, "Inconsistent kd-tree query");
+    ELEMENT *ptr = (ELEMENT*) data [0], *qtr = ptr + ndat;
+    for (; ptr != qtr; ptr ++)
+      if (ELEMENT_Contains_Point (m1, ptr, nod [0])) break;
+    ASSERT_DEBUG (ptr != qtr, "Element containing a spatial point has not been found");
+
+    spatial_to_local (m1, ptr, nod [0], point);
+    n = element_shapes (ptr->type, point, shapes);
+
+    element_nodal_values (q1, ptr, val);
+    SET (q2, 0); for (i = 0; i < n; i ++) { ADDMUL (q2, shapes [i], val [i], q2); }
+
+    element_nodal_values (u1, ptr, val);
+    SET (u2, 0); for (i = 0; i < n; i ++) { ADDMUL (u2, shapes [i], val [i], u2); }
+  }
+
+  /* clean up */
+  KDT_Destroy (kd);
+}
+
 /* ================== INTERFACE ==================== */
 
 /* create FEM internals for a body */
@@ -2811,7 +2839,7 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
   {
     referential_to_local (msh, ele, X, point);
     n = element_shapes (ele->type, point, shapes);
-    element_displacements (bod->conf, ele, q);
+    element_nodal_values (bod->conf, ele, q);
 
     COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
   }
@@ -2831,7 +2859,7 @@ void FEM_Cur_Point_Ext (BODY *bod, ELEMENT *ele, double *X, double *point, doubl
   int i, n;
 
   n = element_shapes (ele->type, point, shapes);
-  element_displacements (bod->conf, ele, q);
+  element_nodal_values (bod->conf, ele, q);
 
   COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
 }
@@ -2862,6 +2890,25 @@ void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
   local_to_referential (msh, ele, point, X);
 }
 
+/* pull-forward v = {dx/dX} V (X, state) */
+void FEM_Cur_Vector (BODY *bod, ELEMENT *ele, double *X, double *V, double *v)
+{
+  MESH *msh = FEM_MESH (bod);
+  double point [3], F [9];
+
+  if (ele == NULL)
+  {
+    ele = MESH_Element_Containing_Point (msh, X, 1);
+  }
+
+  ASSERT_TEXT (ele, "Element containing referential point was not found.\n"
+                    "Please report this bug!\n");
+
+  referential_to_local (msh, ele, X, point);
+  deformation_gradient (bod, msh, ele, point, F);
+  NVMUL (F, V, v);
+}
+
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
 void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel)
 {
@@ -2889,14 +2936,14 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
 
   if (prevel)
   {
-    element_velocities (bod, ele, FEM_VEL0 (bod), u);
+    element_nodal_values (FEM_VEL0 (bod), ele, u);
     SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u [i], vglo); } /* vglo = N u0 */
     TVMUL (base, vglo, prevel); /* prevel = base' vglo */
   }
 
   if (curvel)
   {
-    element_velocities (bod, ele, bod->velo, u);
+    element_nodal_values (bod->velo, ele, u);
     SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u [i], vglo); } /* vglo = N u */
     TVMUL (base, vglo, curvel); /* prevel = base' vglo */
   }
@@ -3032,13 +3079,13 @@ void FEM_Point_Values (BODY *bod, ELEMENT *ele, double *X, VALUE_KIND kind, doub
   {
     ele = MESH_Element_Containing_Point (msh, X, 1);
   }
+  
+  ASSERT_TEXT (ele, "Element containing referential point was not found.\n"
+                    "Please report this bug!\n");
 
-  if (ele)
-  {
-    referential_to_local (msh, ele, X, point);
+  referential_to_local (msh, ele, X, point);
 
-    FEM_Element_Point_Values (bod, ele, point, kind, values);
-  }
+  FEM_Element_Point_Values (bod, ele, point, kind, values);
 }
 
 /* get some values at a curent mesh node (node points inside MESH->cur_nodes) */
@@ -3124,7 +3171,39 @@ void FEM_Update_Rough_Mesh (BODY *bod)
 /* split body by plane; output two bodies with inherited state of the input body */
 void FEM_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one, BODY **two)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+  SHAPE *sone, *stwo;
+  MESH *mone, *mtwo;
+  char *label;
+
+  SHAPE_Split (bod->shape, point, normal, surfid, &sone, &stwo);
+
+  if (bod->msh) MESH_Split (bod->msh, point, normal, surfid, &mone, &mtwo);
+  else
+  {
+    mone = NULL;
+    mtwo = NULL;
+  }
+
+  if (bod->label) ERRMEM (label = malloc (strlen (bod->label) + 8));
+  else label = NULL;
+
+  if (sone)
+  {
+    ASSERT_DEBUG (!bod->msh || (bod->msh && mone), "Cut shape but not rought mesh");
+    if (bod->label) sprintf (label, "%s/1", bod->label);
+    (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->form, mone);
+    map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*one), (*one)->conf, (*one)->velo);
+  }
+
+  if (stwo)
+  {
+    ASSERT_DEBUG (!bod->msh || (bod->msh && mtwo), "Cut shape but not rought mesh");
+    if (bod->label) sprintf (label, "%s/2", bod->label);
+    (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->form, mtwo);
+    map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*two), (*two)->conf, (*two)->velo);
+  }
+
+  if (bod->label) free (label);
 }
 
 /* release FEM memory */

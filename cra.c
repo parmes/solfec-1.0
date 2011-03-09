@@ -22,7 +22,73 @@
 #include "dom.h"
 #include "cra.h"
 #include "mem.h"
+#include "alg.h"
 #include "err.h"
+
+/* pseudo-rigid body cracking */
+static void prb_crack (BODY *bod, BODY **one, BODY **two)
+{
+  double values [6], cauchy [9], pnt [3], vec [3], tension;
+  CRACK *cra, *crb, *c;
+
+  *one = *two = NULL;
+
+  for (cra = bod->cra; cra; cra = cra->next)
+  {
+    BODY_Point_Values (bod, cra->point, VALUE_STRESS, values);
+    cauchy [0] = values [0];
+    cauchy [1] = values [3];
+    cauchy [2] = values [4];
+    cauchy [3] = cauchy [1];
+    cauchy [4] = values [1];
+    cauchy [5] = values [5];
+    cauchy [6] = cauchy [2];
+    cauchy [7] = cauchy [5];
+    cauchy [8] = values [2];
+    NVMUL (cauchy, cra->normal, vec);
+    tension = DOT (cra->normal, vec);
+
+    if (tension > cra->ft)
+    {
+      BODY_Cur_Vector (bod, NULL, cra->point, cra->normal, vec);
+      BODY_Cur_Point (bod, NULL, NULL, cra->point, pnt);
+      BODY_Split (bod, pnt, vec, cra->surfid, one, two);
+      break;
+    }
+  }
+
+  crb = cra;
+
+  if (crb && *one && *two)
+  {
+    for (cra = bod->cra; cra; cra = cra->next)
+    {
+      if (cra == crb) continue;
+
+      c = CRACK_Create();
+      *c = *cra; /* XXX: maintain correctnes when CRACK stores more data */
+      c->next = (*one)->cra;
+      (*one)->cra = c;
+
+      c = CRACK_Create();
+      *c = *cra; /* XXX: maintain correctnes when CRACK stores more data */
+      c->next = (*two)->cra;
+      (*two)->cra = c;
+    }
+  }
+}
+
+/* finite element body cracking */
+static void fem_crack (BODY *bod, BODY **one, BODY **two)
+{
+  /* TODO */
+}
+
+/* map contraints to new bodies */
+static void map_constraints  (DOM *dom, BODY *bod, BODY *one, BODY *two)
+{
+  /* TODO */
+}
 
 /* create crack object */
 CRACK* CRACK_Create ()
@@ -51,5 +117,34 @@ void CRACK_Destroy_List (CRACK *cra)
 /* propagate cracks and adjust the domain */
 void Propagate_Cracks (DOM *dom)
 {
-  /* TODO */
+  BODY *bod, *one, *two, *next;
+
+  for (bod = dom->bod; bod; bod = next)
+  {
+    next = bod->next;
+    one = two = NULL;
+
+    if (bod->cra)
+    {
+      switch (bod->kind)
+      {
+      case PRB: prb_crack (bod, &one, &two); break;
+      case FEM: fem_crack (bod, &one, &two); break;
+      default: break;
+      }
+    }
+
+    if (one && two)
+    {
+      map_constraints (dom, bod, one, two);
+      DOM_Remove_Body (dom, bod);
+      DOM_Insert_Body (dom, one);
+      DOM_Insert_Body (dom, two);
+      BODY_Destroy (bod);
+    }
+    else
+    {
+      ASSERT_TEXT (one == NULL && two == NULL, "A body cracked, but only one part was created");
+    }
+  }
 }

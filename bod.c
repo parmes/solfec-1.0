@@ -1685,6 +1685,31 @@ void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
   }
 }
 
+void BODY_Cur_Vector (BODY *bod, void *ele, double *X, double *V, double *v)
+{
+  switch (bod->kind)
+  {
+    case OBS:
+      COPY (V, v);
+    break;
+    case RIG:
+    {
+      double *R = RIG_ROTATION(bod);
+      NVMUL (R, V, v);
+    }
+    break;
+    case PRB:
+    {
+      double *F = PRB_GRADIENT(bod);
+      NVMUL (F, V, v);
+    }
+    break;
+    case FEM:
+      FEM_Cur_Vector (bod, ele, X, V, v);
+    break;
+  }
+}
+
 void BODY_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base, double *prevel, double *curvel)
 {
   switch (bod->kind)
@@ -1891,6 +1916,8 @@ void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **on
       out [i]->flags = (bod->flags & BODY_PERMANENT_FLAGS);
     }
   }
+
+  /* TODO: transfer forces to parts */
 }
 
 void BODY_Write_State (BODY *bod, PBF *bf)

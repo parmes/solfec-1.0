@@ -4875,9 +4875,12 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
   n [1] = PyFloat_AsDouble (PyTuple_GetItem (normal, 1));
   n [2] = PyFloat_AsDouble (PyTuple_GetItem (normal, 2));
 
+  NORMALIZE (n);
+
   cra = CRACK_Create ();
   COPY (p, cra->point);
   COPY (n, cra->normal);
+  cra->surfid = surfid;
 
   IFIS (criterion, "TENSILE")
   {
