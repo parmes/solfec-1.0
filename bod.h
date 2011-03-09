@@ -250,6 +250,9 @@ void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
 /* inverse motion X = X (x, state) */
 void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
 
+/* pull-forward v = {dx/dX} V (X, state) */
+void BODY_Cur_Vector (BODY *bod, void *ele, double *X, double *V, double *v);
+
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
 void BODY_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base, double *prevel, double *curvel);
 

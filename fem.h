@@ -68,6 +68,9 @@ void FEM_Cur_Point_Ext (BODY *bod, ELEMENT *ele, double *X, double *point, doubl
 /* inverse motion X = X (x, state) */
 void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
 
+/* pull-forward v = {dx/dX} V (X, state) */
+void FEM_Cur_Vector (BODY *bod, ELEMENT *ele, double *X, double *V, double *v);
+
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
 void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel);
 

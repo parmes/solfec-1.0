@@ -36,6 +36,8 @@ struct crack
 
   enum {TENSILE} crit;
 
+  int surfid;
+
   double ft,
 	 Gf;
 
