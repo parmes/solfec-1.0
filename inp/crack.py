@@ -1,10 +1,10 @@
 c = 0.1
 d = 0.2 * c
 step = 1E-3
-stop = 10 * step
+stop = 5 * step
 
 sv = GAUSS_SEIDEL_SOLVER (1E-5, 1000, 1E-5)
-#sv = NEWTON_SOLVER (maxiter = 200, theta = 0.15, locdyn = 'OFF')
+#sv = NEWTON_SOLVER (maxiter = 500, theta = 0.05, locdyn = 'OFF')
 
 solfec = SOLFEC ('QUASI_STATIC', step, 'out/joli-feng')
 
@@ -29,9 +29,11 @@ box = HEX ([0, 0, 0,
             0, 0, c,
 	    c, 0, c,
 	    c, c, c,
-	    0, c, c], 8, 8, 8, 2, [2, 2, 2, 2, 2, 2])
+	    0, c, c], 1, 1, 1, 2, [2, 2, 2, 2, 2, 2])
 
-bod = BODY (solfec, 'FINITE_ELEMENT', box, bulkmat)
+box = TETRAHEDRALIZE (box, c**5, quality = 1.5) #FIXME: valigrind this case
+
+bod = BODY (solfec, 'FINITE_ELEMENT', box, bulkmat, form = 'TL')
 
 GRAVITY (solfec, (0, 0, -1000))
 RUN (solfec, sv, stop)

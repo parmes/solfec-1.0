@@ -3271,7 +3271,6 @@ MX* FEM_Approx_Inverse (BODY *bod)
       p [k+1] = p [k] + 3;
     }
     I = MX_Create (MXCSC, n, n, p, i);
-    I->flags |= MXSPD; /* (@@@) */
     x = I->x;
     free (p);
     free (i);
@@ -3286,28 +3285,24 @@ MX* FEM_Approx_Inverse (BODY *bod)
       {
 	if (k == i[j])
 	{
-	  if (k == 0)
+	  if (k < n-1)
 	  {
 	    x [0] = y [j];
-	    x [1] = y [j+1];
-	    x += 2;
-	  }
-	  else if (k < n-1)
-	  {
-	    x [0] = y [j-1];
-	    x [1] = y [j];
-	    x [2] = y [j+1];
+	    if (k+1 == i[j+1]) x [1] = y [j+1];
+	    else x [1] = 0.0;
+	    x [2] = x [1]; /* symmetry */
 	    x += 3;
 	  }
 	  else /* k == n-1 */
 	  {
-	    x [0] = y [j-1];
-	    x [1] = y [j];
+	    x [0] = y [j];
 	  }
 	}
       }
     }
 
-    return MX_Inverse (I, I); /* (@@@) use TAUCS */
+    return MX_Inverse (I, I); /* XXX: use CSparse and full tri-diagonal pattern
+				 rather than lower triangular pattern and TAUCS;
+				 TAUCS seems to have BUGS for the tri-diagonal case */
   }
 }
