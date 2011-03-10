@@ -350,7 +350,8 @@ static MX* copy_matrix (MX *a, MX *b)
   if (b == a) return b;
   else if (b == NULL) b = MX_Create (a->kind, a->m, a->n, a->p, a->i);
   
-  if (MXTRANS (a))
+  if ((MXTRANS (a) && !MXTRANS (b))||
+      (!MXTRANS (a) && MXTRANS (b)))
   {
     switch (a->kind)
     { 
@@ -379,6 +380,8 @@ static MX* copy_matrix (MX *a, MX *b)
     for (double *y = b->x, *x = a->x,
      *e = (a->x+a->nzmax); x < e; y ++, x++) *y = *x;
   }
+
+  b->flags |= a->flags & MXSPD;
 
   if (MXIFAC (a)) MX_Inverse (b, b); /* it was a sparse inverse => invert its copy */
 
