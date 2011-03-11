@@ -44,8 +44,8 @@ KDT* KDT_Create (int n, double *p, double epsilon);
 /* drop data down the kd-tree */
 void KDT_Drop (KDT *kd, double *extents, void *data);
 
-/* pick data for a point; free buffer after use */
-void KDT_Pick (KDT *kd, double *p, void ***data, int *n);
+/* pick leaf containing point */
+KDT* KDT_Pick (KDT *kd, double *p);
 
 /* return nearest node in kd-tree within epsilon radius */
 KDT* KDT_Nearest (KDT *kd, double *p, double epsilon);

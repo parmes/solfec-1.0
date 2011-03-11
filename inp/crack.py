@@ -6,7 +6,7 @@ stop = 5 * step
 sv = GAUSS_SEIDEL_SOLVER (1E-5, 1000, 1E-5)
 #sv = NEWTON_SOLVER (maxiter = 500, theta = 0.05, locdyn = 'OFF')
 
-solfec = SOLFEC ('QUASI_STATIC', step, 'out/joli-feng')
+solfec = SOLFEC ('QUASI_STATIC', step, 'out/crack')
 
 table = HEX ([-d, -d,  0,
 	       c+d, -d,  0,
@@ -31,7 +31,7 @@ box = HEX ([0, 0, 0,
 	    c, c, c,
 	    0, c, c], 1, 1, 1, 2, [2, 2, 2, 2, 2, 2])
 
-box = TETRAHEDRALIZE (box, c**5, quality = 1.5) #FIXME: valigrind this case
+box = TETRAHEDRALIZE (box, 'out/crack/tet1.dat', c**5, quality = 1.5) #FIXME: valigrind this case
 
 bod = BODY (solfec, 'FINITE_ELEMENT', box, bulkmat, form = 'TL')
 

@@ -89,4 +89,7 @@ Tetrahedralization of a piece of a split mesh fails => sort out (element contain
 --------------------------------------------------------------------------------------------
 Improve tetrahedral element (the averaged ideas: nodal or face based)
 ----------------------------------------------------------------------------
-Fix tetrahedrize bug: see inp/crack.py
+Fix tetrahedrize bugs: see inp/crack.py
+----------------------------------------------------------------------------
+Clean up msh.c (see XXXs there)
+----------------------------------------------------------------------------

@@ -125,7 +125,7 @@ static int split (int n, double **q, double *p, int *d)
 {
   double extents [6] = {q[0][0], q[0][1], q[0][2], q[0][0], q[0][1], q[0][2]};
   double **x, **y;
-  int i, k, t [2];
+  int i, j, k, t [2];
 
   for (x = q+1, y = q+n; x != y; x ++)
   {
@@ -151,18 +151,38 @@ static int split (int n, double **q, double *p, int *d)
 
 back:
   qsort (q, n, sizeof (double*), qcmp [*d]);
-  k = n / 2;
-  x = &q [k];
-  while (x < (y-1) && x [0][*d] == (x+1) [0][*d]) { k ++; x ++; } /* q [3*l+d] <= q [3*k+d] for l <= k */
+  /* find k such that q [l][d] > q [k][d] for l > k */
+  for (k = 0, j = -1; k < n; k ++)
+  {
+    if (k > 0 && q[k-1][*d] < q[k][*d])
+    {
+      if (k >= n/2)
+      {
+	k --;
+	break;
+      }
+      else j = k-1;
+    }
+  }
+
+  if (k == n && j >= 0) k = j; /* the last difference before n/2 */
+
   while (k == n && i < 2) /* no good splitting along current dimension */
   {
     *d = t [i ++];
     goto back;
   }
-  COPY (x [0], p);
 
-  if (k == n && i == 2) return -1; /* coincident points */
-  else return k;
+  if (k == n)
+  {
+    COPY (q [0], p);
+    return -1; /* coincident points */
+  }
+  else
+  {
+    COPY (q [k], p);
+    return k;
+  }
 }
 
 /* recursive create */
@@ -194,20 +214,6 @@ static KDT* create (KDT *u, int n, double **q)
   }
 
   return kd;
-}
-
-/* recursive pick */
-static void pick (KDT *kd, double *p, void ***data, int *n)
-{
-  if (kd->d < 0) /* leaf */
-  {
-    int k = *n, i;
-    (*n) += kd->n;
-    ERRMEM (*data = realloc (*data, (*n) * sizeof (void*)));
-    for (i = 0; i < kd->n; i ++) (*data) [k+i] = kd->data [i];
-  }
-  else if (p [kd->d] <= kd->p [kd->d]) pick (kd->l, p, data, n);
-  else pick (kd->r, p, data, n);
 }
 
 /* index tree nodes */
@@ -257,12 +263,12 @@ void KDT_Drop (KDT *kd, double *extents, void *data)
   }
 }
 
-/* pick data for a point; free buffer after use */
-void KDT_Pick (KDT *kd, double *p, void ***data, int *n)
+/* pick leaf containing point */
+KDT* KDT_Pick (KDT *kd, double *p)
 {
-  *n = 0;
-  *data = NULL;
-  pick (kd, p, data, n);
+  if (kd->d < 0) return kd; /* leaf */ 
+  else if (p [kd->d] <= kd->p [kd->d]) return KDT_Pick (kd->l, p);
+  else return KDT_Pick (kd->r, p);
 }
 
 /* return nearest node in kd-tree within epsilon radius */

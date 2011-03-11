@@ -518,7 +518,7 @@ static double point_value (BODY *bod, SHAPE *shp, void *gobj, double *X)
 
       for (i = 0; i < cvx->nele; i ++)
       {
-	if (ELEMENT_Contains_Ref_Point (msh, cvx->ele [i], X)) /* look through overlapped elements */
+	if (ELEMENT_Contains_Point (msh, cvx->ele [i], X, 1)) /* look through overlapped elements */
 	{
 	  ele = cvx->ele [i];
 	  break;

@@ -2218,7 +2218,7 @@ s1, s2, ..., s6
 \end_layout
 
 \begin_layout Subsection*
-obj = TETRAHEDRALIZE (shape | volume, quality, volid, surfid)
+obj = TETRAHEDRALIZE (shape, path | volume, quality, volid, surfid)
 \end_layout
 
 \begin_layout Standard
@@ -2270,6 +2270,15 @@ target "http://tetgen.berlios.de/fformats.html"
 \end_layout
 
 \end_deeper
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - path to the output file that will store the mesh; when called again and
+ this file is found the mesh will be red from the file rather than generated
+\end_layout
+
 \begin_layout Itemize
 
 \series bold
@@ -7685,6 +7694,18 @@ normal
 surfid
 \series default
  - surface identidier of a newly created surface (default: 0)
+\end_layout
+
+\begin_layout Standard
+
+\series bold
+WARNING:
+\series default
+ Mesh splitting generates tetrahedral mesh in place of the input one.
+ The meshing is randomized and it may generate different results for the
+ same input.
+ Use TETRAHEDRALIZE in order to refine and save the generated mesh parts.
+ Otherwie you may encounter input/output erros.
 \end_layout
 
 \begin_layout Subsection*

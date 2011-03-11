@@ -351,6 +351,56 @@ double gjk_convex_sphere (double *a, int na, double *c, double r, double *p, dou
   return vlen;
 }
 
+/* (a,na) and p are the input polyhedron and point; 'q' is the outputed
+ * closest point on the polyhedron; the distance is returned */
+double gjk_convex_point (double *a, int na, double *p, double *q)
+{
+  point w [4];
+  double v [3],
+	 vlen,
+	 delta,
+	 mi = 0.0,
+	 l [4];
+
+  int toofar = 1,
+      n = 0,
+      j = 0,
+      k = 4*na*na;
+
+  SUB (a, p, v); /* an initial point in the set A-B */
+  vlen = LEN (v);
+
+  while (toofar && vlen > GEOMETRIC_EPSILON && n < 4 && j ++ < k) /* (#) see below */
+  {
+    w[n].a = minimal_support_point (a, na, v);
+    w[n].b = p;
+    SUB (w[n].a, w[n].b, w[n].w);
+    delta = DOT (v, w[n].w) / vlen;
+    mi = MAX (mi, delta);
+    toofar = (vlen - mi) > GEOMETRIC_EPSILON;
+    if (toofar)
+    {
+      n = project (w, ++n, l, v); /* (#) n = 4 can happen due to roundoff */
+      vlen = LEN (v);
+    }
+  }
+
+  if (n)
+  {
+    SET (q, 0);
+    for (n --; n >= 0; n --)
+    {
+      ADDMUL (q, l[n], w[n].a, q);
+    }
+  }
+  else /* while loop never entered */
+  {
+    COPY (a, q);
+  }
+
+  return vlen;
+}
+
 /* public driver routine => input sphere A = (a, ra) and sphere B = (b, rb); outputs
  * p in A and q in B such that d = |p - q| is minimal; the distance d is returned */
 double gjk_sphere_sphere (double *a, double ra, double *b, double rb, double *p, double *q)

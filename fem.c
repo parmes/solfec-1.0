@@ -1105,7 +1105,7 @@ static ELEMENT* stabbed_spatial_element (MESH *msh, ELEMENT **ele, int nele, dou
   double dist, d;
 
   for (; nele > 0; ele ++, nele --)
-    if (ELEMENT_Contains_Point (msh, *ele, x)) return *ele;
+    if (ELEMENT_Contains_Point (msh, *ele, x, 0)) return *ele;
 
   for (dist = DBL_MAX, ret = NULL; cur < ele; cur ++)
   {
@@ -1123,7 +1123,7 @@ static ELEMENT* stabbed_referential_element (MESH *msh, ELEMENT **ele, int nele,
   double dist, d;
 
   for (; nele > 0; ele ++, nele --)
-    if (ELEMENT_Contains_Ref_Point (msh, *ele, X)) return *ele;
+    if (ELEMENT_Contains_Point (msh, *ele, X, 1)) return *ele;
 
   for (dist = DBL_MAX, ret = NULL; cur < ele; cur ++)
   {
@@ -1599,7 +1599,7 @@ static void TL_static_inverse (BODY *bod, double step)
 /* total lagrangian initialise dynamic time stepping */
 static void TL_dynamic_init (BODY *bod)
 {
-  if (!bod->M) bod->M = diagonal_inertia (bod, 1);
+  if (!bod->M) bod->M = diagonal_inertia (bod, bod->scheme != SCH_DEF_EXP);
 
   if (bod->scheme == SCH_DEF_EXP)
   {
@@ -2026,7 +2026,7 @@ static void BC_dynamic_init (BODY *bod)
 {
   if (!bod->M && !bod->K)
   {
-    bod->M = diagonal_inertia (bod, 1);
+    bod->M = diagonal_inertia (bod, bod->scheme != SCH_DEF_EXP);
 
     bod->K = tangent_stiffness (bod, 1);
 
@@ -2520,23 +2520,20 @@ static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, d
   /* map m2 nodal values */
   for (nod = m2->cur_nodes, end = nod + m2->nodes_count; nod != end; nod ++, q2 +=3, u2 += 3)
   {
-    void **data;
-    int ndat;
-
-    KDT_Pick (kd, nod [0], &data, &ndat);
-    ASSERT_DEBUG (data && ndat, "Inconsistent kd-tree query");
-    ELEMENT *ptr = (ELEMENT*) data [0], *qtr = ptr + ndat;
+    KDT *q = KDT_Pick (kd, nod [0]);
+    ASSERT_DEBUG (q, "Inconsistent kd-tree query");
+    ELEMENT **ptr = (ELEMENT**) q->data, **qtr = ptr + q->n;
     for (; ptr != qtr; ptr ++)
-      if (ELEMENT_Contains_Point (m1, ptr, nod [0])) break;
+      if (ELEMENT_Contains_Point (m1, *ptr, nod [0], 0)) break;
     ASSERT_DEBUG (ptr != qtr, "Element containing a spatial point has not been found");
 
-    spatial_to_local (m1, ptr, nod [0], point);
-    n = element_shapes (ptr->type, point, shapes);
+    spatial_to_local (m1, *ptr, nod [0], point);
+    n = element_shapes ((*ptr)->type, point, shapes);
 
-    element_nodal_values (q1, ptr, val);
+    element_nodal_values (q1, *ptr, val);
     SET (q2, 0); for (i = 0; i < n; i ++) { ADDMUL (q2, shapes [i], val [i], q2); }
 
-    element_nodal_values (u1, ptr, val);
+    element_nodal_values (u1, *ptr, val);
     SET (u2, 0); for (i = 0; i < n; i ++) { ADDMUL (u2, shapes [i], val [i], u2); }
   }
 

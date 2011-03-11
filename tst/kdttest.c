@@ -27,9 +27,8 @@
 int main (int argc, char **argv)
 {
   double *p, *points, d [6], l, epsilon;
-  int i, n, k, m;
+  int i, n, m;
   KDT *kd, *q;
-  void **data;
 
   epsilon = 0.0;
   n = 128;
@@ -91,9 +90,8 @@ int main (int argc, char **argv)
     d [1] = DRAND ();
     d [2] = DRAND ();
 
-    KDT_Pick (kd, d, &data, &k);
-    if (k) free (data);
-    m += k;
+    q = KDT_Pick (kd, d);
+    m += q->n;
   }
   printf ("%d boxes picked\n", m);
 

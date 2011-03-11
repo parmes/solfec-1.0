@@ -154,24 +154,13 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
                     .25*(v[0][1]+v[1][1]+v[2][1]+v[3][1]),
                     .25*(v[0][2]+v[1][2]+v[2][2]+v[3][2])};
 
-    void **data;
-    int ndat;
-
-    KDT_Pick (kd, p, &data, &ndat);
-    ASSERT_DEBUG (data && ndat, "Inconsistent kd-tree query");
-#if !DEBUG
-    if (data == NULL)
-    {
-      WARNING (data, "Kd-tree based volid mapping has failed: please report this bug!");
-      ele [5] = (volid == -INT_MAX ? 0 : volid); continue;
-    }
-#endif
-    ELEMENT *ptr = (ELEMENT*) data [0], *end = ptr + ndat;
+    KDT *leaf = KDT_Pick (kd, p);
+    ASSERT_TEXT (leaf,  "Kd-tree based volid mapping has failed: please report this bug!");
+    ELEMENT **ptr = (ELEMENT**) leaf->data, **end = ptr + leaf->n;
     for (; ptr != end; ptr ++)
-      if (ELEMENT_Contains_Point (shape, ptr, p)) break;
-    ASSERT_DEBUG (ptr != end, "Element containing a spatial point has not been found");
-    ele [5] = ptr->volume;
-    free (data);
+      if (ELEMENT_Contains_Point (shape, *ptr, p, 0)) break;
+    ASSERT_TEXT (ptr != end, "Element containing a spatial point has not been found: please report this bug!");
+    ele [5] = (*ptr)->volume;
   }
   ele [0] = 0;
 
