@@ -50,9 +50,11 @@ double p [3],
 
 static void gen ()
 {
-  double move [3];
+  double move [3], rnd;
 
-  if (rand () % 2 == 0) /* convex and sphere */
+  rnd = DRAND ();
+
+  if (rnd <= 0.33) /* convex and sphere */
   {
     asize = bsize = 0;
 
@@ -68,6 +70,22 @@ static void gen ()
     SETRAND (center, 1.0);
     SUB (center, move, center);
     radius = 0.75 * DRAND ();
+  }
+  else if (rnd <= 0.66) /* convex and point */
+  {
+    asize = bsize = 0;
+
+    while (asize < minim) asize = rand () % limit;
+
+    SETRAND (move, 1.0);
+
+    for (int n = 0; n < asize; n ++)
+    { SETRAND (apoint [n], 0.75);
+      ADD (apoint [n], move, apoint [n]); }
+
+    SETRAND (center, 1.0);
+    SUB (center, move, center);
+    radius = 0.0;
   }
   else /* convex and convex */
   {
@@ -123,10 +141,21 @@ static void render (void)
     }
     else
     {
-      glPushMatrix ();
-      glTranslated (center [0], center [1], center [2]);
-      glutSolidSphere (radius, 32, 32);
-      glPopMatrix ();
+      if (radius > 0.0)
+      {
+	glPushMatrix ();
+	glTranslated (center [0], center [1], center [2]);
+	glutSolidSphere (radius, 32, 32);
+	glPopMatrix ();
+      }
+      else
+      {
+        glPointSize (3.0);
+	glBegin (GL_POINTS);
+	glVertex3dv (center);
+	glEnd ();
+        glPointSize (1.0);
+      }
     }
 
     if (mode == GEN)
@@ -166,10 +195,21 @@ static void render (void)
     }
     else
     {
-      glPushMatrix ();
-      glTranslated (center [0], center [1], center [2]);
-      glutSolidSphere (radius, 12, 12);
-      glPopMatrix ();
+      if (radius > 0.0)
+      {
+	glPushMatrix ();
+	glTranslated (center [0], center [1], center [2]);
+	glutSolidSphere (radius, 12, 12);
+	glPopMatrix ();
+      }
+      else
+      {
+        glPointSize (3.0);
+	glBegin (GL_POINTS);
+	glVertex3dv (center);
+	glEnd ();
+        glPointSize (1.0);
+      }
     }
   }
 }
@@ -207,7 +247,12 @@ static void key (int key, int x, int y)
 	  gjk (va, nva, vb, nvb, p, q);
 	  free (vb);
 	}
-	else gjk_convex_sphere (va, nva, center, radius, p, q);
+	else if (radius > 0.0) gjk_convex_sphere (va, nva, center, radius, p, q);
+	else 
+	{
+	  COPY (center, p);
+	  gjk_convex_point (va, nva, p, q);
+	}
 
 	SUB (p, q, d);
 	printf ("|p-q|=%g\n", LEN (d));

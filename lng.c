@@ -4054,10 +4054,10 @@ static PyObject* lng_HEX (PyObject *self, PyObject *args, PyObject *kwds)
 /* create tetrahedral mesh */
 static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("shape", "volume", "quality", "volid", "surid");
+  KEYWORDS ("shape", "path", "volume", "quality", "volid", "surid");
   double volume, quality;
+  PyObject *shape, *path;
   int volid, surfid;
-  PyObject *shape;
   lng_MESH *out;
 
   out = (lng_MESH*)lng_MESH_TYPE.tp_alloc (&lng_MESH_TYPE, 0);
@@ -4069,44 +4069,53 @@ static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *k
     volid = -INT_MAX;
     surfid = -INT_MAX;
 
-    PARSEKEYS ("O|ddii", &shape, &volume, &quality, &volid, &surfid);
+    PARSEKEYS ("OO|ddii", &shape, &path, &volume, &quality, &volid, &surfid);
 
-    if (volume != -DBL_MAX && volume <= 0.0)
-    {
-      PyErr_SetString (PyExc_ValueError, "Maximal volume must be positive");
-      return NULL;
-    }
-    if (volume == -DBL_MAX) volume = 0.0;
+    TYPETEST (is_string (path, kwl [1]));
 
-    if (quality != -DBL_MAX && quality <= 1.0)
-    {
-      PyErr_SetString (PyExc_ValueError, "Quality must be > 1.0");
-      return NULL;
-    }
-    if (quality == -DBL_MAX) quality = 0.0;
+    out->msh = MESH_Read (PyString_AsString (path));
 
-    if (PyObject_IsInstance (shape, (PyObject*)&lng_MESH_TYPE))
+    if (out->msh == NULL)
     {
-      out->msh = tetrahedralize1 (((lng_MESH*)shape)->msh, volume, quality, volid, surfid);
-      if (!out->msh)
+      if (volume != -DBL_MAX && volume <= 0.0)
       {
-        PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");
+	PyErr_SetString (PyExc_ValueError, "Maximal volume must be positive");
 	return NULL;
       }
-    }
-    else if (PyString_Check (shape))
-    {
-      out->msh = tetrahedralize2 (PyString_AsString (shape), volume, quality, volid, surfid);
-      if (!out->msh)
+      if (volume == -DBL_MAX) volume = 0.0;
+
+      if (quality != -DBL_MAX && quality <= 1.0)
       {
-        PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");
+	PyErr_SetString (PyExc_ValueError, "Quality must be > 1.0");
 	return NULL;
       }
-    }
-    else
-    {
-      PyErr_SetString (PyExc_ValueError, "Shape must be aither a MESH object or string");
-      return NULL;
+      if (quality == -DBL_MAX) quality = 0.0;
+
+      if (PyObject_IsInstance (shape, (PyObject*)&lng_MESH_TYPE))
+      {
+	out->msh = tetrahedralize1 (((lng_MESH*)shape)->msh, volume, quality, volid, surfid);
+	if (!out->msh)
+	{
+	  PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");
+	  return NULL;
+	}
+      }
+      else if (PyString_Check (shape))
+      {
+	out->msh = tetrahedralize2 (PyString_AsString (shape), volume, quality, volid, surfid);
+	if (!out->msh)
+	{
+	  PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");
+	  return NULL;
+	}
+      }
+      else
+      {
+	PyErr_SetString (PyExc_ValueError, "Shape must be aither a MESH object or string");
+	return NULL;
+      }
+
+      MESH_Write (out->msh, PyString_AsString (path));
     }
   }
 
@@ -5418,6 +5427,10 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 	MESH_Split (shq->data, p, n, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, two), front);
+
+	WARNING (0, "\nMesh splitting generates tetrahedral mesh in place of the input one.\n"
+	            "The meshing is randomized and it may generate different results for the same input.\n"
+	            "Use TETRAHEDRALIZE in order to refine and save the generated mesh parts.\n");
       }
     }
   }
@@ -5524,7 +5537,7 @@ static PyObject* lng_BEND (PyObject *self, PyObject *args, PyObject *kwds)
     }
     DIV (q, (double) ele->type, q);
     PROJECT_POINT_ON_LINE (q, p, d, proj); /* project element center on the bending axis */
-    if (ELEMENT_Contains_Ref_Point (msh, ele, proj))
+    if (ELEMENT_Contains_Point (msh, ele, proj, 1))
     {
       PyErr_SetString (PyExc_ValueError, "Bending axis is stabbing the mesh");
       return NULL;

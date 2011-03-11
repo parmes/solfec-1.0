@@ -32,6 +32,8 @@
 #include "msh.h"
 #include "pck.h"
 #include "kdt.h"
+#include "gjk.h"
+#include "pbf.h"
 
 /* used in some pools */
 #define MEMCHUNK 256
@@ -325,6 +327,7 @@ static void load_nodes (double (*heap) [3], int type, int *nodes, double (*stack
   { COPY (heap [nodes [n]], stack [n]); }
 }
 
+#if 0
 /* create face planes from the current shape of an element */
 static int create_element_planes (double (*node) [3], ELEMENT *ele, double *pla)
 {
@@ -374,6 +377,7 @@ static double point_distance (int npla, double *pla, double *point)
 
   return dist;
 }
+#endif /* XXX: remove when gjk_convex_point proves robust */
 
 #if 0
 /* check if edge [nod1, nod2] belongs to the element */
@@ -1381,26 +1385,37 @@ void MESH_Char (MESH *msh, double *volume, double *center, double *euler)
 /* find an element containing the point */
 ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref)
 {
-  /* the linear search should be at some point optimised with a proper
+  /* XXX:
+   * the linear search should be at some point optimised with a proper
      spatial search => move point to the reference configuration and
      query a search tree based on the reference configuration geometry */
 
+#if 0
   double (*nodes) [3] = ref ? msh->ref_nodes : msh->cur_nodes;
   double pla [24];
+#endif
   ELEMENT *ele;
 
   /* first search surface elements */
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
+#if 0
     create_element_planes (nodes, ele, pla);
     if (point_inside (neighs (ele->type), pla, point)) return ele;
+#else /* XXX: remove me */
+    if (ELEMENT_Contains_Point (msh, ele, point, ref)) return ele;
+#endif
   }
 
   /* then the bulk elements */
   for (ele = msh->bulkeles; ele; ele = ele->next)
   {
+#if 0
     create_element_planes (nodes, ele, pla);
     if (point_inside (neighs (ele->type), pla, point)) return ele;
+#else /* XXX: remove me */
+    if (ELEMENT_Contains_Point (msh, ele, point, ref)) return ele;
+#endif
   }
 
   return NULL;
@@ -1996,21 +2011,21 @@ void MESH_Destroy (MESH *msh)
 }
 
 /* does the element contain a spatial point? */
-int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point)
+int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref)
 {
+#if 0
   double pla [24];
-
   create_element_planes (msh->cur_nodes, ele, pla);
   return point_inside (neighs (ele->type), pla, point);
-}
+#else /* XXX: remove me */
+  double nodes [8][3], q [3], d;
 
-/* does the element contain a referential point? */
-int ELEMENT_Contains_Ref_Point (MESH *msh, ELEMENT *ele, double *point)
-{
-  double pla [24];
+  load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
 
-  create_element_planes (msh->ref_nodes, ele, pla);
-  return point_inside (neighs (ele->type), pla, point);
+  d = gjk_convex_point ((double*)nodes, ele->type, point, q);
+
+  return d <= GEOMETRIC_EPSILON;
+#endif
 }
 
 /* return >= node index if point == node[index] or -1 otherwise */
@@ -2034,10 +2049,20 @@ int ELEMENT_Ref_Point_To_Node (MESH *msh, ELEMENT *ele, double *point)
 /* return distance of a spatial (ref == 0) or referential (ref == 1) point to the element */
 double ELEMENT_Point_Distance (MESH *msh, ELEMENT *ele, double *point, int ref)
 {
+#if 0
   double pla [24];
 
   create_element_planes (ref ? msh->ref_nodes : msh->cur_nodes, ele, pla);
   return point_distance (neighs (ele->type), pla, point);
+#else /* XXX: remove me */
+  double nodes [8][3], q [3], d;
+
+  load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
+
+  d = gjk_convex_point ((double*)nodes, ele->type, point, q);
+
+  return d;
+#endif
 }
 
 /* test wether two elements are adjacent
@@ -2258,6 +2283,7 @@ static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, i
 
   if (j)
   {
+    ASSERT_TEXT (solfec, "Trying to unpack element material without the Solfec pointer");
     SOLFEC *sol = solfec;
     char *label = unpack_string (ipos, i, ints);
     ASSERT_DEBUG_EXT (ele->mat = MATSET_Find (sol->mat, label), "Failed to find material when unpacking an element");
@@ -2272,6 +2298,8 @@ static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, i
     fac->ele = ele;
     fac->next = ele->faces;
     ele->faces = fac;
+    fac->n = msh->faces;
+    msh->faces = fac;
   }
 
   return ele;
@@ -2316,7 +2344,7 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   int n, m, k;
   MESH *msh;
 
-  ERRMEM (msh = malloc (sizeof (MESH)));
+  ERRMEM (msh = MEM_CALLOC (sizeof (MESH)));
 
   msh->nodes_count = unpack_int (ipos, i, ints);
   msh->bulkeles_count = unpack_int (ipos, i, ints);
@@ -2411,4 +2439,66 @@ void MESH_2_MBFCP (MESH *msh, FILE *out)
     for (n = 0; n < fac->type; n ++) fprintf (out, "  %d", fac->nodes [n]);
     fprintf (out, "  %d\n", fac->surface);
   }
+}
+
+/* write mesh */
+void MESH_Write (MESH *msh, char *path)
+{
+  int dsize, doubles, isize, ints, size;
+  int *i, *data;
+  double *d;
+  FILE *f;
+  XDR x;
+
+  ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);
+  xdrstdio_create (&x, f, XDR_ENCODE);
+
+  dsize = doubles = isize = ints = 0;
+  d = NULL;
+  i = NULL;
+
+  MESH_Pack (msh, &dsize, &d, &doubles, &isize, &i, &ints);
+  data = compress (CMP_FASTLZ, d, doubles, i, ints, &size);
+
+  ASSERT (xdr_int (&x, &size), ERR_PBF_WRITE);
+  ASSERT (xdr_vector (&x, (char*)data, size, sizeof (int), (xdrproc_t)xdr_int), ERR_PBF_WRITE);
+
+  free (data);
+  free (d);
+  free (i);
+  xdr_destroy (&x);
+  fclose (f);
+}
+
+/* read mesh */
+MESH* MESH_Read (char *path)
+{
+  int dpos, doubles, ipos, ints, size;
+  int *i, *data;
+  double *d;
+  MESH *msh;
+  FILE *f;
+  XDR x;
+
+  if (!(f = fopen (path, "r"))) return NULL;
+  xdrstdio_create (&x, f, XDR_DECODE);
+
+  dpos = doubles = ipos = ints = 0;
+  d = NULL;
+  i = NULL;
+
+  ASSERT (xdr_int (&x, &size), ERR_PBF_READ);
+  ERRMEM (data = malloc (size * sizeof (int)));
+  ASSERT (xdr_vector (&x, (char*)data, size, sizeof (int), (xdrproc_t)xdr_int), ERR_PBF_READ);
+
+  decompress (data, size, &d, &doubles, &i, &ints);
+  msh = MESH_Unpack (NULL, &dpos, d, doubles, &ipos, i, ints);
+
+  free (data);
+  free (d);
+  free (i);
+  xdr_destroy (&x);
+  fclose (f);
+
+  return msh;
 }

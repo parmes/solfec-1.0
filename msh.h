@@ -177,11 +177,8 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
 /* free mesh memory */
 void MESH_Destroy (MESH *msh);
   
-/* does the element contain a spatial point? */
-int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point);
-
-/* does the element contain a referential point? */
-int ELEMENT_Contains_Ref_Point (MESH *msh, ELEMENT *ele, double *point);
+/* does the element contain a spatial/referential point? */
+int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ret);
 
 /* return >= node index if point == node[index] or -1 otherwise */
 int ELEMENT_Ref_Point_To_Node (MESH *msh, ELEMENT *ele, double *point);
@@ -224,5 +221,11 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
 /* export MBFCP definition */
 void MESH_2_MBFCP (MESH *msh, FILE *out);
+
+/* write mesh */
+void MESH_Write (MESH *msh, char *path);
+
+/* read mesh */
+MESH* MESH_Read (char *path);
 
 #endif
