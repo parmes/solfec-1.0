@@ -214,9 +214,9 @@ MESH* tetrahedralize2 (char *path, double volume, double quality, int volid, int
 	 i < out.numberoftrifaces; i ++, ele += 5, tet += 3)
     {
       ele [0] = 3;
-      ele [1] = tet [0];
-      ele [2] = tet [1];
-      ele [3] = tet [2];
+      ele [1] = tet [0] - out.firstnumber;
+      ele [2] = tet [1] - out.firstnumber;
+      ele [3] = tet [2] - out.firstnumber;
       ele [4] = out.trifacemarkerlist [i];
     }
     ele [0] = 0;
