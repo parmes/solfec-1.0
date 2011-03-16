@@ -31,7 +31,7 @@ box = HEX ([0, 0, 0,
 	    c, c, c,
 	    0, c, c], 1, 1, 1, 2, [2, 2, 2, 2, 2, 2])
 
-box = TETRAHEDRALIZE (box, 'out/crack/tet1.dat', c**5, quality = 1.5) #FIXME: valigrind this case
+box = TETRAHEDRALIZE (box, 'out/crack/tet1.dat', c**6, quality = 1.5)
 
 bod = BODY (solfec, 'FINITE_ELEMENT', box, bulkmat, form = 'TL')
 

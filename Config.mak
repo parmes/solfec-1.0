@@ -16,6 +16,13 @@ CC = cc
 
 CXX = g++
 
+#
+# Specify FORTRAN95 compiler and FORTRAN runtime library
+#
+
+FC = g95
+FCLIB = -L/opt/local/lib/g95/i386-apple-darwin9/4.0.4/ -lf95
+
 # 
 # Debug or optimized version switch (yes/no)
 #
