@@ -29,7 +29,7 @@
 #include "mtx.h"
 #include "pck.h"
 #include "ext/csparse.h"
-#include "ext/taucs/taucs.h"
+#include "ext/mumps/dmumps_c.h"
 
 /* macros */
 #define KIND(a) ((a)->kind)
@@ -44,6 +44,8 @@
 #define MXIFAC_WORK1(a) ((a)->x + (a)->nzmax)
 #define MXIFAC_WORK2(a) ((a)->x + (a)->nzmax + (a)->n)
 #define MXSPD(a) ((a)->flags & MXSPD)
+#define ICNTL(I) icntl[(I)-1] /* MUMPS macro s.t. indices match documentation */
+#define INFO(I) info[(I)-1] /* MUMPS */
 
 /* types */
 typedef int (*qcmp_t) (const void*, const void*);
@@ -877,9 +879,11 @@ static void inv_vec (MX *a, double *b, double *c)
 {
   if (MXSPD (a))
   {
-    char *options[] = {"taucs.factor=false", NULL};
-
-    taucs_linsolve (a->sym, &a->num, 1, c, b, options, NULL);
+    DMUMPS_STRUC_C *id = a->sym;
+    blas_dcopy (a->n, b, 1, c, 1);
+    id->rhs = c; 
+    id->job = 3;
+    dmumps_c (id);
   }
   else
   {
@@ -899,9 +903,11 @@ static void vec_inv (double *b, MX *a, double *c)
 {
   if (MXSPD (a))
   {
-    char *options[] = {"taucs.factor=false", NULL};
-
-    taucs_linsolve (a->sym, &a->num, 1, c, b, options, NULL); /* same as above due to the symmetry of LL' */
+    DMUMPS_STRUC_C *id = a->sym;
+    blas_dcopy (a->n, b, 1, c, 1);
+    id->rhs = c; 
+    id->job = 3;
+    dmumps_c (id);
   }
   else
   {
@@ -1524,21 +1530,40 @@ inline static void csc_doinv (MX *b)
 {
   if (MXSPD (b))
   {
-    char *options[] = {"taucs.factor.LLT=true", "taucs.factor.mf=true", "taucs.factor.ordering=metis", NULL};
-    taucs_ccs_matrix *c;
+    DMUMPS_STRUC_C *id;
 
     ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + b->n]))); /* workspace 1 after b->x */
-    ERRMEM (c = MEM_CALLOC (sizeof (taucs_ccs_matrix)));
-    c->flags = TAUCS_DOUBLE | TAUCS_SYMMETRIC | TAUCS_LOWER;
-    c->values.d = b->x;
-    c->colptr = b->p;
-    c->rowind = b->i;
-    c->n = b->n;
-    c->m = b->m;
-    b->sym = c;
+    ERRMEM (id = MEM_CALLOC (sizeof (DMUMPS_STRUC_C)));
+    b->sym = id;
+    id->job = -1;
+    id->par =  1;
+    id->sym =  1;
+    dmumps_c (id);
 
-    taucs_linsolve (b->sym, &b->num, 0, NULL, NULL, options, NULL);
-    ASSERT (b->num, ERR_MTX_CHOL_FACTOR);
+    id->n = b->n;
+    id->nz = b->nzmax;
+    ERRMEM (id->irn = malloc (sizeof (int [id->nz])));
+    ERRMEM (id->jcn = malloc (sizeof (int [id->nz])));
+    for (int i = 0; i < b->n; i ++)
+    {
+      for (int j = b->p [i]; j < b->p [i+1]; j ++)
+      {
+	id->irn [j] = i+1;
+	id->jcn [j] = b->i[j]+1;
+      }
+    }
+    id->a = b->x;
+
+    /* no outputs */
+    id->ICNTL(1) = -1;
+    id->ICNTL(2) = -1;
+    id->ICNTL(3) = -1;
+    id->ICNTL(4) =  0;
+
+    /* analysis and factorization */
+    id->job = 4;
+    dmumps_c (id);
+    ASSERT (id->INFO(1) >= 0, ERR_MTX_CHOL_FACTOR);
   }
   else
   {
@@ -1557,10 +1582,14 @@ static MX* csc_inverse (MX *a, MX *b)
 
   if (MXIFAC (b))
   {
-    if (MXSPD (b)) /* TAUCS */
+    if (MXSPD (b)) /* MUMPS */
     {
-      free (a->sym);
-      taucs_linsolve (NULL, &a->num, 0, NULL, NULL, NULL, NULL);
+      DMUMPS_STRUC_C *id = a->sym;
+      id->job = -2;
+      dmumps_c (id);
+      free (id->irn);
+      free (id->jcn);
+      free (id);
     }
     else /* CSparse */
     {
@@ -2218,10 +2247,14 @@ void MX_Destroy (MX *a)
       free (a->x);
       if (MXIFAC (a))
       {
-	if (MXSPD (a)) /* TAUCS */
+	if (MXSPD (a)) /* MUMPS */
 	{
-	  free (a->sym);
-	  taucs_linsolve (NULL, &a->num, 0, NULL, NULL, NULL, NULL);
+	  DMUMPS_STRUC_C *id = a->sym;
+	  id->job = -2;
+	  dmumps_c (id);
+	  free (id->irn);
+	  free (id->jcn);
+	  free (id);
 	}
 	else /* CSparse */
 	{

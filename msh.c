@@ -377,9 +377,7 @@ static double point_distance (int npla, double *pla, double *point)
 
   return dist;
 }
-#endif /* XXX: remove when gjk_convex_point proves robust */
 
-#if 0
 /* check if edge [nod1, nod2] belongs to the element */
 static int element_has_edge (ELEMENT *ele, int nod1, int nod2)
 {
@@ -1390,32 +1388,18 @@ ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref)
      spatial search => move point to the reference configuration and
      query a search tree based on the reference configuration geometry */
 
-#if 0
-  double (*nodes) [3] = ref ? msh->ref_nodes : msh->cur_nodes;
-  double pla [24];
-#endif
   ELEMENT *ele;
 
   /* first search surface elements */
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
-#if 0
-    create_element_planes (nodes, ele, pla);
-    if (point_inside (neighs (ele->type), pla, point)) return ele;
-#else /* XXX: remove me */
     if (ELEMENT_Contains_Point (msh, ele, point, ref)) return ele;
-#endif
   }
 
   /* then the bulk elements */
   for (ele = msh->bulkeles; ele; ele = ele->next)
   {
-#if 0
-    create_element_planes (nodes, ele, pla);
-    if (point_inside (neighs (ele->type), pla, point)) return ele;
-#else /* XXX: remove me */
     if (ELEMENT_Contains_Point (msh, ele, point, ref)) return ele;
-#endif
   }
 
   return NULL;
@@ -2013,11 +1997,6 @@ void MESH_Destroy (MESH *msh)
 /* does the element contain a spatial point? */
 int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref)
 {
-#if 0
-  double pla [24];
-  create_element_planes (msh->cur_nodes, ele, pla);
-  return point_inside (neighs (ele->type), pla, point);
-#else /* XXX: remove me */
   double nodes [8][3], q [3], d;
 
   load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
@@ -2025,7 +2004,6 @@ int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref)
   d = gjk_convex_point ((double*)nodes, ele->type, point, q);
 
   return d <= GEOMETRIC_EPSILON;
-#endif
 }
 
 /* return >= node index if point == node[index] or -1 otherwise */
@@ -2049,12 +2027,6 @@ int ELEMENT_Ref_Point_To_Node (MESH *msh, ELEMENT *ele, double *point)
 /* return distance of a spatial (ref == 0) or referential (ref == 1) point to the element */
 double ELEMENT_Point_Distance (MESH *msh, ELEMENT *ele, double *point, int ref)
 {
-#if 0
-  double pla [24];
-
-  create_element_planes (ref ? msh->ref_nodes : msh->cur_nodes, ele, pla);
-  return point_distance (neighs (ele->type), pla, point);
-#else /* XXX: remove me */
   double nodes [8][3], q [3], d;
 
   load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
@@ -2062,7 +2034,6 @@ double ELEMENT_Point_Distance (MESH *msh, ELEMENT *ele, double *point, int ref)
   d = gjk_convex_point ((double*)nodes, ele->type, point, q);
 
   return d;
-#endif
 }
 
 /* test wether two elements are adjacent

@@ -12,12 +12,14 @@ endif
 
 include Flags.mak
 
+MUMPS = -Lext/mumps/libseq -lmpiseq
+
 CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(XDRINC)
 
-LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB)
+LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(FCLIB) $(MUMPS)
 
 ifeq ($(MPI),yes)
-  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB)
+  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB) $(FCLIB) $(MUMPS)
 endif
 
 EXTO  = obj/fastlz.o\
@@ -96,8 +98,8 @@ OBJMPI = $(EXTO)       \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
 
-solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a obj/libtet.a
-	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ltaucs -lmetis -ltet $(LIB)
+solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
+	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet $(LIB)
 
 obj/libkrylov.a:
 	(cd ext/krylov && make)
@@ -105,8 +107,8 @@ obj/libkrylov.a:
 obj/libmetis.a:
 	(cd ext/metis && make)
 
-obj/libtaucs.a:
-	(cd ext/taucs && make)
+obj/libdmumps.a:
+	(cd ext/mumps && make)
 
 obj/libtet.a:
 	(cd ext/tetgen && make)
@@ -121,8 +123,8 @@ all: solfec mpi
 
 mpi: solfec-mpi
 
-solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libtaucs.a obj/libtet.a
-	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ltaucs -lmetis -ltet $(LIBMPI)
+solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
+	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ldmumps -lmetis -ltet $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
@@ -157,7 +159,7 @@ clean:
 	(cd tst && make clean)
 	(cd ext/krylov && make clean)
 	(cd ext/metis && make clean)
-	(cd ext/taucs && make clean)
+	(cd ext/mumps && make clean)
 	(cd ext/tetgen && make clean)
 
 obj/solfec.o: solfec.c
