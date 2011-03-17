@@ -1,12 +1,13 @@
 c = 0.1
 d = 0.2 * c
-step = 1E-3
-stop = 5 * step
+step = 1E-4
+stop = 20 * step
+GEOMETRIC_EPSILON (1E-8)
 
-sv = GAUSS_SEIDEL_SOLVER (1E-5, 1000, 1E-5)
-#sv = NEWTON_SOLVER (maxiter = 500, theta = 0.05, locdyn = 'OFF')
+sv = GAUSS_SEIDEL_SOLVER (1E-3, 1000, 1E-7)
+#sv = NEWTON_SOLVER (maxiter = 500, theta = 0.1, locdyn = 'ON')
 
-solfec = SOLFEC ('QUASI_STATIC', step, 'out/crack')
+solfec = SOLFEC ('DYNAMIC', step, 'out/crack')
 
 table = HEX ([-d, -d,  0,
 	       c+d, -d,  0,
@@ -17,9 +18,10 @@ table = HEX ([-d, -d,  0,
 	       c+d,  c+d, -d,
 	      -d,  c+d, -d], 1, 1, 1, 1, [1, 1, 1, 1, 1, 1])
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E6, poisson = 0.3, density = 500)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E7, poisson = 0.3, density = 500)
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
+TRANSLATE (table, (0, 0, -0.5*c))
 BODY (solfec, 'OBSTACLE', table, bulkmat)
 
 box = HEX ([0, 0, 0,
@@ -29,11 +31,19 @@ box = HEX ([0, 0, 0,
             0, 0, c,
 	    c, 0, c,
 	    c, c, c,
-	    0, c, c], 1, 1, 1, 2, [2, 2, 2, 2, 2, 2])
+	    0, c, c], 3, 3, 3, 2, [2, 2, 2, 2, 2, 2])
 
-box = TETRAHEDRALIZE (box, 'out/crack/tet1.dat', c**6, quality = 1.5)
+#box = TETRAHEDRALIZE (box, 'out/crack/tet1.dat', c**5, quality = 1.5)
 
-bod = BODY (solfec, 'FINITE_ELEMENT', box, bulkmat, form = 'TL')
+bod = BODY (solfec, 'PSEUDO_RIGID', box, bulkmat)
+p0 = TRANSLATE (bod.center, (c/2.0, 0, 0))
+p1 = TRANSLATE (bod.center, (-c/2.0, 0, 0))
+SET_VELOCITY (bod, p0, (1, 0, 0), 0.0001)
+SET_VELOCITY (bod, p1, (-1, 0, 0), 0.0001)
+SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 1, 'TENSILE', 10, 1)
 
 GRAVITY (solfec, (0, 0, -1000))
 RUN (solfec, sv, stop)
+
+if solfec.mode == 'READ':
+  FORWARD (solfec, 1)

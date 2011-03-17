@@ -66,6 +66,7 @@
 #define BOD_J0(bod) (bod)->ref_tensor
 #define RIG_ROTATION(bod) (bod)->conf
 #define RIG_CENTER(bod) ((bod)->conf+9)
+#define RIG_CENTER1(conf) ((conf)+9)
 #define RIG_AUXILIARY(bod) ((bod)->conf+12)
 #define RIG_ANGVEL(bod) (bod)->velo
 #define RIG_LINVEL(bod) ((bod)->velo+3)
@@ -74,6 +75,7 @@
 #define RIG_FEXT(bod) ((bod)->velo+12)
 #define PRB_GRADIENT(bod) (bod)->conf
 #define PRB_CENTER(bod) ((bod)->conf+9)
+#define PRB_CENTER1(conf) ((conf)+9)
 #define PRB_GRADVEL(bod) (bod)->velo
 #define PRB_LINVEL(bod) ((bod)->velo+9)
 #define PRB_GRADVEL0(bod) ((bod)->velo+12)
@@ -857,11 +859,11 @@ void overwrite_state (double *q, double *u, BODY *bod)
   {
     case OBS: break;
     case RIG:
-      memcpy (bod->conf, q, sizeof (double [RIG_CONF_SIZE]));
+      memcpy (bod->conf, q, sizeof (double [9]));
       memcpy (bod->velo, u, sizeof (double [RIG_VELO_SIZE]));
     break;
     case PRB:
-      memcpy (bod->conf, q, sizeof (double [PRB_CONF_SIZE]));
+      memcpy (bod->conf, q, sizeof (double [9]));
       memcpy (bod->velo, u, sizeof (double [PRB_VELO_SIZE]));
     break;
     case FEM: break;
