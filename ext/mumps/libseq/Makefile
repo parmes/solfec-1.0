@@ -10,8 +10,8 @@ include ../Makefile.inc
 
 libmpiseq: libmpiseq$(PLAT).a
 
-libmpiseq$(PLAT).a: mpi.o mpic.o elapse.o
-	$(AR) $@ mpi.o mpic.o elapse.o
+libmpiseq$(PLAT).a: mpi.o elapse.o
+	$(AR) $@ mpi.o elapse.o
 	$(RANLIB) $@
 .f.o:
 	$(FC) $(OPTF) -w -c $*.f

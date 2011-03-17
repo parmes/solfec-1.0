@@ -81,13 +81,9 @@ Consider coming back to the previous way of storing W blocks
 Consider a separate linear solve at the end for all equality constraints.
 This will simplify the penalty solver as well as it might improve accuracy.
 --------------------------------------------------------------------------------------
-Integrate with PARADISO via MKL
---------------------------------------------------------------------------------------
 Sensivity of FEM to the quality of tetragedral meshes (inp/tetgen.py)
 --------------------------------------------------------------------------------------
-Tetrahedralization of a piece of a split mesh fails => sort out (element containment test)
---------------------------------------------------------------------------------------------
 Improve tetrahedral element (the averaged ideas: nodal or face based)
 ----------------------------------------------------------------------------
-Clean up msh.c (see XXXs there)
+Node to face contact for HEX elements (problems with stability)
 ----------------------------------------------------------------------------
