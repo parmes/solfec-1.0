@@ -38,9 +38,6 @@ Reduce parallel balancing communication during fully explicit runs
 Include (at least in the viewer mode) possibility of dumping
 into a separate sub-directory of a subset of results
 -------------------------------------------------------------------
-How to implementing rewinding back of simulations during
-which bodies have been deleted? (do not really delete)
-----------------------------------------------------------------------------------
 Gap computation is not robust. Implicitly integrated core at smaller time steps
 reports unphysical penetration => this is due to numerical instability of gap
 computations for smaller motion increments.
@@ -86,4 +83,7 @@ Sensivity of FEM to the quality of tetragedral meshes (inp/tetgen.py)
 Improve tetrahedral element (the averaged ideas: nodal or face based)
 ----------------------------------------------------------------------------
 Node to face contact for HEX elements (problems with stability)
-----------------------------------------------------------------------------
+-----------------------------------------------------------------------------------
+Implementing correct seek, forward, backward step for simulations with
+deleted or newly inserted bodies
+----------------------------------------------------------------------------------

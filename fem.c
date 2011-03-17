@@ -2505,7 +2505,7 @@ static void overlap (void *data, BOX *one, BOX *two)
 static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, double *u2)
 {
   double shapes [MAX_NODES], val [MAX_NODES][3], point [3];
-  double extents [6], (* nod) [3], (*end) [3];
+  double extents [6], (* nod) [3], (*ref) [3], (*end) [3];
   ELEMENT *ele;
   int i, n;
   KDT *kd;
@@ -2518,7 +2518,7 @@ static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, d
   { ELEMENT_Extents (m1, ele, extents); KDT_Drop (kd, extents, ele); }
 
   /* map m2 nodal values */
-  for (nod = m2->cur_nodes, end = nod + m2->nodes_count; nod != end; nod ++, q2 +=3, u2 += 3)
+  for (nod = m2->cur_nodes, ref = m2->ref_nodes, end = nod + m2->nodes_count; nod != end; nod ++, ref ++, q2 +=3, u2 += 3)
   {
     KDT *q = KDT_Pick (kd, nod [0]);
     ASSERT_DEBUG (q, "Inconsistent kd-tree query");
@@ -2532,6 +2532,9 @@ static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, d
 
     element_nodal_values (q1, *ptr, val);
     SET (q2, 0); for (i = 0; i < n; i ++) { ADDMUL (q2, shapes [i], val [i], q2); }
+
+    SUB (ref [0], q2, ref [0]); /* initially cur_nodes == ref_nodes in m2; this maps back the
+				   referential nodes in m2 to preserve the deformation state from m1 */
 
     element_nodal_values (u1, *ptr, val);
     SET (u2, 0); for (i = 0; i < n; i ++) { ADDMUL (u2, shapes [i], val [i], u2); }

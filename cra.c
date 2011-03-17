@@ -136,6 +136,17 @@ void Propagate_Cracks (DOM *dom)
 
     if (one && two)
     {
+      if (dom->dynamic)
+      {
+	BODY_Dynamic_Init (one);
+	BODY_Dynamic_Init (two);
+      }
+      else
+      {
+	BODY_Static_Init (one);
+	BODY_Static_Init (two);
+      }
+
       map_constraints (dom, bod, one, two);
       DOM_Remove_Body (dom, bod);
       DOM_Insert_Body (dom, one);

@@ -307,6 +307,7 @@ void dom_read_state (DOM *dom, PBF *bf)
 	bod->next = dom->bod;
 	if (dom->bod) dom->bod->prev = bod;
 	dom->bod = bod;
+	bod->dom = dom;
 	dom->nbod ++;
       }
 
