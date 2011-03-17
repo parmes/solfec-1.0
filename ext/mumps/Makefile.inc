@@ -91,6 +91,12 @@ ifeq ($(FC),ifc)
   OPTL    = -O -nofor_main
   OPTC    = -O
 endif
+ifeq ($(FC),ifort)
+  CDEFS   = -DAdd_
+  OPTF    = -O -Dintel_ -DALLOW_NON_INIT -nofor_main
+  OPTL    = -O -nofor_main
+  OPTC    = -O
+endif
 #End Optimization options
 
 INC = $(INCSEQ)

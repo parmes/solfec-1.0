@@ -3298,8 +3298,7 @@ MX* FEM_Approx_Inverse (BODY *bod)
       }
     }
 
-    return MX_Inverse (I, I); /* XXX: use CSparse and full tri-diagonal pattern
-				 rather than lower triangular pattern and TAUCS;
-				 TAUCS seems to have BUGS for the tri-diagonal case */
+    return MX_Inverse (I, I); /* XXX: for this small matrix case CSparse and full tri-diagonal pattern
+				      is about 15x faster than TAUCS with symmtric tri-diagonal patter */
   }
 }
