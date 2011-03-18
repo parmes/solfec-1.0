@@ -208,13 +208,13 @@ struct domain
   double time; /* current time */
 
   unsigned int bid; /* last free body identifier */
-  SET *sparebid; /* spare constraint ids */
   MAP *lab; /* bodies mapped by labels (a subset) */
   MAP *idb; /* bodies mapped by identifiers (all bodies) */
   BODY *bod; /* list of bodies */
   int nbod; /* number of bodies */
-  SET *delb; /* set of deleted body ids for time > 0 and before state write */
   SET *newb; /* set of newly created bodies for time > 0 and before state write */
+  MAP *allbodies; /* all created bodies mapped by ids */
+  short allbodiesread; /* read flag related to setting up the allbodies set */
 
   int nobs, /* obstacles */
       nrig, /* rigid */
@@ -250,7 +250,6 @@ struct domain
 #if MPI
   int rank; /* communicator rank */
   int ncpu; /* cummunicator size */
-  MAP *allbodies; /* all created bodies mapped by ids (minimises load balancing communication) */
   SET *children; /* current children */
   struct Zoltan_Struct *zol; /* load balancing */
   double imbalance_tolerance; /* imbalance threshold */
@@ -264,6 +263,7 @@ struct domain
   int nstats; /* statistics count */
   DBD *dbd; /* load balancing send sets */
   SET *pending; /* pending constraints to be inserted in parallel */
+  SET *sparebid; /* deleted body ids */
 #endif
 
   DOM *prev, *next; /* list */

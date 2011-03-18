@@ -119,6 +119,7 @@ typedef enum
   BODY_PARENT              = 0x02, /* a parent body */
   BODY_CHILD               = 0x04, /* a child body */
   BODY_CHILD_UPDATED       = 0x08, /* an updated child */
+  BODY_ABSENT              = 0x10  /* body whose state was not read */
 } BODY_FLAGS;
 
 /* flags that are migrated with bodies (the rest is filtered out) */
