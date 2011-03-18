@@ -43,6 +43,7 @@ SET_VELOCITY (bod, p1, (-1, 0, 0), 0.0001)
 SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 1, 'TENSILE', 10, 1)
 
 GRAVITY (solfec, (0, 0, -1000))
+OUTPUT (solfec, 2 * step)
 RUN (solfec, sv, stop)
 
 if solfec.mode == 'READ':

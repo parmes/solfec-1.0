@@ -1827,10 +1827,13 @@ static void domain_balancing (DOM *dom)
   {
     if ((bod = MAP_Find (dom->allbodies, item->data, NULL)))
     {
-      DOM_Remove_Body (dom, bod);
+      DOM_Remove_Body (dom, bod); /* loop over 'sparebid' => look there (***) */
       BODY_Destroy (bod);
     }
   }
+
+  /* empty deleted body ids set */
+  SET_Free (&dom->setmem, &dom->sparebid);
 
 #if DEBUG
   for (con = dom->con; con; con = con->next)
@@ -2210,7 +2213,7 @@ void update_external_RUV (DOM *dom)
 /* create MPI related data */
 static void create_mpi (DOM *dom)
 {
-  dom->allbodies = NULL;
+  dom->sparebid = NULL;
 
   dom->children = NULL;
 
@@ -2274,13 +2277,6 @@ static void create_mpi (DOM *dom)
 /* destroy MPI related data */
 static void destroy_mpi (DOM *dom)
 {
-  MAP *item;
-
-  for (item = MAP_First (dom->allbodies); item; item = MAP_Next (item))
-  {
-    BODY_Destroy (item->data);
-  }
-
   free (dom->dbd);
 
   stats_destroy (dom);
@@ -2323,14 +2319,14 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   MEM_Init (&dom->setmem, sizeof (SET), SETBLK);
   MEM_Init (&dom->sgpmem, sizeof (SGP), CONBLK);
   MEM_Init (&dom->excmem, sizeof (int [2]), SETBLK);
-  dom->sparebid = NULL;
   dom->bid = 1;
   dom->lab = NULL;
   dom->idb = NULL;
   dom->bod = NULL;
   dom->nbod = 0;
-  dom->delb = NULL;
   dom->newb = NULL;
+  dom->allbodies = NULL;
+  dom->allbodiesread = 0;
   dom->sparecid = NULL;
   dom->excluded = NULL;
   dom->cid = 1;
@@ -2366,14 +2362,8 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 /* insert a body into the domain */
 void DOM_Insert_Body (DOM *dom, BODY *bod)
 {
-  /* if there is a spare id */
-  if (SET_Size (dom->sparebid)) 
-  {
-    SET *item = SET_First (dom->sparebid);
-    bod->id = (unsigned int) (long) item->data; /* use it */
-    SET_Delete (&dom->setmem, &dom->sparebid, item->data, NULL); /* no more spare */
-  }
-  else bod->id = dom->bid ++; /* or use a next id */
+  /* take next id */
+  bod->id = dom->bid ++; 
 
   /* make sure we do not run out of ids */
   ASSERT (dom->bid < UINT_MAX, ERR_DOM_TOO_MANY_BODIES);
@@ -2381,10 +2371,10 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   /* assign domain */
   bod->dom = dom;
 
-#if MPI
   /* insert into the set of all created bodies */
   MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
 
+#if MPI
   /* insert every 'rank' body into this domain */
   if (bod->id % (unsigned) dom->ncpu == (unsigned) dom->rank)
   {
@@ -2470,8 +2460,6 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
     }
     dom->dofs -= bod->dofs;
 
-    /* schedule deletion mark in the output */
-    if (dom->time > 0) SET_Insert (&dom->setmem, &dom->delb, (void*) (long) bod->id, NULL);
 #if MPI
   }
 
@@ -2481,12 +2469,12 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   /* free children set */
   SET_Free (&dom->setmem, &bod->children);
 
-  /* delete from the set of all created bodies */
-  MAP_Delete (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, NULL);
+  /* free body id => union of spare ids from all ranks is created during balancing */
+  SET_Insert (&dom->setmem, &dom->sparebid, (void*) (long) bod->id, NULL); /* when called from (***) this will do nothing */
 #endif
 
-  /* free body id => union of spare ids from all ranks is created during balancing */
-  SET_Insert (&dom->setmem, &dom->sparebid, (void*) (long) bod->id, NULL);
+  /* delete from the set of all created bodies */
+  MAP_Delete (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, NULL);
 }
 
 /* find labeled body */
@@ -3139,18 +3127,16 @@ void DOM_Exclude_Contact (DOM *dom, int surf1, int surf2)
 void DOM_Destroy (DOM *dom)
 {
   CON *con;
+  MAP *item;
  
 #if MPI
   destroy_mpi (dom);
-#else
-  BODY *bod, *next;
-
-  for (bod = dom->bod; bod; bod = next)
-  {
-    next = bod->next;
-    BODY_Destroy (bod);
-  }
 #endif
+
+  for (item = MAP_First (dom->allbodies); item; item = MAP_Next (item))
+  {
+    BODY_Destroy (item->data);
+  }
 
   for (con = dom->con; con; con = con->next)
   {

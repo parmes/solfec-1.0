@@ -37,7 +37,7 @@
 #include "tmr.h"
 #include "mrf.h"
 
-/* ============================= INPUT-OUTPUT VERSIOB ============================ */
+/* ============================= INPUT-OUTPUT VERSION ============================ */
 /* === Version increments require precise records of causes and affected files === */
 /* =============================================================================== */
 /* 1                         an initial input-output version (dio.c, sol.c, bod.c) */
@@ -964,7 +964,7 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
     {
       if (dodel) printf ("\b\b\b\b");
       int progress = (int) (100. * ((sol->dom->time - t0) / (t1 - t0)));
-      printf ("%3d%%", progress); dodel = 1;
+      printf ("%3d%%", progress); dodel = 1; fflush (stdout);
     }
   }
   while (sol->dom->time < t1);

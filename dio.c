@@ -122,41 +122,11 @@ void dom_write_state (DOM *dom, PBF *bf)
 
   PBF_Double (bf, &dom->merit, 1);
 
-  /* write constraints */
-
-  PBF_Label (bf, "CONS");
- 
-  PBF_Int (bf, &dom->ncon, 1);
-
-  for (CON *con = dom->con; con; con = con->next)
-  {
-    write_constraint (con, bf);
-  }
-
-  /* write ids of bodies that have been deleted and empty the deleted bodies ids set */
-
-  unsigned int id;
-  SET *item;
-  int size;
-
-  PBF_Label (bf, "DELBODS");
-
-  size = SET_Size (dom->delb);
-
-  PBF_Int (bf, &size, 1);
-
-  for (item = SET_First (dom->delb); item; item = SET_Next (item))
-  {
-    id = (int) (long) item->data;
-    PBF_Uint (bf, &id, 1);
-  }
-
-  SET_Free (&dom->setmem, &dom->delb);
-
   /* write complete data of newly created bodies and empty the newly created bodies set */
 
-  int dsize = 0, doubles;
+  int dsize = 0, doubles, size;
   double *d = NULL;
+  SET *item;
 
   int isize = 0, ints, *i = NULL;
 
@@ -198,11 +168,79 @@ void dom_write_state (DOM *dom, PBF *bf)
 
     BODY_Write_State (bod, bf);
   }
+
+  /* write constraints */
+
+  PBF_Label (bf, "CONS");
+ 
+  PBF_Int (bf, &dom->ncon, 1);
+
+  for (CON *con = dom->con; con; con = con->next)
+  {
+    write_constraint (con, bf);
+  }
+}
+
+/* read all bodies from t = t_begin to t = t_end */
+static void readallbodies (DOM *dom, PBF *bf)
+{
+  double t, time, start, end;
+  int dpos, doubles, size, n;
+  int ipos, ints, *i = NULL;
+  double *d = NULL;
+  int dodel = 0;
+  BODY *bod;
+
+  PBF_Time (bf, &time);
+  PBF_Limits (bf, &start, &end);
+  PBF_Seek (bf, start);
+
+  printf ("Reading and creacting all bodies ... ");
+
+  do
+  {
+    PBF_Time (bf, &t);
+
+    ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
+
+    PBF_Int (bf, &size, 1);
+
+    for (n = 0; n < size; n ++)
+    {
+      PBF_Int (bf, &doubles, 1);
+      ERRMEM (d  = realloc (d, doubles * sizeof (double)));
+      PBF_Double (bf, d, doubles);
+
+      PBF_Int (bf, &ints, 1);
+      ERRMEM (i  = realloc (i, ints * sizeof (int)));
+      PBF_Int (bf, i, ints);
+
+      dpos = ipos = 0;
+
+      bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
+
+      MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+    }
+
+    if (dodel) printf ("\b\b\b\b");
+    int progress = (int) (100. * ((t - start) / (end - start)));
+    printf ("%3d%%", progress); dodel = 1; fflush (stdout);
+
+  } while (PBF_Forward (bf, 1));
+
+  printf ("\n");
+
+  free (d);
+  free (i);
+
+  PBF_Seek (bf, time);
+  dom->allbodiesread = 1;
 }
 
 /* read uncompressed domain state */
 void dom_read_state (DOM *dom, PBF *bf)
 {
+  BODY *bod, *next;
   int iover, ncon;
 
   /* input version */
@@ -213,6 +251,12 @@ void dom_read_state (DOM *dom, PBF *bf)
   MEM_Release (&dom->conmem);
   dom->con = NULL;
   dom->ncon = 0;
+
+  /* read all bodies if needed */
+  if (!dom->allbodiesread) readallbodies (dom, bf);
+
+  /* mark all bodies as absent */
+  for (bod = dom->bod; bod; bod = bod->next) bod->flags |= BODY_ABSENT;
 
   for (; bf; bf = bf->next)
   {
@@ -230,7 +274,39 @@ void dom_read_state (DOM *dom, PBF *bf)
 
       PBF_Double (bf, &dom->merit, 1);
 
-      /* read contacts */
+      /* read body states */
+
+      ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
+
+      int nbod;
+
+      PBF_Int (bf, &nbod, 1);
+
+      for (int n = 0; n < nbod; n ++)
+      {
+	unsigned int id;
+
+	PBF_Uint (bf, &id, 1);
+	bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
+
+	if (bod == NULL) /* pick from all bodies set */
+	{
+	  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Body id invalid");
+
+	  if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
+	  MAP_Insert (&dom->mapmem, &dom->idb, (void*) (long) bod->id, bod, NULL);
+	  bod->next = dom->bod;
+	  if (dom->bod) dom->bod->prev = bod;
+	  dom->bod = bod;
+	  bod->dom = dom;
+	  dom->nbod ++;
+	}
+
+	BODY_Read_State (bod, bf);
+	bod->flags &= ~BODY_ABSENT;
+      }
+
+      /* read constraints */
 
       ASSERT (PBF_Label (bf, "CONS"), ERR_FILE_FORMAT);
     
@@ -248,93 +324,27 @@ void dom_read_state (DOM *dom, PBF *bf)
       }
 
       dom->ncon += ncon;
-
-      /* read ids of bodies that need to be deleted and remove them from all containers */
-
-      unsigned int id;
-      int size, n;
-
-      ASSERT (PBF_Label (bf, "DELBODS"), ERR_FILE_FORMAT);
-
-      PBF_Int (bf, &size, 1);
-
-      for (n = 0; n < size; n ++)
-      {
-	BODY *bod;
-
-	PBF_Uint (bf, &id, 1);
-
-	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id");
-
-	if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
-	MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) id, NULL);
-	if (bod->next) bod->next->prev = bod->prev;
-	if (bod->prev) bod->prev->next = bod->next;
-	else dom->bod = bod->next;
-	dom->nbod --;
-	BODY_Destroy (bod);
-      }
-
-      /* read complete data of newly created bodies and insert them into all containers */
-
-      int dpos, doubles;
-      double *d = NULL;
-
-      int ipos, ints, *i = NULL;
-
-      ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
-
-      PBF_Int (bf, &size, 1);
-
-      for (n = 0; n < size; n ++)
-      {
-	BODY *bod;
-
-	PBF_Int (bf, &doubles, 1);
-	ERRMEM (d  = realloc (d, doubles * sizeof (double)));
-	PBF_Double (bf, d, doubles);
-
-	PBF_Int (bf, &ints, 1);
-	ERRMEM (i  = realloc (i, ints * sizeof (int)));
-	PBF_Int (bf, i, ints);
-
-	dpos = ipos = 0;
-
-	bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
-
-	if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
-	MAP_Insert (&dom->mapmem, &dom->idb, (void*) (long) bod->id, bod, NULL);
-	bod->next = dom->bod;
-	if (dom->bod) dom->bod->prev = bod;
-	dom->bod = bod;
-	bod->dom = dom;
-	dom->nbod ++;
-      }
-
-      free (d);
-      free (i);
-
-      /* read regular bodies */
-
-      ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
-
-      int nbod;
-
-      PBF_Int (bf, &nbod, 1);
-
-      for (int n = 0; n < nbod; n ++)
-      {
-	unsigned int id;
-	BODY *bod;
-
-	PBF_Uint (bf, &id, 1);
-	ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Body id invalid");
-	BODY_Read_State (bod, bf);
-      }
     }
   }
 
-  dom_attach_constraints (dom); /* attach constraints to bodies */
+  /* remove absent bodies */
+  for (bod = dom->bod; bod; bod = next)
+  {
+    next = bod->next;
+
+    if (bod->flags & BODY_ABSENT)
+    {
+      if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
+      MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) bod->id, NULL);
+      if (bod->next) bod->next->prev = bod->prev;
+      if (bod->prev) bod->prev->next = bod->next;
+      else dom->bod = bod->next;
+      dom->nbod --;
+    }
+  }
+
+  /* attach constraints to bodies */
+  dom_attach_constraints (dom);
 }
 
 /* read uncompressed state of an individual body */
