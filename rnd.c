@@ -2578,7 +2578,11 @@ static void seek_to_time (char *text)
     if (t < s) t = s;
     if (t > e) t = e;
 
+    int nbod = domain->nbod;
+
     SOLFEC_Seek_To (solfec, t);
+
+    if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
 
     update ();
   }
