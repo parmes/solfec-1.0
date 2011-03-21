@@ -38,8 +38,8 @@ box = HEX ([0, 0, 0,
 bod = BODY (solfec, 'PSEUDO_RIGID', box, bulkmat)
 p0 = TRANSLATE (bod.center, (c/2.0, 0, 0))
 p1 = TRANSLATE (bod.center, (-c/2.0, 0, 0))
-SET_VELOCITY (bod, p0, (1, 0, 0), 0.0001)
-SET_VELOCITY (bod, p1, (-1, 0, 0), 0.0001)
+SET_VELOCITY (bod, p0, (1, 0, 0), 0.000001)
+SET_VELOCITY (bod, p1, (-1, 0, 0), 0.000001)
 SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 1, 'TENSILE', 10, 1)
 
 GRAVITY (solfec, (0, 0, -1000))
