@@ -26,10 +26,10 @@
 #include "err.h"
 
 /* pseudo-rigid body cracking */
-static void prb_crack (BODY *bod, BODY **one, BODY **two)
+static CRACK* prb_crack (BODY *bod, BODY **one, BODY **two)
 {
   double values [6], cauchy [9], pnt [3], vec [3], tension;
-  CRACK *cra, *crb, *c;
+  CRACK *cra;
 
   *one = *two = NULL;
 
@@ -53,41 +53,75 @@ static void prb_crack (BODY *bod, BODY **one, BODY **two)
       BODY_Cur_Vector (bod, NULL, cra->point, cra->normal, vec);
       BODY_Cur_Point (bod, NULL, NULL, cra->point, pnt);
       BODY_Split (bod, pnt, vec, cra->surfid, one, two);
+
+      /* TODO: energy decrease in the parts */
+
       break;
     }
   }
 
-  crb = cra;
-
-  if (crb && *one && *two)
-  {
-    for (cra = bod->cra; cra; cra = cra->next)
-    {
-      if (cra == crb) continue;
-
-      c = CRACK_Create();
-      *c = *cra; /* XXX: maintain correctnes when CRACK stores more data */
-      c->next = (*one)->cra;
-      (*one)->cra = c;
-
-      c = CRACK_Create();
-      *c = *cra; /* XXX: maintain correctnes when CRACK stores more data */
-      c->next = (*two)->cra;
-      (*two)->cra = c;
-    }
-  }
+  return cra;
 }
 
 /* finite element body cracking */
-static void fem_crack (BODY *bod, BODY **one, BODY **two)
+static CRACK* fem_crack (BODY *bod, BODY **one, BODY **two)
 {
   /* TODO */
+
+  return NULL;
 }
 
-/* map contraints to new bodies */
-static void map_constraints  (DOM *dom, BODY *bod, BODY *one, BODY *two)
+/* remap contraints to new bodies */
+static void remap_constraints (DOM *dom, BODY *bod, CRACK *cra, BODY *one, BODY *two)
 {
-  /* TODO */
+  SET *item, *con1, *con2;
+  double a [3], d;
+  CON *con;
+
+  for (con1 = con2 = NULL, item = SET_First (bod->con); item; item = SET_Next (item))
+  {
+    con = item->data;
+    if (con->kind == RIGLNK)
+    {
+      if (bod == con->master)
+      {
+	SUB (con->point, cra->point, a);
+      }
+      else
+      {
+	double s [3], *z = RIGLNK_VEC (con->Z);
+	SUB (con->point, z, s);
+	SUB (s, cra->point, a);
+      }
+    }
+    else
+    {
+      SUB (con->point, cra->point, a);
+    }
+
+    d = DOT (cra->normal, a);
+    if (d <= 0.0) SET_Insert (NULL, &con1, con, NULL);
+    else SET_Insert (NULL, &con2, con, NULL);
+  }
+
+  for (item = SET_First (con1); item; item = SET_Next (item))
+  {
+    DOM_Transfer_Constraint (dom, con, bod, one);
+  }
+
+  for (item = SET_First (con2); item; item = SET_Next (item))
+  {
+    DOM_Transfer_Constraint (dom, con, bod, two);
+  }
+
+  SET_Free (NULL, &con1);
+  SET_Free (NULL, &con2);
+}
+
+/* copy crack data */
+static void copy_crack (CRACK *src, CRACK *dst)
+{
+  *dst = *src; /* XXX: maintain correctnes when CRACK stores more data */
 }
 
 /* create crack object */
@@ -118,19 +152,39 @@ void CRACK_Destroy_List (CRACK *cra)
 void Propagate_Cracks (DOM *dom)
 {
   BODY *bod, *one, *two, *next;
+  CRACK *cra, *crb, *c;
 
   for (bod = dom->bod; bod; bod = next)
   {
     next = bod->next;
     one = two = NULL;
+    cra = NULL;
 
     if (bod->cra)
     {
       switch (bod->kind)
       {
-      case PRB: prb_crack (bod, &one, &two); break;
-      case FEM: fem_crack (bod, &one, &two); break;
+      case PRB: cra = prb_crack (bod, &one, &two); break;
+      case FEM: cra = fem_crack (bod, &one, &two); break;
       default: break;
+      }
+    }
+
+    if (cra && one && two)
+    {
+      for (crb = bod->cra; crb; crb = crb->next)
+      {
+	if (crb == cra) continue;
+
+	c = CRACK_Create();
+	copy_crack (crb, c);
+	c->next = one->cra;
+	one->cra = c;
+
+	c = CRACK_Create();
+	copy_crack (crb, c);
+	c->next = two->cra;
+	two->cra = c;
       }
     }
 
@@ -147,10 +201,11 @@ void Propagate_Cracks (DOM *dom)
 	BODY_Static_Init (two);
       }
 
-      map_constraints (dom, bod, one, two);
+      remap_constraints (dom, bod, cra, one, two);
       DOM_Remove_Body (dom, bod);
       DOM_Insert_Body (dom, one);
       DOM_Insert_Body (dom, two);
+      CRACK_Destroy (cra);
       BODY_Destroy (bod);
     }
     else

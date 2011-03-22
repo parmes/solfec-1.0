@@ -313,6 +313,9 @@ CON* DOM_Glue_Nodes (DOM *dom, BODY *master, BODY *slave, int mnode, int snode);
 /* remove a constraint from the domain (destroy it) */
 void DOM_Remove_Constraint (DOM *dom, CON *con);
 
+/* transfer constraint from the source to the destination body */
+void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst);
+
 /* set simulation scene extents */
 void DOM_Extents (DOM *dom, double *extents);
 
