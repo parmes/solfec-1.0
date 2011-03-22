@@ -884,8 +884,8 @@ static void test_volume_integral (MESH *msh, double ref_volume, int body_id)
 
   WARNING (fabs (volume - ref_volume) < CUT_TOL * ref_volume,
     "FEM BODY %d:\nShape volume is %g.\nIntegrated volume is %g.\n"
-    "Error %g is beyound tolerance of %g.\n"
-    "This issue occures when you backgrand hexahedrons are not rectilinear.\n"
+    "Error %g is beyond the tolerance of %g.\n"
+    "This issue occurs when your background hexahedrons are not rectilinear.\n"
     "Refine the background mesh or make it rectilinear. Alternately, use a tetrahedral background mesh.\n",
     body_id, ref_volume, volume, fabs (ref_volume - volume) / ref_volume, CUT_TOL);
 }

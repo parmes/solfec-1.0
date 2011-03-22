@@ -2705,6 +2705,14 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 #endif
 }
 
+/* transfer constraint from the source to the destination body */
+void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
+{
+  /* TODO: remap local dynamics */
+  /* TODO: remap gobj pointers */
+  /* TODO: etc. */
+}
+
 /* set simulation scene extents */
 void DOM_Extents (DOM *dom, double *extents)
 {
