@@ -60,6 +60,9 @@ SHAPE* SHAPE_Create (short kind, void *data);
 /* create shape geometric object pairs */
 SGP* SGP_Create (SHAPE *shp, int *nsgp);
 
+/* copy shape */
+SHAPE* SHAPE_Copy (SHAPE *shp);
+
 /* glue two shape lists (gluing together basic shapes) */
 SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq);
 
@@ -104,6 +107,9 @@ void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out);
 
 /* return an index of object containing spatial point (or -1 on failure) */
 int SHAPE_Sgp (SGP *sgp, int nsgp, double *point);
+
+/* return an index of object closest to the spatial point (output distance in 'd' if not NULL) */
+int SHAPE_Closest_Sgp (SGP *sgp, int nsgp, double *point, double *d);
 
 /* update current shape with given motion */
 void SHAPE_Update (SHAPE *shp, void *body, MOTION motion);

@@ -1069,6 +1069,14 @@ int CONVEX_Contains_Point (void *dummy, CONVEX *cvx, double *point)
   return point_inside (cvx->nfac, cvx->pla, point);
 }
 
+/* return distance of a spatial point to the convex */
+double CONVEX_Spatial_Point_Distance (void *dummy, CONVEX *cvx, double *point)
+{
+  double q [3];
+
+  return gjk_convex_point (cvx->cur, cvx->nver, point, q);
+}
+
 /* update convex list according to the given motion */
 void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion)
 {
@@ -1078,7 +1086,7 @@ void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion)
 
   for (; cvx; cvx = cvx->next)
   {	
-    if (cvx->epn) /* use fast update for FEM bodies with rough mesh */
+    if (cvx->epn && motion) /* use fast update for FEM bodies with rough mesh */
     {
       for (epn = cvx->epn, ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; epn ++, ref += 3, cur += 3, n ++)
 	FEM_Cur_Point_Ext (body, epn->ele, ref, epn->pnt, cur);
@@ -1086,7 +1094,10 @@ void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion)
     else /* use regular update for other body types */
     {
       for (ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; ref += 3, cur += 3, n ++)
-	motion (body, shp, cvx, ref, cur); /* move current nodes */
+      {
+	if (motion) motion (body, shp, cvx, ref, cur); /* move current nodes */
+	else { COPY (ref, cur); } /* restore reference configuration */
+      }
     }
 
     /* calculate planes */

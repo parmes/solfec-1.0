@@ -38,7 +38,7 @@ inline static int point_inside (double *center, double radius, double *point)
   double v [3];
 
   SUB (point, center, v);
-  if (LEN (v) <= radius - GEOMETRIC_EPSILON) return 1;
+  if (LEN (v) <= radius + GEOMETRIC_EPSILON) return 1;
   else return 0;
 }
 
@@ -428,25 +428,41 @@ int SPHERE_Contains_Point (void *dummy, SPHERE *sph, double *point)
   return point_inside (sph->cur_center, sph->cur_radius, point);
 }
 
+/* return distance of a spatial point to the sphere */
+double SPHERE_Spatial_Point_Distance (void *dummy, SPHERE *sph, double *point)
+{
+  double v [3], d;
+
+  SUB (point, sph->cur_center, v);
+  d = LEN (v) - sph->cur_radius;
+  return MIN (0.0, d);
+}
+
 /* update sphere list according to the given motion */
 void SPHERE_Update (SPHERE *sph, void *body, void *shp, MOTION motion)
 {
   for (; sph; sph = sph->next)
   {
-    double pnew [3],
-	   dpnt [3],
-	   *ref = sph->ref_center,
+    double *ref = sph->ref_center,
 	   (*ref_pnt) [3] = sph->ref_points,
 	   *cur = sph->cur_center,
 	   (*cur_pnt) [3] = sph->cur_points;
 
-    motion (body, shp, sph, ref, pnew); /* move center */
-    SUB (pnew, cur, dpnt);
-    COPY (pnew, cur);
+    if (motion) motion (body, shp, sph, ref, cur); /* move center */
+    else { COPY (ref, cur); }
 
-    motion (body, shp, sph, ref_pnt [0], cur_pnt [0]); /* move marker points */
-    motion (body, shp, sph, ref_pnt [1], cur_pnt [1]);
-    motion (body, shp, sph, ref_pnt [2], cur_pnt [2]);
+    if (motion)
+    {
+      motion (body, shp, sph, ref_pnt [0], cur_pnt [0]); /* move marker points */
+      motion (body, shp, sph, ref_pnt [1], cur_pnt [1]);
+      motion (body, shp, sph, ref_pnt [2], cur_pnt [2]);
+    }
+    else
+    {
+      COPY (ref_pnt [0], cur_pnt [0]);
+      COPY (ref_pnt [1], cur_pnt [1]);
+      COPY (ref_pnt [2], cur_pnt [2]);
+    }
   }
 }
 

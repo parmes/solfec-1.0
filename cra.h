@@ -24,6 +24,8 @@
 typedef struct domain DOM;
 #endif
 
+#include "cvx.h" /* ELEPNT */
+
 #ifndef __cra__
 #define __cra__
 
@@ -36,10 +38,13 @@ struct crack
 
   enum {TENSILE} crit;
 
-  int surfid;
+  int surfid,
+      nepn;
 
   double ft,
 	 Gf;
+
+  ELEPNT *epn; /* for cuts through FEM meshes */
 
   CRACK *next;
 };

@@ -266,7 +266,7 @@ double BODY_Kinetic_Energy (BODY *bod);
 /* get some values at a referential point */
 void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values);
 
-/* split body by plane; output two bodies with inherited state of the input body */
+/* split body by referential plane; output two bodies with inherited state of the input body */
 void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one, BODY **two);
 
 /* write body state */
