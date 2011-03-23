@@ -392,6 +392,36 @@ static int element_has_edge (ELEMENT *ele, int nod1, int nod2)
 }
 #endif
 
+/* compute element extents */
+inline static void element_extents (MESH *msh, ELEMENT *ele, int ref, double *extents)
+{
+  double nodes [8][3];
+  int n;
+
+  extents [0] = extents [1] = extents [2] =  DBL_MAX;
+  extents [3] = extents [4] = extents [5] = -DBL_MAX;
+  
+  load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
+
+  for (n = 0; n < ele->type; n ++)
+  {
+    if (nodes [n][0] < extents [0]) extents [0] = nodes [n][0];
+    if (nodes [n][1] < extents [1]) extents [1] = nodes [n][1];
+    if (nodes [n][2] < extents [2]) extents [2] = nodes [n][2];
+    if (nodes [n][0] > extents [3]) extents [3] = nodes [n][0];
+    if (nodes [n][1] > extents [4]) extents [4] = nodes [n][1];
+    if (nodes [n][2] > extents [5]) extents [5] = nodes [n][2];
+  }
+
+  extents [0] -= GEOMETRIC_EPSILON;
+  extents [1] -= GEOMETRIC_EPSILON;
+  extents [2] -= GEOMETRIC_EPSILON;
+  extents [3] += GEOMETRIC_EPSILON;
+  extents [4] += GEOMETRIC_EPSILON;
+  extents [5] += GEOMETRIC_EPSILON;
+}
+
+
 /* check if element has nodes */
 static int element_has_nodes (ELEMENT *ele, int n, int *nodes)
 {
@@ -1284,6 +1314,24 @@ TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m)
   return out;
 }
 
+/* as above but this time the plane and the cut are in the reference configuration */
+TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m)
+{
+  TRI *out, *t, *e;
+  CONVEX *cvx, *q;
+
+  cvx = MESH_Convex (msh, 1);
+  out = CONVEX_Cut (cvx, point, normal, m);
+  for (t = out, e = t + (*m); t != e; t ++)
+  {
+    q = (CONVEX*) t->adj [0];
+    t->adj [0] = (TRI*) q->ele [0]; /* see (&&&) */
+  }
+  CONVEX_Destroy (cvx);
+
+  return out;
+}
+
 /* split mesh in two with plane defined by (point, normal); output meshes are tetrahedral */
 void MESH_Split (MESH *msh, double *point, double *normal, int surfid, MESH **one, MESH **two)
 {
@@ -1380,7 +1428,7 @@ void MESH_Char (MESH *msh, double *volume, double *center, double *euler)
   if (euler) NNCOPY (eul, euler);
 }
 
-/* find an element containing the point */
+/* find an element containing a spatial or referential point */
 ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref)
 {
   /* XXX:
@@ -1403,6 +1451,12 @@ ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref)
   }
 
   return NULL;
+}
+
+/* find an element containing a spatial point */
+ELEMENT* MESH_Element_Containing_Spatial_Point (MESH *msh, double *point)
+{
+  return MESH_Element_Containing_Point (msh, point, 0);
 }
 
 /* find an element with a given node */
@@ -1472,6 +1526,13 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
     for (n = 0; n < m; n ++)
       motion (body, shp, NULL, ref [n], cur [n]); /* move current nodes (NULL for gobj implies nodal update) */
   }
+  else /* restore reference configuration */
+  {
+    for (n = 0; n < m; n ++)
+    {
+      COPY (ref [n], cur [n]);
+    }
+  }
 
   for (ele = msh->surfeles; ele; ele = ele->next)
     for (fac = ele->faces; fac; fac = fac->next)
@@ -1482,9 +1543,10 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
 }
 
 /* convert mesh into a list of convices;
- * surfonly > 0 => use only surface elements;
+ * ref > 0 => create referential mesh image;
+ * otherwise => create current mesh image;
  * CONVEX->ele[0] == corresponding element */
-CONVEX* MESH_Convex (MESH *msh, int surfonly)
+CONVEX* MESH_Convex (MESH *msh, int ref)
 {
   int fac [30], surfaces [6] = {INT_MAX, INT_MAX,
     INT_MAX, INT_MAX, INT_MAX, INT_MAX}, nfac, *f, n;
@@ -1495,7 +1557,7 @@ CONVEX* MESH_Convex (MESH *msh, int surfonly)
   cvx = NULL;
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
-    load_nodes (msh->cur_nodes, ele->type, ele->nodes, nodes);
+    load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
     nfac = neighs (ele->type); /* number of faces */
     for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
     for (FACE *fac = ele->faces; fac; fac = fac->next) surfaces [fac->index] = fac->surface; /* set surface identifiers */
@@ -1504,19 +1566,16 @@ CONVEX* MESH_Convex (MESH *msh, int surfonly)
     cvx->ele [0] = ele; /* store the corresponding element */ /* (&&&) */
     cvx->nele = 1;
   }
-  if (!surfonly) /* include bulk elements */
+  for (ele = msh->bulkeles; ele; ele = ele->next)
   {
-    for (ele = msh->bulkeles; ele; ele = ele->next)
-    {
-      load_nodes (msh->cur_nodes, ele->type, ele->nodes, nodes);
-      nfac = neighs (ele->type); /* number of faces */
-      for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
-      for (FACE *fac = ele->faces; fac; fac = fac->next) surfaces [fac->index] = fac->surface; /* set surface identifiers */
-      cvx = CONVEX_Create (cvx, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
-      ERRMEM (cvx->ele = malloc (sizeof (ELEMENT*)));
-      cvx->ele [0] = ele; /* store the corresponding element */ /* (&&&) */
-      cvx->nele = 1;
-    }
+    load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
+    nfac = neighs (ele->type); /* number of faces */
+    for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
+    for (FACE *fac = ele->faces; fac; fac = fac->next) surfaces [fac->index] = fac->surface; /* set surface identifiers */
+    cvx = CONVEX_Create (cvx, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
+    ERRMEM (cvx->ele = malloc (sizeof (ELEMENT*)));
+    cvx->ele [0] = ele; /* store the corresponding element */ /* (&&&) */
+    cvx->nele = 1;
   }
 
   return cvx;
@@ -1533,7 +1592,7 @@ void MESH_Extents (MESH *msh, double *extents)
     
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
-    ELEMENT_Extents (msh, ele, e);
+    element_extents (msh, ele, 0, e);
 
     if (e [0] < extents [0]) extents [0] = e [0];
     if (e [1] < extents [1]) extents [1] = e [1];
@@ -1994,12 +2053,24 @@ void MESH_Destroy (MESH *msh)
   free (msh);
 }
 
-/* does the element contain a spatial point? */
+/* does the element contain a spatial or referential point? */
 int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref)
 {
   double nodes [8][3], q [3], d;
 
   load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
+
+  d = gjk_convex_point ((double*)nodes, ele->type, point, q);
+
+  return d <= GEOMETRIC_EPSILON;
+}
+
+/* does the element contain a spatial point? */
+int ELEMENT_Contains_Spatial_Point (MESH *msh, ELEMENT *ele, double *point)
+{
+  double nodes [8][3], q [3], d;
+
+  load_nodes (msh->cur_nodes, ele->type, ele->nodes, nodes);
 
   d = gjk_convex_point ((double*)nodes, ele->type, point, q);
 
@@ -2036,6 +2107,18 @@ double ELEMENT_Point_Distance (MESH *msh, ELEMENT *ele, double *point, int ref)
   return d;
 }
 
+/* return distance of a spatial point to the element */
+double ELEMENT_Spatial_Point_Distance (MESH *msh, ELEMENT *ele, double *point)
+{
+  double nodes [8][3], q [3], d;
+
+  load_nodes (msh->cur_nodes, ele->type, ele->nodes, nodes);
+
+  d = gjk_convex_point ((double*)nodes, ele->type, point, q);
+
+  return d;
+}
+
 /* test wether two elements are adjacent
  * through a common face, edge or vertex */
 int ELEMENT_Adjacent (ELEMENT *one, ELEMENT *two)
@@ -2053,33 +2136,17 @@ int ELEMENT_Adjacent (ELEMENT *one, ELEMENT *two)
   return 0;
 }
 
-/* update extents of an individual element */
+/* update spatial extents of an individual element */
 void ELEMENT_Extents (MESH *msh, ELEMENT *ele, double *extents)
 {
-  double nodes [8][3];
-  int n;
+  element_extents (msh, ele, 0, extents);
+}
 
-  extents [0] = extents [1] = extents [2] =  DBL_MAX;
-  extents [3] = extents [4] = extents [5] = -DBL_MAX;
-  
-  load_nodes (msh->cur_nodes, ele->type, ele->nodes, nodes);
 
-  for (n = 0; n < ele->type; n ++)
-  {
-    if (nodes [n][0] < extents [0]) extents [0] = nodes [n][0];
-    if (nodes [n][1] < extents [1]) extents [1] = nodes [n][1];
-    if (nodes [n][2] < extents [2]) extents [2] = nodes [n][2];
-    if (nodes [n][0] > extents [3]) extents [3] = nodes [n][0];
-    if (nodes [n][1] > extents [4]) extents [4] = nodes [n][1];
-    if (nodes [n][2] > extents [5]) extents [5] = nodes [n][2];
-  }
-
-  extents [0] -= GEOMETRIC_EPSILON;
-  extents [1] -= GEOMETRIC_EPSILON;
-  extents [2] -= GEOMETRIC_EPSILON;
-  extents [3] += GEOMETRIC_EPSILON;
-  extents [4] += GEOMETRIC_EPSILON;
-  extents [5] += GEOMETRIC_EPSILON;
+/* update referential extents of an individual element */
+void ELEMENT_Ref_Extents (MESH *msh, ELEMENT *ele, double *extents)
+{
+  element_extents (msh, ele, 1, extents);
 }
 
 /* copy element vertices into 'ver' and return their count */

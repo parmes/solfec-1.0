@@ -2505,36 +2505,33 @@ static void overlap (void *data, BOX *one, BOX *two)
 static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, double *u2)
 {
   double shapes [MAX_NODES], val [MAX_NODES][3], point [3];
-  double extents [6], (* nod) [3], (*ref) [3], (*end) [3];
+  double extents [6], (* nod) [3], (*end) [3];
   ELEMENT *ele;
   int i, n;
   KDT *kd;
 
   /* creake input mesh based kd-tree */
-  kd = KDT_Create (m1->nodes_count, (double*)m1->cur_nodes, 0.0);
+  kd = KDT_Create (m1->nodes_count, (double*)m1->ref_nodes, 0.0);
   for (ele = m1->surfeles; ele; ele = ele->next)
-  { ELEMENT_Extents (m1, ele, extents); KDT_Drop (kd, extents, ele); }
+  { ELEMENT_Ref_Extents (m1, ele, extents); KDT_Drop (kd, extents, ele); }
   for (ele = m1->bulkeles; ele; ele = ele->next)
-  { ELEMENT_Extents (m1, ele, extents); KDT_Drop (kd, extents, ele); }
+  { ELEMENT_Ref_Extents (m1, ele, extents); KDT_Drop (kd, extents, ele); }
 
   /* map m2 nodal values */
-  for (nod = m2->cur_nodes, ref = m2->ref_nodes, end = nod + m2->nodes_count; nod != end; nod ++, ref ++, q2 +=3, u2 += 3)
+  for (nod = m2->ref_nodes, end = nod + m2->nodes_count; nod != end; nod ++, q2 +=3, u2 += 3)
   {
     KDT *q = KDT_Pick (kd, nod [0]);
     ASSERT_DEBUG (q, "Inconsistent kd-tree query");
     ELEMENT **ptr = (ELEMENT**) q->data, **qtr = ptr + q->n;
     for (; ptr != qtr; ptr ++)
-      if (ELEMENT_Contains_Point (m1, *ptr, nod [0], 0)) break;
-    ASSERT_DEBUG (ptr != qtr, "Element containing a spatial point has not been found");
+      if (ELEMENT_Contains_Point (m1, *ptr, nod [0], 1)) break;
+    ASSERT_DEBUG (ptr != qtr, "Element containing a referential point has not been found");
 
-    spatial_to_local (m1, *ptr, nod [0], point);
+    referential_to_local (m1, *ptr, nod [0], point);
     n = element_shapes ((*ptr)->type, point, shapes);
 
     element_nodal_values (q1, *ptr, val);
     SET (q2, 0); for (i = 0; i < n; i ++) { ADDMUL (q2, shapes [i], val [i], q2); }
-
-    SUB (ref [0], q2, ref [0]); /* initially cur_nodes == ref_nodes in m2; this maps back the
-				   referential nodes in m2 to preserve the deformation state from m1 */
 
     element_nodal_values (u1, *ptr, val);
     SET (u2, 0); for (i = 0; i < n; i ++) { ADDMUL (u2, shapes [i], val [i], u2); }
@@ -2542,6 +2539,20 @@ static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, d
 
   /* clean up */
   KDT_Destroy (kd);
+}
+
+/* ================== Utilities ==================== */
+
+/* update background mesh nodes */
+static void update_background_mesh (BODY *bod)
+{
+  MESH *msh = bod->msh;
+  double (*cur) [3] = msh->cur_nodes,
+	 (*ref) [3] = msh->ref_nodes,
+	 (*end) [3] = ref + msh->nodes_count,
+	  *q = bod->conf;
+
+  for (; ref < end; cur ++, ref ++, q += 3) { ADD (ref[0], q, cur[0]); }
 }
 
 /* ================== INTERFACE ==================== */
@@ -2744,16 +2755,7 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   energy [EXTERNAL] += blas_ddot (n, dq, 1, fext, 1);
   energy [INTERNAL] += blas_ddot (n, dq, 1, fint, 1);
 
-  if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
-  {
-    MESH *msh = bod->msh;
-    double (*cur) [3] = msh->cur_nodes,
-	   (*ref) [3] = msh->ref_nodes,
-	   (*end) [3] = ref + msh->nodes_count,
-	    *q = bod->conf;
-
-    for (; ref < end; cur ++, ref ++, q += 3) { ADD (ref[0], q, cur[0]); }
-  }
+  if (bod->msh) update_background_mesh (bod); /* in such case SHAPE_Update will not update "rough" mesh */
 
   free (dq);
 }
@@ -2801,16 +2803,7 @@ void FEM_Static_Step_End (BODY *bod, double time, double step)
       break;
   }
 
-  if (bod->msh) /* in such case SHAPE_Update will not update "rough" mesh */
-  {
-    MESH *msh = bod->msh;
-    double (*cur) [3] = msh->cur_nodes,
-	   (*ref) [3] = msh->ref_nodes,
-	   (*end) [3] = ref + msh->nodes_count,
-	    *q = bod->conf;
-
-    for (; ref < end; cur ++, ref ++, q += 3) { ADD (ref[0], q, cur[0]); }
-  }
+  if (bod->msh) update_background_mesh (bod); /* in such case SHAPE_Update will not update "rough" mesh */
 }
 
 /* motion x = x (X, t) */
@@ -3168,16 +3161,25 @@ void FEM_Update_Rough_Mesh (BODY *bod)
   for (; ref < end; ref ++, cur ++, q += 3) { ADD (ref[0], q, cur[0]); }
 }
 
-/* split body by plane; output two bodies with inherited state of the input body */
+/* split body by referential plane; output two bodies with inherited state of the input body */
 void FEM_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one, BODY **two)
 {
-  SHAPE *sone, *stwo;
+  SHAPE *copy, *sone, *stwo;
   MESH *mone, *mtwo;
   char *label;
 
-  SHAPE_Split (bod->shape, point, normal, surfid, &sone, &stwo);
+  copy = SHAPE_Copy (bod->shape);
+  SHAPE_Update (copy, NULL, NULL); /* restore reference configuration */
+  SHAPE_Split (copy, point, normal, surfid, &sone, &stwo); /* split in reference configuration */
+  SHAPE_Destroy (copy);
 
-  if (bod->msh) MESH_Split (bod->msh, point, normal, surfid, &mone, &mtwo);
+  if (bod->msh)
+  {
+    MESH *copy = MESH_Copy (bod->msh);
+    MESH_Update (copy, NULL, NULL, NULL);
+    MESH_Split (copy, point, normal, surfid, &mone, &mtwo);
+    MESH_Destroy (copy);
+  }
   else
   {
     mone = NULL;
@@ -3193,6 +3195,8 @@ void FEM_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one
     if (bod->label) sprintf (label, "%s/1", bod->label);
     (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->form, mone);
     map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*one), (*one)->conf, (*one)->velo);
+    SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
+    if (mone) update_background_mesh (*one);
   }
 
   if (stwo)
@@ -3201,6 +3205,8 @@ void FEM_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one
     if (bod->label) sprintf (label, "%s/2", bod->label);
     (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->form, mtwo);
     map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*two), (*two)->conf, (*two)->velo);
+    SHAPE_Update ((*two)->shape, (*two), (MOTION)BODY_Cur_Point); 
+    if (mtwo) update_background_mesh (*two);
   }
 
   if (bod->label) free (label);

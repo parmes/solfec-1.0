@@ -30,6 +30,8 @@
 #include "pck.h"
 
 /* specific shape interface hooks */
+typedef void* (*copy_func) (void*);
+static copy_func copy [] = {(copy_func)MESH_Copy, (copy_func)CONVEX_Copy, (copy_func)SPHERE_Copy};
 typedef void (*adjup_func) (void*);
 static adjup_func adjup [] = {(adjup_func)MESH_Update_Adjacency, (adjup_func)CONVEX_Update_Adjacency, (adjup_func)SPHERE_Update_Adjacency};
 typedef void (*scale_func) (void*, double*);
@@ -43,9 +45,11 @@ static cut_func cut [] = {(cut_func)MESH_Cut, (cut_func)CONVEX_Cut, (cut_func)SP
 typedef void (*gcha_func) (void*, double*, double*, double*, double*, double*);
 static gcha_func gcha [] = {(gcha_func)MESH_Char_Partial, (gcha_func)CONVEX_Char_Partial, (gcha_func)SPHERE_Char_Partial};
 typedef void* (*gobj_func) (void*, double*);
-static gobj_func gobj [] = {(gobj_func)MESH_Element_Containing_Point, (gobj_func)CONVEX_Containing_Point, (gobj_func)SPHERE_Containing_Point};
+static gobj_func gobj [] = {(gobj_func)MESH_Element_Containing_Spatial_Point, (gobj_func)CONVEX_Containing_Point, (gobj_func)SPHERE_Containing_Point};
 typedef int (*gobjs_func) (void*, void*, double*);
-static gobjs_func gobjs [] = {(gobjs_func)ELEMENT_Contains_Point, (gobjs_func)CONVEX_Contains_Point, (gobjs_func)SPHERE_Contains_Point};
+static gobjs_func gobjs [] = {(gobjs_func)ELEMENT_Contains_Spatial_Point, (gobjs_func)CONVEX_Contains_Point, (gobjs_func)SPHERE_Contains_Point};
+typedef double (*gobjdst_func) (void*, void*, double*);
+static gobjdst_func gobjdst [] = {(gobjdst_func)ELEMENT_Spatial_Point_Distance, (gobjdst_func)CONVEX_Spatial_Point_Distance, (gobjdst_func)SPHERE_Spatial_Point_Distance};
 typedef void (*update_func) (void*, void*, void*, MOTION);
 static update_func update [] = {(update_func)MESH_Update, (update_func)CONVEX_Update, (update_func)SPHERE_Update};
 typedef void (*extents_func) (void*, double*);
@@ -148,6 +152,23 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp)
   }
 
   return sgp;
+}
+
+/* copy shape */
+SHAPE* SHAPE_Copy (SHAPE *shp)
+{
+  SHAPE *out, *q;
+  void *data;
+
+  for (out = NULL; shp; shp = shp->next)
+  {
+    data = copy [shp->kind] (shp->data);
+    q = SHAPE_Create (shp->kind, data);
+    q->next = out;
+    out = q;
+  }
+
+  return out;
 }
 
 /* glue two shape lists (gluing together basic shapes) */
@@ -481,6 +502,8 @@ void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out)
 {
   void *obj;
 
+  /* TODO: optimize by using a deformable spatial tree */
+
   for (obj = NULL; shp; shp = shp->next)
   {
     obj = gobj [shp->kind] (shp->data, point);
@@ -492,10 +515,6 @@ void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out)
     }
   }
 
-  /* TODO: optimize this search by building a spatial tree
-   * TODO: on the reference configuration and querying
-   * TODO: it with the pulled back input point */
-
   return obj;
 }
 
@@ -504,12 +523,38 @@ int SHAPE_Sgp (SGP *sgp, int nsgp, double *point)
 {
   int i;
 
+  /* TODO: optimize by using a deformable spatial tree */
+
   for (i = 0; i < nsgp; i ++, sgp ++)
   {
     if (gobjs [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point)) return i;
   }
 
   return -1;
+}
+
+/* return an index of object closest to the spatial point (output distance in 'd' if not NULL) */
+int SHAPE_Closest_Sgp (SGP *sgp, int nsgp, double *point, double *d)
+{
+  double dst, dstmin;
+  int i, j;
+
+  /* TODO: optimize by using a deformable spatial tree */
+
+  for (i = j = 0, dstmin = DBL_MAX; i < nsgp; i ++, sgp ++)
+  {
+    dst = gobjdst [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point);
+
+    if (dst < dstmin)
+    {
+      dstmin = dst;
+      j = i;
+    }
+  }
+
+  if (d) *d = dstmin;
+
+  return j;
 }
 
 /* update current shape with given motion */

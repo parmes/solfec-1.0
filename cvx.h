@@ -135,6 +135,9 @@ CONVEX* CONVEX_Containing_Point (CONVEX *cvx, double *point);
 /* does this convex (not a list) contain a spatial point? */
 int CONVEX_Contains_Point (void *dummy, CONVEX *cvx, double *point);
 
+/* return distance of a spatial point to the convex */
+double CONVEX_Spatial_Point_Distance (void *dummy, CONVEX *cvx, double *point);
+
 /* update convex list according to the given motion */
 void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion);
 

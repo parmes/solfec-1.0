@@ -853,18 +853,38 @@ static void compute_contacts_work (BODY *bod, double step)
   }
 }
 
-void overwrite_state (double *q, double *u, BODY *bod)
+void overwrite_state (BODY *src, BODY *dst)
 {
-  switch (bod->kind)
+  switch (src->kind)
   {
     case OBS: break;
     case RIG:
-      memcpy (bod->conf, q, sizeof (double [9]));
-      memcpy (bod->velo, u, sizeof (double [RIG_VELO_SIZE]));
+    {
+      double *cs = RIG_CENTER(src),
+             *cd = RIG_CENTER(dst),
+	     *Cs = BOD_X0(src),
+	     *Cd = BOD_X0(dst),
+	      A [3];
+
+      SUB (cs, Cs, A);
+      ADD (Cd, A, cd);
+      memcpy (dst->conf, src->conf, sizeof (double [9]));
+      memcpy (dst->velo, src->velo, sizeof (double [RIG_VELO_SIZE]));
+    }
     break;
     case PRB:
-      memcpy (bod->conf, q, sizeof (double [9]));
-      memcpy (bod->velo, u, sizeof (double [PRB_VELO_SIZE]));
+    {
+      double *cs = PRB_CENTER(src),
+             *cd = PRB_CENTER(dst),
+	     *Cs = BOD_X0(src),
+	     *Cd = BOD_X0(dst),
+	      A [3];
+
+      SUB (cs, Cs, A);
+      ADD (Cd, A, cd);
+      memcpy (dst->conf, src->conf, sizeof (double [9]));
+      memcpy (dst->velo, src->velo, sizeof (double [PRB_VELO_SIZE]));
+    }
     break;
     case FEM: break;
   }
@@ -1877,10 +1897,13 @@ void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **on
   case RIG:
   case PRB:
     {
-      SHAPE *sone, *stwo;
+      SHAPE *copy, *sone, *stwo;
       char *label;
 
-      SHAPE_Split (bod->shape, point, normal, surfid, &sone, &stwo);
+      copy = SHAPE_Copy (bod->shape);
+      SHAPE_Update (copy, NULL, NULL); /* restore reference configuration */
+      SHAPE_Split (copy, point, normal, surfid, &sone, &stwo); /* split in reference configuration */
+      SHAPE_Destroy (copy);
 
       if (bod->label) ERRMEM (label = malloc (strlen (bod->label) + 8));
       else label = NULL;
@@ -1889,14 +1912,16 @@ void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **on
       {
 	if (bod->label) sprintf (label, "%s/1", bod->label);
 	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, 0, NULL);
-	overwrite_state (bod->conf, bod->velo, *one);
+	overwrite_state (bod, *one);
+        SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
       }
 
       if (stwo)
       {
 	if (bod->label) sprintf (label, "%s/2", bod->label);
 	(*two) = BODY_Create (bod->kind, stwo, bod->mat, label, 0, NULL);
-	overwrite_state (bod->conf, bod->velo, *two);
+	overwrite_state (bod, *two);
+        SHAPE_Update ((*two)->shape, (*two), (MOTION)BODY_Cur_Point); 
       }
 
       if (bod->label) free (label);

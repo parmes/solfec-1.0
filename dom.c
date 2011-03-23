@@ -2708,9 +2708,42 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 /* transfer constraint from the source to the destination body */
 void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
 {
-  /* TODO: remap local dynamics */
-  /* TODO: remap gobj pointers */
-  /* TODO: etc. */
+  double point [3];
+  int n;
+
+  if (con->kind == RIGLNK && src == con->slave)
+  {
+    double *z = RIGLNK_VEC (con->Z);
+    SUB (con->point, z, point);
+  }
+  else
+  {
+    COPY (con->point, point);
+  }
+
+  n = SHAPE_Closest_Sgp (dst->sgp, dst->nsgp, point, NULL);
+
+  if (con->master == src)
+  {
+    con->msgp = &dst->sgp [n];
+    con->master = dst;
+  }
+  else
+  {
+    ASSERT_DEBUG (con->slave == src, "Inconsistent constraint structure: invalid slave pointer");
+    con->ssgp = &dst->sgp [n];
+    con->slave = dst;
+  }
+
+  if (con->dia) LOCDYN_Remove (dom->ldy, con->dia);
+
+  con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
+
+  SET_Delete (&dom->setmem, &src->con, con, CONCMP);
+
+  SET_Insert (&dom->setmem, &dst->con, con, CONCMP);
+
+  /* XXX: make sure that the above works fine in parallel */
 }
 
 /* set simulation scene extents */

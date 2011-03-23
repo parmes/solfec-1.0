@@ -130,6 +130,9 @@ void MESH_Rotate (MESH *msh, double *point, double *vector, double angle);
  * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
 TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m);
 
+/* as above but this time the plane and the cut are in the reference configuration */
+TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m);
+
 /* split mesh in two with plane defined by (point, normal); output meshes are tetrahedral */
 void MESH_Split (MESH *msh, double *point, double *normal, int surfid, MESH **one, MESH **two);
 
@@ -144,6 +147,9 @@ void MESH_Char (MESH *msh, double *volume, double *center, double *euler);
 /* find an element containing a spatial or referential point */
 ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref);
 
+/* find an element containing a spatial point */
+ELEMENT* MESH_Element_Containing_Spatial_Point (MESH *msh, double *point);
+
 /* find an element with a given node */
 ELEMENT* MESH_Element_With_Node (MESH *msh, int node);
 
@@ -154,9 +160,10 @@ void MESH_Elements_Around_Node (ELEMENT *ele, int node, SET **set);
 void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion);
 
 /* convert mesh into a list of convices;
- * surfonly > 0 => use only surface elements;
+ * ref > 0 => create referential mesh image;
+ * otherwise => create current mesh image;
  * CONVEX->ele[0] == corresponding element */
-CONVEX* MESH_Convex (MESH *msh, int surfonly);
+CONVEX* MESH_Convex (MESH *msh, int ref);
 
 /* compute extents of entire mesh */
 void MESH_Extents (MESH *msh, double *extents);
@@ -180,18 +187,27 @@ void MESH_Destroy (MESH *msh);
 /* does the element contain a spatial/referential point? */
 int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ret);
 
+/* does the element contain a spatial point? */
+int ELEMENT_Contains_Spatial_Point (MESH *msh, ELEMENT *ele, double *point);
+
 /* return >= node index if point == node[index] or -1 otherwise */
 int ELEMENT_Ref_Point_To_Node (MESH *msh, ELEMENT *ele, double *point);
 
 /* return distance of a spatial (ref == 0) or referential (ref == 1) point to the element */
 double ELEMENT_Point_Distance (MESH *msh, ELEMENT *ele, double *point, int ref);
 
+/* return distance of a spatial point to the element */
+double ELEMENT_Spatial_Point_Distance (MESH *msh, ELEMENT *ele, double *point);
+
 /* test wether two elements are adjacent
  * through a common face, edge or vertex */
 int ELEMENT_Adjacent (ELEMENT *one, ELEMENT *two);
 
-/* update extents of an individual element */
+/* update spatial extents of an individual element */
 void ELEMENT_Extents (MESH *msh, ELEMENT *ele, double *extents);
+
+/* update referential extents of an individual element */
+void ELEMENT_Ref_Extents (MESH *msh, ELEMENT *ele, double *extents);
 
 /* copy element vertices into 'ver' and return their count */
 int ELEMENT_Vertices (MESH *msh, ELEMENT *ele, double *ver);
