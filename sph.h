@@ -81,13 +81,13 @@ TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m);
  * the split lists elements need to be recomputed; surfid corresponds to the new surface */
 void SPHERE_Split (SPHERE *sph, double *point, double *normal, int surfid, SPHERE **one, SPHERE **two);
 
-/* compute current partial characteristic: 'vo'lume and static momenta
+/* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void SPHERE_Char_Partial (SPHERE *sph, double *vo, double *sx, double *sy, double *sz, double *eul);
+void SPHERE_Char_Partial (SPHERE *sph, int ref, double *vo, double *sx, double *sy, double *sz, double *eul);
 
-/* get 'cur' characteristics of the spheres in list:
+/* get characteristics of the spheres in list:
  * volume, mass center, and Euler tensor (centered) */
-void SPHERE_Char (SPHERE *sph, double *volume, double *center, double *euler);
+void SPHERE_Char (SPHERE *sph, int ref, double *volume, double *center, double *euler);
 
 /* update extents of an individual sphere */
 void SPHERE_Extents (void *data, SPHERE *sph, double *extents);

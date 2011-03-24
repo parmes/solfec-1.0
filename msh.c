@@ -1380,9 +1380,9 @@ void MESH_Split (MESH *msh, double *point, double *normal, int surfid, MESH **on
   }
 }
 
-/* compute current partial characteristic: 'vo'lume and static momenta
+/* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void MESH_Char_Partial (MESH *msh, double *vo, double *sx, double *sy, double *sz, double *eul)
+void MESH_Char_Partial (MESH *msh, int ref, double *vo, double *sx, double *sy, double *sz, double *eul)
 {
   ELEMENT *ele;
 
@@ -1391,15 +1391,15 @@ void MESH_Char_Partial (MESH *msh, double *vo, double *sx, double *sy, double *s
    * decrease contact detection effort) we now iterate over all elements */
 
   for (ele = msh->surfeles; ele; ele = ele->next)
-    ELEMENT_Char_Partial (msh, ele, vo, sx, sy, sz, eul);
+    ELEMENT_Char_Partial (msh, ele, ref, vo, sx, sy, sz, eul);
 
   for (ele = msh->bulkeles; ele; ele = ele->next)
-    ELEMENT_Char_Partial (msh, ele, vo, sx, sy, sz, eul);
+    ELEMENT_Char_Partial (msh, ele, ref, vo, sx, sy, sz, eul);
 }
 
-/* get 'cur' characteristics of the meshed shape:
+/* get characteristics of the meshed shape:
  * volume, mass center, and Euler tensor (centered) */
-void MESH_Char (MESH *msh, double *volume, double *center, double *euler)
+void MESH_Char (MESH *msh, int ref, double *volume, double *center, double *euler)
 {
   double vo, sx, sy, sz,
 	 cen [3], eul [9];
@@ -1407,7 +1407,7 @@ void MESH_Char (MESH *msh, double *volume, double *center, double *euler)
   vo = sx = sy = sz = 0.0;
   SET9 (eul, 0.0);
 
-  MESH_Char_Partial (msh, &vo, &sx, &sy, &sz, eul);
+  MESH_Char_Partial (msh, ref, &vo, &sx, &sy, &sz, eul);
 
   cen [0] = sx / vo;
   cen [1] = sy / vo;
@@ -2202,14 +2202,14 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
 }
 
 /* copy element into a convex */
-CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele)
+CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele, int ref)
 {
   int fac [30], surfaces [6] = {INT_MAX, INT_MAX,
     INT_MAX, INT_MAX, INT_MAX, INT_MAX}, nfac, *f, n;
   double nodes [8][3];
   CONVEX *cvx;
 
-  load_nodes (msh->cur_nodes, ele->type, ele->nodes, nodes);
+  load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
 
   nfac = neighs (ele->type); /* number of faces */
 
@@ -2237,14 +2237,14 @@ double ELEMENT_Volume (MESH *msh, ELEMENT *ele, int ref)
   return volume;
 }
 
-/* compute current partial characteristic of an element: 'vo'lume and static momenta
+/* compute partial characteristic of an element: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, double *vo, double *sx, double *sy, double *sz, double *eul)
+void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, int ref, double *vo, double *sx, double *sy, double *sz, double *eul)
 {
   CONVEX *cvx;
 
-  cvx = ELEMENT_Convex (msh, ele);
-  CONVEX_Char_Partial (cvx, vo, sx, sy, sz, eul);
+  cvx = ELEMENT_Convex (msh, ele, ref);
+  CONVEX_Char_Partial (cvx, 0, vo, sx, sy, sz, eul);
   CONVEX_Destroy (cvx);
 }
 

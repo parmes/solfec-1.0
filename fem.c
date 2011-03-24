@@ -2561,7 +2561,7 @@ static void update_background_mesh (BODY *bod)
 void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod)
 {
   /* compute shape characteristics */
-  SHAPE_Char (shp, &bod->ref_volume, bod->ref_center, bod->ref_tensor);
+  SHAPE_Char (shp, 1, &bod->ref_volume, bod->ref_center, bod->ref_tensor);
   bod->ref_mass = bod->ref_volume * mat->density;
   SCALE9 (bod->ref_tensor, mat->density);
 

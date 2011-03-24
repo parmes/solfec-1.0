@@ -95,12 +95,12 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
 /* split shape by plane; output two parts of the split shape */
 void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE **one, SHAPE **two);
 
-/* get cur characteristics => volume, mass center, and Euler tensor (centered) */
-void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler);
+/* get spatial/referential characteristics => volume, mass center, and Euler tensor (centered) */
+void SHAPE_Char (SHAPE *shp, int ref, double *volume, double *center, double *euler);
 
-/* for the given shape (not a list) compute current partial characteristic: 'vo'lume and static
- * momenta 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void SHAPE_Char_Partial (SHAPE *shp, double *vo, double *sx, double *sy, double *sz, double *eul);
+/* for the given shape (not a list) compute spatial/referential partial characteristic: 'vo'lume and
+ * static momenta 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
+void SHAPE_Char_Partial (SHAPE *shp, int ref, double *vo, double *sx, double *sy, double *sz, double *eul);
 
 /* return an object containing spatial point */
 void* SHAPE_Gobj (SHAPE *shp, double *point, SHAPE **out);
@@ -111,7 +111,8 @@ int SHAPE_Sgp (SGP *sgp, int nsgp, double *point);
 /* return an index of object closest to the spatial point (output distance in 'd' if not NULL) */
 int SHAPE_Closest_Sgp (SGP *sgp, int nsgp, double *point, double *d);
 
-/* update current shape with given motion */
+/* update current shape with given motion;
+ * body == motion == NULL => referential update */
 void SHAPE_Update (SHAPE *shp, void *body, MOTION motion);
 
 /* copute shape extents */

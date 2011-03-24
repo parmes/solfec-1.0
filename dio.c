@@ -195,7 +195,8 @@ static void readallbodies (DOM *dom, PBF *bf)
   PBF_Limits (bf, &start, &end);
   PBF_Seek (bf, start);
 
-  printf ("Reading and creacting all bodies ... ");
+  if (dom->solfec->verbose)
+    printf ("Reading all bodies ... ");
 
   do
   {
@@ -222,13 +223,16 @@ static void readallbodies (DOM *dom, PBF *bf)
       MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
     }
 
-    if (dodel) printf ("\b\b\b\b");
-    int progress = (int) (100. * ((t - start) / (end - start)));
-    printf ("%3d%%", progress); dodel = 1; fflush (stdout);
+    if (dom->solfec->verbose)
+    {
+      if (dodel) printf ("\b\b\b\b");
+      int progress = (int) (100. * ((t - start) / (end - start)));
+      printf ("%3d%%", progress); dodel = 1; fflush (stdout);
+    }
 
   } while (PBF_Forward (bf, 1));
 
-  printf ("\n");
+  if (dom->solfec->verbose) printf ("\n");
 
   free (d);
   free (i);

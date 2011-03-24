@@ -102,13 +102,13 @@ TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m);
  * the split lists elements need to be recomputed; surfid corresponds to the new surface */
 void CONVEX_Split (CONVEX *cvx, double *point, double *normal, int surfid, CONVEX **one, CONVEX **two);
 
-/* compute current partial characteristic: 'vo'lume and static momenta
+/* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void CONVEX_Char_Partial (CONVEX *cvx, double *vo, double *sx, double *sy, double *sz, double *eul);
+void CONVEX_Char_Partial (CONVEX *cvx, int ref, double *vo, double *sx, double *sy, double *sz, double *eul);
 
-/* get current characteristics of the convices in list:
+/* get characteristics of the convices in list:
  * volume, mass center, and Euler tensor (centered) */
-void CONVEX_Char (CONVEX *cvx, double *volume, double *center, double *euler);
+void CONVEX_Char (CONVEX *cvx, int ref, double *volume, double *center, double *euler);
 
 /* compute convex colume (referential
  * if ref == 1, or current otherwise) */

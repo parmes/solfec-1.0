@@ -254,16 +254,16 @@ void SPHERE_Split (SPHERE *sph, double *point, double *normal, int surfid, SPHER
   }
 }
 
-/* compute current partial characteristic: 'vo'lume and static momenta
+/* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void SPHERE_Char_Partial (SPHERE *sph, double *vo, double *sx, double *sy, double *sz, double *eul)
+void SPHERE_Char_Partial (SPHERE *sph, int ref, double *vo, double *sx, double *sy, double *sz, double *eul)
 {
   double v, e, r, *a, tmp [9], eye [9];
 
   for (; sph; sph = sph->next)
   {
-    r = sph->cur_radius;
-    a = sph->cur_center;
+    r = ref ? sph->ref_radius : sph->cur_radius;
+    a = ref ? sph->ref_center : sph->cur_center;
     v = (4.0/3.0)*ALG_PI*r*r*r;
 
     /* Stainer's theorem =>
@@ -302,9 +302,9 @@ void SPHERE_Char_Partial (SPHERE *sph, double *vo, double *sx, double *sy, doubl
   /* TODO: make sure the above is correct */
 }
 
-/* get 'cur' characteristics of the spheres in list:
+/* get characteristics of the spheres in list:
  * volume, mass center, and Euler tensor (centered) */
-void SPHERE_Char (SPHERE *sph, double *volume, double *center, double *euler)
+void SPHERE_Char (SPHERE *sph, int ref, double *volume, double *center, double *euler)
 {
   double vo, sx, sy, sz,
 	 cen [3], eul [9];
@@ -312,7 +312,7 @@ void SPHERE_Char (SPHERE *sph, double *volume, double *center, double *euler)
   vo = sx = sy = sz = 0.0;
   SET9 (eul, 0.0);
 
-  SPHERE_Char_Partial (sph, &vo, &sx, &sy, &sz, eul);
+  SPHERE_Char_Partial (sph, ref, &vo, &sx, &sy, &sz, eul);
 
   cen [0] = sx / vo;
   cen [1] = sy / vo;

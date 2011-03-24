@@ -910,7 +910,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       ERRMEM (bod = alloc_body (RIG));
       bod->conf = (double*) (bod + 1);
       bod->velo = bod->conf + RIG_CONF_SIZE;
-      SHAPE_Char (shp,
+      SHAPE_Char (shp, 1,
 	&bod->ref_volume,
 	 bod->ref_center, euler);
       SCALE9 (euler, mat->density);
@@ -933,7 +933,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
       ERRMEM (bod = alloc_body (PRB));
       bod->conf = (double*) (bod + 1);
       bod->velo = bod->conf + PRB_CONF_SIZE;
-      SHAPE_Char (shp,
+      SHAPE_Char (shp, 1,
 	&bod->ref_volume,
 	 bod->ref_center,
 	 bod->ref_tensor);
