@@ -42,7 +42,7 @@ typedef void (*rotate_func) (void*, double*, double*, double);
 static rotate_func rotate [] = {(rotate_func)MESH_Rotate, (rotate_func)CONVEX_Rotate, (rotate_func)SPHERE_Rotate};
 typedef TRI* (*cut_func) (void*, double*, double*, int*);
 static cut_func cut [] = {(cut_func)MESH_Cut, (cut_func)CONVEX_Cut, (cut_func)SPHERE_Cut};
-typedef void (*gcha_func) (void*, double*, double*, double*, double*, double*);
+typedef void (*gcha_func) (void*, int, double*, double*, double*, double*, double*);
 static gcha_func gcha [] = {(gcha_func)MESH_Char_Partial, (gcha_func)CONVEX_Char_Partial, (gcha_func)SPHERE_Char_Partial};
 typedef void* (*gobj_func) (void*, double*);
 static gobj_func gobj [] = {(gobj_func)MESH_Element_Containing_Spatial_Point, (gobj_func)CONVEX_Containing_Point, (gobj_func)SPHERE_Containing_Point};
@@ -440,8 +440,8 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE *
   *two = front;
 }
 
-/* get cur characteristics => volume, mass center, and Euler tensor (centered) */
-void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler)
+/* get spatial/referential characteristics => volume, mass center, and Euler tensor (centered) */
+void SHAPE_Char (SHAPE *shp, int ref, double *volume, double *center, double *euler)
 {
   double vo, sx, sy, sz,
 	 cen [3], eul [9];
@@ -450,7 +450,7 @@ void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler)
   SET9 (eul, 0.0);
 
   for (; shp; shp = shp->next)
-    gcha [shp->kind] (shp->data, &vo, &sx, &sy, &sz, eul);
+    gcha [shp->kind] (shp->data, ref, &vo, &sx, &sy, &sz, eul);
 
   cen [0] = sx / vo;
   cen [1] = sy / vo;
@@ -471,13 +471,13 @@ void SHAPE_Char (SHAPE *shp, double *volume, double *center, double *euler)
   if (euler) NNCOPY (eul, euler);
 }
 
-/* for the given shape (not a list) compute current partial characteristic: 'vo'lume and static
- * momenta 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void SHAPE_Char_Partial (SHAPE *shp, double *vo, double *sx, double *sy, double *sz, double *eul)
+/* for the given shape (not a list) compute spatial/referential partial characteristic: 'vo'lume and
+ * static momenta 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
+void SHAPE_Char_Partial (SHAPE *shp, int ref, double *vo, double *sx, double *sy, double *sz, double *eul)
 {
   double v = 0, s[3] = {0, 0, 0}, e [9] = {0, 0, 0, 0, 0, 0, 0, 0, 0};
 
-  gcha [shp->kind] (shp->data, &v, &s[0], &s[1], &s[2], e);
+  gcha [shp->kind] (shp->data, ref, &v, &s[0], &s[1], &s[2], e);
 
   if (vo) *vo += v;
   if (sx) *sx += s [0];

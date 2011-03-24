@@ -2475,6 +2475,10 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
 
   /* delete from the set of all created bodies */
   MAP_Delete (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, NULL);
+
+  /* make sure that it is not in the new bodies set (could have been
+   * inserted and then deleted in the course of fragmentation and cracking) */
+  if (dom->time > 0) SET_Delete (&dom->setmem, &dom->newb, bod, NULL);
 }
 
 /* find labeled body */
@@ -2711,6 +2715,24 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
   double point [3];
   int n;
 
+  /* delete when internal constraint structure is yet intact (CONCMP) */
+
+#if DEBUG
+  ASSERT_DEBUG (SET_Contains (con->master->con, con, CONCMP), "Constraint %s with id %d not present in body list", CON_Kind (con), con->id);
+  ASSERT_DEBUG (!con->slave || (con->slave && SET_Contains (con->slave->con, con, CONCMP)), "Constraint %s with id %d not present in body list", CON_Kind (con), con->id);
+#endif
+
+  if (con->dia)
+  {
+    LOCDYN_Remove (dom->ldy, con->dia);
+    con->dia = NULL;
+  }
+
+  SET_Delete (&dom->setmem, &con->master->con, con, CONCMP); /* note, that the below modification affects both master and slave CONCMP based sets */
+  if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP); /* hence the constraint needs to be removed from both sets [...] */
+
+  /* --- */
+
   if (con->kind == RIGLNK && src == con->slave)
   {
     double *z = RIGLNK_VEC (con->Z);
@@ -2735,15 +2757,33 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
     con->slave = dst;
   }
 
-  if (con->dia) LOCDYN_Remove (dom->ldy, con->dia);
+  /* insert after the internal constraint structure has been modified (CONCMP) */
 
-  con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
+  if (SET_Contains (dst->con, con, CONCMP)) /* since the nearest SGP is chosen some duplicated contacts (in the CONCMP sense) may occur */
+  {
+    ASSERT_TEXT (con->kind == CONTACT, "Inconsistent constraint duplication during the constraint transfer");
+    SET *mcon = con->master->con, *scon = con->slave->con;
+    con->master->con = con->slave->con = NULL; /* pretend that body sets are empty */
+    DOM_Remove_Constraint (dom, con); /* remove duplicated constraint without affectting body sets */
+    con->master->con = mcon; con->slave->con = scon; /* restore body constraint sets */
+  }
+  else /* otherwise we transder the constraint to the destination body */
+  {
+    con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
 
-  SET_Delete (&dom->setmem, &src->con, con, CONCMP);
+    SET_Insert (&dom->setmem, &con->master->con, con, CONCMP); /* [...] only to be again inserted into the both sets */
+    if (con->slave) SET_Insert (&dom->setmem, &con->slave->con, con, CONCMP); /* after it was modified */
 
-  SET_Insert (&dom->setmem, &dst->con, con, CONCMP);
+#if DEBUG
+    ASSERT_DEBUG (SET_Contains (con->master->con, con, CONCMP), "Failed to insert constraint %s with id %d into body list", CON_Kind (con), con->id);
+    ASSERT_DEBUG (!con->slave || (con->slave && SET_Contains (con->slave->con, con, CONCMP)), "Failed to insert constraint %s with id %d into body list", CON_Kind (con), con->id);
+#endif
+  }
 
-  /* XXX: make sure that the above works fine in parallel */
+  /* --- */
+
+  /* TODO: make sure that the above works fine in parallel */
+  /* TODO: quite surely it will not in the current form (external constraints are not updated) */
 }
 
 /* set simulation scene extents */

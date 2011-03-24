@@ -4192,7 +4192,7 @@ static PyObject* lng_ROUGH_HEX (PyObject *self, PyObject *args, PyObject *kwds)
     int o [4] = {0, 1, 2, 3};
 
     shp = create_shape (shape, 0); /* do not empty */
-    SHAPE_Char (shp, NULL, NULL, euler.x);
+    SHAPE_Char (shp, 0, NULL, NULL, euler.x);
     MX_Eigen (&euler, 3, eval, &eigv);
     SHAPE_Oriented_Extents (shp, vx, vy, vz, extents);
     SHAPE_Destroy_Wrapper (shp);
@@ -5668,12 +5668,12 @@ static PyObject* lng_MASS_CENTER (PyObject *self, PyObject *args, PyObject *kwds
   if (is_body_check (shape)) /* body */
   {
     BODY *bod = ((lng_BODY*)shape)->bod;
-    SHAPE_Char (bod->shape, &v, c, e);
+    SHAPE_Char (bod->shape, 0, &v, c, e);
   }
   else /* shape */
   {
     shp = create_shape (shape, 0);
-    SHAPE_Char (shp, &v, c, e);
+    SHAPE_Char (shp, 0, &v, c, e);
     SHAPE_Destroy_Wrapper (shp);
   }
 

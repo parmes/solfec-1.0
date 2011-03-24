@@ -136,13 +136,13 @@ TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m);
 /* split mesh in two with plane defined by (point, normal); output meshes are tetrahedral */
 void MESH_Split (MESH *msh, double *point, double *normal, int surfid, MESH **one, MESH **two);
 
-/* compute current partial characteristic: 'vo'lume and static momenta
+/* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void MESH_Char_Partial (MESH *msh, double *vo, double *sx, double *sy, double *sz, double *eul);
+void MESH_Char_Partial (MESH *msh, int ref, double *vo, double *sx, double *sy, double *sz, double *eul);
 
-/* get 'cur' characteristics of the meshed shape:
+/* get characteristics of the meshed shape:
  * volume, mass center, and Euler tensor (centered) */
-void MESH_Char (MESH *msh, double *volume, double *center, double *euler);
+void MESH_Char (MESH *msh, int ref, double *volume, double *center, double *euler);
 
 /* find an element containing a spatial or referential point */
 ELEMENT* MESH_Element_Containing_Point (MESH *msh, double *point, int ref);
@@ -218,14 +218,14 @@ int ELEMENT_Vertices (MESH *msh, ELEMENT *ele, double *ver);
 int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k);
 
 /* copy element into a convex */
-CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele);
+CONVEX* ELEMENT_Convex (MESH *msh, ELEMENT *ele, int ref);
 
 /* compute element volume */
 double ELEMENT_Volume (MESH *msh, ELEMENT *ele, int ref);
 
-/* compute current partial characteristic of an element: 'vo'lume and static momenta
+/* compute partial characteristic of an element: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, double *vo, double *sx, double *sy, double *sz, double *eul);
+void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, int ref, double *vo, double *sx, double *sy, double *sz, double *eul);
 
 /* pack mesh into double and integer buffers (d and i buffers are of initial
  * dsize and isize, while the final numberof of doubles and ints is packed) */

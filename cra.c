@@ -177,6 +177,23 @@ static void copy_crack (CRACK *src, CRACK *dst)
   dst->nepn = 0;
 }
 
+/* test whether a referential cut is possible */
+static int cut_possible (BODY *bod, double *point, double *normal)
+{
+  SHAPE *copy;
+  int n = 0;
+  TRI *tri;
+
+  copy = SHAPE_Copy (bod->shape);
+  SHAPE_Update (copy, NULL, NULL);
+  tri = SHAPE_Cut (copy, point, normal, &n,
+      NULL, NULL, NULL, NULL, NULL, NULL);
+  if (tri) free (tri);
+  SHAPE_Destroy (copy);
+
+  return n > 0;
+}
+
 /* create crack object */
 CRACK* CRACK_Create ()
 {
@@ -230,20 +247,23 @@ void Propagate_Cracks (DOM *dom)
       {
 	if (crb == cra) continue;
 
-	c = CRACK_Create();
-	copy_crack (crb, c);
-	c->next = one->cra;
-	one->cra = c;
+	if (cut_possible (one, crb->point, crb->normal))
+	{
+	  c = CRACK_Create();
+	  copy_crack (crb, c);
+	  c->next = one->cra;
+	  one->cra = c;
+	}
 
-	c = CRACK_Create();
-	copy_crack (crb, c);
-	c->next = two->cra;
-	two->cra = c;
+	if (cut_possible (two, crb->point, crb->normal))
+	{
+	  c = CRACK_Create();
+	  copy_crack (crb, c);
+	  c->next = two->cra;
+	  two->cra = c;
+	}
       }
-    }
 
-    if (one && two)
-    {
       remap_constraints (dom, bod, cra, one, two);
       DOM_Remove_Body (dom, bod);
       DOM_Insert_Body (dom, one);
@@ -254,6 +274,12 @@ void Propagate_Cracks (DOM *dom)
       {
 	BODY_Dynamic_Init (one);
 	BODY_Dynamic_Init (two);
+
+	double h1 = BODY_Dynamic_Critical_Step (one),
+	       h2 = BODY_Dynamic_Critical_Step (two),
+	       h  = MIN (h1, h2);
+
+	if (h < dom->step) dom->step = 0.5 * h; /* XXX: adjust domain stable step */
       }
       else
       {
@@ -263,7 +289,9 @@ void Propagate_Cracks (DOM *dom)
     }
     else
     {
-      ASSERT_TEXT (one == NULL && two == NULL, "A body cracked, but only one part was created");
+      ASSERT_TEXT (cra == NULL && one == NULL && two == NULL,
+        "A body cracked, but body splitting has failed.\n"
+	"Adjust GEOMETRIC_EPSILON or slightly shift the crack plane.");
     }
   }
 }

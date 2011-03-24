@@ -858,23 +858,25 @@ void CONVEX_Split (CONVEX *cvx, double *point, double *normal, int surfid, CONVE
     split (cvx, point, normal, surfid, one, two);
 }
 
-/* compute current partial characteristic: 'vo'lume and static momenta
+/* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
-void CONVEX_Char_Partial (CONVEX *cvx, double *vo, double *sx, double *sy, double *sz, double *eul)
+void CONVEX_Char_Partial (CONVEX *cvx, int ref, double *vo, double *sx, double *sy, double *sz, double *eul)
 {
   double zero [3] = {0, 0, 0},
-	 J, *a, *b, *c;
+	 J, *a, *b, *c, *ver;
   int i, j, *f;
+
+  ver = ref ? cvx->ref : cvx->cur;
 
   for (; cvx; cvx = cvx->next)
   {
     for (i = 0, f = cvx->fac; i < cvx->nfac; i ++, f = &f [f [0] + 1])
     {
-      a = &cvx->ref [f [1]];
+      a = &ver [f [1]];
       for (j = 2; j < f [0]; j ++)
       {
-	b = &cvx->ref [f [j]];
-	c = &cvx->ref [f [j + 1]];
+	b = &ver [f [j]];
+	c = &ver [f [j + 1]];
 
 	J = simplex_J (zero, a, b, c);
 	*vo += simplex_1 (J, zero, a, b, c);
@@ -893,7 +895,7 @@ void CONVEX_Char_Partial (CONVEX *cvx, double *vo, double *sx, double *sy, doubl
 }
 
 /* compute volume characteristics */
-void CONVEX_Char (CONVEX *cvx, double *volume, double *center, double *euler)
+void CONVEX_Char (CONVEX *cvx, int ref, double *volume, double *center, double *euler)
 {
   double vo, sx, sy, sz,
 	 cen [3], eul [9];
@@ -901,7 +903,7 @@ void CONVEX_Char (CONVEX *cvx, double *volume, double *center, double *euler)
   vo = sx = sy = sz = 0.0;
   SET9 (eul, 0.0);
 
-  CONVEX_Char_Partial (cvx, &vo, &sx, &sy, &sz, eul);
+  CONVEX_Char_Partial (cvx, ref, &vo, &sx, &sy, &sz, eul);
 
   cen [0] = sx / vo;
   cen [1] = sy / vo;
