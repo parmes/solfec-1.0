@@ -119,10 +119,12 @@ static void local_create (struct auxdata *aux, BOX *one, BOX *two)
   {
     case AABB_ELEMENT_ELEMENT:
     {
-      if (onebod == twobod) /* assuming only one mesh per body is possible,
-			       the two elements are within the same mesh;
-			       exclude topologically adjacent elements */
+      if (onebod == twobod) /* exclude topologically adjacent elements */
+      {
 	if (ELEMENT_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
+      }
+      else if ((onebod->flags & BODY_DETECT_NODE_CONTACT) ||
+	       (twobod->flags & BODY_DETECT_NODE_CONTACT)) return; /* handled by node based contact */
     }
     break;
     case AABB_CONVEX_CONVEX:
@@ -136,6 +138,18 @@ static void local_create (struct auxdata *aux, BOX *one, BOX *two)
       if (onebod == twobod) /* exclude topologically adjacent spheres */
 	if (SPHERE_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
     }
+    case AABB_ELEMENT_CONVEX:
+      if (onebod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
+    break;
+    case AABB_CONVEX_ELEMENT:
+      if (twobod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
+    break;
+    case AABB_ELEMENT_SPHERE:
+      if (onebod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
+    break;
+    case AABB_SPHERE_ELEMENT:
+      if (twobod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
+    break;
   }
  
   /* report overlap creation */
@@ -202,7 +216,7 @@ static void detach_and_attach (AABB *aabb)
 
 	if (j < numprocs)
 	{
-	  box = AABB_Insert (aabb, bod, GOBJ_Kind (sgp), sgp, update);
+	  box = AABB_Insert (aabb, bod, sgp->kind, sgp, update);
 
 	  COPY6 (e, box->extents);
 
@@ -232,7 +246,7 @@ static void detach_and_attach (AABB *aabb)
 
 	if (j < numprocs)
 	{
-	  box = AABB_Insert (aabb, bod, GOBJ_Kind (sgp), sgp, update);
+	  box = AABB_Insert (aabb, bod, sgp->kind, sgp, update);
 
 	  COPY6 (e, box->extents);
 
@@ -352,7 +366,7 @@ void AABB_Insert_Body (AABB *aabb, BODY *body)
 
   for (sgp = body->sgp, sgpe = sgp + body->nsgp; sgp < sgpe; sgp ++)
   {
-    AABB_Insert (aabb, body, GOBJ_Kind (sgp), sgp, SGP_Extents_Update (sgp));
+    AABB_Insert (aabb, body, sgp->kind, sgp, SGP_Extents_Update (sgp));
   }
 }
 
@@ -497,29 +511,16 @@ void AABB_Destroy (AABB *aabb)
 /* get geometrical object extents update callback */
 BOX_Extents_Update SGP_Extents_Update (SGP *sgp)
 {
-  switch (sgp->shp->kind)
+  switch (sgp->kind)
   {
-  case SHAPE_MESH: return (BOX_Extents_Update) ELEMENT_Extents;
-  case SHAPE_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
-  case SHAPE_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
+  case GOBJ_ELEMENT: return (BOX_Extents_Update) ELEMENT_Extents;
+  case GOBJ_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
+  case GOBJ_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
+  case GOBJ_NODE: return (BOX_Extents_Update) NODE_Extents;
+  case GOBJ_DUMMY: return NULL;
   }
 
   ASSERT_DEBUG (0, "Invalid shape kind in SGP_Extents_Update");
 
   return 0;
-}
-
-/* get geometrical object kind */
-GOBJ GOBJ_Kind (SGP *sgp)
-{
-  switch (sgp->shp->kind)
-  {
-  case SHAPE_MESH: return GOBJ_ELEMENT;
-  case SHAPE_CONVEX: return GOBJ_CONVEX;
-  case SHAPE_SPHERE: return GOBJ_SPHERE;
-  }
-
-  ASSERT_DEBUG (0, "Invalid shape kind in GOBJ_Kind");
-
-  return GOBJ_DUMMY;
 }

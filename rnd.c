@@ -1111,7 +1111,7 @@ static void update_cuts (void)
     {
       double *X = &cut->ref[3*i], *x = &cut->cur[3*i];
       SGP *sgp = &cut->sgp [i];
-      BODY_Cur_Point (cut->bod, sgp->shp, sgp->gobj, X, x);
+      BODY_Cur_Point (cut->bod, sgp, X, x);
     }
   }
 
@@ -2085,9 +2085,9 @@ static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
 
     if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, force->ref_point)) < 0) return; /* TODO: optimize */
     sgp = &bod->sgp [n];
-    BODY_Cur_Point (bod, sgp->shp, sgp->gobj, force->ref_point, point); /* TODO: optimize */
+    BODY_Cur_Point (bod, sgp, force->ref_point, point); /* TODO: optimize */
   }
-  else BODY_Cur_Point (bod, NULL, NULL, force->ref_point, point);
+  else BODY_Cur_Point (bod, NULL, force->ref_point, point);
 
   COPY (force->direction, r);
   len = TMS_Value (force->data, domain->time);

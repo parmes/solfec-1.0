@@ -31,8 +31,20 @@ typedef struct box BOX;
 #ifndef __shp__
 #define __shp__
 
-typedef struct shape SHAPE;
-typedef struct shape_gobj_pair SGP;
+typedef struct shape SHAPE; /* general shape */
+typedef struct shape_gobj_pair SGP; /* shape and geometric object pair */
+
+/* geometrical objects */
+enum gobj
+{
+  GOBJ_DUMMY   = 0x00,
+  GOBJ_ELEMENT = 0x01, /* XXX: never edit these without looking into box.h: e.g. AABB_ELEMENT_ELEMENT, etc. */
+  GOBJ_CONVEX  = 0x02,
+  GOBJ_SPHERE  = 0x04,
+  GOBJ_NODE    = 0x08
+};
+
+typedef enum gobj GOBJ; /* kind of geometrical object */
 
 /* general shape */
 struct shape
@@ -51,14 +63,29 @@ struct shape_gobj_pair
 {
   SHAPE *shp;
   void *gobj;
+  GOBJ kind;
   BOX *box;
 };
+
+/* SGP creation flags */
+enum sgp_flags
+{
+  SGP_MESH_NODES = 0x01
+};
+
+typedef enum sgp_flags SGP_FLAGS;
 
 /* create a general shape */
 SHAPE* SHAPE_Create (short kind, void *data);
 
 /* create shape geometric object pairs */
-SGP* SGP_Create (SHAPE *shp, int *nsgp);
+SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags);
+
+/* SGP to GOBJ conversion for FEM purposes */
+void* SGP_2_GOBJ (SGP *sgp);
+
+/* get GOBJ type of given shape */
+GOBJ SHAPE_2_GOBJ (SHAPE *shp);
 
 /* copy shape */
 SHAPE* SHAPE_Copy (SHAPE *shp);

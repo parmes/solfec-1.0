@@ -428,10 +428,6 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
     DIAB *dia = con->dia;
     BODY *m = con->master,
 	 *s = con->slave;
-    void *mgobj = mgobj(con),
-	 *sgobj;
-    SHAPE *mshp = mshp(con),
-	  *sshp;
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base;
@@ -460,9 +456,6 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 
     if (s)
     {
-      sgobj = sgobj(con);
-      sshp = sshp(con);
-
 #if MPI
       if (s->flags & BODY_CHILD)
       {
@@ -486,7 +479,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 
     if (m->kind != OBS)
     {
-      dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+      dat->mH = BODY_Gen_To_Loc_Operator (m, con->msgp, mpnt, base);
       dat->mi = (int) (long) MAP_Find (A->bod, m, NULL);
 
       if (m->kind == FEM) inv = MAP_Find (fem, m, NULL); else inv = m->inverse;
@@ -502,7 +495,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 
     if (s && s->kind != OBS)
     {
-      dat->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+      dat->sH = BODY_Gen_To_Loc_Operator (s, con->ssgp, spnt, base);
       dat->si = (int) (long) MAP_Find (A->bod, s, NULL);
       MX_Scale (dat->sH, -1.0);
 
@@ -531,23 +524,13 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 
     BODY *m = con->master,
 	 *s = con->slave;
-    void *mgobj = mgobj(con),
-	 *sgobj;
-    SHAPE *mshp = mshp(con),
-	  *sshp;
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base;
 
-    if (s)
-    {
-      sgobj = sgobj(con);
-      sshp = sshp(con);
-    }
-
     if ((jtem = MAP_Find_Node (A->bod, m, NULL)))
     {
-      dat->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+      dat->mH = BODY_Gen_To_Loc_Operator (m, con->msgp, mpnt, base);
       dat->mi = (int) (long) jtem->data;
 
       if (m->kind == FEM)
@@ -558,7 +541,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 
     if ((jtem = MAP_Find_Node (A->bod, s, NULL)))
     {
-      dat->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+      dat->sH = BODY_Gen_To_Loc_Operator (s, con->ssgp, spnt, base);
       dat->si = (int) (long) jtem->data;
       MX_Scale (dat->sH, -1.0);
 

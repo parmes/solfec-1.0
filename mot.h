@@ -23,6 +23,6 @@
 #define __mot__
 
 /* motion update callbac (BODY_Cur_Point) */
-typedef void (*MOTION) (void *body, void *shp, void *gobj, double *X, double *x);
+typedef void (*MOTION) (void *body, void *sgp, double *X, double *x);
 
 #endif

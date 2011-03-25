@@ -103,8 +103,8 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
     if (bod->msh) /* rough mesh */
     {
       ELEMENT **e1, **f1, **e2, **f2;
-      CONVEX *c1 = (bod == one->master ? mgobj(one) : sgobj(one)),
-	     *c2 = (bod == two->master ? mgobj(two) : sgobj(two));
+      CONVEX *c1 = (bod == one->master ? SGP_2_GOBJ (one->msgp) : SGP_2_GOBJ (one->ssgp)),
+	     *c2 = (bod == two->master ? SGP_2_GOBJ (two->msgp) : SGP_2_GOBJ (two->ssgp));
 
       for (e1 = c1->ele, f1 = e1 + c1->nele; e1 < f1; e1 ++)
       {
@@ -127,26 +127,26 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
       if (bod == one->master)
       {
 	m1 = mshp (one)->data;
-	e1 = mgobj (one);
+	e1 = SGP_2_GOBJ (one->msgp);
 	p1 = one->mpnt;
       }
       else
       {
 	m1 = sshp (one)->data;
-	e1 = sgobj (one);
+	e1 = SGP_2_GOBJ (one->ssgp);
 	p1 = one->spnt;
       }
 
       if (bod == two->master)
       {
 	m2 = mshp (two)->data;
-	e2 = mgobj (two);
+	e2 = SGP_2_GOBJ (two->msgp);
 	p2 = two->mpnt;
       }
       else
       {
 	m2 = sshp (two)->data;
-	e2 = sgobj (two);
+	e2 = SGP_2_GOBJ (two->ssgp);
 	p2 = two->spnt;
       }
 
@@ -457,7 +457,7 @@ static void update_V_and_B (DOM *dom)
     if (con->master->flags & BODY_PARENT) /* local parent */
 #endif
     {
-      BODY_Local_Velo (con->master, mshp(con), mgobj(con), con->mpnt, con->base, X, X+3);
+      BODY_Local_Velo (con->master, con->msgp, con->mpnt, con->base, X, X+3);
       ADD (V, X, V);
       ADD (B, X+3, B);
     }
@@ -468,7 +468,7 @@ static void update_V_and_B (DOM *dom)
       if (con->slave->flags & BODY_PARENT) /* local slave */
 #endif
       {
-        BODY_Local_Velo (con->slave, sshp(con), sgobj(con), con->spnt, con->base, X, X+3);
+        BODY_Local_Velo (con->slave, con->ssgp, con->spnt, con->base, X, X+3);
 	SUB (V, X, V); /* relative = master - slave */
 	SUB (B, X+3, B);
       }
@@ -504,12 +504,12 @@ static void update_V_and_B (DOM *dom)
 	if (bod == con->master)
 	{
 	  pack_int (&isize [i], &ptr->i, &ptr->ints, -con->id);
-	  BODY_Local_Velo (bod, mshp(con), mgobj(con), con->mpnt, con->base, X, X+3);
+	  BODY_Local_Velo (bod, con->msgp, con->mpnt, con->base, X, X+3);
 	}
 	else
 	{
 	  pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
-	  BODY_Local_Velo (bod, sshp(con), sgobj(con), con->spnt, con->base, X, X+3);
+	  BODY_Local_Velo (bod, con->ssgp, con->spnt, con->base, X, X+3);
 	}
         pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, X, 6);
       }
@@ -743,10 +743,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     CON *con = dia->con;
     BODY *m = con->master,
 	 *s = con->slave;
-    void *mgobj = mgobj(con),
-	 *sgobj;
-    SHAPE *mshp = mshp(con),
-	  *sshp;
+    SGP *msgp = con->msgp,
+	*ssgp = con->ssgp;
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base,
@@ -767,8 +765,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 
     if (s)
     {
-      sgobj = sgobj(con);
-      sshp = sshp(con);
 #if MPI
       if (s->flags & BODY_CHILD)
       {
@@ -783,7 +779,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     {
       if (m != s)
       {
-	dia->mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base);
+	dia->mH = BODY_Gen_To_Loc_Operator (m, msgp, mpnt, base);
 #if MPI
 	dia->mprod = MX_Matmat (1.0, dia->mH, m->inverse, 0.0, NULL);
 	if (up) MX_Matmat (1.0, dia->mprod, MX_Tran (dia->mH), 0.0, &W); /* H * inv (M) * H^T */
@@ -794,7 +790,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 
 	if (s)
 	{
-	  dia->sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+	  dia->sH = BODY_Gen_To_Loc_Operator (s, ssgp, spnt, base);
 	  MX_Scale (dia->sH, -1.0);
 #if MPI
 	  dia->sprod = MX_Matmat (1.0, dia->sH, s->inverse, 0.0, NULL);
@@ -808,8 +804,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
       }
       else /* eg. self-contact */
       {
-	MX *mH = BODY_Gen_To_Loc_Operator (m, mshp, mgobj, mpnt, base),
-	   *sH = BODY_Gen_To_Loc_Operator (s, sshp, sgobj, spnt, base);
+	MX *mH = BODY_Gen_To_Loc_Operator (m, msgp, mpnt, base),
+	   *sH = BODY_Gen_To_Loc_Operator (s, ssgp, spnt, base);
 
 	dia->mH = MX_Add (1.0, mH, -1.0, sH, NULL);
 	dia->sH = MX_Copy (dia->mH, NULL);
@@ -929,12 +925,12 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
       {
 	if (bod == ext->master)
 	{
-	  right = BODY_Gen_To_Loc_Operator (bod, ext->msgp->shp, ext->msgp->gobj, ext->mpnt, ext->base);
+	  right = BODY_Gen_To_Loc_Operator (bod, ext->msgp, ext->mpnt, ext->base);
 
 	  if (bod == ext->slave) /* right self-contact */
 	  {
 	    MX *a = right,
-	       *b = BODY_Gen_To_Loc_Operator (bod, ext->ssgp->shp, ext->ssgp->gobj, ext->spnt, ext->base);
+	       *b = BODY_Gen_To_Loc_Operator (bod, ext->ssgp, ext->spnt, ext->base);
 
 	    right = MX_Add (1.0, a, -1.0, b, NULL);
 	    MX_Destroy (a);
@@ -942,7 +938,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 	}
 	else
 	{
-	  right = BODY_Gen_To_Loc_Operator (bod, ext->ssgp->shp, ext->ssgp->gobj, ext->spnt, ext->base);
+	  right = BODY_Gen_To_Loc_Operator (bod, ext->ssgp, ext->spnt, ext->base);
 	  MX_Scale (right, -1.0);
 	}
        

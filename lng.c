@@ -2146,11 +2146,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     IFIS (kind, "RIGID")
     {
-      self->bod = BODY_Create (RIG, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
+      self->bod = BODY_Create (RIG, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
     }
     ELIF (kind, "PSEUDO_RIGID")
     {
-      self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
+      self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
     }
     ELIF (kind, "FINITE_ELEMENT")
     {
@@ -2182,11 +2182,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	}
       }
 
-      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, msh);
+      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, 0, form, msh);
     }
     ELIF (kind, "OBSTACLE")
     {
-      self->bod = BODY_Create (OBS, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, form, NULL);
+      self->bod = BODY_Create (OBS, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
     }
     ELSE
     {
@@ -2397,6 +2397,46 @@ static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *clos
   return 0;
 }
 
+static PyObject* lng_BODY_get_nodecontact (lng_BODY *self, void *closure)
+{
+  if (self->bod->flags & BODY_DETECT_NODE_CONTACT)
+    return PyString_FromString ("ON");
+  else return PyString_FromString ("OFF");
+}
+
+static int lng_BODY_set_nodecontact (lng_BODY *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "nodecontact")) return -1;
+
+  IFIS (value, "ON")
+  {
+    BODY *bod = self->bod;
+    DOM *dom = bod->dom;
+    AABB_Delete_Body (dom->aabb, bod);
+    free (bod->sgp);
+    bod->flags |= BODY_DETECT_NODE_CONTACT;
+    bod->sgp = SGP_Create (bod->shape, &bod->nsgp, SGP_MESH_NODES);
+    AABB_Insert_Body (dom->aabb, bod);
+  }
+  ELIF (value, "OFF")
+  {
+    BODY *bod = self->bod;
+    DOM *dom = bod->dom;
+    AABB_Delete_Body (dom->aabb, bod);
+    free (bod->sgp);
+    self->bod->flags &= ~BODY_DETECT_NODE_CONTACT;
+    bod->sgp = SGP_Create (bod->shape, &bod->nsgp, 0);
+    AABB_Insert_Body (dom->aabb, bod);
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid self-contact flag");
+    return -1;
+  }
+
+  return 0;
+}
+
 static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
 {
   switch (self->bod->scheme)
@@ -2590,6 +2630,7 @@ static PyGetSetDef lng_BODY_getset [] =
   {"center", (getter)lng_BODY_get_center, (setter)lng_BODY_set_center, "referential mass center", NULL},
   {"tensor", (getter)lng_BODY_get_tensor, (setter)lng_BODY_set_tensor, "referential Euler/inertia tensor", NULL},
   {"selfcontact", (getter)lng_BODY_get_selfcontact, (setter)lng_BODY_set_selfcontact, "selfcontact", NULL},
+  {"nodecontact", (getter)lng_BODY_get_nodecontact, (setter)lng_BODY_set_nodecontact, "nodecontact", NULL},
   {"scheme", (getter)lng_BODY_get_scheme, (setter)lng_BODY_set_scheme, "scheme", NULL},
   {"damping", (getter)lng_BODY_get_damping, (setter)lng_BODY_set_damping, "damping", NULL},
   {"constraints", (getter)lng_BODY_get_constraints, (setter)lng_BODY_set_constraints, "constraints list", NULL},
@@ -6166,7 +6207,7 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
   {
     char *label = NULL;
     if (bod->label) { int l = strlen (bod->label); ERRMEM (label = malloc (l + 64)); sprintf ("%s_PART%d", bod->label, i+1); }
-    b = BODY_Create (FEM, SHAPE_Create (SHAPE_MESH, msh [i]), bod->mat, label, bod->form, NULL);
+    b = BODY_Create (FEM, SHAPE_Create (SHAPE_MESH, msh [i]), bod->mat, label, 0, bod->form, NULL);
     if (!(obj = lng_BODY_WRAPPER (b))) return NULL;
     PyList_SetItem (list, i, obj);
     DOM_Insert_Body (dom, b);
@@ -6367,8 +6408,8 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   ERRMEM (shp = MEM_CALLOC (sizeof (BODY)));
   obs->shape = create_shape (obstacles, 0);
   shp->shape = create_shape (shapes, -1); /* empty and simple glue */
-  obs->sgp = SGP_Create (obs->shape, &obs->nsgp);
-  shp->sgp = SGP_Create (shp->shape, &shp->nsgp);
+  obs->sgp = SGP_Create (obs->shape, &obs->nsgp, 0);
+  shp->sgp = SGP_Create (shp->shape, &shp->nsgp, 0);
   aabb = AABB_Create (obs->nsgp + shp->nsgp);
   obs->kind = shp->kind = RIG;
   ocd.bod = shp;
@@ -6378,11 +6419,11 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
 
   for (sgp = obs->sgp, sgpe = sgp + obs->nsgp; sgp < sgpe; sgp ++)
   {
-    AABB_Insert (aabb, obs, GOBJ_Kind (sgp), sgp, SGP_Extents_Update (sgp));
+    AABB_Insert (aabb, obs, sgp->kind, sgp, SGP_Extents_Update (sgp));
   }
   for (sgp = shp->sgp, sgpe = sgp + shp->nsgp; sgp < sgpe; sgp ++)
   {
-    AABB_Insert (aabb, shp, GOBJ_Kind (sgp), sgp, SGP_Extents_Update (sgp));
+    AABB_Insert (aabb, shp, sgp->kind, sgp, SGP_Extents_Update (sgp));
   }
 
   /* detect overlaps */

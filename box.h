@@ -41,16 +41,6 @@ typedef struct domain DOM;
 #ifndef __box__
 #define __box__
 
-/* geometrical
- * objects */
-enum gobj
-{
-  GOBJ_DUMMY   = 0x00,
-  GOBJ_ELEMENT = 0x01,
-  GOBJ_CONVEX  = 0x02,
-  GOBJ_SPHERE  = 0x04
-};
-
 /* detection
  * algorithms */
 enum boxalg
@@ -66,7 +56,6 @@ enum boxalg
 #define BOXALG_COUNT (HASH3D+1) /* count of overlap algorithms */
 typedef struct objpair OPR; /* pointer pair used for exclusion tests */
 typedef struct aabb AABB; /* overlap detection driver data */
-typedef enum gobj GOBJ; /* kind of geometrical object */
 typedef enum boxalg BOXALG; /* type of overlap detection algorithm */
 typedef void (*BOX_Overlap_Create)  (void *data, BOX *one, BOX *two); /* created overlap callback => returns a user pointer */
 typedef void (*BOX_Extents_Update)  (void *data, void *gobj, double *extents); /* extents update callback */
@@ -119,10 +108,10 @@ inline static short GOBJ_Pair_Code (BOX *one, BOX *two)
 #define GOBJ_Pair_Code_Ext(a, b) (((a) << 8) | (b))
 
 /* and here are the codes */
-/* and here are the codes */
 #define AABB_ELEMENT_ELEMENT	0x0101
 #define AABB_CONVEX_CONVEX	0x0202
 #define AABB_SPHERE_SPHERE	0x0404
+#define AABB_NODE_NODE          0x0808
 
 #define AABB_ELEMENT_CONVEX	0x0102
 #define AABB_CONVEX_ELEMENT	0x0201
@@ -132,6 +121,15 @@ inline static short GOBJ_Pair_Code (BOX *one, BOX *two)
 
 #define AABB_CONVEX_SPHERE	0x0204
 #define AABB_SPHERE_CONVEX	0x0402
+
+#define AABB_ELEMENT_NODE	0x0108
+#define AABB_NODE_ELEMENT	0x0801
+
+#define AABB_NODE_SPHERE	0x0804
+#define AABB_SPHERE_NODE	0x0408
+
+#define AABB_CONVEX_NODE	0x0208
+#define AABB_NODE_CONVEX	0x0802
 
 /* driver data */
 struct aabb
@@ -191,6 +189,4 @@ void AABB_Destroy (AABB *aabb);
 /* get geometrical object extents update callback */
 BOX_Extents_Update SGP_Extents_Update (SGP *sgp);
 
-/* get geometrical object kind */
-GOBJ GOBJ_Kind (SGP *sgp);
 #endif

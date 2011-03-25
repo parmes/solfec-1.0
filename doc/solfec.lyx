@@ -3753,7 +3753,7 @@ obj.ncon
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="4" columns="1">
+<lyxtabular version="3" rows="5" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -3783,6 +3783,27 @@ obj.selfcontact
 \series default
 \emph default
  - self-contact detection flag (default: 'OFF
+\begin_inset Quotes erd
+\end_inset
+
+) taking values 'ON' or 'OFF'.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.nodecontact
+\series default
+\emph default
+ - node based contact detection flag (default: 'OFF
 \begin_inset Quotes erd
 \end_inset
 

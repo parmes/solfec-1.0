@@ -616,8 +616,8 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
   int maximal_node,
       minimal_node,
       elements_count,
-      faces_count,
-      temp, *eleptr, n;
+      faces_count, temp,
+      *eleptr, n, i;
   double (*ref) [3],
 	 (*cur) [3];
   MEM *elemem,
@@ -778,6 +778,39 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
       msh->faces = fac;
     }
   }
+
+  /* crate surface nodes list */
+  msh->surfnodes = NULL;
+  MAP_Free (&mapmem, &smap);
+  MEM_Init (&msh->nodmem, sizeof (NODE), faces_count);
+  for (smap = NULL, fac = msh->faces; fac; fac = fac->n)
+  {
+    for (n = 0; n < fac->type; n ++)
+    {
+      double *cur = msh->cur_nodes [fac->nodes [n]];
+      NODE *nod = MAP_Find (smap, cur, NULL);
+
+      if (nod == NULL)
+      {
+	ERRMEM (nod = MEM_Alloc (&msh->nodmem));
+	MAP_Insert (&mapmem, &smap, cur, nod, NULL);
+	nod->n = msh->surfnodes;
+	msh->surfnodes = nod;
+        nod->cur = cur;
+      }
+
+      for (i = 0; i < nod->nfac; i ++)
+	if (nod->fac [i] == fac) break;
+
+      if (i == nod->nfac) /* add face to node faces list */
+      {
+	nod->nfac ++;
+	ERRMEM (nod->fac = realloc (nod->fac, nod->nfac * sizeof (FACE*)));
+	nod->fac [i] = fac;
+      }
+    }
+  }
+  msh->surfnodes_count = MAP_Size (smap);
 
   /* clean up */
   MEM_Release (&facmem);
@@ -1524,7 +1557,10 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
   if (motion)
   {
     for (n = 0; n < m; n ++)
-      motion (body, shp, NULL, ref [n], cur [n]); /* move current nodes (NULL for gobj implies nodal update) */
+    {
+      SGP sgp = {shp, NULL, GOBJ_DUMMY, NULL}; /* move current nodes (NULL for gobj implies nodal update) */
+      motion (body, &sgp, ref [n], cur [n]);
+    }
   }
   else /* restore reference configuration */
   {
@@ -2026,6 +2062,7 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
 void MESH_Destroy (MESH *msh)
 {
   ELEMENT *ele;
+  NODE *nod;
   int n;
 
   for (ele = msh->bulkeles; ele; ele = ele->next)
@@ -2046,6 +2083,9 @@ void MESH_Destroy (MESH *msh)
     }
   }
 
+  for (nod = msh->surfnodes; nod; nod = nod->n) free (nod->fac);
+
+  MEM_Release (&msh->nodmem);
   MEM_Release (&msh->facmem);
   MEM_Release (&msh->elemem);
   MEM_Release (&msh->mapmem);
@@ -2246,6 +2286,18 @@ void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, int ref, double *vo, double 
   cvx = ELEMENT_Convex (msh, ele, ref);
   CONVEX_Char_Partial (cvx, 0, vo, sx, sy, sz, eul);
   CONVEX_Destroy (cvx);
+}
+
+/* update spatial extents of an individual node */
+void NODE_Extents (MESH *msh, NODE *nod, double *extents)
+{
+  double *cur = nod->cur;
+  extents [0] = cur [0] - 10.0 * GEOMETRIC_EPSILON;
+  extents [1] = cur [1] - 10.0 * GEOMETRIC_EPSILON;
+  extents [2] = cur [2] - 10.0 * GEOMETRIC_EPSILON;
+  extents [3] = cur [0] + 10.0 * GEOMETRIC_EPSILON;
+  extents [4] = cur [1] + 10.0 * GEOMETRIC_EPSILON;
+  extents [5] = cur [2] + 10.0 * GEOMETRIC_EPSILON;
 }
 
 /* pack face */

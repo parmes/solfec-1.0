@@ -34,16 +34,21 @@ box = HEX ([0, 0, 0,
 	    c, c, c,
 	    0, c, c], 3, 3, 3, 2, [2, 2, 2, 2, 2, 2])
 
-#box = TETRAHEDRALIZE (box, 'out/crack/tet1.dat', c**6, quality = 1.5)
+box = TETRAHEDRALIZE (box, 'out/crack/tet1.dat', c**6, quality = 1.5)
 
 bod = BODY (solfec, 'FINITE_ELEMENT', box, bulkmat)
+#bod.nodecontact = 'ON'
 p0 = TRANSLATE (bod.center, (c/2.0, 0, 0))
 p1 = TRANSLATE (bod.center, (-c/2.0, 0, 0))
 #SET_VELOCITY (bod, p0, (1, 0, 0), velo)
 #SET_VELOCITY (bod, p1, (-1, 0, 0), velo)
-SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 1, 'TENSILE', 1E3, 10)
-SIMPLIFIED_CRACK (bod, bod.center, (0, 1, 0), 1, 'TENSILE', 1E3, 10)
-SIMPLIFIED_CRACK (bod, bod.center, (0, 0, 1), 1, 'TENSILE', 1E3, 10)
+#SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 1, 'TENSILE', 1E3, 10)
+#SIMPLIFIED_CRACK (bod, bod.center, (0, 1, 0), 1, 'TENSILE', 1E3, 10)
+#SIMPLIFIED_CRACK (bod, bod.center, (0, 0, 1), 1, 'TENSILE', 1E3, 10)
+
+#FIXME: strangely preserved handing contact points afeter complete fragmentation
+#FIXME: in the element to element contact mode
+#FIXME: similarly in the node based contact mode
 
 GRAVITY (solfec, (0, 0, -1000))
 OUTPUT (solfec, 2 * step)

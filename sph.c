@@ -443,19 +443,20 @@ void SPHERE_Update (SPHERE *sph, void *body, void *shp, MOTION motion)
 {
   for (; sph; sph = sph->next)
   {
+    SGP sgp = {shp, sph, GOBJ_SPHERE, NULL};
     double *ref = sph->ref_center,
 	   (*ref_pnt) [3] = sph->ref_points,
 	   *cur = sph->cur_center,
 	   (*cur_pnt) [3] = sph->cur_points;
 
-    if (motion) motion (body, shp, sph, ref, cur); /* move center */
+    if (motion) motion (body, &sgp, ref, cur); /* move center */
     else { COPY (ref, cur); }
 
     if (motion)
     {
-      motion (body, shp, sph, ref_pnt [0], cur_pnt [0]); /* move marker points */
-      motion (body, shp, sph, ref_pnt [1], cur_pnt [1]);
-      motion (body, shp, sph, ref_pnt [2], cur_pnt [2]);
+      motion (body, &sgp, ref_pnt [0], cur_pnt [0]); /* move marker points */
+      motion (body, &sgp, ref_pnt [1], cur_pnt [1]);
+      motion (body, &sgp, ref_pnt [2], cur_pnt [2]);
     }
     else
     {

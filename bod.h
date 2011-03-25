@@ -116,14 +116,15 @@ struct general_force
 typedef enum
 {
   BODY_DETECT_SELF_CONTACT = 0x01, /* enable self contact detection */
-  BODY_PARENT              = 0x02, /* a parent body */
-  BODY_CHILD               = 0x04, /* a child body */
-  BODY_CHILD_UPDATED       = 0x08, /* an updated child */
-  BODY_ABSENT              = 0x10  /* body whose state was not read */
+  BODY_DETECT_NODE_CONTACT = 0x02, /* enable node based contact detection for meshes */
+  BODY_PARENT              = 0x10, /* a parent body */
+  BODY_CHILD               = 0x20, /* a child body */
+  BODY_CHILD_UPDATED       = 0x40, /* an updated child */
+  BODY_ABSENT              = 0x80, /* body whose state was not read */
 } BODY_FLAGS;
 
 /* flags that are migrated with bodies (the rest is filtered out) */
-#define BODY_PERMANENT_FLAGS (BODY_DETECT_SELF_CONTACT)
+#define BODY_PERMANENT_FLAGS (BODY_DETECT_SELF_CONTACT|BODY_DETECT_NODE_CONTACT)
 
 struct general_body
 {
@@ -195,7 +196,7 @@ struct general_body
 #define BODY(bod) ((BODY*)(bod))
 
 /* create a body */
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form, MESH *msh);
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh);
 
 /* get body kind string */
 char* BODY_Kind (BODY *bod);
@@ -246,19 +247,19 @@ void BODY_Static_Step_End (BODY *bod, double time, double step);
 void BODY_Update_Extents (BODY *bod);
 
 /* motion x = x (X, state) */
-void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x);
+void BODY_Cur_Point (BODY *bod, SGP *sgp, double *X, double *x);
 
 /* inverse motion X = X (x, state) */
-void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
+void BODY_Ref_Point (BODY *bod, SGP *sgp, double *x, double *X);
 
 /* pull-forward v = {dx/dX} V (X, state) */
 void BODY_Cur_Vector (BODY *bod, void *ele, double *X, double *V, double *v);
 
-/* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
-void BODY_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base, double *prevel, double *curvel);
+/* obtain spatial velocity at (sgp, referential point), expressed in the local spatial 'base' */
+void BODY_Local_Velo (BODY *bod, SGP *sgp, double *point, double *base, double *prevel, double *curvel);
 
 /* return transformation operator from the generalised to the local velocity space at (element, point, base) */
-MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base);
+MX* BODY_Gen_To_Loc_Operator (BODY *bod, SGP *sgp, double *point, double *base);
 
 /* compute current kinetic energy */
 double BODY_Kinetic_Energy (BODY *bod);
