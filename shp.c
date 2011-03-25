@@ -90,7 +90,7 @@ SHAPE* SHAPE_Create (short kind, void *data)
 }
 
 /* create shape geometric object pairs */
-SGP* SGP_Create (SHAPE *shp, int *nsgp)
+SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
 {
   SGP *sgp, *ptr;
   int n = 0;
@@ -104,6 +104,7 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp)
       {
 	MESH *msh = shq->data;
 	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next) n ++;
+	if (flags & SGP_MESH_NODES) n += msh->surfnodes_count;
       }
       break;
       case SHAPE_CONVEX:
@@ -133,25 +134,57 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp)
       case SHAPE_MESH:
       {
 	MESH *msh = shq->data;
-	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next, ptr ++) ptr->shp = shq, ptr->gobj = ele;
+	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next, ptr ++)
+	  ptr->shp = shq, ptr->gobj = ele, ptr->kind = GOBJ_ELEMENT;
+
+	if (flags & SGP_MESH_NODES)
+	{
+	  for (NODE *nod = msh->surfnodes; nod; nod = nod->n, ptr ++)
+	    ptr->shp = shq, ptr->gobj = nod, ptr->kind = GOBJ_NODE;
+	}
       }
       break;
       case SHAPE_CONVEX:
       {
 	CONVEX *cvx = shq->data;
-	for (; cvx; cvx = cvx->next, ptr ++) ptr->shp = shq, ptr->gobj = cvx;
+	for (; cvx; cvx = cvx->next, ptr ++) ptr->shp = shq, ptr->gobj = cvx, ptr->kind = GOBJ_CONVEX;
       }
       break;
       case SHAPE_SPHERE:
       {
 	SPHERE *sph = shq->data;
-	for (; sph; sph = sph->next, ptr ++) ptr->shp = shq, ptr->gobj = sph;
+	for (; sph; sph = sph->next, ptr ++) ptr->shp = shq, ptr->gobj = sph, ptr->kind = GOBJ_SPHERE;
       }
       break;
     }
   }
 
   return sgp;
+}
+
+/* SGP to GOBJ conversion for FEM purposes */
+void* SGP_2_GOBJ (SGP *sgp)
+{
+  switch (sgp->kind)
+  {
+  case GOBJ_NODE: return ((NODE*)sgp->gobj)->fac [0]->ele;
+  default: return sgp->gobj;
+  }
+}
+
+/* get GOBJ type of given shape */
+GOBJ SHAPE_2_GOBJ (SHAPE *shp)
+{
+  switch (shp->kind)
+  {
+  case SHAPE_MESH: return GOBJ_ELEMENT;
+  case SHAPE_CONVEX: return GOBJ_CONVEX;
+  case SHAPE_SPHERE: return GOBJ_SPHERE;
+  }
+
+  ASSERT_TEXT (0, "Unknown shape kind");
+
+  return 0;
 }
 
 /* copy shape */
@@ -385,7 +418,8 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
 	  SGP *sg = &(*sgp) [j/3];
 	  sg->shp = (SHAPE*)t->adj [1];
 	  sg->gobj = t->adj [0];
-	  cur_to_ref (body, sg->shp, sg->gobj, q->ver [k], Ver);
+	  sg->kind = SHAPE_2_GOBJ (sg->shp);
+	  cur_to_ref (body, sg, q->ver [k], Ver);
 	  SET_Insert (&setmem, &set, item, NULL);
 	}
       }
@@ -527,6 +561,8 @@ int SHAPE_Sgp (SGP *sgp, int nsgp, double *point)
 
   for (i = 0; i < nsgp; i ++, sgp ++)
   {
+    if (sgp->kind & GOBJ_NODE) continue; /* XXX: skip nodes */
+
     if (gobjs [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point)) return i;
   }
 
@@ -543,7 +579,14 @@ int SHAPE_Closest_Sgp (SGP *sgp, int nsgp, double *point, double *d)
 
   for (i = j = 0, dstmin = DBL_MAX; i < nsgp; i ++, sgp ++)
   {
-    dst = gobjdst [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point);
+    if (sgp->kind == GOBJ_NODE) /* XXX: future cases (e.g. edges) need to be handled */
+    {
+      NODE *nod = sgp->gobj;
+      double a [3];
+      SUB (point, nod->cur, a);
+      dst = LEN (a);
+    }
+    else dst = gobjdst [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point);
 
     if (dst < dstmin)
     {

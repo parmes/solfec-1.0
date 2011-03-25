@@ -426,6 +426,135 @@ inline static int update_swap (int ret, int spair [2])
   return ret;
 }
 
+/* detect contact node and convex */
+static int detect_node_convex (
+  NODE *nod,
+  double *p, int *s, int np,
+  double onepnt [3],
+  double twopnt [3],
+  double normal [3],
+  double *gap,
+  double *area,
+  int spair [2])
+{
+  double *x = nod->cur, a [3], d, g [2], *q, *r, *nl;
+  int i, j;
+
+  /* FIXME: TODO: XXX */
+
+  g [0] = DBL_MAX;
+  *gap = DBL_MAX - 10.0 * GEOMETRIC_EPSILON;
+  for (q = p, r = p + 6*np, j = 0; q < r; q += 6, j ++)
+  {
+    SUB (q+3, x, a);
+    d = DOT (a, q);
+    if (d <= *gap + GEOMETRIC_EPSILON)
+    {
+      for (i = 0; i < nod->nfac; i ++)
+      {
+        nl = nod->fac [i]->normal;
+        g [1] = DOT (nl, q);
+	if (g [1] < g [0])
+	{
+          COPY (q, normal);
+          spair [1] = j;
+	  g [0] = g [1];
+          *gap = d;
+	}
+      }
+    }
+    if (d < 0.0) break;
+  }
+
+  if (q < r) return 0;
+
+  *gap *= -1.0;
+  *area = 1.0;
+
+  a [0] = DBL_MAX;
+  for (i = 0; i < nod->nfac; i ++)
+  {
+    nl = nod->fac [i]->normal;
+    d = DOT (nl, normal);
+    if (d < a [0])
+    {
+      spair [0] = nod->fac [i]->surface;
+      a [0] = d;
+    }
+  }
+
+  COPY (x, onepnt);
+  COPY (x, twopnt);
+
+  return 2;
+}
+ 
+/* handle node based contact */
+static int nodecontact (
+    short detect,
+    short paircode,
+    SHAPE *oneshp, void *onegobj,
+    SHAPE *twoshp, void *twogobj,
+    double onepnt [3],
+    double twopnt [3],
+    double normal [3],
+    double *gap,
+    double *area,
+    int spair [2])
+{
+  switch (paircode)
+  {
+    case AABB_NODE_ELEMENT:
+    {
+      double p [36];
+      int s [6], ns;
+
+      ELEMENT_Planes (twoshp->data, twogobj, p, s, &ns);
+
+      int opair [2] = {spair [0], spair [1]};
+      if (detect_node_convex (onegobj, p, s, ns, onepnt, twopnt, normal, gap, area, spair))
+      {
+	if (detect) return 2;
+	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
+	else return 2;
+      }
+    }
+    break;
+    case AABB_ELEMENT_NODE:
+    {
+      double p [36];
+      int s [6], ns;
+
+      ELEMENT_Planes (oneshp->data, onegobj, p, s, &ns);
+
+      int opair [2] = {spair [0], spair [1]};
+      if (detect_node_convex (twogobj, p, s, ns, onepnt, twopnt, normal, gap, area, spair))
+      {
+	swap (spair);
+
+	if (detect) return 1;
+	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
+	else return 2;
+      }
+    }
+    break;
+    case AABB_NODE_CONVEX:
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
+      break;
+    case AABB_CONVEX_NODE:
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
+      break;
+    case AABB_NODE_SPHERE:
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
+      break;
+    case AABB_SPHERE_NODE:
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
+      break;
+  }
+
+  return 0;
+}
+
 /* detect contact */
 static int detect (
     short paircode,
@@ -613,6 +742,15 @@ static int detect (
       return detect_swap (ret, spair);
     }
     break;
+    case AABB_NODE_ELEMENT:
+    case AABB_ELEMENT_NODE:
+    case AABB_NODE_CONVEX:
+    case AABB_CONVEX_NODE:
+    case AABB_NODE_SPHERE:
+    case AABB_SPHERE_NODE:
+      return nodecontact (1, paircode, oneshp, onegobj, twoshp,
+	     twogobj, onepnt, twopnt, normal, gap, area, spair);
+      break;
   }
 
   return 0;
@@ -805,6 +943,15 @@ static int update (
       return update_swap (ret, spair);
     }
     break;
+    case AABB_NODE_ELEMENT:
+    case AABB_ELEMENT_NODE:
+    case AABB_NODE_CONVEX:
+    case AABB_CONVEX_NODE:
+    case AABB_NODE_SPHERE:
+    case AABB_SPHERE_NODE:
+      return nodecontact (0, paircode, oneshp, onegobj, twoshp,
+	     twogobj, onepnt, twopnt, normal, gap, area, spair);
+      break;
   }
 
   return 0;

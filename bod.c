@@ -892,7 +892,7 @@ void overwrite_state (BODY *src, BODY *dst)
 
 /* -------------- interface ------------- */
 
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, short form, MESH *msh)
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh)
 {
   BODY *bod;
 
@@ -972,8 +972,13 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
   /* update shape adjacency */
   SHAPE_Update_Adjacency (shp);
 
+  /* set flags */
+  bod->flags = flags;
+
   /* create piars table */
-  bod->sgp = SGP_Create (shp, &bod->nsgp);
+  SGP_FLAGS sgp_flags;
+  if (bod->flags & BODY_DETECT_NODE_CONTACT) sgp_flags |= SGP_MESH_NODES;
+  bod->sgp = SGP_Create (shp, &bod->nsgp, sgp_flags);
 
   /* update body extents */
   SHAPE_Extents (shp, bod->extents);
@@ -984,8 +989,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, shor
 
   /* set label */
   bod->label = copylabel (label);
-
-  bod->flags = 0; /* no flags here */
 
   /* default integration scheme */
   bod->scheme = kind == RIG ? SCH_RIG_NEG : SCH_DEF_EXP;
@@ -1636,7 +1639,7 @@ void BODY_Update_Extents (BODY *bod)
 #endif
 }
 
-void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
+void BODY_Cur_Point (BODY *bod, SGP *sgp, double *X, double *x)
 {
   switch (bod->kind)
   {
@@ -1665,12 +1668,14 @@ void BODY_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
     }
     break;
     case FEM:
-      FEM_Cur_Point (bod, shp, gobj, X, x);
+    {
+      FEM_Cur_Point (bod, sgp->shp, SGP_2_GOBJ (sgp), X, x);
+    }
     break;
   }
 }
 
-void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
+void BODY_Ref_Point (BODY *bod, SGP *sgp, double *x, double *X)
 {
   switch (bod->kind)
   {
@@ -1702,7 +1707,7 @@ void BODY_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X)
     }
     break;
     case FEM:
-      FEM_Ref_Point (bod, shp, gobj, x, X);
+      FEM_Ref_Point (bod, sgp->shp, SGP_2_GOBJ (sgp), x, X);
     break;
   }
 }
@@ -1732,7 +1737,7 @@ void BODY_Cur_Vector (BODY *bod, void *ele, double *X, double *V, double *v)
   }
 }
 
-void BODY_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base, double *prevel, double *curvel)
+void BODY_Local_Velo (BODY *bod, SGP *sgp, double *point, double *base, double *prevel, double *curvel)
 {
   switch (bod->kind)
   {
@@ -1759,12 +1764,12 @@ void BODY_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *point, double *
     }
     break;
     case FEM:
-      FEM_Local_Velo (bod, shp, gobj, point, base, prevel, curvel);
+      FEM_Local_Velo (bod, sgp->shp, SGP_2_GOBJ (sgp), point, base, prevel, curvel);
     break;
   }
 }
 
-MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, double *base)
+MX* BODY_Gen_To_Loc_Operator (BODY *bod, SGP *sgp, double *point, double *base)
 {
   MX *H = NULL;
 
@@ -1783,7 +1788,7 @@ MX* BODY_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *point, 
       prb_operator_H (bod, point, base, H->x);
     break;
     case FEM:
-      H = FEM_Gen_To_Loc_Operator (bod, shp, gobj, point, base);
+      H = FEM_Gen_To_Loc_Operator (bod, sgp->shp, SGP_2_GOBJ (sgp), point, base);
     break;
   }
 
@@ -1843,7 +1848,7 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
     {
       double cur_point [3];
 
-      BODY_Cur_Point (bod, NULL, NULL, point, cur_point);
+      BODY_Cur_Point (bod, NULL, point, cur_point);
       SUB (cur_point, point, values);
     }
     break;
@@ -1851,7 +1856,7 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
     {
       double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 
-      BODY_Local_Velo (bod, NULL, NULL, point, base, NULL, values);
+      BODY_Local_Velo (bod, NULL, point, base, NULL, values);
     }
     break;
     case VALUE_STRESS:
@@ -1911,7 +1916,7 @@ void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **on
       if (sone)
       {
 	if (bod->label) sprintf (label, "%s/1", bod->label);
-	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, 0, NULL);
+	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL);
 	overwrite_state (bod, *one);
         SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
       }
@@ -1919,7 +1924,7 @@ void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **on
       if (stwo)
       {
 	if (bod->label) sprintf (label, "%s/2", bod->label);
-	(*two) = BODY_Create (bod->kind, stwo, bod->mat, label, 0, NULL);
+	(*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL);
 	overwrite_state (bod, *two);
         SHAPE_Update ((*two)->shape, (*two), (MOTION)BODY_Cur_Point); 
       }
@@ -1940,7 +1945,6 @@ void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **on
       COPY6 (bod->extents, out[i]->extents);
       out [i]->scheme = bod->scheme;
       out [i]->damping = bod->damping;
-      out [i]->flags = (bod->flags & BODY_PERMANENT_FLAGS);
     }
   }
 
@@ -2109,6 +2113,7 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 {
   /* these are arguments of BODY_Create */
   pack_int (isize, i, ints, bod->kind);
+  pack_int (isize, i, ints, bod->flags & BODY_PERMANENT_FLAGS);
   if (bod->kind == FEM) pack_int (isize, i, ints, bod->msh ? -bod->form : bod->form);
   if (bod->msh) MESH_Pack (bod->msh, dsize, d, doubles, isize, i, ints);
   SHAPE_Pack (bod->shape, dsize, d, doubles, isize, i, ints);
@@ -2131,9 +2136,8 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
   /* pack the list of forces */
   pack_forces (bod->forces, dsize, d, doubles, isize, i, ints);
 
-  /* pack scheme and flags */
+  /* pack scheme */
   pack_int (isize, i, ints, bod->scheme);
-  pack_int (isize, i, ints, bod->flags & BODY_PERMANENT_FLAGS);
 
   /* damping */
   pack_double (dsize, d, doubles, bod->damping);
@@ -2148,10 +2152,12 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   SHAPE *shp;
   char *label;
   BULK_MATERIAL *mat;
+  BODY_FLAGS flags;
   short form;
 
   /* unpack BODY_Create arguments and create body */
   kind = unpack_int (ipos, i, ints);
+  flags = unpack_int (ipos, i, ints);
   if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
   if (form < 0) msh = MESH_Unpack (sol, dpos, d, doubles, ipos, i, ints), form = -form; else msh = NULL;
   shp = SHAPE_Unpack (sol, dpos, d, doubles, ipos, i, ints);
@@ -2159,7 +2165,7 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label, form, msh);
+  bod = BODY_Create (kind, shp, mat, label, flags, form, msh);
   free (label);
 
   /* overwritte characteristics */
@@ -2178,9 +2184,8 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   /* unpack the list of forces */
   bod->forces = unpack_forces (dpos, d, doubles, ipos, i, ints);
 
-  /* unpack scheme and flags */
+  /* unpack scheme */
   bod->scheme = unpack_int (ipos, i, ints);
-  bod->flags = unpack_int (ipos, i, ints);
 
   /* damping */
   bod->damping = unpack_double (dpos, d, doubles);

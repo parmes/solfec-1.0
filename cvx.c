@@ -1097,7 +1097,11 @@ void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion)
     {
       for (ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; ref += 3, cur += 3, n ++)
       {
-	if (motion) motion (body, shp, cvx, ref, cur); /* move current nodes */
+	if (motion) 
+	{
+	  SGP sgp = {shp, cvx, GOBJ_CONVEX, NULL};
+	  motion (body, &sgp, ref, cur); /* move current nodes */
+	}
 	else { COPY (ref, cur); } /* restore reference configuration */
       }
     }

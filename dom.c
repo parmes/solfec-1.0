@@ -316,8 +316,8 @@ static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP 
 
   con = insert (dom, master, slave, msgp, ssgp, CONTACT); /* do not insert into LOCDYN yet, only after sparsification */
   COPY (mpntspa, con->point);
-  BODY_Ref_Point (master, msgp->shp, msgp->gobj, mpntspa, con->mpnt); /* referential image */
-  BODY_Ref_Point (slave, ssgp->shp, ssgp->gobj, spntspa, con->spnt);
+  BODY_Ref_Point (master, msgp, mpntspa, con->mpnt); /* referential image */
+  BODY_Ref_Point (slave, ssgp, spntspa, con->spnt);
   localbase (normal, con->base);
   con->area = area;
   con->gap = gap;
@@ -419,8 +419,8 @@ static void update_contact (DOM *dom, CON *con)
   int state;
 
   /* current spatial points and normal */
-  BODY_Cur_Point (con->master, mshp, mgobj, con->mpnt, mpnt);
-  BODY_Cur_Point (con->slave, sshp, sgobj, con->spnt, spnt);
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, mpnt);
+  BODY_Cur_Point (con->slave, con->ssgp, con->spnt, spnt);
   COPY (con->base+6, normal);
 
   /* update contact data => during an update 'master' and 'slave' relation does not change */
@@ -435,8 +435,8 @@ static void update_contact (DOM *dom, CON *con)
     if (con->gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
 
     COPY (mpnt, con->point);
-    BODY_Ref_Point (con->master, mshp, mgobj, mpnt, con->mpnt);
-    BODY_Ref_Point (con->slave, sshp, sgobj, spnt, con->spnt);
+    BODY_Ref_Point (con->master, con->msgp, mpnt, con->mpnt);
+    BODY_Ref_Point (con->slave, con->ssgp, spnt, con->spnt);
     localbase (normal, con->base);
     if (state > 1) /* surface pair has changed */
     {
@@ -461,20 +461,20 @@ static void update_contact (DOM *dom, CON *con)
 /* update fixed point data */
 static void update_fixpnt (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
 }
 
 /* update fixed direction data */
 static void update_fixdir (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
 }
 
 /* update velocity direction data */
 static void update_velodir (DOM *dom, CON *con)
 {
   VELODIR (con->Z) = TMS_Value (con->tms, dom->time + dom->step);
-  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
 }
 
 /* update rigid link data */
@@ -487,12 +487,12 @@ static void update_riglnk (DOM *dom, CON *con)
 
   if (con->master && con->slave)
   {
-    BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, m);
-    BODY_Cur_Point (con->slave, sshp(con), sgobj(con), con->spnt, s);
+    BODY_Cur_Point (con->master, con->msgp, con->mpnt, m);
+    BODY_Cur_Point (con->slave, con->ssgp, con->spnt, s);
   }
   else /* master point to a spatial point link */
   {
-    BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, m);
+    BODY_Cur_Point (con->master, con->msgp, con->mpnt, m);
     COPY (con->spnt, s);
   }
 
@@ -509,7 +509,7 @@ static void update_riglnk (DOM *dom, CON *con)
 /* update glue data */
 static void update_glue (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, mshp(con), mgobj(con), con->mpnt, con->point);
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
 }
 
 /* tell whether the geometric objects are topologically adjacent */
@@ -913,7 +913,7 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
     con->gap = unpack_double (dpos, d, doubles);
   }
 
-  BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point); /* update point */
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point); /* update point */
 
   return con;
 }
@@ -963,7 +963,7 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
     unpack_doubles (dpos, d, doubles, con->base, 9);
   }
 
-  BODY_Cur_Point (con->master, con->msgp->shp, con->msgp->gobj, con->mpnt, con->point); /* update point */
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point); /* update point */
 
   return con;
 }
@@ -2714,6 +2714,11 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
 {
   double point [3];
   int n;
+
+  if (con->kind == CONTACT)
+  {
+    if (con->msgp->kind == GOBJ_NODE || con->ssgp->kind == GOBJ_NODE) return; /* XXX: let node based contacts be re-detected; TODO: improve */
+  }
 
   /* delete when internal constraint structure is yet intact (CONCMP) */
 
