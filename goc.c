@@ -429,6 +429,7 @@ inline static int update_swap (int ret, int spair [2])
 /* detect contact node and convex */
 static int detect_node_convex (
   NODE *nod,
+  double *v, int nv,
   double *p, int *s, int np,
   double onepnt [3],
   double twopnt [3],
@@ -441,6 +442,9 @@ static int detect_node_convex (
   int i, j;
 
   /* FIXME: TODO: XXX */
+
+  d = gjk_convex_point (v, nv, x, a);
+  if (d > GEOMETRIC_EPSILON) return 0;
 
   g [0] = DBL_MAX;
   *gap = DBL_MAX - 10.0 * GEOMETRIC_EPSILON;
@@ -506,13 +510,14 @@ static int nodecontact (
   {
     case AABB_NODE_ELEMENT:
     {
-      double p [36];
-      int s [6], ns;
+      double v [24], p [36];
+      int s [6], ns, nv;
 
+      nv = ELEMENT_Vertices (twoshp->data, twogobj, v);
       ELEMENT_Planes (twoshp->data, twogobj, p, s, &ns);
 
       int opair [2] = {spair [0], spair [1]};
-      if (detect_node_convex (onegobj, p, s, ns, onepnt, twopnt, normal, gap, area, spair))
+      if (detect_node_convex (onegobj, v, nv, p, s, ns, onepnt, twopnt, normal, gap, area, spair))
       {
 	if (detect) return 2;
 	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
@@ -522,13 +527,14 @@ static int nodecontact (
     break;
     case AABB_ELEMENT_NODE:
     {
-      double p [36];
-      int s [6], ns;
+      double v [24], p [36];
+      int s [6], ns, nv;
 
+      nv = ELEMENT_Vertices (oneshp->data, onegobj, v);
       ELEMENT_Planes (oneshp->data, onegobj, p, s, &ns);
 
       int opair [2] = {spair [0], spair [1]};
-      if (detect_node_convex (twogobj, p, s, ns, onepnt, twopnt, normal, gap, area, spair))
+      if (detect_node_convex (twogobj, v, nv, p, s, ns, onepnt, twopnt, normal, gap, area, spair))
       {
 	swap (spair);
 
