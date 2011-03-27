@@ -36,8 +36,7 @@
 #include "pbf.h"
 
 /* used in some pools */
-#define MEMCHUNK 256
-#define MAPMEMCHUNK 128
+#define MEMCHUNK 128
 
 /* linear shape functions for the hexahedron */
 #define HEX0(x,y,z) (0.125*(1.0-(x))*(1.0-(y))*(1.0-(z)))
@@ -608,6 +607,48 @@ static void trim (MESH *msh, double *point, double *normal, TRI **below, int *mb
   KDT_Destroy (kdtree);
 }
 
+/* create surface nodes data, assuming all reamining mesh data is valid */
+static void create_surfnodes (MESH *msh)
+{
+  MEM mapmem;
+  MAP *smap;
+  FACE *fac;
+  int i, n;
+
+  msh->surfnodes = NULL;
+  MEM_Init (&mapmem, sizeof (MAP), MEMCHUNK);
+  MEM_Init (&msh->nodmem, sizeof (NODE), MEMCHUNK);
+  for (smap = NULL, fac = msh->faces; fac; fac = fac->n)
+  {
+    for (n = 0; n < fac->type; n ++)
+    {
+      double *cur = msh->cur_nodes [fac->nodes [n]];
+      NODE *nod = MAP_Find (smap, cur, NULL);
+
+      if (nod == NULL)
+      {
+	ERRMEM (nod = MEM_Alloc (&msh->nodmem));
+	MAP_Insert (&mapmem, &smap, cur, nod, NULL);
+	nod->n = msh->surfnodes;
+	msh->surfnodes = nod;
+        nod->cur = cur;
+      }
+
+      for (i = 0; i < nod->nfac; i ++)
+	if (nod->fac [i] == fac) break;
+
+      if (i == nod->nfac) /* add face to node faces list */
+      {
+	nod->nfac ++;
+	ERRMEM (nod->fac = realloc (nod->fac, nod->nfac * sizeof (FACE*)));
+	nod->fac [i] = fac;
+      }
+    }
+  }
+  msh->surfnodes_count = MAP_Size (smap);
+  MEM_Release (&mapmem);
+}
+
 /* create mesh from vector of nodes, element list in format =>
  * {nuber of nodes, node0, node1, ...}, {REPEAT}, ..., 0 (end of list); and surface kinds in format =>
  * global surface, {number of nodes, node0, node1, ..., surface}, {REPEAT}, ..., 0 (end of list); */
@@ -616,8 +657,8 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
   int maximal_node,
       minimal_node,
       elements_count,
-      faces_count, temp,
-      *eleptr, n, i;
+      faces_count,
+      temp, *eleptr, n;
   double (*ref) [3],
 	 (*cur) [3];
   MEM *elemem,
@@ -643,7 +684,7 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
   MEM_Init (elemem, sizeof (ELEMENT), elements_count);
   MEM_Init (&facmem, sizeof (FACE), MEMCHUNK);
   MEM_Init (&mapmem, sizeof (MAP), MEMCHUNK);
-  MEM_Init (&msh->mapmem, sizeof (MAP), MIN (elements_count, MAPMEMCHUNK));
+  MEM_Init (&msh->mapmem, sizeof (MAP), MIN (elements_count, MEMCHUNK));
   msh->map = NULL;
 
   elist = NULL;
@@ -779,38 +820,8 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
     }
   }
 
-  /* crate surface nodes list */
-  msh->surfnodes = NULL;
-  MAP_Free (&mapmem, &smap);
-  MEM_Init (&msh->nodmem, sizeof (NODE), faces_count);
-  for (smap = NULL, fac = msh->faces; fac; fac = fac->n)
-  {
-    for (n = 0; n < fac->type; n ++)
-    {
-      double *cur = msh->cur_nodes [fac->nodes [n]];
-      NODE *nod = MAP_Find (smap, cur, NULL);
-
-      if (nod == NULL)
-      {
-	ERRMEM (nod = MEM_Alloc (&msh->nodmem));
-	MAP_Insert (&mapmem, &smap, cur, nod, NULL);
-	nod->n = msh->surfnodes;
-	msh->surfnodes = nod;
-        nod->cur = cur;
-      }
-
-      for (i = 0; i < nod->nfac; i ++)
-	if (nod->fac [i] == fac) break;
-
-      if (i == nod->nfac) /* add face to node faces list */
-      {
-	nod->nfac ++;
-	ERRMEM (nod->fac = realloc (nod->fac, nod->nfac * sizeof (FACE*)));
-	nod->fac [i] = fac;
-      }
-    }
-  }
-  msh->surfnodes_count = MAP_Size (smap);
+  /* surface nodes */
+  create_surfnodes (msh);
 
   /* clean up */
   MEM_Release (&facmem);
@@ -1163,7 +1174,7 @@ MESH* MESH_Copy (MESH *msh)
   for (n = 0, ele = msh->surfeles; ele; ele = ele->next)
     for (fac = ele->faces; fac; fac = fac->next) n ++; /* count surface faces */
   MEM_Init (&ret->facmem, sizeof (FACE), n);
-  MEM_Init (&ret->mapmem, sizeof (MAP), MIN (msh->surfeles_count + msh->bulkeles_count, MAPMEMCHUNK));
+  MEM_Init (&ret->mapmem, sizeof (MAP), MIN (msh->surfeles_count + msh->bulkeles_count, MEMCHUNK));
   ERRMEM (ret->ref_nodes = malloc (sizeof (double [3]) * (msh->nodes_count * 2)));
   ret->cur_nodes = ret->ref_nodes + msh->nodes_count;
   ret->nodes_count = msh->nodes_count;
@@ -1806,7 +1817,7 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
     ERRMEM (out [m] = MEM_CALLOC (sizeof (MESH)));
     MEM_Init (&out [m]->elemem, sizeof (ELEMENT), n);
     MEM_Init (&out [m]->facmem, sizeof (FACE), MEMCHUNK);
-    MEM_Init (&out [m]->mapmem, sizeof (MAP), MIN (n, MAPMEMCHUNK));
+    MEM_Init (&out [m]->mapmem, sizeof (MAP), MIN (n, MEMCHUNK));
   }
 
   for (n = 0; n < 2; n ++) for (ele = head [n]; ele; ele = ele->next) /* set destination partitions */
@@ -1851,7 +1862,7 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
   j = 256;
   *numadj = 0;
   ERRMEM (*adjeles = malloc (j * sizeof (int [4])));
-  MEM_Init (&setmem, sizeof (SET), MAPMEMCHUNK);
+  MEM_Init (&setmem, sizeof (SET), MEMCHUNK);
 
   for (ele = msh->surfeles; ele; ele = ele->next) /* output partition boundary surface elements pairs */
   {
@@ -1898,7 +1909,7 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
   for (ele = msh->surfeles; ele; ele = ele->next) ele->dom = NULL; /* clear pointers */
   for (ele = msh->bulkeles; ele; ele = ele->next) ele->dom = NULL;
 
-  MEM_Init (&mapmem, sizeof (MAP), MAPMEMCHUNK);
+  MEM_Init (&mapmem, sizeof (MAP), MEMCHUNK);
   ERRMEM (nod = MEM_CALLOC (nparts * sizeof (MAP*)));
   ERRMEM (n2p = MEM_CALLOC (msh->nodes_count * sizeof (SET*)));
 
@@ -2444,7 +2455,7 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
 
   MEM_Init (&msh->elemem, sizeof (ELEMENT), m);
   MEM_Init (&msh->facmem, sizeof (FACE), MEMCHUNK);
-  MEM_Init (&msh->mapmem, sizeof (MAP), MIN (m, MAPMEMCHUNK));
+  MEM_Init (&msh->mapmem, sizeof (MAP), MIN (m, MEMCHUNK));
 
   ERRMEM (msh->ref_nodes = malloc (sizeof (double [3]) * (msh->nodes_count * 2)));
   msh->cur_nodes = msh->ref_nodes + msh->nodes_count;
@@ -2485,6 +2496,9 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   }
 
   free (tab);
+
+  /* surface nodes */
+  create_surfnodes (msh);
 
   return msh;
 }

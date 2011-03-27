@@ -82,8 +82,9 @@ Sensivity of FEM to the quality of tetragedral meshes (inp/tetgen.py)
 --------------------------------------------------------------------------------------
 Improve tetrahedral element (the averaged ideas: nodal or face based)
 ----------------------------------------------------------------------------
-Node to face contact for HEX elements (problems with stability)
------------------------------------------------------------------------------------
-Implementing correct seek, forward, backward step for simulations with
-deleted or newly inserted bodies
-----------------------------------------------------------------------------------
+Implement VBO based cut rendering
+----------------------------------------------------------------------------
+FEM-specific boundary conditions enforcement
+----------------------------------------------------------------------------
+Include GTS and use mesh simplification for MESH splitting
+----------------------------------------------------------------------------

@@ -976,7 +976,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
   bod->flags = flags;
 
   /* create piars table */
-  SGP_FLAGS sgp_flags;
+  SGP_FLAGS sgp_flags = 0;
   if (bod->flags & BODY_DETECT_NODE_CONTACT) sgp_flags |= SGP_MESH_NODES;
   bod->sgp = SGP_Create (shp, &bod->nsgp, sgp_flags);
 
