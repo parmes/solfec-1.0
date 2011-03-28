@@ -32,20 +32,20 @@ shp = HEX ([-c, -c, 0,
 	    -c,  c, 2*c], 3, 3, 3, 2, [2, 2, 2, 2, 2, 2])
 shp= PIPE ((0, 0, 0), (0, 0, c), 0.2*c, 0.3*c, 3, 8, 2, 2, [2, 2, 2, 2])
 #shp = TETRAHEDRALIZE (shp, 'out/crack/tet1.dat', c**6, quality = 1.5)
-#TRANSLATE (shp, (0, 0, 0.5*c))
-(a, b) = SPLIT (shp, (0, 0, 0.5*c), (0, 0, 1)) #FIXME: this will fail presumably due to poor mesh quality
+TRANSLATE (shp, (0, 0, 0.5*c))
+#(a, b) = SPLIT (shp, (0, 0, 0.5*c), (0, 0, 1))
 #shp = TETRAHEDRALIZE (a, 'out/crack/tet1.dat', c**6, quality = 1.5)
-shp = a
+#shp = a
 
 bod = BODY (solfec, 'FINITE_ELEMENT', shp, bulkmat)
-bod.nodecontact = 'ON'
+#bod.nodecontact = 'ON'
 #p0 = TRANSLATE (bod.center, (c/2.0, 0, 0))
 #p1 = TRANSLATE (bod.center, (-c/2.0, 0, 0))
 #SET_VELOCITY (bod, p0, (1, 0, 0), velo)
 #SET_VELOCITY (bod, p1, (-1, 0, 0), velo)
-#SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 1, 'TENSILE', 1E3, 10)
-#SIMPLIFIED_CRACK (bod, bod.center, (0, 1, 0), 1, 'TENSILE', 1E3, 10)
-#SIMPLIFIED_CRACK (bod, bod.center, (0, 0, 1), 1, 'TENSILE', 1E3, 10)
+SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 1, 'TENSILE', 1E5, 10)
+SIMPLIFIED_CRACK (bod, bod.center, (0, 1, 0), 1, 'TENSILE', 1E5, 10)
+SIMPLIFIED_CRACK (bod, bod.center, (0, 0, 1), 1, 'TENSILE', 1E5, 10)
 
 #FIXME: strangely preserved handing contact points afeter complete fragmentation
 #FIXME: in the element to element contact mode

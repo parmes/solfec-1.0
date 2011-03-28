@@ -276,7 +276,7 @@ void TRI_Compadj (TRI *tri, int n)
 	ERRMEM (y = MEM_Alloc (&mp)); *y = x;
 	MAP_Insert (&mm, &vm, y, t, (MAP_Compare)ppcmp); /* map edge to 't' */
       }
-      else TRI_Addadj (t, s); /* the edge was mapped before => adjacency found */
+      else ASSERT_TEXT (TRI_Addadj (t, s), "Too many adjacent triangles"); /* the edge was mapped before => adjacency found */
     }
   }
 

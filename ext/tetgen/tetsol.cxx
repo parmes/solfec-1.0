@@ -29,6 +29,7 @@ extern "C"
 #include "../../err.h"
 #include "../../alg.h"
 #include "../../kdt.h"
+#include "../../spx.h"
 
 /* generate tetrahedrons based on an input mesh object; pass -INT_MAX for (vol/surf)ids to inherit from the mesh */
 MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid)
@@ -416,6 +417,14 @@ MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid
   for (i = 0, ele = elements, tet = out.tetrahedronlist;
        i < out.numberoftetrahedra; i ++, ele += 6, tet += 4)
   {
+#if DEBUG
+    double *a = &out.pointlist [tet [0]*3],
+           *b = &out.pointlist [tet [1]*3],
+           *c = &out.pointlist [tet [2]*3],
+           *d = &out.pointlist [tet [3]*3];
+
+    ASSERT_TEXT (simplex_J (a, b, c, d) >= 1E-15, "Zero volume tetrahedron found: %d, %d, %d, %d", tet [0], tet [1], tet [2], tet [3]);
+#endif
     ele [0] = 4;
     ele [1] = tet [0];
     ele [2] = tet [1];
