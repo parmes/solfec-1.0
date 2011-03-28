@@ -7744,10 +7744,20 @@ void tetgenmesh::tetalldihedral(point pa, point pb, point pc, point pd,
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
+#define SUB(a, b, c)\
+  (c) [0] = (a) [0] - (b) [0];\
+  (c) [1] = (a) [1] - (b) [1];\
+  (c) [2] = (a) [2] - (b) [2]
+
+#define PRODUCT(a, b, c)\
+  (c) [0] = (a) [1]*(b) [2] - (a) [2]*(b) [1];\
+  (c) [1] = (a) [2]*(b) [0] - (a) [0]*(b) [2];\
+  (c) [2] = (a) [0]*(b) [1] - (a) [1]*(b) [0]
+
 void tetgenmesh::tetallnormal(point pa, point pb, point pc, point pd,
   REAL N[4][3], REAL* volume)
 {
-  REAL A[4][4], rhs[4], D;
+  REAL A[4][4], rhs[4], x [3], y [3], D;
   int indx[4];
   int i, j;
 
@@ -7761,14 +7771,37 @@ void tetgenmesh::tetallnormal(point pa, point pb, point pc, point pd,
     // Get the volume of the tet.
     *volume = fabs((A[indx[0]][0] * A[indx[1]][1] * A[indx[2]][2])) / 6.0;
   }
-  for (j = 0; j < 3; j++) {
-    for (i = 0; i < 3; i++) rhs[i] = 0.0;
-    rhs[j] = 1.0;  // Positive means the inside direction
-    lu_solve(A, 3, indx, rhs, 0);
-    for (i = 0; i < 3; i++) N[j][i] = rhs[i];
+  if (fabs (A [indx [2]][2])<1E-10 ||
+      fabs (A [indx [1]][1])<1E-10 ||
+      fabs (A [indx [0]][0])<1E-10) /* TK: LU failed => "manual" calculation */
+  {
+    SUB (pb, pc, x); SUB (pd, pb, y); PRODUCT (x, y, N[0]);
+    SUB (pc, pa, x); SUB (pd, pc, y); PRODUCT (x, y, N[1]);
+    SUB (pa, pb, x); SUB (pd, pa, y); PRODUCT (x, y, N[2]);
+    SUB (pb, pa, x); SUB (pc, pb, y); PRODUCT (x, y, N[3]);
+    for (i = 0; i < 4; i ++)
+    {
+      D = dot (N[i], N[i]);
+      if (D >= 1E-20)
+      {
+	D = 1.0/sqrt(D);
+	N [i][0] *= D;
+	N [i][1] *= D;
+	N [i][2] *= D;
+      }
+    }
   }
-  // Get the fourth normal by summing up the first three.
-  for (i = 0; i < 3; i++) N[3][i] = - N[0][i] - N[1][i] - N[2][i];
+  else
+  {
+    for (j = 0; j < 3; j++) {
+      for (i = 0; i < 3; i++) rhs[i] = 0.0;
+      rhs[j] = 1.0;  // Positive means the inside direction
+      lu_solve(A, 3, indx, rhs, 0);
+      for (i = 0; i < 3; i++) N[j][i] = rhs[i];
+    }
+    // Get the fourth normal by summing up the first three.
+    for (i = 0; i < 3; i++) N[3][i] = - N[0][i] - N[1][i] - N[2][i];
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -29847,6 +29880,10 @@ bool tetgenmesh::checktet4opt(triface* testtet, bool enqflag)
       cosd = -dot(N[1], N[3]);
       break;
     }
+
+    if (cosd > 1.0) cosd = 1.0; /* TK: ensure right bounds (avoid NANs due to roundoff) */
+    else if (cosd < -1.0) cosd = -1.0;
+
     if (cosd < cosmaxdihed) {
       // A bigger dihedral angle.
       count++;

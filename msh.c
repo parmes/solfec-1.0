@@ -1391,12 +1391,18 @@ void MESH_Split (MESH *msh, double *point, double *normal, int surfid, MESH **on
     trim (msh, point, normal, &b, &mb, &a, &ma);
     
     q = TRI_Merge (b, mb, c, mc, &mq);
+#if DEBUG
+    TRI_Compadj (q, mq); /* XXX: tests triangulation consistency */
+#endif
     *one = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
     free (q);
 
     /* TODO: map volume materials */
  
     q = TRI_Merge (a, ma, c, mc, &mq);
+#if DEBUG
+    TRI_Compadj (q, mq); /* XXX: tests triangulation consistency */
+#endif
     *two = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
     free (q);
 
