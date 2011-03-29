@@ -426,7 +426,126 @@ inline static int update_swap (int ret, int spair [2])
   return ret;
 }
 
-/* detect contact node and convex */
+/* compute point to face distance */
+static double point_face_distance (double *x, MESH *msh, FACE *fac)
+{
+  double v [24], q [3], d, *y, *a;
+  ELEMENT *ele = fac->ele;
+  int i, j;
+
+  for (i = 0; i < ele->type; i ++)
+  {
+    for (j = 0; j < fac->type; j ++)
+    {
+      if (fac->nodes [j] == ele->nodes [i]) break;
+    }
+    if (j == fac->type) break;
+  }
+  y = msh->cur_nodes [ele->nodes [i]]; /* non-face node */
+  SUB (y, x, q);
+  d = fabs (DOT (q, fac->normal)); /* distance to non-face node */
+
+  for (i = 0, y = v; i < fac->type; i ++)
+  {
+    a = fac->nod [i]->cur;
+    SUBMUL (a, d, fac->normal, y); y += 3; /* minus normal depth */
+    COPY (a, y); y += 3;
+  }
+
+  return gjk_convex_point (v, fac->type*2, x, q);
+}
+
+/* detect contact between node and element */
+static int detect_node_element (
+  NODE *nod,
+  MESH *msh,
+  ELEMENT *ele,
+  double onepnt [3],
+  double twopnt [3],
+  double normal [3],
+  double *gap,
+  double *area,
+  int spair [2])
+{
+  double a [3], g [2], near, far, *x = nod->cur, *y, *q, *nl;
+  FACE *fac;
+  NODE *opo;
+  int i, j;
+
+  g [0] = DBL_MAX;
+  for (fac = ele->faces; fac; fac = fac->next)
+  {
+    g [1] = point_face_distance (x, msh, fac);
+    if (g [1] < g [0]) g [0] = g [1];
+  }
+  if (g [0] > GEOMETRIC_EPSILON) return 0; /* minimal point face distance */
+
+  opo = NULL;
+  near = DBL_MAX;
+  far = -near;
+  for (fac = ele->faces; fac; fac = fac->next)
+  {
+    for (i = 0; i < fac->type; i ++)
+    {
+      q = fac->nod [i]->cur;
+      SUB (q, x, a);
+      g [1] = DOT (a, a);
+      if (g [1] < near)
+      {
+	opo =fac->nod [i];
+	near = g [1];
+      }
+      if (g [1] > far) far = g [1];
+    }
+  }
+  ASSERT_DEBUG (opo, "Nearest opposite node not found");
+  y = opo->cur;
+
+  if (near < GEOMETRIC_EPSILON) /* node to node */
+  {
+    if (ele != opo->fac [0]->ele) return 0; /* let only one element detect this case */
+  }
+
+  g [0] = DBL_MAX;
+  for (j = 0; j < opo->nfac; j ++)
+  {
+    fac = opo->fac [j];
+    near = point_face_distance (x, msh, fac);
+
+    if (near < GEOMETRIC_EPSILON * 100.0)
+    {
+      q = fac->normal;
+      for (i = 0; i < nod->nfac; i ++)
+      {
+	nl = nod->fac [i]->normal;
+	g [1] = DOT (nl, q);
+	if (g [1] < 0.0 && g [1] < g [0])
+	{
+	  COPY (q, normal);
+	  spair [0] = nod->fac [i]->surface;
+	  spair [1] = fac->surface;
+	  g [0] = g [1];
+	}
+      }
+    }
+  }
+
+  if (g [0] >= 0.0) return 0;
+
+  SUB (y, x, a);
+  *gap = -DOT (a, normal);
+
+  if (*gap > GEOMETRIC_EPSILON) return 0;
+  else *gap = MIN (*gap, 0.0);
+
+  *area = 1.0;
+  COPY (x, onepnt);
+  COPY (x, twopnt);
+
+  return 2;
+}
+
+/* detect contact between node and convex */
 static int detect_node_convex (
   NODE *nod,
   double *v, int nv,
@@ -441,18 +560,16 @@ static int detect_node_convex (
   double *x = nod->cur, a [3], d, g [2], *q, *r, *nl;
   int i, j;
 
-  /* FIXME: TODO: XXX */
-
   d = gjk_convex_point (v, nv, x, a);
   if (d > GEOMETRIC_EPSILON) return 0;
 
   g [0] = DBL_MAX;
-  *gap = DBL_MAX - 10.0 * GEOMETRIC_EPSILON;
-  for (q = p, r = p + 6*np, j = 0; q < r; q += 6, j ++)
+  *gap = 0.5 * DBL_MAX;
+  for (q = p, r = p + 4*np, j = 0; q < r; q += 4, j ++)
   {
-    SUB (q+3, x, a);
-    d = DOT (a, q);
-    if (d <= *gap + GEOMETRIC_EPSILON)
+    d = PLANE (q, x);
+    if (d < 0.0) return 0;
+    else if (d <= *gap + 100.0 * GEOMETRIC_EPSILON)
     {
       for (i = 0; i < nod->nfac; i ++)
       {
@@ -461,32 +578,19 @@ static int detect_node_convex (
 	if (g [1] < g [0])
 	{
           COPY (q, normal);
-          spair [1] = j;
+	  spair [0] = nod->fac [i]->surface;
+          spair [1] = s [j];
 	  g [0] = g [1];
           *gap = d;
 	}
       }
     }
-    if (d < 0.0) break;
   }
 
-  if (q < r) return 0;
+  if (g [0] >= 0.0) return 0;
 
   *gap *= -1.0;
   *area = 1.0;
-
-  a [0] = DBL_MAX;
-  for (i = 0; i < nod->nfac; i ++)
-  {
-    nl = nod->fac [i]->normal;
-    d = DOT (nl, normal);
-    if (d < a [0])
-    {
-      spair [0] = nod->fac [i]->surface;
-      a [0] = d;
-    }
-  }
-
   COPY (x, onepnt);
   COPY (x, twopnt);
 
@@ -510,14 +614,8 @@ static int nodecontact (
   {
     case AABB_NODE_ELEMENT:
     {
-      double v [24], p [36];
-      int s [6], ns, nv;
-
-      nv = ELEMENT_Vertices (twoshp->data, twogobj, v);
-      ELEMENT_Planes (twoshp->data, twogobj, p, s, &ns);
-
       int opair [2] = {spair [0], spair [1]};
-      if (detect_node_convex (onegobj, v, nv, p, s, ns, onepnt, twopnt, normal, gap, area, spair))
+      if (detect_node_element (onegobj, twoshp->data, twogobj, onepnt, twopnt, normal, gap, area, spair))
       {
 	if (detect) return 2;
 	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
@@ -527,17 +625,10 @@ static int nodecontact (
     break;
     case AABB_ELEMENT_NODE:
     {
-      double v [24], p [36];
-      int s [6], ns, nv;
-
-      nv = ELEMENT_Vertices (oneshp->data, onegobj, v);
-      ELEMENT_Planes (oneshp->data, onegobj, p, s, &ns);
-
       int opair [2] = {spair [0], spair [1]};
-      if (detect_node_convex (twogobj, v, nv, p, s, ns, onepnt, twopnt, normal, gap, area, spair))
+      if (detect_node_element (twogobj, oneshp->data, onegobj, onepnt, twopnt, normal, gap, area, spair))
       {
 	swap (spair);
-
 	if (detect) return 1;
 	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
 	else return 2;
@@ -545,11 +636,32 @@ static int nodecontact (
     }
     break;
     case AABB_NODE_CONVEX:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
-      break;
+    {
+      CONVEX *cvx = twogobj;
+      int opair [2] = {spair [0], spair [1]};
+      if (detect_node_convex (onegobj, cvx->cur, cvx->nver, cvx->pla, cvx->surface,
+	                      cvx->nfac, onepnt, twopnt, normal, gap, area, spair))
+      {
+	if (detect) return 2;
+	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
+	else return 2;
+      }
+    }
+    break;
     case AABB_CONVEX_NODE:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
-      break;
+    {
+      CONVEX *cvx = onegobj;
+      int opair [2] = {spair [0], spair [1]};
+      if (detect_node_convex (twogobj, cvx->cur, cvx->nver, cvx->pla, cvx->surface,
+	                      cvx->nfac, onepnt, twopnt, normal, gap, area, spair))
+      {
+	swap (spair);
+	if (detect) return 1;
+	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
+	else return 2;
+      }
+    }
+    break;
     case AABB_NODE_SPHERE:
       ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
       break;

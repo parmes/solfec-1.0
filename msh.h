@@ -61,6 +61,8 @@ struct face
       index, /* index within the element */
       surface; /* surface identifier */
 
+  NODE *nod [4];
+
   ELEMENT *ele;
 
   FACE *next, *n; /* element, mesh list */

@@ -7771,23 +7771,22 @@ void tetgenmesh::tetallnormal(point pa, point pb, point pc, point pd,
     // Get the volume of the tet.
     *volume = fabs((A[indx[0]][0] * A[indx[1]][1] * A[indx[2]][2])) / 6.0;
   }
-  if (fabs (A [indx [2]][2])<1E-10 ||
-      fabs (A [indx [1]][1])<1E-10 ||
-      fabs (A [indx [0]][0])<1E-10) /* TK: LU failed => "manual" calculation */
+  for (D = 0, i = 0; i < 3; i ++) for (j = 0; j < 3; j ++) if (fabs (A[i][j]) > D) D = fabs (A[i][j]); D *= 1E-10;
+  if (fabs (A [indx [2]][2]) < D || fabs (A [indx [1]][1]) < D || fabs (A [indx [0]][0]) < D) /* TK: LU failed => "manual" calculation */
   {
     SUB (pb, pc, x); SUB (pd, pb, y); PRODUCT (x, y, N[0]);
     SUB (pc, pa, x); SUB (pd, pc, y); PRODUCT (x, y, N[1]);
     SUB (pa, pb, x); SUB (pd, pa, y); PRODUCT (x, y, N[2]);
     SUB (pb, pa, x); SUB (pc, pb, y); PRODUCT (x, y, N[3]);
-    for (i = 0; i < 4; i ++)
+    for (D *= D, i = 0; i < 4; i ++)
     {
-      D = dot (N[i], N[i]);
-      if (D >= 1E-20)
+      x [0] = dot (N[i], N[i]);
+      if (x [0] >= D)
       {
-	D = 1.0/sqrt(D);
-	N [i][0] *= D;
-	N [i][1] *= D;
-	N [i][2] *= D;
+	x [0] = 1.0 / sqrt(x [0]);
+	N [i][0] *= x [0];
+	N [i][1] *= x [0];
+	N [i][2] *= x [0];
       }
     }
   }

@@ -643,6 +643,8 @@ static void create_surfnodes (MESH *msh)
 	ERRMEM (nod->fac = realloc (nod->fac, nod->nfac * sizeof (FACE*)));
 	nod->fac [i] = fac;
       }
+
+      fac->nod [n] = nod; /* set up face node pointer */
     }
   }
   msh->surfnodes_count = MAP_Size (smap);

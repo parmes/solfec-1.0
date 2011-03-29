@@ -38,7 +38,7 @@ TRANSLATE (shp, (0, 0, 0.5*c))
 #shp = a
 
 bod = BODY (solfec, 'FINITE_ELEMENT', shp, bulkmat)
-#bod.nodecontact = 'ON'
+#bod.nodecontact = 'ON' #FIXME: wrong normal directions after fragmentation
 #p0 = TRANSLATE (bod.center, (c/2.0, 0, 0))
 #p1 = TRANSLATE (bod.center, (-c/2.0, 0, 0))
 #SET_VELOCITY (bod, p0, (1, 0, 0), velo)
@@ -46,10 +46,6 @@ bod = BODY (solfec, 'FINITE_ELEMENT', shp, bulkmat)
 SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 1, 'TENSILE', 1E5, 10)
 SIMPLIFIED_CRACK (bod, bod.center, (0, 1, 0), 1, 'TENSILE', 1E5, 10)
 SIMPLIFIED_CRACK (bod, bod.center, (0, 0, 1), 1, 'TENSILE', 1E5, 10)
-
-#FIXME: strangely preserved handing contact points afeter complete fragmentation
-#FIXME: in the element to element contact mode
-#FIXME: similarly in the node based contact mode
 
 GRAVITY (solfec, (0, 0, -1000))
 OUTPUT (solfec, 2 * step)
