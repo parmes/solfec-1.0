@@ -563,25 +563,31 @@ static int detect_node_convex (
   d = gjk_convex_point (v, nv, x, a);
   if (d > GEOMETRIC_EPSILON) return 0;
 
+  *gap = -DBL_MAX;
+  for (q = p, r = p + 4*np; q < r; q += 4)
+  {
+    d = PLANE (q, x);
+    if (d >= *gap) *gap = d;
+  }
+
+  if (*gap > 0.0) return 0;
+
   g [0] = DBL_MAX;
-  *gap = 0.5 * DBL_MAX;
   for (q = p, r = p + 4*np, j = 0; q < r; q += 4, j ++)
   {
     d = PLANE (q, x);
-    if (d < 0.0) return 0;
-    else if (d <= *gap + 100.0 * GEOMETRIC_EPSILON)
+    if (d >= *gap - GEOMETRIC_EPSILON)
     {
       for (i = 0; i < nod->nfac; i ++)
       {
         nl = nod->fac [i]->normal;
         g [1] = DOT (nl, q);
-	if (g [1] < g [0])
+	if (g [1] <= g [0])
 	{
           COPY (q, normal);
 	  spair [0] = nod->fac [i]->surface;
           spair [1] = s [j];
 	  g [0] = g [1];
-          *gap = d;
 	}
       }
     }
@@ -589,7 +595,6 @@ static int detect_node_convex (
 
   if (g [0] >= 0.0) return 0;
 
-  *gap *= -1.0;
   *area = 1.0;
   COPY (x, onepnt);
   COPY (x, twopnt);
