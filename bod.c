@@ -1237,7 +1237,7 @@ double BODY_Dynamic_Critical_Step (BODY *bod)
     break;
   }
 
-  return step;
+  return 0.5 * step; /* XXX: coefficient */
 }
 
 void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
@@ -1946,6 +1946,16 @@ void BODY_Split (BODY *bod, double *point, double *normal, int surfid, BODY **on
       out [i]->scheme = bod->scheme;
       out [i]->damping = bod->damping;
     }
+  }
+
+  if (out [0] && out [1])
+  {
+    double votot = out [0]->ref_volume + out [1]->ref_volume,
+           coef [] = {out [0]->ref_volume / votot, out [1]->ref_volume / votot};
+
+    for (int i = 0; i < 2; i ++)
+      for (int j = 0; j < BODY_ENERGY_SPACE; j ++)
+        out [i]->energy [j] = coef [i] * bod->energy [j]; /* XXX: volume proportional split is not best in all cases */
   }
 
   /* TODO: transfer forces to parts */

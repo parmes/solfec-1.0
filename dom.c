@@ -2916,7 +2916,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
 	double h = BODY_Dynamic_Critical_Step (bod);
 
-	if (h < step) step = 0.5 * h;
+	if (h < step) step = h; /* XXX: how about later time ? */
       }
     }
     else

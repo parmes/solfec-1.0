@@ -6710,32 +6710,17 @@ err:
   return 0;
 }
 
-/* conver object argument of ENERGY to a body set */
+/* conver object to a body set */
 static SET* object_to_body_set (PyObject *obj, MEM *setmem, SOLFEC *sol)
 {
-  BODY *bod;
   SET *ret;
   int i, l;
 
   ret = NULL;
 
-  if (!obj)
-  {
-    for (bod = sol->dom->bod; bod; bod = bod->next)
-    {
-      SET_Insert (setmem, &ret, bod, NULL);
-    }
-  }
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_SOLFEC_TYPE))
-  {
-    lng_SOLFEC *solfec = (lng_SOLFEC*)obj;
+  ASSERT_DEBUG (obj, "Invalid NULL object argument to object_to_body_set");
 
-    for (bod = solfec->sol->dom->bod; bod; bod = bod->next)
-    {
-      SET_Insert (setmem, &ret, bod, NULL);
-    }
-  }
-  else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE))
+  if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE))
   {
     lng_BODY *body = (lng_BODY*)obj;
     SET_Insert (setmem, &ret, body->bod, NULL);

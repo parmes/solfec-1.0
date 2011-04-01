@@ -1,7 +1,7 @@
 c = 0.2
 d = 0.3
 step = 1E-5
-stop = 1.0
+stop = 0.03
 velo = 1E-6
 GEOMETRIC_EPSILON (1E-6)
 
@@ -51,5 +51,24 @@ GRAVITY (solfec, (0, 0, -1000))
 OUTPUT (solfec, 2 * step)
 RUN (solfec, sv, stop)
 
-if solfec.mode == 'READ':
-  FORWARD (solfec, 1)
+if not VIEWER() and solfec.mode == 'READ':
+  try:
+    import matplotlib.pyplot as plt
+
+    dur = DURATION (solfec)
+    th = HISTORY (solfec, [(solfec, 'KINETIC'), (solfec, 'INTERNAL'), (solfec, 'EXTERNAL'), 'BODS'], dur [0], dur [1], progress = 'ON')
+    plt.plot (th [0], th [1], label='KIN')
+    plt.plot (th [0], th [2], label='INT')
+    plt.plot (th [0], th [3], label='EXT')
+    tot = []
+    for i in range(0, len (th[0])): tot.append (th[1][i] + th[2][i] - th[3][i])
+    plt.plot (th [0], tot, label='TOT')
+    plt.plot (th [0], th [4], label='NBD')
+    plt.axis (xmin = dur [0], xmax = dur [1])
+    plt.xlabel ('Time [s]')
+    plt.ylabel ('Energy [J]')
+    plt.legend(loc = 'upper right')
+    plt.savefig ('out/crack/energy.eps')
+
+  except ImportError:
+    pass # no reaction

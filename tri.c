@@ -368,7 +368,9 @@ PFV* TRI_Polarise (TRI *tri, int n, int *m)
 
   goto done;
 
+#ifndef GEOMDEBUG
 error:
+#endif
   if (pfv) free (pfv);
   pfv = NULL;
   i = 0;

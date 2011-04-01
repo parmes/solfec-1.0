@@ -1595,7 +1595,7 @@ static void render_rough_mesh (BODY *bod)
     rough = data->rough;
   }
 
-  glColor4f (0.0, 0.0, 0.0, 0.2);
+  glColor4f (0.0, 0.0, 0.0, 0.5);
 
 #if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, rough->lines);
@@ -1617,7 +1617,7 @@ static void render_rough_mesh (BODY *bod)
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 #endif
 
-  glColor4f (0.9, 0.9, 0.9, 0.3);
+  glColor4f (0.9, 0.9, 0.9, 0.5);
 
 #if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, rough->triangles);
