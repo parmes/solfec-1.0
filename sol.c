@@ -320,7 +320,7 @@ static void initstatsout (DOM *dom)
 #endif
   {
     printf ("----------------------------------------------------------------------------------------\n");
-    printf ("INITAILLY DOFS %d, BODIES: %d (OBS: %d, RIG %d, PRB: %d, FEM: %d)\n",
+    printf ("INITIALLY DOFS %d, BODIES: %d (OBS: %d, RIG: %d, PRB: %d, FEM: %d)\n",
 	    vec [0], vec [1], vec [2], vec [3], vec [4], vec [5]);
     printf ("----------------------------------------------------------------------------------------\n");
   }
@@ -816,10 +816,20 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 	break;
       case ENERGY_VALUE:
 	{
-	  for (SET *item = SET_First (shi[i].bodies); item; item = SET_Next (item))
+	  if (shi [i].bodies)
 	  {
-	    BODY *bod = item->data;
-	    shi[i].history [cur] += bod->energy [shi[i].index];
+	    for (SET *item = SET_First (shi[i].bodies); item; item = SET_Next (item))
+	    {
+	      BODY *bod = item->data;
+	      shi[i].history [cur] += bod->energy [shi[i].index];
+	    }
+	  }
+	  else
+	  {
+	    for (BODY *bod = sol->dom->bod; bod; bod = bod->next)
+	    {
+	      shi[i].history [cur] += bod->energy [shi[i].index];
+	    }
 	  }
 	}
 	break;
@@ -849,12 +859,25 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 	  case OP_MIN: value = DBL_MAX; break;
 	  }
 
-	  for (SET *item = SET_First (shi[i].bodies); item; item = SET_Next (item))
+	  if (shi [i].bodies)
 	  {
-	    BODY *bod = item->data;
-	    for (SET *jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
+	    for (SET *item = SET_First (shi[i].bodies); item; item = SET_Next (item))
 	    {
-	      SET_Insert (&conmem, &conset, jtem->data, NULL); /* collect constraints (avoid duplicates) */
+	      BODY *bod = item->data;
+	      for (SET *jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
+	      {
+		SET_Insert (&conmem, &conset, jtem->data, NULL); /* collect constraints (avoid duplicates) */
+	      }
+	    }
+	  }
+	  else
+	  {
+	    for (BODY *bod = sol->dom->bod; bod; bod = bod->next)
+	    {
+	      for (SET *jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
+	      {
+		SET_Insert (&conmem, &conset, jtem->data, NULL); /* collect constraints (avoid duplicates) */
+	      }
 	    }
 	  }
 

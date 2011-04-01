@@ -866,10 +866,10 @@ void CONVEX_Char_Partial (CONVEX *cvx, int ref, double *vo, double *sx, double *
 	 J, *a, *b, *c, *ver;
   int i, j, *f;
 
-  ver = ref ? cvx->ref : cvx->cur;
-
   for (; cvx; cvx = cvx->next)
   {
+    ver = ref ? cvx->ref : cvx->cur;
+
     for (i = 0, f = cvx->fac; i < cvx->nfac; i ++, f = &f [f [0] + 1])
     {
       a = &ver [f [1]];

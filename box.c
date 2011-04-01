@@ -517,7 +517,7 @@ BOX_Extents_Update SGP_Extents_Update (SGP *sgp)
   case GOBJ_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
   case GOBJ_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
   case GOBJ_NODE: return (BOX_Extents_Update) NODE_Extents;
-  case GOBJ_DUMMY: return NULL;
+  default: break;
   }
 
   ASSERT_DEBUG (0, "Invalid shape kind in SGP_Extents_Update");

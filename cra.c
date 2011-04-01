@@ -279,7 +279,7 @@ void Propagate_Cracks (DOM *dom)
 	       h2 = BODY_Dynamic_Critical_Step (two),
 	       h  = MIN (h1, h2);
 
-	if (h < dom->step) dom->step = 0.5 * h; /* XXX: adjust domain stable step */
+	if (h < dom->step) dom->step = h; /* XXX: adjust domain stable step */
       }
       else
       {
