@@ -1575,7 +1575,7 @@ static void* old_external_constraints_unpack (DOM *dom, int *dpos, double *d, in
 /* insert or delete pending constraints */
 static void insert_pending_constraints (DOM *dom)
 {
-  double *e, *p;
+  double d [3], *e, *p;
   PNDCON *pnd;
   SET *item;
   CON *con;
@@ -1592,12 +1592,12 @@ static void insert_pending_constraints (DOM *dom)
       e = pnd->master->extents;
       p = pnd->mpnt;
 
-      if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
-      if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
-      if (p [2] < e [2]) e [2] = p [2] - GEOMETRIC_EPSILON;
-      if (p [0] > e [3]) e [3] = p [0] + GEOMETRIC_EPSILON;
-      if (p [1] > e [4]) e [4] = p [1] + GEOMETRIC_EPSILON;
-      if (p [2] > e [5]) e [5] = p [2] + GEOMETRIC_EPSILON;
+      if (p [0] < e [0]) e [0] = p [0];
+      if (p [1] < e [1]) e [1] = p [1];
+      if (p [2] < e [2]) e [2] = p [2];
+      if (p [0] > e [3]) e [3] = p [0];
+      if (p [1] > e [4]) e [4] = p [1];
+      if (p [2] > e [5]) e [5] = p [2];
     }
 
     if (pnd->slave->flags & BODY_PARENT)
@@ -1610,14 +1610,46 @@ static void insert_pending_constraints (DOM *dom)
         p = pp [i]; /* make sure that slave knows about both points since it can be on a processor different that
 		       the parent and can have no other means of knowing where to migrate the needed child */
 
-	if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
-	if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
-	if (p [2] < e [2]) e [2] = p [2] - GEOMETRIC_EPSILON;
-	if (p [0] > e [3]) e [3] = p [0] + GEOMETRIC_EPSILON;
-	if (p [1] > e [4]) e [4] = p [1] + GEOMETRIC_EPSILON;
-	if (p [2] > e [5]) e [5] = p [2] + GEOMETRIC_EPSILON;
+	if (p [0] < e [0]) e [0] = p [0];
+	if (p [1] < e [1]) e [1] = p [1];
+	if (p [2] < e [2]) e [2] = p [2];
+	if (p [0] > e [3]) e [3] = p [0];
+	if (p [1] > e [4]) e [4] = p [1];
+	if (p [2] > e [5]) e [5] = p [2];
       }
     }
+  }
+
+  for (item = SET_First (dom->pending); item; item = SET_Next (item))
+  {
+    pnd = item->data;
+
+    /* extend extents of these bodies that might have been altered above;
+     * note that we are not using GEOMETRIC_EPSILON here as this can be set
+     * by the user which in turn may cause migration consitency problems */
+
+    if (pnd->master->flags & BODY_PARENT)
+    {
+      e = pnd->master->extents;
+      SUB (e+3, e, d);
+      SCALE (d, PUT_GEOMEPS);
+      SUB (e, d, e);
+      ADD (e+3, d, e+3);
+    }
+
+    if (pnd->slave->flags & BODY_PARENT)
+    {
+      e = pnd->slave->extents;
+      SUB (e+3, e, d);
+      SCALE (d, PUT_GEOMEPS);
+      SUB (e, d, e);
+      ADD (e+3, d, e+3);
+    }
+  }
+
+  for (item = SET_First (dom->pending); item; item = SET_Next (item))
+  {
+    pnd = item->data;
 
     if (pnd->master->flags & BODY_PARENT) /* insert only those having parent master */
     {
