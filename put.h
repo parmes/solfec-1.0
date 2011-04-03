@@ -24,6 +24,9 @@
 #ifndef __put__
 #define __put__
 
+/* used to extend body geometric extents for domain balancing */
+#define PUT_GEOMEPS 0.001 /* XXX => quite arbitrary */
+
 /* get statistics on a vector of integer variables */
 void PUT_int_stats (int n, int *val, int *sum, int *min, int *avg, int *max);
 

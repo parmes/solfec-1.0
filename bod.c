@@ -39,6 +39,7 @@
 #include "fem.h"
 #include "but.h"
 #include "rnd.h"
+#include "put.h"
 
 /* implicit PRB integration */
 #define IMP_EPS 1E-8
@@ -1617,7 +1618,7 @@ void BODY_Update_Extents (BODY *bod)
   SHAPE_Extents (bod->shape, e);
 
 #if MPI
-  double *p;
+  double d [3], *p;
   SET *item;
   CON *con;
 
@@ -1629,13 +1630,21 @@ void BODY_Update_Extents (BODY *bod)
   {
     con = item->data;
     p = con->point;
-    if (p [0] < e [0]) e [0] = p [0] - GEOMETRIC_EPSILON;
-    if (p [1] < e [1]) e [1] = p [1] - GEOMETRIC_EPSILON;
-    if (p [2] < e [2]) e [2] = p [2] - GEOMETRIC_EPSILON;
-    if (p [0] > e [3]) e [3] = p [0] + GEOMETRIC_EPSILON;
-    if (p [1] > e [4]) e [4] = p [1] + GEOMETRIC_EPSILON;
-    if (p [2] > e [5]) e [5] = p [2] + GEOMETRIC_EPSILON;
+    if (p [0] < e [0]) e [0] = p [0];
+    if (p [1] < e [1]) e [1] = p [1];
+    if (p [2] < e [2]) e [2] = p [2];
+    if (p [0] > e [3]) e [3] = p [0];
+    if (p [1] > e [4]) e [4] = p [1];
+    if (p [2] > e [5]) e [5] = p [2];
   }
+
+ /* extend extents of the body as it might have been altered above;
+  * note that we are not using GEOMETRIC_EPSILON here as this can be set
+  * by the user which in turn may cause migration consitency problems */
+  SUB (e+3, e, d);
+  SCALE (d, PUT_GEOMEPS);
+  SUB (e, d, e);
+  ADD (e+3, d, e+3);
 #endif
 }
 
