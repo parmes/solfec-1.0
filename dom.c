@@ -1798,6 +1798,15 @@ static void domain_balancing (DOM *dom)
 	  bod = bodies [j];
 	  double e [6];
 
+	  if (!bod->flags)
+	  {
+	    if (j == 1 && con->kind == GLUE) continue; /* gluing constrains may be initially attached to a dummy */
+	    else 
+	    {
+	      ASSERT_DEBUG (0, "Dummy body attached to a two-body constraint");
+	    }
+	  }
+
 	  if (bod->flags & BODY_CHILD) BODY_Update_Extents (bod); /* bod->extents were not be updated for a child */
 
 	  COPY6 (bod->extents, e);
