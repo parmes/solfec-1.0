@@ -96,8 +96,7 @@ static void MPI_error_handling (MPI_Comm *comm, int *err, ...)
 
     for (; solfec; solfec = solfec->next) SOLFEC_Abort (solfec); /* abort SOLFEC (flush buffers) */
 
-    lngfinalize (); /* finalize interpreter: as a result
-		       flush output buffers if possible */
+    exit (1);
   }
 }
 
@@ -117,7 +116,6 @@ static void sighnd (int signal)
 {
   for (; solfec; solfec = solfec->next) SOLFEC_Abort (solfec); /* abort SOLFEC (flush buffers) */
 
-  lngfinalize (); /* finalize interpreter */
 #if MPI
   MPI_Finalize ();
 #endif
