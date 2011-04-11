@@ -1754,6 +1754,9 @@ static void domain_balancing (DOM *dom)
   ASSERT_DEBUG (i == dom->ncon, "Inconsistent constraints count");
   for (bod = dom->bod, i = 0; bod; bod = bod->next, i ++);
   ASSERT_DEBUG (i == dom->nbod, "Inconsistent bodies count");
+#if 0
+  Zoltan_Generate_Files (dom->zol, "kdd", 1, 1, 0, 0);
+#endif
 #endif
 
   /* update body partitioning */
@@ -1820,6 +1823,28 @@ static void domain_balancing (DOM *dom)
 
 	  if (k == numprocs)
 	  {
+	    fprintf (stderr, "\nBody flags = %d, Constraint kind = %s\n", bod->flags, CON_Kind (con));
+
+	    if (con->point [0] < e [0] || con->point [0] > e [3] ||
+		con->point [1] < e [1] || con->point [1] > e [4] ||
+		con->point [2] < e [2] || con->point [2] > e [5])
+	    {
+	      fprintf (stderr, "Constraint point is OUTSIDE of body extents!\n");
+	    }
+	    else
+	    {
+	      fprintf (stderr, "Constraint point is INSIDE of body extents!\n");
+	    }
+	    fprintf (stderr, "Box in Zoltan_LB_Box_Assign: %.15g %.15g %.15g %.15g %.15g %.15g\n", e[0], e[1], e[2], e[3], e[4], e[5]);
+	    fprintf (stderr, "Point in Zoltan_LB_Point_Assign: %.15g %.15g %.15g\n", con->point [0], con->point [1], con->point [2]);
+
+	    fprintf (stderr, "Body extents Zoltan_LB_Box_Assign processors: ");
+	    for (k = 0; k < numprocs; k ++) fprintf (stderr, "%d  ", procs [k]);
+	    fprintf (stderr, "\n");
+	    Zoltan_LB_Point_Assign (dom->zol, con->point, &k);
+	    fprintf (stderr, "Constraint point Zoltan_LB_Point_Assign processor: %d\n", k);
+	    fprintf (stderr, "Constraint export processor: %d\n", export_procs [i]);
+
 	    ASSERT_DEBUG (0, "A constraint is exported where its bodies are not present");
 	  }
 	}
