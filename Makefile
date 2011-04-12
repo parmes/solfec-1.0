@@ -147,6 +147,7 @@ partest: solfec solfec-mpi
 del:
 	rm -fr out/*
 	rm -fr *cubin
+	rm -fr *dSYM
 
 clean:
 	rm -f solfec

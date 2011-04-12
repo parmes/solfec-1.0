@@ -72,19 +72,19 @@ Add ANALAYSIS kind and body->DAMPING to MBFCP format
 --------------------------------------------------------------------------------------
 Swap epsilon and meritval arguments in GAUSS_SEIDEL_SOLVER
 --------------------------------------------------------------------------------------
-Consider coming back to the previous way of storing W blocks
-(memory fragmentation, efficienct for explicit FEM and skipped updates, etc.)
---------------------------------------------------------------------------------------
 Consider a separate linear solve at the end for all equality constraints.
 This will simplify the penalty solver as well as it might improve accuracy.
 --------------------------------------------------------------------------------------
 Sensivity of FEM to the quality of tetragedral meshes (inp/tetgen.py)
---------------------------------------------------------------------------------------
-Improve tetrahedral element (the averaged ideas: nodal or face based)
+-----------------------------------------------------------------------------------------------
+Improve tetrahedral element (the averaged ideas: nodal or face based or F-bar on 2-tet patches)
 ----------------------------------------------------------------------------
 Implement VBO based cut rendering
 ----------------------------------------------------------------------------
 FEM-specific boundary conditions enforcement
 ----------------------------------------------------------------------------
 Include GTS and use mesh simplification for MESH splitting
+----------------------------------------------------------------------------
+Remove references to "open dynamic" contacts in the code (see comments);
+These are now simply impossible by design and we shall keep it that way
 ----------------------------------------------------------------------------

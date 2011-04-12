@@ -43,7 +43,7 @@ typedef struct locdyn LOCDYN;
 /* off-diagonal block */
 struct offb
 {
-  double *W;
+  double W [9];
   DIAB *dia; /* corresponding diagonal block */
   BODY *bod;
   OFFB *n;
@@ -55,7 +55,7 @@ struct diab
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
 	    *U, /* relative volocity => points to U[3] member of the underlying constraint */
 	    *V, /* initial velocity => points to V[3] member of the underlying constraint */ 
-            *W, /* block-row of W (local inverse of inertia) => allocated */
+         W [9], /* block-row of W (local inverse of inertia) */
 	 A [9], /* inverse of diagonal W block */
 	 B [3], /* free velocity */
 	 rho;   /* scaling parameter */
@@ -72,8 +72,6 @@ struct diab
      *sH, *sprod; /* slave counterpart */
                   /* NOTE: left product can be applied to adjext assembly (MPI)
 		           while right product is sligtly faster (serial code) */
-  char rowupdate; /* update flag */
-
   DIAB *p, *n;
 };
 
@@ -87,8 +85,6 @@ struct locdyn
   DIAB *dia; /* list of diagonal blocks */
 
   double free_energy; /* approximate amount of kinetic energy of local free velocity (per-processor) */
-
-  short allocated; /* flag */
 };
 
 /* create local dynamics for a domain */
