@@ -5465,10 +5465,10 @@ epsilon
 \begin_layout Itemize
 
 \series bold
-presmooth
+smooth
 \series default
- - number of Gauss-Seidel pre-smoothing steps (default: 0); pre-smoothing
- is only performed when 
+ - number of Gauss-Seidel (pre- and post-) smoothing steps (default: 0);
+ smoothing is only performed when 
 \series bold
 locdyn
 \series default
@@ -5570,7 +5570,7 @@ Read/write
 \begin_layout Plain Layout
 
 \emph on
-obj.meritval, obj.maxiter, obj.locdyn, obj.theta, obj.epsilon, obj.presmooth
+obj.meritval, obj.maxiter, obj.locdyn, obj.theta, obj.epsilon, obj.smooth
 \end_layout
 
 \end_inset

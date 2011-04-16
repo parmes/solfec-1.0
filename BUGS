@@ -31,3 +31,10 @@ Sweep algorithms get stuck when run on many cpus (e.g. -np 8 with mpi1.py and N=
 GUESS: insertion sort is run on badly ordered sets with O(n ^2) complexity
 2011: seems to be still there
 ------------------------------------------------------------------------------------
+Too many cpus when compared to problem size cause parallel consitency issues:
+e.g. => 10x10x1 simplified core on 64 CPUs
+------------------------------------------------------------------------------------
+Zoltan bug for 10x10x1 simplified core and 32 CPUs =>
+body extents contain constraint extents and yet for example:
+Body extents Zoltan_LB_Box_Assign processors: 28  
+Constraint point Zoltan_LB_Point_Assign processor: 6
