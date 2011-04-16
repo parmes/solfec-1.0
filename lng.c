@@ -3316,9 +3316,9 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("meritval", "maxiter", "locdyn", "theta", "epsilon", "presmooth");
+  KEYWORDS ("meritval", "maxiter", "locdyn", "theta", "epsilon", "smooth");
   double meritval, theta, epsilon;
-  int maxiter, presmooth;
+  int maxiter, smooth;
   lng_NEWTON_SOLVER *self;
   PyObject *locdyn;
 
@@ -3331,17 +3331,17 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     locdyn = NULL;
     theta = 0.25;
     epsilon = 1E-9;
-    presmooth = 0;
+    smooth = 0;
 
-    PARSEKEYS ("|diOddi", &meritval, &maxiter, &locdyn, &theta, &epsilon, &presmooth);
+    PARSEKEYS ("|diOddi", &meritval, &maxiter, &locdyn, &theta, &epsilon, &smooth);
 
     TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (locdyn, kwl[2]) &&
-      is_gt_le (theta, kwl[3], 0, 1.0) && is_non_negative (epsilon, kwl[4]) && is_non_negative (presmooth, kwl[5]));
+      is_gt_le (theta, kwl[3], 0, 1.0) && is_non_negative (epsilon, kwl[4]) && is_non_negative (smooth, kwl[5]));
 
     self->ns = NEWTON_Create (meritval, maxiter);
     self->ns->theta = theta;
     self->ns->epsilon = epsilon;
-    self->ns->presmooth = presmooth;
+    self->ns->smooth = smooth;
 
     if (locdyn)
     {
@@ -3451,15 +3451,15 @@ static int lng_NEWTON_SOLVER_set_epsilon (lng_NEWTON_SOLVER *self, PyObject *val
   return 0;
 }
 
-static PyObject* lng_NEWTON_SOLVER_get_presmooth (lng_NEWTON_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_smooth (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->ns->presmooth);
+  return PyFloat_FromDouble (self->ns->smooth);
 }
 
-static int lng_NEWTON_SOLVER_set_presmooth (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_smooth (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge (value, "presmooth", 0)) return -1;
-  self->ns->presmooth = PyInt_AsLong (value);
+  if (!is_number_ge (value, "smooth", 0)) return -1;
+  self->ns->smooth = PyInt_AsLong (value);
   return 0;
 }
 
@@ -3509,7 +3509,7 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
   {"locdyn", (getter)lng_NEWTON_SOLVER_get_locdyn, (setter)lng_NEWTON_SOLVER_set_locdyn, "local dynamics assembling", NULL},
   {"theta", (getter)lng_NEWTON_SOLVER_get_theta, (setter)lng_NEWTON_SOLVER_set_theta, "relaxation parameter", NULL},
   {"epsilon", (getter)lng_NEWTON_SOLVER_get_epsilon, (setter)lng_NEWTON_SOLVER_set_epsilon, "smoothing epsilon", NULL},
-  {"presmooth", (getter)lng_NEWTON_SOLVER_get_presmooth, (setter)lng_NEWTON_SOLVER_set_presmooth, "pre-smoothing steps", NULL},
+  {"smooth", (getter)lng_NEWTON_SOLVER_get_smooth, (setter)lng_NEWTON_SOLVER_set_smooth, "smoothing steps", NULL},
   {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
   {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}

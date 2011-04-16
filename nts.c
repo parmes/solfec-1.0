@@ -817,7 +817,7 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->locdyn = LOCDYN_ON;
   ns->theta = 0.25;
   ns->epsilon = 1E-9;
-  ns->presmooth = 0;
+  ns->smooth = 0;
 
   return ns;
 }
@@ -832,9 +832,9 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   int div, gt;
   PRIVATE *A;
 
-  if (ns->locdyn == LOCDYN_ON && ns->presmooth > 0)
+  if (ns->locdyn == LOCDYN_ON && ns->smooth > 0)
   {
-    gs = GAUSS_SEIDEL_Create (1E-10, ns->presmooth, 1, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
+    gs = GAUSS_SEIDEL_Create (1E-10, ns->smooth, 1, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
     gs->verbose = 0;
     gs->nomerit = 1;
     GAUSS_SEIDEL_Solve (gs, ldy);
@@ -843,11 +843,10 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 #endif
     if (ldy->dom->verbose)
     {
-      printf ("NEWTON_SOLVER: presmoothing ");
+      printf ("NEWTON_SOLVER: pre-smoothing ");
       for (gt = 0; gt < gs->iters; gt ++) printf (".");
       printf ("\n");
     }
-    GAUSS_SEIDEL_Destroy (gs);
   }
 
   sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
@@ -911,6 +910,22 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   if (ldy->dom->rank == 0)
 #endif
   if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
+
+  if (ns->locdyn == LOCDYN_ON && ns->smooth > 0)
+  {
+    GAUSS_SEIDEL_Solve (gs, ldy);
+    *merit = MERIT_Function (ldy, 1); /* XXX: the merit can increase/decrease as a result of smoothing */
+#if MPI
+    if (ldy->dom->rank == 0)
+#endif
+    if (ldy->dom->verbose)
+    {
+      printf ("NEWTON_SOLVER: post-smoothing ");
+      for (gt = 0; gt < gs->iters; gt ++) printf (".");
+      printf ("\n");
+    }
+    GAUSS_SEIDEL_Destroy (gs);
+  }
 }
 
 /* write labeled state values */

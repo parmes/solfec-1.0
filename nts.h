@@ -40,7 +40,7 @@ struct newton
 
   double epsilon; /* smoothing epsilon */
 
-  int presmooth; /* presmoothing steps bound */
+  int smooth; /* (pre- and post-) smoothing steps bound */
 
   /* output */
 

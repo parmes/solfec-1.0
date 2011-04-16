@@ -47,7 +47,7 @@ if solver == 'GAUSS_SEIDEL':
   sv = GAUSS_SEIDEL_SOLVER (1E-3, 260, 1E-6, diagsolver = 'SEMISMOOTH_NEWTON')
   sv.reverse = 'ON'
 elif solver == 'NEWTON':
-  sv = NEWTON_SOLVER (1E-6, 250, theta = 0.15, presmooth = 10)
+  sv = NEWTON_SOLVER (1E-6, 250, theta = 0.15, smooth = 10)
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 
