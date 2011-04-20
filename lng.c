@@ -6386,7 +6386,7 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   not = 0;
   ocd.gap = 0;
 
-  PARSEKEYS ("OO|Od)", &obstacles, &shapes, &notobj, &ocd.gap);
+  PARSEKEYS ("OO|Od", &obstacles, &shapes, &notobj, &ocd.gap);
 
   TYPETEST (is_shape (obstacles, kwl[0]) && is_shape (shapes, kwl[1]) &&
             is_string (notobj, kwl [2]) && is_le (ocd.gap, kwl[3], 0));
