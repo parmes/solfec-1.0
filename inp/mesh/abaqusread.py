@@ -72,6 +72,26 @@ class Material:
     self.young = 1.0
     self.poisson = 0.0
 
+def SPLIT (str):
+  lst = str.split ()
+  out = []
+  cnt = 0
+  for l in lst:
+    if l.find ('"') >= 0: # "some names are like that"
+      if cnt == 0:
+	out.append (l)
+	cnt = cnt + 1
+      elif cnt == 1:
+	l0 = out [len (out)-1]
+	out [len (out)-1] = l0 + l
+	cnt = 0
+    elif cnt == 1:
+      l0 = out [len (out)-1]
+      out [len (out)-1] = l0 + l
+    else: out.append (l)
+
+  return out
+
 def ABAQUS_PARSE (path):
 
   inp = open (path, 'r')
@@ -95,7 +115,7 @@ def ABAQUS_PARSE (path):
     if lin.find ('*Part') >= 0:
 
       p = Part ()
-      lst = lin.split ()
+      lst = SPLIT (lin)
       p.name = lst [1].lstrip ('name=')
 
       lin = inp.readline ()
@@ -103,35 +123,35 @@ def ABAQUS_PARSE (path):
 
 	if  lin.find ('*Node') >= 0:
 	  lin = inp.readline ()
-	  lst = lin.split ()
+	  lst = SPLIT (lin)
 	  while lst [0].replace (',', '').isdigit():
 	    p.nodes.append (float (lst [1].replace (',', '')))
 	    p.nodes.append (float (lst [2].replace (',', '')))
 	    p.nodes.append (float (lst [3].replace (',', '')))
 	    lin = inp.readline ()
-	    lst = lin.split ()
+	    lst = SPLIT (lin)
 	elif lin.find ('*Element') >= 0:
-	  lst = lin.split ()
+	  lst = SPLIT (lin)
 	  type = lst [1].lstrip ('type=')
 	  if type == 'C3D8R': type = 8
 	  else:
 	    print 'Invalid element type:', type
 	    raise NameError (str(type))
           lin = inp.readline ()
-	  lst = lin.split ()
+	  lst = SPLIT (lin)
 	  while lst [0].replace (',', '').isdigit():
 	    p.elements.append (type)
 	    for i in range (type):
 	      p.elements.append (int (lst [i+1].replace (',', '')) - 1) # zero based
 	    p.elements.append (volid)
 	    lin = inp.readline ()
-	    lst = lin.split ()
+	    lst = SPLIT (lin)
 	elif lin.find ('*Elset') >= 0:
 	  # TODO => implement element sets
           lin = inp.readline ()
 	elif lin.find ('*Solid Section') >= 0:
 	  # TODO => implement material to element set mapping
-	  lst = lin.split ()
+	  lst = SPLIT (lin)
 	  for l in lst:
 	    if l.find ('material=') >= 0:
 	      p.material = l.lstrip ('material=') # XXX => one material per part
@@ -145,7 +165,7 @@ def ABAQUS_PARSE (path):
 
     elif lin.find ('*Assembly') >= 0:
 
-      lst = lin.split ()
+      lst = SPLIT (lin)
       a = Assembly ()
       a.name = lst [1].lstrip ('name=')
 
@@ -154,12 +174,12 @@ def ABAQUS_PARSE (path):
 
 	if lin.find ('*Instance') >= 0:
 	  i = Instance ()
-	  lst = lin.split ()
+	  lst = SPLIT (lin)
 	  i.name = lst [1].lstrip ('name=').replace (',', '')
 	  i.part = lst [2].lstrip ('part=')
 	  lin = inp.readline ()
 	  while lin.find ('*End Instance') < 0:
-	    lst = lin.split ()
+	    lst = SPLIT (lin)
 	    if len (lst) == 3:
 	      i.translate = (float (lst [0].replace (',', '')),
 			     float (lst [1].replace (',', '')),
@@ -185,7 +205,7 @@ def ABAQUS_PARSE (path):
 	  # ---- Instance end ----
 
         elif lin.find ('*Elset') >= 0:
-	  lst = lin.split ()
+	  lst = SPLIT (lin)
 	  name = 'null'
 	  inst = 'null'
 	  for l in lst:
@@ -207,7 +227,7 @@ def ABAQUS_PARSE (path):
 	  # ---- Elset end ----
 
         elif lin.find ('*Rigid Body') >= 0:
-	  lst = lin.split ()
+	  lst = SPLIT (lin)
 	  for l in lst:
 	    if l.find ('elset=') >= 0:
 	      name = l.lstrip ('elset=')
@@ -227,13 +247,13 @@ def ABAQUS_PARSE (path):
 
     elif lin.find ('*Material') >= 0:
 
-      lst = lin.split ()
+      lst = SPLIT (lin)
       m = Material ()
       m.name = lst [1].lstrip ('name=')
       lin = inp.readline ()
       if lin.find ('*Density') >= 0:
         lin = inp.readline ()
-	lst = lin.split ()
+	lst = SPLIT (lin)
 	m.density = float (lst [0].replace (',', ''))
       else:
 	print 'Density definition is missing'
@@ -241,7 +261,7 @@ def ABAQUS_PARSE (path):
       lin = inp.readline ()
       if lin.find ('*Elastic') >= 0:
         lin = inp.readline ()
-	lst = lin.split ()
+	lst = SPLIT (lin)
 	m.young = float (lst [0].replace (',', ''))
 	m.poisson = float (lst [1].replace (',', ''))
       else:
@@ -280,9 +300,11 @@ def ABAQUS_READ (path, solfec):
       e = a.elsets [ekey]
       shp = []
       material = 'Mateiral0'
+      blabel = 'Body0'
       for ikey in e.instances:
 	i = a.instances [ikey]
 	p = parts [i.part]
+	blabel = p.name
 	material = p.material # XXX => pick the last one
 	s = MESH (p.nodes, p.elements, surfid)
 	if l2 (i.translate) > 0.0: TRANSLATE (s, i.translate)
@@ -290,7 +312,7 @@ def ABAQUS_READ (path, solfec):
 	shp.append (s)
 
       bulkmat = BYLABEL (solfec, 'BULK_MATERIAL',  material)
-      if bulkmat != None: BODY (solfec, 'RIGID', shp, bulkmat)
+      if bulkmat != None: BODY (solfec, 'RIGID', shp, bulkmat, label = blabel)
       else:
 	print 'Invalid bulk material'
 	raise NameError (material)

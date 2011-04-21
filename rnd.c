@@ -175,6 +175,8 @@ enum /* menu items */
   TOOLS_SMALLER_ARROWS,
   TOOLS_BIGGER_ARROWS,
   TOOLS_OUTPATH,
+  TOOLS_POINTS_DISTANCE,
+  TOOLS_POINTS_ANGLE,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -218,6 +220,7 @@ enum mouse_mode
   MOUSE_SELECTION_BEGIN,
   MOUSE_SELECTION_END,
   MOUSE_PICK_BODY,
+  MOUSE_PICK_POINT,
   MOUSE_CUTTING_PLANE
 };
 
@@ -296,6 +299,9 @@ static int mouse_start [2] = {0, 0};
 static short tool_mode = 0; /* current tool */
 
 static BODY *picked_body = NULL; /* currently picked body */
+
+static double *picked_point = NULL, /* currently picked point */
+	      *picked_point_hist [2] = {NULL, NULL}; /* history of picked points */
 
 static double arrow_factor = 0.05; /* arrow drawing constant */
 
@@ -2288,6 +2294,25 @@ static void selection_2D_render_body_set (SET *set)
   }
 }
 
+/* render point set for 2D selection */
+static void selection_2D_render_point_set (BODY_DATA *rendering)
+{
+  GLfloat color [4];
+  VALUE_SOURCE *src;
+  int i;
+
+  glPointSize (16.0);
+  glBegin (GL_POINTS);
+  for (i = 1, src = rendering->value_sources; i <= rendering->values_count; i ++, src ++)
+  {
+    idtorgba (i, color);
+    glColor4fv (color);
+    glVertex3dv (src->pnt);
+  }
+  glEnd ();
+  glPointSize (1.0);
+}
+
 /* render body set for 3D selection */
 static void selection_3D_render_body_set (SET *set)
 {
@@ -2325,6 +2350,32 @@ static void render_picked_body (void)
     }
     glColor3fv (color);
     selection_render_body_triangles (picked_body);
+    glEnable (GL_LIGHTING);
+  }
+}
+
+/* render picked point if any */
+static void render_picked_point (void)
+{
+  GLfloat color [3] = {0.5, 0.5, 0.5};
+
+  if (picked_point)
+  {
+    switch (tool_mode)
+    {
+    case TOOLS_POINTS_DISTANCE: color [2] = 1.0; break;
+    case TOOLS_POINTS_ANGLE: color [1] = 1.0; break;
+    }
+
+    glDisable (GL_LIGHTING);
+    glDisable (GL_DEPTH_TEST);
+    glPointSize (8.0);
+    glBegin (GL_POINTS);
+    glColor3fv (color);
+    glVertex3dv (picked_point);
+    glEnd ();
+    glPointSize (1.0);
+    glEnable (GL_DEPTH_TEST);
     glEnable (GL_LIGHTING);
   }
 }
@@ -2729,6 +2780,41 @@ static BODY* pick_body (int x, int y)
   return MAP_Find (domain->idb, (void*) rgbatoid (pix), NULL);
 }
 
+/* pick one point using 2D selection */
+static double* pick_point (int x, int y)
+{
+  unsigned char pix [4];
+  GLint viewport [4];
+  double *point;
+  BODY *bod;
+
+  glDisable (GL_LIGHTING);
+  glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+  selection_2D_render_body_set (selection->set);
+  glEnable (GL_LIGHTING);
+
+  glGetIntegerv (GL_VIEWPORT, viewport);
+  glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+
+  bod = MAP_Find (domain->idb, (void*) rgbatoid (pix), NULL);
+  point = NULL;
+
+  if (bod)
+  {
+    glDisable (GL_LIGHTING);
+    glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+    selection_2D_render_point_set (bod->rendering);
+    glEnable (GL_LIGHTING);
+
+    glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
+    BODY_DATA *data = bod->rendering;
+    int i = rgbatoid (pix);
+    if (i > 0 && i <= data->values_count) point = data->value_sources [i-1].pnt;
+  }
+
+  return point;
+}
+
 /* disable all modes */
 static int modes_off ()
 {
@@ -2739,6 +2825,9 @@ static int modes_off ()
   tip = NULL;
   cut_sketch = 0;
   picked_body = NULL;
+  picked_point = NULL;
+  picked_point_hist [0] = NULL;
+  picked_point_hist [1] = NULL;
   GLV_Rectangle_Off ();
   GLV_Release_Mouse ();
   update ();
@@ -3030,6 +3119,18 @@ static void menu_tools (int item)
     show_outpath = !show_outpath;
     GLV_Redraw_All ();
     break;
+  case TOOLS_POINTS_DISTANCE:
+    modes_off ();
+    mouse_mode = MOUSE_PICK_POINT;
+    tool_mode = item;
+    GLV_Hold_Mouse ();
+    break;
+  case TOOLS_POINTS_ANGLE:
+    modes_off ();
+    mouse_mode = MOUSE_PICK_POINT;
+    tool_mode = item;
+    GLV_Hold_Mouse ();
+    break;
   }
 }
 
@@ -3126,6 +3227,8 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("bigger arrows /]/", TOOLS_BIGGER_ARROWS);
   glutAddMenuEntry ("smaller arrows /[/", TOOLS_SMALLER_ARROWS);
   glutAddMenuEntry ("toggle output path /o/", TOOLS_OUTPATH);
+  glutAddMenuEntry ("points distance /d/", TOOLS_POINTS_DISTANCE);
+  glutAddMenuEntry ("points angle /g/", TOOLS_POINTS_ANGLE);
 
   menu_name [MENU_KINDS] = "kinds of";
   menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
@@ -3247,6 +3350,8 @@ void RND_Render ()
 
   render_picked_body ();
 
+  render_picked_point ();
+
   render_cut_sketch ();
 }
 
@@ -3325,6 +3430,12 @@ void RND_Key (int key, int x, int y)
   case 'o':
     menu_tools (TOOLS_OUTPATH);
     break;
+  case 'd':
+    menu_tools (TOOLS_POINTS_DISTANCE);
+    break;
+  case 'g':
+    menu_tools (TOOLS_POINTS_ANGLE);
+    break;
   }
 }
 
@@ -3395,6 +3506,61 @@ void RND_Mouse (int button, int state, int x, int y)
 
 	GLV_Redraw_All ();
       }
+      else if (mouse_mode == MOUSE_PICK_POINT && picked_point)
+      {
+	switch (tool_mode)
+	{
+	case TOOLS_POINTS_DISTANCE:
+	  if (picked_point_hist [0])
+	  {
+	    double d [3], len;
+
+	    SUB (picked_point_hist [0], picked_point, d);
+	    len = LEN (d);
+
+	    printf ("Distance from [%g, %g, %g] to [%g, %g, %g] is %g\n",
+	      picked_point_hist [0][0], picked_point_hist [0][1], picked_point_hist [0][2], 
+	      picked_point [0], picked_point [1], picked_point [2], len);
+
+	    picked_point_hist [0] = NULL;
+
+	    GLV_Redraw_All ();
+	  }
+	  else picked_point_hist [0] = picked_point;
+	  break;
+	case TOOLS_POINTS_ANGLE:
+	  if (picked_point_hist [0] && picked_point_hist [1])
+	  {
+	    double d0 [3], d1 [3], l0, l1, angle;
+
+	    SUB (picked_point_hist [0], picked_point_hist [1], d0);
+	    SUB (picked_point, picked_point_hist [0], d1);
+	    l0 = LEN (d0);
+	    l1 = LEN (d1);
+	    if (l0 > 0.0 && l1 > 0.0)
+	    {
+	      angle = 180.0 * acos (DOT (d0, d1) / (l0*l1)) / ALG_PI;
+
+	      printf ("Angle between [%g, %g, %g] - [%g, %g, %g] - [%g, %g, %g] is %g\n",
+		picked_point_hist [0][0], picked_point_hist [0][1], picked_point_hist [0][2], 
+		picked_point_hist [1][0], picked_point_hist [1][1], picked_point_hist [1][2], 
+		picked_point [0], picked_point [1], picked_point [2], angle);
+	    }
+	    else printf ("Coincident points has been picked. Try again.\n");
+
+	    picked_point_hist [0] = NULL;
+	    picked_point_hist [1] = NULL;
+
+	    GLV_Redraw_All ();
+	  }
+	  else 
+	  {
+	    picked_point_hist [1] = picked_point_hist [0];
+	    picked_point_hist [0] = picked_point;
+	  }
+	  break;
+	}
+      }
       break;
     }
     break;
@@ -3434,6 +3600,11 @@ void RND_Passive (int x, int y)
   if (mouse_mode == MOUSE_PICK_BODY)
   {
     picked_body = pick_body (x, y);
+    GLV_Redraw_All ();
+  }
+  else if (mouse_mode == MOUSE_PICK_POINT)
+  {
+    picked_point = pick_point (x, y);
     GLV_Redraw_All ();
   }
   else if (mouse_mode == MOUSE_CUTTING_PLANE)
