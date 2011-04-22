@@ -7091,6 +7091,16 @@ num
 \end_layout
 
 \begin_layout Subsection*
+BARRIER ()
+\end_layout
+
+\begin_layout Standard
+This routine sets up a parallel barrier in the MPI mode (all processes need
+ to meet at it before they can continue).
+ It is ignored in the serial mode.
+\end_layout
+
+\begin_layout Subsection*
 num = NCPU (solfec)
 \end_layout
 
