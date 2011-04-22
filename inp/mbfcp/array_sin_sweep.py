@@ -3,13 +3,13 @@ import sys
 import commands
 sys.path.append ('inp/mesh')
 from abaqusread import *
-from math import sin
+from math import cos 
 
 dbgplt = 0 # enable debug plots
 
 PI = 3.14159265358979323846
 
-def gen_vel_sin_sweep (step):
+def gen_acc_sin_sweep (step):
 
   f1 = 1.0
   f2 = 15.0
@@ -17,20 +17,21 @@ def gen_vel_sin_sweep (step):
   A = 1.0
   t2 = (f2 - f1) / Rlin
   t = 0.0
-  velo = []
+  acc = []
   th = []
-  vh = []
+  ah = []
   c1 = PI*(f2-f1)/t2
   c2 = 2*PI*f1
+  step *= 0.25 # since acceleration will need to be integrated into
+               # the velocity desner step will improve efficiency
 
   while t < t2:
-    # acceleration = A * cos (c1*t*t + c2*t)
-    v = A * sin (c1*t*t + c2*t) * (2*c1*t + c2)
-    velo.append (t)
-    velo.append (v)
+    a = A * cos (c1*t*t + c2*t) # analytical integration into velocity form produces a too long expression
+    acc.append (t)
+    acc.append (a)
     if dbgplt:
       th.append (t)
-      vh.append (v)
+      ah.append (a)
     t = t + step
 
   if dbgplt:
@@ -39,10 +40,10 @@ def gen_vel_sin_sweep (step):
       plt.plot (th, vh)
       plt.xlabel ('Time')
       plt.ylabel ('Velocity')
-      plt.savefig ('out/mbfcp/array_sin_sweep/velo.eps')
+      plt.savefig ('out/mbfcp/array_sin_sweep/acc.eps')
     except: pass
 
-  return (t2, velo)
+  return (t2, acc)
 
 #import rpdb2; rpdb2.start_embedded_debugger ('a')
 
@@ -52,15 +53,19 @@ solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/array_sin_sweep')
 
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1)
 
-commands.getoutput ("bunzip2 inp/mesh/A1.inp.bz2")
+if RANK () == 0:
+  commands.getoutput ("bunzip2 inp/mesh/A1.inp.bz2") # only first CPU unpacks the input
+
+BARRIER () # let all CPUs meet here
 
 ABAQUS_READ ('inp/mesh/A1.inp', solfec)
 
-commands.getoutput ("bzip2 inp/mesh/A1.inp")
+if RANK () == 0:
+  commands.getoutput ("bzip2 inp/mesh/A1.inp") # only first CPU pack the input
 
-gen = gen_vel_sin_sweep (step)
+gen = gen_acc_sin_sweep (step)
 stop = gen [0]
-vel = TIME_SERIES (gen [1])
+acc = TIME_SERIES (gen [1])
 
 # boundary conditions
 for b in solfec.bodies:
@@ -91,7 +96,6 @@ for b in solfec.bodies:
 	p = TRANSLATE (c, (-0.04, -0.08, 0))
 	FIX_DIRECTION (b, p, (0, 0, -1))
 	FIX_DIRECTION (b, p, (-1, 0, 0))
-	SET_VELOCITY (b, p, (0, 1, 0), vel)
       elif c [0] > 1.0:
 	p = TRANSLATE (c, (-0.05, 0, 0))
 	FIX_DIRECTION (b, p, (0, 0, -1))
@@ -101,6 +105,7 @@ for b in solfec.bodies:
 	p = TRANSLATE (c, (0.04, -0.08, 0))
 	FIX_DIRECTION (b, p, (0, 0, -1))
 	FIX_DIRECTION (b, p, (1, 0, 0))
+	SET_ACCELERATION (b, p, (0, 1, 0), acc)
       elif c [1] < 0.0:
 	p = TRANSLATE (c, (0, 0.05, 0))
 	FIX_DIRECTION (b, p, (0, 0, -1))
@@ -139,7 +144,6 @@ for b in solfec.bodies:
       p = TRANSLATE (c, (0, -0.01785, 0))
       if c [0] < 0.0: FIX_DIRECTION (b, p, (-1, 0, 0))
       FIX_DIRECTION (b, p, (0, 0, -1))
-      SET_VELOCITY (b, p, (0, 1, 0), vel)
 
 
 # solver and run

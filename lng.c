@@ -5009,6 +5009,16 @@ static PyObject* lng_RANK (PyObject *self, PyObject *args, PyObject *kwds)
   return PyInt_FromLong (rank);
 }
 
+/* set up parallel barrier */
+static PyObject* lng_BARRIER (PyObject *self, PyObject *args, PyObject *kwds)
+{
+#if MPI
+  MPI_Barrier (MPI_COMM_WORLD);
+#endif
+
+  Py_RETURN_TRUE;
+}
+
 /* return number of CPUs */
 static PyObject* lng_NCPU (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -7222,6 +7232,7 @@ static PyMethodDef lng_methods [] =
   {"SIMPLIFIED_CRACK", (PyCFunction)lng_SIMPLIFIED_CRACK, METH_VARARGS|METH_KEYWORDS, "Prescribe crack"},
   {"IMBALANCE_TOLERANCE", (PyCFunction)lng_IMBALANCE_TOLERANCE, METH_VARARGS|METH_KEYWORDS, "Adjust parallel imbalance tolerance"},
   {"RANK", (PyCFunction)lng_RANK, METH_NOARGS, "Get current processor rank"},
+  {"BARRIER", (PyCFunction)lng_BARRIER, METH_NOARGS, "Set up parallel barrier"},
   {"NCPU", (PyCFunction)lng_NCPU, METH_VARARGS|METH_KEYWORDS, "Get the number of processors"},
   {"HERE", (PyCFunction)lng_HERE, METH_VARARGS|METH_KEYWORDS, "Test whether an object is located on the current processor"},
   {"VIEWER", (PyCFunction)lng_VIEWER, METH_NOARGS, "Test whether the viewer is enabled"},
@@ -7416,6 +7427,7 @@ int lng (const char *path)
                      "from solfec import SIMPLIFIED_CRACK\n"
                      "from solfec import IMBALANCE_TOLERANCE\n"
                      "from solfec import RANK\n"
+                     "from solfec import BARRIER\n"
                      "from solfec import NCPU\n"
                      "from solfec import HERE\n"
                      "from solfec import VIEWER\n"
