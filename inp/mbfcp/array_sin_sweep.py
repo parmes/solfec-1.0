@@ -151,6 +151,8 @@ for b in solfec.bodies:
 slv  = GAUSS_SEIDEL_SOLVER (1E-3, 300, 1E-6)
 
 if RANK() == 0 and solfec.mode == 'WRITE':
-  print 'Running', stop, 'seconds or analysis with step', step, '...'
+  print 'Running', stop, 'seconds of analysis with step', step, '...'
+
+OUTPUT (solfec, 0.01)
 
 RUN (solfec, slv, stop)

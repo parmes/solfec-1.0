@@ -580,7 +580,7 @@ static int constraint_weight (CON *con)
 
   wgt0 += (int) (dom->weight_factor * (double) wgt1);
 
-  if (con->master->kind == FEM || (con->slave && con->slave->kind == FEM)) wgt0 /= 10; /* avoid excess */
+  if (con->master->kind == FEM || (con->slave && con->slave->kind == FEM)) wgt0 /= 10; /* XXX: avoid excess */
 
   /* TODO: constraint wights require more thought (/ 10 for FEM is very much ad hoc) */
 
@@ -607,7 +607,7 @@ static int body_weight (BODY *bod)
 static int object_count (DOM *dom, int *ierr)
 {
   *ierr = ZOLTAN_OK;
-  int ncon;
+  int count, ncon;
   CON *con;
 
   for (con = dom->con, ncon = 0; con; con = con->next)
@@ -615,7 +615,10 @@ static int object_count (DOM *dom, int *ierr)
     if (con->slave) ncon ++; /* only two-body constraints migrate independently */
   }
 
-  return dom->nbod + ncon;
+  count = dom->nbod + ncon;
+
+  if (count == 0) return 1; /* XXX: Zoltan fails for 0 count */
+  else return count;
 }
 
 /* list of object identifiers for load balancing */
@@ -642,6 +645,12 @@ static void object_list (DOM *dom, int num_gid_entries, int num_lid_entries,
     }
   }
 
+  if (i == 0) /* XXX: Zoltan workaround */
+  {
+    global_ids [0] = UINT_MAX;
+    obj_wgts [0] = 1.0;
+  }
+
   *ierr = ZOLTAN_OK;
 }
 
@@ -662,7 +671,11 @@ static void objpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
   CON *con;
   int i;
 
-  for (i = 0; i < num_obj; i ++)
+  if (num_obj == 1 && global_ids [0] == UINT_MAX) /* XXX: Zoltan workaround */
+  {
+    SET (geom_vec, 0.0);
+  }
+  else for (i = 0; i < num_obj; i ++)
   {
     id = global_ids [i * num_gid_entries];
     v = &geom_vec [i* num_dim];
@@ -1709,7 +1722,6 @@ static void domain_balancing (DOM *dom)
 		export_local_ids;
 
   COMOBJ *send, *recv;
-  unsigned int id;
   char str [128];
   int nrecv;
   SET *item;
@@ -1763,6 +1775,9 @@ static void domain_balancing (DOM *dom)
   ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
 	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+#if 0
+  unsigned int id;
 
   for (i = 0; i < num_export; i ++) /* for each exported body */
   {
@@ -1854,6 +1869,58 @@ static void domain_balancing (DOM *dom)
 #endif
     }
   }
+#else
+  /* XXX: Zoltan workaround => the usual method of computing export sets
+   * XXX: may lead to inconsitent behavior of Zoltan_LB_Box_Assign and Zoltan_LB_Point_Assign;
+   * XXX: Hence the above code is not going to be used until Zoltan is fixed or replaced ($$$) */
+
+  int *procs, numprocs;
+  double e [6];
+
+  ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
+
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    COPY6 (bod->extents, e);
+    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+    if (procs [0] != dom->rank)
+    {
+      bod->rank = procs [0]; /* set the new rank */
+
+      SET_Insert (&dom->setmem, &dbd [procs [0]].bodies, bod, NULL); /* map this body to its export rank */
+
+      for (item = SET_First (bod->con); item; item = SET_Next (item))
+      {
+	con = item->data;
+
+	if (!con->slave) SET_Insert (&dom->setmem, &dbd [procs [0]].constraints, con, NULL); /* single-body constraints migrate with bodies */
+      }
+    }
+  }
+
+  for (con = dom->con; con; con = con->next)
+  {
+    if (!con->slave) continue; /* skip single-body constraints */
+
+    COPY (con->point, e);
+    COPY (e, e+3);
+    e [0] -= GEOMETRIC_EPSILON;
+    e [1] -= GEOMETRIC_EPSILON;
+    e [2] -= GEOMETRIC_EPSILON;
+    e [3] += GEOMETRIC_EPSILON;
+    e [4] += GEOMETRIC_EPSILON;
+    e [5] += GEOMETRIC_EPSILON;
+    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+    if (procs [0] != dom->rank)
+    {
+      SET_Insert (&dom->setmem, &dbd [procs [0]].constraints, con, NULL); /* map this constraint to its export rank */
+    }
+  }
+ 
+  free (procs);
+#endif
 
   /* free Zoltan data */
   Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
@@ -2323,7 +2390,7 @@ static void create_mpi (DOM *dom)
   Zoltan_Set_Param (dom->zol, "LB_METHOD", "RCB");
   Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", "1.3");
   Zoltan_Set_Param (dom->zol, "AUTO_MIGRATE", "FALSE");
-  Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "EXPORT");
+  Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "NONE"); /* XXX: EXPORT for previous way of computing export sets ($$$) */
 
   /* RCB parameters */
   Zoltan_Set_Param (dom->zol, "RCB_OVERALLOC", "1.3");
