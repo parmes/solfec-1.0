@@ -3039,33 +3039,30 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   step = dom->step;
 
   /* initialize bodies */
-  if (time == 0.0)
+  if (dom->dynamic > 0)
   {
-    if (dom->dynamic > 0)
+    for (bod = dom->bod; bod; bod = bod->next)
     {
-      for (bod = dom->bod; bod; bod = bod->next)
-      {
-	BODY_Dynamic_Init (bod); /* integration scheme is set externally */
+      BODY_Dynamic_Init (bod); /* integration scheme is set externally */
 
-	double h = BODY_Dynamic_Critical_Step (bod);
+      double h = BODY_Dynamic_Critical_Step (bod);
 
-	if (h < step) step = h; /* XXX: how about later time ? */
-      }
+      if (h < step) step = h;
     }
-    else
-    {
-      for (bod = dom->bod; bod; bod = bod->next) BODY_Static_Init (bod);
-    }
+  }
+  else
+  {
+    for (bod = dom->bod; bod; bod = bod->next) BODY_Static_Init (bod);
+  }
 
 #if MPI
-    dom->step = step = PUT_double_min (step);
+  dom->step = step = PUT_double_min (step);
 
-    if (dom->rank == 0)
+  if (dom->rank == 0)
 #else
-    dom->step = step;
+  dom->step = step;
 #endif
-    if (dom->verbose) printf (" (TIME STEP: %g) ", step), fflush (stdout);
-  }
+  if (dom->verbose) printf (" (TIME STEP: %g) ", step), fflush (stdout);
 
   /* begin time integration */
   if (dom->dynamic)

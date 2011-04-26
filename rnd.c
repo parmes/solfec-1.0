@@ -3533,7 +3533,7 @@ void RND_Mouse (int button, int state, int x, int y)
 	  {
 	    double d0 [3], d1 [3], l0, l1, angle;
 
-	    SUB (picked_point_hist [0], picked_point_hist [1], d0);
+	    SUB (picked_point_hist [1], picked_point_hist [0], d0);
 	    SUB (picked_point, picked_point_hist [0], d1);
 	    l0 = LEN (d0);
 	    l1 = LEN (d1);
