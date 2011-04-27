@@ -48,6 +48,7 @@ static void write_constraint (CON *con, PBF *bf)
 /* read constraint state */
 static CON* read_constraint (DOM *dom, int iover, PBF *bf)
 {
+  SOLFEC_MODE mode = dom->solfec->mode;
   unsigned int id;
   CON *con;
   int kind;
@@ -79,9 +80,17 @@ static CON* read_constraint (DOM *dom, int iover, PBF *bf)
 
   if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
 
-  if (dom->solfec->ioparallel)
+  if (bf->parallel == PBF_ON)
   {
-    PBF_Int (bf, &con->rank, 1);
+    if (mode == SOLFEC_READ)
+    {
+      PBF_Int (bf, &con->rank, 1);
+    }
+    else /* fake it => ranks are actually used in WRITE mode */
+    {
+      int rank;
+      PBF_Int (bf, &rank, 1);
+    }
   }
 
   return con;
@@ -103,7 +112,7 @@ static void dom_attach_constraints (DOM *dom)
   }
 }
 
-/* write uncompressed domain state */
+/* write domain state */
 void dom_write_state (DOM *dom, PBF *bf)
 {
   /* mark domain output */
@@ -241,7 +250,7 @@ static void readallbodies (DOM *dom, PBF *bf)
   dom->allbodiesread = 1;
 }
 
-/* read uncompressed domain state */
+/* read domain state */
 void dom_read_state (DOM *dom, PBF *bf)
 {
   BODY *bod, *next;
@@ -351,7 +360,7 @@ void dom_read_state (DOM *dom, PBF *bf)
   dom_attach_constraints (dom);
 }
 
-/* read uncompressed state of an individual body */
+/* read state of an individual body */
 int dom_read_body (DOM *dom, PBF *bf, BODY *bod)
 {
   if (bod->label)
@@ -408,7 +417,7 @@ int dom_read_body (DOM *dom, PBF *bf, BODY *bod)
   return 0;
 }
 
-/* read uncompressed state of an individual constraint */
+/* read state of an individual constraint */
 int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
 {
   int iover = dom->solfec->iover;
@@ -437,4 +446,38 @@ int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
   }
 
   return 0;
+}
+
+
+/* initialize domain state */
+int dom_init_state (DOM *dom, PBF *bf)
+{
+  for (; bf; bf = bf->next)
+  {
+    if (PBF_Label (bf, "DOM"))
+    {
+      /* read body states */
+
+      ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
+
+      int nbod;
+
+      PBF_Int (bf, &nbod, 1);
+
+      for (int n = 0; n < nbod; n ++)
+      {
+	unsigned int id;
+	BODY *bod;
+
+	PBF_Uint (bf, &id, 1);
+	ASSERT_TEXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL),
+	             "Invalid body identifier => most likely due to a mismatched output file.");
+	BODY_Read_State (bod, bf); /* XXX: we need to read all bodies since this can also be called
+				           in parallel and only some bodies may be present; yet in order
+					   to maintain the read consitency we need to read everything */
+      }
+    }
+  }
+
+  return 1;
 }

@@ -5957,7 +5957,7 @@ static PyObject* lng_OUTPUT (PyObject *self, PyObject *args, PyObject *kwds)
   PyObject *compression;
   lng_SOLFEC *solfec;
   double interval;
-  PBF_CMP cmp;
+  PBF_FLG cmp;
 
   compression = NULL;
   cmp = PBF_OFF;
@@ -6107,7 +6107,7 @@ static PyObject* lng_GEOMETRIC_EPSILON (PyObject *self, PyObject *args, PyObject
   Py_RETURN_NONE;
 }
 
-/* set geometric epsilon */
+/* enable/dsiable warnings */
 static PyObject* lng_WARNINGS (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("state");
@@ -6129,6 +6129,34 @@ static PyObject* lng_WARNINGS (PyObject *self, PyObject *args, PyObject *kwds)
   {
     PyErr_SetString (PyExc_ValueError, "Only 'ON' or 'OFF' are valid states");
     return NULL;
+  }
+
+  Py_RETURN_NONE;
+}
+
+/* initialize state */
+static PyObject* lng_INITIALIZE_STATE (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "path", "time");
+  lng_SOLFEC *solfec;
+  PyObject *path;
+  double time;
+
+  PARSEKEYS ("OOd", &solfec, &path, &time);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[1]));
+
+  if (solfec->sol->mode == SOLFEC_WRITE)
+  {
+    if (SOLFEC_Initialize_State (solfec->sol, PyString_AsString (path), time) == 0)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "State initialization has failed");
+      return NULL;
+    }
+  }
+  else
+  {
+    WARNING (0, "INITIALIZE_STATE has been ingnored in the 'READ' mode");
   }
 
   Py_RETURN_NONE;
@@ -7259,6 +7287,7 @@ static PyMethodDef lng_methods [] =
   {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set unphysical penetration bound"},
   {"GEOMETRIC_EPSILON", (PyCFunction)lng_GEOMETRIC_EPSILON, METH_VARARGS|METH_KEYWORDS, "Set geometric epsilon"},
   {"WARNINGS", (PyCFunction)lng_WARNINGS, METH_VARARGS|METH_KEYWORDS, "Enable or disable warnings"},
+  {"INITIALIZE_STATE", (PyCFunction)lng_INITIALIZE_STATE, METH_VARARGS|METH_KEYWORDS, "Initialize Solfec state"},
   {"LOCDYN_DUMP", (PyCFunction)lng_LOCDYN_DUMP, METH_VARARGS|METH_KEYWORDS, "Dump local dynamics"},
   {"PARTITION", (PyCFunction)lng_PARTITION, METH_VARARGS|METH_KEYWORDS, "Partition a finite element body"},
   {"OVERLAPPING", (PyCFunction)lng_OVERLAPPING, METH_VARARGS|METH_KEYWORDS, "Detect shapes (not) overlapping obstacles"},
@@ -7454,6 +7483,7 @@ int lng (const char *path)
                      "from solfec import UNPHYSICAL_PENETRATION\n"
                      "from solfec import GEOMETRIC_EPSILON\n"
                      "from solfec import WARNINGS\n"
+                     "from solfec import INITIALIZE_STATE\n"
                      "from solfec import LOCDYN_DUMP\n"
                      "from solfec import PARTITION\n"
                      "from solfec import OVERLAPPING\n"

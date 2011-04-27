@@ -6996,6 +6996,40 @@ state
  - 'ON' or 'OFF' (default: 'ON')
 \end_layout
 
+\begin_layout Subsection*
+INITIALIZE_STATE (solfec, path, time)
+\end_layout
+
+\begin_layout Standard
+This routine initializes the state of a Solfec object with the state red
+ from an output directory at a given time.
+ It is ignored in the 'READ' mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - Solfec object in the 'WRITE' mode
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - path to the output directory containing matching analysis results
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+time
+\series default
+ - time at which the state should be red from the output files
+\end_layout
+
 \begin_layout Section
 \begin_inset CommandInset label
 LatexCommand label

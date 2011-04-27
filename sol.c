@@ -33,6 +33,7 @@
 #include <float.h>
 #include "solfec.h"
 #include "sol.h"
+#include "dio.h"
 #include "err.h"
 #include "tmr.h"
 #include "mrf.h"
@@ -195,8 +196,6 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
     sol->iover = -sol->iover; /* make positive */
     PBF_Label (sol->bf, "IOVER");
     PBF_Int (sol->bf, &sol->iover, 1);
-    PBF_Label (sol->bf, "IOPARALLEL");
-    PBF_Int (sol->bf, &sol->ioparallel, 1);
   }
 
   /* write domain */
@@ -282,8 +281,6 @@ static void read_state (SOLFEC *sol)
   {
     ASSERT (PBF_Label (sol->bf, "IOVER"), ERR_FILE_FORMAT);
     PBF_Int (sol->bf, &sol->iover, 1);
-    ASSERT (PBF_Label (sol->bf, "IOPARALLEL"), ERR_FILE_FORMAT);
-    PBF_Int (sol->bf, &sol->ioparallel, 1);
   }
 
   /* read domain */
@@ -442,8 +439,11 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->outpath = copyoutpath (outpath);
   sol->output_interval = 0;
   sol->output_time = 0;
+#if !MPI
   if (!WRITE_MODE_FLAG() && (sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
-  else if ((sol->bf = writeoutpath (sol->outpath)))
+  else
+#endif
+  if ((sol->bf = writeoutpath (sol->outpath)))
   {
     char *copy, *path = getpath (sol->outpath);
 
@@ -457,11 +457,6 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   }
   else THROW (ERR_FILE_OPEN);
   sol->iover = -IOVER; /* negative to indicate initial state */
-#if MPI
-  sol->ioparallel = 1; /* some data specific to parallel run will be outputed */
-#else
-  sol->ioparallel = 0;
-#endif
 
   sol->callback_interval = DBL_MAX;
   sol->callback_time = DBL_MAX;
@@ -628,7 +623,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 }
 
 /* set results output interval */
-void SOLFEC_Output (SOLFEC *sol, double interval, PBF_CMP compression)
+void SOLFEC_Output (SOLFEC *sol, double interval, PBF_FLG compression)
 {
   sol->output_interval = interval;
   sol->output_time = sol->dom->time + interval;
@@ -1007,4 +1002,20 @@ void SOLFEC_2_MBFCP (SOLFEC *sol, FILE *out)
   MATSET_2_MBFCP (sol->mat, out);
 
   DOM_2_MBFCP (sol->dom, out);
+}
+
+/* initialize state from the ouput; return 1 on success, 0 otherwise */
+int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time)
+{
+  int ret;
+  PBF *bf;
+
+  WARNING (bf = readoutpath (path), "Opening of the output files has failed.");
+  if (!bf) return 0;
+
+  PBF_Seek (bf, time);
+  ret = dom_init_state (sol->dom, bf);
+  PBF_Close (bf);
+
+  return ret;
 }

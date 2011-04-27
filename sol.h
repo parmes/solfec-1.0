@@ -76,7 +76,6 @@ struct solfec
   DOM *dom; /* bodies, constraints and time integration */
 
   int iover; /* input-output version */
-  int ioparallel; /* parallel output flag */
   double output_interval,
 	 output_time;
   char *outpath;
@@ -129,7 +128,7 @@ char* SOLFEC_Mode (SOLFEC *sol);
 void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration);
 
 /* set results output interval */
-void SOLFEC_Output (SOLFEC *sol, double interval, PBF_CMP compression);
+void SOLFEC_Output (SOLFEC *sol, double interval, PBF_FLG compression);
 
 /* set up callback function */
 void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, SOLFEC_Callback callback);
@@ -185,5 +184,8 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 
 /* export MBFCP definition */
 void SOLFEC_2_MBFCP (SOLFEC *sol, FILE *out);
+
+/* initialize state from the ouput; return 1 on success, 0 otherwise */
+int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time);
 
 #endif

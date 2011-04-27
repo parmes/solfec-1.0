@@ -1987,36 +1987,17 @@ void BODY_Read_State (BODY *bod, PBF *bf)
   PBF_Double (bf, bod->velo, bod->dofs);
   PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod));
 
-  if (bod->dom->solfec->ioparallel)
+  if (bf->parallel == PBF_ON)
   {
-    PBF_Int (bf, &bod->rank, 1);
-  }
-
-  if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
-
-  if (bod->msh) FEM_Update_Rough_Mesh (bod);
-}
-
-void BODY_Pack_State (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
-  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
-  pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
-
-#if MPI
-  pack_int (isize, i, ints, bod->dom->rank);
-#endif
-}
-
-void BODY_Unpack_State (BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
-  unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
-
-  if (bod->dom->solfec->ioparallel)
-  {
-    bod->rank = unpack_int (ipos, i, ints);
+    if (bod->dom->solfec->mode == SOLFEC_READ) /* XXX: longish ->->-> */
+    {
+      PBF_Int (bf, &bod->rank, 1);
+    }
+    else /* fake it => ranks are actually used in WRITE mode */
+    {
+      int rank;
+      PBF_Int (bf, &rank, 1);
+    }
   }
 
   if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
