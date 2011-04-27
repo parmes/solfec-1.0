@@ -69,7 +69,7 @@ struct pbf_label
 typedef enum {PBF_READ, PBF_WRITE} PBF_ACC;
 
 /* compression flag */
-typedef enum { PBF_ON, PBF_OFF } PBF_CMP;
+typedef enum {PBF_ON, PBF_OFF} PBF_FLG;
 
 /* file */
 struct pbf
@@ -96,7 +96,8 @@ struct pbf
   u_int msize, /* mtab size (READ) */
         cur; /* index of current time frame */
   double time; /* current time */
-  PBF_CMP compression; /* compression flag */
+  PBF_FLG compression; /* compression flag */
+  PBF_FLG parallel; /* parallel flag */
   PBF *next; /* list of parallel files (READ) */
 };
 

@@ -375,6 +375,11 @@ PBF* PBF_Write (const char *path)
   bf->lsize = 0;
   bf->msize = 0;
   bf->cur = 0;
+#if MPI
+  bf->parallel = PBF_ON;
+#else
+  bf->parallel = PBF_OFF;
+#endif
   bf->next = NULL;
   free (txt);
   return bf;
@@ -391,10 +396,6 @@ PBF* PBF_Read (const char *path)
   FILE *dat;
   char *txt;
   int n, m;
-
-#if MPI
-  return NULL; /* reading in parallel not supported */
-#endif
 
   ERRMEM (txt = malloc (strlen (path) + 16));
 
@@ -447,6 +448,8 @@ PBF* PBF_Read (const char *path)
     bf->msize = 0;
     bf->cur = 0;
     initialise_reading (bf);
+    if (m) bf->parallel = PBF_ON;
+    else bf->parallel = PBF_OFF;
     bf->next = out;
     out = bf;
 
