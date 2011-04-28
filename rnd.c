@@ -175,6 +175,7 @@ enum /* menu items */
   TOOLS_SMALLER_ARROWS,
   TOOLS_BIGGER_ARROWS,
   TOOLS_OUTPATH,
+  TOOLS_POINTS_COORDS,
   TOOLS_POINTS_DISTANCE,
   TOOLS_POINTS_ANGLE,
   ANALYSIS_RUN,
@@ -757,7 +758,8 @@ static BODY_DATA* create_body_data (BODY *bod)
       cvx = jtem->data; /* must have been mapped to a convex */
       source->epn = &cvx->epn [((double*)jtem->key - cvx->cur) / 3]; /* extract ELEPNT */
     }
-    else source->pnt = jtem->key;
+
+    source->pnt = jtem->key; /* needed for both scalar field rendering and point picking */
 
     jtem->data = &data->values [source - data->value_sources]; /* map to source */
   }
@@ -2363,6 +2365,7 @@ static void render_picked_point (void)
   {
     switch (tool_mode)
     {
+    case TOOLS_POINTS_COORDS: color [0] = 1.0; break;
     case TOOLS_POINTS_DISTANCE: color [2] = 1.0; break;
     case TOOLS_POINTS_ANGLE: color [1] = 1.0; break;
     }
@@ -3119,12 +3122,8 @@ static void menu_tools (int item)
     show_outpath = !show_outpath;
     GLV_Redraw_All ();
     break;
+  case TOOLS_POINTS_COORDS:
   case TOOLS_POINTS_DISTANCE:
-    modes_off ();
-    mouse_mode = MOUSE_PICK_POINT;
-    tool_mode = item;
-    GLV_Hold_Mouse ();
-    break;
   case TOOLS_POINTS_ANGLE:
     modes_off ();
     mouse_mode = MOUSE_PICK_POINT;
@@ -3227,6 +3226,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("bigger arrows /]/", TOOLS_BIGGER_ARROWS);
   glutAddMenuEntry ("smaller arrows /[/", TOOLS_SMALLER_ARROWS);
   glutAddMenuEntry ("toggle output path /o/", TOOLS_OUTPATH);
+  glutAddMenuEntry ("point coordiantes /x/", TOOLS_POINTS_COORDS);
   glutAddMenuEntry ("points distance /d/", TOOLS_POINTS_DISTANCE);
   glutAddMenuEntry ("points angle /g/", TOOLS_POINTS_ANGLE);
 
@@ -3430,6 +3430,9 @@ void RND_Key (int key, int x, int y)
   case 'o':
     menu_tools (TOOLS_OUTPATH);
     break;
+  case 'x':
+    menu_tools (TOOLS_POINTS_COORDS);
+    break;
   case 'd':
     menu_tools (TOOLS_POINTS_DISTANCE);
     break;
@@ -3518,7 +3521,7 @@ void RND_Mouse (int button, int state, int x, int y)
 	    SUB (picked_point_hist [0], picked_point, d);
 	    len = LEN (d);
 
-	    printf ("Distance from [%g, %g, %g] to [%g, %g, %g] is %g\n",
+	    printf ("DISTANCE from [%g, %g, %g] to [%g, %g, %g]: %g\n",
 	      picked_point_hist [0][0], picked_point_hist [0][1], picked_point_hist [0][2], 
 	      picked_point [0], picked_point [1], picked_point [2], len);
 
@@ -3541,7 +3544,7 @@ void RND_Mouse (int button, int state, int x, int y)
 	    {
 	      angle = 180.0 * acos (DOT (d0, d1) / (l0*l1)) / ALG_PI;
 
-	      printf ("Angle between [%g, %g, %g] - [%g, %g, %g] - [%g, %g, %g] is %g\n",
+	      printf ("ANGLE between [%g, %g, %g] and [%g, %g, %g] and [%g, %g, %g]: %g\n",
 		picked_point_hist [0][0], picked_point_hist [0][1], picked_point_hist [0][2], 
 		picked_point_hist [1][0], picked_point_hist [1][1], picked_point_hist [1][2], 
 		picked_point [0], picked_point [1], picked_point [2], angle);
@@ -3604,7 +3607,15 @@ void RND_Passive (int x, int y)
   }
   else if (mouse_mode == MOUSE_PICK_POINT)
   {
+    double *prev = picked_point;
+
     picked_point = pick_point (x, y);
+
+    if (picked_point && picked_point != prev)
+    {
+      printf ("POINT: %g, %g, %g\n", picked_point [0], picked_point [1], picked_point [2]);
+    }
+
     GLV_Redraw_All ();
   }
   else if (mouse_mode == MOUSE_CUTTING_PLANE)

@@ -542,6 +542,8 @@ static int detect_node_element (
   COPY (x, onepnt);
   COPY (x, twopnt);
 
+  /* TODO: test and validate the above code */
+
   return 2;
 }
 
@@ -598,6 +600,8 @@ static int detect_node_convex (
   *area = 1.0;
   COPY (x, onepnt);
   COPY (x, twopnt);
+
+  /* TODO: test and validate the above code */
 
   return 2;
 }
