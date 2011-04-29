@@ -138,11 +138,14 @@ static void filewrite (char *mem, u_int size, FILE *f, char cmp)
 
   if (cmp)
   {
+    int nbuf, num;
     char *out;
-    int num;
 
-    ERRMEM (out = malloc ((int) (1.15) * (double) MAX (size, 66))); /* see ext/fastlz.h */
+    nbuf = 2 * MAX (size, 66); /* see ext/fastlz.h */
+    ERRMEM (out = malloc (nbuf));
     num = fastlz_compress (mem, size, out);
+    WARNING (num < (int)size, "Compression increased the buffer size => Consider disabling it.");
+    ASSERT_TEXT (num < nbuf, "Compression increased the buffer size by more than 100%%.");
     ASSERT (fwrite (out, 1, num, f) == (unsigned)num, ERR_PBF_WRITE);
     free (out);
   }

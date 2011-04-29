@@ -191,7 +191,7 @@ void dom_write_state (DOM *dom, PBF *bf)
 }
 
 /* read all bodies from t = t_begin to t = t_end */
-static void readallbodies (DOM *dom, PBF *bf)
+static void readallbodies (DOM *dom, PBF *input)
 {
   double t, time, start, end;
   int dpos, doubles, size, n;
@@ -199,37 +199,41 @@ static void readallbodies (DOM *dom, PBF *bf)
   double *d = NULL;
   int dodel = 0;
   BODY *bod;
+  PBF *bf;
 
-  PBF_Time (bf, &time);
-  PBF_Limits (bf, &start, &end);
-  PBF_Seek (bf, start);
+  PBF_Time (input, &time);
+  PBF_Limits (input, &start, &end);
+  PBF_Seek (input, start);
 
   if (dom->solfec->verbose)
     printf ("Reading all bodies ... ");
 
   do
   {
-    PBF_Time (bf, &t);
+    PBF_Time (input, &t);
 
-    ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
-
-    PBF_Int (bf, &size, 1);
-
-    for (n = 0; n < size; n ++)
+    for (bf = input; bf; bf = bf->next)
     {
-      PBF_Int (bf, &doubles, 1);
-      ERRMEM (d  = realloc (d, doubles * sizeof (double)));
-      PBF_Double (bf, d, doubles);
+      ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
 
-      PBF_Int (bf, &ints, 1);
-      ERRMEM (i  = realloc (i, ints * sizeof (int)));
-      PBF_Int (bf, i, ints);
+      PBF_Int (bf, &size, 1);
 
-      dpos = ipos = 0;
+      for (n = 0; n < size; n ++)
+      {
+	PBF_Int (bf, &doubles, 1);
+	ERRMEM (d  = realloc (d, doubles * sizeof (double)));
+	PBF_Double (bf, d, doubles);
 
-      bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
+	PBF_Int (bf, &ints, 1);
+	ERRMEM (i  = realloc (i, ints * sizeof (int)));
+	PBF_Int (bf, i, ints);
 
-      MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+	dpos = ipos = 0;
+
+	bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
+
+	MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+      }
     }
 
     if (dom->solfec->verbose)
@@ -239,14 +243,14 @@ static void readallbodies (DOM *dom, PBF *bf)
       printf ("%3d%%", progress); dodel = 1; fflush (stdout);
     }
 
-  } while (PBF_Forward (bf, 1));
+  } while (PBF_Forward (input, 1));
 
   if (dom->solfec->verbose) printf ("\n");
 
   free (d);
   free (i);
 
-  PBF_Seek (bf, time);
+  PBF_Seek (input, time);
   dom->allbodiesread = 1;
 }
 

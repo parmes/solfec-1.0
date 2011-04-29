@@ -223,6 +223,7 @@ void CRACK_Destroy_List (CRACK *cra)
 void Propagate_Cracks (DOM *dom)
 {
   BODY *bod, *one, *two, *next;
+  SET *item, *newbod = NULL;
   CRACK *cra, *crb, *c;
 
   for (bod = dom->bod; bod; bod = next)
@@ -266,26 +267,9 @@ void Propagate_Cracks (DOM *dom)
 
       remap_constraints (dom, bod, cra, one, two);
       DOM_Remove_Body (dom, bod);
-      DOM_Insert_Body (dom, one);
-      DOM_Insert_Body (dom, two);
       BODY_Destroy (bod); /* destroys cracks */
-
-      if (dom->dynamic)
-      {
-	BODY_Dynamic_Init (one);
-	BODY_Dynamic_Init (two);
-
-	double h1 = BODY_Dynamic_Critical_Step (one),
-	       h2 = BODY_Dynamic_Critical_Step (two),
-	       h  = MIN (h1, h2);
-
-	if (h < dom->step) dom->step = h; /* XXX: adjust domain stable step */
-      }
-      else
-      {
-	BODY_Static_Init (one);
-	BODY_Static_Init (two);
-      }
+      SET_Insert (NULL, &newbod, one, NULL);
+      SET_Insert (NULL, &newbod, two, NULL);
     }
     else
     {
@@ -294,4 +278,47 @@ void Propagate_Cracks (DOM *dom)
 	"Adjust GEOMETRIC_EPSILON or slightly shift the crack plane.");
     }
   }
+
+  for (item = SET_First (newbod); item; item = SET_Next (item))
+  {
+    DOM_Insert_Body (dom, item->data);
+  }
+
+#if MPI
+  if (SET_Size (newbod))
+  {
+    ASSERT_TEXT (0, "Cracking is not supported in paralel yet!"); /* TODO */
+  }
+#if 0
+  COMOBJ *send, *recv, *ptr;
+  int nsend, nrecv, i;
+
+  nsend = (dom->ncpu - 1) * SET_Size (newbod);
+  ERRMEM (send = MEM_CALLOC (nsend * sizeof (COMOBJ)));
+
+  for (ptr = send, item = SET_First (newbod); item; item = SET_Next (item))
+  {
+    for (i = 0; i < dom->ncpu; i ++)
+    {
+      if (i == dom->rank) continue;
+      ptr->rank = i;
+      ptr->o = item->data;
+      ptr ++;
+    }
+  }
+
+  COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack) BODY_Pack, dom->solfec,
+             (OBJ_Unpack) BODY_Unpack, send, nsend, &recv, &nrecv);
+
+  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
+  {
+    DOM_Insert_Body (dom, ptr->o);
+  }
+
+  free (send);
+  free (recv);
+#endif
+#endif
+
+  SET_Free (NULL, &newbod);
 }
