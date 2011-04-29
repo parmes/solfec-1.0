@@ -90,3 +90,6 @@ These are now simply impossible by design and we shall keep it that way
 ----------------------------------------------------------------------------
 Rationalize memory use for TIME_SERIES (e.g. do not copy but use
 one global object, etc.)
+-------------------------------------------------------------------------------------
+Better resolve corner adjacent mesh nodes gluing after PARTITION
+(currently there could be too many corner gluing constraints)
