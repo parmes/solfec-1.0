@@ -6226,7 +6226,7 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
   }
 
 #if MPI
-  for (item = SET_First (dom->pending); item; item = SET_Next (item))
+  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item))
   {
     PNDCON *pnd = item->data;
     if (pnd->kind == GLUE && (pnd->master == bod || pnd->slave == bod))
@@ -6294,7 +6294,7 @@ riglnk:
     }
   }
 
-  for (item = SET_First (dom->pending); item; item = SET_Next (item)) /* modify pending constraints */
+  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item)) /* modify pending constraints */
   {
     PNDCON *pnd = item->data;
     if (pnd->master == bod)

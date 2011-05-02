@@ -2141,6 +2141,9 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 
   /* damping */
   pack_double (dsize, d, doubles, bod->damping);
+
+  /* pack cracks */
+  CRACKS_Pack (bod->cra, dsize, d, doubles, isize, i, ints); 
 }
 
 /* unpack body */
@@ -2189,6 +2192,9 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
 
   /* damping */
   bod->damping = unpack_double (dpos, d, doubles);
+
+  /* unpack cracks */
+  bod->cra = CRACKS_Unpack (dpos, d, doubles, ipos, i, ints);
 
   return bod;
 }

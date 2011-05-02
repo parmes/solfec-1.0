@@ -481,6 +481,42 @@ int COMONEALL (MPI_Comm comm, COMDATA send,
   return ret;
 }
 
+#if PARDEBUG
+static int* next_int (COMDATA *data, int size, int *idx)
+{
+  int *out = NULL;
+
+  while (idx [0] < size)
+  {
+    if (idx [1] < data [idx [0]].ints)
+    {
+      out = &data [idx [0]].i [idx [1]];
+      idx [1] ++;
+    }
+    else idx [0] ++, idx [1] = 0;
+  }
+
+  return out;
+}
+
+static double* next_double (COMDATA *data, int size, int *idx)
+{
+  double *out = NULL;
+
+  while (idx [0] < size)
+  {
+    if (idx [1] < data [idx [0]].doubles)
+    {
+      out = &data [idx [0]].d [idx [1]];
+      idx [1] ++;
+    }
+    else idx [0] ++, idx [1] = 0;
+  }
+
+  return out;
+}
+#endif
+
 /* communicate objects using point to point communication */
 int COMOBJS (MPI_Comm comm, int tag,
 	     OBJ_Pack pack,
@@ -536,24 +572,47 @@ int COMOBJS (MPI_Comm comm, int tag,
 
 #if PARDEBUG
   {
+    int debug_send_count, *ip, *jp, ii [2], jj [2];
     COMDATA *debug_send_data;
-    int debug_send_count;
+    double *qq, *pp;
 
     /* send backwards */
     if (tag == INT_MIN) COMALL (comm, recv_data, recv_count, &debug_send_data, &debug_send_count);
     else COM (comm, tag, recv_data, recv_count, &debug_send_data, &debug_send_count);
 
-    ASSERT_DEBUG (debug_send_count == nsend, "reversed send count does not match");
-    for (i = 0, cd = send_data, cc = debug_send_data; i < nsend; i ++, cd ++, cc ++)
+    ii[0] = 0, ii[1] = 0;
+    jj[0] = 0, jj[1] = 0;
+    do
     {
-      ASSERT_DEBUG (cd->rank == cc->rank, "reversed rank does not match");
-      ASSERT_DEBUG (cd->ints == cc->ints, "reversed ints count does not match");
-      ASSERT_DEBUG (cd->doubles == cc->doubles, "reversed doubles count does not match");
-      for (int *ia = cd->i, *ie = ia + cd->ints, *ib = cc->i; ia < ie; ia ++, ib ++)
-      { ASSERT_DEBUG (*ia == *ib, "reversed integer value does not match"); }
-      for (double *ia = cd->d, *ie = ia + cd->doubles, *ib = cc->d; ia < ie; ia ++, ib ++)
-      { ASSERT_DEBUG (*ia == *ib, "reversed double value does not match"); }
+      ip = next_int (send_data, nsend, ii);
+      jp = next_int (debug_send_data, debug_send_count, jj);
+      if (ip && jp)
+      {
+	ASSERT_DEBUG (*ip == *jp, "Integer values mismatch");
+      }
+      else
+      {
+	ASSERT_DEBUG (!ip && !jp, "Integer count mismatch");
+      }
     }
+    while (ip && jp);
+
+    ii[0] = 0, ii[1] = 0;
+    jj[0] = 0, jj[1] = 0;
+    do
+    {
+      qq = next_double (send_data, nsend, ii);
+      pp = next_double (debug_send_data, debug_send_count, jj);
+      if (qq && pp)
+      {
+	ASSERT_DEBUG (*qq == *pp, "Double values mismatch");
+      }
+      else
+      {
+	ASSERT_DEBUG (!qq && !pp, "Double count mismatch");
+      }
+    }
+    while (qq && pp);
 
     free (debug_send_data);
   }
