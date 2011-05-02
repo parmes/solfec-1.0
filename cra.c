@@ -25,6 +25,7 @@
 #include "alg.h"
 #include "err.h"
 #include "fem.h"
+#include "pck.h"
 
 /* pseudo-rigid body cracking */
 static CRACK* prb_crack (BODY *bod, BODY **one, BODY **two)
@@ -219,6 +220,49 @@ void CRACK_Destroy_List (CRACK *cra)
   }
 }
 
+/* pack cracks */
+void CRACKS_Pack (CRACK *list, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  CRACK *cra;
+  int n;
+
+  for (n = 0, cra = list; cra; cra = cra->next) n ++;
+
+  pack_int (isize, i, ints, n);
+
+  for (cra = list; cra; cra = cra->next)
+  {
+    pack_doubles (dsize, d, doubles, cra->point, 6);
+    pack_int (isize, i, ints, cra->crit);
+    pack_int (isize, i, ints, cra->surfid);
+    pack_double (dsize, d, doubles, cra->ft);
+    pack_double (dsize, d, doubles, cra->Gf);
+  }
+}
+
+/* unpack cracks */
+CRACK* CRACKS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  CRACK *out, *cra;
+  int j, n;
+
+  n = unpack_int (ipos, i, ints);
+
+  for (j = 0, out = NULL; j < n; j ++)
+  {
+    cra = CRACK_Create ();
+    unpack_doubles (dpos, d, doubles, cra->point, 6);
+    cra->crit = unpack_int (ipos, i, ints);
+    cra->surfid = unpack_int (ipos, i, ints);
+    cra->ft = unpack_double (dpos, d, doubles);
+    cra->Gf = unpack_double (dpos, d, doubles);
+    cra->next = out;
+    out = cra;
+  }
+
+  return out;
+}
+
 /* propagate cracks and adjust the domain */
 void Propagate_Cracks (DOM *dom)
 {
@@ -281,44 +325,12 @@ void Propagate_Cracks (DOM *dom)
 
   for (item = SET_First (newbod); item; item = SET_Next (item))
   {
-    DOM_Insert_Body (dom, item->data);
-  }
-
 #if MPI
-  if (SET_Size (newbod))
-  {
-    ASSERT_TEXT (0, "Cracking is not supported in paralel yet!"); /* TODO */
-  }
-#if 0
-  COMOBJ *send, *recv, *ptr;
-  int nsend, nrecv, i;
-
-  nsend = (dom->ncpu - 1) * SET_Size (newbod);
-  ERRMEM (send = MEM_CALLOC (nsend * sizeof (COMOBJ)));
-
-  for (ptr = send, item = SET_First (newbod); item; item = SET_Next (item))
-  {
-    for (i = 0; i < dom->ncpu; i ++)
-    {
-      if (i == dom->rank) continue;
-      ptr->rank = i;
-      ptr->o = item->data;
-      ptr ++;
-    }
-  }
-
-  COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack) BODY_Pack, dom->solfec,
-             (OBJ_Unpack) BODY_Unpack, send, nsend, &recv, &nrecv);
-
-  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
-  {
-    DOM_Insert_Body (dom, ptr->o);
-  }
-
-  free (send);
-  free (recv);
+    DOM_Pending_Body (dom, item->data);
+#else
+    DOM_Insert_Body (dom, item->data);
 #endif
-#endif
+  }
 
   SET_Free (NULL, &newbod);
 }

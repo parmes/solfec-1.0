@@ -1395,11 +1395,6 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
 {
   SET *item;
 
-  /* pack spare body ids */
-  pack_int (isize, i, ints, SET_Size (dbd->dom->sparebid));
-  for (item = SET_First (dbd->dom->sparebid); item; item = SET_Next (item))
-    pack_int (isize, i, ints, (int) (long) item->data);
-
   /* pack exported bodies */
   pack_int (isize, i, ints, SET_Size (dbd->bodies));
   for (item = SET_First (dbd->bodies); item; item = SET_Next (item))
@@ -1424,16 +1419,8 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
 /* unpack domain balancing data */
 static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  int n, j, k, id;
+  int n, j, id;
   CON *con;
-
-  /* unpack spare body ids */
-  j = unpack_int (ipos, i, ints);
-  for (n = 0; n < j; n ++)
-  {
-    k = unpack_int (ipos, i, ints);
-    SET_Insert (&dom->setmem, &dom->sparebid, (void*) (long) k, NULL); /* creates union across all ranks */
-  }
 
   /* unpack imported bodies */
   j = unpack_int (ipos, i, ints);
@@ -1593,7 +1580,7 @@ static void insert_pending_constraints (DOM *dom)
   SET *item;
   CON *con;
 
-  for (item = SET_First (dom->pending); item; item = SET_Next (item))
+  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item))
   {
     pnd = item->data;
 
@@ -1633,7 +1620,7 @@ static void insert_pending_constraints (DOM *dom)
     }
   }
 
-  for (item = SET_First (dom->pending); item; item = SET_Next (item))
+  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item))
   {
     pnd = item->data;
 
@@ -1660,7 +1647,7 @@ static void insert_pending_constraints (DOM *dom)
     }
   }
 
-  for (item = SET_First (dom->pending); item; item = SET_Next (item))
+  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item))
   {
     pnd = item->data;
 
@@ -1702,7 +1689,7 @@ static void insert_pending_constraints (DOM *dom)
   }
 
   /* empty pending constraints set */
-  SET_Free (&dom->setmem, &dom->pending);
+  SET_Free (&dom->setmem, &dom->pendingcons);
 }
 
 /* domain balancing */
@@ -1955,19 +1942,6 @@ static void domain_balancing (DOM *dom)
   /* clean */
   free (recv);
 
-  /* delete bodies associated with spare ids */
-  for (item = SET_First (dom->sparebid); item; item = SET_Next (item))
-  {
-    if ((bod = MAP_Find (dom->allbodies, item->data, NULL)))
-    {
-      DOM_Remove_Body (dom, bod); /* loop over 'sparebid' => look there (***) */
-      BODY_Destroy (bod);
-    }
-  }
-
-  /* empty deleted body ids set */
-  SET_Free (&dom->setmem, &dom->sparebid);
-
 #if DEBUG
   for (con = dom->con; con; con = con->next)
   {
@@ -2217,6 +2191,112 @@ static void domain_gluing_end (DOM *dom)
 
   /* reaction update sets */
   prepare_reaction_update_sets (dom);
+}
+
+/* pack managed bodies */
+static void manage_bodies_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  SET *item;
+
+  /* pack spare body ids */
+  pack_int (isize, i, ints, SET_Size (dbd->dom->sparebid));
+  for (item = SET_First (dbd->dom->sparebid); item; item = SET_Next (item))
+    pack_int (isize, i, ints, (int) (long) item->data);
+
+  /* pack rank */
+  pack_int (isize, i, ints, dbd->dom->rank);
+
+  if (dbd->rank != dbd->dom->rank)
+  {
+    /* pack pending bodies */
+    pack_int (isize, i, ints, SET_Size (dbd->dom->pendingbods));
+    for (item = SET_First (dbd->dom->pendingbods); item; item = SET_Next (item))
+      BODY_Pack (item->data, dsize, d, doubles, isize, i, ints);
+  }
+}
+
+/* unpack children udate data */
+static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int n, j, k, rank;
+  SET *item;
+  BODY *bod;
+
+  /* unpack spare body ids */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    k = unpack_int (ipos, i, ints);
+    SET_Insert (&dom->setmem, &dom->sparebid, (void*) (long) k, NULL); /* creates union across all ranks */
+  }
+
+  /* unpack rank */
+  rank = unpack_int (ipos, i, ints);
+
+  if (rank != dom->rank)
+  {
+    /* unpack pending bodies */
+    j = unpack_int (ipos, i, ints);
+    for (n = 0; n < j; n ++)
+    {
+      bod = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
+      DOM_Insert_Body (dom, bod); /* XXX: rely on rank ordering in communication and body
+					  ordering during packing in order to get
+					  the same sequence of bodies on all processors;
+					  this guarantees the righ ID assignment */
+    }
+  }
+  else
+  {
+    for (item = SET_First (dom->pendingbods); item; item = SET_Next (item))
+    {
+      DOM_Insert_Body (dom, item->data); /* XXX: as above */
+    }
+  }
+
+  return NULL;
+}
+
+/* deleted unwanted and insert pending bodies */
+static void manage_bodies (DOM *dom)
+{
+  COMOBJ *send, *recv;
+  int i, nrecv;
+  BODY *bod;
+  SET *item;
+  DBD *dbd;
+
+  dbd = dom->dbd;
+
+  ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
+
+  for (i = 0; i < dom->ncpu; i ++)
+  {
+    send [i].o = &dbd [i];
+    send [i].rank = i;
+  }
+
+  /* send children updates; since this is the first communication in a sequence, we have here dom->bytes = ... rather than dom->bytes += ... */
+  dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)manage_bodies_pack, dom, (OBJ_Unpack)manage_bodies_unpack, send, dom->ncpu, &recv, &nrecv);
+
+  free (send);
+  free (recv);
+
+  /* empty pending bodies set */
+  SET_Free (&dom->setmem, &dom->pendingbods);
+
+  /* delete bodies associated with spare ids */
+  for (item = SET_First (dom->sparebid); item; item = SET_Next (item))
+  {
+    if ((bod = MAP_Find (dom->allbodies, item->data, NULL)))
+    {
+      DOM_Remove_Body (dom, bod); /* loop over 'sparebid' => look there (***) */
+      BODY_Destroy (bod);
+    }
+  }
+
+  /* empty body ids set */
+  SET_Free (&dom->setmem, &dom->sparebid);
 }
 
 /* pack normal reaction components (only for contacts) of boundary constraints */
@@ -2540,12 +2620,13 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
     case FEM: dom->nfem ++; break;
     }
     dom->dofs += bod->dofs;
-
-    /* schedule insertion mark in the output */
-    if (dom->time > 0) SET_Insert (&dom->setmem, &dom->newb, bod, NULL);
 #if MPI
   }
+
+  if (dom->rank == 0) /* XXX: only rank 0 records newly inserted bodies (@@@) */
 #endif
+  /* schedule body insertion in the output */
+  if (dom->time > 0) SET_Insert (&dom->setmem, &dom->newb, bod, NULL);
 }
 
 /* remove a body from the domain */
@@ -2554,13 +2635,17 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   /* remove from overlap engine */
   AABB_Delete_Body (dom->aabb, bod);
 
-  SET *con = bod->con;
-  bod->con = NULL; /* DOM_Remove_Constraint will try to remove the constraint
-		      from body constraints set, which is not nice if we try
-		      to iterate over the set at the same time => make it empty */
+  SET *con = NULL, *item;
+
+  /* DOM_Remove_Constraint will try to remove the constraint
+     from body constraints set, which is not nice if we try
+     to iterate over the set at the same time => make a copy */
+  for (item = SET_First (bod->con); item; item = SET_Next (item))
+    SET_Insert (&dom->setmem, &con, item->data, NULL);
  
   /* remove all body related constraints */
-  for (SET *item = SET_First (con); item; item = SET_Next (item)) DOM_Remove_Constraint (dom, item->data);
+  for (item = SET_First (con); item; item = SET_Next (item))
+    DOM_Remove_Constraint (dom, item->data);
 
   /* free constraint set */
   SET_Free (&dom->setmem, &con);
@@ -2782,7 +2867,7 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
     if (n < 0 || n >= con->slave->nsgp) MEM_Free (&dom->sgpmem, con->ssgp);
   }
 
-#if PARDEBUG
+#if DEBUG
   ASSERT_DEBUG (SET_Contains (con->master->con, con, CONCMP), "Constraint %s with id %d not present in body list", CON_Kind (con), con->id);
   ASSERT_DEBUG (!con->slave || (con->slave && SET_Contains (con->slave->con, con, CONCMP)), "Constraint %s with id %d not present in body list", CON_Kind (con), con->id);
 #endif
@@ -2791,7 +2876,7 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
   SET_Delete (&dom->setmem, &con->master->con, con, CONCMP);
   if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP);
 
-#if PARDEBUG
+#if DEBUG
   ASSERT_DEBUG (!SET_Contains (con->master->con, con, CONCMP), "Failed to delete constraint %s with id %d from body list", CON_Kind (con), con->id);
   ASSERT_DEBUG (!con->slave || (con->slave && !SET_Contains (con->slave->con, con, CONCMP)), "Failed to delete constraint %s with id %d from body list", CON_Kind (con), con->id);
 #endif
@@ -2848,28 +2933,9 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
   double point [3];
   int n;
 
-  if (con->kind == CONTACT)
-  {
-    if (con->msgp->kind == GOBJ_NODE || con->ssgp->kind == GOBJ_NODE) return; /* XXX: let node based contacts be re-detected; TODO: improve */
-  }
+  if (con->kind == CONTACT) return; /* let contacts be re-detected => left in the body will get deleted */
 
-  /* delete when internal constraint structure is yet intact (CONCMP) */
-
-#if DEBUG
-  ASSERT_DEBUG (SET_Contains (con->master->con, con, CONCMP), "Constraint %s with id %d not present in body list", CON_Kind (con), con->id);
-  ASSERT_DEBUG (!con->slave || (con->slave && SET_Contains (con->slave->con, con, CONCMP)), "Constraint %s with id %d not present in body list", CON_Kind (con), con->id);
-#endif
-
-  if (con->dia)
-  {
-    LOCDYN_Remove (dom->ldy, con->dia);
-    con->dia = NULL;
-  }
-
-  SET_Delete (&dom->setmem, &con->master->con, con, CONCMP); /* note, that the below modification affects both master and slave CONCMP based sets */
-  if (con->slave) SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP); /* hence the constraint needs to be removed from both sets [...] */
-
-  /* --- */
+  LOCDYN_Remove (dom->ldy, con->dia);
 
   if (con->kind == RIGLNK && src == con->slave)
   {
@@ -2885,43 +2951,27 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
 
   if (con->master == src)
   {
+    SET_Delete (&dom->setmem, &con->master->con, con, CONCMP);
     con->msgp = &dst->sgp [n];
     con->master = dst;
+    SET_Insert (&dom->setmem, &con->master->con, con, CONCMP);
   }
   else
   {
     ASSERT_DEBUG (con->slave == src, "Inconsistent constraint structure: invalid slave pointer");
+    SET_Delete (&dom->setmem, &con->slave->con, con, CONCMP);
     con->ssgp = &dst->sgp [n];
     con->slave = dst;
+    SET_Insert (&dom->setmem, &con->slave->con, con, CONCMP);
   }
 
-  /* insert after the internal constraint structure has been modified (CONCMP) */
+  con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
 
-  if (SET_Contains (dst->con, con, CONCMP)) /* since the nearest SGP is chosen some duplicated contacts (in the CONCMP sense) may occur */
-  {
-    ASSERT_TEXT (con->kind == CONTACT, "Inconsistent constraint duplication during the constraint transfer");
-    SET *mcon = con->master->con, *scon = con->slave->con;
-    con->master->con = con->slave->con = NULL; /* pretend that body sets are empty */
-    DOM_Remove_Constraint (dom, con); /* remove duplicated constraint without affectting body sets */
-    con->master->con = mcon; con->slave->con = scon; /* restore body constraint sets */
-  }
-  else /* otherwise we transder the constraint to the destination body */
-  {
-    con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
-
-    SET_Insert (&dom->setmem, &con->master->con, con, CONCMP); /* [...] only to be again inserted into the both sets */
-    if (con->slave) SET_Insert (&dom->setmem, &con->slave->con, con, CONCMP); /* after it was modified */
-
-#if DEBUG
-    ASSERT_DEBUG (SET_Contains (con->master->con, con, CONCMP), "Failed to insert constraint %s with id %d into body list", CON_Kind (con), con->id);
-    ASSERT_DEBUG (!con->slave || (con->slave && SET_Contains (con->slave->con, con, CONCMP)), "Failed to insert constraint %s with id %d into body list", CON_Kind (con), con->id);
+#if MPI
+  ASSERT_TEXT (0, "TODO");
 #endif
-  }
 
-  /* --- */
-
-  /* TODO: make sure that the above works fine in parallel */
-  /* TODO: quite surely it will not in the current form (external constraints are not updated) */
+  /* TODO/FIXME: parallel !!! */
 }
 
 /* set simulation scene extents */
@@ -3221,6 +3271,10 @@ void DOM_Update_End (DOM *dom)
 
   Propagate_Cracks (dom); /* do cracking */
 
+#if MPI
+  manage_bodies (dom); /* delete unwanted and insert pending bodies */
+#endif
+
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 }
 
@@ -3290,9 +3344,15 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
   }
   else if (SHAPE_Sgp (master->sgp, master->nsgp, mpnt) < 0) return 0;
 
-  SET_Insert (&dom->setmem, &dom->pending, pnd, NULL); /* they will be inserted or deleted during load balancing */
+  SET_Insert (&dom->setmem, &dom->pendingcons, pnd, NULL); /* they will be inserted or deleted during load balancing */
 
   return 1;
+}
+
+/* schedule ASAP insertion of a body in parallel */
+void DOM_Pending_Body (DOM *dom, BODY *bod)
+{
+  SET_Insert (&dom->setmem, &dom->pendingbods, bod, NULL);
 }
 #endif
 

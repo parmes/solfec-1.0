@@ -262,7 +262,8 @@ struct domain
   DOMSTATS *stats; /* domain statistics */
   int nstats; /* statistics count */
   DBD *dbd; /* load balancing send sets */
-  SET *pending; /* pending constraints to be inserted in parallel */
+  SET *pendingcons; /* pending constraints to be inserted in parallel */
+  SET *pendingbods; /* pending bodies to be inserted in parallel */
   SET *sparebid; /* deleted body ids */
 #endif
 
@@ -342,6 +343,9 @@ void DOM_Update_External_Reactions (DOM *dom, short normal);
 /* schedule parallel insertion of a constraint (to be called on all processors) */
 int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
     double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode);
+
+/* schedule ASAP insertion of a body in parallel */
+void DOM_Pending_Body (DOM *dom, BODY *bod);
 #endif
 
 /* write domain state */

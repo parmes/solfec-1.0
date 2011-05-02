@@ -412,7 +412,7 @@ PBF* PBF_Read (const char *path)
 
   /* open input files */
   out = NULL;
-  n = 0;
+  n = m-1;
   do
   {
     ERRMEM (bf = malloc (sizeof (PBF)));
@@ -456,7 +456,7 @@ PBF* PBF_Read (const char *path)
     bf->next = out;
     out = bf;
 
-  } while (++ n < m);
+  } while (-- n >= 0); /* the first item in the returned list corresponds to rank 0 */
 
   free (txt);
   return out;

@@ -66,9 +66,9 @@ static CON* read_constraint (DOM *dom, int iover, PBF *bf)
   PBF_Double (bf, &con->merit, 1);
 
   PBF_Uint (bf, &id, 1);
-  ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid master id");
+  ASSERT_DEBUG_EXT (con->master = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid master id");
   PBF_Uint (bf, &id, 1);
-  if (id) ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid slave id");
+  if (id) ASSERT_DEBUG_EXT (con->slave = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid slave id");
 
   if (kind == CONTACT)
   {
@@ -106,9 +106,17 @@ static void dom_attach_constraints (DOM *dom)
 
   for (con = dom->con; con; con = con->next)
   {
-    if (con->master) SET_Insert (&dom->setmem, &con->master->con, con, NULL);
+    if (con->master)
+    {
+      ASSERT_DEBUG (MAP_Find_Node (dom->idb, (void*) (long) con->master->id, NULL), "Invalid master id");
+      SET_Insert (&dom->setmem, &con->master->con, con, NULL);
+    }
 
-    if (con->slave) SET_Insert (&dom->setmem, &con->slave->con, con, NULL);
+    if (con->slave)
+    {
+      ASSERT_DEBUG (MAP_Find_Node (dom->idb, (void*) (long) con->slave->id, NULL), "Invalid slave id");
+      SET_Insert (&dom->setmem, &con->slave->con, con, NULL);
+    }
   }
 }
 
@@ -191,7 +199,7 @@ void dom_write_state (DOM *dom, PBF *bf)
 }
 
 /* read all bodies from t = t_begin to t = t_end */
-static void readallbodies (DOM *dom, PBF *input)
+static void readallbodies (DOM *dom, PBF *bf)
 {
   double t, time, start, end;
   int dpos, doubles, size, n;
@@ -199,41 +207,38 @@ static void readallbodies (DOM *dom, PBF *input)
   double *d = NULL;
   int dodel = 0;
   BODY *bod;
-  PBF *bf;
 
-  PBF_Time (input, &time);
-  PBF_Limits (input, &start, &end);
-  PBF_Seek (input, start);
+  PBF_Time (bf, &time);
+  PBF_Limits (bf, &start, &end);
+  PBF_Seek (bf, start);
 
   if (dom->solfec->verbose)
     printf ("Reading all bodies ... ");
 
   do
   {
-    PBF_Time (input, &t);
+    PBF_Time (bf, &t);
 
-    for (bf = input; bf; bf = bf->next)
+    ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT); /* XXX: all bodies are stored on all CPUs but only the rank 0 process
+							         writes newly inserted bodies; see (@@@) in bod.c; (no loop
+								 over bf here since the first list item corresponds to rank 0) */
+    PBF_Int (bf, &size, 1);
+
+    for (n = 0; n < size; n ++)
     {
-      ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT);
+      PBF_Int (bf, &doubles, 1);
+      ERRMEM (d  = realloc (d, doubles * sizeof (double)));
+      PBF_Double (bf, d, doubles);
 
-      PBF_Int (bf, &size, 1);
+      PBF_Int (bf, &ints, 1);
+      ERRMEM (i  = realloc (i, ints * sizeof (int)));
+      PBF_Int (bf, i, ints);
 
-      for (n = 0; n < size; n ++)
-      {
-	PBF_Int (bf, &doubles, 1);
-	ERRMEM (d  = realloc (d, doubles * sizeof (double)));
-	PBF_Double (bf, d, doubles);
+      dpos = ipos = 0;
 
-	PBF_Int (bf, &ints, 1);
-	ERRMEM (i  = realloc (i, ints * sizeof (int)));
-	PBF_Int (bf, i, ints);
+      bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
 
-	dpos = ipos = 0;
-
-	bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
-
-	MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
-      }
+      MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
     }
 
     if (dom->solfec->verbose)
@@ -243,14 +248,14 @@ static void readallbodies (DOM *dom, PBF *input)
       printf ("%3d%%", progress); dodel = 1; fflush (stdout);
     }
 
-  } while (PBF_Forward (input, 1));
+  } while (PBF_Forward (bf, 1));
 
   if (dom->solfec->verbose) printf ("\n");
 
   free (d);
   free (i);
 
-  PBF_Seek (input, time);
+  PBF_Seek (bf, time);
   dom->allbodiesread = 1;
 }
 

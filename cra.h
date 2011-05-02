@@ -58,6 +58,12 @@ void CRACK_Destroy (CRACK *cra);
 /* delete list of cracks */
 void CRACK_Destroy_List (CRACK *cra);
 
+/* pack cracks */
+void CRACKS_Pack (CRACK *list, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
+
+/* unpack cracks */
+CRACK* CRACKS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
+
 /* propagate cracks and adjust the domain */
 void Propagate_Cracks (DOM *dom);
 
