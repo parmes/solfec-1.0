@@ -1782,7 +1782,8 @@ static void domain_balancing (DOM *dom)
       {
 	con = item->data;
 
-	if (!con->slave) SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* single-body constraints migrate with bodies */
+	if (!con->slave && !(con->state & CON_EXTERNAL))
+	  SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* single-body constraints migrate with bodies */
       }
     }
     else
@@ -1876,33 +1877,34 @@ static void domain_balancing (DOM *dom)
       bod->rank = procs [0]; /* set the new rank */
 
       SET_Insert (&dom->setmem, &dbd [procs [0]].bodies, bod, NULL); /* map this body to its export rank */
-
-      for (item = SET_First (bod->con); item; item = SET_Next (item))
-      {
-	con = item->data;
-
-	if (!con->slave) SET_Insert (&dom->setmem, &dbd [procs [0]].constraints, con, NULL); /* single-body constraints migrate with bodies */
-      }
     }
   }
 
   for (con = dom->con; con; con = con->next)
   {
-    if (!con->slave) continue; /* skip single-body constraints */
-
-    COPY (con->point, e);
-    COPY (e, e+3);
-    e [0] -= GEOMETRIC_EPSILON;
-    e [1] -= GEOMETRIC_EPSILON;
-    e [2] -= GEOMETRIC_EPSILON;
-    e [3] += GEOMETRIC_EPSILON;
-    e [4] += GEOMETRIC_EPSILON;
-    e [5] += GEOMETRIC_EPSILON;
-    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
-
-    if (procs [0] != dom->rank)
+    if (!con->slave)
     {
-      SET_Insert (&dom->setmem, &dbd [procs [0]].constraints, con, NULL); /* map this constraint to its export rank */
+      if (con->master->rank != dom->rank && con->master->flags & BODY_PARENT)
+      {
+        SET_Insert (&dom->setmem, &dbd [con->master->rank].constraints, con, NULL); /* single-body constraints migrate with parent bodies */
+      }
+    }
+    else
+    {
+      COPY (con->point, e);
+      COPY (e, e+3);
+      e [0] -= GEOMETRIC_EPSILON;
+      e [1] -= GEOMETRIC_EPSILON;
+      e [2] -= GEOMETRIC_EPSILON;
+      e [3] += GEOMETRIC_EPSILON;
+      e [4] += GEOMETRIC_EPSILON;
+      e [5] += GEOMETRIC_EPSILON;
+      Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+      if (procs [0] != dom->rank)
+      {
+	SET_Insert (&dom->setmem, &dbd [procs [0]].constraints, con, NULL); /* map this constraint to its export rank */
+      }
     }
   }
  
@@ -2240,6 +2242,7 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
     for (n = 0; n < j; n ++)
     {
       bod = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
+      dom->insertbodymode = NEVER;
       DOM_Insert_Body (dom, bod); /* XXX: rely on rank ordering in communication and body
 					  ordering during packing in order to get
 					  the same sequence of bodies on all processors;
@@ -2250,6 +2253,7 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   {
     for (item = SET_First (dom->pendingbods); item; item = SET_Next (item))
     {
+      dom->insertbodymode = ALWAYS;
       DOM_Insert_Body (dom, item->data); /* XXX: as above */
     }
   }
@@ -2276,7 +2280,7 @@ static void manage_bodies (DOM *dom)
     send [i].rank = i;
   }
 
-  /* send children updates; since this is the first communication in a sequence, we have here dom->bytes = ... rather than dom->bytes += ... */
+  /* since this is the first communication in a sequence, we have here dom->bytes = ... rather than dom->bytes += ... */
   dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)manage_bodies_pack, dom, (OBJ_Unpack)manage_bodies_unpack, send, dom->ncpu, &recv, &nrecv);
 
   free (send);
@@ -2297,6 +2301,9 @@ static void manage_bodies (DOM *dom)
 
   /* empty body ids set */
   SET_Free (&dom->setmem, &dom->sparebid);
+
+  /* restore body insertion mode */
+  dom->insertbodymode = EVERYNCPU;
 }
 
 /* pack normal reaction components (only for contacts) of boundary constraints */
@@ -2426,6 +2433,8 @@ void update_external_RUV (DOM *dom)
 /* create MPI related data */
 static void create_mpi (DOM *dom)
 {
+  dom->insertbodymode = EVERYNCPU;
+
   dom->sparebid = NULL;
 
   dom->children = NULL;
@@ -2589,7 +2598,9 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
 
 #if MPI
   /* insert every 'rank' body into this domain */
-  if (bod->id % (unsigned) dom->ncpu == (unsigned) dom->rank)
+  if (dom->insertbodymode == ALWAYS ||
+     (dom->insertbodymode == EVERYNCPU &&
+      bod->id % (unsigned) dom->ncpu == (unsigned) dom->rank))
   {
     /* mark as parent */
     bod->flags |= BODY_PARENT;
@@ -2935,6 +2946,10 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
 
   if (con->kind == CONTACT) return; /* let contacts be re-detected => left in the body will get deleted */
 
+#if MPI
+  if (con->state & CON_EXTERNAL) return; /* do not transfer external constraints => let them get deleted with bodies */
+#endif
+
   LOCDYN_Remove (dom->ldy, con->dia);
 
   if (con->kind == RIGLNK && src == con->slave)
@@ -2968,10 +2983,13 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
   con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
 
 #if MPI
-  ASSERT_TEXT (0, "TODO");
-#endif
+  SET_Free (&dom->setmem, &con->ext);
 
-  /* TODO/FIXME: parallel !!! */
+  WARNING (con->kind != RIGLNK, "Rigid link constraint has not been tested with fragmenting bodies in parallel.\n"
+                                "Errorneous results might be produced due to an incorrect handling of it.\n");
+
+  /* TODO/FIXME: parallel rigid link constraint */
+#endif
 }
 
 /* set simulation scene extents */
