@@ -1624,27 +1624,36 @@ static double TL_dynamic_critical_step (BODY *bod)
 {
   if (bod->scheme == SCH_DEF_EXP)
   {
+    double vmi, vol, tcrit, eigmax;
     MESH *msh = FEM_MESH (bod);
-    double step, tcrit, eigmax;
-    ELEMENT *ele;
+    ELEMENT *ele, *emi;
     int bulk;
     MX *IMK;
 
-    for (ele = msh->surfeles, bulk = 0, step = DBL_MAX; ele; )
+    /* find element with smallest volume */
+    for (ele = msh->surfeles, emi = NULL, bulk = 0, vmi = DBL_MAX; ele; )
     {
-      IMK = element_inv_M_K (bod, msh, ele); /* element inv (M) * K */
-      MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
-      MX_Destroy (IMK);
-      ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
-      tcrit = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
-      if (tcrit < step) step = tcrit;
+      vol = ELEMENT_Volume (msh, ele, 0);
+      if (vol < vmi)
+      {
+	emi = ele;
+	vmi = vol;
+
+        /* TODO: actually find an element with the smallest edge, rather than volume */
+      }
 
       if (bulk) ele = ele->next;
       else if (ele->next) ele = ele->next;
       else ele = msh->bulkeles, bulk = 1;
     }
 
-    return step;
+    IMK = element_inv_M_K (bod, msh, emi); /* element inv (M) * K */
+    MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
+    MX_Destroy (IMK);
+    ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
+    tcrit = 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
+
+    return tcrit;
   }
   else return DBL_MAX;
 }

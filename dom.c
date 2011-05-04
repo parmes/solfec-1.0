@@ -1692,6 +1692,8 @@ static void insert_pending_constraints (DOM *dom)
   SET_Free (&dom->setmem, &dom->pendingcons);
 }
 
+#define OLD_ZOLTAN_BALANCING 0 /* XXX: Zoltan balancing issues workarounds ($$$) */
+
 /* domain balancing */
 static void domain_balancing (DOM *dom)
 {
@@ -1763,7 +1765,7 @@ static void domain_balancing (DOM *dom)
 	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-#if 0
+#if OLD_ZOLTAN_BALANCING
   unsigned int id;
 
   for (i = 0; i < num_export; i ++) /* for each exported body */
@@ -2479,7 +2481,11 @@ static void create_mpi (DOM *dom)
   Zoltan_Set_Param (dom->zol, "LB_METHOD", "RCB");
   Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", "1.3");
   Zoltan_Set_Param (dom->zol, "AUTO_MIGRATE", "FALSE");
+#if OLD_ZOLTAN_BALANCING
+  Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "EXPORT");
+#else
   Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "NONE"); /* XXX: EXPORT for previous way of computing export sets ($$$) */
+#endif
 
   /* RCB parameters */
   Zoltan_Set_Param (dom->zol, "RCB_OVERALLOC", "1.3");
