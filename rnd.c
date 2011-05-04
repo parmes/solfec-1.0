@@ -42,9 +42,9 @@
 #include "fem.h"
 #include "err.h"
 
-typedef union value_source VALUE_SOURCE; /* vertex value source */
+typedef struct value_source VALUE_SOURCE; /* vertex value source */
 
-union value_source
+struct value_source
 {
   ELEPNT *epn;
 
