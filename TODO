@@ -93,3 +93,10 @@ one global object, etc.)
 -------------------------------------------------------------------------------------
 Better resolve corner adjacent mesh nodes gluing after PARTITION
 (currently there could be too many corner gluing constraints)
+-------------------------------------------------------------------------------------
+Consider using CGAL for boolean operations and convex subdivision (on input only)
+----------------------------------------------------------------------------------
+Implement REGISTER_SHAPE idea!
+----------------------------------------
+Pressure plotting
+----------------------------------------

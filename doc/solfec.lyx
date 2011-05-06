@@ -6489,18 +6489,12 @@ value
  - a number or a TIME_SERIES object defining the value of the applied torque
 \end_layout
 
-\begin_layout Standard
-\begin_inset Note Note
-status open
-
 \begin_layout Subsection*
-LOAD (body, kind, surfid, direction, value)
-\color red
- TODO
+PRESSURE (body, surfid, value)
 \end_layout
 
-\begin_layout Plain Layout
-This routine applies a surface load.
+\begin_layout Standard
+This routine applies a constant surface pressure to MESH based bodies.
 \end_layout
 
 \begin_layout Itemize
@@ -6508,23 +6502,8 @@ This routine applies a surface load.
 \series bold
 body
 \series default
- - BODY object to which the load is applied
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-kind
-\series default
- - either 'SPATIAL' or 'CONVECTED'; the 
-\emph on
-spatial
-\emph default
- direction remains fixed, while the 
-\emph on
-convected
-\emph default
- one follows deformation
+ - BODY object to which the pressure is applied (the shape has to be composed
+ of a single MESH)
 \end_layout
 
 \begin_layout Itemize
@@ -6538,47 +6517,19 @@ surfid
 \begin_layout Itemize
 
 \series bold
-direction
-\series default
- - 
-\emph on
-(vx, vy, vz)
-\emph default
- tuple defining the direction of load, or 'NORMAL' if load is normal to
- the surface, or 'TANGENT1' if load acts along the first tangent direction,
- or 'TANGENT2' if it acts along the second tangent direction.
- The normal direction ('NORMAL') is outward.
- The first tangent direction ('TANGENT1') is the one of the steepest descent,
- or a global 
-\emph on
-x
-\emph default
- direction if the surface is horizontal.
- The second tangent direction ('TANGENT2') is such that the local ('TANGENT1',
- 'TANGENT2', 'NORMAL') coordinate system is right-handed.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
 value
 \series default
  - a number or a TIME_SERIES object defining the value of the applied load
 \end_layout
 
-\end_inset
-
-
-\end_layout
-
 \begin_layout Section
-Cracking 
+Fragmentation 
 \color red
 (Under development)
 \end_layout
 
 \begin_layout Standard
-Routines listed in this section control cracking of bodies.
+Routines listed in this section control fragmentation of bodies.
 \end_layout
 
 \begin_layout Subsection*

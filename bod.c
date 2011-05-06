@@ -106,6 +106,57 @@ static void* alloc_body (short kind)
   return NULL;
 }
 
+/* find resultant pressure vector */
+static void resultant_pressure (MESH *msh, FORCE *frc)
+{
+  int surfid = frc->surfid;
+  double *point = frc->ref_point,
+	 *dir = frc->direction,
+	 (*cur) [3] = msh->cur_nodes,
+	 a0, a1, dv;
+  FACE *fac;
+
+  SET (point, 0.0);
+  SET (dir, 0.0);
+  dv = 0.0;
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    if (fac->surface == surfid)
+    {
+      double *a = cur [fac->nodes [0]],
+	     *b = cur [fac->nodes [1]],
+	     *c = cur [fac->nodes [2]],
+	     *d = fac->type == 4 ? cur [fac->nodes [3]] : NULL;
+
+      TRIANGLE_AREA (a, b, c, a0);
+      if (fac->type == 4)
+      {
+        TRIANGLE_AREA (c, d, a, a1);
+        a0 += a1;
+	point [0] += 0.25 * (a[0]+b[0]+c[0]+d[0]);
+	point [1] += 0.25 * (a[1]+b[1]+c[1]+d[1]);
+	point [2] += 0.25 * (a[2]+b[2]+c[2]+d[2]);
+      }
+      else
+      {
+	point [0] += (a[0]+b[0]+c[0])/3.0;
+	point [1] += (a[1]+b[1]+c[1])/3.0;
+	point [2] += (a[2]+b[2]+c[2])/3.0;
+      }
+
+      ADDMUL (dir, a0, fac->normal, dir);
+      dv += 1.0;
+    }
+  }
+
+  if (dv > 0.0)
+  {
+    DIV (point, dv, point);
+    DIV (dir, dv, dir);
+  }
+}
+
 /* ------------------- RIG --------------------- */
 
 /* implicit solver of => exp[hW]JW = G, outputing W and A = exp[hW] */
@@ -235,9 +286,14 @@ static void rig_force (BODY *bod, double *q, double *u, double t, double h,
     }
     else
     {
+      if (frc->kind & PRESSURE)
+      {
+	resultant_pressure (bod->shape->data, frc);
+	kind = 0;
+      }
+      else kind = frc->kind;
       v = TMS_Value (frc->data, t);
       COPY (frc->direction, f);
-      kind = frc->kind;
       SCALE (f, v);
       
       if (kind & CONVECTED)
@@ -601,14 +657,17 @@ static void prb_dynamic_force (BODY *bod, double time, double step, double *fext
     }
     else
     {
+      if (frc->kind & PRESSURE) resultant_pressure (bod->shape->data, frc);
       value = TMS_Value (frc->data, time);
       COPY (frc->direction, f);
       SUB (frc->ref_point, X0, A);
       SCALE (f, value);
 
       if (frc->kind & CONVECTED) /* obtain spatial force */
-      { NVMUL (F, f, P);
-	COPY (P, f); }
+      { 
+	NVMUL (F, f, P);
+	COPY (P, f);
+      }
 
       force [0] += A [0]*f [0];
       force [1] += A [1]*f [0];
@@ -1084,19 +1143,27 @@ void BODY_Initial_Velocity (BODY *bod, double *linear, double *angular)
   }
 }
 
-void BODY_Apply_Force (BODY *bod, short kind, double *point, double *direction, TMS *data, void *call, FORCE_FUNC func)
+void BODY_Apply_Force (BODY *bod, short kind, double *point, double *direction, TMS *data, void *call, FORCE_FUNC func, int surfid)
 {
   FORCE *frc;
 
-  ASSERT_DEBUG ((kind & SPATIAL) || (kind & CONVECTED), "Invalid force kind");
-  if (kind & TORQUE)
+  if (kind & PRESSURE)
   {
-    ASSERT_DEBUG (bod->kind == RIG, "Torque can be only applied to rigid bodies");
-    ASSERT_DEBUG ((direction && data) || func, "NULL pointer passed incorectly");
+    ASSERT_DEBUG (data, "NULL pointer passed incorectly");
   }
   else
   {
-    ASSERT_DEBUG ((point && direction && data) || func, "NULL pointer passed incorectly");
+    ASSERT_DEBUG ((kind & SPATIAL) || (kind & CONVECTED), "Invalid force kind");
+
+    if (kind & TORQUE)
+    {
+      ASSERT_DEBUG (bod->kind == RIG, "Torque can be only applied to rigid bodies");
+      ASSERT_DEBUG ((direction && data) || func, "NULL pointer passed incorectly");
+    }
+    else
+    {
+      ASSERT_DEBUG ((point && direction && data) || func, "NULL pointer passed incorectly");
+    }
   }
 
   ERRMEM (frc = MEM_CALLOC (sizeof (FORCE)));
@@ -1108,6 +1175,7 @@ void BODY_Apply_Force (BODY *bod, short kind, double *point, double *direction, 
   frc->data = data;
   frc->call = call;
   frc->func = func;
+  frc->surfid = surfid;
   
   /* append body forces list */
   frc->next = bod->forces;
