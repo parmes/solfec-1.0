@@ -4839,7 +4839,7 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
     }
   }
 
-  BODY_Apply_Force (body->bod, k, p, d, ts, call, func);
+  BODY_Apply_Force (body->bod, k, p, d, ts, call, func, 0);
 
   Py_RETURN_NONE;
 }
@@ -4887,7 +4887,37 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   }
 
-  BODY_Apply_Force (body->bod, k | TORQUE, NULL, d, ts, NULL, NULL);
+  BODY_Apply_Force (body->bod, k | TORQUE, NULL, d, ts, NULL, NULL, 0);
+
+  Py_RETURN_NONE;
+}
+
+/* apply pressure */
+static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "surfid", "value");
+  PyObject *value;
+  lng_BODY *body;
+  int surfid;
+  BODY *bod;
+  TMS *ts;
+
+  PARSEKEYS ("OiO", &body, &surfid, &value);
+
+  TYPETEST (is_body (body, kwl[0]) && is_number_or_time_series (value, kwl[2]));
+
+  bod = body->bod;
+
+  if (bod->shape->kind != SHAPE_MESH || bod->shape->next != NULL)
+  {
+    PyErr_SetString (PyExc_ValueError, "Pressure can be applied to a body with a single MESH based shape");
+    return NULL;
+  }
+
+  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value));
+  else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
+
+  BODY_Apply_Force (body->bod, PRESSURE, NULL, NULL, ts, NULL, NULL, surfid);
 
   Py_RETURN_NONE;
 }
@@ -6252,6 +6282,18 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
     b->scheme = bod->scheme;
     b->flags |= (bod->flags & BODY_DETECT_SELF_CONTACT);
     b->damping = bod->damping;
+    for (FORCE *frc = bod->forces; frc; frc = frc->next)
+    {
+      if (frc->kind & PRESSURE)
+      {
+	BODY_Apply_Force (b, PRESSURE, NULL, NULL, TMS_Copy (frc->data), NULL, NULL, frc->surfid);
+      }
+      else
+      {
+	ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO: transfer point forces */
+      }
+    }
+
     out [i] = b;
     free (label);
   }
@@ -7257,6 +7299,7 @@ static PyMethodDef lng_methods [] =
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
+  {"PRESSURE", (PyCFunction)lng_PRESSURE, METH_VARARGS|METH_KEYWORDS, "Apply pressure"},
   {"SIMPLIFIED_CRACK", (PyCFunction)lng_SIMPLIFIED_CRACK, METH_VARARGS|METH_KEYWORDS, "Prescribe crack"},
   {"IMBALANCE_TOLERANCE", (PyCFunction)lng_IMBALANCE_TOLERANCE, METH_VARARGS|METH_KEYWORDS, "Adjust parallel imbalance tolerance"},
   {"RANK", (PyCFunction)lng_RANK, METH_NOARGS, "Get current processor rank"},
@@ -7453,6 +7496,7 @@ int lng (const char *path)
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"
+                     "from solfec import PRESSURE\n"
                      "from solfec import SIMPLIFIED_CRACK\n"
                      "from solfec import IMBALANCE_TOLERANCE\n"
                      "from solfec import RANK\n"

@@ -1247,6 +1247,40 @@ static void unit_body_force (BODY *bod)
   }
 }
 
+/* accumulate surface pressure */
+static void accumulate_pressure (BODY *bod, MESH *msh, double *conf, int surfid, double value, double *fext)
+{
+  double q [8][3], nodes [8][3], shapes [8], J, p, *N;
+  int i, j, k, n;
+  FACE *fac;
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    if (fac->surface == surfid)
+    {
+      face_nodes (msh->ref_nodes, fac->type, fac->nodes, nodes);
+      face_displacements (conf, fac, q);
+      for (j = 0; j < fac->type; j ++) ADD (nodes [j], q [j], nodes [j]);
+      N = fac->normal;
+
+      INTEGRAL2D_BEGIN (fac->type, SURF) /* defines point and weight */
+      {
+	face_shapes (fac, point, shapes);
+	J = face_det (fac, nodes, point);
+	p = J * weight * value;
+
+        for (i = 0; i < fac->type; i ++)
+	{
+	  k = fac->nodes [i];
+	  for (n = 0; n < 3; n ++)
+	    fext [3*k+n] += N [n] * p * shapes [i]; /* TODO/XXX: verify */
+	}
+      }
+      INTEGRAL2D_END ()
+    }
+  }
+}
+
 /* compute external force */
 static void external_force (BODY *bod, double time, double step, double *fext)
 {
@@ -1272,25 +1306,33 @@ static void external_force (BODY *bod, double time, double step, double *fext)
     else
     {
       value = TMS_Value (frc->data, time);
-      COPY (frc->direction, f);
-      SCALE (f, value);
 
-      ele = MESH_Element_Containing_Point (msh, frc->ref_point, 1); /* TODO: optimize */
-
-      ASSERT_TEXT (ele, "Point force seems to be applied outside of FEM mesh.\n"
-	                "This should have been detected when interpreting input.\n"
-			"Please report this bug!\n");
-
-      referential_to_local (msh, ele, frc->ref_point, point);
-
-      if (frc->kind & CONVECTED)
-      { 
-	deformation_gradient (bod, msh, ele, point, g);
-	NVMUL (g, f, g+9);
-	COPY (g+9, f);
+      if (frc->kind & PRESSURE)
+      {
+        accumulate_pressure (bod, bod->shape->data, bod->conf, frc->surfid, value, fext);
       }
+      else
+      {
+	COPY (frc->direction, f);
+	SCALE (f, value);
 
-      accumulate_point_force (bod, msh, ele, point, f, fext);
+	ele = MESH_Element_Containing_Point (msh, frc->ref_point, 1); /* TODO: optimize */
+
+	ASSERT_TEXT (ele, "Point force seems to be applied outside of FEM mesh.\n"
+			  "This should have been detected when interpreting input.\n"
+			  "Please report this bug!\n");
+
+	referential_to_local (msh, ele, frc->ref_point, point);
+
+	if (frc->kind & CONVECTED)
+	{ 
+	  deformation_gradient (bod, msh, ele, point, g);
+	  NVMUL (g, f, g+9);
+	  COPY (g+9, f);
+	}
+
+	accumulate_point_force (bod, msh, ele, point, f, fext);
+      }
     }
   }
 

@@ -89,7 +89,8 @@ struct general_force
 {
   enum {SPATIAL   = 0x01,
         CONVECTED = 0x02,
-        TORQUE    = 0x04} kind; /* force kind (torque applies only to rigid bodies) */
+        TORQUE    = 0x04, /* applies only to rigid bodies */
+        PRESSURE  = 0x08} kind; /* force kind  */
 
   double ref_point [3],         /* referential point */
          direction [3];         /* spatial or referential */
@@ -99,6 +100,8 @@ struct general_force
   void *call;
 
   FORCE_FUNC func;
+
+  int surfid; /* pressure surface id */
 
   FORCE *next;
 };
@@ -214,7 +217,7 @@ void BODY_Overwrite_State (BODY *bod, double *q, double *u);
 void BODY_Initial_Velocity (BODY *bod, double *linear, double *angular);
 
 /* apply a force (if 'func' is given, 'data' is regarded as the user data pointer to the callback 'func') */
-void BODY_Apply_Force (BODY *bod, short kind, double *point, double *direction, TMS *data, void *call, FORCE_FUNC func);
+void BODY_Apply_Force (BODY *bod, short kind, double *point, double *direction, TMS *data, void *call, FORCE_FUNC func, int surfid);
 
 /* remove all forces */
 void BODY_Clear_Forces (BODY *bod);
