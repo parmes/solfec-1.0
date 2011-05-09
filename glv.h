@@ -134,4 +134,10 @@ void GLV_Rectangle_Off ();
 /* stop filming */
 void GLV_AVI_Stop ();
 
+/* set window title */
+void GLV_Window_Title (char *fmt, ...);
+
+/* set trackball center */
+void GLV_Trackball_Center (double *point);
+
 #endif

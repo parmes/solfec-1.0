@@ -98,12 +98,11 @@ static struct
 /* mouse modes */
 static enum
 {
-  MOUSE_MODE_NONE,
   MOUSE_MODE_TRACKBALL,
   MOUSE_MODE_SPIN,
   MOUSE_MODE_ZOOM,
   MOUSE_MODE_MOVE
-} activemode = MOUSE_MODE_TRACKBALL, mousemode;
+} mousemode = MOUSE_MODE_TRACKBALL;
 
 /* reshape modes */
 static enum 
@@ -116,10 +115,6 @@ static enum
 enum
 {
   MENU_QUIT,
-  MENU_TRACKBALL,
-  MENU_SPIN,
-  MENU_ZOOM,
-  MENU_MOVE,
   MENU_VIEW_PERSPECTIVE,
   MENU_VIEW_ORTHO,
   MENU_VIEW_OUTLINE,
@@ -479,11 +474,22 @@ static void mouse3D (int button, int state, int x, int y)
     switch (state)
     {
     case GLUT_UP:
-      mousemode = MOUSE_MODE_NONE;
+      mousemode = MOUSE_MODE_TRACKBALL;
       break;
     case GLUT_DOWN:
-      mousemode = activemode;
       memcpy (&oldlook, &look, sizeof (look));
+      switch (glutGetModifiers())
+      {
+      case GLUT_ACTIVE_SHIFT:
+	mousemode = MOUSE_MODE_MOVE;
+	break;
+      case GLUT_ACTIVE_CTRL:
+	mousemode = MOUSE_MODE_ZOOM;
+	break;
+      case GLUT_ACTIVE_ALT:
+	mousemode = MOUSE_MODE_SPIN;
+	break;
+      }
       break;
     }
     break;
@@ -508,6 +514,8 @@ static void mouse3D (int button, int state, int x, int y)
     }
     break;
   }
+
+  GLV_Window_Title (NULL); /* default title */
 
 callback:
   if (user.mouse)
@@ -605,8 +613,6 @@ static void motion3D (int x, int y)
       SUB (oldlook.to, b, look.to);
       updateall ();
     }
-    break;
-    case MOUSE_MODE_NONE:
     break;
   }
 
@@ -963,18 +969,6 @@ static void menu3D (int value)
 {
   switch (value)
   {
-    case  MENU_TRACKBALL:
-      activemode = MOUSE_MODE_TRACKBALL;
-      break;
-    case  MENU_SPIN:
-      activemode = MOUSE_MODE_SPIN;
-      break;
-    case  MENU_ZOOM:
-      activemode = MOUSE_MODE_ZOOM;
-      break;
-    case  MENU_MOVE:
-      activemode = MOUSE_MODE_MOVE;
-      break;
     case MENU_QUIT:
       if (AVI) AVI_Close (AVI);
       if (user.quit)
@@ -1082,12 +1076,16 @@ void GLV (
   glutAddSubMenu ("view", view_menu);
   glutAddSubMenu ("export", export_menu);
 
-  glutAddMenuEntry ("trackball", MENU_TRACKBALL);
-  glutAddMenuEntry ("spin", MENU_SPIN);
-  glutAddMenuEntry ("zoom", MENU_ZOOM);
-  glutAddMenuEntry ("move", MENU_MOVE);
   glutAddMenuEntry ("quit", MENU_QUIT);
   glutAttachMenu (GLUT_RIGHT_BUTTON);
+
+  GLV_Window_Title (NULL);  /* default title */
+
+  printf ("LEFT MOUSE BUTTON (LMB) => TRACKBALL\n"
+	  "SHIFT + LMB => MOVE\n"
+	  "CTRL + LMB => ZOOM\n"
+	  "ALT + LMB => SPIN\n"
+	  "ESC => FINALIZE TOOL\n");
 
   init3D (extents);
   glutMainLoop ();
@@ -1404,4 +1402,46 @@ void GLV_Rectangle_Off ()
 void GLV_AVI_Stop ()
 {
   if (AVI) { AVI_Close (AVI); AVI = NULL; }
+}
+
+void GLV_Window_Title (char *fmt, ...)
+{
+  va_list arg;
+  char buff [MAXPRINTLEN];
+
+  if (fmt)
+  {
+    va_start (arg, fmt);
+    vsnprintf (buff, MAXPRINTLEN, fmt, arg);
+    va_end (arg);
+    glutSetWindowTitle (buff);
+  }
+  else
+  {
+    switch (mousemode)
+    {
+    case MOUSE_MODE_TRACKBALL:
+      glutSetWindowTitle ("Solfec: trackball");
+      break;
+    case MOUSE_MODE_MOVE:
+      glutSetWindowTitle ("Solfec: move");
+      break;
+    case MOUSE_MODE_ZOOM:
+      glutSetWindowTitle ("Solfec: zoom");
+      break;
+    case MOUSE_MODE_SPIN:
+      glutSetWindowTitle ("Solfec: spin");
+      break;
+    }
+  }
+}
+
+void GLV_Trackball_Center (double *point)
+{
+  double a [3];
+
+  SUB (look.to, look. from, a);
+  COPY (point, look.to);
+  SUB (point, a, look.from);
+  updateall ();
 }
