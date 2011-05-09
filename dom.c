@@ -566,7 +566,7 @@ static SGP* SGP_from_index (DOM *dom, BODY *bod, int n)
 /* compute constraint weight */
 static int constraint_weight (CON *con)
 {
-  int wgt0 = con->master->dofs + (con->slave ? con->slave->dofs : 0), /* default weight */
+  int wgt0 = 1, /* default weight */
       wgt1 = 0; /* weight of local dynamics row */
   DOM *dom = con->master->dom;
 
@@ -574,15 +574,11 @@ static int constraint_weight (CON *con)
   {
     OFFB *blk;
 
-    for (blk = con->dia->adjext; blk; blk = blk->n) wgt1 += blk->bod->dofs;
-    for (blk = con->dia->adj; blk; blk = blk->n) wgt1 += blk->bod->dofs;
+    for (blk = con->dia->adjext; blk; blk = blk->n) wgt1 ++;
+    for (blk = con->dia->adj; blk; blk = blk->n) wgt1 ++;
   }
 
   wgt0 += (int) (dom->weight_factor * (double) wgt1);
-
-  if (con->master->kind == FEM || (con->slave && con->slave->kind == FEM)) wgt0 /= 10; /* XXX: avoid excess */
-
-  /* TODO: constraint wights require more thought (/ 10 for FEM is very much ad hoc) */
 
   return wgt0;
 }
@@ -590,7 +586,7 @@ static int constraint_weight (CON *con)
 /* compute body weight */
 static int body_weight (BODY *bod)
 {
-  int wgt = bod->dofs;
+  int wgt = bod->nsgp;
   SET *item;
   CON *con;
 
@@ -3203,6 +3199,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   aabb_timing (dom, timerend (&timing));
 
 #if MPI
+  MPI_Barrier (MPI_COMM_WORLD); /* contact detection above might be somewhat unbalanced =>
+				   the barrier allows for a more adequate PARBAL measurement */
+
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
   domain_gluing_begin (dom); /* migrate new external contacts */
