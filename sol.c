@@ -555,7 +555,12 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     /* TODO: make this more efficient by using a single call */
 
 #endif
-    if (sol->dom->time == 0.0 && sol->verbose) initstatsout (sol->dom); /* print out initial statistics */
+    if (sol->dom->time == 0.0)
+    {
+      if (sol->verbose) initstatsout (sol->dom); /* print out initial statistics */
+
+      write_state (sol, solver, kind); /* save initial frame */
+    }
 
     verbose = verbose_on (sol);
     sol->duration = duration;

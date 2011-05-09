@@ -178,6 +178,7 @@ enum /* menu items */
   TOOLS_POINTS_COORDS,
   TOOLS_POINTS_DISTANCE,
   TOOLS_POINTS_ANGLE,
+  TOOLS_TRACKBALL_CENTER,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -2365,6 +2366,7 @@ static void render_picked_point (void)
   {
     switch (tool_mode)
     {
+    case TOOLS_TRACKBALL_CENTER:
     case TOOLS_POINTS_COORDS: color [0] = 1.0; break;
     case TOOLS_POINTS_DISTANCE: color [2] = 1.0; break;
     case TOOLS_POINTS_ANGLE: color [1] = 1.0; break;
@@ -3070,6 +3072,12 @@ static void menu_tools (int item)
     mouse_mode = MOUSE_PICK_BODY;
     tool_mode = item;
     GLV_Hold_Mouse ();
+    switch (item)
+    {
+      case TOOLS_TRANSPARENT: GLV_Window_Title ("Solfec: transparent"); break;
+      case TOOLS_ROUGH_MESH: GLV_Window_Title ("Solfec: rough mesh"); break;
+      case TOOLS_HIDE: GLV_Window_Title ("Solfec: hide"); break;
+    }
     break;
   case TOOLS_TRANSPARENT_ALL:
     for (BODY *bod = domain->bod; bod; bod = bod->next)
@@ -3125,11 +3133,18 @@ static void menu_tools (int item)
   case TOOLS_POINTS_COORDS:
   case TOOLS_POINTS_DISTANCE:
   case TOOLS_POINTS_ANGLE:
+  case TOOLS_TRACKBALL_CENTER:
     modes_off ();
     mouse_mode = MOUSE_PICK_POINT;
     tool_mode = item;
     GLV_Hold_Mouse ();
-    break;
+    switch (item)
+    {
+      case TOOLS_POINTS_COORDS: GLV_Window_Title ("Solfec: points coords"); break;
+      case TOOLS_POINTS_DISTANCE: GLV_Window_Title ("Solfec: points distance"); break;
+      case TOOLS_POINTS_ANGLE: GLV_Window_Title ("Solfec: points angle"); break;
+      case TOOLS_TRACKBALL_CENTER: GLV_Window_Title ("Solfec: trackball center"); break;
+    }
   }
 }
 
@@ -3229,6 +3244,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("point coordiantes /x/", TOOLS_POINTS_COORDS);
   glutAddMenuEntry ("points distance /d/", TOOLS_POINTS_DISTANCE);
   glutAddMenuEntry ("points angle /g/", TOOLS_POINTS_ANGLE);
+  glutAddMenuEntry ("trackball center /L/", TOOLS_TRACKBALL_CENTER);
 
   menu_name [MENU_KINDS] = "kinds of";
   menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
@@ -3439,6 +3455,9 @@ void RND_Key (int key, int x, int y)
   case 'g':
     menu_tools (TOOLS_POINTS_ANGLE);
     break;
+  case 'L':
+    menu_tools (TOOLS_TRACKBALL_CENTER);
+    break;
   }
 }
 
@@ -3561,6 +3580,10 @@ void RND_Mouse (int button, int state, int x, int y)
 	    picked_point_hist [1] = picked_point_hist [0];
 	    picked_point_hist [0] = picked_point;
 	  }
+	  break;
+	case TOOLS_TRACKBALL_CENTER:
+	  GLV_Trackball_Center (picked_point);
+          RND_Key (27, 0, 0); /* emulate ESC */
 	  break;
 	}
       }
