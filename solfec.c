@@ -45,6 +45,9 @@ static char *INPUTFILE = NULL;
 /* global write mode flag */
 static int WRITEMODEFLAG = 0;
 
+/* flobal wireframe rendering flag */
+static int WIREFRAMEFLAG = 0;
+
 /* register new SOLFEC object */
 void REGISTER_SOLFEC (SOLFEC *sol)
 {
@@ -68,6 +71,12 @@ char* INPUT_FILE ()
 int WRITE_MODE_FLAG ()
 {
   return WRITEMODEFLAG;
+}
+
+/* get wireframe flag */
+int WIREFRAME_FLAG ()
+{
+  return WIREFRAMEFLAG;
 }
 
 #ifndef LIBSOLFEC /* executables */
@@ -150,6 +159,7 @@ static char* getfile (int argc, char **argv)
 #endif
     else if (strcmp (argv [n], "-v") == 0) continue;
     else if (strcmp (argv [n], "-w") == 0) WRITEMODEFLAG = 1;
+    else if (strcmp (argv [n], "-f") == 0) WIREFRAMEFLAG = 1;
     else if (path == NULL)
     {
       if ((f = fopen (argv [n], "r")))
@@ -212,7 +222,7 @@ int main (int argc, char **argv)
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
-    char *synopsis = "SYNOPSIS: solfec [-v] [-w] [-g WIDTHxHEIGHT] [-s sub-directory] path\n";
+    char *synopsis = "SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] path\n";
 #else
     char *synopsis = "SYNOPSIS: solfec [-s sub-directory] path\n";
 #endif

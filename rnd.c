@@ -29,6 +29,7 @@
 #include <limits.h>
 #include <float.h>
 #include <math.h>
+#include "solfec.h"
 #include "set.h"
 #include "alg.h"
 #include "glv.h"
@@ -82,9 +83,10 @@ typedef struct body_data BODY_DATA; /* body rendering data */
 
 struct body_data
 {
-  enum {SEETHROUGH = 0x01,         /* transparency flag */
+  enum {SEETHROUGH  = 0x01,         /* transparency flag */
         HIDDEN      = 0x02,         /* hidden state */
-	ROUGH_MESH  = 0x04} flags;  /* rough mesh rendering */
+	ROUGH_MESH  = 0x04,         /* rough mesh rendering */
+        WIREFRAME   = 0x08} flags;  /* wireframe mode */
 
 #if VBO
   GLuint triangles, /* VBO of triangle vertices, normals and colors */
@@ -99,7 +101,7 @@ struct body_data
 
   double **vertex_sources,
 	 **normal_sources,
-	  *vertex_values, /* as many values as vertices (triangles_count * 3) */
+	  *vertex_values, /* as many values as vertices (vertex_vlues_count) */
 	 **vertex_value_sources, /* maps vertices to 'values' */
 	 **line_sources;
 
@@ -107,7 +109,8 @@ struct body_data
 
   VALUE_SOURCE *value_sources; /* value sources */
 
-  int values_count;
+  int values_count,
+      vertex_values_count; /* = triangles_count * 3 or lines_count * 2 in WIREFRAME mode */
 
   short values_updated; /* update flag */
 
@@ -159,6 +162,8 @@ enum /* menu items */
   DOMAIN_PREVIOUS,
   RENDER_SELECTION_2D,
   RENDER_SELECTION_3D,
+  RENDER_WIREFRAME_2D,
+  RENDER_WIREFRAME_3D,
   RENDER_PREVIOUS_SELECTION,
   RENDER_BODIES,
   TOOLS_TRANSPARENT,
@@ -341,6 +346,8 @@ static CUT_DATA *cuts = NULL; /* cuts through bodies */
 static SET *euler_cuts = NULL; /* points and normal of current Euler cuts */
 
 static short render_bodies = 1; /* body rendering flag */
+
+static short wireframeon = 0; /* wireframe selection flag */
 
 /* initialize selection */
 static void selection_init ()
@@ -606,14 +613,14 @@ static void register_identifier (MAP **map, int identifier, double *val)
 }
 
 /* create body rendering data */
-static BODY_DATA* create_body_data (BODY *bod)
+static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 {
   double **vsr, **nsr, **lsr, **vvs, **end, *pla, *val;
   GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
+  MAP *fmap, *emap, *vmap, *jtem;
   MEM pairmem, mapmem, setmem;
   VALUE_SOURCE *source;
   POINTER_PAIR *pair;
-  MAP *vmap, *jtem;
   SET *lset, *item;
   BODY_DATA *data;
   int i, j, *f;
@@ -624,10 +631,13 @@ static BODY_DATA* create_body_data (BODY *bod)
   FACE *fac;
 
   ERRMEM (data = MEM_CALLOC (sizeof (BODY_DATA)));
+  if (wireframe) data->flags |= WIREFRAME;
 
   MEM_Init (&pairmem, sizeof (POINTER_PAIR), CHUNK);
   MEM_Init (&mapmem, sizeof (MAP), CHUNK);
   MEM_Init (&setmem, sizeof (SET), CHUNK);
+  fmap = NULL;
+  emap = NULL;
   vmap = NULL;
   lset = NULL;
 
@@ -676,140 +686,266 @@ static BODY_DATA* create_body_data (BODY *bod)
     }
   }
 
-  data->lines_count = SET_Size (lset);
-  ERRMEM (lin = malloc (data->lines_count * sizeof (GLfloat) * 6));
-  ERRMEM (ver = malloc (data->triangles_count * sizeof (GLfloat) * 27));
-  nor = ver + data->triangles_count * 9;
-  col = nor + data->triangles_count * 9;
-  ERRMEM (data->vertex_sources = malloc (data->triangles_count * (sizeof (double*) * 9 + sizeof (double) * 3) + data->lines_count * sizeof (double*) * 2));
-  data->normal_sources = data->vertex_sources + data->triangles_count * 3;
-  data->vertex_values = (double*) (data->normal_sources + data->triangles_count * 3);
-  data->vertex_value_sources = (double**) (data->vertex_values + data->triangles_count * 3);
-  data->line_sources = data->vertex_value_sources + data->triangles_count * 3;
-  data->surfaces = NULL;
-  data->volumes = NULL;
-
-  for (item = SET_First (lset), lsr = data->line_sources; item; item = SET_Next (item), lsr += 2)
+  if (wireframe)
   {
-    pair = item->data;
-    lsr [0] = pair->one;
-    lsr [1] = pair->two;
-  }
+    data->lines_count = SET_Size (lset);
+    ERRMEM (lin = malloc (data->lines_count * sizeof (GLfloat) * 12));
+    col = lin + data->lines_count * 6;
+    ERRMEM (data->vertex_sources = malloc (data->lines_count * (sizeof (double) * 2) + data->lines_count * sizeof (double*) * 4));
+    data->vertex_values = (double*) data->vertex_sources; /* here used for line vertex values */
+    data->vertex_value_sources = (double**) (data->vertex_values + data->lines_count * 2);
+    data->line_sources = data->vertex_value_sources + data->lines_count * 2;
+    data->vertex_values_count = data->lines_count * 2;
+    data->surfaces = NULL;
+    data->volumes = NULL;
+    data->triangles_count = 0;
 
-  vsr = data->vertex_sources;
-  nsr = data->normal_sources;
-  val = data->vertex_values;
-
-  for (shp = bod->shape; shp; shp = shp->next)
-  {
-    switch (shp->kind)
+    for (item = SET_First (lset), lsr = data->line_sources; item; item = SET_Next (item), lsr += 2)
     {
-    case SHAPE_MESH:
-      msh = shp->data;
-      for (fac = msh->faces; fac; fac = fac->n)
+      pair = item->data;
+      lsr [0] = pair->one;
+      lsr [1] = pair->two;
+    }
+
+    data->values_count = MAP_Size (vmap); /* number of unique vertices */
+    ERRMEM (data->values = MEM_CALLOC (data->values_count * sizeof (double)));
+    ERRMEM (data->value_sources = malloc (data->values_count * sizeof (VALUE_SOURCE)));
+
+    for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))
+    {
+      if (bod->msh)
       {
-	for (i = 1; i < fac->type - 1; i ++, vsr += 3, nsr += 3, val += 3)
-	{
-	  vsr [0] = &msh->cur_nodes [fac->nodes [0]][0];
-	  vsr [1] = &msh->cur_nodes [fac->nodes [i]][0];
-	  vsr [2] = &msh->cur_nodes [fac->nodes [i+1]][0];
-	  nsr [0] = nsr [1] = nsr [2] = fac->normal;
-	  register_identifier (&data->surfaces, fac->surface, &val [0]);
-	  register_identifier (&data->surfaces, fac->surface, &val [1]);
-	  register_identifier (&data->surfaces, fac->surface, &val [2]);
-	  register_identifier (&data->volumes, fac->ele->volume, &val [0]);
-	  register_identifier (&data->volumes, fac->ele->volume, &val [1]);
-	  register_identifier (&data->volumes, fac->ele->volume, &val [2]);
-	}
+	cvx = jtem->data; /* must have been mapped to a convex */
+	source->epn = &cvx->epn [((double*)jtem->key - cvx->cur) / 3]; /* extract ELEPNT */
       }
-      break;
-    case SHAPE_CONVEX:
-      for (cvx = shp->data; cvx; cvx = cvx->next)
+
+      source->pnt = jtem->key; /* needed for both scalar field rendering and point picking */
+
+      jtem->data = &data->values [source - data->value_sources]; /* map to source */
+    }
+
+    for (shp = bod->shape; shp; shp = shp->next)
+    {
+      switch (shp->kind)
       {
-	for (f = cvx->fac, j = 0, pla = cvx->pla; j < cvx->nfac; f += f[0]+1, j ++, pla += 4)
+      case SHAPE_MESH:
+	msh = shp->data;
+	for (fac = msh->faces; fac; fac = fac->n)
 	{
-	  for (i = 2; i <= f[0]-1; i ++, vsr += 3, nsr += 3, val += 3)
+	  for (i = 1; i < fac->type - 1; i ++)
 	  {
-	    vsr [0] = &cvx->cur [f[1]];
-	    vsr [1] = &cvx->cur [f[i]];
-	    vsr [2] = &cvx->cur [f[i+1]];
-	    nsr [0] = nsr [1] = nsr [2] = pla;
-	    register_identifier (&data->surfaces, cvx->surface [j], &val [0]);
-	    register_identifier (&data->surfaces, cvx->surface [j], &val [1]);
-	    register_identifier (&data->surfaces, cvx->surface [j], &val [2]);
-	    register_identifier (&data->volumes, cvx->volume, &val [0]);
-	    register_identifier (&data->volumes, cvx->volume, &val [1]);
-	    register_identifier (&data->volumes, cvx->volume, &val [2]);
+	    val = &msh->cur_nodes [fac->nodes [0]][0];
+	    MAP_Insert (&mapmem, &fmap, val, (void*) (long) fac->surface, NULL); /* map vertices to surfaces */
+	    MAP_Insert (&mapmem, &emap, val, (void*) (long) fac->ele->volume, NULL); /* and volumes */
+	    val = &msh->cur_nodes [fac->nodes [i]][0];
+	    MAP_Insert (&mapmem, &fmap, val, (void*) (long) fac->surface, NULL);
+	    MAP_Insert (&mapmem, &emap, val, (void*) (long) fac->ele->volume, NULL);
+	    val = &msh->cur_nodes [fac->nodes [i+1]][0];
+	    MAP_Insert (&mapmem, &fmap, val, (void*) (long) fac->surface, NULL);
+	    MAP_Insert (&mapmem, &emap, val, (void*) (long) fac->ele->volume, NULL);
 	  }
 	}
+	break;
+      case SHAPE_CONVEX:
+	for (cvx = shp->data; cvx; cvx = cvx->next)
+	{
+	  for (f = cvx->fac, j = 0, pla = cvx->pla; j < cvx->nfac; f += f[0]+1, j ++, pla += 4)
+	  {
+	    for (i = 2; i <= f[0]-1; i ++)
+	    {
+	      val = &cvx->cur [f[1]];
+	      MAP_Insert (&mapmem, &fmap, val, (void*) (long) cvx->surface [j], NULL);
+	      MAP_Insert (&mapmem, &emap, val, (void*) (long) cvx->volume, NULL);
+	      val = &cvx->cur [f[i]];
+	      MAP_Insert (&mapmem, &fmap, val, (void*) (long) cvx->surface [j], NULL);
+	      MAP_Insert (&mapmem, &emap, val, (void*) (long) cvx->volume, NULL);
+	      val = &cvx->cur [f[i+1]];
+	      MAP_Insert (&mapmem, &fmap, val, (void*) (long) cvx->surface [j], NULL);
+	      MAP_Insert (&mapmem, &emap, val, (void*) (long) cvx->volume, NULL);
+	    }
+	  }
+	}
+	break;
+      case SHAPE_SPHERE: break;
       }
-      break;
-    case SHAPE_SPHERE: break;
-    }
-  }
-
-  data->values_count = MAP_Size (vmap); /* number of unique vertices */
-  ERRMEM (data->values = MEM_CALLOC (data->values_count * sizeof (double)));
-  ERRMEM (data->value_sources = malloc (data->values_count * sizeof (VALUE_SOURCE)));
-
-  for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))
-  {
-    if (bod->msh)
-    {
-      cvx = jtem->data; /* must have been mapped to a convex */
-      source->epn = &cvx->epn [((double*)jtem->key - cvx->cur) / 3]; /* extract ELEPNT */
     }
 
-    source->pnt = jtem->key; /* needed for both scalar field rendering and point picking */
-
-    jtem->data = &data->values [source - data->value_sources]; /* map to source */
-  }
-
-  for (vsr = data->vertex_sources,
-       nsr = data->normal_sources,
-       vvs = data->vertex_value_sources,
-       end = vsr + data->triangles_count * 3,
-       v = ver, n = nor, c = col; vsr < end;
-       vsr ++, nsr ++, vvs ++, v += 3, n += 3, c += 3)
-  {
-    COPY (*vsr, v);
-    COPY (*nsr, n);
-    ASSERT_DEBUG_EXT (*vvs = MAP_Find (vmap, *vsr, NULL), "Inconsistent vertex mapping");
-    COPY (neutral_color, c);
-  }
-
-  for (lsr = data->line_sources,
-       end = lsr + data->lines_count * 2,
-       l = lin; lsr < end; lsr ++, l += 3)
-  {
-    COPY (*lsr, l);
-  }
-
-  if (data->spheres_count)
-  {
-    ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
-
-    for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+    for (lsr = data->line_sources,
+	 val = data->vertex_values,
+	 vvs = data->vertex_value_sources,
+	 end = lsr + data->lines_count * 2,
+	 l = lin, c = col; lsr < end;
+	 lsr ++, vvs ++, val ++, l += 3, c += 3)
     {
+      ASSERT_DEBUG_EXT (*vvs = MAP_Find (vmap, *lsr, NULL), "Inconsistent vertex mapping");
+      register_identifier (&data->surfaces, (int) (long) MAP_Find (fmap, *lsr, NULL), val); /* map surfaces to vertex values */
+      register_identifier (&data->volumes, (int) (long) MAP_Find (emap, *lsr, NULL), val); /* map volumes to vertex values */
+      COPY (*lsr, l);
       COPY (neutral_color, c);
     }
-  }
+
+    if (data->spheres_count)
+    {
+      ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
+
+      for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+      {
+	COPY (neutral_color, c);
+      }
+    }
 
 #if VBO
-  glGenBuffersARB (1, &data->lines);
-  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
-  glBufferDataARB (GL_ARRAY_BUFFER_ARB, data->lines_count * sizeof (GLfloat) * 6, lin, GL_DYNAMIC_DRAW_ARB);
+    glGenBuffersARB (1, &data->lines);
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
+    glBufferDataARB (GL_ARRAY_BUFFER_ARB, data->lines_count * sizeof (GLfloat) * 12, lin, GL_DYNAMIC_DRAW_ARB);
 
-  glGenBuffersARB (1, &data->triangles);
-  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
-  glBufferDataARB (GL_ARRAY_BUFFER_ARB, data->triangles_count * sizeof (GLfloat) * 27, ver, GL_DYNAMIC_DRAW_ARB);
+    glGenBuffersARB (1, &data->triangles);
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+    glBufferDataARB (GL_ARRAY_BUFFER_ARB, 0, NULL, GL_DYNAMIC_DRAW_ARB);
 
-  free (lin);
-  free (ver);
+    free (lin);
 #else
-  data->lin = lin;
-  data->ver = ver;
+    data->lin = lin;
 #endif
+  }
+  else
+  {
+    data->lines_count = SET_Size (lset);
+    ERRMEM (lin = malloc (data->lines_count * sizeof (GLfloat) * 6));
+    ERRMEM (ver = malloc (data->triangles_count * sizeof (GLfloat) * 27));
+    nor = ver + data->triangles_count * 9;
+    col = nor + data->triangles_count * 9;
+    ERRMEM (data->vertex_sources = malloc (data->triangles_count * (sizeof (double*) * 9 + sizeof (double) * 3) + data->lines_count * sizeof (double*) * 2));
+    data->normal_sources = data->vertex_sources + data->triangles_count * 3;
+    data->vertex_values = (double*) (data->normal_sources + data->triangles_count * 3);
+    data->vertex_value_sources = (double**) (data->vertex_values + data->triangles_count * 3);
+    data->line_sources = data->vertex_value_sources + data->triangles_count * 3;
+    data->vertex_values_count = data->triangles_count * 3;
+    data->surfaces = NULL;
+    data->volumes = NULL;
+
+    for (item = SET_First (lset), lsr = data->line_sources; item; item = SET_Next (item), lsr += 2)
+    {
+      pair = item->data;
+      lsr [0] = pair->one;
+      lsr [1] = pair->two;
+    }
+
+    vsr = data->vertex_sources;
+    nsr = data->normal_sources;
+    val = data->vertex_values;
+
+    for (shp = bod->shape; shp; shp = shp->next)
+    {
+      switch (shp->kind)
+      {
+      case SHAPE_MESH:
+	msh = shp->data;
+	for (fac = msh->faces; fac; fac = fac->n)
+	{
+	  for (i = 1; i < fac->type - 1; i ++, vsr += 3, nsr += 3, val += 3)
+	  {
+	    vsr [0] = &msh->cur_nodes [fac->nodes [0]][0];
+	    vsr [1] = &msh->cur_nodes [fac->nodes [i]][0];
+	    vsr [2] = &msh->cur_nodes [fac->nodes [i+1]][0];
+	    nsr [0] = nsr [1] = nsr [2] = fac->normal;
+	    register_identifier (&data->surfaces, fac->surface, &val [0]);
+	    register_identifier (&data->surfaces, fac->surface, &val [1]);
+	    register_identifier (&data->surfaces, fac->surface, &val [2]);
+	    register_identifier (&data->volumes, fac->ele->volume, &val [0]);
+	    register_identifier (&data->volumes, fac->ele->volume, &val [1]);
+	    register_identifier (&data->volumes, fac->ele->volume, &val [2]);
+	  }
+	}
+	break;
+      case SHAPE_CONVEX:
+	for (cvx = shp->data; cvx; cvx = cvx->next)
+	{
+	  for (f = cvx->fac, j = 0, pla = cvx->pla; j < cvx->nfac; f += f[0]+1, j ++, pla += 4)
+	  {
+	    for (i = 2; i <= f[0]-1; i ++, vsr += 3, nsr += 3, val += 3)
+	    {
+	      vsr [0] = &cvx->cur [f[1]];
+	      vsr [1] = &cvx->cur [f[i]];
+	      vsr [2] = &cvx->cur [f[i+1]];
+	      nsr [0] = nsr [1] = nsr [2] = pla;
+	      register_identifier (&data->surfaces, cvx->surface [j], &val [0]);
+	      register_identifier (&data->surfaces, cvx->surface [j], &val [1]);
+	      register_identifier (&data->surfaces, cvx->surface [j], &val [2]);
+	      register_identifier (&data->volumes, cvx->volume, &val [0]);
+	      register_identifier (&data->volumes, cvx->volume, &val [1]);
+	      register_identifier (&data->volumes, cvx->volume, &val [2]);
+	    }
+	  }
+	}
+	break;
+      case SHAPE_SPHERE: break;
+      }
+    }
+
+    data->values_count = MAP_Size (vmap); /* number of unique vertices */
+    ERRMEM (data->values = MEM_CALLOC (data->values_count * sizeof (double)));
+    ERRMEM (data->value_sources = malloc (data->values_count * sizeof (VALUE_SOURCE)));
+
+    for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))
+    {
+      if (bod->msh)
+      {
+	cvx = jtem->data; /* must have been mapped to a convex */
+	source->epn = &cvx->epn [((double*)jtem->key - cvx->cur) / 3]; /* extract ELEPNT */
+      }
+
+      source->pnt = jtem->key; /* needed for both scalar field rendering and point picking */
+
+      jtem->data = &data->values [source - data->value_sources]; /* map to source */
+    }
+
+    for (vsr = data->vertex_sources,
+	 nsr = data->normal_sources,
+	 vvs = data->vertex_value_sources,
+	 end = vsr + data->vertex_values_count,
+	 v = ver, n = nor, c = col; vsr < end;
+	 vsr ++, nsr ++, vvs ++, v += 3, n += 3, c += 3)
+    {
+      COPY (*vsr, v);
+      COPY (*nsr, n);
+      ASSERT_DEBUG_EXT (*vvs = MAP_Find (vmap, *vsr, NULL), "Inconsistent vertex mapping");
+      COPY (neutral_color, c);
+    }
+
+    for (lsr = data->line_sources,
+	 end = lsr + data->lines_count * 2,
+	 l = lin; lsr < end; lsr ++, l += 3)
+    {
+      COPY (*lsr, l);
+    }
+
+    if (data->spheres_count)
+    {
+      ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
+
+      for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+      {
+	COPY (neutral_color, c);
+      }
+    }
+
+#if VBO
+    glGenBuffersARB (1, &data->lines);
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
+    glBufferDataARB (GL_ARRAY_BUFFER_ARB, data->lines_count * sizeof (GLfloat) * 6, lin, GL_DYNAMIC_DRAW_ARB);
+
+    glGenBuffersARB (1, &data->triangles);
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+    glBufferDataARB (GL_ARRAY_BUFFER_ARB, data->triangles_count * sizeof (GLfloat) * 27, ver, GL_DYNAMIC_DRAW_ARB);
+
+    free (lin);
+    free (ver);
+#else
+    data->lin = lin;
+    data->ver = ver;
+#endif
+  }
 
   MEM_Release (&setmem);
   MEM_Release (&mapmem);
@@ -892,7 +1028,7 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
     switch (legend.entity)
     {
     case KINDS_OF_BODIES:
-      for (val = data->vertex_values, end = val + data->triangles_count * 3; val < end; val ++) *val = (double) bod->kind;
+      for (val = data->vertex_values, end = val + data->vertex_values_count; val < end; val ++) *val = (double) bod->kind;
       if (bod->kind < legend.extents [0]) legend.extents [0] = bod->kind;
       if (bod->kind > legend.extents [1]) legend.extents [1] = bod->kind;
       SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) bod->kind, NULL);
@@ -916,7 +1052,7 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
       }
       break;
     case KINDS_OF_BODY_RANKS:
-      for (val = data->vertex_values, end = val + data->triangles_count * 3; val < end; val ++) *val = (double) bod->rank;
+      for (val = data->vertex_values, end = val + data->vertex_values_count; val < end; val ++) *val = (double) bod->rank;
       if (bod->rank < legend.extents [0]) legend.extents [0] = bod->rank;
       if (bod->rank > legend.extents [1]) legend.extents [1] = bod->rank;
       SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) bod->rank, NULL);
@@ -990,7 +1126,7 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
 
       /* update vertex values */
       for (val = data->vertex_values, vvs = data->vertex_value_sources,
-	   end = val + data->triangles_count * 3; val < end; vvs ++, val ++) *val = **vvs;
+	   end = val + data->vertex_values_count; val < end; vvs ++, val ++) *val = **vvs;
     }
 
     SPHERE **sph, **end;
@@ -1038,33 +1174,40 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
     COPY (*lsr, l);
   }
 
+  if (data->flags & WIREFRAME)
+  {
+    col = lin + data->lines_count * 6;
+  }
+  else
+  {
 #if VBO
-  glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
+    glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
 
-  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
-  ver = glMapBufferARB (GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+    ver = glMapBufferARB (GL_ARRAY_BUFFER_ARB, GL_WRITE_ONLY_ARB);
 #else
-  ver = data->ver;
+    ver = data->ver;
 #endif
 
-  nor = ver + data->triangles_count * 9;
-  col = nor + data->triangles_count * 9;
+    nor = ver + data->triangles_count * 9;
+    col = nor + data->triangles_count * 9;
 
-  for (vsr = data->vertex_sources,
-       nsr = data->normal_sources,
-       end = vsr + data->triangles_count * 3,
-       v = ver, n = nor; vsr < end;
-       vsr ++, nsr ++, val ++, v += 3, n += 3)
-  {
-    COPY (*vsr, v);
-    COPY (*nsr, n);
+    for (vsr = data->vertex_sources,
+	 nsr = data->normal_sources,
+	 end = vsr + data->triangles_count * 3,
+	 v = ver, n = nor; vsr < end;
+	 vsr ++, nsr ++, val ++, v += 3, n += 3)
+    {
+      COPY (*vsr, v);
+      COPY (*nsr, n);
+    }
   }
 
   if (data->values_updated)
   {
-    for (val = data->vertex_values, tail = val + data->triangles_count * 3, c = col; val < tail;  val ++, c += 3) value_to_color (*val, c);
+    for (val = data->vertex_values, tail = val + data->vertex_values_count, c = col; val < tail;  val ++, c += 3) value_to_color (*val, c);
   }
-  else for (c = col, l = c + data->triangles_count * 9; c < l;  c += 3) { COPY (neutral_color, c); }
+  else for (c = col, l = c + data->vertex_values_count * 3; c < l;  c += 3) { COPY (neutral_color, c); }
 
 #if VBO
   glUnmapBufferARB (GL_ARRAY_BUFFER_ARB);
@@ -1470,7 +1613,7 @@ static void render_body_triangles (BODY *bod, short skip)
 {
   BODY_DATA *data;
 
-  if (bod->rendering == NULL) bod->rendering = create_body_data (bod);
+  if (bod->rendering == NULL) bod->rendering = create_body_data (bod, WIREFRAME_FLAG());
 
   data = bod->rendering;
 
@@ -1512,49 +1655,13 @@ static void render_body_triangles (BODY *bod, short skip)
     render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius, col);
 }
 
-/* render body lines */
-static void render_body_lines (BODY *bod, short skip)
-{
-  BODY_DATA *data;
-
-  if (bod->rendering == NULL) bod->rendering = create_body_data (bod);
-
-  data = bod->rendering;
-
-  if (data->flags & skip) return;
-
-#if VBO
-  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
-#endif
-
-  glEnableClientState (GL_VERTEX_ARRAY);
-
-#if VBO
-  glVertexPointer (3, GL_FLOAT, 0, 0);
-#else
-  glVertexPointer (3, GL_FLOAT, 0, data->lin);
-#endif
-
-  glDrawArrays (GL_LINES, 0, data->lines_count * 2);
-
-  glDisableClientState (GL_VERTEX_ARRAY);
-
-#if VBO
-  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
-#endif
-
-  SPHERE **sph, **end;
-
-  for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
-    render_sphere_points ((*sph)->cur_points[0], (*sph)->cur_points[1], (*sph)->cur_points[2]);
-}
-
-/* render body triangles for selection */
-static void selection_render_body_triangles (BODY *bod)
+/* render body triangles without colors */
+static void render_body_triangles_plain (BODY *bod, short skip)
 {
   BODY_DATA *data = bod->rendering;
 
-  if (data->flags & HIDDEN) return;
+  if (bod == picked_body ||           /* do not render a picked body */
+      data->flags & skip) return;
 
 #if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
@@ -1586,6 +1693,132 @@ static void selection_render_body_triangles (BODY *bod)
     selection_render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius);
 }
 
+/* render body lines */
+static void render_body_lines (BODY *bod, short skip)
+{
+  BODY_DATA *data;
+
+  if (bod->rendering == NULL) bod->rendering = create_body_data (bod, WIREFRAME_FLAG());
+
+  data = bod->rendering;
+
+  if (data->flags & skip) return;
+
+  int wire = data->flags & WIREFRAME;
+
+  if (wire) glLineWidth (2.0);
+
+#if VBO
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
+#endif
+
+  glEnableClientState (GL_VERTEX_ARRAY);
+  if (wire) glEnableClientState (GL_COLOR_ARRAY);
+
+#if VBO
+  glVertexPointer (3, GL_FLOAT, 0, 0);
+  if (wire) glColorPointer (3, GL_FLOAT, 0, (void*) (data->lines_count * sizeof (GLfloat) * 6));
+#else
+  glVertexPointer (3, GL_FLOAT, 0, data->lin);
+  if (wire) glColorPointer (3, GL_FLOAT, 0, data->lin + (data->lines_count * 6));
+#endif
+
+  glDrawArrays (GL_LINES, 0, data->lines_count * 2);
+
+  glDisableClientState (GL_VERTEX_ARRAY);
+  if (wire) glDisableClientState (GL_COLOR_ARRAY);
+
+#if VBO
+  glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+#endif
+
+  if (wire) glLineWidth (1.0);
+
+  SPHERE **sph, **end;
+
+  if (wire) glPointSize (2.0);
+
+  for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    render_sphere_points ((*sph)->cur_points[0], (*sph)->cur_points[1], (*sph)->cur_points[2]);
+
+  if (wire) glPointSize (1.0);
+}
+
+/* render body for selection */
+static void selection_render_body (BODY *bod)
+{
+  BODY_DATA *data = bod->rendering;
+
+  if (data->flags & HIDDEN) return;
+
+  if (data->flags & WIREFRAME)
+  {
+    glLineWidth (4.0);
+
+#if VBO
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
+#endif
+
+    glEnableClientState (GL_VERTEX_ARRAY);
+
+#if VBO
+    glVertexPointer (3, GL_FLOAT, 0, 0);
+#else
+    glVertexPointer (3, GL_FLOAT, 0, data->lin);
+#endif
+
+    glDrawArrays (GL_LINES, 0, data->lines_count * 2);
+
+    glDisableClientState (GL_VERTEX_ARRAY);
+
+#if VBO
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+#endif
+
+    glLineWidth (1.0);
+
+    SPHERE **sph, **end;
+
+    glPointSize (4.0);
+
+    for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+      render_sphere_points ((*sph)->cur_points[0], (*sph)->cur_points[1], (*sph)->cur_points[2]);
+
+    glPointSize (1.0);
+  }
+  else
+  {
+#if VBO
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->triangles);
+#endif
+
+    glEnableClientState (GL_VERTEX_ARRAY);
+    glEnableClientState (GL_NORMAL_ARRAY);
+
+#if VBO
+    glVertexPointer (3, GL_FLOAT, 0, 0);
+    glNormalPointer (GL_FLOAT, 0, (void*) (data->triangles_count * sizeof (GLfloat) * 9));
+#else
+    glVertexPointer (3, GL_FLOAT, 0, data->ver);
+    glNormalPointer (GL_FLOAT, 0, data->ver + (data->triangles_count * 9));
+#endif
+
+    glDrawArrays (GL_TRIANGLES, 0, data->triangles_count * 3);
+
+    glDisableClientState (GL_VERTEX_ARRAY);
+    glDisableClientState (GL_NORMAL_ARRAY);
+
+#if VBO
+    glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
+#endif
+
+    SPHERE **sph, **end;
+
+    for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+      selection_render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius);
+  }
+}
+
 /* render rough mesh */
 static void render_rough_mesh (BODY *bod)
 {
@@ -1600,7 +1833,7 @@ static void render_rough_mesh (BODY *bod)
     BODY body = bod [0];
     body.shape = &shape;
     body.msh = NULL;
-    data->rough = create_body_data (&body);
+    data->rough = create_body_data (&body, 0);
     rough = data->rough;
   }
 
@@ -2233,28 +2466,23 @@ static void render_body_set (SET *set)
 
       glColor4fv (color);
       render_body_lines (item->data, HIDDEN);
-      selection_render_body_triangles (item->data);
+      render_body_triangles_plain (item->data, HIDDEN|WIREFRAME);
     }
 
     glDisable (GL_BLEND);
   }
   else /* regular rendering */
   {
-    glDisable (GL_LIGHTING);
-    glColor3fv (color);
-
-    for (item = SET_First (set); item; item = SET_Next (item))
-    {
-      render_body_lines (item->data, SEETHROUGH|HIDDEN);
-    }
-
-    glEnable (GL_LIGHTING);
     glEnable (GL_POLYGON_OFFSET_FILL);
     glPolygonOffset (1.0, 1.0);
 
     for (item = SET_First (set); item; item = SET_Next (item))
     {
-      render_body_triangles (item->data, SEETHROUGH|HIDDEN);
+      glDisable (GL_LIGHTING);
+      glColor3fv (color);
+      render_body_lines (item->data, SEETHROUGH|HIDDEN);
+      render_body_triangles (item->data, SEETHROUGH|HIDDEN|WIREFRAME);
+      glEnable (GL_LIGHTING);
     }
 
     render_rigid_links (set, color);
@@ -2270,8 +2498,8 @@ static void render_body_set (SET *set)
       if (SEETHROUGH (item->data))
       {
 	glColor4fv (color);
-	render_body_lines (item->data, HIDDEN);
-	selection_render_body_triangles (item->data);
+	render_body_lines (item->data, HIDDEN|WIREFRAME);
+        render_body_triangles_plain (item->data, HIDDEN|WIREFRAME);
       }
 
       if (ROUGH_MESH (item->data)) render_rough_mesh (item->data);
@@ -2293,7 +2521,7 @@ static void selection_2D_render_body_set (SET *set)
     bod = item->data;
     idtorgba (bod->id, color);
     glColor4fv (color);
-    selection_render_body_triangles (item->data);
+    selection_render_body (item->data);
   }
 }
 
@@ -2326,7 +2554,7 @@ static void selection_3D_render_body_set (SET *set)
   {
     bod = item->data;
     glPushName (bod->id);
-    selection_render_body_triangles (item->data);
+    selection_render_body (item->data);
     glPopName ();
   }
 }
@@ -2352,7 +2580,7 @@ static void render_picked_body (void)
       render_body_lines (picked_body, 0);
     }
     glColor3fv (color);
-    selection_render_body_triangles (picked_body);
+    selection_render_body (picked_body);
     glEnable (GL_LIGHTING);
   }
 }
@@ -2518,7 +2746,7 @@ static void update ()
 
   for (BODY *bod = domain->bod; bod; bod = bod->next)
   {
-    if (bod->rendering == NULL) bod->rendering = create_body_data (bod);
+    if (bod->rendering == NULL) bod->rendering = create_body_data (bod, WIREFRAME_FLAG ());
   }
 
   if (legend.entity)
@@ -2820,6 +3048,27 @@ static double* pick_point (int x, int y)
   return point;
 }
 
+/* switch wireframe modes */
+static void switchwireframe (SET *bodies)
+{
+  BODY_DATA *data;
+  SET *item;
+  BODY *bod;
+
+  for (item = SET_First (bodies); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    data = bod->rendering;
+    if (data)
+    {
+      RND_Free_Rendering_Data (data);
+      if (data->flags & WIREFRAME)
+        bod->rendering = create_body_data (bod, 0);
+      else bod->rendering = create_body_data (bod, 1);
+    }
+  }
+}
+
 /* disable all modes */
 static int modes_off ()
 {
@@ -2944,17 +3193,23 @@ static void menu_render (int item)
   switch (item)
   {
   case RENDER_SELECTION_2D:
+  case RENDER_WIREFRAME_2D:
     legend_disable ();
     modes_off ();
     mouse_mode = MOUSE_SELECTION_BEGIN;
     selection_mode = SELECTION_2D;
+    if (item == RENDER_WIREFRAME_2D) wireframeon = 1;
+    else wireframeon = 0;
     GLV_Hold_Mouse ();
     break;
   case RENDER_SELECTION_3D:
+  case RENDER_WIREFRAME_3D:
     legend_disable ();
     modes_off ();
     mouse_mode = MOUSE_SELECTION_BEGIN;
     selection_mode = SELECTION_3D;
+    if (item == RENDER_WIREFRAME_3D) wireframeon = 1;
+    else wireframeon = 0;
     GLV_Hold_Mouse ();
     break;
   case RENDER_PREVIOUS_SELECTION:
@@ -3222,6 +3477,8 @@ int RND_Menu (char ***names, int **codes)
   menu_code [MENU_RENDER] = glutCreateMenu (menu_render);
   glutAddMenuEntry ("2D selection /2/", RENDER_SELECTION_2D);
   glutAddMenuEntry ("3D selection /3/", RENDER_SELECTION_3D);
+  glutAddMenuEntry ("2D wireframe /4/", RENDER_WIREFRAME_2D);
+  glutAddMenuEntry ("3D wireframe /5/", RENDER_WIREFRAME_3D);
   glutAddMenuEntry ("previous selection /p/", RENDER_PREVIOUS_SELECTION);
   glutAddMenuEntry ("toggle bodies /b/", RENDER_BODIES);
 
@@ -3398,6 +3655,12 @@ void RND_Key (int key, int x, int y)
   case '3':
     menu_render (RENDER_SELECTION_3D);
     break;
+  case '4':
+    menu_render (RENDER_WIREFRAME_2D);
+    break;
+  case '5':
+    menu_render (RENDER_WIREFRAME_3D);
+    break;
   case 'p':
     menu_render (RENDER_PREVIOUS_SELECTION);
     break;
@@ -3492,8 +3755,22 @@ void RND_Mouse (int button, int state, int x, int y)
       {
 	switch (selection_mode)
 	{
-	case SELECTION_2D: select_2D (mouse_start [0], mouse_start [1], x, y); break;
-	case SELECTION_3D: select_3D (mouse_start [0], mouse_start [1], x, y); break;
+	case SELECTION_2D: 
+	  select_2D (mouse_start [0], mouse_start [1], x, y); 
+	  if (wireframeon)
+	  {
+	    switchwireframe (selection->set);
+            selection_pop ();
+	  }
+	  break;
+	case SELECTION_3D:
+	  select_3D (mouse_start [0], mouse_start [1], x, y); 
+	  if (wireframeon)
+	  {
+	    switchwireframe (selection->set);
+            selection_pop ();
+	  }
+	  break;
 	default: break;
 	}
 
@@ -3522,7 +3799,7 @@ void RND_Mouse (int button, int state, int x, int y)
 	case TOOLS_HIDE: data->flags |= HIDDEN; break;
 	case TOOLS_ROUGH_MESH:
 	  if (data->flags & ROUGH_MESH) data->flags &= ~ROUGH_MESH;
-	  else if (picked_body->msh) data->flags |= ROUGH_MESH;
+	  else if (picked_body->msh) data->flags |= ROUGH_MESH; /* only if it has rough mesh */
 	  break;
 	}
 
