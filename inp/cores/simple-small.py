@@ -8,7 +8,7 @@ from simple_core_base import *
 step = 0.0002
 stop = 10
 outfrq = 0.03
-kinem = 'FINITE_ELEMENT'
+kinem = 'PSEUDO_RIGID'
 solver = 'NEWTON'
 scheme = 'DEFAULT'
 shake = 'TRUE'
