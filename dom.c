@@ -599,6 +599,26 @@ static int body_weight (BODY *bod)
   return  wgt;
 }
 
+/* domain weight */
+static int domain_weight (DOM *dom)
+{
+  int weight = 0;
+  BODY *bod;
+  CON *con;
+
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    weight += body_weight (bod);
+  }
+
+  for (con = dom->con; con; con = con->next)
+  {
+    if (con->slave) weight += constraint_weight (con);
+  }
+
+  return weight;
+}
+
 /* number of objects for balacing */
 static int object_count (DOM *dom, int *ierr)
 {
@@ -1151,6 +1171,7 @@ static void pack_stats (DOM *dom, int rank, int *dsize, double **d, int *doubles
   pack_int (isize, i, ints, MAP_Size (dom->conext));
   pack_int (isize, i, ints, dom->nspa);
   pack_int (isize, i, ints, dom->bytes);
+  pack_int (isize, i, ints, dom->weight);
 
   if (rank == (dom->ncpu-1)) /* last set was packed => zero current statistics record */
   {
@@ -1180,7 +1201,7 @@ static void unpack_stats (DOM *dom, int *dpos, double *d, int doubles, int *ipos
 /* create statistics */
 static void stats_create (DOM *dom)
 {
-  dom->nstats = 6;
+  dom->nstats = 7;
 
   ERRMEM (dom->stats = MEM_CALLOC (sizeof (DOMSTATS [dom->nstats])));
   
@@ -1190,6 +1211,7 @@ static void stats_create (DOM *dom)
   dom->stats [3].name = "EXTERNAL";
   dom->stats [4].name = "SPARSIFIED";
   dom->stats [5].name = "BYTES SENT";
+  dom->stats [6].name = "DOM WEIGHT";
 }
 
 /* compute statistics */
@@ -1734,6 +1756,9 @@ static void domain_balancing (DOM *dom)
     }
   }
 #endif
+
+  /* domain weight for statistics */
+  dom->weight = domain_weight (dom);
 
   /* load balancing migration sets */
   dbd = dom->dbd;

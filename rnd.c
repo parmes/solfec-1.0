@@ -184,6 +184,8 @@ enum /* menu items */
   TOOLS_POINTS_DISTANCE,
   TOOLS_POINTS_ANGLE,
   TOOLS_TRACKBALL_CENTER,
+  TOOLS_WIREFRAME_ALL,
+  TOOLS_WIREFRAME_NONE,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -1023,7 +1025,7 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
   MAP *item;
   SET *jtem;
 
-  if (legend.entity >= KINDS_OF_BODIES && legend.entity < RESULTS_RT)
+  if (legend.entity >= KINDS_OF_BODIES && legend.entity < RESULTS_RT && render_bodies)
   {
     switch (legend.entity)
     {
@@ -1579,7 +1581,7 @@ static void legend_disable ()
 /* enable legend */
 static void legend_enable ()
 {
-  if (legend.discrete)legend.range = SET_Size (legend.discrete);
+  if (legend.discrete) legend.range = SET_Size (legend.discrete);
   else
   {
     if (legend.extents [0] == legend.extents [1]) legend.range = 1;
@@ -1706,8 +1708,6 @@ static void render_body_lines (BODY *bod, short skip)
 
   int wire = data->flags & WIREFRAME;
 
-  if (wire) glLineWidth (2.0);
-
 #if VBO
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, data->lines);
 #endif
@@ -1732,16 +1732,10 @@ static void render_body_lines (BODY *bod, short skip)
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 #endif
 
-  if (wire) glLineWidth (1.0);
-
   SPHERE **sph, **end;
-
-  if (wire) glPointSize (2.0);
 
   for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
     render_sphere_points ((*sph)->cur_points[0], (*sph)->cur_points[1], (*sph)->cur_points[2]);
-
-  if (wire) glPointSize (1.0);
 }
 
 /* render body for selection */
@@ -2448,13 +2442,13 @@ static void render_body_set (SET *set)
   GLfloat color [4] = {0.0, 0.0, 0.0, 0.4};
   SET *item;
 
-  if (!render_bodies) return;
-
   if (legend_constraint_based ()) /* render constraints or forces over transparent volumes */
   {
     glDisable (GL_LIGHTING);
     render_body_set_constraints_or_forces (set);
     glEnable (GL_LIGHTING);
+
+    if (!render_bodies) return;
 
     glEnable (GL_BLEND);
     glBlendFunc (GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -2473,6 +2467,8 @@ static void render_body_set (SET *set)
   }
   else /* regular rendering */
   {
+    if (!render_bodies) return;
+
     glEnable (GL_POLYGON_OFFSET_FILL);
     glPolygonOffset (1.0, 1.0);
 
@@ -2481,8 +2477,8 @@ static void render_body_set (SET *set)
       glDisable (GL_LIGHTING);
       glColor3fv (color);
       render_body_lines (item->data, SEETHROUGH|HIDDEN);
-      render_body_triangles (item->data, SEETHROUGH|HIDDEN|WIREFRAME);
       glEnable (GL_LIGHTING);
+      render_body_triangles (item->data, SEETHROUGH|HIDDEN|WIREFRAME);
     }
 
     render_rigid_links (set, color);
@@ -2761,13 +2757,10 @@ static void update ()
       for (CON *con = domain->con; con; con = con->next) con->state &= ~CON_DONE; /* all undone */
     }
 
-    if (render_bodies)
+    for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
     {
-      for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
-      {
-	BODY *bod = item->data;
-	update_body_values (bod, bod->rendering);
-      }
+      BODY *bod = item->data;
+      update_body_values (bod, bod->rendering);
     }
 
     update_cuts_values ();
@@ -3061,9 +3054,9 @@ static void switchwireframe (SET *bodies)
     data = bod->rendering;
     if (data)
     {
+      int wire = data->flags & WIREFRAME;
       RND_Free_Rendering_Data (data);
-      if (data->flags & WIREFRAME)
-        bod->rendering = create_body_data (bod, 0);
+      if (wire) bod->rendering = create_body_data (bod, 0);
       else bod->rendering = create_body_data (bod, 1);
     }
   }
@@ -3400,6 +3393,39 @@ static void menu_tools (int item)
       case TOOLS_POINTS_ANGLE: GLV_Window_Title ("Solfec: points angle"); break;
       case TOOLS_TRACKBALL_CENTER: GLV_Window_Title ("Solfec: trackball center"); break;
     }
+    break;
+  case TOOLS_WIREFRAME_ALL:
+    for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
+    {
+      BODY *bod = item->data;
+      BODY_DATA *data = bod->rendering;
+      if (data)
+      {
+	if (!(data->flags & WIREFRAME))
+	{
+	  RND_Free_Rendering_Data (data);
+	  bod->rendering = create_body_data (bod, 1);
+	}
+      }
+    }
+    update ();
+    break;
+  case TOOLS_WIREFRAME_NONE:
+    for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
+    {
+      BODY *bod = item->data;
+      BODY_DATA *data = bod->rendering;
+      if (data)
+      {
+	if (data->flags & WIREFRAME)
+	{
+	  RND_Free_Rendering_Data (data);
+	  bod->rendering = create_body_data (bod, 0);
+	}
+      }
+    }
+    update ();
+    break;
   }
 }
 
@@ -3502,6 +3528,8 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("points distance /d/", TOOLS_POINTS_DISTANCE);
   glutAddMenuEntry ("points angle /g/", TOOLS_POINTS_ANGLE);
   glutAddMenuEntry ("trackball center /L/", TOOLS_TRACKBALL_CENTER);
+  glutAddMenuEntry ("wireframe all /w/", TOOLS_WIREFRAME_ALL);
+  glutAddMenuEntry ("wireframe none /W/", TOOLS_WIREFRAME_NONE);
 
   menu_name [MENU_KINDS] = "kinds of";
   menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
@@ -3721,6 +3749,12 @@ void RND_Key (int key, int x, int y)
   case 'L':
     menu_tools (TOOLS_TRACKBALL_CENTER);
     break;
+  case 'w':
+    menu_tools (TOOLS_WIREFRAME_ALL);
+    break;
+  case 'W':
+    menu_tools (TOOLS_WIREFRAME_NONE);
+    break;
   }
 }
 
@@ -3757,7 +3791,7 @@ void RND_Mouse (int button, int state, int x, int y)
 	{
 	case SELECTION_2D: 
 	  select_2D (mouse_start [0], mouse_start [1], x, y); 
-	  if (wireframeon)
+	  if (wireframeon && selection->prev)
 	  {
 	    switchwireframe (selection->set);
             selection_pop ();
@@ -3765,7 +3799,7 @@ void RND_Mouse (int button, int state, int x, int y)
 	  break;
 	case SELECTION_3D:
 	  select_3D (mouse_start [0], mouse_start [1], x, y); 
-	  if (wireframeon)
+	  if (wireframeon && selection->prev)
 	  {
 	    switchwireframe (selection->set);
             selection_pop ();

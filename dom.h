@@ -259,6 +259,7 @@ struct domain
   unsigned int noid; /* constraint id generation ommition flag */
   MAP *conext; /* id based map of external constraints */
   int bytes; /* bytes sent during load balancing */
+  int weight; /* weight of this sub-domain */
   DOMSTATS *stats; /* domain statistics */
   int nstats; /* statistics count */
   DBD *dbd; /* load balancing send sets */
