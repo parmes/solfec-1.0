@@ -145,15 +145,14 @@ static void resultant_pressure (MESH *msh, FORCE *frc)
 	point [2] += (a[2]+b[2]+c[2])/3.0;
       }
 
-      ADDMUL (dir, a0, fac->normal, dir);
+      ADDMUL (dir, a0, fac->normal, dir); /* resultant direction = normal * area */
       dv += 1.0;
     }
   }
 
   if (dv > 0.0)
   {
-    DIV (point, dv, point);
-    DIV (dir, dv, dir);
+    DIV (point, dv, point); /* average point */
   }
 }
 

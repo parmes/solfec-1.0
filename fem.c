@@ -1819,7 +1819,10 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
 /* total lagrangian initialise static time stepping */
 static void TL_static_init (BODY *bod)
 {
-  TL_static_inverse (bod, bod->dom->step);
+  if (!bod->M && !bod->K)
+  {
+    TL_static_inverse (bod, bod->dom->step);
+  }
 }
 
 /* total lagrangian perform the initial half-step of the static scheme */
@@ -3301,64 +3304,5 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
 MX* FEM_Approx_Inverse (BODY *bod)
 {
   if (bod->scheme == SCH_DEF_EXP) return MX_Copy (bod->inverse, NULL); /* diagonal */
-  else
-  {
-    int n, k, j, *p, *i;
-    double *x, *y;
-    MX *I;
-
-    n = bod->dofs;
-
-    ERRMEM (p = malloc (sizeof (int [n+1])));
-    ERRMEM (i = malloc (sizeof (int [n+2*(n-1)])));
-
-    p [0] = 0;
-    p [1] = 2;
-    i [0] = 0;
-    i [1] = 1;
-    p [n] = n+2*(n-1);
-    p [n-1] = p[n] - 2;
-    i [p [n-1]] = n-2;
-    i [p [n-1]+1] = n-1;
-    for (k = 1; k < n-1; k ++) /* tri-diagonal pattern */
-    {
-      (&i[2])[(k-1)*3] = k-1;
-      (&i[2])[(k-1)*3+1] = k;
-      (&i[2])[(k-1)*3+2] = k+1;
-      p [k+1] = p [k] + 3;
-    }
-    I = MX_Create (MXCSC, n, n, p, i);
-    x = I->x;
-    free (p);
-    free (i);
-    
-    p = bod->inverse->p;
-    i = bod->inverse->i;
-    y = bod->inverse->x;
-
-    for (k = 0; k < n; k ++)
-    {
-      for (j = p[k]; j < p[k+1]; j++)
-      {
-	if (k == i[j])
-	{
-	  if (k < n-1)
-	  {
-	    x [0] = y [j];
-	    if (k+1 == i[j+1]) x [1] = y [j+1];
-	    else x [1] = 0.0;
-	    x [2] = x [1]; /* symmetry */
-	    x += 3;
-	  }
-	  else /* k == n-1 */
-	  {
-	    x [0] = y [j];
-	  }
-	}
-      }
-    }
-
-    return MX_Inverse (I, I); /* XXX: for this small matrix case CSparse and full tri-diagonal pattern
-				      is about 15x faster than TAUCS with symmtric tri-diagonal patter */
-  }
+  else return MX_Inverse (MX_Copy (bod->M, NULL), NULL); /* use mass only */
 }
