@@ -438,7 +438,7 @@ static void update_contact (DOM *dom, CON *con)
     BODY_Ref_Point (con->master, con->msgp, mpnt, con->mpnt);
     BODY_Ref_Point (con->slave, con->ssgp, spnt, con->spnt);
     localbase (normal, con->base);
-    if (state > 1) /* surface pair has changed */
+    if (state > 1 && !(con->state & CON_COHESIVE)) /* surface pair has changed (but not in cohesive state) */
     {
       SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, con->spair [0], con->spair [1]); /* find new surface pair description */
       con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */

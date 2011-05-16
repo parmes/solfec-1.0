@@ -986,11 +986,11 @@ static void update_body_constraint_or_force_values (BODY *bod)
 	value = con->rank;
 	break;
       case RESULTS_RT: value = LEN2 (con->R); break;
-      case RESULTS_RN: value = fabs (con->R[2]); break;
-      case RESULTS_R: value = LEN (con->R); break;
+      case RESULTS_RN: value = con->R[2]; break;
+      case RESULTS_R: value = SGN (con->R[2]) * LEN (con->R); break;
       case RESULTS_UT: value = LEN2 (con->U); break;
-      case RESULTS_UN: value = fabs (con->U[2]); break;
-      case RESULTS_U: value = LEN (con->U); break;
+      case RESULTS_UN: value = con->U[2]; break;
+      case RESULTS_U: value = SGN (con->U[2]) * LEN (con->U); break;
       case RESULTS_GAP: value = con->gap; break;
       case RESULTS_MERIT: value = con->merit; break;
       }
@@ -2129,19 +2129,21 @@ static void arrow3d (double *p, double *q)
 }
 
 /* render tangential vector */
-static void render_vt (CON *con, double *V, GLfloat color [3])
+static void render_vt (CON *con, double *V, double value)
 {
+  GLfloat color [3];
   double r [3],
 	 other [3],
 	 ext = GLV_Minimal_Extent() * arrow_factor,
 	 eps, len;
 
+  value_to_color (value, color);
   COPY (con->base, r);
   SCALE (r, V[0]);
   ADDMUL (r, V[1], con->base+3, r);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
-  eps = (ext  / len) * (0.5 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  eps = (ext  / len) * (0.5 + (value - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor3fv (color);
@@ -2149,18 +2151,20 @@ static void render_vt (CON *con, double *V, GLfloat color [3])
 }
 
 /* render normal vector */
-static void render_vn (CON *con, double *V, GLfloat color [3])
+static void render_vn (CON *con, double *V, double value)
 {
+  GLfloat color [3];
   double r [3],
 	 other [3],
 	 ext = GLV_Minimal_Extent() * arrow_factor,
 	 eps, len;
 
+  value_to_color (value, color);
   COPY (con->base + 6, r);
   SCALE (r, V[2]);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
-  eps = (ext  / len) * (0.5 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  eps = (ext  / len) * (0.5 + (value - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor3fv (color);
@@ -2168,21 +2172,21 @@ static void render_vn (CON *con, double *V, GLfloat color [3])
 }
 
 /* render vector */
-static void render_v (CON *con, double *V, GLfloat color [3])
+static void render_v (CON *con, double *V, double value)
 {
+  GLfloat color [3];
   double r [3],
 	 other [3],
+	 *base = con->base,
 	 ext = GLV_Minimal_Extent() * arrow_factor,
 	 eps,
 	 len;
 
-  COPY (con->base, r);
-  SCALE (r, V[0]);
-  ADDMUL (r, V[1], con->base+3, r);
-  ADDMUL (r, V[2], con->base+6, r);
+  value_to_color (value, color);
+  NVMUL (base, V, r);
   len = LEN (r);
   if (len == 0.0) len = 1.0;
-  eps = (ext  / len) * (0.5 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+  eps = (ext  / len) * (0.5 + (value - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
   ADDMUL (con->point, -eps, r, other);
 
   glColor3fv (color);
@@ -2283,8 +2287,9 @@ static void tube3d (double *p, double *q)
 }
 
 /* render constraint scalar */
-static void render_scalar (CON *con, double scalar, GLfloat color [3])
+static void render_scalar (CON *con, double scalar)
 {
+  GLfloat color [3];
   double r [3],
 	 first [3],
 	 other [3],
@@ -2292,6 +2297,7 @@ static void render_scalar (CON *con, double scalar, GLfloat color [3])
 	 eps,
 	 len;
 
+  value_to_color (scalar, color);
   COPY (con->base+6, r);
   SCALE (r, scalar);
   len = LEN (r);
@@ -2383,14 +2389,14 @@ static void render_body_set_constraints_or_forces (SET *set)
 	  }
 
 	  break;
-	case RESULTS_RT: value_to_color (LEN2 (con->R), color); render_vt (con, con->R, color); break;
-	case RESULTS_RN: value_to_color (fabs (con->R[2]), color); render_vn (con, con->R, color); break;
-	case RESULTS_R:  value_to_color (LEN (con->R), color); render_v (con, con->R, color); break;
-	case RESULTS_UT: value_to_color (LEN2 (con->U), color); render_vt (con, con->U, color); break;
-	case RESULTS_UN: value_to_color (fabs (con->U[2]), color); render_vn (con, con->U, color); break;
-	case RESULTS_U:  value_to_color (LEN (con->U), color); render_v (con, con->U, color); break;
-	case RESULTS_GAP:  value_to_color (con->gap, color); render_scalar (con, con->gap, color); break;
-	case RESULTS_MERIT:  value_to_color (con->merit, color); render_scalar (con, con->merit, color); break;
+	case RESULTS_RT: render_vt (con, con->R, LEN2 (con->R)); break;
+	case RESULTS_RN: render_vn (con, con->R, con->R[2]); break;
+	case RESULTS_R:  render_v (con, con->R, SGN (con->R[2])*LEN (con->R)); break;
+	case RESULTS_UT: render_vt (con, con->U, LEN2 (con->U)); break;
+	case RESULTS_UN: render_vn (con, con->U, con->U[2]); break;
+	case RESULTS_U:  render_v (con, con->U, SGN (con->U[2])*LEN (con->U)); break;
+	case RESULTS_GAP:  render_scalar (con, con->gap); break;
+	case RESULTS_MERIT:  render_scalar (con, con->merit); break;
 	}
 
 	con->state |= CON_DONE;

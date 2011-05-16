@@ -1,9 +1,9 @@
 # bent mesh example
 
-step = 0.001
+step = 0.002
 stop = 1.0
 
-sol = SOLFEC ('QUASI_STATIC', step, 'out/tire')
+sol = SOLFEC ('DYNAMIC', step, 'out/cohesion')
 
 bulk = BULK_MATERIAL (sol,
                       model = 'KIRCHHOFF',
@@ -11,8 +11,7 @@ bulk = BULK_MATERIAL (sol,
 		      poisson = 0.45,
 		      density = 1E3)
 
-SURFACE_MATERIAL (sol, 0, 1, model = 'SIGNORINI_COULOMB', label = 'A', friction = 1, cohesion = 1E6)
-SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', label = 'B', friction = 0.3)
+SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 1, cohesion = 5E5)
 
 nodes = [0, 0, 0,
          1, 0, 0,
@@ -23,32 +22,21 @@ nodes = [0, 0, 0,
          1, 1, 1,
          0, 1, 1]
 
-msh = PIPE ((0, 0, 0), (0, 0, -1.88495559215), 0.3, 0.1, 40, 40, 3, 1, [1, 1, 2, 3])
-BEND (msh, (0, 1, 0), (1, 0, 0), 180)
-bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
+shp = HEX (nodes, 4, 8, 8, 1, [0, 1, 2, 3, 4, 5])
+SCALE (shp, (2, 4, 8))
+bod = BODY (sol, 'FINITE_ELEMENT', shp, bulk)
 bod.nodecontact = 'ON'
-PRESSURE (bod, 2, -1E3)
-PARTITION (bod, NCPU (sol)) #FIXME: in parallel this high presure separates meshes!
-
-shp = HEX (nodes, 1, 1, 1, 1, [0, 0, 0, 0, 0, 0])
-SCALE (shp, (2, 4, 1))
-TRANSLATE (shp, (-1, -1, 0))
-bod = BODY (sol, 'RIGID', shp, bulk)
-ts0 = TIME_SERIES ([0, 1, 0.5, 1, 0.5+step, 0, 1.0, 0])
-ts1 = TIME_SERIES ([0, 0, 0.5, 0, 0.5+step, 1, 1.0, 1])
-SET_VELOCITY (bod, (-1, -1, 1), (0, 0, -1), ts0)
-SET_VELOCITY (bod, (1, -1, 1), (0, 0, -1), ts0)
-SET_VELOCITY (bod, (-1, 3, 1), (0, 0, -1), ts0)
-SET_VELOCITY (bod, (1, 3, 1), (0, 0, -1), ts0)
-SET_VELOCITY (bod, bod.center, (0, 1, 0), ts1)
+bod.damping = 0.001
+PRESSURE (bod, 4, -90000)
 
 shp = HEX (nodes, 1, 1, 1, 1, [1, 1, 1, 1, 1, 1])
-SCALE (shp, (2, 4, 0.1))
-TRANSLATE (shp, (-1, -1, -1.5))
+SCALE (shp, (2.2, 4.2, 0.1))
+TRANSLATE (shp, (-0.1, -0.1, -0.1))
 bod = BODY (sol, 'OBSTACLE', shp, bulk)
+bod.nodecontact = 'ON'
 
-#sv = GAUSS_SEIDEL_SOLVER (1E-6, 1000)
 sv = NEWTON_SOLVER (locdyn = 'OFF')
+GRAVITY (sol, (0, 0, -10))
 OUTPUT (sol, step)
 RUN (sol, sv, stop)
 
@@ -79,6 +67,6 @@ if not VIEWER() and sol.mode == 'READ':
     plt.xlabel ('Time [s]')
     plt.ylabel ('Energy [J]')
     plt.legend(loc = 'upper right')
-    plt.savefig ('out/tire/ene.eps')
+    plt.savefig ('out/cohesion/ene.eps')
   except ImportError:
     pass # no reaction
