@@ -1813,6 +1813,31 @@ void BODY_Cur_Vector (BODY *bod, void *ele, double *X, double *V, double *v)
   }
 }
 
+void BODY_Ref_Vector (BODY *bod, void *ele, double *x, double *v, double *V)
+{
+  switch (bod->kind)
+  {
+    case OBS:
+      COPY (v, V);
+    break;
+    case RIG:
+    {
+      double *R = RIG_ROTATION(bod);
+      TVMUL (R, v, V);
+    }
+    break;
+    case PRB:
+    {
+      double *F = PRB_GRADIENT(bod);
+      TVMUL (F, v, V);
+    }
+    break;
+    case FEM:
+      FEM_Ref_Vector (bod, ele, x, v, V);
+    break;
+  }
+}
+
 void BODY_Local_Velo (BODY *bod, SGP *sgp, double *point, double *base, double *prevel, double *curvel)
 {
   switch (bod->kind)

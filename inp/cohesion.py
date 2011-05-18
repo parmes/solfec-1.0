@@ -33,7 +33,6 @@ shp = HEX (nodes, 1, 1, 1, 1, [1, 1, 1, 1, 1, 1])
 SCALE (shp, (2.2, 4.2, 0.1))
 TRANSLATE (shp, (-0.1, -0.1, -0.1))
 bod = BODY (sol, 'OBSTACLE', shp, bulk)
-bod.nodecontact = 'ON'
 
 sv = NEWTON_SOLVER (locdyn = 'OFF')
 GRAVITY (sol, (0, 0, -10))
