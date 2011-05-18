@@ -258,6 +258,9 @@ void BODY_Ref_Point (BODY *bod, SGP *sgp, double *x, double *X);
 /* pull-forward v = {dx/dX} V (X, state) */
 void BODY_Cur_Vector (BODY *bod, void *ele, double *X, double *V, double *v);
 
+/* push-back V = {dX/dx} v (x, state) */
+void BODY_Ref_Vector (BODY *bod, void *ele, double *x, double *v, double *V);
+
 /* obtain spatial velocity at (sgp, referential point), expressed in the local spatial 'base' */
 void BODY_Local_Velo (BODY *bod, SGP *sgp, double *point, double *base, double *prevel, double *curvel);
 

@@ -2320,27 +2320,70 @@ static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
 	 eps,
 	 len;
 
-  if (bod->kind == FEM)
+  if (force->kind & PRESSURE)
   {
-    SGP *sgp;
-    int n;
+    MESH *msh = bod->shape->data;
+    FACE *fac = msh->faces;
+    int surfid = force->surfid;
+    double (*cur) [3] = msh->cur_nodes;
 
-    if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, force->ref_point)) < 0) return; /* TODO: optimize */
-    sgp = &bod->sgp [n];
-    BODY_Cur_Point (bod, sgp, force->ref_point, point); /* TODO: optimize */
+    for (; fac; fac = fac->n)
+    {
+      if (fac->surface == surfid)
+      {
+	double *a = cur [fac->nodes [0]],
+	       *b = cur [fac->nodes [1]],
+	       *c = cur [fac->nodes [2]],
+	       *d = fac->type == 4 ? cur [fac->nodes [3]] : NULL;
+
+	if (fac->type == 4)
+	{
+	  glBegin (GL_QUADS);
+          glColor3fv (color);
+	  glNormal3dv (fac->normal);
+	  glVertex3dv (a);
+	  glVertex3dv (b);
+	  glVertex3dv (c);
+	  glVertex3dv (d);
+	  glEnd ();
+	}
+	else
+	{
+	  glBegin (GL_TRIANGLES);
+          glColor3fv (color);
+	  glNormal3dv (fac->normal);
+	  glVertex3dv (a);
+	  glVertex3dv (b);
+	  glVertex3dv (c);
+	  glEnd ();
+	}
+      }
+    }
   }
-  else BODY_Cur_Point (bod, NULL, force->ref_point, point);
+  else
+  {
+    if (bod->kind == FEM)
+    {
+      SGP *sgp;
+      int n;
 
-  COPY (force->direction, r);
-  len = TMS_Value (force->data, domain->time);
-  if (len == 0.0) len = 1.0;
-  SCALE (r, len);
-  len = LEN (r);
-  eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
-  ADDMUL (point, -eps, r, other);
+      if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, force->ref_point)) < 0) return; /* TODO: optimize */
+      sgp = &bod->sgp [n];
+      BODY_Cur_Point (bod, sgp, force->ref_point, point); /* TODO: optimize */
+    }
+    else BODY_Cur_Point (bod, NULL, force->ref_point, point);
 
-  glColor3fv (color);
-  arrow3d (other, point);
+    COPY (force->direction, r);
+    len = TMS_Value (force->data, domain->time);
+    if (len == 0.0) len = 1.0;
+    SCALE (r, len);
+    len = LEN (r);
+    eps = (ext  / len) * (1.0 + (len - legend.extents[0]) / (legend.extents[1] - legend.extents[0] + 1.0));
+    ADDMUL (point, -eps, r, other);
+
+    glColor3fv (color);
+    arrow3d (other, point);
+  }
 }
 
 /* render body set constraints or forces */

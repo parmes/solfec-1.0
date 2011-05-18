@@ -61,8 +61,6 @@ Use 0.5 coefficent before bod->damping everywhere? (now: c K (u0 + u1), while ni
 ------------------------------------------------------------------------------------------------------------
 Balancing of FEM bodies - decrease constraint weight (too many DOFs)
 -----------------------------------------------------------------------
-Consider optional approximate LOCDYN via FEM_Approx_Inverse
------------------------------------------------------------------------
 Optimize stress plotting (batch calculation for a set of nodes)
 ----------------------------------------------------------------------------------
 Implement configuration update: q(t+h3/2) = q(t+h/2) + h * u(t+h). This will allow
@@ -83,7 +81,7 @@ Implement VBO based cut rendering
 ----------------------------------------------------------------------------
 FEM-specific boundary conditions enforcement
 ----------------------------------------------------------------------------
-Include GTS and use mesh simplification for MESH splitting
+Consider using GTS for mesh simplification for MESH splitting
 ----------------------------------------------------------------------------
 Remove references to "open dynamic" contacts in the code (see comments);
 These are now simply impossible by design and we shall keep it that way
@@ -97,6 +95,4 @@ Better resolve corner adjacent mesh nodes gluing after PARTITION
 Consider using CGAL for boolean operations and convex subdivision (on input only)
 ----------------------------------------------------------------------------------
 Implement REGISTER_SHAPE idea!
-----------------------------------------
-Pressure plotting
 ----------------------------------------

@@ -2956,6 +2956,25 @@ void FEM_Cur_Vector (BODY *bod, ELEMENT *ele, double *X, double *V, double *v)
   NVMUL (F, V, v);
 }
 
+/* push-back V = {dX/dx} v (x, state) */
+void FEM_Ref_Vector (BODY *bod, ELEMENT *ele, double *x, double *v, double *V)
+{
+  MESH *msh = FEM_MESH (bod);
+  double point [3], F [9];
+
+  if (ele == NULL)
+  {
+    ele = MESH_Element_Containing_Point (msh, x, 0);
+  }
+
+  ASSERT_TEXT (ele, "Element containing referential point was not found.\n"
+                    "Please report this bug!\n");
+
+  spatial_to_local (msh, ele, x, point);
+  deformation_gradient (bod, msh, ele, point, F);
+  TVMUL (F, v, V);
+}
+
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
 void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel)
 {

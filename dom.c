@@ -430,23 +430,31 @@ static void update_contact (DOM *dom, CON *con)
     spnt, mpnt, normal, &con->gap, /* 'mpnt' and 'spnt' are updated here */
     &con->area, con->spair); /* surface pair might change though */
 
-  if (state)
+  if (state || (con->state & CON_COHESIVE))
   {
-    if (con->gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
-
-    COPY (mpnt, con->point);
-    BODY_Ref_Point (con->master, con->msgp, mpnt, con->mpnt);
-    BODY_Ref_Point (con->slave, con->ssgp, spnt, con->spnt);
-    localbase (normal, con->base);
-    if (state > 1 && !(con->state & CON_COHESIVE)) /* surface pair has changed (but not in cohesive state) */
+    if (con->state & CON_COHESIVE) /* reuse original point */
     {
-      SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, con->spair [0], con->spair [1]); /* find new surface pair description */
-      con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
+      BODY_Ref_Point (con->master, con->msgp, con->mpnt, con->point);
+      localbase (normal, con->base); /* but update normal (the interface might rotate) */
     }
-
-    if (dom->dynamic && con->gap > 0) /* dynamic open contact */
+    else
     {
-      SET (con->R, 0);  /* has zero reaction (NOTE: this will propagate to external reactions in parallel) */
+      if (con->gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
+
+      COPY (mpnt, con->point);
+      BODY_Ref_Point (con->master, con->msgp, mpnt, con->mpnt);
+      BODY_Ref_Point (con->slave, con->ssgp, spnt, con->spnt);
+      localbase (normal, con->base);
+      if (state > 1) /* surface pair has changed */
+      {
+	SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, con->spair [0], con->spair [1]); /* find new surface pair description */
+	con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
+      }
+
+      if (dom->dynamic && con->gap > 0) /* dynamic open contact */
+      {
+	SET (con->R, 0);  /* has zero reaction (NOTE: this will propagate to external reactions in parallel) */
+      }
     }
   }
   else

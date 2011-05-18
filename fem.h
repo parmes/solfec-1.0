@@ -71,6 +71,9 @@ void FEM_Ref_Point (BODY *bod, SHAPE *shp, void *gobj, double *x, double *X);
 /* pull-forward v = {dx/dX} V (X, state) */
 void FEM_Cur_Vector (BODY *bod, ELEMENT *ele, double *X, double *V, double *v);
 
+/* push-back V = {dX/dx} v (x, state) */
+void FEM_Ref_Vector (BODY *bod, ELEMENT *ele, double *x, double *v, double *V);
+
 /* obtain spatial velocity at (gobj, referential point), expressed in the local spatial 'base' */
 void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base, double *prevel, double *curvel);
 
