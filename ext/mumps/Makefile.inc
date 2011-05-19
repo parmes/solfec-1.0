@@ -72,27 +72,33 @@ LIBBLAS = $(BLAS)
 LIBOTHERS = -lpthread
 
 #Preprocessor defs for calling Fortran from C (-DAdd_ or -DAdd__ or -DUPPER)
+ifeq ($(OS),WIN32)
+  OSDEF = -DWITHOUT_PTHREAD
+else
+  OSDEFS =
+endif
+
 #Begin Optimization options
 ifeq ($(FC),g95)
-  CDEFS   = -DAdd__
+  CDEFS   = -DAdd__ $(OSDEFS)
   OPTF   = -O -i4
   OPTL   = -O  
   OPTC   = -O -DMAIN_COMP 
 endif
 ifeq ($(FC),gfortran)
-  CDEFS   = -DAdd_
+  CDEFS   = -DAdd_ $(OSDEFS)
   OPTF   = -O -Dintel_ -DALLOW_NON_INIT
   OPTL   = -O  
   OPTC   = -O
 endif
 ifeq ($(FC),ifc)
-  CDEFS   = -DAdd_
+  CDEFS   = -DAdd_ $(OSDEFS)
   OPTF    = -O -Dintel_ -DALLOW_NON_INIT -nofor_main
   OPTL    = -O -nofor_main
   OPTC    = -O
 endif
 ifeq ($(FC),ifort)
-  CDEFS   = -DAdd_
+  CDEFS   = -DAdd_ $(OSDEFS)
   OPTF    = -O -Dintel_ -DALLOW_NON_INIT -nofor_main
   OPTL    = -O -nofor_main
   OPTC    = -O

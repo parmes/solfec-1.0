@@ -50,7 +50,7 @@
 #include <png.h>
 #endif
 
-#if __MINGW32__
+#ifndef M_PI
 #include "../alg.h"
 #define M_PI ALG_PI
 #endif
