@@ -251,7 +251,8 @@ struct domain
   int rank; /* communicator rank */
   int ncpu; /* cummunicator size */
   SET *children; /* current children */
-  struct Zoltan_Struct *zol; /* load balancing */
+  struct Zoltan_Struct *zolcon; /* constraint load balancing */
+  struct Zoltan_Struct *zolbod; /* body load balancing */
   double imbalance_tolerance; /* imbalance threshold */
   int lock_directions; /* locked direactions flag */
   double degenerate_ratio; /* degeneration ratio for domain elongation */

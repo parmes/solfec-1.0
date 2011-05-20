@@ -571,7 +571,7 @@ static SGP* SGP_from_index (DOM *dom, BODY *bod, int n)
 }
 
 #if MPI
-/* compute constraint weight */
+/* constraint weight */
 static int constraint_weight (CON *con)
 {
   int wgt0 = 1, /* default weight */
@@ -591,7 +591,7 @@ static int constraint_weight (CON *con)
   return wgt0;
 }
 
-/* compute body weight */
+/* body weight */
 static int body_weight (BODY *bod)
 {
   int wgt = bod->nsgp;
@@ -627,11 +627,20 @@ static int domain_weight (DOM *dom)
   return weight;
 }
 
-/* number of objects for balacing */
-static int object_count (DOM *dom, int *ierr)
+/* number of bodies for balacing */
+static int bodies_count (DOM *dom, int *ierr)
 {
   *ierr = ZOLTAN_OK;
-  int count, ncon;
+
+  if (dom->nbod == 0) return 1; /* XXX: Zoltan fails for 0 count */
+  else return dom->nbod;
+}
+
+/* number of constraints for balancing */
+static int constraints_count (DOM *dom, int *ierr)
+{
+  *ierr = ZOLTAN_OK;
+  int ncon;
   CON *con;
 
   for (con = dom->con, ncon = 0; con; con = con->next)
@@ -639,18 +648,15 @@ static int object_count (DOM *dom, int *ierr)
     if (con->slave) ncon ++; /* only two-body constraints migrate independently */
   }
 
-  count = dom->nbod + ncon;
-
-  if (count == 0) return 1; /* XXX: Zoltan fails for 0 count */
-  else return count;
+  if (ncon == 0) return 1; /* XXX: Zoltan fails for 0 count */
+  else return ncon;
 }
 
-/* list of object identifiers for load balancing */
-static void object_list (DOM *dom, int num_gid_entries, int num_lid_entries,
+/* list of body identifiers for load balancing */
+static void bodies_list (DOM *dom, int num_gid_entries, int num_lid_entries,
   ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
 {
   BODY *bod;
-  CON *con;
   int i;
   
   for (bod = dom->bod, i = 0; bod; i ++, bod = bod->next)
@@ -659,11 +665,27 @@ static void object_list (DOM *dom, int num_gid_entries, int num_lid_entries,
     obj_wgts [i * wgt_dim] = body_weight (bod);
   }
 
-  for (con = dom->con; con; con = con->next)
+  if (i == 0) /* XXX: Zoltan workaround */
+  {
+    global_ids [0] = UINT_MAX;
+    obj_wgts [0] = 1.0;
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* list of constraint identifiers for load balancing */
+static void constraints_list (DOM *dom, int num_gid_entries, int num_lid_entries,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int wgt_dim, float *obj_wgts, int *ierr)
+{
+  CON *con;
+  int i;
+  
+  for (con = dom->con, i = 0; con; con = con->next)
   {
     if (con->slave)
     {
-      global_ids [i * num_gid_entries] = dom->bid + con->id;
+      global_ids [i * num_gid_entries] = con->id;
       obj_wgts [i * wgt_dim] = constraint_weight (con);
       i ++;
     }
@@ -685,13 +707,38 @@ static int dimensions (DOM *dom, int *ierr)
   return 3;
 }
 
-/* list of object points exploited during load balancing */
-static void objpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int num_obj,
+/* list of body points exploited during load balancing */
+static void bodies_points (DOM *dom, int num_gid_entries, int num_lid_entries, int num_obj,
   ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
 {
   unsigned int id;
   double *e, *v;
   BODY *bod;
+  int i;
+
+  if (num_obj == 1 && global_ids [0] == UINT_MAX) /* XXX: Zoltan workaround */
+  {
+    SET (geom_vec, 0.0);
+  }
+  else for (i = 0; i < num_obj; i ++)
+  {
+    id = global_ids [i * num_gid_entries];
+    v = &geom_vec [i* num_dim];
+
+    ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) id, NULL), "Invalid body id");
+    e = bod->extents;
+    MID (e, e+3, v);
+  }
+
+  *ierr = ZOLTAN_OK;
+}
+
+/* list of constraint points exploited during load balancing */
+static void constraints_points (DOM *dom, int num_gid_entries, int num_lid_entries, int num_obj,
+  ZOLTAN_ID_PTR global_ids, ZOLTAN_ID_PTR local_ids, int num_dim, double *geom_vec, int *ierr)
+{
+  unsigned int id;
+  double *v;
   CON *con;
   int i;
 
@@ -704,18 +751,8 @@ static void objpoints (DOM *dom, int num_gid_entries, int num_lid_entries, int n
     id = global_ids [i * num_gid_entries];
     v = &geom_vec [i* num_dim];
 
-    bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
-
-    if (bod)
-    {
-      e = bod->extents;
-      MID (e, e+3, v);
-    }
-    else
-    {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) (id - dom->bid), NULL), "Invalid constraint id");
-      COPY (con->point, v);
-    }
+    ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) id, NULL), "Invalid constraint id");
+    COPY (con->point, v);
   }
 
   *ierr = ZOLTAN_OK;
@@ -1355,7 +1392,7 @@ static void update_children (DOM *dom)
 /* compute ranks of migrating children */
 static void children_migration_begin (DOM *dom, DBD *dbd)
 {
-  int *procs, numprocs, i;
+  int *procs, numprocs, i, j;
   BODY *bod;
 
   ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
@@ -1365,18 +1402,22 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
     /* must be a parent */
     ASSERT_DEBUG (bod->flags & BODY_PARENT, "Not a parent");
 
+    struct Zoltan_Struct *zol [] = {dom->zolbod, dom->zolcon};
     double *e = bod->extents;
-
-    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
     SET_Free (&dom->setmem, &bod->children); /* empty children set */
 
-    for (i = 0; i < numprocs; i ++)
+    for (j = 0; j < 2; j ++)
     {
-      if (bod->rank != procs [i]) /* if this is neither current nor the new body rank */
+      Zoltan_LB_Box_Assign (zol [j], e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+      for (i = 0; i < numprocs; i ++)
       {
-        SET_Insert (&dom->setmem, &dbd [procs [i]].children, bod, NULL); /* schedule for sending a child */
-	SET_Insert (&dom->setmem, &bod->children, (void*) (long) procs [i], NULL); /* extend parent's children set */
+	if (bod->rank != procs [i]) /* if this is neither current nor the new body rank */
+	{
+	  SET_Insert (&dom->setmem, &dbd [procs [i]].children, bod, NULL); /* schedule for sending a child */
+	  SET_Insert (&dom->setmem, &bod->children, (void*) (long) procs [i], NULL); /* extend parent's children set */
+	}
       }
     }
   }
@@ -1718,8 +1759,6 @@ static void insert_pending_constraints (DOM *dom)
   SET_Free (&dom->setmem, &dom->pendingcons);
 }
 
-#define OLD_ZOLTAN_BALANCING 0 /* XXX: Zoltan balancing issues workarounds ($$$) */
-
 /* domain balancing */
 static void domain_balancing (DOM *dom)
 {
@@ -1773,11 +1812,14 @@ static void domain_balancing (DOM *dom)
 
   /* update RCB parameters */
   snprintf (str, 128, "%g", dom->imbalance_tolerance);
-  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", str);
+  Zoltan_Set_Param (dom->zolbod, "IMBALANCE_TOL", str);
+  Zoltan_Set_Param (dom->zolcon, "IMBALANCE_TOL", str);
   snprintf (str, 128, "%d", dom->lock_directions);
-  Zoltan_Set_Param (dom->zol, "RCB_LOCK_DIRECTIONS", str);
+  Zoltan_Set_Param (dom->zolbod, "RCB_LOCK_DIRECTIONS", str);
+  Zoltan_Set_Param (dom->zolcon, "RCB_LOCK_DIRECTIONS", str);
   snprintf (str, 128, "%g", dom->degenerate_ratio);
-  Zoltan_Set_Param (dom->zol, "DEGENERATE_RATIO", str);
+  Zoltan_Set_Param (dom->zolbod, "DEGENERATE_RATIO", str);
+  Zoltan_Set_Param (dom->zolcon, "DEGENERATE_RATIO", str);
 
 #if MPI && DEBUG
   for (con = dom->con, i = 0; con; con = con->next, i ++);
@@ -1785,129 +1827,41 @@ static void domain_balancing (DOM *dom)
   for (bod = dom->bod, i = 0; bod; bod = bod->next, i ++);
   ASSERT_DEBUG (i == dom->nbod, "Inconsistent bodies count");
 #if 0
-  Zoltan_Generate_Files (dom->zol, "kdd", 1, 1, 0, 0);
+  Zoltan_Generate_Files (dom->zolbod, "kddbod", 1, 1, 0, 0);
+  Zoltan_Generate_Files (dom->zolcon, "kddcon", 1, 1, 0, 0);
 #endif
 #endif
 
   /* update body partitioning */
-  ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
+  ASSERT (Zoltan_LB_Balance (dom->zolbod, &changes, &num_gid_entries, &num_lid_entries,
 	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-#if OLD_ZOLTAN_BALANCING
-  unsigned int id;
+  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+		       &export_global_ids, &export_local_ids, &export_procs);
 
-  for (i = 0; i < num_export; i ++) /* for each exported body */
-  {
-    id = export_global_ids [i * num_gid_entries]; /* get id */
+  /* update constraint partitioning */
+  ASSERT (Zoltan_LB_Balance (dom->zolcon, &changes, &num_gid_entries, &num_lid_entries,
+	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-    bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
+  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+		       &export_global_ids, &export_local_ids, &export_procs);
 
-    if (bod)
-    {
-      bod->rank = export_procs [i]; /* set the new rank */
-
-      SET_Insert (&dom->setmem, &dbd [export_procs [i]].bodies, bod, NULL); /* map this body to its export rank */
-
-      for (item = SET_First (bod->con); item; item = SET_Next (item))
-      {
-	con = item->data;
-
-	if (!con->slave && !(con->state & CON_EXTERNAL))
-	  SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* single-body constraints migrate with bodies */
-      }
-    }
-    else
-    {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) (id - dom->bid), NULL), "Invalid constraint id");
-
-      SET_Insert (&dom->setmem, &dbd [export_procs [i]].constraints, con, NULL); /* map this constraint to its export rank */
-
-#if PARDEBUG
-      {
-	BODY *bodies [] = {con->master, con->slave};
-	int *procs, numprocs, j, k;
-
-	ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
-
-	for (j = 0; j < 2; j ++)
-	{
-	  bod = bodies [j];
-	  double e [6];
-
-	  if (!bod->flags)
-	  {
-	    if (j == 1 && con->kind == GLUE) continue; /* gluing constrains may be initially attached to a dummy */
-	    else 
-	    {
-	      ASSERT_DEBUG (0, "Dummy body attached to a two-body constraint");
-	    }
-	  }
-
-	  if (bod->flags & BODY_CHILD) BODY_Update_Extents (bod); /* bod->extents were not be updated for a child */
-
-	  COPY6 (bod->extents, e);
-
-	  Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
-
-	  for (k = 0; k < numprocs; k ++)
-	  {
-	    if (export_procs [i] == procs [k]) break;
-	  }
-
-	  if (k == numprocs)
-	  {
-	    fprintf (stderr, "\nBody flags = %d, Constraint kind = %s\n", bod->flags, CON_Kind (con));
-
-	    if (con->point [0] < e [0] || con->point [0] > e [3] ||
-		con->point [1] < e [1] || con->point [1] > e [4] ||
-		con->point [2] < e [2] || con->point [2] > e [5])
-	    {
-	      fprintf (stderr, "Constraint point is OUTSIDE of body extents!\n");
-	    }
-	    else
-	    {
-	      fprintf (stderr, "Constraint point is INSIDE of body extents!\n");
-	    }
-	    fprintf (stderr, "Box in Zoltan_LB_Box_Assign: %.15g %.15g %.15g %.15g %.15g %.15g\n", e[0], e[1], e[2], e[3], e[4], e[5]);
-	    fprintf (stderr, "Point in Zoltan_LB_Point_Assign: %.15g %.15g %.15g\n", con->point [0], con->point [1], con->point [2]);
-
-	    fprintf (stderr, "Body extents Zoltan_LB_Box_Assign processors: ");
-	    for (k = 0; k < numprocs; k ++) fprintf (stderr, "%d  ", procs [k]);
-	    fprintf (stderr, "\n");
-	    Zoltan_LB_Point_Assign (dom->zol, con->point, &k);
-	    fprintf (stderr, "Constraint point Zoltan_LB_Point_Assign processor: %d\n", k);
-	    fprintf (stderr, "Constraint export processor: %d\n", export_procs [i]);
-
-	    ASSERT_DEBUG (0, "A constraint is exported where its bodies are not present");
-	  }
-	}
-
-	free (procs);
-      }
-#endif
-    }
-  }
-#else
-  /* XXX: Zoltan workaround => the usual method of computing export sets
-   * XXX: may lead to inconsitent behavior of Zoltan_LB_Box_Assign and Zoltan_LB_Point_Assign;
-   * XXX: Hence the above code is not going to be used until Zoltan is fixed or replaced ($$$) */
-
-  int *procs, numprocs;
-  double e [6];
-
-  ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
+  double e [6], p [3];
+  int proc;
 
   for (bod = dom->bod; bod; bod = bod->next)
   {
     COPY6 (bod->extents, e);
-    Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+    MID (e, e+3, p);
+    Zoltan_LB_Point_Assign (dom->zolbod, p, &proc);
 
-    if (procs [0] != dom->rank)
+    if (proc != dom->rank)
     {
-      bod->rank = procs [0]; /* set the new rank */
+      bod->rank = proc; /* set the new rank */
 
-      SET_Insert (&dom->setmem, &dbd [procs [0]].bodies, bod, NULL); /* map this body to its export rank */
+      SET_Insert (&dom->setmem, &dbd [proc].bodies, bod, NULL); /* map this body to its export rank */
     }
   }
 
@@ -1922,29 +1876,16 @@ static void domain_balancing (DOM *dom)
     }
     else
     {
-      COPY (con->point, e);
-      COPY (e, e+3);
-      e [0] -= GEOMETRIC_EPSILON;
-      e [1] -= GEOMETRIC_EPSILON;
-      e [2] -= GEOMETRIC_EPSILON;
-      e [3] += GEOMETRIC_EPSILON;
-      e [4] += GEOMETRIC_EPSILON;
-      e [5] += GEOMETRIC_EPSILON;
-      Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+      Zoltan_LB_Point_Assign (dom->zolcon, con->point, &proc);
 
-      if (procs [0] != dom->rank)
+      if (proc != dom->rank)
       {
-	SET_Insert (&dom->setmem, &dbd [procs [0]].constraints, con, NULL); /* map this constraint to its export rank */
+	SET_Insert (&dom->setmem, &dbd [proc].constraints, con, NULL); /* map this constraint to its export rank */
       }
     }
   }
- 
-  free (procs);
-#endif
 
-  /* free Zoltan data */
-  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-		       &export_global_ids, &export_local_ids, &export_procs);
+  /* --- */
 
   ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
 
@@ -2492,43 +2433,51 @@ static void create_mpi (DOM *dom)
 
   stats_create (dom);
 
-  ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
+  ASSERT (dom->zolbod = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for body partitioning */
+  ASSERT (dom->zolcon = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context for constraint partitioning */
 
   dom->imbalance_tolerance = 1.3;
   dom->lock_directions = 0;
   dom->degenerate_ratio = 10.0;
   dom->weight_factor = 1.0;
 
-  /* general parameters */
-  Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
-  Zoltan_Set_Param (dom->zol, "DEBUG_MEMORY", "0");
-  Zoltan_Set_Param (dom->zol, "NUM_GID_ENTRIES", "1");
-  Zoltan_Set_Param (dom->zol, "NUM_LID_ENTRIES", "0");
-  Zoltan_Set_Param (dom->zol, "OBJ_WEIGHT_DIM", "1");
- 
-  /* load balancing parameters */
-  Zoltan_Set_Param (dom->zol, "LB_METHOD", "RCB");
-  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", "1.3");
-  Zoltan_Set_Param (dom->zol, "AUTO_MIGRATE", "FALSE");
-#if OLD_ZOLTAN_BALANCING
-  Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "EXPORT");
-#else
-  Zoltan_Set_Param (dom->zol, "RETURN_LISTS", "NONE"); /* XXX: EXPORT for previous way of computing export sets ($$$) */
-#endif
+  struct Zoltan_Struct *zol [] = {dom->zolbod, dom->zolcon};
 
-  /* RCB parameters */
-  Zoltan_Set_Param (dom->zol, "RCB_OVERALLOC", "1.3");
-  Zoltan_Set_Param (dom->zol, "RCB_REUSE", "1");
-  Zoltan_Set_Param (dom->zol, "RCB_OUTPUT_LEVEL", "0");
-  Zoltan_Set_Param (dom->zol, "CHECK_GEOM", "1");
-  Zoltan_Set_Param (dom->zol, "KEEP_CUTS", "1");
-  Zoltan_Set_Param (dom->zol, "REDUCE_DIMENSIONS", "1");
+  for (int i = 0; i < 2; i ++)
+  {
+    /* general parameters */
+    Zoltan_Set_Param (zol [i], "DEBUG_LEVEL", "0");
+    Zoltan_Set_Param (zol [i], "DEBUG_MEMORY", "0");
+    Zoltan_Set_Param (zol [i], "NUM_GID_ENTRIES", "1");
+    Zoltan_Set_Param (zol [i], "NUM_LID_ENTRIES", "0");
+    Zoltan_Set_Param (zol [i], "OBJ_WEIGHT_DIM", "1");
+   
+    /* load balancing parameters */
+    Zoltan_Set_Param (zol [i], "LB_METHOD", "RCB");
+    Zoltan_Set_Param (zol [i], "IMBALANCE_TOL", "1.3");
+    Zoltan_Set_Param (zol [i], "AUTO_MIGRATE", "FALSE");
+    Zoltan_Set_Param (zol [i], "RETURN_LISTS", "NONE");
 
-  /* callbacks */
-  Zoltan_Set_Fn (dom->zol, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) object_count, dom);
-  Zoltan_Set_Fn (dom->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) object_list, dom);
-  Zoltan_Set_Fn (dom->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, dom);
-  Zoltan_Set_Fn (dom->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) objpoints, dom);
+    /* RCB parameters */
+    Zoltan_Set_Param (zol [i], "RCB_OVERALLOC", "1.3");
+    Zoltan_Set_Param (zol [i], "RCB_REUSE", "1");
+    Zoltan_Set_Param (zol [i], "RCB_OUTPUT_LEVEL", "0");
+    Zoltan_Set_Param (zol [i], "CHECK_GEOM", "1");
+    Zoltan_Set_Param (zol [i], "KEEP_CUTS", "1");
+    Zoltan_Set_Param (zol [i], "REDUCE_DIMENSIONS", "1");
+  }
+
+  /* body callbacks */
+  Zoltan_Set_Fn (dom->zolbod, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) bodies_count, dom);
+  Zoltan_Set_Fn (dom->zolbod, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) bodies_list, dom);
+  Zoltan_Set_Fn (dom->zolbod, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, dom);
+  Zoltan_Set_Fn (dom->zolbod, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) bodies_points, dom);
+
+  /* constraint callbacks */
+  Zoltan_Set_Fn (dom->zolcon, ZOLTAN_NUM_OBJ_FN_TYPE, (void (*)()) constraints_count, dom);
+  Zoltan_Set_Fn (dom->zolcon, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) constraints_list, dom);
+  Zoltan_Set_Fn (dom->zolcon, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, dom);
+  Zoltan_Set_Fn (dom->zolcon, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) constraints_points, dom);
 }
 
 /* destroy MPI related data */
@@ -2538,7 +2487,8 @@ static void destroy_mpi (DOM *dom)
 
   stats_destroy (dom);
 
-  Zoltan_Destroy (&dom->zol);
+  Zoltan_Destroy (&dom->zolbod);
+  Zoltan_Destroy (&dom->zolcon);
 }
 #endif
 
