@@ -434,7 +434,7 @@ static void update_contact (DOM *dom, CON *con)
   {
     if (con->state & CON_COHESIVE) /* reuse original point */
     {
-      BODY_Ref_Point (con->master, con->msgp, con->mpnt, con->point);
+      BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
       localbase (normal, con->base); /* but update normal (the interface might rotate) */
     }
     else
@@ -1603,7 +1603,7 @@ static void insert_pending_constraints (DOM *dom)
       if (p [2] > e [5]) e [5] = p [2];
     }
 
-    if (pnd->slave->flags & BODY_PARENT)
+    if (pnd->slave && pnd->slave->flags & BODY_PARENT)
     {
       double *pp [] = {pnd->mpnt, pnd->spnt};
       e = pnd->slave->extents;
@@ -1640,7 +1640,7 @@ static void insert_pending_constraints (DOM *dom)
       ADD (e+3, d, e+3);
     }
 
-    if (pnd->slave->flags & BODY_PARENT)
+    if (pnd->slave && pnd->slave->flags & BODY_PARENT)
     {
       e = pnd->slave->extents;
       SUB (e+3, e, d);
@@ -3229,14 +3229,17 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
   }
   else if (SHAPE_Sgp (master->sgp, master->nsgp, mpnt) < 0) return 0;
 
-  if (slave->kind == FEM && !slave->msh)
+  if (slave)
   {
-    if (snode >= 0) pnd->sele = MESH_Element_With_Node (slave->shape->data, snode);
-    else pnd->sele = MESH_Element_Containing_Point (slave->shape->data, spnt, 1);
+    if (slave->kind == FEM && !slave->msh)
+    {
+      if (snode >= 0) pnd->sele = MESH_Element_With_Node (slave->shape->data, snode);
+      else pnd->sele = MESH_Element_Containing_Point (slave->shape->data, spnt, 1);
 
-    if (!pnd->sele) return 0;
+      if (!pnd->sele) return 0;
+    }
+    else if (SHAPE_Sgp (slave->sgp, slave->nsgp, spnt) < 0) return 0;
   }
-  else if (SHAPE_Sgp (master->sgp, master->nsgp, mpnt) < 0) return 0;
 
   SET_Insert (&dom->setmem, &dom->pendingcons, pnd, NULL); /* they will be inserted or deleted during load balancing */
 

@@ -684,7 +684,15 @@ CXX = g++
 \end_layout
 
 \begin_layout LyX-Code
-FC = g95 FCLIB = -L/opt/local/lib/g95/i386-apple-darwin9/4.0.4/ -lf95
+FC = g95
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+FCLIB = -L/opt/local/lib/g95/i386-apple-darwin9/4.0.4/ -lf95
 \end_layout
 
 \begin_layout LyX-Code
