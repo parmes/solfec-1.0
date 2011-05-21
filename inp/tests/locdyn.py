@@ -59,7 +59,7 @@ stack_of_cubes_create (bulkmat, solfec)
 
 sv = GAUSS_SEIDEL_SOLVER (1E-3, 10)
 
-IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
+IMBALANCE_TOLERANCE (solfec, 1.1)
 
 OUTPUT (solfec, step)
 

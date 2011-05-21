@@ -140,7 +140,6 @@ struct domain_balancing_data
   DOM *dom;
   SET *bodies;
   SET *children;
-  SET *fakechildren;
   SET *constraints;
   SET *remove;
   SET *update;
@@ -252,11 +251,8 @@ struct domain
   int rank; /* communicator rank */
   int ncpu; /* cummunicator size */
   SET *children; /* current children */
-  struct Zoltan_Struct *zolcon; /* constraint load balancing */
-  struct Zoltan_Struct *zolbod; /* body load balancing */
+  struct Zoltan_Struct *zol; /* load balancing */
   double imbalance_tolerance; /* imbalance threshold */
-  int lock_directions; /* locked direactions flag */
-  double degenerate_ratio; /* degeneration ratio for domain elongation */
   double weight_factor; /* local dynamics weight factor */
   unsigned int noid; /* constraint id generation ommition flag */
   MAP *conext; /* id based map of external constraints */

@@ -9,7 +9,7 @@ from math import pow
 # * a number > 3 => fixed size model
 
 TEST = 8
-KINEM = 'RIGID'
+KINEM = 'PSEUDO_RIGID'
 SOLVER = 'nt'
 SAREA = 0.05
 step = 0.001
@@ -79,7 +79,7 @@ if SOLVER == 'gs':
 else:
   sv = NEWTON_SOLVER (1E-7, 1000, theta = 0.5)
 
-IMBALANCE_TOLERANCE (solfec, 1.1, 'ON', 2.0)
+IMBALANCE_TOLERANCE (solfec, 1.1)
 
 OUTPUT (solfec, 1 * step, 'ON')
 
