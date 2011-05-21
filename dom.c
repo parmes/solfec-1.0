@@ -1109,7 +1109,7 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
     bod->flags |= BODY_CHILD;
   }
 
-  /* mark as updated  */
+  /* mark as updated */
   bod->flags |= BODY_CHILD_UPDATED;
 }
 
