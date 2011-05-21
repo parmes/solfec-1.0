@@ -39,4 +39,4 @@ body extents contain constraint extents and yet for example:
 Body extents Zoltan_LB_Box_Assign processors: 28  
 Constraint point Zoltan_LB_Point_Assign processor: 6
 ------------------------------------------------------------------------------------
-Cohesion seems broken => inp/tire.py
+GLUING constraints fail in parallel => inp/tire.py
