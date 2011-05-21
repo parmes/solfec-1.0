@@ -229,7 +229,11 @@ static void detach_and_attach (AABB *aabb)
   /* attach children */
   for (item = SET_First (dom->children); item; item = SET_Next (item))
   {
-    for (bod = item->data, sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
+    bod = item->data;
+
+    if (bod->flags & BODY_CHILD_FAKE) continue; /* skip fake children */
+
+    for (sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
     {
       if (sgp->box == NULL)
       {

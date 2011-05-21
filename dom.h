@@ -140,6 +140,7 @@ struct domain_balancing_data
   DOM *dom;
   SET *bodies;
   SET *children;
+  SET *fakechildren;
   SET *constraints;
   SET *remove;
   SET *update;

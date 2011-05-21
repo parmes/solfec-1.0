@@ -118,12 +118,13 @@ struct general_force
 /* body flags */
 typedef enum
 {
-  BODY_DETECT_SELF_CONTACT = 0x01, /* enable self contact detection */
-  BODY_DETECT_NODE_CONTACT = 0x02, /* enable node based contact detection for meshes */
-  BODY_PARENT              = 0x10, /* a parent body */
-  BODY_CHILD               = 0x20, /* a child body */
-  BODY_CHILD_UPDATED       = 0x40, /* an updated child */
-  BODY_ABSENT              = 0x80, /* body whose state was not read */
+  BODY_DETECT_SELF_CONTACT = 0x0001, /* enable self contact detection */
+  BODY_DETECT_NODE_CONTACT = 0x0002, /* enable node based contact detection for meshes */
+  BODY_PARENT              = 0x0010, /* a parent body */
+  BODY_CHILD               = 0x0020, /* a child body */
+  BODY_CHILD_UPDATED       = 0x0040, /* an updated child */
+  BODY_CHILD_FAKE          = 0x0080, /* a child that is not used for contact detection */
+  BODY_ABSENT              = 0x0100, /* body whose state was not read */
 } BODY_FLAGS;
 
 /* flags that are migrated with bodies (the rest is filtered out) */

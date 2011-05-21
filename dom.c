@@ -1121,7 +1121,7 @@ static void pack_child (BODY *bod, int *dsize, double **d, int *doubles, int *is
 }
 
 /* unpack child body */
-static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static void unpack_child (DOM *dom, short fake, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   BODY *bod;
   int id;
@@ -1148,8 +1148,8 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
     bod->flags |= BODY_CHILD;
   }
 
-  /* mark as updated */
-  bod->flags |= BODY_CHILD_UPDATED;
+  /* mark as updated (and fake if needed) */
+  bod->flags |= (BODY_CHILD_UPDATED | fake);
 }
 
 /* pack child update */
@@ -1373,7 +1373,7 @@ static void update_children (DOM *dom)
 /* compute ranks of migrating children */
 static void children_migration_begin (DOM *dom, DBD *dbd)
 {
-  int *procs, numprocs, i, j;
+  int *procs, numprocs, i;
   BODY *bod;
 
   ERRMEM (procs = malloc (sizeof (int [dom->ncpu])));
@@ -1383,27 +1383,34 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
     /* must be a parent */
     ASSERT_DEBUG (bod->flags & BODY_PARENT, "Not a parent");
 
-    struct Zoltan_Struct *zol [] = {dom->zolbod, dom->zolcon};
     double *e = bod->extents;
 
     SET_Free (&dom->setmem, &bod->children); /* empty children set */
 
-    for (j = 0; j < 2; j ++)
-    {
-      Zoltan_LB_Box_Assign (zol [j], e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+    Zoltan_LB_Box_Assign (dom->zolbod, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 
-      for (i = 0; i < numprocs; i ++)
+    for (i = 0; i < numprocs; i ++)
+    {
+      if (bod->rank != procs [i]) /* if this is neither current nor the new body rank */
       {
-	if (bod->rank != procs [i]) /* if this is neither current nor the new body rank */
-	{
-	  SET_Insert (&dom->setmem, &dbd [procs [i]].children, bod, NULL); /* schedule for sending a child */
-	  SET_Insert (&dom->setmem, &bod->children, (void*) (long) procs [i], NULL); /* extend parent's children set */
-	}
+	SET_Insert (&dom->setmem, &dbd [procs [i]].children, bod, NULL); /* schedule for sending a child */
+	SET_Insert (&dom->setmem, &bod->children, (void*) (long) procs [i], NULL); /* extend parent's children set */
+      }
+    }
+
+    Zoltan_LB_Box_Assign (dom->zolcon, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+
+    for (i = 0; i < numprocs; i ++)
+    {
+      if (bod->rank != procs [i] && !SET_Contains (bod->children, (void*) (long) procs [i], NULL)) /* neither current nor a new body rank, and not a proper child */
+      {
+	SET_Insert (&dom->setmem, &dbd [procs [i]].fakechildren, bod, NULL); /* schedule for sending a fake child */
+	SET_Insert (&dom->setmem, &bod->children, (void*) (long) procs [i], NULL); /* extend parent's children set */
       }
     }
 
 #if ZOLTAN_WORKAROUND_1
-   /* XXX: Zoltan workaround => * Zoltan_LB_Box_Assign and Zoltan_LB_Point_Assign give inconsistent
+   /* XXX: Zoltan workaround => Zoltan_LB_Box_Assign and Zoltan_LB_Point_Assign give inconsistent
     * XXX: results for flat point sets: point cpu might not be in the box cpus set, even though
     * XXX: the point is contained in the box; Since box query is used for child export we need to
     * XXX: make sure that constraints are exported consitently with children; hence box query here */
@@ -1414,9 +1421,9 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
     {
       con = item->data;
       Zoltan_LB_Point_Assign (dom->zolcon, con->point, &i);
-      if (bod->rank != i)
+      if (bod->rank != i && !SET_Contains (bod->children, (void*) (long) i, NULL)) /* neither current nor a new body rank, and not a proper child */
       {
-	SET_Insert (&dom->setmem, &dbd [i].children, bod, NULL);
+	SET_Insert (&dom->setmem, &dbd [i].fakechildren, bod, NULL); /* a fake child */
 	SET_Insert (&dom->setmem, &bod->children, (void*) (long) i, NULL);
       }
     }
@@ -1473,6 +1480,11 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
   for (item = SET_First (dbd->children); item; item = SET_Next (item))
     pack_child (item->data, dsize, d, doubles, isize, i, ints);
 
+  /* pack exported fake children */
+  pack_int (isize, i, ints, SET_Size (dbd->fakechildren));
+  for (item = SET_First (dbd->fakechildren); item; item = SET_Next (item))
+    pack_child (item->data, dsize, d, doubles, isize, i, ints);
+
   /* pack exported constraints */
   pack_int (isize, i, ints, SET_Size (dbd->constraints));
   for (item = SET_First (dbd->constraints); item; item = SET_Next (item))
@@ -1501,7 +1513,14 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
-    unpack_child (dom, dpos, d, doubles, ipos, i, ints);
+    unpack_child (dom, 0, dpos, d, doubles, ipos, i, ints);
+  }
+
+  /* unpack imported fake children */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    unpack_child (dom, BODY_CHILD_FAKE, dpos, d, doubles, ipos, i, ints);
   }
 
   /* unpack imporeted constraints */
@@ -1840,7 +1859,7 @@ static void domain_balancing (DOM *dom)
 
   int rank;
 
-  for (i = 0; i < num_export; i ++)
+  for (i = 0; dom->bod && i < num_export; i ++)
   {
     ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) export_global_ids [i], NULL), "Invalid body id");
     rank = export_procs [i];
@@ -1862,8 +1881,8 @@ static void domain_balancing (DOM *dom)
 	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
 	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
 
-#if !ZOLTAN_WORKAROUND_1
-  for (i = 0; i < num_export; i ++)
+#if ZOLTAN_WORKAROUND_1
+  for (i = 0; dom->con && i < num_export; i ++)
   {
     ASSERT_DEBUG_EXT (con = MAP_Find (dom->idc, (void*) (long) export_global_ids [i], NULL), "Invalid constraint id");
     rank = export_procs [i];
@@ -1874,7 +1893,7 @@ static void domain_balancing (DOM *dom)
     }
   }
 #else
- /* XXX: Zoltan workaround => * Zoltan_LB_Box_Assign and Zoltan_LB_Point_Assign give inconsistent
+ /* XXX: Zoltan workaround => Zoltan_LB_Box_Assign and Zoltan_LB_Point_Assign give inconsistent
   * XXX: results for flat point sets: point cpu might not be in the box cpus set, even though
   * XXX: the point is contained in the box; Since box query is used for child export we need to
   * XXX: make sure that constraints are exported consitently with children; hence box query here */
@@ -1931,6 +1950,7 @@ static void domain_balancing (DOM *dom)
   {
     SET_Free (&dom->setmem, &dbd [i].bodies);
     SET_Free (&dom->setmem, &dbd [i].children);
+    SET_Free (&dom->setmem, &dbd [i].fakechildren);
     SET_Free (&dom->setmem, &dbd [i].constraints);
     SET_Free (&dom->setmem, &dbd [i].remove);
   }
