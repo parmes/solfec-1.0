@@ -181,7 +181,7 @@ static void detach_and_attach (AABB *aabb)
   {
     COPY6 (box->extents, e);
 
-    ASSERT (Zoltan_LB_Box_Assign (dom->zolbod, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+    ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
     for (j = 0; j < numprocs; j ++)
     {
@@ -207,7 +207,7 @@ static void detach_and_attach (AABB *aabb)
 
 	update (sgp->shp->data, sgp->gobj, e);
 
-	ASSERT (Zoltan_LB_Box_Assign (dom->zolbod, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+	ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
 	for (j = 0; j < numprocs; j ++)
 	{
@@ -229,11 +229,7 @@ static void detach_and_attach (AABB *aabb)
   /* attach children */
   for (item = SET_First (dom->children); item; item = SET_Next (item))
   {
-    bod = item->data;
-
-    if (bod->flags & BODY_CHILD_FAKE) continue; /* skip fake children */
-
-    for (sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
+    for (bod = item->data, sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
     {
       if (sgp->box == NULL)
       {
@@ -241,7 +237,7 @@ static void detach_and_attach (AABB *aabb)
 
 	update (sgp->shp->data, sgp->gobj, e);
 
-	ASSERT (Zoltan_LB_Box_Assign (dom->zolbod, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+	ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 
 	for (j = 0; j < numprocs; j ++)
 	{

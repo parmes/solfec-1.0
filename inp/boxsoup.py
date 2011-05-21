@@ -61,8 +61,6 @@ GRAVITY (solfec, (0, 0, -10))
 gs = GAUSS_SEIDEL_SOLVER (1E-7, 1000)
 #gs = NEWTON_SOLVER (1E-6, 100)
 
-IMBALANCE_TOLERANCE (solfec, 2.0, lockdir = 'ON')
-
 make_big_box (0, 0, 0, n, n, n, bulk, solfec)
 
 boxes = []

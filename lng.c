@@ -188,6 +188,7 @@ static int is_in_range (double num, char *var, double min, double max)
   return 1;
 }
 
+#if 0
 /* a bigger queal test */
 static int is_ge (double num, char *var, double val)
 {
@@ -201,6 +202,7 @@ static int is_ge (double num, char *var, double val)
 
   return 1;
 }
+#endif
 
 /* test whether a number <= val */
 static int is_le (double num, char *var, double val)
@@ -225,6 +227,21 @@ static int is_gt_le (double num, char *var, double lo, double hi)
   if (num <= lo || num > hi)
   {
     sprintf (buf, "'%s' must be a number > %g and <= %g", var, lo, hi);
+    PyErr_SetString (PyExc_TypeError, buf);
+    return 0;
+  }
+
+  return 1;
+}
+
+/* test whether a num is in [lo, hi] */
+static int is_ge_le (double num, char *var, double lo, double hi)
+{
+  char buf [BUFLEN];
+
+  if (num < lo || num > hi)
+  {
+    sprintf (buf, "'%s' must be a number >= %g and <= %g", var, lo, hi);
     PyErr_SetString (PyExc_TypeError, buf);
     return 0;
   }
@@ -4983,43 +5000,19 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
 /* set imbalance tolerances */
 static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "tolerance", "lockdir", "degenratio", "weightfactor");
+  KEYWORDS ("solfec", "tolerance", "weightfactor");
   lng_SOLFEC *solfec;
-  PyObject *lockdir;
   double tolerance,
-	 degenratio,
 	 weightfactor;
 
-  lockdir = NULL;
-  degenratio = 10.0;
   weightfactor = 1.0;
 
-  PARSEKEYS ("Od|Odd", &solfec, &tolerance, &lockdir, &degenratio, &weightfactor);
+  PARSEKEYS ("Od|d", &solfec, &tolerance, &weightfactor);
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (tolerance, kwl[1]) &&
-            is_string (lockdir, kwl [2]) && is_ge (degenratio, kwl [3], 1.0));
-
+            is_ge_le (weightfactor, kwl [2], 0.0, 1.0));
 #if MPI
-  solfec->sol->dom->imbalance_tolerance = tolerance;
-  solfec->sol->dom->degenerate_ratio = degenratio;
   solfec->sol->dom->weight_factor = weightfactor;
-
-  if (lockdir)
-  {
-    IFIS (lockdir, "ON")
-    {
-      solfec->sol->dom->lock_directions = 1;
-    }
-    ELIF (lockdir, "OFF")
-    {
-      solfec->sol->dom->lock_directions = 0;
-    }
-    ELSE
-    {
-      PyErr_SetString (PyExc_ValueError, "Invalid lockdir value: 'ON' or 'OFF' allowed");
-      return NULL;
-    }
-  }
 #endif
 
   Py_RETURN_TRUE;

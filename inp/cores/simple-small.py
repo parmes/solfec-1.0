@@ -6,8 +6,8 @@ from simple_core_base import *
 # main module
 
 step = 0.0002
-stop = 100 * step
-outfrq = step
+stop = 10
+outfrq = 0.03
 kinem = 'PSEUDO_RIGID'
 solver = 'NEWTON'
 scheme = 'DEFAULT'
