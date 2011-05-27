@@ -2429,20 +2429,44 @@ static int lng_BODY_set_nodecontact (lng_BODY *self, PyObject *value, void *clos
   {
     BODY *bod = self->bod;
     DOM *dom = bod->dom;
+    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      CON *con = item->data;
+      con->msgp = (SGP*) (long) (con->msgp - bod->sgp);
+      if (con->slave) con->ssgp = (SGP*) (long) (con->ssgp - bod->sgp);
+    }
     AABB_Delete_Body (dom->aabb, bod);
     free (bod->sgp);
     bod->flags |= BODY_DETECT_NODE_CONTACT;
     bod->sgp = SGP_Create (bod->shape, &bod->nsgp, SGP_MESH_NODES);
+    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      CON *con = item->data;
+      con->msgp = &bod->sgp [(long) con->msgp];
+      if (con->slave) con->ssgp = &bod->sgp [(long) con->ssgp];
+    }
     AABB_Insert_Body (dom->aabb, bod);
   }
   ELIF (value, "OFF")
   {
     BODY *bod = self->bod;
     DOM *dom = bod->dom;
+    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      CON *con = item->data;
+      con->msgp = (SGP*) (long) (con->msgp - bod->sgp);
+      if (con->slave) con->ssgp = (SGP*) (long) (con->ssgp - bod->sgp);
+    }
     AABB_Delete_Body (dom->aabb, bod);
     free (bod->sgp);
     self->bod->flags &= ~BODY_DETECT_NODE_CONTACT;
     bod->sgp = SGP_Create (bod->shape, &bod->nsgp, 0);
+    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
+    {
+      CON *con = item->data;
+      con->msgp = &bod->sgp [(long) con->msgp];
+      if (con->slave) con->ssgp = &bod->sgp [(long) con->ssgp];
+    }
     AABB_Insert_Body (dom->aabb, bod);
   }
   ELSE
