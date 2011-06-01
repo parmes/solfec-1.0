@@ -129,13 +129,15 @@ TMS* TMS_File (char *path)
     }
   }
 
-  ts->size --;
-
   if (ts->size == 0)
   {
     free (ts->points);
     free (ts);
     ASSERT (0, ERR_FILE_EMPTY);
+  }
+  else
+  {
+    ERRMEM (ts->points = realloc (ts->points, sizeof (double [2]) * ts->size)); /* trim */
   }
 
   ts->marker = 0;
