@@ -71,14 +71,14 @@ acc = TIME_SERIES (gen [1])
 for b in solfec.bodies:
   c = b.center
   t = b.tensor
-  if b.label == 'FBH':
+  if b.label == 'fbh':
     p = TRANSLATE (c, (0.1, -0.1, 0))
     FIX_DIRECTION (b, p, (0, 0, -1))
     p = TRANSLATE (c, (-0.1, -0.1, 0))
     FIX_DIRECTION (b, p, (0, 0, -1))
     p = TRANSLATE (c, (0, 0.15, 0))
     FIX_DIRECTION (b, p, (0, 0, -1))
-  elif b.label == 'IBH':
+  elif b.label == 'ibh':
     if abs (t [0]-t[4]) < 1E-6: # symmetrical case
       p = TRANSLATE (c, (0.08, -0.08, 0))
       FIX_DIRECTION (b, p, (0, 0, -1))
@@ -120,7 +120,7 @@ for b in solfec.bodies:
 	FIX_DIRECTION (b, p, (0, 0, -1))
 	p = TRANSLATE (c, (-0.08, 0.04, 0))
 	FIX_DIRECTION (b, p, (0, 0, -1))
-  elif b.label == 'LKH':
+  elif b.label == 'lkh':
     if t [0] < 0.51 * t [4]: # key along x
       p = TRANSLATE (c, (0.0369, 0.016, 0))
       FIX_DIRECTION (b, p, (0, 0, -1))
