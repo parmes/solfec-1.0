@@ -92,93 +92,155 @@ def SPLIT (str):
 
   return out
 
+def READLINE (inp):
+  return inp.readline().lower()
+
 def ABAQUS_PARSE (path):
 
   inp = open (path, 'r')
-  lin = inp.readline ()
+  lin = READLINE (inp)
   volid = 1 # spare volume id
   parts = dict () # all parts
   assems = dict () # all assemblies
   elsets = dict () # all element sets
   materials = dict () # all materials
 
-  if lin.find ('*Heading') < 0:
+  if lin.find ('*heading') < 0:
     print 'Invalid Abaqus formar: *Heading not in first line'
     raise NameError ('*Heading')
 
   while lin != "":
 
-    lin = inp.readline ()
+    lin = READLINE (inp)
 
 # ------------------------------ Part ---------------------------------
 
-    if lin.find ('*Part') >= 0:
+    if lin.find ('*part') >= 0:
 
+      skip = 0
       p = Part ()
       lst = SPLIT (lin)
-      p.name = lst [1].lstrip ('name=')
+      p.name = lst [1].replace ('name=', '')
+      nmap = dict ()
 
-      lin = inp.readline ()
-      while lin.find ('*End Part') < 0:
+      lin = READLINE (inp)
+      while lin.find ('*end part') < 0:
 
-	if  lin.find ('*Node') >= 0:
-	  lin = inp.readline ()
+	if  lin.find ('*node') >= 0:
+	  lin = READLINE (inp)
 	  lst = SPLIT (lin)
 	  while lst [0].replace (',', '').isdigit():
 	    p.nodes.append (float (lst [1].replace (',', '')))
 	    p.nodes.append (float (lst [2].replace (',', '')))
 	    p.nodes.append (float (lst [3].replace (',', '')))
-	    lin = inp.readline ()
+	    lin = READLINE (inp)
 	    lst = SPLIT (lin)
-	elif lin.find ('*Element') >= 0:
+	elif lin.find ('*element') >= 0:
 	  lst = SPLIT (lin)
-	  type = lst [1].lstrip ('type=')
-	  if type == 'C3D8R': type = 8
+	  type = lst [1].replace ('type=', '').replace (',', '')
+	  deflen = 0
+	  if type == 'c3d8r':
+	    type = 8
+	    deflen = 8
+	  elif type == 'c3d20':
+	    print 'ABAQUS_READ WARNING: converting 20 node bricks into 8 node ones!'
+	    type = 8
+	    deflen = 20
 	  else:
-	    print 'Invalid element type:', type
-	    raise NameError (str(type))
-          lin = inp.readline ()
+	    print 'ABAQUS_READ WARNING: Invalid element type:', type, ' => The part "', p.name, '" will be skipped!'
+	    skip = 1
+	    break
+
+          lin = READLINE (inp)
 	  lst = SPLIT (lin)
 	  while lst [0].replace (',', '').isdigit():
 	    p.elements.append (type)
-	    for i in range (type):
-	      p.elements.append (int (lst [i+1].replace (',', '')) - 1) # zero based
+	    for i in range (len (lst)-1):
+	      if i < type:
+		num = int (lst [i+1].replace (',', '')) - 1 # zero based
+		p.elements.append (num)
+		if num not in nmap:
+		  nmap [num] = len (nmap)
+
+	    while i+1 < deflen:
+	      lin = READLINE (inp)
+	      lst = SPLIT (lin)
+	      for j in range (len (lst)):
+		i = i+1
+		if i < type:
+		  num = int (lst [j].replace (',', '')) - 1 # zero based
+		  p.elements.append (num)
+		  if num not in nmap:
+		    nmap [num] = len (nmap)
+
 	    p.elements.append (volid)
-	    lin = inp.readline ()
+	    lin = READLINE (inp)
 	    lst = SPLIT (lin)
-	elif lin.find ('*Elset') >= 0:
+	elif lin.find ('*elset') >= 0:
 	  # TODO => implement element sets
-          lin = inp.readline ()
-	elif lin.find ('*Solid Section') >= 0:
+          lin = READLINE (inp)
+	elif lin.find ('*solid section') >= 0:
 	  # TODO => implement material to element set mapping
 	  lst = SPLIT (lin)
 	  for l in lst:
 	    if l.find ('material=') >= 0:
-	      p.material = l.lstrip ('material=') # XXX => one material per part
-          lin = inp.readline ()
-	else: lin = inp.readline ()
+	      p.material = l.replace ('material=', '').replace (',', '') # XXX => one material per part
+          lin = READLINE (inp)
+	else: lin = READLINE (inp)
 
-      parts [p.name] = p
-      volid = volid + 1
+      if not skip:
+
+	rmap = dict ()
+	for n in nmap: # reversed node map (new to old)
+	  rmap [nmap [n]] = n
+
+	nodes = []
+	for n in rmap: # remap nodes (e.g. for 20 node bricks converetd into 8 node ones)
+	  i = rmap [n]
+	  nodes.append (p.nodes [i*3])
+	  nodes.append (p.nodes [i*3+1])
+	  nodes.append (p.nodes [i*3+2])
+        p.nodes = nodes
+
+        i = 0
+	while i < len (p.elements): # remap element node numbers
+	  for j in range (p.elements [i]):
+	    p.elements [i+1+j] = nmap [p.elements [i+1+j]]
+	  i += p.elements [i]+2
+
+	parts [p.name] = p
+	volid = volid + 1
 
 # -------------------------- Assembly ---------------------------------
 
-    elif lin.find ('*Assembly') >= 0:
+    elif lin.find ('*assembly') >= 0:
 
       lst = SPLIT (lin)
       a = Assembly ()
-      a.name = lst [1].lstrip ('name=')
+      a.name = lst [1].replace ('name=', '')
 
-      lin = inp.readline ()
-      while lin.find ('*End Assembly') < 0:
+      lin = READLINE (inp)
+      while lin.find ('*end assembly') < 0:
 
-	if lin.find ('*Instance') >= 0:
+	if lin.find ('*instance') >= 0:
 	  i = Instance ()
 	  lst = SPLIT (lin)
-	  i.name = lst [1].lstrip ('name=').replace (',', '')
-	  i.part = lst [2].lstrip ('part=')
-	  lin = inp.readline ()
-	  while lin.find ('*End Instance') < 0:
+	  if lst [1].find ('name=') >= 0 and lst [2].find ('part=') >= 0:
+	    i.name = lst [1].replace ('name=', '').replace (',', '')
+	    i.part = lst [2].replace ('part=', '').replace (',', '')
+	  elif lst [2].find ('name=') >= 0 and lst [1].find ('part=') >= 0:
+	    i.name = lst [2].replace ('name=', '').replace (',', '')
+	    i.part = lst [1].replace ('part=', '').replace (',', '')
+	  else:
+	    print 'Invalid line in instance definition:', lin
+	    raise NameError (lin)
+
+	  if i.part not in parts:
+	    print 'ABAQUS_READ WARNING: Skipping assembly part:', i.part, '!'
+	    break
+
+	  lin = READLINE (inp)
+	  while lin.find ('*end instance') < 0:
 	    lst = SPLIT (lin)
 	    if len (lst) == 3:
 	      i.translate = (float (lst [0].replace (',', '')),
@@ -198,21 +260,21 @@ def ABAQUS_PARSE (path):
 	      print 'Invalid line in instance definition:', lin
 	      raise NameError (lin)
 
-	    lin = inp.readline ()
+	    lin = READLINE (inp)
 
 	  a.instances [i.name] = i
 
 	  # ---- Instance end ----
 
-        elif lin.find ('*Elset') >= 0:
+        elif lin.find ('*elset') >= 0:
 	  lst = SPLIT (lin)
 	  name = 'null'
 	  inst = 'null'
 	  for l in lst:
 	    if l.find ('elset=') >= 0:
-              name = l.lstrip ('elset=').replace (',', '')
+              name = l.replace ('elset=', '').replace (',', '')
 	    elif l.find ('instance=') >= 0:
-              inst = l.lstrip ('instance=').replace (',', '')
+              inst = l.replace ('instance=', '').replace (',', '')
 	  if name != 'null' and inst != 'null':
 	    if name in a.elsets:
 	      a.elsets [name].instances.append (inst)
@@ -226,11 +288,11 @@ def ABAQUS_PARSE (path):
 
 	  # ---- Elset end ----
 
-        elif lin.find ('*Rigid Body') >= 0:
+        elif lin.find ('*rigid body') >= 0:
 	  lst = SPLIT (lin)
 	  for l in lst:
 	    if l.find ('elset=') >= 0:
-	      name = l.lstrip ('elset=')
+	      name = l.replace ('elset=', '')
 	      if name in a.elsets:
 		a.rigbods.append (name)
 	      else:
@@ -239,34 +301,35 @@ def ABAQUS_PARSE (path):
 
 	  # ---- Rigid Body end ----
 
-	lin = inp.readline ()
+	lin = READLINE (inp)
 
       assems [a.name] = a
 
 # ------------------------------ Material ---------------------------------
 
-    elif lin.find ('*Material') >= 0:
+    elif lin.find ('*material') >= 0:
 
       lst = SPLIT (lin)
       m = Material ()
-      m.name = lst [1].lstrip ('name=')
-      lin = inp.readline ()
-      if lin.find ('*Density') >= 0:
-        lin = inp.readline ()
+      m.name = lst [1].replace ('name=', '')
+      lin = READLINE (inp)
+      if lin.find ('*density') >= 0:
+        lin = READLINE (inp)
 	lst = SPLIT (lin)
 	m.density = float (lst [0].replace (',', ''))
       else:
-	print 'Density definition is missing'
-	raise NameError (lin)
-      lin = inp.readline ()
-      if lin.find ('*Elastic') >= 0:
-        lin = inp.readline ()
+	print 'ABAQUS_READ WARNING: Density definition is missing => Assuming 1.0!'
+	m.density = 1.0
+      lin = READLINE (inp)
+      if lin.find ('*elastic') >= 0:
+        lin = READLINE (inp)
 	lst = SPLIT (lin)
 	m.young = float (lst [0].replace (',', ''))
 	m.poisson = float (lst [1].replace (',', ''))
       else:
-	print 'Elastic parameters definition is missing'
-	raise NameError (lin)
+	print 'ABAQUS_READ WARNING: Elastic parameters definition is missing => Assuming: 1.0 and 0.0!'
+	m.young = 1.0
+	m.poisson = 0.0
 
       materials [m.name] = m
  
@@ -296,12 +359,16 @@ def ABAQUS_READ (path, solfec):
 
   for akey in assems:
     a = assems [akey]
+    used_insts  = dict ()
+
+    # rigid bodies
     for ekey in a.rigbods:
       e = a.elsets [ekey]
       shp = []
       material = 'Mateiral0'
       blabel = 'Body0'
       for ikey in e.instances:
+	used_insts [ikey] = 1 # mark as used
 	i = a.instances [ikey]
 	p = parts [i.part]
 	blabel = p.name
@@ -316,3 +383,21 @@ def ABAQUS_READ (path, solfec):
       else:
 	print 'Invalid bulk material'
 	raise NameError (material)
+
+    for ikey in a.instances:
+      if ikey not in used_insts:
+	material = 'Mateiral0'
+	blabel = 'Body0'
+	i = a.instances [ikey]
+	p = parts [i.part]
+	blabel = p.name
+	material = p.material # XXX => pick the last one
+	s = MESH (p.nodes, p.elements, surfid)
+	if l2 (i.translate) > 0.0: TRANSLATE (s, i.translate)
+	if l2 (i.direction) > 0.0: ROTATE (s, i.point, i.direction, i.angle)
+
+	bulkmat = BYLABEL (solfec, 'BULK_MATERIAL',  material)
+	if bulkmat != None: BODY (solfec, 'FINITE_ELEMENT', s, bulkmat, label = blabel)
+	else:
+	  print 'Invalid bulk material'
+	  raise NameError (material)
