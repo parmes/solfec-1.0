@@ -3892,6 +3892,9 @@ void RND_Mouse (int button, int state, int x, int y)
       {
 	switch (tool_mode)
 	{
+	case TOOLS_POINTS_COORDS:
+	  printf ("POINT: %g, %g, %g\n", picked_point [0], picked_point [1], picked_point [2]);
+	  break;
 	case TOOLS_POINTS_DISTANCE:
 	  if (picked_point_hist [0])
 	  {
@@ -3990,14 +3993,7 @@ void RND_Passive (int x, int y)
   }
   else if (mouse_mode == MOUSE_PICK_POINT)
   {
-    double *prev = picked_point;
-
     picked_point = pick_point (x, y);
-
-    if (picked_point && picked_point != prev)
-    {
-      printf ("POINT: %g, %g, %g\n", picked_point [0], picked_point [1], picked_point [2]);
-    }
 
     GLV_Redraw_All ();
   }
