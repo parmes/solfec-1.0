@@ -1941,7 +1941,7 @@ static void BC_update_rotation (BODY *bod, MESH *msh, double *q, double *R)
   ASSERT (iter < MAX_ITERS, ERR_FEM_ROT_NEWTON_DIVERGENCE);
 }
 
-/* fint = R K R' [(I-R)Z + q + (h/4) u] */
+/* fint = R K R' [(I-R)Z + q] */
 static void BC_internal_force (BODY *bod, double *R, double *q, double *fint)
 {
   double *a, *b, *x, *y, *z, *d, (*Z) [3], (*e) [3], Y [3];
