@@ -1,4 +1,3 @@
-# simple core model fuel brick drop
 import sys
 sys.path.append ('inp/cores/inc')
 from simple_core_base import *
@@ -40,7 +39,7 @@ def scene_base (material, solfec):
 def scene_run (step, stop, kinem, formul, damp):
 
   solver = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
-  solfec = SOLFEC ('DYNAMIC', step, 'out/fuel-brick-impact/' + kinem + '_' + str(step) + '_' + str (stop) + '_' + formul + '_' + str (damp))
+  solfec = SOLFEC ('DYNAMIC', step, 'out/body-impact/' + kinem + '_' + str(step) + '_' + str (stop) + '_' + formul + '_' + str (damp))
   bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E10, poisson = 0.2, density = 2E3)
   SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 0.0)
   GRAVITY (solfec, (0, 0, -10))
@@ -50,7 +49,6 @@ def scene_run (step, stop, kinem, formul, damp):
   msh = PIPE ((0, 0, 1), (0, 0, 0.45), 0.125, 0.13, 3, 8, 2, 0, [0, 0, 0, 0])
   bod = BODY (solfec , kinem, shp, bulkmat, mesh = msh, form = formul, label = 'FU')
   if kinem != 'RIGID': bod.scheme = 'DEF_LIM'
-  #INITIAL_VELOCITY (bod, (0, 0, -1), (0, 0, 0))
   bod.damping = damp
 
   RUN (solfec, solver, stop)
@@ -60,6 +58,7 @@ def scene_run (step, stop, kinem, formul, damp):
 # main module
 #import rpdb2; rpdb2.start_embedded_debugger('a')
 
+WARNINGS ('OFF')
 stop = 0.8
 pairs = []
 pairs.append (scene_run (0.0010, stop, 'FINITE_ELEMENT', 'BC', 0))
@@ -95,7 +94,7 @@ if not VIEWER() and pairs [0][0].mode == 'READ':
     plt.xlabel ('Time [s]')
     plt.ylabel ('Displacement DZ [m]')
     plt.legend(loc = 'lower left')
-    plt.savefig ('out/fuel-brick-impact/fb_dz_varstep.eps')
+    plt.savefig ('out/body-impact/fb_dz_varstep.eps')
   except ImportError:
     pass # no reaction
 
@@ -120,6 +119,6 @@ if not VIEWER() and pairs [0][0].mode == 'READ':
     plt.xlabel ('Time [s]')
     plt.ylabel ('Displacement DZ [m]')
     plt.legend(loc = 'lower left')
-    plt.savefig ('out/fuel-brick-impact/fb_dz_vareta.eps')
+    plt.savefig ('out/body-impact/fb_dz_vareta.eps')
   except ImportError:
     pass # no reaction
