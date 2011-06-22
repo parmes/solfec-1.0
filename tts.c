@@ -333,7 +333,7 @@ static int PrecondSetup (void *vdata, void *A, void *b, void *x)
   return 0;
 }
 
-static int Precond0 (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
+static int Precond (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
 {
   double *T, *Q, *R;
   CON_DATA *dat;
@@ -346,113 +346,6 @@ static int Precond0 (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
 
   return 0;
 }
-
-#if 0
-static int Precond1 (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
-{
-  hypre_FlexGMRESFunctions *gmres_functions;
-  void *gmres_vdata;
-  int ret;
-
-  gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
-    (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
-    MatvecCreate, (int (*) (void*,double,void*,void*,double,void*))Matvec, MatvecDestroy,
-    (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
-    (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
-    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond0);
-  gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
-
-  hypre_FlexGMRESSetMinIter (gmres_vdata, 3);
-  hypre_FlexGMRESSetMaxIter (gmres_vdata, 3);
-  hypre_FlexGMRESSetup (gmres_vdata, A, b, x);
-  ret = hypre_FlexGMRESSolve (gmres_vdata, A, b, x);
-  hypre_FlexGMRESDestroy (gmres_vdata);
-
-  return 0;
-}
-#endif
-
-#if 0
-static int Precond2 (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
-{
-  int n = A->end - A->start, i, j;
-  MEM mapmem, dblmem;
-  MAP **col;
-
-  ERRMEM (col = MEM_CALLOC (3*n*sizeof (SET*)));
-  MEM_Init (&mapmem, sizeof (MAP), 1204);
-  MEM_Init (&dblmem, sizeof (double [9]), 256);
-
-  for (CON_DATA *dat = A->start; dat != A->end; dat ++)
-  {
-    double *X = dat->X, *Y = dat->Y;
-    CON *con = dat->con;
-    DIAB *dia = con->dia;
-    double *W = dia->W;
-    i = con->num, j = i;
-    double *T = MEM_Alloc (&dblmem);
-    int ii, jj;
-    NNMUL (X, W, T);
-    NNADD (T, Y, T);
-    T [0] += A->delta;
-    T [4] += A->delta;
-    T [8] += A->delta;
-    for (ii = 0; ii < 3; ii ++)
-      for (jj = 0; jj < 3; jj ++)
-        MAP_Insert (&mapmem, &col [j+jj], (void*) (long) (i+ii), &T[3*jj+ii], NULL);
-
-#if 0
-    for (OFFB *blk = dia->adj; blk; blk = blk->n)
-    {
-      j = blk->dia->con->num;
-      if (ABS (i-j) == 3)
-      {
-	double XW [9];
-	W = blk->W;
-	if (!(T = MAP_Find (col [j], (void*) (long) i, NULL))) T = MEM_Alloc (&dblmem);
-	NNMUL (X, W, XW);
-	NNADD (T, XW, T);
-	for (ii = 0; ii < 3; ii ++)
-	  for (jj = 0; jj < 3; jj ++)
-	    MAP_Insert (&mapmem, &col [j+jj], (void*) (long) (i+ii), &T[3*jj+ii], NULL);
-      }
-    }
-#endif
-  }
-
-  MX *P;
-  ERRMEM (P = MEM_CALLOC (sizeof (MX)));
-  P->nz = -1;
-  P->kind = MXCSC;
-  P->m = P->n = 3*n;
-  ERRMEM (P->p = MEM_CALLOC (sizeof (int [P->m+1])));
-  for (j = 1; j < P->m+1; j ++)
-  {
-    P->p [j] = P->p[j-1] + MAP_Size (col [j-1]);
-  }
-  P->nzmax = P->p [P->m];
-  ERRMEM (P->i = MEM_CALLOC (sizeof (int [P->nzmax])));
-  ERRMEM (P->x = MEM_CALLOC (sizeof (double [P->nzmax])));
-  for (j = 0, i = 0; j < P->m; j ++)
-  {
-    MAP *item;
-    for (item = MAP_First (col [j]); item; item = MAP_Next (item), i ++)
-    {
-      P->i [i] = (int) (long) item->key;
-      P->x [i] = *((double*) item->data);
-    }
-  }
-
-  MX_Inverse (P, P);
-  MX_Matvec (1.0, P, b->x, 0.0, x->x);
-  MX_Destroy (P);
-  MEM_Release (&mapmem);
-  MEM_Release (&dblmem);
-  free (col);
-
-  return 0;
-}
-#endif
 
 /* GMRES interface end */
 
@@ -515,47 +408,54 @@ static PRIVATE *create_data (TEST *ts, LOCDYN *ldy)
   return A;
 }
 
-/* returns average fabs (Tii) */
-static double average_abs_Tii (PRIVATE *A)
+/* return average Wii */
+static double average_Wii (PRIVATE *A)
 {
-  double Tii [2] = {0, 0},
-	 avg;
+  double Wii [2] = {0, 0};
 
   for (CON_DATA *dat = A->start; dat != A->end; dat ++)
   {
-    double *T = dat->T;
-    Tii [0] += fabs (T[8]);
-    Tii [1] += 1.0;
+    double *W = dat->con->dia->W;
+    Wii [0] += fabs (W [8]);
+    Wii [1] += 1.0;
   }
 
 #if MPI
-  double Tjj [2] = {Tii [0], Tii [1]};
-  MPI_Allreduce (Tjj, Tii, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  double Wjj [2] = {Wii [0], Wii [1]};
+  MPI_Allreduce (Wjj, Wii, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
-  avg = Tii [0] / Tii [1];
+  return Wii [0] / Wii [1];
+}
 
-#if 0
-  double sde;
+/* return |constraint dofs| / |body dofs| */
+static double overdeterminancy (PRIVATE *A)
+{
+  double data0 [2] = {0, 0};
+  SET *bset = NULL;
 
-  Tii [0] = 0.0;
   for (CON_DATA *dat = A->start; dat != A->end; dat ++)
   {
-    double *T = dat->T;
-    Tii [0] += (fabs (T[8]) - avg) * (fabs (T[8]) - avg);
+    CON *con = dat->con;
+    data0 [0] += 3.0;
+    SET_Insert (NULL, &bset, con->master, NULL);
+    if (con->slave) SET_Insert (NULL, &bset, con->slave, NULL);
   }
 
+  for (SET *item = SET_First (bset); item; item = SET_Next (item))
+  {
+    BODY *bod = item->data;
+    data0 [1] += bod->dofs;
+  }
+
+  SET_Free (NULL, &bset);
+
 #if MPI
-  Tjj [0] = Tii [0];
-  MPI_Allreduce (Tjj, Tii, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_TORLD);
+  double data1 [2] = {data0 [0], data0 [1]};
+  MPI_Allreduce (data1, data0, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 #endif
 
-  sde = sqrt (Tii [0] / Tii [1]);
-
-  printf ("avg = %g, sde = %g\n", avg, sde);
-#endif
-
-  return avg;
+  return data0 [0] / data0 [1];
 }
 
 #if 0
@@ -698,8 +598,6 @@ static void update_system (PRIVATE *A)
     }
   }
 
-  A->delta = 1E-7 * average_abs_Tii (A); /* XXX */
-
   for (dat = A->start; dat != A->end; dat ++)
   {
     double *T = dat->T;
@@ -728,7 +626,7 @@ static void linear_solve (PRIVATE *A, double abstol, int maxiter)
     MatvecCreate, (int (*) (void*,double,void*,void*,double,void*))Matvec, MatvecDestroy,
     (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
     (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
-    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond0);
+    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond);
   gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
 
   hypre_error_flag = 0;
@@ -751,7 +649,7 @@ static void linear_solve (PRIVATE *A, double abstol, int maxiter)
     (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
     (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
     (int (*) (void*,int*,int*)) CommInfo,
-    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond0);
+    PrecondSetup, (int (*) (void*,void*,void*,void*))Precond);
   gmres_vdata = hypre_BiCGSTABCreate (gmres_functions);
 
   hypre_error_flag = 0;
@@ -888,11 +786,17 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
   A = create_data (ts, ldy);
   merit = &dom->merit;
   ts->iters = 0;
-  A->delta = 0;
   A->epsilon = 1E-11;
+#if 0
+  double coef = 0.025 * (overdeterminancy (A) / 5.0); /* XXX */
+  A->delta = coef * average_Wii (A);
+#else
+  A->delta = 0.7 * average_Wii (A); /* XXX */
+#endif
 
   do
   {
+
     update_system (A);
 
     linear_solve (A, 0.25 * A->bnorm,  ts->linmaxiter);
@@ -903,6 +807,13 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
 
     ts->merhist [ts->iters] = *merit;
     ts->mvhist [ts->iters] = A->matvec;
+
+#if 0
+    if (ts->iters)
+    {
+      A->delta *= (*merit) / ts->merhist [ts->iters-1];
+    }
+#endif
 
 #if MPI
     if (dom->rank == 0)
