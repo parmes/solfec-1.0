@@ -1,6 +1,7 @@
 # stack of cubes example (CONVEX and PSEUDO_RIGID)
 
 from math import pow
+import sys
 
 # test kind flag:
 # * 1 => parallel growing along one dimension (Gauss-Seidel with empty middle nodes sets)
@@ -9,11 +10,12 @@ from math import pow
 # * a number > 3 => fixed size model
 
 TEST = 8
-KINEM = 'PSEUDO_RIGID'
-SOLVER = 'nt'
-SAREA = 0.05
+KINEM = 'FINITE_ELEMENT'
+SOLVER = 'ts'
+SAREA = 0.0
 step = 0.001
-duration = 100 * step
+duration =  3 * step
+MAKE_TESTS = 0 # make convergence tests
 
 def cube (x, y, z, a, b, c, sur, vol):
 
@@ -57,8 +59,247 @@ def stack_of_cubes_create (material, solfec):
         b = BODY (solfec, KINEM, shp, material)
 	if KINEM != 'RIGID': b.scheme = 'DEF_LIM2'
 
+
+def create_solver (solver, kinem, sarea, meritval):
+  if solver == 'gs':
+    sv = GAUSS_SEIDEL_SOLVER (1E-2, 1000, meritval)
+  elif solver == 'ts':
+    if sarea > 0.0:
+	sv = TEST_SOLVER (meritval, 1000, 1000, 100, 0.5, 0.5E-7, 1E-11)
+    else:
+      if kinem == 'RIGID':
+	sv = TEST_SOLVER (meritval, 1000, 1000, 10, 0.4, 0.25E-7, 1E-11)
+      elif kinem == 'PSEUDO_RIGID':
+	sv = TEST_SOLVER (meritval, 1000, 1000, 10, 0.7, 1E-7, 1E-11)
+      else:
+        sv = TEST_SOLVER (meritval, 1000, 1000, 10, 0.4, 0.8E-7, 1E-11)
+  else:
+    if sarea > 0.0: sv = NEWTON_SOLVER (meritval, 1000, theta = 0.5, epsilon = 1E-11)
+    else: sv = NEWTON_SOLVER (meritval, 1000, theta = 0.1, epsilon = 1E-11)
+
+  return sv
+
+def merhist_callback (sname, sv, mh):
+  v = sv.merhist
+  if sname != 'ts': t = list (range (0, len (v)))
+  else: t = sv.mvhist
+  mh.append ((t, v))
+  return 1
+
+def create_simulation (nsteps, ncubes, kinem, solver, sarea, frict, meritval):
+
+  outdir = 'out/cubes_' + str (ncubes) + '_' + kinem + '_' + solver + '_' + str (frict)
+  solfec = SOLFEC ('DYNAMIC', step, outdir)
+  CONTACT_SPARSIFY (solfec, 0.005, sarea)
+  SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = frict)
+  bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E10, poisson = 0.25, density = 2E3)
+  GRAVITY (solfec, (0, 0, -10))
+
+  if kinem == 'rig': kin = 'RIGID'
+  elif kinem == 'prb': kin = 'PSEUDO_RIGID'
+  else: kin = 'FINITE_ELEMENT'
+
+  # create an obstacle base
+  shp = cube (0, 0, -1, ncubes, ncubes, 1, 1, 1)
+  BODY (solfec, 'OBSTACLE', shp, bulkmat)
+
+  # create the remaining bricks
+  for x in range (ncubes):
+    for y in range (ncubes):
+      for z in range (ncubes):
+	shp = cube (x, y, z, 1, 1, 1, 2, 2)
+        b = BODY (solfec, kin, shp, bulkmat)
+	if kinem != 'rig': b.scheme = 'DEF_LIM2'
+
+  sv = create_solver (solver, kin, sarea, meritval)
+  mh = []
+  CALLBACK (solfec, step, (solver, sv, mh), merhist_callback)
+  RUN (solfec, sv, step * nsteps)
+  return mh
+
+
+
 ### main module ###
 #import rpdb2; rpdb2.start_embedded_debugger('a')
+
+# conv. tests
+
+if not VIEWER() and MAKE_TESTS == 1:
+
+  meritval = 1e-15
+  ncubes = 8
+  mu = 0.3
+  tw1 = create_simulation (1, ncubes, 'rig', 'gs', 0.01, mu, meritval)
+  tw2 = create_simulation (1, ncubes, 'rig', 'ts', 0.01, mu, meritval)
+  tw3 = create_simulation (1, ncubes, 'prb', 'gs', 0.01, mu, meritval)
+  tw4 = create_simulation (1, ncubes, 'prb', 'ts', 0.01, mu, meritval)
+  tw5 = create_simulation (1, ncubes, 'fem', 'gs', 0.01, mu, meritval)
+  tw6 = create_simulation (1, ncubes, 'fem', 'ts', 0.01, mu, meritval)
+
+  ti1 = create_simulation (1, ncubes, 'rig', 'gs', 0.0, mu, meritval)
+  ti2 = create_simulation (1, ncubes, 'rig', 'ts', 0.0, mu, meritval)
+  ti3 = create_simulation (1, ncubes, 'prb', 'gs', 0.0, mu, meritval)
+  ti4 = create_simulation (1, ncubes, 'prb', 'ts', 0.0, mu, meritval)
+  ti5 = create_simulation (1, ncubes, 'fem', 'gs', 0.0, mu, meritval)
+  ti6 = create_simulation (1, ncubes, 'fem', 'ts', 0.0, mu, meritval)
+
+  try:
+    import matplotlib.pyplot as plt
+ 
+    plt.clf ()
+    for th in tw1: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in tw2: plt.plot (th [0], th[1], color = 'r', label = 'PQN1')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Rigid model, well-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_well_rig_GS_PQN1.eps')
+
+    plt.clf ()
+    for th in tw3: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in tw4: plt.plot (th [0], th[1], color = 'r', label = 'PQN1')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Pseudo-rigid model, well-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_well_prb_GS_PQN1.eps')
+
+    plt.clf ()
+    for th in tw5: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in tw6: plt.plot (th [0], th[1], color = 'r', label = 'PQN1')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Finite-element model, well-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_well_fem_GS_PQN1.eps')
+
+    plt.clf ()
+    for th in ti1: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in ti2: plt.plot (th [0], th[1], color = 'r', label = 'PQN1')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Rigid model, ill-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_ill_rig_GS_PQN1.eps')
+
+    plt.clf ()
+    for th in ti3: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in ti4: plt.plot (th [0], th[1], color = 'r', label = 'PQN1')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Pseudo-rigid model, ill-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_ill_prb_GS_PQN1.eps')
+
+    plt.clf ()
+    for th in ti5: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in ti6: plt.plot (th [0], th[1], color = 'r', label = 'PQN1')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Finite-element model, ill-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_ill_fem_GS_PQN1.eps')
+
+  except ImportError:
+    pass # no reaction
+ 
+  sys.exit ()
+
+elif not VIEWER() and MAKE_TESTS == 2:
+
+  meritval = 1e-15
+  ncubes = 8
+  mu = 0.3
+  tw1 = create_simulation (1, ncubes, 'rig', 'gs', 0.01, mu, meritval)
+  tw2 = create_simulation (1, ncubes, 'rig', 'ns', 0.01, mu, meritval)
+  tw3 = create_simulation (1, ncubes, 'prb', 'gs', 0.01, mu, meritval)
+  tw4 = create_simulation (1, ncubes, 'prb', 'ns', 0.01, mu, meritval)
+  tw5 = create_simulation (1, ncubes, 'fem', 'gs', 0.01, mu, meritval)
+  tw6 = create_simulation (1, ncubes, 'fem', 'ns', 0.01, mu, meritval)
+
+  ti1 = create_simulation (1, ncubes, 'rig', 'gs', 0.0, mu, meritval)
+  ti2 = create_simulation (1, ncubes, 'rig', 'ns', 0.0, mu, meritval)
+  ti3 = create_simulation (1, ncubes, 'prb', 'gs', 0.0, mu, meritval)
+  ti4 = create_simulation (1, ncubes, 'prb', 'ns', 0.0, mu, meritval)
+  ti5 = create_simulation (1, ncubes, 'fem', 'gs', 0.0, mu, meritval)
+  ti6 = create_simulation (1, ncubes, 'fem', 'ns', 0.0, mu, meritval)
+
+  try:
+    import matplotlib.pyplot as plt
+ 
+    plt.clf ()
+    for th in tw1: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in tw2: plt.plot (th [0], th[1], color = 'r', label = 'PQN2')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Rigid model, well-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_well_rig_GS_PQN2.eps')
+
+    plt.clf ()
+    for th in tw3: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in tw4: plt.plot (th [0], th[1], color = 'r', label = 'PQN2')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Pseudo-rigid model, well-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_well_prb_GS_PQN2.eps')
+
+    plt.clf ()
+    for th in tw5: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in tw6: plt.plot (th [0], th[1], color = 'r', label = 'PQN2')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Finite-element model, well-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_well_fem_GS_PQN2.eps')
+
+    plt.clf ()
+    for th in ti1: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in ti2: plt.plot (th [0], th[1], color = 'r', label = 'PQN2')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Rigid model, ill-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_ill_rig_GS_PQN2.eps')
+
+    plt.clf ()
+    for th in ti3: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in ti4: plt.plot (th [0], th[1], color = 'r', label = 'PQN2')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Pseudo-rigid model, ill-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_ill_prb_GS_PQN2.eps')
+
+    plt.clf ()
+    for th in ti5: plt.plot (th [0], th[1], color = 'b', label = 'GS')
+    for th in ti6: plt.plot (th [0], th[1], color = 'r', label = 'PQN2')
+    plt.semilogy (10)
+    plt.legend(loc = 'upper right')
+    plt.title ('Finite-element model, ill-conditioned, $\mu=0.3$')
+    plt.xlabel ('Matric-vector products')
+    plt.ylabel ('Merit function g')
+    plt.savefig ('out/cubes_8_0.3_ill_fem_GS_PQN2.eps')
+
+  except ImportError:
+    pass # no reaction
+
+  sys.exit ()
+
+
+# regular code
 
 outdir = 'out/cubes_' + str (TEST) + '_' + KINEM
 
@@ -68,18 +309,13 @@ CONTACT_SPARSIFY (solfec, 0.005, SAREA)
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E10, poisson = 0.25, density = 2E3)
 
 GRAVITY (solfec, (0, 0, -10))
 
 stack_of_cubes_create (bulkmat, solfec)
 
-if SOLVER == 'gs':
-  sv = GAUSS_SEIDEL_SOLVER (1E-2, 1000, 1E-7)
-else:
-  sv = NEWTON_SOLVER (1E-7, 1000, theta = 0.5)
-
-IMBALANCE_TOLERANCE (solfec, 1.1)
+sv = create_solver (SOLVER, KINEM, SAREA, 1E-8)
 
 OUTPUT (solfec, 1 * step, 'ON')
 

@@ -166,9 +166,6 @@ clean:
 obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
 
-obj/pqns.o: cuda/pqns.cu cuda/cuda.h
-	$(CC) $(CUFLAGS) -c -o $@ $<
-
 obj/fastlz.o: ext/fastlz.c ext/fastlz.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 

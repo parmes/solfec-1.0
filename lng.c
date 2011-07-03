@@ -3574,23 +3574,35 @@ struct lng_TEST_SOLVER
 /* constructor */
 static PyObject* lng_TEST_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("meritval", "maxiter");
+  KEYWORDS ("meritval", "maxiter", "maxmatvec", "linmaxiter", "epsilon", "delta", "omega");
   lng_TEST_SOLVER *self;
-  int maxiter;
-  double meritval;
+  int maxiter, linmaxiter, maxmatvec;
+  double meritval, epsilon, delta, omega;
 
   self = (lng_TEST_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    meritval = 1E-5;
-    maxiter = 20;
+    meritval = 1E-8;
+    maxiter = 1000;
+    maxmatvec = 1000;
+    linmaxiter = 10;
+    epsilon = 0.25;
+    delta = 0.51E-7;
+    omega = 1E-9;
 
-    PARSEKEYS ("|di", &meritval, &maxiter);
+    PARSEKEYS ("|diiiddd", &meritval, &maxiter, &maxmatvec, &linmaxiter, &epsilon, &delta, &omega);
 
-    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]));
+    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_positive (maxiter, kwl[2]) &&
+	      is_positive (maxiter, kwl[3]) && is_positive (epsilon, kwl[4]) && is_positive (delta, kwl[5]) &&
+	      is_positive (omega, kwl[6]));
 
     self->ts = TEST_Create (meritval, maxiter);
+    self->ts->maxmatvec = maxmatvec;
+    self->ts->linmaxiter = linmaxiter;
+    self->ts->epsilon = epsilon;
+    self->ts->delta = delta;
+    self->ts->omega = omega;
   }
 
   return (PyObject*)self;

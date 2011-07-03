@@ -408,97 +408,6 @@ static PRIVATE *create_data (TEST *ts, LOCDYN *ldy)
   return A;
 }
 
-/* return average Wii */
-static double average_Wii (PRIVATE *A)
-{
-  double Wii [2] = {0, 0};
-
-  for (CON_DATA *dat = A->start; dat != A->end; dat ++)
-  {
-    double *W = dat->con->dia->W;
-    Wii [0] += fabs (W [8]);
-    Wii [1] += 1.0;
-  }
-
-#if MPI
-  double Wjj [2] = {Wii [0], Wii [1]};
-  MPI_Allreduce (Wjj, Wii, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  return Wii [0] / Wii [1];
-}
-
-/* return |constraint dofs| / |body dofs| */
-static double overdeterminancy (PRIVATE *A)
-{
-  double data0 [2] = {0, 0};
-  SET *bset = NULL;
-
-  for (CON_DATA *dat = A->start; dat != A->end; dat ++)
-  {
-    CON *con = dat->con;
-    data0 [0] += 3.0;
-    SET_Insert (NULL, &bset, con->master, NULL);
-    if (con->slave) SET_Insert (NULL, &bset, con->slave, NULL);
-  }
-
-  for (SET *item = SET_First (bset); item; item = SET_Next (item))
-  {
-    BODY *bod = item->data;
-    data0 [1] += bod->dofs;
-  }
-
-  SET_Free (NULL, &bset);
-
-#if MPI
-  double data1 [2] = {data0 [0], data0 [1]};
-  MPI_Allreduce (data1, data0, 2, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-#endif
-
-  return data0 [0] / data0 [1];
-}
-
-#if 0
-static double power_iters (PRIVATE *A, int nit)
-{
-  VECTOR *v = newvector (3*(A->end-A->start));
-  VECTOR *w = newvector (3*(A->end-A->start));
-  double ret;
-
-  for (int i = 0; i < v->n; i ++) v->x [i] = 1.0;
-
-  for (int i = 0; i < nit; i ++)
-  {
-    for (CON_DATA *dat = A->start; dat != A->end; dat ++)
-    {
-      CON *con = dat->con;
-      DIAB *dia = con->dia;
-      double *W = dia->W;
-      double *x = &v->x [con->num];
-      double *y = &w->x [con->num];
-      NVMUL (W, x, y);
-      for (OFFB *blk = dia->adj; blk; blk = blk->n)
-      {
-	double *W = blk->W;
-	double *x = &v->x [blk->dia->con->num];
-	NVADDMUL (y, W, x, y);
-      }
-    }
-
-    double wlen = sqrt (InnerProd (w, w)),
-	   vlen = sqrt (InnerProd (v, v));
-    ScaleVector (1.0 / wlen, w);
-    CopyVector (w, v);
-    ret = wlen / vlen;
-    printf ("ret = %g\n", ret); /* XXX */
-  }
-
-  DestroyVector (v);
-  DestroyVector (w);
-  return ret;
-}
-#endif
-
 /* update linear system */
 static void update_system (PRIVATE *A)
 {
@@ -764,7 +673,11 @@ TEST* TEST_Create (double meritval, int maxiter)
   ERRMEM (ts = MEM_CALLOC (sizeof (TEST)));
   ts->meritval = meritval;
   ts->maxiter = maxiter;
-  ts->linmaxiter = maxiter * 10;
+  ts->maxmatvec = maxiter * 10;
+  ts->linmaxiter = 10;
+  ts->epsilon = 0.25;
+  ts->delta = 0.5E-7;
+  ts->omega = 1E-9;
 
   return ts;
 }
@@ -786,20 +699,14 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
   A = create_data (ts, ldy);
   merit = &dom->merit;
   ts->iters = 0;
-  A->epsilon = 1E-11;
-#if 0
-  double coef = 0.025 * (overdeterminancy (A) / 5.0); /* XXX */
-  A->delta = coef * average_Wii (A);
-#else
-  A->delta = 0.7 * average_Wii (A); /* XXX */
-#endif
+  A->epsilon = ts->omega;
+  A->delta = ts->delta;
 
   do
   {
-
     update_system (A);
 
-    linear_solve (A, 0.25 * A->bnorm,  ts->linmaxiter);
+    linear_solve (A, ts->epsilon * A->bnorm,  ts->linmaxiter);
 
     update_solution (A);
 
@@ -808,19 +715,12 @@ void TEST_Solve (TEST *ts, LOCDYN *ldy)
     ts->merhist [ts->iters] = *merit;
     ts->mvhist [ts->iters] = A->matvec;
 
-#if 0
-    if (ts->iters)
-    {
-      A->delta *= (*merit) / ts->merhist [ts->iters-1];
-    }
-#endif
-
 #if MPI
     if (dom->rank == 0)
 #endif
     if (dom->verbose) printf (fmt, A->iters, ts->iters, *merit);
 
-  } while (++ ts->iters < ts->maxiter && *merit > ts->meritval);
+  } while (++ ts->iters < ts->maxiter && *merit > ts->meritval && A->matvec < ts->maxmatvec);
 
 #if MPI
     if (dom->rank == 0)
