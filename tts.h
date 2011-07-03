@@ -34,7 +34,15 @@ struct test
 
   int maxiter; /* iterations bound */
 
+  int maxmatvec; /* matrix-vector products bound */
+
   int linmaxiter; /* linear solver iterations bound */
+
+  double epsilon; /* linear solver epsilon */
+
+  double omega; /* smoothing omega */
+
+  double delta; /* regularization delta */
 
   /* output */
 
