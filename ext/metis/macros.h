@@ -16,7 +16,7 @@
 /*************************************************************************
 * The following macro returns a random number in the specified range
 **************************************************************************/
-#ifdef __VC__
+#if defined (__VC__) || defined (__MINGW32__)
 #define RandomInRange(u) ((rand()>>3)%(u))
 #define RandomInRangeFast(u) ((rand()>>3)%(u))
 #else

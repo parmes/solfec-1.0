@@ -493,13 +493,13 @@ int ispow2(int a)
 void InitRandom(int seed)
 {
   if (seed == -1) {
-#ifndef __VC__
+#if !defined (__VC__) && !defined (__MINGW32__)
     srand48(7654321L);  
 #endif
     srand(4321);  
   }
   else {
-#ifndef __VC__
+#if !defined (__VC__) && !defined (__MINGW32__)
     srand48(seed);  
 #endif
     srand(seed);  

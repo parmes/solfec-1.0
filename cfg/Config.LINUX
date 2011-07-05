@@ -5,7 +5,7 @@
 OS = LINUX
 
 #
-# Specify C compiller here
+# Specify C compiler
 #
 
 CC = cc
@@ -27,12 +27,18 @@ FCLIB = -lgfortran
 # Debug or optimized version switch (yes/no)
 #
 
-DEBUG = yes
+DEBUG = no
 PROFILE = no
 MEMDEBUG = no
 GEOMDEBUG = no
-PARDEBUG = no
-NOTHROW = no
+PARDEBUG = yes
+NOTHROW = yes
+
+#
+# TIMERS (enable/disable detailed solver timings)
+#
+
+TIMERS = yes
 
 #
 # POSIX
@@ -41,31 +47,40 @@ NOTHROW = no
 POSIX = yes
 
 #
+# XDR
+#
+
+XDR = no
+
+XDRINC = 
+XDRLIB = 
+
+#
 # BLAS
 #
 
-BLAS = -lblas
+BLAS = -L/usr/lib -lblas
 
 #
 # LAPACK
 #
 
-LAPACK = -llapack
+LAPACK = -L/usr/lib -llapack
 
 #
 # Python
 #
 
-PYTHON = -I/usr/include/python2.5
-PYTHONLIB = -L/usr/lib -lpython2.5
+PYTHON = -I/usr/include/python2.6/ 
+PYTHONLIB = -lpython2.6
 
 #
 # OpenGL (yes/no)
 #
 
 OPENGL = yes
-GLINC = -I/usr/include
-GLLIB = -L/usr/lib -lglut
+GLINC =
+GLLIB = -lGL -lglut -lGLU
 
 #
 # VBO  (OPENGL == yes)
@@ -84,5 +99,5 @@ MPICC = mpicc
 # Zoltan (MPI == yes)
 #
 
-ZOLTANINC =
-ZOLTANLIB =
+ZOLTANINC = 
+ZOLTANLIB = 

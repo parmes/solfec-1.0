@@ -6830,7 +6830,13 @@ solver
 \series bold
 duration
 \series default
- - duration of analysis
+ - duration of analysis.
+ 
+\series bold
+Note:
+\series default
+ this parameter is ignored when an analysis is run in the viewer mode (with
+ -v switch).
 \end_layout
 
 \begin_layout Subsection*
