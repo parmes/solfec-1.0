@@ -16,8 +16,15 @@
 /*************************************************************************
 * The following macro returns a random number in the specified range
 **************************************************************************/
+#ifdef __VC__
 #define RandomInRange(u) ((rand()>>3)%(u))
 #define RandomInRangeFast(u) ((rand()>>3)%(u))
+#else
+#define RandomInRange(u) ((int)(drand48()*((double)(u))))
+#define RandomInRangeFast(u) ((rand()>>3)%(u))
+#endif
+
+
 
 #define amax(a, b) ((a) >= (b) ? (a) : (b))
 #define amin(a, b) ((a) >= (b) ? (b) : (a))

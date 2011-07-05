@@ -2037,7 +2037,7 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
 	int *p = a->p, *i = a->i, m = a->m, n = a->n, *j, *k, l;
 	double *x = a->x, *y, *ab, stemp, rtemp;
 
-	ERRMEM (ab = MEM_CALLOC (sizeof (double [m])));
+	ERRMEM (ab = MEM_CALLOC (sizeof (double [MXTRANS (a) ? n : m])));
 
 	if (beta == 0.0) {for (y = c+m; c < y; c ++) (*c) = 0.0; c -= m;}
 	else if (beta != 1.0) {for (y = c+m; c < y; c ++) (*c) *= beta; c -= m;}
