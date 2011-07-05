@@ -73,7 +73,7 @@ LIBOTHERS = -lpthread
 
 #Preprocessor defs for calling Fortran from C (-DAdd_ or -DAdd__ or -DUPPER)
 ifeq ($(OS),WIN32)
-  OSDEF = -DWITHOUT_PTHREAD
+  OSDEFS = -DWITHOUT_PTHREAD
 else
   OSDEFS =
 endif
