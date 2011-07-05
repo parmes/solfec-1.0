@@ -27,7 +27,7 @@ void AllocateWorkSpace(CtrlType *ctrl, GraphType *graph, int nparts)
     ctrl->wspace.vedegrees = NULL;
     ctrl->wspace.auxcore = (idxtype *)ctrl->wspace.edegrees;
 
-    ctrl->wspace.pmat = idxmalloc(nparts*nparts, "AllocateWorkSpace: pmat");
+    ctrl->wspace.pmat = idxmalloc(nparts*nparts, "AllocateWorkSpace: pmat"); 
 
     /* Memory requirements for different phases
           Coarsening

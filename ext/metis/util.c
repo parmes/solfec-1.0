@@ -20,16 +20,16 @@
 void errexit(char *f_str,...)
 {
   va_list argp;
-  char out1[256], out2[256];
+
+  fprintf(stderr, "[METIS Fatal Error] ");
 
   va_start(argp, f_str);
-  vsprintf(out1, f_str, argp);
+  vfprintf(stderr, f_str, argp);
   va_end(argp);
 
-  sprintf(out2, "Error! %s", out1);
-
-  fprintf(stdout, out2);
-  fflush(stdout);
+  if (strlen(f_str) == 0 || f_str[strlen(f_str)-1] != '\n')
+    fprintf(stderr,"\n");
+  fflush(stderr);
 
   abort();
 }
@@ -493,9 +493,15 @@ int ispow2(int a)
 void InitRandom(int seed)
 {
   if (seed == -1) {
+#ifndef __VC__
+    srand48(7654321L);  
+#endif
     srand(4321);  
   }
   else {
+#ifndef __VC__
+    srand48(seed);  
+#endif
     srand(seed);  
   }
 }
@@ -503,7 +509,7 @@ void InitRandom(int seed)
 /*************************************************************************
 * This function returns the log2(x)
 **************************************************************************/
-int log2(int a)
+int ilog2(int a)
 {
   int i;
 

@@ -12,7 +12,7 @@
  *
  */
 
-#define METISTITLE              "  METIS 4.0.1 Copyright 1998, Regents of the University of Minnesota\n\n"
+#define METISTITLE              "  METIS 4.0.3 Copyright 1998, Regents of the University of Minnesota\n\n"
 #define MAXLINE			1280000
 
 #define LTERM			(void **) 0	/* List terminator for GKfree() */
