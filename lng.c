@@ -2427,6 +2427,8 @@ static int lng_BODY_set_nodecontact (lng_BODY *self, PyObject *value, void *clos
 
   IFIS (value, "ON")
   {
+    WARNING (0, "Node based contact is under development and may not work correctly!"); /* FIXME / TODO / XXX */
+
     BODY *bod = self->bod;
     DOM *dom = bod->dom;
     for (SET *item = SET_First (bod->con); item; item = SET_Next (item))

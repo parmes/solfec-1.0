@@ -542,7 +542,7 @@ static int detect_node_element (
   COPY (x, onepnt);
   COPY (x, twopnt);
 
-  /* TODO: test and validate the above code */
+  /* FIXME / TODO / XXX: test and validate the above code */
 
   return 2;
 }
@@ -601,7 +601,7 @@ static int detect_node_convex (
   COPY (x, onepnt);
   COPY (x, twopnt);
 
-  /* TODO: test and validate the above code */
+  /* FIXME / TODO / XXX: test and validate the above code */
 
   return 2;
 }
@@ -672,10 +672,10 @@ static int nodecontact (
     }
     break;
     case AABB_NODE_SPHERE:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
       break;
     case AABB_SPHERE_NODE:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: TODO: XXX */
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
       break;
   }
 
