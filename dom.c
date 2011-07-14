@@ -1216,8 +1216,8 @@ static void stats_destroy (DOM *dom)
   free (dom->stats);
 }
 
-/* update con->point members of external rigid link constraints */
-static void update_external_riglnk_points (DOM *dom)
+/* update con->point members of external constraints */
+static void update_external_constraint_points (DOM *dom)
 {
   int nsend, nrecv, *isize, *dsize, i, *j, *k;
   COMDATA *send, *recv, *ptr;
@@ -1234,15 +1234,12 @@ static void update_external_riglnk_points (DOM *dom)
 
   for (con = dom->con; con; con = con->next)
   {
-    if (con->kind == RIGLNK) /* rigid links only */
+    for (item = SET_First (con->ext); item; item = SET_Next (item))
     {
-      for (item = SET_First (con->ext); item; item = SET_Next (item))
-      {
-	i = (int) (long) item->data;
-	ptr = &send [i];
-	pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
-	pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, con->point, 3);
-      }
+      i = (int) (long) item->data;
+      ptr = &send [i];
+      pack_int (&isize [i], &ptr->i, &ptr->ints, con->id);
+      pack_doubles (&dsize [i], &ptr->d, &ptr->doubles, con->point, 3);
     }
   }
 
@@ -3042,9 +3039,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   }
 
 #if MPI
-  /* external rigid link con->point elements need to be updated before the update of body extents;
+  /* external con->point coordinates are need to be updated before the update of body extents;
    * this way slave bodies suitably update their extents and maintain children on the constraint owner processor */
-  update_external_riglnk_points (dom);
+  update_external_constraint_points (dom);
 #endif
 
   /* update body extents after constraints update so that constraint points can be incorporated if needed */

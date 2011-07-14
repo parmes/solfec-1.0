@@ -1,7 +1,7 @@
 c = 0.2
-step = 1E-5
+step = 1E-4
 stop = 0.03
-nsid = 2 #FIXME: this is still not fully robust in parallel (e.g. -np 4)!
+nsid = 2
 GEOMETRIC_EPSILON (1E-6)
 
 sv = GAUSS_SEIDEL_SOLVER (1E-3, 1000, 1E-7)
