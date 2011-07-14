@@ -276,7 +276,7 @@ void Propagate_Cracks (DOM *dom)
     one = two = NULL;
     cra = NULL;
 
-    if (bod->cra)
+    if (bod->cra) /* try to crack bodies */
     {
       switch (bod->kind)
       {
@@ -286,13 +286,13 @@ void Propagate_Cracks (DOM *dom)
       }
     }
 
-    if (cra && one && two)
+    if (cra && one && two) /* cracked and fragmented in two */
     {
-      for (crb = bod->cra; crb; crb = crb->next)
+      for (crb = bod->cra; crb; crb = crb->next) /* copy remaining cracks */
       {
-	if (crb == cra) continue;
+	if (crb == cra) continue; /* skip current */
 
-	if (cut_possible (one, crb->point, crb->normal))
+	if (cut_possible (one, crb->point, crb->normal)) /* crack overlaps first fragment */
 	{
 	  c = CRACK_Create();
 	  copy_crack (crb, c);
@@ -300,7 +300,7 @@ void Propagate_Cracks (DOM *dom)
 	  one->cra = c;
 	}
 
-	if (cut_possible (two, crb->point, crb->normal))
+	if (cut_possible (two, crb->point, crb->normal)) /* crack overlaps second fragment */
 	{
 	  c = CRACK_Create();
 	  copy_crack (crb, c);
@@ -309,13 +309,15 @@ void Propagate_Cracks (DOM *dom)
 	}
       }
 
-      remap_constraints (dom, bod, cra, one, two);
-      DOM_Remove_Body (dom, bod);
-      BODY_Destroy (bod); /* destroys cracks */
+      remap_constraints (dom, bod, cra, one, two); /* remap or delete constraints */
+
+      DOM_Remove_Body (dom, bod); /* remove from domain */
+      BODY_Destroy (bod); /* destroys cracks store at this body */
+
       SET_Insert (NULL, &newbod, one, NULL);
       SET_Insert (NULL, &newbod, two, NULL);
     }
-    else
+    else /* TODO: handle half-space cracks (cra != NULL && one == NULL && two == NULL) */
     {
       ASSERT_TEXT (cra == NULL && one == NULL && two == NULL,
         "A body cracked, but body splitting has failed.\n"
@@ -323,7 +325,7 @@ void Propagate_Cracks (DOM *dom)
     }
   }
 
-  for (item = SET_First (newbod); item; item = SET_Next (item))
+  for (item = SET_First (newbod); item; item = SET_Next (item)) /* insert new bodies into domain */
   {
 #if MPI
     DOM_Pending_Body (dom, item->data);
