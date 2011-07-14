@@ -25,7 +25,7 @@
 #define __vic__
 
 /* C(U,R) + X dU + Y dR, where C(U,R) = F(U) + m(R - F(U)) */
-void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_epsilon, double *C, double *X, double *Y);
+void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_omega, double *C, double *X, double *Y);
 
 /* R = project-on-friction-cone (S) */
 void VIC_Project (double friction, double cohesion, double *S, double *R);

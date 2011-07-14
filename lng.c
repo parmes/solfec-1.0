@@ -3359,32 +3359,40 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("meritval", "maxiter", "locdyn", "theta", "epsilon", "smooth");
-  double meritval, theta, epsilon;
-  int maxiter, smooth;
+  KEYWORDS ("meritval", "maxiter", "locdyn", "linver", "linmaxiter", "maxmatvec", "epsilon", "delta", "theta", "omega");
+  double meritval, epsilon, delta, theta, omega;
+  int maxiter, linmaxiter, maxmatvec;
+  PyObject *locdyn, *linver;
   lng_NEWTON_SOLVER *self;
-  PyObject *locdyn;
 
   self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
     meritval = 1E-8;
-    maxiter = 100;
+    maxiter = 1000;
     locdyn = NULL;
+    linver = NULL;
+    linmaxiter = 10;
+    maxmatvec = 10000;
+    epsilon = 0.25;
+    delta = 0.0;
     theta = 0.25;
-    epsilon = 1E-9;
-    smooth = 0;
+    omega = 1E-10;
 
-    PARSEKEYS ("|diOddi", &meritval, &maxiter, &locdyn, &theta, &epsilon, &smooth);
+    PARSEKEYS ("|diOOiidddd", &meritval, &maxiter, &locdyn, &linver, &linmaxiter, &maxmatvec, &epsilon, &delta, &theta, &omega);
 
-    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (locdyn, kwl[2]) &&
-      is_gt_le (theta, kwl[3], 0, 1.0) && is_non_negative (epsilon, kwl[4]) && is_non_negative (smooth, kwl[5]));
+    TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (locdyn, kwl[2]) && is_string (locdyn, kwl[3]) &&
+      is_positive (linmaxiter, kwl[4]) && is_positive (maxmatvec, kwl[5]) && is_positive (epsilon, kwl[6]) && is_non_negative (delta, kwl[7]) &&
+      is_gt_le (theta, kwl[8], 0, 1.0) && is_positive (omega, kwl[9]));
 
     self->ns = NEWTON_Create (meritval, maxiter);
-    self->ns->theta = theta;
+    self->ns->linmaxiter = linmaxiter;
+    self->ns->maxmatvec = maxmatvec;
     self->ns->epsilon = epsilon;
-    self->ns->smooth = smooth;
+    self->ns->delta = delta;
+    self->ns->theta = theta;
+    self->ns->omega = omega;
 
     if (locdyn)
     {
@@ -3399,6 +3407,23 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       ELSE
       {
 	PyErr_SetString (PyExc_ValueError, "Invalid locdyn value: neither ON nor OFF");
+	return NULL;
+      }
+    }
+
+    if (linver)
+    {
+      IFIS (linver, "GMRES")
+      {
+	self->ns->linver = PQN_GMRES;
+      }
+      ELIF (locdyn, "DIAG")
+      {
+	self->ns->linver = PQN_DIAG;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid linver value: neither GMRES nor DIAG");
 	return NULL;
       }
     }
@@ -3470,6 +3495,81 @@ static int lng_NEWTON_SOLVER_set_locdyn (lng_NEWTON_SOLVER *self, PyObject *valu
   return 0;
 }
 
+static PyObject* lng_NEWTON_SOLVER_get_linver (lng_NEWTON_SOLVER *self, void *closure)
+{
+  if (self->ns->linver == PQN_GMRES) return PyString_FromString ("GMRES");
+  else return PyString_FromString ("DIAG");
+}
+
+static int lng_NEWTON_SOLVER_set_linver (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "linver")) return -1;
+
+  IFIS (value, "GMRES")
+  {
+    self->ns->linver = PQN_GMRES;
+  }
+  ELIF (value, "DIAG")
+  {
+    self->ns->linver = PQN_DIAG;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid linver value: neither GMRES nor DIAG");
+    return -1;
+  }
+
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_linmaxiter (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ns->linmaxiter);
+}
+
+static int lng_NEWTON_SOLVER_set_linmaxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_gt (value, "linmaxiter", 0)) return -1;
+  self->ns->linmaxiter = PyInt_AsLong (value);
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_maxmatvec (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ns->maxmatvec);
+}
+
+static int lng_NEWTON_SOLVER_set_maxmatvec (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_gt (value, "maxmatvec", 0)) return -1;
+  self->ns->maxmatvec = PyInt_AsLong (value);
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_epsilon (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ns->epsilon);
+}
+
+static int lng_NEWTON_SOLVER_set_epsilon (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_gt (value, "epsilon", 0)) return -1;
+  self->ns->epsilon = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_delta (lng_NEWTON_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->ns->delta);
+}
+
+static int lng_NEWTON_SOLVER_set_delta (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_ge (value, "delta", 0)) return -1;
+  self->ns->delta  = PyFloat_AsDouble (value);
+  return 0;
+}
+
 static PyObject* lng_NEWTON_SOLVER_get_theta (lng_NEWTON_SOLVER *self, void *closure)
 {
   return PyFloat_FromDouble (self->ns->theta);
@@ -3482,27 +3582,15 @@ static int lng_NEWTON_SOLVER_set_theta (lng_NEWTON_SOLVER *self, PyObject *value
   return 0;
 }
 
-static PyObject* lng_NEWTON_SOLVER_get_epsilon (lng_NEWTON_SOLVER *self, void *closure)
+static PyObject* lng_NEWTON_SOLVER_get_omega (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->ns->epsilon);
+  return PyFloat_FromDouble (self->ns->omega);
 }
 
-static int lng_NEWTON_SOLVER_set_epsilon (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+static int lng_NEWTON_SOLVER_set_omega (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
-  if (!is_number_ge (value, "epsilon", 0)) return -1;
-  self->ns->epsilon = PyFloat_AsDouble (value);
-  return 0;
-}
-
-static PyObject* lng_NEWTON_SOLVER_get_smooth (lng_NEWTON_SOLVER *self, void *closure)
-{
-  return PyFloat_FromDouble (self->ns->smooth);
-}
-
-static int lng_NEWTON_SOLVER_set_smooth (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
-{
-  if (!is_number_ge (value, "smooth", 0)) return -1;
-  self->ns->smooth = PyInt_AsLong (value);
+  if (!is_number_gt (value, "omega", 0)) return -1;
+  self->ns->omega = PyFloat_AsDouble (value);
   return 0;
 }
 
@@ -3520,6 +3608,25 @@ static PyObject* lng_NEWTON_SOLVER_get_merhist (lng_NEWTON_SOLVER *self, void *c
 }
 
 static int lng_NEWTON_SOLVER_set_merhist (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_NEWTON_SOLVER_get_mvhist (lng_NEWTON_SOLVER *self, void *closure)
+{
+  PyObject *list;
+  int i;
+
+  ERRMEM (list = PyList_New (self->ns->iters));
+
+  for (i = 0; i < self->ns->iters; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->ns->mvhist [i]));
+
+  return list;
+}
+
+static int lng_NEWTON_SOLVER_set_mvhist (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
 {
   PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
   return -1;
@@ -3550,10 +3657,15 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
   {"meritval", (getter)lng_NEWTON_SOLVER_get_meritval, (setter)lng_NEWTON_SOLVER_set_meritval, "merit function accuracy", NULL},
   {"maxiter", (getter)lng_NEWTON_SOLVER_get_maxiter, (setter)lng_NEWTON_SOLVER_set_maxiter, "iterations bound", NULL},
   {"locdyn", (getter)lng_NEWTON_SOLVER_get_locdyn, (setter)lng_NEWTON_SOLVER_set_locdyn, "local dynamics assembling", NULL},
+  {"linver", (getter)lng_NEWTON_SOLVER_get_linver, (setter)lng_NEWTON_SOLVER_set_linver, "linearization version", NULL},
+  {"linmaxiter", (getter)lng_NEWTON_SOLVER_get_linmaxiter, (setter)lng_NEWTON_SOLVER_set_linmaxiter, "GMRES iterations bound", NULL},
+  {"maxmatvec", (getter)lng_NEWTON_SOLVER_get_maxmatvec, (setter)lng_NEWTON_SOLVER_set_maxmatvec, "GMRES matrix-vector products bound", NULL},
+  {"epsilon", (getter)lng_NEWTON_SOLVER_get_epsilon, (setter)lng_NEWTON_SOLVER_set_epsilon, "GMRES relative accuracy", NULL},
+  {"delta", (getter)lng_NEWTON_SOLVER_get_delta, (setter)lng_NEWTON_SOLVER_set_delta, "diagonal regularization", NULL},
   {"theta", (getter)lng_NEWTON_SOLVER_get_theta, (setter)lng_NEWTON_SOLVER_set_theta, "relaxation parameter", NULL},
-  {"epsilon", (getter)lng_NEWTON_SOLVER_get_epsilon, (setter)lng_NEWTON_SOLVER_set_epsilon, "smoothing epsilon", NULL},
-  {"smooth", (getter)lng_NEWTON_SOLVER_get_smooth, (setter)lng_NEWTON_SOLVER_set_smooth, "smoothing steps", NULL},
+  {"omega", (getter)lng_NEWTON_SOLVER_get_omega, (setter)lng_NEWTON_SOLVER_set_omega, "equation smoothing parameter", NULL},
   {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
+  {"mvhist", (getter)lng_NEWTON_SOLVER_get_mvhist, (setter)lng_NEWTON_SOLVER_set_mvhist, "matrix-vector products history", NULL},
   {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
   {NULL, 0, 0, NULL, NULL}
 };

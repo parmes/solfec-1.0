@@ -11,8 +11,8 @@ import sys
 
 TEST = 8
 KINEM = 'FINITE_ELEMENT'
-SOLVER = 'ts'
-SAREA = 0.0
+SOLVER = 'ns'
+SAREA = 0.05
 step = 0.001
 duration =  3 * step
 MAKE_TESTS = 0 # make convergence tests
@@ -74,8 +74,8 @@ def create_solver (solver, kinem, sarea, meritval):
       else:
         sv = TEST_SOLVER (meritval, 1000, 1000, 10, 0.4, 0.8E-7, 1E-11)
   else:
-    if sarea > 0.0: sv = NEWTON_SOLVER (meritval, 1000, theta = 0.5, epsilon = 1E-11)
-    else: sv = NEWTON_SOLVER (meritval, 1000, theta = 0.1, epsilon = 1E-11)
+    if sarea > 0.0: sv = NEWTON_SOLVER (meritval, 1000)
+    else: sv = NEWTON_SOLVER (meritval, 1000, delta = 1E-7)
 
   return sv
 

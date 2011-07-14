@@ -4,8 +4,8 @@ stop = 0.03
 nsid = 2
 GEOMETRIC_EPSILON (1E-6)
 
-sv = GAUSS_SEIDEL_SOLVER (1E-3, 1000, 1E-7)
-#sv = NEWTON_SOLVER (maxiter = 500, theta = 0.1, locdyn = 'ON')
+sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000, 1E-8)
+#sv = NEWTON_SOLVER () # FIXME => divergence during initial free flight (zero solutions)
 solfec = SOLFEC ('DYNAMIC', step, 'out/crack')
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E7, poisson = 0.3, density = 500)
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)

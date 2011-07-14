@@ -34,10 +34,11 @@ SCALE (shp, (15, 15, 1))
 TRANSLATE (shp, (-1, -2, -10))
 bod = BODY (sol, 'OBSTACLE', shp, bulk)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
+#sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
+sv = NEWTON_SOLVER ()
 GRAVITY (sol, (0, 0, -10))
 OUTPUT (sol, step)
-RUN (sol, gs, stop)
+RUN (sol, sv, stop)
 
 if not VIEWER() and sol.mode == 'READ':
 

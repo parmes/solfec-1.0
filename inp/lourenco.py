@@ -79,8 +79,8 @@ tms = TIME_SERIES ([0, 0, 50 * step, 0, stop, 20E3])
 FORCE (top, 'SPATIAL', (-a, 0, c * NHEIGHT + c/2), (1, 0, 0), tms)
 FORCE (top, 'SPATIAL', (2 * a * NWIDTH / 2 - a, 0, c * NHEIGHT + c/2), (0, 0, -1), 30E3)
 
-gs = GAUSS_SEIDEL_SOLVER (1E-5, 1000)
-#gs = NEWTON_SOLVER (1E-9, 100)
+#gs = GAUSS_SEIDEL_SOLVER (1E-5, 1000)
+gs = NEWTON_SOLVER (1E-9, 1000)
 
 OUTPUT (solfec, 1E-3, compression = 'ON')
 
