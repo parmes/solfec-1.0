@@ -148,7 +148,7 @@ inline static void complex_F (double res, double fri, double gap, double step, s
 }
 
 /* C(U,R) + X dU + Y dR, where C(U,R) = F(U) + m(R - F(U)) */
-void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_epsilon, double *C, double *X, double *Y)
+void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_omega, double *C, double *X, double *Y)
 {
   DOM *dom = con->master->dom;
   short dynamic = dom->dynamic;
@@ -164,7 +164,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 	  m [3];
 
 #if 0
-  double h = DIFF_FACTOR * smoothing_epsilon > 0.0 ? smoothing_epsilon : DIFF_BASE, J [9];
+  double h = DIFF_FACTOR * smoothing_omega > 0.0 ? smoothing_omega : DIFF_BASE, J [9];
   double complex cU [3],
 		 cS [3],
 		 cF [3],
@@ -173,10 +173,10 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
 
   if (C)
   {
-    real_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, U, UT, F);
+    real_F (res, fri, gap, step, dynamic, smoothing_omega, V, U, UT, F);
     SUB (R, F, S);
     S [2] += coh;
-    real_m (fri, S, smoothing_epsilon, m);
+    real_m (fri, S, smoothing_omega, m);
     ADD (F, m, C);
   }
 
@@ -195,7 +195,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
       cU [1] = U[1] + 0.0 * imaginary_i;
       cU [2] = U[2] + 0.0 * imaginary_i;
       cU [k] += h * imaginary_i;
-      complex_F (res, fri, gap, step, dynamic, smoothing_epsilon, V, cU, UT, cF);
+      complex_F (res, fri, gap, step, dynamic, smoothing_omega, V, cU, UT, cF);
       dF [3*k+0] = cimag (cF [0]) / h;
       dF [3*k+1] = cimag (cF [1]) / h;
       dF [3*k+2] = cimag (cF [2]) / h;
@@ -204,7 +204,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
       cS [1] = S[1] + 0.0 * imaginary_i;
       cS [2] = S[2] + 0.0 * imaginary_i;
       cS [k] += h * imaginary_i;
-      complex_m (fri, cS, smoothing_epsilon, cm);
+      complex_m (fri, cS, smoothing_omega, cm);
       Y [3*k+0] = cimag (cm [0]) / h; /* Y = dm/dS */
       Y [3*k+1] = cimag (cm [1]) / h;
       Y [3*k+2] = cimag (cm [2]) / h;
@@ -215,7 +215,7 @@ void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
     NNMUL (J, dF, X); /* X = [I - dm/dS] dF/dU */
   }
 #else
-#define eps smoothing_epsilon 
+#define eps smoothing_omega 
   double udash, ulen, sdot, slen, l1, l2, u1[3], u2[3], eps2,
        fri2, onefri2, sq1, sq2, g1, g2, dg1, dg2, a, b, c, d;
 

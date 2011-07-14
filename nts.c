@@ -41,6 +41,7 @@
 
 typedef struct con_data CON_DATA;
 typedef struct private PRIVATE;
+typedef struct vector VECTOR;
 
 struct con_data
 {
@@ -54,8 +55,12 @@ struct con_data
 
   CON *con; /* constraint */
 
-  double DR [3], /* reaction increment */
-	 R0 [3]; /* initial reaction */
+  double X [9], /* U-linearization */
+	 Y [9], /* R-linearization */
+	 T [9]; /* diagonal preconditioner */
+
+  double R0 [3], /* initial reaction */
+         RC [3]; /* current reaction */
 };
 
 struct private
@@ -74,12 +79,23 @@ struct private
          *r, /* body space reaction */
 	 *a; /* auxiliary vector */
 
+  int matvec; /* matrix vector products */
+
+  VECTOR *dr, /* reactions increment */
+	 *rhs; /* right hand side of linearization */
 #if MPI
   SET *inner, *boundary;
   COMDATA *send, *recv;
   int nsend, nrecv;
   void *pattern; /* non-blocking communication pattern */
 #endif
+};
+
+struct vector
+{
+  double *x;
+
+  int n;
 };
 
 /* convert a sparse matrix into a dense one */
@@ -234,7 +250,7 @@ static void update_external_reactions (PRIVATE *A)
 #endif
 
 /* U = W R + B */
-static void U_WR_B (PRIVATE *A)
+static void U_WR_B (PRIVATE *A, short zero_B)
 {
 #if MPI
   if (A->pattern == NULL) /* initialize communication pattern */
@@ -291,8 +307,15 @@ static void U_WR_B (PRIVATE *A)
       W = dia->W;
       R = con->R;
       U = con->U;
-      B = dia->B;
-      NVADDMUL (B, W, R, U);
+      if (zero_B)
+      {
+	NVMUL (W, R, U);
+      }
+      else
+      {
+	B = dia->B;
+	NVADDMUL (B, W, R, U);
+      }
       for (blk = dia->adj; blk; blk = blk->n)
       {
 	R = blk->dia->R;
@@ -312,8 +335,15 @@ static void U_WR_B (PRIVATE *A)
       W = dia->W;
       R = con->R;
       U = con->U;
-      B = dia->B;
-      NVADDMUL (B, W, R, U);
+      if (zero_B)
+      {
+	NVMUL (W, R, U);
+      }
+      else
+      {
+	B = dia->B;
+	NVADDMUL (B, W, R, U);
+      }
       for (blk = dia->adj; blk; blk = blk->n)
       {
 	R = blk->dia->R;
@@ -341,8 +371,15 @@ static void U_WR_B (PRIVATE *A)
       W = dia->W;
       R = con->R;
       U = con->U;
-      B = dia->B;
-      NVADDMUL (B, W, R, U);
+      if (zero_B)
+      {
+	NVMUL (W, R, U);
+      }
+      else
+      {
+	B = dia->B;
+	NVADDMUL (B, W, R, U);
+      }
       for (blk = dia->adj; blk; blk = blk->n)
       {
 	R = blk->dia->R;
@@ -383,14 +420,243 @@ static void U_WR_B (PRIVATE *A)
 #if MPI
       if (!dia) break; /* skip external */
 #endif
-      B = dia->B;
-      U = con->U;
-      COPY (B, U);
+      if (zero_B)
+      {
+	U = con->U;
+	SET (U, 0.0);
+      }
+      else
+      {
+	B = dia->B;
+	U = con->U;
+	COPY (B, U); /* U = B */
+      }
     }
 
-    H_times_u (A->a, A->dat, A->end, A->u);
+    H_times_u (A->a, A->dat, A->end, A->u); /* U += H u */
   }
 }
+
+/* allocate vector */
+static VECTOR* newvector (int n)
+{
+  VECTOR *v;
+
+  ERRMEM (v = malloc (sizeof (VECTOR)));
+  ERRMEM (v->x = MEM_CALLOC (n * sizeof (double)));
+  v->n = n;
+
+  return v;
+}
+
+/* GMRES interface start */
+static char* CAlloc (size_t count, size_t elt_size)
+{
+  char *ptr;
+
+  ERRMEM (ptr = MEM_CALLOC (count * elt_size));
+  return ptr;
+}
+
+static int Free (char *ptr)
+{
+  free (ptr);
+  return 0;
+}
+
+static int CommInfo (PRIVATE *A, int *my_id, int *num_procs)
+{
+#if MPI
+  *num_procs = A->dom->ncpu;
+  *my_id = A->dom->rank;
+#else
+  *num_procs = 1;
+  *my_id = 0;
+#endif
+  return 0;
+}
+
+static void* CreateVector (VECTOR *a)
+{
+  VECTOR *v;
+
+  ERRMEM (v = malloc (sizeof (VECTOR)));
+  ERRMEM (v->x = MEM_CALLOC (a->n * sizeof (double)));
+  v->n = a->n;
+
+  return v;
+}
+
+static void* CreateVectorArray (int size, VECTOR *a)
+{
+  VECTOR **v;
+  int i;
+
+  ERRMEM (v = malloc (size * sizeof (VECTOR*)));
+  for (i = 0; i < size; i ++)
+  {
+    v[i] = CreateVector (a);
+  }
+
+  return v;
+}
+
+static int DestroyVector (VECTOR *a)
+{
+  free (a->x);
+  free (a);
+
+  return 0;
+}
+
+static double InnerProd (VECTOR *a, VECTOR *b)
+{
+  double dot = 0.0, *x, *y, *z;
+
+  for (x = a->x, z = x + a->n, y = b->x; x < z; x ++, y ++)
+  {
+    dot += (*x) * (*y);
+  }
+
+#if MPI
+  double val = dot;
+  MPI_Allreduce (&val, &dot, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+#endif
+
+  return dot;
+}
+
+static int CopyVector (VECTOR *a, VECTOR *b)
+{
+  double *x, *y, *z;
+
+  for (x = a->x, z = x + a->n, y = b->x; x < z; x ++, y ++)
+  {
+    (*y) = (*x);
+  }
+
+  return 0;
+}
+
+static int ClearVector (VECTOR *a)
+{
+  double *x, *z;
+
+  for (x = a->x, z = x + a->n; x < z; x ++)
+  {
+    (*x) = 0.0;
+  }
+
+  return 0;
+}
+
+static int ScaleVector (double alpha, VECTOR *a)
+{
+  double *x, *z;
+
+  for (x = a->x, z = x + a->n; x < z; x ++)
+  {
+    (*x) *= alpha;
+  }
+
+  return 0;
+}
+
+static int  Axpy (double alpha, VECTOR *a, VECTOR *b)
+{
+  double *x, *y, *z;
+
+  for (x = a->x, z = x + a->n, y = b->x; x < z; x ++, y ++)
+  {
+    (*y) += alpha * (*x);
+  }
+
+  return 0;
+}
+
+static void *MatvecCreate (void *A, void *x)
+{
+  return NULL;
+}
+
+static int Matvec (void *matvec_data, double alpha, PRIVATE *A, VECTOR *x, double beta, VECTOR *y)
+{
+  double Z [3], *U, *X, *Y, *R, *Q;
+  CON_DATA *dat;
+  CON *con;
+
+  for (dat = A->dat, R = x->x; dat != A->end; dat ++, R += 3)
+  {
+    con = dat->con;
+    Q = con->R;
+    COPY (R, Q);
+  }
+
+  U_WR_B (A, 1);
+
+  for (dat = A->dat, R = x->x, Q = y->x; dat != A->end; dat ++, R += 3, Q += 3)
+  {
+    con = dat->con;
+    U = con->U;
+
+    switch (con->kind)
+    {
+    case VELODIR:
+    case FIXDIR:
+    case RIGLNK:
+    {
+      U [0] = R [0];
+      U [1] = R [1];
+    }
+    break;
+    case CONTACT:
+    {
+      X = dat->X;
+      Y = dat->Y;
+
+      NVMUL (X, U, Z);
+      NVADDMUL (Z, Y, R, U);  /* U = X dU + Y dR */
+    }
+    break;
+    default:
+    break;
+    }
+
+    SCALE (Q, beta);
+    ADDMUL (Q, alpha, U, Q);
+  }
+
+  Axpy (alpha * A->ns->delta, x, y);
+
+  A->matvec ++;
+
+  return 0;
+}
+
+static int MatvecDestroy (void *matvec_data)
+{
+  return 0;
+}
+
+static int PrecondSetup (void *vdata, void *A, void *b, void *x)
+{
+  return 0;
+}
+
+static int Precond (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
+{
+  double *T, *Q, *R;
+  CON_DATA *dat;
+
+  for (dat = A->dat, R = x->x, Q = b->x; dat != A->end; dat ++, R += 3, Q += 3)
+  {
+    T = dat->T;
+    NVMUL (T, Q, R);
+  }
+
+  return 0;
+}
+/* GMRES interface end */
 
 /* create constraints data for body-space mode */
 static int body_space_constraints_data (DOM *dom, PRIVATE *A)
@@ -649,7 +915,10 @@ static PRIVATE *create_private_data (NEWTON *ns, LOCDYN *ldy)
   }
   else locdyn_constraints_data (ldy->dom, A);
 
-  U_WR_B (A); /* U = W R + B */
+  A->dr = newvector  (3 * (A->end - A->dat));
+  A->rhs = CreateVector (A->dr);
+
+  U_WR_B (A, 0); /* U = W R + B */
 
   return A;
 }
@@ -662,6 +931,8 @@ static void destroy_private_data (PRIVATE *A)
   free (A->u);
   free (A->r);
   free (A->a);
+  DestroyVector (A->dr);
+  DestroyVector (A->rhs);
 
 #if MPI
   SET_Free (NULL, &A->boundary);
@@ -674,13 +945,15 @@ static void destroy_private_data (PRIVATE *A)
   free (A);
 }
 
-/* single projected semi-Newton step */
-static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, double theta, double epsilon)
+/* single projected quasi-Newton step */
+static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, short dynamic,
+           double step, double delta, double theta, double omega, VECTOR *dr, VECTOR *rhs)
 {
-  double T [9], b [3], gamma = 1.0 - theta;
-  int ipiv [3];
+  double *b  = rhs->x, *DR = dr->x, gamma = 1.0 - theta;
+  int ipiv [3], iters = 0;
+  CON_DATA *dat;
 
-  for (; dat != end; dat ++)
+  for (dat = A->dat; dat != A->end; dat ++, b += 3, DR += 3)
   {
     CON *con = dat->con;
     DIAB *dia = con->dia;
@@ -691,7 +964,13 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
 	   *V = con->V,
 	   *R = con->R,
 	   *W = dia->W,
-	   *DR = dat->DR;
+	   *T = dat->T;
+
+    if (linver == PQN_GMRES)
+    {
+      double *RC = dat->RC;
+      COPY (R, RC); /* save current reaction */
+    }
 
     switch (con->kind)
     {
@@ -762,9 +1041,9 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
     break;
     case CONTACT:
     {
-      double X [9], Y [9];
+      double *X = dat->X, *Y = dat->Y;
 
-      VIC_Linearize (dat->con, U, R, -1, epsilon, b, X, Y);
+      VIC_Linearize (dat->con, U, R, -1, omega, b, X, Y);
       SCALE (b, -1.0);
 
       NNMUL (X, W, T);
@@ -773,22 +1052,78 @@ static void solve (CON_DATA *dat, CON_DATA *end, short dynamic, double step, dou
     break;
     }
 
-    ASSERT (lapack_dgesv (3, 1, T, 3, ipiv, b, 3) == 0, ERR_MTX_LU_FACTOR);
-    DR [0] = gamma * DR[0] + theta * b[0];
-    DR [1] = gamma * DR[1] + theta * b[1];
-    DR [2] = gamma * DR[2] + theta * b[2];
-    ACC (DR, R);
-
-    if (con->kind == CONTACT)
+    if (linver == PQN_DIAG)
     {
-      double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
-      VIC_Project (con->mat.base->friction, c, R, R);
+      ASSERT (lapack_dgesv (3, 1, T, 3, ipiv, b, 3) == 0, ERR_MTX_LU_FACTOR); /* diagonalized solve */
+      DR [0] = gamma * DR[0] + theta * b[0]; /* theta-averaging */
+      DR [1] = gamma * DR[1] + theta * b[1];
+      DR [2] = gamma * DR[2] + theta * b[2];
+      ACC (DR, R);
+
+      if (con->kind == CONTACT)
+      {
+	double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
+	VIC_Project (con->mat.base->friction, c, R, R); /* projection */
+      }
+    }
+    else /* PQN_GMRES */
+    {
+      T [0] += delta;
+      T [4] += delta;
+      T [8] += delta;
+
+      MX_DENSE_PTR (P, 3, 3, T);
+      MX_Inverse (&P, &P); /* preconditioner */
     }
   }
+
+  if (linver == PQN_GMRES)
+  {
+    hypre_FlexGMRESFunctions *gmres_functions;
+    void *gmres_vdata;
+    int ret;
+
+    gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
+      (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
+      MatvecCreate, (int (*) (void*,double,void*,void*,double,void*))Matvec, MatvecDestroy,
+      (double (*) (void*,void*))InnerProd, (int (*) (void*,void*))CopyVector, (int (*) (void*))ClearVector,
+      (int (*) (double,void*))ScaleVector, (int (*) (double,void*,void*))Axpy,
+      PrecondSetup, (int (*) (void*,void*,void*,void*))Precond);
+    gmres_vdata = hypre_FlexGMRESCreate (gmres_functions);
+
+
+    double bnorm = sqrt (InnerProd (rhs, rhs));
+
+    hypre_error_flag = 0;
+    hypre_FlexGMRESSetTol (gmres_vdata, 0.0);
+    hypre_FlexGMRESSetMinIter (gmres_vdata, 1);
+    hypre_FlexGMRESSetMaxIter (gmres_vdata, linmaxiter);
+    hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, epsilon * bnorm);
+    hypre_FlexGMRESSetup (gmres_vdata, A, rhs, dr);
+    ret = hypre_FlexGMRESSolve (gmres_vdata, A, rhs, dr); /* GMRES solve */
+    hypre_FlexGMRESGetNumIterations (gmres_vdata , &iters);
+    hypre_FlexGMRESDestroy (gmres_vdata);
+
+    for (dat = A->dat, DR = dr->x; dat != A->end; dat ++, DR += 3)
+    {
+      CON *con = dat->con;
+      double *RC = dat->RC,
+	     *R = con->R;
+      ADD (DR, RC, R);
+
+      if (con->kind == CONTACT)
+      {
+	double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
+	VIC_Project (con->mat.base->friction, c, R, R); /* project */
+      }
+    }
+  }
+
+  return iters;
 }
 
-/* reset solution */
-static void reset (PRIVATE *A)
+/* reset reactions to the inital values */
+static void restore_initial_R (PRIVATE *A)
 {
   CON_DATA *dat;
   CON *con;
@@ -799,11 +1134,106 @@ static void reset (PRIVATE *A)
     if (!dat->con->dia) break; /* skip external */
 #endif
     con = dat->con;
-    SET (dat->DR, 0.0);
     COPY (dat->R0, con->R);
   }
+}
 
-  U_WR_B (A);
+/* GMRES based solver */
+static int gmres_based_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
+{
+  double *merit, step;
+  char fmt [512];
+  short dynamic;
+  int div;
+
+  sprintf (fmt, "NEWTON_SOLVER: delta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
+  ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
+  ERRMEM (ns->mvhist = realloc (ns->mvhist, ns->maxiter * sizeof (double)));
+  dynamic = ldy->dom->dynamic;
+  step = ldy->dom->step;
+  merit = &ldy->dom->merit;
+  *merit = MERIT_Function (ldy, 0);
+  ns->iters = 0;
+  div = 1;
+
+  while (ns->iters < ns->maxiter && A->matvec < ns->maxmatvec && *merit > ns->meritval)
+  {
+    solve (A, PQN_GMRES, ns->linmaxiter, ns->epsilon, dynamic, step, ns->delta, 0.0, ns->omega, A->dr, A->rhs);
+
+    U_WR_B (A, 0);
+
+    *merit = MERIT_Function (ldy, 0);
+
+    ns->merhist [ns->iters] = *merit;
+    ns->mvhist [ns->iters] = A->matvec;
+
+#if MPI
+    if (ldy->dom->rank == 0)
+#endif
+    if (ldy->dom->verbose && ns->iters % div == 0) printf (fmt, ns->delta, ns->iters, *merit), div *= 2;
+
+    ns->iters ++;
+  }
+
+#if MPI
+  if (ldy->dom->rank == 0)
+#endif
+  if (ldy->dom->verbose) printf (fmt, ns->delta, ns->iters, *merit);
+
+  if (*merit > ns->meritval) return 0;
+  else return 1;
+
+
+  return 1;
+}
+
+/* diagonalized solver */
+static int diagonalized_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
+{
+  double *merit, prevm, step;
+  char fmt [512];
+  short dynamic;
+  int div, gt;
+
+  sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
+  ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
+  ERRMEM (ns->mvhist = realloc (ns->mvhist, ns->maxiter * sizeof (double)));
+  dynamic = ldy->dom->dynamic;
+  step = ldy->dom->step;
+  merit = &ldy->dom->merit;
+  *merit = MERIT_Function (ldy, 0);
+  ns->iters = 0;
+  div = 1;
+  gt = 0;
+
+  while (ns->iters < ns->maxiter && *merit > ns->meritval)
+  {
+    solve (A, PQN_DIAG, 0, 0.0, dynamic, step, 0.0, ns->theta, ns->omega, A->dr, A->rhs);
+
+    U_WR_B (A, 0);
+
+    prevm = *merit;
+
+    *merit = MERIT_Function (ldy, 0);
+
+    ns->merhist [ns->iters] = *merit;
+    ns->mvhist [ns->iters] = 0;
+
+#if MPI
+    if (ldy->dom->rank == 0)
+#endif
+    if (ldy->dom->verbose && ns->iters % div == 0) printf (fmt, ns->theta, ns->iters, *merit), div *= 2;
+
+    ns->iters ++;
+  }
+
+#if MPI
+  if (ldy->dom->rank == 0)
+#endif
+  if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
+
+  if (*merit > ns->meritval) return 0;
+  else return 1;
 }
 
 /* create solver */
@@ -815,9 +1245,15 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->meritval = meritval;
   ns->maxiter = maxiter;
   ns->locdyn = LOCDYN_ON;
+  ns->linver = PQN_GMRES;
+  ns->linmaxiter = 10;
+  ns->maxmatvec = ns->linmaxiter * maxiter;
+  ns->epsilon = 0.25;
+  ns->delta = 0.0;
   ns->theta = 0.25;
-  ns->epsilon = 1E-9;
-  ns->smooth = 0;
+  ns->omega = meritval * 1E-3;
+  ns->merhist = NULL;
+  ns->mvhist = NULL;
 
   return ns;
 }
@@ -825,107 +1261,37 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
 /* run solver */
 void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 {
-  double *merit, prevm, step, theta0, merit0;
-  GAUSS_SEIDEL *gs;
-  char fmt [512];
-  short dynamic;
-  int div, gt;
   PRIVATE *A;
+  int ret;
 
-  if (ns->locdyn == LOCDYN_ON && ns->smooth > 0)
-  {
-    gs = GAUSS_SEIDEL_Create (1E-10, ns->smooth, 1, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
-    gs->verbose = 0;
-    gs->nomerit = 1;
-    GAUSS_SEIDEL_Solve (gs, ldy);
-#if MPI
-    if (ldy->dom->rank == 0)
-#endif
-    if (ldy->dom->verbose)
-    {
-      printf ("NEWTON_SOLVER: pre-smoothing ");
-      for (gt = 0; gt < gs->iters; gt ++) printf (".");
-      printf ("\n");
-    }
-  }
-
-  sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
-  ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
   A = create_private_data (ns, ldy);
-  dynamic = ldy->dom->dynamic;
-  step = ldy->dom->step;
-  merit = &ldy->dom->merit;
-  *merit = MERIT_Function (ldy, 0);
-  theta0 = ns->theta;
-  merit0 = *merit;
-  ns->iters = 0;
-  div = 1;
-  gt = 0;
 
-  while (ns->iters < ns->maxiter && *merit > ns->meritval)
+  switch (ns->linver)
   {
-    solve (A->dat, A->end, dynamic, step, ns->theta, ns->epsilon);
-
-    U_WR_B (A);
-
-    prevm = *merit;
-
-    *merit = MERIT_Function (ldy, 0);
-
-    ns->merhist [ns->iters] = *merit;
-
-    if (*merit > prevm && ++gt > 10 && *merit > 10)
-    {
-      if (ns->theta < 0.0009765625) ns->theta = 0.5; /* < 0.5**10 */
-      else ns->theta *= 0.5;
-      reset (A);
-      gt = 0;
-    }
-
-#if MPI
-    if (ldy->dom->rank == 0)
-#endif
-    if (ldy->dom->verbose && ns->iters % div == 0) printf (fmt, ns->theta, ns->iters, *merit), div *= 2;
-
-    ns->iters ++;
+  case PQN_GMRES: ret = gmres_based_solve (A, ns, ldy); break;
+  case PQN_DIAG: ret = diagonalized_solve (A, ns, ldy); break;
   }
 
-  if (*merit > merit0)
+  if (ret == 0)
   {
-    reset (A);
-
-    *merit = MERIT_Function (ldy, 0);
+    if (ns->locdyn == LOCDYN_ON)
+    {
+      GAUSS_SEIDEL *gs;
 
 #if MPI
-    if (ldy->dom->rank == 0)
+      if (ldy->dom->rank == 0)
 #endif
-    if (ldy->dom->verbose) printf ("NEWTON_SOLVER: DIVERGED => Reusing previous solution (merit: %.2e)\n", *merit);
+      if (ldy->dom->verbose) printf ("NEWTON_SOLVER has FAILED => switching to GAUSS_SEIDEL...\n");
+
+      restore_initial_R (A);
+      gs = GAUSS_SEIDEL_Create (1.0, ns->maxiter, ns->meritval, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
+      GAUSS_SEIDEL_Solve (gs, ldy);
+      GAUSS_SEIDEL_Destroy (gs);
+    }
+    else ASSERT_TEXT (0, "NEWTON_SOLVER has FAILED in body space mode => ABORDING!");
   }
 
   destroy_private_data (A);
-
-  ns->theta = theta0;
-
-#if MPI
-  if (ldy->dom->rank == 0)
-#endif
-  if (ldy->dom->verbose) printf (fmt, ns->theta, ns->iters, *merit);
-
-  if (ns->locdyn == LOCDYN_ON && ns->smooth > 0)
-  {
-    GAUSS_SEIDEL_Solve (gs, ldy);
-    *merit = MERIT_Function (ldy, 1); /* XXX: the merit can increase/decrease as a result of smoothing */
-#if MPI
-    if (ldy->dom->rank == 0)
-#endif
-    if (ldy->dom->verbose)
-    {
-      printf ("NEWTON_SOLVER: post-smoothing ");
-      for (gt = 0; gt < gs->iters; gt ++) printf (".");
-      printf ("\n");
-    }
-    GAUSS_SEIDEL_Destroy (gs);
-  }
 }
 
 /* write labeled state values */
@@ -939,5 +1305,6 @@ void NEWTON_Write_State (NEWTON *ns, PBF *bf)
 void NEWTON_Destroy (NEWTON *ns)
 {
   free (ns->merhist);
+  free (ns->mvhist);
   free (ns);
 }

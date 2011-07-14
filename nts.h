@@ -36,15 +36,25 @@ struct newton
 
   enum {LOCDYN_ON, LOCDYN_OFF} locdyn; /* local dynamics assembling */
 
-  double theta; /* relaxation parameter */
+  enum {PQN_GMRES, PQN_DIAG} linver; /* linear solver version */
 
-  double epsilon; /* smoothing epsilon */
+  int linmaxiter; /* linear solver iterations bound */
 
-  int smooth; /* (pre- and post-) smoothing steps bound */
+  int maxmatvec; /* matrix-vector products bound */
+
+  double epsilon; /* linear solver epsilon */
+
+  double delta; /* diagonal regularization */
+
+  double theta; /* relaxation parameter for PQN_DIAG version of the solver */
+
+  double omega; /* smoothing omega */
 
   /* output */
 
   double *merhist; /* merit function history */
+
+  int *mvhist; /* matrix-vector products history */
 
   int iters; /* iterations count */
 };

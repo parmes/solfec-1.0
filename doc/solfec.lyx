@@ -5463,10 +5463,19 @@ NEWTON_SOLVER
 \begin_layout Standard
 Object of type NEWTON_SOLVER represents a projected quasi-Newton constraints
  solver.
+ If local dynamics is enabled (locdyn = 'ON') and iterations fail to converge,
+ the Gauss-Seidel solver will be invoked, starting from the previous time
+ step solution.
+ 
+\series bold
+WARNING:
+\series default
+ for the moment NEWTON_SOLVER may not work well for friction > 1.0.
 \end_layout
 
 \begin_layout Subsection*
-obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, theta, epsilon, presmooth)
+obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, linver, linmaxiter, maxmatvec,
+ epsilon, delta, theta, omega)
 \end_layout
 
 \begin_layout Itemize
@@ -5498,7 +5507,7 @@ reference "cha:Constraints-accuracy"
 \series bold
 maxiter
 \series default
- - iterations bound (default: 100)
+ - iterations bound (default: 1000)
 \end_layout
 
 \begin_layout Itemize
@@ -5513,11 +5522,29 @@ locdyn
 \begin_layout Itemize
 
 \series bold
-theta
+linver
 \series default
- - relaxation parameter greater than 0 and not greater than 1 (default:
- 0.25); theta is automatically decreased in case of numerical instability;
- smaller initial theta may improve overall convergence behavior
+ - 'GMRES' or 'DIAG' being the linear solver kind (default: 'GMRES')
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+limaxiter
+\series default
+ - GMRES iterations bound (ignored for 
+\series bold
+linver
+\series default
+ = 'DIAG', default: 10)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+maxmatvec
+\series default
+ - GMRES matrix-vector products bound (default: linmaxiter * maxiter)
 \end_layout
 
 \begin_layout Itemize
@@ -5525,20 +5552,69 @@ theta
 \series bold
 epsilon
 \series default
- - non-negative smoothing epsilon (default: 1E-9)
+ - relative GMRES accuracy (default: 0.25)
 \end_layout
 
 \begin_layout Itemize
 
 \series bold
-smooth
+delta
 \series default
- - number of Gauss-Seidel (pre- and post-) smoothing steps (default: 0);
- smoothing is only performed when 
+ - non-negative amount of diagonal regularization (used only for 
 \series bold
-locdyn
+linver
 \series default
- value is 'ON'
+ = 'GMRES', default: 0.0); this parameter has a decisive influence on global
+ convergence; for well-conditioned problems it can be very small or zero;
+ for ill-conditioned problems one should pick a value that delivers an overall
+ best convergence behavior; large values will slow down convergence, but
+ stabilize it; small values may destabilize convergence for ill-conditioned
+ problems; 
+\series bold
+delta
+\series default
+ (typically 
+\begin_inset Formula $\ll1$
+\end_inset
+
+) should be tuned together with 
+\series bold
+epsilon
+\series default
+ and 
+\series bold
+linmaxiter
+\series default
+, so that the linear sub-problems are solved only roughly; 
+\emph on
+since rigorous analysis is still missing for these parameters, please experiment
+ before settling on specific values for a specific problem;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+theta
+\series default
+ - relaxation parameter greater than 0 and not greater than 1 (used only
+ for 
+\series bold
+linver
+\series default
+ = 'DIAG', default: 0.25); smaller initial theta may improve overall convergence
+ behavior
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+omega
+\series default
+ - positive equation smoothing omega (default: 
+\begin_inset Formula $\mbox{\textbf{meritval}}\cdot0.01$
+\end_inset
+
+)
 \end_layout
 
 \begin_layout Standard
@@ -5549,7 +5625,7 @@ Some parameters can also be accessed as members of a NEWTON_SOLVER object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="1">
+<lyxtabular version="3" rows="4" columns="1">
 <features>
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -5585,7 +5661,7 @@ obj.iters
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -5596,6 +5672,23 @@ obj.merhist
 \series default
 \emph default
  - a list of merit function values for each iteration of the last run
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.mvhist
+\series default
+\emph default
+ - a list of matrix-vector products for each iteration of the last run
 \end_layout
 
 \end_inset
@@ -5636,7 +5729,8 @@ Read/write
 \begin_layout Plain Layout
 
 \emph on
-obj.meritval, obj.maxiter, obj.locdyn, obj.theta, obj.epsilon, obj.smooth
+obj.meritval, obj.maxiter, obj.locdyn, obj.linver, obj.linmaxiter, obj.maxmatvec,
+ obj.epsilon, obj.delta, obj.theta, obj.omega
 \end_layout
 
 \end_inset
