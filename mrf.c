@@ -75,16 +75,9 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     {
     case CONTACT:
     {
-      if (dynamic && con->gap > 0) /* open dynamic contact */
-      {
-	up = 0.0; /* has zero R regardless of U */
-      }
-      else
-      {
-	VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
-	NVMUL (A, P, Q);
-	up = DOT (Q, P);
-      }
+      VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
+      NVMUL (A, P, Q);
+      up = DOT (Q, P);
     }
     break;
     case FIXPNT:

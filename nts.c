@@ -588,6 +588,9 @@ static int Matvec (void *matvec_data, double alpha, PRIVATE *A, VECTOR *x, doubl
   for (dat = A->dat, R = x->x; dat != A->end; dat ++, R += 3)
   {
     con = dat->con;
+#if MPI
+    if (!con->dia) break; /* skip external */
+#endif
     Q = con->R;
     COPY (R, Q);
   }
@@ -597,6 +600,9 @@ static int Matvec (void *matvec_data, double alpha, PRIVATE *A, VECTOR *x, doubl
   for (dat = A->dat, R = x->x, Q = y->x; dat != A->end; dat ++, R += 3, Q += 3)
   {
     con = dat->con;
+#if MPI
+    if (!con->dia) break; /* skip external */
+#endif
     U = con->U;
 
     switch (con->kind)
@@ -650,6 +656,9 @@ static int Precond (void *vdata, PRIVATE *A, VECTOR *b, VECTOR *x)
 
   for (dat = A->dat, R = x->x, Q = b->x; dat != A->end; dat ++, R += 3, Q += 3)
   {
+#if MPI
+    if (!dat->con->dia) break; /* skip external */
+#endif
     T = dat->T;
     NVMUL (T, Q, R);
   }
@@ -686,11 +695,6 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
   /* internal constraints */
   for (con = dom->con, dat = A->dat; con; con = con->next)
   {
-    if (dynamic && con->kind == CONTACT && con->gap > 0.0)
-    {
-      SET (con->R, 0.0); continue; /* skip open dynamic contacts */
-    }
-
     DIAB *dia = con->dia;
     BODY *m = con->master,
 	 *s = con->slave;
@@ -786,15 +790,13 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
   for (item = MAP_First (dom->conext); item; item = MAP_Next (item))
   {
     con = item->data;
-    if (dynamic && con->kind == CONTACT && con->gap > 0.0) continue; /* skip open dynamic contacts */
-
     BODY *m = con->master,
 	 *s = con->slave;
     double *mpnt = con->mpnt,
 	   *spnt = con->spnt,
 	   *base = con->base;
 
-    if ((jtem = MAP_Find_Node (A->bod, m, NULL)))
+    if (m->kind != OBS && (jtem = MAP_Find_Node (A->bod, m, NULL)))
     {
       dat->mH = BODY_Gen_To_Loc_Operator (m, con->msgp, mpnt, base);
       dat->mi = (int) (long) jtem->data;
@@ -805,7 +807,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       }
     }
 
-    if ((jtem = MAP_Find_Node (A->bod, s, NULL)))
+    if (s && s->kind != OBS && (jtem = MAP_Find_Node (A->bod, s, NULL)))
     {
       dat->sH = BODY_Gen_To_Loc_Operator (s, con->ssgp, spnt, base);
       dat->si = (int) (long) jtem->data;
@@ -867,12 +869,6 @@ static void locdyn_constraints_data (DOM *dom, PRIVATE *A)
   /* create internal constraints data */
   for (con = dom->con, dat = A->dat; con; con = con->next)
   {
-    if (dynamic && con->kind == CONTACT && con->gap > 0.0)
-    {
-      SET (con->R, 0.0);
-      continue; /* skip open dynamic contacts */
-    }
-
     COPY (con->R, dat->R0);
     dat->con = con;
     dat ++;
@@ -1107,6 +1103,9 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
     for (dat = A->dat, DR = dr->x; dat != A->end; dat ++, DR += 3)
     {
       CON *con = dat->con;
+#if MPI
+    if (!con->dia) break; /* skip external */
+#endif
       double *RC = dat->RC,
 	     *R = con->R;
       ADD (DR, RC, R);
@@ -1281,14 +1280,18 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
 #if MPI
       if (ldy->dom->rank == 0)
 #endif
-      if (ldy->dom->verbose) printf ("NEWTON_SOLVER has FAILED => switching to GAUSS_SEIDEL...\n");
+      if (ldy->dom->verbose) printf ("NEWTON_SOLVER:  ************ FAILED => switching to GAUSS_SEIDEL! ************ \n");
 
       restore_initial_R (A);
       gs = GAUSS_SEIDEL_Create (1.0, ns->maxiter, ns->meritval, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
       GAUSS_SEIDEL_Solve (gs, ldy);
       GAUSS_SEIDEL_Destroy (gs);
     }
-    else ASSERT_TEXT (0, "NEWTON_SOLVER has FAILED in body space mode => ABORDING!");
+    else 
+    {
+      fprintf (stderr, "NEWTON_SOLVER: ************ FAILED in body space mode => ABORDING! ************\n");
+      EXIT (0);
+    }
   }
 
   destroy_private_data (A);

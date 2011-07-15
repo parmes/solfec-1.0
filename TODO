@@ -83,9 +83,6 @@ FEM-specific boundary conditions enforcement
 ----------------------------------------------------------------------------
 Consider using GTS for mesh simplification for MESH splitting
 ----------------------------------------------------------------------------
-Remove references to "open dynamic" contacts in the code (see comments);
-These are now simply impossible by design and we shall keep it that way
-----------------------------------------------------------------------------
 Rationalize memory use for TIME_SERIES (e.g. do not copy but use
 one global object, etc.)
 -------------------------------------------------------------------------------------

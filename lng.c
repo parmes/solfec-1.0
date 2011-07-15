@@ -3417,7 +3417,7 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       {
 	self->ns->linver = PQN_GMRES;
       }
-      ELIF (locdyn, "DIAG")
+      ELIF (linver, "DIAG")
       {
 	self->ns->linver = PQN_DIAG;
       }
