@@ -109,6 +109,9 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path);
 /* export W in MatrixMarket format */
 void LOCDYN_W_MatrixMarket (LOCDYN *ldy, const char *path);
 
+/* clone local dynamics for non-contacts */
+LOCDYN* LOCDYN_Clone_Non_Contacts (LOCDYN *ldy);
+
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);
 

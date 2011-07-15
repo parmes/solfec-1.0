@@ -21,12 +21,12 @@
 
 #include "alg.h"
 #include "dom.h"
-#include "dbs.h"
+#include "bgs.h"
 #include "pes.h"
 #include "err.h"
 
-#define PENALTY_MAXITER 10000
-#define PENALTY_EPSILON 1E-3 /* XXX */
+#define PENALTY_MAXITER 1000
+#define PENALTY_EPSILON 1E-4 /* XXX */
 
 /* spring and dashpot based explicit diagonal block contact solver */
 int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot,
@@ -96,38 +96,6 @@ int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, doubl
   return 0;
 }
 
-#if MPI
-/* return next pointer and realloc send memory if needed */
-inline static COMDATA* sendnext (int nsend, int *size, COMDATA **send)
-{
-  if (nsend >= *size)
-  {
-    (*size) *= 2;
-    ERRMEM (*send = realloc (*send, sizeof (COMDATA [*size])));
-  }
-
-  return &(*send)[nsend];
-}
-
-/* receive non-contact reactions */
-static void receive_noncontact_reactions (DOM *dom, COMDATA *recv, int nrecv)
-{
-  COMDATA *ptr;
-  int i, j, *k;
-  double *R;
-  CON *con;
-
-  for (i = 0, ptr = recv; i < nrecv; i ++, ptr ++)
-  {
-    for (j = 0, k = ptr->i, R = ptr->d; j < ptr->ints; j ++, k ++, R += 3)
-    {
-      ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) (*k), NULL), "Invalid constraint id");
-      COPY (R, con->R);
-    }
-  }
-}
-#endif
-
 /* create penalty solver */
 PENALTY* PENALTY_Create (short implicit)
 {
@@ -142,15 +110,20 @@ PENALTY* PENALTY_Create (short implicit)
 /* explcit constraint solver */
 void PENALTY_Solve (PENALTY *ps, LOCDYN *ldy)
 {
-  double error, step;
+  GAUSS_SEIDEL *gs;
   short implicit;
-  short dynamic;
-  int iters;
+  double step;
+  LOCDYN *clo;
   DIAB *dia;
   CON *con;
 
   implicit = ps->implicit;
   step = ldy->dom->step;
+
+#if MPI
+  if (ldy->dom->rank == 0)
+#endif
+  if (ldy->dom->verbose) printf ("PENALTY_SOLVER: applying springs and dashpots...\n");
 
   /* first explicitly process contacts */
   for (dia = ldy->dia; dia; dia = dia->n)
@@ -166,117 +139,19 @@ void PENALTY_Solve (PENALTY *ps, LOCDYN *ldy)
   }
 
 #if MPI
-  /* send contact reactions (well also other among them, minority) */
+  if (ldy->dom->rank == 0)
+#endif
+  if (ldy->dom->verbose) printf ("PENALTY_SOLVER: solving non-contact constraints...\n");
+
+#if MPI
   DOM_Update_External_Reactions (ldy->dom, 0);
 #endif
-
-  /* Gauss-Seidel sweep for non-contacts now */
-  dynamic = ldy->dom->dynamic;
-  iters = 0;
-  do
-  {
-    double errup = 0.0,
-	   errlo = 0.0;
-    OFFB *blk;
-    DIAB *dia;
-   
-    for (dia = ldy->dia; dia; dia = dia->n)
-    {
-      CON *con = dia->con;
-
-      if (con->kind == CONTACT) continue; /* skip contacts */
-
-      double R0 [3],
-	     B [3],
-	     *R = dia->R;
-
-      /* compute local free velocity */
-      COPY (dia->B, B);
-      for (blk = dia->adj; blk; blk = blk->n)
-      {
-	double *W = blk->W,
-	       *R = blk->dia->R;
-	NVADDMUL (B, W, R, B);
-      }
-#if MPI
-      for (blk = dia->adjext; blk; blk = blk->n)
-      {
-	CON *con = (CON*) blk->dia;
-	double *W = blk->W,
-	       *R = con->R;
-	NVADDMUL (B, W, R, B);
-      }
-#endif
-      
-      COPY (R, R0); /* previous reaction */
-
-      /* solve local diagonal block problem */
-      DIAGONAL_BLOCK_Solver (DS_PROJECTED_GRADIENT, 1E-6, 1000, dynamic, step,
-	 con->kind, &con->mat, con->gap, con->area, con->Z, con->base, dia, B);
-
-      /* accumulate relative
-       * error components */
-      SUB (R, R0, R0);
-      errup += DOT (R0, R0);
-      errlo += DOT (R, R);
-    }
-
-    /* calculate relative error */
-    error = sqrt (errup) / sqrt (MAX (errlo, 1.0));
-  }
-  while (++ iters < PENALTY_MAXITER && error > PENALTY_EPSILON);
-
-  ASSERT_DEBUG (iters < PENALTY_MAXITER && error < PENALTY_EPSILON, "Gauss-Seidel part of PENALTY_SOLVER not convergent");
-
-#if MPI
-  COMDATA *send, *recv, *ptr;
-  int nsend, nrecv, size;
-  SET *ranks, *item;
-  MEM setmem;
-  OFFB *blk;
-
-  size = 128;
-  nsend = 0;
-  ERRMEM (send = MEM_CALLOC (size * sizeof (COMDATA)));
-  MEM_Init (&setmem, sizeof (SET), 128);
-  ptr = send;
-
-  /* create send sets for non-contact reactions */
-  for (dia = ldy->dia; dia; dia = dia->n)
-  {
-    CON *con = dia->con;
-
-    if (con->kind == CONTACT) continue;
-
-    for (ranks = NULL, blk = dia->adjext; blk; blk = blk->n)
-    { 
-      CON *con = (CON*) blk->dia;
-      SET_Insert (&setmem, &ranks, (void*) (long) con->rank, NULL);
-    }
-
-    for (item = SET_First (ranks); item; item = SET_Next (item))
-    {
-      ptr->rank = (int) (long) item->data;
-      ptr->ints = 1;
-      ptr->doubles = 3;
-      ptr->i = (int*) &con->id;
-      ptr->d = con->R;
-      ptr= sendnext (++ nsend, &size, &send);
-    }
-
-    SET_Free (&setmem, &ranks);
-  }
-
-  /* send non-contact reactions */
-  COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
-
-  /* receive non-contact reations */
-  receive_noncontact_reactions (ldy->dom, recv, nrecv);
-
-  MEM_Release (&setmem);
-  free (send);
-  free (recv);
-#endif
+  clo = LOCDYN_Clone_Non_Contacts (ldy);
+  gs = GAUSS_SEIDEL_Create (PENALTY_EPSILON, PENALTY_MAXITER, 1.0, GS_FAILURE_CONTINUE, 1E-9, 100, DS_SEMISMOOTH_NEWTON, NULL, NULL);
+  gs->nomerit = 1;
+  GAUSS_SEIDEL_Solve (gs, clo);
+  GAUSS_SEIDEL_Destroy (gs);
+  LOCDYN_Destroy (clo);
 }
 
 /* write labeled satate values */
