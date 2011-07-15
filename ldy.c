@@ -611,7 +611,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
   DOM *dom = ldy->dom;
   UPKIND upkind = update_kind (dom->solfec);
   double step = dom->step;
-  short dynamic = dom->dynamic;
   OFFB *blk, *blj;
   DIAB *dia;
 
@@ -662,7 +661,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 #if MPI
     if (m->flags & BODY_CHILD)
     {
-      if (dynamic) BODY_Dynamic_Init (m);
+      if (dom->dynamic) BODY_Dynamic_Init (m);
       else BODY_Static_Init (m);
     }
 #endif
@@ -672,7 +671,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 #if MPI
       if (s->flags & BODY_CHILD)
       {
-	if (dynamic) BODY_Dynamic_Init (s);
+	if (dom->dynamic) BODY_Dynamic_Init (s);
 	else BODY_Static_Init (s);
       }
 #endif
@@ -738,14 +737,11 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     MX_Inverse (&A, &A); /* inverse of diagonal block */
 
 sumene: 
-    if (!(dynamic && con->kind == CONTACT && con->gap > 0)) /* skip open dynamic contacts */
-    {
-      NVMUL (A.x, B, X);
-      ldy->free_energy += DOT (X, B); /* sum up free energy */
+    NVMUL (A.x, B, X);
+    ldy->free_energy += DOT (X, B); /* sum up free energy */
 
-      /* add up prescribed velocity contribution */
-      if (con->kind == VELODIR) ldy->free_energy += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
-    }
+    /* add up prescribed velocity contribution */
+    if (con->kind == VELODIR) ldy->free_energy += A.x[8] * VELODIR(con->Z) * VELODIR(con->Z);
   }
 
   ldy->free_energy *= 0.5; /* 0.5 * DOT (AB, B) */
