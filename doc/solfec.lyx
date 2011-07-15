@@ -4764,7 +4764,7 @@ GAUSS_SEIDEL_SOLVER
 
 \begin_layout Standard
 An object of type GAUSS_SEIDEL_SOLVER represents a nonlinear block Gauss-Seidel
- solver, employed for the calculation of constraint reactions (cd.
+ solver, employed for the calculation of constraint reactions (cf.
  Section 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -5279,7 +5279,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="4" columns="2">
+<lyxtabular version="3" rows="3" columns="2">
 <features>
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="60col%">
@@ -5333,7 +5333,7 @@ Jacobi update for off-processor data of
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -5342,38 +5342,13 @@ Jacobi update for off-processor data of
 
 \end_inset
 </cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
 Use Jacobi update for all off-processor data.
  This approach will fail in most cases.
  It servers as illustration.
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'SIMPLIFIED'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-A single sweep over contacts is done with previous values of off-processor
- data.
- This is followed by local Gauss-Seidel iterations for all non-contact constrain
-ts.
- This is the fastest and least consistent approach, of use for deformable
- kinematics dominated models.
 \end_layout
 
 \end_inset
@@ -5462,7 +5437,15 @@ NEWTON_SOLVER
 
 \begin_layout Standard
 Object of type NEWTON_SOLVER represents a projected quasi-Newton constraints
- solver.
+ solver (cd.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:PQN"
+
+\end_inset
+
+).
  If local dynamics is enabled (locdyn = 'ON') and iterations fail to converge,
  the Gauss-Seidel solver will be invoked, starting from the previous time
  step solution.
@@ -10976,7 +10959,16 @@ in order to approximately measure the relative amount of spurious energy,
 
  would be unpractical or impossible due to singularity, we only use the
  diagonal blocks, which are always positive definite.
- 
+ To recapitulate, in short
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+g\left(\mathbf{R}\right)\simeq\frac{\mbox{spurious energy due to inaccurate solution}}{\mbox{free energy available at the constraints}}\end{equation}
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Section
@@ -11006,7 +10998,7 @@ reference "eq:accuracy"
 
 ).
  The friction cone 
-\begin_inset Formula $FC_{\alpha}$
+\begin_inset Formula $K_{\alpha}$
 \end_inset
 
  is defined as
@@ -11014,7 +11006,7 @@ reference "eq:accuracy"
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-FC_{\alpha}=\left\{ \mathbf{R}_{\alpha}:\left\Vert \mathbf{R}_{\alpha T}\right\Vert \le\mu_{\alpha}R_{\alpha N},R_{\alpha N}\ge0\right\} \end{equation}
+K_{\alpha}=\left\{ \mathbf{R}_{\alpha}:\left\Vert \mathbf{R}_{\alpha T}\right\Vert \le\mu_{\alpha}R_{\alpha N},R_{\alpha N}\ge0\right\} \end{equation}
 
 \end_inset
 
@@ -11059,7 +11051,7 @@ key "DeSaxce1998"
 \begin_inset Formula \begin{equation}
 -\left[\begin{array}{c}
 \mathbf{U}_{\alpha T}\\
-\bar{U}_{\alpha N}+\mu_{\alpha}\left\Vert \mathbf{U}_{\alpha T}\right\Vert \end{array}\right]\in N_{FC_{\alpha}}\left(\mathbf{R}_{\alpha}\right)\label{eq:DSF}\end{equation}
+\bar{U}_{\alpha N}+\mu_{\alpha}\left\Vert \mathbf{U}_{\alpha T}\right\Vert \end{array}\right]\in N_{K_{\alpha}}\left(\mathbf{R}_{\alpha}\right)\label{eq:DSF}\end{equation}
 
 \end_inset
 
@@ -11073,11 +11065,11 @@ key "DeSaxce1998"
 \noun default
 \color inherit
 where 
-\begin_inset Formula $N_{FC_{\alpha}}$
+\begin_inset Formula $N_{K_{\alpha}}$
 \end_inset
 
  stands for the normal cone of the set 
-\begin_inset Formula $FC_{\alpha}$
+\begin_inset Formula $K_{\alpha}$
 \end_inset
 
 .
@@ -11124,7 +11116,7 @@ and
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-FC=\bigcup_{\alpha}FC_{\alpha}\end{equation}
+K=\bigcup_{\alpha}K_{\alpha}\end{equation}
 
 \end_inset
 
@@ -11161,12 +11153,12 @@ reference "eq:DSF"
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
--\mathbf{F}\left(\mathbf{R}\right)=\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)-\mbox{proj}_{FC}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)\end{equation}
+-\mathbf{F}\left(\mathbf{R}\right)=\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)-\mbox{proj}_{K}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)\end{equation}
 
 \end_inset
 
 which can be reduced to the usual projection formula 
-\begin_inset Formula $\mathbf{R}=\mbox{proj}_{FC}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)$
+\begin_inset Formula $\mathbf{R}=\mbox{proj}_{K}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)$
 \end_inset
 
 .
@@ -11175,7 +11167,7 @@ which can be reduced to the usual projection formula
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-\mathbf{m}\left(\mathbf{S}\right)=\mathbf{S}-\mbox{proj}_{FC}\left(\mathbf{S}\right)=\mathbf{n}\left(\mathbf{S}\right)\left\langle \mathbf{n}\left(\mathbf{S}\right),\mathbf{S}\right\rangle \end{equation}
+\mathbf{m}\left(\mathbf{S}\right)=\mathbf{S}-\mbox{proj}_{K}\left(\mathbf{S}\right)=\mathbf{n}\left(\mathbf{S}\right)\left\langle \mathbf{n}\left(\mathbf{S}\right),\mathbf{S}\right\rangle \end{equation}
 
 \end_inset
 
@@ -11205,7 +11197,7 @@ reference "eq:DSF"
 
 \begin_layout Standard
 \begin_inset Formula \begin{equation}
-\mathbf{C}\left(\mathbf{R}\right)=\mathbf{F}\left(\mathbf{R}\right)+\mathbf{m}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)=\mathbf{0}\mbox{ and }\mathbf{R}\in FC\label{eq:C1}\end{equation}
+\mathbf{C}\left(\mathbf{R}\right)=\mathbf{F}\left(\mathbf{R}\right)+\mathbf{m}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)=\mathbf{0}\mbox{ and }\mathbf{R}\in K\label{eq:C1}\end{equation}
 
 \end_inset
 
@@ -11249,6 +11241,14 @@ reference "sec:Penalty-solver"
 
  are the classical Gauss-Seidel approach of Contact Dynamics and a somewhat
  modified penalty solver of the Discrete Element Method.
+ The projected quasi-Newton solver from Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "sec:PQN"
+
+\end_inset
+
+ has been designed specifically for Solfec.
 \end_layout
 
 \begin_layout Section
@@ -11866,7 +11866,15 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-3     SWEEP 
+3     
+\begin_inset Formula $\mathbf{S}=\mathbf{R}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+4     SWEEP 
 \begin_inset Formula $\left(Top_{i}\right)$
 \end_inset
 
@@ -11874,7 +11882,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-4     send 
+5     send 
 \begin_inset Formula $\left(Top_{i}\right)$
 \end_inset
 
@@ -11882,7 +11890,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-5     SWEEP 
+6     SWEEP 
 \begin_inset Formula $\left(Inner2_{i}\right)$
 \end_inset
 
@@ -11890,7 +11898,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-6     receive 
+7     receive 
 \begin_inset Formula $\left(Top_{i}\right)$
 \end_inset
 
@@ -11898,7 +11906,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-7     LOOP 
+8     LOOP 
 \begin_inset Formula $\left(Middle_{i}\right)$
 \end_inset
 
@@ -11906,7 +11914,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-8     SWEEP 
+9     SWEEP 
 \begin_inset Formula $\left(Bottom_{i}\right)$
 \end_inset
 
@@ -11914,7 +11922,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-9     send 
+10    send 
 \begin_inset Formula $\left(Bottom_{i}\right)$
 \end_inset
 
@@ -11922,7 +11930,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-10    SWEEP 
+11    SWEEP 
 \begin_inset Formula $\left(Inner1_{i}\right)$
 \end_inset
 
@@ -11930,7 +11938,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-11    receive 
+12    receive 
 \begin_inset Formula $\left(Bottom_{i}\right)$
 \end_inset
 
@@ -11938,7 +11946,7 @@ PARALLEL_GAUSS_SEIDEL
 \end_layout
 
 \begin_layout LyX-Code
-12  while 
+13  while 
 \begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
 \end_inset
 
@@ -12188,81 +12196,7 @@ reference "alg:Parallel-Gauss-Seidel"
 \noindent
 Although this kind of approach does work as a multi-grid smoother, it has
  little use in our context.
- Nevertheless, we use for illustration sake and name the BOUNDARY_JACOBI.
- The final and crudest variant of the solver is called SIMPLIFIED.
- This variant is devised with soft deformable models in mind.
- We split constraints into 
-\begin_inset Formula $Contacts_{i}$
-\end_inset
-
- and 
-\begin_inset Formula $Others_{i}$
-\end_inset
-
-, hence we separate contact constraints from bilateral ones.
- We then do the following
-\end_layout
-
-\begin_layout LyX-Code
-1   SWEEP 
-\begin_inset Formula $\left(Contacts_{i}\right)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout LyX-Code
-2   send 
-\begin_inset Formula $\left(Contacts_{i}\right)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout LyX-Code
-3   receive 
-\begin_inset Formula $\left(Contacts_{i}\right)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout LyX-Code
-4   do
-\end_layout
-
-\begin_layout LyX-Code
-5     SWEEP 
-\begin_inset Formula $\left(Others_{i}\right)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout LyX-Code
-6   while 
-\begin_inset Formula $\left\Vert \mathbf{S}-\mathbf{R}\right\Vert /\left\Vert \mathbf{R}\right\Vert >\epsilon$
-\end_inset
-
- and 
-\begin_inset Formula $g\left(\mathbf{R}\right)>\gamma$
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-A single sweep over contacts is followed by the Gauss-Seidel loop over bilateral
- constraints.
- This is possible because bilateral constraints migrate together with bodies
- and hence are local to the processor (an exception is for the rigid link
- constraint, for which this approach might break down 
-\series bold
-\color red
-TODO
-\series default
-\color inherit
-).
+ Nevertheless, we use it for illustration sake and name the BOUNDARY_JACOBI.
 \end_layout
 
 \begin_layout Section
@@ -12287,19 +12221,15 @@ The penalty solver is quite straightforward.
 
 , hence we separate contact constraints from bilateral ones.
  We then update the contacts using the spring-dashpot model and calculate
- reactions of bilateral constraints using a local Gauss-Seidel solver.
+ reactions of bilateral constraints using the Gauss-Seidel solver (fixed
+ accuracy 
+\begin_inset Formula $\mbox{epsilon=1E-4, maxiter = 1000}$
+\end_inset
+
+ is used).
  We use the Gauss-Seidel approach for non-contacts because in this case
  it is quite fast, while it avoids issues related to penalisation of bilateral
  constraints.
- Using Gauss-Seidel is possible because bilateral constraints migrate together
- with bodies and hence are local to the processor (an exception is for the
- rigid link constraint, for which this approach might break down 
-\series bold
-\color red
-TODO
-\series default
-\color inherit
-).
  Algorithm 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -12314,11 +12244,11 @@ reference "alg:Parallel-explicit-solver"
 \begin_inset Float algorithm
 wide false
 sideways false
-status collapsed
+status open
 
 \begin_layout LyX-Code
 PARALLEL_PENALTY_SOLVER 
-\begin_inset Formula $\left(\epsilon\right)$
+\begin_inset Formula $\left(\right)$
 \end_inset
 
 
@@ -12361,23 +12291,7 @@ PARALLEL_PENALTY_SOLVER
 \end_layout
 
 \begin_layout LyX-Code
-5  SERIAL_GAUSS_SEIDEL 
-\begin_inset Formula $\left(Others_{i},\epsilon\right)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout LyX-Code
-6  send 
-\begin_inset Formula $\left(Others_{i}\right)$
-\end_inset
-
-
-\end_layout
-
-\begin_layout LyX-Code
-7  receive 
+5  GAUSS_SEIDEL 
 \begin_inset Formula $\left(Others_{i}\right)$
 \end_inset
 
@@ -12411,10 +12325,550 @@ Parallel penalty solver.
 
 \end_layout
 
+\begin_layout Section
+\begin_inset CommandInset label
+LatexCommand label
+name "sec:PQN"
+
+\end_inset
+
+Projected quasi-Newton solver
+\end_layout
+
+\begin_layout Standard
+Let us rewrite the frictional contact problem (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:C1"
+
+\end_inset
+
+) once again
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{C}\left(\mathbf{R}\right)=\mathbf{F}\left(\mathbf{R}\right)+\mathbf{m}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)=\mathbf{0}\mbox{ and }\mathbf{R}\in K\label{eq:C1a}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $K$
+\end_inset
+
+ is the direct sum of friction cones at all contact points.
+ Since 
+\begin_inset Formula $\mathbf{C}\left(\mathbf{R}\right)$
+\end_inset
+
+ is not smooth, to compute 
+\begin_inset Formula $\nabla\mathbf{C}$
+\end_inset
+
+ we generalize the approach from 
+\begin_inset CommandInset citation
+LatexCommand citep
+key "Fukushima2002"
+
+\end_inset
+
+, where only the self-dual case (friction coefficient equal to 1) was considered.
+ Our idea is to employ the following projected quasi-Newton step
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}-\mathbf{A}^{-1}\mathbf{C}\left(\mathbf{R}\right)\right]\label{eq:newton}\end{equation}
+
+\end_inset
+
+so that, as required, the iterates remain within the friction cone and where
+ 
+\begin_inset Formula \begin{equation}
+\mathbf{A}\simeq\nabla\mathbf{C}\end{equation}
+
+\end_inset
+
+is an easy to invert approximation of 
+\begin_inset Formula $\nabla\mathbf{C}$
+\end_inset
+
+.
+ Since in many practical situations 
+\begin_inset Formula $\nabla\mathbf{C}$
+\end_inset
+
+ is singular, we cannot hope to employ 
+\begin_inset Formula $\nabla\mathbf{C}$
+\end_inset
+
+.
+ We then employ two variants of 
+\begin_inset Formula $\mathbf{A}\simeq\nabla\mathbf{C}$
+\end_inset
+
+.
+ The first one reads
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{A}_{1}=\nabla\mathbf{C}+\delta\mathbf{I},\mbox{ combined with GMRES.}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\delta\ge0$
+\end_inset
+
+.
+ This is related to numerical integration of an artificial ODE 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\frac{d\mathbf{R}}{dt}=\mathbf{C}\left(\mathbf{R}\right)\end{equation}
+
+\end_inset
+
+
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\noun off
+\color none
+to a steady state (take one step of implicit Euler, in the literature this
+ is called 
+\family default
+\series default
+\shape default
+\size default
+\emph on
+\bar default
+\noun default
+\color inherit
+pseudo-transient continuation
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\noun off
+\color none
+).
+ The second variant reads
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{A}_{2}=\mbox{diag}_{3\times3}\left[\nabla\mathbf{C}\right],\mbox{ combined with direct inversion.}\end{equation}
+
+\end_inset
+
+and it is combined with a heuristic stabilization technique
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\triangle\mathbf{R}^{k+1}=\left(1-\theta\right)\triangle\mathbf{R}^{k}-\theta\left(\mathbf{A}^{k}\right)^{-1}\mathbf{C}^{k}\end{equation}
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\theta\in\left[0,1\right]\mbox{.}\end{equation}
+
+\end_inset
+
+
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout Description
+PQN1(
+\begin_inset Formula $\mathbf{R},\gamma,n,\omega,\delta,m,\epsilon$
+\end_inset
+
+):
+\end_layout
+
+\begin_layout Enumerate
+\begin_inset Formula $\triangle\mathbf{R}^{0}=\mathbf{0}$
+\end_inset
+
+, 
+\begin_inset Formula $k=0$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Do
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+\begin_inset Formula $\mathbf{U}^{k}=\mathbf{W}\mathbf{R}^{k}+\mathbf{B}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Compute 
+\begin_inset Formula $\mathbf{C}^{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{A}^{k}=\nabla\mathbf{C}_{\alpha\alpha}^{k}+\delta\mathbf{I}$
+\end_inset
+
+ using smoothing 
+\begin_inset Formula $\omega$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+\begin_inset Formula $\triangle\mathbf{R}^{k+1}=-\left(\mathbf{A}^{k}\right)_{\mbox{GMRES}\left(\epsilon\left\Vert \mathbf{C}^{k}\right\Vert ,m\right)}^{-1}\mathbf{C}^{k}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+\begin_inset Formula $\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}+\triangle\mathbf{R}^{k+1}\right]$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+\begin_inset Formula $k=k+1$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Plain Layout
+while 
+\begin_inset Formula $g\left(\mathbf{R}^{k}\right)\ge\gamma$
+\end_inset
+
+ and 
+\begin_inset Formula $k<n$
+\end_inset
+
+.
+\end_layout
+
+\end_deeper
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:PQN1"
+
+\end_inset
+
+The projected quasi-Newton method with GMRES.
+ Use linver = 'GMRES' in NEWTON_SOLVER to enable this variant (this is the
+ default).
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+We then have two variants of the projected quasi-Newton step:
+\end_layout
+
+\begin_layout Enumerate
+PQN1 (cf.
+ Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:PQN1"
+
+\end_inset
+
+): 
+\begin_inset Formula \[
+\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}-\left(\nabla\mathbf{C}^{k}+\delta\mathbf{I}\right)_{\mbox{GMRES}\left(\epsilon\left\Vert \mathbf{C}^{k}\right\Vert ,m\right)}^{-1}\mathbf{C}^{k}\right]\]
+
+\end_inset
+
+where GMRES is preconditioned with 
+\begin_inset Formula $\left[\mbox{diag}_{3\times3}\left(\nabla\mathbf{C}_{\alpha\alpha}^{k}+\delta\mathbf{I}\right)\right]^{-1}$
+\end_inset
+
+ and 
+\begin_inset Formula $\delta$
+\end_inset
+
+, 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+ and 
+\begin_inset Formula $m$
+\end_inset
+
+ need to be suitably selected.
+ The linear problem should be solved only roughly, usually 
+\begin_inset Formula $\epsilon=0.25$
+\end_inset
+
+ and 
+\begin_inset Formula $m=10$
+\end_inset
+
+ (iterations bound) work well.
+ For ill-conditioned problems a too accurate solution of the linear sub-problem
+ results in a poor convergence rate.
+ The diagonal regularization 
+\begin_inset Formula $\delta$
+\end_inset
+
+ needs to be adjusted 
+\begin_inset Quotes eld
+\end_inset
+
+by hand
+\begin_inset Quotes erd
+\end_inset
+
+.
+ The automatic update formulas that can be found in literature work only
+ for well-conditioned cases and hence they are not very useful for us.
+ For ill-conditioned problems one should pick 
+\begin_inset Formula $\delta$
+\end_inset
+
+ that delivers an overall best convergence behavior.
+ Large values will slow down convergence, but stabilize it; small values
+ may destabilize convergence for ill-conditioned problems; 
+\begin_inset Formula $\delta$
+\end_inset
+
+ (typically 
+\begin_inset Formula $\ll1$
+\end_inset
+
+) should be tuned together with 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+ and 
+\begin_inset Formula $m$
+\end_inset
+
+ (e.g.
+ find a suitably small 
+\begin_inset Formula $\delta$
+\end_inset
+
+ first, then tweak 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+).
+ 
+\emph on
+Since rigorous analysis is still missing for these parameters, please experiment
+ before settling on specific values for a specific problem.
+
+\emph default
+ Use linver = 'GMRES' in NEWTON_SOLVER to enable this variant (this is the
+ default).
+\end_layout
+
+\begin_layout Enumerate
+PQN2 (cf.
+ Algorithm 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "alg:PQN2"
+
+\end_inset
+
+): 
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\noun off
+\color none
+
+\begin_inset Formula \[
+\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}+\left(1-\theta\right)\triangle\mathbf{R}^{k}-\theta\left(\mbox{diag}_{3\times3}\left[\nabla\mathbf{C}^{k}\right]\right)^{-1}\mathbf{C}^{k}\right]\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\theta\in\left[0,1\right]$
+\end_inset
+
+ and the diagonal 
+\begin_inset Formula $3\times3$
+\end_inset
+
+ blocks of 
+\begin_inset Formula $\nabla\mathbf{C}^{k}$
+\end_inset
+
+ are directly inverted.
+ This simple scheme is interesting because it converges for a sufficiently
+ small 
+\begin_inset Formula $\theta$
+\end_inset
+
+, while it is essentially a nonlinear Jacobi-type method.
+ 
+\family default
+\series default
+\shape default
+\size default
+\emph default
+\bar default
+\noun default
+\color inherit
+Use linver = 'DIAG' in NEWTON_SOLVER to enable this variant.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float algorithm
+wide false
+sideways false
+status open
+
+\begin_layout Description
+PQN2(
+\begin_inset Formula $\mathbf{R},\theta,\gamma,n,\omega$
+\end_inset
+
+):
+\end_layout
+
+\begin_layout Enumerate
+\begin_inset Formula $\triangle\mathbf{R}^{0}=\mathbf{0}$
+\end_inset
+
+, 
+\begin_inset Formula $k=0$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Do
+\end_layout
+
+\begin_deeper
+\begin_layout Enumerate
+\begin_inset Formula $\mathbf{U}^{k}=\mathbf{W}\mathbf{R}^{k}+\mathbf{B}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+Compute 
+\begin_inset Formula $\mathbf{C}^{k}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{A}^{k}=\mbox{diag}_{3\times3}\left[\nabla\mathbf{C}_{\alpha\alpha}^{k}\right]$
+\end_inset
+
+ using smoothing 
+\begin_inset Formula $\omega$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+\begin_inset Formula $\triangle\mathbf{R}^{k+1}=\left(1-\theta\right)\triangle\mathbf{R}^{k}-\theta\left(\mathbf{A}^{k}\right)^{-1}\mathbf{C}^{k}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+\begin_inset Formula $\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}+\triangle\mathbf{R}^{k+1}\right]$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Enumerate
+\begin_inset Formula $k=k+1$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Plain Layout
+while 
+\begin_inset Formula $g\left(\mathbf{R}^{k}\right)\ge\gamma$
+\end_inset
+
+ and 
+\begin_inset Formula $k<n$
+\end_inset
+
+.
+\end_layout
+
+\end_deeper
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "alg:PQN2"
+
+\end_inset
+
+The projected quasi-Newton method with diagonal direct solve and averaging.
+ Use linver = 'DIAG' in NEWTON_SOLVER to enable this variant.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
-bibfiles "/Users/tomek/Dropbox/tkwork/bibs/rigid-bodies,/Users/tomek/Dropbox/tkwork/bibs/contact-related,/Users/tomek/Dropbox/tkwork/bibs/phd,/Users/tomek/Dropbox/tkwork/bibs/time-stepping,/Users/tomek/Dropbox/tkwork/bibs/algo"
+bibfiles "/Users/tomek/Dropbox/tkwork/bibs/rigid-bodies,/Users/tomek/Dropbox/tkwork/bibs/contact-related,/Users/tomek/Dropbox/tkwork/bibs/phd,/Users/tomek/Dropbox/tkwork/bibs/time-stepping,/Users/tomek/Dropbox/tkwork/bibs/algo,/Users/tomek/Dropbox/tkwork/bibs/mathematics"
 options "plain"
 
 \end_inset

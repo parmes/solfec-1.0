@@ -1068,6 +1068,97 @@ void LOCDYN_W_MatrixMarket (LOCDYN *ldy, const char *path)
   fclose (f);
 }
 
+/* clone local dynamics for non-contacts */
+LOCDYN* LOCDYN_Clone_Non_Contacts (LOCDYN *ldy)
+{
+  MAP *map, *item, *jtem;
+  DIAB *dia, *ptr;
+  OFFB *blk, *qtr;
+  LOCDYN *clo;
+  MEM mapmem;
+
+  MEM_Init (&mapmem, sizeof (MAP), BLKSIZE);
+
+  clo = LOCDYN_Create (ldy->dom);
+  clo->free_energy = ldy->free_energy;
+
+  for (map = NULL, dia = ldy->dia; dia; dia = dia->n)
+  {
+    if (dia->con->kind != CONTACT)
+    {
+      ERRMEM (ptr = MEM_Alloc (&clo->diamem));
+      MAP_Insert (&mapmem, &map, dia, ptr, NULL); /* map non-contacts */
+    }
+  }
+
+  for (item = MAP_First (map); item; item = MAP_Next (item))
+  {
+    dia = item->key;
+    ptr = item->data;
+
+    ptr->R = dia->R;
+    ptr->U = dia->U;
+    ptr->V = dia->V;
+    NNCOPY (dia->W, ptr->W);
+    NNCOPY (dia->A, ptr->A);
+    COPY (dia->B, ptr->B);
+    ptr->rho = dia->rho;
+    ptr->con = dia->con;
+
+    ptr->n = clo->dia;
+    clo->dia = ptr;
+
+    double *B = ptr->B;
+
+    for (blk = dia->adj; blk; blk = blk->n)
+    {
+      if ((jtem = MAP_Find_Node (map, blk->dia, NULL))) /* include adjacency */
+      {
+	ERRMEM (qtr = MEM_Alloc (&clo->offmem));
+	NNCOPY (blk->W, qtr->W);
+	qtr->dia = jtem->data;
+	qtr->bod = blk->bod;
+	qtr->n = ptr->adj;
+	ptr->adj = qtr;
+      }
+      else /* accumulate B */
+      {
+	double *R = blk->dia->R,
+	       *W = blk->W;
+
+	NVADDMUL (B, W, R, B);
+      }
+    }
+#if MPI
+    for (blk = dia->adjext; blk; blk = blk->n)
+    {
+      CON *con = (CON*) blk->dia; /* external contact */
+
+      if (con->kind != CONTACT) /* include adjacency */
+      {
+	ERRMEM (qtr = MEM_Alloc (&clo->offmem));
+	NNCOPY (blk->W, qtr->W);
+	qtr->dia = blk->dia;
+	qtr->bod = blk->bod;
+	qtr->n = ptr->adjext;
+	ptr->adjext = qtr;
+      }
+      else /* accumulate B */
+      {
+	double *R = con->R,
+	       *W = blk->W;
+
+	NVADDMUL (B, W, R, B);
+      }
+    }
+#endif
+  }
+
+  MEM_Release (&mapmem);
+
+  return clo;
+}
+
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy)
 {

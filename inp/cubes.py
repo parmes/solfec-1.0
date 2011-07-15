@@ -73,9 +73,14 @@ def create_solver (solver, kinem, sarea, meritval):
 	sv = TEST_SOLVER (meritval, 1000, 1000, 10, 0.7, 1E-7, 1E-11)
       else:
         sv = TEST_SOLVER (meritval, 1000, 1000, 10, 0.4, 0.8E-7, 1E-11)
-  else:
+  elif solver == 'ns':
     if sarea > 0.0: sv = NEWTON_SOLVER (meritval, 1000)
     else: sv = NEWTON_SOLVER (meritval, 1000, delta = 1E-7)
+  elif solver == 'ps':
+    sv = PENALTY_SOLVER ()
+  else:
+    print 'Unkown solver! => using Gauss-Seidel (1E-4, 1000)'
+    sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
 
   return sv
 
@@ -307,7 +312,7 @@ solfec = SOLFEC ('DYNAMIC', step, outdir)
 
 CONTACT_SPARSIFY (solfec, 0.005, SAREA)
 
-surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3)
+surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.3, spring = 1E7, dashpot = 1E3)
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E10, poisson = 0.25, density = 2E3)
 
