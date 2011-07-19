@@ -19,8 +19,9 @@ def particle (x, y, z, r, scalf, material, solfec):
 
 
 # main module
-step = 0.002
-stop = 20
+step = 0.001
+stop = 2
+outf = 0.01
 scalf = 0.02
 
 seed (1)
@@ -49,7 +50,7 @@ nodes = [0, 0, 0,
 for i in range (0, 5):
   for j in range (0, 5):
     for k in range (0, 5):
-	msh = HEX (nodes, 15, 10, 3, 0, [0, 0, 0, 0, 0, 0])
+	msh = HEX (nodes, 10, 10, 1, 0, [0, 0, 0, 0, 0, 0])
 	SCALE (msh, (15, 10, 1))
 	BEND (msh, (0, 0, -3), (-1, 0, 0), 270)
 	BEND (msh, (5, 7, 0), (0, 0, 1), 90)
@@ -57,7 +58,8 @@ for i in range (0, 5):
 	SCALE (msh, (scalf, scalf, scalf))
 	bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
 	bod.selfcontact = 'ON'
-	bod.schem = 'DEF_LIM2'
+	bod.scheme = 'DEF_LIM'
+	bod.damping = 1E-3
 
 for i in range (1, 12):
   for j in range (1, 11):
@@ -103,9 +105,9 @@ SCALE (shp5, (scalf, scalf, scalf))
 bod = BODY (sol, 'OBSTACLE', shp5, bulk)
 
 #sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
-sv = NEWTON_SOLVER (delta = 1E-7)
+sv = NEWTON_SOLVER (1E-7, delta = 1E-7)
 
-OUTPUT (sol, 0.01)
+OUTPUT (sol, outf)
 RUN (sol, sv, stop)
 
 if not VIEWER() and sol.mode == 'READ':
