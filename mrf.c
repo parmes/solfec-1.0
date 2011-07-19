@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <float.h>
 #include "sol.h"
 #include "mrf.h"
 #include "alg.h"
@@ -38,7 +39,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
   CON *con;
 
   uplo [0] = 0.0;
-  uplo [1] = ldy->free_energy;
+  uplo [1] = ldy->free_energy < DBL_EPSILON ? 1.0 : ldy->free_energy; /* XXX => avoid division by zero */
   dynamic = ldy->dom->dynamic;
   step = ldy->dom->step;
   solver = ldy->dom->solfec->kind;
