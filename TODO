@@ -93,3 +93,4 @@ Consider using CGAL for boolean operations and convex subdivision (on input only
 ----------------------------------------------------------------------------------
 Implement REGISTER_SHAPE idea!
 ----------------------------------------
+NEWTON_SOLVER "divergence" for zero B => division over nearly zero!
