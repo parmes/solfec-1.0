@@ -95,8 +95,10 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
 /* issued by state reading routines of body interface */
 void FEM_Update_Rough_Mesh (BODY *bod);
 
-/* split body by referential plane; output two bodies with inherited state of the input body */
-void FEM_Split (BODY *bod, double *point, double *normal, int surfid, BODY **one, BODY **two);
+/* split body by a referential plane if dir = NULL or half-plane if dir != NULL;
+ * dir is a direction orhogonal to the splitting half-plane edge and pointing towards the half-plane area;
+ * output one body with new boundary or two bodies if fragmentation occurs; output bodies inherit input state */
+void FEM_Split (BODY *bod, double *point, double *normal, double *dir, int surfid, BODY **one, BODY **two);
 
 /* release FEM memory */
 void FEM_Destroy (BODY *bod);

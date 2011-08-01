@@ -5088,21 +5088,23 @@ static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
 /* simplified crack */
 static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body", "point", "normal", "surfid", "criterion", "ft", "Gf");
-  PyObject *point, *normal, *criterion;
+  KEYWORDS ("body", "point", "normal", "surfid", "criterion", "halfdir", "ft", "Gf");
+  PyObject *point, *normal, *criterion, *halfdir;
   double p [3], n [3], ft, Gf;
   lng_BODY *body;
   CRACK *cra;
   int surfid;
 
+  halfdir = NULL;
   ft = 0.0;
   Gf = 0.0;
 
-  PARSEKEYS ("OOOiO|dd", &body, &point, &normal,
-             &surfid, &criterion, &ft, &Gf);
+  PARSEKEYS ("OOOiO|Odd", &body, &point, &normal,
+             &surfid, &criterion, &halfdir, &ft, &Gf);
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
-            is_tuple (normal, kwl[2], 3) && is_string (criterion, kwl[2]));
+            is_tuple (normal, kwl[2], 3) && is_string (criterion, kwl[4]) &&
+	    is_tuple (halfdir, kwl[5], 3));
 
   if (!(body->bod->kind == PRB || body->bod->kind == FEM))
   {
@@ -5124,6 +5126,15 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
   COPY (p, cra->point);
   COPY (n, cra->normal);
   cra->surfid = surfid;
+
+  if (halfdir)
+  {
+    cra->dir [0] = PyFloat_AsDouble (PyTuple_GetItem (halfdir, 0));
+    cra->dir [1] = PyFloat_AsDouble (PyTuple_GetItem (halfdir, 1));
+    cra->dir [2] = PyFloat_AsDouble (PyTuple_GetItem (halfdir, 2));
+    cra->kind = HALF_PLANAR_CRACK;
+  }
+  else cra->kind = PLANAR_CRACK;
 
   IFIS (criterion, "TENSILE")
   {
