@@ -34,7 +34,11 @@ typedef struct crack CRACK;
 struct crack
 {
   double point [3],
-	 normal [3];
+	 normal [3],
+	 dir [3];
+
+  enum {PLANAR_CRACK,
+        HALF_PLANAR_CRACK} kind;
 
   enum {TENSILE} crit;
 

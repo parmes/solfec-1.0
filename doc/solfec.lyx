@@ -5499,7 +5499,8 @@ maxiter
 locdyn
 \series default
  - 'ON' or 'OFF' deciding whether to fully assemble local dynamics (default:
- 'ON')
+ 'ON'); using the 'OFF' value may be more efficient for implicitly integrated
+ FEM bodies with large meshes
 \end_layout
 
 \begin_layout Itemize
@@ -6676,16 +6677,17 @@ Routines listed in this section control fragmentation of bodies.
 \end_layout
 
 \begin_layout Subsection*
-SIMPLIFIED_CRACK (body, point, normal, surfid, criterion | ft, Gf) 
+SIMPLIFIED_CRACK (body, point, normal, surfid, criterion | halfdir, ft,
+ Gf) 
 \color red
 (Under development)
 \end_layout
 
 \begin_layout Standard
-This routine prescribes a potential body-wise planar cracks together with
- a cracking criterion.
- Creation of a simplified crack results in splitting of the body in two
- parts.
+This routine prescribes a potential body-wise planar crack or a half-crack,
+ together with a cracking criterion.
+ Creation of a body-wise crack results in splitting of the body in two parts.
+ Creation of a half-crack may not produce fragmentation.
 \end_layout
 
 \begin_layout Itemize
@@ -6742,6 +6744,19 @@ reference "tab:Cracking-criteria"
 \end_inset
 
 
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+halfdir
+\series default
+ - direction orthogonal to the half-crack tip line and pointing towards
+ the half-crack surface 
+\begin_inset Formula $\left(d_{x},d_{y},d_{z}\right)$
+\end_inset
+
+; when specified it enables the half-crack definition
 \end_layout
 
 \begin_layout Itemize

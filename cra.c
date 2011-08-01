@@ -52,7 +52,11 @@ static CRACK* prb_crack (BODY *bod, BODY **one, BODY **two)
 
     if (tension > cra->ft)
     {
-      BODY_Split (bod, cra->point, cra->normal, cra->surfid, one, two);
+      switch (cra->kind)
+      {
+	case PLANAR_CRACK: BODY_Split (bod, cra->point, cra->normal, NULL, cra->surfid, one, two); break;
+	case HALF_PLANAR_CRACK: BODY_Split (bod, cra->point, cra->normal, cra->dir, cra->surfid, one, two); break;
+      }
 
       /* TODO: energy decrease in the parts */
 
@@ -118,7 +122,11 @@ static CRACK* fem_crack (BODY *bod, BODY **one, BODY **two)
 
       if (tension > cra->ft)
       {
-	BODY_Split (bod, cra->point, cra->normal, cra->surfid, one, two);
+	switch (cra->kind)
+	{
+	  case PLANAR_CRACK: BODY_Split (bod, cra->point, cra->normal, NULL, cra->surfid, one, two); break;
+	  case HALF_PLANAR_CRACK: BODY_Split (bod, cra->point, cra->normal, cra->dir, cra->surfid, one, two); break;
+	}
 
 	/* TODO: energy decrease in the parts */
 
@@ -163,7 +171,7 @@ static void remap_constraints (DOM *dom, BODY *bod, CRACK *cra, BODY *one, BODY 
 
   for (item = SET_First (con2); item; item = SET_Next (item))
   {
-    DOM_Transfer_Constraint (dom, item->data, bod, two);
+    DOM_Transfer_Constraint (dom, item->data, bod, two ? two : one); /* two is NULL for half-cracks */
   }
 
   SET_Free (NULL, &con1);
@@ -317,7 +325,29 @@ void Propagate_Cracks (DOM *dom)
       SET_Insert (NULL, &newbod, one, NULL);
       SET_Insert (NULL, &newbod, two, NULL);
     }
-    else /* TODO: handle half-space cracks (cra != NULL && one == NULL && two == NULL) */
+    else if (cra && cra->kind == HALF_PLANAR_CRACK && one) /* half-crack with new boundary */
+    {
+      for (crb = bod->cra; crb; crb = crb->next) /* copy remaining cracks */
+      {
+	if (crb == cra) continue; /* skip current */
+
+	if (cut_possible (one, crb->point, crb->normal)) /* crack overlaps new body */
+	{
+	  c = CRACK_Create();
+	  copy_crack (crb, c);
+	  c->next = one->cra;
+	  one->cra = c;
+	}
+      }
+
+      remap_constraints (dom, bod, cra, one, NULL); /* remap or delete constraints */
+
+      DOM_Remove_Body (dom, bod); /* remove from domain */
+      BODY_Destroy (bod); /* destroys cracks store at this body */
+
+      SET_Insert (NULL, &newbod, one, NULL);
+    }
+    else
     {
       ASSERT_TEXT (cra == NULL && one == NULL && two == NULL,
         "A body cracked, but body splitting has failed.\n"
