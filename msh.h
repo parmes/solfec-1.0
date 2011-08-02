@@ -152,8 +152,10 @@ TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m);
 /* as above but this time the plane and the cut are in the reference configuration */
 TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m);
 
-/* split mesh in two with plane defined by (point, normal); output meshes are tetrahedral */
-void MESH_Split (MESH *msh, double *point, double *normal, int surfid, MESH **one, MESH **two);
+/* split mesh in two with plane defined by (point, normal); output meshes are tetrahedral if some
+ * elements are crossed; if only element boundaries are crossed then the original mesh is used;
+ * topoadj != 0 implies cutting from the point and through the topological adjacency only */
+void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int surfid, MESH **one, MESH **two);
 
 /* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */

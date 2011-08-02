@@ -99,8 +99,9 @@ void CONVEX_Rotate (CONVEX *cvx, double *point, double *vector, double angle);
 TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m);
 
 /* split convices in two lists with plane defined by (point, normal); adjacencies between
- * the split lists elements need to be recomputed; surfid corresponds to the new surface */
-void CONVEX_Split (CONVEX *cvx, double *point, double *normal, int surfid, CONVEX **one, CONVEX **two);
+ * the split lists elements need to be recomputed; surfid corresponds to the new surface;
+ * topoadj != 0 implies cutting from the point and through the topological adjacency only */
+void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two);
 
 /* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */

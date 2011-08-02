@@ -435,8 +435,9 @@ out:
   return out;
 }
 
-/* split shape by plane; output two parts of the split shape */
-void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE **one, SHAPE **two)
+/* split shape by plane; output two parts of the split shape;
+ * topoadj != 0 implies cutting from the point and through the topological adjacency only */
+void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int surfid, SHAPE **one, SHAPE **two)
 {
   SHAPE *shq, *back, *front;
 
@@ -448,7 +449,7 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE *
     {
       CONVEX *one = NULL, *two = NULL;
 
-      CONVEX_Split (shq->data, point, normal, surfid, &one, &two);
+      CONVEX_Split (shq->data, point, normal, topoadj, surfid, &one, &two);
       if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
       if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
     }
@@ -456,7 +457,7 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE *
     {
       SPHERE *one = NULL, *two = NULL;
 
-      SPHERE_Split (shq->data, point, normal, surfid, &one, &two);
+      SPHERE_Split (shq->data, point, normal, topoadj, surfid, &one, &two);
       if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
       if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
     }
@@ -464,7 +465,7 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE *
     {
       MESH *one = NULL, *two = NULL;
 
-      MESH_Split (shq->data, point, normal, surfid, &one, &two);
+      MESH_Split (shq->data, point, normal, topoadj, surfid, &one, &two);
       if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, one), back);
       if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, two), front);
     }
