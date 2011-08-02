@@ -78,8 +78,9 @@ void SPHERE_Rotate (SPHERE *sph, double *point, double *vector, double angle);
 TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m);
 
 /* split sphere lists in two lists with plane defined by (point, normal); adjacencies between
- * the split lists elements need to be recomputed; surfid corresponds to the new surface */
-void SPHERE_Split (SPHERE *sph, double *point, double *normal, int surfid, SPHERE **one, SPHERE **two);
+ * the split lists elements need to be recomputed; surfid corresponds to the new surface;
+ * topoadj != 0 implies cutting from the point and through the topological adjacency only */
+void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, int surfid, SPHERE **one, SPHERE **two);
 
 /* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */

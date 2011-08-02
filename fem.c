@@ -3243,14 +3243,14 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
 
   copy = SHAPE_Copy (bod->shape);
   SHAPE_Update (copy, NULL, NULL); /* restore reference configuration */
-  SHAPE_Split (copy, point, normal, surfid, &sone, &stwo); /* split in reference configuration */
+  SHAPE_Split (copy, point, normal, topoadj, surfid, &sone, &stwo); /* split in reference configuration */
   SHAPE_Destroy (copy);
 
   if (bod->msh)
   {
     MESH *copy = MESH_Copy (bod->msh);
     MESH_Update (copy, NULL, NULL, NULL);
-    MESH_Split (copy, point, normal, surfid, &mone, &mtwo);
+    MESH_Split (copy, point, normal, topoadj, surfid, &mone, &mtwo);
     MESH_Destroy (copy);
   }
   else

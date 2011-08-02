@@ -119,8 +119,9 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle);
 TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
   void *body, MOTION cur_to_ref, SGP **sgp, double **ref, double **cur, int *n);
 
-/* split shape by plane; output two parts of the split shape */
-void SHAPE_Split (SHAPE *shp, double *point, double *normal, int surfid, SHAPE **one, SHAPE **two);
+/* split shape by plane; output two parts of the split shape;
+ * topoadj != 0 implies cutting from the point and through the topological adjacency only */
+void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int surfid, SHAPE **one, SHAPE **two);
 
 /* get spatial/referential characteristics => volume, mass center, and Euler tensor (centered) */
 void SHAPE_Char (SHAPE *shp, int ref, double *volume, double *center, double *euler);

@@ -5642,7 +5642,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	CONVEX *one = NULL, *two = NULL;
 
-	CONVEX_Split (shq->data, p, n, surfid, &one, &two);
+	CONVEX_Split (shq->data, p, n, 0, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
       }
@@ -5650,7 +5650,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	SPHERE *one = NULL, *two = NULL;
 
-	SPHERE_Split (shq->data, p, n, surfid, &one, &two);
+	SPHERE_Split (shq->data, p, n, 0, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
       }
@@ -5658,7 +5658,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	MESH *one = NULL, *two = NULL;
 
-	MESH_Split (shq->data, p, n, surfid, &one, &two);
+	MESH_Split (shq->data, p, n, 0, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, two), front);
 

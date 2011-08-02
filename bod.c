@@ -2008,7 +2008,7 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
 
       copy = SHAPE_Copy (bod->shape);
       SHAPE_Update (copy, NULL, NULL); /* restore reference configuration */
-      SHAPE_Split (copy, point, normal, surfid, &sone, &stwo); /* split in reference configuration */
+      SHAPE_Split (copy, point, normal, topoadj, surfid, &sone, &stwo); /* split in reference configuration */
       SHAPE_Destroy (copy);
 
       if (bod->label) ERRMEM (label = malloc (strlen (bod->label) + 8));
