@@ -1995,7 +1995,7 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
   }
 }
 
-void BODY_Split (BODY *bod, double *point, double *normal, double *dir, int surfid, BODY **one, BODY **two)
+void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid, BODY **one, BODY **two)
 {
   switch (bod->kind)
   {
@@ -2034,7 +2034,7 @@ void BODY_Split (BODY *bod, double *point, double *normal, double *dir, int surf
     }
     break;
   case FEM:
-    FEM_Split (bod, point, normal, dir, surfid, one, two);
+    FEM_Split (bod, point, normal, topoadj, surfid, one, two);
     break;
   }
 
