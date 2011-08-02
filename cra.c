@@ -52,11 +52,7 @@ static CRACK* prb_crack (BODY *bod, BODY **one, BODY **two)
 
     if (tension > cra->ft)
     {
-      switch (cra->kind)
-      {
-	case PLANAR_CRACK: BODY_Split (bod, cra->point, cra->normal, NULL, cra->surfid, one, two); break;
-	case HALF_PLANAR_CRACK: BODY_Split (bod, cra->point, cra->normal, cra->dir, cra->surfid, one, two); break;
-      }
+      BODY_Split (bod, cra->point, cra->normal, cra->topoadj, cra->surfid, one, two); break;
 
       /* TODO: energy decrease in the parts */
 
@@ -122,11 +118,7 @@ static CRACK* fem_crack (BODY *bod, BODY **one, BODY **two)
 
       if (tension > cra->ft)
       {
-	switch (cra->kind)
-	{
-	  case PLANAR_CRACK: BODY_Split (bod, cra->point, cra->normal, NULL, cra->surfid, one, two); break;
-	  case HALF_PLANAR_CRACK: BODY_Split (bod, cra->point, cra->normal, cra->dir, cra->surfid, one, two); break;
-	}
+	BODY_Split (bod, cra->point, cra->normal, cra->topoadj, cra->surfid, one, two); break;
 
 	/* TODO: energy decrease in the parts */
 
@@ -325,7 +317,7 @@ void Propagate_Cracks (DOM *dom)
       SET_Insert (NULL, &newbod, one, NULL);
       SET_Insert (NULL, &newbod, two, NULL);
     }
-    else if (cra && cra->kind == HALF_PLANAR_CRACK && one) /* half-crack with new boundary */
+    else if (cra && cra->topoadj && one) /* half-crack with new boundary */
     {
       for (crb = bod->cra; crb; crb = crb->next) /* copy remaining cracks */
       {

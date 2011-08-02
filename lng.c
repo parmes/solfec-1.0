@@ -5088,23 +5088,23 @@ static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
 /* simplified crack */
 static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body", "point", "normal", "surfid", "criterion", "halfdir", "ft", "Gf");
-  PyObject *point, *normal, *criterion, *halfdir;
+  KEYWORDS ("body", "point", "normal", "surfid", "criterion", "topoadj", "ft", "Gf");
+  PyObject *point, *normal, *criterion, *topoadj;
   double p [3], n [3], ft, Gf;
   lng_BODY *body;
   CRACK *cra;
   int surfid;
 
-  halfdir = NULL;
+  topoadj = NULL;
   ft = 0.0;
   Gf = 0.0;
 
   PARSEKEYS ("OOOiO|Odd", &body, &point, &normal,
-             &surfid, &criterion, &halfdir, &ft, &Gf);
+             &surfid, &criterion, &topoadj, &ft, &Gf);
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
             is_tuple (normal, kwl[2], 3) && is_string (criterion, kwl[4]) &&
-	    is_tuple (halfdir, kwl[5], 3));
+	    is_string (topoadj, kwl[5]));
 
   if (!(body->bod->kind == PRB || body->bod->kind == FEM))
   {
@@ -5127,14 +5127,17 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
   COPY (n, cra->normal);
   cra->surfid = surfid;
 
-  if (halfdir)
+  if (topoadj)
   {
-    cra->dir [0] = PyFloat_AsDouble (PyTuple_GetItem (halfdir, 0));
-    cra->dir [1] = PyFloat_AsDouble (PyTuple_GetItem (halfdir, 1));
-    cra->dir [2] = PyFloat_AsDouble (PyTuple_GetItem (halfdir, 2));
-    cra->kind = HALF_PLANAR_CRACK;
+    IFIS (topoadj, "ON") cra->topoadj = 1;
+    ELIF (topoadj, "OFF") cra->topoadj = 0;
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid topoadj value: neither 'ON' nor 'OFF'");
+      return NULL;
+    }
   }
-  else cra->kind = PLANAR_CRACK;
+  else cra->topoadj = 0;
 
   IFIS (criterion, "TENSILE")
   {
