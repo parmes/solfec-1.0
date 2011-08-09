@@ -6708,7 +6708,15 @@ point
 \begin_inset Formula $\left(x,y,z\right)$
 \end_inset
 
-
+; if 
+\series bold
+topoadj
+\series default
+ = 'ON' then the 
+\series bold
+point
+\series default
+ is meant to belong to the crack tip
 \end_layout
 
 \begin_layout Itemize

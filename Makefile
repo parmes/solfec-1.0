@@ -42,6 +42,7 @@ BASEO = obj/err.o \
 	obj/swp.o \
 	obj/hsh.o \
 	obj/gjk.o \
+	obj/tsi.o \
 	obj/hul.o \
 	obj/tri.o \
 	obj/cvi.o \
@@ -224,6 +225,9 @@ obj/hsh.o: hsh.c hsh.h box.h alg.h mem.h err.h lis.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/gjk.o: gjk.c gjk.h alg.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/tsi.o: tsi.c tsi.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/hul.o: hul.c hul.h mem.h alg.h err.h

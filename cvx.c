@@ -854,7 +854,10 @@ out:
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two)
 {
+  /* TODO => topoadj */
+
   *one = *two = NULL;
+
   for (; cvx; cvx = cvx->next)
     split (cvx, point, normal, surfid, one, two);
 }

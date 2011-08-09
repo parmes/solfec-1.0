@@ -28,6 +28,7 @@
 #include "alg.h"
 #include "spx.h"
 #include "kdt.h"
+#include "tsi.h"
 
 /* auxiliary pointer pair */
 struct pp { void *a, *b; };
@@ -282,6 +283,36 @@ void TRI_Compadj (TRI *tri, int n)
 
   MEM_Release (&mm);
   MEM_Release (&mp);
+}
+
+
+/* return a topologically disjoint part of triangulation containing the
+ * input point; TRI_Compadj must be called before for the input triangulation;
+ * NOTE => tri->flg will be modified for all input triangles */
+TRI* TRI_Topoadj (TRI *tri, int n, double *point, int *m)
+{
+  double r = 10 * GEOMETRIC_EPSILON;
+  TRI *t, *end;
+
+  *m = 0;
+
+  for (t = tri, end = t + n; t < end; t ++)
+  {
+    if (TSI_Status (t->ver [0], t->ver [1], t->ver [2], point, r) != TSI_OUT) break;
+  }
+
+  if (t == end) return NULL;
+
+  for (t = tri, end = t + n; t < end; t ++) t->flg = 0;
+
+  /* FIXME => TODO => continue:
+   *                  recursively mark triangles starting from t;
+   *                  if there is less of them then n separate them;
+   *                  remember to remap the vertices for the output set */
+
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+
+  return NULL;
 }
 
 /* compute polar polyhedron of (tri, n) */

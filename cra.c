@@ -52,7 +52,7 @@ static CRACK* prb_crack (BODY *bod, BODY **one, BODY **two)
 
     if (tension > cra->ft)
     {
-      BODY_Split (bod, cra->point, cra->normal, cra->topoadj, cra->surfid, one, two); break;
+      BODY_Split (bod, cra->point, cra->normal, cra->topoadj, cra->surfid, one, two);
 
       /* TODO: energy decrease in the parts */
 
@@ -64,13 +64,23 @@ static CRACK* prb_crack (BODY *bod, BODY **one, BODY **two)
 }
 
 /* cut through the mesh and create element and referential point pairs */
-static ELEPNT* element_point_pairs (MESH *msh, double *point, double *normal, int *nepn)
+static ELEPNT* element_point_pairs (MESH *msh, double *point, double *normal, short topoadj, int *nepn)
 {
   ELEPNT *epn;
   int i, n;
   TRI *tri;
 
   tri = MESH_Ref_Cut (msh, point, normal, nepn); /* referential cut */
+
+  if (topoadj)
+  {
+    TRI_Compadj (tri, *nepn);
+    TRI *tmp = TRI_Topoadj (tri, *nepn, point, &n);
+    free (tri);
+    tri = tmp;
+    *nepn = n;
+  }
+
   ASSERT_TEXT (tri, "Failed to cut through the mesh wiht the crack plane ");
   ERRMEM (epn = MEM_CALLOC (sizeof (ELEPNT [*nepn])));
   for (n = 0; n < *nepn; n ++)
@@ -98,8 +108,8 @@ static CRACK* fem_crack (BODY *bod, BODY **one, BODY **two)
 
   for (cra = bod->cra; cra; cra = cra->next)
   {
-    if (!cra->epn) cra->epn = element_point_pairs (bod->msh ?
-	bod->msh : bod->shape->data, cra->point, cra->normal, &cra->nepn);
+    if (!cra->epn) cra->epn = element_point_pairs (bod->msh ?  bod->msh : bod->shape->data,
+	                                 cra->point, cra->normal, cra->topoadj, &cra->nepn);
 
     for (i = 0, epn = cra->epn; i < cra->nepn; i ++, epn ++)
     {
@@ -118,7 +128,7 @@ static CRACK* fem_crack (BODY *bod, BODY **one, BODY **two)
 
       if (tension > cra->ft)
       {
-	BODY_Split (bod, cra->point, cra->normal, cra->topoadj, cra->surfid, one, two); break;
+	BODY_Split (bod, cra->point, cra->normal, cra->topoadj, cra->surfid, one, two);
 
 	/* TODO: energy decrease in the parts */
 
