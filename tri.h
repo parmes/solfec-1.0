@@ -66,6 +66,11 @@ TRI* TRI_Merge (TRI *one, int none, TRI *two, int ntwo, int *m);
 /* compute adjacency structure */
 void TRI_Compadj (TRI *tri, int n);
 
+/* return a topologically disjoint part of triangulation containing the
+ * input point; TRI_Compadj must be called before for the input triangulation;
+ * NOTE => tri->flg will be modified for all input triangles */
+TRI* TRI_Topoadj (TRI *tri, int n, double *point, int *m);
+
 /* input => convex polyhedron containing zero (tri, n);
  * output => polar polyhedron defined by 'm' vertex lists;
  * a continuous block of memory is returned; 'nl's point to 'ver'

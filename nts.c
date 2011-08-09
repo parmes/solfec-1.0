@@ -1163,6 +1163,8 @@ static int gmres_based_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
 
     *merit = MERIT_Function (ldy, 0);
 
+    if (isnan (*merit)) return 0; /* XXX */
+
     ns->merhist [ns->iters] = *merit;
     ns->mvhist [ns->iters] = A->matvec;
 
@@ -1214,6 +1216,8 @@ static int diagonalized_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
     prevm = *merit;
 
     *merit = MERIT_Function (ldy, 0);
+
+    if (isnan (*merit)) return 0; /* XXX */
 
     ns->merhist [ns->iters] = *merit;
     ns->mvhist [ns->iters] = 0;

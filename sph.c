@@ -234,6 +234,8 @@ void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, in
   double v [3];
   SPHERE *o;
 
+  /* TODO => topoadj */
+
   *one = *two = NULL;
 
   for (; sph; sph = sph->next)

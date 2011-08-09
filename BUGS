@@ -40,3 +40,6 @@ Body extents Zoltan_LB_Box_Assign processors: 28
 Constraint point Zoltan_LB_Point_Assign processor: 6
 ------------------------------------------------------------------------------------
 GLUING constraints fail in parallel => inp/tire.py
+------------------------------------------------------------------------------------
+Intel compilers based compilation gets stuck in parallel (with openmpi/intel)
+------------------------------------------------------------------------------------

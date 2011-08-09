@@ -465,6 +465,58 @@ inline static void updateplanes (CONVEX *cvx)
   }
 }
 
+/* triangulate mesh surface; vertices point to the mesh nodes */
+static TRI* trisurf (MESH *msh, int *m)
+{
+  double *v [6], (*cur) [3] = msh->cur_nodes;
+  MEM setmem, trimem;
+  SET *tset, *item;
+  TRI *t, *s, *tri;
+  int nv, i;
+  FACE *fac;
+
+  MEM_Init (&trimem, sizeof (TRI), 128);
+  MEM_Init (&setmem, sizeof (SET), 128);
+  tset = NULL;
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    for (nv = i = 0; i < fac->type; i ++)
+    {
+      v [nv ++] = cur [fac->nodes [i]];
+    }
+
+    ASSERT_DEBUG (nv <= 6, "Too many vertices of a face");
+
+    for (i = 2; i < nv; i ++)
+    {
+      ERRMEM (t = MEM_Alloc (&trimem));
+      t->ver [0] = v [0];
+      t->ver [1] = v [i-1];
+      t->ver [2] = v [i];
+      t->flg = fac->surface;
+      COPY (fac->normal, t->out);
+      SET_Insert (&trimem, &tset, t, NULL);
+    }
+  }
+
+  *m = SET_Size (tset);
+  ERRMEM (tri = MEM_CALLOC ((*m) * sizeof (TRI)));
+
+  for (item = SET_First (tset), t = tri; item; item = SET_Next (item), t ++)
+  {
+    s = item->data;
+    t->flg = s->flg;
+    COPY (s->out, t->out);
+    for (i = 0; i < 3; i ++) t->ver [i] = s->ver [i];
+  }
+
+  MEM_Release (&setmem);
+  MEM_Release (&trimem);
+
+  return tri;
+}
+
 /* trim the surface by the plane; output triangle vertices points either to mesh vertices or is allocated after the triangles */
 static void trim (MESH *msh, double *point, double *normal, TRI **below, int *mbelow, TRI **above, int *mabove)
 {
@@ -705,7 +757,7 @@ static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid)
 }
 
 /* try to split mesh using only inter-element boundaries */
-static int inter_element_split (MESH *msh, double *point, double *normal, int surfid, MESH **one, MESH **two)
+static int inter_element_split (MESH *msh, double *point, double *normal, short topoadj, int surfid, MESH **one, MESH **two)
 {
   int code, bulk, i, j, onpla [4], *cutfaces, *cut;
   double (*nod) [3] = msh->cur_nodes, nn [3];
@@ -713,6 +765,9 @@ static int inter_element_split (MESH *msh, double *point, double *normal, int su
   MEM setmem;
   SET *below,
       *above;
+
+  /* FIXME => TODO => topoadj */
+  if (topoadj) ASSERT (0, ERR_NOT_IMPLEMENTED);
 
   MEM_Init (&setmem, sizeof (SET), MEMCHUNK);
   ERRMEM (cutfaces = malloc (sizeof (int [5]) * 8 * (msh->surfeles_count + msh->bulkeles_count))); /* overestimate */
@@ -748,7 +803,7 @@ static int inter_element_split (MESH *msh, double *point, double *normal, int su
       }
     }
 
-    if (j)
+    if (j >= 3) /* at leat a trinagle */
     {
       cut [0] = j; cut ++;
       for (i = 0; i < j; i ++) cut [i] = onpla [i]; /* output cut face */
@@ -1559,38 +1614,70 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
 {
   TRI *c, *b, *a, *t, *e, *q;
   int mc, mb, ma, mq;
+  short onepart;
+  MESH *tmp;
 
-  if (inter_element_split (msh, point, normal, surfid, one, two)) return; /* inter-element splitting succeeded */
+  if (inter_element_split (msh, point, normal, topoadj, surfid, one, two)) return; /* inter-element split succeeded */
 
   c = MESH_Cut (msh, point, normal, &mc);
+
+  if (topoadj)
+  {
+    TRI_Compadj (c, mc); /* compute adjacency structure of triangles */
+    b = TRI_Topoadj (c, mc, point, &mb); /* part of the triangulation adjacent to the point */
+    if (mb < mc) onepart = 1;
+    else onepart = 0;
+    free (c);
+    c = b;
+    mc = mb;
+  }
 
   for (t = c, e = t + mc; t != e; t ++) t->flg = surfid;
 
   if (c)
   {
-    trim (msh, point, normal, &b, &mb, &a, &ma);
-    
-    q = TRI_Merge (b, mb, c, mc, &mq);
-#if DEBUG
-    TRI_Compadj (q, mq); /* XXX: tests triangulation consistency */
-#endif
-    *one = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
-    free (q);
+    if (topoadj && onepart)
+    {
+      b = trisurf (msh, &mb); /* triangulate surface */
 
-    /* TODO: map volume materials */
- 
-    q = TRI_Merge (a, ma, c, mc, &mq);
-#if DEBUG
-    TRI_Compadj (q, mq); /* XXX: tests triangulation consistency */
-#endif
-    *two = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
-    free (q);
+      q = TRI_Merge (b, mb, c, mc, &mq);
 
-    /* TODO: map volume materials */
+      tmp = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume); /* the internal surface is included */
+
+      /* TODO: map volume materials */
+
+      inter_element_split (tmp, point, normal, 1, surfid, one, two); /* this will be an inter-element split now */
+
+      MESH_Destroy (tmp);
+      free (q);
+    }
+    else
+    {
+      trim (msh, point, normal, &b, &mb, &a, &ma);
+
+      q = TRI_Merge (b, mb, c, mc, &mq);
+#if DEBUG
+      TRI_Compadj (q, mq); /* XXX: tests triangulation consistency */
+#endif
+      *one = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
+      free (q);
+
+      /* TODO: map volume materials */
+   
+      q = TRI_Merge (a, ma, c, mc, &mq);
+#if DEBUG
+      TRI_Compadj (q, mq); /* XXX: tests triangulation consistency */
+#endif
+      *two = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
+      free (q);
+
+      /* TODO: map volume materials */
+
+      free (b);
+      free (a);
+    }
 
     free (c);
-    free (b);
-    free (a);
   }
   else
   {
