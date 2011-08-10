@@ -24,7 +24,6 @@
 #include <string.h>
 #include "kdt.h"
 #include "mem.h"
-#include "set.h"
 #include "alg.h"
 #include "err.h"
 #include "hyb.h"
@@ -269,6 +268,22 @@ KDT* KDT_Pick (KDT *kd, double *p)
   if (kd->d < 0) return kd; /* leaf */ 
   else if (p [kd->d] <= kd->p [kd->d]) return KDT_Pick (kd->l, p);
   else return KDT_Pick (kd->r, p);
+}
+
+/* pick leaves overlapping the extents */
+void KDT_Pick_Extents (KDT *kd, double *extents, SET **leaves)
+{
+  if (kd->d < 0) /* leaf */
+  {
+    SET_Insert (NULL, leaves, kd, NULL);
+  }
+  else if (extents [kd->d+3] <= kd->p [kd->d]) KDT_Pick_Extents (kd->l, extents, leaves);
+  else if (extents [kd->d] > kd->p [kd->d]) KDT_Pick_Extents (kd->r, extents, leaves);
+  else
+  {
+    KDT_Pick_Extents (kd->l, extents, leaves);
+    KDT_Pick_Extents (kd->r, extents, leaves);
+  }
 }
 
 /* return nearest node in kd-tree within epsilon radius */

@@ -303,7 +303,7 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle)
 
 /* cut through shape with a plane; return triangulated cross-section; all returned data
  * points to the memory allocated after the triangles memory; adjacency is not maintained;
- * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle;
+ * TRI->ptr stores a pointer to the geometrical object that has been cut by the triangle;
  * (cur_to_ref, sgp, ref, cur, n) can be either all NULL or all valid pointers; if not NULL then
  * 'n' reference and current vertices are calculated (triagnle vertices are the current ones) */
 TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
@@ -354,7 +354,7 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
 	    if (item) j ++;
 	  }
 	}
-	t->adj [1] = (TRI*) shp; /* record the corresponding shape */
+	t->adj [1] = (TRI*) shp; /* record the corresponding shape (&&&) */
       }
       (*m) += ntr [l];
       l ++;
@@ -400,7 +400,7 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
   {
     for (t = tri [i], e = t + ntr [i]; t != e; t ++, q ++)
     {
-      q->adj [0] = t->adj [0];
+      q->ptr = t->ptr;
       COPY (t->out, q->out);
 
       for (k = 0; k < 3; k ++)
@@ -416,8 +416,8 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
 	{
 	  double *Ver = &(*ref) [j];
 	  SGP *sg = &(*sgp) [j/3];
-	  sg->shp = (SHAPE*)t->adj [1];
-	  sg->gobj = t->adj [0];
+	  sg->shp = (SHAPE*)t->adj [1]; /* (&&&) */
+	  sg->gobj = t->ptr;
 	  sg->kind = SHAPE_2_GOBJ (sg->shp);
 	  cur_to_ref (body, sg, q->ver [k], Ver);
 	  SET_Insert (&setmem, &set, item, NULL);

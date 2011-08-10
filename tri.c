@@ -62,6 +62,18 @@ inline static TRI* nextaround (TRI *tri, double *v)
   else return tri->adj [1];
 }
 
+/* recursively mark adjacent triangles */
+static void markadj (TRI *t, int flg)
+{
+  if (t && t->flg != flg)
+  {
+    t->flg = flg;
+    markadj (t->adj [0], flg);
+    markadj (t->adj [1], flg);
+    markadj (t->adj [2], flg);
+  }
+}
+
 /* sort adjacency */
 void TRI_Sortadj (TRI *tri)
 {
@@ -285,34 +297,50 @@ void TRI_Compadj (TRI *tri, int n)
   MEM_Release (&mp);
 }
 
-
-/* return a topologically disjoint part of triangulation containing the
- * input point; TRI_Compadj must be called before for the input triangulation;
+/* intput a triangulation and a point; output the same triangulation
+ * but reordered so that the first 'm' triangles are topologically
+ * adjacent to the point; no memory is allocated in this process;
+ * return NULL if no input triangle is near the input point;
  * NOTE => tri->flg will be modified for all input triangles */
 TRI* TRI_Topoadj (TRI *tri, int n, double *point, int *m)
 {
   double r = 10 * GEOMETRIC_EPSILON;
-  TRI *t, *end;
+  TRI tmp, *t, *s, *end;
 
   *m = 0;
 
   for (t = tri, end = t + n; t < end; t ++)
   {
-    if (TSI_Status (t->ver [0], t->ver [1], t->ver [2], point, r) != TSI_OUT) break;
+    if (TSI_Status (t->ver [0], t->ver [1], t->ver [2], point, r) != TSI_OUT) break; /* pick a triangle near the point */
   }
 
   if (t == end) return NULL;
 
-  for (t = tri, end = t + n; t < end; t ++) t->flg = 0;
+  for (s = tri; s < end; s ++) s->flg = 0;
 
-  /* FIXME => TODO => continue:
-   *                  recursively mark triangles starting from t;
-   *                  if there is less of them then n separate them;
-   *                  remember to remap the vertices for the output set */
+  markadj (t, 1); /* recursively mark triangles adjacent to t */
 
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  for (t = tri; t < end; t ++)
+  {
+    if (t->flg) (*m) ++; /* count marked triangles */
+  }
 
-  return NULL;
+  if ((*m) < n)
+  {
+    for (s = tri, t = end; s < t;)
+    {
+      while (s < t && s->flg) s ++;
+      do { t --; } while (t > s && !t->flg);
+      if (s < t)
+      {
+	tmp = *s;
+	*s = *t; /* put marked first */
+	*t = tmp;
+      }
+    }
+  }
+
+  return tri;
 }
 
 /* compute polar polyhedron of (tri, n) */
@@ -529,4 +557,26 @@ double TRI_Char (TRI *tri, int n, double *center)
   }
 
   return volume;
+}
+
+/* compute extents of a single triangle */
+void TRI_Extents (TRI *t, double *extents)
+{
+  double *v;
+  int i;
+
+  v = t->ver [0];
+  COPY (v, extents);
+  COPY (extents, extents+3);
+
+  for (i = 1; i < 3; i ++)
+  {
+    v = t->ver [i];
+    if (v [0] < extents [0]) extents [0] = v [0];
+    else if (v [0] > extents [3]) extents [3] = v [0];
+    if (v [1] < extents [1]) extents [1] = v [1];
+    else if (v [1] > extents [4]) extents [4] = v [1];
+    if (v [2] < extents [2]) extents [2] = v [2];
+    else if (v [2] > extents [5]) extents [5] = v [2];
+  }
 }

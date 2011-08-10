@@ -146,7 +146,7 @@ void MESH_Rotate (MESH *msh, double *point, double *vector, double angle);
 
 /* cut through mesh with a plane; return triangulated cross-section; vertices in the triangles
  * point to the memory allocated after the triangles memory; adjacency is not maintained;
- * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+ * TRI->ptr stores a pointer to the geometrical object that has been cut by the triangle */
 TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m);
 
 /* as above but this time the plane and the cut are in the reference configuration */

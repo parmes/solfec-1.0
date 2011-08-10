@@ -5610,17 +5610,20 @@ static PyObject* shape_to_list (SHAPE *shp)
 /* split shape by plane */
 static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("shape", "point", "normal", "surfid");
-  PyObject *shape, *point, *normal, *out, *b, *f;
+  KEYWORDS ("shape", "point", "normal", "surfid", "topoadj");
+  PyObject *shape, *point, *normal, *topoadj, *out, *b, *f;
   SHAPE *shp, *shq, *back, *front;
   double p [3], n [3];
   int error, surfid;
+  short tadj;
 
   surfid = 0;
+  topoadj = NULL;
 
-  PARSEKEYS ("OOO|i", &shape, &point, &normal, &surfid);
+  PARSEKEYS ("OOO|iO", &shape, &point, &normal, &surfid, &topoadj);
 
-  TYPETEST (is_shape (shape, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (normal, kwl[2], 3));
+  TYPETEST (is_shape (shape, kwl[0]) && is_tuple (point, kwl[1], 3) &&
+            is_tuple (normal, kwl[2], 3) && is_string (topoadj, kwl [3]));
 
   p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
   p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
@@ -5629,6 +5632,18 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   n [0] = PyFloat_AsDouble (PyTuple_GetItem (normal, 0));
   n [1] = PyFloat_AsDouble (PyTuple_GetItem (normal, 1));
   n [2] = PyFloat_AsDouble (PyTuple_GetItem (normal, 2));
+
+  if (topoadj)
+  {
+    IFIS (topoadj, "ON") tadj = 1;
+    ELIF (topoadj, "OFF") tadj = 0;
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid topoadj value: neither 'ON' nor 'OFF'");
+      return NULL;
+    }
+  }
+  else tadj = 0;
 
   shp = create_shape (shape, 1); /* empty */
 
@@ -5642,7 +5657,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	CONVEX *one = NULL, *two = NULL;
 
-	CONVEX_Split (shq->data, p, n, 0, surfid, &one, &two);
+	CONVEX_Split (shq->data, p, n, tadj, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
       }
@@ -5650,7 +5665,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	SPHERE *one = NULL, *two = NULL;
 
-	SPHERE_Split (shq->data, p, n, 0, surfid, &one, &two);
+	SPHERE_Split (shq->data, p, n, tadj, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
       }
@@ -5658,11 +5673,11 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	MESH *one = NULL, *two = NULL;
 
-	MESH_Split (shq->data, p, n, 0, surfid, &one, &two);
+	MESH_Split (shq->data, p, n, tadj, surfid, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, two), front);
 
-	WARNING (0, "\nMesh splitting generates tetrahedral mesh in place of the input one.\n"
+	WARNING (0, "\nMesh splitting may generate a modified tetrahedral mesh in place of the input one.\n"
 	            "The meshing is randomized and it may generate different results for the same input.\n"
 	            "Use TETRAHEDRALIZE in order to refine and save the generated mesh parts.\n");
       }

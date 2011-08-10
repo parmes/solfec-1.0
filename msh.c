@@ -465,52 +465,231 @@ inline static void updateplanes (CONVEX *cvx)
   }
 }
 
-/* triangulate mesh surface; vertices point to the mesh nodes */
-static TRI* trisurf (MESH *msh, int *m)
+/* create triangulation based kd-tree */
+static KDT* trikdtree (TRI *tri, int  n)
 {
-  double *v [6], (*cur) [3] = msh->cur_nodes;
-  MEM setmem, trimem;
-  SET *tset, *item;
-  TRI *t, *s, *tri;
-  int nv, i;
-  FACE *fac;
+  double *p, *q, *a, *b, *c;
+  double extents [6];
+  TRI *t, *end;
+  KDT *kd;
 
-  MEM_Init (&trimem, sizeof (TRI), 128);
-  MEM_Init (&setmem, sizeof (SET), 128);
-  tset = NULL;
+  ERRMEM (p = malloc (n * sizeof (double [3])));
 
-  for (fac = msh->faces; fac; fac = fac->n)
+  for (t = tri, end = t + n, q = p; t < end; t ++, q += 3)
   {
-    for (nv = i = 0; i < fac->type; i ++)
-    {
-      v [nv ++] = cur [fac->nodes [i]];
-    }
+    a = t->ver [0];
+    b = t->ver [1];
+    c = t->ver [2];
+    q [0] = (a[0] + b[0] + c[0]) / 3.0;
+    q [1] = (a[1] + b[1] + c[1]) / 3.0;
+    q [2] = (a[2] + b[2] + c[2]) / 3.0;
+  }
 
-    ASSERT_DEBUG (nv <= 6, "Too many vertices of a face");
+  kd = KDT_Create (n, p, GEOMETRIC_EPSILON);
 
-    for (i = 2; i < nv; i ++)
+  for (t = tri; t < end; t ++)
+  {
+    TRI_Extents (t, extents);
+    KDT_Drop (kd, extents, t);
+  }
+
+  return kd;
+}
+
+/* face triangulation contact test */
+static int face_touches_triangulation (double *v [4], int n, double *normal, KDT *kd)
+{
+  double extents [6], a [16], b [12], p [3], q [3], deps;
+  SET *leaves = NULL, *item;
+  KDT *leaf;
+  TRI *t;
+  int i;
+
+  COPY (v [0], extents);
+  COPY (extents, extents+3);
+  for (i = 1; i < n; i ++)
+  {
+    if (v [i][0] < extents [0]) extents [0] = v [i][0];
+    else if (v [i][0] > extents [3]) extents [3] = v [i][0];
+    if (v [i][1] < extents [1]) extents [1] = v [i][1];
+    else if (v [i][1] > extents [4]) extents [4] = v [i][1];
+    if (v [i][2] < extents [2]) extents [2] = v [i][2];
+    else if (v [i][2] > extents [5]) extents [5] = v [i][2];
+  }
+
+  KDT_Pick_Extents (kd, extents, &leaves);
+  deps = 10 * GEOMETRIC_EPSILON;
+
+  COPY (v [0], a);
+  ADDMUL (a, deps, normal, a+3);
+  COPY (v [1], a+6);
+  COPY (v [2], a+9);
+  if (n == 4) { COPY (v [3], a+12); }
+
+  for (item = SET_First (leaves); item; item = SET_Next (item))
+  {
+    leaf = item->data;
+    for (i = 0; i < leaf->n; i ++)
     {
-      ERRMEM (t = MEM_Alloc (&trimem));
-      t->ver [0] = v [0];
-      t->ver [1] = v [i-1];
-      t->ver [2] = v [i];
-      t->flg = fac->surface;
-      COPY (fac->normal, t->out);
-      SET_Insert (&trimem, &tset, t, NULL);
+      t = leaf->data [i];
+      COPY (t->ver [0], b);
+      COPY (t->ver [1], b+3);
+      COPY (t->ver [2], b+6);
+      ADDMUL (b, deps, t->out, b+9);
+      if (gjk (a, n, b, 4, p, q) < GEOMETRIC_EPSILON)
+      {
+	SET_Free (NULL, &leaves);
+	return 1;
+      }
     }
   }
 
+  SET_Free (NULL, &leaves);
+  return 0;
+}
+
+/* trim faces adjacent to the input triangulation */
+static TRI* trimadj (MESH *msh, TRI *inp, int n, double *point, double *normal, int *m)
+{
+  double pla [4], val [2], *ver [5], *av [6], *bv [6], *pnt;
+  double *v [4], (*cur) [3] = msh->cur_nodes;
+  MEM setmem, pntmem, trimem;
+  SET *verts, *tset, *item;
+  KDT *kdt1, *kdt2, *kd;
+  TRI *t, *s, *tri;
+  int nav, nbv, i;
+  FACE *fac;
+
+  MEM_Init (&pntmem, sizeof (double [3]), 128);
+  MEM_Init (&trimem, sizeof (TRI), 128);
+  MEM_Init (&setmem, sizeof (SET), 128);
+  kdt1 = trikdtree (inp, n);
+  verts = tset = NULL;
+
+  COPY (normal, pla);
+  NORMALIZE (pla);
+  pla [3] = - DOT (pla, point);
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    for (i = 0; i < fac->type; i ++)
+    {
+      v [i] = cur [fac->nodes [i]];
+    }
+
+    if (face_touches_triangulation (v, fac->type, fac->normal, kdt1))
+    {
+      ver [0] = v [fac->type-1];
+      for (i = 0; i < fac->type; i ++) ver [i+1] = v [i];
+
+      val [0] = PLANE (pla, ver [0]);
+      for (nav = nbv = 0, i = 1; i <= fac->type; i ++)
+      {
+	val [1] = PLANE (pla, ver [i]);
+
+	if (val [0] * val [1] < - GEOMETRIC_EPSILON * GEOMETRIC_EPSILON)
+	{
+	  ERRMEM (pnt = MEM_Alloc (&pntmem));
+	  PLANESEG (pla, ver [i-1], ver [i], pnt);
+	  bv [nbv ++] = pnt;
+	  av [nav ++] = pnt;
+	  SET_Insert (&setmem, &verts, pnt, NULL);
+	}
+
+	if (val [1] <= GEOMETRIC_EPSILON)
+	{
+	  bv [nbv ++] = ver [i];
+	}
+
+	if (val [1] >= -GEOMETRIC_EPSILON)
+	{
+	  av [nav ++] = ver [i];
+	}
+
+	val [0] = val [1];
+      }
+
+      ASSERT_DEBUG (nbv <= 6 && nav <= 6, "Too many vertices of a trimmed face");
+
+      for (i = 2; i < nbv; i ++)
+      {
+	ERRMEM (t = MEM_Alloc (&trimem));
+	t->ver [0] = bv [0];
+	t->ver [1] = bv [i-1];
+	t->ver [2] = bv [i];
+	t->flg = fac->surface;
+	COPY (fac->normal, t->out);
+	SET_Insert (&trimem, &tset, t, NULL);
+      }
+
+      for (i = 2; i < nav; i ++)
+      {
+	ERRMEM (t = MEM_Alloc (&trimem));
+	t->ver [0] = av [0];
+	t->ver [1] = av [i-1];
+	t->ver [2] = av [i];
+	t->flg = fac->surface;
+	COPY (fac->normal, t->out);
+	SET_Insert (&trimem, &tset, t, NULL);
+      }
+    }
+    else
+    {
+      for (i = 2; i < fac->type; i ++)
+      {
+	ERRMEM (t = MEM_Alloc (&trimem));
+	t->ver [0] = v [0];
+	t->ver [1] = v [i-1];
+	t->ver [2] = v [i];
+	t->flg = fac->surface;
+	COPY (fac->normal, t->out);
+	SET_Insert (&trimem, &tset, t, NULL);
+      }
+    }
+  }
+
+  i = SET_Size (verts);
+  ERRMEM (pnt = malloc (i * sizeof (double [3])));
+  for (item = SET_First (verts), ver [1] = pnt; item; item = SET_Next (item), ver [1] += 3)
+  {
+    ver [0] = item->data;
+    COPY (ver [0], ver [1]);
+  }
+  kdt2 = KDT_Create (i, pnt, GEOMETRIC_EPSILON);
+  free (pnt);
+
+  i = KDT_Size (kdt2); /* index kd-tree nodes => KDT->n */
   *m = SET_Size (tset);
-  ERRMEM (tri = MEM_CALLOC ((*m) * sizeof (TRI)));
+  ERRMEM (tri = MEM_CALLOC (i * sizeof (double [3]) + (*m) * sizeof (TRI)));
+  pnt = (double*) (tri + *m);
+
+  for (kd = KDT_First (kdt2); kd; kd = KDT_Next (kd))
+  {
+    ver [0] = kd->p;
+    ver [1] = &pnt [3*kd->n];
+    COPY (ver[0], ver[1]);
+  }
 
   for (item = SET_First (tset), t = tri; item; item = SET_Next (item), t ++)
   {
     s = item->data;
     t->flg = s->flg;
     COPY (s->out, t->out);
-    for (i = 0; i < 3; i ++) t->ver [i] = s->ver [i];
+    for (i = 0; i < 3; i ++)
+    {
+      if (SET_Contains (verts, s->ver [i], NULL))
+      {
+	kd = KDT_Nearest (kdt2, s->ver [i], GEOMETRIC_EPSILON);
+	ASSERT_DEBUG (kd, "Kd-tree point query failed");
+	t->ver [i] = &pnt [3*kd->n];
+      }
+      else t->ver [i] = s->ver [i];
+    }
   }
 
+  KDT_Destroy (kdt1);
+  KDT_Destroy (kdt2);
+  MEM_Release (&pntmem);
   MEM_Release (&setmem);
   MEM_Release (&trimem);
 
@@ -1571,7 +1750,7 @@ void MESH_Rotate (MESH *msh, double *point, double *vector, double angle)
 
 /* cut through mesh with a plane; return triangulated cross-section; vertices in the triangles
  * point to the memory allocated after the triangles memory; adjacency is not maintained;
- * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+ * TRI->ptr stores a pointer to the geometrical object that has been cut by the triangle */
 TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m)
 {
   TRI *out, *t, *e;
@@ -1581,8 +1760,8 @@ TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m)
   out = CONVEX_Cut (cvx, point, normal, m);
   for (t = out, e = t + (*m); t != e; t ++)
   {
-    q = (CONVEX*) t->adj [0];
-    t->adj [0] = (TRI*) q->ele [0]; /* see (&&&) */
+    q = t->ptr;
+    t->ptr = (TRI*) q->ele [0]; /* see (&&&) */
   }
   CONVEX_Destroy (cvx);
 
@@ -1599,8 +1778,8 @@ TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m)
   out = CONVEX_Cut (cvx, point, normal, m);
   for (t = out, e = t + (*m); t != e; t ++)
   {
-    q = (CONVEX*) t->adj [0];
-    t->adj [0] = (TRI*) q->ele [0]; /* see (&&&) */
+    q = t->ptr;
+    t->ptr = (TRI*) q->ele [0]; /* see (&&&) */
   }
   CONVEX_Destroy (cvx);
 
@@ -1625,11 +1804,11 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
   {
     TRI_Compadj (c, mc); /* compute adjacency structure of triangles */
     b = TRI_Topoadj (c, mc, point, &mb); /* part of the triangulation adjacent to the point */
+    ASSERT_DEBUG (b, "Input point is too far from mesh section by the splitting plane");
     if (mb < mc) onepart = 1;
     else onepart = 0;
-    free (c);
-    c = b;
     mc = mb;
+    c = b;
   }
 
   for (t = c, e = t + mc; t != e; t ++) t->flg = surfid;
@@ -1638,7 +1817,7 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
   {
     if (topoadj && onepart)
     {
-      b = trisurf (msh, &mb); /* triangulate surface */
+      b = trimadj (msh, c, mc, point, normal, &mb); /* trim faces adjacent to the input triangulation */
 
       q = TRI_Merge (b, mb, c, mc, &mq);
 
