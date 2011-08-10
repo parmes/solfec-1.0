@@ -75,17 +75,14 @@ static ELEPNT* element_point_pairs (MESH *msh, double *point, double *normal, sh
   if (topoadj)
   {
     TRI_Compadj (tri, *nepn);
-    TRI *tmp = TRI_Topoadj (tri, *nepn, point, &n);
-    free (tri);
-    tri = tmp;
-    *nepn = n;
+    tri = TRI_Topoadj (tri, *nepn, point, nepn);
   }
 
   ASSERT_TEXT (tri, "Failed to cut through the mesh wiht the crack plane ");
   ERRMEM (epn = MEM_CALLOC (sizeof (ELEPNT [*nepn])));
   for (n = 0; n < *nepn; n ++)
   {
-    epn [n].ele = (ELEMENT*) tri [n].adj [0];
+    epn [n].ele = tri [n].ptr;
     for (i = 0; i < 3; i ++)
     {
       epn [n].pnt [i] = (tri [n].ver [0][i] + tri [n].ver [1][i] + tri [n].ver [2][i]) / 3.0;

@@ -19,6 +19,8 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include "set.h"
+
 #ifndef __kdt__
 #define __kdt__
 
@@ -46,6 +48,9 @@ void KDT_Drop (KDT *kd, double *extents, void *data);
 
 /* pick leaf containing point */
 KDT* KDT_Pick (KDT *kd, double *p);
+
+/* pick leaves overlapping the extents */
+void KDT_Pick_Extents (KDT *kd, double *extents, SET **leaves);
 
 /* return nearest node in kd-tree within epsilon radius */
 KDT* KDT_Nearest (KDT *kd, double *p, double epsilon);

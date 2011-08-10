@@ -282,7 +282,7 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
       s->ver [0] = &ov [t->ver [0] - hv];
       s->ver [1] = &ov [t->ver [1] - hv];
       s->ver [2] = &ov [t->ver [2] - hv];
-      s->adj [0] = (TRI*) cvx;
+      s->ptr = cvx;
       COPY (t->out, s->out);
       s ++;
     }
@@ -751,7 +751,7 @@ void CONVEX_Rotate (CONVEX *cvx, double *point, double *vector, double angle)
 
 /* cut through convices with a plane; return triangulated cross-section; vertices in the triangles
  * point to the memory allocated after the triangles memory; adjacency is not maintained;
- * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle */
+ * TRI->ptr stores a pointer to the geometrical object that has been cut by the triangle */
 TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m)
 {
   TRI **tri, *out, *t, *e, *q;
@@ -826,7 +826,7 @@ TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m)
   {
     for (t = tri [i], e = t + ntr [i]; t != e; t ++, q ++)
     {
-      q->adj [0] = t->adj [0];
+      q->ptr = t->ptr;
       COPY (t->out, q->out);
 
       for (k = 0; k < 3; k ++)

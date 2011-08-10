@@ -29,6 +29,7 @@ struct triangle
         *ver [3]; /* vertices (CCW) */
   TRI   *adj [3]; /* adjacent triangles (ordered: adj[0] <=> ver[0]-ver[1], ...) */
   int    flg;     /* flag(s) => used in external algorithms */
+  void  *ptr;     /* used by external algorithms */
 };
 
 typedef struct triangle_surface TRISURF; /* triangulized surface */
@@ -66,8 +67,10 @@ TRI* TRI_Merge (TRI *one, int none, TRI *two, int ntwo, int *m);
 /* compute adjacency structure */
 void TRI_Compadj (TRI *tri, int n);
 
-/* return a topologically disjoint part of triangulation containing the
- * input point; TRI_Compadj must be called before for the input triangulation;
+/* intput a triangulation and a point; output the same triangulation
+ * but reordered so that the first 'm' triangles are topologically
+ * adjacent to the point; no memory is allocated in this process;
+ * return NULL if no input triangle is near the input point;
  * NOTE => tri->flg will be modified for all input triangles */
 TRI* TRI_Topoadj (TRI *tri, int n, double *point, int *m);
 
@@ -88,5 +91,8 @@ double* TRI_Planes (TRI *tri, int n, int *m);
 
 /* compute mass center and volume of triangulated solid */
 double TRI_Char (TRI *tri, int n, double *center);
+
+/* compute extents of a single triangle */
+void TRI_Extents (TRI *t, double *extents);
 
 #endif

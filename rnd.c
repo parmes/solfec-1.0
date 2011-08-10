@@ -2827,6 +2827,17 @@ static void update ()
   GLV_Redraw_All (); /* redraw all widgets */
 }
 
+/* XXX => this may be vournable <= XXX */
+#define SELECTION_REINIT_BEGIN()\
+  double idsum0 = domain->nbod;\
+  for (BODY *bod = domain->bod; bod; bod = bod->next) idsum0 += bod->id\
+
+/* XXX => this may be vournable <= XXX */
+#define SELECTION_REINIT_END()\
+  double idsum1 = domain->nbod;\
+  for (BODY *bod = domain->bod; bod; bod = bod->next) idsum1 += bod->id;\
+  if (idsum1 != idsum0) selection_init ()
+
 /* one simulation step */
 static void step ()
 {
@@ -2834,7 +2845,7 @@ static void step ()
 
   double epsilon = DBL_EPSILON;
 
-  int nbod = domain->nbod;
+  SELECTION_REINIT_BEGIN ();
 
   /* find a small number such that added to current time it makes a difference */
   while (domain->time + epsilon == domain->time) epsilon += DBL_EPSILON;
@@ -2848,29 +2859,29 @@ static void step ()
     PENALTY_Destroy (ps);
   }
 
-  if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
+  SELECTION_REINIT_END ();
 
   update ();
 }
 
 static int forward ()
 {
-  int nbod = domain->nbod;
+  SELECTION_REINIT_BEGIN ();
 
   int ret = SOLFEC_Forward (solfec, skip_steps);
 
-  if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
+  SELECTION_REINIT_END ();
 
   return ret;
 }
 
 static int backward ()
 {
-  int nbod = domain->nbod;
+  SELECTION_REINIT_BEGIN ();
 
   int ret = SOLFEC_Backward (solfec, skip_steps);
 
-  if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
+  SELECTION_REINIT_END ();
 
   return ret;
 }
@@ -2904,11 +2915,11 @@ static void seek_to_time (char *text)
     if (t < s) t = s;
     if (t > e) t = e;
 
-    int nbod = domain->nbod;
+    SELECTION_REINIT_BEGIN ();
 
     SOLFEC_Seek_To (solfec, t);
 
-    if (domain->nbod != nbod) selection_init (); /* refresh selection after body number change */
+    SELECTION_REINIT_END ();
 
     update ();
   }

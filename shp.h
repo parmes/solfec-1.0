@@ -113,7 +113,7 @@ void SHAPE_Rotate (SHAPE *shp, double *point, double *vector, double angle);
 
 /* cut through shape with a plane; return triangulated cross-section; all returned data
  * points to the memory allocated after the triangles memory; adjacency is not maintained;
- * TRI->adj[0] stores a pointer to the geometrical object that has been cut by the triangle;
+ * TRI->ptr stores a pointer to the geometrical object that has been cut by the triangle;
  * (body, cur_to_ref, ref, cur, n) can be either all NULL or all valid pointers; if not NULL then
  * 'n' reference and current vertices are calculated (triagnle vertices are the current ones) */
 TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,

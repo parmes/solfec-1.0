@@ -7786,12 +7786,14 @@ angle
 \end_layout
 
 \begin_layout Subsection*
-(one, two) = SPLIT (shape, point, normal | surfid)
+(one, two) = SPLIT (shape, point, normal | surfid, topoadj)
 \end_layout
 
 \begin_layout Standard
 This routine splits a geometrical object (or a collection of objects) by
  a plane passing by a point.
+ Depending on the topological properties of the body shape and plane position
+ this may or may not result in splitting of the body in two parts.
 \end_layout
 
 \begin_layout Itemize
@@ -7803,7 +7805,7 @@ one
 \emph on
 None
 \emph default
- if no objects were placed below)
+ if no objects were placed below the plane)
 \end_layout
 
 \begin_layout Itemize
@@ -7815,7 +7817,8 @@ two
 \emph on
 None
 \emph default
- if no objects were placed above)
+ if no objects were placed above the plane, or if the initial shape has
+ not been fragmented in two parts)
 \end_layout
 
 \begin_layout Itemize
@@ -7862,12 +7865,24 @@ surfid
  - surface identidier of a newly created surface (default: 0)
 \end_layout
 
+\begin_layout Itemize
+
+\series bold
+topoadj
+\series default
+ - 'ON' or 'OFF' (default: 'OFF'); when 'OFF' the splitting will always
+ propagate across the whole body and result in two body fragments; when
+ 'ON' the splitting will propagate from the input point through the topologicall
+y adjacent elements, which may not produce fragmentation;
+\end_layout
+
 \begin_layout Standard
 
 \series bold
 WARNING:
 \series default
- Mesh splitting generates tetrahedral mesh in place of the input one.
+ Mesh splitting generates tetrahedral mesh in place of the input one if
+ the splitting plane is not aligned with element boudaries.
  The meshing is randomized and it may generate different results for the
  same input.
  Use TETRAHEDRALIZE in order to refine and save the generated mesh parts.

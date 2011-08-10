@@ -3241,6 +3241,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
   MESH *mone, *mtwo;
   char *label;
 
+  *one = *two = NULL;
   copy = SHAPE_Copy (bod->shape);
   SHAPE_Update (copy, NULL, NULL); /* restore reference configuration */
   SHAPE_Split (copy, point, normal, topoadj, surfid, &sone, &stwo); /* split in reference configuration */
