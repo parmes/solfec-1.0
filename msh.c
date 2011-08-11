@@ -549,13 +549,13 @@ static int face_touches_triangulation (double *v [4], int n, double *normal, KDT
 }
 
 /* trim faces adjacent to the input triangulation */
-static TRI* trimadj (MESH *msh, TRI *inp, int n, double *point, double *normal, int *m)
+static TRI* trimadj (MESH *msh, KDT *kdtri, double *point, double *normal, int *m)
 {
   double pla [4], val [2], *ver [5], *av [6], *bv [6], *pnt;
   double *v [4], (*cur) [3] = msh->cur_nodes;
   MEM setmem, pntmem, trimem;
   SET *verts, *tset, *item;
-  KDT *kdt1, *kdt2, *kd;
+  KDT *kdt2, *kd;
   TRI *t, *s, *tri;
   int nav, nbv, i;
   FACE *fac;
@@ -563,7 +563,6 @@ static TRI* trimadj (MESH *msh, TRI *inp, int n, double *point, double *normal, 
   MEM_Init (&pntmem, sizeof (double [3]), 128);
   MEM_Init (&trimem, sizeof (TRI), 128);
   MEM_Init (&setmem, sizeof (SET), 128);
-  kdt1 = trikdtree (inp, n);
   verts = tset = NULL;
 
   COPY (normal, pla);
@@ -577,7 +576,7 @@ static TRI* trimadj (MESH *msh, TRI *inp, int n, double *point, double *normal, 
       v [i] = cur [fac->nodes [i]];
     }
 
-    if (face_touches_triangulation (v, fac->type, fac->normal, kdt1))
+    if (face_touches_triangulation (v, fac->type, fac->normal, kdtri))
     {
       ver [0] = v [fac->type-1];
       for (i = 0; i < fac->type; i ++) ver [i+1] = v [i];
@@ -687,7 +686,6 @@ static TRI* trimadj (MESH *msh, TRI *inp, int n, double *point, double *normal, 
     }
   }
 
-  KDT_Destroy (kdt1);
   KDT_Destroy (kdt2);
   MEM_Release (&pntmem);
   MEM_Release (&setmem);
@@ -935,8 +933,8 @@ static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid)
   return out;
 }
 
-/* try to split mesh using only inter-element boundaries */
-static int inter_element_split (MESH *msh, double *point, double *normal, short topoadj, int surfid, MESH **one, MESH **two)
+/* try to split mesh globally using only inter-element boundaries */
+static int inter_element_global_split (MESH *msh, double *point, double *normal, int surfid, MESH **one, MESH **two)
 {
   int code, bulk, i, j, onpla [4], *cutfaces, *cut;
   double (*nod) [3] = msh->cur_nodes, nn [3];
@@ -944,9 +942,6 @@ static int inter_element_split (MESH *msh, double *point, double *normal, short 
   MEM setmem;
   SET *below,
       *above;
-
-  /* FIXME => TODO => topoadj */
-  if (topoadj) ASSERT (0, ERR_NOT_IMPLEMENTED);
 
   MEM_Init (&setmem, sizeof (SET), MEMCHUNK);
   ERRMEM (cutfaces = malloc (sizeof (int [5]) * 8 * (msh->surfeles_count + msh->bulkeles_count))); /* overestimate */
@@ -1013,6 +1008,13 @@ static int inter_element_split (MESH *msh, double *point, double *normal, short 
   MEM_Release (&setmem);
 
   return 1;
+}
+
+/* try to split mesh locally using only inter-element boundaries and topological adjacency */
+static int inter_element_local_split (MESH *msh, KDT *kdtri, double *point, double *normal, int surfid, MESH **one, MESH **two)
+{
+  /* FIXME => TODO */
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
 }
 
 /* create surface nodes data, assuming all reamining mesh data is valid */
@@ -1795,8 +1797,9 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
   int mc, mb, ma, mq;
   short onepart;
   MESH *tmp;
+  KDT *kd;
 
-  if (inter_element_split (msh, point, normal, topoadj, surfid, one, two)) return; /* inter-element split succeeded */
+  if (topoadj == 0 && inter_element_global_split (msh, point, normal, surfid, one, two)) return; /* global inter-element split succeeded */
 
   c = MESH_Cut (msh, point, normal, &mc);
 
@@ -1817,18 +1820,25 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
   {
     if (topoadj && onepart)
     {
-      b = trimadj (msh, c, mc, point, normal, &mb); /* trim faces adjacent to the input triangulation */
+      kd = trikdtree (c, mc);
 
-      q = TRI_Merge (b, mb, c, mc, &mq);
+      if (!inter_element_local_split (msh, kd, point, normal, surfid, one, two)) /* if regular mesh interl-element split failed */
+      {
+	b = trimadj (msh, kd, point, normal, &mb); /* trim faces adjacent to the input triangulation */
 
-      tmp = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume); /* the internal surface is included */
+	q = TRI_Merge (b, mb, c, mc, &mq);
 
-      /* TODO: map volume materials */
+	tmp = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume); /* the internal surface is included */
 
-      inter_element_split (tmp, point, normal, 1, surfid, one, two); /* this will be an inter-element split now */
+	/* TODO: map volume materials */
 
-      MESH_Destroy (tmp);
-      free (q);
+	inter_element_local_split (tmp, kd, point, normal, surfid, one, two); /* this will be an inter-element split now */
+
+        MESH_Destroy (tmp);
+        free (q);
+      }
+
+      KDT_Destroy (kd);
     }
     else
     {
