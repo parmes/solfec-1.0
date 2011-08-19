@@ -548,6 +548,62 @@ static int face_touches_triangulation (double *v [4], int n, double *normal, KDT
   return 0;
 }
 
+/* element triangulation contact test */
+static int element_touches_triangulation (MESH *msh, ELEMENT *ele, KDT *kd)
+{
+  double extents [6], a [8][3], b [12], p [3], q [3], deps;
+  SET *leaves = NULL, *item;
+  KDT *leaf;
+  TRI *t;
+  int i;
+
+  extents [0] = extents [1] = extents [2] =  DBL_MAX;
+  extents [3] = extents [4] = extents [5] = -DBL_MAX;
+
+  load_nodes (msh->cur_nodes, ele->type, ele->nodes, a);
+
+  for (i = 0; i < ele->type; i ++)
+  {
+    if (a [i][0] < extents [0]) extents [0] = a [i][0];
+    if (a [i][1] < extents [1]) extents [1] = a [i][1];
+    if (a [i][2] < extents [2]) extents [2] = a [i][2];
+    if (a [i][0] > extents [3]) extents [3] = a [i][0];
+    if (a [i][1] > extents [4]) extents [4] = a [i][1];
+    if (a [i][2] > extents [5]) extents [5] = a [i][2];
+  }
+
+  extents [0] -= GEOMETRIC_EPSILON;
+  extents [1] -= GEOMETRIC_EPSILON;
+  extents [2] -= GEOMETRIC_EPSILON;
+  extents [3] += GEOMETRIC_EPSILON;
+  extents [4] += GEOMETRIC_EPSILON;
+  extents [5] += GEOMETRIC_EPSILON;
+
+  KDT_Pick_Extents (kd, extents, &leaves);
+  deps = 10 * GEOMETRIC_EPSILON;
+
+  for (item = SET_First (leaves); item; item = SET_Next (item))
+  {
+    leaf = item->data;
+    for (i = 0; i < leaf->n; i ++)
+    {
+      t = leaf->data [i];
+      COPY (t->ver [0], b);
+      COPY (t->ver [1], b+3);
+      COPY (t->ver [2], b+6);
+      ADDMUL (b, deps, t->out, b+9);
+      if (gjk ((double*)a, ele->type, b, 4, p, q) < GEOMETRIC_EPSILON)
+      {
+	SET_Free (NULL, &leaves);
+	return 1;
+      }
+    }
+  }
+
+  SET_Free (NULL, &leaves);
+  return 0;
+}
+
 /* trim faces adjacent to the input triangulation */
 static TRI* trimadj (MESH *msh, KDT *kdtri, double *point, double *normal, int *m)
 {
@@ -836,8 +892,9 @@ static void trim (MESH *msh, double *point, double *normal, TRI **below, int *mb
   KDT_Destroy (kdtree);
 }
 
-/* produce a split mesh out of element set and cut faces set */
-static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid)
+/* produce a split mesh out of element set and cut faces set; 'newels' and 'newnod' are used in case of partial topological split;
+ * the 'newels' contain new elements adjacent to the splitting surface, 'newnod' maps nodes which need to doubled in these elements */
+static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid, SET *newels, MAP *newnod)
 {
   double (*nodes) [3], (*curno) [3] = msh->cur_nodes;
   int *elements, *surfaces, *ptr, i, j;
@@ -864,6 +921,8 @@ static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid)
     }
   }
 
+  j += MAP_Size (newnod); /* increase the node set size by |newnod| */
+
   ERRMEM (nodes = malloc (j * sizeof (double [3])));
 
   for (jtem = MAP_First (nodmap); jtem; jtem = MAP_Next (jtem)) /* copy a subset of old nodes onto new nodes */
@@ -875,16 +934,40 @@ static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid)
     COPY (a, b); /* copy coordinates */
   }
 
-  j = SET_Size (els);
+  for (jtem = MAP_First (newnod); jtem; jtem = MAP_Next (jtem)) /* now for 'newnod' set => copy a subset of old nodes onto new nodes */
+  {
+    i = (int) (long) jtem->key; /* old index */
+    j = (int) (long) jtem->data; /* new index */
+    double *a = curno [i],
+	   *b = nodes [j];
+    COPY (a, b); /* copy coordinates */
+  }
+
+  j = SET_Size (els); /* regular elements */
+  j += SET_Size (newels); /* elements one-sidedly adjacent to the splitting surface */
   ERRMEM (elements = malloc ((j + 1) * sizeof (int [10]))); /* overestimate */
 
-  for (ptr = elements, item = SET_First (els); item; item = SET_Next (item))
+  for (ptr = elements, item = SET_First (els); item; item = SET_Next (item)) /* for each regular element */
   {
     ele = item->data;
     *ptr = ele->type; ptr ++;
     for (i = 0; i < ele->type; i ++, ptr ++)
     {
       ASSERT_DEBUG_EXT (jtem = MAP_Find_Node (nodmap, (void*) (long) ele->nodes [i], NULL), "Node mapping failed");
+      *ptr = (int) (long) jtem->data;
+    }
+    *ptr = ele->volume; ptr ++;
+  }
+  for (item = SET_First (newels); item; item = SET_Next (item)) /* for each element adjacent to the splitting */
+  {
+    ele = item->data;
+    *ptr = ele->type; ptr ++;
+    for (i = 0; i < ele->type; i ++, ptr ++)
+    {
+      if (!(jtem = MAP_Find_Node (newnod, (void*) (long) ele->nodes [i], NULL))) /* if externally given new node mapping was not found */
+      {
+        ASSERT_DEBUG_EXT (jtem = MAP_Find_Node (nodmap, (void*) (long) ele->nodes [i], NULL), "Node mapping failed"); /* use internal node mapping */
+      }
       *ptr = (int) (long) jtem->data;
     }
     *ptr = ele->volume; ptr ++;
@@ -909,13 +992,34 @@ static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid)
       *ptr = fac->surface; ptr ++;
     }
   }
-  for (; *cutfaces; cutfaces += cutfaces [0] + 1) /* map newly created faces */
+  for (item = SET_First (newels); item; item = SET_Next (item)) /* map existing faces */
   {
-    *ptr = cutfaces [0]; ptr ++;
-    for (i = 1; i <= cutfaces [0]; i ++, ptr ++)
+    ele = item->data;
+    for (fac = ele->faces; fac; fac = fac->next)
     {
-      ASSERT_DEBUG_EXT (jtem = MAP_Find_Node (nodmap, (void*) (long) cutfaces [i], NULL), "Node mapping failed");
-      *ptr = (int) (long) jtem->data;
+      *ptr = fac->type; ptr ++;
+      for (i = 0; i < fac->type; i ++, ptr ++)
+      {
+	if (!(jtem = MAP_Find_Node (newnod, (void*) (long) fac->nodes [i], NULL))) /* if externally given new node mapping was not found */
+	{
+	  ASSERT_DEBUG_EXT (jtem = MAP_Find_Node (nodmap, (void*) (long) fac->nodes [i], NULL), "Node mapping failed"); /* use internal mapping */
+	}
+	*ptr = (int) (long) jtem->data;
+      }
+      *ptr = fac->surface; ptr ++;
+    }
+  }
+  for (; *cutfaces; cutfaces += ABS (cutfaces [0]) + 1) /* map newly created faces */
+  {
+    *ptr = ABS (cutfaces [0]); ptr ++;
+    for (i = 1; i <= ABS (cutfaces [0]); i ++, ptr ++)
+    {
+      if (cutfaces [0] < 0) *ptr = cutfaces [i]; /* newly split nodes */
+      else
+      {
+	ASSERT_DEBUG_EXT (jtem = MAP_Find_Node (nodmap, (void*) (long) cutfaces [i], NULL), "Node mapping failed"); /* locally remapped old nodes */
+        *ptr = (int) (long) jtem->data;
+      }
     }
     *ptr = surfid; ptr ++;
   }
@@ -977,7 +1081,7 @@ static int inter_element_global_split (MESH *msh, double *point, double *normal,
       }
     }
 
-    if (j >= 3) /* at leat a trinagle */
+    if (j >= 3) /* at least a trinagle */
     {
       cut [0] = j; cut ++;
       for (i = 0; i < j; i ++) cut [i] = onpla [i]; /* output cut face */
@@ -1001,8 +1105,8 @@ static int inter_element_global_split (MESH *msh, double *point, double *normal,
   /* here we are => inter-element cut succeeded;
    * now we re-map nodes and faces and create two meshes */
 
-  *one = produce_split_mesh (msh, below, cutfaces, surfid);
-  *two = produce_split_mesh (msh, above, cutfaces, surfid);
+  *one = produce_split_mesh (msh, below, cutfaces, surfid, NULL, NULL);
+  *two = produce_split_mesh (msh, above, cutfaces, surfid, NULL, NULL);
 
   free (cutfaces);
   MEM_Release (&setmem);
@@ -1011,10 +1115,110 @@ static int inter_element_global_split (MESH *msh, double *point, double *normal,
 }
 
 /* try to split mesh locally using only inter-element boundaries and topological adjacency */
-static int inter_element_local_split (MESH *msh, KDT *kdtri, double *point, double *normal, int surfid, MESH **one, MESH **two)
+static int inter_element_local_split (MESH *msh, KDT *kdtri, double *point, double *normal, int surfid, MESH **one)
 {
-  /* FIXME => TODO */
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  int code, bulk, i, j, k, flg, onpla [4], *cutfaces, *cut;
+  double (*nod) [3] = msh->cur_nodes, nn [3];
+  MEM setmem, mapmem;
+  SET *below, *above;
+  ELEMENT *ele;
+  MAP *newnod;
+
+  MEM_Init (&setmem, sizeof (SET), MEMCHUNK);
+  MEM_Init (&mapmem, sizeof (MAP), MEMCHUNK);
+  ERRMEM (cutfaces = malloc (sizeof (int [5]) * 8 * (msh->surfeles_count + msh->bulkeles_count))); /* overestimate */
+
+  COPY (normal, nn);
+  NORMALIZE (nn);
+
+  k = msh->nodes_count;
+  below = above = NULL;
+  newnod = NULL;
+  cut = cutfaces;
+
+  for (bulk = 0, ele = msh->surfeles; ele;)
+  {
+    for (code = i = j = 0; i < ele->type; i ++)
+    {
+      double a [3], dot;
+
+      SUB (nod [ele->nodes [i]], point, a);
+      dot = DOT (a, nn);
+      if (dot < -GEOMETRIC_EPSILON)
+      {
+	if (!code) code = -1;
+	else if (code > 0) { code = 0; break; }
+      }
+      else if (dot > GEOMETRIC_EPSILON)
+      {
+	if (!code) code = 1;
+	else if (code < 0) { code = 0; break; }
+      }
+      else /* on plane */
+      {
+	onpla [j ++] = ele->nodes [i];
+	ASSERT_DEBUG (j <= 4, "Inconsitent on plane nodes count while splitting mesh");
+      }
+    }
+
+    flg = element_touches_triangulation (msh, ele, kdtri);
+
+    if (flg && code == 0) /* element crossing the plane */
+    {
+      free (cutfaces);
+      MEM_Release (&setmem);
+      MEM_Release (&mapmem);
+      return 0; /* report failure */
+    }
+
+    if (flg) /* at least a trinagle */
+    {
+      if (j >= 3)
+      {
+	cut [0] = j; cut ++;
+	for (i = 0; i < j; i ++) cut [i] = onpla [i]; /* output cut face */
+	cut += j;
+      }
+
+      if (code < 0)
+      {
+	if (j >= 3)
+	{
+	  cut [0] = -j; cut ++; /* negative facet flag => use 'newnod' map in 'produce_split_mesh' */
+	  for (i = 0; i < j; i ++)
+	  {
+	    MAP *item = MAP_Find_Node (newnod, (void*) (long) onpla [i], NULL);
+	    if (item) cut [i] = (int) (long) item->data; /* output remapped cut face */
+	    else
+	    {
+	      MAP_Insert (&mapmem, &newnod, (void*) (long) onpla [i], (void*) (long) k, NULL);
+	      cut [i] = k ++;
+	    }
+	  }
+	  cut += j;
+	}
+
+	SET_Insert (&setmem, &below, ele, NULL); /* below adjacent elements */
+      }
+      else SET_Insert (&setmem, &above, ele, NULL); /* other elements */
+    }
+    else SET_Insert (&setmem, &above, ele, NULL); /* other elements */
+
+    if (!bulk && !ele->next) bulk = 1, ele = msh->bulkeles;
+    else ele = ele->next;
+  }
+  cut [0] = 0; /* mark end */
+
+  /* here we are => inter-element cut succeeded;
+   * now we re-map nodes and faces and create new mesh */
+
+  *one = produce_split_mesh (msh, above, cutfaces, surfid, below, newnod);
+
+  free (cutfaces);
+  MEM_Release (&setmem);
+  MEM_Release (&mapmem);
+
+  return 1;
 }
 
 /* create surface nodes data, assuming all reamining mesh data is valid */
@@ -1822,7 +2026,9 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
     {
       kd = trikdtree (c, mc);
 
-      if (!inter_element_local_split (msh, kd, point, normal, surfid, one, two)) /* if regular mesh interl-element split failed */
+      *two = NULL; /* this is certain since TRI_Topoadj returend less triangles then passed */
+
+      if (!inter_element_local_split (msh, kd, point, normal, surfid, one)) /* if regular mesh interl-element split failed */
       {
 	b = trimadj (msh, kd, point, normal, &mb); /* trim faces adjacent to the input triangulation */
 
@@ -1832,7 +2038,9 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
 
 	/* TODO: map volume materials */
 
-	inter_element_local_split (tmp, kd, point, normal, surfid, one, two); /* this will be an inter-element split now */
+	ASSERT_DEBUG_EXT (
+	    inter_element_local_split (tmp, kd, point, normal, surfid, one),
+	    "Local inter-element splitting failed"); /* this will be an inter-element split now */
 
         MESH_Destroy (tmp);
         free (q);
