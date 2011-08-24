@@ -300,7 +300,7 @@ void TRI_Compadj (TRI *tri, int n)
 /* intput a triangulation and a point; output the same triangulation
  * but reordered so that the first 'm' triangles are topologically
  * adjacent to the point; no memory is allocated in this process;
- * return NULL if no input triangle is near the input point;
+ * return NULL and *m = 0 if no input triangle is near the input point;
  * NOTE => tri->flg will be modified for all input triangles */
 TRI* TRI_Topoadj (TRI *tri, int n, double *point, int *m)
 {
@@ -314,7 +314,11 @@ TRI* TRI_Topoadj (TRI *tri, int n, double *point, int *m)
     if (TSI_Status (t->ver [0], t->ver [1], t->ver [2], point, r) != TSI_OUT) break; /* pick a triangle near the point */
   }
 
-  if (t == end) return NULL;
+  if (t == end) 
+  {
+    *m = 0;
+    return NULL;
+  }
 
   for (s = tri; s < end; s ++) s->flg = 0;
 
@@ -557,6 +561,38 @@ double TRI_Char (TRI *tri, int n, double *center)
   }
 
   return volume;
+}
+
+/* create triangulation based kd-tree;
+ * nodes store triangle-extents-dropped triangle sets */
+KDT* TRI_Kdtree (TRI *tri, int n)
+{
+  double *p, *q, *a, *b, *c;
+  double extents [6];
+  TRI *t, *end;
+  KDT *kd;
+
+  ERRMEM (p = malloc (n * sizeof (double [3])));
+
+  for (t = tri, end = t + n, q = p; t < end; t ++, q += 3)
+  {
+    a = t->ver [0];
+    b = t->ver [1];
+    c = t->ver [2];
+    q [0] = (a[0] + b[0] + c[0]) / 3.0;
+    q [1] = (a[1] + b[1] + c[1]) / 3.0;
+    q [2] = (a[2] + b[2] + c[2]) / 3.0;
+  }
+
+  kd = KDT_Create (n, p, GEOMETRIC_EPSILON);
+
+  for (t = tri; t < end; t ++)
+  {
+    TRI_Extents (t, extents);
+    KDT_Drop (kd, extents, t);
+  }
+
+  return kd;
 }
 
 /* compute extents of a single triangle */

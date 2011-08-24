@@ -5151,8 +5151,19 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
     return NULL;
   }
 
-  cra->next = body->bod->cra;
-  body->bod->cra = cra;
+  if (SHAPE_Cut_Possible (body->bod->shape, 1, cra->point, cra->normal, cra->topoadj))
+  {
+    cra->next = body->bod->cra;
+    body->bod->cra = cra;
+  }
+  else
+  {
+    if (cra->topoadj && SHAPE_Cut_Possible (body->bod->shape, 1, cra->point, cra->normal, 0))
+      PyErr_SetString (PyExc_ValueError, "The input point does not belong the body shape.");
+    else PyErr_SetString (PyExc_ValueError, "The crack plane does not intersect the body shape.");
+    CRACK_Destroy (cra);
+    return NULL;
+  }
 
   Py_RETURN_NONE;
 }
