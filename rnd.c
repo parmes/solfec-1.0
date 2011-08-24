@@ -1138,6 +1138,16 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
       values [0] = sphere_value (bod, *sph);
       if (values[0] < legend.extents [0])  legend.extents [0] = values[0];
       if (values[0] > legend.extents [1])  legend.extents [1] = values[0];
+
+      switch (legend.entity)
+      {
+      case KINDS_OF_SURFACES:
+        SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) (*sph)->surface, NULL);
+	break;
+      case KINDS_OF_VOLUMES:
+        SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) (*sph)->volume, NULL);
+	break;
+      }
     }
 
     switch (bod->kind)

@@ -235,6 +235,7 @@ void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, in
   SPHERE *o;
 
   /* TODO => topoadj */
+  ASSERT (!topoadj, ERR_NOT_IMPLEMENTED);
 
   *one = *two = NULL;
 

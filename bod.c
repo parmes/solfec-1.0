@@ -1245,6 +1245,8 @@ void BODY_Material (BODY *bod, int volume, BULK_MATERIAL *mat)
 
 void BODY_Dynamic_Init (BODY *bod)
 {
+  if (bod->flags & BODY_INITIALIZED) return;
+
   switch (bod->kind)
   {
     case OBS:
@@ -1268,6 +1270,8 @@ void BODY_Dynamic_Init (BODY *bod)
       FEM_Dynamic_Init (bod);
       break;
   }
+
+  bod->flags |= BODY_INITIALIZED;
 }
 
 double BODY_Dynamic_Critical_Step (BODY *bod)

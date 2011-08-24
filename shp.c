@@ -27,6 +27,7 @@
 #include "cvx.h"
 #include "sph.h"
 #include "err.h"
+#include "tri.h"
 #include "pck.h"
 
 /* specific shape interface hooks */
@@ -473,6 +474,34 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int 
 
   *one = back;
   *two = front;
+}
+
+/* check whether a spatial/referential cut is geometrically possible */
+int SHAPE_Cut_Possible (SHAPE *shp, int ref, double *point, double *normal, short topoadj)
+{
+  SHAPE *copy;
+  int n = 0;
+  TRI *tri;
+
+  if (ref)
+  {
+    copy = SHAPE_Copy (shp);
+    SHAPE_Update (copy, NULL, NULL);
+  }
+  else copy = shp;
+
+  tri = SHAPE_Cut (copy, point, normal, &n, NULL, NULL, NULL, NULL, NULL, NULL);
+
+  if (topoadj && tri) 
+  {
+    TRI_Compadj (tri, n);
+    TRI_Topoadj (tri, n, point, &n);
+  }
+
+  if (tri) free (tri);
+  if (copy != shp) SHAPE_Destroy (copy);
+
+  return n > 0;
 }
 
 /* get spatial/referential characteristics => volume, mass center, and Euler tensor (centered) */

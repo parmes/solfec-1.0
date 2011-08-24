@@ -75,10 +75,9 @@ static ELEPNT* element_point_pairs (MESH *msh, double *point, double *normal, sh
   if (topoadj)
   {
     TRI_Compadj (tri, *nepn);
-    tri = TRI_Topoadj (tri, *nepn, point, nepn);
+    ASSERT_TEXT (tri = TRI_Topoadj (tri, *nepn, point, nepn), "Failed to cut through the mesh wiht the crack plane ");
   }
-
-  ASSERT_TEXT (tri, "Failed to cut through the mesh wiht the crack plane ");
+  
   ERRMEM (epn = MEM_CALLOC (sizeof (ELEPNT [*nepn])));
   for (n = 0; n < *nepn; n ++)
   {
@@ -185,23 +184,6 @@ static void copy_crack (CRACK *src, CRACK *dst)
   dst->nepn = 0;
 }
 
-/* test whether a referential cut is possible */
-static int cut_possible (BODY *bod, double *point, double *normal)
-{
-  SHAPE *copy;
-  int n = 0;
-  TRI *tri;
-
-  copy = SHAPE_Copy (bod->shape);
-  SHAPE_Update (copy, NULL, NULL);
-  tri = SHAPE_Cut (copy, point, normal, &n,
-      NULL, NULL, NULL, NULL, NULL, NULL);
-  if (tri) free (tri);
-  SHAPE_Destroy (copy);
-
-  return n > 0;
-}
-
 /* create crack object */
 CRACK* CRACK_Create ()
 {
@@ -299,7 +281,7 @@ void Propagate_Cracks (DOM *dom)
       {
 	if (crb == cra) continue; /* skip current */
 
-	if (cut_possible (one, crb->point, crb->normal)) /* crack overlaps first fragment */
+	if (SHAPE_Cut_Possible (one->shape, 1, crb->point, crb->normal, crb->topoadj)) /* crack overlaps first fragment */
 	{
 	  c = CRACK_Create();
 	  copy_crack (crb, c);
@@ -307,7 +289,7 @@ void Propagate_Cracks (DOM *dom)
 	  one->cra = c;
 	}
 
-	if (cut_possible (two, crb->point, crb->normal)) /* crack overlaps second fragment */
+	if (SHAPE_Cut_Possible (two->shape, 1, crb->point, crb->normal, crb->topoadj)) /* crack overlaps second fragment */
 	{
 	  c = CRACK_Create();
 	  copy_crack (crb, c);
@@ -330,7 +312,7 @@ void Propagate_Cracks (DOM *dom)
       {
 	if (crb == cra) continue; /* skip current */
 
-	if (cut_possible (one, crb->point, crb->normal)) /* crack overlaps new body */
+	if (SHAPE_Cut_Possible (one->shape, 1, crb->point, crb->normal, crb->topoadj)) /* crack overlaps new body */
 	{
 	  c = CRACK_Create();
 	  copy_crack (crb, c);
@@ -344,6 +326,7 @@ void Propagate_Cracks (DOM *dom)
       DOM_Remove_Body (dom, bod); /* remove from domain */
       BODY_Destroy (bod); /* destroys cracks store at this body */
 
+      one->flags |= BODY_DETECT_SELF_CONTACT; /* enable self-contact checking */
       SET_Insert (NULL, &newbod, one, NULL);
     }
     else

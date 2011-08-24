@@ -123,6 +123,9 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int surfid, SHAPE **one, SHAPE **two);
 
+/* check whether a spatial/referential cut is geometrically possible */
+int SHAPE_Cut_Possible (SHAPE *shp, int ref, double *point, double *normal, short topoadj);
+
 /* get spatial/referential characteristics => volume, mass center, and Euler tensor (centered) */
 void SHAPE_Char (SHAPE *shp, int ref, double *volume, double *center, double *euler);
 

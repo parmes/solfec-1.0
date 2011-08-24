@@ -433,69 +433,6 @@ static int element_has_nodes (ELEMENT *ele, int n, int *nodes)
   return (k == n ? 1 : 0); 
 }
 
-/* compute planes - CCW oriented faces */
-inline static void computeplanes (CONVEX *cvx)
-{
-  double *a, *b, *c, *nl;
-  int n, m;
-
-  for (n = m = 0; n < cvx->nfac; n ++, m += (cvx->fac [m] + 1))
-  {
-    a = &cvx->cur [cvx->fac [m + 1]];
-    b = &cvx->cur [cvx->fac [m + 2]];
-    c = &cvx->cur [cvx->fac [m + 3]];
-    nl =  &cvx->pla [n * 4];
-    NORMAL (a, b, c, nl);
-    NORMALIZE (nl);
-    nl [3] = - DOT (a, nl);
-  }
-}
-
-/* update planes (normals unchanged) */
-inline static void updateplanes (CONVEX *cvx)
-{
-  double *a, *nl;
-  int n, m;
-
-  for (n = m = 0; n < cvx->nfac; n ++, m += (cvx->fac [m] + 1))
-  {
-    a = &cvx->cur [cvx->fac [m + 1]];
-    nl =  &cvx->pla [n * 4];
-    nl [3] = - DOT (a, nl);
-  }
-}
-
-/* create triangulation based kd-tree */
-static KDT* trikdtree (TRI *tri, int  n)
-{
-  double *p, *q, *a, *b, *c;
-  double extents [6];
-  TRI *t, *end;
-  KDT *kd;
-
-  ERRMEM (p = malloc (n * sizeof (double [3])));
-
-  for (t = tri, end = t + n, q = p; t < end; t ++, q += 3)
-  {
-    a = t->ver [0];
-    b = t->ver [1];
-    c = t->ver [2];
-    q [0] = (a[0] + b[0] + c[0]) / 3.0;
-    q [1] = (a[1] + b[1] + c[1]) / 3.0;
-    q [2] = (a[2] + b[2] + c[2]) / 3.0;
-  }
-
-  kd = KDT_Create (n, p, GEOMETRIC_EPSILON);
-
-  for (t = tri; t < end; t ++)
-  {
-    TRI_Extents (t, extents);
-    KDT_Drop (kd, extents, t);
-  }
-
-  return kd;
-}
-
 /* face triangulation contact test */
 static int face_touches_triangulation (double *v [4], int n, double *normal, KDT *kd)
 {
@@ -920,6 +857,20 @@ static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid,
       }
     }
   }
+  for (item = SET_First (newels); item; item = SET_Next (item)) /* add unmapped new element nodes */
+  {
+    ele = item->data;
+    for (i = 0; i < ele->type; i ++)
+    {
+      if (!MAP_Find_Node (newnod, (void*) (long) ele->nodes [i], NULL) &&
+	  !MAP_Find_Node (nodmap, (void*) (long) ele->nodes [i], NULL))
+      {
+        ASSERT_DEBUG_EXT (jtem = MAP_Insert (&mapmem, &nodmap, /* map subset of used nodes */
+          (void*) (long) ele->nodes [i], (void*) (long) j ++, NULL),
+	  "Map insertion failed");
+      }
+    }
+  }
 
   j += MAP_Size (newnod); /* increase the node set size by |newnod| */
 
@@ -1171,9 +1122,9 @@ static int inter_element_local_split (MESH *msh, KDT *kdtri, double *point, doub
       return 0; /* report failure */
     }
 
-    if (flg) /* at least a trinagle */
+    if (flg)
     {
-      if (j >= 3)
+      if (j >= 3) /* at least a trinagle */
       {
 	cut [0] = j; cut ++;
 	for (i = 0; i < j; i ++) cut [i] = onpla [i]; /* output cut face */
@@ -1805,6 +1756,11 @@ MESH* MESH_Copy (MESH *msh)
     ERRMEM (cpy = MEM_Alloc (&ret->elemem));
     *cpy = *ele;
 
+    /* element subdivision
+     * does not get coppied */
+    cpy->domnum = 0;
+    cpy->dom = NULL;
+
     /* maintain list */
     cpy->prev = NULL;
     cpy->next = ret->surfeles;
@@ -2024,7 +1980,7 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
   {
     if (topoadj && onepart)
     {
-      kd = trikdtree (c, mc);
+      kd = TRI_Kdtree (c, mc);
 
       *two = NULL; /* this is certain since TRI_Topoadj returend less triangles then passed */
 

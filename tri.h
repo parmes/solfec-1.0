@@ -19,6 +19,8 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include "kdt.h"
+
 #ifndef __tri__
 #define __tri__
 
@@ -70,7 +72,7 @@ void TRI_Compadj (TRI *tri, int n);
 /* intput a triangulation and a point; output the same triangulation
  * but reordered so that the first 'm' triangles are topologically
  * adjacent to the point; no memory is allocated in this process;
- * return NULL if no input triangle is near the input point;
+ * return NULL and *m = 0 if no input triangle is near the input point;
  * NOTE => tri->flg will be modified for all input triangles */
 TRI* TRI_Topoadj (TRI *tri, int n, double *point, int *m);
 
@@ -91,6 +93,10 @@ double* TRI_Planes (TRI *tri, int n, int *m);
 
 /* compute mass center and volume of triangulated solid */
 double TRI_Char (TRI *tri, int n, double *center);
+
+/* create triangulation based kd-tree;
+ * nodes store triangle-extents-dropped triangle sets */
+KDT* TRI_Kdtree (TRI *tri, int n);
 
 /* compute extents of a single triangle */
 void TRI_Extents (TRI *t, double *extents);

@@ -2628,6 +2628,9 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     int msh_nsgp, shp_nsgp;
     ELEMENT *ele;
     MEM boxmem;
+  
+    SHAPE_Update (shp, NULL, NULL); /* restore reference shape */
+    MESH_Update (msh, NULL, NULL, NULL); /* same for the background mesh */
 
     msh_nsgp = msh->surfeles_count + msh->bulkeles_count;
     ERRMEM (msh_sgp = sgp = MEM_CALLOC (msh_nsgp * sizeof (SGP)));

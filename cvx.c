@@ -665,6 +665,11 @@ CONVEX* CONVEX_Copy (CONVEX *cvx)
   {
     ERRMEM (twin = malloc (size (cvx)));
     memcpy (twin, cvx, size (cvx));
+    /* FEM specific => does not get inherited */
+    twin->epn = NULL;
+    twin->ele = NULL;
+    twin->nele = 0;
+    /* -------------------------------------- */
     twin->ref = (double*)(twin + 1);
     twin->cur = twin->ref + twin->nver * 3;
     twin->pla = twin->cur + twin->nver * 3;
@@ -855,6 +860,7 @@ out:
 void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two)
 {
   /* TODO => topoadj */
+  ASSERT (!topoadj, ERR_NOT_IMPLEMENTED);
 
   *one = *two = NULL;
 
