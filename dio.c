@@ -210,6 +210,7 @@ static void readallbodies (DOM *dom, PBF *bf)
 
   PBF_Time (bf, &time);
   PBF_Limits (bf, &start, &end);
+  if (end == start) end = start + 1.0; /* "regularize" */
   PBF_Seek (bf, start);
 
   if (dom->solfec->verbose)

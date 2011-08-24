@@ -8821,9 +8821,9 @@ point
 \emph on
 entity
 \emph default
- is one of: 'DX', 'DY', 'DZ' (displacement), 'VX', 'VY', 'VZ' (velocity),
- 'SX', 'SY', 'SZ', 'SXY', 'SXZ', 'SYZ' (stress), 'MISES' (von Mises norm
- of stress) 
+ is one of: 'CX', 'CY', 'CZ' (current coordinate), 'DX', 'DY', 'DZ' (displacemen
+t), 'VX', 'VY', 'VZ' (velocity), 'SX', 'SY', 'SZ', 'SXY', 'SXZ', 'SYZ' (stress),
+ 'MISES' (von Mises norm of stress)
 \end_layout
 
 \begin_layout Itemize
@@ -8844,7 +8844,8 @@ and
 kind
 \emph default
  is a string 'KINETIC', 'INTERNAL', 'EXTERNAL', 'CONTACT', 'FRICTION' and
- it corresponds to the energy kind
+ it corresponds to the energy kind; if the list of BODY objects is used,
+ their energies are summed up
 \end_layout
 
 \begin_layout Itemize
