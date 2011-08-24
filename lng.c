@@ -7135,7 +7135,22 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
       shi->point [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
       shi->point [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-      IFIS (entity, "DX")
+      IFIS (entity, "CX")
+      {
+	shi->entity = VALUE_COORD;
+	shi->index = 0;
+      }
+      ELIF (entity, "CY")
+      {
+	shi->entity = VALUE_COORD;
+	shi->index = 1;
+      }
+      ELIF (entity, "CZ")
+      {
+	shi->entity = VALUE_COORD;
+	shi->index = 2;
+      }
+      ELIF (entity, "DX")
       {
 	shi->entity = VALUE_DISPLACEMENT;
 	shi->index = 0;

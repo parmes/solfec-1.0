@@ -1949,6 +1949,11 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
   {
     switch (kind)
     {
+    case VALUE_COORD:
+    {
+      BODY_Cur_Point (bod, NULL, point, values);
+    }
+    break;
     case VALUE_DISPLACEMENT:
     {
       double cur_point [3];

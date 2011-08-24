@@ -3102,6 +3102,13 @@ void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIN
 
   switch (kind)
   {
+  case VALUE_COORD:
+  {
+    MX *N = element_shapes_matrix (bod, msh, ele, point);
+    MX_Matvec (1.0, N, bod->conf, 1.0, values); /* XXX => (@@@) when called from within here, at input: values = X */
+    MX_Destroy (N);                            /* on the other hand, when called from rendering VALUE_COORD is not used */
+  }
+  break;
   case VALUE_DISPLACEMENT:
   {
     MX *N = element_shapes_matrix (bod, msh, ele, point);
@@ -3153,6 +3160,8 @@ void FEM_Point_Values (BODY *bod, ELEMENT *ele, double *X, VALUE_KIND kind, doub
                     "Please report this bug!\n");
 
   referential_to_local (msh, ele, X, point);
+
+  if (kind == VALUE_COORD) { COPY (X, values); } /* see (@@@) */
 
   FEM_Element_Point_Values (bod, ele, point, kind, values);
 }
@@ -3209,6 +3218,13 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
   {
     switch ((int)kind)
     {
+    case VALUE_COORD:
+    {
+      double *q = &bod->conf [3*n],
+	     *p = msh->cur_nodes [n];
+      ADD (p, q, values);
+    }
+    break;
     case VALUE_DISPLACEMENT:
     {
       double *q = &bod->conf [3*n];

@@ -22,14 +22,12 @@ if not VIEWER() and solfec.mode == 'READ':
   try:
     import matplotlib.pyplot as plt
      
-    th = HISTORY (solfec, [(bod, bod.center, 'DX'), (bod, bod.center, 'DZ'), (solfec, 'KINETIC')], 0, duration)
+    th = HISTORY (solfec, [(bod, bod.center, 'CX'), (bod, bod.center, 'CZ'), (solfec, 'KINETIC')], 0, duration)
     i = 0
     rh = []
     for t in th [0]:
-      dx = th [1][i]
-      dz = th [2][i]
-      x = bod.center [0] + dx
-      z = bod.center [2] + dz
+      x = th [1][i]
+      z = th [2][i]
       r = sqrt (x*x + z*z)
       rh.append (r)
       i = i + 1

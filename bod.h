@@ -56,6 +56,7 @@ typedef struct general_body BODY;
  * value kinds */
 typedef enum
 {
+  VALUE_COORD,
   VALUE_DISPLACEMENT,
   VALUE_VELOCITY,
   VALUE_STRESS,
