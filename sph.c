@@ -138,6 +138,15 @@ void SPHERE_Update_Adjacency (SPHERE *sph)
   free (boxes);
 }
 
+
+/* break adjacency between spheres separated by the input plane and locally adjacent to the sphere-plane
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
+void SPHERE_Break_Adjacency (SPHERE *sph, double *point, double *normal)
+{
+  /* TODO */
+  WARNING_DEBUG (0, "Sphere adjacency breaking has not been implemented yet!");
+}
+
 /* create a copy of a list */
 SPHERE* SPHERE_Copy (SPHERE *sph)
 {
@@ -220,7 +229,7 @@ void SPHERE_Rotate (SPHERE *sph, double *point, double *vector, double angle)
  * TRI->ptr stores a pointer to the geometrical object that has been cut by the triangle */
 TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m)
 {
-  WARNING_DEBUG (0, "Sphere cutting has not been implemented yet");
+  WARNING_DEBUG (0, "Sphere cutting has not been implemented yet!");
   /* TODO */
   *m = 0;
   return NULL;
@@ -235,7 +244,7 @@ void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, in
   SPHERE *o;
 
   /* TODO => topoadj */
-  ASSERT (!topoadj, ERR_NOT_IMPLEMENTED);
+  WARNING_DEBUG (!topoadj, "Sphere splitting with topoadj != 0 has not been implemented yet!");
 
   *one = *two = NULL;
 

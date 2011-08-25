@@ -35,6 +35,8 @@ typedef void* (*copy_func) (void*);
 static copy_func copy [] = {(copy_func)MESH_Copy, (copy_func)CONVEX_Copy, (copy_func)SPHERE_Copy};
 typedef void (*adjup_func) (void*);
 static adjup_func adjup [] = {(adjup_func)MESH_Update_Adjacency, (adjup_func)CONVEX_Update_Adjacency, (adjup_func)SPHERE_Update_Adjacency};
+typedef void (*adjbreak_func) (void*, double*, double*);
+static adjbreak_func adjbreak [] = {(adjbreak_func)MESH_Break_Adjacency, (adjbreak_func)CONVEX_Break_Adjacency, (adjbreak_func)SPHERE_Break_Adjacency};
 typedef void (*scale_func) (void*, double*);
 static scale_func scale [] = {(scale_func)MESH_Scale, (scale_func)CONVEX_Scale, (scale_func)SPHERE_Scale};
 typedef void (*translate_func) (void*, double*);
@@ -277,6 +279,14 @@ void SHAPE_Update_Adjacency (SHAPE *shp)
 {
   for (; shp; shp = shp->next)
     adjup [shp->kind] (shp->data);
+}
+
+/* break adjacency between primitives separated by the input plane and locally adjacent to the primitive-plane
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
+void SHAPE_Break_Adjacency (SHAPE *shp, double *point, double *normal)
+{
+  for (; shp; shp = shp->next)
+    adjbreak [shp->kind] (shp->data, point, normal);
 }
 
 /* scale cur shape => 

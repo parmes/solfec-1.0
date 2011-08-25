@@ -81,6 +81,10 @@ CONVEX* CONVEX_Glue (CONVEX *cvx, CONVEX *cvy);
  * no other function affects the adjacency */
 void CONVEX_Update_Adjacency (CONVEX *cvx);
 
+/* break adjacency between convices separated by the input plane and locally adjacent to the convex-plane
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
+void CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal);
+
 /* create a copy of a list */
 CONVEX* CONVEX_Copy (CONVEX *cvx);
 

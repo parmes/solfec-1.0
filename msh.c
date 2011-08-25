@@ -1722,6 +1722,11 @@ void MESH_Update_Adjacency (MESH *msh)
 {
 }
 
+/* dummy local plane adjacency breaking routine */
+void MESH_Break_Adjacency (MESH *msh, double *point, double *normal)
+{
+}
+
 /* create a copy of a mesh */
 MESH* MESH_Copy (MESH *msh)
 {
@@ -1959,8 +1964,6 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
   MESH *tmp;
   KDT *kd;
 
-  if (topoadj == 0 && inter_element_global_split (msh, point, normal, surfid, one, two)) return; /* global inter-element split succeeded */
-
   c = MESH_Cut (msh, point, normal, &mc);
 
   if (topoadj)
@@ -2003,6 +2006,10 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
       }
 
       KDT_Destroy (kd);
+    }
+    else if (inter_element_global_split (msh, point, normal, surfid, one, two)) /* global inter-element split succeeded */
+    {
+      /* all done in the condition */
     }
     else
     {

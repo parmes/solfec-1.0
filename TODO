@@ -92,4 +92,6 @@ Better resolve corner adjacent mesh nodes gluing after PARTITION
 Consider using CGAL for boolean operations and convex subdivision (on input only)
 ----------------------------------------------------------------------------------
 Implement REGISTER_SHAPE idea!
-----------------------------------------
+---------------------------------------------------------------------------------
+Combination of full and half- splitting may produce 3 fragments out of one body
+Handle this!

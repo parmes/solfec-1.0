@@ -57,8 +57,8 @@ bod = BODY (solfec , 'FINITE_ELEMENT', shp, bulkmat, mesh = msh, form = 'BC')
 #bod = BODY (solfec , 'FINITE_ELEMENT', msh, bulkmat, form = 'BC')
 INITIAL_VELOCITY (bod, (0, 0, -1), (0, 0, 0))
 
-SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 3, 'TENSILE', ft=1E3)
-SIMPLIFIED_CRACK (bod, bod.center, (0, 1, 0), 3, 'TENSILE', ft=1E5)
+SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, (0, 0.137, 0)), (1, 0, 0), 3, 'TENSILE', ft=1E3, topoadj = 'OFF')
+SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, (0.137, 0, 0)), (0, 1, 0), 3, 'TENSILE', ft=1E3, topoadj = 'ON') #FIXME => interpenteration (splitting in 3?)
 
 #bod.scheme = 'DEF_LIM'
 #bod.damping = 1E-3

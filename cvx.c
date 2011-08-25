@@ -299,6 +299,41 @@ out:
   return out;
 }
 
+/* convex triangulation contact test */
+static int convex_touches_triangulation (CONVEX *cvx, KDT *kd)
+{
+  double extents [6], b [12], p [3], q [3], deps;
+  SET *leaves = NULL, *item;
+  KDT *leaf;
+  TRI *t;
+  int i;
+
+  CONVEX_Extents (NULL, cvx, extents);
+  KDT_Pick_Extents (kd, extents, &leaves);
+  deps = 10 * GEOMETRIC_EPSILON;
+
+  for (item = SET_First (leaves); item; item = SET_Next (item))
+  {
+    leaf = item->data;
+    for (i = 0; i < leaf->n; i ++)
+    {
+      t = leaf->data [i];
+      COPY (t->ver [0], b);
+      COPY (t->ver [1], b+3);
+      COPY (t->ver [2], b+6);
+      ADDMUL (b, deps, t->out, b+9);
+      if (gjk (cvx->cur, cvx->nver, b, 4, p, q) < GEOMETRIC_EPSILON)
+      {
+	SET_Free (NULL, &leaves);
+	return 1;
+      }
+    }
+  }
+
+  SET_Free (NULL, &leaves);
+  return 0;
+}
+
 /* split convex in two halves, using plane (point 'pt, normal 'nl') */
 static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one, CONVEX **two)
 {
@@ -656,6 +691,73 @@ void CONVEX_Update_Adjacency (CONVEX *cvx)
   free (boxes);
 }
 
+/* break adjacency between convices separated by the input plane and locally adjacent to the convex-plane
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
+void CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal)
+{
+  int mc, mb, i, j;
+  CONVEX *cvy;
+  TRI *c, *b;
+  KDT *kd;
+
+  c = CONVEX_Cut (cvx, point, normal, &mc); /* compute cut surface triangulation */
+  TRI_Compadj (c, mc); /* compute adjacency structure of triangles */
+  b = TRI_Topoadj (c, mc, point, &mb); /* part of the triangulation adjacent to the point */
+  ASSERT_DEBUG (b, "Input point is too far from mesh section by the splitting plane");
+  if (mb < mc) /* two or more separated intersection surfaces */
+  {
+    kd = TRI_Kdtree (b, mb);
+
+    for (; cvx; cvx = cvx->next)
+    {
+      double *v = cvx->cur, *e = v + 3*cvx->nver, a [3], dot;
+
+      for (; v < e; v += 3)
+      {
+	SUB (v, point, a);
+	dot = DOT (a, normal);
+	if (dot < -GEOMETRIC_EPSILON) break;
+      }
+
+      if (v < e && /* below */
+	  convex_touches_triangulation (cvx, kd)) /* connected to the intersection patch */
+      {
+	for (i = 0; i < cvx->nadj; i ++)
+	{
+	  cvy = cvx->adj [i];
+          v = cvy->cur;
+	  e = v + 3*cvy->nver;
+
+	  for (; v < e; v += 3)
+	  {
+	    SUB (v, point, a);
+	    dot = DOT (a, normal);
+	    if (dot > GEOMETRIC_EPSILON) break;
+	  }
+
+	  if (v < e) /* above */
+	  {
+	    /* remove 'cvx' from 'cvy->adj' */
+	    for (j = 0; j < cvy->nadj; j ++) if (cvy->adj [j] == cvx) break; /* find 'cvx' */
+	    ASSERT_DEBUG (j < cvy->nadj, "Inconsistent adjacency");
+	    for (; j < cvy->nadj-1; j ++) cvy->adj [j] = cvy->adj [j+1]; /* skip 'cvx' */
+	    cvy->nadj --;
+
+	    /* remove 'cvy' from 'cvx->adj' */
+	    for (j = i; j < cvx->nadj-1; j ++) cvx->adj [j] = cvx->adj [j+1]; /* skip 'cvx' */
+	    cvx->nadj --;
+	    i --;
+	  }
+	}
+      }
+    }
+
+    KDT_Destroy (kd);
+  }
+
+  if (c) free (c);
+}
+
 /* copy convex list */
 CONVEX* CONVEX_Copy (CONVEX *cvx)
 {
@@ -859,13 +961,48 @@ out:
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two)
 {
-  /* TODO => topoadj */
-  ASSERT (!topoadj, ERR_NOT_IMPLEMENTED);
+  TRI *c, *b;
+  int mc, mb;
+  KDT *kd;
 
   *one = *two = NULL;
+  kd = NULL;
+  c = NULL;
+
+  if (topoadj)
+  {
+    c = CONVEX_Cut (cvx, point, normal, &mc); /* compute cut surface triangulation */
+    TRI_Compadj (c, mc); /* compute adjacency structure of triangles */
+    b = TRI_Topoadj (c, mc, point, &mb); /* part of the triangulation adjacent to the point */
+    ASSERT_DEBUG (b, "Input point is too far from mesh section by the splitting plane");
+    if (mb < mc) /* two or more separated intersection surfaces */
+      kd = TRI_Kdtree (b, mb);
+  }
 
   for (; cvx; cvx = cvx->next)
-    split (cvx, point, normal, surfid, one, two);
+  {
+    if (kd)
+    {
+      if (convex_touches_triangulation (cvx, kd))
+	split (cvx, point, normal, surfid, one, two); /* split only if adjacent to the selected intersection patch */
+      else
+      {
+	CONVEX *next = cvx->next; cvx->next = NULL;
+	*one = CONVEX_Glue (CONVEX_Copy (cvx), *one); /* otherwise copy into 'one' */
+	cvx->next = next;
+      }
+    }
+    else split (cvx, point, normal, surfid, one, two); /* split all */
+  }
+
+  if (kd)
+  {
+    *one = CONVEX_Glue (*one, *two); /* no fragmentation => the result goes into 'one' */
+    *two = NULL;
+
+    KDT_Destroy (kd);
+    free (c);
+  }
 }
 
 /* compute partial characteristic: 'vo'lume and static momenta
