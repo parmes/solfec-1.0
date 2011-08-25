@@ -60,6 +60,10 @@ SPHERE* SPHERE_Glue (SPHERE *sph, SPHERE *spg);
  * no other function affects the adjacency */
 void SPHERE_Update_Adjacency (SPHERE *sph);
 
+/* break adjacency between spheres separated by the input plane and locally adjacent to the sphere-plane
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
+void SPHERE_Break_Adjacency (SPHERE *sph, double *point, double *normal);
+
 /* create a copy of a list */
 SPHERE* SPHERE_Copy (SPHERE *sph);
 

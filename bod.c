@@ -2028,6 +2028,10 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
       {
 	if (bod->label) sprintf (label, "%s/1", bod->label);
 	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL);
+
+	if (topoadj && stwo == NULL)
+	  SHAPE_Break_Adjacency (sone, point, normal); /* break adjacency between split convices (while in reference configuration) */
+
 	overwrite_state (bod, *one);
         SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
       }

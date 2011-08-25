@@ -100,6 +100,10 @@ SHAPE* SHAPE_Glue_Simple (SHAPE *shp, SHAPE *shq);
  * no other function affects the adjacency */
 void SHAPE_Update_Adjacency (SHAPE *shp);
 
+/* break adjacency between primitives separated by the input plane and locally adjacent to the primitive-plane
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
+void SHAPE_Break_Adjacency (SHAPE *shp, double *point, double *normal);
+
 /* scale cur shape => 
  * if MESH,  scale each: x *= vector [0], y *= vector [1], z *= vector [2];
  * if SPHERE, scale radius: r *= vector [0]; (set ref = cur) */

@@ -132,6 +132,9 @@ MESH* MESH_Pipe (double *pnt, double *dir, double rin, double thi,
 /* dummy adjacency update (needed in shp.c) */
 void MESH_Update_Adjacency (MESH *msh);
 
+/* dummy local plane adjacency breaking routine */
+void MESH_Break_Adjacency (MESH *msh, double *point, double *normal);
+
 /* create a copy of a mesh */
 MESH* MESH_Copy (MESH *msh);
 
