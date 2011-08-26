@@ -55,6 +55,9 @@ struct shape
 
   void *data; /* representation */
 
+  double (*bradj_point_normal) [6]; /* break adjacency data => used internally in SHAPE_Update_Adjacency */
+  int nbradj; /* this data is stored only at the fist item of shapes list */
+
   SHAPE *next;
 };
 
@@ -101,8 +104,9 @@ SHAPE* SHAPE_Glue_Simple (SHAPE *shp, SHAPE *shq);
 void SHAPE_Update_Adjacency (SHAPE *shp);
 
 /* break adjacency between primitives separated by the input plane and locally adjacent to the primitive-plane
- * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
-void SHAPE_Break_Adjacency (SHAPE *shp, double *point, double *normal);
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting;
+ * return 1 on succes or 0 on failure (e.g. due to an errorneous point or normal) */
+int SHAPE_Break_Adjacency (SHAPE *shp, double *point, double *normal);
 
 /* scale cur shape => 
  * if MESH,  scale each: x *= vector [0], y *= vector [1], z *= vector [2];
@@ -126,6 +130,12 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
 /* split shape by plane; output two parts of the split shape;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int surfid, SHAPE **one, SHAPE **two);
+
+/* is shape separable into disjoint parts */
+int SHAPE_Separable (SHAPE *shp);
+
+/* separate shape into disjoint parts */
+SHAPE** SHAPE_Separate (SHAPE *shp, int *m);
 
 /* check whether a spatial/referential cut is geometrically possible */
 int SHAPE_Cut_Possible (SHAPE *shp, int ref, double *point, double *normal, short topoadj);

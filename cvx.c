@@ -692,10 +692,11 @@ void CONVEX_Update_Adjacency (CONVEX *cvx)
 }
 
 /* break adjacency between convices separated by the input plane and locally adjacent to the convex-plane
- * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
-void CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal)
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting;
+ * return 1 on succes or 0 on failure (e.g. due to an errorneous point or normal) */
+int CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal)
 {
-  int mc, mb, i, j;
+  int mc, mb, i, j, ret = 0;
   CONVEX *cvy;
   TRI *c, *b;
   KDT *kd;
@@ -703,8 +704,7 @@ void CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal)
   c = CONVEX_Cut (cvx, point, normal, &mc); /* compute cut surface triangulation */
   TRI_Compadj (c, mc); /* compute adjacency structure of triangles */
   b = TRI_Topoadj (c, mc, point, &mb); /* part of the triangulation adjacent to the point */
-  ASSERT_DEBUG (b, "Input point is too far from mesh section by the splitting plane");
-  if (mb < mc) /* two or more separated intersection surfaces */
+  if (b)
   {
     kd = TRI_Kdtree (b, mb);
 
@@ -747,6 +747,8 @@ void CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal)
 	    for (j = i; j < cvx->nadj-1; j ++) cvx->adj [j] = cvx->adj [j+1]; /* skip 'cvx' */
 	    cvx->nadj --;
 	    i --;
+
+	    ret = 1;
 	  }
 	}
       }
@@ -756,6 +758,8 @@ void CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal)
   }
 
   if (c) free (c);
+
+  return ret;
 }
 
 /* copy convex list */

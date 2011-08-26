@@ -2076,6 +2076,13 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
   /* TODO: transfer forces to parts */
 }
 
+BODY** BODY_Separate (BODY *bod, int *m)
+{
+  /* FIXME => TODO */
+  *m = 0;
+  return NULL;
+}
+
 void BODY_Write_State (BODY *bod, PBF *bf)
 {
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));

@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include <float.h>
+#include <string.h>
 #include "sol.h"
 #include "alg.h"
 #include "shp.h"
@@ -35,7 +36,7 @@ typedef void* (*copy_func) (void*);
 static copy_func copy [] = {(copy_func)MESH_Copy, (copy_func)CONVEX_Copy, (copy_func)SPHERE_Copy};
 typedef void (*adjup_func) (void*);
 static adjup_func adjup [] = {(adjup_func)MESH_Update_Adjacency, (adjup_func)CONVEX_Update_Adjacency, (adjup_func)SPHERE_Update_Adjacency};
-typedef void (*adjbreak_func) (void*, double*, double*);
+typedef int (*adjbreak_func) (void*, double*, double*);
 static adjbreak_func adjbreak [] = {(adjbreak_func)MESH_Break_Adjacency, (adjbreak_func)CONVEX_Break_Adjacency, (adjbreak_func)SPHERE_Break_Adjacency};
 typedef void (*scale_func) (void*, double*);
 static scale_func scale [] = {(scale_func)MESH_Scale, (scale_func)CONVEX_Scale, (scale_func)SPHERE_Scale};
@@ -79,14 +80,27 @@ static SHAPE* append (SHAPE *list, short kind, void *data)
   return shp;
 }
 
+/* copy break adjacency data */
+static void copy_bradj (SHAPE *a, SHAPE *b)
+{
+  if (a->nbradj)
+  {
+    b->nbradj = a->nbradj;
+    ERRMEM (b->bradj_point_normal = malloc (b->nbradj * sizeof (double [6])));
+    memcpy (b->bradj_point_normal, a->bradj_point_normal, b->nbradj * sizeof (double [6]));
+  }
+}
+
 /* create a general shape */
 SHAPE* SHAPE_Create (short kind, void *data)
 {
   SHAPE *shp;
 
-  ERRMEM (shp = malloc (sizeof (SHAPE)));
+  ERRMEM (shp = MEM_CALLOC (sizeof (SHAPE)));
   shp->kind = kind;
   shp->data = data;
+  shp->bradj_point_normal = NULL;
+  shp->nbradj = 0;
   shp->next = NULL;
 
   return shp;
@@ -193,16 +207,18 @@ GOBJ SHAPE_2_GOBJ (SHAPE *shp)
 /* copy shape */
 SHAPE* SHAPE_Copy (SHAPE *shp)
 {
-  SHAPE *out, *q;
+  SHAPE *shq, *out, *q;
   void *data;
 
-  for (out = NULL; shp; shp = shp->next)
+  for (out = NULL, shq = shp; shq; shq = shq->next)
   {
-    data = copy [shp->kind] (shp->data);
-    q = SHAPE_Create (shp->kind, data);
+    data = copy [shq->kind] (shq->data);
+    q = SHAPE_Create (shq->kind, data);
     q->next = out;
     out = q;
   }
+
+  copy_bradj (shp, out);
 
   return out;
 }
@@ -277,16 +293,69 @@ SHAPE* SHAPE_Glue_Simple (SHAPE *shp, SHAPE *shq)
  * no other function affects the adjacency */
 void SHAPE_Update_Adjacency (SHAPE *shp)
 {
-  for (; shp; shp = shp->next)
-    adjup [shp->kind] (shp->data);
+  SHAPE *shq;
+
+  for (shq = shp; shq; shq = shq->next)
+    adjup [shq->kind] (shq->data);
+
+  /* in case of CONVEX lists such detected adjacency will "forget" about the previously
+   * broken adjacency, which was a structural change (e.g. allowing for self-contact, etc.);
+   * we now bring this back by trying to break the adjacency according to memorized definitions */
+
+  for (int i = 0; i < shp->nbradj; i ++)
+  {
+    double *p = shp->bradj_point_normal [i], *n = p + 3;
+
+    if (SHAPE_Break_Adjacency (shp, p, n) == 0) /* failed breaking adjacency */
+    {
+      if (i < shp->nbradj - 1) /* remove this 'bradj' record as invalid */
+      {
+	for (int j = i; j < shp->nbradj - 1; j ++)
+	{
+	  double *p = shp->bradj_point_normal [j],
+		 *q = shp->bradj_point_normal [j+1];
+
+	  COPY6 (q, p);
+	}
+      }
+
+      shp->nbradj --;
+      i --;
+    }
+  }
+
+  if (shp->nbradj == 0 && shp->bradj_point_normal) /* nothing left */
+  {
+    free (shp->bradj_point_normal);
+    shp->bradj_point_normal = NULL;
+  }
 }
 
 /* break adjacency between primitives separated by the input plane and locally adjacent to the primitive-plane
- * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
-void SHAPE_Break_Adjacency (SHAPE *shp, double *point, double *normal)
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting;
+ * return 1 on succes or 0 on failure (e.g. due to an errorneous point or normal) */
+int SHAPE_Break_Adjacency (SHAPE *shp, double *point, double *normal)
 {
-  for (; shp; shp = shp->next)
-    adjbreak [shp->kind] (shp->data, point, normal);
+  int i = 0, j;
+  SHAPE *shq;
+
+  for (shq = shp; shq; shq = shq->next)
+  {
+    j = adjbreak [shq->kind] (shq->data, point, normal);
+    i = MAX (i, j); /* at least one success will do */
+  }
+
+  if (i) /* first list item will store memory of succedded adjacency breaking definitions
+	    => this is a structural change that needs to be memorized (e.g. for CONVEX lists) */
+  {
+    shp->nbradj ++;
+    ERRMEM  (shp->bradj_point_normal = realloc (shp->bradj_point_normal, shp->nbradj * sizeof (double [6])));
+    double *p = shp->bradj_point_normal [shp->nbradj-1], *n = p + 3;
+    COPY (point, p); /* FIXME: valgrind complains here (invalid read, inside memory freed just above) ??? */
+    COPY (normal, n); /* FIXME: perhaps this is due to naming convention point/normal in both cases */
+  }
+
+  return i;
 }
 
 /* scale cur shape => 
@@ -482,8 +551,24 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int 
     }
   }
 
+  if (back) copy_bradj (shp, back);
+  if (front) copy_bradj (shp, front);
+
   *one = back;
   *two = front;
+}
+
+/* is shape separable into disjoint parts */
+int SHAPE_Separable (SHAPE *shp)
+{
+  return 0; /* FIXME => TODO */
+}
+
+/* separate shape into disjoint parts */
+SHAPE** SHAPE_Separate (SHAPE *shp, int *m)
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED);
+  return NULL; /* FIXME => TODO */
 }
 
 /* check whether a spatial/referential cut is geometrically possible */
@@ -717,12 +802,15 @@ void SHAPE_Destroy (SHAPE *shp)
 {
   SHAPE *next;
 
+  free (shp->bradj_point_normal); /* stored only at the first list item */
+
   for (; shp; shp = next)
   {
     next = shp->next;
     destroy [shp->kind] (shp->data);
     free (shp);
   }
+
 }
 
 /* release shape wrapper memory (without data) */

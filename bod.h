@@ -278,6 +278,9 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
 /* split body by a referential plane; output one body with new boundary or two bodies if fragmentation occurs */
 void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid, BODY **one, BODY **two);
 
+/* separate body whose shape is separable into sub-bodies */
+BODY** BODY_Separate (BODY *bod, int *m);
+
 /* write body state */
 void BODY_Write_State (BODY *bod, PBF *bf);
 
