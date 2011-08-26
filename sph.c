@@ -140,11 +140,13 @@ void SPHERE_Update_Adjacency (SPHERE *sph)
 
 
 /* break adjacency between spheres separated by the input plane and locally adjacent to the sphere-plane
- * intersection patch containing the input point; used in the context of topologically adjacent body splitting */
-void SPHERE_Break_Adjacency (SPHERE *sph, double *point, double *normal)
+ * intersection patch containing the input point; used in the context of topologically adjacent body splitting;
+ * return 1 on succes or 0 on failure (e.g. due to an errorneous point or normal) */
+int SPHERE_Break_Adjacency (SPHERE *sph, double *point, double *normal)
 {
   /* TODO */
   WARNING_DEBUG (0, "Sphere adjacency breaking has not been implemented yet!");
+  return 0;
 }
 
 /* create a copy of a list */

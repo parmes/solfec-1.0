@@ -2621,7 +2621,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
 
   if (msh) /* the given mesh is assumed to properly contain the shape */
   {
-    SHAPE msh_shp = {SHAPE_MESH, msh, NULL};
+    SHAPE msh_shp = {SHAPE_MESH, msh, NULL, 0, NULL};
     BOX **msh_boxes, **shp_boxes, **box;
     SGP *msh_sgp, *shp_sgp, *sgp, *sge;
     BOX_Extents_Update update;

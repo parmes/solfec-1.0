@@ -303,8 +303,27 @@ void Propagate_Cracks (DOM *dom)
       DOM_Remove_Body (dom, bod); /* remove from domain */
       BODY_Destroy (bod); /* destroys cracks store at this body */
 
-      SET_Insert (NULL, &newbod, one, NULL);
-      SET_Insert (NULL, &newbod, two, NULL);
+      if (SHAPE_Separable (one->shape))
+      {
+         /* FIXME => TODO */
+      }
+      else
+      {
+        if (one->shape->nbradj) one->flags |= BODY_DETECT_SELF_CONTACT; /* FIXME => remove when the above is made work */
+
+	SET_Insert (NULL, &newbod, one, NULL);
+      }
+
+      if (SHAPE_Separable (two->shape))
+      {
+         /* FIXME => TODO */
+      }
+      else 
+      {
+        if (two->shape->nbradj) two->flags |= BODY_DETECT_SELF_CONTACT; /* FIXME => remove when the above is made work */
+
+	SET_Insert (NULL, &newbod, two, NULL);
+      }
     }
     else if (cra && cra->topoadj && one) /* half-crack with new boundary */
     {
@@ -326,8 +345,16 @@ void Propagate_Cracks (DOM *dom)
       DOM_Remove_Body (dom, bod); /* remove from domain */
       BODY_Destroy (bod); /* destroys cracks store at this body */
 
-      one->flags |= BODY_DETECT_SELF_CONTACT; /* enable self-contact checking */
-      SET_Insert (NULL, &newbod, one, NULL);
+      if (SHAPE_Separable (one->shape))
+      {
+	/* FIXME => TODO */
+      }
+      else
+      {
+	one->flags |= BODY_DETECT_SELF_CONTACT; /* enable self-contact checking */
+
+	SET_Insert (NULL, &newbod, one, NULL);
+      }
     }
     else
     {

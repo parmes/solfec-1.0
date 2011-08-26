@@ -1723,8 +1723,9 @@ void MESH_Update_Adjacency (MESH *msh)
 }
 
 /* dummy local plane adjacency breaking routine */
-void MESH_Break_Adjacency (MESH *msh, double *point, double *normal)
+int MESH_Break_Adjacency (MESH *msh, double *point, double *normal)
 {
+  return 0;
 }
 
 /* create a copy of a mesh */
