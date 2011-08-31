@@ -997,6 +997,7 @@ struct lng_SPHERE
   SPHERE *sph;
 };
 
+#if 0
 static int is_sphere (lng_SPHERE *obj, char *var)
 {
   if (obj)
@@ -1012,40 +1013,30 @@ static int is_sphere (lng_SPHERE *obj, char *var)
 
   return 1;
 }
+#endif
 
 /* constructor */
 static PyObject* lng_SPHERE_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("center", "radius", "volid", "surfid", "sphere");
-  lng_SPHERE *self, *sphere;
+  KEYWORDS ("center", "radius", "volid", "surfid");
   double radius, c [3];
   int volid, surfid;
   PyObject *center;
-  SPHERE *sph;
+  lng_SPHERE *self;
 
   self = (lng_SPHERE*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    sphere = NULL;
+    PARSEKEYS ("Odii", &center, &radius, &volid, &surfid);
 
-    PARSEKEYS ("Odii|O", &center, &radius, &volid, &surfid, &sphere);
-
-    TYPETEST (is_tuple (center, kwl [0], 3) && is_sphere (sphere, kwl [4]));
-
-    if (sphere) sph = sphere->sph;
-    else sph = NULL;
+    TYPETEST (is_tuple (center, kwl [0], 3));
 
     c [0] = PyFloat_AsDouble (PyTuple_GetItem (center, 0));
     c [1] = PyFloat_AsDouble (PyTuple_GetItem (center, 1));
     c [2] = PyFloat_AsDouble (PyTuple_GetItem (center, 2));
 
-    self->sph = SPHERE_Create (sph, c, radius, surfid, volid);
-
-    if (sph)
-    {
-      sphere->sph = NULL; /* empty */
-    }
+    self->sph = SPHERE_Create (c, radius, surfid, volid);
   }
 
   return (PyObject*)self;

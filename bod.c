@@ -1233,10 +1233,8 @@ void BODY_Material (BODY *bod, int volume, BULK_MATERIAL *mat)
     case SHAPE_SPHERE:
 
       sph = shp->data;
-
-      for (; sph; sph = sph->next)
-	if (sph->volume == volume)
-	  sph->mat = mat;
+      if (sph->volume == volume)
+	sph->mat = mat;
 
       break;
     }
