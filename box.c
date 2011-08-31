@@ -133,11 +133,6 @@ static void local_create (struct auxdata *aux, BOX *one, BOX *two)
 	if (CONVEX_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
     }
     break;
-    case AABB_SPHERE_SPHERE:
-    {
-      if (onebod == twobod) /* exclude topologically adjacent spheres */
-	if (SPHERE_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
-    }
     case AABB_ELEMENT_CONVEX:
       if (onebod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
     break;

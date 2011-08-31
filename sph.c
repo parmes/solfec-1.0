@@ -42,24 +42,8 @@ inline static int point_inside (double *center, double radius, double *point)
   else return 0;
 }
 
-/* overlap callback for convex adjacency */
-static void overlap (void *data, BOX *one, BOX *two)
-{
-  double p [3], q [3];
-  SPHERE *sph = (SPHERE*)one->sgp,
-	 *spg = (SPHERE*)two->sgp;
-
-  if (gjk_sphere_sphere (sph->cur_center, sph->cur_radius, spg->cur_center, spg->cur_radius, p, q) < GEOMETRIC_EPSILON) /* if they touch */
-  {
-    ERRMEM (sph->adj = realloc (sph->adj, (++sph->nadj) * sizeof (BOX*)));  /* extend adjacency */
-    sph->adj [sph->nadj-1] = spg;
-    ERRMEM (spg->adj = realloc (spg->adj, (++spg->nadj) * sizeof (BOX*))); 
-    spg->adj [spg->nadj-1] = sph;
-  }
-}
-
-/* create a sphere (sph == NULL) or append spheres list with another sphere */
-SPHERE* SPHERE_Create (SPHERE *sph, double *center, double radius, int surface, int volume)
+/* create a sphere */
+SPHERE* SPHERE_Create (double *center, double radius, int surface, int volume)
 {
   SPHERE *out;
   double (*rp) [3],
@@ -72,8 +56,6 @@ SPHERE* SPHERE_Create (SPHERE *sph, double *center, double radius, int surface, 
   out->cur_radius = radius;
   out->surface = surface;
   out->volume = volume;
-  out->adj = NULL;
-  out->next = sph;
   rp = out->ref_points;
   cp = out->cur_points;
   rp [0][0] = radius;
@@ -96,78 +78,30 @@ SPHERE* SPHERE_Create (SPHERE *sph, double *center, double radius, int surface, 
   return out;
 }
 
-/* glue two sphere lists */
-SPHERE* SPHERE_Glue (SPHERE *sph, SPHERE *spg)
-{
-  SPHERE *out = sph;
-
-  for (; sph->next; sph = sph->next);
-  sph->next = spg;
-  return out;
-}
-
-/* update adjacency data of spheres;
- * no other function affects the adjacency */
+/* dummy (needed in shp.c) */
 void SPHERE_Update_Adjacency (SPHERE *sph)
 {
-  MEM mem;
-  BOX **boxes;
-  SPHERE *spg;
-  int num;
-  
-  for (spg = sph, num = 0; spg; spg = spg->next)
-  {
-    spg->nadj = 0;
-    num ++;
-  }
-
-  if (num < 2) return;
-
-  MEM_Init (&mem, sizeof (BOX), num);
-  ERRMEM (boxes = malloc (sizeof (AABB*) * num));
-  for (spg = sph, num = 0; spg; spg = spg->next, num ++)
-  {
-    ERRMEM (boxes [num] = MEM_Alloc (&mem));
-    SPHERE_Extents (NULL, spg, boxes [num]->extents); /* set up extents */
-    boxes [num]->sgp = (SGP*)spg;
-  }
-
-  hybrid (boxes, num, NULL, overlap); /* detect boxoverlaps => set adjacency inside the callback */
-
-  MEM_Release (&mem); /* done */
-  free (boxes);
 }
 
 
-/* break adjacency between spheres separated by the input plane and locally adjacent to the sphere-plane
- * intersection patch containing the input point; used in the context of topologically adjacent body splitting;
- * return 1 on succes or 0 on failure (e.g. due to an errorneous point or normal) */
+/* dummy (needed in shp.c) */
 int SPHERE_Break_Adjacency (SPHERE *sph, double *point, double *normal)
 {
-  /* TODO */
-  WARNING_DEBUG (0, "Sphere adjacency breaking has not been implemented yet!");
   return 0;
 }
 
-/* create a copy of a list */
+/* create a copy of a sphere */
 SPHERE* SPHERE_Copy (SPHERE *sph)
 {
-  SPHERE *twin, *tail;
+  SPHERE *twin;
 
-  for (tail = NULL; sph; sph = sph->next)
-  {
-    ERRMEM (twin = malloc (sizeof (SPHERE)));
-    memcpy (twin, sph, sizeof (SPHERE));
-    twin->adj = NULL;
-    twin->nadj = 0;
-    twin->next = tail;
-    tail = twin;
-  }
+  ERRMEM (twin = malloc (sizeof (SPHERE)));
+  memcpy (twin, sph, sizeof (SPHERE));
 
   return twin;
 }
 
-/* scaling of a list  */
+/* scaling of a sphere */
 void SPHERE_Scale (SPHERE *sph, double *vector)
 {
   double (*ref_pnt) [3] = sph->ref_points,
@@ -186,7 +120,7 @@ void SPHERE_Scale (SPHERE *sph, double *vector)
   }
 }
 
-/* translation of a list */
+/* translation of a sphere */
 void SPHERE_Translate (SPHERE *sph, double *vector)
 {
   double (*ref_pnt) [3] = sph->ref_points,
@@ -202,7 +136,7 @@ void SPHERE_Translate (SPHERE *sph, double *vector)
   }
 }
 
-/* rotation of a list */
+/* rotation of a sphere */
 void SPHERE_Rotate (SPHERE *sph, double *point, double *vector, double angle)
 {
   double R [9], omega [3];
@@ -226,47 +160,23 @@ void SPHERE_Rotate (SPHERE *sph, double *point, double *vector, double angle)
   }
 }
 
-/* cut through spheres with a plane; return triangulated cross-section; vertices in the triangles
- * point to the memory allocated after the triangles memory; adjacency is not maintained;
- * TRI->ptr stores a pointer to the geometrical object that has been cut by the triangle */
+/* cut through sphere with a plane; return triangulated cross-section; vertices in the triangles
+ * point to the memory allocated after the triangles memory; adjacency is not maintained */
 TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m)
 {
-  WARNING_DEBUG (0, "Sphere cutting has not been implemented yet!");
   /* TODO */
+  WARNING_DEBUG (0, "Sphere cutting has not been implemented yet!");
   *m = 0;
   return NULL;
 }
 
-/* split sphere lists in two lists with plane defined by (point, normal); adjacencies between
- * the split lists elements need to be recomputed; surfid corresponds to the new surface;
+/* split sphere in two with plane defined by (point, normal); surfid corresponds to the new surface;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, int surfid, SPHERE **one, SPHERE **two)
 {
-  double v [3];
-  SPHERE *o;
-
-  /* TODO => topoadj */
-  WARNING_DEBUG (!topoadj, "Sphere splitting with topoadj != 0 has not been implemented yet!");
-
+  /* TODO */
+  WARNING_DEBUG (0, "Sphere splitting has not been implemented yet!");
   *one = *two = NULL;
-
-  for (; sph; sph = sph->next)
-  {
-    o = SPHERE_Copy (sph);
-
-    SUB (o->cur_center, point, v);
-
-    if (DOT (v, normal) >= 0)
-    {
-      o->next = *two;
-      *two = o;
-    }
-    else
-    {
-      o->next = *one;
-      *one = o;
-    }
-  }
 }
 
 /* compute partial characteristic: 'vo'lume and static momenta
@@ -275,50 +185,46 @@ void SPHERE_Char_Partial (SPHERE *sph, int ref, double *vo, double *sx, double *
 {
   double v, e, r, *a, tmp [9], eye [9];
 
-  for (; sph; sph = sph->next)
-  {
-    r = ref ? sph->ref_radius : sph->cur_radius;
-    a = ref ? sph->ref_center : sph->cur_center;
-    v = (4.0/3.0)*ALG_PI*r*r*r;
+  r = ref ? sph->ref_radius : sph->cur_radius;
+  a = ref ? sph->ref_center : sph->cur_center;
+  v = (4.0/3.0)*ALG_PI*r*r*r;
 
-    /* Stainer's theorem =>
-     * J(i, j) = I(i, j) + M*(a^2 * delta (i, j) - diadic (a, a))
-     * hence it is possible to produce inertia tensor with respect
-     * to the origin from one with respect to the center point */
+  /* Stainer's theorem =>
+   * J(i, j) = I(i, j) + M*(a^2 * delta (i, j) - diadic (a, a))
+   * hence it is possible to produce inertia tensor with respect
+   * to the origin from one with respect to the center point */
 
-    e = DOT (a, a);
-    IDENTITY (eye);
-    SCALEDIAG (eye, e);
-    DIADIC (a, a, tmp);
-    NNSUB (eye, tmp, tmp);
-    SCALE9 (tmp, v);
-    e = (2.0/5.0)*v*r*r; /* diagonal entry of sphere inertia tensor */
-    IDENTITY (eye);
-    SCALEDIAG (eye, e);
-    NNADD (eye, tmp, tmp); /* tmp = inertia of the sphere with respect to x, y, z passing 0 (see above) */
+  e = DOT (a, a);
+  IDENTITY (eye);
+  SCALEDIAG (eye, e);
+  DIADIC (a, a, tmp);
+  NNSUB (eye, tmp, tmp);
+  SCALE9 (tmp, v);
+  e = (2.0/5.0)*v*r*r; /* diagonal entry of sphere inertia tensor */
+  IDENTITY (eye);
+  SCALEDIAG (eye, e);
+  NNADD (eye, tmp, tmp); /* tmp = inertia of the sphere with respect to x, y, z passing 0 (see above) */
 
-    /* note that Inertia = Trace(Euler)*Identity - Euler,
-     * hence Euler = 0.5 * Trace (Inertia)*Identity - Inertia,
-     * as Trace(Inertia) = 3*Trace(Euler) - Trace(Euler) */
+  /* note that Inertia = Trace(Euler)*Identity - Euler,
+   * hence Euler = 0.5 * Trace (Inertia)*Identity - Inertia,
+   * as Trace(Inertia) = 3*Trace(Euler) - Trace(Euler) */
 
-    e = 0.5 * TRACE (tmp);
-    IDENTITY (eye);
-    SCALEDIAG (eye, e);
-    NNSUB (eye, tmp, tmp); /* tmp = euler tensor with repsect to x, y, z passing 0 */
+  e = 0.5 * TRACE (tmp);
+  IDENTITY (eye);
+  SCALEDIAG (eye, e);
+  NNSUB (eye, tmp, tmp); /* tmp = euler tensor with repsect to x, y, z passing 0 */
 
-    /* sum up */
-    *vo += v;
-    *sx += v * a [0];
-    *sy += v * a [1];
-    *sz += v * a [2];
-    NNADD (tmp, eul, eul);
-  }
+  /* sum up */
+  *vo += v;
+  *sx += v * a [0];
+  *sy += v * a [1];
+  *sz += v * a [2];
+  NNADD (tmp, eul, eul);
 
   /* TODO: make sure the above is correct */
 }
 
-/* get characteristics of the spheres in list:
- * volume, mass center, and Euler tensor (centered) */
+/* get characteristics of a sphere: volume, mass center, and Euler tensor (centered) */
 void SPHERE_Char (SPHERE *sph, int ref, double *volume, double *center, double *euler)
 {
   double vo, sx, sy, sz,
@@ -363,29 +269,14 @@ void SPHERE_Extents (void *data, SPHERE *sph, double *extents)
   extents [5] = center [2] + radius + GEOMETRIC_EPSILON;
 }
 
-/* compute extents of sphere list */
-void SPHERE_List_Extents (SPHERE *sph, double *extents)
+/* compute extents of a sphere */
+void SPHERE_Extents_2 (SPHERE *sph, double *extents)
 {
-  double e [6];
-
-  extents [0] = extents [1] = extents [2] =  DBL_MAX;
-  extents [3] = extents [4] = extents [5] = -DBL_MAX;
-    
-  for (; sph; sph = sph->next)
-  {
-    SPHERE_Extents (NULL, sph, e);
-
-    if (e [0] < extents [0]) extents [0] = e [0];
-    if (e [1] < extents [1]) extents [1] = e [1];
-    if (e [2] < extents [2]) extents [2] = e [2];
-    if (e [3] > extents [3]) extents [3] = e [3];
-    if (e [4] > extents [4]) extents [4] = e [4];
-    if (e [5] > extents [5]) extents [5] = e [5];
-  }
+  SPHERE_Extents (NULL, sph, extents);
 }
 
-/* compute oriented extents of sphere list */
-void SPHERE_List_Oriented_Extents (SPHERE *sph, double *vx, double *vy, double *vz, double *extents)
+/* compute oriented extents of a sphere */
+void SPHERE_Oriented_Extents (SPHERE *sph, double *vx, double *vy, double *vz, double *extents)
 {
   double e [6], len [3], r;
 
@@ -396,48 +287,40 @@ void SPHERE_List_Oriented_Extents (SPHERE *sph, double *vx, double *vy, double *
   len [1] = LEN (vy);
   len [2] = LEN (vz);
     
-  for (; sph; sph = sph->next)
-  {
-    e [0] = DOT (sph->cur_center, vx);
-    e [1] = DOT (sph->cur_center, vy);
-    e [2] = DOT (sph->cur_center, vz);
-    COPY (e, e + 3);
-    r = sph->cur_radius;
-    e [0] -= r / len [0];
-    e [1] -= r / len [1];
-    e [2] -= r / len [2];
-    e [4] += r / len [0];
-    e [5] += r / len [1];
-    e [6] += r / len [2];
+  e [0] = DOT (sph->cur_center, vx);
+  e [1] = DOT (sph->cur_center, vy);
+  e [2] = DOT (sph->cur_center, vz);
+  COPY (e, e + 3);
+  r = sph->cur_radius;
+  e [0] -= r / len [0];
+  e [1] -= r / len [1];
+  e [2] -= r / len [2];
+  e [4] += r / len [0];
+  e [5] += r / len [1];
+  e [6] += r / len [2];
 
-    if (e [0] < extents [0]) extents [0] = e [0];
-    if (e [1] < extents [1]) extents [1] = e [1];
-    if (e [2] < extents [2]) extents [2] = e [2];
-    if (e [3] > extents [3]) extents [3] = e [3];
-    if (e [4] > extents [4]) extents [4] = e [4];
-    if (e [5] > extents [5]) extents [5] = e [5];
-  }
+  if (e [0] < extents [0]) extents [0] = e [0];
+  if (e [1] < extents [1]) extents [1] = e [1];
+  if (e [2] < extents [2]) extents [2] = e [2];
+  if (e [3] > extents [3]) extents [3] = e [3];
+  if (e [4] > extents [4]) extents [4] = e [4];
+  if (e [5] > extents [5]) extents [5] = e [5];
 }
 
-/* return first not NULL bulk material for a sphere list */
+/* return first not NULL bulk material for a sphere */
 void* SPHERE_First_Bulk_Material (SPHERE *sph)
 {
-  for (; sph; sph = sph->next)
-    if (sph->mat) return sph->mat;
-
-  return NULL;
+  return sph->mat;
 }
 
 /* return sphere containing a spatial point */
 SPHERE* SPHERE_Containing_Point (SPHERE *sph, double *point)
 {
-  for (; sph; sph = sph->next)
-    if (point_inside (sph->cur_center, sph->cur_radius, point)) return sph;
-
-  return NULL;
+  if (point_inside (sph->cur_center, sph->cur_radius, point)) return sph;
+  else return NULL;
 }
 
-/* does this sphere (not a list) contain the point? */
+/* does this sphere contain the point? */
 int SPHERE_Contains_Point (void *dummy, SPHERE *sph, double *point)
 {
   return point_inside (sph->cur_center, sph->cur_radius, point);
@@ -453,181 +336,94 @@ double SPHERE_Spatial_Point_Distance (void *dummy, SPHERE *sph, double *point)
   return MIN (0.0, d);
 }
 
-/* update sphere list according to the given motion */
+/* update sphere according to the given motion */
 void SPHERE_Update (SPHERE *sph, void *body, void *shp, MOTION motion)
 {
-  for (; sph; sph = sph->next)
+  SGP sgp = {shp, sph, GOBJ_SPHERE, NULL};
+  double *ref = sph->ref_center,
+	 (*ref_pnt) [3] = sph->ref_points,
+	 *cur = sph->cur_center,
+	 (*cur_pnt) [3] = sph->cur_points;
+
+  if (motion) motion (body, &sgp, ref, cur); /* move center */
+  else { COPY (ref, cur); }
+
+  if (motion)
   {
-    SGP sgp = {shp, sph, GOBJ_SPHERE, NULL};
-    double *ref = sph->ref_center,
-	   (*ref_pnt) [3] = sph->ref_points,
-	   *cur = sph->cur_center,
-	   (*cur_pnt) [3] = sph->cur_points;
-
-    if (motion) motion (body, &sgp, ref, cur); /* move center */
-    else { COPY (ref, cur); }
-
-    if (motion)
-    {
-      motion (body, &sgp, ref_pnt [0], cur_pnt [0]); /* move marker points */
-      motion (body, &sgp, ref_pnt [1], cur_pnt [1]);
-      motion (body, &sgp, ref_pnt [2], cur_pnt [2]);
-    }
-    else
-    {
-      COPY (ref_pnt [0], cur_pnt [0]);
-      COPY (ref_pnt [1], cur_pnt [1]);
-      COPY (ref_pnt [2], cur_pnt [2]);
-    }
+    motion (body, &sgp, ref_pnt [0], cur_pnt [0]); /* move marker points */
+    motion (body, &sgp, ref_pnt [1], cur_pnt [1]);
+    motion (body, &sgp, ref_pnt [2], cur_pnt [2]);
+  }
+  else
+  {
+    COPY (ref_pnt [0], cur_pnt [0]);
+    COPY (ref_pnt [1], cur_pnt [1]);
+    COPY (ref_pnt [2], cur_pnt [2]);
   }
 }
 
-/* test wether two spheres are adjacent */
-int SPHERE_Adjacent (SPHERE *one, SPHERE *two)
-{
-  int n;
-
-  for (n = 0; n < two->nadj; n ++)
-    if (two->adj [n] == one) return 1; /* enough to compare one way (adjacency lists are symmetric) */
-
-  return 0;
-}
-
-/* free list of spheres */
+/* free sphere */
 void SPHERE_Destroy (SPHERE *sph)
 {
-  SPHERE *nxt;
-
-  for (;sph; sph = nxt)
-  {
-    nxt = sph->next;
-    free (sph->adj);
-    free (sph);
-  }
+  free (sph);
 }
 
+/* pack sphere into double and integer buffers (d and i buffers are of initial
+ * dsize and isize, while the final numberof of doubles and ints is packed) */
 void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  SPHERE *ptr;
-  int count, n;
-  MAP *map;
+  pack_int (isize, i, ints, sph->surface);
+  pack_int (isize, i, ints, sph->volume);
 
-  for (count = 0, ptr = sph; ptr; ptr = ptr->next) count ++; /* number of spheres */
+  pack_doubles (dsize, d, doubles, sph->cur_center, 3);
+  pack_doubles (dsize, d, doubles, (double*)sph->cur_points, 9);
+  pack_double  (dsize, d, doubles, sph->cur_radius);
 
-  for (map = NULL, n = 0, ptr = sph; ptr; ptr = ptr->next, n ++)
-    MAP_Insert (NULL, &map, ptr, (void*) (long) n, NULL); /* map pointers to table indices */
+  pack_doubles (dsize, d, doubles, sph->ref_center, 3);
+  pack_doubles (dsize, d, doubles, (double*)sph->ref_points, 9);
+  pack_double  (dsize, d, doubles, sph->ref_radius);
 
-  pack_int (isize, i, ints, count); /* number of spheres */
-
-  for (; sph; sph = sph->next)
-  {
-    pack_int (isize, i, ints, sph->surface);
-    pack_int (isize, i, ints, sph->nadj);
-    pack_int (isize, i, ints, sph->volume);
-
-    pack_doubles (dsize, d, doubles, sph->cur_center, 3);
-    pack_doubles (dsize, d, doubles, (double*)sph->cur_points, 9);
-    pack_double  (dsize, d, doubles, sph->cur_radius);
-
-    pack_doubles (dsize, d, doubles, sph->ref_center, 3);
-    pack_doubles (dsize, d, doubles, (double*)sph->ref_points, 9);
-    pack_double  (dsize, d, doubles, sph->ref_radius);
-
-    /* rather than adjacency pack indices of neighbours in the output sequence */
-    for (n = 0; n < sph->nadj; n ++) pack_int (isize, i, ints, (int) (long) MAP_Find (map, sph->adj [n], NULL));
-
-    pack_int (isize, i, ints, sph->mat ? 1 : 0); /* pack material existence flag */
-    if (sph->mat) pack_string (isize, i, ints, sph->mat->label);
-  }
-
-  MAP_Free (NULL, &map);
+  pack_int (isize, i, ints, sph->mat ? 1 : 0); /* pack material existence flag */
+  if (sph->mat) pack_string (isize, i, ints, sph->mat->label);
 }
 
+/* unpack sphere from double and integer buffers (unpacking starts at dpos and ipos in
+ * d and i and no more than a specific number of doubles and ints can be red) */
 SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  int count, k, surface, nadj, volume, n, j;
-  SPHERE *ptr, **tab, *tail = NULL, *head;
-  
-  count = unpack_int (ipos, i, ints); /* number of spheres */
+  SPHERE *sph;
+  int j;
 
-  ERRMEM (tab = malloc (count * sizeof (SPHERE*)));
-  
-  for (k = 0; k < count; k ++) /* unpack spheres */
+  ERRMEM (sph = MEM_CALLOC (sizeof (SPHERE)));
+
+  sph->surface = unpack_int (ipos, i, ints);
+  sph->volume = unpack_int (ipos, i, ints);
+
+  unpack_doubles (dpos, d, doubles, sph->cur_center, 3);
+  unpack_doubles (dpos, d, doubles, (double*)sph->cur_points, 9);
+  sph->cur_radius = unpack_double  (dpos, d, doubles);
+
+  unpack_doubles (dpos, d, doubles, sph->ref_center, 3);
+  unpack_doubles (dpos, d, doubles, (double*)sph->ref_points, 9);
+  sph->ref_radius = unpack_double  (dpos, d, doubles);
+
+  j = unpack_int (ipos, i, ints); /* unpack material existence flag */
+
+  if (j)
   {
-    surface = unpack_int (ipos, i, ints);
-    nadj = unpack_int (ipos, i, ints);
-    volume = unpack_int (ipos, i, ints);
-
-    ERRMEM (ptr = MEM_CALLOC (sizeof (SPHERE)));
-    ERRMEM (ptr->adj = malloc (nadj * sizeof (SPHERE*)));
-    ptr->surface = surface;
-    ptr->nadj = 0;
-    ptr->volume = volume;
-    tab [k] = ptr;
-
-    if (tail)
-    {
-      tail->next = ptr;
-      tail = ptr;
-    }
-    else head = tail = ptr;
-
-    unpack_doubles (dpos, d, doubles, ptr->cur_center, 3);
-    unpack_doubles (dpos, d, doubles, (double*)ptr->cur_points, 9);
-    ptr->cur_radius = unpack_double  (dpos, d, doubles);
-
-    unpack_doubles (dpos, d, doubles, ptr->ref_center, 3);
-    unpack_doubles (dpos, d, doubles, (double*)ptr->ref_points, 9);
-    ptr->ref_radius = unpack_double  (dpos, d, doubles);
-
-    for (n = 0; n < nadj; n ++)
-    {
-      j = unpack_int (ipos, i, ints);
-      ptr->adj [ptr->nadj ++] = (SPHERE*) (long) j; /* store index in 'tab' for the moment */
-    }
-
-    j = unpack_int (ipos, i, ints); /* unpack material existence flag */
-
-    if (j)
-    {
-      SOLFEC *sol = solfec;
-      char *label = unpack_string (ipos, i, ints);
-      ASSERT_DEBUG_EXT (ptr->mat = MATSET_Find (sol->mat, label), "Failed to find material when unpacking a sphere");
-      free (label);
-    }
+    SOLFEC *sol = solfec;
+    char *label = unpack_string (ipos, i, ints);
+    ASSERT_DEBUG_EXT (sph->mat = MATSET_Find (sol->mat, label), "Failed to find material when unpacking a sphere");
+    free (label);
   }
 
-  /* now map adjacency */
-  for (k = 0; k < count; k ++)
-  {
-    ptr = tab [k];
-
-    for (n = 0; n < ptr->nadj; n ++)
-    {
-      ASSERT_DEBUG (0 <= (int) (long) ptr->adj [n] && (int) (long) ptr->adj [n] < count, "Adjacent sphere index out of bounds");
-      ptr->adj [n] = tab [(int) (long) ptr->adj [n]];
-    }
-  }
-
-  free (tab);
-
-  return head;
+  return sph;
 }
 
 /* export MBFCP definition */
 void SPHERE_2_MBFCP (SPHERE *sph, FILE *out)
 {
-  SPHERE *ptr;
-  int n;
-
-  for (ptr = sph, n = 0; ptr; ptr = ptr->next, n ++);
-
-  fprintf (out, "SPHERES:\t%d\n", n);
-
-  for (ptr = sph; ptr; ptr = ptr->next)
-  {
-    fprintf (out, "CENTER:\t%g  %g  %g\n", ptr->ref_center [0], ptr->ref_center [1], ptr->ref_center [2]);
-    fprintf (out, "RADIUS:\t%g\n", ptr->ref_radius);
-    fprintf (out, "SURFID:\t%d\n", ptr->surface);
-  }
+  fprintf (out, "CENTER:\t%g  %g  %g\n", sph->ref_center [0], sph->ref_center [1], sph->ref_center [2]);
+  fprintf (out, "RADIUS:\t%g\n", sph->ref_radius);
+  fprintf (out, "SURFID:\t%d\n", sph->surface);
 }

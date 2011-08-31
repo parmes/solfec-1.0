@@ -1722,7 +1722,7 @@ void MESH_Update_Adjacency (MESH *msh)
 {
 }
 
-/* dummy local plane adjacency breaking routine */
+/* dummy local plane adjacency breaking routine (needed in shp.c) */
 int MESH_Break_Adjacency (MESH *msh, double *point, double *normal)
 {
   return 0;

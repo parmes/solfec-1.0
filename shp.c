@@ -57,9 +57,9 @@ static gobjdst_func gobjdst [] = {(gobjdst_func)ELEMENT_Spatial_Point_Distance, 
 typedef void (*update_func) (void*, void*, void*, MOTION);
 static update_func update [] = {(update_func)MESH_Update, (update_func)CONVEX_Update, (update_func)SPHERE_Update};
 typedef void (*extents_func) (void*, double*);
-static extents_func objextents [] = {(extents_func)MESH_Extents, (extents_func)CONVEX_List_Extents, (extents_func)SPHERE_List_Extents};
+static extents_func objextents [] = {(extents_func)MESH_Extents, (extents_func)CONVEX_List_Extents, (extents_func)SPHERE_Extents_2};
 typedef void (*oextents_func) (void*, double*, double*, double*, double*);
-static oextents_func objorientedextents [] = {(oextents_func)MESH_Oriented_Extents, (oextents_func)CONVEX_List_Oriented_Extents, (oextents_func)SPHERE_List_Oriented_Extents};
+static oextents_func objorientedextents [] = {(oextents_func)MESH_Oriented_Extents, (oextents_func)CONVEX_List_Oriented_Extents, (oextents_func)SPHERE_Oriented_Extents};
 typedef void* (*first_bulk_func) (void*);
 static first_bulk_func firstbulk [] = {(first_bulk_func)MESH_First_Bulk_Material, (first_bulk_func)CONVEX_First_Bulk_Material, (first_bulk_func)SPHERE_First_Bulk_Material};
 typedef void (*destroy_func) (void*);
@@ -132,8 +132,7 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
       break;
       case SHAPE_SPHERE:
       {
-	SPHERE *sph = shq->data;
-	for (; sph; sph = sph->next) n ++;
+	n ++;
       }
       break;
     }
@@ -169,8 +168,10 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
       break;
       case SHAPE_SPHERE:
       {
-	SPHERE *sph = shq->data;
-	for (; sph; sph = sph->next, ptr ++) ptr->shp = shq, ptr->gobj = sph, ptr->kind = GOBJ_SPHERE;
+	ptr->shp = shq;
+	ptr->gobj = shq->data;
+	ptr->kind = GOBJ_SPHERE;
+	ptr ++;
       }
       break;
     }
@@ -245,8 +246,8 @@ SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq)
       free (shp);
       break;
     case SHAPE_SPHERE:
-      sph = SPHERE_Glue (shp->data, sph); /* spheres are also lumped */
-      free (shp);
+      shp->next = out; /* spheres are copied */
+      out = shp;
       break;
     }
   }
@@ -266,15 +267,13 @@ SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq)
       free (shq);
       break;
     case SHAPE_SPHERE:
-      sph = SPHERE_Glue (shq->data, sph); /* spheres are also lumped */
-      free (shq);
+      shq->next = out; /* spheres are copied */
+      out = shq;
       break;
     }
   }
 
   if (cvx) out = append (out, SHAPE_CONVEX, cvx); /* append with convices */
-
-  if (sph) out = append (out, SHAPE_SPHERE, sph); /* append with spheres */
 
   return out;
 }
@@ -872,7 +871,7 @@ SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
 /* export MBFCP definition */
 void SHAPE_2_MBFCP (SHAPE *shp, FILE *out)
 {
-  SET *msh = NULL, *item;
+  SET *msh = NULL, *sph = NULL, *item;
   SHAPE *ptr;
   int n;
 
@@ -891,7 +890,7 @@ void SHAPE_2_MBFCP (SHAPE *shp, FILE *out)
       CONVEX_2_MBFCP (ptr->data, out);
       break;
     case SHAPE_SPHERE:
-      SPHERE_2_MBFCP (ptr->data, out);
+      SET_Insert (NULL, &sph, ptr->data, NULL);
       break;
     }
   }
@@ -903,6 +902,18 @@ void SHAPE_2_MBFCP (SHAPE *shp, FILE *out)
     for (item = SET_First (msh); item; item = SET_Next (item))
     {
       MESH_2_MBFCP (item->data, out);
+    }
+
+    SET_Free (NULL, &msh);
+  }
+
+  if (SET_Size (sph))
+  {
+    fprintf (out, "SPHERES:\t%d\n", SET_Size (msh));
+
+    for (item = SET_First (msh); item; item = SET_Next (item))
+    {
+      SPHERE_2_MBFCP (item->data, out);
     }
 
     SET_Free (NULL, &msh);

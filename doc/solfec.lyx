@@ -2396,7 +2396,7 @@ An object of type SPHERE is either a sphere, or it is a collections of spheres.
 \end_layout
 
 \begin_layout Subsection*
-obj = SPHERE (center, radius, volid, surfid | sphere)
+obj = SPHERE (center, radius, volid, surfid)
 \end_layout
 
 \begin_layout Standard
@@ -2447,18 +2447,8 @@ surfid
  - surface identifier
 \end_layout
 
-\begin_layout Itemize
-
-\series bold
-sphere
-\series default
- (emptied) - collection of SPHERE objects appending 
-\series bold
-obj
-\end_layout
-
 \begin_layout Standard
-Some parameters can also be accessed as members of a MESH object.
+Some parameters can also be accessed as members of a SPHERE object.
  These are
 \end_layout
 

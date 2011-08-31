@@ -676,8 +676,8 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
       }
       break;
     case SHAPE_SPHERE:
-      for (sph = shp->data; sph; sph = sph->next)
       {
+        sph = shp->data;
 	data->spheres_count ++;
 
 	ERRMEM (data->spheres = realloc (data->spheres, data->spheres_count * sizeof (SPHERE*)));
@@ -1833,7 +1833,7 @@ static void render_rough_mesh (BODY *bod)
 
   if (!rough)
   {
-    SHAPE shape = {SHAPE_MESH, bod->msh, NULL};
+    SHAPE shape = {SHAPE_MESH, bod->msh, NULL, 0, NULL};
     BODY body = bod [0];
     body.shape = &shape;
     body.msh = NULL;

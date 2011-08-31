@@ -26,7 +26,6 @@
 #include "alg.h"
 #include "msh.h"
 #include "cvx.h"
-#include "sph.h"
 #include "set.h"
 #include "dom.h"
 #include "goc.h"
@@ -527,7 +526,6 @@ static int gobj_adjacent (short paircode, void *aobj, void *bobj)
   {
     case AABB_ELEMENT_ELEMENT: return ELEMENT_Adjacent (aobj, bobj);
     case AABB_CONVEX_CONVEX: return CONVEX_Adjacent (aobj, bobj);
-    case AABB_SPHERE_SPHERE: return SPHERE_Adjacent (aobj, bobj);
   }
 
   return 0;
