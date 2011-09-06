@@ -27,47 +27,121 @@
 #include "msh.h"
 #include "cvx.h"
 #include "sph.h"
+#include "eli.h"
 #include "err.h"
 #include "tri.h"
 #include "pck.h"
 
 /* specific shape interface hooks */
 typedef void* (*copy_func) (void*);
-static copy_func copy [] = {(copy_func)MESH_Copy, (copy_func)CONVEX_Copy, (copy_func)SPHERE_Copy};
+static copy_func copy [] = {(copy_func)MESH_Copy,
+                            (copy_func)CONVEX_Copy,
+			    (copy_func)SPHERE_Copy,
+			    (copy_func)ELLIP_Copy};
+
 typedef void (*adjup_func) (void*);
-static adjup_func adjup [] = {(adjup_func)MESH_Update_Adjacency, (adjup_func)CONVEX_Update_Adjacency, (adjup_func)SPHERE_Update_Adjacency};
+static adjup_func adjup [] = {(adjup_func)MESH_Update_Adjacency,
+                              (adjup_func)CONVEX_Update_Adjacency,
+			      (adjup_func)SPHERE_Update_Adjacency,
+			      (adjup_func)ELLIP_Update_Adjacency};
+
 typedef int (*adjbreak_func) (void*, double*, double*);
-static adjbreak_func adjbreak [] = {(adjbreak_func)MESH_Break_Adjacency, (adjbreak_func)CONVEX_Break_Adjacency, (adjbreak_func)SPHERE_Break_Adjacency};
+static adjbreak_func adjbreak [] = {(adjbreak_func)MESH_Break_Adjacency,
+                                    (adjbreak_func)CONVEX_Break_Adjacency,
+				    (adjbreak_func)SPHERE_Break_Adjacency,
+				    (adjbreak_func)ELLIP_Break_Adjacency};
+
 typedef void (*scale_func) (void*, double*);
-static scale_func scale [] = {(scale_func)MESH_Scale, (scale_func)CONVEX_Scale, (scale_func)SPHERE_Scale};
+static scale_func scale [] = {(scale_func)MESH_Scale,
+                              (scale_func)CONVEX_Scale,
+			      (scale_func)SPHERE_Scale,
+			      (scale_func)ELLIP_Scale};
+
 typedef void (*translate_func) (void*, double*);
-static translate_func translate [] = {(translate_func)MESH_Translate, (translate_func)CONVEX_Translate, (translate_func)SPHERE_Translate};
+static translate_func translate [] = {(translate_func)MESH_Translate,
+                                      (translate_func)CONVEX_Translate,
+				      (translate_func)SPHERE_Translate,
+				      (translate_func)ELLIP_Translate};
+
 typedef void (*rotate_func) (void*, double*, double*, double);
-static rotate_func rotate [] = {(rotate_func)MESH_Rotate, (rotate_func)CONVEX_Rotate, (rotate_func)SPHERE_Rotate};
+static rotate_func rotate [] = {(rotate_func)MESH_Rotate,
+                                (rotate_func)CONVEX_Rotate,
+				(rotate_func)SPHERE_Rotate,
+				(rotate_func)ELLIP_Rotate};
+
 typedef TRI* (*cut_func) (void*, double*, double*, int*);
-static cut_func cut [] = {(cut_func)MESH_Cut, (cut_func)CONVEX_Cut, (cut_func)SPHERE_Cut};
+static cut_func cut [] = {(cut_func)MESH_Cut,
+                          (cut_func)CONVEX_Cut,
+			  (cut_func)SPHERE_Cut,
+			  (cut_func)ELLIP_Cut};
+
 typedef void (*gcha_func) (void*, int, double*, double*, double*, double*, double*);
-static gcha_func gcha [] = {(gcha_func)MESH_Char_Partial, (gcha_func)CONVEX_Char_Partial, (gcha_func)SPHERE_Char_Partial};
+static gcha_func gcha [] = {(gcha_func)MESH_Char_Partial,
+                            (gcha_func)CONVEX_Char_Partial,
+			    (gcha_func)SPHERE_Char_Partial,
+			    (gcha_func)ELLIP_Char_Partial};
+
 typedef void* (*gobj_func) (void*, double*);
-static gobj_func gobj [] = {(gobj_func)MESH_Element_Containing_Spatial_Point, (gobj_func)CONVEX_Containing_Point, (gobj_func)SPHERE_Containing_Point};
+static gobj_func gobj [] = {(gobj_func)MESH_Element_Containing_Spatial_Point,
+                            (gobj_func)CONVEX_Containing_Point,
+			    (gobj_func)SPHERE_Containing_Point,
+			    (gobj_func)ELLIP_Containing_Point};
+
+
 typedef int (*gobjs_func) (void*, void*, double*);
-static gobjs_func gobjs [] = {(gobjs_func)ELEMENT_Contains_Spatial_Point, (gobjs_func)CONVEX_Contains_Point, (gobjs_func)SPHERE_Contains_Point};
+static gobjs_func gobjs [] = {(gobjs_func)ELEMENT_Contains_Spatial_Point,
+                              (gobjs_func)CONVEX_Contains_Point,
+			      (gobjs_func)SPHERE_Contains_Point,
+			      (gobjs_func)ELLIP_Contains_Point};
+
 typedef double (*gobjdst_func) (void*, void*, double*);
-static gobjdst_func gobjdst [] = {(gobjdst_func)ELEMENT_Spatial_Point_Distance, (gobjdst_func)CONVEX_Spatial_Point_Distance, (gobjdst_func)SPHERE_Spatial_Point_Distance};
+static gobjdst_func gobjdst [] = {(gobjdst_func)ELEMENT_Spatial_Point_Distance,
+                                  (gobjdst_func)CONVEX_Spatial_Point_Distance,
+				  (gobjdst_func)SPHERE_Spatial_Point_Distance,
+				  (gobjdst_func)ELLIP_Spatial_Point_Distance};
+
 typedef void (*update_func) (void*, void*, void*, MOTION);
-static update_func update [] = {(update_func)MESH_Update, (update_func)CONVEX_Update, (update_func)SPHERE_Update};
+static update_func update [] = {(update_func)MESH_Update,
+                                (update_func)CONVEX_Update,
+				(update_func)SPHERE_Update,
+				(update_func)ELLIP_Update};
+
 typedef void (*extents_func) (void*, double*);
-static extents_func objextents [] = {(extents_func)MESH_Extents, (extents_func)CONVEX_List_Extents, (extents_func)SPHERE_Extents_2};
+static extents_func objextents [] = {(extents_func)MESH_Extents,
+                                     (extents_func)CONVEX_List_Extents,
+				     (extents_func)SPHERE_Extents_2,
+				     (extents_func)ELLIP_Extents_2};
+
 typedef void (*oextents_func) (void*, double*, double*, double*, double*);
-static oextents_func objorientedextents [] = {(oextents_func)MESH_Oriented_Extents, (oextents_func)CONVEX_List_Oriented_Extents, (oextents_func)SPHERE_Oriented_Extents};
+static oextents_func objorientedextents [] = {(oextents_func)MESH_Oriented_Extents,
+                                              (oextents_func)CONVEX_List_Oriented_Extents,
+					      (oextents_func)SPHERE_Oriented_Extents,
+					      (oextents_func)ELLIP_Oriented_Extents};
+
 typedef void* (*first_bulk_func) (void*);
-static first_bulk_func firstbulk [] = {(first_bulk_func)MESH_First_Bulk_Material, (first_bulk_func)CONVEX_First_Bulk_Material, (first_bulk_func)SPHERE_First_Bulk_Material};
+static first_bulk_func firstbulk [] = {(first_bulk_func)MESH_First_Bulk_Material,
+                                       (first_bulk_func)CONVEX_First_Bulk_Material,
+				       (first_bulk_func)SPHERE_First_Bulk_Material,
+				       (first_bulk_func)ELLIP_First_Bulk_Material};
+
 typedef void (*destroy_func) (void*);
-static destroy_func destroy [] = {(destroy_func)MESH_Destroy, (destroy_func)CONVEX_Destroy, (destroy_func)SPHERE_Destroy};
+static destroy_func destroy [] = {(destroy_func)MESH_Destroy,
+                                  (destroy_func)CONVEX_Destroy,
+				  (destroy_func)SPHERE_Destroy,
+				  (destroy_func)ELLIP_Destroy};
+
 typedef void (*pack_func) (void*, int*, double**, int*, int*, int**, int*);
-static pack_func pack [] = {(pack_func)MESH_Pack, (pack_func)CONVEX_Pack, (pack_func)SPHERE_Pack};
+static pack_func pack [] = {(pack_func)MESH_Pack,
+                            (pack_func)CONVEX_Pack,
+			    (pack_func)SPHERE_Pack,
+			    (pack_func)ELLIP_Pack};
+
+
 typedef void* (*unpack_func) (void*, int*, double*, int, int*, int*, int);
-static unpack_func unpack [] = {(unpack_func)MESH_Unpack, (unpack_func)CONVEX_Unpack, (unpack_func)SPHERE_Unpack};
+static unpack_func unpack [] = {(unpack_func)MESH_Unpack,
+                                (unpack_func)CONVEX_Unpack,
+				(unpack_func)SPHERE_Unpack,
+				(unpack_func)ELLIP_Unpack};
 
 /* append shape */
 static SHAPE* append (SHAPE *list, short kind, void *data)
@@ -131,6 +205,7 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
       }
       break;
       case SHAPE_SPHERE:
+      case SHAPE_ELLIP:
       {
 	n ++;
       }
@@ -174,6 +249,14 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
 	ptr ++;
       }
       break;
+      case SHAPE_ELLIP:
+      {
+	ptr->shp = shq;
+	ptr->gobj = shq->data;
+	ptr->kind = GOBJ_ELLIP;
+	ptr ++;
+      }
+      break;
     }
   }
 
@@ -198,6 +281,7 @@ GOBJ SHAPE_2_GOBJ (SHAPE *shp)
   case SHAPE_MESH: return GOBJ_ELEMENT;
   case SHAPE_CONVEX: return GOBJ_CONVEX;
   case SHAPE_SPHERE: return GOBJ_SPHERE;
+  case SHAPE_ELLIP: return GOBJ_ELLIP;
   }
 
   ASSERT_TEXT (0, "Unknown shape kind");
@@ -238,16 +322,14 @@ SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq)
     switch (shp->kind)
     {
     case SHAPE_MESH:
-      shp->next = out; /* meshes are copied */
+    case SHAPE_SPHERE:
+    case SHAPE_ELLIP:
+      shp->next = out; /* meshes, spheres, ellipsoids are copied */
       out = shp;
       break;
     case SHAPE_CONVEX:
       cvx = CONVEX_Glue (shp->data, cvx); /* convices are lumped together */
       free (shp);
-      break;
-    case SHAPE_SPHERE:
-      shp->next = out; /* spheres are copied */
-      out = shp;
       break;
     }
   }
@@ -259,16 +341,14 @@ SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq)
     switch (shq->kind)
     {
     case SHAPE_MESH:
-      shq->next = out; /* meshes are copied */
+    case SHAPE_SPHERE:
+    case SHAPE_ELLIP:
+      shq->next = out; /* meshes, spheres, ellipsoids are copied */
       out = shq;
       break;
     case SHAPE_CONVEX:
       cvx = CONVEX_Glue (shq->data, cvx); /* convices are lumped together */
       free (shq);
-      break;
-    case SHAPE_SPHERE:
-      shq->next = out; /* spheres are copied */
-      out = shq;
       break;
     }
   }
@@ -534,11 +614,11 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int 
     }
     else if (shq->kind == SHAPE_SPHERE)
     {
-      SPHERE *one = NULL, *two = NULL;
+      CONVEX *one = NULL, *two = NULL;
 
       SPHERE_Split (shq->data, point, normal, topoadj, surfid, &one, &two);
-      if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
-      if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
+      if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
+      if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
     }
     else if (shq->kind == SHAPE_MESH)
     {
@@ -891,6 +971,10 @@ void SHAPE_2_MBFCP (SHAPE *shp, FILE *out)
       break;
     case SHAPE_SPHERE:
       SET_Insert (NULL, &sph, ptr->data, NULL);
+      break;
+    case SHAPE_ELLIP:
+      /* TODO => Ellipsoid MBFCP export */
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME => ELLIP */
       break;
     }
   }

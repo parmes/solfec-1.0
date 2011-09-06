@@ -41,7 +41,8 @@ enum gobj
   GOBJ_ELEMENT = 0x01, /* XXX: never edit these without looking into box.h: e.g. AABB_ELEMENT_ELEMENT, etc. */
   GOBJ_CONVEX  = 0x02,
   GOBJ_SPHERE  = 0x04,
-  GOBJ_NODE    = 0x08
+  GOBJ_NODE    = 0x08,
+  GOBJ_ELLIP   = 0x10, /* ellipsoid */
 };
 
 typedef enum gobj GOBJ; /* kind of geometrical object */
@@ -51,7 +52,8 @@ struct shape
 {
   enum {SHAPE_MESH = 0,
         SHAPE_CONVEX,
-        SHAPE_SPHERE} kind; /* kind of shape */
+        SHAPE_SPHERE,
+        SHAPE_ELLIP} kind; /* kind of shape */
 
   void *data; /* representation */
 
