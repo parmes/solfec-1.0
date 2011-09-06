@@ -51,6 +51,7 @@ BASEO = obj/err.o \
 	obj/hyb.o \
 	obj/msh.o \
 	obj/sph.o \
+	obj/eli.o \
 	obj/shp.o \
 	obj/sps.o \
 	obj/mat.o \
@@ -254,7 +255,10 @@ obj/box.o: box.c box.h bod.h hyb.h mem.h map.h set.h err.h alg.h
 obj/msh.o: msh.c msh.h cvx.h spx.h mem.h map.h err.h alg.h mot.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/sph.o: sph.c sph.h spx.h mem.h map.h err.h alg.h mot.h
+obj/sph.o: sph.c sph.h err.h alg.h mot.h mat.h tri.h cvx.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/eli.o: eli.c eli.h err.h alg.h mot.h mat.h tri.h cvx.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/shp.o: shp.c shp.h cvx.h msh.h sph.h err.h mot.h

@@ -23,14 +23,9 @@
 #include <float.h>
 #include "sol.h"
 #include "sph.h"
-#include "spx.h"
 #include "alg.h"
-#include "mem.h"
-#include "map.h"
-#include "hyb.h"
-#include "gjk.h"
-#include "err.h"
 #include "pck.h"
+#include "err.h"
 
 /* point in sphere test */
 inline static int point_inside (double *center, double radius, double *point)
@@ -172,7 +167,7 @@ TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m)
 
 /* split sphere in two with plane defined by (point, normal); surfid corresponds to the new surface;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
-void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, int surfid, SPHERE **one, SPHERE **two)
+void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two)
 {
   /* TODO */
   WARNING_DEBUG (0, "Sphere splitting has not been implemented yet!");
