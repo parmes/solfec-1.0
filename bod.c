@@ -33,6 +33,7 @@
 #include "msh.h"
 #include "cvx.h"
 #include "sph.h"
+#include "eli.h"
 #include "pck.h"
 #include "err.h"
 #include "lng.h"
@@ -1202,6 +1203,7 @@ void BODY_Material (BODY *bod, int volume, BULK_MATERIAL *mat)
   MESH *msh;
   CONVEX *cvx;
   SPHERE *sph;
+  ELLIP *eli;
   ELEMENT *ele;
 
   for (shp = bod->shape; shp; shp = shp->next)
@@ -1235,6 +1237,13 @@ void BODY_Material (BODY *bod, int volume, BULK_MATERIAL *mat)
       sph = shp->data;
       if (sph->volume == volume)
 	sph->mat = mat;
+
+      break;
+    case SHAPE_ELLIP:
+
+      eli = shp->data;
+      if (eli->volume == volume)
+	eli->mat = mat;
 
       break;
     }

@@ -1745,7 +1745,7 @@ static void render_body_lines (BODY *bod, short skip)
   SPHERE **sph, **end;
 
   for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
-    render_sphere_points ((*sph)->cur_points[0], (*sph)->cur_points[1], (*sph)->cur_points[2]);
+    render_sphere_points ((*sph)->cur_point[0], (*sph)->cur_point[1], (*sph)->cur_point[2]);
 }
 
 /* render body for selection */
@@ -1786,7 +1786,7 @@ static void selection_render_body (BODY *bod)
     glPointSize (4.0);
 
     for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
-      render_sphere_points ((*sph)->cur_points[0], (*sph)->cur_points[1], (*sph)->cur_points[2]);
+      render_sphere_points ((*sph)->cur_point[0], (*sph)->cur_point[1], (*sph)->cur_point[2]);
 
     glPointSize (1.0);
   }
