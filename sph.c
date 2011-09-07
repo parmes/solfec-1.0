@@ -51,8 +51,8 @@ SPHERE* SPHERE_Create (double *center, double radius, int surface, int volume)
   out->cur_radius = radius;
   out->surface = surface;
   out->volume = volume;
-  rp = out->ref_points;
-  cp = out->cur_points;
+  rp = out->ref_point;
+  cp = out->cur_point;
   rp [0][0] = radius;
   rp [0][1] = 0.0;
   rp [0][2] = 0.0;
@@ -99,8 +99,8 @@ SPHERE* SPHERE_Copy (SPHERE *sph)
 /* scaling of a sphere */
 void SPHERE_Scale (SPHERE *sph, double *vector)
 {
-  double (*ref_pnt) [3] = sph->ref_points,
-	 (*cur_pnt) [3] = sph->cur_points,
+  double (*ref_pnt) [3] = sph->ref_point,
+	 (*cur_pnt) [3] = sph->cur_point,
 	 omega [3];
 
   sph->cur_radius *= vector [0];
@@ -118,8 +118,8 @@ void SPHERE_Scale (SPHERE *sph, double *vector)
 /* translation of a sphere */
 void SPHERE_Translate (SPHERE *sph, double *vector)
 {
-  double (*ref_pnt) [3] = sph->ref_points,
-	 (*cur_pnt) [3] = sph->cur_points;
+  double (*ref_pnt) [3] = sph->ref_point,
+	 (*cur_pnt) [3] = sph->cur_point;
 
   ADD (sph->cur_center, vector, sph->cur_center);
   COPY (sph->cur_center, sph->ref_center);
@@ -135,8 +135,8 @@ void SPHERE_Translate (SPHERE *sph, double *vector)
 void SPHERE_Rotate (SPHERE *sph, double *point, double *vector, double angle)
 {
   double R [9], omega [3];
-  double (*ref_pnt) [3] = sph->ref_points,
-	 (*cur_pnt) [3] = sph->cur_points;
+  double (*ref_pnt) [3] = sph->ref_point,
+	 (*cur_pnt) [3] = sph->cur_point;
 
   angle *=  ALG_PI / 180.0;
   COPY (vector, omega); 
@@ -222,8 +222,7 @@ void SPHERE_Char_Partial (SPHERE *sph, int ref, double *vo, double *sx, double *
 /* get characteristics of a sphere: volume, mass center, and Euler tensor (centered) */
 void SPHERE_Char (SPHERE *sph, int ref, double *volume, double *center, double *euler)
 {
-  double vo, sx, sy, sz,
-	 cen [3], eul [9];
+  double vo, sx, sy, sz, cen [3], eul [9];
 
   vo = sx = sy = sz = 0.0;
   SET9 (eul, 0.0);
@@ -336,21 +335,20 @@ void SPHERE_Update (SPHERE *sph, void *body, void *shp, MOTION motion)
 {
   SGP sgp = {shp, sph, GOBJ_SPHERE, NULL};
   double *ref = sph->ref_center,
-	 (*ref_pnt) [3] = sph->ref_points,
+	 (*ref_pnt) [3] = sph->ref_point,
 	 *cur = sph->cur_center,
-	 (*cur_pnt) [3] = sph->cur_points;
-
-  if (motion) motion (body, &sgp, ref, cur); /* move center */
-  else { COPY (ref, cur); }
+	 (*cur_pnt) [3] = sph->cur_point;
 
   if (motion)
-  {
+  { 
+    motion (body, &sgp, ref, cur); /* move center */
     motion (body, &sgp, ref_pnt [0], cur_pnt [0]); /* move marker points */
     motion (body, &sgp, ref_pnt [1], cur_pnt [1]);
     motion (body, &sgp, ref_pnt [2], cur_pnt [2]);
   }
   else
   {
+    COPY (ref, cur);
     COPY (ref_pnt [0], cur_pnt [0]);
     COPY (ref_pnt [1], cur_pnt [1]);
     COPY (ref_pnt [2], cur_pnt [2]);
@@ -371,11 +369,11 @@ void SPHERE_Pack (SPHERE *sph, int *dsize, double **d, int *doubles, int *isize,
   pack_int (isize, i, ints, sph->volume);
 
   pack_doubles (dsize, d, doubles, sph->cur_center, 3);
-  pack_doubles (dsize, d, doubles, (double*)sph->cur_points, 9);
+  pack_doubles (dsize, d, doubles, (double*)sph->cur_point, 9);
   pack_double  (dsize, d, doubles, sph->cur_radius);
 
   pack_doubles (dsize, d, doubles, sph->ref_center, 3);
-  pack_doubles (dsize, d, doubles, (double*)sph->ref_points, 9);
+  pack_doubles (dsize, d, doubles, (double*)sph->ref_point, 9);
   pack_double  (dsize, d, doubles, sph->ref_radius);
 
   pack_int (isize, i, ints, sph->mat ? 1 : 0); /* pack material existence flag */
@@ -395,11 +393,11 @@ SPHERE* SPHERE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipo
   sph->volume = unpack_int (ipos, i, ints);
 
   unpack_doubles (dpos, d, doubles, sph->cur_center, 3);
-  unpack_doubles (dpos, d, doubles, (double*)sph->cur_points, 9);
+  unpack_doubles (dpos, d, doubles, (double*)sph->cur_point, 9);
   sph->cur_radius = unpack_double  (dpos, d, doubles);
 
   unpack_doubles (dpos, d, doubles, sph->ref_center, 3);
-  unpack_doubles (dpos, d, doubles, (double*)sph->ref_points, 9);
+  unpack_doubles (dpos, d, doubles, (double*)sph->ref_point, 9);
   sph->ref_radius = unpack_double  (dpos, d, doubles);
 
   j = unpack_int (ipos, i, ints); /* unpack material existence flag */

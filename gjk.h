@@ -28,7 +28,7 @@
  * polyhedron (a,na) and polyhedron (b,nb); the distance is returned */
 double gjk (double *a, int na, double *b, int nb, double *p, double *q);
 
-/* (a,na) and (c,r) are the input polyhedron and sphere; * 'p' and 'q' are the two outputed
+/* (a,na) and (c,r) are the input polyhedron and sphere; 'p' and 'q' are the two outputed
  * closest points, respectively in polyhedron (a,na) and sphere (c,r); the distance is returned */
 double gjk_convex_sphere (double *a, int na, double *c, double r, double *p, double *q);
 
@@ -36,8 +36,24 @@ double gjk_convex_sphere (double *a, int na, double *c, double r, double *p, dou
  * closest point on the polyhedron; the distance is returned */
 double gjk_convex_point (double *a, int na, double *p, double *q);
 
+/* (a,na) and (b,bsca, brot) are the input polyhedron and ellipsoid; 'p' and 'q' are the two outputed
+ * closest points, respectively in polyhedron (a,na) and ellipsoid (b, bsca, brot); the distance is returned */
+double gjk_convex_ellip (double *a, int na, double *b, double *bsca, double *brot, double *p, double *q);
+
 /* (a,ra) and (b,rb) are the input spheres; * 'p' and 'q' are the two outputed closest points,
  * respectively in spheres (a,ra) and (b,rb); the distance is returned */
 double gjk_sphere_sphere (double *a, double ra, double *b, double rb, double *p, double *q);
+
+/* (a,ra) and (b,bsca,brot)) are the input sphere and ellipsoid; 'p' and 'q' are the two outputed
+ * closest points, respectively in sphere (a,ra) and ellipsoid (b,bsca,brot); the distance is returned */
+double gjk_sphere_ellip (double *a, double ra, double *b, double *bsca, double *brot, double *p, double *q);
+
+/* (a,asca,arot) and (b,bsca,brot) are the two input ellipsoids; 'p' and 'q' are the two outputed
+ * closest points, respectively in (a,asca,arot) and (b,bsca,brot); the distance is returned */
+double gjk_ellip_ellip (double *a, double *asca, double *arot, double *b, double *bsca, double *brot, double *p, double *q);
+
+/* (a,asca,arot) and p are the input ellipsoid and point; 'q' is the outputed
+ * closest point on the ellipsoid; the distance is returned */
+double gjk_ellip_point (double *a, double *asca, double *arot, double *p, double *q);
 
 #endif

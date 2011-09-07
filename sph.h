@@ -33,11 +33,11 @@ typedef struct sphere SPHERE;
 struct sphere
 {
   double ref_center [3],
-	 ref_points [3][3], /* three points for the sake of global deformation marking */
+	 ref_point [3][3], /* three points for the sake of global deformation marking */
          ref_radius;
   
   double cur_center [3], /* the sphere is assumed to remain spherical (nearly) when deformed */
-	 cur_points [3][3],
+	 cur_point [3][3],
          cur_radius;
 
   int surface, /* surface identifier */
