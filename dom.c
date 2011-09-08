@@ -359,7 +359,7 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
 
   if (state)
   {
-    ASSERT_DEBUG (gap <= 0, "A contact with positive gap was detected which indicates a bug in goc.c");
+    ASSERT_DEBUG (gap <= 0, "A contact with positive gap (%g) was detected which indicates a bug in goc.c", gap);
 
     if (gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
 

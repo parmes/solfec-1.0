@@ -37,6 +37,7 @@
 #include "msh.h"
 #include "cvx.h"
 #include "sph.h"
+#include "eli.h"
 #include "shp.h"
 #include "lng.h"
 #include "rnd.h"
@@ -120,11 +121,17 @@ struct body_data
 
   MAP *volumes; /* map volume ids to sets of &vertex_values [i] pointers */
 
-  SPHERE **spheres; /* sphere spheres */
+  SPHERE **spheres; /* spheres */
 
   GLfloat *sphere_colors; /* sphere surface colors */
 
   int spheres_count;
+
+  ELLIP **ellips; /* ellipsoids */
+
+  GLfloat *ellip_colors; /* ellipsoid surface colors */
+
+  int ellips_count;
 
   BODY_DATA *rough; /* rough mesh rendering */
 };
@@ -575,6 +582,21 @@ static double sphere_value (BODY *bod, SPHERE *sph)
   return 0.0;
 }
 
+/* obtain scalar ellipsoid point value */
+static double ellip_value (BODY *bod, ELLIP *eli)
+{
+  switch (legend.entity)
+  {
+  case KINDS_OF_BODIES: return bod->kind;
+  case KINDS_OF_SURFACES:  return eli->surface;
+  case KINDS_OF_VOLUMES: return eli->volume;
+  case KINDS_OF_BODY_RANKS: return bod->rank;
+  default: return point_value (bod, NULL, NULL, eli->ref_center);
+  }
+
+  return 0.0;
+}
+
 /* compare pointer pair */
 static int paircompare (POINTER_PAIR *a, POINTER_PAIR *b)
 {
@@ -628,6 +650,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
   int i, j, *f;
   SPHERE *sph;
   CONVEX *cvx;
+  ELLIP *eli;
   SHAPE *shp;
   MESH *msh;
   FACE *fac;
@@ -683,6 +706,16 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	ERRMEM (data->spheres = realloc (data->spheres, data->spheres_count * sizeof (SPHERE*)));
 	j = (data->spheres_count - 1);
 	data->spheres [j] = sph;
+      }
+      break;
+    case SHAPE_ELLIP:
+      {
+        eli = shp->data;
+	data->ellips_count ++;
+
+	ERRMEM (data->ellips = realloc (data->ellips, data->ellips_count * sizeof (ELLIP*)));
+	j = (data->ellips_count - 1);
+	data->ellips [j] = eli;
       }
       break;
     }
@@ -769,6 +802,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	}
 	break;
       case SHAPE_SPHERE: break;
+      case SHAPE_ELLIP: break;
       }
     }
 
@@ -791,6 +825,16 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
       ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
 
       for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+      {
+	COPY (neutral_color, c);
+      }
+    }
+
+    if (data->ellips_count)
+    {
+      ERRMEM (data->ellip_colors = malloc (data->ellips_count * sizeof (GLfloat) * 3));
+
+      for (c = data->ellip_colors, v = c + data->ellips_count * 3; c < v; c += 3)
       {
 	COPY (neutral_color, c);
       }
@@ -882,6 +926,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	}
 	break;
       case SHAPE_SPHERE: break;
+      case SHAPE_ELLIP: break;
       }
     }
 
@@ -927,6 +972,16 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
       ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
 
       for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+      {
+	COPY (neutral_color, c);
+      }
+    }
+
+    if (data->ellips_count)
+    {
+      ERRMEM (data->ellip_colors = malloc (data->ellips_count * sizeof (GLfloat) * 3));
+
+      for (c = data->ellip_colors, v = c + data->ellips_count * 3; c < v; c += 3)
       {
 	COPY (neutral_color, c);
       }
@@ -1131,9 +1186,7 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
 	   end = val + data->vertex_values_count; val < end; vvs ++, val ++) *val = **vvs;
     }
 
-    SPHERE **sph, **end;
-
-    for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    for (SPHERE **sph = data->spheres, **end = sph + data->spheres_count; sph < end; sph ++)
     {
       values [0] = sphere_value (bod, *sph);
       if (values[0] < legend.extents [0])  legend.extents [0] = values[0];
@@ -1149,6 +1202,24 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
 	break;
       }
     }
+
+    for (ELLIP **eli = data->ellips, **end = eli + data->ellips_count; eli < end; eli ++)
+    {
+      values [0] = ellip_value (bod, *eli);
+      if (values[0] < legend.extents [0])  legend.extents [0] = values[0];
+      if (values[0] > legend.extents [1])  legend.extents [1] = values[0];
+
+      switch (legend.entity)
+      {
+      case KINDS_OF_SURFACES:
+        SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) (*eli)->surface, NULL);
+	break;
+      case KINDS_OF_VOLUMES:
+        SET_Insert (&rndsetmem, &legend.discrete, (void*) (long) (*eli)->volume, NULL);
+	break;
+      }
+    }
+
 
     switch (bod->kind)
     {
@@ -1239,6 +1310,26 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
     else
     {
       for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
+      {
+	COPY (neutral_color, c);
+      }
+    }
+  }
+
+  if (data->ellips_count)
+  {
+    ELLIP **eli;
+
+    if (data->values_updated)
+    {
+      for (c = data->ellip_colors, eli = data->ellips, v = c + data->ellips_count * 3; c < v; c += 3, eli ++)
+      {
+	value_to_color (ellip_value (bod, *eli), c);
+      }
+    }
+    else
+    {
+      for (c = data->ellip_colors, v = c + data->ellips_count * 3; c < v; c += 3)
       {
 	COPY (neutral_color, c);
       }
@@ -1376,6 +1467,23 @@ static void render_sphere_triangles (double *center, double radius, GLfloat colo
   glPopMatrix ();
 }
 
+/* render ellipsoid triangles */
+static void render_ellip_triangles (double *center, double *sca, double *rot, GLfloat color [3])
+{
+  glMatrixMode (GL_MODELVIEW_MATRIX);
+  glPushMatrix ();
+    glTranslated (center[0], center[1], center[2]);
+    GLfloat m [16] = {rot [0], rot [1], rot [2], 0,
+                      rot [3], rot [4], rot [5], 0,
+		      rot [6], rot [7], rot [8], 0,
+		      0      , 0      , 0      , 1};
+    glMultMatrixf (m);
+    glScaled (sca [0], sca [1], sca [2]);
+    glColor3fv (color);
+    glutSolidSphere (1.0, 12, 12);
+  glPopMatrix ();
+}
+
 /* render sphere triangles for selection */
 static void selection_render_sphere_triangles (double *center, double radius)
 {
@@ -1383,6 +1491,22 @@ static void selection_render_sphere_triangles (double *center, double radius)
   glPushMatrix ();
     glTranslated (center[0], center[1], center[2]);
     glutSolidSphere (radius, 12, 12);
+  glPopMatrix ();
+}
+
+/* render ellipsoid triangles for selection */
+static void selection_render_ellip_triangles (double *center, double *sca, double *rot)
+{
+  glMatrixMode (GL_MODELVIEW_MATRIX);
+  glPushMatrix ();
+    glTranslated (center[0], center[1], center[2]);
+    GLfloat m [16] = {rot [0], rot [1], rot [2], 0,
+                      rot [3], rot [4], rot [5], 0,
+		      rot [6], rot [7], rot [8], 0,
+		      0      , 0      , 0      , 1};
+    glMultMatrixf (m);
+    glScaled (sca [0], sca [1], sca [2]);
+    glutSolidSphere (1.0, 12, 12);
   glPopMatrix ();
 }
 
@@ -1610,8 +1734,8 @@ static void legend_pop ()
   if ((legend.entity = legend.preventity)) update ();
 }
 
-/* render sphere points */
-static void render_sphere_points (double *a, double *b, double *c)
+/* render 3 points */
+static void render_3_points (double *a, double *b, double *c)
 {
   glBegin (GL_POINTS);
     glVertex3dv (a);
@@ -1660,11 +1784,15 @@ static void render_body_triangles (BODY *bod, short skip)
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 #endif
 
-  SPHERE **sph, **end;
+  SPHERE **sph, **end0;
+  ELLIP **eli, **end1;
   GLfloat *col;
 
-  for (sph = data->spheres, end = sph + data->spheres_count, col = data->sphere_colors; sph < end; sph ++, col += 3)
+  for (sph = data->spheres, end0 = sph + data->spheres_count, col = data->sphere_colors; sph < end0; sph ++, col += 3)
     render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius, col);
+
+  for (eli = data->ellips, end1 = eli + data->ellips_count, col = data->ellip_colors; eli < end1; eli ++, col += 3)
+    render_ellip_triangles ((*eli)->cur_center, (*eli)->cur_sca, (*eli)->cur_rot, col);
 }
 
 /* render body triangles without colors */
@@ -1699,10 +1827,11 @@ static void render_body_triangles_plain (BODY *bod, short skip)
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 #endif
 
-  SPHERE **sph, **end;
-
-  for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+  for (SPHERE **sph = data->spheres, **end = sph + data->spheres_count; sph < end; sph ++)
     selection_render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius);
+
+  for (ELLIP **eli = data->ellips, **end = eli + data->ellips_count; eli < end; eli ++)
+    selection_render_ellip_triangles ((*eli)->cur_center, (*eli)->cur_sca, (*eli)->cur_rot);
 }
 
 /* render body lines */
@@ -1742,10 +1871,11 @@ static void render_body_lines (BODY *bod, short skip)
   glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 #endif
 
-  SPHERE **sph, **end;
+  for (SPHERE **sph = data->spheres, **end = sph + data->spheres_count; sph < end; sph ++)
+    render_3_points ((*sph)->cur_point[0], (*sph)->cur_point[1], (*sph)->cur_point[2]);
 
-  for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
-    render_sphere_points ((*sph)->cur_point[0], (*sph)->cur_point[1], (*sph)->cur_point[2]);
+  for (ELLIP **eli = data->ellips, **end = eli + data->ellips_count; eli < end; eli ++)
+    render_3_points ((*eli)->cur_point[0], (*eli)->cur_point[1], (*eli)->cur_point[2]);
 }
 
 /* render body for selection */
@@ -1781,12 +1911,13 @@ static void selection_render_body (BODY *bod)
 
     glLineWidth (1.0);
 
-    SPHERE **sph, **end;
-
     glPointSize (4.0);
 
-    for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
-      render_sphere_points ((*sph)->cur_point[0], (*sph)->cur_point[1], (*sph)->cur_point[2]);
+    for (SPHERE **sph = data->spheres, **end = sph + data->spheres_count; sph < end; sph ++)
+      render_3_points ((*sph)->cur_point[0], (*sph)->cur_point[1], (*sph)->cur_point[2]);
+
+    for (ELLIP **eli = data->ellips, **end = eli + data->ellips_count; eli < end; eli ++)
+      render_3_points ((*eli)->cur_point[0], (*eli)->cur_point[1], (*eli)->cur_point[2]);
 
     glPointSize (1.0);
   }
@@ -1816,10 +1947,11 @@ static void selection_render_body (BODY *bod)
     glBindBufferARB (GL_ARRAY_BUFFER_ARB, 0);
 #endif
 
-    SPHERE **sph, **end;
-
-    for (sph = data->spheres, end = sph + data->spheres_count; sph < end; sph ++)
+    for (SPHERE **sph = data->spheres, **end = sph + data->spheres_count; sph < end; sph ++)
       selection_render_sphere_triangles ((*sph)->cur_center, (*sph)->cur_radius);
+
+    for (ELLIP **eli = data->ellips, **end = eli + data->ellips_count; eli < end; eli ++)
+      selection_render_ellip_triangles ((*eli)->cur_center, (*eli)->cur_sca, (*eli)->cur_rot);
   }
 }
 
@@ -4087,6 +4219,8 @@ void RND_Free_Rendering_Data (void *ptr)
   free (data->value_sources);
   free (data->spheres);
   free (data->sphere_colors);
+  free (data->ellips);
+  free (data->ellip_colors);
 
 #if VBO
   glDeleteBuffersARB (1, &data->triangles);

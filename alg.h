@@ -1104,18 +1104,18 @@ if (((DET) =\
     if (__DET__ == 0.0)\
     { (ITERS) = -1; break; }\
     __L2__ = LEN9 (R);\
-    NNMAX (R, __MX__);\
+    MAX9 (R, __MX__);\
     __IL2__ = LEN9 (__TMP__);\
-    NNMAX (__TMP__, __IMX__);\
+    MAX9 (__TMP__, __IMX__);\
     __GAMMA__ = sqrt(sqrt((__IL2__*__IMX__)/\
 	(__L2__*__MX__))) * 0.5;\
-    NNSCALE (R, __GAMMA__);\
+    SCALE9 (R, __GAMMA__);\
     __GAMMA__ = 0.25 / __GAMMA__;\
-    NNSCALE (__TMP__, __GAMMA__);\
+    SCALE9 (__TMP__, __GAMMA__);\
     NTADD (R, __TMP__, R);\
     NNSUB (R, U, __TMP__);\
-  } while (NNDOT (__TMP__, __TMP__) >\
-    __EPS2__ * NNDOT (U, U));\
+  } while (DOT9 (__TMP__, __TMP__) >\
+    __EPS2__ * DOT9 (U, U));\
   TNMUL (R, F, __TMP__);\
   SYMM (__TMP__, U);\
 }

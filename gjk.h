@@ -56,4 +56,13 @@ double gjk_ellip_ellip (double *a, double *asca, double *arot, double *b, double
  * closest point on the ellipsoid; the distance is returned */
 double gjk_ellip_point (double *a, double *asca, double *arot, double *p, double *q);
 
+/* compute gap function betwen two primitives along the given unit normal;
+ * the normal direction is assumed to be outward to the first primitive */
+double gjk_convex_convex_gap (double *a, int na, double *b, int nb, double *normal);
+double gjk_convex_sphere_gap (double *a, int na, double *b, double rb, double *normal);
+double gjk_convex_ellip_gap (double *a, int na, double *b, double *bsca, double *brot, double *normal);
+double gjk_sphere_sphere_gap (double *a, double ra, double *b, double rb, double *normal);
+double gjk_sphere_ellip_gap (double *a, double ra, double *b, double *bsca, double *brot, double *normal);
+double gjk_ellip_ellip_gap (double *a, double *asca, double *arot, double *b, double *bsca, double *brot, double *normal);
+
 #endif
