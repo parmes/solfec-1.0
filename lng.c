@@ -33,6 +33,7 @@
 #include "box.h"
 #include "goc.h"
 #include "err.h"
+#include "eli.h"
 
 #if MPI
 #include <mpi.h>
@@ -1103,6 +1104,151 @@ static PyGetSetDef lng_SPHERE_getset [] =
 };
 
 /*
+ * ELLIP => object
+ */
+
+typedef struct lng_ELLIP lng_ELLIP;
+
+static PyTypeObject lng_ELLIP_TYPE;
+
+struct lng_ELLIP
+{
+  PyObject_HEAD
+  ELLIP *eli;
+};
+
+#if 0
+static int is_ellip (lng_ELLIP *obj, char *var)
+{
+  if (obj)
+  {
+    if (!PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_ELLIP_TYPE))
+    {
+      char buf [BUFLEN];
+      sprintf (buf, "'%s' must be a ELLIP object", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+  }
+
+  return 1;
+}
+#endif
+
+/* constructor */
+static PyObject* lng_ELLIP_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("center", "radii", "volid", "surfid");
+  double c [3], r [3];
+  int volid, surfid;
+  PyObject *center, *radii;
+  lng_ELLIP *self;
+
+  self = (lng_ELLIP*)type->tp_alloc (type, 0);
+
+  if (self)
+  {
+    PARSEKEYS ("OOii", &center, &radii, &volid, &surfid);
+
+    TYPETEST (is_tuple (center, kwl [0], 3) && is_tuple (radii, kwl [1], 3));
+
+    c [0] = PyFloat_AsDouble (PyTuple_GetItem (center, 0));
+    c [1] = PyFloat_AsDouble (PyTuple_GetItem (center, 1));
+    c [2] = PyFloat_AsDouble (PyTuple_GetItem (center, 2));
+
+    r [0] = PyFloat_AsDouble (PyTuple_GetItem (radii, 0));
+    r [1] = PyFloat_AsDouble (PyTuple_GetItem (radii, 1));
+    r [2] = PyFloat_AsDouble (PyTuple_GetItem (radii, 2));
+
+    self->eli = ELLIP_Create (c, r, surfid, volid);
+  }
+
+  return (PyObject*)self;
+}
+
+/* destructor */
+static void lng_ELLIP_dealloc (lng_ELLIP *self)
+{
+  if (self->eli) ELLIP_Destroy (self->eli);
+
+  self->ob_type->tp_free ((PyObject*)self);
+}
+
+/* center */
+static PyObject* lng_ELLIP_get_center (lng_ELLIP *self, void *closure)
+{
+  if (!self->eli)
+  {
+    PyErr_SetString (PyExc_ValueError, "The ELLIP object is empty");
+    return NULL;
+  }
+
+  return Py_BuildValue ("(d, d, d)", self->eli->cur_center [0], self->eli->cur_center [1], self->eli->cur_center [2]);
+}
+
+static int lng_ELLIP_set_center (lng_ELLIP *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+/* radii */
+static PyObject* lng_ELLIP_get_radii (lng_ELLIP *self, void *closure)
+{
+  if (!self->eli)
+  {
+    PyErr_SetString (PyExc_ValueError, "The ELLIP object is empty");
+    return NULL;
+  }
+
+  return Py_BuildValue ("(d, d, d)", self->eli->cur_sca [0], self->eli->cur_sca [1], self->eli->cur_sca [2]);
+}
+
+static int lng_ELLIP_set_radii (lng_ELLIP *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+/* rotation */
+static PyObject* lng_ELLIP_get_rot (lng_ELLIP *self, void *closure)
+{
+  if (!self->eli)
+  {
+    PyErr_SetString (PyExc_ValueError, "The ELLIP object is empty");
+    return NULL;
+  }
+
+  return Py_BuildValue ("(d, d, d, d, d, d, d, d, d)",
+    self->eli->cur_rot [0], self->eli->cur_rot [1], self->eli->cur_rot [2],
+    self->eli->cur_rot [3], self->eli->cur_rot [4], self->eli->cur_rot [5],
+    self->eli->cur_rot [6], self->eli->cur_rot [7], self->eli->cur_rot [8]);
+}
+
+static int lng_ELLIP_set_rot (lng_ELLIP *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+/* ELLIP methods */
+static PyMethodDef lng_ELLIP_methods [] =
+{ {NULL, NULL, 0, NULL} };
+
+/* ELLIP members */
+static PyMemberDef lng_ELLIP_members [] =
+{ {NULL, 0, 0, 0, NULL} };
+
+/* ELLIP getset */
+static PyGetSetDef lng_ELLIP_getset [] =
+{ 
+  {"center", (getter)lng_ELLIP_get_center, (setter)lng_ELLIP_set_center, "ellipsoid center", NULL},
+  {"radii", (getter)lng_ELLIP_get_radii, (setter)lng_ELLIP_set_radii, "ellipsoid radii", NULL},
+  {"rot", (getter)lng_ELLIP_get_rot, (setter)lng_ELLIP_set_rot, "ellipsoid rotation", NULL},
+  {NULL, 0, 0, NULL, NULL}
+};
+
+/*
  * SOLFEC => object
  */
 
@@ -1871,8 +2017,12 @@ static int is_basic_shape (PyObject *obj)
       lng_SPHERE *sphere = (lng_SPHERE*) obj;
       if (sphere->sph == NULL) return 0; /* empty */
     }
+    else if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_ELLIP_TYPE))
+    {
+      lng_ELLIP *ellip = (lng_ELLIP*) obj;
+      if (ellip->eli == NULL) return 0; /* empty */
+    }
     else return 0;
-
   }
 
   return 1;
@@ -1896,7 +2046,7 @@ static int is_shape (PyObject *obj, char *var)
       }
 
       char buf [BUFLEN];
-      sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE object or a list of those", var);
+      sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE/ELLIP object or a list of those", var);
       PyErr_SetString (PyExc_TypeError, buf);
       return 0;
     }
@@ -1952,7 +2102,7 @@ static int is_shape_or_vector (PyObject *obj, char *var)
       if (!PyTuple_Check (obj))
       {
 	char buf [BUFLEN];
-	sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE object, a list of those or a (x, y, z) tuple", var);
+	sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE/ELLIP object, a list of those or a (x, y, z) tuple", var);
 	PyErr_SetString (PyExc_TypeError, buf);
 	return 0;
       }
@@ -2001,7 +2151,7 @@ static int is_shape_or_body (PyObject *obj, char *var)
       if (!is_body_check (obj))
       {
 	char buf [BUFLEN];
-	sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE object, a list of those or a BODY object", var);
+	sprintf (buf, "'%s' must be a non-empty CONVEX/MESH/SPHERE/ELLIP object, a list of those or a BODY object", var);
 	PyErr_SetString (PyExc_TypeError, buf);
 	return 0;
       }
@@ -2033,6 +2183,7 @@ static int shape_kind (PyObject *obj)
   if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_CONVEX_TYPE)) return SHAPE_CONVEX;
   else if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_MESH_TYPE)) return SHAPE_MESH;
   else if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_SPHERE_TYPE)) return SHAPE_SPHERE;
+  else if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_ELLIP_TYPE)) return SHAPE_ELLIP;
 
   return -1;
 }
@@ -2061,6 +2212,12 @@ static void* get_shape (PyObject *obj, short empty)
     lng_SPHERE *sphere = (lng_SPHERE*)obj;
     out = sphere->sph;
     if (empty) sphere->sph = NULL; /* empty */
+  }
+  else if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_ELLIP_TYPE))
+  {
+    lng_ELLIP *ellip = (lng_ELLIP*)obj;
+    out = ellip->eli;
+    if (empty) ellip->eli = NULL; /* empty */
   }
 
   return out;
@@ -5525,6 +5682,7 @@ static PyObject* shape_to_list (SHAPE *shp)
     lng_MESH *mesh;
     lng_CONVEX *convex;
     lng_SPHERE *sphere;
+    lng_ELLIP *ellip;
     PyObject *list;
     SHAPE *shq;
     int n;
@@ -5566,6 +5724,16 @@ static PyObject* shape_to_list (SHAPE *shp)
 	  }
 	  else return NULL;
 	  break;
+        case SHAPE_ELLIP:
+	  ellip = (lng_ELLIP*)lng_ELLIP_TYPE.tp_alloc (&lng_ELLIP_TYPE, 0);
+	  if (ellip)
+	  {
+	    ellip->eli = shq->data;
+	    PyList_SetItem (list, n, (PyObject*)ellip);
+	  }
+	  else return NULL;
+	  break;
+
 	}
       }
 
@@ -5599,6 +5767,15 @@ static PyObject* shape_to_list (SHAPE *shp)
 	{
 	  sphere->sph = shp->data;
 	  return (PyObject*)sphere;
+	}
+	else return NULL;
+	break;
+      case SHAPE_ELLIP:
+	ellip = (lng_ELLIP*)lng_ELLIP_TYPE.tp_alloc (&lng_ELLIP_TYPE, 0);
+	if (ellip)
+	{
+	  ellip->eli = shp->data;
+	  return (PyObject*)ellip;
 	}
 	else return NULL;
 	break;
@@ -5655,7 +5832,9 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   {
     for (shq = shp; shq; shq = shq->next)
     {
-      if (shq->kind == SHAPE_CONVEX)
+      switch (shq->kind)
+      {
+      case SHAPE_CONVEX:
       {
 	CONVEX *one = NULL, *two = NULL;
 
@@ -5663,15 +5842,36 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
       }
-      else if (shq->kind == SHAPE_SPHERE)
+      break;
+      case SHAPE_SPHERE:
       {
-	SPHERE *one = NULL, *two = NULL;
+	CONVEX *one = NULL, *two = NULL;
 
 	SPHERE_Split (shq->data, p, n, tadj, surfid, &one, &two);
-	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
-	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
+	if (one && two)
+	{
+	  back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
+	  front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
+	}
+	else if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
+	else if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
       }
-      else if (shq->kind == SHAPE_MESH)
+      break;
+      case SHAPE_ELLIP:
+      {
+	CONVEX *one = NULL, *two = NULL;
+
+	ELLIP_Split (shq->data, p, n, tadj, surfid, &one, &two);
+	if (one && two)
+	{
+	  back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
+	  front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
+	}
+	else if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_ELLIP, one), back);
+	else if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_ELLIP, two), front);
+      }
+      break;
+      case SHAPE_MESH:
       {
 	MESH *one = NULL, *two = NULL;
 
@@ -5682,6 +5882,8 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 	WARNING (0, "\nMesh splitting may generate a modified tetrahedral mesh in place of the input one.\n"
 	            "The meshing is randomized and it may generate different results for the same input.\n"
 	            "Use TETRAHEDRALIZE in order to refine and save the generated mesh parts.\n");
+      }
+      break;
       }
     }
   }
@@ -5736,6 +5938,9 @@ static PyObject* lng_COPY (PyObject *self, PyObject *args, PyObject *kwds)
       break;
     case SHAPE_SPHERE:
       shq->data = SPHERE_Copy (shq->data);
+      break;
+    case SHAPE_ELLIP:
+      shq->data = ELLIP_Copy (shq->data);
       break;
     }
   }
@@ -7553,6 +7758,10 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_SPHERE_dealloc, lng_SPHERE_new,
     lng_SPHERE_methods, lng_SPHERE_members, lng_SPHERE_getset);
 
+  TYPEINIT (lng_ELLIP_TYPE, lng_ELLIP, "solfec.ELLIP",
+    Py_TPFLAGS_DEFAULT, lng_ELLIP_dealloc, lng_ELLIP_new,
+    lng_ELLIP_methods, lng_ELLIP_members, lng_ELLIP_getset);
+
   TYPEINIT (lng_SOLFEC_TYPE, lng_SOLFEC, "solfec.SOLFEC",
     Py_TPFLAGS_DEFAULT, lng_SOLFEC_dealloc, lng_SOLFEC_new,
     lng_SOLFEC_methods, lng_SOLFEC_members, lng_SOLFEC_getset);
@@ -7596,6 +7805,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_CONVEX_TYPE) < 0) return;
   if (PyType_Ready (&lng_MESH_TYPE) < 0) return;
   if (PyType_Ready (&lng_SPHERE_TYPE) < 0) return;
+  if (PyType_Ready (&lng_ELLIP_TYPE) < 0) return;
   if (PyType_Ready (&lng_SOLFEC_TYPE) < 0) return;
   if (PyType_Ready (&lng_SURFACE_MATERIAL_TYPE) < 0) return;
   if (PyType_Ready (&lng_BULK_MATERIAL_TYPE) < 0) return;
@@ -7612,6 +7822,7 @@ static void initlng (void)
   Py_INCREF (&lng_CONVEX_TYPE);
   Py_INCREF (&lng_MESH_TYPE);
   Py_INCREF (&lng_SPHERE_TYPE);
+  Py_INCREF (&lng_ELLIP_TYPE);
   Py_INCREF (&lng_SOLFEC_TYPE);
   Py_INCREF (&lng_SURFACE_MATERIAL_TYPE);
   Py_INCREF (&lng_BULK_MATERIAL_TYPE);
@@ -7626,6 +7837,7 @@ static void initlng (void)
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
   PyModule_AddObject (m, "MESH", (PyObject*)&lng_MESH_TYPE);
   PyModule_AddObject (m, "SPHERE", (PyObject*)&lng_SPHERE_TYPE);
+  PyModule_AddObject (m, "ELLIP", (PyObject*)&lng_ELLIP_TYPE);
   PyModule_AddObject (m, "SOLFEC", (PyObject*)&lng_SOLFEC_TYPE);
   PyModule_AddObject (m, "SURFACE_MATERIAL", (PyObject*)&lng_SURFACE_MATERIAL_TYPE);
   PyModule_AddObject (m, "BULK_MATERIAL", (PyObject*)&lng_BULK_MATERIAL_TYPE);
@@ -7663,6 +7875,7 @@ int lng (const char *path)
                      "from solfec import PIPE\n"
                      "from solfec import ROUGH_HEX\n"
                      "from solfec import SPHERE\n"
+                     "from solfec import ELLIP\n"
                      "from solfec import SOLFEC\n"
                      "from solfec import SURFACE_MATERIAL\n"
                      "from solfec import BULK_MATERIAL\n"

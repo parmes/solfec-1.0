@@ -26,6 +26,7 @@
 #include "msh.h"
 #include "cvx.h"
 #include "sph.h"
+#include "eli.h"
 #include "cvi.h"
 #include "gjk.h"
 #include "goc.h"
@@ -80,6 +81,29 @@ inline static double sphere_sphere_gap (double *ca, double ra, double *cb, doubl
   return (e > d ? d - e : 0);
 }
 
+/* compute normal to spehere at given point */
+inline static void sphere_normal (double *c, double r, double *pnt, double *normal)
+{
+  SUB (pnt, c, normal);
+  NORMALIZE (normal);
+}
+
+/* compute normal to ellipsoid at given point */
+inline static void ellip_normal (double *c, double *sca, double *rot, double *pnt, double *normal)
+{
+  double q [3], p [3];
+
+  SUB (pnt, c, q);
+  TVMUL (rot, q, p); /* input point in the ellipsoid reference system (where the unit sphere is only scaled) */
+
+  q [0] = p [0] / (sca[0] * sca[0]);
+  q [1] = p [1] / (sca[1] * sca[1]);
+  q [2] = p [2] / (sca[2] * sca[2]); /* gradient to reference ellipsoid * 0.5 */
+
+  NVMUL (rot, q, normal);
+  NORMALIZE (normal);
+}
+
 /* return a surface code with the input point closest to an input plane */
 inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
 {
@@ -93,7 +117,7 @@ inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
 
     if (fabs (d) < min)
     {
-      min = d;
+      min = fabs (d);
       ret = *sur;
     }
   }
@@ -240,6 +264,32 @@ static int detect_convex_sphere (
   return 0;
 }
 
+/* detect contact between a convex and an ellipsoid */
+static int detect_convex_ellip (
+  double *vc, int nvc, double *pc, int npc, int *sc, int nsc, /* same as above */
+  double *c, double *sca, double *rot, int s, /* center, scaling, rotation, surface */
+  double onepnt [3],
+  double twopnt [3],
+  double normal [3],
+  double *gap,
+  double *area,
+  int spair [2])
+{
+  if (gjk_convex_ellip (vc, nvc, c, sca, rot, onepnt, twopnt) < GEOMETRIC_EPSILON)
+  {
+    ellip_normal (c, sca, rot, twopnt, normal);
+    SCALE (normal, -1.0); /* convex outward */
+
+    spair [0] = nearest_surface (onepnt, pc, sc, nsc);
+    spair [1] = s;
+    *area = 1.0;
+    *gap = gjk_convex_ellip_gap (vc, nvc, c, sca, rot, normal);
+    return 1;
+  }
+
+  return 0;
+}
+
 /* compare two points */
 inline static int pntcmp (double *a, double *b)
 {
@@ -282,6 +332,84 @@ static int detect_sphere_sphere (
       SUB (twopnt, cb, normal);
       NORMALIZE (normal);
       *gap = sphere_sphere_gap (cb, rb, ca, ra, normal);
+      return 2;
+    }
+  }
+
+  return 0;
+}
+
+/* detect contact between ellipsoids 'a' and 'b' */
+static int detect_ellip_ellip (
+  double *a, double *asca, double *arot, int sa,
+  double *b, double *bsca, double *brot, int sb,
+  double onepnt [3],
+  double twopnt [3],
+  double normal [3],
+  double *gap,
+  double *area,
+  int spair [2])
+{
+  if (((*gap) = gjk_ellip_ellip (a, asca, arot, b, bsca, brot, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  {
+    spair [0] = sa;
+    spair [1] = sb;
+
+    *area = 1.0;
+
+    if (pntcmp (a, b) <= 0) /* same normal orientation regardless of processing order */
+    {
+      ellip_normal (a, asca, arot, onepnt, normal);
+      *gap = gjk_ellip_ellip_gap (a, asca, arot, b, bsca, brot, normal);
+      if (*gap > 0) *gap = 0; /* XXX: roundoff */
+      return 1;
+    }
+    else
+    {
+      ellip_normal (b, bsca, brot, twopnt, normal);
+      *gap = gjk_ellip_ellip_gap (b, bsca, brot, a, asca, arot, normal);
+      if (*gap > 0) *gap = 0; /* XXX: roundoff */
+      return 2;
+    }
+  }
+
+  return 0;
+}
+
+/* detect contact between spehre 'a' and ellipsoid 'b' */
+static int detect_sphere_ellip (
+  double *a, double ra, int sa,
+  double *b, double *bsca, double *brot, int sb,
+  double onepnt [3],
+  double twopnt [3],
+  double normal [3],
+  double *gap,
+  double *area,
+  int spair [2])
+{
+  if (((*gap) = gjk_sphere_ellip (a, ra, b, bsca, brot, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  {
+    spair [0] = sa;
+    spair [1] = sb;
+
+    *area = 1.0;
+
+    if (pntcmp (a, b) <= 0) /* same normal orientation regardless of processing order */
+    {
+      sphere_normal (a, ra, onepnt, normal);
+      *gap = gjk_sphere_ellip_gap (a, ra, b, bsca, brot, normal);
+      if (*gap > 0) *gap = 0; /* XXX: roundoff */
+      return 1;
+    }
+    else
+    {
+      double n [3];
+
+      ellip_normal (b, bsca, brot, twopnt, normal);
+      COPY (normal, n);
+      SCALE (n, -1.0);
+      *gap = gjk_sphere_ellip_gap (a, ra, b, bsca, brot, n);
+      if (*gap > 0) *gap = 0; /* XXX: roundoff */
       return 2;
     }
   }
@@ -356,6 +484,35 @@ static int update_convex_sphere (
   return 0;
 }
 
+/* update contact between a convex and an ellipsoid */
+static int update_convex_ellip (
+  double *vc, int nvc, double *pc, int npc, int *sc, int nsc, /* same as above */
+  double *c, double *sca, double *rot, int s, /* center, scaling, rotation, surface */
+  double onepnt [3],
+  double twopnt [3],
+  double normal [3],
+  double *gap,
+  double *area,
+  int spair [2])
+{
+  int s0;
+
+  if (gjk_convex_ellip (vc, nvc, c, sca, rot, onepnt, twopnt) < GEOMETRIC_EPSILON)
+  {
+    ellip_normal (c, sca, rot, twopnt, normal);
+    SCALE (normal, -1.0); /* convex outward */
+
+    s0 = spair [0];
+    spair [0] = nearest_surface (onepnt, pc, sc, nsc);
+    *gap = gjk_convex_ellip_gap (vc, nvc, c, sca, rot, normal);
+
+    if (s0 == spair [0]) return 1;
+    else return 2;
+  }
+
+  return 0;
+}
+
 /* update contact between spheres 'a' and 'b' */
 static int update_sphere_sphere (
   double *ca, double ra, int sa, /* center, radius, surface */
@@ -372,6 +529,50 @@ static int update_sphere_sphere (
     SUB (onepnt, ca, normal);
     NORMALIZE (normal);
     *gap = sphere_sphere_gap (ca, ra, cb, rb, normal);
+    return 1;
+  }
+
+  return 0;
+}
+
+/* update contact between ellipsoids 'a' and 'b' */
+static int update_ellip_ellip (
+  double *a, double *asca, double *arot, int sa,
+  double *b, double *bsca, double *brot, int sb,
+  double onepnt [3],
+  double twopnt [3],
+  double normal [3],
+  double *gap,
+  double *area,
+  int spair [2])
+{
+  if (((*gap) = gjk_ellip_ellip (a, asca, arot, b, bsca, brot, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  {
+    ellip_normal (a, asca, arot, onepnt, normal);
+    *gap = gjk_ellip_ellip_gap (a, asca, arot, b, bsca, brot, normal);
+    if (*gap > 0) *gap = 0; /* XXX: roundoff */
+    return 1;
+  }
+
+  return 0;
+}
+
+/* update contact between sphere 'a' and ellipsoid 'b' */
+static int update_sphere_ellip (
+  double *a, double ra, int sa, /* center, radius, surface */
+  double *b, double *bsca, double *brot, int sb,
+  double onepnt [3],
+  double twopnt [3],
+  double normal [3],
+  double *gap,
+  double *area,
+  int spair [2])
+{
+  if (((*gap) = gjk_sphere_ellip (a, ra, b, bsca, brot, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  {
+    sphere_normal (a, ra, onepnt, normal);
+    *gap = gjk_sphere_ellip_gap (a, ra, b, bsca, brot, normal);
+    if (*gap > 0) *gap = 0; /* XXX: roundoff */
     return 1;
   }
 
@@ -677,6 +878,12 @@ static int nodecontact (
     case AABB_SPHERE_NODE:
       ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
       break;
+    case AABB_NODE_ELLIP:
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
+      break;
+    case AABB_SPHERE_ELLIP:
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
+      break;
   }
 
   return 0;
@@ -826,7 +1033,6 @@ static int detect (
 				  gap, area, spair);
 
       return detect_swap (ret, spair);
-
     }
     break;
     case AABB_CONVEX_SPHERE:
@@ -869,12 +1075,120 @@ static int detect (
       return detect_swap (ret, spair);
     }
     break;
+    case AABB_ELLIP_ELLIP:
+    {
+      ELLIP *a = onegobj,
+	    *b = twogobj;
+
+      return detect_ellip_ellip (a->cur_center, a->cur_sca, a->cur_rot, a->surface,
+                                 b->cur_center, b->cur_sca, b->cur_rot, b->surface,
+                                 onepnt, twopnt, normal, gap, area, spair);
+    }
+    break;
+    case AABB_ELEMENT_ELLIP:
+    {
+      double va [24], pa [36];
+      int nva, npa, sa [6], nsa;
+      ELLIP *b = twogobj;
+
+      nva = ELEMENT_Vertices (oneshp->data, onegobj, va);
+      npa = ELEMENT_Planes (oneshp->data, onegobj, pa, sa, &nsa);
+
+      return detect_convex_ellip (va, nva, pa, npa, sa, nsa,
+                                  b->cur_center, b->cur_sca, b->cur_rot, b->surface,
+                                  onepnt, twopnt, normal, gap, area, spair);
+    }
+    break;
+    case AABB_ELLIP_ELEMENT:
+    {
+      ELLIP *a = onegobj;
+      double vb [24], pb [36];
+      int nvb, npb, sb [6], nsb,
+	  ret;
+
+      nvb = ELEMENT_Vertices (twoshp->data, twogobj, vb);
+      npb = ELEMENT_Planes (twoshp->data, twogobj, pb, sb, &nsb);
+
+      swap (spair);
+
+      ret = detect_convex_ellip (vb, nvb, pb, npb, sb, nsb,
+                                 a->cur_center, a->cur_sca, a->cur_rot, a->surface,
+                                 twopnt, onepnt, normal, gap, area, spair);
+
+      return detect_swap (ret, spair);
+    }
+    break;
+    case AABB_CONVEX_ELLIP:
+    {
+      double *va, *pa;
+      ELLIP *b = twogobj;
+      int nva, npa, *sa, nsa,
+	  ret;
+
+      convex_init (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
+
+      ret = detect_convex_ellip (va, nva, pa, npa, sa, nsa,
+                                  b->cur_center, b->cur_sca, b->cur_rot, b->surface,
+                                  onepnt, twopnt, normal, gap, area, spair);
+
+      convex_done (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
+
+      return ret;
+    }
+    break;
+    case AABB_ELLIP_CONVEX:
+    {
+      ELLIP *a = onegobj;
+      double *vb, *pb;
+      int nvb, npb, *sb, nsb, ret;
+
+      convex_init (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
+
+      swap (spair);
+
+      ret = detect_convex_ellip (vb, nvb, pb, npb, sb, nsb,
+                                  a->cur_center, a->cur_sca, a->cur_rot, a->surface,
+                                  twopnt, onepnt, normal, gap, area, spair);
+
+      convex_done (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
+
+      return detect_swap (ret, spair);
+    }
+    break;
+    case AABB_SPHERE_ELLIP:
+    {
+      SPHERE *a = onegobj;
+      ELLIP *b = twogobj;
+
+      return detect_sphere_ellip (a->cur_center, a->cur_radius, a->surface,
+                                  b->cur_center, b->cur_sca, b->cur_rot, b->surface,
+                                  onepnt, twopnt, normal, gap, area, spair);
+
+    }
+    break;
+    case AABB_ELLIP_SPHERE:
+    {
+      ELLIP *a = onegobj;
+      SPHERE *b = twogobj;
+      int ret;
+
+      swap (spair);
+
+      ret = detect_sphere_ellip (b->cur_center, b->cur_radius, b->surface,
+                                 a->cur_center, a->cur_sca, a->cur_rot, a->surface,
+                                 twopnt, onepnt, normal, gap, area, spair);
+
+      return detect_swap (ret, spair);
+    }
+    break;
     case AABB_NODE_ELEMENT:
     case AABB_ELEMENT_NODE:
     case AABB_NODE_CONVEX:
     case AABB_CONVEX_NODE:
     case AABB_NODE_SPHERE:
     case AABB_SPHERE_NODE:
+    case AABB_NODE_ELLIP:
+    case AABB_ELLIP_NODE:
       return nodecontact (1, paircode, oneshp, onegobj, twoshp,
 	     twogobj, onepnt, twopnt, normal, gap, area, spair);
       break;
@@ -1005,16 +1319,14 @@ static int update (
 
       return update_convex_sphere (va, nva, pa, npa, sa, nsa,
                                    b->cur_center, b->cur_radius, b->surface,
-                                   onepnt, twopnt, normal,
-				   gap, area, spair);
+                                   onepnt, twopnt, normal, gap, area, spair);
     }
     break;
     case AABB_SPHERE_ELEMENT:
     {
       SPHERE *a = onegobj;
       double vb [24], pb [36];
-      int nvb, npb, sb [6], nsb,
-	  ret;
+      int nvb, npb, sb [6], nsb, ret;
 
       nvb = ELEMENT_Vertices (twoshp->data, twogobj, vb);
       npb = ELEMENT_Planes (twoshp->data, twogobj, pb, sb, &nsb);
@@ -1023,26 +1335,22 @@ static int update (
 
       ret = update_convex_sphere (vb, nvb, pb, npb, sb, nsb,
                                   a->cur_center, a->cur_radius, a->surface,
-                                  twopnt, onepnt, normal,
-				  gap, area, spair);
+                                  twopnt, onepnt, normal, gap, area, spair);
 
       return update_swap (ret, spair);
-
     }
     break;
     case AABB_CONVEX_SPHERE:
     {
       double *va, *pa;
       SPHERE *b = twogobj;
-      int nva, npa, *sa, nsa,
-	  ret;
+      int nva, npa, *sa, nsa, ret;
 
       convex_init (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
 
       ret = update_convex_sphere (va, nva, pa, npa, sa, nsa,
                                   b->cur_center, b->cur_radius, b->surface,
-                                  onepnt, twopnt, normal,
-				  gap, area, spair);
+                                  onepnt, twopnt, normal, gap, area, spair);
 
       convex_done (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
 
@@ -1053,8 +1361,7 @@ static int update (
     {
       SPHERE *a = onegobj;
       double *vb, *pb;
-      int nvb, npb, *sb, nsb,
-	  ret;
+      int nvb, npb, *sb, nsb, ret;
 
       convex_init (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
 
@@ -1062,10 +1369,113 @@ static int update (
 
       ret = update_convex_sphere (vb, nvb, pb, npb, sb, nsb,
                                   a->cur_center, a->cur_radius, a->surface,
-                                  twopnt, onepnt, normal,
-				  gap, area, spair);
+                                  twopnt, onepnt, normal, gap, area, spair);
 
       convex_done (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
+
+      return update_swap (ret, spair);
+    }
+    break;
+    case AABB_ELLIP_ELLIP:
+    {
+      ELLIP *a = onegobj,
+	    *b = twogobj;
+
+      return update_ellip_ellip (a->cur_center, a->cur_sca, a->cur_rot, a->surface,
+                                 b->cur_center, b->cur_sca, b->cur_rot, b->surface,
+                                 onepnt, twopnt, normal, gap, area, spair);
+    }
+    break;
+    case AABB_ELEMENT_ELLIP:
+    {
+      double va [24], pa [36];
+      int nva, npa, sa [6], nsa;
+      ELLIP *b = twogobj;
+
+      nva = ELEMENT_Vertices (oneshp->data, onegobj, va);
+      npa = ELEMENT_Planes (oneshp->data, onegobj, pa, sa, &nsa);
+
+      return update_convex_ellip (va, nva, pa, npa, sa, nsa,
+                                  b->cur_center, b->cur_sca, b->cur_rot, b->surface,
+                                  onepnt, twopnt, normal, gap, area, spair);
+    }
+    break;
+    case AABB_ELLIP_ELEMENT:
+    {
+      ELLIP *a = onegobj;
+      double vb [24], pb [36];
+      int nvb, npb, sb [6], nsb,
+	  ret;
+
+      nvb = ELEMENT_Vertices (twoshp->data, twogobj, vb);
+      npb = ELEMENT_Planes (twoshp->data, twogobj, pb, sb, &nsb);
+
+      swap (spair);
+
+      ret = update_convex_ellip (vb, nvb, pb, npb, sb, nsb,
+                                 a->cur_center, a->cur_sca, a->cur_rot, a->surface,
+                                 twopnt, onepnt, normal, gap, area, spair);
+
+      return update_swap (ret, spair);
+    }
+    break;
+    case AABB_CONVEX_ELLIP:
+    {
+      double *va, *pa;
+      ELLIP *b = twogobj;
+      int nva, npa, *sa, nsa, ret;
+
+      convex_init (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
+
+      ret = update_convex_ellip (va, nva, pa, npa, sa, nsa,
+                                 b->cur_center, b->cur_sca, b->cur_rot, b->surface,
+                                 onepnt, twopnt, normal, gap, area, spair);
+
+      convex_done (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
+
+      return ret;
+    }
+    break;
+    case AABB_ELLIP_CONVEX:
+    {
+      ELLIP *a = onegobj;
+      double *vb, *pb;
+      int nvb, npb, *sb, nsb, ret;
+
+      convex_init (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
+
+      swap (spair);
+
+      ret = update_convex_ellip (vb, nvb, pb, npb, sb, nsb,
+                                 a->cur_center, a->cur_sca, a->cur_rot, a->surface,
+                                 twopnt, onepnt, normal, gap, area, spair);
+
+      convex_done (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
+
+      return update_swap (ret, spair);
+    }
+    break;
+    case AABB_SPHERE_ELLIP:
+    {
+      SPHERE *a = onegobj;
+      ELLIP *b = twogobj;
+
+      return update_sphere_ellip (a->cur_center, a->cur_radius, a->surface,
+                                  b->cur_center, b->cur_sca, b->cur_rot, b->surface,
+                                  onepnt, twopnt, normal, gap, area, spair);
+    }
+    break;
+    case AABB_ELLIP_SPHERE:
+    {
+      ELLIP *a = onegobj;
+      SPHERE *b = twogobj;
+      int ret;
+
+      swap (spair);
+
+      ret = update_sphere_ellip (b->cur_center, b->cur_radius, b->surface,
+                                 a->cur_center, a->cur_sca, a->cur_rot, a->surface,
+                                 twopnt, onepnt, normal, gap, area, spair);
 
       return update_swap (ret, spair);
     }
@@ -1076,6 +1486,8 @@ static int update (
     case AABB_CONVEX_NODE:
     case AABB_NODE_SPHERE:
     case AABB_SPHERE_NODE:
+    case AABB_NODE_ELLIP:
+    case AABB_ELLIP_NODE:
       return nodecontact (0, paircode, oneshp, onegobj, twoshp,
 	     twogobj, onepnt, twopnt, normal, gap, area, spair);
       break;
@@ -1197,6 +1609,48 @@ double gobjdistance (short paircode, SGP *one, SGP *two, double *p, double *q)
       CONVEX *b = two->gobj;
 
       return gjk_convex_sphere (b->cur, b->nver, a->cur_center, a->cur_radius, q, p);
+    }
+    break;
+    case AABB_ELLIP_ELLIP:
+    {
+    }
+    break;
+    case AABB_ELEMENT_ELLIP:
+    {
+    }
+    break;
+    case AABB_ELLIP_ELEMENT:
+    {
+    }
+    break;
+    case AABB_CONVEX_ELLIP:
+    {
+    }
+    break;
+    case AABB_ELLIP_CONVEX:
+    {
+    }
+    break;
+    case AABB_SPHERE_ELLIP:
+    {
+    }
+    break;
+    case AABB_ELLIP_SPHERE:
+    {
+    }
+    break;
+    case AABB_NODE_NODE:
+    case AABB_NODE_ELEMENT:
+    case AABB_ELEMENT_NODE:
+    case AABB_NODE_CONVEX:
+    case AABB_CONVEX_NODE:
+    case AABB_NODE_SPHERE:
+    case AABB_SPHERE_NODE:
+    case AABB_NODE_ELLIP:
+    case AABB_ELLIP_NODE:
+    {
+      WARNING (0, "This node based distance query has not been imlemented!");
+      /* TODO */
     }
     break;
   }

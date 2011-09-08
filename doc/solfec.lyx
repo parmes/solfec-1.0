@@ -2392,7 +2392,7 @@ SPHERE
 \end_layout
 
 \begin_layout Standard
-An object of type SPHERE is either a sphere, or it is a collections of spheres.
+An object of type SPHERE represents a single sphere.
 \end_layout
 
 \begin_layout Subsection*
@@ -2481,6 +2481,146 @@ Read-only
 
 \emph on
 obj.center, obj.radius
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+\begin_inset CommandInset label
+LatexCommand label
+name "sub:ELLIPSOID"
+
+\end_inset
+
+ELLIP 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+An object of type ELLIP represents a single ellipsoid.
+\end_layout
+
+\begin_layout Subsection*
+obj = ELLIP (center, radii, volid, surfid)
+\end_layout
+
+\begin_layout Standard
+This routine creates an ELLIP object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created ELLIP object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+center
+\series default
+ - tuple 
+\emph on
+(x, y, z)
+\emph default
+ defining the center
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+radii
+\series default
+ - tuple 
+\emph on
+(rx, ry, rz)
+\emph default
+ of ellipsoid radii
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ - surface identifier
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a ELLIP object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members and methods
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.center, obj.radii
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.rot
+\series default
+\emph default
+ - tuple 
+\begin_inset Formula $\left(v_{1x},v_{1y},v_{1z},v_{2x},v_{2y},v_{2z},v_{3x},v_{3y},v_{3z}\right)$
+\end_inset
+
+ representing a rotation operator from the ellipsoid natural coordinaet
+ (aligned with principal axes) system to the global cooridinate system
 \end_layout
 
 \end_inset
@@ -3482,11 +3622,12 @@ kind
 \series bold
 shape
 \series default
- (emptied) - this is can be a CONVEX/MESH/SPHERE object, or a list 
+ (emptied) - this is can be a CONVEX/MESH/SPHERE/ELLIP object, or a list
+ 
 \emph on
 [obj1, obj2, ...]
 \emph default
-, where each object is of type CONVEX/MESH/SPHERE.
+, where each object is of type CONVEX/MESH/SPHERE/ELLIP.
  If the 
 \series bold
 kind
@@ -7543,7 +7684,7 @@ shape
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX, MESH, SPHERE.
+ of objects of type CONVEX, MESH, SPHERE, ELLIP.
  Alternately this can be a single 
 \emph on
 (x, y, z)
@@ -7637,7 +7778,7 @@ shape
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX, MESH, SPHERE.
+ of objects of type CONVEX, MESH, SPHERE, ELLIP.
  Alternately this can be a single 
 \emph on
 (x, y, z)
@@ -7719,7 +7860,7 @@ shape
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX, MESH, SPHERE.
+ of objects of type CONVEX, MESH, SPHERE, ELLIP.
  Alternately this can be a single 
 \emph on
 (x, y, z)
@@ -7820,7 +7961,7 @@ shape
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX, SPHERE or MESH
+ of objects of type CONVEX, SPHERE, ELLIP or MESH
 \end_layout
 
 \begin_layout Itemize
@@ -7904,7 +8045,7 @@ shape
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX, MESH, SPHERE
+ of objects of type CONVEX, MESH, SPHERE, ELLIP
 \end_layout
 
 \begin_layout Subsection*
@@ -8062,7 +8203,7 @@ shape
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX, MESH, SPHERE.
+ of objects of type CONVEX, MESH, SPHERE, ELLIP.
  Alternately this can be a single
 \emph on
  
@@ -8363,7 +8504,7 @@ obstacles
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX, MESH, SPHERE.
+ of objects of type CONVEX, MESH, SPHERE, ELLIP.
 \end_layout
 
 \begin_layout Itemize
@@ -8375,7 +8516,7 @@ shapes
 \emph on
 [a, b, c, ...]
 \emph default
- of objects of type CONVEX, MESH, SPHERE.
+ of objects of type CONVEX, MESH, SPHERE, ELLIP.
 \end_layout
 
 \begin_layout Itemize

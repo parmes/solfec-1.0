@@ -35,17 +35,15 @@
  * extract from it the rotation oprator and scaling coefficients for unit sphere */
 static void sca_rot (double *c, double (*p) [3], double *sca, double *rot)
 {
-  double V [9] = {p[0][0] - c[0], p[1][0] - c[0], p[2][0] - c[0],
-                  p[0][1] - c[1], p[1][1] - c[1], p[2][1] - c[1],
-                  p[0][2] - c[2], p[1][2] - c[2], p[2][2] - c[2]},
-	A [9], X [3], Y [9];
+  double V [9] = {p[0][0] - c[0], p[0][1] - c[1], p[0][2] - c[2],
+                  p[1][0] - c[0], p[1][1] - c[1], p[1][2] - c[2],
+                  p[2][0] - c[0], p[2][1] - c[1], p[2][2] - c[2]}, U [9];
+  int i;
 
-  NTMUL (V, V, A);
-  ASSERT_TEXT (lapack_dsyev ('N', 'U', 3, A, 3, X, Y, 9) == 0, "Ellipsoid eigen decomposition faied");
-  sca [0] = sqrt (X[0]);
-  sca [1] = sqrt (X[1]);
-  sca [2] = sqrt (X[2]);
-  NNCOPY (Y, rot);
+  POLAR (V, 1E-10, rot, U, i); /* XXX: find out a better way */
+  sca [0] = U [0];
+  sca [1] = U [4];
+  sca [2] = U [8];
 }
 
 /* create an ellipsoid */

@@ -93,21 +93,24 @@ inline static double* maximal_support_point (double *c, int n, double *v)
 }
 
 /* allocate output point for curved primitives */
-inline static double* output_point (point *w, int n, double b [4][3])
+inline static double* output_point (point *w, int n, double x [4][3], short maximal)
 {
   double *out = NULL;
   int i, j;
 
   /* identify a spare return
-   * pointer inside of 'b' */
+   * pointer inside of 'x' */
   for (j = 0; j < 4; j ++)
   {
     for (i = 0; i < n; i ++)
-      if (w [i].b == b [j]) break; /* nope => this one is being used */
+    {
+      if (maximal && w [i].b == x [j]) break; /* nope => this one is being used */
+      else if (!maximal && w [i].a == x [j]) break;
+    }
 
     if (i == n) /* found */
     {
-      out = b [j];
+      out = x [j];
       break;
     }
   }
@@ -118,9 +121,9 @@ inline static double* output_point (point *w, int n, double b [4][3])
 }
 
 /* find minimal point in the sphere (c, r) along the direction of 'v' */
-inline static double* minimal_sphere_support_point (point *w, int n, double b [4][3], double *c, double r, double *v)
+inline static double* minimal_sphere_support_point (point *w, int n, double (*x) [3], double *c, double r, double *v)
 {
-  double *out = output_point (w, n, b);
+  double *out = output_point (w, n, x, 0);
 
   COPY (v, out);
   NORMALIZE (out);
@@ -131,9 +134,9 @@ inline static double* minimal_sphere_support_point (point *w, int n, double b [4
 }
 
 /* find maximal point in the sphere (c, r) along the direction of 'v' */
-inline static double* maximal_sphere_support_point (point *w, int n, double b [4][3], double *c, double r, double *v)
+inline static double* maximal_sphere_support_point (point *w, int n, double (*x) [3], double *c, double r, double *v)
 {
-  double *out = output_point (w, n, b);
+  double *out = output_point (w, n, x, 1);
 
   COPY (v, out);
   NORMALIZE (out);
@@ -144,7 +147,7 @@ inline static double* maximal_sphere_support_point (point *w, int n, double b [4
 }
 
 /* find minimal point in the ellipsoid (c, sca, rot) along the direction of 'v' */
-inline static double* minimal_ellip_support_point (point *w, int n, double b [4][3], double *c, double *sca, double *rot, double *v)
+inline static double* minimal_ellip_support_point (point *w, int n, double (*x) [3], double *c, double *sca, double *rot, double *v)
 {
   /* (paraphrase of a comment from OpenTissue engine)
    * An ellipsoid E is a scaled, rotated and translated unit, zero-centered ball B.
@@ -162,7 +165,7 @@ inline static double* minimal_ellip_support_point (point *w, int n, double b [4]
    * S_{A(B)}(v)  =   A(S_B(T'v))
    */
 
-  double *out = output_point (w, n, b);
+  double *out = output_point (w, n, x, 0);
   double T [9], q [3];
 
   NNCOPY (rot, T);
@@ -180,7 +183,7 @@ inline static double* minimal_ellip_support_point (point *w, int n, double b [4]
 }
 
 /* find maximal point in the ellipsoid (c, sca, rot) along the direction of 'v' */
-inline static double* maximal_ellip_support_point (point *w, int n, double b [4][3], double *c, double *sca, double *rot, double *v)
+inline static double* maximal_ellip_support_point (point *w, int n, double (*x) [3], double *c, double *sca, double *rot, double *v)
 {
   /* (paraphrase of a comment from OpenTissue engine)
    * An ellipsoid E is a scaled, rotated and translated unit, zero-centered ball B.
@@ -198,7 +201,7 @@ inline static double* maximal_ellip_support_point (point *w, int n, double b [4]
    * S_{A(B)}(v)  =   A(S_B(T'v))
    */
 
-  double *out = output_point (w, n, b);
+  double *out = output_point (w, n, x, 1);
   double T [9], q [3];
 
   NNCOPY (rot, T);
@@ -772,4 +775,72 @@ double gjk_ellip_point (double *a, double *asca, double *arot, double *p, double
   }
 
   return vlen;
+}
+
+/* compute gap function betwen two primitives along the given unit normal;
+ * the normal direction is assumed to be outward to the first primitive */
+double gjk_convex_convex_gap (double *a, int na, double *b, int nb, double *normal)
+{
+  double *p, *q, d [3];
+
+  p = maximal_support_point (a, na, normal);
+  q = minimal_support_point (b, nb, normal);
+  SUB (q, p, d);
+
+  return DOT (normal, d);
+}
+
+double gjk_convex_sphere_gap (double *a, int na, double *b, double rb, double *normal)
+{
+  double *p, *q, d [3], y [1][3];
+
+  p = maximal_support_point (a, na, normal);
+  q = minimal_sphere_support_point (NULL, 0, y, b, rb, normal);
+  SUB (q, p, d);
+
+  return DOT (normal, d);
+}
+
+double gjk_convex_ellip_gap (double *a, int na, double *b, double *bsca, double *brot, double *normal)
+{
+  double *p, *q, d [3], y [1][3];
+
+  p = maximal_support_point (a, na, normal);
+  q = minimal_ellip_support_point (NULL, 0, y, b, bsca, brot, normal);
+  SUB (q, p, d);
+
+  return DOT (normal, d);
+}
+
+double gjk_sphere_sphere_gap (double *a, double ra, double *b, double rb, double *normal)
+{
+  double *p, *q, d [3], y [1][3], z [1][3];
+
+  p = maximal_sphere_support_point (NULL, 0, y, a, ra, normal);
+  q = minimal_sphere_support_point (NULL, 0, z, b, rb, normal);
+  SUB (q, p, d);
+
+  return DOT (normal, d);
+}
+
+double gjk_sphere_ellip_gap (double *a, double ra, double *b, double *bsca, double *brot, double *normal)
+{
+  double *p, *q, d [3], y [1][3], z [1][3];
+
+  p = maximal_sphere_support_point (NULL, 0, y, a, ra, normal);
+  q = minimal_ellip_support_point (NULL, 0, z, b, bsca, brot, normal);
+  SUB (q, p, d);
+
+  return DOT (normal, d);
+}
+
+double gjk_ellip_ellip_gap (double *a, double *asca, double *arot, double *b, double *bsca, double *brot, double *normal)
+{
+  double *p, *q, d [3], y [1][3], z [1][3];
+
+  p = maximal_ellip_support_point (NULL, 0, y, a, asca, arot, normal);
+  q = minimal_ellip_support_point (NULL, 0, z, b, bsca, brot, normal);
+  SUB (q, p, d);
+
+  return DOT (normal, d);
 }

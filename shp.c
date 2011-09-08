@@ -604,7 +604,9 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int 
 
   for (shq = shp; shq; shq = shq->next)
   {
-    if (shq->kind == SHAPE_CONVEX)
+    switch (shq->kind)
+    {
+    case  SHAPE_CONVEX:
     {
       CONVEX *one = NULL, *two = NULL;
 
@@ -612,21 +614,44 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int 
       if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
       if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
     }
-    else if (shq->kind == SHAPE_SPHERE)
+    break;
+    case SHAPE_SPHERE:
     {
       CONVEX *one = NULL, *two = NULL;
 
       SPHERE_Split (shq->data, point, normal, topoadj, surfid, &one, &two);
-      if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
-      if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
+      if (one && two)
+      {
+	back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
+        front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
+      }
+      else if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, one), back);
+      else if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_SPHERE, two), front);
     }
-    else if (shq->kind == SHAPE_MESH)
+    break;
+    case SHAPE_ELLIP:
+    {
+      CONVEX *one = NULL, *two = NULL;
+
+      ELLIP_Split (shq->data, point, normal, topoadj, surfid, &one, &two);
+      if (one && two)
+      {
+	back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
+        front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
+      }
+      else if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_ELLIP, one), back);
+      else if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_ELLIP, two), front);
+    }
+    break;
+    case SHAPE_MESH:
     {
       MESH *one = NULL, *two = NULL;
 
       MESH_Split (shq->data, point, normal, topoadj, surfid, &one, &two);
       if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, one), back);
       if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, two), front);
+    }
+    break;
     }
   }
 

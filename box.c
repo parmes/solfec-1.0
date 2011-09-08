@@ -26,6 +26,7 @@
 #include "msh.h"
 #include "cvx.h"
 #include "sph.h"
+#include "eli.h"
 #include "bod.h"
 #include "swp.h"
 #include "hsh.h"
@@ -511,6 +512,7 @@ BOX_Extents_Update SGP_Extents_Update (SGP *sgp)
   case GOBJ_ELEMENT: return (BOX_Extents_Update) ELEMENT_Extents;
   case GOBJ_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
   case GOBJ_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
+  case GOBJ_ELLIP: return (BOX_Extents_Update) ELLIP_Extents;
   case GOBJ_NODE: return (BOX_Extents_Update) NODE_Extents;
   default: break;
   }
