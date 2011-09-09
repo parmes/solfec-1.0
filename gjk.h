@@ -65,4 +65,7 @@ double gjk_sphere_sphere_gap (double *a, double ra, double *b, double rb, double
 double gjk_sphere_ellip_gap (double *a, double ra, double *b, double *bsca, double *brot, double *normal);
 double gjk_ellip_ellip_gap (double *a, double *asca, double *arot, double *b, double *bsca, double *brot, double *normal);
 
+/* compute furthest or closest (near == 0 or 1) point 'p' of a primitive along given normal direction */
+void gjk_ellip_support_point (double *a, double *sca, double *rot, double *normal, short near, double *p);
+
 #endif

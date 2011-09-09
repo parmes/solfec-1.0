@@ -25,4 +25,7 @@ int WRITE_MODE_FLAG ();
 /* get wireframe flag */
 int WIREFRAME_FLAG ();
 
+/* get non-Solfec input arguments */
+char** NON_SOLFEC_ARGV (int *argc);
+
 #endif

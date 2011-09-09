@@ -97,4 +97,6 @@ Combination of full and half- splitting may produce 3 fragments out of one body
 Handle this!
 ----------------------
 SICONOS_SOLVER
-------------------
+-----------------------------------------------
+Wire-frame rendering of spheres and ellipsoids
+-------------------------------------------------

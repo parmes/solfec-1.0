@@ -2229,8 +2229,8 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
  * CONVEX->ele[0] == corresponding element */
 CONVEX* MESH_Convex (MESH *msh, int ref)
 {
-  int fac [30], surfaces [6] = {INT_MAX, INT_MAX,
-    INT_MAX, INT_MAX, INT_MAX, INT_MAX}, nfac, *f, n;
+  int global = msh->faces->surface; /* XXX: use accidential gloabl surface identifier for internal faces */
+  int fac [30], surfaces [6] = {global, global, global, global, global, global}, nfac, *f, n;
   double nodes [8][3];
   ELEMENT *ele;
   CONVEX *cvx;

@@ -45,8 +45,13 @@ static char *INPUTFILE = NULL;
 /* global write mode flag */
 static int WRITEMODEFLAG = 0;
 
-/* flobal wireframe rendering flag */
+/* global wireframe rendering flag */
 static int WIREFRAMEFLAG = 0;
+
+/* global non-Solfec input arguments */
+#define MAX_ARGC 128
+static char *ARGV [MAX_ARGC];
+static int ARGC = 0;
 
 /* register new SOLFEC object */
 void REGISTER_SOLFEC (SOLFEC *sol)
@@ -77,6 +82,21 @@ int WRITE_MODE_FLAG ()
 int WIREFRAME_FLAG ()
 {
   return WIREFRAMEFLAG;
+}
+
+/* get non-Solfec input arguments */
+char** NON_SOLFEC_ARGV (int *argc)
+{
+  if (ARGC) 
+  {
+    *argc = ARGC;
+    return ARGV;
+  }
+  else
+  {
+    *argc = 0;
+    return NULL;
+  }
 }
 
 #ifndef LIBSOLFEC /* executables */
@@ -160,13 +180,14 @@ static char* getfile (int argc, char **argv)
     else if (strcmp (argv [n], "-v") == 0) continue;
     else if (strcmp (argv [n], "-w") == 0) WRITEMODEFLAG = 1;
     else if (strcmp (argv [n], "-f") == 0) WIREFRAMEFLAG = 1;
-    else if (path == NULL)
+    else if (path == NULL && (f = fopen (argv [n], "r")))
     {
-      if ((f = fopen (argv [n], "r")))
-      {
-        path = argv [n];
-        fclose (f);
-      }
+      path = argv [n];
+      fclose (f);
+    }
+    else if (ARGC < MAX_ARGC) /* non-Solfec argument */
+    {
+      ARGV [ARGC ++] = argv [n];
     }
   }
 
@@ -227,8 +248,10 @@ int main (int argc, char **argv)
     char *synopsis = "SYNOPSIS: solfec [-s sub-directory] path\n";
 #endif
 
-    if (!getfile (argc, argv)) printf (synopsis);
-    else lngerr = lng (getfile (argc, argv)); /* call interpreter */
+    char *path = getfile (argc, argv); /* parse input */
+
+    if (!path) printf (synopsis); /* print info */
+    else lngerr = lng (path); /* call interpreter */
 
 #if OPENGL
     if (vieweron (argc, argv) && !lngerr)

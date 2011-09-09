@@ -844,3 +844,10 @@ double gjk_ellip_ellip_gap (double *a, double *asca, double *arot, double *b, do
 
   return DOT (normal, d);
 }
+
+/* compute furthest or closest (near == 0 or 1) point 'p' of a primitive along given normal direction */
+void gjk_ellip_support_point (double *a, double *sca, double *rot, double *normal, short near, double *p)
+{
+  if (near) minimal_ellip_support_point (NULL, 0, (double (*) [3])p, a, sca, rot, normal);
+  else maximal_ellip_support_point (NULL, 0, (double (*) [3])p, a, sca, rot, normal);
+}
