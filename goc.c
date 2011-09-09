@@ -243,13 +243,8 @@ static int detect_convex_sphere (
   double *area,
   int spair [2])
 {
-  double g, h;
-
-  if ((g = gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  if (gjk_convex_point (vc, nvc, c, onepnt) < r + GEOMETRIC_EPSILON)
   {
-    for (h = r; g < GEOMETRIC_EPSILON && h > GEOMETRIC_EPSILON; h *= 0.5)
-      g = gjk_convex_sphere (vc, nvc, c, h, onepnt, twopnt); /* shrink sphere and redo => find projection
-								of the sphere center on the convex surface */
     SUB (c, onepnt, normal);
     NORMALIZE (normal);
     ADDMUL (c, -r, normal, twopnt);
@@ -277,13 +272,45 @@ static int detect_convex_ellip (
 {
   if (gjk_convex_ellip (vc, nvc, c, sca, rot, onepnt, twopnt) < GEOMETRIC_EPSILON)
   {
-    ellip_normal (c, sca, rot, twopnt, normal);
-    SCALE (normal, -1.0); /* convex outward */
+    double *pla = pc, *end = pc + 6*nsc, p [3], q [3], d;
 
-    spair [0] = nearest_surface (onepnt, pc, sc, nsc);
+    spair [0] = INT_MAX; /* invalidate */
+
+    for (; pla < end; pla += 6) /* for all surface planes */
+    {
+      SUB (onepnt, pla+3, p);
+      d = fabs (DOT (pla, p));
+      if (d < GEOMETRIC_EPSILON) /* find plane close to the contact point */
+      {
+        spair [0] = (pla - pc) / 6; /* new surface identifier */
+
+        gjk_ellip_support_point (c, sca, rot, pla, 1, p); /* find ellipsoid support point opposed to that plane normal */
+
+	if (gjk_convex_point (vc, nvc, p, q) < GEOMETRIC_EPSILON) /* if this point is still within the convex polyhedron */
+	{
+	  COPY (pla, normal); /* this will be the contact normal */
+	  break;
+	}
+      }
+    }
+
+    if (spair [0] == INT_MAX) return 0; /* none of the planes was close enough => invalid contact */
+
+    if (pla < end) /* if the contact normal was found redefine contact points */
+    {
+      COPY (p, twopnt);
+      COPY (q, onepnt);
+    }
+    else /* otherwise use ellipsoid normal and original points (corner, edge) */
+    {
+      ellip_normal (c, sca, rot, twopnt, normal);
+      SCALE (normal, -1.0); /* convex outward */
+    }
+
     spair [1] = s;
     *area = 1.0;
     *gap = gjk_convex_ellip_gap (vc, nvc, c, sca, rot, normal);
+    if (*gap > 0) *gap = 0; /* XXX: GEOMETRIC_EPSILON roundoff */
     return 1;
   }
 
@@ -361,14 +388,14 @@ static int detect_ellip_ellip (
     {
       ellip_normal (a, asca, arot, onepnt, normal);
       *gap = gjk_ellip_ellip_gap (a, asca, arot, b, bsca, brot, normal);
-      if (*gap > 0) *gap = 0; /* XXX: roundoff */
+      if (*gap > 0) *gap = 0; /* XXX: GEOMETRIC_EPSILON roundoff */
       return 1;
     }
     else
     {
       ellip_normal (b, bsca, brot, twopnt, normal);
       *gap = gjk_ellip_ellip_gap (b, bsca, brot, a, asca, arot, normal);
-      if (*gap > 0) *gap = 0; /* XXX: roundoff */
+      if (*gap > 0) *gap = 0; /* XXX: GEOMETRIC_EPSILON roundoff */
       return 2;
     }
   }
@@ -387,31 +414,15 @@ static int detect_sphere_ellip (
   double *area,
   int spair [2])
 {
-  if (((*gap) = gjk_sphere_ellip (a, ra, b, bsca, brot, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  if (gjk_sphere_ellip (a, ra, b, bsca, brot, onepnt, twopnt) < GEOMETRIC_EPSILON)
   {
     spair [0] = sa;
     spair [1] = sb;
-
     *area = 1.0;
-
-    if (pntcmp (a, b) <= 0) /* same normal orientation regardless of processing order */
-    {
-      sphere_normal (a, ra, onepnt, normal);
-      *gap = gjk_sphere_ellip_gap (a, ra, b, bsca, brot, normal);
-      if (*gap > 0) *gap = 0; /* XXX: roundoff */
-      return 1;
-    }
-    else
-    {
-      double n [3];
-
-      ellip_normal (b, bsca, brot, twopnt, normal);
-      COPY (normal, n);
-      SCALE (n, -1.0);
-      *gap = gjk_sphere_ellip_gap (a, ra, b, bsca, brot, n);
-      if (*gap > 0) *gap = 0; /* XXX: roundoff */
-      return 2;
-    }
+    sphere_normal (a, ra, onepnt, normal);
+    *gap = gjk_sphere_ellip_gap (a, ra, b, bsca, brot, normal);
+    if (*gap > 0) *gap = 0; /* XXX: GEOMETRIC_EPSILON roundoff */
+    return 1;
   }
 
   return 0;
@@ -461,14 +472,10 @@ static int update_convex_sphere (
   double *area,
   int spair [2])
 {
-  double g, h;
   int s0;
 
-  if (((*gap) = gjk_convex_sphere (vc, nvc, c, r, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  if (gjk_convex_point (vc, nvc, c, onepnt) < r + GEOMETRIC_EPSILON)
   {
-    for (h = r, g = *gap; g < GEOMETRIC_EPSILON && h > GEOMETRIC_EPSILON; h *= 0.5)
-      g = gjk_convex_sphere (vc, nvc, c, h, onepnt, twopnt); /* shrink sphere and redo => find projection
-								of the sphere center on the convex surface */
     SUB (c, onepnt, normal);
     NORMALIZE (normal);
     ADDMUL (c, -r, normal, twopnt);
@@ -499,12 +506,41 @@ static int update_convex_ellip (
 
   if (gjk_convex_ellip (vc, nvc, c, sca, rot, onepnt, twopnt) < GEOMETRIC_EPSILON)
   {
-    ellip_normal (c, sca, rot, twopnt, normal);
-    SCALE (normal, -1.0); /* convex outward */
+    double *pla = pc, *end = pc + 6*nsc, p [3], q [3], d;
 
-    s0 = spair [0];
-    spair [0] = nearest_surface (onepnt, pc, sc, nsc);
+    s0 = spair [0]; /* save previous surface identifier */
+
+    for (; pla < end; pla += 6) /* for all surface planes */
+    {
+      SUB (onepnt, pla+3, p);
+      d = fabs (DOT (pla, p));
+      if (d < GEOMETRIC_EPSILON) /* find plane close to the contact point */
+      {
+        spair [0] = (pla - pc) / 6; /* new surface identifier */
+
+        gjk_ellip_support_point (c, sca, rot, pla, 1, p); /* find ellipsoid support point opposed to that plane normal */
+
+	if (gjk_convex_point (vc, nvc, p, q) < GEOMETRIC_EPSILON) /* if this point is still within the convex polyhedron */
+	{
+	  COPY (pla, normal); /* this will be the contact normal */
+	  break;
+	}
+      }
+    }
+
+    if (pla < end) /* if the contact normal was found redefine contact points */
+    {
+      COPY (p, twopnt);
+      COPY (q, onepnt);
+    }
+    else /* otherwise use ellipsoid normal and original points (corner, edge) */
+    {
+      ellip_normal (c, sca, rot, twopnt, normal);
+      SCALE (normal, -1.0); /* convex outward */
+    }
+
     *gap = gjk_convex_ellip_gap (vc, nvc, c, sca, rot, normal);
+    if (*gap > 0) *gap = 0; /* XXX: GEOMETRIC_EPSILON roundoff */
 
     if (s0 == spair [0]) return 1;
     else return 2;
@@ -524,7 +560,7 @@ static int update_sphere_sphere (
   double *area,
   int spair [2])
 {
-  if (((*gap) = gjk_sphere_sphere (ca, ra, cb, rb, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  if (gjk_sphere_sphere (ca, ra, cb, rb, onepnt, twopnt) < GEOMETRIC_EPSILON)
   {
     SUB (onepnt, ca, normal);
     NORMALIZE (normal);
@@ -546,11 +582,11 @@ static int update_ellip_ellip (
   double *area,
   int spair [2])
 {
-  if (((*gap) = gjk_ellip_ellip (a, asca, arot, b, bsca, brot, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  if (gjk_ellip_ellip (a, asca, arot, b, bsca, brot, onepnt, twopnt) < GEOMETRIC_EPSILON)
   {
     ellip_normal (a, asca, arot, onepnt, normal);
     *gap = gjk_ellip_ellip_gap (a, asca, arot, b, bsca, brot, normal);
-    if (*gap > 0) *gap = 0; /* XXX: roundoff */
+    if (*gap > 0) *gap = 0; /* XXX: GEOMETRIC_EPSILON roundoff */
     return 1;
   }
 
@@ -568,11 +604,11 @@ static int update_sphere_ellip (
   double *area,
   int spair [2])
 {
-  if (((*gap) = gjk_sphere_ellip (a, ra, b, bsca, brot, onepnt, twopnt)) < GEOMETRIC_EPSILON)
+  if (gjk_sphere_ellip (a, ra, b, bsca, brot, onepnt, twopnt) < GEOMETRIC_EPSILON)
   {
     sphere_normal (a, ra, onepnt, normal);
     *gap = gjk_sphere_ellip_gap (a, ra, b, bsca, brot, normal);
-    if (*gap > 0) *gap = 0; /* XXX: roundoff */
+    if (*gap > 0) *gap = 0; /* XXX: GEOMETRIC_EPSILON roundoff */
     return 1;
   }
 

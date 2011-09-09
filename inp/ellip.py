@@ -1,6 +1,7 @@
 # first ellipsoid example
 
 step = 1E-3
+stop = 3
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/ellip')
 
@@ -10,7 +11,7 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E6, poisson = 0.3
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5, restitution = 0)
 
-n = 3
+n = 4
 
 for i in range (1, n):
   for j in range (1, n):
@@ -27,15 +28,13 @@ table = HULL ([0, 0, 0,
                0, 1, -0.1,
 	       1, 1, -0.1,
 	       1, 0, -0.1], 1, 1)
-SCALE (table, (n, n, 1)) #FIXME: contact detection bugs
+SCALE (table, (n, n, 1))
 #table = ELLIP ((n/2, n/2, 0), (n, n, 0.2), 3, 3)
-#table = SPHERE ((n/2, n/2, -n), n/2, 3, 3)
+#table = SPHERE ((n/2, n/2, -n/2), n/2, 3, 3)
 BODY (solfec, 'OBSTACLE', table, bulkmat)
 
+#sv = GAUSS_SEIDEL_SOLVER (1E1, 1000, 1E-7)
+sv = NEWTON_SOLVER (1E-7, delta = 1E-5)
 
-
-gs = GAUSS_SEIDEL_SOLVER (1E1, 1000, 1E-6)
-
-OUTPUT (solfec, step)
-
-RUN (solfec, gs, 0.497)
+OUTPUT (solfec, 0.01)
+RUN (solfec, sv, stop)

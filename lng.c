@@ -2060,7 +2060,10 @@ static int is_shape_convex (PyObject *obj, char *var)
 {
   if (obj)
   {
-    if (!is_basic_shape (obj))
+    char buf [BUFLEN];
+    sprintf (buf, "'%s' must be a non-empty CONVEX object or a list of those", var);
+
+    if (!is_basic_shape (obj)) /* may be a list */
     {
       if (PyList_Check (obj))
       {
@@ -2072,8 +2075,11 @@ static int is_shape_convex (PyObject *obj, char *var)
 	if (i == n) return 1;
       }
 
-      char buf [BUFLEN];
-      sprintf (buf, "'%s' must be a non-empty CONVEX object or a list of those", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+    else if (!is_convex_test (obj)) /* must be a convex */
+    {
       PyErr_SetString (PyExc_TypeError, buf);
       return 0;
     }
@@ -2801,6 +2807,25 @@ static int lng_BODY_set_ncon (lng_BODY *self, PyObject *value, void *closure)
   return -1;
 }
 
+static PyObject* lng_BODY_get_material (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (IS_HERE (self))
+  {
+#endif
+  return lng_BULK_MATERIAL_WRAPPER (self->bod->mat);
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_material (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* BODY methods */
 static PyMethodDef lng_BODY_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -2826,6 +2851,7 @@ static PyGetSetDef lng_BODY_getset [] =
   {"damping", (getter)lng_BODY_get_damping, (setter)lng_BODY_set_damping, "damping", NULL},
   {"constraints", (getter)lng_BODY_get_constraints, (setter)lng_BODY_set_constraints, "constraints list", NULL},
   {"ncon", (getter)lng_BODY_get_ncon, (setter)lng_BODY_set_ncon, "constraints count", NULL},
+  {"material", (getter)lng_BODY_get_material, (setter)lng_BODY_set_material, "global body material", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
@@ -4325,6 +4351,33 @@ static PyObject* lng_HULL (PyObject *self, PyObject *args, PyObject *kwds)
     if (cvx) convex->cvx = NULL; /* empty */
 
     free (pnt);
+  }
+
+  return (PyObject*)out;
+}
+
+/* create convex list out of a MESH object */
+static PyObject* lng_MESH2CONVEX (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("mesh");
+  lng_MESH *mesh;
+  lng_CONVEX *out;
+
+  out = (lng_CONVEX*)lng_CONVEX_TYPE.tp_alloc (&lng_CONVEX_TYPE, 0);
+
+  if (out)
+  {
+    PARSEKEYS ("O", &mesh);
+
+    TYPETEST (is_mesh ((PyObject*)mesh, kwl[0]));
+
+    if (mesh->msh == NULL)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "The mesh object is empty");
+      return NULL;
+    }
+
+    out->cvx = MESH_Convex (mesh->msh, 0);
   }
 
   return (PyObject*)out;
@@ -6970,6 +7023,30 @@ static PyObject* lng_MBFCP_EXPORT (PyObject *self, PyObject *args, PyObject *kwd
   Py_RETURN_NONE;
 }
 
+/* non-Solfec arguments */
+static PyObject* lng_NON_SOLFEC_ARGV (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  char **argv;
+  int argc;
+
+  if ((argv = NON_SOLFEC_ARGV (&argc)))
+  {
+    PyObject *list, *obj;
+    int n;
+
+    if (!(list = PyList_New (argc))) return NULL;
+
+    for (n = 0; n < argc; n ++)
+    {
+      obj = PyString_FromString (argv [n]);
+      PyList_SetItem (list, n, obj);
+    }
+
+    return list;
+  }
+  else Py_RETURN_NONE;
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -7676,6 +7753,7 @@ static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
 static PyMethodDef lng_methods [] =
 {
   {"HULL", (PyCFunction)lng_HULL, METH_VARARGS|METH_KEYWORDS, "Create convex hull from a point set"},
+  {"MESH2CONVEX", (PyCFunction)lng_MESH2CONVEX, METH_VARARGS|METH_KEYWORDS, "Create list of CONVEX objects from a MESH object"},
   {"HEX", (PyCFunction)lng_HEX, METH_VARARGS|METH_KEYWORDS, "Create mesh of a hexahedral shape"},
   {"TETRAHEDRALIZE", (PyCFunction)lng_TETRAHEDRALIZE, METH_VARARGS|METH_KEYWORDS, "Generate tetrahedral mesh"},
   {"PIPE", (PyCFunction)lng_PIPE, METH_VARARGS|METH_KEYWORDS, "Create mesh of a pipe shape"},
@@ -7725,6 +7803,7 @@ static PyMethodDef lng_methods [] =
   {"PARTITION", (PyCFunction)lng_PARTITION, METH_VARARGS|METH_KEYWORDS, "Partition a finite element body"},
   {"OVERLAPPING", (PyCFunction)lng_OVERLAPPING, METH_VARARGS|METH_KEYWORDS, "Detect shapes (not) overlapping obstacles"},
   {"MBFCP_EXPORT", (PyCFunction)lng_MBFCP_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MBFCP definition"},
+  {"NON_SOLFEC_ARGV", (PyCFunction)lng_NON_SOLFEC_ARGV, METH_NOARGS, "Return non-Solfec input arguments"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -7869,6 +7948,7 @@ int lng (const char *path)
 
   PyRun_SimpleString("from solfec import CONVEX\n"
                      "from solfec import HULL\n"
+                     "from solfec import MESH2CONVEX\n"
                      "from solfec import MESH\n"
                      "from solfec import HEX\n"
                      "from solfec import TETRAHEDRALIZE\n"
@@ -7930,6 +8010,7 @@ int lng (const char *path)
                      "from solfec import PARTITION\n"
                      "from solfec import OVERLAPPING\n"
                      "from solfec import MBFCP_EXPORT\n"
+                     "from solfec import NON_SOLFEC_ARGV\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"
