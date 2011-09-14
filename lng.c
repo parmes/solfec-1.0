@@ -220,6 +220,21 @@ static int is_le (double num, char *var, double val)
   return 1;
 }
 
+/* test whether a number is >= val */
+static int is_ge (double num, char *var, double val)
+{
+  char buf [BUFLEN];
+
+  if (num < val)
+  {
+    sprintf (buf, "'%s' must be >= %g", var, val);
+    PyErr_SetString (PyExc_TypeError, buf);
+    return 0;
+  }
+
+  return 1;
+}
+
 /* test whether a num is in (lo, hi] */
 static int is_gt_le (double num, char *var, double lo, double hi)
 {
@@ -5372,19 +5387,22 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
 /* set imbalance tolerances */
 static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "tolerance", "weightfactor");
+  KEYWORDS ("solfec", "tolerance", "weightfactor", "updatefreq");
   lng_SOLFEC *solfec;
   double tolerance,
 	 weightfactor;
+  int updatefreq;
 
   weightfactor = 1.0;
+  updatefreq = 10;
 
-  PARSEKEYS ("Od|d", &solfec, &tolerance, &weightfactor);
+  PARSEKEYS ("Od|di", &solfec, &tolerance, &weightfactor, &updatefreq);
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (tolerance, kwl[1]) &&
-            is_ge_le (weightfactor, kwl [2], 0.0, 1.0));
+            is_ge_le (weightfactor, kwl [2], 0.0, 1.0) && is_ge (updatefreq, kwl [3], 1));
 #if MPI
   solfec->sol->dom->weight_factor = weightfactor;
+  solfec->sol->dom->updatefreq = updatefreq;
 #endif
 
   Py_RETURN_TRUE;

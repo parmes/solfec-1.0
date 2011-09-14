@@ -265,6 +265,8 @@ struct domain
   SET *pendingbods; /* pending bodies to be inserted in parallel */
   SET *sparebid; /* deleted body ids */
   enum {ALWAYS, NEVER, EVERYNCPU} insertbodymode; /* insert body mode */
+  int rebalanced; /* counts rebalancing steps */
+  int updatefreq; /* domain partitioning update frequency */
 #endif
 
   DOM *prev, *next; /* list */

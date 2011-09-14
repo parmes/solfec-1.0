@@ -81,19 +81,19 @@ def COMPACTION_TEST (name, step):
 
     if d == 0:
       sca = (dmax, num * dmax, num * dmax)
-      tlo = (-dmax, -rmax, -rmax)
+      tlo = (-dmax-rmax, -rmax, -rmax)
       thi = (num * dmax - rmax, -rmax, -rmax)
       d1 = (0, 1, 0)
       d2 = (0, 0, 1)
     elif d == 1:
       sca = (num * dmax, dmax, num * dmax)
-      tlo = (-rmax, -dmax, -rmax)
+      tlo = (-rmax, -dmax-rmax, -rmax)
       thi = (-rmax, num * dmax - rmax, -rmax)
       d1 = (1, 0, 0)
       d2 = (0, 0, 1)
     else:
       sca = (num * dmax, num * dmax, dmax)
-      tlo = (-rmax, -rmax, -dmax)
+      tlo = (-rmax, -rmax, -dmax-rmax)
       thi = (-rmax, -rmax, num * dmax - rmax)
       d1 = (1, 0, 0)
       d2 = (0, 1, 0)

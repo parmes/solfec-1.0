@@ -2227,7 +2227,7 @@ GAUSS_SEIDEL_SOLVER
 \begin_inset Text
 
 \begin_layout Plain Layout
-x
+
 \end_layout
 
 \end_inset
@@ -2236,7 +2236,7 @@ x
 \begin_inset Text
 
 \begin_layout Plain Layout
-
+x
 \end_layout
 
 \end_inset
@@ -2256,7 +2256,7 @@ PENALTY_SOLVER
 \begin_inset Text
 
 \begin_layout Plain Layout
-x
+
 \end_layout
 
 \end_inset
@@ -2265,7 +2265,7 @@ x
 \begin_inset Text
 
 \begin_layout Plain Layout
-
+x
 \end_layout
 
 \end_inset
@@ -2294,7 +2294,7 @@ NEWTON_SOLVER
 \begin_inset Text
 
 \begin_layout Plain Layout
-x
+
 \end_layout
 
 \end_inset
@@ -2303,7 +2303,7 @@ x
 \begin_inset Text
 
 \begin_layout Plain Layout
-
+x
 \end_layout
 
 \end_inset
@@ -10200,7 +10200,7 @@ Various utility routines are listed below.
 \end_layout
 
 \begin_layout Subsection*
-IMBALANCE_TOLERANCE (solfec, tolerance | weightfactor)
+IMBALANCE_TOLERANCE (solfec, tolerance | weightfactor, updatefreq)
 \end_layout
 
 \begin_layout Standard
@@ -10240,6 +10240,18 @@ tor equals 1.0.
  This however can sometimes result in a poor load balance for contact detection
  or time integration.
  Making it smaller than 1.0 can improve the overall balance in such cases.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+updatefreq
+\series default
+ - geometrical domain partitioning is updated every 
+\series bold
+updatefreq
+\series default
+ time steps (default: 10)
 \end_layout
 
 \begin_layout Subsection*
