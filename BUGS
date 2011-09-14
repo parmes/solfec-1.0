@@ -42,4 +42,9 @@ Constraint point Zoltan_LB_Point_Assign processor: 6
 GLUING constraints fail in parallel => inp/tire.py
 ------------------------------------------------------------------------------------
 Intel compilers based compilation gets stuck in parallel (with openmpi/intel)
-------------------------------------------------------------------------------------
+-------------------------------------------------------------------------------------------------------------------------
+Run inp/ellcomp.py for > 30000 ellipsoids on >= 16 CPUs. They are initially all well separated.
+Q: Why is the initial PARBALL time so dominant?
+A: Zoltan rebalancing time is very long even though little change is made to the domain. As soon as you get behind
+   one cluste node the communication time inside of Zoltan becomes quite long.
+Current solution: Repartition every 'dom->updatefreq' steps

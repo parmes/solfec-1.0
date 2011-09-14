@@ -1708,12 +1708,12 @@ static void domain_balancing (DOM *dom)
 
   COMOBJ *send, *recv;
   char str [128];
+  int i, rank;
   int nrecv;
   SET *item;
   BODY *bod;
   DBD *dbd;
   CON *con;
-  int i;
 
   /* pending constraints */
   insert_pending_constraints (dom);
@@ -1741,46 +1741,73 @@ static void domain_balancing (DOM *dom)
   /* load balancing migration sets */
   dbd = dom->dbd;
 
-  /* update RCB parameters */
-  snprintf (str, 128, "%g", dom->imbalance_tolerance);
-  Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", str);
-
 #if MPI && DEBUG
   for (con = dom->con, i = 0; con; con = con->next, i ++);
   ASSERT_DEBUG (i == dom->ncon, "Inconsistent constraints count");
   for (bod = dom->bod, i = 0; bod; bod = bod->next, i ++);
   ASSERT_DEBUG (i == dom->nbod, "Inconsistent bodies count");
-#if 0
-  Zoltan_Generate_Files (dom->zol, "kdd", 1, 1, 0, 0);
-#endif
 #endif
 
-  /* update body partitioning */
-  ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
-	  &num_import, &import_global_ids, &import_local_ids, &import_procs,
-	  &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
-
-  int rank;
-
-  for (i = 0; (dom->bod || dom->con) && i < num_export; i ++)
+  if (dom->rebalanced % dom->updatefreq == 0)
   {
-    rank = export_procs [i];
+#if 0
+    Zoltan_Generate_Files (dom->zol, "kdd", 1, 1, 0, 0);
+#endif
 
-    if (rank != dom->rank)
+    /* update RCB parameters */
+    snprintf (str, 128, "%g", dom->imbalance_tolerance);
+    Zoltan_Set_Param (dom->zol, "IMBALANCE_TOL", str);
+
+    /* update body partitioning */
+    ASSERT (Zoltan_LB_Balance (dom->zol, &changes, &num_gid_entries, &num_lid_entries,
+	    &num_import, &import_global_ids, &import_local_ids, &import_procs,
+	    &num_export, &export_global_ids, &export_local_ids, &export_procs) == ZOLTAN_OK, ERR_ZOLTAN);
+
+    for (i = 0; (dom->bod || dom->con) && i < num_export; i ++)
     {
-      con = MAP_Find (dom->idc, (void*) (long) export_global_ids [i], NULL);
-      if (con) SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL); /* map this constraint to its export rank */
-      else
+      rank = export_procs [i];
+
+      if (rank != dom->rank)
       {
-        ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) (UINT_MAX - export_global_ids [i]), NULL), "Invalid body id");
-	bod->rank = rank; /* set the new rank */
-	SET_Insert (&dom->setmem, &dbd [rank].bodies, bod, NULL); /* map this body to its export rank */
+	con = MAP_Find (dom->idc, (void*) (long) export_global_ids [i], NULL);
+	if (con) SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL); /* map this constraint to its export rank */
+	else
+	{
+	  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) (UINT_MAX - export_global_ids [i]), NULL), "Invalid body id");
+	  bod->rank = rank; /* set the new rank */
+	  SET_Insert (&dom->setmem, &dbd [rank].bodies, bod, NULL); /* map this body to its export rank */
+	}
       }
     }
-  }
 
-  Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
-		       &export_global_ids, &export_local_ids, &export_procs);
+    Zoltan_LB_Free_Data (&import_global_ids, &import_local_ids, &import_procs,
+			 &export_global_ids, &export_local_ids, &export_procs);
+
+    dom->rebalanced = 1;
+  }
+  else /* reuse previous geometrical partitioning */
+  {
+    for (bod = dom->bod; bod; bod = bod->next)
+    {
+      double *e = bod->extents, v [3];
+      MID (e, e+3, v);
+      Zoltan_LB_Point_Assign (dom->zol, v, &rank);
+      if (rank != dom->rank)
+      {
+	bod->rank = rank;
+	SET_Insert (&dom->setmem, &dbd [rank].bodies, bod, NULL);
+      }
+    }
+
+    for (con = dom->con; con; con = con->next)
+    {
+      Zoltan_LB_Point_Assign (dom->zol, con->point, &rank);
+      if (rank != dom->rank)
+	SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL);
+    }
+
+    dom->rebalanced ++;
+  }
 
   /* --- */
 
@@ -2302,6 +2329,10 @@ void update_external_RUV (DOM *dom)
 /* create MPI related data */
 static void create_mpi (DOM *dom)
 {
+  dom->rebalanced = 0;
+
+  dom->updatefreq = 10;
+
   dom->insertbodymode = EVERYNCPU;
 
   dom->sparebid = NULL;
