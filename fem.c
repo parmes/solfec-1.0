@@ -3350,5 +3350,31 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
 MX* FEM_Approx_Inverse (BODY *bod)
 {
   if (bod->scheme == SCH_DEF_EXP) return MX_Copy (bod->inverse, NULL); /* diagonal */
-  else return MX_Inverse (MX_Copy (bod->M, NULL), NULL); /* use mass only */
+  else 
+  {
+    int *p, *i, n, k;
+    double *x, *y, *z;
+    MX *I;
+
+    n = bod->dofs;
+    ERRMEM (p = malloc (sizeof (int [n+1])));
+    ERRMEM (i = malloc (sizeof (int [n])));
+    ERRMEM (x = malloc (sizeof (double [n])));
+    for (k = 0, p [n] = n; k < n; k ++) p [k] = i [k] = k; /* diagonal pattern */
+    ERRMEM (I = malloc (sizeof (MX)));
+    I->kind = MXCSC;
+    I->flags = 0;
+    I->nzmax = n;
+    I->m = n;
+    I->n = n;
+    I->p = p;
+    I->i = i;
+    I->nz = -1;
+    I->x = x;
+    I->sym = I->num = NULL;
+
+    for (y = x + n, z = bod->M->x; x != y; x ++, z ++) *x = 1.0 / (*z);
+
+    return I;
+  }
 }

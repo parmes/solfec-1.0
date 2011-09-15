@@ -2914,12 +2914,13 @@ void DOM_Sparsify_Contacts (DOM *dom)
 
   for (del = NULL, con = dom->con; con; con = con->next)
   {
-    if (con->kind == CONTACT) /* walk over all contacts */
+    if (con->kind == CONTACT && (con->state & CON_NEW)) /* walk over all new contacts */
     {
       SET *set [2] = {con->master->con, con->slave->con};
 
       if (con->area < minarea) /* simple criterion first */
       {
+	con->state |= CON_DONE;
 	SET_Insert (&mem, &del, con, NULL); /* schedule for deletion */
       }
       else /* threshold based adjacency test next */
@@ -2928,29 +2929,41 @@ void DOM_Sparsify_Contacts (DOM *dom)
 	{
 	  adj = itm->data;
 
-	  if (adj == con || adj->kind != CONTACT) continue;
+	  if (adj == con || adj->kind != CONTACT || (con->state & CON_DONE)) continue;
 
 	  if (con->area < threshold * adj->area) /* check whether the area of the diagonal element is too small (this test is cheaper => let it go first) */
 	  {
 	    if (con->master == adj->master && con->slave == adj->slave) /* identify contacts pair sharing the same pairs of bodies */
 	    {
 	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), mkind(adj)), mgobj(con), mgobj (adj))) /* check whether the geometric objects are topologically adjacent */
-		 SET_Insert (&mem, &del, con, NULL); /* if so schedule the current contact for deletion */
+	      {
+	        con->state |= CON_DONE;
+		SET_Insert (&mem, &del, con, NULL); /* if so schedule the current contact for deletion */
+	      }
 	    }
 	    else if (con->master == adj->slave && con->slave == adj->master)
 	    {
 	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), skind(adj)), mgobj(con), sgobj(adj)))
+	      {
+	        con->state |= CON_DONE;
 		SET_Insert (&mem, &del, con, NULL);
+	      }
 	    }
 	    else if (con->slave == adj->master && con->master == adj->slave)
 	    {
 	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), mkind(adj)), sgobj(con), mgobj(adj)))
+	      {
+	        con->state |= CON_DONE;
 		SET_Insert (&mem, &del, con, NULL);
+	      }
 	    }
 	    else if (con->slave == adj->slave && con->master == adj->master)
 	    {
 	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), skind(adj)), sgobj(con), sgobj(adj)))
+	      {
+	        con->state |= CON_DONE;
 		SET_Insert (&mem, &del, con, NULL);
+	      }
 	    }
 	  }
 	  else
@@ -2961,6 +2974,7 @@ void DOM_Sparsify_Contacts (DOM *dom)
 
 	    if (c < margin && con->id < adj->id) /* eliminate duplicated contact points (compare ids not to eliminate both) */
 	    {
+	      con->state |= CON_DONE;
 	      SET_Insert (&mem, &del, con, NULL);
 	    }
 	  }
