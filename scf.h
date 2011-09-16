@@ -1,8 +1,8 @@
 /*
- * vic.h
+ * scf.h
  * Copyright (C) 2010 Tomasz Koziara (t.koziara AT gmail.com)
  * -------------------------------------------------------------------
- * variational inequality contact formulation
+ * smoothed contact formulation
  */
 
 /* This file is part of Solfec.
@@ -19,15 +19,15 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
-#include "ldy.h"
+#include "dom.h"
 
-#ifndef __vic__
-#define __vic__
+#ifndef __scf__
+#define __scf__
 
-/* C(U,R) + X dU + Y dR, where C(U,R) = F(U) + m(R - F(U)) */
-void VIC_Linearize (CON *con, double *U, double *R, double UT, double smoothing_omega, double *C, double *X, double *Y);
+/* C(U,R) + X dU + Y dR, where (U,R) = F(U) + m(R - F(U)), F(U) = [UT, UN + mu|UT|] and m(S) = project-on-polar-cone (S) */
+void SCF_Linearize (CON *con, double *U, double *R, double UT, double smoothing_omega, double *C, double *X, double *Y);
 
 /* R = project-on-friction-cone (S) */
-void VIC_Project (double friction, double cohesion, double *S, double *R);
+void SCF_Project (double friction, double cohesion, double *S, double *R);
 
 #endif
