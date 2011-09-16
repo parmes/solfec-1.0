@@ -30,7 +30,7 @@
 #include "bla.h"
 #include "lap.h"
 #include "err.h"
-#include "vic.h"
+#include "scf.h"
 #include "mrf.h"
 #include "ext/krylov/krylov.h"
 
@@ -497,7 +497,7 @@ static void update_system (PRIVATE *A)
     {
       double *X = dat->X, *Y = dat->Y;
 
-      VIC_Linearize (dat->con, U, R, -1, epsilon, b, X, Y);
+      SCF_Linearize (dat->con, U, R, -1, epsilon, b, X, Y);
       SCALE (b, -1.0);
 
       NNMUL (X, W, T);
@@ -589,7 +589,7 @@ static void update_solution (PRIVATE *A)
     if (con->kind == CONTACT)
     {
       double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
-      VIC_Project (con->mat.base->friction, c, R, R);
+      SCF_Project (con->mat.base->friction, c, R, R);
     }
   }
 

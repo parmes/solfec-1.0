@@ -26,7 +26,7 @@
 #include "dom.h"
 #include "lap.h"
 #include "dbs.h"
-#include "vic.h"
+#include "scf.h"
 #include "err.h"
 
 static int projected_gradient (short dynamic, double epsilon, int maxiter,
@@ -125,7 +125,7 @@ static int de_saxce_feng (short dynamic, double epsilon, int maxiter,
     tau [2] = R[2] - rho * (UN + friction * LEN2 (U));
  
     /* project onto friction cone */ 
-    VIC_Project (friction, cohesion, tau, R);
+    SCF_Project (friction, cohesion, tau, R);
 
     SUB (R, vector, vector); /* absolute difference */
     scalar = DOT (R, R); /* length of current solution */
@@ -306,16 +306,16 @@ static int projected_newton (double epsilon, int maxiter, double friction, doubl
 
   iter = 0;
   NVADDMUL (B, W, R, U);
-  VIC_Linearize (con, U, R, -1, 0, C, X, Y);
+  SCF_Linearize (con, U, R, -1, 0, C, X, Y);
   do
   {
     NNMUL (X, W, T);
     NNADD (T, Y, T);
     if (lapack_dgesv (3, 1, T, 3, ipiv, C, 3)) return -1;
     SCC (C, R);
-    VIC_Project (friction, cohesion, R, R);
+    SCF_Project (friction, cohesion, R, R);
     NVADDMUL (B, W, R, U);
-    VIC_Linearize (con, U, R, -1, 0, C, X, Y);
+    SCF_Linearize (con, U, R, -1, 0, C, X, Y);
     merit = LEN (C);
   } while (merit > epsilon && ++iter < maxiter);
 

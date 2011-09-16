@@ -23,7 +23,7 @@
 #include "sol.h"
 #include "mrf.h"
 #include "alg.h"
-#include "vic.h"
+#include "scf.h"
 
 /* constraint satisfaction merit function approximately indicates the
  * amount of spurious momentum due to constraint force inaccuracy;
@@ -76,7 +76,7 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     {
     case CONTACT:
     {
-      VIC_Linearize (con, U, R, -1, 0, P, NULL, NULL);
+      SCF_Linearize (con, U, R, -1, 0, P, NULL, NULL);
       NVMUL (A, P, Q);
       up = DOT (Q, P);
     }

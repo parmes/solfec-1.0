@@ -30,7 +30,7 @@
 #include "bla.h"
 #include "lap.h"
 #include "err.h"
-#include "vic.h"
+#include "scf.h"
 #include "mrf.h"
 #include "lis.h"
 #include "ext/krylov/krylov.h"
@@ -1039,7 +1039,7 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
     {
       double *X = dat->X, *Y = dat->Y;
 
-      VIC_Linearize (dat->con, U, R, -1, omega, b, X, Y);
+      SCF_Linearize (dat->con, U, R, -1, omega, b, X, Y);
       SCALE (b, -1.0);
 
       NNMUL (X, W, T);
@@ -1059,7 +1059,7 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
       if (con->kind == CONTACT)
       {
 	double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
-	VIC_Project (con->mat.base->friction, c, R, R); /* projection */
+	SCF_Project (con->mat.base->friction, c, R, R); /* projection */
       }
     }
     else /* PQN_GMRES */
@@ -1113,7 +1113,7 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
       if (con->kind == CONTACT)
       {
 	double c = SURFACE_MATERIAL_Cohesion_Get (&con->mat) * con->area;
-	VIC_Project (con->mat.base->friction, c, R, R); /* project */
+	SCF_Project (con->mat.base->friction, c, R, R); /* project */
       }
     }
   }
