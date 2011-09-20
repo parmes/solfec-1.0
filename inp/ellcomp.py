@@ -4,6 +4,7 @@ from random import randint
 from random import random
 from random import shuffle
 from random import seed
+from math import sqrt
 
 seed (1) # global seed for repeatibility of input / output
 
@@ -11,6 +12,7 @@ def READ_ELLS ():
 
   ell = []
   rmax = 0
+  rmin = 1.0E10
   argv = NON_SOLFEC_ARGV()
   if argv != None: # read from file => file format: |---------------------------
                                                   # | N [...]
@@ -30,113 +32,145 @@ def READ_ELLS ():
       ry = float (lst [1]) * coef
       rz = float (lst [2]) * coef
       rmax = max (rmax, rx, ry, rz)
+      rmin = min (rmin, rx, ry, rz)
       ell.append ((rx, ry, rz))
-    return (ell, rmax) # output list of tuples of ellipsoid radii
+    return (ell, rmax, rmin) # output list of tuples of ellipsoid radii
 
   else: # generate random
     for i in range (0, 1000):
-      rx = random ()
-      ry = random ()
-      rz = random ()
+      rx = 0.002 + 0.007 * random ()
+      ry = 0.002 + 0.007 * random ()
+      rz = 0.002 + 0.007 * random ()
       rmax = max (rmax, rx, ry, rz)
+      rmin = min (rmin, rx, ry, rz)
       ell.append ((rx, ry, rz))
-    return (ell, rmax) # output list of tuples of ellipsoid radii
+    return (ell, rmax, rmin) # output list of tuples of ellipsoid radii
 
-
-def COMPACTION_TEST (name, step):
-
-  solfec = SOLFEC ('DYNAMIC', step, 'out/ellcomp_' + name)
-  bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.3, density = 1E3)
-  surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0, restitution = 0)
-
-  print 'Reading ...',
-  (ell, rmax) = READ_ELLS ()
-  print len (ell), 'ellipsoids (rmax = %g).' % (rmax)
-
-  shuffle (ell) # apply pseudo-random reordering (ellipses might be initially sorted according to volume)
-
-  n = 0
-  dmax = 2 * rmax
-  num = int (pow (float (len (ell)), 1./3.) + 1.0)
-  for i in range (0, num):
-    for j in range (0, num):
-      for k in range (0, num):
-        if n < len (ell):
-	  x = i * dmax
-	  y = j * dmax
-	  z = k * dmax
-	  radii = ell [n]
-	  shp = ELLIP ((x, y, z), radii, 1, 1)
-          BODY (solfec, 'RIGID', shp, bulkmat) # ellipsoid bodies
-	  n = n + 1
-
-  # force value
-  fval = bulkmat.density * (dmax ** 3) * 1E4 # FIXME: smarten this up
-
-  # moving boundaries
-  box = HULL ([0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1], 2, 2) # unit box
-
-  bod = []
-  for d in range (0, 3):
-
-    if d == 0:
-      sca = (dmax, num * dmax, num * dmax)
-      tlo = (-dmax-rmax, -rmax, -rmax)
-      thi = (num * dmax - rmax, -rmax, -rmax)
-      d1 = (0, 1, 0)
-      d2 = (0, 0, 1)
-    elif d == 1:
-      sca = (num * dmax, dmax, num * dmax)
-      tlo = (-rmax, -dmax-rmax, -rmax)
-      thi = (-rmax, num * dmax - rmax, -rmax)
-      d1 = (1, 0, 0)
-      d2 = (0, 0, 1)
-    else:
-      sca = (num * dmax, num * dmax, dmax)
-      tlo = (-rmax, -rmax, -dmax-rmax)
-      thi = (-rmax, -rmax, num * dmax - rmax)
-      d1 = (1, 0, 0)
-      d2 = (0, 1, 0)
-
-    dst = 5 * dmax
-
-    lo = COPY (box)
-    SCALE (lo, sca)
-    TRANSLATE (lo, tlo)
-    dir = [0, 0, 0]
-    dir [d] = 1
-    pnt = MASS_CENTER (lo)
-    pnq = TRANSLATE (pnt, (-dst*dir[0], -dst*dir[1], -dst*dir[2]))
-    s = SPHERE (pnq, 2*dmax, 2, 2) # sphere to put anti-rotational constraints
-    b = BODY (solfec, 'RIGID', [lo, s], bulkmat)
-    FORCE (b, 'SPATIAL', pnt, tuple (dir), fval)
-    FIX_DIRECTION (b, pnq, d1)
-    FIX_DIRECTION (b, pnq, d2)
-    bod.append (b)
-
-    hi = COPY (box)
-    SCALE (hi, sca)
-    TRANSLATE (hi, thi)
-    dir = [0, 0, 0]
-    dir [d] = -1
-    pnt = MASS_CENTER (hi)
-    pnq = TRANSLATE (pnt, (-dst*dir[0], -dst*dir[1], -dst*dir[2]))
-    s = SPHERE (pnq, 2*dmax, 2, 2) # sphere to put anti-rotational constraints
-    b = BODY (solfec, 'RIGID', [hi, s], bulkmat)
-    FORCE (b, 'SPATIAL', pnt, tuple (dir), fval)
-    FIX_DIRECTION (b, pnq, d1)
-    FIX_DIRECTION (b, pnq, d2)
-    bod.append (b)
-
-  for i in range (0, len (bod)):
-    for j in range (0, i):
-      CONTACT_EXCLUDE_BODIES (bod [i], bod [j])
-
-  return solfec
+def RND():
+  return 0.25 * (0.5 - random())
 
 # main module
 
-stop = 2.5
-slv = GAUSS_SEIDEL_SOLVER (1E-3, 20)
-sol = COMPACTION_TEST ('a', 1E-3)
-RUN (sol, slv, stop)
+print 'Reading ...',
+(ell, rmax, rmin) = READ_ELLS ()
+print len (ell), 'ellipsoids (rmax = %g, rmin = %g).' % (rmax, rmin)
+
+shuffle (ell) # apply pseudo-random reordering (ellipses might be initially sorted according to volume)
+
+step = 1E-3 # arbitrary
+dist = rmin * 0.1 # motion per step
+
+solfec = SOLFEC ('DYNAMIC', step, 'out/ellcomp')
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.3, density = 1E3)
+surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0, restitution = 0.5)
+
+n = 0
+dmax = 2 * rmax
+num = int (pow (float (len (ell)), 1./3.) + 1.0)
+for i in range (0, num):
+  for j in range (0, num):
+    for k in range (0, num):
+      if n < len (ell):
+	x = i * dmax
+	y = j * dmax
+	z = k * dmax
+	radii = ell [n]
+	shp = ELLIP ((x, y, z), radii, 1, 1)
+	b = BODY (solfec, 'RIGID', shp, bulkmat) # ellipsoid bodies
+        INITIAL_VELOCITY (b, (RND(), RND(), RND()), (0, 0, 0))
+	n = n + 1
+
+# moving boundaries
+box = HULL ([0, 0, 0, 0, 1, 0, 1, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 1, 1, 1, 1, 1, 0, 1], 2, 2) # unit box
+
+bod = []
+pnt = []
+for d in range (0, 3):
+
+  if d == 0:
+    sca = (dmax, num * dmax, num * dmax)
+    tlo = (-dmax-rmax, -rmax, -rmax)
+    thi = (num * dmax - rmax, -rmax, -rmax)
+    d1 = (0, 1, 0)
+    d2 = (0, 0, 1)
+  elif d == 1:
+    sca = (num * dmax, dmax, num * dmax)
+    tlo = (-rmax, -dmax-rmax, -rmax)
+    thi = (-rmax, num * dmax - rmax, -rmax)
+    d1 = (1, 0, 0)
+    d2 = (0, 0, 1)
+  else:
+    sca = (num * dmax, num * dmax, dmax)
+    tlo = (-rmax, -rmax, -dmax-rmax)
+    thi = (-rmax, -rmax, num * dmax - rmax)
+    d1 = (1, 0, 0)
+    d2 = (0, 1, 0)
+
+  dst = 5 * dmax
+
+  lo = COPY (box)
+  SCALE (lo, sca)
+  TRANSLATE (lo, tlo)
+  dir = [0, 0, 0]
+  dir [d] = 1
+  pt1 = MASS_CENTER (lo)
+  pnq = TRANSLATE (pt1, (-dst*dir[0], -dst*dir[1], -dst*dir[2]))
+  s = SPHERE (pnq, 2*dmax, 2, 2) # sphere to put anti-rotational constraints
+  b = BODY (solfec, 'RIGID', [lo, s], bulkmat)
+  SET_VELOCITY (b, pt1, tuple (dir), dist / step)
+  FIX_DIRECTION (b, pt1, d1)
+  FIX_DIRECTION (b, pt1, d2)
+  FIX_DIRECTION (b, pnq, d1)
+  FIX_DIRECTION (b, pnq, d2)
+  bod.append (b)
+  pnt.append (pt1)
+
+  hi = COPY (box)
+  SCALE (hi, sca)
+  TRANSLATE (hi, thi)
+  dir = [0, 0, 0]
+  dir [d] = -1
+  pt2 = MASS_CENTER (hi)
+  pnq = TRANSLATE (pt2, (-dst*dir[0], -dst*dir[1], -dst*dir[2]))
+  s = SPHERE (pnq, 2*dmax, 2, 2) # sphere to put anti-rotational constraints
+  b = BODY (solfec, 'RIGID', [hi, s], bulkmat)
+  SET_VELOCITY (b, pt2, tuple (dir), dist / step)
+  FIX_DIRECTION (b, pt2, d1)
+  FIX_DIRECTION (b, pt2, d2)
+  FIX_DIRECTION (b, pnq, d1)
+  FIX_DIRECTION (b, pnq, d2)
+  bod.append (b)
+  pnt.append (pt2)
+
+for i in range (0, len (bod)):
+  for j in range (0, i):
+    CONTACT_EXCLUDE_BODIES (bod [i], bod [j])
+
+dst = sqrt ((pt2[0]-pt1[0])**2 + (pt2[1]-pt1[1])**2 + (pt2[2]-pt1[2])**2) - dmax
+print 'Initial distance is ', dst
+dif = dst - 0.1
+if dif > 0.0:
+  stop = 0.5 * step * (dif / dist) # 0.5 since walls from both directions move
+  print 'The simulation time is ', stop, ', that is %d time steps' % (stop / step)
+else:
+  stop = 1.0
+
+slv = GAUSS_SEIDEL_SOLVER (1E-3, 10)
+IMBALANCE_TOLERANCE (solfec, 1.3, 0.5, 10)
+OUTPUT (solfec, stop / 20.0)
+RUN (solfec, slv, stop)
+
+if not VIEWER() and solfec.mode == 'READ':
+  dur = DURATION (solfec)
+  SEEK (solfec, dur [1])
+  d = [1, 1, 1]
+  for i in range (0, 3):
+    p = pnt [2*i]
+    q = pnt [2*i+1]
+    a = DISPLACEMENT (bod [2*i], p)
+    b = DISPLACEMENT (bod [2*i+1], q)
+    p = TRANSLATE (p, a)
+    q = TRANSLATE (q, b)
+    d [i] = sqrt ((p[0]-q[0])**2 + (p[1]-q[1])**2 + (p[2]-q[2])**2) - dmax
+  l = (d[0]+d[1]+d[2])/3.0
+  print 'Final distance is ', l

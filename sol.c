@@ -530,8 +530,8 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 {
   if (sol->mode == SOLFEC_WRITE)
   {
+    int verbose, lastwrite;
     LOCDYN *ldy;
-    int verbose;
     TIMING tim;
     double tt;
 
@@ -569,6 +569,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
     for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
     {
+      lastwrite = 0;
 #if MPI
       if (sol->dom->rank == 0)
 #endif
@@ -601,6 +602,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       {
 	sol->output_time += sol->output_interval;
 	write_state (sol, solver, kind);
+	lastwrite = 1;
       }
 
       /* execute callback if needed */
@@ -615,6 +617,11 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #endif
 	if (!ret) break; /* interrupt run */
       }
+    }
+
+    if (!lastwrite) /* record last state if out of sync */
+    {
+      write_state (sol, solver, kind);
     }
   }
   else /* READ */

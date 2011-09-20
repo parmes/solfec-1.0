@@ -48,3 +48,4 @@ Q: Why is the initial PARBALL time so dominant?
 A: Zoltan rebalancing time is very long even though little change is made to the domain. As soon as you get behind
    one cluste node the communication time inside of Zoltan becomes quite long.
 Current solution: Repartition every 'dom->updatefreq' steps
+A: that was a cluster node bug in fact
