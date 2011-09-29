@@ -8,17 +8,31 @@ from math import sqrt
 
 seed (1) # global seed for repeatibility of input / output
 
+def is_string (s):
+  try:
+    str(s)
+    return True
+  except ValueError:
+    return False
+
+def is_number(s):
+  try:
+    float(s)
+    return True
+  except ValueError:
+    return False
+
 def READ_ELLS ():
 
   ell = []
   rmax = 0
   rmin = 1.0E10
   argv = NON_SOLFEC_ARGV()
-  if argv != None: # read from file => file format: |---------------------------
-                                                  # | N [...]
-						  # | rx_1 ry_1 rz_1 [...]
-						  # | [...]
-						  # | rx_N ry_N rz_N [...]
+  if argv != None and not is_string (argv [0]):  # file format : |---------------------------
+							       # | N [...]
+							       # | rx_1 ry_1 rz_1 [...]
+							       # | [...]
+							       # | rx_N ry_N rz_N [...]
     inp =  open (argv [0], 'r')
     if len (argv) > 1: coef = float (argv [1])
     else: coef = 1.0
@@ -37,10 +51,15 @@ def READ_ELLS ():
     return (ell, rmax, rmin) # output list of tuples of ellipsoid radii
 
   else: # generate random
-    for i in range (0, 1000):
-      rx = 0.002 + 0.007 * random ()
-      ry = 0.002 + 0.007 * random ()
-      rz = 0.002 + 0.007 * random ()
+    num = 1000
+    if argv != None and is_number (argv [0]):
+      num = int (argv [0])
+
+    for i in range (0, num):
+      r = 0.1 / float (num) ** (1.0/3.0)
+      rx = 0.2*r + 0.7*r * random ()
+      ry = 0.2*r + 0.7*r * random ()
+      rz = 0.2*r + 0.7*r * random ()
       rmax = max (rmax, rx, ry, rz)
       rmin = min (rmin, rx, ry, rz)
       ell.append ((rx, ry, rz))
@@ -155,7 +174,7 @@ if dif > 0.0:
 else:
   stop = 1.0
 
-slv = GAUSS_SEIDEL_SOLVER (1E-3, 10)
+slv = GAUSS_SEIDEL_SOLVER (1, 100, 1E-8)
 IMBALANCE_TOLERANCE (solfec, 1.3, 0.5, 10)
 OUTPUT (solfec, stop / 20.0)
 RUN (solfec, slv, stop)

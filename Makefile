@@ -10,13 +10,20 @@ else
   OPENGLO =
 endif
 
+ifeq ($(SICONOS),yes)
+  SICONOSO = \
+	obj/sis.o \
+else
+  SICONOSO =
+endif
+
 include Flags.mak
 
 MUMPS = -Lext/mumps/libseq -lmpiseq
 
 CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(XDRINC)
 
-LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(FCLIB) $(MUMPS)
+LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(SICONOSLIB)
 
 ifeq ($(MPI),yes)
   LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB) $(FCLIB) $(MUMPS)
@@ -71,6 +78,7 @@ OBJ =   $(EXTO)   \
 	obj/pes.o \
 	obj/nts.o \
 	obj/tts.o \
+	obj/sis.o \
 	obj/mrf.o \
 	obj/dom.o \
 	obj/cra.o \
@@ -79,6 +87,7 @@ OBJ =   $(EXTO)   \
 	obj/sol.o \
 	obj/fem.o \
 	$(OPENGLO)
+        $(SICONOSO)
 
 OBJMPI = $(EXTO)       \
          $(BASEO)      \
@@ -291,6 +300,9 @@ obj/nts.o: nts.c nts.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 obj/tts.o: tts.c tts.h dom.h ldy.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+obj/sis.o: sis.c sis.h dom.h ldy.h bod.h alg.h mtx.h lap.h bla.h err.h
+	$(CC) $(CFLAGS) $(SICONOSINC) -c -o $@ $<
+
 obj/mrf.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -319,7 +331,7 @@ obj/scf.o: scf.c scf.h ldy.h dom.h alg.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
-	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) -c -o $@ $<
+	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) $(SICONOS) -c -o $@ $<
 
 obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h mat.h pbf.h tmr.h
 	$(CC) $(CFLAGS) -c -o $@ $<
