@@ -99,3 +99,9 @@ ifeq ($(MPI),yes)
   MPIFLG = -DMPI $(ZOLTANINC) $(PARDEBUG)
   MPILIBS = $(ZOLTANLIB)
 endif
+
+ifeq ($(SICONOS),yes)
+  SICONOS = -DSICONOS
+else
+  SICONOS = 
+endif

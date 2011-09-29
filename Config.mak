@@ -101,3 +101,11 @@ MPICC = mpicc
 
 ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
 ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
+
+#
+# Siconos (yes/no)
+#
+
+SICONOS = yes
+SICONOSINC = -I/usr/local/include/Siconos/Numerics
+SICONOSLIB = -L/usr/local/lib -l SiconosNumerics
