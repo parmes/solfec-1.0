@@ -3280,7 +3280,7 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_epsilon (lng_GAUSS_SEIDEL_SOLVER *self, P
 
 static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_maxiter (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->gs->maxiter);
+  return PyInt_FromLong (self->gs->maxiter);
 }
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_maxiter (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
@@ -3304,7 +3304,7 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_diagepsilon (lng_GAUSS_SEIDEL_SOLVER *sel
 
 static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_diagmaxiter (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->gs->diagmaxiter);
+  return PyInt_FromLong (self->gs->diagmaxiter);
 }
 
 static int lng_GAUSS_SEIDEL_SOLVER_set_diagmaxiter (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
@@ -3643,7 +3643,7 @@ static int lng_NEWTON_SOLVER_set_meritval (lng_NEWTON_SOLVER *self, PyObject *va
 
 static PyObject* lng_NEWTON_SOLVER_get_maxiter (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->ns->maxiter);
+  return PyInt_FromLong (self->ns->maxiter);
 }
 
 static int lng_NEWTON_SOLVER_set_maxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
@@ -3709,7 +3709,7 @@ static int lng_NEWTON_SOLVER_set_linver (lng_NEWTON_SOLVER *self, PyObject *valu
 
 static PyObject* lng_NEWTON_SOLVER_get_linmaxiter (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->ns->linmaxiter);
+  return PyInt_FromLong (self->ns->linmaxiter);
 }
 
 static int lng_NEWTON_SOLVER_set_linmaxiter (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
@@ -3721,7 +3721,7 @@ static int lng_NEWTON_SOLVER_set_linmaxiter (lng_NEWTON_SOLVER *self, PyObject *
 
 static PyObject* lng_NEWTON_SOLVER_get_maxmatvec (lng_NEWTON_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->ns->maxmatvec);
+  return PyInt_FromLong (self->ns->maxmatvec);
 }
 
 static int lng_NEWTON_SOLVER_set_maxmatvec (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
@@ -3855,6 +3855,121 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
   {NULL, 0, 0, NULL, NULL}
 };
 
+#if WITHSICONOS
+
+/*
+ * SICONOS_SOLVER => object
+ */
+
+typedef struct lng_SICONOS_SOLVER lng_SICONOS_SOLVER;
+
+static PyTypeObject lng_SICONOS_SOLVER_TYPE;
+
+struct lng_SICONOS_SOLVER
+{
+  PyObject_HEAD
+
+  SICONOS *si;
+};
+
+/* constructor */
+static PyObject* lng_SICONOS_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("epsilon", "maxiter", "verbose");
+  lng_SICONOS_SOLVER *self;
+  PyObject *verbose;
+  double epsilon;
+  int maxiter;
+
+  self = (lng_SICONOS_SOLVER*)type->tp_alloc (type, 0);
+
+  if (self)
+  {
+    epsilon = 1E-4;
+    maxiter = 1000;
+    verbose = NULL;
+
+    PARSEKEYS ("|diO", &epsilon, &maxiter, &verbose);
+
+    TYPETEST (is_positive (epsilon, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (verbose, kwl[2]));
+
+    self->si = SICONOS_Create (epsilon, maxiter);
+
+    if (verbose)
+    {
+      IFIS (verbose, "ON")
+      {
+	self->si->verbose = 1;
+      }
+      ELIF (verbose, "OFF")
+      {
+	self->si->verbose = 0;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid verbose value ('ON' or 'OFF' are valid only)");
+	return NULL;
+      }
+    }
+  }
+
+  return (PyObject*)self;
+}
+
+/* destructor */
+static void lng_SICONOS_SOLVER_dealloc (lng_SICONOS_SOLVER *self)
+{
+#if OPENGL
+  if (RND_Is_On ()) return; /* do not delete in viewer mode */
+  else
+#endif
+  SICONOS_Destroy (self->si);
+
+  self->ob_type->tp_free ((PyObject*)self);
+}
+
+static PyObject* lng_SICONOS_SOLVER_get_epsilon (lng_SICONOS_SOLVER *self, void *closure)
+{
+  return PyFloat_FromDouble (self->si->epsilon);
+}
+
+static int lng_SICONOS_SOLVER_set_epsilon (lng_SICONOS_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_gt (value, "epsilon", 0)) return -1;
+  self->si->epsilon = PyFloat_AsDouble (value);
+  return 0;
+}
+
+static PyObject* lng_SICONOS_SOLVER_get_maxiter (lng_SICONOS_SOLVER *self, void *closure)
+{
+  return PyInt_FromLong (self->si->maxiter);
+}
+
+static int lng_SICONOS_SOLVER_set_maxiter (lng_SICONOS_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_number_gt (value, "maxiter", 0)) return -1;
+  self->si->maxiter = PyInt_AsLong (value);
+  return 0;
+}
+
+/* SICONOS_SOLVER methods */
+static PyMethodDef lng_SICONOS_SOLVER_methods [] =
+{ {NULL, NULL, 0, NULL} };
+
+/* SICONOS_SOLVER members */
+static PyMemberDef lng_SICONOS_SOLVER_members [] =
+{ {NULL, 0, 0, 0, NULL} };
+
+/* SICONOS_SOLVER getset */
+static PyGetSetDef lng_SICONOS_SOLVER_getset [] =
+{ 
+  {"epsilon", (getter)lng_SICONOS_SOLVER_get_epsilon, (setter)lng_SICONOS_SOLVER_set_epsilon, "relative reaction change bound", NULL},
+  {"maxiter", (getter)lng_SICONOS_SOLVER_get_maxiter, (setter)lng_SICONOS_SOLVER_set_maxiter, "iterations bound", NULL},
+  {NULL, 0, 0, NULL, NULL}
+};
+
+#endif
+
 /*
  * TEST_SOLVER => object
  */
@@ -3933,7 +4048,7 @@ static int lng_TEST_SOLVER_set_meritval (lng_TEST_SOLVER *self, PyObject *value,
 
 static PyObject* lng_TEST_SOLVER_get_maxiter (lng_TEST_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->ts->maxiter);
+  return PyInt_FromLong (self->ts->maxiter);
 }
 
 static int lng_TEST_SOLVER_set_maxiter (lng_TEST_SOLVER *self, PyObject *value, void *closure)
@@ -3945,7 +4060,7 @@ static int lng_TEST_SOLVER_set_maxiter (lng_TEST_SOLVER *self, PyObject *value, 
 
 static PyObject* lng_TEST_SOLVER_get_linmaxiter (lng_TEST_SOLVER *self, void *closure)
 {
-  return PyFloat_FromDouble (self->ts->linmaxiter);
+  return PyInt_FromLong (self->ts->linmaxiter);
 }
 
 static int lng_TEST_SOLVER_set_linmaxiter (lng_TEST_SOLVER *self, PyObject *value, void *closure)
@@ -6337,6 +6452,9 @@ static int is_solver (PyObject *obj, char *var)
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE) &&
+#if WITHSICONOS
+        !PyObject_IsInstance (obj, (PyObject*)&lng_SICONOS_SOLVER_TYPE) &&
+#endif
         !PyObject_IsInstance (obj, (PyObject*)&lng_TEST_SOLVER_TYPE))
     {
       char buf [BUFLEN];
@@ -6358,6 +6476,10 @@ static int get_solver_kind (PyObject *obj)
     return PENALTY_SOLVER;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     return NEWTON_SOLVER;
+#if WITHSICONOS
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_SICONOS_SOLVER_TYPE))
+    return SICONOS_SOLVER;
+#endif
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_TEST_SOLVER_TYPE))
     return TEST_SOLVER;
   else return -1;
@@ -6372,6 +6494,10 @@ static void* get_solver (PyObject *obj)
     return ((lng_PENALTY_SOLVER*)obj)->ps;
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE))
     return ((lng_NEWTON_SOLVER*)obj)->ns;
+#if WITHSICONOS
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_SICONOS_SOLVER_TYPE))
+    return ((lng_SICONOS_SOLVER*)obj)->si;
+#endif
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_TEST_SOLVER_TYPE))
     return ((lng_TEST_SOLVER*)obj)->ts;
   else return NULL;
@@ -7891,6 +8017,12 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_NEWTON_SOLVER_dealloc, lng_NEWTON_SOLVER_new,
     lng_NEWTON_SOLVER_methods, lng_NEWTON_SOLVER_members, lng_NEWTON_SOLVER_getset);
 
+#if WITHSICONOS
+  TYPEINIT (lng_SICONOS_SOLVER_TYPE, lng_SICONOS_SOLVER, "solfec.SICONOS_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_SICONOS_SOLVER_dealloc, lng_SICONOS_SOLVER_new,
+    lng_SICONOS_SOLVER_methods, lng_SICONOS_SOLVER_members, lng_SICONOS_SOLVER_getset);
+#endif
+
   TYPEINIT (lng_TEST_SOLVER_TYPE, lng_TEST_SOLVER, "solfec.TEST_SOLVER",
     Py_TPFLAGS_DEFAULT, lng_TEST_SOLVER_dealloc, lng_TEST_SOLVER_new,
     lng_TEST_SOLVER_methods, lng_TEST_SOLVER_members, lng_TEST_SOLVER_getset);
@@ -7911,6 +8043,9 @@ static void initlng (void)
   if (PyType_Ready (&lng_GAUSS_SEIDEL_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_PENALTY_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_NEWTON_SOLVER_TYPE) < 0) return;
+#if WITHSICONOS
+  if (PyType_Ready (&lng_SICONOS_SOLVER_TYPE) < 0) return;
+#endif
   if (PyType_Ready (&lng_TEST_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
@@ -7928,6 +8063,9 @@ static void initlng (void)
   Py_INCREF (&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   Py_INCREF (&lng_PENALTY_SOLVER_TYPE);
   Py_INCREF (&lng_NEWTON_SOLVER_TYPE);
+#if WITHSICONOS
+  Py_INCREF (&lng_SICONOS_SOLVER_TYPE);
+#endif
   Py_INCREF (&lng_TEST_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
@@ -7943,6 +8081,9 @@ static void initlng (void)
   PyModule_AddObject (m, "GAUSS_SEIDEL_SOLVER", (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE);
   PyModule_AddObject (m, "PENALTY_SOLVER", (PyObject*)&lng_PENALTY_SOLVER_TYPE);
   PyModule_AddObject (m, "NEWTON_SOLVER", (PyObject*)&lng_NEWTON_SOLVER_TYPE);
+#if WITHSICONOS
+  PyModule_AddObject (m, "SICONOS_SOLVER", (PyObject*)&lng_SICONOS_SOLVER_TYPE);
+#endif
   PyModule_AddObject (m, "TEST_SOLVER", (PyObject*)&lng_TEST_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
 }
@@ -8039,6 +8180,10 @@ int lng (const char *path)
                      "from solfec import ENERGY\n"
                      "from solfec import TIMING\n"
                      "from solfec import HISTORY\n");
+
+#if WITHSICONOS
+  PyRun_SimpleString ("from solfec import SICONOS_SOLVER\n");
+#endif
 
   ERRMEM (line = MEM_CALLOC (128 + strlen (path)));
   sprintf (line, "execfile ('%s')", path);

@@ -25,12 +25,17 @@
 #include "alg.h"
 #include "err.h"
 
+#define COPY_REV(a, b)\
+  (b) [0] = (a) [2];\
+  (b) [1] = (a) [1];\
+  (b) [2] = (a) [0]
+
 /* translate local dynamics into Siconos FrictionContactProblem */
 static FrictionContactProblem* LOCDYN2FCP (LOCDYN *ldy)
 {
   SparseBlockStructuredMatrix *W;
   FrictionContactProblem *fc;
-  double *q, *mu, **b;
+  double *q, *mu, **b, *b0;
   NumericsMatrix *M;
   size_t *pp, *ii;
   int i, j, k;
@@ -67,7 +72,7 @@ static FrictionContactProblem* LOCDYN2FCP (LOCDYN *ldy)
     if (con->kind == CONTACT)
     {
       double *B = dia->B;
-      COPY (B, q);
+      COPY_REV (B, q);
       *mu = con->mat.base->friction;
       q += 3;
       mu ++;
@@ -84,19 +89,26 @@ static FrictionContactProblem* LOCDYN2FCP (LOCDYN *ldy)
   fc->M = M;
 
   ERRMEM (W->block = malloc (j * sizeof (double*)));
+  ERRMEM (b0 = malloc (j * sizeof (double [9])));
   for (dia = ldy->dia, b = W->block; dia; dia = dia->n) /* set block pointers */
   {
     con = dia->con;
     if (con->kind == CONTACT)
     {
-      *b = dia->W;
+      double *W = dia->W;
+      for (k = 0; k < 9; k ++) b0 [k] = W[8-k];
+      *b = b0;
       b ++;
+      b0 += 9;
       for (blk = dia->adj; blk; blk = blk->n)
       {
 	if (blk->dia->con->kind == CONTACT)
 	{
-	  *b = blk->W;
+	  double *W = blk->W;
+          for (k = 0; k < 9; k ++) b0 [k] = W[8-k];
+	  *b = b0;
 	  b ++;
+	  b0 += 9;
 	}
       }
     }
@@ -105,13 +117,13 @@ static FrictionContactProblem* LOCDYN2FCP (LOCDYN *ldy)
   W->nbblocks = j;
   W->blocknumber0 = i;
   W->blocknumber1 = i;
-  ERRMEM (W->blocksize0 = malloc ((i+1) * sizeof (int)));
-  ERRMEM (W->blocksize1 = malloc ((i+1) * sizeof (int)));
+  ERRMEM (W->blocksize0 = malloc (i * sizeof (int)));
+  ERRMEM (W->blocksize1 = malloc (i * sizeof (int)));
 
-  for (k = 0; k <= i; k ++)
+  for (k = 0; k < i; k ++)
   {
-    W->blocksize0 [k] = k * 3;
-    W->blocksize1 [k] = k * 3;
+    W->blocksize0 [k] = (k+1) * 3;
+    W->blocksize1 [k] = (k+1) * 3;
   }
 
   W->filled1 = i + 1;
@@ -127,7 +139,10 @@ static FrictionContactProblem* LOCDYN2FCP (LOCDYN *ldy)
     con = dia->con;
     if (con->kind == CONTACT)
     {
-      for (blk = dia->adj, k = 0; blk; blk = blk->n)
+      *ii = con->num;
+      ii ++;
+      k = 1;
+      for (blk = dia->adj; blk; blk = blk->n)
       {
 	CON *adj = blk->dia->con;
 	if (adj->kind == CONTACT)
@@ -136,9 +151,9 @@ static FrictionContactProblem* LOCDYN2FCP (LOCDYN *ldy)
 	  ii ++;
 	  k ++;
 	}
-	*pp = (*(pp-1)) + k; /* block row pointers */
-	pp ++;
       }
+      *pp = (*(pp-1)) + k; /* block row pointers */
+      pp ++;
     }
   }
   
@@ -150,6 +165,7 @@ static void FCP_free (FrictionContactProblem *fc)
 {
   free (fc->q);
   free (fc->mu);
+  free (fc->M->matrix1->block [0]);
   free (fc->M->matrix1->block);
   free (fc->M->matrix1->blocksize0);
   free (fc->M->matrix1->blocksize1);
@@ -161,9 +177,15 @@ static void FCP_free (FrictionContactProblem *fc)
 }
 
 /* create solver */
-SICONOS* SICONOS_Create (double meritval, int maxiter)
+SICONOS* SICONOS_Create (double epsilon, int maxiter)
 {
-  return NULL;
+  SICONOS *si;
+
+  ERRMEM (si = MEM_CALLOC (sizeof (SICONOS)));
+  si->epsilon = epsilon;
+  si->maxiter = maxiter;
+
+  return si;
 }
 
 /* run solver */
@@ -171,10 +193,8 @@ void SICONOS_Solve (SICONOS *si, LOCDYN *ldy)
 {
   FrictionContactProblem *fc;
   double *R, *U, *R1, *U1;
-#if 0
-  NumericsOptions *no;
-  SolverOptions *so;
-#endif
+  NumericsOptions no;
+  SolverOptions so;
   DIAB *dia;
   CON *con;
 
@@ -192,16 +212,21 @@ void SICONOS_Solve (SICONOS *si, LOCDYN *ldy)
       {
 	double *R0 = con->R,
 	       *U0 = con->U;
-	COPY (R0, R1);
-	COPY (U0, U1);
+	COPY_REV (R0, R1);
+	COPY_REV (U0, U1);
 	R1 += 3;
 	U1 += 3;
       }
     }
 
-#if 0
-    frictionContact3D_driver (fc, R, U, so, no);
-#endif
+    no.verboseMode = si->verbose;
+    frictionContact3D_setDefaultSolverOptions(&so, SICONOS_FRICTION_3D_NSGS);
+    so.iparam [0] = si->maxiter;
+    so.dparam [0] = si->epsilon;
+
+    frictionContact3D_driver (fc, R, U, &so, &no);
+
+    deleteSolverOptions (&so);
 
     for (dia = ldy->dia, R1 = R, U1 = U; dia; dia = dia->n)
     {
@@ -210,8 +235,8 @@ void SICONOS_Solve (SICONOS *si, LOCDYN *ldy)
       {
 	double *R0 = con->R,
 	       *U0 = con->U;
-	COPY (R1, R0);
-	COPY (U1, U0);
+	COPY_REV (R1, R0);
+	COPY_REV (U1, U0);
 	R1 += 3;
 	U1 += 3;
       }
@@ -231,4 +256,5 @@ void SICONOS_Write_State (SICONOS *si, PBF *bf)
 /* destroy solver */
 void SICONOS_Destroy (SICONOS *si)
 {
+  free (si);
 }

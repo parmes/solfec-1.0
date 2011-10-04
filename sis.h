@@ -28,11 +28,15 @@ typedef struct siconos SICONOS;
 
 struct siconos
 {
+  double epsilon;
+
   int maxiter;
+
+  short verbose;
 };
 
 /* create solver */
-SICONOS* SICONOS_Create (double meritval, int maxiter);
+SICONOS* SICONOS_Create (double epsilon, int maxiter);
 
 /* run solver */
 void SICONOS_Solve (SICONOS *si, LOCDYN *ldy);

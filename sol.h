@@ -28,6 +28,7 @@
 #include "bgs.h"
 #include "pes.h"
 #include "nts.h"
+#include "sis.h"
 #include "tts.h"
 #include "dom.h"
 #include "mat.h"
@@ -50,7 +51,8 @@ enum solver_kind
   GAUSS_SEIDEL_SOLVER  = 0x01,
   PENALTY_SOLVER       = 0x02,
   NEWTON_SOLVER        = 0x04,
-  TEST_SOLVER          = 0x08
+  SICONOS_SOLVER       = 0x08,
+  TEST_SOLVER          = 0x10
 };
 
 typedef enum solver_kind SOLVER_KIND;
