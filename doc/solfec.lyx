@@ -1011,6 +1011,38 @@ ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
 ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
 \end_layout
 
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# Siconos (yes/no)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+SICONOS = yes
+\end_layout
+
+\begin_layout LyX-Code
+SICONOSINC = -I/usr/local/include/Siconos/Numerics
+\end_layout
+
+\begin_layout LyX-Code
+SICONOSLIB = -L/usr/local/lib -l SiconosNumerics
+\end_layout
+
 \begin_layout Standard
 The above configuration works on Mac OS X.
  Examples for Linux and Cygwin can be found in 
@@ -1111,6 +1143,31 @@ MPI
 Zoltan
 \series default
  load balancing library
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+Siconos
+\series default
+
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset CommandInset href
+LatexCommand href
+name "http://siconos.gforge.inria.fr/HomePage/index.html"
+target "http://siconos.gforge.inria.fr/HomePage/index.html"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+ contact solvers library (optional)
 \end_layout
 
 \begin_layout Standard
@@ -1590,7 +1647,7 @@ The below table gives indicative assessment of the maturity of various Solfec
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="75" columns="4">
+<lyxtabular version="3" rows="76" columns="4">
 <features islongtable="true">
 <column alignment="center" valignment="top" width="0">
 <column alignment="center" valignment="top" width="0">
@@ -2304,6 +2361,44 @@ NEWTON_SOLVER
 
 \begin_layout Plain Layout
 x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+SICONOS_SOLVER
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
 \end_layout
 
 \end_inset
@@ -8748,6 +8843,139 @@ Read/write
 \emph on
 obj.meritval, obj.maxiter, obj.locdyn, obj.linver, obj.linmaxiter, obj.maxmatvec,
  obj.epsilon, obj.delta, obj.theta, obj.omega
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
+SICONOS_SOLVER 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+Object of type SICONOS_SOLVER represents the frictional contact solvers
+ available from Siconos
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+\begin_inset CommandInset href
+LatexCommand href
+name "http://siconos.gforge.inria.fr/HomePage/index.html"
+target "http://siconos.gforge.inria.fr/HomePage/index.html"
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+.
+ Currently only the the nonlinear Gauss-Seidel solver is enabled, making
+ the SICONOS_SOLVER equivalent to the GAUSS_SEIDEL_SOLVER.
+ 
+\series bold
+WARNING1:
+\series default
+ only contact constraints are supported at this stage.
+ 
+\series bold
+WARNING2:
+\series default
+ velocity restitution is ignored at the moment.
+ 
+\series bold
+WARNING3:
+\series default
+ only the serial version is available.
+ 
+\series bold
+WARNING4:
+\series default
+ Solfec needs to be compiled with Sicons support for this solver to work.
+\end_layout
+
+\begin_layout Subsection*
+obj = SICONOS_SOLVER (| epsilon, maxiter, verbose)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created SICONOS_SOLVER object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+epsilon
+\series default
+ - relative accuracy of constraint reactions sufficient for termination
+ (default: 1E-4)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+maxiter
+\series default
+ - iterations bound (default: 1000)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+verbose
+\series default
+ - verbosity flag: 'ON' or 'OFF' (default: 'OFF')
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a SICONOS_SOLVER object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="95col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read/write
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.epsilon, obj.maxiter
 \end_layout
 
 \end_inset

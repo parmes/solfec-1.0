@@ -11,10 +11,10 @@ else
 endif
 
 ifeq ($(SICONOS),yes)
-  SICONOSO = \
-	obj/sis.o \
+  SICONO = \
+	obj/sis.o
 else
-  SICONOSO =
+  SICONO =
 endif
 
 include Flags.mak
@@ -78,7 +78,6 @@ OBJ =   $(EXTO)   \
 	obj/pes.o \
 	obj/nts.o \
 	obj/tts.o \
-	obj/sis.o \
 	obj/mrf.o \
 	obj/dom.o \
 	obj/cra.o \
@@ -86,8 +85,8 @@ OBJ =   $(EXTO)   \
 	obj/lng.o \
 	obj/sol.o \
 	obj/fem.o \
+        $(SICONO) \
 	$(OPENGLO)
-        $(SICONOSO)
 
 OBJMPI = $(EXTO)       \
          $(BASEO)      \

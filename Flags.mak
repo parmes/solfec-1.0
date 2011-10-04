@@ -101,7 +101,7 @@ ifeq ($(MPI),yes)
 endif
 
 ifeq ($(SICONOS),yes)
-  SICONOS = -DSICONOS
+  SICONOS = -DWITHSICONOS
 else
   SICONOS = 
 endif
