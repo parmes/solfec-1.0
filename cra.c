@@ -309,7 +309,7 @@ void Propagate_Cracks (DOM *dom)
       }
       else
       {
-        if (one->shape->nbradj) one->flags |= BODY_DETECT_SELF_CONTACT; /* FIXME => remove when the above is made work */
+        if (one->shape->nbradj && one->kind == FEM) one->flags |= BODY_DETECT_SELF_CONTACT; /* FIXME => remove when the above is made work */
 
 	SET_Insert (NULL, &newbod, one, NULL);
       }
@@ -320,7 +320,7 @@ void Propagate_Cracks (DOM *dom)
       }
       else 
       {
-        if (two->shape->nbradj) two->flags |= BODY_DETECT_SELF_CONTACT; /* FIXME => remove when the above is made work */
+        if (two->shape->nbradj && two->kind == FEM) two->flags |= BODY_DETECT_SELF_CONTACT; /* FIXME => remove when the above is made work */
 
 	SET_Insert (NULL, &newbod, two, NULL);
       }
@@ -351,7 +351,7 @@ void Propagate_Cracks (DOM *dom)
       }
       else
       {
-	one->flags |= BODY_DETECT_SELF_CONTACT; /* enable self-contact checking */
+	if (one->kind == FEM) one->flags |= BODY_DETECT_SELF_CONTACT; /* enable self-contact checking */
 
 	SET_Insert (NULL, &newbod, one, NULL);
       }

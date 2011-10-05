@@ -127,6 +127,9 @@ double MX_Norm (MX *a);
 void MX_Pack (MX *a, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints);
 MX* MX_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
+/* print to standard output */
+void MX_Printf (MX *a);
+
 /* free matrix */
 void MX_Destroy (MX *a);
 
