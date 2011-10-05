@@ -40,7 +40,7 @@ typedef double (*node_t) [3]; /* mesh node */
 #define IMP_EPS 1E-9
 #define MAX_ITERS 64
 #define MAX_NODES 20
-#define DOM_TOL 0.01
+#define DOM_TOL 0.1
 #define CUT_TOL 0.001
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2) /* external force */
@@ -293,7 +293,7 @@ static int integrator2d_order (int type, ENTITY2D entity)
     TRI *__t__, *__e__;\
     double __volume__;\
 \
-    __N__ = integrator3d_load (4, integrator3d_order (4, ENTITY), &__X__, &__Y__, &__Z__, &__W__);\
+    __N__ = integrator3d_load (4, 1, &__X__, &__Y__, &__Z__, &__W__);\
 \
     for (__volume__ = __k__ = 0; __k__ < __domnum__; __k__ ++) __volume__ += __d__ [__k__].volume;\
 \

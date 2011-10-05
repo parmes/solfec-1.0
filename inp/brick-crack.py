@@ -60,7 +60,8 @@ INITIAL_VELOCITY (bod, (0, 0, -1), (0, 0, 0))
 SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, (0, 0.137, 0)), (1, 0, 0), 3, 'TENSILE', ft=1E3, topoadj = 'OFF')
 SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, (0.137, 0, 0)), (0, 1, 0), 3, 'TENSILE', ft=1E3, topoadj = 'ON') #FIXME => interpenteration (splitting in 3?)
 
-#bod.scheme = 'DEF_LIM'
-#bod.damping = 1E-3
+bod.scheme = 'DEF_LIM'
+bod.damping = 1E-3
 
+CONTACT_SPARSIFY (solfec, 0.01, 0.0001)
 RUN (solfec, solver, stop)

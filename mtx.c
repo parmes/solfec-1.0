@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include "lap.h"
 #include "bla.h"
 #include "mem.h"
@@ -2224,6 +2225,21 @@ MX* MX_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
   }
 
   return a;
+}
+
+void MX_Printf (MX *a)
+{
+  if (a->kind == MXDENSE) printf ("DENSE");
+  else if (a->kind == MXBD) printf ("BD");
+  else if (a->kind == MXCSC) printf ("CSC");
+
+  printf (" (%d, %d):\n", a->m, a->n);
+
+  /* print nonzero entriers (this routine is meant for debug printing mainly) */
+
+  for (int i = 0; i < a->nzmax; i ++) printf ("%g  ", a->x [i]);
+
+  printf ("\n");
 }
 
 void MX_Destroy (MX *a)
