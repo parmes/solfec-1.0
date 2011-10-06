@@ -665,14 +665,45 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int 
 /* is shape separable into disjoint parts */
 int SHAPE_Separable (SHAPE *shp)
 {
-  return 0; /* FIXME => TODO */
+  if (shp->kind == SHAPE_MESH && shp->next == NULL) return MESH_Separable (shp->data);
+  else if (shp->kind == SHAPE_CONVEX && shp->next == NULL) return CONVEX_Separable (shp->data);
+  else return 0;
 }
 
 /* separate shape into disjoint parts */
 SHAPE** SHAPE_Separate (SHAPE *shp, int *m)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED);
-  return NULL; /* FIXME => TODO */
+  SHAPE **out = NULL;
+  *m = 0;
+
+  if (shp->kind == SHAPE_MESH && shp->next == NULL)
+  {
+    MESH **x = MESH_Separate (shp->data, m);
+
+    if (x)
+    {
+      ERRMEM (out = MEM_CALLOC ((*m) * sizeof (SHAPE*)));
+      for (int i = 0; i < (*m); i ++) out [i] = SHAPE_Create (SHAPE_MESH, x [i]);
+      free (x);
+    }
+  }
+  else if (shp->kind == SHAPE_CONVEX && shp->next == NULL)
+  {
+    CONVEX **x = CONVEX_Separate (shp->data, m);
+
+    if (x)
+    {
+      ERRMEM (out = MEM_CALLOC ((*m) * sizeof (SHAPE*)));
+      for (int i = 0; i < (*m); i ++) out [i] = SHAPE_Create (SHAPE_CONVEX, x [i]);
+      free (x);
+    }
+  }
+
+  /* XXX: bradj_point_normal is not handled here; this may cause inconsistent
+   * XXX: results for more complex fragmentation with prescribed cracking for convex lists;
+   * XXX: not needed in current applications (anyway 'breadj_' is not a great solution) */
+
+  return out;
 }
 
 /* check whether a spatial/referential cut is geometrically possible */

@@ -592,6 +592,8 @@ KDT* TRI_Kdtree (TRI *tri, int n)
     KDT_Drop (kd, extents, t);
   }
 
+  free (p);
+
   return kd;
 }
 

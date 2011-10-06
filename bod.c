@@ -2085,9 +2085,67 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
 
 BODY** BODY_Separate (BODY *bod, int *m)
 {
-  /* FIXME => TODO */
+  BODY **out = NULL;
   *m = 0;
-  return NULL;
+
+  switch (bod->kind)
+  {
+  case OBS:
+  case RIG:
+  case PRB:
+    {
+      SHAPE **shp;
+      char *label;
+
+      shp = SHAPE_Separate (bod->shape, m);
+
+      if (shp)
+      {
+	ERRMEM (out = malloc ((*m) * sizeof (BODY*)));
+
+	if (bod->label) ERRMEM (label = malloc (strlen (bod->label) + 8));
+	else label = NULL;
+
+	for (int i = 0; i < (*m); i ++)
+	{
+	  if (bod->label) sprintf (label, "%s/%d", bod->label, i);
+	  out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL);
+	  overwrite_state (bod, out [i]);
+	  SHAPE_Update (out [i]->shape, out [i], (MOTION)BODY_Cur_Point); 
+	}
+
+	if (bod->label) free (label);
+	free (shp);
+      }
+    }
+    break;
+  case FEM:
+    out = FEM_Separate (bod, m);
+    break;
+  }
+
+  double vtot = 0;
+
+  for (int i = 0; i < (*m); i ++)
+  {
+    COPY6 (bod->extents, out[i]->extents);
+    out [i]->scheme = bod->scheme;
+    out [i]->damping = bod->damping;
+
+    vtot += out [i]->ref_volume;
+  }
+
+  for (int i = 0; i < (*m); i ++)
+  {
+    double coef = out [i]->ref_volume / vtot;
+
+    for (int j = 0; j < BODY_ENERGY_SPACE; j ++)
+      out [i]->energy [j] = coef * bod->energy [j]; /* XXX: volume proportional split is not best in all cases */
+  }
+
+  /* TODO: transfer forces to parts */
+
+  return out;
 }
 
 void BODY_Write_State (BODY *bod, PBF *bf)

@@ -54,11 +54,13 @@ struct convex
 
   ELEMENT **ele; /* intersected elements */
 
-  int nver, /* vertices count */
-      nfac, /* faces count */
-      nadj, /* number of neihjbours */
-      nele, /* number of intersected elements */
-      volume; /* volume identifier */
+  short nver, /* vertices count */
+        nfac, /* faces count */
+        nadj, /* number of neighbours */
+        nele, /* number of intersected elements */
+	flag; /* auxiliary flag used internally */
+
+  int volume; /* volume identifier */
 
   BULK_MATERIAL *mat;
 
@@ -107,6 +109,12 @@ TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m);
  * the split lists elements need to be recomputed; surfid corresponds to the new surface;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two);
+
+/* is convex set separable into disjoint parts */
+int CONVEX_Separable (CONVEX *cvx);
+
+/* separate convex set into disjoint parts */
+CONVEX** CONVEX_Separate (CONVEX *cvx, int *m);
 
 /* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */

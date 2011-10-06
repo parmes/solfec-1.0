@@ -976,7 +976,30 @@ static MESH* produce_split_mesh (MESH *msh, SET *els, int *cutfaces, int surfid,
   }
   *ptr = 0; /* mark end */
 
-  out = MESH_Create (nodes, elements, surfaces);
+  out = MESH_Create (nodes, elements, surfaces); /* this sorts out current nodes */
+
+  /* copy reference nodes now */
+
+  double  (*ref0) [3] = msh->ref_nodes,
+	  (*ref1) [3] = out->ref_nodes;
+
+  for (jtem = MAP_First (nodmap); jtem; jtem = MAP_Next (jtem)) /* copy a subset of old reference nodes onto new nodes */
+  {
+    i = (int) (long) jtem->key; /* old index */
+    j = (int) (long) jtem->data; /* new index */
+    double *a = ref0 [i],
+	   *b = ref1 [j];
+    COPY (a, b);
+  }
+
+  for (jtem = MAP_First (newnod); jtem; jtem = MAP_Next (jtem)) /* now for 'newnod' set => copy a subset of old reference nodes onto new nodes */
+  {
+    i = (int) (long) jtem->key; /* old index */
+    j = (int) (long) jtem->data; /* new index */
+    double *a = ref0 [i],
+	   *b = ref1 [j];
+    COPY (a, b);
+  }
 
   /* TODO: take care of material mapping, if element materials were presecribed */
 
@@ -1214,6 +1237,20 @@ static void create_surfnodes (MESH *msh)
   }
   msh->surfnodes_count = MAP_Size (smap);
   MEM_Release (&mapmem);
+}
+
+/* recursive neighbour marking */
+static void mark_neighs (ELEMENT *ele, short flag)
+{
+  if (ele->flag != flag)
+  {
+    ele->flag = flag;
+
+    for (int i = 0; i < ele->neighs; i ++)
+    {
+      mark_neighs (ele->adj [i], flag);
+    }
+  }
 }
 
 /* create mesh from vector of nodes, element list in format =>
@@ -2056,6 +2093,74 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
       *one = NULL;
     }
   }
+}
+
+/* is mesh separable into disjoint parts */
+int MESH_Separable (MESH *msh)
+{
+  ELEMENT *ele;
+
+  for (ele = msh->surfeles; ele; ele = ele->next) ele->flag = 0;
+  for (ele = msh->bulkeles; ele; ele = ele->next) ele->flag = 0;
+
+  int flag = 1;
+
+  mark_neighs (msh->surfeles, flag);
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    if (ele->flag == 0)
+    {
+      flag ++;
+      mark_neighs (ele, flag);
+    }
+  }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    if (ele->flag == 0)
+    {
+      flag ++;
+      mark_neighs (ele, flag);
+    }
+  }
+
+  return (flag == 1 ? 0 : flag);
+}
+
+/* separate mesh into disjoint parts */
+MESH** MESH_Separate (MESH *msh, int *m)
+{
+  ELEMENT *ele;
+  MESH **out;
+  SET *els;
+  MEM mem;
+  int i, j;
+ 
+  *m = MESH_Separable (msh);
+
+  if ((*m) == 0) return NULL;
+
+  ERRMEM (out = malloc ((*m) * sizeof (MESH*)));
+  MEM_Init (&mem, sizeof (SET), MEMCHUNK);
+  j = 0;
+
+  for (i = 1, els = NULL; i <= (*m); i ++)
+  {
+    SET_Free (&mem, &els);
+
+    for (ele = msh->surfeles; ele; ele = ele->next)
+      if (ele->flag == i) SET_Insert (&mem, &els, ele, NULL);
+
+    for (ele = msh->bulkeles; ele; ele = ele->next)
+      if (ele->flag == i) SET_Insert (&mem, &els, ele, NULL);
+
+    out [i-1] = produce_split_mesh (msh, els, &j, 0, NULL, NULL);
+  }
+
+  MEM_Release (&mem);
+
+  return out;
 }
 
 /* compute partial characteristic: 'vo'lume and static momenta

@@ -98,6 +98,9 @@ void FEM_Update_Rough_Mesh (BODY *bod);
 /* split body by a referential plane; output one body with new boundary or two bodies if fragmentation occurs */
 void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid, BODY **one, BODY **two);
 
+/* separate body whose shape is separable into sub-bodies */
+BODY** FEM_Separate (BODY *bod, int *m);
+
 /* release FEM memory */
 void FEM_Destroy (BODY *bod);
 

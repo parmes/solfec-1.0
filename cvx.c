@@ -179,6 +179,7 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
   out = hul = NULL;
   ver = cvx->cur;
   edges = NULL;
+  hv = NULL;
 
   /* 4-plane */
   COPY (normal, pla);
@@ -193,7 +194,8 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
     dp0 = LEN4 (dpl);
     if (dp0 < GEOMETRIC_EPSILON) /* coplanar oposit face => skip this cut */
     {
-      *m = 0; return NULL; /* useful for pairs of internally adjacent convices; negligible on the boundary */
+      *m = 0;
+      goto out; /* useful for pairs of internally adjacent convices; negligible on the boundary */
     }
 
     for (g = f+1; g < f+f[0]; g ++) /* create edges from consecutive vertex pairs */
@@ -290,7 +292,7 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
 
 out:
   /* clean */
-  free (hv);
+  if (hv) free (hv);
   if (hul) free (hul);
   MEM_Release (&setmem);
   MEM_Release (&edgemem);
@@ -535,6 +537,20 @@ static void overlap (void *data, BOX *one, BOX *two)
     cvx->adj [cvx->nadj-1] = cvy;
     ERRMEM (cvy->adj = realloc (cvy->adj, (++cvy->nadj) * sizeof (BOX*))); 
     cvy->adj [cvy->nadj-1] = cvx;
+  }
+}
+
+/* recursive neighbour marking */
+static void mark_neighs (CONVEX *x, short flag)
+{
+  if (x->flag != flag)
+  {
+    x->flag = flag;
+
+    for (int i = 0; i < x->nadj; i ++)
+    {
+      mark_neighs (x->adj [i], flag);
+    }
   }
 }
 
@@ -1007,6 +1023,57 @@ void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, in
     KDT_Destroy (kd);
     free (c);
   }
+}
+
+/* is convex set separable into disjoint parts */
+int CONVEX_Separable (CONVEX *cvx)
+{
+  CONVEX *x;
+
+  for (x = cvx; x; x = x->next) x->flag = 0;
+
+  int flag = 1;
+
+  mark_neighs (cvx, flag);
+
+  for (x = cvx; x; x = x->next)
+  {
+    if (x->flag == 0)
+    {
+      flag ++;
+      mark_neighs (x, flag);
+    }
+  }
+
+  return (flag == 1 ? 0 : flag);
+}
+
+/* separate convex set into disjoint parts */
+CONVEX** CONVEX_Separate (CONVEX *cvx, int *m)
+{
+  CONVEX *x, **out;
+  int i;
+ 
+  *m = CONVEX_Separable (cvx);
+
+  if ((*m) == 0) return NULL;
+
+  ERRMEM (out = MEM_CALLOC ((*m) * sizeof (MESH*)));
+
+  for (i = 1; i <= (*m); i ++)
+  {
+    for (x = cvx; x; x = x->next)
+    {
+      if (x->flag == i)
+      {
+	CONVEX *next = x->next; x->next = NULL; /* tenatively terminate the list (due to gluing next line) */
+	out [i-1] = CONVEX_Glue (CONVEX_Copy (x), out [i-1]); /* copy this convex into the output list */
+	x->next = next; /* restore the list */
+      }
+    }
+  }
+
+  return out;
 }
 
 /* compute partial characteristic: 'vo'lume and static momenta

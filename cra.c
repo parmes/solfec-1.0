@@ -305,25 +305,23 @@ void Propagate_Cracks (DOM *dom)
 
       if (SHAPE_Separable (one->shape))
       {
-         /* FIXME => TODO */
+	int i, n;
+	BODY **out = BODY_Separate (one, &n);
+	for (i = 0; i < n; i ++) SET_Insert (NULL, &newbod, out [i], NULL);
+	BODY_Destroy (one);
+	free (out);
       }
-      else
-      {
-        if (one->shape->nbradj && one->kind == FEM) one->flags |= BODY_DETECT_SELF_CONTACT; /* FIXME => remove when the above is made work */
-
-	SET_Insert (NULL, &newbod, one, NULL);
-      }
+      else SET_Insert (NULL, &newbod, one, NULL);
 
       if (SHAPE_Separable (two->shape))
       {
-         /* FIXME => TODO */
+	int i, n;
+	BODY **out = BODY_Separate (two, &n);
+	for (i = 0; i < n; i ++) SET_Insert (NULL, &newbod, out [i], NULL);
+	BODY_Destroy (two);
+	free (out);
       }
-      else 
-      {
-        if (two->shape->nbradj && two->kind == FEM) two->flags |= BODY_DETECT_SELF_CONTACT; /* FIXME => remove when the above is made work */
-
-	SET_Insert (NULL, &newbod, two, NULL);
-      }
+      else SET_Insert (NULL, &newbod, two, NULL);
     }
     else if (cra && cra->topoadj && one) /* half-crack with new boundary */
     {
@@ -347,7 +345,11 @@ void Propagate_Cracks (DOM *dom)
 
       if (SHAPE_Separable (one->shape))
       {
-	/* FIXME => TODO */
+	int i, n;
+	BODY **out = BODY_Separate (one, &n);
+	for (i = 0; i < n; i ++) SET_Insert (NULL, &newbod, out [i], NULL);
+	BODY_Destroy (one);
+	free (out);
       }
       else
       {
