@@ -3312,6 +3312,72 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
   if (bod->label) free (label);
 }
 
+/* separate body whose shape is separable into sub-bodies */
+BODY** FEM_Separate (BODY *bod, int *m)
+{
+  BODY **out = NULL;
+  SHAPE **shp;
+  MESH **msh;
+  char *label;
+  int i;
+
+  shp = SHAPE_Separate (bod->shape, m);
+
+  if (!shp) return NULL;
+
+  ERRMEM (out = malloc ((*m) * sizeof (BODY*)));
+
+  if (bod->msh)
+  {
+    msh = MESH_Separate (bod->msh, &i);
+    ASSERT_TEXT ((*m) == i, "Shape and background mesh fragmented into different numbers of fragments: %d, %d", *m, i);
+
+    /* how do we know that the sequence of meshes maches the sequence of separated shapes ?
+     * we need to do this mapping here => find meshes that contain inner convex points */
+
+    for (i = 0; i < (*m); i ++) /* for each shape */
+    {
+      CONVEX *x = shp[i]->data;
+      double *p = x->cur,
+	     *e = p + 3 * x->nver,
+	     q [3] = {0, 0, 0};
+
+      for (; p < e; p += 3) { ACC (p, q); }
+      DIV (q, (double) x->nver, q); /* centroid of the first convex */
+
+      for (int j = i; j < (*m); j ++) /* for all unmatched meshes */
+      {
+	if (MESH_Element_Containing_Spatial_Point (msh [j], q)) /* if it contains the centroid */
+	{
+	  MESH *ptr = msh [i]; /* save this mesh pointer */
+	  msh [i] = msh [j]; /* make ith mesh matching the ith shape */
+	  msh [j] = ptr; /* put the saved pointer in the spare place */
+	}
+      }
+    }
+  }
+  else msh = NULL;
+
+  if (bod->label) ERRMEM (label = malloc (strlen (bod->label) + 8));
+  else label = NULL;
+
+  for (i = 0; i < (*m); i ++)
+  {
+    if (bod->label) sprintf (label, "%s/%d", bod->label, i);
+    MESH *backmesh = (msh ? msh [i] : NULL);
+    out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh);
+    map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
+    SHAPE_Update (out [i]->shape, out [i], (MOTION)BODY_Cur_Point); 
+    if (backmesh) update_background_mesh (out [i]);
+  }
+
+  if (bod->label) free (label);
+  if (msh) free (msh);
+  free (shp);
+
+  return out;
+}
+
 /* release FEM memory */
 void FEM_Destroy (BODY *bod)
 {

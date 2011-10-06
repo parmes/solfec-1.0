@@ -71,10 +71,12 @@ struct face
 /* finite element */
 struct element
 {
-  int type, /* 4, 5, 6, 8 => tetrahedron, pyramid, wedge, hexahedron */
-      nodes [8], /* node numbers */
-      neighs, /* number of neighbours */
-      domnum, /* number of integration domains; or destination partition after MESH_Partition */
+  short type, /* 4, 5, 6, 8 => tetrahedron, pyramid, wedge, hexahedron */
+	domnum, /* number of integration domains; or destination partition after MESH_Partition */
+	neighs, /* number of neighbours */
+	flag;  /* auxiliary flag used internally */
+
+  int nodes [8], /* node numbers */
       volume; /* volume identifier */
 
   BULK_MATERIAL *mat;
@@ -159,6 +161,12 @@ TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m);
  * elements are crossed; if only element boundaries are crossed then the original mesh is used;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int surfid, MESH **one, MESH **two);
+
+/* is mesh separable into disjoint parts */
+int MESH_Separable (MESH *msh);
+
+/* separate mesh into disjoint parts */
+MESH** MESH_Separate (MESH *msh, int *m);
 
 /* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
