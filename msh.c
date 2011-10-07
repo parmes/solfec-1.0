@@ -2822,6 +2822,7 @@ void MESH_Destroy (MESH *msh)
       for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
       free (ele->dom);
     }
+    if (ele->state) free (ele->state);
   }
 
   for (ele = msh->surfeles; ele; ele = ele->next)
@@ -2831,6 +2832,7 @@ void MESH_Destroy (MESH *msh)
       for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
       free (ele->dom);
     }
+    if (ele->state) free (ele->state);
   }
 
   for (nod = msh->surfnodes; nod; nod = nod->n) free (nod->fac);

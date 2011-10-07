@@ -21,9 +21,12 @@
 
 #include <string.h>
 #include "mat.h"
+#include "but.h"
+#include "svk.h"
+#include "alg.h"
 #include "err.h"
 
-#define SPCHUNK 128
+#define CHUNK 128
 
 /* create new label */
 static char* newlabel (int size, char *label)
@@ -46,19 +49,56 @@ static char* newlabel (int size, char *label)
   return out;
 }
 
-/* ------------- interface -------------- */
-
 /* create bulk material set */
 MATSET* MATSET_Create ()
 {
   MATSET *set;
 
   ERRMEM (set = malloc (sizeof (MATSET)));
-  MEM_Init (&set->matmem, sizeof (BULK_MATERIAL), SPCHUNK);
-  MEM_Init (&set->mapmem, sizeof (MAP), SPCHUNK);
+  MEM_Init (&set->matmem, sizeof (BULK_MATERIAL), CHUNK);
+  MEM_Init (&set->mapmem, sizeof (MAP), CHUNK);
   set->map = NULL;
   set->size = 0;
   return set;
+}
+
+/* bulk material routine
+ * ---------------------
+ *  mat (IN) - material
+ *  F (IN) - deformation gradient (column-wise)
+ *  a (IN) - coefficient that will scale P and K
+ *  P (OUT) - first Piola tensor (column-wise); NULL allowed
+ *  K (OUT) - tangent dP/dF; NULL allowed
+ * --------------------------------------
+ *  return det (F)
+ */
+double BULK_MATERIAL_ROUTINE (BULK_MATERIAL *mat, double *F, double a, double *P, double *K)
+{
+  double J;
+
+  switch (mat->model)
+  {
+  case KIRCHHOFF:
+  {
+    double mat_lambda, mat_mi;
+
+    mat_lambda = lambda (mat->young, mat->poisson);
+    mat_mi = mi (mat->young, mat->poisson);
+    if (K) SVK_Tangent_C (mat_lambda, mat_mi, a, 9, F, K);
+    if (P) J = SVK_Stress_C (mat_lambda, mat_mi, a, F, P);
+    else J = DET (F);
+  }
+  break;
+  case TSANG_MARSDEN:
+  {
+    J = DET (F);
+
+    /* TODO */
+  }
+  break;
+  }
+
+  return J;
 }
 
 /* insert new material */
@@ -117,6 +157,7 @@ void MATSET_2_MBFCP (MATSET *set, FILE *out)
     switch (mat->model)
     {
     case KIRCHHOFF:
+    case TSANG_MARSDEN:
       fprintf (out, "LABEL:\t%s\n", mat->label);
       fprintf (out, "MODEL:\t%s\n", "KIRCHHOFF");
       fprintf (out, "YOUNG:\t%g\n", mat->young);

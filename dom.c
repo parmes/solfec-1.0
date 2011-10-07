@@ -260,28 +260,25 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, s
   if (dom->noid == 0) /* if id generation is enabled */
   {
 #endif
+    SET *item = SET_First (dom->sparecid);
 
-  if (SET_Size (dom->sparecid))
-  {
-    SET *item;
-   
-    item = SET_First (dom->sparecid);
-    con->id = (unsigned int) (long) item->data; /* use a previously freed id */
-    SET_Delete (&dom->setmem, &dom->sparecid, item->data, NULL);
-  }
-  else
-  {
-    con->id = dom->cid;
+    if (item)
+    {
+      con->id = (unsigned int) (long) item->data; /* use a previously freed id */
+      SET_Delete (&dom->setmem, &dom->sparecid, item->data, NULL);
+    }
+    else
+    {
+      con->id = dom->cid;
 
 #if MPI
-    ASSERT (((unsigned long long) dom->cid) + ((unsigned long long) dom->ncpu) < UINT_MAX, ERR_DOM_TOO_MANY_CONSTRAINTS);
-    dom->cid += dom->ncpu; /* every ncpu number */
+      ASSERT (((unsigned long long) dom->cid) + ((unsigned long long) dom->ncpu) < UINT_MAX, ERR_DOM_TOO_MANY_CONSTRAINTS);
+      dom->cid += dom->ncpu; /* every ncpu number */
 #else
-    ASSERT (((unsigned long long) dom->cid) + ((unsigned long long) 1) < UINT_MAX, ERR_DOM_TOO_MANY_CONSTRAINTS);
-    con->id = dom->cid ++;
+      ASSERT (((unsigned long long) dom->cid) + ((unsigned long long) 1) < UINT_MAX, ERR_DOM_TOO_MANY_CONSTRAINTS);
+      con->id = dom->cid ++;
 #endif
-  }
-
+    }
 #if MPI
   }
   else con->id = dom->noid; /* assign the 'noid' as it was imported with a constraint */

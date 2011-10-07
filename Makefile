@@ -60,6 +60,7 @@ BASEO = obj/err.o \
 	obj/sph.o \
 	obj/eli.o \
 	obj/shp.o \
+	obj/fld.o \
 	obj/sps.o \
 	obj/mat.o \
 	obj/goc.o \
@@ -304,6 +305,9 @@ obj/sis.o: sis.c sis.h dom.h ldy.h bod.h alg.h mtx.h lap.h bla.h err.h
 
 obj/mrf.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/fld.o: fld.c fld.h mem.h map.h err.h
+	$(CC) $(CFLAGS) $(PYTHON) -c -o $@ $<
 
 obj/sps.o: sps.c sps.h mem.h set.h map.h dom.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<

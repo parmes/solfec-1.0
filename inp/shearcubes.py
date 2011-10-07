@@ -74,7 +74,7 @@ for bod in solfec.bodies: bod.damping = 0.001
 if solv == 'gs':
   sv = GAUSS_SEIDEL_SOLVER (1E-2, 1000, 1E-7)
 else:
-  sv = NEWTON_SOLVER (1E-7, 1000, theta = 0.25)
+  sv = NEWTON_SOLVER (1E-7, 1000, linver = 'DIAG', theta = 0.25)
 
 OUTPUT (solfec, step, 'ON')
 

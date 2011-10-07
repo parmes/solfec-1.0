@@ -79,7 +79,8 @@ struct element
   int nodes [8], /* node numbers */
       volume; /* volume identifier */
 
-  BULK_MATERIAL *mat;
+  BULK_MATERIAL *mat; /* bulk material, overrdiing BODY->mat */
+  double *state; /* material state variables */
 
   TRISURF *dom; /* integration domains */
 

@@ -1525,6 +1525,102 @@ static PyGetSetDef lng_SOLFEC_getset [] =
 };
 
 /*
+ * FIELD => object
+ */
+
+typedef struct lng_FIELD lng_FIELD; /* surface material type */
+
+static PyTypeObject lng_FIELD_TYPE; /* type descriptor */
+
+struct lng_FIELD /* surface material object */
+{
+  PyObject_HEAD
+  FIELD *fld;
+};
+
+/* constructor */
+static PyObject* lng_FIELD_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS (
+    "solfec",
+    "filed_callback",
+    "label",
+    "data");
+
+  PyObject *callback, *label, *data;
+  lng_SOLFEC *solfec;
+  lng_FIELD *self;
+  SOLFEC *sol;
+  FIELD fld;
+
+  self = (lng_FIELD*)type->tp_alloc (type, 0);
+
+  if (self)
+  {
+    label = NULL;
+    data = NULL;
+
+    PARSEKEYS ("OO|OO", &solfec, &callback, &label, &data);
+
+    TYPETEST (is_solfec (solfec, kwl[0]) && is_callable (callback, kwl[1]) && is_string (label, kwl[2]));
+
+    sol = solfec->sol;
+    fld.call = callback;
+    fld.data = data;
+
+    self->fld = FISET_Insert (sol->fis, as_string (label), fld); /* insert data into field set */
+  }
+
+  return  (PyObject*)self;
+}
+
+/* create material wrapper */
+static PyObject* lng_FIELD_WRAPPER (FIELD *fld)
+{
+  lng_FIELD *self;
+
+  self = (lng_FIELD*)lng_FIELD_TYPE.tp_alloc (&lng_FIELD_TYPE, 0);
+
+  self->fld = fld;
+
+  return (PyObject*)self;
+}
+
+/* destructor */
+static void lng_FIELD_dealloc (lng_FIELD *self)
+{
+  self->ob_type->tp_free ((PyObject*)self);
+}
+
+/* setgets */
+
+static PyObject* lng_FIELD_get_label (lng_FIELD *self, void *closure)
+{
+  return PyString_FromString (self->fld->label);
+}
+
+static int lng_FIELD_set_label (lng_FIELD *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+/* FIELD methods */
+static PyMethodDef lng_FIELD_methods [] =
+{ {NULL, NULL, 0, NULL} };
+
+/* FIELD members */
+static PyMemberDef lng_FIELD_members [] =
+{ {NULL, 0, 0, 0, NULL} };
+
+/* FIELD getset */
+static PyGetSetDef lng_FIELD_getset [] =
+{ 
+  {"label", (getter)lng_FIELD_get_label, (setter)lng_FIELD_set_label, "label", NULL},
+  {NULL, 0, 0, NULL, NULL}
+};
+
+/*
  * SURFACE_MATERIAL => object
  */
 
@@ -1584,8 +1680,7 @@ static PyObject* lng_SURFACE_MATERIAL_new (PyTypeObject *type, PyObject *args, P
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (model, kwl[3]) && is_string (label, kwl[4]) &&
 	      is_non_negative (mat.friction, kwl[5]) && is_non_negative (mat.cohesion, kwl[6]) &&
-	      is_in_range (mat.restitution, kwl[7], 0, 1) && is_non_negative (mat.spring, kwl[8]) &&
-	      is_non_negative (mat.dashpot, kwl[9]));
+	      is_in_range (mat.restitution, kwl[7], 0, 1) && is_non_negative (mat.spring, kwl[8]));
 
     sol = solfec->sol;
 
@@ -1803,7 +1898,11 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
    KIRCHHOFF, /* model */
    1E6,  /* young */
    0.25, /* poisson */
-   1E3   /* density */
+   1E3,  /* density */
+   NULL,
+   0,
+   0,
+   NULL
   };
 
   PyObject *model, *label;
@@ -1879,6 +1978,8 @@ static PyObject* lng_BULK_MATERIAL_get_model (lng_BULK_MATERIAL *self, void *clo
   {
   case KIRCHHOFF:
     return PyString_FromString ("KIRCHHOFF");
+  case TSANG_MARSDEN:
+    return PyString_FromString ("TSANG_MARSDEN");
   }
 
   return NULL;
@@ -3100,7 +3201,7 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
     dias = DS_SEMISMOOTH_NEWTON;
     self->data = NULL;
     self->callback = NULL;
-    meritval = 1E-3;
+    meritval = 1.0;
 
     PARSEKEYS ("di|dOdiOOO", &epsilon, &maxiter, &meritval, &failure,
       &diagepsilon, &diagmaxiter, &diagsolver, &self->data, &self->callback);
@@ -5221,7 +5322,10 @@ static void lng_FORCE_callback (PyObject *data, PyObject *call, int nq, double *
       for (n = 0; n < PyTuple_Size (data); n ++)
 	PyTuple_SetItem (args, n, PyTuple_GetItem (data, n));
 
-      PyTuple_SetItem (args, n, PyTuple_GetItem (data, n));
+      PyTuple_SetItem (args, n, qtup);
+      PyTuple_SetItem (args, n+1, utup);
+      PyTuple_SetItem (args, n+2, PyFloat_FromDouble (t));
+      PyTuple_SetItem (args, n+3, PyFloat_FromDouble (h));
     }
     else args = Py_BuildValue ("(O, O, O, d, d)", data, qtup, utup, t, h);
   }
@@ -5676,7 +5780,25 @@ static PyObject* lng_MATERIAL (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_solfec (solfec, kwl[0]) && is_body (body, kwl[1]) &&
             is_bulk_material (solfec->sol, material, kwl[2]));
 
-  BODY_Material (body->bod, volid, get_bulk_material (solfec->sol, material));
+  BULK_MATERIAL *mat0 = body->bod->mat,
+                *mat1 = get_bulk_material (solfec->sol, material);
+
+  if (mat0->nfield != mat1->nfield || mat0->nstate != mat1->nstate)
+  {
+    PyErr_SetString (PyExc_ValueError, "Number of field variables and state variables must be the same as for the body global material!");
+    return NULL;
+  }
+
+  for (int i = 0; i < mat0->nfield; i ++)
+  {
+    if (mat0->fld [i] != mat1->fld [i])
+    {
+      PyErr_SetString (PyExc_ValueError, "Fields must match those of the body global material!");
+      return NULL;
+    }
+  }
+
+  BODY_Material (body->bod, volid, mat1);
 
   Py_RETURN_NONE;
 }
@@ -6276,6 +6398,14 @@ static PyObject* lng_BYLABEL (PyObject *self, PyObject *args, PyObject *kwds)
 
     if ((mat = MATSET_Find (solfec->sol->mat, PyString_AsString (label))))
       out = lng_BULK_MATERIAL_WRAPPER (mat);
+    else Py_RETURN_NONE;
+  }
+  ELIF (kind, "FIELD")
+  {
+    FIELD *fld;
+
+    if ((fld = FISET_Find (solfec->sol->fis, PyString_AsString (label))))
+      out = lng_FIELD_WRAPPER (fld);
     else Py_RETURN_NONE;
   }
   ELIF (kind, "BODY")
@@ -7989,6 +8119,10 @@ static void initlng (void)
     Py_TPFLAGS_DEFAULT, lng_SOLFEC_dealloc, lng_SOLFEC_new,
     lng_SOLFEC_methods, lng_SOLFEC_members, lng_SOLFEC_getset);
 
+  TYPEINIT (lng_FIELD_TYPE, lng_FIELD, "solfec.FIELD",
+    Py_TPFLAGS_DEFAULT, lng_FIELD_dealloc, lng_FIELD_new,
+    lng_FIELD_methods, lng_FIELD_members, lng_FIELD_getset);
+
   TYPEINIT (lng_SURFACE_MATERIAL_TYPE, lng_SURFACE_MATERIAL, "solfec.SURFACE_MATERIAL",
     Py_TPFLAGS_DEFAULT, lng_SURFACE_MATERIAL_dealloc, lng_SURFACE_MATERIAL_new,
     lng_SURFACE_MATERIAL_methods, lng_SURFACE_MATERIAL_members, lng_SURFACE_MATERIAL_getset);
@@ -8036,6 +8170,7 @@ static void initlng (void)
   if (PyType_Ready (&lng_SPHERE_TYPE) < 0) return;
   if (PyType_Ready (&lng_ELLIP_TYPE) < 0) return;
   if (PyType_Ready (&lng_SOLFEC_TYPE) < 0) return;
+  if (PyType_Ready (&lng_FIELD_TYPE) < 0) return;
   if (PyType_Ready (&lng_SURFACE_MATERIAL_TYPE) < 0) return;
   if (PyType_Ready (&lng_BULK_MATERIAL_TYPE) < 0) return;
   if (PyType_Ready (&lng_BODY_TYPE) < 0) return;
@@ -8056,6 +8191,7 @@ static void initlng (void)
   Py_INCREF (&lng_SPHERE_TYPE);
   Py_INCREF (&lng_ELLIP_TYPE);
   Py_INCREF (&lng_SOLFEC_TYPE);
+  Py_INCREF (&lng_FIELD_TYPE);
   Py_INCREF (&lng_SURFACE_MATERIAL_TYPE);
   Py_INCREF (&lng_BULK_MATERIAL_TYPE);
   Py_INCREF (&lng_BODY_TYPE);
@@ -8074,6 +8210,7 @@ static void initlng (void)
   PyModule_AddObject (m, "SPHERE", (PyObject*)&lng_SPHERE_TYPE);
   PyModule_AddObject (m, "ELLIP", (PyObject*)&lng_ELLIP_TYPE);
   PyModule_AddObject (m, "SOLFEC", (PyObject*)&lng_SOLFEC_TYPE);
+  PyModule_AddObject (m, "FIELD", (PyObject*)&lng_FIELD_TYPE);
   PyModule_AddObject (m, "SURFACE_MATERIAL", (PyObject*)&lng_SURFACE_MATERIAL_TYPE);
   PyModule_AddObject (m, "BULK_MATERIAL", (PyObject*)&lng_BULK_MATERIAL_TYPE);
   PyModule_AddObject (m, "BODY", (PyObject*)&lng_BODY_TYPE);
@@ -8116,6 +8253,7 @@ int lng (const char *path)
                      "from solfec import SPHERE\n"
                      "from solfec import ELLIP\n"
                      "from solfec import SOLFEC\n"
+                     "from solfec import FIELD\n"
                      "from solfec import SURFACE_MATERIAL\n"
                      "from solfec import BULK_MATERIAL\n"
                      "from solfec import BODY\n"

@@ -5919,6 +5919,181 @@ obj.verbose
 \end_layout
 
 \begin_layout Subsection
+FIELD
+\end_layout
+
+\begin_layout Standard
+An object of type FIELD represents a three-dimensional, scalar, time dependent
+ field.
+\end_layout
+
+\begin_layout Subsection*
+obj = FIELD (solfec, field_callback | label, data)
+\end_layout
+
+\begin_layout Standard
+This routine creates a FIELD object.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created FIELD object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - 
+\series bold
+obj
+\series default
+ is created for this SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+field_callback
+\series default
+ - the Python function defining the scalar field:
+\end_layout
+
+\begin_layout Standard
+\align right
+\begin_inset Box Frameless
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+width "95col%"
+special "none"
+height "1in"
+height_special "totalheight"
+status open
+
+\begin_layout Plain Layout
+\begin_inset VSpace smallskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\align center
+
+\series bold
+\emph on
+value = field_callback (data, x, y, z, t)
+\end_layout
+
+\begin_layout Plain Layout
+where 
+\series bold
+data
+\series default
+ is the optional user data passed to 
+\series bold
+FIELD
+\series default
+ routine (if 
+\series bold
+data
+\series default
+ is a tuple it will expand the list of parameters to the callback), 
+\series bold
+x, y, z
+\series default
+ are the point coordinates, and 
+\series bold
+t
+\series default
+ is time.
+ The function should return a numeric value of the scalar field at given
+ point and instant of time.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - label string (default: 'FIELD_
+\emph on
+i
+\emph default
+', where 
+\emph on
+i
+\emph default
+ is incremented for each call)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+data
+\series default
+ - callback routine user data
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a FIELD object.
+ These are
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\emph on
+obj.label
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
 name "sub:SURFACE_MATERIAL"
@@ -6068,7 +6243,8 @@ spring
 \series bold
 dashpot
 \series default
- - dashpot stiffness (default: 0.0)
+ - dashpot stiffness (default: 0.0); any negative value indicates critical
+ damping
 \end_layout
 
 \begin_layout Standard
@@ -7942,7 +8118,7 @@ maxiter
 meritval
 \series default
  - constraints satisfaction merit function value sufficient for termination
- (default: 1E-3), cf.
+ (default: 1, unused), cf.
  Chapter 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -11304,7 +11480,7 @@ solfec
 \series bold
 kind
 \series default
- - labelled object: 'SURFACE_MATERIAL', 'BULK_MATERIAL', 'BODY'
+ - labelled object: 'SURFACE_MATERIAL', 'BULK_MATERIAL', 'BODY', 'FIELD'
 \end_layout
 
 \begin_layout Itemize
@@ -12129,9 +12305,9 @@ and
 \emph on
 kind
 \emph default
- is a string 'KINETIC', 'INTERNAL', 'EXTERNAL', 'CONTACT', 'FRICTION' and
- it corresponds to the energy kind; if the list of BODY objects is used,
- their energies are summed up
+ is a string 'KINETIC', 'INTERNAL', 'EXTERNAL', 'CONTACT' (included in external)
+, 'FRICTION' (included in external) and it corresponds to the energy kind;
+ if the list of BODY objects is used, their energies are summed up
 \end_layout
 
 \begin_layout Itemize

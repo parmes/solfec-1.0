@@ -473,8 +473,8 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, double meritval,
 void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
   int div = 10, di, dimax, diagiters, mycolor, rank, *color;
+  short dynamic, verbose, nomerit;
   double error, *merit, step;
-  short dynamic, verbose;
   char fmt [512];
   SOLFEC *solfec;
   SET *ranks;
@@ -523,7 +523,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   solfec = dom->solfec;
   verbose = dom->verbose && gs->verbose;
 
-  if (gs->nomerit) *merit = 0.0;
+  nomerit = gs->nomerit ? 1 : gs->meritval >= 1.0 ? 1 : 0;
+
+  if (nomerit) *merit = 0.0;
 
   if (rank == 0 && verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -814,7 +816,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 #endif
 
     /* merit function */
-    if (!gs->nomerit)
+    if (!nomerit)
     {
       S("GSRUN"); *merit = MERIT_Function (ldy, 1); E("GSRUN"); 
     }
@@ -900,7 +902,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
 {
   double error, *merit, step;
   int verbose, diagiters;
-  short dynamic;
+  short dynamic, nomerit;
   char fmt [512];
   int div = 10;
   DIAB *end;
@@ -910,7 +912,9 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   verbose = ldy->dom->verbose && gs->verbose;
   merit = &ldy->dom->merit;
 
-  if (gs->nomerit) *merit = 0.0;
+  nomerit = gs->nomerit ? 1 : gs->meritval >= 1.0 ? 1 : 0;
+
+  if (nomerit) *merit = 0.0;
 
   if (verbose) sprintf (fmt, "GAUSS_SEIDEL: iteration: %%%dd  error:  %%.2e  merit:  %%.2e\n", (int)log10 (gs->maxiter) + 1);
 
@@ -1003,7 +1007,7 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
     }
 
     /* merit function value */
-    if (!gs->nomerit)
+    if (!nomerit)
     {
       *merit = MERIT_Function (ldy, 1);
     }

@@ -437,6 +437,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
 
   ERRMEM (sol = malloc (sizeof (SOLFEC)));
   sol->aabb = AABB_Create (DEFSIZE);
+  sol->fis = FISET_Create ();
   sol->sps = SPSET_Create ();
   sol->mat = MATSET_Create ();
   sol->dom = DOM_Create (sol->aabb, sol->sps, dynamic, step);
@@ -754,6 +755,7 @@ void SOLFEC_Abort (SOLFEC *sol)
 void SOLFEC_Destroy (SOLFEC *sol)
 {
   AABB_Destroy (sol->aabb); 
+  FISET_Destroy (sol->fis);
   SPSET_Destroy (sol->sps);
   MATSET_Destroy (sol->mat);
   DOM_Destroy (sol->dom);
