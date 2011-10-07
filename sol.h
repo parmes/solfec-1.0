@@ -31,6 +31,7 @@
 #include "sis.h"
 #include "tts.h"
 #include "dom.h"
+#include "fld.h"
 #include "mat.h"
 #include "pbf.h"
 #include "cmp.h"
@@ -70,6 +71,8 @@ struct solfec
   SOLFEC_MODE mode;
 
   AABB *aabb; /* contact detection solver */
+
+  FISET *fis; /* field set */
 
   SPSET *sps; /* surface pairs and materials */
 

@@ -37,6 +37,8 @@ int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, doubl
 
   BN = B[2] + W[2]*R[0] + W[5]*R[1];
 
+  if (dashpot < 0.0) dashpot = sqrt (step * spring / W [8]); /* critical damping */
+
   if (implicit)
   {
     R [2] = (- spring * (gap + 0.25 * step * (BN - V[2])) - 0.5 * dashpot * (BN + V[2]))

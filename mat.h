@@ -22,6 +22,7 @@
 #include <stdio.h>
 #include "mem.h"
 #include "map.h"
+#include "fld.h"
 
 #ifndef __mat__
 #define __mat__
@@ -80,11 +81,21 @@ struct bulkmat
   char *label;
 
   enum
-  { KIRCHHOFF } model;
+  {
+    KIRCHHOFF,      /* elastic material */
+    TSANG_MARSDEN   /* nuclear graphite */
+  } model;
 
   double young,
          poisson,
          density;
+
+  UMAT umat;
+
+  int nfield, /* number of fields (stored at mesh nodes) */
+      nstate; /* number of state variables (stored at integration points) */
+
+  FIELD **fld; /* fields */
 };
 
 struct matset
@@ -96,6 +107,18 @@ struct matset
 
   int size;   /* number of materials */
 };
+
+/* bulk material routine
+ * ---------------------
+ *  mat (IN) - material
+ *  F (IN) - deformation gradient (column-wise)
+ *  a (IN) - coefficient that will scale P and K
+ *  P (OUT) - first Piola tensor (column-wise); NULL allowed
+ *  K (OUT) - tangent dP/dF; NULL allowed
+ * --------------------------------------
+ *  return det (F)
+ */
+double BULK_MATERIAL_ROUTINE (BULK_MATERIAL *mat, double *F, double a, double *P, double *K);
 
 /* create bulk material set */
 MATSET* MATSET_Create ();

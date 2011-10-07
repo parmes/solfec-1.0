@@ -25,12 +25,10 @@
 #include "mem.h"
 #include "sol.h"
 #include "fem.h"
-#include "but.h"
 #include "alg.h"
 #include "bla.h"
 #include "hyb.h"
 #include "cvi.h"
-#include "svk.h"
 #include "gjk.h"
 #include "kdt.h"
 #include "err.h"
@@ -962,7 +960,6 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES],
 	 F0 [9], F [9], P [9], K [81], KB [9], J, integral, *B, *p;
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-  double mat_lambda, mat_mi;
   int i, j, n, m;
 
   n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
@@ -986,8 +983,6 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   }
 
   for (i = 0, j = m * (derivative ? m : 1); i < j; i ++) g [i] = 0.0;
-  mat_lambda = lambda (mat->young, mat->poisson);
-  mat_mi  = mi (mat->young, mat->poisson);
 
   INTEGRATE3D (ele->type, INTF, ele->dom, ele->domnum,
 
@@ -997,7 +992,7 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
 
     if (derivative)
     {
-      SVK_Tangent_C (mat_lambda, mat_mi, integral, 9, F, K); /* TODO: generalize in BULK_MATERIAL interface */
+      BULK_MATERIAL_ROUTINE (mat, F, integral, NULL, K);
 
       for (i = 0; i < m; i ++) /* see doc/notes.lyx for details */
       {
@@ -1014,7 +1009,7 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
     }
     else
     {
-      SVK_Stress_C (mat_lambda, mat_mi, integral, F, P); /* TODO: generalize in BULK_MATERIAL interface */
+      BULK_MATERIAL_ROUTINE (mat, F, integral, P, NULL);
 
       for (i = 0, B = derivs, p = g; i < n; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
@@ -1078,7 +1073,7 @@ static void cauchy_stress (BODY *bod, MESH *msh, ELEMENT *ele, double *point, do
 
   deformation_gradient (bod, msh, ele, point, F);
 
-  J = SVK_Stress_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F, P);  /* TODO: generalize in BULK_MATERIAL interface */
+  J = BULK_MATERIAL_ROUTINE (mat, F, 1.0, P, NULL);
 
   values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
   values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
