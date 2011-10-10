@@ -857,6 +857,35 @@ static MX* element_shapes_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *po
   return N;
 }
 
+/* return number of integration points for internal force computation */
+static int number_of_integration_points (ELEMENT *ele)
+{
+  int i = 0;
+
+  INTEGRATE3D (ele->type, INTF, ele->dom, ele->domnum, i ++;)
+
+  return i;
+}
+
+/* allocate bulk material states at integration points */
+static void allocate_element_states (BODY *bod)
+{
+  MESH *msh = FEM_MESH (bod);
+  ELEMENT *ele;
+  int nip;
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+
+    if (mat->nstate && ele->state == NULL)
+    {
+      nip = number_of_integration_points (ele);
+      ERRMEM (ele->state = MEM_CALLOC (nip * sizeof (double [mat->nstate])));
+    }
+  }
+}
+
 /* simplex integrated volume ==
  * shape functions integrated volume test */
 static void test_volume_integral (MESH *msh, double ref_volume, int body_id)
@@ -957,10 +986,15 @@ static void element_body_force (BODY *bod, MESH *msh, ELEMENT *ele, double *f, d
 /* copute element internal force or force derivative contribution */
 static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMENT *ele, double *g)
 {
-  double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES],
-	 F0 [9], F [9], P [9], K [81], KB [9], J, integral, *B, *p;
+  double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES], field [MAX_NFIELD],
+	 shapes [MAX_NODES], F0 [9], F [9], P [9], K [81], KB [9], J, integral, *B, *p;
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-  int i, j, n, m;
+  double *bfld = bod->field;
+  int i, j, n, m, ip = 0,
+      nbfld = mat->nfield,
+      *nod = ele->nodes;
+
+  ASSERT_TEXT (mat->nfield < MAX_NFIELD, "The maximum of %d field variables has been exceeded.\n", MAX_NFIELD);
 
   n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
 
@@ -977,7 +1011,7 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   {
     for (i = 0; i < n; i ++)
     {
-      p = &bod->conf [3 * ele->nodes [i]];
+      p = &bod->conf [3 * nod [i]];
       COPY (p, q[i]); /* current displacement */
     }
   }
@@ -990,9 +1024,22 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
     element_gradient (ele->type, q, point, F0, derivs, F);
     integral = J * weight;
 
+    if (bfld)
+    {
+      element_shapes (ele->type, point, shapes);
+
+      for (i = 0; i < nbfld; i ++)
+      {
+        for (field [i] = 0.0, j = 0; j < n; j ++)
+	{
+	  field [i] += shapes [j] * bfld [nbfld * nod [j] + i]; /* interpolate fields from nodes */
+	}
+      }
+    }
+
     if (derivative)
     {
-      BULK_MATERIAL_ROUTINE (mat, F, integral, NULL, K);
+      BULK_MATERIAL_ROUTINE (mat, ele->state + ip * mat->nstate, field, F, integral, NULL, K);
 
       for (i = 0; i < m; i ++) /* see doc/notes.lyx for details */
       {
@@ -1009,10 +1056,12 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
     }
     else
     {
-      BULK_MATERIAL_ROUTINE (mat, F, integral, P, NULL);
+      BULK_MATERIAL_ROUTINE (mat, ele->state + ip * mat->nstate, field, F, integral, P, NULL);
 
       for (i = 0, B = derivs, p = g; i < n; i ++, B += 3, p += 3) { NVADDMUL (p, P, B, p); }
     }
+
+    ip ++;
   )
 }
 
@@ -1045,6 +1094,31 @@ static MX* element_inv_M_K (BODY *bod, MESH *msh, ELEMENT *ele)
   return IMK;
 }
 
+/* return closest integration point state */
+static double* element_closest_ipoint_state (BODY *bod, ELEMENT *ele, double *p)
+{
+  if (ele->state == NULL) return NULL;
+
+  BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+  double d [3], dot, dmin = DBL_MAX;
+  int i = 0, j = 0;
+
+  INTEGRATE3D (ele->type, INTF, ele->dom, ele->domnum,
+
+      SUB (p, point, d);
+      dot = DOT (d, d);
+      if (dot < dmin)
+      {
+       dmin = dot;
+       j = i;
+      }
+
+      i ++;
+  )
+
+  return &ele->state [j * mat->nstate];
+}
+
 /* =========================== GENERAL ================================== */
 
 /* compute deformation gradient at a local point */
@@ -1069,11 +1143,26 @@ static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *po
 static void cauchy_stress (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *values)
 {
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-  double P [9], F [9], J;
+  double P [9], F [9], J, shapes [MAX_NODES], field [MAX_NFIELD], *bfld = bod->field;
+  double *state = element_closest_ipoint_state (bod, ele, point);
+  int i, j, n, nbfld = mat->nfield, *nod = ele->nodes;
+
+  if (bfld)
+  {
+    n = element_shapes (ele->type, point, shapes);
+
+    for (i = 0; i < nbfld; i ++)
+    {
+      for (field [i] = 0.0, j = 0; j < n; j ++)
+      {
+	field [i] += shapes [j] * bfld [nbfld * nod [j] + i]; /* interpolate fields from nodes */
+      }
+    }
+  }
 
   deformation_gradient (bod, msh, ele, point, F);
 
-  J = BULK_MATERIAL_ROUTINE (mat, F, 1.0, P, NULL);
+  J = BULK_MATERIAL_ROUTINE (mat, state, field, F, 1.0, P, NULL);
 
   values [0] = (F[0]*P[0]+F[3]*P[1]+F[6]*P[2])/J; /* sx  */
   values [1] = (F[1]*P[3]+F[4]*P[4]+F[7]*P[5])/J; /* sy  */
@@ -1515,6 +1604,28 @@ static MX* diagonal_inertia (BODY *bod, short spd)
   return M; 
 }
 
+/* update nodal field variables */
+static void update_fields (BODY *bod, double t)
+{
+  MESH *msh = FEM_MESH (bod);
+  double (*cur) [3] = msh->cur_nodes,
+	 (*end) [3] = cur + msh->nodes_count,
+	 *bfld = bod->field;
+  int i, nfld = bod->mat->nfield;
+  FIELD **pfld = bod->mat->fld;
+
+  if (bfld)
+  {
+    for (; cur < end; cur ++, bfld += nfld)
+    {
+      for (i = 0; i < nfld; i ++)
+      {
+	bfld [i] = FIELD_Value (pfld [i], cur[0][0], cur[0][1], cur[0][2], t);
+      }
+    }
+  }
+}
+
 /* =================== TOAL LAGRANGIAN =================== */
 
 /* compute inverse operator for the implicit dynamic time stepping */
@@ -1636,7 +1747,12 @@ static void TL_static_inverse (BODY *bod, double step)
 /* total lagrangian initialise dynamic time stepping */
 static void TL_dynamic_init (BODY *bod)
 {
-  if (!bod->M) bod->M = diagonal_inertia (bod, bod->scheme != SCH_DEF_EXP);
+  if (!bod->M) /* once */
+  {
+    bod->M = diagonal_inertia (bod, bod->scheme != SCH_DEF_EXP);
+
+    allocate_element_states (bod); /* allocate bulk material states at integration points */
+  }
 
   if (bod->scheme == SCH_DEF_EXP)
   {
@@ -1708,6 +1824,8 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
 	*u = bod->velo,
 	*e = u + n,
 	*f, *g;
+
+  update_fields (bod, time + half); /* update nodal field variables */
 
   ERRMEM (f = malloc (sizeof (double [n])));
 
@@ -1817,6 +1935,8 @@ static void TL_static_init (BODY *bod)
   if (!bod->M && !bod->K)
   {
     TL_static_inverse (bod, bod->dom->step);
+
+    allocate_element_states (bod); /* allocate bulk material states at integration points */
   }
 }
 
@@ -1824,6 +1944,8 @@ static void TL_static_init (BODY *bod)
 static void TL_static_step_begin (BODY *bod, double time, double step)
 {
   double *f;
+
+  update_fields (bod, time+step); /* update nodal field variables */
 
   ERRMEM (f = malloc (sizeof (double [bod->dofs])));
   TL_static_inverse (bod, step); /* compute inverse of static tangent operator */
@@ -2679,6 +2801,8 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     {
       ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, fext, fint, fbod */
       bod->velo = bod->conf + bod->dofs;
+      if (mat->nfield) ERRMEM (bod->field = MEM_CALLOC (mat->nfield * (bod->dofs / 3) * sizeof (double))); /* field variables */
+      else bod->field = NULL;
     }
     break;
     case BODY_COROTATIONAL:
@@ -2687,6 +2811,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
       bod->velo = bod->conf + bod->dofs + 9;
       double *R = FEM_ROT (bod);
       IDENTITY (R);
+      bod->field = NULL; /* linear material only */
     }
     break;
   }
@@ -3377,6 +3502,7 @@ BODY** FEM_Separate (BODY *bod, int *m)
 void FEM_Destroy (BODY *bod)
 {
   free (bod->conf);
+  if (bod->field) free (bod->field);
 }
 
 #if MPI

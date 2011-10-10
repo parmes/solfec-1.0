@@ -1620,6 +1620,41 @@ static PyGetSetDef lng_FIELD_getset [] =
   {NULL, 0, 0, NULL, NULL}
 };
 
+/* test whether an object is a bulk material or a bulk material label */
+static int is_field (SOLFEC *sol, PyObject *obj, char *var)
+{
+  if (obj)
+  {
+    if (!PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_FIELD_TYPE))
+    {
+      if (PyString_Check (obj) && FISET_Find (sol->fis, PyString_AsString (obj))) return 1;
+
+      char buf [BUFLEN];
+      sprintf (buf, "'%s' must be a FIELD object or a valid field label", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
+/* get field related to an object or a label */
+static FIELD* get_field (SOLFEC *sol, PyObject *obj)
+{
+  if (obj)
+  {
+    if (PyObject_IsInstance ((PyObject*)obj, (PyObject*)&lng_FIELD_TYPE))
+    {
+      lng_FIELD *f = (lng_FIELD*)obj;
+      return f->fld;
+    }
+    else return FISET_Find (sol->fis, PyString_AsString (obj));
+  }
+
+  return NULL;
+}
+
 /*
  * SURFACE_MATERIAL => object
  */
@@ -1890,22 +1925,21 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
     "label",
     "young",
     "poisson",
-    "density");
+    "density",
+    "fields");
 
-  BULK_MATERIAL mat = 
-  {
-   NULL, /* label */
-   KIRCHHOFF, /* model */
-   1E6,  /* young */
-   0.25, /* poisson */
-   1E3,  /* density */
-   NULL,
-   0,
-   0,
-   NULL
-  };
+  BULK_MATERIAL mat;
 
-  PyObject *model, *label;
+  mat.label = NULL;
+  mat.model = KIRCHHOFF;
+  mat.young = 1E6;
+  mat.poisson = 0.25;
+  mat.density = 1E3;
+  mat.umat = NULL;
+  mat.nstate = 0;
+  mat.nfield = 0;
+
+  PyObject *model, *label, *fields;
   lng_BULK_MATERIAL *self;
   lng_SOLFEC *solfec;
   SOLFEC *sol;
@@ -1916,18 +1950,38 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
   {
     model = NULL;
     label = NULL;
+    fields = NULL;
 
-    PARSEKEYS ("O|OOddd", &solfec, &model, &label, &mat.young, &mat.poisson, &mat.density);
+    PARSEKEYS ("O|OOdddO", &solfec, &model, &label, &mat.young, &mat.poisson, &mat.density, &fields);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (model, kwl[1]) && is_string (label, kwl[2]) &&
 	      is_non_negative (mat.young, kwl[3]) && is_non_negative (mat.poisson, kwl[4]) &&
-	      is_non_negative (mat.density, kwl[5]));
+	      is_non_negative (mat.density, kwl[5]) && is_list (fields, kwl [6], 1, 1));
 
     sol = solfec->sol;
 
     if (model)
     {
       IFIS (model, "KIRCHHOFF") mat.model = KIRCHHOFF;
+      ELIF (model, "TSANG_MARSDEN")
+      {
+	mat.model = TSANG_MARSDEN;
+	mat.nstate = 19;
+	mat.nfield = 4;
+
+	if (!fields || PyList_Size (fields) != 4)
+	{
+	  PyErr_SetString (PyExc_ValueError, "4 fields must be given");
+	  return NULL;
+	}
+
+	for (int i = 0; i < 4; i ++)
+	{
+	  PyObject *o = PyList_GetItem (fields, i);
+	  if (!is_field (sol, o, "fields []")) return NULL; /* sets Err string internally */
+	  mat.fld [i] = get_field (sol, o);
+	}
+      }
       ELSE
       {
 	PyErr_SetString (PyExc_ValueError, "Unknown BULK_MATERIAL model");

@@ -65,6 +65,8 @@ MATSET* MATSET_Create ()
 /* bulk material routine
  * ---------------------
  *  mat (IN) - material
+ *  state (IN/OUT) - state variables at this integration point
+ *  field (IN) - field variables interpolated from nodes
  *  F (IN) - deformation gradient (column-wise)
  *  a (IN) - coefficient that will scale P and K
  *  P (OUT) - first Piola tensor (column-wise); NULL allowed
@@ -72,7 +74,7 @@ MATSET* MATSET_Create ()
  * --------------------------------------
  *  return det (F)
  */
-double BULK_MATERIAL_ROUTINE (BULK_MATERIAL *mat, double *F, double a, double *P, double *K)
+double BULK_MATERIAL_ROUTINE (BULK_MATERIAL *mat, double *state, double *field, double *F, double a, double *P, double *K)
 {
   double J;
 
@@ -93,7 +95,7 @@ double BULK_MATERIAL_ROUTINE (BULK_MATERIAL *mat, double *F, double a, double *P
   {
     J = DET (F);
 
-    /* TODO */
+    ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
   }
   break;
   }
