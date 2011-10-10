@@ -6472,7 +6472,7 @@ An object of type BULK_MATERIAL represents material properties of a volume.
 \end_layout
 
 \begin_layout Subsection*
-obj = BULK_MATERIAL (solfec| model, label, young, poisson, density)
+obj = BULK_MATERIAL (solfec| model, label, young, poisson, density, fields)
 \end_layout
 
 \begin_layout Standard
@@ -6559,6 +6559,18 @@ poisson
 density
 \series default
  - material density (default: 1E3)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+fields
+\series default
+ - list 
+\emph on
+[field1, field1, ..., fieldN]
+\emph default
+ of FIELD objects (or FIELD object labels) needed by the material model.
 \end_layout
 
 \begin_layout Standard
@@ -6657,7 +6669,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="2" columns="2">
+<lyxtabular version="3" rows="3" columns="2">
 <features>
 <column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="40col%">
@@ -6682,7 +6694,7 @@ Employs variables
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -6691,7 +6703,7 @@ Employs variables
 
 \end_inset
 </cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -6704,6 +6716,37 @@ reference "sub:Kirchhoff"
 \end_inset
 
 )
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'TSANG_MARSDEN' 
+\series bold
+\color red
+Under development
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+young, poisson, density, fields (4); cf.
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Tsang2006"
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -16368,7 +16411,7 @@ The projected quasi-Newton method with diagonal direct solve and averaging.
 \begin_layout Standard
 \begin_inset CommandInset bibtex
 LatexCommand bibtex
-bibfiles "/Users/tomek/Dropbox/tkwork/bibs/rigid-bodies,/Users/tomek/Dropbox/tkwork/bibs/contact-related,/Users/tomek/Dropbox/tkwork/bibs/phd,/Users/tomek/Dropbox/tkwork/bibs/time-stepping,/Users/tomek/Dropbox/tkwork/bibs/algo,/Users/tomek/Dropbox/tkwork/bibs/mathematics"
+bibfiles "/Users/tomek/Dropbox/tkwork/bibs/rigid-bodies,/Users/tomek/Dropbox/tkwork/bibs/contact-related,/Users/tomek/Dropbox/tkwork/bibs/phd,/Users/tomek/Dropbox/tkwork/bibs/time-stepping,/Users/tomek/Dropbox/tkwork/bibs/algo,/Users/tomek/Dropbox/tkwork/bibs/mathematics,/Users/tomek/Dropbox/tkwork/bibs/fem"
 options "plain"
 
 \end_inset

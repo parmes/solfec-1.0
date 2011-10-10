@@ -75,6 +75,7 @@ typedef void (*UMAT) (double *stress, double *statev, double *ddsdde, double *ss
 
 typedef struct bulkmat BULK_MATERIAL;
 typedef struct matset MATSET;
+#define MAX_NFIELD 64
 
 struct bulkmat
 {
@@ -95,7 +96,7 @@ struct bulkmat
   int nfield, /* number of fields (stored at mesh nodes) */
       nstate; /* number of state variables (stored at integration points) */
 
-  FIELD **fld; /* fields */
+  FIELD *fld [MAX_NFIELD]; /* fields */
 };
 
 struct matset
@@ -111,6 +112,8 @@ struct matset
 /* bulk material routine
  * ---------------------
  *  mat (IN) - material
+ *  state (IN/OUT) - state variables at this integration point
+ *  field (IN) - field variables interpolated from nodes
  *  F (IN) - deformation gradient (column-wise)
  *  a (IN) - coefficient that will scale P and K
  *  P (OUT) - first Piola tensor (column-wise); NULL allowed
@@ -118,7 +121,7 @@ struct matset
  * --------------------------------------
  *  return det (F)
  */
-double BULK_MATERIAL_ROUTINE (BULK_MATERIAL *mat, double *F, double a, double *P, double *K);
+double BULK_MATERIAL_ROUTINE (BULK_MATERIAL *mat, double *state, double *field, double *F, double a, double *P, double *K);
 
 /* create bulk material set */
 MATSET* MATSET_Create ();
