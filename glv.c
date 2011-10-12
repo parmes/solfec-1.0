@@ -1287,6 +1287,11 @@ void GLV_Read_Text (char *title, void (*done) (char *text))
   glutTimerFunc (750, timer, 0);
 }
 
+int GLV_Reading_Text ()
+{
+  return input.visible;
+}
+
 void GLV_Print (double x, double y, double z, int font, char *fmt, ...)
 {
   va_list arg;
