@@ -105,6 +105,9 @@ void GLV_Close_Viewport (int viewport);
  * and return read text by callback */
 void GLV_Read_Text (char *title, void (*done) (char *text));
 
+/* check whether the last text reading is still active */
+int GLV_Reading_Text ();
+
 /* output text at specified coordinates */
 enum {GLV_FONT_8_BY_13 = 8, GLV_FONT_9_BY_15 = 9,
       GLV_FONT_10 = 10, GLV_FONT_12 = 12, GLV_FONT_18 = 18};

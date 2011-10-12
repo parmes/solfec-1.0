@@ -3481,13 +3481,19 @@ static void menu_tools (int item)
     {
       if (item == TOOLS_EULER_CUT)
       {
-        cut_kind = EULER;
-        GLV_Read_Text ("Euler cut normal (format: nx ny nz)", read_cut_normal);
+	if (!GLV_Reading_Text ())
+	{
+	  cut_kind = EULER;
+	  GLV_Read_Text ("Euler cut normal (format: nx ny nz)", read_cut_normal);
+	}
       }
       else
       {
-        cut_kind = LAGRANGE;
-        GLV_Read_Text ("Lagrange cut normal (format: nx ny nz)", read_cut_normal);
+	if (!GLV_Reading_Text ())
+	{
+	  cut_kind = LAGRANGE;
+	  GLV_Read_Text ("Lagrange cut normal (format: nx ny nz)", read_cut_normal);
+	}
       }
     }
     break;
@@ -3658,12 +3664,15 @@ static void menu_analysis (int item)
     break;
   case ANALYSIS_SEEKTO:
     {
-      static char caption [256];
-      double s, e;
+      if (!GLV_Reading_Text ())
+      {
+	static char caption [256];
+	double s, e;
 
-      SOLFEC_Time_Limits (solfec, &s, &e);
-      snprintf (caption, 256, "Seek to time from [%g, %g]", s, e);
-      GLV_Read_Text (caption, seek_to_time);
+	SOLFEC_Time_Limits (solfec, &s, &e);
+	snprintf (caption, 256, "Seek to time from [%g, %g]", s, e);
+	GLV_Read_Text (caption, seek_to_time);
+      }
     }
     break;
   case ANALYSIS_FORWARD:
@@ -3677,7 +3686,10 @@ static void menu_analysis (int item)
     update ();
     break;
   case ANALYSIS_SKIP:
-    GLV_Read_Text ("FORWARD and BACKWARD skip", set_skip_steps);
+    if (!GLV_Reading_Text ())
+    {
+      GLV_Read_Text ("FORWARD and BACKWARD skip", set_skip_steps);
+    }
     break;
   }
 }
