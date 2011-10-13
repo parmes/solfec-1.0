@@ -1389,8 +1389,9 @@ static MX* matmat_csc_dense (double alpha, MX *a, MX *b, double beta, MX *c)
   {
     return matmat_inv_dense (alpha, a, b, beta, c);
   }
- 
-  A = csc_to_dense (a);
+
+  WARNING (0, "Using very inefficient sparse to dense matrix conversion!"); 
+  A = csc_to_dense (a); /* TODO: get rid of and write direct multiplication */
   c = matmat_dense_dense (alpha, A, b, beta, c);
   MX_Destroy (A);
 
@@ -1407,7 +1408,8 @@ static MX* matmat_dense_csc (double alpha, MX *a, MX *b, double beta, MX *c)
     return matmat_dense_inv (alpha, a, b, beta, c);
   }
 
-  B = csc_to_dense (b);
+  WARNING (0, "Using very inefficient sparse to dense matrix conversion!"); 
+  B = csc_to_dense (b); /* TODO: get rid of and write direct multiplication */
   c = matmat_dense_dense (alpha, a, B, beta, c);
   MX_Destroy (B);
 
@@ -1424,7 +1426,8 @@ static MX* matmat_bd_csc (double alpha, MX *a, MX *b, double beta, MX *c)
     return matmat_bd_inv (alpha, a, b, beta, c);
   }
 
-  B = csc_to_dense (b);
+  WARNING (0, "Using very inefficient sparse to dense matrix conversion!"); 
+  B = csc_to_dense (b); /* TODO: get rid of and write direct multiplication */
   c = matmat_bd_dense (alpha, a, B, beta, c);
   MX_Destroy (B);
 
@@ -1441,7 +1444,8 @@ static MX* matmat_csc_bd (double alpha, MX *a, MX *b, double beta, MX *c)
     return matmat_inv_bd (alpha, a, b, beta, c);
   }
 
-  A = csc_to_dense (a);
+  WARNING (0, "Using very inefficient sparse to dense matrix conversion!"); 
+  A = csc_to_dense (a); /* TODO: get rid of and write direct multiplication */
   c = matmat_dense_bd (alpha, A, b, beta, c);
   MX_Destroy (A);
 

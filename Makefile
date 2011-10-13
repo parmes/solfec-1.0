@@ -109,8 +109,8 @@ OBJMPI = $(EXTO)       \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
 
-solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
-	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet $(LIB)
+solfec: obj/solfec.o obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a obj/libBLOPEX.a
+	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIB)
 
 obj/libkrylov.a:
 	(cd ext/krylov && make)
@@ -124,6 +124,9 @@ obj/libdmumps.a:
 obj/libtet.a:
 	(cd ext/tetgen && make)
 
+obj/libBLOPEX.a:
+	(cd ext/blopex && make)
+
 obj/libsolfec.a: $(OBJ)
 	ar rcv $@ $(OBJ)
 	ranlib $@ 
@@ -134,8 +137,8 @@ all: solfec mpi
 
 mpi: solfec-mpi
 
-solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
-	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ldmumps -lmetis -ltet $(LIBMPI)
+solfec-mpi: obj/solfec-mpi.o obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a obj/libBLOPEX.a
+	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	ar rcv $@ $(OBJMPI)
@@ -173,6 +176,7 @@ clean:
 	(cd ext/metis && make clean)
 	(cd ext/mumps && make clean)
 	(cd ext/tetgen && make clean)
+	(cd ext/blopex && make clean)
 
 obj/solfec.o: solfec.c
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
