@@ -868,16 +868,13 @@ static int number_of_integration_points (ELEMENT *ele)
 }
 
 /* allocate bulk material states at integration points */
-static void allocate_element_states (BODY *bod)
+static void allocate_element_states (MESH *msh, BULK_MATERIAL *mat)
 {
-  MESH *msh = FEM_MESH (bod);
   ELEMENT *ele;
   int nip;
 
   for (ele = msh->surfeles; ele; ele = ele->next)
   {
-    BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-
     if (mat->nstate && ele->state == NULL)
     {
       nip = number_of_integration_points (ele);
@@ -1750,8 +1747,6 @@ static void TL_dynamic_init (BODY *bod)
   if (!bod->M) /* once */
   {
     bod->M = diagonal_inertia (bod, bod->scheme != SCH_DEF_EXP);
-
-    allocate_element_states (bod); /* allocate bulk material states at integration points */
   }
 
   if (bod->scheme == SCH_DEF_EXP)
@@ -1935,8 +1930,6 @@ static void TL_static_init (BODY *bod)
   if (!bod->M && !bod->K)
   {
     TL_static_inverse (bod, bod->dom->step);
-
-    allocate_element_states (bod); /* allocate bulk material states at integration points */
   }
 }
 
@@ -2825,6 +2818,10 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   /* simplex integrated volume ==
    * shape functions integrated volume test */
   test_volume_integral (msh, bod->ref_volume, bod->id);
+
+  /* allocate bulk material
+   * states at integration points */
+  allocate_element_states (msh, mat);
 }
 
 /* overwrite state */
@@ -3564,4 +3561,28 @@ MX* FEM_Approx_Inverse (BODY *bod)
 
     return I;
   }
+}
+
+/* perform modal analysis and return n lower (n > 0) or upper (n < 0) eigen values and vectors */
+MX* FEM_Modal_Analysis (BODY *bod, int n, double *val)
+{
+  MX *A = tangent_stiffness (bod, 1),
+     *M = diagonal_inertia (bod, 1),
+     *V = MX_Create (MXDENSE, A->n, ABS (n), NULL, NULL);
+
+  double sigma = 1.0; /* shift */
+
+  for (int i = 0; i < A->n; i ++)
+  {
+    A->x [A->p [i]] += sigma * M->x [i]; /* A = K + sigma M */
+  }
+
+  MX_Geneigen (A, M, n, val, V);
+
+  for (int i = 0; i < ABS (n); i ++) val [i] -= 1.0;
+
+  MX_Destroy (A);
+  MX_Destroy (M);
+
+  return V;
 }

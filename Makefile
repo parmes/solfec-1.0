@@ -21,6 +21,8 @@ include Flags.mak
 
 MUMPS = -Lext/mumps/libseq -lmpiseq
 
+BLOPEXINC = -Iext/blopex/include
+
 CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(XDRINC)
 
 LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(SICONOSLIB)
@@ -221,7 +223,7 @@ obj/svk.o: svk.c svk.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/mtx.o: mtx.c mtx.h bla.h lap.h err.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(BLOPEXINC) -c -o $@ $<
 
 obj/tms.o: tms.c tms.h mem.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<

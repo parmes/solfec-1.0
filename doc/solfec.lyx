@@ -11934,6 +11934,64 @@ This routine returns all command line arguments (in the form of a list of
  This way the user can pass some arguments to the input scripts.
 \end_layout
 
+\begin_layout Subsection*
+obj = MODAL_ANALYSIS (bod, num) 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+This routine performs modal analysis of FEM bodies.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj = (val, vec)
+\series default
+ - the returned tuple of: 
+\series bold
+val
+\series default
+ = 
+\series bold
+obj[0]
+\series default
+ eigenvalues and 
+\series bold
+vec
+\series default
+ = 
+\series bold
+obj[1]
+\series default
+ eigen vectors (stored contiguously one after another)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+bod
+\series default
+ - input FEM body
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+num
+\series default
+ - number of lowest (if 
+\series bold
+num
+\series default
+ > 0) or highest (if 
+\series bold
+num
+\series default
+ < 0) modes to extract
+\end_layout
+
 \begin_layout Section
 Results access
 \end_layout

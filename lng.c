@@ -7375,6 +7375,48 @@ static PyObject* lng_NON_SOLFEC_ARGV (PyObject *self, PyObject *args, PyObject *
   else Py_RETURN_NONE;
 }
 
+/* model analysis of FEM bodies */
+static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("bod", "num");
+  PyObject *val, *vec;
+  lng_BODY *bod;
+  double *v;
+  int num, i;
+  MX *V;
+
+  PARSEKEYS ("Oi", &bod , &num);
+
+  TYPETEST (is_body (bod, kwl[0]));
+
+  if (bod->bod->kind != FEM)
+  {
+    PyErr_SetString (PyExc_RuntimeError, "Input body must of Finite Element kind");
+    return NULL;
+  }
+
+  if (num == 0)
+  {
+    PyErr_SetString (PyExc_RuntimeError, "Number of modes must be nonzero");
+    return NULL;
+  }
+
+  ERRMEM (v = malloc (sizeof (double [ABS (num)])));
+
+  V = FEM_Modal_Analysis (bod->bod, num, v);
+
+  ERRMEM (val = PyList_New (V->n));
+  ERRMEM (vec = PyList_New (V->nzmax));
+
+  for (i = 0; i < V->n; i ++) PyList_SetItem (val, i, PyFloat_FromDouble (v [i]));
+  for (i = 0; i < V->nzmax; i ++) PyList_SetItem (vec, i, PyFloat_FromDouble (V->x [i]));
+
+  MX_Destroy (V);
+  free (v);
+
+  return Py_BuildValue ("(O, O)", val, vec);
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -8132,6 +8174,7 @@ static PyMethodDef lng_methods [] =
   {"OVERLAPPING", (PyCFunction)lng_OVERLAPPING, METH_VARARGS|METH_KEYWORDS, "Detect shapes (not) overlapping obstacles"},
   {"MBFCP_EXPORT", (PyCFunction)lng_MBFCP_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MBFCP definition"},
   {"NON_SOLFEC_ARGV", (PyCFunction)lng_NON_SOLFEC_ARGV, METH_NOARGS, "Return non-Solfec input arguments"},
+  {"MODAL_ANALYSIS", (PyCFunction)lng_MODAL_ANALYSIS, METH_VARARGS|METH_KEYWORDS, "Perform modal analysis of a FEM body"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -8362,6 +8405,7 @@ int lng (const char *path)
                      "from solfec import OVERLAPPING\n"
                      "from solfec import MBFCP_EXPORT\n"
                      "from solfec import NON_SOLFEC_ARGV\n"
+                     "from solfec import MODAL_ANALYSIS\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

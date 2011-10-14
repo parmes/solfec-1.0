@@ -62,6 +62,11 @@ int dsyevr_ (char *jobz, char *range, char *uplo, int *n, double *a,
   int *m, double *w, double *z, int *ldz, int *isuppz, double *work,
   int *lwork, int *iwork, int *liwork, int *info);
 
+/* another eigenvalue dirver needed by BLOPEX */
+int dsygv_ (int *itype, char *jobz, char *uplo, int *n, double *a,
+             int *lda, double *b, int *ldb, double *w,
+	     double *work, int *lwork, int *info);
+
 inline static int lapack_dgetrf (int m,
   int n, double *a, int lda, int *ipiv)
 {

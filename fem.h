@@ -118,4 +118,7 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
 /* create approximate inverse operator */
 MX* FEM_Approx_Inverse (BODY *bod);
 
+/* perform modal analysis and return n lower (n > 0) or upper (n < 0) eigen values and vectors */
+MX* FEM_Modal_Analysis (BODY *bod, int n, double *val);
+
 #endif

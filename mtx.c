@@ -31,6 +31,13 @@
 #include "pck.h"
 #include "ext/csparse.h"
 #include "ext/mumps/dmumps_c.h"
+#include "fortran_matrix.h"
+#include "fortran_interpreter.h"
+#include "lobpcg.h"
+#include "multivector.h"
+#include "multiserial.h"
+#include "interpreter.h"
+#include "pcg_multi.h"
 
 /* macros */
 #define KIND(a) ((a)->kind)
@@ -1602,7 +1609,9 @@ static MX* csc_inverse (MX *a, MX *b)
       cs_sfree (b->sym);
       cs_nfree (b->num);
     }
+
     b->sym = b->num = NULL;
+    b->flags &= ~MXIFAC;
   }
   else
   {
@@ -1749,10 +1758,134 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
   free (pairs);
 }
 
-/* compute sparse matrix eigenvalues */
-static void csc_eigen (MX *a, int n, double *val, MX *vec)
+/* multiply c = A b, where b and c are multivectors and A is SPD */
+static void csc_eigen_matmultivec (void *pa, void *pb, void *pc)
 {
-  /* TODO */ ASSERT (0, ERR_NOT_IMPLEMENTED);
+  serial_Multi_Vector *vb = pb, *vc = pc;
+  MX *a = pa;
+
+  int *p = a->p, *i = a->i, n = a->n, m = vb->num_active_vectors, *j, *k, l, o;
+  double *x = a->x, *y, *b, *c, stemp, rtemp;
+
+  serial_Multi_VectorSetConstantValues (vc, 0.0);
+
+  for (l = 0; l < n; l ++) /* for each A column */
+  {
+    for (o = 0; o < m; o ++) /* for each b vector and c result */
+    {
+      b = &vb->data [vb->active_indices [o]*vb->size];
+      c = &vc->data [vc->active_indices [o]*vc->size];
+      j = &i[p[l]];
+      y = &x[p[l]];
+      rtemp = b [l];
+      stemp = (*y) * rtemp;
+      ASSERT_DEBUG (*j == l, "MXSPD must have index[pointer[i]] == i");
+
+      for (j ++, y ++, k = &i[p[l+1]]; j < k; j ++, y ++)
+      {
+	stemp += (*y) * b [*j];
+	c [*j] += (*y) * rtemp;
+      }
+      c [l] += stemp;
+    }
+  }
+}
+
+/* multiply c = inv(A) b, where b and c are multivectors and A is SPD */
+static void csc_eigen_invmultivec (void *pa, void *pb, void *pc)
+{
+  serial_Multi_Vector *vb = pb, *vc = pc;
+  MX *a = pa;
+  DMUMPS_STRUC_C *id = a->sym;
+  int i, m = vb->num_active_vectors;
+
+  serial_Multi_VectorCopy (vb, vc);
+
+  for (i = 0; i < m; i ++)
+  {
+    id->rhs = &vc->data [vc->active_indices [i]*vc->size];
+    id->job = 3;
+    dmumps_c (id);
+  }
+}
+
+/* compute sparse matrix eigenvalues */
+static void csc_geneigen (MX *a, MX *b, int n, double *val, MX *vec)
+{
+  serial_Multi_Vector *x;
+  mv_MultiVectorPtr xx;
+  int iterations;
+  lobpcg_Tolerance lobpcg_tol;
+  mv_InterfaceInterpreter ii;
+  lobpcg_BLASLAPACKFunctions blap_fn;
+  double *resid;
+
+  /* create multivector */
+  x = serial_Multi_VectorCreate (a->n, ABS (n));
+  x->data = vec->x;
+  serial_Multi_VectorSetDataOwner (x, 0);
+  serial_Multi_VectorInitialize (x);
+
+  /* fill it with random numbers */
+  serial_Multi_VectorSetRandomValues(x, 1);
+
+  /* set tolerances */
+  lobpcg_tol.absolute = 1E-6;
+  lobpcg_tol.relative = 1e-50;
+
+  /* setup interface interpreter and wrap around "x" another structure */
+  SerialSetupInterpreter (&ii);
+  xx = mv_MultiVectorWrap (&ii, x, 0);
+
+  /* set pointers to lapack functions */
+  blap_fn.dpotrf = dpotrf_;
+  blap_fn.dsygv = dsygv_;
+
+  /* allocate residuals */
+  ERRMEM (resid = malloc (sizeof (double [ABS (n)])));
+
+  /* set up preconditioner */
+  csc_inverse (a, a);
+
+  lobpcg_solve_double (
+    xx, /* input/output eigenvectors */
+    a, n > 0 ? csc_eigen_matmultivec : csc_eigen_invmultivec, /* A */
+    b, b ? csc_eigen_matmultivec : NULL, /* B */ 
+#if 1
+    a, n > 0 ? csc_eigen_invmultivec : csc_eigen_matmultivec, /* inv (A) */
+#else
+    NULL, NULL,
+#endif
+    NULL,  /* input-matrix Y */
+    blap_fn, /* input-lapack functions */
+    lobpcg_tol, /* input-tolerances */
+    100, /* input-max iterations */
+    2, /*input-verbosity level */
+    &iterations,  /* output-actual iterations */
+    val, /* output-eigenvalues */
+    NULL,  /*output-eigenvalues history */
+    0,  /* output-history global height */
+    resid, /* output-residual norms */
+    NULL, /* output-residual norms history */
+    0 /* output-history global height  */
+    );
+
+  /* destroy multivector and other objects */
+  serial_Multi_VectorDestroy(x);
+  mv_MultiVectorDestroy(xx);
+  free (resid);
+
+  /* free MUMPS inversion data */
+  csc_inverse (a, a);
+
+  /* invert eigenvalues if needed */
+  if (n < 0)
+  {
+    for (int i = 0; i < -n; i ++)
+    {
+      if (val [i] != 0.0) val [i] = 1.0 / val [i]; /* eig (inv(A)) = 1 / eig (A) */
+    }
+  }
 }
 
 /* ------------ interface ------------- */
@@ -2129,7 +2262,25 @@ void MX_Eigen (MX *a, int n, double *val, MX *vec)
       bd_eigen (a, n, val, vec);
     break;
     case MXCSC:
-      csc_eigen (a, n, val, vec);
+      ASSERT_TEXT (MXSPD (a), "The input matrix is not marked as symmetric and positive definite!");
+      csc_geneigen (a, NULL, n, val, vec);
+    break;
+  }
+
+  if (TEMPORARY (a)) free (a);
+}
+
+void MX_Geneigen (MX *a, MX *b, int n, double *val, MX *vec)
+{
+  switch (a->kind)
+  {
+    case MXDENSE:
+    case MXBD:
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+    break;
+    case MXCSC:
+      ASSERT_TEXT (MXSPD (a) && MXSPD (b), "The input matrices are not marked as symmetric and positive definite!");
+      csc_geneigen (a, b, n, val, vec);
     break;
   }
 

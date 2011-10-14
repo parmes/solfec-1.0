@@ -120,6 +120,9 @@ MX* MX_Inverse (MX *a, MX *b);
  * results are outputed according to the ascending order of eigenvalues */
 void MX_Eigen (MX *a, int n, double *val, MX *vec);
 
+/* generalized version of the above: a * vec = val * b * vec */
+void MX_Geneigen (MX *a, MX *b, int n, double *val, MX *vec);
+
 /* compure 2-norm */
 double MX_Norm (MX *a);
 
