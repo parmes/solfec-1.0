@@ -6,8 +6,9 @@ DIRS = multivector krylov utilities
 HEADERS = \
 multivector/interpreter.h \
 multivector/multivector.h \
+multivector/multiserial.h \
+multivector/pcg_multi.h \
 krylov/lobpcg.h \
-multivector/temp_multivector.h \
 utilities/fortran_matrix.h \
 utilities/fortran_interpreter.h \
 utilities/fortran_options.h
@@ -19,6 +20,8 @@ LIB = libBLOPEX.${AR_LIB_SUFFIX}
 ##################################################################
 
 all: $(LIB) 
+	mkdir -p include
+	cp -fp  ${HEADERS} include
 
 objects: 
 	@ \
@@ -33,6 +36,7 @@ objects:
 
 clean: 
 	@ \
+	rm -fr include; \
 	rm -fr lib; \
         for i in ${DIRS}; \
         do \
