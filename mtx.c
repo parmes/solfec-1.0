@@ -1758,59 +1758,31 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
   free (pairs);
 }
 
-/* multiply c = A b, where b and c are multivectors and A is SPD */
+/* for A_prim = inv (A + sigma I), the below routine computes
+ * c = A_prim b, where b and c are multi-vectors;
+ * many thanks to Adrew Knyazev for suggesting this approach */
 static void csc_eigen_matmultivec (void *pa, void *pb, void *pc)
 {
   serial_Multi_Vector *vb = pb, *vc = pc;
-  MX *a = pa;
-
-  int *p = a->p, *i = a->i, n = a->n, m = vb->num_active_vectors, *j, *k, l, o;
-  double *x = a->x, *y, *b, *c, stemp, rtemp;
-
-  serial_Multi_VectorSetConstantValues (vc, 0.0);
-
-  for (l = 0; l < n; l ++) /* for each A column */
-  {
-    for (o = 0; o < m; o ++) /* for each b vector and c result */
-    {
-      b = &vb->data [vb->active_indices [o]*vb->size];
-      c = &vc->data [vc->active_indices [o]*vc->size];
-      j = &i[p[l]];
-      y = &x[p[l]];
-      rtemp = b [l];
-      stemp = (*y) * rtemp;
-      ASSERT_DEBUG (*j == l, "MXSPD must have index[pointer[i]] == i");
-
-      for (j ++, y ++, k = &i[p[l+1]]; j < k; j ++, y ++)
-      {
-	stemp += (*y) * b [*j];
-	c [*j] += (*y) * rtemp;
-      }
-      c [l] += stemp;
-    }
-  }
-}
-
-/* multiply c = inv(A) b, where b and c are multivectors and A is SPD */
-static void csc_eigen_invmultivec (void *pa, void *pb, void *pc)
-{
-  serial_Multi_Vector *vb = pb, *vc = pc;
-  MX *a = pa;
-  DMUMPS_STRUC_C *id = a->sym;
-  int i, m = vb->num_active_vectors;
+  DMUMPS_STRUC_C *id = pa;
+  int i;
 
   serial_Multi_VectorCopy (vb, vc);
 
-  for (i = 0; i < m; i ++)
+  for (i = 0; i < vb->num_active_vectors; i ++)
   {
-    id->rhs = &vc->data [vc->active_indices [i]*vc->size];
+    double *c0 = &vc->data [vc->active_indices [i]*vc->size], *c1;
+
+    id->rhs = c0;
     id->job = 3;
     dmumps_c (id);
+
+    for (c1 = c0 + vc->size; c0 < c1; c0 ++) (*c0) *= -1.0;
   }
 }
 
 /* compute sparse matrix eigenvalues */
-static void csc_geneigen (MX *a, MX *b, int n, double *val, MX *vec)
+static void csc_eigen (MX *a, int n, double *val, MX *vec)
 {
   serial_Multi_Vector *x;
   mv_MultiVectorPtr xx;
@@ -1818,7 +1790,13 @@ static void csc_geneigen (MX *a, MX *b, int n, double *val, MX *vec)
   lobpcg_Tolerance lobpcg_tol;
   mv_InterfaceInterpreter ii;
   lobpcg_BLASLAPACKFunctions blap_fn;
-  double *resid;
+  double *resid, sigma;
+  MX *A_prim;
+  int i, ret;
+#define CSC_EIGEN_ABSTOL 1E-9
+#define CSC_EIGEN_MAXITER 100
+
+  ASSERT_TEXT (n > 0, "TODO: Computing maximal eigenvalues of CSC matrices is not supported yet!");
 
   /* create multivector */
   x = serial_Multi_VectorCreate (a->n, ABS (n));
@@ -1830,7 +1808,7 @@ static void csc_geneigen (MX *a, MX *b, int n, double *val, MX *vec)
   serial_Multi_VectorSetRandomValues(x, 1);
 
   /* set tolerances */
-  lobpcg_tol.absolute = 1E-6;
+  lobpcg_tol.absolute = CSC_EIGEN_ABSTOL;
   lobpcg_tol.relative = 1e-50;
 
   /* setup interface interpreter and wrap around "x" another structure */
@@ -1844,23 +1822,23 @@ static void csc_geneigen (MX *a, MX *b, int n, double *val, MX *vec)
   /* allocate residuals */
   ERRMEM (resid = malloc (sizeof (double [ABS (n)])));
 
-  /* set up preconditioner */
-  csc_inverse (a, a);
+  sigma = 1.0; /* shift */
 
-  lobpcg_solve_double (
+  A_prim = MX_Copy (a, NULL); /* A' = A + sigma * I */
+  for (i = 0; i < a->n; i ++) A_prim->x [A_prim->p [i]] += sigma;
+
+  csc_inverse (A_prim, A_prim); /* MUMPS inverse */
+
+  ret = lobpcg_solve_double (
     xx, /* input/output eigenvectors */
-    a, n > 0 ? csc_eigen_matmultivec : csc_eigen_invmultivec, /* A */
-    b, b ? csc_eigen_matmultivec : NULL, /* B */ 
-#if 1
-    a, n > 0 ? csc_eigen_invmultivec : csc_eigen_matmultivec, /* inv (A) */
-#else
+    A_prim->sym, csc_eigen_matmultivec, /* A */
     NULL, NULL,
-#endif
+    NULL, NULL,
     NULL,  /* input-matrix Y */
     blap_fn, /* input-lapack functions */
     lobpcg_tol, /* input-tolerances */
-    100, /* input-max iterations */
-    2, /*input-verbosity level */
+    CSC_EIGEN_MAXITER, /* input-max iterations */
+    0, /*input-verbosity level */
     &iterations,  /* output-actual iterations */
     val, /* output-eigenvalues */
     NULL,  /*output-eigenvalues history */
@@ -1870,21 +1848,58 @@ static void csc_geneigen (MX *a, MX *b, int n, double *val, MX *vec)
     0 /* output-history global height  */
     );
 
+  ASSERT_TEXT (iterations < CSC_EIGEN_MAXITER,
+    "BLOPEX eigenvalue solver has field to converge within %d iterations!",
+    CSC_EIGEN_MAXITER);
+
+  ASSERT_TEXT (ret == 0,
+    "BLOPEX eigenvalue solver has field!");
+
+  MX_Destroy (A_prim);
+
+  for (i = 0; i < n; i ++)
+  {
+    if (val [i] != 0.0) val [i] = -(1.0 / val [i]) - sigma;
+  }
+
   /* destroy multivector and other objects */
   serial_Multi_VectorDestroy(x);
   mv_MultiVectorDestroy(xx);
   free (resid);
+}
 
-  /* free MUMPS inversion data */
-  csc_inverse (a, a);
+/* data needed below */
+struct csc_geneigen_data
+{
+  DMUMPS_STRUC_C *id;
+  MX *L;
+};
 
-  /* invert eigenvalues if needed */
-  if (n < 0)
+/* for A_prim = -L inv (A + sigma B) L, where L = sqrt (B), the below
+ * routine computes c = A_prim b, where b and c are multi-vectors;
+ * many thanks to Adrew Knyazev for suggesting this approach */
+static void csc_geneigen_matmultivec (void *pa, void *pb, void *pc)
+{
+  serial_Multi_Vector *vb = pb, *vc = pc;
+  struct csc_geneigen_data *data = pa;
+  DMUMPS_STRUC_C *id = data->id;
+  MX *L = data->L;
+  int i;
+
+  serial_Multi_VectorCopy (vb, vc);
+
+  for (i = 0; i < vb->num_active_vectors; i ++)
   {
-    for (int i = 0; i < -n; i ++)
-    {
-      if (val [i] != 0.0) val [i] = 1.0 / val [i]; /* eig (inv(A)) = 1 / eig (A) */
-    }
+    double *c0 = &vc->data [vc->active_indices [i]*vc->size],
+	   *c, *x, *y;
+
+    for (c = c0, x = L->x, y = x + L->n; x < y; x ++, c ++) (*c) *= (*x);
+
+    id->rhs = c0;
+    id->job = 3;
+    dmumps_c (id);
+
+    for (c = c0, x = L->x, y = x + L->n; x < y; x ++, c ++) (*c) *= -(*x);
   }
 }
 
@@ -2263,28 +2278,99 @@ void MX_Eigen (MX *a, int n, double *val, MX *vec)
     break;
     case MXCSC:
       ASSERT_TEXT (MXSPD (a), "The input matrix is not marked as symmetric and positive definite!");
-      csc_geneigen (a, NULL, n, val, vec);
+      csc_eigen (a, n, val, vec);
     break;
   }
 
   if (TEMPORARY (a)) free (a);
 }
 
-void MX_Geneigen (MX *a, MX *b, int n, double *val, MX *vec)
+int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbose, double *val, MX *vec)
 {
-  switch (a->kind)
+  ASSERT_DEBUG (A->kind == MXCSC && B->kind == MXCSC && MXSPD (A) && MXSPD (B), "The input matrices must be MXCSC and MXSPD!");
+  ASSERT_DEBUG (A->n == A->m && B->n == B->m && A->n == B->n && B->nzmax == B->n, "dim(A) != dim(B) or B is not diagonal!");
+  ASSERT_DEBUG (n > 0, "Number of modes must be greater than zero!");
+
+  serial_Multi_Vector *x;
+  mv_MultiVectorPtr xx;
+  int iterations;
+  lobpcg_Tolerance lobpcg_tol;
+  mv_InterfaceInterpreter ii;
+  lobpcg_BLASLAPACKFunctions blap_fn;
+  double *resid, sigma;
+  MX *A_prim;
+  int i, ret;
+
+  /* create multivector */
+  x = serial_Multi_VectorCreate (A->n, n);
+  x->data = vec->x;
+  serial_Multi_VectorSetDataOwner (x, 0);
+  serial_Multi_VectorInitialize (x);
+
+  /* fill it with random numbers */
+  serial_Multi_VectorSetRandomValues(x, 1);
+
+  /* set tolerances */
+  lobpcg_tol.absolute = abstol;
+  lobpcg_tol.relative = 1e-50;
+
+  /* setup interface interpreter and wrap around "x" another structure */
+  SerialSetupInterpreter (&ii);
+  xx = mv_MultiVectorWrap (&ii, x, 0);
+
+  /* set pointers to lapack functions */
+  blap_fn.dpotrf = dpotrf_;
+  blap_fn.dsygv = dsygv_;
+
+  /* allocate residuals */
+  ERRMEM (resid = malloc (sizeof (double [n])));
+
+  /* compute L = sqrt (B) */
+  MX *L = MX_Copy (B, NULL);
+
+  for (i = 0; i < L->n; i ++) L->x[i] = sqrt (L->x [i]);
+
+  sigma = 1.0; /* shift */
+
+  A_prim = MX_Add (1.0, A, sigma, B, NULL); /* A' = A + shift * M */
+
+  csc_inverse (A_prim, A_prim); /* MUMPS inverse */
+
+  struct csc_geneigen_data data = {A_prim->sym, L};
+
+  ret = lobpcg_solve_double (
+    xx, /* input/output eigenvectors */
+    &data, csc_geneigen_matmultivec, /* A */
+    NULL, NULL,
+    NULL, NULL,
+    NULL,  /* input-matrix Y */
+    blap_fn, /* input-lapack functions */
+    lobpcg_tol, /* input-tolerances */
+    maxiter, /* input-max iterations */
+    verbose, /*input-verbosity level */
+    &iterations,  /* output-actual iterations */
+    val, /* output-eigenvalues */
+    NULL,  /*output-eigenvalues history */
+    0,  /* output-history global height */
+    resid, /* output-residual norms */
+    NULL, /* output-residual norms history */
+    0 /* output-history global height  */
+    );
+
+  MX_Destroy (L);
+  MX_Destroy (A_prim);
+
+  for (i = 0; i < n; i ++)
   {
-    case MXDENSE:
-    case MXBD:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
-    break;
-    case MXCSC:
-      ASSERT_TEXT (MXSPD (a) && MXSPD (b), "The input matrices are not marked as symmetric and positive definite!");
-      csc_geneigen (a, b, n, val, vec);
-    break;
+    if (val [i] != 0.0) val [i] = -(1.0 / val [i]) - sigma;
   }
 
-  if (TEMPORARY (a)) free (a);
+  /* destroy multivector and other objects */
+  serial_Multi_VectorDestroy(x);
+  mv_MultiVectorDestroy(xx);
+  free (resid);
+
+  return ret == 0 ? iterations : -1;
 }
 
 double MX_Norm (MX *a)
@@ -2395,6 +2481,66 @@ void MX_Printf (MX *a)
   for (int i = 0; i < a->nzmax; i ++) printf ("%g  ", a->x [i]);
 
   printf ("\n");
+}
+
+void MX_MatrixMarket (MX *a, const char *path)
+{
+  double *x;
+  int i, j;
+  FILE *f;
+
+  ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);
+  fprintf (f, "%%%%MatrixMarket matrix coordinate real general\n");
+  fprintf (f, "%d  %d  %d\n", a->n, a->m, a->nzmax);
+
+  switch (a->kind)
+  {
+  case MXDENSE:
+  {
+    x = a->x;
+
+    for (j = 0; j < a->n; j ++)
+    {
+      for (i = 0; i < a->m; i ++, x ++)
+      {
+	if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j, i, *x);
+	else fprintf (f, "%d  %d  %.15g\n", i, j, *x);
+      }
+    }
+  }
+  break;
+  case MXBD:
+  {
+    x = a->x;
+
+    for (int k = 0; k < a->n; k ++) /* for each block */
+    {
+      for (j = a->i[k]; j < a->i[k+1]; j ++)
+      {
+        for (i = a->i[k]; i < a->i[k+1]; i ++, x ++)
+	{
+	  if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j, i, *x);
+	  else fprintf (f, "%d  %d  %.15g\n", i, j, *x);
+	}
+      }
+    }
+  }
+  break;
+  case MXCSC:
+  {
+    for (j = 0; j < a->n; j ++)
+    {
+      for (i = a->p[j]; i < a->p[j+1]; i ++)
+      {
+	if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j, a->i [i], a->x [i]);
+	else fprintf (f, "%d  %d  %.15g\n", a->i [i], j, a->x [i]);
+      }
+    }
+  }
+  break;
+  }
+
+  fclose (f);
 }
 
 void MX_Destroy (MX *a)

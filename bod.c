@@ -2212,6 +2212,10 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->msh) MESH_Destroy (bod->msh);
 
+  if (bod->eval) free (bod->eval);
+
+  if (bod->evec) MX_Destroy (bod->evec);
+
 #if OPENGL
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
 #endif
@@ -2598,6 +2602,13 @@ void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
   }
 }
 
+/* clone body by first rotating (point, vector, angle) it and then translating */
+BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, double angle)
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME => TODO */
+  return NULL;
+}
+
 /* export MBFCP definition */
 void BODY_2_MBFCP (BODY *bod, FILE *out)
 {
@@ -2634,3 +2645,4 @@ void BODY_2_MBFCP (BODY *bod, FILE *out)
 
   fprintf (out, "\n");
 }
+
