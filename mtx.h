@@ -120,8 +120,11 @@ MX* MX_Inverse (MX *a, MX *b);
  * results are outputed according to the ascending order of eigenvalues */
 void MX_Eigen (MX *a, int n, double *val, MX *vec);
 
-/* generalized version of the above: a * vec = val * b * vec */
-void MX_Geneigen (MX *a, MX *b, int n, double *val, MX *vec);
+/* For MXCSC and MXSPD matrices compute n lowest eigenvalues of the generalized
+ * eigevan value problem A vec = val B vec, where A is symmetric semi-positive definite,
+ * and B is diagonal positive definite, abstol is the absolut tolerance of eigenvalues
+ * computation, and maxiter is the iterations bound; returns the number of iterations or -1 on failure */
+int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbose, double *val, MX *vec);
 
 /* compure 2-norm */
 double MX_Norm (MX *a);
@@ -132,6 +135,9 @@ MX* MX_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints);
 
 /* print to standard output */
 void MX_Printf (MX *a);
+
+/* print into a MatrixMarket file */
+void MX_MatrixMarket (MX *a, const char *path);
 
 /* free matrix */
 void MX_Destroy (MX *a);

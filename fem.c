@@ -3563,26 +3563,24 @@ MX* FEM_Approx_Inverse (BODY *bod)
   }
 }
 
-/* perform modal analysis and return n lower (n > 0) or upper (n < 0) eigen values and vectors */
-MX* FEM_Modal_Analysis (BODY *bod, int n, double *val)
+/* compute n lowest modal eigenvalues, given an absolute tolerance and iterations bound;
+ * returns the corresponding eigenvectors in columns of a dense matrix, or NULL if the eigenvalue solver has failed */
+MX* FEM_Modal_Analysis (BODY *bod, int n, double abstol, int maxiter, int verbose, double *val)
 {
-  MX *A = tangent_stiffness (bod, 1),
+  MX *K = tangent_stiffness (bod, 1),
      *M = diagonal_inertia (bod, 1),
-     *V = MX_Create (MXDENSE, A->n, ABS (n), NULL, NULL);
+     *V = MX_Create (MXDENSE, K->n, ABS (n), NULL, NULL);
+  int iters;
 
-  double sigma = 1.0; /* shift */
+  iters = MX_CSC_Geneigen (K, M, n, abstol, maxiter, verbose, val, V);
 
-  for (int i = 0; i < A->n; i ++)
-  {
-    A->x [A->p [i]] += sigma * M->x [i]; /* A = K + sigma M */
-  }
-
-  MX_Geneigen (A, M, n, val, V);
-
-  for (int i = 0; i < ABS (n); i ++) val [i] -= 1.0;
-
-  MX_Destroy (A);
+  MX_Destroy (K);
   MX_Destroy (M);
 
-  return V;
+  if (iters >= 0 && iters < maxiter) return V;
+  else
+  {
+    MX_Destroy (V);
+    return NULL;
+  }
 }

@@ -7378,18 +7378,24 @@ static PyObject* lng_NON_SOLFEC_ARGV (PyObject *self, PyObject *args, PyObject *
 /* model analysis of FEM bodies */
 static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("bod", "num");
-  PyObject *val, *vec;
-  lng_BODY *bod;
-  double *v;
-  int num, i;
+  KEYWORDS ("body", "num", "abstol", "maxiter", "verbose");
+  PyObject *val, *vec, *verbose;
+  int num, i, maxiter, vrb;
+  double *v, abstol;
+  lng_BODY *body;
   MX *V;
 
-  PARSEKEYS ("Oi", &bod , &num);
+  vrb = 0;
+  abstol = 1E-9;
+  maxiter = 100;
+  verbose = NULL;
 
-  TYPETEST (is_body (bod, kwl[0]));
+  PARSEKEYS ("Oi|diO", &body, &num, &abstol, &maxiter, &verbose);
 
-  if (bod->bod->kind != FEM)
+  TYPETEST (is_body (body, kwl[0]) && is_positive (num, kwl [1]) && is_positive (abstol, kwl [2]) &&
+      is_positive (maxiter, kwl [3]) && is_string (verbose, kwl [4]));
+
+  if (body->bod->kind != FEM)
   {
     PyErr_SetString (PyExc_RuntimeError, "Input body must of Finite Element kind");
     return NULL;
@@ -7401,20 +7407,101 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
     return NULL;
   }
 
-  ERRMEM (v = malloc (sizeof (double [ABS (num)])));
+  if (verbose)
+  {
+    IFIS (verbose, "ON")
+    {
+      vrb = 1;
+    }
+    ELIF (verbose, "OFF")
+    {
+      vrb = 0;
+    }
+    ELSE
+    {
+      PyErr_SetString (PyExc_RuntimeError, "The verbose value can be either 'ON' or 'OFF' only");
+      return NULL;
+    }
+  }
 
-  V = FEM_Modal_Analysis (bod->bod, num, v);
+  ERRMEM (v = malloc (sizeof (double [num])));
 
-  ERRMEM (val = PyList_New (V->n));
-  ERRMEM (vec = PyList_New (V->nzmax));
+  V = FEM_Modal_Analysis (body->bod, num, abstol, maxiter, vrb, v);
 
-  for (i = 0; i < V->n; i ++) PyList_SetItem (val, i, PyFloat_FromDouble (v [i]));
-  for (i = 0; i < V->nzmax; i ++) PyList_SetItem (vec, i, PyFloat_FromDouble (V->x [i]));
+  if (V)
+  {
+    body->bod->eval = v;
+    body->bod->evec = V;
 
-  MX_Destroy (V);
-  free (v);
+    ERRMEM (val = PyList_New (V->n));
+    ERRMEM (vec = PyList_New (V->nzmax));
 
-  return Py_BuildValue ("(O, O)", val, vec);
+    for (i = 0; i < V->n; i ++) PyList_SetItem (val, i, PyFloat_FromDouble (v [i]));
+    for (i = 0; i < V->nzmax; i ++) PyList_SetItem (vec, i, PyFloat_FromDouble (V->x [i]));
+
+    return Py_BuildValue ("(O, O)", val, vec);
+  }
+  else
+  {
+    free (v);
+
+    PyErr_SetString (PyExc_RuntimeError, "Eigenvalue solver has failed!");
+    return NULL;
+  }
+}
+
+/* clone BODY */
+static PyObject* lng_CLONE (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "translate", "rotate");
+  double t [3], p [3], v [3], a;
+  PyObject *translate, *rotate;
+  lng_BODY *body;
+  BODY *bod;
+
+  rotate = NULL;
+
+  PARSEKEYS ("OO|O", &body, &translate, &rotate);
+
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (translate, kwl [1], 3) && is_tuple (rotate, kwl [2], 3));
+
+  t [0] = PyFloat_AsDouble (PyTuple_GetItem (translate, 0));
+  t [1] = PyFloat_AsDouble (PyTuple_GetItem (translate, 1));
+  t [2] = PyFloat_AsDouble (PyTuple_GetItem (translate, 2));
+
+  if (rotate)
+  {
+    PyObject *point = PyTuple_GetItem (rotate, 0),
+	     *vector = PyTuple_GetItem (rotate, 1),
+	     *angle = PyTuple_GetItem (rotate, 2);
+
+    TYPETEST (is_tuple (point, "rotate [0]", 3) && is_tuple (vector, "rotate [1]", 3));
+
+    p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+    p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+    p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+    v [0] = PyFloat_AsDouble (PyTuple_GetItem (vector, 0));
+    v [1] = PyFloat_AsDouble (PyTuple_GetItem (vector, 1));
+    v [2] = PyFloat_AsDouble (PyTuple_GetItem (vector, 2));
+
+    a =  PyFloat_AsDouble (angle);
+  }
+  else
+  {
+    SET (p, 0.0);
+    SET (v, 0.0);
+    a = 0.0;
+  }
+
+  bod = BODY_Clone (body->bod, t, p, v, a);
+
+  if (bod) return lng_BODY_WRAPPER (bod);
+  else
+  {
+    PyErr_SetString (PyExc_RuntimeError, "Body cloning has failed!");
+    return NULL;
+  }
 }
 
 /* simulation duration */
@@ -8175,6 +8262,7 @@ static PyMethodDef lng_methods [] =
   {"MBFCP_EXPORT", (PyCFunction)lng_MBFCP_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MBFCP definition"},
   {"NON_SOLFEC_ARGV", (PyCFunction)lng_NON_SOLFEC_ARGV, METH_NOARGS, "Return non-Solfec input arguments"},
   {"MODAL_ANALYSIS", (PyCFunction)lng_MODAL_ANALYSIS, METH_VARARGS|METH_KEYWORDS, "Perform modal analysis of a FEM body"},
+  {"CLONE", (PyCFunction)lng_CLONE, METH_VARARGS|METH_KEYWORDS, "Clone body"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -8406,6 +8494,7 @@ int lng (const char *path)
                      "from solfec import MBFCP_EXPORT\n"
                      "from solfec import NON_SOLFEC_ARGV\n"
                      "from solfec import MODAL_ANALYSIS\n"
+                     "from solfec import CLONE\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

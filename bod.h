@@ -174,6 +174,10 @@ struct general_body
 
   double damping;   /* stiffness proportional damping */
 
+  double *eval;     /* eigenvalues */
+
+  MX *evec;         /* eigenvectors */
+
   DOM *dom;        /* domain storing the body */
 
   BODY *prev,       /* list */
@@ -315,6 +319,9 @@ void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int
 
 /* compute c = alpha * INVERSE (bod) * b + beta * c */
 void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
+
+/* clone body by first rotating (point, vector, angle) it and then translating */
+BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, double angle);
 
 /* export MBFCP definition */
 void BODY_2_MBFCP (BODY *bod, FILE *out);

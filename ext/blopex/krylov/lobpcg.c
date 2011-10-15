@@ -759,15 +759,15 @@ lobpcg_solve( mv_MultiVectorPtr blockVectorX,
     printf(" eigenvalue problem with");
     if ( noTFlag )
       printf("out");
-    printf(" preconditioning\n\n");
-    printf("block size %d\n\n",(int) sizeX );
+    printf(" preconditioning, ");
+    printf("block size %d, ",(int) sizeX );
     if ( noYFlag )
-      printf("No constraints\n\n");
+      printf("no constraints\n");
     else {
       if ( sizeY > 1 )
-        printf("%d constraints\n\n",(int) sizeY);
+        printf("%d constraints\n",(int) sizeY);
       else
-        printf("%d constraint\n\n",(int) sizeY);
+        printf("%d constraint\n",(int) sizeY);
     }
   }
 
@@ -1324,8 +1324,12 @@ lobpcg_solve( mv_MultiVectorPtr blockVectorX,
   (*iterationNumber)--;
 
   if ( verbosityLevel == 1 )
+#if 0
     lobpcg_dumpLambda( residualNorms, lambda,
                        iterationNumber, sizeX, util);
+#else
+    printf ("\n");
+#endif
 
   mv_MultiVectorDestroy( blockVectorR );
   mv_MultiVectorDestroy( blockVectorP );

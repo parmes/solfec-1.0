@@ -1647,7 +1647,7 @@ The below table gives indicative assessment of the maturity of various Solfec
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="76" columns="4">
+<lyxtabular version="3" rows="78" columns="4">
 <features islongtable="true">
 <column alignment="center" valignment="top" width="0">
 <column alignment="center" valignment="top" width="0">
@@ -4156,6 +4156,82 @@ NON_SOLFEC_ARGV
 
 \begin_layout Plain Layout
 x
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+MODAL_ANALYSIS
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+CLONE
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
 \end_layout
 
 \end_inset
@@ -11935,13 +12011,22 @@ This routine returns all command line arguments (in the form of a list of
 \end_layout
 
 \begin_layout Subsection*
-obj = MODAL_ANALYSIS (bod, num) 
+obj = MODAL_ANALYSIS (body, num | abstol, maxiter, verbose) 
 \color red
 (Under development)
 \end_layout
 
 \begin_layout Standard
 This routine performs modal analysis of FEM bodies.
+ The modal analysis results are stored with bodies and can be viewed.
+ If your model requires many copies of the same body with modal data attached,
+ rather than recomputing eigen modes for each body it is more efficient
+ to use the 
+\series bold
+CLONE
+\series default
+ command, in order to clone bodies with already existing modal analysis
+ data.
 \end_layout
 
 \begin_layout Itemize
@@ -11971,9 +12056,9 @@ obj[1]
 \begin_layout Itemize
 
 \series bold
-bod
+body
 \series default
- - input FEM body
+ - input FEM body; the model analysis results are stored with this body
 \end_layout
 
 \begin_layout Itemize
@@ -11981,17 +12066,124 @@ bod
 \series bold
 num
 \series default
- - number of lowest (if 
-\series bold
-num
-\series default
- > 0) or highest (if 
-\series bold
-num
-\series default
- < 0) modes to extract
+ - number of lowest modes to extract
 \end_layout
 
+\begin_layout Itemize
+
+\series bold
+abstol
+\series default
+ - residual tolerance for the eigenvalue solver (default: 1E-9)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+maxiter
+\series default
+ - iterations bound for the eigenvalue solver (default: 100)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+verbose
+\series default
+ - 'ON' or 'OFF' verbosity flag for the eigenvalue solver (default: 'OFF')
+\end_layout
+
+\begin_layout Subsection*
+obj = CLONE (body, translate | rotate) 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+The routine creates an clone of a BODY, that is its translated and rotated
+ copy.
+ If the rotation is used, it forgoes the translation.
+ Note that the modal analysis data, obtained with 
+\series bold
+MODAL_ANALYSIS
+\series default
+, is also cloned and suitably transformed.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - the cloned body
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - input body
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+translate
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple defining the translation
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+rotate
+\series default
+ - 
+\series bold
+(point, vector, angle)
+\series default
+ tuple, where:
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(px, py, pz)
+\emph default
+ tuple defining a point passed by the rotation axis
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+vector
+\series default
+ - 
+\emph on
+(vx, vy, vz)
+\emph default
+ tuple defining a direction of the rotation axis
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+angle
+\series default
+ - rotation angle in degrees
+\end_layout
+
+\end_deeper
 \begin_layout Section
 Results access
 \end_layout
