@@ -1306,10 +1306,15 @@ void CONVEX_Update (CONVEX *cvx, void *body, void *shp, MOTION motion)
 
   for (; cvx; cvx = cvx->next)
   {	
-    if (cvx->epn && motion) /* use fast update for FEM bodies with rough mesh */
+    if (cvx->epn && motion == (MOTION) BODY_Cur_Point) /* use fast update for FEM bodies with rough mesh */
     {
       for (epn = cvx->epn, ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; epn ++, ref += 3, cur += 3, n ++)
 	FEM_Cur_Point_Ext (body, epn->ele, ref, epn->pnt, cur);
+    }
+    else if (cvx->epn && motion)
+    {
+      for (epn = cvx->epn, ref = cvx->ref, cur = cvx->cur, n = 0; n < cvx->nver; epn ++, ref += 3, cur += 3, n ++)
+	motion (body, epn->ele, epn->pnt, cur); /* modal_motion in fem.c */
     }
     else /* use regular update for other body types */
     {

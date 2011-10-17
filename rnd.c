@@ -227,7 +227,8 @@ enum /* menu items */
   RESULTS_UN,
   RESULTS_U,
   RESULTS_GAP,
-  RESULTS_MERIT
+  RESULTS_MERIT,
+  RESULTS_MODAL_ANALYSIS
 };
 
 enum mouse_mode
@@ -358,6 +359,67 @@ static short render_bodies = 1; /* body rendering flag */
 
 static short wireframeon = 0; /* wireframe selection flag */
 
+static short modal_analysis_menu = 0; /* modal analysis menu item flag */
+
+/* menu modal analysis callback */
+static void menu_modal_analysis (int mode)
+{
+  if (SET_Prev (selection->set) == NULL &&
+      SET_Next (selection->set) == NULL) /* just one body */
+  {
+    BODY *bod = selection->set->data;
+    double *e = bod->extents, d [3], scale;
+
+    SUB (e+3, e, d);
+    scale = MIN (d[0], d[1]);
+    scale = 0.25 * MIN (scale, d [2]);
+
+    FEM_Load_Mode (bod, mode, scale);
+
+    update ();
+  }
+}
+
+/* modal analaysis results menu item turn on; this will depend
+ * on selection => it can only be turned on when just one body
+ * is selected and this body has the modal analysis results attached to it */
+static void modal_analysis_results ()
+{
+  /* computing set is much more time consuming than
+   * checking for previous and next item pointers */
+
+  if (SET_Prev (selection->set) == NULL &&
+      SET_Next (selection->set) == NULL) /* just one body */
+  {
+    BODY *bod = selection->set->data;
+
+    if (bod->eval && bod->evec && modal_analysis_menu == 0)
+    {
+      int local = glutCreateMenu (menu_modal_analysis);
+
+      for (int i = 0; i < bod->evec->n; i ++)
+      {
+        char mode [256];
+	snprintf (mode, 256, "mode %d   (%g)", i+1, bod->eval [i]);
+        glutAddMenuEntry (mode, i);
+      }
+
+      glutSetMenu (menu_code [MENU_RESULTS]);
+      glutAddSubMenu ("modal analysis", local);
+      modal_analysis_menu = 1;
+    }
+  }
+  else
+  {
+    if (modal_analysis_menu)
+    {
+      glutSetMenu (menu_code [MENU_RESULTS]);
+      glutRemoveMenuItem (5);
+      modal_analysis_menu = 0;
+    }
+  }
+}
+
 /* initialize selection */
 static void selection_init ()
 {
@@ -377,6 +439,8 @@ static void selection_init ()
   for (selection->set = NULL, bod = domain->bod; bod; bod = bod->next) SET_Insert (&rndsetmem, &selection->set, bod, NULL);
 
   selection->prev = NULL;
+
+  modal_analysis_results ();
 }
 
 /* push new selection on stack */
@@ -389,6 +453,8 @@ static void selection_push (SET *set)
   s->set = set;
 
   selection = s;
+
+  modal_analysis_results ();
 }
 
 /* pop most recent selection */
@@ -401,6 +467,8 @@ static void selection_pop ()
     selection = selection->prev;
     free (top);
   }
+
+  modal_analysis_results ();
 }
 
 /* convert body id into an RGBA code */

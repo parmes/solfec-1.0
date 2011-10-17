@@ -2291,32 +2291,46 @@ int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbos
   ASSERT_DEBUG (A->n == A->m && B->n == B->m && A->n == B->n && B->nzmax == B->n, "dim(A) != dim(B) or B is not diagonal!");
   ASSERT_DEBUG (n > 0, "Number of modes must be greater than zero!");
 
-  serial_Multi_Vector *x;
-  mv_MultiVectorPtr xx;
+  serial_Multi_Vector *x0, *x1;
+  mv_MultiVectorPtr xx0, xx1;
   int iterations;
   lobpcg_Tolerance lobpcg_tol;
-  mv_InterfaceInterpreter ii;
+  mv_InterfaceInterpreter ii0, ii1;
   lobpcg_BLASLAPACKFunctions blap_fn;
   double *resid, sigma;
   MX *A_prim;
   int i, ret;
 
-  /* create multivector */
-  x = serial_Multi_VectorCreate (A->n, n);
-  x->data = vec->x;
-  serial_Multi_VectorSetDataOwner (x, 0);
-  serial_Multi_VectorInitialize (x);
+  /* create multivector for rigid modes */
+  x0 = serial_Multi_VectorCreate (A->n, MIN (n, 6));
+  x0->data = vec->x;
+  serial_Multi_VectorSetDataOwner (x0, 0);
+  serial_Multi_VectorInitialize (x0);
 
   /* fill it with random numbers */
-  serial_Multi_VectorSetRandomValues(x, 1);
+  serial_Multi_VectorSetRandomValues(x0, 1);
+
+  /* setup interface interpreter and wrap around "x0" another structure */
+  SerialSetupInterpreter (&ii0);
+  xx0 = mv_MultiVectorWrap (&ii0, x0, 0);
+
+  /* create multivector for the remaining modes */
+  if (n > 6)
+  {
+    x1 = serial_Multi_VectorCreate (A->n, n - 6);
+    x1->data = vec->x + (6*A->n);
+    serial_Multi_VectorSetDataOwner (x1, 0);
+    serial_Multi_VectorInitialize (x1);
+
+    serial_Multi_VectorSetRandomValues(x1, 1);
+
+    SerialSetupInterpreter (&ii1);
+    xx1 = mv_MultiVectorWrap (&ii1, x1, 0);
+  }
 
   /* set tolerances */
   lobpcg_tol.absolute = abstol;
   lobpcg_tol.relative = 1e-50;
-
-  /* setup interface interpreter and wrap around "x" another structure */
-  SerialSetupInterpreter (&ii);
-  xx = mv_MultiVectorWrap (&ii, x, 0);
 
   /* set pointers to lapack functions */
   blap_fn.dpotrf = dpotrf_;
@@ -2330,7 +2344,9 @@ int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbos
 
   for (i = 0; i < L->n; i ++) L->x[i] = sqrt (L->x [i]);
 
-  sigma = 1.0; /* shift */
+  sigma = 1.0; /* shift for zero eigenvalues */
+
+  if (verbose) printf ("Factorizing preconditioner ...\n");
 
   A_prim = MX_Add (1.0, A, sigma, B, NULL); /* A' = A + shift * M */
 
@@ -2338,8 +2354,12 @@ int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbos
 
   struct csc_geneigen_data data = {A_prim->sym, L};
 
+  /* solve for 0 eigenmodes first */
+
+  if (verbose) printf ("Solving for the first %d eigenmodes with shift %g ...\n", MIN (n, 6), sigma);
+
   ret = lobpcg_solve_double (
-    xx, /* input/output eigenvectors */
+    xx0, /* input/output eigenvectors */
     &data, csc_geneigen_matmultivec, /* A */
     NULL, NULL,
     NULL, NULL,
@@ -2357,18 +2377,55 @@ int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbos
     0 /* output-history global height  */
     );
 
+  /* solve for the remaining eigenvalues
+   * (they can be much larger, hence we need another shift
+   *  and we put the 0-eigenmodes as constraints so that we
+   *  are solving in the subspace orthogonal to them) */
+
+  if (n > 6 && ret == 0 && iterations < maxiter)
+  {
+    if (verbose) printf ("Computing the remaining modes in the subspace orthogonal to the first 6 modes ...\n");
+
+    ret = lobpcg_solve_double (
+      xx1,
+      &data, csc_geneigen_matmultivec,
+      NULL, NULL,
+      NULL, NULL,
+      xx0,  /* constraints */
+      blap_fn,
+      lobpcg_tol,
+      maxiter,
+      verbose,
+      &iterations,
+      val+6,
+      NULL,
+      0,
+      resid,
+      NULL,
+      0
+      );
+  }
+
   MX_Destroy (L);
   MX_Destroy (A_prim);
 
-  for (i = 0; i < n; i ++)
-  {
-    if (val [i] != 0.0) val [i] = -(1.0 / val [i]) - sigma;
-  }
-
   /* destroy multivector and other objects */
-  serial_Multi_VectorDestroy(x);
-  mv_MultiVectorDestroy(xx);
+  serial_Multi_VectorDestroy(x0);
+  mv_MultiVectorDestroy(xx0);
+  if (n > 6)
+  {
+    serial_Multi_VectorDestroy(x1);
+    mv_MultiVectorDestroy(xx1);
+  }
   free (resid);
+
+  if (ret == 0)
+  {
+    for (i = 0; i < n; i ++)
+    {
+      if (val [i] != 0.0) val [i] = -(1.0 / val [i]) - sigma; /* lambda_inv_shift = -1 (lambda + sigma) => lambda */
+    }
+  }
 
   return ret == 0 ? iterations : -1;
 }
