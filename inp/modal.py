@@ -1,9 +1,9 @@
 # simple modal analysis
 
 a = 0.1
-n = 10
-l = 1
-m = 50
+n = 5
+l = 5
+m = 20
 
 nodes = [-a, -a, -l*a,
           a, -a, -l*a,
@@ -16,6 +16,8 @@ nodes = [-a, -a, -l*a,
 
 mesh = HEX (nodes, n, n, l*n, 0, [0, 1, 2, 3, 4, 5])
 
+print 'Computing ', m, 'eigenpairs of a ', 3 * mesh.nnod, 'system ...'
+
 solfec = SOLFEC ('DYNAMIC', 1, 'out/modal')
 
 bulk = BULK_MATERIAL (solfec,
@@ -26,8 +28,7 @@ bulk = BULK_MATERIAL (solfec,
 
 bod = BODY (solfec, 'FINITE_ELEMENT', mesh, bulk)
 
-print 'Computing ', m, 'eigenpairs of a ', 3*(n+1)**3, 'system ...'
 
-out = MODAL_ANALYSIS (bod, m)
+out = MODAL_ANALYSIS (bod, m, 1E-14, verbose = 'ON')
 
 print 'Eigenvalues:', out [0]

@@ -122,4 +122,7 @@ MX* FEM_Approx_Inverse (BODY *bod);
  * returns the corresponding eigenvectors in columns of a dense matrix, or NULL if the eigenvalue solver has failed */
 MX* FEM_Modal_Analysis (BODY *bod, int n, double abstol, int maxiter, int verbose, double *val);
 
+/* load an eigen mode as the current shape */
+void FEM_Load_Mode (BODY *bod, int mode, double scale);
+
 #endif
