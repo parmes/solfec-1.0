@@ -321,7 +321,7 @@ void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int
 void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
 
 /* clone body by first rotating (point, vector, angle) it and then translating */
-BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, double angle);
+BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, double angle, char *label);
 
 /* export MBFCP definition */
 void BODY_2_MBFCP (BODY *bod, FILE *out);

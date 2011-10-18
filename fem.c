@@ -3598,15 +3598,6 @@ MX* FEM_Modal_Analysis (BODY *bod, int n, double abstol, int maxiter, int verbos
      *V = MX_Create (MXDENSE, K->n, ABS (n), NULL, NULL);
   int iters;
 
-#if 1
-  /* XXX / FIXME: the below trick makes eigen modes nice (no beoundary effects)
-   *              consistent mass matrix should be used instead */
-  double mavg = 0.0;
-  for (int i = 0; i < K->n; i ++) mavg += M->x [i];
-  mavg /= (double) K->n;
-  for (int i = 0; i < K->n; i ++) M->x [i] = mavg;
-#endif
-
   iters = MX_CSC_Geneigen (K, M, n, abstol, maxiter, verbose, val, V);
 
   MX_Destroy (K);

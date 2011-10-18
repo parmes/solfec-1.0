@@ -2406,6 +2406,24 @@ int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbos
       );
   }
 
+  if (ret == 0)
+  {
+    double *x, *y = L->x+L->n, *z;
+
+    /* we were solving:
+     * ---------------
+     * - L*inv(K+sigma M)*L y = mu y with L=sqrt(M)
+     * where
+     * y = Lx and mu = -1/(lambda +sigma) */
+
+    for (i = 0; i < n; i ++)
+    {
+      for (x = L->x, z = vec->x+i*vec->m; x < y; x ++, z ++) (*z) /= (*x); /* x = L y */
+
+      if (val [i] != 0.0) val [i] = -(1.0 / val [i]) - sigma; /* lambda  = -1/mu - sigma */
+    }
+  }
+
   MX_Destroy (L);
   MX_Destroy (A_prim);
 
@@ -2418,14 +2436,6 @@ int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbos
     mv_MultiVectorDestroy(xx1);
   }
   free (resid);
-
-  if (ret == 0)
-  {
-    for (i = 0; i < n; i ++)
-    {
-      if (val [i] != 0.0) val [i] = -(1.0 / val [i]) - sigma; /* lambda_inv_shift = -1 (lambda + sigma) => lambda */
-    }
-  }
 
   return ret == 0 ? iterations : -1;
 }

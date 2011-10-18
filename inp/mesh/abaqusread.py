@@ -97,13 +97,18 @@ def READLINE (inp):
 
 def ABAQUS_PARSE (path):
 
-  inp = open (path, 'r')
-  lin = READLINE (inp)
   volid = 1 # spare volume id
   parts = dict () # all parts
   assems = dict () # all assemblies
   elsets = dict () # all element sets
   materials = dict () # all materials
+
+  inp = open (path, 'r')
+  lin = READLINE (inp)
+  lst = SPLIT(lin)
+  while lst[0][0] == '*' and lst[0][1] == '*': # skip initial comments
+    lin = READLINE (inp)
+    lst = SPLIT(lin)
 
   if lin.find ('*heading') < 0:
     print 'Invalid Abaqus formar: *Heading not in first line'

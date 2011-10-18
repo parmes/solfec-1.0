@@ -28,7 +28,6 @@ bulk = BULK_MATERIAL (solfec,
 
 bod = BODY (solfec, 'FINITE_ELEMENT', mesh, bulk)
 
-
-out = MODAL_ANALYSIS (bod, m, 1E-14, verbose = 'ON')
+out = MODAL_ANALYSIS (bod, m, verbose = 'ON')
 
 print 'Eigenvalues:', out [0]

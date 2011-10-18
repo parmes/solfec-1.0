@@ -1397,4 +1397,14 @@ if (((DET) =\
   ADDMUL (line_point, eps, line_direction, projection);\
 }
 
+#define ROTATION_MATRIX(vector, angle, R)\
+{\
+  double omega [3], a = angle;\
+  a *=  ALG_PI / 180.0;\
+  COPY (vector, omega);\
+  NORMALIZE (omega);\
+  SCALE (omega, angle);\
+  EXPMAP (omega, R);\
+}
+
 #endif

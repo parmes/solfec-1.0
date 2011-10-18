@@ -2603,10 +2603,57 @@ void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
 }
 
 /* clone body by first rotating (point, vector, angle) it and then translating */
-BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, double angle)
+BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, double angle, char *label)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME => TODO */
-  return NULL;
+  SHAPE *shp;
+  MESH *msh;
+  BODY *out;
+
+  shp = SHAPE_Copy (bod->shape);
+  if (bod->msh) msh = MESH_Copy (bod->msh);
+  else msh = NULL;
+
+  if (angle != 0.0)
+  {
+    SHAPE_Rotate (shp, point, vector, angle);
+    if (msh) MESH_Rotate (msh, point, vector, angle);
+  }
+
+  SHAPE_Translate (shp, translate);
+  if (msh) MESH_Translate (msh, translate);
+
+  out = BODY_Create (bod->kind, shp, bod->mat, label, bod->flags, bod->form, msh);
+
+  out->scheme = bod->scheme;
+  out->damping = bod->damping;
+
+  if (bod->eval && bod->evec) /* modal analysis results */
+  {
+    ERRMEM (out->eval = malloc (sizeof (double [bod->evec->n])));
+    blas_dcopy (bod->evec->n, bod->eval, 1, out->eval, 1);
+    out->evec = MX_Copy (bod->evec, NULL);
+
+    if (angle != 0.0)
+    {
+      double R [9], q [3], *x, *y;
+      int i;
+
+      ROTATION_MATRIX (vector, angle, R);
+
+      for (i = 0; i < out->evec->n; i ++)
+      {
+	for (x = &out->evec->x[i*out->evec->m], y = x + out->evec->m; x < y; x += 3)
+	{
+	  COPY (x, q);
+	  NVMUL (R, q, x); /* rotate eigenshapes */
+	}
+      }
+    }
+  }
+
+  DOM_Insert_Body (bod->dom, out);
+
+  return out;
 }
 
 /* export MBFCP definition */

@@ -184,8 +184,8 @@ enum /* menu items */
   TOOLS_ROUGH_MESH,
   TOOLS_PREVIOUS_RESULT,
   TOOLS_NEXT_RESULT,
-  TOOLS_SMALLER_ARROWS,
-  TOOLS_BIGGER_ARROWS,
+  TOOLS_SMALLER_SCALING,
+  TOOLS_BIGGER_SCALING,
   TOOLS_OUTPATH,
   TOOLS_POINTS_COORDS,
   TOOLS_POINTS_DISTANCE,
@@ -193,6 +193,8 @@ enum /* menu items */
   TOOLS_TRACKBALL_CENTER,
   TOOLS_WIREFRAME_ALL,
   TOOLS_WIREFRAME_NONE,
+  TOOLS_NEXT_MODE,
+  TOOLS_PREVIOUS_MODE,
   ANALYSIS_RUN,
   ANALYSIS_STOP,
   ANALYSIS_STEP,
@@ -360,10 +362,16 @@ static short render_bodies = 1; /* body rendering flag */
 static short wireframeon = 0; /* wireframe selection flag */
 
 static short modal_analysis_menu = 0; /* modal analysis menu item flag */
+static double eigenshape_factor = 0.15; /* eigenshapes scaling factor */
+static int current_eigenmode = 0; /* current eigenmode */
+static char modetip [512]; /* mode number and eigenvalue tip */
+
 
 /* menu modal analysis callback */
 static void menu_modal_analysis (int mode)
 {
+  current_eigenmode = mode;
+
   if (SET_Prev (selection->set) == NULL &&
       SET_Next (selection->set) == NULL) /* just one body */
   {
@@ -371,10 +379,12 @@ static void menu_modal_analysis (int mode)
     double *e = bod->extents, d [3], scale;
 
     SUB (e+3, e, d);
-    scale = MIN (d[0], d[1]);
-    scale = 0.25 * MIN (scale, d [2]);
+    scale = eigenshape_factor * (d[0] + d[1] + d [2]) / 3.0;
 
     FEM_Load_Mode (bod, mode, scale);
+
+    snprintf (modetip, 512, "mode %d, %g", mode+1, bod->eval [mode]); 
+    tip = modetip;
 
     update ();
   }
@@ -406,6 +416,13 @@ static void modal_analysis_results ()
 
       glutSetMenu (menu_code [MENU_RESULTS]);
       glutAddSubMenu ("modal analysis", local);
+
+      glutSetMenu (menu_code [MENU_TOOLS]);
+      glutChangeToMenuEntry (12, "bigger eigenshapes /]/", TOOLS_BIGGER_SCALING);
+      glutChangeToMenuEntry (13, "smaller eigenshapes /[/", TOOLS_SMALLER_SCALING);
+      glutAddMenuEntry ("next eigenshape /}/", TOOLS_NEXT_MODE);
+      glutAddMenuEntry ("previous eigenshape /{/", TOOLS_PREVIOUS_MODE);
+
       modal_analysis_menu = 1;
     }
   }
@@ -415,6 +432,15 @@ static void modal_analysis_results ()
     {
       glutSetMenu (menu_code [MENU_RESULTS]);
       glutRemoveMenuItem (5);
+
+      glutSetMenu (menu_code [MENU_TOOLS]);
+      glutChangeToMenuEntry (12, "bigger arrows /]/", TOOLS_BIGGER_SCALING);
+      glutChangeToMenuEntry (13, "smaller arrows /[/", TOOLS_SMALLER_SCALING);
+      glutRemoveMenuItem (22);
+      glutRemoveMenuItem (21);
+
+      if (tip == modetip) tip = NULL;
+
       modal_analysis_menu = 0;
     }
   }
@@ -3642,12 +3668,29 @@ static void menu_tools (int item)
     }
     else menu_results (RESULTS_MERIT);
     break;
-  case TOOLS_SMALLER_ARROWS:
-    if (arrow_factor > 0.02) arrow_factor -= 0.01;
+  case TOOLS_SMALLER_SCALING:
+    if (modal_analysis_menu)
+    {
+      if (eigenshape_factor > 0.02) eigenshape_factor -= 0.01;
+      menu_modal_analysis (current_eigenmode);
+    }
+    else
+    {
+      if (arrow_factor > 0.02) arrow_factor -= 0.01;
+    }
+
     GLV_Redraw_All ();
     break;
-  case TOOLS_BIGGER_ARROWS:
-    if (arrow_factor < 0.10) arrow_factor += 0.01;
+  case TOOLS_BIGGER_SCALING:
+    if (modal_analysis_menu)
+    {
+      if (eigenshape_factor < 0.5) eigenshape_factor += 0.01;
+      menu_modal_analysis (current_eigenmode);
+    }
+    else
+    {
+      if (arrow_factor < 0.10) arrow_factor += 0.01;
+    }
     GLV_Redraw_All ();
     break;
   case TOOLS_OUTPATH:
@@ -3701,6 +3744,23 @@ static void menu_tools (int item)
       }
     }
     update ();
+    break;
+  case TOOLS_NEXT_MODE:
+    if (modal_analysis_menu)
+    {
+      BODY *bod = selection->set->data;
+      if (current_eigenmode < (bod->evec->n-1)) current_eigenmode ++;
+      menu_modal_analysis (current_eigenmode);
+    }
+    GLV_Redraw_All ();
+    break;
+  case TOOLS_PREVIOUS_MODE:
+    if (modal_analysis_menu)
+    {
+      if (current_eigenmode > 0) current_eigenmode --;
+      menu_modal_analysis (current_eigenmode);
+    }
+    GLV_Redraw_All ();
     break;
   }
 }
@@ -3803,8 +3863,8 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("toggle rough mesh /r/", TOOLS_ROUGH_MESH);
   glutAddMenuEntry ("next result /+/", TOOLS_NEXT_RESULT);
   glutAddMenuEntry ("previous result /-/", TOOLS_PREVIOUS_RESULT);
-  glutAddMenuEntry ("bigger arrows /]/", TOOLS_BIGGER_ARROWS);
-  glutAddMenuEntry ("smaller arrows /[/", TOOLS_SMALLER_ARROWS);
+  glutAddMenuEntry ("bigger arrows /]/", TOOLS_BIGGER_SCALING);
+  glutAddMenuEntry ("smaller arrows /[/", TOOLS_SMALLER_SCALING);
   glutAddMenuEntry ("toggle output path /o/", TOOLS_OUTPATH);
   glutAddMenuEntry ("point coordiantes /x/", TOOLS_POINTS_COORDS);
   glutAddMenuEntry ("points distance /d/", TOOLS_POINTS_DISTANCE);
@@ -4011,10 +4071,16 @@ void RND_Key (int key, int x, int y)
     menu_tools (TOOLS_PREVIOUS_RESULT);
     break;
   case '[':
-    menu_tools (TOOLS_SMALLER_ARROWS);
+    menu_tools (TOOLS_SMALLER_SCALING);
     break;
   case ']':
-    menu_tools (TOOLS_BIGGER_ARROWS);
+    menu_tools (TOOLS_BIGGER_SCALING);
+    break;
+  case '{':
+    menu_tools (TOOLS_PREVIOUS_MODE);
+    break;
+  case '}':
+    menu_tools (TOOLS_NEXT_MODE);
     break;
   case 'o':
     menu_tools (TOOLS_OUTPATH);

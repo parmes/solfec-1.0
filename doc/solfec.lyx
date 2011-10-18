@@ -12074,7 +12074,7 @@ num
 \series bold
 abstol
 \series default
- - residual tolerance for the eigenvalue solver (default: 1E-9)
+ - residual tolerance for the eigenvalue solver (default: 1E-11)
 \end_layout
 
 \begin_layout Itemize
@@ -12094,7 +12094,7 @@ verbose
 \end_layout
 
 \begin_layout Subsection*
-obj = CLONE (body, translate | rotate) 
+obj = CLONE (body, translate | rotate, label) 
 \color red
 (Under development)
 \end_layout
@@ -12108,6 +12108,12 @@ The routine creates an clone of a BODY, that is its translated and rotated
 MODAL_ANALYSIS
 \series default
 , is also cloned and suitably transformed.
+ 
+\series bold
+NOTES:
+\series default
+ the applied forces are not cloned; the simplified cracks are not cloned;
+ damping and integration scheme are cloned.
 \end_layout
 
 \begin_layout Itemize
@@ -12184,6 +12190,14 @@ angle
 \end_layout
 
 \end_deeper
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - cloned body label (default: none)
+\end_layout
+
 \begin_layout Section
 Results access
 \end_layout
