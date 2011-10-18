@@ -7386,7 +7386,7 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   MX *V;
 
   vrb = 0;
-  abstol = 1E-9;
+  abstol = 1E-11;
   maxiter = 100;
   verbose = NULL;
 
@@ -7453,17 +7453,20 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
 /* clone BODY */
 static PyObject* lng_CLONE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body", "translate", "rotate");
+  KEYWORDS ("body", "translate", "rotate", "label");
   double t [3], p [3], v [3], a;
-  PyObject *translate, *rotate;
+  PyObject *translate, *rotate, *label;
   lng_BODY *body;
   BODY *bod;
+  char *l;
 
   rotate = NULL;
+  label = NULL;
 
-  PARSEKEYS ("OO|O", &body, &translate, &rotate);
+  PARSEKEYS ("OO|OO", &body, &translate, &rotate, &label);
 
-  TYPETEST (is_body (body, kwl[0]) && is_tuple (translate, kwl [1], 3) && is_tuple (rotate, kwl [2], 3));
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (translate, kwl [1], 3)
+         && is_tuple (rotate, kwl [2], 3) && is_string (label, kwl [3]));
 
   t [0] = PyFloat_AsDouble (PyTuple_GetItem (translate, 0));
   t [1] = PyFloat_AsDouble (PyTuple_GetItem (translate, 1));
@@ -7494,7 +7497,10 @@ static PyObject* lng_CLONE (PyObject *self, PyObject *args, PyObject *kwds)
     a = 0.0;
   }
 
-  bod = BODY_Clone (body->bod, t, p, v, a);
+  if (label) l = PyString_AsString (label);
+  else l = NULL;
+
+  bod = BODY_Clone (body->bod, t, p, v, a, l);
 
   if (bod) return lng_BODY_WRAPPER (bod);
   else
