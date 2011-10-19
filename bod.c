@@ -2250,6 +2250,8 @@ static void pack_forces (FORCE *forces, int *dsize, double **d, int *doubles, in
       pack_int (isize, i, ints, 0);
       TMS_Pack (frc->data, dsize, d, doubles, isize, i, ints);
     }
+
+    if (frc->kind == PRESSURE) pack_int (isize, i, ints, frc->surfid);
   }
 }
 
@@ -2282,6 +2284,8 @@ static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *
     {
       frc->data = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
     }
+
+    if (frc->kind == PRESSURE) frc->surfid = unpack_int (ipos, i, ints);
 
     frc->next = forces;
     forces = frc;
@@ -2326,6 +2330,15 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 
   /* pack cracks */
   CRACKS_Pack (bod->cra, dsize, d, doubles, isize, i, ints); 
+
+  /* modal analysis */
+  if (bod->eval && bod->evec)
+  {
+    pack_int (isize, i, ints, bod->evec->n);
+    pack_doubles (dsize, d, doubles, bod->eval, bod->evec->n);
+    MX_Pack (bod->evec, dsize, d, doubles, isize, i, ints);
+  }
+  else pack_int (isize, i, ints, 0);
 }
 
 /* unpack body */
@@ -2377,6 +2390,15 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
 
   /* unpack cracks */
   bod->cra = CRACKS_Unpack (dpos, d, doubles, ipos, i, ints);
+
+  /* modal analysis */
+  int modal = unpack_int (ipos, i, ints);
+  if (modal)
+  {
+    ERRMEM (bod->eval = malloc (sizeof (double [modal])));
+    unpack_doubles (dpos, d, doubles, bod->eval, modal);
+    bod->evec = MX_Unpack (dpos, d, doubles, ipos, i, ints);
+  }
 
   return bod;
 }

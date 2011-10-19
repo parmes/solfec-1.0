@@ -992,6 +992,9 @@ static void pack_parent (BODY *bod, int *dsize, double **d, int *doubles, int *i
   pack_int (isize, i, ints, bod->id);
 
   /* pack state */
+#if LOCAL_BODIES
+  BODY_Pack (bod, dsize, d, doubles, isize, i, ints);
+#endif
   BODY_Parent_Pack (bod, dsize, d, doubles, isize, i, ints);
 
   /* delete from label map */
@@ -1022,7 +1025,23 @@ static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipo
   id = unpack_int (ipos, i, ints);
 
   /* find body */
+#if LOCAL_BODIES
+  bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL);
+
+  if (bod == NULL)
+  {
+    bod = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
+    bod->dom = dom;
+    MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+  }
+  else
+  {
+    BODY *tmp = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
+    BODY_Destroy (tmp);
+  }
+#else
   ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
+#endif
 
   /* must be child or dummy */
   ASSERT_DEBUG ((bod->flags & BODY_PARENT) == 0, "Neither child nor dummy");
@@ -1073,6 +1092,9 @@ static void pack_child (BODY *bod, int *dsize, double **d, int *doubles, int *is
   pack_int (isize, i, ints, bod->id);
 
   /* pack state */
+#if LOCAL_BODIES
+  BODY_Pack (bod, dsize, d, doubles, isize, i, ints);
+#endif
   BODY_Child_Pack (bod, dsize, d, doubles, isize, i, ints);
 }
 
@@ -1086,7 +1108,23 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   id = unpack_int (ipos, i, ints);
 
   /* find body */
+#if LOCAL_BODIES
+  bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL);
+
+  if (bod == NULL)
+  {
+    bod = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
+    bod->dom = dom;
+    MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+  }
+  else
+  {
+    BODY *tmp = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
+    BODY_Destroy (tmp);
+  }
+#else
   ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
+#endif
 
   /* must be child or dummy */
   ASSERT_DEBUG ((bod->flags & BODY_PARENT) == 0, "Neither child nor dummy");
@@ -1494,6 +1532,20 @@ static void old_boundary_constraints_migration (DOM *dom, DBD *dbd)
       {
 	SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].update, con, NULL); /* schedule update */
       }
+
+#if LOCAL_BODIES
+      for (i = 0; i < 2; i ++)
+      {
+	bod = bodies [i];
+	if (bod->flags & BODY_CHILD)
+	{
+	  if (!SET_Contains (bod->children, item->data, NULL) && bod->rank != (int) (long) item->data)
+	    SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].dummies, bod, NULL); /* schedule dummy */
+	}
+	else if (!SET_Contains (bod->children, item->data, NULL)) /* parent */
+	  SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].dummies, bod, NULL); /* schedule dummy */
+      }
+#endif
     }
 
     for (item = SET_First (con->ext); item; item = SET_Next (item))
@@ -1513,6 +1565,13 @@ static void old_boundary_constraints_migration (DOM *dom, DBD *dbd)
 static void old_boundary_constraints_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
+
+#if LOCAL_BODIES
+  /* pack dummies */
+  pack_int (isize, i, ints, SET_Size (dbd->dummies));
+  for (item = SET_First (dbd->dummies); item; item = SET_Next (item))
+    BODY_Pack (item->data, dsize, d, doubles, isize, i, ints);
+#endif
 
   /* pack exported boundary constraints */
   pack_int (isize, i, ints, SET_Size (dbd->glue));
@@ -1538,6 +1597,24 @@ static void* old_external_constraints_unpack (DOM *dom, int *dpos, double *d, in
   CON *con;
 
   ERRMEM (pp = MEM_CALLOC (sizeof (SET*)));
+
+#if LOCAL_BODIES
+  /* unpack dummies */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    BODY *tmp = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints),
+         *bod = MAP_Find (dom->allbodies, (void*) (long) tmp->id, NULL);
+
+    if (bod == NULL)
+    {
+      bod = tmp;
+      bod->dom = dom;
+      MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+    }
+    else BODY_Destroy (tmp);
+  }
+#endif
 
   /* unpack imporeted external constraints */
   j = unpack_int (ipos, i, ints);
@@ -1877,6 +1954,9 @@ static void domain_balancing (DOM *dom)
     SET_Free (&dom->setmem, &dbd [i].remove);
     SET_Free (&dom->setmem, &dbd [i].update);
     SET_Free (&dom->setmem, &dbd [i].glue);
+#if LOCAL_BODIES
+    SET_Free (&dom->setmem, &dbd [i].dummies);
+#endif
   }
 
   /* clean */
@@ -1915,6 +1995,24 @@ static void new_boundary_constraints_migration (DOM *dom, DBD *dbd)
 	  SET_Insert (&dom->setmem, &con->ext, (void*) (long) bod->rank, NULL); /* record as sent to rank */
 	}
       }
+
+#if LOCAL_BODIES
+      for (item = SET_First (con->ext); item; item = SET_Next (item))
+      {
+	for (i = 0; i < 2; i ++)
+	{
+	  bod = bodies [i];
+
+	  if (bod->flags & BODY_CHILD)
+	  {
+	    if (!SET_Contains (bod->children, item->data, NULL) && bod->rank != (int) (long) item->data)
+	      SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].dummies, bod, NULL); /* schedule dummy */
+	  }
+	  else if (!SET_Contains (bod->children, item->data, NULL)) /* parent */
+	    SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].dummies, bod, NULL); /* schedule dummy */
+	}
+      }
+#endif
     }
   }
 }
@@ -1923,6 +2021,13 @@ static void new_boundary_constraints_migration (DOM *dom, DBD *dbd)
 static void domain_gluing_begin_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
+
+#if LOCAL_BODIES
+  /* pack dummies */
+  pack_int (isize, i, ints, SET_Size (dbd->dummies));
+  for (item = SET_First (dbd->dummies); item; item = SET_Next (item))
+    BODY_Pack (item->data, dsize, d, doubles, isize, i, ints);
+#endif
 
   /* pack penetration depth flag */
   pack_int (isize, i, ints, dbd->dom->flags & DOM_DEPTH_VIOLATED);
@@ -1941,6 +2046,24 @@ static void* domain_gluing_begin_unpack (DOM *dom, int *dpos, double *d, int dou
   CON *con;
 
   ERRMEM (pp = MEM_CALLOC (sizeof (SET*)));
+
+#if LOCAL_BODIES
+  /* unpack dummies */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    BODY *tmp = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints),
+         *bod = MAP_Find (dom->allbodies, (void*) (long) tmp->id, NULL);
+
+    if (bod == NULL)
+    {
+      bod = tmp;
+      bod->dom = dom;
+      MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+    }
+    else BODY_Destroy (tmp);
+  }
+#endif
 
   /* unpack penetration depth flag */
   n = unpack_int (ipos, i, ints); ASSERT (!n, ERR_DOM_DEPTH);
@@ -1969,14 +2092,14 @@ static void domain_gluing_begin (DOM *dom)
   ERRMEM (send = malloc (sizeof (COMOBJ [dom->ncpu])));
   dbd = dom->dbd;
 
-  /* compute migration sets */
-  new_boundary_constraints_migration (dom, dbd);
-
   for (i = 0; i < dom->ncpu; i ++)
   {
     send [i].rank = i;
     send [i].o = &dbd [i];
   }
+
+  /* compute migration sets */
+  new_boundary_constraints_migration (dom, dbd);
 
   /* communication */
   dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_begin_pack, dom, (OBJ_Unpack)domain_gluing_begin_unpack, send, dom->ncpu, &recv, &nrecv);
@@ -1995,7 +2118,13 @@ static void domain_gluing_begin (DOM *dom)
   }
 
   /* clean */
-  for (i = 0; i < dom->ncpu; i ++) SET_Free (&dom->setmem, &dbd [i].glue);
+  for (i = 0; i < dom->ncpu; i ++)
+  {
+    SET_Free (&dom->setmem, &dbd [i].glue);
+#if LOCAL_BODIES
+    SET_Free (&dom->setmem, &dbd [i].dummies);
+#endif
+  }
   free (send);
   free (recv);
 }
@@ -2197,6 +2326,32 @@ static void manage_bodies (DOM *dom)
 
   /* restore body insertion mode */
   dom->insertbodymode = EVERYNCPU;
+
+#if LOCAL_BODIES
+  /* delete local bodies which are
+   * neither parent, nor child not dummy */
+
+  SET *todel = NULL;
+  MAP *jtem;
+
+  for (jtem = MAP_First (dom->allbodies); jtem; jtem = MAP_Next (jtem))
+  {
+    bod = jtem->data;
+    if (!((bod->flags & (BODY_PARENT|BODY_CHILD)) || bod->con))
+    {
+      SET_Insert (&dom->setmem, &todel, bod, NULL);
+    }
+  }
+
+  for (item = SET_First (todel); item; item = SET_Next (item))
+  {
+    bod = item->data;
+    MAP_Delete (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, NULL);
+    BODY_Destroy (bod);
+  }
+
+  SET_Free (&dom->setmem, &todel);
+#endif
 }
 
 /* pack normal reaction components (only for contacts) of boundary constraints */
@@ -2493,6 +2648,12 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
 
 #if MPI
+  if (dom->rank == 0) /* XXX: only rank 0 records newly inserted bodies; (@@@) in dio.c */
+#endif
+  /* schedule body insertion in the output */
+  if (dom->time > 0) SET_Insert (&dom->setmem, &dom->newb, bod, NULL);
+
+#if MPI
   /* insert every 'rank' body into this domain */
   if (dom->insertbodymode == ALWAYS ||
      (dom->insertbodymode == EVERYNCPU &&
@@ -2529,11 +2690,15 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
     dom->dofs += bod->dofs;
 #if MPI
   }
-
-  if (dom->rank == 0) /* XXX: only rank 0 records newly inserted bodies (@@@) */
+#if LOCAL_BODIES
+  else
+  {
+    /* do not store this body */
+    MAP_Delete (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, NULL);
+    BODY_Destroy (bod);
+  }
 #endif
-  /* schedule body insertion in the output */
-  if (dom->time > 0) SET_Insert (&dom->setmem, &dom->newb, bod, NULL);
+#endif
 }
 
 /* remove a body from the domain */
@@ -3006,6 +3171,10 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   BODY *bod;
 
 #if MPI
+#if LOCAL_BODIES
+  if (dom->time == 0.0) domain_balancing (dom); /* initially balance bodies */
+#endif
+
   if (dom->rank == 0)
 #endif
   if (dom->verbose) printf ("DOMAIN ... "), fflush (stdout);

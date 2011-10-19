@@ -40,6 +40,10 @@ typedef struct solfec SOLFEC;
 #ifndef __dom__
 #define __dom__
 
+/* XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX */
+#define LOCAL_BODIES 0 /* store bodies only locally  */
+/* XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX  */
+
 #ifndef CONSTRAINT_TYPE
 #define CONSTRAINT_TYPE
 typedef struct constraint CON;
@@ -145,6 +149,9 @@ struct domain_balancing_data
   SET *update;
   SET *glue;
   SET *ext;
+#if LOCAL_BODIES
+  SET *dummies;
+#endif
 };
 
 typedef struct pending_constraint PNDCON;

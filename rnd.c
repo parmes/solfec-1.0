@@ -363,7 +363,7 @@ static short wireframeon = 0; /* wireframe selection flag */
 
 static short modal_analysis_menu = 0; /* modal analysis menu item flag */
 static double eigenshape_factor = 0.15; /* eigenshapes scaling factor */
-static int current_eigenmode = 0; /* current eigenmode */
+static int current_eigenmode = -1; /* current eigenmode */
 static char modetip [512]; /* mode number and eigenvalue tip */
 
 
@@ -3671,8 +3671,11 @@ static void menu_tools (int item)
   case TOOLS_SMALLER_SCALING:
     if (modal_analysis_menu)
     {
-      if (eigenshape_factor > 0.02) eigenshape_factor -= 0.01;
-      menu_modal_analysis (current_eigenmode);
+      if (current_eigenmode >= 0)
+      {
+	if (eigenshape_factor > 0.02) eigenshape_factor -= 0.01;
+	menu_modal_analysis (current_eigenmode);
+      }
     }
     else
     {
@@ -3684,8 +3687,11 @@ static void menu_tools (int item)
   case TOOLS_BIGGER_SCALING:
     if (modal_analysis_menu)
     {
-      if (eigenshape_factor < 0.5) eigenshape_factor += 0.01;
-      menu_modal_analysis (current_eigenmode);
+      if (current_eigenmode >= 0)
+      {
+	if (eigenshape_factor < 0.5) eigenshape_factor += 0.01;
+	menu_modal_analysis (current_eigenmode);
+      }
     }
     else
     {
@@ -3750,6 +3756,7 @@ static void menu_tools (int item)
     {
       BODY *bod = selection->set->data;
       if (current_eigenmode < (bod->evec->n-1)) current_eigenmode ++;
+      else current_eigenmode = 0;
       menu_modal_analysis (current_eigenmode);
     }
     GLV_Redraw_All ();
@@ -3757,7 +3764,9 @@ static void menu_tools (int item)
   case TOOLS_PREVIOUS_MODE:
     if (modal_analysis_menu)
     {
+      BODY *bod = selection->set->data;
       if (current_eigenmode > 0) current_eigenmode --;
+      else current_eigenmode = bod->evec->n-1;
       menu_modal_analysis (current_eigenmode);
     }
     GLV_Redraw_All ();

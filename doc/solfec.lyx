@@ -11723,58 +11723,6 @@ surf2
 \end_layout
 
 \begin_layout Subsection*
-CONTACT_EXCLUDE_OBJECTS (body1, point1, body2, point2)
-\end_layout
-
-\begin_layout Standard
-This routine disables contact detection for a specific pair of geometric
- objects (e.g.
- elements, convices, sheres).
- By default, between different bodies, contact detection is enabled for
- all possible object pairs.
- 
-\series bold
-NOTE:
-\series default
- 
-\emph on
-must be invoked on all processors during a parallel run (do not use from
- within a callback).
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-body1
-\series default
- - first BODY object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-point1
-\series default
- - referential point properly contained in the 1st geometric object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-bod2
-\series default
- - second BODY object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-point2
-\series default
- - referential point properly contained in the 2nd geometric object
-\end_layout
-
-\begin_layout Subsection*
 CONTACT_SPARSIFY (solfec, threshold | minarea, mindist)
 \end_layout
 
