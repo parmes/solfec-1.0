@@ -2535,15 +2535,16 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
       return NULL;
     }
 
+#if MPI
+    self->dom = solfec->sol->dom;
+    self->id = self->dom->bid;
+#endif
+
     DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
 
     if (solfec->sol->dom->dynamic == 0
 	&& self->bod->kind != RIG) self->bod->scheme = SCH_DEF_LIM2; /* LIM2 is closest to the quasi-static time stepping;
                                                       some code parts test body->scheme without checking for quasi-statics */
-#if MPI
-    self->id = self->bod->id;
-    self->dom = solfec->sol->dom;
-#endif
   }
 
   return (PyObject*)self;
@@ -5443,7 +5444,11 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_string (kind, kwl[1]) && is_tuple (point, kwl[2], 3) &&
             is_tuple (direction, kwl[3], 3) && is_number_or_time_series_or_callable (value, kwl[4]));
-
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
+ 
   if (body->bod->kind == OBS)
   {
     PyErr_SetString (PyExc_ValueError, "Cannot load an obstacle");
@@ -5493,6 +5498,10 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Apply_Force (body->bod, k, p, d, ts, call, func, 0);
 
+#if MPI
+  }
+#endif
+
   Py_RETURN_NONE;
 }
 
@@ -5511,6 +5520,10 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_body (body, kwl[0]) && is_string (kind, kwl[1]) &&
             is_tuple (direction, kwl[2], 3) &&
 	    is_number_or_time_series (value, kwl[3]));
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
 
   if (body->bod->kind != RIG)
   {
@@ -5541,6 +5554,10 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Apply_Force (body->bod, k | TORQUE, NULL, d, ts, NULL, NULL, 0);
 
+#if MPI
+  }
+#endif
+
   Py_RETURN_NONE;
 }
 
@@ -5558,6 +5575,11 @@ static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_number_or_time_series (value, kwl[2]));
 
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
+
   bod = body->bod;
 
   if (bod->shape->kind != SHAPE_MESH || bod->shape->next != NULL)
@@ -5570,6 +5592,10 @@ static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
   else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
 
   BODY_Apply_Force (body->bod, PRESSURE, NULL, NULL, ts, NULL, NULL, surfid);
+
+#if MPI
+  }
+#endif
 
   Py_RETURN_NONE;
 }
@@ -5594,6 +5620,10 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
             is_tuple (normal, kwl[2], 3) && is_string (criterion, kwl[4]) &&
 	    is_string (topoadj, kwl[5]));
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
 
   if (!(body->bod->kind == PRB || body->bod->kind == FEM))
   {
@@ -5653,6 +5683,10 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
     CRACK_Destroy (cra);
     return NULL;
   }
+
+#if MPI
+  }
+#endif
 
   Py_RETURN_NONE;
 }
@@ -5784,6 +5818,11 @@ static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (center, kwl[3], 3) && is_tuple (tensor, kwl[4], 9));
 
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
+
   c [0] = PyFloat_AsDouble (PyTuple_GetItem (center, 0));
   c [1] = PyFloat_AsDouble (PyTuple_GetItem (center, 1));
   c [2] = PyFloat_AsDouble (PyTuple_GetItem (center, 2));
@@ -5791,6 +5830,10 @@ static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
   for (i = 0; i < 9; i ++) t [i] = PyFloat_AsDouble (PyTuple_GetItem (tensor, i));
 
   BODY_Overwrite_Chars (body->bod, mass, volume, c, t);
+
+#if MPI
+  }
+#endif
 
   Py_RETURN_NONE;
 }
@@ -5807,6 +5850,11 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (linear, kwl[1], 3) && is_tuple (angular, kwl[2], 3));
 
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
+
   l [0] = PyFloat_AsDouble (PyTuple_GetItem (linear, 0));
   l [1] = PyFloat_AsDouble (PyTuple_GetItem (linear, 1));
   l [2] = PyFloat_AsDouble (PyTuple_GetItem (linear, 2));
@@ -5816,6 +5864,10 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
   a [2] = PyFloat_AsDouble (PyTuple_GetItem (angular, 2));
 
   BODY_Initial_Velocity (body->bod, l, a);
+
+#if MPI
+  }
+#endif
 
   Py_RETURN_NONE;
 }
@@ -6550,57 +6602,6 @@ static PyObject* lng_CONTACT_EXCLUDE_SURFACES (PyObject *self, PyObject *args, P
   Py_RETURN_NONE;
 }
 
-/* exclude a pair of geometric objects from contact detection */
-static PyObject* lng_CONTACT_EXCLUDE_OBJECTS (PyObject *self, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("body1", "point1", "body2", "point2");
-  PyObject *point1, *point2;
-  lng_BODY *body1, *body2;
-  double p1 [3], p2 [3];
-  int sgp1, sgp2;
-  SOLFEC *sol;
-
-  PARSEKEYS ("OOOO", &body1, &point1, &body2, &point2);
-
-  TYPETEST (is_body (body1, kwl[0]) && is_tuple (point1, kwl[1], 3) && is_body (body2, kwl[2]) && is_tuple (point2, kwl[3], 3));
-
-  if (body1->bod->dom != body2->bod->dom)
-  {
-    PyErr_SetString (PyExc_ValueError, "Bodies from different domains");
-    return NULL;
-  }
-
-  p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
-  p1 [1] = PyFloat_AsDouble (PyTuple_GetItem (point1, 1));
-  p1 [2] = PyFloat_AsDouble (PyTuple_GetItem (point1, 2));
-
-  p2 [0] = PyFloat_AsDouble (PyTuple_GetItem (point2, 0));
-  p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
-  p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
-
-  sgp1 = SHAPE_Sgp (body1->bod->sgp, body1->bod->nsgp, p1);
-
-  if (sgp1 < 0)
-  {
-    PyErr_SetString (PyExc_ValueError, "First point outside of body one");
-    return NULL;
-  }
-
-  sgp2 = SHAPE_Sgp (body2->bod->sgp, body2->bod->nsgp, p2);
-
-  if (sgp2 < 0)
-  {
-    PyErr_SetString (PyExc_ValueError, "Second point outside of body two");
-    return NULL;
-  }
-
-  sol = body1->bod->dom->solfec;
-
-  AABB_Exclude_Gobj_Pair (sol->aabb, body1->bod->id, sgp1, body2->bod->id, sgp2);
-
-  Py_RETURN_NONE;
-}
-
 /* set contact sparsification threshold */
 static PyObject* lng_CONTACT_SPARSIFY (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6983,6 +6984,11 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_positive (parts, kwl[1]));
 
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
+
   if (parts == 1) Py_RETURN_NONE;
 
   bod = body->bod;
@@ -7166,6 +7172,11 @@ riglnk:
   free (adjeles);
   free (msh);
   free (out);
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
 
   return list;
 }
@@ -7395,6 +7406,11 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   TYPETEST (is_body (body, kwl[0]) && is_positive (num, kwl [1]) && is_positive (abstol, kwl [2]) &&
       is_positive (maxiter, kwl [3]) && is_string (verbose, kwl [4]));
 
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
+
   if (body->bod->kind != FEM)
   {
     PyErr_SetString (PyExc_RuntimeError, "Input body must of Finite Element kind");
@@ -7448,6 +7464,11 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
     PyErr_SetString (PyExc_RuntimeError, "Eigenvalue solver has failed!");
     return NULL;
   }
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 /* clone BODY */
@@ -7467,6 +7488,10 @@ static PyObject* lng_CLONE (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (translate, kwl [1], 3)
          && is_tuple (rotate, kwl [2], 3) && is_string (label, kwl [3]));
+#if MPI
+  if (IS_HERE (body))
+  {
+#endif
 
   t [0] = PyFloat_AsDouble (PyTuple_GetItem (translate, 0));
   t [1] = PyFloat_AsDouble (PyTuple_GetItem (translate, 1));
@@ -7508,6 +7533,11 @@ static PyObject* lng_CLONE (PyObject *self, PyObject *args, PyObject *kwds)
     PyErr_SetString (PyExc_RuntimeError, "Body cloning has failed!");
     return NULL;
   }
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 /* simulation duration */
@@ -8252,7 +8282,6 @@ static PyMethodDef lng_methods [] =
   {"MASS_CENTER", (PyCFunction)lng_MASS_CENTER, METH_VARARGS|METH_KEYWORDS, "Get mass center"},
   {"CONTACT_EXCLUDE_BODIES", (PyCFunction)lng_CONTACT_EXCLUDE_BODIES, METH_VARARGS|METH_KEYWORDS, "Exclude body pair from contact detection"},
   {"CONTACT_EXCLUDE_SURFACES", (PyCFunction)lng_CONTACT_EXCLUDE_SURFACES, METH_VARARGS|METH_KEYWORDS, "Exclude surface pair from contact detection"},
-  {"CONTACT_EXCLUDE_OBJECTS", (PyCFunction)lng_CONTACT_EXCLUDE_OBJECTS, METH_VARARGS|METH_KEYWORDS, "Exclude geometric object pair from contact detection"},
   {"CONTACT_SPARSIFY", (PyCFunction)lng_CONTACT_SPARSIFY, METH_VARARGS|METH_KEYWORDS, "Adjust contact sparsification"},
   {"RUN", (PyCFunction)lng_RUN, METH_VARARGS|METH_KEYWORDS, "Run analysis"},
   {"OUTPUT", (PyCFunction)lng_OUTPUT, METH_VARARGS|METH_KEYWORDS, "Set data output interval"},
@@ -8484,7 +8513,6 @@ int lng (const char *path)
                      "from solfec import MASS_CENTER\n"
                      "from solfec import CONTACT_EXCLUDE_BODIES\n"
                      "from solfec import CONTACT_EXCLUDE_SURFACES\n"
-                     "from solfec import CONTACT_EXCLUDE_OBJECTS\n"
                      "from solfec import CONTACT_SPARSIFY\n"
                      "from solfec import RUN\n"
                      "from solfec import OUTPUT\n"

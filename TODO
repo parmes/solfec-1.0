@@ -75,7 +75,7 @@ This will simplify the penalty solver as well as it might improve accuracy.
 --------------------------------------------------------------------------------------
 Sensivity of FEM to the quality of tetragedral meshes (inp/tetgen.py)
 -----------------------------------------------------------------------------------------------
-Improve tetrahedral element (the averaged ideas: nodal or face based or F-bar on 2-tet patches)
+Improve FEs (the averaged ideas: nodal or face based or F-bar on 2-tet patches)
 ----------------------------------------------------------------------------
 Implement VBO based cut rendering
 ----------------------------------------------------------------------------
@@ -93,10 +93,8 @@ Consider using CGAL for boolean operations and convex subdivision (on input only
 ----------------------------------------------------------------------------------
 Implement REGISTER_SHAPE idea!
 ---------------------------------------------------------------------------------
-Combination of full and half- splitting may produce 3 fragments out of one body
-Handle this!
-----------------------
-SICONOS_SOLVER
------------------------------------------------
 Wire-frame rendering of spheres and ellipsoids
 -------------------------------------------------
+Optimize in mtc.c: XXX bits
+-----------------------------------------------------
+Redefine MERIT_Function so that sqrt ( ) is used
