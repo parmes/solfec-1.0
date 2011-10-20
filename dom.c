@@ -1423,8 +1423,9 @@ static void children_migration_end (DOM *dom)
   SET_Free (&dom->setmem, &delset);
 }
 
-/* pack domain balancing data */
-static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+#if LOCAL_BODIES
+/* pack parents and children */
+static void pack_parents_and_children (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   SET *item;
 
@@ -1437,6 +1438,47 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
   pack_int (isize, i, ints, SET_Size (dbd->children));
   for (item = SET_First (dbd->children); item; item = SET_Next (item))
     pack_child (item->data, dsize, d, doubles, isize, i, ints);
+}
+
+/* unpack parents and children */
+static void* unpack_parents_and_children (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+{
+  int n, j;
+
+  /* unpack imported bodies */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    unpack_parent (dom, dpos, d, doubles, ipos, i, ints);
+  }
+
+  /* unpack imported children */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    unpack_child (dom, dpos, d, doubles, ipos, i, ints);
+  }
+
+  return NULL;
+}
+#endif
+
+/* pack domain balancing data */
+static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
+{
+  SET *item;
+
+#if LOCAL_BODIES == 0
+  /* pack exported bodies */
+  pack_int (isize, i, ints, SET_Size (dbd->bodies));
+  for (item = SET_First (dbd->bodies); item; item = SET_Next (item))
+    pack_parent (item->data, dsize, d, doubles, isize, i, ints);
+
+  /* pack exported children */
+  pack_int (isize, i, ints, SET_Size (dbd->children));
+  for (item = SET_First (dbd->children); item; item = SET_Next (item))
+    pack_child (item->data, dsize, d, doubles, isize, i, ints);
+#endif
 
   /* pack exported constraints */
   pack_int (isize, i, ints, SET_Size (dbd->constraints));
@@ -1455,6 +1497,7 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
   int n, j, id;
   CON *con;
 
+#if LOCAL_BODIES == 0
   /* unpack imported bodies */
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
@@ -1468,6 +1511,7 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
   {
     unpack_child (dom, dpos, d, doubles, ipos, i, ints);
   }
+#endif
 
   /* unpack imporeted constraints */
   j = unpack_int (ipos, i, ints);
@@ -1896,6 +1940,11 @@ static void domain_balancing (DOM *dom)
   /* compute chidren migration sets */
   children_migration_begin (dom, dbd);
 
+#if LOCAL_BODIES
+  /* communication */
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_parents_and_children, dom, (OBJ_Unpack)unpack_parents_and_children, send, dom->ncpu, &recv, &nrecv);
+#endif
+
   /* communication */
   dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_pack, dom, (OBJ_Unpack)domain_balancing_unpack, send, dom->ncpu, &recv, &nrecv);
 
@@ -2234,17 +2283,18 @@ static void manage_bodies_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
   {
     /* pack pending bodies */
     pack_int (isize, i, ints, SET_Size (dbd->dom->pendingbods));
+#if LOCAL_BODIES == 0
     for (item = SET_First (dbd->dom->pendingbods); item; item = SET_Next (item))
       BODY_Pack (item->data, dsize, d, doubles, isize, i, ints);
+#endif
   }
 }
 
-/* unpack children udate data */
+/* unpack children udate data => NOTE, that this routine is called in the sequenc of ranks */
 static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int n, j, k, rank;
   SET *item;
-  BODY *bod;
 
   /* unpack spare body ids */
   j = unpack_int (ipos, i, ints);
@@ -2261,6 +2311,12 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   {
     /* unpack pending bodies */
     j = unpack_int (ipos, i, ints);
+#if LOCAL_BODIES
+    dom->bid += j; /* account for the global body ID increments */
+    ASSERT (dom->bid < UINT_MAX, ERR_DOM_TOO_MANY_BODIES); /* make sure we do not run out of ids */
+#else
+    BODY *bod;
+
     for (n = 0; n < j; n ++)
     {
       bod = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
@@ -2270,6 +2326,7 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
 					  the same sequence of bodies on all processors;
 					  this guarantees the righ ID assignment */
     }
+#endif
   }
   else
   {
@@ -2648,12 +2705,6 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
 
 #if MPI
-  if (dom->rank == 0) /* XXX: only rank 0 records newly inserted bodies; (@@@) in dio.c */
-#endif
-  /* schedule body insertion in the output */
-  if (dom->time > 0) SET_Insert (&dom->setmem, &dom->newb, bod, NULL);
-
-#if MPI
   /* insert every 'rank' body into this domain */
   if (dom->insertbodymode == ALWAYS ||
      (dom->insertbodymode == EVERYNCPU &&
@@ -2678,6 +2729,9 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
 
     /* increment */
     dom->nbod ++;
+
+    /* schedule body insertion in the output */
+    if (dom->time > 0) SET_Insert (&dom->setmem, &dom->newb, bod, NULL);
 
     /* detailed stats */
     switch (bod->kind)

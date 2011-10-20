@@ -2673,8 +2673,6 @@ BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, d
     }
   }
 
-  DOM_Insert_Body (bod->dom, out);
-
   return out;
 }
 

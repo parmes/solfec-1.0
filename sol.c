@@ -478,6 +478,18 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   return sol;
 }
 
+/* allocate file name without extension */
+char* SOLFEC_Alloc_File_Name (SOLFEC *sol, int extlen)
+{
+  char *copy, *path = getpath (sol->outpath);
+
+  ERRMEM (copy = malloc (strlen (path) + extlen));
+  strcpy (copy, path);
+  free (path);
+
+  return copy;
+}
+
 /* start a labeled timer */
 void SOLFEC_Timer_Start (SOLFEC *sol, const char *label)
 {
