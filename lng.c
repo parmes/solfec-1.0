@@ -2537,7 +2537,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
 #if MPI
     self->dom = solfec->sol->dom;
-    self->id = self->dom->bid;
+    self->id = self->dom->bid; /* before inserting, the body may be deleted in LOCAL_BODIES mode */
 #endif
 
     DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
@@ -2577,7 +2577,17 @@ static void lng_BODY_dealloc (lng_BODY *self)
 
 static PyObject* lng_BODY_get_kind (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   return PyString_FromString (BODY_Kind (self->bod));
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_kind (lng_BODY *self, PyObject *value, void *closure)
@@ -2588,9 +2598,19 @@ static int lng_BODY_set_kind (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_label (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   if (self->bod->label)
     return PyString_FromString (self->bod->label);
   else return PyString_FromString (""); /* an empty label */
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_label (lng_BODY *self, PyObject *value, void *closure)
@@ -2673,7 +2693,17 @@ static int lng_BODY_set_velo (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_mass (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   return PyFloat_FromDouble (self->bod->ref_mass);
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_mass (lng_BODY *self, PyObject *value, void *closure)
@@ -2684,7 +2714,17 @@ static int lng_BODY_set_mass (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_volume (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   return PyFloat_FromDouble (self->bod->ref_volume);
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_volume (lng_BODY *self, PyObject *value, void *closure)
@@ -2695,8 +2735,18 @@ static int lng_BODY_set_volume (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_center (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   double *c = self->bod->ref_center;
   return Py_BuildValue ("(d, d, d)", c[0], c[1], c[2]);
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_center (lng_BODY *self, PyObject *value, void *closure)
@@ -2707,8 +2757,18 @@ static int lng_BODY_set_center (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_tensor (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   double *t = self->bod->ref_tensor;
   return Py_BuildValue ("(d, d, d, d, d, d, d, d, d)", t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8]);
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_tensor (lng_BODY *self, PyObject *value, void *closure)
@@ -2719,13 +2779,28 @@ static int lng_BODY_set_tensor (lng_BODY *self, PyObject *value, void *closure)
 
 static PyObject* lng_BODY_get_selfcontact (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   if (self->bod->flags & BODY_DETECT_SELF_CONTACT)
     return PyString_FromString ("ON");
   else return PyString_FromString ("OFF");
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   if (!is_string (value, "selfcontact")) return -1;
 
   IFIS (value, "ON") self->bod->flags |= BODY_DETECT_SELF_CONTACT;
@@ -2736,18 +2811,37 @@ static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *clos
     return -1;
   }
 
+#if MPI && LOCAL_BODIES
+  }
+#endif
+
   return 0;
 }
 
 static PyObject* lng_BODY_get_nodecontact (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   if (self->bod->flags & BODY_DETECT_NODE_CONTACT)
     return PyString_FromString ("ON");
   else return PyString_FromString ("OFF");
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_nodecontact (lng_BODY *self, PyObject *value, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   if (!is_string (value, "nodecontact")) return -1;
 
   IFIS (value, "ON")
@@ -2802,11 +2896,20 @@ static int lng_BODY_set_nodecontact (lng_BODY *self, PyObject *value, void *clos
     return -1;
   }
 
+#if MPI && LOCAL_BODIES
+  }
+#endif
+
   return 0;
 }
 
 static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   switch (self->bod->scheme)
   {
   case SCH_RIG_NEG: return PyString_FromString ("RIG_NEG");
@@ -2819,10 +2922,20 @@ static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
   }
 
   return NULL;
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   if (!is_string (value, "scheme")) return -1;
 
   if (self->bod->dom->dynamic == 0)
@@ -2908,19 +3021,42 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
     return -1;
   }
 
+#if MPI && LOCAL_BODIES
+  }
+#endif
+
   return 0;
 }
 
 static PyObject* lng_BODY_get_damping (lng_BODY *self, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   return PyFloat_FromDouble (self->bod->damping);
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
 }
 
 static int lng_BODY_set_damping (lng_BODY *self, PyObject *value, void *closure)
 {
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
   if (!is_number_ge (value, "damping", 0.0)) return -1;
 
   self->bod->damping = PyFloat_AsDouble (value);  
+
+#if MPI && LOCAL_BODIES
+  }
+#endif
 
   return 0;
 }
@@ -5444,7 +5580,8 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_string (kind, kwl[1]) && is_tuple (point, kwl[2], 3) &&
             is_tuple (direction, kwl[3], 3) && is_number_or_time_series_or_callable (value, kwl[4]));
-#if MPI
+
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -5498,7 +5635,7 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Apply_Force (body->bod, k, p, d, ts, call, func, 0);
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
 #endif
 
@@ -5520,7 +5657,8 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   TYPETEST (is_body (body, kwl[0]) && is_string (kind, kwl[1]) &&
             is_tuple (direction, kwl[2], 3) &&
 	    is_number_or_time_series (value, kwl[3]));
-#if MPI
+
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -5554,7 +5692,7 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Apply_Force (body->bod, k | TORQUE, NULL, d, ts, NULL, NULL, 0);
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
 #endif
 
@@ -5575,7 +5713,7 @@ static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_number_or_time_series (value, kwl[2]));
 
-#if MPI
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -5593,7 +5731,7 @@ static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Apply_Force (body->bod, PRESSURE, NULL, NULL, ts, NULL, NULL, surfid);
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
 #endif
 
@@ -5620,7 +5758,8 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
             is_tuple (normal, kwl[2], 3) && is_string (criterion, kwl[4]) &&
 	    is_string (topoadj, kwl[5]));
-#if MPI
+
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -5684,7 +5823,7 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
     return NULL;
   }
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
 #endif
 
@@ -5818,7 +5957,7 @@ static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (center, kwl[3], 3) && is_tuple (tensor, kwl[4], 9));
 
-#if MPI
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -5831,7 +5970,7 @@ static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
 
   BODY_Overwrite_Chars (body->bod, mass, volume, c, t);
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
 #endif
 
@@ -5850,7 +5989,7 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (linear, kwl[1], 3) && is_tuple (angular, kwl[2], 3));
 
-#if MPI
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -5865,7 +6004,7 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
 
   BODY_Initial_Velocity (body->bod, l, a);
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
 #endif
 
@@ -6984,7 +7123,7 @@ static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_positive (parts, kwl[1]));
 
-#if MPI
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -7173,7 +7312,7 @@ riglnk:
   free (msh);
   free (out);
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
   else Py_RETURN_NONE;
 #endif
@@ -7406,7 +7545,7 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   TYPETEST (is_body (body, kwl[0]) && is_positive (num, kwl [1]) && is_positive (abstol, kwl [2]) &&
       is_positive (maxiter, kwl [3]) && is_string (verbose, kwl [4]));
 
-#if MPI
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -7465,7 +7604,7 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
     return NULL;
   }
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
   else Py_RETURN_NONE;
 #endif
@@ -7488,7 +7627,8 @@ static PyObject* lng_CLONE (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_body (body, kwl[0]) && is_tuple (translate, kwl [1], 3)
          && is_tuple (rotate, kwl [2], 3) && is_string (label, kwl [3]));
-#if MPI
+
+#if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
 #endif
@@ -7527,14 +7667,26 @@ static PyObject* lng_CLONE (PyObject *self, PyObject *args, PyObject *kwds)
 
   bod = BODY_Clone (body->bod, t, p, v, a, l);
 
-  if (bod) return lng_BODY_WRAPPER (bod);
+  if (bod)
+  {
+    lng_BODY *out = (lng_BODY*)lng_BODY_WRAPPER (bod); 
+
+#if MPI
+    out->dom = body->bod->dom;
+    out->id = out->dom->bid; /* before inserting; body may be deleted in LOCAL_BODIES mode */
+#endif
+
+    DOM_Insert_Body (body->bod->dom, bod);
+
+    return  (PyObject*)out;
+  }
   else
   {
     PyErr_SetString (PyExc_RuntimeError, "Body cloning has failed!");
     return NULL;
   }
 
-#if MPI
+#if MPI && LOCAL_BODIES
   }
   else Py_RETURN_NONE;
 #endif

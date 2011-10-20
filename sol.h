@@ -114,6 +114,9 @@ struct solfec
 /* create a solfec instance */
 SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath);
 
+/* allocate file name without extension */
+char* SOLFEC_Alloc_File_Name (SOLFEC *sol, int extlen);
+
 /* start a labeled timer */
 void SOLFEC_Timer_Start (SOLFEC *sol, const char *label);
 

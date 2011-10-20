@@ -120,6 +120,145 @@ static void dom_attach_constraints (DOM *dom)
   }
 }
 
+/* write new bodies data */
+static void write_new_bodies (DOM *dom)
+{
+  char *path, *ext;
+  FILE *file;
+  XDR xdr;
+
+  if (dom->newb == NULL) return; /* nothing to write */
+
+  path = SOLFEC_Alloc_File_Name (dom->solfec, 16);
+  ext = path + strlen (path) - 1;
+
+#if MPI
+  sprintf (ext, ".bod.%d", dom->rank);
+#else
+  sprintf (ext, ".bod");
+#endif
+
+  ASSERT (file = fopen (path, "a"), ERR_FILE_OPEN);
+  xdrstdio_create (&xdr, file, XDR_ENCODE);
+
+  int isize = 0, ints, *i = NULL;
+  int dsize = 0, doubles;
+  double *d = NULL;
+  SET *item;
+
+  for (item = SET_First (dom->newb); item; item = SET_Next (item))
+  {
+    doubles = ints = 0;
+
+    BODY_Pack (item->data, &dsize, &d, &doubles, &isize, &i, &ints);
+
+    ASSERT (xdr_int (&xdr, &doubles), ERR_PBF_WRITE);
+    ASSERT (xdr_vector (&xdr, (char*)d, doubles, sizeof (double), (xdrproc_t)xdr_double), ERR_PBF_WRITE);
+
+    ASSERT (xdr_int (&xdr, &ints), ERR_PBF_WRITE);
+    ASSERT (xdr_vector (&xdr, (char*)i, ints, sizeof (int), (xdrproc_t)xdr_int), ERR_PBF_WRITE);
+  }
+
+  free (d);
+  free (i);
+
+  xdr_destroy (&xdr);
+  fclose (file);
+  free (path);
+}
+
+/* read new bodies data */
+static void read_new_bodies (DOM *dom, PBF *bf)
+{
+  char *path, *ext;
+  FILE *file;
+  int m, n;
+  XDR xdr;
+
+  if (dom->solfec->verbose)
+    printf ("Reading all bodies ...\n");
+
+  dom->allbodiesread = 1; /* mark as read */
+
+  path = SOLFEC_Alloc_File_Name (dom->solfec, 16);
+  ext = path + strlen (path) - 1;
+
+  /* count input files */
+  m = 0;
+  do
+  {
+    sprintf (ext, ".bod.%d", m);
+    file = fopen (path, "r");
+  } while (file && fclose (file) == 0 && ++ m); /* m incremented as last */
+
+  n = m-1;
+  do
+  {
+    if (m) sprintf (ext, ".bod.%d", n);
+    else sprintf (ext, ".bod");
+
+    if (m) { ASSERT (file = fopen (path, "r"), ERR_FILE_OPEN); }
+    else if (!(file = fopen (path, "r")))
+    {
+      free (path); 
+      return; /* there were no new bodies */
+    }
+    xdrstdio_create (&xdr, file, XDR_DECODE);
+
+    int ipos, ints, *i, dpos, doubles;
+    double *d;
+    BODY *bod;
+
+    for (;;)
+    {
+      if (xdr_int (&xdr, &doubles))
+      {
+	ERRMEM (d = malloc (sizeof (double [doubles])));
+	if (xdr_vector (&xdr, (char*)d, doubles, sizeof (double), (xdrproc_t)xdr_double))
+	{
+	  if (xdr_int (&xdr, &ints))
+	  {
+	    ERRMEM (i = malloc (sizeof (int [ints])));
+	    if (xdr_vector (&xdr, (char*)i, ints, sizeof (int), (xdrproc_t)xdr_int))
+	    {
+	      ipos = dpos = 0;
+
+	      bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
+	      MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+
+	      free (d);
+	      free (i);
+	    }
+	    else
+	    {
+	      free (d);
+	      free (i);
+	      break;
+	    }
+	  }
+	  else
+	  {
+	    free (d);
+	    break;
+	  }
+	}
+	else
+	{
+	  free (d);
+	  break;
+	}
+      }
+      else break;
+    }
+
+    xdr_destroy (&xdr);
+    fclose (file);
+
+  } while (-- n >= 0); /* the first item in the returned list corresponds to rank 0 */
+
+  free (path);
+}
+
 /* write domain state */
 void dom_write_state (DOM *dom, PBF *bf)
 {
@@ -141,33 +280,7 @@ void dom_write_state (DOM *dom, PBF *bf)
 
   /* write complete data of newly created bodies and empty the newly created bodies set */
 
-  int dsize = 0, doubles, size;
-  double *d = NULL;
-  SET *item;
-
-  int isize = 0, ints, *i = NULL;
-
-  PBF_Label (bf, "NEWBODS");
-
-  size = SET_Size (dom->newb);
-
-  PBF_Int (bf, &size, 1);
-
-  for (item = SET_First (dom->newb); item; item = SET_Next (item))
-  {
-    doubles = ints = 0;
-
-    BODY_Pack (item->data, &dsize, &d, &doubles, &isize, &i, &ints);
-
-    PBF_Int (bf, &doubles, 1);
-    PBF_Double (bf, d, doubles);
-
-    PBF_Int (bf, &ints, 1);
-    PBF_Int (bf, i, ints);
-  }
-
-  free (d);
-  free (i);
+  write_new_bodies (dom); /* writing is done to a separate file */
 
   SET_Free (&dom->setmem, &dom->newb);
 
@@ -198,68 +311,6 @@ void dom_write_state (DOM *dom, PBF *bf)
   }
 }
 
-/* read all bodies from t = t_begin to t = t_end */
-static void readallbodies (DOM *dom, PBF *bf)
-{
-  double t, time, start, end;
-  int dpos, doubles, size, n;
-  int ipos, ints, *i = NULL;
-  double *d = NULL;
-  int dodel = 0;
-  BODY *bod;
-
-  PBF_Time (bf, &time);
-  PBF_Limits (bf, &start, &end);
-  if (end == start) end = start + 1.0; /* "regularize" */
-  PBF_Seek (bf, start);
-
-  if (dom->solfec->verbose)
-    printf ("Reading all bodies ... ");
-
-  do
-  {
-    PBF_Time (bf, &t);
-
-    ASSERT (PBF_Label (bf, "NEWBODS"), ERR_FILE_FORMAT); /* XXX: all bodies are stored on all CPUs but only the rank 0 process
-							         writes newly inserted bodies; see (@@@) in bod.c; (no loop
-								 over bf here since the first list item corresponds to rank 0) */
-    PBF_Int (bf, &size, 1);
-
-    for (n = 0; n < size; n ++)
-    {
-      PBF_Int (bf, &doubles, 1);
-      ERRMEM (d  = realloc (d, doubles * sizeof (double)));
-      PBF_Double (bf, d, doubles);
-
-      PBF_Int (bf, &ints, 1);
-      ERRMEM (i  = realloc (i, ints * sizeof (int)));
-      PBF_Int (bf, i, ints);
-
-      dpos = ipos = 0;
-
-      bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
-
-      MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
-    }
-
-    if (dom->solfec->verbose)
-    {
-      if (dodel) printf ("\b\b\b\b");
-      int progress = (int) (100. * ((t - start) / (end - start)));
-      printf ("%3d%%", progress); dodel = 1; fflush (stdout);
-    }
-
-  } while (PBF_Forward (bf, 1));
-
-  if (dom->solfec->verbose) printf ("\n");
-
-  free (d);
-  free (i);
-
-  PBF_Seek (bf, time);
-  dom->allbodiesread = 1;
-}
-
 /* read domain state */
 void dom_read_state (DOM *dom, PBF *bf)
 {
@@ -276,7 +327,7 @@ void dom_read_state (DOM *dom, PBF *bf)
   dom->ncon = 0;
 
   /* read all bodies if needed */
-  if (!dom->allbodiesread) readallbodies (dom, bf);
+  if (!dom->allbodiesread) read_new_bodies (dom, bf);
 
   /* mark all bodies as absent */
   for (bod = dom->bod; bod; bod = bod->next) bod->flags |= BODY_ABSENT;

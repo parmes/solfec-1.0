@@ -1,6 +1,7 @@
 # balls
 
-step = 1E-3
+step = 1E-2
+dura = 3.0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/balls')
 
@@ -21,12 +22,17 @@ surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5,
 
 BODY (solfec, 'OBSTACLE', table, bulkmat)
 
-for i in range (0, 2):
-  shp = SPHERE ((0.5, 0.5 + i * 0.01, 0.1 + i*0.2), 0.1, 3, 3)
+pipe = PIPE ((0.5, 0.5, 0), (0, 0, 2), 0.5, 0.1, 1, 8, 1, 1, [1, 2, 3, 4])
+BODY (solfec, 'OBSTACLE', pipe, bulkmat)
+
+for i in range (0, 100):
+  shp = SPHERE ((0.5 - i % 2 * 0.01, 0.5 + i % 2 * 0.01, 0.1 + i*0.2), 0.1, 3, 3)
   bod = BODY (solfec, 'RIGID', shp, bulkmat)
 
-gs = GAUSS_SEIDEL_SOLVER (1E1, 1000, 1E-6)
+gs = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-6)
 
 OUTPUT (solfec, step)
 
-RUN (solfec, gs, 0.497)
+IMBALANCE_TOLERANCE (solfec, 1.3, updatefreq = 10)
+
+RUN (solfec, gs, dura)

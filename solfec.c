@@ -261,6 +261,10 @@ int main (int argc, char **argv)
       GLV (&argc, argv, "Solfec", WIDTH, HEIGHT, extents, /* run viewer */
 	   RND_Menu, RND_Init, RND_Idle, RND_Quit, RND_Render,
 	   RND_Key, RND_Keyspec, RND_Mouse, RND_Motion, RND_Passive);
+
+      /* FIXME: viewer should be called from lng_RUN in READ mode (for a SOLFEC object)
+       * FIXME: so that any body creations that follow after the RUN command are prevented
+       * FIXME: in Python and handled via reading of bodies from time > 0.0 */
     }
 #endif
 
