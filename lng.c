@@ -1932,7 +1932,7 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
 
   mat.label = NULL;
   mat.model = KIRCHHOFF;
-  mat.young = 1E6;
+  mat.young = 1E9;
   mat.poisson = 0.25;
   mat.density = 1E3;
   mat.umat = NULL;

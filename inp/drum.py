@@ -41,17 +41,17 @@ def wheel (x, y, z, r, t, v, s):
 
  
 seed (1)
-kin = 'rig'
+kin = 'fem'
 step = 0.001
 skip = 0.01
 dura = 20.0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/drum' + kin)
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.4)
-drumat = BULK_MATERIAL (solfec)
-bodmat = BULK_MATERIAL (solfec, density = drumat.density / 100)
+drumat = BULK_MATERIAL (solfec, young = 200E9, poisson = 0.2, density = 10E3)
+bodmat = BULK_MATERIAL (solfec, young = 10E9, poisson = 0.3, density = 2E3)
 GRAVITY (solfec, (0, 0, -9.8))
-sv = GAUSS_SEIDEL_SOLVER (1E-3, 20)
+sv = GAUSS_SEIDEL_SOLVER (1E-4, 100)
 OUTPUT (solfec, skip)
 
 # drum
