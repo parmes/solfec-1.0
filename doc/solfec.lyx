@@ -6618,7 +6618,7 @@ i
 \series bold
 young
 \series default
- - Young's modulus (default: 1E6)
+ - Young's modulus (default: 1E9)
 \end_layout
 
 \begin_layout Itemize
