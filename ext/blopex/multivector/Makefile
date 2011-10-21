@@ -10,6 +10,6 @@ pcg_multi.o: pcg_multi.c pcg_multi.h
 
 
 clean: FORCE
-	rm -f multivector.o multiserial.o
+	rm -f multivector.o multiserial.o pcg_multi.o
 
 FORCE:
