@@ -27,10 +27,9 @@ for i in range (0, nsid):
     shp = PIPE ((0, 0, 0), (0, 0, c), 0.2*c, 0.3*c, 4, 8, 2, 2, [2, 2, 2, 2])
     TRANSLATE (shp, (i*c+0.5*c, j*c+0.5*c, 0.5*c))
     bod = BODY (solfec, 'FINITE_ELEMENT', shp, bulkmat)
-    if HERE (solfec, bod):
-      SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 3, 'TENSILE', ft=1E5)
-      SIMPLIFIED_CRACK (bod, bod.center, (0, 1, 0), 3, 'TENSILE', ft=1E5)
-      SIMPLIFIED_CRACK (bod, bod.center, (0, 0, 1), 3, 'TENSILE', ft=1E5)
+    SIMPLIFIED_CRACK (bod, bod.center, (1, 0, 0), 3, 'TENSILE', ft=1E5)
+    SIMPLIFIED_CRACK (bod, bod.center, (0, 1, 0), 3, 'TENSILE', ft=1E5)
+    SIMPLIFIED_CRACK (bod, bod.center, (0, 0, 1), 3, 'TENSILE', ft=1E5)
 
 GRAVITY (solfec, (0, 0, -1000))
 OUTPUT (solfec, 2 * step)

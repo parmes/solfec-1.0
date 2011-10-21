@@ -1581,13 +1581,17 @@ static void old_boundary_constraints_migration (DOM *dom, DBD *dbd)
       for (i = 0; i < 2; i ++)
       {
 	bod = bodies [i];
-	if (bod->flags & BODY_CHILD)
+
+	if (bod)
 	{
-	  if (!SET_Contains (bod->children, item->data, NULL) && bod->rank != (int) (long) item->data)
+	  if (bod->flags & BODY_CHILD)
+	  {
+	    if (!SET_Contains (bod->children, item->data, NULL) && bod->rank != (int) (long) item->data)
+	      SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].dummies, bod, NULL); /* schedule dummy */
+	  }
+	  else if (!SET_Contains (bod->children, item->data, NULL)) /* parent */
 	    SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].dummies, bod, NULL); /* schedule dummy */
 	}
-	else if (!SET_Contains (bod->children, item->data, NULL)) /* parent */
-	  SET_Insert (&dom->setmem, &dbd [(int) (long) item->data].dummies, bod, NULL); /* schedule dummy */
       }
 #endif
     }

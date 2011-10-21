@@ -97,4 +97,9 @@ Wire-frame rendering of spheres and ellipsoids
 -------------------------------------------------
 Optimize in mtc.c: XXX bits
 -----------------------------------------------------
-Redefine MERIT_Function so that sqrt ( ) is used
+Redefine MERIT_Function so that sqrt ( ) is used ??
+---------------------------------------------------------------------
+Parallel Python parsing: at time 0 only rank 0 process creates and
+handles bodies for the LOCAL_BODIES mode; then update dom->bid
+globally (PUT_int_max); 
+---------------------------------------------------------------------
