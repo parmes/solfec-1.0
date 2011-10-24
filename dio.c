@@ -130,7 +130,7 @@ static void write_new_bodies (DOM *dom)
   if (dom->newb == NULL) return; /* nothing to write */
 
   path = SOLFEC_Alloc_File_Name (dom->solfec, 16);
-  ext = path + strlen (path) - 1;
+  ext = path + strlen (path);
 
 #if MPI
   sprintf (ext, ".bod.%d", dom->rank);
@@ -181,7 +181,7 @@ static void read_new_bodies (DOM *dom, PBF *bf)
   dom->allbodiesread = 1; /* mark as read */
 
   path = SOLFEC_Alloc_File_Name (dom->solfec, 16);
-  ext = path + strlen (path) - 1;
+  ext = path + strlen (path);
 
   /* count input files */
   m = 0;
@@ -224,8 +224,15 @@ static void read_new_bodies (DOM *dom, PBF *bf)
 	      ipos = dpos = 0;
 
 	      bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
-	      MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
 
+	      if (!MAP_Find (dom->allbodies, (void*) (long) bod->id, NULL))
+	      {
+	        MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+	      }
+	      else BODY_Destroy (bod); /* FIXME: bodies created in input files at time > 0;
+					  FIXME: perhaps there is no need of moving GLV to the fist lng_RUN call,
+					  FIXME: but rather bodies created in Python should not be put into the 'dom->newb' set;
+					  FIXME: this way, as now, all Python created bodies will be anyway read at time 0 */
 	      free (d);
 	      free (i);
 	    }

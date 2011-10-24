@@ -102,4 +102,9 @@ Redefine MERIT_Function so that sqrt ( ) is used ??
 Parallel Python parsing: at time 0 only rank 0 process creates and
 handles bodies for the LOCAL_BODIES mode; then update dom->bid
 globally (PUT_int_max); 
----------------------------------------------------------------------
+------------------------------------------------------------------------------
+REVIEW body packing routines and make sure that q and u are consitently sent
+across for both parents and children !!! Perhaps send M and K rather than
+re-compute them. IMPORTANT!!!! this is the main reson of the problems with stability
+of the parallel deformable runs!!!! (check repetability of results on simple dynamic
+examples: e.g. drum.py with only 4 bodies during the initial 1 s)
