@@ -214,6 +214,9 @@ void* MESH_First_Bulk_Material (MESH *msh);
  * upon exit the 'domnum' element values of the input mesh indicate destination partitions of the elements */
 MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int *numadj, int **adjeles);
 
+/* delete element set */
+void MESH_Delete_Elements (MESH *msh, SET *elements);
+
 /* free mesh memory */
 void MESH_Destroy (MESH *msh);
   
