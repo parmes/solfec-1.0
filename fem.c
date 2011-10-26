@@ -2476,10 +2476,9 @@ static void post_proces_convices (SHAPE *shp, MESH *msh, FEMFORM form)
 static void post_process_intersections (double shape_volume, MESH *msh)
 {
   double cut_volume, ele_volume, point [3];
-  ELEMENT *ele, *next;
-  int bulk, n, k;
+  int bulk, n, k, m;
   TRISURF *surf;
-  FACE *fac;
+  ELEMENT *ele;
   TRI *tri;
 
   /* 1. Test whether the shape_volume == volume cut of the mesh */
@@ -2503,18 +2502,13 @@ static void post_process_intersections (double shape_volume, MESH *msh)
   /* 2. Delete elements whose volume (ele->dom) < TOL * volume (ele)
    *    or delte ele->dom when volume (ele->dom) == volume (ele) */
 
-  for (ele = msh->surfeles, bulk = 0; ele; ele = next)
+  SET *eledel = NULL;
+
+  for (ele = msh->surfeles, bulk = 0; ele; )
   {
-    next = ele->next;
-
-    if (!ele->dom) /* delete element */
+    if (!ele->dom) /* schedule element deletion */
     {
-      if (ele->prev) ele->prev->next = next;
-      else if (bulk) msh->bulkeles = next;
-      else msh->surfeles = next;
-      if (next) next->prev = ele->prev;
-
-      MEM_Free (&msh->elemem, ele);
+      SET_Insert (NULL, &eledel, ele, NULL);
     }
     else
     {
@@ -2533,60 +2527,15 @@ static void post_process_intersections (double shape_volume, MESH *msh)
       }
     }
 
-    if (!next && !bulk) next = msh->bulkeles, bulk = 1;
+    if (bulk) ele = ele->next;
+    else if (ele->next) ele = ele->next;
+    else ele = msh->bulkeles, bulk = 1;
   }
 
-  /* 3. Delete nodes unattached to elements */
+  MESH_Delete_Elements (msh, eledel);
+  SET_Free (NULL, &eledel);
 
-  int *node_map, m;
-
-  ERRMEM (node_map = MEM_CALLOC (msh->nodes_count * sizeof (int)));
-
-  for (ele = msh->surfeles; ele; ele = ele->next)
-    for (n = 0; n < ele->type; n ++) node_map [ele->nodes [n]] ++;
-
-  for (ele = msh->bulkeles; ele; ele = ele->next)
-    for (n = 0; n < ele->type; n ++) node_map [ele->nodes [n]] ++;
-
-  for (n = 0, m = 1; n < msh->nodes_count; n ++)
-    if (node_map [n]) node_map [n] = m ++;
-
-  if (m < (n+1)) /* there are not referenced nodes */
-  {
-    for (ele = msh->surfeles; ele; ele = ele->next)
-    {
-      for (n = 0; n < ele->type; n ++) ele->nodes [n] = node_map [ele->nodes [n]] - 1;
-      for (fac = ele->faces; fac; fac = fac->next) for (n = 0; n < fac->type; n ++) fac->nodes [n] = node_map [fac->nodes [n]] - 1;
-    }
-
-    for (ele = msh->bulkeles; ele; ele = ele->next)
-      for (n = 0; n < ele->type; n ++) ele->nodes [n] = node_map [ele->nodes [n]] - 1;
-
-    double (*ref) [3], (*mref) [3] = msh->ref_nodes,
-	   (*cur) [3], (*mcur) [3] = msh->cur_nodes;
-
-    ERRMEM (ref = malloc (2 * (m-1) * sizeof (double [3])));
-    cur = ref + (m-1);
-
-    for (n = 0; n < msh->nodes_count; n ++)
-    {
-      if (node_map [n])
-      { 
-	COPY (mref [n], ref [node_map [n] - 1]);
-	COPY (mcur [n], cur [node_map [n] - 1]);
-      }
-    }
-
-    free (msh->ref_nodes);
-
-    msh->nodes_count = m-1;
-    msh->ref_nodes = ref;
-    msh->cur_nodes = cur;
-  }
-
-  free (node_map);
-
-  /* 4. Transform global ele->dom points into local element coordinates */
+  /* 3. Transform global ele->dom points into local element coordinates */
 
   for (ele = msh->surfeles, bulk = 0; ele; )
   {

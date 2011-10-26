@@ -2808,6 +2808,62 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
   return out;
 }
 
+/* delete element set */
+void MESH_Delete_Elements (MESH *msh, SET *elements)
+{
+  /* FIXME / TODO */
+
+#if 0
+  int *node_map, m;
+
+  ERRMEM (node_map = MEM_CALLOC (msh->nodes_count * sizeof (int)));
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+    for (n = 0; n < ele->type; n ++) node_map [ele->nodes [n]] ++;
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+    for (n = 0; n < ele->type; n ++) node_map [ele->nodes [n]] ++;
+
+  for (n = 0, m = 1; n < msh->nodes_count; n ++)
+    if (node_map [n]) node_map [n] = m ++;
+
+  if (m < (n+1)) /* there are not referenced nodes */
+  {
+    for (ele = msh->surfeles; ele; ele = ele->next)
+    {
+      for (n = 0; n < ele->type; n ++) ele->nodes [n] = node_map [ele->nodes [n]] - 1;
+      for (fac = ele->faces; fac; fac = fac->next) for (n = 0; n < fac->type; n ++) fac->nodes [n] = node_map [fac->nodes [n]] - 1;
+    }
+
+    for (ele = msh->bulkeles; ele; ele = ele->next)
+      for (n = 0; n < ele->type; n ++) ele->nodes [n] = node_map [ele->nodes [n]] - 1;
+
+    double (*ref) [3], (*mref) [3] = msh->ref_nodes,
+	   (*cur) [3], (*mcur) [3] = msh->cur_nodes;
+
+    ERRMEM (ref = malloc (2 * (m-1) * sizeof (double [3])));
+    cur = ref + (m-1);
+
+    for (n = 0; n < msh->nodes_count; n ++)
+    {
+      if (node_map [n])
+      { 
+	COPY (mref [n], ref [node_map [n] - 1]);
+	COPY (mcur [n], cur [node_map [n] - 1]);
+      }
+    }
+
+    free (msh->ref_nodes);
+
+    msh->nodes_count = m-1;
+    msh->ref_nodes = ref;
+    msh->cur_nodes = cur;
+  }
+
+  free (node_map);
+#endif
+}
+
 /* free mesh memory */
 void MESH_Destroy (MESH *msh)
 {

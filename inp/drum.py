@@ -8,7 +8,15 @@ from math import cos
 
 def stone (x, y, z, r, kind, material, solfec):
   m = randint (8, 32)
-  points = []
+  c = 0.2
+  points = [x-c*r, y-c*r, z-c*r,
+            x+c*r, y-c*r, z-c*r,
+            x+c*r, y+c*r, z-c*r,
+            x-c*r, y+c*r, z-c*r,
+            x-c*r, y-c*r, z+c*r,
+            x+c*r, y-c*r, z+c*r,
+            x+c*r, y+c*r, z+c*r,
+            x-c*r, y+c*r, z+c*r]
   for n in range (m):
     points.append (x + r * (1.0 - random()) * 2.0)
     points.append (y + r * (1.0 - random()) * 2.0)
