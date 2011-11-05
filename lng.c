@@ -2523,7 +2523,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	}
       }
 
-      self->bod = BODY_Create (FEM, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, 0, form, msh);
+      SHAPE *shp = create_shape (shape, 1);
+
+      if (msh) CONVEX_Compute_Adjacency (shp->data); /* deformable convex juxtaposition needs adjacency information */
+
+      self->bod = BODY_Create (FEM, shp, get_bulk_material (solfec->sol, material), lab, 0, form, msh);
     }
     ELIF (kind, "OBSTACLE")
     {
@@ -2802,6 +2806,11 @@ static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *clos
 #endif
 
   if (!is_string (value, "selfcontact")) return -1;
+  else if (self->bod->kind != FEM)
+  {
+    PyErr_SetString (PyExc_ValueError, "Self-contact is only valid for FINITE_ELEMENT bodies");
+    return -1;
+  }
 
   IFIS (value, "ON") self->bod->flags |= BODY_DETECT_SELF_CONTACT;
   ELIF (value, "OFF") self->bod->flags &= ~BODY_DETECT_SELF_CONTACT;
@@ -4799,7 +4808,7 @@ static PyObject* lng_MESH2CONVEX (PyObject *self, PyObject *args, PyObject *kwds
       return NULL;
     }
 
-    out->cvx = MESH_Convex (mesh->msh, 0);
+    out->cvx = MESH_Convex (mesh->msh, 0, 0);
   }
 
   return (PyObject*)out;

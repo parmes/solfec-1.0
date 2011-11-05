@@ -73,18 +73,6 @@ SPHERE* SPHERE_Create (double *center, double radius, int surface, int volume)
   return out;
 }
 
-/* dummy (needed in shp.c) */
-void SPHERE_Update_Adjacency (SPHERE *sph)
-{
-}
-
-
-/* dummy (needed in shp.c) */
-int SPHERE_Break_Adjacency (SPHERE *sph, double *point, double *normal)
-{
-  return 0;
-}
-
 /* create a copy of a sphere */
 SPHERE* SPHERE_Copy (SPHERE *sph)
 {

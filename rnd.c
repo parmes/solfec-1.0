@@ -2059,7 +2059,7 @@ static void render_rough_mesh (BODY *bod)
 
   if (!rough)
   {
-    SHAPE shape = {SHAPE_MESH, bod->msh, NULL, 0, NULL};
+    SHAPE shape = {SHAPE_MESH, bod->msh, NULL};
     BODY body = bod [0];
     body.shape = &shape;
     body.msh = NULL;

@@ -79,14 +79,9 @@ CONVEX* CONVEX_Hull (CONVEX *cvx, double *pnt, int npnt, int surface, int volume
 /* glue two convex lists */
 CONVEX* CONVEX_Glue (CONVEX *cvx, CONVEX *cvy);
 
-/* update adjacency data of convices;
+/* compute adjacency data of convices;
  * no other function affects the adjacency */
-void CONVEX_Update_Adjacency (CONVEX *cvx);
-
-/* break adjacency between convices separated by the input plane and locally adjacent to the convex-plane
- * intersection patch containing the input point; used in the context of topologically adjacent body splitting;
- * return 1 on succes or 0 on failure (e.g. due to an errorneous point or normal) */
-int CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal);
+void CONVEX_Compute_Adjacency (CONVEX *cvx);
 
 /* create a copy of a list */
 CONVEX* CONVEX_Copy (CONVEX *cvx);

@@ -163,6 +163,52 @@ static int edge_compare (EDGE *a, EDGE *b)
   else return 1;
 }
 
+/* size of a single convex */
+static int size (CONVEX *cvx)
+{
+  int n, m, l, *fac = cvx->fac;
+
+  /* memory occupied by face definitions */
+  for (n = m = l = 0; n < cvx->nfac; n ++, m += (fac [m] + 1))
+    l += (fac [m] + 1);
+
+  return sizeof (CONVEX) + sizeof (double [6]) * cvx->nver +
+    sizeof (double [4]) * cvx->nfac + sizeof (int) * (l + cvx->nfac);
+}
+
+/* copy single convex */
+static CONVEX* copycvx (CONVEX *cvx)
+{
+  CONVEX *twin;
+
+  ERRMEM (twin = malloc (size (cvx)));
+  memcpy (twin, cvx, size (cvx));
+  /* FEM specific => does not get inherited */
+  twin->epn = NULL;
+  twin->ele = NULL;
+  twin->nele = 0;
+  /* -------------------------------------- */
+  twin->ref = (double*)(twin + 1);
+  twin->cur = twin->ref + twin->nver * 3;
+  twin->pla = twin->cur + twin->nver * 3;
+  twin->surface = (int*) (twin->pla + twin->nfac * 4);
+  twin->fac = twin->surface + twin->nfac;
+  if (cvx->nadj)
+  {
+    ERRMEM (twin->adj = malloc (cvx->nadj * sizeof (CONVEX*)));
+    for (int i = 0; i < cvx->nadj; i ++) twin->adj [i] = cvx->adj [i]; /* to be re-mapped outside */
+    twin->nadj = cvx->nadj;
+  }
+  else
+  {
+    twin->adj = NULL;
+    twin->nadj = 0;
+  }
+  twin->next = NULL;
+
+  return twin;
+}
+
 /* cut single convex with a plane */
 TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
 {
@@ -337,7 +383,7 @@ static int convex_touches_triangulation (CONVEX *cvx, KDT *kd)
 }
 
 /* split convex in two halves, using plane (point 'pt, normal 'nl') */
-static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one, CONVEX **two)
+static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one, CONVEX **two, MEM *extmem, MAP **below, MAP **above)
 {
   double val [3], pla [4], dpla [4], dl, *ver, *ov, *tv, *vv, *oo, *tt;
   MEM edgemem, setmem, mapmem;
@@ -423,27 +469,41 @@ static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one,
 
   if (nov && !ntv) /* copy input convex into the first list */
   {
-    CONVEX *next = cvx->next; cvx->next = NULL;
-    *one = CONVEX_Glue (CONVEX_Copy (cvx), *one);
-    cvx->next = next;
+    out = copycvx (cvx);
+    MAP_Insert (extmem, below, cvx, out, NULL);
+    *one = CONVEX_Glue (out, *one);
   }
   else if (ntv && !nov) /* copy input convex into the second list */
   {
-    CONVEX *next = cvx->next; cvx->next = NULL;
-    *two = CONVEX_Glue (CONVEX_Copy (cvx), *two);
-    cvx->next = next;
+    out = copycvx (cvx);
+    MAP_Insert (extmem, above, cvx, out, NULL);
+    *two = CONVEX_Glue (out, *two);
   }
   else /* create output vertices as convex hulls of point sets */
   {
     if (nov >= 3)
     {
       out = CONVEX_Hull (*one, ov, nov, cvx->surface [0], cvx->volume);
+      if (cvx->nadj)
+      {
+	ERRMEM (out->adj = malloc (cvx->nadj * sizeof (CONVEX*)));
+	for (int i = 0; i < cvx->nadj; i ++) out->adj [i] = cvx->adj [i]; /* to be re-mapped outside */
+	out->nadj = cvx->nadj;
+      }
+      MAP_Insert (extmem, below, cvx, out, NULL);
       if (out) *one = out;
       else nov = 0; /* failed to create hull */
     }
     if (ntv >= 3)
     {
       out = CONVEX_Hull (*two, tv, ntv, cvx->surface [0], cvx->volume);
+      if (cvx->nadj)
+      {
+	ERRMEM (out->adj = malloc (cvx->nadj * sizeof (CONVEX*)));
+	for (int i = 0; i < cvx->nadj; i ++) out->adj [i] = cvx->adj [i]; /* to be re-mapped outside */
+	out->nadj = cvx->nadj;
+      }
+      MAP_Insert (extmem, above, cvx, out, NULL);
       if (out) *two = out;
       else ntv = 0; /* failed to create hull */
     }
@@ -499,19 +559,6 @@ static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one,
   return 1;
 }
 
-/* size of a single convex */
-static int size (CONVEX *cvx)
-{
-  int n, m, l, *fac = cvx->fac;
-
-  /* memory occupied by face definitions */
-  for (n = m = l = 0; n < cvx->nfac; n ++, m += (fac [m] + 1))
-    l += (fac [m] + 1);
-
-  return sizeof (CONVEX) + sizeof (double [6]) * cvx->nver +
-    sizeof (double [4]) * cvx->nfac + sizeof (int) * (l + cvx->nfac);
-}
-
 /* size of faces definition */
 static int facsize (CONVEX *cvx)
 {
@@ -533,9 +580,9 @@ static void overlap (void *data, BOX *one, BOX *two)
 
   if (gjk (cvx->cur, cvx->nver, cvy->cur, cvy->nver, p, q) < GEOMETRIC_EPSILON) /* if they touch */
   {
-    ERRMEM (cvx->adj = realloc (cvx->adj, (++cvx->nadj) * sizeof (BOX*)));  /* extend adjacency */
+    ERRMEM (cvx->adj = realloc (cvx->adj, (++cvx->nadj) * sizeof (CONVEX*)));  /* extend adjacency */
     cvx->adj [cvx->nadj-1] = cvy;
-    ERRMEM (cvy->adj = realloc (cvy->adj, (++cvy->nadj) * sizeof (BOX*))); 
+    ERRMEM (cvy->adj = realloc (cvy->adj, (++cvy->nadj) * sizeof (CONVEX*))); 
     cvy->adj [cvy->nadj-1] = cvx;
   }
 }
@@ -676,8 +723,8 @@ CONVEX* CONVEX_Glue (CONVEX *cvx, CONVEX *cvy)
   return cvz;
 }
 
-/* update adjacency pointers */
-void CONVEX_Update_Adjacency (CONVEX *cvx)
+/* comput adjacency pointers */
+void CONVEX_Compute_Adjacency (CONVEX *cvx)
 {
   MEM mem;
   BOX **boxes;
@@ -707,101 +754,34 @@ void CONVEX_Update_Adjacency (CONVEX *cvx)
   free (boxes);
 }
 
-/* break adjacency between convices separated by the input plane and locally adjacent to the convex-plane
- * intersection patch containing the input point; used in the context of topologically adjacent body splitting;
- * return 1 on succes or 0 on failure (e.g. due to an errorneous point or normal) */
-int CONVEX_Break_Adjacency (CONVEX *cvx, double *point, double *normal)
-{
-  int mc, mb, i, j, ret = 0;
-  CONVEX *cvy;
-  TRI *c, *b;
-  KDT *kd;
-
-  c = CONVEX_Cut (cvx, point, normal, &mc); /* compute cut surface triangulation */
-  TRI_Compadj (c, mc); /* compute adjacency structure of triangles */
-  b = TRI_Topoadj (c, mc, point, &mb); /* part of the triangulation adjacent to the point */
-  if (b)
-  {
-    kd = TRI_Kdtree (b, mb);
-
-    for (; cvx; cvx = cvx->next)
-    {
-      double *v = cvx->cur, *e = v + 3*cvx->nver, a [3], dot;
-
-      for (; v < e; v += 3)
-      {
-	SUB (v, point, a);
-	dot = DOT (a, normal);
-	if (dot < -GEOMETRIC_EPSILON) break;
-      }
-
-      if (v < e && /* below */
-	  convex_touches_triangulation (cvx, kd)) /* connected to the intersection patch */
-      {
-	for (i = 0; i < cvx->nadj; i ++)
-	{
-	  cvy = cvx->adj [i];
-          v = cvy->cur;
-	  e = v + 3*cvy->nver;
-
-	  for (; v < e; v += 3)
-	  {
-	    SUB (v, point, a);
-	    dot = DOT (a, normal);
-	    if (dot > GEOMETRIC_EPSILON) break;
-	  }
-
-	  if (v < e) /* above */
-	  {
-	    /* remove 'cvx' from 'cvy->adj' */
-	    for (j = 0; j < cvy->nadj; j ++) if (cvy->adj [j] == cvx) break; /* find 'cvx' */
-	    ASSERT_DEBUG (j < cvy->nadj, "Inconsistent adjacency");
-	    for (; j < cvy->nadj-1; j ++) cvy->adj [j] = cvy->adj [j+1]; /* skip 'cvx' */
-	    cvy->nadj --;
-
-	    /* remove 'cvy' from 'cvx->adj' */
-	    for (j = i; j < cvx->nadj-1; j ++) cvx->adj [j] = cvx->adj [j+1]; /* skip 'cvx' */
-	    cvx->nadj --;
-	    i --;
-
-	    ret = 1;
-	  }
-	}
-      }
-    }
-
-    KDT_Destroy (kd);
-  }
-
-  if (c) free (c);
-
-  return ret;
-}
-
 /* copy convex list */
 CONVEX* CONVEX_Copy (CONVEX *cvx)
 {
   CONVEX *twin, *tail;
+  MAP *map = NULL; /* adjacency map */
+  MEM mem;
+  int i;
+
+  MEM_Init (&mem, sizeof (MAP), MEMINC);
 
   for (tail = NULL; cvx; cvx = cvx->next)
   {
-    ERRMEM (twin = malloc (size (cvx)));
-    memcpy (twin, cvx, size (cvx));
-    /* FEM specific => does not get inherited */
-    twin->epn = NULL;
-    twin->ele = NULL;
-    twin->nele = 0;
-    /* -------------------------------------- */
-    twin->ref = (double*)(twin + 1);
-    twin->cur = twin->ref + twin->nver * 3;
-    twin->pla = twin->cur + twin->nver * 3;
-    twin->surface = (int*) (twin->pla + twin->nfac * 4);
-    twin->fac = twin->surface + twin->nfac;
-    twin->adj = NULL;
-    twin->nadj = 0;
+    twin = copycvx (cvx);
+    MAP_Insert (&mem, &map, cvx, twin, NULL);
     twin->next = tail;
     tail = twin;
   }
+
+  /* map adjacency */
+  for (cvx = twin; cvx; cvx = cvx->next)
+  {
+    for (i = 0; i < cvx->nadj; i ++)
+    {
+      ASSERT_DEBUG_EXT (cvx->adj [i] = MAP_Find (map, cvx->adj [i], NULL), "Inconsistent adjacency mapping");
+    }
+  }
+
+  MEM_Release (&mem);
 
   return twin;
 }
@@ -981,13 +961,20 @@ out:
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two)
 {
+  MAP *below, *above, *other;
+  CONVEX *x, *y, *three;
+  double p [3], q [3];
+  int mc, mb, i, j;
   TRI *c, *b;
-  int mc, mb;
+  MEM mem;
   KDT *kd;
 
-  *one = *two = NULL;
+  below = above = other = NULL;
+  *one = *two = three = NULL;
   kd = NULL;
   c = NULL;
+
+  MEM_Init (&mem, sizeof (MAP), MEMINC);
 
   if (topoadj)
   {
@@ -999,30 +986,86 @@ void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, in
       kd = TRI_Kdtree (b, mb);
   }
 
-  for (; cvx; cvx = cvx->next)
+  for (x = cvx; x; x = x->next)
   {
     if (kd)
     {
-      if (convex_touches_triangulation (cvx, kd))
-	split (cvx, point, normal, surfid, one, two); /* split only if adjacent to the selected intersection patch */
+      if (convex_touches_triangulation (x, kd))
+	split (x, point, normal, surfid, one, two, &mem, &below, &above); /* split only if adjacent to the selected intersection patch */
       else
       {
-	CONVEX *next = cvx->next; cvx->next = NULL;
-	*one = CONVEX_Glue (CONVEX_Copy (cvx), *one); /* otherwise copy into 'one' */
-	cvx->next = next;
+	y = copycvx (x);
+	MAP_Insert (&mem, &other, x, y, NULL);
+	three = CONVEX_Glue (y, three);
       }
     }
-    else split (cvx, point, normal, surfid, one, two); /* split all */
+    else split (x, point, normal, surfid, one, two, &mem, &below, &above); /* split all */
+  }
+
+  /* map adjacency */
+  CONVEX *vcvx [] = {*one, *two};
+  MAP *vmap [] = {below, above, other};
+
+  for (j = 0; j < 2; j ++)
+  {
+    for (y = vcvx [j]; y; y = y->next)
+    {
+      for (i = 0; i < y->nadj; i ++)
+      {
+	x = MAP_Find (vmap [j], y->adj [i], NULL);
+
+	if (x) /* neighbour was mapped on the same side of the splitting plane */
+	{
+	  y->adj [i] = x; /* re-map old pointers */
+	}
+	else
+	{
+	  x = MAP_Find (other, y->adj [i], NULL);
+
+	  if (x && gjk (x->cur, x->nver, y->cur, y->nver, p, q) < GEOMETRIC_EPSILON)
+	  {
+	    y->adj [i] = x; /* re-map old pointers */
+	  }
+	  else /* broken adjacency */
+	  {
+	    y->adj [i] = y->adj [-- y->nadj]; /* remove from adjacency */
+	    i --; /* start again */
+	  }
+	}
+      }
+    }
   }
 
   if (kd)
   {
+    for (y = three; y; y = y->next) /* map remaining adjacency */
+    {
+      for (i = 0; i < y->nadj; i ++)
+      {
+	for (j = 0; j < 3; j ++)
+	{
+	  x = MAP_Find (vmap [j], y->adj [i], NULL);
+
+	  if (x && gjk (x->cur, x->nver, y->cur, y->nver, p, q) < GEOMETRIC_EPSILON)
+	  {
+	    y->adj [i] = x;
+	    break;
+	  }
+	}
+
+	ASSERT_DEBUG (j < 3, "Inconsistent adjacency mapping");
+      }
+    }
+
     *one = CONVEX_Glue (*one, *two); /* no fragmentation => the result goes into 'one' */
+    *one = CONVEX_Glue (*one, three);
     *two = NULL;
 
     KDT_Destroy (kd);
     free (c);
   }
+  
+  MEM_Release (&mem);
 }
 
 /* is convex set separable into disjoint parts */
@@ -1051,8 +1094,12 @@ int CONVEX_Separable (CONVEX *cvx)
 /* separate convex set into disjoint parts */
 CONVEX** CONVEX_Separate (CONVEX *cvx, int *m)
 {
-  CONVEX *x, **out;
-  int i;
+  CONVEX *x, *y, **out;
+  MAP *map = NULL; /* adjacency map */
+  MEM mem;
+  int i, j;
+
+  MEM_Init (&mem, sizeof (MAP), MEMINC);
  
   *m = CONVEX_Separable (cvx);
 
@@ -1066,12 +1113,26 @@ CONVEX** CONVEX_Separate (CONVEX *cvx, int *m)
     {
       if (x->flag == i)
       {
-	CONVEX *next = x->next; x->next = NULL; /* tenatively terminate the list (due to gluing next line) */
-	out [i-1] = CONVEX_Glue (CONVEX_Copy (x), out [i-1]); /* copy this convex into the output list */
-	x->next = next; /* restore the list */
+	y = copycvx (x);
+	MAP_Insert (&mem, &map, x, y, NULL);
+	out [i-1] = CONVEX_Glue (y, out [i-1]); /* copy this convex into the output list */
       }
     }
   }
+
+  /* map adjacency */
+  for (j = 0; j < *m; j ++)
+  {
+    for (y = out [j]; y; y = y->next)
+    {
+      for (i = 0; i < y->nadj; i ++)
+      {
+	ASSERT_DEBUG_EXT (y->adj [i] = MAP_Find (map, y->adj [i], NULL), "Inconsistent adjacency mapping");
+      }
+    }
+  }
+
+  MEM_Release (&mem);
 
   return out;
 }

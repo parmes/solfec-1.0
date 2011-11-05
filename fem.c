@@ -2706,7 +2706,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
 
   if (msh) /* the given mesh is assumed to properly contain the shape */
   {
-    SHAPE msh_shp = {SHAPE_MESH, msh, NULL, 0, NULL};
+    SHAPE msh_shp = {SHAPE_MESH, msh, NULL};
     BOX **msh_boxes, **shp_boxes, **box;
     SGP *msh_sgp, *shp_sgp, *sgp, *sge;
     BOX_Extents_Update update;
@@ -3379,13 +3379,6 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     ASSERT_DEBUG (!bod->msh || (bod->msh && mone), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/1", bod->label);
     (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone);
-
-    if (mone) /* has background mesh and is still in the reference configuration */
-    {
-      if (topoadj && stwo == NULL)
-	SHAPE_Break_Adjacency (sone, point, normal); /* break adjacency between split convices */
-    }
-
     map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*one), (*one)->conf, (*one)->velo);
     SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
     if (mone) update_background_mesh (*one);
