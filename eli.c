@@ -72,17 +72,6 @@ ELLIP* ELLIP_Create (double *center, double *radii, int surface, int volume)
   return eli;
 }
 
-/*  dummy (needed in shp.c) */
-void ELLIP_Update_Adjacency (ELLIP *eli)
-{
-}
-
-/* dummy (needed in shp.c) */
-int ELLIP_Break_Adjacency (ELLIP *eli, double *point, double *normal)
-{
-  return 0;
-}
-
 /* create a copy of a ellipsoid */
 ELLIP* ELLIP_Copy (ELLIP *eli)
 {

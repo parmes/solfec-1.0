@@ -623,7 +623,9 @@ inline static void convex_init (CONVEX *cvx, double **v, int *nv, double **p, in
   *p = CONVEX_Planes (cvx);
   *np = cvx->nfac;
   *s = cvx->surface;
-  *ns = cvx->nfac;
+  /* when created with MESH_Convex (or MESH2CONVEX) stop at the first
+   * internal face and skip the rest; see => MESH_Convex code in msh.c */
+  for (*ns = 0; *ns < cvx->nfac && (*s) [*ns] != -INT_MAX; (*ns) ++);
 }
 
 /* finalize a convex representation */

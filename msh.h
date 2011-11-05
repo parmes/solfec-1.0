@@ -132,12 +132,6 @@ MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, /* six 
 MESH* MESH_Pipe (double *pnt, double *dir, double rin, double thi,
                  int ndir, int nrad, int nthi, int *surfaces, int volume); /* surfaces: bottom, top, inner, outer */
 
-/* dummy adjacency update (needed in shp.c) */
-void MESH_Update_Adjacency (MESH *msh);
-
-/* dummy local plane adjacency breaking routine (needed in shp.c) */
-int MESH_Break_Adjacency (MESH *msh, double *point, double *normal);
-
 /* create a copy of a mesh */
 MESH* MESH_Copy (MESH *msh);
 
@@ -194,9 +188,10 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion);
 
 /* convert mesh into a list of convices;
  * ref > 0 => create referential mesh image;
+ * if ele0ptr > 0 => cvx->ele [0] points to the source element;
  * otherwise => create current mesh image;
  * CONVEX->ele[0] == corresponding element */
-CONVEX* MESH_Convex (MESH *msh, int ref);
+CONVEX* MESH_Convex (MESH *msh, int ref, int ele0ptr);
 
 /* compute extents of entire mesh */
 void MESH_Extents (MESH *msh, double *extents);

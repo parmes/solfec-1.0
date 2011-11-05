@@ -57,9 +57,6 @@ struct shape
 
   void *data; /* representation */
 
-  double (*bradj_point_normal) [6]; /* break adjacency data => used internally in SHAPE_Update_Adjacency */
-  int nbradj; /* this data is stored only at the fist item of shapes list */
-
   SHAPE *next;
 };
 
@@ -100,15 +97,6 @@ SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq);
 
 /* glue two shape lists (without gluing basic shapes) */
 SHAPE* SHAPE_Glue_Simple (SHAPE *shp, SHAPE *shq);
-
-/* update adjacency data of stored shapes;
- * no other function affects the adjacency */
-void SHAPE_Update_Adjacency (SHAPE *shp);
-
-/* break adjacency between primitives separated by the input plane and locally adjacent to the primitive-plane
- * intersection patch containing the input point; used in the context of topologically adjacent body splitting;
- * return 1 on succes or 0 on failure (e.g. due to an errorneous point or normal) */
-int SHAPE_Break_Adjacency (SHAPE *shp, double *point, double *normal);
 
 /* scale cur shape => 
  * if MESH,  scale each: x *= vector [0], y *= vector [1], z *= vector [2];

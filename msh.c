@@ -1754,17 +1754,6 @@ MESH* MESH_Pipe (double *pnt, double *dir, double rin, double thi,
   return msh;
 }
 
-/* dummy adjacency update (needed in shp.c) */
-void MESH_Update_Adjacency (MESH *msh)
-{
-}
-
-/* dummy local plane adjacency breaking routine (needed in shp.c) */
-int MESH_Break_Adjacency (MESH *msh, double *point, double *normal)
-{
-  return 0;
-}
-
 /* create a copy of a mesh */
 MESH* MESH_Copy (MESH *msh)
 {
@@ -1961,7 +1950,7 @@ TRI* MESH_Cut (MESH *msh, double *point, double *normal, int *m)
   TRI *out, *t, *e;
   CONVEX *cvx, *q;
 
-  cvx = MESH_Convex (msh, 0);
+  cvx = MESH_Convex (msh, 0, 1);
   out = CONVEX_Cut (cvx, point, normal, m);
   for (t = out, e = t + (*m); t != e; t ++)
   {
@@ -1979,7 +1968,7 @@ TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m)
   TRI *out, *t, *e;
   CONVEX *cvx, *q;
 
-  cvx = MESH_Convex (msh, 1);
+  cvx = MESH_Convex (msh, 1, 1);
   out = CONVEX_Cut (cvx, point, normal, m);
   for (t = out, e = t + (*m); t != e; t ++)
   {
@@ -2330,38 +2319,58 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
 
 /* convert mesh into a list of convices;
  * ref > 0 => create referential mesh image;
+ * if ele0ptr > 0 => cvx->ele [0] points to the source element;
  * otherwise => create current mesh image;
  * CONVEX->ele[0] == corresponding element */
-CONVEX* MESH_Convex (MESH *msh, int ref)
+CONVEX* MESH_Convex (MESH *msh, int ref, int ele0ptr)
 {
-  int global = msh->faces->surface; /* XXX: use accidential gloabl surface identifier for internal faces */
-  int fac [30], surfaces [6] = {global, global, global, global, global, global}, nfac, *f, n;
+  int vfac [30], surfaces [6], idx [6], nfac, *f, n, i;
   double nodes [8][3];
-  ELEMENT *ele;
+  ELEMENT *ele, *next;
+  short bulk = 0;
   CONVEX *cvx;
+  FACE *fac;
 
   cvx = NULL;
-  for (ele = msh->surfeles; ele; ele = ele->next)
+  for (ele = msh->surfeles; ele; ele = next)
   {
     load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
     nfac = neighs (ele->type); /* number of faces */
-    for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
-    for (FACE *fac = ele->faces; fac; fac = fac->next) surfaces [fac->index] = fac->surface; /* set surface identifiers */
-    cvx = CONVEX_Create (cvx, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
-    ERRMEM (cvx->ele = malloc (sizeof (ELEMENT*)));
-    cvx->ele [0] = ele; /* store the corresponding element */ /* (&&&) */
-    cvx->nele = 1;
-  }
-  for (ele = msh->bulkeles; ele; ele = ele->next)
-  {
-    load_nodes (ref ? msh->ref_nodes : msh->cur_nodes, ele->type, ele->nodes, nodes);
-    nfac = neighs (ele->type); /* number of faces */
-    for (n = 0, f = fac; n < nfac; n ++) f = setup_face_vertices (ele, n, f); /* write face vertex indices */
-    for (FACE *fac = ele->faces; fac; fac = fac->next) surfaces [fac->index] = fac->surface; /* set surface identifiers */
-    cvx = CONVEX_Create (cvx, (double*)nodes, ele->type, fac, nfac, surfaces, ele->volume); /* add new convex to the list */
-    ERRMEM (cvx->ele = malloc (sizeof (ELEMENT*)));
-    cvx->ele [0] = ele; /* store the corresponding element */ /* (&&&) */
-    cvx->nele = 1;
+
+    for (i = 0; i < 6; i ++) idx [i] = 1; /* mark all faces */
+
+    for (fac = ele->faces, f = vfac, n = 0; fac; fac = fac->next, n ++) /* surface faces first */
+    {
+      surfaces [n] = fac->surface; /* set surface identifiers */
+      f = setup_face_vertices (ele, fac->index, f); /* write face vertex indices */
+      idx [fac->index] = 0; /* unmark */
+    }
+
+    for (; n < nfac; n ++) /* internal faces next */
+    {
+      surfaces [n] = -INT_MAX; /* invalid pointer for internal faces */
+      for (i = 0; i < 6; i ++)
+      {
+	if (idx [i]) /* mareked => spare internal face index */
+	{
+          f = setup_face_vertices (ele, i, f); /* write face vertex indices */
+	  idx [i] = 0; /* unrmark */
+	}
+      }
+    }
+
+    cvx = CONVEX_Create (cvx, (double*)nodes, ele->type, vfac, nfac, surfaces, ele->volume); /* add new convex to the list */
+
+    if (ele0ptr)
+    {
+      ERRMEM (cvx->ele = malloc (sizeof (ELEMENT*)));
+      cvx->ele [0] = ele; /* store the corresponding element */ /* (&&&) */
+      cvx->nele = 1;
+    }
+
+    if (ele->next) next = ele->next;
+    else if (!bulk) { next = msh->bulkeles; bulk = 1; }
+    else next = NULL;
   }
 
   return cvx;
