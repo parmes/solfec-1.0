@@ -77,13 +77,6 @@ typedef enum
 
   SCH_DEF_LIM,   /* deformable: linearly implicit scheme */
                  /* reference: M. Zhang, R.D. Skeel. Cheap implicit symplectic integrators. Applied Numerical Mathematics, 6:297-302, 1997 */
-
-  SCH_DEF_LIM2,  /* deformable: linearly implicit scheme */
-                 /* reference: F. A. Potra, M. Anitescu,B. Gavrea, J. Trinkle. A linearly implicit trapezoidal method
-		  * for integrating stiff multibody dynamics with contact, joints, and friction, IJNME, 1079-1124, 2006 */
-
-  SCH_DEF_IMP,   /* deformable: implicit scheme */
-                 /* reference: J. C. Simo, N. Tarnow. The discrete energy-momentum method. Conserving algorithms for nonlinear elastodynamics, ZAMP, 757-792, 1992. */
 } SCHEME;
 
 struct general_force

@@ -1,7 +1,7 @@
 # 2D puzzle example
 
 KINEM = 'PSEUDO_RIGID'
-SCHEME = 'DEF_LIM2'
+SCHEME = 'DEF_LIM'
 
 def create_big_piece (x, y, z, solfec, material):
 

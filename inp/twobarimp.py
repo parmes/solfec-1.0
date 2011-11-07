@@ -18,7 +18,10 @@ def bar_drop (step, stop, formul, scheme, damp, tet):
 	    a,  b, c,
 	   -a,  b, c]
 
-  sol = SOLFEC ('DYNAMIC', step, 'out/twobarimp/' + scheme + '-' + str (step))
+ 
+  if tet: end = '_tet'
+  else: end = '_hex'
+  sol = SOLFEC ('DYNAMIC', step, 'out/twobarimp/' + scheme + '-' + str (step) + end)
 
   SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 0.0)
 
@@ -54,8 +57,8 @@ def bar_drop (step, stop, formul, scheme, damp, tet):
 stop = 50
 damp = 0.0
 formul = 'BC'
-th1 = bar_drop (0.05, stop, formul, 'DEF_EXP', damp, 0)
-th2 = bar_drop (0.05, stop, formul, 'DEF_IMP', damp, 1)
+th1 = bar_drop (0.05, stop, formul, 'DEF_LIM', damp, 0)
+th2 = bar_drop (0.05, stop, formul, 'DEF_LIM', damp, 1)
 
 if not VIEWER() and isinstance (th1, tuple):
   try:

@@ -11,12 +11,13 @@ outfrq = 0.03
 kinem = 'PSEUDO_RIGID'
 solver = 'NEWTON'
 scheme = 'DEFAULT'
+damping = 1E-4
 shake = 'TRUE'
 plotconv = 0
 GEOMETRIC_EPSILON (1E-6)
 WARNINGS ('OFF')
 
-if kinem == 'PSEUDO_RIGID' or kinem == 'FINITE_ELEMENT': scheme = 'DEF_IMP'
+if kinem == 'PSEUDO_RIGID' or kinem == 'FINITE_ELEMENT': scheme = 'DEF_LIM'
 
 if kinem == 'PSEUDO_RIGID': kinstr = '-prb-'
 elif kinem == 'RIGID': kinstr = '-rig-'
@@ -60,7 +61,7 @@ def callback (sv):
   MERIT.append (sv.merhist)
   return 1
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, shake, 4, 4, 4)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, damping, shake, 4, 4, 4)
 
 UNPHYSICAL_PENETRATION (solfec, 0.02)
 IMBALANCE_TOLERANCE (solfec, 1.1)

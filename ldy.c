@@ -658,25 +658,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
       goto sumene; /* skip initialized explicit node-to-node gluing constraints */
     }
 
-#if MPI
-    if (m->flags & BODY_CHILD)
-    {
-      if (dom->dynamic) BODY_Dynamic_Init (m);
-      else BODY_Static_Init (m);
-    }
-#endif
-
-    if (s)
-    {
-#if MPI
-      if (s->flags & BODY_CHILD)
-      {
-	if (dom->dynamic) BODY_Dynamic_Init (s);
-	else BODY_Static_Init (s);
-      }
-#endif
-    }
-
     /* diagonal block */
     if (m != s)
     {

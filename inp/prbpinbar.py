@@ -44,13 +44,14 @@ def pinned_bar_create (material, solfec, kind, scheme):
 
 ### solfec context ###
 
-def create_simulation (output, step, stop, solver, kind, scheme):
+def create_simulation (output, step, stop, solver, kind, scheme, damp):
 
   solfec = SOLFEC ('DYNAMIC', step, output)
   surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 1.0)
   bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.3, density = 1.8E3)
   GRAVITY (solfec, (0, 0, -9.8))
   bod = pinned_bar_create (bulkmat, solfec, kind, scheme)
+  bod.damping = damp
   RUN (solfec, solver, stop)
 
   return (solfec, bod)
@@ -63,9 +64,9 @@ stop = 1
 
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000, failure = 'CONTINUE', diagsolver = 'PROJECTED_GRADIENT')
 
-s1 = create_simulation ('out/prbpinbar/rig', step, stop, gs, 'RIGID', 'RIG_NEG')
-s2 = create_simulation ('out/prbpinbar/imp', step, stop, gs, 'PSEUDO_RIGID', 'DEF_IMP')
-s3 = create_simulation ('out/prbpinbar/exp', step, stop, gs, 'PSEUDO_RIGID', 'DEF_EXP')
+s1 = create_simulation ('out/prbpinbar/rig', step, stop, gs, 'RIGID', 'RIG_NEG', 0)
+s2 = create_simulation ('out/prbpinbar/lim', step, stop, gs, 'PSEUDO_RIGID', 'DEF_LIM', 1E-5)
+s3 = create_simulation ('out/prbpinbar/exp', step, stop, gs, 'PSEUDO_RIGID', 'DEF_EXP', 1E-5)
 
 if not VIEWER() and s1[0].mode == 'READ':
   try:
@@ -74,7 +75,7 @@ if not VIEWER() and s1[0].mode == 'READ':
     th2 = HISTORY (s2[0], [(s2[1], 'KINETIC'), (s2[1], 'INTERNAL'), (s2[1], 'EXTERNAL'), (s2[1], 'CONTACT'), (s2[1], 'FRICTION')], 0, stop)
     th3 = HISTORY (s3[0], [(s3[1], 'KINETIC'), (s3[1], 'INTERNAL'), (s3[1], 'EXTERNAL'), (s3[1], 'CONTACT'), (s3[1], 'FRICTION')], 0, stop)
     plt.plot (th3 [0], th3 [1], label='PRB-EXP')
-    plt.plot (th2 [0], th2 [1], label='PRB-IMP')
+    plt.plot (th2 [0], th2 [1], label='PRB-LIM')
     plt.plot (th1 [0], th1 [1], label='RIG')
     plt.axis (xmin = 0, xmax = stop)
     plt.xlabel ('Time [s]')

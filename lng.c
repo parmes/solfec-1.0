@@ -2485,19 +2485,28 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     if (label) lab = PyString_AsString (label);
     else lab = NULL;
 
+    IFIS (kind, "FINITE_ELEMENT")
+    {
+      if (mesh) TYPETEST (is_shape_convex (shape, kwl[2]));
+    }
+
+    SHAPE *shp = create_shape (shape, 1);
+
+    for (SHAPE *x = shp; x; x = x->next)
+      if (x->kind == SHAPE_CONVEX) CONVEX_Compute_Adjacency (x->data); /* deformable convex juxtaposition needs adjacency information;
+								          it is also needed for sparsification in this and other cases */
     IFIS (kind, "RIGID")
     {
-      self->bod = BODY_Create (RIG, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
+      self->bod = BODY_Create (RIG, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
     }
     ELIF (kind, "PSEUDO_RIGID")
     {
-      self->bod = BODY_Create (PRB, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
+      self->bod = BODY_Create (PRB, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
     }
     ELIF (kind, "FINITE_ELEMENT")
     {
       if (mesh)
       {
-        TYPETEST (is_shape_convex (shape, kwl[2]));
         msh = mesh->msh;
 	mesh->msh = NULL; /* empty */
       }
@@ -2523,15 +2532,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	}
       }
 
-      SHAPE *shp = create_shape (shape, 1);
-
-      if (msh) CONVEX_Compute_Adjacency (shp->data); /* deformable convex juxtaposition needs adjacency information */
-
       self->bod = BODY_Create (FEM, shp, get_bulk_material (solfec->sol, material), lab, 0, form, msh);
     }
     ELIF (kind, "OBSTACLE")
     {
-      self->bod = BODY_Create (OBS, create_shape (shape, 1), get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
+      self->bod = BODY_Create (OBS, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
     }
     ELSE
     {
@@ -2546,9 +2551,8 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
 
-    if (solfec->sol->dom->dynamic == 0
-	&& self->bod->kind != RIG) self->bod->scheme = SCH_DEF_LIM2; /* LIM2 is closest to the quasi-static time stepping;
-                                                      some code parts test body->scheme without checking for quasi-statics */
+    /* LIM is closest to the quasi-static time stepping; some code parts test body->scheme without checking for quasi-statics */
+    if (solfec->sol->dom->dynamic == 0 && self->bod->kind != RIG) self->bod->scheme = SCH_DEF_LIM; /* XXX */
   }
 
   return (PyObject*)self;
@@ -2926,8 +2930,6 @@ static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
   case SCH_RIG_IMP: return PyString_FromString ("RIG_IMP");
   case SCH_DEF_EXP: return PyString_FromString ("DEF_EXP");
   case SCH_DEF_LIM: return PyString_FromString ("DEF_LIM");
-  case SCH_DEF_IMP: return PyString_FromString ("DEF_IMP");
-  case SCH_DEF_LIM2: return PyString_FromString ("DEF_LIM2");
   }
 
   return NULL;
@@ -3003,26 +3005,6 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
     }
 
     self->bod->scheme = SCH_DEF_LIM;
-  }
-  ELIF (value, "DEF_IMP")
-  {
-    if (self->bod->kind == RIG)
-    {
-      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
-      return -1;
-    }
-
-    self->bod->scheme = SCH_DEF_IMP;
-  }
-  ELIF (value, "DEF_LIM2")
-  {
-    if (self->bod->kind == RIG)
-    {
-      PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
-      return -1;
-    }
-
-    self->bod->scheme = SCH_DEF_LIM2;
   }
   ELSE
   {
@@ -7116,219 +7098,6 @@ static PyObject* lng_LOCDYN_DUMP (PyObject *self, PyObject *args, PyObject *kwds
   Py_RETURN_NONE;
 }
 
-/* partition a finite element body */
-static PyObject* lng_PARTITION (PyObject *self, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("body", "parts");
-  int parts, numglue, *gluenodes, *g, numadj, *adjeles, *e, i;
-  PyObject *list, *obj;
-  BODY **out, *bod, *b;
-  MESH **msh, *in;
-  lng_BODY *body;
-  SET *item;
-  DOM *dom;
-
-  PARSEKEYS ("Oi", &body, &parts);
-
-  TYPETEST (is_body (body, kwl[0]) && is_positive (parts, kwl[1]));
-
-#if MPI && LOCAL_BODIES
-  if (IS_HERE (body))
-  {
-#endif
-
-  if (parts == 1) Py_RETURN_NONE;
-
-  bod = body->bod;
-  dom = bod->dom;
-
-  if (bod->kind != FEM || bod->msh)
-  {
-    PyErr_SetString (PyExc_ValueError, "Only regular finite element bodies can be partitioned");
-    return NULL;
-  }
-
-  in = bod->shape->data;
-  if (in->surfeles_count + in->bulkeles_count < parts)
-  {
-    PyErr_SetString (PyExc_ValueError, "Number of elements is smaller than the number of partitions");
-    return NULL;
-  }
-
-  for (item = SET_First (bod->con); item; item = SET_Next (item))
-  {
-    CON *con = item->data;
-    if (con->kind == GLUE)
-    {
-      PyErr_SetString (PyExc_ValueError, "Cannot partition an already partitioned body");
-      return NULL;
-    }
-  }
-
-#if MPI
-  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item))
-  {
-    PNDCON *pnd = item->data;
-    if (pnd->kind == GLUE && (pnd->master == bod || pnd->slave == bod))
-    {
-      PyErr_SetString (PyExc_ValueError, "Cannot partition an already partitioned body");
-      return NULL;
-    }
-  }
-#endif
-
-  msh = MESH_Partition (in, parts, &numglue, &gluenodes, &numadj, &adjeles); /* partition mesh */
-  ERRMEM (out = MEM_CALLOC (parts * sizeof (BODY*)));
-  if (!(list = PyList_New (parts))) return NULL;
-
-  for (i = 0; i < parts; i ++) /* create partitioned bodies */
-  {
-    char *label = NULL;
-    if (bod->label) { int l = strlen (bod->label); ERRMEM (label = malloc (l + 64)); sprintf ("%s_PART%d", bod->label, i+1); }
-    b = BODY_Create (FEM, SHAPE_Create (SHAPE_MESH, msh [i]), bod->mat, label, 0, bod->form, NULL);
-    if (!(obj = lng_BODY_WRAPPER (b))) return NULL;
-    PyList_SetItem (list, i, obj);
-    DOM_Insert_Body (dom, b);
-    b->scheme = bod->scheme;
-    b->flags |= (bod->flags & BODY_DETECT_SELF_CONTACT);
-    b->damping = bod->damping;
-    for (FORCE *frc = bod->forces; frc; frc = frc->next)
-    {
-      if (frc->kind & PRESSURE)
-      {
-	BODY_Apply_Force (b, PRESSURE, NULL, NULL, TMS_Copy (frc->data), NULL, NULL, frc->surfid);
-      }
-      else
-      {
-	ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO: transfer point forces */
-      }
-    }
-
-    out [i] = b;
-    free (label);
-  }
-
-#if MPI
-  for (item = SET_First (bod->con); item; item = SET_Next (item)) /* transfer existing constraints */
-  {
-    CON *con = item->data;
-    ELEMENT *ele = con->msgp->gobj;
-
-    switch (con->kind)
-    {
-    case CONTACT:
-      ASSERT_DEBUG (0, "Contact constraint found while partitioning a body");
-      break;
-    case FIXPNT:
-      if (con->slave) goto riglnk; /* FIXPNT from zero-length RIGLNK */
-      else DOM_Pending_Constraint (dom, FIXPNT, out [ele->domnum], NULL, con->mpnt, NULL, NULL, NULL, -1, -1);
-      break;
-    case FIXDIR:
-      DOM_Pending_Constraint (dom, FIXDIR, out [ele->domnum], NULL, con->mpnt, NULL, con->base+6, NULL, -1, -1);
-      break;
-    case VELODIR:
-      DOM_Pending_Constraint (dom, VELODIR, out [ele->domnum], NULL, con->mpnt, NULL, con->base+6, TMS_Copy (con->tms), -1, -1);
-      break;
-    case RIGLNK:
-riglnk:
-      if (con->master == con->slave)
-      {
-        DOM_Pending_Constraint (dom, RIGLNK, out [ele->domnum], out [ele->domnum], con->mpnt, con->spnt, NULL, NULL, -1, -1);
-      }
-      else if (bod == con->slave)
-      {
-	ele = con->ssgp->gobj;
-        DOM_Pending_Constraint (dom, RIGLNK, con->master, out [ele->domnum], con->mpnt, con->spnt, NULL, NULL, -1, -1);
-      }
-      else DOM_Pending_Constraint (dom, RIGLNK, out [ele->domnum], con->slave, con->mpnt, con->spnt, NULL, NULL, -1, -1);
-      break;
-    case GLUE: ASSERT_DEBUG (0, "Impossible happend (trashed memory)"); break;
-    }
-  }
-
-  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item)) /* modify pending constraints */
-  {
-    PNDCON *pnd = item->data;
-    if (pnd->master == bod)
-    {
-      pnd->master = out [pnd->mele->domnum];
-    }
-    else if (pnd->slave == bod)
-    {
-      pnd->slave = out [pnd->sele->domnum];
-    }
-  }
-#else
-  for (item = SET_First (bod->con); item; item = SET_Next (item)) /* transfer existing constraints */
-  {
-    CON *con = item->data;
-    ELEMENT *ele = con->msgp->gobj;
-
-    switch (con->kind)
-    {
-    case CONTACT:
-      ASSERT_DEBUG (0, "Contact constraint found while partitioning a body");
-      break;
-    case FIXPNT:
-      if (con->slave) goto riglnk; /* FIXPNT from zero-length RIGLNK */
-      else DOM_Fix_Point (dom, out [ele->domnum], con->mpnt);
-      break;
-    case FIXDIR:
-      DOM_Fix_Direction (dom, out [ele->domnum], con->mpnt, con->base+6);
-      break;
-    case VELODIR:
-      DOM_Set_Velocity (dom, out [ele->domnum], con->mpnt, con->base+6, TMS_Copy (con->tms));
-      break;
-    case RIGLNK:
-riglnk:
-      if (con->master == con->slave)
-      {
-        DOM_Put_Rigid_Link (dom, out [ele->domnum], out [ele->domnum], con->mpnt, con->spnt);
-      }
-      else if (bod == con->slave)
-      {
-	ele = con->ssgp->gobj;
-        DOM_Put_Rigid_Link (dom, con->master, out [ele->domnum], con->mpnt, con->spnt);
-      }
-      else DOM_Put_Rigid_Link (dom, out [ele->domnum], con->slave, con->mpnt, con->spnt);
-      break;
-    case GLUE: ASSERT_DEBUG (0, "Impossible happend (trashed memory)"); break;
-    }
-  }
-#endif
-
-  DOM_Remove_Body (dom, bod); /* remove original */
-  BODY_Destroy (bod); /* used only when body was removed from the domain */
-  body->bod = NULL; /* empty */
-
-  for (i = 0, g = gluenodes; i < numglue; i ++, g += 4) /* insert gluing constraints */
-  {
-#if MPI
-    /* mpnt and spnt are needed here (apart from mnode and snode) because of the extents enlargement in 'insert_pending_constraints' in dom.c */
-    DOM_Pending_Constraint (dom, GLUE, out [g[0]], out [g[1]], msh [g[0]]->ref_nodes [g[2]], msh [g[1]]->ref_nodes [g[3]], NULL, NULL, g[2], g[3]);
-#else
-    DOM_Glue_Nodes (dom, out [g[0]], out [g[1]], g[2], g[3]);
-#endif
-  }
-
-  for (i = 0, e = adjeles; i < numadj; i ++, e += 4) /* exclude contact detection between adjacent surface elements */
-  {
-    AABB_Exclude_Gobj_Pair (dom->aabb, out [e[0]]->id, e[2], out[e[1]]->id, e[3]);
-  }
-
-  free (gluenodes);
-  free (adjeles);
-  free (msh);
-  free (out);
-
-#if MPI && LOCAL_BODIES
-  }
-  else Py_RETURN_NONE;
-#endif
-
-  return list;
-}
-
 /* overlap callback data */
 typedef struct 
 {
@@ -8453,7 +8222,6 @@ static PyMethodDef lng_methods [] =
   {"WARNINGS", (PyCFunction)lng_WARNINGS, METH_VARARGS|METH_KEYWORDS, "Enable or disable warnings"},
   {"INITIALIZE_STATE", (PyCFunction)lng_INITIALIZE_STATE, METH_VARARGS|METH_KEYWORDS, "Initialize Solfec state"},
   {"LOCDYN_DUMP", (PyCFunction)lng_LOCDYN_DUMP, METH_VARARGS|METH_KEYWORDS, "Dump local dynamics"},
-  {"PARTITION", (PyCFunction)lng_PARTITION, METH_VARARGS|METH_KEYWORDS, "Partition a finite element body"},
   {"OVERLAPPING", (PyCFunction)lng_OVERLAPPING, METH_VARARGS|METH_KEYWORDS, "Detect shapes (not) overlapping obstacles"},
   {"MBFCP_EXPORT", (PyCFunction)lng_MBFCP_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MBFCP definition"},
   {"NON_SOLFEC_ARGV", (PyCFunction)lng_NON_SOLFEC_ARGV, METH_NOARGS, "Return non-Solfec input arguments"},
@@ -8684,7 +8452,6 @@ int lng (const char *path)
                      "from solfec import WARNINGS\n"
                      "from solfec import INITIALIZE_STATE\n"
                      "from solfec import LOCDYN_DUMP\n"
-                     "from solfec import PARTITION\n"
                      "from solfec import OVERLAPPING\n"
                      "from solfec import MBFCP_EXPORT\n"
                      "from solfec import NON_SOLFEC_ARGV\n"

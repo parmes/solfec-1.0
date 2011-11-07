@@ -14,7 +14,9 @@ def make_particle (x, y, z, r, kind, material, solfec):
 
   hull = HULL (points, 1, 1)
   bod = BODY (solfec, kind, hull, material)
-  if kind == 'PSEUDO_RIGID': bod.scheme = 'DEF_IMP'
+  if kind == 'PSEUDO_RIGID':
+    bod.scheme = 'DEF_LIM'
+    bod.damping = 1E-4
 
 def make_time_history (step, time, per, amp):
 

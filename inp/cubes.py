@@ -57,8 +57,9 @@ def stack_of_cubes_create (material, solfec):
       for z in range (N):
 	shp = cube (x, y, z, 1, 1, 1, 2, 2)
         b = BODY (solfec, KINEM, shp, material)
-	if KINEM != 'RIGID': b.scheme = 'DEF_LIM2'
-
+	if KINEM != 'RIGID':
+	  b.scheme = 'DEF_LIM'
+	  b.damping = 1E-4
 
 def create_solver (solver, kinem, sarea, meritval):
   if solver == 'gs':
@@ -114,7 +115,9 @@ def create_simulation (nsteps, ncubes, kinem, solver, sarea, frict, meritval):
       for z in range (ncubes):
 	shp = cube (x, y, z, 1, 1, 1, 2, 2)
         b = BODY (solfec, kin, shp, bulkmat)
-	if kinem != 'rig': b.scheme = 'DEF_LIM2'
+	if kinem != 'rig':
+	  b.scheme = 'DEF_LIM'
+	  b.damping = 1E-4
 
   sv = create_solver (solver, kin, sarea, meritval)
   mh = []
