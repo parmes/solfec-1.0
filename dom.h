@@ -107,11 +107,14 @@ struct constraint
 
   int rank; /* parallel: origin rank for an external constraint;
                serial read: rank of residence during parallel run */
+
+  CON *prev, *next; /* list */
+
+  /* put parallel data at the end of the structutre so that
+   * the data layout does not change for serial code (e.g. dbs.c) */
 #if MPI
   SET *ext; /* ranks of remote external images of this constraint */
 #endif
-
-  CON *prev, *next; /* list */
 };
 
 /* member acces */

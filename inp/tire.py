@@ -28,7 +28,6 @@ BEND (msh, (0, 1, 0), (1, 0, 0), 180)
 bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
 bod.nodecontact = 'ON'
 PRESSURE (bod, 2, -1E3)
-PARTITION (bod, NCPU (sol)) #FIXME: GLUING constraints fail in parallel!
 
 shp = HEX (nodes, 1, 1, 1, 1, [0, 0, 0, 0, 0, 0])
 SCALE (shp, (2, 4, 1))
