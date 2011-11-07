@@ -1667,79 +1667,6 @@ static void TL_dynamic_inverse (BODY *bod, double step, double *force)
   MX_Inverse (bod->inverse, bod->inverse);
 }
 
-/* solve implicit ingetration nonlinear equations */
-static void TL_dynamic_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
-{
-  int n = bod->dofs,
-      iter,
-      i;
-
-  double half = 0.5 * step,
-	 quad = 0.25 * step,
-        *fint = FEM_FINT (bod),
-        *u0 = FEM_VEL0 (bod),
-	*u = bod->velo,
-	*q = bod->conf,
-        *qorig, *aux, *res,
-	 errup, errlo, error;
-
-  ERRMEM (qorig = malloc (sizeof (double [3 * n])));
-  aux = qorig + n; res = aux + n;
-
-  if (begin)
-  {
-    blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t) */
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    dynamic_force (bod, time+half, step, fext, fint, f);  /* f(t+h/2,q(t+h/2)) = fext (t+h/2) - fint (q(t+h/2)) */
-    TL_dynamic_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
-    if (bod->damping > 0.0) MX_Matvec (-bod->damping, bod->K, u, 1.0, f); /* f -= damping K u (t) */
-    MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
-  }
-  else
-  {
-    blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t+h/2) */
-    blas_daxpy (n, -half, u0, 1, qorig, 1); /* qorig = q(t) = q(t+h/2) - (h/2) * u(t) */
-    MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) += h * inv (M) * force */
-  }
-
-  iter = 0;
-  do
-  {
-    /* in Simo and Tarnow paper, they show that PK2 should be taken as S=C[E(q(t+h)) + E(q(t))]/2,
-     * nevertheless the simpler approach below where we use C[E((q(t+h) + q(t))/2)] did not lead
-     * to energy inconsistent results in our test, but to the contratey. Hence we stick with it */
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + quad * (u0[i] + u[i]); /* overwrite bod->conf ... */
-    internal_force (bod, fint); /* ... as it is used in there ... */
-    TL_dynamic_inverse (bod, step, NULL); /* ... and there */
-    for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
-    if (bod->damping > 0.0) MX_Matvec (-step * bod->damping, bod->K, u, 1.0, res); /* res -= h * damping K u(t+h) */
-    MX_Matvec (-1.0, bod->M, aux, 1.0, res);
-    MX_Matvec (1.0, bod->inverse, res, 0.0, aux);
-    for (i = 0; i < n; i ++) u [i] += aux [i];
-    errlo = blas_ddot (n, u, 1, u, 1);
-    errup = blas_ddot (n, aux, 1, aux, 1);
-    error = sqrt (errup / MAX (errlo, 1.0));
-  }
-  while (error > IMP_EPS && ++ iter < MAX_ITERS);
-
-#if 0
-  printf ("DEF_IMP: iter = %d, error = %e\n", iter, error);
-#endif
-
-  ASSERT (iter < MAX_ITERS, ERR_BOD_SCHEME_NOT_CONVERGED);
-
-  if (begin)
-  {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + half * u0[i]; /* q(t+h/2) = q(t) + (h/2) * u(t) */
-  }
-  else
-  {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + half * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
-  }
-
-  free (qorig);
-}
-
 /* static time-stepping inverse */
 static void TL_static_inverse (BODY *bod, double step)
 {
@@ -1867,24 +1794,6 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
     MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
   }
   break;
-  case SCH_DEF_LIM2:
-  {
-    dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t)) */
-    TL_dynamic_inverse (bod, step, f); /* f += (1/h) M u(t) - (h/4) K u (t) */
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    if (bod->damping > 0.0) MX_Matvec (-bod->damping, bod->K, u, 1.0, f); /* f -= damping K u (t) */
-    MX_Matvec (step, bod->inverse, f, 0.0, u); /* u(t+h) = inv (A) * h * force */
-  }
-  break;
-  case SCH_DEF_IMP:
-  {
-    /* q(t+h/2) = q(t) + (h/2) * u(t)
-     * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
-     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
-     * u (t+h) = u (t) + inv (A) * h * f */
-    TL_dynamic_solve (bod, time, step, fext, f, 1);
-  }
-  break;
   default:
   break;
   }
@@ -1919,19 +1828,9 @@ static void TL_dynamic_step_end (BODY *bod, double time, double step)
   }
   break;
   case SCH_DEF_LIM:
-  case SCH_DEF_LIM2:
   {
     MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += h * inv (M) * force */
     blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
-  }
-  break;
-  case SCH_DEF_IMP:
-  {
-    /* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
-     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
-     * u (t+h) = u (t) + inv (A) * h * f
-     * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
-    TL_dynamic_solve (bod, time, step, fext, r, 0);
   }
   break;
   default:
@@ -2126,82 +2025,6 @@ static void BC_matvec (double alpha, MX *A, double *R, double *b, double beta, d
   free (x);
 }
 
-/* solve implicit ingetration nonlinear equations */
-static void BC_dynamic_solve (BODY *bod, double time, double step, double *fext, double *f, short begin)
-{
-  MESH *msh = FEM_MESH (bod);
-
-  int n = bod->dofs,
-      iter,
-      i;
-
-  double half = 0.5 * step,
-	 quad = 0.25 * step,
-	*fint = FEM_FINT (bod),
-	*u0 = FEM_VEL0 (bod),
-	*R = FEM_ROT (bod),
-	*u = bod->velo,
-	*q = bod->conf,
-        *qorig, *aux, *res,
-	errup, errlo, error;
-
-  ERRMEM (qorig = malloc (sizeof (double [3 * n])));
-  aux = qorig + n; res = aux + n;
-
-  if (begin)
-  {
-    blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t) */
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
-    external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
-    BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
-    blas_dcopy (n, fext, 1, f, 1);
-    blas_daxpy (n, -1.0, fint, 1, f, 1); /* f = h (fext - fint) */
-    if (bod->damping > 0.0) BC_matvec (-bod->damping, bod->K, R, u, 1.0, f); /* b -= damping K u (t) */
-    BC_matvec (step, bod->inverse, R, f, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') f */
-  }
-  else
-  {
-    blas_dcopy (n, q, 1, qorig, 1); /* qorig = q (t+h/2) */
-    blas_daxpy (n, -half, u0, 1, qorig, 1); /* qorig = q(t) = q(t+h/2) - (h/2) * u(t) */
-    BC_matvec (step, bod->inverse, R, f, 1.0, u); /* u(t+h) += inv (M + (h*h/4) R1 K R1') f */
-  }
-
-  iter = 0;
-  do
-  {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + quad * (u0[i] + u[i]); /* overwrite bod->conf */
-    BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
-    BC_internal_force (bod, R, q, fint); /* fint = R1 K R1' [(I-R1)Z + q(t+h/2)] */
-    for (i = 0; i < n; i ++) { res [i] = step * (fext [i] - fint [i]); aux [i] = u [i] - u0[i]; }
-    if (bod->damping > 0.0) BC_matvec (-step * bod->damping, bod->K, R, u, 1.0, res); /* res -= h * damping K u(t+h) */
-    MX_Matvec (-1.0, bod->M, aux, 1.0, res);
-    BC_matvec (1.0, bod->inverse, R, res, 0.0, aux);
-    for (i = 0; i < n; i ++) u [i] += aux [i];
-    errlo = blas_ddot (n, u, 1, u, 1);
-    errup = blas_ddot (n, aux, 1, aux, 1);
-    error = sqrt (errup / MAX (errlo, 1.0));
-  }
-  while (error > IMP_EPS && ++ iter < MAX_ITERS);
-
-#if 0
-  printf ("DEF_IMP: iter = %d, error = %e\n", iter, error);
-#endif
-
-  ASSERT (iter < MAX_ITERS, ERR_BOD_SCHEME_NOT_CONVERGED);
-
-  if (begin)
-  {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + half * u0[i]; /* q(t+h/2) = q(t) + (h/2) * u(t) */
-  }
-  else
-  {
-    for (i = 0; i < n; i ++) q [i] = qorig [i] + half * (u0[i] + u [i]); /* q(t+h/2) = q(t) + (h/2) * (u(t+h) + u(t)) */
-  }
-
-  free (qorig);
-}
-
 /* body co-rotational initialise dynamic time stepping */
 static void BC_dynamic_init (BODY *bod)
 {
@@ -2289,34 +2112,6 @@ static void BC_dynamic_step_begin (BODY *bod, double time, double step)
     BC_matvec (step, bod->inverse, R, b, 1.0, u); /* u(t+h) = u(t) + inv (M + (h*h/4) R1 K R1') b */
   }
   break;
-  case SCH_DEF_LIM2:
-  {
-    blas_dcopy (n, q, 1, b, 1);
-    blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    BC_update_rotation (bod, msh, q, R); /* R1 = R(q(t+h/2)) */
-
-    external_force (bod, time+half, step, fext); /* fext = fext (t+h/2) */
-    BC_internal_force (bod, R, b, fint); /* fint = R K R' [(I-R)Z + q(t)] */
-    blas_dcopy (n, fext, 1, b, 1);
-    blas_daxpy (n, -1.0, fint, 1, b, 1); /* b = fext - fint */
-    MX_Matvec (1.0 / step, bod->M, u, 1.0, b); /* b += (1/h) M u (t) */
-    BC_matvec (-0.25 * step - bod->damping, bod->K, R, u, 1.0, b); /* b -= (h/4) K u (t) + damping K u (t) */
-
-    BC_matvec (step, bod->inverse, R, b, 0.0, u); /* u(t+h) = inv (A) * h * b */
-
-    /* XXX: this is not exactly LIM2 as for TL (if mimicked, it has positive drift)
-     * XXX: strong dampnig effect is absent here (unlike in TL) */
-  }
-  break;
-  case SCH_DEF_IMP:
-  { 
-    /* q(t+h/2) = q(t) + (h/2) * u(t)
-     * f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
-     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
-     * u (t+h) = u (t) + inv (A) * h * f */
-    BC_dynamic_solve (bod, time, step, fext, b, 1);
-  }
-  break;
   default:
   break;
   }
@@ -2352,21 +2147,11 @@ static void BC_dynamic_step_end (BODY *bod, double time, double step)
   }
   break;
   case SCH_DEF_LIM:
-  case SCH_DEF_LIM2:
   {
     BC_matvec (step, bod->inverse, R, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
 
     blas_daxpy (n, half, u, 1, q, 1); /* q (t+h) = q(t+h/2) + (h/2) * u(t+h) */
     BC_update_rotation (bod, msh, q, R); /* R(t+h) = R(q(t+h)) */
-  }
-  break;
-  case SCH_DEF_IMP:
-  {
-    /* f = fext (t+h/2) - fint ([q(t) + q(t+h)]/2) 
-     * A = M + (h*h/4) * K ([q(t) + q(t+h)]/2) 
-     * u (t+h) = u (t) + inv (A) * h * f
-     * q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
-    BC_dynamic_solve (bod, time, step, fext, r, 0);
   }
   break;
   default:
@@ -2903,6 +2688,9 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   for (; iu < ue; idq ++, iu ++, iu0 ++) *idq = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
   energy [EXTERNAL] += blas_ddot (n, dq, 1, fext, 1);
   energy [INTERNAL] += blas_ddot (n, dq, 1, fint, 1);
+  /* computing internal energy like above may produce negative energy increments during
+   * impacts since fint is computed at q(t+h/2) whereas dq includes impact correction; 
+   * this is effect is present when the time integration step is excessively large */
 
   if (bod->msh) update_background_mesh (bod); /* in such case SHAPE_Update will not update "rough" mesh */
 

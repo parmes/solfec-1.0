@@ -167,7 +167,7 @@ def gcore_loose_key (pnt, lx, ly, lz, zrot, material, solfec):
 
   BODY (solfec, 'RIGID', hex, material)
 
-def gcore_integral_key (pnt, l, a, b, h, material, solfec, kinem_kind, integ_scheme):
+def gcore_integral_key (pnt, l, a, b, h, material, solfec, kinem_kind, integ_scheme, integ_damp):
 
   vertices = [1, 0, 0,
               1, 1, 0,
@@ -223,6 +223,7 @@ def gcore_integral_key (pnt, l, a, b, h, material, solfec, kinem_kind, integ_sch
     bod = BODY (solfec, 'PSEUDO_RIGID', shape, material)
   else: bod = BODY (solfec, 'RIGID', shape, material)
   bod.scheme = integ_scheme
+  bod.damping = integ_damp
 
 def gcore_brick (x, y, z):
 
@@ -248,7 +249,7 @@ def gcore_brick (x, y, z):
 
   return cvx
 
-def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, N_BRICKS, M_BRICKS, N_LAYERS):
+def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, N_BRICKS, M_BRICKS, N_LAYERS):
 
   dfac = 0.015
   outd = 0.4598
@@ -274,6 +275,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind
 	  bod = BODY (solfec , kinem_kind, shp, material, mesh = msh, form = 'BC')
 	else: bod = BODY (solfec , kinem_kind, shp, material)
 	bod.scheme = integ_scheme
+	bod.damping = integ_damp
 
     # loose keys
     lx = keyw - 2.0*loose_gap
@@ -302,7 +304,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind
       for j in range (M_BRICKS-1):
 
 	pnt = (-0.5*(outd + dfac) + i * (outd + dfac), -0.5*(outd + dfac) + j * (outd + dfac), z)
-	gcore_integral_key (pnt, l, a, b, lz, material, solfec, kinem_kind, integ_scheme)
+	gcore_integral_key (pnt, l, a, b, lz, material, solfec, kinem_kind, integ_scheme, integ_damp)
 
 def gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
 
@@ -404,7 +406,7 @@ def gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
       else:
 	BODY (solfec, 'OBSTACLE', shape, material)
 
-def simple_core_create (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
+def simple_core_create (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
 
   gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS)
-  gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, N_BRICKS, M_BRICKS, N_LAYERS)
+  gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, N_BRICKS, M_BRICKS, N_LAYERS)

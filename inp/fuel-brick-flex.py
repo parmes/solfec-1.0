@@ -64,12 +64,10 @@ stop = 0.5
 
 solfec1 = run_analysis (step, stop, 'DEF_EXP')
 solfec2 = run_analysis (step, stop, 'DEF_LIM')
-solfec3 = run_analysis (step, stop, 'DEF_LIM2')
-solfec4 = run_analysis (step, stop, 'DEF_IMP')
 
 if not VIEWER() and solfec1.mode == 'READ':
 
-  list = [solfec1, solfec2, solfec3, solfec4]
+  list = [solfec1, solfec2]
 
   try:
     import matplotlib.pyplot as plt

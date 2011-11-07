@@ -1647,7 +1647,7 @@ The below table gives indicative assessment of the maturity of various Solfec
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="78" columns="4">
+<lyxtabular version="3" rows="77" columns="4">
 <features islongtable="true">
 <column alignment="center" valignment="top" width="0">
 <column alignment="center" valignment="top" width="0">
@@ -3977,44 +3977,6 @@ x
 
 \begin_layout Plain Layout
 LOCDYN_DUMP
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-x
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-PARTITION
 \end_layout
 
 \end_inset
@@ -7765,7 +7727,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="9" columns="3">
+<lyxtabular version="3" rows="7" columns="3">
 <features>
 <column alignment="center" valignment="top" width="15col%">
 <column alignment="center" valignment="top" width="20col%">
@@ -7982,83 +7944,11 @@ default
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'DEF_LIM'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-pseudo-rigid, finite element
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Linearly implicit scheme similar to 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "Zhang1997"
-
-\end_inset
-
-; energy and momentum conserving, stable for moderate steps
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'DEF_LIM2'
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-pseudo-rigid, finite element
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-Linearly implicit scheme similar to 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "Potra2006"
-
-\end_inset
-
-; strong numerical dissipation, stable for large steps
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
-'DEF_IMP'
+'DEF_LIM'
 \end_layout
 
 \end_inset
@@ -8076,14 +7966,19 @@ pseudo-rigid, finite element
 \begin_inset Text
 
 \begin_layout Plain Layout
-Implicit scheme similar to 
+Linearly implicit scheme similar to 
 \begin_inset CommandInset citation
 LatexCommand cite
-key "Chawla1998"
+key "Zhang1997"
 
 \end_inset
 
-; energy and momentum conserving, stable for large steps
+; energy and momentum conserving, stable for moderate to large steps; 
+\series bold
+NOTE:
+\series default
+ if the time step is too large, artificial negative internal energy increments
+ may be produced in the event of impacts
 \end_layout
 
 \end_inset
@@ -11810,14 +11705,19 @@ path
 \end_layout
 
 \begin_layout Subsection*
-obj = PARTITION (body, parts) 
-\color red
-(Under development)
+\begin_inset Note Note
+status open
+
+\begin_layout Subsection*
+PARTITION (body, parts)
 \end_layout
 
-\begin_layout Standard
-This routine partitions a finite element body into parts glued by compatibility
- constraints.
+\begin_layout Plain Layout
+This routine 
+\series bold
+internally
+\series default
+ partitions a finite element body into parts glued by compatibility constraints.
  This allows to improve parallel scalability of simulations with large FE
  meshes.
  Metis 
@@ -11833,29 +11733,11 @@ key "Metis"
 \begin_layout Itemize
 
 \series bold
-obj
-\series default
- - list of bodies obtained as a result of partitioning.
- If the label of an input body was 'BOD', then the partitioned bodies have
- labels 'BOD_PART1', 'BOD_PART2', etc.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
 body
 \series default
- (emptied) - a finite element body (cannot have 
-\begin_inset Quotes eld
-\end_inset
-
-rough mesh
-\begin_inset Quotes erd
-\end_inset
-
-).
- After partitioning the input body is removed from the domain and replaced
- by the glued parts.
+ - a finite element body (cannot have background mesh).
+ After partitioning the input body remains intact, while the partitioning
+ is handled internally.
 \end_layout
 
 \begin_layout Itemize
@@ -11864,6 +11746,11 @@ rough mesh
 parts
 \series default
  - number of partitions
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection*

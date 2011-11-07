@@ -26,7 +26,7 @@ bulk = BULK_MATERIAL (sol,
 		      density = 1.8E3)
 
 bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
-bod.scheme = 'DEF_IMP'
+bod.scheme = 'DEF_LIM'
 FIX_POINT (bod, (-a, -b, 0))
 FIX_POINT (bod, (-a, b, 0))
 

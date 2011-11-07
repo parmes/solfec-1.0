@@ -61,17 +61,15 @@ step = 1E-4
 stop = 1
 damp = 2E-5
 formul = 'BC'
-th1 = bar_drop (step, stop, formul, 'DEF_LIM', damp)
-th2 = bar_drop (step, stop, formul, 'DEF_LIM2', damp)
-th3 = bar_drop (step, stop, formul, 'DEF_IMP', damp)
+th1 = bar_drop (step, stop, formul, 'DEF_EXP', damp)
+th2 = bar_drop (step, stop, formul, 'DEF_LIM', damp)
 
 if not VIEWER() and isinstance (th1, tuple):
   try:
     import matplotlib.pyplot as plt
     plt.title ('ENE')
-    plt.plot (th1 [0], th1 [1], label='LIM')
-    plt.plot (th2 [0], th2 [1], label='LIM2')
-    plt.plot (th3 [0], th3 [1], label='IMP')
+    plt.plot (th1 [0], th1 [1], label='EXP')
+    plt.plot (th2 [0], th2 [1], label='LIM')
     plt.axis (xmin = 0, xmax = stop)
     plt.xlabel ('Time [s]')
     plt.ylabel ('Energy [J]')
@@ -79,17 +77,15 @@ if not VIEWER() and isinstance (th1, tuple):
     plt.savefig ('out/bar-drop/bar-drop-ene.eps')
     plt.clf ()
     plt.title ('VZ')
-    plt.plot (th1 [0], th1 [4], label='LIM')
-    plt.plot (th2 [0], th2 [4], label='LIM2')
-    plt.plot (th3 [0], th3 [4], label='IMP')
+    plt.plot (th1 [0], th1 [4], label='EXP')
+    plt.plot (th2 [0], th2 [4], label='LIM')
     plt.ylabel ('Velocity [m/s]')
     plt.legend(loc = 'upper right')
     plt.savefig ('out/bar-drop/bar-drop-vz.eps')
     plt.clf ()
     plt.title ('DZ')
-    plt.plot (th1 [0], th1 [5], label='LIM')
-    plt.plot (th2 [0], th2 [5], label='LIM2')
-    plt.plot (th3 [0], th3 [5], label='IMP')
+    plt.plot (th1 [0], th1 [5], label='EXP')
+    plt.plot (th2 [0], th2 [5], label='LIM')
     plt.ylabel ('Displacement [m]')
     plt.legend(loc = 'upper right')
     plt.savefig ('out/bar-drop/bar-drop-dz.eps')
