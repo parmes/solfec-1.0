@@ -408,7 +408,7 @@ double gjk_convex_sphere (double *a, int na, double *c, double r, double *p, dou
       k = 4*na*na;
 
   COPY (c, b [0]);
-  b [0][rand () % 3] += r; /* be is now a point on the sphere */
+  b [0][0] += r; /* be is now a point on the sphere */
   SUB (a, b [0], v); /* an initial point in the set A-B */
   vlen = LEN (v);
 
@@ -461,12 +461,10 @@ double gjk_convex_ellip (double *a, int na, double *b, double *bsca, double *bro
   int toofar = 1,
       n = 0,
       j = 0,
-      k = 4*na*na,
-      i;
+      k = 4*na*na;
 
   SET (v, 0);
-  i = rand () % 3;
-  v[i] = bsca [i]; /* a point on a scaled unit sphere */
+  v[0] = bsca [0]; /* a point on a scaled unit sphere */
   NVMUL (brot, v, z [0]); /* a point on a scaled, rotated unit sphere */
   ADD (b, z [0], z [0]); /* a point on a scaled, rotated and translated unit sphere => ellipsoid */
 
@@ -601,15 +599,13 @@ double gjk_sphere_ellip (double *a, double ra, double *b, double *bsca, double *
   int toofar = 1,
       n = 0,
       j = 0,
-      k = 128,
-      i;
+      k = 128;
 
-  i = rand () % 3;
   COPY (a, y [0]);
-  y [0][i] += ra; /* y[0] is now a point on the sphere */
+  y [0][0] += ra; /* y[0] is now a point on the sphere */
 
   SET (v, 0);
-  v[i] = bsca [i]; /* a point on a scaled unit sphere */
+  v[0] = bsca [0]; /* a point on a scaled unit sphere */
   NVMUL (brot, v, z [0]); /* a point on a scaled, rotated unit sphere */
   ADD (b, z [0], z [0]); /* a point on a scaled, rotated and translated unit sphere => ellipsoid */
 
@@ -666,18 +662,15 @@ double gjk_ellip_ellip (double *a, double *asca, double *arot, double *b, double
   int toofar = 1,
       n = 0,
       j = 0,
-      k = 128,
-      i;
-
-  i = rand () % 3;
+      k = 128;
 
   SET (v, 0);
-  v[i] = asca [i]; /* a point on a scaled unit sphere */
+  v[0] = asca [0]; /* a point on a scaled unit sphere */
   NVMUL (arot, v, y [0]); /* a point on a scaled, rotated unit sphere */
   ADD (a, y [0], y [0]); /* a point on a scaled, rotated and translated unit sphere => ellipsoid */
 
   SET (v, 0);
-  v[i] = bsca [i]; /* a point on a scaled unit sphere */
+  v[0] = bsca [0]; /* a point on a scaled unit sphere */
   NVMUL (brot, v, z [0]); /* a point on a scaled, rotated unit sphere */
   ADD (b, z [0], z [0]); /* a point on a scaled, rotated and translated unit sphere => ellipsoid */
 
@@ -733,13 +726,10 @@ double gjk_ellip_point (double *a, double *asca, double *arot, double *p, double
   int toofar = 1,
       n = 0,
       j = 0,
-      k = 128,
-      i;
-
-  i = rand () % 3;
+      k = 128;
 
   SET (v, 0);
-  v[i] = asca [i]; /* a point on a scaled unit sphere */
+  v[0] = asca [0]; /* a point on a scaled unit sphere */
   NVMUL (arot, v, y [0]); /* a point on a scaled, rotated unit sphere */
   ADD (a, y [0], y [0]); /* a point on a scaled, rotated and translated unit sphere => ellipsoid */
 
