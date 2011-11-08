@@ -227,20 +227,16 @@ char* errstring (int error);
   #if MPI
   #define FOPEN(Path, File)\
   {\
-    static char *__o__ = "w";\
     char __path__ [256];\
     int __rank__;\
     MPI_Comm_rank (MPI_COMM_WORLD, &__rank__);\
     snprintf (__path__, 256, "%s%d", Path, __rank__);\
-    ASSERT_DEBUG (File = fopen (__path__, __o__), "File open failed");\
-    __o__ = "a";\
+    ASSERT_DEBUG (File = fopen (__path__, "a"), "File open failed");\
   }
   #else
   #define FOPEN(Path, File)\
   {\
-    static char *__o__ = "w";\
-    ASSERT_DEBUG (File = fopen (Path, __o__), "File open failed");\
-    __o__ = "a";\
+    ASSERT_DEBUG (File = fopen (Path, "a"), "File open failed");\
   }
   #endif
   #define AUXDUMP(Path, ...)\
