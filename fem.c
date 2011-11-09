@@ -2458,18 +2458,6 @@ static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, d
 
 /* ================== Utilities ==================== */
 
-/* update background mesh nodes */
-static void update_background_mesh (BODY *bod)
-{
-  MESH *msh = bod->msh;
-  double (*cur) [3] = msh->cur_nodes,
-	 (*ref) [3] = msh->ref_nodes,
-	 (*end) [3] = ref + msh->nodes_count,
-	  *q = bod->conf;
-
-  for (; ref < end; cur ++, ref ++, q += 3) { ADD (ref[0], q, cur[0]); }
-}
-
 /* modal motion update callback */
 static void modal_motion (BODY *bod, ELEMENT *ele, double *point, double *x)
 {
@@ -2692,8 +2680,6 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
    * impacts since fint is computed at q(t+h/2) whereas dq includes impact correction; 
    * this is effect is present when the time integration step is excessively large */
 
-  if (bod->msh) update_background_mesh (bod); /* in such case SHAPE_Update will not update "rough" mesh */
-
   free (dq);
 }
 
@@ -2739,8 +2725,6 @@ void FEM_Static_Step_End (BODY *bod, double time, double step)
       BC_static_step_end (bod, time, step);
       break;
   }
-
-  if (bod->msh) update_background_mesh (bod); /* in such case SHAPE_Update will not update "rough" mesh */
 }
 
 /* motion x = x (X, t) */
@@ -3169,7 +3153,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone);
     map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*one), (*one)->conf, (*one)->velo);
     SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
-    if (mone) update_background_mesh (*one);
+    if (mone) FEM_Update_Rough_Mesh (*one);
   }
 
   if (stwo)
@@ -3179,7 +3163,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mtwo);
     map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*two), (*two)->conf, (*two)->velo);
     SHAPE_Update ((*two)->shape, (*two), (MOTION)BODY_Cur_Point); 
-    if (mtwo) update_background_mesh (*two);
+    if (mtwo) FEM_Update_Rough_Mesh (*two);
   }
 
   if (bod->label) free (label);
@@ -3241,7 +3225,7 @@ BODY** FEM_Separate (BODY *bod, int *m)
     out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh);
     map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
     SHAPE_Update (out [i]->shape, out [i], (MOTION)BODY_Cur_Point); 
-    if (backmesh) update_background_mesh (out [i]);
+    if (backmesh) FEM_Update_Rough_Mesh (out [i]);
   }
 
   if (bod->label) free (label);
