@@ -317,7 +317,9 @@ static int mouse_start [2] = {0, 0};
 
 static short tool_mode = 0; /* current tool */
 
+#define PICKED_BODY_TIP_LEN 1024
 static BODY *picked_body = NULL; /* currently picked body */
+static char picked_body_tip [PICKED_BODY_TIP_LEN];
 
 static double *picked_point = NULL, /* currently picked point */
 	      *picked_point_hist [2] = {NULL, NULL}; /* history of picked points */
@@ -4297,6 +4299,18 @@ void RND_Passive (int x, int y)
   if (mouse_mode == MOUSE_PICK_BODY)
   {
     picked_body = pick_body (x, y);
+
+    if (picked_body)
+    {
+      if (picked_body->label)
+	snprintf (picked_body_tip, PICKED_BODY_TIP_LEN,
+	"BODY LABEL: %s, ID: %d", picked_body->label, picked_body->id);
+      else snprintf (picked_body_tip, PICKED_BODY_TIP_LEN, "BODY ID: %d", picked_body->id);
+
+      tip = picked_body_tip; /* tip in the upper left part of the window (after time) */
+      GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT); /* stretch time window to fit text */
+    }
+
     GLV_Redraw_All ();
   }
   else if (mouse_mode == MOUSE_PICK_POINT)
