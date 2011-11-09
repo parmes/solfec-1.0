@@ -1356,7 +1356,9 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
     break;
   }
 
+  /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+  if (bod->msh) FEM_Update_Rough_Mesh (bod);
 }
 
 void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
@@ -1482,7 +1484,9 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
     }
 #endif
 
+    /* update shape */
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+    if (bod->msh) FEM_Update_Rough_Mesh (bod);
   }
 }
 
@@ -1598,7 +1602,9 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
     break;
   }
 
+  /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+  if (bod->msh) FEM_Update_Rough_Mesh (bod);
 }
 
 void BODY_Update_Extents (BODY *bod)
@@ -2086,8 +2092,8 @@ void BODY_Read_State (BODY *bod, PBF *bf)
     }
   }
 
-  if (bod->shape) SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
-
+  /* update shape */
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
   if (bod->msh) FEM_Update_Rough_Mesh (bod);
 }
 
@@ -2367,6 +2373,7 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
 
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+  if (bod->msh) FEM_Update_Rough_Mesh (bod);
 }
 
 /* pack child body */
@@ -2410,6 +2417,7 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
 
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); /* update shape */
+  if (bod->msh) FEM_Update_Rough_Mesh (bod);
 }
 
 /* pack child update */
@@ -2431,6 +2439,7 @@ void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int
 
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+  if (bod->msh) FEM_Update_Rough_Mesh (bod);
 }
 #endif
 
