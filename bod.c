@@ -2388,6 +2388,8 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
   pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod)); /* configuration */
 
   pack_int (isize, i, ints, bod->scheme); /* pack integration scheme */
+  
+  pack_double (dsize, d, doubles, bod->damping); /* damping */
 }
 
 /* unpack child body */
@@ -2410,6 +2412,8 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
   unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod)); /* configuration */
 
   bod->scheme = unpack_int (ipos, i, ints);  /* unpack integration scheme */
+
+  bod->damping = unpack_double (dpos, d, doubles); /* damping */
 
   /* init inverse */
   if (dynamic) BODY_Dynamic_Init (bod);

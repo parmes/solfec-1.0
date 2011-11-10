@@ -1404,7 +1404,6 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
       cac->index = fac->index;
       cac->ele = fac->ele;
       setup_normal (msh->cur_nodes, cac); /* calculate outer spatial normal */
-      COPY (cac->normal, cac->normal+3); /* set referential normal */
       cac->next = ele->faces; /* append element face list */
       ele->faces = cac;
 
@@ -1885,7 +1884,6 @@ void MESH_Scale (MESH *msh, double *vector)
     for (fac = ele->faces; fac; fac = fac->next)
     {
       setup_normal (cur, fac);
-      COPY (fac->normal, fac->normal+3); /* set referential normal */
     }
   }
 }
@@ -1938,7 +1936,6 @@ void MESH_Rotate (MESH *msh, double *point, double *vector, double angle)
     for (fac = ele->faces; fac; fac = fac->next)
     {
       setup_normal (cur, fac);
-      COPY (fac->normal, fac->normal+3); /* set referential normal */
     }
 }
 
@@ -2313,7 +2310,6 @@ void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)
     for (fac = ele->faces; fac; fac = fac->next)
     {
       setup_normal (cur, fac); /* update normals */
-      if (motion == NULL) { COPY (fac->normal, fac->normal+3); /* set referential normal */ }
     }
 }
 
@@ -2474,7 +2470,7 @@ static ELEMENT* copy_element (MEM *elemem, ELEMENT *ele, int part, MEM *facmem)
   for (fac = ele->faces; fac; fac = fac->next)
   {
     ERRMEM (gac = MEM_Alloc (facmem));
-    COPY6 (fac->normal, gac->normal);
+    COPY (fac->normal, gac->normal);
     gac->type = fac->type;
     for (i = 0; i < fac->type; i ++) gac->nodes [i] = fac->nodes [i];
     gac->index = fac->index;
@@ -2790,7 +2786,6 @@ MESH** MESH_Partition (MESH *msh, int nparts, int *numglue, int **gluenodes, int
 	    fac->index = n;
 	    fac->ele = ele;
 	    setup_normal (msh->ref_nodes, fac);
-	    COPY (fac->normal, fac->normal + 3); /* referential normal */
 	    fac->next = ele->faces;
 	    ele->faces = fac;
 	  }

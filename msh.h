@@ -54,7 +54,7 @@ struct node
 /* triangular or quadrilateral face */
 struct face
 {
-  double normal [6]; /* spatial, referential */
+  double normal [3]; /* current normal */
 
   int type, /* 3, 4 => triangle, quadrilateral */
       nodes [4], /* node numbers */

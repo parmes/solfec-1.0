@@ -2583,6 +2583,27 @@ static void lng_BODY_dealloc (lng_BODY *self)
 
 /* getsets */
 
+static PyObject* lng_BODY_get_id (lng_BODY *self, void *closure)
+{
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
+  return PyInt_FromLong (self->bod->id);
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_id (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 static PyObject* lng_BODY_get_kind (lng_BODY *self, void *closure)
 {
 #if MPI && LOCAL_BODIES
@@ -3135,6 +3156,7 @@ static PyMemberDef lng_BODY_members [] =
 /* BODY getset */
 static PyGetSetDef lng_BODY_getset [] =
 {
+  {"id", (getter)lng_BODY_get_id, (setter)lng_BODY_set_id, "id", NULL},
   {"kind", (getter)lng_BODY_get_kind, (setter)lng_BODY_set_kind, "kind", NULL},
   {"label", (getter)lng_BODY_get_label, (setter)lng_BODY_set_label, "label", NULL},
   {"conf", (getter)lng_BODY_get_conf, (setter)lng_BODY_set_conf, "configuration", NULL},
