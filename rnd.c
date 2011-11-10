@@ -523,7 +523,7 @@ static int rgbatoid (unsigned char *rgba)
   ((unsigned char*)&id) [0] = rgba [0];
   ((unsigned char*)&id) [1] = rgba [1];
   ((unsigned char*)&id) [2] = rgba [2];
-#if __MINGW32__
+#if __MINGW32__ || OSTYPE_WIN32 || OSTYPE_LINUX
   ((unsigned char*)&id) [3] = 0; /* FIXME: alpha always one */
 #else
   ((unsigned char*)&id) [3] = rgba [3];
