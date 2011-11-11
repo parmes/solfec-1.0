@@ -42,6 +42,9 @@ typedef struct solfec SOLFEC;
 #ifndef __bod__
 #define __bod__
 
+/* finite element formulation */
+typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL, REDUCED_ORDER} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
+
 typedef struct general_force FORCE;
 typedef void (*FORCE_FUNC) (void *data, void *call, /* user data and user callback pointers */
                             int nq, double *q, int nu, double *u,   /* user defined data, configuration, velocity, time, time step */
@@ -180,7 +183,7 @@ struct general_body
 
   BODY_FLAGS flags;      /* flags */
 
-  short form; /* FEM formulation */
+  FEMFORM form; /* FEM formulation */
 
   MESH *msh; /* background FEM mesh when shape is made of CONVEX objects */
 

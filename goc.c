@@ -279,7 +279,7 @@ static int detect_convex_ellip (
     for (; pla < end; pla += 6) /* for all surface planes */
     {
       SUB (onepnt, pla+3, p);
-      d = fabs (DOT (pla, p));
+      d = DOT (pla, p);
       if (d < GEOMETRIC_EPSILON) /* find plane close to the contact point */
       {
         spair [0] = (pla - pc) / 6; /* new surface identifier */
@@ -513,7 +513,7 @@ static int update_convex_ellip (
     for (; pla < end; pla += 6) /* for all surface planes */
     {
       SUB (onepnt, pla+3, p);
-      d = fabs (DOT (pla, p));
+      d = DOT (pla, p);
       if (d < GEOMETRIC_EPSILON) /* find plane close to the contact point */
       {
         spair [0] = (pla - pc) / 6; /* new surface identifier */

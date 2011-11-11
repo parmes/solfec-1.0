@@ -1017,7 +1017,8 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
 
   m = 3 * n;
 
-  if (bod->form == BODY_COROTATIONAL)
+  if (bod->form == BODY_COROTATIONAL ||
+      bod->form == REDUCED_ORDER)
   {
     for (i = 0; i < n; i ++)
     {
@@ -2228,6 +2229,44 @@ static void BC_static_step_end (BODY *bod, double time, double step)
   free (r);
 }
 
+/* =================== REDUCED ORDER =================== */
+
+/* reduced order initialise dynamic time stepping */
+static void RO_dynamic_init (BODY *bod)
+{
+}
+
+/* reduced order estimate critical step for the dynamic scheme */
+static double RO_dynamic_critical_step (BODY *bod)
+{
+  return DBL_MAX;
+}
+
+/* reduced order perform the initial half-step of the dynamic scheme */
+static void RO_dynamic_step_begin (BODY *bod, double time, double step)
+{
+}
+
+/* reduced order perform the final half-step of the dynamic scheme */
+static void RO_dynamic_step_end (BODY *bod, double time, double step)
+{
+}
+
+/* reduced order initialise static time stepping */
+static void RO_static_init (BODY *bod)
+{
+}
+
+/* reduced order perform the initial half-step of the static scheme */
+static void RO_static_step_begin (BODY *bod, double time, double step)
+{
+}
+
+/* reduced order perform the final half-step of the static scheme */
+static void RO_static_step_end (BODY *bod, double time, double step)
+{
+}
+
 /* ================== INTERSECTIONS ==================== */
 
 /* attach (element, local point) pairs to cvx->epn placeholder so that
@@ -2558,6 +2597,11 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
       bod->field = NULL; /* linear material only */
     }
     break;
+    case REDUCED_ORDER:
+    {
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX => should MODAL_ANALYSIS be called after ? (error control in the modal solver) */
+    }
+    break;
   }
 
   /* save formulation */
@@ -2615,6 +2659,9 @@ void FEM_Dynamic_Init (BODY *bod)
     case BODY_COROTATIONAL:
       BC_dynamic_init (bod);
       break;
+    case REDUCED_ORDER:
+      RO_dynamic_init (bod);
+      break;
   }
 
   unit_body_force (bod);
@@ -2629,6 +2676,8 @@ double FEM_Dynamic_Critical_Step (BODY *bod)
       return TL_dynamic_critical_step (bod);
     case BODY_COROTATIONAL:
       return BC_dynamic_critical_step (bod);
+    case REDUCED_ORDER:
+      return RO_dynamic_critical_step (bod);
   }
 
   return DBL_MAX;
@@ -2644,6 +2693,9 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
       break;
     case BODY_COROTATIONAL:
       BC_dynamic_step_begin (bod, time, step);
+      break;
+    case REDUCED_ORDER:
+      RO_dynamic_step_begin (bod, time, step);
       break;
   }
 
@@ -2674,6 +2726,9 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
     case BODY_COROTATIONAL:
       BC_dynamic_step_end (bod, time, step);
       break;
+    case REDUCED_ORDER:
+      RO_dynamic_step_end (bod, time, step);
+      break;
   }
 
   for (; iu < ue; idq ++, iu ++, iu0 ++) *idq = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
@@ -2697,6 +2752,9 @@ void FEM_Static_Init (BODY *bod)
     case BODY_COROTATIONAL:
       BC_static_init (bod);
       break;
+    case REDUCED_ORDER:
+      RO_static_init (bod);
+      break;
   }
 
   unit_body_force (bod);
@@ -2713,6 +2771,9 @@ void FEM_Static_Step_Begin (BODY *bod, double time, double step)
     case BODY_COROTATIONAL:
       BC_static_step_begin (bod, time, step);
       break;
+    case REDUCED_ORDER:
+      RO_static_step_begin (bod, time, step);
+      break;
   }
 }
 
@@ -2726,6 +2787,9 @@ void FEM_Static_Step_End (BODY *bod, double time, double step)
       break;
     case BODY_COROTATIONAL:
       BC_static_step_end (bod, time, step);
+      break;
+    case REDUCED_ORDER:
+      RO_static_step_end (bod, time, step);
       break;
   }
 }
@@ -3249,7 +3313,12 @@ void FEM_Destroy (BODY *bod)
 /* get configuration packing size */
 int FEM_Conf_Pack_Size (BODY *bod)
 {
-  return bod->dofs + (bod->form == BODY_COROTATIONAL ? 9 : 0);
+  switch (bod->form)
+  {
+  case BODY_COROTATIONAL:
+  case REDUCED_ORDER: return bod->dofs + 9;
+  default: return bod->dofs;
+  }
 }
 
 /* get velocity packing size */
@@ -3265,6 +3334,7 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
   switch (bod->form)
   {
   case TOTAL_LAGRANGIAN:
+  case REDUCED_ORDER:
     MX_Matvec (alpha, bod->inverse, b, beta, c);
     break;
   case BODY_COROTATIONAL:
