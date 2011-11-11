@@ -26,9 +26,6 @@
 #ifndef __fem__
 #define __fem__
 
-/* formulation */
-typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
-
 /* create FEM internals for a body (note that 'msh' might be NULL so that shp->data is a mesh) */
 void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod);
 
