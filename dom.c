@@ -3267,7 +3267,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #else
   dom->step = step;
 #endif
-  if (dom->verbose) printf (" (TIME STEP: %g) ", step), fflush (stdout);
+  if (dom->verbose) printf (" (STEP: %.3g) ", step), fflush (stdout);
 
   /* begin time integration */
   if (dom->dynamic)
