@@ -50,8 +50,8 @@ def wheel (x, y, z, r, t, v, s):
  
 seed (1)
 kin = 'fem'
-step = 0.0001
-skip = 0.03
+step = 0.001
+skip = 0.05
 dura = 20.0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/drum' + kin)
@@ -83,12 +83,12 @@ BODY (solfec, 'OBSTACLE', el2, drumat)
 for i in range (0, 20):
   y = 0.05
   while y < 0.4:
-    x = -0.7
+    x = -0.65
     while x < 0.7:
-      stone (x, y, 0.1, 0.05, kin, bodmat, solfec)
-      x += 0.1
-    y += 0.1
-  RUN (solfec, sv, 0.15)
+      stone (x, y, -0.7 + 0.07 * i, 0.05, kin, bodmat, solfec)
+      x += 0.15
+    y += 0.15
+  RUN (solfec, sv, 0.1)
 
 # bar
 len = 50

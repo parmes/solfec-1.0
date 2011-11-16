@@ -337,18 +337,18 @@ static void statsout (SOLFEC *sol)
       hours = (int) ((estimated - days * 86400.) / 3600.),
       minutes = (int) ((estimated - days * 86400. - hours * 3600.) / 60.),
       seconds = (int) (estimated - days * 86400. - hours * 3600. - minutes * 60.);
+  double dtimint, dcondet, dconupd, dlocdyn, dconsol, dparbal, dtotal;
+  int timint, condet, conupd, locdyn, consol, parbal, i;
+  char *stapath;
   char *string;
+  FILE *sta;
 
   string = ctime (&timer); 
 
 #if MPI
-  double dtimint, dcondet, dconupd, dlocdyn, dconsol, dparbal, dtotal;
-  int timint, condet, conupd, locdyn, consol, parbal, i;
-  char *stapath;
-  FILE *sta;
-
   if (dom->rank == 0)
   {
+#endif
     dtimint = SOLFEC_Timing (sol, "TIMINT");
     dconupd = SOLFEC_Timing (sol, "CONUPD");
     dcondet = SOLFEC_Timing (sol, "CONDET");
@@ -375,33 +375,37 @@ static void statsout (SOLFEC *sol)
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     fprintf (sta, "TIME: %g\n", sol->dom->time);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
-
     printf ("----------------------------------------------------------------------------------------\n");
+
+#if MPI
     for (i = 0; i < dom->nstats; i ++) 
     {
       fprintf (sta, "%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", dom->stats [i].name, dom->stats [i].sum, dom->stats [i].min, dom->stats [i].avg, dom->stats [i].max);
       printf ("%13s: SUM = %8d     MIN = %8d     AVG = %8d     MAX = %8d\n", dom->stats [i].name, dom->stats [i].sum, dom->stats [i].min, dom->stats [i].avg, dom->stats [i].max); 
     }
+#else
+    int val [] = {dom->nbod, dom->aabb->boxnum, dom->ncon, dom->nspa};
+    char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "SPARSIFIED"};
+    for (i = 0; i < 4; i ++)
+    {
+      fprintf (sta, "%11s: %8d\n", name [i], val [i]);
+      printf ("%11s: %8d\n", name [i], val [i]);
+    }
+#endif
+
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     printf ("----------------------------------------------------------------------------------------\n");
     fprintf (sta, "TIMINT: %2d%%, CONUPD: %2d%%, CONDET: %2d%%, LOCDYN: %2d%%, CONSOL %2d%%, PARBAL: %2d%%\n", timint, conupd, condet, locdyn, consol, parbal);
     printf ("TIMINT: %2d%%, CONUPD: %2d%%, CONDET: %2d%%, LOCDYN: %2d%%, CONSOL %2d%%, PARBAL: %2d%%\n", timint, conupd, condet, locdyn, consol, parbal);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     printf ("----------------------------------------------------------------------------------------\n");
+    printf ("            Estimated end in %2d days, %2d hours, %2d minutes and %2d seconds\n", days, hours, minutes, seconds);
+    printf ("========================================================================================\n");
 
     fclose (sta);
     free (stapath);
+#if MPI
   }
-#else
-  const int N = 4;
-
-  char *name [] = {"BODIES", "BOXES", "CONSTRAINTS", "SPARSIFIED"};
-
-  int val [] = {dom->nbod, dom->aabb->boxnum, dom->ncon, dom->nspa}, i;
-
-  for (i = 0; i < N; i ++) printf ("%11s: %8d\n", name [i], val [i]);
-  printf ("%sEstimated end in %d days, %d hours, %d minutes and %d seconds\n", string, days, hours, minutes, seconds);
-  printf ("----------------------------------------------------------------------------------------\n");
 #endif
 }
 
