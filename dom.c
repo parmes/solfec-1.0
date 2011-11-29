@@ -606,7 +606,7 @@ static int domain_weight (DOM *dom)
 
   for (con = dom->con; con; con = con->next)
   {
-    if (con->slave) weight += constraint_weight (con);
+    weight += constraint_weight (con);
   }
 
   return weight;
