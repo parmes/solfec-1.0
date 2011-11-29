@@ -169,7 +169,7 @@ serial_Multi_VectorSetRandomValues( serial_Multi_Vector *v, BlopexInt seed)
    BlopexInt      size        = serial_Multi_VectorSize(v);
    BlopexInt      i, j, start_offset, end_offset;
 
-   srand48(seed);
+   srand (seed);
 
    for (i = 0; i < v->num_active_vectors; i++)
    {
@@ -177,7 +177,7 @@ serial_Multi_VectorSetRandomValues( serial_Multi_Vector *v, BlopexInt seed)
       end_offset = start_offset+size;
 
       for (j=start_offset; j < end_offset; j++)
-         vector_data[j]= 2.0 * drand48() - 1.0;
+         vector_data[j]= 2.0 * ((double)rand () / (double)RAND_MAX) - 1.0;
    }
 
    return 0;
