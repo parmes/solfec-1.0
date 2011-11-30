@@ -249,7 +249,7 @@ def gcore_brick (x, y, z):
 
   return cvx
 
-def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, N_BRICKS, M_BRICKS, N_LAYERS):
+def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, enable_cracks, N_BRICKS, M_BRICKS, N_LAYERS):
 
   dfac = 0.015
   outd = 0.4598
@@ -263,6 +263,7 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind
     z = k * (2*height - hstep)
 
     # outer bricks
+    counter = 0
     for i in range (N_BRICKS):
       for j in range (M_BRICKS):
 
@@ -276,6 +277,21 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind
 	else: bod = BODY (solfec , kinem_kind, shp, material)
 	bod.scheme = integ_scheme
 	bod.damping = integ_damp
+
+	if kinem_kind == 'FINITE_ELEMENT' or kinem_kind == 'PSEUDO_RIGID' and enable_cracks:
+	  if counter % 2 == 0:
+	    tra1 = (0, 0.137, 0)
+	    tra2 = (0.137, 0, 0)
+	    dir1 = (1, 0, 0)
+	    dir2 = (0, 1, 0)
+	  else:
+	    tra1 = (0.137, 0, 0)
+	    tra2 = (0, 0.137, 0)
+	    dir1 = (0, 1, 0)
+	    dir2 = (1, 0, 0)
+	  SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, tra1), dir1, 3, 'TENSILE', ft=1E3, topoadj = 'OFF')
+	  SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, tra2), dir2, 3, 'TENSILE', ft=1E3, topoadj = 'ON')
+	  counter = counter + 1
 
     # loose keys
     lx = keyw - 2.0*loose_gap
@@ -406,7 +422,7 @@ def gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
       else:
 	BODY (solfec, 'OBSTACLE', shape, material)
 
-def simple_core_create (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
+def simple_core_create (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, enable_cracks, shake_base, N_BRICKS, M_BRICKS, N_LAYERS):
 
   gcore_base (material, solfec, shake_base, N_BRICKS, M_BRICKS, N_LAYERS)
-  gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, N_BRICKS, M_BRICKS, N_LAYERS)
+  gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind, integ_scheme, integ_damp, enable_cracks, N_BRICKS, M_BRICKS, N_LAYERS)
