@@ -4,14 +4,17 @@ sys.path.append ('inp/cores/inc')
 from simple_core_base import *
 
 # main module
-
-step = 0.0002
+NX = 4
+NY = 4
+NZ = 4
+step = 0.0001
 stop = 10
 outfrq = 0.03
 kinem = 'PSEUDO_RIGID'
 solver = 'NEWTON'
 scheme = 'DEFAULT'
 damping = 1E-4
+cracks = 1 # enable 1, disable 0
 shake = 'TRUE'
 plotconv = 0
 GEOMETRIC_EPSILON (1E-6)
@@ -61,7 +64,7 @@ def callback (sv):
   MERIT.append (sv.merhist)
   return 1
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, damping, shake, 4, 4, 4)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, damping, cracks, shake, NX, NY, NZ)
 
 UNPHYSICAL_PENETRATION (solfec, 0.02)
 IMBALANCE_TOLERANCE (solfec, 1.1)

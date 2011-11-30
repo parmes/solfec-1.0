@@ -5,13 +5,14 @@ from simple_core_base import *
 
 # main module
 
-step = 0.0002
+step = 0.0001
 stop = 10
 outfrq = 0.03
 kinem = 'PSEUDO_RIGID'
 solver = 'GAUSS_SEIDEL'
 scheme = 'DEFAULT'
 damping = 1E-4
+cracks = 0 # enable 1, disable 0
 shake = 'TRUE'
 GEOMETRIC_EPSILON (1E-6)
 WARNINGS ('OFF')
@@ -52,7 +53,7 @@ elif solver == 'NEWTON':
 elif solver == 'PENALTY':
   sv = PENALTY_SOLVER ('IMPLICIT')
 
-simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, damping, shake, 10, 10, 12)
+simple_core_create (0.0003, 0.0002, bulkmat, solfec, kinem, scheme, damping, cracks, shake, 10, 10, 12)
 
 UNPHYSICAL_PENETRATION (solfec, 0.02)
 IMBALANCE_TOLERANCE (solfec, 1.1)
