@@ -10247,7 +10247,7 @@ ft
 \series bold
 Gf
 \series default
- - fracture energy (default: 0.0)
+ - fracture energy (default: 0.0); currently unused
 \end_layout
 
 \begin_layout Standard
@@ -10307,7 +10307,7 @@ Description
 \begin_inset Text
 
 \begin_layout Plain Layout
-ft, Gf
+ft
 \end_layout
 
 \end_inset

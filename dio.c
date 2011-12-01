@@ -182,27 +182,26 @@ static void read_new_bodies (DOM *dom, PBF *bf)
 
   path = SOLFEC_Alloc_File_Name (dom->solfec, 16);
   ext = path + strlen (path);
+  
+  for (m = 0; bf; bf = bf->next) m ++; /* count input files */
 
-  /* count input files */
-  m = 0;
-  do
+  for (n = 0; n < m; n ++)
   {
-    sprintf (ext, ".bod.%d", m);
-    file = fopen (path, "r");
-  } while (file && fclose (file) == 0 && ++ m); /* m incremented as last */
-
-  n = m-1;
-  do
-  {
-    if (m) sprintf (ext, ".bod.%d", n);
-    else sprintf (ext, ".bod");
-
-    if (m) { ASSERT (file = fopen (path, "r"), ERR_FILE_OPEN); }
-    else if (!(file = fopen (path, "r")))
+    if (n || m > 1)
     {
-      free (path); 
-      return; /* there were no new bodies */
+      sprintf (ext, ".bod.%d", n);
+      if (!(file = fopen (path, "r"))) continue; /* no new bodies for this rank */
     }
+    else /* n == 0 && m == 1 */
+    {
+      sprintf (ext, ".bod.%d", n);
+      if (!(file = fopen (path, "r"))) /* either prallel with "mpirun -np 1" */
+      {
+	sprintf (ext, ".bod");
+	if (!(file = fopen (path, "r"))) continue; /* or serial */
+      }
+    }
+
     xdrstdio_create (&xdr, file, XDR_DECODE);
 
     int ipos, ints, *i, dpos, doubles;
@@ -260,8 +259,7 @@ static void read_new_bodies (DOM *dom, PBF *bf)
 
     xdr_destroy (&xdr);
     fclose (file);
-
-  } while (-- n >= 0); /* the first item in the returned list corresponds to rank 0 */
+  }
 
   free (path);
 }
