@@ -40,11 +40,13 @@ typedef double (*node_t) [3]; /* mesh node */
 #define MAX_NODES 20
 #define DOM_TOL 0.1
 #define CUT_TOL 0.001
-#define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
-#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2) /* external force */
-#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3) /* internal force */
-#define FEM_FBOD(bod) ((bod)->velo + (bod)->dofs * 4) /* unit body force */
-#define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)      /* rotation */
+#define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)       /* previous velocity */
+#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2)   /* external force */
+#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3)   /* internal force */
+#define FEM_FBOD(bod) ((bod)->velo + (bod)->dofs * 4)   /* unit body force */
+#define FEM_RVELO(bod) ((bod)->velo + (bod)->dofs * 5)  /* reduced order velocity */
+#define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)        /* rotation */
+#define FEM_RCONF(bod) ((bod)->conf + (bod)->dofs + 9)  /* reduced configuration */
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
 
@@ -2234,12 +2236,64 @@ static void BC_static_step_end (BODY *bod, double time, double step)
 /* reduced order initialise dynamic time stepping */
 static void RO_dynamic_init (BODY *bod)
 {
+  if (!bod->M && !bod->K)
+  {
+    MX *M, *K, *A, *B;
+
+    M = diagonal_inertia (bod, bod->scheme != SCH_DEF_EXP);
+    K = tangent_stiffness (bod, 1);
+
+    /* bod->M = E' M E */
+    A = MX_Matmat (1.0, M, bod->evec, 0.0, NULL);
+    bod->M = MX_Matmat (1.0, MX_Tran (bod->evec), A, 0.0, NULL);
+
+    /* bod->K = E' K E */
+    B = MX_Matmat (1.0, K, bod->evec, 0.0, NULL);
+    bod->K = MX_Matmat (1.0, MX_Tran (bod->evec), B, 0.0, NULL);
+
+    MX_Destroy (M);
+    MX_Destroy (K);
+    MX_Destroy (A);
+    MX_Destroy (B);
+
+    if (bod->scheme == SCH_DEF_EXP)
+    {
+      bod->inverse = MX_Copy (bod->M, NULL);
+    }
+    else
+    {
+      double step = bod->dom->step;
+
+      /* calculate initial tangent operator A(0) = M + (damping*h + h*h/4) K(q(0)) */
+      bod->inverse = MX_Add (1.0, bod->M, bod->damping*step + 0.25*step*step, bod->K, NULL);
+    }
+
+    MX_Inverse (bod->inverse, bod->inverse);
+
+    /* project initial conf & velo */
+    double *qred = FEM_RCONF (bod),
+	   *vred = FEM_RVELO (bod);
+
+    MX_Matvec (1.0, MX_Tran (bod->evec), bod->conf, 0.0, qred); /* needed if FEM_Overwrite_State was used */
+    MX_Matvec (1.0, MX_Tran (bod->evec), bod->velo, 0.0, vred); /* could have initial velocity */
+  }
 }
 
 /* reduced order estimate critical step for the dynamic scheme */
 static double RO_dynamic_critical_step (BODY *bod)
 {
-  return DBL_MAX;
+  if (bod->scheme == SCH_DEF_EXP)
+  {
+    double eigmax;
+    MX *IMK;
+
+    IMK = MX_Matmat (1.0, bod->inverse, bod->K, 0.0, NULL); /* inv(M) * K => done on a sub-block of M */
+    MX_Eigen (IMK, 1, &eigmax, NULL); /* compute maximal eigenvalue */
+    MX_Destroy (IMK);
+    ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
+    return 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
+  }
+  else return DBL_MAX;
 }
 
 /* reduced order perform the initial half-step of the dynamic scheme */
@@ -2599,7 +2653,22 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     break;
     case REDUCED_ORDER:
     {
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX => should MODAL_ANALYSIS be called after ? (error control in the modal solver) */
+      /* FIXME: work out the proper dimensions here, especially the forces need not be stored in global dimentions;
+       *        also what should really bod->dofs here be; look into the serialization of body state data => we should
+       *        aim at minimizing this for the reduced order model; also look into domain dom->dofs counting, etc.
+       *        see all bod->dofs references across the source code and conclude on a best course of action */
+
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: enable later on */
+      /* bod->con = {full configuration} {rotation} {reduced configuration}
+       * bod->velo = {full velocity, previous velocoty, fext, fint, fbod} {reduced velocity}
+       * XXX: retudec configuration and velocity size are unkonwn yet, hence not allocated;
+       *      either MODAL_ANALYSIS will be called before BODY_Dynamic_Init or this command
+       *      is invoked from BODY_Clone where modal data will be copied. */
+      ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, rotation, velocity, previous velocity, fext, fint, fbod */
+      bod->velo = bod->conf + bod->dofs + 9;
+      double *R = FEM_ROT (bod);
+      IDENTITY (R);
+      bod->field = NULL; /* linear material only */
     }
     break;
   }
@@ -3013,14 +3082,36 @@ double FEM_Kinetic_Energy (BODY *bod)
 {
   if (bod->M)
   {
-    double *x = bod->M->x,
-	   *y = x + bod->dofs,
-	   *u = bod->velo,
-	   sum;
+    switch (bod->form)
+    {
+    case REDUCED_ORDER:
+    {
+      ASSERT_DEBUG (bod->evec, "Reduced base must exist");
 
-    for (sum = 0.0; x < y; x ++, u ++) sum += (*u)*(*u) * (*x);
+      double *ured = FEM_RVELO (bod), *v, ene;
+      int n = bod->evec->n;
 
-    return 0.5 * sum;
+      ERRMEM (v = malloc (n * sizeof (double)));
+      MX_Matvec (1.0, bod->M, ured, 0.0, v);
+      ene = 0.5 * blas_ddot (n, ured, 1, v, 1);
+      free (v);
+
+      return ene;
+    }
+    break;
+    default: /* TL, BC */
+    {
+      double *x = bod->M->x,
+	     *y = x + bod->dofs,
+	     *u = bod->velo,
+	     sum;
+
+      for (sum = 0.0; x < y; x ++, u ++) sum += (*u)*(*u) * (*x);
+
+      return 0.5 * sum;
+    }
+    break;
+    }
   }
 
   return 0.0;
@@ -3315,16 +3406,20 @@ int FEM_Conf_Pack_Size (BODY *bod)
 {
   switch (bod->form)
   {
-  case BODY_COROTATIONAL:
-  case REDUCED_ORDER: return bod->dofs + 9;
-  default: return bod->dofs;
+  case BODY_COROTATIONAL: return bod->dofs + 9; /* conf, R */
+  case REDUCED_ORDER: return bod->dofs + 9 + bod->evec->n; /* conf, R, reduced conf */
+  default: return bod->dofs; /* conf */
   }
 }
 
 /* get velocity packing size */
 int FEM_Velo_Pack_Size (BODY *bod)
 {
-  return 4 * bod->dofs; /* velo, vel0, fext, fint */
+  switch (bod->form)
+  {
+  case REDUCED_ORDER: return 4 * bod->dofs + bod->evec->n; /* velo, vel0, fext, fint, reduced velo */
+  default: return 4 * bod->dofs; /* velo, vel0, fext, fint */
+  }
 }
 #endif
 
@@ -3346,7 +3441,8 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
 /* create approximate inverse operator */
 MX* FEM_Approx_Inverse (BODY *bod)
 {
-  if (bod->scheme == SCH_DEF_EXP) return MX_Copy (bod->inverse, NULL); /* diagonal */
+  if (bod->form == REDUCED_ORDER || /* dense */
+      bod->scheme == SCH_DEF_EXP) return MX_Copy (bod->inverse, NULL); /* dense or diagonal */
   else 
   {
     int *p, *i, n, k;

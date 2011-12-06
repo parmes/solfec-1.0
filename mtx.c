@@ -836,8 +836,6 @@ static MX* matmat_dense_dense (double alpha, MX *a, MX *b, double beta, MX *c)
   else { ASSERT_DEBUG_EXT (prepare_copy (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
   ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
 
-  if (MXTRANS (c)) dense_transpose (c->x, c->m, c->n, c->nzmax);
-
   blas_dgemm (transa, transb, m, n, k, alpha, a->x, a->m, b->x, b->m, beta, c->x, c->m);
   
   return c;
@@ -871,8 +869,6 @@ static MX* matmat_bd_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   for (k = 0; k < n; k ++)
   {
     m = ii[k+1] - ii[k];
-
-    if (MXTRANS (c)) dense_transpose (cx, m, m, m*m);
 
     blas_dgemm (transa, transb, m, m, m,
       alpha, &ax [pp[k]], m, &bx [pp[k]],
@@ -1387,20 +1383,68 @@ static MX* matmat_dense_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   return c;
 }
 
+/* prepare and return 'c' as a dense result of 'a * b' */
+static MX* matmat_dense_result (MX *a, MX *b, MX *c)
+{
+  int m, n, k, l;
+
+  if (MXTRANS (a))
+  {
+    m = a->n;
+    k = a->m;
+  }
+  else
+  {
+    m = a->m;
+    k = a->n;
+  }
+
+  if (MXTRANS (b))
+  {
+    n = b->m;
+    l = b->n;
+  }
+  else
+  {
+    n = b->n;
+    l = b->m;
+  }
+
+  ASSERT_DEBUG (k == l, "Incompatible dimensions");
+  if (c == NULL) c = MX_Create (MXDENSE, m, n, NULL, NULL);
+  else { ASSERT_DEBUG_EXT (prepare_copy (c, MXDENSE, m*n, m, n, NULL, NULL), "Invalid output matrix"); }
+  ASSERT_DEBUG (a != b && b != c && c != a, "Matrices 'a','b','c' must be different");
+
+  return c;
+}
+
 /* multiply sparse and dense matrices */
 static MX* matmat_csc_dense (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  MX *A;
-
   if (MXIFAC (a)) /* inv (a) * b */
   {
     return matmat_inv_dense (alpha, a, b, beta, c);
   }
 
+#if 0
+  MX *A;
+
   /* XXX: Using very inefficient sparse to dense matrix conversion! */
   A = csc_to_dense (a); /* TODO: get rid of and write direct multiplication */
   c = matmat_dense_dense (alpha, A, b, beta, c);
   MX_Destroy (A);
+#else
+  double *w;
+  int j;
+
+  ERRMEM (w = malloc (MAX (b->m, b->n) * sizeof (double)));
+  c = matmat_dense_result (a, b, c);
+
+  for (j = 0; j < c->n; j ++)
+    MX_Matvec (alpha, a, col (b, j, w), beta, &c->x [j*c->m]);
+
+  free (w);
+#endif
 
   return c;
 }
@@ -1408,17 +1452,46 @@ static MX* matmat_csc_dense (double alpha, MX *a, MX *b, double beta, MX *c)
 /* multiply dense and sparse matrices */
 static MX* matmat_dense_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  MX *B;
-
   if (MXIFAC (b)) /* a * inv (b) */
   {
     return matmat_dense_inv (alpha, a, b, beta, c);
   }
 
+#if 0
+  MX *B;
+
   /* XXX: Using very inefficient sparse to dense matrix conversion! */
   B = csc_to_dense (b); /* TODO: get rid of and write direct multiplication */
   c = matmat_dense_dense (alpha, a, B, beta, c);
   MX_Destroy (B);
+#else
+  double *w;
+  int j;
+
+  ERRMEM (w = malloc (MAX (a->m, a->n) * sizeof (double)));
+
+  if (MXTRANS (b)) b->flags &= ~MXTRANS;
+  else b->flags |= MXTRANS;
+
+  if (MXTRANS (a)) a->flags &= ~MXTRANS;
+  else a->flags |= MXTRANS;
+
+  c = matmat_dense_result (b, a, c); /* c' = b' * a' */
+
+  for (j = 0; j < c->n; j ++)
+    MX_Matvec (alpha, b, col (a, j, w), beta, &c->x [j*c->m]);
+
+  dense_transpose (c->x, c->m, c->n, c->nzmax); /* c = (b' * a')' = a * b */
+  j = c->m; c->m = c->n; c->n = j;
+
+  if (MXTRANS (b)) b->flags &= ~MXTRANS;
+  else b->flags |= MXTRANS;
+
+  if (MXTRANS (a)) a->flags &= ~MXTRANS;
+  else a->flags |= MXTRANS;
+
+  free (w);
+#endif
 
   return c;
 }
@@ -1426,17 +1499,46 @@ static MX* matmat_dense_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 /* multiply diagonal block and sparse matrices */
 static MX* matmat_bd_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  MX *B;
-
   if (MXIFAC (b)) /* a * inv (b) */
   {
     return matmat_bd_inv (alpha, a, b, beta, c);
   }
 
+#if 0
+  MX *B;
+
   /* XXX: Using very inefficient sparse to dense matrix conversion! */
   B = csc_to_dense (b); /* TODO: get rid of and write direct multiplication */
   c = matmat_bd_dense (alpha, a, B, beta, c);
   MX_Destroy (B);
+#else
+  double *w;
+  int j;
+
+  ERRMEM (w = malloc (MAX (a->m, a->n) * sizeof (double)));
+
+  if (MXTRANS (b)) b->flags &= ~MXTRANS;
+  else b->flags |= MXTRANS;
+
+  if (MXTRANS (a)) a->flags &= ~MXTRANS;
+  else a->flags |= MXTRANS;
+
+  c = matmat_dense_result (b, a, c); /* c' = b' * a' */
+
+  for (j = 0; j < c->n; j ++)
+    MX_Matvec (alpha, b, col (a, j, w), beta, &c->x [j*c->m]);
+
+  dense_transpose (c->x, c->m, c->n, c->nzmax); /* c = (b' * a')' = a * b */
+  j = c->m; c->m = c->n; c->n = j;
+
+  if (MXTRANS (b)) b->flags &= ~MXTRANS;
+  else b->flags |= MXTRANS;
+
+  if (MXTRANS (a)) a->flags &= ~MXTRANS;
+  else a->flags |= MXTRANS;
+
+  free (w);
+#endif
 
   return c;
 }
@@ -1444,17 +1546,30 @@ static MX* matmat_bd_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 /* multiply sparse and diagonal block matrices */
 static MX* matmat_csc_bd (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  MX *A;
-
   if (MXIFAC (a)) /* inv (a) * b */
   {
     return matmat_inv_bd (alpha, a, b, beta, c);
   }
 
+#if 0
+  MX *A;
+
   /* XXX: Using very inefficient sparse to dense matrix conversion! */
   A = csc_to_dense (a); /* TODO: get rid of and write direct multiplication */
   c = matmat_dense_bd (alpha, A, b, beta, c);
   MX_Destroy (A);
+#else
+  double *w;
+  int j;
+
+  ERRMEM (w = malloc (MAX (b->m, b->n) * sizeof (double)));
+  c = matmat_dense_result (a, b, c);
+
+  for (j = 0; j < c->n; j ++)
+    MX_Matvec (alpha, a, col (b, j, w), beta, &c->x [j*c->m]);
+
+  free (w);
+#endif
 
   return c;
 }
