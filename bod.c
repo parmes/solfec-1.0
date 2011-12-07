@@ -2084,7 +2084,7 @@ void BODY_Read_State (BODY *bod, PBF *bf)
     else /* fake it => ranks are actually used in WRITE mode */
     {
       int rank;
-      PBF_Int (bf, &rank, 1);
+      PBF_Int (bf, &rank, 1); /* branching down here from Python's INITIALIZE_STATE */
     }
   }
 

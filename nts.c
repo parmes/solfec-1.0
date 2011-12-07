@@ -132,7 +132,7 @@ static MX* csc_to_dense (MX *a, int **map)
 	bx [*i] = *ax; /* write it into dense storage */
       }
       
-      (*map) [n] = p - a->p; /* map dense blocks to body-dofs indices */
+      (*map) [n] = p - a->p; /* map dense blocks to body->dofs indices */
       bx += m, n ++; /* next dense column */
     }
   }

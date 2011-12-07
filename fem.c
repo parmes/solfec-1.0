@@ -40,15 +40,17 @@ typedef double (*node_t) [3]; /* mesh node */
 #define MAX_NODES 20
 #define DOM_TOL 0.1
 #define CUT_TOL 0.001
-#define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)       /* previous velocity */
-#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2)   /* external force */
-#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3)   /* internal force */
-#define FEM_FBOD(bod) ((bod)->velo + (bod)->dofs * 4)   /* unit body force */
-#define FEM_RVELO(bod) ((bod)->velo + (bod)->dofs * 5)  /* reduced order velocity */
-#define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)        /* rotation */
-#define FEM_RCONF(bod) ((bod)->conf + (bod)->dofs + 9)  /* reduced configuration */
-#define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : (bod)->shape->data)
+#define MESH_DOFS(msh) ((msh)->nodes_count * 3)
+#define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : ((MESH*)(bod)->shape->data))
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
+#define FEM_MESH_CONF(bod) ((bod)->form != REDUCED_ORDER ? (bod)->conf : ((bod)->conf + (bod)->dofs + 9)) /* mesh space configuration */
+#define FEM_MESH_VELO(bod) ((bod)->form != REDUCED_ORDER ? (bod)->velo : ((bod)->velo + (bod)->dofs * 5)) /* mesh space velocity */
+#define FEM_MESH_VEL0(bod) (FEM_MESH_VELO(bod) + MESH_DOFS(FEM_MESH(bod))) /* mesh space previous velocity */
+#define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
+#define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2) /* external force */
+#define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3) /* internal force */
+#define FEM_FBOD(bod) ((bod)->velo + (bod)->dofs * 4) /* unit body force */
+#define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)      /* rotation */
 
 /* ==================== INTEGRATION ======================= */
 
@@ -845,11 +847,12 @@ static MX* element_shapes_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *po
 {
   static int *p, *i, *q, *u, k, n, m, o;
   double shapes [MAX_NODES], *x, *y;
+  int dofs = MESH_DOFS (msh);
   MX *N;
 
   o = element_shapes (ele->type, point, shapes);
 
-  n = bod->dofs;
+  n = dofs;
 
   ERRMEM (p = MEM_CALLOC ((2*n+1) * sizeof (int)));
   i = p + n + 1;
@@ -1008,7 +1011,7 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES], field [MAX_NFIELD],
 	 shapes [MAX_NODES], F0 [9], F [9], P [9], K [81], KB [9], J, integral, *B, *p;
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
-  double *bfld = bod->field;
+  double *bfld = bod->field, *conf = FEM_MESH_CONF (bod);
   int i, j, n, m, ip = 0,
       nbfld = mat->nfield,
       *nod = ele->nodes;
@@ -1031,7 +1034,7 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   {
     for (i = 0; i < n; i ++)
     {
-      p = &bod->conf [3 * nod [i]];
+      p = &conf [3 * nod [i]];
       COPY (p, q[i]); /* current displacement */
     }
   }
@@ -1145,13 +1148,14 @@ static double* element_closest_ipoint_state (BODY *bod, ELEMENT *ele, double *p)
 static void deformation_gradient (BODY *bod, MESH *msh, ELEMENT *ele, double *point, double *F)
 {
   double derivs [3*MAX_NODES], nodes [MAX_NODES][3], q [MAX_NODES][3], F0 [9], *p;
+  double *conf = FEM_MESH_CONF (bod);
   int i, n;
 
   n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
 
   for (i = 0; i < n; i ++)
   {
-    p = &bod->conf [3 * ele->nodes [i]];
+    p = &conf [3 * ele->nodes [i]];
     COPY (p, q[i]);
   }
 
@@ -1254,18 +1258,26 @@ inline static void accumulate_reac (BODY *bod, MESH *msh, ELEMENT *ele, double *
   else for (i = 0; i < n; i ++) { f = &force [3 * numbers [i]]; SUBMUL (f, shapes [i], P, f); }
 }
 
-/* compute constraints force r = SUM H' R */
+/* compute constraints force r = SUM H' R, where r is in the modeling space (could be reduced) */
 static void fem_constraints_force (BODY *bod, double *r)
 {
+  double *rmsh; /* reaction in the mesh space */
   ELEMENT *ele;
   CONVEX *cvx;
   MESH *msh;
   SET *node;
-  int i;
+  int i, dofs;
 
   msh = FEM_MESH (bod);
+  dofs = MESH_DOFS (msh);
 
-  for (i = 0; i < bod->dofs; i ++) r [i] = 0.0;
+  if (bod->form == REDUCED_ORDER)
+  {
+    ERRMEM (rmsh = malloc (dofs * sizeof (double)));
+  }
+  else rmsh = r;
+
+  for (i = 0; i < dofs; i ++) rmsh [i] = 0.0;
 
   for (node = SET_First (bod->con); node; node = SET_Next (node))
   {
@@ -1280,7 +1292,7 @@ static void fem_constraints_force (BODY *bod, double *r)
     }
     else ele = (isma ? SGP_2_GOBJ (con->msgp): SGP_2_GOBJ (con->ssgp));
 
-    accumulate_reac (bod, msh, ele, X, con->base, con->R, isma, r);
+    accumulate_reac (bod, msh, ele, X, con->base, con->R, isma, rmsh);
 
     if (isma && bod == con->slave) /* self-contact */
     {
@@ -1293,8 +1305,26 @@ static void fem_constraints_force (BODY *bod, double *r)
       }
       else ele = SGP_2_GOBJ (con->ssgp);
 
-      accumulate_reac (bod, msh, ele, X, con->base, con->R, 0, r);
+      accumulate_reac (bod, msh, ele, X, con->base, con->R, 0, rmsh);
     }
+  }
+
+  if (bod->form == REDUCED_ORDER) /* H' = bod->evec' * R' * N' * E */
+  {
+    double *R = FEM_ROT (bod),
+	   *x = rmsh,
+	   *y = x + dofs,
+	    z [3];
+
+    for (;x < y; x += 3)
+    {
+      COPY (x, z);
+      TVMUL (R, z, x);
+    }
+
+    MX_Matvec (1.0, MX_Tran (bod->evec), rmsh, 0.0, r); /* r = bod->evec' * R' * SUM { N' * E * R } */
+
+    free (rmsh); /* clean */
   }
 }
 
@@ -1302,11 +1332,12 @@ static void fem_constraints_force (BODY *bod, double *r)
 static void internal_force (BODY *bod, double *fint)
 {
   MESH *msh = FEM_MESH (bod);
+  int dofs = MESH_DOFS (msh);
   double g [24], *v, *w;
   ELEMENT *ele;
   int bulk, i;
 
-  for (i = 0; i < bod->dofs; i ++) fint [i] = 0.0;
+  for (i = 0; i < dofs; i ++) fint [i] = 0.0;
 
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
@@ -1330,11 +1361,12 @@ static void unit_body_force (BODY *bod)
   double g [24], f [3], *v, *w;
   double *ubf = FEM_FBOD (bod);
   MESH *msh = FEM_MESH (bod);
+  int dofs = MESH_DOFS (msh);
   ELEMENT *ele;
   int bulk, i;
 
   SET (f, 1.0);
-  blas_dscal (bod->dofs, 0.0, ubf, 1);
+  blas_dscal (dofs, 0.0, ubf, 1);
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
     element_body_force (bod, msh, ele, f, g);
@@ -1391,11 +1423,12 @@ static void external_force (BODY *bod, double time, double step, double *fext)
   double g [24], f [3], point [3], value, *v;
   double *ubf = FEM_FBOD (bod);
   MESH *msh = FEM_MESH (bod);
+  int dofs = MESH_DOFS (msh);
   ELEMENT *ele;
   int i;
 
   /* zero forces */
-  for (i = 0; i < bod->dofs; i ++) fext [i] = 0.0;
+  for (i = 0; i < dofs; i ++) fext [i] = 0.0;
 
   /* point forces */
   for (FORCE *frc = bod->forces; frc; frc = frc->next)
@@ -1404,7 +1437,8 @@ static void external_force (BODY *bod, double time, double step, double *fext)
     {
       ERRMEM (v = MEM_CALLOC (bod->dofs * sizeof (double)));
       frc->func (frc->data, frc->call, bod->dofs, bod->conf, bod->dofs, bod->velo, time, step, v);
-      blas_daxpy (bod->dofs, 1.0, v, 1, fext, 1);
+      if (bod->form == REDUCED_ORDER) MX_Matvec (1.0, MX_Tran (bod->evec), v, 1.0, fext); /* accumulate from reduced to global space */
+      else blas_daxpy (bod->dofs, 1.0, v, 1, fext, 1);
       free (v);
     }
     else
@@ -1413,7 +1447,7 @@ static void external_force (BODY *bod, double time, double step, double *fext)
 
       if (frc->kind & PRESSURE)
       {
-        accumulate_pressure (bod, bod->shape->data, bod->conf, frc->surfid, value, fext);
+        accumulate_pressure (bod, bod->shape->data, FEM_MESH_CONF (bod), frc->surfid, value, fext);
       }
       else
       {
@@ -1447,32 +1481,18 @@ static void external_force (BODY *bod, double time, double step, double *fext)
     f [1] = TMS_Value (bod->dom->gravity [1], time);
     f [2] = TMS_Value (bod->dom->gravity [2], time);
 
-    i = bod->dofs / 3;
+    i = dofs / 3;
     blas_daxpy (i, f[0], ubf, 3, fext, 3);
     blas_daxpy (i, f[1], ubf+1, 3, fext+1, 3);
     blas_daxpy (i, f[2], ubf+2, 3, fext+2, 3);
   }
 }
  
-/* compute out of balance force = fext - fint */
-static void dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
-{
-
-  external_force (bod, time, step, fext);
-
-  internal_force (bod, fint);
-
-  for (double *x = fext, *y = fint, *z = force, *u = z + bod->dofs; z < u; x ++, y ++, z ++) *z = (*x) - (*y);
-}
-
-/* the smame computation for the static case */
-#define static_force(bod, time, step, fext, fint, force) dynamic_force (bod,time,step,fext,fint,force)
-
 /* compute global tangent stiffness */
 static MX* tangent_stiffness (BODY *bod, short spd)
 {
   struct colblock { int row; double val [3]; } *cb; /* column block */
-  int i, j, k, l, n, *pp, *ii, *kk;
+  int i, j, k, l, n, dofs, *pp, *ii, *kk;
   double K [576], *A;
   MAP **col, *item;
   ELEMENT *ele;
@@ -1483,10 +1503,11 @@ static MX* tangent_stiffness (BODY *bod, short spd)
   MX *tang;
 
   if (spd) spd = 1;
-  MEM_Init  (&blkmem, sizeof (struct colblock), bod->dofs);
-  ERRMEM (col = MEM_CALLOC (sizeof (MAP*) * bod->dofs)); /* sparse columns */
-  MEM_Init  (&mapmem, sizeof (MAP), bod->dofs);
   msh = FEM_MESH (bod);
+  dofs = MESH_DOFS (msh);
+  MEM_Init  (&blkmem, sizeof (struct colblock), dofs);
+  ERRMEM (col = MEM_CALLOC (sizeof (MAP*) * dofs)); /* sparse columns */
+  MEM_Init  (&mapmem, sizeof (MAP), dofs);
 
   for (ele = msh->surfeles, bulk = 0; ele;
        ele = (ele->next ? ele->next : bulk ? NULL : msh->bulkeles),
@@ -1532,13 +1553,13 @@ static MX* tangent_stiffness (BODY *bod, short spd)
     }
   }
 
-  ERRMEM (pp = malloc (sizeof (int [bod->dofs + 1]))); /* column pointers */
+  ERRMEM (pp = malloc (sizeof (int [dofs + 1]))); /* column pointers */
 
-  for (pp [0] = 0, j = 0; j < bod->dofs; j ++) pp [j+1] = pp [j] + 3 * MAP_Size (col [j]) - spd * (j % 3); /* subtract upper triangular j % 3 sticking out bits */
+  for (pp [0] = 0, j = 0; j < dofs; j ++) pp [j+1] = pp [j] + 3 * MAP_Size (col [j]) - spd * (j % 3); /* subtract upper triangular j % 3 sticking out bits */
 
-  ERRMEM (ii = malloc (sizeof (int [pp [bod->dofs]]))); /* row indices */
+  ERRMEM (ii = malloc (sizeof (int [pp [dofs]]))); /* row indices */
 
-  for (j = 0, kk = ii; j < bod->dofs; j ++) /* initialize row index pointer; for each column */
+  for (j = 0, kk = ii; j < dofs; j ++) /* initialize row index pointer; for each column */
   {
     for (item = MAP_First (col [j]); item; item = MAP_Next (item)) /* for each row-block */
     {
@@ -1557,10 +1578,10 @@ static MX* tangent_stiffness (BODY *bod, short spd)
     }
   }
 
-  tang = MX_Create (MXCSC, bod->dofs, bod->dofs, pp, ii); /* create tangent matrix structure */
+  tang = MX_Create (MXCSC, dofs, dofs, pp, ii); /* create tangent matrix structure */
   if (spd) tang->flags |= MXSPD;
 
-  for (j = 0, A = tang->x; j < bod->dofs; j ++) /* initialize column values pointer A; for each column */
+  for (j = 0, A = tang->x; j < dofs; j ++) /* initialize column values pointer A; for each column */
   {
     for (item = MAP_First (col [j]); item; item = MAP_Next (item)) /* for each row-block */
     {
@@ -1590,16 +1611,14 @@ static MX* tangent_stiffness (BODY *bod, short spd)
 static MX* diagonal_inertia (BODY *bod, short spd)
 {
   MESH *msh = FEM_MESH (bod);
-  int bulk,
+  int n = MESH_DOFS (msh),
+      bulk,
      *p,
      *i,
-      n,
       k;
   ELEMENT *ele;
   double *x;
   MX *M;
-
-  n = bod->dofs;
 
   ERRMEM (p = malloc (sizeof (int [n+1])));
   ERRMEM (i = malloc (sizeof (int [n])));
@@ -1647,6 +1666,20 @@ static void update_fields (BODY *bod, double t)
 }
 
 /* =================== TOAL LAGRANGIAN =================== */
+
+/* compute out of balance force = fext - fint */
+static void TL_dynamic_force (BODY *bod, double time, double step, double *fext, double *fint, double *force)
+{
+
+  external_force (bod, time, step, fext);
+
+  internal_force (bod, fint);
+
+  for (double *x = fext, *y = fint, *z = force, *u = z + bod->dofs; z < u; x ++, y ++, z ++) *z = (*x) - (*y);
+}
+
+/* the smame computation for the static case */
+#define TL_static_force(bod, time, step, fext, fint, force) TL_dynamic_force (bod,time,step,fext,fint,force)
 
 /* compute inverse operator for the implicit dynamic time stepping */
 static void TL_dynamic_inverse (BODY *bod, double step, double *force)
@@ -1781,7 +1814,7 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
   case SCH_DEF_EXP:
   {
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+    TL_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
     if (bod->damping > 0.0)
     {
       if (bod->K) MX_Destroy (bod->K);
@@ -1794,7 +1827,7 @@ static void TL_dynamic_step_begin (BODY *bod, double time, double step)
   case SCH_DEF_LIM:
   {
     blas_daxpy (n, half, u, 1, q, 1); /* q(t+h/2) = q(t) + (h/2) * u(t) */
-    dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
+    TL_dynamic_force (bod, time+half, step, fext, fint, f);  /* f = fext (t+h/2) - fint (q(t+h/2)) */
     TL_dynamic_inverse (bod, step, NULL); /* A = M + (h*h/4) * K */
     if (bod->damping > 0.0) MX_Matvec (-bod->damping, bod->K, u, 1.0, f); /* f -= damping K u (t) */
     MX_Matvec (step, bod->inverse, f, 1.0, u); /* u(t+h) = u(t) + inv (A) * h * f */
@@ -1864,7 +1897,7 @@ static void TL_static_step_begin (BODY *bod, double time, double step)
 
   ERRMEM (f = malloc (sizeof (double [bod->dofs])));
   TL_static_inverse (bod, step); /* compute inverse of static tangent operator */
-  static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), f);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
+  TL_static_force (bod, time+step, step, FEM_FEXT(bod), FEM_FINT(bod), f);  /* f(t+h) = fext (t+h) - fint (q(t+h)) */
   MX_Matvec (step, bod->inverse, f, 0.0, bod->velo); /* u(t+h) = inv (A) * h * f(t+h) */
   free (f);
 }
@@ -2240,6 +2273,8 @@ static void RO_dynamic_init (BODY *bod)
   {
     MX *M, *K, *A, *B;
 
+    ASSERT_TEXT (bod->evec, "Reduced base does not exist. Call MODAL_ANALYSIS after creating a reduced order body!");
+
     M = diagonal_inertia (bod, bod->scheme != SCH_DEF_EXP);
     K = tangent_stiffness (bod, 1);
 
@@ -2256,44 +2291,42 @@ static void RO_dynamic_init (BODY *bod)
     MX_Destroy (A);
     MX_Destroy (B);
 
-    if (bod->scheme == SCH_DEF_EXP)
-    {
-      bod->inverse = MX_Copy (bod->M, NULL);
-    }
-    else
-    {
-      double step = bod->dom->step;
+    double step = bod->dom->step;
 
-      /* calculate initial tangent operator A(0) = M + (damping*h + h*h/4) K(q(0)) */
-      bod->inverse = MX_Add (1.0, bod->M, bod->damping*step + 0.25*step*step, bod->K, NULL);
-    }
+    /* calculate initial tangent operator A(0) = M + (damping*h + h*h/4) K(q(0)) */
+    bod->inverse = MX_Add (1.0, bod->M, bod->damping*step + 0.25*step*step, bod->K, NULL);
 
     MX_Inverse (bod->inverse, bod->inverse);
 
-    /* project initial conf & velo */
-    double *qred = FEM_RCONF (bod),
-	   *vred = FEM_RVELO (bod);
+    /* allocate adjusted configuration and velocity memory and redefine bod->dofs;
+     * ------------------------------------------------------------------------------------------------------------
+     * bod->dofs = bod->evec->n
+     * bod->con = {reduced configuration} {rotation} {full configuration}
+     * bod->velo = {reduced => velocity, previous velocoty, fext, fint, fbod} {full => velocity, previous velocity}
+     * ------------------------------------------------------------------------------------------------------------
+     */
 
-    MX_Matvec (1.0, MX_Tran (bod->evec), bod->conf, 0.0, qred); /* needed if FEM_Overwrite_State was used */
-    MX_Matvec (1.0, MX_Tran (bod->evec), bod->velo, 0.0, vred); /* could have initial velocity */
+    int n = bod->dofs;
+    double *conf = bod->conf,
+	   *velo = bod->velo;
+
+    bod->dofs = bod->evec->n;
+    ERRMEM (bod->conf = MEM_CALLOC ((bod->dofs+9+n + 5*bod->dofs+2*n) * sizeof (double)));
+    bod->velo = bod->conf + (bod->dofs+9+n);
+
+    blas_dcopy (n, conf, 1, FEM_MESH_CONF (bod), 1);
+    blas_dcopy (n, velo, 1, FEM_MESH_VELO (bod), 1);
+    double *R = FEM_ROT (bod); IDENTITY (R); /* initialise rotation */
+    MX_Matvec (1.0, bod->evec, velo, 0.0, bod->velo); /* v_reduced(0) = E' v_full(0) */
+
+    free (conf); /* not needed */
   }
 }
 
 /* reduced order estimate critical step for the dynamic scheme */
 static double RO_dynamic_critical_step (BODY *bod)
 {
-  if (bod->scheme == SCH_DEF_EXP)
-  {
-    double eigmax;
-    MX *IMK;
-
-    IMK = MX_Matmat (1.0, bod->inverse, bod->K, 0.0, NULL); /* inv(M) * K => done on a sub-block of M */
-    MX_Eigen (IMK, 1, &eigmax, NULL); /* compute maximal eigenvalue */
-    MX_Destroy (IMK);
-    ASSERT (eigmax > 0.0, ERR_BOD_MAX_FREQ_LE0);
-    return 2.0 / sqrt (eigmax); /* limit of stability => t_crit <= 2.0 / omega_max */
-  }
-  else return DBL_MAX;
+  return DBL_MAX;
 }
 
 /* reduced order perform the initial half-step of the dynamic scheme */
@@ -2631,11 +2664,11 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   else msh = shp->data; /* retrive the mesh pointer from the shape */
 
   /* allocate dofs */
-  bod->dofs = msh->nodes_count * 3;
   switch (form)
   {
     case TOTAL_LAGRANGIAN:
     {
+      bod->dofs = MESH_DOFS (msh);
       ERRMEM (bod->conf = MEM_CALLOC (6 * bod->dofs * sizeof (double))); /* configuration, velocity, previous velocity, fext, fint, fbod */
       bod->velo = bod->conf + bod->dofs;
       if (mat->nfield) ERRMEM (bod->field = MEM_CALLOC (mat->nfield * (bod->dofs / 3) * sizeof (double))); /* field variables */
@@ -2644,6 +2677,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     break;
     case BODY_COROTATIONAL:
     {
+      bod->dofs = MESH_DOFS (msh);
       ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, rotation, velocity, previous velocity, fext, fint, fbod */
       bod->velo = bod->conf + bod->dofs + 9;
       double *R = FEM_ROT (bod);
@@ -2653,21 +2687,21 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     break;
     case REDUCED_ORDER:
     {
-      /* FIXME: work out the proper dimensions here, especially the forces need not be stored in global dimentions;
-       *        also what should really bod->dofs here be; look into the serialization of body state data => we should
-       *        aim at minimizing this for the reduced order model; also look into domain dom->dofs counting, etc.
-       *        see all bod->dofs references across the source code and conclude on a best course of action */
-
       ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME: enable later on */
-      /* bod->con = {full configuration} {rotation} {reduced configuration}
-       * bod->velo = {full velocity, previous velocoty, fext, fint, fbod} {reduced velocity}
-       * XXX: retudec configuration and velocity size are unkonwn yet, hence not allocated;
-       *      either MODAL_ANALYSIS will be called before BODY_Dynamic_Init or this command
-       *      is invoked from BODY_Clone where modal data will be copied. */
-      ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, rotation, velocity, previous velocity, fext, fint, fbod */
-      bod->velo = bod->conf + bod->dofs + 9;
-      double *R = FEM_ROT (bod);
-      IDENTITY (R);
+
+      /* After the modal base becomes available the layout will be as follows:
+       * ------------------------------------------------------------------------------------------------------------
+       * bod->con = {reduced configuration} {rotation} {full configuration}
+       * bod->velo = {reduced => velocity, previous velocoty, fext, fint, fbod} {full => velocity, previous velocity}
+       * ------------------------------------------------------------------------------------------------------------
+       * The local base will become allocated after the MODAL_ANALYSIS commant has been caled. Alternately
+       * it will become allocated inside of the BODY_Clone command, from which this FEM_Create function is called.
+       * Subsequently RO_(dynamic/static)_init will be called, where the finall allocation will happen. In the meantime
+       * FEM_Overwrite_State and FEM_Initial_Velocity will need to be aware of which base is currently active */
+
+      bod->dofs = MESH_DOFS (msh); /* tentative => will become == bod->evec->n */
+      ERRMEM (bod->conf = MEM_CALLOC (2 * bod->dofs * sizeof (double))); /* full conf, full velocity, for the moment */
+      bod->velo = bod->conf + bod->dofs;
       bod->field = NULL; /* linear material only */
     }
     break;
@@ -2699,9 +2733,10 @@ void FEM_Overwrite_State (BODY *bod, double *q, double *u)
 void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
 {
   MESH *msh = FEM_MESH (bod);
+  int dofs = MESH_DOFS (msh);
   double (*nod) [3] = msh->ref_nodes,
 	 (*end) [3] = nod + msh->nodes_count,
-	 *velo = bod->velo,
+	 *velo = bod->dofs == dofs ? bod->velo : FEM_MESH_VELO (bod), /* includes reduced order before and after the modal base has been created */
 	 *X0 = bod->ref_center,
 	 A [3];
 
@@ -2889,14 +2924,15 @@ void FEM_Cur_Point (BODY *bod, SHAPE *shp, void *gobj, double *X, double *x)
   {
     referential_to_local (msh, ele, X, point);
     n = element_shapes (ele->type, point, shapes);
-    element_nodal_values (bod->conf, ele, q);
+    element_nodal_values (FEM_MESH_CONF (bod), ele, q);
 
     COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
   }
   else /* NULL implies nodal update (X is within msh->ref_nodes) */
   {
     int n = (node_t) X - msh->ref_nodes;
-    double *q = &bod->conf [n * 3];
+    double *conf = FEM_MESH_CONF (bod);
+    double *q = &conf [n * 3];
 
     ADD (msh->ref_nodes [n], q, x);
   }
@@ -2909,7 +2945,7 @@ void FEM_Cur_Point_Ext (BODY *bod, ELEMENT *ele, double *X, double *point, doubl
   int i, n;
 
   n = element_shapes (ele->type, point, shapes);
-  element_nodal_values (bod->conf, ele, q);
+  element_nodal_values (FEM_MESH_CONF (bod), ele, q);
 
   COPY (X, x); for (i = 0; i < n; i ++) { ADDMUL (x, shapes [i], q [i], x); } /* x = X + N q */
 }
@@ -3005,14 +3041,14 @@ void FEM_Local_Velo (BODY *bod, SHAPE *shp, void *gobj, double *X, double *base,
 
   if (prevel)
   {
-    element_nodal_values (FEM_VEL0 (bod), ele, u);
+    element_nodal_values (FEM_MESH_VEL0 (bod), ele, u);
     SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u [i], vglo); } /* vglo = N u0 */
     TVMUL (base, vglo, prevel); /* prevel = base' vglo */
   }
 
   if (curvel)
   {
-    element_nodal_values (bod->velo, ele, u);
+    element_nodal_values (FEM_MESH_VELO (bod), ele, u);
     SET (vglo, 0); for (i = 0; i < n; i ++) { ADDMUL (vglo, shapes [i], u [i], vglo); } /* vglo = N u */
     TVMUL (base, vglo, curvel); /* prevel = base' vglo */
   }
@@ -3058,12 +3094,12 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   H = MX_Matmat (1.0, &base_trans, N, 0.0, NULL);
   MX_Destroy (N);
 
-  if (bod->form == BODY_COROTATIONAL &&
-      bod->scheme != SCH_DEF_EXP &&
-      body_space == 0) /* NEWTON_SOLVER sees the regular H = E' N , rather than H R when using the body-space mode, XXX */
+  if ((bod->form == BODY_COROTATIONAL && bod->scheme != SCH_DEF_EXP && body_space == 0)  /* XXX => NEWTON_SOLVER sees the regular H = E' N ,
+											    rather than H R when using the body-space mode,
+											    since FEM_Invvec already incorportes R */
+      || bod->form == REDUCED_ORDER) /* in this case H = E' N R * bod->evec, hence it is a projection of pulled-back E' N onto the reduced base */
   {
-    double *x = H->x, *y = x + H->nzmax,
-           *R = FEM_ROT (bod), T [9];
+    double *x = H->x, *y = x + H->nzmax, *R = FEM_ROT (bod), T [9];
 
     ASSERT_DEBUG ((y-x) % 9 == 0, "Number of nonzeros in H not divisble by 9");
 
@@ -3071,6 +3107,13 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
     {
       NNMUL (x, R, T);
       NNCOPY (T, x); /* H = E' N R <=> rotaions gets shifted to H */
+    }
+
+    if (bod->form == REDUCED_ORDER)
+    {
+      N = H; /* tentative */
+      H = MX_Matmat (1.0, H, bod->evec, 0.0, NULL); /* H = E' N R * bod->evec */
+      MX_Destroy (N);
     }
   }
 
@@ -3088,12 +3131,12 @@ double FEM_Kinetic_Energy (BODY *bod)
     {
       ASSERT_DEBUG (bod->evec, "Reduced base must exist");
 
-      double *ured = FEM_RVELO (bod), *v, ene;
-      int n = bod->evec->n;
+      double *u = bod->velo, *v, ene;
+      int n = bod->dofs;
 
       ERRMEM (v = malloc (n * sizeof (double)));
-      MX_Matvec (1.0, bod->M, ured, 0.0, v);
-      ene = 0.5 * blas_ddot (n, ured, 1, v, 1);
+      MX_Matvec (1.0, bod->M, u, 0.0, v);
+      ene = 0.5 * blas_ddot (n, u, 1, v, 1);
       free (v);
 
       return ene;
@@ -3127,14 +3170,14 @@ void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIN
   case VALUE_COORD:
   {
     MX *N = element_shapes_matrix (bod, msh, ele, point);
-    MX_Matvec (1.0, N, bod->conf, 1.0, values); /* XXX => (@@@) when called from within here, at input: values = X */
-    MX_Destroy (N);                            /* on the other hand, when called from rendering VALUE_COORD is not used */
+    MX_Matvec (1.0, N, FEM_MESH_CONF (bod), 1.0, values); /* XXX => (@@@) when called from within here, at input: values = X */
+    MX_Destroy (N);                                      /* on the other hand, when called from rendering VALUE_COORD is not used */
   }
   break;
   case VALUE_DISPLACEMENT:
   {
     MX *N = element_shapes_matrix (bod, msh, ele, point);
-    MX_Matvec (1.0, N, bod->conf, 0.0, values);
+    MX_Matvec (1.0, N, FEM_MESH_CONF (bod), 0.0, values);
     MX_Destroy (N);
   }
   break;
@@ -3242,20 +3285,23 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
     {
     case VALUE_COORD:
     {
-      double *q = &bod->conf [3*n],
+      double *conf = FEM_MESH_CONF (bod),
+	     *q = &conf [3*n],
 	     *p = msh->cur_nodes [n];
       ADD (p, q, values);
     }
     break;
     case VALUE_DISPLACEMENT:
     {
-      double *q = &bod->conf [3*n];
+      double *conf = FEM_MESH_CONF (bod),
+	     *q = &conf [3*n];
       COPY (q, values);
     }
     break;
     case VALUE_VELOCITY:
     {
-      double *u = &bod->velo [3*n];
+      double *velo = FEM_MESH_VELO (bod),
+	     *u = &velo [3*n];
       COPY (u, values);
     }
     break;
@@ -3267,7 +3313,7 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
 void FEM_Update_Rough_Mesh (BODY *bod)
 {
   MESH *msh = bod->msh;
-  double *q = bod->conf,
+  double *q = FEM_MESH_CONF (bod),
 	(*cur) [3] = msh->cur_nodes,
 	(*ref) [3] = msh->ref_nodes,
 	(*end) [3] = ref + msh->nodes_count;
@@ -3309,7 +3355,12 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     ASSERT_DEBUG (!bod->msh || (bod->msh && mone), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/1", bod->label);
     (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone);
-    map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*one), (*one)->conf, (*one)->velo);
+    map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*one), (*one)->conf, (*one)->velo);
+    if (bod->form == REDUCED_ORDER)
+    {
+      /* TODO: compute and map reduced state of 'sone' */
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME */
+    }
     SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
     if (mone) FEM_Update_Rough_Mesh (*one);
   }
@@ -3319,7 +3370,12 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     ASSERT_DEBUG (!bod->msh || (bod->msh && mtwo), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/2", bod->label);
     (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mtwo);
-    map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (*two), (*two)->conf, (*two)->velo);
+    map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*two), (*two)->conf, (*two)->velo);
+    if (bod->form == REDUCED_ORDER)
+    {
+      /* TODO: compute and map reduced state of 'stwo' */
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME */
+    }
     SHAPE_Update ((*two)->shape, (*two), (MOTION)BODY_Cur_Point); 
     if (mtwo) FEM_Update_Rough_Mesh (*two);
   }
@@ -3381,7 +3437,12 @@ BODY** FEM_Separate (BODY *bod, int *m)
     if (bod->label) sprintf (label, "%s/%d", bod->label, i);
     MESH *backmesh = (msh ? msh [i] : NULL);
     out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh);
-    map_state (FEM_MESH (bod), bod->conf, bod->velo, FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
+    map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO(bod), FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
+    if (bod->form == REDUCED_ORDER)
+    {
+      /* TODO: compute and map reduced state of 'out [i]' */
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME */
+    }
     SHAPE_Update (out [i]->shape, out [i], (MOTION)BODY_Cur_Point); 
     if (backmesh) FEM_Update_Rough_Mesh (out [i]);
   }
@@ -3406,8 +3467,8 @@ int FEM_Conf_Pack_Size (BODY *bod)
 {
   switch (bod->form)
   {
-  case BODY_COROTATIONAL: return bod->dofs + 9; /* conf, R */
-  case REDUCED_ORDER: return bod->dofs + 9 + bod->evec->n; /* conf, R, reduced conf */
+  case BODY_COROTATIONAL:
+  case REDUCED_ORDER: return bod->dofs + 9; /* conf, R */
   default: return bod->dofs; /* conf */
   }
 }
@@ -3415,11 +3476,7 @@ int FEM_Conf_Pack_Size (BODY *bod)
 /* get velocity packing size */
 int FEM_Velo_Pack_Size (BODY *bod)
 {
-  switch (bod->form)
-  {
-  case REDUCED_ORDER: return 4 * bod->dofs + bod->evec->n; /* velo, vel0, fext, fint, reduced velo */
-  default: return 4 * bod->dofs; /* velo, vel0, fext, fint */
-  }
+  return 4 * bod->dofs; /* velo, vel0, fext, fint */
 }
 #endif
 
