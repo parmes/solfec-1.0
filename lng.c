@@ -2525,6 +2525,10 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	{
 	  form = BODY_COROTATIONAL;
 	}
+	ELIF (formulation, "RO")
+	{
+	  form = REDUCED_ORDER;
+	}
 	ELSE
 	{
 	  PyErr_SetString (PyExc_ValueError, "Invalid FEM formulation");
@@ -2551,8 +2555,8 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
 
-    /* LIM is closest to the quasi-static time stepping; some code parts test body->scheme without checking for quasi-statics */
-    if (solfec->sol->dom->dynamic == 0 && self->bod->kind != RIG) self->bod->scheme = SCH_DEF_LIM; /* XXX */
+    if ((solfec->sol->dom->dynamic == 0 && self->bod->kind != RIG) || /* XXX => LIM is closest to the quasi-static time stepping; some code parts test body->scheme without checking for quasi-statics */
+	 self->bod->form == REDUCED_ORDER) self->bod->scheme = SCH_DEF_LIM; /* reduced order model uses only the 'DEF_LIM' scheme (no advantage in using 'DEF_EXP' since bod->M is dense anyway) */
   }
 
   return (PyObject*)self;
@@ -3009,7 +3013,7 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
   }
   ELIF (value, "DEF_EXP")
   {
-    if (self->bod->kind == RIG)
+    if (self->bod->kind == RIG || self->bod->form == REDUCED_ORDER)
     {
       PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
       return -1;
