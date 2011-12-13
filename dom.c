@@ -2619,6 +2619,108 @@ static void destroy_mpi (DOM *dom)
 }
 #endif
 
+/* go over contact points and remove those whose corresponding
+ * areas are much smaller than those of other points related to
+ * objects directly topologically adjacent in their shape definitions */
+static void sparsify_contacts (DOM *dom)
+{
+  double threshold = dom->threshold,
+	 minarea = dom->minarea,
+	 margin = 2.0 * dom->mindist, d [3], c;
+  SET *del, *itm;
+  CON *con, *adj;
+  MEM mem;
+  int n;
+
+  MEM_Init (&mem, sizeof (SET), SETBLK);
+
+  for (del = NULL, con = dom->con; con; con = con->next)
+  {
+    if (con->kind == CONTACT && (con->state & CON_NEW)) /* walk over all new contacts */
+    {
+      SET *set [2] = {con->master->con, con->slave->con};
+
+      if (con->area < minarea) /* simple criterion first */
+      {
+	con->state |= CON_DONE;
+	SET_Insert (&mem, &del, con, NULL); /* schedule for deletion */
+      }
+      else /* threshold based adjacency test next */
+      {
+	for (n = 0; n < 2; n ++) for (itm = SET_First (set [n]); itm; itm = SET_Next (itm))
+	{
+	  adj = itm->data;
+
+	  if (adj == con || adj->kind != CONTACT || (con->state & CON_DONE)) continue;
+
+	  if (con->area < threshold * adj->area) /* check whether the area of the diagonal element is too small (this test is cheaper => let it go first) */
+	  {
+	    if (con->master == adj->master && con->slave == adj->slave) /* identify contacts pair sharing the same pairs of bodies */
+	    {
+	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), mkind(adj)), mgobj(con), mgobj (adj))) /* check whether the geometric objects are topologically adjacent */
+	      {
+	        con->state |= CON_DONE;
+		SET_Insert (&mem, &del, con, NULL); /* if so schedule the current contact for deletion */
+	      }
+	    }
+	    else if (con->master == adj->slave && con->slave == adj->master)
+	    {
+	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), skind(adj)), mgobj(con), sgobj(adj)))
+	      {
+	        con->state |= CON_DONE;
+		SET_Insert (&mem, &del, con, NULL);
+	      }
+	    }
+	    else if (con->slave == adj->master && con->master == adj->slave)
+	    {
+	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), mkind(adj)), sgobj(con), mgobj(adj)))
+	      {
+	        con->state |= CON_DONE;
+		SET_Insert (&mem, &del, con, NULL);
+	      }
+	    }
+	    else if (con->slave == adj->slave && con->master == adj->master)
+	    {
+	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), skind(adj)), sgobj(con), sgobj(adj)))
+	      {
+	        con->state |= CON_DONE;
+		SET_Insert (&mem, &del, con, NULL);
+	      }
+	    }
+	  }
+	  else
+	  {
+	    SUB (con->point, adj->point, d);
+
+	    MAXABS (d, c);
+
+	    if (c < margin && con->id < adj->id) /* eliminate duplicated contact points (compare ids not to eliminate both) */
+	    {
+	      con->state |= CON_DONE;
+	      SET_Insert (&mem, &del, con, NULL);
+	    }
+	  }
+	}
+      }
+    }
+  }
+
+  /* now remove unwanted contacts */
+  for (itm = SET_First (del), n = 0; itm; itm = SET_Next (itm), n ++)
+  {
+    con = itm->data;
+#if MPI
+    ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
+#endif
+    DOM_Remove_Constraint (dom, con); /* remove from the domain */
+  }
+
+  dom->nspa = n; /* record the number of sparsified contacts */
+
+  /* clean up */
+  MEM_Release (&mem);
+}
+
 /* constraint kind string */
 char* CON_Kind (CON *con)
 {
@@ -3117,108 +3219,6 @@ void DOM_Extents (DOM *dom, double *extents)
   COPY6 (extents, dom->extents);
 }
 
-/* go over contact points and remove those whose corresponding
- * areas are much smaller than those of other points related to
- * objects directly topologically adjacent in their shape definitions */
-void DOM_Sparsify_Contacts (DOM *dom)
-{
-  double threshold = dom->threshold,
-	 minarea = dom->minarea,
-	 margin = 2.0 * dom->mindist, d [3], c;
-  SET *del, *itm;
-  CON *con, *adj;
-  MEM mem;
-  int n;
-
-  MEM_Init (&mem, sizeof (SET), SETBLK);
-
-  for (del = NULL, con = dom->con; con; con = con->next)
-  {
-    if (con->kind == CONTACT && (con->state & CON_NEW)) /* walk over all new contacts */
-    {
-      SET *set [2] = {con->master->con, con->slave->con};
-
-      if (con->area < minarea) /* simple criterion first */
-      {
-	con->state |= CON_DONE;
-	SET_Insert (&mem, &del, con, NULL); /* schedule for deletion */
-      }
-      else /* threshold based adjacency test next */
-      {
-	for (n = 0; n < 2; n ++) for (itm = SET_First (set [n]); itm; itm = SET_Next (itm))
-	{
-	  adj = itm->data;
-
-	  if (adj == con || adj->kind != CONTACT || (con->state & CON_DONE)) continue;
-
-	  if (con->area < threshold * adj->area) /* check whether the area of the diagonal element is too small (this test is cheaper => let it go first) */
-	  {
-	    if (con->master == adj->master && con->slave == adj->slave) /* identify contacts pair sharing the same pairs of bodies */
-	    {
-	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), mkind(adj)), mgobj(con), mgobj (adj))) /* check whether the geometric objects are topologically adjacent */
-	      {
-	        con->state |= CON_DONE;
-		SET_Insert (&mem, &del, con, NULL); /* if so schedule the current contact for deletion */
-	      }
-	    }
-	    else if (con->master == adj->slave && con->slave == adj->master)
-	    {
-	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (mkind(con), skind(adj)), mgobj(con), sgobj(adj)))
-	      {
-	        con->state |= CON_DONE;
-		SET_Insert (&mem, &del, con, NULL);
-	      }
-	    }
-	    else if (con->slave == adj->master && con->master == adj->slave)
-	    {
-	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), mkind(adj)), sgobj(con), mgobj(adj)))
-	      {
-	        con->state |= CON_DONE;
-		SET_Insert (&mem, &del, con, NULL);
-	      }
-	    }
-	    else if (con->slave == adj->slave && con->master == adj->master)
-	    {
-	      if (gobj_adjacent (GOBJ_Pair_Code_Ext (skind(con), skind(adj)), sgobj(con), sgobj(adj)))
-	      {
-	        con->state |= CON_DONE;
-		SET_Insert (&mem, &del, con, NULL);
-	      }
-	    }
-	  }
-	  else
-	  {
-	    SUB (con->point, adj->point, d);
-
-	    MAXABS (d, c);
-
-	    if (c < margin && con->id < adj->id) /* eliminate duplicated contact points (compare ids not to eliminate both) */
-	    {
-	      con->state |= CON_DONE;
-	      SET_Insert (&mem, &del, con, NULL);
-	    }
-	  }
-	}
-      }
-    }
-  }
-
-  /* now remove unwanted contacts */
-  for (itm = SET_First (del), n = 0; itm; itm = SET_Next (itm), n ++)
-  {
-    con = itm->data;
-#if MPI
-    ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
-#endif
-    DOM_Remove_Constraint (dom, con); /* remove from the domain */
-  }
-
-  dom->nspa += n; /* record the number of sparsified contacts */
-
-  /* clean up */
-  MEM_Release (&mem);
-}
-
 /* domain update initial half-step => bodies and constraints are
  * updated and the current local dynamic problem is returned */
 LOCDYN* DOM_Update_Begin (DOM *dom)
@@ -3226,6 +3226,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   double time, step;
   CON *con, *next;
   TIMING timing;
+  BOXALG alg;
   BODY *bod;
 
 #if MPI
@@ -3325,25 +3326,41 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #endif
 
   /* detect contacts */
+  alg = aabb_algorithm (dom);
+
+#if MPI
+  if (dom->rank == 0)
+#endif
+  if (dom->verbose) printf ("CONDET (%s) ... ", AABB_Algorithm_Name (alg)), fflush (stdout);
+  
+  SOLFEC_Timer_Start (dom->solfec, "CONDET");
+
   timerstart (&timing);
 
-  dom->nspa = 0;
-
-  AABB_Update (dom->aabb, aabb_algorithm (dom), dom, (BOX_Overlap_Create) overlap_create);
+  AABB_Update (dom->aabb, alg, dom, (BOX_Overlap_Create) overlap_create);
 
   aabb_timing (dom, timerend (&timing));
 
-#if MPI
-  MPI_Barrier (MPI_COMM_WORLD); /* contact detection above might be somewhat unbalanced =>
-				   the barrier allows for a more adequate PARBAL measurement */
+  SOLFEC_Timer_End (dom->solfec, "CONDET");
 
+#if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
   domain_gluing_begin (dom); /* migrate new external contacts */
 
-  DOM_Sparsify_Contacts (dom); /* sparsify contacts again (after local sparsification from within AABB_Update) */
+  SOLFEC_Timer_End (dom->solfec, "PARBAL");
+#endif
 
-  domain_gluing_end (dom); /* migrate external constraint deletions after final sparsification */
+  SOLFEC_Timer_Start (dom->solfec, "CONDET");
+
+  sparsify_contacts (dom); /* once all contacts have been collected sparsify them (aimed at greater consitency of serial and parallel runs) */
+
+  SOLFEC_Timer_End (dom->solfec, "CONDET");
+
+#if MPI
+  SOLFEC_Timer_Start (dom->solfec, "PARBAL");
+
+  domain_gluing_end (dom); /* migrate external constraint deletions after sparsification */
 
   SOLFEC_Timer_End (dom->solfec, "PARBAL");
 #else

@@ -332,11 +332,6 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst);
 /* set simulation scene extents */
 void DOM_Extents (DOM *dom, double *extents);
 
-/* go over contact points and remove those whose corresponding
- * areas are much smaller than those of other points related to
- * objects directly topologically adjacent in their shape definitions */
-void DOM_Sparsify_Contacts (DOM *dom);
-
 /* domain update initial half-step => bodies and constraints are
  * updated and the unupdated local dynamic problem is returned */
 LOCDYN* DOM_Update_Begin (DOM *dom);

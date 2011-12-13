@@ -7146,7 +7146,7 @@ static void overlap_create (OCD *ocd, BOX *one, BOX *two)
     two->sgp->shp, two->sgp->gobj,
     onepnt, twopnt, normal, &gap, &area, spair);
 
-  if (state && gap >= ocd->gap)
+  if (state && gap <= ocd->gap)
   {
     if (ocd->bod == one->body)
     {
@@ -7164,13 +7164,14 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
 {
   KEYWORDS ("obstacles", "shapes", "not", "gap");
   PyObject *obstacles, *shapes, *notobj;
+  MAP *imap, *omap, *jtem;
   SET *item, *add, *sub;
   SHAPE *outshp, *ptr;
   BODY *obs, *shp;
   SGP *sgp, *sgpe;
   AABB *aabb;
+  int not, i;
   OCD ocd;
-  int not;
 
   notobj = NULL;
   not = 0;
@@ -7207,6 +7208,12 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   add = NULL;
   sub = NULL;
 
+  /* sequentially number input shapes */
+  for (ptr = shp->shape, i = 0, imap = NULL; ptr; ptr = ptr->next, i ++)
+  {
+    MAP_Insert (NULL, &imap, ptr, (void*) (long) i, NULL);
+  }
+
   for (sgp = obs->sgp, sgpe = sgp + obs->nsgp; sgp < sgpe; sgp ++)
   {
     AABB_Insert (aabb, obs, sgp->kind, sgp, SGP_Extents_Update (sgp));
@@ -7217,7 +7224,7 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   }
 
   /* detect overlaps */
-  AABB_Update (aabb, HYBRID, &ocd, (BOX_Overlap_Create) overlap_create);
+  AABB_Simple_Detect (aabb, HYBRID, &ocd, (BOX_Overlap_Create) overlap_create);
 
   if (not)
   {
@@ -7238,10 +7245,20 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
     }
   }
 
-  /* create output shape list */
-  for (outshp = NULL, item = SET_First (add); item; item = SET_Next (item))
+  /* create output map of sequentially numbered shapes */
+  for (item = SET_First (add), omap = NULL; item; item = SET_Next (item))
   {
-    ptr = item->data;
+    jtem = MAP_Find_Node (imap, item->data, NULL);
+    ASSERT_DEBUG (jtem, "Invalid shape mapping");
+    MAP_Insert (NULL, &omap, jtem->data, jtem->key, NULL); /* use initial numbering */
+  }
+
+
+  /* create output shape list using a subseqnence of the initial sequence of shapes; this assures repeteability
+   * of the output in parallel, regardless of the randomized nature of the output of the AABB_Simple_Detect */
+  for (outshp = NULL, jtem = MAP_First (omap); jtem; jtem = MAP_Next (jtem))
+  {
+    ptr = jtem->data;
     ptr->next = outshp;
     outshp = ptr;
   }
@@ -7258,6 +7275,8 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   SET_Free (NULL, &add);
   SET_Free (NULL, &sub);
   SET_Free (NULL, &ocd.set);
+  MAP_Free (NULL, &imap);
+  MAP_Free (NULL, &omap);
   SHAPE_Destroy_Wrapper (obs->shape);
   free (obs);
   free (shp);

@@ -104,6 +104,26 @@ inline static void ellip_normal (double *c, double *sca, double *rot, double *pn
   NORMALIZE (normal);
 }
 
+/* return a surface normal with the input point closest to an input plane */
+inline static double* nearest_normal (double *pnt, double *pla, int n)
+{
+  double v [3], d, max = -DBL_MAX, *ret = NULL;
+
+  for (; n > 0; n --, pla += 6)
+  {
+    SUB (pnt, pla+3, v);
+    d = DOT (pla, v);
+
+    if (d > max)
+    {
+      ret = pla;
+      max = d;
+    }
+  }
+
+  return ret;
+}
+
 /* return a surface code with the input point closest to an input plane */
 inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
 {
@@ -243,10 +263,23 @@ static int detect_convex_sphere (
   double *area,
   int spair [2])
 {
+  double dot, ilen, *nn;
+
   if (gjk_convex_point (vc, nvc, c, onepnt) < r + GEOMETRIC_EPSILON)
   {
     SUB (c, onepnt, normal);
-    NORMALIZE (normal);
+    dot = DOT (normal, normal);
+    if (dot == 0.0) /* center inside convex */
+    {
+      nn = nearest_normal (onepnt, pc, nsc);
+      if (nn) { COPY (nn, normal); }
+      else return 0;
+    }
+    else
+    {
+      ilen = 1.0 / sqrt (dot);
+      SCALE (normal, ilen);
+    }
     ADDMUL (c, -r, normal, twopnt);
 
     spair [0] = nearest_surface (onepnt, pc, sc, nsc);
@@ -472,12 +505,24 @@ static int update_convex_sphere (
   double *area,
   int spair [2])
 {
+  double dot, ilen, *nn;
   int s0;
 
   if (gjk_convex_point (vc, nvc, c, onepnt) < r + GEOMETRIC_EPSILON)
   {
     SUB (c, onepnt, normal);
-    NORMALIZE (normal);
+    dot = DOT (normal, normal);
+    if (dot == 0.0) /* center inside convex */
+    {
+      nn = nearest_normal (onepnt, pc, nsc);
+      if (nn) { COPY (nn, normal); }
+      else return 0;
+    }
+    else
+    {
+      ilen = 1.0 / sqrt (dot);
+      SCALE (normal, ilen);
+    }
     ADDMUL (c, -r, normal, twopnt);
 
     s0 = spair [0];
