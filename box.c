@@ -377,22 +377,16 @@ void AABB_Delete_Body (AABB *aabb, BODY *body)
   }
 }
 
-/* update state and detect all created overlaps */
+/* update state and detect all created overlaps (aabb->dom != NULL) */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
 {
+  ASSERT_DEBUG (aabb->dom, "Domain pointer must be set for AABB_Update call");
 #if MPI
   struct auxdata aux = {aabb->dom->rank, aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
 #else
   struct auxdata aux = {aabb->nobody, aabb->nogobj, &aabb->mapmem, data, create};
 #endif
   BOX *box;
-
-#if MPI
-  if (aabb->dom->rank == 0)
-#endif
-  if (aabb->dom && aabb->dom->verbose) printf ("CONDET (%s) ... ", AABB_Algorithm_Name (alg)), fflush (stdout);
-  
-  if (aabb->dom) SOLFEC_Timer_Start (aabb->dom->solfec, "CONDET");
 
   for (box = aabb->lst; box; box = box->next) box->update (box->sgp->shp->data, box->sgp->gobj, box->extents); /* update box extents */
 
@@ -455,13 +449,62 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
 
   /* set unmodified */
   aabb->modified = 0;
+}
 
-  if (aabb->dom)
+/* update state and detect all created overlaps (aabb->dom == NULL) */
+void AABB_Simple_Detect (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
+{
+  BOX *box;
+
+  for (box = aabb->lst; box; box = box->next) box->update (box->sgp->shp->data, box->sgp->gobj, box->extents); /* update box extents */
+
+  if (aabb->modified) /* merge insertion and curent lists, update pointer table */
   {
-    DOM_Sparsify_Contacts (aabb->dom);
+    BOX **b;
 
-    SOLFEC_Timer_End (aabb->dom->solfec, "CONDET");
+    if (aabb->boxnum > aabb->tabsize)
+    {
+      free (aabb->tab);
+      aabb->tabsize = 2 * aabb->boxnum;
+      ERRMEM (aabb->tab = malloc (sizeof (BOX*) * aabb->tabsize));
+    }
+
+    for (box = aabb->lst, b = aabb->tab; box; box = box->next, b ++) *b = box; /* overwrite box pointers */
   }
+
+  /* regardless of the current algorithm notify sweep-plane about the change */
+  if (aabb->modified && aabb->swp) SWEEP_Changed (aabb->swp);
+
+  /* the algorithm
+   * specific part */
+  switch (alg)
+  {
+    case HYBRID:
+    {
+      hybrid (aabb->tab, aabb->boxnum, data, create);
+    }
+    break;
+    case HASH3D:
+    {
+      if (!aabb->hsh) aabb->hsh = HASH_Create (aabb->boxnum);
+
+      HASH_Do (aabb->hsh, aabb->boxnum, aabb->tab, data, create); 
+    }
+    break;
+    case SWEEP_HASH2D_LIST:
+    case SWEEP_HASH1D_XYTREE:
+    case SWEEP_HASH2D_XYTREE:
+    case SWEEP_XYTREE:
+    {
+      if (!aabb->swp) aabb->swp = SWEEP_Create (aabb->boxnum, (DRALG)alg);
+
+      SWEEP_Do (aabb->swp, (DRALG)alg, aabb->boxnum, aabb->tab, data, create); 
+    }
+    break;
+  }
+
+  /* set unmodified */
+  aabb->modified = 0;
 }
 
 /* never report overlaps betweem this pair of bodies (given by identifiers) */

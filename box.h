@@ -187,8 +187,11 @@ void AABB_Insert_Body (AABB *aabb, BODY *body);
 /* delete a body */
 void AABB_Delete_Body (AABB *aabb, BODY *body);
 
-/* update state and detect all created overlaps */
+/* update state and detect all created overlaps (aabb->dom != NULL) */
 void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create);
+
+/* update state and detect all created overlaps (aabb->dom == NULL) */
+void AABB_Simple_Detect (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create); 
 
 /* never report overlaps betweem this pair of bodies (given by identifiers) */
 void AABB_Exclude_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2);
