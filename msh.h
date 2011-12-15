@@ -216,7 +216,7 @@ void MESH_Delete_Elements (MESH *msh, SET *elements);
 void MESH_Destroy (MESH *msh);
   
 /* does the element contain a spatial/referential point? */
-int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ret);
+int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref);
 
 /* does the element contain a spatial point? */
 int ELEMENT_Contains_Spatial_Point (MESH *msh, ELEMENT *ele, double *point);

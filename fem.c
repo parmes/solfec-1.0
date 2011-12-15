@@ -749,8 +749,8 @@ static void local_to_global (node_t heap, ELEMENT *ele, double *local, double *g
 static void global_to_local (node_t heap, ELEMENT *ele, double *global, double *local)
 {
   double nodes [MAX_NODES][3], derivs [3*MAX_NODES], shapes [MAX_NODES];
-  double A [9], B [3], I [9], det, error;
-  int i, j, k, l, n;
+  double A [9], B [3], error;
+  int i, j, k, l, n, ipiv [3];
 
   element_nodes (heap, ele->type, ele->nodes, nodes);
 
@@ -775,17 +775,15 @@ static void global_to_local (node_t heap, ELEMENT *ele, double *global, double *
       for (j = 0; j < 3; j ++)
 	for (k = 0; k < n; k ++) A [3*j+i] += nodes[k][i] * derivs [3*k+j];
 
-    INVERT (A, I, det);
-    ASSERT (det != 0.0, ERR_FEM_COORDS_INVERT); /* allow for negative (outside of element) determinant, but ... */
-    NVMUL (I, B, A);
-    ADD (local, A, local);
-    error = sqrt (DOT (A,A) / (1.0 + DOT (local, local)));
+    ASSERT (lapack_dgesv (3, 1, A, 3, ipiv, B, 3) == 0, ERR_FEM_COORDS_INVERT);
+    ADD (local, B, local);
+    error = LEN (B);
 
   } while (++l < 64 && error > 1E-9);
 
   ASSERT (l < 64, ERR_FEM_COORDS_INVERT);
 
-  for (i = 0; i < 3; i ++) /* ... project back onto the element */
+  for (i = 0; i < 3; i ++) /* project back onto the element if the point is off due to roundoff */
   {
     if (local [i] < mincoord [ele->type][i]) local [i] = mincoord [ele->type][i];
     else if (local [i] > maxcoord [ele->type][i]) local [i] = maxcoord [ele->type][i];
@@ -1358,28 +1356,40 @@ static void internal_force (BODY *bod, double *fint)
 /* initialize unit body force */
 static void unit_body_force (BODY *bod)
 {
-  double g [24], f [3], *v, *w;
+  double g [24], f [3], *v, *w, *ubfmsh;
   double *ubf = FEM_FBOD (bod);
   MESH *msh = FEM_MESH (bod);
   int dofs = MESH_DOFS (msh);
   ELEMENT *ele;
   int bulk, i;
 
+  if (bod->form == REDUCED_ORDER)
+  {
+    ERRMEM (ubfmsh = malloc (dofs * sizeof (double)));
+  }
+  else ubfmsh = ubf;
+
   SET (f, 1.0);
-  blas_dscal (dofs, 0.0, ubf, 1);
+  memset (ubfmsh, 0, dofs * sizeof (double));
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
     element_body_force (bod, msh, ele, f, g);
 
     for (i = 0, v = g; i < ele->type; i ++, v += 3)
     {
-      w = &ubf [ele->nodes [i] * 3];
+      w = &ubfmsh [ele->nodes [i] * 3];
       ADD (w, v, w);
     }
 
     if (bulk) ele = ele->next;
     else if (ele->next) ele = ele->next;
     else ele = msh->bulkeles, bulk = 1;
+  }
+
+  if (bod->form == REDUCED_ORDER)
+  {
+    MX_Matvec (1.0, MX_Tran (bod->evec), ubfmsh, 0.0, ubf); /* r = bod->evec' * r_mesh */
+    free (ubfmsh);
   }
 }
 
@@ -1437,7 +1447,7 @@ static void external_force (BODY *bod, double time, double step, double *fext)
     {
       ERRMEM (v = MEM_CALLOC (bod->dofs * sizeof (double)));
       frc->func (frc->data, frc->call, bod->dofs, bod->conf, bod->dofs, bod->velo, time, step, v);
-      if (bod->form == REDUCED_ORDER) MX_Matvec (1.0, MX_Tran (bod->evec), v, 1.0, fext); /* accumulate from reduced to global space */
+      if (bod->form == REDUCED_ORDER) MX_Matvec (1.0, bod->evec, v, 1.0, fext); /* accumulate from reduced to global space */
       else blas_daxpy (bod->dofs, 1.0, v, 1, fext, 1);
       free (v);
     }
@@ -2755,6 +2765,8 @@ void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
 /* initialise dynamic time stepping */
 void FEM_Dynamic_Init (BODY *bod)
 {
+  if (!bod->M) unit_body_force (bod); /* compute once */
+
   switch (bod->form)
   {
     case TOTAL_LAGRANGIAN:
@@ -2767,8 +2779,6 @@ void FEM_Dynamic_Init (BODY *bod)
       RO_dynamic_init (bod);
       break;
   }
-
-  unit_body_force (bod);
 }
 
 /* estimate critical step for the dynamic scheme */
@@ -2848,6 +2858,8 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
 /* initialise static time stepping */
 void FEM_Static_Init (BODY *bod)
 {
+  if (!bod->M) unit_body_force (bod); /* compute once */
+
   switch (bod->form)
   {
     case TOTAL_LAGRANGIAN:
@@ -2860,8 +2872,6 @@ void FEM_Static_Init (BODY *bod)
       RO_static_init (bod);
       break;
   }
-
-  unit_body_force (bod);
 }
 
 /* perform the initial half-step of the static scheme */
