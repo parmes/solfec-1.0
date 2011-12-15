@@ -539,7 +539,7 @@ static int SGP_index (BODY *bod, SGP *sgp)
   if (n < 0 || n >= bod->nsgp) /* non-surface ELEMENT */
   {
     ASSERT_DEBUG (bod->kind == FEM && !bod->msh, "Regular FEM body expected");
-    n = - (int) (long) sgp->box;
+    n = - (int) (long) sgp->box; /* GLUE-ed mesh node index (1-based) */
   }
 
   return n;
@@ -559,7 +559,7 @@ static SGP* SGP_from_index (DOM *dom, BODY *bod, int n)
     ERRMEM (sgp = MEM_Alloc (&dom->sgpmem));
     sgp->shp = bod->shape;
     ASSERT_DEBUG_EXT (sgp->gobj = MESH_Element_With_Node (bod->shape->data, -n-1), "Element with given node number not found");
-    sgp->box = (BOX*) (long) (-n);
+    sgp->box = (BOX*) (long) (-n); /* GLUE-ed mesh node index (1-based) */
   }
 
   return sgp;

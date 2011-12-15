@@ -149,16 +149,18 @@ inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
  * if m < 0 assume outward a-normal and return 1 if spair did not change or 2 otherwise;
  * return 0 if a geometrical error occured */
 inline static int point_normal_spair_area_gap
- (TRI *tri, int m, double *pa, int npa, double *pb, int npb, int *sa, int nsa, int *sb, int nsb, /* input */
+ (TRI *tri, int m, /* input intersection */
+   double *va, int nva, double *vb, int nvb, /* input vertice */
+  double *pa, int npa, double *pb, int npb, /* input planes */
+  int *sa, int nsa, int *sb, int nsb, /* input surfaces */
   double *point, double *normal, int *spair, double *area, double *gap) /* output */
 {
-  double plane [4], v [3], p [3], pos = DBL_MAX, neg = -pos, a, b;
+  double plane [4], v [3], pos = DBL_MAX, neg = -pos, a, b;
   TRI *t, *e;
   int j, k;
 
   SET (normal, 0.0);
   SET (point, 0.0);
-  SET (p, 0.0);
   *area = 0.0;
   k = 1;
 
@@ -169,23 +171,14 @@ inline static int point_normal_spair_area_gap
     if (t->flg < 0 && -t->flg < nsb + 1) SUBMUL (normal, b, t->out, normal); /* subtract from another */
     MID3 (t->ver[0], t->ver[1], t->ver[2], v);
     ADDMUL (point, a, v, point);
-    ACC (v, p);
     *area += a;
   }
   DIV (point, *area, point); /* surface mass center */
   NORMALIZE (normal); /* resultant normal */
   *area *= 0.5; /* half surface */
 
-  for (t = tri; t != e; t ++) /* test whether point falls outside of intersection volume */
-  {
-    SUB (t->ver [0], point, v);
-    if (DOT (t->out, v) < 0.0) /* it does */
-    {
-      a = (double) ABS (m);
-      DIV (p, a, point); /* use average point instead */
-      break;
-    }
-  }
+  if (gjk_convex_point (va, nva, point, v) > GEOMETRIC_EPSILON ||
+      gjk_convex_point (vb, nvb, point, v) > GEOMETRIC_EPSILON) return 0; /* fail ill-conditioned points */
 
   if (m > 0)
   {
@@ -243,7 +236,7 @@ static int detect_convex_convex (
 
   if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
-  k = point_normal_spair_area_gap (tri, m, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
+  k = point_normal_spair_area_gap (tri, m, va, nva, vb, nvb, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
   sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
   COPY (onepnt, twopnt);
   free (tri);
@@ -485,7 +478,7 @@ static int update_convex_convex (
 
   if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
 
-  k = point_normal_spair_area_gap (tri, -m, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
+  k = point_normal_spair_area_gap (tri, -m, va, nva, vb, nvb, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
   sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
   COPY (onepnt, twopnt);
   free (tri);
