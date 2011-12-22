@@ -673,7 +673,6 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
   LOCDYN *ldy = dom->ldy;
   MAP *item, *fem;
   int ndat, ret;
-  short dynamic;
   CON_DATA *dat;
   double step;
   CON *con;
@@ -683,7 +682,6 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 
   ret = 0;
   fem = NULL;
-  dynamic = dom->dynamic;
   ldy->free_energy = 0.0;
   ndat = dom->ncon;
 #if MPI
@@ -704,14 +702,6 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
     MX_DENSE_PTR (W, 3, 3, dia->W);
     MX *prod, *inv;
 
-#if MPI
-    if (m->flags & BODY_CHILD)
-    {
-      if (dynamic) BODY_Dynamic_Init (m);
-      else BODY_Static_Init (m);
-    }
-#endif
-
     if (m->kind == FEM && MAP_Find (fem, m, NULL) == NULL)
     {
       MAP_Insert (NULL, &fem, m, FEM_Approx_Inverse (m), NULL); /* map approximate inverses */
@@ -726,14 +716,6 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 
     if (s)
     {
-#if MPI
-      if (s->flags & BODY_CHILD)
-      {
-	if (dynamic) BODY_Dynamic_Init (s);
-	else BODY_Static_Init (s);
-      }
-#endif
-
       if (s->kind == FEM && MAP_Find (fem, s, NULL) == NULL)
       {
 	MAP_Insert (NULL, &fem, s, FEM_Approx_Inverse (s), NULL); /* map approximate inverses */
