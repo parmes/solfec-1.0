@@ -108,3 +108,10 @@ across for both parents and children !!! Perhaps send M and K rather than
 re-compute them. IMPORTANT!!!! this is the main reson of the problems with stability
 of the parallel deformable runs!!!! (check repetability of results on simple dynamic
 examples: e.g. drum.py with only 4 bodies during the initial 1 s)
+------------------------------------------------------------------------------------------
+Eliminate dummy bodies => they are not needed (initially it saved some coding when
+handling local dynamics in parallel, but for local body storage this needlessly
+generates too much memory copying and data transfer) !!!
+
+Only COMCMP in dom.c (for bod->con) seems to require valid con->master/slave pointers
+(e.g. having one of them NULL may produce == for different constraints); work around it!

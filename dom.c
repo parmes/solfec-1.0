@@ -446,11 +446,6 @@ static void update_contact (DOM *dom, CON *con)
 	SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, con->spair [0], con->spair [1]); /* find new surface pair description */
 	con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
       }
-
-      if (dom->dynamic && con->gap > 0) /* dynamic open contact */
-      {
-	SET (con->R, 0);  /* has zero reaction (NOTE: this will propagate to external reactions in parallel) */
-      }
     }
   }
   else
@@ -871,6 +866,7 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
 
   pack_doubles (dsize, d, doubles, con->R, 3);
   pack_doubles (dsize, d, doubles, con->U, 3);
+  pack_doubles (dsize, d, doubles, con->point, 3);
   pack_doubles (dsize, d, doubles, con->base, 9);
 
   if (con->kind == CONTACT) /* sparsification || BBS need below data  */
@@ -914,6 +910,7 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
 
   unpack_doubles (dpos, d, doubles, con->R, 3);
   unpack_doubles (dpos, d, doubles, con->U, 3);
+  unpack_doubles (dpos, d, doubles, con->point, 3);
   unpack_doubles (dpos, d, doubles, con->base, 9);
 
   if (kind == CONTACT) /* sparsification || BBS need below data */
@@ -921,8 +918,6 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
     con->area = unpack_double (dpos, d, doubles);
     con->gap = unpack_double (dpos, d, doubles);
   }
-
-  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point); /* update point */
 
   return con;
 }
@@ -933,6 +928,7 @@ static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, i
   pack_int (isize, i, ints, con->id);
   pack_doubles (dsize, d, doubles, con->R, 3);
   pack_doubles (dsize, d, doubles, con->U, 3);
+  pack_doubles (dsize, d, doubles, con->point, 3);
 
   if (con->kind == CONTACT) /* sparsification || BBS need below data */
   {
@@ -958,6 +954,7 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
   ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid constraint id");
   unpack_doubles (dpos, d, doubles, con->R, 3);
   unpack_doubles (dpos, d, doubles, con->U, 3);
+  unpack_doubles (dpos, d, doubles, con->point, 3);
 
   if (con->kind == CONTACT) /* sparsification || BBS need below data */
   {
@@ -971,8 +968,6 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
   {
     unpack_doubles (dpos, d, doubles, con->base, 9);
   }
-
-  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point); /* update point */
 
   return con;
 }

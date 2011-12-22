@@ -2584,14 +2584,14 @@ void MX_Pack (MX *a, int *dsize, double **d, int *doubles, int *isize, int **i, 
   {
     pack_int (isize, i, ints, a->flags & MXTRANS);
     pack_ints (isize, i, ints, a->p, a->n + 1);
-    pack_ints (isize, i, ints, a->i, a->n);
+    pack_ints (isize, i, ints, a->i, a->n + 1);
     pack_doubles (dsize, d, doubles, a->x, a->nzmax);
   }
   break;
   case MXCSC:
   {
     short IFAC = (a->flags & MXUNINV) ? 0 : MXIFAC;
-    pack_int (isize, i, ints, a->flags & (MXTRANS|IFAC));
+    pack_int (isize, i, ints, a->flags & (MXTRANS|IFAC|MXSPD));
     pack_ints (isize, i, ints, a->p, a->n + 1);
     pack_ints (isize, i, ints, a->i, a->nzmax);
     pack_doubles (dsize, d, doubles, a->x, a->nzmax);
@@ -2625,10 +2625,10 @@ MX* MX_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
   {
     a->flags = unpack_int (ipos, i, ints);
     ERRMEM (a->p = malloc (sizeof (int [a->n + 1])));
-    ERRMEM (a->i = malloc (sizeof (int [a->n])));
+    ERRMEM (a->i = malloc (sizeof (int [a->n + 1])));
     ERRMEM (a->x = malloc (sizeof (double [a->nzmax])));
     unpack_ints (ipos, i, ints, a->p, a->n + 1);
-    unpack_ints (ipos, i, ints, a->i, a->n);
+    unpack_ints (ipos, i, ints, a->i, a->n + 1);
     unpack_doubles (dpos, d, doubles, a->x, a->nzmax);
   }
   break;
