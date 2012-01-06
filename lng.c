@@ -7410,6 +7410,8 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   {
     body->bod->eval = v;
     body->bod->evec = V;
+    
+    FEM_Init_Reduced_Order (body->bod);
 
     ERRMEM (val = PyList_New (V->n));
     ERRMEM (vec = PyList_New (V->nzmax));

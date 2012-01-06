@@ -101,6 +101,9 @@ BODY** FEM_Separate (BODY *bod, int *m);
 /* release FEM memory */
 void FEM_Destroy (BODY *bod);
 
+/* get configuration write/read size */
+int FEM_Conf_Size (BODY *bod);
+
 #if MPI
 /* get configuration packing size */
 int FEM_Conf_Pack_Size (BODY *bod);
@@ -121,5 +124,11 @@ MX* FEM_Modal_Analysis (BODY *bod, int n, double abstol, int maxiter, int verbos
 
 /* load an eigen mode as the current shape */
 void FEM_Load_Mode (BODY *bod, int mode, double scale);
+
+/* initialize REDUCED_ORDER body after a modal base is set (ignored if not needed) */
+void FEM_Init_Reduced_Order (BODY *bod);
+
+/* REDUCED_ORDER body reading (ignored if not needed) */
+void FEM_Reduced_Order_Reading (BODY *bod);
 
 #endif
