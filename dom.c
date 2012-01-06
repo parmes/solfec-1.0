@@ -3244,7 +3244,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   {
     for (bod = dom->bod; bod; bod = bod->next)
     {
-      BODY_Dynamic_Init (bod); /* integration scheme is set externally */
+      if (time == 0.0) BODY_Dynamic_Init (bod); /* integration scheme is set externally */
 
       double h = BODY_Dynamic_Critical_Step (bod);
 
@@ -3253,7 +3253,10 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   }
   else
   {
-    for (bod = dom->bod; bod; bod = bod->next) BODY_Static_Init (bod);
+    for (bod = dom->bod; bod; bod = bod->next)
+    {
+      if (time == 0.0) BODY_Static_Init (bod);
+    }
   }
 
 #if MPI

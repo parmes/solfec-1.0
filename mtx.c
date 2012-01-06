@@ -406,6 +406,7 @@ static MX* csc_to_dense (MX *a)
   MX *b;
 
   ASSERT_DEBUG (a->kind == MXCSC, "Invalid matrix kind");
+  ASSERT_DEBUG (!MXSPD(a), "CSC to dense conversion for lower triangular SPD matrices is not implemented"); /* TODO */
 
   b = MX_Create (MXDENSE, a->m, a->n, NULL, NULL);
   b->flags = a->flags;
@@ -2229,9 +2230,6 @@ MX* MX_Add (double alpha, MX *a, double beta, MX *b, MX *c)
 
 MX* MX_Matmat (double alpha, MX *a, MX *b, double beta, MX *c)
 {
-  ASSERT_DEBUG (!((MXSPD(a) && !MXIFAC(a)) || (MXSPD(b) && !MXIFAC(b))),
-    "Matrix-matrix product for lower triangular SPD matrices is not implemented");
-
   switch ((KIND(a)<<4)|KIND(b))
   {
     case 0x11: /* DENSE * DENSE */
@@ -2673,7 +2671,8 @@ void MX_MatrixMarket (MX *a, const char *path)
 
   ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);
   fprintf (f, "%%%%MatrixMarket matrix coordinate real general\n");
-  fprintf (f, "%d  %d  %d\n", a->n, a->m, a->nzmax);
+  if (MXTRANS (a)) fprintf (f, "%d  %d  %d\n", a->n, a->m, a->nzmax);
+  else fprintf (f, "%d  %d  %d\n", a->m, a->n, a->nzmax);
 
   switch (a->kind)
   {
@@ -2685,8 +2684,8 @@ void MX_MatrixMarket (MX *a, const char *path)
     {
       for (i = 0; i < a->m; i ++, x ++)
       {
-	if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j, i, *x);
-	else fprintf (f, "%d  %d  %.15g\n", i, j, *x);
+	if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j+1, i+1, *x);
+	else fprintf (f, "%d  %d  %.15g\n", i+1, j+1, *x);
       }
     }
   }
@@ -2701,8 +2700,8 @@ void MX_MatrixMarket (MX *a, const char *path)
       {
         for (i = a->i[k]; i < a->i[k+1]; i ++, x ++)
 	{
-	  if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j, i, *x);
-	  else fprintf (f, "%d  %d  %.15g\n", i, j, *x);
+	  if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j+1, i+1, *x);
+	  else fprintf (f, "%d  %d  %.15g\n", i+1, j+1, *x);
 	}
       }
     }
@@ -2714,8 +2713,8 @@ void MX_MatrixMarket (MX *a, const char *path)
     {
       for (i = a->p[j]; i < a->p[j+1]; i ++)
       {
-	if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j, a->i [i], a->x [i]);
-	else fprintf (f, "%d  %d  %.15g\n", a->i [i], j, a->x [i]);
+	if (MXTRANS (a)) fprintf (f, "%d  %d  %.15g\n", j+1, a->i [i]+1, a->x [i]);
+	else fprintf (f, "%d  %d  %.15g\n", a->i [i]+1, j+1, a->x [i]);
       }
     }
   }

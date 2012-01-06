@@ -1020,7 +1020,7 @@ int BODY_Conf_Size (BODY *bod)
   case OBS: return 0;
   case RIG: return 12;
   case PRB: return 12;
-  case FEM: return bod->dofs;
+  case FEM: return FEM_Conf_Size (bod);
   }
 
   return 0;
@@ -2088,6 +2088,8 @@ void BODY_Read_State (BODY *bod, PBF *bf)
     }
   }
 
+  FEM_Reduced_Order_Reading (bod); /* ignored if not needed */
+
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
   if (bod->msh) FEM_Update_Rough_Mesh (bod);
@@ -2507,6 +2509,8 @@ BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, d
 	}
       }
     }
+
+    FEM_Init_Reduced_Order (bod);
   }
 
   return out;
