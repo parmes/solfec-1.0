@@ -128,7 +128,4 @@ void FEM_Load_Mode (BODY *bod, int mode, double scale);
 /* initialize REDUCED_ORDER body after a modal base is set (ignored if not needed) */
 void FEM_Init_Reduced_Order (BODY *bod);
 
-/* REDUCED_ORDER body reading (ignored if not needed) */
-void FEM_Reduced_Order_Reading (BODY *bod);
-
 #endif

@@ -24,7 +24,7 @@ solfec = SOLFEC ('DYNAMIC', step, 'out/ro')
 
 bulk = BULK_MATERIAL (solfec,
                       model = 'KIRCHHOFF',
-		      young = 15E3,
+		      young = 15E9,
 		      poisson = 0.2,
 		      density = 2E3)
 
