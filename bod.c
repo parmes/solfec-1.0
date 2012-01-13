@@ -2088,8 +2088,6 @@ void BODY_Read_State (BODY *bod, PBF *bf)
     }
   }
 
-  FEM_Reduced_Order_Reading (bod); /* ignored if not needed */
-
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
   if (bod->msh) FEM_Update_Rough_Mesh (bod);

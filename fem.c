@@ -43,15 +43,15 @@ typedef double (*node_t) [3]; /* mesh node */
 #define MESH_DOFS(msh) ((msh)->nodes_count * 3)
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : ((MESH*)(bod)->shape->data))
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
-#define FEM_MESH_CONF(bod) ((bod)->form != REDUCED_ORDER ? (bod)->conf : ((bod)->conf + (bod)->dofs + 9)) /* mesh space configuration */
+#define FEM_MESH_CONF(bod) (bod)->conf/* mesh space configuration <= for the moment always the same */
 #define FEM_MESH_VELO(bod) ((bod)->form != REDUCED_ORDER ? (bod)->velo : ((bod)->velo + (bod)->dofs * 4) + MESH_DOFS(FEM_MESH(bod))) /* mesh space velocity */
 #define FEM_MESH_VEL0(bod) (FEM_MESH_VELO(bod) + MESH_DOFS(FEM_MESH(bod))) /* mesh space previous velocity */
-#define FEM_MESH_MASS(bod) ((bod)->form != REDUCED_ORDER ? (bod)->M->x : ((bod)->conf + (bod)->dofs + 9) + MESH_DOFS(FEM_MESH(bod))) /* mesh space velocity */
+#define FEM_MESH_MASS(bod) ((bod)->form != REDUCED_ORDER ? (bod)->M->x : ((bod)->conf + MESH_DOFS(FEM_MESH(bod)) + 9)) /* mesh space velocity */
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2) /* external force */
 #define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3) /* internal force */
 #define FEM_FBOD(bod) ((bod)->velo + (bod)->dofs * 4) /* unit body force */
-#define FEM_ROT(bod) ((bod)->conf + (bod)->dofs)      /* rotation */
+#define FEM_ROT(bod) ((bod)->form != REDUCED_ORDER ? (bod)->conf + (bod)->dofs : (bod)->conf + MESH_DOFS(FEM_MESH(bod))) /* rotation */
 
 /* ==================== INTEGRATION ======================= */
 
@@ -2329,16 +2329,16 @@ static void RO_allocate_memory (BODY *bod, int m, int n)
   /* allocate adjusted configuration and velocity memory and redefine bod->dofs;
    * ------------------------------------------------------------------------------------------------------------
    * bod->dofs = bod->evec->n
-   * bod->con = {reduced configuration} {rotation} {full configuration} {mesh space diagonal mass}
-   * bod->velo = {reduced => velocity, previous velocoty, fext, fint} {full => fbod, velocity, previous velocity}
+   * bod->con = {full configuration} {rotation} {mesh space diagonal mass}
+   * bod->velo = {reduced => velocity, previous velocity, fext, fint} {full => fbod, velocity, previous velocity}
    * ------------------------------------------------------------------------------------------------------------
    */
 
   double *conf = bod->conf, *velo = bod->velo, *R;
 
   bod->dofs = n;
-  ERRMEM (bod->conf = MEM_CALLOC ((bod->dofs+9+2*m + 4*bod->dofs+3*m) * sizeof (double)));
-  bod->velo = bod->conf + (bod->dofs+9+2*m);
+  ERRMEM (bod->conf = MEM_CALLOC (((m+9+m) + (4*bod->dofs+3*m)) * sizeof (double)));
+  bod->velo = bod->conf + (m+9+m);
 
   blas_dcopy (m, conf, 1, FEM_MESH_CONF (bod), 1);
   blas_dcopy (m, velo, 1, FEM_MESH_VELO (bod), 1); /* copy mesh space data */
@@ -2408,13 +2408,13 @@ static void RO_dynamic_step_begin (BODY *bod, double time, double step)
 	*R = FEM_ROT (bod),
 	*fext = FEM_FEXT (bod),
 	*fint = FEM_FINT (bod),
-	*q = bod->conf,
 	*qm = FEM_MESH_CONF (bod),
-	*u = bod->velo,
 	*um = FEM_MESH_VELO (bod),
-	*b, *f;
+	*u = bod->velo,
+	*b, *f, *q;
 
-  ERRMEM (b = MEM_CALLOC (sizeof (double [n + nm])));
+  ERRMEM (q = MEM_CALLOC (sizeof (double [2*n+nm])));
+  b = q + n;
   f = b + n;
 
   blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
@@ -2437,7 +2437,7 @@ static void RO_dynamic_step_begin (BODY *bod, double time, double step)
   MX_Matvec (1.0, E, u, 0.0, um);
   RO_rotate_forward (R, um, nm); /* um_predictor (t+h) = R E u (t+h) */
 
-  free (b);
+  free (q);
 }
 
 /* reduced order perform the final half-step of the dynamic scheme */
@@ -2450,10 +2450,9 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
   double half = 0.5 * step,
 	*R = FEM_ROT (bod),
 	*fext = FEM_FEXT (bod),
-	*q = bod->conf,
 	*qm = FEM_MESH_CONF (bod),
-	*u = bod->velo,
 	*um = FEM_MESH_VELO (bod),
+	*u = bod->velo,
 	*r, *o, *p;
 
   ERRMEM (r = malloc (sizeof (double [n+2*nm])));
@@ -2464,7 +2463,6 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
 
   MX_Matvec (step, bod->inverse, r, 1.0, u); /* u(t+h) += inv (A) * h * r */
-  blas_daxpy (n, half, u, 1, q, 1); /* q(t+h) = q(t+h/2) + (h/2) * u(t+h) */
 
   MX_Matvec (1.0, E, u, 0.0, um); /* includes reactions */
   blas_dcopy (nm, um, 1, p, 1); /* save Eu */
@@ -2836,8 +2834,9 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     {
       /* After the modal base becomes available the layout will be as follows:
        * ------------------------------------------------------------------------------------------------------------
-       * bod->con = {reduced configuration} {rotation} {full configuration}
-       * bod->velo = {reduced => velocity, previous velocoty, fext, fint} {full => fbod, velocity, previous velocity}
+       * bod->dofs = bod->evec->n
+       * bod->con = {full configuration} {rotation} {mesh space diagonal mass}
+       * bod->velo = {reduced => velocity, previous velocity, fext, fint} {full => fbod, velocity, previous velocity}
        * ------------------------------------------------------------------------------------------------------------
        * The local base will become allocated after the MODAL_ANALYSIS commant has been caled. Alternately
        * it will become allocated inside of the BODY_Clone command, from which this FEM_Create function is called.
@@ -3614,7 +3613,9 @@ int FEM_Conf_Size (BODY *bod)
 {
   switch (bod->form)
   {
-  case REDUCED_ORDER: return bod->dofs + 9; /* conf, R */
+  case REDUCED_ORDER:
+    ASSERT_DEBUG (bod->evec, "Reduced base must be present at this point");
+    return bod->evec->m + 9; /* full conf, R */
   default: return bod->dofs; /* conf */
   }
 }
@@ -3749,40 +3750,5 @@ void FEM_Init_Reduced_Order (BODY *bod)
     ASSERT_TEXT (E, "Reduced base does not exist. Call MODAL_ANALYSIS after creating a reduced order body!");
 
     RO_allocate_memory (bod, E->m, E->n);
-  }
-}
-
-/* REDUCED_ORDER body reading (ignored if not needed) */
-void FEM_Reduced_Order_Reading (BODY *bod)
-{
-  SOLFEC *solfec = bod->dom->solfec;
-
-  if (solfec->mode == SOLFEC_READ && bod->kind == FEM && bod->form == REDUCED_ORDER)
-  {
-    MX *E = bod->evec;
-    MESH *msh = FEM_MESH (bod);
-    double *R = FEM_ROT (bod) ,
-	   *qm = FEM_MESH_CONF (bod),
-	   *q = bod->conf,
-	   (*Z) [3] = msh->ref_nodes,
-	   (*Y) [3] = Z + msh->nodes_count,
-	     X  [3];
-
-    MX_Matvec (1.0, E, q, 0.0, qm);
-    RO_rotate_forward (R, qm, E->m); /* small deformation */
-
-    for (;Z < Y; Z ++, qm += 3)
-    {
-      NVMUL (R, Z[0], X);
-      SUB (X, Z[0], X);
-      ACC (X, qm); /* large rotation */
-    }
-
-    /* FIXME: restored qm produces stress which is off the values that were computed;
-     *        note that qm is integrated in its own space while q = proj (qm(t+h/2));
-     *        perhaps it is better to store qm for this model;
-     *
-     * FIXME/XXX/TODO
-     */
   }
 }
