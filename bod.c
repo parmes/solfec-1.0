@@ -2480,7 +2480,7 @@ BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, d
   SHAPE_Translate (shp, translate);
   if (msh) MESH_Translate (msh, translate);
 
-  out = BODY_Create (bod->kind, shp, bod->mat, label, bod->flags, bod->form, msh);
+  out = BODY_Create (bod->kind, shp, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, msh);
 
   out->scheme = bod->scheme;
   out->damping = bod->damping;
@@ -2508,7 +2508,7 @@ BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, d
       }
     }
 
-    FEM_Init_Reduced_Order (bod);
+    FEM_Init_Reduced_Order (out);
   }
 
   return out;

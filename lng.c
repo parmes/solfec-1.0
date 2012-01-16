@@ -620,7 +620,7 @@ static PyObject* lng_CONVEX_new (PyTypeObject *type, PyObject *args, PyObject *k
 	if (fac [n-1] < 0 || fac [n-1] >= nver) /* must be within the right range */
 	{
 	  char buf [BUFLEN];
-	  sprintf (buf, "Vertex %d in face %d is outside of range [0, %d)",j , m, nver);
+	  sprintf (buf, "Vertex %d in face %d is outside of range [0, %d]",j , m, nver-1);
 	  PyErr_SetString (PyExc_ValueError, buf);
 	  return NULL;
 	}
@@ -819,7 +819,7 @@ static PyObject* lng_MESH_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	if (ele  [n-1] < 0 || ele [n-1] >= nn) /* must be within the right range */
 	{
 	  char buf [BUFLEN];
-	  sprintf (buf, "Node %d in element %d is outside of range [0, %d)",j , m, nn);
+	  sprintf (buf, "Node %d in element %d is outside of range [0, %d]",j , m, nn-1);
 	  PyErr_SetString (PyExc_ValueError, buf);
 	  return NULL;
 	}
@@ -884,7 +884,7 @@ static PyObject* lng_MESH_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	  if (sur [n-1] < 0 || sur [n-1] >= nn) /* must be within the right range */
 	  {
 	    char buf [BUFLEN];
-	    sprintf (buf, "Node %d in face %d is outside of range [0, %d)", j, m, nn);
+	    sprintf (buf, "Node %d in face %d is outside of range [0, %d]", j, m, nn-1);
 	    PyErr_SetString (PyExc_ValueError, buf);
 	    return NULL;
 	  }
