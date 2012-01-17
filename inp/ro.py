@@ -33,17 +33,18 @@ MODAL_ANALYSIS (bod, m)
 INITIAL_VELOCITY (bod, (0, 0, 0), (1, 0, 0))
 
 for i in range (1, 5): # run -np 4 to get malloc errors
-  if 1:
+  if 0:
     bod = BODY (solfec, 'FINITE_ELEMENT', TRANSLATE (COPY (mesh), (0, i, 0)), bulk, form = 'RO')
     bod.scheme = 'DEF_LIM'
     MODAL_ANALYSIS (bod, m)
     INITIAL_VELOCITY (bod, (0, 0, 0), (1, 0, 0))
   else:
-    b = CLONE (bod, (0, i, 0))
+    b = CLONE (bod, (0, i*2*a, 0))
     INITIAL_VELOCITY (b, (0, 0, 0), (1, 0, 0))
 
-ns = NEWTON_SOLVER ()
+#sv = NEWTON_SOLVER ()
+sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
 
 #GRAVITY (solfec, (0, 0, -10))
 
-RUN (solfec, ns, 10)
+RUN (solfec, sv, 10)

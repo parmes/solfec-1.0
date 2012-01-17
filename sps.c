@@ -92,10 +92,8 @@ SPSET* SPSET_Create ()
   MEM_Init (&set->mapmem, sizeof (MAP), SPCHUNK);
   ERRMEM (set->tab = malloc (sizeof (SURFACE_MATERIAL*)));
   set->tab [0] = &set->def;
-  set->def.index = 0;
-  set->def.friction = 
-  set->def.cohesion = 
-  set->def.restitution = 0.0;
+  memset (&set->def, 0, sizeof (SURFACE_MATERIAL));
+  set->def.model = SIGNORINI_COULOMB;
   set->set = NULL;
   set->map = NULL;
   set->size = 0;
