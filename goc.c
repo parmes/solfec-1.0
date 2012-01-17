@@ -162,6 +162,7 @@ inline static int point_normal_spair_area_gap
   SET (normal, 0.0);
   SET (point, 0.0);
   *area = 0.0;
+  *gap = 0.0;
   k = 1;
 
   for (t = tri, e = t + ABS (m); t != e; t ++)

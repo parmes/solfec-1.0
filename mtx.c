@@ -45,7 +45,7 @@
 #define MXSTATIC(a) ((a)->flags & MXSTATIC)
 #define MXDSUBLK(a) ((a)->flags & MXDSUBLK)
 #define MXUNINV(a) ((a)->flags & MXUNINV)
-#define TEMPORARY(a) ((a)->flags & (MXTRANS|MXDSUBLK|MXUNINV))
+#define TEMPORARY(a) (!((a)->flags & MXNOTMP) && ((a)->flags & (MXTRANS|MXDSUBLK|MXUNINV)))
 #define MXFIXED(a) ((a)->flags & (MXSTATIC|MXTRANS|MXDSUBLK|MXUNINV))
 #define REALLOCED(a) (!MXFIXED(a) && (a)->x != (double*)((char*)&(a)[1]+(sizeof(double)-sizeof(MX)%sizeof(double))))
 #define MXIFAC(a) ((a)->flags & MXIFAC)
@@ -1441,8 +1441,12 @@ static MX* matmat_csc_dense (double alpha, MX *a, MX *b, double beta, MX *c)
   ERRMEM (w = malloc (MAX (b->m, b->n) * sizeof (double)));
   c = matmat_dense_result (a, b, c);
 
+  a->flags |= MXNOTMP;
+
   for (j = 0; j < c->n; j ++)
     MX_Matvec (alpha, a, col (b, j, w), beta, &c->x [j*c->m]);
+
+  a->flags &= ~MXNOTMP;
 
   free (w);
 #endif
@@ -1479,8 +1483,12 @@ static MX* matmat_dense_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 
   c = matmat_dense_result (b, a, c); /* c' = b' * a' */
 
+  b->flags |= MXNOTMP;
+
   for (j = 0; j < c->n; j ++)
     MX_Matvec (alpha, b, col (a, j, w), beta, &c->x [j*c->m]);
+
+  b->flags &= ~MXNOTMP;
 
   dense_transpose (c->x, c->m, c->n, c->nzmax); /* c = (b' * a')' = a * b */
   j = c->m; c->m = c->n; c->n = j;
@@ -1526,8 +1534,12 @@ static MX* matmat_bd_csc (double alpha, MX *a, MX *b, double beta, MX *c)
 
   c = matmat_dense_result (b, a, c); /* c' = b' * a' */
 
+  b->flags |= MXNOTMP;
+
   for (j = 0; j < c->n; j ++)
     MX_Matvec (alpha, b, col (a, j, w), beta, &c->x [j*c->m]);
+
+  b->flags &= ~MXNOTMP;
 
   dense_transpose (c->x, c->m, c->n, c->nzmax); /* c = (b' * a')' = a * b */
   j = c->m; c->m = c->n; c->n = j;
@@ -1566,8 +1578,12 @@ static MX* matmat_csc_bd (double alpha, MX *a, MX *b, double beta, MX *c)
   ERRMEM (w = malloc (MAX (b->m, b->n) * sizeof (double)));
   c = matmat_dense_result (a, b, c);
 
+  a->flags |= MXNOTMP;
+
   for (j = 0; j < c->n; j ++)
     MX_Matvec (alpha, a, col (b, j, w), beta, &c->x [j*c->m]);
+
+  a->flags &= ~MXNOTMP;
 
   free (w);
 #endif
@@ -2310,20 +2326,30 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
 
 	if (MXSPD (a))
 	{
-	  for (l = 0; l < n; l ++)
+	  if (a->nzmax == a->n) /* diagonal */
 	  {
-	    j = &i[p[l]];
-	    y = &x[p[l]];
-	    rtemp = b [l];
-	    stemp = (*y) * rtemp;
-	    ASSERT_DEBUG (*j == l, "MXSPD must have index[pointer[i]] == i");
-
-	    for (j ++, y ++, k = &i[p[l+1]]; j < k; j ++, y ++)
+	    for (l = 0; l < n; l ++)
 	    {
-	      stemp += (*y) * b [*j];
-	      ab [*j] += (*y) * rtemp;
+	      ab [l] = x [l] * b [l];
 	    }
-	    ab [l] += stemp;
+	  }
+	  else /* general */
+	  {
+	    for (l = 0; l < n; l ++)
+	    {
+	      j = &i[p[l]];
+	      y = &x[p[l]];
+	      rtemp = b [l];
+	      stemp = (*y) * rtemp;
+	      ASSERT_DEBUG (*j == l, "MXSPD must have index[pointer[i]] == i");
+
+	      for (j ++, y ++, k = &i[p[l+1]]; j < k; j ++, y ++)
+	      {
+		stemp += (*y) * b [*j];
+		ab [*j] += (*y) * rtemp;
+	      }
+	      ab [l] += stemp;
+	    }
 	  }
 	}
 	else

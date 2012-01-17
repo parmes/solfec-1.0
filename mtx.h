@@ -30,12 +30,13 @@ struct general_matrix
         MXBD     = 0x02,        /* block diagonal (square) */
 	MXCSC    = 0x04} kind;  /* compressed columns */
   
-  enum {MXTRANS  = 0x01,        /* transposed matrix */
+  enum {MXTRANS  = 0x01,        /* transposed matrix (temporary) */
 	MXSTATIC = 0x02,        /* static matrix */
-        MXDSUBLK = 0x04,        /* diagonal sub-block */
+        MXDSUBLK = 0x04,        /* diagonal sub-block (temporary) */
         MXIFAC   = 0x08,        /* factorised sparse inverse */
-        MXUNINV  = 0x10,        /* on-the-fly undone sparse inverse */
-	MXSPD    = 0x20} flags; /* symmetric positive definite; MXCSC assumes that only the lower trinagle is given */
+        MXUNINV  = 0x10,        /* on-the-fly undone sparse inverse (temporary) */
+	MXSPD    = 0x20,        /* symmetric positive definite; MXCSC implies that only the lower trinagle is stored */
+        MXNOTMP  = 0x40} flags; /* not temporary state enforcement flag */
 
   int nzmax,   /* number of nonzero entries */
           m,   /* number of rows (DENSE, BD (and columns), CSC) */
