@@ -125,7 +125,4 @@ MX* FEM_Modal_Analysis (BODY *bod, int n, double abstol, int maxiter, int verbos
 /* load an eigen mode as the current shape */
 void FEM_Load_Mode (BODY *bod, int mode, double scale);
 
-/* initialize REDUCED_ORDER body after a modal base is set (ignored if not needed) */
-void FEM_Init_Reduced_Order (BODY *bod);
-
 #endif

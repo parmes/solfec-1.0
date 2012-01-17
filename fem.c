@@ -2323,32 +2323,6 @@ static void RO_internal_force (BODY *bod, double *q, double *fint)
   }
 }
 
-/* allocate and initialize reduced order model memory and free previous buffers */
-static void RO_allocate_memory (BODY *bod, int m, int n)
-{
-  /* allocate adjusted configuration and velocity memory and redefine bod->dofs;
-   * ------------------------------------------------------------------------------------------------------------
-   * bod->dofs = bod->evec->n
-   * bod->con = {full configuration} {rotation} {mesh space diagonal mass}
-   * bod->velo = {reduced => velocity, previous velocity, fext, fint} {full => velocity, previous velocity, fbod}
-   * ------------------------------------------------------------------------------------------------------------
-   */
-
-  double *conf = bod->conf, *velo = bod->velo, *R;
-
-  bod->dofs = n;
-  ERRMEM (bod->conf = MEM_CALLOC (((m+9+m) + (4*bod->dofs+3*m)) * sizeof (double)));
-  bod->velo = bod->conf + (m+9+m);
-
-  blas_dcopy (m, conf, 1, FEM_MESH_CONF (bod), 1);
-  blas_dcopy (m, velo, 1, FEM_MESH_VELO (bod), 1); /* copy mesh space data */
-
-  R = FEM_ROT (bod);
-  IDENTITY (R); /* initialise rotation */
-
-  free (conf);
-}
-
 /* initialize reduced velocity at time == 0.0 */
 static void RO_initialize_velocity (BODY *bod)
 {
@@ -2834,27 +2808,27 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
       bod->dofs = MESH_DOFS (msh);
       ERRMEM (bod->conf = MEM_CALLOC ((6 * bod->dofs + 9) * sizeof (double))); /* configuration, rotation, velocity, previous velocity, fext, fint, fbod */
       bod->velo = bod->conf + bod->dofs + 9;
-      double *R = FEM_ROT (bod);
+      double *R = bod->conf + bod->dofs;
       IDENTITY (R);
       bod->field = NULL; /* linear material only */
     }
     break;
     case REDUCED_ORDER:
     {
-      /* After the modal base becomes available the layout will be as follows:
-       * ------------------------------------------------------------------------------------------------------------
+      ASSERT_DEBUG (bod->evec && bod->eval, "Modal analysis results must exist!");
+
+      /* ------------------------------------------------------------------------------------------------------------
        * bod->dofs = bod->evec->n
        * bod->con = {full configuration} {rotation} {mesh space diagonal mass}
        * bod->velo = {reduced => velocity, previous velocity, fext, fint} {full => velocity, previous velocity, fbod}
-       * ------------------------------------------------------------------------------------------------------------
-       * The local base will become allocated after the MODAL_ANALYSIS commant has been caled. Alternately
-       * it will become allocated inside of the BODY_Clone command, from which this FEM_Create function is called.
-       * Subsequently RO_(dynamic/static)_init will be called, where the finall allocation will happen. In the
-       * meantime FEM_Overwrite_State and FEM_Initial_Velocity will use the currently allocated full mesh base */
+       * ------------------------------------------------------------------------------------------------------------ */
 
-      bod->dofs = MESH_DOFS (msh); /* tentative => will become == bod->evec->n */
-      ERRMEM (bod->conf = MEM_CALLOC (2 * bod->dofs * sizeof (double))); /* full conf, full velocity, for the moment */
-      bod->velo = bod->conf + bod->dofs;
+      MX *E = bod->evec;
+      bod->dofs = E->n;
+      ERRMEM (bod->conf = MEM_CALLOC (((E->m+9+E->m) + (4*E->n+3*E->m)) * sizeof (double)));
+      bod->velo = bod->conf + (E->m+9+E->m);
+      double *R = bod->conf + E->m;
+      IDENTITY (R); /* initialise rotation */
       bod->field = NULL; /* linear material only */
     }
     break;
@@ -2881,7 +2855,7 @@ void FEM_Overwrite_State (BODY *bod, double *q, double *u)
   blas_dcopy (MESH_DOFS(FEM_MESH(bod)), q, 1, bod->conf, 1); /* always in the mesh space */
   blas_dcopy (bod->dofs, u, 1, bod->velo, 1); /* can be mesh or reduced space */
 
-  if (bod->form == REDUCED_ORDER && bod->evec) /* was in reduced space => overwrite the mesh space so that RO_initialize_velocity will not break it */
+  if (bod->form == REDUCED_ORDER) /* overwrite the mesh space so that RO_initialize_velocity will not break it */
   {
     MX_Matvec (1.0, MX_Tran (bod->evec), bod->velo, 0.0, FEM_MESH_VELO(bod));
   }
@@ -2893,7 +2867,7 @@ void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
   MESH *msh = FEM_MESH (bod);
   double (*nod) [3] = msh->ref_nodes,
 	 (*end) [3] = nod + msh->nodes_count,
-	 *velo = (bod->form == REDUCED_ORDER && bod->evec ? FEM_MESH_VELO (bod) : bod->velo), /* includes reduced order before and after the modal base has been created */
+	 *velo = FEM_MESH_VELO (bod),
 	 *X0 = bod->ref_center,
 	 A [3];
 
@@ -3515,7 +3489,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
   {
     ASSERT_DEBUG (!bod->msh || (bod->msh && mone), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/1", bod->label);
-    (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone);
+    (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone, NULL, NULL);
     map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*one), (*one)->conf, (*one)->velo);
     if (bod->form == REDUCED_ORDER)
     {
@@ -3530,7 +3504,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
   {
     ASSERT_DEBUG (!bod->msh || (bod->msh && mtwo), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/2", bod->label);
-    (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mtwo);
+    (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mtwo, NULL, NULL);
     map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*two), (*two)->conf, (*two)->velo);
     if (bod->form == REDUCED_ORDER)
     {
@@ -3597,7 +3571,7 @@ BODY** FEM_Separate (BODY *bod, int *m)
   {
     if (bod->label) sprintf (label, "%s/%d", bod->label, i);
     MESH *backmesh = (msh ? msh [i] : NULL);
-    out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh);
+    out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh, NULL, NULL);
     map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO(bod), FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
     if (bod->form == REDUCED_ORDER)
     {
@@ -3757,20 +3731,5 @@ void FEM_Load_Mode (BODY *bod, int mode, double scale)
     }
 
     SHAPE_Update (bod->shape, bod, (MOTION)modal_motion); 
-  }
-}
-
-/* initialize REDUCED_ORDER body after a modal base is set (ignored if not needed) */
-void FEM_Init_Reduced_Order (BODY *bod)
-{
-  if (bod->kind == FEM && bod->form == REDUCED_ORDER)
-  {
-    /* in this mode RO_(dynamic/static)_init is not called hence we allocate
-     * the memory here, so that it is well aligned when reading body state */
-    MX *E = bod->evec;
-
-    ASSERT_TEXT (E, "Reduced base does not exist. Call MODAL_ANALYSIS after creating a reduced order body!");
-
-    RO_allocate_memory (bod, E->m, E->n);
   }
 }

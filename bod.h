@@ -201,7 +201,7 @@ struct general_body
 #define BODY(bod) ((BODY*)(bod))
 
 /* create a body */
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh);
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh, MX *E, double *val);
 
 /* get body kind string */
 char* BODY_Kind (BODY *bod);
@@ -314,9 +314,6 @@ void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int
 
 /* compute c = alpha * INVERSE (bod) * b + beta * c */
 void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
-
-/* clone body by first rotating (point, vector, angle) it and then translating */
-BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, double angle, char *label);
 
 /* export MBFCP definition */
 void BODY_2_MBFCP (BODY *bod, FILE *out);
