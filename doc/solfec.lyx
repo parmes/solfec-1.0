@@ -6835,7 +6835,7 @@ An object of type BODY represents a solid body.
 \end_layout
 
 \begin_layout Subsection*
-obj = BODY (solfec, kind, shape, material | label, form, mesh)
+obj = BODY (solfec, kind, shape, material | label, form, mesh, modal)
 \end_layout
 
 \begin_layout Standard
@@ -6984,6 +6984,30 @@ shape
  This way the 'FINITE_ELEMENT' model allows to handle complicated shapes
  with less finite elements, e.g.
  an arbitrary shape could be contained in just one hexahedron.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+modal
+\series default
+ - the modal analysis results outputed by the 
+\series bold
+MODAL_ANALYSIS
+\series default
+ command (or user results in the same format).
+ This argument must be passed if 
+\series bold
+form
+\series default
+ = 'RO', see Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:formulation"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
@@ -11891,7 +11915,7 @@ This routine returns all command line arguments (in the form of a list of
 \end_layout
 
 \begin_layout Subsection*
-obj = MODAL_ANALYSIS (body, num | abstol, maxiter, verbose) 
+obj = MODAL_ANALYSIS (body, num, path | abstol, maxiter, verbose) 
 \color red
 (Under development)
 \end_layout
@@ -11899,14 +11923,6 @@ obj = MODAL_ANALYSIS (body, num | abstol, maxiter, verbose)
 \begin_layout Standard
 This routine performs modal analysis of FEM bodies.
  The modal analysis results are stored with bodies and can be viewed.
- If your model requires many copies of the same body with modal data attached,
- rather than recomputing eigen modes for each body it is more efficient
- to use the 
-\series bold
-CLONE
-\series default
- command, in order to clone bodies with already existing modal analysis
- data.
 \end_layout
 
 \begin_layout Itemize
@@ -11952,6 +11968,15 @@ num
 \begin_layout Itemize
 
 \series bold
+path
+\series default
+ - path to file where the results will be stored (to avoid recomputing if
+ possible)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
 abstol
 \series default
  - residual tolerance for the eigenvalue solver (default: 1E-11)
@@ -11971,111 +11996,6 @@ maxiter
 verbose
 \series default
  - 'ON' or 'OFF' verbosity flag for the eigenvalue solver (default: 'OFF')
-\end_layout
-
-\begin_layout Subsection*
-obj = CLONE (body, translate | rotate, label) 
-\color red
-(Under development)
-\end_layout
-
-\begin_layout Standard
-The routine creates an clone of a BODY, that is its translated and rotated
- copy.
- If the rotation is used, it forgoes the translation.
- Note that the modal analysis data, obtained with 
-\series bold
-MODAL_ANALYSIS
-\series default
-, is also cloned and suitably transformed.
- 
-\series bold
-NOTES:
-\series default
- the applied forces are not cloned; the simplified cracks are not cloned;
- damping and integration scheme are cloned.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-obj
-\series default
- - the cloned body
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-body
-\series default
- - input body
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-translate
-\series default
- - 
-\emph on
-(vx, vy, vz)
-\emph default
- tuple defining the translation
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-rotate
-\series default
- - 
-\series bold
-(point, vector, angle)
-\series default
- tuple, where:
-\end_layout
-
-\begin_deeper
-\begin_layout Itemize
-
-\series bold
-point
-\series default
- - 
-\emph on
-(px, py, pz)
-\emph default
- tuple defining a point passed by the rotation axis
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-vector
-\series default
- - 
-\emph on
-(vx, vy, vz)
-\emph default
- tuple defining a direction of the rotation axis
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-angle
-\series default
- - rotation angle in degrees
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-
-\series bold
-label
-\series default
- - cloned body label (default: none)
 \end_layout
 
 \begin_layout Section

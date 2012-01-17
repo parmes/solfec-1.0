@@ -2457,14 +2457,16 @@ static int is_body (lng_BODY *obj, char *var)
 /* body object constructor */
 static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "kind", "shape", "material", "label", "form", "mesh");
-  PyObject *kind, *shape, *material, *label, *formulation;
+  KEYWORDS ("solfec", "kind", "shape", "material", "label", "form", "mesh", "modal");
+  PyObject *kind, *shape, *material, *label, *formulation, *modal;
   lng_SOLFEC *solfec;
   lng_BODY *self;
   lng_MESH *mesh;
   MESH *msh;
   short form;
   char *lab;
+  MX *E; /* modal base */
+  double *val; /* modal eigenvectors */
 
   self = (lng_BODY*)type->tp_alloc (type, 0);
 
@@ -2475,12 +2477,15 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     form = TOTAL_LAGRANGIAN;
     mesh = NULL;
     msh = NULL;
+    modal = NULL;
+    E = NULL;
+    val = NULL;
 
-    PARSEKEYS ("OOOO|OOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh);
+    PARSEKEYS ("OOOO|OOOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh, &modal);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape (shape, kwl[2]) &&
 	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]) &&
-	      is_string (formulation, kwl[5]) && is_mesh ((PyObject*)mesh, kwl[6]));
+	      is_string (formulation, kwl[5]) && is_mesh ((PyObject*)mesh, kwl[6]) && is_tuple (modal, kwl[7], 2));
 
     if (label) lab = PyString_AsString (label);
     else lab = NULL;
@@ -2497,11 +2502,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 								          it is also needed for sparsification in this and other cases */
     IFIS (kind, "RIGID")
     {
-      self->bod = BODY_Create (RIG, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
+      self->bod = BODY_Create (RIG, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL);
     }
     ELIF (kind, "PSEUDO_RIGID")
     {
-      self->bod = BODY_Create (PRB, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
+      self->bod = BODY_Create (PRB, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL);
     }
     ELIF (kind, "FINITE_ELEMENT")
     {
@@ -2513,6 +2518,40 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
       else
       {
         TYPETEST (is_mesh (shape, kwl[2]));
+      }
+
+      if (modal)
+      {
+	PyObject *vlist = PyTuple_GetItem (modal, 0),
+		 *Elist = PyTuple_GetItem (modal, 1);
+
+        TYPETEST (is_list (vlist, "modal[0]", 0, 0) && is_list (Elist, "modal[1]", 0, 0));
+
+	int n = PyList_Size (vlist),
+	    m = PyList_Size (Elist) / n,
+	    OK, i;
+
+	if (msh)
+	{
+	  OK = (m == msh->nodes_count * 3);
+	}
+	else
+	{
+	  MESH *tmp = (MESH*)shp->data;
+	  OK = (m == tmp->nodes_count * 3);
+	}
+
+	if (!OK)
+	{
+	  PyErr_SetString (PyExc_ValueError, "Modal analysis data size and mesh size do not match");
+	  return NULL;
+	}
+
+	ERRMEM (val = malloc (sizeof (double [n])));
+	E = MX_Create (MXDENSE, m, n, NULL, NULL);
+
+	for (i = 0; i < n; i ++) val [i] = PyFloat_AsDouble (PyList_GetItem (vlist, i));
+	for (i = 0; i < n*m; i ++) E->x [i] = PyFloat_AsDouble (PyList_GetItem (Elist, i));
       }
 
       if (formulation)
@@ -2528,6 +2567,12 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	ELIF (formulation, "RO")
 	{
 	  form = REDUCED_ORDER;
+
+	  if (!(E && val))
+	  {
+	    PyErr_SetString (PyExc_ValueError, "Modal data must be passed for RO formulation");
+	    return NULL;
+	  }
 	}
 	ELSE
 	{
@@ -2536,11 +2581,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	}
       }
 
-      self->bod = BODY_Create (FEM, shp, get_bulk_material (solfec->sol, material), lab, 0, form, msh);
+      self->bod = BODY_Create (FEM, shp, get_bulk_material (solfec->sol, material), lab, 0, form, msh, E, val);
     }
     ELIF (kind, "OBSTACLE")
     {
-      self->bod = BODY_Create (OBS, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL);
+      self->bod = BODY_Create (OBS, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL);
     }
     ELSE
     {
@@ -7348,25 +7393,61 @@ static PyObject* lng_NON_SOLFEC_ARGV (PyObject *self, PyObject *args, PyObject *
   else Py_RETURN_NONE;
 }
 
+/* read modal data */
+static MX* read_modal_analysis (FILE *f, double **v)
+{
+  int m, n;
+  MX *E;
+
+  ASSERT (fread (&m, sizeof (int), 1, f) == 1, ERR_FILE_READ);
+  ASSERT (fread (&n, sizeof (int), 1, f) == 1, ERR_FILE_READ);
+  E = MX_Create (MXDENSE, m, n, NULL, NULL);
+  ERRMEM (*v = malloc (sizeof (double [n])));
+  ASSERT (fread (*v, sizeof (double), n, f) == (unsigned)n, ERR_FILE_READ);
+  ASSERT (fread (E->x, sizeof (double), n*m, f) == (unsigned)n*m, ERR_FILE_READ);
+
+  return E;
+}
+
+/* write modal data */
+static void write_modal_analysis (MX *E, double *v, FILE *f)
+{
+  ASSERT (fwrite (&E->m, sizeof (int), 1, f) == 1, ERR_FILE_WRITE);
+  ASSERT (fwrite (&E->n, sizeof (int), 1, f) == 1, ERR_FILE_WRITE);
+  ASSERT (fwrite (v, sizeof (double), E->n, f) == (unsigned)E->n, ERR_FILE_WRITE);
+  ASSERT (fwrite (E->x, sizeof (double), E->n*E->m, f) == (unsigned)E->n*E->m, ERR_FILE_WRITE);
+}
+
 /* model analysis of FEM bodies */
 static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body", "num", "abstol", "maxiter", "verbose");
-  PyObject *val, *vec, *verbose;
+  KEYWORDS ("body", "num", "path", "abstol", "maxiter", "verbose");
+  PyObject *path, *val, *vec, *verbose;
   int num, i, maxiter, vrb;
   double *v, abstol;
   lng_BODY *body;
+  FILE *f;
   MX *V;
 
   vrb = 0;
   abstol = 1E-11;
   maxiter = 100;
   verbose = NULL;
+  V = NULL;
+  v = NULL;
 
-  PARSEKEYS ("Oi|diO", &body, &num, &abstol, &maxiter, &verbose);
+  PARSEKEYS ("OiO|diO", &body, &num, &path, &abstol, &maxiter, &verbose);
 
-  TYPETEST (is_body (body, kwl[0]) && is_positive (num, kwl [1]) && is_positive (abstol, kwl [2]) &&
-      is_positive (maxiter, kwl [3]) && is_string (verbose, kwl [4]));
+  TYPETEST (is_body (body, kwl[0]) && is_positive (num, kwl [1]) && is_string (path, kwl [2]) &&
+      is_positive (abstol, kwl [3]) && is_positive (maxiter, kwl [4]) && is_string (verbose, kwl [5]));
+
+  f = fopen (PyString_AsString (path), "r");
+
+  if (f) /* read without refering to a body et all (precomputed results, parallel use, etc.) */
+  {
+    V = read_modal_analysis (f, &v);
+    fclose (f);
+  }
 
 #if MPI && LOCAL_BODIES
   if (IS_HERE (body))
@@ -7376,12 +7457,6 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   if (body->bod->kind != FEM)
   {
     PyErr_SetString (PyExc_RuntimeError, "Input body must of Finite Element kind");
-    return NULL;
-  }
-
-  if (num == 0)
-  {
-    PyErr_SetString (PyExc_RuntimeError, "Number of modes must be nonzero");
     return NULL;
   }
 
@@ -7402,17 +7477,35 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
     }
   }
 
-  ERRMEM (v = malloc (sizeof (double [num])));
-
-  V = FEM_Modal_Analysis (body->bod, num, abstol, maxiter, vrb, v);
-
-  if (V)
+  if (!(V && v))
   {
-    body->bod->eval = v;
-    body->bod->evec = V;
-    
-    FEM_Init_Reduced_Order (body->bod);
+    ERRMEM (v = malloc (sizeof (double [num])));
 
+    V = FEM_Modal_Analysis (body->bod, num, abstol, maxiter, vrb, v);
+
+    if (V)
+    {
+      ASSERT (f = fopen (PyString_AsString (path), "w"), ERR_FILE_OPEN);
+      write_modal_analysis (V, v, f);
+      fclose (f);
+    }
+    else
+    {
+      free (v);
+      PyErr_SetString (PyExc_RuntimeError, "Eigenvalue solver has failed!");
+      return NULL;
+    }
+  }
+
+  body->bod->evec = V;
+  body->bod->eval = v;
+
+#if MPI && LOCAL_BODIES
+  }
+#endif
+
+  if (V && v)
+  {
     ERRMEM (val = PyList_New (V->n));
     ERRMEM (vec = PyList_New (V->nzmax));
 
@@ -7421,100 +7514,7 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
 
     return Py_BuildValue ("(O, O)", val, vec);
   }
-  else
-  {
-    free (v);
-
-    PyErr_SetString (PyExc_RuntimeError, "Eigenvalue solver has failed!");
-    return NULL;
-  }
-
-#if MPI && LOCAL_BODIES
-  }
   else Py_RETURN_NONE;
-#endif
-}
-
-/* clone BODY */
-static PyObject* lng_CLONE (PyObject *self, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("body", "translate", "rotate", "label");
-  double t [3], p [3], v [3], a;
-  PyObject *translate, *rotate, *label;
-  lng_BODY *body;
-  BODY *bod;
-  char *l;
-
-  rotate = NULL;
-  label = NULL;
-
-  PARSEKEYS ("OO|OO", &body, &translate, &rotate, &label);
-
-  TYPETEST (is_body (body, kwl[0]) && is_tuple (translate, kwl [1], 3)
-         && is_tuple (rotate, kwl [2], 3) && is_string (label, kwl [3]));
-
-#if MPI && LOCAL_BODIES
-  if (IS_HERE (body))
-  {
-#endif
-
-  t [0] = PyFloat_AsDouble (PyTuple_GetItem (translate, 0));
-  t [1] = PyFloat_AsDouble (PyTuple_GetItem (translate, 1));
-  t [2] = PyFloat_AsDouble (PyTuple_GetItem (translate, 2));
-
-  if (rotate)
-  {
-    PyObject *point = PyTuple_GetItem (rotate, 0),
-	     *vector = PyTuple_GetItem (rotate, 1),
-	     *angle = PyTuple_GetItem (rotate, 2);
-
-    TYPETEST (is_tuple (point, "rotate [0]", 3) && is_tuple (vector, "rotate [1]", 3));
-
-    p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
-    p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
-    p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
-
-    v [0] = PyFloat_AsDouble (PyTuple_GetItem (vector, 0));
-    v [1] = PyFloat_AsDouble (PyTuple_GetItem (vector, 1));
-    v [2] = PyFloat_AsDouble (PyTuple_GetItem (vector, 2));
-
-    a =  PyFloat_AsDouble (angle);
-  }
-  else
-  {
-    SET (p, 0.0);
-    SET (v, 0.0);
-    a = 0.0;
-  }
-
-  if (label) l = PyString_AsString (label);
-  else l = NULL;
-
-  bod = BODY_Clone (body->bod, t, p, v, a, l);
-
-  if (bod)
-  {
-    lng_BODY *out = (lng_BODY*)lng_BODY_WRAPPER (bod); 
-
-#if MPI
-    out->dom = body->bod->dom;
-    out->id = out->dom->bid; /* before inserting; body may be deleted in LOCAL_BODIES mode */
-#endif
-
-    DOM_Insert_Body (body->bod->dom, bod);
-
-    return  (PyObject*)out;
-  }
-  else
-  {
-    PyErr_SetString (PyExc_RuntimeError, "Body cloning has failed!");
-    return NULL;
-  }
-
-#if MPI && LOCAL_BODIES
-  }
-  else Py_RETURN_NONE;
-#endif
 }
 
 /* simulation duration */
@@ -8273,7 +8273,6 @@ static PyMethodDef lng_methods [] =
   {"MBFCP_EXPORT", (PyCFunction)lng_MBFCP_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MBFCP definition"},
   {"NON_SOLFEC_ARGV", (PyCFunction)lng_NON_SOLFEC_ARGV, METH_NOARGS, "Return non-Solfec input arguments"},
   {"MODAL_ANALYSIS", (PyCFunction)lng_MODAL_ANALYSIS, METH_VARARGS|METH_KEYWORDS, "Perform modal analysis of a FEM body"},
-  {"CLONE", (PyCFunction)lng_CLONE, METH_VARARGS|METH_KEYWORDS, "Clone body"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -8503,7 +8502,6 @@ int lng (const char *path)
                      "from solfec import MBFCP_EXPORT\n"
                      "from solfec import NON_SOLFEC_ARGV\n"
                      "from solfec import MODAL_ANALYSIS\n"
-                     "from solfec import CLONE\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

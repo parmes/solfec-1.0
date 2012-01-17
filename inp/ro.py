@@ -27,22 +27,15 @@ bulk = BULK_MATERIAL (solfec,
 		      poisson = 0.2,
 		      density = 2E3)
 
-bod = BODY (solfec, 'FINITE_ELEMENT', COPY (mesh), bulk, form = 'RO')
-bod.scheme = 'DEF_LIM'
-MODAL_ANALYSIS (bod, m)
-INITIAL_VELOCITY (bod, (0, 0, 0), (1, 0, 0))
+bod = BODY (solfec, 'FINITE_ELEMENT', COPY (mesh), bulk)
+data = MODAL_ANALYSIS (bod, m, 'out/ro/modal')
+DELETE (solfec, bod)
 
-for i in range (1, 5): # run -np 4 to get malloc errors
-  if 0:
-    bod = BODY (solfec, 'FINITE_ELEMENT', TRANSLATE (COPY (mesh), (0, i, 0)), bulk, form = 'RO')
-    bod.scheme = 'DEF_LIM'
-    MODAL_ANALYSIS (bod, m)
-    INITIAL_VELOCITY (bod, (0, 0, 0), (1, 0, 0))
-  else:
-    b = CLONE (bod, (0, i*2*a, 0))
-    INITIAL_VELOCITY (b, (0, 0, 0), (1, 0, 0))
+for i in range (0, 5):
+  bod = BODY (solfec, 'FINITE_ELEMENT', TRANSLATE (COPY (mesh), (0, i*2*a, 0)), bulk, form = 'RO', modal = data)
+  INITIAL_VELOCITY (bod, (0, 0, 0), (1, 0, 0))
 
-#sv = NEWTON_SOLVER ()
+#sv = NEWTON_SOLVER (delta = 1E-4)
 sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
 
 #GRAVITY (solfec, (0, 0, -10))

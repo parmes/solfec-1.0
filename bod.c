@@ -890,7 +890,7 @@ void overwrite_state (BODY *src, BODY *dst)
 
 /* -------------- interface ------------- */
 
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh)
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh, MX *E, double *val)
 {
   BODY *bod;
 
@@ -951,6 +951,8 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
     break;
     case FEM:
       ERRMEM (bod = alloc_body (FEM));
+      bod->evec = E;
+      bod->eval = val;
       FEM_Create (form, msh, shp, mat, bod);
     break;
     default:
@@ -1948,7 +1950,7 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
       if (sone)
       {
 	if (bod->label) sprintf (label, "%s/1", bod->label);
-	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL);
+	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL);
 	overwrite_state (bod, *one);
         SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
       }
@@ -1956,7 +1958,7 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
       if (stwo)
       {
 	if (bod->label) sprintf (label, "%s/2", bod->label);
-	(*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL);
+	(*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL);
 	overwrite_state (bod, *two);
         SHAPE_Update ((*two)->shape, (*two), (MOTION)BODY_Cur_Point); 
       }
@@ -2019,7 +2021,7 @@ BODY** BODY_Separate (BODY *bod, int *m)
 	for (int i = 0; i < (*m); i ++)
 	{
 	  if (bod->label) sprintf (label, "%s/%d", bod->label, i);
-	  out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL);
+	  out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL);
 	  overwrite_state (bod, out [i]);
 	  SHAPE_Update (out [i]->shape, out [i], (MOTION)BODY_Cur_Point); 
 	}
@@ -2208,6 +2210,13 @@ static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *
 void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   /* these are arguments of BODY_Create */
+  if (bod->eval && bod->evec)
+  {
+    pack_int (isize, i, ints, bod->evec->n);
+    pack_doubles (dsize, d, doubles, bod->eval, bod->evec->n);
+    MX_Pack (bod->evec, dsize, d, doubles, isize, i, ints);
+  }
+  else pack_int (isize, i, ints, 0);
   pack_int (isize, i, ints, bod->kind);
   pack_int (isize, i, ints, bod->flags & BODY_PERMANENT_FLAGS);
   if (bod->kind == FEM) pack_int (isize, i, ints, bod->msh ? -bod->form : bod->form);
@@ -2225,10 +2234,6 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
   /* body id */
   pack_int (isize, i, ints, bod->id);
 
-  /* configuration and velocity */
-  pack_doubles (dsize, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  pack_doubles (dsize, d, doubles, bod->velo, bod->dofs);
-
   /* pack the list of forces */
   pack_forces (bod->forces, dsize, d, doubles, isize, i, ints);
 
@@ -2240,15 +2245,6 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 
   /* pack cracks */
   CRACKS_Pack (bod->cra, dsize, d, doubles, isize, i, ints); 
-
-  /* modal analysis */
-  if (bod->eval && bod->evec)
-  {
-    pack_int (isize, i, ints, bod->evec->n);
-    pack_doubles (dsize, d, doubles, bod->eval, bod->evec->n);
-    MX_Pack (bod->evec, dsize, d, doubles, isize, i, ints);
-  }
-  else pack_int (isize, i, ints, 0);
 }
 
 /* unpack body */
@@ -2262,8 +2258,17 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   BULK_MATERIAL *mat;
   BODY_FLAGS flags;
   short form;
+  MX *E = NULL;
+  double *val = NULL;
 
   /* unpack BODY_Create arguments and create body */
+  int modal = unpack_int (ipos, i, ints);
+  if (modal)
+  {
+    ERRMEM (val = malloc (sizeof (double [modal])));
+    unpack_doubles (dpos, d, doubles, bod->eval, modal);
+    E = MX_Unpack (dpos, d, doubles, ipos, i, ints);
+  }
   kind = unpack_int (ipos, i, ints);
   flags = unpack_int (ipos, i, ints);
   if (kind == FEM) form = unpack_int (ipos, i, ints); else form = 0;
@@ -2273,7 +2278,7 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label, flags, form, msh);
+  bod = BODY_Create (kind, shp, mat, label, flags, form, msh, E, val);
   free (label);
 
   /* overwritte characteristics */
@@ -2284,10 +2289,6 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
 
   /* body id */
   bod->id = unpack_int (ipos, i, ints);
-
-  /* configuration and velocity */
-  unpack_doubles (dpos, d, doubles, bod->conf, BODY_Conf_Size (bod));
-  unpack_doubles (dpos, d, doubles, bod->velo, bod->dofs);
 
   /* unpack the list of forces */
   bod->forces = unpack_forces (dpos, d, doubles, ipos, i, ints);
@@ -2300,15 +2301,6 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
 
   /* unpack cracks */
   bod->cra = CRACKS_Unpack (dpos, d, doubles, ipos, i, ints);
-
-  /* modal analysis */
-  int modal = unpack_int (ipos, i, ints);
-  if (modal)
-  {
-    ERRMEM (bod->eval = malloc (sizeof (double [modal])));
-    unpack_doubles (dpos, d, doubles, bod->eval, modal);
-    bod->evec = MX_Unpack (dpos, d, doubles, ipos, i, ints);
-  }
 
   return bod;
 }
@@ -2458,60 +2450,6 @@ void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
     case OBS:
       break;
   }
-}
-
-/* clone body by first rotating (point, vector, angle) it and then translating */
-BODY* BODY_Clone (BODY *bod, double *translate, double *point, double *vector, double angle, char *label)
-{
-  SHAPE *shp;
-  MESH *msh;
-  BODY *out;
-
-  shp = SHAPE_Copy (bod->shape);
-  if (bod->msh) msh = MESH_Copy (bod->msh);
-  else msh = NULL;
-
-  if (angle != 0.0)
-  {
-    SHAPE_Rotate (shp, point, vector, angle);
-    if (msh) MESH_Rotate (msh, point, vector, angle);
-  }
-
-  SHAPE_Translate (shp, translate);
-  if (msh) MESH_Translate (msh, translate);
-
-  out = BODY_Create (bod->kind, shp, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, msh);
-
-  out->scheme = bod->scheme;
-  out->damping = bod->damping;
-
-  if (bod->eval && bod->evec) /* modal analysis results */
-  {
-    ERRMEM (out->eval = malloc (sizeof (double [bod->evec->n])));
-    blas_dcopy (bod->evec->n, bod->eval, 1, out->eval, 1);
-    out->evec = MX_Copy (bod->evec, NULL);
-
-    if (angle != 0.0)
-    {
-      double R [9], q [3], *x, *y;
-      int i;
-
-      ROTATION_MATRIX (vector, angle, R);
-
-      for (i = 0; i < out->evec->n; i ++)
-      {
-	for (x = &out->evec->x[i*out->evec->m], y = x + out->evec->m; x < y; x += 3)
-	{
-	  COPY (x, q);
-	  NVMUL (R, q, x); /* rotate eigenshapes */
-	}
-      }
-    }
-
-    FEM_Init_Reduced_Order (out);
-  }
-
-  return out;
 }
 
 /* export MBFCP definition */
