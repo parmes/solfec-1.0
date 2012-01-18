@@ -2548,7 +2548,7 @@ static void render_scalar (CON *con, double scalar)
   tube3d (first, other);
 }
 
-/* render force constraint */
+/* render force */
 static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
 {
   double r [3],
@@ -2608,6 +2608,10 @@ static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
       if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, force->ref_point)) < 0) return; /* TODO: optimize */
       sgp = &bod->sgp [n];
       BODY_Cur_Point (bod, sgp, force->ref_point, point); /* TODO: optimize */
+    }
+    else if (force->kind & TORQUE)
+    {
+      BODY_Cur_Point (bod, NULL, bod->ref_center, point);
     }
     else BODY_Cur_Point (bod, NULL, force->ref_point, point);
 
