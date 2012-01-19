@@ -2352,7 +2352,7 @@ static void RO_dynamic_init (BODY *bod)
     /* bod->M = E' M E  = I */
     bod->M = MX_Identity (MXCSC, E->n);
 
-    /* bod->K = E' K M = diag (lambdas) */
+    /* bod->K = E' K E = diag (lambdas) */
     bod->K = MX_Identity (MXCSC, E->n);
     for (i = 0; i < E->n; i ++) bod->K->x [i] = i < 6 ? 0.0 : bod->eval [i];
 
