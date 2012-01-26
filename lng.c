@@ -7399,6 +7399,8 @@ static MX* read_modal_analysis (FILE *f, double **v)
   int m, n;
   MX *E;
 
+  /* XXX/TODO: => XDR */
+
   ASSERT (fread (&m, sizeof (int), 1, f) == 1, ERR_FILE_READ);
   ASSERT (fread (&n, sizeof (int), 1, f) == 1, ERR_FILE_READ);
   E = MX_Create (MXDENSE, m, n, NULL, NULL);
@@ -7412,6 +7414,8 @@ static MX* read_modal_analysis (FILE *f, double **v)
 /* write modal data */
 static void write_modal_analysis (MX *E, double *v, FILE *f)
 {
+  /* XXX/TODO: => XDR */
+
   ASSERT (fwrite (&E->m, sizeof (int), 1, f) == 1, ERR_FILE_WRITE);
   ASSERT (fwrite (&E->n, sizeof (int), 1, f) == 1, ERR_FILE_WRITE);
   ASSERT (fwrite (v, sizeof (double), E->n, f) == (unsigned)E->n, ERR_FILE_WRITE);
@@ -7456,7 +7460,7 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
 
   if (body->bod->kind != FEM)
   {
-    PyErr_SetString (PyExc_RuntimeError, "Input body must of Finite Element kind");
+    PyErr_SetString (PyExc_RuntimeError, "Input body must be of Finite Element kind");
     return NULL;
   }
 
@@ -7472,7 +7476,7 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
     }
     ELSE
     {
-      PyErr_SetString (PyExc_RuntimeError, "The verbose value can be either 'ON' or 'OFF' only");
+      PyErr_SetString (PyExc_RuntimeError, "The verbose value can be either 'ON' or 'OFF'");
       return NULL;
     }
   }
@@ -7516,6 +7520,79 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   }
   else Py_RETURN_NONE;
 }
+
+/* export body matrices in MatrixMarket format */
+static PyObject* lng_BODY_MM_EXPORT (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "pathM", "pathK", "spdM", "spdK");
+  PyObject *pathM, *pathK, *spdM, *spdK;
+  short spd_M, spd_K;
+  lng_BODY *body;
+
+  spd_M = 0;
+  spd_K = 0;
+  spdM = NULL;
+  spdK = NULL;
+
+  PARSEKEYS ("OOO|OO", &body, &pathM, &pathK, &spdM, &spdK);
+
+  TYPETEST (is_body (body, kwl[0]) && is_string (pathM, kwl [1]) &&
+    is_string (pathK, kwl [2]) && is_string (spdM, kwl [3]) && is_string (spdK, kwl [4]));
+
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (body))
+  {
+#endif
+
+  if (body->bod->kind != FEM)
+  {
+    PyErr_SetString (PyExc_RuntimeError, "Input body must be of Finite Element kind");
+    return NULL;
+  }
+
+  if (spdM)
+  {
+    IFIS (spdM, "ON")
+    {
+      spd_M = 1;
+    }
+    ELIF (spdM, "OFF")
+    {
+      spd_M = 0;
+    }
+    ELSE
+    {
+      PyErr_SetString (PyExc_RuntimeError, "The spdM value can be either 'ON' or 'OFF'");
+      return NULL;
+    }
+  }
+
+if (spdK)
+  {
+    IFIS (spdK, "ON")
+    {
+      spd_K = 1;
+    }
+    ELIF (spdK, "OFF")
+    {
+      spd_K = 0;
+    }
+    ELSE
+    {
+      PyErr_SetString (PyExc_RuntimeError, "The spdK value can be either 'ON' or 'OFF'");
+      return NULL;
+    }
+  }
+
+  FEM_MatrixMarket_M_K (body->bod, spd_M, PyString_AsString (pathM), spd_K, PyString_AsString (pathK));
+
+#if MPI && LOCAL_BODIES
+  }
+#endif
+
+  Py_RETURN_NONE;
+}
+
 
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
@@ -8273,6 +8350,7 @@ static PyMethodDef lng_methods [] =
   {"MBFCP_EXPORT", (PyCFunction)lng_MBFCP_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MBFCP definition"},
   {"NON_SOLFEC_ARGV", (PyCFunction)lng_NON_SOLFEC_ARGV, METH_NOARGS, "Return non-Solfec input arguments"},
   {"MODAL_ANALYSIS", (PyCFunction)lng_MODAL_ANALYSIS, METH_VARARGS|METH_KEYWORDS, "Perform modal analysis of a FEM body"},
+  {"BODY_MM_EXPORT", (PyCFunction)lng_BODY_MM_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MatrixMarket M and K matrices of a FEM body"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -8502,6 +8580,7 @@ int lng (const char *path)
                      "from solfec import MBFCP_EXPORT\n"
                      "from solfec import NON_SOLFEC_ARGV\n"
                      "from solfec import MODAL_ANALYSIS\n"
+                     "from solfec import BODY_MM_EXPORT\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

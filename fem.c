@@ -1698,8 +1698,8 @@ static void TL_dynamic_inverse (BODY *bod, double step, double *force)
     MX_Matvec (-0.25 * step, bod->K, bod->velo, 1.0, force);
   }
 
-  /* calculate tangent operator A = M + (damping*h + h*h/4) K */
-  bod->inverse = MX_Add (1.0, bod->M, bod->damping*step + 0.25*step*step, bod->K, NULL);
+  /* calculate tangent operator A = M + (damping*h/2 + h*h/4) K */
+  bod->inverse = MX_Add (1.0, bod->M, 0.5*bod->damping*step + 0.25*step*step, bod->K, NULL);
 
   /* invert A */
   MX_Inverse (bod->inverse, bod->inverse);
@@ -2088,8 +2088,8 @@ static void BC_dynamic_init (BODY *bod)
     {
       double step = bod->dom->step;
 
-      /* calculate initial tangent operator A(0) = M + (damping*h + h*h/4) K(q(0)) */
-      bod->inverse = MX_Add (1.0, bod->M, bod->damping*step + 0.25*step*step, bod->K, NULL);
+      /* calculate initial tangent operator A(0) = M + (damping*h/2 + h*h/4) K(q(0)) */
+      bod->inverse = MX_Add (1.0, bod->M, 0.5*bod->damping*step + 0.25*step*step, bod->K, NULL);
 
       MX_Inverse (bod->inverse, bod->inverse);
     }
@@ -2357,8 +2357,8 @@ static void RO_dynamic_init (BODY *bod)
     for (i = 0; i < E->n; i ++) bod->K->x [i] = i < 6 ? 0.0 : bod->eval [i];
 
     bod->inverse = MX_Identity (MXCSC, E->n);
-    /* calculate initial tangent operator A(0) = E' (M + (damping*h + h*h/4) K(q(0))) E */
-    for (i = 0; i < E->n; i ++) bod->inverse->x [i] = 1.0 / (1.0 + (bod->damping*step + 0.25*step*step)*bod->K->x[i]);
+    /* calculate initial tangent operator A(0) = E' (M + (damping*h/2 + h*h/4) K(q(0))) E */
+    for (i = 0; i < E->n; i ++) bod->inverse->x [i] = 1.0 / (1.0 + (0.5*bod->damping*step + 0.25*step*step)*bod->K->x[i]);
 
     /* store diagonal mesh space inertia matrix */
     MX *M = diagonal_inertia (bod, 1);
@@ -3732,4 +3732,17 @@ void FEM_Load_Mode (BODY *bod, int mode, double scale)
 
     SHAPE_Update (bod->shape, bod, (MOTION)modal_motion); 
   }
+}
+
+/* export M and K in MatrixMarket formats; in 'spd' mode only lower tirangle is used */
+void FEM_MatrixMarket_M_K (BODY *bod, short spdM, char *pathM, short spdK, char *pathK)
+{
+  MX *K = tangent_stiffness (bod, spdK),
+     *M = diagonal_inertia (bod, spdM);
+
+  MX_MatrixMarket (K, pathK);
+  MX_MatrixMarket (M, pathM);
+
+  MX_Destroy (K);
+  MX_Destroy (M);
 }
