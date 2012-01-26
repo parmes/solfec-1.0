@@ -57,8 +57,6 @@ a) sending constrains with fixed bases (e.g. FIXPNT, do not send the base)
 b) assembling W parts for constraints with fxied bases and points (e.g. FIXPNT)
 c) full domain load balancing only every N steps (communication)
 ------------------------------------------------------------------------------------------------------------
-Use 0.5 coefficent before bod->damping everywhere? (now: c K (u0 + u1), while nicer is c K 0.5 (u0 + u1))
-------------------------------------------------------------------------------------------------------------
 Balancing of FEM bodies - decrease constraint weight (too many DOFs)
 -----------------------------------------------------------------------
 Optimize stress plotting (batch calculation for a set of nodes)
@@ -115,3 +113,6 @@ generates too much memory copying and data transfer) !!!
 
 Only COMCMP in dom.c (for bod->con) seems to require valid con->master/slave pointers
 (e.g. having one of them NULL may produce == for different constraints); work around it!
+---------------------------------------------------------------------------------
+Switch from BLOPEX to PRIMME and expand MODAL_ANALYSIS (interior modes)
+---------------------------------------------------------------------------------

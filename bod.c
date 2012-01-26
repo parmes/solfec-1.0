@@ -551,8 +551,8 @@ static void prb_dynamic_implicit_inverse (BODY *bod, double step, double *conf, 
     MX_Matvec (-0.25 * step, K, bod->velo, 1.0, force);
   }
 
-  /* calculate tangent operator A = M + (damping*h + h*h/4) K */
-  MX_Add (1.0, MX_Diag(M, 0, 2), bod->damping*step + 0.25*step*step, K, MX_Diag(A, 0, 0));
+  /* calculate tangent operator A = M + (damping*h/2 + h*h/4) K */
+  MX_Add (1.0, MX_Diag(M, 0, 2), 0.5*bod->damping*step + 0.25*step*step, K, MX_Diag(A, 0, 0));
   MX_Copy (MX_Diag (M, 3, 3), MX_Diag (A, 1, 1));
 
   /* invert A */

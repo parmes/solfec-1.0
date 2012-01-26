@@ -125,4 +125,7 @@ MX* FEM_Modal_Analysis (BODY *bod, int n, double abstol, int maxiter, int verbos
 /* load an eigen mode as the current shape */
 void FEM_Load_Mode (BODY *bod, int mode, double scale);
 
+/* export M and K in MatrixMarket formats; in 'spd' mode only lower tirangle is used */
+void FEM_MatrixMarket_M_K (BODY *bod, short spdM, char *pathM, short spdK, char *pathK);
+
 #endif
