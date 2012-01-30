@@ -1490,9 +1490,8 @@ static void external_force (BODY *bod, double time, double step, double *fext)
 /* compute global tangent stiffness */
 static MX* tangent_stiffness (BODY *bod, short spd)
 {
-  struct colblock { int row; double val [3]; } *cb; /* column block */
   int i, j, k, l, n, dofs, *pp, *ii, *kk;
-  double K [576], *A;
+  double K [576], *A, *rowblk;
   MAP **col, *item;
   ELEMENT *ele;
   short bulk;
@@ -1504,7 +1503,7 @@ static MX* tangent_stiffness (BODY *bod, short spd)
   if (spd) spd = 1;
   msh = FEM_MESH (bod);
   dofs = MESH_DOFS (msh);
-  MEM_Init  (&blkmem, sizeof (struct colblock), dofs);
+  MEM_Init  (&blkmem, sizeof (double [3]), dofs);
   ERRMEM (col = MEM_CALLOC (sizeof (MAP*) * dofs)); /* sparse columns */
   MEM_Init  (&mapmem, sizeof (MAP), dofs);
 
@@ -1536,17 +1535,18 @@ static MX* tangent_stiffness (BODY *bod, short spd)
       {
 	j = 3 * ele->nodes [k] + l; /* for each global column index */
 
-	for (i = 0; i < ele->type; i ++, A += 3) /* for each column row-block; shift column block pointer A */
+	for (n = 0; n < ele->type; n ++, A += 3) /* for each column row-block; shift column block pointer A */
 	{
-	  if (spd && ele->nodes [k] > ele->nodes [i]) continue; /* lower triangle */
+	  i = 3 * ele->nodes [n];
 
-	  if (!(cb = MAP_Find (col [j], (void*) (long) ele->nodes [i], NULL))) /* if this row-block was not mapped */
+	  if (spd && i+2 < j) continue; /* skip upper triangle (leave diagonal overlaping blocks) */
+
+	  if (!(rowblk = MAP_Find (col [j], (void*) (long) i, NULL))) /* if this row-block was not mapped */
 	  {
-	    ERRMEM (cb = MEM_Alloc (&blkmem));
-	    cb->row = 3 * ele->nodes [i]; /* row-block initial index */
-	    MAP_Insert (&mapmem, &col [j], (void*) (long) ele->nodes [i], cb, NULL); /* map it */
+	    ERRMEM (rowblk = MEM_Alloc (&blkmem));
+	    MAP_Insert (&mapmem, &col [j], (void*) (long) i, rowblk, NULL); /* map it */
 	  }
-	  ACC (A, cb->val); /* accumulate values */
+	  ACC (A, rowblk); /* accumulate values */
 	}
       }
     }
@@ -1562,14 +1562,14 @@ static MX* tangent_stiffness (BODY *bod, short spd)
   {
     for (item = MAP_First (col [j]); item; item = MAP_Next (item)) /* for each row-block */
     {
-      cb = item->data;
-      if (spd && cb->row < j) /* diagonal block with sticking out upper triangle */
+      i = (int) (long) item->key;
+      if (spd && i < j) /* diagonal block with sticking out upper triangle */
       {
 	for (n = 0; n < 3 - j % 3; n ++, kk ++) kk [0] = j + n;
       }
       else /* lower triangle block */
       {
-	kk [0] = cb->row;
+	kk [0] = i;
 	kk [1] = kk[0] + 1;
 	kk [2] = kk[1] + 1;
 	kk += 3;
@@ -1584,14 +1584,15 @@ static MX* tangent_stiffness (BODY *bod, short spd)
   {
     for (item = MAP_First (col [j]); item; item = MAP_Next (item)) /* for each row-block */
     {
-      cb = item->data;
-      if (spd && cb->row < j) /* diagonal block with sticking out upper triangle */
+      i = (int) (long) item->key;
+      rowblk = item->data;
+      if (spd && i < j) /* diagonal block with sticking out upper triangle */
       {
-	for (n = 0; n < 3 - j % 3; n ++, A ++) A [0] = cb->val [j % 3 + n];
+	for (n = 0; n < 3 - j % 3; n ++, A ++) A [0] = rowblk [j % 3 + n];
       }
       else /* lower triangle block */
       {
-        COPY (cb->val, A); /* copy values */
+        COPY (rowblk, A); /* copy values */
 	A += 3;
       }
     }
