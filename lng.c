@@ -1317,7 +1317,7 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
 
     PARSEKEYS ("OdO", &analysis, &step, &output);
 
-    TYPETEST (is_string (analysis, kwl [0]) && is_string (output, kwl [2]));
+    TYPETEST (is_string (analysis, kwl [0]) && is_positive (step, kwl[1]) && is_string (output, kwl [2]));
 
     outpath = PyString_AsString (output);
 
@@ -7529,8 +7529,8 @@ static PyObject* lng_BODY_MM_EXPORT (PyObject *self, PyObject *args, PyObject *k
   short spd_M, spd_K;
   lng_BODY *body;
 
-  spd_M = 0;
-  spd_K = 0;
+  spd_M = 1;
+  spd_K = 1;
   spdM = NULL;
   spdK = NULL;
 
