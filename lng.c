@@ -944,10 +944,13 @@ static void lng_MESH_dealloc (lng_MESH *self)
 /* return node */
 static PyObject* lng_MESH_node (lng_MESH *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("n");
+  KEYWORDS ("n", "x", "y", "z");
+  double x, y, z;
   int n;
 
-  PARSEKEYS ("i", &n);
+  x = y = z = DBL_MAX;
+
+  PARSEKEYS ("i|ddd", &n, &x, &y, &z);
 
   if (!self->msh)
   {
@@ -958,6 +961,22 @@ static PyObject* lng_MESH_node (lng_MESH *self, PyObject *args, PyObject *kwds)
   {
     PyErr_SetString (PyExc_ValueError, "Node index out of bounds");
     return NULL;
+  }
+
+  if (x != DBL_MAX) 
+  {
+    self->msh->ref_nodes [n][0] =
+    self->msh->cur_nodes [n][0] = x;
+  }
+  if (y != DBL_MAX) 
+  {
+    self->msh->ref_nodes [n][1] =
+    self->msh->cur_nodes [n][1] = y;
+  }
+  if (z != DBL_MAX) 
+  {
+    self->msh->ref_nodes [n][2] =
+    self->msh->cur_nodes [n][2] = z;
   }
 
   return Py_BuildValue ("(d, d, d)", self->msh->cur_nodes [n][0], self->msh->cur_nodes[n][1], self->msh->cur_nodes[n][2]);

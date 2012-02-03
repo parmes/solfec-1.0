@@ -5062,7 +5062,7 @@ Some parameters can also be accessed as members and methods of a MESH object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="1">
+<lyxtabular version="3" rows="2" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -5096,6 +5096,34 @@ obj.nnod
 \end_inset
 </cell>
 </row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="2" columns="1">
+<features>
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-write
+\series default
+ members and methods
+\end_layout
+
+\end_inset
+</cell>
+</row>
 <row>
 <cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
@@ -5104,9 +5132,10 @@ obj.nnod
 
 \series bold
 \emph on
-obj.node (n)
+obj.node (n | x, y, z)
 \series default
- - returns a (x, y, z) tuple storing coordinates of nth node
+ - returns a (x, y, z) tuple storing coordinates of nth node; if x, y or
+ z are given the current coordinates are overwritten
 \end_layout
 
 \end_inset
