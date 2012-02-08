@@ -177,6 +177,13 @@ int POINTS_COMPARE (double *a, double *b);
   (c) [2] = (a) [2] * (b) [2];\
 }
 
+#define INVHADAMARD(a, b, c)\
+{\
+  (c) [0] = (a) [0] / (b) [0];\
+  (c) [1] = (a) [1] / (b) [1];\
+  (c) [2] = (a) [2] / (b) [2];\
+}
+
 #define DOT(a, b)\
   ((a)[0]*(b)[0] + (a)[1]*(b)[1] + (a)[2]*(b)[2])
 
