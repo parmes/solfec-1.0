@@ -2090,6 +2090,9 @@ void BODY_Read_State (BODY *bod, PBF *bf)
     }
   }
 
+  /* post-process red data if needed */
+  if (bod->kind == FEM) FEM_Post_Read (bod);
+
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
   if (bod->msh) FEM_Update_Rough_Mesh (bod);
