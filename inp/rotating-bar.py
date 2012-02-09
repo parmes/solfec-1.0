@@ -17,7 +17,7 @@ nodes = [-0.05, -0.05, -0.5,
          -0.05,  0.05,  0.5]
 
 # here is a 2x2x10 mesh of a 0.1x0.1x0.5 rod
-mesh = HEX (nodes, 2, 2, 10, 0, [0, 1, 2, 3, 4, 5])
+mesh = HEX (nodes, 2, 2, 20, 0, [0, 1, 2, 3, 4, 5])
 
 # solver (not used)
 sv = NEWTON_SOLVER ()
@@ -36,7 +36,7 @@ for j in range (0, K.shape[1]):
 x, y = eigh (K, M) # this produces y.T M y = 1 and y.T K y = x */
 eval = [] # eigenvalue list
 evec = [] # eigenvector list (BODY command takes a tuple (eval, evec) argument for the RO formulation)
-for j in (0,1,2,3,4,5,11,19,26,35,46,54,55): #range (0, K.shape[0]):
+for j in (0,1,2,3,4,5,13,18,25,33,38,55,144,146,147,150,151,153,154,155,157,167,169,171,172): #range (0, K.shape[0]):
   eval.append (x[j].real)
   for z in y[:,j]:
     evec.append (z.real)
@@ -58,7 +58,7 @@ p1 = (nodes[12], nodes[13], nodes[14])
 
 # rotation: BC
 h1 = 1./64.
-d1 = 1.
+d1 = 10.
 sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC1')
 bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
 bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
@@ -73,6 +73,13 @@ bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
 bd2.scheme = 'DEF_LIM'
 INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
 RUN (sl2, sv, d1)
+
+# rotation: RIG
+sl3 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RIG1')
+bl3 = BULK_MATERIAL (sl3, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+bd3 = BODY (sl3, 'RIGID', COPY (mesh), bl3)
+INITIAL_VELOCITY (bd3, (0, 0, 0), (1, 0, 0))
+RUN (sl3, sv, d1)
 
 if not VIEWER() and sl1.mode == 'READ' and sl2.mode == 'READ':
   th1 = HISTORY (sl1, [(bd1, p0, 'DX'), (bd1, p0, 'DY'), (bd1, p0, 'DZ'), (bd1, p1, 'DX'), (bd1, p1, 'DY'),(bd1, p1, 'DZ')], 0, d1)

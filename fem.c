@@ -3775,5 +3775,6 @@ void FEM_Post_Read (BODY *bod)
   if (bod->form == REDUCED_ORDER)
   {
     RO_lift_conf (bod, bod->evec, FEM_MESH (bod), FEM_ROT (bod), bod->conf, FEM_MESH_CONF (bod));
+    MX_Matvec (1.0, bod->evec, bod->velo, 0.0, FEM_MESH_VELO (bod));
   }
 }
