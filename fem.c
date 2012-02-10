@@ -2330,6 +2330,24 @@ static void RO_project_conf (BODY *bod, MX *E, MESH *msh, double *tmp, double *R
   MX_Matvec (1.0, MX_Tran (E), tmp, 0.0, q); /* q = E' M R' d */
 }
 
+/* u = E'M R' um */
+static void RO_project_velo (BODY *bod, MX *E, double *tmp, double *R, double *um, double *u)
+{
+  double Y [3], *x, *y, *z;
+
+  blas_dcopy (E->m, um, 1, tmp, 1);
+
+  for (x = tmp, y = tmp+E->m, z = FEM_MESH_MASS (bod); x < y; x += 3, z += 3)
+  {
+    COPY (x, Y);
+    TVMUL (R, Y, x); /* R' um */
+
+    HADAMARD (x, z, x); /* tmp = M R' um */
+  }
+
+  MX_Matvec (1.0, MX_Tran (E), tmp, 0.0, u); /* u = E' M R' um */
+}
+
 /* fint = diagonal (K) q {in the reduced space} */
 static void RO_internal_force (BODY *bod, double *q, double *fint)
 {
@@ -2412,24 +2430,24 @@ static void RO_dynamic_step_begin (BODY *bod, double time, double step)
 	*um = FEM_MESH_VELO (bod),
 	*u = bod->velo,
 	*q = bod->conf,
-	*b, *f;
+	*b, *tmp;
 
   if (time == 0.0) RO_initialize_velocity (bod); /* initialize reduced velocity */
 
   ERRMEM (b = MEM_CALLOC (sizeof (double [n+nm])));
-  f = b + n;
+  tmp = b + n;
 
   blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
   blas_dcopy (nm, um, 1, u0m, 1);
 
   blas_daxpy (nm, half, um, 1, qm, 1); /* qm(t+h/2) = qm(t) + (h/2)um(t) */
   BC_update_rotation (bod, msh, qm, R); /* R1 = R(qm(t+h/2)) */
-  RO_project_conf (bod, E, msh, f, R, qm, q); /* q(t+h/2) = proj_M_E (qm(t+h/2)) */
+  RO_project_conf (bod, E, msh, tmp, R, qm, q); /* q(t+h/2) = proj_M_E (qm(t+h/2)) */
   RO_lift_conf (bod, E, msh, R, q, qm); /* qm = REq - (I-R)Z */
 
-  external_force (bod, time+half, step, f);
-  RO_rotate_backward (R, f, nm);
-  MX_Matvec (1.0, MX_Tran (E), f, 0.0, fext); /* fext = E'R'f */
+  external_force (bod, time+half, step, tmp);
+  RO_rotate_backward (R, tmp, nm); /* f */
+  MX_Matvec (1.0, MX_Tran (E), tmp, 0.0, fext); /* fext = E'R'f */
   RO_internal_force (bod, q, fint); /* fint = K q */
   blas_dcopy (n, fext, 1, b, 1);
   blas_daxpy (n, -1.0, fint, 1, b, 1); /* b = fext - fint */
@@ -2439,9 +2457,9 @@ static void RO_dynamic_step_begin (BODY *bod, double time, double step)
 
   blas_dcopy (n, u, 1, b, 1);
   blas_daxpy (n, -1.0, u0, 1, b, 1); /* du */
-  MX_Matvec (1.0, E, b, 0.0, f);
-  RO_rotate_forward (R, f, nm); /* dum */
-  blas_daxpy (nm, 1.0, f, 1, um, 1); /* um = u0m + REdu */
+  MX_Matvec (1.0, E, b, 0.0, tmp);
+  RO_rotate_forward (R, tmp, nm); /* dum */
+  blas_daxpy (nm, 1.0, tmp, 1, um, 1); /* um = u0m + REdu */
 
   free (b);
 }
@@ -2462,10 +2480,10 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
 	*u0 = FEM_VEL0 (bod),
 	*u = bod->velo,
 	*q = bod->conf,
-	*r, *dum;
+	*r, *tmp;
 
   ERRMEM (r = malloc (sizeof (double [n+nm])));
-  dum = r + n;
+  tmp = r + n;
 
   fem_constraints_force (bod, r); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
   blas_daxpy (n, 1.0, r, 1, fext, 1);  /* fext += r */
@@ -2474,15 +2492,20 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
 
   blas_dcopy (n, u, 1, r, 1);
   blas_daxpy (n, -1.0, u0, 1, r, 1); /* du */
-  MX_Matvec (1.0, E, r, 0.0, dum);
-  RO_rotate_forward (R, dum, nm); /* dum */
+  MX_Matvec (1.0, E, r, 0.0, tmp);
+  RO_rotate_forward (R, tmp, nm); /* dum */
   blas_dcopy (nm, u0m, 1, um, 1);
-  blas_daxpy (nm, 1.0, dum, 1, um, 1); /* um = u0m + REdu */
+  blas_daxpy (nm, 1.0, tmp, 1, um, 1); /* um = u0m + REdu */
 
   blas_daxpy (nm, half, um, 1, qm, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
   BC_update_rotation (bod, msh, qm, R); /* R(t+h) = R(qm(t+h)) */
-  RO_project_conf (bod, E, msh, dum, R, qm, q); /* qm(t+h) = resolve_back (proj(qm(t+h))) */
+  RO_project_conf (bod, E, msh, tmp, R, qm, q); /* qm(t+h) = resolve_back (proj(qm(t+h))) */
   RO_lift_conf (bod, E, msh, R, q, qm); /* qm = REq - (I-R)Z */
+
+  RO_project_velo (bod, E, tmp, R, um, r); /* r[i>=6] store the "good" deformation components */
+  for (int i = 0; i < 6; i ++) r[i] = u[i]; /* while u[i<6] store the "good" rotation components */
+  MX_Matvec (1.0, E, r, 0.0, um);
+  RO_rotate_forward (R, um, nm); /* now um(t+h) combines "good" rotation and deformation */
 
   free (r);
 }
@@ -3776,5 +3799,6 @@ void FEM_Post_Read (BODY *bod)
   {
     RO_lift_conf (bod, bod->evec, FEM_MESH (bod), FEM_ROT (bod), bod->conf, FEM_MESH_CONF (bod));
     MX_Matvec (1.0, bod->evec, bod->velo, 0.0, FEM_MESH_VELO (bod));
+    RO_rotate_forward (FEM_ROT (bod), FEM_MESH_VELO (bod), bod->evec->m);
   }
 }
