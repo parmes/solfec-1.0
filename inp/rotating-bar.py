@@ -58,11 +58,12 @@ p1 = (nodes[12], nodes[13], nodes[14])
 
 # rotation: BC
 h1 = 1./64.
-d1 = 10.
+d1 = 1.
 sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC1')
 bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
 bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
 bd1.scheme = 'DEF_LIM'
+#bd1.damping = h1
 INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
 RUN (sl1, sv, d1)
 
@@ -71,6 +72,7 @@ sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO1')
 bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
 bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
 bd2.scheme = 'DEF_LIM'
+#bd2.damping = h1
 INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
 RUN (sl2, sv, d1)
 

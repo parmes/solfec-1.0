@@ -2430,12 +2430,13 @@ static void RO_dynamic_step_begin (BODY *bod, double time, double step)
 	*um = FEM_MESH_VELO (bod),
 	*u = bod->velo,
 	*q = bod->conf,
-	*b, *tmp;
+	*b, *v, *tmp;
 
   if (time == 0.0) RO_initialize_velocity (bod); /* initialize reduced velocity */
 
-  ERRMEM (b = MEM_CALLOC (sizeof (double [n+nm])));
-  tmp = b + n;
+  ERRMEM (b = MEM_CALLOC (sizeof (double [2*n+nm])));
+  v = b + n;
+  tmp = v + n;
 
   blas_dcopy (n, u, 1, u0, 1); /* save u (t) */
   blas_dcopy (nm, um, 1, u0m, 1);
@@ -2451,7 +2452,11 @@ static void RO_dynamic_step_begin (BODY *bod, double time, double step)
   RO_internal_force (bod, q, fint); /* fint = K q */
   blas_dcopy (n, fext, 1, b, 1);
   blas_daxpy (n, -1.0, fint, 1, b, 1); /* b = fext - fint */
-  if (bod->damping > 0.0) MX_Matvec (-bod->damping, bod->K, u, 1.0, b); /* b -= damping K u (t) */
+  if (bod->damping > 0.0)
+  {
+    RO_project_velo (bod, E, tmp, R, um, v); /* v = E'MR1'um <= half-step rotation is used */
+    MX_Matvec (-bod->damping, bod->K, v, 1.0, b); /* b -= damping K u (t) */
+  }
 
   MX_Matvec (step, bod->inverse, b, 1.0, u); /* u(t+h) = u(t) + h inv (A) b */
 
@@ -2495,16 +2500,15 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
   MX_Matvec (1.0, E, r, 0.0, tmp);
   RO_rotate_forward (R, tmp, nm); /* dum */
   blas_dcopy (nm, u0m, 1, um, 1);
-  blas_daxpy (nm, 1.0, tmp, 1, um, 1); /* um = u0m + REdu */
+  blas_daxpy (nm, 1.0, tmp, 1, um, 1); /* um = u0m + REdu => this produces "good" deformation */
 
   blas_daxpy (nm, half, um, 1, qm, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
   BC_update_rotation (bod, msh, qm, R); /* R(t+h) = R(qm(t+h)) */
   RO_project_conf (bod, E, msh, tmp, R, qm, q); /* qm(t+h) = resolve_back (proj(qm(t+h))) */
   RO_lift_conf (bod, E, msh, R, q, qm); /* qm = REq - (I-R)Z */
 
-  RO_project_velo (bod, E, tmp, R, um, r); /* r[i>=6] store the "good" deformation components */
-  for (int i = 0; i < 6; i ++) r[i] = u[i]; /* while u[i<6] store the "good" rotation components */
-  MX_Matvec (1.0, E, r, 0.0, um);
+  RO_project_velo (bod, E, tmp, R, um, u); /* project "good" deformational um onto reduced u */
+  MX_Matvec (1.0, E, u, 0.0, um); /* this update is "good" for integrating rotation */
   RO_rotate_forward (R, um, nm); /* now um(t+h) combines "good" rotation and deformation */
 
   free (r);
