@@ -332,6 +332,9 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst);
 /* set simulation scene extents */
 void DOM_Extents (DOM *dom, double *extents);
 
+/* initialize domain at t == 0.0 */
+void DOM_Initialize (DOM *dom);
+
 /* domain update initial half-step => bodies and constraints are
  * updated and the unupdated local dynamic problem is returned */
 LOCDYN* DOM_Update_Begin (DOM *dom);

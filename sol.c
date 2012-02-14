@@ -580,6 +580,8 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #endif
     if (sol->dom->time == 0.0)
     {
+      DOM_Initialize (sol->dom);
+
       if (sol->verbose) initstatsout (sol->dom); /* print out initial statistics */
 
       write_state (sol, solver, kind); /* save initial frame */
