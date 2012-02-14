@@ -3214,6 +3214,32 @@ void DOM_Extents (DOM *dom, double *extents)
   COPY6 (extents, dom->extents);
 }
 
+/* initialize domain at t == 0.0 */
+void DOM_Initialize (DOM *dom)
+{
+  BODY *bod;
+
+  SOLFEC_Timer_Start (dom->solfec, "TIMINT");
+
+  /* initialize bodies */
+  if (dom->dynamic > 0)
+  {
+    for (bod = dom->bod; bod; bod = bod->next)
+    {
+      BODY_Dynamic_Init (bod); /* integration scheme is set externally */
+    }
+  }
+  else
+  {
+    for (bod = dom->bod; bod; bod = bod->next)
+    {
+      BODY_Static_Init (bod);
+    }
+  }
+
+  SOLFEC_Timer_End (dom->solfec, "TIMINT");
+}
+
 /* domain update initial half-step => bodies and constraints are
  * updated and the current local dynamic problem is returned */
 LOCDYN* DOM_Update_Begin (DOM *dom)
@@ -3244,18 +3270,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   {
     for (bod = dom->bod; bod; bod = bod->next)
     {
-      if (time == 0.0) BODY_Dynamic_Init (bod); /* integration scheme is set externally */
-
       double h = BODY_Dynamic_Critical_Step (bod);
 
       if (h < step) step = h;
-    }
-  }
-  else
-  {
-    for (bod = dom->bod; bod; bod = bod->next)
-    {
-      if (time == 0.0) BODY_Static_Init (bod);
     }
   }
 

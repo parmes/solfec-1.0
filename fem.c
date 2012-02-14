@@ -2380,7 +2380,9 @@ static void RO_dynamic_init (BODY *bod)
 {
   if (!bod->M && !bod->K)
   {
-    double step = bod->dom->step;
+    DOM *dom = bod->dom;
+    double step = dom->step,
+	   time = dom->time;
     MX *E = bod->evec;
     int i;
 
@@ -2404,6 +2406,9 @@ static void RO_dynamic_init (BODY *bod)
 
     /* clean up */
     MX_Destroy (M); 
+    
+    /* initialize reduced velocity */
+    if (time == 0.0) RO_initialize_velocity (bod);
   }
 }
 
@@ -2431,8 +2436,6 @@ static void RO_dynamic_step_begin (BODY *bod, double time, double step)
 	*u = bod->velo,
 	*q = bod->conf,
 	*b, *v, *tmp;
-
-  if (time == 0.0) RO_initialize_velocity (bod); /* initialize reduced velocity */
 
   ERRMEM (b = MEM_CALLOC (sizeof (double [2*n+nm])));
   v = b + n;
@@ -2474,7 +2477,7 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
 {
   MX *E = bod->evec;
   MESH *msh = FEM_MESH (bod);
-  int n = bod->dofs,
+  int n = bod->dofs, i,
       nm = MESH_DOFS (msh);
   double half = 0.5 * step,
 	*R = FEM_ROT (bod),
@@ -2507,8 +2510,9 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
   RO_project_conf (bod, E, msh, tmp, R, qm, q); /* qm(t+h) = resolve_back (proj(qm(t+h))) */
   RO_lift_conf (bod, E, msh, R, q, qm); /* qm = REq - (I-R)Z */
 
-  RO_project_velo (bod, E, tmp, R, um, u); /* project "good" deformational um onto reduced u */
-  MX_Matvec (1.0, E, u, 0.0, um); /* this update is "good" for integrating rotation */
+  RO_project_velo (bod, E, tmp, R, um, r); /* r[i>=6] store the "good" deformation components */
+  for (i = 6; i < n; i ++) u[i] = r[i]; /* while u[i<6] store the "good" rotation components */
+  MX_Matvec (1.0, E, u, 0.0, um);
   RO_rotate_forward (R, um, nm); /* now um(t+h) combines "good" rotation and deformation */
 
   free (r);
@@ -2905,9 +2909,9 @@ void FEM_Overwrite_State (BODY *bod, double *q, double *u)
   blas_dcopy (MESH_DOFS(FEM_MESH(bod)), q, 1, bod->conf, 1); /* always in the mesh space */
   blas_dcopy (bod->dofs, u, 1, bod->velo, 1); /* can be mesh or reduced space */
 
-  if (bod->form == REDUCED_ORDER) /* overwrite the mesh space so that RO_initialize_velocity will not break it */
+  if (bod->form == REDUCED_ORDER) /* overwrite the mesh space */
   {
-    MX_Matvec (1.0, MX_Tran (bod->evec), bod->velo, 0.0, FEM_MESH_VELO(bod));
+    FEM_Post_Read (bod);
   }
 }
 

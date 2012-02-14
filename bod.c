@@ -1212,6 +1212,8 @@ void BODY_Dynamic_Init (BODY *bod)
       FEM_Dynamic_Init (bod);
       break;
   }
+
+  bod->energy [KINETIC] = BODY_Kinetic_Energy (bod); /* > 0 for u(0) != 0 */
 }
 
 double BODY_Dynamic_Critical_Step (BODY *bod)
