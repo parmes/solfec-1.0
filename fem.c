@@ -291,8 +291,7 @@ inline static int integrator2d_load (int type, int order, const double **X, cons
 }
 
 /* predict 2D integration order */
-typedef enum {SURF, DROT} ENTITY2D;
-static int integrator2d_order (int type, ENTITY2D entity)
+static int integrator2d_order (int type)
 {
   if (type == 3) return 1;
   else return 2; /* quads */
@@ -368,13 +367,13 @@ static int integrator2d_order (int type, ENTITY2D entity)
 }
 
 /* face integral begins */
-#define INTEGRAL2D_BEGIN(TYPE, ENTITY)\
+#define INTEGRAL2D_BEGIN(TYPE)\
 {\
   const double *__X__, *__Y__, *__W__;\
   double point [2], weight;\
   int __N__, __k__;\
 \
-  __N__ = integrator2d_load (TYPE, integrator2d_order (TYPE, ENTITY), &__X__, &__Y__, &__W__);\
+  __N__ = integrator2d_load (TYPE, integrator2d_order (TYPE), &__X__, &__Y__, &__W__);\
   for (__k__ = 0; __k__ < __N__; __k__ ++)\
   {\
     point [0] = __X__ [__k__];\
@@ -465,6 +464,7 @@ inline static double face_det (FACE *fac, node_t nodes, double *point, double *n
 }
 
 /* load face node coordinates into a local table */
+inline static int element_nodes (node_t heap, int type, int *nodes, node_t stack);
 #define face_nodes(heap, type, nodes, stack) element_nodes (heap, type, nodes, stack)
 
 /* load face displacemnts into a local table */
@@ -477,6 +477,37 @@ inline static void face_displacements (double *heap, FACE *fac, double (*q) [3])
   {
     p = &heap [3 * fac->nodes [i]];
     COPY (p, q[i]);
+  }
+}
+
+/* create face integration data;
+ * FACE->idata = {shapes0, normal0, J0*wgt0, shapes1, normal1, J1*wgt1, shapes2, normal2, J2*wgt2, shapes3, normal3, J3*wgt3} */
+#define FACE_SHAPES(fac, i) ((fac)->idata+(i)*((fac)->type+4))
+#define FACE_NORMAL(fac, i) (FACE_SHAPES(fac,i)+(fac)->type)
+static void create_face_integration_data (MESH *msh)
+{
+  double refn [4][3], J, *N, *shapes;
+  FACE *fac;
+  int n;
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    n = 0; INTEGRAL2D_BEGIN (fac->type) { n ++; } INTEGRAL2D_END ()
+
+    ERRMEM (fac->idata = malloc (sizeof (double [n * (fac->type + 4)])));
+
+    face_nodes (msh->ref_nodes, fac->type, fac->nodes, refn);
+
+    INTEGRAL2D_BEGIN (fac->type) /* defines point and weight */
+    {
+      shapes = FACE_SHAPES (fac, __k__);
+      N = FACE_NORMAL (fac, __k__);
+      face_shapes (fac, point, shapes);
+      J = face_det (fac, refn, point, N);
+      N [3] = J * weight;
+      NORMALIZE (N);
+    }
+    INTEGRAL2D_END ()
   }
 }
 
@@ -1385,7 +1416,7 @@ static void unit_body_force (BODY *bod)
 /* accumulate surface pressure */
 static void accumulate_pressure (BODY *bod, MESH *msh, double *conf, int surfid, double value, double *fext)
 {
-  double q [8][3], nodes [8][3], shapes [8], J, p, *N;
+  double q [4][3], nodes [4][3], *shapes, *N, p;
   int i, j, k, n;
   FACE *fac;
 
@@ -1396,13 +1427,12 @@ static void accumulate_pressure (BODY *bod, MESH *msh, double *conf, int surfid,
       face_nodes (msh->ref_nodes, fac->type, fac->nodes, nodes);
       face_displacements (conf, fac, q);
       for (j = 0; j < fac->type; j ++) ADD (nodes [j], q [j], nodes [j]);
-      N = fac->normal;
 
-      INTEGRAL2D_BEGIN (fac->type, SURF) /* defines point and weight */
+      INTEGRAL2D_BEGIN (fac->type) /* defines point and weight */
       {
-	face_shapes (fac, point, shapes);
-	J = face_det (fac, nodes, point, NULL);
-	p = J * weight * value;
+	shapes = FACE_SHAPES (fac, __k__);
+	N = FACE_NORMAL (fac, __k__);
+	p = value * N [3];
 
         for (i = 0; i < fac->type; i ++)
 	{
@@ -1920,9 +1950,9 @@ static void TL_static_step_end (BODY *bod, double time, double step)
 /* compute surface integral = INT { skew [N] A [X + Shapes (X) q] } */
 static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, double *A, double *integral)
 {
-  double q [4][3], refn [4][3], curn [4][3], B [3], C [3], N [3], shapes [4], J, coef, *Y, *i, *e;
-  int j, n;
+  double q [4][3], refn [4][3], curn [4][3], B [3], C [3], *N, *shapes, *Y, *i, *e;
   FACE *fac;
+  int j;
 
   for (i = integral, e = i + 3 * num; i < e; i += 3) SET (i, 0);
 
@@ -1932,17 +1962,15 @@ static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, do
     face_displacements (conf, fac, q);
     for (j = 0; j < fac->type; j ++) ADD (refn [j], q [j], curn [j]);
 
-    INTEGRAL2D_BEGIN (fac->type, DROT) /* defines point and weight */
+    INTEGRAL2D_BEGIN (fac->type) /* defines point and weight */
     {
-      n = face_shapes (fac, point, shapes);
-      J = face_det (fac, refn, point, N);
-      coef = J * weight;
-      NORMALIZE (N);
+      shapes = FACE_SHAPES (fac, __k__);
+      N = FACE_NORMAL (fac, __k__);
 
       SET (B, 0);
-      for (j = 0; j < n; j ++)
+      for (j = 0; j < fac->type; j ++)
 	ADDMUL (B, shapes [j], curn [j], B);
-      SCALE (B, coef);
+      SCALE (B, N[3]);
 
       for (i = integral, Y = A; i < e; i += 3, Y += 9)
       {
@@ -2844,6 +2872,9 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     post_proces_convices (shp, msh, form);
   }
   else msh = shp->data; /* retrive the mesh pointer from the shape */
+
+  /* surface faces integration data */
+  create_face_integration_data (msh);
 
   /* allocate dofs */
   switch (form)

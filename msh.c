@@ -2873,7 +2873,13 @@ void MESH_Destroy (MESH *msh)
 {
   ELEMENT *ele;
   NODE *nod;
+  FACE *fac;
   int n;
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    if (fac->idata) free (fac->idata);
+  }
 
   for (ele = msh->bulkeles; ele; ele = ele->next)
   {

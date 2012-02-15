@@ -66,6 +66,8 @@ struct face
   ELEMENT *ele;
 
   FACE *next, *n; /* element, mesh list */
+
+  double *idata; /* integration data */
 };
 
 /* finite element */

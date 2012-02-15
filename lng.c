@@ -1345,7 +1345,7 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
       self->sol = SOLFEC_Create (0, step, outpath);
       REGISTER_SOLFEC (self->sol);
 #if OPENGL
-      RND_Domain (self->sol->dom); /* just in case a viewer is enabled (last created SOLFEC object) */
+      if (RND_Is_On ()) RND_Domain (self->sol->dom); /* just in case a viewer is enabled (last created SOLFEC object) */
 #endif
     }
     ELIF (analysis, "DYNAMIC")
@@ -1353,7 +1353,7 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
       self->sol = SOLFEC_Create (1, step, outpath);
       REGISTER_SOLFEC (self->sol);
 #if OPENGL
-      RND_Domain (self->sol->dom); /* pass last created SOLFEC object to the rendering */
+      if (RND_Is_On ()) RND_Domain (self->sol->dom); /* pass last created SOLFEC object to the rendering */
 #endif
     }
     ELSE
