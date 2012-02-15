@@ -57,7 +57,7 @@ else:
 data = (eval, evec)
 
 # undamped rotatin run
-def undamped_rotation (h1, d1, TL, RG):
+def undamped_rotation (h1, d1, TL, LEN, ENE):
 
   # rotation: TL
   if TL:
@@ -84,21 +84,11 @@ def undamped_rotation (h1, d1, TL, RG):
   INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
   RUN (sl2, sv, d1)
 
-  # rotation: RG
-  if RG:
-    sl3 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RG1_' + str(long(1./h1)) + '_' + str(long(d1)))
-    bl3 = BULK_MATERIAL (sl3, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
-    bd3 = BODY (sl3, 'RIGID', COPY (mesh), bl3)
-    INITIAL_VELOCITY (bd3, (0, 0, 0), (1, 0, 0))
-    RUN (sl3, sv, d1)
-
   if not VIEWER() and sl1.mode == 'READ' and sl2.mode == 'READ':
     if TL:
       th0 = HISTORY (sl0, [(bd0, p0, 'DX'), (bd0, p0, 'DY'), (bd0, p0, 'DZ'), (bd0, p1, 'DX'), (bd0, p1, 'DY'),(bd0, p1, 'DZ'), (bd0, 'KINETIC'), (bd0, 'INTERNAL'), 'TIMINT'], 0, d1)
     th1 = HISTORY (sl1, [(bd1, p0, 'DX'), (bd1, p0, 'DY'), (bd1, p0, 'DZ'), (bd1, p1, 'DX'), (bd1, p1, 'DY'),(bd1, p1, 'DZ'), (bd1, 'KINETIC'), (bd1, 'INTERNAL'), 'TIMINT'], 0, d1)
     th2 = HISTORY (sl2, [(bd2, p0, 'DX'), (bd2, p0, 'DY'), (bd2, p0, 'DZ'), (bd2, p1, 'DX'), (bd2, p1, 'DY'),(bd2, p1, 'DZ'), (bd2, 'KINETIC'), (bd2, 'INTERNAL'), 'TIMINT'], 0, d1)
-    if RG:
-      th3 = HISTORY (sl3, ['TIMINT'], 0, d1)
     lh0 = []
     lh1 = []
     lh2 = []
@@ -124,6 +114,103 @@ def undamped_rotation (h1, d1, TL, RG):
     for (kin, int) in zip (th2[7], th2[8]):
       tot2.append (kin+int)
 
+    try:
+      import matplotlib.pyplot as plt
+
+      if d1 > 10.: format = '.png'
+      else: format = '.eps'
+
+      hstr = ' [h = 1/' + str(long(1/h1)) + ']'
+
+      if LEN:
+	plt.clf ()
+	plt.title ('Rotating bar: length history' + hstr)
+	if TL: plt.plot (th0 [0], lh0, label='TL', marker = 's')
+	plt.plot (th1 [0], lh1, label='BC')
+	plt.plot (th2 [0], lh2, label='RO', ls = '--', marker = 'o')
+	plt.xlabel ('Time [s]')
+	plt.ylabel ('Length [m]')
+	plt.legend(loc = 'upper right')
+	plt.savefig ('out/rotating-bar/rb_undamp_length' + str(long(1/h1)) + '_' + str(long(d1)) + format)
+
+      if ENE:
+	plt.clf ()
+	plt.title ('Rotating bar: total energy' + hstr)
+	if TL: plt.plot (th0 [0], tot0, label='TL', ls = '-.')
+	plt.plot (th1 [0], tot1, label='BC')
+	plt.plot (th2 [0], tot2, label='RO', ls = '--')
+	plt.xlabel ('Time [s]')
+	plt.ylabel ('Energy [J]')
+	plt.legend(loc = 'upper right')
+	plt.savefig ('out/rotating-bar/rb_undamp_energy' + str(long(1/h1)) + '_' + str(long(d1)) + format)
+
+    except ImportError:
+      pass # no reaction
+ 
+def barlabel (plt, rects):
+  for rect in rects:
+    height = rect.get_height()
+    width = rect.get_width()
+    plt.text(rect.get_x()+width/2., height+0.001*width, '%.3g'%height, ha='center', va='bottom')
+
+def undamped_rotation_runtimes (h1, d1):
+
+  # 4x4x40 mesh
+  mesh = HEX (nodes, 4, 4, 40, 0, [0, 1, 2, 3, 4, 5])
+
+  # rotation: TL
+  TLpath = 'out/rotating-bar/TL2_' + str(long(1./h1)) + '_' + str(long(d1))
+  sl0 = SOLFEC ('DYNAMIC', h1, TLpath)
+  bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  bd0 = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0, form = 'TL')
+  bd0.scheme = 'DEF_LIM'
+  INITIAL_VELOCITY (bd0, (0, 0, 0), (1, 0, 0))
+  RUN (sl0, sv, d1)
+
+  # modal analysis
+  data0 = MODAL_ANALYSIS (bd0, 45, TLpath + '/modal.data', verbose = 'ON')
+  ndofs = mesh.nnod * 3
+  eval = []
+  evec = []
+  for j in vsel:
+    eval.append (data0[0][j])
+    for k in range (j*ndofs,(j+1)*ndofs):
+      evec.append (data0[1][k])
+  data = (eval, evec)
+
+  # rotation: BC
+  sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC2_' + str(long(1./h1)) + '_' + str(long(d1)))
+  bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
+  bd1.scheme = 'DEF_LIM'
+  INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
+  RUN (sl1, sv, d1)
+
+  # rotation: RO
+  sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO2_' + str(long(1./h1)) + '_' + str(long(d1)))
+  bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
+  bd2.scheme = 'DEF_LIM'
+  INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
+  RUN (sl2, sv, d1)
+
+  # rotation: RG
+  sl3 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RG2_' + str(long(1./h1)) + '_' + str(long(d1)))
+  bl3 = BULK_MATERIAL (sl3, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  bd3 = BODY (sl3, 'RIGID', COPY (mesh), bl3)
+  INITIAL_VELOCITY (bd3, (0, 0, 0), (1, 0, 0))
+  RUN (sl3, sv, d1)
+
+  # numerb of steps
+  nstp = d1 / h1
+
+  # bar plot comparison on 4x4x40 mesh
+  if not VIEWER() and sl1.mode == 'READ' and sl2.mode == 'READ':
+    th0 = HISTORY (sl0, ['TIMINT'], 0, d1)
+    th1 = HISTORY (sl1, ['TIMINT'], 0, d1)
+    th2 = HISTORY (sl2, ['TIMINT'], 0, d1)
+    th3 = HISTORY (sl3, ['TIMINT'], 0, d1)
+
     tt0 = 0.0
     tt1 = 0.0
     tt2 = 0.0
@@ -132,94 +219,133 @@ def undamped_rotation (h1, d1, TL, RG):
     runls = []
     colors = []
     hatchs = []
-    if TL:
-      for tt in th0[9]:
-	tt0 += tt
-      runts.append (tt0)
-      runls.append ('TL')
-      colors.append ('r')
-      hatchs.append ('//')
-    for tt in th1[9]:
-      tt1 += tt
-    runts.append (tt1)
-    runls.append ('BC')
+    for tt in th0[1]:
+      tt0 += tt
+    runts.append (tt0/nstp)
+    runls.append ('TL')
     colors.append ('g')
-    hatchs.append ('\\\\')
-    for tt in th2[9]:
+    hatchs.append ('.')
+    for tt in th1[1]:
+      tt1 += tt
+    runts.append (tt1/nstp)
+    runls.append ('BC')
+    colors.append ('r')
+    hatchs.append ('//')
+    for tt in th2[1]:
       tt2 += tt
-    runts.append (tt2)
+    runts.append (tt2/nstp)
     runls.append ('RO')
+    colors.append ('y')
+    hatchs.append ('\\\\')
+    for tt in th3[1]:
+      tt3 += tt
+    runts.append (tt3/nstp)
+    runls.append ('RG')
     colors.append ('b')
     hatchs.append ('o')
-    if RG:
-      for tt in th3[1]:
-	tt3 += tt
-      runts.append (tt3)
-      runls.append ('RG')
-      colors.append ('y')
-      hatchs.append ('.')
 
     try:
       import matplotlib.pyplot as plt
 
-      hstr = ' [h = 1/' + str(long(1/h1)) + ']'
-      hdstr = ' [h = 1/' + str(long(1/h1)) + ', ' + str(long(d1)) + ']'
       plt.clf ()
-      plt.title ('Rotating bar: length history' + hstr)
-      if TL: plt.plot (th0 [0], lh0, label='TL', marker = 's')
-      plt.plot (th1 [0], lh1, label='BC')
-      plt.plot (th2 [0], lh2, label='RO', ls = '--', marker = 'o')
-      plt.xlabel ('Time [s]')
-      plt.ylabel ('Length [m]')
-      plt.legend(loc = 'upper right')
-      plt.savefig ('out/rotating-bar/undamp_length' + str(long(1/h1)) + '_' + str(long(d1)) + '.png')
-
-      plt.clf ()
-      plt.title ('Rotating bar: total energy' + hstr)
-      if TL: plt.plot (th0 [0], tot0, label='TL', ls = '-.')
-      plt.plot (th1 [0], tot1, label='BC')
-      plt.plot (th2 [0], tot2, label='RO', ls = '--')
-      plt.xlabel ('Time [s]')
-      plt.ylabel ('Energy [J]')
-      plt.legend(loc = 'upper right')
-      plt.savefig ('out/rotating-bar/undamp_energy' + str(long(1/h1)) + '_' + str(long(d1)) + '.png')
-
-      plt.clf ()
-      plt.title ('Rotating bar: runtimes' + hdstr)
+      plt.title ('Rotating bar: avg. runtime / time step (4x4x40 mesh)')
       for (p, r, c, t) in zip (np.arange (len(runts)), runts, colors, hatchs):
-        plt.bar (p, r, 0.7, color = c, hatch = t)
+        r = plt.bar (p, r, 0.7, color = c, hatch = t)
+        barlabel (plt, r)
       plt.xlabel ('Formulation')
       plt.ylabel ('Runtime [s]')
       plt.xticks (np.arange(len(runts))+0.35, runls)
-      plt.savefig ('out/rotating-bar/undamp_runtimes' + str(long(1/h1)) + '_' + str(long(d1)) + '.png')
+      plt.savefig ('out/rotating-bar/rb_undamp_avgrun_4x4x40.eps')
 
     except ImportError:
       pass # no reaction
 
-undamped_rotation (1./64., 1, 1, 0)
-undamped_rotation (1./256., 1, 1, 0)
-undamped_rotation (1./64., 10, 1, 0)
-undamped_rotation (1./64., 100, 1, 1)
+  # scaling runtimes
+  scaling_data = []
+  for n in range (2, 10):
 
-# manual bar plot of output size
-try:
-  import matplotlib.pyplot as plt
+    # nxnx10x mesh
+    mesh = HEX (nodes, n, n, 10*n, 0, [0, 1, 2, 3, 4, 5])
 
-  plt.clf ()
-  plt.title ('Rotating bar: output sizes [h=1/64, 100s]')
-  plt.bar ([0], [572], 0.7, color = 'r', hatch = '//')
-  plt.bar ([1], [572], 0.7, color = 'b', hatch = '\\\\')
-  plt.bar ([2], [33], 0.7, color = 'g', hatch = 'o')
-  plt.bar ([3], [23], 0.7, color = 'y', hatch = '.')
-  plt.xlabel ('Formulation')
-  plt.ylabel ('Output size [MB]')
-  plt.xticks (np.arange(4)+0.35, ['TL','BC','RO','RG'])
-  plt.savefig ('out/rotating-bar/undamp_outsizes_64_100.png')
+    # modal analysis
+    path = 'out/rotating-bar/modal' + str(n)
+    sl0 = SOLFEC ('DYNAMIC', h1, path)
+    bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+    bd0 = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0, form = 'TL')
+    data0 = MODAL_ANALYSIS (bd0, 45, path + '/data', verbose = 'ON')
+    ndofs = mesh.nnod * 3
+    eval = []
+    evec = []
+    for j in vsel:
+      eval.append (data0[0][j])
+      for k in range (j*ndofs,(j+1)*ndofs):
+	evec.append (data0[1][k])
+    data = (eval, evec)
 
-except ImportError:
-  pass # no reaction
+    # rotation: BC
+    sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC2_' + str(long(1./h1)) + '_' + str(long(d1)) + '_' + str(n))
+    bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+    bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
+    bd1.scheme = 'DEF_LIM'
+    INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
+    RUN (sl1, sv, d1)
+
+    # rotation: RO
+    sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO2_' + str(long(1./h1)) + '_' + str(long(d1)) + '_' + str(n))
+    bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+    bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
+    bd2.scheme = 'DEF_LIM'
+    INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
+    RUN (sl2, sv, d1)
+
+    # append with a tuple
+    scaling_data.append ((str(n)+'x'+str(n)+'x'+str(10*n), sl1, sl2))
+
+  if not VIEWER() and scaling_data [0][1].mode == 'READ':
+
+    LABELS = []
+    BCVALS = []
+    ROVALS = []
+    for data in scaling_data:
+      th0 = HISTORY (data[1], ['TIMINT'], 0, d1)
+      th1 = HISTORY (data[2], ['TIMINT'], 0, d1)
+
+      tt0 = 0.0
+      tt1 = 0.0
+      for tt in th0[1]:
+	tt0 += tt
+      for tt in th1[1]:
+	tt1 += tt
+
+      LABELS.append (data[0])
+      BCVALS.append (tt0/nstp)
+      ROVALS.append (tt1/nstp)
+
+    try:
+      import matplotlib.pyplot as plt
+
+      ind = np.arange (len(LABELS))
+      wdt = 0.35
+      plt.clf ()
+      plt.title ('Rotating bar: scaling of avg. runtime / time step')
+      plt.bar (ind, BCVALS, wdt, color = 'r', hatch = '//', label = 'BC')
+      plt.bar (ind+wdt, ROVALS, wdt, color = 'y', hatch = '\\\\', label = 'RO')
+      plt.xlabel ('Mesh size')
+      plt.ylabel ('Runtime [s]')
+      plt.xticks (ind+wdt, LABELS)
+      plt.legend(loc = 'upper left')
+      plt.savefig ('out/rotating-bar/rb_undamp_avgsca.eps')
+
+    except ImportError:
+      pass # no reaction
 
 
+# run undapmped tests
+undamped_rotation (1./64., 1, 1, 1, 0)
+undamped_rotation (1./256., 1, 1, 1, 0)
+undamped_rotation (1./64., 10, 1, 0, 1)
+undamped_rotation (1./64., 100, 1, 0, 1)
+undamped_rotation_runtimes (1./64., 1)
 
 '''
 # quasistatic test   
