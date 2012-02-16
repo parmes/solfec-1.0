@@ -2475,7 +2475,6 @@ static void RO_dynamic_step_begin (BODY *bod, double time, double step)
   blas_daxpy (nm, half, um, 1, qm, 1); /* qm(t+h/2) = qm(t) + (h/2)um(t) */
   BC_update_rotation (bod, msh, qm, R); /* R1 = R(qm(t+h/2)) */
   RO_project_conf (bod, E, msh, tmp, R, qm, q); /* q(t+h/2) = proj_M_E (qm(t+h/2)) */
-  RO_lift_conf (bod, E, msh, R, q, qm); /* qm = REq - (I-R)Z */
 
   external_force (bod, time+half, step, tmp);
   RO_rotate_backward (R, tmp, nm); /* f */
@@ -2533,15 +2532,17 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
   blas_dcopy (nm, u0m, 1, um, 1);
   blas_daxpy (nm, 1.0, tmp, 1, um, 1); /* um = u0m + REdu => this produces "good" deformation */
 
-  blas_daxpy (nm, half, um, 1, qm, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
-  BC_update_rotation (bod, msh, qm, R); /* R(t+h) = R(qm(t+h)) */
-  RO_project_conf (bod, E, msh, tmp, R, qm, q); /* qm(t+h) = resolve_back (proj(qm(t+h))) */
-  RO_lift_conf (bod, E, msh, R, q, qm); /* qm = REq - (I-R)Z */
+  blas_dcopy (nm, qm, 1, tmp, 1); /* qm(t+h/2) */
+  blas_daxpy (nm, half, um, 1, tmp, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
+  BC_update_rotation (bod, msh, tmp, R); /* R(t+h) = R(qm(t+h)) */
 
   RO_project_velo (bod, E, tmp, R, um, r); /* r[i>=6] store the "good" deformation components */
   for (i = 6; i < n; i ++) u[i] = r[i]; /* while u[i<6] store the "good" rotation components */
   MX_Matvec (1.0, E, u, 0.0, um);
   RO_rotate_forward (R, um, nm); /* now um(t+h) combines "good" rotation and deformation */
+
+  blas_daxpy (nm, half, um, 1, qm, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
+  RO_project_conf (bod, E, msh, tmp, R, qm, q); /* qm(t+h) = resolve_back (proj(qm(t+h))) */
 
   free (r);
 }
@@ -3056,8 +3057,14 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   }
 
   for (; iu < ue; idq ++, iu ++, iu0 ++) *idq = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
-  energy [EXTERNAL] += blas_ddot (n, dq, 1, fext, 1);
-  energy [INTERNAL] += blas_ddot (n, dq, 1, fint, 1);
+  energy [EXTERNAL] += blas_ddot (n, dq, 1, fext, 1); /* XXX: may not be too good for the reduced order model (save q0 and copute dq = q1-q0) */
+  if (bod->form == REDUCED_ORDER)
+  {
+    energy [INTERNAL] = 0.0;
+    for (double *q = bod->conf, *x = bod->K->x, *y = x + n; x < y; q ++, x ++)
+      energy [INTERNAL] += 0.5 * (*x) * (*q) * (*q);
+  }
+  else energy [INTERNAL] += blas_ddot (n, dq, 1, fint, 1);
   /* computing internal energy like above may produce negative energy increments during
    * impacts since fint is computed at q(t+h/2) whereas dq includes impact correction; 
    * this is effect is present when the time integration step is excessively large */
