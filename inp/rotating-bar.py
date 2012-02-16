@@ -30,7 +30,7 @@ sv = NEWTON_SOLVER ()
 
 # compute all eigenvalues and eigenvectors
 sl0 = SOLFEC ('DYNAMIC', 1E-3, 'out/rotating-bar/MK')
-bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
 bod = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0)
 eval = [] # selected eigenvalue list
 evec = [] # selected eigenvector list (BODY command takes a tuple (eval, evec) argument for the RO formulation)
@@ -57,30 +57,33 @@ else:
 data = (eval, evec)
 
 # undamped rotatin run
-def undamped_rotation (h1, d1, TL, LEN, ENE):
+def rotation_test (h1, d1, damping, TL, LEN, ENE):
 
   # rotation: TL
   if TL:
-    sl0 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/TL1_' + str(long(1./h1)) + '_' + str(long(d1)))
-    bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+    sl0 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/TL1_%g_'%damping + str(long(1./h1)) + '_' + str(long(d1)))
+    bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
     bd0 = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0, form = 'TL')
     bd0.scheme = 'DEF_LIM'
+    bd0.damping = damping
     INITIAL_VELOCITY (bd0, (0, 0, 0), (1, 0, 0))
     RUN (sl0, sv, d1)
 
   # rotation: BC
-  sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC1_' + str(long(1./h1)) + '_' + str(long(d1)))
-  bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC1_%g_'%damping + str(long(1./h1)) + '_' + str(long(d1)))
+  bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
   bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
   bd1.scheme = 'DEF_LIM'
+  bd1.damping = damping
   INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
   RUN (sl1, sv, d1)
 
   # rotation: RO
-  sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO1_' + str(long(1./h1)) + '_' + str(long(d1)))
-  bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO1_%g_'%damping + str(long(1./h1)) + '_' + str(long(d1)))
+  bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
   bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
   bd2.scheme = 'DEF_LIM'
+  bd2.damping = damping
   INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
   RUN (sl2, sv, d1)
 
@@ -120,18 +123,21 @@ def undamped_rotation (h1, d1, TL, LEN, ENE):
       if d1 > 10.: format = '.png'
       else: format = '.eps'
 
-      hstr = ' [h = 1/' + str(long(1/h1)) + ']'
+      if damping > 0.0: head = 'damped_%g'%damping
+      else: head = 'undamp'
+
+      hstr = ' ($h = 1/' + str(long(1/h1)) + ', \eta = %g'%damping + '$)'
 
       if LEN:
 	plt.clf ()
-	plt.title ('Rotating bar: length history' + hstr)
+	plt.title ('Rotating bar: length ' + hstr)
 	if TL: plt.plot (th0 [0], lh0, label='TL', marker = 's')
 	plt.plot (th1 [0], lh1, label='BC')
 	plt.plot (th2 [0], lh2, label='RO', ls = '--', marker = 'o')
 	plt.xlabel ('Time [s]')
 	plt.ylabel ('Length [m]')
 	plt.legend(loc = 'upper right')
-	plt.savefig ('out/rotating-bar/rb_undamp_length' + str(long(1/h1)) + '_' + str(long(d1)) + format)
+	plt.savefig ('out/rotating-bar/rb_' + head + '_length' + str(long(1/h1)) + '_' + str(long(d1)) + format)
 
       if ENE:
 	plt.clf ()
@@ -142,7 +148,111 @@ def undamped_rotation (h1, d1, TL, LEN, ENE):
 	plt.xlabel ('Time [s]')
 	plt.ylabel ('Energy [J]')
 	plt.legend(loc = 'upper right')
-	plt.savefig ('out/rotating-bar/rb_undamp_energy' + str(long(1/h1)) + '_' + str(long(d1)) + format)
+	plt.savefig ('out/rotating-bar/rb_' + head + '_energy' + str(long(1/h1)) + '_' + str(long(d1)) + format)
+
+    except ImportError:
+      pass # no reaction
+
+# rotatin comparison
+def rotation_comparison (n, pow0, pow1, d1, E, damping):
+
+  # nxnx10x mesh
+  mesh = HEX (nodes, n, n, 10*n, 0, [0, 1, 2, 3, 4, 5])
+
+  # top point
+  p1 = mesh.node ((n+1)*(n+1)*(10*n+1)-((n+1)*(n+1)/2+1))
+
+  # modal analysis
+  path = 'out/rotating-bar/modal' + str(n)
+  sl0 = SOLFEC ('DYNAMIC', 1.0, path)
+  bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
+  bd0 = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0, form = 'TL')
+  data0 = MODAL_ANALYSIS (bd0, 45, path + '/data', verbose = 'ON')
+  ndofs = mesh.nnod * 3
+  eval = []
+  evec = []
+  for j in vsel:
+    eval.append (data0[0][j])
+    for k in range (j*ndofs,(j+1)*ndofs):
+      evec.append (data0[1][k])
+  data = (eval, evec)
+
+  toplot = []
+  for p in range (pow0, pow1):
+
+    h1 = 1.0 / (2.**p)
+
+    # rotation: RIGID
+    sl0 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RG3_%d_%g_%g_'%(n, E, damping) + str(long(1./h1)) + '_' + str(long(d1)))
+    bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
+    bd0 = BODY (sl0, 'RIGID', COPY (mesh), bl0)
+    INITIAL_VELOCITY (bd0, (0, 0, 0), (1, 0, 0))
+    RUN (sl0, sv, d1)
+    if not VIEWER() and sl0.mode == 'READ':
+      th0 = HISTORY (sl0, [(bd0, p1, 'DZ')], 0, d1)
+
+    # rotation: BC
+    sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC3_%d_%g_%g_'%(n, E, damping) + str(long(1./h1)) + '_' + str(long(d1)))
+    bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
+    bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
+    bd1.scheme = 'DEF_LIM'
+    bd1.damping = damping
+    INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
+    RUN (sl1, sv, d1)
+    if not VIEWER() and sl1.mode == 'READ':
+      th1 = HISTORY (sl1, [(bd1, p1, 'DZ')], 0, d1)
+
+    # rotation: RO
+    sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO3_%d_%g_%g_'%(n, E, damping) + str(long(1./h1)) + '_' + str(long(d1)))
+    bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
+    bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
+    bd2.scheme = 'DEF_LIM'
+    bd2.damping = damping
+    INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
+    RUN (sl2, sv, d1)
+    if not VIEWER() and sl2.mode == 'READ':
+      th2 = HISTORY (sl2, [(bd2, p1, 'DZ')], 0, d1)
+    
+    if not VIEWER() and sl0.mode == 'READ' and sl1.mode == 'READ' and sl2.mode == 'READ':
+      toplot.append (('h=1/' + str(2**p), th0[0], th0[1], th1[1], th2[1]))
+
+  if not VIEWER() and sl0.mode == 'READ' and sl1.mode == 'READ' and sl2.mode == 'READ':
+
+    DBC = []
+    DRO = []
+    for dat in toplot:
+      vro = []
+      vbc = []
+      for (rg, bc, ro) in zip (dat[2], dat[3], dat[4]):
+	vbc.append (abs(bc-rg))
+	vro.append (abs(ro-rg))
+      DBC.append ((dat[1], vbc, dat[0]))
+      DRO.append ((dat[1], vro, dat[0]))
+
+    try:
+      import matplotlib.pyplot as plt
+
+      hstr = ' ($E = %g, \eta = %g'%(E, damping) + '$)'
+
+      plt.clf ()
+      plt.title ('Rotating bar: BC top point $\|dz_{BC} - dz_{RIGID}\|$' + hstr)
+      for dat in DBC:
+        plt.plot (dat[0], dat[1], label=dat[2])
+      plt.xlabel ('Time [s]')
+      plt.ylabel ('$\|dz_{BC} - dz_{RIGID}\|$ [m]')
+      plt.semilogy (10)
+      plt.legend(loc = 'best')
+      plt.savefig ('out/rotating-bar/rb_dz_BC_n%d_E%g_'%(n,E) + str(long(d1)) + '.eps')
+
+      plt.clf ()
+      plt.title ('Rotating bar: RO top point $\|dz_{RO} - dz_{RIGID}\|$' + hstr)
+      for dat in DRO:
+        plt.plot (dat[0], dat[1], label=dat[2])
+      plt.xlabel ('Time [s]')
+      plt.ylabel ('$\|dz_{RO} - dz_{RIGID}\|$ [m]')
+      plt.semilogy (10)
+      plt.legend(loc = 'best')
+      plt.savefig ('out/rotating-bar/rb_dz_RO_n%d_E%g_'%(n,E) + str(long(d1)) + '.eps')
 
     except ImportError:
       pass # no reaction
@@ -161,7 +271,7 @@ def undamped_rotation_runtimes (h1, d1):
   # rotation: TL
   TLpath = 'out/rotating-bar/TL2_' + str(long(1./h1)) + '_' + str(long(d1))
   sl0 = SOLFEC ('DYNAMIC', h1, TLpath)
-  bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
   bd0 = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0, form = 'TL')
   bd0.scheme = 'DEF_LIM'
   INITIAL_VELOCITY (bd0, (0, 0, 0), (1, 0, 0))
@@ -180,7 +290,7 @@ def undamped_rotation_runtimes (h1, d1):
 
   # rotation: BC
   sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC2_' + str(long(1./h1)) + '_' + str(long(d1)))
-  bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
   bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
   bd1.scheme = 'DEF_LIM'
   INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
@@ -188,7 +298,7 @@ def undamped_rotation_runtimes (h1, d1):
 
   # rotation: RO
   sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO2_' + str(long(1./h1)) + '_' + str(long(d1)))
-  bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
   bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
   bd2.scheme = 'DEF_LIM'
   INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
@@ -196,7 +306,7 @@ def undamped_rotation_runtimes (h1, d1):
 
   # rotation: RG
   sl3 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RG2_' + str(long(1./h1)) + '_' + str(long(d1)))
-  bl3 = BULK_MATERIAL (sl3, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+  bl3 = BULK_MATERIAL (sl3, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
   bd3 = BODY (sl3, 'RIGID', COPY (mesh), bl3)
   INITIAL_VELOCITY (bd3, (0, 0, 0), (1, 0, 0))
   RUN (sl3, sv, d1)
@@ -270,7 +380,7 @@ def undamped_rotation_runtimes (h1, d1):
     # modal analysis
     path = 'out/rotating-bar/modal' + str(n)
     sl0 = SOLFEC ('DYNAMIC', h1, path)
-    bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+    bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
     bd0 = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0, form = 'TL')
     data0 = MODAL_ANALYSIS (bd0, 45, path + '/data', verbose = 'ON')
     ndofs = mesh.nnod * 3
@@ -284,7 +394,7 @@ def undamped_rotation_runtimes (h1, d1):
 
     # rotation: BC
     sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC2_' + str(long(1./h1)) + '_' + str(long(d1)) + '_' + str(n))
-    bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+    bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
     bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
     bd1.scheme = 'DEF_LIM'
     INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
@@ -292,7 +402,7 @@ def undamped_rotation_runtimes (h1, d1):
 
     # rotation: RO
     sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO2_' + str(long(1./h1)) + '_' + str(long(d1)) + '_' + str(n))
-    bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+    bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
     bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
     bd2.scheme = 'DEF_LIM'
     INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
@@ -339,35 +449,13 @@ def undamped_rotation_runtimes (h1, d1):
     except ImportError:
       pass # no reaction
 
-
-# run undapmped tests
-undamped_rotation (1./64., 1, 1, 1, 0)
-undamped_rotation (1./256., 1, 1, 1, 0)
-undamped_rotation (1./64., 10, 1, 0, 1)
-undamped_rotation (1./64., 100, 1, 0, 1)
-undamped_rotation_runtimes (1./64., 1)
-
-'''
-# quasistatic test   
-h1 = 1./64.
-d1 = 1.
-sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/QS/RO')
-bl1 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
-bod = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'RO', modal = (eval, evec))
-bod.scheme = 'DEF_LIM'
-INITIAL_VELOCITY (bod, (0, 0, 0), (1, 0, 0))
-#PRESSURE (bod, 0, 10)
-#PRESSURE (bod, 5, 10)
-bod.damping = h1# O(h) damping
-RUN (sl1, sv, d1)
-'''
-
-'''
-def runtest (formulation, step, duration):
-  solfec = SOLFEC ('DYNAMIC', step, 'out/rotating-bar/CR/' + formulation + str(step))
-  bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 200E4, poisson = 0.26, density = 7.8E3)
+# single convergence rate test run
+def runtest (formulation, E, damping, duration, step):
+  solfec = SOLFEC ('DYNAMIC', step, 'out/rotating-bar/cnv_%s_%g_%g_%g_%g'%(formulation, E, damping, duration, step))
+  bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
   bod = BODY (solfec, 'FINITE_ELEMENT', COPY (mesh), bulk, form = formulation, modal = data)
   bod.scheme = 'DEF_LIM'
+  bod.damping = damping
   INITIAL_VELOCITY (bod, (0, 0, 0), (1, 0, 0))
   RUN (solfec, sv, duration)
   if solfec.mode == 'READ':
@@ -383,20 +471,90 @@ def diff(a, b):
   c = []
   for x, y in zip (a, b): c.append (x-y)
   return c
+
+# convergence rate tests
+def convtest (formulation, E, damping, pow0, pow1, pow2, pow3):
    
-h0 = 1.0 / (2.0 ** 16)
-d0 = 1.0 / (2.0 ** 4)
-q0 = runtest ('RO', h0, d0)
+  h0 = 1.0 / (2.0 ** pow0)
+  d0 = 1.0 / (2.0 ** pow3)
+  q0 = runtest (formulation, E, damping, d0, h0)
 
-dq = []
-for i in range (7, 14):
-  h =  1.0 / (2.0 ** i)
-  q = runtest ('RO', h, d0)
-  dq.append (norm(diff(q0, q)))
+  dq = []
+  hh = []
+  for i in range (pow1, pow2):
+    h =  1.0 / (2.0 ** i)
+    q = runtest (formulation, E, damping, d0, h)
+    dq.append (norm(diff(q0, q)))
+    hh.append (h)
 
-print dq
-
-if not VIEWER():
+  print formulation, '=> convergence ratios:'
   for i in range (0, len(dq)-1):
     print dq[i] / dq[i+1]
+
+  return (hh, dq)
+
+
+# run conv. tests
+def convergence_tests ():
+
+  BC0 = convtest ('BC', 200E4, 0.000, 16, 7, 14, 4)
+  RO0 = convtest ('RO', 200E4, 0.000, 16, 7, 14, 4)
+  BC1 = convtest ('BC', 200E9, 0.001, 16, 7, 14, 4)
+  RO1 = convtest ('RO', 200E9, 0.001, 16, 7, 14, 4)
+
+  try:
+    import matplotlib.pyplot as plt
+
+    plt.clf ()
+    plt.title ('Rotating bar: convergence rate (E = 200E4, $\eta=0$)')
+    plt.loglog (BC0[0], BC0[1], label='BC')
+    plt.loglog (RO0[0], RO0[1], label='RO', ls = '--', marker = 'o')
+    plt.xlabel ('Time step $h$ [s]')
+    plt.ylabel ('Solution distance $\|q_{ref} - q_h\|$ [m]')
+    plt.legend(loc = 'lower right')
+    plt.savefig ('out/rotating-bar/rb_undamp_convrate_E200E4.eps')
+
+    plt.clf ()
+    plt.title ('Rotating bar: convergence rate (E = 200E9, $\eta=0.001$)')
+    plt.loglog (BC1[0], BC1[1], label='BC')
+    plt.loglog (RO1[0], RO1[1], label='RO', ls = '--', marker = 'o')
+    plt.xlabel ('Time step $h$ [s]')
+    plt.ylabel ('Solution distance $\|q_{ref} - q_h\|$ [m]')
+    plt.legend(loc = 'lower right')
+    plt.savefig ('out/rotating-bar/rb_undamp_convrate_E200E9.eps')
+
+  except ImportError:
+    pass # no reaction
+
+# run undapmped tests
+rotation_test (1./64., 1, 0.0, 1, 1, 0)
+rotation_test (1./256., 1, 0.0, 1, 1, 0)
+rotation_test (1./64., 100, 0.0, 0, 0, 1)
+rotation_test (1./64., 1000, 0.0, 0, 0, 1)
+
+# compare rotations
+rotation_comparison (2, 5, 12, 1, 200E9, 0.001)
+
+# run damped test
+rotation_test (1./64., 1, 0.01, 1, 1, 0)
+rotation_test (1./64., 1, 0.05, 1, 1, 0)
+
+# run runtime tests
+undamped_rotation_runtimes (1./64., 1)
+
+# run convergence tests
+convergence_tests ()
+
+'''
+# quasistatic test   
+h1 = 1./64.
+d1 = 1.
+sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/QS/RO')
+bl1 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
+bod = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'RO', modal = (eval, evec))
+bod.scheme = 'DEF_LIM'
+PRESSURE (bod, 0, 10)
+PRESSURE (bod, 5, 10)
+bod.damping = h1# O(h) damping
+RUN (sl1, sv, d1)
 '''
