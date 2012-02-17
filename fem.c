@@ -3411,7 +3411,7 @@ void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIN
   case VALUE_VELOCITY:
   {
     MX *N = element_shapes_matrix (bod, msh, ele, point);
-    MX_Matvec (1.0, N, bod->velo, 0.0, values);
+    MX_Matvec (1.0, N, FEM_MESH_VELO (bod), 0.0, values);
     MX_Destroy (N);
   }
   break;
