@@ -29,7 +29,7 @@ obsm = HEX (nodes, 1, 1, 1, 0, [0, 1, 2, 3, 4, 5])
 SCALE (obsm, (2, 2, 0.2))
 TRANSLATE (obsm, (0, 0, -0.6))
 
-# solver (not used)
+# solver
 sv = NEWTON_SOLVER ()
 
 # impact comparison
@@ -56,7 +56,7 @@ def impact_comparison (h1, d1, E, v0, pow0, pow1):
       for z in y[:,j]:
 	evec.append (z.real)
   else:
-    data0 = MODAL_ANALYSIS (bod, 45, pt0 + '/modal.data', verbose = 'ON')
+    data0 = MODAL_ANALYSIS (bod, 45, pt0 + '/modal.data', verbose = 'ON', abstol = 1E-14)
     ndofs = mesh.nnod * 3
     for j in vsel:
       eval.append (data0[0][j])
@@ -166,7 +166,7 @@ if not VIEWER() and len(dat0[2]) > 0:
     plt.plot (dat2[1], dat2[3], label='RO: '+dat2[0], ls = '--', marker = 'o')
     xtic = []
     xlab = []
-    for p in range (e0, min (13, e1)):
+    for p in range (e0, min (e0+5, e1)):
       xtic.append (1./2.**p)
       xlab.append ('$\\frac{1}{%d}$'%2**p)
     plt.xticks (xtic, xlab)

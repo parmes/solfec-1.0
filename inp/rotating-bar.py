@@ -48,7 +48,7 @@ if 0:
     for z in y[:,j]:
       evec.append (z.real)
 else:
-  data0 = MODAL_ANALYSIS (bod, 45, 'out/rotating-bar/MK/modal.data', verbose = 'ON')
+  data0 = MODAL_ANALYSIS (bod, 45, 'out/rotating-bar/MK/modal.data', verbose = 'ON', abstol = 1E-13)
   ndofs = mesh.nnod * 3
   for j in vsel:
     eval.append (data0[0][j])
@@ -167,7 +167,7 @@ def rotation_comparison (n, pow0, pow1, d1, E, damping):
   sl0 = SOLFEC ('DYNAMIC', 1.0, path)
   bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
   bd0 = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0, form = 'TL')
-  data0 = MODAL_ANALYSIS (bd0, 45, path + '/data', verbose = 'ON')
+  data0 = MODAL_ANALYSIS (bd0, 45, path + '/data', verbose = 'ON', abstol = 1E-13)
   ndofs = mesh.nnod * 3
   eval = []
   evec = []
@@ -278,7 +278,7 @@ def undamped_rotation_runtimes (h1, d1):
   RUN (sl0, sv, d1)
 
   # modal analysis
-  data0 = MODAL_ANALYSIS (bd0, 45, TLpath + '/modal.data', verbose = 'ON')
+  data0 = MODAL_ANALYSIS (bd0, 45, TLpath + '/modal.data', verbose = 'ON', abstol = 1E-13)
   ndofs = mesh.nnod * 3
   eval = []
   evec = []
@@ -382,7 +382,7 @@ def undamped_rotation_runtimes (h1, d1):
     sl0 = SOLFEC ('DYNAMIC', h1, path)
     bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
     bd0 = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0, form = 'TL')
-    data0 = MODAL_ANALYSIS (bd0, 45, path + '/data', verbose = 'ON')
+    data0 = MODAL_ANALYSIS (bd0, 45, path + '/data', verbose = 'ON', abstol = 1E-13)
     ndofs = mesh.nnod * 3
     eval = []
     evec = []
