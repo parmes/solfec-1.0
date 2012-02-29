@@ -1,18 +1,50 @@
 # Model name 81array.py
 # Abaqus input file = 81_Brick_Model_14.inp - Revised pitch and gaps as per test report after verification completed 26/09/11
 # 81_Brick_Model_14.inp also includes modified FB and IB Young's modulus FB = 0.138GPa, IB = 0.138GPa, LK = 11.8GPa.
-# Array of bricks with brick normal gaps to match those in test, DYNAMIC run all PSEUDO-RIGID bodies - Loose Key facets removed
+# Array of bricks with brick normal gaps to match those in test, DYNAMIC run all FEM-RO bodies - Loose Key facets removed
 # VELOCITY Time-history used from 5101060/23/03/08 - 2s, 0.3g, 3Hz sine dwell, then 3Hz to 10Hz linear sweep at 0.1Hz/s
 
 import sys
 import math
 import sys
 import time
+import pickle
 import commands
 sys.path.append('inp/mesh/abaqusreader')
 sys.path.append('inp/mbfcp')
 from abaqusreader import AbaqusInput
 from math import cos 
+
+# User paramters
+
+argv = NON_SOLFEC_ARGV()
+
+if argv == None:
+  print '----------------------------------------------------------'
+  print 'No user paramters passed! Possible paramters:'
+  print '----------------------------------------------------------'
+  print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
+  print '-ibmod num => interstitial brick modes, num >= 6 and <= 32'
+  print '-lkmod num => loose key modes, num >= 6 and <= 12'
+  print '----------------------------------------------------------'
+
+fbmod = 12
+ibmod = 12
+lkmod = 12
+if argv != None and len (argv) > 1:
+  for i in range (0, len(argv)-1):
+    if argv [i] == '-fbmod':
+      fbmod = max (min (64, long (argv [i+1])), 6)
+    elif argv [i] == '-ibmod':
+      ibmod = max (min (32, long (argv [i+1])), 6)
+    elif argv [i] == '-lkmod':
+      lkmod = max (min (12, long (argv [i+1])), 6)
+
+print 'Using:'
+print '%d modes per fuel brick'%fbmod
+print '%d modes per interstitial brick'%ibmod
+print '%d modes per loose key'%lkmod
+print '----------------------------------------------------------'
 
 # Analysis inputs
 
@@ -26,9 +58,13 @@ input_bricks = (['FB1(0)(0)', 'FB1(0)(1)', 'FB1(0)(2)', 'FB1(0)(3)', 'FB1(0)(4)'
                 'IB1(0)(0)', 'IB1(1)(0)', 'IB1(2)(0)', 'IB1(3)(0)', 'IB1(4)(0)']) #Side 4 (bottom)
 
 step = 1E-4
-stop = 72.0
+stop = 72.0 
+dwell = 2.0 # length in seconds of constant-frequency dwell at start of analysis
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/81array')
+solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/81array_fb%d_ib%d_lk%d'%(fbmod,ibmod,lkmod))
+
+OUTPUT (solfec, 2E-3) # The physical tests recorded digitased outputs at 2E-3s intervals
+
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = 0.0)
 
 if RANK () == 0:
@@ -53,7 +89,10 @@ for inst in model.assembly.instances.values():	# .instances is a dict
   mesh = inst.mesh	              # solfec MESH object at the instance position
   bulkmat = inst.material	        # solfec BULK_MATERIAL object
   bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
-  data = MODAL_ANALYSIS (bdy, 12, 'out/mbfcp/81array/modal' + label)
+  if label.startswith ('FB'): nm = fbmod
+  elif label.startswith ('IB'): nm = ibmod
+  else: nm = lkmod
+  data = MODAL_ANALYSIS (bdy, nm, solfec.outpath + '/modal' + label, abstol = 1E-13)
   DELETE (solfec, bdy)
   bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'RO', modal = data)
 
@@ -63,9 +102,6 @@ for inst in model.assembly.instances.values():	# .instances is a dict
 # boundary conditions and input accelerations
 
 for b in solfec.bodies:
-
-  #print "body:", b.label, b.center
-
 
   b.scheme = 'DEF_LIM'
   c = b.center
@@ -135,14 +171,11 @@ GEOMETRIC_EPSILON (1e-6) # Use 100 to 10000 times smaller than the smallest char
 
 #(i.e. initial clearances) smallest initial clearances (loose key / keyway gaps) approx 1.0mm therefore 0.001/1000=1e-6
 
-#slv = GAUSS_SEIDEL_SOLVER (1E-3, 300, 1E-6)
+#slv = GAUSS_SEIDEL_SOLVER (1E-3, 1000, 1E-8)
 
-slv = NEWTON_SOLVER(delta = 5E-6) #All default values used
-
-OUTPUT (solfec, 2E-3) # The physical tests recorded digitased outputs at 2E-3s intervals
+slv = NEWTON_SOLVER (delta = 5E-6) # Small diagonal regularisation for the pseudo-transient continuation
 
 if RANK() == 0 and solfec.mode == 'WRITE':
-
   print 'Running', stop, 'seconds of analysis with step', step, '...'
 
 t0 = time.time()
@@ -154,5 +187,61 @@ if solfec.mode <> 'READ':
 elapsed = time.time() - t0
    
 if RANK() == 0 and solfec.mode == 'WRITE':   
-      
     print "analysis run time =", elapsed/3600.0, "hours"
+
+if NCPU(solfec) == 1 and solfec.mode == 'READ': # for a serial run only extract output time series
+
+  # --- configurable parameters, which shouldn't be changed ---
+  FBlabels = ['FB1(0)(0)',
+  'FB1(3)(4)', # B
+  'FB2(2)(3)', # E
+  'FB2(1)(2)', # C
+  'FB2(2)(2)', # T
+  'FB1(3)(3)', # F
+  'FB2(0)(2)', # G
+  'FB2(1)(1)', # J
+  'FB1(3)(1)', # Q
+  'FB2(1)(3)', # K
+  'FB1(3)(2)', # M
+  ] # Fuel bricks results are required for
+
+  IBlabels = ['IB2(3)(2)', # 7
+  'IB2(1)(0)', # 18
+  'IB2(4)(2)', # 13
+  'IB2(4)(0)', # 17
+  ] # Interstital bricks results are required for
+
+  boundarylabel = 'FB1(0)(0)' # label of a boundary brick - NOTE this MUST also be the first entry in 'FBlabels'
+  # --------------------------------------------------------------
+
+  # build results request
+  requests = []
+  for bl in FBlabels:
+    bdy = BYLABEL(solfec, 'BODY', bl)
+    c = bdy.center
+
+    # copied from input script
+    p1 = TRANSLATE (c, (0.1,-0.1, 0))
+    p2 = TRANSLATE (c, (-0.1, -0.1, 0))
+
+    requests.append( (bdy, p1, 'VX') )
+    requests.append( (bdy, p2, 'VX') )
+
+  for bl in IBlabels:
+    bdy = BYLABEL(solfec, 'BODY', bl)
+    c = bdy.center
+
+    # copied from input script
+    p4 = TRANSLATE (c, (0.07, -0.07, 0))
+    p5 = TRANSLATE (c, (-0.07, -0.07, 0))
+
+    requests.append( (bdy, p4, 'VX') )
+    requests.append( (bdy, p5, 'VX') )
+
+  # extract velocity results from the end of the dwell period onwards
+  thv = HISTORY(solfec, requests, dwell, stop, progress='ON')
+
+  # save time series using pickle object
+  f = open(solfec.outpath + '/81array.thv', 'w')
+  pickle.dump (thv, f)
+  f.close ()

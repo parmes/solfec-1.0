@@ -1520,6 +1520,17 @@ static int lng_SOLFEC_set_verbose (lng_SOLFEC *self, PyObject *value, void *clos
   return 0;
 }
 
+static PyObject* lng_SOLFEC_get_outpath (lng_SOLFEC *self, void *closure)
+{
+  return PyString_FromString (self->sol->outpath);
+}
+
+static int lng_SOLFEC_set_outpath (lng_SOLFEC *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* SOLFEC methods */
 static PyMethodDef lng_SOLFEC_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -1540,6 +1551,7 @@ static PyGetSetDef lng_SOLFEC_getset [] =
   {"nbod", (getter)lng_SOLFEC_get_nbod, (setter)lng_SOLFEC_set_nbod, "bodies count", NULL},
   {"step", (getter)lng_SOLFEC_get_step, (setter)lng_SOLFEC_set_step, "time step", NULL},
   {"verbose", (getter)lng_SOLFEC_get_verbose, (setter)lng_SOLFEC_set_verbose, "verbosity", NULL},
+  {"outpath", (getter)lng_SOLFEC_get_outpath, (setter)lng_SOLFEC_set_outpath, "verbosity", NULL},
   {NULL, 0, 0, NULL, NULL} 
 };
 
