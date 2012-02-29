@@ -5808,7 +5808,7 @@ Some parameters can also be accessed as members of a SOLFEC object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="8" columns="1">
+<lyxtabular version="3" rows="9" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -5952,6 +5952,35 @@ obj.nbod
 \series default
 \emph default
  - number of bodies
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.outpath
+\series default
+\emph default
+ - output path, including the sub-directory if the 
+\emph on
+
+\begin_inset Quotes eld
+\end_inset
+
+-s
+\begin_inset Quotes erd
+\end_inset
+
+
+\emph default
+ command line argument has been passed
 \end_layout
 
 \end_inset
@@ -7489,7 +7518,7 @@ Total Lagrangian (default)
 \begin_inset Text
 
 \begin_layout Plain Layout
-Body Co-rotational (one co-rotated frame per body, suitable for stiff bodies)
+Body co-rotational (one co-rotated frame per body, suitable for stiff bodies)
 \end_layout
 
 \end_inset
@@ -7512,12 +7541,10 @@ Body Co-rotational (one co-rotated frame per body, suitable for stiff bodies)
 \begin_inset Text
 
 \begin_layout Plain Layout
-Reduced order modal co-rotational approach.
- After creation of a reduced order body the user has to explicitly call
- the MODAL_ANALYSIS in order to create the reduced base.
+Reduced order, modal, co-rotational approach.
  The 'DEF_LIM' integration scheme is always used for this formulation (there
- would be no computational advantage of using 'DEF_EXP' since the mass matrix
- is dense).
+ would be no computational advantage in using 'DEF_EXP' since the system
+ matrix is diagonal anyway).
 \end_layout
 
 \end_inset
