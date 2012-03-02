@@ -23,11 +23,13 @@ if argv == None:
   print '----------------------------------------------------------'
   print 'No user paramters passed! Possible paramters:'
   print '----------------------------------------------------------'
+  print '-form name => where name is TL, BC or RO'
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-ibmod num => interstitial brick modes, num >= 6 and <= 32'
   print '-lkmod num => loose key modes, num >= 6 and <= 12'
   print '----------------------------------------------------------'
 
+formu = 'RO'
 fbmod = 12
 ibmod = 12
 lkmod = 12
@@ -39,12 +41,20 @@ if argv != None and len (argv) > 1:
       ibmod = max (min (32, long (argv [i+1])), 6)
     elif argv [i] == '-lkmod':
       lkmod = max (min (12, long (argv [i+1])), 6)
+    if argv [i] == '-form':
+      if argv [i+1] in ('TL', 'BC', 'RO'):
+	formu = argv [i+1]
 
-print 'Using:'
-print '%d modes per fuel brick'%fbmod
-print '%d modes per interstitial brick'%ibmod
-print '%d modes per loose key'%lkmod
+print 'Using formulation: ', formu
+if formu == 'RO':
+  print '%d modes per fuel brick'%fbmod
+  print '%d modes per interstitial brick'%ibmod
+  print '%d modes per loose key'%lkmod
 print '----------------------------------------------------------'
+
+if formu == 'RO':
+  ending = 'RO_FB%d_IB%d_LK%d'%(fbmod,ibmod,lkmod)
+else: ending = formu
 
 # Analysis inputs
 
@@ -58,10 +68,10 @@ input_bricks = (['FB1(0)(0)', 'FB1(0)(1)', 'FB1(0)(2)', 'FB1(0)(3)', 'FB1(0)(4)'
                 'IB1(0)(0)', 'IB1(1)(0)', 'IB1(2)(0)', 'IB1(3)(0)', 'IB1(4)(0)']) #Side 4 (bottom)
 
 step = 1E-4
-stop = 72.0 
+stop = 72.0
 dwell = 2.0 # length in seconds of constant-frequency dwell at start of analysis
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/81array_fb%d_ib%d_lk%d'%(fbmod,ibmod,lkmod))
+solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/81array_' + ending)
 
 OUTPUT (solfec, 2E-3) # The physical tests recorded digitased outputs at 2E-3s intervals
 
@@ -88,14 +98,16 @@ for inst in model.assembly.instances.values():	# .instances is a dict
   label = inst.name	              # use Abaqus instance name
   mesh = inst.mesh	              # solfec MESH object at the instance position
   bulkmat = inst.material	        # solfec BULK_MATERIAL object
-  bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
-  if label.startswith ('FB'): nm = fbmod
-  elif label.startswith ('IB'): nm = ibmod
-  else: nm = lkmod
-  data = MODAL_ANALYSIS (bdy, nm, solfec.outpath + '/modal' + label, abstol = 1E-13)
-  DELETE (solfec, bdy)
-  bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'RO', modal = data)
-
+  if formu != 'RO':
+    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = formu)
+  else:
+    bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
+    if label.startswith ('FB'): nm = fbmod
+    elif label.startswith ('IB'): nm = ibmod
+    else: nm = lkmod
+    data = MODAL_ANALYSIS (bdy, nm, solfec.outpath + '/modal' + label, abstol = 1E-13)
+    DELETE (solfec, bdy)
+    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'RO', modal = data)
 
 #----------------------------------------------------------------------
 
@@ -189,7 +201,7 @@ elapsed = time.time() - t0
 if RANK() == 0 and solfec.mode == 'WRITE':   
     print "analysis run time =", elapsed/3600.0, "hours"
 
-if NCPU(solfec) == 1 and solfec.mode == 'READ': # for a serial run only extract output time series
+if not VIEWER() and solfec.mode == 'READ': # extract and output time series
 
   # --- configurable parameters, which shouldn't be changed ---
   FBlabels = ['FB1(0)(0)',
@@ -242,6 +254,6 @@ if NCPU(solfec) == 1 and solfec.mode == 'READ': # for a serial run only extract 
   thv = HISTORY(solfec, requests, dwell, stop, progress='ON')
 
   # save time series using pickle object
-  f = open(solfec.outpath + '/81array.thv', 'w')
+  f = open(solfec.outpath + '/81array_%s.thv'%ending, 'w')
   pickle.dump (thv, f)
   f.close ()

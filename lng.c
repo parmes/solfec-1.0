@@ -4993,6 +4993,18 @@ static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *k
 
     TYPETEST (is_string (path, kwl [1]));
 
+#if MPI /* avoid writing to the same file from several processes  -- begin */
+    int counter, rank;
+
+    MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+    for (counter = 0; counter < 2; counter ++)
+    {
+    if ((rank == 0 && counter == 0) || /* let the rank 0 process go first, while others skip at first */
+	(rank > 0 && counter > 0)) /* at second run, let the rank 0 process skip, while others enter */
+    {
+#endif
+
     out->msh = MESH_Read (PyString_AsString (path));
 
     if (out->msh == NULL)
@@ -5037,6 +5049,13 @@ static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *k
 
       MESH_Write (out->msh, PyString_AsString (path));
     }
+
+#if MPI /* avoid writing to the same file from several processes  -- end */
+    }
+    MPI_Barrier (MPI_COMM_WORLD); /* all processes meet here twice */
+    }
+#endif
+
   }
 
   return (PyObject*)out;
@@ -7476,6 +7495,18 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   TYPETEST (is_body (body, kwl[0]) && is_positive (num, kwl [1]) && is_string (path, kwl [2]) &&
       is_positive (abstol, kwl [3]) && is_positive (maxiter, kwl [4]) && is_string (verbose, kwl [5]));
 
+#if MPI && !LOCAL_BODIES /* avoid writing to the same file from several processes */
+  int counter, rank;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+  for (counter = 0; counter < 2; counter ++)
+  {
+  if ((rank == 0 && counter == 0) || /* let the rank 0 process go first, while others skip at first */
+      (rank > 0 && counter > 0)) /* at second run, let the rank 0 process skip, while others enter */
+  {
+#endif
+
   f = fopen (PyString_AsString (path), "r");
 
   if (f) /* read without refering to a body et all (precomputed results, parallel use, etc.) */
@@ -7538,6 +7569,14 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
 #if MPI && LOCAL_BODIES
   }
 #endif
+
+#if MPI && !LOCAL_BODIES /* avoid writing to the same file from several processes  -- end */
+  }
+  MPI_Barrier (MPI_COMM_WORLD); /* all processes meet here twice */
+  }
+#endif
+
+
 
   if (V && v)
   {
