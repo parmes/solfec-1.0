@@ -1447,12 +1447,12 @@
 *Density
  1687.71,
 *Elastic
- 0.0138e+10, 0.21
+ 1.18e+10, 0.21
 *Material, name=IB_Graphite
 *Density
  1637.39,
 *Elastic
- 0.0138e+10, 0.21
+ 1.18e+10, 0.21
 *Material, name=LK_Graphite
 *Density
 1740.,

@@ -1530,6 +1530,87 @@ Solfec viewer window.
 
 \end_layout
 
+\begin_layout Section
+Read / write mode
+\end_layout
+
+\begin_layout Standard
+Let's say that you have just created an input file 'test.py' in the 'inp'
+ directory.
+ In this input file you have created a SOLFEC object as follows
+\end_layout
+
+\begin_layout LyX-Code
+argv = NON_SOLFEC_ARGV()
+\end_layout
+
+\begin_layout LyX-Code
+solfec = SOLFEC ('DYNAMIC', 0.001, 'out/test' + '/' +  argv[0])
+\end_layout
+
+\begin_layout Standard
+Hence, the results will be placed in the directory 'out/test/dir1/' + argv[0].
+ An analysis has not yet been run for this input file and there are no results.
+ If you run
+\end_layout
+
+\begin_layout LyX-Code
+./solfec inp/test.py -s dir1 arg1 arg2
+\end_layout
+
+\begin_layout Standard
+or
+\end_layout
+
+\begin_layout LyX-Code
+mpirun -np 4 ./solfec-mpi inp/test.py -s dir1 arg1 arg2
+\end_layout
+
+\begin_layout Standard
+then some results will be written into 'out/test/dir1/arg1'.
+ You can see that command line input parameters can influence the location
+ of the output directory.
+ Since for this first run Solfec did not manage to find any results located
+ at 'out/test/dir1/arg1' the analysis will be pursued and testing
+\end_layout
+
+\begin_layout LyX-Code
+if solfec.mode == 'WRITE': print 'WRITE MODE!'
+\end_layout
+
+\begin_layout LyX-Code
+elif solfec.mode == 'READ': print 'READ MODE!'
+\end_layout
+
+\begin_layout Standard
+will output 'WRITE MODE!'.
+ The first analysis is done in the write mode.
+ After it has finished you will be able to access the results by again calling
+\end_layout
+
+\begin_layout LyX-Code
+./solfec inp/test.py -s dir1 arg1 arg2
+\end_layout
+
+\begin_layout Standard
+or
+\end_layout
+
+\begin_layout LyX-Code
+./solfec out/test/dir1/arg1.py -s dir1 arg1 arg2
+\end_layout
+
+\begin_layout Standard
+since 'out/test/dir1/arg1.py' is an exact copy of 'inp/test.py'.
+ 
+\series bold
+But crucially note
+\series default
+, that the same parameters '-s dir1 arg1, arg2' need to be passed to Solfec
+ so that the correct output path could be recognized! Of course, on this
+ second run the above if test will result in the output 'READ MODE!'.
+\end_layout
+
 \begin_layout Chapter
 \begin_inset CommandInset label
 LatexCommand label
