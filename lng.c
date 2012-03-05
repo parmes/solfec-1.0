@@ -6332,15 +6332,15 @@ static PyObject* lng_ROTATE (PyObject *self, PyObject *args, PyObject *kwds)
 
   if (PyTuple_Check (shape)) /* vector */
   {
-    s [0] = PyFloat_AsDouble (PyTuple_GetItem (shape, 0));
-    s [1] = PyFloat_AsDouble (PyTuple_GetItem (shape, 1));
-    s [2] = PyFloat_AsDouble (PyTuple_GetItem (shape, 2));
+    s [0] = PyFloat_AsDouble (PyTuple_GetItem (shape, 0)) - p[0];
+    s [1] = PyFloat_AsDouble (PyTuple_GetItem (shape, 1)) - p[1];
+    s [2] = PyFloat_AsDouble (PyTuple_GetItem (shape, 2)) - p[2];
 
     COPY (v, t); 
     NORMALIZE (t);
     SCALE (t, (ALG_PI * angle / 180.0));
     EXPMAP (t, r);
-    NVMUL (r, s, t);
+    NVADDMUL (p, r, s, t);
 
     /* doing PyTuple_SetItem (shape, ..., PyFLoat_FromDouble (...)) is not
      * possible as tuple is immutable (cannot be modified after creation) */
