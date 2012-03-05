@@ -30,6 +30,10 @@
   #define FSEEK fseeko64
   #define FTELL ftello64
   #define OFF_T off64_t
+#elif OSTYPE_LINUX
+  #define FSEEK fseeko64
+  #define FTELL ftello64
+  #define OFF_T __off64_t
 #else
   #define FSEEK fseeko
   #define FTELL ftello
