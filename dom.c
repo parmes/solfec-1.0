@@ -156,6 +156,13 @@ static int constraint_compare (CON *one, CON *two)
   else if (oc < tc) return 1; /* -||- */
   else if ((oc + tc) == 0) return (one->id < two->id ? -1 : (one->id == two->id ? 0 : 1)); /* non-contacts: compare IDs */
 
+  short subone = one->state & CON_SUBPOINT,
+	subtwo = two->state & CON_SUBPOINT;
+
+  if (!subone && subtwo) return -1; /* contacts are smaller than sub-contact points */
+  else if (!subtwo && subone) return 1;
+  else if (subone && subtwo) return (one->id < two->id ? -1 : (one->id == two->id ? 0 : 1)); /* sub-contacts: compare IDs */
+
   if (one->master < one->slave) /* contacts: order pointers before comparing */
   {
     onebod [0] = one->master;
@@ -235,7 +242,7 @@ static int constraint_compare (CON *one, CON *two)
 }
 
 /* insert a new constrait between two bodies */
-static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, short kind)
+static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, short kind, short state)
 {
   CON *con;
 
@@ -245,6 +252,7 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, s
 
   ERRMEM (con = MEM_Alloc (&dom->conmem));
   con->kind = kind;
+  con->state = state;
   con->master = master;
   con->slave = slave;
   con->msgp = msgp;
@@ -306,11 +314,11 @@ static CON* insert (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, s
 
 /* insert a contact into the constraints set */
 static CON* insert_contact (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, double *mpntspa,
-       double *spntspa, double *normal, double area , double gap, SURFACE_MATERIAL *mat, short paircode)
+       double *spntspa, double *normal, double area , double gap, SURFACE_MATERIAL *mat, short paircode, short state)
 {
   CON *con;
 
-  con = insert (dom, master, slave, msgp, ssgp, CONTACT); /* do not insert into LOCDYN yet, only after sparsification */
+  con = insert (dom, master, slave, msgp, ssgp, CONTACT, state); /* do not insert into LOCDYN yet, only after sparsification */
   COPY (mpntspa, con->point);
   BODY_Ref_Point (master, msgp, mpntspa, con->mpnt); /* referential image */
   BODY_Ref_Point (slave, ssgp, spntspa, con->spnt);
@@ -333,6 +341,7 @@ static int contact_exists (BOX *one, BOX *two)
   aux.msgp = one->sgp;
   aux.slave = two->body;
   aux.ssgp = two->sgp;
+  aux.state = 0;
 
   return SET_Contains (one->body->con, &aux, CONCMP);
 }
@@ -341,10 +350,11 @@ static int contact_exists (BOX *one, BOX *two)
 static void overlap_create (DOM *dom, BOX *one, BOX *two)
 {
   double onepnt [3], twopnt [3], normal [3], gap, area;
-  int state, spair [2], pair [2];
+  int state, spair [2], pair [2], ntri;
   SURFACE_MATERIAL *mat;
   short paircode;
   CON *con;
+  TRI *tri;
 
   if (contact_exists (one, two)) return;
 
@@ -352,7 +362,8 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
     CONTACT_DETECT, GOBJ_Pair_Code (one, two),
     one->sgp->shp, one->sgp->gobj,
     two->sgp->shp, two->sgp->gobj,
-    onepnt, twopnt, normal, &gap, &area, spair);
+    onepnt, twopnt, normal,
+    &gap, &area, spair, &tri, &ntri);
 
   if (state)
   {
@@ -368,7 +379,11 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
       if (spair [0] <= spair [1]) { pair [0] = spair [0]; pair [1] = spair [1]; }
       else { pair [0] = spair [1]; pair [1] = spair [0]; }
 
-      if (SET_Contains (dom->excluded, pair, (SET_Compare) pair_compare)) return; /* exluded pair */
+      if (SET_Contains (dom->excluded, pair, (SET_Compare) pair_compare))
+      {
+	free (tri);
+	return; /* exluded pair */
+      }
     }
   }
 
@@ -377,7 +392,7 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
     case 1: /* first body has outward normal => second body is the master */
     {
       paircode = GOBJ_Pair_Code (one, two);
-      con = insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
+      con = insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode, 0);
       con->spair [0] = spair [1];
       con->spair [1] = spair [0];
     }
@@ -385,12 +400,38 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
     case 2:  /* second body has outward normal => first body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
-      con = insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
+      con = insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode, 0);
       con->spair [0] = spair [0];
       con->spair [1] = spair [1];
     }
     break;
   }
+
+  if (state)
+  {
+    if (dom->subpoints && tri) /* contact sub-points */
+    {
+      double *p, *a, *g;
+      int i, k;
+      CON *sub;
+
+      k = gobjsubpoints (tri, ntri, con->point, normal, &p, &a, &g, &con->area);
+
+      for (i = 0; i < k; i ++)
+      {
+	sub = insert_contact (dom, con->master, con->slave, con->msgp, con->ssgp,
+	  &p[3*i], &p[3*i], normal, a[i], g [i], mat, paircode, CON_SUBPOINT); /* mark as sub-point */
+	sub->spair [0] = con->spair [0];
+	sub->spair [1] = con->spair [1];
+	sub->n = con->n;
+	con->n = sub;
+      }
+
+      if (p) free (p);
+    }
+  }
+
+  if (tri) free (tri);
 }
 
 #if MPI
@@ -404,6 +445,35 @@ static void ext_to_remove (DOM *dom, CON *con)
 }
 #endif
 
+/* base contact point update */
+static void update_contact_base (DOM *dom, CON *con, double *mpnt, double *spnt, double *normal, double gap, double area, int *spair, int state)
+{
+  con->gap = gap;
+  con->area = area;
+  con->spair [0] = spair [0];
+  con->spair [1] = spair [1];
+
+  if (con->state & CON_COHESIVE) /* reuse original point */
+  {
+    BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
+    localbase (normal, con->base); /* but update normal (the interface might rotate) */
+  }
+  else
+  {
+    if (con->gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
+
+    COPY (mpnt, con->point);
+    BODY_Ref_Point (con->master, con->msgp, mpnt, con->mpnt);
+    BODY_Ref_Point (con->slave, con->ssgp, spnt, con->spnt);
+    localbase (normal, con->base);
+    if (state > 1) /* surface pair has changed */
+    {
+      SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, con->spair [0], con->spair [1]); /* find new surface pair description */
+      con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
+    }
+  }
+}
+
 /* update contact data */
 static void update_contact (DOM *dom, CON *con)
 {
@@ -412,7 +482,11 @@ static void update_contact (DOM *dom, CON *con)
        *sgobj = sgobj(con);
   SHAPE *mshp = mshp(con),
 	*sshp = sshp(con);
-  int state;
+  int state, ntri;
+  TRI *tri;
+
+  /* skip contact sub-points */
+  if (con->state & CON_SUBPOINT) return;
 
   /* current spatial points and normal */
   BODY_Cur_Point (con->master, con->msgp, con->mpnt, mpnt);
@@ -424,32 +498,64 @@ static void update_contact (DOM *dom, CON *con)
     CONTACT_UPDATE, con->paircode,
     sshp, sgobj, mshp, mgobj, /* the slave body holds the outward normal */
     spnt, mpnt, normal, &con->gap, /* 'mpnt' and 'spnt' are updated here */
-    &con->area, con->spair); /* surface pair might change though */
+    &con->area, con->spair, &tri, &ntri); /* surface pair might change though */
 
   if (state || (con->state & CON_COHESIVE))
   {
-    if (con->state & CON_COHESIVE) /* reuse original point */
-    {
-      BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
-      localbase (normal, con->base); /* but update normal (the interface might rotate) */
-    }
-    else
-    {
-      if (con->gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
+    update_contact_base (dom, con, mpnt, spnt, normal, con->gap, con->area, con->spair, state); /* update middle point */
 
-      COPY (mpnt, con->point);
-      BODY_Ref_Point (con->master, con->msgp, mpnt, con->mpnt);
-      BODY_Ref_Point (con->slave, con->ssgp, spnt, con->spnt);
-      localbase (normal, con->base);
-      if (state > 1) /* surface pair has changed */
+    if (dom->subpoints && tri) /* update sub-points */
+    {
+      double *p, *a, *g;
+      CON *sub, *prv;
+      int i, k;
+
+      k = gobjsubpoints (tri, ntri, con->point, normal, &p, &a, &g, &con->area);
+
+      for (sub = con->n, i = 0, prv = con; sub && i < k; prv = sub, sub = sub->n, i ++) /* update existing sub-points */
       {
-	SURFACE_MATERIAL *mat = SPSET_Find (dom->sps, con->spair [0], con->spair [1]); /* find new surface pair description */
-	con->state |= SURFACE_MATERIAL_Transfer (dom->time, mat, &con->mat); /* transfer surface pair data from the database to the local variable */
+        update_contact_base (dom, sub, &p[3*i], &p[3*i], normal, g[i], a[i], con->spair, state);
       }
+      if (i < k) /* sub-points list too short */
+      {
+	for (; i < k; i ++) /* insert new sub-points */
+	{
+	  sub = insert_contact (dom, con->master, con->slave, con->msgp, con->ssgp,
+	    &p[3*i], &p[3*i], normal, a[i], g[i], con->mat.base, con->paircode, CON_SUBPOINT); /* mark as sub-point */
+	  sub->spair [0] = con->spair [0];
+	  sub->spair [1] = con->spair [1];
+	  sub->dia = LOCDYN_Insert (dom->ldy, sub, sub->master, sub->slave); /* insert into local dynamics */
+	  sub->state &= ~CON_NEW; /* invalidate newness => this would conuse new_boundary_constraints_migration (external would migrate twice) */
+	  sub->n = con->n;
+	  con->n = sub;
+	}
+      }
+      else /* sub-points lists too long */
+      {
+	prv->n = NULL; /* cut sub-points list */
+
+	for (; sub; sub = sub->n) /* delete not needed sub-points */
+	{
+#if MPI
+	  ext_to_remove (dom, sub);
+#endif
+	  DOM_Remove_Constraint (dom, sub);
+	}
+      }
+
+      if (p) free (p);
     }
   }
   else
   {
+    for (CON *sub = con->n; sub; sub = sub->n) /* delete sub-points */
+    {
+#if MPI
+      ext_to_remove (dom, sub);
+#endif
+      DOM_Remove_Constraint (dom, sub);
+    }
+
 #if MPI
     ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
 #endif
@@ -610,10 +716,19 @@ static int domain_weight (DOM *dom)
 /* number of objects for balacing */
 static int obj_count (DOM *dom, int *ierr)
 {
+  int ncon;
+  CON *con;
+
   *ierr = ZOLTAN_OK;
 
-  if (dom->ncon + dom->nbod == 0) return 1; /* XXX: Zoltan fails for 0 count */
-  else return dom->ncon + dom->nbod;
+  for (con = dom->con, ncon = 0; con; con = con->next)
+  {
+    if (con->state & CON_SUBPOINT) continue; /* skip sub->points */
+    ncon ++;
+  }
+
+  if (ncon + dom->nbod == 0) return 1; /* XXX: Zoltan fails for 0 count */
+  else return ncon + dom->nbod;
 }
 
 /* list of object identifiers for load balancing */
@@ -624,10 +739,13 @@ static void obj_list (DOM *dom, int num_gid_entries, int num_lid_entries,
   CON *con;
   int i;
   
-  for (con = dom->con, i = 0; con; i ++, con = con->next)
+  for (con = dom->con, i = 0; con; con = con->next)
   {
+    if (con->state & CON_SUBPOINT) continue;  /* skip sub-points */
+
     global_ids [i * num_gid_entries] = con->id;
     obj_wgts [i * wgt_dim] = constraint_weight (con);
+    i ++;
   }
 
   for (bod = dom->bod; bod; i ++, bod = bod->next)
@@ -699,6 +817,7 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
     pack_int (isize, i, ints, (int) (long) item->data);
 
   pack_int (isize, i, ints, con->kind);
+  pack_int (isize, i, ints, con->state & CON_PERMANENT_STATE);
   pack_int (isize, i, ints, con->master->id);
   if (con->slave) pack_int (isize, i, ints, con->slave->id);
   else pack_int (isize, i, ints, 0);
@@ -737,9 +856,9 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
 }
 
 /* unpack constraint migrated in during load balancing */
-static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
+static CON* unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  int kind, cid, mid, sid, n, j, k;
+  int kind, state, cid, mid, sid, n, j, k;
   BODY *master, *slave;
   SGP *msgp, *ssgp;
   SET *ext;
@@ -762,6 +881,7 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
   }
 
   kind = unpack_int (ipos, i, ints);
+  state = unpack_int (ipos, i, ints);
   mid = unpack_int (ipos, i, ints);
   sid = unpack_int (ipos, i, ints);
 
@@ -775,7 +895,7 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
 
   dom->noid = cid; /* disable constraint ids generation and use 'noid' instead */
 
-  con = insert (dom, master, slave, msgp, ssgp, kind);
+  con = insert (dom, master, slave, msgp, ssgp, kind, state);
 
   dom->noid = 0; /* enable constraint ids generation */
 
@@ -807,15 +927,18 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
   }
 
   con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave); /* insert into local dynamics */
+
+  return con;
 }
 
 /* insert a new external constraint migrated in during domain gluing */
-static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, short kind, unsigned int cid)
+static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP *msgp, SGP *ssgp, short kind, short state, unsigned int cid)
 {
   CON *con;
 
   ERRMEM (con = MEM_Alloc (&dom->conmem));
   con->kind = kind;
+  con->state = state;
   con->master = master;
   con->slave = slave;
   con->msgp = msgp;
@@ -851,6 +974,7 @@ static CON* insert_external_constraint (DOM *dom, BODY *master, BODY *slave, SGP
 static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_int (isize, i, ints, con->kind);
+  pack_int (isize, i, ints, con->state & CON_PERMANENT_STATE);
 
   pack_int (isize, i, ints, con->id);
   pack_int (isize, i, ints, con->master->id);
@@ -879,12 +1003,13 @@ static void pack_boundary_constraint (CON *con, int *dsize, double **d, int *dou
 /* unpack external constraint migrated in during domain gluing */
 static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  int kind, cid, mid, sid, n;
+  int kind, state, cid, mid, sid, n;
   BODY *master, *slave;
   SGP *msgp, *ssgp;
   CON *con;
 
   kind = unpack_int (ipos, i, ints);
+  state = unpack_int (ipos, i, ints);
 
   cid = unpack_int (ipos, i, ints);
   mid = unpack_int (ipos, i, ints);
@@ -903,7 +1028,7 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   }
   else ssgp = NULL;
 
-  con = insert_external_constraint (dom, master, slave, msgp, ssgp, kind, cid);
+  con = insert_external_constraint (dom, master, slave, msgp, ssgp, kind, state, cid);
 
   unpack_doubles (dpos, d, doubles, con->mpnt, 3);
   if (slave) unpack_doubles (dpos, d, doubles, con->spnt, 3);
@@ -1478,7 +1603,23 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
   /* pack exported constraints */
   pack_int (isize, i, ints, SET_Size (dbd->constraints));
   for (item = SET_First (dbd->constraints); item; item = SET_Next (item))
-    pack_constraint (item->data, dsize, d, doubles, isize, i, ints);
+  {
+    CON *con = item->data;
+
+    pack_constraint (con, dsize, d, doubles, isize, i, ints);
+
+    if (dbd->dom->subpoints && con->kind == CONTACT)
+    {
+      CON *sub;
+      int k;
+
+      for (sub = con->n, k = 0; sub; sub = sub->n, k ++);
+      pack_int (isize, i, ints, k); /* sub-points count */
+
+      for (sub = con->n; sub; sub = sub->n)
+	pack_constraint (sub, dsize, d, doubles, isize, i, ints); /* pack sub-points */
+    }
+  }
 
   /* pack ids of deleted external constraints */
   pack_int (isize, i, ints, SET_Size (dbd->remove));
@@ -1512,7 +1653,22 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
   j = unpack_int (ipos, i, ints);
   for (n = 0; n < j; n ++)
   {
-    unpack_constraint (dom, dpos, d, doubles, ipos, i, ints);
+    CON *con = unpack_constraint (dom, dpos, d, doubles, ipos, i, ints);
+
+    if (dom->subpoints && con->kind == CONTACT)
+    {
+      CON *sub;
+
+      int k = unpack_int (ipos, i, ints);
+
+      for (; k > 0; k --)
+      {
+        sub = unpack_constraint (dom, dpos, d, doubles, ipos, i, ints); /* unpack sub-points */
+	sub->state |= CON_SUBPOINT; /* mark as sub-point */
+	sub->n = con->n; /* insert into sub-points lists */
+	con->n = sub;
+      }
+    }
   }
 
   /* unpack deleted external constraint ids */
@@ -1918,6 +2074,8 @@ static void domain_balancing (DOM *dom)
 
     for (con = dom->con; con; con = con->next)
     {
+      if (con->state & CON_SUBPOINT) continue; /* sub-points do not migrate on their own */
+
       Zoltan_LB_Point_Assign (dom->zol, con->point, &rank);
       if (rank != dom->rank)
 	SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL);
@@ -2631,7 +2789,7 @@ static void sparsify_contacts (DOM *dom)
 
   for (del = NULL, con = dom->con; con; con = con->next)
   {
-    if (con->kind == CONTACT && (con->state & CON_NEW)) /* walk over all new contacts */
+    if (con->kind == CONTACT && (con->state & CON_NEW) && !(con->state & CON_SUBPOINT)) /* walk over all new primary contacts (skip sub-points) */
     {
       SET *set [2] = {con->master->con, con->slave->con};
 
@@ -2704,6 +2862,15 @@ static void sparsify_contacts (DOM *dom)
   for (itm = SET_First (del), n = 0; itm; itm = SET_Next (itm), n ++)
   {
     con = itm->data;
+
+    for (CON *sub = con->n; sub; sub = sub->n)
+    {
+#if MPI
+      ext_to_remove (dom, sub);
+#endif
+      DOM_Remove_Constraint (dom, sub);
+    }
+
 #if MPI
     ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
 #endif
@@ -2760,6 +2927,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->allbodiesread = 0;
   dom->sparecid = NULL;
   dom->excluded = NULL;
+  dom->subpoints = 0;
   dom->cid = 1;
   dom->idc= NULL;
   dom->con = NULL;
@@ -2942,7 +3110,7 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, sgp, NULL, FIXPNT);
+  con = insert (dom, bod, NULL, sgp, NULL, FIXPNT, 0);
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   IDENTITY (con->base);
@@ -2963,7 +3131,7 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, sgp, NULL, FIXDIR);
+  con = insert (dom, bod, NULL, sgp, NULL, FIXDIR, 0);
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   localbase (dir, con->base);
@@ -2984,7 +3152,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, sgp, NULL, VELODIR);
+  con = insert (dom, bod, NULL, sgp, NULL, VELODIR, 0);
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   localbase (dir, con->base);
@@ -3032,7 +3200,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   
   if (d < GEOMETRIC_EPSILON) /* glue points */
   {
-    con = insert (dom, master, slave, msgp, ssgp, FIXPNT);
+    con = insert (dom, master, slave, msgp, ssgp, FIXPNT, 0);
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
@@ -3040,7 +3208,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   }
   else
   {
-    con = insert (dom, master, slave, msgp, ssgp, RIGLNK);
+    con = insert (dom, master, slave, msgp, ssgp, RIGLNK, 0);
     COPY (mpnt, con->point);
     COPY (mpnt, con->mpnt);
     COPY (spnt, con->spnt);
@@ -3071,7 +3239,7 @@ CON* DOM_Glue_Nodes (DOM *dom, BODY *master, BODY *slave, int mnode, int snode)
   mpnt = &mmsh->ref_nodes [mnode][0];
   spnt = &smsh->ref_nodes [snode][0];
 
-  con = insert (dom, master, slave, msgp, ssgp, GLUE);
+  con = insert (dom, master, slave, msgp, ssgp, GLUE, 0);
   COPY (mpnt, con->point);
   COPY (mpnt, con->mpnt);
   COPY (spnt, con->spnt);

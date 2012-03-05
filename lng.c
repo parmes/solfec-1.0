@@ -1320,8 +1320,8 @@ static int is_solfec (lng_SOLFEC *obj, char *var)
 /* constructor */
 static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("analysis", "step", "output");
-  PyObject *analysis, *output;
+  KEYWORDS ("analysis", "step", "output", "subpoints");
+  PyObject *analysis, *output, *subpoints;
   lng_SOLFEC *self;
   char *outpath;
   double step;
@@ -1333,10 +1333,12 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
     step = 1E-3;
     outpath = "solfec.out";
     output = NULL;
+    subpoints = NULL;
 
-    PARSEKEYS ("OdO", &analysis, &step, &output);
+    PARSEKEYS ("OdO|O", &analysis, &step, &output, &subpoints);
 
-    TYPETEST (is_string (analysis, kwl [0]) && is_positive (step, kwl[1]) && is_string (output, kwl [2]));
+    TYPETEST (is_string (analysis, kwl [0]) && is_positive (step, kwl[1]) &&
+	      is_string (output, kwl [2]) && is_string (subpoints, kwl[3]));
 
     outpath = PyString_AsString (output);
 
@@ -1360,6 +1362,25 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
     {
       PyErr_SetString (PyExc_ValueError, "Invalid analysis kind");
       return NULL;
+    }
+
+    if (subpoints)
+    {
+      IFIS (subpoints, "ON")
+      {
+	DOM *dom = self->sol->dom;
+	dom->subpoints = 1;
+      }
+      ELIF (subpoints, "OFF")
+      {
+	DOM *dom = self->sol->dom;
+	dom->subpoints = 0;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid subpoints value (only 'ON' or 'OFF' are valid)");
+	return NULL;
+      }
     }
   }
 
@@ -7239,7 +7260,7 @@ static void overlap_create (OCD *ocd, BOX *one, BOX *two)
     CONTACT_DETECT, GOBJ_Pair_Code (one, two),
     one->sgp->shp, one->sgp->gobj,
     two->sgp->shp, two->sgp->gobj,
-    onepnt, twopnt, normal, &gap, &area, spair);
+    onepnt, twopnt, normal, &gap, &area, spair, NULL, NULL);
 
   if (state && gap <= ocd->gap)
   {

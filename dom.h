@@ -86,7 +86,8 @@ struct constraint
         CON_NEW      = 0x02, /* newly inserted constraint */
 	CON_IDLOCK   = 0x04, /* locked ID cannot be freed to the pool */
 	CON_EXTERNAL = 0x08, /* a boundary constraint migrated in from another processor */
-        CON_DONE     = 0x10} state; /* constraint state */
+        CON_DONE     = 0x10, /* auxiliary flag used in several places */
+        CON_SUBPOINT = 0x20} state; /* contact sub-point */
 
   short paircode; /* geometric object pair code for a contact */
 
@@ -108,7 +109,9 @@ struct constraint
   int rank; /* parallel: origin rank for an external constraint;
                serial read: rank of residence during parallel run */
 
-  CON *prev, *next; /* list */
+  CON *prev, *next; /* global list */
+
+  CON *n; /* sub-contact list */
 
   /* put parallel data at the end of the structutre so that
    * the data layout does not change for serial code (e.g. dbs.c) */
@@ -116,6 +119,9 @@ struct constraint
   SET *ext; /* ranks of remote external images of this constraint */
 #endif
 };
+
+/* permanent state flags */
+#define CON_PERMANENT_STATE (CON_COHESIVE|CON_SUBPOINT)
 
 /* member acces */
 #define mshp(con) ((con)->msgp->shp)
@@ -239,6 +245,7 @@ struct domain
   int ncon; /* number of constraints */
   int nspa; /* number of sparsified contacts */
   SET *excluded; /* excluded surface pairs */
+  short subpoints; /* sub-contact points flag */
 
   LOCDYN *ldy; /* local dynamics */
   SOLFEC *solfec; /* SOLFEC context */

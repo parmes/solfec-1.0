@@ -29,6 +29,7 @@
 #include "eli.h"
 #include "cvi.h"
 #include "gjk.h"
+#include "h2d.h"
 #include "goc.h"
 #include "err.h"
 
@@ -229,7 +230,8 @@ static int detect_convex_convex (
   double normal [3],
   double *gap,
   double *area,
-  int spair [2])
+  int spair [2],
+  TRI **ptri, int *ntri)
 {
   double sanity;
   int k = 0, m;
@@ -240,7 +242,8 @@ static int detect_convex_convex (
   k = point_normal_spair_area_gap (tri, m, va, nva, vb, nvb, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
   sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
   COPY (onepnt, twopnt);
-  free (tri);
+  if (ptri && ntri) *ptri = tri, *ntri = m;
+  else free (tri);
 
   if (!isfinite (sanity)) return 0;
   else return k;
@@ -471,7 +474,8 @@ static int update_convex_convex (
   double normal [3], /* outward with restpect to the 'a' body (master) */
   double *gap,
   double *area,
-  int spair [2])
+  int spair [2],
+  TRI **ptri, int *ntri)
 {
   double sanity;
   int k = 0, m;
@@ -482,7 +486,8 @@ static int update_convex_convex (
   k = point_normal_spair_area_gap (tri, -m, va, nva, vb, nvb, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
   sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
   COPY (onepnt, twopnt);
-  free (tri);
+  if (ptri && ntri) *ptri = tri, *ntri = m;
+  else free (tri);
 
   if (!isfinite (sanity)) return 0;
   else return k;
@@ -976,7 +981,8 @@ static int detect (
     double normal [3],
     double *gap,
     double *area,
-    int spair [2])
+    int spair [2],
+    TRI **ptri, int *ntri)
 {
   switch (paircode)
   {
@@ -995,7 +1001,7 @@ static int detect (
       return detect_convex_convex (va, nva, pa, npa, sa, nsa,
                                    vb, nvb, pb, npb, sb, nsb,
                                    onepnt, twopnt, normal,
-				   gap, area, spair);
+				   gap, area, spair, ptri, ntri);
     }
     break;
     case AABB_CONVEX_CONVEX:
@@ -1012,7 +1018,7 @@ static int detect (
       ret = detect_convex_convex (va, nva, pa, npa, sa, nsa,
                                   vb, nvb, pb, npb, sb, nsb,
                                   onepnt, twopnt, normal,
-				  gap, area, spair);
+				  gap, area, spair, ptri, ntri);
 
       convex_done (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
       convex_done (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
@@ -1047,7 +1053,7 @@ static int detect (
       ret = detect_convex_convex (va, nva, pa, npa, sa, nsa,
                                   vb, nvb, pb, npb, sb, nsb,
                                   onepnt, twopnt, normal,
-				  gap, area, spair);
+				  gap, area, spair, ptri, ntri);
 
       convex_done (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
 
@@ -1070,7 +1076,7 @@ static int detect (
       ret = detect_convex_convex (va, nva, pa, npa, sa, nsa,
                                   vb, nvb, pb, npb, sb, nsb,
                                   onepnt, twopnt, normal,
-				  gap, area, spair);
+				  gap, area, spair, ptri, ntri);
 
       convex_done (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
 
@@ -1284,7 +1290,8 @@ static int update (
     double normal [3],
     double *gap,
     double *area,
-    int spair [2])
+    int spair [2],
+    TRI **ptri, int *ntri)
 {
   switch (paircode)
   {
@@ -1303,7 +1310,7 @@ static int update (
       return update_convex_convex (va, nva, pa, npa, sa, nsa,
                                    vb, nvb, pb, npb, sb, nsb,
                                    onepnt, twopnt, normal,
-				   gap, area, spair);
+				   gap, area, spair, ptri, ntri);
     }
     break;
     case AABB_CONVEX_CONVEX:
@@ -1320,7 +1327,7 @@ static int update (
       ret = update_convex_convex (va, nva, pa, npa, sa, nsa,
                                   vb, nvb, pb, npb, sb, nsb,
                                   onepnt, twopnt, normal,
-				  gap, area, spair);
+				  gap, area, spair, ptri, ntri);
 
       convex_done (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
       convex_done (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
@@ -1355,7 +1362,7 @@ static int update (
       ret = update_convex_convex (va, nva, pa, npa, sa, nsa,
                                   vb, nvb, pb, npb, sb, nsb,
                                   onepnt, twopnt, normal,
-				  gap, area, spair);
+				  gap, area, spair, ptri, ntri);
 
       convex_done (twogobj, &vb, &nvb, &pb, &npb, &sb, &nsb);
 
@@ -1378,7 +1385,7 @@ static int update (
       ret = update_convex_convex (va, nva, pa, npa, sa, nsa,
                                   vb, nvb, pb, npb, sb, nsb,
                                   onepnt, twopnt, normal,
-				  gap, area, spair);
+				  gap, area, spair, ptri, ntri);
 
       convex_done (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
 
@@ -1584,13 +1591,17 @@ int gobjcontact (
     double normal [3],
     double *gap,
     double *area,
-    int spair [2])
+    int spair [2],
+    TRI **ptri, int *ntri)
 {
+  if (ptri) *ptri = NULL;
+  if (ntri) *ntri = 0;
+
   if (action == CONTACT_DETECT)
     return detect (paircode, oneshp, onegobj, twoshp,
-      twogobj, onepnt, twopnt, normal, gap, area, spair);
+      twogobj, onepnt, twopnt, normal, gap, area, spair, ptri, ntri);
   else return update (paircode, oneshp, onegobj, twoshp,
-    twogobj, onepnt, twopnt, normal, gap, area, spair);
+    twogobj, onepnt, twopnt, normal, gap, area, spair, ptri, ntri);
 }
 
 
@@ -1733,4 +1744,59 @@ double gobjdistance (short paircode, SGP *one, SGP *two, double *p, double *q)
   }
 
   return 0;
+}
+
+/* extract sub-contact points => output points, they areas, gaps and the middle point area;
+ * free 'points' ONLY in order to free all alocated memory! */
+int gobjsubpoints (TRI *tri, int ntri, double *p, double *normal, double **points, double **areas, double **gaps, double *midarea)
+{
+  double *point, *area, *gap, v [3];
+  P2D *list, *item, *lhul;
+  TRI *t, *e;
+  int n;
+
+  ERRMEM (list = MEM_CALLOC (3 * ntri * sizeof (P2D)));
+
+  for (t = tri, e = t + ntri, item = list; t != e; t ++)
+  {
+    if (t->flg < 0)
+    {
+      if (item > list) item->prev = item-1;
+      COPY (t->ver [0], item->point);
+      item->next = item+1; item ++;
+
+      item->prev = item-1;
+      COPY (t->ver [1], item->point);
+      item->next = item+1; item ++;
+
+      item->prev = item-1;
+      COPY (t->ver [2], item->point);
+      item->next = item+1; item ++;
+    }
+  }
+  (item-1)->next = NULL;
+
+  lhul = h2d (list, p, normal);
+
+  for (n = 0, item = lhul; item; item = item->next, n ++);
+
+  ERRMEM ((*points) = malloc (sizeof (double [5*n])));
+  (*areas) = (*points) + 3*n;
+  (*gaps) = (*areas) + n;
+
+  (*midarea) /= (double) (n+1);
+
+  for (item = lhul, point = *points, area = *areas, gap = *gaps;
+       item; item = item->next, point += 3, area ++, gap ++)
+  {
+    COPY (item->point, point);
+    *area = *midarea;
+    SUB (point, p, v);
+    *gap = DOT (v, normal);
+    if (*gap > 0.0) *gap = 0.0;
+  }
+
+  free (list);
+
+  return n;
 }
