@@ -218,7 +218,7 @@ obj/set.o: set.c set.h mem.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/pbf.o: pbf.c pbf.h map.h mem.h err.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(OS) $(CFLAGS) -c -o $@ $<
 
 obj/svk.o: svk.c svk.h
 	$(CC) $(CFLAGS) -c -o $@ $<
