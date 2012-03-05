@@ -6477,7 +6477,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("shape", "point", "normal", "surfid", "topoadj");
   PyObject *shape, *point, *normal, *topoadj, *out, *b, *f;
-  SHAPE *shp, *shq, *back, *front;
+  SHAPE *shp, *shq, *back, *front, *next;
   double p [3], n [3];
   int error, surfid;
   short tadj;
@@ -6585,6 +6585,40 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   ENDTRY ()
 
   SHAPE_Destroy (shp);
+
+  shp = SHAPE_Glue (back, front); /* glue front and back into one list */
+  back = front = NULL; /* and empty these lists for the moment */
+
+  for (shq = shp; shq; shq = next) /* for each item */
+  {
+    double c [3], d [3];
+
+    next = shq->next;
+
+    if (SHAPE_Separable (shq)) /* check if separable */
+    {
+      SHAPE **s;
+      int m;
+
+      s = SHAPE_Separate (shq, &m); /* separate */
+      SHAPE_Destroy (shq);
+
+      for (m --; m >= 0; m --) /* and classify each part */
+      {
+	SHAPE_Char (s [m], 1, NULL, c, NULL);
+	SUB (c, p, d);
+	if (DOT (d, n) < 0.0) { s [m]->next = back; back = s [m]; }
+	else { s [m]->next = front; front = s [m]; }
+      }
+    }
+    else /* or classify the current sub-shape */
+    {
+      SHAPE_Char (shq, 1, NULL, c, NULL);
+      SUB (c, p, d);
+      if (DOT (d, n) < 0.0) { shq->next = back; back = shq; }
+      else { shq->next = front; front = shq; }
+    }
+  }
 
   b =  shape_to_list (back);
   f =  shape_to_list (front);
