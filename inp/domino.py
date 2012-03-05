@@ -2,7 +2,7 @@
 
 step = 1E-3
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/domino', 'ON')
+solfec = SOLFEC ('DYNAMIC', step, 'out/domino')
 
 GRAVITY (solfec, (0, 0, -9.81))
 
