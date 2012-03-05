@@ -5833,7 +5833,7 @@ An object of type SOLFEC represents the Solfec algorithm.
 \end_layout
 
 \begin_layout Subsection*
-obj = SOLFEC (analysis, step, output)
+obj = SOLFEC (analysis, step, output | subpoints)
 \end_layout
 
 \begin_layout Standard
@@ -5879,6 +5879,21 @@ Important note:
 \series default
  if this directory exists and contains valid output data SOLFEC is created
  in 'READ' mode, otherwise SOLFEC is created in 'WRITE' mode)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+subpoints
+\series default
+ - 'ON' or 'OFF' enables or disables contact sub-points (default 'OFF');
+ without this option Solfec generates one contact point per pair of two
+ convex primitives; with sub-points enabled Solfec will generate additional
+ points around.
+ 
+\series bold
+\color red
+(Under development)
 \end_layout
 
 \begin_layout Standard
