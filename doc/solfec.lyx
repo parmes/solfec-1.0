@@ -7060,7 +7060,15 @@ obj
 kind
 \series default
  - a string: 'RIGID', 'PSEUDO_RIGID', 'FINITE_ELEMENT' or 'OBSTACLE' describing
- the kinematic model
+ the kinematic model.
+ See Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:bodykinds"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Itemize
@@ -7556,6 +7564,156 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
+<lyxtabular version="3" rows="5" columns="2">
+<features>
+<column alignment="center" valignment="top" width="30col%">
+<column alignment="center" valignment="top" width="50col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Body kind
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Remarks
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'OBSTACLE'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+A rigid body ignoring external loads and not contributing to contact constraints.
+ Motion of an obstacle can be controlled through single-body constraints.
+ An obstacle-to-obstacle contact is ignored.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+A classical rigid body.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'PSEUDO_RIGID'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+A simple body with global linear deformation state.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'FINITE_ELEMENT'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+A body discretised with finite elements.
+ Only first order elements are supported at present.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption
+
+\begin_layout Plain Layout
+
+\lang british
+\begin_inset CommandInset label
+LatexCommand label
+name "tab:bodykinds"
+
+\end_inset
+
+
+\lang english
+Body kinds.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float table
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="2">
 <features>
 <column alignment="center" valignment="top" width="30col%">
@@ -7788,11 +7946,7 @@ Current coordinates x, y, z of  mesh nodes.
 \begin_inset Text
 
 \begin_layout Plain Layout
-Python 
-\emph on
-None
-\emph default
- object.
+Column-wise rotation matrix followed by the current mass center.
 \end_layout
 
 \end_inset
@@ -7936,11 +8090,7 @@ Components x, y, z of spatial velocities of mesh nodes.
 \begin_inset Text
 
 \begin_layout Plain Layout
-Python 
-\emph on
-None
-\emph default
- object.
+Column-wise rotation matrix followed by the current mass center.
 \end_layout
 
 \end_inset

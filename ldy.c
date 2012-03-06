@@ -194,15 +194,17 @@ static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 
     for (i = 0, bod = bodies [i]; i < 2 && bod; i ++, bod = bodies [i]) /* (i < 2 && bod) skips NULL slaves of single-body constraints */
     {
-      if (bod->kind == OBS) continue; /* obstacles do not trasnder adjacency */
+      if (ext->kind == CONTACT && bod->kind == OBS) continue; /* obstacles do not trasnder contact adjacency */
 
       for (item = SET_First (bod->con); item; item = SET_Next (item)) 
       {
 	con = item->data;
-
+      
 	if (con->state & CON_EXTERNAL) continue; /* for each regular constraint */
 
         if (upkind == UPPES && con->kind == CONTACT) continue; /* skip contacts during partial update (pes.c uses local dynamics only for non-contacts) */
+
+	if (con->kind == CONTACT && bod->kind == OBS) continue; /* obstacles do not trasnder contact adjacency */
  
 	ASSERT_DEBUG (bod->flags & (BODY_PARENT|BODY_CHILD), "Regular constraint attached to a dummy"); /* we could skip dummies, but this reassures correctness */
 
@@ -491,7 +493,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
     ldy->dia->p = dia;
   ldy->dia = dia;
 
-  if (one && one->kind != OBS) /* obstacles do not transfer adjacency */
+  if (one && !(con->kind == CONTACT && one->kind == OBS)) /* obstacles do not transfer contact adjacency */
   {
     for (item = SET_First (one->con); item; item = SET_Next (item))
     {
@@ -519,7 +521,7 @@ DIAB* LOCDYN_Insert (LOCDYN *ldy, CON *con, BODY *one, BODY *two)
     }
   }
 
-  if (two && two->kind != OBS) /* 'one' replaced with 'two' */
+  if (two && !(con->kind == CONTACT && two->kind == OBS)) /* 'one' replaced with 'two' */
   {
     for (item = SET_First (two->con); item; item = SET_Next (item))
     {

@@ -729,7 +729,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       }
     }
 
-    if (m->kind != OBS)
+    if (!(con->kind == CONTACT && m->kind == OBS))
     {
       dat->mH = BODY_Gen_To_Loc_Operator (m, con->msgp, mpnt, base);
       dat->mi = (int) (long) MAP_Find (A->bod, m, NULL);
@@ -745,7 +745,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       }
     }
 
-    if (s && s->kind != OBS)
+    if (s && !(con->kind == CONTACT && s->kind == OBS))
     {
       dat->sH = BODY_Gen_To_Loc_Operator (s, con->ssgp, spnt, base);
       dat->si = (int) (long) MAP_Find (A->bod, s, NULL);
@@ -778,7 +778,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 	   *spnt = con->spnt,
 	   *base = con->base;
 
-    if (m->kind != OBS && (jtem = MAP_Find_Node (A->bod, m, NULL)))
+    if (!(con->kind == CONTACT && m->kind == OBS) && (jtem = MAP_Find_Node (A->bod, m, NULL)))
     {
       dat->mH = BODY_Gen_To_Loc_Operator (m, con->msgp, mpnt, base);
       dat->mi = (int) (long) jtem->data;
@@ -789,7 +789,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       }
     }
 
-    if (s && s->kind != OBS && (jtem = MAP_Find_Node (A->bod, s, NULL)))
+    if (s && !(con->kind == CONTACT && s->kind == OBS) && (jtem = MAP_Find_Node (A->bod, s, NULL)))
     {
       dat->sH = BODY_Gen_To_Loc_Operator (s, con->ssgp, spnt, base);
       dat->si = (int) (long) jtem->data;

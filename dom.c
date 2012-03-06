@@ -518,6 +518,8 @@ static void update_contact (DOM *dom, CON *con)
       }
       if (i < k) /* sub-points list too short */
       {
+	/* FIXME / XXX => this still causes problems in parallel <= XXX \ FIXME */
+#if 0
 	for (; i < k; i ++) /* insert new sub-points */
 	{
 	  sub = insert_contact (dom, con->master, con->slave, con->msgp, con->ssgp,
@@ -529,6 +531,7 @@ static void update_contact (DOM *dom, CON *con)
 	  sub->n = con->n;
 	  con->n = sub;
 	}
+#endif
       }
       else /* sub-points lists too long */
       {
@@ -1664,7 +1667,6 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
       for (; k > 0; k --)
       {
         sub = unpack_constraint (dom, dpos, d, doubles, ipos, i, ints); /* unpack sub-points */
-	sub->state |= CON_SUBPOINT; /* mark as sub-point */
 	sub->n = con->n; /* insert into sub-points lists */
 	con->n = sub;
       }
