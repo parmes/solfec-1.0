@@ -272,6 +272,8 @@ static void rig_force (BODY *bod, double *q, double *u, double t, double h,
   SET (spatorq, 0);
   SET (reftorq, 0);
 
+  if (bod->kind == OBS) return; /* no loads for obstacles */
+
   for (FORCE *frc = bod->forces; frc; frc = frc->next)
   {
     if (frc->func)
@@ -413,6 +415,8 @@ static void rig_constraints_force (BODY *bod, double *force)
     CON *con = node->data;
     short isma = (bod == con->master);
     double *point = (isma ? con->mpnt : con->spnt);
+
+    if (con->kind == CONTACT && bod->kind == OBS) continue; /* obstacles do not react to contact forces */
 
     rig_constraints_force_accum (bod, point, con->base, con->R, isma, force);
   }
@@ -805,7 +809,7 @@ static int conf_pack_size (BODY *bod)
 {
   switch (bod->kind)
   {
-  case OBS: return 0;
+  case OBS:
   case RIG: return RIG_CONF_SIZE;
   case PRB: return PRB_CONF_SIZE;
   case FEM: return FEM_Conf_Pack_Size (bod);
@@ -818,7 +822,7 @@ static int velo_pack_size (BODY *bod)
 {
   switch (bod->kind)
   {
-  case OBS: return 0;
+  case OBS:
   case RIG: return RIG_VELO_SIZE;
   case PRB: return PRB_VELO_SIZE;
   case FEM: return FEM_Velo_Pack_Size (bod);
@@ -855,7 +859,7 @@ void overwrite_state (BODY *src, BODY *dst)
 {
   switch (src->kind)
   {
-    case OBS: break;
+    case OBS:
     case RIG:
     {
       double *cs = RIG_CENTER(src),
@@ -897,10 +901,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
   switch (kind)
   {
     case OBS:
-    {
-      ERRMEM (bod = MEM_CALLOC (sizeof (BODY)));
-    }
-    break;
     case RIG:
     {
       double euler [9];
@@ -1019,7 +1019,7 @@ int BODY_Conf_Size (BODY *bod)
 {
   switch (bod->kind)
   {
-  case OBS: return 0;
+  case OBS:
   case RIG: return 12;
   case PRB: return 12;
   case FEM: return FEM_Conf_Size (bod);
@@ -1040,7 +1040,7 @@ void BODY_Overwrite_State (BODY *bod, double *q, double *u)
 {
   switch (bod->kind)
   {
-    case OBS: break;
+    case OBS:
     case RIG:
       memcpy (bod->conf, q, sizeof (double [12]));
       memcpy (bod->velo, u, sizeof (double [6]));
@@ -1059,7 +1059,7 @@ void BODY_Initial_Velocity (BODY *bod, double *linear, double *angular)
 {
   switch (bod->kind)
   {
-    case OBS: break;
+    case OBS:
     case RIG:
       if (angular) {COPY (angular, RIG_ANGVEL(bod));}
       if (linear) {COPY (linear, RIG_LINVEL(bod));}
@@ -1192,12 +1192,6 @@ void BODY_Dynamic_Init (BODY *bod)
   switch (bod->kind)
   {
     case OBS:
-      if (!bod->inverse)  /* initialize once */
-      {
-	bod->inverse = MX_Create (MXDENSE, 3, 3, NULL, NULL);
-        MX_Zero (bod->inverse); /* fake zero matrix */
-      }
-      break;
     case RIG: 
       if (!bod->inverse) rig_dynamic_inverse (bod); /* initialize once */
       break;
@@ -1258,7 +1252,7 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 {
   switch (bod->kind)
   {
-    case OBS: break;
+    case OBS:
     case RIG:
     {
       double half = 0.5 * step,
@@ -1367,7 +1361,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 
   switch (bod->kind)
   {
-    case OBS: break;
+    case OBS:
     case RIG:
     {
       SCHEME sch = bod->scheme;
@@ -1495,13 +1489,6 @@ void BODY_Static_Init (BODY *bod)
   switch (bod->kind)
   {
     case OBS:
-      if (!bod->inverse) 
-      {
-	bod->inverse =
-	MX_Create (MXDENSE, 3, 3, NULL, NULL);
-        MX_Zero (bod->inverse); /* fake zero matrix */
-      }
-      break;
     case RIG:
     {
       double *W = RIG_ANGVEL(bod),
@@ -1540,7 +1527,7 @@ void BODY_Static_Step_Begin (BODY *bod, double time, double step)
 {
   switch (bod->kind)
   {
-    case OBS: break;
+    case OBS:
     case RIG:
     {
       double force [6];
@@ -1568,7 +1555,7 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
 {
   switch (bod->kind)
   {
-    case OBS: break;
+    case OBS:
     case RIG:
     {
       double force [6],
@@ -1649,8 +1636,6 @@ void BODY_Cur_Point (BODY *bod, SGP *sgp, double *X, double *x)
   switch (bod->kind)
   {
     case OBS:
-      COPY (X, x);
-    break;
     case RIG:
     {
       double *R = RIG_ROTATION(bod),
@@ -1685,8 +1670,6 @@ void BODY_Ref_Point (BODY *bod, SGP *sgp, double *x, double *X)
   switch (bod->kind)
   {
     case OBS:
-      COPY (x, X);
-    break;
     case RIG:
     {
       double *R = RIG_ROTATION(bod),
@@ -1722,8 +1705,6 @@ void BODY_Cur_Vector (BODY *bod, void *ele, double *X, double *V, double *v)
   switch (bod->kind)
   {
     case OBS:
-      COPY (V, v);
-    break;
     case RIG:
     {
       double *R = RIG_ROTATION(bod);
@@ -1747,8 +1728,6 @@ void BODY_Ref_Vector (BODY *bod, void *ele, double *x, double *v, double *V)
   switch (bod->kind)
   {
     case OBS:
-      COPY (v, V);
-    break;
     case RIG:
     {
       double *R = RIG_ROTATION(bod);
@@ -1772,9 +1751,6 @@ void BODY_Local_Velo (BODY *bod, SGP *sgp, double *point, double *base, double *
   switch (bod->kind)
   {
     case OBS:
-      if (prevel) SET (prevel, 0.0);
-      if (curvel) SET (curvel, 0.0);
-    break;
     case RIG:
     {
       double H [18];
@@ -1806,9 +1782,6 @@ MX* BODY_Gen_To_Loc_Operator (BODY *bod, SGP *sgp, double *point, double *base)
   switch (bod->kind)
   {
     case OBS:
-      H = MX_Create (MXDENSE, 3, 3, NULL, NULL); /* fake zero matrix */
-      MX_Zero (H);
-      break;
     case RIG:
       H = MX_Create (MXDENSE, 3, 6, NULL, NULL);
       rig_operator_H (bod, point, base, H->x);
@@ -1831,7 +1804,7 @@ double BODY_Kinetic_Energy (BODY *bod)
 
   switch (bod->kind)
   {
-    case OBS: break;
+    case OBS:
     case RIG:
     {
       double *J = BOD_J0(bod),
@@ -1868,7 +1841,7 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
 {
   switch (bod->kind)
   {
-  case OBS: break;
+  case OBS:
   case RIG:
   case PRB:
   {
@@ -2445,14 +2418,13 @@ void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
 {
   switch (bod->kind)
   {
+    case OBS:
     case RIG:
     case PRB:
       MX_Matvec (alpha, bod->inverse, b, beta, c);
       break;
     case FEM:
       FEM_Invvec (alpha, bod, b, beta, c);
-      break;
-    case OBS:
       break;
   }
 }
