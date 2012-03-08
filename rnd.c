@@ -3881,7 +3881,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("bigger arrows /]/", TOOLS_BIGGER_SCALING);
   glutAddMenuEntry ("smaller arrows /[/", TOOLS_SMALLER_SCALING);
   glutAddMenuEntry ("toggle output path /o/", TOOLS_OUTPATH);
-  glutAddMenuEntry ("point coordiantes /x/", TOOLS_POINTS_COORDS);
+  glutAddMenuEntry ("point coordinates /x/", TOOLS_POINTS_COORDS);
   glutAddMenuEntry ("points distance /d/", TOOLS_POINTS_DISTANCE);
   glutAddMenuEntry ("points angle /g/", TOOLS_POINTS_ANGLE);
   glutAddMenuEntry ("trackball center /L/", TOOLS_TRACKBALL_CENTER);
