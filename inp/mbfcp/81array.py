@@ -23,7 +23,7 @@ if argv == None:
   print '----------------------------------------------------------'
   print 'No user paramters passed! Possible paramters:'
   print '----------------------------------------------------------'
-  print '-form name => where name is TL, BC or RO'
+  print '-form name => where name is TL, BC, RO or RG'
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-ibmod num => interstitial brick modes, num >= 6 and <= 32'
   print '-lkmod num => loose key modes, num >= 6 and <= 12'
@@ -42,7 +42,7 @@ if argv != None and len (argv) > 1:
     elif argv [i] == '-lkmod':
       lkmod = max (min (12, long (argv [i+1])), 6)
     if argv [i] == '-form':
-      if argv [i+1] in ('TL', 'BC', 'RO'):
+      if argv [i+1] in ('TL', 'BC', 'RO', 'RG'):
 	formu = argv [i+1]
 
 print 'Using formulation: ', formu
@@ -98,7 +98,9 @@ for inst in model.assembly.instances.values():	# .instances is a dict
   label = inst.name	              # use Abaqus instance name
   mesh = inst.mesh	              # solfec MESH object at the instance position
   bulkmat = inst.material	        # solfec BULK_MATERIAL object
-  if formu != 'RO':
+  if formu == 'RG':
+    bdy = BODY(solfec, 'RIGID', mesh, bulkmat, label)
+  elif formu != 'RO':
     bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = formu)
   else:
     bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
@@ -115,7 +117,7 @@ for inst in model.assembly.instances.values():	# .instances is a dict
 
 for b in solfec.bodies:
 
-  b.scheme = 'DEF_LIM'
+  if b.kind != 'RIGID': b.scheme = 'DEF_LIM'
   c = b.center
 
   print "body mass:", b.label, b.mass, "Kg"
