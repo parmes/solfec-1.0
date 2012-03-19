@@ -193,6 +193,7 @@ enum /* menu items */
   TOOLS_TRACKBALL_CENTER,
   TOOLS_WIREFRAME_ALL,
   TOOLS_WIREFRAME_NONE,
+  TOOLS_LEGENDS_ON_OFF,
   TOOLS_NEXT_MODE,
   TOOLS_PREVIOUS_MODE,
   ANALYSIS_RUN,
@@ -367,6 +368,8 @@ static short modal_analysis_menu = 0; /* modal analysis menu item flag */
 static double eigenshape_factor = 0.15; /* eigenshapes scaling factor */
 static int current_eigenmode = -1; /* current eigenmode */
 static char modetip [512]; /* mode number and eigenvalue tip */
+
+static short legendon = 1; /* enabled / disabled legend flag */
 
 
 /* menu modal analysis callback */
@@ -3056,7 +3059,7 @@ static void update ()
 
     update_cuts_values ();
 
-    legend_enable ();
+    if (legendon) legend_enable ();
   }
 
   if (render_bodies)
@@ -3757,6 +3760,37 @@ static void menu_tools (int item)
     }
     update ();
     break;
+  case TOOLS_LEGENDS_ON_OFF:
+    if (legendon)
+    {
+      if (legend.window)
+      {
+	GLV_Close_Viewport (legend.window);
+	legend.window = 0;
+      }
+
+      GLV_Close_Viewport (time_window);
+
+      GLV_Close_Viewport (coord_window);
+
+      legendon = 0;
+
+    }
+    else
+    {
+      int w, h;
+
+      if (legend.entity) legend_enable ();
+
+      GLV_Sizes (&w, &h);
+
+      time_window = GLV_Open_Viewport (0, -(h - TIME_HEIGHT), time_width (), TIME_HEIGHT, 0, time_render);
+
+      coord_window = GLV_Open_Viewport (-(w - COORD_WIDTH), 0, COORD_WIDTH, COORD_HEIGHT, 1, coord_render);
+
+      legendon = 1;
+    }
+    break;
   case TOOLS_NEXT_MODE:
     if (modal_analysis_menu)
     {
@@ -3887,6 +3921,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("trackball center /L/", TOOLS_TRACKBALL_CENTER);
   glutAddMenuEntry ("wireframe all /w/", TOOLS_WIREFRAME_ALL);
   glutAddMenuEntry ("wireframe none /W/", TOOLS_WIREFRAME_NONE);
+  glutAddMenuEntry ("legends on/off /l/", TOOLS_LEGENDS_ON_OFF);
 
   menu_name [MENU_KINDS] = "kinds of";
   menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
@@ -4117,6 +4152,9 @@ void RND_Key (int key, int x, int y)
     break;
   case 'W':
     menu_tools (TOOLS_WIREFRAME_NONE);
+    break;
+  case 'l':
+    menu_tools (TOOLS_LEGENDS_ON_OFF);
     break;
   }
 }
