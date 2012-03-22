@@ -11,7 +11,7 @@ import time
 import pickle
 import commands
 sys.path.append('inp/mesh/abaqusreader')
-sys.path.append('inp/mbfcp')
+sys.path.append('inp/mbfcp/81array')
 from abaqusreader import AbaqusInput
 from math import cos 
 
@@ -78,7 +78,7 @@ OUTPUT (solfec, 2E-3) # The physical tests recorded digitased outputs at 2E-3s i
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = 0.0)
 
 if RANK () == 0:
-  commands.getoutput ("bunzip2 inp/mbfcp/ts81.py.bz2") # only first CPU unpacks the input
+  commands.getoutput ("bunzip2 inp/mbfcp/81array/ts81.py.bz2") # only first CPU unpacks the input
 
 BARRIER () # let all CPUs meet here
 
@@ -88,7 +88,7 @@ from ts81 import TS81 # import the time series
 vel = TS81()
 
 if RANK () == 0:
-  commands.getoutput ("bzip2 inp/mbfcp/ts81.py") # only first CPU pack the input
+  commands.getoutput ("bzip2 inp/mbfcp/81array/ts81.py") # only first CPU pack the input
 
 # Create a new AbaqusInput object from the .inp deck:
 model = AbaqusInput(solfec, 'inp/mesh/81array.inp')

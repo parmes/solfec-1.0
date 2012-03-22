@@ -564,6 +564,8 @@ static void update_contact (DOM *dom, CON *con)
 #endif
     DOM_Remove_Constraint (dom, con); /* remove from the domain */
   }
+
+  if (tri) free (tri);
 }
 
 /* update fixed point data */
