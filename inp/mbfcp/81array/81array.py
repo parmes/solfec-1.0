@@ -25,7 +25,7 @@ if argv == None:
   print '----------------------------------------------------------'
   print '-form name => where name is TL, BC, RO or RG'
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
-  print '-ibmod num => interstitial brick modes, num >= 6 and <= 32'
+  print '-ibmod num => interstitial brick modes, num >= 6 and <= 64'
   print '-lkmod num => loose key modes, num >= 6 and <= 12'
   print '----------------------------------------------------------'
 
@@ -38,7 +38,7 @@ if argv != None and len (argv) > 1:
     if argv [i] == '-fbmod':
       fbmod = max (min (64, long (argv [i+1])), 6)
     elif argv [i] == '-ibmod':
-      ibmod = max (min (32, long (argv [i+1])), 6)
+      ibmod = max (min (64, long (argv [i+1])), 6)
     elif argv [i] == '-lkmod':
       lkmod = max (min (12, long (argv [i+1])), 6)
     if argv [i] == '-form':
