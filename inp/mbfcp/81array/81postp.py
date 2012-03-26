@@ -231,8 +231,8 @@ for (path, lbl) in zip (vpath, vlabel):
     ax = [] # will fill with axes objects for subplots as we generate them - NB is zero-based!
     for i, p in enumerate(plotorder):
       newax = fig1.add_subplot(3,2, i + 1) # row, col, plot_number (starts at 1, inconveniently, goes left-right top-bottom)
-      newax.plot(winfreqs, nor_pkVs[p], '-', label=lbl + '-' +  p)
-      #newax.set_title(p).set_fontsize('small')
+      newax.plot(winfreqs, nor_pkVs[p], '-', label=lbl)
+      newax.set_title(p).set_fontsize('small')
       newax.grid(True)
       newax.set_ylim(0.0, 4.0)  # to match Fig 5 of C33/C34/PSD/213/220
       newax.set_xlim(0.0, 15.0) # ditto
@@ -264,8 +264,8 @@ for i, p in enumerate(plotorder):
     x.append (row [0])
     y.append (row [1])
   newax = fig1.add_subplot(3,2, i + 1) # row, col, plot_number (starts at 1, inconveniently, goes left-right top-bottom)
-  newax.plot(x, y, '-', label='EXP-' +  p)
-  #newax.set_title(p).set_fontsize('small')
+  newax.plot(x, y, '-', label='EXP')
+  newax.set_title(p).set_fontsize('small')
   newax.grid(True)
   newax.set_ylim(0.0, 4.0)  # to match Fig 5 of C33/C34/PSD/213/220
   newax.set_xlim(0.0, 15.0) # ditto
@@ -273,14 +273,28 @@ for i, p in enumerate(plotorder):
   ax.append(newax)
 
 # find common output name
-set1 = sets.Set (vpath[0].split('_'))
+def makeset(path):
+  val = []
+  i = 1
+  for j in path.split ('_'):
+    if j.endswith ('thv'): continue
+    val.append ((i, j))
+    i = i + 1
+  return sets.Set (val)
+
+set1 = makeset (vpath [0])
 for path in vpath:
-  set2 = sets.Set (path.split('_'))
+  set2 = makeset (path)
   set1 = set1.intersection (set2)
 
-plotpath = ''
+list = []
 for item in set1:
-  plotpath += item
+  list.append (item)
+list.sort ()
+
+plotpath = ''
+for item in list:
+  plotpath += item [1]
 
 plotpath += '_VX_UNVERIFIED.eps'
 
