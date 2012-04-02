@@ -27,12 +27,20 @@ if argv == None:
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-ibmod num => interstitial brick modes, num >= 6 and <= 64'
   print '-lkmod num => loose key modes, num >= 6 and <= 12'
+  print '-afile path => Abaqus 81 array file path'
+  print '-step num => time step'
+  print '-damp num => damping value'
+  print '-rest num => impact restitution'
   print '----------------------------------------------------------'
 
 formu = 'RO'
 fbmod = 12
 ibmod = 12
 lkmod = 12
+afile = 'inp/mesh/81array.inp'
+step = 1E-4
+damp = 1E-5
+rest = 0.0
 if argv != None and len (argv) > 1:
   for i in range (0, len(argv)-1):
     if argv [i] == '-fbmod':
@@ -41,20 +49,32 @@ if argv != None and len (argv) > 1:
       ibmod = max (min (64, long (argv [i+1])), 6)
     elif argv [i] == '-lkmod':
       lkmod = max (min (12, long (argv [i+1])), 6)
-    if argv [i] == '-form':
+    elif argv [i] == '-form':
       if argv [i+1] in ('TL', 'BC', 'RO', 'RG'):
 	formu = argv [i+1]
+    elif argv [i] == '-afile':
+      afile = argv [i+1]
+    elif argv [i] == '-step':
+      step = float (argv [i+1])
+      if step <= 0.0: step = 1E-4
+    elif argv [i] == '-damp':
+      damp = max (float (argv [i+1]), 0.0)
+    elif argv [i] == '-rest':
+      rest = max (min (1.0, float (argv [i+1])), 0.0)
 
 print 'Using formulation: ', formu
 if formu == 'RO':
   print '%d modes per fuel brick'%fbmod
   print '%d modes per interstitial brick'%ibmod
   print '%d modes per loose key'%lkmod
+print 'Using %g time step and %g damping'%(step, damp)
 print '----------------------------------------------------------'
 
 if formu == 'RO':
   ending = 'RO_FB%d_IB%d_LK%d'%(fbmod,ibmod,lkmod)
 else: ending = formu
+
+ending = '%s_%s_s%.0e_d%.0e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), ending, step, damp, rest)
 
 # Analysis inputs
 
@@ -67,15 +87,14 @@ input_bricks = (['FB1(0)(0)', 'FB1(0)(1)', 'FB1(0)(2)', 'FB1(0)(3)', 'FB1(0)(4)'
                 'IB2(5)(0)', 'IB2(5)(1)', 'IB2(5)(2)', 'IB2(5)(3)', 'IB2(5)(4)', #Side 3 (right)
                 'IB1(0)(0)', 'IB1(1)(0)', 'IB1(2)(0)', 'IB1(3)(0)', 'IB1(4)(0)']) #Side 4 (bottom)
 
-step = 1E-4
 stop = 72.0
 dwell = 2.0 # length in seconds of constant-frequency dwell at start of analysis
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/81array_' + ending)
+solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/' + ending)
 
 OUTPUT (solfec, 2E-3) # The physical tests recorded digitased outputs at 2E-3s intervals
 
-SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = 0.0)
+SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
 if RANK () == 0:
   commands.getoutput ("bunzip2 inp/mbfcp/81array/ts81.py.bz2") # only first CPU unpacks the input
@@ -91,7 +110,7 @@ if RANK () == 0:
   commands.getoutput ("bzip2 inp/mbfcp/81array/ts81.py") # only first CPU pack the input
 
 # Create a new AbaqusInput object from the .inp deck:
-model = AbaqusInput(solfec, 'inp/mesh/81array.inp')
+model = AbaqusInput(solfec, afile)
 
 # Create a Finite Element body for each Instance in the Assembly:
 for inst in model.assembly.instances.values():	# .instances is a dict
@@ -126,7 +145,7 @@ for b in solfec.bodies:
   
     # Set fuel brick damping
   
-    b.damping = 1E-5
+    b.damping = damp
 
     # vertical constraints
 
@@ -149,7 +168,7 @@ for b in solfec.bodies:
   
     # Set interstitial brick damping
     
-    b.damping = 1E-4
+    b.damping = damp
 
     # vertical constraints
 
@@ -172,7 +191,7 @@ for b in solfec.bodies:
   
     # Set loose key damping
     
-    b.damping = 1E-4
+    b.damping = damp
 
     p7 = TRANSLATE (c, (0, 0, 0))
     FIX_DIRECTION (b, p7, (0, 0, -1))
@@ -256,6 +275,6 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
   thv = HISTORY(solfec, requests, dwell, stop, progress='ON')
 
   # save time series using pickle object
-  f = open(solfec.outpath + '/81array_%s.thv'%ending, 'w')
+  f = open(solfec.outpath + '/%s.thv'%ending, 'w')
   pickle.dump (thv, f)
   f.close ()
