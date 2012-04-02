@@ -14,6 +14,9 @@ step = 1E-4
 stop = 0.5
 damp = 1E-6
 impactVelocity = 0.15 #15cm/s
+fbmod = 12
+afile = 'inp/mesh/81fbi.inp'
+rest = 0.0
 
 # User paramters
 
@@ -26,9 +29,10 @@ if argv == None:
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-damp num => damping, >= 0.0'
   print '-step num => time step, > 0.0'
+  print '-afile path => Abaqus 81 array file path'
+  print '-rest num => impact restitution'
   print '------------------------------------------------------'
 
-fbmod = 12
 if argv != None and len (argv) > 1:
   for i in range (0, len(argv)-1):
     if argv [i] == '-fbmod':
@@ -38,6 +42,10 @@ if argv != None and len (argv) > 1:
     elif argv [i] == '-step':
       step = float (argv [i+1])
       if step <= 0.0: step = 1E-4
+    elif argv [i] == '-afile':
+      afile = argv [i+1]
+    elif argv [i] == '-rest':
+      rest = max (min (1.0, float (argv [i+1])), 0.0)
 
 print 'Using:'
 print '%d modes per fuel brick'%fbmod
@@ -47,12 +55,14 @@ print '------------------------------------------------------'
 
 # Model
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/81fbi_%d_%g_%g'% (fbmod, damp, step))
+ending = '%s_%d_s%.0e_d%.0e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), fbmod, step, damp, rest)
 
-SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = 0.0)
+solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/' + ending)
+
+SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
 # Create a new AbaqusInput object from the .inp deck:
-model = AbaqusInput(solfec, 'inp/mesh/81fbi.inp')
+model = AbaqusInput(solfec, afile)
 
 # Create a Finite Element body for each Instance in the Assembly:
 for inst in model.assembly.instances.values():	# .instances is a dict
@@ -120,18 +130,18 @@ if not VIEWER() and solfec.mode == 'READ':
   res_vel_temp = zip(th[3], th[1])
   res_vel = [r1-r2 for r1,r2 in res_vel_temp]
 			    
-  rest = []
+  vrest = []
   for v in res_vel:
-    rest.append(v/impactVelocity)
+    vrest.append(v/impactVelocity)
 
-  plt.plot (th[0],rest,lw = 2, label = 'Brick_Restitution')
+  plt.plot (th[0],vrest,lw = 2, label = 'Brick_Restitution')
   plt.legend(loc = 'lower left')
 
   plt.title ('SUB02 FB-FB Normal Contact FB damping=%s'% b.damping)
   plt.savefig (solfec.outpath + '/Brick_Velocity_Damp%g.png'% b.damping) 
   plt.show()
   
-  print "For FB damping =", b.damping, " coeficient of restitution = ", rest[-1]
+  print "For FB damping =", b.damping, " coeficient of restitution = ", vrest[-1]
     
 # solver and run
 GEOMETRIC_EPSILON (1E-6)
