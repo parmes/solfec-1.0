@@ -663,7 +663,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     /* diagonal block */
     if (m != s)
     {
-      dia->mH = BODY_Gen_To_Loc_Operator (m, msgp, mpnt, base);
+      dia->mH = BODY_Gen_To_Loc_Operator (m, con->kind, msgp, mpnt, base);
 #if MPI
       dia->mprod = MX_Matmat (1.0, dia->mH, m->inverse, 0.0, NULL);
       MX_Matmat (1.0, dia->mprod, MX_Tran (dia->mH), 0.0, &W); /* H * inv (M) * H^T */
@@ -674,7 +674,7 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 
       if (s)
       {
-	dia->sH = BODY_Gen_To_Loc_Operator (s, ssgp, spnt, base);
+	dia->sH = BODY_Gen_To_Loc_Operator (s, con->kind, ssgp, spnt, base);
 	MX_Scale (dia->sH, -1.0);
 #if MPI
 	dia->sprod = MX_Matmat (1.0, dia->sH, s->inverse, 0.0, NULL);
@@ -688,8 +688,8 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     }
     else /* eg. self-contact */
     {
-      MX *mH = BODY_Gen_To_Loc_Operator (m, msgp, mpnt, base),
-	 *sH = BODY_Gen_To_Loc_Operator (s, ssgp, spnt, base);
+      MX *mH = BODY_Gen_To_Loc_Operator (m, con->kind, msgp, mpnt, base),
+	 *sH = BODY_Gen_To_Loc_Operator (s, con->kind, ssgp, spnt, base);
 
       dia->mH = MX_Add (1.0, mH, -1.0, sH, NULL);
       dia->sH = MX_Copy (dia->mH, NULL);
@@ -794,12 +794,12 @@ sumene:
 
       if (bod == ext->master)
       {
-	right = BODY_Gen_To_Loc_Operator (bod, ext->msgp, ext->mpnt, ext->base);
+	right = BODY_Gen_To_Loc_Operator (bod, ext->kind, ext->msgp, ext->mpnt, ext->base);
 
 	if (bod == ext->slave) /* right self-contact */
 	{
 	  MX *a = right,
-	     *b = BODY_Gen_To_Loc_Operator (bod, ext->ssgp, ext->spnt, ext->base);
+	     *b = BODY_Gen_To_Loc_Operator (bod, ext->kind, ext->ssgp, ext->spnt, ext->base);
 
 	  right = MX_Add (1.0, a, -1.0, b, NULL);
 	  MX_Destroy (a);
@@ -807,7 +807,7 @@ sumene:
       }
       else
       {
-	right = BODY_Gen_To_Loc_Operator (bod, ext->ssgp, ext->spnt, ext->base);
+	right = BODY_Gen_To_Loc_Operator (bod, ext->kind, ext->ssgp, ext->spnt, ext->base);
 	MX_Scale (right, -1.0);
       }
      

@@ -1775,13 +1775,17 @@ void BODY_Local_Velo (BODY *bod, SGP *sgp, double *point, double *base, double *
   }
 }
 
-MX* BODY_Gen_To_Loc_Operator (BODY *bod, SGP *sgp, double *point, double *base)
+MX* BODY_Gen_To_Loc_Operator (BODY *bod, short constraint_kind, SGP *sgp, double *point, double *base)
 {
   MX *H = NULL;
 
   switch (bod->kind)
   {
     case OBS:
+      H = MX_Create (MXDENSE, 3, 6, NULL, NULL);
+      if (constraint_kind == CONTACT) MX_Zero (H); /* no contribution for contacts */
+      else rig_operator_H (bod, point, base, H->x); /* only for self-constraints */
+    break;
     case RIG:
       H = MX_Create (MXDENSE, 3, 6, NULL, NULL);
       rig_operator_H (bod, point, base, H->x);

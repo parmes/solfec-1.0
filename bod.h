@@ -266,8 +266,8 @@ void BODY_Ref_Vector (BODY *bod, void *ele, double *x, double *v, double *V);
 /* obtain spatial velocity at (sgp, referential point), expressed in the local spatial 'base' */
 void BODY_Local_Velo (BODY *bod, SGP *sgp, double *point, double *base, double *prevel, double *curvel);
 
-/* return transformation operator from the generalised to the local velocity space at (element, point, base) */
-MX* BODY_Gen_To_Loc_Operator (BODY *bod, SGP *sgp, double *point, double *base);
+/* return transformation operator from the generalised to the local velocity space at (sgp, point, base) */
+MX* BODY_Gen_To_Loc_Operator (BODY *bod, short constraint_kind, SGP *sgp, double *point, double *base);
 
 /* compute current kinetic energy */
 double BODY_Kinetic_Energy (BODY *bod);
