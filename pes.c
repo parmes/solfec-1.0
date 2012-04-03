@@ -33,7 +33,7 @@
 int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot,
                               double friction, double cohesion, double *W, double *B, double *V, double *U, double *R)
 {
-#if 0 
+#if 1 
   double INV [4], WTT[4] = {W[0], W[1], W[3], W[4]}, BN, BT [2], det, len;
   short cohesive = con->state & CON_COHESIVE;
 
@@ -122,7 +122,7 @@ int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, doubl
   det = W[0]*W[4] - W[1]*W[3];
   rho = 1.0 / (0.5*trc + sqrt (0.25*trc-det)); /* 1.0 / larger eigenvalue of W_TT */
   trc = 1.0 / (0.5*spring*step + dashpot);
-  //trc = 1.0 / (0.25*spring*step + dashpot);
+  //trc = 1.0 / (0.25*spring*step + 0.5*dashpot);
 
   error = 1.0;
   iter = 0;
@@ -196,8 +196,8 @@ int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, doubl
     if (implicit)
     { 
       double r = spring*(gap + 0.5*step*U[2]) + dashpot*U[2];
-      //double r = spring*0.5*(2*gap + 0.5*step*(U[2]-V[2])) + dashpot*U[2];
-      Z [2] = -trc * ((R[2]+cohesion) - MAX (-r, 0));
+      //double r = spring*(gap + 0.25*step*(U[2]-V[2])) + 0.5*dashpot*(U[2]+V[2]);
+      Z [2] = -trc * ((R[2]+cohesion) -MAX(-r,0));
       ASSERT_TEXT (lapack_dgesv (3, 1, T, 3, ipiv, Z, 3) == 0, "Newton iterations failed in the PENALTY_SOLVER");
     }
     else
@@ -216,6 +216,12 @@ int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, doubl
 #endif
   }
   while (error > 1E-10 && iter < 100);
+
+  if (R[2] < 0.0)
+  {
+    SET (R, 0.0);
+    COPY (B, U);
+  }
 
   return 0;
 #endif
