@@ -12,6 +12,8 @@ argv = NON_SOLFEC_ARGV()
 if argv == None:
   print '---------------------------------------------------------------------------------------'
   print 'SYNOPSIS: solfec 81postp.py path/to/file_1.thv label_1 path/to/file_2.thv label_2 [...]'
+  print 'No user paramters passed! Possible paramters:'
+  print '-outfig path => output figure path'
   print '---------------------------------------------------------------------------------------'
   print 'Paths and labels can be given in any combination, only their order matters.'
   print 'For example this is also fine: solfec 81postp.py path1 path2 label1 label2.'
@@ -20,6 +22,8 @@ if argv == None:
   print '---------------------------------------------------------------------------------------'
   sys.exit ()
 
+outfig = ''
+get_outfig = 0
 success = 0
 vpath = []
 vlabel = []
@@ -31,6 +35,11 @@ for str in argv:
       f.close ()
       vpath.append (str)
     except: pass
+  elif str == '-outfig':
+    get_outfig = 1
+  elif get_outfig:
+    outfig = str
+    get_outfig = 0
   else: vlabel.append (str)
 
 if not success:
@@ -181,7 +190,7 @@ for (path, lbl) in zip (vpath, vlabel):
   qatext = qatext1 + '\n' + qatext2 + '\n' + qatext3
 
   # open a file for text output
-  with open(outpath + '_VX_UNVERIFIED.txt', 'w') as fout:
+  with open(outpath + '.txt', 'w') as fout:
     fout.write(qatext + '\n')
     fout.write('\n')
     fout.write('\t'.join(['Body', 'Max(peak)', 'Freq']))
@@ -292,11 +301,12 @@ for item in set1:
   list.append (item)
 list.sort ()
 
-plotpath = ''
-for item in list:
-  plotpath += item [1]
-
-plotpath += '_VX_UNVERIFIED.eps'
+if outfig <> '': plotpath = outfig
+else:
+  plotpath = ''
+  for item in list:
+    plotpath += item [1]
+  plotpath += '.eps'
 
 # save figure
 fig1.savefig(plotpath)

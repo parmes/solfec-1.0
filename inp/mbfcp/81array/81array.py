@@ -31,6 +31,7 @@ if argv == None:
   print '-step num => time step'
   print '-damp num => damping value'
   print '-rest num => impact restitution'
+  print '-outi num => output interval'
   print '----------------------------------------------------------'
 
 formu = 'RO'
@@ -41,6 +42,7 @@ afile = 'inp/mesh/81array.inp'
 step = 1E-4
 damp = 1E-5
 rest = 0.0
+outi = 2E-3 # The physical tests recorded digitased outputs at 2E-3s intervals
 if argv != None and len (argv) > 1:
   for i in range (0, len(argv)-1):
     if argv [i] == '-fbmod':
@@ -61,6 +63,8 @@ if argv != None and len (argv) > 1:
       damp = max (float (argv [i+1]), 0.0)
     elif argv [i] == '-rest':
       rest = max (min (1.0, float (argv [i+1])), 0.0)
+    elif argv [i] == '-outi':
+      outi = float (argv [i+1])
 
 print 'Using formulation: ', formu
 if formu == 'RO':
@@ -74,7 +78,7 @@ if formu == 'RO':
   ending = 'RO_FB%d_IB%d_LK%d'%(fbmod,ibmod,lkmod)
 else: ending = formu
 
-ending = '%s_%s_s%.0e_d%.0e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), ending, step, damp, rest)
+ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), ending, step, damp, rest)
 
 # Analysis inputs
 
@@ -92,7 +96,7 @@ dwell = 2.0 # length in seconds of constant-frequency dwell at start of analysis
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/' + ending)
 
-OUTPUT (solfec, 2E-3) # The physical tests recorded digitased outputs at 2E-3s intervals
+OUTPUT (solfec, outi) # The physical tests recorded digitased outputs at 2E-3s intervals
 
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
