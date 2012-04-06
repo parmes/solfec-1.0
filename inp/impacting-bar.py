@@ -33,7 +33,7 @@ TRANSLATE (obsm, (0, 0, -0.6))
 sv = NEWTON_SOLVER ()
 
 # impact comparison
-def impact_comparison (h1, d1, E, v0, pow0, pow1):
+def impact_comparison (h1, d1, E, v0, pow0, pow1, rest):
 
   # compute all eigenvalues and eigenvectors
   pt0 = 'out/impacting-bar/MK_%g_%g_%g_%g_%d_%d'%(h1, d1, E, v0, pow0, pow1)
@@ -75,8 +75,8 @@ def impact_comparison (h1, d1, E, v0, pow0, pow1):
     vdamp.append (damping)
 
     # rotation: BC
-    sl1 = SOLFEC ('DYNAMIC', h1, 'out/impacting-bar/BC_%g_%g_%g_%g_%d_%d_%g'%(h1, d1, E, v0, pow0, pow1, damping))
-    SURFACE_MATERIAL (sl1, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 0.0)
+    sl1 = SOLFEC ('DYNAMIC', h1, 'out/impacting-bar/BC_%g_%g_%g_%g_%d_%d_%g_%g'%(h1, d1, E, v0, pow0, pow1, damping, rest))
+    SURFACE_MATERIAL (sl1, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = rest)
     bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
     bd1 = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'BC')
     bd1.scheme = 'DEF_LIM'
@@ -94,8 +94,8 @@ def impact_comparison (h1, d1, E, v0, pow0, pow1):
 
 
     # rotation: RO
-    sl2 = SOLFEC ('DYNAMIC', h1, 'out/impacting-bar/RO_%g_%g_%g_%g_%d_%d_%g'%(h1, d1, E, v0, pow0, pow1, damping))
-    SURFACE_MATERIAL (sl2, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 0.0)
+    sl2 = SOLFEC ('DYNAMIC', h1, 'out/impacting-bar/RO_%g_%g_%g_%g_%d_%d_%g_%g'%(h1, d1, E, v0, pow0, pow1, damping, rest))
+    SURFACE_MATERIAL (sl2, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = rest)
     bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
     bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
     bd2.scheme = 'DEF_LIM'
@@ -146,9 +146,12 @@ def impact_comparison (h1, d1, E, v0, pow0, pow1):
 # impacting testes
 e0 = 8
 e1 = 17
-dat0 = impact_comparison (1/1024., 1/32., 200E9, -1.0, e0, e1)
-dat1 = impact_comparison (1/2048., 1/32., 200E9, -1.0, e0, e1)
-dat2 = impact_comparison (1/4096., 1/32., 200E9, -1.0, e0, e1)
+dat0 = impact_comparison (1/1024., 1/32., 200E9, -1.0, e0, e1, 0)
+dat1 = impact_comparison (1/2048., 1/32., 200E9, -1.0, e0, e1, 0)
+dat2 = impact_comparison (1/4096., 1/32., 200E9, -1.0, e0, e1, 0)
+dat3 = impact_comparison (1/1024., 1/32., 200E9, -1.0, e0, e1, 1)
+dat4 = impact_comparison (1/2048., 1/32., 200E9, -1.0, e0, e1, 1)
+dat5 = impact_comparison (1/4096., 1/32., 200E9, -1.0, e0, e1, 1)
 
 # avg. output velocity plots
 if not VIEWER() and len(dat0[2]) > 0:
@@ -157,13 +160,13 @@ if not VIEWER() and len(dat0[2]) > 0:
     import matplotlib.pyplot as plt
 
     plt.clf ()
-    plt.title ('Impacting bar: avg. output velocity $u_z$')
-    plt.plot (dat0[1], dat0[2], label='BC: '+dat0[0])
-    plt.plot (dat0[1], dat0[3], label='RO: '+dat0[0], ls = '--', marker = 'o')
-    plt.plot (dat1[1], dat1[2], label='BC: '+dat1[0])
-    plt.plot (dat1[1], dat1[3], label='RO: '+dat1[0], ls = '--', marker = 'o')
-    plt.plot (dat2[1], dat2[2], label='BC: '+dat2[0])
-    plt.plot (dat2[1], dat2[3], label='RO: '+dat2[0], ls = '--', marker = 'o')
+    plt.title ('Impacting bar: avg. output velocity $u_z$, ($e=0$)')
+    plt.plot (dat0[1], dat0[2], label='BC: '+dat0[0] + ', $e=0$')
+    plt.plot (dat0[1], dat0[3], label='RO: '+dat0[0] + ', $e=0$', ls = '--', marker = 'o')
+    plt.plot (dat1[1], dat1[2], label='BC: '+dat1[0] + ', $e=0$')
+    plt.plot (dat1[1], dat1[3], label='RO: '+dat1[0] + ', $e=0$', ls = '--', marker = 'o')
+    plt.plot (dat2[1], dat2[2], label='BC: '+dat2[0] + ', $e=0$')
+    plt.plot (dat2[1], dat2[3], label='RO: '+dat2[0] + ', $e=0$', ls = '--', marker = 'o')
     xtic = []
     xlab = []
     for p in range (e0, min (e0+5, e1)):
@@ -173,7 +176,26 @@ if not VIEWER() and len(dat0[2]) > 0:
     plt.xlabel ('Damping $\eta$')
     plt.ylabel ('Output velocity $u_z$ [m/s]')
     plt.legend(loc = 'best')
-    plt.savefig ('out/impacting-bar/ib_vz_out.eps')
+    plt.savefig ('out/impacting-bar/ib_e0_vz_out.eps')
+
+    plt.clf ()
+    plt.title ('Impacting bar: avg. output velocity $u_z$, ($e=1$)')
+    plt.plot (dat3[1], dat3[2], label='BC: '+dat3[0] + ', $e=1$')
+    plt.plot (dat3[1], dat3[3], label='RO: '+dat3[0] + ', $e=1$', ls = '--', marker = 'o')
+    plt.plot (dat4[1], dat4[2], label='BC: '+dat4[0] + ', $e=1$')
+    plt.plot (dat4[1], dat4[3], label='RO: '+dat4[0] + ', $e=1$', ls = '--', marker = 'o')
+    plt.plot (dat5[1], dat5[2], label='BC: '+dat5[0] + ', $e=1$')
+    plt.plot (dat5[1], dat5[3], label='RO: '+dat5[0] + ', $e=1$', ls = '--', marker = 'o')
+    xtic = []
+    xlab = []
+    for p in range (e0, min (e0+5, e1)):
+      xtic.append (1./2.**p)
+      xlab.append ('$\\frac{1}{%d}$'%2**p)
+    plt.xticks (xtic, xlab)
+    plt.xlabel ('Damping $\eta$')
+    plt.ylabel ('Output velocity $u_z$ [m/s]')
+    plt.legend(loc = 'best')
+    plt.savefig ('out/impacting-bar/ib_e1_vz_out.eps')
 
   except ImportError:
     pass # no reaction

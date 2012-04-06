@@ -55,7 +55,7 @@ print '------------------------------------------------------'
 
 # Model
 
-ending = '%s_%d_s%.0e_d%.0e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), fbmod, step, damp, rest)
+ending = '%s_%d_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), fbmod, step, damp, rest)
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/' + ending)
 
