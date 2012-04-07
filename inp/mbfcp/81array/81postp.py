@@ -5,6 +5,7 @@ import sets
 import pickle
 import matplotlib.pyplot as plt
 import matplotlib as mpl
+#from itertools import cycle # could be used to cycle over styles
 
 # --- user parameters -----------------------------------------
 argv = NON_SOLFEC_ARGV()
@@ -54,7 +55,7 @@ print 'Input files:', vpath
 print 'Labels:', vlabel
 
 #  --- per-analysis parameters --------------------------------
-analysis = '81array' # analysis name
+analysis = '81 brick array' # analysis name
 win_len = 0.1        # float - window length, in Hz, used for processing
 swp_rate = 0.1       # float - input sweep rate, in Hz/s
 start_freq = 3.0     # float - input start frequency, in Hz
@@ -160,8 +161,29 @@ plotorder = ['FB2(2)(3)', # E
 	     'FB1(3)(4)', # B
 	    ] # Define plot order top-bottom, left-right
 
+# plot experimental data 
+for i, p in enumerate(plotorder):
+  data = csv.reader (open ('inp/mbfcp/81array/' + p + '.csv', 'rb'))
+  x = []
+  y = []
+  for row in data:
+    x.append (row [0])
+    y.append (row [1])
+  newax = fig1.add_subplot(3,2, i + 1) # row, col, plot_number (starts at 1, inconveniently, goes left-right top-bottom)
+  newax.plot(x, y, '-', label='EXP', linewidth=2.0)
+  newax.set_title(p).set_fontsize('small')
+  newax.grid(True)
+  newax.set_ylim(0.0, 4.0)  # to match Fig 5 of C33/C34/PSD/213/220
+  newax.set_xlim(0.0, 15.0) # ditto
+  newax.legend(prop={'size':'small'})
+
+#markers = ["s", "o", "^", "+"]
+#markcycler = cycle (markers) # can be combined with marker = next (markcycler)
+
 # read time series from file
 for (path, lbl) in zip (vpath, vlabel):
+  # marking styles
+
   # output path
   outpath = path[0:len(path)-4]
 
@@ -240,7 +262,7 @@ for (path, lbl) in zip (vpath, vlabel):
     ax = [] # will fill with axes objects for subplots as we generate them - NB is zero-based!
     for i, p in enumerate(plotorder):
       newax = fig1.add_subplot(3,2, i + 1) # row, col, plot_number (starts at 1, inconveniently, goes left-right top-bottom)
-      newax.plot(winfreqs, nor_pkVs[p], '-', label=lbl)
+      newax.plot(winfreqs, nor_pkVs[p], '-', marker = '+', label=lbl)
       newax.set_title(p).set_fontsize('small')
       newax.grid(True)
       newax.set_ylim(0.0, 4.0)  # to match Fig 5 of C33/C34/PSD/213/220
@@ -259,27 +281,11 @@ for (path, lbl) in zip (vpath, vlabel):
     
     # add titles and tidy output
     fig1.subplots_adjust(hspace=0.35, bottom=0.15, left=0.10, right=0.95)
-    fig1.suptitle('%s: Normalised VX (boundary=%s) for %gHz windows' % (analysis, boundarylabel, win_len))
-    fig1.text(0.01, 0.01, qatext).set_fontsize('small')
+    fig1.suptitle('%s: Normalised VX for %gHz windows' % (analysis, win_len))
+    #fig1.suptitle('%s: Normalised VX (boundary=%s) for %gHz windows' % (analysis, boundarylabel, win_len))
+    #fig1.text(0.01, 0.01, qatext).set_fontsize('small')
     
   # fout gets closed here by end of 'with' block
-
-# plot experimental data 
-for i, p in enumerate(plotorder):
-  data = csv.reader (open ('inp/mbfcp/81array/' + p + '.csv', 'rb'))
-  x = []
-  y = []
-  for row in data:
-    x.append (row [0])
-    y.append (row [1])
-  newax = fig1.add_subplot(3,2, i + 1) # row, col, plot_number (starts at 1, inconveniently, goes left-right top-bottom)
-  newax.plot(x, y, '-', label='EXP')
-  newax.set_title(p).set_fontsize('small')
-  newax.grid(True)
-  newax.set_ylim(0.0, 4.0)  # to match Fig 5 of C33/C34/PSD/213/220
-  newax.set_xlim(0.0, 15.0) # ditto
-  newax.legend(prop={'size':'small'})
-  ax.append(newax)
 
 # find common output name
 def makeset(path):
