@@ -62,8 +62,4 @@ int gobjcontact (
 /* get distance between two objects (output closest point pair in p, q) */
 double gobjdistance (short paircode, SGP *one, SGP *two, double *p, double *q);
 
-/* extract sub-contact points => output points, they areas, gaps and the middle point area;
- * free 'points' ONLY in order to free all alocated memory! */
-int gobjsubpoints (TRI *tri, int ntri, double *p, double *normal, double **points, double **areas, double **gaps, double *midarea);
-
 #endif

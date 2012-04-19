@@ -25,7 +25,6 @@ nodes = [0, 0, 0,
 shp = HEX (nodes, 4, 8, 8, 1, [0, 1, 2, 3, 4, 5])
 SCALE (shp, (2, 4, 8))
 bod = BODY (sol, 'FINITE_ELEMENT', shp, bulk)
-bod.nodecontact = 'ON'
 bod.damping = 0.001
 PRESSURE (bod, 4, -90000)
 

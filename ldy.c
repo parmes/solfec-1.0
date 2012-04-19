@@ -103,8 +103,8 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
     if (bod->msh) /* rough mesh */
     {
       ELEMENT **e1, **f1, **e2, **f2;
-      CONVEX *c1 = (bod == one->master ? SGP_2_GOBJ (one->msgp) : SGP_2_GOBJ (one->ssgp)),
-	     *c2 = (bod == two->master ? SGP_2_GOBJ (two->msgp) : SGP_2_GOBJ (two->ssgp));
+      CONVEX *c1 = (bod == one->master ? one->msgp->gobj : one->ssgp->gobj),
+	     *c2 = (bod == two->master ? two->msgp->gobj : two->ssgp->gobj);
 
       for (e1 = c1->ele, f1 = e1 + c1->nele; e1 < f1; e1 ++)
       {
@@ -127,26 +127,26 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
       if (bod == one->master)
       {
 	m1 = mshp (one)->data;
-	e1 = SGP_2_GOBJ (one->msgp);
+	e1 = one->msgp->gobj;
 	p1 = one->mpnt;
       }
       else
       {
 	m1 = sshp (one)->data;
-	e1 = SGP_2_GOBJ (one->ssgp);
+	e1 = one->ssgp->gobj;
 	p1 = one->spnt;
       }
 
       if (bod == two->master)
       {
 	m2 = mshp (two)->data;
-	e2 = SGP_2_GOBJ (two->msgp);
+	e2 = two->msgp->gobj;
 	p2 = two->mpnt;
       }
       else
       {
 	m2 = sshp (two)->data;
-	e2 = SGP_2_GOBJ (two->ssgp);
+	e2 = two->ssgp->gobj;
 	p2 = two->spnt;
       }
 

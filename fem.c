@@ -1317,10 +1317,10 @@ static void fem_constraints_force (BODY *bod, double *r)
 
     if (bod->msh)
     {
-      cvx = (isma ? SGP_2_GOBJ (con->msgp): SGP_2_GOBJ (con->ssgp));
+      cvx = (isma ? con->msgp->gobj : con->ssgp->gobj);
       ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
     }
-    else ele = (isma ? SGP_2_GOBJ (con->msgp): SGP_2_GOBJ (con->ssgp));
+    else ele = (isma ? con->msgp->gobj : con->ssgp->gobj);
 
     accumulate_reac (bod, msh, ele, X, con->base, con->R, isma, rmsh);
 
@@ -1330,10 +1330,10 @@ static void fem_constraints_force (BODY *bod, double *r)
 
       if (bod->msh)
       {
-	cvx = SGP_2_GOBJ (con->ssgp);
+	cvx = con->ssgp->gobj;
 	ele = stabbed_referential_element (msh, cvx->ele, cvx->nele, X); /* TODO: optimize */
       }
-      else ele = SGP_2_GOBJ (con->ssgp);
+      else ele = con->ssgp->gobj;
 
       accumulate_reac (bod, msh, ele, X, con->base, con->R, 0, rmsh);
     }
@@ -2834,7 +2834,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
     ERRMEM (msh_sgp = sgp = MEM_CALLOC (msh_nsgp * sizeof (SGP)));
     for (ele = msh->surfeles; ele; ele = ele->next, sgp ++) sgp->shp = &msh_shp, sgp->gobj = ele, sgp->kind = GOBJ_ELEMENT;
     for (ele = msh->bulkeles; ele; ele = ele->next, sgp ++) sgp->shp = &msh_shp, sgp->gobj = ele, sgp->kind = GOBJ_ELEMENT;
-    shp_sgp = SGP_Create (shp, &shp_nsgp, 0); /* bacause shape is CONVEX based SGPs will cover the complete volume */
+    shp_sgp = SGP_Create (shp, &shp_nsgp); /* bacause shape is CONVEX based SGPs will cover the complete volume */
     MEM_Init (&boxmem, sizeof (BOX), msh_nsgp + shp_nsgp);
     ERRMEM (msh_boxes = malloc (msh_nsgp * sizeof (AABB*)));
     ERRMEM (shp_boxes = malloc (shp_nsgp * sizeof (AABB*)));

@@ -29,7 +29,6 @@
 #include "eli.h"
 #include "cvi.h"
 #include "gjk.h"
-#include "h2d.h"
 #include "goc.h"
 #include "err.h"
 
@@ -709,268 +708,6 @@ inline static int update_swap (int ret, int spair [2])
   return ret;
 }
 
-/* compute point to face distance */
-static double point_face_distance (double *x, MESH *msh, FACE *fac)
-{
-  double v [24], q [3], d, *y, *a;
-  ELEMENT *ele = fac->ele;
-  int i, j;
-
-  for (i = 0; i < ele->type; i ++)
-  {
-    for (j = 0; j < fac->type; j ++)
-    {
-      if (fac->nodes [j] == ele->nodes [i]) break;
-    }
-    if (j == fac->type) break;
-  }
-  y = msh->cur_nodes [ele->nodes [i]]; /* non-face node */
-  SUB (y, x, q);
-  d = fabs (DOT (q, fac->normal)); /* distance to non-face node */
-
-  for (i = 0, y = v; i < fac->type; i ++)
-  {
-    a = fac->nod [i]->cur;
-    SUBMUL (a, d, fac->normal, y); y += 3; /* minus normal depth */
-    COPY (a, y); y += 3;
-  }
-
-  return gjk_convex_point (v, fac->type*2, x, q);
-}
-
-/* detect contact between node and element */
-static int detect_node_element (
-  NODE *nod,
-  MESH *msh,
-  ELEMENT *ele,
-  double onepnt [3],
-  double twopnt [3],
-  double normal [3],
-  double *gap,
-  double *area,
-  int spair [2])
-{
-  double a [3], g [2], near, far, *x = nod->cur, *y, *q, *nl;
-  FACE *fac;
-  NODE *opo;
-  int i, j;
-
-  g [0] = DBL_MAX;
-  for (fac = ele->faces; fac; fac = fac->next)
-  {
-    g [1] = point_face_distance (x, msh, fac);
-    if (g [1] < g [0]) g [0] = g [1];
-  }
-  if (g [0] > GEOMETRIC_EPSILON) return 0; /* minimal point face distance */
-
-  opo = NULL;
-  near = DBL_MAX;
-  far = -near;
-  for (fac = ele->faces; fac; fac = fac->next)
-  {
-    for (i = 0; i < fac->type; i ++)
-    {
-      q = fac->nod [i]->cur;
-      SUB (q, x, a);
-      g [1] = DOT (a, a);
-      if (g [1] < near)
-      {
-	opo =fac->nod [i];
-	near = g [1];
-      }
-      if (g [1] > far) far = g [1];
-    }
-  }
-  ASSERT_DEBUG (opo, "Nearest opposite node not found");
-  y = opo->cur;
-
-  if (near < GEOMETRIC_EPSILON) /* node to node */
-  {
-    if (ele != opo->fac [0]->ele) return 0; /* let only one element detect this case */
-  }
-
-  g [0] = DBL_MAX;
-  for (j = 0; j < opo->nfac; j ++)
-  {
-    fac = opo->fac [j];
-    near = point_face_distance (x, msh, fac);
-
-    if (near < GEOMETRIC_EPSILON * 100.0)
-    {
-      q = fac->normal;
-      for (i = 0; i < nod->nfac; i ++)
-      {
-	nl = nod->fac [i]->normal;
-	g [1] = DOT (nl, q);
-	if (g [1] < 0.0 && g [1] < g [0])
-	{
-	  COPY (q, normal);
-	  spair [0] = nod->fac [i]->surface;
-	  spair [1] = fac->surface;
-	  g [0] = g [1];
-	}
-      }
-    }
-  }
-
-  if (g [0] >= 0.0) return 0;
-
-  SUB (y, x, a);
-  *gap = -DOT (a, normal);
-
-  if (*gap > GEOMETRIC_EPSILON) return 0;
-  else *gap = MIN (*gap, 0.0);
-
-  *area = 1.0;
-  COPY (x, onepnt);
-  COPY (x, twopnt);
-
-  /* FIXME / TODO / XXX: test and validate the above code */
-
-  return 2;
-}
-
-/* detect contact between node and convex */
-static int detect_node_convex (
-  NODE *nod,
-  double *v, int nv,
-  double *p, int *s, int np,
-  double onepnt [3],
-  double twopnt [3],
-  double normal [3],
-  double *gap,
-  double *area,
-  int spair [2])
-{
-  double *x = nod->cur, a [3], d, g [2], *q, *r, *nl;
-  int i, j;
-
-  d = gjk_convex_point (v, nv, x, a);
-  if (d > GEOMETRIC_EPSILON) return 0;
-
-  *gap = -DBL_MAX;
-  for (q = p, r = p + 4*np; q < r; q += 4)
-  {
-    d = PLANE (q, x);
-    if (d >= *gap) *gap = d;
-  }
-
-  if (*gap > 0.0) return 0;
-
-  g [0] = DBL_MAX;
-  for (q = p, r = p + 4*np, j = 0; q < r; q += 4, j ++)
-  {
-    d = PLANE (q, x);
-    if (d >= *gap - GEOMETRIC_EPSILON)
-    {
-      for (i = 0; i < nod->nfac; i ++)
-      {
-        nl = nod->fac [i]->normal;
-        g [1] = DOT (nl, q);
-	if (g [1] <= g [0])
-	{
-          COPY (q, normal);
-	  spair [0] = nod->fac [i]->surface;
-          spair [1] = s [j];
-	  g [0] = g [1];
-	}
-      }
-    }
-  }
-
-  if (g [0] >= 0.0) return 0;
-
-  *area = 1.0;
-  COPY (x, onepnt);
-  COPY (x, twopnt);
-
-  /* FIXME / TODO / XXX: test and validate the above code */
-
-  return 2;
-}
- 
-/* handle node based contact */
-static int nodecontact (
-    short detect,
-    short paircode,
-    SHAPE *oneshp, void *onegobj,
-    SHAPE *twoshp, void *twogobj,
-    double onepnt [3],
-    double twopnt [3],
-    double normal [3],
-    double *gap,
-    double *area,
-    int spair [2])
-{
-  switch (paircode)
-  {
-    case AABB_NODE_ELEMENT:
-    {
-      int opair [2] = {spair [0], spair [1]};
-      if (detect_node_element (onegobj, twoshp->data, twogobj, onepnt, twopnt, normal, gap, area, spair))
-      {
-	if (detect) return 2;
-	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
-	else return 2;
-      }
-    }
-    break;
-    case AABB_ELEMENT_NODE:
-    {
-      int opair [2] = {spair [0], spair [1]};
-      if (detect_node_element (twogobj, oneshp->data, onegobj, onepnt, twopnt, normal, gap, area, spair))
-      {
-	swap (spair);
-	if (detect) return 1;
-	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
-	else return 2;
-      }
-    }
-    break;
-    case AABB_NODE_CONVEX:
-    {
-      CONVEX *cvx = twogobj;
-      int opair [2] = {spair [0], spair [1]};
-      if (detect_node_convex (onegobj, cvx->cur, cvx->nver, cvx->pla, cvx->surface,
-	                      cvx->nfac, onepnt, twopnt, normal, gap, area, spair))
-      {
-	if (detect) return 2;
-	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
-	else return 2;
-      }
-    }
-    break;
-    case AABB_CONVEX_NODE:
-    {
-      CONVEX *cvx = onegobj;
-      int opair [2] = {spair [0], spair [1]};
-      if (detect_node_convex (twogobj, cvx->cur, cvx->nver, cvx->pla, cvx->surface,
-	                      cvx->nfac, onepnt, twopnt, normal, gap, area, spair))
-      {
-	swap (spair);
-	if (detect) return 1;
-	else if (opair [0] == spair [0] && opair [1] == spair [1]) return 1;
-	else return 2;
-      }
-    }
-    break;
-    case AABB_NODE_SPHERE:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
-      break;
-    case AABB_SPHERE_NODE:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
-      break;
-    case AABB_NODE_ELLIP:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
-      break;
-    case AABB_SPHERE_ELLIP:
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME / TODO / XXX */
-      break;
-  }
-
-  return 0;
-}
-
 /* detect contact */
 static int detect (
     short paircode,
@@ -1264,17 +1001,6 @@ static int detect (
       return detect_swap (ret, spair);
     }
     break;
-    case AABB_NODE_ELEMENT:
-    case AABB_ELEMENT_NODE:
-    case AABB_NODE_CONVEX:
-    case AABB_CONVEX_NODE:
-    case AABB_NODE_SPHERE:
-    case AABB_SPHERE_NODE:
-    case AABB_NODE_ELLIP:
-    case AABB_ELLIP_NODE:
-      return nodecontact (1, paircode, oneshp, onegobj, twoshp,
-	     twogobj, onepnt, twopnt, normal, gap, area, spair);
-      break;
   }
 
   return 0;
@@ -1564,17 +1290,6 @@ static int update (
       return update_swap (ret, spair);
     }
     break;
-    case AABB_NODE_ELEMENT:
-    case AABB_ELEMENT_NODE:
-    case AABB_NODE_CONVEX:
-    case AABB_CONVEX_NODE:
-    case AABB_NODE_SPHERE:
-    case AABB_SPHERE_NODE:
-    case AABB_NODE_ELLIP:
-    case AABB_ELLIP_NODE:
-      return nodecontact (0, paircode, oneshp, onegobj, twoshp,
-	     twogobj, onepnt, twopnt, normal, gap, area, spair);
-      break;
   }
 
   return 0;
@@ -1701,102 +1416,40 @@ double gobjdistance (short paircode, SGP *one, SGP *two, double *p, double *q)
     break;
     case AABB_ELLIP_ELLIP:
     {
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
     case AABB_ELEMENT_ELLIP:
     {
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
     case AABB_ELLIP_ELEMENT:
     {
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
     case AABB_CONVEX_ELLIP:
     {
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
     case AABB_ELLIP_CONVEX:
     {
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
     case AABB_SPHERE_ELLIP:
     {
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
     case AABB_ELLIP_SPHERE:
     {
-    }
-    break;
-    case AABB_NODE_NODE:
-    case AABB_NODE_ELEMENT:
-    case AABB_ELEMENT_NODE:
-    case AABB_NODE_CONVEX:
-    case AABB_CONVEX_NODE:
-    case AABB_NODE_SPHERE:
-    case AABB_SPHERE_NODE:
-    case AABB_NODE_ELLIP:
-    case AABB_ELLIP_NODE:
-    {
-      WARNING (0, "This node based distance query has not been imlemented!");
-      /* TODO */
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
   }
 
   return 0;
-}
-
-/* extract sub-contact points => output points, they areas, gaps and the middle point area;
- * free 'points' ONLY in order to free all alocated memory! */
-int gobjsubpoints (TRI *tri, int ntri, double *p, double *normal, double **points, double **areas, double **gaps, double *midarea)
-{
-  double *point, *area, *gap, v [3];
-  P2D *list, *item, *lhul;
-  TRI *t, *e;
-  int n;
-
-  ERRMEM (list = MEM_CALLOC (3 * ntri * sizeof (P2D)));
-
-  for (t = tri, e = t + ntri, item = list; t != e; t ++)
-  {
-    if (t->flg < 0)
-    {
-      if (item > list) item->prev = item-1;
-      COPY (t->ver [0], item->point);
-      item->next = item+1; item ++;
-
-      item->prev = item-1;
-      COPY (t->ver [1], item->point);
-      item->next = item+1; item ++;
-
-      item->prev = item-1;
-      COPY (t->ver [2], item->point);
-      item->next = item+1; item ++;
-    }
-  }
-  (item-1)->next = NULL;
-
-  lhul = h2d (list, p, normal);
-
-  for (n = 0, item = lhul; item; item = item->next, n ++);
-
-  ERRMEM ((*points) = malloc (sizeof (double [5*n])));
-  (*areas) = (*points) + 3*n;
-  (*gaps) = (*areas) + n;
-
-  (*midarea) /= (double) (n+1);
-
-  for (item = lhul, point = *points, area = *areas, gap = *gaps;
-       item; item = item->next, point += 3, area ++, gap ++)
-  {
-    COPY (item->point, point);
-    *area = *midarea;
-    SUB (point, p, v);
-    *gap = DOT (v, normal);
-    if (*gap > 0.0) *gap = 0.0;
-  }
-
-  free (list);
-
-  return n;
 }

@@ -156,7 +156,7 @@ SHAPE* SHAPE_Create (short kind, void *data)
 }
 
 /* create shape geometric object pairs */
-SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
+SGP* SGP_Create (SHAPE *shp, int *nsgp)
 {
   SGP *sgp, *ptr;
   int n = 0;
@@ -170,7 +170,6 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
       {
 	MESH *msh = shq->data;
 	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next) n ++;
-	if (flags & SGP_MESH_NODES) n += msh->surfnodes_count;
       }
       break;
       case SHAPE_CONVEX:
@@ -202,12 +201,6 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
 	MESH *msh = shq->data;
 	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next, ptr ++)
 	  ptr->shp = shq, ptr->gobj = ele, ptr->kind = GOBJ_ELEMENT;
-
-	if (flags & SGP_MESH_NODES)
-	{
-	  for (NODE *nod = msh->surfnodes; nod; nod = nod->n, ptr ++)
-	    ptr->shp = shq, ptr->gobj = nod, ptr->kind = GOBJ_NODE;
-	}
       }
       break;
       case SHAPE_CONVEX:
@@ -236,16 +229,6 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags)
   }
 
   return sgp;
-}
-
-/* SGP to GOBJ conversion for FEM purposes */
-void* SGP_2_GOBJ (SGP *sgp)
-{
-  switch (sgp->kind)
-  {
-  case GOBJ_NODE: return ((NODE*)sgp->gobj)->fac [0]->ele;
-  default: return sgp->gobj;
-  }
 }
 
 /* get GOBJ type of given shape */
@@ -718,8 +701,6 @@ int SHAPE_Sgp (SGP *sgp, int nsgp, double *point)
 
   for (i = 0; i < nsgp; i ++, sgp ++)
   {
-    if (sgp->kind & GOBJ_NODE) continue; /* XXX: skip nodes */
-
     if (gobjs [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point)) return i;
   }
 
@@ -736,14 +717,7 @@ int SHAPE_Closest_Sgp (SGP *sgp, int nsgp, double *point, double *d)
 
   for (i = j = 0, dstmin = DBL_MAX; i < nsgp; i ++, sgp ++)
   {
-    if (sgp->kind == GOBJ_NODE) /* XXX: future cases (e.g. edges) need to be handled */
-    {
-      NODE *nod = sgp->gobj;
-      double a [3];
-      SUB (point, nod->cur, a);
-      dst = LEN (a);
-    }
-    else dst = gobjdst [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point);
+    dst = gobjdst [sgp->shp->kind] (sgp->shp->data, sgp->gobj, point);
 
     if (dst < dstmin)
     {
@@ -820,6 +794,67 @@ void SHAPE_Oriented_Extents (SHAPE *shp, double *vx, double *vy, double *vz, dou
   extents [3] += margin;
   extents [4] += margin;
   extents [5] += margin;
+}
+
+/* compute shape limits (point, direction) with 0 coordiante at the point and direction length unit */
+void SHAPE_Limits_Along_Line (SHAPE *shp, double *point, double *direction, double limits [2])
+{
+  double d [3], dot;
+
+  switch (shp->kind)
+  {
+  case SHAPE_MESH:
+  {
+    MESH *msh = shp->data;
+    double (*cur) [3] = msh->cur_nodes, (*end) [3] = cur + msh->nodes_count;
+
+    limits [0] = DBL_MAX;
+    limits [1] = -DBL_MAX;
+
+    for (; cur < end; cur ++)
+    {
+      SUB (cur [0], point, d);
+      dot = DOT (d, direction);
+      if (dot < limits [0]) limits [0] = dot;
+      if (dot > limits [1]) limits [1] = dot;
+    }
+  }
+  break;
+  case SHAPE_CONVEX:
+  {
+    CONVEX *cvx = shp->data;
+    double *cur = cvx->cur, *end = cur + 3*cvx->nver;
+
+    limits [0] = DBL_MAX;
+    limits [1] = -DBL_MAX;
+
+    for (; cur < end; cur += 3)
+    {
+      SUB (cur, point, d);
+      dot = DOT (d, direction);
+      if (dot < limits [0]) limits [0] = dot;
+      if (dot > limits [1]) limits [1] = dot;
+    }
+
+  }
+  break;
+  case SHAPE_SPHERE:
+  {
+    SPHERE *sph = shp->data;
+    double l = LEN (direction);
+
+    SUB (sph->cur_center, point, d);
+    dot = DOT (d, direction);
+    limits [0] = dot - l * sph->cur_radius;
+    limits [1] = dot + l * sph->cur_radius;
+  }
+  break;
+  case SHAPE_ELLIP:
+  {
+    ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+  }
+  break;
+  }
 }
 
 /* return first bulk material recorded

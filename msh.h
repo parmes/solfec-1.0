@@ -35,21 +35,8 @@ typedef struct element ELEMENT;
 #ifndef __msh__
 #define __msh__
 
-typedef struct node NODE;
 typedef struct face FACE;
 typedef struct mesh MESH;
-
-/* surface node */
-struct node
-{
-  double *cur; /* points to the current node */
-
-  FACE **fac; /* adjacent faces */
-
-  int nfac; /* number of them */
-
-  NODE *n; /* list */
-};
 
 /* triangular or quadrilateral face */
 struct face
@@ -60,8 +47,6 @@ struct face
       nodes [4], /* node numbers */
       index, /* index within the element */
       surface; /* surface identifier */
-
-  NODE *nod [4];
 
   ELEMENT *ele;
 
@@ -96,15 +81,12 @@ struct element
 /* general mesh */
 struct mesh
 {
-  MEM nodmem,
-      facmem,
+  MEM facmem,
       elemem,
       mapmem;
 
   double (*ref_nodes) [3],
 	 (*cur_nodes) [3];
-
-  NODE *surfnodes;
 
   ELEMENT *surfeles,
 	  *bulkeles;
@@ -113,8 +95,7 @@ struct mesh
 
   int  surfeles_count,
        bulkeles_count,
-       nodes_count,
-       surfnodes_count;
+       nodes_count;
 
   MAP *map; /* MESH_Element_With_Node uses it */
 };
@@ -259,9 +240,6 @@ double ELEMENT_Volume (MESH *msh, ELEMENT *ele, int ref);
 /* compute partial characteristic of an element: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
 void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, int ref, double *vo, double *sx, double *sy, double *sz, double *eul);
-
-/* update spatial extents of an individual node */
-void NODE_Extents (MESH *msh, NODE *nod, double *extents);
 
 /* pack mesh into double and integer buffers (d and i buffers are of initial
  * dsize and isize, while the final numberof of doubles and ints is packed) */

@@ -1195,50 +1195,6 @@ static int inter_element_local_split (MESH *msh, KDT *kdtri, double *point, doub
   return 1;
 }
 
-/* create surface nodes data, assuming all reamining mesh data is valid */
-static void create_surfnodes (MESH *msh)
-{
-  MEM mapmem;
-  MAP *smap;
-  FACE *fac;
-  int i, n;
-
-  msh->surfnodes = NULL;
-  MEM_Init (&mapmem, sizeof (MAP), MEMCHUNK);
-  MEM_Init (&msh->nodmem, sizeof (NODE), MEMCHUNK);
-  for (smap = NULL, fac = msh->faces; fac; fac = fac->n)
-  {
-    for (n = 0; n < fac->type; n ++)
-    {
-      double *cur = msh->cur_nodes [fac->nodes [n]];
-      NODE *nod = MAP_Find (smap, cur, NULL);
-
-      if (nod == NULL)
-      {
-	ERRMEM (nod = MEM_Alloc (&msh->nodmem));
-	MAP_Insert (&mapmem, &smap, cur, nod, NULL);
-	nod->n = msh->surfnodes;
-	msh->surfnodes = nod;
-        nod->cur = cur;
-      }
-
-      for (i = 0; i < nod->nfac; i ++)
-	if (nod->fac [i] == fac) break;
-
-      if (i == nod->nfac) /* add face to node faces list */
-      {
-	nod->nfac ++;
-	ERRMEM (nod->fac = realloc (nod->fac, nod->nfac * sizeof (FACE*)));
-	nod->fac [i] = fac;
-      }
-
-      fac->nod [n] = nod; /* set up face node pointer */
-    }
-  }
-  msh->surfnodes_count = MAP_Size (smap);
-  MEM_Release (&mapmem);
-}
-
 /* recursive neighbour marking */
 static void mark_neighs (ELEMENT *ele, short flag)
 {
@@ -1422,9 +1378,6 @@ MESH* MESH_Create (double (*nodes) [3], int *elements, int *surfaces)
       msh->faces = fac;
     }
   }
-
-  /* surface nodes */
-  create_surfnodes (msh);
 
   /* clean up */
   MEM_Release (&facmem);
@@ -2872,7 +2825,6 @@ void MESH_Delete_Elements (MESH *msh, SET *elements)
 void MESH_Destroy (MESH *msh)
 {
   ELEMENT *ele;
-  NODE *nod;
   FACE *fac;
   int n;
 
@@ -2901,9 +2853,6 @@ void MESH_Destroy (MESH *msh)
     if (ele->state) free (ele->state);
   }
 
-  for (nod = msh->surfnodes; nod; nod = nod->n) free (nod->fac);
-
-  MEM_Release (&msh->nodmem);
   MEM_Release (&msh->facmem);
   MEM_Release (&msh->elemem);
   MEM_Release (&msh->mapmem);
@@ -3106,18 +3055,6 @@ void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, int ref, double *vo, double 
   CONVEX_Destroy (cvx);
 }
 
-/* update spatial extents of an individual node */
-void NODE_Extents (MESH *msh, NODE *nod, double *extents)
-{
-  double *cur = nod->cur;
-  extents [0] = cur [0] - 10.0 * GEOMETRIC_EPSILON;
-  extents [1] = cur [1] - 10.0 * GEOMETRIC_EPSILON;
-  extents [2] = cur [2] - 10.0 * GEOMETRIC_EPSILON;
-  extents [3] = cur [0] + 10.0 * GEOMETRIC_EPSILON;
-  extents [4] = cur [1] + 10.0 * GEOMETRIC_EPSILON;
-  extents [5] = cur [2] + 10.0 * GEOMETRIC_EPSILON;
-}
-
 /* pack face */
 static void face_pack (FACE *fac, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -3303,9 +3240,6 @@ MESH* MESH_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos, i
   }
 
   free (tab);
-
-  /* surface nodes */
-  create_surfnodes (msh);
 
   return msh;
 }

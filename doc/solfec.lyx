@@ -5833,7 +5833,7 @@ An object of type SOLFEC represents the Solfec algorithm.
 \end_layout
 
 \begin_layout Subsection*
-obj = SOLFEC (analysis, step, output | subpoints)
+obj = SOLFEC (analysis, step, output)
 \end_layout
 
 \begin_layout Standard
@@ -5879,21 +5879,6 @@ Important note:
 \series default
  if this directory exists and contains valid output data SOLFEC is created
  in 'READ' mode, otherwise SOLFEC is created in 'WRITE' mode)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-subpoints
-\series default
- - 'ON' or 'OFF' enables or disables contact sub-points (default 'OFF');
- without this option Solfec generates one contact point per pair of two
- convex primitives; with sub-points enabled Solfec will generate additional
- points around.
- 
-\series bold
-\color red
-(Under development)
 \end_layout
 
 \begin_layout Standard
@@ -7445,7 +7430,7 @@ obj.id
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="1">
+<lyxtabular version="3" rows="4" columns="1">
 <features>
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -7475,27 +7460,6 @@ obj.selfcontact
 \series default
 \emph default
  - self-contact detection flag (default: 'OFF
-\begin_inset Quotes erd
-\end_inset
-
-) taking values 'ON' or 'OFF'.
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.nodecontact
-\series default
-\emph default
- - node based contact detection flag (default: 'OFF
 \begin_inset Quotes erd
 \end_inset
 

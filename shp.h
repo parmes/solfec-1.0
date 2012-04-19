@@ -41,7 +41,7 @@ enum gobj
   GOBJ_ELEMENT = 0x01, /* XXX: never edit these without looking into box.h: e.g. AABB_ELEMENT_ELEMENT, etc. */
   GOBJ_CONVEX  = 0x02,
   GOBJ_SPHERE  = 0x04,
-  GOBJ_NODE    = 0x08,
+              /* 0x08, */  /* XXX: unallocated gobj flag => see box.h (used to be mesh node) */
   GOBJ_ELLIP   = 0x10, /* ellipsoid */
 };
 
@@ -69,22 +69,11 @@ struct shape_gobj_pair
   BOX *box;
 };
 
-/* SGP creation flags */
-enum sgp_flags
-{
-  SGP_MESH_NODES = 0x01
-};
-
-typedef enum sgp_flags SGP_FLAGS;
-
 /* create a general shape */
 SHAPE* SHAPE_Create (short kind, void *data);
 
 /* create shape geometric object pairs */
-SGP* SGP_Create (SHAPE *shp, int *nsgp, SGP_FLAGS flags);
-
-/* SGP to GOBJ conversion for FEM purposes */
-void* SGP_2_GOBJ (SGP *sgp);
+SGP* SGP_Create (SHAPE *shp, int *nsgp);
 
 /* get GOBJ type of given shape */
 GOBJ SHAPE_2_GOBJ (SHAPE *shp);
@@ -155,6 +144,9 @@ void SHAPE_Extents (SHAPE *shp, double *extents);
 
 /* copute shape oriented extents in corrds given by three direction vectors */
 void SHAPE_Oriented_Extents (SHAPE *shp, double *vx, double *vy, double *vz, double *extents);
+
+/* compute shape limits (point, direction) with 0 coordiante at the point and direction length unit */
+void SHAPE_Limits_Along_Line (SHAPE *shp, double *point, double *direction, double limits [2]);
 
 /* return first bulk material recorded
  * in this individual shape (not a list) */

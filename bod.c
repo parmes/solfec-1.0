@@ -973,9 +973,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
   bod->flags = flags;
 
   /* create piars table */
-  SGP_FLAGS sgp_flags = 0;
-  if (bod->flags & BODY_DETECT_NODE_CONTACT) sgp_flags |= SGP_MESH_NODES;
-  bod->sgp = SGP_Create (shp, &bod->nsgp, sgp_flags);
+  bod->sgp = SGP_Create (shp, &bod->nsgp);
 
   /* update body extents */
   SHAPE_Extents (shp, bod->extents);
@@ -1659,7 +1657,7 @@ void BODY_Cur_Point (BODY *bod, SGP *sgp, double *X, double *x)
     break;
     case FEM:
     {
-      FEM_Cur_Point (bod, sgp->shp, SGP_2_GOBJ (sgp), X, x);
+      FEM_Cur_Point (bod, sgp->shp, sgp->gobj, X, x);
     }
     break;
   }
@@ -1695,7 +1693,7 @@ void BODY_Ref_Point (BODY *bod, SGP *sgp, double *x, double *X)
     }
     break;
     case FEM:
-      FEM_Ref_Point (bod, sgp->shp, SGP_2_GOBJ (sgp), x, X);
+      FEM_Ref_Point (bod, sgp->shp, sgp->gobj, x, X);
     break;
   }
 }
@@ -1770,7 +1768,7 @@ void BODY_Local_Velo (BODY *bod, SGP *sgp, double *point, double *base, double *
     }
     break;
     case FEM:
-      FEM_Local_Velo (bod, sgp->shp, SGP_2_GOBJ (sgp), point, base, prevel, curvel);
+      FEM_Local_Velo (bod, sgp->shp, sgp->gobj, point, base, prevel, curvel);
     break;
   }
 }
@@ -1795,7 +1793,7 @@ MX* BODY_Gen_To_Loc_Operator (BODY *bod, short constraint_kind, SGP *sgp, double
       prb_operator_H (bod, point, base, H->x);
     break;
     case FEM:
-      H = FEM_Gen_To_Loc_Operator (bod, sgp->shp, SGP_2_GOBJ (sgp), point, base);
+      H = FEM_Gen_To_Loc_Operator (bod, sgp->shp, sgp->gobj, point, base);
     break;
   }
 

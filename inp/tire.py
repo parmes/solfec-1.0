@@ -26,7 +26,6 @@ nodes = [0, 0, 0,
 msh = PIPE ((0, 0, 0), (0, 0, -1.88495559215), 0.3, 0.1, 10, 10, 1, 1, [1, 1, 2, 3])
 BEND (msh, (0, 1, 0), (1, 0, 0), 180)
 bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
-bod.nodecontact = 'ON'
 PRESSURE (bod, 2, -1E3)
 
 shp = HEX (nodes, 1, 1, 1, 1, [0, 0, 0, 0, 0, 0])

@@ -1320,8 +1320,8 @@ static int is_solfec (lng_SOLFEC *obj, char *var)
 /* constructor */
 static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("analysis", "step", "output", "subpoints");
-  PyObject *analysis, *output, *subpoints;
+  KEYWORDS ("analysis", "step", "output");
+  PyObject *analysis, *output;
   lng_SOLFEC *self;
   char *outpath;
   double step;
@@ -1333,12 +1333,10 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
     step = 1E-3;
     outpath = "solfec.out";
     output = NULL;
-    subpoints = NULL;
 
-    PARSEKEYS ("OdO|O", &analysis, &step, &output, &subpoints);
+    PARSEKEYS ("OdO|O", &analysis, &step, &output);
 
-    TYPETEST (is_string (analysis, kwl [0]) && is_positive (step, kwl[1]) &&
-	      is_string (output, kwl [2]) && is_string (subpoints, kwl[3]));
+    TYPETEST (is_string (analysis, kwl [0]) && is_positive (step, kwl[1]) && is_string (output, kwl [2]));
 
     outpath = PyString_AsString (output);
 
@@ -1362,25 +1360,6 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
     {
       PyErr_SetString (PyExc_ValueError, "Invalid analysis kind");
       return NULL;
-    }
-
-    if (subpoints)
-    {
-      IFIS (subpoints, "ON")
-      {
-	DOM *dom = self->sol->dom;
-	dom->subpoints = 1;
-      }
-      ELIF (subpoints, "OFF")
-      {
-	DOM *dom = self->sol->dom;
-	dom->subpoints = 0;
-      }
-      ELSE
-      {
-	PyErr_SetString (PyExc_ValueError, "Invalid subpoints value (only 'ON' or 'OFF' are valid)");
-	return NULL;
-      }
     }
   }
 
@@ -2949,91 +2928,6 @@ static int lng_BODY_set_selfcontact (lng_BODY *self, PyObject *value, void *clos
   return 0;
 }
 
-static PyObject* lng_BODY_get_nodecontact (lng_BODY *self, void *closure)
-{
-#if MPI && LOCAL_BODIES
-  if (IS_HERE (self))
-  {
-#endif
-
-  if (self->bod->flags & BODY_DETECT_NODE_CONTACT)
-    return PyString_FromString ("ON");
-  else return PyString_FromString ("OFF");
-
-#if MPI && LOCAL_BODIES
-  }
-  else Py_RETURN_NONE;
-#endif
-}
-
-static int lng_BODY_set_nodecontact (lng_BODY *self, PyObject *value, void *closure)
-{
-#if MPI && LOCAL_BODIES
-  if (IS_HERE (self))
-  {
-#endif
-
-  if (!is_string (value, "nodecontact")) return -1;
-
-  IFIS (value, "ON")
-  {
-    WARNING (0, "Node based contact is under development and may not work correctly!"); /* FIXME / TODO / XXX */
-
-    BODY *bod = self->bod;
-    DOM *dom = bod->dom;
-    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-    {
-      CON *con = item->data;
-      con->msgp = (SGP*) (long) (con->msgp - bod->sgp);
-      if (con->slave) con->ssgp = (SGP*) (long) (con->ssgp - bod->sgp);
-    }
-    AABB_Delete_Body (dom->aabb, bod);
-    free (bod->sgp);
-    bod->flags |= BODY_DETECT_NODE_CONTACT;
-    bod->sgp = SGP_Create (bod->shape, &bod->nsgp, SGP_MESH_NODES);
-    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-    {
-      CON *con = item->data;
-      con->msgp = &bod->sgp [(long) con->msgp];
-      if (con->slave) con->ssgp = &bod->sgp [(long) con->ssgp];
-    }
-    AABB_Insert_Body (dom->aabb, bod);
-  }
-  ELIF (value, "OFF")
-  {
-    BODY *bod = self->bod;
-    DOM *dom = bod->dom;
-    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-    {
-      CON *con = item->data;
-      con->msgp = (SGP*) (long) (con->msgp - bod->sgp);
-      if (con->slave) con->ssgp = (SGP*) (long) (con->ssgp - bod->sgp);
-    }
-    AABB_Delete_Body (dom->aabb, bod);
-    free (bod->sgp);
-    self->bod->flags &= ~BODY_DETECT_NODE_CONTACT;
-    bod->sgp = SGP_Create (bod->shape, &bod->nsgp, 0);
-    for (SET *item = SET_First (bod->con); item; item = SET_Next (item))
-    {
-      CON *con = item->data;
-      con->msgp = &bod->sgp [(long) con->msgp];
-      if (con->slave) con->ssgp = &bod->sgp [(long) con->ssgp];
-    }
-    AABB_Insert_Body (dom->aabb, bod);
-  }
-  ELSE
-  {
-    PyErr_SetString (PyExc_ValueError, "Invalid self-contact flag");
-    return -1;
-  }
-
-#if MPI && LOCAL_BODIES
-  }
-#endif
-
-  return 0;
-}
-
 static PyObject* lng_BODY_get_scheme (lng_BODY *self, void *closure)
 {
 #if MPI && LOCAL_BODIES
@@ -3263,7 +3157,6 @@ static PyGetSetDef lng_BODY_getset [] =
   {"center", (getter)lng_BODY_get_center, (setter)lng_BODY_set_center, "referential mass center", NULL},
   {"tensor", (getter)lng_BODY_get_tensor, (setter)lng_BODY_set_tensor, "referential Euler/inertia tensor", NULL},
   {"selfcontact", (getter)lng_BODY_get_selfcontact, (setter)lng_BODY_set_selfcontact, "selfcontact", NULL},
-  {"nodecontact", (getter)lng_BODY_get_nodecontact, (setter)lng_BODY_set_nodecontact, "nodecontact", NULL},
   {"scheme", (getter)lng_BODY_get_scheme, (setter)lng_BODY_set_scheme, "scheme", NULL},
   {"damping", (getter)lng_BODY_get_damping, (setter)lng_BODY_set_damping, "damping", NULL},
   {"constraints", (getter)lng_BODY_get_constraints, (setter)lng_BODY_set_constraints, "constraints list", NULL},
@@ -6557,7 +6450,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 
   for (shq = shp; shq; shq = next) /* for each item */
   {
-    double c [3], d [3];
+    double limits [2];
 
     next = shq->next;
 
@@ -6571,17 +6464,15 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 
       for (m --; m >= 0; m --) /* and classify each part */
       {
-	SHAPE_Char (s [m], 1, NULL, c, NULL);
-	SUB (c, p, d);
-	if (DOT (d, n) < 0.0) { s [m]->next = back; back = s [m]; }
+        SHAPE_Limits_Along_Line (s [m], p, n, limits);
+	if (fabs (limits [0]) < fabs (limits [1])) { s [m]->next = back; back = s [m]; }
 	else { s [m]->next = front; front = s [m]; }
       }
     }
     else /* or classify the current sub-shape */
     {
-      SHAPE_Char (shq, 1, NULL, c, NULL);
-      SUB (c, p, d);
-      if (DOT (d, n) < 0.0) { shq->next = back; back = shq; }
+      SHAPE_Limits_Along_Line (shq, p, n, limits);
+      if (fabs (limits [0]) < fabs (limits [1])) { shq->next = back; back = shq; }
       else { shq->next = front; front = shq; }
     }
   }
@@ -7315,8 +7206,8 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   ERRMEM (shp = MEM_CALLOC (sizeof (BODY)));
   obs->shape = create_shape (obstacles, 0);
   shp->shape = create_shape (shapes, -1); /* empty and simple glue */
-  obs->sgp = SGP_Create (obs->shape, &obs->nsgp, 0);
-  shp->sgp = SGP_Create (shp->shape, &shp->nsgp, 0);
+  obs->sgp = SGP_Create (obs->shape, &obs->nsgp);
+  shp->sgp = SGP_Create (shp->shape, &shp->nsgp);
   aabb = AABB_Create (obs->nsgp + shp->nsgp);
   obs->kind = shp->kind = RIG;
   ocd.bod = shp;
