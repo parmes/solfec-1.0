@@ -124,8 +124,6 @@ static void local_create (struct auxdata *aux, BOX *one, BOX *two)
       {
 	if (ELEMENT_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
       }
-      else if ((onebod->flags & BODY_DETECT_NODE_CONTACT) ||
-	       (twobod->flags & BODY_DETECT_NODE_CONTACT)) return; /* handled by node based contact */
     }
     break;
     case AABB_CONVEX_CONVEX:
@@ -133,18 +131,6 @@ static void local_create (struct auxdata *aux, BOX *one, BOX *two)
       if (onebod == twobod) /* exclude topologically adjacent convices */
 	if (CONVEX_Adjacent (one->sgp->gobj, two->sgp->gobj)) return;
     }
-    break;
-    case AABB_ELEMENT_CONVEX:
-      if (onebod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
-    break;
-    case AABB_CONVEX_ELEMENT:
-      if (twobod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
-    break;
-    case AABB_ELEMENT_SPHERE:
-      if (onebod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
-    break;
-    case AABB_SPHERE_ELEMENT:
-      if (twobod->flags & BODY_DETECT_NODE_CONTACT) return; /* handled by node based contact */
     break;
   }
  
@@ -556,7 +542,6 @@ BOX_Extents_Update SGP_Extents_Update (SGP *sgp)
   case GOBJ_CONVEX: return (BOX_Extents_Update) CONVEX_Extents;
   case GOBJ_SPHERE: return (BOX_Extents_Update) SPHERE_Extents;
   case GOBJ_ELLIP: return (BOX_Extents_Update) ELLIP_Extents;
-  case GOBJ_NODE: return (BOX_Extents_Update) NODE_Extents;
   default: break;
   }
 

@@ -111,7 +111,6 @@ inline static short GOBJ_Pair_Code (BOX *one, BOX *two)
 #define AABB_ELEMENT_ELEMENT	0x0101
 #define AABB_CONVEX_CONVEX	0x0202
 #define AABB_SPHERE_SPHERE	0x0404
-#define AABB_NODE_NODE          0x0808
 #define AABB_ELLIP_ELLIP        0x1010
 
 #define AABB_ELEMENT_CONVEX	0x0102
@@ -131,18 +130,6 @@ inline static short GOBJ_Pair_Code (BOX *one, BOX *two)
 
 #define AABB_ELLIP_SPHERE	0x1004
 #define AABB_SPHERE_ELLIP	0x0410
-
-#define AABB_ELEMENT_NODE	0x0108
-#define AABB_NODE_ELEMENT	0x0801
-
-#define AABB_NODE_SPHERE	0x0804
-#define AABB_SPHERE_NODE	0x0408
-
-#define AABB_CONVEX_NODE	0x0208
-#define AABB_NODE_CONVEX	0x0802
-
-#define AABB_ELLIP_NODE	        0x1008
-#define AABB_NODE_ELLIP         0x0810
 
 /* driver data */
 struct aabb

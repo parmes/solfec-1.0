@@ -1,28 +1,7 @@
-Note that during W assembly when using MX_Matmat (coef, ...)
-the assembly takes much longer than when scaling after (like now).
-Investigate why!
 ---------------------------------------------------------------------------
 SET_Delete_Node and MAP_Delete_Node do not seem to be correct
 in terms of returning the next node in turn (valgrinded out)
 --------------------------------------------------------------------------------
-Note, the difference in sending boundary constraint bases between revisions
-301 and 302:
-
-Instead of SEND (con->base+6, 3) and localbase (...) on receive, we now
-(like in an old version) SEND (con->base, 9) and receive accordingly.
-
-This seems to fix the issue of premature overlap in simplified core tests,
-and is likely caused by a numerical noise introduced by recreating bases from
-normal directions.
-
-Now, the problem can be really down to base recreation noise (there is an 'if' in the 'localbase' routine), BUT,
-it can also be down to communication routines error (outputing rubbish normals), now masked by sending longer messages.
-
-Think of a way of testing and deciding on the origin of this problem. Surely,
-more through testing of cummunication routines would be of use (comtest).
-
-After all we have increased communication by some 48 bytes per contact now again.
----------------------------------------------------------------------------------------
 cvi.c needs a better input point selection, see: ./cvitest inp/cvi.13
 -----------------------------------------------------------------------------
 Contact detection still crude: see inp/tetpart.py
@@ -39,8 +18,6 @@ body extents contain constraint extents and yet for example:
 Body extents Zoltan_LB_Box_Assign processors: 28  
 Constraint point Zoltan_LB_Point_Assign processor: 6
 ------------------------------------------------------------------------------------
-GLUING constraints fail in parallel => inp/tire.py
-------------------------------------------------------------------------------------
 Intel compilers based compilation gets stuck in parallel (with openmpi/intel)
 -------------------------------------------------------------------------------------------------------------------------
 Run inp/ellcomp.py for > 30000 ellipsoids on >= 16 CPUs. They are initially all well separated.
@@ -49,3 +26,5 @@ A: Zoltan rebalancing time is very long even though little change is made to the
    one cluste node the communication time inside of Zoltan becomes quite long.
 Current solution: Repartition every 'dom->updatefreq' steps
 A: that was a cluster node bug in fact
+-------------------------------------------------------------------------------------------------------------------------
+Moving obstacles do not work at the moment: turn the rigid body in tire.py into an obstacle and see!

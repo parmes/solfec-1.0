@@ -24,14 +24,10 @@ b = TETRAHEDRALIZE (b, 'out/tetgen/tet1.dat', 0.2, 1.5)
 a = TETRAHEDRALIZE (a, 'out/tetgen/tet2.dat', 0.2, 1.5)
 
 bod = BODY (sol, 'FINITE_ELEMENT', a, bulk)
-bod.nodecontact = 'ON'
 bod = BODY (sol, 'FINITE_ELEMENT', b, bulk)
-bod.nodecontact = 'ON'
-#CONTACT_SPARSIFY (sol, 0, 0, 0)
 
 shp = PIPE  ((0, 0, -1), (0, 0, -1), 0.5, 1, 2, 8, 1, 1, [1, 1, 1, 1, 1, 1])
 bod = BODY (sol, 'OBSTACLE', shp, bulk)
-bod.nodecontact = 'ON'
 
 OUTPUT (sol, step)
 RUN (sol, sv, stop)

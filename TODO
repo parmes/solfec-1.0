@@ -119,3 +119,5 @@ Switch from BLOPEX to PRIMME and expand MODAL_ANALYSIS (interior modes)
 Use only one rotation update (middle rotation) in co-rotational approaches (BC only)
 ---------------------------------------------------------------------------------------
 Implement REGISTER_MODAL_BASE idea for replicated large bases (e.g. fuel bricks)
+------------------------------------------------------------------------------------------
+Fix cohesion.py by integrating contact forces over face ares (without node based contact)
