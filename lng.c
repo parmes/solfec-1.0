@@ -5277,6 +5277,12 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
     {
 #endif
 
+    if (body->bod->dom->dynamic == 0 && body->bod->kind == OBS)
+    {
+      PyErr_SetString (PyExc_ValueError, "Moving obstacles do not work in the quasi-static case");
+      return NULL;
+    }
+
     out->dom = body->bod->dom;
 
     p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
@@ -5328,6 +5334,12 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
     if (IS_HERE (body))
     {
 #endif
+
+    if (body->bod->dom->dynamic == 0 && body->bod->kind == OBS)
+    {
+      PyErr_SetString (PyExc_ValueError, "Moving obstacles do not work in the quasi-static case");
+      return NULL;
+    }
 
     out->dom = body->bod->dom;
 
