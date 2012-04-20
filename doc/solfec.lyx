@@ -7569,6 +7569,10 @@ Remarks
 A rigid body ignoring external loads and not contributing to contact constraints.
  Motion of an obstacle can be controlled through single-body constraints.
  An obstacle-to-obstacle contact is ignored.
+ 
+\series bold
+Moving obstacles will not correctly work in the quasi-static case (use rigid
+ bodies instead).
 \end_layout
 
 \end_inset

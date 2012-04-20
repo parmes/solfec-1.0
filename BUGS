@@ -27,4 +27,3 @@ A: Zoltan rebalancing time is very long even though little change is made to the
 Current solution: Repartition every 'dom->updatefreq' steps
 A: that was a cluster node bug in fact
 -------------------------------------------------------------------------------------------------------------------------
-Moving obstacles do not work at the moment: turn the rigid body in tire.py into an obstacle and see!
