@@ -10969,7 +10969,15 @@ solfec
 \series bold
 path
 \series default
- - path to the output directory containing matching analysis results
+ - path to the output directory containing matching analysis results (
+\series bold
+note:
+\series default
+ this cannot be the same output directory as for the 
+\series bold
+solfec
+\series default
+ object)
 \end_layout
 
 \begin_layout Itemize
@@ -12672,7 +12680,11 @@ The routine outputs the value of a specific action timing per time step.
 \series bold
 tim
 \series default
- - value of timing
+ - value of timing (or Python None object if 
+\series bold
+solfec
+\series default
+ was in the 'WRITE' mode)
 \end_layout
 
 \begin_layout Itemize
@@ -12680,7 +12692,7 @@ tim
 \series bold
 solfec
 \series default
- - SOLFEC object
+ - SOLFEC object in 'READ' mode
 \end_layout
 
 \begin_layout Itemize
