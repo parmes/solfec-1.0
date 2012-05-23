@@ -2629,10 +2629,10 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     self->id = self->dom->bid; /* before inserting, the body may be deleted in LOCAL_BODIES mode */
 #endif
 
-    DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
-
     if ((solfec->sol->dom->dynamic == 0 && self->bod->kind != RIG) || /* XXX => LIM is closest to the quasi-static time stepping; some code parts test body->scheme without checking for quasi-statics */
 	 self->bod->form == REDUCED_ORDER) self->bod->scheme = SCH_DEF_LIM; /* reduced order model uses only the 'DEF_LIM' scheme (no advantage in using 'DEF_EXP' since bod->M is dense anyway) */
+
+    DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
   }
 
   return (PyObject*)self;
