@@ -1822,6 +1822,80 @@ static void insert_pending_constraints (DOM *dom)
   SET_Free (&dom->setmem, &dom->pendingcons);
 }
 
+#if 0
+/* update global body id to rank mapping */
+static void update_bidsets (DOM *dom)
+{
+  int i, j, n, k [2], size [dom->ncpu][2], count [dom->ncpu], disp [dom->ncpu], *send, *recv;
+  MAP *jtem;
+  SET *item;
+
+  /* count modifications */
+  for (item = SET_First (dom->bidset [dom->rank]), k[0] = 0; item; item = SET_Next (item))
+  {
+    if (!MAP_Find (dom->allbodies, item->data, NULL)) k[0] ++; /* deletions */
+  }
+
+  for (jtem = MAP_First (dom->allbodies), k[1] = 0; jtem; jtem = MAP_Next (jtem))
+  {
+    if (!SET_Find (dom->bidset [dom->rank], jtem->key, NULL)) k[1] ++; /* insertions */
+  }
+
+  MPI_Allgather (k, 2, MPI_INT, (int*)size, 2, MPI_INT, MPI_COMM_WORLD); /* size contains deletion/insertion counts from each rank */
+
+  j = size[dom->rank][0] + size[dom->rank][1];
+  for (i = n = 0; i < dom->ncpu; i ++)
+  {
+    count [i] = size[i][0] + size[i][1];
+    disp [i] = n;
+    n += count[i];
+  }
+
+  ERRMEM (send = malloc ((n+j) * sizeof(int)));
+  recv = send + j;
+
+  /* prepare send buffer */
+  for (item = SET_First (dom->bidset [dom->rank]), j = 0; item; item = SET_Next (item))
+  {
+    if (!MAP_Find (dom->allbodies, item->data, NULL)) send [j ++] = (int) (long) item->data; /* deletion ids */
+  }
+
+  for (jtem = MAP_First (dom->allbodies); jtem; jtem = MAP_Next (jtem))
+  {
+    if (!SET_Find (dom->bidset [dom->rank], jtem->key, NULL)) send [j ++] = (int) (long) jtem->key; /* insertion ids */
+  }
+
+  MPI_Allgatherv (send, j, MPI_INT, recv, count, disp, MPI_INT, MPI_COMM_WORLD); /* recv contains deletion/insertion ids from each rank */
+
+  for (i = n = 0; i < dom->ncpu; i ++)
+  {
+    for (j = 0; j < size[i][0]; j ++, n ++) /* for all deletions from rank i */
+    {
+      SET_Delete (&dom->setmem, &dom->bidset [i], (void*) (long) recv[n], NULL);
+    }
+
+    for (j = 0; j < size[i][1]; j ++, n ++) /* for all insertions from rank i */
+    {
+      SET_Insert (&dom->setmem, &dom->bidset [i], (void*) (long) recv[n], NULL);
+    }
+  }
+
+  free (send);
+
+#if DEBUG
+  for (item = SET_First (dom->bidset [dom->rank]); item; item = SET_Next (item))
+  {
+    ASSERT_DEBUG (MAP_Find (dom->allbodies, item->data, NULL), "bidset[rank] != dom->allbodies!\n");
+  }
+
+  for (jtem = MAP_First (dom->allbodies); jtem; jtem = MAP_Next (jtem))
+  {
+    ASSERT_DEBUG (SET_Find (dom->bidset [dom->rank], jtem->key, NULL), "bidset[rank] != dom->allbodies!\n");
+  }
+#endif
+}
+#endif
+
 /* domain balancing */
 static void domain_balancing (DOM *dom)
 {
