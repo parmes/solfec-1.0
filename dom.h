@@ -153,9 +153,6 @@ struct domain_balancing_data
   SET *update;
   SET *glue;
   SET *ext;
-#if LOCAL_BODIES
-  SET *dummies;
-#endif
 };
 
 typedef struct pending_constraint PNDCON;

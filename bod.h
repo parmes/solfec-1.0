@@ -190,7 +190,7 @@ struct general_body
   int rank; /* parent => new/current rank; child => parent's rank */
 
 #if MPI
-  SET *children; /* set of children ids for a parent; set of other children for a child */
+  SET *children, *prevchildren; /* set of children ranks for a parent/set of other children ranks for a child; set of previous children ranks for a parent */
 #else
   void *rendering; /* rendering data */
 #endif
