@@ -992,7 +992,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
   bod->damping = 0.0;
 
 #if MPI
-  bod->children = NULL;
+  bod->children = bod->prevchildren = NULL;
 
   MPI_Comm_rank (MPI_COMM_WORLD, &bod->rank);
 #endif
