@@ -1759,6 +1759,10 @@ MESH* MESH_Copy (MESH *msh)
       *gac = *fac;
       gac->ele = cpy; /* overwrite element */
 
+      /* integration data
+       * does not get coppied */
+      gac->idata = NULL;
+
       /* maintain list */
       gac->next = cpy->faces;
       cpy->faces = gac;
@@ -1771,6 +1775,11 @@ MESH* MESH_Copy (MESH *msh)
   {
     ERRMEM (cpy = MEM_Alloc (&ret->elemem));
     *cpy = *ele;
+
+    /* element subdivision
+     * does not get coppied */
+    cpy->domnum = 0;
+    cpy->dom = NULL;
 
     /* maintain list */
     cpy->prev = NULL;

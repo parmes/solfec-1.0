@@ -2883,6 +2883,12 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
     case FEM: dom->nfem ++; break;
     }
     dom->dofs += bod->dofs;
+    
+    if (dom->time > 0.0) /* initialize body */
+    {
+      if (dom->dynamic) BODY_Dynamic_Init (bod);
+      else BODY_Static_Init (bod);
+    }
 #if MPI
   }
 #if LOCAL_BODIES
