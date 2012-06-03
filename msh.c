@@ -1147,16 +1147,9 @@ static int inter_element_local_split (MESH *msh, KDT *kdtri, double *point, doub
 
     if (flg)
     {
-      if (j >= 3) /* at least a trinagle */
-      {
-	cut [0] = j; cut ++;
-	for (i = 0; i < j; i ++) cut [i] = onpla [i]; /* output cut face */
-	cut += j;
-      }
-
       if (code < 0)
       {
-	if (j >= 3)
+	if (j >= 3) /* at least a trinagle */
 	{
 	  cut [0] = -j; cut ++; /* negative facet flag => use 'newnod' map in 'produce_split_mesh' */
 	  for (i = 0; i < j; i ++)
@@ -1174,7 +1167,17 @@ static int inter_element_local_split (MESH *msh, KDT *kdtri, double *point, doub
 
 	SET_Insert (&setmem, &below, ele, NULL); /* below adjacent elements */
       }
-      else SET_Insert (&setmem, &above, ele, NULL); /* other elements */
+      else /* code > 0 */
+      {
+	if (j >= 3) /* at least a trinagle */
+	{
+	  cut [0] = j; cut ++; /* positive facet flag => use old mesh nodes in 'produce_split_mesh' */
+	  for (i = 0; i < j; i ++) cut [i] = onpla [i]; /* output cut face */
+	  cut += j;
+	}
+
+	SET_Insert (&setmem, &above, ele, NULL); /* other elements */
+      }
     }
     else SET_Insert (&setmem, &above, ele, NULL); /* other elements */
 
