@@ -6744,6 +6744,17 @@ static PyObject* lng_CONTACT_EXCLUDE_BODIES (PyObject *self, PyObject *args, PyO
 
   TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]));
 
+#if MPI
+  if (body1->dom != body2->dom)
+  {
+    PyErr_SetString (PyExc_ValueError, "Bodies from different domains");
+    return NULL;
+  }
+
+  sol = body1->dom->solfec;
+
+  AABB_Exclude_Body_Pair (sol->aabb, body1->id, body2->id);
+#else
   if (body1->bod->dom != body2->bod->dom)
   {
     PyErr_SetString (PyExc_ValueError, "Bodies from different domains");
@@ -6752,9 +6763,6 @@ static PyObject* lng_CONTACT_EXCLUDE_BODIES (PyObject *self, PyObject *args, PyO
 
   sol = body1->bod->dom->solfec;
 
-#if MPI
-  AABB_Exclude_Body_Pair (sol->aabb, body1->id, body2->id);
-#else
   AABB_Exclude_Body_Pair (sol->aabb, body1->bod->id, body2->bod->id);
 #endif
 

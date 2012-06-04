@@ -289,8 +289,9 @@ def gcore_bricks_and_keys (loose_gap, integral_gap, material, solfec, kinem_kind
 	    tra2 = (0, 0.137, 0)
 	    dir1 = (0, 1, 0)
 	    dir2 = (1, 0, 0)
-	  SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, tra1), dir1, 3, 'TENSILE', ft=1E3, topoadj = 'OFF')
-	  SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, tra2), dir2, 3, 'TENSILE', ft=1E3, topoadj = 'ON')
+	  if HERE (solfec, bod):
+	    SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, tra1), dir1, 3, 'TENSILE', ft=1E3, topoadj = 'OFF')
+	    SIMPLIFIED_CRACK (bod, TRANSLATE (bod.center, tra2), dir2, 3, 'TENSILE', ft=1E3, topoadj = 'ON')
 	  counter = counter + 1
 
     # loose keys
