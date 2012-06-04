@@ -927,8 +927,6 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
     unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
     break;
   }
-
-  con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave); /* insert into local dynamics */
 }
 
 /* insert a new external constraint migrated in during domain gluing */
@@ -2064,6 +2062,11 @@ static void domain_balancing (DOM *dom)
     }
   }
 #endif
+
+  for (con = dom->con; con; con = con->next) /* insert into local dynamics */
+  {
+    if (!con->dia) con->dia = LOCDYN_Insert (dom->ldy, con, con->master, con->slave);
+  }
 
   /* compute old boundary constraints migration sets */
   old_boundary_constraints_migration (dom, dbd);
