@@ -2412,8 +2412,31 @@ static void manage_bodies (DOM *dom)
   {
     if ((bod = MAP_Find (dom->allbodies, item->data, NULL)))
     {
-      DOM_Remove_Body (dom, bod); /* loop over 'sparebid' => look there (***) */
-      BODY_Destroy (bod);
+#if LOCAL_BODIES
+      if (bod->nsgp == INT_MAX) /* remove dummy created in get_body */
+      {
+	/* DOM_Remove_Constraint will remove the constraint from body constraints set,
+	 * which is not nice if we try to iterate over the set at the same time => make a copy */
+	SET *copy = SET_Copy (&dom->setmem, bod->con), *jtem;
+
+	/* remove all dummy related constraints */
+	for (jtem = SET_First (copy); jtem; jtem = SET_Next (jtem)) DOM_Remove_Constraint (dom, jtem->data);
+
+	/* free copy */
+	SET_Free (&dom->setmem, &copy);
+
+	/* remove dummy from all bodies map */
+	MAP_Delete (&dom->mapmem, &dom->allbodies, item->data, NULL);
+
+	/* free dummy */
+	free (bod);
+      }
+      else /* regular body */
+#endif
+      {
+	DOM_Remove_Body (dom, bod); /* while looping over 'sparebid' => look there (***) */
+	BODY_Destroy (bod);
+      }
     }
   }
 
@@ -2433,7 +2456,10 @@ static void manage_bodies (DOM *dom)
     bod = jtem->data;
     if ((bod->flags & (BODY_PARENT|BODY_CHILD)) == 0 && SET_Size (bod->con) == 0)
     {
-      SET_Insert (&dom->setmem, &todel, bod, NULL);
+      if (!SET_Contains (dom->newb, bod, NULL)) /* after t > 0 insertion bodies are in the 'newb' set until written in dio.c:dom_write_state */
+      {                                         /* since writing happens every-skip-steps, bodies in the 'newb' step should be preserved until then */
+        SET_Insert (&dom->setmem, &todel, bod, NULL);
+      }
     }
   }
 
@@ -2908,20 +2934,15 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   /* remove from overlap engine */
   AABB_Delete_Body (dom->aabb, bod);
 
-  SET *con = NULL, *item;
+  /* DOM_Remove_Constraint will remove the constraint from body constraints set,
+   * which is not nice if we try to iterate over the set at the same time => make a copy */
+  SET *copy = SET_Copy (&dom->setmem, bod->con), *item;
 
-  /* DOM_Remove_Constraint will try to remove the constraint
-     from body constraints set, which is not nice if we try
-     to iterate over the set at the same time => make a copy */
-  for (item = SET_First (bod->con); item; item = SET_Next (item))
-    SET_Insert (&dom->setmem, &con, item->data, NULL);
- 
   /* remove all body related constraints */
-  for (item = SET_First (con); item; item = SET_Next (item))
-    DOM_Remove_Constraint (dom, item->data);
+  for (item = SET_First (copy); item; item = SET_Next (item)) DOM_Remove_Constraint (dom, item->data);
 
-  /* free constraint set */
-  SET_Free (&dom->setmem, &con);
+  /* free copy */
+  SET_Free (&dom->setmem, &copy);
 
 #if MPI
   if (bod->flags & BODY_PARENT) /* only parent bodies are in the list and label/id maps */

@@ -55,6 +55,9 @@ SET* SET_Delete_Node (MEM *pool, SET **root, SET *node);
 /* postorder traverse and free set memory */
 void SET_Free (MEM *pool, SET **root);
 
+/* copy set */
+SET* SET_Copy (MEM *pool, SET *root);
+
 /* return number of items */
 int SET_Size (SET *root);
 

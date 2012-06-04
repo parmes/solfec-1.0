@@ -475,6 +475,21 @@ void SET_Free (MEM *pool, SET **root)
   *root = NULL;
 }
 
+SET* SET_Copy (MEM *pool, SET *root)
+{
+  SET *x;
+
+  if (root == NULL || root == NIL) return root;
+  x = item (pool, root->data);
+  x->colour = root->colour;
+  x->l = SET_Copy (pool, root->l);
+  if (x->l != NIL) x->l->p = x;
+  x->r = SET_Copy (pool, root->r);
+  if (x->r != NIL) x->r->p = x;
+
+  return x;
+}
+
 int SET_Size (SET *root)
 {
   int size = 0;
