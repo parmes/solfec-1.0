@@ -2126,9 +2126,11 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->evec) MX_Destroy (bod->evec);
 
-#if !MPI
+#if OPENGL
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
+#endif
 
+#if !MPI
   for (SET *item = SET_First (bod->displaypoints); item; item = SET_Next (item))
   {
     DISPLAY_POINT *point = item->data;
