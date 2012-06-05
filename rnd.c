@@ -173,6 +173,7 @@ enum /* menu items */
   RENDER_WIREFRAME_3D,
   RENDER_PREVIOUS_SELECTION,
   RENDER_BODIES,
+  TOOLS_DISPLAY_POINTS,
   TOOLS_TRANSPARENT,
   TOOLS_TRANSPARENT_ALL,
   TOOLS_TRANSPARENT_NONE,
@@ -371,6 +372,8 @@ static char modetip [512]; /* mode number and eigenvalue tip */
 
 static short legendon = 1; /* enabled / disabled legend flag */
 
+static short display_points = 0; /* enable / disable display points */
+
 
 /* menu modal analysis callback */
 static void menu_modal_analysis (int mode)
@@ -441,8 +444,8 @@ static void modal_analysis_results ()
       glutSetMenu (menu_code [MENU_TOOLS]);
       glutChangeToMenuEntry (12, "bigger arrows /]/", TOOLS_BIGGER_SCALING);
       glutChangeToMenuEntry (13, "smaller arrows /[/", TOOLS_SMALLER_SCALING);
+      glutRemoveMenuItem (23);
       glutRemoveMenuItem (22);
-      glutRemoveMenuItem (21);
 
       if (tip == modetip) tip = NULL;
 
@@ -2734,7 +2737,30 @@ static void render_rigid_links (SET *set, GLfloat *color)
 static void render_body_set (SET *set)
 {
   GLfloat color [4] = {0.0, 0.0, 0.0, 0.4};
-  SET *item;
+  DISPLAY_POINT *point;
+  SET *item, *jtem;
+  BODY *bod;
+
+  if (display_points)
+  {
+    glDisable (GL_LIGHTING);
+    glPointSize (5.0);
+    for (item = SET_First (set); item; item = SET_Next (item))
+    {
+      bod = item->data;
+      for (jtem = SET_First (bod->displaypoints); jtem; jtem = SET_Next (jtem))
+      {
+	point = jtem->data;
+	glBegin (GL_POINTS);
+	glColor3f (0, 0, 1);
+	glVertex3dv (point->x);
+        glEnd ();
+	if (point->label) GLV_Print (point->x[0], point->x[1], point->x[2], GLV_FONT_12, point->label);
+      }
+    }
+    glPointSize (1.0);
+    glEnable (GL_LIGHTING);
+  }
 
   if (legend_constraint_based ()) /* render constraints or forces over transparent volumes */
   {
@@ -3624,6 +3650,11 @@ static void menu_tools (int item)
       update ();
     }
     break;
+  case TOOLS_DISPLAY_POINTS:
+    if (display_points) display_points = 0;
+    else display_points = 1;
+    GLV_Redraw_All ();
+    break;
   case TOOLS_TRANSPARENT:
   case TOOLS_ROUGH_MESH:
   case TOOLS_HIDE:
@@ -3901,6 +3932,7 @@ int RND_Menu (char ***names, int **codes)
 
   menu_name [MENU_TOOLS] = "tools";
   menu_code [MENU_TOOLS] = glutCreateMenu (menu_tools);
+  glutAddMenuEntry ("display points on/off /D/", TOOLS_DISPLAY_POINTS);
   glutAddMenuEntry ("toggle transparent /t/", TOOLS_TRANSPARENT);
   glutAddMenuEntry ("transparent all /T/", TOOLS_TRANSPARENT_ALL);
   glutAddMenuEntry ("transparent none /n/", TOOLS_TRANSPARENT_NONE);
@@ -4086,6 +4118,9 @@ void RND_Key (int key, int x, int y)
     break;
   case 'b':
     menu_render (RENDER_BODIES);
+    break;
+  case 'D':
+    menu_tools (TOOLS_DISPLAY_POINTS);
     break;
   case 't':
     menu_tools (TOOLS_TRANSPARENT);

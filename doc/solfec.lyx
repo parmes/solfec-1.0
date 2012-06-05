@@ -4285,7 +4285,16 @@ x
 \begin_inset Text
 
 \begin_layout Plain Layout
-CLONE
+DISPLAY_POINT
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
 \end_layout
 
 \end_inset
@@ -4295,15 +4304,6 @@ CLONE
 
 \begin_layout Plain Layout
 x
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
 \end_layout
 
 \end_inset
@@ -12369,6 +12369,48 @@ spdK
 \series default
  - symmetric positive definite flag K; 'ON' or 'OFF' (default: 'ON'); only
  lower triangle is exported when 'ON'
+\end_layout
+
+\begin_layout Subsection*
+DISPLAY_POINT (body, point | label)
+\end_layout
+
+\begin_layout Standard
+Attach a display point to a body.
+ Display points are defined in reference configuration and convected with
+ bodies.
+ Display points can be visualised by selecting 'display points on/off' in
+ the 'tools' viewer menu.
+ They serve purely auxiliary purpose, for example allowing to make sure
+ that the results are read from correct locations.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - referential 
+\emph on
+(x, y, z)
+\emph default
+ point
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - optional label
 \end_layout
 
 \begin_layout Section
