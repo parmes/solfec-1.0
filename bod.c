@@ -1480,6 +1480,15 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     if (bod->msh) FEM_Update_Rough_Mesh (bod);
   }
+
+#if !MPI
+  /* update display points */
+  for (SET *item = SET_First (bod->displaypoints); item; item = SET_Next (item))
+  {
+    DISPLAY_POINT *point = item->data;
+    BODY_Cur_Point (bod, point->sgp, point->X, point->x);
+  }
+#endif
 }
 
 void BODY_Static_Init (BODY *bod)
@@ -2073,6 +2082,15 @@ void BODY_Read_State (BODY *bod, PBF *bf)
   /* update shape */
   SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
   if (bod->msh) FEM_Update_Rough_Mesh (bod);
+
+#if !MPI
+  /* update display points */
+  for (SET *item = SET_First (bod->displaypoints); item; item = SET_Next (item))
+  {
+    DISPLAY_POINT *point = item->data;
+    BODY_Cur_Point (bod, point->sgp, point->X, point->x);
+  }
+#endif
 }
 
 void BODY_Destroy (BODY *bod)
@@ -2108,8 +2126,17 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->evec) MX_Destroy (bod->evec);
 
-#if OPENGL
+#if !MPI
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
+
+  for (SET *item = SET_First (bod->displaypoints); item; item = SET_Next (item))
+  {
+    DISPLAY_POINT *point = item->data;
+    if (point->label) free (point->label);
+    free (point);
+  }
+
+  SET_Free (NULL, &bod->displaypoints);
 #endif
 
   free (bod);

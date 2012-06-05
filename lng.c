@@ -7595,6 +7595,50 @@ if (spdK)
   Py_RETURN_NONE;
 }
 
+/* add display point */
+static PyObject* lng_DISPLAY_POINT (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "point", "label");
+  PyObject *point, *label;
+  DISPLAY_POINT *dp;
+  lng_BODY *body;
+  int n;
+
+#if !MPI
+  label = NULL;
+
+  PARSEKEYS ("OO|O", &body, &point, &label);
+
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) && is_string (label, kwl[2]));
+
+  ERRMEM (dp = MEM_CALLOC (sizeof (DISPLAY_POINT)));
+
+  dp->X [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+  dp->X [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+  dp->X [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+  if ((n = SHAPE_Sgp (body->bod->sgp, body->bod->nsgp, dp->X)) < 0)
+  {
+    PyErr_SetString (PyExc_ValueError, "Point outside of the body");
+    return NULL;
+  }
+
+  COPY (dp->X, dp->x);
+
+  dp->sgp = &body->bod->sgp [n];
+
+  if (label)
+  {
+    char *string = PyString_AsString (label);
+    ERRMEM (dp->label = malloc (sizeof (strlen (string) + 1)));
+    strcpy (dp->label, string);
+  }
+
+  SET_Insert (NULL, &body->bod->displaypoints, dp, NULL);
+#endif
+
+  Py_RETURN_NONE;
+}
 
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
@@ -8353,6 +8397,7 @@ static PyMethodDef lng_methods [] =
   {"NON_SOLFEC_ARGV", (PyCFunction)lng_NON_SOLFEC_ARGV, METH_NOARGS, "Return non-Solfec input arguments"},
   {"MODAL_ANALYSIS", (PyCFunction)lng_MODAL_ANALYSIS, METH_VARARGS|METH_KEYWORDS, "Perform modal analysis of a FEM body"},
   {"BODY_MM_EXPORT", (PyCFunction)lng_BODY_MM_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MatrixMarket M and K matrices of a FEM body"},
+  {"DISPLAY_POINT", (PyCFunction)lng_DISPLAY_POINT, METH_VARARGS|METH_KEYWORDS, "Add display point"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -8583,6 +8628,7 @@ int lng (const char *path)
                      "from solfec import NON_SOLFEC_ARGV\n"
                      "from solfec import MODAL_ANALYSIS\n"
                      "from solfec import BODY_MM_EXPORT\n"
+                     "from solfec import DISPLAY_POINT\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

@@ -46,6 +46,7 @@ typedef struct solfec SOLFEC;
 typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL, REDUCED_ORDER} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
 
 typedef struct general_force FORCE;
+typedef struct display_point DISPLAY_POINT;
 typedef void (*FORCE_FUNC) (void *data, void *call, /* user data and user callback pointers */
                             int nq, double *q, int nu, double *u,   /* user defined data, configuration, velocity, time, time step */
                             double t, double h, double *f);  /* for rigid bodies 'f' comprises [spatial force; spatial torque; referential torque];
@@ -101,6 +102,15 @@ struct general_force
   int surfid; /* pressure surface id */
 
   FORCE *next;
+};
+
+struct display_point /* auxiliary display point for verification purposes */
+{
+  double X [3], x [3];
+
+  SGP *sgp;
+
+  char *label;
 };
 
 /* energy kinds */
@@ -193,6 +203,8 @@ struct general_body
   SET *children, *prevchildren; /* set of children ranks for a parent/set of other children ranks for a child; set of previous children ranks for a parent */
 #else
   void *rendering; /* rendering data */
+
+  SET *displaypoints; /* display points set */
 #endif
 };
 
