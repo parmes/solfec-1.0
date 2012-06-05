@@ -280,7 +280,7 @@ obj/shp.o: shp.c shp.h cvx.h msh.h sph.h err.h mot.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/bod.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h but.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
 
 obj/dom.o: dom.c dom.h dio.h bod.h pbf.h mem.h map.h set.h err.h box.h ldy.h sps.h mat.h
 	$(CC) $(CFLAGS) -c -o $@ $<
