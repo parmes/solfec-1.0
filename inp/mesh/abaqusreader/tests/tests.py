@@ -73,6 +73,24 @@ class Test(unittest.TestCase):
     """ C3D20R elements  with surface sets & 2x instances """
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
     self.failUnless(isinstance(AbaqusInput(solfec, 'MODEL08.inp'), AbaqusInput))
+  
+  def test09(self):
+    """ .nodesets """
+    solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
+    m = AbaqusInput(solfec, 'MODEL07.inp')
+    for inst in m.assembly.instances.values():
+      coords = [inst.mesh.node(n) for n in range(inst.mesh.nnod)]
+      p = inst.part
+      # checked the solfec node IDs below were right using the Viewer
+      surf001 = [22, 32, 57, 66, 82, 76, 23, 29, 20, 30, 56, 60, 74, 80, 77, 68, 21, 28, 69, 72]
+      surf002 = [10, 22, 42, 48, 57, 76, 104, 11, 14, 18, 8, 20, 43, 49, 53, 55, 68, 96, 88, 78, 100, 9, 12, 16, 70, 84, 92]
+      surf003 = [42, 48, 62, 67, 82, 76, 104, 107, 43, 40, 44, 46, 50, 61, 80, 77, 99, 91, 83, 96, 88, 78, 105, 106, 41, 45, 79, 81, 89, 90, 97, 98]
+      surf4 = [48, 57, 62, 66, 49, 53, 55, 46, 50, 56, 60, 63, 64, 65, 47, 51, 52, 54, 58, 59]
+      self.assertEqual(p.nodesets['SURF001'], surf001)
+      self.assertEqual(p.nodesets['SURF002'], surf002)
+      self.assertEqual(p.nodesets['SURF003'], surf003)
+      self.assertEqual(p.nodesets['SURF4'], surf4)
+      
 
 # -- MAIN -----------------------------------------------------------
 

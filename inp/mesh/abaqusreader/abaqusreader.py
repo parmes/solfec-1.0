@@ -15,7 +15,7 @@ import sys
 from math import sqrt
 from solfec import *
 
-modulesolfec = None
+_modulesolfec = None
 
 def printonce(*args, **kwargs):
   """ Like print statement but only produces output from one CPU when run in parallel.
@@ -33,7 +33,7 @@ def printonce(*args, **kwargs):
   if RANK() != 0:
     return
   else:
-    if modulesolfec is None or mode=='BOTH' or mode==modulesolfec.mode:
+    if _modulesolfec is None or mode=='BOTH' or mode==_modulesolfec.mode:
       # fall back to printing if haven't defined solfec object - useful for debugging
       if isinstance(args, str):
         print args
@@ -66,20 +66,14 @@ def readinpline(inputfile):
     ln = ln[:-1]
   return ln
 
-def point (nodes, i):
-  return (nodes [3*i], nodes [3*i+1], nodes [3*i+2])
-
-def sub (a, b):
+def _sub (a, b):
   return (a[0]-b[0], a[1]-b[1], a[2]-b[2])
 
-def cros (a, b):
-  return (a[1]*b[2] - a[2]*b[1], a[2]*b[0] - a[0]*b[2], a[0]*b[1] - a[1]*b[0])
-
-def dot (a, b):
+def _dot (a, b):
   return (a[0]*b[0] + a[1]*b[1] + a[2]*b[2])
 
-def l2 (a):
-  return sqrt (dot (a, a))
+def _l2 (a):
+  return sqrt (_dot (a, a))
 
 class Part:
   def __init__(self):
@@ -89,6 +83,7 @@ class Part:
     self.nodes = []           # Node data in format for 'node' parameter of Solfec MESH() command
     self.elements = []        # Element data in format for 'element' parameter of Solfec MESH() command
     self.surfids = []         # Surface ID data in format for 'surfids' parameter of the Solfec MESH() command
+    self.nodesets = {}        # Node IDs (solfec node numbers) for *NODESET
 
     # private members:
     self._abqnodes = {}       # key=abaqus node ID (1...), value=(x float, y float, z float)
@@ -132,8 +127,8 @@ class AbaqusInput:
     self.solfec = solfec        # Associated solfec object
     
     # also set module-level solfec variable:
-    global modulesolfec
-    modulesolfec = solfec
+    global _modulesolfec
+    _modulesolfec = solfec
     
     gid = 0   # Global surface ID for unspecified surfaces
     volid = 1 # Volume identifier for all elements
@@ -177,6 +172,12 @@ class AbaqusInput:
         #print nodeids
         p.elements.append(volid)  # push volume identifier
       
+      # generate solfec-numbered nodesets
+      for nsetname in p._abqnsets:
+        solfecnodes = [p.nodemap[nid] for nid in p._abqnsets[nsetname] if p.nodemap.get(nid, None) is not None]
+        p.nodesets[nsetname] = solfecnodes
+        
+      
       # generate part.surfids
       p.surfids = [gid,]
       for nsetname in p._abqnsets:
@@ -206,8 +207,8 @@ class AbaqusInput:
       #for ls in zip(*[iter(part.elements)]*10): print ls
 
       i.mesh = MESH(part.nodes, part.elements, part.surfids)
-      if l2(i.translate) > 0.0: TRANSLATE(i.mesh, i.translate)  # translation is applied before rotation in ABAQUS
-      if l2(i.direction) > 0.0: ROTATE(i.mesh, i.point, i.direction, i.angle)
+      if _l2(i.translate) > 0.0: TRANSLATE(i.mesh, i.translate)  # translation is applied before rotation in ABAQUS
+      if _l2(i.direction) > 0.0: ROTATE(i.mesh, i.point, i.direction, i.angle)
 
   def parse(self):
     
@@ -325,7 +326,7 @@ class AbaqusInput:
                   p0 = (float (lin[0]), float (lin[1]), float (lin[2]))
                   p1 = (float (lin[3]), float (lin[4]), float (lin[5]))
                   i.point = p0
-                  i.direction = sub(p1, p0)
+                  i.direction = _sub(p1, p0)
                   i.angle = float(lin[6])
                 else:
                   raise NameError('Invalid line in instance definition:\n' + ','.join(lin))
