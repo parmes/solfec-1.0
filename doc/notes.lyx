@@ -1,0 +1,1852 @@
+#LyX 1.6.5 created this file. For more info see http://www.lyx.org/
+\lyxformat 345
+\begin_document
+\begin_header
+\textclass book
+\use_default_options true
+\language english
+\inputencoding auto
+\font_roman default
+\font_sans default
+\font_typewriter default
+\font_default_family default
+\font_sc false
+\font_osf false
+\font_sf_scale 100
+\font_tt_scale 100
+
+\graphics default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize default
+\use_geometry true
+\use_amsmath 1
+\use_esint 1
+\cite_engine basic
+\use_bibtopic false
+\paperorientation portrait
+\leftmargin 2cm
+\rightmargin 2cm
+\secnumdepth 2
+\tocdepth 2
+\paragraph_separation indent
+\defskip medskip
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\author "" 
+\author "" 
+\end_header
+
+\begin_body
+
+\begin_layout Title
+Solfec notes
+\end_layout
+
+\begin_layout Author
+Tomasz Koziara
+\end_layout
+
+\begin_layout Chapter
+Finite elements
+\end_layout
+
+\begin_layout Standard
+Finite elements are implemenented in files
+\end_layout
+
+\begin_layout LyX-Code
+fem.h, fem.c
+\end_layout
+
+\begin_layout Standard
+These notes provide extended comments to the implementation.
+ Let's have a look into computation of internal forces and internal force
+ derivatives.
+ Integration over regular element domain looks like this
+\end_layout
+
+\begin_layout LyX-Code
+shp_order_internal_force 
+\begin_inset Formula $\left(derivative,nodes,q\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+1  for each integration 
+\begin_inset Formula $point$
+\end_inset
+
+ and 
+\begin_inset Formula $weight$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+2    
+\begin_inset Formula $\left(J,F_{0}\right)=$
+\end_inset
+
+ shp_order_det 
+\begin_inset Formula $\left(nodes,point\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+3    
+\begin_inset Formula $\left(derivs,F\right)=$
+\end_inset
+
+ shp_order_gradient 
+\begin_inset Formula $\left(q,point,F_{0}\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+4    
+\begin_inset Formula $integral=J\cdot weight$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+5    if 
+\begin_inset Formula $derivative$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+6      
+\begin_inset Formula $K=$
+\end_inset
+
+ dPK1/dF 
+\begin_inset Formula $\left(F\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+7      
+\begin_inset Formula $K=K\cdot integral$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+8      for 
+\begin_inset Formula $i=0$
+\end_inset
+
+ to 
+\begin_inset Formula $3\cdot\dim_{0}\left(nodes\right)-1$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+9      
+\family roman
+\series medium
+\shape up
+\size normal
+\emph off
+\bar no
+\noun off
+\color none
+  
+\begin_inset Formula $KB_{i}=\sum_{j=0}^{2}K\left[:,i\%3+3\cdot j\right]\cdot derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +j\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+10       for 
+\begin_inset Formula $j=0$
+\end_inset
+
+ to 
+\begin_inset Formula $\dim_{0}\left(nodes\right)$
+\end_inset
+
+ do 
+\begin_inset Formula $\partial f_{int}/\partial q_{i}\left[3j:3j+3\right]\stackrel{+}{=}KB_{i}\cdot derivs\left[3j:3j+3\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+11   else
+\end_layout
+
+\begin_layout LyX-Code
+12     
+\begin_inset Formula $P=$
+\end_inset
+
+ PK1 
+\begin_inset Formula $\left(F\right)$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+13     
+\begin_inset Formula $P=P\cdot integral$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+14     for 
+\begin_inset Formula $i=0$
+\end_inset
+
+ to 
+\begin_inset Formula $\dim_{0}\left(nodes\right)-1$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+15       
+\begin_inset Formula $f_{int}\left[3i:3i+3\right]\stackrel{+}{=}P\cdot derivs\left[3i:3i+3\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Examples of 
+\family typewriter
+shp_order_det
+\family default
+ functions are 
+\family typewriter
+tet_o1_det
+\family default
+ and 
+\family typewriter
+hex_o1_det
+\family default
+ for respectively the first order tetrahedron and the first order hexahedorn.
+ Function 
+\family typewriter
+shp_order_det
+\family default
+ computes deteminant and derivatives of the local to global coordinates
+ mapping
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+X\left(\xi\right)=\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}nodes[i,:]\cdot N_{i}\left(\xi\right)\]
+
+\end_inset
+
+where 
+\begin_inset Formula $nodes[:,:]$
+\end_inset
+
+ is of dimension 
+\begin_inset Formula $4\times3$
+\end_inset
+
+ for the linear tetrahedron and 
+\begin_inset Formula $8\times3$
+\end_inset
+
+ for the linear hexahedron.
+ It stores nodal coordinates.
+ 
+\begin_inset Formula $N_{i}\left(\xi\right)$
+\end_inset
+
+ are base element shape functions, where 
+\begin_inset Formula $\xi$
+\end_inset
+
+ is a 
+\begin_inset Formula $3-$
+\end_inset
+
+vector, the local coordinate.
+ We then have
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+F_{0}=\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}nodes[i,:]\otimes\partial N_{i}\left(\xi\right)/\partial\xi\]
+
+\end_inset
+
+and
+\end_layout
+
+\begin_layout LyX-Code
+\begin_inset Formula \[
+J=\det\left(F_{0}\right)\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+where 
+\begin_inset Formula $F_{0}$
+\end_inset
+
+ is a 
+\begin_inset Formula $3\times3$
+\end_inset
+
+ matrix.
+ Function 
+\family typewriter
+shp_order_gradient
+\family default
+ on the other hand computers global derivatives of the shape functions and
+ deformation gradient at a local point.
+ There follows
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\partial N_{i}/\partial X=\partial N_{i}/\partial\xi\cdot\partial\xi/\partial X=\partial N_{i}/\partial\xi\cdot F_{0}^{-1}\]
+
+\end_inset
+
+so that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+derivs\left[3\cdot i:3\cdot i+3\right]=F_{0}^{-T}\cdot\partial N_{i}/\partial\xi\]
+
+\end_inset
+
+hence 
+\begin_inset Formula $dervis$
+\end_inset
+
+ is a vector of size 
+\begin_inset Formula $n=\dim_{0}\left(nodes\right)$
+\end_inset
+
+ storing respecively 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+derivs=\left[N_{0,X},N_{0,Y},N_{0,Z},N_{1,X},N_{1,Y},N_{1,Z},...,N_{n,X},N_{n,Y},N_{n,Z}\right]\]
+
+\end_inset
+
+The deformation gradient is then computes as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+F=I+\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}q[i,:]\otimes\partial N_{i}\left(point\right)/\partial X=I+\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}q[i,:]\otimes derivs\left[3\cdot i:3\cdot i+3\right]\label{eq:F}\end{equation}
+
+\end_inset
+
+where the 
+\begin_inset Formula $3\times3$
+\end_inset
+
+ identity 
+\begin_inset Formula $I$
+\end_inset
+
+ is due to 
+\begin_inset Formula $q[:,:]$
+\end_inset
+
+ being a matrix of nodal displacements.
+ In line 4 we then compute the integration factor 
+\begin_inset Formula $integral=J\cdot weight$
+\end_inset
+
+, comprising the Jacobian determinant of the coordinates change and the
+ integration weight.
+ When internal force is being computed, in lines 12 we obtain the first
+ Piola stress tensor as a function of the deformation gradient and then
+ scale it by the integration factor in line 13.
+ Now the internal force computation follows
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+f_{int}=\int_{\Omega_{0}}P\cdot\partial N/\partial Xd\Omega_{0}\]
+
+\end_inset
+
+and hence
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+f_{int}\left[3i:3i+3\right]\stackrel{+}{=}P\cdot derivs\left[3i:3i+3\right]\]
+
+\end_inset
+
+in line 15, where 
+\begin_inset Formula $a\stackrel{+}{=}b$
+\end_inset
+
+ denotes 
+\begin_inset Formula $a=a+b$
+\end_inset
+
+.
+ Now the derivative.
+ We are going to compute
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\partial f_{int}/\partial q=\int_{\Omega_{0}}\left[\partial P/\partial F\cdot\partial F/\partial q\right]\cdot\partial N/\partial Xd\Omega_{0}\]
+
+\end_inset
+
+Let
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+K=\partial P/\partial F\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+B=\partial F/\partial q\]
+
+\end_inset
+
+so that 
+\begin_inset Formula $K$
+\end_inset
+
+ is 
+\begin_inset Formula $3\times3\times3\times3$
+\end_inset
+
+ and 
+\begin_inset Formula $B$
+\end_inset
+
+ is 
+\begin_inset Formula $3\times3\times dofs$
+\end_inset
+
+, where 
+\begin_inset Formula $dofs=3\cdot\dim_{0}\left(nodes\right)$
+\end_inset
+
+.
+ The product 
+\begin_inset Formula $\partial P/\partial F\cdot\partial F/\partial q$
+\end_inset
+
+ is the again a 
+\begin_inset Formula $3\times3\times dofs$
+\end_inset
+
+ matrix.
+ Let us denote by 
+\begin_inset Formula $KB_{i}$
+\end_inset
+
+ the 
+\begin_inset Formula $3\times3\times1$
+\end_inset
+
+ 
+\begin_inset Formula $i\mbox{th}$
+\end_inset
+
+ sub-matrix, where 
+\begin_inset Formula $i=0,1,...,dofs-1$
+\end_inset
+
+.
+ The 
+\begin_inset Formula $i\mbox{th}$
+\end_inset
+
+ column of the internal force derivative can then be computed as 
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\partial f_{int}/\partial q_{i}\left[3i:3i+3\right]\stackrel{+}{=}KB_{i}\cdot derivs\left[3i:3i+3\right]\]
+
+\end_inset
+
+where 
+\begin_inset Formula $q$
+\end_inset
+
+ is interpreted as a vector
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+q=\left[q_{X}^{0},q_{Y}^{0},q_{z}^{0},....,q_{X}^{n-1},q_{Y}^{n-1},q_{Z}^{n-1}\right]\]
+
+\end_inset
+
+What remains to be sorted is a convenient way to compute 
+\begin_inset Formula $KB_{i}$
+\end_inset
+
+.
+ Let us use Voigt notation for a while.
+ 
+\begin_inset Formula $P$
+\end_inset
+
+ and 
+\begin_inset Formula $F$
+\end_inset
+
+ become vectors gathering in a column-wise manner the underlying matrices.
+ 
+\begin_inset Formula $K$
+\end_inset
+
+ is a 
+\begin_inset Formula $9\times9$
+\end_inset
+
+ matrix and 
+\begin_inset Formula $B$
+\end_inset
+
+ is a 
+\begin_inset Formula $9\times dofs$
+\end_inset
+
+ one.
+ It is useful to note that 
+\begin_inset Formula $B$
+\end_inset
+
+ is sparse, so that computing 
+\begin_inset Formula $K\cdot B$
+\end_inset
+
+ with a dense algebra kernal such as BLAS might be waistful.
+ It seems more appropriate to hard code the multiplication and rely on compilier
+ optimizations to sort out details.
+ We have then
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+KB_{i}=K\cdot B\left[:,i\right]\]
+
+\end_inset
+
+and would like optimize this multiplication by using sparsity of 
+\begin_inset Formula $B$
+\end_inset
+
+ columns, that is the sparsity o 
+\begin_inset Formula $\partial F/\partial q_{i}$
+\end_inset
+
+.
+ From (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:F"
+
+\end_inset
+
+) we can see that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\partial F/\partial q_{i}=\left[\begin{array}{c}
+0\\
+\mbox{row }\left(i\%3\right)\mbox{ made of }\\
+0\end{array}derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle :3\cdot\left\langle \frac{i}{3}\right\rangle +3\right]\right]\]
+
+\end_inset
+
+where 
+\begin_inset Formula $a\%b$
+\end_inset
+
+ denotes division modulo and 
+\begin_inset Formula $\left\langle \frac{i}{3}\right\rangle $
+\end_inset
+
+ denotes integer division, e.g.
+ 
+\begin_inset Formula $\left\langle \frac{5}{3}\right\rangle =1$
+\end_inset
+
+.
+ We then have the following nonzero elements of 
+\begin_inset Formula $B\left[:,i\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+B\left[:,i\right]=\left\{ B\left[i\%3,i\right],B\left[i\%3+3,i\right],B\left[i\%3+6,i\right]\right\} \]
+
+\end_inset
+
+and
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+B\left[i\%3,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle \right]\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+B\left[i\%3+3,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +1\right]\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+B\left[i\%3+6,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +2\right]\]
+
+\end_inset
+
+and finally
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+KB_{i}=\sum_{j=0}^{2}K\left[:,i\%3+3\cdot j\right]\cdot derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +j\right]\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Chapter
+Newton solver
+\end_layout
+
+\begin_layout Section
+Linearization of rigid link in the static case
+\end_layout
+
+\begin_layout Standard
+Assume that the rigid link vector between the master and slave points is
+ called 
+\begin_inset Formula $\mathbf{a}$
+\end_inset
+
+ and its length is 
+\begin_inset Formula $d$
+\end_inset
+
+.
+ The linearization can be done in two ways.
+ One can write
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \mathbf{a}+h\mathbf{U},\mathbf{a}+h\mathbf{U}\right\rangle =d^{2}\]
+
+\end_inset
+
+as it is done in the 
+\series bold
+riglnk
+\series default
+ routine in the 
+\emph on
+bgs.c
+\emph default
+ Gauss-Seidel code.
+ This leads to a nonlinear system and is not suitable for the global Newton
+ solver.
+ Another way is to observe that whatever the tangential velocity 
+\begin_inset Formula $\mathbf{U}_{T}$
+\end_inset
+
+ is, it always drives us away from the constraint along an edge of a rectilinear
+ triangle.
+ We can then use the normal velocity 
+\begin_inset Formula $U_{N}$
+\end_inset
+
+ in order to satisfy the constraint
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{b}=\mathbf{a}+h\mathbf{U}_{T}\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \mathbf{b}+h\mathbf{n}U_{N},\mathbf{b}+h\mathbf{n}U_{N}\right\rangle =d^{2}\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\gamma=\left\langle \mathbf{b},\mathbf{b}\right\rangle -d^{2},\beta=2h\left\langle \mathbf{b},\mathbf{n}\right\rangle ,\alpha=h^{2}\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\gamma+\beta U_{N}+\alpha U_{N}^{2}=0\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+U_{N}=\frac{-\beta+\sqrt{\beta^{2}-4\alpha\gamma}}{2\alpha}\]
+
+\end_inset
+
+Assuming that 
+\begin_inset Formula $\mathbf{n}=\mathbf{a}/\left\Vert \mathbf{a}\right\Vert $
+\end_inset
+
+ and knowing that 
+\begin_inset Formula $U_{T}\perp\mathbf{n}$
+\end_inset
+
+ we can see that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\beta=2hd\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\gamma=d^{2}+h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle -d^{2}=h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle \]
+
+\end_inset
+
+hence we end up with
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+U_{N}=\frac{-2hd+\sqrt{4h^{2}d^{2}-4h^{4}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle }}{2h^{2}}=\frac{-d+\sqrt{d^{2}-h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle }}{h}\]
+
+\end_inset
+
+which obviously not always has a real solution - true when looks at the
+ geometry of such operation (for too large tangential velocities there would
+ be no way to correct the length by assuming a suitable normal component).
+ This case happens exactly when 
+\begin_inset Formula $h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle =d^{2}$
+\end_inset
+
+, as beyond that length of 
+\begin_inset Formula $\mathbf{U}_{T}$
+\end_inset
+
+ there is no possible way of coming back to the constraint by simple alteration
+ of 
+\begin_inset Formula $U_{N}$
+\end_inset
+
+.
+ Picking 
+\begin_inset Formula $+$
+\end_inset
+
+ or 
+\begin_inset Formula $-$
+\end_inset
+
+ before 
+\begin_inset Formula $\sqrt{\cdot}$
+\end_inset
+
+ is also due to a geometrical consideration: we choose the smaller negative
+ velocity as we wish to jump to the closest stabbing point of the spherical
+ constraint surface.
+\end_layout
+
+\begin_layout Section
+Processing residuals
+\end_layout
+
+\begin_layout Standard
+There are two possible ways of updating local velocities during Newton solution.
+ We can take
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{i}+\delta\mathbf{U}=\mathbf{W}\left(\mathbf{R}^{i}+\delta\mathbf{R}\right)+\mathbf{B}\]
+
+\end_inset
+
+and
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{R}^{i+1}=\mathbf{R}^{i}+\alpha\delta\mathbf{R}\]
+
+\end_inset
+
+so
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{i+1}=\mathbf{U}^{i}+\alpha\delta\mathbf{U}\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ is the damping parameter (e.g.
+ due to line-search).
+ In this case, one needs to remember that the residual
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{RES}^{i}=\mathbf{W}\mathbf{R}^{i}+\mathbf{B}-\mathbf{U}^{i}\]
+
+\end_inset
+
+is generally nonzero.
+ When we write
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{VAL}=\mathbf{W}\left(\mathbf{R}^{i}+\delta\mathbf{R}\right)+\mathbf{B}\]
+
+\end_inset
+
+then we can recover the equation for 
+\begin_inset Formula $\delta\mathbf{R}$
+\end_inset
+
+ as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{VAL}-\mathbf{U}^{i}-\mathbf{RES}^{i}=\mathbf{W}\delta\mathbf{R}\]
+
+\end_inset
+
+Another way to go is not to use 
+\begin_inset Formula $\delta\mathbf{U}$
+\end_inset
+
+ at all, but rather after computing 
+\begin_inset Formula $\mathbf{R}^{i}$
+\end_inset
+
+ always update 
+\begin_inset Formula $\mathbf{U}^{i}$
+\end_inset
+
+ as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{i}=\mathbf{W}\mathbf{R}^{i}+\mathbf{B}\]
+
+\end_inset
+
+and this way maintain at all times a zero residual.
+ This however, in experiments, seems to be less numerically robust than
+ actually processing the residual.
+ This might result from the fact that the residual does affect some of the
+ linearisation bits corresponding to frictional contact constraints, which
+ are highly nonlinear and hence sensitive to specific manners of linearisation.
+\end_layout
+
+\begin_layout Section
+Tikhonov regularization
+\end_layout
+
+\begin_layout Standard
+When solving
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{A}\mathbf{x}=\mathbf{b}\]
+
+\end_inset
+
+resulting from linearized constraints, operator 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ is often ill-conditioned.
+ This results from statical overdeterminancy - either there are more constraints
+ in the system that there are kinematic degrees of freedom, or some constraints
+ are too densely clustered which leads to a similar, but local overdeterminancy.
+ The linear system can still be quite accurately solved, because in most
+ cases 
+\begin_inset Formula $\mathbf{b}$
+\end_inset
+
+ belongs to the range of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+.
+ Recasting the above into a minimisation problem
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{x}=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}\]
+
+\end_inset
+
+we can see that ill-conditioning corresponds to the existence of 
+\begin_inset Quotes eld
+\end_inset
+
+flat minima
+\begin_inset Quotes erd
+\end_inset
+
+: we can always find a minimum on the range of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+, but elements of 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ corresponding to the subsets of linearly dependent columns can be arbitrary
+ as long as they sum up these columns to the appropriate components of the
+ solution.
+ Hence, the minima are flat along some subspaces of 
+\begin_inset Formula $\mathbf{R}^{n}$
+\end_inset
+
+.
+ In order to avoid flat minima we can approximate the original problem with
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{x}_{\alpha}=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}+\alpha\left\Vert \mathbf{x}\right\Vert ^{2}\]
+
+\end_inset
+
+The above approximation removes flatness by adding to the original objective
+ function (that might have been non-convex and was flat along its local
+ minima) a strictly convex function 
+\begin_inset Formula $\alpha\left\Vert \mathbf{x}\right\Vert $
+\end_inset
+
+.
+ Now, traveling along the subspaces of 
+\begin_inset Formula $\mathbf{R}^{n}$
+\end_inset
+
+ spanned by the subsets of linearly dependent columns of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ results in a variation of 
+\begin_inset Formula $\alpha\left\Vert \mathbf{x}\right\Vert ^{2}$
+\end_inset
+
+: from each subset of 
+\begin_inset Formula $\mathbf{R}^{n}$
+\end_inset
+
+ corresponding to a minimum of the original problem we are now forced to
+ select an element with minimal norm 
+\begin_inset Formula $\left\Vert \mathbf{x}\right\Vert $
+\end_inset
+
+.
+ Hence
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{x}_{\alpha}=\underset{\mathbf{x}\in\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}}{\arg\min\left\Vert \mathbf{x}\right\Vert }\]
+
+\end_inset
+
+Just above, the value of 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ is not present and in fact it does not matter as far as the intepretation
+ is concerned.
+ Of course, as soon as it comes to computation with finite precision, one
+ can appreciate that 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ should be such that a 
+\begin_inset Quotes eld
+\end_inset
+
+good balance
+\begin_inset Quotes erd
+\end_inset
+
+ between the original and the added terms can be maintained.
+ If we look in to the first order optimality condition for the regularized
+ minimization problem
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\left[\mathbf{A}^{T}\mathbf{A}+\alpha\mathbf{I}\right]\mathbf{x}=\mathbf{A}^{T}\mathbf{b}\label{eq:tikho}\end{equation}
+
+\end_inset
+
+we can see that 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ makes the linear system invertible.
+ Actually, we end up with a symmetric and positive definite linear system,
+ which should be quite easy to solve.
+ The only trouble is the need to compute a matrix product, which generally
+ results in a dense matrix, even though 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ might be sparse.
+ Still, the above system can be quite efficiently solved using an iterative
+ solver, so that the matrix product does not need to be explicitly computed.
+ Assume now that 
+\begin_inset Formula $\mathbf{b}\in\mbox{range\left(\mathbf{A}\right)}$
+\end_inset
+
+ and that we would like to compute 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ such that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert <\epsilon\label{eq:inexa}\end{equation}
+
+\end_inset
+
+Surely, due to the assumption on 
+\begin_inset Formula $\mathbf{b}$
+\end_inset
+
+ the 
+\begin_inset Formula $\epsilon$
+\end_inset
+
+ can be taken as small as we wish.
+ How large can 
+\begin_inset Formula $\alpha$
+\end_inset
+
+ be so that 
+\begin_inset Formula $\mathbf{x}$
+\end_inset
+
+ computed from (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:tikho"
+
+\end_inset
+
+) still satisfies (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:inexa"
+
+\end_inset
+
+)? Can we work out a  formula for 
+\begin_inset Formula $\alpha=\alpha\left(\epsilon\right)$
+\end_inset
+
+?
+\end_layout
+
+\begin_layout Standard
+Let us consider singular value decomposition of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{A}=\mathbf{U}\mathbf{S}\mathbf{V}\label{eq:svd}\end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{U}$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{V}$
+\end_inset
+
+ are orthogonal, while 
+\begin_inset Formula $\mathbf{S}$
+\end_inset
+
+ is diagonal with real and non-negative entries.
+ We can then rewrite (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:tikho"
+
+\end_inset
+
+) as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left[\mathbf{V}^{T}\mathbf{S}^{2}\mathbf{V}+\alpha\mathbf{I}\right]\mathbf{x}=\mathbf{V}^{T}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+
+\end_inset
+
+and further
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{V}^{T}\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]\mathbf{V}\mathbf{x}=\mathbf{V}^{T}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\mbox{ hence }\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]\mathbf{V}\mathbf{x}=\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+
+\end_inset
+
+and finally
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{x}=\mathbf{V}^{T}\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]^{-1}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+
+\end_inset
+
+Clearly, the regularization makes the digonal value storing squares of singular
+ values invertible.
+ The above can be further simplified to
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{equation}
+\mathbf{x}=\mathbf{V}^{T}\left\{ \frac{\sigma_{i}}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{U}^{T}\mathbf{b}\label{eq:xapprox}\end{equation}
+
+\end_inset
+
+where by 
+\begin_inset Formula $\left\{ \cdot\right\} $
+\end_inset
+
+ we mean a suitable diagonal matrix.
+ Inserting (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:xapprox"
+
+\end_inset
+
+) into (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:inexa"
+
+\end_inset
+
+) results in
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\Vert \mathbf{U}\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{U}^{T}\mathbf{b}-\mathbf{b}\right\Vert <\epsilon\]
+
+\end_inset
+
+where again (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:svd"
+
+\end_inset
+
+) was employed.
+ At first the above inequality seems troublesome because for 
+\begin_inset Formula $\sigma_{i}=0$
+\end_inset
+
+ the corresponding 
+\begin_inset Formula $b_{i}$
+\end_inset
+
+ will simply contribute to the norm, withough regard for 
+\begin_inset Formula $\alpha$
+\end_inset
+
+.
+ Hence, for an arbitrary 
+\begin_inset Formula $\mathbf{b}$
+\end_inset
+
+ the residual norm cannot be arbitrarily small.
+ We need to bring back the assumption that 
+\begin_inset Formula $\mathbf{b}\in\mbox{range\left(\mathbf{A}\right)}$
+\end_inset
+
+.
+ Hence
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{b}=\mathbf{A}\mathbf{y}=\mathbf{U}\mathbf{S}\mathbf{V}\mathbf{y}\]
+
+\end_inset
+
+so that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}\left[\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} -\mathbf{I}\right]\mathbf{U}^{T}\mathbf{b}=\mathbf{U}\left[\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} -\mathbf{I}\right]\mathbf{S}\mathbf{V}\mathbf{y}=\mathbf{U}\left\{ \frac{-\sigma_{i}\alpha}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{V}\mathbf{y}\]
+
+\end_inset
+
+which demonstrates that for 
+\begin_inset Formula $\alpha\rightarrow0$
+\end_inset
+
+ the residual tends to zero.
+ Nevertheless, because columns of 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ are linearly dependent, 
+\begin_inset Formula $\mathbf{y}$
+\end_inset
+
+ can be made arbitrarily long without affecting 
+\begin_inset Formula $\mathbf{b}$
+\end_inset
+
+.
+ This shows, that although having 
+\begin_inset Formula $\alpha>0$
+\end_inset
+
+ helps to find an approximate solution, accuracy of this solution cannot
+ be guaranteed, even for 
+\begin_inset Formula $\mathbf{b}\in\mbox{range\ensuremath{\left(\mathbf{A}\right)}}$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Chapter
+Impact models
+\end_layout
+
+\begin_layout Section
+Poisson restitution
+\end_layout
+
+\begin_layout Standard
+A time stepping scheme can be abstracted as
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{u}^{+}=\mathbf{u}^{-}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{u}^{+}=\mathbf{u}^{t+h}$
+\end_inset
+
+, 
+\begin_inset Formula $\mathbf{u}^{-}=\mathbf{u}^{t}+\mathbf{A}^{-1}\int_{t}^{t+h}\mathbf{f}dt$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ is a generalized semi-positive definite inertia, depending on a form the
+ time integrator.
+ The energy increment during a time step reads then
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\triangle E=\frac{1}{2}\left(\mathbf{u}^{+}+\mathbf{u}^{-}\right)\mathbf{A}\left(\mathbf{u}^{+}-\mathbf{u}^{-}\right)=\frac{1}{2}\left(\mathbf{u}^{+}+\mathbf{u}^{-}\right)\mathbf{H}^{T}\mathbf{R}\]
+
+\end_inset
+
+and the stability criterion is
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\triangle E\le0\]
+
+\end_inset
+
+Further
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\triangle E=\frac{1}{2}\left\langle \mathbf{u}^{+}+\mathbf{u}^{-},\mathbf{H}^{T}\mathbf{R}\right\rangle =\frac{1}{2}\left\langle \mathbf{U}^{+}+\mathbf{U}^{-},\mathbf{R}\right\rangle \]
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}=\mathbf{H}\mathbf{u}\]
+
+\end_inset
+
+We know that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{+}=\mathbf{U}^{-}+\mathbf{W}\mathbf{R}\]
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{W}=\mathbf{H}\mathbf{A}^{-1}\mathbf{H}^{T}\]
+
+\end_inset
+
+We first consider ideally plastic impacts
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+U_{N}^{+}\ge0,\,\,\, R_{N}\ge0,\,\,\, U_{N}^{+}R_{N}=0\]
+
+\end_inset
+
+together with the Coulomb friction law which assures that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle \le0\]
+
+\end_inset
+
+This way we obtain 
+\begin_inset Formula $R_{N}$
+\end_inset
+
+ corresponding to the compression phase of frictional impacts.
+ We, then consider Poisson's restitution model, where the final normal reaction
+ is 
+\begin_inset Formula $\left(1+\epsilon\right)R_{N}$
+\end_inset
+
+ with 
+\begin_inset Formula $\epsilon\in\left[0,1\right]$
+\end_inset
+
+.
+ Is this substitution energetically consistent? Let
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{Q}=\mbox{diag}\left(\epsilon_{i}\right)\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{U}^{1}=\mathbf{U}^{-}+\mathbf{W}\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]=\mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \begin{eqnarray*}
+\triangle E & = & \frac{1}{2}\left\langle \mathbf{U}^{1}+\mathbf{U}^{-},\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+ & = & \frac{1}{2}\left\langle \mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}+\mathbf{U}^{-},\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+ & = & \frac{1}{2}\left\langle 2\mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}-\mathbf{W}\mathbf{R},\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+ & = & \frac{1}{2}\left\langle 2\mathbf{U}^{+}-\left[\begin{array}{cc}
+\mathbf{W}_{TT} & \mathbf{W}_{TN}\\
+\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+ & = & \left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle +\left\langle \mathbf{U}_{N}^{+},\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\right\rangle -\left\langle \left[\begin{array}{cc}
+\mathbf{W}_{TT} & \mathbf{W}_{TN}\\
+\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \end{eqnarray*}
+
+\end_inset
+
+We know that 
+\begin_inset Formula $\left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle \le0$
+\end_inset
+
+ due to friction, and that 
+\begin_inset Formula $\left\langle \mathbf{U}_{N}^{+},\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\right\rangle =0$
+\end_inset
+
+ due to contact complementarity.
+ It remains to show that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \left[\begin{array}{cc}
+\mathbf{W}_{TT} & \mathbf{W}_{TN}\\
+\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\mathbf{R}_{T}\\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \ge0\]
+
+\end_inset
+
+Let
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{Q}^{1}=\left[\begin{array}{cc}
+\mathbf{0} & \mathbf{0}\\
+\mathbf{0} & \mathbf{Q}\end{array}\right]\]
+
+\end_inset
+
+Then we can write
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \left[\begin{array}{cc}
+\mathbf{W}_{TT} & \mathbf{W}_{TN}\\
+\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left(\mathbf{R}-\mathbf{Q}^{1}\mathbf{R}\right),\mathbf{R}+\mathbf{Q}^{1}\mathbf{R}\right\rangle =\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle -\left\langle \mathbf{W}\mathbf{Q}^{1}\mathbf{R},\mathbf{Q}^{1}\mathbf{R}\right\rangle \]
+
+\end_inset
+
+which shows that both positive and negative signs are possible (saddle surface
+ in 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+).
+ We can work out a practical constraint on restitution by taking
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\mathbf{Q}^{2}=\alpha\mathbf{Q}^{1}\]
+
+\end_inset
+
+and writing
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\left\langle \mathbf{W}\mathbf{Q}^{2}\mathbf{R},\mathbf{Q}^{2}\mathbf{R}\right\rangle -\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+
+\end_inset
+
+which gives
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+\alpha^{2}\le\frac{\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle }{\left\langle \mathbf{W}\mathbf{Q}^{1}\mathbf{R},\mathbf{Q}^{1}\mathbf{R}\right\rangle }\]
+
+\end_inset
+
+so that our restitution model becomes
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula \[
+R_{N}^{final}=\left(1+\epsilon\min\left(\alpha,1\right)\right)R_{N}\]
+
+\end_inset
+
+which guarantees energetic consitency.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Section
+Discrete dynamics
+\end_layout
+
+\begin_layout Plain Layout
+A set of bodies has configuration 
+\begin_inset Formula $\mathbf{q}$
+\end_inset
+
+ and velocity 
+\begin_inset Formula $\mathbf{u}$
+\end_inset
+
+.
+ We can abstract a semi-implicit velocity update as
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\mathbf{u}^{t+h}=\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\label{eq:u}\end{equation}
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\mathbf{b}^{t+h}=\mathbf{u}^{t}+h\mathbf{A}^{-1}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)\mathbf{f}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)\label{eq:b}\end{equation}
+
+\end_inset
+
+is the free velocity, not accounting for the influence of constraints.
+ 
+\begin_inset Formula $\mathbf{A}$
+\end_inset
+
+ can be a mass matrix for an explicit scheme or a combination of mass and
+ stiffness matrices for an implicit scheme, while 
+\begin_inset Formula $\mathbf{f}$
+\end_inset
+
+ is an out of balance force.
+ While (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:b"
+
+\end_inset
+
+) represents a regular velocity update for an unconstrained system, (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:u"
+
+\end_inset
+
+) approximately accounts for the constraints by adding a contribution of
+ their reactions 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+.
+ Update (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:u"
+
+\end_inset
+
+) is approximate, because 
+\begin_inset Formula $\mathbf{A}=\mathbf{A}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)$
+\end_inset
+
+, 
+\begin_inset Formula $\mathbf{H}=\mathbf{H}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)$
+\end_inset
+
+ and 
+\begin_inset Formula $\mathbf{R}=\int_{t}^{t+h}d\mathbf{R}$
+\end_inset
+
+.
+ 
+\begin_inset Formula $\mathbf{H}$
+\end_inset
+
+ is a linear operator mapping the body-space velocity 
+\begin_inset Formula $\mathbf{u}$
+\end_inset
+
+ into the constraint-space velocity 
+\begin_inset Formula $\mathbf{U}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\mathbf{U}=\mathbf{H}\mathbf{u}\label{eq:H}\end{equation}
+
+\end_inset
+
+Having 
+\begin_inset Formula $\mathbf{R}$
+\end_inset
+
+, the configuration can be updated as 
+\begin_inset Formula \begin{equation}
+\mathbf{q}^{t+h}=\mathbf{q}^{t}+\frac{h}{2}\left(\mathbf{u}^{t+h}+\mathbf{u}^{t}\right)\label{eq:q}\end{equation}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section
+Energetic consistency
+\end_layout
+
+\begin_layout Plain Layout
+We assume, that the eployed time integrator is energy consistent in absence
+ of constraints
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\triangle E=\left(\mathbf{q}^{t+h}-\mathbf{q}^{t}\right)\mathbf{f}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)=\frac{h}{2}\left(\mathbf{b}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}-\mathbf{u}^{t}\right)\le0\label{eq:E}\end{equation}
+
+\end_inset
+
+and demand similar consitency if constraints are present
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\triangle E=\frac{h}{2}\left(\mathbf{u}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{u}^{t+h}-\mathbf{u}^{t}\right)\le0\]
+
+\end_inset
+
+This leads to the condition
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left(\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}-\mathbf{u}^{t}\right)\le0\]
+
+\end_inset
+
+which simplifies to
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left(\mathbf{b}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}-\mathbf{u}^{t}\right)+\left(2\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\right)^{T}\mathbf{H}^{T}\mathbf{R}\le0\]
+
+\end_inset
+
+Because of (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:E"
+
+\end_inset
+
+), it is sufficient to demand
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left(2\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\right)^{T}\mathbf{H}^{T}\mathbf{R}\le0\]
+
+\end_inset
+
+which can be rewritten as
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left\langle 2\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+
+\end_inset
+
+where
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\mathbf{B}=\mathbf{H}\mathbf{b}^{t+h}\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\mathbf{W}=\mathbf{H}\mathbf{A}^{-1}\mathbf{H}^{T}\]
+
+\end_inset
+
+Taking 
+\begin_inset Formula \[
+\mathbf{U}=\mathbf{H}\mathbf{u}^{t+h}\]
+
+\end_inset
+
+from (
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "eq:u"
+
+\end_inset
+
+) we have
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}\]
+
+\end_inset
+
+and the consistency condition takes form
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \[
+\left\langle 2\mathbf{U}-\mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+
+\end_inset
+
+or in other words
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Formula \begin{equation}
+\mathbf{\left\langle \mathbf{U},\mathbf{R}\right\rangle }\le\frac{1}{2}\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \end{equation}
+
+\end_inset
+
+where 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+ is symmetric and semi-positive definite.
+ Whether this condition is verified depends on a particular realization
+ of constraints.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_body
+\end_document
