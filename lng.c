@@ -7630,7 +7630,7 @@ static PyObject* lng_DISPLAY_POINT (PyObject *self, PyObject *args, PyObject *kw
   if (label)
   {
     char *string = PyString_AsString (label);
-    ERRMEM (dp->label = malloc (sizeof (strlen (string) + 1)));
+    ERRMEM (dp->label = malloc (strlen (string) + 1));
     strcpy (dp->label, string);
   }
 
