@@ -326,6 +326,31 @@ static void initstatsout (DOM *dom)
   }
 }
 
+/* test whether stop file exists */
+static short stopfile (SOLFEC *sol)
+{
+  char *stop_path;
+  FILE *stop_file;
+  short stop;
+
+  ERRMEM (stop_path = malloc (strlen (sol->outpath) + 64));
+  sprintf (stop_path, "%s/STOP", sol->outpath);
+  if ((stop_file = fopen (stop_path, "r")))
+  {
+    fclose (stop_file);
+    stop = 1;
+  }
+  else stop = 0;
+
+  free (stop_path);
+
+#if MPI
+  stop = PUT_int_max (stop);
+#endif
+
+  return stop;
+}
+
 /* output statistics */
 static void statsout (SOLFEC *sol)
 {
@@ -642,6 +667,9 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #endif
 	if (!ret) break; /* interrupt run */
       }
+
+      /* check whether STOP file was created by the user */
+      if (stopfile (sol)) break;
     }
 
     if (!lastwrite) /* record last state if out of sync */

@@ -7598,13 +7598,13 @@ if (spdK)
 /* add display point */
 static PyObject* lng_DISPLAY_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 {
+#if !MPI
   KEYWORDS ("body", "point", "label");
   PyObject *point, *label;
   DISPLAY_POINT *dp;
   lng_BODY *body;
   int n;
 
-#if !MPI
   label = NULL;
 
   PARSEKEYS ("OO|O", &body, &point, &label);
