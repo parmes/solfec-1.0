@@ -2501,6 +2501,22 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
   self = (lng_BODY*)type->tp_alloc (type, 0);
 
+#if MPI && LOCAL_BODIES
+  int rank;
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  if (self && rank != 0) /* all bodies created on rank 0 */
+  {
+    PARSEKEYS ("OOOO|OOOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh, &modal);
+
+    TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) &&
+	      is_shape (shape, kwl[2]) && is_bulk_material (solfec->sol, material, kwl[3]));
+
+    self->dom = solfec->sol->dom;
+    self->id = self->dom->bid ++;
+    self->bod = (BODY*)1; /* XXX is_body will not complain */
+  }
+  else
+#endif
   if (self)
   {
     label = NULL;

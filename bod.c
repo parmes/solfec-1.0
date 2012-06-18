@@ -2275,7 +2275,7 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   if (modal)
   {
     ERRMEM (val = malloc (sizeof (double [modal])));
-    unpack_doubles (dpos, d, doubles, bod->eval, modal);
+    unpack_doubles (dpos, d, doubles, val, modal);
     E = MX_Unpack (dpos, d, doubles, ipos, i, ints);
   }
   kind = unpack_int (ipos, i, ints);

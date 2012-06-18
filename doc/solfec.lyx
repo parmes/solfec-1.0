@@ -1482,6 +1482,8 @@ During a parallel run Solfec updates a file named STATE, placed in the output
  The output directory contains as well a copy of the input file, which makes
  reading results more self-contained (it is harder to mismatch input and
  output files this way).
+ An analysis (both serial and parallel) can be stopped at any time by placing
+ a file named STOP in the output directory of a simulation.
 \end_layout
 
 \begin_layout Standard
