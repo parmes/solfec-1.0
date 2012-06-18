@@ -2876,9 +2876,14 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
 
 #if MPI
   /* insert every 'rank' body into this domain */
+#if LOCAL_BODIES
+  if (dom->insertbodymode == ALWAYS ||
+     (dom->insertbodymode == EVERYNCPU && dom->rank == 0)) /* all bodies created on rank 0 */
+#else
   if (dom->insertbodymode == ALWAYS ||
      (dom->insertbodymode == EVERYNCPU &&
       bod->id % (unsigned) dom->ncpu == (unsigned) dom->rank))
+#endif
   {
     /* mark as parent */
     bod->flags |= BODY_PARENT;
