@@ -41,7 +41,7 @@ typedef struct solfec SOLFEC;
 #define __dom__
 
 /* XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX */
-#define LOCAL_BODIES 1 /* store bodies only locally  */
+#define LOCAL_BODIES 0 /* store bodies only locally  */
 /* XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX XXX  */
 
 #ifndef CONSTRAINT_TYPE

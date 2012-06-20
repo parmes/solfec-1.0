@@ -147,6 +147,7 @@ def impact_comparison (h1, d1, E, v0, pow0, pow1, rest):
 e0 = 8
 e1 = 17
 dat0 = impact_comparison (1/1024., 1/32., 200E9, -1.0, e0, e1, 0)
+# comment out below before using the viewer (FIXME: interaction with multiple nested RUN commands)
 dat1 = impact_comparison (1/2048., 1/32., 200E9, -1.0, e0, e1, 0)
 dat2 = impact_comparison (1/4096., 1/32., 200E9, -1.0, e0, e1, 0)
 dat3 = impact_comparison (1/1024., 1/32., 200E9, -1.0, e0, e1, 1)
