@@ -174,6 +174,7 @@ enum /* menu items */
   RENDER_PREVIOUS_SELECTION,
   RENDER_BODIES,
   TOOLS_DISPLAY_POINTS,
+  TOOLS_LEGEND_EXTENTS,
   TOOLS_TRANSPARENT,
   TOOLS_TRANSPARENT_ALL,
   TOOLS_TRANSPARENT_NONE,
@@ -273,6 +274,10 @@ struct legend_data
   SET *discrete;
 
   double constant; /* value_to_color mapping regularisation constant */
+
+  double user [2];
+
+  short fixed; /* user fixed legend extents */
 };
 
 /* declarations */
@@ -336,7 +341,7 @@ static int coord_window = 0; /* coordinates window handle */
 #define COORD_WIDTH 64
 #define COORD_HEIGHT 36
 
-static LEGEND_DATA legend; /* legend data */
+static LEGEND_DATA legend = {0, 0, {0, 0}, 0, 0, NULL, 0, {0, 0}, 0}; /* legend data */
 #define LEGEND_ROWS 8 /* number of rows in the legend */
 #define LEGEND_WIDTH_DISC 50 /* legend width for discrete data */
 #define LEGEND_WIDTH_CONT 100 /* legend width for continuous data */
@@ -426,8 +431,8 @@ static void modal_analysis_results ()
       glutAddSubMenu ("modal analysis", local);
 
       glutSetMenu (menu_code [MENU_TOOLS]);
-      glutChangeToMenuEntry (12, "bigger eigenshapes /]/", TOOLS_BIGGER_SCALING);
-      glutChangeToMenuEntry (13, "smaller eigenshapes /[/", TOOLS_SMALLER_SCALING);
+      glutChangeToMenuEntry (14, "bigger eigenshapes /]/", TOOLS_BIGGER_SCALING);
+      glutChangeToMenuEntry (15, "smaller eigenshapes /[/", TOOLS_SMALLER_SCALING);
       glutAddMenuEntry ("next eigenshape /}/", TOOLS_NEXT_MODE);
       glutAddMenuEntry ("previous eigenshape /{/", TOOLS_PREVIOUS_MODE);
 
@@ -442,10 +447,10 @@ static void modal_analysis_results ()
       glutRemoveMenuItem (5);
 
       glutSetMenu (menu_code [MENU_TOOLS]);
-      glutChangeToMenuEntry (12, "bigger arrows /]/", TOOLS_BIGGER_SCALING);
-      glutChangeToMenuEntry (13, "smaller arrows /[/", TOOLS_SMALLER_SCALING);
-      glutRemoveMenuItem (23);
-      glutRemoveMenuItem (22);
+      glutChangeToMenuEntry (14, "bigger arrows /]/", TOOLS_BIGGER_SCALING);
+      glutChangeToMenuEntry (15, "smaller arrows /[/", TOOLS_SMALLER_SCALING);
+      glutRemoveMenuItem (25);
+      glutRemoveMenuItem (24);
 
       if (tip == modetip) tip = NULL;
 
@@ -577,7 +582,11 @@ static void HSL_2_RGB (double H, double S, double L, GLfloat *RGB)
 /* translate scalar value into color */
 inline static void value_to_color (double value, GLfloat *color)
 {
-  HSL_2_RGB (0.69 * (1.0-(value-legend.extents[0])/(legend.extents[1]-legend.extents[0]+legend.constant)), 1.0, 0.45, color);
+  if (value < legend.extents[0] || value > legend.extents[1])
+  {
+    COPY (neutral_color, color);
+  }
+  else HSL_2_RGB (0.69 * (1.0-(value-legend.extents[0])/(legend.extents[1]-legend.extents[0]+legend.constant)), 1.0, 0.45, color);
 }
 
 /* is legend constraint based */
@@ -1772,7 +1781,9 @@ static void legend_render ()
       glTranslated (3, 3, 0);
       for (i = 1, j = k = 0; k < legend.range; k ++, value += step)
       {
-	value_to_color (value, color);
+	if (k == 0) value_to_color (legend.extents[0], color);
+	else if (k == legend.range-1) value_to_color (legend.extents[1], color);
+	else value_to_color (value, color);
 	glColor3fv (color);
 	glRecti (v[0] + j * LEGEND_WIDTH_CONT, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_CONT + 16, v[1] + i * 16 + 16);
 	glColor3f (1, 1, 1);
@@ -3088,6 +3099,11 @@ static void update ()
     if (legendon) legend_enable ();
   }
 
+  if (legend.fixed && !legend.discrete)
+  {
+    COPY2 (legend.user, legend.extents);
+  }
+
   if (render_bodies)
   {
     for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_data (bod, bod->rendering);
@@ -3222,6 +3238,29 @@ static void read_cut_normal (char *text)
       tip = "Press 'c' in order create the cut";
       GLV_Redraw_All ();
     }
+  }
+}
+
+/* read legend extents */
+static void read_legend_extents (char *text)
+{
+  if (text)
+  {
+    if (strstr (text, "auto"))
+    {
+      legend.fixed = 0;
+
+      update ();
+    }
+    else
+    {
+      legend.fixed = 1;
+
+      sscanf (text, "%lf%lf", &legend.user[0], &legend.user[1]);
+
+      update ();
+    }
+    GLV_Redraw_All ();
   }
 }
 
@@ -3655,6 +3694,12 @@ static void menu_tools (int item)
     else display_points = 1;
     GLV_Redraw_All ();
     break;
+  case TOOLS_LEGEND_EXTENTS:
+    if (!GLV_Reading_Text ())
+    {
+      GLV_Read_Text ("Give extents (format: min max OR 'auto')", read_legend_extents);
+    }
+    break;
   case TOOLS_TRANSPARENT:
   case TOOLS_ROUGH_MESH:
   case TOOLS_HIDE:
@@ -3805,7 +3850,6 @@ static void menu_tools (int item)
       GLV_Close_Viewport (coord_window);
 
       legendon = 0;
-
     }
     else
     {
@@ -3933,6 +3977,7 @@ int RND_Menu (char ***names, int **codes)
   menu_name [MENU_TOOLS] = "tools";
   menu_code [MENU_TOOLS] = glutCreateMenu (menu_tools);
   glutAddMenuEntry ("display points on/off /D/", TOOLS_DISPLAY_POINTS);
+  glutAddMenuEntry ("legen extents /e/", TOOLS_LEGEND_EXTENTS);
   glutAddMenuEntry ("toggle transparent /t/", TOOLS_TRANSPARENT);
   glutAddMenuEntry ("transparent all /T/", TOOLS_TRANSPARENT_ALL);
   glutAddMenuEntry ("transparent none /n/", TOOLS_TRANSPARENT_NONE);
@@ -4121,6 +4166,9 @@ void RND_Key (int key, int x, int y)
     break;
   case 'D':
     menu_tools (TOOLS_DISPLAY_POINTS);
+    break;
+  case 'e':
+    menu_tools (TOOLS_LEGEND_EXTENTS);
     break;
   case 't':
     menu_tools (TOOLS_TRANSPARENT);
