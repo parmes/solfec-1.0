@@ -1,4 +1,4 @@
-# ellipsoid compaction test
+# compacted ellipsoids example
 
 from random import randint
 from random import random
@@ -74,7 +74,7 @@ print 'Reading ...',
 (ell, rmax, rmin) = READ_ELLS ()
 print len (ell), 'ellipsoids (rmax = %g, rmin = %g).' % (rmax, rmin)
 
-shuffle (ell) # apply pseudo-random reordering (ellipses might be initially sorted according to volume)
+shuffle (ell) # apply pseudo-random reordering (ellipsoids might be initially sorted according to volume)
 
 step = 1E-3 # arbitrary
 dist = rmin * 0.1 # motion per step
@@ -174,7 +174,8 @@ if dif > 0.0:
 else:
   stop = 1.0
 
-slv = GAUSS_SEIDEL_SOLVER (1, 100, 1E-8)
+#slv = GAUSS_SEIDEL_SOLVER (1, 100, 1E-8)
+slv = NEWTON_SOLVER (1E-8, 100, maxmatvec = 200, delta = 1E-5)
 IMBALANCE_TOLERANCE (solfec, 1.3, 0.5, 10)
 OUTPUT (solfec, stop / 20.0)
 RUN (solfec, slv, stop)
