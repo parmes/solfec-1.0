@@ -50,6 +50,7 @@ if argv != None and len (argv) > 1:
 print 'Using:'
 print '%d modes per fuel brick'%fbmod
 print '%g damping'%damp
+print '%g restitution'%rest
 print '%g step'%step
 print '------------------------------------------------------'
 
