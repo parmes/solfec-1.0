@@ -10,7 +10,7 @@ import sys
 import time
 import pickle
 import commands
-sys.path.append('inp/mesh/abaqusreader')
+sys.path.append('scripts/abaqusreader')
 sys.path.append('inp/mbfcp/81array')
 from abaqusreader import AbaqusInput
 from math import cos 
