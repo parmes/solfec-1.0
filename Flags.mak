@@ -104,4 +104,6 @@ ifeq ($(SICONOS),yes)
   SICONOS = -DWITHSICONOS
 else
   SICONOS = 
+  SICONOSINC =
+  SICONOSLIB =
 endif
