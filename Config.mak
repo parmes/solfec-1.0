@@ -20,8 +20,8 @@ CXX = g++
 # Specify FORTRAN95 compiler and FORTRAN runtime library
 #
 
-FC = g95
-FCLIB = -L/opt/local/lib/g95/i386-apple-darwin9/4.0.4/ -lf95
+FC = gfortran
+FCLIB = -lgfortran
 
 # 
 # Debug or optimized version switch (yes/no)
@@ -71,8 +71,8 @@ LAPACK = -L/usr/lib -llapack
 # Python
 #
 
-PYTHON = -I/Library/Frameworks/Python.framework/Versions/Current/include/python2.7
-PYTHONLIB = -framework Python
+PYTHON = -I/usr/include/python2.6
+PYTHONLIB = -L/usr/lib -lpython2.6
 
 #
 # OpenGL (yes/no)
@@ -99,13 +99,13 @@ MPICC = mpicc
 # Zoltan (MPI == yes)
 #
 
-ZOLTANINC = -I/Users/tomek/Devel/lib/zoltan/include
-ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
+ZOLTANINC = -I/usr/local/include
+ZOLTANLIB = -L/usr/local/lib -lzoltan
 
 #
 # Siconos (yes/no)
 #
 
-SICONOS = yes
+SICONOS = no
 SICONOSINC = -I/usr/local/include/Siconos/Numerics
 SICONOSLIB = -L/usr/local/lib -l SiconosNumerics
