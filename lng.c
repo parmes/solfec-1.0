@@ -4713,6 +4713,27 @@ static int lng_CONSTRAINT_set_matlab (lng_CONSTRAINT *self, PyObject *value, voi
   return -1;
 }
 
+static PyObject* lng_CONSTRAINT_get_spair (lng_CONSTRAINT *self, void *closure)
+{
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    CON *con = self->con;
+
+    if (con->kind == CONTACT)
+    {
+      return Py_BuildValue ("(i, i)", con->spair[0], con->spair[1]);
+    }
+    else Py_RETURN_NONE; 
+  }
+  else Py_RETURN_NONE;
+}
+
+static int lng_CONSTRAINT_set_spair (lng_CONSTRAINT *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* CONSTRAINT methods */
 static PyMethodDef lng_CONSTRAINT_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -4733,6 +4754,7 @@ static PyGetSetDef lng_CONSTRAINT_getset [] =
   {"merit", (getter)lng_CONSTRAINT_get_merit, (setter)lng_CONSTRAINT_set_merit, "constraint merit function", NULL},
   {"adjbod", (getter)lng_CONSTRAINT_get_adjbod, (setter)lng_CONSTRAINT_set_adjbod, "constraint adjacent bodies", NULL},
   {"matlab", (getter)lng_CONSTRAINT_get_matlab, (setter)lng_CONSTRAINT_set_matlab, "contact constraint material", NULL},
+  {"spair", (getter)lng_CONSTRAINT_get_spair, (setter)lng_CONSTRAINT_set_spair, "contact surface pairing", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
@@ -5044,7 +5066,7 @@ static PyObject* lng_ROUGH_HEX (PyObject *self, PyObject *args, PyObject *kwds)
     PARSEKEYS ("Oiii|OOO", &shape, &i, &j, &k, &dx, &dy, &dz);
 
     TYPETEST (is_shape_convex (shape, kwl[0]) && is_positive (i, kwl[1]) && is_positive (j, kwl[2]) && is_positive (k, kwl[3]) &&
-	      is_list (dx, kwl[6], 1, i) && is_list (dy, kwl[7], 1, j) && is_list (dz, kwl[8], 1, k));
+	      is_list (dx, kwl[4], 1, i) && is_list (dy, kwl[5], 1, j) && is_list (dz, kwl[6], 1, k));
 
     MX_DENSE (euler, 3, 3);
     MX_DENSE (eigv, 3, 3);
