@@ -1,21 +1,29 @@
-#LyX 1.6.9 created this file. For more info see http://www.lyx.org/
-\lyxformat 345
+#LyX 2.0 created this file. For more info see http://www.lyx.org/
+\lyxformat 413
 \begin_document
 \begin_header
 \textclass book
 \use_default_options true
+\maintain_unincluded_children false
 \language english
+\language_package default
 \inputencoding auto
+\fontencoding global
 \font_roman default
 \font_sans default
 \font_typewriter default
 \font_default_family default
+\use_non_tex_fonts false
 \font_sc false
 \font_osf false
 \font_sf_scale 100
 \font_tt_scale 100
 
 \graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
 \paperfontsize default
 \spacing single
 \use_hyperref false
@@ -23,9 +31,18 @@
 \use_geometry true
 \use_amsmath 1
 \use_esint 1
+\use_mhchem 1
+\use_mathdots 1
 \cite_engine basic
 \use_bibtopic false
+\use_indices false
 \paperorientation portrait
+\suppress_date false
+\use_refstyle 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
 \leftmargin 2cm
 \topmargin 4cm
 \rightmargin 2cm
@@ -36,15 +53,16 @@
 \secnumdepth 2
 \tocdepth 2
 \paragraph_separation indent
-\defskip medskip
+\paragraph_indentation default
 \quotes_language english
 \papercolumns 1
 \papersides 1
 \paperpagestyle default
 \tracking_changes false
 \output_changes false
-\author "" 
-\author "" 
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
 \end_header
 
 \begin_body
@@ -174,8 +192,10 @@ There are four bodies in the figure.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{q}\left(t\right)=\mathbf{q}\left(0\right)+\int_{0}^{t}\mathbf{u}dt\label{eq:q-update}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{q}\left(t\right)=\mathbf{q}\left(0\right)+\int_{0}^{t}\mathbf{u}dt\label{eq:q-update}
+\end{equation}
 
 \end_inset
 
@@ -183,8 +203,10 @@ The velocity is determined by integrating Newton's law
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{u}\left(t\right)=\mathbf{u}\left(0\right)+\mathbf{M}^{-1}\int_{0}^{t}\left(\mathbf{f}+\mathbf{H}^{T}\mathbf{R}\right)dt\label{eq:u-update}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{u}\left(t\right)=\mathbf{u}\left(0\right)+\mathbf{M}^{-1}\int_{0}^{t}\left(\mathbf{f}+\mathbf{H}^{T}\mathbf{R}\right)dt\label{eq:u-update}
+\end{equation}
 
 \end_inset
 
@@ -233,8 +255,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{U}=\mathbf{H}\mathbf{u}\label{eq:UHu}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{U}=\mathbf{H}\mathbf{u}\label{eq:UHu}
+\end{equation}
 
 \end_inset
 
@@ -252,8 +276,10 @@ constraints
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\mathbf{0}\label{eq:CUR}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\mathbf{0}\label{eq:CUR}
+\end{equation}
 
 \end_inset
 
@@ -283,8 +309,10 @@ reference "eq:CUR"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{q}^{t+\frac{h}{2}}=\mathbf{q}^{t}+\frac{h}{2}\mathbf{u}^{t}\label{eq:q(t+h/2)}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{q}^{t+\frac{h}{2}}=\mathbf{q}^{t}+\frac{h}{2}\mathbf{u}^{t}\label{eq:q(t+h/2)}
+\end{equation}
 
 \end_inset
 
@@ -292,8 +320,10 @@ reference "eq:CUR"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{u}^{t+h}=\mathbf{u}^{t}+\mathbf{M}^{-1}h\mathbf{f}^{t+\frac{h}{2}}+\mathbf{M}^{-1}\mathbf{H}^{T}\mathbf{R}\label{eq:u(t+h)}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{u}^{t+h}=\mathbf{u}^{t}+\mathbf{M}^{-1}h\mathbf{f}^{t+\frac{h}{2}}+\mathbf{M}^{-1}\mathbf{H}^{T}\mathbf{R}\label{eq:u(t+h)}
+\end{equation}
 
 \end_inset
 
@@ -301,8 +331,10 @@ reference "eq:CUR"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{q}^{t+h}=\mathbf{q}^{t+\frac{h}{2}}+\frac{h}{2}\mathbf{u}^{t+h}\label{eq:q(t+h)}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{q}^{t+h}=\mathbf{q}^{t+\frac{h}{2}}+\frac{h}{2}\mathbf{u}^{t+h}\label{eq:q(t+h)}
+\end{equation}
 
 \end_inset
 
@@ -336,8 +368,10 @@ integral
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{q}^{0}\mbox{ and }\mathbf{u}^{0}\mbox{ as prescribed initial conditions.}\label{eq:ini}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{q}^{0}\mbox{ and }\mathbf{u}^{0}\mbox{ as prescribed initial conditions.}\label{eq:ini}
+\end{equation}
 
 \end_inset
 
@@ -345,8 +379,10 @@ The out of balance force
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{f}^{t+\frac{h}{2}}=\mathbf{f}\left(\mathbf{q}^{t+\frac{h}{2}},t+\frac{h}{2}\right)\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{f}^{t+\frac{h}{2}}=\mathbf{f}\left(\mathbf{q}^{t+\frac{h}{2}},t+\frac{h}{2}\right)
+\end{equation}
 
 \end_inset
 
@@ -355,8 +391,10 @@ incorporates both internal and external forces.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{M}=\mathbf{M}\left(\mathbf{q}^{0}\right)\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{M}=\mathbf{M}\left(\mathbf{q}^{0}\right)
+\end{equation}
 
 \end_inset
 
@@ -365,8 +403,10 @@ is computed once.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{H}=\mathbf{H}\left(\mathbf{q}^{t+\frac{h}{2}}\right)\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{H}=\mathbf{H}\left(\mathbf{q}^{t+\frac{h}{2}}\right)
+\end{equation}
 
 \end_inset
 
@@ -381,8 +421,10 @@ is computed at every time step.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{B}=\mathbf{H}\left(\mathbf{u}^{t}+\mathbf{M}^{-1}h\mathbf{f}^{t+\frac{h}{2}}\right)\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{B}=\mathbf{H}\left(\mathbf{u}^{t}+\mathbf{M}^{-1}h\mathbf{f}^{t+\frac{h}{2}}\right)
+\end{equation}
 
 \end_inset
 
@@ -390,8 +432,10 @@ and
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{W}=\mathbf{H}\mathbf{M}^{-1}\mathbf{H}^{T}\label{eq:W}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{W}=\mathbf{H}\mathbf{M}^{-1}\mathbf{H}^{T}\label{eq:W}
+\end{equation}
 
 \end_inset
 
@@ -400,8 +444,10 @@ which is symmetric and semi-positive definite.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}\label{eq:locdyn}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}\label{eq:locdyn}
+\end{equation}
 
 \end_inset
 
@@ -434,8 +480,10 @@ local dynamics
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{R}\mbox{ is such that }\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\mathbf{C}\left(\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right)=\mathbf{C}\left(\mathbf{R}\right)=\mathbf{0}\label{eq:constraints}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{R}\mbox{ is such that }\mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\mathbf{C}\left(\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right)=\mathbf{C}\left(\mathbf{R}\right)=\mathbf{0}\label{eq:constraints}
+\end{equation}
 
 \end_inset
 
@@ -1731,7 +1779,7 @@ The below table gives indicative assessment of the maturity of various Solfec
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="78" columns="4">
-<features islongtable="true">
+<features islongtable="true" longtabularalignment="center">
 <column alignment="center" valignment="top" width="0">
 <column alignment="center" valignment="top" width="0">
 <column alignment="center" valignment="top" width="0">
@@ -4808,7 +4856,7 @@ Some parameters can also be accessed as members and methods of a CONVEX
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -5146,7 +5194,7 @@ Some parameters can also be accessed as members and methods of a MESH object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -5190,7 +5238,7 @@ obj.nnod
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
@@ -5641,7 +5689,7 @@ Some parameters can also be accessed as members of a SPHERE object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -5759,7 +5807,7 @@ Some parameters can also be accessed as members of a ELLIP object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -5892,7 +5940,7 @@ Some parameters can also be accessed as members of a SOLFEC object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="9" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6080,7 +6128,7 @@ obj.outpath
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6188,6 +6236,7 @@ hor_pos "c"
 has_inner_box 1
 inner_pos "t"
 use_parbox 0
+use_makebox 0
 width "95col%"
 special "none"
 height "1in"
@@ -6273,7 +6322,7 @@ Some parameters can also be accessed as members of a FIELD object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6473,7 +6522,7 @@ Some parameters can also be accessed as members of a SURFACE_MATERIAL object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6514,7 +6563,7 @@ obj.surf1, obj.surf2, obj.label
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6561,7 +6610,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="2">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="40col%">
 <row>
@@ -6799,7 +6848,7 @@ Some parameters can also be accessed as members of a BULK_MATERIAL object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6840,7 +6889,7 @@ obj.model, obj.label
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6887,7 +6936,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="2">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="40col%">
 <row>
@@ -7206,7 +7255,7 @@ Some parameters can also be accessed as members of a BODY object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="11" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -7433,7 +7482,7 @@ obj.id
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -7531,7 +7580,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="2">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
@@ -7575,6 +7624,10 @@ A rigid body ignoring external loads and not contributing to contact constraints
 \series bold
 Moving obstacles will not correctly work in the quasi-static case (use rigid
  bodies instead).
+
+\series default
+ Obstacle bodies do generate contact constraints with other non-obstacle
+ bodies.
 \end_layout
 
 \end_inset
@@ -7685,7 +7738,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="2">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
@@ -7819,7 +7872,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="2">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
@@ -7963,7 +8016,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="2">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
@@ -8107,7 +8160,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="7" columns="3">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="15col%">
 <column alignment="center" valignment="top" width="20col%">
 <column alignment="center" valignment="top" width="50col%">
@@ -8622,7 +8675,7 @@ Some parameters can also be accessed as members of a GAUSS_SEIDEL_SOLVER
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="6" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -8740,7 +8793,7 @@ obj.merhist
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -8852,7 +8905,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="2">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="0">
 <column alignment="center" valignment="top" width="0">
 <row>
@@ -8977,7 +9030,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="2">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="60col%">
 <row>
@@ -9307,7 +9360,7 @@ Some parameters can also be accessed as members of a NEWTON_SOLVER object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -9386,7 +9439,7 @@ obj.mvhist
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -9520,7 +9573,7 @@ Some parameters can also be accessed as members of a SICONOS_SOLVER object.
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features>
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -9999,8 +10052,8 @@ Some parameters can also be accessed as members of a CONSTRAINT object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="10" columns="1">
-<features>
+<lyxtabular version="3" rows="11" columns="1">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -10179,8 +10232,11 @@ obj.adjbod
 \series default
 \emph default
  - adjacent bodies.
- This is a tuple (body1, body2) of BODY objects for 'CONTACT' and 'RIGLNK'
- or a single BODY object otherwise.
+ This is a tuple 
+\emph on
+(body1, body2)
+\emph default
+ of BODY objects for 'CONTACT' and 'RIGLNK' or a single BODY object otherwise.
 \end_layout
 
 \end_inset
@@ -10202,6 +10258,43 @@ obj.matlab
 None
 \emph default
  object otherwise.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.spair
+\series default
+\emph default
+ - pairing of surfaces 
+\emph on
+(surf1, surf2)
+\emph default
+ for contact constraints or 
+\emph on
+None
+\emph default
+ object otherwise.
+ The tuple 
+\emph on
+(surf1, surf2)
+\emph default
+ corresponds to the surface identifiers for the 
+\emph on
+(body1, body2)
+\emph default
+ body pairing returned by 
+\series bold
+\emph on
+obj.adjbod
 \end_layout
 
 \end_inset
@@ -10326,6 +10419,7 @@ hor_pos "c"
 has_inner_box 1
 inner_pos "t"
 use_parbox 0
+use_makebox 0
 width "95col%"
 special "none"
 height "1in"
@@ -10622,7 +10716,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="3">
-<features>
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="0">
 <column alignment="center" valignment="top" width="20col%">
 <column alignment="center" valignment="top" width="50col%">
@@ -14343,8 +14437,10 @@ The velocity Signorini condition reads
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\bar{U}_{N}\ge0\,\,\, R_{N}\ge0\,\,\,\bar{U}_{N}R_{N}=0\label{eq:sign}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\bar{U}_{N}\ge0\,\,\, R_{N}\ge0\,\,\,\bar{U}_{N}R_{N}=0\label{eq:sign}
+\end{equation}
 
 \end_inset
 
@@ -14417,11 +14513,14 @@ key "Koziara2008PhD"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
+\begin_inset Formula 
+\begin{equation}
 \left\{ \begin{array}{ll}
 \left\Vert \mathbf{R}_{T}\right\Vert \le\mu R_{N}\\
 \left\Vert \mathbf{R}_{T}\right\Vert <\mu R_{N} & \Rightarrow\mathbf{U}_{T}=\mathbf{0}\\
-\left\Vert \mathbf{R}_{T}\right\Vert =\mu R_{N} & \Rightarrow\exists_{\lambda\ge0}\mathbf{U}_{T}=-\lambda\mathbf{R}_{T}\end{array}\right.\label{eq:Coulomb}\end{equation}
+\left\Vert \mathbf{R}_{T}\right\Vert =\mu R_{N} & \Rightarrow\exists_{\lambda\ge0}\mathbf{U}_{T}=-\lambda\mathbf{R}_{T}
+\end{array}\right.\label{eq:Coulomb}
+\end{equation}
 
 \end_inset
 
@@ -14443,10 +14542,13 @@ A friction force smaller than
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
+\begin_inset Formula 
+\begin{equation}
 \mathbf{C}\left(\mathbf{U},\mathbf{R}\right)=\left[\begin{array}{c}
 \max\left(\mu d_{N},\left\Vert \mathbf{d}_{T}\right\Vert \right)\mathbf{R}_{T}-\mu\max\left(0,d_{N}\right)\mathbf{d}_{T}\\
-R_{N}-\max\left(0,d_{N}\right)\end{array}\right]\label{eq:CR}\end{equation}
+R_{N}-\max\left(0,d_{N}\right)
+\end{array}\right]\label{eq:CR}
+\end{equation}
 
 \end_inset
 
@@ -14454,8 +14556,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-d_{N}=R_{N}-\rho\bar{U}_{N}\label{eq:dN}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+d_{N}=R_{N}-\rho\bar{U}_{N}\label{eq:dN}
+\end{equation}
 
 \end_inset
 
@@ -14463,8 +14567,10 @@ d_{N}=R_{N}-\rho\bar{U}_{N}\label{eq:dN}\end{equation}
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{d}_{T}=\mathbf{R}_{T}-\rho\mathbf{U}_{T}\label{eq:dT}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{d}_{T}=\mathbf{R}_{T}-\rho\mathbf{U}_{T}\label{eq:dT}
+\end{equation}
 
 \end_inset
 
@@ -14498,8 +14604,10 @@ Let
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-s=spring\mbox{ and }d=dashpot\mbox{ and }g=gap\end{equation}
+\begin_inset Formula 
+\begin{equation}
+s=spring\mbox{ and }d=dashpot\mbox{ and }g=gap
+\end{equation}
 
 \end_inset
 
@@ -14507,8 +14615,10 @@ The normal reaction is computed as follows
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-R_{N}=-s\cdot\frac{g^{t+h}+g^{t}}{2}-d\cdot\frac{U_{N}^{t+h}+U_{N}^{t}}{2}\label{eq:spring-dashpot-1}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+R_{N}=-s\cdot\frac{g^{t+h}+g^{t}}{2}-d\cdot\frac{U_{N}^{t+h}+U_{N}^{t}}{2}\label{eq:spring-dashpot-1}
+\end{equation}
 
 \end_inset
 
@@ -14526,8 +14636,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-g=g^{t}+\frac{h}{2}U_{N}^{t}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+g=g^{t}+\frac{h}{2}U_{N}^{t}
+\end{equation}
 
 \end_inset
 
@@ -14535,8 +14647,10 @@ We then have
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-g^{t+h}=g^{t}+\frac{h}{2}\left(U_{N}^{t+h}+U_{N}^{t}\right)=g+\frac{h}{2}U_{N}^{t+h}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+g^{t+h}=g^{t}+\frac{h}{2}\left(U_{N}^{t+h}+U_{N}^{t}\right)=g+\frac{h}{2}U_{N}^{t+h}
+\end{equation}
 
 \end_inset
 
@@ -14548,8 +14662,10 @@ and since
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-R_{N}=-s\cdot\left(g+\frac{h}{4}\left(U_{N}^{t+h}-U_{N}^{t}\right)\right)-\frac{d}{2}\cdot\left(U_{N}^{t+h}+U_{N}^{t}\right)\label{eq:spring-dashpot-2}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+R_{N}=-s\cdot\left(g+\frac{h}{4}\left(U_{N}^{t+h}-U_{N}^{t}\right)\right)-\frac{d}{2}\cdot\left(U_{N}^{t+h}+U_{N}^{t}\right)\label{eq:spring-dashpot-2}
+\end{equation}
 
 \end_inset
 
@@ -14557,8 +14673,10 @@ We then use the diagonal block of local dynamics
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{U}^{t+h}=\mathbf{B}+\mathbf{W}\mathbf{R}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{U}^{t+h}=\mathbf{B}+\mathbf{W}\mathbf{R}
+\end{equation}
 
 \end_inset
 
@@ -14570,8 +14688,10 @@ in order to estimate
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-U_{N}^{t+h}=B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}+W_{NN}R_{N}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+U_{N}^{t+h}=B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}+W_{NN}R_{N}
+\end{equation}
 
 \end_inset
 
@@ -14591,8 +14711,10 @@ reference "eq:spring-dashpot-2"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\bar{B}_{N}=B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\bar{B}_{N}=B_{N}+\mathbf{W}_{NT}\mathbf{R}_{T}
+\end{equation}
 
 \end_inset
 
@@ -14600,8 +14722,10 @@ reference "eq:spring-dashpot-2"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-R_{N}=\left[-s\cdot\left(g+\frac{h}{4}\left(\bar{B}_{N}-U_{N}^{t}\right)\right)-\frac{d}{2}\cdot\left(\bar{B}_{N}+U_{N}^{t}\right)\right]/\left[1+\left(s\cdot\frac{h}{4}+\frac{d}{2}\right)\cdot W_{NN}\right]\label{eq:spring-dashpot-3}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+R_{N}=\left[-s\cdot\left(g+\frac{h}{4}\left(\bar{B}_{N}-U_{N}^{t}\right)\right)-\frac{d}{2}\cdot\left(\bar{B}_{N}+U_{N}^{t}\right)\right]/\left[1+\left(s\cdot\frac{h}{4}+\frac{d}{2}\right)\cdot W_{NN}\right]\label{eq:spring-dashpot-3}
+\end{equation}
 
 \end_inset
 
@@ -14618,8 +14742,10 @@ The reason for using the above, rather than the classical
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{R}_{T}=-\mathbf{W}_{TT}^{-1}\left(\mathbf{B}_{T}+\mathbf{W}_{TN}R_{N}\right)\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{R}_{T}=-\mathbf{W}_{TT}^{-1}\left(\mathbf{B}_{T}+\mathbf{W}_{TN}R_{N}\right)
+\end{equation}
 
 \end_inset
 
@@ -14813,8 +14939,10 @@ This is a simple extension of the linearly elastic material to the large
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\Psi=\frac{1}{4}\left[\mathbf{F}^{T}\mathbf{F}-\mathbf{I}\right]:\mathbf{C}:\left[\mathbf{F}^{T}\mathbf{F}-\mathbf{I}\right]\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\Psi=\frac{1}{4}\left[\mathbf{F}^{T}\mathbf{F}-\mathbf{I}\right]:\mathbf{C}:\left[\mathbf{F}^{T}\mathbf{F}-\mathbf{I}\right]
+\end{equation}
 
 \end_inset
 
@@ -14822,8 +14950,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-C_{ijkl}=\lambda\delta_{ij}\delta_{kl}+\mu\left[\delta_{ik}\delta_{jl}+\delta_{il}\delta_{jk}\right]\end{equation}
+\begin_inset Formula 
+\begin{equation}
+C_{ijkl}=\lambda\delta_{ij}\delta_{kl}+\mu\left[\delta_{ik}\delta_{jl}+\delta_{il}\delta_{jk}\right]
+\end{equation}
 
 \end_inset
 
@@ -14878,8 +15008,10 @@ e constants can be expressed in terms of the Young modulus
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\lambda=\frac{E\nu}{\left(1+\nu\right)\left(1-2\nu\right)}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\lambda=\frac{E\nu}{\left(1+\nu\right)\left(1-2\nu\right)}
+\end{equation}
 
 \end_inset
 
@@ -14887,8 +15019,10 @@ e constants can be expressed in terms of the Young modulus
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mu=\frac{E}{2+2\nu}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mu=\frac{E}{2+2\nu}
+\end{equation}
 
 \end_inset
 
@@ -14901,8 +15035,10 @@ The first Piola stress tensor is computed as a gradient of the hyperelastic
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{P}=\partial_{\mathbf{F}}\Psi\left(\mathbf{F}\right)\label{eq:matlaw}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{P}=\partial_{\mathbf{F}}\Psi\left(\mathbf{F}\right)\label{eq:matlaw}
+\end{equation}
 
 \end_inset
 
@@ -14967,8 +15103,10 @@ reference "sec:SC-velo"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-g\left(\mathbf{R}\right)=\sum_{\alpha}\left\langle \mathbf{W}_{\alpha\alpha}^{-1}\mathbf{C}_{\alpha}\left(\mathbf{R}\right),\mathbf{C}_{\alpha}\left(\mathbf{R}\right)\right\rangle /\sum_{\alpha}\left\langle \mathbf{W}_{\alpha\alpha}^{-1}\mathbf{B}_{\alpha},\mathbf{B}_{\alpha}\right\rangle \label{eq:accuracy}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+g\left(\mathbf{R}\right)=\sum_{\alpha}\left\langle \mathbf{W}_{\alpha\alpha}^{-1}\mathbf{C}_{\alpha}\left(\mathbf{R}\right),\mathbf{C}_{\alpha}\left(\mathbf{R}\right)\right\rangle /\sum_{\alpha}\left\langle \mathbf{W}_{\alpha\alpha}^{-1}\mathbf{B}_{\alpha},\mathbf{B}_{\alpha}\right\rangle \label{eq:accuracy}
+\end{equation}
 
 \end_inset
 
@@ -14991,8 +15129,10 @@ in order to approximately measure the relative amount of spurious energy,
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-g\left(\mathbf{R}\right)\simeq\frac{\mbox{spurious energy due to inaccurate solution}}{\mbox{free energy available at the constraints}}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+g\left(\mathbf{R}\right)\simeq\frac{\mbox{spurious energy due to inaccurate solution}}{\mbox{free energy available at the constraints}}
+\end{equation}
 
 \end_inset
 
@@ -15033,8 +15173,10 @@ reference "eq:accuracy"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-K_{\alpha}=\left\{ \mathbf{R}_{\alpha}:\left\Vert \mathbf{R}_{\alpha T}\right\Vert \le\mu_{\alpha}R_{\alpha N},R_{\alpha N}\ge0\right\} \end{equation}
+\begin_inset Formula 
+\begin{equation}
+K_{\alpha}=\left\{ \mathbf{R}_{\alpha}:\left\Vert \mathbf{R}_{\alpha T}\right\Vert \le\mu_{\alpha}R_{\alpha N},R_{\alpha N}\ge0\right\} 
+\end{equation}
 
 \end_inset
 
@@ -15076,10 +15218,13 @@ key "DeSaxce1998"
 \bar no
 \noun off
 \color none
-\begin_inset Formula \begin{equation}
+\begin_inset Formula 
+\begin{equation}
 -\left[\begin{array}{c}
 \mathbf{U}_{\alpha T}\\
-\bar{U}_{\alpha N}+\mu_{\alpha}\left\Vert \mathbf{U}_{\alpha T}\right\Vert \end{array}\right]\in N_{K_{\alpha}}\left(\mathbf{R}_{\alpha}\right)\label{eq:DSF}\end{equation}
+\bar{U}_{\alpha N}+\mu_{\alpha}\left\Vert \mathbf{U}_{\alpha T}\right\Vert 
+\end{array}\right]\in N_{K_{\alpha}}\left(\mathbf{R}_{\alpha}\right)\label{eq:DSF}
+\end{equation}
 
 \end_inset
 
@@ -15130,12 +15275,15 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
+\begin_inset Formula 
+\begin{equation}
 \mathbf{F}\left(\mathbf{R}\right)=\left[\begin{array}{c}
 ...\\
 \mathbf{U}_{\alpha T}\left(\mathbf{R}\right)\\
 \bar{U}_{\alpha N}\left(\mathbf{R}\right)+\mu_{\alpha}\left\Vert \mathbf{U}_{\alpha T}\left(\mathbf{R}\right)\right\Vert \\
-...\end{array}\right]\label{eq:F}\end{equation}
+...
+\end{array}\right]\label{eq:F}
+\end{equation}
 
 \end_inset
 
@@ -15143,8 +15291,10 @@ and
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-K=\bigcup_{\alpha}K_{\alpha}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+K=\bigcup_{\alpha}K_{\alpha}
+\end{equation}
 
 \end_inset
 
@@ -15180,8 +15330,10 @@ reference "eq:DSF"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
--\mathbf{F}\left(\mathbf{R}\right)=\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)-\mbox{proj}_{K}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)\end{equation}
+\begin_inset Formula 
+\begin{equation}
+-\mathbf{F}\left(\mathbf{R}\right)=\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)-\mbox{proj}_{K}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)
+\end{equation}
 
 \end_inset
 
@@ -15194,8 +15346,10 @@ which can be reduced to the usual projection formula
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{m}\left(\mathbf{S}\right)=\mathbf{S}-\mbox{proj}_{K}\left(\mathbf{S}\right)=\mathbf{n}\left(\mathbf{S}\right)\left\langle \mathbf{n}\left(\mathbf{S}\right),\mathbf{S}\right\rangle \end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{m}\left(\mathbf{S}\right)=\mathbf{S}-\mbox{proj}_{K}\left(\mathbf{S}\right)=\mathbf{n}\left(\mathbf{S}\right)\left\langle \mathbf{n}\left(\mathbf{S}\right),\mathbf{S}\right\rangle 
+\end{equation}
 
 \end_inset
 
@@ -15203,13 +15357,17 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
+\begin_inset Formula 
+\begin{equation}
 \mathbf{n}_{\alpha}\left(\mathbf{S}_{\alpha}\right)=\left\{ \begin{array}{lll}
 \mathbf{0} & \mbox{if} & \left\Vert \mathbf{S}_{\alpha T}\right\Vert -\mu_{\alpha}S_{\alpha N}\le0\\
 \mathbf{S}_{\alpha}/\left\Vert \mathbf{S}_{\alpha}\right\Vert  & \mbox{if} & \mu_{\alpha}\left\Vert \mathbf{S}_{\alpha T}\right\Vert +S_{\alpha N}<0\\
 \frac{1}{\sqrt{1+\mu_{\alpha}^{2}}}\left[\begin{array}{c}
 \mathbf{S}_{\alpha T}/\left\Vert \mathbf{S}_{\alpha T}\right\Vert \\
--\mu_{\alpha}\end{array}\right] & \mbox{} & \mbox{otherwise}\end{array}\right.\label{eq:n}\end{equation}
+-\mu_{\alpha}
+\end{array}\right] & \mbox{} & \mbox{otherwise}
+\end{array}\right.\label{eq:n}
+\end{equation}
 
 \end_inset
 
@@ -15224,8 +15382,10 @@ reference "eq:DSF"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{C}\left(\mathbf{R}\right)=\mathbf{F}\left(\mathbf{R}\right)+\mathbf{m}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)=\mathbf{0}\mbox{ and }\mathbf{R}\in K\label{eq:C1}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{C}\left(\mathbf{R}\right)=\mathbf{F}\left(\mathbf{R}\right)+\mathbf{m}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)=\mathbf{0}\mbox{ and }\mathbf{R}\in K\label{eq:C1}
+\end{equation}
 
 \end_inset
 
@@ -15301,8 +15461,10 @@ reference "eq:locdyn"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{U}_{\alpha}=\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{U}_{\alpha}=\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}
+\end{equation}
 
 \end_inset
 
@@ -15332,8 +15494,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{C}_{\alpha}\left(\mathbf{U}_{\alpha},\mathbf{R}_{\alpha}\right)=\mathbf{0}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{C}_{\alpha}\left(\mathbf{U}_{\alpha},\mathbf{R}_{\alpha}\right)=\mathbf{0}
+\end{equation}
 
 \end_inset
 
@@ -15341,8 +15505,10 @@ or in other words
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{C}_{\alpha}\left(\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta},\mathbf{R}_{\alpha}\right)=\mathbf{0}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{C}_{\alpha}\left(\mathbf{B}_{\alpha}+\sum_{\beta}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta},\mathbf{R}_{\alpha}\right)=\mathbf{0}
+\end{equation}
 
 \end_inset
 
@@ -15482,8 +15648,10 @@ key "Adams01"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{U}_{\alpha}=\mathbf{B}_{\alpha}+\sum_{\beta\in Q_{i}}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}+\sum_{\beta\notin Q_{i}}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{U}_{\alpha}=\mathbf{B}_{\alpha}+\sum_{\beta\in Q_{i}}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}+\sum_{\beta\notin Q_{i}}\mathbf{W}_{\alpha\beta}\mathbf{R}_{\beta}
+\end{equation}
 
 \end_inset
 
@@ -15506,8 +15674,10 @@ Some of the
 
 .
  That is 
-\begin_inset Formula \begin{equation}
-P_{i}=\left\{ \beta:\exists\mathbf{W}_{\alpha\beta}\ne\mathbf{0}\mbox{ and }\alpha\in Q_{i}\mbox{ and }\beta\notin Q_{i}\right\} \end{equation}
+\begin_inset Formula 
+\begin{equation}
+P_{i}=\left\{ \beta:\exists\mathbf{W}_{\alpha\beta}\ne\mathbf{0}\mbox{ and }\alpha\in Q_{i}\mbox{ and }\beta\notin Q_{i}\right\} 
+\end{equation}
 
 \end_inset
 
@@ -15532,8 +15702,10 @@ For each
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-adj\left(i\right)=\left\{ cpu\left(\beta\right):\beta\in P_{i}\right\} \end{equation}
+\begin_inset Formula 
+\begin{equation}
+adj\left(i\right)=\left\{ cpu\left(\beta\right):\beta\in P_{i}\right\} 
+\end{equation}
 
 \end_inset
 
@@ -15656,8 +15828,10 @@ Simple processor coloring.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-Top_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge color\left[cpu\left(\beta\right)\right]<color\left[i\right]\right\} \end{equation}
+\begin_inset Formula 
+\begin{equation}
+Top_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge color\left[cpu\left(\beta\right)\right]<color\left[i\right]\right\} 
+\end{equation}
 
 \end_inset
 
@@ -15665,8 +15839,10 @@ Top_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge colo
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-Bottom_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge color\left[cpu\left(\beta\right)\right]>color\left[i\right]\right\} \end{equation}
+\begin_inset Formula 
+\begin{equation}
+Bottom_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge color\left[cpu\left(\beta\right)\right]>color\left[i\right]\right\} 
+\end{equation}
 
 \end_inset
 
@@ -15674,8 +15850,10 @@ Bottom_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge c
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-Middle_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge\alpha\notin Top_{i}\cup Bottom_{i}\right\} \end{equation}
+\begin_inset Formula 
+\begin{equation}
+Middle_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge\alpha\notin Top_{i}\cup Bottom_{i}\right\} 
+\end{equation}
 
 \end_inset
 
@@ -15683,8 +15861,10 @@ Middle_{i}=\left\{ \alpha:\forall\mathbf{W}_{\alpha\beta}:\beta\in P_{i}\wedge\a
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-Inner_{i}=Q_{i}\setminus\left\{ Top_{i}\cup Bottom_{i}\cup Middle_{i}\right\} \end{equation}
+\begin_inset Formula 
+\begin{equation}
+Inner_{i}=Q_{i}\setminus\left\{ Top_{i}\cup Bottom_{i}\cup Middle_{i}\right\} 
+\end{equation}
 
 \end_inset
 
@@ -15698,8 +15878,10 @@ The top constraints require communication only with processors of lower
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-Inner_{i}=Inner1_{i}\cup Inner2_{i}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+Inner_{i}=Inner1_{i}\cup Inner2_{i}
+\end{equation}
 
 \end_inset
 
@@ -15707,8 +15889,10 @@ so that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\left|Bottom_{i}\right|+\left|Inner2_{i}\right|=\left|Top_{i}\right|+\left|Inner1_{i}\right|\label{eq:gsbalcnd}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\left|Bottom_{i}\right|+\left|Inner2_{i}\right|=\left|Top_{i}\right|+\left|Inner1_{i}\right|\label{eq:gsbalcnd}
+\end{equation}
 
 \end_inset
 
@@ -16181,8 +16365,10 @@ a processor Gauss-Seidel method
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-All_{i}=Top_{i}\cup Bottom_{i}\cup Middle_{i}\cup Inner_{i}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+All_{i}=Top_{i}\cup Bottom_{i}\cup Middle_{i}\cup Inner_{i}
+\end{equation}
 
 \end_inset
 
@@ -16375,8 +16561,10 @@ reference "eq:C1"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{C}\left(\mathbf{R}\right)=\mathbf{F}\left(\mathbf{R}\right)+\mathbf{m}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)=\mathbf{0}\mbox{ and }\mathbf{R}\in K\label{eq:C1a}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{C}\left(\mathbf{R}\right)=\mathbf{F}\left(\mathbf{R}\right)+\mathbf{m}\left(\mathbf{R}-\mathbf{F}\left(\mathbf{R}\right)\right)=\mathbf{0}\mbox{ and }\mathbf{R}\in K\label{eq:C1a}
+\end{equation}
 
 \end_inset
 
@@ -16405,15 +16593,19 @@ key "Fukushima2002"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}-\mathbf{A}^{-1}\mathbf{C}\left(\mathbf{R}\right)\right]\label{eq:newton}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}-\mathbf{A}^{-1}\mathbf{C}\left(\mathbf{R}\right)\right]\label{eq:newton}
+\end{equation}
 
 \end_inset
 
 so that, as required, the iterates remain within the friction cone and where
  
-\begin_inset Formula \begin{equation}
-\mathbf{A}\simeq\nabla\mathbf{C}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{A}\simeq\nabla\mathbf{C}
+\end{equation}
 
 \end_inset
 
@@ -16440,8 +16632,10 @@ is an easy to invert approximation of
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{A}_{1}=\nabla\mathbf{C}+\delta\mathbf{I},\mbox{ combined with GMRES.}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{A}_{1}=\nabla\mathbf{C}+\delta\mathbf{I},\mbox{ combined with GMRES.}
+\end{equation}
 
 \end_inset
 
@@ -16454,8 +16648,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\frac{d\mathbf{R}}{dt}=\mathbf{C}\left(\mathbf{R}\right)\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\frac{d\mathbf{R}}{dt}=\mathbf{C}\left(\mathbf{R}\right)
+\end{equation}
 
 \end_inset
 
@@ -16492,8 +16688,10 @@ pseudo-transient continuation
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{A}_{2}=\mbox{diag}_{3\times3}\left[\nabla\mathbf{C}\right],\mbox{ combined with direct inversion.}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{A}_{2}=\mbox{diag}_{3\times3}\left[\nabla\mathbf{C}\right],\mbox{ combined with direct inversion.}
+\end{equation}
 
 \end_inset
 
@@ -16501,8 +16699,10 @@ and it is combined with a heuristic stabilization technique
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\triangle\mathbf{R}^{k+1}=\left(1-\theta\right)\triangle\mathbf{R}^{k}-\theta\left(\mathbf{A}^{k}\right)^{-1}\mathbf{C}^{k}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\triangle\mathbf{R}^{k+1}=\left(1-\theta\right)\triangle\mathbf{R}^{k}-\theta\left(\mathbf{A}^{k}\right)^{-1}\mathbf{C}^{k}
+\end{equation}
 
 \end_inset
 
@@ -16510,8 +16710,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\theta\in\left[0,1\right]\mbox{.}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\theta\in\left[0,1\right]\mbox{.}
+\end{equation}
 
 \end_inset
 
@@ -16637,8 +16839,10 @@ reference "alg:PQN1"
 \end_inset
 
 ): 
-\begin_inset Formula \[
-\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}-\left(\nabla\mathbf{C}^{k}+\delta\mathbf{I}\right)_{\mbox{GMRES}\left(\epsilon\left\Vert \mathbf{C}^{k}\right\Vert ,m\right)}^{-1}\mathbf{C}^{k}\right]\]
+\begin_inset Formula 
+\[
+\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}-\left(\nabla\mathbf{C}^{k}+\delta\mathbf{I}\right)_{\mbox{GMRES}\left(\epsilon\left\Vert \mathbf{C}^{k}\right\Vert ,m\right)}^{-1}\mathbf{C}^{k}\right]
+\]
 
 \end_inset
 
@@ -16746,8 +16950,10 @@ reference "alg:PQN2"
 \noun off
 \color none
 
-\begin_inset Formula \[
-\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}+\left(1-\theta\right)\triangle\mathbf{R}^{k}-\theta\left(\mbox{diag}_{3\times3}\left[\nabla\mathbf{C}^{k}\right]\right)^{-1}\mathbf{C}^{k}\right]\]
+\begin_inset Formula 
+\[
+\mathbf{R}^{k+1}=\mbox{proj}_{K}\left[\mathbf{R}^{k}+\left(1-\theta\right)\triangle\mathbf{R}^{k}-\theta\left(\mbox{diag}_{3\times3}\left[\nabla\mathbf{C}^{k}\right]\right)^{-1}\mathbf{C}^{k}\right]
+\]
 
 \end_inset
 
