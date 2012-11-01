@@ -54,9 +54,10 @@ typedef struct constraint CON;
 typedef struct domain DOM;
 #endif
 
-#define DOM_Z_SIZE          4      /* size of auxiliary storage */
+#define DOM_Z_SIZE          5      /* size of auxiliary storage */
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
+#define RIGLNK_STR(Z)   ((Z)[4])   /* rigid link tensile strength */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
 
 struct constraint
@@ -176,6 +177,8 @@ struct pending_constraint
 
   ELEMENT *mele, /* used only for regular FEM bodies */
 	  *sele;
+
+  double strength;
 };
 #endif
 
@@ -316,7 +319,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel);
 /* insert rigid link constraint between two (referential) points of bodies; if one of the body
  * pointers is NULL then the link acts between the other body and a fixed (spatial) point;
  * if the points coincide then a gluing FIXPNT constraint is inserted instead */
-CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt);
+CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt, double strength);
 
 /* insert gluging constraint between nodes of regular FEM bodies */
 CON* DOM_Glue_Nodes (DOM *dom, BODY *master, BODY *slave, int mnode, int snode);
@@ -350,7 +353,7 @@ void DOM_Update_External_Reactions (DOM *dom, short normal);
 
 /* schedule parallel insertion of a constraint (to be called on all processors) */
 int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
-    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode);
+    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode, double strength);
 
 /* schedule ASAP insertion of a body in parallel (to be called on one processor) */
 void DOM_Pending_Body (DOM *dom, BODY *bod);

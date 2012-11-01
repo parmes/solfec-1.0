@@ -1799,7 +1799,7 @@ static void insert_pending_constraints (DOM *dom)
 	con = DOM_Set_Velocity (dom, pnd->master, pnd->mpnt, pnd->dir, pnd->val);
 	break;
       case RIGLNK:
-	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt);
+	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt, pnd->strength);
 	break;
       case GLUE:
 	con = DOM_Glue_Nodes (dom, pnd->master, pnd->slave, pnd->mnode, pnd->snode);
@@ -3075,7 +3075,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
 /* insert rigid link constraint between two (referential) points of bodies; if one of the body
  * pointers is NULL then the link acts between the other body and the fixed (spatial) point;
  * if the points coincide then a gluing FIXPNT constraint is inserted instead */
-CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt)
+CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt, double strength)
 {
   double v [3], d, *tmp;
   SGP *msgp, *ssgp;
@@ -3123,6 +3123,8 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     RIGLNK_LEN (con->Z) = d; /* initial distance */
     update_riglnk (dom, con); /* initial update */
   }
+
+  RIGLNK_STR (con->Z) = strength; /* set up strength */
   
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
@@ -3485,6 +3487,7 @@ void DOM_Update_End (DOM *dom)
 {
   double time, step, *de, *be;
   SET *del, *item;
+  CON *con, *next;
   BODY *bod;
 
 #if MPI
@@ -3541,6 +3544,23 @@ void DOM_Update_End (DOM *dom)
   manage_bodies (dom); /* delete unwanted and insert pending bodies */
 #endif
 
+  /* remove failed rigid links */
+  for (con = dom->con; con; con = next)
+  {
+    next = con->next; /* contact update can delete the current iterate */
+
+    if (con->kind == RIGLNK)
+    {
+      if (con->R [2] < -RIGLNK_STR (con->Z))
+      {
+#if MPI
+	ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
+#endif
+	DOM_Remove_Constraint (dom, con); /* remove from the domain */
+      }
+    }
+  }
+
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 }
 
@@ -3577,7 +3597,7 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
 
 /* schedule parallel insertion of a constraint (to be called on all processors) */
 int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
-    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode)
+    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode, double strength)
 {
   PNDCON *pnd;
 
@@ -3591,6 +3611,7 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
   pnd->val = val;
   pnd->mnode = mnode;
   pnd->snode = snode;
+  pnd->strength = strength;
 
   if (master->kind == FEM && !master->msh)
   {
