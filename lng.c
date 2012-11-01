@@ -5407,17 +5407,19 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
 /* create rigid link constraint */
 static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body1", "body2", "point1", "point2");
-  lng_CONSTRAINT *out;
-  lng_BODY *body1, *body2;
+  KEYWORDS ("body1", "body2", "point1", "point2", "strength");
+  double p1 [3], p2 [3], strength;
   PyObject *point1, *point2;
-  double p1 [3], p2 [3];
+  lng_BODY *body1, *body2;
+  lng_CONSTRAINT *out;
 
   out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
 
   if (out)
   {
-    PARSEKEYS ("OOOO", &body1, &body2, &point1, &point2);
+    strength = DBL_MAX;
+
+    PARSEKEYS ("OOOO|d", &body1, &body2, &point1, &point2, &strength);
 
     if ((PyObject*)body1 == Py_None)
     {
@@ -5459,9 +5461,9 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     {
 #endif
 
-    if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (body2->bod->dom, NULL, body2->bod, p1, p2);
-    else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2);
-    else out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, body2->bod, p1, p2);
+    if ((PyObject*)body1 == Py_None) out->con = DOM_Put_Rigid_Link (body2->bod->dom, NULL, body2->bod, p1, p2, strength);
+    else if ((PyObject*)body2 == Py_None) out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, NULL, p1, p2, strength);
+    else out->con = DOM_Put_Rigid_Link (body1->bod->dom, body1->bod, body2->bod, p1, p2, strength);
 
     out->dom = (PyObject*)body1 == Py_None ? body2->bod->dom : body1->bod->dom;
 
@@ -5482,7 +5484,7 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 	return NULL;
       }
 
-      if (!DOM_Pending_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2, NULL, NULL, -1, -1))
+      if (!DOM_Pending_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2, NULL, NULL, -1, -1, strength))
       {
 	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
 	return NULL;

@@ -1390,7 +1390,7 @@ static void update_body_data (BODY *bod, BODY_DATA *data)
 	 nsr = data->normal_sources,
 	 end = vsr + data->triangles_count * 3,
 	 v = ver, n = nor; vsr < end;
-	 vsr ++, nsr ++, val ++, v += 3, n += 3)
+	 vsr ++, nsr ++, v += 3, n += 3)
     {
       COPY (*vsr, v);
       COPY (*nsr, n);

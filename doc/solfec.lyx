@@ -9956,7 +9956,7 @@ tms
 \end_layout
 
 \begin_layout Subsection*
-obj = PUT_RIGID_LINK (body1, body2, point1, point2)
+obj = PUT_RIGID_LINK (body1, body2, point1, point2 | strength)
 \end_layout
 
 \begin_layout Standard
@@ -10042,6 +10042,15 @@ point2
 (x2, y2, z2)
 \emph default
  tuple with the second referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+strength
+\series default
+ - optionally an ultimate tensile strength can be given, beyond which the
+ link will be deleted (default: infinity)
 \end_layout
 
 \begin_layout Standard
@@ -11806,7 +11815,7 @@ normal
 \series bold
 surfid
 \series default
- - surface identidier of a newly created surface (default: 0)
+ - surface identifier of a newly created surface (default: 0)
 \end_layout
 
 \begin_layout Itemize
@@ -11826,11 +11835,11 @@ y adjacent elements, which may not produce fragmentation;
 WARNING:
 \series default
  Mesh splitting generates tetrahedral mesh in place of the input one if
- the splitting plane is not aligned with element boudaries.
+ the splitting plane is not aligned with element boundaries.
  The meshing is randomized and it may generate different results for the
  same input.
  Use TETRAHEDRALIZE in order to refine and save the generated mesh parts.
- Otherwie you may encounter input/output erros.
+ Otherwise you may encounter input/output errors.
 \end_layout
 
 \begin_layout Subsection*
