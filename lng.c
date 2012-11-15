@@ -5155,17 +5155,19 @@ static PyObject* lng_ROUGH_HEX (PyObject *self, PyObject *args, PyObject *kwds)
 /* create fixed point constraint */
 static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body", "point");
+  KEYWORDS ("body", "point", "strength");
+  double p [3], strength;
   lng_CONSTRAINT *out;
-  lng_BODY *body;
   PyObject *point;
-  double p [3];
+  lng_BODY *body;
 
   out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
 
   if (out)
   {
-    PARSEKEYS ("OO", &body, &point);
+    strength = DBL_MAX;
+
+    PARSEKEYS ("OO|d", &body, &point, &strength);
 
     TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3));
 
@@ -5180,7 +5182,7 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
     p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
     p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-    if (!(out->con = DOM_Fix_Point (body->bod->dom, body->bod, p)))
+    if (!(out->con = DOM_Fix_Point (body->bod->dom, body->bod, p, strength)))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;

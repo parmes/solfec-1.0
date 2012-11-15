@@ -1790,7 +1790,7 @@ static void insert_pending_constraints (DOM *dom)
       switch (pnd->kind)
       {
       case FIXPNT:
-	con = DOM_Fix_Point (dom, pnd->master, pnd->mpnt);
+	con = DOM_Fix_Point (dom, pnd->master, pnd->mpnt, pnd->strength);
 	break;
       case FIXDIR:
 	con = DOM_Fix_Direction (dom, pnd->master, pnd->mpnt, pnd->dir);
@@ -3009,7 +3009,7 @@ BODY* DOM_Find_Body (DOM *dom, char *label)
 }
 
 /* fix a referential point of the body along all directions */
-CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
+CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt, double strength)
 {
   CON *con;
   SGP *sgp;
@@ -3025,6 +3025,8 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt)
 
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
+
+  STRENGTH (con->Z) = strength; /* set up strength */
 
   return con;
 }
@@ -3124,7 +3126,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
     update_riglnk (dom, con); /* initial update */
   }
 
-  RIGLNK_STR (con->Z) = strength; /* set up strength */
+  STRENGTH (con->Z) = strength; /* set up strength */
   
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
@@ -3549,14 +3551,21 @@ void DOM_Update_End (DOM *dom)
   {
     next = con->next; /* contact update can delete the current iterate */
 
-    if (con->kind == RIGLNK)
+    if (con->kind == RIGLNK || con->kind == FIXPNT)
     {
-      if (con->R [2] < -RIGLNK_STR (con->Z))
+      double strength = STRENGTH (con->Z);
+
+      if (strength != DBL_MAX)
       {
+	double norm = LEN (con->R);
+
+	if (norm > strength)
+	{
 #if MPI
-	ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
+	  ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
 #endif
-	DOM_Remove_Constraint (dom, con); /* remove from the domain */
+	  DOM_Remove_Constraint (dom, con); /* remove from the domain */
+	}
       }
     }
   }
