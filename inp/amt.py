@@ -1,4 +1,4 @@
-# Advanced Manufacturing Techniques contact example
+# Advanced Manufacturing Techniques contact example 1
 from math import pi
 step = 0.001
 stop = 6.5

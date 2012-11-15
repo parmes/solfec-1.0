@@ -57,7 +57,7 @@ typedef struct domain DOM;
 #define DOM_Z_SIZE          5      /* size of auxiliary storage */
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
-#define RIGLNK_STR(Z)   ((Z)[4])   /* rigid link tensile strength */
+#define STRENGTH(Z)     ((Z)[4])   /* tensile strength */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
 
 struct constraint
@@ -308,7 +308,7 @@ void DOM_Remove_Body (DOM *dom, BODY *bod);
 BODY* DOM_Find_Body (DOM *dom, char *label);
 
 /* fix a referential point of the body along all directions */
-CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt);
+CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt, double strength);
 
 /* fix a referential point of the body along the spatial direction */
 CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir);

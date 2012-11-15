@@ -5509,11 +5509,11 @@ volid
 \series bold
 surfids
 \series default
- - list of six surface identifiers: [
+ - list of four surface identifiers [
 \emph on
-s1, s2, ..., s6
+s1, s2, s3, s
 \emph default
-], corresponding to the faces of the hexahedral shape
+4] corresponding to the faces of the pape
 \end_layout
 
 \begin_layout Subsection*
@@ -9629,7 +9629,7 @@ An object of type CONSTRAINT represents a constraint and some of its associated
 \end_layout
 
 \begin_layout Subsection*
-obj = FIX_POINT (body, point)
+obj = FIX_POINT (body, point | strength)
 \end_layout
 
 \begin_layout Standard
@@ -9662,6 +9662,15 @@ point
 (x, y, z)
 \emph default
  tuple with referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+strength
+\series default
+ - optionally an ultimate absolute value of the reaction force can be given,
+ beyond which the link will be deleted (default: infinity)
 \end_layout
 
 \begin_layout Subsection*
@@ -10049,8 +10058,8 @@ point2
 \series bold
 strength
 \series default
- - optionally an ultimate tensile strength can be given, beyond which the
- link will be deleted (default: infinity)
+ - optionally an ultimate absolute value of the reaction force can be given,
+ beyond which the link will be deleted (default: infinity)
 \end_layout
 
 \begin_layout Standard
