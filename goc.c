@@ -46,29 +46,6 @@ inline static int lineplane (double *plane, double *point, double *direction, do
   return 1;
 }
 
-/* compute semi-negative convex-sphere gap */
-inline static double convex_sphere_gap (double *pla, int npla, double *center, double radius, double *normal)
-{
-  double plane [4],
-         max = -DBL_MAX,
-         coef;
-
-  for (; npla > 0; pla += 6, npla --)
-  {
-    COPY (pla, plane);
-    plane [3] = - DOT (plane, pla+3);
-
-    if (lineplane (plane, center, normal, &coef))
-    {
-      if (coef > max) max = coef;
-    }
-  }
-
-  max = fabs (max);
-
-  return (radius > max ? max - radius : 0);
-}
-
 /* compute semi-negative sphere-sphere gap */
 inline static double sphere_sphere_gap (double *ca, double ra, double *cb, double rb, double *normal)
 {
@@ -259,7 +236,7 @@ static int detect_convex_sphere (
   double *area,
   int spair [2])
 {
-  double dot, ilen, *nn;
+  double dot, len, ilen, *nn;
 
   if (gjk_convex_point (vc, nvc, c, onepnt) < r + GEOMETRIC_EPSILON)
   {
@@ -273,7 +250,8 @@ static int detect_convex_sphere (
     }
     else
     {
-      ilen = 1.0 / sqrt (dot);
+      len = sqrt (dot);
+      ilen = 1.0 / len;
       SCALE (normal, ilen);
     }
     ADDMUL (c, -r, normal, twopnt);
@@ -281,7 +259,8 @@ static int detect_convex_sphere (
     spair [0] = nearest_surface (onepnt, pc, sc, nsc);
     spair [1] = s;
     *area = 1.0;
-    *gap = convex_sphere_gap (pc, npc, c, r, normal);
+    dot = len - r;
+    *gap = MIN (dot, 0.0);
     return 1;
   }
 
@@ -503,7 +482,7 @@ static int update_convex_sphere (
   double *area,
   int spair [2])
 {
-  double dot, ilen, *nn;
+  double dot, len, ilen, *nn;
   int s0;
 
   if (gjk_convex_point (vc, nvc, c, onepnt) < r + GEOMETRIC_EPSILON)
@@ -518,14 +497,16 @@ static int update_convex_sphere (
     }
     else
     {
-      ilen = 1.0 / sqrt (dot);
+      len = sqrt (dot);
+      ilen = 1.0 / len;
       SCALE (normal, ilen);
     }
     ADDMUL (c, -r, normal, twopnt);
 
     s0 = spair [0];
     spair [0] = nearest_surface (onepnt, pc, sc, nsc);
-    *gap = convex_sphere_gap (pc, npc, c, r, normal);
+    dot = len - r;
+    *gap = MIN (dot, 0.0);
 
     if (s0 == spair [0]) return 1;
     else return 2;
