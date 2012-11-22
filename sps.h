@@ -57,7 +57,8 @@ struct surfmat
          cohesion,
          restitution,
 	 spring,
-	 dashpot;
+	 dashpot,
+         hpow; /* Hertz law power */
 };
 
 struct spset /* surface pair set */

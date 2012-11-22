@@ -479,7 +479,7 @@ int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
     case SPRING_DASHPOT:
       {
 	CON *con = dia->con;
-        return PENALTY_Spring_Dashpot_Contact (con, 1, step, gap, bas->spring, bas->dashpot, bas->friction,
+        return PENALTY_Spring_Dashpot_Contact (con, 1, step, gap, bas->spring, bas->dashpot, bas->friction, bas->hpow,
 	                                       bas->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
       }
       break;

@@ -44,6 +44,6 @@ void PENALTY_Write_State (PENALTY *ps, PBF *bf);
 void PENALTY_Destroy (PENALTY *ps);
 
 /* spring and dashpot based explicit diagonal block contact solver */
-int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot,
+int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot, double hpow,
                              double friction, double cohesion, double *W, double *B, double *V, double *U, double *R);
 #endif
