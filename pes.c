@@ -30,25 +30,30 @@
 #define PENALTY_EPSILON 1E-4 /* XXX */
 
 /* spring and dashpot based explicit diagonal block contact solver */
-int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot,
+int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot, double hpow,
                               double friction, double cohesion, double *W, double *B, double *V, double *U, double *R)
 {
 #if 1 
-  double INV [4], WTT[4] = {W[0], W[1], W[3], W[4]}, BN, BT [2], det, len;
+  double INV [4], WTT[4] = {W[0], W[1], W[3], W[4]}, BN, BT [2], det, len, g, s;
   short cohesive = con->state & CON_COHESIVE;
 
   BN = B[2] + W[2]*R[0] + W[5]*R[1];
 
-  if (dashpot < 0.0) dashpot = sqrt (step * spring / W [8]); /* critical damping */
-
   if (implicit)
   {
-    R [2] = (- spring * (gap + 0.25 * step * (BN - V[2])) - 0.5 * dashpot * (BN + V[2]))
-	  / (1.0 + (0.25  * step * spring + 0.5 * dashpot) * W[8]);
+    g = (gap + 0.25 * step * (BN - V[2]));
+    g = MIN (g, 0);
+    s = spring * hpow * pow (-g, hpow - 1.0); /* current spring */
+    if (dashpot < 0.0) dashpot = sqrt (step * s / W [8]); /* critical damping */
+    R [2] = (spring * pow (-g, hpow) - 0.5 * dashpot * (BN + V[2]))
+	  / (1.0 + (0.25  * step * s + 0.5 * dashpot) * W[8]);
   }
   else
   {
-    R [2] = - spring * gap - dashpot * V[2];
+    g = MIN (gap, 0);
+    s = spring * hpow * pow (-g, hpow - 1.0); /* current spring */
+    if (dashpot < 0.0) dashpot = sqrt (step * s / W [8]); /* critical damping */
+    R [2] = spring * pow (-g, hpow) - dashpot * V[2];
   }
 
   if (!cohesive && R[2] < 0.0)
@@ -264,7 +269,7 @@ void PENALTY_Solve (PENALTY *ps, LOCDYN *ldy)
     if (con->kind == CONTACT)
     {
       SURFACE_MATERIAL *bas = con->mat.base;
-      PENALTY_Spring_Dashpot_Contact (con, implicit, step, con->gap, bas->spring, bas->dashpot,
+      PENALTY_Spring_Dashpot_Contact (con, implicit, step, con->gap, bas->spring, bas->dashpot, bas->hpow,
 	                  bas->friction, bas->cohesion, dia->W, dia->B, dia->V, dia->U, dia->R);
     }
   }

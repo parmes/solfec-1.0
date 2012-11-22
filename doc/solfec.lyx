@@ -6377,7 +6377,7 @@ An object of type SURFACE_MATERIAL represents material properties on the
 
 \begin_layout Subsection*
 obj = SURFACE_MATERIAL (solfec | surf1, surf2, model, label, friction, cohesion,
- restitution, spring, dashpot)
+ restitution, spring, dashpot, hpow)
 \end_layout
 
 \begin_layout Standard
@@ -6511,6 +6511,14 @@ dashpot
 \series default
  - dashpot stiffness (default: 0.0); any negative value indicates critical
  damping
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+hpow
+\series default
+ - Hertz's law power (default: 1.0)
 \end_layout
 
 \begin_layout Standard
@@ -6675,7 +6683,7 @@ reference "sub:Signorini-Coulomb"
 \begin_inset Text
 
 \begin_layout Plain Layout
-spring, dashpot, friction, cohesion (cf.
+spring, dashpot, friction, cohesion, hpow (cf.
  Section 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -14624,7 +14632,7 @@ Let
 \begin_layout Standard
 \begin_inset Formula 
 \begin{equation}
-s=spring\mbox{ and }d=dashpot\mbox{ and }g=gap
+s=spring\mbox{ and }d=dashpot\mbox{ and }g=gap\mbox{ and }m=hpow
 \end{equation}
 
 \end_inset
@@ -14752,7 +14760,41 @@ The reason for using the above, rather than the classical
 \end_inset
 
  is in an increased stability of the current approach.
- Assuming 
+ Since we aim at simplicity and want to avoid any nonlinear solve only at
+ this stage we include the Hertz law power
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+g_{1}=\mbox{min}\left(g+\frac{h}{4}\left(\bar{B}_{N}-U_{N}^{t}\right),0\right)
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+s_{1}=sm\left(-g_{1}\right)^{m-1}
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+R_{N}=\left[s\cdot\left(-g_{1}\right)^{m}-\frac{d}{2}\cdot\left(\bar{B}_{N}+U_{N}^{t}\right)\right]/\left[1+\left(s_{1}\cdot\frac{h}{4}+\frac{d}{2}\right)\cdot W_{NN}\right]
+\]
+
+\end_inset
+
+Again aiming at maximum simplicity and assuming 
 \begin_inset Formula $\mathbf{U}_{T}^{t+h}=0$
 \end_inset
 
@@ -14813,11 +14855,39 @@ SPRING_DASHPOT
 \end_layout
 
 \begin_layout LyX-Code
-  
-\begin_inset Formula $R_{N}=\left[-s\cdot\left(g+\frac{h}{4}\left(\bar{B}_{N}-U_{N}^{t}\right)\right)-\frac{d}{2}\cdot\left(\bar{B}_{N}+U_{N}^{t}\right)\right]/\left[1+\left(s\cdot\frac{h}{4}+\frac{d}{2}\right)\cdot W_{NN}\right]$
+  if implicit then
+\end_layout
+
+\begin_layout LyX-Code
+    
+\begin_inset Formula $g_{1}=\mbox{min}\left(g+\frac{h}{4}\left(\bar{B}_{N}-U_{N}^{t}\right),0\right)$
 \end_inset
 
-  
+
+\end_layout
+
+\begin_layout LyX-Code
+    
+\begin_inset Formula $s_{1}=sm\left(-g_{1}\right)^{m-1}$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+    
+\begin_inset Formula $R_{N}=\left[s\cdot\left(-g_{1}\right)^{m}-\frac{d}{2}\cdot\left(\bar{B}_{N}+U_{N}^{t}\right)\right]/\left[1+\left(s_{1}\cdot\frac{h}{4}+\frac{d}{2}\right)\cdot W_{NN}\right]$
+\end_inset
+
+
+\end_layout
+
+\begin_layout LyX-Code
+  else 
+\begin_inset Formula $R_{N}=s\cdot\left(-\min\left(g,0\right)\right)^{m}-d\cdot U_{N}^{t}$
+\end_inset
+
+
 \end_layout
 
 \begin_layout LyX-Code

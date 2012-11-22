@@ -1713,7 +1713,8 @@ static PyObject* lng_SURFACE_MATERIAL_new (PyTypeObject *type, PyObject *args, P
     "cohesion",
     "restitution",
     "spring",
-    "dashpot");
+    "dashpot",
+    "hpow");
 
   SURFACE_MATERIAL mat = 
   {
@@ -1727,6 +1728,7 @@ static PyObject* lng_SURFACE_MATERIAL_new (PyTypeObject *type, PyObject *args, P
    0.0,  /* restitution */
    0.0,  /* spring */
    0.0,  /* dashpot */
+   1.0,  /* Hertz power */
   };
 
   PyObject *model, *label;
@@ -1741,12 +1743,13 @@ static PyObject* lng_SURFACE_MATERIAL_new (PyTypeObject *type, PyObject *args, P
     model = NULL;
     label = NULL;
 
-    PARSEKEYS ("O|iiOOddddd", &solfec, &mat.surf1, &mat.surf2, &model, &label,
-      &mat.friction, &mat.cohesion, &mat.restitution, &mat.spring, &mat.dashpot);
+    PARSEKEYS ("O|iiOOdddddd", &solfec, &mat.surf1, &mat.surf2, &model, &label,
+      &mat.friction, &mat.cohesion, &mat.restitution, &mat.spring, &mat.dashpot, &mat.hpow);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (model, kwl[3]) && is_string (label, kwl[4]) &&
 	      is_non_negative (mat.friction, kwl[5]) && is_non_negative (mat.cohesion, kwl[6]) &&
-	      is_in_range (mat.restitution, kwl[7], 0, 1) && is_non_negative (mat.spring, kwl[8]));
+	      is_in_range (mat.restitution, kwl[7], 0, 1) && is_non_negative (mat.spring, kwl[8]) &&
+              is_non_negative (mat.hpow, kwl[10]));
 
     sol = solfec->sol;
 
