@@ -81,7 +81,7 @@ struct constraint
 
   int num; /* local number */
 
-  enum {CONTACT = 0, FIXPNT, FIXDIR, VELODIR, RIGLNK, GLUE} kind; /* constraint kind */
+  enum {CONTACT = 0, FIXPNT, FIXDIR, VELODIR, RIGLNK, SPRING} kind; /* constraint kind */
 
   enum {CON_COHESIVE = 0x01,
         CON_NEW      = 0x02, /* newly inserted constraint */
@@ -311,7 +311,7 @@ BODY* DOM_Find_Body (DOM *dom, char *label);
 CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt, double strength);
 
 /* fix a referential point of the body along the spatial direction */
-CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir);
+CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir, BODY *bod2, double *pnt2);
 
 /* prescribe a velocity of the referential point along the spatial direction */
 CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel);
@@ -321,8 +321,8 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel);
  * if the points coincide then a gluing FIXPNT constraint is inserted instead */
 CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt, double strength);
 
-/* insert gluging constraint between nodes of regular FEM bodies */
-CON* DOM_Glue_Nodes (DOM *dom, BODY *master, BODY *slave, int mnode, int snode);
+/* create user spring constraint */
+CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *spnt, void *function, double *lim);
 
 /* remove a constraint from the domain (destroy it) */
 void DOM_Remove_Constraint (DOM *dom, CON *con);

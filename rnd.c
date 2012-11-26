@@ -1703,7 +1703,7 @@ char *legend_value_string (void *data)
       case FIXDIR: return "DIR";
       case VELODIR: return "VEL";
       case RIGLNK: return "LNK";
-      case GLUE: return "GLU";
+      case SPRING: return "SPR";
       default: return "???";
     }
   }
@@ -2261,14 +2261,26 @@ static void render_riglnk (CON *con, GLfloat width, GLfloat color [3])
 }
 
 /* render glue constraint */
-static void render_glue (CON *con, GLfloat color [3])
+static void render_spring (CON *con, GLfloat color [3])
 {
+  double other [3];
+
+  ADDMUL (con->point, -con->Z[3], con->base+6, other);
+
   glColor3fv (color);
   glPointSize (4.0);
   glBegin (GL_POINTS);
     glVertex3dv (con->point);
+    glVertex3dv (other);
   glEnd ();
   glPointSize (1.0);
+
+  glLineWidth (2.0);
+  glBegin (GL_LINES);
+    glVertex3dv (con->point);
+    glVertex3dv (other);
+  glEnd ();
+  glLineWidth (1.0);
 }
 
 /* draw arrow from p to q */
@@ -2687,7 +2699,7 @@ static void render_body_set_constraints_or_forces (SET *set)
 	    case FIXDIR: render_fixdir (con, color); break;
 	    case VELODIR: render_velodir (con, color); break;
 	    case RIGLNK: render_riglnk (con, 2.0, color); break;
-	    case GLUE: render_glue (con, color); break;
+	    case SPRING: render_spring (con, color); break;
 	  }
 
 	  break;

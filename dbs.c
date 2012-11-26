@@ -19,6 +19,8 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <Python.h>
+#include <structmember.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "alg.h"
@@ -433,6 +435,68 @@ static int riglnk (short dynamic, double epsilon, int maxiter, double step,
   return iter;
 }
 
+/* handle spring Python callback */
+static double springcallback (PyObject *call, double stroke, double velocity)
+{
+  double force = 0.0;
+  PyObject *result;
+  PyObject *args;
+
+  args = Py_BuildValue ("(d, d)", stroke, velocity);
+
+  result = PyObject_CallObject (call, args); /* call user function */
+
+  Py_DECREF (args);
+
+  if (result)
+  {
+    force  = PyFloat_AsDouble (result);
+
+    Py_DECREF (result);
+  }
+  else /* Python call failed */
+  {
+err:
+    PyErr_Print (); /* print traceback */
+#if MPI
+    MPI_Abort (MPI_COMM_WORLD, 3000);
+#endif
+    exit (1);
+  }
+
+  return force;
+}
+
+static int spring (short dynamic, double *W, double *B, double *V, double *U, double *R, double gap, void *function, double *lim)
+{
+  if (dynamic)
+  {
+    R [0] = 0.0;
+    R [1] = 0.0;
+
+    if (gap < lim [0] && B[2] < 0) /* lower limit */
+    {
+      R [2] = -(V[2] + B[2]) / W[8];
+    }
+    else if (gap > lim [1] && B[2] > 0) /* upper limit */
+    {
+      R [2] = -(V[2] + B[2]) / W[8];
+    }
+    else /* in between */
+    {
+      R [2] = springcallback (function, gap, B[2]); /* TODO: make it implicit */
+    }
+  }
+  else
+  {
+    WARNING (0, "Static SPRING has not been implemented yet!");
+    ASSERT (0, ERR_NOT_IMPLEMENTED);
+  }
+  ADDMUL (B, R[2], W+6, U);
+
+  return 0;
+}
+
 /* diagsolver: diagonal solver kind
  * diagepsilon: relative accuracy on termination
  * diagmaxiter: maximal iterations count
@@ -487,8 +551,12 @@ int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
   }
   break;
   case FIXPNT:
-  case GLUE:
     return fixpnt (dynamic, dia->W, B, dia->V, dia->U, dia->R);
+  case SPRING:
+    {
+      CON *con = dia->con;
+      return spring (dynamic, dia->W, B, dia->V, dia->U, dia->R, gap, con->tms, con->Z);
+    }
   case FIXDIR:
     return fixdir (dynamic, dia->W, B, dia->V, dia->U, dia->R);
   case VELODIR:

@@ -953,7 +953,6 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
     switch (con->kind)
     {
     case FIXPNT:
-    case GLUE:
     {
       if (dynamic)
       {
@@ -1015,6 +1014,12 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
       T [2] = W [2];
       T [5] = W [5];
       T [8] = W [8];
+    }
+    break;
+    case SPRING:
+    {
+      WARNING (0, "SPRING not supported in NEWTON_SOLVER yet!");
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
     case CONTACT:

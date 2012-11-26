@@ -82,7 +82,6 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     }
     break;
     case FIXPNT:
-    case GLUE:
     {
       if (dynamic) { ADD (U, V, P); }
       else { COPY (U, P); }
@@ -125,6 +124,11 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
 
       Q [2] = A[8] * P[2];
       up = Q[2] * P[2];
+    }
+    break;
+    case SPRING:
+    {
+      up = 0.0;
     }
     break;
     }

@@ -9682,12 +9682,29 @@ strength
 \end_layout
 
 \begin_layout Subsection*
-obj = FIX_DIRECTION (body, point, direction)
+obj = FIX_DIRECTION (body, point, direction | body2, point2)
 \end_layout
 
 \begin_layout Standard
 This routine fixes the motion of a referential point along a specified spatial
  direction.
+ If 
+\series bold
+body2
+\series default
+ is given the motion of 
+\series bold
+point2
+\series default
+ along the 
+\series bold
+direction
+\series default
+ convected with the first 
+\series bold
+body
+\series default
+ is fixed.
 \end_layout
 
 \begin_layout Itemize
@@ -9727,7 +9744,50 @@ direction
 \emph on
 (vx, vy, vz)
 \emph default
- tuple with spatial direction components
+ tuple with spatial direction components 
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body2
+\series default
+ - BODY object whose motion is constrained with respect to the motion of
+ the first 
+\series bold
+body
+\series default
+ (in this case 
+\series bold
+body
+\series default
+ and 
+\series bold
+body2
+\series default
+ can only be either 
+\emph on
+rigid
+\emph default
+ or 
+\emph on
+pseudo-rigid
+\emph default
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point2
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with referential point on 
+\series bold
+body2
 \end_layout
 
 \begin_layout Standard
@@ -10070,6 +10130,116 @@ strength
  beyond which the link will be deleted (default: infinity)
 \end_layout
 
+\begin_layout Subsection*
+obj = PUT_SPRING (body1, point1, body2, point2, function, limits)
+\end_layout
+
+\begin_layout Standard
+This routine creates an arbitrary spring between two referential points
+ of two distinct bodies.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body1
+\series default
+ - BODY object one whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point1
+\series default
+ - 
+\emph on
+(x1, y1, z1)
+\emph default
+ tuple with the first referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body2
+\series default
+ - BODY object two whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point2
+\series default
+ - 
+\emph on
+(x2, y2, z2)
+\emph default
+ tuple with the second referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+function
+\series default
+ - Python function callback returning the value of force as the function
+ of stroke: 
+\emph on
+force = function (stroke, velocity)
+\emph default
+, where 
+\emph on
+stroke = current (|point2 - point1|) - initial (|point2 - point1|)
+\emph default
+ and 
+\emph on
+velocity
+\emph default
+ is the current relative velocity along the current direction of 
+\emph on
+point2 - point1
+\emph default
+ (positive if distance increases).
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+limits
+\series default
+ - 
+\emph on
+(smin, smax)
+\emph default
+ tuple defining stroke limits (
+\emph on
+smin
+\emph default
+ 
+\begin_inset Formula $\le$
+\end_inset
+
+ 0 and 
+\emph on
+smax
+\emph default
+ 
+\begin_inset Formula $\ge$
+\end_inset
+
+ 0)
+\end_layout
+
 \begin_layout Standard
 Some parameters can also be accessed as members of a CONSTRAINT object.
  These are
@@ -10372,7 +10542,7 @@ vector
 \end_layout
 
 \begin_layout Subsection*
-FORCE (body, kind, point, direction, value| data)
+FORCE (body, kind, point, direction, value | data)
 \end_layout
 
 \begin_layout Standard
@@ -10497,7 +10667,7 @@ time
 step
 \series default
  is the current time step passed to the callback.
- The callback returnes a 
+ The callback returns a 
 \series bold
 force
 \series default
@@ -10506,7 +10676,7 @@ force
 \emph on
 (spatial force, spatial torque, referential torque)
 \emph default
-, while for other hinds of bodies this is a generalised force of the same
+, while for other hinds of bodies this is a generalized force of the same
  dimension as the velocity 
 \series bold
 u
