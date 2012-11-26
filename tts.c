@@ -429,7 +429,6 @@ static void update_system (PRIVATE *A)
     switch (con->kind)
     {
     case FIXPNT:
-    case GLUE:
     {
       if (dynamic)
       {
@@ -491,6 +490,12 @@ static void update_system (PRIVATE *A)
       T [2] = W [2];
       T [5] = W [5];
       T [8] = W [8];
+    }
+    break;
+    case SPRING:
+    {
+      WARNING (0, "SPRING not supported in TEST_SOLVER yet!");
+      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
     }
     break;
     case CONTACT:

@@ -652,14 +652,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     MX_DENSE_PTR (A, 3, 3, dia->A);
     MX_DENSE (C, 3, 3);
 
-    if (con->kind == GLUE && dia->adj == NULL && W.x [8] != 0.0)
-    {
-#if MPI
-      if (dia->adjext == NULL)
-#endif
-      goto sumene; /* skip initialized explicit node-to-node gluing constraints */
-    }
-
     /* diagonal block */
     if (m != s)
     {
@@ -719,7 +711,6 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     NNCOPY (W.x, A.x);
     MX_Inverse (&A, &A); /* inverse of diagonal block */
 
-sumene: 
     NVMUL (A.x, B, X);
     ldy->free_energy += DOT (X, B); /* sum up free energy */
 

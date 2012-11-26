@@ -5203,19 +5203,23 @@ static PyObject* lng_FIX_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 /* create fixed direction constraint */
 static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body", "point", "direction");
+  KEYWORDS ("body", "point", "direction", "body2", "point2");
   lng_CONSTRAINT *out;
-  lng_BODY *body;
-  PyObject *point, *direction;
-  double p [3], d [3];
+  lng_BODY *body, *body2;
+  PyObject *point, *direction, *point2;
+  double p [3], d [3], p2 [3];
 
   out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
 
   if (out)
   {
-    PARSEKEYS ("OOO", &body, &point, &direction);
+    body2 = NULL;
+    point2 = NULL;
 
-    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (direction, kwl[2], 3));
+    PARSEKEYS ("OOO|OO", &body, &point, &direction, &body2, &point2);
+
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (direction, kwl[2], 3) &&
+              is_body (body2, kwl[3]) && is_tuple (point2, kwl[4], 3));
 
 #if MPI
     if (IS_HERE (body))
@@ -5232,7 +5236,14 @@ static PyObject* lng_FIX_DIRECTION (PyObject *self, PyObject *args, PyObject *kw
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    if (!(out->con = DOM_Fix_Direction (body->bod->dom, body->bod, p, d)))
+    if (body2 && point2)
+    {
+      p2 [0] = PyFloat_AsDouble (PyTuple_GetItem (point2, 0));
+      p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
+      p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
+    }
+
+    if (!(out->con = DOM_Fix_Direction (body->bod->dom, body->bod, p, d, body2?body2->bod:NULL, p2)))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
@@ -5490,6 +5501,88 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
       }
 
       if (!DOM_Pending_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2, NULL, NULL, -1, -1, strength))
+      {
+	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+	return NULL;
+      }
+    }
+#endif
+  }
+
+  return (PyObject*)out;
+}
+
+/* create slider constraint */
+static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body1", "point1", "body2", "point2", "function", "limits");
+  PyObject *point1, *point2, *function, *limits;
+  double p1 [3], p2 [3], lim [2];
+  lng_BODY *body1, *body2;
+  lng_CONSTRAINT *out;
+
+  out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
+
+  if (out)
+  {
+    PARSEKEYS ("OOOOOO", &body1, &point1, &body2, &point2, &function, &limits);
+
+    TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]) &&
+	      is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3) &&
+              is_callable (function, kwl[4]) && is_tuple (limits, kwl[5], 2));
+
+    if (body1->bod->dom != body2->bod->dom)
+    {
+      PyErr_SetString (PyExc_ValueError, "Cannot link bodies from different domains");
+      return NULL;
+    }
+
+    if (!(body1->bod->kind = RIG || body1->bod->kind == PRB) ||
+        !(body2->bod->kind = RIG || body2->bod->kind == PRB))
+    {
+      PyErr_SetString (PyExc_ValueError, "Slider only works with rigid and pseudo-rigid bodies");
+      return NULL;
+    }
+
+    p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
+    p1 [1] = PyFloat_AsDouble (PyTuple_GetItem (point1, 1));
+    p1 [2] = PyFloat_AsDouble (PyTuple_GetItem (point1, 2));
+
+    p2 [0] = PyFloat_AsDouble (PyTuple_GetItem (point2, 0));
+    p2 [1] = PyFloat_AsDouble (PyTuple_GetItem (point2, 1));
+    p2 [2] = PyFloat_AsDouble (PyTuple_GetItem (point2, 2));
+
+    lim [0] = PyFloat_AsDouble (PyTuple_GetItem (limits, 0));
+    lim [1] = PyFloat_AsDouble (PyTuple_GetItem (limits, 1));
+
+#if MPI
+    if (((PyObject*)body1 == Py_None && IS_HERE (body2)) ||
+	((PyObject*)body2 == Py_None && IS_HERE (body1)))
+    {
+#endif
+
+    out->con = DOM_Put_Spring (body1->bod->dom, body1->bod, p1, body2->bod, p2, function, lim);
+
+    out->dom = body1->bod->dom;
+
+    if (!out->con)
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
+    else out->id = out->con->id;
+
+#if MPI
+    }
+    else /* both bodies passed */
+    {
+      if (body1->bod->dom->time != 0.0)
+      {
+	PyErr_SetString (PyExc_ValueError, "Springs can be inserted only at time zero");
+	return NULL;
+      }
+
+      if (!DOM_Pending_Constraint (body1->bod->dom, SPRING, body1->bod, body2->bod, p1, p2, lim, (TMS*)function, -1, -1, DBL_MAX))
       {
 	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
 	return NULL;
@@ -8402,6 +8495,7 @@ static PyMethodDef lng_methods [] =
   {"SET_VELOCITY", (PyCFunction)lng_SET_VELOCITY, METH_VARARGS|METH_KEYWORDS, "Create a prescribed velocity constraint"},
   {"SET_ACCELERATION", (PyCFunction)lng_SET_ACCELERATION, METH_VARARGS|METH_KEYWORDS, "Create a prescribed acceleration constraint"},
   {"PUT_RIGID_LINK", (PyCFunction)lng_PUT_RIGID_LINK, METH_VARARGS|METH_KEYWORDS, "Create a rigid linke constraint"},
+  {"PUT_SPRING", (PyCFunction)lng_PUT_SPRING, METH_VARARGS|METH_KEYWORDS, "Create a spring constraint"},
   {"GRAVITY", (PyCFunction)lng_GRAVITY, METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
   {"FORCE", (PyCFunction)lng_FORCE, METH_VARARGS|METH_KEYWORDS, "Apply point force"},
   {"TORQUE", (PyCFunction)lng_TORQUE, METH_VARARGS|METH_KEYWORDS, "Apply point torque"},
@@ -8633,6 +8727,7 @@ int lng (const char *path)
                      "from solfec import SET_VELOCITY\n"
                      "from solfec import SET_ACCELERATION\n"
                      "from solfec import PUT_RIGID_LINK\n"
+                     "from solfec import PUT_SPRING\n"
                      "from solfec import GRAVITY\n"
                      "from solfec import FORCE\n"
                      "from solfec import TORQUE\n"

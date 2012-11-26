@@ -334,7 +334,7 @@ obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/dbs.o: dbs.c dbs.h ldy.h dom.h alg.h lap.h bla.h err.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(PYTHON) -c -o $@ $<
 
 obj/scf.o: scf.c scf.h ldy.h dom.h alg.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<

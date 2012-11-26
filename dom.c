@@ -478,7 +478,17 @@ static void update_fixpnt (DOM *dom, CON *con)
 /* update fixed direction data */
 static void update_fixdir (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
+  if (con->slave)
+  {
+    double n [3];
+    
+    BODY_Cur_Point (con->slave, con->ssgp, con->spnt, con->point);
+    BODY_Ref_Point (con->master, con->msgp, con->point, con->mpnt);
+
+    BODY_Cur_Vector (con->master, con->msgp->gobj, con->mpnt, con->Z, n);
+    localbase (n, con->base);
+  }
+  else BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
 }
 
 /* update velocity direction data */
@@ -518,9 +528,24 @@ static void update_riglnk (DOM *dom, CON *con)
 }
 
 /* update glue data */
-static void update_glue (DOM *dom, CON *con)
+static void update_spring (DOM *dom, CON *con)
 {
-  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
+  double n [3],
+	 m [3],
+	 s [3],
+	 len;
+
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, m);
+  BODY_Cur_Point (con->slave, con->ssgp, con->spnt, s);
+
+  COPY (m, con->point);
+  SUB (m, s, n);
+  len = LEN (n);
+  con->Z[3] = len; /* useful for visualization */
+  con->gap = len - con->Z[2];
+  len = 1.0 / len;
+  SCALE (n, len);
+  localbase (n, con->base);
 }
 
 /* tell whether the geometric objects are topologically adjacent */
@@ -537,42 +562,28 @@ static int gobj_adjacent (short paircode, void *aobj, void *bobj)
 
 #if MPI
 /* return an SGP index:
- * a) semi-positive index indicates regular surface SGP
- * b) negative index indicates a node of a non-surface FEM mesh element */
+ * semi-positive index indicates regular surface SGP */
 static int SGP_index (BODY *bod, SGP *sgp)
 {
   long n = sgp - bod->sgp;
 
-  if (n < 0 || n >= bod->nsgp) /* non-surface ELEMENT */
-  {
-    ASSERT_DEBUG (bod->kind == FEM && !bod->msh, "Regular FEM body expected");
-    n = - (int) (long) sgp->box; /* GLUE-ed mesh node index (1-based) */
-  }
+  ASSERT_DEBUG (n >= 0 && n < bod->nsgp, "Error in SGP index");
 
   return n;
 }
-#endif
 
 /* recreate an SGP from an index returned by SGP_index */
 static SGP* SGP_from_index (DOM *dom, BODY *bod, int n)
 {
   SGP *sgp;
 
-  if (n >= 0 && n < bod->nsgp) sgp = &bod->sgp [n];
-  else
-  {
-    ASSERT_DEBUG (bod->kind == FEM && !bod->msh, "Regular FEM body expected");
-    ASSERT_DEBUG (n < 0, "Negative index expected");
-    ERRMEM (sgp = MEM_Alloc (&dom->sgpmem));
-    sgp->shp = bod->shape;
-    ASSERT_DEBUG_EXT (sgp->gobj = MESH_Element_With_Node (bod->shape->data, -n-1), "Element with given node number not found");
-    sgp->box = (BOX*) (long) (-n); /* GLUE-ed mesh node index (1-based) */
-  }
+  ASSERT_DEBUG (n >= 0 && n < bod->nsgp, "Error in SGP index");
+
+  sgp = &bod->sgp [n];
 
   return sgp;
 }
 
-#if MPI
 /* constraint weight */
 static int constraint_weight (CON *con)
 {
@@ -1793,7 +1804,7 @@ static void insert_pending_constraints (DOM *dom)
 	con = DOM_Fix_Point (dom, pnd->master, pnd->mpnt, pnd->strength);
 	break;
       case FIXDIR:
-	con = DOM_Fix_Direction (dom, pnd->master, pnd->mpnt, pnd->dir);
+	con = DOM_Fix_Direction (dom, pnd->master, pnd->mpnt, pnd->dir, pnd->slave, pnd->spnt);
 	break;
       case VELODIR:
 	con = DOM_Set_Velocity (dom, pnd->master, pnd->mpnt, pnd->dir, pnd->val);
@@ -1801,8 +1812,8 @@ static void insert_pending_constraints (DOM *dom)
       case RIGLNK:
 	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt, pnd->strength);
 	break;
-      case GLUE:
-	con = DOM_Glue_Nodes (dom, pnd->master, pnd->slave, pnd->mnode, pnd->snode);
+      case SPRING:
+	con = DOM_Put_Spring (dom, pnd->master, pnd->mpnt, pnd->slave, pnd->spnt, pnd->val, pnd->dir);
 	break;
       }
 
@@ -1815,7 +1826,7 @@ static void insert_pending_constraints (DOM *dom)
       case FIXDIR: update_fixdir (dom, con); break;
       case VELODIR: update_velodir (dom, con); break;
       case RIGLNK: update_riglnk (dom, con); break;
-      case GLUE: update_glue (dom, con); break;
+      case SPRING: update_spring (dom, con); break;
       }
     }
 
@@ -2795,7 +2806,7 @@ char* CON_Kind (CON *con)
   case FIXDIR: return "FIXDIR";
   case VELODIR: return "VELODIR";
   case RIGLNK: return "RIGLNK";
-  case GLUE: return "GLUE";
+  case SPRING: return "SPRING";
   }
 
   return NULL;
@@ -3032,22 +3043,37 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt, double strength)
 }
 
 /* fix a referential point of the body along the spatial direction */
-CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir)
+CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir, BODY *bod2, double *pnt2)
 {
+  SGP *sgp, *sgp2;
   CON *con;
-  SGP *sgp;
-  int n;
+  int n, m;
 
   if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
-
   sgp = &bod->sgp [n];
-  con = insert (dom, bod, NULL, sgp, NULL, FIXDIR);
+
+  if (bod2)
+  {
+    if ((m = SHAPE_Sgp (bod2->sgp, bod2->nsgp, pnt2)) < 0) return NULL;
+    sgp2 = &bod2->sgp [m];
+  }
+  else sgp2 = NULL;
+
+  con = insert (dom, bod, bod2, sgp, sgp2, FIXDIR);
+
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   localbase (dir, con->base);
 
+  if (bod2)
+  {
+    COPY (pnt2, con->point); /* slider direction attached to the slave body */
+    COPY (pnt2, con->spnt);
+    COPY (dir, con->Z); /* normal will be taken from the master body though */
+  }
+
   /* insert into local dynamics */
-  con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
+  con->dia = LOCDYN_Insert (dom->ldy, con, bod, bod2);
 
   return con;
 }
@@ -3134,28 +3160,34 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
   return con;
 }
 
-/* insert gluging constraint between nodes of regular FEM bodies */
-CON* DOM_Glue_Nodes (DOM *dom, BODY *master, BODY *slave, int mnode, int snode)
+/* create user spring constraint */
+CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *spnt, void *function, double *lim)
 {
-  MESH *mmsh, *smsh;
-  double *mpnt, *spnt;
   SGP *msgp, *ssgp;
+  double v [3], d;
+  int m, s;
   CON *con;
 
-  ASSERT_DEBUG (master && slave, "Both body pointer must be valid");
+  ASSERT_DEBUG (master && slave, "Both bodies needs to be passed");
 
-  msgp = SGP_from_index (dom, master, -mnode-1);
-  ssgp = SGP_from_index (dom, slave, -snode-1);
-  mmsh = msgp->shp->data;
-  smsh = ssgp->shp->data;
-  mpnt = &mmsh->ref_nodes [mnode][0];
-  spnt = &smsh->ref_nodes [snode][0];
+  if ((m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
+  msgp = &master->sgp [m];
 
-  con = insert (dom, master, slave, msgp, ssgp, GLUE);
+  if ((s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
+  ssgp = &slave->sgp [s];
+
+  SUB (mpnt, spnt, v);
+  d = LEN (v);
+  
+  con = insert (dom, master, slave, msgp, ssgp, SPRING);
   COPY (mpnt, con->point);
   COPY (mpnt, con->mpnt);
   COPY (spnt, con->spnt);
-  IDENTITY (con->base);
+  con->Z[0] = lim[0];
+  con->Z[1] = lim[1];
+  con->Z[2] = d; /* initial distance */
+  con->tms = function;
+  update_spring (dom, con); /* initial update */
 
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, master, slave);
@@ -3397,7 +3429,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case FIXDIR:  update_fixdir  (dom, con); break;
       case VELODIR: update_velodir (dom, con); break;
       case RIGLNK:  update_riglnk  (dom, con); break;
-      case GLUE:    update_glue (dom, con); break;
+      case SPRING:  update_spring (dom, con); break;
     }
   }
 
@@ -3761,7 +3793,7 @@ void DOM_2_MBFCP (DOM *dom, FILE *out)
 
   for (con = dom->con, n = 0; con; con = con->next)
   {
-    if (con->kind != CONTACT && con->kind != GLUE) n ++;
+    if (con->kind != CONTACT) n ++;
   }
 
   fprintf (out, "CONSTRAINTS:\t%d\n\n", n);
