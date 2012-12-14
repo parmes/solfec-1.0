@@ -1421,7 +1421,6 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
     {
       double half = 0.5 * step,
 	    *fext = PRB_FEXT(bod),
-	    *fint = PRB_FINT(bod),
 	    *velo = PRB_GRADVEL(bod),
 	    *vel0 = PRB_GRADVEL0(bod),
              force [12], dq [12];
@@ -1443,10 +1442,8 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       ADD12 (velo, vel0, dq);
       SCALE12 (dq, half); /* dq = (h/2) * {u(t) + u(t+h)} */
       energy [EXTERNAL] += DOT12 (dq, fext);
-      energy [INTERNAL] += DOT9 (dq, fint);
-      /* computing internal energy like above may produce negative energy increments during
-       * impacts since fint is computed at q(t+h/2) whereas dq includes impact correction; 
-       * this is effect is present when the time integration step is excessively large */
+      energy [INTERNAL] = SVK_Energy_R (lambda (bod->mat->young, bod->mat->poisson),
+                          mi (bod->mat->young, bod->mat->poisson), bod->ref_volume, PRB_GRADIENT(bod));
     }
     break;
     case FEM:

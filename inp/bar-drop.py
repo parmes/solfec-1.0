@@ -68,8 +68,10 @@ if not VIEWER() and isinstance (th1, tuple):
   try:
     import matplotlib.pyplot as plt
     plt.title ('ENE')
-    plt.plot (th1 [0], th1 [1], label='EXP')
-    plt.plot (th2 [0], th2 [1], label='LIM')
+    plt.plot (th1 [0], th1 [1], label='EXP(kin)')
+    plt.plot (th2 [0], th2 [1], label='LIM(kin)')
+    plt.plot (th1 [0], th1 [2], lw = 2, label='EXP(int)')
+    plt.plot (th2 [0], th2 [2], lw = 2, label='LIM(int)')
     plt.axis (xmin = 0, xmax = stop)
     plt.xlabel ('Time [s]')
     plt.ylabel ('Energy [J]')

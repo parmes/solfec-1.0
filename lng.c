@@ -7517,16 +7517,17 @@ static PyObject* lng_NON_SOLFEC_ARGV (PyObject *self, PyObject *args, PyObject *
 static MX* read_modal_analysis (FILE *f, double **v)
 {
   int m, n;
+  XDR xdr;
   MX *E;
 
-  /* XXX/TODO: => XDR */
-
-  ASSERT (fread (&m, sizeof (int), 1, f) == 1, ERR_FILE_READ);
-  ASSERT (fread (&n, sizeof (int), 1, f) == 1, ERR_FILE_READ);
+  xdrstdio_create (&xdr, f, XDR_DECODE);
+  ASSERT (xdr_int (&xdr, &m), ERR_FILE_READ);
+  ASSERT (xdr_int (&xdr, &n), ERR_FILE_READ);
   E = MX_Create (MXDENSE, m, n, NULL, NULL);
   ERRMEM (*v = malloc (sizeof (double [n])));
-  ASSERT (fread (*v, sizeof (double), n, f) == (unsigned)n, ERR_FILE_READ);
-  ASSERT (fread (E->x, sizeof (double), n*m, f) == (unsigned)n*m, ERR_FILE_READ);
+  ASSERT (xdr_vector (&xdr, (char*)(*v), n, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_READ);
+  ASSERT (xdr_vector (&xdr, (char*)E->x, n*m, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_READ);
+  xdr_destroy (&xdr);
 
   return E;
 }
@@ -7534,12 +7535,14 @@ static MX* read_modal_analysis (FILE *f, double **v)
 /* write modal data */
 static void write_modal_analysis (MX *E, double *v, FILE *f)
 {
-  /* XXX/TODO: => XDR */
+  XDR xdr;
 
-  ASSERT (fwrite (&E->m, sizeof (int), 1, f) == 1, ERR_FILE_WRITE);
-  ASSERT (fwrite (&E->n, sizeof (int), 1, f) == 1, ERR_FILE_WRITE);
-  ASSERT (fwrite (v, sizeof (double), E->n, f) == (unsigned)E->n, ERR_FILE_WRITE);
-  ASSERT (fwrite (E->x, sizeof (double), E->n*E->m, f) == (unsigned)E->n*E->m, ERR_FILE_WRITE);
+  xdrstdio_create (&xdr, f, XDR_ENCODE);
+  ASSERT (xdr_int (&xdr, &E->m), ERR_FILE_WRITE);
+  ASSERT (xdr_int (&xdr, &E->n), ERR_FILE_WRITE);
+  ASSERT (xdr_vector (&xdr, (char*)v, E->n, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_WRITE);
+  ASSERT (xdr_vector (&xdr, (char*)E->x, E->n*E->m, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_WRITE);
+  xdr_destroy (&xdr);
 }
 
 /* model analysis of FEM bodies */
