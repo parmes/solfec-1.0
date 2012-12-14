@@ -31,6 +31,8 @@
 #include "cvi.h"
 #include "gjk.h"
 #include "kdt.h"
+#include "svk.h"
+#include "but.h"
 #include "err.h"
 
 typedef double (*node_t) [3]; /* mesh node */
@@ -1118,6 +1120,38 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   )
 }
 
+/* copute element internal energy */
+static double element_internal_energy (BODY *bod, MESH *msh, ELEMENT *ele)
+{
+  double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES], F0 [9], F [9], J, integral;
+  BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+  double *conf = FEM_MESH_CONF (bod), *p;
+  int i, n, m, *nod = ele->nodes;
+
+  n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
+
+  m = 3 * n;
+
+  for (i = 0; i < n; i ++)
+  {
+    p = &conf [3 * nod [i]];
+    COPY (p, q[i]); /* current mesh space displacement */
+  }
+
+  integral = 0.0;
+
+  INTEGRATE3D (ele->type, INTF, ele->dom, ele->domnum,
+
+    J = element_det (ele->type, nodes, point, F0);
+    element_gradient (ele->type, q, point, F0, derivs, F);
+    integral += J * weight * SVK_Energy_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F);
+  )
+
+  /* XXX/TODO => SVK material fixed above */
+
+  return integral;
+}
+
 /* compute inv (M) * K for an element */
 static MX* element_inv_M_K (BODY *bod, MESH *msh, ELEMENT *ele)
 {
@@ -1383,6 +1417,26 @@ static void internal_force (BODY *bod, double *fint)
     else if (ele->next) ele = ele->next;
     else ele = msh->bulkeles, bulk = 1;
   }
+}
+
+/* compute inernal energy */
+static double internal_energy (BODY *bod)
+{
+  MESH *msh = FEM_MESH (bod);
+  double energy;
+  ELEMENT *ele;
+  int bulk;
+
+  for (ele = msh->surfeles, bulk = 0, energy = 0.0; ele; )
+  {
+    energy += element_internal_energy (bod, msh, ele);
+
+    if (bulk) ele = ele->next;
+    else if (ele->next) ele = ele->next;
+    else ele = msh->bulkeles, bulk = 1;
+  }
+
+  return energy;
 }
 
 /* initialize unit body force */
@@ -3033,7 +3087,6 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
   double half = 0.5 * step,
 	*energy = bod->energy,
 	*fext = FEM_FEXT (bod),
-	*fint = FEM_FINT (bod),
 	*u0 = FEM_VEL0 (bod),
 	*u = bod->velo,
 	*ue = u + n,
@@ -3064,10 +3117,15 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
     for (double *q = bod->conf, *x = bod->K->x, *y = x + n; x < y; q ++, x ++)
       energy [INTERNAL] += 0.5 * (*x) * (*q) * (*q);
   }
-  else energy [INTERNAL] += blas_ddot (n, dq, 1, fint, 1);
-  /* computing internal energy like above may produce negative energy increments during
-   * impacts since fint is computed at q(t+h/2) whereas dq includes impact correction; 
-   * this is effect is present when the time integration step is excessively large */
+  else
+  {
+    /* energy [INTERNAL] += blas_ddot (n, dq, 1, fint, 1);
+     * computing internal energy like above may produce negative energy increments during
+     * impacts since fint is computed at q(t+h/2) whereas dq includes impact correction; 
+     * this is effect is present when the time integration step is excessively large */
+
+    energy [INTERNAL] = internal_energy (bod);
+  }
 
   free (dq);
 }
