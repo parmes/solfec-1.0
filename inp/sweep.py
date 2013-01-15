@@ -4,7 +4,7 @@
 import matplotlib.pyplot as plt
 from math import sin, cos, pi
 
-step = 1E-4  # time step
+step = 1E-3  # time step
 stop = 5.0   # duration of the simulation
 damp = 1E-6  # amount of stiffness proportional damping
 lofq = 5     # low frequency for the sweep
@@ -17,12 +17,13 @@ l = 0.1      # length of one body
 w = 0.1      # widhth of one body
 h = 0.1      # height of one body
 gap = 0.001  # gap
+wavg = 0.01  # energy averaging time window [t-wavg/2, t+wavg/2]
 
 GEOMETRIC_EPSILON (1E-9) # tiny geometrical tolerance (<< gap)
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/sweep')
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = 0.0)
-bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3) # graphite
+bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
 
 nodes = [0, 0, 0,
 	 w, 0, 0,
@@ -67,34 +68,60 @@ FIX_DIRECTION (body, (w,-gap,h), (1, 0, 0))
 FIX_DIRECTION (body, (w,-gap,0), (0, 0, 1))
 
 # acceleration sweep
-t = 0.0
+
+t0 = 0.0
+while t0 < stop:
+  a0 = amag * sin (2*pi*(lofq+(hifq-lofq)*t0/stop)*t0)
+  t0 += step
+  a1 = amag * sin (2*pi*(lofq+(hifq-lofq)*t0/stop)*t0)
+  if a1 < a0: break # find first acceleration maximum (integrated velocity will be more symmetrical about zero)
+
+t = t0
 v = 0.0
 vt = []
 va = []
 vv = []
-while t < stop:
+vf = []
+while t < stop+t0:
   x = t + step/2. # mid-step time
   a = amag * sin (2*pi*(lofq+(hifq-lofq)*x/stop)*x) # mid-step acceleration
   v = v + a * step # mid-step integration of dv / dt = a into v
-  vt.append (t)
+  vt.append (t-t0)
   va.append (a)
   vv.append (v)
+  vf.append (lofq + (hifq-lofq)*(t/stop))
   t += step
 
-# velocity is now all positive, but we want it centered about zero
-i = 0
-while vv[i+1] > vv[i]: i += 1 # find first maximum
-j = len(vv)-1
-while vv[j-1] < vv[j]: j -= 1 # find last minimum (if any)
-k = j
-while vv[k-1] > vv[k]: k -= 1 # and previous maximum
-j = k
-while vv[j-1] < vv[j]: j -= 1 # and previous minimum
-# y = Ax + B
-A = (0.5*(vv[j]+vv[k])-0.5*vv[i])/(vt[j]-vt[i])
-B = 0.5*vv[i] - A*vt[i]
-# shift down be the line connecting middles of end extrema
-for i in range (0, len (vv)): vv[i] -= A*vt[i]+B
+for i in range (0, len(vv)):
+  if vv[i+1] < vv[i]: break # find first velocity maximum
+
+for j in range (0, len(vv)-i):
+  vv[j] = vv[j+i] # shift velocity so it starts from the first maximum
+
+while i > 0:
+  vt.pop() # remove last i items from lists
+  va.pop()
+  vv.pop()
+  vf.pop()
+  i -= 1
+
+# after velocity has been trimmed, produce displacement envelope
+vd = []
+d = 0.0
+for v in vv:
+ d = d + v * step  # integration of dd / dt = v
+ vd.append (d)
+
+# displacement has positive drift => find tangens of the positive drift angle 
+i = len(vd)-1
+while vd[i-1] > vd[i]: i -= 1 # first maximum
+while vd[i-1] < vd[i]: i -= 1 # previous minimum
+j = i
+while vd[j-1] > vd[i]: j += 1 # previous maximum
+
+# shift velocity down by the tangens of the drift angle
+vshift = (vd[i]+vd[j]) / (vt[i]+vt[j])
+for i in range (0, len(vv)): vv[i] -= vshift
 
 # after velocity has been shifted down, produce displacement envelope
 vd = []
@@ -106,19 +133,22 @@ for v in vv:
 if not VIEWER ():
   plt.clf ()
   plt.plot (vt, va)
+  plt.xlim ((0, stop))
   plt.xlabel ('time $(s)$')
   plt.ylabel ('acceleration $(m/s^2)$')
-  plt.savefig ('out/sweep/acc.svg')
+  plt.savefig ('out/sweep/acc.png')
   plt.clf ()
   plt.plot (vt, vv)
+  plt.xlim ((0, stop))
   plt.xlabel ('time $(s)$')
   plt.ylabel ('velocity $(m/s)$')
-  plt.savefig ('out/sweep/vel.svg')
+  plt.savefig ('out/sweep/vel.png')
   plt.clf ()
-  plt.plot (vt, vd)
-  plt.xlabel ('time $(s)$')
+  plt.plot (vf, vd)
+  plt.xlim ((lofq, hifq))
+  plt.xlabel ('Frequency $(Hz)$')
   plt.ylabel ('displacement $(m)$')
-  plt.savefig ('out/sweep/dsp.svg')
+  plt.savefig ('out/sweep/dsp.png')
 
 # apply velocity constraint corresponding to the acceleration sin sweep
 data = []
@@ -133,18 +163,34 @@ RUN (solfec, slv, stop)
 
 # post-process results
 if not VIEWER() and solfec.mode == 'READ':
+  iavg = 1 + int (wavg / step) / 2
   data = []
   for b in bodies:
     data.append ((b, 'KINETIC'))
     data.append ((b, 'INTERNAL'))
   th = HISTORY (solfec, data, 0, stop)
-  fq = []
-  for t in th[0]: fq.append (lofq + (hifq-lofq)*(t/stop))
-  for i in range (0,nbodl):
+  n = len (th[0])
+  for k in range (0, nbodl):
+    fq = []
+    ek = []
+    ei = []  
+    for i in range (0, n):
+      if i >= iavg and i < n-iavg-1:
+	vek = 0.0
+	vei = 0.0
+	for j in range (i-iavg, i+iavg+1):
+	  vek += th [2*k+1][j]
+	  vei += th [2*k+2][j]
+
+	fq.append (lofq + (hifq-lofq)*(th[0][i]/stop))
+	ek.append (vek/(2.0*iavg+1.0))
+	ei.append (vei/(2.0*iavg+1.0))
+       
     plt.clf ()
-    plt.plot (fq, th[2*i+1], lw = 2, label = 'kinetic')
-    plt.plot (fq, th[2*i+2], lw = 2, label = 'internal')
+    plt.plot (fq, ek, lw = 2, label = 'kinetic')
+    plt.plot (fq, ei, lw = 2, label = 'internal')
+    plt.xlim ((lofq, hifq))
     plt.legend(loc = 'best')
     plt.xlabel ('Frequency $(Hz)$')
     plt.ylabel ('Energy $(J)$')
-    plt.savefig ('out/sweep/ene'+str(i)+'.svg')
+    plt.savefig ('out/sweep/ene'+str(k)+'.png')
