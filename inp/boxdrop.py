@@ -1,4 +1,4 @@
-# 492 boxes falling into a container
+# 300 cubes falling into a box container
 import time
 
 # global data
