@@ -4,7 +4,7 @@
 import matplotlib.pyplot as plt
 from math import sin, cos, pi
 
-step = 1E-3  # time step
+step = 5E-4  # time step
 stop = 5.0   # duration of the simulation
 damp = 1E-6  # amount of stiffness proportional damping
 lofq = 5     # low frequency for the sweep
@@ -17,6 +17,7 @@ l = 0.1      # length of one body
 w = 0.1      # widhth of one body
 h = 0.1      # height of one body
 gap = 0.001  # gap
+ostep = 1E-3 # output step
 wavg = 0.01  # energy averaging time window [t-wavg/2, t+wavg/2]
 
 GEOMETRIC_EPSILON (1E-9) # tiny geometrical tolerance (<< gap)
@@ -158,12 +159,15 @@ SET_VELOCITY (body, (w/2.,-(gap+l)/2.,h/2.), (0, 1, 0), TIME_SERIES (data))
 # create constraints solver
 slv = NEWTON_SOLVER ()
 
+# output results every 'ostep'
+OUTPUT (solfec, ostep)
+
 # run simulation
 RUN (solfec, slv, stop)
 
 # post-process results
 if not VIEWER() and solfec.mode == 'READ':
-  iavg = 1 + int (wavg / step) / 2
+  iavg = 1 + int (wavg / ostep) / 2
   data = []
   for b in bodies:
     data.append ((b, 'KINETIC'))
