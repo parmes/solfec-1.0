@@ -131,4 +131,7 @@ void FEM_MatrixMarket_M_K (BODY *bod, short spdM, char *pathM, short spdK, char 
 /* called after reading to post-process internal data */
 void FEM_Post_Read (BODY *bod);
 
+/* compute elastic energy of individual element */
+double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele);
+
 #endif

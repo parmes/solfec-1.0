@@ -7489,7 +7489,7 @@ obj.id
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="4" columns="1">
+<lyxtabular version="3" rows="5" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -7554,7 +7554,7 @@ reference "tab:schema"
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -7566,6 +7566,27 @@ obj.damping
 \emph default
  - stiffness proportional damping coefficient (default: 0.0) for the dynamic
  case (ignored for rigid bodies).
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.fracturecheck
+\series default
+\emph default
+ - check fracture criterion for FEM bodies ('ON' or default: 'OFF').
+ 
+\series bold
+\color red
+Under development.
 \end_layout
 
 \end_inset

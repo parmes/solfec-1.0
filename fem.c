@@ -1121,7 +1121,7 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
 }
 
 /* copute element internal energy */
-static double element_internal_energy (BODY *bod, MESH *msh, ELEMENT *ele)
+double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele)
 {
   double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES], F0 [9], F [9], J, integral;
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
@@ -1429,7 +1429,7 @@ static double internal_energy (BODY *bod)
 
   for (ele = msh->surfeles, bulk = 0, energy = 0.0; ele; )
   {
-    energy += element_internal_energy (bod, msh, ele);
+    energy += FEM_Element_Internal_Energy (bod, msh, ele);
 
     if (bulk) ele = ele->next;
     else if (ele->next) ele = ele->next;
