@@ -126,6 +126,7 @@ struct display_point /* auxiliary display point for verification purposes */
 typedef enum
 {
   BODY_DETECT_SELF_CONTACT = 0x0001, /* enable self contact detection */
+  BODY_CHECK_FRACTURE      = 0x0002, /* enable fracture check for finite element bodies */
   BODY_PARENT              = 0x0010, /* a parent body */
   BODY_CHILD               = 0x0020, /* a child body */
   BODY_CHILD_UPDATED       = 0x0040, /* an updated child */

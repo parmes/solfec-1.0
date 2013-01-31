@@ -3155,6 +3155,53 @@ static int lng_BODY_set_material (lng_BODY *self, PyObject *value, void *closure
   return -1;
 }
 
+static PyObject* lng_BODY_get_fracturecheck (lng_BODY *self, void *closure)
+{
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
+  if (self->bod->flags & BODY_CHECK_FRACTURE)
+    return PyString_FromString ("ON");
+  else return PyString_FromString ("OFF");
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_fracturecheck (lng_BODY *self, PyObject *value, void *closure)
+{
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
+  if (!is_string (value, "scheme")) return -1;
+
+  if (self->bod->kind != FEM)
+  {
+    PyErr_Warn (NULL, "Unable to check fracture criterion for non FEM bodies!");
+    return 0;
+  }
+
+  IFIS (value, "ON") self->bod->flags |= BODY_CHECK_FRACTURE;
+  ELIF (value, "OFF") self->bod->flags &= ~BODY_CHECK_FRACTURE;
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Neither 'ON' nor 'OFF'!");
+    return -1;
+  }
+
+#if MPI && LOCAL_BODIES
+  }
+#endif
+
+  return 0;
+}
+
 /* BODY methods */
 static PyMethodDef lng_BODY_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3181,6 +3228,7 @@ static PyGetSetDef lng_BODY_getset [] =
   {"constraints", (getter)lng_BODY_get_constraints, (setter)lng_BODY_set_constraints, "constraints list", NULL},
   {"ncon", (getter)lng_BODY_get_ncon, (setter)lng_BODY_set_ncon, "constraints count", NULL},
   {"material", (getter)lng_BODY_get_material, (setter)lng_BODY_set_material, "global body material", NULL},
+  {"fracturecheck", (getter)lng_BODY_get_fracturecheck, (setter)lng_BODY_set_fracturecheck, "fracture check", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 

@@ -3572,6 +3572,8 @@ void DOM_Update_End (DOM *dom)
 
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
+  Check_Fracture (dom);
+
   Propagate_Cracks (dom); /* do cracking */
 
 #if MPI

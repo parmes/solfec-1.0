@@ -69,4 +69,7 @@ CRACK* CRACKS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int 
 /* propagate cracks and adjust the domain */
 void Propagate_Cracks (DOM *dom);
 
+/* check fracture criterion */
+void Check_Fracture (DOM *dom);
+
 #endif
