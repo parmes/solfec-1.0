@@ -9237,7 +9237,7 @@ WARNING:
 
 \begin_layout Subsection*
 obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, linver, linmaxiter, maxmatvec,
- epsilon, delta, theta, omega)
+ epsilon, delta, theta, omega, gsflag)
 \end_layout
 
 \begin_layout Itemize
@@ -9380,6 +9380,15 @@ omega
 )
 \end_layout
 
+\begin_layout Itemize
+
+\series bold
+gsflag
+\series default
+ - 'ON' or 'OFF' deciding whether to us Gauss-Seidel iterations in case
+ of failure (default: 'ON')
+\end_layout
+
 \begin_layout Standard
 Some parameters can also be accessed as members of a NEWTON_SOLVER object.
  These are
@@ -9493,7 +9502,7 @@ Read/write
 
 \emph on
 obj.meritval, obj.maxiter, obj.locdyn, obj.linver, obj.linmaxiter, obj.maxmatvec,
- obj.epsilon, obj.delta, obj.theta, obj.omega
+ obj.epsilon, obj.delta, obj.theta, obj.omega, obj.gsflag
 \end_layout
 
 \end_inset

@@ -19,7 +19,10 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <Python.h>
+#include <structmember.h>
 #include <float.h>
+#include "lng.h"
 #include "sol.h"
 #include "mrf.h"
 #include "alg.h"
@@ -128,7 +131,25 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
     break;
     case SPRING:
     {
-      up = 0.0;
+      double *lim = con->Z, gap = con->gap;
+
+      if ((gap < lim[0] && U[2] < 0) || (gap > lim[1] && U[2] > 0))
+      {
+	if (dynamic) { P[2] = U[2] + V[2]; }
+	else { P[2] = U[2]; }
+	Q [2] = A[8] * P[2]; /* inv(W) * velocity */
+	up = Q[2] * P[2];
+      }
+      else
+      {
+        double g = dynamic ? gap + 0.25*step*(U[2]-V[2]) : gap + step*U[2],
+               v = dynamic ? 0.5*(V[2]+U[2]) : U[2],
+               R2 = springcallback ((PyObject*)con->tms, g, v);
+
+	P [2] = -R[2] + R2;
+        Q [2] = W[8]*P[2]; /* W * force */
+        up = Q[2] * P[2];
+      }
     }
     break;
     }

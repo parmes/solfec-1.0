@@ -50,6 +50,8 @@ struct newton
 
   double omega; /* smoothing omega */
 
+  enum {GS_ON, GS_OFF} gsflag;
+
   /* output */
 
   double *merhist; /* merit function history */

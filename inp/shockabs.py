@@ -44,6 +44,7 @@ b3 = BODY (solfec, 'OBSTACLE', s, bulk)
 
 GRAVITY (solfec, (0, 0, -10))
 
-slv = GAUSS_SEIDEL_SOLVER (1E-3, 200)
+#slv = GAUSS_SEIDEL_SOLVER (1E-3, 200)
+slv = NEWTON_SOLVER ()
 
 RUN (solfec, slv, stop)

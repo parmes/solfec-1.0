@@ -19,9 +19,11 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <Python.h>
+#include <structmember.h>
 #include <stdlib.h>
 #include <float.h>
-
+#include "lng.h"
 #include "bgs.h"
 #include "nts.h"
 #include "dom.h"
@@ -615,6 +617,16 @@ static int Matvec (void *matvec_data, double alpha, PRIVATE *A, VECTOR *x, doubl
       U [1] = R [1];
     }
     break;
+    case SPRING:
+    {
+      X = dat->X;
+      Y = dat->Y;
+
+      U [0] = R [0];
+      U [1] = R [1];
+      U [2] = X[8]*U[2] + Y[8]*R[2];
+    }
+    break;
     case CONTACT:
     {
       X = dat->X;
@@ -1018,8 +1030,45 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
     break;
     case SPRING:
     {
-      WARNING (0, "SPRING not supported in NEWTON_SOLVER yet!");
-      ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+      double *lim = con->Z, gap = con->gap;
+      double *X = dat->X, *Y = dat->Y;
+
+      if ((gap < lim[0] && U[2] < 0) || (gap > lim[1] && U[2] > 0))
+      {
+	b [0] = -R[0];
+	b [1] = -R[1];
+	if (dynamic) b [2] = -V[2]-U[2];
+	else b [2] = -U[2];
+
+        X [8] = 1.0;
+        Y [8] = 0.0;
+
+	T [1] = T [3] = T [6] = T [7] = 0.0;
+	T [0] = T [4] = 1.0;
+	T [2] = W [2];
+	T [5] = W [5];
+	T [8] = W [8];
+      }
+      else
+      {
+        double g = dynamic ? gap + 0.25*step*(U[2]-V[2]) : gap + step*U[2],
+               v = dynamic ? 0.5*(V[2]+U[2]) : U[2],
+               R2 = springcallback ((PyObject*)con->tms, g, v),
+               R3 = springcallback ((PyObject*)con->tms, g+GEOMETRIC_EPSILON, v);
+
+	b [0] = -R[0];
+	b [1] = -R[1];
+	b [2] = W[8]*(R2 - R[2]);
+        
+        X [8] = -W[8]*(dynamic ? 0.25:1.0)*step*(R3-R2)/GEOMETRIC_EPSILON;
+        Y [8] =  W[8];
+
+	T [1] = T [3] = T [6] = T [7] = 0.0;
+	T [0] = T [4] = 1.0;
+	T [2] = W [2];
+	T [5] = W [5];
+	T [8] = W[8]*X[8] + Y[8];
+      }
     }
     break;
     case CONTACT:
@@ -1244,6 +1293,7 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->omega = meritval * 1E-3;
   ns->merhist = NULL;
   ns->mvhist = NULL;
+  ns->gsflag = GS_ON;
 
   return ns;
 }
@@ -1262,7 +1312,7 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   case PQN_DIAG: ret = diagonalized_solve (A, ns, ldy); break;
   }
 
-  if (ret == 0)
+  if (ret == 0 && ns->gsflag == GS_ON)
   {
     if (ns->locdyn == LOCDYN_ON)
     {
