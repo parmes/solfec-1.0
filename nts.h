@@ -50,7 +50,7 @@ struct newton
 
   double omega; /* smoothing omega */
 
-  enum {GS_ON, GS_OFF} gsflag;
+  short gsflag;
 
   /* output */
 
