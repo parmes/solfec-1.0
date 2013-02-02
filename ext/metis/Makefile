@@ -1,7 +1,7 @@
 include ../../Config.mak
 
 ifeq ($(DEBUG),yes)
-  CFLAGS = -g -I.
+  CFLAGS = -g -I. -w
 else
   CFLAGS = -O2 -I.
 endif

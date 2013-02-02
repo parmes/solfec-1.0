@@ -8935,7 +8935,7 @@ int  lngcallback_set (int id, void **data, void **call)
 }
 
 /* handle PUT_SPRING spring Python callback */
-double springcallback (PyObject *call, double stroke, double velocity)
+double springcallback (void *call, double stroke, double velocity)
 {
   double force = 0.0;
   PyObject *result;

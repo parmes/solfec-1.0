@@ -1809,6 +1809,11 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
   ASSERT_DEBUG (vec && ABS (n) == vec->n && a->m == vec->m, "Incompatible dimension of the eigenvectors matrix");
 
   b = copy_matrix (a, NULL);  /* copy not to modify the input */
+
+  nn = b->n;
+  pp = b->p;
+  ii = b->i;
+  bx = b->x;
   
   for (lwork = k = 0; k < n; k ++) /* find largest block */
   {
@@ -1822,11 +1827,6 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
   
   ERRMEM (work = malloc (sizeof (double) * (size + lwork)));  /* workspace */
   w = (work + lwork);                                         /* eigenvalues */
-
-  nn = b->n;
-  pp = b->p;
-  ii = b->i;
-  bx = b->x;
 
   for (k = 0; k < nn; k ++)        /* copute values/vectors */
   {

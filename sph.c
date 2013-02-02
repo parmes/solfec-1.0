@@ -277,9 +277,9 @@ void SPHERE_Oriented_Extents (SPHERE *sph, double *vx, double *vy, double *vz, d
   e [0] -= r / len [0];
   e [1] -= r / len [1];
   e [2] -= r / len [2];
-  e [4] += r / len [0];
-  e [5] += r / len [1];
-  e [6] += r / len [2];
+  e [3] += r / len [0];
+  e [4] += r / len [1];
+  e [5] += r / len [2];
 
   if (e [0] < extents [0]) extents [0] = e [0];
   if (e [1] < extents [1]) extents [1] = e [1];
