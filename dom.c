@@ -385,16 +385,16 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
     {
       paircode = GOBJ_Pair_Code (one, two);
       con = insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
-      con->spair [0] = spair [1];
-      con->spair [1] = spair [0];
+      con->spair [0] = spair [0];
+      con->spair [1] = spair [1];
     }
     break;
     case 2:  /* second body has outward normal => first body is the master */
     {
       paircode = GOBJ_Pair_Code (two, one);
       con = insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
-      con->spair [0] = spair [0];
-      con->spair [1] = spair [1];
+      con->spair [0] = spair [1];
+      con->spair [1] = spair [0];
     }
     break;
   }
@@ -543,8 +543,15 @@ static void update_spring (DOM *dom, CON *con)
   len = LEN (n);
   con->Z[3] = len; /* useful for visualization */
   con->gap = len - con->Z[2];
-  len = 1.0 / len;
-  SCALE (n, len);
+  if (len != 0.0)
+  {
+    len = 1.0 / len;
+    SCALE (n, len);
+  }
+  else /* avoid initial singularity */
+  {
+    VECTOR (n, 0, 0, 1);
+  }
   localbase (n, con->base);
 }
 

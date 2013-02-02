@@ -36,4 +36,7 @@ int  lngcallback_id (void *data, void *call);
  * the id was found, or return 0 otherwise */
 int  lngcallback_set (int id, void **data, void **call);
 
+/* handle PUT_SPRING spring Python callback */
+double springcallback (PyObject *call, double stroke, double velocity);
+
 #endif

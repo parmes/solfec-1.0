@@ -23,6 +23,7 @@
 #include <structmember.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include "lng.h"
 #include "alg.h"
 #include "pes.h"
 #include "dom.h"
@@ -433,38 +434,6 @@ static int riglnk (short dynamic, double epsilon, int maxiter, double step,
   ADDMUL (B, R[2], W+6, U);
  
   return iter;
-}
-
-/* handle spring Python callback */
-static double springcallback (PyObject *call, double stroke, double velocity)
-{
-  double force = 0.0;
-  PyObject *result;
-  PyObject *args;
-
-  args = Py_BuildValue ("(d, d)", stroke, velocity);
-
-  result = PyObject_CallObject (call, args); /* call user function */
-
-  Py_DECREF (args);
-
-  if (result)
-  {
-    force  = PyFloat_AsDouble (result);
-
-    Py_DECREF (result);
-  }
-  else /* Python call failed */
-  {
-err:
-    PyErr_Print (); /* print traceback */
-#if MPI
-    MPI_Abort (MPI_COMM_WORLD, 3000);
-#endif
-    exit (1);
-  }
-
-  return force;
 }
 
 static int spring (short dynamic, double *W, double *B, double *V, double *U, double *R, double gap, void *function, double *lim)

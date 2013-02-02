@@ -3906,10 +3906,10 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("meritval", "maxiter", "locdyn", "linver", "linmaxiter", "maxmatvec", "epsilon", "delta", "theta", "omega");
+  KEYWORDS ("meritval", "maxiter", "locdyn", "linver", "linmaxiter", "maxmatvec", "epsilon", "delta", "theta", "omega", "gsflag");
   double meritval, epsilon, delta, theta, omega;
   int maxiter, linmaxiter, maxmatvec;
-  PyObject *locdyn, *linver;
+  PyObject *locdyn, *linver, *gsflag;
   lng_NEWTON_SOLVER *self;
 
   self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
@@ -3926,8 +3926,9 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     delta = 0.0;
     theta = 0.25;
     omega = 1E-10;
+    gsflag = NULL;
 
-    PARSEKEYS ("|diOOiidddd", &meritval, &maxiter, &locdyn, &linver, &linmaxiter, &maxmatvec, &epsilon, &delta, &theta, &omega);
+    PARSEKEYS ("|diOOiiddddO", &meritval, &maxiter, &locdyn, &linver, &linmaxiter, &maxmatvec, &epsilon, &delta, &theta, &omega, &gsflag);
 
     TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (locdyn, kwl[2]) && is_string (locdyn, kwl[3]) &&
       is_positive (linmaxiter, kwl[4]) && is_positive (maxmatvec, kwl[5]) && is_positive (epsilon, kwl[6]) && is_non_negative (delta, kwl[7]) &&
@@ -3971,6 +3972,23 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       ELSE
       {
 	PyErr_SetString (PyExc_ValueError, "Invalid linver value: neither GMRES nor DIAG");
+	return NULL;
+      }
+    }
+
+    if (gsflag)
+    {
+      IFIS (gsflag, "ON")
+      {
+	self->ns->gsflag = GS_ON;
+      }
+      ELIF (gsflag, "OFF")
+      {
+	self->ns->gsflag = GS_OFF;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid gsflag value: neither ON nor OFF");
 	return NULL;
       }
     }
@@ -4018,7 +4036,7 @@ static int lng_NEWTON_SOLVER_set_maxiter (lng_NEWTON_SOLVER *self, PyObject *val
 static PyObject* lng_NEWTON_SOLVER_get_locdyn (lng_NEWTON_SOLVER *self, void *closure)
 {
   if (self->ns->locdyn == LOCDYN_ON) return PyString_FromString ("ON");
-  else return PyString_FromString ("ON");
+  else return PyString_FromString ("OFF");
 }
 
 static int lng_NEWTON_SOLVER_set_locdyn (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
@@ -4190,6 +4208,33 @@ static int lng_NEWTON_SOLVER_set_iters (lng_NEWTON_SOLVER *self, PyObject *value
   return -1;
 }
 
+static PyObject* lng_NEWTON_SOLVER_get_gsflag (lng_NEWTON_SOLVER *self, void *closure)
+{
+  if (self->ns->gsflag == GS_ON) return PyString_FromString ("ON");
+  else return PyString_FromString ("OFF");
+}
+
+static int lng_NEWTON_SOLVER_set_gsflag (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "locdyn")) return -1;
+
+  IFIS (value, "ON")
+  {
+    self->ns->gsflag = GS_ON;
+  }
+  ELIF (value, "OFF")
+  {
+    self->ns->gsflag = GS_OFF;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid locdyn value: neither ON nor OFF");
+    return -1;
+  }
+
+  return 0;
+}
+
 /* NEWTON_SOLVER methods */
 static PyMethodDef lng_NEWTON_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -4214,6 +4259,7 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
   {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
   {"mvhist", (getter)lng_NEWTON_SOLVER_get_mvhist, (setter)lng_NEWTON_SOLVER_set_mvhist, "matrix-vector products history", NULL},
   {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
+  {"gsflag", (getter)lng_NEWTON_SOLVER_get_gsflag, (setter)lng_NEWTON_SOLVER_set_gsflag, "Gauss-Seidel failure iterations flag", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
@@ -8886,4 +8932,35 @@ int  lngcallback_set (int id, void **data, void **call)
   }
 
   return 0;
+}
+
+/* handle PUT_SPRING spring Python callback */
+double springcallback (PyObject *call, double stroke, double velocity)
+{
+  double force = 0.0;
+  PyObject *result;
+  PyObject *args;
+
+  args = Py_BuildValue ("(d, d)", stroke, velocity);
+
+  result = PyObject_CallObject (call, args); /* call user function */
+
+  Py_DECREF (args);
+
+  if (result)
+  {
+    force  = PyFloat_AsDouble (result);
+
+    Py_DECREF (result);
+  }
+  else /* Python call failed */
+  {
+    PyErr_Print (); /* print traceback */
+#if MPI
+    MPI_Abort (MPI_COMM_WORLD, 3000);
+#endif
+    exit (1);
+  }
+
+  return force;
 }

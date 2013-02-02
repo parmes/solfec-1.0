@@ -301,7 +301,7 @@ obj/pes.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/nts.o: nts.c nts.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(PYTHON) -c -o $@ $<
 
 obj/tts.o: tts.c tts.h dom.h ldy.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -310,7 +310,7 @@ obj/sis.o: sis.c sis.h dom.h ldy.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) $(SICONOSINC) -c -o $@ $<
 
 obj/mrf.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(PYTHON) -c -o $@ $<
 
 obj/fld.o: fld.c fld.h mem.h map.h err.h
 	$(CC) $(CFLAGS) $(PYTHON) -c -o $@ $<
@@ -398,13 +398,13 @@ obj/pes-mpi.o: pes.c pes.h dom.h ldy.h err.h alg.h lap.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/nts-mpi.o: nts.c nts.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
-	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<
 
 obj/tts-mpi.o: tts.c tts.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/mrf-mpi.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h
-	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<

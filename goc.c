@@ -290,7 +290,7 @@ static int detect_convex_ellip (
       d = DOT (pla, p);
       if (d < GEOMETRIC_EPSILON) /* find plane close to the contact point */
       {
-        spair [0] = (pla - pc) / 6; /* new surface identifier */
+        spair [0] = sc [(pla - pc) / 6]; /* new surface identifier */
 
         gjk_ellip_support_point (c, sca, rot, pla, 1, p); /* find ellipsoid support point opposed to that plane normal */
 
@@ -540,7 +540,7 @@ static int update_convex_ellip (
       d = DOT (pla, p);
       if (d < GEOMETRIC_EPSILON) /* find plane close to the contact point */
       {
-        spair [0] = (pla - pc) / 6; /* new surface identifier */
+        spair [0] = sc [(pla - pc) / 6]; /* new surface identifier */
 
         gjk_ellip_support_point (c, sca, rot, pla, 1, p); /* find ellipsoid support point opposed to that plane normal */
 
