@@ -9707,8 +9707,8 @@ point
 \series bold
 strength
 \series default
- - optionally an ultimate absolute value of the reaction force can be given,
- beyond which the link will be deleted (default: infinity)
+ - optionally an ultimate magnitude of the reaction force, beyond which
+ the constraint will be deleted (default: infinity)
 \end_layout
 
 \begin_layout Subsection*
@@ -10156,8 +10156,24 @@ point2
 \series bold
 strength
 \series default
- - optionally an ultimate absolute value of the reaction force can be given,
- beyond which the link will be deleted (default: infinity)
+ - optionally an ultimate tensile strength if 
+\series bold
+point1
+\series default
+ != 
+\series bold
+point2
+\series default
+, beyond which the link will be deleted (default: infinity); or ultimate
+ reaction magnitude (
+\series bold
+point1
+\series default
+ == 
+\series bold
+point2
+\series default
+)
 \end_layout
 
 \begin_layout Subsection*

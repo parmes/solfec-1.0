@@ -3579,8 +3579,6 @@ void DOM_Update_End (DOM *dom)
 
   SET_Free (&dom->setmem, &del); /* free up deletion set */
 
-  Check_Fracture (dom);
-
   Propagate_Cracks (dom); /* do cracking */
 
 #if MPI
@@ -3592,7 +3590,22 @@ void DOM_Update_End (DOM *dom)
   {
     next = con->next; /* contact update can delete the current iterate */
 
-    if (con->kind == RIGLNK || con->kind == FIXPNT)
+    if (con->kind == RIGLNK)
+    {
+      double strength = STRENGTH (con->Z);
+
+      if (strength != DBL_MAX)
+      {
+	if (con->R[2] > strength) /* tensile strength */
+	{
+#if MPI
+	  ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
+#endif
+	  DOM_Remove_Constraint (dom, con); /* remove from the domain */
+	}
+      }
+    }
+    else if (con->kind == FIXPNT)
     {
       double strength = STRENGTH (con->Z);
 
