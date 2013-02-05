@@ -6746,7 +6746,8 @@ An object of type BULK_MATERIAL represents material properties of a volume.
 \end_layout
 
 \begin_layout Subsection*
-obj = BULK_MATERIAL (solfec| model, label, young, poisson, density, fields)
+obj = BULK_MATERIAL (solfec| model, label, young, poisson, density, criten,
+ fields)
 \end_layout
 
 \begin_layout Standard
@@ -6833,6 +6834,18 @@ poisson
 density
 \series default
  - material density (default: 1E3)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+criten
+\series default
+ - critical strain energy density for fracture check (default: 
+\begin_inset Formula $\infty$
+\end_inset
+
+)
 \end_layout
 
 \begin_layout Itemize
@@ -12749,6 +12762,66 @@ point
 label
 \series default
  - optional label
+\end_layout
+
+\begin_layout Subsection*
+ret = FRACTURE_EXPORT_YAFFEMS (body, path | volume, quality) 
+\color red
+(under development)
+\end_layout
+
+\begin_layout Standard
+Export an input file for fracture analysis in Yaffems for this body.
+ Note, that must be a FEM body for which 
+\emph on
+fracturecheck
+\emph default
+ flag was enabled during the analysis.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+ret
+\series default
+ - number of fracture analysis instances exported to Yaffems
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - export file path
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volume
+\series default
+ - maximum volume of the tetrahedral input Yaffems mesh (default: 
+\begin_inset Formula $\infty$
+\end_inset
+
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+quality
+\series default
+ - mesh quality indicator > 1.0 for the tetrahedral input Yaffems mesh (default:
+ 1.3)
 \end_layout
 
 \begin_layout Section

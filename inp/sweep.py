@@ -4,7 +4,7 @@
 import matplotlib.pyplot as plt
 from math import sin, cos, pi
 
-step = 5E-4  # time step
+step = 1E-5  # time step
 stop = 5.0   # duration of the simulation
 damp = 1E-6  # amount of stiffness proportional damping
 lofq = 5     # low frequency for the sweep
@@ -172,23 +172,28 @@ if not VIEWER() and solfec.mode == 'READ':
   for b in bodies:
     data.append ((b, 'KINETIC'))
     data.append ((b, 'INTERNAL'))
+    data.append ((b, b.center, 'VY'))
   th = HISTORY (solfec, data, 0, stop)
   n = len (th[0])
   for k in range (0, nbodl):
     fq = []
     ek = []
-    ei = []  
+    ei = []
+    vy = []
     for i in range (0, n):
       if i >= iavg and i < n-iavg-1:
 	vek = 0.0
 	vei = 0.0
+	vvy = 0.0
 	for j in range (i-iavg, i+iavg+1):
-	  vek += th [2*k+1][j]
-	  vei += th [2*k+2][j]
+	  vek += th [3*k+1][j]
+	  vei += th [3*k+2][j]
+	  vvy += th [3*k+3][j]
 
 	fq.append (lofq + (hifq-lofq)*(th[0][i]/stop))
 	ek.append (vek/(2.0*iavg+1.0))
 	ei.append (vei/(2.0*iavg+1.0))
+	vy.append (vvy/(2.0*iavg+1.0))
        
     plt.clf ()
     plt.plot (fq, ek, lw = 2, label = 'kinetic')
@@ -198,3 +203,10 @@ if not VIEWER() and solfec.mode == 'READ':
     plt.xlabel ('Frequency $(Hz)$')
     plt.ylabel ('Energy $(J)$')
     plt.savefig ('out/sweep/ene'+str(k)+'.png')
+
+    plt.clf ()
+    plt.plot (fq, vy, lw = 2)
+    plt.xlim ((lofq, hifq))
+    plt.xlabel ('Frequency $(Hz)$')
+    plt.ylabel ('Velocity vy $(m/s)$')
+    plt.savefig ('out/sweep/vy'+str(k)+'.png')

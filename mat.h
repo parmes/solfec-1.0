@@ -91,6 +91,8 @@ struct bulkmat
          poisson,
          density;
 
+  double criten; /* critical energy density for fracture check */
+
   UMAT umat;
 
   int nfield, /* number of fields (stored at mesh nodes) */

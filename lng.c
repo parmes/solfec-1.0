@@ -34,6 +34,7 @@
 #include "goc.h"
 #include "err.h"
 #include "eli.h"
+#include "fra.h"
 
 #if MPI
 #include <mpi.h>
@@ -189,14 +190,14 @@ static int is_in_range (double num, char *var, double min, double max)
   return 1;
 }
 
-#if 0
-/* a bigger queal test */
-static int is_ge (double num, char *var, double val)
+#if !MPI
+/* a bigger test */
+static int is_gt (double num, char *var, double val)
 {
-  if (num < val)
+  if (num <= val)
   {
     char buf [BUFLEN];
-    sprintf (buf, "'%s' must be >= %g", var, val);
+    sprintf (buf, "'%s' must be > %g", var, val);
     PyErr_SetString (PyExc_ValueError, buf);
     return 0;
   }
@@ -1960,6 +1961,7 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
     "young",
     "poisson",
     "density",
+    "criten",
     "fields");
 
   BULK_MATERIAL mat;
@@ -1969,6 +1971,7 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
   mat.young = 1E9;
   mat.poisson = 0.25;
   mat.density = 1E3;
+  mat.criten = DBL_MAX;
   mat.umat = NULL;
   mat.nstate = 0;
   mat.nfield = 0;
@@ -1986,11 +1989,11 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
     label = NULL;
     fields = NULL;
 
-    PARSEKEYS ("O|OOdddO", &solfec, &model, &label, &mat.young, &mat.poisson, &mat.density, &fields);
+    PARSEKEYS ("O|OOddddO", &solfec, &model, &label, &mat.young, &mat.poisson, &mat.density, &mat.criten, &fields);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (model, kwl[1]) && is_string (label, kwl[2]) &&
 	      is_non_negative (mat.young, kwl[3]) && is_non_negative (mat.poisson, kwl[4]) &&
-	      is_non_negative (mat.density, kwl[5]) && is_list (fields, kwl [6], 1, 1));
+	      is_non_negative (mat.density, kwl[5]) && is_non_negative (mat.criten, kwl[6]) && is_list (fields, kwl [7], 1, 1));
 
     sol = solfec->sol;
 
@@ -7875,6 +7878,51 @@ static PyObject* lng_DISPLAY_POINT (PyObject *self, PyObject *args, PyObject *kw
   Py_RETURN_NONE;
 }
 
+/* export data for fracture analysis in Yaffems */
+static PyObject* lng_FRACTURE_EXPORT_YAFFEMS (PyObject *self, PyObject *args, PyObject *kwds)
+{
+#if !MPI
+  KEYWORDS ("body", "path", "volume", "quality");
+  double volume, quality;
+  PyObject *path;
+  lng_BODY *body;
+  FILE *output;
+  int num;
+
+  volume = DBL_MAX;
+  quality = 1.3;
+
+  PARSEKEYS ("OO|dd", &body, &path, &volume, &quality);
+
+  TYPETEST (is_body (body, kwl[0]) && is_string (path, kwl[1]) && 
+     is_non_negative (volume, kwl[2]) && is_gt (quality, kwl[3], 1.0));
+
+  if ((body->bod->flags & BODY_CHECK_FRACTURE) == 0)
+  {
+    PyErr_SetString (PyExc_ValueError, "Not a FEM body with fracturecheck enabled!");
+    return NULL;
+  }
+
+  if (body->bod->ftl == NULL) return PyInt_FromLong (0);
+
+  output = fopen (PyString_AsString (path), "w");
+
+  if (output == NULL)
+  {
+    PyErr_SetString (PyExc_ValueError, "Failed to create the output file!");
+    return NULL;
+  }
+
+  num = Fracute_Export_Yaffems (body->bod, volume, quality, output);
+
+  fclose (output);
+
+  return PyInt_FromLong (num);
+#endif
+
+  Py_RETURN_NONE;
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -8634,6 +8682,7 @@ static PyMethodDef lng_methods [] =
   {"MODAL_ANALYSIS", (PyCFunction)lng_MODAL_ANALYSIS, METH_VARARGS|METH_KEYWORDS, "Perform modal analysis of a FEM body"},
   {"BODY_MM_EXPORT", (PyCFunction)lng_BODY_MM_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MatrixMarket M and K matrices of a FEM body"},
   {"DISPLAY_POINT", (PyCFunction)lng_DISPLAY_POINT, METH_VARARGS|METH_KEYWORDS, "Add display point"},
+  {"FRACTURE_EXPORT_YAFFEMS", (PyCFunction)lng_FRACTURE_EXPORT_YAFFEMS, METH_VARARGS|METH_KEYWORDS, "Export fracture data to Yaffems"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
@@ -8866,6 +8915,7 @@ int lng (const char *path)
                      "from solfec import MODAL_ANALYSIS\n"
                      "from solfec import BODY_MM_EXPORT\n"
                      "from solfec import DISPLAY_POINT\n"
+                     "from solfec import FRACTURE_EXPORT_YAFFEMS\n"
                      "from solfec import DURATION\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"

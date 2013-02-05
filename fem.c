@@ -43,8 +43,6 @@ typedef double (*node_t) [3]; /* mesh node */
 #define DOM_TOL 0.1
 #define CUT_TOL 0.001
 #define MESH_DOFS(msh) ((msh)->nodes_count * 3)
-#define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : ((MESH*)(bod)->shape->data))
-#define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
 #define FEM_MESH_CONF(bod) ((bod)->form != REDUCED_ORDER ? (bod)->conf : (bod)->conf + (bod)->dofs + 9) /* mesh space configuration */
 #define FEM_MESH_VELO(bod) ((bod)->form != REDUCED_ORDER ? (bod)->velo : (bod)->velo + (bod)->dofs * 4) /* mesh space velocity */
 #define FEM_MESH_VEL0(bod) (FEM_MESH_VELO(bod) + MESH_DOFS(FEM_MESH(bod))) /* mesh space previous velocity */
@@ -1120,8 +1118,8 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   )
 }
 
-/* copute element internal energy */
-double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele)
+/* compute elastic energy of individual element (and its volume if pvol != NULL) */
+double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele, double *pvol)
 {
   double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES], F0 [9], F [9], J, integral;
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
@@ -1140,11 +1138,15 @@ double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele)
 
   integral = 0.0;
 
+  if (pvol) *pvol = 0.0;
+
   INTEGRATE3D (ele->type, INTF, ele->dom, ele->domnum,
 
     J = element_det (ele->type, nodes, point, F0);
     element_gradient (ele->type, q, point, F0, derivs, F);
     integral += J * weight * SVK_Energy_C (lambda (mat->young, mat->poisson), mi (mat->young, mat->poisson), 1.0, F);
+
+    if (pvol) *pvol += J * weight;
   )
 
   /* XXX/TODO => SVK material fixed above */
@@ -1429,7 +1431,7 @@ static double internal_energy (BODY *bod)
 
   for (ele = msh->surfeles, bulk = 0, energy = 0.0; ele; )
   {
-    energy += FEM_Element_Internal_Energy (bod, msh, ele);
+    energy += FEM_Element_Internal_Energy (bod, msh, ele, NULL);
 
     if (bulk) ele = ele->next;
     else if (ele->next) ele = ele->next;

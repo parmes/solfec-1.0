@@ -26,6 +26,10 @@
 #ifndef __fem__
 #define __fem__
 
+/* some global macros */
+#define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : ((MESH*)(bod)->shape->data))
+#define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
+
 /* create FEM internals for a body (note that 'msh' might be NULL so that shp->data is a mesh) */
 void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *bod);
 
@@ -131,7 +135,7 @@ void FEM_MatrixMarket_M_K (BODY *bod, short spdM, char *pathM, short spdK, char 
 /* called after reading to post-process internal data */
 void FEM_Post_Read (BODY *bod);
 
-/* compute elastic energy of individual element */
-double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele);
+/* compute elastic energy of individual element (and its volume if pvol != NULL) */
+double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele, double *pvol);
 
 #endif
