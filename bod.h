@@ -47,6 +47,7 @@ typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL, REDUCED_ORDER} FEMFORM; /
 
 typedef struct general_force FORCE;
 typedef struct display_point DISPLAY_POINT;
+typedef struct fracture_time FRACTURE_TIME;
 typedef void (*FORCE_FUNC) (void *data, void *call, /* user data and user callback pointers */
                             int nq, double *q, int nu, double *u,   /* user defined data, configuration, velocity, time, time step */
                             double t, double h, double *f);  /* for rigid bodies 'f' comprises [spatial force; spatial torque; referential torque];
@@ -111,6 +112,13 @@ struct display_point /* auxiliary display point for verification purposes */
   SGP *sgp;
 
   char *label;
+};
+
+struct fracture_time /* auxiliary fracture time record */
+{
+  double time;
+
+  FRACTURE_TIME *next;
 };
 
 /* energy kinds */
@@ -197,6 +205,8 @@ struct general_body
   MESH *msh; /* background FEM mesh when shape is made of CONVEX objects */
 
   double energy [BODY_ENERGY_SPACE]; /* kinetic, external, contwork, fricwork, internal */
+
+  FRACTURE_TIME *ftl; /* fracture times list */
 
   int rank; /* parent => new/current rank; child => parent's rank */
 

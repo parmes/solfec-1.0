@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include "dom.h"
+#include "fem.h"
 #include "fra.h"
 #include "mem.h"
 #include "alg.h"
@@ -30,5 +31,43 @@
 /* check fracture criterion */
 void Fracture_Check (DOM *dom)
 {
-  /* TODO */
+  BODY *bod;
+
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    if (bod->flags & BODY_CHECK_FRACTURE)
+    {
+      MESH *msh = FEM_MESH (bod);
+      double energy, volume;
+      ELEMENT *ele;
+      int bulk;
+
+      for (ele = msh->surfeles, bulk = 0; ele; )
+      {
+        BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+
+	energy = FEM_Element_Internal_Energy (bod, msh, ele, &volume);
+
+	if (energy > mat->criten * volume)
+	{
+	  FRACTURE_TIME *ft = MEM_Alloc (&dom->ftlmem);
+          ft->time = dom->time;
+	  ft->next = bod->ftl;
+	  bod->ftl = ft;
+	}
+
+	if (bulk) ele = ele->next;
+	else if (ele->next) ele = ele->next;
+	else ele = msh->bulkeles, bulk = 1;
+      }
+    }
+  }
+}
+
+/* export data for fracture analysis in Yaffems (return number of exported analysis instances) */
+int Fracute_Export_Yaffems (BODY *bod, double voume, double quality, FILE *output)
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME/TODO */
+
+  return 0;
 }

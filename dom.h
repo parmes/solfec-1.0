@@ -209,7 +209,8 @@ struct domain
       mapmem, /* map items memory pool */
       setmem, /* set items memory pool */
       sgpmem, /* non-surface SGPs memory */
-      excmem; /* excluded surface pairs memory */
+      excmem, /* excluded surface pairs memory */
+      ftlmem; /* fracture times lists memory */
 
   AABB *aabb; /* box overlap engine */
   SPSET *sps; /* surface pairs */

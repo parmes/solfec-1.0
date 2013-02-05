@@ -2837,6 +2837,7 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   MEM_Init (&dom->setmem, sizeof (SET), SETBLK);
   MEM_Init (&dom->sgpmem, sizeof (SGP), CONBLK);
   MEM_Init (&dom->excmem, sizeof (int [2]), SETBLK);
+  MEM_Init (&dom->ftlmem, sizeof (FRACTURE_TIME), SETBLK);
   dom->bid = 1;
   dom->lab = NULL;
   dom->idb = NULL;
@@ -3780,6 +3781,7 @@ void DOM_Destroy (DOM *dom)
   MEM_Release (&dom->mapmem);
   MEM_Release (&dom->sgpmem);
   MEM_Release (&dom->excmem);
+  MEM_Release (&dom->ftlmem);
 
   if (dom->gravity [0]) TMS_Destroy (dom->gravity [0]);
   if (dom->gravity [1]) TMS_Destroy (dom->gravity [1]);
