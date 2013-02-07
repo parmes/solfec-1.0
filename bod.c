@@ -2090,24 +2090,6 @@ void BODY_Read_State (BODY *bod, PBF *bf)
 #endif
 }
 
-/* destroy fracture times */
-static void ftl_destroy (BODY *bod)
-{
-  if (bod->flags & BODY_CHECK_FRACTURE)
-  {
-    MEM *mem = &bod->dom->ftlmem;
-    FRACTURE_TIME *ft, *nt;
-
-    for (ft = bod->ftl; ft; ft = nt)
-    {
-      nt = ft->next;
-      MEM_Free (mem, ft);
-    }
-
-    bod->ftl = NULL;
-  }
-}
-
 void BODY_Destroy (BODY *bod)
 {
   FORCE *forc, *next;
@@ -2140,8 +2122,6 @@ void BODY_Destroy (BODY *bod)
   if (bod->eval) free (bod->eval);
 
   if (bod->evec) MX_Destroy (bod->evec);
-
-  ftl_destroy (bod);
 
 #if OPENGL
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
@@ -2232,46 +2212,6 @@ static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *
   return forces;
 }
 
-/* pack fracture times */
-static void ftl_pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
-{
-  if (bod->flags & BODY_CHECK_FRACTURE)
-  {
-    FRACTURE_TIME *ft;
-    int n;
-
-    for (ft = bod->ftl, n = 0; ft; ft = ft->next) n ++;
-
-    pack_int (isize, i, ints, n);
-
-    for (ft = bod->ftl; ft; ft = ft->next)
-    {
-      pack_double (dsize, d, doubles, ft->time);
-    }
-  }
-}
-
-/* unpack fracture times */
-static void ftl_unpack (DOM *dom, BODY *bod, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
-{
-  if (bod->flags & BODY_CHECK_FRACTURE)
-  {
-    MEM *mem = &dom->ftlmem;
-    FRACTURE_TIME *ft;
-    int j, n;
-
-    n = unpack_int (ipos, i, ints);
-
-    for (j = 0; j < n; j ++)
-    {
-      ft = MEM_Alloc (mem);
-      ft->time = unpack_double (dpos, d, doubles);
-      ft->next = bod->ftl;
-      bod->ftl = ft;
-    }
-  }
-}
-
 /* pack body */
 void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
@@ -2311,9 +2251,6 @@ void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int
 
   /* pack cracks */
   CRACKS_Pack (bod->cra, dsize, d, doubles, isize, i, ints); 
-
-  /* pack fracture times */
-  ftl_pack (bod, dsize, d, doubles, isize, i, ints); 
 }
 
 /* unpack body */
@@ -2371,9 +2308,6 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   /* unpack cracks */
   bod->cra = CRACKS_Unpack (dpos, d, doubles, ipos, i, ints);
 
-  /* unpack fracture times */
-  ftl_unpack (sol->dom, bod, dpos, d, doubles, ipos, i, ints);
-
   return bod;
 }
 
@@ -2399,9 +2333,6 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
 
   /* pack energy */
   pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
-
-  /* pack fracture times */
-  ftl_pack (bod, dsize, d, doubles, isize, i, ints); 
 }
 
 /* unpack parent body */
@@ -2429,9 +2360,6 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
 
   /* unpack energy */
   unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
-
-  /* unpack fracture times */
-  ftl_unpack (bod->dom, bod, dpos, d, doubles, ipos, i, ints);
 
   /* init inverse */
   if (dynamic) BODY_Dynamic_Init (bod);
