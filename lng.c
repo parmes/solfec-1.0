@@ -7903,8 +7903,6 @@ static PyObject* lng_FRACTURE_EXPORT_YAFFEMS (PyObject *self, PyObject *args, Py
     return NULL;
   }
 
-  if (body->bod->ftl == NULL) return PyInt_FromLong (0);
-
   output = fopen (PyString_AsString (path), "w");
 
   if (output == NULL)
@@ -7913,7 +7911,7 @@ static PyObject* lng_FRACTURE_EXPORT_YAFFEMS (PyObject *self, PyObject *args, Py
     return NULL;
   }
 
-  num = Fracute_Export_Yaffems (body->bod, volume, quality, output);
+  num = Fracture_Export_Yaffems (body->bod, volume, quality, output);
 
   fclose (output);
 

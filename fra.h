@@ -31,6 +31,6 @@ typedef struct domain DOM;
 void Fracture_Check (DOM *dom);
 
 /* export data for fracture analysis in Yaffems (return number of exported analysis instances) */
-int Fracute_Export_Yaffems (BODY *bod, double voume, double quality, FILE *output);
+int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *output);
 
 #endif
