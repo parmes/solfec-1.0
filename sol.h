@@ -39,6 +39,16 @@
 #ifndef __sol__
 #define __sol__
 
+/* ============================= INPUT-OUTPUT VERSION ============================ */
+/* === Version increments require precise records of causes and affected files === */
+/* =============================================================================== */
+/* 1                         an initial input-output version (dio.c, sol.c, bod.c) */
+/* ------------------------------------------------------------------------------- */
+/* 2              output of relative pre-impact velocities for contact constraints */
+/* =============================================================================== */
+#define IOVER 2                                                 /* current version */
+/* =============================================================================== */
+
 #ifndef SOLFEC_TYPE
 #define SOLFEC_TYPE
 typedef struct solfec SOLFEC;

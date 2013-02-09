@@ -10307,7 +10307,7 @@ Some parameters can also be accessed as members of a CONSTRAINT object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="11" columns="1">
+<lyxtabular version="3" rows="13" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -10363,6 +10363,54 @@ obj.R
 ) constraint reaction in a form of a tuple: 
 \emph on
 (RT1, RT2, RN)
+\emph default
+ given with respect to a local base stored at 
+\series bold
+\emph on
+obj.base
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.U
+\series default
+\emph default
+ - constraint output relative velocity tuple: 
+\emph on
+(UT1, UT2, UN)
+\emph default
+ given with respect to a local base stored at 
+\series bold
+\emph on
+obj.base
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.V
+\series default
+\emph default
+ - contact input relative velocity tuple: 
+\emph on
+(VT1, VT2, VN)
 \emph default
  given with respect to a local base stored at 
 \series bold

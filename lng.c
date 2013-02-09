@@ -4676,6 +4676,38 @@ static int lng_CONSTRAINT_set_R (lng_CONSTRAINT *self, PyObject *value, void *cl
   return -1;
 }
 
+static PyObject* lng_CONSTRAINT_get_U (lng_CONSTRAINT *self, void *closure)
+{
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    double *U = self->con->U;
+    return Py_BuildValue ("(d, d, d)", U[0], U[1], U[2]);
+  }
+  else Py_RETURN_NONE;
+}
+
+static int lng_CONSTRAINT_set_U (lng_CONSTRAINT *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_CONSTRAINT_get_V (lng_CONSTRAINT *self, void *closure)
+{
+  if (ID_TO_CONSTRAINT (self->dom, self))
+  {
+    double *V = self->con->V;
+    return Py_BuildValue ("(d, d, d)", V[0], V[1], V[2]);
+  }
+  else Py_RETURN_NONE;
+}
+
+static int lng_CONSTRAINT_set_V (lng_CONSTRAINT *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 static PyObject* lng_CONSTRAINT_get_base (lng_CONSTRAINT *self, void *closure)
 {
   if (ID_TO_CONSTRAINT (self->dom, self))
@@ -4847,6 +4879,8 @@ static PyGetSetDef lng_CONSTRAINT_getset [] =
 { 
   {"kind", (getter)lng_CONSTRAINT_get_kind, (setter)lng_CONSTRAINT_set_kind, "constraint kind", NULL},
   {"R", (getter)lng_CONSTRAINT_get_R, (setter)lng_CONSTRAINT_set_R, "constraint reaction", NULL},
+  {"U", (getter)lng_CONSTRAINT_get_U, (setter)lng_CONSTRAINT_set_U, "constraint output velocity", NULL},
+  {"V", (getter)lng_CONSTRAINT_get_V, (setter)lng_CONSTRAINT_set_V, "contact input velocity", NULL},
   {"base", (getter)lng_CONSTRAINT_get_base, (setter)lng_CONSTRAINT_set_base, "constraint local base", NULL},
   {"point", (getter)lng_CONSTRAINT_get_point, (setter)lng_CONSTRAINT_set_point, "constraint spatial point", NULL},
   {"area", (getter)lng_CONSTRAINT_get_area, (setter)lng_CONSTRAINT_set_area, "constraint area", NULL},

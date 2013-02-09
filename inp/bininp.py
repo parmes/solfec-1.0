@@ -4,9 +4,9 @@
 import matplotlib.pyplot as plt
 from math import sin, cos, pi
 
-step = 1E-5  # time step
+step = 1E-4  # time step
 stop = 0.01  # duration of the simulation
-damp = 1E-5  # amount of stiffness proportional damping
+damp = 1E-4  # amount of stiffness proportional damping
 ivel = 0.2   # inital velocity
 nele = 10    # number of elements per body (along y)
 l = 0.1      # length of one body

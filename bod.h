@@ -134,7 +134,7 @@ typedef enum
 } BODY_FLAGS;
 
 /* flags that are migrated with bodies (the rest is filtered out) */
-#define BODY_PERMANENT_FLAGS (BODY_DETECT_SELF_CONTACT)
+#define BODY_PERMANENT_FLAGS (BODY_DETECT_SELF_CONTACT|BODY_CHECK_FRACTURE)
 
 struct general_body
 {

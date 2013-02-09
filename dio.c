@@ -22,6 +22,12 @@ static void write_constraint (CON *con, PBF *bf)
 
   PBF_Double (bf, con->R, 3);
   PBF_Double (bf, con->U, 3);
+#if IOVER > 1
+  if (kind == CONTACT)
+  {
+    PBF_Double (bf, con->V, 3);
+  }
+#endif
   PBF_Double (bf, con->point, 3);
   PBF_Double (bf, con->base, 9);
   PBF_Double (bf, &con->merit, 1);
@@ -61,6 +67,10 @@ static CON* read_constraint (DOM *dom, int iover, PBF *bf)
 
   PBF_Double (bf, con->R, 3);
   PBF_Double (bf, con->U, 3);
+  if (iover > 1 && kind == CONTACT)
+  {
+    PBF_Double (bf, con->V, 3);
+  }
   PBF_Double (bf, con->point, 3);
   PBF_Double (bf, con->base, 9);
   PBF_Double (bf, &con->merit, 1);

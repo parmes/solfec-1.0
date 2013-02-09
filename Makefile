@@ -112,6 +112,7 @@ OBJMPI = $(EXTO)       \
 	 obj/com-mpi.o \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
+	 obj/psc-mpi.o \
 
 solfec: obj/solfec.o obj/libBLOPEX.a obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
 	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIB)
@@ -421,4 +422,7 @@ obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/fem-mpi.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/psc-mpi.o: psc.c psc.h bod.h shp.h msh.h mat.h alg.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<

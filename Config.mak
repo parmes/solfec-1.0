@@ -31,7 +31,8 @@ DEBUG = yes
 PROFILE = no
 MEMDEBUG = no
 GEOMDEBUG = no
-PARDEBUG = yes
+PARDEBUG = yes # light parallel consitency tests
+PSCTEST = yes # heavy parallel self-consitency tests
 NOTHROW = yes
 
 #

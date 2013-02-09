@@ -4,7 +4,7 @@
 import matplotlib.pyplot as plt
 from math import sin, cos, pi
 
-step = 1E-5  # time step
+step = 5E-4  # time step
 stop = 5.0   # duration of the simulation
 damp = 1E-6  # amount of stiffness proportional damping
 lofq = 5     # low frequency for the sweep
@@ -19,6 +19,8 @@ h = 0.1      # height of one body
 gap = 0.001  # gap
 ostep = 1E-3 # output step
 wavg = 0.01  # energy averaging time window [t-wavg/2, t+wavg/2]
+vstop = 2.5  # end time for averaging input impact velocities
+             # (hand tunded in order to cover the pre-drop area)
 
 GEOMETRIC_EPSILON (1E-9) # tiny geometrical tolerance (<< gap)
 
@@ -188,7 +190,7 @@ if not VIEWER() and solfec.mode == 'READ':
 	for j in range (i-iavg, i+iavg+1):
 	  vek += th [3*k+1][j]
 	  vei += th [3*k+2][j]
-	  vvy += th [3*k+3][j]
+	  vvy += abs(th [3*k+3][j])
 
 	fq.append (lofq + (hifq-lofq)*(th[0][i]/stop))
 	ek.append (vek/(2.0*iavg+1.0))
@@ -210,3 +212,16 @@ if not VIEWER() and solfec.mode == 'READ':
     plt.xlabel ('Frequency $(Hz)$')
     plt.ylabel ('Velocity vy $(m/s)$')
     plt.savefig ('out/sweep/vy'+str(k)+'.png')
+  
+  # everage input impact velocity
+  vavg = 0.0
+  nvavg = 0.0
+  SEEK (solfec, 0.0)
+  while solfec.time < vstop:
+    for con in solfec.constraints:
+      if con.kind == 'CONTACT':
+        vavg += con.V[2]
+	nvavg += 1.0
+    FORWARD (solfec, 1)
+
+  print 'Avererage impact input velocity:', vavg/nvavg
