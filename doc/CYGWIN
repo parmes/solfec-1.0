@@ -1,0 +1,48 @@
+In order to install Solfec on CYGWIN:
+
+1. From www.cygwin.com install CYGWIN.
+
+2. Install additional packages:
+
+   Devel/gcc
+   Devel/make
+
+   Python/python
+
+   Math/lapack
+
+   Libs/sunrpc
+   Libs/libglut-devel
+   Libs/libglut3
+
+   X11/libGL-devel
+   X11/libGL
+   X11/libGLU-devel
+   X11/libGLU
+   X11/xorg-server
+   X11/xinit
+   X11/X-start-menu-icons
+   X11/xterm
+
+3. Start xterm from Cygwin/X menu (in Programs).
+
+4. Change to a destination directory, e.g:
+   cd /cygdrives/c/mydir
+
+5. Place solfec.tar.gz in the destination directory.
+
+6. Unpack it:
+   tar -xzvf solfec.tar.gz
+
+7. Go into solfec directory:
+   cd solfec
+
+8. Overwrite the configuration file:
+   cp cfg/Config.CYGWIN ./Config.mak
+
+9. Type:
+   make clean
+   make
+
+10. Run some example files:
+    ./solfec -v inp/arch.py

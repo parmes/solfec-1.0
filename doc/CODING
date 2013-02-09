@@ -1,0 +1,9 @@
+Few simple rules:
+
+1. Use three-letter file names (with an exeption for solfec.*)
+
+2. Use lowercase names for public routines having simple type arguments
+
+3. Use short all-uppercae type names, shadowed by descriptive all-lowercase structure names
+
+4. Use uppercase prefices for driver routines of types

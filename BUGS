@@ -1,0 +1,29 @@
+---------------------------------------------------------------------------
+SET_Delete_Node and MAP_Delete_Node do not seem to be correct
+in terms of returning the next node in turn (valgrinded out)
+--------------------------------------------------------------------------------
+cvi.c needs a better input point selection, see: ./cvitest inp/cvi.13
+-----------------------------------------------------------------------------
+Contact detection still crude: see inp/tetpart.py
+-------------------------------------------------------------
+Sweep algorithms get stuck when run on many cpus (e.g. -np 8 with mpi1.py and N=20)
+GUESS: insertion sort is run on badly ordered sets with O(n ^2) complexity
+2011: seems to be still there
+------------------------------------------------------------------------------------
+Too many cpus when compared to problem size cause parallel consitency issues:
+e.g. => 10x10x1 simplified core on 64 CPUs
+------------------------------------------------------------------------------------
+Zoltan bug for 10x10x1 simplified core and 32 CPUs =>
+body extents contain constraint extents and yet for example:
+Body extents Zoltan_LB_Box_Assign processors: 28  
+Constraint point Zoltan_LB_Point_Assign processor: 6
+------------------------------------------------------------------------------------
+Intel compilers based compilation gets stuck in parallel (with openmpi/intel)
+-------------------------------------------------------------------------------------------------------------------------
+Run inp/ellcomp.py for > 30000 ellipsoids on >= 16 CPUs. They are initially all well separated.
+Q: Why is the initial PARBALL time so dominant?
+A: Zoltan rebalancing time is very long even though little change is made to the domain. As soon as you get behind
+   one cluste node the communication time inside of Zoltan becomes quite long.
+Current solution: Repartition every 'dom->updatefreq' steps
+A: that was a cluster node bug in fact
+-------------------------------------------------------------------------------------------------------------------------
