@@ -10,7 +10,7 @@ from abaqusreader import AbaqusInput
 solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
 
 # Create a new AbaqusInput object from the .inp deck:
-model = AbaqusInput(solfec, 'tests/MODEL04.inp')
+model = AbaqusInput('tests/MODEL04.inp', solfec)
 
 # Create a Finite Element body for each Instance in the Assembly:
 for inst in model.assembly.instances.values():	# .instances is a dict
@@ -18,3 +18,5 @@ for inst in model.assembly.instances.values():	# .instances is a dict
   mesh = inst.mesh	              # solfec MESH object at the instance position
   bulkmat = inst.material	        # solfec BULK_MATERIAL object
   bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label)
+
+print model
