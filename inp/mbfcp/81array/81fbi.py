@@ -63,7 +63,7 @@ solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/' + ending)
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
 # Create a new AbaqusInput object from the .inp deck:
-model = AbaqusInput(solfec, afile)
+model = AbaqusInput(afile, solfec)
 
 # Create a Finite Element body for each Instance in the Assembly:
 for inst in model.assembly.instances.values():	# .instances is a dict
