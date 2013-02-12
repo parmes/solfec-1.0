@@ -33,51 +33,51 @@ class Test(unittest.TestCase):
   def test01(self):
     """ Test we can read the demo .inp which comes with Solfec """
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    m = AbaqusInput(solfec, '../../81array.inp')    # in solfec/inp/mesh
+    m = AbaqusInput('../../../inp/mesh/81array.inp', solfec)    # in solfec/inp/mesh
     self.failUnless(isinstance(m, AbaqusInput))
   """
   def test03(self):
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    self.failUnless(isinstance(AbaqusInput(solfec, 'MODEL01.inp'), AbaqusInput))
+    self.failUnless(isinstance(AbaqusInput('MODEL01.inp', solfec), AbaqusInput))
 
   def test02(self):
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    self.failUnless(isinstance(AbaqusInput(solfec, 'MODEL02.inp'), AbaqusInput))
+    self.failUnless(isinstance(AbaqusInput('MODEL02.inp', solfec), AbaqusInput))
 
   def test03(self):
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    self.failUnless(isinstance(AbaqusInput(solfec, 'MODEL03.inp'), AbaqusInput))
+    self.failUnless(isinstance(AbaqusInput('MODEL03.inp', solfec), AbaqusInput))
   """
   def test04(self):
     """ C3D10 elements """
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    self.failUnless(isinstance(AbaqusInput(solfec, 'MODEL04.inp'), AbaqusInput))
+    self.failUnless(isinstance(AbaqusInput('MODEL04.inp', solfec), AbaqusInput))
 
   def test05(self):
     """ C3D6 elements """
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    m = AbaqusInput(solfec, 'MODEL05.inp')
+    m = AbaqusInput('MODEL05.inp', solfec)
     self.failUnless(isinstance(m, AbaqusInput))
 
   def test06(self):
     """ C3D6 and C3D10 elements with surface sets """
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    self.failUnless(isinstance(AbaqusInput(solfec, 'MODEL06.inp'), AbaqusInput))
+    self.failUnless(isinstance(AbaqusInput('MODEL06.inp', solfec), AbaqusInput))
 
   def test07(self):
     """ C3D20R elements  with surface sets """
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    self.failUnless(isinstance(AbaqusInput(solfec, 'MODEL07.inp'), AbaqusInput))
+    self.failUnless(isinstance(AbaqusInput('MODEL07.inp', solfec), AbaqusInput))
 
   def test08(self):
     """ C3D20R elements  with surface sets & 2x instances """
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    self.failUnless(isinstance(AbaqusInput(solfec, 'MODEL08.inp'), AbaqusInput))
+    self.failUnless(isinstance(AbaqusInput('MODEL08.inp', solfec), AbaqusInput))
   
   def test09(self):
     """ .nodesets """
     solfec = SOLFEC('DYNAMIC', 1E-3, 'out')
-    m = AbaqusInput(solfec, 'MODEL07.inp')
+    m = AbaqusInput('MODEL07.inp', solfec)
     for inst in m.assembly.instances.values():
       coords = [inst.mesh.node(n) for n in range(inst.mesh.nnod)]
       p = inst.part
