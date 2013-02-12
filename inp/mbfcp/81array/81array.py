@@ -114,7 +114,7 @@ if RANK () == 0:
   commands.getoutput ("bzip2 inp/mbfcp/81array/ts81.py") # only first CPU pack the input
 
 # Create a new AbaqusInput object from the .inp deck:
-model = AbaqusInput(solfec, afile)
+model = AbaqusInput(afile, solfec)
 
 # Create a Finite Element body for each Instance in the Assembly:
 for inst in model.assembly.instances.values():	# .instances is a dict

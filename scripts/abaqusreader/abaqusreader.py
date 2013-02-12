@@ -9,13 +9,13 @@
     
 """
 
-__version__ = '0.2dev'
+__version__ = '0.3dev'
 
 import sys
 from math import sqrt
 from solfec import *
 
-_modulesolfec = None
+_solfecmode = None # global to control solfec mode, if available
 
 def printonce(*args, **kwargs):
   """ Like print statement but only produces output from one CPU when run in parallel.
@@ -28,12 +28,12 @@ def printonce(*args, **kwargs):
   
   mode = kwargs.get('mode', 'WRITE')  # default to write mode if not specified
   if mode not in ['READ', 'WRITE', 'BOTH']:
-    raise ValueError('mode must be one of "READ", "WRITE", or "BOTH", not "%s"' % mode)
+    raise ValueError('"mode" must be one of "READ", "WRITE", or "BOTH", not "%s"' % mode)
 
   if RANK() != 0:
     return
   else:
-    if _modulesolfec is None or mode=='BOTH' or mode==_modulesolfec.mode:
+    if _solfecmode is None or mode=='BOTH' or mode==_solfecmode:
       # fall back to printing if haven't defined solfec object - useful for debugging
       if isinstance(args, str):
         print args
@@ -119,19 +119,31 @@ class Assembly:
 
 class AbaqusInput:
   
-  def __init__(self, solfec, path):
+  def __init__(self, path, solfec=None, gid=0, volid=1):
+    """ Access information from an Abaqus .inp file
+    
+        parameters:
+            path (str): path to .inp file
+
+        optional parameters:
+            solfec: Solfec object, only needed if material properties are required.
+            gid (int): Global surface ID for unspecified surfaces (default 0)
+            volid (int): Volume identifier for all elements (default 1)
+    """
+    
     self.path = path            # String giving path to input file
     self.parts = {}             # Dictionary of Part objects. Key is part name/label
     self.assembly = None        # Single Assembly object (can only have one assembly per input deck)
     self.materials = {}         # Dictionary of Solfec BULK_MATERIAL objects. Key is material name/label
     self.solfec = solfec        # Associated solfec object
     
-    # also set module-level solfec variable:
-    global _modulesolfec
-    _modulesolfec = solfec
+    # set the solfec mode, if we have a solfec object
+    if solfec:
+        global _solfecmode
+        _solfecmode = solfec.mode
     
-    gid = 0   # Global surface ID for unspecified surfaces
-    volid = 1 # Volume identifier for all elements
+    self.gid = gid
+    self.volid = volid
     
     self.parse()  # read the input deck into the instance properties
     
@@ -170,7 +182,7 @@ class AbaqusInput:
         p.elements.append(numnodes) # number of nodes
         p.elements.extend(nodeids)   # will be corner nodes only
         #print nodeids
-        p.elements.append(volid)  # push volume identifier
+        p.elements.append(self.volid)  # push volume identifier
       
       # generate solfec-numbered nodesets
       for nsetname in p._abqnsets:
@@ -179,7 +191,7 @@ class AbaqusInput:
         
       
       # generate part.surfids
-      p.surfids = [gid,]
+      p.surfids = [self.gid,]
       for nsetname in p._abqnsets:
         if nsetname.startswith('SURF'):
           sid = int(nsetname.partition('SURF')[2])
@@ -209,6 +221,10 @@ class AbaqusInput:
       i.mesh = MESH(part.nodes, part.elements, part.surfids)
       if _l2(i.translate) > 0.0: TRANSLATE(i.mesh, i.translate)  # translation is applied before rotation in ABAQUS
       if _l2(i.direction) > 0.0: ROTATE(i.mesh, i.point, i.direction, i.angle)
+
+  def __str__(self):
+    return 'AbaqusObject from "%s" with %s parts, %s instances, %s materials' % (self.path, len(self.parts),
+            len(self.assembly.instances), len(self.materials))
 
   def parse(self):
     
@@ -364,7 +380,10 @@ class AbaqusInput:
             matpoisson = float(lin[1])
           else:
             raise NameError('Elastic parameters definition is missing: %s' % ','.join(lin))
-          self.materials[materialname] = BULK_MATERIAL(self.solfec, 'KIRCHHOFF', materialname, matyoung, matpoisson, matdensity)
+          if self.solfec:
+            self.materials[materialname] = BULK_MATERIAL(self.solfec, 'KIRCHHOFF', materialname, matyoung, matpoisson, matdensity)
+          else:
+            self.materials[materialname] = None
         
         lin = readinpline(inp)    
       # ----------------------------------------------------------------
