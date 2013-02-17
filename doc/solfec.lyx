@@ -6746,7 +6746,7 @@ An object of type BULK_MATERIAL represents material properties of a volume.
 \end_layout
 
 \begin_layout Subsection*
-obj = BULK_MATERIAL (solfec| model, label, young, poisson, density, criten,
+obj = BULK_MATERIAL (solfec| model, label, young, poisson, density, tensile,
  fields)
 \end_layout
 
@@ -6839,9 +6839,9 @@ density
 \begin_layout Itemize
 
 \series bold
-criten
+tensile
 \series default
- - critical strain energy density for fracture check (default: 
+ - tensile strength for fracture check (default: 
 \begin_inset Formula $\infty$
 \end_inset
 

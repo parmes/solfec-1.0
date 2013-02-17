@@ -1961,7 +1961,7 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
     "young",
     "poisson",
     "density",
-    "criten",
+    "tensile",
     "fields");
 
   BULK_MATERIAL mat;
@@ -1971,7 +1971,7 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
   mat.young = 1E9;
   mat.poisson = 0.25;
   mat.density = 1E3;
-  mat.criten = DBL_MAX;
+  mat.tensile = DBL_MAX;
   mat.umat = NULL;
   mat.nstate = 0;
   mat.nfield = 0;
@@ -1989,11 +1989,11 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
     label = NULL;
     fields = NULL;
 
-    PARSEKEYS ("O|OOddddO", &solfec, &model, &label, &mat.young, &mat.poisson, &mat.density, &mat.criten, &fields);
+    PARSEKEYS ("O|OOddddO", &solfec, &model, &label, &mat.young, &mat.poisson, &mat.density, &mat.tensile, &fields);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (model, kwl[1]) && is_string (label, kwl[2]) &&
 	      is_non_negative (mat.young, kwl[3]) && is_non_negative (mat.poisson, kwl[4]) &&
-	      is_non_negative (mat.density, kwl[5]) && is_non_negative (mat.criten, kwl[6]) && is_list (fields, kwl [7], 1, 1));
+	      is_non_negative (mat.density, kwl[5]) && is_non_negative (mat.tensile, kwl[6]) && is_list (fields, kwl [7], 1, 1));
 
     sol = solfec->sol;
 
@@ -7918,6 +7918,7 @@ static PyObject* lng_FRACTURE_EXPORT_YAFFEMS (PyObject *self, PyObject *args, Py
 #if !MPI
   KEYWORDS ("body", "path", "volume", "quality");
   double volume, quality;
+  char text [1024];
   PyObject *path;
   lng_BODY *body;
   FILE *output;
@@ -7937,7 +7938,9 @@ static PyObject* lng_FRACTURE_EXPORT_YAFFEMS (PyObject *self, PyObject *args, Py
     return NULL;
   }
 
-  output = fopen (PyString_AsString (path), "w");
+  snprintf (text, 1024, "%s.vtk", PyString_AsString (path));
+
+  output = fopen (text, "w");
 
   if (output == NULL)
   {

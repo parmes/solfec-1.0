@@ -91,7 +91,7 @@ struct bulkmat
          poisson,
          density;
 
-  double criten; /* critical energy density for fracture check */
+  double tensile; /* tensile strength for fracture check */
 
   UMAT umat;
 

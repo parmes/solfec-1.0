@@ -4,11 +4,11 @@
 import matplotlib.pyplot as plt
 from math import sin, cos, pi
 
-step = 5E-4  # time step
+step = 1E-4  # time step
 stop = 5.0   # duration of the simulation
-damp = 1E-6  # amount of stiffness proportional damping
+damp = 1E-8  # amount of stiffness proportional damping
 lofq = 5     # low frequency for the sweep
-hifq = 10    # high frequency for the sweep
+hifq = 15    # high frequency for the sweep
 amag = 10.0  # acceleration magnitude
 nbodl = 10   # number of bodies
 nele = 10    # number of elements per body (along y)
@@ -19,7 +19,7 @@ h = 0.1      # height of one body
 gap = 0.001  # gap
 ostep = 1E-3 # output step
 wavg = 0.01  # energy averaging time window [t-wavg/2, t+wavg/2]
-vstop = 2.5  # end time for averaging input impact velocities
+fstop = 7.0  # end frequency for averaging velocities
              # (hand tunded in order to cover the pre-drop area)
 
 GEOMETRIC_EPSILON (1E-9) # tiny geometrical tolerance (<< gap)
@@ -170,6 +170,7 @@ RUN (solfec, slv, stop)
 # post-process results
 if not VIEWER() and solfec.mode == 'READ':
   iavg = 1 + int (wavg / ostep) / 2
+  tstop = 0.0
   data = []
   for b in bodies:
     data.append ((b, 'KINETIC'))
@@ -192,7 +193,9 @@ if not VIEWER() and solfec.mode == 'READ':
 	  vei += th [3*k+2][j]
 	  vvy += abs(th [3*k+3][j])
 
-	fq.append (lofq + (hifq-lofq)*(th[0][i]/stop))
+        f = lofq + (hifq-lofq)*(th[0][i]/stop)
+	if f > fstop: tstop = th[0][i]
+	fq.append (f)
 	ek.append (vek/(2.0*iavg+1.0))
 	ei.append (vei/(2.0*iavg+1.0))
 	vy.append (vvy/(2.0*iavg+1.0))
@@ -212,12 +215,30 @@ if not VIEWER() and solfec.mode == 'READ':
     plt.xlabel ('Frequency $(Hz)$')
     plt.ylabel ('Velocity vy $(m/s)$')
     plt.savefig ('out/sweep/vy'+str(k)+'.png')
+
+
+    # output to file velocity for the 5th body
+    if k == 4:
+      fqout = open ('out/sweep/fq.txt', 'w')  
+      vyout = open ('out/sweep/vy4.txt', 'w')  
+      for item in fq: fqout.write (str(item)+'\n')
+      for item in vy: vyout.write (str(item)+'\n')
+
+    # averge pre-drop-off velocity for body k
+    vavg = 0.0
+    nvavg = 0.0
+    for (f, v) in zip(fq, vy):
+      if f < fstop:
+        vavg += v
+	nvavg += 1.0
+
+    print 'Averafe pre-drop-off velocity for body', k, 'is', vavg/nvavg
   
-  # everage input impact velocity
+  # average input impact velocity
   vavg = 0.0
   nvavg = 0.0
   SEEK (solfec, 0.0)
-  while solfec.time < vstop:
+  while solfec.time < tstop:
     for con in solfec.constraints:
       if con.kind == 'CONTACT':
         vavg += con.V[2]

@@ -2813,7 +2813,7 @@ static void overlap (void *data, BOX *one, BOX *two)
 }
 
 /* map m1 values onto m2 values */
-static void map_state (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, double *u2)
+void FEM_Map_State (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, double *u2)
 {
   double shapes [MAX_NODES], val [MAX_NODES][3], point [3];
   double extents [6], (* nod) [3], (*end) [3];
@@ -3642,7 +3642,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     ASSERT_DEBUG (!bod->msh || (bod->msh && mone), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/1", bod->label);
     (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone, NULL, NULL);
-    map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*one), (*one)->conf, (*one)->velo);
+    FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*one), (*one)->conf, (*one)->velo);
     if (bod->form == REDUCED_ORDER)
     {
       /* TODO: compute and map reduced state of 'sone' */
@@ -3657,7 +3657,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     ASSERT_DEBUG (!bod->msh || (bod->msh && mtwo), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/2", bod->label);
     (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mtwo, NULL, NULL);
-    map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*two), (*two)->conf, (*two)->velo);
+    FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*two), (*two)->conf, (*two)->velo);
     if (bod->form == REDUCED_ORDER)
     {
       /* TODO: compute and map reduced state of 'stwo' */
@@ -3724,7 +3724,7 @@ BODY** FEM_Separate (BODY *bod, int *m)
     if (bod->label) sprintf (label, "%s/%d", bod->label, i);
     MESH *backmesh = (msh ? msh [i] : NULL);
     out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh, NULL, NULL);
-    map_state (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO(bod), FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
+    FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO(bod), FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
     if (bod->form == REDUCED_ORDER)
     {
       /* TODO: compute and map reduced state of 'out [i]' */
