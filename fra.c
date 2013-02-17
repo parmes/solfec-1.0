@@ -277,11 +277,11 @@ int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *out
     fprintf (output, "ASCII\n");
     fprintf (output, "\n");
     fprintf (output, "DATASET UNSTRUCTURED_GRID\n");
-    fprintf (output, "POINTS %d\n", msh->nodes_count);
+    fprintf (output, "POINTS %d float\n", msh->nodes_count);
 
     for (n = 0; n < msh->nodes_count; n ++)
     {
-      fprintf (output, "%g %g %g\n", msh->ref_nodes [n][0], msh->ref_nodes [n][1], msh->ref_nodes [n][2]);
+      fprintf (output, "%f %f %f\n", msh->ref_nodes [n][0], msh->ref_nodes [n][1], msh->ref_nodes [n][2]);
     }
 
     for (fano = 0, fac = msh->faces; fac; fano ++, fac = fac->n) fac->index = fano; /* count and index faces */
@@ -290,23 +290,25 @@ int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *out
 
     elno = msh->surfeles_count + msh->bulkeles_count;
 
+    fprintf (output, "\n");
     fprintf (output, "CELLS %d %d\n", elno + fano, elno*5 + fano*4);
 
     for (ele = msh->surfeles; ele; ele = ele->next)
     {
-      fprintf (output, "4  %d %d %d %d\n", ele->nodes[0]+1, ele->nodes[1]+1, ele->nodes[2]+1, ele->nodes[3]+1);
+      fprintf (output, "4 %d %d %d %d\n", ele->nodes[0], ele->nodes[1], ele->nodes[2], ele->nodes[3]);
     }
 
     for (ele = msh->bulkeles; ele; ele = ele->next)
     {
-      fprintf (output, "4  %d %d %d %d\n", ele->nodes[0]+1, ele->nodes[1]+1, ele->nodes[2]+1, ele->nodes[3]+1);
+      fprintf (output, "4 %d %d %d %d\n", ele->nodes[0], ele->nodes[1], ele->nodes[2], ele->nodes[3]);
     }
 
     for (fac = msh->faces; fac; fac = fac->n)
     {
-      fprintf (output, "3  %d  %d  %d\n", fac->nodes[0]+1, fac->nodes[1]+1, fac->nodes[2]+1);
+      fprintf (output, "3 %d  %d  %d\n", fac->nodes[0], fac->nodes[1], fac->nodes[2]);
     }
 
+    fprintf (output, "\n");
     fprintf (output, "CELL_TYPES %d\n", elno + fano);
 
     for (n = 0; n < elno; n++)
@@ -324,15 +326,17 @@ int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *out
       /* map displacements from the hex to the tet mesh */
       FEM_Map_State (bod->shape->data, it->disp, bod->velo, msh, q, u); /* only it->disp to q mapping is used */
 
+      fprintf (output, "\n");
       fprintf (output, "POINT_DATA %d\n", msh->nodes_count);
       fprintf (output, "SCALARS disp%d float\n", m+1);
       fprintf (output, "LOOKUP_TABLE default\n");
 
       for (n = 0; n < msh->nodes_count; n ++)
       {
-	fprintf (output, "%g %g %g\n", q[3*n], q[3*n+1], q[3*n+2]);
+	fprintf (output, "%f %f %f\n", q[3*n], q[3*n+1], q[3*n+2]);
       }
 
+      fprintf (output, "\n");
       fprintf (output, "CELL_DATA %d\n", elno + fano);
       fprintf (output, "VECTORS pres%d float\n", m);
       fprintf (output, "LOOKUP_TABLE default\n");
