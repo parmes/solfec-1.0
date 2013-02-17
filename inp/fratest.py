@@ -1,6 +1,5 @@
 # Two fuel bricks normal contact restitution test
 import sys
-import matplotlib.pyplot as plt
 import math
 import commands
 sys.path.append('scripts/abaqusreader')
@@ -72,7 +71,7 @@ if not VIEWER() and solfec.mode == 'READ':
   print 'Exportind data to YAFFEMS...'
   for b in solfec.bodies:
     # export data for YAFFEMS fracture analysis
-    n = FRACTURE_EXPORT_YAFFEMS (b, 'out/fratest/fra_' + b.label, 0.01)
+    n = FRACTURE_EXPORT_YAFFEMS (b, 'out/fratest/fra_' + b.label, 0.5)
     print 'Body ', b.label, 'has ', n, 'instances of fracture analysis'
     
 # solver and run
