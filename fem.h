@@ -138,4 +138,7 @@ void FEM_Post_Read (BODY *bod);
 /* compute elastic energy of individual element (and its volume if pvol != NULL) */
 double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele, double *pvol);
 
+/* map m1 values onto m2 values */
+void FEM_Map_State (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, double *u2);
+
 #endif

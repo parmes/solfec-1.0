@@ -23,10 +23,10 @@ solfec = SOLFEC ('DYNAMIC', step, 'out/fratest')
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
 # Create a new AbaqusInput object from the .inp deck:
-model = AbaqusInput(solfec, afile)
+model = AbaqusInput(afile, solfec)
 
 # Create bulk material with critical energy set up
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3, criten = 10)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.25, density = 1.8E3, tensile = 5E5)
 
 # Create a Finite Element body for each Instance in the Assembly:
 for inst in model.assembly.instances.values():	# .instances is a dict

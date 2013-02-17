@@ -31,14 +31,17 @@
 #include "err.h"
 #include "fem.h"
 #include "pck.h"
+#include "lap.h"
+#include "kdt.h"
 
 typedef struct fracture_state FS;
 
 struct fracture_state
 {
-  double area;
+  double radius;
   double point [3];
-  double R [3];
+  double force [3];
+  double *disp;
 
   FS *next;
 
@@ -53,6 +56,7 @@ static void fracture_state_free (FS *list)
   for (;list; list = next)
   {
     next = list->next;
+    free (list->disp);
     free (list);
   }
 }
@@ -61,11 +65,13 @@ static void fracture_state_free (FS *list)
 static void fracture_state_write (DOM *dom)
 {
   char path [1024];
+  double R[3], r, (*disp) [3];
+  int i, n, dofs;
+  MESH *msh;
   SET *item;
   BODY *bod;
   CON *con;
   FILE *f;
-  int n;
   XDR x;
 
 #if MPI
@@ -80,22 +86,41 @@ static void fracture_state_write (DOM *dom)
   {
     if (bod->fracture)
     {
-      xdr_u_int (&x, &bod->id);
+      msh = bod->shape->data;
+      dofs = 3 * msh->nodes_count;
+      ERRMEM (disp = malloc (msh->nodes_count * sizeof (double [3])));
+      for (i = 0; i < msh->nodes_count; i ++)
+      {
+        SUB (msh->cur_nodes [i], msh->ref_nodes [i], disp [i]);
+      }
+
+      ASSERT (xdr_u_int (&x, &bod->id), ERR_FILE_WRITE);
+      ASSERT (xdr_int (&x, &dofs), ERR_FILE_WRITE);
+      ASSERT (xdr_vector (&x, (char*)disp, dofs, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_WRITE);
       n = SET_Size (bod->con);
-      xdr_int (&x, &n);
+      ASSERT (xdr_int (&x, &n), ERR_FILE_WRITE);
       for (item = SET_First (bod->con); item; item = SET_Next (item))
       {
 	con = item->data;
-	xdr_double (&x, &con->area);
-	xdr_double (&x, &con->point[0]);
-	xdr_double (&x, &con->point[1]);
-	xdr_double (&x, &con->point[2]);
-	xdr_double (&x, &con->R[0]);
-	xdr_double (&x, &con->R[1]);
-	xdr_double (&x, &con->R[2]);
+	r = sqrt (con->area/ALG_PI);
+	ASSERT (xdr_double (&x, &r), ERR_FILE_WRITE);
+
+	if (bod == con->master)
+	{
+          ASSERT (xdr_vector (&x, (char*)con->mpnt, 3, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_WRITE);
+	}
+	else
+	{
+          ASSERT (xdr_vector (&x, (char*)con->spnt, 3, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_WRITE);
+	}
+
+        NVMUL (con->base, con->R, R);
+        ASSERT (xdr_vector (&x, (char*)R, 3, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_WRITE);
       }
 
       bod->fracture = 0;
+
+      free (disp);
     }
   }
 
@@ -109,7 +134,8 @@ static FS* fracture_state_read (BODY *bod)
   FS *out = NULL, *item, *instance;
   char path [1024];
   unsigned int id;
-  int i, n;
+  int i, n, dofs;
+  double *disp;
   FILE *f;
   XDR x;
 
@@ -122,33 +148,35 @@ static FS* fracture_state_read (BODY *bod)
 
     while (! feof (f))
     {
-      xdr_u_int (&x, &id);
-      xdr_int (&x, &n);
+      if (xdr_u_int (&x, &id) == 0) break;
+      ASSERT (xdr_int (&x, &dofs), ERR_FILE_READ);
+      ERRMEM (disp = malloc (dofs * sizeof (double)));
+      ASSERT (xdr_vector (&x, (char*)disp, dofs, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_READ);
+      ASSERT (xdr_int (&x, &n), ERR_FILE_READ);
       for (i = 0, instance = NULL; i < n; i ++)
       {
-        ERRMEM (item = malloc (sizeof (FS)));
+        ERRMEM (item = MEM_CALLOC (sizeof (FS)));
 
-	xdr_double (&x, &item->area);
-	xdr_double (&x, &item->point[0]);
-	xdr_double (&x, &item->point[1]);
-	xdr_double (&x, &item->point[2]);
-	xdr_double (&x, &item->R[0]);
-	xdr_double (&x, &item->R[1]);
-	xdr_double (&x, &item->R[2]);
+	ASSERT (xdr_double (&x, &item->radius), ERR_FILE_READ);
+        ASSERT (xdr_vector (&x, (char*)item->point, 3, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_READ);
+        ASSERT (xdr_vector (&x, (char*)item->force, 3, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_READ);
 
 	if (id == bod->id)
 	{
 	  item->inext = instance;
 	  instance = item;
 
-	  if (i == n-1)
+	  if (i == (n-1))
 	  {
+	    item->disp = disp; /* put displacements into first element of instance list */
 	    item->next = out;
 	    out = item;
 	  }
 	}
 	else free (item);
       }
+
+      if (!out || out->disp != disp) free (disp);  /* not used */
     }
 
     xdr_destroy (&x);
@@ -157,7 +185,6 @@ static FS* fracture_state_read (BODY *bod)
 
   return out;
 }
-
 
 /* check fracture criterion */
 void Fracture_Check (DOM *dom)
@@ -169,18 +196,32 @@ void Fracture_Check (DOM *dom)
   {
     if (bod->flags & BODY_CHECK_FRACTURE)
     {
+      double p [3], v [6], s [9], w [9];
       MESH *msh = FEM_MESH (bod);
-      double energy, volume;
       ELEMENT *ele;
       int bulk;
+
+      VECTOR (p, 0.5, 0.5, 0.5);
 
       for (ele = msh->surfeles, bulk = 0; ele; )
       {
         BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
 
-	energy = FEM_Element_Internal_Energy (bod, msh, ele, &volume);
+        FEM_Element_Point_Values (bod, ele, p, VALUE_STRESS, v);
 
-	if (energy > mat->criten * volume)
+	s [0] = v [0];
+	s [1] = v [3];
+	s [2] = v [4];
+	s [3] = s [1];
+	s [4] = v [1];
+	s [5] = v [5];
+	s [6] = s [2];
+	s [7] = s [5];
+	s [8] = v [2];
+        
+	ASSERT (lapack_dsyev ('N', 'U', 3, s, 3, v, w, 9) == 0, ERR_LDY_EIGEN_DECOMP);
+
+	if (v [2] > mat->tensile) /* maximal eigenvalue larger than tensile strength */
 	{
 	  bod->fracture = 1;
 	  on = 1;
@@ -199,10 +240,14 @@ void Fracture_Check (DOM *dom)
 /* export data for fracture analysis in Yaffems (return number of exported analysis instances) */
 int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *output)
 {
+  double extents [6], *q, *u, (*p) [3];
   SOLFEC *sol = bod->dom->solfec;
+  int n, m, elno, fano;
   FS *list, *it, *jt;
+  ELEMENT *ele;
+  FACE *fac;
   MESH *msh;
-  int n, m;
+  KDT *kd;
 
   if (!(bod->flags & BODY_CHECK_FRACTURE) || sol->mode == SOLFEC_WRITE) return 0;
 
@@ -210,28 +255,151 @@ int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *out
 
   if (list)
   {
-    msh = tetrahedralize1 (bod->shape->data, volume, quality, -INT_MAX, -INT_MAX);
+    MESH *copy = MESH_Copy (bod->shape->data);
+    MESH_Update (copy, NULL, NULL, NULL); /* reference configuration */
+    msh = tetrahedralize1 (copy, volume, quality, -INT_MAX, -INT_MAX); /* generate tet mesh in reference configuration */
+    MESH_Destroy (copy);
 
-    MESH_2_MBFCP (msh, output);
+    /* allocate displacements on the tet mesh */
+    ERRMEM (q = malloc (6 * msh->nodes_count * sizeof (double)));
+    u = q + 3 * msh->nodes_count;
 
-    for (it = list, m = 0; it; it = it->next) m ++;
+    /* map faces to a kd-tree for quick point queries */
+    kd = KDT_Create (msh->nodes_count, (double*)msh->ref_nodes, 0.0);
+    for (ele = msh->surfeles; ele; ele = ele->next)
+    { 
+      ELEMENT_Ref_Extents (msh, ele, extents);
+      for (fac = ele->faces; fac; fac = fac->next) KDT_Drop (kd, extents, fac);
+    }
 
-    fprintf (output, "INSTANCES:\t%d\n", m);
+    fprintf (output, "%s\n", "# vtk DataFile Version 2.0");
+    fprintf (output, "%s\n", "Test Title");
+    fprintf (output, "ASCII\n");
+    fprintf (output, "\n");
+    fprintf (output, "DATASET UNSTRUCTURED_GRID\n");
+    fprintf (output, "POINTS %d\n", msh->nodes_count);
 
-    for (it = list; it; it= it->next)
+    for (n = 0; n < msh->nodes_count; n ++)
     {
-      for (jt = it, n = 0; jt; jt = jt->inext) n ++;
+      fprintf (output, "%g %g %g\n", msh->ref_nodes [n][0], msh->ref_nodes [n][1], msh->ref_nodes [n][2]);
+    }
 
-      fprintf (output, "FORCES: %d\n", n);
+    for (fano = 0, fac = msh->faces; fac; fano ++, fac = fac->n) fac->index = fano; /* count and index faces */
 
-      for (jt = it; jt; jt = jt->inext)
+    ERRMEM (p = malloc (fano * sizeof (double [3]))); /* allocate face pressures */
+
+    elno = msh->surfeles_count + msh->bulkeles_count;
+
+    fprintf (output, "CELLS %d %d\n", elno + fano, elno*5 + fano*4);
+
+    for (ele = msh->surfeles; ele; ele = ele->next)
+    {
+      fprintf (output, "4  %d %d %d %d\n", ele->nodes[0]+1, ele->nodes[1]+1, ele->nodes[2]+1, ele->nodes[3]+1);
+    }
+
+    for (ele = msh->bulkeles; ele; ele = ele->next)
+    {
+      fprintf (output, "4  %d %d %d %d\n", ele->nodes[0]+1, ele->nodes[1]+1, ele->nodes[2]+1, ele->nodes[3]+1);
+    }
+
+    for (fac = msh->faces; fac; fac = fac->n)
+    {
+      fprintf (output, "3  %d  %d  %d\n", fac->nodes[0]+1, fac->nodes[1]+1, fac->nodes[2]+1);
+    }
+
+    fprintf (output, "CELL_TYPES %d\n", elno + fano);
+
+    for (n = 0; n < elno; n++)
+    {
+      fprintf (output, "10\n");
+    }
+    
+    for (n = 0; n < fano; n++)
+    {
+      fprintf (output, "5\n");
+    }
+ 
+    for (it = list, m = 0; it; it = it->next, m ++)
+    {
+      /* map displacements from the hex to the tet mesh */
+      FEM_Map_State (bod->shape->data, it->disp, bod->velo, msh, q, u); /* only it->disp to q mapping is used */
+
+      fprintf (output, "POINT_DATA %d\n", msh->nodes_count);
+      fprintf (output, "SCALARS disp%d float\n", m+1);
+      fprintf (output, "LOOKUP_TABLE default\n");
+
+      for (n = 0; n < msh->nodes_count; n ++)
       {
-	fprintf (output, "AREA %g POINT %g %g %g FORCE %g %g %g\n", jt->area,
-	    jt->point[0], jt->point[1], jt->point[2], jt->R[0], jt->R[1], jt->R[2]);
+	fprintf (output, "%g %g %g\n", q[3*n], q[3*n+1], q[3*n+2]);
+      }
+
+      fprintf (output, "CELL_DATA %d\n", elno + fano);
+      fprintf (output, "VECTORS pres%d float\n", m);
+      fprintf (output, "LOOKUP_TABLE default\n");
+
+      for (n = 0; n < elno; n ++) /* skip elements */
+      {
+        fprintf (output, "0 0 0\n");
+      }
+
+      for (n = 0; n < fano; n ++)
+      {
+        SET (p [n], 0.0); /* zero face pressures */
+      }
+
+      for (jt = it; jt; jt = jt->inext) /* for each point force in this instance */
+      {
+        double (*ref) [3] = msh->ref_nodes;
+	double a [3], b [3], c [3], area;
+        SET *set = NULL, *item;
+	double *qa, *qb, *qc;
+
+        extents [0] = jt->point[0] - jt->radius - GEOMETRIC_EPSILON; /* set up search extents */
+        extents [1] = jt->point[1] - jt->radius - GEOMETRIC_EPSILON;
+        extents [2] = jt->point[2] - jt->radius - GEOMETRIC_EPSILON;
+        extents [3] = jt->point[0] + jt->radius + GEOMETRIC_EPSILON;
+        extents [4] = jt->point[1] + jt->radius + GEOMETRIC_EPSILON;
+        extents [5] = jt->point[2] + jt->radius + GEOMETRIC_EPSILON;
+
+	KDT_Pick_Extents (kd, extents, &set); /* pick kd-tree leaves within the extents */
+
+	for (item = SET_First (set); item; item = SET_Next (item))
+	{
+	  KDT *leaf = item->data;
+	  for (n = 0; n < leaf->n; n ++)
+	  {
+	    fac = leaf->data [n]; /* face dropped into this leaf */
+            qa = &q[3*fac->nodes[0]];
+            qb = &q[3*fac->nodes[1]];
+            qc = &q[3*fac->nodes[2]];
+	    ADD (ref[fac->nodes[0]], qa, a); /* current face nodes */
+	    ADD (ref[fac->nodes[1]], qb, b);
+	    ADD (ref[fac->nodes[2]], qc, c);
+	    TRIANGLE_AREA (a, b, c, area); /* current face area */
+
+	    if (area > 0.0) /* XXX */
+	    {
+	      p [fac->index][0] += jt->force [0] / area; /* add up pressure */
+	      p [fac->index][1] += jt->force [1] / area;
+	      p [fac->index][2] += jt->force [2] / area;
+	    }
+	  }
+	}
+
+	SET_Free (NULL, &set);
+      }
+
+      for (n = 0; n < fano; n ++)
+      {
+        fprintf (output, "%g %g %g\n", p[n][0], p[n][1], p[n][2]);
       }
     }
 
     fracture_state_free (list);
+
+    free (q);
+
+    free (p);
 
     return m;
   }
