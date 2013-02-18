@@ -320,7 +320,7 @@ int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *out
     {
       fprintf (output, "5\n");
     }
- 
+
     for (it = list, m = 0; it; it = it->next, m ++)
     {
       /* map displacements from the hex to the tet mesh */
@@ -328,18 +328,19 @@ int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *out
 
       fprintf (output, "\n");
       fprintf (output, "POINT_DATA %d\n", msh->nodes_count);
-      fprintf (output, "SCALARS disp%d float\n", m+1);
-      fprintf (output, "LOOKUP_TABLE default\n");
+      fprintf (output, "VECTORS disp%d float\n", m+1);
 
       for (n = 0; n < msh->nodes_count; n ++)
       {
 	fprintf (output, "%f %f %f\n", q[3*n], q[3*n+1], q[3*n+2]);
       }
+    }
 
+    for (it = list, m = 0; it; it = it->next, m ++)
+    {
       fprintf (output, "\n");
       fprintf (output, "CELL_DATA %d\n", elno + fano);
       fprintf (output, "VECTORS pres%d float\n", m);
-      fprintf (output, "LOOKUP_TABLE default\n");
 
       for (n = 0; n < elno; n ++) /* skip elements */
       {
