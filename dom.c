@@ -35,6 +35,7 @@
 #include "dio.h"
 #include "cra.h"
 #include "fra.h"
+#include "psc.h"
 
 #if MPI
 #include "put.h"
@@ -1206,6 +1207,10 @@ static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipo
 
   /* mark as parent */
   bod->flags |= BODY_PARENT;
+
+#if PSCTEST
+  PSC_Test_Body (bod);
+#endif
 }
 
 /* pack migrating out child body */
@@ -2005,6 +2010,9 @@ static void domain_balancing (DOM *dom)
 	  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->idb, (void*) (long) (UINT_MAX - export_global_ids [i]), NULL), "Invalid body id");
 	  bod->rank = rank; /* set the new rank */
 	  SET_Insert (&dom->setmem, &dbd [rank].bodies, bod, NULL); /* map this body to its export rank */
+#if PSCTEST
+	  PSC_Write_Body (bod);
+#endif
 	}
       }
     }
@@ -2025,6 +2033,9 @@ static void domain_balancing (DOM *dom)
       {
 	bod->rank = rank;
 	SET_Insert (&dom->setmem, &dbd [rank].bodies, bod, NULL);
+#if PSCTEST
+	PSC_Write_Body (bod);
+#endif
       }
     }
 
