@@ -96,7 +96,13 @@ ifeq ($(MPI),yes)
   else
     PARDEBUG =
   endif
-  MPIFLG = -DMPI $(ZOLTANINC) $(PARDEBUG)
+  ifeq ($(PSCTEST),yes)
+    PSCTEST = -DPSCTEST
+  else
+    PSCTEST =
+  endif
+
+  MPIFLG = -DMPI $(ZOLTANINC) $(PARDEBUG) $(PSCTEST)
   MPILIBS = $(ZOLTANLIB)
 endif
 

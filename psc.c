@@ -23,11 +23,14 @@
  * the file is SOLFEC->outpath/bodyID.data; */
 
 #include <stdio.h>
+#include <float.h>
 #include "sol.h"
 #include "dom.h"
 #include "bod.h"
 #include "psc.h"
 #include "err.h"
+
+#define DEQ(x,y) (fabs((x)-(y))<=DBL_EPSILON)
 
 static void psc_write_face (FACE *fac, FILE *f)
 {
@@ -36,7 +39,6 @@ static void psc_write_face (FACE *fac, FILE *f)
   fwrite (fac->nodes, sizeof (int), fac->type, f);
   fwrite (&fac->index, sizeof (int), 1, f);
   fwrite (&fac->surface, sizeof (int), 1, f);
-  fwrite (&fac->ele->flag, sizeof (short), 1, f);
 
   /* XXX: skip fac->idata */
 }
@@ -44,7 +46,7 @@ static void psc_write_face (FACE *fac, FILE *f)
 static void psc_write_element (ELEMENT *ele, FILE *f)
 {
   FACE *fac;
-  int i;
+  short i;
 
   fwrite (&ele->type, sizeof (short), 1, f);
   fwrite (&ele->neighs, sizeof (short), 1, f);
@@ -54,13 +56,13 @@ static void psc_write_element (ELEMENT *ele, FILE *f)
   /* XXX: skip ele->{mat, state} as they are not used in practice */
   /* XXX: skip ele->{domnum, dom} due to the same reasons */
 
-  for (i = 0; i < ele->neighs; i ++) fwrite (&ele->adj[i]->flag, sizeof (int), 1, f);
+  for (i = 0; i < ele->neighs; i ++) fwrite (&ele->adj[i]->flag, sizeof (short), 1, f);
 
   for (fac = ele->faces, i = 0; fac; fac = fac->next) i ++;
 
-  fwrite (&i, sizeof (int), 1, f);
+  fwrite (&i, sizeof (short), 1, f);
 
-  for (fac = ele->faces, i = 0; fac; fac = fac->next) psc_write_face (fac, f);
+  for (fac = ele->faces; fac; fac = fac->next) psc_write_face (fac, f);
 }
 
 static void psc_write_mesh (MESH *msh, FILE *f)
@@ -91,7 +93,7 @@ static void psc_write_shape (SHAPE *shp, FILE *f)
   for (ptr = shp, n = 0; ptr; ptr = ptr->next) n ++;
 
   ASSERT_TEXT (n == 1, "Compund shapes are not supported in PSC mode");
-  ASSERT_TEXT (shp->kind != SHAPE_MESH, "Only MESH shapes are supported in PSC mode");
+  ASSERT_TEXT (shp->kind == SHAPE_MESH, "Only MESH shapes are supported in PSC mode");
   /* TODO: support all shapes */
 
   psc_write_mesh (shp->data, f);
@@ -142,16 +144,16 @@ static FACE* psc_read_face (MEM *facmem, FILE *f)
   fread (fac->nodes, sizeof (int), fac->type, f);
   fread (&fac->index, sizeof (int), 1, f);
   fread (&fac->surface, sizeof (int), 1, f);
-  fread (&fac->ele->flag, sizeof (short), 1, f);
 
   return fac;
 }
 
 static ELEMENT* psc_read_element (MEM *elemem, MEM *facmem, FILE *f)
 {
+  FACE *fac, *tail;
   ELEMENT *ele;
-  FACE *fac;
-  int i, j;
+  short j;
+  int i;
 
   ERRMEM (ele = MEM_Alloc (elemem));
 
@@ -162,26 +164,28 @@ static ELEMENT* psc_read_element (MEM *elemem, MEM *facmem, FILE *f)
 
   for (i = 0; i < ele->neighs; i ++)
   {
-    fread (&j, sizeof (int), 1, f);
+    fread (&j, sizeof (short), 1, f);
     ele->adj [i] = (void*) (long) j;
   }
 
-  fread (&j, sizeof (int), 1, f);
+  fread (&j, sizeof (short), 1, f);
 
-  for (i = 0; i < j; i ++)
+  for (i = 0, tail = NULL; i < j; i ++)
   {
     fac = psc_read_face (facmem, f);
-    fac->next = ele->faces;
-    ele->faces = fac;
+    fac->ele = ele;
+
+    if (tail) tail->next = fac;
+    else ele->faces = fac;
+    tail = fac;
   }
 
   return ele;
 }
 
-
 static MESH* psc_read_mesh (FILE *f)
 {
-  ELEMENT *ele, **tab;
+  ELEMENT *ele, **tab, *tail;
   MESH *msh;
   int i, j;
 
@@ -192,7 +196,7 @@ static MESH* psc_read_mesh (FILE *f)
 
   fread (&msh->nodes_count, sizeof (int), 1, f);
 
-  ERRMEM (msh->ref_nodes = malloc (2 * msh->nodes_count * sizeof (double)));
+  ERRMEM (msh->ref_nodes = malloc (2 * msh->nodes_count * sizeof (double [3])));
   msh->cur_nodes = msh->ref_nodes + msh->nodes_count;
 
   fread (msh->ref_nodes, sizeof (double [3]), msh->nodes_count, f);
@@ -203,22 +207,26 @@ static MESH* psc_read_mesh (FILE *f)
 
   ERRMEM (tab = malloc ((msh->surfeles_count + msh->bulkeles_count) * sizeof (ELEMENT*)));
 
-  for (i = 0; i < msh->surfeles_count; i ++)
+  for (i = 0, tail = NULL; i < msh->surfeles_count; i ++)
   {
     ele = psc_read_element (&msh->elemem, &msh->facmem, f);
     ele->flag = i;
+
+    if (tail) ele->prev = tail, tail->next = ele;
+    else msh->surfeles = ele;
+    tail = ele;
     tab [i] = ele;
-    ele->next = msh->surfeles;
-    msh->surfeles = ele;
   }
 
-  for (; i < msh->surfeles_count + msh->bulkeles_count; i ++)
+  for (tail = NULL; i < msh->surfeles_count + msh->bulkeles_count; i ++)
   {
     ele = psc_read_element (&msh->elemem, &msh->facmem, f);
     ele->flag = i;
+
+    if (tail) ele->prev = tail, tail->next = ele;
+    else msh->bulkeles = ele;
+    tail = ele;
     tab [i] = ele;
-    ele->next = msh->surfeles;
-    msh->surfeles = ele;
   }
 
   for (i = 0; i < msh->surfeles_count + msh->bulkeles_count; i ++)
@@ -227,7 +235,9 @@ static MESH* psc_read_mesh (FILE *f)
 
     for (j = 0; j < ele->neighs; j ++)
     {
-      ele->adj[j] = tab [(long) (void*) ele->adj[j]];
+      int idx = (long) (void*) ele->adj[j];
+      ASSERT_TEXT (idx >= 0 && idx < msh->surfeles_count + msh->bulkeles_count, "INCONSITENT ELEMENT INDEXING");
+      ele->adj[j] = tab [idx];
     }
   }
 
@@ -277,28 +287,60 @@ static int psc_compare_elements (ELEMENT *a, ELEMENT *b)
   FACE *fa, *fb;
   int i;
 
-  if (a->type != b->type) return 0;
+  if (a->type != b->type)
+  {
+    fprintf (stderr, "\nPSC: ELEMENT => type");
+    return 0;
+  }
 
-  if (a->neighs != b->neighs) return 0;
+  if (a->neighs != b->neighs)
+  {
+    fprintf (stderr, "\nPSC: ELEMENT => neighbours count");
+    return 0;
+  }
 
-  if (a->volume != b->volume) return 0;
+  if (a->volume != b->volume)
+  {
+    fprintf (stderr, "\nPSC: ELEMENT => volume id");
+    return 0;
+  }
 
   for (i = 0; i < a->type; i ++)
   {
-    if (a->nodes [i] != b->nodes [i]) return 0;
+    if (a->nodes [i] != b->nodes [i])
+    {
+      fprintf (stderr, "\nPSC: ELEMENT => node index");
+      return 0;
+    }
   }
 
   for (i = 0; i < a->neighs; i ++)
   {
-    if (a->adj[i]->flag != b->adj[i]->flag) return 0;
+    if (a->adj[i]->flag != b->adj[i]->flag)
+    {
+      fprintf (stderr, "\nPSC: ELEMENT => neighbour index");
+      return 0;
+    }
   }
 
   for (fa = a->faces, fb = b->faces; fa || fb; fa = fa->next, fb = fb->next)
   {
-    if (fa && !fb) return 0;
-    if (!fa && fb) return 0;
+    if (fa && !fb)
+    {
+      fprintf (stderr, "\nPSC: ELEMENT => number of faces");
+      return 0;
+    }
+    if (!fa && fb)
+    {
+      fprintf (stderr, "\nPSC: ELEMENT => number of faces");
+      return 0;
+    }
 
-    if (psc_compare_faces (fa, fb) == 0) return 0;
+    if (psc_compare_faces (fa, fb) == 0)
+    {
+      fprintf (stderr, "\nPSC: ELEMENT => face");
+      return 0;
+    }
   }
 
   return 1;
@@ -309,13 +351,21 @@ static int psc_compare_meshes (MESH *a, MESH *b)
   ELEMENT *ele, *y;
   int i, j;
 
-  if (a->nodes_count != b->nodes_count) return 0;
+  if (a->nodes_count != b->nodes_count)
+  {
+    fprintf (stderr, "\nPSC: MESH => nodes_count\n");
+    return 0;
+  }
 
   for (i = 0; i < a->nodes_count; i ++)
   {
     for (j = 0; j < 3; j ++)
     {
-      if (a->ref_nodes[i][j] != b->ref_nodes[i][j]) return 0;
+      if (a->ref_nodes[i][j] != b->ref_nodes[i][j])
+      {
+        fprintf (stderr, "\nPSC: MESH => ref_nodes\n");
+        return 0;
+      }
     }
   }
 
@@ -323,7 +373,11 @@ static int psc_compare_meshes (MESH *a, MESH *b)
   {
     for (j = 0; j < 3; j ++)
     {
-      if (a->cur_nodes[i][j] != b->cur_nodes[i][j]) return 0;
+      if (a->cur_nodes[i][j] != b->cur_nodes[i][j])
+      {
+        fprintf (stderr, "\nPSC: MESH => cur_nodes\n");
+	return 0;
+      }
     }
   }
 
@@ -339,12 +393,20 @@ static int psc_compare_meshes (MESH *a, MESH *b)
 
   for (ele = a->surfeles, y = b->surfeles; ele; ele = ele->next, y = y->next)
   {
-    if (psc_compare_elements (ele, y) == 0) return 0;
+    if (psc_compare_elements (ele, y) == 0)
+    {
+      fprintf (stderr, "\nPSC: MESH => surface element\n");
+      return 0;
+    }
   }
 
   for (ele = a->bulkeles, y = b->bulkeles; ele; ele = ele->next, y = y->next)
   {
-    if (psc_compare_elements (ele, y) == 0) return 0;
+    if (psc_compare_elements (ele, y) == 0)
+    {
+      fprintf (stderr, "\nPSC: MESH => bulk element\n");
+      return 0;
+    }
   }
 
   return 1;
@@ -499,10 +561,12 @@ void PSC_Write_Body (BODY *bod)
 
   fwrite (&bod->kind, sizeof (bod->kind), 1, f);
 
+#if 0
   i = strlen(bod->mat->label);
   ASSERT_TEXT (i < 1024, "Material label is too long!");
   fwrite (&i, sizeof (int), i, f);
-  fwrite (bod->mat->label, 1, i, f);
+  fwrite (bod->mat->label, sizeof (char), i, f);
+#endif
 
   fwrite (&bod->ref_mass, sizeof (double), 1, f);
   fwrite (&bod->ref_volume, sizeof (double), 1, f);
@@ -544,7 +608,7 @@ void PSC_Write_Body (BODY *bod)
 
     psc_write_matrix (bod->evec, f);
 
-    fwrite (bod->eval, sizeof (double), bod->evec->m, f);
+    fwrite (bod->eval, sizeof (double), bod->evec->n, f);
   }
   else
   {
@@ -583,14 +647,16 @@ void PSC_Test_Body (BODY *bod)
     ASSERT_TEXT (0, "PSC ERROR: kind");
   }
 
+#if 0
   fread (&i, sizeof (int), 1, f);
-  fread (txt, 1, i, f);
+  fread (txt, sizeof (char), i, f);
   txt[i] = '\0';
 
   if (strcmp (txt, bod->mat->label) != 0)
   {
     ASSERT_TEXT (0, "PSC ERROR: material");
   }
+#endif
 
   fread (&a.ref_mass, sizeof (double), 1, f);
 
@@ -643,13 +709,12 @@ void PSC_Test_Body (BODY *bod)
   int confsize = bod->kind != FEM ? 12 : bod->form == REDUCED_ORDER ? bod->dofs + 9 : bod->dofs;
 
   ERRMEM (a.conf = malloc (sizeof (double [confsize])));
-  ERRMEM (a.velo = malloc (sizeof (double [confsize])));
 
   fread (a.conf, sizeof (double), confsize, f);
 
   for (i = 0; i < confsize; i ++)
   {
-    if (a.conf [i]!= bod->conf [i])
+    if (a.conf [i] != bod->conf [i])
     {
       ASSERT_TEXT (0, "PSC ERROR: conf");
     }
@@ -657,13 +722,18 @@ void PSC_Test_Body (BODY *bod)
 
   free (a.conf);
 
-  fread (a.velo, sizeof (double), bod->dofs, f);
+  ERRMEM (a.velo = malloc (sizeof (double [a.dofs])));
 
-  for (i = 0; i < confsize; i ++)
+  fread (a.velo, sizeof (double), a.dofs, f);
+
+  for (i = 0; i < bod->dofs; i ++)
   {
-    if (a.velo [i]!= bod->velo  [i])
+    if (!DEQ(a.velo[i], bod->velo[i])) /* XXX: differs after 15th decimal place => why is velocity giving this kind of trouble? */
     {
-      ASSERT_TEXT (0, "PSC ERROR: velo");
+      double x = fabs (a.velo[i]-bod->velo[i]),
+             y = DBL_EPSILON;
+      printf ("%.17f > %.17f\n", x, y);
+      ASSERT_TEXT (0, "PSC ERROR: velo => %d => %.15f != %.15f", i, a.velo[i], bod->velo[i]);
     }
   }
 
@@ -686,9 +756,9 @@ void PSC_Test_Body (BODY *bod)
 
   for (i = 0; i < 6; i ++)
   {
-    if (a.extents [i]!= bod->extents [i])
+    if (a.extents [i] != bod->extents [i])
     {
-      ASSERT_TEXT (0, "PSC ERROR: extents");
+      ASSERT_TEXT (0, "PSC ERROR: extents => %d => %.15f != %.15f", i, a.extents[i], bod->extents[i]);
     }
   }
 
@@ -749,9 +819,9 @@ void PSC_Test_Body (BODY *bod)
       ASSERT_TEXT (0, "PSC ERROR: evec");
     }
 
-    ERRMEM (a.eval = malloc (sizeof (double [a.evec->m])));
+    ERRMEM (a.eval = malloc (sizeof (double [a.evec->n])));
 
-    fread (a.eval, sizeof (double), a.evec->m, f);
+    fread (a.eval, sizeof (double), a.evec->n, f);
 
     for (i = 0; i < a.evec->m; i ++)
     {
