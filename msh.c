@@ -3122,8 +3122,8 @@ static void element_pack (ELEMENT *ele, MAP *map, int *dsize, double **d, int *d
 /* unpack element */
 static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  FACE *fac, *tail;
   ELEMENT *ele;
-  FACE *fac;
   int j, n;
 
   ERRMEM (ele = MEM_Alloc (&msh->elemem));
@@ -3149,12 +3149,13 @@ static ELEMENT* element_unpack (void *solfec, MESH *msh, int *dpos, double *d, i
 
   n = unpack_int (ipos, i, ints); /* faces count */
 
-  for (ele->faces = NULL, j = 0; j < n; j ++)
+  for (tail = NULL, j = 0; j < n; j ++)
   {
     fac = face_unpack (msh, dpos, d, doubles, ipos, i, ints);
     fac->ele = ele;
-    fac->next = ele->faces;
-    ele->faces = fac;
+    if (tail) tail->next = fac;
+    else ele->faces = fac;
+    tail = fac;
     fac->n = msh->faces;
     msh->faces = fac;
   }
