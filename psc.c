@@ -43,6 +43,21 @@ static void psc_write_face (FACE *fac, FILE *f)
   /* XXX: skip fac->idata */
 }
 
+static FACE* psc_read_face (MEM *facmem, FILE *f)
+{
+  FACE *fac;
+
+  ERRMEM (fac = MEM_Alloc (facmem));
+
+  fread (fac->normal, sizeof (double), 3, f);
+  fread (&fac->type, sizeof (int), 1, f);
+  fread (fac->nodes, sizeof (int), fac->type, f);
+  fread (&fac->index, sizeof (int), 1, f);
+  fread (&fac->surface, sizeof (int), 1, f);
+
+  return fac;
+}
+
 static void psc_write_element (ELEMENT *ele, FILE *f)
 {
   FACE *fac;
@@ -63,89 +78,6 @@ static void psc_write_element (ELEMENT *ele, FILE *f)
   fwrite (&i, sizeof (short), 1, f);
 
   for (fac = ele->faces; fac; fac = fac->next) psc_write_face (fac, f);
-}
-
-static void psc_write_mesh (MESH *msh, FILE *f)
-{
-  ELEMENT *ele;
-  int i;
-
-  fwrite (&msh->nodes_count, sizeof (int), 1, f);
-  fwrite (msh->ref_nodes, sizeof (double [3]), msh->nodes_count, f);
-  fwrite (msh->cur_nodes, sizeof (double [3]), msh->nodes_count, f);
-
-  fwrite (&msh->surfeles_count, sizeof (int), 1, f);
-  fwrite (&msh->bulkeles_count, sizeof (int), 1, f);
-
-  /* number elements and store their index in ele->flag */
-  for (ele = msh->surfeles, i = 0; ele; ele = ele->next, i ++) ele->flag = i;
-  for (ele = msh->bulkeles; ele; ele = ele->next, i ++) ele->flag = i;
-
-  for (ele = msh->surfeles; ele; ele = ele->next) psc_write_element (ele, f);
-  for (ele = msh->bulkeles; ele; ele = ele->next) psc_write_element (ele, f);
-}
-
-static void psc_write_shape (SHAPE *shp, FILE *f)
-{
-  SHAPE *ptr;
-  int n;
-
-  for (ptr = shp, n = 0; ptr; ptr = ptr->next) n ++;
-
-  ASSERT_TEXT (n == 1, "Compund shapes are not supported in PSC mode");
-  ASSERT_TEXT (shp->kind == SHAPE_MESH, "Only MESH shapes are supported in PSC mode");
-  /* TODO: support all shapes */
-
-  psc_write_mesh (shp->data, f);
-}
-
-static void psc_write_matrix (MX *a, FILE *f)
-{
-  fwrite (&a->kind, sizeof (a->kind), 1, f);
-  fwrite (&a->flags, sizeof (a->flags), 1, f);
-
-  fwrite (&a->nzmax, sizeof (int), 1, f);
-  fwrite (&a->m, sizeof (int), 1, f);
-  fwrite (&a->n, sizeof (int), 1, f);
-  fwrite (&a->nz, sizeof (int), 1, f);
-
-  switch (a->kind)
-  {
-  case MXDENSE:
-  {
-    fwrite (a->x, sizeof (double), a->nzmax, f);
-  }
-  break;
-  case MXBD:
-  {
-    fwrite (a->p, sizeof (int), a->n + 1, f);
-    fwrite (a->i, sizeof (int), a->n + 1, f);
-    fwrite (a->x, sizeof (double), a->nzmax, f);
-  }
-  break;
-  case MXCSC:
-  {
-    fwrite (a->p, sizeof (int), a->n + 1, f);
-    fwrite (a->i, sizeof (int), a->nzmax, f);
-    fwrite (a->x, sizeof (double), a->nzmax, f);
-  }
-  break;
-  }
-}
-
-static FACE* psc_read_face (MEM *facmem, FILE *f)
-{
-  FACE *fac;
-
-  ERRMEM (fac = MEM_Alloc (facmem));
-
-  fread (fac->normal, sizeof (double), 3, f);
-  fread (&fac->type, sizeof (int), 1, f);
-  fread (fac->nodes, sizeof (int), fac->type, f);
-  fread (&fac->index, sizeof (int), 1, f);
-  fread (&fac->surface, sizeof (int), 1, f);
-
-  return fac;
 }
 
 static ELEMENT* psc_read_element (MEM *elemem, MEM *facmem, FILE *f)
@@ -181,6 +113,26 @@ static ELEMENT* psc_read_element (MEM *elemem, MEM *facmem, FILE *f)
   }
 
   return ele;
+}
+
+static void psc_write_mesh (MESH *msh, FILE *f)
+{
+  ELEMENT *ele;
+  int i;
+
+  fwrite (&msh->nodes_count, sizeof (int), 1, f);
+  fwrite (msh->ref_nodes, sizeof (double [3]), msh->nodes_count, f);
+  fwrite (msh->cur_nodes, sizeof (double [3]), msh->nodes_count, f);
+
+  fwrite (&msh->surfeles_count, sizeof (int), 1, f);
+  fwrite (&msh->bulkeles_count, sizeof (int), 1, f);
+
+  /* number elements and store their index in ele->flag */
+  for (ele = msh->surfeles, i = 0; ele; ele = ele->next, i ++) ele->flag = i;
+  for (ele = msh->bulkeles; ele; ele = ele->next, i ++) ele->flag = i;
+
+  for (ele = msh->surfeles; ele; ele = ele->next) psc_write_element (ele, f);
+  for (ele = msh->bulkeles; ele; ele = ele->next) psc_write_element (ele, f);
 }
 
 static MESH* psc_read_mesh (FILE *f)
@@ -246,6 +198,20 @@ static MESH* psc_read_mesh (FILE *f)
   return msh;
 }
 
+static void psc_write_shape (SHAPE *shp, FILE *f)
+{
+  SHAPE *ptr;
+  int n;
+
+  for (ptr = shp, n = 0; ptr; ptr = ptr->next) n ++;
+
+  ASSERT_TEXT (n == 1, "Compund shapes are not supported in PSC mode");
+  ASSERT_TEXT (shp->kind == SHAPE_MESH, "Only MESH shapes are supported in PSC mode");
+  /* TODO: support all shapes */
+
+  psc_write_mesh (shp->data, f);
+}
+
 static SHAPE* psc_read_shape (FILE *f)
 {
   SHAPE *shp;
@@ -256,6 +222,87 @@ static SHAPE* psc_read_shape (FILE *f)
   shp->data = psc_read_mesh (f);
 
   return shp;
+}
+
+static void psc_write_matrix (MX *a, FILE *f)
+{
+  fwrite (&a->kind, sizeof (a->kind), 1, f);
+  fwrite (&a->flags, sizeof (a->flags), 1, f);
+
+  fwrite (&a->nzmax, sizeof (int), 1, f);
+  fwrite (&a->m, sizeof (int), 1, f);
+  fwrite (&a->n, sizeof (int), 1, f);
+  fwrite (&a->nz, sizeof (int), 1, f);
+
+  switch (a->kind)
+  {
+  case MXDENSE:
+  {
+    fwrite (a->x, sizeof (double), a->nzmax, f);
+  }
+  break;
+  case MXBD:
+  {
+    fwrite (a->p, sizeof (int), a->n + 1, f);
+    fwrite (a->i, sizeof (int), a->n + 1, f);
+    fwrite (a->x, sizeof (double), a->nzmax, f);
+  }
+  break;
+  case MXCSC:
+  {
+    fwrite (a->p, sizeof (int), a->n + 1, f);
+    fwrite (a->i, sizeof (int), a->nzmax, f);
+    fwrite (a->x, sizeof (double), a->nzmax, f);
+  }
+  break;
+  }
+}
+
+static MX* psc_read_matrix (FILE *f)
+{
+  MX *a;
+
+  ERRMEM (a = MEM_CALLOC (sizeof (MX)));
+
+  fread (&a->kind, sizeof (a->kind), 1, f);
+  fread (&a->flags, sizeof (a->flags), 1, f);
+
+  fread (&a->nzmax, sizeof (int), 1, f);
+  fread (&a->m, sizeof (int), 1, f);
+  fread (&a->n, sizeof (int), 1, f);
+  fread (&a->nz, sizeof (int), 1, f);
+
+  switch (a->kind)
+  {
+  case MXDENSE:
+  {
+    ERRMEM (a->x = malloc (a->nzmax * sizeof (double)));
+    fread (a->x, sizeof (double), a->nzmax, f);
+  }
+  break;
+  case MXBD:
+  {
+    ERRMEM (a->p = malloc ((a->n+1) * sizeof (int)));
+    ERRMEM (a->i = malloc ((a->n+1) * sizeof (int)));
+    ERRMEM (a->x = malloc (a->nzmax * sizeof (double)));
+    fread (a->p, sizeof (int), a->n + 1, f);
+    fread (a->i, sizeof (int), a->n + 1, f);
+    fread (a->x, sizeof (double), a->nzmax, f);
+  }
+  break;
+  case MXCSC:
+  {
+    ERRMEM (a->p = malloc ((a->n+1) * sizeof (int)));
+    ERRMEM (a->i = malloc (a->nzmax * sizeof (int)));
+    ERRMEM (a->x = malloc (a->nzmax * sizeof (double)));
+    fread (a->p, sizeof (int), a->n + 1, f);
+    fread (a->i, sizeof (int), a->nzmax, f);
+    fread (a->x, sizeof (double), a->nzmax, f);
+  }
+  break;
+  }
+
+  return a;
 }
 
 static int psc_compare_faces (FACE *a, FACE *b)
@@ -419,88 +466,72 @@ static int psc_compare_shapes (SHAPE *a, SHAPE *b)
   return psc_compare_meshes (a->data, b->data);
 }
 
-static MX* psc_read_matrix (FILE *f)
-{
-  MX *a;
-
-  ERRMEM (a = MEM_CALLOC (sizeof (MX)));
-
-  fread (&a->kind, sizeof (a->kind), 1, f);
-  fread (&a->flags, sizeof (a->flags), 1, f);
-
-  fread (&a->nzmax, sizeof (int), 1, f);
-  fread (&a->m, sizeof (int), 1, f);
-  fread (&a->n, sizeof (int), 1, f);
-  fread (&a->nz, sizeof (int), 1, f);
-
-  switch (a->kind)
-  {
-  case MXDENSE:
-  {
-    ERRMEM (a->x = malloc (a->nzmax * sizeof (double)));
-    fread (a->x, sizeof (double), a->nzmax, f);
-  }
-  break;
-  case MXBD:
-  {
-    ERRMEM (a->p = malloc ((a->n+1) * sizeof (int)));
-    ERRMEM (a->i = malloc ((a->n+1) * sizeof (int)));
-    ERRMEM (a->x = malloc (a->nzmax * sizeof (double)));
-    fread (a->p, sizeof (int), a->n + 1, f);
-    fread (a->i, sizeof (int), a->n + 1, f);
-    fread (a->x, sizeof (double), a->nzmax, f);
-  }
-  break;
-  case MXCSC:
-  {
-    ERRMEM (a->p = malloc ((a->n+1) * sizeof (int)));
-    ERRMEM (a->i = malloc (a->nzmax * sizeof (int)));
-    ERRMEM (a->x = malloc (a->nzmax * sizeof (double)));
-    fread (a->p, sizeof (int), a->n + 1, f);
-    fread (a->i, sizeof (int), a->nzmax, f);
-    fread (a->x, sizeof (double), a->nzmax, f);
-  }
-  break;
-  }
-
-  return a;
-}
-
 static int psc_compare_matrices (MX *a, MX *b)
 {
   int j;
 
-  if (a->kind != b->kind) return 0;
-  if (a->flags != b->flags) return 0;
+  if (a->kind != b->kind)
+  {
+    fprintf (stderr, "\nPSC: MX => kind\n");
+    return 0;
+  }
+  if (a->flags != b->flags)
+  {
+    fprintf (stderr, "\nPSC: MX => flags\n");
+    return 0;
+  }
 
-  if (a->nzmax != b->nzmax) return 0;
-  if (a->m != b->m) return 0;
-  if (a->n != b->n) return 0;
-  if (a->nz != b->nz) return 0;
+  if (a->nzmax != b->nzmax)
+  {
+    fprintf (stderr, "\nPSC: MX => nzmax\n");
+    return 0;
+  }
+  if (a->m != b->m)
+  {
+    fprintf (stderr, "\nPSC: MX => m\n");
+    return 0;
+  }
+  if (a->n != b->n)
+  {
+    fprintf (stderr, "\nPSC: MX => n\n");
+    return 0;
+  }
+  if (a->nz != b->nz)
+  {
+    fprintf (stderr, "\nPSC: MX => nz\n");
+    return 0;
+  }
+
+  for (j = 0; j < a->nzmax; j ++)
+  {
+    if (a->x[j] != b->x[j])
+    {
+      fprintf (stderr, "\nPSC: MX => x\n");
+      return 0;
+    }
+  }
 
   switch (a->kind)
   {
   case MXDENSE:
-  {
-    for (j = 0; j < a->nzmax; j ++)
-    {
-      if (a->x[j] != b->x[j]) return 0;
-    }
-  }
   break;
   case MXBD:
   {
     for (j = 0; j < a->n + 1; j ++)
     {
-      if (a->p[j] != b->p[j]) return 0;
+      if (a->p[j] != b->p[j])
+      {
+        fprintf (stderr, "\nPSC: MX => p\n");
+	return 0;
+      }
     }
     for (j = 0; j < a->n + 1; j ++)
     {
-      if (a->i[j] != b->i[j]) return 0;
-    }
-    for (j = 0; j < a->nzmax; j ++)
-    {
-      if (a->x[j] != b->x[j]) return 0;
+      if (a->i[j] != b->i[j])
+      {
+        fprintf (stderr, "\nPSC: MX => i\n");
+	return 0;
+      }
     }
   }
   break;
@@ -508,21 +539,25 @@ static int psc_compare_matrices (MX *a, MX *b)
   {
     for (j = 0; j < a->n + 1; j ++)
     {
-      if (a->p[j] != b->p[j]) return 0;
+      if (a->p[j] != b->p[j])
+      {
+        fprintf (stderr, "\nPSC: MX => p\n");
+	return 0;
+      }
     }
     for (j = 0; j < a->nzmax; j ++)
     {
-      if (a->i[j] != b->i[j]) return 0;
-    }
-    for (j = 0; j < a->nzmax; j ++)
-    {
-      if (a->x[j] != b->x[j]) return 0;
+      if (a->i[j] != b->i[j])
+      {
+        fprintf (stderr, "\nPSC: MX => i\n");
+	return 0;
+      }
     }
   }
   break;
   }
 
-  return 0;
+  return 1;
 }
 
 static void psc_matrix_free (MX *a)
@@ -540,7 +575,6 @@ static void psc_matrix_free (MX *a)
     free (a->p);
     free (a->i);
     free (a->x);
-
   }
   break;
   }
@@ -588,7 +622,7 @@ void PSC_Write_Body (BODY *bod)
 
   psc_write_shape (bod->shape, f);
 
-  fwrite (bod->extents, sizeof (double), 6, f);
+  /* XXX => skip bod->extents (updated independently) */
 
   fwrite (&bod->scheme, sizeof (bod->scheme), 1, f);
 
@@ -728,12 +762,11 @@ void PSC_Test_Body (BODY *bod)
 
   for (i = 0; i < bod->dofs; i ++)
   {
-    if (!DEQ(a.velo[i], bod->velo[i])) /* XXX: differs after 15th decimal place => why is velocity giving this kind of trouble? */
+    if (!DEQ(a.velo[i], bod->velo[i])) /* XXX: differs after 15th decimal place => why is ONLY velocity giving this kind of trouble? */
     {
-      double x = fabs (a.velo[i]-bod->velo[i]),
-             y = DBL_EPSILON;
+      double x = fabs (a.velo[i]-bod->velo[i]), y = DBL_EPSILON;
       printf ("%.17f > %.17f\n", x, y);
-      ASSERT_TEXT (0, "PSC ERROR: velo => %d => %.15f != %.15f", i, a.velo[i], bod->velo[i]);
+      ASSERT_TEXT (0, "PSC ERROR: velo => %d => %.17f != %.17f", i, a.velo[i], bod->velo[i]);
     }
   }
 
@@ -751,16 +784,6 @@ void PSC_Test_Body (BODY *bod)
   }
 
   SHAPE_Destroy (a.shape);
-
-  fread (a.extents, sizeof (double), 6, f);
-
-  for (i = 0; i < 6; i ++)
-  {
-    if (a.extents [i] != bod->extents [i])
-    {
-      ASSERT_TEXT (0, "PSC ERROR: extents => %d => %.15f != %.15f", i, a.extents[i], bod->extents[i]);
-    }
-  }
 
   fread (&a.scheme, sizeof (a.scheme), 1, f);
 
@@ -803,7 +826,7 @@ void PSC_Test_Body (BODY *bod)
     ASSERT_TEXT (0, "PSC ERROR: damping");
   }
 
-  fwrite (&i, sizeof (int), 1, f);
+  fread (&i, sizeof (int), 1, f);
 
   if (i && bod->evec == NULL)
   {
@@ -823,7 +846,7 @@ void PSC_Test_Body (BODY *bod)
 
     fread (a.eval, sizeof (double), a.evec->n, f);
 
-    for (i = 0; i < a.evec->m; i ++)
+    for (i = 0; i < a.evec->n; i ++)
     {
       if (a.eval [i]!= bod->eval [i])
       {
