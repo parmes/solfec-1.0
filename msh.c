@@ -3070,7 +3070,7 @@ void ELEMENT_Char_Partial (MESH *msh, ELEMENT *ele, int ref, double *vo, double 
 /* pack face */
 static void face_pack (FACE *fac, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_doubles (dsize, d, doubles, fac->normal, 6);
+  pack_doubles (dsize, d, doubles, fac->normal, 3);
   pack_int (isize, i, ints, fac->type);
   pack_ints (isize, i, ints, fac->nodes, fac->type);
   pack_int (isize, i, ints, fac->index);
@@ -3084,7 +3084,7 @@ static FACE* face_unpack (MESH *msh, int *dpos, double *d, int doubles, int *ipo
 
   ERRMEM (fac = MEM_Alloc (&msh->facmem));
 
-  unpack_doubles (dpos, d, doubles, fac->normal, 6);
+  unpack_doubles (dpos, d, doubles, fac->normal, 3);
   fac->type = unpack_int (ipos, i, ints);
   unpack_ints (ipos, i, ints, fac->nodes, fac->type);
   fac->index = unpack_int (ipos, i, ints);
