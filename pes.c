@@ -44,7 +44,7 @@ int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, doubl
     g = (gap + 0.25 * step * (BN - V[2]));
     g = MIN (g, 0);
     s = spring * hpow * pow (-g, hpow - 1.0); /* current spring */
-    if (dashpot < 0.0) dashpot = sqrt (step * s / W [8]); /* critical damping */
+    if (dashpot < 0.0) dashpot = 2.0 * sqrt (step * s / W [8]); /* critical damping */
     R [2] = (spring * pow (-g, hpow) - 0.5 * dashpot * (BN + V[2]))
 	  / (1.0 + (0.25  * step * s + 0.5 * dashpot) * W[8]);
   }
@@ -52,7 +52,7 @@ int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, doubl
   {
     g = MIN (gap, 0);
     s = spring * hpow * pow (-g, hpow - 1.0); /* current spring */
-    if (dashpot < 0.0) dashpot = sqrt (step * s / W [8]); /* critical damping */
+    if (dashpot < 0.0) dashpot = 2.0 * sqrt (step * s / W [8]); /* critical damping */
     R [2] = spring * pow (-g, hpow) - dashpot * V[2];
   }
 
