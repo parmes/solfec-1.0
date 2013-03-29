@@ -98,13 +98,13 @@ def rotation_test (h1, d1, damping, TL, LEN, ENE):
     if TL:
       for (dx0,dy0,dz0,dx1,dy1,dz1) in zip (th0[1], th0[2], th0[3], th0[4], th0[5], th0[6]):
 	l = ((p0[0]+dx0-p1[0]-dx1)**2 + (p0[1]+dy0-p1[1]-dy1)**2 + (p0[2]+dz0-p1[2]-dz1)**2)**0.5
-	lh0.append (l)
+	lh0.append (l-1.0)
     for (dx0,dy0,dz0,dx1,dy1,dz1) in zip (th1[1], th1[2], th1[3], th1[4], th1[5], th1[6]):
       l = ((p0[0]+dx0-p1[0]-dx1)**2 + (p0[1]+dy0-p1[1]-dy1)**2 + (p0[2]+dz0-p1[2]-dz1)**2)**0.5
-      lh1.append (l)
+      lh1.append (l-1.0)
     for (dx0,dy0,dz0,dx1,dy1,dz1) in zip (th2[1], th2[2], th2[3], th2[4], th2[5], th2[6]):
       l = ((p0[0]+dx0-p1[0]-dx1)**2 + (p0[1]+dy0-p1[1]-dy1)**2 + (p0[2]+dz0-p1[2]-dz1)**2)**0.5
-      lh2.append (l)
+      lh2.append (l-1.0)
 
     tot0 = []
     tot1 = []
@@ -130,13 +130,14 @@ def rotation_test (h1, d1, damping, TL, LEN, ENE):
 
       if LEN:
 	plt.clf ()
-	plt.title ('Rotating bar: length ' + hstr)
+	plt.title ('Rotating bar: elongation ' + hstr)
 	if TL: plt.plot (th0 [0], lh0, label='TL', marker = 's')
 	plt.plot (th1 [0], lh1, label='BC')
 	plt.plot (th2 [0], lh2, label='RO', ls = '--', marker = 'o')
 	plt.xlabel ('Time [s]')
-	plt.ylabel ('Length [m]')
+	plt.ylabel ('Elongation [m]')
 	plt.legend(loc = 'upper right')
+	plt.gcf().subplots_adjust(left=0.15)
 	plt.savefig ('out/rotating-bar/rb_' + head + '_length' + str(long(1/h1)) + '_' + str(long(d1)) + format)
 
       if ENE:
@@ -497,16 +498,19 @@ def convtest (formulation, E, damping, pow0, pow1, pow2, pow3):
 # run conv. tests
 def convergence_tests ():
 
+  TL0 = convtest ('TL', 200E4, 0.000, 16, 7, 14, 4)
   BC0 = convtest ('BC', 200E4, 0.000, 16, 7, 14, 4)
   RO0 = convtest ('RO', 200E4, 0.000, 16, 7, 14, 4)
-  BC1 = convtest ('BC', 200E9, 0.001, 16, 7, 14, 4)
-  RO1 = convtest ('RO', 200E9, 0.001, 16, 7, 14, 4)
+  TL1 = convtest ('TL', 200E9, 1.E-6, 16, 7, 14, 4)
+  BC1 = convtest ('BC', 200E9, 1.E-6, 16, 7, 14, 4)
+  RO1 = convtest ('RO', 200E9, 1.E-6, 16, 7, 14, 4)
 
   try:
     import matplotlib.pyplot as plt
 
     plt.clf ()
     plt.title ('Rotating bar: convergence rate (E = 200E4, $\eta=0$)')
+    plt.loglog (TL0[0], TL0[1], label='TL', ls = '-.', lw=3)
     plt.loglog (BC0[0], BC0[1], label='BC')
     plt.loglog (RO0[0], RO0[1], label='RO', ls = '--', marker = 'o')
     plt.xlabel ('Time step $h$ [s]')
@@ -515,7 +519,8 @@ def convergence_tests ():
     plt.savefig ('out/rotating-bar/rb_undamp_convrate_E200E4.eps')
 
     plt.clf ()
-    plt.title ('Rotating bar: convergence rate (E = 200E9, $\eta=0.001$)')
+    plt.title ('Rotating bar: convergence rate (E = 200E9, $\eta=1/10^6$)')
+    plt.loglog (TL1[0], TL1[1], label='TL', ls = '-.', lw=3)
     plt.loglog (BC1[0], BC1[1], label='BC')
     plt.loglog (RO1[0], RO1[1], label='RO', ls = '--', marker = 'o')
     plt.xlabel ('Time step $h$ [s]')
