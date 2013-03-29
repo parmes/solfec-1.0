@@ -32,9 +32,8 @@ TRANSLATE (obsm, (0, 0, -0.6))
 # solver
 sv = NEWTON_SOLVER ()
 
-# impact comparison
-def impact_comparison (h1, d1, E, v0, pow0, pow1, rest):
-
+# compute eigen base
+def eigenbase (h1, d1, E, v0, pow0, pow1, rest):
   # compute all eigenvalues and eigenvectors
   pt0 = 'out/impacting-bar/MK_%g_%g_%g_%g_%d_%d'%(h1, d1, E, v0, pow0, pow1)
   sl0 = SOLFEC ('DYNAMIC', 1E-3, pt0)
@@ -62,7 +61,13 @@ def impact_comparison (h1, d1, E, v0, pow0, pow1, rest):
       eval.append (data0[0][j])
       for k in range (j*ndofs,(j+1)*ndofs):
 	evec.append (data0[1][k])
-  data = (eval, evec)
+  return (eval, evec)
+
+# impact comparison
+def impact_comparison (h1, d1, E, v0, pow0, pow1, rest):
+
+  # compute eigen base
+  data = eigenbase (h1, d1, E, v0, pow0, pow1, rest)
 
   toplot = []
   vdamp = []
@@ -130,7 +135,7 @@ def impact_comparison (h1, d1, E, v0, pow0, pow1, rest):
       plt.savefig ('out/impacting-bar/ib_vz_BC_h%d_d%d_E%g_v%g.eps'%(1/h1,1/d1,E,v0))
 
       plt.clf ()
-      plt.title ('Rotating bar: base point VZ: BC' + hstr)
+      plt.title ('Impacting bar: base point VZ: BC' + hstr)
       for dat in toplot:
         plt.plot (dat[1], dat[3], label=dat[0])
       plt.xlabel ('Time [s]')
@@ -143,6 +148,104 @@ def impact_comparison (h1, d1, E, v0, pow0, pow1, rest):
 
   return ('$h=\\frac{1}{%d}$'%(1/h1), vdamp, vout_BC, vout_RO)
 
+#energy comparison
+def enery_comparison (n1, h1, d1, E, v0, pow0, rest):
+
+  if pow0 > 0.0: damping = 1.0 / (2.0**pow0)
+  else: damping = 0.0
+
+  # local mesh
+  mesh = HEX (nodes, n1, n1, n1*10, 0, [0, 1, 2, 3, 4, 5])
+
+  # rotation: BC
+  sl1 = SOLFEC ('DYNAMIC', h1, 'out/impacting-bar/BC_%g_%g_%g_%g_%d_%d_%g_%g'%(h1, d1, E, v0, pow0, 0, damping, rest))
+  SURFACE_MATERIAL (sl1, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = rest)
+  bl1 = BULK_MATERIAL (sl1, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
+  bd1 = BODY (sl1, 'FINITE_ELEMENT', TRANSLATE(COPY (mesh), (0, 0, 0.005)), bl1, form = 'BC')
+  bd1.scheme = 'DEF_LIM'
+  bd1.damping = damping
+  INITIAL_VELOCITY (bd1, (0, 0, v0), (0, 0, 0))
+  BODY (sl1, 'OBSTACLE', COPY (obsm), bl1)
+  RUN (sl1, sv, d1)
+
+  if not VIEWER() and sl1.mode == 'READ':
+
+    th1 = HISTORY (sl1, [(bd1, 'KINETIC'), (bd1, 'INTERNAL')], 0, d1)
+
+    tot1 = []
+    for (ek, ei) in zip (th1[1], th1[2]):
+      tot1.append (ek + ei)
+
+    try:
+      import matplotlib.pyplot as plt
+
+      if damping == 0.0:
+	dmp = 0
+        hstr = ' ($h = 1/%d, \eta=0, e=%g'%(1/h1, rest) + '$)'
+      else:
+	dmp = 1/damping
+        hstr = ' ($h = 1/%d, \eta=1/%d, e=%g'%(1/h1, dmp, rest) + '$)'
+
+
+      plt.clf ()
+      plt.title ('Impacting %dx%dx%d bar energy: BC'%(n1,n1,n1*10) + hstr)
+      plt.plot (th1[0], th1[1], label='KIN', ls='--', marker = 'o')
+      plt.plot (th1[0], th1[2], label='INT')
+      plt.plot (th1[0], tot1, label='TOT', lw=2)
+      plt.xlabel ('Time [s]')
+      plt.ylabel ('Energy [J]')
+      plt.legend (loc = 'best')
+      plt.savefig ('out/impacting-bar/ib_ene_BC_h%d_d%d_r%g.eps'%(1/h1,dmp,rest))
+
+    except ImportError:
+      pass # no reaction
+
+  if n1 == 2:
+    # compute eigen base
+    data = eigenbase (h1, d1, E, v0, pow0, 0, rest)
+
+    # rotation: RO
+    sl2 = SOLFEC ('DYNAMIC', h1, 'out/impacting-bar/RO_%g_%g_%g_%g_%d_%d_%g_%g'%(h1, d1, E, v0, pow0, 0, damping, rest))
+    SURFACE_MATERIAL (sl2, model = 'SIGNORINI_COULOMB', friction = 0.0, restitution = rest)
+    bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
+    bd2 = BODY (sl2, 'FINITE_ELEMENT', TRANSLATE(COPY (mesh), (0, 0, 0.005)), bl2, form = 'RO', modal = data)
+    bd2.scheme = 'DEF_LIM'
+    bd2.damping = damping
+    INITIAL_VELOCITY (bd2, (0, 0, v0), (0, 0, 0))
+    BODY (sl2, 'OBSTACLE', COPY (obsm), bl2)
+    RUN (sl2, sv, d1)
+
+    if not VIEWER() and sl2.mode == 'READ':
+
+      th2 = HISTORY (sl2, [(bd2, 'KINETIC'), (bd2, 'INTERNAL')], 0, d1)
+
+      tot2 = []
+      for (ek, ei) in zip (th2[1], th2[2]):
+	tot2.append (ek + ei)
+
+      try:
+	import matplotlib.pyplot as plt
+
+	if damping == 0.0:
+	  dmp = 0
+	  hstr = ' ($h = 1/%d, \eta=0, e=%g'%(1/h1, rest) + '$)'
+	else:
+	  dmp = 1/damping
+	  hstr = ' ($h = 1/%d, \eta=1/%d, e=%g'%(1/h1, dmp, rest) + '$)'
+
+	plt.clf ()
+	plt.title ('Impacting bar energy: RO' + hstr)
+	plt.plot (th2[0], th2[1], label='KIN')
+	plt.plot (th2[0], th2[2], label='INT')
+	plt.plot (th2[0], tot2, label='TOT')
+	plt.xlabel ('Time [s]')
+	plt.ylabel ('Energy [J]')
+	plt.legend (loc = 'best')
+	plt.savefig ('out/impacting-bar/ib_ene_RO_h%d_d%d_r%g.eps'%(1/h1,dmp,rest))
+
+      except ImportError:
+	pass # no reaction
+
 # impacting testes
 e0 = 8
 e1 = 17
@@ -153,6 +256,18 @@ dat2 = impact_comparison (1/4096., 1/32., 200E9, -1.0, e0, e1, 0)
 dat3 = impact_comparison (1/1024., 1/32., 200E9, -1.0, e0, e1, 1)
 dat4 = impact_comparison (1/2048., 1/32., 200E9, -1.0, e0, e1, 1)
 dat5 = impact_comparison (1/4096., 1/32., 200E9, -1.0, e0, e1, 1)
+
+enery_comparison (2, 1/4096., 1/32., 200E9, -1.0, 0, 0)
+enery_comparison (2, 1/4096., 1/32., 200E9, -1.0, 0, 1)
+enery_comparison (2, 1/4096., 1/32., 200E9, -1.0, 16, 0)
+enery_comparison (2, 1/4096., 1/32., 200E9, -1.0, 16, 1)
+enery_comparison (2, 1/4096., 1/32., 200E9, -1.0, 10, 0)
+enery_comparison (2, 1/4096., 1/32., 200E9, -1.0, 10, 1)
+
+enery_comparison (2*2, 1/(2*4096.), 1/32., 200E9, -1.0, 0, 0)
+enery_comparison (4*2, 1/(4*4096.), 1/32., 200E9, -1.0, 0, 0)
+enery_comparison (2*2, 1/(2*4096.), 1/32., 200E9, -1.0, 0, 1)
+enery_comparison (4*2, 1/(4*4096.), 1/32., 200E9, -1.0, 0, 1)
 
 # avg. output velocity plots
 if not VIEWER() and len(dat0[2]) > 0:
