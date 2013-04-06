@@ -1,6 +1,5 @@
 # Two fuel bricks normal contact restitution test
 import sys
-import matplotlib.pyplot as plt
 import math
 import commands
 sys.path.append('scripts/abaqusreader')
@@ -10,6 +9,7 @@ from math import cos
 
 # Analysis paramters
 
+formu = 'RO'
 step = 1E-4
 stop = 0.5
 damp = 1E-6
@@ -26,6 +26,7 @@ if argv == None:
   print '------------------------------------------------------'
   print 'No user paramters passed! Possible paramters:'
   print '------------------------------------------------------'
+  print '-form name => where name is TL, BC, RO, PR or RG'
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-damp num => damping, >= 0.0'
   print '-step num => time step, > 0.0'
@@ -37,6 +38,9 @@ if argv != None and len (argv) > 1:
   for i in range (0, len(argv)-1):
     if argv [i] == '-fbmod':
       fbmod = max (min (64, long (argv [i+1])), 6)
+    elif argv [i] == '-form':
+      if argv [i+1] in ('TL', 'BC', 'RO', 'PR', 'RG'):
+	formu = argv [i+1]
     elif argv [i] == '-damp':
       damp = max (float (argv [i+1]), 0.0)
     elif argv [i] == '-step':
@@ -56,7 +60,11 @@ print '------------------------------------------------------'
 
 # Model
 
-ending = '%s_%d_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), fbmod, step, damp, rest)
+if formu == 'RO':
+  ending = 'RO_FB%d'%(fbmod)
+else: ending = formu
+
+ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), ending, step, damp, rest)
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/' + ending)
 
@@ -70,16 +78,24 @@ for inst in model.assembly.instances.values():	# .instances is a dict
   label = inst.name	              # use Abaqus instance name
   mesh = inst.mesh	              # solfec MESH object at the instance position
   bulkmat = inst.material	        # solfec BULK_MATERIAL object
-  bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
-  data = MODAL_ANALYSIS (bdy, fbmod, solfec.outpath + '/modal' + label, abstol = 1E-13)
-  DELETE (solfec, bdy)
-  bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'RO', modal = data)
+  if formu == 'RG':
+    bdy = BODY(solfec, 'RIGID', mesh, bulkmat, label)
+  elif formu == 'PR':
+    bdy = BODY(solfec, 'PSEUDO_RIGID', mesh, bulkmat, label)
+  elif formu != 'RO':
+    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = formu)
+  else:
+    bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
+    data = MODAL_ANALYSIS (bdy, fbmod, solfec.outpath + '/modal' + label, abstol = 1E-13)
+    DELETE (solfec, bdy)
+    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'RO', modal = data)
 
 # boundary conditions
 for b in solfec.bodies:
   
-  b.scheme = 'DEF_LIM'
-  b.damping = damp
+  if b.kind != 'RIGID':
+    b.scheme = 'DEF_LIM'
+    b.damping = damp
   
   c = b.center
   t = b.tensor
@@ -122,11 +138,8 @@ if not VIEWER() and solfec.mode == 'READ':
   p2 = TRANSLATE (c1, (0.0, 0.18985-0.005, 0.0))
   p3 = TRANSLATE (c2, (0.0,-0.18985+0.005, 0.0))
   p4 = TRANSLATE (c2, (0.0, 0.18985-0.005, 0.0))
+
   th = HISTORY(solfec,[(b1,p1,'VX'), (b1,p2,'VX'),(b2,p3,'VX'),(b2,p4,'VX')],0.0,stop,1)
-  plt.plot (th[0],th[1],lw = 2, label = 'Left_Brick_Top_Point_Velocity_VX_(m/s)')
-  plt.plot (th[0],th[2],lw = 2, label = 'Left_Brick_Bottom_Point_Velocity_VX_(m/s)')
-  plt.plot (th[0],th[3],lw = 2, label = 'Right_Brick_Top_Point_Velocity_VX_(m/s)')
-  plt.plot (th[0],th[4],lw = 2, label = 'Right_Brick_Bottom_Point_Velocity_VX_(m/s)')
 
   res_vel_temp = zip(th[3], th[1])
   res_vel = [r1-r2 for r1,r2 in res_vel_temp]
@@ -135,15 +148,23 @@ if not VIEWER() and solfec.mode == 'READ':
   for v in res_vel:
     vrest.append(v/impactVelocity)
 
-  plt.plot (th[0],vrest,lw = 2, label = 'Brick_Restitution')
-  plt.legend(loc = 'lower left')
-
-  plt.title ('SUB02 FB-FB Normal Contact FB damping=%s'% b.damping)
-  plt.savefig (solfec.outpath + '/Brick_Velocity_Damp%g.png'% b.damping) 
-  plt.show()
-  
   print "For FB damping =", b.damping, " coeficient of restitution = ", vrest[-1]
     
+  try:
+    import matplotlib.pyplot as plt
+
+    plt.plot (th[0],th[1],lw = 2, label = 'Left_Brick_Top_Point_Velocity_VX_(m/s)')
+    plt.plot (th[0],th[2],lw = 2, label = 'Left_Brick_Bottom_Point_Velocity_VX_(m/s)')
+    plt.plot (th[0],th[3],lw = 2, label = 'Right_Brick_Top_Point_Velocity_VX_(m/s)')
+    plt.plot (th[0],th[4],lw = 2, label = 'Right_Brick_Bottom_Point_Velocity_VX_(m/s)')
+    plt.plot (th[0],vrest,lw = 2, label = 'Brick_Restitution')
+    plt.legend(loc = 'lower left')
+    plt.title ('SUB02 FB-FB Normal Contact FB damping=%s'% b.damping)
+    plt.savefig (solfec.outpath + '/Brick_Velocity_Damp%g.png'% b.damping) 
+
+  except ImportError:
+    pass # no reaction
+  
 # solver and run
 GEOMETRIC_EPSILON (1E-6)
 slv = NEWTON_SOLVER() #All default values used
