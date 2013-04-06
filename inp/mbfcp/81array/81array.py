@@ -23,7 +23,7 @@ if argv == None:
   print '----------------------------------------------------------'
   print 'No user paramters passed! Possible paramters:'
   print '----------------------------------------------------------'
-  print '-form name => where name is TL, BC, RO or RG'
+  print '-form name => where name is TL, BC, RO, PR or RG'
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-ibmod num => interstitial brick modes, num >= 6 and <= 64'
   print '-lkmod num => loose key modes, num >= 6 and <= 12'
@@ -52,7 +52,7 @@ if argv != None and len (argv) > 1:
     elif argv [i] == '-lkmod':
       lkmod = max (min (12, long (argv [i+1])), 6)
     elif argv [i] == '-form':
-      if argv [i+1] in ('TL', 'BC', 'RO', 'RG'):
+      if argv [i+1] in ('TL', 'BC', 'RO', 'PR', 'RG'):
 	formu = argv [i+1]
     elif argv [i] == '-afile':
       afile = argv [i+1]
@@ -123,6 +123,8 @@ for inst in model.assembly.instances.values():	# .instances is a dict
   bulkmat = inst.material	        # solfec BULK_MATERIAL object
   if formu == 'RG':
     bdy = BODY(solfec, 'RIGID', mesh, bulkmat, label)
+  elif formu == 'PR':
+    bdy = BODY(solfec, 'PSEUDO_RIGID', mesh, bulkmat, label)
   elif formu != 'RO':
     bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = formu)
   else:
