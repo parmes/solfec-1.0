@@ -25,6 +25,10 @@
 #include <rpc/xdr.h>
 #include "map.h"
 #include "mem.h"
+#if HDF5
+#include <hdf5.h>
+#include <hdf5_hl.h>
+#endif
 
 #if __MINGW32__
   #define FSEEK fseeko64
@@ -48,6 +52,9 @@
 #define __pbf__
 
 #define PBF_MAXSTRING 4096 /* maximal string length used */
+#if HDF5
+#define PBF_MAXSTACK 128 /* maximal group stack */
+#endif
 
 typedef struct pbf_marker PBF_MARKER; /* file marker */
 typedef struct pbf_label PBF_LABEL; /* label type */
@@ -103,6 +110,12 @@ struct pbf
   PBF_FLG compression; /* compression flag */
   PBF_FLG parallel; /* parallel flag */
   PBF *next; /* list of parallel files (READ) */
+#if HDF5
+  uint64_t frame; /* time frame number */
+  hid_t stack [PBF_MAXSTACK]; /* file id followed by groups stack */
+  char *name [PBF_MAXSTACK]; /* file path followed by groups names */
+  short top; /* index of the stack top item */
+#endif
 };
 
 /* open for writing */
@@ -139,6 +152,21 @@ void PBF_Double (PBF *bf, double *value, unsigned int length);
 
 /* read/write NULL-termined string */
 void PBF_String (PBF *bf, char **value);
+
+#if HDF5
+/* push group on stak */
+void PBF_Push_h5 (PBF *bf, const char *name);
+/* then write datasets or attributes */
+void PBF_Char_h5 (PBF *bf, const char *name, char *value, hsize_t length);
+void PBF_Short_h5 (PBF *bf, const char *name, short *value, hsize_t length);
+void PBF_Int_h5 (PBF *bf, const char *name, int *value, hsize_t length);
+void PBF_Long_h5 (PBF *bf, const char *name, long *value, hsize_t length);
+void PBF_Float_h5 (PBF *bf, const char *name, float *value, hsize_t length);
+void PBF_Double_h5 (PBF *bf, const char *name, double *value, hsize_t length);
+void PBF_String_h5 (PBF *bf, const char *name, char **value);
+/* pop group from stack */
+void PBF_Pop_h5 (PBF *bf);
+#endif
 
 /* get time limits in read mode */
 void PBF_Limits (PBF *bf, double *start, double *end);
