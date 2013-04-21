@@ -308,7 +308,7 @@ static int is_empty (FILE *f)
 }
 
 /* copy path */
-static char* copypath (char *path)
+static char* copypath (const char *path)
 {
   char *out = NULL;
   int l;
@@ -384,6 +384,17 @@ PBF* PBF_Write (const char *path)
   bf->parallel = PBF_OFF;
 #endif
   bf->next = NULL;
+#if HDF5
+#if MPI
+  sprintf (txt, "%s.h5.%d", path, rank);
+#else
+  sprintf (txt, "%s.h5", path);
+#endif
+  if ((bf->stack[0] = H5Fcreate(txt, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) < 0) goto failure;
+  bf->name[0] = copypath (txt);
+  bf->frame = 0;
+  bf->top = 0;
+#endif
   free (txt);
   return bf;
   
@@ -438,6 +449,15 @@ PBF* PBF_Read (const char *path)
     xdrstdio_create (&bf->x_lab, bf->lab, XDR_DECODE);
     bf->lph = copypath (txt);
 
+#if HDF5
+    if (m) sprintf (txt, "%s.h5.%d", path, n);
+    else sprintf (txt, "%s.h5", path);
+    if ((bf->stack[0] = H5Fopen(txt, H5F_ACC_RDONLY, H5P_DEFAULT)) < 0) goto failure;
+    bf->name[0] = copypath (txt);
+    bf->frame = 0;
+    bf->top = 0;
+#endif
+
     /* initialise the rest */
     MEM_Init (&bf->mappool, sizeof (MAP), CHUNK);
     MEM_Init (&bf->labpool, sizeof (PBF_LABEL), CHUNK);
@@ -489,6 +509,12 @@ void PBF_Close (PBF *bf)
     fclose (bf->dat);
     fclose (bf->idx);
     fclose (bf->lab);
+
+#if HDF5
+    while (bf->top > 0) PBF_Pop_h5 (bf);
+    H5Fclose (bf->stack[0]);
+    free (bf->name[0]);
+#endif
 
     if (empty) /* remove empty files */
     {
@@ -555,6 +581,15 @@ void PBF_Time (PBF *bf, double *time)
 
     /* set time */
     bf->time = *time;
+
+#if HDF5
+    char name [128];
+    snprintf (name, 128, "/%llu", bf->frame);
+    while (bf->top > 0) PBF_Pop_h5 (bf);
+    PBF_Push_h5 (bf, name);
+    PBF_Double_h5 (bf, "time", time, 1);
+    bf->frame ++;
+#endif
   }
   else
   { 
@@ -669,6 +704,91 @@ void PBF_String (PBF *bf, char **value)
   }
   else ASSERT (xdr_string (&bf->x_dat, value, PBF_MAXSTRING), ERR_PBF_READ);
 }
+
+#if HDF5
+/* push group on stak */
+void PBF_Push_h5 (PBF *bf, const char *name)
+{
+  bf->top ++;
+
+  if (bf->mode == PBF_WRITE)
+  {
+    ASSERT (bf->top < PBF_MAXSTACK, ERR_PBF_WRITE);
+    ASSERT ((bf->stack[bf->top] = H5Gcreate (bf->stack[bf->top-1], name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, ERR_PBF_WRITE);
+  }
+  else
+  {
+    ASSERT (bf->top < PBF_MAXSTACK, ERR_PBF_READ);
+    ASSERT ((bf->stack [bf->top] = H5Gopen (bf->stack[bf->top-1], name, H5P_DEFAULT)) >= 0,  ERR_PBF_WRITE);
+  }
+
+  bf->name[bf->top] = copypath (name);
+}
+
+/* then write datasets or attributes */
+void PBF_Char_h5 (PBF *bf, const char *name, char *value, hsize_t length)
+{
+}
+
+void PBF_Short_h5 (PBF *bf, const char *name, short *value, hsize_t length)
+{
+}
+
+void PBF_Int_h5 (PBF *bf, const char *name, int *value, hsize_t length)
+{
+}
+
+void PBF_Long_h5 (PBF *bf, const char *name, long *value, hsize_t length)
+{
+}
+
+void PBF_Float_h5 (PBF *bf, const char *name, float *value, hsize_t length)
+{
+}
+
+void PBF_Double_h5 (PBF *bf, const char *name, double *value, hsize_t length)
+{
+  if (bf->mode == PBF_WRITE)
+  {
+    if (length == 1)
+    {
+      ASSERT (H5LTset_attribute_double (bf->stack [bf->top], bf->name [bf->top], name, value, length) >= 0, ERR_PBF_WRITE);
+    }
+    else
+    {
+      ASSERT (H5LTmake_dataset_double (bf->stack [bf->top], name, 1, &length, value) >= 0, ERR_PBF_WRITE);
+    }
+  }
+  else
+  {
+#if 0
+    if (length == 1)
+    {
+      ASSERT (H5LTget_attribute_double (bf->stack [bf->top], bf->name [bf->top], name, value) >= 0, ERR_PBF_WRITE);
+    }
+    else
+    {
+      ASSERT (H5LTread_dataset_double (bf->stack [bf->top], name, value) >= 0, ERR_PBF_WRITE);
+    }
+#endif
+  }
+}
+
+void PBF_String_h5 (PBF *bf, const char *name, char **value)
+{
+}
+
+/* pop group from stack */
+void PBF_Pop_h5 (PBF *bf)
+{
+  ASSERT_DEBUG (bf->top > 0, "PBF ERROR: too many pops!\n");
+
+  H5Gclose (bf->stack [bf->top]);
+  free (bf->name[bf->top]);
+
+  bf->top --;
+}
+#endif
 
 void PBF_Limits (PBF *bf, double *start, double *end)
 {

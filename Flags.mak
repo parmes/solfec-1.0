@@ -36,6 +36,14 @@ else
   STD = -std=c99
 endif
 
+ifneq ($(HDF5),yes)
+  HDF5INC =
+  HDF5LIB = 
+  HDF5 = 
+else
+  HDF5 = -DHDF5 $(HDF5INC)
+endif
+
 ifneq ($(XDR),yes)
   XDRINC =
   XDRLIB = 

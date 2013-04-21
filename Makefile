@@ -23,12 +23,12 @@ MUMPS = -Lext/mumps/libseq -lmpiseq
 
 BLOPEXINC = -Iext/blopex/include
 
-CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(XDRINC)
+CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(HDF5) $(XDRINC)
 
-LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(SICONOSLIB)
+LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(SICONOSLIB)
 
 ifeq ($(MPI),yes)
-  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(XDRLIB) $(FCLIB) $(MUMPS)
+  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS)
 endif
 
 EXTO  = obj/fastlz.o\

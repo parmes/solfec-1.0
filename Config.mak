@@ -55,6 +55,15 @@ TIMERS = yes
 POSIX = yes
 
 #
+# HDF5
+#
+
+HDF5 = yes
+
+HDF5INC = -I/Users/tomek/Devel/hdf5/include
+HDF5LIB = -L/Users/tomek/Devel/hdf5/lib -lhdf5 -lhdf5_hl
+
+#
 # XDR
 #
 
