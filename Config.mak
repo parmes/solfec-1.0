@@ -60,8 +60,8 @@ POSIX = yes
 
 HDF5 = yes
 
-HDF5INC = -I/Users/tomek/Devel/hdf5/include
-HDF5LIB = -L/Users/tomek/Devel/hdf5/lib -lhdf5 -lhdf5_hl
+HDF5INC = -I/usr/local/hdf5/include
+HDF5LIB = -L/usr/local/hdf5/lib -lhdf5 -lhdf5_hl
 
 #
 # XDR
