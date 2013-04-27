@@ -2171,16 +2171,20 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
 {
   double (*nod) [3] = msh->cur_nodes, nn [3];
   SET *below, *above, *onpla, *item;
-  int code, bulk, on, i;
+  int code, bulk, on, i, j, k, l;
+  MEM mapmem, setmem;
+  MAP *map, *jtem;
   ELEMENT *ele;
-  MEM setmem;
+  FACE *fac;
 
   MEM_Init (&setmem, sizeof (SET), MEMCHUNK);
+  MEM_Init (&mapmem, sizeof (MAP), MEMCHUNK);
 
   COPY (normal, nn);
   NORMALIZE (nn);
 
   below = above = onpla = NULL;
+  map = NULL;
 
   for (bulk = 0, ele = msh->surfeles; ele;)
   {
@@ -2218,48 +2222,129 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
     else ele = ele->next;
   }
 
-  if (topoadj == 0)
+  if (topoadj == 0) /* produce two new meshes from two sets */
   {
-    *one = produce_subset_mesh (msh, below, surfid);
+    *one = produce_subset_mesh (msh, below, surfid); /* the undefined, new faces will have surfid */
     *two = produce_subset_mesh (msh, above, surfid);
   }
-  else
+  else /* produce new single mesh by doubling the nodes along the faces splitting the two sets */
   {
-    for (item = SET_First (onpla); item; item = SET_Next (item))
-    {
-      ele = item->data;
-      ele->flag = 0;
-    }
+    for (ele = msh->surfeles; ele; ele = ele->next) ele->flag = 0;
+    for (ele = msh->bulkeles; ele; ele = ele->next) ele->flag = 0; /* unmark all elements */
 
     for (item = SET_First (onpla); item; item = SET_Next (item))
     {
       ele = item->data;
-      if (ELEMENT_Contains_Spatial_Point (msh, ele, point)) break;
+      if (ELEMENT_Contains_Spatial_Point (msh, ele, point)) break; /* find first element adjacent to the input point */
     }
 
-    if (item)
+    if (item) /* found */
     {
-      mark_adjacent_in_set (ele, onpla);
+      mark_adjacent_in_set (ele, onpla); /* mark all on plane elements topologically adjacent to that first element */
 
-      for (item = SET_First (onpla); item; item = SET_Next (item))
+      double (*nodes) [3]; /* new mesh definition nodes */
+      int *elements, *e; /* new mesh definition elements, current pointer */
+      int *surfaces, *s; /* new mesh definition faces, current pointer */
+
+      ERRMEM (nodes = malloc (2 * msh->nodes_count * (sizeof (double [3])))); /* overestimate twice */
+      ERRMEM (elements = malloc ((msh->surfeles_count + msh->bulkeles_count + 1) * sizeof (int [10]))); /* overestimate a bit */
+      ERRMEM (surfaces = malloc (8 * (msh->surfeles_count + msh->bulkeles_count) * sizeof (int [6]))); /* overestimate considerabely */
+      e = elements;
+      s = surfaces;
+      *s = surfid; /* new faces will be left undefined and upon rediscovery in MESH_Create will have this value */
+      s ++;
+      k = msh->nodes_count; /* current new free node number at the end of old range */
+
+      for (bulk = 0, ele = msh->surfeles; ele;)
       {
-	ele = item->data;
-	if (ele->flag)
+	if (ele->flag) /* if topologically adjacent to the input point */
 	{
-	  for (i = 0; i < ele->neighs; i ++)
+	  for (i = 0; i < ele->neighs; i ++) /* for all neighbours */
 	  {
-	    if (SET_Contains (below, ele->adj[i], NULL))
+	    if (SET_Contains (below, ele->adj[i], NULL)) /* if neighbour in the other set (on plane is in above) */
 	    {
-	      /* TODO: face i reaches to the below set */
-	      /* TODO: split nodes on this face */
+	      for (j = 0; j < ele->type; j ++)
+	      {
+		for (l = 0; l < ele->adj[i]->type; l ++)
+		{
+		  if (ele->nodes [j] == ele->adj[i]->nodes [l]) /* common node needs to be doubled */
+		  {
+		    if (MAP_Find_Node (map, (void*) (long) ele->nodes [j], NULL) == NULL) /* if new node was not mapped yet */
+		    {
+		      MAP_Insert (&mapmem, &map, (void*) (long) ele->nodes [j], (void*) (long) k, NULL); /* map new node number */
+		      k ++; /* increase new free node number */
+		    }
+		  }
+		}
+	      }
 	    }
 	  }
+
+	  *e = ele->type; e ++;
+	  for (i = 0; i < ele->type; i ++, e ++)
+	  {
+	    jtem = MAP_Find_Node (map, (void*) (long) ele->nodes [i], NULL); /* try finding new node mapping */
+	    if (jtem) *e = (int) (long) jtem->data; /* use new node */
+	    else *e = ele->nodes [i]; /* use old node */
+	  }
+	  *e = ele->volume; e ++;
+
+          for (fac = ele->faces; fac; fac = fac->next) /* copy existing faces */
+	  {
+	    *s = fac->type; s ++;
+	    for (i = 0; i < fac->type; i ++, s ++)
+	    {
+	      jtem = MAP_Find_Node (map, (void*) (long) fac->nodes [i], NULL); /* try finding new node mapping */
+	      if (jtem) *s = (int) (long) jtem->data; /* use new node */
+	      else *s = fac->nodes [i]; /* use old node */
+	    }
+	    *s = fac->surface; s ++;
+	  }
 	}
+	else /* regular element */
+	{
+	  *e = ele->type; e ++;
+	  for (i = 0; i < ele->type; i ++, e ++) *e = ele->nodes [i];
+	  *e = ele->volume; e ++;
+
+	  for (fac = ele->faces; fac; fac = fac->next) /* copy existing faces */
+	  {
+	    *s = fac->type; s ++;
+	    for (i = 0; i < fac->type; i ++, s ++) *s = fac->nodes [i];
+	    *s = fac->surface; s ++;
+	  }
+	}
+
+	if (!bulk && !ele->next) bulk = 1, ele = msh->bulkeles;
+	else ele = ele->next;
       }
+      *e = 0;
+      *s = 0;
+
+      for (i = 0; i < msh->nodes_count; i ++) /* copy old nodes */
+      {
+	COPY (msh->cur_nodes [i], nodes [i]);
+      }
+      for (jtem = MAP_First (map); jtem; jtem = MAP_Next (jtem)) /* copy new nodes */
+      {
+	i = (int) (long) jtem->key;
+	j = (int) (long) jtem->data;
+
+	COPY (msh->cur_nodes [i], nodes [j]);
+      }
+
+      *one = MESH_Create (nodes, elements, surfaces); /* create new mesh */
+      *two = NULL;
+
+      free (nodes);
+      free (elements);
+      free (surfaces);
     }
+    else *one = *two = NULL; /* topologically adjacent split has failed */
   }
 
   MEM_Release (&setmem);
+  MEM_Release (&mapmem);
 }
 #endif
 
