@@ -113,7 +113,6 @@ struct pbf
 #if HDF5
   uint64_t frame; /* time frame number */
   hid_t stack [PBF_MAXSTACK]; /* file id followed by groups stack */
-  char *name [PBF_MAXSTACK]; /* file path followed by groups names */
   short top; /* index of the stack top item */
 #endif
 };

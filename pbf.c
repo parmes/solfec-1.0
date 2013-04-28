@@ -205,6 +205,14 @@ static void initialise_frame (PBF *bf, int frm)
     /* get next label */
     ASSERT (xdr_int (&bf->x_idx, &index), ERR_PBF_INDEX_FILE_CORRUPTED);
   }
+
+#if HDF5
+  char name [128];
+  bf->frame = frm;
+  snprintf (name, 128, "/%llu", bf->frame);
+  while (bf->top > 0) PBF_Pop_h5 (bf);
+  PBF_Push_h5 (bf, name);
+#endif
 }
 
 /* initialise labels and time index */
@@ -391,7 +399,6 @@ PBF* PBF_Write (const char *path)
   sprintf (txt, "%s.h5", path);
 #endif
   if ((bf->stack[0] = H5Fcreate(txt, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) < 0) goto failure;
-  bf->name[0] = copypath (txt);
   bf->frame = 0;
   bf->top = 0;
 #endif
@@ -453,7 +460,6 @@ PBF* PBF_Read (const char *path)
     if (m) sprintf (txt, "%s.h5.%d", path, n);
     else sprintf (txt, "%s.h5", path);
     if ((bf->stack[0] = H5Fopen(txt, H5F_ACC_RDONLY, H5P_DEFAULT)) < 0) goto failure;
-    bf->name[0] = copypath (txt);
     bf->frame = 0;
     bf->top = 0;
 #endif
@@ -513,7 +519,6 @@ void PBF_Close (PBF *bf)
 #if HDF5
     while (bf->top > 0) PBF_Pop_h5 (bf);
     H5Fclose (bf->stack[0]);
-    free (bf->name[0]);
 #endif
 
     if (empty) /* remove empty files */
@@ -719,31 +724,47 @@ void PBF_Push_h5 (PBF *bf, const char *name)
   else
   {
     ASSERT (bf->top < PBF_MAXSTACK, ERR_PBF_READ);
-    ASSERT ((bf->stack [bf->top] = H5Gopen (bf->stack[bf->top-1], name, H5P_DEFAULT)) >= 0,  ERR_PBF_WRITE);
+    ASSERT ((bf->stack [bf->top] = H5Gopen (bf->stack[bf->top-1], name, H5P_DEFAULT)) >= 0,  ERR_PBF_READ);
   }
-
-  bf->name[bf->top] = copypath (name);
 }
+
+#define IOHDF5(type)\
+  if (bf->mode == PBF_WRITE)\
+  {\
+    if (length == 1)\
+    {\
+      ASSERT (H5LTset_attribute_##type (bf->stack [bf->top], ".", name, value, length) >= 0, ERR_PBF_WRITE);\
+    }\
+    else\
+    {\
+      ASSERT (H5LTmake_dataset_##type (bf->stack [bf->top], name, 1, &length, value) >= 0, ERR_PBF_WRITE);\
+    }\
+  }
 
 /* then write datasets or attributes */
 void PBF_Char_h5 (PBF *bf, const char *name, char *value, hsize_t length)
 {
+  IOHDF5 (char);
 }
 
 void PBF_Short_h5 (PBF *bf, const char *name, short *value, hsize_t length)
 {
+  IOHDF5 (short);
 }
 
 void PBF_Int_h5 (PBF *bf, const char *name, int *value, hsize_t length)
 {
+  IOHDF5 (int);
 }
 
 void PBF_Long_h5 (PBF *bf, const char *name, long *value, hsize_t length)
 {
+  IOHDF5 (long);
 }
 
 void PBF_Float_h5 (PBF *bf, const char *name, float *value, hsize_t length)
 {
+  IOHDF5 (float);
 }
 
 void PBF_Double_h5 (PBF *bf, const char *name, double *value, hsize_t length)
@@ -752,7 +773,7 @@ void PBF_Double_h5 (PBF *bf, const char *name, double *value, hsize_t length)
   {
     if (length == 1)
     {
-      ASSERT (H5LTset_attribute_double (bf->stack [bf->top], bf->name [bf->top], name, value, length) >= 0, ERR_PBF_WRITE);
+      ASSERT (H5LTset_attribute_double (bf->stack [bf->top], ".", name, value, length) >= 0, ERR_PBF_WRITE);
     }
     else
     {
@@ -764,11 +785,11 @@ void PBF_Double_h5 (PBF *bf, const char *name, double *value, hsize_t length)
 #if 0
     if (length == 1)
     {
-      ASSERT (H5LTget_attribute_double (bf->stack [bf->top], bf->name [bf->top], name, value) >= 0, ERR_PBF_WRITE);
+      ASSERT (H5LTget_attribute_double (bf->stack [bf->top], ".", name, value) >= 0, ERR_PBF_READ);
     }
     else
     {
-      ASSERT (H5LTread_dataset_double (bf->stack [bf->top], name, value) >= 0, ERR_PBF_WRITE);
+      ASSERT (H5LTread_dataset_double (bf->stack [bf->top], name, value) >= 0, ERR_PBF_READ);
     }
 #endif
   }
@@ -776,6 +797,19 @@ void PBF_Double_h5 (PBF *bf, const char *name, double *value, hsize_t length)
 
 void PBF_String_h5 (PBF *bf, const char *name, char **value)
 {
+  if (bf->mode == PBF_WRITE)
+  {
+    ASSERT (H5LTset_attribute_string (bf->stack [bf->top], ".", name, *value) >= 0, ERR_PBF_WRITE);
+  }
+  else
+  {
+#if 0
+    int size;
+    ASSERT (H5LTget_attribute_ndims (bf->stack [bf->top], ".", name, &size) >= 0, ERR_PBF_READ); 
+    ERRMEM (*value = malloc (sizeof (char [size])));
+    ASSERT (H5LTget_attribute_string (bf->stack [bf->top], ".", name, *value) >= 0, ERR_PBF_READ);
+#endif
+  }
 }
 
 /* pop group from stack */
@@ -784,7 +818,6 @@ void PBF_Pop_h5 (PBF *bf)
   ASSERT_DEBUG (bf->top > 0, "PBF ERROR: too many pops!\n");
 
   H5Gclose (bf->stack [bf->top]);
-  free (bf->name[bf->top]);
 
   bf->top --;
 }
