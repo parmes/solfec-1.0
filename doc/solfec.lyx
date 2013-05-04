@@ -5237,7 +5237,7 @@ obj.nnod
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="2" columns="1">
+<lyxtabular version="3" rows="3" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -5267,6 +5267,28 @@ obj.node (n | x, y, z)
 \series default
  - returns a (x, y, z) tuple storing coordinates of nth node; if x, y or
  z are given the current coordinates are overwritten
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.nodes_on_surface (surfid)
+\series default
+ 
+\emph default
+- returns a list of node numbers belonging to the given surface; 
+\emph on
+None
+\emph default
+ object is returned if the list is empty.
 \end_layout
 
 \end_inset
@@ -10963,7 +10985,19 @@ normal
 \series bold
 surfid
 \series default
- - crack surface identifier
+ - tuple 
+\emph on
+(surf1, surf2)
+\emph default
+ of the two new crack surfaces identifiers; Surface 
+\emph on
+surf1
+\emph default
+ has normal 
+\begin_inset Formula $\left(n_{x},n_{y},n_{z}\right)$
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Itemize
@@ -12033,7 +12067,7 @@ angle
 \end_layout
 
 \begin_layout Subsection*
-(one, two) = SPLIT (shape, point, normal | surfid, topoadj)
+(one, two) = SPLIT (shape, point, normal | surfid, topoadj, remesh)
 \end_layout
 
 \begin_layout Standard
@@ -12109,7 +12143,21 @@ normal
 \series bold
 surfid
 \series default
- - surface identifier of a newly created surface (default: 0)
+ - 
+\emph on
+(surf1, surf2)
+\emph default
+ tuple defining a pair of surface identifier for the two newly created surfaces
+ (default: 0,0).
+ Surface 
+\emph on
+surf1
+\emph default
+ has the outward normal 
+\emph on
+(nx, ny, nz)
+\emph default
+.
 \end_layout
 
 \begin_layout Itemize
@@ -12121,6 +12169,16 @@ topoadj
  propagate across the whole body and result in two body fragments; when
  'ON' the splitting will propagate from the input point through the topologicall
 y adjacent elements, which may not produce fragmentation;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+remesh
+\series default
+ - 'ON' or 'OFF' (default: 'ON') flag used only for MESH based shapes; when
+ 'ON' mesh splitting away from inter-element boundaries will lead to tetrahedral
+ re-meshing; when 'OFF' it will raise an error.
 \end_layout
 
 \begin_layout Standard

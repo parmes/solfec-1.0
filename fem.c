@@ -3609,7 +3609,7 @@ void FEM_Update_Rough_Mesh (BODY *bod)
 }
 
 /* split body by a referential plane; output one body with new boundary or two bodies if fragmentation occurs */
-void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid, BODY **one, BODY **two)
+void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid[2], BODY **one, BODY **two)
 {
   SHAPE *copy, *sone, *stwo;
   MESH *mone, *mtwo;
@@ -3625,7 +3625,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
   {
     MESH *copy = MESH_Copy (bod->msh);
     MESH_Update (copy, NULL, NULL, NULL);
-    MESH_Split (copy, point, normal, topoadj, surfid, &mone, &mtwo);
+    MESH_Split (copy, point, normal, topoadj, surfid, 1, &mone, &mtwo);
     MESH_Destroy (copy);
   }
   else

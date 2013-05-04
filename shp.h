@@ -108,7 +108,7 @@ TRI* SHAPE_Cut (SHAPE *shp, double *point, double *normal, int *m,
 
 /* split shape by plane; output two parts of the split shape;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
-void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int surfid, SHAPE **one, SHAPE **two);
+void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int surfid[2], SHAPE **one, SHAPE **two);
 
 /* is shape separable into disjoint parts */
 int SHAPE_Separable (SHAPE *shp);

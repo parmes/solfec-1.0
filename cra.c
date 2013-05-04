@@ -223,7 +223,7 @@ void CRACKS_Pack (CRACK *list, int *dsize, double **d, int *doubles, int *isize,
   {
     pack_doubles (dsize, d, doubles, cra->point, 6);
     pack_int (isize, i, ints, cra->crit);
-    pack_int (isize, i, ints, cra->surfid);
+    pack_ints (isize, i, ints, cra->surfid, 2);
     pack_double (dsize, d, doubles, cra->ft);
     pack_double (dsize, d, doubles, cra->Gf);
   }
@@ -242,7 +242,7 @@ CRACK* CRACKS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int 
     cra = CRACK_Create ();
     unpack_doubles (dpos, d, doubles, cra->point, 6);
     cra->crit = unpack_int (ipos, i, ints);
-    cra->surfid = unpack_int (ipos, i, ints);
+    unpack_ints (ipos, i, ints, cra->surfid, 2);
     cra->ft = unpack_double (dpos, d, doubles);
     cra->Gf = unpack_double (dpos, d, doubles);
     cra->next = out;

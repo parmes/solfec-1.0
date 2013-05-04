@@ -13,7 +13,7 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5, restituti
 
 if splitme:
   mesh = TETRAHEDRALIZE ('inp/mesh/hinge.stl', 'out/stlpart/mesh0.dat')
-  (a, b) = SPLIT (mesh, (5, 5, 5), (1, 10, 10), 1)
+  (a, b) = SPLIT (mesh, (5, 5, 5), (1, 10, 10), (1, 2))
   a = TETRAHEDRALIZE (a, 'out/stlpart/mesh1.dat', quality = 1.5)
   b = TETRAHEDRALIZE (b, 'out/stlpart/mesh2.dat', quality = 1.5)
   TRANSLATE (b, (0, 0, 2))

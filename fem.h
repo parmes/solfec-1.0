@@ -97,7 +97,7 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
 void FEM_Update_Rough_Mesh (BODY *bod);
 
 /* split body by a referential plane; output one body with new boundary or two bodies if fragmentation occurs */
-void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid, BODY **one, BODY **two);
+void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid[2], BODY **one, BODY **two);
 
 /* separate body whose shape is separable into sub-bodies */
 BODY** FEM_Separate (BODY *bod, int *m);

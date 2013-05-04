@@ -1910,7 +1910,7 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
   }
 }
 
-void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid, BODY **one, BODY **two)
+void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid[2], BODY **one, BODY **two)
 {
   switch (bod->kind)
   {

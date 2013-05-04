@@ -985,9 +985,10 @@ static int inter_element_split (MESH *msh, double *point, double *normal, short 
       s ++;
       k = msh->nodes_count; /* current new free node number at the end of old range */
 
-      for (bulk = 0, ele = msh->surfeles; ele;)
+      for (item = SET_First (onpla); item; item = SET_Next (item)) /* for all on above and plane elements */
       {
-	if (ele->flag) /* if topologically adjacent to the input point */
+        ele = item->data;
+        if (ele->flag) /* if topologically adjacent to the input point */
 	{
 	  for (i = 0; i < ele->neighs; i ++) /* for all neighbours */
 	  {
@@ -1009,7 +1010,17 @@ static int inter_element_split (MESH *msh, double *point, double *normal, short 
 	      }
 	    }
 	  }
+	}
+      }
 
+      /* all new nodes needed to be mapped first, since not all on plane elements need to have neighbours
+       * in the below mesh; there may be on plane elements adjacent to other on plane elements which have
+       * neighbours in the below mesh and for these the newly created nodes need to be common */
+
+      for (bulk = 0, ele = msh->surfeles; ele;)
+      {
+	if (ele->flag) /* if topologically adjacent to the input point */
+	{
 	  *e = ele->type; e ++;
 	  for (i = 0; i < ele->type; i ++, e ++)
 	  {
@@ -1826,12 +1837,13 @@ TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m)
 /* split mesh in two with plane defined by (point, normal); output meshes are tetrahedral if some
  * elements are crossed; if only element boundaries are crossed then the original mesh is used;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
-void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int surfid, MESH **one, MESH **two)
+int MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int surfid[2], int remesh, MESH **one, MESH **two)
 {
   TRI *c, *b, *a, *t, *e, *q;
   int mc, mb, ma, mq;
   short onepart;
   MESH *tmp;
+  FACE *fac;
   KDT *kd;
 
   c = MESH_Cut (msh, point, normal, &mc);
@@ -1847,12 +1859,20 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
     c = b;
   }
 
-  for (t = c, e = t + mc; t != e; t ++) t->flg = surfid;
+  for (t = c, e = t + mc; t != e; t ++) t->flg = -INT_MAX;
 
   if (c)
   {
-    if (!inter_element_split (msh, point, normal, topoadj, surfid, one, two))
+    if (!inter_element_split (msh, point, normal, topoadj, -INT_MAX, one, two))
     {
+      if (remesh)
+      {
+	WARNING (0, "\nMesh splitting will generate a modified tetrahedral mesh in place of the input one.\n"
+		    "The meshing is randomized and it may generate different results for the same input.\n"
+		    "Use TETRAHEDRALIZE in order to refine and save the generated mesh parts.\n");
+      }
+      else return 1;
+
       if (topoadj && onepart)
       {
 	kd = TRI_Kdtree (c, mc);
@@ -1868,7 +1888,7 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
 	/* TODO: map volume materials */
 
 	ASSERT_DEBUG_EXT (
-	    inter_element_split (tmp, point, normal, 1, surfid, one, two), /* this will be an inter-element split now */
+	    inter_element_split (tmp, point, normal, 1, -INT_MAX, one, two), /* this will be an inter-element split now */
 	    "Local inter-element splitting failed after remeshing");
 
 	MESH_Destroy (tmp);
@@ -1921,6 +1941,34 @@ void MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int su
       *one = NULL;
     }
   }
+
+  if (*one)
+  {
+    for (fac = (*one)->faces; fac; fac = fac->n)
+    {
+      if (fac->surface == -INT_MAX)
+      {
+        double dot = DOT (fac->normal, normal);
+	if (dot > 0.0) fac->surface = surfid[0];
+	else fac->surface = surfid[1];
+      }
+    }
+  }
+
+  if (*two)
+  {
+    for (fac = (*two)->faces; fac; fac = fac->n)
+    {
+      if (fac->surface == -INT_MAX)
+      {
+        double dot = DOT (fac->normal, normal);
+	if (dot > 0.0) fac->surface = surfid[0];
+	else fac->surface = surfid[1];
+      }
+    }
+  }
+
+  return 0;
 }
 
 /* is mesh separable into disjoint parts */

@@ -103,7 +103,7 @@ TRI* CONVEX_Cut (CONVEX *cvx, double *point, double *normal, int *m);
 /* split convices in two lists with plane defined by (point, normal); adjacencies between
  * the split lists elements need to be recomputed; surfid corresponds to the new surface;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
-void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two);
+void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid[2], CONVEX **one, CONVEX **two);
 
 /* is convex set separable into disjoint parts */
 int CONVEX_Separable (CONVEX *cvx);

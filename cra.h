@@ -40,7 +40,7 @@ struct crack
 
   enum {TENSILE} crit;
 
-  int surfid,
+  int surfid[2],
       nepn;
 
   double ft,
