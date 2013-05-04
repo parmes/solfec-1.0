@@ -983,6 +983,52 @@ static PyObject* lng_MESH_node (lng_MESH *self, PyObject *args, PyObject *kwds)
   return Py_BuildValue ("(d, d, d)", self->msh->cur_nodes [n][0], self->msh->cur_nodes[n][1], self->msh->cur_nodes[n][2]);
 }
 
+/* return nodes numbers on surface */
+static PyObject* lng_MESH_nodes_on_surface (lng_MESH *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("surfid");
+  PyObject *list, *obj;
+  SET *set, *item;
+  int surfid;
+  FACE *fac;
+  int n;
+
+  PARSEKEYS ("i", &surfid);
+
+  if (!self->msh)
+  {
+    PyErr_SetString (PyExc_ValueError, "The MESH object is empty");
+    return NULL;
+  }
+
+  for (set = NULL, fac = self->msh->faces; fac; fac = fac->n)
+  {
+    if (fac->surface == surfid)
+    {
+      for (n = 0; n < fac->type; n ++)
+      {
+        SET_Insert (NULL, &set, (void*) (long) fac->nodes[n], NULL);
+      }
+    }
+  }
+
+  if (set == NULL) Py_RETURN_NONE;
+  else
+  {
+    if (!(list = PyList_New (SET_Size (set)))) return NULL;
+
+    for (item = SET_First (set), n = 0; item; item = SET_Next (item), n ++)
+    {
+      if (!(obj = PyInt_FromLong((long)item->data))) return NULL;
+
+      PyList_SetItem (list, n, obj);
+    }
+
+    SET_Free (NULL, &set);
+    return list;
+  }
+}
+
 /* number of nodes */
 static PyObject* lng_MESH_get_nnod (lng_MESH *self, void *closure)
 {
@@ -1005,6 +1051,7 @@ static int lng_MESH_set_nnod (lng_MESH *self, PyObject *value, void *closure)
 static PyMethodDef lng_MESH_methods [] =
 { 
   {"node", (PyCFunction)lng_MESH_node, METH_VARARGS|METH_KEYWORDS, "Return a node point of a mesh"},
+  {"nodes_on_surface", (PyCFunction)lng_MESH_nodes_on_surface, METH_VARARGS|METH_KEYWORDS, "Return list of node numbers belonging to a given surface"},
   {NULL, NULL, 0, NULL}
 };
 
@@ -6015,22 +6062,20 @@ static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("body", "point", "normal", "surfid", "criterion", "topoadj", "ft", "Gf");
-  PyObject *point, *normal, *criterion, *topoadj;
+  PyObject *point, *normal, *surfid, *criterion, *topoadj;
   double p [3], n [3], ft, Gf;
   lng_BODY *body;
   CRACK *cra;
-  int surfid;
 
   topoadj = NULL;
   ft = 0.0;
   Gf = 0.0;
 
-  PARSEKEYS ("OOOiO|Odd", &body, &point, &normal,
+  PARSEKEYS ("OOOOO|Odd", &body, &point, &normal,
              &surfid, &criterion, &topoadj, &ft, &Gf);
 
-  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
-            is_tuple (normal, kwl[2], 3) && is_string (criterion, kwl[4]) &&
-	    is_string (topoadj, kwl[5]));
+  TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (normal, kwl[2], 3) &&
+            is_tuple (surfid, kwl[3], 2) && is_string (criterion, kwl[4]) && is_string (topoadj, kwl[5]));
 
 #if MPI && LOCAL_BODIES
   if (IS_HERE (body))
@@ -6056,7 +6101,8 @@ static PyObject* lng_SIMPLIFIED_CRACK (PyObject *self, PyObject *args, PyObject 
   cra = CRACK_Create ();
   COPY (p, cra->point);
   COPY (n, cra->normal);
-  cra->surfid = surfid;
+  cra->surfid[0] = PyInt_AsLong (PyTuple_GetItem (surfid, 0));
+  cra->surfid[1] = PyInt_AsLong (PyTuple_GetItem (surfid, 1));
 
   if (topoadj)
   {
@@ -6615,20 +6661,22 @@ static PyObject* shape_to_list (SHAPE *shp)
 /* split shape by plane */
 static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("shape", "point", "normal", "surfid", "topoadj");
-  PyObject *shape, *point, *normal, *topoadj, *out, *b, *f;
+  KEYWORDS ("shape", "point", "normal", "surfid", "topoadj", "remesh");
+  PyObject *shape, *point, *normal, *surfid, *topoadj, *remesh, *out, *b, *f;
   SHAPE *shp, *shq, *back, *front, *next;
   double p [3], n [3];
-  int error, surfid;
-  short tadj;
+  int error, surf[2];
+  short tadj, rmsh;
 
-  surfid = 0;
+  surf [0] = surf [1] = 0;
+  surfid = NULL;
   topoadj = NULL;
+  remesh = NULL;
 
-  PARSEKEYS ("OOO|iO", &shape, &point, &normal, &surfid, &topoadj);
+  PARSEKEYS ("OOO|OOO", &shape, &point, &normal, &surfid, &topoadj);
 
-  TYPETEST (is_shape (shape, kwl[0]) && is_tuple (point, kwl[1], 3) &&
-            is_tuple (normal, kwl[2], 3) && is_string (topoadj, kwl [3]));
+  TYPETEST (is_shape (shape, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (normal, kwl[2], 3)
+         && is_tuple (surfid, kwl[3], 2) && is_string (topoadj, kwl [4]) && is_string (remesh, kwl[5]));
 
   p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
   p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
@@ -6637,6 +6685,12 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   n [0] = PyFloat_AsDouble (PyTuple_GetItem (normal, 0));
   n [1] = PyFloat_AsDouble (PyTuple_GetItem (normal, 1));
   n [2] = PyFloat_AsDouble (PyTuple_GetItem (normal, 2));
+
+  if (surfid)
+  {
+    surf [0] = PyInt_AsLong (PyTuple_GetItem (surfid, 0));
+    surf [1] = PyInt_AsLong (PyTuple_GetItem (surfid, 1));
+  }
 
   if (topoadj)
   {
@@ -6649,6 +6703,18 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
     }
   }
   else tadj = 0;
+
+  if (remesh)
+  {
+    IFIS (remesh, "ON") rmsh = 1;
+    ELIF (remesh, "OFF") rmsh = 0;
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid remesh value: neither 'ON' nor 'OFF'");
+      return NULL;
+    }
+  }
+  else rmsh = 1;
 
   shp = create_shape (shape, 1); /* empty */
 
@@ -6664,7 +6730,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	CONVEX *one = NULL, *two = NULL;
 
-	CONVEX_Split (shq->data, p, n, tadj, surfid, &one, &two);
+	CONVEX_Split (shq->data, p, n, tadj, surf, &one, &two);
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, two), front);
       }
@@ -6673,7 +6739,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	CONVEX *one = NULL, *two = NULL;
 
-	SPHERE_Split (shq->data, p, n, tadj, surfid, &one, &two);
+	SPHERE_Split (shq->data, p, n, tadj, surf, &one, &two);
 	if (one && two)
 	{
 	  back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
@@ -6687,7 +6753,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	CONVEX *one = NULL, *two = NULL;
 
-	ELLIP_Split (shq->data, p, n, tadj, surfid, &one, &two);
+	ELLIP_Split (shq->data, p, n, tadj, surf, &one, &two);
 	if (one && two)
 	{
 	  back = SHAPE_Glue (SHAPE_Create (SHAPE_CONVEX, one), back);
@@ -6701,13 +6767,14 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
       {
 	MESH *one = NULL, *two = NULL;
 
-	MESH_Split (shq->data, p, n, tadj, surfid, &one, &two);
+	if (MESH_Split (shq->data, p, n, tadj, surf, rmsh, &one, &two) == 1)
+	{
+	  PyErr_SetString (PyExc_ValueError, "Inter-element boundary mesh splitting failed while remeshing is disabled");
+	  return NULL;
+	}
+
 	if (one) back = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, one), back);
 	if (two) front = SHAPE_Glue (SHAPE_Create (SHAPE_MESH, two), front);
-
-	WARNING (0, "\nMesh splitting may generate a modified tetrahedral mesh in place of the input one.\n"
-	            "The meshing is randomized and it may generate different results for the same input.\n"
-	            "Use TETRAHEDRALIZE in order to refine and save the generated mesh parts.\n");
       }
       break;
       }

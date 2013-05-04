@@ -18,7 +18,7 @@ GRAVITY (sol, (0, 0, -10))
 def split_pipe (base, point, normal, topoadj):
   shp = PIPE  (base, (0, 0, 2), 0.5, 1, 1, 8, 1, 1, [1, 1, 1, 1, 1, 1])
   point = TRANSLATE (point, base)
-  (a, b) = SPLIT (COPY (shp), point, normal, 0, topoadj)
+  (a, b) = SPLIT (COPY (shp), point, normal, (2, 3), topoadj)
   if topoadj == 'ON':
     if a == None: shp = b
     else:
@@ -26,12 +26,18 @@ def split_pipe (base, point, normal, topoadj):
 	print 'Error in topologically adjacent splitting!'
 	sys.exit (1)
       shp = a
+    print shp.nodes_on_surface (2)
+    print shp.nodes_on_surface (3)
     BODY (sol, 'FINITE_ELEMENT', shp, bulk)
   else:
     if a == None or b == None:
       print 'Error in splitting!'
       sys.exit (1)
     else:
+      print a.nodes_on_surface (2)
+      print a.nodes_on_surface (3)
+      print b.nodes_on_surface (2)
+      print b.nodes_on_surface (3)
       BODY (sol, 'FINITE_ELEMENT', a, bulk)
       BODY (sol, 'FINITE_ELEMENT', b, bulk)
 

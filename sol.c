@@ -284,7 +284,6 @@ static void read_timers (SOLFEC *sol)
       char name [64];
       double value;
       hid_t attr;
-      TIMING *t;
 
       ASSERT ((attr = H5Aopen_idx (bf->stack [bf->top], i)) >= 0, ERR_PBF_READ);
       ASSERT (H5Aget_name (attr, 64, name) >= 0, ERR_PBF_READ);
@@ -292,6 +291,8 @@ static void read_timers (SOLFEC *sol)
       PBF_Double_h5 (bf, name, &value, 1);
 
 #if 0
+      TIMING *t;
+
       if (!(t = MAP_Find (sol->timers, name, (MAP_Compare) strcmp))) /* add timer if missing */
       {
 	ERRMEM (t = MEM_Alloc (&sol->timemem));

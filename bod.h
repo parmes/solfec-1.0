@@ -290,7 +290,7 @@ double BODY_Kinetic_Energy (BODY *bod);
 void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *values);
 
 /* split body by a referential plane; output one body with new boundary or two bodies if fragmentation occurs */
-void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid, BODY **one, BODY **two);
+void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid[2], BODY **one, BODY **two);
 
 /* separate body whose shape is separable into sub-bodies */
 BODY** BODY_Separate (BODY *bod, int *m);

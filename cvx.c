@@ -383,7 +383,7 @@ static int convex_touches_triangulation (CONVEX *cvx, KDT *kd)
 }
 
 /* split convex in two halves, using plane (point 'pt, normal 'nl') */
-static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one, CONVEX **two, MEM *extmem, MAP **below, MAP **above)
+static int split (CONVEX *cvx, double *pt, double *nl, int surfid[2], CONVEX **one, CONVEX **two, MEM *extmem, MAP **below, MAP **above)
 {
   double val [3], pla [4], dpla [4], dl, *ver, *ov, *tv, *vv, *oo, *tt;
   MEM edgemem, setmem, mapmem;
@@ -523,7 +523,7 @@ static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one,
       dl = LEN4 (dpla);
       if (dl < GEOMETRIC_EPSILON) /* cutting plane */
       {
-	*f = surfid;
+	*f = surfid[0];
       }
       else if ((jtem = MAP_Find_Node (normals, oo, (MAP_Compare) POINTS_COMPARE)))
       {
@@ -540,7 +540,7 @@ static int split (CONVEX *cvx, double *pt, double *nl, int surfid, CONVEX **one,
       dl = LEN4 (dpla);
       if (dl < GEOMETRIC_EPSILON) /* cutting plane */
       {
-	*f = surfid;
+	*f = surfid[1];
       }
       else if ((jtem = MAP_Find_Node (normals, oo, (MAP_Compare) POINTS_COMPARE)))
       {
@@ -959,7 +959,7 @@ out:
 /* split convices in two lists with plane defined by (point, normal); adjacencies between
  * the split lists elements need to be recomputed; surfid corresponds to the new surface;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
-void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two)
+void CONVEX_Split (CONVEX *cvx, double *point, double *normal, short topoadj, int surfid[2], CONVEX **one, CONVEX **two)
 {
   MAP *below, *above, *other;
   CONVEX *x, *y, *three;

@@ -67,7 +67,7 @@ TRI* SPHERE_Cut (SPHERE *sph, double *point, double *normal, int *m);
 
 /* split sphere in two with plane defined by (point, normal); surfid corresponds to the new surface;
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
-void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, int surfid, CONVEX **one, CONVEX **two);
+void SPHERE_Split (SPHERE *sph, double *point, double *normal, short topoadj, int surfid[2], CONVEX **one, CONVEX **two);
 
 /* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */
