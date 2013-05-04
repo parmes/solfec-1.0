@@ -19,16 +19,94 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#ifndef __pbf__
+#define __pbf__
+
+#if HDF5 /* FIXME new implementation FIXME */
+
+#include <hdf5.h>
+#include <hdf5_hl.h>
+
+#define PBF_MAXSTACK 128 /* maximal group stack */
+
+typedef struct pbf PBF; /* file type */
+
+/* access mode */
+typedef enum {PBF_READ, PBF_WRITE} PBF_ACC;
+
+/* compression flag */
+typedef enum {PBF_ON, PBF_OFF} PBF_FLG;
+
+/* file */
+struct pbf
+{
+  PBF_ACC mode; /* access mode */
+  PBF_FLG compression; /* compression flag */
+  PBF_FLG parallel; /* parallel flag */
+
+  double time, *times; /* current time, all times (READ) */
+
+  int frame, count; /* current time frame number, total frames count */
+
+  int *i; /* raw ints space */
+  int ipos, ints; /* raw ints position and size */
+  double *d; /* raw doubles space */
+  int dpos, doubles; /* raw doubles position and size */
+
+  hid_t stack [PBF_MAXSTACK]; /* file id followed by groups stack */
+  short top; /* index of the stack top item */
+
+  PBF *next; /* list of parallel files (READ) */
+};
+
+/* open for writing */
+PBF* PBF_Write (const char *path);
+
+/* open for reading */
+PBF* PBF_Read (const char *path);
+
+/* close file */
+void PBF_Close (PBF *bf);
+
+/* initialize new time frame for writing/reading */
+void PBF_Time (PBF *bf, double *time);
+
+/* write/read raw data <=> order of writing and reading must be preserved */
+void PBF_Int (PBF *bf, int *value, int length);
+void PBF_Double (PBF *bf, double *value, int length);
+
+/* push/pop group on stak */
+void PBF_Push (PBF *bf, const char *name);
+void PBF_Pop (PBF *bf);
+
+/* write/read named datasets (length > 1) or attributes (length == 1) */
+void PBF_Int2 (PBF *bf, const char *name, int *value, hsize_t length);
+void PBF_Double2 (PBF *bf, const char *name, double *value, hsize_t length);
+void PBF_String2 (PBF *bf, const char *name, char **value);
+
+/* get time limits in read mode */
+void PBF_Limits (PBF *bf, double *start, double *end);
+
+/* seek to time in read mode */
+void PBF_Seek (PBF *bf, double time);
+
+/* make 'steps' backward in read mode */
+int PBF_Backward (PBF *bf, int steps);
+
+/* make 'steps' forward in read mode */
+int PBF_Forward (PBF *bf, int steps);
+
+/* get number of time instants spanned by [t0, t1] */
+unsigned int PBF_Span (PBF *bf, double t0, double t1);
+
+#else /* old XDR based implementation */
+
 #include <stdint.h>
 #include <stdio.h>
 #include <rpc/types.h>
 #include <rpc/xdr.h>
 #include "map.h"
 #include "mem.h"
-#if HDF5
-#include <hdf5.h>
-#include <hdf5_hl.h>
-#endif
 
 #if __MINGW32__
   #define FSEEK fseeko64
@@ -48,13 +126,7 @@
   #define xdr_uint64_t xdr_u_int64_t
 #endif
 
-#ifndef __pbf__
-#define __pbf__
-
 #define PBF_MAXSTRING 4096 /* maximal string length used */
-#if HDF5
-#define PBF_MAXSTACK 128 /* maximal group stack */
-#endif
 
 typedef struct pbf_marker PBF_MARKER; /* file marker */
 typedef struct pbf_label PBF_LABEL; /* label type */
@@ -110,11 +182,6 @@ struct pbf
   PBF_FLG compression; /* compression flag */
   PBF_FLG parallel; /* parallel flag */
   PBF *next; /* list of parallel files (READ) */
-#if HDF5
-  uint64_t frame; /* time frame number */
-  hid_t stack [PBF_MAXSTACK]; /* file id followed by groups stack */
-  short top; /* index of the stack top item */
-#endif
 };
 
 /* open for writing */
@@ -152,21 +219,6 @@ void PBF_Double (PBF *bf, double *value, unsigned int length);
 /* read/write NULL-termined string */
 void PBF_String (PBF *bf, char **value);
 
-#if HDF5
-/* push group on stak */
-void PBF_Push_h5 (PBF *bf, const char *name);
-/* then write datasets or attributes */
-void PBF_Char_h5 (PBF *bf, const char *name, char *value, hsize_t length);
-void PBF_Short_h5 (PBF *bf, const char *name, short *value, hsize_t length);
-void PBF_Int_h5 (PBF *bf, const char *name, int *value, hsize_t length);
-void PBF_Long_h5 (PBF *bf, const char *name, long *value, hsize_t length);
-void PBF_Float_h5 (PBF *bf, const char *name, float *value, hsize_t length);
-void PBF_Double_h5 (PBF *bf, const char *name, double *value, hsize_t length);
-void PBF_String_h5 (PBF *bf, const char *name, char **value);
-/* pop group from stack */
-void PBF_Pop_h5 (PBF *bf);
-#endif
-
 /* get time limits in read mode */
 void PBF_Limits (PBF *bf, double *start, double *end);
 
@@ -181,5 +233,5 @@ int PBF_Forward (PBF *bf, unsigned int steps);
 
 /* get number of time instants spanned by [t0, t1] */
 unsigned int PBF_Span (PBF *bf, double t0, double t1);
-
+#endif
 #endif
