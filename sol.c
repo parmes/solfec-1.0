@@ -196,12 +196,18 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
 
   /* write timers */
 
+#if HDF5
+  PBF_Push (sol->bf, "TIMERS");
+  for (MAP *item = MAP_First (sol->timers); item; item = MAP_Next (item))
+  {
+    TIMING *t = item->data;
+    PBF_Double2 (sol->bf, item->key, &t->total, 1);
+  }
+  PBF_Pop (sol->bf);
+#else
   int numt = MAP_Size (sol->timers);
   PBF_Label (sol->bf, "TIMERS");
   PBF_Int (sol->bf, &numt, 1);
-#if HDF5
-  PBF_Push_h5 (sol->bf, "TIMERS");
-#endif
   
   for (MAP *item = MAP_First (sol->timers); item; item = MAP_Next (item))
   {
@@ -210,13 +216,7 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
     PBF_Label (sol->bf, item->key);
     PBF_Double (sol->bf, &t->total, 1);
     PBF_String (sol->bf, (char**) &item->key);
-#if HDF5
-    PBF_Double_h5 (sol->bf, item->key, &t->total, 1);
-#endif
   }
-
-#if HDF5
-  PBF_Pop_h5 (sol->bf);
 #endif
 
   clean_timers (sol); /* restart total timing */
@@ -241,6 +241,37 @@ static void read_timers (SOLFEC *sol)
 {
   clean_timers (sol); /* zero total timing */
 
+#if HDF5
+  for (PBF *bf = sol->bf; bf; bf = bf->next)
+  {
+    PBF_Push (bf, "TIMERS");
+
+    int n = H5Aget_num_attrs (bf->stack [bf->top]); /* FIXME: don't use HDF5 outside of pbf.c */
+
+    for (int i = 0; i < n; i ++)
+    {
+      char name [64];
+      double value;
+      hid_t attr;
+      TIMING *t;
+
+      ASSERT ((attr = H5Aopen_idx (bf->stack [bf->top], i)) >= 0, ERR_PBF_READ);
+      ASSERT (H5Aget_name (attr, 64, name) >= 0, ERR_PBF_READ);
+      ASSERT (H5Aclose (attr) >= 0, ERR_PBF_READ);
+      PBF_Double2 (bf, name, &value, 1);
+
+      if (!(t = MAP_Find (sol->timers, name, (MAP_Compare) strcmp))) /* add timer if missing */
+      {
+	ERRMEM (t = MEM_Alloc (&sol->timemem));
+	MAP_Insert (&sol->mapmem, &sol->timers, name, t, (MAP_Compare) strcmp);
+      }
+
+      t->total = MAX (t->total, value); /* update to maximum across all processors */
+    }
+
+    PBF_Pop (bf);
+  }
+#else
   int n, numt, found = 0;
   for (PBF *bf = sol->bf; bf; bf = bf->next)
   {
@@ -271,40 +302,6 @@ static void read_timers (SOLFEC *sol)
     }
   }
   ASSERT (found, ERR_FILE_FORMAT); /* the former root file should have this section */
-
-#if HDF5
-  for (PBF *bf = sol->bf; bf; bf = bf->next)
-  {
-    PBF_Push_h5 (bf, "TIMERS");
-
-    int n = H5Aget_num_attrs (bf->stack [bf->top]);
-
-    for (int i = 0; i < n; i ++)
-    {
-      char name [64];
-      double value;
-      hid_t attr;
-
-      ASSERT ((attr = H5Aopen_idx (bf->stack [bf->top], i)) >= 0, ERR_PBF_READ);
-      ASSERT (H5Aget_name (attr, 64, name) >= 0, ERR_PBF_READ);
-      ASSERT (H5Aclose (attr) >= 0, ERR_PBF_READ);
-      PBF_Double_h5 (bf, name, &value, 1);
-
-#if 0
-      TIMING *t;
-
-      if (!(t = MAP_Find (sol->timers, name, (MAP_Compare) strcmp))) /* add timer if missing */
-      {
-	ERRMEM (t = MEM_Alloc (&sol->timemem));
-	MAP_Insert (&sol->mapmem, &sol->timers, name, t, (MAP_Compare) strcmp);
-      }
-
-      t->total = MAX (t->total, value); /* update to maximum across all processors */
-#endif
-    }
-
-    PBF_Pop_h5 (bf);
-  }
 #endif
 }
 
