@@ -60,7 +60,7 @@ struct pbf
 };
 
 /* open for writing */
-PBF* PBF_Write (const char *path);
+PBF* PBF_Write (const char *path, PBF_FLG append, PBF_FLG parallel);
 
 /* open for reading */
 PBF* PBF_Read (const char *path);
@@ -71,9 +71,21 @@ void PBF_Close (PBF *bf);
 /* initialize new time frame for writing/reading */
 void PBF_Time (PBF *bf, double *time);
 
+/* set current label; in read mode return
+ * positive value if the label was found */
+int PBF_Label (PBF *bf, const char *label);
+
 /* write/read raw data <=> order of writing and reading must be preserved */
+void PBF_Short (PBF *bf, short *value, int length);
 void PBF_Int (PBF *bf, int *value, int length);
+void PBF_Uint (PBF *bf, unsigned int *value, int length);
 void PBF_Double (PBF *bf, double *value, int length);
+
+/* read/write NULL-termined string */
+void PBF_String (PBF *bf, char **value);
+
+/* has group check */
+int PBF_Has_Group (PBF *bf, const char *name);
 
 /* push/pop group on stak */
 void PBF_Push (PBF *bf, const char *name);

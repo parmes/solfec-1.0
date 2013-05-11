@@ -31,6 +31,20 @@
 #include "pck.h"
 #include "err.h"
 
+/* create or open group */
+static hid_t gmake (hid_t loc_id, const char *name)
+{
+  hid_t id;
+
+  if (H5Lexists (loc_id, name, H5P_DEFAULT))
+  {
+    id = H5Gopen (loc_id, name, H5P_DEFAULT);
+  }
+  else return H5Gcreate (loc_id, name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+  return id;
+}
+
 /* push new frame group */
 static void new_frame (PBF *bf, int frame, double *time)
 {
@@ -77,7 +91,29 @@ static void write_frame (PBF *bf)
   }
 }
 
-PBF* PBF_Write (const char *path)
+/* initialize time frames */
+static void initialize_time_frames (PBF *bf)
+{
+  int n;
+
+  for (bf->count = 0;; bf->count ++) /* count frames */
+  {
+    char name [128];
+    snprintf (name, 128, "/%d", bf->count);
+    if (!H5Lexists (bf->stack[0], name, H5P_DEFAULT)) break;
+  }
+
+  ERRMEM (bf->times = malloc (sizeof (double [bf->count]))); /* allocate times (first file only) */
+
+  for (n = 0; n < bf->count; n ++)
+  {
+    new_frame (bf, n, &bf->times [n]); /* read nth time */
+  }
+}
+
+/* =================== INTERFACE ==================== */
+
+PBF* PBF_Write (const char *path, PBF_FLG append, PBF_FLG parallel)
 {
   char *txt;
   PBF *bf;
@@ -88,6 +124,7 @@ PBF* PBF_Write (const char *path)
   bf->compression = PBF_OFF;
 
   bf->times = NULL;
+  bf->time = 0.0;
 
   bf->i = NULL;
   bf->ipos = bf->ints = 0;
@@ -95,23 +132,37 @@ PBF* PBF_Write (const char *path)
   bf->dpos = bf->doubles = 0;
 
 #if MPI
-  int rank;
-  bf->parallel = PBF_ON;
-  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
-  sprintf (txt, "%s.h5.%d", path, rank);
-#else
-  bf->parallel = PBF_OFF;
-  sprintf (txt, "%s.h5", path);
-#endif
-
-  if ((bf->stack[0] = H5Fcreate(txt, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) < 0)
+  if (parallel == PBF_ON)
   {
-    free (bf);
-    free (txt);
-    return NULL;
+    int rank;
+    bf->parallel = PBF_ON;
+    MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+    sprintf (txt, "%s.h5.%d", path, rank);
   }
-  bf->frame = 0;
-  bf->top = 0;
+  else
+#endif
+  {
+    bf->parallel = PBF_OFF;
+    sprintf (txt, "%s.h5", path);
+  }
+
+  bf->top = 0; /* set to zero before frames are initialized */
+
+  if (append == PBF_ON && (bf->stack[0] = H5Fopen(txt, H5F_ACC_RDWR, H5P_DEFAULT)) >= 0)
+  {
+    initialize_time_frames (bf); /* initialize frames that have been written already */
+    bf->frame = bf->count; /* set new frame counter */
+  }
+  else
+  {
+    if ((bf->stack[0] = H5Fcreate(txt, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) < 0)
+    {
+      free (bf);
+      free (txt);
+      return NULL;
+    }
+    bf->frame = 0;
+  }
 
   bf->next = NULL;
 
@@ -149,6 +200,16 @@ PBF* PBF_Read (const char *path)
 
     if (m) sprintf (txt, "%s.h5.%d", path, n);
     else sprintf (txt, "%s.h5", path);
+    
+    dat = fopen (txt, "r"); /* H5Fopen is noisy if file does not exist */
+    if (!dat)
+    {
+      free (bf);
+      free (txt);
+      return NULL;
+    }
+    else fclose (dat);
+
     if ((bf->stack[0] = H5Fopen(txt, H5F_ACC_RDONLY, H5P_DEFAULT)) < 0)
     {
       free (bf);
@@ -168,21 +229,7 @@ PBF* PBF_Read (const char *path)
 
   } while (-- n >= 0); /* the first item in the returned list corresponds to rank 0 */
 
-  for (bf->count = 0;; bf->count ++) /* count frames */
-  {
-    char name [128];
-    snprintf (name, 128, "/%d", bf->count);
-    hid_t g = H5Gopen (bf->stack[0], name, H5P_DEFAULT);
-    if (g < 0) break;
-    else H5Gclose (g);
-  }
-
-  ERRMEM (bf->times = malloc (sizeof (double [bf->count]))); /* allocate times (first file only) */
-
-  for (n = 0; n < bf->count; n ++)
-  {
-    new_frame (bf, n, &bf->times [n]); /* read nth time */
-  }
+  initialize_time_frames (out); /* initialize frames */
 
   for (bf = out; bf; bf = bf->next) /* for all input files */
   {
@@ -216,24 +263,85 @@ void PBF_Time (PBF *bf, double *time)
   if (bf->mode == PBF_WRITE)
   {
     ASSERT ((*time) >= bf->time, ERR_PBF_OUTPUT_TIME_DECREASED);
+
+    if (bf->frame) write_frame (bf); /* write last frame */
     
-    write_frame (bf); /* write last frame */
+    new_frame (bf, bf->frame, time); /* create new frame */
 
-    new_frame (bf, bf->frame, time);
+    bf->ipos = bf->dpos = 0; /* zero buffer pointers */
 
-    bf->frame ++;
+    bf->time = *time;
+
+    bf->frame ++; /* next frame counter */
   }
   else
   { 
-    *time = bf->time;
+    *time = bf->time; /* current time */
   }
+}
+
+int PBF_Label (PBF *bf, const char *label)
+{
+  if (bf->mode == PBF_WRITE)
+  {
+    hid_t g = gmake (bf->stack[bf->top], "LABELS");
+
+    int data [2] = {bf->ipos, bf->dpos};
+
+    ASSERT (H5LTset_attribute_int (g, ".", label, data, 2) >= 0, ERR_PBF_WRITE);
+
+    H5Gclose (g);
+    return 1;
+  }
+  else
+  {
+    if (!H5Lexists (bf->stack[bf->top], "LABELS", H5P_DEFAULT)) return 0;
+
+    hid_t g = H5Gopen (bf->stack[bf->top], "LABELS", H5P_DEFAULT);
+
+    int data [2];
+
+    if (!H5LTfind_attribute (g, label))
+    {
+      H5Gclose (g);
+      return 0;
+    }
+    else ASSERT (H5LTget_attribute_int (g, ".", label, data) >= 0, ERR_PBF_READ);
+
+    bf->ipos = data [0];
+    bf->dpos = data [1];
+
+    H5Gclose (g);
+    return 1;
+  }
+}
+
+void PBF_Short (PBF *bf, short *value, int length)
+{
+  int *copy, i;
+
+  ERRMEM (copy = malloc (sizeof (int [length])));
+
+  if (bf->mode == PBF_WRITE)
+  {
+    for (i = 0; i < length; i ++) copy [i] = value [i];
+  }
+
+  PBF_Int (bf, copy, length);
+
+  if (bf->mode == PBF_READ)
+  {
+    for (i = 0; i < length; i ++) value [i] = copy [i];
+  }
+
+  free (copy);
 }
 
 void PBF_Int (PBF *bf, int *value, int length)
 {
   if (bf->mode == PBF_WRITE)
   {
-    pack_ints (&bf->ipos, &bf->i, &bf->ints, value, length);
+    pack_ints (&bf->ints, &bf->i, &bf->ipos, value, length);
   }
   else
   {
@@ -241,16 +349,67 @@ void PBF_Int (PBF *bf, int *value, int length)
   }
 }
 
+void PBF_Uint (PBF *bf, unsigned int *value, int length)
+{
+  int *copy, i;
+
+  ERRMEM (copy = malloc (sizeof (int [length])));
+
+  if (bf->mode == PBF_WRITE)
+  {
+    for (i = 0; i < length; i ++) copy [i] = value [i];
+  }
+
+  PBF_Int (bf, copy, length);
+
+  if (bf->mode == PBF_READ)
+  {
+    for (i = 0; i < length; i ++) value [i] = copy [i];
+  }
+
+  free (copy);
+}
+
 void PBF_Double (PBF *bf, double *value, int length)
 {
   if (bf->mode == PBF_WRITE)
   {
-    pack_doubles (&bf->dpos, &bf->d, &bf->doubles, value, length);
+    pack_doubles (&bf->doubles, &bf->d, &bf->dpos, value, length);
   }
   else
   {
     unpack_doubles (&bf->dpos, bf->d, bf->doubles, value, length);
   }
+}
+
+void PBF_String (PBF *bf, char **value)
+{
+  if (bf->mode == PBF_WRITE) /* pack into ints */
+  {
+    int len = strlen (*value);
+    int cpi = sizeof (int)/sizeof (char);
+    int ints = (len/cpi) + (len%cpi ? 1 : 0);
+    int *i = malloc (sizeof (int [ints]));
+    i[0] = len;
+    memcpy (i+1, *value, len*sizeof(char));
+    PBF_Int (bf, i, ints+1);
+    free (i);
+  }
+  else /* unpack from ints */
+  {
+    int len;
+    PBF_Int (bf, &len, 1);
+    int cpi = sizeof (int)/sizeof (char);
+    int ints = (len/cpi) + (len%cpi ? 1 : 0);
+    (*value) = malloc (sizeof (int [ints]));
+    PBF_Int (bf, (int*)(*value), ints);
+    (*value) [len] = '\0';
+  }
+}
+
+int PBF_Has_Group (PBF *bf, const char *name)
+{
+  return H5Lexists (bf->stack[bf->top-1], name, H5P_DEFAULT);
 }
 
 void PBF_Push (PBF *bf, const char *name)
@@ -338,12 +497,10 @@ void PBF_String2 (PBF *bf, const char *name, char **value)
   }
   else
   {
-#if 0
     int size;
     ASSERT (H5LTget_attribute_ndims (bf->stack [bf->top], ".", name, &size) >= 0, ERR_PBF_READ); 
     ERRMEM (*value = malloc (sizeof (char [size])));
     ASSERT (H5LTget_attribute_string (bf->stack [bf->top], ".", name, *value) >= 0, ERR_PBF_READ);
-#endif
   }
 }
 
