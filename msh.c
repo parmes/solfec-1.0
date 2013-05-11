@@ -3229,11 +3229,6 @@ void MESH_Write (MESH *msh, char *path)
   int dsize, doubles, isize, ints, size;
   int *i, *data;
   double *d;
-  FILE *f;
-  XDR x;
-
-  ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);
-  xdrstdio_create (&x, f, XDR_ENCODE);
 
   dsize = doubles = isize = ints = 0;
   d = NULL;
@@ -3242,14 +3237,31 @@ void MESH_Write (MESH *msh, char *path)
   MESH_Pack (msh, &dsize, &d, &doubles, &isize, &i, &ints);
   data = compress (CMP_FASTLZ, d, doubles, i, ints, &size);
 
-  ASSERT (xdr_int (&x, &size), ERR_PBF_WRITE);
-  ASSERT (xdr_vector (&x, (char*)data, size, sizeof (int), (xdrproc_t)xdr_int), ERR_PBF_WRITE);
+#if HDF5
+  hsize_t length = size;
+  hid_t file;
+
+  ASSERT ((file = H5Fcreate(path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) >= 0, ERR_FILE_OPEN);
+  ASSERT (H5LTset_attribute_int (file, ".", "data size", &size, 1) >= 0, ERR_FILE_WRITE);
+  ASSERT (H5LTmake_dataset_int (file, "compressed mesh data", 1, &length, data) >= 0, ERR_FILE_WRITE);
+  H5Fclose (file);
+#else
+  FILE *f;
+  XDR x;
+
+  ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);
+  xdrstdio_create (&x, f, XDR_ENCODE);
+
+  ASSERT (xdr_int (&x, &size), ERR_FILE_WRITE);
+  ASSERT (xdr_vector (&x, (char*)data, size, sizeof (int), (xdrproc_t)xdr_int), ERR_FILE_WRITE);
+
+  xdr_destroy (&x);
+  fclose (f);
+#endif
 
   free (data);
   free (d);
   free (i);
-  xdr_destroy (&x);
-  fclose (f);
 }
 
 /* read mesh */
@@ -3259,19 +3271,33 @@ MESH* MESH_Read (char *path)
   int *i, *data;
   double *d;
   MESH *msh;
+
+#if HDF5
+  hid_t file;
+
+  ASSERT ((file = H5Fopen(path, H5F_ACC_RDONLY, H5P_DEFAULT)) >= 0, ERR_FILE_OPEN);
+  ASSERT (H5LTget_attribute_int (file, ".", "data size", &size) >= 0, ERR_FILE_READ);
+  ERRMEM (data = malloc (size * sizeof (int)));
+  ASSERT (H5LTread_dataset_int (file, "compressed mesh data", data) >= 0, ERR_FILE_READ);
+  H5Fclose (file);
+#else
   FILE *f;
   XDR x;
 
   if (!(f = fopen (path, "r"))) return NULL;
   xdrstdio_create (&x, f, XDR_DECODE);
 
+  ASSERT (xdr_int (&x, &size), ERR_FILE_READ);
+  ERRMEM (data = malloc (size * sizeof (int)));
+  ASSERT (xdr_vector (&x, (char*)data, size, sizeof (int), (xdrproc_t)xdr_int), ERR_FILE_READ);
+
+  xdr_destroy (&x);
+  fclose (f);
+#endif
+
   dpos = doubles = ipos = ints = 0;
   d = NULL;
   i = NULL;
-
-  ASSERT (xdr_int (&x, &size), ERR_PBF_READ);
-  ERRMEM (data = malloc (size * sizeof (int)));
-  ASSERT (xdr_vector (&x, (char*)data, size, sizeof (int), (xdrproc_t)xdr_int), ERR_PBF_READ);
 
   decompress (data, size, &d, &doubles, &i, &ints);
   msh = MESH_Unpack (NULL, &dpos, d, doubles, &ipos, i, ints);
@@ -3279,8 +3305,6 @@ MESH* MESH_Read (char *path)
   free (data);
   free (d);
   free (i);
-  xdr_destroy (&x);
-  fclose (f);
 
   return msh;
 }

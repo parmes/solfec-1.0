@@ -38,14 +38,15 @@ typedef struct fracture_state FS;
 
 struct fracture_state
 {
+  /* instance data */
+  double *disp;
+  FS *inext; /* instances list */
+
+  /* contact points data */
   double radius;
   double point [3];
   double force [3];
-  double *disp;
-
-  FS *next;
-
-  FS *inext;
+  FS *next; /* contact forces list within instance */
 };
 
 /* free list */
@@ -71,6 +72,64 @@ static void fracture_state_write (DOM *dom)
   SET *item;
   BODY *bod;
   CON *con;
+
+#if HDF5
+  int numbod;
+  PBF *f;
+
+  snprintf (path, 1024, "%s/fracture.h5", dom->solfec->outpath);
+  ASSERT (f = PBF_Write (path, PBF_ON, PBF_ON), ERR_FILE_OPEN);
+
+  PBF_Time (f, &dom->time);
+
+  for (numbod = 0, bod = dom->bod; bod; bod = bod->next)
+  {
+    if (bod->fracture)
+    {
+      msh = bod->shape->data;
+      dofs = 3 * msh->nodes_count;
+      ERRMEM (disp = malloc (msh->nodes_count * sizeof (double [3])));
+      for (i = 0; i < msh->nodes_count; i ++)
+      {
+        SUB (msh->cur_nodes [i], msh->ref_nodes [i], disp [i]);
+      }
+
+      PBF_Uint (f, &bod->id, 1);
+      PBF_Int (f, &dofs, 1);
+      PBF_Double (f, (double*)disp, dofs);
+
+      n = SET_Size (bod->con);
+      PBF_Int (f, &n, 1);
+      for (item = SET_First (bod->con); item; item = SET_Next (item))
+      {
+	con = item->data;
+	r = sqrt (con->area/ALG_PI);
+	PBF_Double (f, &r, 1);
+
+	if (bod == con->master)
+	{
+	  PBF_Double (f, con->mpnt, 3);
+	}
+	else
+	{
+	  PBF_Double (f, con->spnt, 3);
+	}
+
+        NVMUL (con->base, con->R, R);
+	PBF_Double (f, R, 3);
+      }
+
+      bod->fracture = 0;
+
+      free (disp);
+      numbod ++;
+    }
+
+    PBF_Int2 (f, "numbod", &numbod, 1);
+  }
+
+  PBF_Close (f);
+#else
   FILE *f;
   XDR x;
 
@@ -126,6 +185,7 @@ static void fracture_state_write (DOM *dom)
 
   xdr_destroy (&x);
   fclose (f);
+#endif
 }
 
 /* read fracture state */
@@ -136,6 +196,60 @@ static FS* fracture_state_read (BODY *bod)
   unsigned int id;
   int i, n, dofs;
   double *disp;
+
+#if HDF5
+  PBF *f, *g;
+
+  snprintf (path, 1024, "%s/fracture.h5", bod->dom->solfec->outpath);
+  g = PBF_Read (path);
+
+  for (f = g; f; f = f->next)
+  {
+    double time;
+    int numbod;
+
+    PBF_Time (f, &time); /* unused, but could be useful at some point */
+
+    PBF_Int2 (f, "numbod", &numbod, 1);
+
+    while (numbod > 0)
+    {
+      PBF_Uint (f, &id, 1);
+      PBF_Int (f, &dofs, 1);
+      ERRMEM (disp = malloc (dofs * sizeof (double)));
+      PBF_Double (f, disp, dofs);
+      PBF_Int (f, &n, 1);
+      for (i = 0, instance = NULL; i < n; i ++)
+      {
+        ERRMEM (item = MEM_CALLOC (sizeof (FS)));
+
+        PBF_Double (f, &item->radius, 1);
+	PBF_Double (f, item->point, 3);
+	PBF_Double (f, item->force, 3);
+
+	if (id == bod->id)
+	{
+	  item->inext = instance;
+	  instance = item;
+
+	  if (i == (n-1))
+	  {
+	    item->disp = disp; /* put displacements into first element of instance list */
+	    item->next = out;
+	    out = item;
+	  }
+	}
+	else free (item);
+      }
+
+      if (!out || out->disp != disp) free (disp);  /* not used */
+
+      numbod ++;
+    }
+  }
+
+  PBF_Close (g);
+#else
   FILE *f;
   XDR x;
 
@@ -182,6 +296,7 @@ static FS* fracture_state_read (BODY *bod)
     xdr_destroy (&x);
     fclose (f);
   }
+#endif
 
   return out;
 }

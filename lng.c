@@ -7712,12 +7712,27 @@ static PyObject* lng_NON_SOLFEC_ARGV (PyObject *self, PyObject *args, PyObject *
 }
 
 /* read modal data */
-static MX* read_modal_analysis (FILE *f, double **v)
+static MX* read_modal_analysis (const char *path, double **v)
 {
   int m, n;
-  XDR xdr;
   MX *E;
 
+#if HDF5
+  PBF *f;
+
+  f = PBF_Read (path);
+  PBF_Int (f, &m, 1);
+  PBF_Int (f, &n, 1);
+  E = MX_Create (MXDENSE, m, n, NULL, NULL);
+  ERRMEM (*v = malloc (sizeof (double [n])));
+  PBF_Double (f, *v, n);
+  PBF_Double (f, E->x, n*m);
+  PBF_Close (f);
+#else
+  FILE *f;
+  XDR xdr;
+
+  f = fopen (path, "r");
   xdrstdio_create (&xdr, f, XDR_DECODE);
   ASSERT (xdr_int (&xdr, &m), ERR_FILE_READ);
   ASSERT (xdr_int (&xdr, &n), ERR_FILE_READ);
@@ -7726,21 +7741,37 @@ static MX* read_modal_analysis (FILE *f, double **v)
   ASSERT (xdr_vector (&xdr, (char*)(*v), n, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_READ);
   ASSERT (xdr_vector (&xdr, (char*)E->x, n*m, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_READ);
   xdr_destroy (&xdr);
+  fclose (f);
+#endif
 
   return E;
 }
 
 /* write modal data */
-static void write_modal_analysis (MX *E, double *v, FILE *f)
+static void write_modal_analysis (MX *E, double *v, const char *path)
 {
+#if HDF5
+  PBF *f;
+
+  f = PBF_Write (path, PBF_OFF, PBF_OFF);
+  PBF_Int (f, &E->m, 1);
+  PBF_Int (f, &E->n, 1);
+  PBF_Double (f, v, E->n);
+  PBF_Double (f, E->x, E->n*E->m);
+  PBF_Close (f);
+#else
+  FILE *f;
   XDR xdr;
 
+  ASSERT (f = fopen (path, "w"), ERR_FILE_OPEN);
   xdrstdio_create (&xdr, f, XDR_ENCODE);
   ASSERT (xdr_int (&xdr, &E->m), ERR_FILE_WRITE);
   ASSERT (xdr_int (&xdr, &E->n), ERR_FILE_WRITE);
   ASSERT (xdr_vector (&xdr, (char*)v, E->n, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_WRITE);
   ASSERT (xdr_vector (&xdr, (char*)E->x, E->n*E->m, sizeof (double), (xdrproc_t)xdr_double), ERR_FILE_WRITE);
   xdr_destroy (&xdr);
+  fclose (f);
+#endif
 }
 
 /* model analysis of FEM bodies */
@@ -7779,11 +7810,10 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
 #endif
 
   f = fopen (PyString_AsString (path), "r");
-
   if (f) /* read without refering to a body et all (precomputed results, parallel use, etc.) */
   {
-    V = read_modal_analysis (f, &v);
     fclose (f);
+    V = read_modal_analysis (PyString_AsString (path), &v);
   }
 
 #if MPI && LOCAL_BODIES
@@ -7822,9 +7852,7 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
 
     if (V)
     {
-      ASSERT (f = fopen (PyString_AsString (path), "w"), ERR_FILE_OPEN);
-      write_modal_analysis (V, v, f);
-      fclose (f);
+      write_modal_analysis (V, v, PyString_AsString (path));
     }
     else
     {

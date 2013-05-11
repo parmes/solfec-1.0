@@ -133,11 +133,39 @@ static void dom_attach_constraints (DOM *dom)
 /* write new bodies data */
 static void write_new_bodies (DOM *dom)
 {
+  if (dom->newb == NULL) return; /* nothing to write */
+
+#if HDF5
+  PBF *bf = dom->solfec->bf;
+  int isize = 0, ints = 0, *i = NULL;
+  int dsize = 0, doubles = 0;
+  double *d = NULL;
+  SET *item;
+  int n;
+
+  PBF_Push (bf, "NEWBOD");
+
+  n = SET_Size (dom->newb);
+  PBF_Int2 (bf, "count", &n, 1);
+
+  for (item = SET_First (dom->newb); item; item = SET_Next (item))
+  {
+    BODY_Pack (item->data, &dsize, &d, &doubles, &isize, &i, &ints);
+  }
+
+  PBF_Int2 (bf, "ints", &ints, 1);
+  PBF_Int2 (bf, "i", i, ints);
+  PBF_Int2 (bf, "doubles", &doubles, 1);
+  PBF_Double2 (bf, "d", d, doubles);
+
+  free (d);
+  free (i);
+
+  PBF_Pop (bf);
+#else
   char *path, *ext;
   FILE *file;
   XDR xdr;
-
-  if (dom->newb == NULL) return; /* nothing to write */
 
   path = SOLFEC_Alloc_File_Name (dom->solfec, 16);
   ext = path + strlen (path);
@@ -175,11 +203,67 @@ static void write_new_bodies (DOM *dom)
   xdr_destroy (&xdr);
   fclose (file);
   free (path);
+#endif
 }
 
 /* read new bodies data */
 static void read_new_bodies (DOM *dom, PBF *bf)
 {
+#if HDF5
+  double time, start, end;
+
+  PBF_Time (bf, &time); /* back up time frame from outside of this function */
+  PBF_Limits (bf, &start, &end);
+  PBF_Seek (bf, start);
+
+  do
+  {
+    for (PBF *f = bf; f; f = f->next)
+    {
+      int ipos = 0, ints;
+      int dpos = 0, doubles;
+      double *d;
+      int *i;
+      int k, n;
+      BODY *bod;
+
+      if (PBF_Has_Group (f, "NEWBOD") == 0) continue; /* don't try to read if there are no new bodies stored */
+
+      PBF_Push (f, "NEWBOD");
+
+      PBF_Int2 (f, "count", &n, 1);
+      PBF_Int2 (bf, "ints", &ints, 1);
+      ERRMEM (i = malloc (sizeof (int [ints])));
+      PBF_Int2 (bf, "i", i, ints);
+      PBF_Int2 (bf, "doubles", &doubles, 1);
+      ERRMEM (d = malloc (sizeof (double [doubles])));
+      PBF_Double2 (bf, "d", d, doubles);
+
+      for (k = 0; k < n; k ++)
+      {
+	bod = BODY_Unpack (dom->solfec, &dpos, d, doubles, &ipos, i, ints);
+
+	if (!MAP_Find (dom->allbodies, (void*) (long) bod->id, NULL))
+	{
+	  MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+	}
+	else BODY_Destroy (bod); /* FIXME: bodies created in input files at time > 0;
+				    FIXME: perhaps there is no need of moving GLV to the fist lng_RUN call,
+				    FIXME: but rather bodies created in Python should not be put into the 'dom->newb' set;
+				    FIXME: this way, as now, all Python created bodies will be anyway read at time 0 */
+      }
+
+      free (d);
+      free (i);
+
+      PBF_Pop (bf);
+    }
+  } while (PBF_Forward (bf, 1));
+
+  dom->allbodiesread = 1; /* mark as read */
+
+  PBF_Seek (bf, time); /* seek to the backed up time again */
+#else
   char *path, *ext;
   FILE *file;
   int m, n;
@@ -272,6 +356,7 @@ static void read_new_bodies (DOM *dom, PBF *bf)
   }
 
   free (path);
+#endif
 }
 
 /* write domain state */

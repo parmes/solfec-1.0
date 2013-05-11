@@ -147,7 +147,7 @@ static PBF* writeoutpath (char *outpath)
 #endif
 
   char *path = getpath (outpath);
-  PBF *bf = PBF_Write (path);
+  PBF *bf = PBF_Write (path, PBF_OFF, PBF_ON);
 
   free (path);
   return bf;
@@ -196,7 +196,7 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
 
   /* write timers */
 
-#if HDF5
+#if 0 /* HDF5 */
   PBF_Push (sol->bf, "TIMERS");
   for (MAP *item = MAP_First (sol->timers); item; item = MAP_Next (item))
   {
@@ -241,7 +241,7 @@ static void read_timers (SOLFEC *sol)
 {
   clean_timers (sol); /* zero total timing */
 
-#if HDF5
+#if 0 /* HDF5 */
   for (PBF *bf = sol->bf; bf; bf = bf->next)
   {
     PBF_Push (bf, "TIMERS");
