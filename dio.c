@@ -232,12 +232,12 @@ static void read_new_bodies (DOM *dom, PBF *bf)
       PBF_Push (f, "NEWBOD");
 
       PBF_Int2 (f, "count", &n, 1);
-      PBF_Int2 (bf, "ints", &ints, 1);
+      PBF_Int2 (f, "ints", &ints, 1);
       ERRMEM (i = malloc (sizeof (int [ints])));
-      PBF_Int2 (bf, "i", i, ints);
-      PBF_Int2 (bf, "doubles", &doubles, 1);
+      PBF_Int2 (f, "i", i, ints);
+      PBF_Int2 (f, "doubles", &doubles, 1);
       ERRMEM (d = malloc (sizeof (double [doubles])));
-      PBF_Double2 (bf, "d", d, doubles);
+      PBF_Double2 (f, "d", d, doubles);
 
       for (k = 0; k < n; k ++)
       {
@@ -256,7 +256,7 @@ static void read_new_bodies (DOM *dom, PBF *bf)
       free (d);
       free (i);
 
-      PBF_Pop (bf);
+      PBF_Pop (f);
     }
   } while (PBF_Forward (bf, 1));
 

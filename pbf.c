@@ -224,12 +224,12 @@ PBF* PBF_Read (const char *path)
     bf->d = NULL;
     bf->dpos = bf->doubles = 0;
 
+    initialize_time_frames (bf); /* initialize frames */
+
     bf->next = out;
     out = bf;
 
   } while (-- n >= 0); /* the first item in the returned list corresponds to rank 0 */
-
-  initialize_time_frames (out); /* initialize frames */
 
   for (bf = out; bf; bf = bf->next) /* for all input files */
   {
@@ -387,12 +387,12 @@ void PBF_String (PBF *bf, char **value)
   if (bf->mode == PBF_WRITE) /* pack into ints */
   {
     int len = strlen (*value);
+    PBF_Int (bf, &len, 1);
     int cpi = sizeof (int)/sizeof (char);
     int ints = (len/cpi) + (len%cpi ? 1 : 0);
     int *i = malloc (sizeof (int [ints]));
-    i[0] = len;
-    memcpy (i+1, *value, len*sizeof(char));
-    PBF_Int (bf, i, ints+1);
+    memcpy (i, *value, len*sizeof(char));
+    PBF_Int (bf, i, ints);
     free (i);
   }
   else /* unpack from ints */
@@ -409,7 +409,7 @@ void PBF_String (PBF *bf, char **value)
 
 int PBF_Has_Group (PBF *bf, const char *name)
 {
-  return H5Lexists (bf->stack[bf->top-1], name, H5P_DEFAULT);
+  return H5Lexists (bf->stack[bf->top], name, H5P_DEFAULT);
 }
 
 void PBF_Push (PBF *bf, const char *name)
@@ -926,7 +926,7 @@ static char* copypath (const char *path)
   return out;
 }
 
-PBF* PBF_Write (const char *path)
+PBF* PBF_Write (const char *path, PBF_FLG append, PBF_FLG parallel)
 {
   char *txt;
   PBF *bf;

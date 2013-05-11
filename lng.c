@@ -6673,7 +6673,7 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   topoadj = NULL;
   remesh = NULL;
 
-  PARSEKEYS ("OOO|OOO", &shape, &point, &normal, &surfid, &topoadj);
+  PARSEKEYS ("OOO|OOO", &shape, &point, &normal, &surfid, &topoadj, &remesh);
 
   TYPETEST (is_shape (shape, kwl[0]) && is_tuple (point, kwl[1], 3) && is_tuple (normal, kwl[2], 3)
          && is_tuple (surfid, kwl[3], 2) && is_string (topoadj, kwl [4]) && is_string (remesh, kwl[5]));
