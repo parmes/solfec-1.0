@@ -197,7 +197,7 @@ struct pbf
 };
 
 /* open for writing */
-PBF* PBF_Write (const char *path);
+PBF* PBF_Write (const char *path, PBF_FLG append, PBF_FLG parallel);
 
 /* open for reading */
 PBF* PBF_Read (const char *path);

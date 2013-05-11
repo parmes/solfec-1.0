@@ -38,7 +38,7 @@ GEOMDEBUG = no
 # light parallel consitency tests
 PARDEBUG = yes
 # heavy parallel self-consitency tests
-PSCTEST = yes
+PSCTEST = no
 # disable TRY/CATCH
 NOTHROW = yes
 
