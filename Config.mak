@@ -58,7 +58,7 @@ POSIX = yes
 # HDF5
 #
 
-HDF5 = no
+HDF5 = yes
 
 HDF5INC = -I/usr/local/hdf5/include
 HDF5LIB = -L/usr/local/hdf5/lib -lhdf5 -lhdf5_hl
