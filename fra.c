@@ -77,7 +77,7 @@ static void fracture_state_write (DOM *dom)
   int numbod;
   PBF *f;
 
-  snprintf (path, 1024, "%s/fracture.h5", dom->solfec->outpath);
+  snprintf (path, 1024, "%s/fracture", dom->solfec->outpath);
   ASSERT (f = PBF_Write (path, PBF_ON, PBF_ON), ERR_FILE_OPEN);
 
   PBF_Time (f, &dom->time);
@@ -200,53 +200,57 @@ static FS* fracture_state_read (BODY *bod)
 #if HDF5
   PBF *f, *g;
 
-  snprintf (path, 1024, "%s/fracture.h5", bod->dom->solfec->outpath);
+  snprintf (path, 1024, "%s/fracture", bod->dom->solfec->outpath);
   g = PBF_Read (path);
 
-  for (f = g; f; f = f->next)
+  do
   {
     double time;
-    int numbod;
 
-    PBF_Time (f, &time); /* unused, but could be useful at some point */
+    PBF_Time (g, &time); /* unused, but could be useful at some point */
 
-    PBF_Int2 (f, "numbod", &numbod, 1);
-
-    while (numbod > 0)
+    for (f = g; f; f = f->next)
     {
-      PBF_Uint (f, &id, 1);
-      PBF_Int (f, &dofs, 1);
-      ERRMEM (disp = malloc (dofs * sizeof (double)));
-      PBF_Double (f, disp, dofs);
-      PBF_Int (f, &n, 1);
-      for (i = 0, instance = NULL; i < n; i ++)
+      int numbod;
+
+      PBF_Int2 (f, "numbod", &numbod, 1);
+
+      while (numbod > 0)
       {
-        ERRMEM (item = MEM_CALLOC (sizeof (FS)));
-
-        PBF_Double (f, &item->radius, 1);
-	PBF_Double (f, item->point, 3);
-	PBF_Double (f, item->force, 3);
-
-	if (id == bod->id)
+	PBF_Uint (f, &id, 1);
+	PBF_Int (f, &dofs, 1);
+	ERRMEM (disp = malloc (dofs * sizeof (double)));
+	PBF_Double (f, disp, dofs);
+	PBF_Int (f, &n, 1);
+	for (i = 0, instance = NULL; i < n; i ++)
 	{
-	  item->inext = instance;
-	  instance = item;
+	  ERRMEM (item = MEM_CALLOC (sizeof (FS)));
 
-	  if (i == (n-1))
+	  PBF_Double (f, &item->radius, 1);
+	  PBF_Double (f, item->point, 3);
+	  PBF_Double (f, item->force, 3);
+
+	  if (id == bod->id)
 	  {
-	    item->disp = disp; /* put displacements into first element of instance list */
-	    item->next = out;
-	    out = item;
+	    item->inext = instance;
+	    instance = item;
+
+	    if (i == (n-1))
+	    {
+	      item->disp = disp; /* put displacements into first element of instance list */
+	      item->next = out;
+	      out = item;
+	    }
 	  }
+	  else free (item);
 	}
-	else free (item);
+
+	if (!out || out->disp != disp) free (disp);  /* not used */
+
+	numbod --;
       }
-
-      if (!out || out->disp != disp) free (disp);  /* not used */
-
-      numbod ++;
     }
-  }
+  } while (PBF_Forward (g, 1));
 
   PBF_Close (g);
 #else

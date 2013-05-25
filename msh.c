@@ -3271,17 +3271,19 @@ MESH* MESH_Read (char *path)
   int *i, *data;
   double *d;
   MESH *msh;
+  FILE *f;
 
 #if HDF5
   hid_t file;
 
+  if (!(f = fopen (path, "r"))) return NULL; /* HDF5 is noisy if file does not exist */
+  else fclose (f);
   ASSERT ((file = H5Fopen(path, H5F_ACC_RDONLY, H5P_DEFAULT)) >= 0, ERR_FILE_OPEN);
   ASSERT (H5LTget_attribute_int (file, ".", "data size", &size) >= 0, ERR_FILE_READ);
   ERRMEM (data = malloc (size * sizeof (int)));
   ASSERT (H5LTread_dataset_int (file, "compressed mesh data", data) >= 0, ERR_FILE_READ);
   H5Fclose (file);
 #else
-  FILE *f;
   XDR x;
 
   if (!(f = fopen (path, "r"))) return NULL;

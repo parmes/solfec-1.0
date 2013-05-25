@@ -34,61 +34,66 @@
 /* create or open group */
 static hid_t gmake (hid_t loc_id, const char *name)
 {
-  hid_t id;
-
   if (H5Lexists (loc_id, name, H5P_DEFAULT))
   {
-    id = H5Gopen (loc_id, name, H5P_DEFAULT);
+    return H5Gopen (loc_id, name, H5P_DEFAULT);
   }
   else return H5Gcreate (loc_id, name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-
-  return id;
 }
 
 /* push new frame group */
 static void new_frame (PBF *bf, int frame, double *time)
 {
   char name [128];
-  bf->frame = frame;
-  snprintf (name, 128, "/%d", bf->frame);
+
   while (bf->top > 0) PBF_Pop (bf);
+  snprintf (name, 128, "/%d", frame);
   PBF_Push (bf, name);
   PBF_Double2 (bf, "time", time, 1);
+  bf->frame = frame;
 }
 
-/* initialize a frame to be red */
-static void initialise_frame (PBF *bf, int frame, double *time)
+/* read new frame */
+static void read_frame (PBF *bf, int frame, double *time)
 {
   new_frame (bf, frame, time);
 
-  if (bf->mode == PBF_READ)
-  {
-    free (bf->i);
-    bf->ipos = 0;
-    PBF_Int2 (bf, "ints", &bf->ints, 1);
-    ERRMEM (bf->i = malloc (sizeof (int [bf->ints])));
-    PBF_Int2 (bf, "i", bf->i, bf->ints);
+  free (bf->i);
+  bf->ipos = 0;
+  PBF_Int2 (bf, "ints", &bf->ints, 1);
+  ERRMEM (bf->i = malloc (sizeof (int [bf->ints])));
+  PBF_Int2 (bf, "i", bf->i, bf->ints);
 
-    free (bf->d);
-    bf->dpos = 0;
-    PBF_Int2 (bf, "doubles", &bf->doubles, 1);
-    ERRMEM (bf->d = malloc (sizeof (double [bf->doubles])));
-    PBF_Double2 (bf, "d", bf->d, bf->dpos);
-
-    bf->frame = frame;
-  }
+  free (bf->d);
+  bf->dpos = 0;
+  PBF_Int2 (bf, "doubles", &bf->doubles, 1);
+  ERRMEM (bf->d = malloc (sizeof (double [bf->doubles])));
+  PBF_Double2 (bf, "d", bf->d, bf->doubles);
 }
 
 /* write last frame data */
 static void write_frame (PBF *bf)
 {
-  if (bf->mode == PBF_WRITE)
+  PBF_Int2 (bf, "ints", &bf->ipos, 1);
+  PBF_Int2 (bf, "i", bf->i, bf->ipos);
+  PBF_Int2 (bf, "doubles", &bf->dpos, 1);
+  PBF_Double2 (bf, "d", bf->d, bf->dpos);
+}
+
+/* count existing time frames */
+static int count_time_frames (PBF *bf)
+{
+  char name [128];
+  int n;
+
+  for (n = 0;; n ++) /* count frames */
   {
-    PBF_Int2 (bf, "ints", &bf->ipos, 1);
-    PBF_Int2 (bf, "i", bf->i, bf->ipos);
-    PBF_Int2 (bf, "doubles", &bf->dpos, 1);
-    PBF_Double2 (bf, "d", bf->d, bf->dpos);
+    snprintf (name, 128, "/%d", n);
+
+    if (!H5Lexists (bf->stack[0], name, H5P_DEFAULT)) break;
   }
+
+  return n;
 }
 
 /* initialize time frames */
@@ -96,14 +101,9 @@ static void initialize_time_frames (PBF *bf)
 {
   int n;
 
-  for (bf->count = 0;; bf->count ++) /* count frames */
-  {
-    char name [128];
-    snprintf (name, 128, "/%d", bf->count);
-    if (!H5Lexists (bf->stack[0], name, H5P_DEFAULT)) break;
-  }
+  bf->count = count_time_frames (bf); /* count frames */
 
-  ERRMEM (bf->times = malloc (sizeof (double [bf->count]))); /* allocate times (first file only) */
+  ERRMEM (bf->times = malloc (sizeof (double [bf->count]))); /* allocate times */
 
   for (n = 0; n < bf->count; n ++)
   {
@@ -115,13 +115,14 @@ static void initialize_time_frames (PBF *bf)
 
 PBF* PBF_Write (const char *path, PBF_FLG append, PBF_FLG parallel)
 {
+  FILE *dat;
   char *txt;
   PBF *bf;
 
   ERRMEM (txt = malloc (strlen (path) + 64));
   ERRMEM (bf = malloc (sizeof (PBF)));
-  bf->mode = PBF_WRITE;
   bf->compression = PBF_OFF;
+  bf->mode = PBF_WRITE;
 
   bf->times = NULL;
   bf->time = 0.0;
@@ -146,14 +147,23 @@ PBF* PBF_Write (const char *path, PBF_FLG append, PBF_FLG parallel)
     sprintf (txt, "%s.h5", path);
   }
 
-  bf->top = 0; /* set to zero before frames are initialized */
+  bf->top = 0; /* set to zero before frames are initialized (while loop in new_frame) */
 
-  if (append == PBF_ON && (bf->stack[0] = H5Fopen(txt, H5F_ACC_RDWR, H5P_DEFAULT)) >= 0)
+  if (append == PBF_ON && (dat = fopen (txt, "r")) != NULL) /* HDF5 is noisy if file does not exist */
   {
-    initialize_time_frames (bf); /* initialize frames that have been written already */
+    fclose (dat);
+    if ((bf->stack[0] = H5Fopen(txt, H5F_ACC_RDWR, H5P_DEFAULT)) < 0)
+    {
+      free (bf);
+      free (txt);
+      return NULL;
+    }
+
+    bf->count = count_time_frames (bf); /* count frames that have been written already */
+
     bf->frame = bf->count; /* set new frame counter */
   }
-  else
+  else /* write from scratch */
   {
     if ((bf->stack[0] = H5Fcreate(txt, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) < 0)
     {
@@ -161,6 +171,8 @@ PBF* PBF_Write (const char *path, PBF_FLG append, PBF_FLG parallel)
       free (txt);
       return NULL;
     }
+
+    bf->count = 0;
     bf->frame = 0;
   }
 
@@ -216,13 +228,13 @@ PBF* PBF_Read (const char *path)
       free (txt);
       return NULL;
     }
-    bf->frame = 0;
-    bf->top = 0;
 
     bf->i = NULL;
     bf->ipos = bf->ints = 0;
     bf->d = NULL;
     bf->dpos = bf->doubles = 0;
+
+    bf->top = 0; /* set to zero before frames are initialized (while loop in new_frame) */
 
     initialize_time_frames (bf); /* initialize frames */
 
@@ -233,7 +245,7 @@ PBF* PBF_Read (const char *path)
 
   for (bf = out; bf; bf = bf->next) /* for all input files */
   {
-    initialise_frame (bf, 0, &bf->time); /* start with first frame */
+    read_frame (bf, 0, &bf->time); /* start with first frame */
   }
 
   free (txt);
@@ -244,11 +256,11 @@ void PBF_Close (PBF *bf)
 {
   PBF *next;
 
-  if (bf->times) free (bf->times);
-
   for (; bf; bf = next)
   {
-    write_frame (bf); /* write last frame */
+    if (bf->mode == PBF_WRITE) write_frame (bf); /* write last frame */
+
+    if (bf->times) free (bf->times); /* may exist in both modes (appended wrie) */
 
     while (bf->top > 0) PBF_Pop (bf);
     H5Fclose (bf->stack[0]);
@@ -264,7 +276,7 @@ void PBF_Time (PBF *bf, double *time)
   {
     ASSERT ((*time) >= bf->time, ERR_PBF_OUTPUT_TIME_DECREASED);
 
-    if (bf->frame) write_frame (bf); /* write last frame */
+    if (bf->frame > bf->count) write_frame (bf); /* write last frame (count > 0 in append mode) */
     
     new_frame (bf, bf->frame, time); /* create new frame */
 
@@ -282,9 +294,13 @@ void PBF_Time (PBF *bf, double *time)
 
 int PBF_Label (PBF *bf, const char *label)
 {
+  ASSERT_DEBUG (bf->top >= 1, "PBF ERROR: PBF_Time must be called before PBF_Label!\n");
+
   if (bf->mode == PBF_WRITE)
   {
-    hid_t g = gmake (bf->stack[bf->top], "LABELS");
+    hid_t g = gmake (bf->stack[1], "LABELS");
+
+    ASSERT (g >= 0, ERR_PBF_WRITE);
 
     int data [2] = {bf->ipos, bf->dpos};
 
@@ -295,9 +311,11 @@ int PBF_Label (PBF *bf, const char *label)
   }
   else
   {
-    if (!H5Lexists (bf->stack[bf->top], "LABELS", H5P_DEFAULT)) return 0;
+    if (!H5Lexists (bf->stack[1], "LABELS", H5P_DEFAULT)) return 0;
 
-    hid_t g = H5Gopen (bf->stack[bf->top], "LABELS", H5P_DEFAULT);
+    hid_t g = H5Gopen (bf->stack[1], "LABELS", H5P_DEFAULT);
+
+    ASSERT (g >= 0, ERR_PBF_READ);
 
     int data [2];
 
@@ -497,9 +515,12 @@ void PBF_String2 (PBF *bf, const char *name, char **value)
   }
   else
   {
-    int size;
-    ASSERT (H5LTget_attribute_ndims (bf->stack [bf->top], ".", name, &size) >= 0, ERR_PBF_READ); 
-    ERRMEM (*value = malloc (sizeof (char [size])));
+    H5T_class_t c;
+    hsize_t d;
+    size_t s;
+
+    ASSERT (H5LTget_attribute_info (bf->stack [bf->top], ".", name,  &d, &c, &s) >= 0, ERR_PBF_READ); 
+    ERRMEM (*value = malloc (sizeof (char [d])));
     ASSERT (H5LTget_attribute_string (bf->stack [bf->top], ".", name, *value) >= 0, ERR_PBF_READ);
   }
 }
@@ -521,8 +542,7 @@ void PBF_Seek (PBF *bf, double time)
     {
       double *l, *h, *m;
 
-      /* binary search
-       * of marker */
+      /* binary search of time frame */
       l = bf->times;
       h = l + bf->count - 1;
       while (l <= h)
@@ -536,7 +556,9 @@ void PBF_Seek (PBF *bf, double time)
       /* handle limit cases */
       if (h < bf->times) m = l;
       else if (l > (bf->times + bf->count - 1)) m = h;
-      initialise_frame (bf, m - bf->times, &bf->time);
+
+      /* read data from found frame */
+      read_frame (bf, m - bf->times, &bf->time);
     }
   }
 }
@@ -551,7 +573,7 @@ int PBF_Backward (PBF *bf, int steps)
     {
       if (bf->frame < steps) pos = 0, ret = 0;
       else pos = bf->frame - steps, ret = 1;
-      initialise_frame (bf, pos, &bf->time);
+      read_frame (bf, pos, &bf->time);
     }
 
     return ret;
@@ -570,7 +592,7 @@ int PBF_Forward (PBF *bf, int steps)
     {
       if (bf->frame + steps >=  bf->count) pos = bf->count - 1, ret = 0;
       else pos = bf->frame + steps, ret = 1;
-      initialise_frame (bf, pos, &bf->time);
+      read_frame (bf, pos, &bf->time);
     }
 
     return ret;
@@ -587,8 +609,7 @@ unsigned int PBF_Span (PBF *bf, double t0, double t1)
 
     ASSERT_DEBUG (t0 <= t1, "t0 > t1");
 
-    /* binary search
-     * of marker */
+    /* binary search for t0 time frame */
     l = bf->times;
     h = l + bf->count - 1;
     while (l <= h)
@@ -599,12 +620,11 @@ unsigned int PBF_Span (PBF *bf, double t0, double t1)
       else l = m0 + 1;
     }
 
-    /* handle limit cases */
+    /* handle limit cases for t0 */
     if (h < bf->times) m0 = l;
     else if (l > (bf->times + bf->count - 1)) m0 = h;
 
-    /* binary search
-     * of marker */
+    /* binary search for t1 time frame */
     l = bf->times;
     h = l + bf->count - 1;
     while (l <= h)
@@ -615,11 +635,11 @@ unsigned int PBF_Span (PBF *bf, double t0, double t1)
       else l = m1 + 1;
     }
 
-    /* handle limit cases */
+    /* handle limit cases for t1 */
     if (h < bf->times) m1 = l;
     else if (l > (bf->times + bf->count - 1)) m1 = h;
 
-    return m1 - m0;
+    return m1 - m0; /* return span = difference of between frames */
   }
 
   return 0;
