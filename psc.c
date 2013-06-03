@@ -311,20 +311,40 @@ static int psc_compare_faces (FACE *a, FACE *b)
 
   if (a->normal [0] != b->normal [0] ||
       a->normal [1] != b->normal [1] ||
-      a->normal [2] != b->normal [2]) return 0;
+      a->normal [2] != b->normal [2])
+  {
+    WARNING (0, "PSC: FACE => normal");
+    fprintf (stderr, "a->n = %.15f, %.15f, %.15f\n", a->normal[0], a->normal[1], a->normal[2]);
+    fprintf (stderr, "b->n = %.15f, %.15f, %.15f\n", b->normal[0], b->normal[1], b->normal[2]);
+    return 0;
+  }
 
-  if (a->type != b->type) return 0;
+  if (a->type != b->type)
+  {
+    WARNING (0, "PSC: FACE => normal");
+    return 0;
+  }
 
   for (i = 0; i < a->type; i ++)
   {
-    if (a->nodes [i] != b->nodes [i]) return 0;
+    if (a->nodes [i] != b->nodes [i])
+    {
+      WARNING (0, "PSC: FACE => node");
+      return 0;
+    }
   }
 
-  if (a->index != b->index) return 0;
+  if (a->index != b->index)
+  {
+    WARNING (0, "PSC: FACE => index");
+    return 0;
+  }
 
-  if (a->surface != b->surface) return 0;
-
-  if (a->ele->flag != b->ele->flag) return 0;
+  if (a->surface != b->surface)
+  {
+    WARNING (0, "PSC: FACE => surface");
+    return 0;
+  }
 
   return 1;
 }
@@ -336,19 +356,19 @@ static int psc_compare_elements (ELEMENT *a, ELEMENT *b)
 
   if (a->type != b->type)
   {
-    fprintf (stderr, "\nPSC: ELEMENT => type");
+    WARNING (0, "PSC: ELEMENT => type");
     return 0;
   }
 
   if (a->neighs != b->neighs)
   {
-    fprintf (stderr, "\nPSC: ELEMENT => neighbours count");
+    WARNING (0, "PSC: ELEMENT => neighbours count");
     return 0;
   }
 
   if (a->volume != b->volume)
   {
-    fprintf (stderr, "\nPSC: ELEMENT => volume id");
+    WARNING (0, "PSC: ELEMENT => volume id");
     return 0;
   }
 
@@ -356,7 +376,7 @@ static int psc_compare_elements (ELEMENT *a, ELEMENT *b)
   {
     if (a->nodes [i] != b->nodes [i])
     {
-      fprintf (stderr, "\nPSC: ELEMENT => node index");
+      WARNING (0, "PSC: ELEMENT => node index");
       return 0;
     }
   }
@@ -365,7 +385,7 @@ static int psc_compare_elements (ELEMENT *a, ELEMENT *b)
   {
     if (a->adj[i]->flag != b->adj[i]->flag)
     {
-      fprintf (stderr, "\nPSC: ELEMENT => neighbour index");
+      WARNING (0, "PSC: ELEMENT => neighbour index");
       return 0;
     }
   }
@@ -374,18 +394,18 @@ static int psc_compare_elements (ELEMENT *a, ELEMENT *b)
   {
     if (fa && !fb)
     {
-      fprintf (stderr, "\nPSC: ELEMENT => number of faces");
+      WARNING (0, "PSC: ELEMENT => number of faces");
       return 0;
     }
     if (!fa && fb)
     {
-      fprintf (stderr, "\nPSC: ELEMENT => number of faces");
+      WARNING (0, "PSC: ELEMENT => number of faces");
       return 0;
     }
 
     if (psc_compare_faces (fa, fb) == 0)
     {
-      fprintf (stderr, "\nPSC: ELEMENT => face");
+      WARNING (0, "PSC: ELEMENT => face");
       return 0;
     }
   }
@@ -400,7 +420,7 @@ static int psc_compare_meshes (MESH *a, MESH *b)
 
   if (a->nodes_count != b->nodes_count)
   {
-    fprintf (stderr, "\nPSC: MESH => nodes_count\n");
+    WARNING (0, "PSC: MESH => nodes_count");
     return 0;
   }
 
@@ -410,7 +430,7 @@ static int psc_compare_meshes (MESH *a, MESH *b)
     {
       if (a->ref_nodes[i][j] != b->ref_nodes[i][j])
       {
-        fprintf (stderr, "\nPSC: MESH => ref_nodes\n");
+        WARNING (0, "PSC: MESH => ref_nodes");
         return 0;
       }
     }
@@ -422,7 +442,7 @@ static int psc_compare_meshes (MESH *a, MESH *b)
     {
       if (a->cur_nodes[i][j] != b->cur_nodes[i][j])
       {
-        fprintf (stderr, "\nPSC: MESH => cur_nodes\n");
+        WARNING (0, "PSC: MESH => cur_nodes");
 	return 0;
       }
     }
@@ -442,7 +462,7 @@ static int psc_compare_meshes (MESH *a, MESH *b)
   {
     if (psc_compare_elements (ele, y) == 0)
     {
-      fprintf (stderr, "\nPSC: MESH => surface element\n");
+      WARNING (0, "PSC: MESH => surface element");
       return 0;
     }
   }
@@ -451,7 +471,7 @@ static int psc_compare_meshes (MESH *a, MESH *b)
   {
     if (psc_compare_elements (ele, y) == 0)
     {
-      fprintf (stderr, "\nPSC: MESH => bulk element\n");
+      WARNING (0, "PSC: MESH => bulk element");
       return 0;
     }
   }
@@ -472,33 +492,33 @@ static int psc_compare_matrices (MX *a, MX *b)
 
   if (a->kind != b->kind)
   {
-    fprintf (stderr, "\nPSC: MX => kind\n");
+    WARNING (0, "PSC: MX => kind");
     return 0;
   }
   if (a->flags != b->flags)
   {
-    fprintf (stderr, "\nPSC: MX => flags\n");
+    WARNING (0, "PSC: MX => flags");
     return 0;
   }
 
   if (a->nzmax != b->nzmax)
   {
-    fprintf (stderr, "\nPSC: MX => nzmax\n");
+    WARNING (0, "PSC: MX => nzmax");
     return 0;
   }
   if (a->m != b->m)
   {
-    fprintf (stderr, "\nPSC: MX => m\n");
+    WARNING (0, "PSC: MX => m");
     return 0;
   }
   if (a->n != b->n)
   {
-    fprintf (stderr, "\nPSC: MX => n\n");
+    WARNING (0, "PSC: MX => n");
     return 0;
   }
   if (a->nz != b->nz)
   {
-    fprintf (stderr, "\nPSC: MX => nz\n");
+    WARNING (0, "PSC: MX => nz");
     return 0;
   }
 
@@ -506,7 +526,7 @@ static int psc_compare_matrices (MX *a, MX *b)
   {
     if (a->x[j] != b->x[j])
     {
-      fprintf (stderr, "\nPSC: MX => x\n");
+      WARNING (0, "PSC: MX => x");
       return 0;
     }
   }
@@ -521,7 +541,7 @@ static int psc_compare_matrices (MX *a, MX *b)
     {
       if (a->p[j] != b->p[j])
       {
-        fprintf (stderr, "\nPSC: MX => p\n");
+        WARNING (0, "PSC: MX => p");
 	return 0;
       }
     }
@@ -529,7 +549,7 @@ static int psc_compare_matrices (MX *a, MX *b)
     {
       if (a->i[j] != b->i[j])
       {
-        fprintf (stderr, "\nPSC: MX => i\n");
+        WARNING (0, "PSC: MX => i");
 	return 0;
       }
     }
@@ -541,7 +561,7 @@ static int psc_compare_matrices (MX *a, MX *b)
     {
       if (a->p[j] != b->p[j])
       {
-        fprintf (stderr, "\nPSC: MX => p\n");
+        WARNING (0, "PSC: MX => p");
 	return 0;
       }
     }
@@ -549,7 +569,7 @@ static int psc_compare_matrices (MX *a, MX *b)
     {
       if (a->i[j] != b->i[j])
       {
-        fprintf (stderr, "\nPSC: MX => i\n");
+        WARNING (0, "PSC: MX => i");
 	return 0;
       }
     }
