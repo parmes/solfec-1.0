@@ -39,6 +39,11 @@ if not VIEWER() and sol.mode == 'READ':
   try:
     import matplotlib.pyplot as plt
     th = HISTORY (sol, [(sol, 'KINETIC'), (sol, 'INTERNAL'), (sol, 'EXTERNAL')], 0, stop)
+#   ------------------------------------------------------------------------------------------
+#   Uncomment the below line to test exception handling for the point outside of domain case.
+#   Note, that "NOTHROW = no" must be set before compilation in the Config.mak for this to work.
+#    th = HISTORY (sol, [(sol, 'KINETIC'), (sol, 'INTERNAL'), (sol, 'EXTERNAL'), (bod, (-a,-b,100), 'DZ')], 0, stop)
+#   -----------------------------------------------------------------------------------------------------------------
     plt.plot (th [0], th [1], label='KIN')
     plt.plot (th [0], th [2], label='INT')
     plt.plot (th [0], th [3], label='EXT')
@@ -51,7 +56,10 @@ if not VIEWER() and sol.mode == 'READ':
     plt.ylabel ('Energy [J]')
     plt.legend(loc = 'upper right')
     plt.savefig ('out/pinned-fem-box/pinned-fem-box-' + bod.scheme + '.eps')
-  except ImportError:
+  except (ImportError, RuntimeError):
+    import sys
+    print "Unexpected error:", sys.exc_info()[1]
+    print "Energy balance plotting has failed!"
     pass # no reaction
 
   timers = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL']

@@ -80,6 +80,7 @@ char* errstring (int error)
     case ERR_FEM_CUT_VOLUME: return "Volume cut of FE mesh does not match the shape volume in FEM module";
     case ERR_FEM_ROT_SINGULAR_JACOBIAN: return "FEM rotation update singular Jacobian";
     case ERR_FEM_ROT_NEWTON_DIVERGENCE: return "FEM rotation update Newton method divergence";
+    case ERR_FEM_POINT_OUTSIDE: return "Referential point outside of domain";
     case ERR_BUG_FOUND: return "A bug was found";
   }
 

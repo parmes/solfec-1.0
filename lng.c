@@ -8127,6 +8127,7 @@ static PyObject* lng_DISPLACEMENT (PyObject *self, PyObject *args, PyObject *kwd
   double p [3], x [3];
   lng_BODY *body;
   PyObject *point;
+  int error;
 
   PARSEKEYS ("OO", &body, &point);
 
@@ -8141,7 +8142,18 @@ static PyObject* lng_DISPLACEMENT (PyObject *self, PyObject *args, PyObject *kwd
   p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
   p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-  BODY_Point_Values (body->bod, p, VALUE_DISPLACEMENT, x);
+  TRY ()
+    BODY_Point_Values (body->bod, p, VALUE_DISPLACEMENT, x);
+  CATCHANY (error)
+  {
+    PyErr_SetString (PyExc_RuntimeError, errstring (error));
+#if MPI
+    PyErr_Print ();
+    MPI_Abort (MPI_COMM_WORLD, 2000+error);
+#endif
+    return NULL;
+  }
+  ENDTRY ()
 
   return Py_BuildValue ("(d, d, d)", x[0], x[1], x[2]);
 
@@ -8158,6 +8170,7 @@ static PyObject* lng_VELOCITY (PyObject *self, PyObject *args, PyObject *kwds)
   double p [3], x [3];
   lng_BODY *body;
   PyObject *point;
+  int error;
 
   PARSEKEYS ("OO", &body, &point);
 
@@ -8172,7 +8185,20 @@ static PyObject* lng_VELOCITY (PyObject *self, PyObject *args, PyObject *kwds)
   p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
   p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-  BODY_Point_Values (body->bod, p, VALUE_VELOCITY, x);
+  TRY ()
+    BODY_Point_Values (body->bod, p, VALUE_VELOCITY, x);
+  CATCHANY (error)
+  {
+    PyErr_SetString (PyExc_RuntimeError, errstring (error));
+#if MPI
+    PyErr_Print ();
+    MPI_Abort (MPI_COMM_WORLD, 2000+error);
+#endif
+    return NULL;
+  }
+  ENDTRY ()
+
+
 
   return Py_BuildValue ("(d, d, d)", x[0], x[1], x[2]);
 
@@ -8189,6 +8215,7 @@ static PyObject* lng_STRESS (PyObject *self, PyObject *args, PyObject *kwds)
   double p [3], x [7];
   lng_BODY *body;
   PyObject *point;
+  int error;
 
   PARSEKEYS ("OO", &body, &point);
 
@@ -8203,7 +8230,20 @@ static PyObject* lng_STRESS (PyObject *self, PyObject *args, PyObject *kwds)
   p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
   p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-  BODY_Point_Values (body->bod, p, VALUE_STRESS_AND_MISES, x);
+  TRY ()
+    BODY_Point_Values (body->bod, p, VALUE_STRESS_AND_MISES, x);
+  CATCHANY (error)
+  {
+    PyErr_SetString (PyExc_RuntimeError, errstring (error));
+#if MPI
+    PyErr_Print ();
+    MPI_Abort (MPI_COMM_WORLD, 2000+error);
+#endif
+    return NULL;
+  }
+  ENDTRY ()
+
+
 
   return Py_BuildValue ("(d, d, d, d, d, d, d)", x[0], x[1], x[2], x[3], x[4], x[5], x[6]);
 
@@ -8689,6 +8729,7 @@ static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
   SOLFEC *sol;
   MEM setmem;
   SHI *shi;
+  int error;
 
   progress = NULL;
   skip = 1;
@@ -8733,7 +8774,18 @@ static PyObject* lng_HISTORY (PyObject *self, PyObject *args, PyObject *kwds)
       }
     }
 
-    time = SOLFEC_History (sol, shi, nshi, t0, t1, skip, &size);
+    TRY ()
+      time = SOLFEC_History (sol, shi, nshi, t0, t1, skip, &size);
+    CATCHANY (error)
+    {
+      PyErr_SetString (PyExc_RuntimeError, errstring (error));
+#if MPI
+      PyErr_Print ();
+      MPI_Abort (MPI_COMM_WORLD, 2000+error);
+#endif
+      return NULL;
+    }
+    ENDTRY ()
 
     ERRMEM (tuple = PyTuple_New (nshi + 1));
     ERRMEM (vals = PyList_New (size));
