@@ -19,6 +19,9 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if POSIX
+#include <sys/stat.h>
+#endif
 #include <Python.h>
 #include <structmember.h>
 #include <limits.h>
@@ -7750,8 +7753,22 @@ static MX* read_modal_analysis (const char *path, double **v)
 }
 
 /* write modal data */
-static void write_modal_analysis (MX *E, double *v, const char *path)
+static void write_modal_analysis (MX *E, double *v, char *path)
 {
+#if POSIX
+  int i, l = strlen (path);
+
+  for (i = 0; i < l; i ++) /* create all directories on the way */
+  {
+    if (path [i] == '/')
+    {
+       path [i] = '\0';
+       mkdir (path, 0777); /* POSIX */
+       path [i] = '/';
+    }
+  }
+#endif
+
 #if HDF5
   PBF *f;
 
