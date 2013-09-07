@@ -7721,6 +7721,7 @@ static MX* read_modal_analysis (const char *path, double **v)
   PBF *f;
 
   f = PBF_Read (path);
+  if (!f) return NULL;
   PBF_Int (f, &m, 1);
   PBF_Int (f, &n, 1);
   E = MX_Create (MXDENSE, m, n, NULL, NULL);
@@ -7733,6 +7734,7 @@ static MX* read_modal_analysis (const char *path, double **v)
   XDR xdr;
 
   f = fopen (path, "r");
+  if (!f) return NULL;
   xdrstdio_create (&xdr, f, XDR_DECODE);
   ASSERT (xdr_int (&xdr, &m), ERR_FILE_READ);
   ASSERT (xdr_int (&xdr, &n), ERR_FILE_READ);
@@ -7782,7 +7784,6 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   int num, i, maxiter, vrb;
   double *v, abstol;
   lng_BODY *body;
-  FILE *f;
   MX *V;
 
   vrb = 0;
@@ -7809,11 +7810,16 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   {
 #endif
 
-  f = fopen (PyString_AsString (path), "r");
-  if (f) /* read without refering to a body et all (precomputed results, parallel use, etc.) */
+  V = read_modal_analysis (PyString_AsString (path), &v);
+  if (V && v) /* read without refering to a body et all (precomputed results, parallel use, etc.) */
   {
-    fclose (f);
-    V = read_modal_analysis (PyString_AsString (path), &v);
+    if (V->n != num) /* recompute anew */
+    {
+      MX_Destroy (V);
+      free (v);
+      V = NULL;
+      v = NULL;
+    }
   }
 
 #if MPI && LOCAL_BODIES
@@ -7874,8 +7880,6 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   MPI_Barrier (MPI_COMM_WORLD); /* all processes meet here twice */
   }
 #endif
-
-
 
   if (V && v)
   {

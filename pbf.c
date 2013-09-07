@@ -56,7 +56,10 @@ static void new_frame (PBF *bf, int frame, double *time)
 /* read new frame */
 static void read_frame (PBF *bf, int frame, double *time)
 {
-  new_frame (bf, frame, time);
+  if (frame >= 0 && frame < bf->count) /* could be a frameless file */
+  {
+    new_frame (bf, frame, time);
+  }
 
   free (bf->i);
   bf->ipos = 0;
