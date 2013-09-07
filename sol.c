@@ -834,6 +834,8 @@ void SOLFEC_Abort (SOLFEC *sol)
 /* free solfec memory */
 void SOLFEC_Destroy (SOLFEC *sol)
 {
+  if (sol->iover < 0) write_state (sol, NULL, NONE_SOLVER); /* in case state was never written */
+
   AABB_Destroy (sol->aabb); 
   FISET_Destroy (sol->fis);
   SPSET_Destroy (sol->sps);

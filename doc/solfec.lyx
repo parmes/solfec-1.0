@@ -12744,7 +12744,22 @@ num
 path
 \series default
  - path to file where the results will be stored (to avoid recomputing if
- possible)
+ possible).
+ Note, that if previous modal analysis results are found they are used rather
+ then recomputed if the number of modes and 
+\series bold
+num
+\series default
+ are the same.
+ If 
+\series bold
+num
+\series default
+ is different from the previous modes count, then new 
+\series bold
+num
+\series default
+ modes is computed from scratch.
 \end_layout
 
 \begin_layout Itemize
