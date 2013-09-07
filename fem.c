@@ -3507,9 +3507,8 @@ void FEM_Point_Values (BODY *bod, ELEMENT *ele, double *X, VALUE_KIND kind, doub
   {
     ele = MESH_Element_Containing_Point (msh, X, 1);
   }
-  
-  ASSERT_TEXT (ele, "Element containing referential point was not found.\n"
-                    "Please report this bug!\n");
+
+  ASSERT (ele, ERR_FEM_POINT_OUTSIDE);
 
   referential_to_local (msh, ele, X, point);
 
