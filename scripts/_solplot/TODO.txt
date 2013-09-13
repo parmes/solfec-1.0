@@ -1,0 +1,3 @@
+Planned enhancements:
+- Take advantage of issue 49 being fixed: http://code.google.com/p/solfec/issues/detail?id=49
+- Add control of line style, or wait for matplotlib to add a widget for this to the toolbar (is in their plan)
