@@ -8903,9 +8903,10 @@ static PyMethodDef lng_methods [] =
  * initialization
  */
 
-static void initlng (void)
+static void initlng (const char *path)
 {
   PyObject *m;
+  PyObject *ppath = PyString_FromString(path);
 
   TYPEINIT (lng_CONVEX_TYPE, lng_CONVEX, "solfec.CONVEX",
     Py_TPFLAGS_DEFAULT, lng_CONVEX_dealloc, lng_CONVEX_new,
@@ -9031,6 +9032,7 @@ static void initlng (void)
 #endif
   PyModule_AddObject (m, "TEST_SOLVER", (PyObject*)&lng_TEST_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
+  PyModule_AddObject (m, "__file__", ppath);
 }
 
 /* 
@@ -9048,7 +9050,7 @@ int lng (const char *path)
 
   Py_Initialize();
 
-  initlng ();
+  initlng (path);
 
   PyRun_SimpleString("from solfec import CONVEX\n"
                      "from solfec import HULL\n"
@@ -9128,7 +9130,8 @@ int lng (const char *path)
                      "from solfec import STRESS\n"
                      "from solfec import ENERGY\n"
                      "from solfec import TIMING\n"
-                     "from solfec import HISTORY\n");
+                     "from solfec import HISTORY\n"
+                     "from solfec import __file__\n");
 
 #if WITHSICONOS
   PyRun_SimpleString ("from solfec import SICONOS_SOLVER\n");
