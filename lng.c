@@ -945,6 +945,35 @@ static void lng_MESH_dealloc (lng_MESH *self)
   self->ob_type->tp_free ((PyObject*)self);
 }
 
+/* set volid for all faces. returns the volid set */
+static PyObject* lng_MESH_setvolid (lng_MESH *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("volid");
+  int v;
+  ELEMENT *ele;
+  PARSEKEYS ("i", &v);
+  if (!self->msh)
+  {
+    PyErr_SetString (PyExc_ValueError, "The MESH object is empty");
+    return NULL;
+  }
+  
+  // modify bulk elements
+  for (ele = self->msh->bulkeles; ele; ele = ele->next)
+  {
+    ele->volume = v;
+  }
+  
+  // modify surface elements
+  for (ele = self->msh->surfeles; ele; ele = ele->next)
+  {
+    ele->volume = v;
+  }
+  
+  return Py_BuildValue ("i", v);
+  
+}
+
 /* return node */
 static PyObject* lng_MESH_node (lng_MESH *self, PyObject *args, PyObject *kwds)
 {
@@ -1114,7 +1143,6 @@ static PyObject* lng_MESH_get_meshdata (lng_MESH *self, PyObject *args, PyObject
     }
   }
   
-  
   return PyTuple_Pack(3, nodelist, ellist, surfidlist);
 }
 
@@ -1124,6 +1152,7 @@ static PyMethodDef lng_MESH_methods [] =
   {"node", (PyCFunction)lng_MESH_node, METH_VARARGS|METH_KEYWORDS, "Return a node point of a mesh"},
   {"nodes_on_surface", (PyCFunction)lng_MESH_nodes_on_surface, METH_VARARGS|METH_KEYWORDS, "Return list of node numbers belonging to a given surface"},
   {"get_data", (PyCFunction)lng_MESH_get_meshdata, METH_NOARGS, "Return mesh data - very developmental!"},
+  {"set_volid", (PyCFunction)lng_MESH_setvolid, METH_VARARGS|METH_KEYWORDS, "Set volid for all faces"},
   {NULL, NULL, 0, NULL}
 };
 
