@@ -1050,11 +1050,80 @@ static int lng_MESH_set_nnod (lng_MESH *self, PyObject *value, void *closure)
   return -1;
 }
 
+/* return the nodes, elements and surfid data in the form that MESH() requires */
+static PyObject* lng_MESH_get_meshdata (lng_MESH *self, PyObject *args, PyObject *kwds)
+{
+  PyObject *ellist, *nodelist, *surfidlist;
+  ELEMENT *ele;
+  FACE *fac;
+  int n, d;
+  double v;
+  
+  if (!self->msh)
+  {
+    PyErr_SetString (PyExc_ValueError, "The MESH object is empty");
+    return NULL;
+  }
+  
+  // extract nodes
+  nodelist = PyList_New(0);
+  for (n=0; n < self->msh->nodes_count; n++)
+  {
+    for (d=0; d < 3; d++)
+    {
+      v = self->msh->cur_nodes[n][d]; // use the CURRENT config, not the starting one
+      PyList_Append(nodelist, PyFloat_FromDouble(v));
+    }
+  }
+
+  // extract bulk elements
+  ellist = PyList_New(0);
+  for (ele = self->msh->bulkeles; ele; ele = ele->next)
+  {
+    PyList_Append(ellist, PyInt_FromLong(ele->type)); // number of nodes
+    for (n = 0; n < ele->type; n ++)
+    {
+      PyList_Append(ellist, PyInt_FromLong(ele->nodes[n])); // node numbers
+    }
+    PyList_Append(ellist, PyInt_FromLong(ele->volume)); // volid
+  }
+  
+  // extract suface elements 
+  for (ele = self->msh->surfeles; ele; ele = ele->next)
+  {
+    PyList_Append(ellist, PyInt_FromLong(ele->type)); // number of nodes
+    for (n = 0; n < ele->type; n ++)
+    {
+      PyList_Append(ellist, PyInt_FromLong(ele->nodes[n])); // node numbers
+    }
+    PyList_Append(ellist, PyInt_FromLong(ele->volume)); // volid
+  }
+  
+  // extract surfids - assume GID is zero, if this is the only sid it is returned as [GID]
+  surfidlist = PyList_New(1);
+  PyList_SetItem(surfidlist, 0, PyInt_FromLong(0)); // set GID
+  for (fac = self->msh->faces; fac; fac = fac->n)
+  {
+    if (fac->surface != 0){
+      PyList_Append(surfidlist, PyInt_FromLong(fac->type)); // f1 etc
+      for (n = 0; n < fac->type; n++)
+      {
+        PyList_Append(surfidlist, PyInt_FromLong(fac->nodes[n])); // n1 etc
+      }
+      PyList_Append(surfidlist, PyInt_FromLong(fac->surface)); // sid
+    }
+  }
+  
+  
+  return PyTuple_Pack(3, nodelist, ellist, surfidlist);
+}
+
 /* MESH methods */
 static PyMethodDef lng_MESH_methods [] =
 { 
   {"node", (PyCFunction)lng_MESH_node, METH_VARARGS|METH_KEYWORDS, "Return a node point of a mesh"},
   {"nodes_on_surface", (PyCFunction)lng_MESH_nodes_on_surface, METH_VARARGS|METH_KEYWORDS, "Return list of node numbers belonging to a given surface"},
+  {"get_data", (PyCFunction)lng_MESH_get_meshdata, METH_NOARGS, "Return mesh data - very developmental!"},
   {NULL, NULL, 0, NULL}
 };
 
