@@ -66,6 +66,12 @@ else
   GLLIB = 
 endif
 
+ifeq ($(LOCAL_BODIES),yes)
+  LOCAL_BODIES = -DLOCAL_BODIES
+else
+  LOCAL_BODIES = 
+endif
+
 ifeq ($(DEBUG),yes)
   DBG = yes
   DEBUG =  -W -Wall -Wno-unused-parameter -pedantic -g -DDEBUG

@@ -5755,9 +5755,7 @@ name "sub:ELLIPSOID"
 
 \end_inset
 
-ELLIP 
-\color red
-(Under development)
+ELLIP
 \end_layout
 
 \begin_layout Standard
@@ -6978,7 +6976,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="2">
+<lyxtabular version="3" rows="2" columns="2">
 <features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="40col%">
@@ -7003,7 +7001,7 @@ Employs variables
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -7012,7 +7010,7 @@ Employs variables
 
 \end_inset
 </cell>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -7025,37 +7023,6 @@ reference "sub:Kirchhoff"
 \end_inset
 
 )
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-'TSANG_MARSDEN' 
-\series bold
-\color red
-Under development
-\end_layout
-
-\end_inset
-</cell>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-young, poisson, density, fields (4); cf.
- 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "Tsang2006"
-
-\end_inset
-
-
 \end_layout
 
 \end_inset
@@ -7870,10 +7837,7 @@ Body co-rotational (one co-rotated frame per body, suitable for stiff bodies)
 \begin_inset Text
 
 \begin_layout Plain Layout
-'RO' 
-\series bold
-\color red
-(under development)
+'RO'
 \end_layout
 
 \end_inset
@@ -9244,9 +9208,7 @@ variant
 \end_layout
 
 \begin_layout Subsection
-NEWTON_SOLVER 
-\color red
-(Under development)
+NEWTON_SOLVER
 \end_layout
 
 \begin_layout Standard
@@ -9551,9 +9513,7 @@ obj.meritval, obj.maxiter, obj.locdyn, obj.linver, obj.linmaxiter, obj.maxmatvec
 \end_layout
 
 \begin_layout Subsection
-SICONOS_SOLVER 
-\color red
-(Under development)
+SICONOS_SOLVER
 \end_layout
 
 \begin_layout Standard
@@ -12688,9 +12648,7 @@ This routine returns all command line arguments (in the form of a list of
 \end_layout
 
 \begin_layout Subsection*
-obj = MODAL_ANALYSIS (body, num, path | abstol, maxiter, verbose) 
-\color red
-(Under development)
+obj = MODAL_ANALYSIS (body, num, path | abstol, maxiter, verbose)
 \end_layout
 
 \begin_layout Standard

@@ -610,6 +610,8 @@ void PSC_Write_Body (BODY *bod)
   FILE *f;
   int i;
 
+  ASSERT_TEXT (bod->kind == FEM, "Only FEM bodies are supported in PSC mode");
+
   snprintf (txt, 1024, "%s/body%d.data", bod->dom->solfec->outpath, bod->id);
   ASSERT (f = fopen (txt, "w"), ERR_FILE_OPEN);
 

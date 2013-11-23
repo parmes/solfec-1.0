@@ -3381,6 +3381,21 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   BOXALG alg;
   BODY *bod;
 
+#if PSCTEST
+    for (bod = dom->bod; bod; bod = bod->next)
+    {
+#if MPI
+      if (dom->rank == 0)
+#endif
+      if (bod->kind != FEM)
+      {
+	fprintf (stderr, "WARNING: only FEM bodies are supported in the Parallel self-consitency test mode (PSCTEST).\n");
+	fprintf (stderr, "WARNING: the simulation is aborted.\n");
+	EXIT (1);
+      }
+    }
+#endif
+
 #if MPI
 #if LOCAL_BODIES
   if (dom->time == 0.0) domain_balancing (dom); /* initially balance bodies */
