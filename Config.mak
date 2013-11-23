@@ -27,6 +27,14 @@ FCLIB = -lgfortran
 # Debug or optimized version switch (yes/no)
 #
 
+#
+# Local body storage (yes/no)
+#
+# If 'no' all bodies all stored on all processors; this implies less communication during parallel balancing;
+# When 'yes' bodies are only stored locally in parallel; this is more suitable for larger simulations;
+#
+LOCAL_BODIES = no
+
 # general debug tests
 DEBUG = yes
 # gprof profiling data

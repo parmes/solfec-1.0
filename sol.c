@@ -463,6 +463,12 @@ static void statsout (SOLFEC *sol)
 
     fclose (sta);
     free (stapath);
+
+#if PSCTEST
+    printf ("WARNING: Parallel slef-consitency checks are enabled (PSCTEST), rendering Solfec much less efficient!\n");
+    printf ("=====================================================================================================\n");
+#endif
+
 #if MPI
   }
 #endif
