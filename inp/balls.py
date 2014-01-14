@@ -20,14 +20,14 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.
 
 surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.5, restitution = 0)
 
-BODY (solfec, 'OBSTACLE', table, bulkmat)
+BODY (solfec, 'OBSTACLE', table, bulkmat, label='table')
 
 pipe = PIPE ((0.5, 0.5, 0), (0, 0, 2), 0.5, 0.1, 1, 8, 1, 1, [1, 2, 3, 4])
-BODY (solfec, 'OBSTACLE', pipe, bulkmat)
+BODY (solfec, 'OBSTACLE', pipe, bulkmat, label='pipe')
 
 for i in range (0, 100):
   shp = SPHERE ((0.5 - i % 2 * 0.01, 0.5 + i % 2 * 0.01, 0.1 + i*0.2), 0.1, 3, 3)
-  bod = BODY (solfec, 'RIGID', shp, bulkmat)
+  bod = BODY (solfec, 'RIGID', shp, bulkmat, label='ball_%i' % i)
 
 gs = GAUSS_SEIDEL_SOLVER (1E1, 100, 1E-6)
 
