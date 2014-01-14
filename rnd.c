@@ -29,6 +29,7 @@
 #include <limits.h>
 #include <float.h>
 #include <math.h>
+#include <Python.h>
 #include "solfec.h"
 #include "set.h"
 #include "alg.h"
@@ -173,6 +174,7 @@ enum /* menu items */
   RENDER_WIREFRAME_3D,
   RENDER_PREVIOUS_SELECTION,
   RENDER_BODIES,
+  TOOLS_RUN_SCRIPT,
   TOOLS_DISPLAY_POINTS,
   TOOLS_LEGEND_EXTENTS,
   TOOLS_TRANSPARENT,
@@ -534,7 +536,7 @@ static int rgbatoid (unsigned char *rgba)
   ((unsigned char*)&id) [0] = rgba [0];
   ((unsigned char*)&id) [1] = rgba [1];
   ((unsigned char*)&id) [2] = rgba [2];
-#if __MINGW32__ || OSTYPE_WIN32 || OSTYPE_LINUX
+#if 1
   ((unsigned char*)&id) [3] = 0; /* FIXME: alpha always one */
 #else
   ((unsigned char*)&id) [3] = rgba [3];
@@ -3198,6 +3200,21 @@ static void run (int dummy)
   if (domain->flags & DOM_RUN_ANALYSIS) glutTimerFunc (1000 * SOLFEC_Time_Skip (solfec), run, 0);
 }
 
+
+/* run a python script specified by path */
+static void run_script (char *path)
+{
+  char *line;
+  int error;
+  
+  ERRMEM (line = MEM_CALLOC (128 + strlen (path)));
+  sprintf (line, "runscript('%s')", path);
+  // Python function "runscript" defined at run-time via lng.c
+  // No error handling is required as any stack trace is printed to stdout
+  error = PyRun_SimpleString (line);
+  free (line);
+}
+
 /* seek to specific time frame */
 static void seek_to_time (char *text)
 {
@@ -3603,6 +3620,9 @@ static void menu_tools (int item)
 {
   switch (item)
   {
+  case TOOLS_RUN_SCRIPT:
+    GLV_Read_Text ("Run script", run_script);
+    break;
   case TOOLS_EULER_CUT:
   case TOOLS_LAGRANGE_CUT:
     if (mouse_mode == MOUSE_CUTTING_PLANE)
@@ -3988,6 +4008,7 @@ int RND_Menu (char ***names, int **codes)
 
   menu_name [MENU_TOOLS] = "tools";
   menu_code [MENU_TOOLS] = glutCreateMenu (menu_tools);
+  glutAddMenuEntry ("run python script /P/", TOOLS_RUN_SCRIPT);
   glutAddMenuEntry ("display points on/off /D/", TOOLS_DISPLAY_POINTS);
   glutAddMenuEntry ("legen extents /e/", TOOLS_LEGEND_EXTENTS);
   glutAddMenuEntry ("toggle transparent /t/", TOOLS_TRANSPARENT);
@@ -4175,6 +4196,9 @@ void RND_Key (int key, int x, int y)
     break;
   case 'b':
     menu_render (RENDER_BODIES);
+    break;
+  case 'P':
+    menu_tools (TOOLS_RUN_SCRIPT);
     break;
   case 'D':
     menu_tools (TOOLS_DISPLAY_POINTS);
