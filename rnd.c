@@ -3293,6 +3293,16 @@ static void read_legend_extents (char *text)
   }
 }
 
+/* selection by a set of bodies (used by lng.c/lng_render) */
+void select_id (SET *bodies)
+{
+  if (bodies)
+  {
+    selection_push (bodies);
+    GLV_Redraw_All ();
+  }
+}
+
 /* 2D selection using indexed coloring */
 static void select_2D (int x1, int y1, int x2, int y2)
 {

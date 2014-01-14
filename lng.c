@@ -8435,6 +8435,33 @@ static SET* object_to_body_set (PyObject *obj, MEM *setmem, SOLFEC *sol)
   return ret;
 }
 
+/* render a list of bodies */
+static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "object"); // a body or a list of bodies
+  SET *bodies;
+  lng_SOLFEC *solfec;
+  PyObject *object;
+  MEM setmem;
+  
+  object = NULL;
+  
+  PARSEKEYS ("O|O", &solfec, &object);
+  
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_solfec_or_body_or_list_of_bodies (object, kwl[1]));
+  
+  if (object)
+  {
+    MEM_Init (&setmem, sizeof (SET), 128);
+    bodies = object_to_body_set (object, &setmem, solfec->sol);
+  }
+  
+  if (RND_Is_On ()) select_id (bodies);
+  
+  Py_RETURN_NONE;
+}
+
+
 /* energy */
 static PyObject* lng_ENERGY (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -8985,6 +9012,7 @@ static PyMethodDef lng_methods [] =
   {"DISPLAY_POINT", (PyCFunction)lng_DISPLAY_POINT, METH_VARARGS|METH_KEYWORDS, "Add display point"},
   {"FRACTURE_EXPORT_YAFFEMS", (PyCFunction)lng_FRACTURE_EXPORT_YAFFEMS, METH_VARARGS|METH_KEYWORDS, "Export fracture data to Yaffems"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
+  {"RENDER", (PyCFunction)lng_RENDER, METH_VARARGS|METH_KEYWORDS, "Render bodies"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
   {"SEEK", (PyCFunction)lng_SEEK, METH_VARARGS|METH_KEYWORDS, "Seek to time in READ mode"},
@@ -9220,6 +9248,7 @@ int lng (const char *path)
                      "from solfec import DISPLAY_POINT\n"
                      "from solfec import FRACTURE_EXPORT_YAFFEMS\n"
                      "from solfec import DURATION\n"
+                     "from solfec import RENDER\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"
                      "from solfec import SEEK\n"

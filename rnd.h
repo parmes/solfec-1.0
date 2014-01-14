@@ -52,4 +52,5 @@ void RND_Solver (DOM *dom, int kind, void *solver);
 /* free body associated rendering data */
 void RND_Free_Rendering_Data (void *ptr);
 
+void select_id (SET *bodies);
 #endif
