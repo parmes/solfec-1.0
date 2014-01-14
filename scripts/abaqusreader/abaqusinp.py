@@ -257,8 +257,6 @@ class AbaqusInput(object):
             convert (bool): Create solfec objects (default=True)
     """
     
-    print 'using local ver'
-    
     self.ver = 'NEW'
     global _verbosity
     _verbosity = verbose
