@@ -9235,6 +9235,16 @@ int lng (const char *path)
   PyRun_SimpleString ("from solfec import SICONOS_SOLVER\n");
 #endif
 
+  // add a python function:
+  // Split a string into a script name + args, and try to run this script
+  // from the pwd passing it args.
+  // NB: adding this function here is hacky, but it is much easier to define in Python
+  PyRun_SimpleString("def runscript(cmd_str):\n"
+                     "  import sys\n"
+                     "  sys.argv = cmd_str.split()\n"
+                     "  if not sys.argv[0].endswith('py'): sys.argv[0] += '.py'\n"
+                     "  execfile ('%s' % sys.argv[0])\n");
+
   ERRMEM (line = MEM_CALLOC (128 + strlen (path)));
   sprintf (line, "execfile ('%s')", path);
 
