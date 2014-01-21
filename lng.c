@@ -8455,9 +8455,9 @@ static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
     MEM_Init (&setmem, sizeof (SET), 128);
     bodies = object_to_body_set (object, &setmem, solfec->sol);
   }
-  
+  #if OPENGL
   if (RND_Is_On ()) select_id (bodies);
-  
+  #endif
   Py_RETURN_NONE;
 }
 
