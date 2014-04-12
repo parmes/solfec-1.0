@@ -81,6 +81,7 @@ static void write_frame (PBF *bf)
   PBF_Int2 (bf, "i", bf->i, bf->ipos);
   PBF_Int2 (bf, "doubles", &bf->dpos, 1);
   PBF_Double2 (bf, "d", bf->d, bf->dpos);
+  H5Fflush (bf->stack[0], H5F_SCOPE_GLOBAL); /* fixes Issue 55 ? */
 }
 
 /* count existing time frames */
