@@ -129,7 +129,7 @@ static PBF* readoutpath (char *outpath)
 }
 
 /* attempt writing output path */
-static PBF* writeoutpath (char *outpath)
+static PBF* writeoutpath (char *outpath, PBF_FLG append)
 {
 #if POSIX
   int i, l = strlen (outpath);
@@ -147,7 +147,7 @@ static PBF* writeoutpath (char *outpath)
 #endif
 
   char *path = getpath (outpath);
-  PBF *bf = PBF_Write (path, PBF_OFF, PBF_ON);
+  PBF *bf = PBF_Write (path, append, PBF_ON);
 
   free (path);
   return bf;
@@ -177,6 +177,11 @@ static void copyfile (char *from, char *to)
 /* output state */
 static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
 {
+#if HDF5
+  /* open and append */
+  if (!(sol->bf = writeoutpath (sol->outpath, PBF_ON))) THROW (ERR_FILE_OPEN);
+#endif
+
   /* write time */
 
   PBF_Time (sol->bf, &sol->dom->time); /* the only domain member written outside of it */
@@ -234,6 +239,11 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
   case TEST_SOLVER: TEST_Write_State (solver, sol->bf); break;
   default: break;
   }
+
+#if HDF5
+  /* close to ensure flushed buffers */
+  PBF_Close (sol->bf);
+#endif
 }
 
 /* read timers alone */
@@ -519,7 +529,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   if (!WRITE_MODE_FLAG() && (sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
   else
 #endif
-  if ((sol->bf = writeoutpath (sol->outpath)))
+  if ((sol->bf = writeoutpath (sol->outpath, PBF_OFF)))
   {
     char *copy, *path = getpath (sol->outpath);
 
@@ -530,6 +540,10 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
     free (path);
 
     sol->mode = SOLFEC_WRITE;
+
+#if HDF5
+    PBF_Close (sol->bf);
+#endif
   }
   else THROW (ERR_FILE_OPEN);
   sol->iover = -IOVER; /* negative to indicate initial state */
@@ -832,7 +846,9 @@ void SOLFEC_Abort (SOLFEC *sol)
 
   if (sol->bf)
   {
+#if !HDF5
     PBF_Close (sol->bf);
+#endif
     sol->bf = NULL;
   }
 }
@@ -840,7 +856,10 @@ void SOLFEC_Abort (SOLFEC *sol)
 /* free solfec memory */
 void SOLFEC_Destroy (SOLFEC *sol)
 {
-  if (sol->iover < 0) write_state (sol, NULL, NONE_SOLVER); /* in case state was never written */
+  if (sol->mode == SOLFEC_WRITE && sol->iover < 0)
+  {
+    write_state (sol, NULL, NONE_SOLVER); /* in case state was never written */
+  }
 
   AABB_Destroy (sol->aabb); 
   FISET_Destroy (sol->fis);
@@ -850,7 +869,9 @@ void SOLFEC_Destroy (SOLFEC *sol)
 
   free (sol->outpath);
 
+#if !HDF5
   if (sol->bf) PBF_Close (sol->bf);
+#endif
 
   if (sol->mode == SOLFEC_READ)
   {
