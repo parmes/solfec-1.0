@@ -3686,7 +3686,7 @@ BODY** FEM_Separate (BODY *bod, int *m)
 
   if (bod->msh)
   {
-    msh = MESH_Separate (bod->msh, &i);
+    msh = MESH_Separate (bod->msh, &i, 0);
     ASSERT_TEXT ((*m) == i, "Shape and background mesh fragmented into different numbers of fragments: %d, %d", *m, i);
 
     /* how do we know that the sequence of meshes maches the sequence of separated shapes ?

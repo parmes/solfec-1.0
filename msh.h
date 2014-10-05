@@ -140,11 +140,14 @@ TRI* MESH_Ref_Cut (MESH *msh, double *point, double *normal, int *m);
  * topoadj != 0 implies cutting from the point and through the topological adjacency only */
 int MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int surfid[2], int remesh, MESH **one, MESH **two);
 
-/* is mesh separable into disjoint parts */
-int MESH_Separable (MESH *msh);
+/* split mesh by a node set */
+MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout);
+
+/* how many parts is mesh separable into */
+int MESH_Parts (MESH *msh);
 
 /* separate mesh into disjoint parts */
-MESH** MESH_Separate (MESH *msh, int *m);
+MESH** MESH_Separate (MESH *msh, int *m, int surfid);
 
 /* compute partial characteristic: 'vo'lume and static momenta
  * 'sx', 'sy, 'sz' and 'eul'er tensor; assume that all input data is initially zero; */

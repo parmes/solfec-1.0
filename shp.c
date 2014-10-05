@@ -549,7 +549,7 @@ void SHAPE_Split (SHAPE *shp, double *point, double *normal, short topoadj, int 
 /* is shape separable into disjoint parts */
 int SHAPE_Separable (SHAPE *shp)
 {
-  if (shp->kind == SHAPE_MESH && shp->next == NULL) return MESH_Separable (shp->data);
+  if (shp->kind == SHAPE_MESH && shp->next == NULL) return MESH_Parts (shp->data) > 1;
   else if (shp->kind == SHAPE_CONVEX && shp->next == NULL) return CONVEX_Separable (shp->data);
   else return 0;
 }
@@ -562,7 +562,7 @@ SHAPE** SHAPE_Separate (SHAPE *shp, int *m)
 
   if (shp->kind == SHAPE_MESH && shp->next == NULL)
   {
-    MESH **x = MESH_Separate (shp->data, m);
+    MESH **x = MESH_Separate (shp->data, m, 0);
 
     if (x)
     {

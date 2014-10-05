@@ -1971,8 +1971,94 @@ int MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int sur
   return 0;
 }
 
-/* is mesh separable into disjoint parts */
-int MESH_Separable (MESH *msh)
+/* split mesh by a node set */
+MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
+{
+  msh = MESH_Copy (msh); /* work on a copy */
+
+  int k, i, j, fac[4], n, neighs, nfac = 0, bulk = 0;
+  ELEMENT *ele, *nei, *adj[6], *next;
+  MESH **out;
+
+  for (ele = msh->surfeles; ele; ele = next)
+  {
+    neighs = ele->neighs;
+    for (k = 0; k < neighs; k ++) adj[k] = ele->adj[k]; /* make a copy of adjacency */
+
+    for (k = 0; k < neighs; k ++)
+    {
+      nei = adj[k];
+      n = 0;
+
+      for (i = 0; i < ele->type; i ++)
+      {
+	for (j = 0; j < nei->type; j ++)
+	{
+	  if (ele->nodes[i] == nei->nodes[j])
+	  {
+	    fac[n] = ele->nodes[i];
+	    n ++;
+	    ASSERT_TEXT (n <= 4, "Inconsistent element adjacency");
+	  }
+	}
+      }
+
+      for (i = 0; i < n; i ++)
+      {
+	if (!SET_Contains (nodes, (void*)(long)fac[i], NULL)) break;
+      }
+
+      if (i == n) /* face nodes in the splitting set => modify adjacency */
+      {
+	nfac ++; /* number of split faces */
+
+	for (j = 0; j < ele->neighs; j ++)
+	{
+	  if (ele->adj[j] == nei)
+	  {
+	    ele->adj[j] = ele->adj[ele->neighs-1];
+	    ele->neighs --;
+	    break;
+	  }
+	}
+
+        for (j = 0; j < nei->neighs; j ++)
+	{
+	  if (nei->adj[j] == ele)
+	  {
+	    nei->adj[j] = nei->adj[nei->neighs-1];
+	    nei->neighs --;
+	    break;
+	  }
+	}
+      }
+    }
+
+    next = ele->next;
+    if (next == NULL && bulk == 0)
+    {
+      next = msh->bulkeles;
+      bulk = 1;
+    }
+  }
+
+  if (nfac > 0)
+  {
+    out = MESH_Separate (msh, nout, surfid);
+  }
+  else
+  {
+    out = NULL;
+    nout = 0;
+  }
+
+  MESH_Destroy (msh);
+
+  return out;
+}
+
+/* how many parts is mesh separable into */
+int MESH_Parts (MESH *msh)
 {
   ELEMENT *ele;
 
@@ -2001,11 +2087,11 @@ int MESH_Separable (MESH *msh)
     }
   }
 
-  return (flag == 1 ? 0 : flag);
+  return flag;
 }
 
 /* separate mesh into disjoint parts */
-MESH** MESH_Separate (MESH *msh, int *m)
+MESH** MESH_Separate (MESH *msh, int *m, int surfid)
 {
   ELEMENT *ele;
   MESH **out;
@@ -2013,9 +2099,7 @@ MESH** MESH_Separate (MESH *msh, int *m)
   MEM mem;
   int i;
  
-  *m = MESH_Separable (msh);
-
-  if ((*m) == 0) return NULL;
+  *m = MESH_Parts (msh);
 
   ERRMEM (out = malloc ((*m) * sizeof (MESH*)));
   MEM_Init (&mem, sizeof (SET), MEMCHUNK);
@@ -2030,7 +2114,7 @@ MESH** MESH_Separate (MESH *msh, int *m)
     for (ele = msh->bulkeles; ele; ele = ele->next)
       if (ele->flag == i) SET_Insert (&mem, &els, ele, NULL);
 
-    out [i-1] = produce_subset_mesh (msh, els, 0);
+    out [i-1] = produce_subset_mesh (msh, els, surfid);
   }
 
   MEM_Release (&mem);
