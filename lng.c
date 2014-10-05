@@ -6939,6 +6939,63 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   return out;
 }
 
+/* split mesh by node set */
+static PyObject* lng_MESH_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("mesh", "nodeset", "surfid");
+  PyObject *nodeset, *surfid, *list;
+  int i, nin, nout;
+  lng_MESH *mesh;
+  SET *nodes;
+  MESH **out;
+
+  surfid = NULL;
+
+  PARSEKEYS ("OO|O", &mesh, &nodeset, &surfid);
+
+  TYPETEST (is_mesh ((PyObject*)mesh, kwl[0]) && is_list (nodeset, kwl[1], 0, 0));
+
+  if (mesh->msh == NULL)
+  {
+    PyErr_SetString (PyExc_RuntimeError, "The mesh object is empty");
+    return NULL;
+  }
+
+  nodes = NULL;
+  nin = PyList_Size (nodeset);
+  for (i = 0; i < nin; i ++)
+  {
+    SET_Insert (NULL, &nodes, (void*)PyInt_AsLong (PyList_GetItem (nodeset,i)), NULL);
+  }
+
+  if (surfid) i = PyInt_AsLong (surfid);
+  else i = 0;
+
+  out = MESH_Split_By_Nodes (mesh->msh, nodes, i, &nout);
+
+  SET_Free (NULL, &nodes);
+
+  if (out)
+  {
+    list = PyList_New (nout);
+    for (i = 0; i < nout; i ++)
+    {
+      lng_MESH *item = (lng_MESH*)lng_MESH_TYPE.tp_alloc (&lng_MESH_TYPE, 0);
+      if (item)
+      {
+	item->msh = out[i];
+	PyList_SetItem (list, i, (PyObject*)item);
+      }
+      else return NULL;
+    }
+
+    free (out);
+
+    return list;
+  }
+  else Py_RETURN_NONE;
+}
+
 /* copy shape */
 static PyObject* lng_COPY (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -8988,6 +9045,7 @@ static PyMethodDef lng_methods [] =
   {"TRANSLATE", (PyCFunction)lng_TRANSLATE, METH_VARARGS|METH_KEYWORDS, "Translate shape"},
   {"ROTATE", (PyCFunction)lng_ROTATE, METH_VARARGS|METH_KEYWORDS, "Rotate shape"},
   {"SPLIT", (PyCFunction)lng_SPLIT, METH_VARARGS|METH_KEYWORDS, "Split shape by plane"},
+  {"MESH_SPLIT", (PyCFunction)lng_MESH_SPLIT, METH_VARARGS|METH_KEYWORDS, "Split mesh by node set"},
   {"COPY", (PyCFunction)lng_COPY, METH_VARARGS|METH_KEYWORDS, "Copy shape"},
   {"BEND", (PyCFunction)lng_BEND, METH_VARARGS|METH_KEYWORDS, "Bend shape"},
   {"BYLABEL", (PyCFunction)lng_BYLABEL, METH_VARARGS|METH_KEYWORDS, "Get object by label"},
@@ -9224,6 +9282,7 @@ int lng (const char *path)
                      "from solfec import TRANSLATE\n"
                      "from solfec import ROTATE\n"
                      "from solfec import SPLIT\n"
+                     "from solfec import MESH_SPLIT\n"
                      "from solfec import COPY\n"
                      "from solfec import BEND\n"
                      "from solfec import BYLABEL\n"

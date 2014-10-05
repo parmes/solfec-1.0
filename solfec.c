@@ -243,9 +243,9 @@ int main (int argc, char **argv)
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
-    char *synopsis = "SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] path\n";
+    #define synopsis "SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] path\n"
 #else
-    char *synopsis = "SYNOPSIS: solfec [-s sub-directory] path\n";
+    #define synopsis "SYNOPSIS: solfec [-s sub-directory] path\n"
 #endif
 
     char *path = getfile (argc, argv); /* parse input */
