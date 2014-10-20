@@ -103,7 +103,7 @@ name "cha:Introduction"
 Introduction
 \end_layout
 
-\begin_layout Abstract
+\begin_layout Standard
 Solfec is a computational code aimed at simulation of multi-body systems
  with constraints.
  It implements an instance of the Contact Dynamics (CD) method by Moreau

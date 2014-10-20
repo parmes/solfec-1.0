@@ -1971,6 +1971,51 @@ int MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int sur
   return 0;
 }
 
+/* recursive mapped neighbour marking */
+static void mark_mapped_neighs (ELEMENT *ele, MAP *map, short flag)
+{
+  if (ele->flag != flag)
+  {
+    ele->flag = flag;
+
+    for (int i = 0; i < ele->neighs; i ++)
+    {
+      if (MAP_Find (map, ele->adj[i], NULL))
+      {
+        mark_mapped_neighs (ele->adj[i], map, flag);
+      }
+    }
+  }
+}
+
+/* count and mark mapped adjacent element sets */
+int mapped_parts (MAP *map)
+{
+  ELEMENT *ele;
+  MAP *item;
+
+  for (item = MAP_First(map); item; item = MAP_Next (item))
+  {
+    ele = item->key;
+    ele->flag = 0;
+  }
+
+  int flag = 0;
+
+  for (item = MAP_First(map); item; item = MAP_Next (item))
+  {
+    ele = item->key;
+
+    if (ele->flag == 0)
+    {
+      flag ++;
+      mark_mapped_neighs (ele, map, flag);
+    }
+  }
+
+  return flag;
+}
+
 /* split mesh by a node set */
 MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
 {
@@ -1978,6 +2023,7 @@ MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
 
   int k, i, j, fac[4], n, neighs, nfac = 0, bulk = 0;
   ELEMENT *ele, *nei, *adj[6], *next;
+  MAP *separated = NULL;
   MESH **out;
 
   for (ele = msh->surfeles; ele; ele = next)
@@ -2031,6 +2077,9 @@ MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
 	    break;
 	  }
 	}
+
+	MAP_Insert (&msh->mapmem, &separated, ele, nei, NULL);
+	MAP_Insert (&msh->mapmem, &separated, nei, ele, NULL);
       }
     }
 
@@ -2044,6 +2093,50 @@ MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
 
   if (nfac > 0)
   {
+    /* adjacently flag separated elements */
+    mapped_parts (separated);
+
+    /* add extra nodes */
+    MAP *mapped = NULL;
+    n = SET_Size (nodes);
+    ERRMEM (msh->ref_nodes = realloc (msh->ref_nodes, 2 * (msh->nodes_count + n) * sizeof (double [3])));
+    n = msh->nodes_count;
+    for (SET *item = SET_First (nodes); item; item = SET_Next(item))
+    {
+      i = (int)(long) item->data;
+      COPY (msh->ref_nodes[i], msh->ref_nodes[n]);
+      MAP_Insert (&msh->mapmem, &mapped, (void*)(long)i, (void*)(long)n, NULL);
+      n ++;
+    }
+    msh->nodes_count = n;
+    msh->cur_nodes = msh->ref_nodes + msh->nodes_count;
+    memcpy (msh->cur_nodes, msh->ref_nodes, n * sizeof (double [3]));
+
+    /* duplicate nodes */
+    for (MAP *item = MAP_First (separated); item; item = MAP_Next (item))
+    {
+      ele = item->key;
+      nei = item->data;
+
+      /* adjacent elements have been flagged into same flag sets along the separating surfaces;
+       * they have also been mapped to their former neighbours along the separating surfaces;
+       * hence, in order to choose the nodal set (old or new) for node duplication it should be
+       * sufficient to use the below "separation side" criterion, based on flag comparison */
+      if (ele->flag < nei->flag)
+      {
+	for (i = 0; i < nei->type; i ++)
+	{
+	  MAP *jtem = MAP_Find_Node (mapped, (void*)(long)nei->nodes[i], NULL);
+	  if (jtem)
+	  {
+	    j = (int)(long) jtem->data;
+	    nei->nodes[i] = j;
+	  }
+	}
+      }
+    }
+    
+    /* separate meshes */
     out = MESH_Separate (msh, nout, surfid);
   }
   else
