@@ -311,6 +311,7 @@ void Fracture_Check (DOM *dom)
   short on = 0;
   BODY *bod;
 
+#if 0
   for (bod = dom->bod; bod; bod = bod->next)
   {
     if (bod->flags & BODY_CHECK_FRACTURE)
@@ -352,6 +353,38 @@ void Fracture_Check (DOM *dom)
       }
     }
   }
+#else
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    if (bod->flags & BODY_CHECK_FRACTURE)
+    {
+      MESH *msh = FEM_MESH (bod);
+      ELEMENT *ele;
+      int bulk;
+      double body_energy = 0.0;
+      double frac_energy = 0.0;
+
+      for (ele = msh->surfeles, bulk = 0; ele; )
+      {
+        BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
+	double volume;
+        body_energy += FEM_Element_Internal_Energy (bod, msh, ele, &volume);
+	frac_energy += mat->fracene * volume;
+
+	  if (bulk) ele = ele->next;
+	  else if (ele->next) ele = ele->next;
+	  else ele = msh->bulkeles, bulk = 1;
+      }
+
+      // fracture condition
+      if (body_energy >= frac_energy)
+      {
+        bod->fracture = 1;
+        on = 1; 
+      }
+    }
+  }
+#endif
 
   if (on) fracture_state_write (dom);
 }
@@ -529,6 +562,219 @@ int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *out
 
     return m;
   }
+
+  return 0;
+}
+
+/* export data for fracture analysis in MoFEM (return number of exported analysis instances) */
+int Fracture_Export_MoFEM (BODY *bod, double volume, double quality, FILE *output)
+{
+  double extents [6], *q, *u, (*p) [3];
+  SOLFEC *sol = bod->dom->solfec;
+  int n, elno, fano;
+  FS *list, *it, *jt;
+  ELEMENT *ele;
+  FACE *fac;
+  MESH *msh;
+  KDT *kd;
+
+  if (!(bod->flags & BODY_CHECK_FRACTURE) || sol->mode == SOLFEC_WRITE) return 0;
+
+  list = fracture_state_read (bod);
+
+  if (list)
+  {
+    MESH *copy = MESH_Copy (bod->shape->data);
+    MESH_Update (copy, NULL, NULL, NULL); /* reference configuration */
+    msh = tetrahedralize1 (copy, volume, quality, -INT_MAX, -INT_MAX); /* generate tet mesh in reference configuration */
+    MESH_Destroy (copy);
+
+    /* allocate displacements on the tet mesh */
+    ERRMEM (q = malloc (6 * msh->nodes_count * sizeof (double)));
+    u = q + 3 * msh->nodes_count;
+
+    /* map faces to a kd-tree for quick point queries */
+    kd = KDT_Create (msh->nodes_count, (double*)msh->ref_nodes, 0.0);
+    for (ele = msh->surfeles; ele; ele = ele->next)
+    { 
+      ELEMENT_Ref_Extents (msh, ele, extents);
+      for (fac = ele->faces; fac; fac = fac->next) KDT_Drop (kd, extents, fac);
+    }
+
+    //______________________________________________________
+    // output file start
+    for (fano = 0, fac = msh->faces; fac; fano ++, fac = fac->n) fac->index = fano; /* count and index faces */
+    ERRMEM (p = malloc (fano * sizeof (double [3]))); /* allocate face pressures */
+
+    elno = msh->surfeles_count + msh->bulkeles_count;
+
+    fprintf (output, "mOFF %d %d %d\n", msh->nodes_count, fano, elno); // file header
+
+    /* map displacements from the hex to the tet mesh */
+    FEM_Map_State (bod->shape->data, bod->conf, bod->velo, msh, q, u); /* only bod->disp to q mapping is used */
+
+    for (n = 0; n < msh->nodes_count; n ++)
+    {
+      fprintf (output, "%f %f %f %f %f %f\n", msh->ref_nodes [n][0], msh->ref_nodes [n][1], msh->ref_nodes [n][2], q[3*n], q[3*n+1], q[3*n+2]);
+    }
+
+    //______________________________________________________
+    /* rewind the list to the end to find the last element,
+       which corresponds to the earliest in time fracture instance */
+    for (it = list; it->next; it = it->next);
+
+    /* for (it = list; it; it = it->next) */
+    /* FIXME -- FIXME -- FIXME -- FIXME */
+    {
+      for (n = 0; n < fano; n ++)
+      {
+        SET (p [n], 0.0); /* zero face pressures */
+      }
+
+      for (jt = it; jt; jt = jt->inext) /* for each point force in this instance */
+      {
+        double (*ref) [3] = msh->ref_nodes;
+        double a [3], b [3], c [3], area;
+        SET *set = NULL, *item;
+        double *qa, *qb, *qc;
+
+        extents [0] = jt->point[0] - jt->radius - GEOMETRIC_EPSILON; /* set up search extents */
+        extents [1] = jt->point[1] - jt->radius - GEOMETRIC_EPSILON;
+        extents [2] = jt->point[2] - jt->radius - GEOMETRIC_EPSILON;
+        extents [3] = jt->point[0] + jt->radius + GEOMETRIC_EPSILON;
+        extents [4] = jt->point[1] + jt->radius + GEOMETRIC_EPSILON;
+        extents [5] = jt->point[2] + jt->radius + GEOMETRIC_EPSILON;
+
+        KDT_Pick_Extents (kd, extents, &set); /* pick kd-tree leaves within the extents */
+
+	for (item = SET_First (set); item; item = SET_Next (item))
+	{
+	  KDT *leaf = item->data;
+	  for (n = 0; n < leaf->n; n ++)
+	  {
+	    fac = leaf->data [n]; /* face dropped into this leaf */
+
+	    qa = &q[3*fac->nodes[0]];
+	    qb = &q[3*fac->nodes[1]];
+	    qc = &q[3*fac->nodes[2]];
+
+	    ADD (ref[fac->nodes[0]], qa, a); /* current face nodes */
+	    ADD (ref[fac->nodes[1]], qb, b);
+	    ADD (ref[fac->nodes[2]], qc, c);
+
+	    TRIANGLE_AREA (a, b, c, area); /* current face area */
+
+	    if (area > 0.0) /* XXX */
+	    {
+	      p [fac->index][0] += jt->force [0] / area; /* add up pressure */
+	      p [fac->index][1] += jt->force [1] / area; /* FIXME: seems to be adding up to much pressure -> divided by area */
+	      p [fac->index][2] += jt->force [2] / area;
+	    }
+	  }
+	}
+
+        SET_Free (NULL, &set);
+      }
+
+      for (fac = msh->faces, n=0; fac; fac = fac->n, n ++)
+      {
+        fprintf (output, "3 %d %d %d %g %g %g\n", fac->nodes[0], fac->nodes[1], fac->nodes[2], p[n][0], p[n][1], p[n][2]);
+      }
+    }
+
+    //______________________________________________________
+    for (ele = msh->surfeles; ele; ele = ele->next)
+    {
+      fprintf (output, "4 %d %d %d %d\n", ele->nodes[0], ele->nodes[1], ele->nodes[2], ele->nodes[3]);
+    }
+
+    for (ele = msh->bulkeles; ele; ele = ele->next)
+    {
+      fprintf (output, "4 %d %d %d %d\n", ele->nodes[0], ele->nodes[1], ele->nodes[2], ele->nodes[3]);
+    }
+    // output file complete
+    //______________________________________________________
+
+    fracture_state_free (list);
+    free (q);
+    free (p);
+    MESH_Destroy (msh);
+  }
+
+  return 0;
+}
+
+/* Export body reference mesh into VTK */
+int EXPORT_SOLFEC_MESH (BODY *bod, FILE *output)
+{
+  int n = 0, el_size = 0;
+  ELEMENT *ele;
+
+  MESH *msh = MESH_Copy (bod->shape->data);
+  MESH_Update (msh, NULL, NULL, NULL); /* reference configuration */
+
+  // file output start
+  fprintf (output, "%s\n", "# vtk DataFile Version 2.0");
+  fprintf (output, "%s\n", "SOLFEC ORIGINAL BODY MESH");
+  fprintf (output, "ASCII\n");
+  fprintf (output, "\n");
+  fprintf (output, "DATASET UNSTRUCTURED_GRID\n");
+  fprintf (output, "POINTS %d float\n", msh->nodes_count);
+
+  for (; n < msh->nodes_count; n ++) 
+  {
+    fprintf (output, "%f %f %f\n", msh->ref_nodes [n][0], msh->ref_nodes [n][1], msh->ref_nodes [n][2]);
+  }
+  
+  //______________________________________________________
+  int elno = msh->surfeles_count + msh->bulkeles_count; /* element no */
+
+  // calculate size
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    if (ele->type == 4) el_size += 5;
+    else if (ele->type == 8) el_size += 9;
+  }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    if (ele->type == 4) el_size += 5;
+    else if (ele->type == 8) el_size += 9;
+  }
+
+  fprintf (output, "\n");
+  fprintf (output, "CELLS %d %d\n", elno, el_size);
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    if (ele->type == 4) fprintf (output, "4 %d %d %d %d\n", ele->nodes[0], ele->nodes[1], ele->nodes[2], ele->nodes[3]);
+    else if (ele->type == 8) fprintf (output, "8 %d %d %d %d %d %d %d %d\n", ele->nodes[0], ele->nodes[1], ele->nodes[2], ele->nodes[3], ele->nodes[4], ele->nodes[5], ele->nodes[6], ele->nodes[7]);
+  }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    if (ele->type == 4) fprintf (output, "4 %d %d %d %d\n", ele->nodes[0], ele->nodes[1], ele->nodes[2], ele->nodes[3]);
+    else if (ele->type == 8) fprintf (output, "8 %d %d %d %d %d %d %d %d\n", ele->nodes[0], ele->nodes[1], ele->nodes[2], ele->nodes[3], ele->nodes[4], ele->nodes[5], ele->nodes[6], ele->nodes[7]);
+  }
+
+  //______________________________________________________
+  fprintf (output, "\n");
+  fprintf (output, "CELL_TYPES %d\n", elno);
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    if (ele->type == 4) fprintf (output, "10\n");
+    else if (ele->type == 8) fprintf (output, "12\n");
+  }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    if (ele->type == 4) fprintf (output, "10\n");
+    else if (ele->type == 8) fprintf (output, "12\n");
+  }
+  // file output complete
+
+  MESH_Destroy (msh);
 
   return 0;
 }

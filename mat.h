@@ -92,6 +92,7 @@ struct bulkmat
          density;
 
   double tensile; /* tensile strength for fracture check */
+  double fracene; /* fracture energy */
 
   UMAT umat;
 

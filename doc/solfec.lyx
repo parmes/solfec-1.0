@@ -6820,7 +6820,7 @@ An object of type BULK_MATERIAL represents material properties of a volume.
 
 \begin_layout Subsection*
 obj = BULK_MATERIAL (solfec| model, label, young, poisson, density, tensile,
- fields)
+ fields, fracene)
 \end_layout
 
 \begin_layout Standard
@@ -6931,6 +6931,18 @@ fields
 [field1, field1, ..., fieldN]
 \emph default
  of FIELD objects (or FIELD object labels) needed by the material model.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+fracene
+\series default
+ - fracture energy threshold (default: 
+\begin_inset Formula $\infty$
+\end_inset
+
+)
 \end_layout
 
 \begin_layout Standard
