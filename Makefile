@@ -24,6 +24,7 @@ MUMPS = -Lext/mumps/libseq -lmpiseq
 BLOPEXINC = -Iext/blopex/include
 
 CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(HDF5) $(XDRINC) $(LOCAL_BODIES)
+CXXFLAGS = $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
 LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(SICONOSLIB)
 
@@ -69,6 +70,7 @@ BASEO = obj/err.o \
 	obj/cmp.o \
 	obj/dbs.o \
 	obj/scf.o \
+	obj/costy.o \
 	obj/libsolfec.o \
 
 OBJ =   $(EXTO)   \
@@ -344,6 +346,9 @@ obj/dbs.o: dbs.c dbs.h ldy.h dom.h alg.h lap.h bla.h err.h
 
 obj/scf.o: scf.c scf.h ldy.h dom.h alg.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/costy.o: costy.cpp
+	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
 	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) $(SICONOS) -c -o $@ $<
