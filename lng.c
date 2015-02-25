@@ -2110,7 +2110,8 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
     "poisson",
     "density",
     "tensile",
-    "fields");
+    "fields",
+    "fracene");
 
   BULK_MATERIAL mat;
 
@@ -2120,6 +2121,7 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
   mat.poisson = 0.25;
   mat.density = 1E3;
   mat.tensile = DBL_MAX;
+  mat.fracene = DBL_MAX;
   mat.umat = NULL;
   mat.nstate = 0;
   mat.nfield = 0;
@@ -2137,11 +2139,12 @@ static PyObject* lng_BULK_MATERIAL_new (PyTypeObject *type, PyObject *args, PyOb
     label = NULL;
     fields = NULL;
 
-    PARSEKEYS ("O|OOddddO", &solfec, &model, &label, &mat.young, &mat.poisson, &mat.density, &mat.tensile, &fields);
+    PARSEKEYS ("O|OOddddOd", &solfec, &model, &label, &mat.young, &mat.poisson, &mat.density, &mat.tensile, &fields, &mat.fracene);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (model, kwl[1]) && is_string (label, kwl[2]) &&
 	      is_non_negative (mat.young, kwl[3]) && is_non_negative (mat.poisson, kwl[4]) &&
-	      is_non_negative (mat.density, kwl[5]) && is_non_negative (mat.tensile, kwl[6]) && is_list (fields, kwl [7], 1, 1));
+	      is_non_negative (mat.density, kwl[5]) && is_non_negative (mat.tensile, kwl[6]) &&
+	      is_list (fields, kwl [7], 1, 1) && is_non_negative (mat.fracene, kwl[8]));
 
     sol = solfec->sol;
 
