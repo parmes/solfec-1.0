@@ -30,9 +30,10 @@ extern "C"
 #include "../../alg.h"
 #include "../../kdt.h"
 #include "../../spx.h"
+#include "../../costy.h"
 
 /* generate tetrahedrons based on an input mesh object; pass -INT_MAX for (vol/surf)ids to inherit from the mesh */
-MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid)
+MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid, int gg, double gg_length)
 {
   tetgenio in, out;
   tetgenio::facet *f;
@@ -107,6 +108,13 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
   else if (volume > 0.0) sprintf (params, "Qpa%g", volume);
   else if (quality > 0.0) sprintf (params, "Qpq%g", quality);
   else sprintf (params, "Qp");
+
+  /* refine around points if necessary */
+  if (gg >= 0 && gg <= 2)
+  {
+    sprintf (params+strlen(params), "m");
+    refineEdgesTetgen (shape, gg, gg_length, &in.pointmtrlist);
+  }
 
   /* generate mesh */
   tetrahedralize (params, &in, &out);

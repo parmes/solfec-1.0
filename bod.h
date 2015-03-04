@@ -79,7 +79,7 @@ typedef enum
   SCH_DEF_EXP,   /* deformable: explicit scheme (DEFAULT) */
                  /* reference: T. Koziara, PhD theis: Aspects of computational contact dynamics, University of Glasgow, 2008 */
 
-  SCH_DEF_LIM,   /* deformable: linearly implicit scheme */
+  SCH_DEF_LIM   /* deformable: linearly implicit scheme */
                  /* reference: M. Zhang, R.D. Skeel. Cheap implicit symplectic integrators. Applied Numerical Mathematics, 6:297-302, 1997 */
 } SCHEME;
 
