@@ -33,7 +33,7 @@ enum gserror
   GS_OK,
   GS_DIVERGED,
   GS_DIAGONAL_DIVERGED,
-  GS_DIAGONAL_FAILED,
+  GS_DIAGONAL_FAILED
 };
 
 enum gsfail

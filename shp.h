@@ -42,7 +42,7 @@ enum gobj
   GOBJ_CONVEX  = 0x02,
   GOBJ_SPHERE  = 0x04,
               /* 0x08, */  /* XXX: unallocated gobj flag => see box.h (used to be mesh node) */
-  GOBJ_ELLIP   = 0x10, /* ellipsoid */
+  GOBJ_ELLIP   = 0x10 /* ellipsoid */
 };
 
 typedef enum gobj GOBJ; /* kind of geometrical object */
