@@ -33,7 +33,7 @@ extern "C"
 #include "../../costy.h"
 
 /* generate tetrahedrons based on an input mesh object; pass -INT_MAX for (vol/surf)ids to inherit from the mesh */
-MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid, int gg, double gg_length)
+MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid, double min_angle, double max_angle, double ref_length)
 {
   tetgenio in, out;
   tetgenio::facet *f;
@@ -110,10 +110,29 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
   else sprintf (params, "Qp");
 
   /* refine around points if necessary */
-  if (gg >= 0 && gg <= 2)
+  if (ref_length > 0.0)
   {
-    sprintf (params+strlen(params), "m");
-    refineEdgesTetgen (shape, gg, gg_length, &in.pointmtrlist);
+    double* mtr1, *mtr2;
+    mtr1 = new double[in.numberofpoints];
+    mtr2 = new double[in.numberofpoints];
+    int no_edges = refineEdgesTetgen (shape, min_angle, max_angle, ref_length, mtr1);
+
+    if (no_edges > 0)
+    {
+      for (i = 0; i <  in.numberofpoints; i ++)
+      {
+	item = MAP_Find_Node (map, (void*) (long) i, NULL);
+	ASSERT_DEBUG (item, "Inconsistent face vertex mapping");
+	j = (int) (long) item->data;
+	mtr2[j] = mtr1[i];
+      }
+
+      in.numberofpointmtrs = 1;
+      in.pointmtrlist = mtr2;
+      sprintf (params+strlen(params), "m");
+    }
+
+    delete mtr1;
   }
 
   /* generate mesh */

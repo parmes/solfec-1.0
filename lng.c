@@ -5207,10 +5207,10 @@ static PyObject* lng_HEX (PyObject *self, PyObject *args, PyObject *kwds)
 /* create tetrahedral mesh */
 static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("shape", "path", "volume", "quality", "volid", "surid", "gg", "gg_length");
-  double volume, quality, gg_length;
+  KEYWORDS ("shape", "path", "volume", "quality", "volid", "surid", "min_angle", "max_angle", "ref_length");
+  double volume, quality, min_angle, max_angle, ref_length;
   PyObject *shape, *path;
-  int volid, surfid, gg;
+  int volid, surfid;
   lng_MESH *out;
 
   out = (lng_MESH*)lng_MESH_TYPE.tp_alloc (&lng_MESH_TYPE, 0);
@@ -5221,10 +5221,11 @@ static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *k
     quality = -DBL_MAX; 
     volid = -INT_MAX;
     surfid = -INT_MAX;
-    gg = -1;
-    gg_length = 0.0;
+    min_angle = 0;
+    max_angle = 180;
+    ref_length = -1.0;
 
-    PARSEKEYS ("OO|ddiiid", &shape, &path, &volume, &quality, &volid, &surfid, &gg, &gg_length);
+    PARSEKEYS ("OO|ddiiddd", &shape, &path, &volume, &quality, &volid, &surfid, &min_angle, &max_angle, &ref_length);
 
     TYPETEST (is_string (path, kwl [1]));
 
@@ -5260,7 +5261,7 @@ static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *k
 
       if (PyObject_IsInstance (shape, (PyObject*)&lng_MESH_TYPE))
       {
-	out->msh = tetrahedralize1 (((lng_MESH*)shape)->msh, volume, quality, volid, surfid, gg, gg_length);
+	out->msh = tetrahedralize1 (((lng_MESH*)shape)->msh, volume, quality, volid, surfid, min_angle, max_angle, ref_length);
 	if (!out->msh)
 	{
 	  PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");

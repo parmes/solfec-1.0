@@ -5592,7 +5592,8 @@ s1, s2, s3, s
 \end_layout
 
 \begin_layout Subsection*
-obj = TETRAHEDRALIZE (shape, path | volume, quality, volid, surfid)
+obj = TETRAHEDRALIZE (shape, path | volume, quality, volid, surfid, min_angle,
+ max_angle, ref_length)
 \end_layout
 
 \begin_layout Standard
@@ -5687,6 +5688,33 @@ surfid
 \series default
  - surface identifier (default: 0); if only possible it is inherited from
  the input
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+min_angle
+\series default
+ - convex minimum angle looking from the outside of the body (default: 0);
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+max_angle
+\series default
+ - convex maximum angle looking from the outside of the body (default: 180);
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+ref_length
+\series default
+ - convex edge refinement mesh element edge length (default: -1); negative
+ turns off refinement around convex features; positive enabled it; 
+\series bold
+(this feature only works when shape == a MESH object);
 \end_layout
 
 \begin_layout Subsection

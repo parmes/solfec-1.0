@@ -18,7 +18,7 @@ SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.3)
 GRAVITY (sol, (0, 0, -10))
 
 shp = PIPE  ((0, 0, 0), (0, 0, 2), 0.5, 1, 1, 8, 1, 1, [1, 1, 1, 1, 1, 1])
-a = TETRAHEDRALIZE (shp, 'out/tetgen/tet1.dat', 0.2, 1.5, gg=2, gg_length=0.1)
+a = TETRAHEDRALIZE (shp, 'out/tetgen/tet1.dat', 0.2, 1.5, min_angle = 0, max_angle = 180, ref_length = 0.05)
 
 #(b, a) = SPLIT (COPY (shp), (0, 0, 1), (1, 1, 1))
 #b = TETRAHEDRALIZE (b, 'out/tetgen/tet1.dat', 0.2, 1.5)
