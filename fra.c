@@ -409,7 +409,7 @@ int Fracture_Export_Yaffems (BODY *bod, double volume, double quality, FILE *out
   {
     MESH *copy = MESH_Copy (bod->shape->data);
     MESH_Update (copy, NULL, NULL, NULL); /* reference configuration */
-    msh = tetrahedralize1 (copy, volume, quality, -INT_MAX, -INT_MAX); /* generate tet mesh in reference configuration */
+    msh = tetrahedralize1 (copy, volume, quality, -INT_MAX, -INT_MAX, 0, 180, -1); /* generate tet mesh in reference configuration */
     MESH_Destroy (copy);
 
     /* allocate displacements on the tet mesh */
@@ -586,7 +586,7 @@ int Fracture_Export_MoFEM (BODY *bod, double volume, double quality, FILE *outpu
   {
     MESH *copy = MESH_Copy (bod->shape->data);
     MESH_Update (copy, NULL, NULL, NULL); /* reference configuration */
-    msh = tetrahedralize1 (copy, volume, quality, -INT_MAX, -INT_MAX); /* generate tet mesh in reference configuration */
+    msh = tetrahedralize1 (copy, volume, quality, -INT_MAX, -INT_MAX, 0, 180, -1); /* generate tet mesh in reference configuration */
     MESH_Destroy (copy);
 
     /* allocate displacements on the tet mesh */

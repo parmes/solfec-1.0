@@ -15,6 +15,7 @@ impactVelocity = 0.15 #15cm/s
 fbmod = 12
 afile = 'inp/mesh/81fbi.inp'
 rest = 0.0
+refine = 0
 
 # Model
 solfec = SOLFEC ('DYNAMIC', step, 'out/fratest')
@@ -31,11 +32,18 @@ bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 15E9, poisson = 0.
 for inst in model.assembly.instances.values():	# .instances is a dict
   label = inst.name	              # use Abaqus instance name
   mesh = inst.mesh	              # solfec MESH object at the instance position
-  bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
+
+  if refine:
+    meshin = TETRAHEDRALIZE (mesh, solfec.outpath + '/' + label + '.meshdata', 0.2, 1.5, min_angle = 0, max_angle = 100, ref_length = 0.01)
+  else:
+    meshin = COPY (mesh)
+  
+  bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (meshin), bulkmat, label)
   data = MODAL_ANALYSIS (bdy, fbmod, solfec.outpath + '/modal' + label, abstol = 1E-13)
   DELETE (solfec, bdy)
-  bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'RO', modal = data)
+  bdy = BODY(solfec, 'FINITE_ELEMENT', meshin, bulkmat, label, form = 'RO', modal = data)
 
+GEOMETRIC_EPSILON (1E-2)
 # boundary conditions
 for b in solfec.bodies:
   
