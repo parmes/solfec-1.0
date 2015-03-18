@@ -27,6 +27,27 @@ typedef struct domain DOM;
 #ifndef __fra__
 #define __fra__
 
+typedef struct fracture_state FS;
+
+struct fracture_state
+{
+  /* instance data */
+  double *disp;
+  FS *inext; /* instances list */
+
+  /* contact points data */
+  double radius;
+  double point [3];
+  double force [3];
+  FS *next; /* contact forces list within instance */
+};
+
+/* free list */
+void fracture_state_free (FS *list);
+
+/* read fracture state */
+FS* fracture_state_read (BODY *bod);
+
 /* check fracture criterion */
 void Fracture_Check (DOM *dom);
 

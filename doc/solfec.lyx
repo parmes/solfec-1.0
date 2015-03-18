@@ -13048,6 +13048,124 @@ quality
 \end_layout
 
 \begin_layout Subsection*
+ret = FRACTURE_EXPORT_MOFEM (body, path | volume, quality, path2, volume2,
+ quality2, min_angle2, max_angle2, ref_length2) 
+\color red
+(under development)
+\end_layout
+
+\begin_layout Standard
+Export an input file for fracture propagation analysis in MoFEM for this
+ body.
+ Note, that it has to be a FEM body for which 
+\emph on
+fracturecheck
+\emph default
+ flag was enabled during the analysis.
+ Optionally, also export a refined mesh for fracture initiation analysis
+ in MoFEM.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+ret
+\series default
+ - number of fracture analysis instances exported to MoFEM
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - export VTK file path (for fracture propagation analysis)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volume
+\series default
+ - maximum volume of the tetrahedral input MoFEM mesh (default: 
+\begin_inset Formula $\infty$
+\end_inset
+
+) (for fracture propagation analysis)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+quality
+\series default
+ - mesh quality indicator > 1.0 for the tetrahedral input Yaffems mesh (default:
+ 1.3) (for fracture propagation analysis)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path2
+\series default
+ - export VTK file path (for fracture 
+\emph on
+initiation
+\emph default
+ analysis)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volume2
+\series default
+ - maximum volume of the tetrahedral input MoFEM mesh (default: 
+\begin_inset Formula $\infty$
+\end_inset
+
+) (for fracture 
+\emph on
+initiation
+\emph default
+ analysis)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+quality2
+\series default
+ - mesh quality indicator > 1.0 for the tetrahedral input Yaffems mesh (default:
+ 1.3) (for fracture 
+\emph on
+initiation
+\emph default
+ analysis)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+min_angle2, max_angle2, ref_length2
+\series default
+ - mesh refinement parameters for fracture 
+\emph on
+initiation
+\emph default
+ analysis - cf.
+ TETRAHEDRALIZE command manual section.
+\end_layout
+
+\begin_layout Subsection*
 RENDER(solfec, object) 
 \color red
 (under development)

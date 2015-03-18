@@ -18,75 +18,11 @@ extern "C"
 #include "msh.h"
 }
 
+#include "costy.h"
+
 #define PI 3.14159265358979323846
 
 typedef struct face Face;
-
-//______________________________________________________________________
-
-// Vector class
-class Vector_3 {
-
-public:
-
-	Vector_3() : x(0.0), y(0.0), z(0.0) {};
-	Vector_3(double _x, double _y, double _z) : x(_x), y (_y), z(_z) {};
-
-	void normalize() {
-		double norm = std::sqrt(x*x + y*y + z*z);
-		x = x / norm;
-		y = y / norm;
-		z = z / norm;
-	}
-
-	void neg() {
-		x = -1.0 * x;
-		y = -1.0 * y;
-		z = -1.0 * z;
-	}
-
-	void zero() {
-		x = 0.0;
-		y = 0.0;
-		z = 0.0;
-	}
-
-	double x, y, z;
-};
-
-
-double inner(const Vector_3& a, const Vector_3& b) {
-
-	return (a.x*b.x + a.y*b.y + a.z*b.z);
-
-}
-
-
-double norm(const Vector_3& a) {
-
-	return std::sqrt(a.x*a.x + a.y*a.y + a.z*a.z);
-
-}
-
-
-void cross(const Vector_3& a, const Vector_3& b, Vector_3& c) {
-
-	c.x = a.y*b.z - a.z*b.y;
-	c.y = a.z*b.x - a.x*b.z;
-	c.z = a.x*b.y - a.y*b.x;
-
-}
-
-
-// calculate angle between two vectors
-double angle(const Vector_3& a, const Vector_3& b) {
-
-  Vector_3 c;
-  cross(a,b,c);
-
-  return std::atan2( norm(c), inner(a,b) );
-
-}
 
 //______________________________________________________________________
 
