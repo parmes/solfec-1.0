@@ -38,6 +38,7 @@
 #include "err.h"
 #include "eli.h"
 #include "fra.h"
+#include "costy.h"
 
 #if MPI
 #include <mpi.h>
@@ -8235,6 +8236,63 @@ static PyObject* lng_FRACTURE_EXPORT_YAFFEMS (PyObject *self, PyObject *args, Py
   Py_RETURN_NONE;
 }
 
+/* export data for fracture analysis in MoFEM */
+static PyObject* lng_FRACTURE_EXPORT_MOFEM (PyObject *self, PyObject *args, PyObject *kwds)
+{
+#if !MPI
+  KEYWORDS ("body", "path", "volume", "quality", "path2", "volume2", "quality2", "min_angle2", "max_angle2", "ref_length2");
+  double volume, quality, volume2, quality2, min_angle2, max_angle2, ref_length2;
+  PyObject *path, *path2;
+  lng_BODY *body;
+  FILE *output;
+  int num;
+
+  volume = DBL_MAX;
+  quality = 1.3;
+  path2 = NULL;
+  volume2 = DBL_MAX;
+  quality2 = 1.3;
+  min_angle2 = 0;
+  max_angle2 = 180;
+  ref_length2 = -1.0;
+
+  PARSEKEYS ("OO|ddOddddd", &body, &path, &volume, &quality, &path2, &volume2, &quality2, &min_angle2, &max_angle2, &ref_length2);
+
+  TYPETEST (is_body (body, kwl[0]) && is_string (path, kwl[1]) && 
+     is_non_negative (volume, kwl[2]) && is_gt (quality, kwl[3], 1.0));
+
+  /* TODO: sanity checks on the rest of variables */
+
+  if ((body->bod->flags & BODY_CHECK_FRACTURE) == 0)
+  {
+    PyErr_SetString (PyExc_ValueError, "Not a FEM body with fracturecheck enabled!");
+    return NULL;
+  }
+
+  output = fopen (PyString_AsString (path), "w"); /* open just to check if possible */
+
+  if (output == NULL)
+  {
+    PyErr_SetString (PyExc_ValueError, "Failed to create the output file!");
+    return NULL;
+  }
+
+  fclose (output); /* close now and have it opened again in the subroutine below */
+
+  num = rbmm_main(body->bod, volume, quality, PyString_AsString (path));
+
+  if (path2)
+  {
+    /* MESH *refined = tetrahedralize1 (((lng_MESH*)shape)->msh, volume2, quality2, 0, 0, min_angle2, max_angle2, ref_length2); */
+    /* TODO */
+  }
+
+  return PyInt_FromLong (num);
+#endif
+
+  Py_RETURN_NONE;
+}
+
 /* simulation duration */
 static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -9075,6 +9133,7 @@ static PyMethodDef lng_methods [] =
   {"BODY_MM_EXPORT", (PyCFunction)lng_BODY_MM_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MatrixMarket M and K matrices of a FEM body"},
   {"DISPLAY_POINT", (PyCFunction)lng_DISPLAY_POINT, METH_VARARGS|METH_KEYWORDS, "Add display point"},
   {"FRACTURE_EXPORT_YAFFEMS", (PyCFunction)lng_FRACTURE_EXPORT_YAFFEMS, METH_VARARGS|METH_KEYWORDS, "Export fracture data to Yaffems"},
+  {"FRACTURE_EXPORT_MOFEM", (PyCFunction)lng_FRACTURE_EXPORT_MOFEM, METH_VARARGS|METH_KEYWORDS, "Export fracture data to MoFEM"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"RENDER", (PyCFunction)lng_RENDER, METH_VARARGS|METH_KEYWORDS, "Render bodies"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
@@ -9312,6 +9371,7 @@ int lng (const char *path)
                      "from solfec import BODY_MM_EXPORT\n"
                      "from solfec import DISPLAY_POINT\n"
                      "from solfec import FRACTURE_EXPORT_YAFFEMS\n"
+                     "from solfec import FRACTURE_EXPORT_MOFEM\n"
                      "from solfec import DURATION\n"
                      "from solfec import RENDER\n"
                      "from solfec import FORWARD\n"

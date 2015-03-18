@@ -30,6 +30,7 @@ extern "C"
 #include "../../alg.h"
 #include "../../kdt.h"
 #include "../../spx.h"
+#include "../../bod.h"
 #include "../../costy.h"
 
 /* generate tetrahedrons based on an input mesh object; pass -INT_MAX for (vol/surf)ids to inherit from the mesh */

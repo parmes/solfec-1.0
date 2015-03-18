@@ -34,23 +34,8 @@
 #include "lap.h"
 #include "kdt.h"
 
-typedef struct fracture_state FS;
-
-struct fracture_state
-{
-  /* instance data */
-  double *disp;
-  FS *inext; /* instances list */
-
-  /* contact points data */
-  double radius;
-  double point [3];
-  double force [3];
-  FS *next; /* contact forces list within instance */
-};
-
 /* free list */
-static void fracture_state_free (FS *list)
+void fracture_state_free (FS *list)
 {
   FS *next;
 
@@ -189,7 +174,7 @@ static void fracture_state_write (DOM *dom)
 }
 
 /* read fracture state */
-static FS* fracture_state_read (BODY *bod)
+FS* fracture_state_read (BODY *bod)
 {
   FS *out = NULL, *item, *instance;
   char path [1024];
