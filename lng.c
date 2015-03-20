@@ -38,7 +38,7 @@
 #include "err.h"
 #include "eli.h"
 #include "fra.h"
-#include "costy.h"
+#include "costy/costy.h"
 
 #if MPI
 #include <mpi.h>

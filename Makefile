@@ -348,10 +348,10 @@ obj/dbs.o: dbs.c dbs.h ldy.h dom.h alg.h lap.h bla.h err.h
 obj/scf.o: scf.c scf.h ldy.h dom.h alg.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/costy.o: costy.cpp
+obj/costy.o: costy/costy.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-obj/rbmm.o: rbmm.cpp
+obj/rbmm.o: costy/rbmm.cpp
 	$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
