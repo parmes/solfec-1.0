@@ -31,7 +31,7 @@ extern "C"
 #include "../../kdt.h"
 #include "../../spx.h"
 #include "../../bod.h"
-#include "../../costy.h"
+#include "../../costy/costy.h"
 
 /* generate tetrahedrons based on an input mesh object; pass -INT_MAX for (vol/surf)ids to inherit from the mesh */
 MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid, double min_angle, double max_angle, double ref_length)
