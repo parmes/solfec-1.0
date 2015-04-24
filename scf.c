@@ -86,12 +86,12 @@ void SCF_Linearize (CON *con, double *U, double *R, double UT, double smoothing_
   m [1] = g1*u1[1] + g2*u2[1];
   m [2] = g1*u1[2] + g2*u2[2];
 
-  ASSERT_DEBUG (C, "C needs to be not NULL in VIC_Linearize");
+  ASSERT_DEBUG (C, "C needs to be not NULL in SCF_Linearize");
   ADD (F, m, C);
 
   if (X)
   {
-    ASSERT_DEBUG (Y, "X needs to be accompanied by Y in VIC_Linearize");
+    ASSERT_DEBUG (Y, "X needs to be accompanied by Y in SCF_Linearize");
 
     dF [1] = dF [3] = dF [6] = dF [7] = 0.0;
     dF [0] = dF [4] = dF [8] = 1.0;
