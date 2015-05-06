@@ -13,9 +13,9 @@
 
 extern "C"
 {
-#include "sol.h"
-#include "dom.h"
-#include "msh.h"
+#include "../sol.h"
+#include "../dom.h"
+#include "../msh.h"
 }
 
 #include "costy.h"
