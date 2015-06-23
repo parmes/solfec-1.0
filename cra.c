@@ -252,31 +252,6 @@ CRACK* CRACKS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int 
   return out;
 }
 
-/* check fracture criterion */
-void Check_Fracture (DOM *dom)
-{
-  BODY *bod;
-
-  /* Costy: you only need to work inside of this functio
-    ----------------------------------------------------
-    (i) it is called at every time step
-    (ii) FEM_Element_Internal_Energy functio computes energy for one element;
-         (see how it is used inside of fem.c)
-    (iii) forces are stored in body->forces (external) and body->con
-          (set of pointers to CON structure (dom.h) storing constraint reactions)
-    (iv) MESH object (msh.h) is stored in bod->shape->data giving you both
-         the current and the initial configurations.
-  */
-
-  for (bod = dom->bod; bod; bod = bod->next)
-  {
-    if (bod->flags & BODY_CHECK_FRACTURE) /* check fracture criterion (flag enabled in Python for individual FEM bodies) */
-    {
-      /* TODO */
-    }
-  }
-}
-
 /* propagate cracks and adjust the domain */
 void Propagate_Cracks (DOM *dom)
 {

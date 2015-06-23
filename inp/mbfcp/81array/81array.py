@@ -11,6 +11,7 @@ import time
 import pickle
 import commands
 sys.path.append('scripts/abaqusreader')
+sys.path.append('scripts')
 sys.path.append('inp/mbfcp/81array')
 from abaqusreader import AbaqusInput
 from math import cos 

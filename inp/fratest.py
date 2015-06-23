@@ -2,8 +2,7 @@
 import sys
 import math
 import commands
-sys.path.append('scripts/abaqusreader')
-sys.path.append('inp/mbfcp')
+sys.path.append('scripts')
 from abaqusreader import AbaqusInput
 from math import cos 
 from math import tan

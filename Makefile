@@ -118,7 +118,7 @@ OBJMPI = $(EXTO)       \
 	 obj/psc-mpi.o \
 
 solfec: obj/solfec.o obj/libBLOPEX.a obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
-	$(CC) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIB)
+	$(CXX) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIB)
 
 obj/libkrylov.a:
 	(cd ext/krylov && make)
