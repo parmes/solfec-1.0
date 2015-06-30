@@ -8240,8 +8240,8 @@ static PyObject* lng_FRACTURE_EXPORT_YAFFEMS (PyObject *self, PyObject *args, Py
 static PyObject* lng_FRACTURE_EXPORT_MOFEM (PyObject *self, PyObject *args, PyObject *kwds)
 {
 #if !MPI
-  KEYWORDS ("body", "path", "volume", "quality", "path2", "volume2", "quality2", "min_angle2", "max_angle2", "ref_length2");
-  double volume, quality, volume2, quality2, min_angle2, max_angle2, ref_length2;
+  KEYWORDS ("body", "path", "volume", "quality", "edgelength", "path2", "volume2", "quality2", "min_angle2", "max_angle2", "ref_length2");
+  double volume, quality, edgelength, volume2, quality2, min_angle2, max_angle2, ref_length2;
   PyObject *path, *path2;
   lng_BODY *body;
   FILE *output;
@@ -8249,6 +8249,7 @@ static PyObject* lng_FRACTURE_EXPORT_MOFEM (PyObject *self, PyObject *args, PyOb
 
   volume = DBL_MAX;
   quality = 1.3;
+  edgelength = 1.0;
   path2 = NULL;
   volume2 = DBL_MAX;
   quality2 = 1.3;
@@ -8256,10 +8257,9 @@ static PyObject* lng_FRACTURE_EXPORT_MOFEM (PyObject *self, PyObject *args, PyOb
   max_angle2 = 180;
   ref_length2 = -1.0;
 
-  PARSEKEYS ("OO|ddOddddd", &body, &path, &volume, &quality, &path2, &volume2, &quality2, &min_angle2, &max_angle2, &ref_length2);
+  PARSEKEYS ("OO|ddOddddd", &body, &path, &volume, &quality, &edgelength, &path2, &volume2, &quality2, &min_angle2, &max_angle2, &ref_length2);
 
-  TYPETEST (is_body (body, kwl[0]) && is_string (path, kwl[1]) && 
-     is_non_negative (volume, kwl[2]) && is_gt (quality, kwl[3], 1.0));
+  TYPETEST (is_body (body, kwl[0]) && is_string (path, kwl[1]) && is_non_negative (volume, kwl[2]) && is_gt (quality, kwl[3], 1.0) && is_gt (edgelength, kwl[4], 0.0));
 
   /* TODO: sanity checks on the rest of variables */
 
@@ -8279,7 +8279,7 @@ static PyObject* lng_FRACTURE_EXPORT_MOFEM (PyObject *self, PyObject *args, PyOb
 
   fclose (output); /* close now and have it opened again in the subroutine below */
 
-  num = rbmm_main(body->bod, volume, quality, PyString_AsString (path));
+  num = rbmm_main(body->bod, volume, quality, edgelength, PyString_AsString (path));
 
   if (path2)
   {

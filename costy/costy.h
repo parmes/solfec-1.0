@@ -10,7 +10,7 @@ extern "C"
 
 int refineEdgesTetgen (MESH *msh, double MIN_ANGLE, double MAX_ANGLE, double edgeLength, double* mtroutlist);
 
-int rbmm_main(BODY* _bod, double volume, double quality, char* _output);
+int rbmm_main(BODY* _bod, double volume, double quality, double EdgeLength, char* _output);
 
 #if __cplusplus
 }
@@ -78,6 +78,7 @@ static double angle(const Vector_3& a, const Vector_3& b) {
   return atan2( norm(c), inner(a,b) );
 
 }
+
 //_____________________________________________________________________________________________________________________________________
 #endif
 
