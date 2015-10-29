@@ -2980,11 +2980,14 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
   bod->form = form;
 
   /* save rought mesh if needed */
-  if (msh != shp->data) bod->msh = msh;
+  if (msh != shp->data)
+  {
+    bod->msh = msh;
 
-  /* simplex integrated volume ==
-   * shape functions integrated volume test */
-  test_volume_integral (msh, bod->ref_volume, bod->id);
+    /* simplex integrated volume ==
+     * shape functions integrated volume test */
+    test_volume_integral (msh, bod->ref_volume, bod->id);
+  }
 
   /* allocate bulk material
    * states at integration points */
