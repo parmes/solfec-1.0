@@ -5592,8 +5592,7 @@ s1, s2, s3, s
 \end_layout
 
 \begin_layout Subsection*
-obj = TETRAHEDRALIZE (shape, path | volume, quality, volid, surfid, min_angle,
- max_angle, ref_length)
+obj = TETRAHEDRALIZE (shape, path | volume, quality, volid, surfid)
 \end_layout
 
 \begin_layout Standard
@@ -5688,33 +5687,6 @@ surfid
 \series default
  - surface identifier (default: 0); if only possible it is inherited from
  the input
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-min_angle
-\series default
- - convex minimum angle looking from the outside of the body (default: 0);
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-max_angle
-\series default
- - convex maximum angle looking from the outside of the body (default: 180);
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-ref_length
-\series default
- - convex edge refinement mesh element edge length (default: -1); negative
- turns off refinement around convex features; positive enabled it; 
-\series bold
-(this feature only works when shape == a MESH object);
 \end_layout
 
 \begin_layout Subsection
@@ -13045,136 +13017,6 @@ quality
 \series default
  - mesh quality indicator > 1.0 for the tetrahedral input Yaffems mesh (default:
  1.3)
-\end_layout
-
-\begin_layout Subsection*
-ret = FRACTURE_EXPORT_MOFEM (body, path | volume, quality, edgelength, path2,
- volume2, quality2, min_angle2, max_angle2, ref_length2) 
-\color red
-(under development)
-\end_layout
-
-\begin_layout Standard
-Export an input file for fracture propagation analysis in MoFEM for this
- body.
- Note, that it has to be a FEM body for which 
-\emph on
-fracturecheck
-\emph default
- flag was enabled during the analysis.
- Optionally, also export a refined mesh for fracture initiation analysis
- in MoFEM.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-ret
-\series default
- - number of fracture analysis instances exported to MoFEM
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-body
-\series default
- - BODY object
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-path
-\series default
- - export VTK file path (for fracture propagation analysis)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-volume
-\series default
- - maximum volume of the tetrahedral input MoFEM mesh (default: 
-\begin_inset Formula $\infty$
-\end_inset
-
-) (for fracture propagation analysis)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-quality
-\series default
- - mesh quality indicator > 1.0 for the tetrahedral input Yaffems mesh (default:
- 1.3) (for fracture propagation analysis)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-edgelength
-\series default
- - mesh edge length (
-\series bold
-TODO
-\series default
-: get interpretation from Costy)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-path2
-\series default
- - export VTK file path (for fracture 
-\emph on
-initiation
-\emph default
- analysis)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-volume2
-\series default
- - maximum volume of the tetrahedral input MoFEM mesh (default: 
-\begin_inset Formula $\infty$
-\end_inset
-
-) (for fracture 
-\emph on
-initiation
-\emph default
- analysis)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-quality2
-\series default
- - mesh quality indicator > 1.0 for the tetrahedral input Yaffems mesh (default:
- 1.3) (for fracture 
-\emph on
-initiation
-\emph default
- analysis)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-min_angle2, max_angle2, ref_length2
-\series default
- - mesh refinement parameters for fracture 
-\emph on
-initiation
-\emph default
- analysis - cf.
- TETRAHEDRALIZE command manual section.
 \end_layout
 
 \begin_layout Subsection*

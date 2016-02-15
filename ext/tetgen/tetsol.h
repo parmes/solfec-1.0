@@ -36,7 +36,7 @@ extern "C"
 #endif
 
 /* generate tetrahedrons based on an input mesh object; pass -INT_MAX for (vol/surf)ids to inherit from the mesh */
-MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid, double min_angle, double max_angle, double ref_length);
+MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid);
 
 /* generate tetrahedrons based on an input file; pass -INT_MAX for (vol/surf)ids to inherit from the input */
 MESH* tetrahedralize2 (char *path, double volume, double quality, int volid, int surfid);
