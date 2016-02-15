@@ -8584,6 +8584,14 @@ i < j
 \end_layout
 
 \begin_layout LyX-Code
+# comment 1 ...
+\end_layout
+
+\begin_layout LyX-Code
+# comment 2 ...
+\end_layout
+
+\begin_layout LyX-Code
 t0 v0
 \end_layout
 
@@ -8592,7 +8600,85 @@ t1 v1
 \end_layout
 
 \begin_layout LyX-Code
+# comment 3 ...
+\end_layout
+
+\begin_layout LyX-Code
+t2 v2
+\end_layout
+
+\begin_layout LyX-Code
 ...
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="1">
+<features rotate="0" tabularvalignment="middle">
+<column alignment="left" valignment="top" width="80col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+Read-only
+\series default
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.times
+\series default
+\emph default
+ - list 
+\emph on
+[t0, t1, ...]
+\emph default
+ storing times.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.values
+\series default
+\emph default
+ - list 
+\emph on
+[v0, v1, ...]
+\emph default
+ storing values.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection

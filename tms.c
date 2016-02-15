@@ -102,9 +102,10 @@ TMS* TMS_Create (int size, double *times, double *values)
 
 TMS* TMS_File (char *path)
 {
-  int np;
+  char buf [4096];
   FILE *fp;
   TMS *ts;
+  int np;
 
   if (!(fp = fopen (path, "r"))) return NULL;
   ERRMEM (ts = malloc (sizeof (TMS)));
@@ -112,10 +113,11 @@ TMS* TMS_File (char *path)
 
   np = CHUNK;
   ts->size = 0;
-  while (feof (fp) == 0)
+  while (fgets(buf, sizeof(buf), fp) != NULL) /* read line */
   {
-    if (fscanf (fp, "%lf", &ts->points [ts->size][0]) == EOF) break;
-    if (fscanf (fp, "%lf", &ts->points [ts->size][1]) == EOF) break;
+    if (buf[0] == '#') continue; /* skip comments */
+
+    if (sscanf (buf, "%lf%lf", &ts->points [ts->size][0], &ts->points [ts->size][1]) == EOF) break;
 
     if (ts->size)
     {

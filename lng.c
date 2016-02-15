@@ -3512,6 +3512,42 @@ static void lng_TIME_SERIES_dealloc (lng_TIME_SERIES *self)
   self->ob_type->tp_free ((PyObject*)self);
 }
 
+static PyObject* lng_TIME_SERIES_get_times (lng_TIME_SERIES *self, void *closure)
+{
+  PyObject *list;
+
+  ERRMEM (list = PyList_New (self->ts->size));
+
+  for (int i = 0; i < self->ts->size; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->ts->points [i][0]));
+
+  return list;
+}
+
+static int lng_TIME_SERIES_set_times (lng_TIME_SERIES *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_TIME_SERIES_get_values (lng_TIME_SERIES *self, void *closure)
+{
+  PyObject *list;
+
+  ERRMEM (list = PyList_New (self->ts->size));
+
+  for (int i = 0; i < self->ts->size; i ++)
+    PyList_SetItem (list, i, PyFloat_FromDouble (self->ts->points [i][1]));
+
+  return list;
+}
+
+static int lng_TIME_SERIES_set_values (lng_TIME_SERIES *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* TIME_SERIES methods */
 static PyMethodDef lng_TIME_SERIES_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3522,7 +3558,11 @@ static PyMemberDef lng_TIME_SERIES_members [] =
 
 /* TIME_SERIES getset */
 static PyGetSetDef lng_TIME_SERIES_getset [] =
-{ {NULL, 0, 0, NULL, NULL} };
+{
+  {"times", (getter)lng_TIME_SERIES_get_times, (setter)lng_TIME_SERIES_set_times, "times", NULL},
+  {"values", (getter)lng_TIME_SERIES_get_values, (setter)lng_TIME_SERIES_set_values, "values", NULL},
+  {NULL, 0, 0, NULL, NULL}
+};
 
 /*
  * GAUSS_SEIDEL_SOLVER => object
