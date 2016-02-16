@@ -1,3 +1,16 @@
-tms = TIME_SERIES ('inp/devel/time-series.txt');
-print tms.times
-print tms.values
+tms1 = TIME_SERIES ('inp/devel/time-series.txt');
+print 'From file:'
+print tms1.times
+print tms1.values
+
+list2 = [0, 10, 1, 11, 2, 12, 3, 13, 4, 14, 5, 15, 6, 16];
+tms2 = TIME_SERIES (list2);
+print 'From [t0,v0, t1,v1, ..] list:'
+print tms2.times
+print tms2.values
+
+list3 = [[0, 10], [1, 11], [2, 12], [3, 13], [4, 14], [5, 15], [6, 16]];
+tms3 = TIME_SERIES (list3);
+print 'From [[t0,v0], [t1,v1], ...] list:'
+print tms3.times
+print tms3.values

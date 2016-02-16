@@ -8572,6 +8572,10 @@ points
 \emph on
 [t0, v0, t1, v1, ....]
 \emph default
+ or a list of lists 
+\emph on
+[[t0,v0], [t1,v1], ...]
+\emph default
  of points (where 
 \emph on
 ti < tj

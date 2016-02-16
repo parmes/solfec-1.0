@@ -3468,7 +3468,7 @@ static PyObject* lng_TIME_SERIES_new (PyTypeObject *type, PyObject *args, PyObje
   {
     PARSEKEYS ("O", &points);
 
-    TYPETEST (is_list_or_string (points, kwl [0], 2, 4));
+    TYPETEST (is_list_or_string (points, kwl [0], 1, 2));
 
     if (PyString_Check (points))
     {
@@ -3478,26 +3478,53 @@ static PyObject* lng_TIME_SERIES_new (PyTypeObject *type, PyObject *args, PyObje
 	return NULL;
       }
     }
-    else
+    else if (PyList_Check (points))
     {
-      double *times,
-	     *values;
+      double *times, *values;
       int i, n;
 
-      n = PyList_Size (points) / 2;
-
-      ERRMEM (times = malloc (sizeof (double [n])));
-      ERRMEM (values = malloc (sizeof (double [n])));
-
-      for (i = 0; i < n; i ++)
+      if (PyList_Check (PyList_GetItem (points, 0)))
       {
-	times [i] = PyFloat_AsDouble (PyList_GetItem (points, 2*i));
-	values [i] = PyFloat_AsDouble (PyList_GetItem (points, 2*i + 1));
+	n = PyList_Size (points);
+
+	ERRMEM (times = malloc (sizeof (double [n])));
+	ERRMEM (values = malloc (sizeof (double [n])));
+
+	for (i = 0; i < n; i ++)
+	{
+	  PyObject *pv = PyList_GetItem (points, i);
+
+          TYPETEST (is_list (pv, "[t,v]", 2, 2));
+
+	  times [i] = PyFloat_AsDouble (PyList_GetItem (pv, 0));
+	  values [i] = PyFloat_AsDouble (PyList_GetItem (pv, 1));
+	}
+      }
+      else
+      {
+        TYPETEST (is_list (points, kwl [0], 2, 4));
+
+	n = PyList_Size (points) / 2;
+
+	ERRMEM (times = malloc (sizeof (double [n])));
+	ERRMEM (values = malloc (sizeof (double [n])));
+
+	for (i = 0; i < n; i ++)
+	{
+	  times [i] = PyFloat_AsDouble (PyList_GetItem (points, 2*i));
+	  values [i] = PyFloat_AsDouble (PyList_GetItem (points, 2*i + 1));
+	}
       }
 
       self->ts = TMS_Create (n, times, values);
+
       free (times);
       free (values);
+    }
+    else
+    {
+      PyErr_SetString (PyExc_TypeError, "Invalid points format");
+      return NULL;
     }
   }
 
