@@ -8618,7 +8618,7 @@ t2 v2
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="1">
+<lyxtabular version="3" rows="5" columns="1">
 <features rotate="0" tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -8658,7 +8658,7 @@ obj.times
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -8673,6 +8673,42 @@ obj.values
 [v0, v1, ...]
 \emph default
  storing values.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.derivative
+\series default
+\emph default
+ - returns a TIME_SERIES object representing a derivative of the current
+ object
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.integral
+\series default
+\emph default
+ - returns a TIME_SERIES object representing an integral of the current
+ object
 \end_layout
 
 \end_inset

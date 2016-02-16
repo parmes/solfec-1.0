@@ -167,10 +167,14 @@ TMS* TMS_Integral (TMS *ts)
   ASSERT (ts->size > 0, ERR_TMS_INTEGRATE_CONSTANT);
   ERRMEM (out = malloc (sizeof (TMS)));
   out->size = ts->size;
-  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
 
-  if (out->size == 0) return TMS_Constant ((ts->points[1][0] -
-    ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]));
+  if (out->size == 0)
+  {
+    free (out);
+    return TMS_Constant ((ts->points[1][0] - ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]));
+  }
+
+  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
 
   out->marker = 0;
   pin = ts->points;
@@ -197,12 +201,16 @@ TMS* TMS_Derivative (TMS *ts)
 
   if (ts->size == 0) return TMS_Constant (0.0);
 
-  ERRMEM (out = malloc (sizeof (TMS)));
-  out->size = ts->size - 1; /* one value per interval */
-  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
+  if (ts->size == 1)
+  {
+    return TMS_Constant ((ts->points[1][1] - ts->points[0][1])/(ts->points[1][0] - ts->points[0][0]));
+  }
 
-  if (out->size == 0) return TMS_Constant ((ts->points[1][0] -
-    ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]));
+#if 0
+  ERRMEM (out = malloc (sizeof (TMS)));
+  out->size = ts->size - 1; /* central difference: one value per interval */
+
+  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
 
   out->marker = 0;
   pin = ts->points;
@@ -213,6 +221,26 @@ TMS* TMS_Derivative (TMS *ts)
     pout [n][0] = 0.5 * (pin[n][0] + pin[n+1][0]);
     pout [n][1] = (pin[n+1][1] - pin[n][1]) / (pin[n+1][0] - pin[n][0]);
   }
+#else
+  ERRMEM (out = malloc (sizeof (TMS)));
+  out->size = 2*(ts->size-1); /* constant value per interval with linear trend: two ends of the interval */
+
+  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
+
+  out->marker = 0;
+  pin = ts->points;
+  pout = out->points;
+
+  for (n = 0; n < ts->size-1; n ++)
+  {
+    double dt = pin[n+1][0] - pin[n][0], eps = 1E-10 * dt;
+
+    pout [2*n][0] = pin[n][0];
+    pout [2*n+1][0] = pin[n+1][0] - eps;
+    pout [2*n][1] =
+    pout [2*n+1][1] = (pin[n+1][1] - pin[n][1]) / dt;
+  }
+#endif
 
   return out;
 }

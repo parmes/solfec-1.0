@@ -3575,6 +3575,40 @@ static int lng_TIME_SERIES_set_values (lng_TIME_SERIES *self, PyObject *value, v
   return -1;
 }
 
+static PyObject* lng_TIME_SERIES_get_derivative (lng_TIME_SERIES *self, void *closure)
+{
+  lng_TIME_SERIES *out;
+
+  out = (lng_TIME_SERIES*)lng_TIME_SERIES_TYPE.tp_alloc (&lng_TIME_SERIES_TYPE, 0);
+
+  out->ts = TMS_Derivative  (self->ts);
+
+  return (PyObject*)out;
+}
+
+static int lng_TIME_SERIES_set_derivative (lng_TIME_SERIES *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
+static PyObject* lng_TIME_SERIES_get_integral (lng_TIME_SERIES *self, void *closure)
+{
+  lng_TIME_SERIES *out;
+
+  out = (lng_TIME_SERIES*)lng_TIME_SERIES_TYPE.tp_alloc (&lng_TIME_SERIES_TYPE, 0);
+
+  out->ts = TMS_Integral (self->ts);
+
+  return (PyObject*)out;
+}
+
+static int lng_TIME_SERIES_set_integral (lng_TIME_SERIES *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* TIME_SERIES methods */
 static PyMethodDef lng_TIME_SERIES_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3588,6 +3622,8 @@ static PyGetSetDef lng_TIME_SERIES_getset [] =
 {
   {"times", (getter)lng_TIME_SERIES_get_times, (setter)lng_TIME_SERIES_set_times, "times", NULL},
   {"values", (getter)lng_TIME_SERIES_get_values, (setter)lng_TIME_SERIES_set_values, "values", NULL},
+  {"derivative", (getter)lng_TIME_SERIES_get_derivative, (setter)lng_TIME_SERIES_set_derivative, "derivative", NULL},
+  {"integral", (getter)lng_TIME_SERIES_get_integral, (setter)lng_TIME_SERIES_set_integral, "integral", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
