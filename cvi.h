@@ -36,10 +36,11 @@ typedef enum {REGULARIZED,     /* filters out zero-volume intersections */
  * to a positive or to a negative index, depending on the origin of the triangle
  * in the plane of polyhedron 'a' (positive) or 'b' (negative); pointers in the
  * returned TRI table reference the memory placed in the same block;
- * the adjacency structure in the returned mesh is not set */
+ * the adjacency structure in the returned mesh is not set;
+ * 'pv' if not NULL, points to the vertex memory (part of 'tri' memory block);
+ * 'nv' if not NULL, is the number of vertices of the intersection convex */
 TRI* cvi (double *va, int nva, double *pa, int npa,
           double *vb, int nvb, double *pb, int npb,
-	  CVIKIND kind,
-	  int *m);
+	  CVIKIND kind, int *m, double **pv, int *nv);
 
 #endif

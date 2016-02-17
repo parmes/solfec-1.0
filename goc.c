@@ -32,6 +32,7 @@
 #include "goc.h"
 #include "err.h"
 
+#if 1
 /* line-plane intersection => intersection = point + direction * coef if 1 is returned */
 inline static int lineplane (double *plane, double *point, double *direction, double *coef)
 {
@@ -45,6 +46,7 @@ inline static int lineplane (double *plane, double *point, double *direction, do
 
   return 1;
 }
+#endif
 
 /* compute semi-negative sphere-sphere gap */
 inline static double sphere_sphere_gap (double *ca, double ra, double *cb, double rb, double *normal)
@@ -126,13 +128,13 @@ inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
  * if m < 0 assume outward a-normal and return 1 if spair did not change or 2 otherwise;
  * return 0 if a geometrical error occured */
 inline static int point_normal_spair_area_gap
- (TRI *tri, int m, /* input intersection */
+ (TRI *tri, int m, double *pv, int nv, /* input intersection */
    double *va, int nva, double *vb, int nvb, /* input vertice */
   double *pa, int npa, double *pb, int npb, /* input planes */
   int *sa, int nsa, int *sb, int nsb, /* input surfaces */
   double *point, double *normal, int *spair, double *area, double *gap) /* output */
 {
-  double plane [4], v [3], pos = DBL_MAX, neg = -pos, a, b;
+  double v [3], pos, neg, a, b;
   TRI *t, *e;
   int j, k;
 
@@ -169,6 +171,10 @@ inline static int point_normal_spair_area_gap
     if ((j = nearest_surface (point, pb, sb, nsb)) != spair [1]) spair [1] = j, k = 2;
   }
 
+#if 1
+  pos = DBL_MAX, neg = -pos;
+  double plane[4];
+
   for (t = tri; t != e; t ++) /* compute semi-negative penetration gap from surface triangles */
   {
     if ((t->flg > 0 &&  t->flg < nsa + 1) ||
@@ -186,6 +192,28 @@ inline static int point_normal_spair_area_gap
   }
   if (pos == DBL_MAX || neg == -DBL_MAX) *gap = 0.0;
   else *gap = neg - pos;
+#else
+
+  /* the above approach sometimes reported excessively large gap magnitudes;
+   * the below approach is based on the idea of supporing maximum and minimum
+   * supporting planes along the contact normal and utilising the vertices
+   * of the intersection volume directly; this is belived to be more robust;
+   * based on testing with inp/boxdrop.py it does not seem more robust though;
+   * ----------
+   * 27/02/2016
+   */
+
+  neg = DBL_MAX, pos = -neg;
+  for (j = 0; j < nv; j ++, pv += 3)
+  {
+    a = DOT (normal, pv);
+    if (a > pos) pos = a;
+    if (a < neg) neg = a;
+  }
+
+  if (neg == DBL_MAX || pos == -DBL_MAX) *gap = 0.0;
+  else *gap = neg - pos;
+#endif
 
   return k;
 }
@@ -209,13 +237,13 @@ static int detect_convex_convex (
   int spair [2],
   TRI **ptri, int *ntri)
 {
-  double sanity;
-  int k = 0, m;
+  double sanity, *pv;
+  int k = 0, m, nv;
   TRI *tri;
 
-  if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
+  if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m, &pv, &nv))) return 0;
 
-  k = point_normal_spair_area_gap (tri, m, va, nva, vb, nvb, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
+  k = point_normal_spair_area_gap (tri, m, pv, nv, va, nva, vb, nvb, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
   sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
   COPY (onepnt, twopnt);
   if (ptri && ntri) *ptri = tri, *ntri = m;
@@ -244,6 +272,7 @@ static int detect_convex_sphere (
     dot = DOT (normal, normal);
     if (dot == 0.0) /* center inside convex */
     {
+      len = r; /* XXX: to produce zero gap in this excessive case */
       nn = nearest_normal (onepnt, pc, nsc);
       if (nn) { COPY (nn, normal); }
       else return 0;
@@ -455,13 +484,13 @@ static int update_convex_convex (
   int spair [2],
   TRI **ptri, int *ntri)
 {
-  double sanity;
-  int k = 0, m;
+  double sanity, *pv;
+  int k = 0, m, nv;
   TRI *tri;
 
-  if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m))) return 0;
+  if (!(tri = cvi (va, nva, pa, npa, vb, nvb, pb, npb, NON_REGULARIZED, &m, &pv, &nv))) return 0;
 
-  k = point_normal_spair_area_gap (tri, -m, va, nva, vb, nvb, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
+  k = point_normal_spair_area_gap (tri, -m, pv, nv, va, nva, vb, nvb, pa, npa, pb, npb, sa, nsa, sb, nsb, onepnt, normal, spair, area, gap);
   sanity = (onepnt[0]+onepnt[1]+onepnt[2]+normal[0]+normal[1]+normal[2]+(*area)+(*gap));
   COPY (onepnt, twopnt);
   if (ptri && ntri) *ptri = tri, *ntri = m;
@@ -491,6 +520,7 @@ static int update_convex_sphere (
     dot = DOT (normal, normal);
     if (dot == 0.0) /* center inside convex */
     {
+      len = r; /* XXX: to produce zero gap in this excessive case */
       nn = nearest_normal (onepnt, pc, nsc);
       if (nn) { COPY (nn, normal); }
       else return 0;

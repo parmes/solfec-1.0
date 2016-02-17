@@ -113,7 +113,7 @@ static void dump_input (double *va, int nva, double *pa, int npa, double *vb, in
 #endif
 
 /* compute intersection of two convex polyhedrons */
-TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double *pb, int npb, CVIKIND kind, int *m)
+TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double *pb, int npb, CVIKIND kind, int *m, double **pv, int *nv)
 {
   double e [6], p [3], q [3], eps, d, *nl, *pt, *nn, *yy;
   PFV *pfv, *v, *w, *z;
@@ -182,6 +182,8 @@ TRI* cvi (double *va, int nva, double *pa, int npa, double *vb, int nvb, double 
   pt = (double*) (tri + (n - j*2)); /* this is where output vertices begin */
   nn = (double*) (pfv + n); /* this is where coords begin in 'pfv' block */
   memcpy (pt, nn, sizeof (double [3]) * i); /* copy vertex data */
+  if (pv) *pv = pt;
+  if (nv) *nv = i;
 
   /* shift point coords to the old 'zero' */
   for (k = 0, nl = pt; k < i; k ++, nl += 3)

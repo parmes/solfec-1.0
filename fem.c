@@ -2792,7 +2792,7 @@ static void overlap (void *data, BOX *one, BOX *two)
   n = ELEMENT_Vertices (data, ele, vertices);
   k = ELEMENT_Planes (data, ele, planes, NULL, NULL);
   pla = CONVEX_Planes (cvx);
-  tri = cvi (cvx->cur, cvx->nver, pla, cvx->nfac, vertices, n, planes, k, REGULARIZED, &m);
+  tri = cvi (cvx->cur, cvx->nver, pla, cvx->nfac, vertices, n, planes, k, REGULARIZED, &m, NULL, NULL);
 #if 0
   dump_intersection (cvx, vertices, planes, n, k, m, tri, pla);
 #endif
