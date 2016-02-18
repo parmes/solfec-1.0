@@ -32,7 +32,7 @@
 #include "goc.h"
 #include "err.h"
 
-#if 1
+#if 0
 /* line-plane intersection => intersection = point + direction * coef if 1 is returned */
 inline static int lineplane (double *plane, double *point, double *direction, double *coef)
 {
@@ -171,7 +171,15 @@ inline static int point_normal_spair_area_gap
     if ((j = nearest_surface (point, pb, sb, nsb)) != spair [1]) spair [1] = j, k = 2;
   }
 
-#if 1
+#if 0
+  /* this is a previous method of calculating gaps which proved not 100% robust;
+   * ATKINS users reported large penetration magnitudes being reported
+   * in cases where non such penetrations were occuring; this was hampering their
+   * use of the PENALTY_SOLVER in the initial stages of resolving penetration on
+   * meshes with half-open bricks; below there is an alternative and, it is hoped,
+   * a more robust method; uncomment 'lineplane' above if wishing to enable this code;
+   */
+
   pos = DBL_MAX, neg = -pos;
   double plane[4];
 
@@ -213,6 +221,26 @@ inline static int point_normal_spair_area_gap
 
   if (neg == DBL_MAX || pos == -DBL_MAX) *gap = 0.0;
   else *gap = neg - pos;
+
+  if (*gap < -GEOMETRIC_EPSILON) /* extra robustness check if penetration seems too large */
+  {
+    double p[3], q[3], *aa, *bb, *vv, *ww;
+
+    ERRMEM (aa = malloc (sizeof (double[3]) * (nva+nvb)));
+    bb = aa + 3*nva;
+
+    a = -(*gap); /* use current penetration as the translation distance */
+
+    for (vv = va, ww = aa, j = 0; j < nva; vv += 3, ww += 3, j ++) { SUBMUL (vv, a, normal, ww); } /* translate backward */
+
+    for (vv = vb, ww = bb, j = 0; j < nvb; vv += 3, ww += 3, j ++) { ADDMUL (vv, a, normal, ww); } /* translate forward */
+
+    b = gjk (aa, nva, bb, nvb, p, q) - 2*a; /* this is new gap value = distance between the translated geometry minus the translation */
+
+    *gap = MIN (b, 0.0); /* use only to denote penetration */
+
+    free (aa);
+  }
 #endif
 
   return k;

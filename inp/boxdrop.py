@@ -77,7 +77,7 @@ def boxdrop (step, solver):
 
 # main module
 
-s1, t1 = boxdrop (3E-5, 'penalty')
+s1, t1 = boxdrop (2E-5, 'penalty')
 s2, t2 = boxdrop (3E-4, 'newton')
 
 if not VIEWER() and s1.mode == 'WRITE' and s2.mode == 'WRITE':

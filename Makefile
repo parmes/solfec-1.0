@@ -177,6 +177,7 @@ clean:
 	rm -f obj/*.a
 	rm -fr *dSYM
 	rm -fr *cubin
+	rm -fr scripts/abaqusreader/*.pyc
 	(cd tst && make clean)
 	(cd ext/krylov && make clean)
 	(cd ext/metis && make clean)
