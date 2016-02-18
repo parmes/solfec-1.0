@@ -245,7 +245,11 @@ int main (int argc, char **argv)
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
     #define synopsis "SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] path\n"
 #else
-    #define synopsis "SYNOPSIS: solfec [-s sub-directory] path\n"
+  #if MPI
+    #define synopsis "SYNOPSIS: solfec-mpi [-s sub-directory] path\n"
+  #else
+    #define synopsis "SYNOPSIS: solfec [-w] [-s sub-directory] path\n"
+  #endif
 #endif
 
     char *path = getfile (argc, argv); /* parse input */

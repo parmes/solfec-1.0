@@ -525,29 +525,57 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->outpath = copyoutpath (outpath);
   sol->output_interval = 0;
   sol->output_time = 0;
-#if !MPI
-  if (!WRITE_MODE_FLAG() && (sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
-  else
-#endif
-  if ((sol->bf = writeoutpath (sol->outpath, PBF_OFF)))
+
+#if MPI
+  if ((sol->bf = readoutpath (sol->outpath)))
   {
-    char *copy, *path = getpath (sol->outpath);
+    PBF_Close (sol->bf);
+    fprintf (stderr, "WARNING: Valid output files exist at path: %s\n", sol->outpath);
+    fprintf (stderr, "WARNING: Remove those files manually or use a diffrent path.\n");
+    fprintf (stderr, "WARNING: The MPI run of Solfec will terminate now...\n");
+    EXIT(1);
+  }
+#else
+  if (!WRITE_MODE_FLAG() && (sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
+  else if (WRITE_MODE_FLAG() && (sol->bf = readoutpath (sol->outpath)))
+  {
+    PBF_Close (sol->bf);
+    sol->bf = NULL;
+    fprintf (stdout, "WARNING: Valid output files exist at path: %s\n", sol->outpath);
+    char choice = 'n';
+    fprintf (stdout, "Would you like to overwrite them? y/[n]:");
+    scanf ("%c", &choice);
+    if (choice == 'y') goto write;
+    else
+    {
+      fprintf (stdout, "Solfec will terminate now...\n");
+      EXIT(1);
+    }
+  }
+write:
+#endif
+  if (sol->bf == NULL)
+  {
+    if ((sol->bf = writeoutpath (sol->outpath, PBF_OFF)))
+    {
+      char *copy, *path = getpath (sol->outpath);
 
-    ERRMEM (copy = malloc (strlen (path) + 8));
-    sprintf (copy, "%s.py", path);
-    copyfile (INPUT_FILE (), copy);
-    free (copy);
-    free (path);
+      ERRMEM (copy = malloc (strlen (path) + 8));
+      sprintf (copy, "%s.py", path);
+      copyfile (INPUT_FILE (), copy);
+      free (copy);
+      free (path);
 
-    sol->mode = SOLFEC_WRITE;
+      sol->mode = SOLFEC_WRITE;
 
 #if HDF5
-    PBF_Close (sol->bf);
+      PBF_Close (sol->bf);
 #endif
+    }
+    else THROW (ERR_FILE_OPEN);
   }
-  else THROW (ERR_FILE_OPEN);
-  sol->iover = -IOVER; /* negative to indicate initial state */
 
+  sol->iover = -IOVER; /* negative to indicate initial state */
   sol->callback_interval = DBL_MAX;
   sol->callback_time = DBL_MAX;
   sol->data = sol->call = NULL;
