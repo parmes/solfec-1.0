@@ -39,6 +39,9 @@ void FEM_Overwrite_State (BODY *bod, double *q, double *u);
 /* set initial rigid motion velocity */
 void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular);
 
+/* set rigid motion */
+void FEM_From_Rigid (BODY *bod, double *rotation, double *position, double *angular, double *linear);
+
 /* initialise dynamic time stepping */
 void FEM_Dynamic_Init (BODY *bod);
 

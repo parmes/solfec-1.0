@@ -3029,6 +3029,27 @@ void FEM_Initial_Velocity (BODY *bod, double *linear, double *angular)
   }
 }
 
+/* set rigid motion */
+void FEM_From_Rigid (BODY *bod, double *rotation, double *position, double *angular, double *linear)
+{
+  ASSERT_TEXT (bod->kind == FEM, "This is not an FEM body!");
+
+  MESH *msh = FEM_MESH (bod);
+  double (*ref) [3] = msh->ref_nodes,
+	 (*cur) [3] = msh->cur_nodes;
+  int m = msh->nodes_count, n;
+  double *center = bod->ref_center;
+  double A[3];
+
+  for (n = 0; n < m; n ++)
+  {
+    SUB (ref[n], center, A);
+    NVADDMUL (position, rotation, A, cur[n]);
+  }
+
+  FEM_Initial_Velocity (bod, linear, angular);
+}
+
 /* initialise dynamic time stepping */
 void FEM_Dynamic_Init (BODY *bod)
 {

@@ -206,4 +206,7 @@ void SOLFEC_2_MBFCP (SOLFEC *sol, FILE *out);
 /* initialize state from the ouput; return 1 on success, 0 otherwise */
 int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time);
 
+/* map rigid motion onto FEM bodies; return 1 on success, 0 otherwise */
+int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time);
+
 #endif

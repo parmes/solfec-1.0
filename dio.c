@@ -636,6 +636,62 @@ int dom_init_state (DOM *dom, PBF *bf)
 	BODY_Read_State (bod, bf); /* XXX: we need to read all bodies since this can also be called
 				           in parallel and only some bodies may be present; yet in order
 					   to maintain the read consitency we need to read everything */
+       /* FIXME: 19/02/2016
+        * Could this not cause an issue in parallel in case not all bodies are stored on all ranks?
+	* In that case the above assertion should fail and this command will not effectively work. */
+      }
+    }
+  }
+
+  return 1;
+}
+
+/* map rigid onto FEM state */
+int dom_rigid_to_fem (DOM *dom, PBF *bf)
+{
+  for (; bf; bf = bf->next)
+  {
+    if (PBF_Label (bf, "DOM"))
+    {
+      /* read body states */
+
+      ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
+
+      int nbod;
+
+      PBF_Int (bf, &nbod, 1);
+
+      for (int n = 0; n < nbod; n ++)
+      {
+	double conf [12], velo [6], energy [4];
+	unsigned int id;
+	BODY *bod;
+	int rank;
+
+	PBF_Uint (bf, &id, 1);
+
+	ASSERT_TEXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL),
+	             "Invalid body identifier => most likely due to a mismatched output file.");
+
+       /* FIXME: 19/02/2016
+        * Could this not cause an issue in parallel in case not all bodies are stored on all ranks?
+	* In that case the above assertion should fail and this command will not effectively work. */
+
+	if (bod->kind == FEM)
+	{
+	  PBF_Double (bf, conf, 12);
+	  PBF_Double (bf, velo, 6);
+	  PBF_Double (bf, energy, 4);
+	  if (bf->parallel == PBF_ON)
+	  {
+	    PBF_Int (bf, &rank, 1);
+	  }
+
+	  BODY_From_Rigid (bod, conf, conf+9, velo, velo+3); /* XXX: we need to read all bodies since this can also be called
+								     in parallel and only some bodies may be present; yet in order
+								     to maintain the read consitency we need to read everything */
+	}
+	else BODY_Read_State (bod, bf);
       }
     }
   }

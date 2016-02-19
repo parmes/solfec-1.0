@@ -1176,3 +1176,19 @@ int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time)
 
   return ret;
 }
+
+/* map rigid motion onto FEM bodies; return 1 on success, 0 otherwise */
+int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time)
+{
+  int ret;
+  PBF *bf;
+
+  WARNING (bf = readoutpath (path), "Opening of the output files has failed.");
+  if (!bf) return 0;
+
+  PBF_Seek (bf, time);
+  ret = dom_rigid_to_fem (sol->dom, bf);
+  PBF_Close (bf);
+
+  return ret;
+}

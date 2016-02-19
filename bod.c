@@ -1078,6 +1078,51 @@ void BODY_Initial_Velocity (BODY *bod, double *linear, double *angular)
   }
 }
 
+void BODY_From_Rigid (BODY *bod, double *rotation, double *position, double *angular, double *linear)
+{
+  switch (bod->kind)
+  {
+    case OBS:
+    case RIG:
+      NNCOPY (rotation, RIG_ROTATION(bod));
+      COPY (position, RIG_CENTER(bod));
+      if (angular) {COPY (angular, RIG_ANGVEL(bod));}
+      if (linear) {COPY (linear, RIG_LINVEL(bod));}
+    break;
+    case PRB:
+      NNCOPY (rotation, PRB_GRADIENT(bod));
+      COPY (position, PRB_CENTER(bod));
+      if (angular)
+      {
+	double copy [3];
+	COPY (angular, copy);
+	SCALE (copy, -1.0); /* otherwise reversed directions => TODO: why? */
+	VECSKEW (copy, PRB_GRADVEL(bod));
+      }
+      if (linear) {COPY (linear, PRB_LINVEL(bod));}
+    break;
+    case FEM:
+      FEM_From_Rigid (bod, rotation, position, angular, linear);
+    break;
+  }
+
+  /* post-process red data if needed */
+  if (bod->kind == FEM) FEM_Post_Read (bod);
+
+  /* update shape */
+  SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point); 
+  if (bod->msh) FEM_Update_Rough_Mesh (bod);
+
+#if !MPI
+  /* update display points */
+  for (SET *item = SET_First (bod->displaypoints); item; item = SET_Next (item))
+  {
+    DISPLAY_POINT *point = item->data;
+    BODY_Cur_Point (bod, point->sgp, point->X, point->x);
+  }
+#endif
+}
+
 void BODY_Apply_Force (BODY *bod, short kind, double *point, double *direction, TMS *data, void *call, FORCE_FUNC func, int surfid)
 {
   FORCE *frc;

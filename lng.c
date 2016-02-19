@@ -7714,7 +7714,7 @@ static PyObject* lng_INITIALIZE_STATE (PyObject *self, PyObject *args, PyObject 
 
   PARSEKEYS ("OOd", &solfec, &path, &time);
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[1]));
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[1]) && is_non_negative (time, kwl[2]));
 
   if (solfec->sol->mode == SOLFEC_WRITE)
   {
@@ -7727,6 +7727,34 @@ static PyObject* lng_INITIALIZE_STATE (PyObject *self, PyObject *args, PyObject 
   else
   {
     WARNING (0, "INITIALIZE_STATE has been ingnored in the 'READ' mode");
+  }
+
+  Py_RETURN_NONE;
+}
+
+/* initialize FEM bodies with rigid motion */
+static PyObject* lng_RIGID_TO_FEM (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("path", "time", "solfec");
+  lng_SOLFEC *solfec;
+  PyObject *path;
+  double time;
+
+  PARSEKEYS ("OdO", &path, &time, &solfec);
+
+  TYPETEST (is_string (path, kwl[0]) && is_non_negative (time, kwl[1]) && is_solfec (solfec, kwl[2]));
+
+  if (solfec->sol->mode == SOLFEC_WRITE)
+  {
+    if (SOLFEC_Rigid_To_FEM (solfec->sol, PyString_AsString (path), time) == 0)
+    {
+      PyErr_SetString (PyExc_RuntimeError, "Rigid to FEM state mapping has failed");
+      return NULL;
+    }
+  }
+  else
+  {
+    WARNING (0, "RIGID_TO_FEM has been ingnored in the 'READ' mode");
   }
 
   Py_RETURN_NONE;
@@ -9167,6 +9195,7 @@ static PyMethodDef lng_methods [] =
   {"GEOMETRIC_EPSILON", (PyCFunction)lng_GEOMETRIC_EPSILON, METH_VARARGS|METH_KEYWORDS, "Set geometric epsilon"},
   {"WARNINGS", (PyCFunction)lng_WARNINGS, METH_VARARGS|METH_KEYWORDS, "Enable or disable warnings"},
   {"INITIALIZE_STATE", (PyCFunction)lng_INITIALIZE_STATE, METH_VARARGS|METH_KEYWORDS, "Initialize Solfec state"},
+  {"RIGID_TO_FEM", (PyCFunction)lng_RIGID_TO_FEM, METH_VARARGS|METH_KEYWORDS, "Map rigid motion onto FEM bodies"},
   {"LOCDYN_DUMP", (PyCFunction)lng_LOCDYN_DUMP, METH_VARARGS|METH_KEYWORDS, "Dump local dynamics"},
   {"OVERLAPPING", (PyCFunction)lng_OVERLAPPING, METH_VARARGS|METH_KEYWORDS, "Detect shapes (not) overlapping obstacles"},
   {"MBFCP_EXPORT", (PyCFunction)lng_MBFCP_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export MBFCP definition"},
@@ -9404,6 +9433,7 @@ int lng (const char *path)
                      "from solfec import GEOMETRIC_EPSILON\n"
                      "from solfec import WARNINGS\n"
                      "from solfec import INITIALIZE_STATE\n"
+                     "from solfec import RIGID_TO_FEM\n"
                      "from solfec import LOCDYN_DUMP\n"
                      "from solfec import OVERLAPPING\n"
                      "from solfec import MBFCP_EXPORT\n"

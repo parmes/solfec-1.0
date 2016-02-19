@@ -11572,6 +11572,47 @@ time
  - time at which the state should be red from the output files
 \end_layout
 
+\begin_layout Subsection*
+RIGID_TO_FEM (path, time, solfec) 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+This routine initializes the state of FEM bodies within the Solfec object
+ with the state of rigid bodies red from an output directory at a given
+ time.
+ It is ignored in the 'READ' mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - path to the output directory containing matching rigid body analysis
+ results; the number of rigid bodies in this analysis must match the number
+ of FEM bodies in the Solfec object; the identifiers of rigid bodies must
+ match the identifiers of FEM bodies; this is guaranteed if the input files
+ for both analyses differ only by the prescribed body kinds;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+time
+\series default
+ - time at which the state should be red from the output files
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - Solfec object in the 'WRITE' mode
+\end_layout
+
 \begin_layout Section
 \begin_inset CommandInset label
 LatexCommand label

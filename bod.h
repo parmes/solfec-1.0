@@ -232,6 +232,9 @@ void BODY_Overwrite_State (BODY *bod, double *q, double *u);
 /* apply an initial rigid motion velocity */
 void BODY_Initial_Velocity (BODY *bod, double *linear, double *angular);
 
+/* set rigid motion */
+void BODY_From_Rigid (BODY *bod, double *rotation, double *position, double *angular, double *linear);
+
 /* apply a force (if 'func' is given, 'data' is regarded as the user data pointer to the callback 'func') */
 void BODY_Apply_Force (BODY *bod, short kind, double *point, double *direction, TMS *data, void *call, FORCE_FUNC func, int surfid);
 
