@@ -3038,13 +3038,15 @@ void FEM_From_Rigid (BODY *bod, double *rotation, double *position, double *angu
   double (*ref) [3] = msh->ref_nodes,
 	 (*cur) [3] = msh->cur_nodes;
   int m = msh->nodes_count, n;
-  double *center = bod->ref_center;
+  double *center = bod->ref_center,
+         *conf = bod->conf;
   double A[3];
 
-  for (n = 0; n < m; n ++)
+  for (n = 0; n < m; n ++, conf += 3)
   {
     SUB (ref[n], center, A);
     NVADDMUL (position, rotation, A, cur[n]);
+    SUB (cur[n], ref[n], conf);
   }
 
   FEM_Initial_Velocity (bod, linear, angular);

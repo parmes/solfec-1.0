@@ -3,7 +3,7 @@
 # ----------
 # 19/02/2016
 
-step = 1E-3
+step = 1E-4
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/devel/rigid-to-fem-2')
 
