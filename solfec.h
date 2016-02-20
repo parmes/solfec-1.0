@@ -25,6 +25,9 @@ int WRITE_MODE_FLAG ();
 /* get wireframe flag */
 int WIREFRAME_FLAG ();
 
+/* verbose output time interval */
+double VERBOSITY_INTERVAL ();
+
 /* get non-Solfec input arguments */
 char** NON_SOLFEC_ARGV (int *argc);
 

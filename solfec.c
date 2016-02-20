@@ -48,6 +48,9 @@ static int WRITEMODEFLAG = 0;
 /* global wireframe rendering flag */
 static int WIREFRAMEFLAG = 0;
 
+/* global verbose output time interval */
+static double VERBOSITYINTERVAL = 1.0;
+
 /* global non-Solfec input arguments */
 #define MAX_ARGC 128
 static char *ARGV [MAX_ARGC];
@@ -82,6 +85,12 @@ int WRITE_MODE_FLAG ()
 int WIREFRAME_FLAG ()
 {
   return WIREFRAMEFLAG;
+}
+
+/* verbose output time interval */
+double VERBOSITY_INTERVAL ()
+{
+  return VERBOSITYINTERVAL;
 }
 
 /* get non-Solfec input arguments */
@@ -168,6 +177,13 @@ static char* getfile (int argc, char **argv)
 	SUBDIR = argv [n]; /* set sub-directory */
       }
     }
+    else if (strcmp (argv [n], "-i") == 0)
+    {
+      if (++ n < argc)
+      {
+	VERBOSITYINTERVAL = atof (argv[n]); /* verbose output time interval */
+      }
+    }
 #if OPENGL
     else if (strcmp (argv [n], "-g") == 0)
     {
@@ -243,12 +259,12 @@ int main (int argc, char **argv)
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
-    #define synopsis "SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] path\n"
+    #define synopsis "SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] [-i verbosity inteval] path\n"
 #else
   #if MPI
-    #define synopsis "SYNOPSIS: solfec-mpi [-s sub-directory] path\n"
+    #define synopsis "SYNOPSIS: solfec-mpi [-s sub-directory] [-i verbosity inteval] path\n"
   #else
-    #define synopsis "SYNOPSIS: solfec [-w] [-s sub-directory] path\n"
+    #define synopsis "SYNOPSIS: solfec [-w] [-s sub-directory] [-i verbosity inteval] path\n"
   #endif
 #endif
 

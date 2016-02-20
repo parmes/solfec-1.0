@@ -1434,10 +1434,12 @@ results in the hint
 \end_layout
 
 \begin_layout LyX-Code
-SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] path
+SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] [-i
+ verbosity interval] path
 \end_layout
 
 \begin_layout Standard
+\noindent
 The 
 \emph on
 -v
@@ -1454,13 +1456,35 @@ reference "fig:Solfec-viewer"
  In this mode the user can view the geometrical mode, run or step through
  analysis, and view results.
  The right mouse click on the viewer window expands the menu.
- The 
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace defskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+The 
 \emph on
 -w
 \emph default
  switch forces the computation (write) mode: if some results are present,
  they will be overwritten.
- The 
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace defskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+The 
 \emph on
 -f
 \emph default
@@ -1470,13 +1494,35 @@ reference "fig:Solfec-viewer"
 \emph default
 , opens the viewer in the wire-frame mode, which requires substantially
  less memory and can be used to visualize large models.
- The 
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace defskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+The 
 \emph on
 -g
 \emph default
  switch allows to specify the initial width and height of the viewer window
  (512 by default).
- The 
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace defskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+The 
 \emph on
 -s
 \emph default
@@ -1541,6 +1587,23 @@ During a parallel run Solfec updates a file named STATE, placed in the output
  output files this way).
  An analysis (both serial and parallel) can be stopped at any time by placing
  a file named STOP in the output directory of a simulation.
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace defskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+The 
+\emph on
+-i
+\emph default
+ switch allows to adjust the time interval of verbose output of runtime
+ statistics (default is 1s).
 \end_layout
 
 \begin_layout Standard
@@ -1787,7 +1850,7 @@ The below table gives indicative assessment of the maturity of various Solfec
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="78" columns="4">
+<lyxtabular version="3" rows="79" columns="4">
 <features rotate="0" islongtable="true" longtabularalignment="center">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top">
@@ -3574,6 +3637,44 @@ INITIAL_VELOCITY
 
 \begin_layout Plain Layout
 x
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+RIGID_TO_FEM
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
 \end_layout
 
 \end_inset

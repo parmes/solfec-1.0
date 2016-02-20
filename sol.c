@@ -726,8 +726,8 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
        * human perciveable period of time */
       tt = timerend (&tim);
       if (verbose) statsout (sol);
-      if (tt < 1.0) verbose = verbose_off (sol);
-      else if (tt >= 1.0) verbose = verbose_on (sol), timerstart (&tim);
+      if (tt < VERBOSITY_INTERVAL()) verbose = verbose_off (sol);
+      else if (tt >= VERBOSITY_INTERVAL()) verbose = verbose_on (sol), timerstart (&tim);
 
       /* write output if needed */
       if (sol->dom->time >= sol->output_time)
