@@ -120,7 +120,7 @@ struct display_point /* auxiliary display point for verification purposes */
 #define FRICWORK 3
 #define INTERNAL 4
 #define BODY_ENERGY_SPACE 5
-#define BODY_ENERGY_SIZE(bod) ((bod)->kind == OBS ? 0 : (bod)->kind == RIG ? 4 : 5)
+#define BODY_ENERGY_SIZE(kind) (kind == OBS ? 0 : kind == RIG ? 4 : 5)
 
 /* body flags */
 typedef enum
@@ -302,7 +302,7 @@ BODY** BODY_Separate (BODY *bod, int *m);
 void BODY_Write_State (BODY *bod, PBF *bf);
 
 /* read body state */
-void BODY_Read_State (BODY *bod, PBF *bf);
+void BODY_Read_State (BODY *bod, PBF *bf, int iover);
 
 /* release body memory */
 void BODY_Destroy (BODY *bod);

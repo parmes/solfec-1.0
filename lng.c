@@ -8680,7 +8680,7 @@ static PyObject* lng_ENERGY (PyObject *self, PyObject *args, PyObject *kwds)
     for (item = SET_First (bodies); item; item = SET_Next (item))
     {
       bod = item->data;
-      for (i = 0; i < BODY_ENERGY_SIZE(bod); i ++) energy [i] += bod->energy [i];
+      for (i = 0; i < BODY_ENERGY_SIZE(bod->kind); i ++) energy [i] += bod->energy [i];
     }
     MEM_Release (&setmem);
   }
@@ -8688,7 +8688,7 @@ static PyObject* lng_ENERGY (PyObject *self, PyObject *args, PyObject *kwds)
   {
     for (bod = solfec->sol->dom->bod; bod; bod = bod->next)
     {
-      for (i = 0; i < BODY_ENERGY_SIZE(bod); i ++) energy [i] += bod->energy [i];
+      for (i = 0; i < BODY_ENERGY_SIZE(bod->kind); i ++) energy [i] += bod->energy [i];
     }
   }
 

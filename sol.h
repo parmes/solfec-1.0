@@ -45,8 +45,11 @@
 /* 1                         an initial input-output version (dio.c, sol.c, bod.c) */
 /* ------------------------------------------------------------------------------- */
 /* 2              output of relative pre-impact velocities for contact constraints */
+/* ------------------------------------------------------------------------------- */
+/* 3    output of iover, body kind, conf and dofs size to enable RIGID_TO_FEM and  */
+/*     INITIALISE_STATE working when LOCAL_BODIES = yes is used in Config.mak      */
 /* =============================================================================== */
-#define IOVER 2                                                 /* current version */
+#define IOVER 3                                                 /* current version */
 /* =============================================================================== */
 
 #ifndef SOLFEC_TYPE

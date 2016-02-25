@@ -366,6 +366,14 @@ void dom_write_state (DOM *dom, PBF *bf)
 
   PBF_Label (bf, "DOM");
 
+#if IOVER >= 3
+  /* write iover */
+
+  PBF_Label (bf, "IOVER");
+
+  PBF_Int (bf, &dom->solfec->iover, 1);
+#endif
+
   /* write time step */
 
   PBF_Label (bf, "STEP");
@@ -415,10 +423,7 @@ void dom_write_state (DOM *dom, PBF *bf)
 void dom_read_state (DOM *dom, PBF *bf)
 {
   BODY *bod, *next;
-  int iover, ncon;
-
-  /* input version */
-  iover = dom->solfec->iover;
+  int ncon;
 
   /* clear contacts */
   MAP_Free (&dom->mapmem, &dom->idc);
@@ -436,6 +441,15 @@ void dom_read_state (DOM *dom, PBF *bf)
   {
     if (PBF_Label (bf, "DOM"))
     {
+      /* read iover */
+
+      int iover = 2;
+
+      if (PBF_Label (bf, "IOVER"))
+      {
+	PBF_Int (bf, &iover, 1);
+      }
+
       /* read time step */
 
       ASSERT (PBF_Label (bf, "STEP"), ERR_FILE_FORMAT);
@@ -476,7 +490,7 @@ void dom_read_state (DOM *dom, PBF *bf)
 	  dom->nbod ++;
 	}
 
-	BODY_Read_State (bod, bf);
+	BODY_Read_State (bod, bf, iover);
 	bod->flags &= ~BODY_ABSENT;
       }
 
@@ -524,13 +538,22 @@ void dom_read_state (DOM *dom, PBF *bf)
 /* read state of an individual body */
 int dom_read_body (DOM *dom, PBF *bf, BODY *bod)
 {
+  /* read iover */
+
+  int iover = 2;
+
+  if (PBF_Label (bf, "IOVER"))
+  {
+    PBF_Int (bf, &iover, 1);
+  }
+
   if (bod->label)
   {
     for (; bf; bf = bf->next)
     {
       if (PBF_Label (bf, bod->label))
       {
-	BODY_Read_State (bod, bf);
+	BODY_Read_State (bod, bf, iover);
 	return 1;
       }
     }
@@ -554,7 +577,7 @@ int dom_read_body (DOM *dom, PBF *bf, BODY *bod)
 	  ASSERT_DEBUG_EXT (obj = MAP_Find (dom->idb, (void*) (long) id, NULL), "Body id invalid");
 	  if (bod->id == obj->id) 
 	  {
-	    BODY_Read_State (bod, bf);
+	    BODY_Read_State (bod, bf, iover);
 	    return 1;
 	  }
 	  else /* skip body and continue */
@@ -565,7 +588,7 @@ int dom_read_body (DOM *dom, PBF *bf, BODY *bod)
 	    ERRMEM (fake.velo = malloc (sizeof (double [obj->dofs])));
 	    fake.shape = NULL;
 
-	    BODY_Read_State (&fake, bf);
+	    BODY_Read_State (&fake, bf, iover);
 
 	    free (fake.conf);
 	    free (fake.velo);
@@ -581,7 +604,16 @@ int dom_read_body (DOM *dom, PBF *bf, BODY *bod)
 /* read state of an individual constraint */
 int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
 {
-  int iover = dom->solfec->iover;
+  /* read iover */
+
+  int iover = 2;
+
+  if (PBF_Label (bf, "IOVER"))
+  {
+    PBF_Int (bf, &iover, 1);
+  }
+
+  /* read constraint */
 
   for (; bf; bf = bf->next)
   {
@@ -617,6 +649,17 @@ int dom_init_state (DOM *dom, PBF *bf)
   {
     if (PBF_Label (bf, "DOM"))
     {
+      /* read iover */
+
+      int iover = 2;
+
+      if (PBF_Label (bf, "IOVER"))
+      {
+	PBF_Int (bf, &iover, 1);
+      }
+ 
+      ASSERT_TEXT (iover >= 3, "Output files are too old for INITIALISE_STATE to work");
+
       /* read body states */
 
       ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
@@ -631,14 +674,41 @@ int dom_init_state (DOM *dom, PBF *bf)
 	BODY *bod;
 
 	PBF_Uint (bf, &id, 1);
-	ASSERT_TEXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL),
-	             "Invalid body identifier => most likely due to a mismatched output file.");
-	BODY_Read_State (bod, bf); /* XXX: we need to read all bodies since this can also be called
-				           in parallel and only some bodies may be present; yet in order
-					   to maintain the read consitency we need to read everything */
-       /* FIXME: 19/02/2016
-        * Could this not cause an issue in parallel in case not all bodies are stored on all ranks?
-	* In that case the above assertion should fail and this command will not effectively work. */
+	bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
+
+	if (bod) /* update state of existing bodies only */
+	{
+	  BODY_Read_State (bod, bf, iover);
+	}
+	else /* mock read */
+	{
+	  int rkind;
+	  int rconf;
+	  int rdofs;
+
+	  PBF_Int (bf, &rkind, 1);
+	  PBF_Int (bf, &rconf, 1);
+	  PBF_Int (bf, &rdofs, 1);
+
+	  double *conf;
+	  double *velo;
+	  double energy[10];
+	  int rank;
+
+	  ERRMEM (conf = malloc (sizeof(double) * rconf));
+	  ERRMEM (velo = malloc (sizeof(double) * rdofs));
+
+	  PBF_Double (bf, conf, rconf);
+	  PBF_Double (bf, velo, rdofs);
+	  PBF_Double (bf, energy, BODY_ENERGY_SIZE(rkind));
+	  if (bf->parallel == PBF_ON)
+	  {
+	    PBF_Int (bf, &rank, 1);
+	  }
+
+	  free (conf);
+	  free (velo);
+	}
       }
     }
   }
@@ -653,6 +723,17 @@ int dom_rigid_to_fem (DOM *dom, PBF *bf)
   {
     if (PBF_Label (bf, "DOM"))
     {
+      /* read iover */
+
+      int iover = 2;
+
+      if (PBF_Label (bf, "IOVER"))
+      {
+	PBF_Int (bf, &iover, 1);
+      }
+
+      ASSERT_TEXT (iover >= 3, "Output files are too old for RIGID_TO_FEM to work");
+
       /* read body states */
 
       ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
@@ -670,28 +751,69 @@ int dom_rigid_to_fem (DOM *dom, PBF *bf)
 
 	PBF_Uint (bf, &id, 1);
 
-	ASSERT_TEXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL),
-	             "Invalid body identifier => most likely due to a mismatched output file.");
+	bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
 
-       /* FIXME: 19/02/2016
-        * Could this not cause an issue in parallel in case not all bodies are stored on all ranks?
-	* In that case the above assertion should fail and this command will not effectively work. */
-
-	if (bod->kind == FEM)
+	if (bod) /* update state of existing bodies only */
 	{
-	  PBF_Double (bf, conf, 12);
-	  PBF_Double (bf, velo, 6);
-	  PBF_Double (bf, energy, 4);
+	  int rkind;
+	  int rconf;
+	  int rdofs;
+
+	  PBF_Int (bf, &rkind, 1);
+	  PBF_Int (bf, &rconf, 1);
+	  PBF_Int (bf, &rdofs, 1);
+ 
+	  if (bod->kind == FEM && rkind == RIG)
+	  {
+
+	    PBF_Double (bf, conf, 12);
+	    PBF_Double (bf, velo, 6);
+	    PBF_Double (bf, energy, 4);
+	    if (bf->parallel == PBF_ON)
+	    {
+	      PBF_Int (bf, &rank, 1);
+	    }
+
+	    BODY_From_Rigid (bod, conf, conf+9, velo, velo+3);
+	  }
+	  else
+	  {
+            ASSERT_TEXT (bod->kind == (unsigned)rkind, "Body kind mismatch when reading state");
+	    ASSERT_TEXT (BODY_Conf_Size (bod) == rconf, "Body configuration size mismatch when reading state");
+	    ASSERT_TEXT (bod->dofs == rdofs, "Body dofs size mismatch when reading state");
+
+	    BODY_Read_State (bod, bf, 0); /* use 0 state to skip reading of rkind, rnconf, rdofs */
+	  }
+        }
+	else /* mock read */
+	{
+	  int rkind;
+	  int rconf;
+	  int rdofs;
+
+	  PBF_Int (bf, &rkind, 1);
+	  PBF_Int (bf, &rconf, 1);
+	  PBF_Int (bf, &rdofs, 1);
+
+	  double *conf;
+	  double *velo;
+	  double energy[10];
+	  int rank;
+
+	  ERRMEM (conf = malloc (sizeof(double) * rconf));
+	  ERRMEM (velo = malloc (sizeof(double) * rdofs));
+
+	  PBF_Double (bf, conf, rconf);
+	  PBF_Double (bf, velo, rdofs);
+	  PBF_Double (bf, energy, BODY_ENERGY_SIZE(rkind));
 	  if (bf->parallel == PBF_ON)
 	  {
 	    PBF_Int (bf, &rank, 1);
 	  }
 
-	  BODY_From_Rigid (bod, conf, conf+9, velo, velo+3); /* XXX: we need to read all bodies since this can also be called
-								     in parallel and only some bodies may be present; yet in order
-								     to maintain the read consitency we need to read everything */
+	  free (conf);
+	  free (velo);
 	}
-	else BODY_Read_State (bod, bf);
       }
     }
   }

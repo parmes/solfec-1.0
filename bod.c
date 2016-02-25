@@ -632,6 +632,7 @@ static void prb_static_inverse (BODY *bod, double step)
   MX_Destroy (IM);
 }
 
+#if 0
 /* compute internal force for the pseudo-rigid model */
 inline static void prb_internal_force (BODY *bod, double *F, double *P)
 {
@@ -639,6 +640,7 @@ inline static void prb_internal_force (BODY *bod, double *F, double *P)
                 mi (bod->mat->young, bod->mat->poisson),
 		bod->ref_volume, F, P);
 }
+#endif
  
 /* compute force(time) = external(time) - internal(time), provided
  * that the configuration(time) has already been set elsewhere */
@@ -2090,20 +2092,46 @@ BODY** BODY_Separate (BODY *bod, int *m)
 
 void BODY_Write_State (BODY *bod, PBF *bf)
 {
+#if IOVER >= 3
+  int wkind = bod->kind;
+  int wconf = BODY_Conf_Size (bod);
+  int wdofs = bod->dofs;
+
+  PBF_Int (bf, &wkind, 1);
+  PBF_Int (bf, &wconf, 1);
+  PBF_Int (bf, &wdofs, 1);
+#endif
+
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
   PBF_Double (bf, bod->velo, bod->dofs);
-  PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod));
+  PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod->kind));
 
 #if MPI
   PBF_Int (bf, &bod->dom->rank, 1);
 #endif
 }
 
-void BODY_Read_State (BODY *bod, PBF *bf)
+void BODY_Read_State (BODY *bod, PBF *bf, int iover)
 {
+  if (iover >= 3)
+  {
+    int rkind;
+    int rconf;
+    int rdofs;
+
+    PBF_Int (bf, &rkind, 1); /* need to read them all */
+    PBF_Int (bf, &rconf, 1);
+    PBF_Int (bf, &rdofs, 1);
+
+    /* and why not run some consitency tests */
+    ASSERT_TEXT (bod->kind == (unsigned)rkind, "Body kind mismatch when reading state");
+    ASSERT_TEXT (BODY_Conf_Size (bod) == rconf, "Body configuration size mismatch when reading state");
+    ASSERT_TEXT (bod->dofs == rdofs, "Body dofs size mismatch when reading state");
+  }
+
   PBF_Double (bf, bod->conf, BODY_Conf_Size (bod));
   PBF_Double (bf, bod->velo, bod->dofs);
-  PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod));
+  PBF_Double (bf, bod->energy, BODY_ENERGY_SIZE(bod->kind));
 
   if (bf->parallel == PBF_ON)
   {
@@ -2377,7 +2405,7 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
   pack_double (dsize, d, doubles, bod->damping);
 
   /* pack energy */
-  pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
+  pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod->kind));
 }
 
 /* unpack parent body */
@@ -2404,7 +2432,7 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
   bod->damping = unpack_double (dpos, d, doubles);
 
   /* unpack energy */
-  unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod));
+  unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod->kind));
 
   /* init inverse */
   if (dynamic) BODY_Dynamic_Init (bod);
