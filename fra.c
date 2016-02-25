@@ -606,7 +606,7 @@ int Fracture_Export_MoFEM (BODY *bod, double volume, double quality, FILE *outpu
     //______________________________________________________
     /* rewind the list to the end to find the last element,
        which corresponds to the earliest in time fracture instance */
-    for (it = list; it->next; it = it->next);
+    for (it = list; it->next; it = it->next) continue;
 
     /* for (it = list; it; it = it->next) */
     /* FIXME -- FIXME -- FIXME -- FIXME */

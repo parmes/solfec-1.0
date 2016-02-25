@@ -216,7 +216,7 @@ TRI* cut (CONVEX *cvx, double *point, double *normal, int *m)
   TRI *t, *q, *s, *hul, *out;
   MEM edgemem, setmem;
   SET *edges, *item;
-  int k, n, *f, *g;
+  int k = 0, n, *f, *g;
   EDGE *e;
 
   /* initialize pools */

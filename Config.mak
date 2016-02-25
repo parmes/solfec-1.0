@@ -104,7 +104,7 @@ PYTHONLIB = -L/usr/lib -lpython2.7
 #
 
 OPENGL = yes
-GLINC =
+GLINC = -Wno-deprecated-declarations
 GLLIB = -framework GLUT -framework OpenGL
 
 #
@@ -118,7 +118,7 @@ VBO = yes
 #
 
 MPI = yes
-MPICC = mpicc
+MPICC = mpicc -Wno-unused-but-set-variable
 
 #
 # Zoltan (MPI == yes)

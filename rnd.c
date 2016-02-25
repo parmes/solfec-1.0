@@ -3387,7 +3387,7 @@ static void select_3D (int x1, int y1, int x2, int y2)
     {
       for (k = 0; k < sel [m]; k ++)
       {
-	bod = MAP_Find (domain->idb, (void*) sel [m+3+k], NULL);
+	bod = MAP_Find (domain->idb, (void*) (long) sel [m+3+k], NULL);
 	if (bod) SET_Insert (&rndsetmem, &set, bod, NULL);
       }
     }
@@ -3412,7 +3412,7 @@ static BODY* pick_body (int x, int y)
   glGetIntegerv (GL_VIEWPORT, viewport);
   glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
 
-  return MAP_Find (domain->idb, (void*) rgbatoid (pix), NULL);
+  return MAP_Find (domain->idb, (void*) (long) rgbatoid (pix), NULL);
 }
 
 /* pick one point using 2D selection */
@@ -3431,7 +3431,7 @@ static double* pick_point (int x, int y)
   glGetIntegerv (GL_VIEWPORT, viewport);
   glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
 
-  bod = MAP_Find (domain->idb, (void*) rgbatoid (pix), NULL);
+  bod = MAP_Find (domain->idb, (void*) (long) rgbatoid (pix), NULL);
   point = NULL;
 
   if (bod)
