@@ -30,6 +30,7 @@ struct time_series
 {
   double value; /* constant value => used if size == 0 */
   double (*points) [2]; /* vector of (time, value) pairs */
+  char *label; /* label for globally mapped time series */
   int marker; /* index of the last read interval */
   int size; /* total number of pairs */
 };
@@ -38,13 +39,13 @@ struct time_series
 TMS* TMS_Copy (TMS *ts);
 
 /* create time series */
-TMS* TMS_Create (int size, double *times, double *values);
+TMS* TMS_Create (int size, double *times, double *values, char *label);
 
 /* create time series from a text file */
-TMS* TMS_File (char *path);
+TMS* TMS_File (char *path, char *label);
 
 /* wrapper for a constant value */
-TMS* TMS_Constant (double value);
+TMS* TMS_Constant (double value, char *label);
 
 /* create from another series through integration */
 TMS* TMS_Integral (TMS *ts);
@@ -72,5 +73,8 @@ TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 
 /* export MBFCP definition */
 void TMS_2_MBFCP (TMS *tms, FILE *out);
+
+/* released globally mapped time series */
+void TMS_RELEASE_GLOBAL_MAP();
 
 #endif

@@ -134,6 +134,8 @@ static void MPI_error_handling (MPI_Comm *comm, int *err, ...)
 
     for (; solfec; solfec = solfec->next) SOLFEC_Abort (solfec); /* abort SOLFEC (flush buffers) */
 
+    TMS_RELEASE_GLOBAL_MAP(); /* release globally mapped time series */
+
     exit (1);
   }
 }
@@ -157,6 +159,8 @@ static void sighnd (int signal)
 #if MPI
   MPI_Finalize ();
 #endif
+
+  TMS_RELEASE_GLOBAL_MAP(); /* release globally mapped time series */
 
   exit (1);
 }
@@ -301,6 +305,8 @@ int main (int argc, char **argv)
 #if MPI
   MPI_Finalize ();
 #endif
+
+  TMS_RELEASE_GLOBAL_MAP(); /* release globally mapped time series */
 
   return 0;
 }

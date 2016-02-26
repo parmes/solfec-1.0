@@ -8649,7 +8649,7 @@ An object of type TIME_SERIES is a linear spline based on a series of 2-points.
 \end_layout
 
 \begin_layout Subsection*
-obj = TIME_SERIES (points)
+obj = TIME_SERIES (points | label)
 \end_layout
 
 \begin_layout Standard
@@ -8714,6 +8714,17 @@ t2 v2
 
 \begin_layout LyX-Code
 ...
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - optional label string; if a label is provided than the TIME_SERIES object
+ is stored in memory just once; this facilitates more optimal memory usage
+ in cases where many identical TIME_SERIES objects are used in multiple
+ constraints (for example); the label should be unique
 \end_layout
 
 \begin_layout Standard

@@ -25,6 +25,10 @@
 #include "tms.h"
 #include "pck.h"
 #include "err.h"
+#include "map.h"
+
+/* a map of globally labeled time series */
+static MAP *labeled_time_series = NULL;
 
 #define CHUNK 512
 
@@ -62,20 +66,43 @@ static double linterp (double (*point) [2], double time)
   return point[0][1] + (point[1][1]-point[0][1]) * (dt / (point[1][0] - point[0][0]));
 }
 
+static void addlabel (TMS *ts, char *label)
+{
+  if (label)
+  {
+    ERRMEM (ts->label = malloc(strlen(label)+1));
+    strcpy (ts->label, label);
+    ASSERT_TEXT (MAP_Find (labeled_time_series, label, (MAP_Compare)strcmp) == NULL,
+                 "A time series object with label %s already exists", label);
+    MAP_Insert (NULL, &labeled_time_series, ts->label, ts, (MAP_Compare)strcmp);
+  }
+  else ts->label = NULL;
+}
+
 TMS* TMS_Copy (TMS *ts)
 {
   TMS *out;
 
-  ERRMEM (out = malloc (sizeof (TMS)));
-  out->value = ts->value;
-  ERRMEM (out->points = malloc (sizeof (double [2]) * ts->size));
-  out->marker = ts->marker;
-  out->size = ts->size;
-  memcpy (out->points, ts->points, sizeof (double [2]) * ts->size);
+  if (ts->label)
+  {
+    out = MAP_Find (labeled_time_series, ts->label, (MAP_Compare)strcmp);
+    ASSERT_TEXT (out, "Labeled time series is not present in the global map");
+  }
+  else
+  {
+    ERRMEM (out = malloc (sizeof (TMS)));
+    out->value = ts->value;
+    ERRMEM (out->points = malloc (sizeof (double [2]) * ts->size));
+    out->marker = ts->marker;
+    out->size = ts->size;
+    memcpy (out->points, ts->points, sizeof (double [2]) * ts->size);
+    out->label = NULL;
+  }
+
   return out;
 }
 
-TMS* TMS_Create (int size, double *times, double *values)
+TMS* TMS_Create (int size, double *times, double *values, char *label)
 {
   TMS *ts;
   int i;
@@ -97,10 +124,12 @@ TMS* TMS_Create (int size, double *times, double *values)
     }
   }
 
+  addlabel (ts, label);
+
   return ts;
 }
 
-TMS* TMS_File (char *path)
+TMS* TMS_File (char *path, char *label)
 {
   char buf [4096];
   FILE *fp;
@@ -144,16 +173,21 @@ TMS* TMS_File (char *path)
 
   ts->marker = 0;
 
+  addlabel (ts, label);
+
   return ts;
 }
 
-TMS* TMS_Constant (double value)
+TMS* TMS_Constant (double value, char *label)
 {
   TMS *ts;
 
   ERRMEM (ts = malloc (sizeof (TMS)));
   ts->value = value;
   ts->size = 0; /* indicates constant value */
+
+  addlabel (ts, label);
+
   return ts;
 }
 
@@ -171,7 +205,7 @@ TMS* TMS_Integral (TMS *ts)
   if (out->size == 0)
   {
     free (out);
-    return TMS_Constant ((ts->points[1][0] - ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]));
+    return TMS_Constant ((ts->points[1][0] - ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]), NULL);
   }
 
   ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
@@ -189,6 +223,16 @@ TMS* TMS_Integral (TMS *ts)
     pout [n][1] = pout [n-1][1] + (pin[n][0] - pin[n-1][0]) * 0.5 * (pin[n-1][1] + pin[n][1]);
   }
 
+  if (ts->label)
+  {
+    char *lb;
+    ERRMEM (lb = malloc (sizeof(ts->label)+3));
+    sprintf (lb, "%s_i", ts->label);
+    addlabel (out, lb);
+    free (lb);
+  }
+  else out->label = NULL;
+
   return out;
 }
 
@@ -199,11 +243,11 @@ TMS* TMS_Derivative (TMS *ts)
   TMS *out;
   int n;
 
-  if (ts->size == 0) return TMS_Constant (0.0);
+  if (ts->size == 0) return TMS_Constant (0.0, NULL);
 
   if (ts->size == 1)
   {
-    return TMS_Constant ((ts->points[1][1] - ts->points[0][1])/(ts->points[1][0] - ts->points[0][0]));
+    return TMS_Constant ((ts->points[1][1] - ts->points[0][1])/(ts->points[1][0] - ts->points[0][0]), NULL);
   }
 
 #if 0
@@ -241,6 +285,16 @@ TMS* TMS_Derivative (TMS *ts)
     pout [2*n+1][1] = (pin[n+1][1] - pin[n][1]) / dt;
   }
 #endif
+
+  if (ts->label)
+  {
+    char *lb;
+    ERRMEM (lb = malloc (sizeof(ts->label)+3));
+    sprintf (lb, "%s_d", ts->label);
+    addlabel (out, lb);
+    free (lb);
+  }
+  else out->label = NULL;
 
   return out;
 }
@@ -302,6 +356,8 @@ void TMS_Output (TMS *ts, char *path, double step)
 
 void TMS_Destroy (TMS *ts)
 {
+  if (ts->label) return; /* labeled time series are released by TMS_RELEASE_GLOBAL_MAP */
+
   if (ts->size == 0) free (ts);
   else
   {
@@ -312,24 +368,47 @@ void TMS_Destroy (TMS *ts)
 
 void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
-  pack_double (dsize, d, doubles, ts->value);
-  pack_int (isize, i, ints, ts->marker);
-  pack_int (isize, i, ints, ts->size);
-  if (ts->size) pack_doubles (dsize, d, doubles, (double*)ts->points, ts->size * 2);
+  if (ts->label)
+  {
+    pack_int (isize, i, ints, 1); /* labeled */
+    pack_string (isize, i, ints, ts->label);
+  }
+  else
+  {
+    pack_int (isize, i, ints, 0); /* not labeled */
+    pack_double (dsize, d, doubles, ts->value);
+    pack_int (isize, i, ints, ts->marker);
+    pack_int (isize, i, ints, ts->size);
+    if (ts->size) pack_doubles (dsize, d, doubles, (double*)ts->points, ts->size * 2);
+  }
 }
 
 TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
+  int labeled;
   TMS *ts;
 
-  ERRMEM (ts = malloc (sizeof (TMS)));
-  ts->value = unpack_double (dpos, d, doubles);
-  ts->marker = unpack_int (ipos, i, ints);
-  ts->size = unpack_int (ipos, i, ints);
-  if (ts->size)
+  labeled = unpack_int (ipos, i, ints);
+
+  if (labeled)
   {
-    ERRMEM (ts->points = malloc (sizeof (double [2]) * ts->size));
-    unpack_doubles (dpos, d, doubles, (double*)ts->points, ts->size * 2);
+    char *lb = unpack_string (ipos, i, ints);
+    ts = MAP_Find (labeled_time_series, lb, (MAP_Compare)strcmp);
+    ASSERT_TEXT (ts, "Labeled time series is not present in the global map");
+    free (lb);
+  }
+  else
+  {
+    ERRMEM (ts = malloc (sizeof (TMS)));
+    ts->value = unpack_double (dpos, d, doubles);
+    ts->marker = unpack_int (ipos, i, ints);
+    ts->size = unpack_int (ipos, i, ints);
+    if (ts->size)
+    {
+      ERRMEM (ts->points = malloc (sizeof (double [2]) * ts->size));
+      unpack_doubles (dpos, d, doubles, (double*)ts->points, ts->size * 2);
+    }
+    ts->label = NULL;
   }
 
   return ts;
@@ -349,4 +428,25 @@ void TMS_2_MBFCP (TMS *tms, FILE *out)
     fprintf (out, "TIME_SERIES:\t%d\n", tms->size);
     for (n = 0; n < tms->size; n ++) fprintf (out, "%g\t%g\n", tms->points [n][0], tms->points[n][1]);
   }
+}
+
+/* released globally mapped time series */
+void TMS_RELEASE_GLOBAL_MAP()
+{
+  MAP *item;
+  TMS *ts;
+
+  for (item = MAP_First (labeled_time_series); item; item = MAP_Next (item))
+  {
+    ts = item->data;
+    ts->label = NULL;
+    TMS_Destroy (ts); /* release TMS objects */
+  }
+
+  for (item = MAP_First (labeled_time_series); item; item = MAP_Next (item))
+  {
+    free (item->key); /* release labels */
+  }
+
+  MAP_Free (NULL, &labeled_time_series);  /* release map memory */
 }

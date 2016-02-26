@@ -3458,21 +3458,28 @@ static int is_number_or_time_series (PyObject *obj, char *var)
 /* constructor */
 static PyObject* lng_TIME_SERIES_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("points");
+  KEYWORDS ("points", "label");
   lng_TIME_SERIES *self;
   PyObject *points;
+  PyObject *label;
+  char *lb;
 
   self = (lng_TIME_SERIES*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    PARSEKEYS ("O", &points);
+    label = NULL;
 
-    TYPETEST (is_list_or_string (points, kwl [0], 1, 2));
+    PARSEKEYS ("O|O", &points, &label);
+
+    TYPETEST (is_list_or_string (points, kwl [0], 1, 2) && is_string (label, kwl[1]));
+
+    if (label) lb = PyString_AsString (label);
+    else lb = NULL;
 
     if (PyString_Check (points))
     {
-      if (!(self->ts = TMS_File (PyString_AsString (points))))
+      if (!(self->ts = TMS_File (PyString_AsString (points), lb)))
       {
 	PyErr_SetString (PyExc_ValueError, "Could not open file");
 	return NULL;
@@ -3516,7 +3523,7 @@ static PyObject* lng_TIME_SERIES_new (PyTypeObject *type, PyObject *args, PyObje
 	}
       }
 
-      self->ts = TMS_Create (n, times, values);
+      self->ts = TMS_Create (n, times, values, lb);
 
       free (times);
       free (values);
@@ -5732,7 +5739,7 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-    if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble (value));
+    if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble (value), NULL);
     else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
 
     if (!(out->con = DOM_Set_Velocity (body->bod->dom, body->bod, p, d, ts)))
@@ -6006,7 +6013,7 @@ static PyObject* lng_GRAVITY (PyObject *self, PyObject *args, PyObject *kwds)
 
   for (i = 0; i < 3; i ++)
   {
-    if (PyNumber_Check (val [i])) ts = TMS_Constant (PyFloat_AsDouble(val [i]));
+    if (PyNumber_Check (val [i])) ts = TMS_Constant (PyFloat_AsDouble(val [i]), NULL);
     else ts = TMS_Copy (((lng_TIME_SERIES*)val [i])->ts);
 
     if (dom->gravity [i]) TMS_Destroy (dom->gravity [i]);
@@ -6127,7 +6134,7 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
   d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
   d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value));
+  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value), NULL);
   else if (PyCallable_Check (value))
   {
     ts = (TMS*) data;
@@ -6200,7 +6207,7 @@ static PyObject* lng_TORQUE (PyObject *self, PyObject *args, PyObject *kwds)
   d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
   d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
-  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value));
+  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value), NULL);
   else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
 
   IFIS (kind, "SPATIAL")
@@ -6253,7 +6260,7 @@ static PyObject* lng_PRESSURE (PyObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   }
 
-  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value));
+  if (PyNumber_Check (value)) ts = TMS_Constant (PyFloat_AsDouble(value), NULL);
   else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
 
   BODY_Apply_Force (body->bod, PRESSURE, NULL, NULL, ts, NULL, NULL, surfid);
