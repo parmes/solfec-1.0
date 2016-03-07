@@ -66,6 +66,15 @@ static double linterp (double (*point) [2], double time)
   return point[0][1] + (point[1][1]-point[0][1]) * (dt / (point[1][0] - point[0][0]));
 }
 
+static TMS* bylabel (char *label)
+{
+  if (label)
+  {
+    return MAP_Find (labeled_time_series, label, (MAP_Compare)strcmp);
+  }
+  else return NULL;
+}
+
 static void addlabel (TMS *ts, char *label)
 {
   if (label)
@@ -198,40 +207,43 @@ TMS* TMS_Integral (TMS *ts)
   TMS *out;
   int n;
 
-  ASSERT (ts->size > 0, ERR_TMS_INTEGRATE_CONSTANT);
-  ERRMEM (out = malloc (sizeof (TMS)));
-  out->size = ts->size;
-
-  if (out->size == 0)
+  if (!(out = bylabel (ts->label)))
   {
-    free (out);
-    return TMS_Constant ((ts->points[1][0] - ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]), NULL);
+    ASSERT (ts->size > 0, ERR_TMS_INTEGRATE_CONSTANT);
+    ERRMEM (out = malloc (sizeof (TMS)));
+    out->size = ts->size;
+
+    if (out->size == 0)
+    {
+      free (out);
+      return TMS_Constant ((ts->points[1][0] - ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]), NULL);
+    }
+
+    ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
+
+    out->marker = 0;
+    pin = ts->points;
+    pout = out->points;
+
+    pout [0][0] = pin[0][0];
+    pout [0][1] = pin[0][1];
+
+    for (n = 1; n < out->size; n ++)
+    {
+      pout [n][0] = pin [n][0];
+      pout [n][1] = pout [n-1][1] + (pin[n][0] - pin[n-1][0]) * 0.5 * (pin[n-1][1] + pin[n][1]);
+    }
+
+    if (ts->label)
+    {
+      char *lb;
+      ERRMEM (lb = malloc (sizeof(ts->label)+3));
+      sprintf (lb, "%s_i", ts->label);
+      addlabel (out, lb);
+      free (lb);
+    }
+    else out->label = NULL;
   }
-
-  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
-
-  out->marker = 0;
-  pin = ts->points;
-  pout = out->points;
-
-  pout [0][0] = pin[0][0];
-  pout [0][1] = pin[0][1];
-
-  for (n = 1; n < out->size; n ++)
-  {
-    pout [n][0] = pin [n][0];
-    pout [n][1] = pout [n-1][1] + (pin[n][0] - pin[n-1][0]) * 0.5 * (pin[n-1][1] + pin[n][1]);
-  }
-
-  if (ts->label)
-  {
-    char *lb;
-    ERRMEM (lb = malloc (sizeof(ts->label)+3));
-    sprintf (lb, "%s_i", ts->label);
-    addlabel (out, lb);
-    free (lb);
-  }
-  else out->label = NULL;
 
   return out;
 }
@@ -243,58 +255,61 @@ TMS* TMS_Derivative (TMS *ts)
   TMS *out;
   int n;
 
-  if (ts->size == 0) return TMS_Constant (0.0, NULL);
-
-  if (ts->size == 1)
+  if (!(out = bylabel (ts->label)))
   {
-    return TMS_Constant ((ts->points[1][1] - ts->points[0][1])/(ts->points[1][0] - ts->points[0][0]), NULL);
-  }
+    if (ts->size == 0) return TMS_Constant (0.0, NULL);
+
+    if (ts->size == 1)
+    {
+      return TMS_Constant ((ts->points[1][1] - ts->points[0][1])/(ts->points[1][0] - ts->points[0][0]), NULL);
+    }
 
 #if 0
-  ERRMEM (out = malloc (sizeof (TMS)));
-  out->size = ts->size - 1; /* central difference: one value per interval */
+    ERRMEM (out = malloc (sizeof (TMS)));
+    out->size = ts->size - 1; /* central difference: one value per interval */
 
-  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
+    ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
 
-  out->marker = 0;
-  pin = ts->points;
-  pout = out->points;
+    out->marker = 0;
+    pin = ts->points;
+    pout = out->points;
 
-  for (n = 0; n < out->size; n ++)
-  {
-    pout [n][0] = 0.5 * (pin[n][0] + pin[n+1][0]);
-    pout [n][1] = (pin[n+1][1] - pin[n][1]) / (pin[n+1][0] - pin[n][0]);
-  }
+    for (n = 0; n < out->size; n ++)
+    {
+      pout [n][0] = 0.5 * (pin[n][0] + pin[n+1][0]);
+      pout [n][1] = (pin[n+1][1] - pin[n][1]) / (pin[n+1][0] - pin[n][0]);
+    }
 #else
-  ERRMEM (out = malloc (sizeof (TMS)));
-  out->size = 2*(ts->size-1); /* constant value per interval with linear trend: two ends of the interval */
+    ERRMEM (out = malloc (sizeof (TMS)));
+    out->size = 2*(ts->size-1); /* constant value per interval with linear trend: two ends of the interval */
 
-  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
+    ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
 
-  out->marker = 0;
-  pin = ts->points;
-  pout = out->points;
+    out->marker = 0;
+    pin = ts->points;
+    pout = out->points;
 
-  for (n = 0; n < ts->size-1; n ++)
-  {
-    double dt = pin[n+1][0] - pin[n][0], eps = 1E-10 * dt;
+    for (n = 0; n < ts->size-1; n ++)
+    {
+      double dt = pin[n+1][0] - pin[n][0], eps = 1E-10 * dt;
 
-    pout [2*n][0] = pin[n][0];
-    pout [2*n+1][0] = pin[n+1][0] - eps;
-    pout [2*n][1] =
-    pout [2*n+1][1] = (pin[n+1][1] - pin[n][1]) / dt;
-  }
+      pout [2*n][0] = pin[n][0];
+      pout [2*n+1][0] = pin[n+1][0] - eps;
+      pout [2*n][1] =
+      pout [2*n+1][1] = (pin[n+1][1] - pin[n][1]) / dt;
+    }
 #endif
 
-  if (ts->label)
-  {
-    char *lb;
-    ERRMEM (lb = malloc (sizeof(ts->label)+3));
-    sprintf (lb, "%s_d", ts->label);
-    addlabel (out, lb);
-    free (lb);
+    if (ts->label)
+    {
+      char *lb;
+      ERRMEM (lb = malloc (sizeof(ts->label)+3));
+      sprintf (lb, "%s_d", ts->label);
+      addlabel (out, lb);
+      free (lb);
+    }
+    else out->label = NULL;
   }
-  else out->label = NULL;
 
   return out;
 }
