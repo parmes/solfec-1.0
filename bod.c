@@ -2124,7 +2124,8 @@ void BODY_Read_State (BODY *bod, PBF *bf, int iover)
     PBF_Int (bf, &rdofs, 1);
 
     /* and why not run some consitency tests */
-    ASSERT_TEXT (bod->kind == (unsigned)rkind, "Body kind mismatch when reading state");
+    ASSERT_TEXT (((bod->kind == RIG || bod->kind == OBS) &&
+      (rkind == RIG || rkind == OBS)) || bod->kind == (unsigned)rkind, "Body kind mismatch when reading state");
     ASSERT_TEXT (BODY_Conf_Size (bod) == rconf, "Body configuration size mismatch when reading state");
     ASSERT_TEXT (bod->dofs == rdofs, "Body dofs size mismatch when reading state");
   }
