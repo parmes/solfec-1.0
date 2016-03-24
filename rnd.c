@@ -536,8 +536,8 @@ static int rgbatoid (unsigned char *rgba)
   ((unsigned char*)&id) [0] = rgba [0];
   ((unsigned char*)&id) [1] = rgba [1];
   ((unsigned char*)&id) [2] = rgba [2];
-#if 1
-  ((unsigned char*)&id) [3] = 0; /* FIXME: alpha always one */
+#if 0
+  ((unsigned char*)&id) [3] = 0; /* FIXME: alpha always one; issue #35 */
 #else
   ((unsigned char*)&id) [3] = rgba [3];
 #endif
