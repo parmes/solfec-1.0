@@ -3356,6 +3356,38 @@ static int lng_BODY_set_fracturecheck (lng_BODY *self, PyObject *value, void *cl
   return 0;
 }
 
+static PyObject* lng_BODY_get_display_points (lng_BODY *self, void *closure)
+{
+#if MPI
+  return Py_RETURN_NONE;
+#else
+  PyObject *list;
+  SET *item;
+  int i, n;
+
+  n = SET_Size (self->bod->displaypoints);
+
+  ERRMEM (list = PyList_New (n));
+
+  for (i = 0, item = SET_First (self->bod->displaypoints);
+       i < n && item; i ++, item = SET_Next (item))
+  {
+    DISPLAY_POINT *point = (DISPLAY_POINT*) item->data;
+
+    PyList_SetItem (list, i, Py_BuildValue ("(O,(d,d,d))",
+      PyString_FromString(point->label), point->x[0], point->x[1], point->x[2]));
+  }
+
+  return list;
+#endif
+}
+
+static int lng_BODY_set_display_points (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* BODY methods */
 static PyMethodDef lng_BODY_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3383,6 +3415,7 @@ static PyGetSetDef lng_BODY_getset [] =
   {"ncon", (getter)lng_BODY_get_ncon, (setter)lng_BODY_set_ncon, "constraints count", NULL},
   {"material", (getter)lng_BODY_get_material, (setter)lng_BODY_set_material, "global body material", NULL},
   {"fracturecheck", (getter)lng_BODY_get_fracturecheck, (setter)lng_BODY_set_fracturecheck, "fracture check", NULL},
+  {"display_points", (getter)lng_BODY_get_display_points, (setter)lng_BODY_set_display_points, "display points data", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
