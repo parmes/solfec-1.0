@@ -97,6 +97,7 @@ struct solfec
   double output_interval,
 	 output_time;
   char *outpath;
+  PBF_FLG compression;
   PBF *bf;  
 
   /* callback data */

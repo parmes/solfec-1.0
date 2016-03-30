@@ -53,6 +53,8 @@ struct pbf
   double *d; /* raw doubles space */
   int dpos, doubles; /* raw doubles position and size */
 
+  char *path; /* file path; used to remove empty write access files upon closure */
+
   hid_t stack [PBF_MAXSTACK]; /* file id followed by groups stack */
   short top; /* index of the stack top item */
 

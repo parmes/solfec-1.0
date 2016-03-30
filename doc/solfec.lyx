@@ -853,6 +853,38 @@ POSIX = yes
 \end_layout
 
 \begin_layout LyX-Code
+# HDF5
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+HDF5 = yes
+\end_layout
+
+\begin_layout LyX-Code
+HDF5INC = -I/usr/local/hdf5/include
+\end_layout
+
+\begin_layout LyX-Code
+HDF5LIB = -L/usr/local/hdf5/lib -lhdf5 -lhdf5_hl
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
 # XDR
 \end_layout
 
@@ -1434,8 +1466,8 @@ results in the hint
 \end_layout
 
 \begin_layout LyX-Code
-SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] [-i
- verbosity interval] path
+SYNOPSIS: solfec [-v] [-w] [-c] [-f] [-g WIDTHxHEIGHT] [-s sub-directory]
+ [-i verbosity interval] path
 \end_layout
 
 \begin_layout Standard
@@ -1473,6 +1505,56 @@ The
 \emph default
  switch forces the computation (write) mode: if some results are present,
  they will be overwritten.
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace defskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\noindent
+The 
+\emph on
+-c
+\emph default
+ switch forces the continued computation (write) mode: if some results are
+ present, the analysis will be continued from where it was stopped.
+ 
+\series bold
+NOTE1:
+\series default
+ this option works correctly only if RUN is used once per input file; With
+ 
+\emph on
+-c
+\emph default
+ Solfec terminates in case RUN is used multiple times; 
+\series bold
+NOTE2:
+\series default
+ this option works only with the HDF5 output; in case of the XDR  output
+ it is the same as 
+\emph on
+-w
+\emph default
+; 
+\series bold
+NOTE3:
+\series default
+ in parallel continuation must be done using the same number of MPI ranks
+ (e.g.
+ N in 
+\begin_inset Quotes eld
+\end_inset
+
+mpirun -np N ...
+\begin_inset Quotes erd
+\end_inset
+
+ must not change);
 \end_layout
 
 \begin_layout Standard

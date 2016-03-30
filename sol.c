@@ -182,6 +182,10 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
   if (!(sol->bf = writeoutpath (sol->outpath, PBF_ON))) THROW (ERR_FILE_OPEN);
 #endif
 
+  /* set compression */
+
+  sol->bf->compression = sol->compression;
+
   /* write time */
 
   PBF_Time (sol->bf, &sol->dom->time); /* the only domain member written outside of it */
@@ -525,15 +529,30 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->outpath = copyoutpath (outpath);
   sol->output_interval = 0;
   sol->output_time = 0;
+  sol->compression = PBF_OFF;
 
 #if MPI
   if ((sol->bf = readoutpath (sol->outpath)))
   {
-    PBF_Close (sol->bf);
-    fprintf (stderr, "WARNING: Valid output files exist at path: %s\n", sol->outpath);
-    fprintf (stderr, "WARNING: Remove those files manually or use a diffrent path.\n");
-    fprintf (stderr, "WARNING: The MPI run of Solfec will terminate now...\n");
-    EXIT(1);
+    if (CONTINUE_WRITE_FLAG()) /* check rank correctness of continued compuration mode */
+    {
+      PBF *bf = sol->bf;
+      int ranks = 0, size;
+      for (; bf; bf = bf->next) ranks ++;
+      MPI_Comm_size (MPI_COMM_WORLD, &size);
+      ASSERT_TEXT (sol->bf->parallel == PBF_ON && ranks == size, "[-c] MPI mode: %d ranks must be used to continue computation", ranks);
+      PBF_Close (sol->bf);
+      sol->bf = NULL;
+      goto out;
+    }
+    else
+    {
+      PBF_Close (sol->bf);
+      fprintf (stderr, "WARNING: Valid output files exist at path: %s\n", sol->outpath);
+      fprintf (stderr, "WARNING: Remove those files manually or use a diffrent path.\n");
+      fprintf (stderr, "WARNING: The MPI run of Solfec will terminate now...\n");
+      EXIT(1);
+    }
   }
 #else
   if (!WRITE_MODE_FLAG() && (sol->bf = readoutpath (sol->outpath))) sol->mode = SOLFEC_READ;
@@ -541,20 +560,24 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   {
     PBF_Close (sol->bf);
     sol->bf = NULL;
-    fprintf (stdout, "WARNING: Valid output files exist at path: %s\n", sol->outpath);
-    char choice = 'n';
-    fprintf (stdout, "Would you like to overwrite them? y/[n]:");
-    scanf ("%c", &choice);
-    if (choice == 'y') goto write;
+    if (CONTINUE_WRITE_FLAG()) goto out;
     else
     {
-      fprintf (stdout, "Solfec will terminate now...\n");
-      EXIT(1);
+      fprintf (stdout, "WARNING: Valid output files exist at path: %s\n", sol->outpath);
+      char choice = 'n';
+      fprintf (stdout, "Would you like to overwrite them? y/[n]:");
+      scanf ("%c", &choice);
+      if (choice == 'y') goto write;
+      else
+      {
+	fprintf (stdout, "Solfec will terminate now...\n");
+	EXIT(1);
+      }
     }
   }
 write:
 #endif
-  if (sol->bf == NULL)
+  if (sol->bf == NULL) /* write from scratch */
   {
     if ((sol->bf = writeoutpath (sol->outpath, PBF_OFF)))
     {
@@ -575,6 +598,7 @@ write:
     else THROW (ERR_FILE_OPEN);
   }
 
+out:
   sol->iover = -IOVER; /* negative to indicate initial state */
   sol->callback_interval = DBL_MAX;
   sol->callback_time = DBL_MAX;
@@ -691,8 +715,36 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
       if (sol->verbose) initstatsout (sol->dom); /* print out initial statistics */
 
-      write_state (sol, solver, kind); /* save initial frame */
+#if HDF5
+      if (CONTINUE_WRITE_FLAG())
+      {
+	/* note that sol->bf is only temporarily set up and 
+	 * appended during inside of write_state with HDF5 output */
+
+        double s, e;
+	PBF *bf;
+
+        if ((bf = readoutpath (sol->outpath)))
+	{
+	  PBF_Limits (bf, &s, &e);
+          PBF_Seek (bf, e);
+          ASSERT_TEXT (dom_init_state (sol->dom, bf) > 0, "Re-initialisation of state has failed");
+	  sol->dom->time = e; /* current time at the end */
+	  duration -= e; /* duration is less by the time shift */
+	  PBF_Close (bf);
+	}
+	else write_state (sol, solver, kind); /* no previous results => save initial frame */
+      }
+      else /* calculation from time 0.0 hence ... */
+#endif
+      write_state (sol, solver, kind); /* ... save initial frame */
     }
+#if HDF5
+    else if (CONTINUE_WRITE_FLAG()) /* possibilities are too complex in case of multiple RUN commands per input file */
+    {
+      ASSERT_TEXT (0, "Multiple RUN commands are not allowed in case of a continued [-c] analysis");
+    }
+#endif
 
     verbose = verbose_on (sol);
     sol->duration = duration;
@@ -774,7 +826,7 @@ void SOLFEC_Output (SOLFEC *sol, double interval, PBF_FLG compression)
 {
   sol->output_interval = interval;
   sol->output_time = sol->dom->time + interval;
-  sol->bf->compression = compression;
+  sol->compression = compression;
 }
 
 /* the next time minus the current time */

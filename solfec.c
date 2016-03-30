@@ -45,6 +45,9 @@ static char *INPUTFILE = NULL;
 /* global write mode flag */
 static int WRITEMODEFLAG = 0;
 
+/* global write mode flag */
+static int CONTINUEWRITEFLAG = 0;
+
 /* global wireframe rendering flag */
 static int WIREFRAMEFLAG = 0;
 
@@ -79,6 +82,12 @@ char* INPUT_FILE ()
 int WRITE_MODE_FLAG ()
 {
   return WRITEMODEFLAG;
+}
+
+/* get continue write flag */
+int CONTINUE_WRITE_FLAG ()
+{
+  return CONTINUEWRITEFLAG;
 }
 
 /* get wireframe flag */
@@ -199,6 +208,11 @@ static char* getfile (int argc, char **argv)
 #endif
     else if (strcmp (argv [n], "-v") == 0) continue;
     else if (strcmp (argv [n], "-w") == 0) WRITEMODEFLAG = 1;
+    else if (strcmp (argv [n], "-c") == 0) 
+    {
+      WRITEMODEFLAG = 1;
+      CONTINUEWRITEFLAG = 1;
+    }
     else if (strcmp (argv [n], "-f") == 0) WIREFRAMEFLAG = 1;
     else if (path == NULL && (f = fopen (argv [n], "r")))
     {
@@ -263,12 +277,12 @@ int main (int argc, char **argv)
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
-    #define synopsis "SYNOPSIS: solfec [-v] [-w] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] [-i verbosity inteval] path\n"
+    #define synopsis "SYNOPSIS: solfec [-v] [-w] [-c] [-f] [-g WIDTHxHEIGHT] [-s sub-directory] [-i verbosity inteval] path\n"
 #else
   #if MPI
-    #define synopsis "SYNOPSIS: solfec-mpi [-s sub-directory] [-i verbosity inteval] path\n"
+    #define synopsis "SYNOPSIS: solfec-mpi [-c] [-s sub-directory] [-i verbosity inteval] path\n"
   #else
-    #define synopsis "SYNOPSIS: solfec [-w] [-s sub-directory] [-i verbosity inteval] path\n"
+    #define synopsis "SYNOPSIS: solfec [-w] [-c] [-s sub-directory] [-i verbosity inteval] path\n"
   #endif
 #endif
 

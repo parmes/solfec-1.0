@@ -22,6 +22,9 @@ char* INPUT_FILE ();
 /* get write mode flag */
 int WRITE_MODE_FLAG ();
 
+/* get continue write flag */
+int CONTINUE_WRITE_FLAG ();
+
 /* get wireframe flag */
 int WIREFRAME_FLAG ();
 

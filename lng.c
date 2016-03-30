@@ -3359,7 +3359,7 @@ static int lng_BODY_set_fracturecheck (lng_BODY *self, PyObject *value, void *cl
 static PyObject* lng_BODY_get_display_points (lng_BODY *self, void *closure)
 {
 #if MPI
-  return Py_RETURN_NONE;
+  Py_RETURN_NONE;
 #else
   PyObject *list;
   SET *item;

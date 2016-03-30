@@ -182,7 +182,8 @@ PBF* PBF_Write (const char *path, PBF_FLG append, PBF_FLG parallel)
 
   bf->next = NULL;
 
-  free (txt);
+  bf->path = txt;
+
   return bf;
 }
 
@@ -193,14 +194,14 @@ PBF* PBF_Read (const char *path)
   char *txt;
   int n, m;
 
-  ERRMEM (txt = malloc (strlen (path) + 64));
-
   /* count input files */
   m = 0;
   do
   {
+    ERRMEM (txt = malloc (strlen (path) + 64));
     sprintf (txt, "%s.h5.%d", path, m);
     dat = fopen (txt, "r");
+    free (txt);
   } while (dat && fclose (dat) == 0 && ++ m); /* m incremented as last */
 
   /* open input files */
@@ -208,6 +209,7 @@ PBF* PBF_Read (const char *path)
   n = m-1;
   do
   {
+    ERRMEM (txt = malloc (strlen (path) + 64));
     ERRMEM (bf = malloc (sizeof (PBF)));
     bf->mode = PBF_READ;
     bf->compression = PBF_OFF;
@@ -243,6 +245,7 @@ PBF* PBF_Read (const char *path)
     initialize_time_frames (bf); /* initialize frames */
 
     bf->next = out;
+    bf->path = txt;
     out = bf;
 
   } while (-- n >= 0); /* the first item in the returned list corresponds to rank 0 */
@@ -252,7 +255,6 @@ PBF* PBF_Read (const char *path)
     read_frame (bf, 0, &bf->time); /* start with first frame */
   }
 
-  free (txt);
   return out;
 }
 
@@ -269,7 +271,13 @@ void PBF_Close (PBF *bf)
     while (bf->top > 0) PBF_Pop (bf);
     H5Fclose (bf->stack[0]);
 
+    if (bf->count == 0 && bf->ipos == 0 && bf->dpos == 0) /* empty file */
+    {
+      remove (bf->path);
+    }
+
     next = bf->next;
+    free (bf->path);
     free (bf);
   }
 }
