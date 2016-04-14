@@ -11796,6 +11796,15 @@ This routine initializes the state of FEM bodies within the Solfec object
  with the state of rigid bodies red from an output directory at a given
  time.
  It is ignored in the 'READ' mode.
+ 
+\series bold
+NOTE:
+\series default
+ rigid displacements are applied to the finite element bodies; this implies
+ that when you add boundary conditions to finite element bodies, after their
+ state was updated with RIGID_TO_FEM, you still use the original referential
+ point coordinates as the locations of the constraints (e.g.
+ when using SET_DISPLACEMENT or SET_VELOCITY).
 \end_layout
 
 \begin_layout Itemize
