@@ -44,6 +44,16 @@ else
   HDF5 = -DHDF5 $(HDF5INC)
 endif
 
+ifneq ($(ZOLTAN),yes)
+  LBINC = -I$(DYNLB)
+  LBLIB = -L$(DYNLB) -ldynlb
+  LB = -DDYNLB $(LBINC)
+else
+  LBINC = $(ZOLTANINC)
+  LBLIB = $(ZOLTANLIB)
+  LB = -DZOLTAN $(LBINC)
+endif
+
 ifneq ($(XDR),yes)
   XDRINC =
   XDRLIB = 
@@ -116,8 +126,8 @@ ifeq ($(MPI),yes)
     PSCTEST =
   endif
 
-  MPIFLG = -DMPI $(ZOLTANINC) $(PARDEBUG) $(PSCTEST)
-  MPILIBS = $(ZOLTANLIB)
+  MPIFLG = -DMPI $(LB) $(PARDEBUG) $(PSCTEST)
+  MPILIBS = $(LBLIB)
 endif
 
 ifeq ($(SICONOS),yes)

@@ -20,7 +20,12 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #if MPI
+#if ZOLTAN
 #include <zoltan.h>
+#else
+#define REAL double
+#include <dynlb.h>
+#endif
 #include "com.h"
 #endif
 
@@ -258,7 +263,11 @@ struct domain
   int rank; /* communicator rank */
   int ncpu; /* cummunicator size */
   SET *children; /* current children */
+#if ZOLTAN
   struct Zoltan_Struct *zol; /* load balancing */
+#else
+  struct dynlb *lb; /* load balancing */
+#endif
   double imbalance_tolerance; /* imbalance threshold */
   double weight_factor; /* local dynamics weight factor */
   unsigned int noid; /* constraint id generation ommition flag */

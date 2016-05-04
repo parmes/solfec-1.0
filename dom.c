@@ -639,6 +639,7 @@ static int domain_weight (DOM *dom)
   return weight;
 }
 
+#if ZOLTAN
 /* number of objects for balacing */
 static int obj_count (DOM *dom, int *ierr)
 {
@@ -720,6 +721,7 @@ static void obj_points (DOM *dom, int num_gid_entries, int num_lid_entries, int 
 
   *ierr = ZOLTAN_OK;
 }
+#endif
 
 #if LOCAL_BODIES
 /* create dummy body if needed */
@@ -1498,7 +1500,11 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
     bod->prevchildren = bod->children;
     bod->children = NULL;
 
+#if ZOLTAN
     Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
+#else
+    numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
+#endif
 
     for (i = 0; i < numprocs; i ++)
     {
@@ -1927,6 +1933,7 @@ static void update_bidsets (DOM *dom)
 /* domain balancing */
 static void domain_balancing (DOM *dom)
 {
+#if ZOLTAN
   int changes,
       num_gid_entries,
       num_lid_entries,
@@ -1939,9 +1946,10 @@ static void domain_balancing (DOM *dom)
 		import_local_ids,
 		export_global_ids,
 		export_local_ids;
+  char str [128];
+#endif
 
   COMOBJ *send, *recv;
-  char str [128];
   int i, rank;
   int nrecv;
   SET *item;
@@ -1982,6 +1990,7 @@ static void domain_balancing (DOM *dom)
   ASSERT_DEBUG (i == dom->nbod, "Inconsistent bodies count");
 #endif
 
+#if ZOLTAN
   if (dom->rebalanced % dom->updatefreq == 0)
   {
 #if 0
@@ -2047,6 +2056,68 @@ static void domain_balancing (DOM *dom)
 
     dom->rebalanced ++;
   }
+#else
+    double *point[3];
+    int npoint = dom->ncon + dom->nbod;
+
+    ERRMEM (point[0] = malloc (npoint * sizeof (double)));
+    ERRMEM (point[1] = malloc (npoint * sizeof (double)));
+    ERRMEM (point[2] = malloc (npoint * sizeof (double)));
+
+    for (con = dom->con, i = 0; con; con = con->next, i ++)
+    {
+      point[0][i] = con->point[0];
+      point[1][i] = con->point[1];
+      point[2][i] = con->point[2];
+    }
+
+    for (bod = dom->bod; bod; bod = bod->next, i ++)
+    {
+      double *e = bod->extents, v[3];
+      MID (e, e+3, v);
+      point[0][i] = v[0];
+      point[1][i] = v[1];
+      point[2][i] = v[2];
+    }
+
+    MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+    if (dom->lb == NULL)
+    {
+      dom->lb = dynlb_create (0, npoint, point, 0, dom->imbalance_tolerance - 1.0, DYNLB_RCB_TREE);
+    } 
+    else 
+    {
+      dom->lb->epsilon = dom->imbalance_tolerance - 1.0;
+
+      dynlb_update (dom->lb, npoint, point);
+    }
+
+    free (point[0]);
+    free (point[1]);
+    free (point[2]);
+
+    for (bod = dom->bod; bod; bod = bod->next)
+    {
+      double *e = bod->extents, v [3];
+      MID (e, e+3, v);
+      rank = dynlb_point_assign (dom->lb, v);
+      if (rank != dom->rank)
+      {
+	bod->rank = rank;
+	SET_Insert (&dom->setmem, &dbd [rank].bodies, bod, NULL);
+#if PSCTEST
+	PSC_Write_Body (bod);
+#endif
+      }
+    }
+
+    for (con = dom->con; con; con = con->next)
+    {
+      rank = dynlb_point_assign (dom->lb, con->point);
+      if (rank != dom->rank) SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL);
+    }
+#endif
 
   /* --- */
 
@@ -2667,11 +2738,16 @@ static void create_mpi (DOM *dom)
 
   stats_create (dom);
 
-  ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context domain partitioning */
-
   dom->imbalance_tolerance = 1.3;
   dom->weight_factor = 1.0;
 
+#if ZOLTAN
+  ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context domain partitioning */
+#else
+    dom->lb = NULL;
+#endif
+
+#if ZOLTAN
   /* general parameters */
   Zoltan_Set_Param (dom->zol, "DEBUG_LEVEL", "0");
   Zoltan_Set_Param (dom->zol, "DEBUG_MEMORY", "0");
@@ -2699,6 +2775,7 @@ static void create_mpi (DOM *dom)
   Zoltan_Set_Fn (dom->zol, ZOLTAN_OBJ_LIST_FN_TYPE, (void (*)()) obj_list, dom);
   Zoltan_Set_Fn (dom->zol, ZOLTAN_NUM_GEOM_FN_TYPE, (void (*)()) dimensions, dom);
   Zoltan_Set_Fn (dom->zol, ZOLTAN_GEOM_MULTI_FN_TYPE, (void (*)()) obj_points, dom);
+#endif
 }
 
 /* destroy MPI related data */
@@ -2708,7 +2785,11 @@ static void destroy_mpi (DOM *dom)
 
   stats_destroy (dom);
 
+#if ZOLTAN
   Zoltan_Destroy (&dom->zol);
+#else
+  dynlb_destroy (dom->lb);
+#endif
 }
 #endif
 

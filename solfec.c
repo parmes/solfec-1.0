@@ -264,7 +264,9 @@ int main (int argc, char **argv)
   float version;
 
   MPI_Init (&argc, &argv);
+#if ZOLTAN
   ASSERT (Zoltan_Initialize (argc, argv, &version) == ZOLTAN_OK, ERR_ZOLTAN_INIT);
+#endif
 
 #if MPI_VERSION >= 2
   MPI_set_error_handling ();

@@ -163,7 +163,11 @@ static void detach_and_attach (AABB *aabb)
   {
     COPY6 (box->extents, e);
 
+#if ZOLTAN
     ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+#else
+    numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
+#endif
 
     for (j = 0; j < numprocs; j ++)
     {
@@ -189,7 +193,11 @@ static void detach_and_attach (AABB *aabb)
 
 	update (sgp->shp->data, sgp->gobj, e);
 
+#if ZOLTAN
 	ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+#else
+        numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
+#endif
 
 	for (j = 0; j < numprocs; j ++)
 	{
@@ -219,7 +227,11 @@ static void detach_and_attach (AABB *aabb)
 
 	update (sgp->shp->data, sgp->gobj, e);
 
+#if ZOLTAN
 	ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
+#else
+	numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
+#endif
 
 	for (j = 0; j < numprocs; j ++)
 	{

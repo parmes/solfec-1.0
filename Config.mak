@@ -108,7 +108,7 @@ GLINC = -Wno-deprecated-declarations
 GLLIB = -framework GLUT -framework OpenGL
 
 #
-# VBO  (OPENGL == yes)
+# VBO  (OPENGL = yes)
 #
 
 VBO = yes
@@ -118,14 +118,23 @@ VBO = yes
 #
 
 MPI = yes
-MPICC = mpicc -Wno-unused-but-set-variable
+MPICC = mpicc -Wno-unused-but-set-variable -fopenmp
 
 #
-# Zoltan (MPI == yes)
+# Zoltan load balancer (MPI = yes); optional
 #
 
+ZOLTAN = no
 ZOLTANINC = -I/usr/local/include
 ZOLTANLIB = -L/usr/local/lib -lzoltan
+
+#
+# Dynlb load balancer (MPI = yes) available at: https://github.com/tkoziara/dynlb
+# This option is used when ZOLTAN = no above; Use path to dynlb directory below;
+# Use -fopenmp flag with MPICC when compiling with dynlb;
+#
+
+DYNLB = ../dynlb
 
 #
 # Siconos (yes/no)
