@@ -1932,7 +1932,7 @@ The below table gives indicative assessment of the maturity of various Solfec
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="79" columns="4">
+<lyxtabular version="3" rows="81" columns="4">
 <features rotate="0" islongtable="true" longtabularalignment="center">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top">
@@ -4546,6 +4546,82 @@ DISPLAY_POINT
 
 \begin_layout Plain Layout
 x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+RENDER
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+XDMF_EXPORT
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
 \end_layout
 
 \end_inset
@@ -13349,12 +13425,16 @@ label
 \end_layout
 
 \begin_layout Subsection*
+\begin_inset Note Note
+status open
+
+\begin_layout Subsection*
 ret = FRACTURE_EXPORT_YAFFEMS (body, path | volume, quality) 
 \color red
 (under development)
 \end_layout
 
-\begin_layout Standard
+\begin_layout Plain Layout
 Export an input file for fracture analysis in Yaffems for this body.
  Note, that must be a FEM body for which 
 \emph on
@@ -13408,6 +13488,11 @@ quality
  1.3)
 \end_layout
 
+\end_inset
+
+
+\end_layout
+
 \begin_layout Subsection*
 RENDER(solfec, object) 
 \color red
@@ -13440,6 +13525,47 @@ NB: This
 CANNOT
 \emph default
  be used from within a normal analysis script, but only from a Viewer script.
+\end_layout
+
+\begin_layout Subsection*
+XDMF_EXPORT (solfec, time, path) 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+Export results in XDMF format.
+ Ignored in 'WRITE' mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+time
+\series default
+ - A time instant, e.g.
+ t0, a collection of time instants, e.g.
+ [t0, t1, t2, ..., tN], or a time interval, e.g.
+ (t0, t1);
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - output path to the directory that will contain the XDMF markup file and
+ HDF5 data files, e.g.
+ '/tmp/sim0' will result in a /tmp/sim0/sim0.xmf markup file and a collection
+ of accompanying *.h5 data files;
 \end_layout
 
 \begin_layout Section

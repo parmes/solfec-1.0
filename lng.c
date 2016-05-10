@@ -28,6 +28,7 @@
 #include <float.h>
 #include "ext/tetgen/tetsol.h"
 #include "solfec.h"
+#include "xdmf.h"
 #include "alg.h"
 #include "sol.h"
 #include "rnd.h"
@@ -8692,6 +8693,66 @@ static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+/* Export results in XDMF format */
+static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "time", "path");
+  PyObject *time, *path;
+  lng_SOLFEC *solfec;
+  double *times;
+  int ntimes;
+  
+  
+  PARSEKEYS ("OOO", &solfec, &time, &path);
+  
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[2]));
+
+  if (solfec->sol->mode == SOLFEC_WRITE) Py_RETURN_NONE; /* ignore */
+  
+  if (PyList_Check(time))
+  {
+    ntimes = PyList_Size(time);
+
+    ERRMEM (times = malloc (ntimes * sizeof (double)));
+
+    for (int i = 0; i < ntimes; i ++)
+    {
+      times[i] = PyFloat_AsDouble (PyList_GetItem(time, i));
+    }
+  }
+  else if (PyTuple_Check(time))
+  {
+    if (PyTuple_Size(time) != 2)
+    {
+      PyErr_SetString (PyExc_ValueError, "The 'time' tuple size should be two: (t0, t1)");
+      return NULL;
+    }
+
+    ntimes = -1;
+
+    ERRMEM (times = malloc (2 * sizeof (double)));
+
+    times[0] = PyFloat_AsDouble (PyTuple_GetItem(time, 0));
+
+    times[1] = PyFloat_AsDouble (PyTuple_GetItem(time, 1));
+  }
+  else
+  {
+    ntimes = 1;
+
+    ERRMEM (times = malloc (sizeof (double)));
+
+    times[0] = PyFloat_AsDouble (time);
+  }
+
+#if !MPI
+  xdmf_export (solfec->sol, times, ntimes, PyString_AsString(path));
+#endif
+
+  free (times);
+
+  Py_RETURN_NONE;
+}
 
 /* energy */
 static PyObject* lng_ENERGY (PyObject *self, PyObject *args, PyObject *kwds)
@@ -9246,6 +9307,7 @@ static PyMethodDef lng_methods [] =
   {"FRACTURE_EXPORT_YAFFEMS", (PyCFunction)lng_FRACTURE_EXPORT_YAFFEMS, METH_VARARGS|METH_KEYWORDS, "Export fracture data to Yaffems"},
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"RENDER", (PyCFunction)lng_RENDER, METH_VARARGS|METH_KEYWORDS, "Render bodies"},
+  {"XDMF_EXPORT", (PyCFunction)lng_XDMF_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export results in XDMF format"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
   {"SEEK", (PyCFunction)lng_SEEK, METH_VARARGS|METH_KEYWORDS, "Seek to time in READ mode"},
@@ -9484,6 +9546,7 @@ int lng (const char *path)
                      "from solfec import FRACTURE_EXPORT_YAFFEMS\n"
                      "from solfec import DURATION\n"
                      "from solfec import RENDER\n"
+                     "from solfec import XDMF_EXPORT\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"
                      "from solfec import SEEK\n"

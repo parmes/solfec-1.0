@@ -261,10 +261,9 @@ int main (int argc, char **argv)
   signal (SIGSEGV, sighnd);
 
 #if MPI
-  float version;
-
   MPI_Init (&argc, &argv);
 #if ZOLTAN
+  float version;
   ASSERT (Zoltan_Initialize (argc, argv, &version) == ZOLTAN_OK, ERR_ZOLTAN_INIT);
 #endif
 

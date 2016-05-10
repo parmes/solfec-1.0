@@ -90,6 +90,7 @@ OBJ =   $(EXTO)   \
 	obj/lng.o \
 	obj/sol.o \
 	obj/fem.o \
+	obj/xdmf.o \
         $(SICONO) \
 	$(OPENGLO)
 
@@ -339,6 +340,9 @@ obj/libsolfec.o: solfec.c solfec.h
 	$(CC) -DLIBSOLFEC $(CFLAGS) -c -o $@ $<
 
 obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/xdmf.o: xdmf.c xdmf.h sol.h dom.h bod.h shp.h msh.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/dbs.o: dbs.c dbs.h ldy.h dom.h alg.h lap.h bla.h err.h
