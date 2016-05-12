@@ -3431,6 +3431,14 @@ void DOM_Initialize (DOM *dom)
 {
   BODY *bod;
 
+#if MPI && LOCAL_BODIES
+  SOLFEC_Timer_Start (dom->solfec, "PARBAL");
+
+  domain_balancing (dom); /* initially balance bodies */
+
+  SOLFEC_Timer_End (dom->solfec, "PARBAL");
+#endif
+
   SOLFEC_Timer_Start (dom->solfec, "TIMINT");
 
   /* initialize bodies */
@@ -3478,10 +3486,6 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #endif
 
 #if MPI
-#if LOCAL_BODIES
-  if (dom->time == 0.0) domain_balancing (dom); /* initially balance bodies */
-#endif
-
   if (dom->rank == 0)
 #endif
   if (dom->verbose) printf ("DOMAIN ... "), fflush (stdout);

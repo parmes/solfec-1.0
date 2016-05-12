@@ -468,7 +468,7 @@ static void statsout (SOLFEC *sol)
 
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     printf ("----------------------------------------------------------------------------------------\n");
-    fprintf (sta, "TIMINT: %2d%%, CONUPD: %2d%%, CONDET: %2d%%, LOCDYN: %2d%%, CONSOL %2d%%, PARBAL: %2d%%\n", timint, conupd, condet, locdyn, consol, parbal);
+    fprintf (sta, "TIMINT: %2d%%, CONUPD: %2d%%, CONDET: %2d%%, LOCDYN: %2d%%, CONSOL: %2d%%, PARBAL: %2d%%\n", timint, conupd, condet, locdyn, consol, parbal);
     printf ("TIMINT: %2d%%, CONUPD: %2d%%, CONDET: %2d%%, LOCDYN: %2d%%, CONSOL %2d%%, PARBAL: %2d%%\n", timint, conupd, condet, locdyn, consol, parbal);
     fprintf (sta, "----------------------------------------------------------------------------------------\n");
     printf ("----------------------------------------------------------------------------------------\n");

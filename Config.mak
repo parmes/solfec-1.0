@@ -33,7 +33,7 @@ FCLIB = -lgfortran
 # If 'no' all bodies all stored on all processors; this implies less communication during parallel balancing;
 # When 'yes' bodies are only stored locally in parallel; this is more suitable for larger simulations;
 #
-LOCAL_BODIES = no
+LOCAL_BODIES = yes
 
 # general debug tests
 DEBUG = yes
