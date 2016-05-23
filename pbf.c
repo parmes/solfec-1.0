@@ -532,7 +532,7 @@ void PBF_String2 (PBF *bf, const char *name, char **value)
     size_t s;
 
     ASSERT (H5LTget_attribute_info (bf->stack [bf->top], ".", name,  &d, &c, &s) >= 0, ERR_PBF_READ); 
-    ERRMEM (*value = malloc (sizeof (char [d])));
+    ERRMEM (*value = malloc (s));
     ASSERT (H5LTget_attribute_string (bf->stack [bf->top], ".", name, *value) >= 0, ERR_PBF_READ);
   }
 }
