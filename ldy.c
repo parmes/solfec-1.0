@@ -28,6 +28,7 @@
 #include "err.h"
 
 #if MPI
+#include <string.h>
 #include "com.h"
 #include "pck.h"
 #include "put.h"

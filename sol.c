@@ -20,7 +20,9 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #if MPI
+#if ZOLTAN
 #include <zoltan.h>
+#endif
 #include <time.h>
 #include "put.h"
 #endif
