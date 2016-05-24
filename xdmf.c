@@ -108,8 +108,36 @@ static char* read_string (hid_t file, const char *path, const char *name)
   return value;
 }
 
+/* obtain mesh attribute values */
+static void mesh_attribute_values (MESH *msh, BODY *bod, VALUE_KIND kind, double *values)
+{
+  if (bod->kind == FEM)
+  {
+    switch (kind)
+    {
+    case VALUE_DISPLACEMENT:
+      memcpy (values, bod->conf, bod->dofs * sizeof(double));
+    break;
+    case VALUE_VELOCITY:
+      memcpy (values, bod->velo, bod->dofs * sizeof(double));
+    break;
+    default:
+    break;
+    }
+  }
+  else
+  {
+    int skip = (kind <= VALUE_VELOCITY ? 3 : (kind == VALUE_STRESS ? 6 : (kind == VALUE_MISES ? 1 : 7)));
+
+    for (int i = 0; i < msh->nodes_count; i ++, values += skip)
+    {
+      BODY_Point_Values (bod, msh->ref_nodes[i], kind, values);
+    }
+  }
+}
+
 /* write current mesh state */
-static void write_mesh (MESH *msh, char *name, double time, int step, hid_t h5_body)
+static void write_mesh (MESH *msh, BODY *bod, double time, int step, hid_t h5_body)
 {
   if (step == 0)
   {
@@ -164,6 +192,7 @@ static void write_mesh (MESH *msh, char *name, double time, int step, hid_t h5_b
   }
 
   char h5_text[1024];
+  double *values;
   hid_t h5_step;
   
   snprintf (h5_text, 1024, "%d", step);
@@ -171,7 +200,13 @@ static void write_mesh (MESH *msh, char *name, double time, int step, hid_t h5_b
   ASSERT_TEXT (H5LTset_attribute_double (h5_step, ".", "TIME", &time, 1) >= 0, "HDF5 file write error");
   hsize_t dims[2] = {msh->nodes_count, 3};
   ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "GEOM", 2, dims, (double*)msh->cur_nodes) >= 0, "HDF5 write error");
+  ERRMEM (values = malloc (msh->nodes_count * 3 * sizeof (double)));
+  mesh_attribute_values (msh, bod, VALUE_DISPLACEMENT, values);
+  ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "DISP", 2, dims, values) >= 0, "HDF5 write error");
+  mesh_attribute_values (msh, bod, VALUE_VELOCITY, values);
+  ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "VELO", 2, dims, values) >= 0, "HDF5 write error");
   H5Gclose (h5_step);
+  free (values);
 }
 
 /* write bodies state at current time step */
@@ -220,7 +255,7 @@ static void write_bodies (DOM *dom, hid_t h5_file, int **bid, int *bid_count, in
     switch (shp->kind)
     {
     case SHAPE_MESH:
-      write_mesh (shp->data, bod->label, dom->time, steps-1, h5_body);
+      write_mesh (shp->data, bod, dom->time, steps-1, h5_body);
     break;
     case SHAPE_CONVEX:
       /* TODO */
@@ -319,16 +354,31 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path)
       snprintf (h5_text, 1024, "/BODIES/%d/%d", bid[i], j);
       double time = read_double (h5_file, h5_text, "TIME");
       fprintf (xmf_file, "<Time Type=\"Single\" Value=\"%f\" />\n", time);
+
       fprintf (xmf_file, "<Topology Type=\"Mixed\" NumberOfElements=\"%d\">\n", elements);
       fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Int\" Format=\"HDF\">\n", topo_size);
       fprintf (xmf_file, "%s:/BODIES/%d/TOPO\n", &h5_path[k+1], bid[i]);
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Topology>\n");
+
       fprintf (xmf_file, "<Geometry GeometryType=\"XYZ\">\n");
       fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
       fprintf (xmf_file, "%s:/BODIES/%d/%d/GEOM\n", &h5_path[k+1], bid[i], j);
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Geometry>\n");
+
+      fprintf (xmf_file, "<Attribute Name=\"DISP\" Center=\"Node\" AttributeType=\"Vector\">\n");
+      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
+      fprintf (xmf_file, "%s:/BODIES/%d/%d/DISP\n", &h5_path[k+1], bid[i], j);
+      fprintf (xmf_file, "</DataStructure>\n");
+      fprintf (xmf_file, "</Attribute>\n");
+
+      fprintf (xmf_file, "<Attribute Name=\"VELO\" Center=\"Node\" AttributeType=\"Vector\">\n");
+      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
+      fprintf (xmf_file, "%s:/BODIES/%d/%d/VELO\n", &h5_path[k+1], bid[i], j);
+      fprintf (xmf_file, "</DataStructure>\n");
+      fprintf (xmf_file, "</Attribute>\n");
+ 
       fprintf (xmf_file, "</Grid>\n");
     }
 
