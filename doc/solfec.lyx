@@ -13572,8 +13572,9 @@ path
 \series default
  - output path to the directory that will contain the XDMF markup file(s)
  and a HDF5 data file, e.g.
- '/tmp/sim0' will result in a /tmp/sim0/sim0_bodies.xmf and /tmp/sim0/sim0_constr
-aints.xmf markup files and a /tmp/sim0/sim0.h5 data file output;
+ '/tmp/sim0' will possibly result in a /tmp/sim0/sim0_grids.xmf, /tmp/sim0/sim0_c
+onstraints.xmf, /tmp/sim0/sim0_spheres.xmf markup files and a /tmp/sim0/sim0.h5
+ data file output;
 \end_layout
 
 \begin_layout Itemize

@@ -8694,6 +8694,35 @@ static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+/* add bodies defined by 'obj' to subset */
+static int subset_add (DOM *dom, SET **subset, PyObject *obj)
+{
+  if (PyString_Check (obj))
+  {
+    for (BODY *bod = dom->bod; bod; bod = bod->next)
+    {
+      /* TODO --> use regex */
+    }
+  }
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE))
+  {
+    lng_BODY *body = (lng_BODY*)obj;
+
+    if (body->bod) SET_Insert (NULL, subset, (void*) (long) body->bod->id, NULL);
+  }
+  else if (PyInt_Check (obj))
+  {
+    SET_Insert (NULL, subset, (void*) PyInt_AsLong (obj), NULL);
+  }
+  else if (PyTuple_Check (obj))
+  {
+    /* TODO --> use ideas from lng_OVERLAPPING */
+  }
+  else return 0;
+
+  return 1;
+}
+
 /* Export results in XDMF format */
 static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -8752,14 +8781,93 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
     times[0] = PyFloat_AsDouble (time);
   }
 
-  /* TODO --> process subset_arg */
+  /* process subset_arg */
+  if (subset_arg)
+  {
+    if (PyList_Check(subset_arg))
+    {
+      int nobj = PyList_Size (subset_arg);
 
-  /* TODO --> process attributes_arg */
+      for (int i = 0; i < nobj; i ++)
+      {
+	if (!subset_add (solfec->sol->dom, &subset, PyList_GetItem (subset_arg, i)))
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid subset definition");
+	  return NULL;
+	}
+      }
+    }
+    else if (!subset_add (solfec->sol->dom, &subset, subset_arg))
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid subset definition");
+      return NULL;
+    }
+  }
+
+  /* process attributes_arg */
+  if (attributes_arg)
+  {
+    if (PyList_Check(attributes_arg))
+    {
+      attributes = 0;
+
+      int nattr = PyList_Size(attributes_arg);
+
+      for (int i = 0; i < nattr; i ++)
+      {
+	PyObject *a = PyList_GetItem (attributes_arg, i);
+
+	if (!PyString_Check (a))
+	{
+	  PyErr_SetString (PyExc_ValueError, "An attribute must be a sting");
+	  return NULL;
+	}
+
+	IFIS (a, "DISP")
+	{
+	  attributes |= XDMF_DISP;
+	}
+	ELIF (a, "VELO")
+	{
+	  attributes |= XDMF_VELO;
+	}
+	ELIF (a, "STRESS")
+	{
+	  attributes |= XDMF_STRESS;
+	}
+	ELIF (a, "REAC")
+	{
+	  attributes |= XDMF_REAC;
+	}
+	ELIF (a, "RELV")
+	{
+	  attributes |= XDMF_RELV;
+	}
+	ELIF (a, "GAP")
+	{
+	  attributes |= XDMF_GAP;
+	}
+	ELSE
+	{
+	  char message[1024];
+	  snprintf (message, 1024, "Invalid attribute name: %s", PyString_AsString (a));
+	  PyErr_SetString (PyExc_ValueError, message);
+	  return NULL;
+	}
+      }
+    }
+    else
+    {
+      PyErr_SetString (PyExc_ValueError, "'attributes' should be a list of attributes, e.g. ['DISP', 'VELO', 'REAC', 'GAP']");
+      return NULL;
+    }
+  }
 
 #if !MPI
   xdmf_export (solfec->sol, times, ntimes, PyString_AsString(path), subset, attributes);
 #endif
 
+  SET_Free (NULL, &subset);
   free (times);
 
   Py_RETURN_NONE;

@@ -36,6 +36,7 @@ SOFTWARE.
 #include <string.h>
 #include "sol.h"
 #include "set.h"
+#include "map.h"
 #include "xdmf.h"
 #include "pck.h"
 #include "set.h"
@@ -115,7 +116,7 @@ static char* read_string (hid_t file, const char *path, const char *name)
 /* obtain mesh attribute values */
 static void mesh_attribute_values (MESH *msh, BODY *bod, VALUE_KIND kind, double *values)
 {
-  if (bod->kind == FEM)
+  if (bod->kind == FEM) /* FEM body with a single MESH based shape */
   {
     switch (kind)
     {
@@ -135,7 +136,7 @@ static void mesh_attribute_values (MESH *msh, BODY *bod, VALUE_KIND kind, double
     break;
     }
   }
-  else
+  else /* any other body kind with a shape that includes MESH */
   {
     int skip = (kind <= VALUE_VELOCITY ? 3 : (kind == VALUE_STRESS ? 6 : (kind == VALUE_MISES ? 1 : 7)));
 
@@ -146,8 +147,19 @@ static void mesh_attribute_values (MESH *msh, BODY *bod, VALUE_KIND kind, double
   }
 }
 
+/* obtain convex attribute values */
+static void convex_attribute_values (CONVEX *cvx, BODY *bod, VALUE_KIND kind, double *values)
+{
+  int skip = (kind <= VALUE_VELOCITY ? 3 : (kind == VALUE_STRESS ? 6 : (kind == VALUE_MISES ? 1 : 7)));
+
+  for (int i = 0; i < cvx->nver; i ++, values += skip)
+  {
+    BODY_Point_Values (bod, &cvx->cur[3*i], kind, values);
+  }
+}
+
 /* write current mesh state */
-static void write_mesh (MESH *msh, BODY *bod, double time, int step, hid_t h5_body, int attributes)
+static void write_mesh (MESH *msh, BODY *bod, double time, int step, hid_t h5_grid, int attributes)
 {
   if (step == 0)
   {
@@ -193,12 +205,12 @@ static void write_mesh (MESH *msh, BODY *bod, double time, int step, hid_t h5_bo
       pack_ints (&topo_size, &topo, &topo_count, ele->nodes, ele->type);
     }
     hsize_t length = topo_count;
-    ASSERT_TEXT (H5LTmake_dataset_int (h5_body, "TOPO", 1, &length, topo) >= 0, "HDF5 file write error");
+    ASSERT_TEXT (H5LTmake_dataset_int (h5_grid, "TOPO", 1, &length, topo) >= 0, "HDF5 file write error");
     free (topo);
-    ASSERT_TEXT (H5LTset_attribute_int (h5_body, ".", "TOPO_SIZE", &topo_count, 1) >= 0, "HDF5 file write error");
+    ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "TOPO_SIZE", &topo_count, 1) >= 0, "HDF5 file write error");
     int elements = msh->surfeles_count + msh->bulkeles_count;
-    ASSERT_TEXT (H5LTset_attribute_int (h5_body, ".", "ELEMENTS", &elements, 1) >= 0, "HDF5 file write error");
-    ASSERT_TEXT (H5LTset_attribute_int (h5_body, ".", "NODES", &msh->nodes_count, 1) >= 0, "HDF5 file write error");
+    ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "ELEMENTS", &elements, 1) >= 0, "HDF5 file write error");
+    ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "NODES", &msh->nodes_count, 1) >= 0, "HDF5 file write error");
   }
 
   char h5_text[1024];
@@ -206,7 +218,7 @@ static void write_mesh (MESH *msh, BODY *bod, double time, int step, hid_t h5_bo
   hid_t h5_step;
   
   snprintf (h5_text, 1024, "%d", step);
-  ASSERT_TEXT ((h5_step = H5Gcreate (h5_body, h5_text, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+  ASSERT_TEXT ((h5_step = H5Gcreate (h5_grid, h5_text, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
   ASSERT_TEXT (H5LTset_attribute_double (h5_step, ".", "TIME", &time, 1) >= 0, "HDF5 file write error");
   hsize_t dims[2] = {msh->nodes_count, 3};
   ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "GEOM", 2, dims, (double*)msh->cur_nodes) >= 0, "HDF5 file write error");
@@ -231,71 +243,197 @@ static void write_mesh (MESH *msh, BODY *bod, double time, int step, hid_t h5_bo
   free (values);
 }
 
-/* write bodies state at current time step */
-static void write_bodies (DOM *dom, hid_t h5_file, int **bid, int *bid_count, int *bid_size, SET *subset, int attributes)
+/* write current convex state */
+static void write_convex (CONVEX *cvx, BODY *bod, double time, int step, hid_t h5_grid, int attributes)
 {
-  hid_t h5_bodies;
-  BODY *bod;
-
-  if (H5Lexists (h5_file, "BODIES", H5P_DEFAULT))
+  if (step == 0)
   {
-    ASSERT_TEXT (h5_bodies = H5Gopen (h5_file, "BODIES", H5P_DEFAULT), "HDF5 file write error");
+    int *topo = NULL, topo_size = 0, topo_count = 0;
+    int i = 0, *f = cvx->fac;
+    for (; i < cvx->nfac; i ++, f += (f[0]+1))
+    {
+      pack_int (&topo_size, &topo, &topo_count, 3); /* Polygon */
+      pack_int (&topo_size, &topo, &topo_count, f[0]); /* Number of vertices */
+      for (int j = 0; j < f[0]; j ++)
+      {
+        pack_int (&topo_size, &topo, &topo_count, (f+1)[j]/3); /* Vertex indices */
+      }
+    }
+
+    hsize_t length = topo_count;
+    ASSERT_TEXT (H5LTmake_dataset_int (h5_grid, "TOPO", 1, &length, topo) >= 0, "HDF5 file write error");
+    free (topo);
+    ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "TOPO_SIZE", &topo_count, 1) >= 0, "HDF5 file write error");
+    int nfac = cvx->nfac, nver = cvx->nver;
+    ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "ELEMENTS", &nfac, 1) >= 0, "HDF5 file write error");
+    ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "NODES", &nver, 1) >= 0, "HDF5 file write error");
+  }
+
+  char h5_text[1024];
+  double *values;
+  hid_t h5_step;
+  
+  snprintf (h5_text, 1024, "%d", step);
+  ASSERT_TEXT ((h5_step = H5Gcreate (h5_grid, h5_text, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+  ASSERT_TEXT (H5LTset_attribute_double (h5_step, ".", "TIME", &time, 1) >= 0, "HDF5 file write error");
+  hsize_t dims[2] = {cvx->nver, 3};
+  ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "GEOM", 2, dims, cvx->cur) >= 0, "HDF5 file write error");
+  ERRMEM (values = malloc (cvx->nver * 7 * sizeof (double))); /* alloc maximum possible --> stress+mises */
+  if (attributes & XDMF_DISP)
+  {
+    convex_attribute_values (cvx, bod, VALUE_DISPLACEMENT, values);
+    ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "DISP", 2, dims, values) >= 0, "HDF5 file write error");
+  }
+  if (attributes & XDMF_VELO)
+  {
+    convex_attribute_values (cvx, bod, VALUE_VELOCITY, values);
+    ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "VELO", 2, dims, values) >= 0, "HDF5 file write error");
+  }
+  if (attributes & XDMF_STRESS)
+  {
+    hsize_t dims[2] = {cvx->nver, 6};
+    convex_attribute_values (cvx, bod, VALUE_STRESS, values);
+    ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "STRESS", 2, dims, values) >= 0, "HDF5 file write error");
+  }
+  H5Gclose (h5_step);
+  free (values);
+}
+
+/* write sphere data at current time step */
+static void write_spheres (DOM *dom, hid_t h5_file, double *center, double *radius, int count, int attributes)
+{
+  hid_t h5_sphs, h5_step;
+  char h5_text[1024];
+  int steps;
+
+  if (count == 0) return;
+
+  if (H5Lexists (h5_file, "SPHERES", H5P_DEFAULT))
+  {
+    ASSERT_TEXT (h5_sphs = H5Gopen (h5_file, "SPHERES", H5P_DEFAULT), "HDF5 file write error");
+    ASSERT_TEXT (H5LTget_attribute_int (h5_sphs, ".", "STEPS", &steps) >= 0, "HDF5 file write error");
+    steps ++;
+    ASSERT_TEXT (H5LTset_attribute_int (h5_sphs, ".", "STEPS", &steps, 1) >= 0, "HDF5 file write error");
   }
   else
   {
-    ASSERT_TEXT ((h5_bodies = H5Gcreate (h5_file, "BODIES", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+    steps = 1;
+    ASSERT_TEXT ((h5_sphs = H5Gcreate (h5_file, "SPHERES", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+    ASSERT_TEXT (H5LTset_attribute_int (h5_sphs, ".", "STEPS", &steps, 1) >= 0, "HDF5 file write error");
   }
 
-  for (bod = dom->bod; bod; bod = bod->next)
-  {
-    SHAPE *shp = bod->shape;
-    char h5_text[1024];
-    hid_t h5_body;
-    int steps;
+  hsize_t nsph = count;
+  snprintf (h5_text, 1024, "%d", steps-1);
+  ASSERT_TEXT ((h5_step = H5Gcreate (h5_sphs, h5_text, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+  ASSERT_TEXT (H5LTset_attribute_double (h5_step, ".", "TIME", &dom->time, 1) >= 0, "HDF5 file write error");
+  ASSERT_TEXT (H5LTset_attribute_int (h5_step, ".", "COUNT", &count, 1) >= 0, "HDF5 file write error");
+  hsize_t dims[2] = {nsph, 3};
+  ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "GEOM", 2, dims, center) >= 0, "HDF5 file write error");
+  ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "RADI", 1, &nsph, radius) >= 0, "HDF5 file write error");
+  H5Gclose (h5_step);
 
-    if (shp->kind != SHAPE_MESH) continue; /* FIXME */
+  /* TODO --> attributes */
+
+  H5Gclose (h5_sphs);
+}
+
+/* write bodies state at current time step */
+static void write_bodies (DOM *dom, hid_t h5_file, MAP **gids, int **gid, int *gid_count, int *gid_size, SET *subset, int attributes)
+{
+  double *sph_center = NULL, *sph_radius = NULL;
+  int sph_center_count = 0, sph_center_size = 0,
+    sph_radius_count = 0, sph_radius_size = 0;
+
+  for (BODY *bod = dom->bod; bod; bod = bod->next)
+  {
+    hid_t h5_grids, h5_grid;
+    char h5_text[1024];
+    int steps;
 
     if (subset && !SET_Find (subset, (void*) (long) bod->id, NULL)) continue;
 
-    snprintf (h5_text, 1024, "%d", bod->id);
-
-    if (H5Lexists (h5_bodies, h5_text, H5P_DEFAULT))
+    for (SHAPE *shp = bod->shape; shp; shp = shp->next)
     {
-      ASSERT_TEXT (h5_body = H5Gopen (h5_bodies, h5_text, H5P_DEFAULT), "HDF5 file write error");
-      ASSERT_TEXT (H5LTget_attribute_int (h5_body, ".", "STEPS", &steps) >= 0, "HDF5 file write error");
-      steps ++;
-      ASSERT_TEXT (H5LTset_attribute_int (h5_body, ".", "STEPS", &steps, 1) >= 0, "HDF5 file write error");
-    }
-    else 
-    {
-      steps = 1;
-      pack_int (bid_size, bid, bid_count, bod->id);
-      ASSERT_TEXT ((h5_body = H5Gcreate (h5_bodies, h5_text, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
-      ASSERT_TEXT (H5LTset_attribute_int (h5_body, ".", "STEPS", &steps, 1) >= 0, "HDF5 file write error");
-      if (bod->label) ASSERT_TEXT (H5LTset_attribute_string (h5_body, ".", "LABEL", bod->label) >= 0, "HDF5 file write error");
-      else ASSERT_TEXT (H5LTset_attribute_string (h5_body, ".", "LABEL", h5_text) >= 0, "HDF5 file write error");
-    }
+      switch (shp->kind)
+      {
+      case SHAPE_MESH:
+      case SHAPE_CONVEX:
+      {
+	if (H5Lexists (h5_file, "GRIDS", H5P_DEFAULT))
+	{
+	  ASSERT_TEXT (h5_grids = H5Gopen (h5_file, "GRIDS", H5P_DEFAULT), "HDF5 file write error");
+	}
+	else
+	{
+	  ASSERT_TEXT ((h5_grids = H5Gcreate (h5_file, "GRIDS", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+	}
 
-    switch (shp->kind)
-    {
-    case SHAPE_MESH:
-      write_mesh (shp->data, bod, dom->time, steps-1, h5_body, attributes);
-    break;
-    case SHAPE_CONVEX:
-      /* TODO */
-    break;
-    case SHAPE_SPHERE:
-      /* TODO */
-    break;
-    case SHAPE_ELLIP:
-      /* TODO */
-    break;
-    }
+	MAP *item = MAP_Find_Node (*gids, shp->data, NULL);
 
-    H5Gclose (h5_body);
+	int grid_id; /* unique grid id */
+
+	if (item)
+	{
+	  grid_id = (int) (long) item->data;
+	}
+	else
+	{
+	  grid_id = MAP_Size (*gids);
+	  MAP_Insert (NULL, gids, shp->data, (void*) (long) grid_id, NULL);
+	}
+
+	snprintf (h5_text, 1024, "%d", grid_id);
+
+	if (H5Lexists (h5_grids, h5_text, H5P_DEFAULT))
+	{
+	  ASSERT_TEXT (h5_grid = H5Gopen (h5_grids, h5_text, H5P_DEFAULT), "HDF5 file write error");
+	  ASSERT_TEXT (H5LTget_attribute_int (h5_grid, ".", "STEPS", &steps) >= 0, "HDF5 file write error");
+	  steps ++;
+	  ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "STEPS", &steps, 1) >= 0, "HDF5 file write error");
+	}
+	else 
+	{
+	  steps = 1;
+	  pack_int (gid_size, gid, gid_count, grid_id);
+	  ASSERT_TEXT ((h5_grid = H5Gcreate (h5_grids, h5_text, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+	  ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "STEPS", &steps, 1) >= 0, "HDF5 file write error");
+	  if (bod->label) ASSERT_TEXT (H5LTset_attribute_string (h5_grid, ".", "LABEL", bod->label) >= 0, "HDF5 file write error");
+	  else ASSERT_TEXT (H5LTset_attribute_string (h5_grid, ".", "LABEL", h5_text) >= 0, "HDF5 file write error");
+	}
+
+	if (shp->kind == SHAPE_MESH)
+	{
+	  write_mesh (shp->data, bod, dom->time, steps-1, h5_grid, attributes);
+	}
+	else
+	{
+	  write_convex (shp->data, bod, dom->time, steps-1, h5_grid, attributes);
+	}
+
+	H5Gclose (h5_grid);
+        H5Gclose (h5_grids);
+      }
+      break;
+      case SHAPE_SPHERE:
+      {
+	SPHERE *sph = shp->data;
+	pack_doubles (&sph_center_size, &sph_center, &sph_center_count, sph->cur_center, 3);
+	pack_double (&sph_radius_size, &sph_radius, &sph_radius_count, sph->cur_radius);
+      }
+      break;
+      case SHAPE_ELLIP:
+      {
+        /* TODO */
+      }
+      break;
+      }
+    }
   }
 
-  H5Gclose (h5_bodies);
+  write_spheres (dom, h5_file, sph_center, sph_radius, sph_radius_count, attributes);
+
+  free (sph_center);
+  free (sph_radius);
 }
 
 /* write constraints state at current time step */
@@ -348,7 +486,7 @@ static void write_constraints (DOM *dom, hid_t h5_file, SET *subset, int attribu
   snprintf (h5_text, 1024, "%d", steps-1);
   ASSERT_TEXT ((h5_step = H5Gcreate (h5_cons, h5_text, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
   ASSERT_TEXT (H5LTset_attribute_double (h5_step, ".", "TIME", &dom->time, 1) >= 0, "HDF5 file write error");
-  ASSERT_TEXT (H5LTset_attribute_int (h5_step, ".", "POINTS", &gap_count, 1) >= 0, "HDF5 file write error");
+  ASSERT_TEXT (H5LTset_attribute_int (h5_step, ".", "COUNT", &gap_count, 1) >= 0, "HDF5 file write error");
   hsize_t dims[2] = {ncon, 3};
   ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "GEOM", 2, dims, point) >= 0, "HDF5 file write error");
   if (attributes & XDMF_REAC)
@@ -380,8 +518,9 @@ static void write_constraints (DOM *dom, hid_t h5_file, SET *subset, int attribu
 void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subset, int attributes)
 {
   /* First --> write heavu data into a HDF5 file */
-  int *bid = NULL, bid_count = 0, bid_size = 0;
+  int *gid = NULL, gid_count = 0, gid_size = 0;
   char *h5_path = path_and_dirs (path, ".h5");
+  MAP *gids = NULL;
   hsize_t h5_size;
   hid_t h5_file;
 
@@ -401,7 +540,7 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
 
     do
     {
-      write_bodies (sol->dom, h5_file, &bid, &bid_count, &bid_size, subset, attributes);
+      write_bodies (sol->dom, h5_file, &gids, &gid, &gid_count, &gid_size, subset, attributes);
 
       write_constraints (sol->dom, h5_file, subset, attributes);
 
@@ -415,22 +554,22 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
     {
       SOLFEC_Seek_To (sol, times[i]);
 
-      write_bodies (sol->dom, h5_file, &bid, &bid_count, &bid_size, subset, attributes);
+      write_bodies (sol->dom, h5_file, &gids, &gid, &gid_count, &gid_size, subset, attributes);
 
       write_constraints (sol->dom, h5_file, subset, attributes);
     }
   }
 
-  ASSERT_TEXT (H5LTset_attribute_int (h5_file, ".", "BODY_COUNT", &bid_count, 1) >= 0, "HDF5 file write error");
-  h5_size = bid_count;
-  ASSERT_TEXT (H5LTmake_dataset_int (h5_file, "BODY_IDS", 1, &h5_size, bid) >= 0, "HDF5 file write error");
+  ASSERT_TEXT (H5LTset_attribute_int (h5_file, ".", "GRID_COUNT", &gid_count, 1) >= 0, "HDF5 file write error");
+  h5_size = gid_count;
+  ASSERT_TEXT (H5LTmake_dataset_int (h5_file, "GRID_IDS", 1, &h5_size, gid) >= 0, "HDF5 file write error");
 
   int k = strlen (h5_path) - 1;
   while (k >= 0 && h5_path[k] != '/') k --;
   char *h5_file_name = &h5_path[k+1];
 
-  /* Second --> using the information from the HDF5 file write XDMF file --> Bodies */
-  char *xmf_path = path_and_dirs (path, "_bodies.xmf");
+  /* Second --> using the information from the HDF5 file write XDMF file --> Grids */
+  char *xmf_path = path_and_dirs (path, "_grids.xmf");
   FILE *xmf_file = fopen (xmf_path, "w");
   ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
 
@@ -439,11 +578,11 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
 
   fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Spatial\">\n\n");
 
-  for (int i = 0; i < bid_count; i ++)
+  for (int i = 0; i < gid_count; i ++)
   {
     char h5_text [1024];
 
-    snprintf (h5_text, 1024, "/BODIES/%d", bid[i]);
+    snprintf (h5_text, 1024, "/GRIDS/%d", gid[i]);
 
     fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Temporal\">\n");
 
@@ -456,31 +595,31 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
     for (int j = 0; j < steps; j ++)
     {
       fprintf (xmf_file, "<Grid Name=\"%s\" Type=\"Uniform\">\n", label);
-      snprintf (h5_text, 1024, "/BODIES/%d/%d", bid[i], j);
+      snprintf (h5_text, 1024, "/GRIDS/%d/%d", gid[i], j);
       double time = read_double (h5_file, h5_text, "TIME");
       fprintf (xmf_file, "<Time Type=\"Single\" Value=\"%f\" />\n", time);
 
       fprintf (xmf_file, "<Topology Type=\"Mixed\" NumberOfElements=\"%d\">\n", elements);
       fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Int\" Format=\"HDF\">\n", topo_size);
-      fprintf (xmf_file, "%s:/BODIES/%d/TOPO\n", h5_file_name, bid[i]);
+      fprintf (xmf_file, "%s:/GRIDS/%d/TOPO\n", h5_file_name, gid[i]);
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Topology>\n");
 
       fprintf (xmf_file, "<Geometry GeometryType=\"XYZ\">\n");
       fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
-      fprintf (xmf_file, "%s:/BODIES/%d/%d/GEOM\n", h5_file_name, bid[i], j);
+      fprintf (xmf_file, "%s:/GRIDS/%d/%d/GEOM\n", h5_file_name, gid[i], j);
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Geometry>\n");
 
       fprintf (xmf_file, "<Attribute Name=\"DISP\" Center=\"Node\" AttributeType=\"Vector\">\n");
       fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
-      fprintf (xmf_file, "%s:/BODIES/%d/%d/DISP\n", h5_file_name, bid[i], j);
+      fprintf (xmf_file, "%s:/GRIDS/%d/%d/DISP\n", h5_file_name, gid[i], j);
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Attribute>\n");
 
       fprintf (xmf_file, "<Attribute Name=\"VELO\" Center=\"Node\" AttributeType=\"Vector\">\n");
       fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
-      fprintf (xmf_file, "%s:/BODIES/%d/%d/VELO\n", h5_file_name, bid[i], j);
+      fprintf (xmf_file, "%s:/GRIDS/%d/%d/VELO\n", h5_file_name, gid[i], j);
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Attribute>\n");
  
@@ -500,59 +639,112 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   free (xmf_path);
 
   /* Third --> using the information from the HDF5 file write XDMF file --> Constraints */
-  xmf_path = path_and_dirs (path, "_constraints.xmf");
-  xmf_file = fopen (xmf_path, "w");
-  ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
-
-  fprintf (xmf_file, "<Xdmf>\n");
-  fprintf (xmf_file, "<Domain>\n");
-
-  fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Temporal\">\n\n");
-
-  int con_steps = read_int (h5_file, "CONSTRAINTS", "STEPS");
-
-  for (int i = 0; i < con_steps; i ++)
+  if (H5Lexists (h5_file, "CONSTRAINTS", H5P_DEFAULT))
   {
-    char h5_text [1024];
+    xmf_path = path_and_dirs (path, "_constraints.xmf");
+    xmf_file = fopen (xmf_path, "w");
+    ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
 
-    snprintf (h5_text, 1024, "/CONSTRAINTS/%d", i);
+    fprintf (xmf_file, "<Xdmf>\n");
+    fprintf (xmf_file, "<Domain>\n");
 
-    int points = read_int (h5_file, h5_text, "POINTS");
-    double time = read_double (h5_file, h5_text, "TIME");
+    fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Temporal\">\n\n");
 
-    fprintf (xmf_file, "<Grid Name=\"CONS%d\" Type=\"Uniform\">\n", i);
-    fprintf (xmf_file, "<Time Type=\"Single\" Value=\"%f\" />\n", time);
+    int con_steps = read_int (h5_file, "CONSTRAINTS", "STEPS");
 
-    fprintf (xmf_file, "<Topology Type=\"Polyvertex\" NumberOfElements=\"%d\">\n", points);
-    fprintf (xmf_file, "</Topology>\n");
+    for (int i = 0; i < con_steps; i ++)
+    {
+      char h5_text [1024];
 
-    fprintf (xmf_file, "<Geometry GeometryType=\"XYZ\">\n");
-    fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", points);
-    fprintf (xmf_file, "%s:/CONSTRAINTS/%d/GEOM\n", h5_file_name, i);
-    fprintf (xmf_file, "</DataStructure>\n");
-    fprintf (xmf_file, "</Geometry>\n");
+      snprintf (h5_text, 1024, "/CONSTRAINTS/%d", i);
 
-    fprintf (xmf_file, "<Attribute Name=\"REAC\" Center=\"Node\" AttributeType=\"Vector\">\n");
-    fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", points);
-    fprintf (xmf_file, "%s:/CONSTRAINTS/%d/REAC\n", h5_file_name, i);
-    fprintf (xmf_file, "</DataStructure>\n");
-    fprintf (xmf_file, "</Attribute>\n");
+      int count = read_int (h5_file, h5_text, "COUNT");
+      double time = read_double (h5_file, h5_text, "TIME");
 
-    fprintf (xmf_file, "<Attribute Name=\"GAP\" Center=\"Node\" AttributeType=\"Scalar\">\n");
-    fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", points);
-    fprintf (xmf_file, "%s:/CONSTRAINTS/%d/GAP\n", h5_file_name, i);
-    fprintf (xmf_file, "</DataStructure>\n");
-    fprintf (xmf_file, "</Attribute>\n");
+      fprintf (xmf_file, "<Grid Name=\"CONS%d\" Type=\"Uniform\">\n", i);
+      fprintf (xmf_file, "<Time Type=\"Single\" Value=\"%f\" />\n", time);
+
+      fprintf (xmf_file, "<Topology Type=\"Polyvertex\" NumberOfElements=\"%d\">\n", count);
+      fprintf (xmf_file, "</Topology>\n");
+
+      fprintf (xmf_file, "<Geometry GeometryType=\"XYZ\">\n");
+      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+      fprintf (xmf_file, "%s:/CONSTRAINTS/%d/GEOM\n", h5_file_name, i);
+      fprintf (xmf_file, "</DataStructure>\n");
+      fprintf (xmf_file, "</Geometry>\n");
+
+      fprintf (xmf_file, "<Attribute Name=\"REAC\" Center=\"Node\" AttributeType=\"Vector\">\n");
+      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+      fprintf (xmf_file, "%s:/CONSTRAINTS/%d/REAC\n", h5_file_name, i);
+      fprintf (xmf_file, "</DataStructure>\n");
+      fprintf (xmf_file, "</Attribute>\n");
+
+      fprintf (xmf_file, "<Attribute Name=\"GAP\" Center=\"Node\" AttributeType=\"Scalar\">\n");
+      fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+      fprintf (xmf_file, "%s:/CONSTRAINTS/%d/GAP\n", h5_file_name, i);
+      fprintf (xmf_file, "</DataStructure>\n");
+      fprintf (xmf_file, "</Attribute>\n");
+
+      fprintf (xmf_file, "</Grid>\n");
+    }
 
     fprintf (xmf_file, "</Grid>\n");
+    fprintf (xmf_file, "</Domain>\n");
+    fprintf (xmf_file, "</Xdmf>\n");
   }
 
-  fprintf (xmf_file, "</Grid>\n");
-  fprintf (xmf_file, "</Domain>\n");
-  fprintf (xmf_file, "</Xdmf>\n");
+  /* Fourth --> using the information from the HDF5 file write XDMF file --> Spheres */
+  if (H5Lexists (h5_file, "SPHERES", H5P_DEFAULT))
+  {
+    xmf_path = path_and_dirs (path, "_spheres.xmf");
+    xmf_file = fopen (xmf_path, "w");
+    ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
+
+    fprintf (xmf_file, "<Xdmf>\n");
+    fprintf (xmf_file, "<Domain>\n");
+
+    fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Temporal\">\n\n");
+
+    int sph_steps = read_int (h5_file, "SPHERES", "STEPS");
+
+    for (int i = 0; i < sph_steps; i ++)
+    {
+      char h5_text [1024];
+
+      snprintf (h5_text, 1024, "/SPHERES/%d", i);
+
+      int count = read_int (h5_file, h5_text, "COUNT");
+      double time = read_double (h5_file, h5_text, "TIME");
+
+      fprintf (xmf_file, "<Grid Name=\"SPHS%d\" Type=\"Uniform\">\n", i);
+      fprintf (xmf_file, "<Time Type=\"Single\" Value=\"%f\" />\n", time);
+
+      fprintf (xmf_file, "<Topology Type=\"Polyvertex\" NumberOfElements=\"%d\">\n", count);
+      fprintf (xmf_file, "</Topology>\n");
+
+      fprintf (xmf_file, "<Geometry GeometryType=\"XYZ\">\n");
+      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+      fprintf (xmf_file, "%s:/SPHERES/%d/GEOM\n", h5_file_name, i);
+      fprintf (xmf_file, "</DataStructure>\n");
+      fprintf (xmf_file, "</Geometry>\n");
+
+      fprintf (xmf_file, "<Attribute Name=\"RADI\" Center=\"Node\" AttributeType=\"Scalar\">\n");
+      fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+      fprintf (xmf_file, "%s:/SPHERES/%d/RADI\n", h5_file_name, i);
+      fprintf (xmf_file, "</DataStructure>\n");
+      fprintf (xmf_file, "</Attribute>\n");
+
+      fprintf (xmf_file, "</Grid>\n");
+    }
+
+    fprintf (xmf_file, "</Grid>\n");
+    fprintf (xmf_file, "</Domain>\n");
+    fprintf (xmf_file, "</Xdmf>\n");
+  }
 
   /* Clean up */
-  free (bid);
+  MAP_Free (NULL, &gids);
+  free (gid);
   free (h5_path);
   free (xmf_path);
   fclose (xmf_file);
