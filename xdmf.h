@@ -25,10 +25,20 @@ SOFTWARE.
 #ifndef __xdmf__
 #define __xdmf__
 
+enum
+{
+  XDMF_DISP = 1,
+  XDMF_VELO = 2,
+  XDMF_STRESS = 4,
+  XDMF_REAC = 8,
+  XDMF_RELV = 16,
+  XDMF_GAP = 32
+};
+
 /* Export results in XMDF format;
  * ntimes > 0 --> number of individual time instances;
  * ntimes < 0 --> a time interval from times[0] to times[1];
  */
-void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path);
+void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subset, int attributes);
 
 #endif

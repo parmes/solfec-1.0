@@ -13528,7 +13528,7 @@ CANNOT
 \end_layout
 
 \begin_layout Subsection*
-XDMF_EXPORT (solfec, time, path) 
+XDMF_EXPORT (solfec, time, path | subset, attributes) 
 \color red
 (Under development)
 \end_layout
@@ -13553,8 +13553,16 @@ time
 \series default
  - A time instant, e.g.
  t0, a collection of time instants, e.g.
- [t0, t1, t2, ..., tN], or a time interval, e.g.
- (t0, t1);
+ 
+\emph on
+[t0, t1, t2, ..., tN]
+\emph default
+, or a time interval, e.g.
+ 
+\emph on
+(t0, t1)
+\emph default
+;
 \end_layout
 
 \begin_layout Itemize
@@ -13562,10 +13570,52 @@ time
 \series bold
 path
 \series default
- - output path to the directory that will contain the XDMF markup file and
- HDF5 data files, e.g.
- '/tmp/sim0' will result in a /tmp/sim0/sim0.xmf markup file and a collection
- of accompanying *.h5 data files;
+ - output path to the directory that will contain the XDMF markup file(s)
+ and a HDF5 data file, e.g.
+ '/tmp/sim0' will result in a /tmp/sim0/sim0_bodies.xmf and /tmp/sim0/sim0_constr
+aints.xmf markup files and a /tmp/sim0/sim0.h5 data file output;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+subset
+\series default
+ - specification of a subset of exported bodies; a string can be used to
+ define a regular expression that will be matched against body labels; a
+ list of body objects or integer body identifiers can be used 
+\emph on
+[body1, body2, id3, id4, body5, ...]
+\emph default
+ mixed up in an arbitrary manner; or a tuple specifying extents of a bounding
+ box can be used 
+\emph on
+(xlow, ylow, zlow, xhigh, yhigh, zhigh)
+\emph default
+, which the exported bodies overlapped at time 
+\begin_inset Formula $t=0$
+\end_inset
+
+; also a list of an arbitrary combination of those can be used, e.g.
+ 
+\emph on
+['BOD*A', 123, body1, body2, 256, (0, 0, 0, 1, 1, 1), 'KEY??7', (3, 3, 3,
+ 4, 4, 4)]
+\emph default
+ defines two labels, two integer body ids, two body objects, and two bounding
+ boxes, that together define a subset of bodies that will be used during
+ export;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+attributes
+\series default
+ - specify a list of export attributes; default ['DISP', 'VELO', 'REAC',
+ 'GAP']; available attributes are 'DISP' (body displacement), 'VELO' (body
+ velocity), 'STRESS' (body stress), 'REAC' (constraint reactions), 'RELV'
+ (relative constraint velocities), 'GAP' (contact gaps);
 \end_layout
 
 \begin_layout Section

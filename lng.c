@@ -28,6 +28,7 @@
 #include <float.h>
 #include "ext/tetgen/tetsol.h"
 #include "solfec.h"
+#include "set.h"
 #include "xdmf.h"
 #include "alg.h"
 #include "sol.h"
@@ -8697,13 +8698,19 @@ static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("solfec", "time", "path");
-  PyObject *time, *path;
+  PyObject *time, *path, *subset_arg, *attributes_arg;
+  SET *subset;
+  int attributes;
   lng_SOLFEC *solfec;
   double *times;
   int ntimes;
+
+  subset = NULL;
+  subset_arg = NULL;
+  attributes = XDMF_DISP|XDMF_VELO|XDMF_REAC|XDMF_GAP;
+  attributes_arg = NULL;
   
-  
-  PARSEKEYS ("OOO", &solfec, &time, &path);
+  PARSEKEYS ("OOO|OO", &solfec, &time, &path, &subset_arg, &attributes_arg);
   
   TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[2]));
 
@@ -8745,8 +8752,12 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
     times[0] = PyFloat_AsDouble (time);
   }
 
+  /* TODO --> process subset_arg */
+
+  /* TODO --> process attributes_arg */
+
 #if !MPI
-  xdmf_export (solfec->sol, times, ntimes, PyString_AsString(path));
+  xdmf_export (solfec->sol, times, ntimes, PyString_AsString(path), subset, attributes);
 #endif
 
   free (times);
