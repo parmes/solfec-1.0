@@ -300,7 +300,7 @@ static void write_convex (CONVEX *cvx, BODY *bod, double time, int step, hid_t h
 }
 
 /* write sphere data at current time step */
-static void write_spheres (DOM *dom, hid_t h5_file, double *center, double *radius, int count, int attributes)
+static void write_spheres (DOM *dom, hid_t h5_file, double *center, double *radius, int count, double *disp, double *velo, double *stress, int attributes)
 {
   hid_t h5_sphs, h5_step;
   char h5_text[1024];
@@ -330,19 +330,32 @@ static void write_spheres (DOM *dom, hid_t h5_file, double *center, double *radi
   hsize_t dims[2] = {nsph, 3};
   ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "GEOM", 2, dims, center) >= 0, "HDF5 file write error");
   ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "RADI", 1, &nsph, radius) >= 0, "HDF5 file write error");
+  if (attributes & XDMF_DISP)
+  {
+    ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "DISP", 2, dims, disp) >= 0, "HDF5 file write error");
+  }
+  if (attributes & XDMF_VELO)
+  {
+    ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "VELO", 2, dims, velo) >= 0, "HDF5 file write error");
+  }
+  if (attributes & XDMF_STRESS)
+  {
+    hsize_t dims[2] = {nsph, 6};
+    ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "STRESS", 2, dims, stress) >= 0, "HDF5 file write error");
+  }
   H5Gclose (h5_step);
-
-  /* TODO --> attributes */
-
   H5Gclose (h5_sphs);
 }
 
 /* write bodies state at current time step */
 static void write_bodies (DOM *dom, hid_t h5_file, MAP **gids, int **gid, int *gid_count, int *gid_size, SET *subset, int attributes)
 {
-  double *sph_center = NULL, *sph_radius = NULL;
+  double *sph_center = NULL, *sph_radius = NULL, *sph_disp = NULL, *sph_velo = NULL, *sph_stress = NULL;
   int sph_center_count = 0, sph_center_size = 0,
-    sph_radius_count = 0, sph_radius_size = 0;
+    sph_radius_count = 0, sph_radius_size = 0,
+    sph_disp_count = 0, sph_disp_size = 0,
+    sph_velo_count = 0, sph_velo_size = 0,
+    sph_stress_count = 0, sph_stress_size = 0;
 
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
@@ -417,20 +430,37 @@ static void write_bodies (DOM *dom, hid_t h5_file, MAP **gids, int **gid, int *g
       case SHAPE_SPHERE:
       {
 	SPHERE *sph = shp->data;
+        double values[6];
 	pack_doubles (&sph_center_size, &sph_center, &sph_center_count, sph->cur_center, 3);
 	pack_double (&sph_radius_size, &sph_radius, &sph_radius_count, sph->cur_radius);
+
+	if (attributes & XDMF_DISP)
+	{
+          BODY_Point_Values (bod, sph->cur_center, VALUE_DISPLACEMENT, values);
+	  pack_doubles (&sph_disp_size, &sph_disp, &sph_disp_count, values, 3);
+	}
+	if (attributes & XDMF_VELO)
+	{
+          BODY_Point_Values (bod, sph->cur_center, VALUE_VELOCITY, values);
+	  pack_doubles (&sph_velo_size, &sph_velo, &sph_velo_count, values, 3);
+	}
+	if (attributes & XDMF_STRESS)
+	{
+          BODY_Point_Values (bod, sph->cur_center, VALUE_STRESS, values);
+	  pack_doubles (&sph_stress_size, &sph_stress, &sph_stress_count, values, 6);
+	}
       }
       break;
       case SHAPE_ELLIP:
       {
-        /* TODO */
+	WARNING (0, "XDMF export is not implemented for ELLIPSOIDS"); /* TODO */
       }
       break;
       }
     }
   }
 
-  write_spheres (dom, h5_file, sph_center, sph_radius, sph_radius_count, attributes);
+  write_spheres (dom, h5_file, sph_center, sph_radius, sph_radius_count, sph_disp, sph_velo, sph_stress, attributes);
 
   free (sph_center);
   free (sph_radius);
@@ -523,6 +553,8 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   MAP *gids = NULL;
   hsize_t h5_size;
   hid_t h5_file;
+  char *xmf_path;
+  FILE *xmf_file;
 
   ASSERT_TEXT ((h5_file = H5Fcreate(h5_path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file open error");
 
@@ -569,74 +601,90 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   char *h5_file_name = &h5_path[k+1];
 
   /* Second --> using the information from the HDF5 file write XDMF file --> Grids */
-  char *xmf_path = path_and_dirs (path, "_grids.xmf");
-  FILE *xmf_file = fopen (xmf_path, "w");
-  ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
-
-  fprintf (xmf_file, "<Xdmf>\n");
-  fprintf (xmf_file, "<Domain>\n");
-
-  fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Spatial\">\n\n");
-
-  for (int i = 0; i < gid_count; i ++)
+  if (H5Lexists (h5_file, "GRIDS", H5P_DEFAULT))
   {
-    char h5_text [1024];
+    xmf_path = path_and_dirs (path, "_grids.xmf");
+    xmf_file = fopen (xmf_path, "w");
+    ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
 
-    snprintf (h5_text, 1024, "/GRIDS/%d", gid[i]);
+    fprintf (xmf_file, "<Xdmf>\n");
+    fprintf (xmf_file, "<Domain>\n");
 
-    fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Temporal\">\n");
+    fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Spatial\">\n\n");
 
-    int steps = read_int (h5_file, h5_text, "STEPS");
-    int elements = read_int (h5_file, h5_text, "ELEMENTS");
-    int nodes = read_int (h5_file, h5_text, "NODES");
-    int topo_size = read_int (h5_file, h5_text, "TOPO_SIZE");
-    char *label = read_string (h5_file, h5_text, "LABEL");
-
-    for (int j = 0; j < steps; j ++)
+    for (int i = 0; i < gid_count; i ++)
     {
-      fprintf (xmf_file, "<Grid Name=\"%s\" Type=\"Uniform\">\n", label);
-      snprintf (h5_text, 1024, "/GRIDS/%d/%d", gid[i], j);
-      double time = read_double (h5_file, h5_text, "TIME");
-      fprintf (xmf_file, "<Time Type=\"Single\" Value=\"%f\" />\n", time);
+      char h5_text [1024];
 
-      fprintf (xmf_file, "<Topology Type=\"Mixed\" NumberOfElements=\"%d\">\n", elements);
-      fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Int\" Format=\"HDF\">\n", topo_size);
-      fprintf (xmf_file, "%s:/GRIDS/%d/TOPO\n", h5_file_name, gid[i]);
-      fprintf (xmf_file, "</DataStructure>\n");
-      fprintf (xmf_file, "</Topology>\n");
+      snprintf (h5_text, 1024, "/GRIDS/%d", gid[i]);
 
-      fprintf (xmf_file, "<Geometry GeometryType=\"XYZ\">\n");
-      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
-      fprintf (xmf_file, "%s:/GRIDS/%d/%d/GEOM\n", h5_file_name, gid[i], j);
-      fprintf (xmf_file, "</DataStructure>\n");
-      fprintf (xmf_file, "</Geometry>\n");
+      fprintf (xmf_file, "<Grid GridType=\"Collection\" CollectionType=\"Temporal\">\n");
 
-      fprintf (xmf_file, "<Attribute Name=\"DISP\" Center=\"Node\" AttributeType=\"Vector\">\n");
-      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
-      fprintf (xmf_file, "%s:/GRIDS/%d/%d/DISP\n", h5_file_name, gid[i], j);
-      fprintf (xmf_file, "</DataStructure>\n");
-      fprintf (xmf_file, "</Attribute>\n");
+      int steps = read_int (h5_file, h5_text, "STEPS");
+      int elements = read_int (h5_file, h5_text, "ELEMENTS");
+      int nodes = read_int (h5_file, h5_text, "NODES");
+      int topo_size = read_int (h5_file, h5_text, "TOPO_SIZE");
+      char *label = read_string (h5_file, h5_text, "LABEL");
 
-      fprintf (xmf_file, "<Attribute Name=\"VELO\" Center=\"Node\" AttributeType=\"Vector\">\n");
-      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
-      fprintf (xmf_file, "%s:/GRIDS/%d/%d/VELO\n", h5_file_name, gid[i], j);
-      fprintf (xmf_file, "</DataStructure>\n");
-      fprintf (xmf_file, "</Attribute>\n");
- 
-      fprintf (xmf_file, "</Grid>\n");
+      for (int j = 0; j < steps; j ++)
+      {
+	fprintf (xmf_file, "<Grid Name=\"%s\" Type=\"Uniform\">\n", label);
+	snprintf (h5_text, 1024, "/GRIDS/%d/%d", gid[i], j);
+	double time = read_double (h5_file, h5_text, "TIME");
+	fprintf (xmf_file, "<Time Type=\"Single\" Value=\"%f\" />\n", time);
+
+	fprintf (xmf_file, "<Topology Type=\"Mixed\" NumberOfElements=\"%d\">\n", elements);
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Int\" Format=\"HDF\">\n", topo_size);
+	fprintf (xmf_file, "%s:/GRIDS/%d/TOPO\n", h5_file_name, gid[i]);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Topology>\n");
+
+	fprintf (xmf_file, "<Geometry GeometryType=\"XYZ\">\n");
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
+	fprintf (xmf_file, "%s:/GRIDS/%d/%d/GEOM\n", h5_file_name, gid[i], j);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Geometry>\n");
+
+	if (attributes & XDMF_DISP)
+	{
+	  fprintf (xmf_file, "<Attribute Name=\"DISP\" Center=\"Node\" AttributeType=\"Vector\">\n");
+	  fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
+	  fprintf (xmf_file, "%s:/GRIDS/%d/%d/DISP\n", h5_file_name, gid[i], j);
+	  fprintf (xmf_file, "</DataStructure>\n");
+	  fprintf (xmf_file, "</Attribute>\n");
+	}
+	if (attributes & XDMF_VELO)
+	{
+	  fprintf (xmf_file, "<Attribute Name=\"VELO\" Center=\"Node\" AttributeType=\"Vector\">\n");
+	  fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
+	  fprintf (xmf_file, "%s:/GRIDS/%d/%d/VELO\n", h5_file_name, gid[i], j);
+	  fprintf (xmf_file, "</DataStructure>\n");
+	  fprintf (xmf_file, "</Attribute>\n");
+	}
+	if (attributes & XDMF_STRESS)
+	{
+	  fprintf (xmf_file, "<Attribute Name=\"STRESS\" Center=\"Node\" AttributeType=\"Vector\">\n");
+	  fprintf (xmf_file, "<DataStructure Dimensions=\"%d 6\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", nodes);
+	  fprintf (xmf_file, "%s:/GRIDS/%d/%d/STRESS\n", h5_file_name, gid[i], j);
+	  fprintf (xmf_file, "</DataStructure>\n");
+	  fprintf (xmf_file, "</Attribute>\n");
+	}
+   
+	fprintf (xmf_file, "</Grid>\n");
+      }
+
+      free (label);
+
+      fprintf (xmf_file, "</Grid>\n\n");
     }
 
-    free (label);
+    fprintf (xmf_file, "</Grid>\n");
+    fprintf (xmf_file, "</Domain>\n");
+    fprintf (xmf_file, "</Xdmf>\n");
 
-    fprintf (xmf_file, "</Grid>\n\n");
+    fclose (xmf_file);
+    free (xmf_path);
   }
-
-  fprintf (xmf_file, "</Grid>\n");
-  fprintf (xmf_file, "</Domain>\n");
-  fprintf (xmf_file, "</Xdmf>\n");
-
-  fclose (xmf_file);
-  free (xmf_path);
 
   /* Third --> using the information from the HDF5 file write XDMF file --> Constraints */
   if (H5Lexists (h5_file, "CONSTRAINTS", H5P_DEFAULT))
@@ -673,17 +721,30 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Geometry>\n");
 
-      fprintf (xmf_file, "<Attribute Name=\"REAC\" Center=\"Node\" AttributeType=\"Vector\">\n");
-      fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
-      fprintf (xmf_file, "%s:/CONSTRAINTS/%d/REAC\n", h5_file_name, i);
-      fprintf (xmf_file, "</DataStructure>\n");
-      fprintf (xmf_file, "</Attribute>\n");
-
-      fprintf (xmf_file, "<Attribute Name=\"GAP\" Center=\"Node\" AttributeType=\"Scalar\">\n");
-      fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
-      fprintf (xmf_file, "%s:/CONSTRAINTS/%d/GAP\n", h5_file_name, i);
-      fprintf (xmf_file, "</DataStructure>\n");
-      fprintf (xmf_file, "</Attribute>\n");
+      if (attributes & XDMF_REAC)
+      {
+	fprintf (xmf_file, "<Attribute Name=\"REAC\" Center=\"Node\" AttributeType=\"Vector\">\n");
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+	fprintf (xmf_file, "%s:/CONSTRAINTS/%d/REAC\n", h5_file_name, i);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Attribute>\n");
+      }
+      if (attributes & XDMF_RELV)
+      {
+	fprintf (xmf_file, "<Attribute Name=\"RELV\" Center=\"Node\" AttributeType=\"Vector\">\n");
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+	fprintf (xmf_file, "%s:/CONSTRAINTS/%d/RELV\n", h5_file_name, i);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Attribute>\n");
+      }
+      if (attributes & XDMF_GAP)
+      {
+	fprintf (xmf_file, "<Attribute Name=\"GAP\" Center=\"Node\" AttributeType=\"Scalar\">\n");
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+	fprintf (xmf_file, "%s:/CONSTRAINTS/%d/GAP\n", h5_file_name, i);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Attribute>\n");
+      }
 
       fprintf (xmf_file, "</Grid>\n");
     }
@@ -733,6 +794,31 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
       fprintf (xmf_file, "%s:/SPHERES/%d/RADI\n", h5_file_name, i);
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Attribute>\n");
+
+      if (attributes & XDMF_DISP)
+      {
+	fprintf (xmf_file, "<Attribute Name=\"DISP\" Center=\"Node\" AttributeType=\"Vector\">\n");
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+	fprintf (xmf_file, "%s:/SPHERES/%d/DISP\n", h5_file_name, i);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Attribute>\n");
+      }
+      if (attributes & XDMF_VELO)
+      {
+	fprintf (xmf_file, "<Attribute Name=\"VELO\" Center=\"Node\" AttributeType=\"Vector\">\n");
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d 3\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+	fprintf (xmf_file, "%s:/SPHERES/%d/VELO\n", h5_file_name, i);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Attribute>\n");
+      }
+      if (attributes & XDMF_STRESS)
+      {
+	fprintf (xmf_file, "<Attribute Name=\"STRESS\" Center=\"Node\" AttributeType=\"Vector\">\n");
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d 6\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
+	fprintf (xmf_file, "%s:/SPHERE/%d/STRESS\n", h5_file_name, i);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Attribute>\n");
+      }
 
       fprintf (xmf_file, "</Grid>\n");
     }

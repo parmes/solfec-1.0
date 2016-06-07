@@ -21,6 +21,7 @@
 
 #if POSIX
 #include <sys/stat.h>
+#include <regex.h>
 #endif
 #include <Python.h>
 #include <structmember.h>
@@ -8694,15 +8695,49 @@ static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_NONE;
 }
 
+/* get regular expression error */
+static char *get_regerror (int errcode, regex_t *compiled)
+{
+  size_t length = regerror (errcode, compiled, NULL, 0);
+  char *buffer = malloc (length);
+  regerror (errcode, compiled, buffer, length);
+  return buffer;
+}
+
 /* add bodies defined by 'obj' to subset */
 static int subset_add (DOM *dom, SET **subset, PyObject *obj)
 {
   if (PyString_Check (obj))
   {
+#if POSIX
+    regex_t xp;
+    char *pattern = PyString_AsString(obj);
+    int error = regcomp (&xp, pattern, 0);
+
+    if (error != 0)
+    {
+      char *message = get_regerror (error, &xp);
+      fprintf (stderr, "-->\n");
+      fprintf (stderr, "Regular expression ERROR --> %s\n", message);
+      fprintf (stderr, "<--\n");
+      regfree (&xp);
+      free (message);
+      return 0;
+    }
+
     for (BODY *bod = dom->bod; bod; bod = bod->next)
     {
-      /* TODO --> use regex */
+      if (bod->label && regexec (&xp, bod->label, 0, NULL, 0) == 0)
+      {
+	SET_Insert (NULL, subset, (void*) (long) bod->id, NULL);
+      }
     }
+
+    regfree (&xp);
+#else
+    ASSERT_TEXT (0, "Regular expressions require POSIX support --> recompile Solfec with POSIX=yes");
+    return 0;
+#endif
   }
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE))
   {
@@ -8716,6 +8751,39 @@ static int subset_add (DOM *dom, SET **subset, PyObject *obj)
   }
   else if (PyTuple_Check (obj))
   {
+    if (PyTuple_Size(obj) != 6)
+    {
+      fprintf (stderr, "ERROR: invalid bounding box tuple size.\n");
+      return 0;
+    }
+
+    double p[8][3];
+
+    p[0][0] = PyFloat_AsDouble (PyTuple_GetItem(obj, 0));
+    p[0][1] = PyFloat_AsDouble (PyTuple_GetItem(obj, 1));
+    p[0][2] = PyFloat_AsDouble (PyTuple_GetItem(obj, 2));
+    p[6][0] = PyFloat_AsDouble (PyTuple_GetItem(obj, 3));
+    p[6][1] = PyFloat_AsDouble (PyTuple_GetItem(obj, 4));
+    p[6][2] = PyFloat_AsDouble (PyTuple_GetItem(obj, 5));
+    p[1][0] = p[6][0];
+    p[1][1] = p[0][1];
+    p[1][2] = p[0][2];
+    p[2][0] = p[6][0];
+    p[2][1] = p[6][1];
+    p[2][2] = p[0][2];
+    p[3][0] = p[0][0];
+    p[3][1] = p[6][1];
+    p[3][2] = p[0][2];
+    p[4][0] = p[0][0];
+    p[4][1] = p[0][1];
+    p[4][2] = p[6][2];
+    p[5][0] = p[6][0];
+    p[5][1] = p[0][1];
+    p[5][2] = p[6][2];
+    p[7][0] = p[0][0];
+    p[7][1] = p[6][1];
+    p[7][2] = p[6][2];
+ 
     /* TODO --> use ideas from lng_OVERLAPPING */
   }
   else return 0;
@@ -8726,7 +8794,7 @@ static int subset_add (DOM *dom, SET **subset, PyObject *obj)
 /* Export results in XDMF format */
 static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "time", "path");
+  KEYWORDS ("solfec", "time", "path", "subset", "attributes");
   PyObject *time, *path, *subset_arg, *attributes_arg;
   SET *subset;
   int attributes;
@@ -9694,7 +9762,7 @@ int lng (const char *path)
   ERRMEM (line = MEM_CALLOC (128 + strlen (path)));
   sprintf (line, "execfile ('%s')", path);
 
-  error = PyRun_SimpleString (line); /* we do not run a file directly because FILE destriptors differe
+  error = PyRun_SimpleString (line); /* we do not run a file directly because FILE destriptors differ
 					between WIN32 and UNIX while Python is often provided in binary form */
   fclose (file);
   free (line);
