@@ -53,4 +53,4 @@ OUTPUT (solfec, step)
 RUN (solfec, gs, 1.0)
 
 if solfec.mode == 'READ':
-  XDMF_EXPORT (solfec, [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], 'out/xmftest', attributes=[])
+  XDMF_EXPORT (solfec, [0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0], 'out/xmftest')

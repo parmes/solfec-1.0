@@ -545,6 +545,7 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
       ASSERT_TEXT (sol->bf->parallel == PBF_ON && ranks == size, "[-c] MPI mode: %d ranks must be used to continue computation", ranks);
       PBF_Close (sol->bf);
       sol->bf = NULL;
+      sol->mode = SOLFEC_WRITE;
       goto out;
     }
     else
@@ -562,7 +563,11 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   {
     PBF_Close (sol->bf);
     sol->bf = NULL;
-    if (CONTINUE_WRITE_FLAG()) goto out;
+    if (CONTINUE_WRITE_FLAG())
+    {
+      sol->mode = SOLFEC_WRITE;
+      goto out;
+    }
     else
     {
       fprintf (stdout, "WARNING: Valid output files exist at path: %s\n", sol->outpath);
