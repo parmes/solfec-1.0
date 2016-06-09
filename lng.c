@@ -41,6 +41,7 @@
 #include "err.h"
 #include "eli.h"
 #include "fra.h"
+#include "hyb.h"
 
 #if MPI
 #include <mpi.h>
@@ -7831,7 +7832,7 @@ typedef struct
 } OCD;
 
 /* overlap callback */
-static void overlap_create (OCD *ocd, BOX *one, BOX *two)
+static void overlap_create0 (OCD *ocd, BOX *one, BOX *two)
 {
   double onepnt [3], twopnt [3], normal [3], gap, area;
   int state, spair [2];
@@ -7922,7 +7923,7 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   }
 
   /* detect overlaps */
-  AABB_Simple_Detect (aabb, HYBRID, &ocd, (BOX_Overlap_Create) overlap_create);
+  AABB_Simple_Detect (aabb, HYBRID, &ocd, (BOX_Overlap_Create) overlap_create0);
 
   if (not)
   {
@@ -8704,6 +8705,21 @@ static char *get_regerror (int errcode, regex_t *compiled)
   return buffer;
 }
 
+/* create bounding box overlap callback */
+void overlap_create1 (SET **subset, BOX *one, BOX *two)
+{
+  if (one->body)
+  {
+    ASSERT_DEBUG (two->body == NULL, "Inconsistent box data");
+    SET_Insert (NULL, subset, (void*) (long) one->body->id, NULL);
+  }
+  else
+  {
+    ASSERT_DEBUG (two->body, "Inconsistent box data");
+    SET_Insert (NULL, subset, (void*) (long) two->body->id, NULL);
+  }
+}
+
 /* add bodies defined by 'obj' to subset */
 static int subset_add (DOM *dom, SET **subset, PyObject *obj)
 {
@@ -8757,34 +8773,35 @@ static int subset_add (DOM *dom, SET **subset, PyObject *obj)
       return 0;
     }
 
-    double p[8][3];
+    BOX a, *pa, *b, **pb;
+    BODY *bod;
+    int i;
 
-    p[0][0] = PyFloat_AsDouble (PyTuple_GetItem(obj, 0));
-    p[0][1] = PyFloat_AsDouble (PyTuple_GetItem(obj, 1));
-    p[0][2] = PyFloat_AsDouble (PyTuple_GetItem(obj, 2));
-    p[6][0] = PyFloat_AsDouble (PyTuple_GetItem(obj, 3));
-    p[6][1] = PyFloat_AsDouble (PyTuple_GetItem(obj, 4));
-    p[6][2] = PyFloat_AsDouble (PyTuple_GetItem(obj, 5));
-    p[1][0] = p[6][0];
-    p[1][1] = p[0][1];
-    p[1][2] = p[0][2];
-    p[2][0] = p[6][0];
-    p[2][1] = p[6][1];
-    p[2][2] = p[0][2];
-    p[3][0] = p[0][0];
-    p[3][1] = p[6][1];
-    p[3][2] = p[0][2];
-    p[4][0] = p[0][0];
-    p[4][1] = p[0][1];
-    p[4][2] = p[6][2];
-    p[5][0] = p[6][0];
-    p[5][1] = p[0][1];
-    p[5][2] = p[6][2];
-    p[7][0] = p[0][0];
-    p[7][1] = p[6][1];
-    p[7][2] = p[6][2];
- 
-    /* TODO --> use ideas from lng_OVERLAPPING */
+    a.extents[0] = PyFloat_AsDouble (PyTuple_GetItem(obj, 0));
+    a.extents[1] = PyFloat_AsDouble (PyTuple_GetItem(obj, 1));
+    a.extents[2] = PyFloat_AsDouble (PyTuple_GetItem(obj, 2));
+    a.extents[3] = PyFloat_AsDouble (PyTuple_GetItem(obj, 3));
+    a.extents[4] = PyFloat_AsDouble (PyTuple_GetItem(obj, 4));
+    a.extents[5] = PyFloat_AsDouble (PyTuple_GetItem(obj, 5));
+    a.sgp = NULL;
+    a.body = NULL;
+    pa = &a;
+
+    ERRMEM (b = malloc (dom->nbod * sizeof (BOX)));
+    ERRMEM (pb = malloc (dom->nbod * sizeof (BOX*)));
+
+    for (i = 0, bod = dom->bod; bod; i++, bod = bod->next)
+    {
+      COPY6 (bod->extents, b[i].extents);
+      b[i].sgp = (SGP*) bod;
+      b[i].body = bod;
+      pb[i] = &b[i];
+    }
+
+    hybrid_ext (&pa, 1, pb,  dom->nbod, subset, (BOX_Overlap_Create) overlap_create1);
+
+    free (pb);
+    free (b);
   }
   else return 0;
 
@@ -8868,6 +8885,12 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
     else if (!subset_add (solfec->sol->dom, &subset, subset_arg))
     {
       PyErr_SetString (PyExc_ValueError, "Invalid subset definition");
+      return NULL;
+    }
+
+    if (subset == NULL)
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid subset definition (matching bodies not found)");
       return NULL;
     }
   }

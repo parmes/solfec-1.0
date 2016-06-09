@@ -500,10 +500,8 @@ static void write_constraints (DOM *dom, hid_t h5_file, SET *subset, int attribu
   {
     if (subset)
     {
-      short found = 0;
-      if (SET_Find (subset, (void*) (long) con->master->id, NULL)) found ++;
-      if (con->slave && SET_Find (subset, (void*) (long) con->slave->id, NULL)) found ++;
-      if (!found) continue;
+      if (!SET_Find (subset, (void*) (long) con->master->id, NULL)) continue;
+      if (con->slave && !SET_Find (subset, (void*) (long) con->slave->id, NULL)) continue;
     }
 
     pack_doubles (&point_size, &point, &point_count, con->point, 3);

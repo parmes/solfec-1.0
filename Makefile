@@ -135,7 +135,7 @@ obj/libBLOPEX.a:
 	(cd ext/blopex && make)
 
 obj/libsolfec.a: $(OBJ)
-	ar rcv $@ $(OBJ)
+	ar rc $@ $(OBJ)
 	ranlib $@ 
 
 ifeq ($(MPI),yes)

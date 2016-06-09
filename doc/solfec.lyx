@@ -13615,7 +13615,7 @@ target "http://www.boost.org/doc/libs/1_61_0/libs/regex/doc/html/boost_regex/syn
 \emph on
 (xlow, ylow, zlow, xhigh, yhigh, zhigh)
 \emph default
-, which the exported bodies overlapped at time 
+, which the bounding boxes of exported bodies will overlapped at time 
 \begin_inset Formula $t=0$
 \end_inset
 
