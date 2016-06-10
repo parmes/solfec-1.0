@@ -1069,7 +1069,7 @@ MPI = yes
 \end_layout
 
 \begin_layout LyX-Code
-MPICC = mpicc
+MPICC = mpicc -Wno-unused-but-set-variable -fopenmp
 \end_layout
 
 \begin_layout LyX-Code
@@ -1109,6 +1109,39 @@ ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
 \end_layout
 
 \begin_layout LyX-Code
+# Dynlb load balancer (MPI = yes) available at: https://github.com/tkoziara/dynlb
+\end_layout
+
+\begin_layout LyX-Code
+# This option is used when ZOLTAN = no above; Use path to dynlb directory
+ below;
+\end_layout
+
+\begin_layout LyX-Code
+# Use -fopenmp flag with MPICC when compiling with dynlb;
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+DYNLB = ../dynlb
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
 # Siconos (yes/no)
 \end_layout
 
@@ -1132,6 +1165,10 @@ SICONOSINC = -I/usr/local/include/Siconos/Numerics
 SICONOSLIB = -L/usr/local/lib -l SiconosNumerics
 \end_layout
 
+\begin_layout LyX-Code
+
+\end_layout
+
 \begin_layout Standard
 The above configuration works on Mac OS X.
  Examples for Linux and Cygwin can be found in 
@@ -1153,7 +1190,23 @@ C, C++, FORTRAN 95
 \begin_layout Itemize
 
 \series bold
-XDR
+HDF5
+\series default
+ library, available at 
+\begin_inset CommandInset href
+LatexCommand href
+name "http://www.hdfgroup.org"
+target "http://www.hdfgroup.org"
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Itemize
+(optional)
+\series bold
+ XDR
 \series default
  (standard part of RPC on all Unix-like systems; on MinGW you will need
  
@@ -1199,7 +1252,7 @@ target "http://www.netlib.org/lapack/"
 \series bold
 Python
 \series default
- together with development files and libraries
+ together with development files and libraries (versions 2.x have been tested)
 \end_layout
 
 \begin_layout Itemize
@@ -1211,11 +1264,11 @@ OpenGL
 \end_layout
 
 \begin_layout Itemize
-
+(optional) 
 \series bold
 VBO
 \series default
- (Vertex Buffer Object extension of OpenGL for faster rendering; optional)
+ (Vertex Buffer Object extension of OpenGL for faster rendering)
 \end_layout
 
 \begin_layout Itemize
@@ -1227,17 +1280,21 @@ MPI
 \end_layout
 
 \begin_layout Itemize
-
+either 
 \series bold
 Zoltan
+\series default
+ load balancing library or 
+\series bold
+dynlb
 \series default
  load balancing library
 \end_layout
 
 \begin_layout Itemize
-
+(optional)
 \series bold
-Siconos
+ Siconos
 \series default
 
 \begin_inset Foot
@@ -1256,21 +1313,29 @@ target "http://siconos.gforge.inria.fr/HomePage/index.html"
 
 \end_inset
 
- contact solvers library (optional)
+ contact solvers library
 \end_layout
 
 \begin_layout Standard
-All of them, but Zoltan, should be already installed on your system or are
- quite easy to install otherwise.
- Zoltan on the other hand can be obtained from 
+On unix systems many of those tools are readily available via package integrated
+ managers.
+ Zoltan can be obtained from 
 \begin_inset CommandInset href
 LatexCommand href
 target "http://www.cs.sandia.gov/Zoltan/"
 
 \end_inset
 
+ and dynlb can be obtained from 
+\begin_inset CommandInset href
+LatexCommand href
+name "https://github.com/tkoziara/dynlb"
+target "https://github.com/tkoziara/dynlb"
+
+\end_inset
+
 .
- In case of troubles - use the Solfec mailing list at 
+ In case of troubles, use the Solfec mailing list at 
 \begin_inset CommandInset href
 LatexCommand href
 target "http://groups.google.com/group/solfec"
@@ -1278,28 +1343,7 @@ target "http://groups.google.com/group/solfec"
 \end_inset
 
 .
- 
-\end_layout
-
-\begin_layout Standard
-Use 
-\begin_inset Quotes eld
-\end_inset
-
-DEBUG = yes
-\begin_inset Quotes erd
-\end_inset
-
- most of the time (this is slower but outputs more information in case you
- would encounter a bug), but for 
-\begin_inset Quotes eld
-\end_inset
-
-proper computations
-\begin_inset Quotes erd
-\end_inset
-
- compile optimized code by selecting 
+ Use 
 \begin_inset Quotes eld
 \end_inset
 
@@ -1307,7 +1351,18 @@ DEBUG = no
 \begin_inset Quotes erd
 \end_inset
 
-.
+ most of the time: this will make Solfec about 40% faster.
+ Nonetheless, when you experience trouble with running the code, recompile
+ it with 
+\begin_inset Quotes eld
+\end_inset
+
+DEBUG = yes
+\begin_inset Quotes erd
+\end_inset
+
+ (this is slower but outputs more information in case you would encounter
+ a bug) and run it again.
  After you edit the 
 \emph on
 Config.mak
@@ -1361,11 +1416,7 @@ Now update the sources
 \end_layout
 
 \begin_layout LyX-Code
-hg pull
-\end_layout
-
-\begin_layout LyX-Code
-hg update -C
+git pull
 \end_layout
 
 \begin_layout Itemize
@@ -1377,7 +1428,7 @@ Config.mak
 \end_layout
 
 \begin_layout LyX-Code
-cp ../Congig.mak ./
+mv ../Congig.mak ./
 \end_layout
 
 \begin_layout Itemize
@@ -1406,31 +1457,22 @@ POSIX = yes
 \begin_inset Quotes erd
 \end_inset
 
- flag, you will need to create all output directories yourself.
- Normally though this should be done automatically.
- If you wish to move 
-\emph on
-solfec
-\emph default
-, 
-\emph on
-solfec-mpi
-\emph default
- and the input files to some other directory - you need to do it by hand.
- I recommend setting the PATH variable so that the 
-\emph on
-solfec
-\emph default
- directory is included.
- This way some computations not related to development can be done 
+ flag, you will need to create all output directories yourself (on unix
+ systems, with 
 \begin_inset Quotes eld
 \end_inset
 
-outside
+POSIX = yes
 \begin_inset Quotes erd
 \end_inset
 
-.
+, this is done automatically).
+ It may be convenient to set the PATH variable so that the 
+\emph on
+solfec
+\emph default
+ directory, making it easier to run calculations outside of the Solfec source
+ code directory.
 \end_layout
 
 \begin_layout Chapter
@@ -6741,7 +6783,7 @@ obj
 \series bold
 surf1
 \series default
- - first surface identifier (default: 0)
+ - first surface identifier
 \end_layout
 
 \begin_layout Itemize
@@ -6749,21 +6791,17 @@ surf1
 \series bold
 surf2
 \series default
- - second surface identifier (default: 0).
- If 
-\series bold
-surf1
-\series default
- or 
-\series bold
-surf2
-\series default
- (or both) are not specified, a 
+ - second surface identifier; If 
 \emph on
-default
+only
 \emph default
- surface material is being defined (one used when a specific surface pairing
- cannot be found for a new contact point).
+ surf1 is specified, the surface material is used for all contacts with
+ the specified surface; If 
+\emph on
+neither
+\emph default
+ surf1 or surf2 are specified, the surface material is used for any contacts
+ where a more-specific pairing cannot be found.
 \end_layout
 
 \begin_layout Itemize
@@ -13087,7 +13125,7 @@ path
  - file path
 \end_layout
 
-\begin_layout Subsection*
+\begin_layout Standard
 \begin_inset Note Note
 status open
 
@@ -13096,11 +13134,8 @@ PARTITION (body, parts)
 \end_layout
 
 \begin_layout Plain Layout
-This routine 
-\series bold
-internally
-\series default
- partitions a finite element body into parts glued by compatibility constraints.
+This routine internally partitions a finite element body into parts glued
+ by compatibility constraints.
  This allows to improve parallel scalability of simulations with large FE
  meshes.
  Metis 
@@ -13111,24 +13146,17 @@ key "Metis"
 \end_inset
 
  is employed as the partitioner.
+ Parameters:
 \end_layout
 
 \begin_layout Itemize
-
-\series bold
-body
-\series default
- - a finite element body (cannot have background mesh).
+body - a finite element body (cannot have background mesh).
  After partitioning the input body remains intact, while the partitioning
  is handled internally.
 \end_layout
 
 \begin_layout Itemize
-
-\series bold
-parts
-\series default
- - number of partitions
+parts - number of partitions
 \end_layout
 
 \end_inset
@@ -13496,7 +13524,7 @@ quality
 \begin_layout Subsection*
 RENDER(solfec, object) 
 \color red
-(under development)
+(Under development)
 \end_layout
 
 \begin_layout Standard
@@ -13524,7 +13552,16 @@ NB: This
 \emph on
 CANNOT
 \emph default
- be used from within a normal analysis script, but only from a Viewer script.
+ be used from within a normal analysis script, but only from a Viewer script,
+ cf.
+ 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "cha:Viewer-Scripts"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Subsection*
@@ -14244,7 +14281,7 @@ Viewer Scripts
 \end_layout
 
 \begin_layout Standard
-Arbitrary scripts can be run from within the Viewer, using Tools -> Run
+Arbitrary scripts can be run from within the Viewer, using Tools --> Run
  Python Script or the 
 \begin_inset Quotes eld
 \end_inset

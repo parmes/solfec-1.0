@@ -44,10 +44,10 @@ static int setcmp (SURFACE_MATERIAL *a, SURFACE_MATERIAL *b)
 /* create new label */
 static char* newlabel (int size, char *label)
 {
+  int l = label ? strlen (label) : 0;
   char *out;
-  int l;
 
-  if ((l = label ? strlen (label) : 0))
+  if (l)
   {
     ERRMEM (out = malloc (l + 1));
     strcpy (out, label);
@@ -90,48 +90,56 @@ SPSET* SPSET_Create ()
   MEM_Init (&set->matmem, sizeof (SURFACE_MATERIAL), SPCHUNK);
   MEM_Init (&set->setmem, sizeof (SET), SPCHUNK);
   MEM_Init (&set->mapmem, sizeof (MAP), SPCHUNK);
-  ERRMEM (set->tab = malloc (sizeof (SURFACE_MATERIAL*)));
-  set->tab [0] = &set->def;
-  memset (&set->def, 0, sizeof (SURFACE_MATERIAL));
-  set->def.model = SIGNORINI_COULOMB;
+  set->tab = NULL;
   set->set = NULL;
   set->map = NULL;
   set->size = 0;
+
+  SURFACE_MATERIAL data = {0, INT_MAX, INT_MAX, NULL, SIGNORINI_COULOMB, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0};
+  SPSET_Insert (set, INT_MAX, INT_MAX, "DEFAULT", data);
+
   return set;
 }
 
-/* set up default material */
-void SPSET_Default (SPSET *set, SURFACE_MATERIAL data)
-{ 
-  set->def = data;
-  set->def.index = 0;
-  set->def.label = "DEFAULT";
-}
-
-/* insert new material */
+/* insert new material; surf1, surf2 can be set to INT_MAX to indicate default pairing;
+ * e.g. (INT_MAX, INT_MAX) is same as SPSET_Default; (INT_MAX, 1) is all surfaces with surface 1, etc. */
 SURFACE_MATERIAL* SPSET_Insert (SPSET *set, int surf1, int surf2, char *label, SURFACE_MATERIAL data)
 {
-  SURFACE_MATERIAL *out;
+  data.surf1 = MIN (surf1, surf2); /* ascending sort */
+  data.surf2 = MAX (surf1, surf2); /* ascending sort */
+ 
+  SURFACE_MATERIAL *out = SET_Find (set->set, &data, (SET_Compare) setcmp);
 
-  data.surf1 = MIN (surf1, surf2); /* this is not expected from the user */
-  data.surf2 = MAX (surf1, surf2); /* ... */
-  
-  if (! (out = SET_Find (set->set, &data, (SET_Compare) setcmp)))
+  if (out == NULL)
   {
     ERRMEM (out = MEM_Alloc (&set->matmem)); 
+
     out->surf1 = data.surf1;
     out->surf2 = data.surf2;
+
     out->label = newlabel (set->size, label);
+
     SET_Insert (&set->setmem, &set->set, out, (SET_Compare) setcmp);
     MAP_Insert (&set->mapmem, &set->map, out->label, out, (SET_Compare) strcmp);
-    set->size ++;
-    ERRMEM (set->tab = realloc (set->tab, (set->size + 1) * sizeof (SURFACE_MATERIAL)));
-    set->tab [set->size] = out;
-    out->index = set->size; /* 0 - default, 1 - first inserted, ... */
+  }
+  else if (label && strcmp (out->label, label) != 0)
+  {
+    MAP_Delete (&set->mapmem, &set->map, out->label, (SET_Compare) strcmp);
+
+    free (out->label);
+
+    out->label = newlabel (set->size, label);
+
+    MAP_Insert (&set->mapmem, &set->map, out->label, out, (SET_Compare) strcmp);
   }
 
   /* copy all data from the 'model' onwards */
   memcpy (&out->model, &data.model, sizeof (SURFACE_MATERIAL) - ((char*)&data.model - (char*)&data.index));
+
+  ERRMEM (set->tab = realloc (set->tab, (set->size + 1) * sizeof (SURFACE_MATERIAL*)));
+  set->tab [set->size] = out;
+  out->index = set->size ++;
+
 
   return out;
 }
@@ -144,19 +152,36 @@ SURFACE_MATERIAL* SPSET_Find (SPSET *set, int surf1, int surf2)
   tmp.surf1 = MIN (surf1, surf2);
   tmp.surf2 = MAX (surf1, surf2);
 
-  if ((out = SET_Find (set->set, &tmp, (SET_Compare) setcmp))) return out;
-  else return &set->def;
+  out = SET_Find (set->set, &tmp, (SET_Compare) setcmp);
+
+  if (!out)
+  {
+    tmp.surf1 = surf1;
+    tmp.surf2 = INT_MAX;
+    out = SET_Find (set->set, &tmp, (SET_Compare) setcmp);
+  }
+
+  if (!out)
+  {
+    tmp.surf1 = surf2;
+    tmp.surf2 = INT_MAX;
+    out = SET_Find (set->set, &tmp, (SET_Compare) setcmp);
+  }
+
+  if (!out)
+  {
+    tmp.surf1 = tmp.surf2 = INT_MAX;
+    out = SET_Find (set->set, &tmp, (SET_Compare) setcmp);
+    ASSERT_DEBUG (out, "Default surface material not found!");
+  }
+
+  return out;
 }
 
 /* find by label */
 SURFACE_MATERIAL* SPSET_Find_Label (SPSET *set, char *label)
 {
-  SURFACE_MATERIAL *mat;
-  
-  mat = MAP_Find (set->map, label, (MAP_Compare) strcmp);
-
-  if (!mat && strcmp (set->def.label, label) == 0) return &set->def;
-  else return mat;
+  return MAP_Find (set->map, label, (MAP_Compare) strcmp);
 }
 
 /* is there a pair like this? */
@@ -193,15 +218,11 @@ void SPSET_Destroy (SPSET *set)
 /* export MBFCP definition */
 void SPSET_2_MBFCP (SPSET *set, FILE *out)
 {
-  SURFACE_MATERIAL **tab;
-  int i;
+  SURFACE_MATERIAL **tab = set->tab;
 
-  ERRMEM (tab = malloc ((set->size + 1) * sizeof (SURFACE_MATERIAL*)));
-  for (i = 1, tab [0] = &set->def; i <= set->size; i ++) tab [i] = set->tab [i-1];
+  fprintf (out, "SURFACE_MATERIALS:\t%d\n", set->size);
 
-  fprintf (out, "SURFACE_MATERIALS:\t%d\n", set->size + 1);
-
-  for (i = 0; i < set->size + 1; i ++)
+  for (int i = 0; i < set->size + 1; i ++)
   {
     if (i)
     {

@@ -67,8 +67,6 @@ struct spset /* surface pair set */
       setmem,
       mapmem;
 
-  SURFACE_MATERIAL def; /* default data */
-
   SURFACE_MATERIAL **tab; /* table of surface materials */
 
   SET *set;   /* surface pair index based set */
@@ -87,10 +85,8 @@ struct spset /* surface pair set */
 /* create surface pair set */
 SPSET* SPSET_Create ();
 
-/* set up default material */
-void SPSET_Default (SPSET *set, SURFACE_MATERIAL data);
-
-/* insert new material */
+/* insert new material; surf1, surf2 can be set to INT_MAX to indicate default pairing;
+ * e.g. (INT_MAX, INT_MAX) is same as SPSET_Default; (INT_MAX, 1) is all surfaces with surface 1, etc. */
 SURFACE_MATERIAL* SPSET_Insert (SPSET *set, int surf1, int surf2, char *label, SURFACE_MATERIAL data);
 
 /* find by surface pair */

@@ -1917,9 +1917,7 @@ static PyObject* lng_SURFACE_MATERIAL_new (PyTypeObject *type, PyObject *args, P
       }
     }
 
-    if (mat.surf1 != INT_MAX && mat.surf2 != INT_MAX) /* not a default material */
-      self->mat = SPSET_Insert (sol->sps, mat.surf1, mat.surf2, as_string (label), mat); /* insert data into the surface pair set */
-    else SPSET_Default (sol->sps, mat);
+    self->mat = SPSET_Insert (sol->sps, mat.surf1, mat.surf2, as_string (label), mat); /* insert data into the surface pair set */
   }
 
   return  (PyObject*)self;

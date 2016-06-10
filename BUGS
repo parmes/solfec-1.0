@@ -27,3 +27,32 @@ A: Zoltan rebalancing time is very long even though little change is made to the
 Current solution: Repartition every 'dom->updatefreq' steps
 A: that was a cluster node bug in fact
 -------------------------------------------------------------------------------------------------------------------------
+valgrind any example with HDF5 output enabled and look into the initial warnings:
+
+==30178== Syscall param write(buf) points to uninitialised byte(s)
+==30178==    at 0x101862C22: write (in /usr/lib/system/libsystem_kernel.dylib)
+==30178==    by 0x100F07EF5: H5FD_sec2_write (in /usr/local/hdf5/lib/libhdf5.7.dylib)
+==30178==    by 0x1000DCACD: write_frame (pbf.c:82)
+==30178==    by 0x1000DC9A2: PBF_Close (pbf.c:268)
+==30178==    by 0x10013982C: write_state (sol.c:251)
+==30178==    by 0x100139054: SOLFEC_Run (sol.c:747)
+==30178==    by 0x10012D381: lng_RUN (lng.c:7537)
+==30178==    by 0x100CFCD8B: PyEval_EvalFrameEx (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==    by 0x100CF9351: PyEval_EvalCodeEx (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==    by 0x100CF8DCA: PyEval_EvalCode (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==    by 0x100D1900D: PyParser_ASTFromFile (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==    by 0x100D190B0: PyRun_FileExFlags (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==  Address 0x10b206cd6 is 134 bytes inside a block of size 140 alloc'd
+==30178==    at 0x1004BD3B1: malloc (vg_replace_malloc.c:303)
+==30178==    by 0x100F0BFAD: H5FL_malloc (in /usr/local/hdf5/lib/libhdf5.7.dylib)
+==30178==    by 0x1000DCACD: write_frame (pbf.c:82)
+==30178==    by 0x1000DC9A2: PBF_Close (pbf.c:268)
+==30178==    by 0x10013982C: write_state (sol.c:251)
+==30178==    by 0x100139054: SOLFEC_Run (sol.c:747)
+==30178==    by 0x10012D381: lng_RUN (lng.c:7537)
+==30178==    by 0x100CFCD8B: PyEval_EvalFrameEx (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==    by 0x100CF9351: PyEval_EvalCodeEx (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==    by 0x100CF8DCA: PyEval_EvalCode (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==    by 0x100D1900D: PyParser_ASTFromFile (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+==30178==    by 0x100D190B0: PyRun_FileExFlags (in /System/Library/Frameworks/Python.framework/Versions/2.7/Python)
+-------------------------------------------------------------------------------------------------------------------------
