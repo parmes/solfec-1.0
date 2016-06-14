@@ -38,6 +38,7 @@ enum
 /* Export results in XMDF format;
  * ntimes > 0 --> number of individual time instances;
  * ntimes < 0 --> a time interval from times[0] to times[1];
+ * ntimes = 0 --> export current geometry only without attributes;
  */
 void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subset, int attributes);
 

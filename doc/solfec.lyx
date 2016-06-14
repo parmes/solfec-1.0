@@ -13572,7 +13572,19 @@ XDMF_EXPORT (solfec, time, path | subset, attributes)
 
 \begin_layout Standard
 Export results in XDMF format.
- Ignored in 'WRITE' mode.
+ In 'WRITE' mode only the geometry at time 
+\begin_inset Formula $t=0$
+\end_inset
+
+ is saved, while arguments 
+\emph on
+time
+\emph default
+ and 
+\emph on
+attributes
+\emph default
+ are ignored.
 \end_layout
 
 \begin_layout Itemize

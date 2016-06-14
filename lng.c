@@ -8826,8 +8826,6 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
   
   TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[2]));
 
-  if (solfec->sol->mode == SOLFEC_WRITE) Py_RETURN_NONE; /* ignore */
-  
   if (PyList_Check(time))
   {
     ntimes = PyList_Size(time);
@@ -8953,7 +8951,14 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
   }
 
 #if !MPI
-  xdmf_export (solfec->sol, times, ntimes, PyString_AsString(path), subset, attributes);
+  if (solfec->sol->mode == SOLFEC_WRITE)
+  {
+    xdmf_export (solfec->sol, NULL, 0, PyString_AsString(path), subset, 0);
+  }
+  else
+  {
+    xdmf_export (solfec->sol, times, ntimes, PyString_AsString(path), subset, attributes);
+  }
 #endif
 
   SET_Free (NULL, &subset);

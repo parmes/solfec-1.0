@@ -542,6 +542,7 @@ static void write_constraints (DOM *dom, hid_t h5_file, SET *subset, int attribu
 /* Export results in XMDF format;
  * ntimes > 0 --> number of individual time instances;
  * ntimes < 0 --> a time interval from times[0] to times[1];
+ * ntimes = 0 --> export current geometry only without attributes;
  */
 void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subset, int attributes)
 {
@@ -578,7 +579,7 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
     }
     while (sol->dom->time < t1);
   }
-  else
+  else if (ntimes > 0)
   {
     for (int i = 0; i < ntimes; i ++)
     {
@@ -588,6 +589,12 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
 
       write_constraints (sol->dom, h5_file, subset, attributes);
     }
+  }
+  else
+  {
+    attributes = 0;
+
+    write_bodies (sol->dom, h5_file, &gids, &gid, &gid_count, &gid_size, subset, 0);
   }
 
   ASSERT_TEXT (H5LTset_attribute_int (h5_file, ".", "GRID_COUNT", &gid_count, 1) >= 0, "HDF5 file write error");
@@ -750,6 +757,9 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
     fprintf (xmf_file, "</Grid>\n");
     fprintf (xmf_file, "</Domain>\n");
     fprintf (xmf_file, "</Xdmf>\n");
+
+    fclose (xmf_file);
+    free (xmf_path);
   }
 
   /* Fourth --> using the information from the HDF5 file write XDMF file --> Spheres */
@@ -824,15 +834,16 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
     fprintf (xmf_file, "</Grid>\n");
     fprintf (xmf_file, "</Domain>\n");
     fprintf (xmf_file, "</Xdmf>\n");
+
+    fclose (xmf_file);
+    free (xmf_path);
   }
 
   /* Clean up */
-  MAP_Free (NULL, &gids);
   free (gid);
   free (h5_path);
-  free (xmf_path);
-  fclose (xmf_file);
   H5Fclose (h5_file);
+  MAP_Free (NULL, &gids);
 }
 #else
 void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path)
