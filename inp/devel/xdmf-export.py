@@ -14,21 +14,27 @@ for i in range (0, 4):
   BODY (solfec, 'RIGID', piece, mat, label = 'Domino' + str(i+1))
 ball = BODY (solfec, 'RIGID', SPHERE ((0.5, -0.5, 0.4), 0.1, 3, 3), mat)
 INITIAL_VELOCITY (ball, (0, 3, 0), (0, 0, 0))
-RUN (solfec, NEWTON_SOLVER(), 1.0)
 
-# Export XDMF files
-if solfec.mode == 'READ' and not VIEWER():
-  # export initial state:
+# Export initial state or run simulation
+argv = NON_SOLFEC_ARGV()
+if argv != None and '--geom0' in argv:
   XDMF_EXPORT (solfec, 0.0, 'out/xmftest0')
+  solfec.cleanup = 'ON'
+else: RUN (solfec, NEWTON_SOLVER(), 1.0)
+
+# Export results
+if solfec.mode == 'READ' and not VIEWER():
+  # export simulation state at t = 0.5
+  XDMF_EXPORT (solfec, 0.5, 'out/xmftest1')
   # export entire simulation:
-  XDMF_EXPORT (solfec, (0.0, 1.0), 'out/xmftest1')
+  XDMF_EXPORT (solfec, (0.0, 1.0), 'out/xmftest2')
   # 101 time instants:
   times = [0.01*i for i in range(0, 101)]
   # export all bodies at 101 times:
-  XDMF_EXPORT (solfec, times, 'out/xmftest2')
+  XDMF_EXPORT (solfec, times, 'out/xmftest3')
   # export a subset of bodies at 101 times:
-  XDMF_EXPORT (solfec, times, 'out/xmftest3',
+  XDMF_EXPORT (solfec, times, 'out/xmftest4',
     subset = [(0.4, 0, 0, 0.6, 0.05, 0.2), 'Domino2', ball])
   # export Domino2 and Domino3 two attributes at 101 times:
-  XDMF_EXPORT (solfec, times, 'out/xmftest4',
+  XDMF_EXPORT (solfec, times, 'out/xmftest5',
     subset = 'Domino[2,3]', attributes = ['VELO', 'RELV'])
