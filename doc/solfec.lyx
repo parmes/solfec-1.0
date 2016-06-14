@@ -6501,7 +6501,7 @@ obj.outpath
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="1">
+<lyxtabular version="3" rows="4" columns="1">
 <features rotate="0" tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -6533,7 +6533,7 @@ obj.step
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -6545,6 +6545,31 @@ obj.verbose
 \emph default
  - either 'ON' or 'OFF' enabling or disabling writing to standard output
  (default: 'ON') 
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.cleanup
+\series default
+\emph default
+ - either 'ON' or 'OFF' enabling or disabling removal of the output directory
+ in 'WRITE' mode if none results were saved (default: 'OFF' in which case
+ the initial geometry is saved as a result); 
+\series bold
+\emph on
+Note:
+\series default
+\emph default
+ POSIX=yes must be set in Config.mak for the 'ON' functionality to work;
 \end_layout
 
 \end_inset

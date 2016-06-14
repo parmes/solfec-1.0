@@ -1673,6 +1673,27 @@ static int lng_SOLFEC_set_verbose (lng_SOLFEC *self, PyObject *value, void *clos
   return 0;
 }
 
+static PyObject* lng_SOLFEC_get_cleanup (lng_SOLFEC *self, void *closure)
+{
+  if (self->sol->cleanup) return PyString_FromString ("ON");
+  else return PyString_FromString ("OFF");
+}
+
+static int lng_SOLFEC_set_cleanup (lng_SOLFEC *self, PyObject *value, void *closure)
+{
+  if (!is_string (value, "cleanup")) return -1;
+
+  IFIS (value, "ON") self->sol->cleanup = 1;
+  ELIF (value, "OFF") self->sol->cleanup = 0;
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid cleanup value (ON/OFF accepted)");
+    return -1;
+  }
+
+  return 0;
+}
+
 static PyObject* lng_SOLFEC_get_outpath (lng_SOLFEC *self, void *closure)
 {
   return PyString_FromString (self->sol->outpath);
@@ -1704,6 +1725,7 @@ static PyGetSetDef lng_SOLFEC_getset [] =
   {"nbod", (getter)lng_SOLFEC_get_nbod, (setter)lng_SOLFEC_set_nbod, "bodies count", NULL},
   {"step", (getter)lng_SOLFEC_get_step, (setter)lng_SOLFEC_set_step, "time step", NULL},
   {"verbose", (getter)lng_SOLFEC_get_verbose, (setter)lng_SOLFEC_set_verbose, "verbosity", NULL},
+  {"cleanup", (getter)lng_SOLFEC_get_cleanup, (setter)lng_SOLFEC_set_cleanup, "verbosity", NULL},
   {"outpath", (getter)lng_SOLFEC_get_outpath, (setter)lng_SOLFEC_set_outpath, "verbosity", NULL},
   {NULL, 0, 0, NULL, NULL} 
 };

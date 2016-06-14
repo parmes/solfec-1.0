@@ -28,8 +28,12 @@
 #endif
 
 #if POSIX
-#include <sys/stat.h>
+#define _XOPEN_SOURCE 500
+#include <stdio.h>
+#include <ftw.h>
+#include <unistd.h>
 #endif
+
 #include <string.h>
 #include <limits.h>
 #include <float.h>
@@ -39,6 +43,24 @@
 #include "err.h"
 #include "tmr.h"
 #include "mrf.h"
+
+
+#if POSIX
+/* http://stackoverflow.com/questions/5467725/how-to-delete-a-directory-and-its-contents-in-posix-c */
+int unlink_cb(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf)
+{
+  int rv = remove(fpath);
+
+  if (rv) perror(fpath);
+
+  return rv;
+}
+
+int rmrf(char *path)
+{
+  return nftw(path, unlink_cb, 64, FTW_DEPTH | FTW_PHYS);
+}
+#endif
 
 /* defulat initial amoung of boxes */
 #define DEFSIZE 1024
@@ -616,6 +638,7 @@ out:
   MEM_Init (&sol->timemem, sizeof (TIMING), 128);
   sol->timers = NULL;
   sol->verbose = 1;
+  sol->cleanup = 0;
 
   return sol;
 }
@@ -945,6 +968,10 @@ void SOLFEC_Destroy (SOLFEC *sol)
 {
   if (sol->mode == SOLFEC_WRITE && sol->iover < 0)
   {
+#if POSIX
+    if (sol->cleanup) rmrf (sol->outpath); /* remove output directory */
+    else
+#endif
     write_state (sol, NULL, NONE_SOLVER); /* in case state was never written */
   }
 

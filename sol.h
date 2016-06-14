@@ -117,6 +117,9 @@ struct solfec
   /* global verbosity flag */
   short verbose;
 
+  /* output directory removal flag */
+  short cleanup;
+
   /* current solver */
   SOLVER_KIND kind;
   void *solver;
