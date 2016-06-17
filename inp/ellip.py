@@ -1,13 +1,15 @@
 # ellipsoids in a box
 
-step = 1E-3
+step = 5E-3
 stop = 10
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/ellip')
 
-bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E6, poisson = 0.3, density = 1E3)
+GRAVITY (solfec, (0, 0, -1))
 
-surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0, restitution = 1, spring = 1E6, dashpot = 0)
+bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E3, poisson = 0.3, density = 1E3)
+
+surfmat = SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.4, restitution = 0.0)
 
 side = HULL ([0, 0, 0,
               0, 1, 0,
@@ -36,13 +38,15 @@ for i in range (0, n):
       shp = ELLIP ((x, y, z), (0.2*s, 0.3*s, 0.4*s), 3, 3)
       #shp = SPHERE ((x, y, z), 0.2*s, 3, 3)
       ROTATE (shp, (x, y, z), (i+1, j+1, k+1), 7.0*(i+1)*(j+1)*(k+1))
-      bod = BODY (solfec, 'RIGID', shp, bulkmat)
+      bod = BODY (solfec, 'PSEUDO_RIGID', shp, bulkmat)
+      bod.scheme = 'DEF_LIM'
+      bod.damping = step
       len = (x*x+y*y+z*z)**0.5;      
       INITIAL_VELOCITY (bod, (0.01*x/len, -0.005*y/len, 0.07*z/len), (0, 0, 0))
 
 #sv = PENALTY_SOLVER()
-#sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
-sv = NEWTON_SOLVER ()
+sv = GAUSS_SEIDEL_SOLVER (1E-6, 1000)
+#sv = NEWTON_SOLVER ()
 
 OUTPUT (solfec, 0.01)
 RUN (solfec, sv, stop)

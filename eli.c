@@ -31,6 +31,9 @@
 #include "pck.h"
 #include "err.h"
 
+#undef NEW_ELLIP
+#define NEW_ELLIP 1
+
 /* compute the linear operator that transforms a unit sphere into an ellipsoid;
  * extract from it the rotation oprator and scaling coefficients for unit sphere */
 static void sca_rot (double *c, double (*p) [3], double *sca, double *rot)
@@ -67,7 +70,14 @@ ELLIP* ELLIP_Create (double *center, double *radii, int surface, int volume)
   eli->volume = volume;
   eli->mat = NULL;
 
+#if NEW_ELLIP
+  COPY (radii, eli->ref_sca);
+  COPY (radii, eli->cur_sca);
+  IDENTITY (eli->ref_rot);
+  IDENTITY (eli->cur_rot);
+#else
   sca_rot (eli->cur_center, eli->cur_point, eli->cur_sca, eli->cur_rot);
+#endif
 
   return eli;
 }
@@ -370,6 +380,86 @@ double ELLIP_Spatial_Point_Distance (void *dummy, ELLIP *eli, double *point)
   return gjk_ellip_point (eli->cur_center, eli->cur_sca, eli->cur_rot, point, q);
 }
 
+#if NEW_ELLIP
+/* update ellipsoid according to the given motion */
+void ELLIP_Update (ELLIP *eli, void *body, void *shp, MOTION motion)
+{
+  SGP sgp = {shp, eli, GOBJ_ELLIP, NULL};
+  double *ref = eli->ref_center,
+	 (*ref_pnt) [3] = eli->ref_point,
+	 *cur = eli->cur_center,
+	 (*cur_pnt) [3] = eli->cur_point;
+
+  if (motion)
+  { 
+    motion (body, &sgp, ref, cur);
+    motion (body, &sgp, ref_pnt [0], cur_pnt [0]);
+    motion (body, &sgp, ref_pnt [1], cur_pnt [1]);
+    motion (body, &sgp, ref_pnt [2], cur_pnt [2]);
+
+    BODY *bod = body;
+
+    switch (bod->kind)
+    {
+    case RIG:
+    {
+      double *R1 = bod->conf, *R0 = eli->ref_rot, *rot = eli->cur_rot;
+
+      NNMUL (R1, R0, rot);
+    }
+    break;
+    case PRB:
+    {
+      double *F = bod->conf, *sca0 = eli->ref_sca, *rot0 = eli->ref_rot, *sca1 = eli->cur_sca, *rot1 = eli->cur_rot;
+      double U[9] = {1.0/(sca0[0]*sca0[0]), 0.0, 0.0, 0.0, 1.0/(sca0[1]*sca0[1]), 0.0, 0.0, 0.0, 1.0/(sca0[2]*sca0[2])};
+      double A0[9], iF[9], det, X[3], Y[9], A[9];
+
+      NTMUL (U, rot0, Y);
+      NNMUL (rot0, Y, A0);
+
+      TNCOPY (F, Y); /* T --> since deformation gradient is stored row-wise */
+
+      INVERT (Y, iF, det);
+      ASSERT_TEXT (det > 0.0, "det(F) <= 0.0 during ellipsoid update");
+
+      NNMUL (A0, iF, Y);
+      TNMUL (iF, Y, A);
+
+      ASSERT_TEXT (lapack_dsyev ('V', 'U', 3, A, 3, X, Y, 9) == 0, "Eigen decomposition failed during ellipsoid update");
+
+      if (DET(A) < 0.0) /* det(A) is 1.0 or -1.0 */
+      {
+	SCALE9 (A, -1.0); /* keep positive space orientation */
+      }
+
+      NNCOPY (A, rot1);
+
+      sca1[0] = 1.0/sqrt(X[0]);
+      sca1[1] = 1.0/sqrt(X[1]);
+      sca1[2] = 1.0/sqrt(X[2]);
+    }
+    break;
+    default:
+    {
+      ASSERT_TEXT (0, "Invalid body kind during ellipsoid update");
+    }
+    break;
+    }
+  }
+  else
+  {
+    COPY (ref, cur);
+    COPY (ref_pnt [0], cur_pnt [0]);
+    COPY (ref_pnt [1], cur_pnt [1]);
+    COPY (ref_pnt [2], cur_pnt [2]);
+
+    sca_rot (eli->ref_center, eli->ref_point, eli->ref_sca, eli->ref_rot);
+
+    COPY (eli->ref_sca, eli->cur_sca);
+    NNCOPY (eli->ref_rot, eli->cur_rot);
+  }
+}
+#else
 /* update ellipsoid according to the given motion */
 void ELLIP_Update (ELLIP *eli, void *body, void *shp, MOTION motion)
 {
@@ -396,6 +486,7 @@ void ELLIP_Update (ELLIP *eli, void *body, void *shp, MOTION motion)
 
   sca_rot (eli->cur_center, eli->cur_point, eli->cur_sca, eli->cur_rot);
 }
+#endif
 
 /* free ellipsoid */
 void ELLIP_Destroy (ELLIP *eli)
@@ -415,6 +506,14 @@ void ELLIP_Pack (ELLIP *eli, int *dsize, double **d, int *doubles, int *isize, i
 
   pack_doubles (dsize, d, doubles, eli->ref_center, 3);
   pack_doubles (dsize, d, doubles, (double*)eli->ref_point, 9);
+
+#if NEW_ELLIP
+  pack_doubles (dsize, d, doubles, eli->ref_sca, 3);
+  pack_doubles (dsize, d, doubles, eli->ref_rot, 9);
+
+  pack_doubles (dsize, d, doubles, eli->cur_sca, 3);
+  pack_doubles (dsize, d, doubles, eli->cur_rot, 9);
+#endif
 
   pack_int (isize, i, ints, eli->mat ? 1 : 0); /* pack material existence flag */
   if (eli->mat) pack_string (isize, i, ints, eli->mat->label);
@@ -438,6 +537,16 @@ ELLIP* ELLIP_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
   unpack_doubles (dpos, d, doubles, eli->ref_center, 3);
   unpack_doubles (dpos, d, doubles, (double*)eli->ref_point, 9);
 
+#if NEW_ELLIP
+  unpack_doubles (dpos, d, doubles, eli->ref_sca, 3);
+  unpack_doubles (dpos, d, doubles, eli->ref_rot, 9);
+
+  unpack_doubles (dpos, d, doubles, eli->cur_sca, 3);
+  unpack_doubles (dpos, d, doubles, eli->cur_rot, 9);
+#else
+  sca_rot (eli->cur_center, eli->cur_point, eli->cur_sca, eli->cur_rot);
+#endif
+
   j = unpack_int (ipos, i, ints); /* unpack material existence flag */
 
   if (j)
@@ -447,8 +556,6 @@ ELLIP* ELLIP_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
     ASSERT_DEBUG_EXT (eli->mat = MATSET_Find (sol->mat, label), "Failed to find material when unpacking a eliere");
     free (label);
   }
-
-  sca_rot (eli->cur_center, eli->cur_point, eli->cur_sca, eli->cur_rot);
 
   return eli;
 }

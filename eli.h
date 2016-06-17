@@ -29,6 +29,30 @@
 
 typedef struct ellipsoid ELLIP;
 
+#define NEW_ELLIP 1
+
+#if NEW_ELLIP
+/* analytical ellipsoid */
+struct ellipsoid
+{
+  double ref_center [3], /* referential center */
+	 ref_point [3][3]; /* ref_point[i] - ref_center = referential eigen vecotor */
+
+  double cur_center [3], /* cur_center = motion(ref_center) */
+	 cur_point [3][3]; /* cur_point = motion(ref_point) */
+
+  double ref_sca [3], /* unit sphere scaling into unrotated referential ellipsoid */
+         ref_rot [9]; /* initial rotation of the referential ellipsoid */
+
+  double cur_sca [3], /* unit sphere scaling into unrotated current ellipsoid */
+         cur_rot [9]; /* current rotation of the current ellipsoid */
+
+  int surface, /* surface identifier */
+      volume; /* volume identifier */
+
+  BULK_MATERIAL *mat;
+};
+#else
 /* analytical ellipsoid */
 struct ellipsoid
 {
@@ -49,6 +73,7 @@ struct ellipsoid
 
   BULK_MATERIAL *mat;
 };
+#endif
 
 /* create an ellipsoid */
 ELLIP* ELLIP_Create (double *center, double *radii, int surface, int volume);
