@@ -31,9 +31,6 @@
 #include "pck.h"
 #include "err.h"
 
-#undef NEW_ELLIP
-#define NEW_ELLIP 1
-
 /* compute the linear operator that transforms a unit sphere into an ellipsoid;
  * extract from it the rotation oprator and scaling coefficients for unit sphere */
 static void sca_rot (double *c, double (*p) [3], double *sca, double *rot)
@@ -66,18 +63,14 @@ ELLIP* ELLIP_Create (double *center, double *radii, int surface, int volume)
   COPY (center, eli->cur_point [1]); eli->cur_point[1][1] += radii [1];
   COPY (center, eli->cur_point [2]); eli->cur_point[2][2] += radii [2];
 
-  eli->surface = surface;
-  eli->volume = volume;
-  eli->mat = NULL;
-
-#if NEW_ELLIP
   COPY (radii, eli->ref_sca);
   COPY (radii, eli->cur_sca);
   IDENTITY (eli->ref_rot);
   IDENTITY (eli->cur_rot);
-#else
-  sca_rot (eli->cur_center, eli->cur_point, eli->cur_sca, eli->cur_rot);
-#endif
+
+  eli->surface = surface;
+  eli->volume = volume;
+  eli->mat = NULL;
 
   return eli;
 }
@@ -380,7 +373,6 @@ double ELLIP_Spatial_Point_Distance (void *dummy, ELLIP *eli, double *point)
   return gjk_ellip_point (eli->cur_center, eli->cur_sca, eli->cur_rot, point, q);
 }
 
-#if NEW_ELLIP
 /* update ellipsoid according to the given motion */
 void ELLIP_Update (ELLIP *eli, void *body, void *shp, MOTION motion)
 {
@@ -459,34 +451,6 @@ void ELLIP_Update (ELLIP *eli, void *body, void *shp, MOTION motion)
     NNCOPY (eli->ref_rot, eli->cur_rot);
   }
 }
-#else
-/* update ellipsoid according to the given motion */
-void ELLIP_Update (ELLIP *eli, void *body, void *shp, MOTION motion)
-{
-  SGP sgp = {shp, eli, GOBJ_ELLIP, NULL};
-  double *ref = eli->ref_center,
-	 (*ref_pnt) [3] = eli->ref_point,
-	 *cur = eli->cur_center,
-	 (*cur_pnt) [3] = eli->cur_point;
-
-  if (motion)
-  { 
-    motion (body, &sgp, ref, cur);
-    motion (body, &sgp, ref_pnt [0], cur_pnt [0]);
-    motion (body, &sgp, ref_pnt [1], cur_pnt [1]);
-    motion (body, &sgp, ref_pnt [2], cur_pnt [2]);
-  }
-  else
-  {
-    COPY (ref, cur);
-    COPY (ref_pnt [0], cur_pnt [0]);
-    COPY (ref_pnt [1], cur_pnt [1]);
-    COPY (ref_pnt [2], cur_pnt [2]);
-  }
-
-  sca_rot (eli->cur_center, eli->cur_point, eli->cur_sca, eli->cur_rot);
-}
-#endif
 
 /* free ellipsoid */
 void ELLIP_Destroy (ELLIP *eli)
@@ -507,13 +471,11 @@ void ELLIP_Pack (ELLIP *eli, int *dsize, double **d, int *doubles, int *isize, i
   pack_doubles (dsize, d, doubles, eli->ref_center, 3);
   pack_doubles (dsize, d, doubles, (double*)eli->ref_point, 9);
 
-#if NEW_ELLIP
   pack_doubles (dsize, d, doubles, eli->ref_sca, 3);
   pack_doubles (dsize, d, doubles, eli->ref_rot, 9);
 
   pack_doubles (dsize, d, doubles, eli->cur_sca, 3);
   pack_doubles (dsize, d, doubles, eli->cur_rot, 9);
-#endif
 
   pack_int (isize, i, ints, eli->mat ? 1 : 0); /* pack material existence flag */
   if (eli->mat) pack_string (isize, i, ints, eli->mat->label);
@@ -537,15 +499,11 @@ ELLIP* ELLIP_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
   unpack_doubles (dpos, d, doubles, eli->ref_center, 3);
   unpack_doubles (dpos, d, doubles, (double*)eli->ref_point, 9);
 
-#if NEW_ELLIP
   unpack_doubles (dpos, d, doubles, eli->ref_sca, 3);
   unpack_doubles (dpos, d, doubles, eli->ref_rot, 9);
 
   unpack_doubles (dpos, d, doubles, eli->cur_sca, 3);
   unpack_doubles (dpos, d, doubles, eli->cur_rot, 9);
-#else
-  sca_rot (eli->cur_center, eli->cur_point, eli->cur_sca, eli->cur_rot);
-#endif
 
   j = unpack_int (ipos, i, ints); /* unpack material existence flag */
 

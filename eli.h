@@ -29,9 +29,6 @@
 
 typedef struct ellipsoid ELLIP;
 
-#define NEW_ELLIP 1
-
-#if NEW_ELLIP
 /* analytical ellipsoid */
 struct ellipsoid
 {
@@ -52,28 +49,6 @@ struct ellipsoid
 
   BULK_MATERIAL *mat;
 };
-#else
-/* analytical ellipsoid */
-struct ellipsoid
-{
-  double ref_center [3],
-	 ref_point [3][3]; /* v[i] = points [i] - center => is an ith eigen direction */
-
-  /* ellipsoid equation: (x - center)' T' T (x - center) = 1,
-   * where V = {v[0], v[1], v[2]}, and T = inv (V),
-   * let B = T' T and A = inv (B); then A = inv (inv(V)' inv(V)) = VV' */
-
-  double cur_center [3],
-	 cur_point [3][3], /* current images of referential points */
-	 cur_sca [3], /* unit sphere scaling = sqrt (eigenval (A)) */
-         cur_rot [9]; /* unit sphere rotation = eigenvec (A) */
-
-  int surface, /* surface identifier */
-      volume; /* volume identifier */
-
-  BULK_MATERIAL *mat;
-};
-#endif
 
 /* create an ellipsoid */
 ELLIP* ELLIP_Create (double *center, double *radii, int surface, int volume);
