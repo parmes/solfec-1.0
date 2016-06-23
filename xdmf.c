@@ -555,6 +555,8 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   char *xmf_path;
   FILE *xmf_file;
 
+  printf ("XDMF_EXPORT --> starting ...\n");
+
   ASSERT_TEXT ((h5_file = H5Fcreate(h5_path, H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file open error");
 
   if (ntimes < 0)
@@ -567,13 +569,21 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
 
     t1 = MIN (end, times[1]);
 
+    printf ("XDMF_EXPORT --> seeking to time %g ...\n", t0);
+
     SOLFEC_Seek_To (sol, t0);
 
     do
     {
+      printf ("XDMF_EXPORT --> writing bodies at time %g ...\n", sol->dom->time);
+
       write_bodies (sol->dom, h5_file, &gids, &gid, &gid_count, &gid_size, subset, attributes);
 
+      printf ("XDMF_EXPORT --> writing constraints at time %g ...\n", sol->dom->time);
+
       write_constraints (sol->dom, h5_file, subset, attributes);
+
+      printf ("XDMF_EXPORT --> moving to next time step ...\n");
 
       SOLFEC_Forward (sol, 1);
     }
@@ -583,9 +593,15 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   {
     for (int i = 0; i < ntimes; i ++)
     {
+      printf ("XDMF_EXPORT --> seeking to time %g ...\n", times[i]);
+
       SOLFEC_Seek_To (sol, times[i]);
 
+      printf ("XDMF_EXPORT --> writing bodies at time %g ...\n", times[i]);
+
       write_bodies (sol->dom, h5_file, &gids, &gid, &gid_count, &gid_size, subset, attributes);
+
+      printf ("XDMF_EXPORT --> writing constraints at time %g ...\n", times[i]);
 
       write_constraints (sol->dom, h5_file, subset, attributes);
     }
@@ -593,6 +609,8 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   else
   {
     attributes = 0;
+
+    printf ("XDMF_EXPORT --> writing bodies at time 0 ...\n");
 
     write_bodies (sol->dom, h5_file, &gids, &gid, &gid_count, &gid_size, subset, 0);
   }
@@ -608,6 +626,8 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   /* Second --> using the information from the HDF5 file write XDMF file --> Grids */
   if (H5Lexists (h5_file, "GRIDS", H5P_DEFAULT))
   {
+    printf ("XDMF_EXPORT --> exporting grids markup ...\n");
+
     xmf_path = path_and_dirs (path, "_grids.xmf");
     xmf_file = fopen (xmf_path, "w");
     ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
@@ -694,6 +714,8 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   /* Third --> using the information from the HDF5 file write XDMF file --> Constraints */
   if (H5Lexists (h5_file, "CONSTRAINTS", H5P_DEFAULT))
   {
+    printf ("XDMF_EXPORT --> exporting constraints markup ...\n");
+
     xmf_path = path_and_dirs (path, "_constraints.xmf");
     xmf_file = fopen (xmf_path, "w");
     ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
@@ -765,6 +787,8 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   /* Fourth --> using the information from the HDF5 file write XDMF file --> Spheres */
   if (H5Lexists (h5_file, "SPHERES", H5P_DEFAULT))
   {
+    printf ("XDMF_EXPORT --> exporting spheres markup ...\n");
+
     xmf_path = path_and_dirs (path, "_spheres.xmf");
     xmf_file = fopen (xmf_path, "w");
     ASSERT_TEXT (xmf_file, "Opening XDMF markup file %s has failed", xmf_path);
@@ -844,6 +868,8 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
   free (h5_path);
   H5Fclose (h5_file);
   MAP_Free (NULL, &gids);
+
+  printf ("XDMF_EXPORT --> finished.\n");
 }
 #else
 void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path)

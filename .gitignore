@@ -1,0 +1,8 @@
+solfec
+solfec-mpi
+*.a
+*.mod
+*.swp
+*.o
+*.pyc
+ext/blopex/include*
