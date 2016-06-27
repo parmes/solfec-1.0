@@ -19,19 +19,19 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if POSIX
+#define _XOPEN_SOURCE 500
+#include <stdio.h>
+#include <ftw.h>
+#include <unistd.h>
+#endif
+
 #if MPI
 #if ZOLTAN
 #include <zoltan.h>
 #endif
 #include <time.h>
 #include "put.h"
-#endif
-
-#if POSIX
-#define _XOPEN_SOURCE 500
-#include <stdio.h>
-#include <ftw.h>
-#include <unistd.h>
 #endif
 
 #include <string.h>
