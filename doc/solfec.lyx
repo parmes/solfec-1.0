@@ -576,40 +576,36 @@ Installation
 \end_layout
 
 \begin_layout Standard
-Although there will be perpetual releases of Solfec with some fixed version
- numbers, it is best to use the most recent development version of the code.
- This is because Solfec is in an active 
-\begin_inset Quotes eld
+Solfec is hosted on 
+\begin_inset CommandInset href
+LatexCommand href
+name "GitHub"
+target "https://github.com/tkoziara/solfec"
+
 \end_inset
 
-beta
-\begin_inset Quotes erd
-\end_inset
-
- stage of development for the moment.
- In order to download the most recent sources, you first need to install
- 
+ and you will need the 
 \emph on
-Mercurial
+git
 \emph default
-.
+ command installed in order to download its source code.
  Have a look at 
 \begin_inset CommandInset href
 LatexCommand href
-target "http://mercurial.selenic.com/"
+target "https://git-scm.com"
 
 \end_inset
 
  for instructions.
  Once the 
 \emph on
-hg
+git
 \emph default
- command is available on your command line, type
+ command is available in your command line, type
 \end_layout
 
 \begin_layout LyX-Code
-hg clone https://solfec.googlecode.com/hg/ solfec 
+git clone https://github.com/tkoziara/solfec.git
 \end_layout
 
 \begin_layout Standard
@@ -618,38 +614,34 @@ This will create the directory
 solfec
 \emph default
  in your current directory.
- The next thing you need is an ANSI C development environment at your command
- line.
- Users of UNIX-like systems (Linux, FreeBSD, Mac OS X, etc.) are in privileged
- position here.
- Windows users can cope by installing Cygwin from 
+ The next thing you need is a Make/C/C++/Fortran/Python development environment
+ at your command line.
+ Users of UNIX-like systems (e.g.
+ Linux, FreeBSD, Mac OS X) may use a package managers to install those tools.
+ Windows users can install 
 \begin_inset CommandInset href
 LatexCommand href
+name "Cygwin"
 target "http://www.cygwin.com/"
 
 \end_inset
 
- or Mingw from 
+ or 
 \begin_inset CommandInset href
 LatexCommand href
-target "http://www.mingw.org/"
+name "Mingw"
+target "http://mingw-w64.org"
 
 \end_inset
 
-.
-\end_layout
-
-\begin_layout Standard
-Solfec is written in C and it uses a simple makefile to get compiled.
+ instead.
+ Solfec is written in C and it uses a simple makefile to get compiled.
  The file 
 \emph on
 solfec/Config.mak
 \emph default
- needs to be modified on a new machine so that to set up library paths and
- compilation flags.
- Let us have a look at the file 
-\emph on
-solfec/Config.mak
+ needs to be modified to set up library paths and compilation flags.
+ Here is an example:
 \end_layout
 
 \begin_layout LyX-Code
@@ -741,7 +733,11 @@ CXX = g++
 \end_layout
 
 \begin_layout LyX-Code
-FC = g95
+FC = gfortran
+\end_layout
+
+\begin_layout LyX-Code
+FCLIB = -lgfortran
 \end_layout
 
 \begin_layout LyX-Code
@@ -749,7 +745,37 @@ FC = g95
 \end_layout
 
 \begin_layout LyX-Code
-FCLIB = -L/opt/local/lib/g95/i386-apple-darwin9/4.0.4/ -lf95
+#
+\end_layout
+
+\begin_layout LyX-Code
+# Local body storage (yes/no)
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+# If 'no' all bodies all stored on all processors; this implies less communicati
+on during parallel balancing;
+\end_layout
+
+\begin_layout LyX-Code
+# When 'yes' bodies are only stored locally in parallel; this is more suitable
+ for larger simulations;
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+LOCAL_BODIES = yes
 \end_layout
 
 \begin_layout LyX-Code
@@ -773,7 +799,7 @@ FCLIB = -L/opt/local/lib/g95/i386-apple-darwin9/4.0.4/ -lf95
 \end_layout
 
 \begin_layout LyX-Code
-DEBUG = yes
+DEBUG = no
 \end_layout
 
 \begin_layout LyX-Code
@@ -885,7 +911,7 @@ HDF5LIB = -L/usr/local/hdf5/lib -lhdf5 -lhdf5_hl
 \end_layout
 
 \begin_layout LyX-Code
-# XDR
+# XDR (must be set when HDF5 = no)
 \end_layout
 
 \begin_layout LyX-Code
@@ -933,7 +959,7 @@ XDRLIB =
 \end_layout
 
 \begin_layout LyX-Code
-BLAS = -L/usr/lib -lblas
+BLAS = -lblas
 \end_layout
 
 \begin_layout LyX-Code
@@ -957,7 +983,7 @@ BLAS = -L/usr/lib -lblas
 \end_layout
 
 \begin_layout LyX-Code
-LAPACK = -L/usr/lib -llapack
+LAPACK = -llapack
 \end_layout
 
 \begin_layout LyX-Code
@@ -981,11 +1007,11 @@ LAPACK = -L/usr/lib -llapack
 \end_layout
 
 \begin_layout LyX-Code
-PYTHON = -I/usr/include/python2.5
+PYTHON = -I/usr/include/python2.7
 \end_layout
 
 \begin_layout LyX-Code
-PYTHONLIB = -L/usr/lib -lpython2.5
+PYTHONLIB = -L/usr/lib -lpython2.7
 \end_layout
 
 \begin_layout LyX-Code
@@ -1013,7 +1039,7 @@ OPENGL = yes
 \end_layout
 
 \begin_layout LyX-Code
-GLINC =
+GLINC = -Wno-deprecated-declarations
 \end_layout
 
 \begin_layout LyX-Code
@@ -1171,12 +1197,7 @@ SICONOSLIB = -L/usr/local/lib -l SiconosNumerics
 
 \begin_layout Standard
 The above configuration works on Mac OS X.
- Examples for Linux and Cygwin can be found in 
-\emph on
-solfec/cfg
-\emph default
-.
- What you need is:
+ To recap, what you need is:
 \end_layout
 
 \begin_layout Itemize
@@ -1204,7 +1225,7 @@ target "http://www.hdfgroup.org"
 \end_layout
 
 \begin_layout Itemize
-(optional)
+(optional, deprecated)
 \series bold
  XDR
 \series default
@@ -1260,7 +1281,7 @@ Python
 \series bold
 OpenGL
 \series default
- libraries and developments files
+ libraries and developments files (this enables Solfec's viewer)
 \end_layout
 
 \begin_layout Itemize
@@ -1288,7 +1309,22 @@ Zoltan
 \series bold
 dynlb
 \series default
- load balancing library
+ load balancing library; Zoltan can be obtained from 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://www.cs.sandia.gov/Zoltan/"
+
+\end_inset
+
+ and dynlb can be obtained from 
+\begin_inset CommandInset href
+LatexCommand href
+name "https://github.com/tkoziara/dynlb"
+target "https://github.com/tkoziara/dynlb"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Itemize
@@ -1317,57 +1353,11 @@ target "http://siconos.gforge.inria.fr/HomePage/index.html"
 \end_layout
 
 \begin_layout Standard
-On unix systems many of those tools are readily available via package integrated
- managers.
- Zoltan can be obtained from 
-\begin_inset CommandInset href
-LatexCommand href
-target "http://www.cs.sandia.gov/Zoltan/"
-
-\end_inset
-
- and dynlb can be obtained from 
-\begin_inset CommandInset href
-LatexCommand href
-name "https://github.com/tkoziara/dynlb"
-target "https://github.com/tkoziara/dynlb"
-
-\end_inset
-
-.
- In case of troubles, use the Solfec mailing list at 
-\begin_inset CommandInset href
-LatexCommand href
-target "http://groups.google.com/group/solfec"
-
-\end_inset
-
-.
- Use 
-\begin_inset Quotes eld
-\end_inset
-
-DEBUG = no
-\begin_inset Quotes erd
-\end_inset
-
- most of the time: this will make Solfec about 40% faster.
- Nonetheless, when you experience trouble with running the code, recompile
- it with 
-\begin_inset Quotes eld
-\end_inset
-
-DEBUG = yes
-\begin_inset Quotes erd
-\end_inset
-
- (this is slower but outputs more information in case you would encounter
- a bug) and run it again.
- After you edit the 
+To compile Solfec, after editing the 
 \emph on
 Config.mak
 \emph default
- file, the first compilation should look like
+ file, the first compilation should look like this
 \end_layout
 
 \begin_layout LyX-Code
@@ -1390,8 +1380,7 @@ solfec/solfec
 solec/solfec-mpi
 \emph default
 , that is the serial and the parallel versions of the code.
- For every subsequent code update and compilation you will like to do the
- following
+ For every subsequent update and compilation you will like to do the following
 \end_layout
 
 \begin_layout Itemize
@@ -1444,7 +1433,27 @@ make all
 \end_layout
 
 \begin_layout Standard
-The 
+Use 
+\begin_inset Quotes eld
+\end_inset
+
+DEBUG = no
+\begin_inset Quotes erd
+\end_inset
+
+ most of the time: this will make Solfec about 40% faster.
+ Nonetheless, when you experience trouble with running the code, recompile
+ it with 
+\begin_inset Quotes eld
+\end_inset
+
+DEBUG = yes
+\begin_inset Quotes erd
+\end_inset
+
+ (this is slower but outputs more information in case you would encounter
+ a bug) and run it again.
+ The 
 \emph on
 solfec/inp
 \emph default
@@ -1457,8 +1466,8 @@ POSIX = yes
 \begin_inset Quotes erd
 \end_inset
 
- flag, you will need to create all output directories yourself (on unix
- systems, with 
+ flag, you will need to create output directories yourself before running
+ calculations (on systems where 
 \begin_inset Quotes eld
 \end_inset
 
@@ -1466,13 +1475,20 @@ POSIX = yes
 \begin_inset Quotes erd
 \end_inset
 
-, this is done automatically).
- It may be convenient to set the PATH variable so that the 
+ works, this is done automatically).
+ It may be convenient to modify the PATH variable to point to the 
 \emph on
 solfec
 \emph default
- directory, making it easier to run calculations outside of the Solfec source
- code directory.
+ directory, making it easier to run Solfec form any location in your filesystem.
+ You can ask for help, using the Solfec mailing list at 
+\begin_inset CommandInset href
+LatexCommand href
+target "http://groups.google.com/group/solfec"
+
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Chapter

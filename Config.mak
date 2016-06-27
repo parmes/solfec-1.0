@@ -23,10 +23,6 @@ CXX = g++
 FC = gfortran
 FCLIB = -lgfortran
 
-# 
-# Debug or optimized version switch (yes/no)
-#
-
 #
 # Local body storage (yes/no)
 #
@@ -34,6 +30,10 @@ FCLIB = -lgfortran
 # When 'yes' bodies are only stored locally in parallel; this is more suitable for larger simulations;
 #
 LOCAL_BODIES = yes
+
+# 
+# Debug or optimized version switch (yes/no)
+#
 
 # general debug tests
 DEBUG = yes
@@ -72,7 +72,7 @@ HDF5INC = -I/usr/local/hdf5/include
 HDF5LIB = -L/usr/local/hdf5/lib -lhdf5 -lhdf5_hl
 
 #
-# XDR
+# XDR (must be set when HDF5 = no)
 #
 
 XDR = no
@@ -84,13 +84,13 @@ XDRLIB =
 # BLAS
 #
 
-BLAS = -L/usr/lib -lblas
+BLAS = -lblas
 
 #
 # LAPACK
 #
 
-LAPACK = -L/usr/lib -llapack
+LAPACK = -llapack
 
 #
 # Python
