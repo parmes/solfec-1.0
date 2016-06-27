@@ -616,8 +616,8 @@ solfec
  in your current directory.
  The next thing you need is a Make/C/C++/Fortran/Python development environment
  at your command line.
- Users of UNIX-like systems (e.g.
- Linux, FreeBSD, Mac OS X) may use a package managers to install those tools.
+ Users of Unix type systems (e.g.
+ Linux, FreeBSD, Mac OS X) may use a package manager to install those tools.
  Windows users can install 
 \begin_inset CommandInset href
 LatexCommand href
@@ -757,13 +757,19 @@ FCLIB = -lgfortran
 \end_layout
 
 \begin_layout LyX-Code
-# If 'no' all bodies all stored on all processors; this implies less communicati
-on during parallel balancing;
+# If 'no' all bodies all stored on all processors;
 \end_layout
 
 \begin_layout LyX-Code
-# When 'yes' bodies are only stored locally in parallel; this is more suitable
- for larger simulations;
+# this implies less communication during parallel balancing;
+\end_layout
+
+\begin_layout LyX-Code
+# When 'yes' bodies are only stored locally in parallel;
+\end_layout
+
+\begin_layout LyX-Code
+# this is more suitable for larger simulations;
 \end_layout
 
 \begin_layout LyX-Code
@@ -1135,12 +1141,19 @@ ZOLTANLIB = -L/Users/tomek/Devel/lib/zoltan/lib -lzoltan
 \end_layout
 
 \begin_layout LyX-Code
-# Dynlb load balancer (MPI = yes) available at: https://github.com/tkoziara/dynlb
+# Dynlb load balancer (MPI = yes) available at:
 \end_layout
 
 \begin_layout LyX-Code
-# This option is used when ZOLTAN = no above; Use path to dynlb directory
- below;
+# https://github.com/tkoziara/dynlb
+\end_layout
+
+\begin_layout LyX-Code
+# This option is used when ZOLTAN = no above;
+\end_layout
+
+\begin_layout LyX-Code
+# Use path to dynlb directory below;
 \end_layout
 
 \begin_layout LyX-Code
@@ -1211,12 +1224,10 @@ C, C++, FORTRAN 95
 \begin_layout Itemize
 
 \series bold
-HDF5
-\series default
- library, available at 
+\color blue
 \begin_inset CommandInset href
 LatexCommand href
-name "http://www.hdfgroup.org"
+name "HDF5 library"
 target "http://www.hdfgroup.org"
 
 \end_inset
@@ -1229,43 +1240,24 @@ target "http://www.hdfgroup.org"
 \series bold
  XDR
 \series default
- (standard part of RPC on all Unix-like systems; on MinGW you will need
- 
-\begin_inset CommandInset href
-LatexCommand href
-name "PortableXDR version 4.9.1"
-target "http://people.redhat.com/~rjones/portablexdr/"
-
-\end_inset
-
- with this 
-\begin_inset CommandInset href
-LatexCommand href
-name "patch"
-target "http://wiki.solfec.googlecode.com/hg/xdr_float.patch"
-
-\end_inset
-
-)
+ (standard part of RPC on all Unix type systems)
 \end_layout
 
 \begin_layout Itemize
 
 \series bold
-BLAS
-\series default
- and 
-\series bold
-LAPACK
-\series default
- libraries (standard on most systems; available from 
+\color blue
 \begin_inset CommandInset href
 LatexCommand href
+name "BLAS and LAPACK"
 target "http://www.netlib.org/lapack/"
 
 \end_inset
 
-)
+
+\series default
+\color inherit
+ libraries (standard on most systems)
 \end_layout
 
 \begin_layout Itemize
@@ -1303,52 +1295,51 @@ MPI
 \begin_layout Itemize
 either 
 \series bold
-Zoltan
-\series default
- load balancing library or 
-\series bold
-dynlb
-\series default
- load balancing library; Zoltan can be obtained from 
+\color blue
+
 \begin_inset CommandInset href
 LatexCommand href
+name "Zoltan"
 target "http://www.cs.sandia.gov/Zoltan/"
 
 \end_inset
 
- and dynlb can be obtained from 
+
+\series default
+\color inherit
+ load balancing library or 
+\series bold
+\color blue
+
 \begin_inset CommandInset href
 LatexCommand href
-name "https://github.com/tkoziara/dynlb"
+name "dynlb"
 target "https://github.com/tkoziara/dynlb"
 
 \end_inset
 
 
+\series default
+\color inherit
+ load balancing library
 \end_layout
 
 \begin_layout Itemize
 (optional)
 \series bold
- Siconos
-\series default
+ 
+\color blue
 
-\begin_inset Foot
-status open
-
-\begin_layout Plain Layout
 \begin_inset CommandInset href
 LatexCommand href
-name "http://siconos.gforge.inria.fr/HomePage/index.html"
-target "http://siconos.gforge.inria.fr/HomePage/index.html"
+name "Siconos"
+target "http://siconos.gforge.inria.fr"
 
 \end_inset
 
 
-\end_layout
-
-\end_inset
-
+\series default
+\color inherit
  contact solvers library
 \end_layout
 
@@ -1481,13 +1472,18 @@ POSIX = yes
 solfec
 \emph default
  directory, making it easier to run Solfec form any location in your filesystem.
- You can ask for help, using the Solfec mailing list at 
+ You can ask for help, using the 
+\color blue
+
 \begin_inset CommandInset href
 LatexCommand href
+name "Solfec mailing list"
 target "http://groups.google.com/group/solfec"
 
 \end_inset
 
+
+\color inherit
 .
 \end_layout
 

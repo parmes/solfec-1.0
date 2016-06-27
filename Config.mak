@@ -26,8 +26,10 @@ FCLIB = -lgfortran
 #
 # Local body storage (yes/no)
 #
-# If 'no' all bodies all stored on all processors; this implies less communication during parallel balancing;
-# When 'yes' bodies are only stored locally in parallel; this is more suitable for larger simulations;
+# If 'no' all bodies all stored on all processors;
+# this implies less communication during parallel balancing;
+# When 'yes' bodies are only stored locally in parallel;
+# this is more suitable for larger simulations;
 #
 LOCAL_BODIES = yes
 
@@ -129,8 +131,10 @@ ZOLTANINC = -I/usr/local/include
 ZOLTANLIB = -L/usr/local/lib -lzoltan
 
 #
-# Dynlb load balancer (MPI = yes) available at: https://github.com/tkoziara/dynlb
-# This option is used when ZOLTAN = no above; Use path to dynlb directory below;
+# Dynlb load balancer (MPI = yes) available at:
+# https://github.com/tkoziara/dynlb
+# This option is used when ZOLTAN = no above;
+# Use path to dynlb directory below;
 # Use -fopenmp flag with MPICC when compiling with dynlb;
 #
 

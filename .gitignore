@@ -6,3 +6,4 @@ solfec-mpi
 *.o
 *.pyc
 ext/blopex/include*
+doc/#*
