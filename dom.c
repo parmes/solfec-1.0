@@ -1503,7 +1503,11 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
 #if ZOLTAN
     Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 #else
+#if LB2
+    numprocs = dynlb_box_assign (dom->lb_bod, e, e+3, procs);
+#else
     numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
+#endif
 #endif
 
     for (i = 0; i < numprocs; i ++)
@@ -2057,6 +2061,64 @@ static void domain_balancing (DOM *dom)
     dom->rebalanced ++;
   }
 #else
+#if LB2
+    double *pnt_bod[3], *pnt_con[3];
+
+    ERRMEM (pnt_bod[0] = malloc (dom->nbod * sizeof (double)));
+    ERRMEM (pnt_bod[1] = malloc (dom->nbod * sizeof (double)));
+    ERRMEM (pnt_bod[2] = malloc (dom->nbod * sizeof (double)));
+
+    for (bod = dom->bod, i = 0; bod; bod = bod->next, i ++)
+    {
+      double *e = bod->extents, v[3];
+      MID (e, e+3, v);
+      pnt_bod[0][i] = v[0];
+      pnt_bod[1][i] = v[1];
+      pnt_bod[2][i] = v[2];
+    }
+
+    ERRMEM (pnt_con[0] = malloc (dom->ncon* sizeof (double)));
+    ERRMEM (pnt_con[1] = malloc (dom->ncon* sizeof (double)));
+    ERRMEM (pnt_con[2] = malloc (dom->ncon* sizeof (double)));
+
+    for (con = dom->con, i = 0; con; con = con->next, i ++)
+    {
+      pnt_con[0][i] = con->point[0];
+      pnt_con[1][i] = con->point[1];
+      pnt_con[2][i] = con->point[2];
+    }
+
+    MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+
+    if (dom->lb_bod == NULL)
+    {
+      dom->lb_bod = dynlb_create (0, dom->nbod, pnt_bod, 0, dom->imbalance_tolerance - 1.0, DYNLB_RCB_TREE);
+    } 
+    else 
+    {
+      dom->lb_bod->epsilon = dom->imbalance_tolerance - 1.0;
+
+      dynlb_update (dom->lb_bod, dom->nbod, pnt_bod);
+    }
+
+    if (dom->lb_con == NULL)
+    {
+      dom->lb_con = dynlb_create (0, dom->ncon, pnt_con, 0, dom->imbalance_tolerance - 1.0, DYNLB_RCB_TREE);
+    } 
+    else 
+    {
+      dom->lb_con->epsilon = dom->imbalance_tolerance - 1.0;
+
+      dynlb_update (dom->lb_con, dom->ncon, pnt_con);
+    }
+
+    free (pnt_bod[0]);
+    free (pnt_bod[1]);
+    free (pnt_bod[2]);
+    free (pnt_con[0]);
+    free (pnt_con[1]);
+    free (pnt_con[2]);
+#else
     double *point[3];
     int npoint = dom->ncon + dom->nbod;
 
@@ -2082,6 +2144,7 @@ static void domain_balancing (DOM *dom)
 
     MPI_Comm_rank (MPI_COMM_WORLD, &rank);
 
+
     if (dom->lb == NULL)
     {
       dom->lb = dynlb_create (0, npoint, point, 0, dom->imbalance_tolerance - 1.0, DYNLB_RCB_TREE);
@@ -2096,12 +2159,17 @@ static void domain_balancing (DOM *dom)
     free (point[0]);
     free (point[1]);
     free (point[2]);
+#endif
 
     for (bod = dom->bod; bod; bod = bod->next)
     {
       double *e = bod->extents, v [3];
       MID (e, e+3, v);
+#if LB2
+      rank = dynlb_point_assign (dom->lb_bod, v);
+#else
       rank = dynlb_point_assign (dom->lb, v);
+#endif
       if (rank != dom->rank)
       {
 	bod->rank = rank;
@@ -2114,7 +2182,11 @@ static void domain_balancing (DOM *dom)
 
     for (con = dom->con; con; con = con->next)
     {
+#if LB2
+      rank = dynlb_point_assign (dom->lb_con, con->point);
+#else
       rank = dynlb_point_assign (dom->lb, con->point);
+#endif
       if (rank != dom->rank) SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL);
     }
 #endif
@@ -2744,7 +2816,12 @@ static void create_mpi (DOM *dom)
 #if ZOLTAN
   ASSERT (dom->zol = Zoltan_Create (MPI_COMM_WORLD), ERR_ZOLTAN); /* zoltan context domain partitioning */
 #else
+#if LB2
+    dom->lb_bod = NULL;
+    dom->lb_con = NULL;
+#else
     dom->lb = NULL;
+#endif
 #endif
 
 #if ZOLTAN
@@ -2788,7 +2865,12 @@ static void destroy_mpi (DOM *dom)
 #if ZOLTAN
   Zoltan_Destroy (&dom->zol);
 #else
+#if LB2
+  dynlb_destroy (dom->lb_bod);
+  dynlb_destroy (dom->lb_con);
+#else
   dynlb_destroy (dom->lb);
+#endif
 #endif
 }
 #endif

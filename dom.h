@@ -29,6 +29,8 @@
 #include "com.h"
 #endif
 
+#define LB2 1 /* FIXME --> development of separated load balancing strategy */
+
 #include "mem.h"
 #include "map.h"
 #include "box.h"
@@ -266,7 +268,12 @@ struct domain
 #if ZOLTAN
   struct Zoltan_Struct *zol; /* load balancing */
 #else
+#if LB2
+  struct dynlb *lb_bod; /* load balancing of bodies */
+  struct dynlb *lb_con; /* load balancing of constraints */
+#else
   struct dynlb *lb; /* load balancing */
+#endif
 #endif
   double imbalance_tolerance; /* imbalance threshold */
   double weight_factor; /* local dynamics weight factor */
