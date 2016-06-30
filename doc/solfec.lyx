@@ -1539,7 +1539,7 @@ reference "fig:Solfec-viewer"
 \end_inset
 
 ).
- In this mode the user can view the geometrical mode, run or step through
+ In this mode the user can view the geometrical model, run or step through
  analysis, and view results.
  The right mouse click on the viewer window expands the menu.
 \end_layout
@@ -1692,7 +1692,7 @@ Because the directory
 \emph on
 out/cubes
 \emph default
- is specified when creating the SOLFEC obejct in the 
+ is specified when creating the SOLFEC object in the 
 \emph on
 inp/cubes.py
 \emph default
@@ -1825,7 +1825,7 @@ mpirun -np 4 ./solfec-mpi inp/test.py -s dir1 arg1 arg2
 \end_layout
 
 \begin_layout Standard
-then some results will be written into 'out/test/dir1/arg1'.
+then  results will be written into 'out/test/dir1/arg1'.
  You can see that command line input parameters can influence the location
  of the output directory.
  Since for this first run Solfec did not manage to find any results located
