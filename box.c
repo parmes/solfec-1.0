@@ -156,11 +156,7 @@ static void detach_and_attach (AABB *aabb)
   dom = aabb->dom;
   rank = dom->rank;
   ncpu = dom->ncpu;
-#if LB2
-  ERRMEM (procs = malloc (sizeof (int [2*ncpu])));
-#else
   ERRMEM (procs = malloc (sizeof (int [ncpu])));
-#endif
 
   /* test existing boxes for overlap with this partition */
   for (box = aabb->lst; box; box = box->next)
@@ -171,8 +167,7 @@ static void detach_and_attach (AABB *aabb)
     ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 #else
 #if LB2
-    int numprocs0 = dynlb_box_assign (dom->lb_bod, e, e+3, procs);
-    numprocs = numprocs0 + dynlb_box_assign (dom->lb_con, e, e+3, procs+numprocs0);
+    numprocs = dynlb_box_assign (isinf(dom->lb_con->imbalance) ? dom->lb_bod : dom->lb_con, e, e+3, procs);
 #else
     numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
 #endif
@@ -206,8 +201,7 @@ static void detach_and_attach (AABB *aabb)
 	ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 #else
 #if LB2
-	int numprocs0 = dynlb_box_assign (dom->lb_bod, e, e+3, procs);
-	numprocs = numprocs0 + dynlb_box_assign (dom->lb_con, e, e+3, procs+numprocs0);
+	numprocs = dynlb_box_assign (isinf(dom->lb_con->imbalance) ? dom->lb_bod : dom->lb_con, e, e+3, procs);
 #else
         numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
 #endif
@@ -245,8 +239,7 @@ static void detach_and_attach (AABB *aabb)
 	ASSERT (Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs) == ZOLTAN_OK, ERR_ZOLTAN);
 #else
 #if LB2
-	int numprocs0 = dynlb_box_assign (dom->lb_bod, e, e+3, procs);
-	numprocs = numprocs0 + dynlb_box_assign (dom->lb_con, e, e+3, procs+numprocs0);
+	numprocs = dynlb_box_assign (isinf(dom->lb_con->imbalance) ? dom->lb_bod : dom->lb_con, e, e+3, procs);
 #else
 	numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
 #endif

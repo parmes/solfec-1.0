@@ -1504,7 +1504,7 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
     Zoltan_LB_Box_Assign (dom->zol, e[0], e[1], e[2], e[3], e[4], e[5], procs, &numprocs);
 #else
 #if LB2
-    numprocs = dynlb_box_assign (dom->lb_bod, e, e+3, procs);
+    numprocs = dynlb_box_assign (isinf(dom->lb_con->imbalance) ? dom->lb_bod : dom->lb_con, e, e+3, procs);
 #else
     numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
 #endif
@@ -2183,7 +2183,7 @@ static void domain_balancing (DOM *dom)
     for (con = dom->con; con; con = con->next)
     {
 #if LB2
-      rank = dynlb_point_assign (dom->lb_con, con->point);
+      rank = dynlb_point_assign (isinf(dom->lb_con->imbalance) ? dom->lb_bod : dom->lb_con, con->point);
 #else
       rank = dynlb_point_assign (dom->lb, con->point);
 #endif

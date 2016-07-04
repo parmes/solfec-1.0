@@ -270,7 +270,7 @@ obj/cvx.o: cvx.c cvx.h spx.h err.h alg.h hyb.h gjk.h mot.h
 obj/hyb.o: hyb.c hyb.h box.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-obj/box.o: box.c box.h bod.h hyb.h mem.h map.h set.h err.h alg.h
+obj/box.o: box.c box.h dom.h bod.h hyb.h mem.h map.h set.h err.h alg.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/msh.o: msh.c msh.h cvx.h spx.h mem.h map.h err.h alg.h mot.h
@@ -385,7 +385,7 @@ obj/com-mpi.o: com.c com.h map.h alg.h err.h
 obj/pbf-mpi.o: pbf.c pbf.h map.h mem.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
-obj/box-mpi.o: box.c box.h hyb.h mem.h map.h set.h err.h alg.h
+obj/box-mpi.o: box.c box.h dom.h hyb.h mem.h map.h set.h err.h alg.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/bod-mpi.o: bod.c bod.h shp.h mtx.h pbf.h mem.h alg.h map.h err.h bla.h lap.h mat.h but.h
