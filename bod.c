@@ -2454,8 +2454,10 @@ void BODY_Child_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isiz
     pack_int (isize, i, ints, (int) (long) item->data);
 
   pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod)); /* configuration */
+  pack_doubles (dsize, d, doubles, bod->velo, velo_pack_size (bod)); /* velocity */
 
-  pack_int (isize, i, ints, bod->scheme); /* pack integration scheme */
+  pack_int (isize, i, ints, bod->scheme); /* integration scheme */
+  pack_int (isize, i, ints, bod->flags & BODY_PERMANENT_FLAGS); /* flags */
   
   pack_double (dsize, d, doubles, bod->damping); /* damping */
 }
@@ -2478,8 +2480,10 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
   }
 
   unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod)); /* configuration */
+  unpack_doubles (dpos, d, doubles, bod->velo, velo_pack_size (bod)); /* velocity */
 
-  bod->scheme = unpack_int (ipos, i, ints);  /* unpack integration scheme */
+  bod->scheme = unpack_int (ipos, i, ints);  /* integration scheme */
+  bod->flags |= unpack_int (ipos, i, ints); /* flags */
 
   bod->damping = unpack_double (dpos, d, doubles); /* damping */
 
@@ -2496,6 +2500,7 @@ void BODY_Child_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos,
 void BODY_Child_Update_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   pack_doubles (dsize, d, doubles, bod->conf, conf_pack_size (bod));
+  pack_doubles (dsize, d, doubles, bod->velo, velo_pack_size (bod));
 }
 
 /* unpack child update */
@@ -2504,6 +2509,7 @@ void BODY_Child_Update_Unpack (BODY *bod, int *dpos, double *d, int doubles, int
   short dynamic = bod->dom->dynamic;
 
   unpack_doubles (dpos, d, doubles, bod->conf, conf_pack_size (bod));
+  unpack_doubles (dpos, d, doubles, bod->velo, velo_pack_size (bod));
 
   /* init inverse */
   if (dynamic) BODY_Dynamic_Init (bod);

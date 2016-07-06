@@ -46,7 +46,7 @@ endif
 
 ifneq ($(ZOLTAN),yes)
   LBINC = -I$(DYNLB)
-  LBLIB = -L$(DYNLB) -ldynlb
+  LBLIB = -L$(DYNLB) -ldynlb8
   LB = -DDYNLB $(LBINC)
 else
   LBINC = $(ZOLTANINC)

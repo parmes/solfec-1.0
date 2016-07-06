@@ -14,7 +14,7 @@ KINEM = 'FINITE_ELEMENT'
 SOLVER = 'ns'
 SAREA = 0.05
 step = 0.001
-duration =  10 * step
+duration =  100 * step
 MAKE_TESTS = 0 # make convergence tests
 
 def cube (x, y, z, a, b, c, sur, vol):
@@ -334,6 +334,8 @@ def callback (sv):
   return 1
 
 if not VIEWER() and NCPU(solfec) == 1: CALLBACK (solfec, step, sv, callback)
+
+IMBALANCE_TOLERANCE (solfec, 1.1)
 
 RUN (solfec, sv, duration)
 
