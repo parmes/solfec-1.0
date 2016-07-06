@@ -6437,6 +6437,7 @@ static PyObject* lng_IMBALANCE_TOLERANCE (PyObject *self, PyObject *args, PyObje
   TYPETEST (is_solfec (solfec, kwl[0]) && is_positive (tolerance, kwl[1]) &&
             is_ge_le (weightfactor, kwl [2], 0.0, 1.0) && is_ge (updatefreq, kwl [3], 1));
 #if MPI
+  solfec->sol->dom->imbalance_tolerance = tolerance;
   solfec->sol->dom->weight_factor = weightfactor;
   solfec->sol->dom->updatefreq = updatefreq;
 #endif
