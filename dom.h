@@ -23,8 +23,7 @@
 #if ZOLTAN
 #include <zoltan.h>
 #else
-#define REAL double
-#include <dynlb.h>
+#include <dynlb8.h>
 #endif
 #include "com.h"
 #endif

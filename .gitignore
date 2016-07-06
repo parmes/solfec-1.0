@@ -1,3 +1,4 @@
+out/*
 solfec
 solfec-mpi
 *.a
