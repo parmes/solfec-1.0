@@ -2057,21 +2057,27 @@ static void domain_balancing (DOM *dom)
     dom->rebalanced ++;
   }
 #else
-    double *point[3];
-    int npoint = dom->ncon + dom->nbod;
+  /* processing constraints dominates computational time -->
+   * we favour the use of contact points to guide load balancing */
+  int npoint = dom->ncon > dom->nbod ? dom->ncon : dom->nbod;
+  double *point[3];
 
-    ERRMEM (point[0] = malloc (npoint * sizeof (double)));
-    ERRMEM (point[1] = malloc (npoint * sizeof (double)));
-    ERRMEM (point[2] = malloc (npoint * sizeof (double)));
+  ERRMEM (point[0] = malloc (npoint * sizeof (double)));
+  ERRMEM (point[1] = malloc (npoint * sizeof (double)));
+  ERRMEM (point[2] = malloc (npoint * sizeof (double)));
 
+  if (dom->ncon > dom->nbod)
+  {
     for (con = dom->con, i = 0; con; con = con->next, i ++)
     {
       point[0][i] = con->point[0];
       point[1][i] = con->point[1];
       point[2][i] = con->point[2];
     }
-
-    for (bod = dom->bod; bod; bod = bod->next, i ++)
+  }
+  else
+  {
+    for (bod = dom->bod, i = 0; bod; bod = bod->next, i ++)
     {
       double *e = bod->extents, v[3];
       MID (e, e+3, v);
@@ -2079,44 +2085,45 @@ static void domain_balancing (DOM *dom)
       point[1][i] = v[1];
       point[2][i] = v[2];
     }
+  }
 
-    MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
 
-    if (dom->lb == NULL)
+  if (dom->lb == NULL)
+  {
+    dom->lb = dynlb_create (0, npoint, point, 0, dom->imbalance_tolerance - 1.0, DYNLB_RCB_TREE);
+  } 
+  else 
+  {
+    dom->lb->epsilon = dom->imbalance_tolerance - 1.0;
+
+    dynlb_update (dom->lb, npoint, point);
+  }
+
+  free (point[0]);
+  free (point[1]);
+  free (point[2]);
+
+  for (bod = dom->bod; bod; bod = bod->next)
+  {
+    double *e = bod->extents, v [3];
+    MID (e, e+3, v);
+    rank = dynlb_point_assign (dom->lb, v);
+    if (rank != dom->rank)
     {
-      dom->lb = dynlb_create (0, npoint, point, 0, dom->imbalance_tolerance - 1.0, DYNLB_RCB_TREE);
-    } 
-    else 
-    {
-      dom->lb->epsilon = dom->imbalance_tolerance - 1.0;
-
-      dynlb_update (dom->lb, npoint, point);
-    }
-
-    free (point[0]);
-    free (point[1]);
-    free (point[2]);
-
-    for (bod = dom->bod; bod; bod = bod->next)
-    {
-      double *e = bod->extents, v [3];
-      MID (e, e+3, v);
-      rank = dynlb_point_assign (dom->lb, v);
-      if (rank != dom->rank)
-      {
-	bod->rank = rank;
-	SET_Insert (&dom->setmem, &dbd [rank].bodies, bod, NULL);
+      bod->rank = rank;
+      SET_Insert (&dom->setmem, &dbd [rank].bodies, bod, NULL);
 #if PSCTEST
-	PSC_Write_Body (bod);
+      PSC_Write_Body (bod);
 #endif
-      }
     }
+  }
 
-    for (con = dom->con; con; con = con->next)
-    {
-      rank = dynlb_point_assign (dom->lb, con->point);
-      if (rank != dom->rank) SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL);
-    }
+  for (con = dom->con; con; con = con->next)
+  {
+    rank = dynlb_point_assign (dom->lb, con->point);
+    if (rank != dom->rank) SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL);
+  }
 #endif
 
   /* --- */
