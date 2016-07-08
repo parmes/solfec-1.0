@@ -1,7 +1,9 @@
-#LyX 2.1 created this file. For more info see http://www.lyx.org/
-\lyxformat 474
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
 \begin_document
 \begin_header
+\save_transient_properties true
+\origin unavailable
 \textclass book
 \use_default_options true
 \maintain_unincluded_children false
@@ -9,16 +11,16 @@
 \language_package default
 \inputencoding auto
 \fontencoding global
-\font_roman default
-\font_sans default
-\font_typewriter default
-\font_math auto
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
 \font_default_family default
 \use_non_tex_fonts false
 \font_sc false
 \font_osf false
-\font_sf_scale 100
-\font_tt_scale 100
+\font_sf_scale 100 100
+\font_tt_scale 100 100
 \graphics default
 \default_output_format default
 \output_sync 0
@@ -1669,7 +1671,7 @@ The
  Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:SOLFEC"
+reference "subsec:SOLFEC"
 
 \end_inset
 
@@ -1981,13 +1983,17 @@ Feature maturity matrix
 \begin_layout Standard
 The below table gives indicative assessment of the maturity of various Solfec
  commands.
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="81" columns="4">
-<features rotate="0" islongtable="true" longtabularalignment="center">
+<features islongtable="true" longtabularalignment="center">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top">
@@ -5084,7 +5090,7 @@ Solfec objects
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:CONVEX"
+name "subsec:CONVEX"
 
 \end_inset
 
@@ -5172,13 +5178,17 @@ obj
 Some parameters can also be accessed as members and methods of a CONVEX
  object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -5318,7 +5328,7 @@ mesh
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:MESH"
+name "subsec:MESH"
 
 \end_inset
 
@@ -5510,13 +5520,17 @@ gid
 \begin_layout Standard
 Some parameters can also be accessed as members and methods of a MESH object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -5582,7 +5596,7 @@ in the same format as for MESH().
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
@@ -5935,6 +5949,10 @@ obj
 shape
 \series default
  - an input shape can be:
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_deeper
@@ -6005,7 +6023,7 @@ surfid
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:SPHERE"
+name "subsec:SPHERE"
 
 \end_inset
 
@@ -6071,13 +6089,17 @@ surfid
 \begin_layout Standard
 Some parameters can also be accessed as members of a SPHERE object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6117,7 +6139,7 @@ obj.center, obj.radius
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:ELLIPSOID"
+name "subsec:ELLIPSOID"
 
 \end_inset
 
@@ -6187,13 +6209,17 @@ surfid
 \begin_layout Standard
 Some parameters can also be accessed as members of a ELLIP object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6255,7 +6281,7 @@ obj.rot
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:SOLFEC"
+name "subsec:SOLFEC"
 
 \end_inset
 
@@ -6320,13 +6346,17 @@ Important note:
 \begin_layout Standard
 Some parameters can also be accessed as members of a SOLFEC object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="9" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6514,7 +6544,7 @@ obj.outpath
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6652,6 +6682,11 @@ width "95col%"
 special "none"
 height "1in"
 height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
 status open
 
 \begin_layout Plain Layout
@@ -6727,13 +6762,17 @@ data
 \begin_layout Standard
 Some parameters can also be accessed as members of a FIELD object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6773,7 +6812,7 @@ obj.label
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:SURFACE_MATERIAL"
+name "subsec:SURFACE_MATERIAL"
 
 \end_inset
 
@@ -6931,13 +6970,17 @@ hpow
 \begin_layout Standard
 Some parameters can also be accessed as members of a SURFACE_MATERIAL object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -6978,7 +7021,7 @@ obj.surf1, obj.surf2, obj.label
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -7025,7 +7068,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="2">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="40col%">
 <row>
@@ -7066,7 +7109,7 @@ friction, cohesion, restitution (cf.
  Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:Signorini-Coulomb"
+reference "subsec:Signorini-Coulomb"
 
 \end_inset
 
@@ -7094,7 +7137,7 @@ spring, dashpot, friction, cohesion, hpow (cf.
  Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:Spring-dashpot"
+reference "subsec:Spring-dashpot"
 
 \end_inset
 
@@ -7141,7 +7184,7 @@ Surface material models.
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:BULK_MATERIAL"
+name "subsec:BULK_MATERIAL"
 
 \end_inset
 
@@ -7282,13 +7325,17 @@ fracene
 \begin_layout Standard
 Some parameters can also be accessed as members of a BULK_MATERIAL object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -7329,7 +7376,7 @@ obj.model, obj.label
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -7376,7 +7423,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="2">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="40col%">
 <column alignment="center" valignment="top" width="40col%">
 <row>
@@ -7417,7 +7464,7 @@ young, poisson, density (cf.
  Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:Kirchhoff"
+reference "subsec:Kirchhoff"
 
 \end_inset
 
@@ -7532,6 +7579,10 @@ shape
 kind
 \series default
  is 'FINITE_ELEMENT', then two cases are possible:
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_deeper
@@ -7658,13 +7709,17 @@ reference "tab:formulation"
 \begin_layout Standard
 Some parameters can also be accessed as members of a BODY object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="12" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -7910,7 +7965,7 @@ obj.display_points
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -8029,7 +8084,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="2">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
@@ -8187,7 +8242,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="2">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
@@ -8318,7 +8373,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="2">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
@@ -8462,7 +8517,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="2">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
 <row>
@@ -8559,7 +8614,7 @@ Components x, y, z of spatial velocities of mesh nodes.
 \begin_inset Text
 
 \begin_layout Plain Layout
-Column-wise rotation matrix followed by the current mass center.
+Referential angular velocity followed by the spatial velocity of mass center.
 \end_layout
 
 \end_inset
@@ -8606,7 +8661,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="7" columns="3">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="15col%">
 <column alignment="center" valignment="top" width="20col%">
 <column alignment="center" valignment="top" width="50col%">
@@ -8983,7 +9038,7 @@ label
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -9088,7 +9143,7 @@ obj.integral
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:GAUSS_SEIDEL_SOLVER"
+name "subsec:GAUSS_SEIDEL_SOLVER"
 
 \end_inset
 
@@ -9252,13 +9307,17 @@ value = callback (obj, data)
 Some parameters can also be accessed as members of a GAUSS_SEIDEL_SOLVER
  object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="6" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -9376,7 +9435,7 @@ obj.merhist
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="5" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -9488,7 +9547,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="2">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top">
 <row>
@@ -9613,7 +9672,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="3" columns="2">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="60col%">
 <row>
@@ -9944,13 +10003,17 @@ gsflag
 \begin_layout Standard
 Some parameters can also be accessed as members of a NEWTON_SOLVER object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="4" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -10029,7 +10092,7 @@ obj.mvhist
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -10155,13 +10218,17 @@ verbose
 \begin_layout Standard
 Some parameters can also be accessed as members of a SICONOS_SOLVER object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -10839,13 +10906,17 @@ smax
 \begin_layout Standard
 Some parameters can also be accessed as members of a CONSTRAINT object.
  These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="13" columns="1">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
 <cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
@@ -11264,6 +11335,11 @@ width "95col%"
 special "none"
 height "1in"
 height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
 status open
 
 \begin_layout Plain Layout
@@ -11568,7 +11644,7 @@ status open
 \align center
 \begin_inset Tabular
 <lyxtabular version="3" rows="2" columns="3">
-<features rotate="0" tabularvalignment="middle">
+<features tabularvalignment="middle">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top" width="20col%">
 <column alignment="center" valignment="top" width="50col%">
@@ -14099,6 +14175,10 @@ list
 \emph default
  indicating requested values.
  The valid objects are: 
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_deeper
@@ -14249,6 +14329,10 @@ None
 entity
 \emph default
  is:
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_deeper
@@ -14330,7 +14414,7 @@ Viewer Scripts
 \end_layout
 
 \begin_layout Standard
-Arbitrary scripts can be run from within the Viewer, using Tools --> Run
+Arbitrary scripts can be run from within the Viewer, using Tools –> Run
  Python Script or the 
 \begin_inset Quotes eld
 \end_inset
@@ -14541,6 +14625,10 @@ Note, that the floor is simply an obstacle - it does not move.
 
 \begin_layout Standard
 This will create a Solfec viewer, which should result in the following picture
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -14786,6 +14874,10 @@ body
 
  m/s.
  Let us have a look at the model so far.
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -14859,6 +14951,10 @@ solfec
 \begin_layout Standard
 One second of the simulation was computed.
  Let us have a look at the displacement along z at the end of this time.
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -15105,6 +15201,10 @@ menu: domain: next
 \emph default
 .
  In this example the three models do not visibly differ.
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -15220,6 +15320,10 @@ target "http://matplotlib.sourceforge.net/index.html"
  We next use the HISTORY command in order to retrieve the time histories
  of the kinetic energy for all three created SOLFEC objects.
  The result in plotted into an EPS file, visible below.
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -15262,21 +15366,21 @@ Contacts from overlaps
 Body shapes are juxtapositions of convex objects (Sections 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:CONVEX"
+reference "subsec:CONVEX"
 
 \end_inset
 
 , 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:MESH"
+reference "subsec:MESH"
 
 \end_inset
 
 , 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:SPHERE"
+reference "subsec:SPHERE"
 
 \end_inset
 
@@ -15697,7 +15801,7 @@ A surface material is assigned to a pairing of surfaces.
  See Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:SURFACE_MATERIAL"
+reference "subsec:SURFACE_MATERIAL"
 
 \end_inset
 
@@ -15707,7 +15811,7 @@ reference "sub:SURFACE_MATERIAL"
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:Signorini-Coulomb"
+name "subsec:Signorini-Coulomb"
 
 \end_inset
 
@@ -15874,7 +15978,7 @@ key "Koziara2008PhD"
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:Spring-dashpot"
+name "subsec:Spring-dashpot"
 
 \end_inset
 
@@ -16254,7 +16358,7 @@ A bulk material is assigned to a volume.
  See Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:BULK_MATERIAL"
+reference "subsec:BULK_MATERIAL"
 
 \end_inset
 
@@ -16264,7 +16368,7 @@ reference "sub:BULK_MATERIAL"
 \begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
-name "sub:Kirchhoff"
+name "subsec:Kirchhoff"
 
 \end_inset
 
@@ -16497,7 +16601,7 @@ Signorini-Coulomb revisited
 We express the Signorini-Coulomb law defined in Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:Signorini-Coulomb"
+reference "subsec:Signorini-Coulomb"
 
 \end_inset
 
@@ -17631,7 +17735,7 @@ n (e.g.
 In Section 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "sub:GAUSS_SEIDEL_SOLVER"
+reference "subsec:GAUSS_SEIDEL_SOLVER"
 
 \end_inset
 
@@ -18088,6 +18192,10 @@ PQN1(
 
 \begin_layout Enumerate
 Do
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_deeper
@@ -18359,6 +18467,10 @@ PQN2(
 
 \begin_layout Enumerate
 Do
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_deeper
