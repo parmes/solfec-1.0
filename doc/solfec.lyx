@@ -3827,7 +3827,7 @@ x
 \begin_inset Text
 
 \begin_layout Plain Layout
-MATERIAL
+APPLY_BULK_MATERIAL
 \end_layout
 
 \end_inset
@@ -5413,10 +5413,6 @@ Element types in Solfec.
 
 \end_layout
 
-\begin_layout Plain Layout
-
-\end_layout
-
 \end_inset
 
 
@@ -5915,7 +5911,7 @@ surfids
 \emph on
 s1, s2, s3, s
 \emph default
-4] corresponding to the faces of the pape
+4] corresponding to the faces of the pipe
 \end_layout
 
 \begin_layout Subsection*
@@ -12352,12 +12348,12 @@ angular
 \end_layout
 
 \begin_layout Subsection*
-MATERIAL (solfec, body, volid, material)
+APPLY_BULK_MATERIAL (solfec, body, volid, material)
 \end_layout
 
 \begin_layout Standard
-This routine applies material to a subset of geometric objects with the
- given volume identifier.
+This routine applies bulk material to a subset of geometric objects with
+ the given volume identifier.
 \end_layout
 
 \begin_layout Itemize

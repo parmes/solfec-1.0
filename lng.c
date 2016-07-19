@@ -6603,7 +6603,7 @@ static PyObject* lng_INITIAL_VELOCITY (PyObject *self, PyObject *args, PyObject 
 }
 
 /* apply bulk material */
-static PyObject* lng_MATERIAL (PyObject *self, PyObject *args, PyObject *kwds)
+static PyObject* lng_APPLY_BULK_MATERIAL (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("solfec", "body", "volid", "material");
   PyObject *material;
@@ -9510,7 +9510,7 @@ static PyMethodDef lng_methods [] =
   {"VIEWER", (PyCFunction)lng_VIEWER, METH_NOARGS, "Test whether the viewer is enabled"},
   {"BODY_CHARS", (PyCFunction)lng_BODY_CHARS, METH_VARARGS|METH_KEYWORDS, "Overwrite body characteristics"},
   {"INITIAL_VELOCITY", (PyCFunction)lng_INITIAL_VELOCITY, METH_VARARGS|METH_KEYWORDS, "Apply initial velocity"},
-  {"MATERIAL", (PyCFunction)lng_MATERIAL, METH_VARARGS|METH_KEYWORDS, "Apply bulk material"},
+  {"APPLY_BULK_MATERIAL", (PyCFunction)lng_APPLY_BULK_MATERIAL, METH_VARARGS|METH_KEYWORDS, "Apply bulk material"},
   {"DELETE", (PyCFunction)lng_DELETE, METH_VARARGS|METH_KEYWORDS, "Delete a body or a constraint"},
   {"SCALE", (PyCFunction)lng_SCALE, METH_VARARGS|METH_KEYWORDS, "Scale shape"},
   {"TRANSLATE", (PyCFunction)lng_TRANSLATE, METH_VARARGS|METH_KEYWORDS, "Translate shape"},
