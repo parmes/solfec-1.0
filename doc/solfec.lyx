@@ -3827,7 +3827,7 @@ x
 \begin_inset Text
 
 \begin_layout Plain Layout
-APPLY_BULK_MATERIAL
+APPLY_BULKMAT
 \end_layout
 
 \end_inset
@@ -6818,7 +6818,7 @@ SURFACE_MATERIAL
 \begin_layout Standard
 An object of type SURFACE_MATERIAL represents material properties on the
  interface between two surfaces.
- Surfaces identifiers were included in definitions of all geometric objects.
+ Surfaces identifiers are included in definitions of all geometric objects.
 \end_layout
 
 \begin_layout Subsection*
@@ -12348,7 +12348,7 @@ angular
 \end_layout
 
 \begin_layout Subsection*
-APPLY_BULK_MATERIAL (solfec, body, volid, material)
+APPLY_BULKMAT (solfec, body, volid, material)
 \end_layout
 
 \begin_layout Standard
