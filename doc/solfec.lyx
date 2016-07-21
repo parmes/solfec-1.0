@@ -1972,6 +1972,14 @@ x
  intact.
 \end_layout
 
+\begin_layout Itemize
+Routines marked as 
+\color red
+(Under development)
+\color inherit
+ are functional, although they may be unstable.
+\end_layout
+
 \begin_layout Standard
 Sections below document Solfec objects and routines used for their manipulation.
 \end_layout
@@ -12711,6 +12719,8 @@ angle
 
 \begin_layout Subsection*
 (one, two) = SPLIT (shape, point, normal | surfid, topoadj, remesh)
+\color red
+ (Under development)
 \end_layout
 
 \begin_layout Standard
@@ -12838,7 +12848,9 @@ WARNING:
 \end_layout
 
 \begin_layout Subsection*
-[out1, out2, ...] = MESH_SPLIT (mesh, nodeset | surfid)
+[out1, out2, ...] = MESH_SPLIT (mesh, nodeset | surfid) 
+\color red
+(Under development)
 \end_layout
 
 \begin_layout Standard
@@ -13361,7 +13373,7 @@ path
 \end_layout
 
 \begin_layout Subsection*
-NON_SOLFEC_ARGV ()
+argv = NON_SOLFEC_ARGV ()
 \end_layout
 
 \begin_layout Standard
@@ -13369,6 +13381,15 @@ This routine returns all command line arguments (in the form of a list of
  strings) that have been passed to 'solfec' or 'solfec-mpi' application
  and has not been identified as valid Solfec arguments.
  This way the user can pass some arguments to the input scripts.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+argv
+\series default
+ - list of non-solfec specific arguments passed to 'solfec' or 'solfec-mpi'
+ command
 \end_layout
 
 \begin_layout Subsection*
