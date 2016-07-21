@@ -2093,12 +2093,14 @@ static void domain_balancing (DOM *dom)
   {
     dom->lb = dynlb_create (0, npoint, point, 0, dom->imbalance_tolerance - 1.0, DYNLB_RCB_TREE);
   } 
-  else 
+  else if (dom->rebalanced % dom->updatefreq == 0)
   {
     dom->lb->epsilon = dom->imbalance_tolerance - 1.0;
 
     dynlb_update (dom->lb, npoint, point);
   }
+
+  dom->rebalanced ++;
 
   free (point[0]);
   free (point[1]);

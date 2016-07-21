@@ -9749,7 +9749,7 @@ int lng (const char *path)
                      "from solfec import VIEWER\n"
                      "from solfec import BODY_CHARS\n"
                      "from solfec import INITIAL_VELOCITY\n"
-                     "from solfec import MATERIAL\n"
+                     "from solfec import APPLY_BULKMAT\n"
                      "from solfec import DELETE\n"
                      "from solfec import SCALE\n"
                      "from solfec import TRANSLATE\n"

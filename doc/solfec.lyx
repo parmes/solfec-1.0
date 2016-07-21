@@ -11392,7 +11392,7 @@ force
 \emph on
 (spatial force, spatial torque, referential torque)
 \emph default
-, while for other hinds of bodies this is a generalized force of the same
+, while for other kinds of bodies this is a generalized force of the same
  dimension as the velocity 
 \series bold
 u
@@ -11904,7 +11904,7 @@ UNPHYSICAL_PENETRATION (solfec, depth)
 \end_layout
 
 \begin_layout Standard
-This routine sets a depth of an unphysical interpenetration.
+This routine sets a depth of an allowed unphysical interpenetration.
  Once it is exceeded, the simulation is stopped and a suitable error message
  printed out.
 \end_layout
@@ -12009,9 +12009,7 @@ time
 \end_layout
 
 \begin_layout Subsection*
-RIGID_TO_FEM (path, time, solfec) 
-\color red
-(Under development)
+RIGID_TO_FEM (path, time, solfec)
 \end_layout
 
 \begin_layout Standard
@@ -12113,6 +12111,14 @@ tor equals 1.0.
  This however can sometimes result in a poor load balance for contact detection
  or time integration.
  Making it smaller than 1.0 can improve the overall balance in such cases.
+ 
+\emph on
+Note:
+\emph default
+ This parameter is ignored if DYNLB load balancer is used; in this case,
+ on a per-rank basis, body centroids are used to guide load balancing if
+ there is more bodies than constrains on a given rank at given time; otherwise
+ contact/constraint points are used to guide load balancing.
 \end_layout
 
 \begin_layout Itemize
