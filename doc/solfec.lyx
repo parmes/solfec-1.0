@@ -12088,7 +12088,7 @@ This routine sets the imbalance tolerance for parallel balancing of Solfec
  A ratio of maximal to minimal per processor count of objects used.
  Hence, 1.0 indicates perfect balance, while any ratio > 1.0 indicates an
  imbalance.
- Initially imbalance tolerances are all set to 1.3.
+ Initially imbalance tolerance is set to 1.1.
  This routine is ignored during sequential runs.
 \end_layout
 
@@ -12105,7 +12105,7 @@ solfec
 \series bold
 tolerance
 \series default
- - data imbalance tolerance (default: 1.3)
+ - data imbalance tolerance (default: 1.1)
 \end_layout
 
 \begin_layout Itemize

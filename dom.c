@@ -2747,7 +2747,7 @@ static void create_mpi (DOM *dom)
 
   stats_create (dom);
 
-  dom->imbalance_tolerance = 1.3;
+  dom->imbalance_tolerance = 1.1;
   dom->weight_factor = 1.0;
 
 #if ZOLTAN
