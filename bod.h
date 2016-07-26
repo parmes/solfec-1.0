@@ -149,11 +149,13 @@ struct general_body
          ref_center [3],
          ref_tensor [9]; /* RIG => Inertia tensor
 			    PRB => Euler tensor */
-  double *conf,
-         *velo,
-         *field;   /* FEM field variables at mesh nodes (# num nodes * mat->nfield) */
 
-  int dofs;        /* velocity degrees of freedom count */
+  double *conf,    /* configuration */
+         *velo;    /* velocity */
+
+  int dofs;        /* number of velocity degrees of freedom */
+
+  double *field;   /* FEM field variables at mesh nodes (# num nodes * mat->nfield) */
 
   SET *con;        /* adjacent constraints */
 
