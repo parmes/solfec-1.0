@@ -173,7 +173,7 @@ struct general_body
 
   SCHEME scheme;    /* integration scheme */
 
-  MX *inverse;      /* a suitable inverse oprator (e.g. of inertia for explicit dynamics) */
+  MX *inverse;      /* generalized inverse inertia oprator */
 
   MX *M;            /* inertia operator */
 

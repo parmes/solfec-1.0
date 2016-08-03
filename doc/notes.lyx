@@ -1,45 +1,74 @@
-#LyX 1.6.5 created this file. For more info see http://www.lyx.org/
-\lyxformat 345
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
 \begin_document
 \begin_header
+\save_transient_properties true
+\origin unavailable
 \textclass book
 \use_default_options true
+\maintain_unincluded_children false
 \language english
+\language_package default
 \inputencoding auto
-\font_roman default
-\font_sans default
-\font_typewriter default
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
 \font_default_family default
+\use_non_tex_fonts false
 \font_sc false
 \font_osf false
-\font_sf_scale 100
-\font_tt_scale 100
-
+\font_sf_scale 100 100
+\font_tt_scale 100 100
 \graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
 \paperfontsize default
 \spacing single
 \use_hyperref false
 \papersize default
 \use_geometry true
-\use_amsmath 1
-\use_esint 1
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 0
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 0
+\use_package stmaryrd 1
+\use_package undertilde 1
 \cite_engine basic
+\cite_engine_type default
+\biblio_style plain
 \use_bibtopic false
+\use_indices false
 \paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 0
+\index Index
+\shortcut idx
+\color #008000
+\end_index
 \leftmargin 2cm
 \rightmargin 2cm
 \secnumdepth 2
 \tocdepth 2
 \paragraph_separation indent
-\defskip medskip
+\paragraph_indentation default
 \quotes_language english
 \papercolumns 1
 \papersides 1
 \paperpagestyle default
 \tracking_changes false
 \output_changes false
-\author "" 
-\author "" 
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
 \end_header
 
 \begin_body
@@ -263,8 +292,10 @@ shp_order_det
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-X\left(\xi\right)=\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}nodes[i,:]\cdot N_{i}\left(\xi\right)\]
+\begin_inset Formula 
+\[
+X\left(\xi\right)=\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}nodes[i,:]\cdot N_{i}\left(\xi\right)
+\]
 
 \end_inset
 
@@ -299,8 +330,10 @@ vector, the local coordinate.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-F_{0}=\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}nodes[i,:]\otimes\partial N_{i}\left(\xi\right)/\partial\xi\]
+\begin_inset Formula 
+\[
+F_{0}=\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}nodes[i,:]\otimes\partial N_{i}\left(\xi\right)/\partial\xi
+\]
 
 \end_inset
 
@@ -308,8 +341,10 @@ and
 \end_layout
 
 \begin_layout LyX-Code
-\begin_inset Formula \[
-J=\det\left(F_{0}\right)\]
+\begin_inset Formula 
+\[
+J=\det\left(F_{0}\right)
+\]
 
 \end_inset
 
@@ -336,8 +371,10 @@ shp_order_gradient
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\partial N_{i}/\partial X=\partial N_{i}/\partial\xi\cdot\partial\xi/\partial X=\partial N_{i}/\partial\xi\cdot F_{0}^{-1}\]
+\begin_inset Formula 
+\[
+\partial N_{i}/\partial X=\partial N_{i}/\partial\xi\cdot\partial\xi/\partial X=\partial N_{i}/\partial\xi\cdot F_{0}^{-1}
+\]
 
 \end_inset
 
@@ -345,8 +382,10 @@ so that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-derivs\left[3\cdot i:3\cdot i+3\right]=F_{0}^{-T}\cdot\partial N_{i}/\partial\xi\]
+\begin_inset Formula 
+\[
+derivs\left[3\cdot i:3\cdot i+3\right]=F_{0}^{-T}\cdot\partial N_{i}/\partial\xi
+\]
 
 \end_inset
 
@@ -362,8 +401,10 @@ hence
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-derivs=\left[N_{0,X},N_{0,Y},N_{0,Z},N_{1,X},N_{1,Y},N_{1,Z},...,N_{n,X},N_{n,Y},N_{n,Z}\right]\]
+\begin_inset Formula 
+\[
+derivs=\left[N_{0,X},N_{0,Y},N_{0,Z},N_{1,X},N_{1,Y},N_{1,Z},...,N_{n,X},N_{n,Y},N_{n,Z}\right]
+\]
 
 \end_inset
 
@@ -371,8 +412,10 @@ The deformation gradient is then computes as
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-F=I+\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}q[i,:]\otimes\partial N_{i}\left(point\right)/\partial X=I+\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}q[i,:]\otimes derivs\left[3\cdot i:3\cdot i+3\right]\label{eq:F}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+F=I+\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}q[i,:]\otimes\partial N_{i}\left(point\right)/\partial X=I+\sum_{i=0}^{\dim_{0}\left(nodes\right)-1}q[i,:]\otimes derivs\left[3\cdot i:3\cdot i+3\right]\label{eq:F}
+\end{equation}
 
 \end_inset
 
@@ -402,8 +445,10 @@ where the
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-f_{int}=\int_{\Omega_{0}}P\cdot\partial N/\partial Xd\Omega_{0}\]
+\begin_inset Formula 
+\[
+f_{int}=\int_{\Omega_{0}}P\cdot\partial N/\partial Xd\Omega_{0}
+\]
 
 \end_inset
 
@@ -411,8 +456,10 @@ and hence
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-f_{int}\left[3i:3i+3\right]\stackrel{+}{=}P\cdot derivs\left[3i:3i+3\right]\]
+\begin_inset Formula 
+\[
+f_{int}\left[3i:3i+3\right]\stackrel{+}{=}P\cdot derivs\left[3i:3i+3\right]
+\]
 
 \end_inset
 
@@ -430,8 +477,10 @@ in line 15, where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\partial f_{int}/\partial q=\int_{\Omega_{0}}\left[\partial P/\partial F\cdot\partial F/\partial q\right]\cdot\partial N/\partial Xd\Omega_{0}\]
+\begin_inset Formula 
+\[
+\partial f_{int}/\partial q=\int_{\Omega_{0}}\left[\partial P/\partial F\cdot\partial F/\partial q\right]\cdot\partial N/\partial Xd\Omega_{0}
+\]
 
 \end_inset
 
@@ -439,8 +488,10 @@ Let
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-K=\partial P/\partial F\]
+\begin_inset Formula 
+\[
+K=\partial P/\partial F
+\]
 
 \end_inset
 
@@ -448,8 +499,10 @@ K=\partial P/\partial F\]
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-B=\partial F/\partial q\]
+\begin_inset Formula 
+\[
+B=\partial F/\partial q
+\]
 
 \end_inset
 
@@ -508,8 +561,10 @@ so that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\partial f_{int}/\partial q_{i}\left[3i:3i+3\right]\stackrel{+}{=}KB_{i}\cdot derivs\left[3i:3i+3\right]\]
+\begin_inset Formula 
+\[
+\partial f_{int}/\partial q_{i}\left[3i:3i+3\right]\stackrel{+}{=}KB_{i}\cdot derivs\left[3i:3i+3\right]
+\]
 
 \end_inset
 
@@ -521,8 +576,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-q=\left[q_{X}^{0},q_{Y}^{0},q_{z}^{0},....,q_{X}^{n-1},q_{Y}^{n-1},q_{Z}^{n-1}\right]\]
+\begin_inset Formula 
+\[
+q=\left[q_{X}^{0},q_{Y}^{0},q_{z}^{0},....,q_{X}^{n-1},q_{Y}^{n-1},q_{Z}^{n-1}\right]
+\]
 
 \end_inset
 
@@ -569,12 +626,14 @@ What remains to be sorted is a convenient way to compute
  with a dense algebra kernal such as BLAS might be waistful.
  It seems more appropriate to hard code the multiplication and rely on compilier
  optimizations to sort out details.
- We have then
+ We havXe then
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-KB_{i}=K\cdot B\left[:,i\right]\]
+\begin_inset Formula 
+\[
+KB_{i}=K\cdot B\left[:,i\right]
+\]
 
 \end_inset
 
@@ -598,11 +657,14 @@ reference "eq:F"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
+\begin_inset Formula 
+\[
 \partial F/\partial q_{i}=\left[\begin{array}{c}
 0\\
 \mbox{row }\left(i\%3\right)\mbox{ made of }\\
-0\end{array}derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle :3\cdot\left\langle \frac{i}{3}\right\rangle +3\right]\right]\]
+0
+\end{array}derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle :3\cdot\left\langle \frac{i}{3}\right\rangle +3\right]\right]
+\]
 
 \end_inset
 
@@ -628,8 +690,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-B\left[:,i\right]=\left\{ B\left[i\%3,i\right],B\left[i\%3+3,i\right],B\left[i\%3+6,i\right]\right\} \]
+\begin_inset Formula 
+\[
+B\left[:,i\right]=\left\{ B\left[i\%3,i\right],B\left[i\%3+3,i\right],B\left[i\%3+6,i\right]\right\} 
+\]
 
 \end_inset
 
@@ -637,8 +701,10 @@ and
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-B\left[i\%3,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle \right]\]
+\begin_inset Formula 
+\[
+B\left[i\%3,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle \right]
+\]
 
 \end_inset
 
@@ -646,8 +712,10 @@ B\left[i\%3,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle \ri
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-B\left[i\%3+3,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +1\right]\]
+\begin_inset Formula 
+\[
+B\left[i\%3+3,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +1\right]
+\]
 
 \end_inset
 
@@ -655,8 +723,10 @@ B\left[i\%3+3,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-B\left[i\%3+6,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +2\right]\]
+\begin_inset Formula 
+\[
+B\left[i\%3+6,i\right]=derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +2\right]
+\]
 
 \end_inset
 
@@ -664,8 +734,10 @@ and finally
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-KB_{i}=\sum_{j=0}^{2}K\left[:,i\%3+3\cdot j\right]\cdot derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +j\right]\]
+\begin_inset Formula 
+\[
+KB_{i}=\sum_{j=0}^{2}K\left[:,i\%3+3\cdot j\right]\cdot derivs\left[3\cdot\left\langle \frac{i}{3}\right\rangle +j\right]
+\]
 
 \end_inset
 
@@ -696,8 +768,10 @@ Assume that the rigid link vector between the master and slave points is
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\left\langle \mathbf{a}+h\mathbf{U},\mathbf{a}+h\mathbf{U}\right\rangle =d^{2}\]
+\begin_inset Formula 
+\[
+\left\langle \mathbf{a}+h\mathbf{U},\mathbf{a}+h\mathbf{U}\right\rangle =d^{2}
+\]
 
 \end_inset
 
@@ -726,8 +800,10 @@ bgs.c
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{b}=\mathbf{a}+h\mathbf{U}_{T}\]
+\begin_inset Formula 
+\[
+\mathbf{b}=\mathbf{a}+h\mathbf{U}_{T}
+\]
 
 \end_inset
 
@@ -735,8 +811,10 @@ bgs.c
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\left\langle \mathbf{b}+h\mathbf{n}U_{N},\mathbf{b}+h\mathbf{n}U_{N}\right\rangle =d^{2}\]
+\begin_inset Formula 
+\[
+\left\langle \mathbf{b}+h\mathbf{n}U_{N},\mathbf{b}+h\mathbf{n}U_{N}\right\rangle =d^{2}
+\]
 
 \end_inset
 
@@ -744,8 +822,10 @@ bgs.c
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\gamma=\left\langle \mathbf{b},\mathbf{b}\right\rangle -d^{2},\beta=2h\left\langle \mathbf{b},\mathbf{n}\right\rangle ,\alpha=h^{2}\]
+\begin_inset Formula 
+\[
+\gamma=\left\langle \mathbf{b},\mathbf{b}\right\rangle -d^{2},\beta=2h\left\langle \mathbf{b},\mathbf{n}\right\rangle ,\alpha=h^{2}
+\]
 
 \end_inset
 
@@ -753,8 +833,10 @@ bgs.c
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\gamma+\beta U_{N}+\alpha U_{N}^{2}=0\]
+\begin_inset Formula 
+\[
+\gamma+\beta U_{N}+\alpha U_{N}^{2}=0
+\]
 
 \end_inset
 
@@ -762,8 +844,10 @@ bgs.c
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-U_{N}=\frac{-\beta+\sqrt{\beta^{2}-4\alpha\gamma}}{2\alpha}\]
+\begin_inset Formula 
+\[
+U_{N}=\frac{-\beta+\sqrt{\beta^{2}-4\alpha\gamma}}{2\alpha}
+\]
 
 \end_inset
 
@@ -779,8 +863,10 @@ Assuming that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\beta=2hd\]
+\begin_inset Formula 
+\[
+\beta=2hd
+\]
 
 \end_inset
 
@@ -788,8 +874,10 @@ Assuming that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\gamma=d^{2}+h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle -d^{2}=h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle \]
+\begin_inset Formula 
+\[
+\gamma=d^{2}+h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle -d^{2}=h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle 
+\]
 
 \end_inset
 
@@ -797,8 +885,10 @@ hence we end up with
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-U_{N}=\frac{-2hd+\sqrt{4h^{2}d^{2}-4h^{4}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle }}{2h^{2}}=\frac{-d+\sqrt{d^{2}-h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle }}{h}\]
+\begin_inset Formula 
+\[
+U_{N}=\frac{-2hd+\sqrt{4h^{2}d^{2}-4h^{4}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle }}{2h^{2}}=\frac{-d+\sqrt{d^{2}-h^{2}\left\langle \mathbf{U}_{T},\mathbf{U}_{T}\right\rangle }}{h}
+\]
 
 \end_inset
 
@@ -846,8 +936,10 @@ There are two possible ways of updating local velocities during Newton solution.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{U}^{i}+\delta\mathbf{U}=\mathbf{W}\left(\mathbf{R}^{i}+\delta\mathbf{R}\right)+\mathbf{B}\]
+\begin_inset Formula 
+\[
+\mathbf{U}^{i}+\delta\mathbf{U}=\mathbf{W}\left(\mathbf{R}^{i}+\delta\mathbf{R}\right)+\mathbf{B}
+\]
 
 \end_inset
 
@@ -855,8 +947,10 @@ and
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{R}^{i+1}=\mathbf{R}^{i}+\alpha\delta\mathbf{R}\]
+\begin_inset Formula 
+\[
+\mathbf{R}^{i+1}=\mathbf{R}^{i}+\alpha\delta\mathbf{R}
+\]
 
 \end_inset
 
@@ -864,8 +958,10 @@ so
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{U}^{i+1}=\mathbf{U}^{i}+\alpha\delta\mathbf{U}\]
+\begin_inset Formula 
+\[
+\mathbf{U}^{i+1}=\mathbf{U}^{i}+\alpha\delta\mathbf{U}
+\]
 
 \end_inset
 
@@ -879,8 +975,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{RES}^{i}=\mathbf{W}\mathbf{R}^{i}+\mathbf{B}-\mathbf{U}^{i}\]
+\begin_inset Formula 
+\[
+\mathbf{RES}^{i}=\mathbf{W}\mathbf{R}^{i}+\mathbf{B}-\mathbf{U}^{i}
+\]
 
 \end_inset
 
@@ -889,8 +987,10 @@ is generally nonzero.
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{VAL}=\mathbf{W}\left(\mathbf{R}^{i}+\delta\mathbf{R}\right)+\mathbf{B}\]
+\begin_inset Formula 
+\[
+\mathbf{VAL}=\mathbf{W}\left(\mathbf{R}^{i}+\delta\mathbf{R}\right)+\mathbf{B}
+\]
 
 \end_inset
 
@@ -902,8 +1002,10 @@ then we can recover the equation for
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{VAL}-\mathbf{U}^{i}-\mathbf{RES}^{i}=\mathbf{W}\delta\mathbf{R}\]
+\begin_inset Formula 
+\[
+\mathbf{VAL}-\mathbf{U}^{i}-\mathbf{RES}^{i}=\mathbf{W}\delta\mathbf{R}
+\]
 
 \end_inset
 
@@ -923,8 +1025,10 @@ Another way to go is not to use
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{U}^{i}=\mathbf{W}\mathbf{R}^{i}+\mathbf{B}\]
+\begin_inset Formula 
+\[
+\mathbf{U}^{i}=\mathbf{W}\mathbf{R}^{i}+\mathbf{B}
+\]
 
 \end_inset
 
@@ -945,8 +1049,10 @@ When solving
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{A}\mathbf{x}=\mathbf{b}\]
+\begin_inset Formula 
+\[
+\mathbf{A}\mathbf{x}=\mathbf{b}
+\]
 
 \end_inset
 
@@ -972,8 +1078,10 @@ resulting from linearized constraints, operator
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{x}=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}\]
+\begin_inset Formula 
+\[
+\mathbf{x}=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}
+\]
 
 \end_inset
 
@@ -1005,8 +1113,10 @@ flat minima
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{x}_{\alpha}=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}+\alpha\left\Vert \mathbf{x}\right\Vert ^{2}\]
+\begin_inset Formula 
+\[
+\mathbf{x}_{\alpha}=\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}+\alpha\left\Vert \mathbf{x}\right\Vert ^{2}
+\]
 
 \end_inset
 
@@ -1043,8 +1153,10 @@ The above approximation removes flatness by adding to the original objective
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{x}_{\alpha}=\underset{\mathbf{x}\in\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}}{\arg\min\left\Vert \mathbf{x}\right\Vert }\]
+\begin_inset Formula 
+\[
+\mathbf{x}_{\alpha}=\underset{\mathbf{x}\in\arg\min\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert ^{2}}{\arg\min\left\Vert \mathbf{x}\right\Vert }
+\]
 
 \end_inset
 
@@ -1073,8 +1185,10 @@ good balance
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\left[\mathbf{A}^{T}\mathbf{A}+\alpha\mathbf{I}\right]\mathbf{x}=\mathbf{A}^{T}\mathbf{b}\label{eq:tikho}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\left[\mathbf{A}^{T}\mathbf{A}+\alpha\mathbf{I}\right]\mathbf{x}=\mathbf{A}^{T}\mathbf{b}\label{eq:tikho}
+\end{equation}
 
 \end_inset
 
@@ -1105,8 +1219,10 @@ we can see that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert <\epsilon\label{eq:inexa}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\left\Vert \mathbf{A}\mathbf{x}-\mathbf{b}\right\Vert <\epsilon\label{eq:inexa}
+\end{equation}
 
 \end_inset
 
@@ -1157,8 +1273,10 @@ Let us consider singular value decomposition of
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{A}=\mathbf{U}\mathbf{S}\mathbf{V}\label{eq:svd}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{A}=\mathbf{U}\mathbf{S}\mathbf{V}\label{eq:svd}
+\end{equation}
 
 \end_inset
 
@@ -1186,8 +1304,10 @@ reference "eq:tikho"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\left[\mathbf{V}^{T}\mathbf{S}^{2}\mathbf{V}+\alpha\mathbf{I}\right]\mathbf{x}=\mathbf{V}^{T}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+\begin_inset Formula 
+\[
+\left[\mathbf{V}^{T}\mathbf{S}^{2}\mathbf{V}+\alpha\mathbf{I}\right]\mathbf{x}=\mathbf{V}^{T}\mathbf{S}\mathbf{U}^{T}\mathbf{b}
+\]
 
 \end_inset
 
@@ -1195,8 +1315,10 @@ and further
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{V}^{T}\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]\mathbf{V}\mathbf{x}=\mathbf{V}^{T}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\mbox{ hence }\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]\mathbf{V}\mathbf{x}=\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+\begin_inset Formula 
+\[
+\mathbf{V}^{T}\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]\mathbf{V}\mathbf{x}=\mathbf{V}^{T}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\mbox{ hence }\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]\mathbf{V}\mathbf{x}=\mathbf{S}\mathbf{U}^{T}\mathbf{b}
+\]
 
 \end_inset
 
@@ -1204,8 +1326,10 @@ and finally
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{x}=\mathbf{V}^{T}\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]^{-1}\mathbf{S}\mathbf{U}^{T}\mathbf{b}\]
+\begin_inset Formula 
+\[
+\mathbf{x}=\mathbf{V}^{T}\left[\mathbf{S}^{2}+\alpha\mathbf{I}\right]^{-1}\mathbf{S}\mathbf{U}^{T}\mathbf{b}
+\]
 
 \end_inset
 
@@ -1215,8 +1339,10 @@ Clearly, the regularization makes the digonal value storing squares of singular
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{equation}
-\mathbf{x}=\mathbf{V}^{T}\left\{ \frac{\sigma_{i}}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{U}^{T}\mathbf{b}\label{eq:xapprox}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{x}=\mathbf{V}^{T}\left\{ \frac{\sigma_{i}}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{U}^{T}\mathbf{b}\label{eq:xapprox}
+\end{equation}
 
 \end_inset
 
@@ -1243,8 +1369,10 @@ reference "eq:inexa"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\left\Vert \mathbf{U}\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{U}^{T}\mathbf{b}-\mathbf{b}\right\Vert <\epsilon\]
+\begin_inset Formula 
+\[
+\left\Vert \mathbf{U}\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{U}^{T}\mathbf{b}-\mathbf{b}\right\Vert <\epsilon
+\]
 
 \end_inset
 
@@ -1283,8 +1411,10 @@ reference "eq:svd"
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{b}=\mathbf{A}\mathbf{y}=\mathbf{U}\mathbf{S}\mathbf{V}\mathbf{y}\]
+\begin_inset Formula 
+\[
+\mathbf{b}=\mathbf{A}\mathbf{y}=\mathbf{U}\mathbf{S}\mathbf{V}\mathbf{y}
+\]
 
 \end_inset
 
@@ -1292,8 +1422,10 @@ so that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{U}\left[\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} -\mathbf{I}\right]\mathbf{U}^{T}\mathbf{b}=\mathbf{U}\left[\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} -\mathbf{I}\right]\mathbf{S}\mathbf{V}\mathbf{y}=\mathbf{U}\left\{ \frac{-\sigma_{i}\alpha}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{V}\mathbf{y}\]
+\begin_inset Formula 
+\[
+\mathbf{U}\left[\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} -\mathbf{I}\right]\mathbf{U}^{T}\mathbf{b}=\mathbf{U}\left[\left\{ \frac{\sigma_{i}^{2}}{\sigma_{i}^{2}+\alpha}\right\} -\mathbf{I}\right]\mathbf{S}\mathbf{V}\mathbf{y}=\mathbf{U}\left\{ \frac{-\sigma_{i}\alpha}{\sigma_{i}^{2}+\alpha}\right\} \mathbf{V}\mathbf{y}
+\]
 
 \end_inset
 
@@ -1340,8 +1472,10 @@ A time stepping scheme can be abstracted as
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{u}^{+}=\mathbf{u}^{-}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\]
+\begin_inset Formula 
+\[
+\mathbf{u}^{+}=\mathbf{u}^{-}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}
+\]
 
 \end_inset
 
@@ -1363,8 +1497,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\triangle E=\frac{1}{2}\left(\mathbf{u}^{+}+\mathbf{u}^{-}\right)\mathbf{A}\left(\mathbf{u}^{+}-\mathbf{u}^{-}\right)=\frac{1}{2}\left(\mathbf{u}^{+}+\mathbf{u}^{-}\right)\mathbf{H}^{T}\mathbf{R}\]
+\begin_inset Formula 
+\[
+\triangle E=\frac{1}{2}\left(\mathbf{u}^{+}+\mathbf{u}^{-}\right)\mathbf{A}\left(\mathbf{u}^{+}-\mathbf{u}^{-}\right)=\frac{1}{2}\left(\mathbf{u}^{+}+\mathbf{u}^{-}\right)\mathbf{H}^{T}\mathbf{R}
+\]
 
 \end_inset
 
@@ -1372,8 +1508,10 @@ and the stability criterion is
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\triangle E\le0\]
+\begin_inset Formula 
+\[
+\triangle E\le0
+\]
 
 \end_inset
 
@@ -1381,8 +1519,10 @@ Further
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\triangle E=\frac{1}{2}\left\langle \mathbf{u}^{+}+\mathbf{u}^{-},\mathbf{H}^{T}\mathbf{R}\right\rangle =\frac{1}{2}\left\langle \mathbf{U}^{+}+\mathbf{U}^{-},\mathbf{R}\right\rangle \]
+\begin_inset Formula 
+\[
+\triangle E=\frac{1}{2}\left\langle \mathbf{u}^{+}+\mathbf{u}^{-},\mathbf{H}^{T}\mathbf{R}\right\rangle =\frac{1}{2}\left\langle \mathbf{U}^{+}+\mathbf{U}^{-},\mathbf{R}\right\rangle 
+\]
 
 \end_inset
 
@@ -1390,8 +1530,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{U}=\mathbf{H}\mathbf{u}\]
+\begin_inset Formula 
+\[
+\mathbf{U}=\mathbf{H}\mathbf{u}
+\]
 
 \end_inset
 
@@ -1399,8 +1541,10 @@ We know that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{U}^{+}=\mathbf{U}^{-}+\mathbf{W}\mathbf{R}\]
+\begin_inset Formula 
+\[
+\mathbf{U}^{+}=\mathbf{U}^{-}+\mathbf{W}\mathbf{R}
+\]
 
 \end_inset
 
@@ -1408,8 +1552,10 @@ where
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{W}=\mathbf{H}\mathbf{A}^{-1}\mathbf{H}^{T}\]
+\begin_inset Formula 
+\[
+\mathbf{W}=\mathbf{H}\mathbf{A}^{-1}\mathbf{H}^{T}
+\]
 
 \end_inset
 
@@ -1417,8 +1563,10 @@ We first consider ideally plastic impacts
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-U_{N}^{+}\ge0,\,\,\, R_{N}\ge0,\,\,\, U_{N}^{+}R_{N}=0\]
+\begin_inset Formula 
+\[
+U_{N}^{+}\ge0,\,\,\,R_{N}\ge0,\,\,\,U_{N}^{+}R_{N}=0
+\]
 
 \end_inset
 
@@ -1426,8 +1574,10 @@ together with the Coulomb friction law which assures that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle \le0\]
+\begin_inset Formula 
+\[
+\left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle \le0
+\]
 
 \end_inset
 
@@ -1450,8 +1600,10 @@ This way we obtain
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{Q}=\mbox{diag}\left(\epsilon_{i}\right)\]
+\begin_inset Formula 
+\[
+\mathbf{Q}=\mbox{diag}\left(\epsilon_{i}\right)
+\]
 
 \end_inset
 
@@ -1459,10 +1611,13 @@ This way we obtain
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
+\begin_inset Formula 
+\[
 \mathbf{U}^{1}=\mathbf{U}^{-}+\mathbf{W}\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]=\mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}\]
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right]=\mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}
+\]
 
 \end_inset
 
@@ -1470,30 +1625,41 @@ This way we obtain
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \begin{eqnarray*}
+\begin_inset Formula 
+\begin{eqnarray*}
 \triangle E & = & \frac{1}{2}\left\langle \mathbf{U}^{1}+\mathbf{U}^{-},\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right]\right\rangle \\
  & = & \frac{1}{2}\left\langle \mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}+\mathbf{U}^{-},\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right]\right\rangle \\
  & = & \frac{1}{2}\left\langle 2\mathbf{U}^{+}+\mathbf{W}_{*N}\mathbf{Q}\mathbf{R}_{N}-\mathbf{W}\mathbf{R},\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right]\right\rangle \\
  & = & \frac{1}{2}\left\langle 2\mathbf{U}^{+}-\left[\begin{array}{cc}
 \mathbf{W}_{TT} & \mathbf{W}_{TN}\\
-\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{W}_{NT} & \mathbf{W}_{NN}
+\end{array}\right]\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right],\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \\
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right]\right\rangle \\
  & = & \left\langle \mathbf{U}_{T}^{+},\mathbf{R}_{T}\right\rangle +\left\langle \mathbf{U}_{N}^{+},\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\right\rangle -\left\langle \left[\begin{array}{cc}
 \mathbf{W}_{TT} & \mathbf{W}_{TN}\\
-\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{W}_{NT} & \mathbf{W}_{NN}
+\end{array}\right]\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right],\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \end{eqnarray*}
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right]\right\rangle 
+\end{eqnarray*}
 
 \end_inset
 
@@ -1510,14 +1676,19 @@ We know that
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
+\begin_inset Formula 
+\[
 \left\langle \left[\begin{array}{cc}
 \mathbf{W}_{TT} & \mathbf{W}_{TN}\\
-\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left[\begin{array}{c}
+\mathbf{W}_{NT} & \mathbf{W}_{NN}
+\end{array}\right]\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right],\left[\begin{array}{c}
+\left(\mathbf{I}-\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right],\left[\begin{array}{c}
 \mathbf{R}_{T}\\
-\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}\end{array}\right]\right\rangle \ge0\]
+\left(\mathbf{I}+\mathbf{Q}\right)\mathbf{R}_{N}
+\end{array}\right]\right\rangle \ge0
+\]
 
 \end_inset
 
@@ -1525,10 +1696,13 @@ Let
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
+\begin_inset Formula 
+\[
 \mathbf{Q}^{1}=\left[\begin{array}{cc}
 \mathbf{0} & \mathbf{0}\\
-\mathbf{0} & \mathbf{Q}\end{array}\right]\]
+\mathbf{0} & \mathbf{Q}
+\end{array}\right]
+\]
 
 \end_inset
 
@@ -1536,10 +1710,13 @@ Then we can write
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
+\begin_inset Formula 
+\[
 \left\langle \left[\begin{array}{cc}
 \mathbf{W}_{TT} & \mathbf{W}_{TN}\\
-\mathbf{W}_{NT} & \mathbf{W}_{NN}\end{array}\right]\left(\mathbf{R}-\mathbf{Q}^{1}\mathbf{R}\right),\mathbf{R}+\mathbf{Q}^{1}\mathbf{R}\right\rangle =\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle -\left\langle \mathbf{W}\mathbf{Q}^{1}\mathbf{R},\mathbf{Q}^{1}\mathbf{R}\right\rangle \]
+\mathbf{W}_{NT} & \mathbf{W}_{NN}
+\end{array}\right]\left(\mathbf{R}-\mathbf{Q}^{1}\mathbf{R}\right),\mathbf{R}+\mathbf{Q}^{1}\mathbf{R}\right\rangle =\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle -\left\langle \mathbf{W}\mathbf{Q}^{1}\mathbf{R},\mathbf{Q}^{1}\mathbf{R}\right\rangle 
+\]
 
 \end_inset
 
@@ -1553,8 +1730,10 @@ which shows that both positive and negative signs are possible (saddle surface
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\mathbf{Q}^{2}=\alpha\mathbf{Q}^{1}\]
+\begin_inset Formula 
+\[
+\mathbf{Q}^{2}=\alpha\mathbf{Q}^{1}
+\]
 
 \end_inset
 
@@ -1562,8 +1741,10 @@ and writing
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\left\langle \mathbf{W}\mathbf{Q}^{2}\mathbf{R},\mathbf{Q}^{2}\mathbf{R}\right\rangle -\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+\begin_inset Formula 
+\[
+\left\langle \mathbf{W}\mathbf{Q}^{2}\mathbf{R},\mathbf{Q}^{2}\mathbf{R}\right\rangle -\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0
+\]
 
 \end_inset
 
@@ -1571,8 +1752,10 @@ which gives
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-\alpha^{2}\le\frac{\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle }{\left\langle \mathbf{W}\mathbf{Q}^{1}\mathbf{R},\mathbf{Q}^{1}\mathbf{R}\right\rangle }\]
+\begin_inset Formula 
+\[
+\alpha^{2}\le\frac{\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle }{\left\langle \mathbf{W}\mathbf{Q}^{1}\mathbf{R},\mathbf{Q}^{1}\mathbf{R}\right\rangle }
+\]
 
 \end_inset
 
@@ -1580,8 +1763,10 @@ so that our restitution model becomes
 \end_layout
 
 \begin_layout Standard
-\begin_inset Formula \[
-R_{N}^{final}=\left(1+\epsilon\min\left(\alpha,1\right)\right)R_{N}\]
+\begin_inset Formula 
+\[
+R_{N}^{final}=\left(1+\epsilon\min\left(\alpha,1\right)\right)R_{N}
+\]
 
 \end_inset
 
@@ -1610,8 +1795,10 @@ A set of bodies has configuration
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \begin{equation}
-\mathbf{u}^{t+h}=\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\label{eq:u}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{u}^{t+h}=\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\label{eq:u}
+\end{equation}
 
 \end_inset
 
@@ -1619,8 +1806,10 @@ where
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \begin{equation}
-\mathbf{b}^{t+h}=\mathbf{u}^{t}+h\mathbf{A}^{-1}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)\mathbf{f}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)\label{eq:b}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{b}^{t+h}=\mathbf{u}^{t}+h\mathbf{A}^{-1}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)\mathbf{f}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)\label{eq:b}
+\end{equation}
 
 \end_inset
 
@@ -1691,8 +1880,10 @@ reference "eq:u"
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \begin{equation}
-\mathbf{U}=\mathbf{H}\mathbf{u}\label{eq:H}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{U}=\mathbf{H}\mathbf{u}\label{eq:H}
+\end{equation}
 
 \end_inset
 
@@ -1701,8 +1892,10 @@ Having
 \end_inset
 
 , the configuration can be updated as 
-\begin_inset Formula \begin{equation}
-\mathbf{q}^{t+h}=\mathbf{q}^{t}+\frac{h}{2}\left(\mathbf{u}^{t+h}+\mathbf{u}^{t}\right)\label{eq:q}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{q}^{t+h}=\mathbf{q}^{t}+\frac{h}{2}\left(\mathbf{u}^{t+h}+\mathbf{u}^{t}\right)\label{eq:q}
+\end{equation}
 
 \end_inset
 
@@ -1719,8 +1912,10 @@ We assume, that the eployed time integrator is energy consistent in absence
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \begin{equation}
-\triangle E=\left(\mathbf{q}^{t+h}-\mathbf{q}^{t}\right)\mathbf{f}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)=\frac{h}{2}\left(\mathbf{b}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}-\mathbf{u}^{t}\right)\le0\label{eq:E}\end{equation}
+\begin_inset Formula 
+\begin{equation}
+\triangle E=\left(\mathbf{q}^{t+h}-\mathbf{q}^{t}\right)\mathbf{f}\left(\mathbf{q}^{t},\mathbf{u}^{t},\mathbf{b}^{t+h}\right)=\frac{h}{2}\left(\mathbf{b}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}-\mathbf{u}^{t}\right)\le0\label{eq:E}
+\end{equation}
 
 \end_inset
 
@@ -1728,8 +1923,10 @@ and demand similar consitency if constraints are present
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\triangle E=\frac{h}{2}\left(\mathbf{u}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{u}^{t+h}-\mathbf{u}^{t}\right)\le0\]
+\begin_inset Formula 
+\[
+\triangle E=\frac{h}{2}\left(\mathbf{u}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{u}^{t+h}-\mathbf{u}^{t}\right)\le0
+\]
 
 \end_inset
 
@@ -1737,8 +1934,10 @@ This leads to the condition
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\left(\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}-\mathbf{u}^{t}\right)\le0\]
+\begin_inset Formula 
+\[
+\left(\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}-\mathbf{u}^{t}\right)\le0
+\]
 
 \end_inset
 
@@ -1746,8 +1945,10 @@ which simplifies to
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\left(\mathbf{b}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}-\mathbf{u}^{t}\right)+\left(2\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\right)^{T}\mathbf{H}^{T}\mathbf{R}\le0\]
+\begin_inset Formula 
+\[
+\left(\mathbf{b}^{t+h}+\mathbf{u}^{t}\right)^{T}\mathbf{A}\left(\mathbf{b}^{t+h}-\mathbf{u}^{t}\right)+\left(2\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\right)^{T}\mathbf{H}^{T}\mathbf{R}\le0
+\]
 
 \end_inset
 
@@ -1762,8 +1963,10 @@ reference "eq:E"
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\left(2\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\right)^{T}\mathbf{H}^{T}\mathbf{R}\le0\]
+\begin_inset Formula 
+\[
+\left(2\mathbf{b}^{t+h}+\mathbf{A}^{-1}\mathbf{H}^{T}\mathbf{R}\right)^{T}\mathbf{H}^{T}\mathbf{R}\le0
+\]
 
 \end_inset
 
@@ -1771,8 +1974,10 @@ which can be rewritten as
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\left\langle 2\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+\begin_inset Formula 
+\[
+\left\langle 2\mathbf{B}+\mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0
+\]
 
 \end_inset
 
@@ -1780,8 +1985,10 @@ where
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\mathbf{B}=\mathbf{H}\mathbf{b}^{t+h}\]
+\begin_inset Formula 
+\[
+\mathbf{B}=\mathbf{H}\mathbf{b}^{t+h}
+\]
 
 \end_inset
 
@@ -1789,14 +1996,18 @@ where
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\mathbf{W}=\mathbf{H}\mathbf{A}^{-1}\mathbf{H}^{T}\]
+\begin_inset Formula 
+\[
+\mathbf{W}=\mathbf{H}\mathbf{A}^{-1}\mathbf{H}^{T}
+\]
 
 \end_inset
 
 Taking 
-\begin_inset Formula \[
-\mathbf{U}=\mathbf{H}\mathbf{u}^{t+h}\]
+\begin_inset Formula 
+\[
+\mathbf{U}=\mathbf{H}\mathbf{u}^{t+h}
+\]
 
 \end_inset
 
@@ -1811,8 +2022,10 @@ reference "eq:u"
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}\]
+\begin_inset Formula 
+\[
+\mathbf{U}=\mathbf{B}+\mathbf{W}\mathbf{R}
+\]
 
 \end_inset
 
@@ -1820,8 +2033,10 @@ and the consistency condition takes form
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \[
-\left\langle 2\mathbf{U}-\mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0\]
+\begin_inset Formula 
+\[
+\left\langle 2\mathbf{U}-\mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \le0
+\]
 
 \end_inset
 
@@ -1829,8 +2044,10 @@ or in other words
 \end_layout
 
 \begin_layout Plain Layout
-\begin_inset Formula \begin{equation}
-\mathbf{\left\langle \mathbf{U},\mathbf{R}\right\rangle }\le\frac{1}{2}\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle \end{equation}
+\begin_inset Formula 
+\begin{equation}
+\mathbf{\left\langle \mathbf{U},\mathbf{R}\right\rangle }\le\frac{1}{2}\left\langle \mathbf{W}\mathbf{R},\mathbf{R}\right\rangle 
+\end{equation}
 
 \end_inset
 
