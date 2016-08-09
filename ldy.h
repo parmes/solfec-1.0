@@ -55,7 +55,7 @@ struct diab
   double    *R, /* average reaction => points to R[3] member of the underlying constraint */
 	    *U, /* relative volocity => points to U[3] member of the underlying constraint */
 	    *V, /* initial velocity => points to V[3] member of the underlying constraint */ 
-         W [9], /* block-row of W (local inverse of inertia) */
+         W [9], /* diagonal block of W */
 	 A [9], /* inverse of diagonal W block */
 	 B [3], /* free velocity */
 	 rho;   /* scaling parameter */
