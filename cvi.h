@@ -2,7 +2,9 @@
  * cvi.h
  * Copyright (C) 2008, Tomasz Koziara (t.koziara AT gmail.com)
  * ---------------------------------------------------------------
- * intersection of two convex polyhedrons
+ * intersection of two convex polyhedrons; based on ideas from:
+ * D. E. Muller and F. P. Preparata, Finding the intersection of
+ * two convex polyhedra, Theoretical Computer Science 7 (1978) 217-236.
  */
 
 /* This file is part of Solfec.
