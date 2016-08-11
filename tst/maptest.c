@@ -38,7 +38,7 @@ static int map_test (int count)
 
   for (n = 0; n < count; n ++)
   {
-    MAP_Insert (&mem, &map, (void*)n, (void*)n, NULL);
+    MAP_Insert (&mem, &map, (void*)(long)n, (void*)(long)n, NULL);
   }
 
   for (n = 0, item = MAP_First (map); item; n ++)
@@ -62,7 +62,7 @@ static int map_test (int count)
 
 int main (int argc, char **argv)
 {
-  int count;
+  int count = 128;
 
   if (argc > 1) count = atoi (argv [1]);
 

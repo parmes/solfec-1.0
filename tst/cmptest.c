@@ -41,7 +41,7 @@ int main (int argc, char **argv)
   int *ui;
   int uil;
 
-  int n, length;
+  int n, length = 128;
 
   if (argc > 1) length = atoi (argv [1]);
   

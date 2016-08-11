@@ -29,15 +29,17 @@ static void write (PBF *bf, int n)
 {
   char str [512], *pstr = str;
   double d = (double)n;
+  short s = (short) (n % 32767);
+  int i = n;
+  unsigned int ui = (unsigned int)n;
+#if !HDF5
   float f = (float)n;
   unsigned long ul = (unsigned long)n;
   long l = (long)n;
-  unsigned int ui = (unsigned int)n;
-  int i = n;
   unsigned short us = (unsigned short) (n % 32767);
-  short s = (short) (n % 32767);
   unsigned char uc = (unsigned char) (n % 127);
   char c = (char) (n % 127);
+#endif
 
   sprintf (str, "CURRENT NUMBER IS %d", n);
 
@@ -45,6 +47,13 @@ static void write (PBF *bf, int n)
   PBF_Time (bf, &d);
 
   /* write unlabled data */
+#if HDF5
+  PBF_String (bf, &pstr);
+  PBF_Short (bf, &s, 1);
+  PBF_Int (bf, &i, 1);
+  PBF_Uint (bf, &ui, 1);
+  PBF_Double (bf, &d, 1);
+#else
   PBF_String (bf, &pstr);
   PBF_Double (bf, &d, 1);
   PBF_Float (bf, &f, 1);
@@ -56,8 +65,21 @@ static void write (PBF *bf, int n)
   PBF_Short (bf, &s, 1);
   PBF_Uchar (bf, &uc, 1);
   PBF_Char (bf, &c, 1);
+#endif
 
   /* write labeled data */
+#if HDF5
+  PBF_Label (bf, "STRING");
+  PBF_String (bf, &pstr);
+  PBF_Label (bf, "SHORT");
+  PBF_Short (bf, &s, 1);
+  PBF_Label (bf, "INT");
+  PBF_Int (bf, &i, 1);
+  PBF_Label (bf, "UINT");
+  PBF_Uint (bf, &ui, 1);
+  PBF_Label (bf, "DOUBLE");
+  PBF_Double (bf, &d, 1);
+#else
   PBF_Label (bf, "STRING");
   PBF_String (bf, &pstr);
   PBF_Label (bf, "DOUBLE");
@@ -80,39 +102,55 @@ static void write (PBF *bf, int n)
   PBF_Uchar (bf, &uc, 1);
   PBF_Label (bf, "CHAR");
   PBF_Char (bf, &c, 1);
+#endif
 }
 
 static int read (PBF *bf, int n)
 {
   char *pstr = NULL;
   double d;
+  short s;
+  int i;
+  unsigned int ui;
+#if !HDF5
   float f;
   unsigned long ul;
   long l;
-  unsigned int ui;
-  int i;
   unsigned short us;
-  short s;
   unsigned char uc;
   char c;
+#endif
 
   char _str [512];
   double _d = (double)n;
+  short _s = (short) (n % 32767);
+  unsigned int _ui = (unsigned int)n;
+  int _i = n;
+
+#if !HDF5
   float _f = (float)n;
   unsigned long _ul = (unsigned long)n;
   long _l = (long)n;
-  unsigned int _ui = (unsigned int)n;
-  int _i = n;
   unsigned short _us = (unsigned short) (n % 32767);
-  short _s = (short) (n % 32767);
   unsigned char _uc = (unsigned char) (n % 127);
   char _c = (char) (n % 127);
+#endif
 
   sprintf (_str, "CURRENT NUMBER IS %d", n);
 
   PBF_Time (bf, &d);
   if (d != (double)n) return 0;
 
+#if HDF5
+  PBF_String (bf, &pstr);
+  PBF_Short (bf, &s, 1);
+  PBF_Int (bf, &i, 1);
+  PBF_Uint (bf, &ui, 1);
+  PBF_Double (bf, &d, 1);
+
+  if (strcmp (pstr, _str) != 0 || d != _d
+      || ui != _ui || i != _i || s != _s) return 0;
+#else
   PBF_String (bf, &pstr);
   PBF_Double (bf, &d, 1);
   PBF_Float (bf, &f, 1);
@@ -129,12 +167,28 @@ static int read (PBF *bf, int n)
       d != _d || f != _f || ul != _ul ||
       l != _l || ui != _ui || i != _i ||
       us != _us || s != _s || uc != _uc || c != _c) return 0;
+#endif
 
   free (pstr); pstr = NULL;
-  d = 0.; f = 0.; ul = 0; l = 0;
-  ui = 0; i = 0; us = 0; s = 0;
+  d = 0.; s = 0;  ui = 0; i = 0;
+#if !HDF5
+  f = 0.; ul = 0; l = 0; us = 0;
   uc = 0; c = 0;
+#endif
 
+#if HDF5
+  PBF_Label (bf, "STRING");
+  PBF_String (bf, &pstr);
+  PBF_Label (bf, "SHORT");
+  PBF_Short (bf, &s, 1);
+  PBF_Label (bf, "INT");
+  PBF_Int (bf, &i, 1);
+  PBF_Label (bf, "DOUBLE");
+  PBF_Double (bf, &d, 1);
+
+  if (strcmp (pstr, _str) != 0 || d != _d
+      || ui != _ui || i != _i || s != _s) return 0;
+#else
   PBF_Label (bf, "STRING");
   PBF_String (bf, &pstr);
   PBF_Label (bf, "DOUBLE");
@@ -162,6 +216,7 @@ static int read (PBF *bf, int n)
       d != _d || f != _f || ul != _ul ||
       l != _l || ui != _ui || i != _i ||
       us != _us || s != _s || uc != _uc || c != _c) return 0;
+#endif
 
   free (pstr);
 
@@ -185,7 +240,7 @@ int main (int argc, char **argv)
     nmax = atoi (argv [1]);
   else nmax = 10;
 
-  bf = PBF_Write ("pbftest.state");
+  bf = PBF_Write ("pbftest.state", PBF_OFF, PBF_OFF);
 
   if (argc >= 3)
   {

@@ -211,6 +211,7 @@ static void generate_box_set (int howmany, short arrange)
   /* create initial BOX set */
   if (aabb) AABB_Destroy (aabb);
   aabb = AABB_Create (howmany);
+  aabb->dom = (DOM*)1;
 
   /* let the dummy body be rigid */
   bod.kind = RIG;
@@ -297,6 +298,7 @@ static void box_motion_step ()
     for (item = MAP_First (r->adj); item; item = MAP_Next (item))
     {
       p = item->key; 
+      obi = p->box;
       if (obi < obj)
       {
 	MID (p->coord, p->coord + 3, pmid);

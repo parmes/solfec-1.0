@@ -5,10 +5,10 @@ LIBBRICKS = ../obj/libsolfec.a
 LIBBRICKSMPI = ../obj/libsolfec-mpi.a
 MUMPS = -L../ext/mumps/libseq -lmpiseq
 BLOPEX = -lBLOPEX
-CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(OPENGL) $(XDRINC) -I..
-LIB = -L../obj -lsolfec -lkrylov -lmetis -ldmumps -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(XDRLIB) $(CUDALIB) $(FCLIB) $(MUMPS) $(SICONOSLIB) $(BLOPEX)
+CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(OPENGL) $(HDF5) $(XDRINC) -I..
+LIB = -L../obj -lsolfec -lkrylov -lmetis -ldmumps -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(CUDALIB) $(FCLIB) $(MUMPS) $(SICONOSLIB) $(BLOPEX)
 ifeq ($(MPI),yes)
-  LIBMPI = -L../obj -lsolfec-mpi -lkrylov -lmetis -ldmumps -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(MPILIBS) $(XDRLIB) $(CUDALIB) $(FCLIB) $(MUMPS) $(BLOPEX)
+  LIBMPI = -L../obj -lsolfec-mpi -lkrylov -lmetis -ldmumps -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(HDF5LIB) $(XDRLIB) $(CUDALIB) $(FCLIB) $(MUMPS) $(BLOPEX)
 endif
 
 TGT = glvtest\

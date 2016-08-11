@@ -394,7 +394,7 @@ static void key (int key, int x, int y)
         free (c);
 	c = cvi (va, nva, pa, npa,
 	         vb, nvb, pb, npb,
-		 kind, &clength);
+		 kind, &clength, NULL, NULL);
 	mode = GEN;
 
 	if (DOGEN)
