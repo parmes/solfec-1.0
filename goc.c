@@ -203,8 +203,8 @@ inline static int point_normal_spair_area_gap
 #else
 
   /* the above approach sometimes reported excessively large gap magnitudes;
-   * the below approach is based on the idea of supporing maximum and minimum
-   * supporting planes along the contact normal and utilising the vertices
+   * the below approach is based on the idea of maximum and minimum supporting
+   * planes along the contact normal direction and utilising the vertices
    * of the intersection volume directly; this is belived to be more robust;
    * based on testing with inp/boxdrop.py it does not seem more robust though;
    * ----------
