@@ -10798,7 +10798,10 @@ point2
 \end_layout
 
 \begin_layout Subsection*
-obj = PUT_SPRING (body1, point1, body2, point2, function, limits)
+obj = PUT_SPRING (body1, point1, body2, point2, function, limits | direction,
+ update) 
+\color red
+(Under development)
 \end_layout
 
 \begin_layout Standard
@@ -10865,18 +10868,22 @@ function
 force = function (stroke, velocity)
 \emph default
 , where 
-\emph on
-stroke = current (|point2 - point1|) - initial (|point2 - point1|)
-\emph default
+\begin_inset Formula $\text{stroke=}\mathbf{n}\cdot\text{current}\left(\text{point2}-\text{point1}\right)-\text{initial}\left(\left|\text{point2}-\text{point1}\right|\right)$
+\end_inset
+
  and 
 \emph on
 velocity
 \emph default
- is the current relative velocity along the current direction of 
+ is the current relative velocity along the spring direction 
 \emph on
-point2 - point1
+
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+
 \emph default
- (positive if distance increases).
+ (positive if stroke increases).
 \end_layout
 
 \begin_layout Itemize
@@ -10905,6 +10912,56 @@ smax
 \end_inset
 
  0)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+direction
+\series default
+ - 
+\emph on
+(nx, ny, nz)
+\emph default
+ tuple storing spring direction 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+.
+ Default: 
+\begin_inset Formula $\mathbf{n}=\text{normalized\left(\text{current}\left(\text{point2}-\text{point1}\right)\right)}$
+\end_inset
+
+ resulting in a follower type spring.
+ When specified, 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+ will be updated according to the value of 
+\series bold
+update
+\series default
+.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+update
+\series default
+ - direction update kind (default: 'FIXED'); one of: 'FIXED' where 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+ is kept fixed, or 'CONV1' where 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+ is convected with body1, or 'CONV2' where 
+\begin_inset Formula $\mathbf{n}$
+\end_inset
+
+ is convected with body2.
 \end_layout
 
 \begin_layout Standard

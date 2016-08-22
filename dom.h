@@ -54,7 +54,7 @@ typedef struct constraint CON;
 typedef struct domain DOM;
 #endif
 
-#define DOM_Z_SIZE          5      /* size of auxiliary storage */
+#define DOM_Z_SIZE          7      /* size of auxiliary storage */
 #define RIGLNK_VEC(Z)   (Z)        /* rigid link vector */
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
 #define STRENGTH(Z)     ((Z)[4])   /* tensile strength */
@@ -168,12 +168,14 @@ struct pending_constraint
 
   double mpnt [3],
 	 spnt [3],
-	 dir  [3];
+	 dir  [3],
+	 lim  [2]; /* spring limits */
 
   TMS *val;
 
   int mnode, /* used only for regular FEM bodies */
-      snode;
+      snode,
+      update; /* spring direction update kind */
 
   ELEMENT *mele, /* used only for regular FEM bodies */
 	  *sele;
@@ -326,7 +328,9 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel);
 CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, double *spnt, double strength);
 
 /* create user spring constraint */
-CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *spnt, void *function, double *lim);
+enum {SPRING_FOLLOW, SPRING_FIXED, SPRING_CONV_MASTER, SPRING_CONV_SLAVE}; /* direction update */
+CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *spnt,
+                     void *function, double *lim, double *direction, int update);
 
 /* remove a constraint from the domain (destroy it) */
 void DOM_Remove_Constraint (DOM *dom, CON *con);
@@ -357,7 +361,8 @@ void DOM_Update_External_Reactions (DOM *dom, short normal);
 
 /* schedule parallel insertion of a constraint (to be called on all processors) */
 int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
-    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode, double strength);
+    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode, double strength,
+    double *lim, int update);
 
 /* schedule ASAP insertion of a body in parallel (to be called on one processor) */
 void DOM_Pending_Body (DOM *dom, BODY *bod);

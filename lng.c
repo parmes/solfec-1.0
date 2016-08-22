@@ -5949,7 +5949,7 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 	return NULL;
       }
 
-      if (!DOM_Pending_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2, NULL, NULL, -1, -1, strength))
+      if (!DOM_Pending_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2, NULL, NULL, -1, -1, strength, NULL, 0))
       {
 	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
 	return NULL;
@@ -5964,8 +5964,8 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 /* create slider constraint */
 static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body1", "point1", "body2", "point2", "function", "limits");
-  PyObject *point1, *point2, *function, *limits;
+  KEYWORDS ("body1", "point1", "body2", "point2", "function", "limits", "direction", "update");
+  PyObject *point1, *point2, *function, *limits, *direction, *update;
   double p1 [3], p2 [3], lim [2];
   lng_BODY *body1, *body2;
   lng_CONSTRAINT *out;
@@ -5974,11 +5974,15 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
 
   if (out)
   {
-    PARSEKEYS ("OOOOOO", &body1, &point1, &body2, &point2, &function, &limits);
+    direction = NULL;
+    update = NULL;
+
+    PARSEKEYS ("OOOOOO|OO", &body1, &point1, &body2, &point2, &function, &limits, &direction, &update);
 
     TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]) &&
 	      is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3) &&
-              is_callable (function, kwl[4]) && is_tuple (limits, kwl[5], 2));
+              is_callable (function, kwl[4]) && is_tuple (limits, kwl[5], 2) &&
+	      is_tuple (direction, kwl[6], 3) && is_string (update, kwl[7]));
 
     if (body1->bod->dom != body2->bod->dom)
     {
@@ -6004,13 +6008,44 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
     lim [0] = PyFloat_AsDouble (PyTuple_GetItem (limits, 0));
     lim [1] = PyFloat_AsDouble (PyTuple_GetItem (limits, 1));
 
+    double dir [3] = {1., 0., 0.};
+    int upd = SPRING_FOLLOW;
+
+    if (direction)
+    {
+      dir [0] = PyFloat_AsDouble (PyTuple_GetItem (direction, 0));
+      dir [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
+      dir [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
+    }
+
+    if (update)
+    {
+      IFIS (update, "FIXED")
+      {
+	upd = SPRING_FIXED;
+      }
+      ELIF (update, "CONV1")
+      {
+	upd = SPRING_CONV_MASTER;
+      }
+      ELIF (update, "CONV2")
+      {
+	upd = SPRING_CONV_SLAVE;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid update direction kind");
+	return NULL;
+      }
+    }
+
 #if MPI
     if (((PyObject*)body1 == Py_None && IS_HERE (body2)) ||
 	((PyObject*)body2 == Py_None && IS_HERE (body1)))
     {
 #endif
 
-    out->con = DOM_Put_Spring (body1->bod->dom, body1->bod, p1, body2->bod, p2, function, lim);
+    out->con = DOM_Put_Spring (body1->bod->dom, body1->bod, p1, body2->bod, p2, function, lim, dir, upd);
 
     out->dom = body1->bod->dom;
 
@@ -6021,6 +6056,7 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
     }
     else out->id = out->con->id;
 
+    callback_pair_push (NULL, function); /* store callback on stack */
 #if MPI
     }
     else /* both bodies passed */
@@ -6031,11 +6067,13 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
 	return NULL;
       }
 
-      if (!DOM_Pending_Constraint (body1->bod->dom, SPRING, body1->bod, body2->bod, p1, p2, lim, (TMS*)function, -1, -1, DBL_MAX))
+      if (!DOM_Pending_Constraint (body1->bod->dom, SPRING, body1->bod, body2->bod, p1, p2, dir, (TMS*)function, -1, -1, DBL_MAX, lim, upd))
       {
 	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
 	return NULL;
       }
+
+      callback_pair_push (NULL, function); /* store callback on stack */
     }
 #endif
   }
@@ -9852,7 +9890,7 @@ int  lngcallback_set (int id, void **data, void **call)
   {
     if (pair->id == id)
     {
-      *data = pair->data;
+      if(data) *data = pair->data;
       *call = pair->call;
       return 1;
     }

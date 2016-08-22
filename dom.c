@@ -36,6 +36,7 @@
 #include "cra.h"
 #include "fra.h"
 #include "psc.h"
+#include "lng.h"
 
 #if MPI
 #include "put.h"
@@ -532,28 +533,60 @@ static void update_riglnk (DOM *dom, CON *con)
 /* update glue data */
 static void update_spring (DOM *dom, CON *con)
 {
-  double n [3],
+  double v [3],
+         n [3],
 	 m [3],
 	 s [3],
-	 len;
+	 len,
+	 inv;
 
   BODY_Cur_Point (con->master, con->msgp, con->mpnt, m);
   BODY_Cur_Point (con->slave, con->ssgp, con->spnt, s);
 
   COPY (m, con->point);
-  SUB (m, s, n);
-  len = LEN (n);
+  SUB (m, s, v);
+
+  switch (con->spair[0])
+  {
+  case SPRING_FOLLOW:
+  {
+    COPY (v, n);
+    len = LEN (v);
+    if (len != 0.0)
+    {
+      inv = 1.0 / len;
+      SCALE (n, inv);
+    }
+    else /* avoid singularity */
+    {
+      VECTOR (n, 0, 0, 1);
+    }
+  }
+  break;
+  case SPRING_FIXED:
+  {
+    n[0] = con->Z[4];
+    n[1] = con->Z[5];
+    n[2] = con->Z[6];
+    len = DOT (v, n);
+  }
+  break;
+  case SPRING_CONV_MASTER:
+  {
+    BODY_Cur_Vector (con->master, con->msgp->gobj, con->mpnt, con->Z+4, n);
+    len = DOT (v, n);
+  }
+  break;
+  case SPRING_CONV_SLAVE:
+  {
+    BODY_Cur_Vector (con->slave, con->ssgp->gobj, con->spnt, con->Z+4, n);
+    len = DOT (v, n);
+  }
+  break;
+  }
+
   con->Z[3] = len; /* useful for visualization */
   con->gap = len - con->Z[2];
-  if (len != 0.0)
-  {
-    len = 1.0 / len;
-    SCALE (n, len);
-  }
-  else /* avoid initial singularity */
-  {
-    VECTOR (n, 0, 0, 1);
-  }
   localbase (n, con->base);
 }
 
@@ -868,6 +901,15 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
     case RIGLNK:
     pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
     break;
+    case SPRING:
+    {
+      int fid = lngcallback_id (NULL, con->tms);
+      ASSERT_TEXT (fid, "failed to obtain SPRING callback function ID");
+      pack_int (isize, i, ints, fid);
+      pack_int (isize, i, ints, con->spair[0]); /* direction update kind */
+      pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
+    }
+    break;
   }
 
   con->state |= CON_IDLOCK; /* prevent id deletion */
@@ -947,6 +989,15 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
     break;
     case RIGLNK:
     unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
+    break;
+    case SPRING:
+    {
+      int fid = unpack_int (ipos, i, ints); /* callback */
+      fid = lngcallback_set (fid, NULL, (void**) &con->tms);
+      ASSERT_TEXT (fid, "failed to set SPRING callback based on ID");
+      con->spair[0] = unpack_int (ipos, i, ints); /* direction update kind */
+      unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
+    }
     break;
   }
 }
@@ -1832,7 +1883,7 @@ static void insert_pending_constraints (DOM *dom)
 	con = DOM_Put_Rigid_Link (dom, pnd->master, pnd->slave, pnd->mpnt, pnd->spnt, pnd->strength);
 	break;
       case SPRING:
-	con = DOM_Put_Spring (dom, pnd->master, pnd->mpnt, pnd->slave, pnd->spnt, pnd->val, pnd->dir);
+	con = DOM_Put_Spring (dom, pnd->master, pnd->mpnt, pnd->slave, pnd->spnt, pnd->val, pnd->lim, pnd->dir, pnd->update);
 	break;
       }
 
@@ -3270,7 +3321,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
 }
 
 /* create user spring constraint */
-CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *spnt, void *function, double *lim)
+CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *spnt, void *function, double *lim, double *direction, int update)
 {
   SGP *msgp, *ssgp;
   double v [3], d;
@@ -3295,6 +3346,13 @@ CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *
   con->Z[0] = lim[0];
   con->Z[1] = lim[1];
   con->Z[2] = d; /* initial distance */
+  COPY (direction, v);
+  NORMALIZE (v);
+  /* con->Z[3] will store length of spring */
+  con->Z[4] = v[0];
+  con->Z[5] = v[1];
+  con->Z[6] = v[2];
+  con->spair[0] = update; /* store update in spair[0] */
   con->tms = function;
   update_spring (dom, con); /* initial update */
 
@@ -3783,7 +3841,8 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
 
 /* schedule parallel insertion of a constraint (to be called on all processors) */
 int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
-    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode, double strength)
+    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode, double strength,
+    double *lim, int update)
 {
   PNDCON *pnd;
 
@@ -3798,6 +3857,8 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
   pnd->mnode = mnode;
   pnd->snode = snode;
   pnd->strength = strength;
+  if (lim) COPY2 (lim, pnd->lim);
+  pnd->update = update;
 
   if (master->kind == FEM && !master->msh)
   {
