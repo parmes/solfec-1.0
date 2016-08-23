@@ -232,7 +232,7 @@ if not VIEWER() and solfec.mode == 'READ':
         vavg += v
 	nvavg += 1.0
 
-    print 'Averafe pre-drop-off velocity for body', k, 'is', vavg/nvavg
+    print 'Average pre-drop-off velocity for body', k, 'is', vavg/nvavg
   
   # average input impact velocity
   vavg = 0.0
