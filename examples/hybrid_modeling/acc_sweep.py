@@ -12,9 +12,9 @@ from math import sin, cos, pi
 # acc_plot - path to acceleration signal plot
 # vel_plot - path to velocity signal plot
 # dsp_plot - path to displacement signal plot
-# -------------------------------------------------
-# returned - [t0,v0,t1,v1,...] linear signal spline
-# -------------------------------------------------
+# -------------------------------------------------------------------------------
+# returned - [t0,v0,t1,v1,...] linear spline of the corresponding velocity signal
+# -------------------------------------------------------------------------------
 def acc_sweep (step, stop, lofq, hifq, amag, acc_plot = None, vel_plot = None, dsp_plot = None):
 
   t0 = 0.0

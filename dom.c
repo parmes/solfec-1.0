@@ -3324,7 +3324,7 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
 CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *spnt, void *function, double *lim, double *direction, int update)
 {
   SGP *msgp, *ssgp;
-  double v [3], d;
+  double v[3], w[3];
   int m, s;
   CON *con;
 
@@ -3336,22 +3336,21 @@ CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *
   if ((s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
   ssgp = &slave->sgp [s];
 
-  SUB (mpnt, spnt, v);
-  d = LEN (v);
-  
   con = insert (dom, master, slave, msgp, ssgp, SPRING);
   COPY (mpnt, con->point);
   COPY (mpnt, con->mpnt);
   COPY (spnt, con->spnt);
   con->Z[0] = lim[0];
   con->Z[1] = lim[1];
-  con->Z[2] = d; /* initial distance */
-  COPY (direction, v);
-  NORMALIZE (v);
+  SUB (mpnt, spnt, v);
+  COPY (direction, w);
+  NORMALIZE (w);
+  if (update == SPRING_FOLLOW) con->Z[2] = LEN(v); /* initial distance */
+  else con->Z[2] = DOT (w, v); /* initial distance */
   /* con->Z[3] will store length of spring */
-  con->Z[4] = v[0];
-  con->Z[5] = v[1];
-  con->Z[6] = v[2];
+  con->Z[4] = w[0];
+  con->Z[5] = w[1];
+  con->Z[6] = w[2];
   con->spair[0] = update; /* store update in spair[0] */
   con->tms = function;
   update_spring (dom, con); /* initial update */

@@ -6016,6 +6016,8 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
       dir [0] = PyFloat_AsDouble (PyTuple_GetItem (direction, 0));
       dir [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
       dir [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
+
+      upd = SPRING_FIXED;
     }
 
     if (update)

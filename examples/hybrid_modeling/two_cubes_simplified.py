@@ -23,9 +23,9 @@ wavg = 0.01  # energy averaging time window [t-wavg/2, t+wavg/2]
 fstop = 7.0  # end frequency for averaging velocities
              # (hand tunded in order to cover the pre-drop area)
 
-GEOMETRIC_EPSILON (1E-4*gap) # geometrical tolerance << gap
+GEOMETRIC_EPSILON (1E-9) # tiny geometrical tolerance (<< gap)
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/hybrid_modeling/two_cubes')
+solfec = SOLFEC ('DYNAMIC', step, 'out/hybrid_modeling/two_cubes_simplified')
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.05, restitution = 0.0)
 bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
 
@@ -42,49 +42,20 @@ bodies = [] # empty list for FEM bodies
 for j in range (0, nbodl):
   shape = HEX (nodes, nele, nele, nele, 1, [1]*6)
   TRANSLATE (shape, (0, j*(l+gap), 0))
-  body = BODY (solfec, 'FINITE_ELEMENT', shape, bulk, form = 'BC')
-  body.scheme = 'DEF_LIM' # implicit time integration
-  body.damping = damp
+  body = BODY (solfec, 'RIGID', shape, bulk, form = 'BC')
   bodies.append (body) # append list
 
-# compute low eigen modes of the first body and get corresponding eigenfrequencies
-eigf = []
-out = MODAL_ANALYSIS (bodies [0], 6+nmod, 'out/hybrid_modeling/two_cubes/modes', abstol = 1E-14, verbose = 'ON')
-for o in out [0][6:6+nmod]:
-  eigf.append (o**0.5) # eigen frequency = sqrt (eigen value)
-print 'Single body eigen frequencies are:', eigf
-
-# base and side walls
-s0 = HEX (nodes, 1, 1, 1, 1, [1]*6)
-SCALE (s0, (1, ((nbodl+2)*l + (nbodl+1)*gap)/l, 0.1))
-TRANSLATE (s0, (0, -gap-l, -0.1*h))
-s1 = COPY (s0)
-s2 = COPY (s0)
-ROTATE (s1, (w/2,0,h/2), (0, 1, 0), +90)
-ROTATE (s2, (w/2,0,h/2), (0, 1, 0), -90)
-#base = BODY (solfec, 'OBSTACLE', s0, bulk)
-#wal1 = BODY (solfec, 'OBSTACLE', s1, bulk)
-#wal2 = BODY (solfec, 'OBSTACLE', s2, bulk)
-
 # moving obstacle
-s3 = HEX (nodes, 1, 1, 1, 1, [1]*6)
-TRANSLATE (s3, (0, -gap-l, 0))
-s4 = HEX (nodes, 1, 1, 1, 1, [1]*6)
-TRANSLATE (s4, (0, nbodl*(l+gap), 0))
-body = BODY (solfec, 'OBSTACLE', [s0, s1, s2, s3, s4], bulk)
+s1 = HEX (nodes, 1, 1, 1, 1, [1]*6)
+TRANSLATE (s1, (0, -gap-l, 0))
+s2 = HEX (nodes, 1, 1, 1, 1, [1]*6)
+TRANSLATE (s2, (0, nbodl*(l+gap), 0))
+body = BODY (solfec, 'OBSTACLE', [s1, s2], bulk)
 FIX_DIRECTION (body, (w,-(gap+l),0), (1, 0, 0))
 FIX_DIRECTION (body, (w,-(gap+l),0), (0, 0, 1))
 FIX_DIRECTION (body, (w,-gap,0), (1, 0, 0))
 FIX_DIRECTION (body, (w,-gap,h), (1, 0, 0))
 FIX_DIRECTION (body, (w,-gap,0), (0, 0, 1))
-
-#exclude contact between moving obstacle and base+walls
-#CONTACT_EXCLUDE_BODIES (body, base)
-#CONTACT_EXCLUDE_BODIES (body, wal1)
-#CONTACT_EXCLUDE_BODIES (body, wal2)
-
-#enable gravity
-GRAVITY (solfec, (0, 0, -10))
 
 # apply velocity constraint corresponding to the acceleration sin sweep
 if VIEWER():
@@ -95,6 +66,60 @@ else:
 		  'out/hybrid_modeling/vel.png',
 		  'out/hybrid_modeling/dsp.png')
 SET_VELOCITY (body, (w/2.,-(gap+l)/2.,h/2.), (0, 1, 0), TIME_SERIES (data))
+
+# exclude contact between all bodies
+for i in range (0,nbodl):
+  CONTACT_EXCLUDE_BODIES (bodies[i], body)
+  if i < nbodl-1:
+    CONTACT_EXCLUDE_BODIES (bodies[i], bodies[i+1])
+
+def spring_force (s,v):
+  if s < -gap: return -1E6*s -1E3*v
+  else: return 0.0
+
+# apply spring constraints
+p0 = (0.25*w, -gap, 0.25*h)
+p1 = (0.25*w, 0, 0.25*h)
+PUT_SPRING (body, p0, bodies[0], p1, spring_force, (-l,l), (0, 1, 0))
+p0 = (0.75*w, -gap, 0.25*h)
+p1 = (0.75*w, 0, 0.25*h)
+PUT_SPRING (body, p0, bodies[0], p1, spring_force, (-l,l), (0, 1, 0))
+p0 = (0.75*w, -gap, 0.75*h)
+p1 = (0.75*w, 0, 0.75*h)
+PUT_SPRING (body, p0, bodies[0], p1, spring_force, (-l,l), (0, 1, 0))
+p0 = (0.25*w, -gap, 0.75*h)
+p1 = (0.25*w, 0, 0.75*h)
+PUT_SPRING (body, p0, bodies[0], p1, spring_force, (-l,l), (0, 1, 0))
+
+p0 = (0.25*w, (nbodl-1)*(l+gap)+l, 0.25*h)
+p1 = (0.25*w, nbodl*(l+gap), 0.25*h)
+PUT_SPRING (bodies[nbodl-1], p0, body, p1, spring_force, (-l,l), (0, 1, 0))
+p0 = (0.75*w, (nbodl-1)*(l+gap)+l, 0.25*h)
+p1 = (0.75*w, nbodl*(l+gap), 0.25*h)
+PUT_SPRING (bodies[nbodl-1], p0, body, p1, spring_force, (-l,l), (0, 1, 0))
+p0 = (0.75*w, (nbodl-1)*(l+gap)+l, 0.75*h)
+p1 = (0.75*w, nbodl*(l+gap), 0.75*h)
+PUT_SPRING (bodies[nbodl-1], p0, body, p1, spring_force, (-l,l), (0, 1, 0))
+p0 = (0.25*w, (nbodl-1)*(l+gap)+l, 0.75*h)
+p1 = (0.25*w, nbodl*(l+gap), 0.75*h)
+PUT_SPRING (bodies[nbodl-1], p0, body, p1, spring_force, (-l,l), (0, 1, 0))
+
+for i in range (0, nbodl-1):
+  p0 =  (0.25*w, i*(l+gap)+l, 0.25*h)
+  p1 =  (0.25*w, (i+1)*(l+gap), 0.25*h)
+  PUT_SPRING (bodies[i], p0, bodies[i+1], p1, spring_force, (-l,l), (0, 1, 0))
+  p0 =  (0.75*w, i*(l+gap)+l, 0.25*h)
+  p1 =  (0.75*w, (i+1)*(l+gap), 0.25*h)
+  PUT_SPRING (bodies[i], p0, bodies[i+1], p1, spring_force, (-l,l), (0, 1, 0))
+  p0 =  (0.75*w, i*(l+gap)+l, 0.75*h)
+  p1 =  (0.75*w, (i+1)*(l+gap), 0.75*h)
+  PUT_SPRING (bodies[i], p0, bodies[i+1], p1, spring_force, (-l,l), (0, 1, 0))
+  p0 =  (0.25*w, i*(l+gap)+l, 0.75*h)
+  p1 =  (0.25*w, (i+1)*(l+gap), 0.75*h)
+  PUT_SPRING (bodies[i], p0, bodies[i+1], p1, spring_force, (-l,l), (0, 1, 0))
+
+# enable gravity
+# GRAVITY (solfec, (0, 0, -10))
 
 # create constraints solver
 slv = NEWTON_SOLVER ()
@@ -145,14 +170,14 @@ if not VIEWER() and solfec.mode == 'READ':
     plt.legend(loc = 'best')
     plt.xlabel ('Frequency $(Hz)$')
     plt.ylabel ('Energy $(J)$')
-    plt.savefig ('out/hybrid_modeling/two_cubes/ene'+str(k)+'.png')
+    plt.savefig ('out/hybrid_modeling/two_cubes_simplified/ene'+str(k)+'.png')
 
     plt.clf ()
     plt.plot (fq, vy, lw = 2)
     plt.xlim ((lofq, hifq))
     plt.xlabel ('Frequency $(Hz)$')
     plt.ylabel ('Velocity vy $(m/s)$')
-    plt.savefig ('out/hybrid_modeling/two_cubes/vy'+str(k)+'.png')
+    plt.savefig ('out/hybrid_modeling/two_cubes_simplified/vy'+str(k)+'.png')
 
     # averge pre-drop-off velocity for body k
     vavg = 0.0
