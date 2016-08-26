@@ -1,13 +1,12 @@
 # two-body hybrid modeling example 
 import matplotlib.pyplot as plt
-import sys
-import os
+import time, sys, os
 sys.path.append(os.path.dirname(__file__))
 from acc_sweep import *
 
-step = 1E-4  # time step
+step = 1E-5  # time step
 stop = 5.0   # duration of the simulation
-damp = 1E-8  # amount of stiffness proportional damping
+damp = 1E-5  # amount of stiffness proportional damping
 lofq = 5     # low frequency for the sweep
 hifq = 15    # high frequency for the sweep
 amag = 10.0  # acceleration magnitude
@@ -25,7 +24,7 @@ fstop = 7.0  # end frequency for averaging velocities
 
 GEOMETRIC_EPSILON (1E-4*gap) # geometrical tolerance << gap
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/hybrid_modeling/two_cubes')
+solfec = SOLFEC ('DYNAMIC', step, 'out/hybrid_modeling/two_cubes_nscd')
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.05, restitution = 0.0)
 bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.25, density = 1E3)
 
@@ -47,13 +46,6 @@ for j in range (0, nbodl):
   body.damping = damp
   bodies.append (body) # append list
 
-# compute low eigen modes of the first body and get corresponding eigenfrequencies
-eigf = []
-out = MODAL_ANALYSIS (bodies [0], 6+nmod, 'out/hybrid_modeling/two_cubes/modes', abstol = 1E-14, verbose = 'ON')
-for o in out [0][6:6+nmod]:
-  eigf.append (o**0.5) # eigen frequency = sqrt (eigen value)
-print 'Single body eigen frequencies are:', eigf
-
 # base and side walls
 s0 = HEX (nodes, 1, 1, 1, 1, [1]*6)
 SCALE (s0, (1, ((nbodl+2)*l + (nbodl+1)*gap)/l, 0.1))
@@ -62,9 +54,8 @@ s1 = COPY (s0)
 s2 = COPY (s0)
 ROTATE (s1, (w/2,0,h/2), (0, 1, 0), +90)
 ROTATE (s2, (w/2,0,h/2), (0, 1, 0), -90)
-#base = BODY (solfec, 'OBSTACLE', s0, bulk)
-#wal1 = BODY (solfec, 'OBSTACLE', s1, bulk)
-#wal2 = BODY (solfec, 'OBSTACLE', s2, bulk)
+TRANSLATE (s1, (-gap, 0, 0))
+TRANSLATE (s2, (+gap, 0, 0))
 
 # moving obstacle
 s3 = HEX (nodes, 1, 1, 1, 1, [1]*6)
@@ -77,11 +68,6 @@ FIX_DIRECTION (body, (w,-(gap+l),0), (0, 0, 1))
 FIX_DIRECTION (body, (w,-gap,0), (1, 0, 0))
 FIX_DIRECTION (body, (w,-gap,h), (1, 0, 0))
 FIX_DIRECTION (body, (w,-gap,0), (0, 0, 1))
-
-#exclude contact between moving obstacle and base+walls
-#CONTACT_EXCLUDE_BODIES (body, base)
-#CONTACT_EXCLUDE_BODIES (body, wal1)
-#CONTACT_EXCLUDE_BODIES (body, wal2)
 
 #enable gravity
 GRAVITY (solfec, (0, 0, -10))
@@ -103,7 +89,10 @@ slv = NEWTON_SOLVER ()
 OUTPUT (solfec, ostep)
 
 # run simulation
+t0 = time.time()
 RUN (solfec, slv, stop)
+if solfec.mode == 'WRITE':
+  print "Analysis run time:", (time.time() - t0)/60.0, "minutes"
 
 # post-process results
 if not VIEWER() and solfec.mode == 'READ':
@@ -145,14 +134,14 @@ if not VIEWER() and solfec.mode == 'READ':
     plt.legend(loc = 'best')
     plt.xlabel ('Frequency $(Hz)$')
     plt.ylabel ('Energy $(J)$')
-    plt.savefig ('out/hybrid_modeling/two_cubes/ene'+str(k)+'.png')
+    plt.savefig ('out/hybrid_modeling/two_cubes_nscd/ene'+str(k)+'.png')
 
     plt.clf ()
     plt.plot (fq, vy, lw = 2)
     plt.xlim ((lofq, hifq))
     plt.xlabel ('Frequency $(Hz)$')
     plt.ylabel ('Velocity vy $(m/s)$')
-    plt.savefig ('out/hybrid_modeling/two_cubes/vy'+str(k)+'.png')
+    plt.savefig ('out/hybrid_modeling/two_cubes_nscd/vy'+str(k)+'.png')
 
     # averge pre-drop-off velocity for body k
     vavg = 0.0
