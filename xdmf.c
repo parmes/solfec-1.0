@@ -165,6 +165,7 @@ static void write_mesh (MESH *msh, BODY *bod, double time, int step, hid_t h5_gr
   {
     int *topo = NULL, topo_size = 0, topo_count = 0;
     ELEMENT *ele;
+    int *bid;
 
     for (ele = msh->surfeles; ele; ele = ele->next)
     {
@@ -211,6 +212,11 @@ static void write_mesh (MESH *msh, BODY *bod, double time, int step, hid_t h5_gr
     int elements = msh->surfeles_count + msh->bulkeles_count;
     ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "ELEMENTS", &elements, 1) >= 0, "HDF5 file write error");
     ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "NODES", &msh->nodes_count, 1) >= 0, "HDF5 file write error");
+    length = elements;
+    ERRMEM (bid = malloc (sizeof (int) * elements));
+    for (int i = 0; i < elements; i ++) bid[i] = bod->id;
+    ASSERT_TEXT (H5LTmake_dataset_int (h5_grid, "BID", 1, &length, bid) >= 0, "HDF5 file write error");
+    free (bid);
   }
 
   char h5_text[1024];
@@ -249,7 +255,7 @@ static void write_convex (CONVEX *cvx, BODY *bod, double time, int step, hid_t h
   if (step == 0)
   {
     int *topo = NULL, topo_size = 0, topo_count = 0;
-    int i = 0, *f = cvx->fac;
+    int i = 0, *f = cvx->fac, *bid;
     for (; i < cvx->nfac; i ++, f += (f[0]+1))
     {
       pack_int (&topo_size, &topo, &topo_count, 3); /* Polygon */
@@ -267,6 +273,11 @@ static void write_convex (CONVEX *cvx, BODY *bod, double time, int step, hid_t h
     int nfac = cvx->nfac, nver = cvx->nver;
     ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "ELEMENTS", &nfac, 1) >= 0, "HDF5 file write error");
     ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "NODES", &nver, 1) >= 0, "HDF5 file write error");
+    length = nfac;
+    ERRMEM (bid = malloc (sizeof (int) * nfac));
+    for (int i = 0; i < nfac; i ++) bid[i] = bod->id;
+    ASSERT_TEXT (H5LTmake_dataset_int (h5_grid, "BID", 1, &length, bid) >= 0, "HDF5 file write error");
+    free (bid);
   }
 
   char h5_text[1024];
@@ -300,7 +311,7 @@ static void write_convex (CONVEX *cvx, BODY *bod, double time, int step, hid_t h
 }
 
 /* write sphere data at current time step */
-static void write_spheres (DOM *dom, hid_t h5_file, double *center, double *radius, int count, double *disp, double *velo, double *stress, int attributes)
+static void write_spheres (DOM *dom, hid_t h5_file, double *center, double *radius, int count, double *disp, double *velo, double *stress, int *bid, int attributes)
 {
   hid_t h5_sphs, h5_step;
   char h5_text[1024];
@@ -330,6 +341,7 @@ static void write_spheres (DOM *dom, hid_t h5_file, double *center, double *radi
   hsize_t dims[2] = {nsph, 3};
   ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "GEOM", 2, dims, center) >= 0, "HDF5 file write error");
   ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "RADI", 1, &nsph, radius) >= 0, "HDF5 file write error");
+  ASSERT_TEXT (H5LTmake_dataset_int (h5_step, "BID", 1, &nsph, bid) >= 0, "HDF5 file write error");
   if (attributes & XDMF_DISP)
   {
     ASSERT_TEXT (H5LTmake_dataset_double (h5_step, "DISP", 2, dims, disp) >= 0, "HDF5 file write error");
@@ -355,7 +367,8 @@ static void write_bodies (DOM *dom, hid_t h5_file, MAP **gids, int **gid, int *g
     sph_radius_count = 0, sph_radius_size = 0,
     sph_disp_count = 0, sph_disp_size = 0,
     sph_velo_count = 0, sph_velo_size = 0,
-    sph_stress_count = 0, sph_stress_size = 0;
+    sph_stress_count = 0, sph_stress_size = 0,
+    *sph_bid = NULL, sph_bid_count = 0, sph_bid_size = 0;
 
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
@@ -433,6 +446,7 @@ static void write_bodies (DOM *dom, hid_t h5_file, MAP **gids, int **gid, int *g
         double values[6];
 	pack_doubles (&sph_center_size, &sph_center, &sph_center_count, sph->cur_center, 3);
 	pack_double (&sph_radius_size, &sph_radius, &sph_radius_count, sph->cur_radius);
+	pack_int (&sph_bid_size, &sph_bid, &sph_bid_count, bod->id);
 
 	if (attributes & XDMF_DISP)
 	{
@@ -460,10 +474,14 @@ static void write_bodies (DOM *dom, hid_t h5_file, MAP **gids, int **gid, int *g
     }
   }
 
-  write_spheres (dom, h5_file, sph_center, sph_radius, sph_radius_count, sph_disp, sph_velo, sph_stress, attributes);
+  write_spheres (dom, h5_file, sph_center, sph_radius, sph_radius_count, sph_disp, sph_velo, sph_stress, sph_bid, attributes);
 
   free (sph_center);
   free (sph_radius);
+  free (sph_disp);
+  free (sph_velo);
+  free (sph_stress);
+  free (sph_bid);
 }
 
 /* write constraints state at current time step */
@@ -670,6 +688,12 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
 	fprintf (xmf_file, "</DataStructure>\n");
 	fprintf (xmf_file, "</Geometry>\n");
 
+	fprintf (xmf_file, "<Attribute Name=\"BID\" Center=\"Cell\" AttributeType=\"Scalar\">\n");
+	fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Int\" Format=\"HDF\">\n", elements);
+	fprintf (xmf_file, "%s:/GRIDS/%d/BID\n", h5_file_name, gid[i]);
+	fprintf (xmf_file, "</DataStructure>\n");
+	fprintf (xmf_file, "</Attribute>\n");
+
 	if (attributes & XDMF_DISP)
 	{
 	  fprintf (xmf_file, "<Attribute Name=\"DISP\" Center=\"Node\" AttributeType=\"Vector\">\n");
@@ -824,6 +848,12 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
       fprintf (xmf_file, "<Attribute Name=\"RADI\" Center=\"Node\" AttributeType=\"Scalar\">\n");
       fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Float\" Presicion=\"8\" Format=\"HDF\">\n", count);
       fprintf (xmf_file, "%s:/SPHERES/%d/RADI\n", h5_file_name, i);
+      fprintf (xmf_file, "</DataStructure>\n");
+      fprintf (xmf_file, "</Attribute>\n");
+
+      fprintf (xmf_file, "<Attribute Name=\"BID\" Center=\"Node\" AttributeType=\"Scalar\">\n");
+      fprintf (xmf_file, "<DataStructure Dimensions=\"%d\" NumberType=\"Int\" Format=\"HDF\">\n", count);
+      fprintf (xmf_file, "%s:/SPHERES/%d/BID\n", h5_file_name, i);
       fprintf (xmf_file, "</DataStructure>\n");
       fprintf (xmf_file, "</Attribute>\n");
 
