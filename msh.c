@@ -260,6 +260,17 @@ static void setup_normal (double (*nodes) [3], FACE *fac)
   NORMALIZE (normal);
 }
 
+static void setup_normal_ext (double (*nodes) [3], FACE *fac, int i, int j, int k, double *normal)
+{
+  int n0, n1, n2;
+
+  n0 = fac->nodes [i];
+  n1 = fac->nodes [j];
+  n2 = fac->nodes [k];
+  NORMAL (nodes [n0], nodes [n1], nodes [n2], normal);
+  NORMALIZE (normal);
+}
+
 /* get new element, old face list and create the element faces => return the new face list */
 static FACE* create_faces (MEM *facmem, MEM *mapmem, MAP **faces, ELEMENT *ele, FACE *list)
 {
@@ -3083,6 +3094,7 @@ int ELEMENT_Vertices (MESH *msh, ELEMENT *ele, double *ver)
  * correspond to the surface faces; return the total number of planes */
 int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
 {
+  double normal[3], dn[3];
   FACE faces [6], *fac;
   int n, m, j, l;
 
@@ -3094,12 +3106,29 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
     setup_face (ele, n, &faces [n], 0);
 
   /* copy first 'k' surface planes */
-  for ((*k) = 0, fac = ele->faces; fac; (*k) ++, fac = fac->next)
+  for ((*k) = 0, fac = ele->faces; fac; fac = fac->next)
   {
     if (sur) sur [*k] = fac->surface;
+    (*k) ++;
+
     COPY (fac->normal, pla);
     COPY (msh->cur_nodes [fac->nodes[0]], pla + 3);
     pla += 6;
+
+    if (fac->type == 4)
+    {
+      setup_normal_ext (msh->cur_nodes, fac, 0, 2, 3, normal);
+      SUB (normal, pla-6, dn);
+      if (DOT(dn,dn) > GEOMETRIC_EPSILON*GEOMETRIC_EPSILON)
+      {
+	if (sur) sur [*k] = fac->surface;
+	(*k) ++;
+
+        COPY (normal, pla);
+	COPY (msh->cur_nodes [fac->nodes[0]], pla + 3);
+	pla += 6;
+      }
+    }
   }
 
   /* copy the remaining planes */
@@ -3115,6 +3144,18 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
       COPY (msh->cur_nodes [faces [n].nodes[0]], pla + 3);
       pla += 6;
       j ++;
+
+      if (faces[n].type == 4)
+      {
+	setup_normal_ext (msh->cur_nodes, &faces[n], 0, 2, 3, normal);
+	SUB (normal, pla-6, dn);
+	if (DOT(dn,dn) > GEOMETRIC_EPSILON*GEOMETRIC_EPSILON)
+	{
+	  COPY (normal, pla);
+	  COPY (msh->cur_nodes [faces[n].nodes[0]], pla + 3);
+	  pla += 6;
+	}
+      }
     }
   }
 

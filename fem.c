@@ -2776,7 +2776,7 @@ static void dump_intersection (CONVEX *cvx, double *vertices, double *planes, in
  * their volumetric intersection to be later used for integration */
 static void overlap (void *data, BOX *one, BOX *two)
 {
-  double vertices [24], planes [36], *pla;
+  double vertices [24], planes [72], *pla;
   ELEMENT *ele;
   CONVEX *cvx;
   int m, n, k;

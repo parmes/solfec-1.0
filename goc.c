@@ -124,6 +124,23 @@ inline static int nearest_surface (double *pnt, double *pla, int *sur, int n)
   return ret;
 }
 
+#if 0
+/* dump convex-convex intersection input for inverstigation with tst/cvitest */
+static void dump_cvi_definition (double *va, int nva, double *pa, int npa, double *vb, int nvb, double *pb, int npb)
+{
+  int i;
+  printf ("\n");
+  printf ("%.24e\n", GEOMETRIC_EPSILON);
+  printf ("%d   %d\n", nva, npa);
+  for (i = 0; i < nva; i ++) printf ("%.24e   %.24e   %.24e\n", va[3*i], va[3*i+1], va[3*i+2]);
+  for (i = 0; i < npa; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", pa[6*i], pa[6*i+1], pa[6*i+2], pa[6*i+3], pa[6*i+4], pa[6*i+5]);
+  printf ("%d   %d\n", nvb, npb);
+  for (i = 0; i < nvb; i ++) printf ("%.24e   %.24e   %.24e\n", vb[3*i], vb[3*i+1], vb[3*i+2]);
+  for (i = 0; i < npb; i ++) printf ("%.24e   %.24e   %.24e   %.24e   %.24e   %.24e\n", pb[6*i], pb[6*i+1], pb[6*i+2], pb[6*i+3], pb[6*i+4], pb[6*i+5]);
+  printf ("\n");
+}
+#endif
+
 /* if m > 0 return surface outward normal index (1 or 2);
  * if m < 0 assume outward a-normal and return 1 if spair did not change or 2 otherwise;
  * return 0 if a geometrical error occured */
@@ -158,7 +175,13 @@ inline static int point_normal_spair_area_gap
   *area *= 0.5; /* half surface */
 
   if (gjk_convex_point (va, nva, point, v) > GEOMETRIC_EPSILON ||
-      gjk_convex_point (vb, nvb, point, v) > GEOMETRIC_EPSILON) return 0; /* fail ill-conditioned points */
+      gjk_convex_point (vb, nvb, point, v) > GEOMETRIC_EPSILON)
+  {
+#if 0
+    dump_cvi_definition (va, nva, pa, npa, vb, nvb, pb, npb);
+#endif
+    return 0; /* fail ill-conditioned points */
+  }
 
   if (m > 0)
   {
@@ -764,10 +787,10 @@ static int detect (
   {
     case AABB_ELEMENT_ELEMENT:
     {
-      double va [24], pa [36],
-             vb [24], pb [36];
-      int nva, npa, sa [6], nsa,
-	  nvb, npb, sb [6], nsb;
+      double va [24], pa [72],
+             vb [24], pb [72];
+      int nva, npa, sa [12], nsa,
+	  nvb, npb, sb [12], nsb;
 
       nva = ELEMENT_Vertices (oneshp->data, onegobj, va);
       npa = ELEMENT_Planes (oneshp->data, onegobj, pa, sa, &nsa);
@@ -815,9 +838,9 @@ static int detect (
     break;
     case AABB_ELEMENT_CONVEX:
     {
-      double va [24], pa [36],
+      double va [24], pa [72],
              *vb, *pb;
-      int nva, npa, sa [6], nsa,
+      int nva, npa, sa [12], nsa,
 	  nvb, npb, *sb, nsb,
 	  ret;
 
@@ -839,9 +862,9 @@ static int detect (
     case AABB_CONVEX_ELEMENT:
     {
       double *va, *pa,
-             vb [24], pb [36];
+             vb [24], pb [72];
       int nva, npa, *sa, nsa,
-	  nvb, npb, sb [6], nsb,
+	  nvb, npb, sb [12], nsb,
 	  ret;
 
       convex_init (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
@@ -861,8 +884,8 @@ static int detect (
     break;
     case AABB_ELEMENT_SPHERE:
     {
-      double va [24], pa [36];
-      int nva, npa, sa [6], nsa;
+      double va [24], pa [72];
+      int nva, npa, sa [12], nsa;
       SPHERE *b = twogobj;
 
       nva = ELEMENT_Vertices (oneshp->data, onegobj, va);
@@ -877,8 +900,8 @@ static int detect (
     case AABB_SPHERE_ELEMENT:
     {
       SPHERE *a = onegobj;
-      double vb [24], pb [36];
-      int nvb, npb, sb [6], nsb,
+      double vb [24], pb [72];
+      int nvb, npb, sb [12], nsb,
 	  ret;
 
       nvb = ELEMENT_Vertices (twoshp->data, twogobj, vb);
@@ -946,8 +969,8 @@ static int detect (
     break;
     case AABB_ELEMENT_ELLIP:
     {
-      double va [24], pa [36];
-      int nva, npa, sa [6], nsa;
+      double va [24], pa [72];
+      int nva, npa, sa [12], nsa;
       ELLIP *b = twogobj;
 
       nva = ELEMENT_Vertices (oneshp->data, onegobj, va);
@@ -961,8 +984,8 @@ static int detect (
     case AABB_ELLIP_ELEMENT:
     {
       ELLIP *a = onegobj;
-      double vb [24], pb [36];
-      int nvb, npb, sb [6], nsb,
+      double vb [24], pb [72];
+      int nvb, npb, sb [12], nsb,
 	  ret;
 
       nvb = ELEMENT_Vertices (twoshp->data, twogobj, vb);
@@ -1062,10 +1085,10 @@ static int update (
   {
     case AABB_ELEMENT_ELEMENT:
     {
-      double va [24], pa [36],
-             vb [24], pb [36];
-      int nva, npa, sa [6], nsa,
-	  nvb, npb, sb [6], nsb;
+      double va [24], pa [72],
+             vb [24], pb [72];
+      int nva, npa, sa [12], nsa,
+	  nvb, npb, sb [12], nsb;
 
       nva = ELEMENT_Vertices (oneshp->data, onegobj, va);
       npa = ELEMENT_Planes (oneshp->data, onegobj, pa, sa, &nsa);
@@ -1113,9 +1136,9 @@ static int update (
     break;
     case AABB_ELEMENT_CONVEX:
     {
-      double va [24], pa [36],
+      double va [24], pa [72],
              *vb, *pb;
-      int nva, npa, sa [6], nsa,
+      int nva, npa, sa [12], nsa,
 	  nvb, npb, *sb, nsb,
 	  ret;
 
@@ -1137,9 +1160,9 @@ static int update (
     case AABB_CONVEX_ELEMENT:
     {
       double *va, *pa,
-             vb [24], pb [36];
+             vb [24], pb [72];
       int nva, npa, *sa, nsa,
-	  nvb, npb, sb [6], nsb,
+	  nvb, npb, sb [12], nsb,
 	  ret;
 
       convex_init (onegobj, &va, &nva, &pa, &npa, &sa, &nsa);
@@ -1159,8 +1182,8 @@ static int update (
     break;
     case AABB_ELEMENT_SPHERE:
     {
-      double va [24], pa [36];
-      int nva, npa, sa [6], nsa;
+      double va [24], pa [72];
+      int nva, npa, sa [12], nsa;
       SPHERE *b = twogobj;
 
       nva = ELEMENT_Vertices (oneshp->data, onegobj, va);
@@ -1174,8 +1197,8 @@ static int update (
     case AABB_SPHERE_ELEMENT:
     {
       SPHERE *a = onegobj;
-      double vb [24], pb [36];
-      int nvb, npb, sb [6], nsb, ret;
+      double vb [24], pb [72];
+      int nvb, npb, sb [12], nsb, ret;
 
       nvb = ELEMENT_Vertices (twoshp->data, twogobj, vb);
       npb = ELEMENT_Planes (twoshp->data, twogobj, pb, sb, &nsb);
@@ -1237,8 +1260,8 @@ static int update (
     break;
     case AABB_ELEMENT_ELLIP:
     {
-      double va [24], pa [36];
-      int nva, npa, sa [6], nsa;
+      double va [24], pa [72];
+      int nva, npa, sa [12], nsa;
       ELLIP *b = twogobj;
 
       nva = ELEMENT_Vertices (oneshp->data, onegobj, va);
@@ -1252,8 +1275,8 @@ static int update (
     case AABB_ELLIP_ELEMENT:
     {
       ELLIP *a = onegobj;
-      double vb [24], pb [36];
-      int nvb, npb, sb [6], nsb,
+      double vb [24], pb [72];
+      int nvb, npb, sb [12], nsb,
 	  ret;
 
       nvb = ELEMENT_Vertices (twoshp->data, twogobj, vb);
