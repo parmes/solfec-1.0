@@ -137,3 +137,10 @@ else
   SICONOSINC =
   SICONOSLIB =
 endif
+
+ifdef PARMEC
+  PARMECINC = -DPARMEC -I$(PARMEC)
+  PARMECLIB = -L$(PARMEC)
+else
+  PARMECLIB =
+endif

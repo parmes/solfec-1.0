@@ -142,6 +142,15 @@ ZOLTANLIB = -L/usr/local/lib -lzoltan
 DYNLB = ../dynlb
 
 #
+# PARMEC library available at:
+# https://github.com/tkoziara/parmec
+# This option is used to enable the HYBRID_SOLVER;
+# If not required can be left as empty;
+#
+
+PARMEC = ../parmec
+
+#
 # Siconos (yes/no)
 #
 
