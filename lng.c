@@ -42,6 +42,7 @@
 #include "eli.h"
 #include "fra.h"
 #include "hyb.h"
+#include "hys.h"
 
 #if MPI
 #include <mpi.h>
@@ -129,6 +130,10 @@ static void callback_pairs_destroy ()
 /*
  * utilities
  */
+
+static int is_solver (PyObject *obj, char *var); /* is it a solfec solver ? */
+static int get_solver_kind (PyObject *obj); /* what kind of solver is that ? */
+static void* get_solver (PyObject *obj); /* return solver interface */
 
 /* test whether an object is a string */
 static int is_string (PyObject *obj, char *var)
@@ -268,6 +273,23 @@ static int is_ge_le (double num, char *var, double lo, double hi)
     sprintf (buf, "'%s' must be a number >= %g and <= %g", var, lo, hi);
     PyErr_SetString (PyExc_TypeError, buf);
     return 0;
+  }
+
+  return 1;
+}
+
+/* test whether an object is a dictionary */
+static int is_dict (PyObject *obj, char *var)
+{
+  if (obj)
+  {
+    if (!PyDict_Check (obj))
+    {
+      char buf [BUFLEN];
+      sprintf (buf, "'%s' must be a dictionary object", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
   }
 
   return 1;
@@ -4869,6 +4891,117 @@ static PyGetSetDef lng_TEST_SOLVER_getset [] =
 };
 
 /*
+ * HYBRID_SOLVER => object
+ */
+
+typedef struct lng_HYBRID_SOLVER lng_HYBRID_SOLVER;
+
+static PyTypeObject lng_HYBRID_SOLVER_TYPE;
+
+struct lng_HYBRID_SOLVER
+{
+  PyObject_HEAD
+
+  HYBRID_SOLVER *hs;
+};
+
+/* constructor */
+static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("parmec_file", "parmec_step", "parmec2solfec", "solfec_solver", "parmec_interval", "parmec_prefix");
+  PyObject *parmec_file, *parmec2solfec, *solfec_solver, *parmec_interval, *parmec_prefix;
+  double dt[2], parmec_step;
+  lng_HYBRID_SOLVER *self;
+  char *prefix;
+
+  self = (lng_HYBRID_SOLVER*)type->tp_alloc (type, 0);
+
+  if (self)
+  {
+    parmec_interval = NULL;
+    parmec_prefix = NULL;
+
+    PARSEKEYS ("OdOO|OO", &parmec_file, &parmec_step, &parmec2solfec, &solfec_solver, &parmec_interval, &parmec_prefix);
+
+    TYPETEST (is_string (parmec_file, kwl[0]) && is_positive (parmec_step, kwl[1]) && is_dict (parmec2solfec, kwl[2]) &&
+              is_solver (solfec_solver, kwl[3]) && is_string (parmec_prefix, kwl[5]));
+
+    MAP *p2s = NULL;
+    PyObject *key, *val;
+    Py_ssize_t i = 0;
+
+    while (PyDict_Next (parmec2solfec, &i, &key, &val))
+    {
+      MAP_Insert (NULL, &p2s, (void*) PyInt_AsLong(key), (void*) PyInt_AsLong(val), NULL);
+    }
+
+    if (parmec_interval)
+    {
+      if (PyTuple_Check(parmec_interval))
+      {
+	if (PyTuple_Size(parmec_interval) != 2)
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid parmec_interval");
+	  return NULL;
+	}
+
+	dt[0] = PyFloat_AsDouble (PyTuple_GetItem (parmec_interval, 0));
+	dt[1] = PyFloat_AsDouble (PyTuple_GetItem (parmec_interval, 1));
+      }
+      else 
+      {
+	dt[0] = dt[1] = PyFloat_AsDouble (parmec_interval);
+
+	if (dt[0] <= 0.0)
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid parmec_interval");
+	  return NULL;
+	}
+      }
+    }
+    else
+    {
+      dt[0] = dt[1] = parmec_step;
+    }
+
+    if (parmec_prefix)
+    {
+      prefix = PyString_AsString (parmec_prefix);
+    }
+    else prefix = NULL;
+
+    self->hs = HYBRID_SOLVER_Create (PyString_AsString(parmec_file), parmec_step, dt, prefix,
+                               p2s, get_solver(solfec_solver), get_solver_kind(solfec_solver));
+  }
+
+  return (PyObject*)self;
+}
+
+/* destructor */
+static void lng_HYBRID_SOLVER_dealloc (lng_HYBRID_SOLVER *self)
+{
+#if OPENGL
+  if (RND_Is_On ()) return; /* do not delete in viewer mode */
+  else
+#endif
+  HYBRID_SOLVER_Destroy (self->hs);
+
+  self->ob_type->tp_free ((PyObject*)self);
+}
+
+/* HYBRID_SOLVER methods */
+static PyMethodDef lng_HYBRID_SOLVER_methods [] =
+{ {NULL, NULL, 0, NULL} };
+
+/* HYBRID_SOLVER members */
+static PyMemberDef lng_HYBRID_SOLVER_members [] =
+{ {NULL, 0, 0, 0, NULL} };
+
+/* HYBRID_SOLVER getset */
+static PyGetSetDef lng_HYBRID_SOLVER_getset [] =
+{ {NULL, 0, 0, NULL, NULL} };
+
+/*
  * CONSTRAINT => object
  */
 
@@ -7555,6 +7688,8 @@ static int get_solver_kind (PyObject *obj)
 #endif
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_TEST_SOLVER_TYPE))
     return TEST_SOLVER;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE))
+    return HYBRID_SOLVER_KIND;
   else return -1;
 }
 
@@ -7573,6 +7708,8 @@ static void* get_solver (PyObject *obj)
 #endif
   else if (PyObject_IsInstance (obj, (PyObject*)&lng_TEST_SOLVER_TYPE))
     return ((lng_TEST_SOLVER*)obj)->ts;
+  else if (PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE))
+    return ((lng_HYBRID_SOLVER*)obj)->hs;
   else return NULL;
 }
 
@@ -7597,10 +7734,13 @@ static PyObject* lng_RUN (PyObject *self, PyObject *args, PyObject *kwds)
   {
     TRY ()
     {
-      SOLFEC_Run (solfec->sol,
-		  get_solver_kind (solver),
-		  get_solver (solver),
-		  duration);
+      int kind = get_solver_kind (solver);
+
+      if (kind == HYBRID_SOLVER_KIND)
+      {
+	HYBRID_SOLVER_Run (get_solver (solver), solfec->sol, duration);
+      }
+      else SOLFEC_Run (solfec->sol, kind, get_solver (solver), duration);
     }
     CATCHANY (error)
     {
@@ -9667,6 +9807,10 @@ static void initlng (const char *path)
     Py_TPFLAGS_DEFAULT, lng_TEST_SOLVER_dealloc, lng_TEST_SOLVER_new,
     lng_TEST_SOLVER_methods, lng_TEST_SOLVER_members, lng_TEST_SOLVER_getset);
 
+  TYPEINIT (lng_HYBRID_SOLVER_TYPE, lng_HYBRID_SOLVER, "solfec.HYBRID_SOLVER",
+    Py_TPFLAGS_DEFAULT, lng_HYBRID_SOLVER_dealloc, lng_HYBRID_SOLVER_new,
+    lng_HYBRID_SOLVER_methods, lng_HYBRID_SOLVER_members, lng_HYBRID_SOLVER_getset);
+
   TYPEINIT (lng_CONSTRAINT_TYPE, lng_CONSTRAINT, "solfec.CONSTRAINT",
     Py_TPFLAGS_DEFAULT, lng_CONSTRAINT_dealloc, lng_CONSTRAINT_new,
     lng_CONSTRAINT_methods, lng_CONSTRAINT_members, lng_CONSTRAINT_getset);
@@ -9688,6 +9832,7 @@ static void initlng (const char *path)
   if (PyType_Ready (&lng_SICONOS_SOLVER_TYPE) < 0) return;
 #endif
   if (PyType_Ready (&lng_TEST_SOLVER_TYPE) < 0) return;
+  if (PyType_Ready (&lng_HYBRID_SOLVER_TYPE) < 0) return;
   if (PyType_Ready (&lng_CONSTRAINT_TYPE) < 0) return;
 
   if (!(m =  Py_InitModule3 ("solfec", lng_methods, "Solfec module"))) return;
@@ -9709,6 +9854,7 @@ static void initlng (const char *path)
   Py_INCREF (&lng_SICONOS_SOLVER_TYPE);
 #endif
   Py_INCREF (&lng_TEST_SOLVER_TYPE);
+  Py_INCREF (&lng_HYBRID_SOLVER_TYPE);
   Py_INCREF (&lng_CONSTRAINT_TYPE);
 
   PyModule_AddObject (m, "CONVEX", (PyObject*)&lng_CONVEX_TYPE);
@@ -9728,6 +9874,7 @@ static void initlng (const char *path)
   PyModule_AddObject (m, "SICONOS_SOLVER", (PyObject*)&lng_SICONOS_SOLVER_TYPE);
 #endif
   PyModule_AddObject (m, "TEST_SOLVER", (PyObject*)&lng_TEST_SOLVER_TYPE);
+  PyModule_AddObject (m, "HYBRID_SOLVER", (PyObject*)&lng_HYBRID_SOLVER_TYPE);
   PyModule_AddObject (m, "CONSTRAINT", (PyObject*)&lng_CONSTRAINT_TYPE);
   PyModule_AddObject (m, "__file__", ppath);
 }
@@ -9769,6 +9916,7 @@ int lng (const char *path)
                      "from solfec import PENALTY_SOLVER\n"
                      "from solfec import NEWTON_SOLVER\n"
                      "from solfec import TEST_SOLVER\n"
+                     "from solfec import HYBRID_SOLVER\n"
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"

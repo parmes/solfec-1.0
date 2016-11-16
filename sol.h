@@ -66,7 +66,8 @@ enum solver_kind
   PENALTY_SOLVER       = 0x02,
   NEWTON_SOLVER        = 0x04,
   SICONOS_SOLVER       = 0x08,
-  TEST_SOLVER          = 0x10
+  TEST_SOLVER          = 0x10,
+  HYBRID_SOLVER_KIND   = 0x20
 };
 
 typedef enum solver_kind SOLVER_KIND;

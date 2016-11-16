@@ -1,4 +1,4 @@
-/* Solfec's XDMF export functionality */
+/* HYBRID_SOLVER implementation --> PARMEC C++ to C glue code */
 
 /*
 The MIT License (MIT)
@@ -24,24 +24,15 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef __xdmf__
-#define __xdmf__
+/* Contributors: Tomasz Koziara */
 
-enum
+#include "parmec8.h"
+
+extern "C" { /* C */
+
+void parmec_init ()
 {
-  XDMF_DISP = 1,
-  XDMF_VELO = 2,
-  XDMF_STRESS = 4,
-  XDMF_REAC = 8,
-  XDMF_RELV = 16,
-  XDMF_GAP = 32
-};
+  parmec::init();
+}
 
-/* Export results in XMDF format;
- * ntimes > 0 --> number of individual time instances;
- * ntimes < 0 --> a time interval from times[0] to times[1];
- * ntimes = 0 --> export current geometry only without attributes;
- */
-void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subset, int attributes);
-
-#endif
+} /* extern C */

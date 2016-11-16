@@ -1,4 +1,4 @@
-/* Solfec's XDMF export functionality */
+/* HYBRID_SOLVER interface */
 
 /*
 The MIT License (MIT)
@@ -24,24 +24,34 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-#ifndef __xdmf__
-#define __xdmf__
+#include "sol.h"
+#include "map.h"
 
-enum
+#ifndef __hys__
+#define __hys__
+
+typedef struct hybrid_solver HYBRID_SOLVER;
+
+struct hybrid_solver
 {
-  XDMF_DISP = 1,
-  XDMF_VELO = 2,
-  XDMF_STRESS = 4,
-  XDMF_REAC = 8,
-  XDMF_RELV = 16,
-  XDMF_GAP = 32
+  char *parmec_file;
+  double parmec_step;
+  double parmec_interval[2];
+  char *parmec_prefix;
+  MAP *parmec2solfec;
+  MAP *solfec2parmec;
+  void *solfec_solver;
+  int solfec_solver_kind;
 };
 
-/* Export results in XMDF format;
- * ntimes > 0 --> number of individual time instances;
- * ntimes < 0 --> a time interval from times[0] to times[1];
- * ntimes = 0 --> export current geometry only without attributes;
- */
-void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subset, int attributes);
+/* create solver */
+HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, double parmec_interval[2],
+                char *parmec_prefix, MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind);
+
+/* run solver */
+void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration);
+
+/* destroy solver */
+void HYBRID_SOLVER_Destroy (HYBRID_SOLVER *hs);
 
 #endif

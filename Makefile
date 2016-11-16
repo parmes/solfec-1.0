@@ -23,13 +23,13 @@ MUMPS = -Lext/mumps/libseq -lmpiseq
 
 BLOPEXINC = -Iext/blopex/include
 
-CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(HDF5) $(XDRINC) $(LOCAL_BODIES) $(PARMECINC)
+CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(HDF5) $(XDRINC) $(LOCAL_BODIES)
 CXXFLAGS = $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
 LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(SICONOSLIB) $(PARMECLIB)
 
 ifeq ($(MPI),yes)
-  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS)
+  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(PARMECLIB)
 endif
 
 EXTO  = obj/fastlz.o\
@@ -82,6 +82,8 @@ OBJ =   $(EXTO)   \
 	obj/pes.o \
 	obj/nts.o \
 	obj/tts.o \
+	obj/hys1.o \
+	obj/hys2.o \
 	obj/mrf.o \
 	obj/dom.o \
 	obj/cra.o \
@@ -105,6 +107,8 @@ OBJMPI = $(EXTO)       \
 	 obj/pes-mpi.o \
 	 obj/nts-mpi.o \
 	 obj/tts-mpi.o \
+	 obj/hys-mpi.o \
+	 obj/hys2.o \
 	 obj/mrf-mpi.o \
 	 obj/dom-mpi.o \
 	 obj/cra-mpi.o \
@@ -315,6 +319,12 @@ obj/nts.o: nts.c nts.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 obj/tts.o: tts.c tts.h dom.h ldy.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+obj/hys1.o: hys.c hys.h dom.h ldy.h bgs.h nts.h pes.h sis.h tts.h  err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/hys2.o: hys.cpp hys.hpp
+	$(CXX) $(CXXFLAGS) $(PARMECINC) -c -o $@ $<
+
 obj/sis.o: sis.c sis.h dom.h ldy.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) $(SICONOSINC) -c -o $@ $<
 
@@ -416,6 +426,9 @@ obj/nts-mpi.o: nts.c nts.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
 	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<
 
 obj/tts-mpi.o: tts.c tts.h dom.h bod.h alg.h mtx.h lap.h bla.h err.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/hys-mpi.o: hys.c hys.h dom.h ldy.h bgs.h nts.h pes.h sis.h tts.h  err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/mrf-mpi.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h

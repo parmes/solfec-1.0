@@ -140,7 +140,7 @@ endif
 
 ifdef PARMEC
   PARMECINC = -DPARMEC -I$(PARMEC)
-  PARMECLIB = -L$(PARMEC)
+  PARMECLIB = -L$(PARMEC) -lparmec8 -fopenmp
 else
   PARMECLIB =
 endif

@@ -1,3 +1,5 @@
+/* Solfec's XDMF export functionality */
+
 /*
 The MIT License (MIT)
 
