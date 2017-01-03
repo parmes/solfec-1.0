@@ -10270,6 +10270,71 @@ obj.epsilon, obj.maxiter
 \end_layout
 
 \begin_layout Subsection
+HYBRID_SOLVER 
+\color red
+(under development)
+\end_layout
+
+\begin_layout Standard
+Hybrid solver allows to combine smooth rigid body nonlinear spring based
+ PARMEC models with non-smooth SOLFEC models.
+\end_layout
+
+\begin_layout Subsection*
+obj = HYBRID_SOLVER (parmec_file, parmec_step, parmec2solfec, solfec_solver
+ | parmec_interval, parmec_prefix)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created HYBRID_SOLVER object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+parmec_step
+\series default
+ is an upper bound of the PARMEC time step
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+parmec2solfec
+\series default
+ is a dictionary mapping of PARMEC particle numbers to SOLFEC body identifiers
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec_solver
+\series default
+ is a SOLFEC constraint solver (e.g.
+ NEWTON_SOLVER) 
+\end_layout
+
+\begin_layout Itemize
+(optional) 
+\series bold
+parmec_interval
+\series default
+ is a PARMEC output interval specification (as in parmec’s DEM command)
+\end_layout
+
+\begin_layout Itemize
+(optional) 
+\series bold
+parmec_prefix
+\series default
+ is a PARMEC output directory prefix (as in parmec’s DEM command)
+\end_layout
+
+\begin_layout Subsection
 \begin_inset CommandInset label
 LatexCommand label
 name "sec:con"
