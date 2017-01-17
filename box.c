@@ -516,6 +516,14 @@ void AABB_Exclude_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2)
   SET_Insert (&aabb->setmem, &aabb->nobody, opr, (SET_Compare) bodcmp);
 }
 
+/* undo the effect of AABB_Exclude_Body_Pair */
+void AABB_Include_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2)
+{
+  OPR opr = {MIN (id1, id2), MAX (id1, id2), 0, 0};
+
+  SET_Delete (&aabb->setmem, &aabb->nobody, &opr, (SET_Compare) bodcmp);
+}
+
 /* never report overlaps betweem this pair of objects (bod1, sgp1), (bod1, sgp2) */
 void AABB_Exclude_Gobj_Pair (AABB *aabb, unsigned int bod1, int sgp1, unsigned int bod2, int sgp2)
 {

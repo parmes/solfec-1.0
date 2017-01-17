@@ -2567,4 +2567,20 @@ void BODY_2_MBFCP (BODY *bod, FILE *out)
 
   fprintf (out, "\n");
 }
+/* caculate current rigid body force */
+void BODY_Rigid_Force (BODY *bod, double time, double step, double *linforc, double *spatorq)
+{
+  ASSERT_TEXT (bod->kind == RIG, "The body is not rigid");
 
+  double r[6], reftorq[3], *R  = RIG_ROTATION(bod);
+
+  rig_force (bod, bod->conf, bod->velo, time, step, linforc, spatorq, reftorq);
+
+  NVADDMUL (spatorq, R, reftorq, spatorq);
+
+  rig_constraints_force (bod, r);
+
+  TVADDMUL (spatorq, R, r, spatorq);
+
+  ACC (r+3, linforc);
+}

@@ -32,4 +32,18 @@ SOFTWARE.
 /* initialize parmec */
 void parmec_init();
 
+/* prescribe body force and torque --> forces set this way are kept constant
+ *                                  and used during all following time steps
+ */
+void parmec_set_force_and_torque (int num, double *force, double *torque);
+
+/* perform single time integration step */
+void parmec_one_step (char *file, double step, double interval[2], char *prefix);
+
+/* read angular and linear velocities of a body */
+void parmec_get_angular_and_linear (int num, double *angular, double *linear);
+
+/* read rotation and position of a body */
+void parmec_get_rotation_and_position (int num, double *rotation, double *position);
+
 #endif

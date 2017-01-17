@@ -337,4 +337,7 @@ void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
 /* export MBFCP definition */
 void BODY_2_MBFCP (BODY *bod, FILE *out);
 
+/* caculate current rigid body force */
+void BODY_Rigid_Force (BODY *bod, double time, double step, double *linforc, double *spatorq);
+
 #endif

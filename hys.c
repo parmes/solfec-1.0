@@ -36,6 +36,48 @@ SOFTWARE.
 #include "alg.h"
 #include "err.h"
 
+/* apply constant boundary force from Solfec;
+ * perform a number of Parmec time integration steps;
+ * read back average velocity of boundary bodies into Solfec */
+static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
+{
+  MAP *item;
+
+  for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
+    ASSERT_TEXT (bod, "ERROR: Solfec body with id = %d has not been found", (int)(long) item->key);
+    SET6 (bod->velo, 0.0);
+    double force[3], torque[3];
+    BODY_Rigid_Force (bod, dom->time, dom->step, force, torque);
+    int num = (int) (long) item->data; /* parmec particle number */
+    parmec_set_force_and_torque (num, force, torque);
+  }
+
+  for (int i = 0; i < nstep; i ++)
+  {
+    parmec_one_step (hs->parmec_file, step, hs->parmec_interval, hs->parmec_prefix);
+
+    for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+    {
+      BODY *bod = MAP_Find (dom->idb, item->key, NULL);
+      int num = (int) (long) item->data; /* parmec particle number */
+      double angular[3], linear[3];
+      parmec_get_angular_and_linear (num, angular, linear);
+      ACC (angular, bod->velo);
+      ACC (linear, bod->velo+3);
+    }
+  }
+
+  double inv = 1.0/(double)nstep;
+
+  for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
+    SCALE6 (bod->velo, inv);
+  }
+}
+
 /* create solver */
 HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, double parmec_interval[2],
                  char *parmec_prefix, MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind)
@@ -65,12 +107,71 @@ HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, doub
 /* run solver */
 void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
 {
-  /* TODO */
+  /* find Parmec time step */
+  double actual_parmec_step = 0.5*sol->dom->step;
+  int num_parmec_steps = 2;
+  while (actual_parmec_step > hs->parmec_step)
+  {
+    actual_parmec_step *= 0.5;
+    num_parmec_steps *= 2;
+  }
 
-  SOLFEC_Run (sol,
-	      hs->solfec_solver_kind,
-	      hs->solfec_solver,
-	      duration);
+  /* make sure that mapped Solfec bodies are skipped during time integration */
+  sol->dom->skipbodies = hs->solfec2parmec;
+
+  /* exclude contact detection between mapped Solfec bodies (boundary);
+   * we do want contact detection between boundary and interior bodies */
+  for (MAP *item = MAP_First (hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    for (MAP *jtem = MAP_First (hs->solfec2parmec); jtem; jtem = MAP_Next (jtem))
+    {
+      if (item->key != jtem->key)
+      {
+	AABB_Exclude_Body_Pair (sol->aabb, (int)(long)item->key, (int)(long)jtem->key);
+      }
+    }
+  }
+
+  /* initial half-step */
+  if (sol->dom->time == 0.0)
+  {
+    parmec_steps (hs, sol->dom, actual_parmec_step, num_parmec_steps/2);
+  }
+
+  double time0 = sol->dom->time;
+
+  /* integrate over duration */
+  while (sol->dom->time < time0 + duration)
+  {
+    for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+    {
+      BODY *bod = MAP_Find (sol->dom->idb, item->key, NULL);
+      int num = (int) (long) item->data; /* parmec particle number */
+      parmec_get_rotation_and_position (num, bod->conf, bod->conf+9);
+      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+    }
+
+    SOLFEC_Run (sol, hs->solfec_solver_kind, hs->solfec_solver, sol->dom->step);
+
+    parmec_steps (hs, sol->dom, actual_parmec_step, num_parmec_steps);
+  }
+
+  sol->dom->skipbodies = NULL; /* undo body skipping */
+
+  /* include contact detection between mapped Solfec bodies;
+   * this may be useful in case another solver is used following this one */
+  for (MAP *item = MAP_First (hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    for (MAP *jtem = MAP_First (hs->solfec2parmec); jtem; jtem = MAP_Next (jtem))
+    {
+      if (item->key != jtem->key)
+      {
+	AABB_Include_Body_Pair (sol->aabb, (int)(long)item->key, (int)(long)jtem->key);
+      }
+    }
+  }
+
+  /* TODO --> MPI */
 }
 
 /* destroy solver */
