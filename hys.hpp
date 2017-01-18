@@ -30,7 +30,7 @@ SOFTWARE.
 #define __hyshpp__
 
 /* initialize parmec */
-void parmec_init();
+void parmec_init(char *path);
 
 /* prescribe body force and torque --> forces set this way are kept constant
  *                                  and used during all following time steps
@@ -38,7 +38,7 @@ void parmec_init();
 void parmec_set_force_and_torque (int num, double *force, double *torque);
 
 /* perform single time integration step */
-void parmec_one_step (char *file, double step, double interval[2], char *prefix);
+void parmec_one_step (double step, double interval[2], char *prefix);
 
 /* read angular and linear velocities of a body */
 void parmec_get_angular_and_linear (int num, double *angular, double *linear);

@@ -56,7 +56,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 
   for (int i = 0; i < nstep; i ++)
   {
-    parmec_one_step (hs->parmec_file, step, hs->parmec_interval, hs->parmec_prefix);
+    parmec_one_step (step, hs->parmec_interval, hs->parmec_prefix);
 
     for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
     {
@@ -99,7 +99,7 @@ HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, doub
   hs->solfec_solver = solfec_solver;
   hs->solfec_solver_kind = solfec_solver_kind;
 
-  parmec_init();
+  parmec_init(hs->parmec_file);
 
   return hs;
 }
