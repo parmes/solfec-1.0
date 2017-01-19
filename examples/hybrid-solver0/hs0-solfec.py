@@ -28,6 +28,9 @@ ns = NEWTON_SOLVER ()
 
 # nubering of bodies in Parmec starts from 0 while in Solfec from 1
 # hence below we used dictionary {0 : 1} as the parmec2solfec mapping
-hs = HYBRID_SOLVER ('inp/devel/hybrid-solver0/hs0-parmec.py', step, {0 : 1}, ns)
+hs = HYBRID_SOLVER ('examples/hybrid-solver0/hs0-parmec.py', step, {0 : 1}, ns)
+
+import solfec as solfec # we need to be specific when using the OUTPUT command
+solfec.OUTPUT (sol, 0.03) # since 'OUTPUT' in Solfec collides with 'OUTPUT' in Parmec
 
 RUN (sol, hs, 10)

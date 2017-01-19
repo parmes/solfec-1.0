@@ -835,11 +835,6 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       /* check whether STOP file was created by the user */
       if (stopfile (sol)) break;
     }
-
-    if (!lastwrite) /* record last state if out of sync */
-    {
-      write_state (sol, solver, kind);
-    }
   }
   else /* READ */
   {
