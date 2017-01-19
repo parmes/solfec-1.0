@@ -36,6 +36,17 @@ SOFTWARE.
 #include "alg.h"
 #include "err.h"
 
+/* test if boudary == obstacle */
+static void test_boundary (HYBRID_SOLVER *hs, DOM *dom)
+{
+  for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
+    ASSERT_TEXT (bod, "ERROR: Solfec-Parmec boundary body with Solfec id = %d has not been found", (int)(long) item->key);
+    ASSERT_TEXT (bod->kind == OBS, "ERROR: Solfec-Parmec boundary body with Solfec id = %d is not an obstacle", (int)(long) item->key);
+  }
+}
+
 /* apply constant boundary force from Solfec;
  * perform a number of Parmec time integration steps;
  * read back average velocity of boundary bodies into Solfec */
@@ -46,7 +57,6 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
   {
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
-    ASSERT_TEXT (bod, "ERROR: Solfec body with id = %d has not been found", (int)(long) item->key);
     SET6 (bod->velo, 0.0);
     double force[3], torque[3];
     BODY_Rigid_Force (bod, dom->time, dom->step, force, torque);
@@ -132,9 +142,13 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
     }
   }
 
-  /* initial half-step */
+  
   if (sol->dom->time == 0.0)
   {
+    /* test if boudary == obstacle */
+    test_boundary (hs, sol->dom);
+
+    /* initial half-step */
     parmec_steps (hs, sol->dom, actual_parmec_step, num_parmec_steps/2);
   }
 
