@@ -2570,7 +2570,7 @@ void BODY_2_MBFCP (BODY *bod, FILE *out)
 /* caculate current rigid body force */
 void BODY_Rigid_Force (BODY *bod, double time, double step, double *linforc, double *spatorq)
 {
-  ASSERT_TEXT (bod->kind == RIG, "The body is not rigid");
+  ASSERT_TEXT (bod->kind == OBS || bod->kind == RIG, "The body is not rigid");
 
   double r[6], reftorq[3], *R  = RIG_ROTATION(bod);
 

@@ -1,0 +1,30 @@
+This is a two-body test of the HYBRID_SOLVER in Solfec;
+The mechanical problem is:
+
+  +----------+
+  |          |  cube 1x1x1m
+  |          |  mass density 1 kg/m3
+  |          |                           
+  |          |                           Z   Y
+  +----------+                           |  /         gravity = (0, 0, -10)
+   gap = 0.1m                            | /          initial velocities are all zero
+  +----------+                           + ----- X
+  |          |  cube 1x1x1m                           restitution of 0.0 is used in Solfec's Signorini-Coulomb contact model
+  |          |  mass density 1 kg/m3                  friction of 0.1 is used in Solfec's contact model
+  |          |  fixed along X, Y + all rotations
+  |          |
+  +----------+
+       \
+       /  spring stiffness 100 N/m
+       \  dashpot coefficient 1 Nm/s
+       /
+      ===
+
+      the natural frequency of the undamped spring mass is: sqrt(k/m)/2pi = 10/3.14 ~ 3.2 Hz
+
+The upper body is modeled as RIGID in Solfec using 8 hexahedral elements;
+The lower body is modeled as OBSTACLE in Solfec using one hexahedral element;
+We note that the transitional *boundary* bodies all need to modeled as obstacles in Solfec;
+The lower body is modeled in Paremc also uing one hexahedral element;
+
+We model vibrations of this impact problem over time [0, 10s];

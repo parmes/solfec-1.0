@@ -7658,6 +7658,7 @@ static int is_solver (PyObject *obj, char *var)
     if (!PyObject_IsInstance (obj, (PyObject*)&lng_GAUSS_SEIDEL_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_PENALTY_SOLVER_TYPE) &&
         !PyObject_IsInstance (obj, (PyObject*)&lng_NEWTON_SOLVER_TYPE) &&
+        !PyObject_IsInstance (obj, (PyObject*)&lng_HYBRID_SOLVER_TYPE) &&
 #if WITHSICONOS
         !PyObject_IsInstance (obj, (PyObject*)&lng_SICONOS_SOLVER_TYPE) &&
 #endif
