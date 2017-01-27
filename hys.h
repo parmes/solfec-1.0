@@ -36,7 +36,7 @@ struct hybrid_solver
 {
   char *parmec_file;
   double parmec_step;
-  double parmec_interval[2];
+  double *parmec_interval;
   char *parmec_prefix;
   MAP *parmec2solfec;
   MAP *solfec2parmec;

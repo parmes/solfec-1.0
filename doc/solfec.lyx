@@ -10323,7 +10323,8 @@ solfec_solver
 \series bold
 parmec_interval
 \series default
- is a PARMEC output interval specification (as in parmec’s DEM command)
+ is a PARMEC output interval specification (as in parmec’s DEM command);
+ when not specified PARMEC will not write output files;
 \end_layout
 
 \begin_layout Itemize

@@ -97,8 +97,13 @@ HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, doub
   ERRMEM (hs = MEM_CALLOC (sizeof (HYBRID_SOLVER)));
   hs->parmec_file = parmec_file;
   hs->parmec_step = parmec_step;
-  hs->parmec_interval[0] = parmec_interval[0];
-  hs->parmec_interval[1] = parmec_interval[1];
+  if (parmec_interval)
+  {
+    ERRMEM (hs->parmec_interval = malloc (2 * sizeof (double)));
+    hs->parmec_interval[0] = parmec_interval[0];
+    hs->parmec_interval[1] = parmec_interval[1];
+  }
+  else hs->parmec_interval = NULL;
   hs->parmec_prefix = parmec_prefix;
   hs->parmec2solfec = parmec2solfec;
   hs->solfec2parmec = NULL;
@@ -110,6 +115,9 @@ HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, doub
   hs->solfec_solver_kind = solfec_solver_kind;
 
   parmec_init(hs->parmec_file);
+
+  /* TODO: perhaps invoke Solfec's python init so that Parmec's commands
+           do not overwrite the Solfec's ones */
 
   return hs;
 }
@@ -191,6 +199,7 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
 /* destroy solver */
 void HYBRID_SOLVER_Destroy (HYBRID_SOLVER *hs)
 {
+  if (hs->parmec_interval) free (hs->parmec_interval);
   MAP_Free (NULL, &hs->parmec2solfec);
   MAP_Free (NULL, &hs->solfec2parmec);
 }

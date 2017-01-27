@@ -4910,7 +4910,7 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
 {
   KEYWORDS ("parmec_file", "parmec_step", "parmec2solfec", "solfec_solver", "parmec_interval", "parmec_prefix");
   PyObject *parmec_file, *parmec2solfec, *solfec_solver, *parmec_interval, *parmec_prefix;
-  double dt[2], parmec_step;
+  double dt[2], *pdt, parmec_step;
   lng_HYBRID_SOLVER *self;
   char *prefix;
 
@@ -4958,11 +4958,10 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
 	  return NULL;
 	}
       }
+
+      pdt = dt; /* enable parmec output */
     }
-    else
-    {
-      dt[0] = dt[1] = parmec_step;
-    }
+    else pdt = NULL; /* disable parmec output */
 
     if (parmec_prefix)
     {
@@ -4970,7 +4969,7 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     }
     else prefix = NULL;
 
-    self->hs = HYBRID_SOLVER_Create (PyString_AsString(parmec_file), parmec_step, dt, prefix,
+    self->hs = HYBRID_SOLVER_Create (PyString_AsString(parmec_file), parmec_step, pdt, prefix,
                                p2s, get_solver(solfec_solver), get_solver_kind(solfec_solver));
   }
 
