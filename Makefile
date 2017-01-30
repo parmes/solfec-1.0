@@ -173,6 +173,7 @@ del:
 	rm -fr out/*
 	rm -fr *cubin
 	rm -fr *dSYM
+	find ./ -iname "*.vtk.*" -exec rm '{}' ';'
 
 clean:
 	rm -f solfec
