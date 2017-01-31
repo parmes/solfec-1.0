@@ -2,10 +2,10 @@ M = 2 # must be same as hs1-solfec.py
 N = 3 # must be same as hs1-solfec.py
 gap = 0.002 # must be same as hs1-solfec.py
 lofq = 1.0
-hifq = 1.0
-amag = 0.1
+hifq = 2.0
+amag = 0.2
 step = 1E-4
-stop = 20
+stop = 10
 
 import os, sys
 
@@ -64,7 +64,7 @@ for i in range (0,M): cube ((M+N+i)*(0.1+gap))
 PRESCRIBE (0, linvel, angvel) # first body
 PRESCRIBE (2*M-1, linvel, angvel) # last body
 
-spring_curve = [-1-gap, -1E4, -gap, 0, 1, 0]
+spring_curve = [-1-gap, -1E3, -gap, 0, 1, 0]
 damper_curve = [-1, 10, 0, 0, 1, 10]
 
 for i in range (1,M):
@@ -79,4 +79,4 @@ for i in range (1,M):
 
 print 'PARMEC estimated critical time step:', CRITICAL()
 
-#DEM (0.5, step, 0.01)
+#DEM (5.0, step, 0.01)

@@ -35,6 +35,7 @@
 #include "mat.h"
 #include "pbf.h"
 #include "cmp.h"
+#include "tmr.h"
 
 #ifndef __sol__
 #define __sol__
@@ -116,6 +117,7 @@ struct solfec
   time_t start;
 
   /* global verbosity flag */
+  TIMING verbose_timing;
   short verbose;
 
   /* output directory removal flag */

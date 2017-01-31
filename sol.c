@@ -716,8 +716,6 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
   {
     int verbose, lastwrite;
     LOCDYN *ldy;
-    TIMING tim;
-    double tt;
 
     /* set current solver */
     sol->solver = solver;
@@ -744,6 +742,12 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       DOM_Initialize (sol->dom);
 
       if (sol->verbose) initstatsout (sol->dom); /* print out initial statistics */
+
+      sol->start = time (NULL);
+
+      verbose = verbose_on (sol);
+
+      timerstart (&sol->verbose_timing);
 
 #if HDF5
       if (CONTINUE_WRITE_FLAG())
@@ -776,12 +780,16 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     }
 #endif
 
-    verbose = verbose_on (sol);
-    sol->duration = duration;
-    sol->start = time (NULL);
-    timerstart (&tim);
+    if (duration > 0.0)
+    {
+      sol->duration = duration;
+      sol->t0 = sol->dom->time;
+    }
 
-    for (sol->t0 = sol->dom->time; sol->dom->time < (sol->t0 + duration);)
+    if (sol->verbose) verbose = sol->dom->verbose;
+    else verbose = 0;
+
+    for (double t0 = sol->dom->time; sol->dom->time < (t0 + fabs(duration));)
     {
       lastwrite = 0;
 #if MPI
@@ -806,10 +814,9 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
       /* statistics are printed every
        * human perciveable period of time */
-      tt = timerend (&tim);
-      if (verbose) statsout (sol);
-      if (tt < VERBOSITY_INTERVAL()) verbose = verbose_off (sol);
-      else if (tt >= VERBOSITY_INTERVAL()) verbose = verbose_on (sol), timerstart (&tim);
+      if (verbose) statsout (sol), verbose = verbose_off (sol);
+      if (timerend (&sol->verbose_timing) >= VERBOSITY_INTERVAL())
+	verbose = verbose_on (sol), timerstart (&sol->verbose_timing);
 
       /* write output if needed */
       if (sol->dom->time >= sol->output_time)

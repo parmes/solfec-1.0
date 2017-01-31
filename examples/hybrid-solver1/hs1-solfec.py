@@ -4,7 +4,7 @@ M = 2 # must be same as hs1-paremc.py
 N = 3 # must be same as hs1-paremc.py
 gap = 0.002 # must be same as hs1-paremc.py
 step = 1E-4
-stop = 20
+stop = 10
 
 sol = SOLFEC ('DYNAMIC', step, 'out/hybrid-solver1')
 
@@ -54,4 +54,7 @@ hs = HYBRID_SOLVER ('out/hybrid-solver1/hs1-parmec.py', 1E-4, {M-1:1, M:2}, ns, 
 import solfec as solfec # we need to be specific when using the OUTPUT command
 solfec.OUTPUT (sol, 0.03) # since 'OUTPUT' in Solfec collides with 'OUTPUT' in Parmec
 
-RUN (sol, hs, 5.0)
+RUN (sol, hs, stop)
+
+if sol.mode == 'READ' and not VIEWER():
+  XDMF_EXPORT (sol, (0.0, stop), 'out/hybrid-solver1/hs1-solfec', [3, 4, 5])

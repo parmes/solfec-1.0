@@ -29,6 +29,7 @@ SOFTWARE.
 #include <complex.h>
 #include <stdlib.h>
 #include <float.h>
+#include "solfec.h"
 #include "hys.hpp" /* :) */
 #include "hys.h"
 #include "sol.h"
@@ -125,6 +126,17 @@ HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, doub
 /* run solver */
 void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
 {
+#if HDF5
+  if (CONTINUE_WRITE_FLAG())
+  {
+    fprintf (stderr, "ERROR: continued analysis [-c] is disabled with HYBRID_SOLVER\n");
+    exit (1);
+
+    /* TODO: see area in SOLFEC_Run for enabling this (use of 'duration' there and here);
+             this also would need to be enabled on the parmec library level */
+  }
+#endif
+
   /* find Parmec time step */
   double actual_parmec_step = 0.5*sol->dom->step;
   int num_parmec_steps = 2;
@@ -163,6 +175,8 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
   double time0 = sol->dom->time;
 
   /* integrate over duration */
+  sol->t0 = sol->dom->time; /* these can be overwritten when negative duration is used */
+  sol->duration = duration; /* in SOLFEC_Run, allowing for a correct elapsed time estimate */
   while (sol->dom->time < time0 + duration)
   {
     for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
@@ -173,7 +187,7 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
       SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     }
 
-    SOLFEC_Run (sol, hs->solfec_solver_kind, hs->solfec_solver, sol->dom->step);
+    SOLFEC_Run (sol, hs->solfec_solver_kind, hs->solfec_solver, -sol->dom->step); /* negative duration used */
 
     parmec_steps (hs, sol->dom, actual_parmec_step, num_parmec_steps);
   }
