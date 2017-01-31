@@ -2,8 +2,8 @@ M = 2 # must be same as hs1-solfec.py
 N = 3 # must be same as hs1-solfec.py
 gap = 0.002 # must be same as hs1-solfec.py
 lofq = 1.0
-hifq = 10.0
-amag = 1.0
+hifq = 1.0
+amag = 0.1
 step = 1E-4
 stop = 20
 
@@ -77,7 +77,6 @@ for i in range (1,M):
   p2 = ((M+N+i)*(0.1+gap), 0.05, 0.05)
   SPRING (M+i-1, p1, M+i, p2, spring_curve, damper_curve, (1, 0, 0))
 
-h = CRITICAL()
-print 'Critical time step is', h
+print 'PARMEC estimated critical time step:', CRITICAL()
 
-DEM (0.5, step, 0.01)
+#DEM (0.5, step, 0.01)
