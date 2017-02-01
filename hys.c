@@ -37,14 +37,21 @@ SOFTWARE.
 #include "alg.h"
 #include "err.h"
 
-/* test if boudary == obstacle */
-static void test_boundary (HYBRID_SOLVER *hs, DOM *dom)
+#define TWO_SIDED_FORCE 0
+
+/* initialize boudary */
+static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 {
   for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
   {
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     ASSERT_TEXT (bod, "ERROR: Solfec-Parmec boundary body with Solfec id = %d has not been found", (int)(long) item->key);
+#if TWO_SIDED_FORCE == 0
     ASSERT_TEXT (bod->kind == OBS, "ERROR: Solfec-Parmec boundary body with Solfec id = %d is not an obstacle", (int)(long) item->key);
+#else
+    ASSERT_TEXT (bod->kind == RIG, "ERROR: Solfec-Parmec boundary body with Solfec id = %d is not rigid", (int)(long) item->key);
+    if (!bod->parmec) ERRMEM (bod->parmec = MEM_CALLOC (sizeof(PARMEC_FORCE)));
+#endif
   }
 }
 
@@ -69,6 +76,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   {
     parmec_one_step (step, hs->parmec_interval, hs->parmec_prefix);
 
+#if TWO_SIDED_FORCE == 0
     for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
     {
       BODY *bod = MAP_Find (dom->idb, item->key, NULL);
@@ -78,8 +86,17 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
       ACC (angular, bod->velo);
       ACC (linear, bod->velo+3);
     }
+#endif
   }
 
+#if TWO_SIDED_FORCE
+  for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
+    int num = (int) (long) item->data; /* parmec particle number */
+    parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque);
+  }
+#else
   double inv = 1.0/(double)nstep;
 
   for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
@@ -87,6 +104,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     SCALE6 (bod->velo, inv);
   }
+#endif
 }
 
 /* create solver */
@@ -147,7 +165,9 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
   }
 
   /* make sure that mapped Solfec bodies are skipped during time integration */
+#if TWO_SIDED_FORCE == 0
   sol->dom->skipbodies = hs->solfec2parmec;
+#endif
 
   /* exclude contact detection between mapped Solfec bodies (boundary);
    * we do want contact detection between boundary and interior bodies */
@@ -165,8 +185,8 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
   
   if (sol->dom->time == 0.0)
   {
-    /* test if boudary == obstacle */
-    test_boundary (hs, sol->dom);
+    /* initialize boudary */
+    init_boundary (hs, sol->dom);
 
     /* initial half-step */
     parmec_steps (hs, sol->dom, actual_parmec_step, num_parmec_steps/2);
@@ -179,6 +199,7 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
   sol->duration = duration; /* in SOLFEC_Run, allowing for a correct elapsed time estimate */
   while (sol->dom->time < time0 + duration)
   {
+#if TWO_SIDED_FORCE == 0
     for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
     {
       BODY *bod = MAP_Find (sol->dom->idb, item->key, NULL);
@@ -186,13 +207,16 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
       parmec_get_rotation_and_position (num, bod->conf, bod->conf+9);
       SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     }
+#endif
 
     SOLFEC_Run (sol, hs->solfec_solver_kind, hs->solfec_solver, -sol->dom->step); /* negative duration used */
 
     parmec_steps (hs, sol->dom, actual_parmec_step, num_parmec_steps);
   }
 
+#if TWO_SIDED_FORCE == 0
   sol->dom->skipbodies = NULL; /* undo body skipping */
+#endif
 
   /* include contact detection between mapped Solfec bodies;
    * this may be useful in case another solver is used following this one */

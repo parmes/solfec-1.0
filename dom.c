@@ -3752,12 +3752,38 @@ void DOM_Update_End (DOM *dom)
   step = dom->step;
 
   /* end time integration */
-  if (dom->dynamic)
-    for (bod = dom->bod; bod; bod = bod->next)
-      BODY_Dynamic_Step_End (bod, time, step);
+  if (dom->skipbodies)
+  {
+    if (dom->dynamic)
+    {
+      for (bod = dom->bod; bod; bod = bod->next)
+      {
+	if (!MAP_Find (dom->skipbodies, bod, NULL))
+	{
+	  BODY_Dynamic_Step_End (bod, time, step);
+	}
+      }
+    }
+    else
+    {
+      for (bod = dom->bod; bod; bod = bod->next)
+      {
+	if (!MAP_Find (dom->skipbodies, bod, NULL))
+	{
+	  BODY_Static_Step_End (bod, time, step);
+	}
+      }
+    }
+  }
   else
-    for (bod = dom->bod; bod; bod = bod->next)
-      BODY_Static_Step_End (bod, time, step);
+  {
+    if (dom->dynamic)
+      for (bod = dom->bod; bod; bod = bod->next)
+	BODY_Dynamic_Step_End (bod, time, step);
+    else
+      for (bod = dom->bod; bod; bod = bod->next)
+	BODY_Static_Step_End (bod, time, step);
+  }
 
   /* advance time */
   dom->time += step;

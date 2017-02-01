@@ -46,6 +46,7 @@ typedef struct solfec SOLFEC;
 typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL, REDUCED_ORDER} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
 
 typedef struct general_force FORCE;
+typedef struct parmec_force PARMEC_FORCE;
 typedef struct display_point DISPLAY_POINT;
 typedef void (*FORCE_FUNC) (void *data, void *call, /* user data and user callback pointers */
                             int nq, double *q, int nu, double *u,   /* user defined data, configuration, velocity, time, time step */
@@ -104,6 +105,12 @@ struct general_force
   FORCE *next;
 };
 
+struct parmec_force
+{
+  double force[3]; /* rigid body force */
+  double torque[3]; /* spatial rigid body torque */
+};
+
 struct display_point /* auxiliary display point for verification purposes */
 {
   double X [3], x [3];
@@ -160,6 +167,8 @@ struct general_body
   SET *con;        /* adjacent constraints */
 
   FORCE *forces;   /* applied external forces */
+
+  PARMEC_FORCE *parmec; /* parmec boundary force */
   
   CRACK *cra;     /* cracks */
 
@@ -337,7 +346,7 @@ void BODY_Invvec (double alpha, BODY *bod, double *b, double beta, double *c);
 /* export MBFCP definition */
 void BODY_2_MBFCP (BODY *bod, FILE *out);
 
-/* caculate current rigid body force */
+/* caculate rigid body force and torque from applied point forces and constraints */
 void BODY_Rigid_Force (BODY *bod, double time, double step, double *linforc, double *spatorq);
 
 #endif

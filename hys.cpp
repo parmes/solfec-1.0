@@ -26,6 +26,8 @@ SOFTWARE.
 
 /* Contributors: Tomasz Koziara */
 
+#include <stdio.h>
+#include <stdlib.h>
 #include "parmec8.h"
 
 extern "C" { /* C */
@@ -53,12 +55,42 @@ void parmec_set_force_and_torque (int num, double *force, double *torque)
     MAP_Insert (NULL, &parmec::prescribed_body_forces, (void*)(long)num, p, NULL);
   }
 
-  p->force[0] = force[0];
-  p->force[1] = force[1];
-  p->force[2] = force[2];
-  p->torque[0] = torque[0];
-  p->torque[1] = torque[1];
-  p->torque[2] = torque[2];
+  p->outer_force[0] = force[0]; /* prescribe outer forces */
+  p->outer_force[1] = force[1];
+  p->outer_force[2] = force[2];
+  p->outer_torque[0] = torque[0];
+  p->outer_torque[1] = torque[1];
+  p->outer_torque[2] = torque[2];
+  p->inner_force[0] = 0.0; /* zero inner forces */
+  p->inner_force[1] = 0.0;
+  p->inner_force[2] = 0.0;
+  p->inner_torque[0] = 0.0;
+  p->inner_torque[1] = 0.0;
+  p->inner_torque[2] = 0.0;
+}
+
+/* read body force and torque --> these are inner parmec forces
+ *                                accumulated over a number of steps
+ */
+void parmec_get_force_and_torque (int num, int nstep, double *force, double *torque)
+{
+  parmec::prescribed_body_force *p = (parmec::prescribed_body_force*)
+          MAP_Find (parmec::prescribed_body_forces, (void*)(long)num, NULL);
+
+  if (!p)
+  {
+    fprintf (stderr, "ERROR: Solfec-Parmec boundary force with Paremc id = %d has not been found", num);
+    exit (1);
+  }
+
+  double inv = 1.0/(double)nstep;
+
+  force[0] = inv*p->inner_force[0];
+  force[1] = inv*p->inner_force[1];
+  force[2] = inv*p->inner_force[2];
+  torque[0] = inv*p->inner_torque[0];
+  torque[1] = inv*p->inner_torque[1];
+  torque[2] = inv*p->inner_torque[2];
 }
 
 /* perform single time integration step */

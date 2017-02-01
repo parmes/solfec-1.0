@@ -260,19 +260,11 @@ static void rig_dynamic_inverse (BODY *bod)
 /* no difference for the static inverse routine */
 #define rig_static_inverse(bod) rig_dynamic_inverse(bod)
 
-/* calculate linear resultant, spatial torque, referential torque at time t */
-static void rig_force (BODY *bod, double *q, double *u, double t, double h,
-                       double *linforc, double *spatorq, double *reftorq)
+/* accumulate contribution of point forces to linear resultant, spatial torque, referential torque at time t */
+static void rig_point_forces_accumulate (BODY *bod, double *q, double *u, double t, double h, double *linforc, double *spatorq, double *reftorq)
 {
-  double *X0 = BOD_X0 (bod),
-	 A [3], a [3], f [3], b [3], v;
+  double *X0 = BOD_X0 (bod), A [3], a [3], f [3], b [3], v;
   short kind;
-
-  SET (linforc, 0);
-  SET (spatorq, 0);
-  SET (reftorq, 0);
-
-  if (bod->kind == OBS) return; /* no loads for obstacles */
 
   for (FORCE *frc = bod->forces; frc; frc = frc->next)
   {
@@ -329,8 +321,28 @@ static void rig_force (BODY *bod, double *q, double *u, double t, double h,
       }
     }
   }
+}
 
-  if (bod->dom->gravity [0])
+/* calculate linear resultant, spatial torque, referential torque at time t */
+static void rig_force (BODY *bod, double *q, double *u, double t, double h,
+                       double *linforc, double *spatorq, double *reftorq)
+{
+  double f[3];
+
+  SET (linforc, 0);
+  SET (spatorq, 0);
+  SET (reftorq, 0);
+
+  if (bod->kind == OBS) return; /* no loads for obstacles */
+
+  rig_point_forces_accumulate (bod, q, u, t, h, linforc, spatorq, reftorq);
+
+  if (bod->parmec)
+  {
+    ACC (bod->parmec->force, linforc);
+    ACC (bod->parmec->torque, spatorq);
+  }
+  else if (bod->dom->gravity [0]) /* if there is parmec force, gravity is already included */
   {
     f [0] = TMS_Value (bod->dom->gravity [0], t);
     f [1] = TMS_Value (bod->dom->gravity [1], t);
@@ -403,7 +415,7 @@ inline static void rig_constraints_force_accum (BODY *bod, double *point, double
 }
 
 /* calculate constraints reaction */
-static void rig_constraints_force (BODY *bod, double *force, int skip_obstacle_contact)
+static void rig_constraints_force (BODY *bod, double *force)
 {
   SET *node;
 
@@ -416,7 +428,7 @@ static void rig_constraints_force (BODY *bod, double *force, int skip_obstacle_c
     short isma = (bod == con->master);
     double *point = (isma ? con->mpnt : con->spnt);
 
-    if (skip_obstacle_contact && con->kind == CONTACT && bod->kind == OBS) continue; /* obstacles do not react to contact forces */
+    if (con->kind == CONTACT && bod->kind == OBS) continue; /* obstacles do not react to contact forces */
 
     rig_constraints_force_accum (bod, point, con->base, con->R, isma, force);
   }
@@ -962,6 +974,9 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
     break;
   }
 
+  /* parmec force */
+  bod->parmec = NULL;
+
   /* set kind */
   bod->kind = kind;
 
@@ -1421,7 +1436,7 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
 	     *fext = RIG_FEXT(bod),
 	     O [9], DR [9];
 
-      rig_constraints_force (bod, force, 1); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+      rig_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, velo); /* u(t+h) += inv (M) * h * r */
       ADDMUL (x, half, v, x); /* x(t+h) = x(t+h/2) + (h/2) * v(t+h) */
 
@@ -1616,7 +1631,7 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
 	     *W = RIG_ANGVEL(bod),
 	     O [9], DR [9];
 
-      rig_constraints_force (bod, force, 1); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
+      rig_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */
       ADDMUL (x, step, v, x); /* x(t+h) = x(t) + h * v(t+h) */
       COPY (W, O);
@@ -2177,6 +2192,8 @@ void BODY_Destroy (BODY *bod)
     free (forc);
   }
 
+  if (bod->parmec) free (bod->parmec);
+
   SHAPE_Destroy (bod->shape);
 
   free (bod->sgp);
@@ -2567,20 +2584,45 @@ void BODY_2_MBFCP (BODY *bod, FILE *out)
 
   fprintf (out, "\n");
 }
-/* caculate current rigid body force */
+
+/* caculate rigid body force and torque from applied point forces and constraints */
 void BODY_Rigid_Force (BODY *bod, double time, double step, double *linforc, double *spatorq)
 {
   ASSERT_TEXT (bod->kind == OBS || bod->kind == RIG, "The body is not rigid");
 
-  double r[6], reftorq[3], *R  = RIG_ROTATION(bod);
+  double *x = RIG_CENTER(bod), *R = RIG_ROTATION(bod), reftorq[3];
+  SET *node;
 
-  rig_force (bod, bod->conf, bod->velo, time, step, linforc, spatorq, reftorq);
+  SET (linforc, 0.0);
+  SET (spatorq, 0.0);
+  SET (reftorq, 0.0);
 
-  NVADDMUL (spatorq, R, reftorq, spatorq);
+  rig_point_forces_accumulate (bod, bod->conf, bod->velo, time, step, linforc, spatorq, reftorq);
 
-  rig_constraints_force (bod, r, 0);
+  TVADDMUL (spatorq, R, reftorq, spatorq);
 
-  TVADDMUL (spatorq, R, r, spatorq);
+  for (node = SET_First (bod->con); node; node = SET_Next (node))
+  {
+    CON *con = node->data;
+    short isma = (bod == con->master);
+    double *point = (isma ? con->mpnt : con->spnt);
+    double *base = con->base;
+    double *reac = con->R;
+    double f[3], t[3], a[3];
 
-  ACC (r+3, linforc);
+    NVMUL (base, reac, f);
+    SUB (point, x, a);
+    PRODUCT(a, f, t);
+
+    if (isma)
+    {
+      ACC (f, linforc);
+      ACC (t, spatorq);
+    }
+    else
+    {
+      SCC (f, linforc);
+      SCC (t, spatorq);
+    }
+  }
 }
