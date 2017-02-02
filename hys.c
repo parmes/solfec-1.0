@@ -64,12 +64,14 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 
   for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
   {
-    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
-    SET6 (bod->velo, 0.0);
     double force[3], torque[3];
+    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     BODY_Rigid_Force (bod, dom->time, dom->step, force, torque);
     int num = (int) (long) item->data; /* parmec particle number */
     parmec_set_force_and_torque (num, force, torque);
+#if TWO_SIDED_FORCE == 0
+    SET6 (bod->velo, 0.0);
+#endif
   }
 
   for (int i = 0; i < nstep; i ++)
