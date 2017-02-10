@@ -1,0 +1,630 @@
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass scrbook
+\use_default_options true
+\begin_modules
+customHeadersFooters
+\end_modules
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize a4paper
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle fancy
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Right Header
+Solfec Validation Manual
+\end_layout
+
+\begin_layout Chapter*
+Heavy symmetrical top
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Shadowbox
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "100col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Reference:
+\series default
+ J.
+ C.
+ Simo, K.K.
+ Wong, Unconditionally stable algorithms for rigid body dynamics that exactly
+ preserve energy and momentum, International Journal for Numerical Methods
+ in Engineering, vol.
+ 31, pp.
+ 19–52, 1991.
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Analysis
+\series default
+: Explicit dynamics, forced, unconstrained rotation.
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Purpose:
+\series default
+ Examine stability and accuracy of the integration scheme in the presence
+ of severe geometrical nonlinearity.
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Summary:
+\series default
+ The heavy symmetrical top is spinning around the fixed point 
+\begin_inset Formula $\mathbf{O}$
+\end_inset
+
+.
+ In this example the applied torque depends on the configuration, introducing
+ additional source of nonlinearity.
+ As the torque does not depend on the time step, the second order accuracy
+ can be exemplified.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace bigskip
+\end_inset
+
+The top of mass 
+\begin_inset Formula $M$
+\end_inset
+
+ and the referential axis of symmetry 
+\begin_inset Formula $\mathbf{E}_{3}$
+\end_inset
+
+ rotates in the uniform gravitational field 
+\begin_inset Formula $-g\mathbf{e}_{3}$
+\end_inset
+
+.
+ The spatial torque reads
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\mathbf{t}=-Mg\mathbf{r}\times\mathbf{e}_{3},\,\,\,\mathbf{r}=l\mathbf{\Lambda}\mathbf{E}_{3}=\mathbf{\Lambda}_{i3},\,\,\,i\in\left\{ 1,2,3\right\} 
+\]
+
+\end_inset
+
+where the assumed values are 
+\begin_inset Formula $M=20$
+\end_inset
+
+, 
+\begin_inset Formula $g=1$
+\end_inset
+
+, 
+\begin_inset Formula $l=1$
+\end_inset
+
+.
+ As pointed out in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Krysl2005"
+
+\end_inset
+
+, the heavy top model conserves the Hamiltonian
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+H=\frac{1}{2}\pi\cdot\mathbf{j}^{-1}\pi+Mg\mathbf{e}_{3}\cdot\mathbf{r}
+\]
+
+\end_inset
+
+where 
+\begin_inset Formula $\pi=\mathbf{j}\mathbf{w}$
+\end_inset
+
+ is the spatial angular momentum, 
+\begin_inset Formula $\mathbf{j}=\mathbf{\Lambda}\mathbf{J}\Lambda^{T}$
+\end_inset
+
+ is the spatial tensor of inertia, 
+\begin_inset Formula $\mathbf{J}$
+\end_inset
+
+ is the referential inertia tensor, 
+\begin_inset Formula $\Lambda$
+\end_inset
+
+ is the rotation operator, and 
+\begin_inset Formula $\mathbf{w}=\Lambda\mathbf{W}$
+\end_inset
+
+ is the spatial angular velocity.
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename heavy-top.png
+	lyxscale 30
+	width 35col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:heavytop"
+
+\end_inset
+
+Heavy symmetrical top with one point fixed.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section*
+Input parameters
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="4" columns="2">
+<features tabularvalignment="middle">
+<column alignment="left" valignment="top">
+<column alignment="center" valignment="top">
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Referential inertia tensor
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mathbf{J}=\mbox{diag}\left[5,5,1\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Spatial torque
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mathbf{t}=-20\Lambda\left(:,3\right)\times\left[0,0,1\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Initial rotation
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\Lambda\left(0\right)=\exp\left[\mbox{skew}\left(\left[0.05,0,0\right]\right)\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Initial angular velocity
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mathbf{W}\left(0\right)=\left[0,0,50\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section*
+Results
+\end_layout
+
+\begin_layout Standard
+Taking the fact that
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+\pi\cdot\mathbf{j}^{-1}\mathbf{\pi}=\left(\mathbf{j}\mathbf{w}\right)^{T}\mathbf{j}^{-1}\left(\mathbf{j}\mathbf{w}\right)=\mathbf{w}^{T}\mathbf{j}\mathbf{w}=\left(\Lambda\mathbf{W}\right)^{T}\Lambda\mathbf{J}\Lambda^{T}\mathbf{\Lambda}\mathbf{W}=\mathbf{W}^{T}\mathbf{J}\mathbf{W}
+\]
+
+\end_inset
+
+and 
+\begin_inset Formula 
+\[
+\Lambda_{33}\left(0\right)\simeq0.99875
+\]
+
+\end_inset
+
+the value of the Hamiltonian reads
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\[
+H=\frac{1}{2}50^{2}+20\Lambda_{33}\left(0\right)\simeq1269.975
+\]
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Figures 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:hamil0"
+
+\end_inset
+
+-
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:hamil2"
+
+\end_inset
+
+ show the Hamiltonian plots over the time interval 
+\begin_inset Formula $\left[0,10\right]$
+\end_inset
+
+ for time steps 
+\begin_inset Formula $h\in\left\{ 0.001,0.003,0.009\right\} $
+\end_inset
+
+.
+ It is seen that for the largest step the decay of the Hamiltonian is smaller
+ than 
+\begin_inset Formula $0.1\%$
+\end_inset
+
+, while it should be noted that the corresponding amount of the rotation
+ per time step is about 
+\begin_inset Formula $26\deg$
+\end_inset
+
+.
+ This amount of the relative rotation per time step is generally too large
+ for the contact analysis.
+ It is seen that for smaller steps the conservation of the Hamiltonian rapidly
+ improves and becomes nearly exact for 
+\begin_inset Formula $h=0.001$
+\end_inset
+
+, where the amount of the relative rotation is about 
+\begin_inset Formula $3\deg$
+\end_inset
+
+ per step.
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename rig_pos.png
+	lyxscale 50
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:hamil0"
+
+\end_inset
+
+Hamiltonian plots for several time steps and the RIG_POS integration scheme.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename rig_neg.png
+	lyxscale 50
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:hamil1"
+
+\end_inset
+
+Hamiltonian plots for several time steps and the RIG_NEG integration scheme.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement h
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename rig_imp.png
+	lyxscale 50
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:hamil2"
+
+\end_inset
+
+Hamiltonian plots for several time steps and the RIG_IMP integration scheme.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+key "Krysl2005"
+
+\end_inset
+
+P.
+ Krysl, Explicit momentum-conserving integrator for dynamics of rigid bodies
+ approximating the midpoint Lie algorithm, International Journal for Numerical
+ Methods in Engineering (2005), 2171-2193.
+\end_layout
+
+\end_body
+\end_document

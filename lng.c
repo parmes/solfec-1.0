@@ -2977,8 +2977,27 @@ static PyObject* lng_BODY_get_conf (lng_BODY *self, void *closure)
 
 static int lng_BODY_set_conf (lng_BODY *self, PyObject *value, void *closure)
 {
-  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
-  return -1;
+  int i, size;
+  double *q;
+
+#if MPI
+  if (IS_HERE (self))
+  {
+#endif
+
+  size = BODY_Conf_Size (self->bod);
+  q = self->bod->conf;
+
+ if (!is_tuple(value, "conf", size)) return -1;
+
+  for (i = 0; i < size; i ++)
+    q[i] = PyFloat_AsDouble(PyTuple_GetItem (value, i));
+
+#if MPI
+  }
+#endif
+
+  return 0;
 }
 
 static PyObject* lng_BODY_get_velo (lng_BODY *self, void *closure)
@@ -3011,8 +3030,27 @@ static PyObject* lng_BODY_get_velo (lng_BODY *self, void *closure)
 
 static int lng_BODY_set_velo (lng_BODY *self, PyObject *value, void *closure)
 {
-  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
-  return -1;
+  int i, size;
+  double *u;
+
+#if MPI
+  if (IS_HERE (self))
+  {
+#endif
+
+  size = self->bod->dofs;
+  u = self->bod->velo;
+
+ if (!is_tuple(value, "velo", size)) return -1;
+
+  for (i = 0; i < size; i ++)
+    u[i] = PyFloat_AsDouble(PyTuple_GetItem (value, i));
+
+#if MPI
+  }
+#endif
+
+  return 0;
 }
 
 static PyObject* lng_BODY_get_mass (lng_BODY *self, void *closure)

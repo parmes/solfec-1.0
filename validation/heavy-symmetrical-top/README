@@ -1,0 +1,16 @@
+Reference:
+  J. C. Simo, K.K. Wong, Unconditionally stable algorithms for rigid body dynamics that
+  exactly preserve energy and momentum, International Journal for Numerical Methods in
+  Engineering, vol. 31, pp. 19􏰕52, 1991.
+
+Analysis:
+  Explicit dynamics, forced, unconstrained rotation.
+
+Purpose:
+  Examine stability and accuracy of the integration scheme in the presence of severe
+  geometrical nonlinearity.
+
+Summary:
+  The heavy symmetrical top is spinning around the 􏰜xed point O. In this ex- ample the applied
+  torque depends on the con􏰜guration, introducing additional source of nonlinearity. As the torque
+  does not depend on the time step, the second order accuracy can be exempli􏰜ed.

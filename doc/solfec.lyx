@@ -7722,7 +7722,7 @@ Some parameters can also be accessed as members of a BODY object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="12" columns="1">
+<lyxtabular version="3" rows="10" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -7748,64 +7748,6 @@ Read-only
 
 \emph on
 obj.kind, obj.label, obj.material
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.conf
-\series default
-\emph default
- - tuple 
-\emph on
-(q1, q2, ..., qN)
-\emph default
- storing configuration of the body.
- See Table 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "tab:conf"
-
-\end_inset
-
-.
-\end_layout
-
-\end_inset
-</cell>
-</row>
-<row>
-<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
-\begin_inset Text
-
-\begin_layout Plain Layout
-
-\series bold
-\emph on
-obj.velo
-\series default
-\emph default
- - tuple 
-\emph on
-(u1, u2, ..., uN)
-\emph default
- storing velocity of the body.
- See Table 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "tab:velo"
-
-\end_inset
-
-.
 \end_layout
 
 \end_inset
@@ -7968,7 +7910,7 @@ obj.display_points
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="1">
+<lyxtabular version="3" rows="7" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -7981,6 +7923,64 @@ obj.display_points
 Read/write
 \series default
  members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.conf
+\series default
+\emph default
+ - tuple 
+\emph on
+(q1, q2, ..., qN)
+\emph default
+ storing configuration of the body.
+ See Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:conf"
+
+\end_inset
+
+.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.velo
+\series default
+\emph default
+ - tuple 
+\emph on
+(u1, u2, ..., uN)
+\emph default
+ storing velocity of the body.
+ See Table 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "tab:velo"
+
+\end_inset
+
+.
 \end_layout
 
 \end_inset
