@@ -1,0 +1,14 @@
+Reference:
+  J. B. Marion, S. T. Thornton, Classical Dynamics of Particles & Systems,
+  3rd Edition, Reference: Saunders College Publishing, 1988, pp. 60-63.
+
+Analysis:
+  Explicit dynamics, unconstrained linear motion.
+
+Purpose:
+  Examine the accuracy of integration of the linear motion.
+
+Summary:
+  A projectile is subjected to gravity and air resistance loading. The total
+  travel time and travel distance are calculated for an assumed initial velocity
+  and air resistance proportionality constant, k.
