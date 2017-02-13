@@ -1,0 +1,16 @@
+Reference:
+  W. G. McLean, E. W. Nelson, C. L. Best, Schaum's Outline of Theory and
+  Problems Reference: of Engineering Mechanics, Statics and Dynamics,
+  McGraw-Hill Book Co., Inc., New York, NY, 1978, p. 336.
+
+Analysis:
+  Explicit dynamics, bilaterally constrained motion.
+
+Purpose:
+  Examine the accuracy of an analysis involving spherical joints.
+
+Summary:
+  A homogeneous bar, pinned at a distance a from one end, with total length L,
+  is subjected to gravity loading and released from rest at an angle theta=30 deg
+  from the vertical. The rotational speed when it passes through theta=0 deg is
+  calculated and compared to an analytical expression.
