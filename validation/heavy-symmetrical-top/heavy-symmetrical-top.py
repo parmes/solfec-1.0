@@ -68,24 +68,25 @@ print 'Initial R(3,3) is', L33
 print 'Initial Hamiltonian value is', H0
 print 'Plotting Hamiltonian time histories ...'
 
-try:
-  import matplotlib.pyplot as plt
-  for i in range(0,len(scheme)):
-    plt.clf()
-    #ax = plt.gca()
-    #ax.ticklabel_format(useOffset=False)
-    for j in range(0,len(step)):
-      plt.plot (T, H[i][j], label='h = %.3f'%step[j])
-    plt.axis (xmin = 0, xmax = stop)
-    plt.title (scheme[i])
-    plt.xlabel ('Time [s]')
-    plt.ylabel ('Hamiltonian [J]')
-    plt.legend(loc = 'lower left')
-    path = 'validation/heavy-symmetrical-top/' + scheme[i].lower() + '.png'
-    print 'Saving', path
-    plt.savefig (path)
-except (ImportError, RuntimeError):
-  import sys
-  print "Unexpected error:", sys.exc_info()[1]
-  print "Plotting has failed!"
-  pass
+if not VIEWER():
+  try:
+    import matplotlib.pyplot as plt
+    for i in range(0,len(scheme)):
+      plt.clf()
+      #ax = plt.gca()
+      #ax.ticklabel_format(useOffset=False)
+      for j in range(0,len(step)):
+	plt.plot (T, H[i][j], label='h = %.3f'%step[j])
+      plt.axis (xmin = 0, xmax = stop)
+      plt.title (scheme[i])
+      plt.xlabel ('Time [s]')
+      plt.ylabel ('Hamiltonian [J]')
+      plt.legend(loc = 'lower left')
+      path = 'validation/heavy-symmetrical-top/' + scheme[i].lower() + '.png'
+      print 'Saving', path
+      plt.savefig (path)
+  except (ImportError, RuntimeError):
+    import sys
+    print "Unexpected error:", sys.exc_info()[1]
+    print "Plotting has failed!"
+    pass

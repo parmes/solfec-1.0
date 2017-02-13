@@ -44,19 +44,20 @@ exact = 86.138
 error = abs (value - exact) / exact
 print 'Computed x distance: %.3f;' % value, 'Reference distance: %.3f;' % exact, 'Relative error: %.3f' % error
 
-try:
-  import matplotlib.pyplot as plt
-  plt.clf ()
-  plt.plot (T, X, label='x')
-  plt.plot (T, Y, label='y')
-  plt.plot (T, Z, label='z')
-  plt.axis (xmin = 0, xmax = stop, ymin = 0, ymax = 180)
-  plt.xlabel ('Time [s]')
-  plt.ylabel ('Position [in]')
-  plt.legend (loc = 'upper right')
-  plt.savefig ('validation/projectile/projectile.png')
-except (ImportError, RuntimeError):
-  import sys
-  print "Unexpected error:", sys.exc_info()[1]
-  print "Plotting has failed!"
-  pass
+if not VIEWER():
+  try:
+    import matplotlib.pyplot as plt
+    plt.clf ()
+    plt.plot (T, X, label='x')
+    plt.plot (T, Y, label='y')
+    plt.plot (T, Z, label='z')
+    plt.axis (xmin = 0, xmax = stop, ymin = 0, ymax = 180)
+    plt.xlabel ('Time [s]')
+    plt.ylabel ('Position [in]')
+    plt.legend (loc = 'upper right')
+    plt.savefig ('validation/projectile/projectile.png')
+  except (ImportError, RuntimeError):
+    import sys
+    print "Unexpected error:", sys.exc_info()[1]
+    print "Plotting has failed!"
+    pass

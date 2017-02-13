@@ -1,0 +1,14 @@
+Reference:
+  W. Rubinowicz, W. Królikowski, Mechanika teoretyczna (Theoretical mechanics),
+  Państwowe Wydawnictwo Naukowe, Warszawa, 1998, pp. 91-99.
+
+Analysis:
+  Explicit dynamics, bilaterally constrained motion.
+
+Purpose:
+  Examine the accuracy of an analysis involving rigid rod constraint.
+
+Summary:
+  A mathematical pendulum composed of a mass point and a weightless rod swings
+  with a large amplitude. Pendulum period, energy conservation, constraint
+  satisfaction and convergence are examined.
