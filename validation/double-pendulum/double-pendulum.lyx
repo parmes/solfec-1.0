@@ -1,0 +1,662 @@
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass scrartcl
+\use_default_options true
+\begin_modules
+customHeadersFooters
+\end_modules
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize a4paper
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle fancy
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Right Header
+Solfec Validation Manual
+\end_layout
+
+\begin_layout Part*
+Double pendulum impacting a rigid wall
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Shadowbox
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "100col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Reference:
+\series default
+ Florian A.
+ Potra, Mihai Anitescu, Bogdan Gavrea, Jeff Trinkle.
+ A linearly implicit trapezoidal method for integrating stiff multibody
+ dynamics with contact, joints, and friction.
+ International Journal for Numerical Methods in Engineering, vol.
+ 66, pp.
+ 1079-1124, 2006.
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Analysis
+\series default
+: Explicit dynamics, frictionless impact, bilateral constraints.
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Purpose:
+\series default
+ Examine the accuracy of an analysis involving frictionless impact and bilateral
+ constraints.
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Summary:
+\series default
+ A double pendulum composed of two mass points connected by weightless rods
+ impacts a rigid wall.
+ Position and energy plots are compared against those available in the source
+ paper.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace bigskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename double-pendulum.png
+	lyxscale 40
+	width 35col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+Double pendulum in the initial configuration.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The reference 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Potra2006"
+
+\end_inset
+
+ uses the Poisson impact model, while 
+\emph on
+Solfec
+\emph default
+ uses the Newton model.
+ Both models are equivalent in case of frictionless impact if all restitution
+ coefficients are identical 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Glocker2001"
+
+\end_inset
+
+.
+ This is the case in the example, thus the comparison is feasible.
+ As 
+\emph on
+Solfec
+\emph default
+ does not handle contacts between objects with zero volume, mass points
+ were approximated by spheres and the distance between the wall and the
+ rest configuration of the pendulum was shifted by the sphere radius.
+\end_layout
+
+\begin_layout Section*
+Input parameters
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="9" columns="2">
+<features tabularvalignment="middle">
+<column alignment="left" valignment="top">
+<column alignment="center" valignment="top">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Mass 
+\begin_inset Formula $\left(kg\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $m_{1}=m_{2}=1$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Length 
+\begin_inset Formula $\left(m\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $l_{1}=l_{2}=1$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Point 
+\begin_inset Formula $\mathbf{x}_{0}$
+\end_inset
+
+ 
+\begin_inset Formula $\left(m\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mathbf{x}_{0}=\left[0,0,2\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Point 
+\begin_inset Formula $\mathbf{x}_{1}$
+\end_inset
+
+ 
+\begin_inset Formula $\left(m\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mathbf{x}_{1}=\left[\sin\left(\frac{\pi}{3}\right),0,2-\cos\left(\frac{\pi}{3}\right)\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Point 
+\begin_inset Formula $\mathbf{x}_{2}$
+\end_inset
+
+ 
+\begin_inset Formula $\left(m\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mathbf{x}_{2}=\left[\sin\left(\frac{\pi}{3}\right)+\sin\left(\frac{\pi}{5}\right),0,2-\cos\left(\frac{\pi}{3}\right)-\cos\left(\frac{\pi}{5}\right)\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Initial velocities 
+\begin_inset Formula $\left(m/s\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+all zero
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Gravity acceleration 
+\begin_inset Formula $\left(m/s^{2}\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mathbf{g}=\left[0,0,-9.81\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Velocity restitution
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\epsilon=0.1$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Coulomb friction coefficient
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mu=0$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section*
+Results
+\end_layout
+
+\begin_layout Standard
+Simulation over the time interval 
+\begin_inset Formula $\left[0,2.5\right]$
+\end_inset
+
+ was performed with the time step 
+\begin_inset Formula $h=0.001$
+\end_inset
+
+.
+ As the reference 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Potra2006"
+
+\end_inset
+
+ does not specify numerical values of the results, a visual comparison of
+ the total energy and the 
+\begin_inset Formula $x$
+\end_inset
+
+-coordinate histories of the mass points is provided in Figures 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:ene"
+
+\end_inset
+
+ and 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:x"
+
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename double-compare-energy.png
+	lyxscale 40
+	width 100col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:ene"
+
+\end_inset
+
+Comparison the total energy plots versus time.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename double-compare-x.png
+	lyxscale 40
+	width 100col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:x"
+
+\end_inset
+
+Comparison of the 
+\begin_inset Formula $x$
+\end_inset
+
+-coordinate plots (
+\begin_inset Formula $x_{i}\left(t\right)$
+\end_inset
+
+ stands for the 
+\begin_inset Formula $i$
+\end_inset
+
+-th mass point 
+\begin_inset Formula $x$
+\end_inset
+
+-coordinate).
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+key "Potra2006"
+
+\end_inset
+
+Florian A.
+ Potra, Mihai Anitescu Bogdan Gavrea Jeff Trinkle, "A linearly implicit
+ trapezoidal method for integrating stiff multibody dynamics with contact,
+ joints, and friction", International Journal for Numerical Methods in Engineeri
+ng (2006), 1079-1124.
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+key "Glocker2001"
+
+\end_inset
+
+Christoph Glocker, "On Frictionless Impact Models in Rigid-Body Systems",
+ Philosophical Transactions: Mathematical, Physical and Engineering Sciences
+ (2001), 2385-2404.
+\end_layout
+
+\end_body
+\end_document

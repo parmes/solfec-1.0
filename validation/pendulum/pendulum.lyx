@@ -4,7 +4,7 @@
 \begin_header
 \save_transient_properties true
 \origin unavailable
-\textclass scrbook
+\textclass scrartcl
 \use_default_options true
 \begin_modules
 customHeadersFooters
@@ -78,7 +78,7 @@ customHeadersFooters
 Solfec Validation Manual
 \end_layout
 
-\begin_layout Chapter*
+\begin_layout Part*
 Pendulum
 \end_layout
 

@@ -1,0 +1,14 @@
+Reference:
+  Florian A. Potra, Mihai Anitescu, Bogdan Gavrea, Jeff Trinkle. A linearly implicit trapezoidal
+  method for integrating stiff multibody dynamics with contact, joints, and friction. International
+  Journal for Numerical Methods in Engineering, vol. 66, pp. 1079-1124, 2006.
+
+Analysis:
+  Explicit dynamics, frictionless impact, bilateral constraints.
+
+Purpose:
+  Examine the accuracy of an analysis involving frictionless impact and bilateral constraints.
+
+Summary:
+  A double pendulum composed of two mass points connected by weightless rods impacts a rigid wall.
+  Position and energy plots are compared against those available in the source paper.
