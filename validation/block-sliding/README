@@ -1,0 +1,14 @@
+Reference:
+  Florian A. Potra, Mihai Anitescu, Bogdan Gavrea, Jeff Trinkle. A linearly implicit trapezoidal
+  method for integrating stiff multibody dynamics with contact, joints, and friction. International
+  Journal for Numerical Methods in Engineering, vol. 66, pp. 1079-1124, 2006.
+
+Analysis:
+  Explicit dynamics, frictional stick-slip transition.
+
+Purpose:
+  Examine the accuracy of an analysis involving persistent contact and stick-slip transition.
+
+Summary:
+  A block subjected to a sinusoidal force slips over a frictional surface. Position and velocity
+  plots are compared against those available in the source paper.

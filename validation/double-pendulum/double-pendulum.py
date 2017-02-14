@@ -92,7 +92,6 @@ if not VIEWER():
     plt.ylabel ('Energy [J]')
     plt.title('Solfec')
     plt.savefig ('validation/double-pendulum/double-solfec-energy.png')
-
   except (ImportError, RuntimeError):
     import sys
     print "Unexpected error:", sys.exc_info()[1]
