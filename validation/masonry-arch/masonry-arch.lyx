@@ -1,0 +1,1040 @@
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass scrartcl
+\use_default_options true
+\begin_modules
+customHeadersFooters
+\end_modules
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\spacing single
+\use_hyperref false
+\papersize a4paper
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle fancy
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Right Header
+Solfec Validation Manual
+\end_layout
+
+\begin_layout Part*
+Masonry arch
+\end_layout
+
+\begin_layout Standard
+\begin_inset Box Shadowbox
+position "t"
+hor_pos "c"
+has_inner_box 1
+inner_pos "t"
+use_parbox 0
+use_makebox 0
+width "100col%"
+special "none"
+height "1in"
+height_special "totalheight"
+thickness "0.4pt"
+separation "3pt"
+shadowsize "4pt"
+framecolor "black"
+backgroundcolor "none"
+status open
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Reference:
+\series default
+ Gilbert, M.
+ and Casapulla, C.
+ and Ahmed, H.
+ M., Limit analysis of masonry block structures with non-associative frictional
+ joints using linear programming, Computers and Structures, vol.
+ 84, pp.
+ 873-887, 2006.
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Analysis
+\series default
+: Explicit dynamics, frictional contact
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Purpose:
+\series default
+ Examine applicability of the dynamic scheme to the limit-state analysis
+ of frictional block structures.
+\end_layout
+
+\begin_layout Labeling
+\labelwidthstring 00.00.0000
+
+\series bold
+Summary:
+\series default
+ A semicircular arch is composed of 27 blocks, subjected to the uniform
+ gravitational field.
+ The dynamic stability of the arch is investigated for varying ratios of
+ the thickness to centreline radius 
+\begin_inset Formula $h/r$
+\end_inset
+
+.
+ The results are compared against the available findings based on the limit-stat
+e analysis.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset VSpace bigskip
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Gilbert 
+\emph on
+et al.
+
+\emph default
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+ present a numerical solution to the classical problem of the stability
+ of a semicircular arch under gravity load.
+ The analysis provided in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+ spans friction coefficients from the interval 
+\begin_inset Formula $\left[0.2,0.8\right]$
+\end_inset
+
+ and identifies three geometrical failure modes (Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmods"
+
+\end_inset
+
+).
+ The classical analysis provided by Heyman 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Hey77"
+
+\end_inset
+
+ assumes no frictional slip, and therefore covers only one case of mechanism
+ formation (mode I - typical for large friction).
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename arch-modes.png
+	lyxscale 50
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:archmods"
+
+\end_inset
+
+Symmetrical arch problem: influence of friction coefficient on minimum arch
+ thickness (after Gilbert 
+\emph on
+et al.
+
+\emph default
+ 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+).
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+Several factors need to be taken into account when considering reproduction
+ of the results presented in Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmods"
+
+\end_inset
+
+:
+\end_layout
+
+\begin_layout Enumerate
+A linear programming based limit-state formulation is employed in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+, whereas the dynamic contact algorithm is used in 
+\emph on
+Solfec
+\emph default
+.
+\end_layout
+
+\begin_layout Enumerate
+The analysis provided in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+ is two-dimensional, whereas 
+\emph on
+Solfec
+\emph default
+ deals with a three-dimensional model.
+\end_layout
+
+\begin_layout Enumerate
+A node to face contact model is employed in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+, whereas the face to face (or more generally element to element) contact
+ model is employed in 
+\emph on
+Solfec
+\emph default
+.
+\end_layout
+
+\begin_layout Standard
+Due to the modeling differences (inertial effects, contact resolution) is
+ it reasonable to accept a margin of discrepancy between the results obtained
+ by both methods.
+ The dynamic stability analysis will be based on the observation of the
+ kinetic energy histories, calculated for arches with thicknesses varying
+ around the documented in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+ stability limits.
+ Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmodel"
+
+\end_inset
+
+ summarizes the geometry and discretization adopted in the 
+\emph on
+Solfec
+\emph default
+ model.
+ In order to geometrically capture the hinging effect from the first moments
+ of simulation, the subdivision along the block thickness comprises two
+ narrow elements at the extrados and intrados of the arch.
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename arch-model.png
+	lyxscale 25
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:archmodel"
+
+\end_inset
+
+The three-dimensional arch model in 
+\emph on
+Solfec
+\emph default
+.
+ Each of the 27 blocks is composed of 6 elements: two along the width 
+\begin_inset Formula $w$
+\end_inset
+
+, and three along the thickness 
+\begin_inset Formula $h$
+\end_inset
+
+.
+ Thus six contact points are established initially between a pair of blocks.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section*
+Input parameters
+\end_layout
+
+\begin_layout Standard
+Under the assumptions discussed by Heyman 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Hey77"
+
+\end_inset
+
+, formation of a failure mechanism is of purely geometrical nature.
+ Therefore the material parameters can be chosen arbitrary (none have been
+ reported in 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+).
+ The table below summarizes the assumed parameters
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="9" columns="2">
+<features tabularvalignment="middle">
+<column alignment="left" valignment="top">
+<column alignment="center" valignment="top">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Mass density 
+\begin_inset Formula $\left(kg/m^{3}\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\rho=1$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Centreline radius 
+\begin_inset Formula $\left(m\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $r=10$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Arch width 
+\begin_inset Formula $\left(m\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $w=5$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Number of blocks
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $27$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Initial velocities 
+\begin_inset Formula $\left(m/s\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+all zero
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Gravity acceleration 
+\begin_inset Formula $\left(m/s^{2}\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\mathbf{g}=\left[0,0,-9.81\right]$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Velocity restitution
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $\epsilon=0$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Time step 
+\begin_inset Formula $\left(s\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $h=0.001$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Simulated duration 
+\begin_inset Formula $\left(s\right)$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+\begin_inset Formula $0.1$
+\end_inset
+
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Section*
+Results
+\end_layout
+
+\begin_layout Standard
+Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:enemap"
+
+\end_inset
+
+ illustrates the kinetic energy of the arch model at the end of the 0.1s
+ simulated duration.
+ A range of values of the coefficient of friction and arch thickness to
+ radius ratios 
+\begin_inset Formula $h/r$
+\end_inset
+
+ was used.
+ The region above the 0.001-level contour line corresponds to the 
+\begin_inset Quotes eld
+\end_inset
+
+numerical zero
+\begin_inset Quotes erd
+\end_inset
+
+ level of kinetic energy, where the arch remains stable.
+ For the parameters below this level curve the arch begins to collapse.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename masonry-arch-energy.png
+	lyxscale 50
+	width 100col%
+	scaleBeforeRotation
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:enemap"
+
+\end_inset
+
+Kinetic energy map at the end of the 0.1s simulations for a grid of friction
+ coefficients and 
+\begin_inset Formula $h/r$
+\end_inset
+
+ ratios.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Figures 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmod1"
+
+\end_inset
+
+, 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmod2"
+
+\end_inset
+
+ and 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmod3"
+
+\end_inset
+
+ illustrate respectively exemplary failure modes I, II, and III reported
+ in the reference 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
+
+\end_inset
+
+ (Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmods"
+
+\end_inset
+
+).
+ It is seen that the six-hinge mechanism is exactly formed for large friction
+ (mode-I, Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmod1"
+
+\end_inset
+
+).
+ The mode-II mechanism is qualitatively well captured in Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmod2"
+
+\end_inset
+
+.
+ It should be noted that the four-hinge mechanism does form in the initial
+ phase of the dynamic solution.
+ Yet, due to the numerical errors, one of the top hinges 
+\begin_inset Quotes eld
+\end_inset
+
+takes over
+\begin_inset Quotes erd
+\end_inset
+
+ at a later stage (no deformation scaling was applied in the figures).
+ The last Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmod3"
+
+\end_inset
+
+ illustrates the mode-III failure computed with 
+\emph on
+Solfec
+\emph default
+.
+ Once again the qualitative form is correct, whereas the differences with
+ respect to Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmods"
+
+\end_inset
+
+ owe to the modelling discrepancies.
+\begin_inset Separator latexpar
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename ../../../../pubs/tkp3/arch-mode-1-3d.jpg
+	lyxscale 25
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:archmod1"
+
+\end_inset
+
+Failure mode obtained for 
+\begin_inset Formula $h/r=0.1$
+\end_inset
+
+ and 
+\begin_inset Formula $\mu=0.5$
+\end_inset
+
+.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename ../../../../pubs/tkp3/arch-mode-2-3d.jpg
+	lyxscale 25
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:archmod2"
+
+\end_inset
+
+Failure mode obtained for 
+\begin_inset Formula $h/r=0.15$
+\end_inset
+
+ and 
+\begin_inset Formula $\mu=0.35$
+\end_inset
+
+.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+\begin_inset Float figure
+placement H
+wide false
+sideways false
+status open
+
+\begin_layout Plain Layout
+\align center
+\begin_inset Graphics
+	filename ../../../../pubs/tkp3/arch-mode-3-3d.jpg
+	lyxscale 25
+	width 80col%
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Plain Layout
+\begin_inset Caption Standard
+
+\begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fig:archmod3"
+
+\end_inset
+
+Failure mode obtained for 
+\begin_inset Formula $h/r=0.25$
+\end_inset
+
+ and 
+\begin_inset Formula $\mu=0.25$
+\end_inset
+
+.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+key "Gilbert2006"
+
+\end_inset
+
+Gilbert, M.
+ and Casapulla, C.
+ and Ahmed, H.
+ M., "Limit analysis of masonry block structures with non-associative frictional
+ joints using linear programming", Computers and Structures (2006), 873--887.
+\end_layout
+
+\begin_layout Bibliography
+\begin_inset CommandInset bibitem
+LatexCommand bibitem
+key "Hey77"
+
+\end_inset
+
+Heyman, Jacques, "Equilibrium of Shell Structures", Clarendon Press (1977).
+\end_layout
+
+\end_body
+\end_document

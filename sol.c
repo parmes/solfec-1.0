@@ -995,6 +995,9 @@ void SOLFEC_Destroy (SOLFEC *sol)
     {
       free (item->key); /* labels were allocated in READ mode */
     }
+#if HDF5
+      PBF_Close (sol->bf);
+#endif
   }
 
   MEM_Release (&sol->mapmem);
