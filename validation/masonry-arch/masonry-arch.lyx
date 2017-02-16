@@ -416,7 +416,7 @@ key "Gilbert2006"
 \end_inset
 
 ).
- The table below summarizes the assumed parameters
+ The table below summarizes the assumed parameters.
 \begin_inset Separator latexpar
 \end_inset
 
@@ -731,7 +731,7 @@ name "fig:enemap"
 
 \end_inset
 
-Kinetic energy map at the end of the 0.1s simulations for a grid of friction
+Kinetic energy map at the end of the 0.1s simulations over a grid of friction
  coefficients and 
 \begin_inset Formula $h/r$
 \end_inset
