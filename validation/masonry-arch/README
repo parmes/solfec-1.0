@@ -1,0 +1,15 @@
+Reference:
+  Gilbert, M. and Casapulla, C. and Ahmed, H. M., Limit analysis of masonry block structures with
+  non-associative frictional joints using linear programming, Computers and Structures, vol. 84,
+  pp. 873-887, 2006.
+
+Analysis:
+  Explicit dynamics, frictional contact.
+
+Purpose:
+  Examine applicability of the dynamic scheme to the limit-state analysis of frictional block structures.
+
+Summary:
+  A semicircular arch is composed of 27 blocks, subjected to the uniform gravitational field. The dynamic
+  stability of the arch is investigated for varying ratios of the thickness to centreline radius h/r.
+  The results are compared against the available findings based on the limit-state analysis.

@@ -66,8 +66,8 @@ def progress_callback (solfec, stop):
   stdout.flush ()
   return 1
 
-def analysis (step, stop, frict, ratio):
-  solfec = SOLFEC ('DYNAMIC', step, 'out/masonry-arch/fr-%g-ratio-%g' % (fr, ra))
+def analysis (step, stop, frict, ratio, islong = False):
+  solfec = SOLFEC ('DYNAMIC', step, 'out/masonry-arch/fr-%g-ratio-%g%s' % (frict, ratio, '-long' if islong else ''))
   CALLBACK (solfec, step, (solfec, stop), progress_callback)
   if not VIEWER(): solfec.verbose = 'OFF'
   CONTACT_SPARSIFY (solfec, 0.005)
@@ -78,8 +78,10 @@ def analysis (step, stop, frict, ratio):
   gs = GAUSS_SEIDEL_SOLVER (1E-4, 10000) # XXX
   if solfec.mode == 'WRITE': RUN (solfec, gs, stop)
   else: SEEK (solfec, stop)
-  en = ENERGY(solfec)
-  return en[0]
+  if not islong:
+    en = ENERGY(solfec)
+    return en[0]
+  else: return solfec
 
 try:
   import numpy as np
@@ -99,15 +101,27 @@ X, Y = np.meshgrid (frict, ratio)
 Z = np.zeros(X.shape)
 n = len(frict)*len(ratio)
 k = i = 0
-for fr in frict:
-  j = 0
-  for ra in ratio:
-    print 'fr-%.2f-ra-%.2f' % (fr, ra), '[' + '=' * (k/2) + ' ' * ((n/2)-(k/2)-1) + ']', '    ' , 
-    Z[j][i] = analysis (step, stop, fr, ra)
-    print
-    j = j + 1
-    k = k + 1
-  i = i + 1
+if not VIEWER():
+  for fr in frict: # energy map loop
+    j = 0
+    for ra in ratio:
+      print 'fr-%.2f-ra-%.2f' % (fr, ra), '[' + '=' * (k/2) + ' ' * ((n/2)-(k/2)-1) + ']', '    ' , 
+      Z[j][i] = analysis (step, stop, fr, ra)
+      print
+      j = j + 1
+      k = k + 1
+    i = i + 1
+
+# individual longer analyses
+print 'fr-%.2f-ra-%.2f-long' % (0.5, 0.1), '    ' , 
+s1 = analysis (step, 1.0, 0.5, 0.1, True)
+print
+print 'fr-%.2f-ra-%.2f-long' % (0.35, 0.15), '    ' , 
+s2 = analysis (step, 3.0, 0.35, 0.15, True)
+print
+print 'fr-%.2f-ra-%.2f-long' % (0.25, 0.25), '    ' , 
+s3 = analysis (step, 1.0, 0.25, 0.25, True)
+print
 
 if not VIEWER():
   try:

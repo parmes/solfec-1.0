@@ -122,7 +122,7 @@ Reference:
 \series bold
 Analysis
 \series default
-: Explicit dynamics, frictional contact
+: Explicit dynamics, frictional contact.
 \end_layout
 
 \begin_layout Labeling
@@ -285,11 +285,7 @@ key "Gilbert2006"
 
 \end_inset
 
-, whereas the dynamic contact algorithm is used in 
-\emph on
-Solfec
-\emph default
-.
+, whereas the dynamic contact algorithm is used in Solfec.
 \end_layout
 
 \begin_layout Enumerate
@@ -300,11 +296,7 @@ key "Gilbert2006"
 
 \end_inset
 
- is two-dimensional, whereas 
-\emph on
-Solfec
-\emph default
- deals with a three-dimensional model.
+ is two-dimensional, whereas Solfec deals with a three-dimensional model.
 \end_layout
 
 \begin_layout Enumerate
@@ -316,11 +308,7 @@ key "Gilbert2006"
 \end_inset
 
 , whereas the face to face (or more generally element to element) contact
- model is employed in 
-\emph on
-Solfec
-\emph default
-.
+ model is employed in Solfec.
 \end_layout
 
 \begin_layout Standard
@@ -344,11 +332,7 @@ reference "fig:archmodel"
 
 \end_inset
 
- summarizes the geometry and discretization adopted in the 
-\emph on
-Solfec
-\emph default
- model.
+ summarizes the geometry and discretization adopted in the Solfec model.
  In order to geometrically capture the hinging effect from the first moments
  of simulation, the subdivision along the block thickness comprises two
  narrow elements at the extrados and intrados of the arch.
@@ -370,7 +354,7 @@ status open
 \begin_inset Graphics
 	filename arch-model.png
 	lyxscale 25
-	width 80col%
+	width 60col%
 
 \end_inset
 
@@ -387,11 +371,7 @@ name "fig:archmodel"
 
 \end_inset
 
-The three-dimensional arch model in 
-\emph on
-Solfec
-\emph default
-.
+The three-dimensional arch model in Solfec.
  Each of the 27 blocks is composed of 6 elements: two along the width 
 \begin_inset Formula $w$
 \end_inset
@@ -770,63 +750,58 @@ Kinetic energy map at the end of the 0.1s simulations for a grid of friction
 \end_layout
 
 \begin_layout Standard
-Figures 
+Figure 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "fig:archmod1"
+reference "fig:enecomp"
 
 \end_inset
 
-, 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "fig:archmod2"
-
-\end_inset
-
- and 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "fig:archmod3"
-
-\end_inset
-
- illustrate respectively exemplary failure modes I, II, and III reported
- in the reference 
-\begin_inset CommandInset citation
-LatexCommand cite
-key "Gilbert2006"
-
-\end_inset
-
- (Figure 
+ superimposes Figure 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "fig:archmods"
 
 \end_inset
 
-).
- It is seen that the six-hinge mechanism is exactly formed for large friction
- (mode-I, Figure 
-\begin_inset CommandInset ref
-LatexCommand ref
-reference "fig:archmod1"
+ from 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
 
 \end_inset
 
-).
- The mode-II mechanism is qualitatively well captured in Figure 
+ with Figure 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "fig:archmod2"
+reference "fig:enemap"
 
 \end_inset
 
 .
- It should be noted that the four-hinge mechanism does form in the initial
- phase of the dynamic solution.
- Yet, due to the numerical errors, one of the top hinges 
+ We can see that the transition lines coincide.
+ Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:enecomp"
+
+\end_inset
+
+ also includes the failure modes I, II, and III reproduced from three longer
+ Solfec simulations (to allow for more deformation).
+ It is seen that the six-hinge mechanism is exactly formed for large friction
+ (mode I).
+ The mode II mechanism is qualitatively well captured in Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:enecomp"
+
+\end_inset
+
+.
+ The four-hinge mechanism does form in the initial phase of the dynamic
+ solution, yet, due to the sensitivity of the dynamic simulation, one of
+ the top hinges 
 \begin_inset Quotes eld
 \end_inset
 
@@ -835,27 +810,22 @@ takes over
 \end_inset
 
  at a later stage (no deformation scaling was applied in the figures).
- The last Figure 
+ Also the the qualitative nature of mode III deformation in Figure 
 \begin_inset CommandInset ref
 LatexCommand ref
-reference "fig:archmod3"
+reference "fig:enecomp"
 
 \end_inset
 
- illustrates the mode-III failure computed with 
-\emph on
-Solfec
-\emph default
-.
- Once again the qualitative form is correct, whereas the differences with
- respect to Figure 
+ reflects the corresponding mode in Figure 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "fig:archmods"
 
 \end_inset
 
- owe to the modelling discrepancies.
+.
+ Small differences owe to the modeling discrepancies.
 \begin_inset Separator latexpar
 \end_inset
 
@@ -872,9 +842,9 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Graphics
-	filename ../../../../pubs/tkp3/arch-mode-1-3d.jpg
-	lyxscale 25
-	width 80col%
+	filename arch-energy-compare.png
+	lyxscale 50
+	width 100col%
 
 \end_inset
 
@@ -887,119 +857,33 @@ status open
 \begin_layout Plain Layout
 \begin_inset CommandInset label
 LatexCommand label
-name "fig:archmod1"
+name "fig:enecomp"
 
 \end_inset
 
-Failure mode obtained for 
-\begin_inset Formula $h/r=0.1$
-\end_inset
-
- and 
-\begin_inset Formula $\mu=0.5$
-\end_inset
-
-.
-\end_layout
+Level curves from Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:enemap"
 
 \end_inset
 
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Float figure
-placement H
-wide false
-sideways false
-status open
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Graphics
-	filename ../../../../pubs/tkp3/arch-mode-2-3d.jpg
-	lyxscale 25
-	width 80col%
+ obtained from Solfec superimposed with Figure 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fig:archmodel"
 
 \end_inset
 
+ from 
+\begin_inset CommandInset citation
+LatexCommand cite
+key "Gilbert2006"
 
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Caption Standard
-
-\begin_layout Plain Layout
-\begin_inset CommandInset label
-LatexCommand label
-name "fig:archmod2"
-
-\end_inset
-
-Failure mode obtained for 
-\begin_inset Formula $h/r=0.15$
-\end_inset
-
- and 
-\begin_inset Formula $\mu=0.35$
 \end_inset
 
 .
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-\begin_inset Float figure
-placement H
-wide false
-sideways false
-status open
-
-\begin_layout Plain Layout
-\align center
-\begin_inset Graphics
-	filename ../../../../pubs/tkp3/arch-mode-3-3d.jpg
-	lyxscale 25
-	width 80col%
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Plain Layout
-\begin_inset Caption Standard
-
-\begin_layout Plain Layout
-\begin_inset CommandInset label
-LatexCommand label
-name "fig:archmod3"
-
-\end_inset
-
-Failure mode obtained for 
-\begin_inset Formula $h/r=0.25$
-\end_inset
-
- and 
-\begin_inset Formula $\mu=0.25$
-\end_inset
-
-.
+ The corresponding three modeled failure modes are included.
 \end_layout
 
 \end_inset
@@ -1023,7 +907,7 @@ Gilbert, M.
  and Casapulla, C.
  and Ahmed, H.
  M., "Limit analysis of masonry block structures with non-associative frictional
- joints using linear programming", Computers and Structures (2006), 873--887.
+ joints using linear programming", Computers and Structures (2006), 873-887.
 \end_layout
 
 \begin_layout Bibliography
