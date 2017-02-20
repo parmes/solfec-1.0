@@ -12,7 +12,7 @@ import pickle
 import commands
 sys.path.append('scripts/abaqusreader')
 sys.path.append('scripts')
-sys.path.append('inp/mbfcp/81array')
+sys.path.append('examples/81array')
 from abaqusreader import AbaqusInput
 from math import cos 
 
@@ -39,7 +39,7 @@ formu = 'RO'
 fbmod = 12
 ibmod = 12
 lkmod = 12
-afile = 'inp/mesh/81array.inp'
+afile = 'examples/81array/81array.inp'
 step = 1E-4
 damp = 1E-5
 rest = 0.0
@@ -95,14 +95,14 @@ input_bricks = (['FB1(0)(0)', 'FB1(0)(1)', 'FB1(0)(2)', 'FB1(0)(3)', 'FB1(0)(4)'
 stop = 72.0
 dwell = 2.0 # length in seconds of constant-frequency dwell at start of analysis
 
-solfec = SOLFEC ('DYNAMIC', step, 'out/mbfcp/' + ending)
+solfec = SOLFEC ('DYNAMIC', step, 'out/' + ending)
 
 OUTPUT (solfec, outi) # The physical tests recorded digitased outputs at 2E-3s intervals
 
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
 if RANK () == 0:
-  commands.getoutput ("bunzip2 inp/mbfcp/81array/ts81.py.bz2") # only first CPU unpacks the input
+  commands.getoutput ("bunzip2 examples/81array/ts81.py.bz2") # only first CPU unpacks the input
 
 BARRIER () # let all CPUs meet here
 
@@ -112,7 +112,7 @@ from ts81 import TS81 # import the time series
 vel = TS81()
 
 if RANK () == 0:
-  commands.getoutput ("bzip2 inp/mbfcp/81array/ts81.py") # only first CPU pack the input
+  commands.getoutput ("bzip2 examples/81array/ts81.py") # only first CPU pack the input
 
 # Create a new AbaqusInput object from the .inp deck:
 model = AbaqusInput(afile, solfec)
