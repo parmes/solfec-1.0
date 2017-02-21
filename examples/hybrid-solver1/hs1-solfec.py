@@ -1,10 +1,10 @@
 from shutil import copyfile
 
-M = 2 # must be same as hs1-paremc.py
-N = 3 # must be same as hs1-paremc.py
-gap = 0.002 # must be same as hs1-paremc.py
+M = 2 # must be same as in hs1-paremc.py
+N = 3 # must be same as in hs1-paremc.py
+gap = 0.002 # must be same as in hs1-paremc.py
 step = 1E-4
-stop = 10
+stop = 5 # must be <= stop in hs1-parmec.py
 
 sol = SOLFEC ('DYNAMIC', step, 'out/hybrid-solver1')
 
@@ -24,7 +24,7 @@ nodes = [0.0, 0.0, 0.0,
 for i in [M-1, M+N]:
   msh = HEX (nodes, 1, 1, 1, 0, [0, 1, 2, 3, 4, 5])
   TRANSLATE (msh, (i*(0.1+gap), 0, 0))
-  bod1 = BODY (sol, 'OBSTACLE', msh, mat) # boundary bodies need to be obstacles
+  bod1 = BODY (sol, 'RIGID', msh, mat) # boundary bodies are rigid
 
 for i in range(0,N):
   msh = HEX (nodes, 2, 2, 2, 0, [0, 1, 2, 3, 4, 5])
@@ -33,7 +33,9 @@ for i in range(0,N):
   p2 = msh.node(2)
   p3 = msh.node(8)
   p4 = msh.node(18)
-  bod2 = BODY (sol, 'RIGID', msh, mat)
+  bod2 = BODY (sol, 'FINITE_ELEMENT', msh, mat)
+  bod2.scheme = 'DEF_LIM' # semi-implicit time integration
+  bod2.damping = 1E-4 # damping out free vibrations
   FIX_DIRECTION (bod2, p1, (0, 0, 1))
   FIX_DIRECTION (bod2, p2, (0, 0, 1))
   FIX_DIRECTION (bod2, p3, (0, 0, 1))

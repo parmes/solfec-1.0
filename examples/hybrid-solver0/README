@@ -24,7 +24,7 @@ The mechanical problem is:
 
 In Solfec:
   The upper body is modeled as RIGID using 8 hexahedral elements;
-  The lower body is modeled as OBSTACLE using one hexahedral element;
+  The lower body is modeled as RIGID using one hexahedral element;
   Signorini-Coulomb model is used to model contact interaction;
 
 In Parmec:
@@ -33,4 +33,4 @@ In Parmec:
 
 We model vibrations of this impact problem over time [0, 10s];
 
-NOTE: the transitional *boundary* bodies all need to modeled as obstacles in Solfec;
+NOTE: the transitional *boundary* bodies all need to modeled as rigid in Solfec;

@@ -23,19 +23,19 @@ We have a 1-dimensional array of 2*M+N cubes:
 
 The first and last M bodies are modeled as rigid in Parmec;
 Bodies 1 and 2 in Solfec, corresponding to M-1 and M in Parmec,
-are modeled as obstacles; These provide coupling with Parmec;
+are modeled as rigid; These provide coupling with Parmec;
 Bodies 3,4,...,N+2 are modeled using finite elements in Solfec;
 
 Bodies are shaped as cubes of dimensions 0.1 x 0.1 x 0.1 m;
 Initial gap between all bodies is 2 mm;
 
 Constant, 1 m/s2, amplitude acceleration sweep signal, ranging between
-1 Hz and 10 Hz from time 0 to 20 s, is applied to body 0 and 2*M-1 in Parmec;
+1 Hz and 5 Hz from time 0 to 5 s, is applied to body 0 and 2*M-1 in Parmec;
 
 Body interactions in Parmec are modeled using a unilateral spring-dashpot model:
 
 spring stroke    | -1-gap  | -gap | 1
-spring stiffness |  -1E4   |  0   | 0
+spring stiffness |  -1E3   |  0   | 0
 
 normal velocity  | -1  | 0 | 1
 damper constant  | 10  | 0 | 10

@@ -228,7 +228,6 @@ struct domain
   SET *newb; /* set of newly created bodies for time > 0 and before state write */
   MAP *allbodies; /* all created bodies mapped by ids */
   short allbodiesread; /* read flag related to setting up the allbodies set */
-  MAP *skipbodies; /* externally set map, by key, of bodies skipped during time integration */
 
   int nobs, /* obstacles */
       nrig, /* rigid */

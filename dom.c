@@ -2998,7 +2998,6 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   dom->newb = NULL;
   dom->allbodies = NULL;
   dom->allbodiesread = 0;
-  dom->skipbodies = NULL;
   dom->sparecid = NULL;
   dom->excluded = NULL;
   dom->cid = 1;
@@ -3584,38 +3583,12 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   if (dom->verbose) printf (" (STEP: %.3g) ", step), fflush (stdout);
 
   /* begin time integration */
-  if (dom->skipbodies)
-  {
-    if (dom->dynamic)
-    {
-      for (bod = dom->bod; bod; bod = bod->next)
-      {
-	if (!MAP_Find (dom->skipbodies, bod, NULL))
-	{
-	  BODY_Dynamic_Step_Begin (bod, time, step);
-	}
-      }
-    }
-    else
-    {
-      for (bod = dom->bod; bod; bod = bod->next)
-      {
-	if (!MAP_Find (dom->skipbodies, bod, NULL))
-	{
-	  BODY_Static_Step_Begin (bod, time, step);
-	}
-      }
-    }
-  }
+  if (dom->dynamic)
+    for (bod = dom->bod; bod; bod = bod->next)
+      BODY_Dynamic_Step_Begin (bod, time, step);
   else
-  {
-    if (dom->dynamic)
-      for (bod = dom->bod; bod; bod = bod->next)
-	BODY_Dynamic_Step_Begin (bod, time, step);
-    else
-      for (bod = dom->bod; bod; bod = bod->next)
-	BODY_Static_Step_Begin (bod, time, step);
-  }
+    for (bod = dom->bod; bod; bod = bod->next)
+      BODY_Static_Step_Begin (bod, time, step);
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 
@@ -3752,38 +3725,12 @@ void DOM_Update_End (DOM *dom)
   step = dom->step;
 
   /* end time integration */
-  if (dom->skipbodies)
-  {
-    if (dom->dynamic)
-    {
-      for (bod = dom->bod; bod; bod = bod->next)
-      {
-	if (!MAP_Find (dom->skipbodies, bod, NULL))
-	{
-	  BODY_Dynamic_Step_End (bod, time, step);
-	}
-      }
-    }
-    else
-    {
-      for (bod = dom->bod; bod; bod = bod->next)
-      {
-	if (!MAP_Find (dom->skipbodies, bod, NULL))
-	{
-	  BODY_Static_Step_End (bod, time, step);
-	}
-      }
-    }
-  }
+  if (dom->dynamic)
+    for (bod = dom->bod; bod; bod = bod->next)
+      BODY_Dynamic_Step_End (bod, time, step);
   else
-  {
-    if (dom->dynamic)
-      for (bod = dom->bod; bod; bod = bod->next)
-	BODY_Dynamic_Step_End (bod, time, step);
-    else
-      for (bod = dom->bod; bod; bod = bod->next)
-	BODY_Static_Step_End (bod, time, step);
-  }
+    for (bod = dom->bod; bod; bod = bod->next)
+      BODY_Static_Step_End (bod, time, step);
 
   /* advance time */
   dom->time += step;

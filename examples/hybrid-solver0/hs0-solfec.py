@@ -18,7 +18,7 @@ nodes = [0, 0, 0,
 	 0, 1, 1]
 
 msh = HEX (nodes, 1, 1, 1, 0, [0, 1, 2, 3, 4, 5])
-bod1 = BODY (sol, 'OBSTACLE', msh, mat) # boundary bodies need to be obstacles
+bod1 = BODY (sol, 'RIGID', msh, mat) # boundary bodies are rigid
 
 msh = HEX (nodes, 2, 2, 2, 0, [0, 1, 2, 3, 4, 5])
 TRANSLATE (msh, (0, 0, 1.1))
