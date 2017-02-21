@@ -174,7 +174,6 @@ del:
 	rm -fr *cubin
 	rm -fr *dSYM
 	find ./ -iname "*.vtk.*" -exec rm '{}' ';'
-	find ./ -iname "*.pyc" -exec rm '{}' ';'
 
 clean:
 	rm -f solfec
@@ -184,7 +183,8 @@ clean:
 	rm -f obj/*.a
 	rm -fr *dSYM
 	rm -fr *cubin
-	rm -fr scripts/abaqusreader/*.pyc
+	find ./ -iname "*.pyc" -exec rm '{}' ';'
+	find ./ -iname "*.vtk.*" -exec rm '{}' ';'
 	(cd tst && make clean)
 	(cd ext/krylov && make clean)
 	(cd ext/metis && make clean)

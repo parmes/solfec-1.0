@@ -71,8 +71,8 @@ POSIX = yes
 
 HDF5 = yes
 
-HDF5INC = -I/usr/local/hdf5/include
-HDF5LIB = -L/usr/local/hdf5/lib -lhdf5 -lhdf5_hl
+HDF5INC = -I/opt/local/include
+HDF5LIB = -L/opt/local/lib -lhdf5 -lhdf5_hl
 
 #
 # XDR (must be set when HDF5 = no)
@@ -99,8 +99,8 @@ LAPACK = -llapack
 # Python
 #
 
-PYTHON = -I/usr/include/python2.7
-PYTHONLIB = -L/usr/lib -lpython2.7
+PYTHON = -I/opt/local/Library/Frameworks/Python.framework/Versions/2.7/include/python2.7
+PYTHONLIB = -L/opt/local/lib -lpython2.7
 
 #
 # OpenGL (yes/no)
