@@ -37,8 +37,8 @@ Body interactions in Parmec are modeled using a unilateral spring-dashpot model:
 spring stroke    | -1-gap  | -gap | 1
 spring stiffness |  -1E3   |  0   | 0
 
-normal velocity  | -1  | 0 | 1
-damper constant  | 10  | 0 | 10
+normal velocity  | -1 | 0 | 1
+damper constant  |  1 | 0 | 1
 
 Body interactions in Solfec are modeled by means of the Signorini-Coulomb model,
 using the friction coefficient of 0.1 and the velocity restitution coefficient of 0.0;
