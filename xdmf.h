@@ -37,7 +37,7 @@ enum
   XDMF_GAP = 32
 };
 
-/* Export results in XMDF format;
+/* Export results in XDMF format;
  * ntimes > 0 --> number of individual time instances;
  * ntimes < 0 --> a time interval from times[0] to times[1];
  * ntimes = 0 --> export current geometry only without attributes;
