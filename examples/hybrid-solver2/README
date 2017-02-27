@@ -29,22 +29,22 @@ Bodies 3,4,...,N+2 are modeled using finite elements in Solfec;
 Bodies are shaped as cubes of dimensions 0.1 x 0.1 x 0.1 m;
 Initial gap between all bodies is 2 mm;
 
-Constant, 1 m/s2, amplitude acceleration dwell signal at 1 Hz
-from time 0 to 5 s, is applied to body 0 and 2*M-1 in Parmec;
+Constant, 1 m/s2, amplitude acceleration sweep signal, ranging between
+1 Hz and 5 Hz from time 0 to 5 s, is applied to body 0 and 2*M-1 in Parmec;
 
 Body interactions in Parmec are modeled using a unilateral spring-dashpot model:
 
-spring stroke    | -1-gap  | -gap | 1 |
-spring stiffness |  -1E3   |  0   | 0 |
+spring stroke    | -1-gap  | -gap | 1
+spring stiffness |  -1E3   |  0   | 0
 
-normal velocity  | -1 | 1 |
-damper constant  | -7 | 7 |
+normal velocity  | -1 | 0 | 1
+damper constant  |  7 | 0 | 7
 
 Body interactions in Solfec are modeled by means of the Signorini-Coulomb model,
 using the friction coefficient of 0.1 and the velocity restitution coefficient of 0.0;
 
 Bulk material parameters are: density = 100 kg/m3, Young modulus 1 MPa, Poisson ratio = 0.25;
 
-Solfec time step: 5E-4 s; Parmec time step: 1E-4 s;
+Solfec time step: 1E-3 s; Parmec time step: 1E-4 s;
 
 Motion along Y and Z directions is restrained;

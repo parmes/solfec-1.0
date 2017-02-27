@@ -1,9 +1,9 @@
 from shutil import copyfile
 
-M = 2 # must be same as in hs1-paremc.py
+M = 5 # must be same as in hs1-paremc.py
 N = 3 # must be same as in hs1-paremc.py
-gap = 0.002 # must be same as in hs1-paremc.py
-step = 1E-4
+gap = 0.001 # must be same as in hs1-paremc.py
+step = 5E-4
 stop = 5 # must be <= stop in hs1-parmec.py
 
 sol = SOLFEC ('DYNAMIC', step, 'out/hybrid-solver1')
