@@ -1,8 +1,8 @@
 M = 5 # must be same as in hs2-solfec.py
 N = 3 # must be same as in hs2-solfec.py
-gap = 0.002 # must be same as in hs2-solfec.py
+gap = 0.001 # must be same as in hs2-solfec.py
 lofq = 1
-hifq = 5
+hifq = 1
 amag = 1
 step = 1E-4
 stop = 5 # must be >= stop in hs2-solfec.py
@@ -59,7 +59,6 @@ def cube (x, y):
   ANALYTICAL (particle=parnum)
   return parnum
 
-boundary = []
 ijmap = {}
 for i in range (0,M+N+M):
   for j in range (0,M+N+M):
@@ -67,7 +66,6 @@ for i in range (0,M+N+M):
     else:
       num = cube (i*(0.1+gap), j*(0.1+gap))
       ijmap[(i,j)] = num
-      if i in [M,M+N] or j in [M,M+N]: boundary.append(num)
 
 for (i,j) in ijmap:
   outer = [0, M+N+M-1]
@@ -75,8 +73,8 @@ for (i,j) in ijmap:
     num = ijmap[(i,j)]
     PRESCRIBE (num, linvel, angvel) # first body
 
-#spring_curve = [-1-gap, -1E3, -gap, 0, 1, 0]
-spring_curve = [-1, -1E3, 1, 1E3]
+spring_curve = [-1-gap, -1E3, -gap, 0, 1, 0]
+#spring_curve = [-1, -1E3, 1, 1E3]
 damper_curve = [-1, -7, 1, 7]
 
 ijmax = M+N+M-1
@@ -96,4 +94,4 @@ for (i, j) in ijmap:
 
 print 'PARMEC estimated critical time step:', CRITICAL()
 
-DEM (1.0, step, 0.01)
+#DEM (stop, step, 0.01)

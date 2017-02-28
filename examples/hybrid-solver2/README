@@ -1,50 +1,47 @@
-This is a 1D array acceleration sweep test of the HYBRID_SOLVER in Solfec;
+This is a 2D array acceleration dwell test of the HYBRID_SOLVER in Solfec;
+This is a direct generalization of the 1D array example hybrid-solver1;
 
-We have a 1-dimensional array of 2*M+N cubes:
+We have a 2-dimensional array of (M+N+M)x(M+N+M) cubes:
 
-         +------+        +------+       +------+
-         |      |        |      |       |      |
--acc(t)- |  0   | -/\/\- |  1   | (...) |M-1   | (...) (<- Parmec model)
-         |      |        |      |       |      |
-         +------+        +------+       +------+
-  Y                               
-  |                              +-----+      +-----+           +------+      +-----+
-  +-- X   (continued from above) |     | Sig- |     | Sig-      |      | Sig- |     |
-            (Solfec model ->)    |1    | Coul | 3   | Coul  ... | N+2  | Coul |2    | (...)
-				 |     |      |     |           |      |      |     |
-				 +-----+      +-----+           +------+      +-----+
-
-                              +------+        +------+       +------+
-      (continued from above)  |      |        |      |       |      |
-         (Parmec model ->)    | M    | -/\/\- |M+1   | (...) |2*M-1 | -acc(t)-
-	                      |      |        |      |       |      |
-			      +------+        +------+       +------+
+      M         N        M
+     +--+      +--+      +--+
+  M  |P | ...  |P |  ... |P |
+     +--+      +--+      +--+
+     ...       ...       ...
+     +--+      +--+      +--+
+  N  |P | ...  |S | ...  |P |
+     +--+      +--+      +--+
+     ...       ...       ...
+     +--+      +--+      +--+
+  M  |P |      |P |      |P |
+     +--+      +--+      +--+
 
 
-The first and last M bodies are modeled as rigid in Parmec;
-Bodies 1 and 2 in Solfec, corresponding to M-1 and M in Parmec,
-are modeled as rigid; These provide coupling with Parmec;
-Bodies 3,4,...,N+2 are modeled using finite elements in Solfec;
+The outer MxM, MxN, NxM sub-arrays are modeled as rigid in Parmec (marekd with "P");
+The inner NxN array is modeled using finite elements in Solfec (marekd with "S");
+The layer of bodies directly adjacent to the Parmec arrays is modeled in Solfec
+using rigid bodies; This layer provides coupling between Solfec and Parmec;
 
 Bodies are shaped as cubes of dimensions 0.1 x 0.1 x 0.1 m;
-Initial gap between all bodies is 2 mm;
+Initial gap between all bodies is 1 mm;
 
-Constant, 1 m/s2, amplitude acceleration sweep signal, ranging between
-1 Hz and 5 Hz from time 0 to 5 s, is applied to body 0 and 2*M-1 in Parmec;
+Constant, 1 m/s2, amplitude acceleration dwell signal at 1 Hz
+from time 0 to 5 s, is applied to the outer shell of bodies in Parmec,
+along direction (1, 1, 0);
 
 Body interactions in Parmec are modeled using a unilateral spring-dashpot model:
 
-spring stroke    | -1-gap  | -gap | 1
-spring stiffness |  -1E3   |  0   | 0
+spring stroke    | -1-gap  | -gap | 1 |
+spring stiffness |  -1E3   |  0   | 0 |
 
-normal velocity  | -1 | 0 | 1
-damper constant  |  7 | 0 | 7
+normal velocity  | -1 | 1 |
+damper constant  | -7 | 7 |
 
 Body interactions in Solfec are modeled by means of the Signorini-Coulomb model,
 using the friction coefficient of 0.1 and the velocity restitution coefficient of 0.0;
 
 Bulk material parameters are: density = 100 kg/m3, Young modulus 1 MPa, Poisson ratio = 0.25;
 
-Solfec time step: 1E-3 s; Parmec time step: 1E-4 s;
+Solfec time step: 5E-4 s; Parmec time step: 1E-4 s;
 
-Motion along Y and Z directions is restrained;
+Motion along the Z direction is restrained; All rotations are restricted in Parmec;

@@ -174,6 +174,8 @@ del:
 	rm -fr *cubin
 	rm -fr *dSYM
 	find ./ -iname "*.vtk.*" -exec rm '{}' ';'
+	find ./ -iname "*.h5" -exec rm '{}' ';'
+	find ./ -iname "*.xmf" -exec rm '{}' ';'
 
 clean:
 	rm -f solfec

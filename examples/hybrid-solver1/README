@@ -1,4 +1,4 @@
-This is a 1D array acceleration sweep test of the HYBRID_SOLVER in Solfec;
+This is a 1D array acceleration dwell test of the HYBRID_SOLVER in Solfec;
 
 We have a 1-dimensional array of 2*M+N cubes:
 
@@ -27,7 +27,7 @@ are modeled as rigid; These provide coupling with Parmec;
 Bodies 3,4,...,N+2 are modeled using finite elements in Solfec;
 
 Bodies are shaped as cubes of dimensions 0.1 x 0.1 x 0.1 m;
-Initial gap between all bodies is 2 mm;
+Initial gap between all bodies is 1 mm;
 
 Constant, 1 m/s2, amplitude acceleration dwell signal at 1 Hz
 from time 0 to 5 s, is applied to body 0 and 2*M-1 in Parmec;
@@ -47,4 +47,4 @@ Bulk material parameters are: density = 100 kg/m3, Young modulus 1 MPa, Poisson 
 
 Solfec time step: 5E-4 s; Parmec time step: 1E-4 s;
 
-Motion along Y and Z directions is restrained;
+Motion along Y and Z directions is restrained; All rotations are restricted in Parmec;
