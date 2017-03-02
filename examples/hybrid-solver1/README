@@ -48,3 +48,5 @@ Bulk material parameters are: density = 100 kg/m3, Young modulus 1 MPa, Poisson 
 Solfec time step: 5E-4 s; Parmec time step: 1E-4 s;
 
 Motion along Y and Z directions is restrained; All rotations are restricted in Parmec;
+
+YouTube: https://www.youtube.com/watch?v=CW080-GCB1w

@@ -29,17 +29,13 @@ sys.path.append(os.path.join (path, 'python'))
 from acc_sweep import *
 
 (vt, vd, vv, va) = acc_sweep (step, stop, lofq, hifq, amag)
-
-try:
-  from scipy.interpolate import interp1d
-except:
-  print 'ERROR: SciPy interp1d failed to load -->'
-  print '       perhaps SciPy needs to be installed'
-  sys.exit(1)
-
-vel = interp1d(vt, vv) # linear spline of velocity history ...
-def linvel(t): return (vel(t), 0, 0) # ... based on the acceleration sweep function
-def angvel(t): return (0, 0, 0) # zero angular velocity signal
+tsv = [None]*(len(vt)+len(vd))
+tsv[::2] = vt
+tsv[1::2] = vv
+tsv = TSERIES (tsv)
+ts0 = TSERIES (0.0)
+linvel = (tsv, ts0, ts0)
+angvel = (ts0, ts0, ts0)
 
 matnum = MATERIAL (100, 1E6, 0.25)
 
