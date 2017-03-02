@@ -1,0 +1,56 @@
+This is a 3D array acceleration dwell test of the HYBRID_SOLVER in Solfec;
+This is a direct generalization of the 2D array example hybrid-solver1;
+
+We have a 3-dimensional array of (M+N+M)x(M+N+M)x(M+N+M) cubes:
+
+
+
+
+           +--+      +--+      +--+
+       M  /  /      /  /      /  /|
+         .  .      .  .      .  . .
+     N  .  .      .  .      .  .  .
+       .  .      .  .      .  .   .
+   M  /  /      /  /      /  /    .
+     +--+      +--+      +--+     .
+  M  |P | ...  |P |  ... |P |     .
+     +--+      +--+      +--+     .
+     ...       ...       ...      .
+     +--+      +--+      +--+     .
+  N  |P | ...  |S | ...  |P |    .
+     +--+      +--+      +--+   .
+     ...       ...       ...   .
+     +--+      +--+      +--+ .
+  M  |P |      |P |      |P |.
+     +--+      +--+      +--+
+      M         N        M
+
+
+The outer MxMxM, MxNxM, ... sub-arrays are modeled as rigid in Parmec (marekd with "P");
+The inner NxNxN array is modeled using finite elements in Solfec (marekd with "S");
+The layer of bodies directly adjacent to the Parmec arrays is modeled in Solfec
+using rigid bodies; This layer provides coupling between Solfec and Parmec;
+
+Bodies are shaped as cubes of dimensions 0.1 x 0.1 x 0.1 m;
+Initial gap between all bodies is 1 mm;
+
+Constant, 1 m/s2, amplitude acceleration dwell signal at 1 Hz
+from time 0 to 5 s, is applied to the outer shell of bodies in Parmec,
+along direction (1, 1, 1);
+
+Body interactions in Parmec are modeled using a unilateral spring-dashpot model:
+
+spring stroke    | -1-gap  | -gap | 1 |
+spring stiffness |  -1E3   |  0   | 0 |
+
+normal velocity  | -1 | 1 |
+damper constant  | -7 | 7 |
+
+Body interactions in Solfec are modeled by means of the Signorini-Coulomb model,
+using the friction coefficient of 0.1 and the velocity restitution coefficient of 0.0;
+
+Bulk material parameters are: density = 100 kg/m3, Young modulus 1 MPa, Poisson ratio = 0.25;
+
+Solfec time step: 5E-4 s; Parmec time step: 1E-4 s;
+
+Motion along the Z direction is restrained; All rotations are restricted in Parmec;

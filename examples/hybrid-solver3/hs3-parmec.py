@@ -38,20 +38,20 @@ except:
   sys.exit(1)
 
 vel = interp1d(vt, vv) # linear spline of velocity history ...
-def linvel(t): return (vel(t), vel(t), 0) # ... based on the acceleration sweep function
+def linvel(t): return (vel(t), vel(t), vel(t)) # ... based on the acceleration sweep function
 def angvel(t): return (0, 0, 0) # zero angular velocity signal
 
 matnum = MATERIAL (100, 1E6, 0.25)
 
-def cube (x, y):
-  nodes = [x+0.0, y+0.0, 0.0,
-	   x+0.1, y+0.0, 0.0,
-	   x+0.1, y+0.1, 0.0,
-	   x+0.0, y+0.1, 0.0,
-	   x+0.0, y+0.0, 0.1,
-	   x+0.1, y+0.0, 0.1,
-	   x+0.1, y+0.1, 0.1,
-	   x+0.0, y+0.1, 0.1]
+def cube (x, y, z):
+  nodes = [x+0.0, y+0.0, z+0.0,
+	   x+0.1, y+0.0, z+0.0,
+	   x+0.1, y+0.1, z+0.0,
+	   x+0.0, y+0.1, z+0.0,
+	   x+0.0, y+0.0, z+0.1,
+	   x+0.1, y+0.0, z+0.1,
+	   x+0.1, y+0.1, z+0.1,
+	   x+0.0, y+0.1, z+0.1]
   elements = [8, 0, 1, 2, 3, 4, 5, 6, 7, matnum]
   colors = [1, 4, 0, 1, 2, 3, 2, 4, 4, 5, 6, 7, 3]
   parnum = MESH (nodes, elements, matnum, colors)
@@ -59,38 +59,45 @@ def cube (x, y):
   ANALYTICAL (particle=parnum)
   return parnum
 
-ijmap = {}
+ijkmap = {}
 for i in range (0,M+N+M):
   for j in range (0,M+N+M):
-    if i >= M and j >= M and i < M+N and j < M+N: continue
-    else:
-      num = cube (i*(0.1+gap), j*(0.1+gap))
-      ijmap[(i,j)] = num
+    for k in range (0,M+N+M):
+      if i >= M and j >= M and i < M+N and j < M+N and k >= M and k < M+N: continue
+      else:
+	num = cube (i*(0.1+gap), j*(0.1+gap), k*(0.1+gap))
+	ijkmap[(i,j,k)] = num
 
-for (i,j) in ijmap:
+for (i,j,k) in ijkmap:
   outer = [0, M+N+M-1]
-  if i in outer or j in outer:
-    num = ijmap[(i,j)]
+  if i in outer or j in outer or k in outer:
+    num = ijkmap[(i,j,k)]
     PRESCRIBE (num, linvel, angvel) # outer most shell of bodies
 
 spring_curve = [-1-gap, -1E3, -gap, 0, 1, 0]
 damper_curve = [-1, -7, 1, 7]
 
-ijmax = M+N+M-1
-for (i, j) in ijmap:
-  if i < ijmax and not (i == M-1 and j in range(M,M+N)):
-    p1 = (i*(0.1+gap)+0.1, j*(0.1+gap)+0.05, 0.05)
-    p2 = (i*(0.1+gap)+0.1+gap, j*(0.1+gap)+0.05, 0.05)
-    n1 = ijmap[(i,j)]
-    n2 = ijmap[(i+1,j)]
+ijkmax = M+N+M-1
+for (i,j,k) in ijkmap:
+  if i < ijkmax and not (i == M-1 and j in range(M,M+N) and k in range(M,M+N)):
+    p1 = (i*(0.1+gap)+0.1, j*(0.1+gap)+0.05, k*(0.1+gap)+0.05)
+    p2 = (i*(0.1+gap)+0.1+gap, j*(0.1+gap)+0.05, k*(0.1+gap)+0.05)
+    n1 = ijkmap[(i,j,k)]
+    n2 = ijkmap[(i+1,j,k)]
     SPRING (n1, p1, n2, p2, spring_curve, damper_curve, (1, 0, 0))
-  if j < ijmax and not (j == M-1 and i in range(M,M+N)):
-    p1 = (i*(0.1+gap)+0.05, j*(0.1+gap)+0.1, 0.05)
-    p2 = (i*(0.1+gap)+0.05, j*(0.1+gap)+0.1+gap, 0.05)
-    n1 = ijmap[(i,j)]
-    n2 = ijmap[(i,j+1)]
+  if j < ijkmax and not (j == M-1 and i in range(M,M+N) and k in range(M,M+N)):
+    p1 = (i*(0.1+gap)+0.05, j*(0.1+gap)+0.1, k*(0.1+gap)+0.05)
+    p2 = (i*(0.1+gap)+0.05, j*(0.1+gap)+0.1+gap, k*(0.1+gap)+0.05)
+    n1 = ijkmap[(i,j,k)]
+    n2 = ijkmap[(i,j+1,k)]
     SPRING (n1, p1, n2, p2, spring_curve, damper_curve, (0, 1, 0))
+  if k < ijkmax and not (k == M-1 and i in range(M,M+N) and j in range(M,M+N)):
+    p1 = (i*(0.1+gap)+0.05, j*(0.1+gap)+0.05, k*(0.1+gap)+0.1)
+    p2 = (i*(0.1+gap)+0.05, j*(0.1+gap)+0.05, k*(0.1+gap)+0.1+gap)
+    n1 = ijkmap[(i,j,k)]
+    n2 = ijkmap[(i,j,k+1)]
+    SPRING (n1, p1, n2, p2, spring_curve, damper_curve, (0, 0, 1))
 
 print 'PARMEC estimated critical time step:', CRITICAL()
 
-#DEM (stop, step, 0.01)
+#DEM (step, step, 0.01)

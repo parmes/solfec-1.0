@@ -32,7 +32,6 @@ for i in range (0,M+N+M):
       p1 = msh.node(0)
       p2 = msh.node(2)
       p3 = msh.node(8)
-      p4 = msh.node(18)
       bod = BODY (sol, 'FINITE_ELEMENT', msh, mat)
       bod.scheme = 'DEF_LIM' # semi-implicit time integration
       bod.damping = 1E-4 # damping out free vibrations
