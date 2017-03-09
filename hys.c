@@ -42,7 +42,7 @@ SOFTWARE.
 #endif
 
 #if MPI
-/* initialize boudary */
+/* initialize boundary */
 static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 {
   int rank, size, *sendbuf, sendcount, *recvbuf, recvsize, *recvcounts, *displs, *ptr;
@@ -113,48 +113,154 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
  * read back average velocity of boundary bodies into Solfec */
 static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 {
+  MPI_Datatype subtypes[6] = {MPI_INT, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE}, ift_type, alftrp_type;
+  struct alftrp_struct { double a[3]; double l[3]; double f[3]; double t[3]; double r[9]; double p[3]; } *alftrp;
+  struct ift_struct { int i[2]; double f[3]; double t[3]; } *ift;
+  int blocklens[6] = {2, 3, 3, 3, 9, 3}, ift_size, ift_count, i, j;
+  int rank, size, *ift_counts, *ift_displs;
+  struct ift_struct *ift_all;
+  struct alftrp_struct *alftrp_all;
+  MPI_Aint displs[6];
   MAP *item;
 
-  /* XXX --> the below code needs to be MPI-ed */
-  ASSERT_TEXT (0, "Ooops --> encountered unimlpemented aspect!");
+  ift_size = MAP_Size (hs->solfec2parmec);
+  ERRMEM (ift = MEM_CALLOC (ift_size * sizeof(struct ift_struct)));
+  ERRMEM (alftrp = MEM_CALLOC (ift_size * sizeof(struct alftrp_struct)));
 
-  for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  MPI_Get_address (&ift->i, &displs[0]);
+  MPI_Get_address (&ift->f, &displs[1]);
+  MPI_Get_address (&ift->t, &displs[2]);
+  displs[2] = displs[2] - displs[0];
+  displs[1] = displs[1] - displs[0];
+  displs[0] = 0;
+
+  MPI_Type_create_struct (3, blocklens, displs, subtypes, &ift_type);
+  MPI_Type_commit (&ift_type);
+
+  subtypes[0] = MPI_DOUBLE;
+  blocklens[0] = 3;
+  MPI_Get_address (&alftrp->a, &displs[0]);
+  MPI_Get_address (&alftrp->l, &displs[1]);
+  MPI_Get_address (&alftrp->f, &displs[2]);
+  MPI_Get_address (&alftrp->t, &displs[3]);
+  MPI_Get_address (&alftrp->r, &displs[4]);
+  MPI_Get_address (&alftrp->p, &displs[5]);
+  displs[5] = displs[5] - displs[0];
+  displs[4] = displs[4] - displs[0];
+  displs[3] = displs[3] - displs[0];
+  displs[2] = displs[2] - displs[0];
+  displs[1] = displs[1] - displs[0];
+  displs[0] = 0;
+
+  MPI_Type_create_struct (6, blocklens, displs, subtypes, &alftrp_type);
+  MPI_Type_commit (&alftrp_type);
+
+  for (item = MAP_First(hs->solfec2parmec), j = 0; item; item = MAP_Next (item))
   {
-    double force[3], torque[3];
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
-    BODY_Rigid_Force (bod, dom->time, dom->step, force, torque);
-    int num = (int) (long) item->data; /* parmec particle number */
-    parmec_set_force_and_torque (num, force, torque);
-    SET6 (bod->velo, 0.0);
+    if (bod)
+    {
+      BODY_Rigid_Force (bod, dom->time, dom->step, ift[j].f, ift[j].t);
+      ift[j].i[0] = bod->id;
+      ift[j].i[1] = (int) (long) item->data; /* parmec particle number */
+      j ++;
+    }
+  }
+  ift_count = j;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &size);
+
+  if (rank == 0)
+  {
+    ERRMEM (ift_all = malloc (size * ift_size * sizeof(struct ift_struct)));
+    ERRMEM (alftrp_all = malloc (size * ift_size * sizeof(struct alftrp_struct)));
+    ERRMEM (ift_counts = MEM_CALLOC(size * sizeof(int)));
+    ERRMEM (ift_displs = MEM_CALLOC(size * sizeof(int)));
   }
 
-  for (int i = 0; i < nstep; i ++)
-  {
-    parmec_one_step (step, hs->parmec_interval, hs->parmec_prefix);
+  MPI_Gatherv (ift, ift_count, ift_type, ift_all, ift_counts, ift_displs, ift_type, 0, MPI_COMM_WORLD);
 
-    for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  if (rank == 0)
+  {
+    for (i = 0; i < size; i ++)
     {
-      BODY *bod = MAP_Find (dom->idb, item->key, NULL);
-      int num = (int) (long) item->data; /* parmec particle number */
-      double angular[3], linear[3];
-      parmec_get_angular_and_linear (num, angular, linear);
-      ACC (angular, bod->velo);
-      ACC (linear, bod->velo+3);
+      for (j = 0; j < ift_counts[i]; j ++)
+      {
+	struct ift_struct *item = &ift_all[ift_displs[i]+j];
+	struct alftrp_struct *jtem = &alftrp_all[ift_displs[i]+j];
+	parmec_set_force_and_torque (item->i[1], item->f, item->t);
+	SET (jtem->a, 0.0); /* clear for velocities */
+	SET (jtem->l, 0.0);
+      }
+    }
+
+    for (int i = 0; i < nstep; i ++) /* parmec steps */
+    {
+      parmec_one_step (step, hs->parmec_interval, hs->parmec_prefix);
+
+      for (i = 0; i < size; i ++)
+      {
+	for (j = 0; j < ift_counts[i]; j ++)
+	{
+	  double angular[3], linear[3];
+	  struct ift_struct *item = &ift_all[ift_displs[i]+j];
+	  struct alftrp_struct *jtem = &alftrp_all[ift_displs[i]+j];
+	  parmec_get_angular_and_linear (item->i[1], angular, linear);
+	  ACC (angular, jtem->a); /* accumulate velocities */
+	  ACC (linear, jtem->l);
+	}
+      }
+    }
+
+    double inv = 1.0/(double)nstep;
+
+    for (i = 0; i < size; i ++)
+    {
+      for (j = 0; j < ift_counts[i]; j ++)
+      {
+	struct ift_struct *item = &ift_all[ift_displs[i]+j];
+	struct alftrp_struct *jtem = &alftrp_all[ift_displs[i]+j];
+	SCALE (jtem->a, inv); /* average velocities */
+	SCALE (jtem->l, inv);
+        parmec_get_force_and_torque (item->i[1], nstep, jtem->f, jtem->t);
+        parmec_get_rotation_and_position (item->i[1], jtem->r, jtem->p);
+      }
     }
   }
 
-  double inv = 1.0/(double)nstep;
+  /* scatter parmec average velocities, force, torque, rotation and position */
+  MPI_Scatterv (alftrp_all, ift_counts, ift_displs, alftrp_type, alftrp, ift_count, alftrp_type, 0, MPI_COMM_WORLD);
 
-  for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  for (j = 0; j < ift_count; j ++)
   {
-    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
-    int num = (int) (long) item->data; /* parmec particle number */
-    parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque);
-    SCALE6 (bod->velo, inv);
+    BODY *bod = MAP_Find (dom->idb, (void*) (long) ift[j].i[0], NULL);
+    ASSERT_TEXT (bod && bod->parmec, "Inconsistent body identifier when transferring boundary data");
+    COPY (alftrp[j].a, bod->velo);
+    COPY (alftrp[j].l, bod->velo+3);
+    COPY (alftrp[j].f, bod->parmec->force);
+    COPY (alftrp[j].t, bod->parmec->torque);
+    NNCOPY (alftrp[j].r, bod->conf);
+    COPY (alftrp[j].p, bod->conf+9);
+    SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
   }
+
+  MPI_Type_free (&ift_type);
+  MPI_Type_free (&alftrp_type);
+
+  if (rank == 0)
+  {
+    free (ift_all);
+    free (alftrp_all);
+    free (ift_counts);
+    free (ift_displs);
+  }
+
+  free (ift);
+  free (alftrp);
 }
 #else
-/* initialize boudary */
+/* initialize boundary */
 static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 {
   for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
@@ -205,6 +311,8 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     int num = (int) (long) item->data; /* parmec particle number */
     parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque);
+    parmec_get_rotation_and_position (num, bod->conf, bod->conf+9);
+    SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     SCALE6 (bod->velo, inv);
   }
 }
@@ -288,7 +396,7 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
   
   if (sol->dom->time == 0.0)
   {
-    /* initialize boudary */
+    /* initialize boundary */
     init_boundary (hs, sol->dom);
 
     /* initial half-step */
@@ -302,10 +410,7 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
   sol->duration = duration; /* in SOLFEC_Run, allowing for a correct elapsed time estimate */
   while (sol->dom->time < time0 + duration)
   {
-#if MPI
-    /* XXX --> we need to send rotation/position to their destination ranks */
-    ASSERT_TEXT (0, "Ooops --> encountered unimlpemented aspect!");
-#else
+#if 0
     for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
     {
       BODY *bod = MAP_Find (sol->dom->idb, item->key, NULL);
