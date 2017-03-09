@@ -45,7 +45,7 @@ SOFTWARE.
 /* initialize boundary */
 static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 {
-  int rank, size, *sendbuf, sendcount, *recvbuf, recvsize, *recvcounts, *displs, *ptr;
+  int rank, size, i, *sendbuf, sendcount, *recvbuf, recvsize, *recvcounts, *displs, *ptr;
   MAP *found, *item;
 
   for (found = NULL, item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
@@ -54,17 +54,15 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 
     if (bod)
     {
-      MAP_Insert (NULL, &found, item->key, NULL, NULL);
-
-      if (!bod->parmec) ERRMEM (bod->parmec = MEM_CALLOC (sizeof(PARMEC_FORCE))); /* allocate parmec force */
+      MAP_Insert (NULL, &found, item->key, (void*) (long) bod->kind, NULL);
     }
   }
 
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);
   MPI_Comm_size (MPI_COMM_WORLD, &size);
 
-  sendcount = MAP_Size(found);
-  recvsize = MAP_Size(hs->solfec2parmec) * size;
+  sendcount = 2 * MAP_Size(found);
+  recvsize = 2 * MAP_Size(hs->solfec2parmec) * size;
   ERRMEM (sendbuf = malloc (sendcount * sizeof(int)));
   if (rank == 0)
   {
@@ -73,9 +71,20 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
     ERRMEM (displs = MEM_CALLOC(size * sizeof(int)));
   }
 
-  for (item = MAP_First(found), ptr = sendbuf; item; item = MAP_Next(item), ptr ++)
+  for (item = MAP_First(found), ptr = sendbuf; item; item = MAP_Next(item), ptr += 2)
   {
-    ptr[0] = (int) (long) item->key;
+    ptr[0] = (int) (long) item->key; /* body id */
+    ptr[1] = (int) (long) item->data; /* body kind */
+  }
+
+  MPI_Gather (&sendcount, 1, MPI_INT, recvcounts, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  if (rank == 0)
+  {
+    for (i = 1, displs[0] = 0; i < size; i ++)
+    { 
+      displs[i] = displs[i-1] + recvcounts[i-1];
+    }
   }
 
   MPI_Gatherv (sendbuf, sendcount, MPI_INT, recvbuf, recvcounts, displs, MPI_INT, 0, MPI_COMM_WORLD);
@@ -86,17 +95,19 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 
     for (int i = 0; i < size; i ++)
     {
-      for (int j = 0; j < recvcounts[i]; j ++)
+      ASSERT_TEXT (recvcounts[i] % 2 == 0, "Inconsistent receive count in hybrid solver boundary init");
+
+      for (int j = 0; j < recvcounts[i]/2; j ++)
       {
-	MAP_Insert (NULL, &found, (void*) (long) recvbuf[displs[i]+j], NULL, NULL);
+	MAP_Insert (NULL, &found, (void*) (long) recvbuf[displs[i]+2*j], (void*) (long) recvbuf[displs[i]+2*j+1], NULL);
       }
     }
 
     for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item)) /* make rank-wide consistency check */
     {
-      BODY *bod = MAP_Find (found, item->key, NULL);
-      ASSERT_TEXT (bod, "ERROR: Solfec-Parmec boundary body with Solfec id = %d has not been found", (int)(long) item->key);
-      ASSERT_TEXT (bod->kind == RIG, "ERROR: Solfec-Parmec boundary body with Solfec id = %d is not rigid", (int)(long) item->key);
+      MAP *jtem = MAP_Find_Node (found, item->key, NULL);
+      ASSERT_TEXT (jtem, "ERROR: Solfec-Parmec boundary body with Solfec id = %d has not been found", (int)(long) item->key);
+      ASSERT_TEXT ((long) (void*) jtem->data == RIG, "ERROR: Solfec-Parmec boundary body with Solfec id = %d is not rigid", (int)(long) item->key);
     }
 
     free (recvbuf);
@@ -115,8 +126,8 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 {
   MPI_Datatype subtypes[6] = {MPI_INT, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE}, ift_type, alftrp_type;
   struct alftrp_struct { double a[3]; double l[3]; double f[3]; double t[3]; double r[9]; double p[3]; } *alftrp;
+  int blocklens[6] = {2, 3, 3, 3, 9, 3}, ift_size, ift_count, i, j, k;
   struct ift_struct { int i[2]; double f[3]; double t[3]; } *ift;
-  int blocklens[6] = {2, 3, 3, 3, 9, 3}, ift_size, ift_count, i, j;
   int rank, size, *ift_counts, *ift_displs;
   struct ift_struct *ift_all;
   struct alftrp_struct *alftrp_all;
@@ -179,6 +190,16 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     ERRMEM (ift_displs = MEM_CALLOC(size * sizeof(int)));
   }
 
+  MPI_Gather (&ift_count, 1, MPI_INT, ift_counts, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  if (rank == 0)
+  {
+    for (i = 1, ift_displs[0] = 0; i < size; i ++)
+    { 
+      ift_displs[i] = ift_displs[i-1] + ift_counts[i-1];
+    }
+  }
+
   MPI_Gatherv (ift, ift_count, ift_type, ift_all, ift_counts, ift_displs, ift_type, 0, MPI_COMM_WORLD);
 
   if (rank == 0)
@@ -195,7 +216,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
       }
     }
 
-    for (int i = 0; i < nstep; i ++) /* parmec steps */
+    for (k = 0; k < nstep; k ++) /* parmec steps */
     {
       parmec_one_step (step, hs->parmec_interval, hs->parmec_prefix);
 
@@ -235,7 +256,8 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   for (j = 0; j < ift_count; j ++)
   {
     BODY *bod = MAP_Find (dom->idb, (void*) (long) ift[j].i[0], NULL);
-    ASSERT_TEXT (bod && bod->parmec, "Inconsistent body identifier when transferring boundary data");
+    ASSERT_TEXT (bod, "Inconsistent body identifier when transferring boundary data");
+    if (!bod->parmec) ERRMEM (bod->parmec = MEM_CALLOC (sizeof(PARMEC_FORCE))); /* allocate parmec force if needed */
     COPY (alftrp[j].a, bod->velo);
     COPY (alftrp[j].l, bod->velo+3);
     COPY (alftrp[j].f, bod->parmec->force);
