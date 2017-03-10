@@ -4970,7 +4970,35 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
 
     while (PyDict_Next (parmec2solfec, &i, &key, &val))
     {
-      MAP_Insert (NULL, &p2s, (void*) PyInt_AsLong(key), (void*) PyInt_AsLong(val), NULL);
+      long lkey = PyInt_AsLong(key);
+
+      if (lkey == -1 && PyErr_Occurred())
+      {
+	char message [1024];
+	PyObject* krep = PyObject_Repr(key);
+	const char* kstr = PyString_AsString(krep);
+	PyObject* vrep = PyObject_Repr(val);
+	const char* vstr = PyString_AsString(vrep);
+	snprintf (message, 1024, "Invalid parmec2solfec[%s] = %s mapping key", kstr, vstr);
+	PyErr_SetString (PyExc_ValueError, message);
+	return NULL;
+      }
+
+      long lval = PyInt_AsLong(val);
+
+      if (lval == -1 && PyErr_Occurred())
+      {
+	char message [1024];
+	PyObject* krep = PyObject_Repr(key);
+	const char* kstr = PyString_AsString(krep);
+	PyObject* vrep = PyObject_Repr(val);
+	const char* vstr = PyString_AsString(vrep);
+	snprintf (message, 1024, "Invalid parmec2solfec[%s] = %s mapping value", kstr, vstr);
+	PyErr_SetString (PyExc_ValueError, message);
+	return NULL;
+      }
+
+      MAP_Insert (NULL, &p2s, (void*) lkey, (void*) lval, NULL);
     }
 
     if (parmec_interval)

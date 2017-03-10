@@ -42,7 +42,7 @@ for i in range (0,M+N+M):
 	  msh = HEX (nodes, 1, 1, 1, 0, [0, 1, 2, 3, 4, 5])
 	  TRANSLATE (msh, (i*(0.1+gap), j*(0.1+gap), k*(0.1+gap)))
 	  bod = BODY (sol, 'RIGID', msh, mat) # boundary bodies are rigid
-	  parmec2solfec[iparmec] = bod.id
+	  if HERE(sol,bod): parmec2solfec[iparmec] = bod.id # in parallel bod.id can be None for remote bodies
 	iparmec = iparmec + 1 # next parmec body
 
 ns = NEWTON_SOLVER ()

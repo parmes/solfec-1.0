@@ -42,6 +42,56 @@ SOFTWARE.
 #endif
 
 #if MPI
+/* unify parmec2solfec mapping across all ranks */
+void parmec2solfec_unify (MAP** parmec2solfec)
+{
+  int rank, size, *sendbuf, sendcount, *recvbuf, *recvcounts, *displs, i, recvsize, *ptr, j;
+  MAP *item;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &size);
+
+  sendcount = MAP_Size (*parmec2solfec);
+  ERRMEM (recvcounts = malloc(size * sizeof(int)));
+  ERRMEM (displs = malloc(size * sizeof(int)));
+
+  MPI_Allgather (&sendcount, 1, MPI_INT, recvcounts, 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (displs[0] = recvsize = i = 0; i < size; i ++)
+  {
+    if (i) displs[i] = recvsize;
+    recvsize += recvcounts[i];
+  }
+
+  ERRMEM (recvbuf = malloc(recvsize * sizeof(int)));
+  ERRMEM (sendbuf = malloc(2 * sendcount * sizeof(int)));
+
+  for (item = MAP_First (*parmec2solfec), ptr = sendbuf; item; item = MAP_Next (item), ptr += 2)
+  {
+    ptr[0] = (int) (long) item->key;
+    ptr[1] = (int) (long) item->data;
+  }
+
+  MPI_Allgatherv (sendbuf, sendcount, MPI_INT, recvbuf, recvcounts, displs, MPI_INT, MPI_COMM_WORLD);
+
+  for (i = 0; i < size; i ++)
+  {
+    ASSERT_TEXT (recvcounts[i] % 2 == 0, "Inconsistent receive count in hybrid solver parmec2solfec map unification");
+
+    for (j = 0; j < recvcounts[i]/2; j ++)
+    {
+      long key = recvbuf[displs[i]+2*j];
+      long value = recvbuf[displs[i]+2*j+1];
+      MAP_Insert (NULL, parmec2solfec, (void*) key, (void*) value, NULL);
+    }
+  }
+
+  free (sendbuf);
+  free (recvbuf);
+  free (displs);
+  free (recvcounts);
+}
+
 /* initialize boundary */
 static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 {
@@ -357,6 +407,9 @@ HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, doub
   }
   else hs->parmec_interval = NULL;
   hs->parmec_prefix = parmec_prefix;
+#if MPI
+  parmec2solfec_unify (&parmec2solfec); /* unify this mapping across all ranks */
+#endif
   hs->parmec2solfec = parmec2solfec;
   hs->solfec2parmec = NULL;
   for (MAP *item = MAP_First(parmec2solfec); item; item = MAP_Next (item))
