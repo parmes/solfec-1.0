@@ -485,17 +485,7 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
   sol->duration = duration; /* in SOLFEC_Run, allowing for a correct elapsed time estimate */
   while (sol->dom->time < time0 + duration)
   {
-#if 0
-    for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
-    {
-      BODY *bod = MAP_Find (sol->dom->idb, item->key, NULL);
-      int num = (int) (long) item->data; /* parmec particle number */
-      parmec_get_rotation_and_position (num, bod->conf, bod->conf+9);
-      SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
-    }
-#endif
-
-    SOLFEC_Run (sol, hs->solfec_solver_kind, hs->solfec_solver, -sol->dom->step); /* negative duration used */
+    SOLFEC_Run (sol, hs->solfec_solver_kind, hs->solfec_solver, -sol->dom->step); /* negative duration used --> see comment just above */
 
     parmec_steps (hs, sol->dom, actual_parmec_step, num_parmec_steps);
   }

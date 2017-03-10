@@ -2424,6 +2424,15 @@ void BODY_Parent_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isi
 
   /* pack energy */
   pack_doubles (dsize, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod->kind));
+
+  /* pack parmec forces if present */
+  if (bod->parmec)
+  {
+    pack_int (isize, i, ints, 1);
+    pack_doubles (dsize, d, doubles, bod->parmec->force, 3);
+    pack_doubles (dsize, d, doubles, bod->parmec->torque, 3);
+  }
+  else pack_int (isize, i, ints, 0);
 }
 
 /* unpack parent body */
@@ -2451,6 +2460,15 @@ void BODY_Parent_Unpack (BODY *bod, int *dpos, double *d, int doubles, int *ipos
 
   /* unpack energy */
   unpack_doubles (dpos, d, doubles, bod->energy, BODY_ENERGY_SIZE(bod->kind));
+
+  /* unpack parmec forces if present */
+  int parmec = unpack_int (ipos, i, ints);
+  if (parmec)
+  {
+    if (!bod->parmec) ERRMEM (bod->parmec = MEM_CALLOC (sizeof(PARMEC_FORCE))); /* allocate parmec force if needed */
+    unpack_doubles (dpos, d, doubles, bod->parmec->force, 3);
+    unpack_doubles (dpos, d, doubles, bod->parmec->torque, 3);
+  }
 
   /* init inverse */
   if (dynamic) BODY_Dynamic_Init (bod);
