@@ -51,7 +51,7 @@ void parmec2solfec_unify (MAP** parmec2solfec)
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);
   MPI_Comm_size (MPI_COMM_WORLD, &size);
 
-  sendcount = MAP_Size (*parmec2solfec);
+  sendcount = 2 * MAP_Size (*parmec2solfec);
   ERRMEM (recvcounts = malloc(size * sizeof(int)));
   ERRMEM (displs = malloc(size * sizeof(int)));
 
@@ -64,7 +64,7 @@ void parmec2solfec_unify (MAP** parmec2solfec)
   }
 
   ERRMEM (recvbuf = malloc(recvsize * sizeof(int)));
-  ERRMEM (sendbuf = malloc(2 * sendcount * sizeof(int)));
+  ERRMEM (sendbuf = malloc(sendcount * sizeof(int)));
 
   for (item = MAP_First (*parmec2solfec), ptr = sendbuf; item; item = MAP_Next (item), ptr += 2)
   {
