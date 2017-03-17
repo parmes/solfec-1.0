@@ -94,9 +94,9 @@ void parmec_get_force_and_torque (int num, int nstep, double *force, double *tor
 }
 
 /* perform single time integration step */
-void parmec_one_step (double step, double interval[2], char *prefix)
+void parmec_one_step (double step, double* interval, void** interval_func, int* interval_tms, char* prefix)
 {
-  parmec::dem (step, step, interval, NULL, prefix, 0, 0);
+  parmec::dem (step, step, interval, interval_func, interval_tms, prefix, 0, 0);
 }
 
 /* read angular and linear velocities of a body */
@@ -127,6 +127,12 @@ void parmec_get_rotation_and_position (int num, double *rotation, double *positi
   position[0] = parmec::position[0][num];
   position[1] = parmec::position[1][num];
   position[2] = parmec::position[2][num];
+}
+
+/* get number of defined time series objects */
+int parmec_get_tmsnum ()
+{
+  return parmec::tmsnum;
 }
 
 } /* extern C */

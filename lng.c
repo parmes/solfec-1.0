@@ -43,6 +43,7 @@
 #include "fra.h"
 #include "hyb.h"
 #include "hys.h"
+#include "hys.hpp"
 
 #if MPI
 #include <mpi.h>
@@ -4941,28 +4942,37 @@ struct lng_HYBRID_SOLVER
   PyObject_HEAD
 
   HYBRID_SOLVER *hs;
+
+  double parmec_interval[2];
+  PyObject *parmec_interval_func[2];
+  int parmec_interval_tms[2];
+  char *parmec_prefix;
 };
 
 /* constructor */
 static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("parmec_file", "parmec_step", "parmec2solfec", "solfec_solver", "parmec_interval", "parmec_prefix");
-  PyObject *parmec_file, *parmec2solfec, *solfec_solver, *parmec_interval, *parmec_prefix;
-  double dt[2], *pdt, parmec_step;
+  KEYWORDS ("parmec_file", "parmec_step", "parmec2solfec", "solfec_solver");
+  PyObject *parmec_file, *parmec2solfec, *solfec_solver;
   lng_HYBRID_SOLVER *self;
-  char *prefix;
+  double parmec_step;
 
   self = (lng_HYBRID_SOLVER*)type->tp_alloc (type, 0);
 
   if (self)
   {
-    parmec_interval = NULL;
-    parmec_prefix = NULL;
+    self->parmec_interval[0] = 0.0;
+    self->parmec_interval[1] = 0.0;
+    self->parmec_interval_func[0] = NULL;
+    self->parmec_interval_func[1] = NULL;
+    self->parmec_interval_tms[0] = -1;
+    self->parmec_interval_tms[1] = -1;
+    self->parmec_prefix = NULL;
 
-    PARSEKEYS ("OdOO|OO", &parmec_file, &parmec_step, &parmec2solfec, &solfec_solver, &parmec_interval, &parmec_prefix);
+    PARSEKEYS ("OdOO", &parmec_file, &parmec_step, &parmec2solfec, &solfec_solver);
 
-    TYPETEST (is_string (parmec_file, kwl[0]) && is_positive (parmec_step, kwl[1]) && is_dict (parmec2solfec, kwl[2]) &&
-              is_solver (solfec_solver, kwl[3]) && is_string (parmec_prefix, kwl[5]));
+    TYPETEST (is_string (parmec_file, kwl[0]) && is_positive (parmec_step, kwl[1]) &&
+              is_dict (parmec2solfec, kwl[2]) && is_solver (solfec_solver, kwl[3]));
 
     MAP *p2s = NULL;
     PyObject *key, *val;
@@ -5001,42 +5011,8 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       MAP_Insert (NULL, &p2s, (void*) lkey, (void*) lval, NULL);
     }
 
-    if (parmec_interval)
-    {
-      if (PyTuple_Check(parmec_interval))
-      {
-	if (PyTuple_Size(parmec_interval) != 2)
-	{
-	  PyErr_SetString (PyExc_ValueError, "Invalid parmec_interval");
-	  return NULL;
-	}
-
-	dt[0] = PyFloat_AsDouble (PyTuple_GetItem (parmec_interval, 0));
-	dt[1] = PyFloat_AsDouble (PyTuple_GetItem (parmec_interval, 1));
-      }
-      else 
-      {
-	dt[0] = dt[1] = PyFloat_AsDouble (parmec_interval);
-
-	if (dt[0] <= 0.0)
-	{
-	  PyErr_SetString (PyExc_ValueError, "Invalid parmec_interval");
-	  return NULL;
-	}
-      }
-
-      pdt = dt; /* enable parmec output */
-    }
-    else pdt = NULL; /* disable parmec output */
-
-    if (parmec_prefix)
-    {
-      prefix = PyString_AsString (parmec_prefix);
-    }
-    else prefix = NULL;
-
-    self->hs = HYBRID_SOLVER_Create (PyString_AsString(parmec_file), parmec_step, pdt, prefix,
-                               p2s, get_solver(solfec_solver), get_solver_kind(solfec_solver));
+    self->hs = HYBRID_SOLVER_Create (PyString_AsString(parmec_file), parmec_step,
+                  p2s, get_solver(solfec_solver), get_solver_kind(solfec_solver));
   }
 
   return (PyObject*)self;
@@ -5054,6 +5030,154 @@ static void lng_HYBRID_SOLVER_dealloc (lng_HYBRID_SOLVER *self)
   self->ob_type->tp_free ((PyObject*)self);
 }
 
+static PyObject* lng_HYBRID_SOLVER_get_parmec_interval (lng_HYBRID_SOLVER *self, void *closure)
+{
+  return Py_BuildValue ("[(d, d), (O, O), (i, i)]",
+        self->parmec_interval[0], self->parmec_interval[1],
+	self->parmec_interval_func[0] ? self->parmec_interval_func[0]: Py_None,
+	self->parmec_interval_func[1] ? self->parmec_interval_func[1]: Py_None,
+	self->parmec_interval_tms[0], self->parmec_interval_tms[1]);
+}
+
+static int lng_HYBRID_SOLVER_set_parmec_interval (lng_HYBRID_SOLVER *self, PyObject *interval, void *closure)
+{
+  if (interval)
+  {
+    if (PyTuple_Check(interval))
+    {
+      if (PyTuple_Size(interval) != 2)
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid output interval");
+	return -1;
+      }
+
+      PyObject *dt0 = PyTuple_GetItem (interval, 0);
+
+      if (PyCallable_Check (dt0))
+      {
+	self->parmec_interval[0] = 0.0;
+	self->parmec_interval_func[0] = dt0;
+	self->parmec_interval_tms[0] = -1;
+      }
+      else if (PyInt_Check (dt0))
+      {
+	self->parmec_interval[0] = 0.0;
+	self->parmec_interval_func[0] = NULL;
+	self->parmec_interval_tms[0] = PyInt_AsLong (dt0);
+
+	if (self->parmec_interval_tms[0] < 0 || self->parmec_interval_tms[0] >= parmec_get_tmsnum())
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid output interval TSERIES number");
+	  return -1;
+	}
+      }
+      else
+      {
+	self->parmec_interval[0] = PyFloat_AsDouble (dt0);
+	self->parmec_interval_func[0] = NULL;
+	self->parmec_interval_tms[0] = -1;
+      }
+
+      PyObject *dt1 = PyTuple_GetItem (interval, 1);
+
+      if (PyCallable_Check (dt1))
+      {
+	self->parmec_interval[1] = 0.0;
+	self->parmec_interval_func[1] = dt1;
+	self->parmec_interval_tms[1] = -1;
+      }
+      else if (PyInt_Check (dt1))
+      {
+	self->parmec_interval[1] = 0.0;
+	self->parmec_interval_func[1] = NULL;
+	self->parmec_interval_tms[1] = PyInt_AsLong (dt1);
+
+	if (self->parmec_interval_tms[1] < 0 || self->parmec_interval_tms[1] >= parmec_get_tmsnum())
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid output interval TSERIES number");
+	  return -1;
+	}
+      }
+      else
+      {
+	self->parmec_interval[1] = PyFloat_AsDouble (dt1);
+	self->parmec_interval_func[1] = NULL;
+	self->parmec_interval_tms[1] = -1;
+      }
+    }
+    else 
+    {
+      if (PyCallable_Check (interval))
+      {
+        self->parmec_interval[0] = self->parmec_interval[1] = 0.0;
+	self->parmec_interval_func[0] = self->parmec_interval_func[1] = interval;
+	self->parmec_interval_tms[0] = self->parmec_interval_tms[1] = -1;
+      }
+      else if (PyInt_Check (interval))
+      {
+        self->parmec_interval[0] = self->parmec_interval[1] = 0.0;
+	self->parmec_interval_func[0] = self->parmec_interval_func[1] = NULL;
+	self->parmec_interval_tms[0] = self->parmec_interval_tms[1] = PyInt_AsLong (interval);
+
+	if (self->parmec_interval_tms[0] < 0 || self->parmec_interval_tms[0] >= parmec_get_tmsnum())
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid output interval TSERIES number");
+	  return -1;
+	}
+      }
+      else
+      {
+        self->parmec_interval[0] = self->parmec_interval[1] = PyFloat_AsDouble (interval);
+	self->parmec_interval_func[0] = self->parmec_interval_func[1] = NULL;
+	self->parmec_interval_tms[0] = self->parmec_interval_tms[1] = -1;
+      }
+    }
+
+    if (self->parmec_interval[0] < 0.0 || self->parmec_interval[1] < 0.0)
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid, negative, output interval");
+      return -1;
+    }
+  }
+  else
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid parmec_interval");
+    return -1;
+  }
+
+  if (self->parmec_interval[0] >= 0.0 || self->parmec_interval[1] >= 0.0)
+  {
+    self->hs->parmec_interval = self->parmec_interval;
+  }
+
+  if (self->parmec_interval_func[0] || self->parmec_interval_func[1])
+  {
+    self->hs->parmec_interval_func = (void**) self->parmec_interval_func;
+  }
+
+  if (self->parmec_interval_tms[0] >= 0 || self->parmec_interval_tms[1] >= 0)
+  {
+    self->hs->parmec_interval_tms = self->parmec_interval_tms;
+  }
+
+  return 0;
+}
+
+static PyObject* lng_HYBRID_SOLVER_get_parmec_prefix (lng_HYBRID_SOLVER *self, void *closure)
+{
+  if (self->parmec_prefix) return PyString_FromString (self->parmec_prefix);
+  else Py_RETURN_NONE;
+}
+
+static int lng_HYBRID_SOLVER_set_parmec_prefix (lng_HYBRID_SOLVER *self, PyObject *prefix, void *closure)
+{
+
+  self->parmec_prefix = PyString_AsString (prefix);
+  self->hs->parmec_prefix = self->parmec_prefix;
+
+  return 0;
+}
+
 /* HYBRID_SOLVER methods */
 static PyMethodDef lng_HYBRID_SOLVER_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -5064,7 +5188,11 @@ static PyMemberDef lng_HYBRID_SOLVER_members [] =
 
 /* HYBRID_SOLVER getset */
 static PyGetSetDef lng_HYBRID_SOLVER_getset [] =
-{ {NULL, 0, 0, NULL, NULL} };
+{ 
+{"parmec_interval", (getter)lng_HYBRID_SOLVER_get_parmec_interval, (setter)lng_HYBRID_SOLVER_set_parmec_interval, "PARMEC output interval", NULL},
+{"parmec_prefix", (getter)lng_HYBRID_SOLVER_get_parmec_prefix, (setter)lng_HYBRID_SOLVER_set_parmec_prefix, "PARMEC output prefix", NULL},
+{NULL, 0, 0, NULL, NULL}
+};
 
 /*
  * CONSTRAINT => object

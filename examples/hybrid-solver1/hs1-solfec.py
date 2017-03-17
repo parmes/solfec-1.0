@@ -51,7 +51,10 @@ copyfile('examples/hybrid-solver1/hs1-parmec.py', 'out/hybrid-solver1/hs1-parmec
 
 # nubering of bodies in Parmec starts from 0 while in Solfec from 1
 # hence below we used dictionary {0 : 1} as the parmec2solfec mapping
-hs = HYBRID_SOLVER ('out/hybrid-solver1/hs1-parmec.py', 1E-4, {M-1:1, M:2}, ns, 0.03)
+hs = HYBRID_SOLVER ('out/hybrid-solver1/hs1-parmec.py', 1E-4, {M-1:1, M:2}, ns)
+
+# set PARMEC output interval
+hs.parmec_interval = 0.03;
 
 import solfec as solfec # we need to be specific when using the OUTPUT command
 solfec.OUTPUT (sol, 0.03) # since 'OUTPUT' in Solfec collides with 'OUTPUT' in Parmec

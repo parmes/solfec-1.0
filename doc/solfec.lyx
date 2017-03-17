@@ -10281,8 +10281,7 @@ Hybrid solver allows to combine smooth rigid body nonlinear spring based
 \end_layout
 
 \begin_layout Subsection*
-obj = HYBRID_SOLVER (parmec_file, parmec_step, parmec2solfec, solfec_solver
- | parmec_interval, parmec_prefix)
+obj = HYBRID_SOLVER (parmec_file, parmec_step, parmec2solfec, solfec_solver)
 \end_layout
 
 \begin_layout Itemize
@@ -10318,21 +10317,95 @@ solfec_solver
  NEWTON_SOLVER) 
 \end_layout
 
-\begin_layout Itemize
-(optional) 
-\series bold
-parmec_interval
-\series default
- is a PARMEC output interval specification (as in parmec’s DEM command);
- when not specified PARMEC will not write output files;
+\begin_layout Standard
+Some parameters can also be accessed as members of a HYBRID_SOLVER object.
+ These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
-\begin_layout Itemize
-(optional) 
+\begin_layout Standard
+\align center
+\begin_inset Tabular
+<lyxtabular version="3" rows="3" columns="1">
+<features tabularvalignment="middle">
+<column alignment="left" valignment="top" width="95col%">
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
 \series bold
-parmec_prefix
+Read/write
 \series default
- is a PARMEC output directory prefix (as in parmec’s DEM command)
+ members
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.parmec_interval
+\series default
+ - 
+\emph default
+PARMEC output interval specification (as in 
+\begin_inset CommandInset href
+LatexCommand href
+name "parmec’s DEM command"
+target "http://parmes.org/parmec/input_commands.html#dem"
+
+\end_inset
+
+); when not specified PARMEC will not write output files; the read value
+ is [(d,d), (O,O), (i, i)], where the first tuple contains floating point
+ intervals, the second tuple contains Python callbacks, the third tuple
+ contains TSERIES numbers
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.parmec_prefix
+\series default
+\emph default
+ - PARMEC output directory prefix (as in 
+\begin_inset CommandInset href
+LatexCommand href
+name "parmec’s DEM command"
+target "http://parmes.org/parmec/input_commands.html#dem"
+
+\end_inset
+
+)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+</lyxtabular>
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection

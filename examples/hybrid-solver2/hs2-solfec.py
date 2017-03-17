@@ -55,7 +55,10 @@ ns = NEWTON_SOLVER ()
 # for that to be the solfec's output directory, we copy parmec's input file there
 copyfile('examples/hybrid-solver2/hs2-parmec.py', 'out/hybrid-solver2/hs2-parmec.py')
 
-hs = HYBRID_SOLVER ('out/hybrid-solver2/hs2-parmec.py', 1E-4, parmec2solfec, ns, 0.03)
+hs = HYBRID_SOLVER ('out/hybrid-solver2/hs2-parmec.py', 1E-4, parmec2solfec, ns)
+
+# set PARMEC output interval
+hs.parmec_interval = 0.03;
 
 import solfec as solfec # we need to be specific when using the OUTPUT command
 solfec.OUTPUT (sol, 0.03) # since 'OUTPUT' in Solfec collides with 'OUTPUT' in Parmec

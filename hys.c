@@ -268,7 +268,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 
     for (k = 0; k < nstep; k ++) /* parmec steps */
     {
-      parmec_one_step (step, hs->parmec_interval, hs->parmec_prefix);
+      parmec_one_step (step, hs->parmec_interval, hs->parmec_interval_func, hs->parmec_interval_tms, hs->parmec_prefix);
 
       for (i = 0; i < size; i ++)
       {
@@ -363,7 +363,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 
   for (int i = 0; i < nstep; i ++)
   {
-    parmec_one_step (step, hs->parmec_interval, hs->parmec_prefix);
+    parmec_one_step (step, hs->parmec_interval, hs->parmec_interval_func, hs->parmec_interval_tms, hs->parmec_prefix);
 
     for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
     {
@@ -391,22 +391,18 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 #endif
 
 /* create solver */
-HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, double parmec_interval[2],
-                 char *parmec_prefix, MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind)
+HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, 
+           MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind)
 {
   HYBRID_SOLVER *hs;
 
   ERRMEM (hs = MEM_CALLOC (sizeof (HYBRID_SOLVER)));
   hs->parmec_file = parmec_file;
   hs->parmec_step = parmec_step;
-  if (parmec_interval)
-  {
-    ERRMEM (hs->parmec_interval = malloc (2 * sizeof (double)));
-    hs->parmec_interval[0] = parmec_interval[0];
-    hs->parmec_interval[1] = parmec_interval[1];
-  }
-  else hs->parmec_interval = NULL;
-  hs->parmec_prefix = parmec_prefix;
+  hs->parmec_interval = NULL;
+  hs->parmec_interval_func = NULL;
+  hs->parmec_interval_tms = NULL;
+  hs->parmec_prefix = NULL;
 #if MPI
   parmec2solfec_unify (&parmec2solfec); /* unify this mapping across all ranks */
 #endif
@@ -507,7 +503,6 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
 /* destroy solver */
 void HYBRID_SOLVER_Destroy (HYBRID_SOLVER *hs)
 {
-  if (hs->parmec_interval) free (hs->parmec_interval);
   MAP_Free (NULL, &hs->parmec2solfec);
   MAP_Free (NULL, &hs->solfec2parmec);
 }

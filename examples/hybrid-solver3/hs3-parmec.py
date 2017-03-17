@@ -5,7 +5,7 @@ lofq = 1
 hifq = 1
 amag = 1
 step = 1E-4
-stop = 5 # must be >= stop in hs2-solfec.py
+stop = 0.5 # must be >= stop in hs2-solfec.py
 
 import os, sys
 
@@ -34,7 +34,7 @@ tsv[::2] = vt
 tsv[1::2] = vv
 tsv = TSERIES (tsv)
 ts0 = TSERIES (0.0)
-linvel = (tsv, tsv, tsv) # FIXME --> why is z-excitation missing in the results (parmec bug?)
+linvel = (tsv, tsv, tsv)
 angvel = (ts0, ts0, ts0)
 
 matnum = MATERIAL (100, 1E6, 0.25)
@@ -51,7 +51,7 @@ def cube (x, y, z):
   elements = [8, 0, 1, 2, 3, 4, 5, 6, 7, matnum]
   colors = [1, 4, 0, 1, 2, 3, 2, 4, 4, 5, 6, 7, 3]
   parnum = MESH (nodes, elements, matnum, colors)
-  CONSTRAIN (parnum, [0, 0, 1], [1, 0, 0, 0, 1, 0, 0, 0, 1])
+  CONSTRAIN (parnum, angular=[1, 0, 0, 0, 1, 0, 0, 0, 1])
   ANALYTICAL (particle=parnum)
   return parnum
 

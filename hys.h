@@ -37,6 +37,8 @@ struct hybrid_solver
   char *parmec_file;
   double parmec_step;
   double *parmec_interval;
+  void** parmec_interval_func;
+  int* parmec_interval_tms;
   char *parmec_prefix;
   MAP *parmec2solfec;
   MAP *solfec2parmec;
@@ -45,8 +47,8 @@ struct hybrid_solver
 };
 
 /* create solver */
-HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, double parmec_interval[2],
-                char *parmec_prefix, MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind);
+HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step,
+           MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind);
 
 /* run solver */
 void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration);
