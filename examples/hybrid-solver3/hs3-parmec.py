@@ -5,7 +5,7 @@ lofq = 1
 hifq = 1
 amag = 1
 step = 1E-4
-stop = 0.5 # must be >= stop in hs2-solfec.py
+stop = 5 # must be >= stop in hs2-solfec.py
 
 import os, sys
 

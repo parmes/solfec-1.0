@@ -4,7 +4,7 @@ M = 5 # must be same as in hs3-paremc.py
 N = 3 # must be same as in hs3-paremc.py
 gap = 0.001 # must be same as in hs3-paremc.py
 step = 5E-4
-stop = 0.5 # must be <= stop in hs3-parmec.py
+stop = 5 # must be <= stop in hs3-parmec.py
 
 sol = SOLFEC ('DYNAMIC', step, 'out/hybrid-solver3')
 
