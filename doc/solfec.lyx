@@ -10297,7 +10297,7 @@ obj
 \series bold
 parmec_step
 \series default
- is an upper bound of the PARMEC time step
+ - an upper bound of the PARMEC time step
 \end_layout
 
 \begin_layout Itemize
@@ -10305,7 +10305,8 @@ parmec_step
 \series bold
 parmec2solfec
 \series default
- is a dictionary mapping of PARMEC particle numbers to SOLFEC body identifiers
+ - Python dictionary based mapping of PARMEC particle numbers to SOLFEC
+ body identifiers
 \end_layout
 
 \begin_layout Itemize
@@ -10313,7 +10314,7 @@ parmec2solfec
 \series bold
 solfec_solver
 \series default
- is a SOLFEC constraint solver (e.g.
+ - SOLFEC constraint solver (e.g.
  NEWTON_SOLVER) 
 \end_layout
 
@@ -10387,7 +10388,7 @@ target "http://parmes.org/parmec/input_commands.html#dem"
 obj.parmec_prefix
 \series default
 \emph default
- - PARMEC output directory prefix (as in 
+ - PARMEC output file name prefix (as in 
 \begin_inset CommandInset href
 LatexCommand href
 name "parmec’s DEM command"
