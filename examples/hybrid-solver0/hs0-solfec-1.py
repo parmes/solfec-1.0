@@ -4,7 +4,8 @@ sol = SOLFEC ('DYNAMIC', step, 'out/hybrid-solver0')
 
 GRAVITY (sol, (0, 0, -10))
 
-mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF', young = 1, poisson = 0.25, density = 1)
+mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
+       young = 1, poisson = 0.25, density = 1)
 
 SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.1)
 
@@ -28,9 +29,10 @@ ns = NEWTON_SOLVER ()
 
 # nubering of bodies in Parmec starts from 0 hence below we
 # use dictionary {0 : bod1.id} as the parmec2solfec mapping
-hs = HYBRID_SOLVER ('examples/hybrid-solver0/hs0-parmec.py', step, {0 : bod1.id}, ns)
+hs = HYBRID_SOLVER ('examples/hybrid-solver0/hs0-parmec.py',
+                    step, {0 : bod1.id}, ns)
 
-import solfec as solfec # we need to be specific when using the OUTPUT command
-solfec.OUTPUT (sol, 0.03) # since 'OUTPUT' in Solfec collides with 'OUTPUT' in Parmec
+import solfec as solfec # this is needed since 'OUTPUT' in Solfec
+solfec.OUTPUT (sol, 0.03) # collides with 'OUTPUT' in Parmec
 
 RUN (sol, hs, 10)

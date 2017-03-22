@@ -10278,6 +10278,10 @@ HYBRID_SOLVER
 \begin_layout Standard
 Hybrid solver allows to combine smooth rigid body nonlinear spring based
  PARMEC models with non-smooth SOLFEC models.
+ The solver is supported both in the serial and MPI version of Solfec.
+ The Parmec library is shared memory parallel and in the MPI mode this part
+ of modeling is executed on MPI rank 0 process, employing maximum available
+ shared memory parallelism.
 \end_layout
 
 \begin_layout Subsection*
