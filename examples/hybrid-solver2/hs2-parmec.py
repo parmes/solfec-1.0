@@ -1,10 +1,10 @@
 M = 5 # must be same as in hs2-solfec.py
 N = 3 # must be same as in hs2-solfec.py
 gap = 0.001 # must be same as in hs2-solfec.py
-lofq = 1
-hifq = 1
-amag = 1
-step = 1E-4
+lofq = 1 # low excitation frequency
+hifq = 1 # high excitation freqency
+amag = 1 # acceleration magnitude
+step = 1E-4 # time step
 stop = 5 # must be >= stop in hs2-solfec.py
 
 # find path to parmec source directory in order
@@ -57,23 +57,29 @@ def cube (x, y):
   ANALYTICAL (particle=parnum)
   return parnum
 
+# generate cube pattern
 ijmap = {}
 for i in range (0,M+N+M):
   for j in range (0,M+N+M):
+    # skip the inner NxN Solfec block
     if i >= M and j >= M and i < M+N and j < M+N: continue
-    else:
+    else: # create the outer MxM, NxM, MxN blocks
       num = cube (i*(0.1+gap), j*(0.1+gap))
-      ijmap[(i,j)] = num
+      ijmap[(i,j)] = num # map body numbers to (i,j)-grid
 
+# prescribe sine dwell motion 
+# of the outer-most shell of bodies
 for (i,j) in ijmap:
   outer = [0, M+N+M-1]
   if i in outer or j in outer:
     num = ijmap[(i,j)]
-    PRESCRIBE (num, linvel, angvel) # outer most shell of bodies
+    PRESCRIBE (num, linvel, angvel)
 
+# spring-damper curves
 spring_curve = [-1-gap, -1E3, -gap, 0, 1, 0]
 damper_curve = [-1, -7, 1, 7]
 
+# insert contact springs
 ijmax = M+N+M-1
 for (i, j) in ijmap:
   if i < ijmax and not (i == M-1 and j in range(M,M+N)):
@@ -81,14 +87,17 @@ for (i, j) in ijmap:
     p2 = (i*(0.1+gap)+0.1+gap, j*(0.1+gap)+0.05, 0.05)
     n1 = ijmap[(i,j)]
     n2 = ijmap[(i+1,j)]
-    SPRING (n1, p1, n2, p2, spring_curve, damper_curve, (1, 0, 0))
+    SPRING (n1, p1, n2, p2, spring_curve,
+            damper_curve, (1, 0, 0))
   if j < ijmax and not (j == M-1 and i in range(M,M+N)):
     p1 = (i*(0.1+gap)+0.05, j*(0.1+gap)+0.1, 0.05)
     p2 = (i*(0.1+gap)+0.05, j*(0.1+gap)+0.1+gap, 0.05)
     n1 = ijmap[(i,j)]
     n2 = ijmap[(i,j+1)]
-    SPRING (n1, p1, n2, p2, spring_curve, damper_curve, (0, 1, 0))
+    SPRING (n1, p1, n2, p2, spring_curve,
+            damper_curve, (0, 1, 0))
 
+# FYI, print out critical time step information 
 print 'PARMEC estimated critical time step:', CRITICAL()
 
 #DEM (stop, step, 0.01)
