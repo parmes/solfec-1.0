@@ -49,7 +49,7 @@ damper constant  | -7 | 7 |
 Body interactions in Solfec are modeled by means of the Signorini-Coulomb model,
 using the friction coefficient of 0.1 and the velocity restitution coefficient of 0.0;
 
-Bulk material parameters are: density = 100 kg/m3, Young modulus 1 MPa, Poisson ratio = 0.25;
+Bulk material parameters are: density = 100 kg/m3, Young modulus = 1 MPa, Poisson ratio = 0.25;
 
 Solfec time step: 5E-4 s; Parmec time step: 1E-4 s;
 

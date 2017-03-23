@@ -7,38 +7,40 @@ amag = 1
 step = 1E-4
 stop = 5 # must be >= stop in hs2-solfec.py
 
+# find path to parmec source directory in order
+# to load the acceleration sweep signal script
 import os, sys
-
 def where(program):
   for path in os.environ["PATH"].split(os.pathsep):
     if os.path.exists(os.path.join(path, program)):
       return path
   return None
-
 path = where('parmec4')
-
 if path == None:
   print 'ERROR: parmec4 not found in PATH!'
-  print '       Download and compile parmec; add parmec directory to PATH variable;'
+  print '       Download and compile parmec;',
+  print 'add parmec directory to PATH variable;'
   sys.exit(1)
-
 print '(Found parmec4 at:', path + ')'
-
 sys.path.append(os.path.join (path, 'python'))
 
+# generate acceleration sweep signal;
+# note that parmec will use the associated
+# velocity signal, rather than the acceleration itself
 from acc_sweep import *
-
 (vt, vd, vv, va) = acc_sweep (step, stop, lofq, hifq, amag)
 tsv = [None]*(len(vt)+len(vd))
 tsv[::2] = vt
 tsv[1::2] = vv
-tsv = TSERIES (tsv)
-ts0 = TSERIES (0.0)
-linvel = (tsv, tsv, ts0)
-angvel = (ts0, ts0, ts0)
+tsv = TSERIES (tsv) # velocity time series
+ts0 = TSERIES (0.0) # constant, zero "time series"
+linvel = (tsv, tsv, ts0) # linear motion excitation vector
+angvel = (ts0, ts0, ts0) # angular motion excitation vector
 
+# create material
 matnum = MATERIAL (100, 1E6, 0.25)
 
+# cube creation function
 def cube (x, y):
   nodes = [x+0.0, y+0.0, 0.0,
 	   x+0.1, y+0.0, 0.0,
