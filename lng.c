@@ -6900,6 +6900,14 @@ static PyObject* lng_VIEWER (PyObject *self, PyObject *args, PyObject *kwds)
   Py_RETURN_FALSE; /* return false and maintain reference count of Py_False */
 }
 
+/* return the outut subdirectory string */
+static PyObject* lng_SUBDIR (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  char *subdir = OUTPUT_SUBDIR();
+  if (subdir) return PyString_FromString(subdir);
+  else Py_RETURN_NONE;
+}
+
 /* overwrite body characteristics */
 static PyObject* lng_BODY_CHARS (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -9882,6 +9890,7 @@ static PyMethodDef lng_methods [] =
   {"NCPU", (PyCFunction)lng_NCPU, METH_VARARGS|METH_KEYWORDS, "Get the number of processors"},
   {"HERE", (PyCFunction)lng_HERE, METH_VARARGS|METH_KEYWORDS, "Test whether an object is located on the current processor"},
   {"VIEWER", (PyCFunction)lng_VIEWER, METH_NOARGS, "Test whether the viewer is enabled"},
+  {"SUBDIR", (PyCFunction)lng_SUBDIR, METH_NOARGS, "Return the optional output subdirectory"},
   {"BODY_CHARS", (PyCFunction)lng_BODY_CHARS, METH_VARARGS|METH_KEYWORDS, "Overwrite body characteristics"},
   {"INITIAL_VELOCITY", (PyCFunction)lng_INITIAL_VELOCITY, METH_VARARGS|METH_KEYWORDS, "Apply initial velocity"},
   {"APPLY_BULKMAT", (PyCFunction)lng_APPLY_BULKMAT, METH_VARARGS|METH_KEYWORDS, "Apply bulk material"},
@@ -10129,6 +10138,7 @@ int lng (const char *path)
                      "from solfec import NCPU\n"
                      "from solfec import HERE\n"
                      "from solfec import VIEWER\n"
+                     "from solfec import SUBDIR\n"
                      "from solfec import BODY_CHARS\n"
                      "from solfec import INITIAL_VELOCITY\n"
                      "from solfec import APPLY_BULKMAT\n"

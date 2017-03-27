@@ -9,7 +9,7 @@ sol = SOLFEC ('DYNAMIC', step, 'out/hybrid-solver2')
 
 # bulk and surface materials
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
-    young = 1E6, poisson = 0.25, density = 100)
+  young = 1E6, poisson = 0.25, density = 100)
 SURFACE_MATERIAL (sol,
   model = 'SIGNORINI_COULOMB', friction = 0.1)
 

@@ -12464,6 +12464,34 @@ False
 \end_layout
 
 \begin_layout Subsection*
+obj = SUBDIR ()
+\end_layout
+
+\begin_layout Standard
+This routine returns the optional output subdirectory.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - 
+\emph on
+None object
+\emph default
+ or 
+\emph on
+subdirectory string
+\emph default
+ depending on whether the 
+\emph on
+-s
+\emph default
+ command line option was used
+\end_layout
+
+\begin_layout Subsection*
 BODY_CHARS (body, mass, volume, center, tensor)
 \end_layout
 
