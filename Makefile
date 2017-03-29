@@ -17,6 +17,20 @@ else
   SICONO =
 endif
 
+ifdef PARMEC
+  PARMECO = \
+    obj/hys1.o \
+    obj/hys2.o
+  PARMECMPIO = \
+    obj/hys-mpi.o \
+    obj/hys2.o
+  WITHPARMEC = -DWITHPARMEC
+else
+  PARMECO =
+  PARMECMPIO =
+  WITHPARMEC =
+endif
+
 include Flags.mak
 
 MUMPS = -Lext/mumps/libseq -lmpiseq
@@ -82,8 +96,6 @@ OBJ =   $(EXTO)   \
 	obj/pes.o \
 	obj/nts.o \
 	obj/tts.o \
-	obj/hys1.o \
-	obj/hys2.o \
 	obj/mrf.o \
 	obj/dom.o \
 	obj/cra.o \
@@ -94,7 +106,8 @@ OBJ =   $(EXTO)   \
 	obj/fem.o \
 	obj/xdmf.o \
         $(SICONO) \
-	$(OPENGLO)
+	$(OPENGLO) \
+	$(PARMECO)
 
 OBJMPI = $(EXTO)       \
          $(BASEO)      \
@@ -107,8 +120,6 @@ OBJMPI = $(EXTO)       \
 	 obj/pes-mpi.o \
 	 obj/nts-mpi.o \
 	 obj/tts-mpi.o \
-	 obj/hys-mpi.o \
-	 obj/hys2.o \
 	 obj/mrf-mpi.o \
 	 obj/dom-mpi.o \
 	 obj/cra-mpi.o \
@@ -119,6 +130,7 @@ OBJMPI = $(EXTO)       \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
 	 obj/psc-mpi.o \
+	 $(PARMECMPIO)
 
 solfec: obj/solfec.o obj/libBLOPEX.a obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
 	$(CXX) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIB)
@@ -366,10 +378,10 @@ obj/scf.o: scf.c scf.h ldy.h dom.h alg.h lap.h bla.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/lng.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
-	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) $(SICONOS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(OPENGL) $(PYTHON) $(WITHPARMEC) $(WITHSICONOS) -c -o $@ $<
 
 obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h mat.h pbf.h tmr.h
-	$(CC) $(CFLAGS) $(SICONOS) -c -o $@ $<
+	$(CC) $(CFLAGS) $(WITHSICONOS) -c -o $@ $<
 
 # OPENGL
 
@@ -439,7 +451,7 @@ obj/mrf-mpi.o: mrf.c mrf.h dom.h ldy.h err.h alg.h lap.h bla.h
 	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<
 
 obj/lng-mpi.o: lng.c lng.h sol.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h
-	$(MPICC) $(CFLAGS) $(PYTHON) $(MPIFLG) -c -o $@ $<
+	$(MPICC) $(CFLAGS) $(PYTHON) $(WITHPARMEC) $(MPIFLG) -c -o $@ $<
 
 obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg.h tms.h bgs.h pes.h nts.h mat.h pbf.h tmr.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
