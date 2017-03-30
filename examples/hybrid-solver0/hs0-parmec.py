@@ -15,7 +15,7 @@ color = 1
 
 parnum = MESH (nodes, elements, matnum, color)
 
-CONSTRAIN (parnum, [1, 0, 0, 0, 1, 0], [1, 0, 0, 0, 1, 0, 0, 0, 1])
+RESTRAIN (parnum, [1, 0, 0, 0, 1, 0], [1, 0, 0, 0, 1, 0, 0, 0, 1])
 
 SPRING (parnum, (0.5, 0.5, 0.0), -1, (0.5, 0.5, -1.0),
         spring = [-1, -100, 1, 100], direction = (0, 0, 1))
