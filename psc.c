@@ -633,7 +633,8 @@ void PSC_Write_Body (BODY *bod)
 
   fwrite (&bod->form, sizeof (bod->form), 1, f);
 
-  int confsize = bod->kind != FEM ? 12 : bod->form == REDUCED_ORDER ? bod->dofs + 9 : bod->dofs;
+  int confsize = bod->kind != FEM ? 12 : (bod->form == BODY_COROTATIONAL_MODAL ||
+    bod->form == BODY_COROTATIONAL_REDUCED_ORDER) ? bod->dofs + 9 : bod->dofs;
 
   fwrite (bod->conf, sizeof (double), confsize, f);
   fwrite (bod->velo, sizeof (double), bod->dofs, f);
@@ -762,7 +763,8 @@ void PSC_Test_Body (BODY *bod)
     ASSERT_TEXT (0, "PSC ERROR: form");
   }
 
-  int confsize = bod->kind != FEM ? 12 : bod->form == REDUCED_ORDER ? bod->dofs + 9 : bod->dofs;
+  int confsize = bod->kind != FEM ? 12 : (bod->form == BODY_COROTATIONAL_MODAL ||
+    bod->form == BODY_COROTATIONAL_REDUCED_ORDER) ? bod->dofs + 9 : bod->dofs;
 
   ERRMEM (a.conf = malloc (sizeof (double [confsize])));
 

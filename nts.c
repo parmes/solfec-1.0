@@ -751,7 +751,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       MX_Matmat (step, dat->mH, prod, 0.0, &W); /* H * inv (M) * H^T */
       MX_Destroy (prod);
 
-      if (m->kind == FEM && m->form != REDUCED_ORDER)
+      if (m->kind == FEM && m->form != BODY_COROTATIONAL_MODAL && m->form != BODY_COROTATIONAL_REDUCED_ORDER)
       {
 	dat->mH = csc_to_dense (dat->mH, &dat->mj);
       }
@@ -768,7 +768,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       MX_Matmat (step, dat->sH, prod, 1.0, &W); /* H * inv (M) * H^T */
       MX_Destroy (prod);
 
-      if (s->kind == FEM && s->form != REDUCED_ORDER)
+      if (s->kind == FEM && s->form != BODY_COROTATIONAL_MODAL && s->form != BODY_COROTATIONAL_REDUCED_ORDER)
       {
 	dat->sH = csc_to_dense (dat->sH, &dat->sj);
       }
@@ -795,7 +795,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       dat->mH = BODY_Gen_To_Loc_Operator (m, con->kind, con->msgp, mpnt, base);
       dat->mi = (int) (long) jtem->data;
 
-      if (m->kind == FEM && m->form != REDUCED_ORDER)
+      if (m->kind == FEM && m->form != BODY_COROTATIONAL_MODAL && m->form != BODY_COROTATIONAL_REDUCED_ORDER)
       {
 	dat->mH = csc_to_dense (dat->mH, &dat->mj);
       }
@@ -807,7 +807,7 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
       dat->si = (int) (long) jtem->data;
       MX_Scale (dat->sH, -1.0);
 
-      if (s->kind == FEM && s->form != REDUCED_ORDER)
+      if (s->kind == FEM && s->form != BODY_COROTATIONAL_MODAL && s->form != BODY_COROTATIONAL_REDUCED_ORDER)
       {
 	dat->sH = csc_to_dense (dat->sH, &dat->sj);
       }

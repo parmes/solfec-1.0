@@ -43,14 +43,14 @@ typedef double (*node_t) [3]; /* mesh node */
 #define DOM_TOL 0.1
 #define CUT_TOL 0.001
 #define MESH_DOFS(msh) ((msh)->nodes_count * 3)
-#define FEM_MESH_CONF(bod) ((bod)->form != REDUCED_ORDER ? (bod)->conf : (bod)->conf + (bod)->dofs + 9) /* mesh space configuration */
-#define FEM_MESH_VELO(bod) ((bod)->form != REDUCED_ORDER ? (bod)->velo : (bod)->velo + (bod)->dofs * 4) /* mesh space velocity */
+#define FEM_MESH_CONF(bod) ((bod)->form != BODY_COROTATIONAL_MODAL ? (bod)->conf : (bod)->conf + (bod)->dofs + 9) /* mesh space configuration */
+#define FEM_MESH_VELO(bod) ((bod)->form != BODY_COROTATIONAL_MODAL ? (bod)->velo : (bod)->velo + (bod)->dofs * 4) /* mesh space velocity */
 #define FEM_MESH_VEL0(bod) (FEM_MESH_VELO(bod) + MESH_DOFS(FEM_MESH(bod))) /* mesh space previous velocity */
-#define FEM_MESH_MASS(bod) ((bod)->form != REDUCED_ORDER ? (bod)->M->x : ((bod)->conf + (bod)->dofs + 9 + MESH_DOFS(FEM_MESH(bod)))) /* mesh space velocity */
+#define FEM_MESH_MASS(bod) ((bod)->form != BODY_COROTATIONAL_MODAL ? (bod)->M->x : ((bod)->conf + (bod)->dofs + 9 + MESH_DOFS(FEM_MESH(bod)))) /* mesh space velocity */
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2) /* external force */
 #define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3) /* internal force */
-#define FEM_FBOD(bod) ((bod)->form != REDUCED_ORDER ? (bod)->velo + (bod)->dofs * 4 : FEM_MESH_VEL0(bod) + MESH_DOFS(FEM_MESH(bod))) /* unit body force */
+#define FEM_FBOD(bod) ((bod)->form != BODY_COROTATIONAL_MODAL ? (bod)->velo + (bod)->dofs * 4 : FEM_MESH_VEL0(bod) + MESH_DOFS(FEM_MESH(bod))) /* unit body force */
 #define FEM_ROT(bod) ((bod)->conf + (bod)->dofs) /* rotation */
 
 /* ==================== INTEGRATION ======================= */
@@ -1053,7 +1053,7 @@ static void element_internal_force (int derivative, BODY *bod, MESH *msh, ELEMEN
   m = 3 * n;
 
   if (bod->form == BODY_COROTATIONAL ||
-      bod->form == REDUCED_ORDER)
+      bod->form == BODY_COROTATIONAL_MODAL)
   {
     for (i = 0; i < n; i ++)
     {
@@ -1337,7 +1337,7 @@ static void fem_constraints_force (BODY *bod, double *r)
   msh = FEM_MESH (bod);
   dofs = MESH_DOFS (msh);
 
-  if (bod->form == REDUCED_ORDER)
+  if (bod->form == BODY_COROTATIONAL_MODAL)
   {
     ERRMEM (rmsh = malloc (dofs * sizeof (double)));
   }
@@ -1375,7 +1375,7 @@ static void fem_constraints_force (BODY *bod, double *r)
     }
   }
 
-  if (bod->form == REDUCED_ORDER) /* H' = bod->evec' * R' * N' * E */
+  if (bod->form == BODY_COROTATIONAL_MODAL) /* H' = bod->evec' * R' * N' * E */
   {
     double *R = FEM_ROT (bod),
 	   *x = rmsh,
@@ -1522,7 +1522,7 @@ static void external_force (BODY *bod, double time, double step, double *fext)
     {
       ERRMEM (v = MEM_CALLOC (bod->dofs * sizeof (double)));
       frc->func (frc->data, frc->call, FEM_Conf_Size (bod), bod->conf, bod->dofs, bod->velo, time, step, v);
-      if (bod->form == REDUCED_ORDER) MX_Matvec (1.0, bod->evec, v, 1.0, fext); /* accumulate from reduced to global space */
+      if (bod->form == BODY_COROTATIONAL_MODAL) MX_Matvec (1.0, bod->evec, v, 1.0, fext); /* accumulate from reduced to global space */
       else blas_daxpy (bod->dofs, 1.0, v, 1, fext, 1);
       free (v);
     }
@@ -2955,7 +2955,7 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
       bod->field = NULL; /* linear material only */
     }
     break;
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
     {
       ASSERT_DEBUG (bod->evec && bod->eval, "Modal analysis results must exist!");
 
@@ -2972,6 +2972,12 @@ void FEM_Create (FEMFORM form, MESH *msh, SHAPE *shp, BULK_MATERIAL *mat, BODY *
       double *R = bod->conf + E->n;
       IDENTITY (R); /* initialise rotation */
       bod->field = NULL; /* linear material only */
+    }
+    break;
+    case BODY_COROTATIONAL_REDUCED_ORDER:
+    {
+      ASSERT_TEXT (0, "BC-RO approach is not yet implemented");
+      /* TODO */
     }
     break;
   }
@@ -3000,7 +3006,7 @@ void FEM_Overwrite_State (BODY *bod, double *q, double *u)
   blas_dcopy (MESH_DOFS(FEM_MESH(bod)), q, 1, bod->conf, 1); /* always in the mesh space */
   blas_dcopy (bod->dofs, u, 1, bod->velo, 1); /* can be mesh or reduced space */
 
-  if (bod->form == REDUCED_ORDER) /* overwrite the mesh space */
+  if (bod->form == BODY_COROTATIONAL_MODAL) /* overwrite the mesh space */
   {
     FEM_Post_Read (bod);
   }
@@ -3066,7 +3072,7 @@ void FEM_Dynamic_Init (BODY *bod)
     case BODY_COROTATIONAL:
       BC_dynamic_init (bod);
       break;
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
       RO_dynamic_init (bod);
       break;
   }
@@ -3083,7 +3089,7 @@ double FEM_Dynamic_Critical_Step (BODY *bod)
       return TL_dynamic_critical_step (bod);
     case BODY_COROTATIONAL:
       return BC_dynamic_critical_step (bod);
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
       return RO_dynamic_critical_step (bod);
   }
 
@@ -3101,7 +3107,7 @@ void FEM_Dynamic_Step_Begin (BODY *bod, double time, double step)
     case BODY_COROTATIONAL:
       BC_dynamic_step_begin (bod, time, step);
       break;
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
       RO_dynamic_step_begin (bod, time, step);
       break;
   }
@@ -3132,14 +3138,14 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
     case BODY_COROTATIONAL:
       BC_dynamic_step_end (bod, time, step);
       break;
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
       RO_dynamic_step_end (bod, time, step);
       break;
   }
 
   for (; iu < ue; idq ++, iu ++, iu0 ++) *idq = half * ((*iu) + (*iu0)); /* dq = (h/2) * {u(t) + u(t+h)} */
   energy [EXTERNAL] += blas_ddot (n, dq, 1, fext, 1); /* XXX: may not be too good for the reduced order model (save q0 and copute dq = q1-q0) */
-  if (bod->form == REDUCED_ORDER)
+  if (bod->form == BODY_COROTATIONAL_MODAL)
   {
     energy [INTERNAL] = 0.0;
     for (double *q = bod->conf, *x = bod->K->x, *y = x + n; x < y; q ++, x ++)
@@ -3171,7 +3177,7 @@ void FEM_Static_Init (BODY *bod)
     case BODY_COROTATIONAL:
       BC_static_init (bod);
       break;
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
       RO_static_init (bod);
       break;
   }
@@ -3188,7 +3194,7 @@ void FEM_Static_Step_Begin (BODY *bod, double time, double step)
     case BODY_COROTATIONAL:
       BC_static_step_begin (bod, time, step);
       break;
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
       RO_static_step_begin (bod, time, step);
       break;
   }
@@ -3205,7 +3211,7 @@ void FEM_Static_Step_End (BODY *bod, double time, double step)
     case BODY_COROTATIONAL:
       BC_static_step_end (bod, time, step);
       break;
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
       RO_static_step_end (bod, time, step);
       break;
   }
@@ -3410,7 +3416,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
   if ((bod->form == BODY_COROTATIONAL && bod->scheme != SCH_DEF_EXP && body_space == 0)  /* XXX => NEWTON_SOLVER sees the regular H = E' N ,
 											    rather than H R when using the body-space mode,
 											    since FEM_Invvec already incorportes R */
-      || bod->form == REDUCED_ORDER) /* in this case H = E' N R * bod->evec, hence it is a projection of pulled-back E' N onto the reduced base */
+      || bod->form == BODY_COROTATIONAL_MODAL) /* in this case H = E' N R * bod->evec, hence it is a projection of pulled-back E' N onto the reduced base */
   {
     double *x = H->x, *y = x + H->nzmax, *R = FEM_ROT (bod), T [9];
 
@@ -3422,7 +3428,7 @@ MX* FEM_Gen_To_Loc_Operator (BODY *bod, SHAPE *shp, void *gobj, double *X, doubl
       NNCOPY (T, x); /* H = E' N R <=> rotaions gets shifted to H */
     }
 
-    if (bod->form == REDUCED_ORDER)
+    if (bod->form == BODY_COROTATIONAL_MODAL)
     {
       N = H; /* tentative */
       H = MX_Matmat (1.0, H, bod->evec, 0.0, NULL); /* H = E' N R * bod->evec */
@@ -3440,7 +3446,7 @@ double FEM_Kinetic_Energy (BODY *bod)
   {
     switch (bod->form)
     {
-    case REDUCED_ORDER:
+    case BODY_COROTATIONAL_MODAL:
     {
       ASSERT_DEBUG (bod->evec, "Reduced base must exist");
 
@@ -3668,7 +3674,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     if (bod->label) sprintf (label, "%s/1", bod->label);
     (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone, NULL, NULL);
     FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*one), (*one)->conf, (*one)->velo);
-    if (bod->form == REDUCED_ORDER)
+    if (bod->form == BODY_COROTATIONAL_MODAL)
     {
       /* TODO: compute and map reduced state of 'sone' */
       ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME */
@@ -3683,7 +3689,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
     if (bod->label) sprintf (label, "%s/2", bod->label);
     (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mtwo, NULL, NULL);
     FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*two), (*two)->conf, (*two)->velo);
-    if (bod->form == REDUCED_ORDER)
+    if (bod->form == BODY_COROTATIONAL_MODAL)
     {
       /* TODO: compute and map reduced state of 'stwo' */
       ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME */
@@ -3750,7 +3756,7 @@ BODY** FEM_Separate (BODY *bod, int *m)
     MESH *backmesh = (msh ? msh [i] : NULL);
     out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh, NULL, NULL);
     FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO(bod), FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
-    if (bod->form == REDUCED_ORDER)
+    if (bod->form == BODY_COROTATIONAL_MODAL)
     {
       /* TODO: compute and map reduced state of 'out [i]' */
       ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME */
@@ -3778,7 +3784,7 @@ int FEM_Conf_Size (BODY *bod)
 {
   switch (bod->form)
   {
-  case REDUCED_ORDER:
+  case BODY_COROTATIONAL_MODAL:
     return bod->dofs + 9; /* reduced conf, rotation */
   default: return bod->dofs; /* conf */
   }
@@ -3790,7 +3796,7 @@ int FEM_Conf_Pack_Size (BODY *bod)
 {
   switch (bod->form)
   {
-  case REDUCED_ORDER:
+  case BODY_COROTATIONAL_MODAL:
     ASSERT_DEBUG (bod->evec, "Reduced base must be present at this point");
     return bod->dofs + 9 + bod->evec->m; /* reduced conf, R, full conf */
   case BODY_COROTATIONAL: return bod->dofs + 9; /* conf, R */
@@ -3803,7 +3809,7 @@ int FEM_Velo_Pack_Size (BODY *bod)
 {
   switch (bod->form)
   {
-  case REDUCED_ORDER:
+  case BODY_COROTATIONAL_MODAL:
     ASSERT_DEBUG (bod->evec, "Reduced base must be present at this point");
     return 4 * bod->dofs + 2 * bod->evec->m; /* reduced: velo, vel0, fext, fint; full: velo, vel0 */
   default: return 4 * bod->dofs; /* velo, vel0, fext, fint */
@@ -3817,7 +3823,7 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
   switch (bod->form)
   {
   case TOTAL_LAGRANGIAN:
-  case REDUCED_ORDER:
+  case BODY_COROTATIONAL_MODAL:
     MX_Matvec (alpha, bod->inverse, b, beta, c);
     break;
   case BODY_COROTATIONAL:
@@ -3829,7 +3835,7 @@ void FEM_Invvec (double alpha, BODY *bod, double *b, double beta, double *c)
 /* create approximate inverse operator */
 MX* FEM_Approx_Inverse (BODY *bod)
 {
-  if (bod->form == REDUCED_ORDER || /* dense */
+  if (bod->form == BODY_COROTATIONAL_MODAL || /* dense */
       bod->scheme == SCH_DEF_EXP) return MX_Copy (bod->inverse, NULL); /* dense or diagonal */
   else 
   {
@@ -3926,7 +3932,7 @@ void FEM_MatrixMarket_M_K (BODY *bod, short spdM, char *pathM, short spdK, char 
 /* called after reading to post-process internal data */
 void FEM_Post_Read (BODY *bod)
 {
-  if (bod->form == REDUCED_ORDER)
+  if (bod->form == BODY_COROTATIONAL_MODAL)
   {
     RO_lift_conf (bod, bod->evec, FEM_MESH (bod), FEM_ROT (bod), bod->conf, FEM_MESH_CONF (bod));
     MX_Matvec (1.0, bod->evec, bod->velo, 0.0, FEM_MESH_VELO (bod));

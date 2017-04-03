@@ -2696,16 +2696,16 @@ static int is_body (lng_BODY *obj, char *var)
 /* body object constructor */
 static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "kind", "shape", "material", "label", "form", "mesh", "modal");
-  PyObject *kind, *shape, *material, *label, *formulation, *modal;
+  KEYWORDS ("solfec", "kind", "shape", "material", "label", "form", "mesh", "base");
+  PyObject *kind, *shape, *material, *label, *formulation, *base;
   lng_SOLFEC *solfec;
   lng_BODY *self;
   lng_MESH *mesh;
   MESH *msh;
   short form;
   char *lab;
-  MX *E; /* modal base */
-  double *val; /* modal eigenvectors */
+  MX *E; /* base vectors (e.g. modal or POD vectors) */
+  double *val; /* base values * (e.g. modal or POD values) */
 
   self = (lng_BODY*)type->tp_alloc (type, 0);
 
@@ -2714,7 +2714,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);
   if (self && rank != 0) /* all bodies created on rank 0 */
   {
-    PARSEKEYS ("OOOO|OOOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh, &modal);
+    PARSEKEYS ("OOOO|OOOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh, &base);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) &&
 	      is_shape (shape, kwl[2]) && is_bulk_material (solfec->sol, material, kwl[3]));
@@ -2732,15 +2732,15 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     form = TOTAL_LAGRANGIAN;
     mesh = NULL;
     msh = NULL;
-    modal = NULL;
+    base = NULL;
     E = NULL;
     val = NULL;
 
-    PARSEKEYS ("OOOO|OOOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh, &modal);
+    PARSEKEYS ("OOOO|OOOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh, &base);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape (shape, kwl[2]) &&
 	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]) &&
-	      is_string (formulation, kwl[5]) && is_mesh ((PyObject*)mesh, kwl[6]) && is_tuple (modal, kwl[7], 2));
+	      is_string (formulation, kwl[5]) && is_mesh ((PyObject*)mesh, kwl[6]) && is_tuple (base, kwl[7], 2));
 
     if (label) lab = PyString_AsString (label);
     else lab = NULL;
@@ -2775,12 +2775,12 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
         TYPETEST (is_mesh (shape, kwl[2]));
       }
 
-      if (modal)
+      if (base)
       {
-	PyObject *vlist = PyTuple_GetItem (modal, 0),
-		 *Elist = PyTuple_GetItem (modal, 1);
+	PyObject *vlist = PyTuple_GetItem (base, 0),
+		 *Elist = PyTuple_GetItem (base, 1);
 
-        TYPETEST (is_list (vlist, "modal[0]", 0, 0) && is_list (Elist, "modal[1]", 0, 0));
+        TYPETEST (is_list (vlist, "base[0]", 0, 0) && is_list (Elist, "base[1]", 0, 0));
 
 	int n = PyList_Size (vlist),
 	    m = PyList_Size (Elist) / n,
@@ -2819,13 +2819,23 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	{
 	  form = BODY_COROTATIONAL;
 	}
-	ELIF (formulation, "RO")
+	ELIF (formulation, "BC-MODAL")
 	{
-	  form = REDUCED_ORDER;
+	  form = BODY_COROTATIONAL_MODAL;
 
 	  if (!(E && val))
 	  {
-	    PyErr_SetString (PyExc_ValueError, "Modal data must be passed for RO formulation");
+	    PyErr_SetString (PyExc_ValueError, "Modal base data must be passed for the BC-MODAL formulation");
+	    return NULL;
+	  }
+	}
+	ELIF (formulation, "BC-RO")
+	{
+	  form = BODY_COROTATIONAL_REDUCED_ORDER;
+
+	  if (!(E && val))
+	  {
+	    PyErr_SetString (PyExc_ValueError, "Reduced base must be passed for BC-RO formulation");
 	    return NULL;
 	  }
 	}
@@ -2853,8 +2863,10 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     self->id = self->dom->bid; /* before inserting, the body may be deleted in LOCAL_BODIES mode */
 #endif
 
-    if ((solfec->sol->dom->dynamic == 0 && self->bod->kind != RIG) || /* XXX => LIM is closest to the quasi-static time stepping; some code parts test body->scheme without checking for quasi-statics */
-	 self->bod->form == REDUCED_ORDER) self->bod->scheme = SCH_DEF_LIM; /* reduced order model uses only the 'DEF_LIM' scheme (no advantage in using 'DEF_EXP' since bod->M is dense anyway) */
+    if ((solfec->sol->dom->dynamic == 0 && self->bod->kind != RIG) || /* XXX => LIM is closest to the quasi-static time stepping; some code
+                                                                         parts test body->scheme without checking for quasi-statics */
+	 self->bod->form == BODY_COROTATIONAL_MODAL) self->bod->scheme = SCH_DEF_LIM; /* reduced order model uses only the 'DEF_LIM' scheme
+	                                                                     (no advantage in using 'DEF_EXP' since bod->M is dense anyway) */
 
     DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
   }
@@ -3262,7 +3274,7 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
   }
   ELIF (value, "DEF_EXP")
   {
-    if (self->bod->kind == RIG || self->bod->form == REDUCED_ORDER)
+    if (self->bod->kind == RIG || self->bod->form == BODY_COROTATIONAL_MODAL)
     {
       PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
       return -1;

@@ -1183,6 +1183,42 @@ DYNLB = ../dynlb
 \end_layout
 
 \begin_layout LyX-Code
+# PARMEC library available at:
+\end_layout
+
+\begin_layout LyX-Code
+# https://github.com/tkoziara/parmec
+\end_layout
+
+\begin_layout LyX-Code
+# This option is used to enable the HYBRID_SOLVER;
+\end_layout
+
+\begin_layout LyX-Code
+# If not required can be left as empty;
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+PARMEC = ../parmec
+\end_layout
+
+\begin_layout LyX-Code
+
+\end_layout
+
+\begin_layout LyX-Code
+#
+\end_layout
+
+\begin_layout LyX-Code
 # Siconos (yes/no)
 \end_layout
 
@@ -7523,7 +7559,7 @@ An object of type BODY represents a solid body.
 \end_layout
 
 \begin_layout Subsection*
-obj = BODY (solfec, kind, shape, material | label, form, mesh, modal)
+obj = BODY (solfec, kind, shape, material | label, form, mesh, base)
 \end_layout
 
 \begin_layout Standard
@@ -7689,18 +7725,30 @@ shape
 \begin_layout Itemize
 
 \series bold
-modal
+base
 \series default
- - the modal analysis results outputed by the 
-\series bold
-MODAL_ANALYSIS
-\series default
- command (or user results in the same format).
- This argument must be passed if 
+ - optional modal or reduced order base, depending on the formulation; when
+ 
 \series bold
 form
 \series default
- = 'RO', see Table 
+ = 'BC-MODAL', results of the 
+\series bold
+MODAL_ANALYSIS
+\series default
+ command (page 
+\begin_inset CommandInset ref
+LatexCommand pageref
+reference "subsec:MODAL_ANALYSIS"
+
+\end_inset
+
+), or equivalent user data, can be used; This argument must be passed if
+ 
+\series bold
+form
+\series default
+ = 'BC-MODAL' or 'BC-RO', see Table 
 \begin_inset CommandInset ref
 LatexCommand ref
 reference "tab:formulation"
@@ -8065,7 +8113,7 @@ obj.fracturecheck
  
 \series bold
 \color red
-Under development.
+(Under development)
 \end_layout
 
 \end_inset
@@ -8245,7 +8293,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="4" columns="2">
+<lyxtabular version="3" rows="5" columns="2">
 <features tabularvalignment="middle">
 <column alignment="center" valignment="top" width="30col%">
 <column alignment="center" valignment="top" width="50col%">
@@ -8310,11 +8358,44 @@ Body co-rotational (one co-rotated frame per body, suitable for stiff bodies)
 </cell>
 </row>
 <row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+'BC-MODAL'
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+Body co-rotational, modal approach; The 'DEF_LIM' integration scheme is
+ always used for this formulation (there would be no computational advantage
+ in using 'DEF_EXP' since the system matrix is diagonal anyway); 
+\emph on
+Note:
+\emph default
+ the 
+\series bold
+base
+\series default
+ argument must be passed; 
+\series bold
+\color red
+(Under development)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
 <cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
-'RO'
+'BC-RO'
 \end_layout
 
 \end_inset
@@ -8323,10 +8404,18 @@ Body co-rotational (one co-rotated frame per body, suitable for stiff bodies)
 \begin_inset Text
 
 \begin_layout Plain Layout
-Reduced order, modal, co-rotational approach.
- The 'DEF_LIM' integration scheme is always used for this formulation (there
- would be no computational advantage in using 'DEF_EXP' since the system
- matrix is diagonal anyway).
+Body co-rotational, reduced order approach; 
+\emph on
+Note:
+\emph default
+ the 
+\series bold
+base
+\series default
+ argument must be passed; 
+\series bold
+\color red
+(Under development)
 \end_layout
 
 \end_inset
@@ -13622,6 +13711,12 @@ argv
 \end_layout
 
 \begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:MODAL_ANALYSIS"
+
+\end_inset
+
 obj = MODAL_ANALYSIS (body, num, path | abstol, maxiter, verbose)
 \end_layout
 
@@ -13643,7 +13738,7 @@ val
 \series bold
 obj[0]
 \series default
- eigenvalues and 
+ list of eigenvalues and 
 \series bold
 vec
 \series default
@@ -13651,7 +13746,7 @@ vec
 \series bold
 obj[1]
 \series default
- eigen vectors (stored contiguously one after another)
+ list of eigen vectors (stored contiguously one after another)
 \end_layout
 
 \begin_layout Itemize

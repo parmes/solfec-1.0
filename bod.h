@@ -43,7 +43,8 @@ typedef struct solfec SOLFEC;
 #define __bod__
 
 /* finite element formulation */
-typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL, REDUCED_ORDER} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
+typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL,
+  BODY_COROTATIONAL_MODAL, BODY_COROTATIONAL_REDUCED_ORDER} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
 
 typedef struct general_force FORCE;
 typedef struct parmec_force PARMEC_FORCE;
