@@ -555,6 +555,8 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->output_time = 0;
   sol->compression = PBF_OFF;
 
+  sol->bcd = NULL;
+
 #if MPI
   if ((sol->bf = readoutpath (sol->outpath)))
   {
@@ -839,9 +841,17 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 	if (!ret) break; /* interrupt run */
       }
 
+      /* BCD sampling */
+      if (sol->bcd) BCD_Sample (sol, sol->bcd);
+
       /* check whether STOP file was created by the user */
       if (stopfile (sol)) break;
     }
+
+#if MPI
+    /* gather BCD samling at rank 0 process at the end of run */
+    if (sol->bcd) BCD_Rank0_Gather (sol->bcd);
+#endif
   }
   else /* READ */
   {
@@ -977,6 +987,7 @@ void SOLFEC_Destroy (SOLFEC *sol)
     write_state (sol, NULL, NONE_SOLVER); /* in case state was never written */
   }
 
+  BCD_Destroy (sol->bcd);
   AABB_Destroy (sol->aabb); 
   FISET_Destroy (sol->fis);
   SPSET_Destroy (sol->sps);

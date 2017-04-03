@@ -8746,6 +8746,18 @@ if (spdK)
   Py_RETURN_NONE;
 }
 
+/* extract co-rotated FEM displacemnts */
+static PyObject* lng_COROTATED_DISPLACEMENETS (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "subset", "sampling");
+  PyObject *subset, *sampling, *output;
+  lng_SOLFEC *solfec;
+
+  /* TODO */
+
+  Py_RETURN_NONE;
+}
+
 /* add display point */
 static PyObject* lng_DISPLAY_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 {

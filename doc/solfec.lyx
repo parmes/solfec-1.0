@@ -12046,6 +12046,12 @@ Routines listed in this section control the solution process.
 \end_layout
 
 \begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:RUN"
+
+\end_inset
+
 RUN (solfec, solver, duration)
 \end_layout
 
@@ -12085,6 +12091,12 @@ Note:
 \end_layout
 
 \begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:OUTPUT"
+
+\end_inset
+
 OUTPUT (solfec, interval | compression)
 \end_layout
 
@@ -13811,6 +13823,216 @@ maxiter
 verbose
 \series default
  - 'ON' or 'OFF' verbosity flag for the eigenvalue solver (default: 'OFF')
+\end_layout
+
+\begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:COROTATE_DISPLACEMENTS"
+
+\end_inset
+
+obj = COROTATED_DISPLACEMENTS (solfec, subset | sampling) 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+This routine extracts snapshots of co-rotated displacements of FEM bodies.
+ Co-rotated displacements factor out the rigid body rotation, only including
+ deformational motion about the initial configuration of the body.
+ Multiple calls to this command need to be used to extract multiple snapshot
+ sets for distinct subsets of bodies.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - upon termination of all RUN commands (page 
+\begin_inset CommandInset ref
+LatexCommand pageref
+reference "subsec:RUN"
+
+\end_inset
+
+), a list of lists of displacement snapshots; this works both in 'WRITE'
+ and 'READ' modes; MPI-parallel extraction of co-rotated displacement snapshots
+ is enabled in the 'WRITE' mode: in this case only MPI rank 0 process will
+ store a valid output list (
+\emph on
+None
+\emph default
+ is returned for ranks > 0);
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+subset
+\series default
+ - specification of a subset of bodies for which co-rotated displacements
+ are to be extracted; a string can be used to define a POSIX regular expression
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+Follow 
+\series bold
+
+\begin_inset CommandInset href
+LatexCommand href
+name "this link"
+target "http://www.boost.org/doc/libs/1_61_0/libs/regex/doc/html/boost_regex/syntax/basic_syntax.html"
+
+\end_inset
+
+
+\series default
+ for the syntax of POSIX regular expressions.
+\end_layout
+
+\end_inset
+
+ that will be matched against body labels; a list of body objects or integer
+ body identifiers can be used 
+\emph on
+[body1, body2, id3, id4, body5, ...]
+\emph default
+ mixed up in an arbitrary manner; or a tuple specifying extents of a bounding
+ box can be used 
+\emph on
+(xlow, ylow, zlow, xhigh, yhigh, zhigh)
+\emph default
+, which the bounding boxes of exported bodies will overlapped at time 
+\begin_inset Formula $t=0$
+\end_inset
+
+; also a list of an arbitrary combination of those can be used, e.g.
+ 
+\emph on
+['BOD*A', 123, body1, body2, 256, (0, 0, 0, 1, 1, 1), 'KEY??7', (3, 3, 3,
+ 4, 4, 4)]
+\emph default
+ defines two labels, two integer body ids, two body objects, and two bounding
+ boxes, that together define a subset of bodies that will be used during
+ snapshot extraction; 
+\emph on
+Note:
+\emph default
+ 
+\series bold
+meshes of all bodies in the subset must have the same number of nodes
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+sampling
+\series default
+ - optional collection of time instants, e.g.
+ 
+\emph on
+[t0, t1, t2, ..., tN]
+\emph default
+, or a time interval, e.g.
+ 
+\emph on
+dt0
+\emph default
+, at which the displacement snapshots are to be sampled; 
+\emph on
+default:
+\emph default
+ same as the output interval, see OUTPUT (page 
+\begin_inset CommandInset ref
+LatexCommand pageref
+reference "subsec:OUTPUT"
+
+\end_inset
+
+)
+\end_layout
+
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+TODO
+\end_layout
+
+\begin_layout Plain Layout
+Possible modes of extracting displacement snapshots for reduced order bases:
+\end_layout
+
+\begin_layout Itemize
+'DEF_EXP' or 'DEF_LIM' integration of 'TL' and 'BC' bodies
+\end_layout
+
+\begin_layout Itemize
+Extraction during analysis, via a callback in 'WRITE' mode (this can be
+ parallel)
+\end_layout
+
+\begin_layout Itemize
+Extraction in 'READ' mode while using SEEK, FORWARD, etc.
+\end_layout
+
+\begin_layout Itemize
+Can the extraction of displacements be sped up in case of 'BC' bodies?
+\end_layout
+
+\begin_deeper
+\begin_layout Itemize
+yes, in the 'WRITE' mode, if rotation can be stored
+\end_layout
+
+\begin_layout Itemize
+also yes, in the 'READ' mode, if rotation can be stored in output files
+\end_layout
+
+\end_deeper
+\begin_layout Itemize
+Otherwise and in other cases, the rotation extraction will need to be used
+ every time a displacement snapshot is taken
+\end_layout
+
+\begin_layout Itemize
+What is the most efficient, parallel, way to extract snapshots?
+\end_layout
+
+\begin_layout Itemize
+What is the most convenient way to extract snapshots for groups of bodies,
+ e.g.
+ matched by label, as already implemented in XDMF export?
+\end_layout
+
+\begin_layout Itemize
+What is the most convenient way of instrumenting all this and using Python's
+ 
+\begin_inset CommandInset href
+LatexCommand href
+name "modred"
+target "https://pypi.python.org/pypi/modred"
+
+\end_inset
+
+ package?
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection*

@@ -36,6 +36,7 @@
 #include "pbf.h"
 #include "cmp.h"
 #include "tmr.h"
+#include "bcd.h"
 
 #ifndef __sol__
 #define __sol__
@@ -101,6 +102,9 @@ struct solfec
   char *outpath;
   PBF_FLG compression;
   PBF *bf;  
+
+  /* body co-rotated FEM displacements sampling */
+  BCD *bcd;
 
   /* callback data */
   double callback_interval,

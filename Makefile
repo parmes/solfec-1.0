@@ -104,6 +104,7 @@ OBJ =   $(EXTO)   \
 	obj/lng.o \
 	obj/sol.o \
 	obj/fem.o \
+	obj/bcd.o \
 	obj/xdmf.o \
         $(SICONO) \
 	$(OPENGLO) \
@@ -129,6 +130,7 @@ OBJMPI = $(EXTO)       \
 	 obj/com-mpi.o \
 	 obj/sol-mpi.o \
 	 obj/fem-mpi.o \
+	 obj/bcd-mpi.o \
 	 obj/psc-mpi.o \
 	 $(PARMECMPIO)
 
@@ -368,6 +370,9 @@ obj/libsolfec.o: solfec.c solfec.h
 obj/fem.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
+obj/bcd.o: bcd.c bcd.h bod.h sol.h dom.h lng.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
 obj/xdmf.o: xdmf.c xdmf.h sol.h dom.h bod.h shp.h msh.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
@@ -457,6 +462,9 @@ obj/sol-mpi.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/fem-mpi.o: fem.c fem.h bod.h shp.h msh.h mat.h alg.h err.h
+	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
+
+obj/bcd-mpi.o: bcd.c bcd.h bod.h sol.h dom.h lng.h err.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/psc-mpi.o: psc.c psc.h bod.h shp.h msh.h mat.h alg.h err.h
