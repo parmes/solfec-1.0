@@ -178,7 +178,7 @@ void SOLFEC_Seek_To (SOLFEC *sol, double time);
 int SOLFEC_Backward (SOLFEC *sol, int steps);
 
 /* step forward in READ modes */
-int SOLFEC_Forward (SOLFEC *sol, int steps);
+int SOLFEC_Forward (SOLFEC *sol, int steps, int corotated_displacements);
 
 /* perform abort actions */
 void SOLFEC_Abort (SOLFEC *sol);

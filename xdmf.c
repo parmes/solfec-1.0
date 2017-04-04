@@ -605,7 +605,7 @@ void xdmf_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *subse
 
       printf ("XDMF_EXPORT --> moving to next time step ...\n");
 
-      SOLFEC_Forward (sol, 1);
+      SOLFEC_Forward (sol, 1, 0);
     }
     while (sol->dom->time < t1);
   }

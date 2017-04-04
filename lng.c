@@ -8859,15 +8859,30 @@ static PyObject* lng_DURATION (PyObject *self, PyObject *args, PyObject *kwds)
 /* skip forward */
 static PyObject* lng_FORWARD (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "steps");
+  KEYWORDS ("solfec", "steps", "corotated_displacements");
+  PyObject *corotated_displacements = NULL;
   lng_SOLFEC *solfec;
-  int steps;
+  int steps, corod;
 
-  PARSEKEYS ("Oi", &solfec, &steps);
+  PARSEKEYS ("Oi|O", &solfec, &steps, &corotated_displacements);
 
-  TYPETEST (is_solfec (solfec, kwl[0]));
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (corotated_displacements, kwl[2]));
 
-  if (solfec->sol->mode == SOLFEC_READ) SOLFEC_Forward (solfec->sol, steps); 
+  IFIS (corotated_displacements, "TRUE")
+  {
+    corod = 1;
+  }
+  ELIF (corotated_displacements, "FALSE")
+  {
+    corod = 0;
+  }
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Invalid corotated_displacements string");
+    return 0;
+  }
+
+  if (solfec->sol->mode == SOLFEC_READ) SOLFEC_Forward (solfec->sol, steps, corod); 
 
   Py_RETURN_NONE;
 }
@@ -9498,6 +9513,56 @@ static PyObject* lng_COROTATED_DISPLACEMENTS (PyObject *self, PyObject *args, Py
   else Py_RETURN_NONE;
 }
 
+/* output six rigid body displacemnts of a FEM body */
+static PyObject* lng_RIGID_DISPLACEMENTS (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body");
+  PyObject *out, *vec, *obj;
+  double *disp, *pvec;
+  lng_BODY *body;
+  int dofs, i, j;
+
+  PARSEKEYS ("O", &body);
+
+  TYPETEST (is_body (body, kwl[0]));
+
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (body))
+  {
+#endif
+  
+  dofs = FEM_Mesh_Dofs (body->bod);
+
+  ERRMEM (disp = malloc (6 * dofs * sizeof(double)));
+
+  FEM_Mesh_Rigid_Displacements (body->bod, disp);
+
+  ERRMEM (out = PyList_New(0));
+
+  for (i = 0, pvec = disp; i < 6; i ++, pvec += dofs)
+  {
+    ERRMEM (vec = PyList_New(dofs));
+
+    for (j = 0; j < dofs; j ++)
+    {
+      ASSERT_TEXT(obj = PyFloat_FromDouble(pvec[j]), "RIGID_DISPLACEMENTS --> PyFLoat_FromDouble failed");
+
+      PyList_SetItem (vec, j, obj);
+    }
+
+    PyList_Append (out, vec);
+  }
+
+  free (disp);
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
+
+  return out;
+}
+
 /* energy */
 static PyObject* lng_ENERGY (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -10054,6 +10119,7 @@ static PyMethodDef lng_methods [] =
   {"RENDER", (PyCFunction)lng_RENDER, METH_VARARGS|METH_KEYWORDS, "Render bodies"},
   {"XDMF_EXPORT", (PyCFunction)lng_XDMF_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export results in XDMF format"},
   {"COROTATED_DISPLACEMENTS", (PyCFunction)lng_COROTATED_DISPLACEMENTS, METH_VARARGS|METH_KEYWORDS, "Extract snapshots of co-rotated FEM displacements"},
+  {"RIGID_DISPLACEMENTS", (PyCFunction)lng_RIGID_DISPLACEMENTS, METH_VARARGS|METH_KEYWORDS, "Output six rigid body displacements of a FEM body"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
   {"SEEK", (PyCFunction)lng_SEEK, METH_VARARGS|METH_KEYWORDS, "Seek to time in READ mode"},
@@ -10310,6 +10376,7 @@ int lng (const char *path)
                      "from solfec import RENDER\n"
                      "from solfec import XDMF_EXPORT\n"
                      "from solfec import COROTATED_DISPLACEMENTS\n"
+                     "from solfec import RIGID_DISPLACEMENTS\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"
                      "from solfec import SEEK\n"

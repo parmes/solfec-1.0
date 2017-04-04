@@ -153,4 +153,7 @@ double* FEM_Mesh_Conf (BODY *bod);
 /* output mesh co-rotated displacements */
 void FEM_Mesh_Corotated_Conf (BODY *bod, double *disp);
 
+/* output six rigid body displacements */
+void FEM_Mesh_Rigid_Displacements (BODY *bod, double *disp);
+
 #endif

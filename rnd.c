@@ -3169,7 +3169,7 @@ static int forward ()
 {
   SELECTION_REINIT_BEGIN ();
 
-  int ret = SOLFEC_Forward (solfec, skip_steps);
+  int ret = SOLFEC_Forward (solfec, skip_steps, 0);
 
   SELECTION_REINIT_END ();
 

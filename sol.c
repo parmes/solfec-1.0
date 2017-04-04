@@ -942,14 +942,22 @@ int SOLFEC_Backward (SOLFEC *sol, int steps)
 }
 
 /* step forward in READ modes */
-int SOLFEC_Forward (SOLFEC *sol, int steps)
+int SOLFEC_Forward (SOLFEC *sol, int steps, int corotated_displacements)
 {
   if (sol->mode == SOLFEC_READ)
   {
     if (init (sol))
     {
       int ret = PBF_Forward (sol->bf, steps);
+
       read_state (sol);
+
+      if (corotated_displacements && sol->bcd)
+      {
+	BCD_Sample (sol, sol->bcd);
+	BCD_Append_Output (sol->bcd);
+      }
+
       return ret;
     }
   }
@@ -1223,7 +1231,7 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 
     time [cur ++] = sol->dom->time; /* store current time and iterate */
 
-    if (full_read) SOLFEC_Forward (sol, ABS (skip)); /* read complete Solfec state */
+    if (full_read) SOLFEC_Forward (sol, ABS (skip), 0); /* read complete Solfec state */
     else
     {
       PBF_Forward (sol->bf, ABS (skip)); /* move to next frame */

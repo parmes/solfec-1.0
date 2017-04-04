@@ -3955,9 +3955,92 @@ double* FEM_Mesh_Conf (BODY *bod)
 /* output mesh co-rotated displacements */
 void FEM_Mesh_Corotated_Conf (BODY *bod, double *disp)
 {
-  ASSERT_TEXT (0, "Not implemented");
-  /* TODO */
-  /* XXX -> take advantage of BODY_COROTATIONAL formulation;
-            in other cases store most recent rotation somewhere;
-	    in 'READ' mode can rotation be read from output files? */
+  double *qm = FEM_MESH_CONF(bod), *R, TMP[9], (*Z) [3], Y [3], *x, *y;
+  MESH *msh = FEM_MESH(bod);
+  int qmsize = MESH_DOFS(msh);
+
+  if (bod->kind == BODY_COROTATIONAL_MODAL)
+  {
+    R = FEM_ROT(bod);
+  }
+  else
+  {
+    IDENTITY (TMP); /* FIXME --> in time-sequencial use previous rotation is preffered */
+    R = TMP;
+    BC_update_rotation (bod, msh, qm, R);
+  }
+
+  blas_dcopy (qmsize, qm, 1, disp, 1);
+
+  for (x = disp, y = disp+qmsize, Z = msh->ref_nodes; x < y; x += 3, Z ++)
+  {
+    NVMUL (R, Z[0], Y);
+    SUB (Z[0], Y, Y);
+    ACC (Y, x); /* d = (I-R)Z + qm */
+
+    COPY (x, Y);
+    TVMUL (R, Y, x); /* R' d */
+  }
+}
+
+/* output six rigid body displacements */
+void FEM_Mesh_Rigid_Displacements (BODY *bod, double *disp)
+{
+  double (*Z) [3], *C, Y[3], *dx, *dy, *dz, *rx, *ry, *rz, inv;
+  MESH *msh = FEM_MESH(bod);
+  int i, n = msh->nodes_count, dofs = 3*n;
+
+  Z = msh->ref_nodes;
+  C = bod->ref_center;
+  dx = disp;
+  dy = dx+dofs;
+  dz = dy+dofs;
+  rx = dz+dofs;
+  ry = rx+dofs;
+  rz = ry+dofs;
+
+  for (i = 0; i < n; i ++, dx += 3, dy += 3, dz += 3, rx += 3, ry += 3, rz += 3, Z ++)
+  {
+    dx[0] = 1.0;
+    dx[1] = 0.0;
+    dx[2] = 0.0;
+
+    dy[0] = 0.0;
+    dy[1] = 1.0;
+    dy[2] = 0.0;
+
+    dz[0] = 0.0;
+    dz[1] = 0.0;
+    dz[2] = 1.0;
+
+    SUB (Z[0], C, Y);
+
+    PRODUCT (dx, Y, rx);
+    PRODUCT (dy, Y, ry);
+    PRODUCT (dz, Y, rz);
+  }
+
+  dx = disp;
+  dy = dx+dofs;
+  dz = dy+dofs;
+  rx = dz+dofs;
+  ry = rx+dofs;
+  rz = ry+dofs;
+
+  inv = 1.0/sqrt(n);
+  blas_dscal (n, inv, dx, 1);
+  blas_dscal (n, inv, dy, 1);
+  blas_dscal (n, inv, dz, 1);
+
+  inv = blas_ddot (n, rx, 1, rx, 1);
+  inv = 1.0/sqrt(inv);
+  blas_dscal (n, inv, rx, 1);
+
+  inv = blas_ddot (n, ry, 1, ry, 1);
+  inv = 1.0/sqrt(inv);
+  blas_dscal (n, inv, ry, 1);
+
+  inv = blas_ddot (n, rz, 1, rz, 1);
+  inv = 1.0/sqrt(inv);
+  blas_dscal (n, inv, rz, 1);
 }
