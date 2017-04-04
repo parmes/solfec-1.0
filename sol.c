@@ -848,10 +848,8 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       if (stopfile (sol)) break;
     }
 
-#if MPI
-    /* gather BCD samling at rank 0 process at the end of run */
-    if (sol->bcd) BCD_Rank0_Gather (sol->bcd);
-#endif
+    /* BCD append Python output at the end of run */
+    if (sol->bcd) BCD_Append_Output (sol->bcd);
   }
   else /* READ */
   {

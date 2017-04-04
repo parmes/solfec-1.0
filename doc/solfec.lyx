@@ -13843,6 +13843,12 @@ This routine extracts snapshots of co-rotated displacements of FEM bodies.
  deformational motion about the initial configuration of the body.
  Multiple calls to this command need to be used to extract multiple snapshot
  sets for distinct subsets of bodies.
+ 
+\emph on
+Note:
+\emph default
+ identical sequence of calls to this routine must be executed on all MPI
+ ranks;
 \end_layout
 
 \begin_layout Itemize
@@ -13864,7 +13870,19 @@ reference "subsec:RUN"
 \emph on
 None
 \emph default
- is returned for ranks > 0);
+ is returned for ranks > 0); 
+\begin_inset Note Note
+status open
+
+\begin_layout Plain Layout
+TODO: method of collecting snapshots in 'READ' mode; e.g.
+ calling FORWARD through all output frames to populate all output lists;
+ or another collective command that will do this
+\end_layout
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Itemize
@@ -13929,9 +13947,7 @@ target "http://www.boost.org/doc/libs/1_61_0/libs/regex/doc/html/boost_regex/syn
 \emph on
 Note:
 \emph default
- 
-\series bold
-meshes of all bodies in the subset must have the same number of nodes
+ meshes of all bodies in the subset must have the same number of nodes;
 \end_layout
 
 \begin_layout Itemize
@@ -13968,58 +13984,11 @@ reference "subsec:OUTPUT"
 status open
 
 \begin_layout Plain Layout
-TODO
-\end_layout
-
-\begin_layout Plain Layout
-Possible modes of extracting displacement snapshots for reduced order bases:
+TODO:
 \end_layout
 
 \begin_layout Itemize
-'DEF_EXP' or 'DEF_LIM' integration of 'TL' and 'BC' bodies
-\end_layout
-
-\begin_layout Itemize
-Extraction during analysis, via a callback in 'WRITE' mode (this can be
- parallel)
-\end_layout
-
-\begin_layout Itemize
-Extraction in 'READ' mode while using SEEK, FORWARD, etc.
-\end_layout
-
-\begin_layout Itemize
-Can the extraction of displacements be sped up in case of 'BC' bodies?
-\end_layout
-
-\begin_deeper
-\begin_layout Itemize
-yes, in the 'WRITE' mode, if rotation can be stored
-\end_layout
-
-\begin_layout Itemize
-also yes, in the 'READ' mode, if rotation can be stored in output files
-\end_layout
-
-\end_deeper
-\begin_layout Itemize
-Otherwise and in other cases, the rotation extraction will need to be used
- every time a displacement snapshot is taken
-\end_layout
-
-\begin_layout Itemize
-What is the most efficient, parallel, way to extract snapshots?
-\end_layout
-
-\begin_layout Itemize
-What is the most convenient way to extract snapshots for groups of bodies,
- e.g.
- matched by label, as already implemented in XDMF export?
-\end_layout
-
-\begin_layout Itemize
-What is the most convenient way of instrumenting all this and using Python's
- 
+Reference Python's 
 \begin_inset CommandInset href
 LatexCommand href
 name "modred"
@@ -14027,7 +13996,11 @@ target "https://pypi.python.org/pypi/modred"
 
 \end_inset
 
- package?
+ in this context
+\end_layout
+
+\begin_layout Itemize
+Reference 'BC-RO' formulation in this context
 \end_layout
 
 \end_inset

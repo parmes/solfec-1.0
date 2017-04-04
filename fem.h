@@ -144,4 +144,13 @@ double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele, double *
 /* map m1 values onto m2 values */
 void FEM_Map_State (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, double *u2);
 
+/* return mesh dofs count */
+int FEM_Mesh_Dofs (BODY *bod);
+
+/* return mesh displacements */
+double* FEM_Mesh_Conf (BODY *bod);
+
+/* output mesh co-rotated displacements */
+void FEM_Mesh_Corotated_Conf (BODY *bod, double *disp);
+
 #endif

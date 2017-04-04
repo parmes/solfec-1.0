@@ -43,14 +43,14 @@ typedef double (*node_t) [3]; /* mesh node */
 #define DOM_TOL 0.1
 #define CUT_TOL 0.001
 #define MESH_DOFS(msh) ((msh)->nodes_count * 3)
-#define FEM_MESH_CONF(bod) ((bod)->form != BODY_COROTATIONAL_MODAL ? (bod)->conf : (bod)->conf + (bod)->dofs + 9) /* mesh space configuration */
-#define FEM_MESH_VELO(bod) ((bod)->form != BODY_COROTATIONAL_MODAL ? (bod)->velo : (bod)->velo + (bod)->dofs * 4) /* mesh space velocity */
+#define FEM_MESH_CONF(bod) ((bod)->form < BODY_COROTATIONAL_MODAL ? (bod)->conf : (bod)->conf + (bod)->dofs + 9) /* mesh space configuration */
+#define FEM_MESH_VELO(bod) ((bod)->form < BODY_COROTATIONAL_MODAL ? (bod)->velo : (bod)->velo + (bod)->dofs * 4) /* mesh space velocity */
 #define FEM_MESH_VEL0(bod) (FEM_MESH_VELO(bod) + MESH_DOFS(FEM_MESH(bod))) /* mesh space previous velocity */
-#define FEM_MESH_MASS(bod) ((bod)->form != BODY_COROTATIONAL_MODAL ? (bod)->M->x : ((bod)->conf + (bod)->dofs + 9 + MESH_DOFS(FEM_MESH(bod)))) /* mesh space velocity */
+#define FEM_MESH_MASS(bod) ((bod)->form < BODY_COROTATIONAL_MODAL ? (bod)->M->x : ((bod)->conf + (bod)->dofs + 9 + MESH_DOFS(FEM_MESH(bod)))) /* mesh space velocity */
 #define FEM_VEL0(bod) ((bod)->velo + (bod)->dofs)     /* previous velocity */
 #define FEM_FEXT(bod) ((bod)->velo + (bod)->dofs * 2) /* external force */
 #define FEM_FINT(bod) ((bod)->velo + (bod)->dofs * 3) /* internal force */
-#define FEM_FBOD(bod) ((bod)->form != BODY_COROTATIONAL_MODAL ? (bod)->velo + (bod)->dofs * 4 : FEM_MESH_VEL0(bod) + MESH_DOFS(FEM_MESH(bod))) /* unit body force */
+#define FEM_FBOD(bod) ((bod)->form < BODY_COROTATIONAL_MODAL ? (bod)->velo + (bod)->dofs * 4 : FEM_MESH_VEL0(bod) + MESH_DOFS(FEM_MESH(bod))) /* unit body force */
 #define FEM_ROT(bod) ((bod)->conf + (bod)->dofs) /* rotation */
 
 /* ==================== INTEGRATION ======================= */
@@ -3938,4 +3938,26 @@ void FEM_Post_Read (BODY *bod)
     MX_Matvec (1.0, bod->evec, bod->velo, 0.0, FEM_MESH_VELO (bod));
     RO_rotate_forward (FEM_ROT (bod), FEM_MESH_VELO (bod), bod->evec->m);
   }
+}
+
+/* return mesh dofs count */
+int FEM_Mesh_Dofs (BODY *bod)
+{
+  return MESH_DOFS(FEM_MESH(bod));
+}
+
+/* return mesh displacements */
+double* FEM_Mesh_Conf (BODY *bod)
+{
+  return FEM_MESH_CONF (bod);
+}
+
+/* output mesh co-rotated displacements */
+void FEM_Mesh_Corotated_Conf (BODY *bod, double *disp)
+{
+  ASSERT_TEXT (0, "Not implemented");
+  /* TODO */
+  /* XXX -> take advantage of BODY_COROTATIONAL formulation;
+            in other cases store most recent rotation somewhere;
+	    in 'READ' mode can rotation be read from output files? */
 }

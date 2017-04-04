@@ -8746,18 +8746,6 @@ if (spdK)
   Py_RETURN_NONE;
 }
 
-/* extract co-rotated FEM displacemnts */
-static PyObject* lng_COROTATED_DISPLACEMENETS (PyObject *self, PyObject *args, PyObject *kwds)
-{
-  KEYWORDS ("solfec", "subset", "sampling");
-  PyObject *subset, *sampling, *output;
-  lng_SOLFEC *solfec;
-
-  /* TODO */
-
-  Py_RETURN_NONE;
-}
-
 /* add display point */
 static PyObject* lng_DISPLAY_POINT (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -9411,6 +9399,105 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
   Py_RETURN_NONE;
 }
 
+/* extract snaphots of co-rotated FEM displacemnts */
+static PyObject* lng_COROTATED_DISPLACEMENTS (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "subset", "sampling");
+  PyObject *subset_arg, *sampling_arg, *output;
+  lng_SOLFEC *solfec;
+  double *sampling;
+  int length;
+  SET *subset;
+
+  subset = NULL;
+  subset_arg = NULL;
+  sampling_arg = NULL;
+  
+  PARSEKEYS ("OO|O", &solfec, &subset_arg, &sampling_arg);
+  
+  TYPETEST (is_solfec (solfec, kwl[0]));
+
+  if (subset_arg)
+  {
+    if (PyList_Check(subset_arg))
+    {
+      int nobj = PyList_Size (subset_arg);
+
+      for (int i = 0; i < nobj; i ++)
+      {
+	if (!subset_add (solfec->sol->dom, &subset, PyList_GetItem (subset_arg, i)))
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid subset definition");
+	  return NULL;
+	}
+      }
+    }
+    else if (!subset_add (solfec->sol->dom, &subset, subset_arg))
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid subset definition");
+      return NULL;
+    }
+
+    if (subset == NULL)
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid subset definition (matching bodies not found)");
+      return NULL;
+    }
+  }
+
+  if (sampling_arg)
+  {
+    if (PyList_Check(sampling_arg))
+    {
+      length = PyList_Size(sampling_arg);
+
+      ERRMEM (sampling = malloc (length * sizeof (double)));
+
+      for (int i = 0; i < length; i ++)
+      {
+	sampling[i] = PyFloat_AsDouble (PyList_GetItem(sampling_arg, i));
+      }
+    }
+    else if (PyNumber_Check(sampling_arg))
+    {
+      length = 0; /* constant interval sampling */
+      ERRMEM (sampling = malloc (sizeof (double)));
+      sampling[0] = PyFloat_AsDouble (sampling_arg);
+    }
+    else
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid sampling argument");
+      return NULL;
+    }
+  }
+  else
+  {
+    length = -1; /* use solfec->output_interval; see bcd.h */
+    sampling = NULL;
+  }
+
+#if MPI
+  int rank;
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  if (rank == 0)
+  {
+#endif
+  ERRMEM (output = PyList_New (0));
+#if MPI
+  }
+  else output = NULL;
+#endif
+
+  if (!BCD_Append (solfec->sol, subset, sampling, length, output))
+  {
+    PyErr_SetString (PyExc_ValueError, "Incalid definition of displacements sampling");
+    return NULL;
+  }
+
+  if (output) return output;
+  else Py_RETURN_NONE;
+}
+
 /* energy */
 static PyObject* lng_ENERGY (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -9966,6 +10053,7 @@ static PyMethodDef lng_methods [] =
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"RENDER", (PyCFunction)lng_RENDER, METH_VARARGS|METH_KEYWORDS, "Render bodies"},
   {"XDMF_EXPORT", (PyCFunction)lng_XDMF_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export results in XDMF format"},
+  {"COROTATED_DISPLACEMENTS", (PyCFunction)lng_COROTATED_DISPLACEMENTS, METH_VARARGS|METH_KEYWORDS, "Extract snapshots of co-rotated FEM displacements"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
   {"BACKWARD", (PyCFunction)lng_BACKWARD, METH_VARARGS|METH_KEYWORDS, "Set backward in READ mode"},
   {"SEEK", (PyCFunction)lng_SEEK, METH_VARARGS|METH_KEYWORDS, "Seek to time in READ mode"},
@@ -10221,6 +10309,7 @@ int lng (const char *path)
                      "from solfec import DURATION\n"
                      "from solfec import RENDER\n"
                      "from solfec import XDMF_EXPORT\n"
+                     "from solfec import COROTATED_DISPLACEMENTS\n"
                      "from solfec import FORWARD\n"
                      "from solfec import BACKWARD\n"
                      "from solfec import SEEK\n"
@@ -10334,4 +10423,33 @@ double springcallback (void *call, double stroke, double velocity)
   }
 
   return force;
+}
+
+/* Python object referece increment */
+void lng_xincref (void *obj)
+{
+  Py_XINCREF (obj);
+}
+
+/* Python object referece decrement */
+void lng_xdecref (void *obj)
+{
+  Py_XDECREF (obj);
+}
+
+/* append Python list with a list storing a vector of double precision numbers */
+void lng_append_list_with_list_of_doubles (void *list, double *vector, int length)
+{
+  PyObject *sublist, *obj;
+
+  ASSERT_TEXT (sublist = PyList_New (length), "Python list append failed");
+
+  for (int i = 0; i < length; i ++)
+  {
+    ASSERT_TEXT (obj = PyFloat_FromDouble(vector[i]), "Python list append failed");
+
+    PyList_SetItem (sublist, i, obj);
+  }
+
+  PyList_Append(list, sublist);
 }

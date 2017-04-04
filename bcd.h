@@ -24,6 +24,8 @@ SOFTWARE.
 
 /* Purpose: co-rotated FEM displacements sampling */
 
+#include "set.h"
+
 #ifndef __bcd__
 #define __bcd__
 
@@ -31,33 +33,33 @@ typedef struct corotated_displacements BCD;
 
 struct corotated_displacements /* body co-rotated FEM displacements sampling list */
 {
-  void *subset_definition; /* Python based subset definition */
-
-  void *current_subset; /* current SET of body identifiers; if NULL --> recalculated for each sample */
+  SET *subset; /* set of body identifiers (MPI-ranks-global in parallel) */
 
   double *sampling; /* sampling of time instants */
 
-  int sampling_length; /* if  0, sampling[0] stores output interval;
-                          if -1, use SOLFEC-->output_interval;
-			  otherise, sampling[] stores a list of time instantcs at which to sample */
+  int length; /* if  0, sampling[0] stores output interval;
+                 if -1, use SOLFEC-->output_interval;
+		 otherise, sampling[0...length-1] stores a list of time instantcs at which to sample */
 
-  void *output_list; /* Python list of lists of output samples, appended during sampling */
+  int size; /* sample size == (BODY*) subset --> data --> dofs */
 
-  double latest_sample; /* latest sample time */
+  SET *pending; /* pending samples */
+
+  void *output; /* Python list of lists of output samples (!= NULL on MPI rank 0 in parallel) */
+
+  double latest; /* latest sample time */
 
   BCD *next; /* next sampling definition/data in list */
 };
 
-/* append sampling list 'bcd' with new definition and return the appended list head */
-BCD* BCD_Append (BCD *bcd, void *definition, void *subset, double *sampling, int length, void *output);
+/* append 'SOLFEC->bcd' with new definition and return the appended list head; return 1 upon succes; 0 otherwise */
+int BCD_Append (SOLFEC *sol, SET *subset, double *sampling, int length, void *output);
 
-/* sample 'bcd' list at current time */
-void BCD_Sample (SOLFEC *solfec, BCD *bcd);
+/* sample 'bcd' list at current time --> goes into pending samples */
+void BCD_Sample (SOLFEC *sol, BCD *bcd);
 
-#if MPI
-/* gather output lists at rank 0 process */
-void BCD_Rank0_Gather (BCD *bcd);
-#endif
+/* output pending samples */
+void BCD_Append_Output (BCD *bcd);
 
 /* destroy sampling list */
 void BCD_Destroy (BCD *bcd);

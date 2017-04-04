@@ -39,4 +39,13 @@ int  lngcallback_set (int id, void **data, void **call);
 /* handle PUT_SPRING spring Python callback */
 double springcallback (void *call, double stroke, double velocity);
 
+/* Python object referece increment */
+void lng_xincref (void *obj);
+
+/* Python object referece decrement */
+void lng_xdecref (void *obj);
+
+/* append Python list with a list storing a vector of double precision numbers */
+void lng_append_list_with_list_of_doubles (void *list, double *vector, int length);
+
 #endif
