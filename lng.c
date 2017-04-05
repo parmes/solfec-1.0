@@ -2865,7 +2865,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     if ((solfec->sol->dom->dynamic == 0 && self->bod->kind != RIG) || /* XXX => LIM is closest to the quasi-static time stepping; some code
                                                                          parts test body->scheme without checking for quasi-statics */
-	 self->bod->form == BODY_COROTATIONAL_MODAL) self->bod->scheme = SCH_DEF_LIM; /* reduced order model uses only the 'DEF_LIM' scheme
+	 self->bod->form >= BODY_COROTATIONAL_MODAL) self->bod->scheme = SCH_DEF_LIM; /* reduced order model uses only the 'DEF_LIM' scheme
 	                                                                     (no advantage in using 'DEF_EXP' since bod->M is dense anyway) */
 
     DOM_Insert_Body (solfec->sol->dom, self->bod); /* insert body into the domain */
@@ -3274,7 +3274,7 @@ static int lng_BODY_set_scheme (lng_BODY *self, PyObject *value, void *closure)
   }
   ELIF (value, "DEF_EXP")
   {
-    if (self->bod->kind == RIG || self->bod->form == BODY_COROTATIONAL_MODAL)
+    if (self->bod->kind == RIG || self->bod->form >= BODY_COROTATIONAL_MODAL)
     {
       PyErr_SetString (PyExc_ValueError, "Invalid integration scheme");
       return -1;

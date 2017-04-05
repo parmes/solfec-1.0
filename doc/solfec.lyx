@@ -8371,9 +8371,9 @@ Body co-rotational (one co-rotated frame per body, suitable for stiff bodies)
 \begin_inset Text
 
 \begin_layout Plain Layout
-Body co-rotational, modal approach; The 'DEF_LIM' integration scheme is
- always used for this formulation (there would be no computational advantage
- in using 'DEF_EXP' since the system matrix is diagonal anyway); 
+Body co-rotational, modal approach; 'DEF_LIM' integration scheme is always
+ used for this formulation (there would be no computational advantage in
+ using 'DEF_EXP' since all system matrices are diagonal); 
 \emph on
 Note:
 \emph default
@@ -8404,9 +8404,11 @@ base
 \begin_inset Text
 
 \begin_layout Plain Layout
-Body co-rotational, reduced order approach; 
+Body co-rotational, reduced order approach; 'DEF_LIM' integration scheme
+ is always used for this formulation (there would be no computational advantage
+ in using 'DEF_EXP' since all system matrices are dense);
 \emph on
-Note:
+ Note:
 \emph default
  the 
 \series bold

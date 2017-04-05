@@ -25,7 +25,6 @@ msh = PIPE ((0.005, 0.05, 0), (0, 0, 0.1),
             0.01, 0.005, 10, 36, 4, 1, [1]*4)
 ROTATE (msh, (0.005, 0.05, 0.05), (0, 1, 0), 90)
 bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'BC-MODAL', base = modal)
-bod.scheme = 'DEF_LIM'
 bod.damping = step
 
 ns = NEWTON_SOLVER ()
