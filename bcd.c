@@ -200,7 +200,19 @@ int BCD_Append (SOLFEC *sol, SET *subset, double *sampling, int length, void *ou
     return 0;
   }
 
-  BODY *bod = subset->data;
+  BODY *bod = MAP_Find (sol->dom->idb, subset->data, NULL);
+
+  if (!bod)
+  {
+    WARNING(0, "Inconsistent body mapping");
+    return -1;
+  }
+  if (bod->kind != FEM)
+  {
+    WARNING(0, "A non-FEM body have been passed");
+    return -1;
+  }
+
   bcd->size = FEM_Mesh_Dofs(bod);
   bcd->next = sol->bcd;
   sol->bcd = bcd;

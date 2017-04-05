@@ -13729,7 +13729,7 @@ name "subsec:MODAL_ANALYSIS"
 
 \end_inset
 
-obj = MODAL_ANALYSIS (body, num, path | abstol, maxiter, verbose)
+obj = MODAL_ANALYSIS (| body, num, path, abstol, maxiter, verbose)
 \end_layout
 
 \begin_layout Standard
@@ -13799,6 +13799,16 @@ num
 num
 \series default
  modes is computed from scratch.
+ 
+\emph on
+Also note
+\emph default
+, that 
+\series bold
+path
+\series default
+ can be a sole parameter and in this case the routine will attempt to read
+ and return existing results.
 \end_layout
 
 \begin_layout Itemize

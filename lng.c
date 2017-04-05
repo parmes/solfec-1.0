@@ -8572,10 +8572,12 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   verbose = NULL;
   V = NULL;
   v = NULL;
+  body = NULL;
+  num = 0;
 
-  PARSEKEYS ("OiO|diO", &body, &num, &path, &abstol, &maxiter, &verbose);
+  PARSEKEYS ("|OiOdiO", &body, &num, &path, &abstol, &maxiter, &verbose);
 
-  TYPETEST (is_body (body, kwl[0]) && is_positive (num, kwl [1]) && is_string (path, kwl [2]) &&
+  TYPETEST (is_body (body, kwl[0]) && is_non_negative (num, kwl [1]) && is_string (path, kwl [2]) &&
       is_positive (abstol, kwl [3]) && is_positive (maxiter, kwl [4]) && is_string (verbose, kwl [5]));
 
 #if MPI && !LOCAL_BODIES /* avoid writing to the same file from several processes */
@@ -8593,7 +8595,7 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
   V = read_modal_analysis (PyString_AsString (path), &v);
   if (V && v) /* read without refering to a body et all (precomputed results, parallel use, etc.) */
   {
-    if (V->n != num) /* recompute anew */
+    if (num > 0 && V->n != num) /* recompute anew */
     {
       MX_Destroy (V);
       free (v);
@@ -8602,6 +8604,8 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
     }
   }
 
+  if (body)
+  {
 #if MPI && LOCAL_BODIES
   if (IS_HERE (body))
   {
@@ -8630,6 +8634,12 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
     }
   }
 
+  if (num == 0)
+  {
+    PyErr_SetString (PyExc_RuntimeError, "When specified the 'num' parameter must be positive");
+    return NULL;
+  }
+
   if (!(V && v))
   {
     ERRMEM (v = malloc (sizeof (double [num])));
@@ -8654,12 +8664,19 @@ static PyObject* lng_MODAL_ANALYSIS (PyObject *self, PyObject *args, PyObject *k
 #if MPI && LOCAL_BODIES
   }
 #endif
+  } /* if (body) */
 
 #if MPI && !LOCAL_BODIES /* avoid writing to the same file from several processes  -- end */
   }
   MPI_Barrier (MPI_COMM_WORLD); /* all processes meet here twice */
   }
 #endif
+
+  if (body == NULL && num == 0 && V == NULL && v == NULL)
+  {
+    PyErr_SetString (PyExc_RuntimeError, "Invalid call to MODAL_ANALYSIS --> neither a body nor a valid path was passed");
+    return NULL;
+  }
 
   if (V && v)
   {
