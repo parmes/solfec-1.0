@@ -2,7 +2,7 @@ import numpy
 import modred
 import pickle
 
-num_modes = 7
+num_modes = 10
 rig = pickle.load(open('out/reduced-order0/rig.pickle', 'rb'))
 dsp = pickle.load(open('out/reduced-order0/dsp.pickle', 'rb'))
 vecs = numpy.transpose(numpy.array(rig+dsp))

@@ -32,13 +32,13 @@ except:
   sys.exit(0)
 
 msh = PIPE ((0.005, 0.05, 0), (0, 0, 0.1),
-            0.01, 0.005, 10, 36, 4, 1, [1]*4)
+            0.01, 0.005, 36, 36, 4, 1, [1]*4)
 ROTATE (msh, (0.005, 0.05, 0.05), (0, 1, 0), 90)
 bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'BC-RO', base = reduced)
 bod.damping = step
 
 ns = NEWTON_SOLVER ()
-OUTPUT (sol, 0.005)
+OUTPUT (sol, 0.0025)
 
 import time
 t0 = time.time()

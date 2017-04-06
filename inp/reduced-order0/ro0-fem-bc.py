@@ -1,7 +1,7 @@
 step = 1E-3
 stop = 0.1
 
-sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order0/ro0-fem')
+sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order0/ro0-fem-bc')
 GRAVITY (sol, (0, 0, -10))
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
        young = 1E6, poisson = 0.25, density = 1E3)
@@ -14,14 +14,14 @@ SCALE (msh, (0.01, 0.1, 0.01))
 BODY (sol, 'OBSTACLE', msh, mat)
 
 msh = PIPE ((0.005, 0.05, 0), (0, 0, 0.1),
-            0.01, 0.005, 10, 36, 4, 1, [1]*4)
+            0.01, 0.005, 36, 36, 4, 1, [1]*4)
 ROTATE (msh, (0.005, 0.05, 0.05), (0, 1, 0), 90)
 bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'BC')
 bod.scheme = 'DEF_LIM'
 bod.damping = step
 
 ns = NEWTON_SOLVER ()
-OUTPUT (sol, 0.005)
+OUTPUT (sol, 0.0025)
 if sol.mode == 'WRITE' and not VIEWER():
   dsp = COROTATED_DISPLACEMENTS (sol, bod)
   rig = RIGID_DISPLACEMENTS (bod)
