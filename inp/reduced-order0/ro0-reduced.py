@@ -15,11 +15,10 @@ BODY (sol, 'OBSTACLE', msh, mat)
 
 try:
   import pickle
-  rig = pickle.load(open('out/reduced-order0/rig.pickle', 'rb'))
   mod = pickle.load(open('out/reduced-order0/mod.pickle', 'rb'))
   val = pickle.load(open('out/reduced-order0/val.pickle', 'rb'))
-  base = [x for vec in rig for x in vec] + mod[0] # FIXME --> values in base (1.0s?)
-  reduced = ([0,0,0,0,0,0,val[0]], base)
+  base = [x for vec in mod for x in vec]
+  reduced = (val[0:len(mod)], base)
 except:
   print 'Any of'
   print 'out/reduced-order0/rig.pickle'

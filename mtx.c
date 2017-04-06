@@ -2684,7 +2684,18 @@ void MX_Printf (MX *a)
 
   /* print nonzero entriers (this routine is meant for debug printing mainly) */
 
-  for (int i = 0; i < a->nzmax; i ++) printf ("%g  ", a->x [i]);
+  if (a->kind == MXDENSE)
+  {
+    for (int i = 0; i < a->m; i ++)
+    {
+      for (int j = 0; j < a->n; j ++)
+      {
+	printf ("%e\t", a->x[j*a->m+i]);
+      }
+      printf ("\n");
+    }
+  }
+  else for (int i = 0; i < a->nzmax; i ++) printf ("%g  ", a->x [i]);
 
   printf ("\n");
 }

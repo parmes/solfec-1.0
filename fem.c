@@ -2390,6 +2390,10 @@ static void RO_lift_conf (BODY *bod, MX *E, MESH *msh, double *R, double *q, dou
     SUB (Z[0], Y, Y);
     SCC (Y, x); /* qm = d - (I-R)Z */
   }
+
+  /* FIXME --> 'BC-RO' case needs to be taken into account here;
+               otherwise in 'READ' mode the rigid motion is lost;
+	       this has to do with mesh mass scaling in projections; */
 }
 
 /* q = project_onto_E_in_the_M_norm (d = R'[(I-R)Z+qm]) */
@@ -2494,14 +2498,14 @@ static void RO_dynamic_init (BODY *bod)
     {
       /* bod->M = E' M E  = I */
       M = diagonal_inertia (bod, 1);
-      MX *EtM = MX_Matmat (1.0, MX_Tran(bod->evec), M, 0.0, NULL);
-      bod->M = MX_Matmat (1.0, EtM, bod->evec, 0.0, NULL);
+      MX *EtM = MX_Matmat (1.0, MX_Tran(E), M, 0.0, NULL);
+      bod->M = MX_Matmat (1.0, EtM, E, 0.0, NULL);
       MX_Destroy (EtM);
 
       /* bod->K = E' K E = diag (lambdas) */
       MX *K = tangent_stiffness (bod, 1);
-      MX *EtK = MX_Matmat (1.0, MX_Tran(bod->evec), K, 0.0, NULL);
-      bod->K = MX_Matmat (1.0, EtK, bod->evec, 0.0, NULL);
+      MX *EtK = MX_Matmat (1.0, MX_Tran(E), K, 0.0, NULL);
+      bod->K = MX_Matmat (1.0, EtK, E, 0.0, NULL);
       MX_Destroy (EtK);
 
       double step = bod->dom->step;
@@ -4076,20 +4080,27 @@ void FEM_Mesh_Rigid_Displacements (BODY *bod, double *disp)
   ry = rx+dofs;
   rz = ry+dofs;
 
-  inv = 1.0/sqrt(n);
-  blas_dscal (n, inv, dx, 1);
-  blas_dscal (n, inv, dy, 1);
-  blas_dscal (n, inv, dz, 1);
-
-  inv = blas_ddot (n, rx, 1, rx, 1);
+  inv = blas_ddot (dofs, dx, 1, dx, 1);
   inv = 1.0/sqrt(inv);
-  blas_dscal (n, inv, rx, 1);
+  blas_dscal (dofs, inv, dx, 1);
 
-  inv = blas_ddot (n, ry, 1, ry, 1);
+  inv = blas_ddot (dofs, dy, 1, dy, 1);
   inv = 1.0/sqrt(inv);
-  blas_dscal (n, inv, ry, 1);
+  blas_dscal (dofs, inv, dy, 1);
 
-  inv = blas_ddot (n, rz, 1, rz, 1);
+  inv = blas_ddot (dofs, dz, 1, dz, 1);
   inv = 1.0/sqrt(inv);
-  blas_dscal (n, inv, rz, 1);
+  blas_dscal (dofs, inv, dz, 1);
+
+  inv = blas_ddot (dofs, rx, 1, rx, 1);
+  inv = 1.0/sqrt(inv);
+  blas_dscal (dofs, inv, rx, 1);
+
+  inv = blas_ddot (dofs, ry, 1, ry, 1);
+  inv = 1.0/sqrt(inv);
+  blas_dscal (dofs, inv, ry, 1);
+
+  inv = blas_ddot (dofs, rz, 1, rz, 1);
+  inv = 1.0/sqrt(inv);
+  blas_dscal (dofs, inv, rz, 1);
 }
