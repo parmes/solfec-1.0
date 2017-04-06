@@ -2412,7 +2412,10 @@ static void RO_project_conf (BODY *bod, MX *E, MESH *msh, double *tmp, double *R
     COPY (x, Y);
     TVMUL (R, Y, x); /* R' d */
 
-    HADAMARD (x, z, x); /* tmp = M R' d */
+    if (bod->form == BODY_COROTATIONAL_MODAL)
+    {
+      HADAMARD (x, z, x); /* tmp = M R' d */
+    }
   }
 
   MX_Matvec (1.0, MX_Tran (E), tmp, 0.0, q); /* q = E' M R' d */
@@ -2430,7 +2433,10 @@ static void RO_project_velo (BODY *bod, MX *E, double *tmp, double *R, double *u
     COPY (x, Y);
     TVMUL (R, Y, x); /* R' um */
 
-    HADAMARD (x, z, x); /* tmp = M R' um */
+    if (bod->form == BODY_COROTATIONAL_MODAL)
+    {
+      HADAMARD (x, z, x); /* tmp = M R' um */
+    }
   }
 
   MX_Matvec (1.0, MX_Tran (E), tmp, 0.0, u); /* u = E' M R' um */
