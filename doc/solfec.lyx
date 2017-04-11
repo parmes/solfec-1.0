@@ -6625,8 +6625,9 @@ obj.step
 obj.verbose
 \series default
 \emph default
- - either 'ON' or 'OFF' enabling or disabling writing to standard output
- (default: 'ON') 
+ - 'ON' or 'OFF' enabling or disabling writing to standard output (default:
+ 'ON') ; '%' can also be used to enable plain percentage printout per individual
+ RUN
 \end_layout
 
 \end_inset

@@ -1681,7 +1681,8 @@ static int lng_SOLFEC_set_step (lng_SOLFEC *self, PyObject *value, void *closure
 
 static PyObject* lng_SOLFEC_get_verbose (lng_SOLFEC *self, void *closure)
 {
-  if (self->sol->verbose) return PyString_FromString ("ON");
+  if (self->sol->verbose > 0) return PyString_FromString ("ON");
+  else if (self->sol->verbose < 0) return PyString_FromString ("%");
   else return PyString_FromString ("OFF");
 }
 
@@ -1691,9 +1692,10 @@ static int lng_SOLFEC_set_verbose (lng_SOLFEC *self, PyObject *value, void *clos
 
   IFIS (value, "ON") self->sol->verbose = 1;
   ELIF (value, "OFF") self->sol->verbose = 0;
+  ELIF (value, "%") self->sol->verbose = -1;
   ELSE
   {
-    PyErr_SetString (PyExc_ValueError, "Invalid verbose value (ON/OFF accepted)");
+    PyErr_SetString (PyExc_ValueError, "Invalid verbose value (ON/OFF/% accepted)");
     return -1;
   }
 

@@ -78,12 +78,12 @@ static void clean_timers (SOLFEC *sol)
 /* turn on verbosity */
 static int verbose_on (SOLFEC *sol)
 {
-  if (sol->verbose)
+  if (sol->verbose > 0)
   {
     sol->dom->verbose = 1;
   }
 
-  return sol->verbose;
+  return sol->verbose > 0;
 }
 
 /* turn off verbosity */
@@ -597,7 +597,8 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
       fprintf (stdout, "WARNING: Valid output files exist at path: %s\n", sol->outpath);
       char choice = 'n';
       fprintf (stdout, "Would you like to overwrite them? y/[n]:");
-      scanf ("%c", &choice);
+      fseek (stdin, 0, SEEK_END); /* this helps when SOLFEC is created multiple times --> */
+      scanf ("%c", &choice); /* --> in which case scanf will correctly read new choice every time */
       if (choice == 'y') goto write;
       else
       {
@@ -716,7 +717,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 {
   if (sol->mode == SOLFEC_WRITE)
   {
-    int verbose, lastwrite;
+    int verbose, lastwrite, dodel;
     LOCDYN *ldy;
 
     /* set current solver */
@@ -743,7 +744,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
     {
       DOM_Initialize (sol->dom);
 
-      if (sol->verbose) initstatsout (sol->dom); /* print out initial statistics */
+      if (sol->verbose > 0) initstatsout (sol->dom); /* print out initial statistics */
 
       sol->start = time (NULL);
 
@@ -788,8 +789,9 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       sol->t0 = sol->dom->time;
     }
 
-    if (sol->verbose) verbose = sol->dom->verbose;
+    if (sol->verbose > 0) verbose = sol->dom->verbose;
     else verbose = 0;
+    dodel = 0;
 
     for (double t0 = sol->dom->time; sol->dom->time < (t0 + fabs(duration));)
     {
@@ -798,6 +800,13 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       if (sol->dom->rank == 0)
 #endif
       if (verbose) printf ("TIME: %g ... ", sol->dom->time);
+
+      if (sol->verbose < 0) /* % */
+      {
+	if (dodel) printf ("\b\b\b\b");
+	int progress = (int) (100. * ((sol->dom->time - t0) / fabs(duration)));
+	printf ("%3d%%", progress); dodel = 1; fflush (stdout);
+      }
 
       /* begin update of domain */
       ldy = DOM_Update_Begin (sol->dom);
@@ -846,6 +855,12 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 
       /* check whether STOP file was created by the user */
       if (stopfile (sol)) break;
+    }
+
+    if (sol->verbose < 0) /* % */
+    {
+      printf ("\n");
+      fflush (stdout);
     }
 
     /* BCD append Python output at the end of run */

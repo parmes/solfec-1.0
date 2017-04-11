@@ -1,7 +1,8 @@
 step = 1E-3
 stop = 0.1
 
-sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order0/ro0-fem-tl')
+sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order1/ro1-fem-bc')
+if 'percentage' in locals(): sol.verbose = '%'
 GRAVITY (sol, (0, 0, -10))
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
        young = 1E6, poisson = 0.25, density = 1E3)
@@ -16,7 +17,8 @@ BODY (sol, 'OBSTACLE', msh, mat)
 msh = PIPE ((0.005, 0.05, 0), (0, 0, 0.1),
             0.01, 0.005, 36, 36, 4, 1, [1]*4)
 ROTATE (msh, (0.005, 0.05, 0.05), (0, 1, 0), 90)
-bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'TL')
+TRANSLATE (msh, (-0.025, 0, 0))
+bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'BC')
 bod.scheme = 'DEF_LIM'
 bod.damping = step
 
@@ -30,12 +32,12 @@ import time
 t0 = time.time()
 RUN (sol, ns, stop)
 t1 = time.time()
-print 'Total runtime:', (t1-t0), 'seconds'
+print 'Total runtime: %.3f seconds' % (t1-t0)
 
 if sol.mode == 'WRITE' and not VIEWER():
   print 'Saving displacement snapshots ...'
   import pickle
-  pickle.dump(dsp, open('out/reduced-order0/dsp.pickle', 'wb')) 
-  pickle.dump(rig, open('out/reduced-order0/rig.pickle', 'wb')) 
+  pickle.dump(dsp, open('out/reduced-order1/dsp.pickle', 'wb')) 
+  pickle.dump(rig, open('out/reduced-order1/rig.pickle', 'wb')) 
   print 'Calculating modal decomposition ...'
-  MODAL_ANALYSIS (bod, 20, 'out/reduced-order0/modal')
+  MODAL_ANALYSIS (bod, 20, 'out/reduced-order1/modal')

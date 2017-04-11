@@ -1,7 +1,8 @@
 step = 1E-3
 stop = 0.1
 
-sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order0/ro0-reduced')
+sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order1/ro1-reduced')
+if 'percentage' in locals(): sol.verbose = '%'
 GRAVITY (sol, (0, 0, -10))
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
        young = 1E6, poisson = 0.25, density = 1E3)
@@ -15,18 +16,18 @@ BODY (sol, 'OBSTACLE', msh, mat)
 
 try:
   import pickle
-  mod = pickle.load(open('out/reduced-order0/mod.pickle', 'rb'))
-  val = pickle.load(open('out/reduced-order0/val.pickle', 'rb'))
+  mod = pickle.load(open('out/reduced-order1/mod.pickle', 'rb'))
+  val = pickle.load(open('out/reduced-order1/val.pickle', 'rb'))
   base = [x for vec in mod for x in vec]
   reduced = (val[0:len(mod)], base)
 except:
   print 'Any of'
-  print 'out/reduced-order0/rig.pickle'
-  print 'out/reduced-order0/mod.pickle'
-  print 'out/reduced-order0/val.pickle'
+  print 'out/reduced-order1/rig.pickle'
+  print 'out/reduced-order1/mod.pickle'
+  print 'out/reduced-order1/val.pickle'
   print 'files has not been found'
-  print '--> first run solfec examples/reduced-order0/ro0-fem.py'
-  print '--> then run python examples/reduced-order0/ro0-modred.py'
+  print '--> first run solfec examples/reduced-order1/ro1-fem.py'
+  print '--> then run python examples/reduced-order1/ro1-modred.py'
   print 'to generate these files!'
   import sys
   sys.exit(0)
@@ -34,6 +35,7 @@ except:
 msh = PIPE ((0.005, 0.05, 0), (0, 0, 0.1),
             0.01, 0.005, 36, 36, 4, 1, [1]*4)
 ROTATE (msh, (0.005, 0.05, 0.05), (0, 1, 0), 90)
+TRANSLATE (msh, (-0.025, 0, 0))
 bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'BC-RO', base = reduced)
 bod.damping = step
 
@@ -44,4 +46,4 @@ import time
 t0 = time.time()
 RUN (sol, ns, stop)
 t1 = time.time()
-print 'Total runtime:', (t1-t0), 'seconds'
+print 'Total runtime: %.3f seconds' % (t1-t0)
