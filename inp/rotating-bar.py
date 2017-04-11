@@ -1,5 +1,5 @@
 # rotating bar example
-# testing BC and RO formulations
+# testing BC and BC-MODAL formulations
 # ------------------------------
 from scipy.io import mmread
 from scipy.linalg import *
@@ -33,7 +33,7 @@ sl0 = SOLFEC ('DYNAMIC', 1E-3, 'out/rotating-bar/MK')
 bl0 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
 bod = BODY (sl0, 'FINITE_ELEMENT', COPY (mesh), bl0)
 eval = [] # selected eigenvalue list
-evec = [] # selected eigenvector list (BODY command takes a tuple (eval, evec) argument for the RO formulation)
+evec = [] # selected eigenvector list (BODY command takes a tuple (eval, evec) argument for the BC-MODAL formulation)
 vsel = (0,1,2,3,4,5,13,18,25,33,38)
 if 0:
   BODY_MM_EXPORT (bod, 'out/rotating-bar/MK/M.mtx', 'out/rotating-bar/MK/K.mtx')
@@ -54,7 +54,7 @@ else:
     eval.append (data0[0][j])
     for k in range (j*ndofs,(j+1)*ndofs):
       evec.append (data0[1][k])
-data = (eval, evec)
+modal_data = (eval, evec)
 
 # undamped rotatin run
 def rotation_test (h1, d1, damping, TL, LEN, ENE):
@@ -78,10 +78,10 @@ def rotation_test (h1, d1, damping, TL, LEN, ENE):
   INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
   RUN (sl1, sv, d1)
 
-  # rotation: RO
+  # rotation: BC-MODAL
   sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO1_%g_'%damping + str(long(1./h1)) + '_' + str(long(d1)))
   bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
-  bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
+  bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'BC-MODAL', base = modal_data)
   bd2.scheme = 'DEF_LIM'
   bd2.damping = damping
   INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
@@ -133,7 +133,7 @@ def rotation_test (h1, d1, damping, TL, LEN, ENE):
 	plt.title ('Rotating bar: elongation ' + hstr)
 	if TL: plt.plot (th0 [0], lh0, label='TL', marker = 's')
 	plt.plot (th1 [0], lh1, label='BC')
-	plt.plot (th2 [0], lh2, label='RO', ls = '--', marker = 'o')
+	plt.plot (th2 [0], lh2, label='BC-MODAL', ls = '--', marker = 'o')
 	plt.xlabel ('Time [s]')
 	plt.ylabel ('Elongation [m]')
 	plt.legend(loc = 'upper right')
@@ -145,7 +145,7 @@ def rotation_test (h1, d1, damping, TL, LEN, ENE):
 	plt.title ('Rotating bar: total energy' + hstr)
 	if TL: plt.plot (th0 [0], tot0, label='TL', ls = '-.')
 	plt.plot (th1 [0], tot1, label='BC')
-	plt.plot (th2 [0], tot2, label='RO', ls = '--')
+	plt.plot (th2 [0], tot2, label='BC-MODAL', ls = '--')
 	plt.xlabel ('Time [s]')
 	plt.ylabel ('Energy [J]')
 	plt.legend(loc = 'upper right')
@@ -176,7 +176,7 @@ def rotation_comparison (n, pow0, pow1, d1, E, damping):
     eval.append (data0[0][j])
     for k in range (j*ndofs,(j+1)*ndofs):
       evec.append (data0[1][k])
-  data = (eval, evec)
+  modal_data = (eval, evec)
 
   toplot = []
   for p in range (pow0, pow1):
@@ -203,10 +203,10 @@ def rotation_comparison (n, pow0, pow1, d1, E, damping):
     if not VIEWER() and sl1.mode == 'READ':
       th1 = HISTORY (sl1, [(bd1, p1, 'DZ')], 0, d1)
 
-    # rotation: RO
+    # rotation: BC-MODAL
     sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO3_%d_%g_%g_'%(n, E, damping) + str(long(1./h1)) + '_' + str(long(d1)))
     bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
-    bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
+    bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'BC-MODAL', base = modal_data)
     bd2.scheme = 'DEF_LIM'
     bd2.damping = damping
     INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
@@ -246,11 +246,11 @@ def rotation_comparison (n, pow0, pow1, d1, E, damping):
       plt.savefig ('out/rotating-bar/rb_dz_BC_n%d_E%g_'%(n,E) + str(long(d1)) + '.eps')
 
       plt.clf ()
-      plt.title ('Rotating bar: RO top point $\|dz_{RO} - dz_{RIGID}\|$' + hstr)
+      plt.title ('Rotating bar: BC-MODAL top point $\|dz_{BC-MODAL} - dz_{RIGID}\|$' + hstr)
       for dat in DRO:
         plt.plot (dat[0], dat[1], label=dat[2])
       plt.xlabel ('Time [s]')
-      plt.ylabel ('$\|dz_{RO} - dz_{RIGID}\|$ [m]')
+      plt.ylabel ('$\|dz_{BC-MODAL} - dz_{RIGID}\|$ [m]')
       plt.semilogy (10)
       plt.legend(loc = 'best')
       plt.savefig ('out/rotating-bar/rb_dz_RO_n%d_E%g_'%(n,E) + str(long(d1)) + '.eps')
@@ -287,7 +287,7 @@ def undamped_rotation_runtimes (h1, d1):
     eval.append (data0[0][j])
     for k in range (j*ndofs,(j+1)*ndofs):
       evec.append (data0[1][k])
-  data = (eval, evec)
+  modal_data = (eval, evec)
 
   # rotation: BC
   sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC2_' + str(long(1./h1)) + '_' + str(long(d1)))
@@ -297,10 +297,10 @@ def undamped_rotation_runtimes (h1, d1):
   INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
   RUN (sl1, sv, d1)
 
-  # rotation: RO
+  # rotation: BC-MODAL
   sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO2_' + str(long(1./h1)) + '_' + str(long(d1)))
   bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
-  bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
+  bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'BC-MODAL', base = modal_data)
   bd2.scheme = 'DEF_LIM'
   INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
   RUN (sl2, sv, d1)
@@ -345,7 +345,7 @@ def undamped_rotation_runtimes (h1, d1):
     for tt in th2[1]:
       tt2 += tt
     runts.append (tt2/nstp)
-    runls.append ('RO')
+    runls.append ('BC-MODAL')
     colors.append ('y')
     hatchs.append ('\\\\')
     for tt in th3[1]:
@@ -391,7 +391,7 @@ def undamped_rotation_runtimes (h1, d1):
       eval.append (data0[0][j])
       for k in range (j*ndofs,(j+1)*ndofs):
 	evec.append (data0[1][k])
-    data = (eval, evec)
+    modal_data = (eval, evec)
 
     # rotation: BC
     sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/BC2_' + str(long(1./h1)) + '_' + str(long(d1)) + '_' + str(n))
@@ -401,10 +401,10 @@ def undamped_rotation_runtimes (h1, d1):
     INITIAL_VELOCITY (bd1, (0, 0, 0), (1, 0, 0))
     RUN (sl1, sv, d1)
 
-    # rotation: RO
+    # rotation: BC-MODAL
     sl2 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/RO2_' + str(long(1./h1)) + '_' + str(long(d1)) + '_' + str(n))
     bl2 = BULK_MATERIAL (sl2, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
-    bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'RO', modal = data)
+    bd2 = BODY (sl2, 'FINITE_ELEMENT', COPY (mesh), bl2, form = 'BC-MODAL', base = modal_data)
     bd2.scheme = 'DEF_LIM'
     INITIAL_VELOCITY (bd2, (0, 0, 0), (1, 0, 0))
     RUN (sl2, sv, d1)
@@ -440,7 +440,7 @@ def undamped_rotation_runtimes (h1, d1):
       plt.clf ()
       plt.title ('Rotating bar: scaling of avg. runtime / time step')
       plt.bar (ind, BCVALS, wdt, color = 'r', hatch = '//', label = 'BC')
-      plt.bar (ind+wdt, ROVALS, wdt, color = 'y', hatch = '\\\\', label = 'RO')
+      plt.bar (ind+wdt, ROVALS, wdt, color = 'y', hatch = '\\\\', label = 'BC-MODAL')
       plt.xlabel ('Mesh size')
       plt.ylabel ('Runtime [s]')
       plt.xticks (ind+wdt, LABELS)
@@ -454,7 +454,7 @@ def undamped_rotation_runtimes (h1, d1):
 def runtest (formulation, E, damping, duration, step):
   solfec = SOLFEC ('DYNAMIC', step, 'out/rotating-bar/cnv_%s_%g_%g_%g_%g'%(formulation, E, damping, duration, step))
   bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = E, poisson = PoissonRatio, density = MassDensity)
-  bod = BODY (solfec, 'FINITE_ELEMENT', COPY (mesh), bulk, form = formulation, modal = data)
+  bod = BODY (solfec, 'FINITE_ELEMENT', COPY (mesh), bulk, form = formulation, base = modal_data)
   bod.scheme = 'DEF_LIM'
   bod.damping = damping
   INITIAL_VELOCITY (bod, (0, 0, 0), (1, 0, 0))
@@ -500,10 +500,10 @@ def convergence_tests ():
 
   TL0 = convtest ('TL', 200E4, 0.000, 16, 7, 14, 4)
   BC0 = convtest ('BC', 200E4, 0.000, 16, 7, 14, 4)
-  RO0 = convtest ('RO', 200E4, 0.000, 16, 7, 14, 4)
+  RO0 = convtest ('BC-MODAL', 200E4, 0.000, 16, 7, 14, 4)
   TL1 = convtest ('TL', 200E9, 1.E-6, 16, 7, 14, 4)
   BC1 = convtest ('BC', 200E9, 1.E-6, 16, 7, 14, 4)
-  RO1 = convtest ('RO', 200E9, 1.E-6, 16, 7, 14, 4)
+  RO1 = convtest ('BC-MODAL', 200E9, 1.E-6, 16, 7, 14, 4)
 
   try:
     import matplotlib.pyplot as plt
@@ -512,7 +512,7 @@ def convergence_tests ():
     plt.title ('Rotating bar: convergence rate (E = 200E4, $\eta=0$)')
     plt.loglog (TL0[0], TL0[1], label='TL', ls = '-.', lw=3)
     plt.loglog (BC0[0], BC0[1], label='BC')
-    plt.loglog (RO0[0], RO0[1], label='RO', ls = '--', marker = 'o')
+    plt.loglog (RO0[0], RO0[1], label='BC-MODAL', ls = '--', marker = 'o')
     plt.xlabel ('Time step $h$ [s]')
     plt.ylabel ('Solution distance $\|q_{ref} - q_h\|$ [m]')
     plt.legend(loc = 'lower right')
@@ -522,7 +522,7 @@ def convergence_tests ():
     plt.title ('Rotating bar: convergence rate (E = 200E9, $\eta=1/10^6$)')
     plt.loglog (TL1[0], TL1[1], label='TL', ls = '-.', lw=3)
     plt.loglog (BC1[0], BC1[1], label='BC')
-    plt.loglog (RO1[0], RO1[1], label='RO', ls = '--', marker = 'o')
+    plt.loglog (RO1[0], RO1[1], label='BC-MODAL', ls = '--', marker = 'o')
     plt.xlabel ('Time step $h$ [s]')
     plt.ylabel ('Solution distance $\|q_{ref} - q_h\|$ [m]')
     plt.legend(loc = 'lower right')
@@ -533,33 +533,19 @@ def convergence_tests ():
 
 # run undapmped tests
 rotation_test (1./64., 1, 0.0, 1, 1, 0)
-rotation_test (1./256., 1, 0.0, 1, 1, 0)
-rotation_test (1./64., 100, 0.0, 0, 0, 1)
-rotation_test (1./64., 1000, 0.0, 0, 0, 1)
+#rotation_test (1./256., 1, 0.0, 1, 1, 0)
+#rotation_test (1./64., 100, 0.0, 0, 0, 1)
+#rotation_test (1./64., 1000, 0.0, 0, 0, 1)
 
 # compare rotations
-rotation_comparison (2, 5, 12, 1, 200E9, 0.001)
+#rotation_comparison (2, 5, 12, 1, 200E9, 0.001)
 
 # run damped test
-rotation_test (1./64., 1, 0.01, 1, 1, 0)
-rotation_test (1./64., 1, 0.05, 1, 1, 0)
+#rotation_test (1./64., 1, 0.01, 1, 1, 0)
+#rotation_test (1./64., 1, 0.05, 1, 1, 0)
 
 # run runtime tests
-undamped_rotation_runtimes (1./64., 1)
+#undamped_rotation_runtimes (1./64., 1)
 
 # run convergence tests
-convergence_tests ()
-
-'''
-# quasistatic test   
-h1 = 1./64.
-d1 = 1.
-sl1 = SOLFEC ('DYNAMIC', h1, 'out/rotating-bar/QS/RO')
-bl1 = BULK_MATERIAL (sl0, model = 'KIRCHHOFF', young = 200E4, poisson = PoissonRatio, density = MassDensity)
-bod = BODY (sl1, 'FINITE_ELEMENT', COPY (mesh), bl1, form = 'RO', modal = (eval, evec))
-bod.scheme = 'DEF_LIM'
-PRESSURE (bod, 0, 10)
-PRESSURE (bod, 5, 10)
-bod.damping = h1# O(h) damping
-RUN (sl1, sv, d1)
-'''
+#convergence_tests ()
