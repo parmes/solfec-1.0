@@ -255,7 +255,8 @@ void BCD_Sample (SOLFEC *sol, BCD *bcd)
         bcd->length, sol->dom->time, sol->dom->step)) sample_now = 1;
     else
     {
-      double interval = bcd->length == 0 ? bcd->sampling[0] : sol->output_interval;
+      double interval = bcd->length == 0 ? bcd->sampling[0] :
+        (sol->output_interval > 0.0 ? sol->output_interval : sol->dom->step);
 
       if (fabs(bcd->latest + interval - sol->dom->time) <= sol->dom->step)
       {

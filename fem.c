@@ -2635,8 +2635,18 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
   blas_daxpy (nm, half, um, 1, tmp, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
   BC_update_rotation (bod, msh, tmp, R); /* R(t+h) = R(qm(t+h)) */
 
+  /* FIXME 
+   * previous 0:6 indexing works for BC-MODAL but no BC-RO
+   * where the modes 0:6 are not necessarily purely rigid */
+
   RO_project_velo (bod, E, tmp, R, um, r); /* r[i>=6] store the "good" deformation components */
+
+#if 0
   for (i = 6; i < n; i ++) u[i] = r[i]; /* while u[i<6] store the "good" rotation components */
+#else
+  for (i = 0; i < n; i ++) u[i] = r[i]; /* FIXME-ed:) --> this seems to work both RO/MODAL cases */
+#endif
+
   MX_Matvec (1.0, E, u, 0.0, um);
   RO_rotate_forward (R, um, nm); /* now um(t+h) combines "good" rotation and deformation */
 

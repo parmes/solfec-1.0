@@ -23,4 +23,4 @@ pickle.dump(mod, open('out/reduced-order1/mod.pickle', 'wb'))
 pickle.dump(val, open('out/reduced-order1/val.pickle', 'wb'))
 
 t1 = time.time()
-print 'Total runtime: %.3f seconds' % (t1-t0)
+print '\bTotal runtime: %.3f seconds' % (t1-t0)

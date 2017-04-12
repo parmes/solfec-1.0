@@ -46,4 +46,4 @@ import time
 t0 = time.time()
 RUN (sol, ns, stop)
 t1 = time.time()
-print 'Total runtime: %.3f seconds' % (t1-t0)
+print '\bTotal runtime: %.3f seconds' % (t1-t0)
