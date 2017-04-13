@@ -207,7 +207,7 @@ int ELEMENT_Contains_Point (MESH *msh, ELEMENT *ele, double *point, int ref);
 /* does the element contain a spatial point? */
 int ELEMENT_Contains_Spatial_Point (MESH *msh, ELEMENT *ele, double *point);
 
-/* return >= node index if point == node[index] or -1 otherwise */
+/* return >= 0 node index if point == node[index] or -1 otherwise */
 int ELEMENT_Ref_Point_To_Node (MESH *msh, ELEMENT *ele, double *point);
 
 /* return distance of a spatial (ref == 0) or referential (ref == 1) point to the element */

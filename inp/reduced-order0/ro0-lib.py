@@ -4,6 +4,12 @@ import shutil
 import modred
 import numpy
 
+# define global path extension
+pathext = ''
+def ro0_path_extension(path_extension):
+  global pathext
+  pathext = path_extension
+
 # model creation routine
 def ro0_model (step, damping=0.0, femform='TL',
   robase=None, verbose='ON', kind='FINITE_ELEMENT',
@@ -11,11 +17,11 @@ def ro0_model (step, damping=0.0, femform='TL',
 
   # output path
   if kind == 'FINITE_ELEMENT':
-    if femform == 'TL': outpath = 'out/reduced-order0/ro0-fem-tl'
-    elif femform == 'BC': outpath = 'out/reduced-order0/ro0-fem-bc'
-    elif femform == 'BC-MODAL': outpath = 'out/reduced-order0/ro0-modal'
-    elif femform == 'BC-RO': outpath = 'out/reduced-order0/ro0-reduced'
-  elif kind == 'RIGID': outpath = 'out/reduced-order0/ro0-rigid'
+    if femform == 'TL': outpath = 'out/reduced-order0/ro0-fem-tl' + pathext
+    elif femform == 'BC': outpath = 'out/reduced-order0/ro0-fem-bc' + pathext
+    elif femform == 'BC-MODAL': outpath = 'out/reduced-order0/ro0-modal' + pathext
+    elif femform == 'BC-RO': outpath = 'out/reduced-order0/ro0-reduced' + pathext
+  elif kind == 'RIGID': outpath = 'out/reduced-order0/ro0-rigid' + pathext
 
   # remove previous output directory
   if overwrite:
@@ -114,9 +120,9 @@ def ro0_POD_base(rigid, deformable, num_modes=11, verbose=False):
   return (val[0:len(mod)], base)
 
 # retrieve time history of time
-def ro0_times (sol):
+def ro0_times (sol, progress='OFF'):
   dur = DURATION (sol)
-  th = HISTORY (sol, ['STEP'], dur[0], dur[1])
+  th = HISTORY (sol, ['STEP'], dur[0], dur[1], 1, progress)
   return th[0]
 
 # retrieve elongation time history
@@ -132,3 +138,52 @@ def ro0_elongation (sol):
     l = ((p0[0]+dx0-p1[0]-dx1)**2 + (p0[1]+dy0-p1[1]-dy1)**2 + (p0[2]+dz0-p1[2]-dz1)**2)**0.5
     lh.append (l-1.0)
   return lh
+
+# retrieve energy time history
+def ro0_energy (sol):
+  bod = sol.bodies[0]
+  dur = DURATION (sol)
+  th = HISTORY (sol, [(bod, 'KINETIC'), (bod, 'INTERNAL')], dur[0], dur[1], progress='ON')
+  tot = []
+  for (kinetic,internal) in zip(th[1],th[2]):
+    tot.append (kinetic+internal)
+  return tot
+
+# calculate vector norm
+def norm(q):
+  sum = 0.0
+  for x in q: sum += x**2
+  return sum**0.5
+
+# calculate vector difference
+def diff(a, b):
+  c = []
+  for x, y in zip (a, b): c.append (x-y)
+  return c
+
+# convergence rate test
+def ro0_convtest (femform, Young, damping, pow0, pow1, pow2, pow3, robase=None):
+
+  h0 = 1.0 / (2.0 ** pow0)
+  d0 = 1.0 / (2.0 ** pow3)
+  print '\b%s --> h=%g ...' % (femform, h0),
+  sol = ro0_model (h0, damping, femform, robase, '%',
+                   'FINITE_ELEMENT', Young, 'ON', d0)
+  q0 = sol.bodies[0].conf
+
+  dq = []
+  hh = []
+  for i in range (pow1, pow2):
+    h =  1.0 / (2.0 ** i)
+    print '\b%s --> h=%g ...' % (femform, h),
+    sol = ro0_model (h, damping, femform, robase, '%',
+                     'FINITE_ELEMENT', Young, 'ON', d0)
+    q = sol.bodies[0].conf
+    dq.append (norm(diff(q0, q)))
+    hh.append (h)
+
+  print '\b%s --> convergence ratios:' % femform
+  for i in range (0, len(dq)-1):
+    print dq[i] / dq[i+1]
+
+  return (hh, dq)

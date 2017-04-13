@@ -81,6 +81,7 @@ static void write_frame (PBF *bf)
   PBF_Int2 (bf, "i", bf->i, bf->ipos);
   PBF_Int2 (bf, "doubles", &bf->dpos, 1);
   PBF_Double2 (bf, "d", bf->d, bf->dpos);
+  ASSERT (H5LTset_attribute_int (bf->stack[0], ".", "FRAMES", &bf->frame, 1) >= 0, ERR_PBF_WRITE); /* speeds up count_time_frames */
   H5Fflush (bf->stack[0], H5F_SCOPE_GLOBAL); /* fixes Issue 55 ? */
 }
 
@@ -90,11 +91,14 @@ static int count_time_frames (PBF *bf)
   char name [128];
   int n;
 
-  for (n = 0;; n ++) /* count frames */
+  if (H5LTget_attribute_int (bf->stack[0], ".", "FRAMES", &n) < 0)
   {
-    snprintf (name, 128, "/%d", n);
+    for (n = 0;; n ++) /* count frames */
+    {
+      snprintf (name, 128, "/%d", n);
 
-    if (!H5Lexists (bf->stack[0], name, H5P_DEFAULT)) break;
+      if (!H5Lexists (bf->stack[0], name, H5P_DEFAULT)) break;
+    }
   }
 
   return n;

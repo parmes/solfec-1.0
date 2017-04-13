@@ -2466,11 +2466,18 @@ static void RO_initialize_velocity (BODY *bod)
   MX *E = bod->evec;
   int i;
 
-  ERRMEM (p = malloc (sizeof (double [E->m])));
-  for (i = 0; i < E->m; i ++) p [i] = M[i]*velo[i]; /* p = full initial momentum */
-  MX_Matvec (1.0, MX_Tran (E), p, 0.0, bod->velo); /* p_reduced(0) = E' p_full(0) */
-  /* since reduced mass is identity, reduced velocity is by magnitude the same as momentum */
-  free (p);
+  if (bod->form == BODY_COROTATIONAL_MODAL)
+  {
+    ERRMEM (p = malloc (sizeof (double [E->m])));
+    for (i = 0; i < E->m; i ++) p [i] = M[i]*velo[i]; /* p = full initial momentum */
+    MX_Matvec (1.0, MX_Tran (E), p, 0.0, bod->velo); /* p_reduced(0) = E' p_full(0) */
+    /* since reduced mass is identity, reduced velocity is by magnitude the same as momentum */
+    free (p);
+  }
+  else if (bod->form == BODY_COROTATIONAL_REDUCED_ORDER)
+  {
+    MX_Matvec (1.0, MX_Tran (E), velo, 0.0, bod->velo); /* u_reduced(0) = E' u_full(0) */
+  }
 }
 
 /* reduced order initialise dynamic time stepping */
@@ -2603,7 +2610,7 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
 {
   MX *E = bod->evec;
   MESH *msh = FEM_MESH (bod);
-  int n = bod->dofs, i,
+  int n = bod->dofs,
       nm = MESH_DOFS (msh);
   double half = 0.5 * step,
 	*R = FEM_ROT (bod),
@@ -2635,19 +2642,9 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
   blas_daxpy (nm, half, um, 1, tmp, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
   BC_update_rotation (bod, msh, tmp, R); /* R(t+h) = R(qm(t+h)) */
 
-  /* FIXME 
-   * previous 0:6 indexing works for BC-MODAL but no BC-RO
-   * where the modes 0:6 are not necessarily purely rigid */
+  RO_project_velo (bod, E, tmp, R, um, u); /* project um onto reduced u */
 
-  RO_project_velo (bod, E, tmp, R, um, r); /* r[i>=6] store the "good" deformation components */
-
-#if 0
-  for (i = 6; i < n; i ++) u[i] = r[i]; /* while u[i<6] store the "good" rotation components */
-#else
-  for (i = 0; i < n; i ++) u[i] = r[i]; /* FIXME-ed:) --> this seems to work both RO/MODAL cases */
-#endif
-
-  MX_Matvec (1.0, E, u, 0.0, um);
+  MX_Matvec (1.0, E, u, 0.0, um); /* resolve back um from u, using non-incremental formula */
   RO_rotate_forward (R, um, nm); /* now um(t+h) combines "good" rotation and deformation */
 
   blas_daxpy (nm, half, um, 1, qm, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
@@ -3605,13 +3602,22 @@ void FEM_Point_Values (BODY *bod, ELEMENT *ele, double *X, VALUE_KIND kind, doub
     ele = MESH_Element_Containing_Point (msh, X, 1);
   }
 
-  ASSERT (ele, ERR_FEM_POINT_OUTSIDE);
+  int nod = ELEMENT_Ref_Point_To_Node (msh, ele, X);
 
-  referential_to_local (msh, ele, X, point);
+  if (nod == -1)
+  {
+    ASSERT (ele, ERR_FEM_POINT_OUTSIDE);
 
-  if (kind == VALUE_COORD) { COPY (X, values); } /* see (@@@) */
+    referential_to_local (msh, ele, X, point);
 
-  FEM_Element_Point_Values (bod, ele, point, kind, values);
+    if (kind == VALUE_COORD) { COPY (X, values); } /* see (@@@) */
+
+    FEM_Element_Point_Values (bod, ele, point, kind, values);
+  }
+  else
+  {
+    FEM_Cur_Node_Values (bod, msh->cur_nodes[nod], kind, values);
+  }
 }
 
 /* get some values at a curent mesh node (node points inside MESH->cur_nodes) */
