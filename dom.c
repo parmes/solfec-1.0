@@ -899,6 +899,7 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
     pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
     break;
     case FIXPNT:
+    case FIXDIR:
     case RIGLNK:
     pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
     break;
@@ -989,6 +990,7 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
     unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
     break;
     case FIXPNT:
+    case FIXDIR:
     case RIGLNK:
     unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
     break;

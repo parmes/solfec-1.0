@@ -44,7 +44,9 @@ static void write_constraint (CON *con, PBF *bf)
     PBF_Int (bf, con->spair, 2);
   }
 
-  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
+  if (kind == RIGLNK ||
+      kind == VELODIR ||
+      kind == SPRING) PBF_Double (bf, con->Z, DOM_Z_SIZE);
 
 #if MPI
   PBF_Int (bf, &con->master->dom->rank, 1);
@@ -88,7 +90,17 @@ static CON* read_constraint (DOM *dom, int iover, PBF *bf)
     PBF_Int (bf, con->spair, 2);
   }
 
-  if (kind == RIGLNK || kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
+  if (iover < 4)
+  {
+    if (kind == RIGLNK ||
+        kind == VELODIR) PBF_Double (bf, con->Z, DOM_Z_SIZE);
+  }
+  else
+  {
+    if (kind == RIGLNK ||
+        kind == VELODIR ||
+	kind == SPRING) PBF_Double (bf, con->Z, DOM_Z_SIZE);
+  }
 
   if (bf->parallel == PBF_ON)
   {

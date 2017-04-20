@@ -44,14 +44,16 @@
 /* ============================= INPUT-OUTPUT VERSION ============================ */
 /* === Version increments require precise records of causes and affected files === */
 /* =============================================================================== */
-/* 1                         an initial input-output version (dio.c, sol.c, bod.c) */
+/* 1 |                       an initial input-output version (dio.c, sol.c, bod.c) */
 /* ------------------------------------------------------------------------------- */
-/* 2              output of relative pre-impact velocities for contact constraints */
+/* 2 |            output of relative pre-impact velocities for contact constraints */
 /* ------------------------------------------------------------------------------- */
-/* 3    output of iover, body kind, conf and dofs size to enable RIGID_TO_FEM and  */
-/*     INITIALISE_STATE working when LOCAL_BODIES = yes is used in Config.mak      */
+/* 3 |  output of iover, body kind, conf and dofs size to enable RIGID_TO_FEM and  */
+/*   | INITIALISE_STATE working when LOCAL_BODIES = yes is used in Config.mak      */
+/* ------------------------------------------------------------------------------- */
+/* 4 | con->Z written out also for the SPRING constraint in dio.c:write_constraint */
 /* =============================================================================== */
-#define IOVER 3                                                 /* current version */
+#define IOVER 4                                                 /* current version */
 /* =============================================================================== */
 
 #ifndef SOLFEC_TYPE
