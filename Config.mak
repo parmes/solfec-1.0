@@ -51,7 +51,7 @@ PARDEBUG = yes
 # heavy parallel self-consitency tests
 PSCTEST = no
 # disable TRY/CATCH
-NOTHROW = no
+NOTHROW = yes
 
 #
 # TIMERS (enable/disable detailed solver timings)

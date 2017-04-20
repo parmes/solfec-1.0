@@ -166,6 +166,9 @@ struct pending_constraint
   BODY *master,
        *slave;
 
+  unsigned int mid,
+               sid;
+
   double mpnt [3],
 	 spnt [3],
 	 dir  [3],
@@ -263,7 +266,7 @@ struct domain
 #if MPI
   int rank; /* communicator rank */
   int ncpu; /* cummunicator size */
-  SET *children; /* current children */
+  MAP *children; /* current children */
 #if ZOLTAN
   struct Zoltan_Struct *zol; /* load balancing */
 #else
@@ -280,6 +283,8 @@ struct domain
   DBD *dbd; /* load balancing send sets */
   SET *pendingcons; /* pending constraints to be inserted in parallel */
   SET *pendingbods; /* pending bodies to be inserted in parallel */
+  MAP *pairedup; /* map of body ids to SETs of body ids based on two-body constraints (e.g. RIGLNK, SPRING) */
+  MAP *idtorank; /* global all body id to rank mapping */
   SET *sparebid; /* deleted body ids */
   enum {ALWAYS, NEVER, EVERYNCPU} insertbodymode; /* insert body mode */
   int rebalanced; /* counts rebalancing steps */
@@ -360,9 +365,9 @@ void DOM_Update_End (DOM *dom);
 void DOM_Update_External_Reactions (DOM *dom, short normal);
 
 /* schedule parallel insertion of a constraint (to be called on all processors) */
-int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
-    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode, double strength,
-    double *lim, int update);
+int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, unsigned int mid, BODY *slave,
+    unsigned int sid, double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode,
+    double strength, double *lim, int update);
 
 /* schedule ASAP insertion of a body in parallel (to be called on one processor) */
 void DOM_Pending_Body (DOM *dom, BODY *bod);

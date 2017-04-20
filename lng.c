@@ -2682,7 +2682,11 @@ static int is_body (lng_BODY *obj, char *var)
     else
     {
       lng_BODY *body = (lng_BODY*)obj;
+#if MPI
+      if (body->dom == NULL && body->id == UINT_MAX) /* see lng_DELETE */
+#else
       if (body->bod == NULL)
+#endif
       {
 	char buf [BUFLEN];
 	sprintf (buf, "'%s' is a recently deleted BODY object", var);
@@ -2723,7 +2727,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
     self->dom = solfec->sol->dom;
     self->id = self->dom->bid ++;
-    self->bod = (BODY*)1; /* XXX is_body will not complain */
+    self->bod = NULL;
   }
   else
 #endif
@@ -6244,7 +6248,13 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     {
       TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]) &&
 		is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3));
-
+#if MPI
+      if (body1->dom != body2->dom)
+      {
+	PyErr_SetString (PyExc_ValueError, "Cannot link bodies from different domains");
+	return NULL;
+      }
+#else
       if (body1->bod->dom != body2->bod->dom)
       {
 	PyErr_SetString (PyExc_ValueError, "Cannot link bodies from different domains");
@@ -6256,6 +6266,7 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
 	PyErr_SetString (PyExc_ValueError, "Cannot constrain an obstacle with the rigid link");
 	return NULL;
       }
+#endif
     }
 
     p1 [0] = PyFloat_AsDouble (PyTuple_GetItem (point1, 0));
@@ -6289,13 +6300,13 @@ static PyObject* lng_PUT_RIGID_LINK (PyObject *self, PyObject *args, PyObject *k
     }
     else /* both bodies passed */
     {
-      if (body1->bod->dom->time != 0.0)
+      if (body1->dom->time != 0.0)
       {
 	PyErr_SetString (PyExc_ValueError, "Rigid links can be inserted only at time zero");
 	return NULL;
       }
 
-      if (!DOM_Pending_Constraint (body1->bod->dom, RIGLNK, body1->bod, body2->bod, p1, p2, NULL, NULL, -1, -1, strength, NULL, 0))
+      if (!DOM_Pending_Constraint (body1->dom, RIGLNK, body1->bod, body1->id, body2->bod, body2->id, p1, p2, NULL, NULL, -1, -1, strength, NULL, 0))
       {
 	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
 	return NULL;
@@ -6330,16 +6341,13 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
               is_callable (function, kwl[4]) && is_tuple (limits, kwl[5], 2) &&
 	      is_tuple (direction, kwl[6], 3) && is_string (update, kwl[7]));
 
+#if MPI
+    if (body1->dom != body2->dom)
+#else
     if (body1->bod->dom != body2->bod->dom)
+#endif
     {
       PyErr_SetString (PyExc_ValueError, "Cannot link bodies from different domains");
-      return NULL;
-    }
-
-    if (!(body1->bod->kind = RIG || body1->bod->kind == PRB) ||
-        !(body2->bod->kind = RIG || body2->bod->kind == PRB))
-    {
-      PyErr_SetString (PyExc_ValueError, "Slider only works with rigid and pseudo-rigid bodies");
       return NULL;
     }
 
@@ -6409,13 +6417,13 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
     }
     else /* both bodies passed */
     {
-      if (body1->bod->dom->time != 0.0)
+      if (body1->dom->time != 0.0)
       {
 	PyErr_SetString (PyExc_ValueError, "Springs can be inserted only at time zero");
 	return NULL;
       }
 
-      if (!DOM_Pending_Constraint (body1->bod->dom, SPRING, body1->bod, body2->bod, p1, p2, dir, (TMS*)function, -1, -1, DBL_MAX, lim, upd))
+      if (!DOM_Pending_Constraint (body1->dom, SPRING, body1->bod, body1->id, body2->bod, body2->id, p1, p2, dir, (TMS*)function, -1, -1, DBL_MAX, lim, upd))
       {
 	PyErr_SetString (PyExc_ValueError, "Point outside of domain");
 	return NULL;
@@ -7060,6 +7068,8 @@ static PyObject* lng_DELETE (PyObject *self, PyObject *args, PyObject *kwds)
     body->bod = NULL;
 
 #if MPI
+    body->dom = NULL;
+    body->id = UINT_MAX; /* see is_body */
     }
 #endif
   }

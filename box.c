@@ -149,6 +149,7 @@ static void detach_and_attach (AABB *aabb)
   double e [6];
   int j, ncpu;
   BODY *bod;
+  MAP *jtem;
   BOX *box;
   DOM *dom;
 
@@ -217,9 +218,9 @@ static void detach_and_attach (AABB *aabb)
   }
 
   /* attach children */
-  for (item = SET_First (dom->children); item; item = SET_Next (item))
+  for (jtem = MAP_First (dom->children); jtem; jtem = MAP_Next (jtem))
   {
-    for (bod = item->data, sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
+    for (bod = jtem->data, sgp = bod->sgp, sge = sgp + bod->nsgp; sgp < sge; sgp ++)
     {
       if (sgp->box == NULL)
       {

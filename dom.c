@@ -898,6 +898,7 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
     TMS_Pack (con->tms, dsize, d, doubles, isize, i, ints);
     pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
     break;
+    case FIXPNT:
     case RIGLNK:
     pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
     break;
@@ -987,6 +988,7 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
     con->tms = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
     unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
     break;
+    case FIXPNT:
     case RIGLNK:
     unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
     break;
@@ -1236,8 +1238,8 @@ static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipo
     /* unmark child */
     bod->flags &= ~BODY_CHILD;
 
-    /* delete from children set */
-    SET_Delete (&dom->setmem, &dom->children, bod, NULL);
+    /* delete from children map */
+    MAP_Delete (&dom->mapmem, &dom->children, (void*) (long) bod->id, NULL);
   }
 
   /* insert into label map */
@@ -1308,8 +1310,8 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   /* if it was a dummy */
   if ((bod->flags & BODY_CHILD) == 0)
   {
-    /* insert into children set */
-    SET_Insert (&dom->setmem, &dom->children, bod, NULL);
+    /* insert into children map */
+    MAP_Insert (&dom->mapmem, &dom->children, (void*) (long) bod->id, bod, NULL);
 
     /* mark as child */
     bod->flags |= BODY_CHILD;
@@ -1557,12 +1559,29 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
     numprocs = dynlb_box_assign (dom->lb, e, e+3, procs);
 #endif
 
-    for (i = 0; i < numprocs; i ++)
+    for (i = 0; i < numprocs; i ++) /* child migration based on geometrical extents */
     {
       if (bod->rank != procs [i]) /* if this is neither current nor the new body rank */
       {
 	SET_Insert (&dom->setmem, &dbd [procs [i]].children, bod, NULL); /* schedule for sending a child */
 	SET_Insert (&dom->setmem, &bod->children, (void*) (long) procs [i], NULL); /* extend parent's children set */
+      }
+    }
+
+    SET *pairedup = MAP_Find (dom->pairedup, (void*) (long) bod->id, NULL);
+    for (SET *item = SET_First (pairedup); item; item = SET_Next (item)) /* child migration based on involvement in two-body bilateral constraints */
+    {
+      MAP *node = MAP_Find_Node (dom->idtorank, item->data, NULL);
+      ASSERT_TEXT (node, "Inconsistent DOM->idtorank mapping");
+      int pairedup_rank = (int) (long) node->data;
+      for (i = 0; i < numprocs; i ++)
+      {
+	if (procs [i] == pairedup_rank) break; /* if already migrating to pairedup_rank based on gometrical extents */
+      }
+      if (i == numprocs && bod->rank != pairedup_rank) /* can migrate there */
+      {
+	SET_Insert (&dom->setmem, &dbd [pairedup_rank].children, bod, NULL); /* schedule for sending a child */
+	SET_Insert (&dom->setmem, &bod->children, (void*) (long) pairedup_rank, NULL); /* extend parent's children set */
       }
     }
   }
@@ -1574,12 +1593,13 @@ static void children_migration_begin (DOM *dom, DBD *dbd)
 static void children_migration_end (DOM *dom)
 {
   SET *delset, *item;
+  MAP *jtem;
 
   delset = NULL;
 
-  for (item = SET_First (dom->children); item; item = SET_Next (item))
+  for (jtem = MAP_First (dom->children); jtem; jtem = MAP_Next (jtem))
   {
-    BODY *bod = item->data;
+    BODY *bod = jtem->data;
 
     /* must be a child */
     ASSERT_DEBUG (bod->flags & BODY_CHILD, "Not a child");
@@ -1588,15 +1608,15 @@ static void children_migration_end (DOM *dom)
     {
       bod->flags &= ~BODY_CHILD; /* unmark child */
       
-      SET_Insert (&dom->setmem, &delset, bod, NULL); /* schedule deletion from dom->children */
+      SET_Insert (&dom->setmem, &delset, (void*) (long)bod->id, NULL); /* schedule deletion from dom->children */
     }
     else bod->flags &= ~BODY_CHILD_UPDATED; /* invalidate update flag */
   }
 
-  /* subtract deleted children from domain children set */
+  /* subtract deleted children from domain children map */
   for (item = SET_First (delset); item; item = SET_Next (item))
   {
-    SET_Delete (&dom->setmem, &dom->children, item->data, NULL);
+    MAP_Delete (&dom->mapmem, &dom->children, item->data, NULL);
   }
 
   SET_Free (&dom->setmem, &delset);
@@ -1790,7 +1810,6 @@ static void* old_external_constraints_unpack (DOM *dom, int *dpos, double *d, in
 /* insert or delete pending constraints */
 static void insert_pending_constraints (DOM *dom)
 {
-  double d [3], *e, *p;
   PNDCON *pnd;
   SET *item;
   CON *con;
@@ -1799,75 +1818,19 @@ static void insert_pending_constraints (DOM *dom)
   {
     pnd = item->data;
 
-    /* make sure that all attached body constraint points are within the body extents so that the newly
-     * inserted constraints will migrate to partitions where bodies have representation (child/parent) */
+    if (pnd->master == NULL && pnd->mid) pnd->master = MAP_Find (dom->idb, (void*) (long) pnd->mid, NULL);
 
-    if (pnd->master->flags & BODY_PARENT)
+    if (pnd->master && pnd->master->flags & BODY_PARENT) /* insert only those having parent master */
     {
-      e = pnd->master->extents;
-      p = pnd->mpnt;
-
-      if (p [0] < e [0]) e [0] = p [0];
-      if (p [1] < e [1]) e [1] = p [1];
-      if (p [2] < e [2]) e [2] = p [2];
-      if (p [0] > e [3]) e [3] = p [0];
-      if (p [1] > e [4]) e [4] = p [1];
-      if (p [2] > e [5]) e [5] = p [2];
-    }
-
-    if (pnd->slave && pnd->slave->flags & BODY_PARENT)
-    {
-      double *pp [] = {pnd->mpnt, pnd->spnt};
-      e = pnd->slave->extents;
-
-      for (int i = 0; i < 2; i ++)
+      if (pnd->slave == NULL && pnd->sid)
       {
-        p = pp [i]; /* make sure that slave knows about both points since it can be on a processor different that
-		       the parent and can have no other means of knowing where to migrate the needed child */
-
-	if (p [0] < e [0]) e [0] = p [0];
-	if (p [1] < e [1]) e [1] = p [1];
-	if (p [2] < e [2]) e [2] = p [2];
-	if (p [0] > e [3]) e [3] = p [0];
-	if (p [1] > e [4]) e [4] = p [1];
-	if (p [2] > e [5]) e [5] = p [2];
+	if (!(pnd->slave = MAP_Find (dom->idb, (void*) (long) pnd->sid, NULL)))
+	{
+	  ASSERT_TEXT (pnd->slave = MAP_Find (dom->children, (void*) (long) pnd->sid, NULL),
+				    "Missing slave body for a two-body pending constraint");
+	}
       }
-    }
-  }
 
-  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item))
-  {
-    pnd = item->data;
-
-    /* extend extents of these bodies that might have been altered above;
-     * note that we are not using GEOMETRIC_EPSILON here as this can be set
-     * by the user which in turn may cause migration consitency problems */
-
-    if (pnd->master->flags & BODY_PARENT)
-    {
-      e = pnd->master->extents;
-      SUB (e+3, e, d);
-      SCALE (d, PUT_GEOMEPS);
-      SUB (e, d, e);
-      ADD (e+3, d, e+3);
-    }
-
-    if (pnd->slave && pnd->slave->flags & BODY_PARENT)
-    {
-      e = pnd->slave->extents;
-      SUB (e+3, e, d);
-      SCALE (d, PUT_GEOMEPS);
-      SUB (e, d, e);
-      ADD (e+3, d, e+3);
-    }
-  }
-
-  for (item = SET_First (dom->pendingcons); item; item = SET_Next (item))
-  {
-    pnd = item->data;
-
-    if (pnd->master->flags & BODY_PARENT) /* insert only those having parent master */
-    {
       switch (pnd->kind)
       {
       case FIXPNT:
@@ -1981,6 +1944,58 @@ static void update_bidsets (DOM *dom)
 }
 #endif
 
+/* reset dom->idtorank mapping */
+static void reset_idtorank (DOM *dom)
+{
+  int rank, size, *sendbuf, sendcount, *recvbuf, *recvcounts, *displs, i, recvsize, *ptr, j;
+  BODY *bod;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &size);
+
+  sendcount = 2 * dom->nbod;
+  ERRMEM (recvcounts = malloc(size * sizeof(int)));
+  ERRMEM (displs = malloc(size * sizeof(int)));
+
+  MPI_Allgather (&sendcount, 1, MPI_INT, recvcounts, 1, MPI_INT, MPI_COMM_WORLD);
+
+  for (displs[0] = recvsize = i = 0; i < size; i ++)
+  {
+    if (i) displs[i] = recvsize;
+    recvsize += recvcounts[i];
+  }
+
+  ERRMEM (recvbuf = malloc(recvsize * sizeof(int)));
+  ERRMEM (sendbuf = malloc(sendcount * sizeof(int)));
+
+  for (bod = dom->bod, ptr = sendbuf; bod; bod = bod->next, ptr += 2)
+  {
+    ptr[0] = bod->id;
+    ptr[1] = bod->rank;
+  }
+
+  MPI_Allgatherv (sendbuf, sendcount, MPI_INT, recvbuf, recvcounts, displs, MPI_INT, MPI_COMM_WORLD);
+
+  MAP_Free (&dom->mapmem, &dom->idtorank); /* free previous mapping */
+
+  for (i = 0; i < size; i ++)
+  {
+    ASSERT_TEXT (recvcounts[i] % 2 == 0, "Inconsistent receive count in dom.c:reset_idtorank");
+
+    for (j = 0; j < recvcounts[i]/2; j ++)
+    {
+      long id = recvbuf[displs[i]+2*j];
+      long rank = recvbuf[displs[i]+2*j+1];
+      MAP_Insert (&dom->mapmem, &dom->idtorank, (void*) id, (void*) rank, NULL); /* map current ranks */
+    }
+  }
+
+  free (sendbuf);
+  free (recvbuf);
+  free (displs);
+  free (recvcounts);
+}
+
 /* domain balancing */
 static void domain_balancing (DOM *dom)
 {
@@ -2007,9 +2022,6 @@ static void domain_balancing (DOM *dom)
   BODY *bod;
   DBD *dbd;
   CON *con;
-
-  /* pending constraints */
-  insert_pending_constraints (dom);
 
 #if PARDEBUG
   /* test whether constraints attached to bodies have their points inside of body extents */
@@ -2101,7 +2113,17 @@ static void domain_balancing (DOM *dom)
 
     for (con = dom->con; con; con = con->next)
     {
-      Zoltan_LB_Point_Assign (dom->zol, con->point, &rank);
+      switch (con->kind)
+      {
+      case RIGLNK:
+      case SPRING:
+	ASSERT_DEBUG (con->master->flags & BODY_PARENT, "Inconsistency: two-body bilateral constraints migrate with parents");
+	rank = con->master->rank;  
+	break;
+      default:
+        Zoltan_LB_Point_Assign (dom->zol, con->point, &rank);
+	break;
+      }
       if (rank != dom->rank) SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL);
     }
 
@@ -2174,7 +2196,17 @@ static void domain_balancing (DOM *dom)
 
   for (con = dom->con; con; con = con->next)
   {
-    rank = dynlb_point_assign (dom->lb, con->point);
+    switch (con->kind)
+    {
+    case RIGLNK:
+    case SPRING:
+      ASSERT_DEBUG (con->master->flags & BODY_PARENT, "Inconsistency: two-body bilateral constraints migrate with parents");
+      rank = con->master->rank;  
+      break;
+    default:
+      rank = dynlb_point_assign (dom->lb, con->point);
+      break;
+    }
     if (rank != dom->rank) SET_Insert (&dom->setmem, &dbd [rank].constraints, con, NULL);
   }
 #endif
@@ -2188,6 +2220,9 @@ static void domain_balancing (DOM *dom)
     send [i].rank = i;
     send [i].o = &dbd [i];
   }
+
+  /* reset idtorank map */
+  reset_idtorank (dom);
 
   /* compute chidren migration sets */
   children_migration_begin (dom, dbd);
@@ -2778,6 +2813,14 @@ static void create_mpi (DOM *dom)
 
   dom->conext = NULL;
 
+  dom->pendingcons = NULL;
+
+  dom->pendingbods = NULL;
+
+  dom->pairedup = NULL;
+
+  dom->idtorank = NULL;
+
   MPI_Comm_rank (MPI_COMM_WORLD, &dom->rank); /* store rank */
 
   MPI_Comm_size (MPI_COMM_WORLD, &dom->ncpu); /* store size */
@@ -3154,8 +3197,8 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
 #if MPI
   }
 
-  /* remove from the domain childeren set if needed */
-  if (bod->flags & BODY_CHILD) SET_Delete (&dom->setmem, &dom->children, bod, NULL);
+  /* remove from the domain childeren map if needed */
+  if (bod->flags & BODY_CHILD) MAP_Delete (&dom->mapmem, &dom->children, (void*) (long)bod->id, NULL);
 
   /* free children sets */
   SET_Free (&dom->setmem, &bod->children);
@@ -3497,10 +3540,12 @@ void DOM_Initialize (DOM *dom)
 {
   BODY *bod;
 
-#if MPI && LOCAL_BODIES
+#if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
   domain_balancing (dom); /* initially balance bodies */
+  
+  insert_pending_constraints (dom); /* insert pending constraints */
 
   SOLFEC_Timer_End (dom->solfec, "PARBAL");
 #endif
@@ -3839,9 +3884,9 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
 }
 
 /* schedule parallel insertion of a constraint (to be called on all processors) */
-int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
-    double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode, double strength,
-    double *lim, int update)
+int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, unsigned int mid, BODY *slave,
+    unsigned int sid, double *mpnt, double *spnt, double *dir, TMS *val, int mnode, int snode,
+    double strength, double *lim, int update)
 {
   PNDCON *pnd;
 
@@ -3849,6 +3894,8 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
   pnd->kind = kind;
   pnd->master = master;
   pnd->slave = slave;
+  pnd->mid = mid;
+  pnd->sid = sid;
   if (mpnt) COPY (mpnt, pnd->mpnt);
   if (spnt) COPY (spnt, pnd->spnt);
   if (dir) COPY (dir, pnd->dir);
@@ -3859,14 +3906,17 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
   if (lim) COPY2 (lim, pnd->lim);
   pnd->update = update;
 
-  if (master->kind == FEM && !master->msh)
+  if (master)
   {
-    if (mnode >= 0) pnd->mele = MESH_Element_With_Node (master->shape->data, mnode);
-    else pnd->mele = MESH_Element_Containing_Point (master->shape->data, mpnt, 1);
+    if (master->kind == FEM && !master->msh)
+    {
+      if (mnode >= 0) pnd->mele = MESH_Element_With_Node (master->shape->data, mnode);
+      else pnd->mele = MESH_Element_Containing_Point (master->shape->data, mpnt, 1);
 
-    if (!pnd->mele) return 0;
+      if (!pnd->mele) return 0;
+    }
+    else if (SHAPE_Sgp (master->sgp, master->nsgp, mpnt) < 0) return 0;
   }
-  else if (SHAPE_Sgp (master->sgp, master->nsgp, mpnt) < 0) return 0;
 
   if (slave)
   {
@@ -3881,6 +3931,25 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, BODY *slave,
   }
 
   SET_Insert (&dom->setmem, &dom->pendingcons, pnd, NULL); /* they will be inserted or deleted during load balancing */
+
+  if (mid && sid)
+  {
+    MAP *node;
+
+    node = MAP_Find_Node (dom->pairedup, (void*) (long) mid, NULL);
+    if (node == NULL)
+    {
+      node = MAP_Insert (&dom->mapmem, &dom->pairedup, (void*) (long) mid, NULL, NULL);
+    }
+    SET_Insert (&dom->setmem, (SET**) &node->data, (void*) (long) sid, NULL);
+
+    node = MAP_Find_Node (dom->pairedup, (void*) (long) sid, NULL);
+    if (node == NULL)
+    {
+      node = MAP_Insert (&dom->mapmem, &dom->pairedup, (void*) (long) sid, NULL, NULL);
+    }
+    SET_Insert (&dom->setmem, (SET**) &node->data, (void*) (long) mid, NULL);
+  }
 
   return 1;
 }
