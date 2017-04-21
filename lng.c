@@ -1194,6 +1194,72 @@ static PyObject* lng_MESH_get_meshdata (lng_MESH *self, PyObject *args, PyObject
   return PyTuple_Pack(3, nodelist, ellist, surfidlist);
 }
 
+/* return surface integration points */
+static PyObject* lng_MESH_surface_integration_points (lng_MESH *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("surfid");
+  int surfid = INT_MAX;
+
+  PARSEKEYS ("|i", &surfid);
+
+  if (!self->msh)
+  {
+    PyErr_SetString (PyExc_ValueError, "The MESH object is empty");
+    return NULL;
+  }
+
+  int n = FEM_Mesh_Surface_Integration_Points_Count (self->msh, surfid);
+
+  double *refpnt = malloc (n * sizeof (double [3]));
+  ERRMEM (refpnt);
+
+  FEM_Mesh_Surface_Integration_Points_Get (self->msh, surfid, refpnt);
+
+  PyObject *list = PyList_New (n);
+
+  for (int i = 0; i < n; i ++)
+  {
+    PyList_SetItem (list, i, Py_BuildValue ("(d, d, d)", refpnt[3*i], refpnt[3*i+1], refpnt[3*i+2]));
+  }
+
+  free (refpnt);
+
+  return list;
+}
+
+/* return volume integration points */
+static PyObject* lng_MESH_volume_integration_points (lng_MESH *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("volid");
+  int volid = INT_MAX;
+
+  PARSEKEYS ("|i", &volid);
+
+  if (!self->msh)
+  {
+    PyErr_SetString (PyExc_ValueError, "The MESH object is empty");
+    return NULL;
+  }
+
+  int n = FEM_Mesh_Volume_Integration_Points_Count (self->msh, volid);
+
+  double *refpnt = malloc (n * sizeof (double [3]));
+  ERRMEM (refpnt);
+
+  FEM_Mesh_Volume_Integration_Points_Get (self->msh, volid, refpnt);
+
+  PyObject *list = PyList_New (n);
+
+  for (int i = 0; i < n; i ++)
+  {
+    PyList_SetItem (list, i, Py_BuildValue ("(d, d, d)", refpnt[3*i], refpnt[3*i+1], refpnt[3*i+2]));
+  }
+
+  free (refpnt);
+
+  return list;
+}
+
 /* MESH methods */
 static PyMethodDef lng_MESH_methods [] =
 { 
@@ -1201,6 +1267,8 @@ static PyMethodDef lng_MESH_methods [] =
   {"nodes_on_surface", (PyCFunction)lng_MESH_nodes_on_surface, METH_VARARGS|METH_KEYWORDS, "Return list of node numbers belonging to a given surface"},
   {"get_data", (PyCFunction)lng_MESH_get_meshdata, METH_NOARGS, "Return mesh data - very developmental!"},
   {"set_volid", (PyCFunction)lng_MESH_setvolid, METH_VARARGS|METH_KEYWORDS, "Set volid for all faces"},
+  {"surface_integration_points", (PyCFunction)lng_MESH_surface_integration_points, METH_VARARGS|METH_KEYWORDS, "Return surface integration points"},
+  {"volume_integration_points", (PyCFunction)lng_MESH_volume_integration_points, METH_VARARGS|METH_KEYWORDS, "Return volume integration points"},
   {NULL, NULL, 0, NULL}
 };
 

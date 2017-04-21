@@ -4126,3 +4126,121 @@ void FEM_Mesh_Rigid_Displacements (BODY *bod, double *disp)
   inv = 1.0/sqrt(inv);
   blas_dscal (dofs, inv, rz, 1);
 }
+
+/* count mesh surface integration points;
+ * surface == INT_MAX --> entire surface */
+int FEM_Mesh_Surface_Integration_Points_Count (MESH *msh, int surface)
+{
+  FACE *fac;
+  int n = 0;
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    if (surface == INT_MAX || fac->surface == surface)
+    {
+      INTEGRAL2D_BEGIN (fac->type) { n ++; } INTEGRAL2D_END ()
+    }
+  }
+
+  return n;
+}
+
+/* get mesh surface integration points (referential coordinates);
+ * surface == INT_MAX --> entire surface */
+void FEM_Mesh_Surface_Integration_Points_Get (MESH *msh, int surface, double *refpnt)
+{
+  double refn [4][3], shapes [4];
+  FACE *fac;
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    if (surface == INT_MAX || fac->surface == surface)
+    {
+      face_nodes (msh->ref_nodes, fac->type, fac->nodes, refn);
+
+      INTEGRAL2D_BEGIN (fac->type) /* defines point and weight */
+      {
+	face_shapes (fac, point, shapes);
+
+	refpnt[0] = shapes[0]*refn[0][0]+shapes[1]*refn[1][0]+shapes[2]*refn[2][0];
+	refpnt[1] = shapes[0]*refn[0][1]+shapes[1]*refn[1][1]+shapes[2]*refn[2][1];
+	refpnt[2] = shapes[0]*refn[0][2]+shapes[1]*refn[1][2]+shapes[2]*refn[2][2];
+
+	if (fac->type == 4)
+	{
+	  refpnt[0] += shapes[3]*refn[3][0];
+	  refpnt[1] += shapes[3]*refn[3][1];
+	  refpnt[2] += shapes[3]*refn[3][2];
+	}
+
+	refpnt += 3;
+      }
+      INTEGRAL2D_END ()
+    }
+  }
+}
+
+/* count mesh volume integration points;
+ * volume == INT_MAX --> entire volume */
+int FEM_Mesh_Volume_Integration_Points_Count (MESH *msh, int volume)
+{
+  ELEMENT *ele;
+  int n = 0;
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    if (volume == INT_MAX || ele->volume == volume)
+    {
+      n += number_of_integration_points (ele);
+    }
+  }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    if (volume == INT_MAX || ele->volume == volume)
+    {
+      n += number_of_integration_points (ele);
+    }
+  }
+ 
+  return n;
+}
+
+/* get mesh volume integration points (referential coordinates);
+ * volume == INT_MAX --> entire volume */
+void FEM_Mesh_Volume_Integration_Points_Get (MESH *msh, int volume, double *refpnt)
+{
+  double refn [MAX_NODES][3], shapes [MAX_NODES];
+  ELEMENT *ele;
+  int bulk, i;
+
+  for (ele = msh->surfeles, bulk = 0; ele; )
+  {
+    if (volume == INT_MAX || ele->volume == volume)
+    {
+      element_nodes (msh->ref_nodes, ele->type, ele->nodes, refn);
+
+      INTEGRATE3D (ele->type, INTF, ele->dom, ele->domnum,
+
+        element_shapes (ele->type, point, shapes);
+
+	refpnt[0] = shapes[0]*refn[0][0]+shapes[1]*refn[1][0]+shapes[2]*refn[2][0]+shapes[3]*refn[3][0];
+	refpnt[1] = shapes[0]*refn[0][1]+shapes[1]*refn[1][1]+shapes[2]*refn[2][1]+shapes[3]*refn[3][1];
+	refpnt[2] = shapes[0]*refn[0][2]+shapes[1]*refn[1][2]+shapes[2]*refn[2][2]+shapes[3]*refn[3][2];
+
+	for (i = 4; i < ele->type; i ++)
+	{
+	  refpnt[0] += shapes[i]*refn[i][0];
+	  refpnt[1] += shapes[i]*refn[i][1];
+	  refpnt[2] += shapes[i]*refn[i][2];
+	}
+
+	refpnt += 3;
+      )
+    }
+
+    if (bulk) ele = ele->next;
+    else if (ele->next) ele = ele->next;
+    else ele = msh->bulkeles, bulk = 1;
+  }
+}

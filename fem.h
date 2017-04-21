@@ -156,4 +156,20 @@ void FEM_Mesh_Corotated_Conf (BODY *bod, double *disp);
 /* output six rigid body displacements */
 void FEM_Mesh_Rigid_Displacements (BODY *bod, double *disp);
 
+/* count mesh surface integration points;
+ * surface == INT_MAX --> entire surface */
+int FEM_Mesh_Surface_Integration_Points_Count (MESH *msh, int surface);
+
+/* get mesh surface integration points (referential coordinates);
+ * surface == INT_MAX --> entire surface */
+void FEM_Mesh_Surface_Integration_Points_Get (MESH *msh, int surface, double *refpnt);
+
+/* count mesh volume integration points;
+ * volume == INT_MAX --> entire volume */
+int FEM_Mesh_Volume_Integration_Points_Count (MESH *msh, int volume);
+
+/* get mesh volume integration points (referential coordinates);
+ * volume == INT_MAX --> entire volume */
+void FEM_Mesh_Volume_Integration_Points_Get (MESH *msh, int volume, double *refpnt);
+
 #endif

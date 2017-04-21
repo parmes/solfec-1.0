@@ -5569,7 +5569,7 @@ Some parameters can also be accessed as members and methods of a MESH object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="3" columns="1">
+<lyxtabular version="3" rows="5" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -5604,7 +5604,7 @@ obj.nnod
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -5620,6 +5620,55 @@ nodes, elements, surfids),
 in the same format as for MESH().
  Note these are read-only - changing the returned lists does not affect
  the mesh.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.surface_integration_points( | surfid)
+\series default
+\emph default
+ - returns surface integration points as a list of tuples [(x0, y0, z0),
+ (x1, y1, z1), ...]; if 
+\series bold
+\emph on
+surfid
+\series default
+\emph default
+ is passed, integration points only fort that surface identifier are returned
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.volume_integration_points( | volid)
+\series default
+ - 
+\emph default
+returns volume integration points as a list of tuples [(x0, y0, z0), (x1,
+ y1, z1), ...]; if 
+\series bold
+\emph on
+volid
+\series default
+\emph default
+ is passed, integration points only fort that volume identifier are returned
 \end_layout
 
 \end_inset
@@ -5693,7 +5742,7 @@ None
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" bottomline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
