@@ -780,6 +780,7 @@ struct lng_MESH
 {
   PyObject_HEAD
   MESH *msh;
+  short wrapper; /* is this a wrapper object */
 };
 
 /* test whether an object is of MESH type */
@@ -812,6 +813,8 @@ static PyObject* lng_MESH_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 
   if (self)
   {
+    self->wrapper = 0; /* not a wrapper */
+
     PARSEKEYS ("OOO", &nodes, &elements, &surfids);
 
     TYPETEST (is_list (nodes, kwl[0], 3, 12) && is_list (elements, kwl[1], 1, 0) && is_list_or_number (surfids, kwl[2], 1, 1));
@@ -968,10 +971,24 @@ static PyObject* lng_MESH_new (PyTypeObject *type, PyObject *args, PyObject *kwd
   return (PyObject*)self;
 }
 
+/* mesh wrapper constructor */
+static PyObject* lng_MESH_WRAPPER (MESH *msh)
+{
+  lng_MESH *self;
+
+  self = (lng_MESH*)lng_MESH_TYPE.tp_alloc (&lng_MESH_TYPE, 0);
+
+  self->msh = msh;
+
+  self->wrapper = 1;
+
+  return (PyObject*)self;
+}
+
 /* destructor */
 static void lng_MESH_dealloc (lng_MESH *self)
 {
-  if (self->msh) MESH_Destroy (self->msh);
+  if (self->msh && !self->wrapper) MESH_Destroy (self->msh);
 
   self->ob_type->tp_free ((PyObject*)self);
 }
@@ -3495,6 +3512,71 @@ static int lng_BODY_set_display_points (lng_BODY *self, PyObject *value, void *c
   return -1;
 }
 
+static PyObject* lng_BODY_get_mesh (lng_BODY *self, void *closure)
+{
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (self))
+  {
+#endif
+
+    BODY *bod = self->bod;
+
+    if (bod->kind == FEM)
+    {
+      return lng_MESH_WRAPPER (FEM_MESH(bod));
+    }
+    else
+    {
+      int mesh_count = 0;
+
+      for (SHAPE *shp = bod->shape; shp; shp = shp->next)
+      {
+	if (shp->kind == SHAPE_MESH) mesh_count ++;
+      }
+
+      if (mesh_count > 1)
+      {
+	PyObject *mesh_list = PyList_New (mesh_count);
+
+	int i = 0;
+
+	for (SHAPE *shp = bod->shape; shp; shp = shp->next)
+	{
+	  if (shp->kind == SHAPE_MESH)
+	  {
+            PyList_SetItem (mesh_list, i, lng_MESH_WRAPPER(shp->data));
+	    i ++;
+	  }
+	}
+
+	return mesh_list;
+      }
+      else if (mesh_count == 1)
+      {
+	for (SHAPE *shp = bod->shape; shp; shp = shp->next)
+	{
+	  if (shp->kind == SHAPE_MESH)
+	  {
+	    return lng_MESH_WRAPPER (shp->data);
+	  }
+	}
+      }
+
+      Py_RETURN_NONE;
+    }
+
+#if MPI && LOCAL_BODIES
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_mesh (lng_BODY *self, PyObject *value, void *closure)
+{
+  PyErr_SetString (PyExc_ValueError, "Writing to a read-only member");
+  return -1;
+}
+
 /* BODY methods */
 static PyMethodDef lng_BODY_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -3523,6 +3605,7 @@ static PyGetSetDef lng_BODY_getset [] =
   {"material", (getter)lng_BODY_get_material, (setter)lng_BODY_set_material, "global body material", NULL},
   {"fracturecheck", (getter)lng_BODY_get_fracturecheck, (setter)lng_BODY_set_fracturecheck, "fracture check", NULL},
   {"display_points", (getter)lng_BODY_get_display_points, (setter)lng_BODY_set_display_points, "display points data", NULL},
+  {"mesh", (getter)lng_BODY_get_mesh, (setter)lng_BODY_set_mesh, "computational mesh", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 
