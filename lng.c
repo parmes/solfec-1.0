@@ -6647,7 +6647,11 @@ static void lng_FORCE_callback (PyObject *data, PyObject *call, int nq, double *
       if (!(args = PyTuple_New (PyTuple_Size (data) + 4))) goto err;
 
       for (n = 0; n < PyTuple_Size (data); n ++)
-	PyTuple_SetItem (args, n, PyTuple_GetItem (data, n));
+      {
+	PyObject *item = PyTuple_GetItem (data, n);
+	Py_INCREF (item);
+	PyTuple_SetItem (args, n, item);
+      }
 
       PyTuple_SetItem (args, n, qtup);
       PyTuple_SetItem (args, n+1, utup);
