@@ -55,7 +55,7 @@ else:
     plt.plot (times, e_bc_ro, label='BC-RO', linestyle='-')
     plt.plot (times, e_bc_modal, label='BC-MODAL', linestyle='-.')
     plt.xlabel ('Time [s]')
-    plt.ylabel ('Elongation [m]')
+    plt.ylabel ('Energy [J]')
     plt.legend(loc = 'upper right')
     plt.gcf().subplots_adjust(left=0.15)
     plt.savefig ('out/reduced-order0/ro0_energy_h%d_d%g_%gs.png' % (div, damp, dura))

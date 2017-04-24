@@ -28,16 +28,25 @@ if sol.mode == 'WRITE' and not VIEWER():
   dsp = COROTATED_DISPLACEMENTS (sol, bod)
   rig = RIGID_DISPLACEMENTS (bod)
 
-import time
-t0 = time.time()
-RUN (sol, ns, stop)
-t1 = time.time()
-print '\bTotal runtime: %.3f seconds' % (t1-t0)
+if sol.mode == 'WRITE':
+  import time
+  t0 = time.time()
+  RUN (sol, ns, stop)
+  t1 = time.time()
+  print '\bTotal runtime: %.3f seconds' % (t1-t0)
+ 
+  if not VIEWER():
+    print 'Saving displacement snapshots ...'
+    import pickle
+    pickle.dump(dsp, open('out/reduced-order1/dsp.pickle', 'wb')) 
+    pickle.dump(rig, open('out/reduced-order1/rig.pickle', 'wb')) 
+    print 'Calculating modal decomposition ...'
+    MODAL_ANALYSIS (bod, 20, 'out/reduced-order1/modal')
 
-if sol.mode == 'WRITE' and not VIEWER():
-  print 'Saving displacement snapshots ...'
+if sol.mode == 'READ' and not VIEWER():
   import pickle
-  pickle.dump(dsp, open('out/reduced-order1/dsp.pickle', 'wb')) 
-  pickle.dump(rig, open('out/reduced-order1/rig.pickle', 'wb')) 
-  print 'Calculating modal decomposition ...'
-  MODAL_ANALYSIS (bod, 20, 'out/reduced-order1/modal')
+  dur = DURATION (sol)
+  th = HISTORY (sol, [(bod, 'KINETIC'), (bod, 'INTERNAL')], dur[0], dur[1])
+  pickle.dump(th[0], open('out/reduced-order1/times.pickle', 'wb')) 
+  pickle.dump(th[1], open('out/reduced-order1/kin-fem-bc.pickle', 'wb')) 
+  pickle.dump(th[2], open('out/reduced-order1/int-fem-bc.pickle', 'wb')) 

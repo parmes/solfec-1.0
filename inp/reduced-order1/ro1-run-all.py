@@ -18,12 +18,21 @@ print 'Running FEM-BC ... ',
 runsim ('ro1-fem-bc.py')
 print 'Running POD ... '
 runsim ('ro1-modred.py')
-print 'Running FEM-BC-MODAL ... ',
-runsim ('ro1-modal.py')
 print 'Running FEM-BC-RO ... ',
 runsim ('ro1-reduced.py')
+print 'Running FEM-BC-MODAL ... ',
+runsim ('ro1-modal.py')
 
 # run in 'READ' mode (post-process)
-print 'Running post-processing'
+print '\nRunning post-processing'
 print '======================='
-# TODO --> post-processing code
+print 'Reading FEM-TL ... '
+runsim ('ro1-fem-tl.py')
+print 'Reading FEM-BC ... '
+runsim ('ro1-fem-bc.py')
+print 'Reading FEM-BC-RO ... '
+runsim ('ro1-reduced.py')
+print 'Running FEM-BC-MODAL ... '
+runsim ('ro1-modal.py')
+# Plotting
+runsim ('ro1-postp.py')

@@ -32,8 +32,18 @@ bod.damping = step
 ns = NEWTON_SOLVER ()
 OUTPUT (sol, 0.0025)
 
-import time
-t0 = time.time()
-RUN (sol, ns, stop)
-t1 = time.time()
-print '\bTotal runtime: %.3f seconds' % (t1-t0)
+if sol.mode == 'WRITE':
+  import time
+  t0 = time.time()
+  RUN (sol, ns, stop)
+  t1 = time.time()
+  print '\bTotal runtime: %.3f seconds' % (t1-t0)
+
+if sol.mode == 'READ' and not VIEWER():
+  import pickle
+  dur = DURATION (sol)
+  th = HISTORY (sol, [(bod, 'KINETIC'), (bod, 'INTERNAL')], dur[0], dur[1])
+  tot = []
+  pickle.dump(th[0], open('out/reduced-order1/times.pickle', 'wb')) 
+  pickle.dump(th[1], open('out/reduced-order1/kin-modal.pickle', 'wb')) 
+  pickle.dump(th[2], open('out/reduced-order1/int-modal.pickle', 'wb')) 
