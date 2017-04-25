@@ -9,8 +9,14 @@ try:
 except:
   t0 = time.time()
   num_modes = 10
-  rig = pickle.load(open('out/reduced-order1/rig.pickle', 'rb'))
-  dsp = pickle.load(open('out/reduced-order1/dsp.pickle', 'rb'))
+  try:
+    rig = pickle.load(open('out/reduced-order1/rig.pickle', 'rb'))
+    dsp = pickle.load(open('out/reduced-order1/dsp.pickle', 'rb'))
+  except:
+    print 'File out/reduced-order1/modal.h5 not found',
+    print '--> run ro0-fem-tl.py example first!'
+    import sys
+    sys.exit(0)
   vecs = numpy.transpose(numpy.array(rig+dsp))
   svec = vecs.shape[0]
   nvec = vecs.shape[1]

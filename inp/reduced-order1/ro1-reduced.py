@@ -5,7 +5,7 @@ sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order1/ro1-reduced')
 if 'percentage' in locals(): sol.verbose = '%'
 GRAVITY (sol, (0, 0, -10))
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
-       young = 1E6, poisson = 0.25, density = 1E3)
+       young = 1E7, poisson = 0.25, density = 1E3)
 SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.1)
 
 nodes = [0, 0, 0,   1, 0, 0,   1, 1, 0,   0, 1, 0,
@@ -26,7 +26,7 @@ except:
   print 'out/reduced-order1/mod.pickle'
   print 'out/reduced-order1/val.pickle'
   print 'files has not been found'
-  print '--> first run solfec examples/reduced-order1/ro1-fem.py'
+  print '--> first run solfec examples/reduced-order1/ro1-fem-tl.py'
   print '--> then run python examples/reduced-order1/ro1-modred.py'
   print 'to generate these files!'
   import sys
@@ -41,7 +41,6 @@ bod.damping = step
 
 ns = NEWTON_SOLVER ()
 OUTPUT (sol, 0.0025)
-
 if sol.mode == 'WRITE':
   import time
   t0 = time.time()
@@ -50,9 +49,7 @@ if sol.mode == 'WRITE':
   print '\bTotal runtime: %.3f seconds' % (t1-t0)
 
 if sol.mode == 'READ' and not VIEWER():
-  import pickle
-  dur = DURATION (sol)
-  th = HISTORY (sol, [(bod, 'KINETIC'), (bod, 'INTERNAL')], dur[0], dur[1])
-  pickle.dump(th[0], open('out/reduced-order1/times.pickle', 'wb')) 
-  pickle.dump(th[1], open('out/reduced-order1/kin-reduced.pickle', 'wb')) 
-  pickle.dump(th[2], open('out/reduced-order1/int-reduced.pickle', 'wb')) 
+  import os, sys
+  dirpath = os.path.dirname(os.path.realpath(__file__))
+  execfile (dirpath + '/ro1-lib.py')
+  ro1_read_histories (sol, bod, 'reduced')

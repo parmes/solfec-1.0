@@ -5,7 +5,7 @@ sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order1/ro1-fem-bc')
 if 'percentage' in locals(): sol.verbose = '%'
 GRAVITY (sol, (0, 0, -10))
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
-       young = 1E6, poisson = 0.25, density = 1E3)
+       young = 1E7, poisson = 0.25, density = 1E3)
 SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.1)
 
 nodes = [0, 0, 0,   1, 0, 0,   1, 1, 0,   0, 1, 0,
@@ -35,18 +35,8 @@ if sol.mode == 'WRITE':
   t1 = time.time()
   print '\bTotal runtime: %.3f seconds' % (t1-t0)
  
-  if not VIEWER():
-    print 'Saving displacement snapshots ...'
-    import pickle
-    pickle.dump(dsp, open('out/reduced-order1/dsp.pickle', 'wb')) 
-    pickle.dump(rig, open('out/reduced-order1/rig.pickle', 'wb')) 
-    print 'Calculating modal decomposition ...'
-    MODAL_ANALYSIS (bod, 20, 'out/reduced-order1/modal')
-
 if sol.mode == 'READ' and not VIEWER():
-  import pickle
-  dur = DURATION (sol)
-  th = HISTORY (sol, [(bod, 'KINETIC'), (bod, 'INTERNAL')], dur[0], dur[1])
-  pickle.dump(th[0], open('out/reduced-order1/times.pickle', 'wb')) 
-  pickle.dump(th[1], open('out/reduced-order1/kin-fem-bc.pickle', 'wb')) 
-  pickle.dump(th[2], open('out/reduced-order1/int-fem-bc.pickle', 'wb')) 
+  import os, sys
+  dirpath = os.path.dirname(os.path.realpath(__file__))
+  execfile (dirpath + '/ro1-lib.py')
+  ro1_read_histories (sol, bod, 'fem-bc')
