@@ -2,12 +2,12 @@
 # so that all variables are local to the function
 # and are cleared after the function exits
 def runsim(input_file):
-  from inspect import currentframe, getframeinfo
-  info = getframeinfo(currentframe())
-  end = info.filename.rfind('/') + 1
-  path = info.filename[0:end]
-  percentage = True
-  execfile (path + input_file)
+  import os, sys
+  dirpath = os.path.dirname(os.path.realpath(__file__))
+  execfile (dirpath + '/' + input_file)
+
+# %-based output progress
+percentage = True
 
 # run in 'WRITE' mode (calculate)
 print 'Running calculations'

@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import pickle
 
+# read time histories
 try:
   times = pickle.load(open('out/reduced-order1/times.pickle', 'rb'))
   kin_tl = pickle.load(open('out/reduced-order1/kin-fem-tl.pickle', 'rb'))
@@ -36,6 +37,11 @@ except:
   import sys
   sys.exit(0)
 
+# plots time window
+t0 = 0.05
+t1 = 0.1
+
+# plot figures
 opath = 'out/reduced-order1/ro1_kin_energy.png'
 print '\bPlotting ', opath, '...'
 plt.clf ()
@@ -43,7 +49,7 @@ plt.title ('Pipe impact: kinetic energy')
 plt.plot (times, kin_tl, label='TL')
 plt.plot (times, kin_bc, label='BC', linestyle='--') # 'None' line style is possible
 plt.plot (times, kin_bc_ro, label='BC-RO', linestyle='-')
-plt.xlim ((0.05, 0.1))
+plt.xlim ((t0, t1))
 plt.xlabel ('Time [s]')
 plt.ylabel ('Energy [J]')
 plt.legend(loc = 'lower right')
@@ -57,7 +63,7 @@ plt.title ('Pipe impact: internal energy')
 plt.plot (times, int_tl, label='TL')
 plt.plot (times, int_bc, label='BC', linestyle='--') # 'None' line style is possible
 plt.plot (times, int_bc_ro, label='BC-RO', linestyle='-')
-plt.xlim ((0.05, 0.1))
+plt.xlim ((t0, t1))
 plt.xlabel ('Time [s]')
 plt.ylabel ('Energy [J]')
 plt.legend(loc = 'upper left')
@@ -71,7 +77,7 @@ plt.title ('Pipe impact: outer diameter in the contact area')
 plt.plot (times, odm_tl, label='TL')
 plt.plot (times, odm_bc, label='BC', linestyle='--') # 'None' line style is possible
 plt.plot (times, odm_bc_ro, label='BC-RO', linestyle='-')
-plt.xlim ((0.05, 0.1))
+plt.xlim ((t0, t1))
 plt.xlabel ('Time [s]')
 plt.ylabel ('Length [m]')
 plt.legend(loc = 'upper left')
@@ -85,7 +91,7 @@ plt.title ('Pipe impact: inner diameter in the contact area')
 plt.plot (times, idm_tl, label='TL')
 plt.plot (times, idm_bc, label='BC', linestyle='--') # 'None' line style is possible
 plt.plot (times, idm_bc_ro, label='BC-RO', linestyle='-')
-plt.xlim ((0.05, 0.1))
+plt.xlim ((t0, t1))
 plt.xlabel ('Time [s]')
 plt.ylabel ('Length [m]')
 plt.legend(loc = 'upper left')
@@ -99,7 +105,7 @@ plt.title ('Pipe impact: rotation angle')
 plt.plot (times, rot_tl, label='TL')
 plt.plot (times, rot_bc, label='BC', linestyle='--') # 'None' line style is possible
 plt.plot (times, rot_bc_ro, label='BC-RO', linestyle='-')
-plt.xlim ((0.05, 0.1))
+plt.xlim ((t0, t1))
 plt.xlabel ('Time [s]')
 plt.ylabel ('Angle [rad]')
 plt.legend(loc = 'upper left')
@@ -116,7 +122,7 @@ plt.plot (times, p4z_bc_ro, label='p4z-BC-RO', linestyle='-')
 plt.plot (times, p5z_tl, label='p5z-TL')
 plt.plot (times, p5z_bc, label='p5z-BC', linestyle='--') # 'None' line style is possible
 plt.plot (times, p5z_bc_ro, label='p5z-BC-RO', linestyle='-')
-plt.xlim ((0.05, 0.1))
+plt.xlim ((t0, t1))
 plt.xlabel ('Time [s]')
 plt.ylabel ('Position [m]')
 plt.legend(loc = 'lower left')
@@ -130,7 +136,7 @@ plt.title ('Pipe impact: p0 MISES stress')
 plt.plot (times, p0mises_tl, label='TL')
 plt.plot (times, p0mises_bc, label='BC', linestyle='--') # 'None' line style is possible
 plt.plot (times, p0mises_bc_ro, label='BC-RO', linestyle='-')
-plt.xlim ((0.05, 0.1))
+plt.xlim ((t0, t1))
 plt.xlabel ('Time [s]')
 plt.ylabel ('Stress [MPa]')
 plt.legend(loc = 'upper left')
@@ -144,7 +150,7 @@ plt.title ('Pipe impact: p2 MISES stress')
 plt.plot (times, p2mises_tl, label='TL')
 plt.plot (times, p2mises_bc, label='BC', linestyle='--') # 'None' line style is possible
 plt.plot (times, p2mises_bc_ro, label='BC-RO', linestyle='-')
-plt.xlim ((0.05, 0.1))
+plt.xlim ((t0, t1))
 plt.xlabel ('Time [s]')
 plt.ylabel ('Stress [MPa]')
 plt.legend(loc = 'upper left')

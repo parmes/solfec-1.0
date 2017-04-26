@@ -1,3 +1,53 @@
+import os, sys
+dirpath = os.path.dirname(os.path.realpath(__file__))
+
+## set up simulation
+def ro1_simulation(path_string, step=1E-3, stop=0.1, damping=1E-5):
+  sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order1/ro1-%s' % path_string)
+  if 'percentage' in globals(): sol.verbose = '%' # see: ro1-run-all.py
+  GRAVITY (sol, (0, 0, -10)) # gravity acceleration
+  OUTPUT (sol, 0.0025) # output file interval
+  # bulk ad surface materials
+  mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
+	 young = 1E7, poisson = 0.25, density = 1E3)
+  SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.1)
+  # block obstacle
+  nodes = [0, 0, 0,   1, 0, 0,   1, 1, 0,   0, 1, 0,
+	   0, 0, 1,   1, 0, 1,   1, 1, 1,   0, 1, 1]
+  msh = HEX (nodes, 1, 1, 1, 0, [0]*6)
+  SCALE (msh, (0.01, 0.1, 0.01))
+  BODY (sol, 'OBSTACLE', msh, mat)
+  # pipe body
+  msh = PIPE ((0.005, 0.05, 0), (0, 0, 0.1),
+	      0.01, 0.005, 36, 36, 4, 1, [1]*4)
+  ROTATE (msh, (0.005, 0.05, 0.05), (0, 1, 0), 90)
+  TRANSLATE (msh, (-0.025, 0, 0))
+
+  if path_string == 'fem-tl':
+    bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'TL')
+  elif path_string == 'fem-bc':
+    bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'BC')
+  else:
+    try:
+      import pickle
+      podbase = pickle.load(open('out/reduced-order1/podbase.pickle', 'rb'))
+    except:
+      print 'File out/reduced-order1/podbase.pickle not found',
+      print '--> running ro0-modred.py ...'
+      execfile (dirpath + '/ro1-modred.py')
+      try:
+	import pickle
+	podbase = pickle.load(open('out/reduced-order1/podbase.pickle', 'rb'))
+      except:
+        print 'Running ro0-modred.py has failed --> report a bug!' 
+	import sys
+	sys.exit(0)
+    bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = 'BC-RO', base = podbase)
+
+  bod.scheme = 'DEF_LIM'
+  bod.damping = damping
+  return (sol, bod, stop)
+
 # read time histories
 def ro1_read_histories(sol, bod, path_string):
   from math import asin
