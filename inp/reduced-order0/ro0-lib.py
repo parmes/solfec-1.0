@@ -119,6 +119,63 @@ def ro0_POD_base(rigid, deformable, num_modes=11, verbose=False):
 
   return (val[0:len(mod)], base)
 
+# POD base calculation routine (keep rigid modes)
+def ro0_POD_base_keep_rigid(rigid, deformable, num_modes=11, verbose=False):
+
+  vecs = numpy.transpose(numpy.array(deformable))
+
+  if verbose:
+    svec = vecs.shape[0]
+    nvec = vecs.shape[1]
+    print 'Calculating', num_modes-6, 'POD modes for', nvec, 'input vectors of size', svec, '...'
+
+  modes, eig_vals = modred.compute_POD_matrices_snaps_method(vecs, list(range(num_modes-6)))
+  #modes, eig_vals = modred.compute_POD_matrices_direct_method(vecs, list(range(num_modes-6)))
+
+  if verbose:
+    print 'POD eigen values:'
+    print eig_vals[0:num_modes-6]
+
+  defo = numpy.transpose(modes).tolist()
+
+  # re-orthogonalize deformable modes with
+  # respect to the 6 rigid modes and themselves
+  for i in range(0,len(defo)):
+    for j in range(0, i): # defo(i) _|_ defo(j<i)
+      x = defo[i]
+      y = defo[j]
+      dot = numpy.dot(x, y)
+      z = numpy.array(x) - dot*numpy.array(y)
+      defo[i] = z.tolist()
+    for y in rigid: # defo(i) _|_ rigid
+      x = defo[i]
+      dot = numpy.dot(x, y)
+      z = numpy.array(x) - dot*numpy.array(y)
+      defo[i] = z.tolist()
+    # normalize
+    x = defo[i]
+    invlen = 1.0/numpy.dot(x, x)**0.5
+    z = numpy.array(x) * invlen
+    defo[i] = z.tolist()
+
+  '''
+  for i in range(0,len(defo)):
+    for j in range(0,len(defo)):
+      x = defo[i]
+      y = defo[j]
+      dot = numpy.dot(x, y)
+      print 'dot(%d,%d) = %g' % (i, j, dot)
+    for y in rigid:
+      x = defo[i]
+      dot = numpy.dot(x, y)
+      print 'dot(%d,rigid) = %g' % (i, dot)
+   '''
+
+  base = [x for vec in (rigid+defo) for x in vec]
+  val = eig_vals.tolist()
+
+  return ([0.]*6+[1.]*(num_modes-6), base)
+
 # retrieve time history of time
 def ro0_times (sol, progress='OFF'):
   dur = DURATION (sol)

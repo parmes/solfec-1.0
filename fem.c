@@ -2642,7 +2642,15 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
   blas_daxpy (nm, half, um, 1, tmp, 1); /* qm(t+h) = qm(t+h/2) + (h/2)um(t+h) */
   BC_update_rotation (bod, msh, tmp, R); /* R(t+h) = R(qm(t+h)) */
 
-  RO_project_velo (bod, E, tmp, R, um, u); /* project um onto reduced u */
+  if (bod->form == BODY_COROTATIONAL_MODAL)
+  {
+    RO_project_velo (bod, E, tmp, R, um, r); /* r[i>=6] store the "good" deformation components */
+    for (int i = 6; i < n; i ++) u[i] = r[i]; /* while u[i<6] store the "good" rotation components */
+  }
+  else
+  {
+    RO_project_velo (bod, E, tmp, R, um, u); /* project um onto reduced u */
+  }
 
   MX_Matvec (1.0, E, u, 0.0, um); /* resolve back um from u, using non-incremental formula */
   RO_rotate_forward (R, um, nm); /* now um(t+h) combines "good" rotation and deformation */

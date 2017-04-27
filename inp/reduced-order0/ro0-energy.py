@@ -52,8 +52,8 @@ else:
     plt.title ('Rotating bar: total energy ($h = 1/%d, \eta = %g$)' % (div, damp))
     plt.plot (times, e_tl, label='TL')
     plt.plot (times, e_bc, label='BC', linestyle='--') # 'None' line style is possible
-    plt.plot (times, e_bc_ro, label='BC-RO', linestyle='-')
-    plt.plot (times, e_bc_modal, label='BC-MODAL', linestyle='-.')
+    plt.plot (times, e_bc_ro, label='BC-RO', linestyle=':')
+    plt.plot (times, e_bc_modal, label='BC-MODAL', linestyle='None', marker = '.', markevery=div)
     plt.xlabel ('Time [s]')
     plt.ylabel ('Energy [J]')
     plt.legend(loc = 'upper right')

@@ -1,3 +1,4 @@
+'''
 # run simulation from within a function
 # so that all variables are local to the function
 # and are cleared after the function exits
@@ -10,4 +11,10 @@ def runsim(input_file):
 runsim ('ro0-elong.py')
 runsim ('ro0-energy.py')
 runsim ('ro0-convtest.py')
-
+'''
+# FIXME: why the above doesn't work?
+import os
+dirpath = os.path.dirname(os.path.realpath(__file__))
+execfile (dirpath + '/ro0-elong.py')
+execfile (dirpath + '/ro0-energy.py')
+execfile (dirpath + '/ro0-convtest.py')
