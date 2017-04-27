@@ -397,7 +397,7 @@ obj/bmp.o: bmp.c bmp.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/rnd.o: rnd.c rnd.h alg.h dom.h shp.h cvx.h msh.h sph.h err.h
-	$(CC) $(CFLAGS) $(PYTHON) $(OPENGL) -c -o $@ $<
+	$(CC) $(CFLAGS) $(OS) $(PYTHON) $(OPENGL) -c -o $@ $<
 
 obj/gl2ps.o: ext/gl2ps.c ext/gl2ps.h
 	$(CC) $(CFLAGS) -c -o $@ $<
