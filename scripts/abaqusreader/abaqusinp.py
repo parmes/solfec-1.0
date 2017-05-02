@@ -110,11 +110,10 @@ class ElasticMaterial(object):
         self.bulkmat = None
 
     def convert(self, solfec):
-        self.bulkmat = BULK_MATERIAL(solfec, 'KIRCHHOFF', self.name, self.Ym, self.poisson, self.density)
-        
-   
-    
-
+        if self.bulkmat == None:
+          # create Solfec object just once (this is called for every instance)
+          self.bulkmat = BULK_MATERIAL(solfec, 'KIRCHHOFF', self.name, self.Ym, self.poisson, self.density)
+	return self
     
 #class Elset(object): # UNUSED at present
 #  def __init__(self):
@@ -231,7 +230,7 @@ class Instance(object):
     def convert(self, bulkmat=None):
         
         part = self.part # must already be converted
-        
+      
         mesh = MESH(part.nodes, part.elements, part.surfids)
         if _l2(self.translate) > 0.0:
             TRANSLATE(mesh, self.translate)  # translation is applied before rotation in ABAQUS
@@ -285,16 +284,19 @@ class AbaqusInput(object):
         This can only be done after the entire deck has been read, else it would require a specific
         deck order,
     """
+
+    # convert parts
+    for p in self.parts:
+      # convert its part:
+      self.parts[p].convert(self.volid, self.gid)
+    
+    # convert instances
     for i in self.assembly.instances.values():
         printonce('processing instance %s:' % i.name)
-        
-        # convert its part:
-        i.part.convert(self.volid, self.gid)
-        
+       
         # convert its material
         bulkmat = None
         if self.solfec:
-            
             matname = i.part.materialname
             try:
                 mat = self.materials[matname]

@@ -9,7 +9,7 @@ from math import cos
 
 # Analysis paramters
 
-formu = 'RO'
+formu = 'MODAL'
 step = 1E-4
 stop = 0.5
 damp = 1E-6
@@ -26,7 +26,7 @@ if argv == None:
   print '------------------------------------------------------'
   print 'No user paramters passed! Possible paramters:'
   print '------------------------------------------------------'
-  print '-form name => where name is TL, BC, RO, PR or RG'
+  print '-form name => where name is TL, BC, MODAL, PR or RG'
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-damp num => damping, >= 0.0'
   print '-step num => time step, > 0.0'
@@ -39,7 +39,7 @@ if argv != None and len (argv) > 1:
     if argv [i] == '-fbmod':
       fbmod = max (min (64, long (argv [i+1])), 6)
     elif argv [i] == '-form':
-      if argv [i+1] in ('TL', 'BC', 'RO', 'PR', 'RG'):
+      if argv [i+1] in ('TL', 'BC', 'MODAL', 'PR', 'RG'):
 	formu = argv [i+1]
     elif argv [i] == '-damp':
       damp = max (float (argv [i+1]), 0.0)
@@ -60,8 +60,8 @@ print '------------------------------------------------------'
 
 # Model
 
-if formu == 'RO':
-  ending = 'RO_FB%d'%(fbmod)
+if formu == 'MODAL':
+  ending = 'MODAL_FB%d'%(fbmod)
 else: ending = formu
 
 ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), ending, step, damp, rest)
@@ -82,13 +82,13 @@ for inst in model.assembly.instances.values():	# .instances is a dict
     bdy = BODY(solfec, 'RIGID', mesh, bulkmat, label)
   elif formu == 'PR':
     bdy = BODY(solfec, 'PSEUDO_RIGID', mesh, bulkmat, label)
-  elif formu != 'RO':
+  elif formu in ['TL', 'BC']:
     bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = formu)
-  else:
+  elif formu == 'MODAL':
     bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
     data = MODAL_ANALYSIS (bdy, fbmod, solfec.outpath + '/modal' + label, abstol = 1E-13)
     DELETE (solfec, bdy)
-    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'RO', modal = data)
+    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = data)
 
 # boundary conditions
 for b in solfec.bodies:

@@ -1,7 +1,7 @@
 # Model name 81array.py
 # Abaqus input file = 81_Brick_Model_14.inp - Revised pitch and gaps as per test report after verification completed 26/09/11
 # 81_Brick_Model_14.inp also includes modified FB and IB Young's modulus FB = 0.138GPa, IB = 0.138GPa, LK = 11.8GPa.
-# Array of bricks with brick normal gaps to match those in test, DYNAMIC run all FEM-RO bodies - Loose Key facets removed
+# Array of bricks with brick normal gaps to match those in test, DYNAMIC run all FEM bodies - Loose Key facets removed
 # VELOCITY Time-history used from 5101060/23/03/08 - 2s, 0.3g, 3Hz sine dwell, then 3Hz to 10Hz linear sweep at 0.1Hz/s
 
 import sys
@@ -12,7 +12,7 @@ import pickle
 import commands
 sys.path.append('scripts/abaqusreader')
 sys.path.append('scripts')
-sys.path.append('examples/81array')
+sys.path.append('inp/81array')
 from abaqusreader import AbaqusInput
 from math import cos 
 
@@ -24,7 +24,7 @@ if argv == None:
   print '----------------------------------------------------------'
   print 'No user paramters passed! Possible paramters:'
   print '----------------------------------------------------------'
-  print '-form name => where name is TL, BC, RO, PR or RG'
+  print '-form name => where name is TL, BC, MODAL, PR or RG'
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-ibmod num => interstitial brick modes, num >= 6 and <= 64'
   print '-lkmod num => loose key modes, num >= 6 and <= 12'
@@ -35,11 +35,11 @@ if argv == None:
   print '-outi num => output interval'
   print '----------------------------------------------------------'
 
-formu = 'RO'
+formu = 'MODAL'
 fbmod = 12
 ibmod = 12
 lkmod = 12
-afile = 'examples/81array/81array.inp'
+afile = 'inp/81array/81array.inp'
 step = 1E-4
 damp = 1E-5
 rest = 0.0
@@ -53,7 +53,7 @@ if argv != None and len (argv) > 1:
     elif argv [i] == '-lkmod':
       lkmod = max (min (12, long (argv [i+1])), 6)
     elif argv [i] == '-form':
-      if argv [i+1] in ('TL', 'BC', 'RO', 'PR', 'RG'):
+      if argv [i+1] in ('TL', 'BC', 'MODAL', 'PR', 'RG'):
 	formu = argv [i+1]
     elif argv [i] == '-afile':
       afile = argv [i+1]
@@ -68,15 +68,15 @@ if argv != None and len (argv) > 1:
       outi = float (argv [i+1])
 
 print 'Using formulation: ', formu
-if formu == 'RO':
+if formu == 'MODAL':
   print '%d modes per fuel brick'%fbmod
   print '%d modes per interstitial brick'%ibmod
   print '%d modes per loose key'%lkmod
 print 'Using %g time step and %g damping'%(step, damp)
 print '----------------------------------------------------------'
 
-if formu == 'RO':
-  ending = 'RO_FB%d_IB%d_LK%d'%(fbmod,ibmod,lkmod)
+if formu == 'MODAL':
+  ending = 'MODAL_FB%d_IB%d_LK%d'%(fbmod,ibmod,lkmod)
 else: ending = formu
 
 ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), ending, step, damp, rest)
@@ -102,7 +102,7 @@ OUTPUT (solfec, outi) # The physical tests recorded digitased outputs at 2E-3s i
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
 if RANK () == 0:
-  commands.getoutput ("bunzip2 examples/81array/ts81.py.bz2") # only first CPU unpacks the input
+  commands.getoutput ("bunzip2 inp/81array/ts81.py.bz2") # only first CPU unpacks the input
 
 BARRIER () # let all CPUs meet here
 
@@ -112,7 +112,7 @@ from ts81 import TS81 # import the time series
 vel = TS81()
 
 if RANK () == 0:
-  commands.getoutput ("bzip2 examples/81array/ts81.py") # only first CPU pack the input
+  commands.getoutput ("bzip2 inp/81array/ts81.py") # only first CPU pack the input
 
 # Create a new AbaqusInput object from the .inp deck:
 model = AbaqusInput(afile, solfec)
@@ -126,16 +126,16 @@ for inst in model.assembly.instances.values():	# .instances is a dict
     bdy = BODY(solfec, 'RIGID', mesh, bulkmat, label)
   elif formu == 'PR':
     bdy = BODY(solfec, 'PSEUDO_RIGID', mesh, bulkmat, label)
-  elif formu != 'RO':
+  elif formu in ['TL', 'BC']:
     bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = formu)
-  else:
+  elif formu == 'MODAL':
     bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
     if label.startswith ('FB'): nm = fbmod
     elif label.startswith ('IB'): nm = ibmod
     else: nm = lkmod
     data = MODAL_ANALYSIS (bdy, nm, solfec.outpath + '/modal' + label, abstol = 1E-13)
     DELETE (solfec, bdy)
-    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'RO', modal = data)
+    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = data)
 
 #----------------------------------------------------------------------
 
