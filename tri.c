@@ -20,6 +20,7 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #include <stdlib.h>
+#include <string.h>
 #include "tri.h"
 #include "mem.h"
 #include "map.h"
@@ -617,4 +618,248 @@ void TRI_Extents (TRI *t, double *extents)
     if (v [2] < extents [2]) extents [2] = v [2];
     else if (v [2] > extents [5]) extents [5] = v [2];
   }
+}
+
+/* create triangulation from vertices and n triangles;
+ * adjacency is not maintained: use TRI_Compadj */
+TRI* TRI_Create (double *vertices, int *triangles, int n)
+{
+  int i, m = 0;
+  double *ver;
+  TRI *tri;
+
+  for (i = 0; i < 3*n; i ++)
+  {
+    if (triangles[i] > m) m = triangles[i];
+  }
+
+  ERRMEM (tri = MEM_CALLOC (n * sizeof(tri) + m * sizeof (double[3])));
+  ver = (double*)(tri + n);
+  memcpy (ver, vertices, m * sizeof (double[3]));
+  for (i = 0; i < n; i ++)
+  {
+    tri[i].ver[0] = &ver[triangles[3*i+0]];
+    tri[i].ver[1] = &ver[triangles[3*i+1]];
+    tri[i].ver[2] = &ver[triangles[3*i+2]];
+    NORMAL (tri[i].ver[0], tri[i].ver[1], tri[i].ver[2], tri[i].out);
+    NORMALIZE (tri[i].out);
+  }
+
+  return tri;
+}
+
+/* refine triangulation (tri, n) into (returned, m) given an edge size;
+ * adjacency is not maintained: use TRI_Compadj */
+TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
+{
+  MEM vermem, trimem, setmem, mapmem, ppmem;
+  SET *vset, *tset, *dque, *item;
+  double *vin, *v, *vout;
+  TRI *out, *t0, *t1;
+  MAP *e2v, *v2v;
+  int i, j;
+
+  MEM_Init (&vermem, sizeof(double[3]), 128);
+  MEM_Init (&trimem, sizeof(TRI), 128);
+  MEM_Init (&setmem, sizeof(SET), 128);
+  MEM_Init (&mapmem, sizeof(SET), 128);
+  MEM_Init (&ppmem, sizeof (struct pp), 128);
+
+  vset = NULL; /* current vertices */
+  tset = NULL; /* curren triangles */
+  dque = NULL; /* triangles to delete */
+  e2v = NULL; /* refined edges to new vertex mapping */
+  v2v = NULL; /* input vertices to current vertices mapping */
+
+  vin = TRI_Vertices (tri, n, &j);
+
+  /* map input to current vertices */
+  for (i = 0; i < j; i ++, vin += 3)
+  {
+    ERRMEM (v = MEM_Alloc (&vermem));
+    COPY (vin, v);
+    SET_Insert (&setmem, &vset, v, NULL);
+    MAP_Insert (&mapmem, &v2v, vin, v, NULL);
+  }
+
+  /* initialize current triangles */
+  for (i = 0; i < n; i ++)
+  {
+    t0 = &tri[i];
+    ERRMEM (t1 = MEM_Alloc (&trimem));
+    ASSERT_DEBUG(t1->ver[0] = MAP_Find (v2v, t0->ver[0], NULL), "Invalid v2v mapping");
+    ASSERT_DEBUG(t1->ver[1] = MAP_Find (v2v, t0->ver[1], NULL), "Invalid v2v mapping");
+    ASSERT_DEBUG(t1->ver[2] = MAP_Find (v2v, t0->ver[2], NULL), "Invalid v2v mapping");
+    COPY (t0->out, t1->out);
+    SET_Insert (&setmem, &tset, t1, NULL);
+  }
+
+  double size2 = size*size;
+  do /* loop as long as triangles get refined */
+  {
+    /* empty refined triangles queue */
+    SET_Free (&setmem, &dque);
+
+    /* attempt refine */
+    for (item = SET_First (tset); item; item = SET_Next (item))
+    {
+      t0 = item->data;
+      double *a = t0->ver[0],
+             *b = t0->ver[1],
+	     *c = t0->ver[2],
+	     *xab = NULL,
+	     *xbc = NULL,
+	     *xca = NULL,
+	     d[3], dab, dbc, dca;
+      struct pp *y, z;
+
+      SUB (a, b, d);
+      dab = DOT(d,d);
+      SUB (b, c, d);
+      dbc = DOT(d,d);
+      SUB (c, a, d);
+      dca = DOT(d,d);
+
+#define ADDVER(p0, p1, ptr)\
+        z.a = p0 < p1 ? p0 : p1;\
+	z.b = p0 > p1 ? p0 : p1;\
+        if (!(ptr = MAP_Find (e2v, &z, (MAP_Compare)ppcmp)))\
+	{\
+	  ERRMEM (ptr = MEM_Alloc (&vermem));\
+	  MID (p0, p1, ptr);\
+	  SET_Insert (&setmem, &vset, ptr, NULL);\
+	  ERRMEM (y = MEM_Alloc (&ppmem));\
+	  *y = z;\
+	  MAP_Insert (&mapmem, &e2v, y, ptr, (MAP_Compare)ppcmp);\
+	}
+
+#define ADDTRI(p0, p1, p2)\
+	ERRMEM (t1 = MEM_Alloc (&trimem));\
+	COPY (t0->out, t1->out);\
+	t1->ver[0] = p0;\
+	t1->ver[1] = p1;\
+	t1->ver[2] = p2;\
+	SET_Insert (&trimem, &tset, t1, NULL)
+
+      if (dab < size2 && dbc < size2 && dca < size2) /* refine all edges */
+      {
+	ADDVER(a, b, xab);
+	ADDVER(b, c, xbc);
+	ADDVER(c, a, xca);
+
+	ADDTRI (a, xab, xca);
+	ADDTRI (xab, b, xbc);
+	ADDTRI (xca, xbc, c);
+	ADDTRI (xca, xab, xbc);
+
+	SET_Insert (&setmem, &dque, t0, NULL);
+      }
+      else if (dab < size2 && dbc < size2) /* refine two edges */
+      {
+        ADDVER(a, b, xab);
+	ADDVER(b, c, xbc);
+
+	ADDTRI (a, xbc, c);
+	ADDTRI (a, xab, xbc);
+	ADDTRI (xab, b, xbc);
+
+	SET_Insert (&setmem, &dque, t0, NULL);
+      }
+      else if (dab < size2 && dca < size2)
+      {
+	ADDVER(a, b, xab);
+	ADDVER(c, a, xca);
+
+	ADDTRI (a, xab, xca);
+	ADDTRI (xab, b, xca);
+	ADDTRI (xca, b, c);
+
+	SET_Insert (&setmem, &dque, t0, NULL);
+      }
+      else if (dbc < size2 && dca < size2)
+      {
+	ADDVER(b, c, xbc);
+	ADDVER(c, a, xca);
+
+	ADDTRI (a, xbc, xca);
+	ADDTRI (a, b, xbc);
+	ADDTRI (xca, xbc, c);
+
+	SET_Insert (&setmem, &dque, t0, NULL);
+      }
+      else if (dab < size2) /* refine one edge */
+      {
+	ADDVER(a, b, xab);
+
+	ADDTRI (a, xab, c);
+	ADDTRI (xab, b, c);
+
+	SET_Insert (&setmem, &dque, t0, NULL);
+      }
+      else if (dbc < size2)
+      {
+	ADDVER(b, c, xbc);
+
+	ADDTRI (b, xbc, a);
+	ADDTRI (xbc, c, a);
+
+	SET_Insert (&setmem, &dque, t0, NULL);
+      }
+      else if (dca < size2)
+      {
+	ADDVER(c, a, xca);
+
+	ADDTRI (c, xca, b);
+	ADDTRI (xca, a, b);
+
+	SET_Insert (&setmem, &dque, t0, NULL);
+      }
+    }
+
+    /* delete refined triangles */
+    for (item = SET_First (dque); item; item = SET_Next (dque))
+    {
+      SET_Delete (&setmem, &tset, item->data, NULL);
+    }
+
+    /* empty refined edge to vertex map */
+    MAP_Free (&mapmem, &e2v);
+    MEM_Release (&ppmem);
+  }
+  while (dque);
+
+  /* create output triangulation */
+  (*m) = SET_Size (tset);
+  j = SET_Size (vset);
+  ERRMEM (out = MEM_CALLOC ((*m) * sizeof (TRI) + j * sizeof (double[3])));
+  vout = (double*) (out + (*m));
+
+  /* map current vertices to output vertices */
+  MAP_Free (&mapmem, &v2v);
+  for (item = SET_First (vset); item; item = SET_Next (item), vout += 3)
+  {
+    v = item->data;
+    COPY (v, vout);
+    MAP_Insert (&mapmem, &v2v, v, vout, NULL);
+  }
+
+  /* copyt triangles */
+  for (item = SET_First (tset), i = 0; item; item = SET_Next (item), i ++)
+  {
+    t0 = item->data;
+    t1 = &out[i];
+    COPY (t0->out, t1->out);
+    ASSERT_DEBUG (t1->ver[0] = MAP_Find (v2v, t0->ver[0], NULL), "Invalid v2v mapping");
+    ASSERT_DEBUG (t1->ver[1] = MAP_Find (v2v, t0->ver[1], NULL), "Invalid v2v mapping");
+    ASSERT_DEBUG (t1->ver[2] = MAP_Find (v2v, t0->ver[2], NULL), "Invalid v2v mapping");
+  }
+
+  /* free memory */
+  MEM_Release (&vermem);
+  MEM_Release (&trimem);
+  MEM_Release (&setmem);
+  MEM_Release (&mapmem);
+  MEM_Release (&ppmem);
+
+  return out;
 }

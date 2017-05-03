@@ -20,7 +20,7 @@ from math import cos
 
 argv = NON_SOLFEC_ARGV()
 
-if argv == None:
+if RANK() == 0 and argv == None:
   print '----------------------------------------------------------'
   print 'No user paramters passed! Possible paramters:'
   print '----------------------------------------------------------'
@@ -35,13 +35,13 @@ if argv == None:
   print '-outi num => output interval'
   print '----------------------------------------------------------'
 
-formu = 'MODAL'
+formu = 'BC'
 fbmod = 12
 ibmod = 12
 lkmod = 12
 afile = 'inp/81array/81array.inp'
 step = 1E-4
-damp = 1E-5
+damp = 1E-7
 rest = 0.0
 outi = 2E-3 # The physical tests recorded digitased outputs at 2E-3s intervals
 if argv != None and len (argv) > 1:
@@ -67,13 +67,14 @@ if argv != None and len (argv) > 1:
     elif argv [i] == '-outi':
       outi = float (argv [i+1])
 
-print 'Using formulation: ', formu
-if formu == 'MODAL':
-  print '%d modes per fuel brick'%fbmod
-  print '%d modes per interstitial brick'%ibmod
-  print '%d modes per loose key'%lkmod
-print 'Using %g time step and %g damping'%(step, damp)
-print '----------------------------------------------------------'
+if RANK() == 0:
+  print 'Using formulation: ', formu
+  if formu == 'MODAL':
+    print '%d modes per fuel brick'%fbmod
+    print '%d modes per interstitial brick'%ibmod
+    print '%d modes per loose key'%lkmod
+  print 'Using %g time step and %g damping'%(step, damp)
+  print '----------------------------------------------------------'
 
 if formu == 'MODAL':
   ending = 'MODAL_FB%d_IB%d_LK%d'%(fbmod,ibmod,lkmod)

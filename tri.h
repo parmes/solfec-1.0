@@ -101,4 +101,12 @@ KDT* TRI_Kdtree (TRI *tri, int n);
 /* compute extents of a single triangle */
 void TRI_Extents (TRI *t, double *extents);
 
+/* create triangulation from vertices and n triangles;
+ * adjacency is not maintained: use TRI_Compadj */
+TRI* TRI_Create (double *vertices, int *triangles, int n);
+
+/* refine triangulation (tri, n) into (returned, m) given an edge size;
+ * adjacency is not maintained: use TRI_Compadj */
+TRI* TRI_Refine (TRI *tri, int n, double size, int *m);
+
 #endif

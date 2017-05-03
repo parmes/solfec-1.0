@@ -5962,7 +5962,7 @@ static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *k
   return (PyObject*)out;
 }
 
-/* create a mesh object */
+/* create a mesh object for a pipe */
 static PyObject* lng_PIPE (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("pnt", "dir", "rin", "thi", "ndri", "nrad", "nthi", "volid", "surids");
@@ -5995,6 +5995,37 @@ static PyObject* lng_PIPE (PyObject *self, PyObject *args, PyObject *kwds)
     surfaces [3] = PyInt_AsLong (PyList_GetItem (surfids, 3));
 
     if (!(out->msh = MESH_Pipe (point, direct, rin, thi, ndir, nrad, nthi, surfaces, volid))) return NULL;
+  }
+
+  return (PyObject*)out;
+}
+
+/* create a mesh object for an ellipsoid */
+static PyObject* lng_ELLIP_MESH (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("center", "radii", "size", "volid", "surfid");
+  PyObject *input_center, *input_radii;
+  double center[3], radii[3], size;
+  int surface, volume;
+  lng_MESH *out;
+
+  out = (lng_MESH*)lng_MESH_TYPE.tp_alloc (&lng_MESH_TYPE, 0);
+
+  if (out)
+  {
+    PARSEKEYS ("OOdii", &input_center, &input_radii, &size, &volume, &surface);
+
+    TYPETEST (is_tuple (input_center, kwl[0], 3) && is_tuple (input_radii, kwl[1], 3) && is_positive (size, kwl[2]));
+
+    center [0] = PyFloat_AsDouble (PyTuple_GetItem (input_center, 0));
+    center [1] = PyFloat_AsDouble (PyTuple_GetItem (input_center, 1));
+    center [2] = PyFloat_AsDouble (PyTuple_GetItem (input_center, 2));
+
+    radii [0] = PyFloat_AsDouble (PyTuple_GetItem (input_radii, 0));
+    radii [1] = PyFloat_AsDouble (PyTuple_GetItem (input_radii, 1));
+    radii [2] = PyFloat_AsDouble (PyTuple_GetItem (input_radii, 2));
+
+    if (!(out->msh = MESH_Ellip(center, radii, size, surface, volume))) return NULL;
   }
 
   return (PyObject*)out;
@@ -10246,6 +10277,7 @@ static PyMethodDef lng_methods [] =
   {"HEX", (PyCFunction)lng_HEX, METH_VARARGS|METH_KEYWORDS, "Create mesh of a hexahedral shape"},
   {"TETRAHEDRALIZE", (PyCFunction)lng_TETRAHEDRALIZE, METH_VARARGS|METH_KEYWORDS, "Generate tetrahedral mesh"},
   {"PIPE", (PyCFunction)lng_PIPE, METH_VARARGS|METH_KEYWORDS, "Create mesh of a pipe shape"},
+  {"ELLIP_MESH", (PyCFunction)lng_ELLIP_MESH, METH_VARARGS|METH_KEYWORDS, "Create tetrahedral ellipsoid mesh"},
   {"ROUGH_HEX", (PyCFunction)lng_ROUGH_HEX, METH_VARARGS|METH_KEYWORDS, "Create a rough hexahedral mesh containing a given shape"},
   {"FIX_POINT", (PyCFunction)lng_FIX_POINT, METH_VARARGS|METH_KEYWORDS, "Create a fixed point constraint"},
   {"FIX_DIRECTION", (PyCFunction)lng_FIX_DIRECTION, METH_VARARGS|METH_KEYWORDS, "Create a fixed direction constraint"},
@@ -10491,6 +10523,7 @@ int lng (const char *path)
                      "from solfec import HEX\n"
                      "from solfec import TETRAHEDRALIZE\n"
                      "from solfec import PIPE\n"
+                     "from solfec import ELLIP_MESH\n"
                      "from solfec import ROUGH_HEX\n"
                      "from solfec import SPHERE\n"
                      "from solfec import ELLIP\n"

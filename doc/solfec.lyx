@@ -2036,7 +2036,7 @@ The below table gives indicative assessment of the maturity of various Solfec
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="81" columns="4">
+<lyxtabular version="3" rows="82" columns="4">
 <features islongtable="true" longtabularalignment="center">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top">
@@ -2341,6 +2341,44 @@ PIPE
 
 \begin_layout Plain Layout
 x
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+ELLIP_MESH
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
 \end_layout
 
 \end_inset
@@ -6005,6 +6043,73 @@ surfids
 s1, s2, s3, s
 \emph default
 4] corresponding to the faces of the pipe
+\end_layout
+
+\begin_layout Subsection*
+obj = ELLIP_MESH (center, radii, size, volid, surfid) 
+\color red
+(under development)
+\end_layout
+
+\begin_layout Standard
+This routine creates a MESH object corresponding to an ellipsoid (tetrahedral
+ elements are used).
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created MESH object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+center
+\series default
+ - tuple 
+\emph on
+(x, y, z)
+\emph default
+ defining the center
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+radii
+\series default
+ - tuple 
+\emph on
+(rx, ry, rz)
+\emph default
+ of ellipsoid radii
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+size
+\series default
+ - mesh edge size
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+volid
+\series default
+ - volume identifier
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid
+\series default
+ - surface identifier
 \end_layout
 
 \begin_layout Subsection*

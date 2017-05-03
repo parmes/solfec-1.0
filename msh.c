@@ -1612,6 +1612,121 @@ MESH* MESH_Pipe (double *pnt, double *dir, double rin, double thi,
   return msh;
 }
 
+/* create tetrahedral mesh for an ellipsoid (center, radii) with prescribed triangle edge 'size' */
+MESH* MESH_Ellip (double *center, double *radii, double size, int surface, int volume)
+{
+  /* Isocahedron code from: http://userpages.umbc.edu/~squire/reference/polyhedra.shtml */
+  double vertices[12][3]; /* 12 vertices with x, y, z coordinates */
+  double Pi = 3.141592653589793238462643383279502884197;
+  double phiaa  = 26.56505; /* phi needed for generation */
+  double r = 1.0; /* any radius in which the polyhedron is inscribed */
+  double phia = Pi*phiaa/180.0; /* 2 sets of four points */
+  double theb = Pi*36.0/180.0;  /* offset second set 36 degrees */
+  double the72 = Pi*72.0/180;   /* step 72 degrees */
+  vertices[0][0]=0.0;
+  vertices[0][1]=0.0;
+  vertices[0][2]=r;
+  vertices[11][0]=0.0;
+  vertices[11][1]=0.0;
+  vertices[11][2]=-r;
+  double the = 0.0;
+  for(int i=1; i<6; i++)
+  {
+    vertices[i][0]=r*cos(the)*cos(phia);
+    vertices[i][1]=r*sin(the)*cos(phia);
+    vertices[i][2]=r*sin(phia);
+    the = the+the72;
+  }
+  the=theb;
+  for(int i=6; i<11; i++)
+  {
+    vertices[i][0]=r*cos(the)*cos(-phia);
+    vertices[i][1]=r*sin(the)*cos(-phia);
+    vertices[i][2]=r*sin(-phia);
+    the = the+the72;
+  }
+
+  /* map vertices to 20 faces */
+  int triangles[60], index = 0;
+#define polygon(i,j,k) triangles[3*index+0]=i, triangles[3*index+1]=j, triangles[3*index+2]=k, index++
+  polygon(0,1,2);
+  polygon(0,2,3);
+  polygon(0,3,4);
+  polygon(0,4,5);
+  polygon(0,5,1);
+  polygon(11,6,7);
+  polygon(11,7,8);
+  polygon(11,8,9);
+  polygon(11,9,10);
+  polygon(11,10,6);
+  polygon(1,2,6);
+  polygon(2,3,7);
+  polygon(3,4,8);
+  polygon(4,5,9);
+  polygon(5,1,10);
+  polygon(6,7,2);
+  polygon(7,8,3);
+  polygon(8,9,4);
+  polygon(9,10,5);
+  polygon(10,6,1);
+#undef polygon
+
+  int nfine, nvert;
+  /* create initial isocahedron mesh */
+  TRI *isocahedron = TRI_Create ((double*)vertices, triangles, 20);
+
+  /* refine this triangulation down to the specified size */
+  TRI *isofine = TRI_Refine (isocahedron, 20, size, &nfine);
+
+  /* retrieve fine triangulation vertices */
+  double *isovert = TRI_Vertices (isofine, nfine, &nvert);
+
+  /* project these vertices onto the refernce ellipsoid */
+  double invr0 = 1.0/radii[0],
+         invr1 = 1.0/radii[1],
+	 invr2 = 1.0/radii[2];
+  for (int i = 0; i < nvert; i ++)
+  {
+    /* x^2   y^2   z^2
+     * --- + --- + --- = 1.0 and x = u*t; y = v*t; z = w*t;
+     * a^2   b^2   c^2
+     *
+     * t = +/- 1.0 / sqrt((u/a)^2 + (v/b)^2 + (w/c)^2)
+     */
+
+    double ua = isovert[3*i+0]*invr0,
+           vb = isovert[3*i+1]*invr1,
+	   wc = isovert[3*i+2]*invr2;
+    double t = 1.0/sqrt(ua*ua+vb*vb+wc*wc);
+
+    isovert[3*i+0] *= t;
+    isovert[3*i+1] *= t;
+    isovert[3*i+2] *= t;
+  }
+
+  /* translate these vertices by the specified center point */
+  for (int i = 0; i < nvert; i ++)
+  {
+    isovert[3*i+0] += center[0];
+    isovert[3*i+1] += center[1];
+    isovert[3*i+2] += center[2];
+  }
+
+  /* set up surface flags */
+  for (int i = 0; i < nfine; i ++)
+  {
+    isofine[i].flg = surface;
+  }
+
+  /* create tetrahedral mesh */
+  MESH *msh = tetrahedralize3 (isofine, nfine, 0.0, 2.0, volume);
+
+  free (isocahedron);
+  free (isofine);
+
+  return msh;
+}
+
 /* create a copy of a mesh */
 MESH* MESH_Copy (MESH *msh)
 {

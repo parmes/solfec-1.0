@@ -115,6 +115,9 @@ MESH* MESH_Hex (double (*nodes) [3], int i, int j, int k, int *surfaces, /* six 
 MESH* MESH_Pipe (double *pnt, double *dir, double rin, double thi,
                  int ndir, int nrad, int nthi, int *surfaces, int volume); /* surfaces: bottom, top, inner, outer */
 
+/* create tetrahedral mesh for an ellipsoid (center, radii) with prescribed triangle edge 'size' */
+MESH* MESH_Ellip (double *center, double *radii, double size, int surface, int volume);
+
 /* create a copy of a mesh */
 MESH* MESH_Copy (MESH *msh);
 
