@@ -195,6 +195,8 @@ struct general_body
 
   MX *evec;         /* eigenvectors */
 
+  char *elabel; /* registered FE base label */
+
   DOM *dom;        /* domain storing the body */
 
   BODY *prev,       /* list */
@@ -227,7 +229,7 @@ struct general_body
 #define BODY(bod) ((BODY*)(bod))
 
 /* create a body */
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh, MX *E, double *val);
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh, MX *evec, double *eval, char *elabel);
 
 /* get body kind string */
 char* BODY_Kind (BODY *bod);

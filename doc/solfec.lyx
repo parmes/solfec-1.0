@@ -2036,7 +2036,7 @@ The below table gives indicative assessment of the maturity of various Solfec
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="82" columns="4">
+<lyxtabular version="3" rows="83" columns="4">
 <features islongtable="true" longtabularalignment="center">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top">
@@ -4746,6 +4746,44 @@ x
 
 \begin_layout Plain Layout
 XDMF_EXPORT
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+REGISTER_BASE
 \end_layout
 
 \end_inset
@@ -7882,8 +7920,19 @@ shape
 \series bold
 base
 \series default
- - optional modal or reduced order base, depending on the formulation; when
- 
+ - optional reduced order or modal base definition, or a string label of
+ a registered base (see 
+\series bold
+REGISTER_BASE
+\series default
+ on page 
+\begin_inset CommandInset ref
+LatexCommand pageref
+reference "subsec:REGISTER_BASE"
+
+\end_inset
+
+); when 
 \series bold
 form
 \series default
@@ -7898,8 +7947,8 @@ reference "subsec:MODAL_ANALYSIS"
 
 \end_inset
 
-), or equivalent user data, can be used; This argument must be passed if
- 
+), or equivalent user data, can be used; the same format is used for the
+ 'BC-RO' formulation; This argument must be passed if 
 \series bold
 form
 \series default
@@ -14592,6 +14641,68 @@ attributes
  (relative constraint velocities), 'GAP' (contact gaps); a non-optional
  scalar attribute 'BID' (body identifier) is always included with exported
  geometry
+\end_layout
+
+\begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:REGISTER_BASE"
+
+\end_inset
+
+REGISTER_BASE (solfec, base, label) 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+Register 'BC-RO' or 'BC-MODAL' base for the finite element BODY formulation
+ (page 
+\begin_inset CommandInset ref
+LatexCommand pageref
+reference "sec:bod"
+
+\end_inset
+
+).
+ Registering a reduced order or modal base saves memory when multiple instances
+ of bodies employing the same base are used.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+base
+\series default
+ - base definition: 
+\emph on
+(val, vec)
+\emph default
+ where 
+\emph on
+val
+\emph default
+ is a list of eigenvalues and 
+\emph on
+vec
+\emph default
+ is a list of eigenvectors (stored contiguously one after another)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label
+\series default
+ - unique string label
 \end_layout
 
 \begin_layout Section

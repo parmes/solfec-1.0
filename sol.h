@@ -56,6 +56,18 @@
 #define IOVER 4                                                 /* current version */
 /* =============================================================================== */
 
+#ifndef FE_BASE_TYPE
+#define FE_BASE_TYPE
+typedef struct fe_base FE_BASE;
+#endif
+
+struct fe_base
+{
+  MX *evec;
+  double *eval;
+  char *label;
+};
+
 #ifndef SOLFEC_TYPE
 #define SOLFEC_TYPE
 typedef struct solfec SOLFEC;
@@ -132,6 +144,9 @@ struct solfec
   /* current solver */
   SOLVER_KIND kind;
   void *solver;
+
+  /* registered FE bases */
+  MAP *registered_bases;
 
   /* list structure */
   SOLFEC *next;
@@ -224,5 +239,8 @@ int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time);
 
 /* map rigid motion onto FEM bodies; return 1 on success, 0 otherwise */
 int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time);
+
+/* register FE base; (evec, eval, label) must be dynamically allocated */
+void SOLFEC_Register_Base (SOLFEC *sol, MX *evec, double *eval, char *label);
 
 #endif

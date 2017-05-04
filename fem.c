@@ -2664,19 +2664,32 @@ static void RO_dynamic_step_end (BODY *bod, double time, double step)
 /* reduced order initialise static time stepping */
 static void RO_static_init (BODY *bod)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME => TODO */
+  RO_dynamic_init (bod);
 }
 
 /* reduced order perform the initial half-step of the static scheme */
 static void RO_static_step_begin (BODY *bod, double time, double step)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME => TODO */
+  MESH *msh = FEM_MESH (bod);
+  int nm = MESH_DOFS (msh),
+      n = bod->dofs,
+      i;
+  double *u0m = FEM_MESH_VEL0 (bod),
+	 *um = FEM_MESH_VELO (bod),
+	 *u0 = FEM_VEL0 (bod),
+	 *u = bod->velo;
+
+  /* zero velocity */
+  for (i = 0; i < nm; i ++) { u0m[i] = 0.0; um[i] = 0.0; }
+  for (i = 0; i < n; i ++) { u0[i] = 0.0; u[i] = 0.0; }
+
+  RO_dynamic_step_begin (bod, time, step);
 }
 
 /* reduced order perform the final half-step of the static scheme */
 static void RO_static_step_end (BODY *bod, double time, double step)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* FIXME => TODO */
+  RO_dynamic_step_end (bod, time, step);
 }
 
 /* ================== INTERSECTIONS ==================== */
@@ -3751,7 +3764,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
   {
     ASSERT_DEBUG (!bod->msh || (bod->msh && mone), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/1", bod->label);
-    (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone, NULL, NULL);
+    (*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mone, NULL, NULL, NULL);
     FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*one), (*one)->conf, (*one)->velo);
     if (bod->form >= BODY_COROTATIONAL_MODAL)
     {
@@ -3766,7 +3779,7 @@ void FEM_Split (BODY *bod, double *point, double *normal, short topoadj, int sur
   {
     ASSERT_DEBUG (!bod->msh || (bod->msh && mtwo), "Cut shape but not rought mesh");
     if (bod->label) sprintf (label, "%s/2", bod->label);
-    (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mtwo, NULL, NULL);
+    (*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, mtwo, NULL, NULL, NULL);
     FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO (bod), FEM_MESH (*two), (*two)->conf, (*two)->velo);
     if (bod->form >= BODY_COROTATIONAL_MODAL)
     {
@@ -3833,7 +3846,7 @@ BODY** FEM_Separate (BODY *bod, int *m)
   {
     if (bod->label) sprintf (label, "%s/%d", bod->label, i);
     MESH *backmesh = (msh ? msh [i] : NULL);
-    out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh, NULL, NULL);
+    out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, bod->form, backmesh, NULL, NULL, NULL);
     FEM_Map_State (FEM_MESH (bod), FEM_MESH_CONF (bod), FEM_MESH_VELO(bod), FEM_MESH (out [i]), out [i]->conf, out [i]->velo);
     if (bod->form >= BODY_COROTATIONAL_MODAL)
     {

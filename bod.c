@@ -908,7 +908,7 @@ void overwrite_state (BODY *src, BODY *dst)
 
 /* -------------- interface ------------- */
 
-BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh, MX *E, double *val)
+BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY_FLAGS flags, short form, MESH *msh, MX *evec, double *eval, char *elabel)
 {
   BODY *bod;
 
@@ -965,8 +965,9 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
     break;
     case FEM:
       ERRMEM (bod = alloc_body (FEM));
-      bod->evec = E;
-      bod->eval = val;
+      bod->evec = evec;
+      bod->eval = eval;
+      bod->elabel = elabel;
       FEM_Create (form, msh, shp, mat, bod);
     break;
     default:
@@ -1995,7 +1996,7 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
       if (sone)
       {
 	if (bod->label) sprintf (label, "%s/1", bod->label);
-	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL);
+	(*one) = BODY_Create (bod->kind, sone, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL, NULL);
 	overwrite_state (bod, *one);
         SHAPE_Update ((*one)->shape, (*one), (MOTION)BODY_Cur_Point); 
       }
@@ -2003,7 +2004,7 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
       if (stwo)
       {
 	if (bod->label) sprintf (label, "%s/2", bod->label);
-	(*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL);
+	(*two) = BODY_Create (bod->kind, stwo, bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL, NULL);
 	overwrite_state (bod, *two);
         SHAPE_Update ((*two)->shape, (*two), (MOTION)BODY_Cur_Point); 
       }
@@ -2066,7 +2067,7 @@ BODY** BODY_Separate (BODY *bod, int *m)
 	for (int i = 0; i < (*m); i ++)
 	{
 	  if (bod->label) sprintf (label, "%s/%d", bod->label, i);
-	  out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL);
+	  out [i] = BODY_Create (bod->kind, shp [i], bod->mat, label, bod->flags & BODY_PERMANENT_FLAGS, 0, NULL, NULL, NULL, NULL);
 	  overwrite_state (bod, out [i]);
 	  SHAPE_Update (out [i]->shape, out [i], (MOTION)BODY_Cur_Point); 
 	}
@@ -2210,9 +2211,12 @@ void BODY_Destroy (BODY *bod)
 
   if (bod->msh) MESH_Destroy (bod->msh);
 
-  if (bod->eval) free (bod->eval);
+  if (!bod->elabel) /* registered bases are freed with SOLFEC object */
+  {
+    if (bod->eval) free (bod->eval);
 
-  if (bod->evec) MX_Destroy (bod->evec);
+    if (bod->evec) MX_Destroy (bod->evec);
+  }
 
 #if OPENGL
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
@@ -2307,7 +2311,12 @@ static FORCE* unpack_forces (int *dpos, double *d, int doubles, int *ipos, int *
 void BODY_Pack (BODY *bod, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
 {
   /* these are arguments of BODY_Create */
-  if (bod->eval && bod->evec)
+  if (bod->elabel)
+  {
+    pack_int (isize, i, ints, -1);
+    pack_string (isize, i, ints, bod->elabel);
+  }
+  else if (bod->eval && bod->evec)
   {
     pack_int (isize, i, ints, bod->evec->n);
     pack_doubles (dsize, d, doubles, bod->eval, bod->evec->n);
@@ -2355,16 +2364,27 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   BULK_MATERIAL *mat;
   BODY_FLAGS flags;
   short form;
-  MX *E = NULL;
-  double *val = NULL;
+  MX *evec = NULL;
+  double *eval = NULL;
+  char *elabel = NULL;
+  FE_BASE *base;
 
   /* unpack BODY_Create arguments and create body */
-  int modal = unpack_int (ipos, i, ints);
-  if (modal)
+  int base_flag = unpack_int (ipos, i, ints);
+  if (base_flag < 0)
   {
-    ERRMEM (val = malloc (sizeof (double [modal])));
-    unpack_doubles (dpos, d, doubles, val, modal);
-    E = MX_Unpack (dpos, d, doubles, ipos, i, ints);
+    elabel = unpack_string (ipos, i, ints);
+    ASSERT_DEBUG (base = MAP_Find (sol->registered_bases, elabel, (MAP_Compare)strcmp), "Invalid base label");
+    free (elabel);
+    evec = base->evec;
+    eval = base->eval;
+    elabel = base->label;
+  }
+  else if (base_flag)
+  {
+    ERRMEM (eval = malloc (sizeof (double [base_flag])));
+    unpack_doubles (dpos, d, doubles, eval, base_flag);
+    evec = MX_Unpack (dpos, d, doubles, ipos, i, ints);
   }
   kind = unpack_int (ipos, i, ints);
   flags = unpack_int (ipos, i, ints);
@@ -2375,7 +2395,7 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   ASSERT_DEBUG_EXT (mat = MATSET_Find (sol->mat, label), "Invalid bulk material label");
   free (label);
   label = unpack_string (ipos, i, ints);
-  bod = BODY_Create (kind, shp, mat, label, flags, form, msh, E, val);
+  bod = BODY_Create (kind, shp, mat, label, flags, form, msh, evec, eval, elabel);
   free (label);
 
   /* overwritte characteristics */

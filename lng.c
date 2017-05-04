@@ -352,6 +352,31 @@ static int is_tuple (PyObject *obj, char *var, int len)
   return 1;
 }
 
+/* test whether an object is a tuple of length len or a string */
+static int is_tuple_or_string (PyObject *obj, char *var, int len)
+{
+  if (obj)
+  {
+    if (!PyTuple_Check (obj) || !PyString_Check(obj))
+    {
+      char buf [BUFLEN];
+      sprintf (buf, "'%s' must be a tuple or a string object", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+
+    if (PyTuple_Check(obj) && len > 0 && PyTuple_Size (obj) != len)
+    {
+      char buf [BUFLEN];
+      sprintf (buf, "'%s' must have %d elements", var, len);
+      PyErr_SetString (PyExc_ValueError, buf);
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
 /* test whether an object is a number */
 static int is_number (PyObject *obj, char *var)
 {
@@ -2795,8 +2820,9 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
   MESH *msh;
   short form;
   char *lab;
-  MX *E; /* base vectors (e.g. modal or POD vectors) */
-  double *val; /* base values * (e.g. modal or POD values) */
+  MX *evec; /* base vectors (e.g. modal or POD vectors) */
+  double *eval; /* base values * (e.g. modal or POD values) */
+  char *elabel;
 
   self = (lng_BODY*)type->tp_alloc (type, 0);
 
@@ -2824,14 +2850,15 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
     mesh = NULL;
     msh = NULL;
     base = NULL;
-    E = NULL;
-    val = NULL;
+    evec = NULL;
+    eval = NULL;
+    elabel = NULL;
 
     PARSEKEYS ("OOOO|OOOO", &solfec, &kind, &shape, &material, &label, &formulation, &mesh, &base);
 
     TYPETEST (is_solfec (solfec, kwl[0]) && is_string (kind, kwl[1]) && is_shape (shape, kwl[2]) &&
 	      is_bulk_material (solfec->sol, material, kwl[3]) && is_string (label, kwl[4]) &&
-	      is_string (formulation, kwl[5]) && is_mesh ((PyObject*)mesh, kwl[6]) && is_tuple (base, kwl[7], 2));
+	      is_string (formulation, kwl[5]) && is_mesh ((PyObject*)mesh, kwl[6]) && is_tuple_or_string (base, kwl[7], 2));
 
     if (label) lab = PyString_AsString (label);
     else lab = NULL;
@@ -2848,11 +2875,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 								          it is also needed for sparsification in this and other cases */
     IFIS (kind, "RIGID")
     {
-      self->bod = BODY_Create (RIG, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL);
+      self->bod = BODY_Create (RIG, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL, NULL);
     }
     ELIF (kind, "PSEUDO_RIGID")
     {
-      self->bod = BODY_Create (PRB, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL);
+      self->bod = BODY_Create (PRB, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL, NULL);
     }
     ELIF (kind, "FINITE_ELEMENT")
     {
@@ -2866,7 +2893,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
         TYPETEST (is_mesh (shape, kwl[2]));
       }
 
-      if (base)
+      if (base && PyTuple_Check(base))
       {
 	PyObject *vlist = PyTuple_GetItem (base, 0),
 		 *Elist = PyTuple_GetItem (base, 1);
@@ -2893,11 +2920,27 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	  return NULL;
 	}
 
-	ERRMEM (val = malloc (sizeof (double [n])));
-	E = MX_Create (MXDENSE, m, n, NULL, NULL);
+	ERRMEM (eval = malloc (sizeof (double [n])));
+	evec = MX_Create (MXDENSE, m, n, NULL, NULL);
 
-	for (i = 0; i < n; i ++) val [i] = PyFloat_AsDouble (PyList_GetItem (vlist, i));
-	for (i = 0; i < n*m; i ++) E->x [i] = PyFloat_AsDouble (PyList_GetItem (Elist, i));
+	for (i = 0; i < n; i ++) eval [i] = PyFloat_AsDouble (PyList_GetItem (vlist, i));
+	for (i = 0; i < n*m; i ++) evec->x [i] = PyFloat_AsDouble (PyList_GetItem (Elist, i));
+      }
+      else
+      {
+        FE_BASE *febase = MAP_Find (solfec->sol->registered_bases, PyString_AsString(base), (MAP_Compare)strcmp);
+
+	if (febase == NULL)
+	{
+	  char message[1024];
+	  snprintf (message, 1024, "Registed base with label %s has not been found", PyString_AsString (base));
+	  PyErr_SetString (PyExc_ValueError, message);
+	  return NULL;
+	}
+
+        evec = febase->evec;
+	eval = febase->eval;
+	elabel = febase->label;
       }
 
       if (formulation)
@@ -2914,7 +2957,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	{
 	  form = BODY_COROTATIONAL_MODAL;
 
-	  if (!(E && val))
+	  if (!(evec && eval))
 	  {
 	    PyErr_SetString (PyExc_ValueError, "Modal base data must be passed for the BC-MODAL formulation");
 	    return NULL;
@@ -2924,7 +2967,7 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	{
 	  form = BODY_COROTATIONAL_REDUCED_ORDER;
 
-	  if (!(E && val))
+	  if (!(evec && eval))
 	  {
 	    PyErr_SetString (PyExc_ValueError, "Reduced base must be passed for BC-RO formulation");
 	    return NULL;
@@ -2937,11 +2980,11 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
 	}
       }
 
-      self->bod = BODY_Create (FEM, shp, get_bulk_material (solfec->sol, material), lab, 0, form, msh, E, val);
+      self->bod = BODY_Create (FEM, shp, get_bulk_material (solfec->sol, material), lab, 0, form, msh, evec, eval, elabel);
     }
     ELIF (kind, "OBSTACLE")
     {
-      self->bod = BODY_Create (OBS, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL);
+      self->bod = BODY_Create (OBS, shp, get_bulk_material (solfec->sol, material), lab, 0, form, NULL, NULL, NULL, NULL);
     }
     ELSE
     {
@@ -9629,6 +9672,52 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
   Py_RETURN_NONE;
 }
 
+/* register FE base */
+static PyObject* lng_REGISTER_BASE (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "base", "label");
+  PyObject *base, *input_label;
+  lng_SOLFEC *solfec;
+  double *eval;
+  char *label;
+  MX *evec;
+  int i;
+
+  PARSEKEYS ("OOO", &solfec, &base, &input_label);
+  
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_tuple (base, kwl[1], 2) && is_string (input_label, kwl[2]));
+
+  PyObject *eval_list = PyTuple_GetItem (base, 0),
+	   *evec_list = PyTuple_GetItem (base, 1);
+
+  TYPETEST (is_list (eval_list, "base[0]", 0, 0) && is_list (evec_list, "base[1]", 0, 0));
+
+  int n = PyList_Size (eval_list),
+      m = PyList_Size (evec_list) / n;
+
+  ERRMEM (eval = malloc (sizeof (double [n])));
+  evec = MX_Create (MXDENSE, m, n, NULL, NULL);
+
+  for (i = 0; i < n; i ++) eval [i] = PyFloat_AsDouble (PyList_GetItem (eval_list, i));
+  for (i = 0; i < n*m; i ++) evec->x [i] = PyFloat_AsDouble (PyList_GetItem (evec_list, i));
+
+  if (MAP_Find(solfec->sol->registered_bases, PyString_AsString(input_label), (MAP_Compare)strcmp))
+  {
+    char message[1024];
+    snprintf (message, 1024, "Base named %s is already registered", PyString_AsString (input_label));
+    PyErr_SetString (PyExc_ValueError, message);
+    return NULL;
+  }
+
+  i = strlen(PyString_AsString(input_label)) + 1;
+  ERRMEM (label = malloc (i));
+  strcpy (label, PyString_AsString(input_label));
+
+  SOLFEC_Register_Base (solfec->sol, evec, eval, label);
+
+  Py_RETURN_NONE;
+}
+
 /* extract snaphots of co-rotated FEM displacemnts */
 static PyObject* lng_COROTATED_DISPLACEMENTS (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -10334,6 +10423,7 @@ static PyMethodDef lng_methods [] =
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"RENDER", (PyCFunction)lng_RENDER, METH_VARARGS|METH_KEYWORDS, "Render bodies"},
   {"XDMF_EXPORT", (PyCFunction)lng_XDMF_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export results in XDMF format"},
+  {"REGISTER_BASE", (PyCFunction)lng_REGISTER_BASE, METH_VARARGS|METH_KEYWORDS, "Register FE base"},
   {"COROTATED_DISPLACEMENTS", (PyCFunction)lng_COROTATED_DISPLACEMENTS, METH_VARARGS|METH_KEYWORDS, "Extract snapshots of co-rotated FEM displacements"},
   {"RIGID_DISPLACEMENTS", (PyCFunction)lng_RIGID_DISPLACEMENTS, METH_VARARGS|METH_KEYWORDS, "Output six rigid body displacements of a FEM body"},
   {"FORWARD", (PyCFunction)lng_FORWARD, METH_VARARGS|METH_KEYWORDS, "Set forward in READ mode"},
@@ -10592,6 +10682,7 @@ int lng (const char *path)
                      "from solfec import DURATION\n"
                      "from solfec import RENDER\n"
                      "from solfec import XDMF_EXPORT\n"
+                     "from solfec import REGISTER_BASE\n"
                      "from solfec import COROTATED_DISPLACEMENTS\n"
                      "from solfec import RIGID_DISPLACEMENTS\n"
                      "from solfec import FORWARD\n"

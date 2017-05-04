@@ -642,6 +642,7 @@ out:
   sol->timers = NULL;
   sol->verbose = 1;
   sol->cleanup = 0;
+  sol->registered_bases = NULL;
 
   return sol;
 }
@@ -1032,6 +1033,15 @@ void SOLFEC_Destroy (SOLFEC *sol)
 #endif
   }
 
+  for (MAP *item = MAP_First (sol->registered_bases); item; item = MAP_Next (item))
+  {
+    FE_BASE *base = item->data;
+    MX_Destroy (base->evec);
+    free (base->eval);
+    free (base->label);
+    free (base);
+  }
+
   MEM_Release (&sol->mapmem);
   MEM_Release (&sol->timemem);
 
@@ -1314,4 +1324,17 @@ int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time)
   PBF_Close (bf);
 
   return ret;
+}
+
+/* register FE base; (evec, eval, label) must be dynamically allocated */
+void SOLFEC_Register_Base (SOLFEC *sol, MX *evec, double *eval, char *label)
+{
+  FE_BASE *base;
+
+  ERRMEM (base = malloc (sizeof (FE_BASE)));
+  base->evec = evec;
+  base->eval = eval;
+  base->label = label;
+
+  MAP_Insert (&sol->mapmem, &sol->registered_bases, label, base, (MAP_Compare)strcmp);
 }
