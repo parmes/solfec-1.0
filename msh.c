@@ -1719,7 +1719,7 @@ MESH* MESH_Ellip (double *center, double *radii, double size, int surface, int v
   }
 
   /* create tetrahedral mesh */
-  MESH *msh = tetrahedralize3 (isofine, nfine, 0.0, 2.0, volume);
+  MESH *msh = tetrahedralize3 (isofine, nfine, 0.0, 2.0, volume, "Y"); /* preserve surface mesh */
 
   free (isocahedron);
   free (isofine);
@@ -2009,7 +2009,7 @@ int MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int sur
 
 	q = TRI_Merge (b, mb, c, mc, &mq);
 
-	tmp = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume); /* the internal surface is included */
+	tmp = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume, NULL); /* the internal surface is included */
 
 	/* TODO: map volume materials */
 
@@ -2030,7 +2030,7 @@ int MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int sur
 #if DEBUG
 	TRI_Compadj (q, mq); /* XXX: tests triangulation consistency */
 #endif
-	*one = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
+	*one = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume, NULL);
 	free (q);
 
 	/* TODO: map volume materials */
@@ -2039,7 +2039,7 @@ int MESH_Split (MESH *msh, double *point, double *normal, short topoadj, int sur
 #if DEBUG
 	TRI_Compadj (q, mq); /* XXX: tests triangulation consistency */
 #endif
-	*two = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume);
+	*two = tetrahedralize3 (q, mq, 0.0, 2.0, msh->surfeles->volume, NULL);
 	free (q);
 
 	/* TODO: map volume materials */

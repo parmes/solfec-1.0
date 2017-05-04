@@ -83,7 +83,9 @@ TRI* TRI_Topoadj (TRI *tri, int n, double *point, int *m);
 PFV* TRI_Polarise (TRI *tri, int n, int *m);
 
 /* extract vertices of triangulation (tri, n)
- * into a table of size (double [3]) x m */
+ * into a table of size (double [3]) x m;
+ * if vertices are not owned by the triangulation, return an allocated array of size abs(*m) and signal *m < 0;
+ * otherwise return a pointer to the vertices array of size *m > 0 in a contiguous block of memory starting with 'tri' */
 double* TRI_Vertices (TRI *tri, int n, int *m);
 
 /* extract planes of triangulation (tri, n)

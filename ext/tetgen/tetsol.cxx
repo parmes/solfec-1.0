@@ -33,7 +33,7 @@ extern "C"
 #include "../../bod.h"
 
 /* generate tetrahedrons based on an input mesh object; pass -INT_MAX for (vol/surf)ids to inherit from the mesh */
-MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid)
+MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, int surfid, char *tetgenargs)
 {
   tetgenio in, out;
   tetgenio::facet *f;
@@ -104,10 +104,10 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
   }
 
   /* set up parameters */
-  if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g", volume, quality);
-  else if (volume > 0.0) sprintf (params, "Qpa%g", volume);
-  else if (quality > 0.0) sprintf (params, "Qpq%g", quality);
-  else sprintf (params, "Qp");
+  if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g%s", volume, quality, tetgenargs);
+  else if (volume > 0.0) sprintf (params, "Qpa%g%s", volume, tetgenargs);
+  else if (quality > 0.0) sprintf (params, "Qpq%g%s", quality, tetgenargs);
+  else sprintf (params, "Qp%s", tetgenargs);
 
   /* generate mesh */
   tetrahedralize (params, &in, &out);
@@ -180,7 +180,7 @@ err:
 }
 
 /* generate tetrahedrons based on an input file; pass -INT_MAX for (vol/surf)ids to inherit from the input */
-MESH* tetrahedralize2 (char *path, double volume, double quality, int volid, int surfid)
+MESH* tetrahedralize2 (char *path, double volume, double quality, int volid, int surfid, char *tetgenargs)
 {
   int argc = 2;
   char *argv [2] = {"-p", path};
@@ -199,10 +199,10 @@ MESH* tetrahedralize2 (char *path, double volume, double quality, int volid, int
   if (!in.load_plc(b.infilename, (int) b.object)) return NULL;
 
   /* set up parameters */
-  if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g", volume, quality);
-  else if (volume > 0.0) sprintf (params, "Qpa%g", volume);
-  else if (quality > 0.0) sprintf (params, "Qpq%g", quality);
-  else sprintf (params, "Qp");
+  if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g%s", volume, quality, tetgenargs);
+  else if (volume > 0.0) sprintf (params, "Qpa%g%s", volume, tetgenargs);
+  else if (quality > 0.0) sprintf (params, "Qpq%g%s", quality, tetgenargs);
+  else sprintf (params, "Qp%s", tetgenargs);
 
   /* generate mesh */
   tetrahedralize (params, &in, &out);
@@ -315,7 +315,7 @@ static SET* coplanartriangles (MEM *setmem, TRI *tri, int m)
 #endif
 
 /* generate tetrahedrons bounded by triangular surfaces; TRI->flg store surfids */
-MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid)
+MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid, char *tetgenargs)
 {
   tetgenio in, out;
   tetgenio::facet *f;
@@ -389,10 +389,10 @@ MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid
   }
 
   /* set up parameters */
-  if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g", volume, quality);
-  else if (volume > 0.0) sprintf (params, "Qpa%g", volume);
-  else if (quality > 0.0) sprintf (params, "Qpq%g", quality);
-  else sprintf (params, "Qp");
+  if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g%s", volume, quality, tetgenargs);
+  else if (volume > 0.0) sprintf (params, "Qpa%g%s", volume, tetgenargs);
+  else if (quality > 0.0) sprintf (params, "Qpq%g%s", quality, tetgenargs);
+  else sprintf (params, "Qp%s", tetgenargs);
 
   /* generate mesh */
   tetrahedralize (params, &in, &out);

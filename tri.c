@@ -456,6 +456,30 @@ double* TRI_Vertices (TRI *tri, int n, int *m)
   TRI *t, *e;
   int i;
 
+  for (i = 0; i < n; i ++)
+  {
+    if (tri[i].ver[0] == (double*)(tri+n) ||
+        tri[i].ver[1] == (double*)(tri+n) ||
+        tri[i].ver[2] == (double*)(tri+n)) break; /* vertices in one block with triangles */
+  }
+
+  if (i < n)
+  {
+    v = (double*)(tri+n);
+
+    for (i = 0, *m = 0; i < n; i ++)
+    {
+      for (int j = 0; j < 3; j ++)
+      {
+        if ((tri[i].ver[j]-v)/3 > *m) *m = (tri[i].ver[j]-v)/3;
+      }
+    }
+    *m = *m + 1; /* zero based indexing */
+
+    return v; /* return existing vertices */
+  }
+
+  /* collect and allocate vertices */
   MEM_Init (&mem, sizeof (MAP), n * 3);
   e = tri + n;
   vm = NULL;
@@ -632,15 +656,16 @@ TRI* TRI_Create (double *vertices, int *triangles, int n)
   {
     if (triangles[i] > m) m = triangles[i];
   }
+  m = m + 1; /* zero based indexing */
 
-  ERRMEM (tri = MEM_CALLOC (n * sizeof(tri) + m * sizeof (double[3])));
+  ERRMEM (tri = MEM_CALLOC (n * sizeof(TRI) + m * sizeof (double[3])));
   ver = (double*)(tri + n);
   memcpy (ver, vertices, m * sizeof (double[3]));
   for (i = 0; i < n; i ++)
   {
-    tri[i].ver[0] = &ver[triangles[3*i+0]];
-    tri[i].ver[1] = &ver[triangles[3*i+1]];
-    tri[i].ver[2] = &ver[triangles[3*i+2]];
+    tri[i].ver[0] = &ver[triangles[3*i+0]*3];
+    tri[i].ver[1] = &ver[triangles[3*i+1]*3];
+    tri[i].ver[2] = &ver[triangles[3*i+2]*3];
     NORMAL (tri[i].ver[0], tri[i].ver[1], tri[i].ver[2], tri[i].out);
     NORMALIZE (tri[i].out);
   }
@@ -662,7 +687,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
   MEM_Init (&vermem, sizeof(double[3]), 128);
   MEM_Init (&trimem, sizeof(TRI), 128);
   MEM_Init (&setmem, sizeof(SET), 128);
-  MEM_Init (&mapmem, sizeof(SET), 128);
+  MEM_Init (&mapmem, sizeof(MAP), 128);
   MEM_Init (&ppmem, sizeof (struct pp), 128);
 
   vset = NULL; /* current vertices */
@@ -741,7 +766,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 	t1->ver[2] = p2;\
 	SET_Insert (&trimem, &tset, t1, NULL)
 
-      if (dab < size2 && dbc < size2 && dca < size2) /* refine all edges */
+      if (dab > size2 && dbc > size2 && dca > size2) /* refine all edges */
       {
 	ADDVER(a, b, xab);
 	ADDVER(b, c, xbc);
@@ -754,7 +779,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dab < size2 && dbc < size2) /* refine two edges */
+      else if (dab > size2 && dbc > size2) /* refine two edges */
       {
         ADDVER(a, b, xab);
 	ADDVER(b, c, xbc);
@@ -765,7 +790,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dab < size2 && dca < size2)
+      else if (dab > size2 && dca > size2)
       {
 	ADDVER(a, b, xab);
 	ADDVER(c, a, xca);
@@ -776,7 +801,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dbc < size2 && dca < size2)
+      else if (dbc > size2 && dca > size2)
       {
 	ADDVER(b, c, xbc);
 	ADDVER(c, a, xca);
@@ -787,7 +812,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dab < size2) /* refine one edge */
+      else if (dab > size2) /* refine one edge */
       {
 	ADDVER(a, b, xab);
 
@@ -796,7 +821,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dbc < size2)
+      else if (dbc > size2)
       {
 	ADDVER(b, c, xbc);
 
@@ -805,7 +830,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dca < size2)
+      else if (dca > size2)
       {
 	ADDVER(c, a, xca);
 
@@ -817,7 +842,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
     }
 
     /* delete refined triangles */
-    for (item = SET_First (dque); item; item = SET_Next (dque))
+    for (item = SET_First (dque); item; item = SET_Next (item))
     {
       SET_Delete (&setmem, &tset, item->data, NULL);
     }

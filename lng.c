@@ -5926,7 +5926,7 @@ static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *k
 
       if (PyObject_IsInstance (shape, (PyObject*)&lng_MESH_TYPE))
       {
-	out->msh = tetrahedralize1 (((lng_MESH*)shape)->msh, volume, quality, volid, surfid);
+	out->msh = tetrahedralize1 (((lng_MESH*)shape)->msh, volume, quality, volid, surfid, NULL);
 	if (!out->msh)
 	{
 	  PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");
@@ -5935,7 +5935,7 @@ static PyObject* lng_TETRAHEDRALIZE (PyObject *self, PyObject *args, PyObject *k
       }
       else if (PyString_Check (shape))
       {
-	out->msh = tetrahedralize2 (PyString_AsString (shape), volume, quality, volid, surfid);
+	out->msh = tetrahedralize2 (PyString_AsString (shape), volume, quality, volid, surfid, NULL);
 	if (!out->msh)
 	{
 	  PyErr_SetString (PyExc_ValueError, "Mesh generation has failed");
