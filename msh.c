@@ -1612,8 +1612,34 @@ MESH* MESH_Pipe (double *pnt, double *dir, double rin, double thi,
   return msh;
 }
 
-/* create tetrahedral mesh for an ellipsoid (center, radii) with prescribed triangle edge 'size' */
-MESH* MESH_Ellip (double *center, double *radii, double size, int surface, int volume)
+/* ellipsoid error function */
+static double ellip_error (void *edata, double *in, double *out)
+{
+  /* x^2   y^2   z^2
+   * --- + --- + --- = 1.0 and x = u*t; y = v*t; z = w*t;
+   * a^2   b^2   c^2
+   *
+   * t = +/- 1.0 / sqrt((u/a)^2 + (v/b)^2 + (w/c)^2)
+   */
+
+  double *invr = edata,
+         ua = in[0]*invr[0],
+	 vb = in[1]*invr[1],
+	 wc = in[2]*invr[2],
+         t = 1.0/sqrt(ua*ua+vb*vb+wc*wc),
+         d[3] = {in[0], in[1], in[2]};
+
+  out[0] = t*in[0];
+  out[1] = t*in[1];
+  out[2] = t*in[2];
+
+  SUB (out,d,d);
+
+  return LEN(d);
+}
+
+/* create tetrahedral mesh for an ellipsoid (center, radii) with prescribed error size */
+MESH* MESH_Ellip (double *center, double *radii, double error, int surface, int volume)
 {
   /* Isocahedron code from: http://userpages.umbc.edu/~squire/reference/polyhedra.shtml */
   double vertices[12][3]; /* 12 vertices with x, y, z coordinates */
@@ -1675,16 +1701,14 @@ MESH* MESH_Ellip (double *center, double *radii, double size, int surface, int v
   /* create initial isocahedron mesh */
   TRI *isocahedron = TRI_Create ((double*)vertices, triangles, 20);
 
-  /* refine this triangulation down to the specified size */
-  TRI *isofine = TRI_Refine (isocahedron, 20, size, &nfine);
+  /* refine this triangulation once initially */
+  TRI *isofine = TRI_Refine (isocahedron, 20, -1.0, &nfine, NULL, NULL);
 
   /* retrieve fine triangulation vertices */
   double *isovert = TRI_Vertices (isofine, nfine, &nvert);
 
   /* project these vertices onto the refernce ellipsoid */
-  double invr0 = 1.0/radii[0],
-         invr1 = 1.0/radii[1],
-	 invr2 = 1.0/radii[2];
+  double invr[3] = {1.0/radii[0], 1.0/radii[1], 1.0/radii[2]};
   for (int i = 0; i < nvert; i ++)
   {
     /* x^2   y^2   z^2
@@ -1694,15 +1718,23 @@ MESH* MESH_Ellip (double *center, double *radii, double size, int surface, int v
      * t = +/- 1.0 / sqrt((u/a)^2 + (v/b)^2 + (w/c)^2)
      */
 
-    double ua = isovert[3*i+0]*invr0,
-           vb = isovert[3*i+1]*invr1,
-	   wc = isovert[3*i+2]*invr2;
+    double ua = isovert[3*i+0]*invr[0],
+           vb = isovert[3*i+1]*invr[1],
+	   wc = isovert[3*i+2]*invr[2];
     double t = 1.0/sqrt(ua*ua+vb*vb+wc*wc);
 
     isovert[3*i+0] *= t;
     isovert[3*i+1] *= t;
     isovert[3*i+2] *= t;
   }
+
+  /* now refine again down to the error size */
+  struct {TRI *t; int n;} tmp = {isofine, nfine};
+  isofine = TRI_Refine (tmp.t, tmp.n, error, &nfine, ellip_error, invr);
+  free (tmp.t);
+
+  /* retrieve fine triangulation vertices */
+  isovert = TRI_Vertices (isofine, nfine, &nvert);
 
   /* translate these vertices by the specified center point */
   for (int i = 0; i < nvert; i ++)

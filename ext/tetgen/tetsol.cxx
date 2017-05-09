@@ -104,6 +104,7 @@ MESH* tetrahedralize1 (MESH *shape, double volume, double quality, int volid, in
   }
 
   /* set up parameters */
+  if (!tetgenargs) tetgenargs = "";
   if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g%s", volume, quality, tetgenargs);
   else if (volume > 0.0) sprintf (params, "Qpa%g%s", volume, tetgenargs);
   else if (quality > 0.0) sprintf (params, "Qpq%g%s", quality, tetgenargs);
@@ -199,6 +200,7 @@ MESH* tetrahedralize2 (char *path, double volume, double quality, int volid, int
   if (!in.load_plc(b.infilename, (int) b.object)) return NULL;
 
   /* set up parameters */
+  if (!tetgenargs) tetgenargs = "";
   if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g%s", volume, quality, tetgenargs);
   else if (volume > 0.0) sprintf (params, "Qpa%g%s", volume, tetgenargs);
   else if (quality > 0.0) sprintf (params, "Qpq%g%s", quality, tetgenargs);
@@ -389,6 +391,7 @@ MESH* tetrahedralize3 (TRI *tri, int m, double volume, double quality, int volid
   }
 
   /* set up parameters */
+  if (!tetgenargs) tetgenargs = "";
   if (volume > 0.0 && quality > 0.0) sprintf (params, "Qpa%gq%g%s", volume, quality, tetgenargs);
   else if (volume > 0.0) sprintf (params, "Qpa%g%s", volume, tetgenargs);
   else if (quality > 0.0) sprintf (params, "Qpq%g%s", quality, tetgenargs);

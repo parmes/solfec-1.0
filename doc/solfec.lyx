@@ -6160,7 +6160,7 @@ s1, s2, s3, s
 \end_layout
 
 \begin_layout Subsection*
-obj = ELLIP_MESH (center, radii, size, volid, surfid) 
+obj = ELLIP_MESH (center, radii, error, volid, surfid) 
 \color red
 (under development)
 \end_layout
@@ -6205,9 +6205,9 @@ radii
 \begin_layout Itemize
 
 \series bold
-size
+error
 \series default
- - mesh edge size
+ - surface mesh error size (measured as distance from ellipsoid)
 \end_layout
 
 \begin_layout Itemize

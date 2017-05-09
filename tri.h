@@ -107,8 +107,9 @@ void TRI_Extents (TRI *t, double *extents);
  * adjacency is not maintained: use TRI_Compadj */
 TRI* TRI_Create (double *vertices, int *triangles, int n);
 
-/* refine triangulation (tri, n) into (returned, m) given an edge size;
- * adjacency is not maintained: use TRI_Compadj */
-TRI* TRI_Refine (TRI *tri, int n, double size, int *m);
+/* refine triangulation (tri, n) into (returned, m) given an edge size,
+ * or if error != NULL until error(edata, in-mid-edge-point, out-mid-edge-point) > size,
+ * or if size < 0.0 use int(-size) levels of refinement; adjacency is not maintained: use TRI_Compadj */
+TRI* TRI_Refine (TRI *tri, int n, double size, int *m, double (*error) (void*,double*,double*), void *edata);
 
 #endif

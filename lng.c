@@ -6049,9 +6049,9 @@ static PyObject* lng_PIPE (PyObject *self, PyObject *args, PyObject *kwds)
 /* create a mesh object for an ellipsoid */
 static PyObject* lng_ELLIP_MESH (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("center", "radii", "size", "volid", "surfid");
+  KEYWORDS ("center", "radii", "error", "volid", "surfid");
   PyObject *input_center, *input_radii;
-  double center[3], radii[3], size;
+  double center[3], radii[3], error;
   int surface, volume;
   lng_MESH *out;
 
@@ -6059,9 +6059,9 @@ static PyObject* lng_ELLIP_MESH (PyObject *self, PyObject *args, PyObject *kwds)
 
   if (out)
   {
-    PARSEKEYS ("OOdii", &input_center, &input_radii, &size, &volume, &surface);
+    PARSEKEYS ("OOdii", &input_center, &input_radii, &error, &volume, &surface);
 
-    TYPETEST (is_tuple (input_center, kwl[0], 3) && is_tuple (input_radii, kwl[1], 3) && is_positive (size, kwl[2]));
+    TYPETEST (is_tuple (input_center, kwl[0], 3) && is_tuple (input_radii, kwl[1], 3) && is_positive (error, kwl[2]));
 
     center [0] = PyFloat_AsDouble (PyTuple_GetItem (input_center, 0));
     center [1] = PyFloat_AsDouble (PyTuple_GetItem (input_center, 1));
@@ -6071,7 +6071,7 @@ static PyObject* lng_ELLIP_MESH (PyObject *self, PyObject *args, PyObject *kwds)
     radii [1] = PyFloat_AsDouble (PyTuple_GetItem (input_radii, 1));
     radii [2] = PyFloat_AsDouble (PyTuple_GetItem (input_radii, 2));
 
-    if (!(out->msh = MESH_Ellip(center, radii, size, surface, volume))) return NULL;
+    if (!(out->msh = MESH_Ellip(center, radii, error, surface, volume))) return NULL;
   }
 
   return (PyObject*)out;

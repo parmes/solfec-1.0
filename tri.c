@@ -673,12 +673,13 @@ TRI* TRI_Create (double *vertices, int *triangles, int n)
   return tri;
 }
 
-/* refine triangulation (tri, n) into (returned, m) given an edge size;
- * adjacency is not maintained: use TRI_Compadj */
-TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
+/* refine triangulation (tri, n) into (returned, m) given an edge size,
+ * or if error != NULL until error(edata, in-mid-edge-point, out-mid-edge-point) > size;
+ * or if size < 0.0 use int(-size) levels of refinement; adjacency is not maintained: use TRI_Compadj */
+TRI* TRI_Refine (TRI *tri, int n, double size, int *m, double (*error) (void*,double*,double*), void *edata)
 {
   MEM vermem, trimem, setmem, mapmem, ppmem;
-  SET *vset, *tset, *dque, *item;
+  SET *vset, *tset0, *tset1, *dque, *item;
   double *vin, *v, *vout;
   TRI *out, *t0, *t1;
   MAP *e2v, *v2v;
@@ -691,7 +692,8 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
   MEM_Init (&ppmem, sizeof (struct pp), 128);
 
   vset = NULL; /* current vertices */
-  tset = NULL; /* curren triangles */
+  tset0 = NULL; /* curren triangles */
+  tset1 = NULL; /* new triangles */
   dque = NULL; /* triangles to delete */
   e2v = NULL; /* refined edges to new vertex mapping */
   v2v = NULL; /* input vertices to current vertices mapping */
@@ -716,9 +718,10 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
     ASSERT_DEBUG(t1->ver[1] = MAP_Find (v2v, t0->ver[1], NULL), "Invalid v2v mapping");
     ASSERT_DEBUG(t1->ver[2] = MAP_Find (v2v, t0->ver[2], NULL), "Invalid v2v mapping");
     COPY (t0->out, t1->out);
-    SET_Insert (&setmem, &tset, t1, NULL);
+    SET_Insert (&setmem, &tset0, t1, NULL);
   }
 
+  int level = 0;
   double size2 = size*size;
   do /* loop as long as triangles get refined */
   {
@@ -726,7 +729,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
     SET_Free (&setmem, &dque);
 
     /* attempt refine */
-    for (item = SET_First (tset); item; item = SET_Next (item))
+    for (item = SET_First (tset0); item; item = SET_Next (item))
     {
       t0 = item->data;
       double *a = t0->ver[0],
@@ -738,12 +741,24 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 	     d[3], dab, dbc, dca;
       struct pp *y, z;
 
-      SUB (a, b, d);
-      dab = DOT(d,d);
-      SUB (b, c, d);
-      dbc = DOT(d,d);
-      SUB (c, a, d);
-      dca = DOT(d,d);
+      if (error)
+      {
+	MID (a, b, d);
+	dab = error(edata,d,d);
+	MID (b, c, d);
+	dbc = error(edata,d,d);
+	MID (c, a, d);
+	dca = error(edata,d,d);
+      }
+      else
+      {
+	SUB (a, b, d);
+	dab = DOT(d,d);
+	SUB (b, c, d);
+	dbc = DOT(d,d);
+	SUB (c, a, d);
+	dca = DOT(d,d);
+      }
 
 #define ADDVER(p0, p1, ptr)\
         z.a = p0 < p1 ? p0 : p1;\
@@ -752,6 +767,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 	{\
 	  ERRMEM (ptr = MEM_Alloc (&vermem));\
 	  MID (p0, p1, ptr);\
+	  if (error) error(edata, ptr, ptr);\
 	  SET_Insert (&setmem, &vset, ptr, NULL);\
 	  ERRMEM (y = MEM_Alloc (&ppmem));\
 	  *y = z;\
@@ -764,9 +780,11 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 	t1->ver[0] = p0;\
 	t1->ver[1] = p1;\
 	t1->ver[2] = p2;\
-	SET_Insert (&trimem, &tset, t1, NULL)
+	SET_Insert (&trimem, &tset1, t1, NULL)
 
-      if (dab > size2 && dbc > size2 && dca > size2) /* refine all edges */
+      if ((size < 0.0) || /* level based refinement */
+	  (error == NULL && dab > size2 && dbc > size2 && dca > size2) ||
+	  (error != NULL && dab > size  && dbc > size  && dca > size)) /* refine all edges */
       {
 	ADDVER(a, b, xab);
 	ADDVER(b, c, xbc);
@@ -779,7 +797,8 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dab > size2 && dbc > size2) /* refine two edges */
+      else if ((error == NULL && dab > size2 && dbc > size2) ||
+	       (error != NULL && dab > size  && dbc > size)) /* refine two edges */
       {
         ADDVER(a, b, xab);
 	ADDVER(b, c, xbc);
@@ -790,7 +809,8 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dab > size2 && dca > size2)
+      else if ((error == NULL && dab > size2 && dca > size2) ||
+               (error != NULL && dab > size  && dca > size))
       {
 	ADDVER(a, b, xab);
 	ADDVER(c, a, xca);
@@ -801,7 +821,8 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dbc > size2 && dca > size2)
+      else if ((error == NULL && dbc > size2 && dca > size2) ||
+               (error != NULL && dbc > size && dca > size))
       {
 	ADDVER(b, c, xbc);
 	ADDVER(c, a, xca);
@@ -812,7 +833,8 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dab > size2) /* refine one edge */
+      else if ((error == NULL && dab > size2) ||
+	       (error != NULL && dab > size)) /* refine one edge */
       {
 	ADDVER(a, b, xab);
 
@@ -821,7 +843,8 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dbc > size2)
+      else if ((error == NULL && dbc > size2) ||
+               (error != NULL && dbc > size))
       {
 	ADDVER(b, c, xbc);
 
@@ -830,7 +853,8 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
-      else if (dca > size2)
+      else if ((error == NULL && dca > size2) ||
+	       (error != NULL && dca > size))
       {
 	ADDVER(c, a, xca);
 
@@ -839,22 +863,34 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
 
 	SET_Insert (&setmem, &dque, t0, NULL);
       }
+      else /* keep triangle */
+      {
+	SET_Insert (&setmem, &tset1, t0, NULL);
+      }
     }
 
-    /* delete refined triangles */
+    /* swap triangle sets */
+    SET_Free (&setmem, &tset0);
+    tset0 = tset1;
+    tset1 = NULL;
+
+    /* free refined triangles */
     for (item = SET_First (dque); item; item = SET_Next (item))
     {
-      SET_Delete (&setmem, &tset, item->data, NULL);
+      MEM_Free (&trimem, item->data);
     }
 
     /* empty refined edge to vertex map */
     MAP_Free (&mapmem, &e2v);
     MEM_Release (&ppmem);
+
+    /* terminate if int(-size) levels of refinement were reached */
+    if (size < 0.0 && ++level >= (int)(-size)) break;
   }
   while (dque);
 
   /* create output triangulation */
-  (*m) = SET_Size (tset);
+  (*m) = SET_Size (tset0);
   j = SET_Size (vset);
   ERRMEM (out = MEM_CALLOC ((*m) * sizeof (TRI) + j * sizeof (double[3])));
   vout = (double*) (out + (*m));
@@ -869,7 +905,7 @@ TRI* TRI_Refine (TRI *tri, int n, double size, int *m)
   }
 
   /* copyt triangles */
-  for (item = SET_First (tset), i = 0; item; item = SET_Next (item), i ++)
+  for (item = SET_First (tset0), i = 0; item; item = SET_Next (item), i ++)
   {
     t0 = item->data;
     t1 = &out[i];
