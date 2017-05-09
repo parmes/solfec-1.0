@@ -153,19 +153,19 @@ obj/libBLOPEX.a:
 	(cd ext/blopex && make)
 
 obj/libsolfec.a: $(OBJ)
+	rm -f $@
 	ar rc $@ $(OBJ)
 	ranlib $@ 
 
 ifeq ($(MPI),yes)
 
-all: solfec mpi
-
-mpi: solfec-mpi
+all: solfec solfec-mpi
 
 solfec-mpi: obj/solfec-mpi.o obj/libBLOPEX.a obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
 	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
+	rm -f $@
 	ar rcv $@ $(OBJMPI)
 	ranlib $@ 
 

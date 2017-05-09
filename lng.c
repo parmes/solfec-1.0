@@ -2893,54 +2893,57 @@ static PyObject* lng_BODY_new (PyTypeObject *type, PyObject *args, PyObject *kwd
         TYPETEST (is_mesh (shape, kwl[2]));
       }
 
-      if (base && PyTuple_Check(base))
+      if (base)
       {
-	PyObject *vlist = PyTuple_GetItem (base, 0),
-		 *Elist = PyTuple_GetItem (base, 1);
-
-        TYPETEST (is_list (vlist, "base[0]", 0, 0) && is_list (Elist, "base[1]", 0, 0));
-
-	int n = PyList_Size (vlist),
-	    m = PyList_Size (Elist) / n,
-	    OK, i;
-
-	if (msh)
+	if (PyTuple_Check(base))
 	{
-	  OK = (m == msh->nodes_count * 3);
+	  PyObject *vlist = PyTuple_GetItem (base, 0),
+		   *Elist = PyTuple_GetItem (base, 1);
+
+	  TYPETEST (is_list (vlist, "base[0]", 0, 0) && is_list (Elist, "base[1]", 0, 0));
+
+	  int n = PyList_Size (vlist),
+	      m = PyList_Size (Elist) / n,
+	      OK, i;
+
+	  if (msh)
+	  {
+	    OK = (m == msh->nodes_count * 3);
+	  }
+	  else
+	  {
+	    MESH *tmp = (MESH*)shp->data;
+	    OK = (m == tmp->nodes_count * 3);
+	  }
+
+	  if (!OK)
+	  {
+	    PyErr_SetString (PyExc_ValueError, "Modal analysis data size and mesh size do not match");
+	    return NULL;
+	  }
+
+	  ERRMEM (eval = malloc (sizeof (double [n])));
+	  evec = MX_Create (MXDENSE, m, n, NULL, NULL);
+
+	  for (i = 0; i < n; i ++) eval [i] = PyFloat_AsDouble (PyList_GetItem (vlist, i));
+	  for (i = 0; i < n*m; i ++) evec->x [i] = PyFloat_AsDouble (PyList_GetItem (Elist, i));
 	}
 	else
 	{
-	  MESH *tmp = (MESH*)shp->data;
-	  OK = (m == tmp->nodes_count * 3);
+	  FE_BASE *febase = MAP_Find (solfec->sol->registered_bases, PyString_AsString(base), (MAP_Compare)strcmp);
+
+	  if (febase == NULL)
+	  {
+	    char message[1024];
+	    snprintf (message, 1024, "Registed base with label %s has not been found", PyString_AsString (base));
+	    PyErr_SetString (PyExc_ValueError, message);
+	    return NULL;
+	  }
+
+	  evec = febase->evec;
+	  eval = febase->eval;
+	  elabel = febase->label;
 	}
-
-	if (!OK)
-	{
-	  PyErr_SetString (PyExc_ValueError, "Modal analysis data size and mesh size do not match");
-	  return NULL;
-	}
-
-	ERRMEM (eval = malloc (sizeof (double [n])));
-	evec = MX_Create (MXDENSE, m, n, NULL, NULL);
-
-	for (i = 0; i < n; i ++) eval [i] = PyFloat_AsDouble (PyList_GetItem (vlist, i));
-	for (i = 0; i < n*m; i ++) evec->x [i] = PyFloat_AsDouble (PyList_GetItem (Elist, i));
-      }
-      else
-      {
-        FE_BASE *febase = MAP_Find (solfec->sol->registered_bases, PyString_AsString(base), (MAP_Compare)strcmp);
-
-	if (febase == NULL)
-	{
-	  char message[1024];
-	  snprintf (message, 1024, "Registed base with label %s has not been found", PyString_AsString (base));
-	  PyErr_SetString (PyExc_ValueError, message);
-	  return NULL;
-	}
-
-        evec = febase->evec;
-	eval = febase->eval;
-	elabel = febase->label;
       }
 
       if (formulation)
