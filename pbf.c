@@ -262,7 +262,15 @@ PBF* PBF_Read (const char *path)
 
     bf->top = 0; /* set to zero before frames are initialized (while loop in new_frame) */
 
-    initialize_time_frames (bf); /* initialize frames */
+    if (out) /* copy frames for subsequent parallel files */
+    {
+      bf->count = out->count;
+
+      ERRMEM (bf->times = malloc (sizeof (double [bf->count])));
+
+      memcpy (bf->times, out->times, sizeof (double [bf->count]));
+    }
+    else initialize_time_frames (bf); /* initialize frames */
 
     bf->next = out;
     bf->path = txt;
