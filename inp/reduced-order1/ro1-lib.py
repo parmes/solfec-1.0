@@ -2,11 +2,10 @@ import os, sys
 dirpath = os.path.dirname(os.path.realpath(__file__))
 
 ## set up simulation
-def ro1_simulation(path_string, step=1E-3, stop=0.1, damping=1E-5):
+def ro1_simulation(path_string, step=1E-3, stop=0.1, damping=1E-4):
   sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order1/ro1-%s' % path_string)
   if 'percentage' in globals(): sol.verbose = '%' # see: ro1-run-all.py
   GRAVITY (sol, (0, 0, -10)) # gravity acceleration
-  OUTPUT (sol, 0.0025) # output file interval
   # bulk ad surface materials
   mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
 	 young = 1E7, poisson = 0.25, density = 1E3)
