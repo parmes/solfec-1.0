@@ -3697,7 +3697,7 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
     {
       double *conf = FEM_MESH_CONF (bod),
 	     *q = &conf [3*n],
-	     *p = msh->cur_nodes [n];
+	     *p = msh->ref_nodes [n];
       ADD (p, q, values);
     }
     break;
