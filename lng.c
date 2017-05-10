@@ -357,7 +357,7 @@ static int is_tuple_or_string (PyObject *obj, char *var, int len)
 {
   if (obj)
   {
-    if (!PyTuple_Check (obj) || !PyString_Check(obj))
+    if (!PyTuple_Check (obj) && !PyString_Check(obj))
     {
       char buf [BUFLEN];
       sprintf (buf, "'%s' must be a tuple or a string object", var);

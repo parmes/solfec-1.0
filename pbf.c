@@ -29,6 +29,7 @@
 #include <string.h>
 #include "pbf.h"
 #include "pck.h"
+#include "tmr.h"
 #include "err.h"
 
 /* create or open group */
@@ -107,16 +108,31 @@ static int count_time_frames (PBF *bf)
 /* initialize time frames */
 static void initialize_time_frames (PBF *bf)
 {
-  int n;
+  int dodel, n;
+  TIMING tt;
 
   bf->count = count_time_frames (bf); /* count frames */
 
   ERRMEM (bf->times = malloc (sizeof (double [bf->count]))); /* allocate times */
 
-  for (n = 0; n < bf->count; n ++)
+  timerstart (&tt);
+
+  for (n = dodel = 0; n < bf->count; n ++)
   {
-    new_frame (bf, n, &bf->times [n]); /* read nth time */
+    char path [128];
+    snprintf (path , 128, "/%d", n);
+    ASSERT (H5LTget_attribute_double (bf->stack [0], path, "time", &bf->times[n]) >= 0, ERR_PBF_READ); /* read nth time */
+
+    if (timerend (&tt) > 1.0)
+    {
+      if (dodel) printf ("\b\b\b\b");
+      else printf ("Initializing time frames ... ");
+      int progress = (int) (100. * (double)n / (double)bf->count);
+      printf ("%3d%%", progress); dodel = 1; fflush (stdout);
+    }
   }
+
+  if (dodel) printf ("\n");
 }
 
 /* =================== INTERFACE ==================== */
