@@ -25,6 +25,10 @@
   #include <GL/glut.h>
   #include <GL/glext.h>
 #endif
+#if POSIX
+#include <sys/stat.h>
+#include <regex.h>
+#endif
 #include <string.h>
 #include <limits.h>
 #include <float.h>
@@ -175,6 +179,8 @@ enum /* menu items */
   RENDER_PREVIOUS_SELECTION,
   RENDER_BODIES,
   TOOLS_RUN_SCRIPT,
+  TOOLS_HIGHLIGHT_BY_LABEL,
+  TOOLS_SELECT_BY_LABEL,
   TOOLS_DISPLAY_POINTS,
   TOOLS_LEGEND_EXTENTS,
   TOOLS_TRANSPARENT,
@@ -328,6 +334,7 @@ static short tool_mode = 0; /* current tool */
 
 #define PICKED_BODY_TIP_LEN 1024
 static BODY *picked_body = NULL; /* currently picked body */
+static SET *picked_set = NULL; /* currently picked body set */
 static char picked_body_tip [PICKED_BODY_TIP_LEN];
 
 static double *picked_point = NULL, /* currently picked point */
@@ -1869,6 +1876,7 @@ static void render_body_triangles (BODY *bod, short skip)
   data = bod->rendering;
 
   if (bod == picked_body ||           /* do not render a picked body */
+      SET_Find (picked_set, bod, NULL) ||
       data->flags & skip) return;
 
 #if VBO
@@ -1916,6 +1924,7 @@ static void render_body_triangles_plain (BODY *bod, short skip)
   BODY_DATA *data = bod->rendering;
 
   if (bod == picked_body ||           /* do not render a picked body */
+      SET_Find (picked_set, bod, NULL) ||
       data->flags & skip) return;
 
 #if VBO
@@ -2801,7 +2810,8 @@ static void render_body_set (SET *set)
 
     for (item = SET_First (set); item; item = SET_Next (item))
     {
-      if (item->data == picked_body) continue;
+      if (item->data == picked_body ||
+	  SET_Find (picked_set, item->data, NULL)) continue;
 
       glColor4fv (color);
       render_body_lines (item->data, HIDDEN);
@@ -2834,7 +2844,8 @@ static void render_body_set (SET *set)
 
     for (item = SET_First (set); item; item = SET_Next (item))
     {
-      if (item->data == picked_body) continue;
+      if (item->data == picked_body ||
+	  SET_Find (picked_set, item->data, NULL)) continue;
 
       if (SEETHROUGH (item->data))
       {
@@ -2922,6 +2933,29 @@ static void render_picked_body (void)
     }
     glColor3fv (color);
     selection_render_body (picked_body);
+    glEnable (GL_LIGHTING);
+  }
+
+  for (SET *item = SET_First (picked_set); item; item = SET_Next (item))
+  {
+    BODY *bod = item->data;
+
+    switch (tool_mode)
+    {
+    case TOOLS_TRANSPARENT: color [0] = 1.0; break;
+    case TOOLS_HIDE: color [1] = 1.0; break;
+    case TOOLS_ROUGH_MESH: color [2] = 1.0; break;
+    default: color [1] = 1.0; break; /* e.g. highlight by label */
+    }
+
+    glDisable (GL_LIGHTING);
+    if (SEETHROUGH (bod))
+    {
+      glColor3f (0., 0., 0.);
+      render_body_lines (bod, 0);
+    }
+    glColor3fv (color);
+    selection_render_body (bod);
     glEnable (GL_LIGHTING);
   }
 }
@@ -3215,6 +3249,92 @@ static void run_script (char *path)
   free (line);
 }
 
+/* get regular expression error */
+static char *get_regerror (int errcode, regex_t *compiled)
+{
+  size_t length = regerror (errcode, compiled, NULL, 0);
+  char *buffer = malloc (length);
+  regerror (errcode, compiled, buffer, length);
+  return buffer;
+}
+
+/* select bodies by label */
+static void select_by_label (char *pattern)
+{
+#if POSIX
+  regex_t xp;
+  int error = regcomp (&xp, pattern, 0);
+
+  if (error != 0)
+  {
+    char *message = get_regerror (error, &xp);
+    fprintf (stderr, "-->\n");
+    fprintf (stderr, "Regular expression ERROR --> %s\n", message);
+    fprintf (stderr, "<--\n");
+    regfree (&xp);
+    free (message);
+    return;
+  }
+
+  SET *set = NULL;
+
+  for (BODY *bod = domain->bod; bod; bod = bod->next)
+  {
+    if (bod->label && regexec (&xp, bod->label, 0, NULL, 0) == 0)
+    {
+      SET_Insert (&rndsetmem, &set, bod, NULL);
+    }
+  }
+
+  regfree (&xp);
+
+  if (set) 
+  {
+    selection_push (set);
+    GLV_Redraw_All();
+  }
+#else
+  ASSERT_TEXT (0, "Regular expressions require POSIX support --> recompile Solfec with POSIX=yes");
+#endif
+}
+
+/* highight bodies by label */
+static void highlight_by_label (char *pattern)
+{
+#if POSIX
+  regex_t xp;
+  int error = regcomp (&xp, pattern, 0);
+
+  if (error != 0)
+  {
+    char *message = get_regerror (error, &xp);
+    fprintf (stderr, "-->\n");
+    fprintf (stderr, "Regular expression ERROR --> %s\n", message);
+    fprintf (stderr, "<--\n");
+    regfree (&xp);
+    free (message);
+    return;
+  }
+
+  for (BODY *bod = domain->bod; bod; bod = bod->next)
+  {
+    if (bod->label && regexec (&xp, bod->label, 0, NULL, 0) == 0)
+    {
+      SET_Insert (&rndsetmem, &picked_set, bod, NULL);
+    }
+  }
+
+  regfree (&xp);
+
+  if (picked_set) 
+  {
+    GLV_Redraw_All();
+  }
+#else
+  ASSERT_TEXT (0, "Regular expressions require POSIX support --> recompile Solfec with POSIX=yes");
+#endif
+}
+
 /* seek to specific time frame */
 static void seek_to_time (char *text)
 {
@@ -3481,6 +3601,7 @@ static int modes_off ()
   tip = NULL;
   cut_sketch = 0;
   picked_body = NULL;
+  SET_Free (&rndsetmem, &picked_set);
   picked_point = NULL;
   picked_point_hist [0] = NULL;
   picked_point_hist [1] = NULL;
@@ -3632,6 +3753,12 @@ static void menu_tools (int item)
   {
   case TOOLS_RUN_SCRIPT:
     GLV_Read_Text ("Run script", run_script);
+    break;
+  case TOOLS_HIGHLIGHT_BY_LABEL:
+    GLV_Read_Text ("BODY label regex", highlight_by_label);
+    break;
+  case TOOLS_SELECT_BY_LABEL:
+    GLV_Read_Text ("BODY label regex", select_by_label);
     break;
   case TOOLS_EULER_CUT:
   case TOOLS_LAGRANGE_CUT:
@@ -4019,6 +4146,8 @@ int RND_Menu (char ***names, int **codes)
   menu_name [MENU_TOOLS] = "tools";
   menu_code [MENU_TOOLS] = glutCreateMenu (menu_tools);
   glutAddMenuEntry ("run python script /P/", TOOLS_RUN_SCRIPT);
+  glutAddMenuEntry ("highlight by label /K/", TOOLS_HIGHLIGHT_BY_LABEL);
+  glutAddMenuEntry ("select by label /k/", TOOLS_SELECT_BY_LABEL);
   glutAddMenuEntry ("display points on/off /D/", TOOLS_DISPLAY_POINTS);
   glutAddMenuEntry ("legen extents /e/", TOOLS_LEGEND_EXTENTS);
   glutAddMenuEntry ("toggle transparent /t/", TOOLS_TRANSPARENT);
@@ -4210,6 +4339,12 @@ void RND_Key (int key, int x, int y)
   case 'P':
     menu_tools (TOOLS_RUN_SCRIPT);
     break;
+  case 'K':
+    menu_tools (TOOLS_HIGHLIGHT_BY_LABEL);
+    break;
+  case 'k':
+    menu_tools (TOOLS_SELECT_BY_LABEL);
+    break;
   case 'D':
     menu_tools (TOOLS_DISPLAY_POINTS);
     break;
@@ -4352,19 +4487,31 @@ void RND_Mouse (int button, int state, int x, int y)
       }
       else if (mouse_mode == MOUSE_PICK_BODY && picked_body)
       {
-	BODY_DATA *data = picked_body->rendering;
 
-	switch (tool_mode)
+#define APPLY_MOUSE_PICK_BODY(body)\
+	BODY_DATA *data = (body)->rendering;\
+	switch (tool_mode)\
+	{\
+	case TOOLS_TRANSPARENT:\
+	  if (data->flags & SEETHROUGH) data->flags &= ~SEETHROUGH;\
+	  else data->flags |= SEETHROUGH;\
+	  break;\
+	case TOOLS_HIDE: data->flags |= HIDDEN; break;\
+	case TOOLS_ROUGH_MESH:\
+	  if (data->flags & ROUGH_MESH) data->flags &= ~ROUGH_MESH;\
+	  else if ((body)->msh) data->flags |= ROUGH_MESH; /* only if it has rough mesh */\
+	  break;\
+	}
+
+	if (!SET_Find (picked_set, picked_body, NULL))
 	{
-	case TOOLS_TRANSPARENT:
-	  if (data->flags & SEETHROUGH) data->flags &= ~SEETHROUGH;
-	  else data->flags |= SEETHROUGH;
-	  break;
-	case TOOLS_HIDE: data->flags |= HIDDEN; break;
-	case TOOLS_ROUGH_MESH:
-	  if (data->flags & ROUGH_MESH) data->flags &= ~ROUGH_MESH;
-	  else if (picked_body->msh) data->flags |= ROUGH_MESH; /* only if it has rough mesh */
-	  break;
+	  APPLY_MOUSE_PICK_BODY (picked_body);
+	}
+
+	for (SET *item = SET_First (picked_set); item; item = SET_Next (item))
+	{
+	  BODY *bod = item->data;
+	  APPLY_MOUSE_PICK_BODY (bod);
 	}
 
 	GLV_Redraw_All ();
