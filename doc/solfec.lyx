@@ -14882,8 +14882,9 @@ reference "subsec:COROTATE_DISPLACEMENTS"
 
 \end_inset
 
-) was/were made prior to FORWARD, sampling of co-rotated displacements will
- be enabled; default: 'FALSE'
+) was/were made prior to FORWARD, co-rotated displacements will be sampled
+ for every time instant visited by FORWARD (the original sampling interval
+ will be ignored); default: 'FALSE'
 \end_layout
 
 \begin_layout Subsection*

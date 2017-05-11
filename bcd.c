@@ -251,19 +251,23 @@ void BCD_Sample (SOLFEC *sol, BCD *bcd)
   {
     int sample_now = 0;
 
-    if (bcd->length > 0 && sampling_within_step (bcd->sampling,
-        bcd->length, sol->dom->time, sol->dom->step)) sample_now = 1;
-    else
+    if (sol->mode == SOLFEC_WRITE)
     {
-      double interval = bcd->length == 0 ? bcd->sampling[0] :
-        (sol->output_interval > 0.0 ? sol->output_interval : sol->dom->step);
-
-      if (fabs(bcd->latest + interval - sol->dom->time) <= sol->dom->step)
+      if (bcd->length > 0 && sampling_within_step (bcd->sampling,
+	  bcd->length, sol->dom->time, sol->dom->step)) sample_now = 1;
+      else
       {
-	bcd->latest += interval;
-	sample_now = 1;
+	double interval = bcd->length == 0 ? bcd->sampling[0] :
+	  (sol->output_interval > 0.0 ? sol->output_interval : sol->dom->step);
+
+	if (fabs(bcd->latest + interval - sol->dom->time) <= sol->dom->step)
+	{
+	  bcd->latest += interval;
+	  sample_now = 1;
+	}
       }
     }
+    else sample_now = 1;
 
     if (sample_now)
     {

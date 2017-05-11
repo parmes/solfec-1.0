@@ -4,9 +4,9 @@
 # Array of bricks with brick normal gaps to match those in test, DYNAMIC run all FEM bodies - Loose Key facets removed
 # VELOCITY Time-history used from 5101060/23/03/08 - 2s, 0.3g, 3Hz sine dwell, then 3Hz to 10Hz linear sweep at 0.1Hz/s
 
-import sys
 import math
 import sys
+import gzip
 import time
 import pickle
 import commands
@@ -20,11 +20,11 @@ from math import cos
 
 argv = NON_SOLFEC_ARGV()
 
-if RANK() == 0 and argv == None:
+if argv == None and RANK() == 0:
   print '----------------------------------------------------------'
   print 'No user paramters passed! Possible paramters:'
   print '----------------------------------------------------------'
-  print '-form name => where name is TL, BC, MODAL, PR or RG'
+  print '-form name => where name is TL, BC, RO, MODAL, PR or RG'
   print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
   print '-ibmod num => interstitial brick modes, num >= 6 and <= 64'
   print '-lkmod num => loose key modes, num >= 6 and <= 12'
@@ -36,14 +36,14 @@ if RANK() == 0 and argv == None:
   print '----------------------------------------------------------'
 
 formu = 'BC'
-fbmod = 12
-ibmod = 12
+fbmod = 36
+ibmod = 24
 lkmod = 12
 afile = 'inp/81array/81array.inp'
 step = 1E-4
 damp = 1E-7
 rest = 0.0
-outi = 2E-3 # The physical tests recorded digitased outputs at 2E-3s intervals
+outi = 2E-2 # The physical tests recorded digitased outputs at 2E-3s intervals
 if argv != None and len (argv) > 1:
   for i in range (0, len(argv)-1):
     if argv [i] == '-fbmod':
@@ -53,7 +53,7 @@ if argv != None and len (argv) > 1:
     elif argv [i] == '-lkmod':
       lkmod = max (min (12, long (argv [i+1])), 6)
     elif argv [i] == '-form':
-      if argv [i+1] in ('TL', 'BC', 'MODAL', 'PR', 'RG'):
+      if argv [i+1] in ('TL', 'BC', 'RO', 'MODAL', 'PR', 'RG'):
 	formu = argv [i+1]
     elif argv [i] == '-afile':
       afile = argv [i+1]
@@ -137,6 +137,14 @@ for inst in model.assembly.instances.values():	# .instances is a dict
     data = MODAL_ANALYSIS (bdy, nm, solfec.outpath + '/modal' + label, abstol = 1E-13)
     DELETE (solfec, bdy)
     bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = data)
+  elif formu == 'RO':
+    path = afile.replace ('.inp','_' + label[0:2] + '_base.pickle.gz')
+    try:
+      data = pickle.load(gzip.open(path, 'rb'))
+    except:
+      print 'Reading %s failed --> run BC analysis in WRITE and READ modes first' % path
+      sys.exit(0)
+    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-RO', base = data)
 
 #----------------------------------------------------------------------
 
@@ -286,3 +294,46 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
   f = open(solfec.outpath + '/%s.thv'%ending, 'w')
   pickle.dump (thv, f)
   f.close ()
+
+  # read displacement snapshots from a 'BC' simulation
+  if formu == 'BC':
+    from sys import stdout
+    import modred
+    import numpy
+
+    fb_defo = COROTATED_DISPLACEMENTS (solfec, 'FB2(2)(2)')
+    ib_defo = COROTATED_DISPLACEMENTS (solfec, 'IB1(2)(2)')
+    lk_defo = COROTATED_DISPLACEMENTS (solfec, 'LK2(2)(2)')
+    dur = DURATION (solfec)
+    print 'Sampling FEM-BC displacements ...', '    ' , 
+    SEEK (solfec, dur[0])
+    skip = int((1.0/outi)/10.0)
+    while solfec.time < dur[1]:
+      FORWARD (solfec, skip, corotated_displacements='TRUE')
+      print '\b\b\b\b\b%2d %%' % (100*solfec.time/dur[1]),
+      stdout.flush ()
+    print
+
+    fb = BYLABEL (solfec, 'BODY', 'FB2(1)(1)')
+    ib = BYLABEL (solfec, 'BODY', 'IB2(1)(0)')
+    lk = BYLABEL (solfec, 'BODY', 'LK3(3)(4)')
+    fb_rig = RIGID_DISPLACEMENTS (fb)
+    ib_rig = RIGID_DISPLACEMENTS (ib)
+    lk_rig = RIGID_DISPLACEMENTS (lk)
+
+    pod_input = [(fb_rig, fb_defo, 'FB', fbmod),
+                 (ib_rig, ib_defo, 'IB', ibmod),
+		 (lk_rig, lk_defo, 'LK', lkmod)]
+
+    for (rig, defo, label, num_modes) in pod_input:
+      vecs = numpy.transpose(numpy.array(rig+defo))
+      svec = vecs.shape[0]
+      nvec = vecs.shape[1]
+      print '%s:' % label, 'calculating', num_modes, 'POD modes from', nvec, 'input vectors of size', svec, '...'
+      modes, vals = modred.compute_POD_matrices_snaps_method(vecs, list(range(num_modes)))
+      mod = numpy.transpose(modes).tolist()
+      val = vals.tolist()
+      basevec = [x for vec in mod for x in vec]
+      podbase = (val[0:len(mod)], basevec)
+      path = afile.replace ('.inp','_' + label + '_base.pickle.gz')
+      pickle.dump(podbase, gzip.open(path,'wb'))

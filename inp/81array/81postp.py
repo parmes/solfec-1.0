@@ -163,7 +163,7 @@ plotorder = ['FB2(2)(3)', # E
 
 # plot experimental data 
 for i, p in enumerate(plotorder):
-  data = csv.reader (open ('inp/mbfcp/81array/' + p + '.csv', 'rb'))
+  data = csv.reader (open ('inp/81array/' + p + '.csv', 'rb'))
   x = []
   y = []
   for row in data:
