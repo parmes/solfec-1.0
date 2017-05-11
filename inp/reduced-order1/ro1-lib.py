@@ -1,7 +1,12 @@
 import os, sys
 dirpath = os.path.dirname(os.path.realpath(__file__))
 
-## set up simulation
+# results sampling points
+global ro1_points
+ro1_points  = ((0.005, 0.05, 0.035), (0.005, 0.05, 0.065), (0.005, 0.05, 0.04),
+               (0.005, 0.05, 0.06), (0.03, 0.05, 0.065), (-0.07, 0.05, 0.065))
+
+# set up simulation
 def ro1_simulation(path_string, step=1E-3, stop=0.1, damping=1E-4):
   sol = SOLFEC ('DYNAMIC', step, 'out/reduced-order1/ro1-%s' % path_string)
   if 'percentage' in globals(): sol.verbose = '%' # see: ro1-run-all.py
@@ -45,19 +50,19 @@ def ro1_simulation(path_string, step=1E-3, stop=0.1, damping=1E-4):
 
   bod.scheme = 'DEF_LIM'
   bod.damping = damping
+
+  pp = ro1_points
+  for i in range(0,len(pp)):
+    DISPLAY_POINT (bod, pp[i], 'p%d'%i)
+
   return (sol, bod, stop)
 
 # read time histories
 def ro1_read_histories(sol, bod, path_string):
   from math import asin
   import pickle
-  p0 = (0.005, 0.05, 0.035)
-  p1 = (0.005, 0.05, 0.065)
-  p2 = (0.005, 0.05, 0.04)
-  p3 = (0.005, 0.05, 0.06)
-  p4 = (0.03, 0.05, 0.065)
-  p5 = (-0.07, 0.05, 0.065)
   dur = DURATION (sol)
+  (p0, p1, p2, p3, p4, p5) = ro1_points
   th = HISTORY (sol, [(bod, 'KINETIC'), (bod, 'INTERNAL'),
        (bod, p0, 'CX'), (bod, p0, 'CY'), (bod, p0, 'CZ'),
        (bod, p1, 'CX'), (bod, p1, 'CY'), (bod, p1, 'CZ'),
