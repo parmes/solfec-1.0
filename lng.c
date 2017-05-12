@@ -7109,9 +7109,12 @@ static PyObject* lng_NCPU (PyObject *self, PyObject *args, PyObject *kwds)
 #if MPI
   MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
 #else
-  PBF *bf;
-
-  for (bf = solfec->sol->bf, ncpu = 0; bf; bf = bf->next) ncpu ++;
+  if (solfec->sol->mode == SOLFEC_READ)
+  {
+    PBF *bf;
+    for (bf = solfec->sol->bf, ncpu = 0; bf; bf = bf->next) ncpu ++;
+  }
+  else ncpu = 1;
 #endif
 
   return PyInt_FromLong (ncpu);

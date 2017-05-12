@@ -271,6 +271,7 @@ static void write_state (SOLFEC *sol, void *solver, SOLVER_KIND kind)
 #if HDF5
   /* close to ensure flushed buffers */
   PBF_Close (sol->bf);
+  sol->bf = NULL;
 #endif
 }
 
@@ -625,6 +626,7 @@ write:
 
 #if HDF5
       PBF_Close (sol->bf);
+      sol->bf = NULL;
 #endif
     }
     else THROW (ERR_FILE_OPEN);
@@ -770,6 +772,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 	  sol->dom->time = e; /* current time at the end */
 	  duration -= e; /* duration is less by the time shift */
 	  PBF_Close (bf);
+	  sol->bf = NULL;
 	}
 	else write_state (sol, solver, kind); /* no previous results => save initial frame */
       }
@@ -986,8 +989,6 @@ int SOLFEC_Forward (SOLFEC *sol, int steps, int corotated_displacements)
 /* perform abort actions */
 void SOLFEC_Abort (SOLFEC *sol)
 {
-  write_state (sol, NULL, NONE_SOLVER);
-
   if (sol->bf)
   {
 #if !HDF5
@@ -1004,9 +1005,7 @@ void SOLFEC_Destroy (SOLFEC *sol)
   {
 #if POSIX
     if (sol->cleanup) rmrf (sol->outpath); /* remove output directory */
-    else
 #endif
-    write_state (sol, NULL, NONE_SOLVER); /* in case state was never written */
   }
 
   BCD_Destroy (sol->bcd);

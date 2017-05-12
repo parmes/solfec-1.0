@@ -14110,6 +14110,19 @@ path
 \series default
  can be a sole parameter and in this case the routine will attempt to read
  and return existing results.
+ 
+\emph on
+Note:
+\emph default
+ 
+\begin_inset Quotes eld
+\end_inset
+
+.h5
+\begin_inset Quotes erd
+\end_inset
+
+ extension is automatically added to the stored path;
 \end_layout
 
 \begin_layout Itemize

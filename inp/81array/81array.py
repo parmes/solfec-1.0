@@ -4,9 +4,9 @@
 # Array of bricks with brick normal gaps to match those in test, DYNAMIC run all FEM bodies - Loose Key facets removed
 # VELOCITY Time-history used from 5101060/23/03/08 - 2s, 0.3g, 3Hz sine dwell, then 3Hz to 10Hz linear sweep at 0.1Hz/s
 
-import math
 import sys
 import gzip
+import math
 import time
 import pickle
 import commands
@@ -25,15 +25,17 @@ if argv == None and RANK() == 0:
   print 'No user paramters passed! Possible paramters:'
   print '----------------------------------------------------------'
   print '-form name => where name is TL, BC, RO, MODAL, PR or RG'
-  print '-fbmod num => fuel brick modes, num >= 6 and <= 64'
-  print '-ibmod num => interstitial brick modes, num >= 6 and <= 64'
-  print '-lkmod num => loose key modes, num >= 6 and <= 12'
+  print '-fbmod num => fuel brick modes (default: 36)'
+  print '-ibmod num => interstitial brick modes (default: 24)'
+  print '-lkmod num => loose key modes (default: 12)'
   print '-afile path => Abaqus 81 array file path'
-  print '-step num => time step'
-  print '-damp num => damping value'
-  print '-rest num => impact restitution'
-  print '-outi num => output interval'
-  print '----------------------------------------------------------'
+  print '-step num => time step (default: 1E-4s)'
+  print '-damp num => damping value (default: 1E-7)'
+  print '-rest num => impact restitution (default: 0.0)'
+  print '-outi num => output interval (default: 2E-2s)'
+  print '-stop num => sumulation end (default: 72s)'
+  print '-genbase => generate RO (read mode) or MODAL (write mode) bases and stop'
+  print '------------------------------------------------------------------------'
 
 formu = 'BC'
 fbmod = 36
@@ -44,8 +46,10 @@ step = 1E-4
 damp = 1E-7
 rest = 0.0
 outi = 2E-2 # The physical tests recorded digitased outputs at 2E-3s intervals
-if argv != None and len (argv) > 1:
-  for i in range (0, len(argv)-1):
+stop = 72.0
+genbase = False
+if argv != None:
+  for i in range (0, len(argv)):
     if argv [i] == '-fbmod':
       fbmod = max (min (64, long (argv [i+1])), 6)
     elif argv [i] == '-ibmod':
@@ -59,13 +63,16 @@ if argv != None and len (argv) > 1:
       afile = argv [i+1]
     elif argv [i] == '-step':
       step = float (argv [i+1])
-      if step <= 0.0: step = 1E-4
     elif argv [i] == '-damp':
       damp = max (float (argv [i+1]), 0.0)
     elif argv [i] == '-rest':
       rest = max (min (1.0, float (argv [i+1])), 0.0)
     elif argv [i] == '-outi':
       outi = float (argv [i+1])
+    elif argv [i] == '-stop':
+      stop = float (argv [i+1])
+    elif argv [i] == '-genbase':
+      genbase = True
 
 if RANK() == 0:
   print 'Using formulation: ', formu
@@ -80,7 +87,7 @@ if formu == 'MODAL':
   ending = 'MODAL_FB%d_IB%d_LK%d'%(fbmod,ibmod,lkmod)
 else: ending = formu
 
-ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/'):len(afile)].replace ('.inp',''), ending, step, damp, rest)
+ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/')+1:len(afile)].replace ('.inp',''), ending, step, damp, rest)
 
 # Analysis inputs
 
@@ -93,10 +100,13 @@ input_bricks = (['FB1(0)(0)', 'FB1(0)(1)', 'FB1(0)(2)', 'FB1(0)(3)', 'FB1(0)(4)'
                 'IB2(5)(0)', 'IB2(5)(1)', 'IB2(5)(2)', 'IB2(5)(3)', 'IB2(5)(4)', #Side 3 (right)
                 'IB1(0)(0)', 'IB1(1)(0)', 'IB1(2)(0)', 'IB1(3)(0)', 'IB1(4)(0)']) #Side 4 (bottom)
 
-stop = 72.0
 dwell = 2.0 # length in seconds of constant-frequency dwell at start of analysis
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/' + ending)
+
+if solfec.mode == 'READ' and formu in ['MODAL', 'RO', 'RG', 'PR'] and genbase:
+  print 'WARNING: -genbase was used with invalid formulation in READ mode --> exiting ...'
+  sys.exit(0)
 
 OUTPUT (solfec, outi) # The physical tests recorded digitased outputs at 2E-3s intervals
 
@@ -118,6 +128,31 @@ if RANK () == 0:
 # Create a new AbaqusInput object from the .inp deck:
 model = AbaqusInput(afile, solfec)
 
+# read RO bases once
+if formu == 'RO':
+  robase = {}
+  for label in ['FB1', 'FB2', 'IB1', 'IB2', 'LK1', 'LK2', 'LK3', 'LK4']:
+    path = afile.replace ('.inp','_' + label + '_base.pickle.gz')
+    try:
+      robase[label] = pickle.load(gzip.open(path, 'rb'))
+    except:
+      print 'Reading %s failed --> run BC analysis in WRITE and READ modes first' % path
+      sys.exit(0)
+
+if formu == 'MODAL' and not genbase:
+  modalbase = {}
+  for label in ['FB1', 'FB2', 'IB1', 'IB2', 'LK1', 'LK2', 'LK3', 'LK4']:
+    basepath = solfec.outpath + '/' + label + '_modalbase'
+    try:
+      print 'Opening:', basepath + '.h5'
+      f = open(basepath + '.h5', 'rb')
+      f.close()
+      modalbase [label] = MODAL_ANALYSIS (path = basepath)
+    except:
+      print 'Reading: %s.h5 has failed:' % basepath
+      print 'Run serial analysis with "-formu MODAL -genbase" switches first'
+      sys.exit(0)
+
 # Create a Finite Element body for each Instance in the Assembly:
 for inst in model.assembly.instances.values():	# .instances is a dict
   label = inst.name	              # use Abaqus instance name
@@ -130,22 +165,23 @@ for inst in model.assembly.instances.values():	# .instances is a dict
   elif formu in ['TL', 'BC']:
     bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = formu)
   elif formu == 'MODAL':
-    bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
-    if label.startswith ('FB'): nm = fbmod
-    elif label.startswith ('IB'): nm = ibmod
-    else: nm = lkmod
-    data = MODAL_ANALYSIS (bdy, nm, solfec.outpath + '/modal' + label, abstol = 1E-13)
-    DELETE (solfec, bdy)
-    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = data)
+    if NCPU(solfec) == 1 and genbase:
+      path = solfec.outpath + '/' + label[0:3] + '_modalbase'
+      nm = {'FB':fbmod, 'IB':ibmod, 'LK':lkmod}
+      try:
+	f = open(path, 'rb')
+	f.close()
+      except: 
+	bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
+	MODAL_ANALYSIS (bdy, nm[label[0:2]], path, abstol = 1E-13)
+    else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = modalbase[label[0:3]])
   elif formu == 'RO':
-    path = afile.replace ('.inp','_' + label[0:2] + '_base.pickle.gz')
-    try:
-      data = pickle.load(gzip.open(path, 'rb'))
-    except:
-      print 'Reading %s failed --> run BC analysis in WRITE and READ modes first' % path
-      sys.exit(0)
-    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-RO', base = data)
+    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-RO', base = robase[label[0:3]])
 
+if solfec.mode == 'WRITE' and genbase:
+  path = solfec.outpath + solfec.outpath[solfec.outpath.rfind('/'):len(solfec.outpath)]
+  print 'INFO: -genbase was used to generate modes --> exiting ...'
+  sys.exit(0)
 #----------------------------------------------------------------------
 
 # boundary conditions and input accelerations
@@ -295,15 +331,20 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
   pickle.dump (thv, f)
   f.close ()
 
-  # read displacement snapshots from a 'BC' simulation
-  if formu == 'BC':
+  # read displacement snapshots from a 'TL' or 'BC' simulation
+  if formu in ['TL', 'BC'] and genbase:
     from sys import stdout
     import modred
     import numpy
 
-    fb_defo = COROTATED_DISPLACEMENTS (solfec, 'FB2(2)(2)')
-    ib_defo = COROTATED_DISPLACEMENTS (solfec, 'IB1(2)(2)')
-    lk_defo = COROTATED_DISPLACEMENTS (solfec, 'LK2(2)(2)')
+    fb1_defo = COROTATED_DISPLACEMENTS (solfec, 'FB1(2)(2)')
+    fb2_defo = COROTATED_DISPLACEMENTS (solfec, 'FB2(2)(2)')
+    ib1_defo = COROTATED_DISPLACEMENTS (solfec, 'IB1(2)(2)')
+    ib2_defo = COROTATED_DISPLACEMENTS (solfec, 'IB2(2)(2)')
+    lk1_defo = COROTATED_DISPLACEMENTS (solfec, 'LK1(2)(2)')
+    lk2_defo = COROTATED_DISPLACEMENTS (solfec, 'LK2(2)(2)')
+    lk3_defo = COROTATED_DISPLACEMENTS (solfec, 'LK3(2)(2)')
+    lk4_defo = COROTATED_DISPLACEMENTS (solfec, 'LK4(2)(2)')
     dur = DURATION (solfec)
     print 'Sampling FEM-BC displacements ...', '    ' , 
     SEEK (solfec, dur[0])
@@ -314,16 +355,31 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
       stdout.flush ()
     print
 
-    fb = BYLABEL (solfec, 'BODY', 'FB2(1)(1)')
-    ib = BYLABEL (solfec, 'BODY', 'IB2(1)(0)')
-    lk = BYLABEL (solfec, 'BODY', 'LK3(3)(4)')
-    fb_rig = RIGID_DISPLACEMENTS (fb)
-    ib_rig = RIGID_DISPLACEMENTS (ib)
-    lk_rig = RIGID_DISPLACEMENTS (lk)
+    fb1 = BYLABEL (solfec, 'BODY', 'FB1(2)(2)')
+    fb2 = BYLABEL (solfec, 'BODY', 'FB2(2)(2)')
+    ib1 = BYLABEL (solfec, 'BODY', 'IB1(2)(2)')
+    ib2 = BYLABEL (solfec, 'BODY', 'IB2(2)(2)')
+    lk1 = BYLABEL (solfec, 'BODY', 'LK1(2)(2)')
+    lk2 = BYLABEL (solfec, 'BODY', 'LK2(2)(2)')
+    lk3 = BYLABEL (solfec, 'BODY', 'LK3(2)(2)')
+    lk4 = BYLABEL (solfec, 'BODY', 'LK4(2)(2)')
+    fb1_rig = RIGID_DISPLACEMENTS (fb1)
+    fb2_rig = RIGID_DISPLACEMENTS (fb2)
+    ib1_rig = RIGID_DISPLACEMENTS (ib1)
+    ib2_rig = RIGID_DISPLACEMENTS (ib2)
+    lk1_rig = RIGID_DISPLACEMENTS (lk1)
+    lk2_rig = RIGID_DISPLACEMENTS (lk2)
+    lk3_rig = RIGID_DISPLACEMENTS (lk3)
+    lk4_rig = RIGID_DISPLACEMENTS (lk4)
 
-    pod_input = [(fb_rig, fb_defo, 'FB', fbmod),
-                 (ib_rig, ib_defo, 'IB', ibmod),
-		 (lk_rig, lk_defo, 'LK', lkmod)]
+    pod_input = [(fb1_rig, fb1_defo, 'FB1', fbmod),
+                 (fb2_rig, fb2_defo, 'FB2', fbmod),
+                 (ib1_rig, ib1_defo, 'IB1', ibmod),
+                 (ib2_rig, ib2_defo, 'IB2', ibmod),
+		 (lk1_rig, lk1_defo, 'LK1', lkmod),
+		 (lk2_rig, lk2_defo, 'LK2', lkmod),
+		 (lk3_rig, lk3_defo, 'LK3', lkmod),
+		 (lk4_rig, lk4_defo, 'LK4', lkmod)]
 
     for (rig, defo, label, num_modes) in pod_input:
       vecs = numpy.transpose(numpy.array(rig+defo))
