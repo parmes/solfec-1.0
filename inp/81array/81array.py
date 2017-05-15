@@ -49,9 +49,9 @@ genbase = False
 if argv != None:
   for i in range (0, len(argv)):
     if argv [i] == '-fbmod':
-      fbmod = max (min (64, long (argv [i+1])), 6)
+      fbmod = max (long (argv [i+1]), 6)
     elif argv [i] == '-ibmod':
-      ibmod = max (min (64, long (argv [i+1])), 6)
+      ibmod = max (long (argv [i+1]), 6)
     elif argv [i] == '-form':
       if argv [i+1] in ('TL', 'BC', 'RO', 'MODAL', 'PR', 'RG'):
 	formu = argv [i+1]
