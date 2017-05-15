@@ -1,0 +1,32 @@
+Reduced order modeling example 0: Rotating bar
+--------------------------------- ============
+
+      --- 
+      | | --->
+      | |
+      | |   x-direction: normal to plane
+      | |
+ <--- | |
+      ---
+
+A prismatic bar with x,y,z dimensions 0.1x0.1x1 m and material parameters E in { 200E4 Pa,200E9 Pa} ,
+nu=0.26,\ho=7.8E3 kg /m^3 is rotating about the x-axis with an initial angular velocity of 1 rad/s.
+The bar is discretized with 2x2x20 fully integrated trilinear hexahedral elements.  This results
+in 576 degrees of freedom fully resolved finite element (FE) models. Four FE formulations are compared:
+
+ * Total Lagrangian (TL)
+ * Body co-rotational (BC)
+ * Body co-rotation reduced order (BC-RO)
+ * Body co-rotation modal (BC-MODAL)
+
+For the reduced order BC-RO approach 100 co-rotated displacement are samples from the Total Lagrangian solution
+(with rigid rotation factored out) and 6 rigid motion modes (generated algebraically) as input for the
+Python modred package (http://pythonhosted.org/modred/), and calculated 11 Proper Orthogonal Decomposition modes.
+For the BC-MODAL approach, the 6 rigid modes are combined with deformable modes 14, 19, 26, 34, 39 (of the initial
+linearized system), picked by hand as visually corresponding to the predominantly longitudinal deformation of the
+bar. Hence, the BC-MODAL case also had 11 degrees of freedom. 
+
+Bar elongation and system energy histories, as well as convergence rates, are compared using plots.
+
+RUN: solfec examples/reduced-order0/ro0-run-all.py
+     to perform all tests and output figures into: out/reduced-order0 directory

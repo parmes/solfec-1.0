@@ -1,0 +1,34 @@
+Reduced order modeling example 1: Pipe impact
+--------------------------------- ===========
+
+   ---------------------------------
+   | - - - - - - - - - - - - - - - |
+   |                               |      |
+   |                               |      |
+   | - - - - - - - - - - - - - - - |     \ /
+   -----*---------------------------      * 10 m/s^2
+        p0
+                                            z 
+      -----                                 |
+      |   | block                       y---| (x-out-of-plane)
+      -----
+
+An elastic pipe free falls onto a block obstacle. The inner pipe radius is 0.01 m, its thickness
+is 0.005 m, and its length is 0.1 m. The pipe lowest point is initially located 0.025 m above the
+top surface of the block. Point p0 impacts the geometrical center of the block. Points p0 is 025 m
+away from the left end of the pipe. The pipe is made of 36x36x4 fully integrated trilinear hexahedral
+elements. The elastic properties of the pipe are E=1E7 Pa, nu=0.25 and its density is rho=1E3 kg/m^3.
+The obstacle has dimensions 0.01x0.1x0.01 m and it is modeled as a geometrical boundary which does not
+contribute mass. The gravity along the z-direction is -10 m/s^2. The simulation time step is 0.001 s,
+the duration is 0.1 s, and the amount of damping is eta=1E-4. Schemes TL, BC, and BC-RO are compared:
+
+ * Total Lagrangian (TL)
+ * Body co-rotational (BC)
+ * Body co-rotation reduced order (BC-RO)
+
+100 co-rotated displacement samples from the Total Lagrangian solution and 6 rigid motion modes are
+used as input for the Python modred package (http://pythonhosted.org/modred/), to produce 18 Proper
+Orthogonal Decomposition modes for the BC-RO approach.
+
+RUN: solfec examples/reduced-order1/ro1-run-all.py
+     to perform all tests and output figures into: out/reduced-order1 directory
