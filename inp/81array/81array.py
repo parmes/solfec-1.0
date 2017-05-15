@@ -79,8 +79,8 @@ if RANK() == 0:
   print 'Using %g time step and %g damping'%(step, damp)
   print '----------------------------------------------------------'
 
-if formu == 'MODAL':
-  ending = 'MODAL_FB%d_IB%d'%(fbmod,ibmod)
+if formu in ['RO', 'MODAL']:
+  ending = '%s_FB%d_IB%d'%(formu,fbmod,ibmod)
 else: ending = formu
 
 ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/')+1:len(afile)].replace ('.inp',''), ending, step, damp, rest)

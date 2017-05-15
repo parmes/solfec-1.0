@@ -16,12 +16,12 @@ from math import cos
 
 formu = 'BC'
 fbmod = 24
-step = 1E-4
-stop = 0.5
-damp = 1E-6
-impactVelocity = 0.15 #15cm/s
 afile = 'inp/81array/81fbi.inp'
+step = 1E-4
+damp = 1E-7
+impactVelocity = 0.15 #15cm/s
 rest = 0.0
+stop = 0.5
 genbase = False
 
 # User paramters
@@ -72,8 +72,8 @@ print '------------------------------------------------------'
 
 # Model
 
-if formu == 'MODAL':
-  ending = 'MODAL_FB%d'%(fbmod)
+if formu in ['RO', 'MODAL']:
+  ending = '%s_FB%d'%(formu, fbmod)
 else: ending = formu
 
 ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/')+1:len(afile)].replace ('.inp',''), ending, step, damp, rest)
@@ -232,7 +232,7 @@ if solfec.mode == 'WRITE' and formu in ['TL', 'BC'] and genbase:
     val = vals.tolist()
     basevec = [x for vec in mod for x in vec]
     podbase = (val[0:len(mod)], basevec)
-    try: os.makedirs(solfec.outpath.replace(formu,'RO'))
+    try: os.makedirs(solfec.outpath.replace(formu,'RO_FB%d'%fbmod))
     except: pass
-    path = solfec.outpath.replace(formu,'RO') + '/' + label + '_base.pickle.gz'
+    path = solfec.outpath.replace(formu,'RO_FB%d'%fbmod) + '/' + label + '_base.pickle.gz'
     pickle.dump (podbase, gzip.open(path,'wb'))
