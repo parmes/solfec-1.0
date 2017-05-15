@@ -25,9 +25,8 @@ if argv == None and RANK() == 0:
   print 'No user paramters passed! Possible paramters:'
   print '----------------------------------------------------------'
   print '-form name => where name is TL, BC, RO, MODAL, PR or RG'
-  print '-fbmod num => fuel brick modes (default: 36)'
-  print '-ibmod num => interstitial brick modes (default: 24)'
-  print '-lkmod num => loose key modes (default: 12)'
+  print '-fbmod num => fuel brick modes (default: 64)'
+  print '-ibmod num => interstitial brick modes (default: 64)'
   print '-afile path => Abaqus 81 array file path'
   print '-step num => time step (default: 1E-4s)'
   print '-damp num => damping value (default: 1E-7)'
@@ -38,9 +37,8 @@ if argv == None and RANK() == 0:
   print '------------------------------------------------------------------------'
 
 formu = 'BC'
-fbmod = 36
-ibmod = 24
-lkmod = 12
+fbmod = 64
+ibmod = 64
 afile = 'inp/81array/81array.inp'
 step = 1E-4
 damp = 1E-7
@@ -54,8 +52,6 @@ if argv != None:
       fbmod = max (min (64, long (argv [i+1])), 6)
     elif argv [i] == '-ibmod':
       ibmod = max (min (64, long (argv [i+1])), 6)
-    elif argv [i] == '-lkmod':
-      lkmod = max (min (12, long (argv [i+1])), 6)
     elif argv [i] == '-form':
       if argv [i+1] in ('TL', 'BC', 'RO', 'MODAL', 'PR', 'RG'):
 	formu = argv [i+1]
@@ -76,15 +72,15 @@ if argv != None:
 
 if RANK() == 0:
   print 'Using formulation: ', formu
-  if formu == 'MODAL':
+  if formu in ['MODAL', 'RO']:
     print '%d modes per fuel brick'%fbmod
     print '%d modes per interstitial brick'%ibmod
-    print '%d modes per loose key'%lkmod
+    print 'loose key are modeled as BC-FEM'
   print 'Using %g time step and %g damping'%(step, damp)
   print '----------------------------------------------------------'
 
 if formu == 'MODAL':
-  ending = 'MODAL_FB%d_IB%d_LK%d'%(fbmod,ibmod,lkmod)
+  ending = 'MODAL_FB%d_IB%d'%(fbmod,ibmod)
 else: ending = formu
 
 ending = '%s_%s_s%.1e_d%.1e_r%g'%(afile [afile.rfind ('/')+1:len(afile)].replace ('.inp',''), ending, step, damp, rest)
@@ -131,7 +127,7 @@ model = AbaqusInput(afile, solfec)
 # read RO bases once
 if formu == 'RO':
   robase = {}
-  for label in ['FB1', 'FB2', 'IB1', 'IB2', 'LK1', 'LK2', 'LK3', 'LK4']:
+  for label in ['FB1', 'FB2', 'IB1', 'IB2']:
     path = afile.replace ('.inp','_' + label + '_base.pickle.gz')
     try:
       robase[label] = pickle.load(gzip.open(path, 'rb'))
@@ -141,7 +137,7 @@ if formu == 'RO':
 
 if formu == 'MODAL' and not genbase:
   modalbase = {}
-  for label in ['FB1', 'FB2', 'IB1', 'IB2', 'LK1', 'LK2', 'LK3', 'LK4']:
+  for label in ['FB1', 'FB2', 'IB1', 'IB2']:
     basepath = solfec.outpath + '/' + label + '_modalbase'
     try:
       print 'Opening:', basepath + '.h5'
@@ -167,16 +163,19 @@ for inst in model.assembly.instances.values():	# .instances is a dict
   elif formu == 'MODAL':
     if NCPU(solfec) == 1 and genbase:
       path = solfec.outpath + '/' + label[0:3] + '_modalbase'
-      nm = {'FB':fbmod, 'IB':ibmod, 'LK':lkmod}
+      nm = {'FB':fbmod, 'IB':ibmod}
       try:
 	f = open(path, 'rb')
 	f.close()
       except: 
-	bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
-	MODAL_ANALYSIS (bdy, nm[label[0:2]], path, abstol = 1E-13)
+        if label[0:2] != 'LK':
+	  bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
+	  MODAL_ANALYSIS (bdy, nm[label[0:2]], path, abstol = 1E-13)
+    elif label[0:2] == 'LK': bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC')
     else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = modalbase[label[0:3]])
   elif formu == 'RO':
-    bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-RO', base = robase[label[0:3]])
+    if label[0:2] == 'LK': bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC')
+    else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-RO', base = robase[label[0:3]])
 
 if solfec.mode == 'WRITE' and genbase:
   path = solfec.outpath + solfec.outpath[solfec.outpath.rfind('/'):len(solfec.outpath)]
@@ -341,10 +340,6 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
     fb2_defo = COROTATED_DISPLACEMENTS (solfec, 'FB2(2)(2)')
     ib1_defo = COROTATED_DISPLACEMENTS (solfec, 'IB1(2)(2)')
     ib2_defo = COROTATED_DISPLACEMENTS (solfec, 'IB2(2)(2)')
-    lk1_defo = COROTATED_DISPLACEMENTS (solfec, 'LK1(2)(2)')
-    lk2_defo = COROTATED_DISPLACEMENTS (solfec, 'LK2(2)(2)')
-    lk3_defo = COROTATED_DISPLACEMENTS (solfec, 'LK3(2)(2)')
-    lk4_defo = COROTATED_DISPLACEMENTS (solfec, 'LK4(2)(2)')
     dur = DURATION (solfec)
     print 'Sampling FEM-BC displacements ...', '    ' , 
     SEEK (solfec, dur[0])
@@ -359,27 +354,15 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
     fb2 = BYLABEL (solfec, 'BODY', 'FB2(2)(2)')
     ib1 = BYLABEL (solfec, 'BODY', 'IB1(2)(2)')
     ib2 = BYLABEL (solfec, 'BODY', 'IB2(2)(2)')
-    lk1 = BYLABEL (solfec, 'BODY', 'LK1(2)(2)')
-    lk2 = BYLABEL (solfec, 'BODY', 'LK2(2)(2)')
-    lk3 = BYLABEL (solfec, 'BODY', 'LK3(2)(2)')
-    lk4 = BYLABEL (solfec, 'BODY', 'LK4(2)(2)')
     fb1_rig = RIGID_DISPLACEMENTS (fb1)
     fb2_rig = RIGID_DISPLACEMENTS (fb2)
     ib1_rig = RIGID_DISPLACEMENTS (ib1)
     ib2_rig = RIGID_DISPLACEMENTS (ib2)
-    lk1_rig = RIGID_DISPLACEMENTS (lk1)
-    lk2_rig = RIGID_DISPLACEMENTS (lk2)
-    lk3_rig = RIGID_DISPLACEMENTS (lk3)
-    lk4_rig = RIGID_DISPLACEMENTS (lk4)
 
     pod_input = [(fb1_rig, fb1_defo, 'FB1', fbmod),
                  (fb2_rig, fb2_defo, 'FB2', fbmod),
                  (ib1_rig, ib1_defo, 'IB1', ibmod),
-                 (ib2_rig, ib2_defo, 'IB2', ibmod),
-		 (lk1_rig, lk1_defo, 'LK1', lkmod),
-		 (lk2_rig, lk2_defo, 'LK2', lkmod),
-		 (lk3_rig, lk3_defo, 'LK3', lkmod),
-		 (lk4_rig, lk4_defo, 'LK4', lkmod)]
+                 (ib2_rig, ib2_defo, 'IB2', ibmod)]
 
     for (rig, defo, label, num_modes) in pod_input:
       vecs = numpy.transpose(numpy.array(rig+defo))
