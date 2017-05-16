@@ -177,12 +177,15 @@ for i, p in enumerate(plotorder):
   newax.set_xlim(0.0, 15.0) # ditto
   newax.legend(prop={'size':'small'})
 
-#markers = ["s", "o", "^", "+"]
-#markcycler = cycle (markers) # can be combined with marker = next (markcycler)
+#markers = [None, "^", 's']
+markers = [None, None, None]
+lstyles = ["-", ":", '--']
 
 # read time series from file
+k = -1
 for (path, lbl) in zip (vpath, vlabel):
   # marking styles
+  k = k + 1
 
   # output path
   outpath = path[0:len(path)-4]
@@ -262,7 +265,8 @@ for (path, lbl) in zip (vpath, vlabel):
     ax = [] # will fill with axes objects for subplots as we generate them - NB is zero-based!
     for i, p in enumerate(plotorder):
       newax = fig1.add_subplot(3,2, i + 1) # row, col, plot_number (starts at 1, inconveniently, goes left-right top-bottom)
-      newax.plot(winfreqs, nor_pkVs[p], '-', marker = '+', label=lbl)
+      newax.plot(winfreqs, nor_pkVs[p], linestyle=lstyles[k%len(lstyles)], linewidth = 1.5, \
+        label=lbl, marker = markers[k%len(markers)], markevery=4, markersize=4)
       newax.set_title(p).set_fontsize('small')
       newax.grid(True)
       newax.set_ylim(0.0, 4.0)  # to match Fig 5 of C33/C34/PSD/213/220
