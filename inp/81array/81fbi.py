@@ -86,6 +86,7 @@ SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restituti
 model = AbaqusInput(afile, solfec)
 
 # read RO bases once
+arraybase = False
 if formu == 'RO':
   robase = {}
   for label in ['FB1', 'FB2']:
@@ -99,9 +100,22 @@ if formu == 'RO':
       print 'Now trying to use %s instead ...' % path1
       try:
         robase[label] = pickle.load(gzip.open(path1, 'rb'))
+	arraybase = True
       except:
 	print 'Reading %s failed --> run 81array.py -afile %s analysis in WRITE and READ modes first' % (path1, afile.replace('fbi', 'array'))
 	sys.exit(0)
+
+if arraybase: # 81 array base is rotated by 45 deg around the (0, 0, 1) direction
+  for label in robase:
+    base = robase[label]
+    val0 = base[0]
+    vec0 = base[1]
+    vec1 = []
+    for i in range(0, len(vec0), 3):
+      x = (vec0[i], vec0[i+1], vec0[i+2])
+      y = ROTATE (x, (0, 0, 0), (0, 0, 1), -45)
+      vec1 += y
+    robase[label] = (val0, vec1) # POD base rotated by -45 deg about (0, 0, 1)
 
 # Create a Finite Element body for each Instance in the Assembly:
 for inst in model.assembly.instances.values():	# .instances is a dict
