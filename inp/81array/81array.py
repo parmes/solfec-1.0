@@ -246,7 +246,23 @@ for b in solfec.bodies:
 
     p7 = TRANSLATE (c, (0, 0, 0))
     FIX_DIRECTION (b, p7, (0, 0, -1))
- 
+
+# statistics
+counts = {'FB':0, 'IB':0, 'LK':0}
+dofs = {'FB':0, 'IB':0, 'LK':0}
+total_dofs = 0
+for b in solfec.bodies:
+  counts[b.label[0:2]] += 1
+  dofs[b.label[0:2]] = len(b.velo)
+  total_dofs += len(b.velo)
+print
+print '==============================================='
+print 'BODY COUNTS:', counts
+print 'BODY DOFS:', dofs
+print 'TOTAL DOFS:', total_dofs
+print '==============================================='
+print
+
 #----------------------------------------------------------------------
 
 # solver and run
