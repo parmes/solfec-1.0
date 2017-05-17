@@ -126,11 +126,11 @@ model = AbaqusInput(afile, solfec)
 
 # read RO bases once
 if formu == 'RO':
-  robase = {}
   for label in ['FB1', 'FB2', 'IB1', 'IB2']:
     path = afile.replace ('.inp','_' + label + '_base.pickle.gz')
     try:
-      robase[label] = pickle.load(gzip.open(path, 'rb'))
+      robase = pickle.load(gzip.open(path, 'rb'))
+      REGISTER_BASE (solfec, robase, label)
     except:
       print 'Reading %s failed --> run BC analysis in WRITE and READ modes first' % path
       sys.exit(0)
@@ -175,7 +175,7 @@ for inst in model.assembly.instances.values():	# .instances is a dict
     else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = modalbase[label[0:3]])
   elif formu == 'RO':
     if label[0:2] == 'LK': bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC')
-    else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-RO', base = robase[label[0:3]])
+    else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-RO', base = label[0:3])
 
 if solfec.mode == 'WRITE' and genbase:
   path = solfec.outpath + solfec.outpath[solfec.outpath.rfind('/'):len(solfec.outpath)]
