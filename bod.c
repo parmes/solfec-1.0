@@ -2218,6 +2218,8 @@ void BODY_Destroy (BODY *bod)
     if (bod->evec) MX_Destroy (bod->evec);
   }
 
+  if (bod->label) free (bod->label);
+
 #if OPENGL
   if (bod->rendering) RND_Free_Rendering_Data (bod->rendering);
 #endif

@@ -306,6 +306,8 @@ void PBF_Close (PBF *bf)
 
     next = bf->next;
     free (bf->path);
+    free (bf->i);
+    free (bf->d);
     free (bf);
   }
 }

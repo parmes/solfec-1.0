@@ -2520,6 +2520,7 @@ static void RO_dynamic_init (BODY *bod)
       MX *EtK = MX_Matmat (1.0, MX_Tran(E), K, 0.0, NULL);
       bod->K = MX_Matmat (1.0, EtK, E, 0.0, NULL);
       MX_Destroy (EtK);
+      MX_Destroy (K);
 
       double step = bod->dom->step;
 
