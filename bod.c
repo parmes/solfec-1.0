@@ -2376,7 +2376,7 @@ BODY* BODY_Unpack (SOLFEC *sol, int *dpos, double *d, int doubles, int *ipos, in
   if (base_flag < 0)
   {
     elabel = unpack_string (ipos, i, ints);
-    ASSERT_DEBUG (base = MAP_Find (sol->registered_bases, elabel, (MAP_Compare)strcmp), "Invalid base label");
+    ASSERT_TEXT (base = MAP_Find (sol->registered_bases, elabel, (MAP_Compare)strcmp), "Invalid base label");
     free (elabel);
     evec = base->evec;
     eval = base->eval;
