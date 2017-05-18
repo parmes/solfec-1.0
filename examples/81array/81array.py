@@ -12,7 +12,7 @@ import pickle
 import commands
 sys.path.append('scripts/abaqusreader')
 sys.path.append('scripts')
-sys.path.append('inp/81array')
+sys.path.append('examples/81array')
 from abaqusreader import AbaqusInput
 from math import cos 
 
@@ -39,7 +39,7 @@ if argv == None and RANK() == 0:
 formu = 'BC'
 fbmod = 64
 ibmod = 64
-afile = 'inp/81array/81array.inp'
+afile = 'examples/81array/81array.inp'
 step = 1E-4
 damp = 1E-7
 rest = 0.0
@@ -109,7 +109,7 @@ OUTPUT (solfec, outi) # The physical tests recorded digitased outputs at 2E-3s i
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
 if RANK () == 0:
-  commands.getoutput ("bunzip2 inp/81array/ts81.py.bz2") # only first CPU unpacks the input
+  commands.getoutput ("bunzip2 examples/81array/ts81.py.bz2") # only first CPU unpacks the input
 
 BARRIER () # let all CPUs meet here
 
@@ -119,7 +119,7 @@ from ts81 import TS81 # import the time series
 vel = TS81()
 
 if RANK () == 0:
-  commands.getoutput ("bzip2 inp/81array/ts81.py") # only first CPU pack the input
+  commands.getoutput ("bzip2 examples/81array/ts81.py") # only first CPU pack the input
 
 # Create a new AbaqusInput object from the .inp deck:
 model = AbaqusInput(afile, solfec)

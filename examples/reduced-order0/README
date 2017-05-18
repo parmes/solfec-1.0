@@ -19,12 +19,12 @@ in 576 degrees of freedom fully resolved finite element (FE) models. Four FE for
  * Body co-rotation reduced order (BC-RO)
  * Body co-rotation modal (BC-MODAL)
 
-For the reduced order BC-RO approach 100 co-rotated displacement are samples from the Total Lagrangian solution
-(with rigid rotation factored out) and 6 rigid motion modes (generated algebraically) as input for the
-Python modred package (http://pythonhosted.org/modred/), and calculated 11 Proper Orthogonal Decomposition modes.
-For the BC-MODAL approach, the 6 rigid modes are combined with deformable modes 14, 19, 26, 34, 39 (of the initial
-linearized system), picked by hand as visually corresponding to the predominantly longitudinal deformation of the
-bar. Hence, the BC-MODAL case also had 11 degrees of freedom. 
+For the reduced order BC-RO approach 100 co-rotated displacement are samples from the Total Lagrangian
+solution (with rigid rotation factored out) and 6 rigid motion modes (generated algebraically) as input
+for the Python modred package (http://pythonhosted.org/modred/), and calculated 11 Proper Orthogonal
+Decomposition modes.  For the BC-MODAL approach, the 6 rigid modes are combined with deformable modes
+14, 19, 26, 34, 39 (of the initial linearized system), picked by hand as visually corresponding to the
+predominantly longitudinal deformation of the bar, also resulting in 11 degrees of freedom. 
 
 Bar elongation and system energy histories, as well as convergence rates, are compared using plots.
 

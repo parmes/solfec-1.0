@@ -8,7 +8,7 @@ import modred
 import pickle
 import commands
 sys.path.append('scripts')
-sys.path.append('inp/81array')
+sys.path.append('examples/81array')
 from abaqusreader import AbaqusInput
 from math import cos 
 
@@ -16,7 +16,7 @@ from math import cos
 
 formu = 'BC'
 fbmod = 24
-afile = 'inp/81array/81fbi.inp'
+afile = 'examples/81array/81fbi.inp'
 step = 1E-4
 damp = 1E-7
 impactVelocity = 0.15 #15cm/s

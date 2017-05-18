@@ -1,0 +1,24 @@
+Reduced order modeling example 0: 81 bricks array
+--------------------------------- ===============
+
+The experiment behind this example comes from the context of the civil nuclear power generation
+in the UK. A series of dynamic tests were carried out by National Nuclear Corporation in 1985 as
+part of the seismic endorsement of the Heysham II / Torness AGRAGR stands for an Advanced
+Gass-cooled Reactor core design. These tests used an array of 81 graphite bricks, consisting of
+alternating ‘fuel’ and ‘interstitial’ bricks. The array was mounted in a rigid frame on a shaker
+table. The boundary frame was driven in the horizontal plane with synthesized seismic or swept-sine
+input motions in either one or both axes simultaneously. Measurements were taken of the resulting
+velocities of certain bricks in the array (determined from accelerometer data) and also of the
+forces within the keying system (using load cells built into some components). Some details of
+the experimental setup has been described in [1-2]. We note, that this example is called the
+“81 bricks array”, or simply the “81 array”, because the total number of unconstrained fuel and
+interstitial bricks is 81.
+
+[1] Ahmed, Khalid and Stojko, Stefan, "The non-linear seismic response of AGR core graphite brick
+    slices - correlation of experimental and analytical results", Earthquake Engineering &
+    Structural Dynamics (1987), 159-188.
+    http://onlinelibrary.wiley.com/doi/10.1002/eqe.4290150203/abstract
+
+[2] Ahmed, K. M., "The dynamic response of multi-layers AGR core brick arrays", Nuclear Engineering
+    and Design (1987), 1-66.
+    http://www.sciencedirect.com/science/article/pii/0029549387903037
