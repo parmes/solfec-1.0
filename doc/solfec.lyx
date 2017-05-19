@@ -28,7 +28,17 @@
 \index_command default
 \paperfontsize default
 \spacing single
-\use_hyperref false
+\use_hyperref true
+\pdf_bookmarks true
+\pdf_bookmarksnumbered false
+\pdf_bookmarksopen false
+\pdf_bookmarksopenlevel 1
+\pdf_breaklinks false
+\pdf_pdfborder false
+\pdf_colorlinks false
+\pdf_backref false
+\pdf_pdfusetitle true
+\pdf_quoted_options "urlcolor=blue"
 \papersize a4paper
 \use_geometry true
 \use_package amsmath 1
@@ -10755,13 +10765,17 @@ obj.parmec_interval
  - 
 \emph default
 PARMEC output interval specification (as in 
+\color blue
+
 \begin_inset CommandInset href
 LatexCommand href
 name "parmec’s DEM command"
-target "http://parmes.org/parmec/input_commands.html#dem"
+target "http://parmes.github.io/parmec/input_commands.html#dem"
 
 \end_inset
 
+
+\color inherit
 ); when not specified PARMEC will not write output files; the read value
  is [(d,d), (O,O), (i, i)], where the first tuple contains floating point
  intervals, the second tuple contains Python callbacks, the third tuple
@@ -10783,13 +10797,17 @@ obj.parmec_prefix
 \series default
 \emph default
  - PARMEC output file name prefix (as in 
+\color blue
+
 \begin_inset CommandInset href
 LatexCommand href
 name "parmec’s DEM command"
-target "http://parmes.org/parmec/input_commands.html#dem"
+target "http://parmes.github.io/parmec/input_commands.html#dem"
 
 \end_inset
 
+
+\color inherit
 )
 \end_layout
 
