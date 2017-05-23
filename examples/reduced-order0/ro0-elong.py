@@ -36,16 +36,18 @@ else:
     times = ro0_times (ro0_model (1.0/div, 0.0, 'TL'))
     l_tl = ro0_elongation (ro0_model (1.0/div, 0.0, 'TL'))
     l_bc = ro0_elongation (ro0_model (1.0/div, 0.0, 'BC'))
-    l_bc_ro = ro0_elongation (ro0_model (1.0/div, 0.0, 'BC-RO', pod_base))
-    l_bc_modal = ro0_elongation (ro0_model (1.0/div, 0.0, 'BC-MODAL', modal_base))
+    l_bc_ro = ro0_elongation (ro0_model (1.0/div, 0.0,
+                                         'BC-RO', pod_base))
+    l_bc_modal = ro0_elongation (ro0_model (1.0/div, 0.0,
+                                    'BC-MODAL', modal_base))
 
     print '\bPlotting elongation history h=1/%d, eta=0.0 ...' % div
     plt.clf ()
     plt.title ('Rotating bar: elongation ($h = 1/%d, \eta = 0.0$)' % div)
     plt.plot (times, l_tl, label='TL')
-    plt.plot (times, l_bc, label='BC', linestyle='--', marker='.', markevery=1) # 'None' line style is possible
-    plt.plot (times, l_bc_ro, label='BC-RO', linestyle='-', marker='x', markevery=1)
-    plt.plot (times, l_bc_modal, label='BC-MODAL', linestyle='-.', marker='s', markevery=1)
+    plt.plot (times, l_bc, label='BC', ls='--', marker='.')
+    plt.plot (times, l_bc_ro, label='BC-RO', ls='-', marker='x')
+    plt.plot (times, l_bc_modal, label='BC-MODAL', ls='-.', marker='s')
     plt.xlabel ('Time [s]')
     plt.ylabel ('Elongation [m]')
     plt.legend(loc = 'upper right')
