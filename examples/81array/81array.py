@@ -4,6 +4,7 @@
 # Array of bricks with brick normal gaps to match those in test, DYNAMIC run all FEM bodies - Loose Key facets removed
 # VELOCITY Time-history used from 5101060/23/03/08 - 2s, 0.3g, 3Hz sine dwell, then 3Hz to 10Hz linear sweep at 0.1Hz/s
 
+import os
 import sys
 import gzip
 import math
@@ -20,22 +21,6 @@ from math import cos
 
 argv = NON_SOLFEC_ARGV()
 
-if argv == None and RANK() == 0:
-  print '----------------------------------------------------------'
-  print 'No user paramters passed! Possible paramters:'
-  print '----------------------------------------------------------'
-  print '-form name => where name is TL, BC, RO, MODAL, PR or RG'
-  print '-fbmod num => fuel brick modes (default: 64)'
-  print '-ibmod num => interstitial brick modes (default: 64)'
-  print '-afile path => Abaqus 81 array file path'
-  print '-step num => time step (default: 1E-4s)'
-  print '-damp num => damping value (default: 1E-7)'
-  print '-rest num => impact restitution (default: 0.0)'
-  print '-outi num => output interval (default: 2E-2s)'
-  print '-stop num => sumulation end (default: 72s)'
-  print '-genbase => generate RO (read mode) or MODAL (write mode) bases and stop'
-  print '------------------------------------------------------------------------'
-
 formu = 'BC'
 fbmod = 64
 ibmod = 64
@@ -46,6 +31,24 @@ rest = 0.0
 outi = 2E-2 # The physical tests recorded digitased outputs at 2E-3s intervals
 stop = 72.0
 genbase = False
+
+if (argv == None and RANK() == 0) or (argv != None and '-help' in argv):
+  print '------------------------------------------------------------------------'
+  print '81 array example parameters:'
+  print '------------------------------------------------------------------------'
+  print '-form name => where name is TL, BC, RO, MODAL, PR or RG (default: %s)' % formu
+  print '-fbmod num => fuel brick modes (default: %d)' % fbmod
+  print '-ibmod num => interstitial brick modes (default: %d)' % ibmod
+  print '-afile path => ABAQUS 81 array *.inp file path (default: %s)' % afile
+  print '-step num => time step (default: %g)' % step
+  print '-damp num => damping value (default: %g)' % damp
+  print '-rest num => impact restitution, >= 0, <= 1 (default: %g)' % rest
+  print '-outi num => output interval (default: %g)' % outi
+  print '-stop num => sumulation end (default: %s)' % stop
+  print '-genbase => generate RO (read mode) or MODAL (write mode) bases and stop'
+  print '-help => show this help and exit'
+  print '------------------------------------------------------------------------'
+
 if argv != None:
   for i in range (0, len(argv)):
     if argv [i] == '-fbmod':
@@ -69,14 +72,27 @@ if argv != None:
       stop = float (argv [i+1])
     elif argv [i] == '-genbase':
       genbase = True
+    elif argv [i] == '-help':
+      sys.exit(0)
+    elif argv [i][0] == '-':
+      print 'INFO: invalid parameter: %s' % argv[i]
+      print '                    try: -help'
+      sys.exit(0)
 
 if RANK() == 0:
-  print 'Using formulation: ', formu
+  print 'ABAQUS file: %s'%afile
+  print 'Formulation: %s'%formu
   if formu in ['MODAL', 'RO']:
     print '%d modes per fuel brick'%fbmod
     print '%d modes per interstitial brick'%ibmod
     print 'loose key are modeled as BC-FEM'
-  print 'Using %g time step and %g damping'%(step, damp)
+  print '%g damping'%damp
+  print '%g restitution'%rest
+  print '%g step'%step
+  print '%g stop'%stop
+  print '%g output interval'%outi
+  if genbase and formu in ['TL', 'BC']:
+    print 'generating RO or MODAL base enabled'
   print '----------------------------------------------------------'
 
 if formu in ['RO', 'MODAL']:
@@ -164,13 +180,10 @@ for inst in model.assembly.instances.values():	# .instances is a dict
     if NCPU(solfec) == 1 and genbase:
       path = solfec.outpath + '/' + label[0:3] + '_modalbase'
       nm = {'FB':fbmod, 'IB':ibmod}
-      try:
-	f = open(path, 'rb')
-	f.close()
-      except: 
-        if label[0:2] != 'LK':
-	  bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
-	  MODAL_ANALYSIS (bdy, nm[label[0:2]], path, abstol = 1E-13)
+      if label[0:2] != 'LK' and os.path.exists(path + '.h5') == False:
+        bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
+	MODAL_ANALYSIS (bdy, nm[label[0:2]], path, abstol = 1E-13)
+	print 'Saved MODAL base as: %s' % path
     elif label[0:2] == 'LK': bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC')
     else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = modalbase[label[0:3]])
   elif formu == 'RO':
@@ -178,8 +191,8 @@ for inst in model.assembly.instances.values():	# .instances is a dict
     else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-RO', base = label[0:3])
 
 if solfec.mode == 'WRITE' and genbase:
-  path = solfec.outpath + solfec.outpath[solfec.outpath.rfind('/'):len(solfec.outpath)]
-  print 'INFO: -genbase was used to generate modes --> exiting ...'
+  if formu != 'MODAL': print 'INFO: nothing happened --> use [-form MODAL -genbase] to generate modal bases'
+  else: print 'INFO: -genbase was used to generate modal bases --> now run without [-genbase]; exiting...'
   sys.exit(0)
 #----------------------------------------------------------------------
 

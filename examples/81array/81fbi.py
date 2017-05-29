@@ -12,7 +12,9 @@ sys.path.append('examples/81array')
 from abaqusreader import AbaqusInput
 from math import cos 
 
-# Analysis paramters
+# User paramters
+
+argv = NON_SOLFEC_ARGV()
 
 formu = 'BC'
 fbmod = 24
@@ -24,21 +26,18 @@ rest = 0.0
 stop = 0.5
 genbase = False
 
-# User paramters
-
-argv = NON_SOLFEC_ARGV()
-
-if argv == None:
+if argv == None or '-help' in argv:
   print '---------------------------------------------------------------------'
-  print 'No user paramters passed! Possible paramters:'
+  print '81 fuel brick impact example parameters:'
   print '---------------------------------------------------------------------'
-  print '-form name => where name is TL, BC, RO, MODAL, PR or RG'
-  print '-fbmod num => fuel brick modes (default: 24)'
-  print '-damp num => damping, >= 0.0'
-  print '-step num => time step, > 0.0'
-  print '-afile path => Abaqus 81 array file path'
-  print '-rest num => impact restitution'
-  print '-genbase => generate RO base (default: use same as 81array.py)'
+  print '-form name => where name is TL, BC, RO, MODAL, PR or RG (default: %s)' % formu
+  print '-fbmod num => fuel brick modes (default: %d)' % fbmod
+  print '-damp num => damping, >= 0.0 (default: %g)' % damp
+  print '-step num => time step, > 0.0 (default: %g)' % step
+  print '-afile path => ABAQUS fuel brick impact *.inp file path (default: %s)' % afile
+  print '-rest num => impact restitution, >= 0, <= 1 (default: %g)' % rest
+  print '-genbase => generate RO base (default: same as for 81array.py)'
+  print '-help => show this help and exit'
   print '---------------------------------------------------------------------'
 
 if argv != None:
@@ -59,8 +58,15 @@ if argv != None:
       rest = max (min (1.0, float (argv [i+1])), 0.0)
     elif argv [i] == '-genbase':
       genbase = True
+    elif argv [i] == '-help':
+      sys.exit(0)
+    elif argv [i][0] == '-':
+      print 'INFO: invalid parameter: %s' % argv[i]
+      print '                    try: -help'
+      sys.exit(0)
 
-print 'Using formulation: ', formu
+print 'ABAQUS file: %s'%afile
+print 'formulation: %s'%formu
 if formu in ['MODAL', 'RO']:
   print '%d modes per fuel brick'%fbmod
 print '%g damping'%damp
