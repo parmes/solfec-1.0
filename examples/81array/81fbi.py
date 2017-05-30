@@ -7,10 +7,28 @@ import numpy
 import modred
 import pickle
 import commands
-sys.path.append('scripts')
-sys.path.append('examples/81array')
-from abaqusreader import AbaqusInput
 from math import cos 
+
+def where(program):
+  for path in os.environ["PATH"].split(os.pathsep):
+    if os.path.exists(os.path.join(path, program)):
+      return path
+  return None
+
+path = where('solfec')
+
+if path == None:
+  print 'ERROR: solfec not found in PATH!'
+  print '       Download and compile solfec; add solfec directory to PATH variable;'
+  sys.exit(1)
+
+print '(Found solfec at:', path + ')'
+
+sys.path.append(os.path.join (path, 'scripts'))
+from abaqusreader import AbaqusInput
+
+dirpath = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(dirpath)
 
 # User paramters
 

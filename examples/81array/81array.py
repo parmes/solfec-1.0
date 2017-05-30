@@ -11,11 +11,28 @@ import math
 import time
 import pickle
 import commands
-sys.path.append('scripts/abaqusreader')
-sys.path.append('scripts')
-sys.path.append('examples/81array')
-from abaqusreader import AbaqusInput
 from math import cos 
+
+def where(program):
+  for path in os.environ["PATH"].split(os.pathsep):
+    if os.path.exists(os.path.join(path, program)):
+      return path
+  return None
+
+path = where('solfec')
+
+if path == None:
+  print 'ERROR: solfec not found in PATH!'
+  print '       Download and compile solfec; add solfec directory to PATH variable;'
+  sys.exit(1)
+
+print '(Found solfec at:', path + ')'
+
+sys.path.append(os.path.join (path, 'scripts'))
+from abaqusreader import AbaqusInput
+
+dirpath = os.path.dirname(os.path.realpath(__file__))
+sys.path.append(dirpath)
 
 # User paramters
 
@@ -24,7 +41,7 @@ argv = NON_SOLFEC_ARGV()
 formu = 'BC'
 fbmod = 64
 ibmod = 64
-afile = 'examples/81array/81array.inp'
+afile = os.path.join (dirpath, '81array.inp')
 step = 1E-4
 damp = 1E-7
 rest = 0.0
@@ -125,7 +142,7 @@ OUTPUT (solfec, outi) # The physical tests recorded digitased outputs at 2E-3s i
 SURFACE_MATERIAL (solfec, model = 'SIGNORINI_COULOMB', friction = 0.1, restitution = rest)
 
 if RANK () == 0:
-  commands.getoutput ("bunzip2 examples/81array/ts81.py.bz2") # only first CPU unpacks the input
+  commands.getoutput ('bunzip2 ' + os.path.join(dirpath,'ts81.py.bz2')) # only first CPU unpacks the input
 
 BARRIER () # let all CPUs meet here
 
@@ -135,7 +152,7 @@ from ts81 import TS81 # import the time series
 vel = TS81()
 
 if RANK () == 0:
-  commands.getoutput ("bzip2 examples/81array/ts81.py") # only first CPU pack the input
+  commands.getoutput ('bzip2 ' + os.path.join(dirpath,'ts81.py')) # only first CPU pack the input
 
 # Create a new AbaqusInput object from the .inp deck:
 model = AbaqusInput(afile, solfec)
@@ -398,10 +415,19 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
       svec = vecs.shape[0]
       nvec = vecs.shape[1]
       print '%s:' % label, 'calculating', num_modes, 'POD modes from', nvec, 'input vectors of size', svec, '...'
-      modes, vals = modred.compute_POD_matrices_snaps_method(vecs, list(range(num_modes)))
+      try:
+        modes, vals = modred.compute_POD_matrices_snaps_method(vecs, list(range(num_modes)))
+      except:
+	print 'POD generation has failed --> it is possible that you tried to extract too many modes'
+	if label[0:2] == 'FB':
+	  print '                              try using [-fbmod a_smaller_number] and re-run'
+	else:
+	  print '                              try using [-ibmod a_smaller_number] and re-run'
+	sys.exit ()
       mod = numpy.transpose(modes).tolist()
       val = vals.tolist()
       basevec = [x for vec in mod for x in vec]
       podbase = (val[0:len(mod)], basevec)
       path = afile.replace ('.inp','_' + label + '_base.pickle.gz')
+      print 'Saving: %s' % path
       pickle.dump(podbase, gzip.open(path,'wb'))
