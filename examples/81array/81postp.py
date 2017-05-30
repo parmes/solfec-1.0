@@ -10,20 +10,21 @@ import matplotlib as mpl
 # --- user parameters -----------------------------------------
 argv = NON_SOLFEC_ARGV()
 
+outfig = '81velo.png'
+
 if argv == None:
-  print '---------------------------------------------------------------------------------------'
-  print 'SYNOPSIS: solfec 81postp.py path/to/file_1.thv label_1 path/to/file_2.thv label_2 [...]'
+  print '-----------------------------------------------------------------------------------------------'
+  print 'SYNOPSIS: solfec path/to/81postp.py path/to/file_1.thv label_1 path/to/file_2.thv label_2 [...]'
   print 'No user paramters passed! Possible paramters:'
-  print '-outfig path => output figure path'
-  print '---------------------------------------------------------------------------------------'
+  print '-outfig path => output figure path (default: %s)' % outfig
+  print '-----------------------------------------------------------------------------------------------'
   print 'Paths and labels can be given in any combination, only their order matters.'
   print 'For example this is also fine: solfec 81postp.py path1 path2 label1 label2.'
   print 'You must first run analysis for 81array.py and then run it again print in'
   print 'read mode to extract the  *.thv file.'
-  print '---------------------------------------------------------------------------------------'
+  print '-----------------------------------------------------------------------------------------------'
   sys.exit ()
 
-outfig = ''
 get_outfig = 0
 success = 0
 vpath = []
@@ -311,18 +312,11 @@ for item in set1:
   list.append (item)
 list.sort ()
 
-if outfig <> '': plotpath = outfig
-else:
-  plotpath = ''
-  for item in list:
-    plotpath += item [1]
-  plotpath += '.eps'
-
 # save figure
-fig1.savefig(plotpath)
+fig1.savefig(outfig)
 
 # record we've successfully saved this:
-print 'Saved plot %s' % plotpath
+print 'Saved plot %s' % outfig
 
 # show figure
 plt.show()
