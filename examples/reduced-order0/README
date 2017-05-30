@@ -30,3 +30,6 @@ Bar elongation and system energy histories, as well as convergence rates, are co
 
 RUN: solfec examples/reduced-order0/ro0-run-all.py
      to perform all tests and output figures into: out/reduced-order0 directory
+
+Online: http://parmes.github.io/solfec/examples/reduced_order/ro0.html
+YouTube: https://www.youtube.com/watch?v=c136dWHwWNU

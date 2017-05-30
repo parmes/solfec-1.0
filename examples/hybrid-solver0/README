@@ -35,4 +35,5 @@ We model vibrations of this impact problem over time [0, 10s];
 
 NOTE: the transitional *boundary* bodies all need to modeled as rigid in Solfec;
 
+Online: http://parmes.github.io/solfec/examples/hybrid_modeling/hs0.html
 YouTube: https://www.youtube.com/watch?v=osRepFXukDo

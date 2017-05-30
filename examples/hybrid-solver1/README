@@ -49,4 +49,5 @@ Solfec time step: 5E-4 s; Parmec time step: 1E-4 s;
 
 Motion along Y and Z directions is restrained; All rotations are restricted in Parmec;
 
+Online: http://parmes.github.io/solfec/examples/hybrid_modeling/hs123.html
 YouTube: https://www.youtube.com/watch?v=CW080-GCB1w

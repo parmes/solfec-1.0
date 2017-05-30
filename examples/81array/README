@@ -14,6 +14,9 @@ the experimental setup has been described in [1-2]. We note, that this example i
 “81 bricks array”, or simply the “81 array”, because the total number of unconstrained fuel and
 interstitial bricks is 81.
 
+Online: http://parmes.github.io/solfec/examples/81array.html
+YouTube: https://www.youtube.com/watch?v=oDxQesw2Jco
+
 [1] Ahmed, Khalid and Stojko, Stefan, "The non-linear seismic response of AGR core graphite brick
     slices - correlation of experimental and analytical results", Earthquake Engineering &
     Structural Dynamics (1987), 159-188.

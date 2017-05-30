@@ -183,7 +183,7 @@ for inst in model.assembly.instances.values():	# .instances is a dict
       if label[0:2] != 'LK' and os.path.exists(path + '.h5') == False:
         bdy = BODY(solfec, 'FINITE_ELEMENT', COPY (mesh), bulkmat, label)
 	MODAL_ANALYSIS (bdy, nm[label[0:2]], path, abstol = 1E-13)
-	print 'Saved MODAL base as: %s' % path
+	print 'Saved MODAL base as: %s.h5' % path
     elif label[0:2] == 'LK': bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC')
     else: bdy = BODY(solfec, 'FINITE_ELEMENT', mesh, bulkmat, label, form = 'BC-MODAL', base = modalbase[label[0:3]])
   elif formu == 'RO':

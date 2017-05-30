@@ -32,3 +32,6 @@ Orthogonal Decomposition modes for the BC-RO approach.
 
 RUN: solfec examples/reduced-order1/ro1-run-all.py
      to perform all tests and output figures into: out/reduced-order1 directory
+
+Online: http://parmes.github.io/solfec/examples/reduced_order/ro1.html
+YouTube: https://www.youtube.com/watch?v=RoSfE7-7ZH8
