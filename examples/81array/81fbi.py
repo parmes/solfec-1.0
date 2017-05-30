@@ -223,7 +223,7 @@ slv = NEWTON_SOLVER() #All default values used
 OUTPUT(solfec, 1E-3) 
 
 # sample displacements
-if solfec.mode == 'WRITE' and formu in ['TL', 'BC'] and genbase:
+if formu in ['TL', 'BC'] and genbase:
   fb1 = BYLABEL (solfec, 'BODY', 'FB1(0)(0)')
   fb2 = BYLABEL (solfec, 'BODY', 'FB2(0)(0)')
   fb1_defo = COROTATED_DISPLACEMENTS (solfec, 'FB1(0)(0)')
@@ -237,7 +237,17 @@ if RANK() == 0 and solfec.mode == 'WRITE':
 if solfec.mode <> 'READ':
   RUN (solfec, slv, stop)
 
-if solfec.mode == 'WRITE' and formu in ['TL', 'BC'] and genbase:
+if solfec.mode == 'READ' and formu in ['TL', 'BC'] and genbase:
+  from sys import stdout
+  print 'Sampling FEM displacements ...', '    ' , 
+  SEEK (solfec, 0.0)
+  while solfec.time < stop:
+    FORWARD (solfec, 1, corotated_displacements='TRUE')
+    print '\b\b\b\b\b%2d %%' % (100*solfec.time/stop),
+    stdout.flush ()
+  print
+
+if formu in ['TL', 'BC'] and genbase:
 
   pod_input = [(fb1_rig, fb1_defo, 'FB1', fbmod),
 	       (fb2_rig, fb2_defo, 'FB2', fbmod)]
@@ -247,7 +257,12 @@ if solfec.mode == 'WRITE' and formu in ['TL', 'BC'] and genbase:
     svec = vecs.shape[0]
     nvec = vecs.shape[1]
     print '%s:' % label, 'calculating', num_modes, 'POD modes from', nvec, 'input vectors of size', svec, '...'
-    modes, vals = modred.compute_POD_matrices_snaps_method(vecs, list(range(num_modes)))
+    try:
+      modes, vals = modred.compute_POD_matrices_snaps_method(vecs, list(range(num_modes)))
+    except:
+      print 'POD generation has failed --> it is possible that you tried to extract too many modes'
+      print '                              try using [-fbmod a_smaller_number] and re-run'
+      sys.exit ()
     mod = numpy.transpose(modes).tolist()
     val = vals.tolist()
     basevec = [x for vec in mod for x in vec]

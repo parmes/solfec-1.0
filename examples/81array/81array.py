@@ -370,7 +370,7 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
     ib1_defo = COROTATED_DISPLACEMENTS (solfec, 'IB1(2)(2)')
     ib2_defo = COROTATED_DISPLACEMENTS (solfec, 'IB2(2)(2)')
     dur = DURATION (solfec)
-    print 'Sampling FEM-BC displacements ...', '    ' , 
+    print 'Sampling FEM displacements ...', '    ' , 
     SEEK (solfec, dur[0])
     skip = int((1.0/outi)/10.0)
     while solfec.time < dur[1]:
