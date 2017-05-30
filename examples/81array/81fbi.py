@@ -210,7 +210,7 @@ if not VIEWER() and solfec.mode == 'READ':
     plt.plot (th[0],th[3],lw = 2, label = 'Right_Brick_Top_Point_Velocity_VX_(m/s)')
     plt.plot (th[0],th[4],lw = 2, label = 'Right_Brick_Bottom_Point_Velocity_VX_(m/s)')
     plt.plot (th[0],vrest,lw = 2, label = 'Brick_Restitution')
-    plt.legend(loc = 'lower left')
+    plt.legend(loc = 'lower right')
     plt.title ('SUB02 FB-FB Normal Contact FB damping=%s'% b.damping)
     plt.savefig (solfec.outpath + '/Brick_Velocity_Damp%g.png'% b.damping) 
 
