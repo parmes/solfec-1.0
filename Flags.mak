@@ -114,6 +114,11 @@ else
   NOTHROW =
 endif
 
+ifeq ($(OPENMP),yes)
+  CC += -fopenmp
+  CXX += -fopenmp
+endif
+
 ifeq ($(MPI),yes)
   ifeq ($(PARDEBUG),yes)
     PARDEBUG = -DPARDEBUG

@@ -533,7 +533,7 @@ static void linear_solve (PRIVATE *A, double abstol, int maxiter)
 #if 1
   hypre_FlexGMRESFunctions *gmres_functions;
   void *gmres_vdata;
-  int ret;
+  //int ret;
 
   gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
     (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
@@ -549,7 +549,7 @@ static void linear_solve (PRIVATE *A, double abstol, int maxiter)
   hypre_FlexGMRESSetMaxIter (gmres_vdata, maxiter);
   hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, abstol);
   hypre_FlexGMRESSetup (gmres_vdata, A, A->b, A->x);
-  ret = hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->x);
+  //ret = hypre_FlexGMRESSolve (gmres_vdata, A, A->b, A->x);
   hypre_FlexGMRESGetNumIterations (gmres_vdata , &A->iters);
   hypre_FlexGMRESDestroy (gmres_vdata);
 #else

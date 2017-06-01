@@ -1,5 +1,5 @@
 ifeq ($(DEBUG),yes)
-  CFLAGS = -Wall -g
+  CFLAGS = -g
 else
   CFLAGS = -O -I.
 endif

@@ -297,6 +297,12 @@ static int integrator2d_order (int type)
   else return 2; /* quads */
 }
 
+/* avoid warnings related to unsed point[], weight variables */
+#if defined(__clang__)
+#elif defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-but-set-variable"
+#endif
+
 /* element integration; note that below __t__->ver, __t__->center are in local element coordinates already */
 #define INTEGRATE3D(TYPE, ENTITY, DOM, DOMNUM, ...)\
 {\
@@ -1124,11 +1130,9 @@ double FEM_Element_Internal_Energy (BODY *bod, MESH *msh, ELEMENT *ele, double *
   double nodes [MAX_NODES][3], q [MAX_NODES][3], derivs [3*MAX_NODES], F0 [9], F [9], J, integral;
   BULK_MATERIAL *mat = FEM_MATERIAL (bod, ele);
   double *conf = FEM_MESH_CONF (bod), *p;
-  int i, n, m, *nod = ele->nodes;
+  int i, n, *nod = ele->nodes;
 
   n = element_nodes (msh->ref_nodes, ele->type, ele->nodes, nodes);
-
-  m = 3 * n;
 
   for (i = 0; i < n; i ++)
   {

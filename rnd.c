@@ -1725,7 +1725,7 @@ char *legend_value_string (void *data)
 {
   if (legend.entity == KINDS_OF_CONSTRAINTS)
   {
-    switch ((int)data)
+    switch ((long)data)
     {
       case CONTACT: return "CNT";
       case FIXPNT: return "PNT";
@@ -1738,7 +1738,7 @@ char *legend_value_string (void *data)
   }
   else if (legend.entity == KINDS_OF_BODIES)
   {
-    switch ((int)data)
+    switch ((long)data)
     {
       case OBS: return "OBS";
       case RIG: return "RIG";
@@ -1776,7 +1776,7 @@ static void legend_render ()
     glTranslated (3, 3, 0);
     for (i = 1, j = 0, item = SET_First (legend.discrete); item; item = SET_Next (item))
     {
-      value_to_color ((double)(int)item->data, color);
+      value_to_color ((double)(long)item->data, color);
       glColor3fv (color);
       glRecti (v[0] + j * LEGEND_WIDTH_DISC, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16 + 16);
       if ((str = legend_value_string (item->data)))
@@ -1790,10 +1790,10 @@ static void legend_render ()
       else
       {
 	glColor3f (1, 1, 1);
-	l = GLV_Print_Width (LEGEND_FONT, "%d", (int)item->data) + 5;
+	l = GLV_Print_Width (LEGEND_FONT, "%d", (int)(long)item->data) + 5;
 	glRecti (v[0] + j * LEGEND_WIDTH_DISC + 16, v[1] + i * 16, v[0] + j * LEGEND_WIDTH_DISC + 16 + l, v[1] + (i+1) * 16);
         glColor3f (0, 0, 0);
-	GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 1, LEGEND_FONT, "%d", (int)item->data);
+	GLV_Print (v[0] + j * LEGEND_WIDTH_DISC + 18, v[1] + i * 16 + 3, 1, LEGEND_FONT, "%d", (int)(long)item->data);
       }
       if (i ++ == LEGEND_ROWS) { i = 1; j ++; }
     }
@@ -2506,7 +2506,6 @@ static void tube3d (double *p, double *q)
 	 n [3],
 	 l,
 	 o,
-	 s,
 	 angle;
   int i, div = 2;
 
@@ -2526,7 +2525,6 @@ static void tube3d (double *p, double *q)
   SCALE (d, angle);
   EXPMAP (d, R);
   o = 0.075 * l;
-  s = 0.150 * l;
 
   ADDMUL (p, o, t, a);
   ADDMUL (r, o, t, b);
@@ -3266,6 +3264,7 @@ static void run_script (char *path)
   // Python function "runscript" defined at run-time via lng.c
   // No error handling is required as any stack trace is printed to stdout
   error = PyRun_SimpleString (line);
+  WARNING (error == 0,"Running script has failed\n");
   free (line);
 }
 

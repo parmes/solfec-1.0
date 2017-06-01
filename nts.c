@@ -853,11 +853,9 @@ static int body_space_constraints_data (DOM *dom, PRIVATE *A)
 /* create constraints data for local dynamics mode */
 static void locdyn_constraints_data (DOM *dom, PRIVATE *A)
 {
-  short dynamic;
   CON_DATA *dat;
   CON *con;
 
-  dynamic = dom->dynamic;
   ERRMEM (A->dat = MEM_CALLOC (dom->ncon * sizeof (CON_DATA)));
 
   /* create internal constraints data */
@@ -1113,7 +1111,7 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
   {
     hypre_FlexGMRESFunctions *gmres_functions;
     void *gmres_vdata;
-    int ret;
+    //int ret;
 
     gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
       (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
@@ -1132,7 +1130,7 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
     hypre_FlexGMRESSetMaxIter (gmres_vdata, linmaxiter);
     hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, epsilon * bnorm);
     hypre_FlexGMRESSetup (gmres_vdata, A, rhs, dr);
-    ret = hypre_FlexGMRESSolve (gmres_vdata, A, rhs, dr); /* GMRES solve */
+    //ret = hypre_FlexGMRESSolve (gmres_vdata, A, rhs, dr); /* GMRES solve */
     hypre_FlexGMRESGetNumIterations (gmres_vdata , &iters);
     hypre_FlexGMRESDestroy (gmres_vdata);
 
@@ -1227,10 +1225,10 @@ static int gmres_based_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
 /* diagonalized solver */
 static int diagonalized_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
 {
-  double *merit, prevm, step;
+  double *merit, step;
   char fmt [512];
   short dynamic;
-  int div, gt;
+  int div;
 
   sprintf (fmt, "NEWTON_SOLVER: theta: %%6g iteration: %%%dd merit: %%.2e\n", (int)log10 (ns->maxiter) + 1);
   ERRMEM (ns->merhist = realloc (ns->merhist, ns->maxiter * sizeof (double)));
@@ -1241,15 +1239,12 @@ static int diagonalized_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
   *merit = MERIT_Function (ldy, 0);
   ns->iters = 0;
   div = 1;
-  gt = 0;
 
   while (ns->iters < ns->maxiter && *merit > ns->meritval)
   {
     solve (A, PQN_DIAG, 0, 0.0, dynamic, step, 0.0, ns->theta, ns->omega, A->dr, A->rhs);
 
     U_WR_B (A, 0);
-
-    prevm = *merit;
 
     *merit = MERIT_Function (ldy, 0);
 

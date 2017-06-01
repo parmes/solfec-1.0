@@ -76,9 +76,9 @@ void decompress (int *input, int size, double **d, int *doubles, int **i, int *i
 {
   int length, outsize, remainder;
   char *output;
-  CMP_ALG alg;
+  //CMP_ALG alg;
 
-  alg       = input [size - 4];
+  //alg       = input [size - 4];
   *doubles  = input [size - 3];
   *ints     = input [size - 2];
   remainder = input [size - 1];

@@ -60,11 +60,9 @@ static int pair_compare (int *a, int *b)
 static AABB_DATA* aabb_create_data (void)
 {
   AABB_DATA *data;
-  double part;
 
   ERRMEM (data = malloc (sizeof (AABB_DATA)));
 
-  part = 1.0 / (double) BOXALG_COUNT;
   data->aabb_limits [0] = 0.0;
   data->aabb_counter = 0;
   data->aabb_algo = 0;

@@ -3273,7 +3273,7 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
       SUB (a, b, dn);
       PRODUCT (pla-6, normal, pn);
       double dot = DOT(dn, pn);
-      double angle = asin(LEN(pn))*SGN(dot);
+      double angle = LEN(pn)*SGN(dot); /* asin(LEN) optimized out --> sin(x) ~= x for x << 1.0 */
 
       if (angle > DEG_FRAC)
       {
@@ -3320,7 +3320,7 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
 	SUB (a, b, dn);
 	PRODUCT (pla-6, normal, pn);
 	double dot = DOT(dn, pn);
-	double angle = asin(LEN(pn))*SGN(dot);
+	double angle = LEN(pn)*SGN(dot); /* asin(LEN) optimized out --> sin(x) ~= x for x << 1.0 */
 
 	if (angle > DEG_FRAC)
 	{

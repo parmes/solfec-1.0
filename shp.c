@@ -269,9 +269,8 @@ SHAPE* SHAPE_Glue (SHAPE *shp, SHAPE *shq)
 {
   SHAPE *out, *next;
   CONVEX *cvx;
-  SPHERE *sph;
 
-  for (out = NULL, cvx = NULL, sph = NULL; shp; shp = next)
+  for (out = NULL, cvx = NULL; shp; shp = next)
   {
     next = shp->next;
 
