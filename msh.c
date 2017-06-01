@@ -3241,7 +3241,7 @@ int ELEMENT_Vertices (MESH *msh, ELEMENT *ele, double *ver)
  * correspond to the surface faces; return the total number of planes */
 int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
 {
-  double normal[3], dn[3];
+  double normal[3], dn[3], pn[3];
   FACE faces [6], *fac;
   int n, m, j, l;
 
@@ -3262,17 +3262,36 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
     COPY (msh->cur_nodes [fac->nodes[0]], pla + 3);
     pla += 6;
 
+#define DEG_FRAC 0.001 /* degree fraction threshold */
+
     if (fac->type == 4)
     {
       setup_normal_ext (msh->cur_nodes, fac, 0, 2, 3, normal);
-      SUB (normal, pla-6, dn);
-      if (DOT(dn,dn) > GEOMETRIC_EPSILON*GEOMETRIC_EPSILON)
+
+      double *a = msh->cur_nodes[fac->nodes[0]];
+      double *b = msh->cur_nodes[fac->nodes[2]];
+      SUB (a, b, dn);
+      PRODUCT (pla-6, normal, pn);
+      double dot = DOT(dn, pn);
+      double angle = asin(LEN(pn))*SGN(dot);
+
+      if (angle > DEG_FRAC)
       {
 	if (sur) sur [*k] = fac->surface;
 	(*k) ++;
 
         COPY (normal, pla);
 	COPY (msh->cur_nodes [fac->nodes[0]], pla + 3);
+	pla += 6;
+      }
+      else if (angle < -DEG_FRAC)
+      {
+	if (sur) sur [*k] = fac->surface;
+	(*k) ++;
+
+        setup_normal_ext (msh->cur_nodes, fac, 0, 1, 3, pla-6);
+        setup_normal_ext (msh->cur_nodes, fac, 1, 2, 3, pla);
+	COPY (msh->cur_nodes [fac->nodes[1]], pla + 3);
 	pla += 6;
       }
     }
@@ -3295,12 +3314,28 @@ int ELEMENT_Planes (MESH *msh, ELEMENT *ele, double *pla, int *sur, int *k)
       if (faces[n].type == 4)
       {
 	setup_normal_ext (msh->cur_nodes, &faces[n], 0, 2, 3, normal);
-	SUB (normal, pla-6, dn);
-	if (DOT(dn,dn) > GEOMETRIC_EPSILON*GEOMETRIC_EPSILON)
+
+	double *a = msh->cur_nodes[faces[n].nodes[0]];
+	double *b = msh->cur_nodes[faces[n].nodes[2]];
+	SUB (a, b, dn);
+	PRODUCT (pla-6, normal, pn);
+	double dot = DOT(dn, pn);
+	double angle = asin(LEN(pn))*SGN(dot);
+
+	if (angle > DEG_FRAC)
 	{
 	  COPY (normal, pla);
 	  COPY (msh->cur_nodes [faces[n].nodes[0]], pla + 3);
 	  pla += 6;
+	  j++;
+	}
+	else if (angle < -DEG_FRAC)
+	{
+	  setup_normal_ext (msh->cur_nodes, &faces[n], 0, 1, 3, pla-6);
+	  setup_normal_ext (msh->cur_nodes, &faces[n], 1, 2, 3, pla);
+	  COPY (msh->cur_nodes [faces[n].nodes[1]], pla + 3);
+	  pla += 6;
+	  j ++;
 	}
       }
     }
