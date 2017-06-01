@@ -1931,11 +1931,28 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
       SUB (cur_point, point, values);
     }
     break;
+    case VALUE_DISP_NORM:
+    {
+      double cur_point [3], disp [3];
+
+      BODY_Cur_Point (bod, NULL, point, cur_point);
+      SUB (cur_point, point, disp);
+      values [0] = LEN(disp);
+    }
+    break;
     case VALUE_VELOCITY:
     {
       double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
 
       BODY_Local_Velo (bod, NULL, point, base, NULL, values);
+    }
+    break;
+    case VALUE_VELO_NORM:
+    {
+      double base [9] = {1, 0, 0, 0, 1, 0, 0, 0, 1}, velo [3];
+
+      BODY_Local_Velo (bod, NULL, point, base, NULL, velo);
+      values[0] = LEN(velo);
     }
     break;
     case VALUE_STRESS:

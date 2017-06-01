@@ -3584,11 +3584,29 @@ void FEM_Element_Point_Values (BODY *bod, ELEMENT *ele, double *point, VALUE_KIN
     MX_Destroy (N);
   }
   break;
+  case VALUE_DISP_NORM:
+  {
+    double disp[3];
+    MX *N = element_shapes_matrix (bod, msh, ele, point);
+    MX_Matvec (1.0, N, FEM_MESH_CONF (bod), 0.0, disp);
+    MX_Destroy (N);
+    values[0] = LEN(disp);
+  }
+  break;
   case VALUE_VELOCITY:
   {
     MX *N = element_shapes_matrix (bod, msh, ele, point);
     MX_Matvec (1.0, N, FEM_MESH_VELO (bod), 0.0, values);
     MX_Destroy (N);
+  }
+  break;
+  case VALUE_VELO_NORM:
+  {
+    double velo[3];
+    MX *N = element_shapes_matrix (bod, msh, ele, point);
+    MX_Matvec (1.0, N, FEM_MESH_VELO (bod), 0.0, velo);
+    MX_Destroy (N);
+    values[0] = LEN(velo);
   }
   break;
   case VALUE_STRESS:
@@ -3709,11 +3727,25 @@ void FEM_Cur_Node_Values (BODY *bod, double *node, VALUE_KIND kind, double *valu
       COPY (q, values);
     }
     break;
+    case VALUE_DISP_NORM:
+    {
+      double *conf = FEM_MESH_CONF (bod),
+	     *q = &conf [3*n];
+      values[0] = LEN(q);
+    }
+    break;
     case VALUE_VELOCITY:
     {
       double *velo = FEM_MESH_VELO (bod),
 	     *u = &velo [3*n];
       COPY (u, values);
+    }
+    break;
+    case VALUE_VELO_NORM:
+    {
+      double *velo = FEM_MESH_VELO (bod),
+	     *u = &velo [3*n];
+      values[0] = LEN(u);
     }
     break;
     }

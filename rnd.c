@@ -223,9 +223,11 @@ enum /* menu items */
   RESULTS_DX,
   RESULTS_DY,
   RESULTS_DZ,
+  RESULTS_D_NORM,
   RESULTS_VX,
   RESULTS_VY,
   RESULTS_VZ,
+  RESULTS_V_NORM,
   RESULTS_SX,
   RESULTS_SY,
   RESULTS_SZ,
@@ -624,11 +626,19 @@ static double point_value (BODY *bod, SHAPE *shp, void *gobj, double *X)
     kind = VALUE_DISPLACEMENT;
     index = legend.entity - RESULTS_DX;
     break;
+  case RESULTS_D_NORM:
+    kind = VALUE_DISP_NORM;
+    index = 0;
+    break;
   case RESULTS_VX:
   case RESULTS_VY:
   case RESULTS_VZ:
     kind = VALUE_VELOCITY;
     index = legend.entity - RESULTS_VX;
+    break;
+  case RESULTS_V_NORM:
+    kind = VALUE_VELO_NORM;
+    index = 0;
     break;
   case RESULTS_SX:
   case RESULTS_SY:
@@ -1240,11 +1250,19 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
       kind = VALUE_DISPLACEMENT;
       index = legend.entity - RESULTS_DX;
       break;
+    case RESULTS_D_NORM:
+      kind = VALUE_DISP_NORM;
+      index = 0;
+      break;
     case RESULTS_VX:
     case RESULTS_VY:
     case RESULTS_VZ:
       kind = VALUE_VELOCITY;
       index = legend.entity - RESULTS_VX;
+      break;
+    case RESULTS_V_NORM:
+      kind = VALUE_VELO_NORM;
+      index = 0;
       break;
     case RESULTS_SX:
     case RESULTS_SY:
@@ -1645,9 +1663,11 @@ static char* legend_caption ()
   case RESULTS_DX: return "DX";
   case RESULTS_DY: return "DY";
   case RESULTS_DZ: return "DZ";
+  case RESULTS_D_NORM: return "|D|";
   case RESULTS_VX: return "VX";
   case RESULTS_VY: return "VY";
   case RESULTS_VZ: return "VZ";
+  case RESULTS_V_NORM: return "|V|";
   case RESULTS_SX: return "SX";
   case RESULTS_SY: return "SY";
   case RESULTS_SZ: return "SZ";
@@ -4198,10 +4218,12 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("dx", RESULTS_DX);
   glutAddMenuEntry ("dy", RESULTS_DY);
   glutAddMenuEntry ("dz", RESULTS_DZ);
+  glutAddMenuEntry ("|d|", RESULTS_D_NORM);
   local [1] = glutCreateMenu (menu_results);
   glutAddMenuEntry ("vx", RESULTS_VX);
   glutAddMenuEntry ("vy", RESULTS_VY);
   glutAddMenuEntry ("vz", RESULTS_VZ);
+  glutAddMenuEntry ("|v|", RESULTS_V_NORM);
   local [2] = glutCreateMenu (menu_results);
   glutAddMenuEntry ("sx", RESULTS_SX);
   glutAddMenuEntry ("sy", RESULTS_SY);
