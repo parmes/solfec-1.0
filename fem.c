@@ -21,6 +21,9 @@
 
 #include <string.h>
 #include <float.h>
+#if _OPENMP
+#include <omp.h>
+#endif
 #include "lap.h"
 #include "mem.h"
 #include "sol.h"
@@ -1405,10 +1408,38 @@ static void internal_force (BODY *bod, double *fint)
   int dofs = MESH_DOFS (msh);
   double g [24], *v, *w;
   ELEMENT *ele;
-  int bulk, i;
+  int i;
 
   for (i = 0; i < dofs; i ++) fint [i] = 0.0;
 
+#if 0
+  ELEMENT **pe;
+  omp_lock_t *node_lock;
+  int j, n = msh->surfeles_count + msh->bulkeles_count;
+  ERRMEM (pe = malloc (n * sizeof(ELEMENT*)));
+  ERRMEM (node_lock = malloc (msh->nodes_count * sizeof(omp_lock_t)));
+  for (ele = msh->surfeles, j = 0; ele; ele = ele->next, j++) pe[j] = ele;
+  for (ele = msh->bulkeles; ele; ele = ele->next, j++) pe[j] = ele;
+  for (j = 0; j < msh->nodes_count; j ++) omp_init_lock (&node_lock[j]);
+  #pragma omp parallel for shared (pe, fint, node_lock) private (g, i, v, w)
+  for (j = 0; j < n; j ++)
+  {
+    element_internal_force (0, bod, msh, pe[j], g);
+
+    for (i = 0, v = g; i < pe[j]->type; i ++, v += 3)
+    {
+      int k = pe[j]->nodes[i];
+      w = &fint [k * 3];
+      omp_set_lock(&node_lock[k]);
+      ACC (v, w);
+      omp_unset_lock (&node_lock[k]);
+    }
+  }
+  for (j = 0; j < msh->nodes_count; j ++) omp_destroy_lock (&node_lock[j]);
+  free (node_lock);
+  free (pe);
+#else
+  int bulk;
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
     element_internal_force (0, bod, msh, ele, g);
@@ -1423,6 +1454,7 @@ static void internal_force (BODY *bod, double *fint)
     else if (ele->next) ele = ele->next;
     else ele = msh->bulkeles, bulk = 1;
   }
+#endif
 }
 
 /* compute inernal energy */

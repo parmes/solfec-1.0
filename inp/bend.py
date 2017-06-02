@@ -7,7 +7,7 @@ bulk = BULK_MATERIAL (sol, model = 'KIRCHHOFF', young = 1E7, poisson = 0.3, dens
 SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.3)
 
 nodes = [0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1]
-msh = HEX (nodes, 15, 10, 2, 0, [0, 0, 0, 0, 0, 0])
+msh = HEX (nodes, 25, 20, 4, 0, [0, 0, 0, 0, 0, 0])
 SCALE (msh, (15, 10, 1))
 BEND (msh, (0, 0, -3), (-1, 0, 0), 270)
 BEND (msh, (5, 7, 0), (0, 0, 1), 90)
@@ -18,7 +18,8 @@ SCALE (shp, (15, 15, 1))
 TRANSLATE (shp, (-1, -2, -10))
 bod = BODY (sol, 'OBSTACLE', shp, bulk)
 
-sv = NEWTON_SOLVER ()
+#sv = NEWTON_SOLVER()
+sv = GAUSS_SEIDEL_SOLVER (1E-4, 300)
 GRAVITY (sol, (0, 0, -10))
 OUTPUT (sol, step)
 RUN (sol, sv, stop)
