@@ -292,6 +292,8 @@ int main (int argc, char **argv)
     if (!path) printf (synopsis); /* print info */
     else lngerr = lng (path); /* call interpreter */
 
+    WARNING (lngerr > 0, "input parsing error");
+
 #if OPENGL
     if (vieweron (argc, argv) && !lngerr)
     {

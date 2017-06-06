@@ -21,7 +21,7 @@
 
 #include <string.h>
 #include <float.h>
-#if _OPENMP
+#if OMP
 #include <omp.h>
 #endif
 #include "lap.h"
@@ -2159,6 +2159,39 @@ static void BC_internal_force (BODY *bod, double *R, double *q, double *fint)
   free (a);
 }
 
+/* energy = 0.5 * [(I-R)Z + q] R K R' [(I-R)Z + q] */
+static double BC_internal_energy (BODY *bod)
+{
+  double *a, *b, *x, *y, *d, *z, (*Z) [3], (*e) [3], Y [3], intene;
+  double *R = FEM_ROT (bod), *q = bod->conf;
+  MESH *msh = FEM_MESH (bod);
+  MX *K = bod->K;
+  int n = K->n;
+
+  ERRMEM (a = MEM_CALLOC (2 * sizeof (double [n])));
+  b = a + n;
+
+  for (Z = msh->ref_nodes, e = Z + msh->nodes_count, d = b; Z < e; Z ++, d += 3, q += 3)
+  {
+    NVMUL (R, Z[0], Y);
+    SUB (Z[0], Y, Y);
+    ADD (Y, q, d); /* d = (I-R)Z + q */
+  }
+
+  for (x = b, y = b + n, z = a; x < y; x += 3, z += 3)
+  {
+    TVMUL (R, x, z); /* a = R' [(I-R)Z + q] */
+  }
+
+  MX_Matvec (1.0, K, a, 0.0, b); /* b = K a */
+
+  intene = 0.5 * blas_ddot (n, a, 1, b, 1);
+
+  free (a);
+
+  return intene;
+}
+
 /* compute u = alpha * R A R' b + beta * u  */
 static void BC_matvec (double alpha, MX *A, double *R, double *b, double beta, double *u)
 {
@@ -3266,6 +3299,10 @@ void FEM_Dynamic_Step_End (BODY *bod, double time, double step)
     MX_Matvec (1.0, bod->K, q, 0.0, p);
     energy[INTERNAL] = 0.5 * blas_ddot (n, q, 1, p, 1);
     free (p);
+  }
+  else if (bod->form == BODY_COROTATIONAL)
+  {
+    energy[INTERNAL] = BC_internal_energy (bod);
   }
   else
   {

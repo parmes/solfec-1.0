@@ -46,7 +46,7 @@ endif
 
 ifneq ($(ZOLTAN),yes)
   LBINC = -I$(DYNLB)
-  LBLIB = -L$(DYNLB) -ldynlb8
+  LBLIB = -L$(DYNLB) -ldynlb8 -fopenmp
   LB = -DDYNLB $(LBINC)
 else
   LBINC = $(ZOLTANINC)
@@ -115,8 +115,11 @@ else
 endif
 
 ifeq ($(OPENMP),yes)
-  CC += -fopenmp
-  CXX += -fopenmp
+  CC += -fopenmp -DOMP
+  CXX += -fopenmp -DOMP
+  ifeq ($(MPI),yes)
+    MPICC += -fopenmp -DOMP
+  endif
 endif
 
 ifeq ($(MPI),yes)

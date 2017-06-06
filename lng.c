@@ -9379,6 +9379,7 @@ static SET* object_to_body_set (PyObject *obj, MEM *setmem, SOLFEC *sol)
   return ret;
 }
 
+#if OPENGL
 /* render a list of bodies */
 static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -9399,11 +9400,17 @@ static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
     MEM_Init (&setmem, sizeof (SET), 128);
     bodies = object_to_body_set (object, &setmem, solfec->sol);
   }
-  #if OPENGL
+
   if (RND_Is_On ()) select_id (bodies);
-  #endif
+
   Py_RETURN_NONE;
 }
+#else
+static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  Py_RETURN_NONE;
+}
+#endif
 
 /* get regular expression error */
 static char *get_regerror (int errcode, regex_t *compiled)

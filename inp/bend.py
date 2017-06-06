@@ -22,7 +22,13 @@ bod = BODY (sol, 'OBSTACLE', shp, bulk)
 sv = GAUSS_SEIDEL_SOLVER (1E-4, 300)
 GRAVITY (sol, (0, 0, -10))
 OUTPUT (sol, step)
+
+import time
+t0 = time.time()
 RUN (sol, sv, stop)
+elapsed = time.time() - t0
+if RANK() == 0 and sol.mode == 'WRITE':   
+    print "analysis run time =", elapsed, "seconds"
 
 if not VIEWER() and sol.mode == 'READ':
   try:

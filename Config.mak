@@ -127,7 +127,7 @@ OPENMP = yes
 #
 
 MPI = yes
-MPICC = mpicc -Wno-unused-but-set-variable -fopenmp
+MPICC = mpicc
 
 #
 # Zoltan load balancer (MPI = yes); optional
@@ -142,7 +142,6 @@ ZOLTANLIB = -L/usr/local/lib -lzoltan
 # https://github.com/tkoziara/dynlb
 # This option is used when ZOLTAN = no above;
 # Use path to dynlb directory below;
-# Use -fopenmp flag with MPICC when compiling with dynlb;
 #
 
 DYNLB = ../dynlb

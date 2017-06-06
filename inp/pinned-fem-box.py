@@ -25,7 +25,7 @@ bulk = BULK_MATERIAL (sol,
 		      poisson = 0.25,
 		      density = 1.8E3)
 
-bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
+bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk, form = 'BC')
 bod.scheme = 'DEF_LIM'
 FIX_POINT (bod, (-a, -b, 0))
 FIX_POINT (bod, (-a, b, 0))
@@ -55,7 +55,7 @@ if not VIEWER() and sol.mode == 'READ':
     plt.xlabel ('Time [s]')
     plt.ylabel ('Energy [J]')
     plt.legend(loc = 'upper right')
-    plt.savefig ('out/pinned-fem-box/pinned-fem-box-' + bod.scheme + '.eps')
+    plt.savefig ('out/pinned-fem-box/pinned-fem-box-' + bod.scheme + '.png')
   except (ImportError, RuntimeError):
     import sys
     print "Unexpected error:", sys.exc_info()[1]

@@ -476,7 +476,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   short dynamic, verbose, nomerit;
   double error, *merit, step;
   char fmt [512];
-  SOLFEC *solfec;
   SET *ranks;
   MEM setmem;
   DIAB *dia;
@@ -520,7 +519,6 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   dom = ldy->dom;
   rank = dom->rank;
   merit = &dom->merit;
-  solfec = dom->solfec;
   verbose = dom->verbose && gs->verbose;
 
   nomerit = gs->nomerit ? 1 : gs->meritval >= 1.0 ? 1 : 0;
