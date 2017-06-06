@@ -302,7 +302,7 @@ static int integrator2d_order (int type)
 
 /* avoid warnings related to unsed point[], weight variables */
 #if defined(__clang__)
-#elif defined(__GNUC__)
+#elif defined(__GNUC__) /* GCC */
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #endif
 

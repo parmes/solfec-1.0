@@ -163,6 +163,10 @@ static int adjacentable (BODY *bod, CON *one, CON *two)
 }
 
 #if MPI
+#if defined(__GNUC__) && !defined(__clang__) /* GCC */
+#pragma GCC push_options
+#pragma GCC optimize ("O0") /* global -O3 was causing https://github.com/tkoziara/solfec/issues/59 */
+#endif
 /* compute external adjacency */
 static void compute_adjext (LOCDYN *ldy, UPKIND upkind)
 {
@@ -315,6 +319,9 @@ out:
   free (recv);
   return ret;
 }
+#endif
+#if defined(__GNUC__) && !defined(__clang__) /* GCC */
+#pragma GCC pop_options 
 #endif
 #endif
 
