@@ -438,29 +438,24 @@ static int riglnk (short dynamic, double epsilon, int maxiter, double step,
 
 static int spring (short dynamic, double *W, double *B, double *V, double *U, double *R, double gap, void *function, double *lim)
 {
-  if (dynamic)
-  {
-    R [0] = 0.0;
-    R [1] = 0.0;
+  R [0] = 0.0;
+  R [1] = 0.0;
 
-    if (gap < lim [0] && B[2] < 0) /* lower limit */
-    {
-      R [2] = -(V[2] + B[2]) / W[8];
-    }
-    else if (gap > lim [1] && B[2] > 0) /* upper limit */
-    {
-      R [2] = -(V[2] + B[2]) / W[8];
-    }
-    else /* in between */
-    {
-      R [2] = springcallback (function, gap, B[2]); /* TODO: make it implicit */
-    }
-  }
-  else
+  if (gap < lim [0] && B[2] < 0) /* lower limit */
   {
-    WARNING (0, "Static SPRING has not been implemented yet!");
-    ASSERT (0, ERR_NOT_IMPLEMENTED);
+    if (dynamic) R [2] = -(V[2] + B[2]) / W[8];
+    else R [2] = -B[2] / W[8];
   }
+  else if (gap > lim [1] && B[2] > 0) /* upper limit */
+  {
+    if (dynamic) R [2] = -(V[2] + B[2]) / W[8];
+    else R [2] = -B[2] / W[8];
+  }
+  else /* in between */
+  {
+    R [2] = springcallback (function, gap, B[2]); /* TODO: make it implicit */
+  }
+
   ADDMUL (B, R[2], W+6, U);
 
   return 0;
