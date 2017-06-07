@@ -5452,7 +5452,27 @@ static int ID_TO_CONSTRAINT (DOM *dom, lng_CONSTRAINT *constraint)
   return 0;
 }
 
+#if MPI
 /* test whether an object is of BODY or CONSTRAINT type */
+static int is_body_or_constraint_type (PyObject *obj, char *var)
+{
+  if (obj)
+  {
+    if (!PyObject_IsInstance (obj, (PyObject*)&lng_BODY_TYPE) &&
+        !PyObject_IsInstance (obj, (PyObject*)&lng_CONSTRAINT_TYPE))
+    {
+      char buf [BUFLEN];
+      sprintf (buf, "'%s' must be a BODY or a CONSTRAINT object", var);
+      PyErr_SetString (PyExc_TypeError, buf);
+      return 0;
+    }
+  }
+
+  return 1;
+}
+#endif
+
+/* test whether an object is a valid BODY or a CONSTRAINT type */
 static int is_body_or_constraint (PyObject *obj, char *var)
 {
   if (obj)
@@ -7132,7 +7152,7 @@ static PyObject* lng_HERE (PyObject *self, PyObject *args, PyObject *kwds)
 
   PARSEKEYS ("OO", &solfec, &object);
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_body_or_constraint (object, kwl[1]));
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_body_or_constraint_type (object, kwl[1]));
 
   if (PyObject_IsInstance (object, (PyObject*)&lng_BODY_TYPE))
   {
