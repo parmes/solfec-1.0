@@ -38,6 +38,10 @@
 #include "multiserial.h"
 #include "interpreter.h"
 #include "pcg_multi.h"
+#if OMP
+#include <omp.h>
+#include "ompu.h"
+#endif
 
 /* macros */
 #define KIND(a) ((a)->kind)
@@ -2335,6 +2339,20 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
 	  }
 	  else /* general */
 	  {
+            #if OMP
+	    double *abth;
+	    int threads;
+            #pragma omp parallel
+	    #pragma omp master
+	    threads = omp_get_num_threads();
+	    int absize = MXTRANS (a) ? n : m;
+	    ERRMEM (abth = MEM_CALLOC (threads * sizeof (double[absize])));
+            #pragma omp parallel
+	    {
+	    int num = omp_get_thread_num();
+            double *abp = &abth[num * absize];
+            #pragma omp for private (j, y, k, rtemp, stemp)
+            #endif
 	    for (l = 0; l < n; l ++)
 	    {
 	      j = &i[p[l]];
@@ -2346,10 +2364,22 @@ void MX_Matvec (double alpha, MX *a, double *b, double beta, double *c)
 	      for (j ++, y ++, k = &i[p[l+1]]; j < k; j ++, y ++)
 	      {
 		stemp += (*y) * b [*j];
+                #if OMP
+		abp [*j] += (*y) * rtemp;
+                #else
 		ab [*j] += (*y) * rtemp;
+                #endif
 	      }
 	      ab [l] += stemp;
 	    }
+            #if OMP
+	    }
+	    double *abp = abth;
+	    for (int i = 0; i < threads; i ++)
+	      for (l = 0; l < n; l ++, abp++)
+		ab[l] += *abp; /* add up thread column sums */
+	    free (abth);
+            #endif
 	  }
 	}
 	else

@@ -214,6 +214,8 @@ struct general_body
 
   double energy [BODY_ENERGY_SPACE]; /* kinetic, external, contwork, fricwork, internal */
 
+  double cristep0; /* critical time step at time 0 used by FE bodies */
+
   unsigned char fracture; /* fracture flag */
 
   int rank; /* parent => new/current rank; child => parent's rank */

@@ -21,9 +21,6 @@
 
 #include <string.h>
 #include <float.h>
-#if OMP
-#include <omp.h>
-#endif
 #include "lap.h"
 #include "mem.h"
 #include "sol.h"
@@ -37,6 +34,10 @@
 #include "svk.h"
 #include "but.h"
 #include "err.h"
+#if OMP
+#include <omp.h>
+#include "ompu.h"
+#endif
 
 typedef double (*node_t) [3]; /* mesh node */
 
@@ -1407,38 +1408,32 @@ static void internal_force (BODY *bod, double *fint)
   MESH *msh = FEM_MESH (bod);
   int dofs = MESH_DOFS (msh);
   double g [24], *v, *w;
-  ELEMENT *ele;
   int i;
 
   for (i = 0; i < dofs; i ++) fint [i] = 0.0;
 
-#if 0
-  ELEMENT **pe;
-  omp_lock_t *node_lock;
-  int j, n = msh->surfeles_count + msh->bulkeles_count;
-  ERRMEM (pe = malloc (n * sizeof(ELEMENT*)));
-  ERRMEM (node_lock = malloc (msh->nodes_count * sizeof(omp_lock_t)));
-  for (ele = msh->surfeles, j = 0; ele; ele = ele->next, j++) pe[j] = ele;
-  for (ele = msh->bulkeles; ele; ele = ele->next, j++) pe[j] = ele;
-  for (j = 0; j < msh->nodes_count; j ++) omp_init_lock (&node_lock[j]);
-  #pragma omp parallel for shared (pe, fint, node_lock) private (g, i, v, w)
+#if OMP
+  int j, n;
+  ELEMENT **pele = ompu_elements (msh, &n);
+  omp_lock_t *locks = ompu_locks (msh->nodes_count);
+  #pragma omp parallel for shared (pele, fint, locks) private (g, i, v, w)
   for (j = 0; j < n; j ++)
   {
-    element_internal_force (0, bod, msh, pe[j], g);
+    element_internal_force (0, bod, msh, pele[j], g);
 
-    for (i = 0, v = g; i < pe[j]->type; i ++, v += 3)
+    for (i = 0, v = g; i < pele[j]->type; i ++, v += 3)
     {
-      int k = pe[j]->nodes[i];
+      int k = pele[j]->nodes[i];
       w = &fint [k * 3];
-      omp_set_lock(&node_lock[k]);
+      omp_set_lock(&locks[k]);
       ACC (v, w);
-      omp_unset_lock (&node_lock[k]);
+      omp_unset_lock (&locks[k]);
     }
   }
-  for (j = 0; j < msh->nodes_count; j ++) omp_destroy_lock (&node_lock[j]);
-  free (node_lock);
-  free (pe);
+  ompu_locks_free (locks, msh->nodes_count);
+  free (pele);
 #else
+  ELEMENT *ele;
   int bulk;
   for (ele = msh->surfeles, bulk = 0; ele; )
   {
@@ -1461,11 +1456,21 @@ static void internal_force (BODY *bod, double *fint)
 static double internal_energy (BODY *bod)
 {
   MESH *msh = FEM_MESH (bod);
-  double energy;
+  double energy = 0.0;
+
+#if OMP
+  int j, n;
+  ELEMENT **pele = ompu_elements (msh, &n);
+  #pragma omp parallel for shared (pele) reduction(+:energy)
+  for (j = 0; j < n; j ++)
+  {
+    energy += FEM_Element_Internal_Energy (bod, msh, pele[j], NULL);
+  }
+  free (pele);
+#else
   ELEMENT *ele;
   int bulk;
-
-  for (ele = msh->surfeles, bulk = 0, energy = 0.0; ele; )
+  for (ele = msh->surfeles, bulk = 0; ele; )
   {
     energy += FEM_Element_Internal_Energy (bod, msh, ele, NULL);
 
@@ -1473,6 +1478,7 @@ static double internal_energy (BODY *bod)
     else if (ele->next) ele = ele->next;
     else ele = msh->bulkeles, bulk = 1;
   }
+#endif
 
   return energy;
 }
@@ -1877,12 +1883,33 @@ static double TL_dynamic_critical_step (BODY *bod)
 {
   if (bod->scheme == SCH_DEF_EXP)
   {
-    double vmi, vol, tcrit, eigmax;
+    double vmi = DBL_MAX, vol, tcrit, eigmax;
     MESH *msh = FEM_MESH (bod);
-    ELEMENT *ele, *emi;
-    int bulk;
+    ELEMENT *emi = NULL;
     MX *IMK;
 
+#if OMP
+    int j, n;
+    ELEMENT **pele = ompu_surfeles (msh, &n);
+    omp_lock_t *lock = ompu_locks (1);
+    #pragma omp parallel for private (vol) shared (pele, msh, emi, vmi)
+    for (j = 0; j < n; j ++)
+    {
+      vol = ELEMENT_Volume (msh, pele[j], 0);
+
+      if (vol < vmi)
+      {
+	omp_set_lock (lock);
+	emi = pele[j];
+	vmi = vol;
+	omp_unset_lock (lock);
+      }
+    }
+    ompu_locks_free (lock, 1);
+    free (pele);
+#else
+    ELEMENT *ele;
+    int bulk;
     /* find element with smallest volume */
     for (ele = msh->surfeles, emi = NULL, bulk = 0, vmi = DBL_MAX; ele; )
     {
@@ -1899,6 +1926,7 @@ static double TL_dynamic_critical_step (BODY *bod)
       else if (ele->next) ele = ele->next;
       else ele = msh->bulkeles, bulk = 1;
     }
+#endif
 
     IMK = element_inv_M_K (bod, msh, emi); /* element inv (M) * K */
     MX_Eigen (IMK, 1, &eigmax, NULL); /* maximal eigenvalue */
@@ -2048,8 +2076,29 @@ static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, do
 
   for (i = integral, e = i + 3 * num; i < e; i += 3) SET (i, 0);
 
-  for (fac = msh->faces; fac; fac = fac->n)
+#if OMP
+  int integral_size = 3 * num;
+  double *local_integral;
+  int threads;
+  int k, m;
+  #pragma omp parallel
+  #pragma omp master
+  threads = omp_get_num_threads();
+  FACE **pfac = ompu_faces (msh, &m);
+  ERRMEM (local_integral = MEM_CALLOC (threads * sizeof (double [integral_size])));
+  #pragma omp parallel
   {
+  double *integral = &local_integral[omp_get_thread_num() * integral_size];
+  double *e = integral + integral_size;
+  #pragma omp for private (q,refn,curn,B,C,N,shapes,Y,fac,i,j)
+  for (k = 0; k < m; k ++)
+#else
+  for (fac = msh->faces; fac; fac = fac->n)
+#endif
+  {
+#if OMP
+    fac = pfac[k];
+#endif
     face_nodes (msh->ref_nodes, fac->type, fac->nodes, refn);
     face_displacements (conf, fac, q);
     for (j = 0; j < fac->type; j ++) ADD (refn [j], q [j], curn [j]);
@@ -2072,6 +2121,15 @@ static void BC_surface_integral (BODY *bod, MESH *msh, double *conf, int num, do
     }
     INTEGRAL2D_END ()
   }
+#if OMP
+  }
+  double *li = local_integral;
+  for (int i = 0; i < threads; i ++)
+    for (j = 0; j < integral_size; j ++, li ++)
+      integral [j] += *li;
+  free (local_integral);
+  free (pfac);
+#endif
 }
 
 /* update rotation for given configuration;
@@ -2253,7 +2311,12 @@ static void BC_dynamic_init (BODY *bod)
 /* body co-rotational estimate critical step for the dynamic scheme */
 static double BC_dynamic_critical_step (BODY *bod)
 {
-  return TL_dynamic_critical_step (bod);
+  if (bod->cristep0 == 0.0)
+  {
+    bod->cristep0 = TL_dynamic_critical_step (bod);
+  }
+
+  return bod->cristep0;
 }
 
 /* body co-rotational perform the initial half-step of the dynamic scheme */
@@ -3199,6 +3262,8 @@ void FEM_Dynamic_Init (BODY *bod)
 {
   short noubf = 1;
   if (bod->M) noubf = 0; /* unit body force already computed */
+
+  bod->cristep0 = 0.0; /* used by BODY_COROTATIONAL */
 
   switch (bod->form)
   {
