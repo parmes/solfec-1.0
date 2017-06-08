@@ -1111,7 +1111,7 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
   {
     hypre_FlexGMRESFunctions *gmres_functions;
     void *gmres_vdata;
-    //int ret;
+    /* int ret; */
 
     gmres_functions = hypre_FlexGMRESFunctionsCreate (CAlloc, Free, (int (*) (void*,int*,int*)) CommInfo,
       (void* (*) (void*))CreateVector, (void* (*) (int, void*))CreateVectorArray, (int (*) (void*))DestroyVector,
@@ -1130,7 +1130,7 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
     hypre_FlexGMRESSetMaxIter (gmres_vdata, linmaxiter);
     hypre_FlexGMRESSetAbsoluteTol (gmres_vdata, epsilon * bnorm);
     hypre_FlexGMRESSetup (gmres_vdata, A, rhs, dr);
-    //ret = hypre_FlexGMRESSolve (gmres_vdata, A, rhs, dr); /* GMRES solve */
+    /* ret = */ hypre_FlexGMRESSolve (gmres_vdata, A, rhs, dr); /* GMRES solve */
     hypre_FlexGMRESGetNumIterations (gmres_vdata , &iters);
     hypre_FlexGMRESDestroy (gmres_vdata);
 
