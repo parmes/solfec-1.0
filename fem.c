@@ -1622,23 +1622,53 @@ static MX* tangent_stiffness (BODY *bod, short spd)
   double K [576], *A, *rowblk;
   MAP **col, *item;
   ELEMENT *ele;
-  short bulk;
   MESH *msh;
+#if OMP
+  MEM *blkmem,
+      *mapmem;
+#else
   MEM blkmem,
       mapmem;
+#endif
   MX *tang;
 
   if (spd) spd = 1;
   msh = FEM_MESH (bod);
   dofs = MESH_DOFS (msh);
-  MEM_Init  (&blkmem, sizeof (double [3]), dofs);
   ERRMEM (col = MEM_CALLOC (sizeof (MAP*) * dofs)); /* sparse columns */
+#if OMP
+  int threads;
+  #pragma omp parallel
+  #pragma omp master
+  threads = omp_get_num_threads();
+  ERRMEM (blkmem = MEM_CALLOC (sizeof(MEM) * threads));
+  ERRMEM (mapmem = MEM_CALLOC (sizeof(MEM) * threads));
+  for (i = 0; i < threads; i ++)
+  {
+    MEM_Init  (&blkmem[i], sizeof (double [3]), dofs);
+    MEM_Init  (&mapmem[i], sizeof (MAP), dofs);
+  }
+#else
+  MEM_Init  (&blkmem, sizeof (double [3]), dofs);
   MEM_Init  (&mapmem, sizeof (MAP), dofs);
+#endif
 
+#if OMP
+  int ei, en;
+  ELEMENT **pele = ompu_elements (msh, &en);
+  omp_lock_t *locks = ompu_locks (msh->nodes_count);
+  #pragma omp parallel for shared (bod, spd, msh, pele, locks, col, blkmem, mapmem) private (ele, K, k, A, l, j, n, i, rowblk)
+  for (ei = 0; ei < en; ei ++)
+#else
+  short bulk;
   for (ele = msh->surfeles, bulk = 0; ele;
        ele = (ele->next ? ele->next : bulk ? NULL : msh->bulkeles),
        bulk = (ele == msh->bulkeles ? 1 : bulk)) /* for each element in mesh */
+#endif
   {
+#if OMP
+    ele = pele[ei];
+#endif
     element_internal_force (1, bod, msh, ele, K); /* compute internal force derivartive: K */
 
 #if 0
@@ -1659,6 +1689,9 @@ static MX* tangent_stiffness (BODY *bod, short spd)
 
     for (k = 0, A = K; k < ele->type; k ++) /* initialize K column block pointer; for element each node */
     {
+#if OMP
+      omp_set_lock (&locks[ele->nodes[k]]);
+#endif
       for (l = 0; l < 3; l ++) /* for each nodal degree of freedom */
       {
 	j = 3 * ele->nodes [k] + l; /* for each global column index */
@@ -1671,14 +1704,26 @@ static MX* tangent_stiffness (BODY *bod, short spd)
 
 	  if (!(rowblk = MAP_Find (col [j], (void*) (long) i, NULL))) /* if this row-block was not mapped */
 	  {
+#if OMP
+	    ERRMEM (rowblk = MEM_Alloc (&blkmem[omp_get_thread_num()]));
+	    MAP_Insert (&mapmem[omp_get_thread_num()], &col [j], (void*) (long) i, rowblk, NULL); /* map it */
+#else
 	    ERRMEM (rowblk = MEM_Alloc (&blkmem));
 	    MAP_Insert (&mapmem, &col [j], (void*) (long) i, rowblk, NULL); /* map it */
+#endif
 	  }
 	  ACC (A, rowblk); /* accumulate values */
 	}
       }
+#if OMP
+      omp_unset_lock (&locks[ele->nodes[k]]);
+#endif
     }
   }
+#if OMP
+  ompu_locks_free (locks, msh->nodes_count);
+  free (pele);
+#endif
 
   ERRMEM (pp = malloc (sizeof (int [dofs + 1]))); /* column pointers */
 
@@ -1729,8 +1774,18 @@ static MX* tangent_stiffness (BODY *bod, short spd)
   free (ii);
   free (pp);
   free (col);
+#if OMP
+  for (i = 0; i < threads; i ++)
+  {
+    MEM_Release (&mapmem[i]);
+    MEM_Release (&blkmem[i]);
+  }
+  free (mapmem);
+  free (blkmem);
+#else
   MEM_Release (&mapmem);
   MEM_Release (&blkmem);
+#endif
 
   return tang;
 }
@@ -1892,7 +1947,7 @@ static double TL_dynamic_critical_step (BODY *bod)
     int j, n;
     ELEMENT **pele = ompu_surfeles (msh, &n);
     omp_lock_t *lock = ompu_locks (1);
-    #pragma omp parallel for private (vol) shared (pele, msh, emi, vmi)
+    #pragma omp parallel for private (vol) shared (pele, lock, msh, emi, vmi)
     for (j = 0; j < n; j ++)
     {
       vol = ELEMENT_Volume (msh, pele[j], 0);

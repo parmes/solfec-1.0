@@ -12,6 +12,7 @@ SCALE (msh, (15, 10, 1))
 BEND (msh, (0, 0, -3), (-1, 0, 0), 270)
 BEND (msh, (5, 7, 0), (0, 0, 1), 90)
 bod = BODY (sol, 'FINITE_ELEMENT', msh, bulk)
+bod.damping = 1E-3
 
 shp = HEX (nodes, 1, 1, 1, 1, [1, 1, 1, 1, 1, 1])
 SCALE (shp, (15, 15, 1))

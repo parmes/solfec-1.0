@@ -120,7 +120,7 @@ VBO = yes
 # OpenMP (yes/no) XXX (Under development) XXX
 #
 
-OPENMP = yes
+OPENMP = no
 
 #
 # MPI (yes/no)
