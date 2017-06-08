@@ -207,8 +207,46 @@ static void stream (BOX **Ib, BOX **Ie, BOX **Pb, BOX **Pe,
   double lo, double hi, int d, void *data, BOX_Overlap_Create create)
 {
   if (Ib >= Ie || Pb >= Pe) return;
-  else if (d == 0) onewayscan (Ib, Ie, Pb, Pe, d, data, create);
-  else if ((Ie-Ib) < CUTOFF || (Pe-Pb) < CUTOFF) twowayscan (Ib, Ie, Pb, Pe, d, data, create);
+  else if (d == 0) 
+  {
+#if OMP
+#pragma omp task
+    {
+      BOX **Ib_copy, **Ie_copy, **Pb_copy, **Pe_copy;
+      ERRMEM (Ib_copy = malloc ((Ie-Ib)*sizeof(BOX*)));
+      ERRMEM (Pb_copy = malloc ((Pe-Pb)*sizeof(BOX*)));
+      memcpy (Ib_copy, Ib, (Ie-Ib)*sizeof(BOX*));
+      memcpy (Pb_copy, Pb, (Pe-Pb)*sizeof(BOX*));
+      Ie_copy = Ib_copy + (Ie-Ib);
+      Pe_copy = Pb_copy + (Pe-Pb);
+      onewayscan (Ib_copy, Ie_copy, Pb_copy, Pe_copy, d, data, create);
+      free (Ib_copy);
+      free (Pb_copy);
+    }
+#else
+    onewayscan (Ib, Ie, Pb, Pe, d, data, create);
+#endif
+  }
+  else if ((Ie-Ib) < CUTOFF || (Pe-Pb) < CUTOFF) 
+  {
+#if OMP
+#pragma omp task
+    {
+      BOX **Ib_copy, **Ie_copy, **Pb_copy, **Pe_copy;
+      ERRMEM (Ib_copy = malloc ((Ie-Ib)*sizeof(BOX*)));
+      ERRMEM (Pb_copy = malloc ((Pe-Pb)*sizeof(BOX*)));
+      memcpy (Ib_copy, Ib, (Ie-Ib)*sizeof(BOX*));
+      memcpy (Pb_copy, Pb, (Pe-Pb)*sizeof(BOX*));
+      Ie_copy = Ib_copy + (Ie-Ib);
+      Pe_copy = Pb_copy + (Pe-Pb);
+      twowayscan (Ib_copy, Ie_copy, Pb_copy, Pe_copy, d, data, create);
+      free (Ib_copy);
+      free (Pb_copy);
+    }
+#else
+    twowayscan (Ib, Ie, Pb, Pe, d, data, create);
+#endif
+  }
   else
   {
     BOX **Im, **Pm, *P;
@@ -282,11 +320,20 @@ void hybrid (BOX **boxes, int n, void *data, BOX_Overlap_Create create)
 
   ERRMEM (copy = malloc (sizeof (BOX*) * n));
   memcpy (copy, boxes, sizeof (BOX*) * n); /* copy of the pointers table */
-  
+ 
+#if OMP
+#pragma omp parallel
+#pragma omp single
+  {
+#endif
   stream (boxes, boxes + n, /* these are intervals */
           copy, copy + n, /* these are points */
 	 -DBL_MAX, DBL_MAX, /* the top level interval is [-inf, inf] */
 	  2, data, create); /* we go from the thrid (2) dimension down to one (0) */
+#if OMP
+#pragma omp taskwait
+  }
+#endif
 
   free (copy);
 }

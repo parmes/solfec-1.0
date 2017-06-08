@@ -28,6 +28,10 @@
 #include "com.h"
 #endif
 
+#if OMP
+#include <omp.h>
+#endif
+
 #include "mem.h"
 #include "map.h"
 #include "box.h"
@@ -289,6 +293,10 @@ struct domain
   enum {ALWAYS, NEVER, EVERYNCPU} insertbodymode; /* insert body mode */
   int rebalanced; /* counts rebalancing steps */
   int updatefreq; /* domain partitioning update frequency */
+#endif
+
+#if OMP
+  omp_lock_t lock; /* constraint insertion/deletion lock */
 #endif
 
   DOM *prev, *next; /* list */

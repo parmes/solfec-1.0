@@ -360,6 +360,10 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
 
   if (state)
   {
+#if OMP
+    omp_set_lock (&dom->lock);
+#endif
+
     ASSERT_DEBUG (gap <= 0, "A contact with positive gap (%g) was detected which indicates a bug in goc.c", gap);
 
     if (gap <= dom->depth) dom->flags |= DOM_DEPTH_VIOLATED;
@@ -378,26 +382,29 @@ static void overlap_create (DOM *dom, BOX *one, BOX *two)
 	return; /* exluded pair */
       }
     }
-  }
 
-  switch (state)
-  {
-    case 1: /* first body has outward normal => second body is the master */
+    switch (state)
     {
-      paircode = GOBJ_Pair_Code (one, two);
-      con = insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
-      con->spair [0] = spair [0];
-      con->spair [1] = spair [1];
+      case 1: /* first body has outward normal => second body is the master */
+      {
+	paircode = GOBJ_Pair_Code (one, two);
+	con = insert_contact (dom, two->body, one->body, two->sgp, one->sgp, twopnt, onepnt, normal, area, gap, mat, paircode);
+	con->spair [0] = spair [0];
+	con->spair [1] = spair [1];
+      }
+      break;
+      case 2:  /* second body has outward normal => first body is the master */
+      {
+	paircode = GOBJ_Pair_Code (two, one);
+	con = insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
+	con->spair [0] = spair [1];
+	con->spair [1] = spair [0];
+      }
+      break;
     }
-    break;
-    case 2:  /* second body has outward normal => first body is the master */
-    {
-      paircode = GOBJ_Pair_Code (two, one);
-      con = insert_contact (dom, one->body, two->body, one->sgp, two->sgp, onepnt, twopnt, normal, area, gap, mat, paircode);
-      con->spair [0] = spair [1];
-      con->spair [1] = spair [0];
-    }
-    break;
+#if OMP
+    omp_unset_lock (&dom->lock);
+#endif
   }
 
   if (tri) free (tri);
@@ -3070,6 +3077,10 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
   create_mpi (dom);
 #endif
 
+#if OMP
+  omp_init_lock (&dom->lock);
+#endif
+
   return dom;
 }
 
@@ -4009,6 +4020,10 @@ void DOM_Destroy (DOM *dom)
 {
   CON *con;
   MAP *item;
+
+#if OMP
+  omp_destroy_lock (&dom->lock);
+#endif
  
 #if MPI
   destroy_mpi (dom);

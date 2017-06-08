@@ -387,12 +387,6 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
 #endif
   BOX *box;
 
-  for (box = aabb->lst; box; box = box->next) box->update (box->sgp->shp->data, box->sgp->gobj, box->extents); /* update box extents */
-
-#if MPI
-  detach_and_attach (aabb); /* detach boxes from outside of the domain and attach new incoming boxes */
-#endif
-
   if (aabb->modified) /* merge insertion and curent lists, update pointer table */
   {
     BOX **b;
@@ -406,6 +400,19 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
 
     for (box = aabb->lst, b = aabb->tab; box; box = box->next, b ++) *b = box; /* overwrite box pointers */
   }
+
+#if OMP
+#pragma omp parallel for private(box)
+#endif
+  for (int i = 0; i < aabb->boxnum; i ++)
+  {
+    box = aabb->tab[i];
+    box->update (box->sgp->shp->data, box->sgp->gobj, box->extents); /* update box extents */
+  }
+
+#if MPI
+  detach_and_attach (aabb); /* detach boxes from outside of the domain and attach new incoming boxes */
+#endif
 
 #if DEBUG && MPI
   for (box = aabb->lst; box; box = box->next)
