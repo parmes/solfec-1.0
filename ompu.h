@@ -27,6 +27,17 @@ SOFTWARE.
 /* Contributors: Tomasz Koziara */
 
 #include "msh.h"
+#include "dom.h"
+
+inline static CON** ompu_constraints (DOM *dom, int *n)
+{
+  int j;
+  CON **pcon, *con;
+  ERRMEM (pcon = malloc ((dom->ncon) * sizeof(CON*)));
+  for (con = dom->con, j = 0; con; con = con->next, j++) pcon[j] = con;
+  *n = dom->ncon;
+  return pcon;
+}
 
 inline static FACE** ompu_faces (MESH *msh, int *n)
 {
