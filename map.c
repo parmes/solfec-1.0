@@ -62,28 +62,29 @@ inline static void map_rotate_r (MAP **root, MAP *x)
   if (x != NIL) x->p = y;
 }
 
-inline static void map_delete_fixup (MAP **root, MAP *x)
+inline static void map_delete_fixup (MAP **root, MAP *x, MAP *xp)
 {
   MAP *y;
 
   while (x != *root && x->colour == black)
   {
-    if (x == x->p->l)
+    if (x == xp->l)
     {
-      y = x->p->r;
+      y = xp->r;
 
       if (y->colour == red)
       {
-        x->p->colour = red;
+        xp->colour = red;
         y->colour = black;
-        map_rotate_l (root, x->p);
-	y = x->p->r;
+        map_rotate_l (root, xp);
+	y = xp->r;
       }
      
       if (y->r->colour == black && y->l->colour == black)
       {
          y->colour = red;
-	 x = x->p;
+	 x = xp;
+	 xp = x->p;
       }
       else
       {
@@ -92,33 +93,34 @@ inline static void map_delete_fixup (MAP **root, MAP *x)
 	  y->l->colour = black;
 	  y->colour = red;
 	  map_rotate_r (root, y);
-	  y = x->p->r;
+	  y = xp->r;
 	}
 
-	y->colour = x->p->colour;
-	x->p->colour = black;
+	y->colour = xp->colour;
+	xp->colour = black;
 	y->r->colour = black;
-	map_rotate_l (root, x->p);
+	map_rotate_l (root, xp);
 	x = *root;
       }
     } 
     else
     {
 
-      y = x->p->l;
+      y = xp->l;
 
       if (y->colour == red)
       {
-        x->p->colour = red;
+        xp->colour = red;
         y->colour = black;
-        map_rotate_r (root, x->p);
-	y = x->p->l;
+        map_rotate_r (root, xp);
+	y = xp->l;
       }
     
       if (y->l->colour == black && y->r->colour == black)
       {
          y->colour = red;
-	 x = x->p;
+	 x = xp;
+	 xp = x->p;
       }
       else
       {
@@ -127,18 +129,18 @@ inline static void map_delete_fixup (MAP **root, MAP *x)
 	  y->r->colour = black;
 	  y->colour = red;
 	  map_rotate_l (root, y);
-	  y = x->p->l;
+	  y = xp->l;
 	}
 
-	y->colour = x->p->colour;
-	x->p->colour = black;
+	y->colour = xp->colour;
+	xp->colour = black;
 	y->l->colour = black;
-	map_rotate_r (root, x->p);
+	map_rotate_r (root, xp);
 	x = *root;
       }
     }
   }
-  x->colour = black;
+  if (x != NIL) x->colour = black;
 }
 
 static void map_size (MAP *node, int *size)
@@ -401,7 +403,10 @@ FOUND:
     x = y->l;
   else x = y->r;
 
-  x->p = y->p;
+  MAP *xp = y->p;
+
+  if (x != NIL) x->p = y->p;
+
   if (y->p)
     if (y == y->p->l)
       y->p->l = x;
@@ -417,7 +422,7 @@ FOUND:
   }
 
   if (y->colour == black)
-    map_delete_fixup (root, x);
+    map_delete_fixup (root, x, xp);
       
   if (pool) MEM_Free (pool, y);
   else free (y);
@@ -445,7 +450,10 @@ MAP* MAP_Delete_Node (MEM *pool, MAP **root, MAP *node)
     x = y->l;
   else x = y->r;
 
-  x->p = y->p;
+  MAP *xp = y->p;
+
+  if (x != NIL) x->p = y->p;
+
   if (y->p)
     if (y == y->p->l)
       y->p->l = x;
@@ -462,7 +470,7 @@ MAP* MAP_Delete_Node (MEM *pool, MAP **root, MAP *node)
   }
 
   if (y->colour == black)
-    map_delete_fixup (root, x); /* this cannot change the next item after 'node' */
+    map_delete_fixup (root, x, xp); /* this cannot change the next item after 'node' */
       
   if (pool) MEM_Free (pool, y);
   else free (y);
