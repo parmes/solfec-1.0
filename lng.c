@@ -6584,8 +6584,8 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
 
     PARSEKEYS ("OOOOOO|OO", &body1, &point1, &body2, &point2, &function, &limits, &direction, &update);
 
-    TYPETEST (is_body (body1, kwl[0]) && is_body (body2, kwl[1]) &&
-	      is_tuple (point1, kwl[2], 3) && is_tuple (point2, kwl[3], 3) &&
+    TYPETEST (is_body (body1, kwl[0]) && is_tuple (point1, kwl[1], 3) &&
+              is_body (body2, kwl[2]) && is_tuple (point2, kwl[3], 3) &&
               is_callable (function, kwl[4]) && is_tuple (limits, kwl[5], 2) &&
 	      is_tuple (direction, kwl[6], 3) && is_string (update, kwl[7]));
 
