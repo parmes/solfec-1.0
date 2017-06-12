@@ -473,10 +473,16 @@ static void update_contact (DOM *dom, CON *con)
   }
   else
   {
+#if OMP
+    omp_set_lock (&dom->lock);
+#endif
 #if MPI
     ext_to_remove (dom, con); /* schedule remote deletion of external constraints */
 #endif
     DOM_Remove_Constraint (dom, con); /* remove from the domain */
+#if OMP
+    omp_unset_lock (&dom->lock);
+#endif
   }
 
   if (tri) free (tri);
@@ -3664,10 +3670,21 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   SOLFEC_Timer_Start (dom->solfec, "CONUPD");
 
   /* update old constraints */
+#if OMP
+  int ncon; /* initial value as constraints may get deleted */
+  CON **pcon = ompu_constraints (dom, &ncon);
+#pragma omp parallel for private (con)
+  for (int i = 0; i < ncon; i ++)
+#else
   CON *next;
   for (con = dom->con; con; con = next)
+#endif
   {
+#if OMP
+    con = pcon[i];
+#else
     next = con->next; /* contact update can delete the current iterate */
+#endif
 
     switch (con->kind)
     {
@@ -3679,6 +3696,9 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case SPRING:  update_spring (dom, con); break;
     }
   }
+#if OMP
+  free (pcon);
+#endif
 
 #if MPI
   /* external con->point coordinates are need to be updated before the update of body extents;
