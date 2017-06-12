@@ -34,6 +34,10 @@
 #include "put.h"
 #endif
 
+#if OMP
+#include "ompu.h"
+#endif
+
 /* memory block size */
 #define BLKSIZE 128
 
@@ -644,8 +648,17 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 
   /* calculate local velocities and assmeble
    * the diagonal force-velocity 'W' operator */
+#if OMP
+  int i, n;
+  DIAB **pdia = ompu_diab (ldy, &n);
+#pragma omp parallel for private (blk, blj, dia)
+  for (i = 0; i < n; i ++)
+  {
+    dia = pdia[i];
+#else
   for (dia = ldy->dia; dia; dia = dia->n)
   {
+#endif
     CON *con = dia->con;
     BODY *m = con->master,
 	 *s = con->slave;
@@ -728,8 +741,15 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
 
   ldy->free_energy *= 0.5; /* 0.5 * DOT (AB, B) */
 
+#if OMP
+#pragma omp parallel for private (blk, blj, dia)
+  for (i = 0; i < n; i ++)
+  {
+    dia = pdia[i];
+#else
   for (dia = ldy->dia; dia; dia = dia->n) /* off-diagonal blocks update */
   {
+#endif
     CON *con = dia->con;
     BODY *m = con->master,
 	 *s = con->slave;
@@ -818,6 +838,9 @@ void LOCDYN_Update_Begin (LOCDYN *ldy)
     }
 #endif
   }
+#if OMP
+  free (pdia);
+#endif
 
   /* use symmetry */
   if (upkind == UPALL)

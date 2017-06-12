@@ -885,7 +885,7 @@ inline static void element_gradient (int type, node_t q, double *point, double *
 /* compute element shape functions at a local point and return global matrix */
 static MX* element_shapes_matrix (BODY *bod, MESH *msh, ELEMENT *ele, double *point)
 {
-  static int *p, *i, *q, *u, k, n, m, o;
+  int *p, *i, *q, *u, k, n, m, o;
   double shapes [MAX_NODES], *x, *y;
   int dofs = MESH_DOFS (msh);
   MX *N;

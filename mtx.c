@@ -2075,7 +2075,7 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
       {
 	size = p [n];
         ASSERT_DEBUG (p != i, "Invalid structure");
-	ASSERT_DEBUG (size > 0, "Invalid nonzero size");
+	ASSERT_DEBUG (size > 0, "Invalid zero size");
 	ERRMEM (a->p = malloc (sizeof (int) * (n+1)));
 	ERRMEM (a->i = malloc (sizeof (int) * size));
 	ERRMEM (a->x = MEM_CALLOC (size * sizeof (double)));

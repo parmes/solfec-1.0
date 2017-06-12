@@ -29,6 +29,18 @@ SOFTWARE.
 #include "msh.h"
 #include "dom.h"
 #include "box.h"
+#include "ldy.h"
+
+inline static DIAB** ompu_diab (LOCDYN *ldy, int *n)
+{
+  int j = 0;
+  DIAB *dia, **pdia;
+  for (dia = ldy->dia; dia; dia = dia->n) j ++;
+  *n = j;
+  ERRMEM (pdia = malloc ((*n) * sizeof(DIAB*)));
+  for (dia = ldy->dia, j = 0; dia; dia = dia->n, j++) pdia[j] = dia;
+  return pdia;
+}
 
 inline static BOX** ompu_boxes (AABB *aabb, int *n)
 {
