@@ -38,6 +38,10 @@
 #include "com.h"
 #endif
 
+#if OMP
+#include "ompu.h"
+#endif
+
 #define SIZE 128 /* mempool size */
 
 /* auxiliary data */
@@ -387,6 +391,16 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
 #endif
   BOX *box;
 
+#if OMP
+  int i, n;
+  BOX **pbox = ompu_boxes (aabb, &n);
+#pragma omp parallel for
+  for (i = 0; i < n; i ++) pbox[i]->update (pbox[i]->sgp->shp->data, pbox[i]->sgp->gobj, pbox[i]->extents);
+  free (pbox);
+#else
+  for (box = aabb->lst; box; box = box->next) box->update (box->sgp->shp->data, box->sgp->gobj, box->extents); /* update box extents */
+#endif
+
 #if MPI
   detach_and_attach (aabb); /* detach boxes from outside of the domain and attach new incoming boxes */
 #endif
@@ -403,15 +417,6 @@ void AABB_Update (AABB *aabb, BOXALG alg, void *data, BOX_Overlap_Create create)
     }
 
     for (box = aabb->lst, b = aabb->tab; box; box = box->next, b ++) *b = box; /* overwrite box pointers */
-  }
-
-#if OMP
-#pragma omp parallel for private(box)
-#endif
-  for (int i = 0; i < aabb->boxnum; i ++)
-  {
-    box = aabb->tab[i];
-    box->update (box->sgp->shp->data, box->sgp->gobj, box->extents); /* update box extents */
   }
 
 #if DEBUG && MPI

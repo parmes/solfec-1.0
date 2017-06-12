@@ -117,12 +117,6 @@ GLLIB = -framework GLUT -framework OpenGL
 VBO = yes
 
 #
-# OpenMP (yes/no) XXX (Under development) XXX
-#
-
-OPENMP = no
-
-#
 # MPI (yes/no)
 #
 

@@ -28,6 +28,18 @@ SOFTWARE.
 
 #include "msh.h"
 #include "dom.h"
+#include "box.h"
+
+inline static BOX** ompu_boxes (AABB *aabb, int *n)
+{
+  int j = 0;
+  BOX *box, **pbox;
+  for (box = aabb->lst; box; box = box->next) j ++;
+  *n = j;
+  ERRMEM (pbox = malloc ((*n) * sizeof(BOX*)));
+  for (box = aabb->lst, j = 0; box; box= box->next, j++) pbox[j] = box;
+  return pbox;
+}
 
 inline static CON** ompu_constraints (DOM *dom, int *n)
 {
