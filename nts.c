@@ -41,6 +41,11 @@
 #include "tag.h"
 #endif
 
+#if OMP
+#include <omp.h>
+#define OMP_GO_PARALLEL 384 /* OpenMP parallel processing threshold */
+#endif
+
 typedef struct con_data CON_DATA;
 typedef struct private PRIVATE;
 typedef struct vector VECTOR;
@@ -366,8 +371,17 @@ static void U_WR_B (PRIVATE *A, short zero_B)
     OFFB *blk;
     CON *con;
 
+#if OMP
+    int i, n = A->end - A->dat;
+    int nthreads = n > OMP_GO_PARALLEL ? omp_get_num_threads() : 1;
+#pragma omp parallel for private (W, R, U, B, dat, dia, blk, con) num_threads (nthreads)
+    for (i = 0; i < n; i++)
+    {
+      dat = &A->dat[i];
+#else
     for (dat = A->dat; dat != A->end; dat ++)
     {
+#endif
       con = dat->con;
       dia = con->dia;
       W = dia->W;
@@ -941,8 +955,19 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
   int ipiv [3], iters = 0;
   CON_DATA *dat;
 
+#if OMP
+  int i, n = A->end - A->dat;
+  int nthreads = n > OMP_GO_PARALLEL ? omp_get_num_threads() : 1;
+#pragma omp parallel for private (ipiv, dat, b, DR) num_threads(nthreads)
+  for (i = 0; i < n; i++)
+  {
+    dat = &A->dat[i];
+    b = &rhs->x[3*i];
+    DR = &dr->x[3*i];
+#else
   for (dat = A->dat; dat != A->end; dat ++, b += 3, DR += 3)
   {
+#endif
     CON *con = dat->con;
     DIAB *dia = con->dia;
 #if MPI
