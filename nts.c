@@ -970,7 +970,9 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
 #endif
     CON *con = dat->con;
     DIAB *dia = con->dia;
-#if MPI
+#if MPI && OMP
+    if (!dia) continue;
+#elif MPI
     if (!dia) break; /* skip external */
 #endif
     double *U = con->U,

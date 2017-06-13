@@ -31,6 +31,10 @@
 
 #include "csparse.h"
 
+#if OMP
+#include <omp.h>
+#endif
+
 /* C = alpha*A + beta*B */
 MX *cs_add (const MX *A, const MX *B, double alpha, double beta)
 {
@@ -2011,6 +2015,9 @@ MX *cs_spalloc (int m, int n, int nzmax, int values, int triplet)
     A->p = cs_malloc (triplet ? nzmax : n+1, sizeof (int)) ;
     A->i = cs_malloc (nzmax, sizeof (int)) ;
     A->x = values ? cs_malloc (nzmax, sizeof (double)) : NULL ;
+#if OMP
+    omp_init_lock (&A->lock);
+#endif
     return ((!A->p || !A->i || (values && !A->x)) ? cs_spfree (A) : A) ;
 }
 
@@ -2035,6 +2042,9 @@ MX *cs_spfree (MX *A)
     cs_free (A->p) ;
     cs_free (A->i) ;
     cs_free (A->x) ;
+#if OMP
+    omp_destroy_lock (&A->lock);
+#endif
     return (cs_free (A)) ;      /* free the MX struct and return NULL */
 }
 
