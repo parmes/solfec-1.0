@@ -14,7 +14,7 @@ KINEM = 'FINITE_ELEMENT'
 SOLVER = 'ns'
 SAREA = 0.05
 step = 0.001
-duration =  10 * step
+duration =  3 * step
 MAKE_TESTS = 0 # make convergence tests
 
 def cube (x, y, z, a, b, c, sur, vol):

@@ -890,18 +890,9 @@ static void inv_vec (MX *a, double *b, double *c)
   {
     DMUMPS_STRUC_C *id = a->sym;
     blas_dcopy (a->n, b, 1, c, 1);
-#if OMP
-    omp_set_lock (&a->lock);
-#endif
     id->rhs = c; 
     id->job = 3;
-#if OMP
-#pragma omp critical /* MUMPS FIXME: pointer being freed was not allocated */
-#endif
     dmumps_c (id);
-#if OMP
-    omp_unset_lock (&a->lock);
-#endif
   }
   else
   {
@@ -923,18 +914,9 @@ static void vec_inv (double *b, MX *a, double *c)
   {
     DMUMPS_STRUC_C *id = a->sym;
     blas_dcopy (a->n, b, 1, c, 1);
-#if OMP
-    omp_set_lock (&a->lock);
-#endif
     id->rhs = c; 
     id->job = 3;
-#if OMP
-#pragma omp critical /* MUMPS FIXME: pointer being freed was not allocated */
-#endif
     dmumps_c (id);
-#if OMP
-    omp_unset_lock (&a->lock);
-#endif
   }
   else
   {
@@ -1701,15 +1683,9 @@ inline static void csc_doinv (MX *b)
     ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + b->n]))); /* workspace 1 after b->x */
     ERRMEM (id = MEM_CALLOC (sizeof (DMUMPS_STRUC_C)));
     b->sym = id;
-#if OMP
-    omp_set_lock (&b->lock);
-#endif
     id->job = -1;
     id->par =  1;
     id->sym =  1;
-#if OMP
-#pragma omp critical /* MUMPS FIXME: pointer being freed was not allocated */
-#endif
     dmumps_c (id);
 
     id->n = b->n;
@@ -1734,14 +1710,8 @@ inline static void csc_doinv (MX *b)
 
     /* analysis and factorization */
     id->job = 4;
-#if OMP
-#pragma omp critical /* MUMPS FIXME: pointer being freed was not allocated */
-#endif
     dmumps_c (id);
     ASSERT (id->INFO(1) >= 0, ERR_MTX_CHOL_FACTOR);
-#if OMP
-    omp_unset_lock (&b->lock);
-#endif
   }
   else
   {
@@ -1763,17 +1733,8 @@ static MX* csc_inverse (MX *a, MX *b)
     if (MXSPD (b)) /* MUMPS */
     {
       DMUMPS_STRUC_C *id = a->sym;
-#if OMP
-      omp_set_lock (&a->lock);
-#endif
       id->job = -2;
-#if OMP
-#pragma omp critical /* MUMPS FIXME: pointer being freed was not allocated */
-#endif
       dmumps_c (id);
-#if OMP
-      omp_unset_lock (&a->lock);
-#endif
       free (id->irn);
       free (id->jcn);
       free (id);
@@ -1939,8 +1900,7 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
 static void csc_eigen_matmultivec (void *pa, void *pb, void *pc)
 {
   serial_Multi_Vector *vb = pb, *vc = pc;
-  MX *a = pa;
-  DMUMPS_STRUC_C *id = a->sym;
+  DMUMPS_STRUC_C *id = pa;
   int i;
 
   serial_Multi_VectorCopy (vb, vc);
@@ -1949,18 +1909,9 @@ static void csc_eigen_matmultivec (void *pa, void *pb, void *pc)
   {
     double *c0 = &vc->data [vc->active_indices [i]*vc->size], *c1;
 
-#if OMP
-    omp_set_lock (&a->lock);
-#endif
     id->rhs = c0;
     id->job = 3;
-#if OMP
-#pragma omp critical /* MUMPS FIXME: pointer being freed was not allocated */
-#endif
     dmumps_c (id);
-#if OMP
-    omp_unset_lock (&a->lock);
-#endif
 
     for (c1 = c0 + vc->size; c0 < c1; c0 ++) (*c0) *= -1.0;
   }
@@ -2016,7 +1967,7 @@ static void csc_eigen (MX *a, int n, double *val, MX *vec)
 
   ret = lobpcg_solve_double (
     xx, /* input/output eigenvectors */
-    A_prim, csc_eigen_matmultivec, /* A */
+    A_prim->sym, csc_eigen_matmultivec, /* A */
     NULL, NULL,
     NULL, NULL,
     NULL,  /* input-matrix Y */
@@ -2056,7 +2007,7 @@ static void csc_eigen (MX *a, int n, double *val, MX *vec)
 /* data needed below */
 struct csc_geneigen_data
 {
-  MX *a;
+  DMUMPS_STRUC_C *id;
   MX *L;
 };
 
@@ -2067,8 +2018,7 @@ static void csc_geneigen_matmultivec (void *pa, void *pb, void *pc)
 {
   serial_Multi_Vector *vb = pb, *vc = pc;
   struct csc_geneigen_data *data = pa;
-  MX *a = data->a;
-  DMUMPS_STRUC_C *id = a->sym;
+  DMUMPS_STRUC_C *id = data->id;
   MX *L = data->L;
   int i;
 
@@ -2081,18 +2031,9 @@ static void csc_geneigen_matmultivec (void *pa, void *pb, void *pc)
 
     for (c = c0, x = L->x, y = x + L->n; x < y; x ++, c ++) (*c) *= (*x);
 
-#if OMP
-    omp_set_lock (&a->lock);
-#endif
     id->rhs = c0;
     id->job = 3;
-#if OMP
-#pragma omp critical /* MUMPS FIXME: pointer being freed was not allocated */
-#endif
     dmumps_c (id);
-#if OMP
-    omp_unset_lock (&a->lock);
-#endif
 
     for (c = c0, x = L->x, y = x + L->n; x < y; x ++, c ++) (*c) *= -(*x);
   }
@@ -2142,9 +2083,6 @@ MX* MX_Create (short kind, int m, int n, int *p, int *i)
 	memcpy (a->i, i, sizeof (int) * size); 
 	a->nz = -1; /* compressed format */
       }
-#if OMP
-      omp_init_lock (&a->lock);
-#endif
     break;
     default:
       ASSERT (0, ERR_MTX_KIND);
@@ -2583,7 +2521,7 @@ int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbos
 
   csc_inverse (A_prim, A_prim); /* MUMPS inverse */
 
-  struct csc_geneigen_data data = {A_prim, L};
+  struct csc_geneigen_data data = {A_prim->sym, L};
 
   /* solve for 0 eigenmodes first */
 
@@ -2877,17 +2815,8 @@ void MX_Destroy (MX *a)
 	if (MXSPD (a)) /* MUMPS */
 	{
 	  DMUMPS_STRUC_C *id = a->sym;
-#if OMP
-          omp_set_lock (&a->lock);
-#endif
 	  id->job = -2;
-#if OMP
-#pragma omp critical /* MUMPS FIXME: pointer being freed was not allocated */
-#endif
 	  dmumps_c (id);
-#if OMP
-          omp_unset_lock (&a->lock);
-#endif
 	  free (id->irn);
 	  free (id->jcn);
 	  free (id);
@@ -2898,9 +2827,6 @@ void MX_Destroy (MX *a)
 	  cs_nfree (a->num);
 	}
       }
-#if OMP
-      omp_destroy_lock (&a->lock);
-#endif
       free (a);
     break;
   }
