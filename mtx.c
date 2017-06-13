@@ -30,7 +30,11 @@
 #include "mtx.h"
 #include "pck.h"
 #include "ext/csparse.h"
-#include "ext/mumps/dmumps_c.h"
+#if MUMPS==4
+#include "ext/mumps4/dmumps_c.h"
+#elif MUMPS==5
+#include "ext/mumps5/dmumps_c.h"
+#endif
 #include "fortran_matrix.h"
 #include "fortran_interpreter.h"
 #include "lobpcg.h"

@@ -33,7 +33,9 @@ endif
 
 include Flags.mak
 
-MUMPS = -Lext/mumps/libseq -lmpiseq
+MUMPS_VERSION = 5
+
+MUMPS = -Lext/mumps$(MUMPS_VERSION)/libseq -lmpiseq
 
 BLOPEXINC = -Iext/blopex/include
 
@@ -144,7 +146,7 @@ obj/libmetis.a:
 	(cd ext/metis && make)
 
 obj/libdmumps.a:
-	(cd ext/mumps && make)
+	(cd ext/mumps$(MUMPS_VERSION) && make)
 
 obj/libtet.a:
 	(cd ext/tetgen && make)
@@ -204,7 +206,7 @@ clean:
 	(cd tst && make clean)
 	(cd ext/krylov && make clean)
 	(cd ext/metis && make clean)
-	(cd ext/mumps && make clean)
+	(cd ext/mumps$(MUMPS_VERSION) && make clean)
 	(cd ext/tetgen && make clean)
 	(cd ext/blopex && make clean)
 
@@ -251,7 +253,7 @@ obj/svk.o: svk.c svk.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/mtx.o: mtx.c mtx.h bla.h lap.h err.h
-	$(CC) $(CFLAGS) $(BLOPEXINC) -c -o $@ $<
+	$(CC) $(CFLAGS) $(BLOPEXINC) -DMUMPS=$(MUMPS_VERSION) -c -o $@ $<
 
 obj/tms.o: tms.c tms.h mem.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
