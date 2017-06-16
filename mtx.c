@@ -34,6 +34,8 @@
 #include "ext/mumps4/dmumps_c.h"
 #elif MUMPS==5
 #include "ext/mumps5/dmumps_c.h"
+#elif MUMPS==0
+#include "cholmod.h"
 #endif
 #include "fortran_matrix.h"
 #include "fortran_interpreter.h"
@@ -62,6 +64,35 @@
 #define MXSPD(a) ((a)->flags & MXSPD)
 #define ICNTL(I) icntl[(I)-1] /* MUMPS macro s.t. indices match documentation */
 #define INFO(I) info[(I)-1] /* MUMPS */
+
+#if MUMPS==0
+#define MXSPD_2_cholmod_sparse(a, A)\
+  cholmod_sparse A;\
+  A.nrow = (a)->m;\
+  A.ncol = (a)->n;\
+  A.nzmax = (a)->nzmax;\
+  A.p = (a)->p;\
+  A.i = (a)->i;\
+  A.nz = NULL;\
+  A.x = (a)->x;\
+  A.stype = -1;\
+  A.itype = CHOLMOD_INT;\
+  A.xtype = CHOLMOD_REAL;\
+  A.dtype = CHOLMOD_DOUBLE;\
+  A.sorted = 1;\
+  A.packed = 1
+
+#define vec_2_cholmod_dense(data, size, v)\
+  cholmod_dense v;\
+  v.nrow = size;\
+  v.ncol = 1;\
+  v.nzmax = size;\
+  v.d = size;\
+  v.x = data;\
+  v.z = NULL;\
+  v.xtype = CHOLMOD_REAL;\
+  v.dtype = CHOLMOD_DOUBLE
+#endif
 
 /* types */
 typedef int (*qcmp_t) (const void*, const void*);
@@ -892,11 +923,18 @@ static void inv_vec (MX *a, double *b, double *c)
 {
   if (MXSPD (a))
   {
+#if MUMPS>0
     DMUMPS_STRUC_C *id = a->sym;
     blas_dcopy (a->n, b, 1, c, 1);
     id->rhs = c; 
     id->job = 3;
     dmumps_c (id);
+#else /* CHOLMOD */
+    vec_2_cholmod_dense (b, a->n, vb);
+    cholmod_dense *vc = cholmod_solve (CHOLMOD_A, a->num, &vb, a->sym);
+    blas_dcopy (vc->nrow, vc->x, 1, c, 1);
+    cholmod_free_dense (&vc, a->sym);
+#endif
   }
   else
   {
@@ -916,11 +954,18 @@ static void vec_inv (double *b, MX *a, double *c)
 {
   if (MXSPD (a))
   {
+#if MUMPS>0
     DMUMPS_STRUC_C *id = a->sym;
     blas_dcopy (a->n, b, 1, c, 1);
     id->rhs = c; 
     id->job = 3;
     dmumps_c (id);
+#else /* CHOLMOD */
+    vec_2_cholmod_dense (b, a->n, vb);
+    cholmod_dense *vc = cholmod_solve (CHOLMOD_A, a->num, &vb, a->sym);
+    blas_dcopy (vc->nrow, vc->x, 1, c, 1);
+    cholmod_free_dense (&vc, a->sym);
+#endif
   }
   else
   {
@@ -1682,6 +1727,7 @@ inline static void csc_doinv (MX *b)
 {
   if (MXSPD (b))
   {
+#if MUMPS>0
     DMUMPS_STRUC_C *id;
 
     ERRMEM (b->x = realloc (b->x, sizeof (double [b->nzmax + b->n]))); /* workspace 1 after b->x */
@@ -1716,6 +1762,13 @@ inline static void csc_doinv (MX *b)
     id->job = 4;
     dmumps_c (id);
     ASSERT (id->INFO(1) >= 0, ERR_MTX_CHOL_FACTOR);
+#else /* CHOLMOD */
+    ERRMEM (b->sym = MEM_CALLOC (sizeof(cholmod_common)));
+    cholmod_start (b->sym);
+    MXSPD_2_cholmod_sparse (b, B);;
+    b->num = cholmod_analyze (&B, b->sym);
+    cholmod_factorize (&B, b->num, b->sym);
+#endif
   }
   else
   {
@@ -1734,14 +1787,19 @@ static MX* csc_inverse (MX *a, MX *b)
 
   if (MXIFAC (b))
   {
-    if (MXSPD (b)) /* MUMPS */
+    if (MXSPD (b))
     {
+#if MUMPS>0
       DMUMPS_STRUC_C *id = a->sym;
       id->job = -2;
       dmumps_c (id);
       free (id->irn);
       free (id->jcn);
       free (id);
+#else /* CHOLMOD */
+      cholmod_free_factor ((cholmod_factor**)&a->num, a->sym);
+      cholmod_finish (a->sym);
+#endif
     }
     else /* CSparse */
     {
@@ -1904,7 +1962,10 @@ static void bd_eigen (MX *a, int n, double *val, MX *vec)
 static void csc_eigen_matmultivec (void *pa, void *pb, void *pc)
 {
   serial_Multi_Vector *vb = pb, *vc = pc;
-  DMUMPS_STRUC_C *id = pa;
+  MX *A_prim = pa;
+#if MUMPS>0
+  DMUMPS_STRUC_C *id = A_prim->sym;
+#endif
   int i;
 
   serial_Multi_VectorCopy (vb, vc);
@@ -1913,9 +1974,16 @@ static void csc_eigen_matmultivec (void *pa, void *pb, void *pc)
   {
     double *c0 = &vc->data [vc->active_indices [i]*vc->size], *c1;
 
+#if MUMPS>0
     id->rhs = c0;
     id->job = 3;
     dmumps_c (id);
+#else /* CHOLMOD */
+    vec_2_cholmod_dense (c0, A_prim->n, rhs);
+    cholmod_dense *sol = cholmod_solve (CHOLMOD_A, A_prim->num, &rhs, A_prim->sym);
+    blas_dcopy (sol->nrow, sol->x, 1, c0, 1);
+    cholmod_free_dense (&sol, A_prim->sym);
+#endif
 
     for (c1 = c0 + vc->size; c0 < c1; c0 ++) (*c0) *= -1.0;
   }
@@ -1967,11 +2035,11 @@ static void csc_eigen (MX *a, int n, double *val, MX *vec)
   A_prim = MX_Copy (a, NULL); /* A' = A + sigma * I */
   for (i = 0; i < a->n; i ++) A_prim->x [A_prim->p [i]] += sigma;
 
-  csc_inverse (A_prim, A_prim); /* MUMPS inverse */
+  csc_inverse (A_prim, A_prim); /* MUMPS/CHOLMOD inverse */
 
   ret = lobpcg_solve_double (
     xx, /* input/output eigenvectors */
-    A_prim->sym, csc_eigen_matmultivec, /* A */
+    A_prim, csc_eigen_matmultivec, /* A */
     NULL, NULL,
     NULL, NULL,
     NULL,  /* input-matrix Y */
@@ -2011,7 +2079,7 @@ static void csc_eigen (MX *a, int n, double *val, MX *vec)
 /* data needed below */
 struct csc_geneigen_data
 {
-  DMUMPS_STRUC_C *id;
+  MX *A_prim;
   MX *L;
 };
 
@@ -2022,7 +2090,10 @@ static void csc_geneigen_matmultivec (void *pa, void *pb, void *pc)
 {
   serial_Multi_Vector *vb = pb, *vc = pc;
   struct csc_geneigen_data *data = pa;
-  DMUMPS_STRUC_C *id = data->id;
+  MX *A_prim = data->A_prim;
+#if MUMPS>0
+  DMUMPS_STRUC_C *id = A_prim->sym;
+#endif
   MX *L = data->L;
   int i;
 
@@ -2035,9 +2106,16 @@ static void csc_geneigen_matmultivec (void *pa, void *pb, void *pc)
 
     for (c = c0, x = L->x, y = x + L->n; x < y; x ++, c ++) (*c) *= (*x);
 
+#if MUMPS>0
     id->rhs = c0;
     id->job = 3;
     dmumps_c (id);
+#else /* CHOLMOD */
+    vec_2_cholmod_dense (c0, A_prim->n, rhs);
+    cholmod_dense *sol = cholmod_solve (CHOLMOD_A, A_prim->num, &rhs, A_prim->sym);
+    blas_dcopy (sol->nrow, sol->x, 1, c0, 1);
+    cholmod_free_dense (&sol, A_prim->sym);
+#endif
 
     for (c = c0, x = L->x, y = x + L->n; x < y; x ++, c ++) (*c) *= -(*x);
   }
@@ -2523,9 +2601,9 @@ int MX_CSC_Geneigen (MX *A, MX *B, int n, double abstol, int maxiter, int verbos
 
   A_prim = MX_Add (1.0, A, sigma, B, NULL); /* A' = A + shift * M */
 
-  csc_inverse (A_prim, A_prim); /* MUMPS inverse */
+  csc_inverse (A_prim, A_prim); /* MUMPS/CHOLMOD inverse */
 
-  struct csc_geneigen_data data = {A_prim->sym, L};
+  struct csc_geneigen_data data = {A_prim, L};
 
   /* solve for 0 eigenmodes first */
 
@@ -2818,12 +2896,17 @@ void MX_Destroy (MX *a)
       {
 	if (MXSPD (a)) /* MUMPS */
 	{
+#if MUMPS>0
 	  DMUMPS_STRUC_C *id = a->sym;
 	  id->job = -2;
 	  dmumps_c (id);
 	  free (id->irn);
 	  free (id->jcn);
 	  free (id);
+#else
+	  cholmod_free_factor ((cholmod_factor**)&a->num, a->sym);
+	  cholmod_finish (a->sym);
+#endif
 	}
 	else /* CSparse */
 	{

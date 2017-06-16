@@ -14,7 +14,7 @@ KINEM = 'FINITE_ELEMENT'
 SOLVER = 'ns'
 SAREA = 0.05
 step = 0.001
-duration =  3 * step
+duration =  10 * step
 MAKE_TESTS = 0 # make convergence tests
 
 def cube (x, y, z, a, b, c, sur, vol):
@@ -335,7 +335,12 @@ def callback (sv):
 
 if not VIEWER() and NCPU(solfec) == 1: CALLBACK (solfec, step, sv, callback)
 
+import time
+t0 = time.time()
 RUN (solfec, sv, duration)
+elapsed = time.time() - t0
+if RANK() == 0 and solfec.mode == 'WRITE':   
+    print "analysis run time =", elapsed, "seconds"
 
 # Post-processing
 def write_data (t, v, path):

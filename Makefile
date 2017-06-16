@@ -33,19 +33,30 @@ endif
 
 include Flags.mak
 
-MUMPS_VERSION = 5
+# use 4 or 5; or 0 --> to switch to SuiteSparse
+MUMPS_VERSION = 0
 
-MUMPS = -Lext/mumps$(MUMPS_VERSION)/libseq -lmpiseq
+ifeq ($(MUMPS_VERSION),0)
+  LINSOLVER=ext/suitesparse/lib
+  LINSOLVERLIB=-Lext/suitesparse/lib -lcholmod -lamd -lcolamd -lsuitesparseconfig
+  LINSOLVERINC=-Iext/suitesparse/include
+  LINSOLVERCLEAN=(cd ext/suitesparse && make purge)
+else
+  LINSOLVER=obj/libdmumps.a
+  LINSOLVERLIB=-lmpiseq -ldmumps
+  LINSOLVERINC=
+  LINSOLVERCLEAN=(cd ext/mumps$(MUMPS_VERSION) && make clean)
+endif
 
 BLOPEXINC = -Iext/blopex/include
 
 CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(HDF5) $(XDRINC) $(LOCAL_BODIES)
 CXXFLAGS = $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
-LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(SICONOSLIB) $(PARMECLIB)
+LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(SICONOSLIB) $(PARMECLIB)
 
 ifeq ($(MPI),yes)
-  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(PARMECLIB)
+  LIBMPI = -lm -lstdc++ $(LAPACK) $(BLAS) $(PYTHONLIB) $(MPILIBS) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(PARMECLIB)
 endif
 
 EXTO  = obj/fastlz.o\
@@ -136,8 +147,8 @@ OBJMPI = $(EXTO)       \
 	 obj/psc-mpi.o \
 	 $(PARMECMPIO)
 
-solfec: obj/solfec.o obj/libBLOPEX.a obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
-	$(CXX) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIB)
+solfec: obj/solfec.o obj/libBLOPEX.a obj/libkrylov.a obj/libmetis.a obj/libtet.a $(LINSOLVER) obj/libsolfec.a
+	$(CXX) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov $(LINSOLVERLIB) -lmetis -ltet -lBLOPEX $(LIB)
 
 obj/libkrylov.a:
 	(cd ext/krylov && make)
@@ -147,6 +158,9 @@ obj/libmetis.a:
 
 obj/libdmumps.a:
 	(cd ext/mumps$(MUMPS_VERSION) && make)
+
+ext/suitesparse/lib:
+	(cd ext/suitesparse && make)
 
 obj/libtet.a:
 	(cd ext/tetgen && make)
@@ -163,8 +177,8 @@ ifeq ($(MPI),yes)
 
 all: solfec solfec-mpi
 
-solfec-mpi: obj/solfec-mpi.o obj/libBLOPEX.a obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
-	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIBMPI)
+solfec-mpi: obj/solfec-mpi.o obj/libBLOPEX.a obj/libkrylov.a obj/libmetis.a obj/libtet.a $(LINSOLVER) obj/libsolfec-mpi.a
+	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov $(LINSOLVERLIB) -lmetis -ltet -lBLOPEX $(LIBMPI)
 
 obj/libsolfec-mpi.a: $(OBJMPI)
 	rm -f $@
@@ -206,7 +220,7 @@ clean:
 	(cd tst && make clean)
 	(cd ext/krylov && make clean)
 	(cd ext/metis && make clean)
-	(cd ext/mumps$(MUMPS_VERSION) && make clean)
+	$(LINSOLVERCLEAN)
 	(cd ext/tetgen && make clean)
 	(cd ext/blopex && make clean)
 
@@ -253,7 +267,7 @@ obj/svk.o: svk.c svk.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/mtx.o: mtx.c mtx.h bla.h lap.h err.h
-	$(CC) $(CFLAGS) $(BLOPEXINC) -DMUMPS=$(MUMPS_VERSION) -c -o $@ $<
+	$(CC) $(CFLAGS) $(BLOPEXINC) $(LINSOLVERINC) -DMUMPS=$(MUMPS_VERSION) -c -o $@ $<
 
 obj/tms.o: tms.c tms.h mem.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<

@@ -23,9 +23,9 @@ z:
 include ../../Config.mak
 include Makefile.inc
 
-libseq: libseq/libmpiseq.a
+libseq: $(libdir)/libmpiseq.a
 
-libseq/libmpiseq.a:
+$(libdir)/libmpiseq.a:
 	(cd libseq && make)
 
 mumps_lib:    $(libdir)/lib$(ARITH)mumps$(PLAT).a
