@@ -8,3 +8,8 @@ solfec-mpi
 *.pyc
 ext/blopex/include*
 doc/#*
+ext/suitesparse/*/Demo/*
+ext/suitesparse/bin/*
+ext/suitesparse/lib/*
+ext/suitesparse/include/*
+ext/suitesparse/share/*
