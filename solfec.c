@@ -23,6 +23,10 @@
 #include <zoltan.h>
 #endif
 
+#if OMP
+#include <omp.h>
+#endif
+
 #include <signal.h>
 #include <string.h>
 #include <stdio.h>
@@ -270,6 +274,10 @@ int main (int argc, char **argv)
 #if MPI_VERSION >= 2
   MPI_set_error_handling ();
 #endif
+#endif
+
+#if OMP
+  /* omp_set_nested (1); */ /* XXX --> issues on inp/cubes.py */
 #endif
 
   TRY ()

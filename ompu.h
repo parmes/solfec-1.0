@@ -31,6 +31,16 @@ SOFTWARE.
 #include "box.h"
 #include "ldy.h"
 
+inline static BODY** ompu_bodies (DOM *dom, int *n)
+{
+  int j;
+  BODY **pbod, *bod;
+  ERRMEM (pbod = malloc ((dom->nbod) * sizeof(BODY*)));
+  for (bod = dom->bod, j = 0; bod; bod = bod->next, j++) pbod[j] = bod;
+  *n = dom->nbod;
+  return pbod;
+}
+
 inline static DIAB** ompu_diab (LOCDYN *ldy, int *n)
 {
   int j = 0;

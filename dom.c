@@ -46,6 +46,7 @@
 #if OMP
 #include <omp.h>
 #include "ompu.h"
+#define OMP_GO_PARALLEL 128
 #endif
 
 #define CONBLK 128 /* constraints memory block size */
@@ -3560,8 +3561,6 @@ void DOM_Extents (DOM *dom, double *extents)
 /* initialize domain at t == 0.0 */
 void DOM_Initialize (DOM *dom)
 {
-  BODY *bod;
-
 #if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
@@ -3574,6 +3573,19 @@ void DOM_Initialize (DOM *dom)
 
   SOLFEC_Timer_Start (dom->solfec, "TIMINT");
 
+#if OMP
+  int i, n;
+  BODY **pbod = ompu_bodies (dom, &n);
+  int nthreads = n > OMP_GO_PARALLEL ? omp_get_num_threads() : 1;
+#pragma omp parallel for num_threads(nthreads)
+  for (i = 0; i < n; i ++)
+  {
+    if (dom->dynamic > 0) BODY_Dynamic_Init (pbod[i]);
+    else BODY_Static_Init (pbod[i]);
+  }
+  free (pbod);
+#else
+  BODY *bod;
   /* initialize bodies */
   if (dom->dynamic > 0)
   {
@@ -3589,6 +3601,7 @@ void DOM_Initialize (DOM *dom)
       BODY_Static_Init (bod);
     }
   }
+#endif
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 }
@@ -3629,15 +3642,32 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   time = dom->time;
   step = dom->step;
 
+#if OMP
+  int i, n;
+  BODY **pbod = ompu_bodies (dom, &n);
+  int nthreads = n > OMP_GO_PARALLEL ? omp_get_num_threads() : 1;
+#endif
+
   /* initialize bodies */
   if (dom->dynamic > 0)
   {
+#if OMP
+    double h0 = step;
+#pragma omp parallel for reduction (min:h0) num_threads(nthreads)
+    for (i = 0; i < n; i ++)
+    {
+      double h1 = BODY_Dynamic_Critical_Step (pbod[i]);
+      if (h1 < h0) h0 = h1;
+    }
+    if (h0 < step) step = h0;
+#else
     for (bod = dom->bod; bod; bod = bod->next)
     {
       double h = BODY_Dynamic_Critical_Step (bod);
 
       if (h < step) step = h;
     }
+#endif
   }
 
 #if MPI
@@ -3649,6 +3679,14 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 #endif
   if (dom->verbose) printf (" (STEP: %.3g) ", step), fflush (stdout);
 
+#if OMP
+#pragma omp parallel for num_threads(nthreads)
+  for (i = 0; i < n; i ++)
+  {
+    if (dom->dynamic) BODY_Dynamic_Step_Begin (pbod[i], time, step);
+    else BODY_Static_Step_Begin (pbod[i], time, step);
+  }
+#else
   /* begin time integration */
   if (dom->dynamic)
     for (bod = dom->bod; bod; bod = bod->next)
@@ -3656,6 +3694,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   else
     for (bod = dom->bod; bod; bod = bod->next)
       BODY_Static_Step_Begin (bod, time, step);
+#endif
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 
@@ -3697,6 +3736,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
     }
   }
 #if OMP
+  free (pbod);
   free (pcon);
 #endif
 
