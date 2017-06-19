@@ -12596,7 +12596,7 @@ state
 \end_layout
 
 \begin_layout Subsection*
-INITIALIZE_STATE (solfec, path, time)
+INITIALIZE_STATE (solfec, path, time | subset)
 \end_layout
 
 \begin_layout Standard
@@ -12637,8 +12637,43 @@ time
  - time at which the state should be red from the output files
 \end_layout
 
+\begin_layout Itemize
+
+\series bold
+subset
+\series default
+ - defines a subset of initialized bodies; a string can be used to define
+ a POSIX regular expression
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+Follow 
+\series bold
+
+\begin_inset CommandInset href
+LatexCommand href
+name "this link"
+target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
+
+\end_inset
+
+
+\series default
+ for the syntax of POSIX regular expressions.
+\end_layout
+
+\end_inset
+
+ that will be matched against body labels; a list of such strings can also
+ be passed; e.g.
+ [‘^BOD.*A$’, '^BODY1$', '^BODY2$', '^BOD.*B$'] defines two direct labels
+ 'BODY1' and 'BODY2' and two possible subsets made of labels such as 'BODY123A',
+ 'BODY_anything_B', etc.
+\end_layout
+
 \begin_layout Subsection*
-RIGID_TO_FEM (path, time, solfec)
+RIGID_TO_FEM (path, time, solfec | subset)
 \end_layout
 
 \begin_layout Standard
@@ -12683,6 +12718,41 @@ time
 solfec
 \series default
  - Solfec object in the 'WRITE' mode
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+subset
+\series default
+ - defines a subset of initialized bodies; a string can be used to define
+ a POSIX regular expression
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+Follow 
+\series bold
+
+\begin_inset CommandInset href
+LatexCommand href
+name "this link"
+target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
+
+\end_inset
+
+
+\series default
+ for the syntax of POSIX regular expressions.
+\end_layout
+
+\end_inset
+
+ that will be matched against body labels; a list of such strings can also
+ be passed; e.g.
+ [‘^BOD.*A$’, '^BODY1$', '^BODY2$', '^BOD.*B$'] defines two direct labels
+ 'BODY1' and 'BODY2' and two possible subsets made of labels such as 'BODY123A',
+ 'BODY_anything_B', etc.
 \end_layout
 
 \begin_layout Section
@@ -14289,7 +14359,7 @@ Follow
 \begin_inset CommandInset href
 LatexCommand href
 name "this link"
-target "http://www.boost.org/doc/libs/1_61_0/libs/regex/doc/html/boost_regex/syntax/basic_syntax.html"
+target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
 
 \end_inset
 
@@ -14710,7 +14780,7 @@ Follow
 \begin_inset CommandInset href
 LatexCommand href
 name "this link"
-target "http://www.boost.org/doc/libs/1_61_0/libs/regex/doc/html/boost_regex/syntax/basic_syntax.html"
+target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
 
 \end_inset
 

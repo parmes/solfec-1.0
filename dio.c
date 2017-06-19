@@ -5,6 +5,10 @@
  * domain input-output
  */
 
+#if POSIX
+#include <sys/stat.h>
+#include <regex.h>
+#endif
 #include <string.h>
 #include "sol.h"
 #include "dio.h"
@@ -653,9 +657,19 @@ int dom_read_constraint (DOM *dom, PBF *bf, CON *con)
   return 0;
 }
 
+#if POSIX
+/* get regular expression error */
+static char *get_regerror (int errcode, regex_t *compiled)
+{
+  size_t length = regerror (errcode, compiled, NULL, 0);
+  char *buffer = malloc (length);
+  regerror (errcode, compiled, buffer, length);
+  return buffer;
+}
+#endif
 
 /* initialize domain state */
-int dom_init_state (DOM *dom, PBF *bf)
+int dom_init_state (DOM *dom, PBF *bf, SET *subset)
 {
   for (; bf; bf = bf->next)
   {
@@ -674,52 +688,93 @@ int dom_init_state (DOM *dom, PBF *bf)
 
       /* read body states */
 
-      ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
-
-      int nbod;
-
-      PBF_Int (bf, &nbod, 1);
-
-      for (int n = 0; n < nbod; n ++)
+      if (subset)
       {
-	unsigned int id;
-	BODY *bod;
-
-	PBF_Uint (bf, &id, 1);
-	bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
-
-	if (bod) /* update state of existing bodies only */
+#if POSIX
+	for (SET *item = SET_First (subset); item; item = SET_Next (item))
 	{
-	  BODY_Read_State (bod, bf, iover);
-	}
-	else /* mock read */
-	{
-	  int rkind;
-	  int rconf;
-	  int rdofs;
+	  regex_t xp;
+	  char *pattern = item->data;
+	  int error = regcomp (&xp, pattern, 0);
 
-	  PBF_Int (bf, &rkind, 1);
-	  PBF_Int (bf, &rconf, 1);
-	  PBF_Int (bf, &rdofs, 1);
-
-	  double *conf;
-	  double *velo;
-	  double energy[10];
-	  int rank;
-
-	  ERRMEM (conf = malloc (sizeof(double) * rconf));
-	  ERRMEM (velo = malloc (sizeof(double) * rdofs));
-
-	  PBF_Double (bf, conf, rconf);
-	  PBF_Double (bf, velo, rdofs);
-	  PBF_Double (bf, energy, BODY_ENERGY_SIZE(rkind));
-	  if (bf->parallel == PBF_ON)
+	  if (error != 0)
 	  {
-	    PBF_Int (bf, &rank, 1);
+	    char *message = get_regerror (error, &xp);
+	    fprintf (stderr, "-->\n");
+	    fprintf (stderr, "Regular expression ERROR --> %s\n", message);
+	    fprintf (stderr, "<--\n");
+	    regfree (&xp);
+	    free (message);
+	    return 0;
 	  }
 
-	  free (conf);
-	  free (velo);
+	  for (BODY *bod = dom->bod; bod; bod = bod->next)
+	  {
+	    if (bod->label && regexec (&xp, bod->label, 0, NULL, 0) == 0)
+	    {
+	      if (PBF_Label (bf, bod->label))
+	      {
+	        BODY_Read_State (bod, bf, iover);
+	      }
+	    }
+	  }
+
+	  regfree (&xp);
+	}
+#else
+	ASSERT_TEXT (0, "Regular expressions require POSIX support --> recompile Solfec with POSIX=yes");
+	return 0;
+#endif
+      }
+      else
+      {
+	ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
+
+	int nbod;
+
+	PBF_Int (bf, &nbod, 1);
+
+	for (int n = 0; n < nbod; n ++)
+	{
+	  unsigned int id;
+	  BODY *bod;
+
+	  PBF_Uint (bf, &id, 1);
+	  bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
+
+	  if (bod) /* update state of existing bodies only */
+	  {
+	    BODY_Read_State (bod, bf, iover);
+	  }
+	  else /* mock read */
+	  {
+	    int rkind;
+	    int rconf;
+	    int rdofs;
+
+	    PBF_Int (bf, &rkind, 1);
+	    PBF_Int (bf, &rconf, 1);
+	    PBF_Int (bf, &rdofs, 1);
+
+	    double *conf;
+	    double *velo;
+	    double energy[10];
+	    int rank;
+
+	    ERRMEM (conf = malloc (sizeof(double) * rconf));
+	    ERRMEM (velo = malloc (sizeof(double) * rdofs));
+
+	    PBF_Double (bf, conf, rconf);
+	    PBF_Double (bf, velo, rdofs);
+	    PBF_Double (bf, energy, BODY_ENERGY_SIZE(rkind));
+	    if (bf->parallel == PBF_ON)
+	    {
+	      PBF_Int (bf, &rank, 1);
+	    }
+
+	    free (conf);
+	    free (velo);
+	  }
 	}
       }
     }
@@ -729,7 +784,7 @@ int dom_init_state (DOM *dom, PBF *bf)
 }
 
 /* map rigid onto FEM state */
-int dom_rigid_to_fem (DOM *dom, PBF *bf)
+int dom_rigid_to_fem (DOM *dom, PBF *bf, SET *subset)
 {
   for (; bf; bf = bf->next)
   {
@@ -748,84 +803,154 @@ int dom_rigid_to_fem (DOM *dom, PBF *bf)
 
       /* read body states */
 
-      ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
-
-      int nbod;
-
-      PBF_Int (bf, &nbod, 1);
-
-      for (int n = 0; n < nbod; n ++)
+      if (subset)
       {
-	double conf [12], velo [6], energy [4];
-	unsigned int id;
-	BODY *bod;
-	int rank;
-
-	PBF_Uint (bf, &id, 1);
-
-	bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
-
-	if (bod) /* update state of existing bodies only */
+#if POSIX
+	for (SET *item = SET_First (subset); item; item = SET_Next (item))
 	{
-	  int rkind;
-	  int rconf;
-	  int rdofs;
+	  regex_t xp;
+	  char *pattern = item->data;
+	  int error = regcomp (&xp, pattern, 0);
 
-	  PBF_Int (bf, &rkind, 1);
-	  PBF_Int (bf, &rconf, 1);
-	  PBF_Int (bf, &rdofs, 1);
- 
-	  if (bod->kind == FEM && rkind == RIG)
+	  if (error != 0)
 	  {
+	    char *message = get_regerror (error, &xp);
+	    fprintf (stderr, "-->\n");
+	    fprintf (stderr, "Regular expression ERROR --> %s\n", message);
+	    fprintf (stderr, "<--\n");
+	    regfree (&xp);
+	    free (message);
+	    return 0;
+	  }
 
-	    PBF_Double (bf, conf, 12);
-	    PBF_Double (bf, velo, 6);
-	    PBF_Double (bf, energy, 4);
+	  for (BODY *bod = dom->bod; bod; bod = bod->next)
+	  {
+	    if (bod->label && regexec (&xp, bod->label, 0, NULL, 0) == 0)
+	    {
+	      if (PBF_Label (bf, bod->label))
+	      {
+	        double conf [12],
+		       velo [6],
+		       energy [4];
+
+		int rkind;
+		int rconf;
+		int rdofs;
+
+		PBF_Int (bf, &rkind, 1);
+		PBF_Int (bf, &rconf, 1);
+		PBF_Int (bf, &rdofs, 1);
+       
+		if (bod->kind == FEM && rkind == RIG)
+		{
+
+		  PBF_Double (bf, conf, 12);
+		  PBF_Double (bf, velo, 6);
+		  PBF_Double (bf, energy, 4);
+
+		  BODY_From_Rigid (bod, conf, conf+9, velo, velo+3);
+		}
+		else
+		{
+		  ASSERT_TEXT (((bod->kind == RIG || bod->kind == OBS) &&
+		    (rkind == RIG || rkind == OBS)) || bod->kind == (unsigned)rkind, "Body kind mismatch when reading state");
+		  ASSERT_TEXT (BODY_Conf_Size (bod) == rconf, "Body configuration size mismatch when reading state");
+		  ASSERT_TEXT (bod->dofs == rdofs, "Body dofs size mismatch when reading state");
+
+		  BODY_Read_State (bod, bf, 0); /* use 0 state to skip reading of rkind, rnconf, rdofs */
+		}
+	      }
+	    }
+	  }
+
+	  regfree (&xp);
+	}
+#else
+	ASSERT_TEXT (0, "Regular expressions require POSIX support --> recompile Solfec with POSIX=yes");
+	return 0;
+#endif
+      }
+      else
+      {
+	ASSERT (PBF_Label (bf, "BODS"), ERR_FILE_FORMAT);
+
+	int nbod;
+
+	PBF_Int (bf, &nbod, 1);
+
+	for (int n = 0; n < nbod; n ++)
+	{
+	  double conf [12], velo [6], energy [4];
+	  unsigned int id;
+	  BODY *bod;
+	  int rank;
+
+	  PBF_Uint (bf, &id, 1);
+
+	  bod = MAP_Find (dom->idb, (void*) (long) id, NULL);
+
+	  if (bod) /* update state of existing bodies only */
+	  {
+	    int rkind;
+	    int rconf;
+	    int rdofs;
+
+	    PBF_Int (bf, &rkind, 1);
+	    PBF_Int (bf, &rconf, 1);
+	    PBF_Int (bf, &rdofs, 1);
+   
+	    if (bod->kind == FEM && rkind == RIG)
+	    {
+
+	      PBF_Double (bf, conf, 12);
+	      PBF_Double (bf, velo, 6);
+	      PBF_Double (bf, energy, 4);
+	      if (bf->parallel == PBF_ON)
+	      {
+		PBF_Int (bf, &rank, 1);
+	      }
+
+	      BODY_From_Rigid (bod, conf, conf+9, velo, velo+3);
+	    }
+	    else
+	    {
+	      ASSERT_TEXT (((bod->kind == RIG || bod->kind == OBS) &&
+		(rkind == RIG || rkind == OBS)) || bod->kind == (unsigned)rkind, "Body kind mismatch when reading state");
+	      ASSERT_TEXT (BODY_Conf_Size (bod) == rconf, "Body configuration size mismatch when reading state");
+	      ASSERT_TEXT (bod->dofs == rdofs, "Body dofs size mismatch when reading state");
+
+	      BODY_Read_State (bod, bf, 0); /* use 0 state to skip reading of rkind, rnconf, rdofs */
+	    }
+	  }
+	  else /* mock read */
+	  {
+	    int rkind;
+	    int rconf;
+	    int rdofs;
+
+	    PBF_Int (bf, &rkind, 1);
+	    PBF_Int (bf, &rconf, 1);
+	    PBF_Int (bf, &rdofs, 1);
+
+	    double *conf;
+	    double *velo;
+	    double energy[10];
+	    int rank;
+
+	    ERRMEM (conf = malloc (sizeof(double) * rconf));
+	    ERRMEM (velo = malloc (sizeof(double) * rdofs));
+
+	    PBF_Double (bf, conf, rconf);
+	    PBF_Double (bf, velo, rdofs);
+	    PBF_Double (bf, energy, BODY_ENERGY_SIZE(rkind));
 	    if (bf->parallel == PBF_ON)
 	    {
 	      PBF_Int (bf, &rank, 1);
 	    }
 
-	    BODY_From_Rigid (bod, conf, conf+9, velo, velo+3);
+	    free (conf);
+	    free (velo);
 	  }
-	  else
-	  {
-	    ASSERT_TEXT (((bod->kind == RIG || bod->kind == OBS) &&
-              (rkind == RIG || rkind == OBS)) || bod->kind == (unsigned)rkind, "Body kind mismatch when reading state");
-	    ASSERT_TEXT (BODY_Conf_Size (bod) == rconf, "Body configuration size mismatch when reading state");
-	    ASSERT_TEXT (bod->dofs == rdofs, "Body dofs size mismatch when reading state");
-
-	    BODY_Read_State (bod, bf, 0); /* use 0 state to skip reading of rkind, rnconf, rdofs */
-	  }
-        }
-	else /* mock read */
-	{
-	  int rkind;
-	  int rconf;
-	  int rdofs;
-
-	  PBF_Int (bf, &rkind, 1);
-	  PBF_Int (bf, &rconf, 1);
-	  PBF_Int (bf, &rdofs, 1);
-
-	  double *conf;
-	  double *velo;
-	  double energy[10];
-	  int rank;
-
-	  ERRMEM (conf = malloc (sizeof(double) * rconf));
-	  ERRMEM (velo = malloc (sizeof(double) * rdofs));
-
-	  PBF_Double (bf, conf, rconf);
-	  PBF_Double (bf, velo, rdofs);
-	  PBF_Double (bf, energy, BODY_ENERGY_SIZE(rkind));
-	  if (bf->parallel == PBF_ON)
-	  {
-	    PBF_Int (bf, &rank, 1);
-	  }
-
-	  free (conf);
-	  free (velo);
 	}
       }
     }

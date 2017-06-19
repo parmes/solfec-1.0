@@ -40,7 +40,7 @@ TRANSLATE (hex, (0.4, 0, 0))
 for i in range (0, 4):
   shp = COPY (hex)
   TRANSLATE (shp, (0, i * 0.2, 0))
-  b = BODY (solfec, 'FINITE_ELEMENT', shp, bulkmat)
+  b = BODY (solfec, 'FINITE_ELEMENT', shp, bulkmat, label = 'BODY%d'%i)
   b.scheme = 'DEF_LIM'
   b.damping = step
 
@@ -56,5 +56,7 @@ OUTPUT (solfec, step)
 
 # initialise from the end of the rigid simulation
 RIGID_TO_FEM ('out/devel/rigid-to-fem-1', 0.5, solfec)
+#RIGID_TO_FEM ('out/devel/rigid-to-fem-1', 0.5, solfec, subset = 'BODY3')
+#RIGID_TO_FEM ('out/devel/rigid-to-fem-1', 0.5, solfec, subset = ['BODY2', 'BODY3'])
 
 RUN (solfec, gs, 0.5)

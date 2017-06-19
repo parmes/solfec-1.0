@@ -40,7 +40,7 @@ TRANSLATE (hex, (0.4, 0, 0))
 for i in range (0, 4):
   shp = COPY (hex)
   TRANSLATE (shp, (0, i * 0.2, 0))
-  b = BODY (solfec, 'RIGID', shp, bulkmat)
+  b = BODY (solfec, 'RIGID', shp, bulkmat, label = 'BODY%d'%i)
 
 shp = SPHERE ((0.5, -0.5, 0.3), 0.1, 3, 3)
 

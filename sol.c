@@ -768,7 +768,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 	{
 	  PBF_Limits (bf, &s, &e);
           PBF_Seek (bf, e);
-          ASSERT_TEXT (dom_init_state (sol->dom, bf) > 0, "Re-initialisation of state has failed");
+          ASSERT_TEXT (dom_init_state (sol->dom, bf, NULL) > 0, "Re-initialisation of state has failed");
 	  sol->dom->time = e; /* current time at the end */
 	  duration -= e; /* duration is less by the time shift */
 	  PBF_Close (bf);
@@ -1291,8 +1291,10 @@ void SOLFEC_2_MBFCP (SOLFEC *sol, FILE *out)
   DOM_2_MBFCP (sol->dom, out);
 }
 
-/* initialize state from the ouput; return 1 on success, 0 otherwise */
-int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time)
+/* initialize state from the ouput; return 1 on success, 0 otherwise;
+ * optinal "subset" is a set of strings defining POSIX regular expressions to be matched
+ * against body labels -- narrowing down the set of bodies whose state will  be initialized */
+int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time, SET *subset)
 {
   int ret;
   PBF *bf;
@@ -1301,14 +1303,16 @@ int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time)
   if (!bf) return 0;
 
   PBF_Seek (bf, time);
-  ret = dom_init_state (sol->dom, bf);
+  ret = dom_init_state (sol->dom, bf, subset);
   PBF_Close (bf);
 
   return ret;
 }
 
-/* map rigid motion onto FEM bodies; return 1 on success, 0 otherwise */
-int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time)
+/* map rigid motion onto FEM bodies; return 1 on success, 0 otherwise;
+ * optinal "subset" is a set of strings defining POSIX regular expressions to be matched
+ * against body labels -- narrowing down the set of bodies whose state will  be initialized */
+int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time, SET *subset)
 {
   int ret;
   PBF *bf;
@@ -1317,7 +1321,7 @@ int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time)
   if (!bf) return 0;
 
   PBF_Seek (bf, time);
-  ret = dom_rigid_to_fem (sol->dom, bf);
+  ret = dom_rigid_to_fem (sol->dom, bf, subset);
   PBF_Close (bf);
 
   return ret;

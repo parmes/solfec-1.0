@@ -8448,18 +8448,48 @@ static PyObject* lng_WARNINGS (PyObject *self, PyObject *args, PyObject *kwds)
 /* initialize state */
 static PyObject* lng_INITIALIZE_STATE (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("solfec", "path", "time");
+  KEYWORDS ("solfec", "path", "time", "subset");
+  PyObject *path, *subset_arg;
   lng_SOLFEC *solfec;
-  PyObject *path;
+  SET *subset;
   double time;
 
-  PARSEKEYS ("OOd", &solfec, &path, &time);
+  subset = NULL;
+  subset_arg = NULL;
 
-  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[1]) && is_non_negative (time, kwl[2]));
+  PARSEKEYS ("OOd|O", &solfec, &path, &time, &subset_arg);
+
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[1]) && is_non_negative (time, kwl[2])
+            && is_list_or_string (subset_arg, kwl[3], 1, 2));
+
+  if (subset_arg)
+  {
+    if (PyList_Check (subset_arg))
+    {
+      for (int i = 0; i < PyList_Size (subset_arg); i ++)
+      {
+	PyObject *item = PyList_GetItem (subset_arg, i);
+
+	if (PyString_Check (item))
+	{
+          SET_Insert (NULL, &subset, PyString_AsString (item), NULL);
+	}
+	else
+	{
+	  PyErr_SetString (PyExc_TypeError, "All elements of the 'subset' list must be strings");
+	  return NULL;
+	}
+      }
+    }
+    else
+    {
+      SET_Insert (NULL, &subset, PyString_AsString (subset_arg), NULL);
+    }
+  }
 
   if (solfec->sol->mode == SOLFEC_WRITE)
   {
-    if (SOLFEC_Initialize_State (solfec->sol, PyString_AsString (path), time) == 0)
+    if (SOLFEC_Initialize_State (solfec->sol, PyString_AsString (path), time, subset) == 0)
     {
       PyErr_SetString (PyExc_RuntimeError, "State initialization has failed");
       return NULL;
@@ -8470,24 +8500,56 @@ static PyObject* lng_INITIALIZE_STATE (PyObject *self, PyObject *args, PyObject 
     WARNING (0, "INITIALIZE_STATE has been ingnored in the 'READ' mode");
   }
 
+  if (subset) SET_Free (NULL, &subset);
+
   Py_RETURN_NONE;
 }
 
 /* initialize FEM bodies with rigid motion */
 static PyObject* lng_RIGID_TO_FEM (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("path", "time", "solfec");
+  KEYWORDS ("path", "time", "solfec", "subset");
+  PyObject *path, *subset_arg;
   lng_SOLFEC *solfec;
-  PyObject *path;
+  SET *subset;
   double time;
 
-  PARSEKEYS ("OdO", &path, &time, &solfec);
+  subset = NULL;
+  subset_arg = NULL;
 
-  TYPETEST (is_string (path, kwl[0]) && is_non_negative (time, kwl[1]) && is_solfec (solfec, kwl[2]));
+  PARSEKEYS ("OdO|O", &path, &time, &solfec, &subset_arg);
+
+  TYPETEST (is_string (path, kwl[0]) && is_non_negative (time, kwl[1]) && is_solfec (solfec, kwl[2]) &&
+            is_list_or_string (subset_arg, kwl[3], 1, 2));
+
+  if (subset_arg)
+  {
+    if (PyList_Check (subset_arg))
+    {
+      for (int i = 0; i < PyList_Size (subset_arg); i ++)
+      {
+	PyObject *item = PyList_GetItem (subset_arg, i);
+
+	if (PyString_Check (item))
+	{
+          SET_Insert (NULL, &subset, PyString_AsString (item), NULL);
+	}
+	else
+	{
+	  PyErr_SetString (PyExc_TypeError, "All elements of the 'subset' list must be strings");
+	  return NULL;
+	}
+      }
+    }
+    else
+    {
+      SET_Insert (NULL, &subset, PyString_AsString (subset_arg), NULL);
+    }
+  }
 
   if (solfec->sol->mode == SOLFEC_WRITE)
   {
-    if (SOLFEC_Rigid_To_FEM (solfec->sol, PyString_AsString (path), time) == 0)
+    if (SOLFEC_Rigid_To_FEM (solfec->sol, PyString_AsString (path), time, subset) == 0)
     {
       PyErr_SetString (PyExc_RuntimeError, "Rigid to FEM state mapping has failed");
       return NULL;
@@ -8497,6 +8559,8 @@ static PyObject* lng_RIGID_TO_FEM (PyObject *self, PyObject *args, PyObject *kwd
   {
     WARNING (0, "RIGID_TO_FEM has been ingnored in the 'READ' mode");
   }
+
+  if (subset) SET_Free (NULL, &subset);
 
   Py_RETURN_NONE;
 }
@@ -9432,6 +9496,7 @@ static PyObject* lng_RENDER (PyObject *self, PyObject *args, PyObject *kwds)
 }
 #endif
 
+#if POSIX
 /* get regular expression error */
 static char *get_regerror (int errcode, regex_t *compiled)
 {
@@ -9440,6 +9505,7 @@ static char *get_regerror (int errcode, regex_t *compiled)
   regerror (errcode, compiled, buffer, length);
   return buffer;
 }
+#endif
 
 /* create bounding box overlap callback */
 void overlap_create1 (SET **subset, BOX *one, BOX *two)

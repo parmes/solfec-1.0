@@ -24,9 +24,9 @@ int dom_read_body (DOM *dom, PBF *bf, BODY *bod);
 int dom_read_constraint (DOM *dom, PBF *bf, CON *con);
 
 /* initialize domain state */
-int dom_init_state (DOM *dom, PBF *bf);
+int dom_init_state (DOM *dom, PBF *bf, SET *subset);
 
 /* map rigid onto FEM state */
-int dom_rigid_to_fem (DOM *dom, PBF *bf);
+int dom_rigid_to_fem (DOM *dom, PBF *bf, SET *subset);
 
 #endif

@@ -234,11 +234,15 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 /* export MBFCP definition */
 void SOLFEC_2_MBFCP (SOLFEC *sol, FILE *out);
 
-/* initialize state from the ouput; return 1 on success, 0 otherwise */
-int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time);
+/* initialize state from the ouput; return 1 on success, 0 otherwise;
+ * optinal "subset" is a set of strings defining POSIX regular expressions to be matched
+ * against body labels -- narrowing down the set of bodies whose state will  be initialized */
+int SOLFEC_Initialize_State (SOLFEC *sol, char *path, double time, SET *subset);
 
-/* map rigid motion onto FEM bodies; return 1 on success, 0 otherwise */
-int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time);
+/* map rigid motion onto FEM bodies; return 1 on success, 0 otherwise;
+ * optinal "subset" is a set of strings defining POSIX regular expressions to be matched
+ * against body labels -- narrowing down the set of bodies whose state will  be initialized */
+int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time, SET *subset);
 
 /* register FE base; (evec, eval, label) must be dynamically allocated */
 void SOLFEC_Register_Base (SOLFEC *sol, MX *evec, double *eval, char *label);
