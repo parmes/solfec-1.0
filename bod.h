@@ -313,6 +313,15 @@ void BODY_Point_Values (BODY *bod, double *point, VALUE_KIND kind, double *value
 /* split body by a referential plane; output one body with new boundary or two bodies if fragmentation occurs */
 void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int surfid[2], BODY **one, BODY **two);
 
+/* split MESH-based body by surface definned by inter-element mesh faces;
+ * 'surf' defines faces as follows: [(4, n1, n2, n3, n4), (3, n1, n2, n3), ..., 0];
+ * 'sid1' and 'sid2' are surface ids on the input and ouput bodies respectively;
+ * The index of the original node id in 'lst1' or 'lst2' defines the relationship
+ * between the nodes in the original MESH and the newly created MESH(s);
+ * returned: another body if the original mesh was split in two pieces; otherwise NULL;
+ * if more then two split pieces are created -- execution is aborted with an error message */
+BODY* BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, int **lst1, int *nlst1, int **lst2, int *nlst2);
+
 /* separate body whose shape is separable into sub-bodies */
 BODY** BODY_Separate (BODY *bod, int *m);
 

@@ -13619,6 +13619,191 @@ surfid
  - surface identifier for the newly created surfaces (default: 0).
 \end_layout
 
+\begin_layout Standard
+\begin_inset Note Note
+status open
+
+\begin_layout Subsection*
+(body2, lst1, lst2) = RT_SPLIT (body1, surf | sid1, sid2) 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Plain Layout
+This routine splits a meshed BODY object along a surface aligned with internal
+ element boundaries.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body2
+\series default
+ - created BODY object or 
+\emph on
+None
+\emph default
+ if the split does not create another body
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+lst1, lst2
+\series default
+ - lists of original node ids on original BODY and created BODY (
+\series bold
+body2
+\series default
+) (or 
+\emph on
+None
+\emph default
+).
+ The index of the original node id in lst1 or lst2 defines the relationship
+ between the nodes in the original MESH and the newly created MESH(s).
+ For example, if body1 has a MESH of two hexahedral elements (12 nodes)
+ connected by one face (nodes 4-7) and is split on this face using RT_SPLIT,
+ RT_SPLIT would return 
+\series bold
+body2
+\series default
+, 
+\series bold
+lst1
+\series default
+=[0,1,2,3,4,5,6,7], 
+\series bold
+lst2
+\series default
+=[4,5,6,7,8,9,10,11].
+ This information can be used to maintain user side nodeset/elementset/surfacese
+t information associated with each of the components.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body1
+\series default
+ - a MESH shape based BODY object which is split
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surf
+\series default
+ - surface definition of the split plane on 
+\series bold
+body1
+\series default
+.
+ Should be a list of lists of mesh nodes defining the element faces.
+ For example, [[1, 2, 3], [1, 4, 2]] would define surf on faces f1 and f2
+ of a tetrahedron element as per MESH object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+sid1
+\series default
+ - optional surface identifier for the two newly created surface on 
+\series bold
+body1
+\series default
+; default: 0
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+sid2
+\series default
+ - optional surface identifier for the two newly created surface on 
+\series bold
+body2
+\series default
+; default: 0
+\end_layout
+
+\begin_layout Plain Layout
+Assumptions:
+\end_layout
+
+\begin_layout Enumerate
+Only valid for BODY objects with a MESH based shape.
+\end_layout
+
+\begin_layout Enumerate
+RT_SPLIT appends the newly created body, 
+\series bold
+body2
+\series default
+, to the same SOLFEC object that stores 
+\series bold
+body1
+\series default
+.
+\end_layout
+
+\begin_layout Enumerate
+RT_SPLIT returns a single newly created body or 
+\emph on
+None
+\emph default
+.
+\end_layout
+
+\begin_layout Enumerate
+The newly created body, 
+\series bold
+body2
+\series default
+, is on the 
+\emph on
+positive
+\emph default
+ side of surf, i.e.
+ the normals of surf points towards the newly created body.
+\end_layout
+
+\begin_layout Enumerate
+The original body, 
+\series bold
+body1
+\series default
+, maintains its body id.
+\end_layout
+
+\begin_layout Enumerate
+Following the split, all relevant 
+\series bold
+body1
+\series default
+ object parameters and properties are updated.
+\end_layout
+
+\begin_layout Enumerate
+Surface 
+\series bold
+surf
+\series default
+ normals are calculated based on the order of the face nodes as per MESH
+ object.
+\end_layout
+
+\begin_layout Enumerate
+The split surface is fully defined by existing element faces, and no remeshing
+ is required.
+\end_layout
+
+\end_inset
+
+
+\end_layout
+
 \begin_layout Subsection*
 obj = COPY (shape)
 \end_layout

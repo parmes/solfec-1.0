@@ -2058,6 +2058,12 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
   /* TODO: transfer forces to parts */
 }
 
+BODY* BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, int **lst1, int *nlst1, int **lst2, int *nlst2)
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+  return NULL;
+}
+
 BODY** BODY_Separate (BODY *bod, int *m)
 {
   BODY **out = NULL;

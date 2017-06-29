@@ -7826,6 +7826,92 @@ static PyObject* lng_MESH_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   else Py_RETURN_NONE;
 }
 
+/* "real--time" split */
+static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body1", "surf", "sid1", "sid2");
+  int *surf, sid1, sid2, *lst1, *lst2, nlst1, nlst2, *ptr, i;
+  PyObject *surf_arg;
+  lng_BODY *body1;
+  BODY *bod;
+
+  bod = NULL;
+  sid1 = 0;
+  sid2 = 0;
+
+  PARSEKEYS ("OO|dd", &body1, &surf_arg, &sid1, &sid2);
+
+  TYPETEST (is_body (body1, kwl[0]) && is_list (surf_arg, kwl[1], 0, 0));
+
+  ERRMEM (surf = malloc (sizeof(int [5]) * PyList_Size (surf_arg) + sizeof(int)));
+
+  for (i = 0, ptr = surf; i < PyList_Size (surf_arg); i ++, ptr += (ptr[0]+1))
+  {
+    PyObject *item = PyList_GetItem (surf_arg, i);
+
+    if (PyList_Check (item))
+    {
+      switch (PyList_Size (item))
+      {
+      case 3:
+        ptr[0] = 3;
+	ptr[1] = PyInt_AsLong (PyList_GetItem (item, 0));
+	ptr[2] = PyInt_AsLong (PyList_GetItem (item, 1));
+	ptr[3] = PyInt_AsLong (PyList_GetItem (item, 2));
+      break;
+      case 4:
+        ptr[0] = 4;
+	ptr[1] = PyInt_AsLong (PyList_GetItem (item, 0));
+	ptr[2] = PyInt_AsLong (PyList_GetItem (item, 1));
+	ptr[3] = PyInt_AsLong (PyList_GetItem (item, 2));
+	ptr[4] = PyInt_AsLong (PyList_GetItem (item, 3));
+      break;
+      default:
+	PyErr_SetString (PyExc_ValueError, "invalid face size (neither 3 nor 4)");
+	return NULL;
+      }
+    }
+    else
+    {
+      PyErr_SetString (PyExc_ValueError, "'surf' must be a list of lists");
+      return NULL;
+    }
+  }
+  ptr[0] = 0; /* terminate surface faces list */
+
+#if MPI && LOCAL_BODIES
+  if (IS_HERE (body1))
+  {
+#endif
+  bod = BODY_Split_Mesh (body1->bod, surf, sid1, sid2, &lst1, &nlst1, &lst2, &nlst2);
+#if MPI && LOCAL_BODIES
+  }
+#endif
+
+  free (surf);
+
+  if (bod)
+  {
+    PyObject *lst1_out = PyList_New (nlst1);
+    for (int i = 0; i < nlst1; i ++)
+    {
+      PyList_SetItem (lst1_out, i, PyInt_FromLong (lst1[i]));
+    }
+
+    PyObject *lst2_out = PyList_New (nlst2);
+    for (int i = 0; i < nlst2; i ++)
+    {
+      PyList_SetItem (lst2_out, i, PyInt_FromLong (lst2[i]));
+    }
+
+    free (lst1);
+    free (lst2);
+
+    return Py_BuildValue ("(O, O, O)", lng_BODY_WRAPPER (bod), lst1_out, lst2_out);
+  }
+  else Py_RETURN_NONE;
+}
+
 /* copy shape */
 static PyObject* lng_COPY (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -10495,6 +10581,7 @@ static PyMethodDef lng_methods [] =
   {"ROTATE", (PyCFunction)lng_ROTATE, METH_VARARGS|METH_KEYWORDS, "Rotate shape"},
   {"SPLIT", (PyCFunction)lng_SPLIT, METH_VARARGS|METH_KEYWORDS, "Split shape by plane"},
   {"MESH_SPLIT", (PyCFunction)lng_MESH_SPLIT, METH_VARARGS|METH_KEYWORDS, "Split mesh by node set"},
+  {"RT_SPLIT", (PyCFunction)lng_RT_SPLIT, METH_VARARGS|METH_KEYWORDS, "Real-time meshed body split"},
   {"COPY", (PyCFunction)lng_COPY, METH_VARARGS|METH_KEYWORDS, "Copy shape"},
   {"BEND", (PyCFunction)lng_BEND, METH_VARARGS|METH_KEYWORDS, "Bend shape"},
   {"BYLABEL", (PyCFunction)lng_BYLABEL, METH_VARARGS|METH_KEYWORDS, "Get object by label"},
@@ -10754,6 +10841,7 @@ int lng (const char *path)
                      "from solfec import ROTATE\n"
                      "from solfec import SPLIT\n"
                      "from solfec import MESH_SPLIT\n"
+                     "from solfec import RT_SPLIT\n"
                      "from solfec import COPY\n"
                      "from solfec import BEND\n"
                      "from solfec import BYLABEL\n"
