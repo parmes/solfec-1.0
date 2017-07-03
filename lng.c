@@ -7772,18 +7772,22 @@ static PyObject* lng_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 /* split mesh by node set */
 static PyObject* lng_MESH_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("mesh", "nodeset", "surfid");
-  PyObject *nodeset, *surfid, *list;
-  int i, nin, nout;
+  KEYWORDS ("mesh", "nodeset", "faceset", "surfid1", "surfid2");
+  PyObject *nodeset, *faceset, *surfid1, *surfid2, *list;
+  int i, j, nin, nout, *surf, *ptr;
   lng_MESH *mesh;
   SET *nodes;
   MESH **out;
 
-  surfid = NULL;
+  nodeset = NULL;
+  faceset = NULL;
+  surfid1 = NULL;
+  surfid2 = NULL;
 
-  PARSEKEYS ("OO|O", &mesh, &nodeset, &surfid);
+  PARSEKEYS ("O|OOOO", &mesh, &nodeset, &faceset, &surfid1, &surfid2);
 
-  TYPETEST (is_mesh ((PyObject*)mesh, kwl[0]) && is_list (nodeset, kwl[1], 0, 0));
+  TYPETEST (is_mesh ((PyObject*)mesh, kwl[0]) && is_list (nodeset, kwl[1], 0, 0) &&
+            is_list (faceset, kwl[2], 0, 0) && is_number (surfid1, kwl[3]) && is_number (surfid2, kwl[4]));
 
   if (mesh->msh == NULL)
   {
@@ -7791,19 +7795,71 @@ static PyObject* lng_MESH_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
     return NULL;
   }
 
-  nodes = NULL;
-  nin = PyList_Size (nodeset);
-  for (i = 0; i < nin; i ++)
+  out = NULL;
+
+  if (nodeset && !faceset)
   {
-    SET_Insert (NULL, &nodes, (void*)PyInt_AsLong (PyList_GetItem (nodeset,i)), NULL);
+    nodes = NULL;
+    nin = PyList_Size (nodeset);
+    for (i = 0; i < nin; i ++)
+    {
+      SET_Insert (NULL, &nodes, (void*)PyInt_AsLong (PyList_GetItem (nodeset,i)), NULL);
+    }
+
+    if (surfid1) i = PyInt_AsLong (surfid1);
+    else i = 0;
+
+    out = MESH_Split_By_Nodes (mesh->msh, nodes, i, &nout);
+
+    SET_Free (NULL, &nodes);
   }
+  else if (faceset)
+  {
+    ERRMEM (surf = malloc (sizeof(int [5]) * PyList_Size (faceset) + sizeof(int)));
 
-  if (surfid) i = PyInt_AsLong (surfid);
-  else i = 0;
+    for (i = 0, ptr = surf; i < PyList_Size (faceset); i ++, ptr += (ptr[0]+1))
+    {
+      PyObject *item = PyList_GetItem (faceset, i);
 
-  out = MESH_Split_By_Nodes (mesh->msh, nodes, i, &nout);
+      if (PyList_Check (item))
+      {
+	switch (PyList_Size (item))
+	{
+	case 3:
+	  ptr[0] = 3;
+	  ptr[1] = PyInt_AsLong (PyList_GetItem (item, 0));
+	  ptr[2] = PyInt_AsLong (PyList_GetItem (item, 1));
+	  ptr[3] = PyInt_AsLong (PyList_GetItem (item, 2));
+	break;
+	case 4:
+	  ptr[0] = 4;
+	  ptr[1] = PyInt_AsLong (PyList_GetItem (item, 0));
+	  ptr[2] = PyInt_AsLong (PyList_GetItem (item, 1));
+	  ptr[3] = PyInt_AsLong (PyList_GetItem (item, 2));
+	  ptr[4] = PyInt_AsLong (PyList_GetItem (item, 3));
+	break;
+	default:
+	  PyErr_SetString (PyExc_ValueError, "invalid face size (neither 3 nor 4)");
+	  return NULL;
+	}
+      }
+      else
+      {
+	PyErr_SetString (PyExc_ValueError, "'faceset' must be a list of lists");
+	return NULL;
+      }
+    }
+    ptr[0] = 0; /* terminate surface faces list */
 
-  SET_Free (NULL, &nodes);
+    if (surfid1) i = PyInt_AsLong (surfid1);
+    else i = 0;
+    if (surfid2) j = PyInt_AsLong (surfid2);
+    else j = 0;
+
+    out = MESH_Split_By_Faces (mesh->msh, surf, i, j, &nout, NULL, NULL);
+
+    free (surf);
+  }
 
   if (out)
   {
@@ -7829,19 +7885,22 @@ static PyObject* lng_MESH_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 /* "real--time" split */
 static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("body1", "surf", "sid1", "sid2");
+  KEYWORDS ("body1", "surf", "sid1", "sid2", "label1", "label2");
   int *surf, sid1, sid2, *lst1, *lst2, nlst1, nlst2, *ptr, i;
-  PyObject *surf_arg;
+  PyObject *surf_arg, *label1, *label2;
   lng_BODY *body1;
   BODY *bod;
 
+  label1 = NULL;
+  label2 = NULL;
   bod = NULL;
   sid1 = 0;
   sid2 = 0;
 
-  PARSEKEYS ("OO|dd", &body1, &surf_arg, &sid1, &sid2);
+  PARSEKEYS ("OO|ddOO", &body1, &surf_arg, &sid1, &sid2, &label1, &label2);
 
-  TYPETEST (is_body (body1, kwl[0]) && is_list (surf_arg, kwl[1], 0, 0));
+  TYPETEST (is_body (body1, kwl[0]) && is_list (surf_arg, kwl[1], 0, 0) &&
+            is_string (label1, kwl[4]) && is_string (label2, kwl[2]));
 
   ERRMEM (surf = malloc (sizeof(int [5]) * PyList_Size (surf_arg) + sizeof(int)));
 
@@ -7883,7 +7942,9 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   if (IS_HERE (body1))
   {
 #endif
-  bod = BODY_Split_Mesh (body1->bod, surf, sid1, sid2, &lst1, &nlst1, &lst2, &nlst2);
+  char *l1 = label1 ? PyString_AsString(label1) : NULL;
+  char *l2 = label2 ? PyString_AsString(label2) : NULL;
+  bod = BODY_Split_Mesh (body1->bod, surf, sid1, sid2, l1, l2, &lst1, &nlst1, &lst2, &nlst2);
 #if MPI && LOCAL_BODIES
   }
 #endif

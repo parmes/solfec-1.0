@@ -1115,6 +1115,44 @@ static void mark_neighs (ELEMENT *ele, short flag)
   }
 }
 
+/* free up mesh internal memory */
+static void freeup (MESH *msh)
+{
+  ELEMENT *ele;
+  FACE *fac;
+  int n;
+
+  for (fac = msh->faces; fac; fac = fac->n)
+  {
+    if (fac->idata) free (fac->idata);
+  }
+
+  for (ele = msh->bulkeles; ele; ele = ele->next)
+  {
+    if (ele->dom)
+    {
+      for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
+      free (ele->dom);
+    }
+    if (ele->state) free (ele->state);
+  }
+
+  for (ele = msh->surfeles; ele; ele = ele->next)
+  {
+    if (ele->dom)
+    {
+      for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
+      free (ele->dom);
+    }
+    if (ele->state) free (ele->state);
+  }
+
+  MEM_Release (&msh->facmem);
+  MEM_Release (&msh->elemem);
+  MEM_Release (&msh->mapmem);
+  free (msh->ref_nodes);
+}
+
 /* create mesh from vector of nodes, element list in format =>
  * {nuber of nodes, node0, node1, ...}, {REPEAT}, ..., 0 (end of list); and surface kinds in format =>
  * global surface, {number of nodes, node0, node1, ..., surface}, {REPEAT}, ..., 0 (end of list); */
@@ -2300,7 +2338,7 @@ MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
   else
   {
     out = NULL;
-    nout = 0;
+    *nout = 0;
   }
 
   MESH_Destroy (msh);
@@ -2308,17 +2346,270 @@ MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
   return out;
 }
 
+static int input_face_compare (int *inf, int *ing)
+{
+  if (inf[0] < ing[0]) return -1;
+  else if (inf[0] == ing[0])
+  {
+    if (inf[1] < ing[1]) return -1;
+    else if (inf[1] == ing[1])
+    {
+      if (inf[2] < ing[2]) return -1;
+      else if (inf[2] == ing[2])
+      {
+	if (inf[3] < ing[3]) return -1;
+	else if (inf[3] == ing[3])
+	{
+	  if (inf[0] == 3) return 0;
+	  else
+	  {
+	    if (inf[4] < ing[4]) return -1;
+	    else if (inf[4] == ing[4]) return 0;
+	  }
+	}
+      }
+    }
+  }
+
+  return 1;
+}
+
 /* split mesh by surface;
  * 'surf' defines faces as follows: [(4, n1, n2, n3, n4), (3, n1, n2, n3), ..., 0];
- * 'sid1' and 'sid2' are surface ids on the input and ouput bodies respectively;
- * The index of the original node id in 'lst1' or 'lst2' defines the relationship
- * between the nodes in the original MESH and the newly created MESH(s);
- * returned: another mesh if the original mesh was split in two pieces; otherwise NULL;
- * if more then two split pieces are created -- NULL is returned and nlst1 == nlst2 == 0 */
-MESH* MESH_Split_By_Surface (MESH *msh, int *surf, int sid1, int sid2, int **lst1, int *nlst1, int **lst2, int *nlst2)
+ * 'sid1' and 'sid2' are new surface ids on the 'outside' and 'inside' of 'surf' respectively;
+ * If lst != NULL and nlst != NULL mapping of split mesh nodes to original mesh nodes is returned;
+ * returned: split (*nout) meshes and (*nlst)-long (**lst) lists */
+MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout, int ***lst, int **nlst)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
-  return NULL;
+  int k, i, j, fac[5], n, m, nghs, nfac = 0, bulk = 0, *inf;
+  ELEMENT *ele, *nei, *adj[6], *next;
+  SET *input_faces, *input_nodes;
+  MAP *separated = NULL;
+  FACE tmp[4], *cac;
+  MESH **out, *cpy;
+  KDT *kdtree, *kd;
+
+  /* create input faces and nodes sets */
+  for (inf = surf, input_faces = NULL, input_nodes = NULL; inf[0]; inf += (inf[0]+1))
+  {
+    SET_Insert (NULL, &input_faces, inf, (SET_Compare) input_face_compare);
+    for (i = 1; i <= inf[0]; i ++)
+      SET_Insert (NULL, &input_nodes, (void*) (long) inf[i], NULL);
+  }
+
+  cpy = MESH_Copy (msh); /* work on a copy */
+
+  for (ele = cpy->surfeles; ele; ele = next)
+  {
+    nghs = ele->neighs;
+    for (k = 0; k < nghs; k ++) adj[k] = ele->adj[k]; /* make a copy of adjacency */
+
+    for (k = 0; k < nghs; k ++)
+    {
+      nei = adj[k];
+      n = 0;
+
+      for (i = 0; i < ele->type; i ++)
+      {
+	for (j = 0; j < nei->type; j ++)
+	{
+	  if (ele->nodes[i] == nei->nodes[j])
+	  {
+	    fac[n] = ele->nodes[i];
+	    n ++;
+	    ASSERT_TEXT (n <= 4, "Inconsistent element adjacency");
+	  }
+	}
+      }
+
+      if (n >= 3)
+      {
+	sort (fac, fac+n-1); /* sorted face vertices to be able to compare faces */
+
+	m = neighs (ele->type); 
+
+	for (i = 0; i < m; i ++)
+	{
+	  setup_face (ele, i, &tmp[0], 1);
+
+	  if (n == tmp[0].type && lexcmp(fac, tmp[0].nodes, n) == 0)
+	  {
+	    setup_face (ele, i, &tmp[1], 0);
+
+	    fac[0] = n;
+
+	    for (j = 0; j < n; j ++) fac[j+1] = tmp[1].nodes[j]; /* 'fac' must include vertices in a correct order */
+
+	    break;
+	  }
+	}
+
+	if (SET_Contains (input_faces, fac, (SET_Compare) input_face_compare)) /* face nodes in the splitting set => modify adjacency */
+	{
+	  nfac ++; /* number of split faces */
+
+          /* break ele->adj adjacency */
+	  for (j = 0; j < ele->neighs; j ++)
+	  {
+	    if (ele->adj[j] == nei) /* break adjacency */
+	    {
+	      ele->adj[j] = ele->adj[ele->neighs-1];
+	      ele->neighs --;
+	      break;
+	    }
+	  }
+
+	  /* insert new face into ele->faces */
+	  cac = MEM_Alloc (&cpy->facmem);
+	  cac[0] = tmp[1];
+	  cac->ele = ele;
+	  setup_normal (cpy->cur_nodes, cac);
+	  cac->next = ele->faces; /* append element face list */
+	  ele->faces = cac;
+	  cac->n = cpy->faces; /* append mesh face list */
+	  cpy->faces = cac;
+
+          /* break nei->adj adjacency */
+	  for (j = 0; j < nei->neighs; j ++)
+	  {
+	    if (nei->adj[j] == ele) /* break adjacency */
+	    {
+	      nei->adj[j] = nei->adj[nei->neighs-1];
+	      nei->neighs --;
+	      break;
+	    }
+	  }
+
+	  /* set up nei-side face nodes */
+	  m = neighs (nei->type); 
+	  for (i = 0; i < m; i ++)
+	  {
+	    setup_face (nei, i, &tmp[2], 1);
+	    if (n == tmp[2].type && lexcmp(tmp[0].nodes, tmp[2].nodes, n) == 0)
+	    {
+	      setup_face (ele, i, &tmp[3], 0);
+	      break;
+	    }
+	  }
+          /* insert new face into nei->faces */
+	  cac = MEM_Alloc (&cpy->facmem);
+	  cac[0] = tmp[3];
+	  cac->ele = nei;
+	  setup_normal (cpy->cur_nodes, cac);
+	  cac->next = nei->faces; /* append element face list */
+	  nei->faces = cac;
+	  cac->n = cpy->faces; /* append mesh face list */
+	  cpy->faces = cac;
+
+	  MAP_Insert (&cpy->mapmem, &separated, ele, nei, NULL); /* seed for recursive marking */
+	  MAP_Insert (&cpy->mapmem, &separated, nei, ele, NULL);
+	}
+      }
+    }
+
+    next = ele->next;
+    if (next == NULL && bulk == 0)
+    {
+      next = cpy->bulkeles;
+      bulk = 1;
+    }
+  }
+
+  if (nfac > 0)
+  {
+    /* adjacently flag separated elements */
+    mapped_parts (separated);
+
+    /* add extra nodes */
+    MAP *mapped = NULL;
+    n = SET_Size (input_nodes);
+    ERRMEM (cpy->ref_nodes = realloc (cpy->ref_nodes, 2 * (cpy->nodes_count + n) * sizeof (double [3])));
+    n = cpy->nodes_count;
+    for (SET *item = SET_First (input_nodes); item; item = SET_Next(item))
+    {
+      i = (int)(long) item->data;
+      COPY (cpy->ref_nodes[i], cpy->ref_nodes[n]);
+      MAP_Insert (&cpy->mapmem, &mapped, (void*)(long)i, (void*)(long)n, NULL);
+      n ++;
+    }
+    cpy->nodes_count = n;
+    cpy->cur_nodes = cpy->ref_nodes + cpy->nodes_count;
+    memcpy (cpy->cur_nodes, cpy->ref_nodes, n * sizeof (double [3]));
+
+    /* duplicate nodes */
+    for (MAP *item = MAP_First (separated); item; item = MAP_Next (item))
+    {
+      ele = item->key;
+      nei = item->data;
+
+      /* adjacent elements have been flagged into same flag sets along the separating surfaces;
+       * they have also been mapped to their former neighbours along the separating surfaces;
+       * hence, in order to choose the nodal set (old or new) for node duplication it should be
+       * sufficient to use the below "separation side" criterion, based on flag comparison */
+      if (ele->flag < nei->flag)
+      {
+	for (i = 0; i < nei->type; i ++)
+	{
+	  MAP *jtem = MAP_Find_Node (mapped, (void*)(long)nei->nodes[i], NULL);
+	  if (jtem)
+	  {
+	    j = (int)(long) jtem->data;
+	    nei->nodes[i] = j;
+	  }
+	}
+	for (cac = nei->faces; cac; cac = cac->next)
+	{
+	  for (i = 0; i < cac->type; i ++)
+	  {
+	    MAP *jtem = MAP_Find_Node (mapped, (void*)(long)cac->nodes[i], NULL);
+	    if (jtem)
+	    {
+	      j = (int)(long) jtem->data;
+	      cac->nodes[i] = j;
+	    }
+	  }
+	}
+      }
+    }
+    
+    /* separate meshes */
+    out = MESH_Separate (cpy, nout, sid1);
+  }
+  else
+  {
+    out = NULL;
+    *nout = 0;
+  }
+
+  SET_Free (NULL, &input_faces);
+  SET_Free (NULL, &input_nodes);
+  MESH_Destroy (cpy);
+
+  if (*nout && lst && nlst) /* node mapping has been requested */
+  {
+    kdtree = KDT_Create (msh->nodes_count, (double*)msh->cur_nodes, GEOMETRIC_EPSILON);
+    ERRMEM (*lst = malloc (nout[0] * sizeof (int*)));
+    ERRMEM (*nlst = malloc (nout[0] * sizeof (int)));
+    for (i = 0; i < nout[0]; i ++)
+    {
+      ERRMEM ((*lst)[i] = malloc (out[i]->nodes_count * sizeof (int)));
+      (*nlst)[i] = out[i]->nodes_count;
+      for (j = 0; j < out[i]->nodes_count; j ++)
+      {
+	kd = KDT_Nearest (kdtree, out[i]->cur_nodes [j], GEOMETRIC_EPSILON);
+	ASSERT_TEXT (kd, "Kd-tree point query failed");
+	(*lst)[i][j] = kd->n;
+      }
+      KDT_Destroy (kdtree);
+    }
+  }
+  else
+  {
+    *lst = NULL;
+    *nlst = NULL;
+  }
+
+  return out;
 }
 
 /* how many parts is mesh separable into */
@@ -3108,39 +3399,7 @@ void MESH_Delete_Elements (MESH *msh, SET *elements)
 /* free mesh memory */
 void MESH_Destroy (MESH *msh)
 {
-  ELEMENT *ele;
-  FACE *fac;
-  int n;
-
-  for (fac = msh->faces; fac; fac = fac->n)
-  {
-    if (fac->idata) free (fac->idata);
-  }
-
-  for (ele = msh->bulkeles; ele; ele = ele->next)
-  {
-    if (ele->dom)
-    {
-      for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
-      free (ele->dom);
-    }
-    if (ele->state) free (ele->state);
-  }
-
-  for (ele = msh->surfeles; ele; ele = ele->next)
-  {
-    if (ele->dom)
-    {
-      for (n = 0; n < ele->domnum; n ++) free (ele->dom [n].tri);
-      free (ele->dom);
-    }
-    if (ele->state) free (ele->state);
-  }
-
-  MEM_Release (&msh->facmem);
-  MEM_Release (&msh->elemem);
-  MEM_Release (&msh->mapmem);
-  free (msh->ref_nodes);
+  freeup (msh);
   free (msh);
 }
 

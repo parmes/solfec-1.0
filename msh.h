@@ -148,12 +148,10 @@ MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout);
 
 /* split mesh by surface;
  * 'surf' defines faces as follows: [(4, n1, n2, n3, n4), (3, n1, n2, n3), ..., 0];
- * 'sid1' and 'sid2' are surface ids on the input and ouput bodies respectively;
- * The index of the original node id in 'lst1' or 'lst2' defines the relationship
- * between the nodes in the original MESH and the newly created MESH(s);
- * returned: another mesh if the original mesh was split in two pieces; otherwise NULL;
- * if more then two split pieces are created -- NULL is returned and nlst1 == nlst2 == 0 */
-MESH* MESH_Split_By_Surface (MESH *msh, int *surf, int sid1, int sid2, int **lst1, int *nlst1, int **lst2, int *nlst2);
+ * 'sid1' and 'sid2' are new surface ids on the 'outside' and 'inside' of 'surf' respectively;
+ * If lst != NULL and nlst != NULL mapping of split mesh nodes to original mesh nodes is returned;
+ * returned: split (*nout) meshes and (*nlst)-long (**lst) lists */
+MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout, int ***lst, int **nlst);
 
 /* how many parts is mesh separable into */
 int MESH_Parts (MESH *msh);

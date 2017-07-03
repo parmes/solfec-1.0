@@ -13567,14 +13567,15 @@ WARNING:
 \end_layout
 
 \begin_layout Subsection*
-[out1, out2, ...] = MESH_SPLIT (mesh, nodeset | surfid) 
+[out1, out2, ...] = MESH_SPLIT (mesh | nodeset, faceset, surfid1, surfid2)
+ 
 \color red
 (Under development)
 \end_layout
 
 \begin_layout Standard
-This routine splits a mesh object along the internal element boundaries
- whose nodes belong to the given node set.
+This routine splits a mesh object along internal element boundaries whose
+ nodes belong to the given node or face set.
  Depending on the topological properties of the mesh this may or may not
  result in splitting of the mesh in multiple parts.
 \end_layout
@@ -13608,15 +13609,49 @@ nodeset
 \emph on
 [n0, n1, n2, ...]
 \emph default
+ defining the splitting surface (zero based indexing); ignored when 
+\series bold
+faceset
+\series default
+ is passed
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+faceset
+\series default
+ - a list of lists face nodes 
+\emph on
+[[n0, n1, n2], [n3, n4, n5, n6], ...]
+\emph default
  defining the splitting surface (zero based indexing)
 \end_layout
 
 \begin_layout Itemize
 
 \series bold
-surfid
+surfid1
 \series default
- - surface identifier for the newly created surfaces (default: 0).
+ - surface identifier for the newly created surfaces (default: 0); used
+ with 
+\series bold
+nodeset
+\series default
+ or outward-counter-clockwise-normal aligned with 
+\series bold
+faceset
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surfid2
+\series default
+ - surface identifier for the newly created surfaces (default: 0); inward-counte
+r-clockwise-normal aligned with 
+\series bold
+faceset
 \end_layout
 
 \begin_layout Standard
@@ -13624,7 +13659,8 @@ surfid
 status open
 
 \begin_layout Subsection*
-(body2, lst1, lst2) = RT_SPLIT (body1, surf | sid1, sid2) 
+(body2, lst1, lst2) = RT_SPLIT (body1, surf | sid1, sid2, label1, label2)
+ 
 \color red
 (Under development)
 \end_layout
@@ -13679,6 +13715,20 @@ lst2
 =[4,5,6,7,8,9,10,11].
  This information can be used to maintain user side nodeset/elementset/surfacese
 t information associated with each of the components.
+ Only 
+\series bold
+lst1
+\series default
+ is returned in case of a split which does not create two separate bodies;
+ in this case 
+\series bold
+lst2
+\series default
+ = 
+\emph on
+None
+\emph default
+.
 \end_layout
 
 \begin_layout Itemize
@@ -13726,6 +13776,36 @@ sid2
 body2
 \series default
 ; default: 0
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label1
+\series default
+ - optional new label of 
+\series bold
+body1
+\series default
+ after split; default: 
+\emph on
+None
+\emph default
+ (split in two bodies) or no change (partial split of one body)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label2
+\series default
+ - optional new label of 
+\series bold
+body2
+\series default
+ after split; default: 
+\emph on
+None
 \end_layout
 
 \begin_layout Plain Layout
@@ -13797,6 +13877,11 @@ surf
 \begin_layout Enumerate
 The split surface is fully defined by existing element faces, and no remeshing
  is required.
+\end_layout
+
+\begin_layout Enumerate
+RT_SPLIT terminates with an error message in case more then two mesh fragments
+ get created.
 \end_layout
 
 \end_inset
