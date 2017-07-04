@@ -902,7 +902,7 @@ void overwrite_state (BODY *src, BODY *dst)
       memcpy (dst->velo, src->velo, sizeof (double [PRB_VELO_SIZE]));
     }
     break;
-    case FEM: break;
+    case FEM: ASSERT (0, ERR_NOT_IMPLEMENTED); break;
   }
 }
 
@@ -2058,11 +2058,70 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
   /* TODO: transfer forces to parts */
 }
 
-BODY* BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, char *label2,
-                       int **lst1, int *nlst1, int **lst2, int *nlst2)
+int BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, char *label2,
+                     BODY **bod1, int **lst1, int *nlst1, BODY **bod2, int **lst2, int *nlst2)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
-  return NULL;
+  int nout, **lst, *nlst;
+  MESH **out;
+
+  ASSERT_TEXT (bod->shape->kind == SHAPE_MESH, "BODY_Split_Mesh used with a non-MESH based body");
+  ASSERT_TEXT (bod->msh == NULL, "BODY_Split_Mesh is not supported for FEM bodies with backround mesh");
+  if (bod->kind == FEM)
+  {
+    ASSERT_TEXT (bod->form != BODY_COROTATIONAL_MODAL && bod->form != BODY_COROTATIONAL_REDUCED_ORDER,
+		 "BODY_Split_Mesh is not supported for 'BC-MODAL' and 'BC-RO' FEM bodies");
+  }
+
+  out = MESH_Split_By_Faces (bod->shape->data, surf, sid1, sid2, &nout, &lst, &nlst);
+
+  switch (nout)
+  {
+  case 1:
+    *bod1 = BODY_Create (bod->kind, SHAPE_Create(SHAPE_MESH, out[0]), bod->mat, label1,
+                bod->flags & BODY_PERMANENT_FLAGS, bod->form, NULL, NULL, NULL, NULL);
+    (*lst1) = lst[0];
+    (*nlst1) = nlst[0];
+    free (lst);
+    free (nlst);
+    if (bod->kind == FEM) FEM_Map_State (bod->shape->data, bod->conf, bod->velo,
+                                         (*bod1)->shape->data, (*bod1)->conf, (*bod1)->velo);
+    else overwrite_state (bod, *bod1);
+    SHAPE_Update ((*bod1)->shape, *bod1, (MOTION)BODY_Cur_Point); 
+    break;
+  case 2:
+    *bod1 = BODY_Create (bod->kind, SHAPE_Create(SHAPE_MESH, out[0]), bod->mat, label1,
+                bod->flags & BODY_PERMANENT_FLAGS, bod->form, NULL, NULL, NULL, NULL);
+    *bod2 = BODY_Create (bod->kind, SHAPE_Create(SHAPE_MESH, out[1]), bod->mat, label2,
+                bod->flags & BODY_PERMANENT_FLAGS, bod->form, NULL, NULL, NULL, NULL);
+    (*lst1) = lst[0];
+    (*nlst1) = nlst[0];
+    (*lst2) = lst[1];
+    (*nlst2) = nlst[1];
+    free (lst);
+    free (nlst);
+    if (bod->kind == FEM) FEM_Map_State (bod->shape->data, bod->conf, bod->velo,
+                                         (*bod1)->shape->data, (*bod1)->conf, (*bod1)->velo);
+    else overwrite_state (bod, *bod1);
+    SHAPE_Update ((*bod1)->shape, *bod1, (MOTION)BODY_Cur_Point); 
+    if (bod->kind == FEM) FEM_Map_State (bod->shape->data, bod->conf, bod->velo,
+                                         (*bod2)->shape->data, (*bod2)->conf, (*bod2)->velo);
+    else overwrite_state (bod, *bod2);
+    SHAPE_Update ((*bod2)->shape, *bod2, (MOTION)BODY_Cur_Point); 
+    break;
+  default:
+    for (int i = 0; i < nout; i ++)
+    {
+      MESH_Destroy (out[i]);
+    }
+    if (out) free (out);
+    if (lst) free (lst);
+    if (nlst) free (nlst);
+    *lst1 = *lst2 = NULL;
+    *nlst1 = *nlst2 = 0;
+    break;
+  }
+
+  return nout;
 }
 
 BODY** BODY_Separate (BODY *bod, int *m)

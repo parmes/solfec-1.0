@@ -317,12 +317,15 @@ void BODY_Split (BODY *bod, double *point, double *normal, short topoadj, int su
  * 'surf' defines faces as follows: [(4, n1, n2, n3, n4), (3, n1, n2, n3), ..., 0];
  * 'sid1' and 'sid2' are surface ids on the input and ouput bodies respectively;
  * 'label1' and 'label2' are optional new labels;
- * The index of the original node id in 'lst1' or 'lst2' defines the relationship
- * between the nodes in the original MESH and the newly created MESH(s);
- * returned: another body if the original mesh was split in two pieces; otherwise NULL;
- * if more then two split pieces are created -- execution is aborted with an error message */
-BODY* BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, char *label2,
-                       int **lst1, int *nlst1, int **lst2, int *nlst2);
+ * The index to value mapping in 'lst1' and 'lst2' defines the relationship between
+ * the node index in the original MESH and the newly created MESH(s);
+ * return arguments:
+ * 'bod1', 'lst1', 'nlst1', 'bod2', 'lst2', 'nlst2' if 'bod' mesh was split in two pieces;
+ * 'bod1', 'lst1', 'nlst1', NULL, NULL, 0 if 'bod' mesh was modified;
+ *  NULL, NULL, 0, NULL, NULL, 0 if no modification happened or more then two fragements were created;
+ * returned value: number of created fragments */
+int BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, char *label2,
+                     BODY **bod1, int **lst1, int *nlst1, BODY **bod2, int **lst2, int *nlst2);
 
 /* separate body whose shape is separable into sub-bodies */
 BODY** BODY_Separate (BODY *bod, int *m);

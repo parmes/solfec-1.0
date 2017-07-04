@@ -3232,6 +3232,13 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   if (dom->time > 0) SET_Delete (&dom->setmem, &dom->newb, bod, NULL);
 }
 
+/* replace 'bod' whith 'rep'; maintain body identifier and delete 'bod';
+ * constraints attached to 'bod' are deleted in the process */
+void DOM_Replace_Body (DOM *dom, BODY *bod, BODY *rep)
+{
+  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+}
+
 /* find labeled body */
 BODY* DOM_Find_Body (DOM *dom, char *label)
 {

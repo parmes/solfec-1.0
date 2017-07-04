@@ -13679,7 +13679,7 @@ body2
 \emph on
 None
 \emph default
- if the split does not create another body
+ if the split does not create another body;
 \end_layout
 
 \begin_layout Itemize
@@ -13809,7 +13809,7 @@ None
 \end_layout
 
 \begin_layout Plain Layout
-Assumptions:
+Properties:
 \end_layout
 
 \begin_layout Enumerate
@@ -13877,6 +13877,22 @@ surf
 \begin_layout Enumerate
 The split surface is fully defined by existing element faces, and no remeshing
  is required.
+\end_layout
+
+\begin_layout Enumerate
+All constraints attached to 
+\series bold
+body1
+\series default
+ are deleted during splitting.
+\end_layout
+
+\begin_layout Enumerate
+All forces applied to 
+\series bold
+body1
+\series default
+ are deleted during splitting.
 \end_layout
 
 \begin_layout Enumerate

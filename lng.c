@@ -7886,14 +7886,15 @@ static PyObject* lng_MESH_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 {
   KEYWORDS ("body1", "surf", "sid1", "sid2", "label1", "label2");
-  int *surf, sid1, sid2, *lst1, *lst2, nlst1, nlst2, *ptr, i;
+  int *surf, sid1, sid2, *lst1, *lst2, nlst1, nlst2, *ptr, i, nout;
   PyObject *surf_arg, *label1, *label2;
   lng_BODY *body1;
-  BODY *bod;
+  BODY *bod1, *bod2;
 
   label1 = NULL;
   label2 = NULL;
-  bod = NULL;
+  bod1 = NULL;
+  bod2 = NULL;
   sid1 = 0;
   sid2 = 0;
 
@@ -7944,14 +7945,19 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 #endif
   char *l1 = label1 ? PyString_AsString(label1) : NULL;
   char *l2 = label2 ? PyString_AsString(label2) : NULL;
-  bod = BODY_Split_Mesh (body1->bod, surf, sid1, sid2, l1, l2, &lst1, &nlst1, &lst2, &nlst2);
+  if (body1->bod->shape->kind != SHAPE_MESH)
+  {
+    PyErr_SetString (PyExc_ValueError, "'body1' shape is not a MESH");
+    return NULL;
+  }
+  nout = BODY_Split_Mesh (body1->bod, surf, sid1, sid2, l1, l2, &bod1, &lst1, &nlst1, &bod2, &lst2, &nlst2);
 #if MPI && LOCAL_BODIES
   }
 #endif
 
   free (surf);
 
-  if (bod)
+  if (bod1 && bod2)
   {
     PyObject *lst1_out = PyList_New (nlst1);
     for (int i = 0; i < nlst1; i ++)
@@ -7968,9 +7974,34 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
     free (lst1);
     free (lst2);
 
-    return Py_BuildValue ("(O, O, O)", lng_BODY_WRAPPER (bod), lst1_out, lst2_out);
+    DOM_Replace_Body (body1->bod->dom, body1->bod, bod1);
+    body1->bod = bod1;
+
+    DOM_Insert_Body (body1->bod->dom, bod2);
+
+    return Py_BuildValue ("(O, O, O)", lng_BODY_WRAPPER (bod2), lst1_out, lst2_out);
   }
-  else Py_RETURN_NONE;
+  else if (bod1)
+  {
+    PyObject *lst1_out = PyList_New (nlst1);
+    for (int i = 0; i < nlst1; i ++)
+    {
+      PyList_SetItem (lst1_out, i, PyInt_FromLong (lst1[i]));
+    }
+
+    free (lst1);
+
+    DOM_Replace_Body (body1->bod->dom, body1->bod, bod1);
+    body1->bod = bod1;
+
+    return Py_BuildValue ("(O, O, O)", Py_None, lst1_out, Py_None);
+  }
+  else 
+  {
+    if (nout == 0) PyErr_SetString (PyExc_ValueError, "No splitting happened");
+    else PyErr_SetString (PyExc_ValueError, "Splitting created more than two fragements");
+    return NULL;
+  }
 }
 
 /* copy shape */
