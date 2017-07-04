@@ -2399,6 +2399,8 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 
   cpy = MESH_Copy (msh); /* work on a copy */
 
+  memset (&tmp, 0, sizeof(tmp)); /* clear temporary faces */
+
   for (ele = cpy->surfeles; ele; ele = next)
   {
     nghs = ele->neighs;
@@ -2487,7 +2489,7 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	    setup_face (nei, i, &tmp[2], 1);
 	    if (n == tmp[2].type && lexcmp(tmp[0].nodes, tmp[2].nodes, n) == 0)
 	    {
-	      setup_face (ele, i, &tmp[3], 0);
+	      setup_face (nei, i, &tmp[3], 0);
 	      break;
 	    }
 	  }
@@ -2585,28 +2587,31 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
   SET_Free (NULL, &input_nodes);
   MESH_Destroy (cpy);
 
-  if (*nout && lst && nlst) /* node mapping has been requested */
+  if (lst && nlst)
   {
-    kdtree = KDT_Create (msh->nodes_count, (double*)msh->cur_nodes, GEOMETRIC_EPSILON);
-    ERRMEM (*lst = malloc (nout[0] * sizeof (int*)));
-    ERRMEM (*nlst = malloc (nout[0] * sizeof (int)));
-    for (i = 0; i < nout[0]; i ++)
+    if (*nout) /* node mapping has been requested */
     {
-      ERRMEM ((*lst)[i] = malloc (out[i]->nodes_count * sizeof (int)));
-      (*nlst)[i] = out[i]->nodes_count;
-      for (j = 0; j < out[i]->nodes_count; j ++)
+      kdtree = KDT_Create (msh->nodes_count, (double*)msh->cur_nodes, GEOMETRIC_EPSILON);
+      ERRMEM (*lst = malloc (nout[0] * sizeof (int*)));
+      ERRMEM (*nlst = malloc (nout[0] * sizeof (int)));
+      for (i = 0; i < nout[0]; i ++)
       {
-	kd = KDT_Nearest (kdtree, out[i]->cur_nodes [j], GEOMETRIC_EPSILON);
-	ASSERT_TEXT (kd, "Kd-tree point query failed");
-	(*lst)[i][j] = kd->n;
+	ERRMEM ((*lst)[i] = malloc (out[i]->nodes_count * sizeof (int)));
+	(*nlst)[i] = out[i]->nodes_count;
+	for (j = 0; j < out[i]->nodes_count; j ++)
+	{
+	  kd = KDT_Nearest (kdtree, out[i]->cur_nodes [j], GEOMETRIC_EPSILON);
+	  ASSERT_TEXT (kd, "Kd-tree point query failed");
+	  (*lst)[i][j] = kd->n;
+	}
+	KDT_Destroy (kdtree);
       }
-      KDT_Destroy (kdtree);
     }
-  }
-  else
-  {
-    *lst = NULL;
-    *nlst = NULL;
+    else
+    {
+      *lst = NULL;
+      *nlst = NULL;
+    }
   }
 
   return out;

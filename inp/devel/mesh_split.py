@@ -25,22 +25,25 @@ def numbered_pipe (base):
 def split_pipe (base, faces):
   shp = PIPE  (base, (0, 0, 2), 0.5, 1, 1, 8, 1, 1, [1, 1, 1, 1, 1, 1])
   out = MESH_SPLIT (shp, faceset = faces)
-  for msh in out:
-    BODY (sol, 'FINITE_ELEMENT', msh, bulk)
+  if out == None:
+    print 'Warning --> spliting failed for face list:', faces
+    sys.exit(1)
+  else:
+    for msh in out:
+      BODY (sol, 'FINITE_ELEMENT', msh, bulk)
 
   shp = PIPE  (TRANSLATE (base, (0, 0, -1)), (0, 0, -1), 0.5, 1, 1, 8, 1, 1, [1, 1, 1, 1, 1, 1])
   BODY (sol, 'OBSTACLE', shp, bulk)
 
 # numbered_pipe ((0, 0, 0))
-f = [[0, 1, 17, 16], [2, 3, 19, 18], [4, 5, 21, 22],
+f = [[0, 1, 17, 16], [2, 3, 19, 18], [4, 5, 21, 20],
      [6, 7, 23, 22], [8, 9, 25, 24], [10, 11, 27, 26],
      [12, 13, 29, 28], [14, 15, 31, 30]]
 
-split_pipe ((0, 0, 0), [f[0]])
-#split_pipe ((4, 0, 0), [f[1]])
-#split_pipe ((8, 0, 0), [f[2]])
-#split_pipe ((0, 4, 0), [f[3]])
-#split_pipe ((4, 4, 0), [f[4]])
-#split_pipe ((8, 4, 0), [f[5]])
+for i in range (0, 8):
+  split_pipe ((0+4*(i%4), 0+4*(i>3), 0), [f[i]])
+
+for i in range (0, 8):
+  split_pipe ((0+4*(i%4), 8+4*(i>3), 0), [f[i], f[(i+1)%8]])
 
 RUN (sol, sv, 1.0)
