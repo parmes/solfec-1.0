@@ -766,7 +766,6 @@ static void obj_points (DOM *dom, int num_gid_entries, int num_lid_entries, int 
 }
 #endif
 
-#if LOCAL_BODIES
 /* create dummy body if needed */
 static BODY* get_body (DOM *dom, int id)
 {
@@ -868,7 +867,6 @@ static BODY* unpack_body (DOM *dom, int id, int *dpos, double *d, int doubles, i
 
   return bod;
 }
-#endif
 
 /* pack constraint migrating out during */
 static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int *isize, int **i, int *ints)
@@ -958,13 +956,8 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
   mid = unpack_int (ipos, i, ints);
   sid = unpack_int (ipos, i, ints);
 
-#if LOCAL_BODIES
   master = get_body (dom, mid);
   if (sid) slave = get_body (dom, sid); else slave = NULL;
-#else
-  ASSERT_DEBUG_EXT (master = MAP_Find (dom->allbodies, (void*) (long) mid, NULL), "Invalid body id");
-  if (sid) ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); else slave = NULL;
-#endif
 
   n = unpack_int (ipos, i, ints);
   msgp = SGP_from_index (dom, master, n);
@@ -1097,13 +1090,8 @@ static CON* unpack_external_constraint (DOM *dom, int *dpos, double *d, int doub
   mid = unpack_int (ipos, i, ints);
   sid = unpack_int (ipos, i, ints);
 
-#if LOCAL_BODIES
   master = get_body (dom, mid);
   if (sid) slave = get_body (dom, sid); else slave = NULL;
-#else
-  ASSERT_DEBUG_EXT (master = MAP_Find (dom->allbodies, (void*) (long) mid, NULL), "Invalid body id");
-  if (sid) ASSERT_DEBUG_EXT (slave = MAP_Find (dom->allbodies, (void*) (long) sid, NULL), "Invalid body id"); else slave = NULL;
-#endif
 
   n = unpack_int (ipos, i, ints);
   msgp = SGP_from_index (dom, master, n);
@@ -1199,9 +1187,8 @@ static void pack_parent (BODY *bod, int rank, int *dsize, double **d, int *doubl
   pack_int (isize, i, ints, bod->id);
 
   /* pack state */
-#if LOCAL_BODIES
   pack_body (bod, rank, dsize, d, doubles, isize, i, ints);
-#endif
+
   BODY_Parent_Pack (bod, dsize, d, doubles, isize, i, ints);
 
   /* delete from label map */
@@ -1232,11 +1219,7 @@ static void unpack_parent (DOM *dom, int *dpos, double *d, int doubles, int *ipo
   id = unpack_int (ipos, i, ints);
 
   /* find body */
-#if LOCAL_BODIES
   bod = unpack_body (dom, id, dpos, d, doubles, ipos, i, ints);
-#else
-  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
-#endif
 
   /* must be child or dummy */
   ASSERT_DEBUG ((bod->flags & BODY_PARENT) == 0, "Neither child nor dummy");
@@ -1291,9 +1274,8 @@ static void pack_child (BODY *bod, int rank, int *dsize, double **d, int *double
   pack_int (isize, i, ints, bod->id);
 
   /* pack state */
-#if LOCAL_BODIES
   pack_body (bod, rank, dsize, d, doubles, isize, i, ints);
-#endif
+
   BODY_Child_Pack (bod, dsize, d, doubles, isize, i, ints);
 }
 
@@ -1307,11 +1289,7 @@ static void unpack_child (DOM *dom, int *dpos, double *d, int doubles, int *ipos
   id = unpack_int (ipos, i, ints);
 
   /* find body */
-#if LOCAL_BODIES
   bod = unpack_body (dom, id, dpos, d, doubles, ipos, i, ints);
-#else
-  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Invalid body id");
-#endif
 
   /* must be child or dummy */
   ASSERT_DEBUG ((bod->flags & BODY_PARENT) == 0, "Neither child nor dummy");
@@ -2533,10 +2511,6 @@ static void manage_bodies_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
   {
     /* pack pending bodies */
     pack_int (isize, i, ints, SET_Size (dbd->dom->pendingbods));
-#if LOCAL_BODIES == 0
-    for (item = SET_First (dbd->dom->pendingbods); item; item = SET_Next (item))
-      BODY_Pack (item->data, dsize, d, doubles, isize, i, ints);
-#endif
   }
 }
 
@@ -2561,22 +2535,10 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   {
     /* unpack pending bodies */
     j = unpack_int (ipos, i, ints);
-#if LOCAL_BODIES
-    dom->bid += j; /* account for the global body ID increments */
-    ASSERT (dom->bid < UINT_MAX, ERR_DOM_TOO_MANY_BODIES); /* make sure we do not run out of ids */
-#else
-    BODY *bod;
 
-    for (n = 0; n < j; n ++)
-    {
-      bod = BODY_Unpack (dom->solfec, dpos, d, doubles, ipos, i, ints);
-      dom->insertbodymode = NEVER;
-      DOM_Insert_Body (dom, bod); /* XXX: rely on rank ordering in communication and body
-					  ordering during packing in order to get
-					  the same sequence of bodies on all processors;
-					  this guarantees the right ID assignment */
-    }
-#endif
+    dom->bid += j; /* account for the global body ID increments */
+
+    ASSERT (dom->bid < UINT_MAX, ERR_DOM_TOO_MANY_BODIES); /* make sure we do not run out of ids */
   }
   else
   {
@@ -2587,8 +2549,7 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
     }
   }
 
-  /* TODO --> create a table of all pending bodies in the right sequence --> insert them after sparebid based
-              deletion of unwaneted bodies so that insertion of bodies reusing IDs functions correctly */
+  /* TODO --> insert pending bodies after sparebid based deletion of unwaneted bodies so that insertion of bodies reusing IDs functions correctly */
 
   return NULL;
 }
@@ -2626,7 +2587,6 @@ static void manage_bodies (DOM *dom)
   {
     if ((bod = MAP_Find (dom->allbodies, item->data, NULL)))
     {
-#if LOCAL_BODIES
       if (bod->nsgp == INT_MAX) /* remove dummy created in get_body */
       {
 	/* DOM_Remove_Constraint will remove the constraint from body constraints set,
@@ -2646,7 +2606,6 @@ static void manage_bodies (DOM *dom)
 	free (bod);
       }
       else /* regular body */
-#endif
       {
 	DOM_Remove_Body (dom, bod); /* while looping over 'sparebid' => look there (***) */
 	BODY_Destroy (bod);
@@ -2660,7 +2619,6 @@ static void manage_bodies (DOM *dom)
   /* restore body insertion mode */
   dom->insertbodymode = EVERYNCPU;
 
-#if LOCAL_BODIES
   /* delete unused bodies with empty constraint sets */
   SET *todel = NULL;
   MAP *jtem;
@@ -2686,7 +2644,6 @@ static void manage_bodies (DOM *dom)
   }
 
   SET_Free (&dom->setmem, &todel);
-#endif
 }
 
 /* pack normal reaction components (only for contacts) of boundary constraints */
@@ -3109,14 +3066,8 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
 
 #if MPI
   /* insert every 'rank' body into this domain */
-#if LOCAL_BODIES
   if (dom->insertbodymode == ALWAYS ||
      (dom->insertbodymode == EVERYNCPU && dom->rank == 0)) /* all bodies created on rank 0 */
-#else
-  if (dom->insertbodymode == ALWAYS ||
-     (dom->insertbodymode == EVERYNCPU &&
-      bod->id % (unsigned) dom->ncpu == (unsigned) dom->rank))
-#endif
   {
     /* mark as parent */
     bod->flags |= BODY_PARENT;
@@ -3158,14 +3109,12 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
     }
 #if MPI
   }
-#if LOCAL_BODIES
   else
   {
     /* do not store this body */
     MAP_Delete (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, NULL);
     BODY_Destroy (bod);
   }
-#endif
 #endif
 }
 

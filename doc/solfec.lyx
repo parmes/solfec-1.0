@@ -761,50 +761,6 @@ FCLIB = -lgfortran
 \end_layout
 
 \begin_layout LyX-Code
-# Local body storage (yes/no)
-\end_layout
-
-\begin_layout LyX-Code
-#
-\end_layout
-
-\begin_layout LyX-Code
-# If 'no' all bodies all stored on all processors;
-\end_layout
-
-\begin_layout LyX-Code
-# this implies less communication during parallel balancing;
-\end_layout
-
-\begin_layout LyX-Code
-# When 'yes' bodies are only stored locally in parallel;
-\end_layout
-
-\begin_layout LyX-Code
-# this is more suitable for larger simulations;
-\end_layout
-
-\begin_layout LyX-Code
-#
-\end_layout
-
-\begin_layout LyX-Code
-
-\end_layout
-
-\begin_layout LyX-Code
-LOCAL_BODIES = yes
-\end_layout
-
-\begin_layout LyX-Code
-
-\end_layout
-
-\begin_layout LyX-Code
-#
-\end_layout
-
-\begin_layout LyX-Code
 # Debug or optimized version switch (yes/no)
 \end_layout
 
