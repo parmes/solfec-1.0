@@ -2544,12 +2544,11 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
   {
     for (item = SET_First (dom->pendingbods); item; item = SET_Next (item))
     {
+      BODY *bod = item->data;
       dom->insertbodymode = ALWAYS;
-      DOM_Insert_Body (dom, item->data); /* XXX: as above */
+      if (bod->id == 0) DOM_Insert_Body (dom, bod); /* insert pending bodies with unassigned IDs */
     }
   }
-
-  /* TODO --> insert pending bodies after sparebid based deletion of unwaneted bodies so that insertion of bodies reusing IDs functions correctly */
 
   return NULL;
 }
@@ -2578,9 +2577,6 @@ static void manage_bodies (DOM *dom)
 
   free (send);
   free (recv);
-
-  /* empty pending bodies set */
-  SET_Free (&dom->setmem, &dom->pendingbods);
 
   /* delete bodies associated with spare ids */
   for (item = SET_First (dom->sparebid); item; item = SET_Next (item))
@@ -2615,6 +2611,18 @@ static void manage_bodies (DOM *dom)
 
   /* empty body ids set */
   SET_Free (&dom->setmem, &dom->sparebid);
+
+  /* insert pending bodies wth assigned IDs after sparebid based deletion of 
+     unwaneted bodies so that insertion of bodies reusing IDs functions correctly */
+  for (item = SET_First (dom->pendingbods); item; item = SET_Next (item))
+  {
+    BODY *bod = item->data;
+    dom->insertbodymode = ALWAYS;
+    if (bod->id > 0) DOM_Insert_Body (dom, bod); /* insert body reusing an ID */
+  }
+
+  /* empty pending bodies set */
+  SET_Free (&dom->setmem, &dom->pendingbods);
 
   /* restore body insertion mode */
   dom->insertbodymode = EVERYNCPU;
