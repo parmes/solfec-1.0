@@ -1,9 +1,9 @@
-# splitting tests
+# MESH_SPLIT test
 import sys
 
 sv = GAUSS_SEIDEL_SOLVER (1E-4, 1000)
 
-sol = SOLFEC ('DYNAMIC', 0.001, 'out/splits')
+sol = SOLFEC ('DYNAMIC', 0.001, 'out/mesh_split')
 
 bulk = BULK_MATERIAL (sol,
                       model = 'KIRCHHOFF',

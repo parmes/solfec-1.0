@@ -7974,8 +7974,14 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
     free (lst1);
     free (lst2);
 
-    DOM_Replace_Body (body1->bod->dom, body1->bod, bod1);
+    DOM *dom = body1->bod->dom;
+    DOM_Remove_Body (dom, body1->bod);
+    DOM_Insert_Body (dom, bod1);
+    BODY_Destroy (body1->bod);
     body1->bod = bod1;
+#if MPI
+    body1->id = bod1->id;
+#endif
 
     DOM_Insert_Body (body1->bod->dom, bod2);
 
@@ -7991,8 +7997,14 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 
     free (lst1);
 
-    DOM_Replace_Body (body1->bod->dom, body1->bod, bod1);
+    DOM *dom = body1->bod->dom;
+    DOM_Remove_Body (dom, body1->bod);
+    DOM_Insert_Body (dom, bod1);
+    BODY_Destroy (body1->bod);
     body1->bod = bod1;
+#if MPI
+    body1->id = bod1->id;
+#endif
 
     return Py_BuildValue ("(O, O, O)", Py_None, lst1_out, Py_None);
   }

@@ -323,10 +323,6 @@ void DOM_Insert_Body (DOM *dom, BODY *bod);
 /* remove a body from the domain (do not destroy it) */
 void DOM_Remove_Body (DOM *dom, BODY *bod);
 
-/* replace 'bod' whith 'rep'; maintain body identifier and delete 'bod';
- * constraints attached to 'bod' are deleted in the process */
-void DOM_Replace_Body (DOM *dom, BODY *bod, BODY *rep);
-
 /* find labeled body */
 BODY* DOM_Find_Body (DOM *dom, char *label);
 

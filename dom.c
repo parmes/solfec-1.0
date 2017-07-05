@@ -2546,7 +2546,7 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
     {
       BODY *bod = item->data;
       dom->insertbodymode = ALWAYS;
-      if (bod->id == 0) DOM_Insert_Body (dom, bod); /* insert pending bodies with unassigned IDs */
+      DOM_Insert_Body (dom, bod); /* insert pending bodies */
     }
   }
 
@@ -2577,6 +2577,9 @@ static void manage_bodies (DOM *dom)
 
   free (send);
   free (recv);
+
+  /* empty pending bodies set */
+  SET_Free (&dom->setmem, &dom->pendingbods);
 
   /* delete bodies associated with spare ids */
   for (item = SET_First (dom->sparebid); item; item = SET_Next (item))
@@ -2611,18 +2614,6 @@ static void manage_bodies (DOM *dom)
 
   /* empty body ids set */
   SET_Free (&dom->setmem, &dom->sparebid);
-
-  /* insert pending bodies wth assigned IDs after sparebid based deletion of 
-     unwaneted bodies so that insertion of bodies reusing IDs functions correctly */
-  for (item = SET_First (dom->pendingbods); item; item = SET_Next (item))
-  {
-    BODY *bod = item->data;
-    dom->insertbodymode = ALWAYS;
-    if (bod->id > 0) DOM_Insert_Body (dom, bod); /* insert body reusing an ID */
-  }
-
-  /* empty pending bodies set */
-  SET_Free (&dom->setmem, &dom->pendingbods);
 
   /* restore body insertion mode */
   dom->insertbodymode = EVERYNCPU;
@@ -3060,8 +3051,8 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 /* insert a body into the domain */
 void DOM_Insert_Body (DOM *dom, BODY *bod)
 {
-  /* take next id (if none is passed with body) */
-  if (bod->id == 0) bod->id = dom->bid ++; 
+  /* take next id */
+  bod->id = dom->bid ++; 
 
   /* make sure we do not run out of ids */
   ASSERT (dom->bid < UINT_MAX, ERR_DOM_TOO_MANY_BODIES);
@@ -3190,20 +3181,6 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
   /* make sure that it is not in the new bodies set (could have been
    * inserted and then deleted in the course of fragmentation and cracking) */
   if (dom->time > 0) SET_Delete (&dom->setmem, &dom->newb, bod, NULL);
-}
-
-/* replace 'bod' whith 'rep'; maintain body identifier and delete 'bod';
- * constraints attached to 'bod' are deleted in the process */
-void DOM_Replace_Body (DOM *dom, BODY *bod, BODY *rep)
-{
-  rep->id = bod->id;
-  DOM_Remove_Body (dom, bod);
-#if MPI
-  DOM_Pending_Body (dom, rep);
-#else
-  DOM_Insert_Body (dom, rep);
-#endif
-  BODY_Destroy (bod);
 }
 
 /* find labeled body */

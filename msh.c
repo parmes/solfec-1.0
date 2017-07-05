@@ -2592,6 +2592,12 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
     if (*nout) /* node mapping has been requested */
     {
       kdtree = KDT_Create (msh->nodes_count, (double*)msh->cur_nodes, GEOMETRIC_EPSILON);
+      for (j = 0; j < msh->nodes_count; j ++)
+      {
+	kd = KDT_Nearest (kdtree, msh->cur_nodes [j], GEOMETRIC_EPSILON);
+	ASSERT_TEXT (kd, "Kd-tree point query failed");
+	kd->n = j; /* assign node indices to tree nodes */
+      }
       ERRMEM (*lst = malloc (nout[0] * sizeof (int*)));
       ERRMEM (*nlst = malloc (nout[0] * sizeof (int)));
       for (i = 0; i < nout[0]; i ++)
@@ -2604,8 +2610,8 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	  ASSERT_TEXT (kd, "Kd-tree point query failed");
 	  (*lst)[i][j] = kd->n;
 	}
-	KDT_Destroy (kdtree);
       }
+      KDT_Destroy (kdtree);
     }
     else
     {

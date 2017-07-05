@@ -274,7 +274,7 @@ int main (int argc, char **argv)
 
   TRY ()
   {
-    int lngerr = 1;
+    int lngerr = 0;
 
 #if OPENGL
     if (vieweron (argc, argv)) RND_Switch_On (); /* make renderer aware of viewer before calling interpreter */
