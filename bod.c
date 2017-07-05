@@ -928,7 +928,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
       SCALE9 (euler, mat->density);
       euler2inertia (euler, bod->ref_tensor);
       bod->ref_mass = bod->ref_volume * mat->density;
-      bod->id = 0;
       bod->dofs = 6;
       bod->inverse = NULL; 
       bod->forces = NULL;
@@ -951,7 +950,6 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
 	 bod->ref_tensor);
       SCALE9 (bod->ref_tensor, mat->density);
       bod->ref_mass = bod->ref_volume * mat->density;
-      bod->id = 0;
       bod->dofs = 12;
       bod->inverse = NULL; 
       bod->forces = NULL;
@@ -974,6 +972,9 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
       ASSERT (0, ERR_BOD_KIND);
     break;
   }
+
+  /* default zero id (not in a domain) */
+  bod->id = 0;
 
   /* parmec force */
   bod->parmec = NULL;

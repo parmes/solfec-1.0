@@ -2540,7 +2540,7 @@ static void manage_bodies_pack (DBD *dbd, int *dsize, double **d, int *doubles, 
   }
 }
 
-/* unpack children udate data => NOTE, that this routine is called in the sequenc of ranks */
+/* unpack children udate data => NOTE, that this routine is called in the sequence of ranks */
 static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
   int n, j, k, rank;
@@ -2574,7 +2574,7 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
       DOM_Insert_Body (dom, bod); /* XXX: rely on rank ordering in communication and body
 					  ordering during packing in order to get
 					  the same sequence of bodies on all processors;
-					  this guarantees the righ ID assignment */
+					  this guarantees the right ID assignment */
     }
 #endif
   }
@@ -2586,6 +2586,9 @@ static void* manage_bodies_unpack (DOM *dom, int *dpos, double *d, int doubles, 
       DOM_Insert_Body (dom, item->data); /* XXX: as above */
     }
   }
+
+  /* TODO --> create a table of all pending bodies in the right sequence --> insert them after sparebid based
+              deletion of unwaneted bodies so that insertion of bodies reusing IDs functions correctly */
 
   return NULL;
 }
@@ -3092,8 +3095,8 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 /* insert a body into the domain */
 void DOM_Insert_Body (DOM *dom, BODY *bod)
 {
-  /* take next id */
-  bod->id = dom->bid ++; 
+  /* take next id (if none is passed with body) */
+  if (bod->id == 0) bod->id = dom->bid ++; 
 
   /* make sure we do not run out of ids */
   ASSERT (dom->bid < UINT_MAX, ERR_DOM_TOO_MANY_BODIES);
@@ -3236,7 +3239,14 @@ void DOM_Remove_Body (DOM *dom, BODY *bod)
  * constraints attached to 'bod' are deleted in the process */
 void DOM_Replace_Body (DOM *dom, BODY *bod, BODY *rep)
 {
-  ASSERT (0, ERR_NOT_IMPLEMENTED); /* TODO */
+  rep->id = bod->id;
+  DOM_Remove_Body (dom, bod);
+#if MPI
+  DOM_Pending_Body (dom, rep);
+#else
+  DOM_Insert_Body (dom, rep);
+#endif
+  BODY_Destroy (bod);
 }
 
 /* find labeled body */
