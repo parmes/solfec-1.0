@@ -369,7 +369,7 @@ void Propagate_Cracks (DOM *dom)
   for (item = SET_First (newbod); item; item = SET_Next (item)) /* insert new bodies into domain */
   {
 #if MPI
-    DOM_Pending_Body (dom, item->data);
+    DOM_Pending_Body_Insert (dom, item->data);
 #else
     DOM_Insert_Body (dom, item->data);
 #endif

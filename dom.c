@@ -2788,6 +2788,8 @@ static void create_mpi (DOM *dom)
 
   dom->pendingbods = NULL;
 
+  dom->pendingremovebods = NULL;
+
   dom->pairedup = NULL;
 
   dom->idtorank = NULL;
@@ -3632,8 +3634,8 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   }
 
 #if MPI
-  /* external con->point coordinates are need to be updated before the update of body extents;
-   * this way slave bodies suitably update their extents and maintain children on the constraint owner processor */
+  /* external con->point coordinates need to be updated before the update of body extents;
+   * this is way slave bodies suitably update their extents and maintain children on the constraint owner processor */
   update_external_constraint_points (dom);
 #endif
 
@@ -3775,6 +3777,14 @@ void DOM_Update_End (DOM *dom)
   Propagate_Cracks (dom); /* do cracking */
 
 #if MPI
+  /* remove pending bodies */
+  for (item = SET_First (dom->pendingremovebods); item; item = SET_Next (item))
+  {
+    DOM_Remove_Body (dom, item->data);
+    BODY_Destroy (item->data);
+  }
+  SET_Free (&dom->setmem, &dom->pendingremovebods); /* empty set */
+
   manage_bodies (dom); /* delete unwanted and insert pending bodies */
 #endif
 
@@ -3923,9 +3933,15 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, unsigned int mid
 }
 
 /* schedule ASAP insertion of a body in parallel */
-void DOM_Pending_Body (DOM *dom, BODY *bod)
+void DOM_Pending_Body_Insert (DOM *dom, BODY *bod)
 {
   SET_Insert (&dom->setmem, &dom->pendingbods, bod, NULL);
+}
+
+/* schedule ASAP removal of a body in parallel (to be called on one processor) */
+void DOM_Pending_Body_Remove (DOM *dom, BODY *bod)
+{
+  SET_Insert (&dom->setmem, &dom->pendingremovebods, bod, NULL);
 }
 #endif
 

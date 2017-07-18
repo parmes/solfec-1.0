@@ -287,6 +287,7 @@ struct domain
   DBD *dbd; /* load balancing send sets */
   SET *pendingcons; /* pending constraints to be inserted in parallel */
   SET *pendingbods; /* pending bodies to be inserted in parallel */
+  SET *pendingremovebods; /* pending bodies to be removed in parallel */
   MAP *pairedup; /* map of body ids to SETs of body ids based on two-body constraints (e.g. RIGLNK, SPRING) */
   MAP *idtorank; /* global all body id to rank mapping */
   SET *sparebid; /* deleted body ids */
@@ -378,7 +379,10 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, unsigned int mid
     double strength, double *lim, int update);
 
 /* schedule ASAP insertion of a body in parallel (to be called on one processor) */
-void DOM_Pending_Body (DOM *dom, BODY *bod);
+void DOM_Pending_Body_Insert (DOM *dom, BODY *bod);
+
+/* schedule ASAP removal of a body in parallel (to be called on one processor) */
+void DOM_Pending_Body_Remove (DOM *dom, BODY *bod);
 #endif
 
 /* write domain state */

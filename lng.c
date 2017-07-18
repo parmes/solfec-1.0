@@ -7318,8 +7318,12 @@ static PyObject* lng_DELETE (PyObject *self, PyObject *args, PyObject *kwds)
     {
 #endif
 
+#if MPI
+    DOM_Pending_Body_Remove (solfec->sol->dom, body->bod);
+#else
     DOM_Remove_Body (solfec->sol->dom, body->bod);
     BODY_Destroy (body->bod); /* used only when body was removed from the domain */
+#endif
     body->bod = NULL;
 
 #if MPI
@@ -7975,15 +7979,19 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
     free (lst2);
 
     DOM *dom = body1->bod->dom;
-    DOM_Remove_Body (dom, body1->bod);
+#if MPI
+    DOM_Pending_Body_Insert (dom, bod1);
+    DOM_Pending_Body_Insert (dom, bod2);
+    DOM_Pending_Body_Remove (dom, body1->bod);
+    body1->bod = bod1;
+    body1->id = bod1->id;
+#else
     DOM_Insert_Body (dom, bod1);
+    DOM_Insert_Body (dom, bod2);
+    DOM_Remove_Body (dom, body1->bod);
     BODY_Destroy (body1->bod);
     body1->bod = bod1;
-#if MPI
-    body1->id = bod1->id;
 #endif
-
-    DOM_Insert_Body (body1->bod->dom, bod2);
 
     return Py_BuildValue ("(O, O, O)", lng_BODY_WRAPPER (bod2), lst1_out, lst2_out);
   }
@@ -7998,12 +8006,16 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
     free (lst1);
 
     DOM *dom = body1->bod->dom;
-    DOM_Remove_Body (dom, body1->bod);
+#if MPI
+    DOM_Pending_Body_Insert (dom, bod1);
+    DOM_Pending_Body_Remove (dom, body1->bod);
+    body1->bod = bod1;
+    body1->id = bod1->id;
+#else
     DOM_Insert_Body (dom, bod1);
+    DOM_Remove_Body (dom, body1->bod);
     BODY_Destroy (body1->bod);
     body1->bod = bod1;
-#if MPI
-    body1->id = bod1->id;
 #endif
 
     return Py_BuildValue ("(O, O, O)", Py_None, lst1_out, Py_None);
