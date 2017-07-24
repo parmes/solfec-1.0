@@ -3111,6 +3111,21 @@ void FEM_Map_State (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, doub
   KDT_Destroy (kd);
 }
 
+/* directly map m1 values onto m2 values */
+void FEM_Map_State_Direct (MESH *m1, double *q1, double *u1, MESH *m2, double *q2, double *u2, int *mapping)
+{
+  for (int i = 0; i < m2->nodes_count; i ++)
+  {
+    double *vq2 = &q2[3*i],
+           *vu2 = &u2[3*i],
+	   *vq1 = &q1[3*mapping[i]],
+	   *vu1 = &u1[3*mapping[i]];
+
+    COPY (vq1, vq2);
+    COPY (vu1, vu2);
+  }
+}
+
 /* ================== Utilities ==================== */
 
 /* modal motion update callback */

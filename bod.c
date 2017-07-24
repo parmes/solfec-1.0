@@ -2078,14 +2078,15 @@ int BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, cha
   switch (nout)
   {
   case 1:
+    if (label1 == NULL && bod->label) label1 = bod->label;
     *bod1 = BODY_Create (bod->kind, SHAPE_Create(SHAPE_MESH, out[0]), bod->mat, label1,
                 bod->flags & BODY_PERMANENT_FLAGS, bod->form, NULL, NULL, NULL, NULL);
     (*lst1) = lst[0];
     (*nlst1) = nlst[0];
     free (lst);
     free (nlst);
-    if (bod->kind == FEM) FEM_Map_State (bod->shape->data, bod->conf, bod->velo,
-                                         (*bod1)->shape->data, (*bod1)->conf, (*bod1)->velo);
+    if (bod->kind == FEM) FEM_Map_State_Direct (bod->shape->data, bod->conf, bod->velo,
+                                         (*bod1)->shape->data, (*bod1)->conf, (*bod1)->velo, *lst1);
     else overwrite_state (bod, *bod1);
     SHAPE_Update ((*bod1)->shape, *bod1, (MOTION)BODY_Cur_Point); 
     break;
@@ -2100,12 +2101,12 @@ int BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, cha
     (*nlst2) = nlst[1];
     free (lst);
     free (nlst);
-    if (bod->kind == FEM) FEM_Map_State (bod->shape->data, bod->conf, bod->velo,
-                                         (*bod1)->shape->data, (*bod1)->conf, (*bod1)->velo);
+    if (bod->kind == FEM) FEM_Map_State_Direct (bod->shape->data, bod->conf, bod->velo,
+                                         (*bod1)->shape->data, (*bod1)->conf, (*bod1)->velo, *lst1);
     else overwrite_state (bod, *bod1);
     SHAPE_Update ((*bod1)->shape, *bod1, (MOTION)BODY_Cur_Point); 
-    if (bod->kind == FEM) FEM_Map_State (bod->shape->data, bod->conf, bod->velo,
-                                         (*bod2)->shape->data, (*bod2)->conf, (*bod2)->velo);
+    if (bod->kind == FEM) FEM_Map_State_Direct (bod->shape->data, bod->conf, bod->velo,
+                                         (*bod2)->shape->data, (*bod2)->conf, (*bod2)->velo, *lst2);
     else overwrite_state (bod, *bod2);
     SHAPE_Update ((*bod2)->shape, *bod2, (MOTION)BODY_Cur_Point); 
     break;

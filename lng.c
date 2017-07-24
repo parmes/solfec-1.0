@@ -7980,15 +7980,15 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 
     DOM *dom = body1->bod->dom;
 #if MPI
+    DOM_Pending_Body_Remove (dom, body1->bod);
     DOM_Pending_Body_Insert (dom, bod1);
     DOM_Pending_Body_Insert (dom, bod2);
-    DOM_Pending_Body_Remove (dom, body1->bod);
-    body1->bod = bod1;
     body1->id = bod1->id;
+    body1->bod = bod1;
 #else
+    DOM_Remove_Body (dom, body1->bod); /* delete before inserts in case of repeated labels (by-label mapping conflicts) */
     DOM_Insert_Body (dom, bod1);
     DOM_Insert_Body (dom, bod2);
-    DOM_Remove_Body (dom, body1->bod);
     BODY_Destroy (body1->bod);
     body1->bod = bod1;
 #endif
@@ -8007,13 +8007,13 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
 
     DOM *dom = body1->bod->dom;
 #if MPI
-    DOM_Pending_Body_Insert (dom, bod1);
     DOM_Pending_Body_Remove (dom, body1->bod);
-    body1->bod = bod1;
+    DOM_Pending_Body_Insert (dom, bod1);
     body1->id = bod1->id;
+    body1->bod = bod1;
 #else
+    DOM_Remove_Body (dom, body1->bod); /* delete before inserts in case of repeated labels (by-label mapping conflicts) */
     DOM_Insert_Body (dom, bod1);
-    DOM_Remove_Body (dom, body1->bod);
     BODY_Destroy (body1->bod);
     body1->bod = bod1;
 #endif

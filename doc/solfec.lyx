@@ -12306,6 +12306,253 @@ Cracking criteria.
 
 \end_layout
 
+\begin_layout Subsection*
+(body2, lst1, lst2) = RT_SPLIT (body1, surf | sid1, sid2, label1, label2)
+ 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+This routine splits a meshed BODY object along a surface aligned with internal
+ element boundaries.
+ It can be invoked from within a callback function - see the CALLBACK command
+ in Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:CALLBACK"
+
+\end_inset
+
+ - and hence 
+\begin_inset Quotes eld
+\end_inset
+
+RT
+\begin_inset Quotes erd
+\end_inset
+
+ stands for 
+\begin_inset Quotes eld
+\end_inset
+
+runtime
+\begin_inset Quotes erd
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body2
+\series default
+ - created BODY object or 
+\emph on
+None
+\emph default
+ if the split does not create another body
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+lst1, lst2
+\series default
+ - lists mapping original mesh node numbers to new mesh node numbers in
+ 
+\series bold
+body1
+\series default
+ and 
+\series bold
+body2
+\series default
+.
+ Only 
+\series bold
+lst1
+\series default
+ is valid in case of a split which does not create two separate bodies -
+ in this case 
+\series bold
+lst2
+\series default
+ =
+\emph on
+ None
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body1
+\series default
+ - a MESH based BODY which is split
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+surf
+\series default
+ - surface definition of the split plane on 
+\series bold
+body1
+\series default
+: a list of lists of face nodes 
+\emph on
+[[n0, n1, n2], [n3, n4, n5, n6], ...]
+\emph default
+ defining the splitting surface (zero based indexing)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+sid1
+\series default
+ - optional identifier for the newly created surface on 
+\series bold
+body1
+\series default
+; default: 0
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+sid2
+\series default
+ - optional identifier for the newly created surface on 
+\series bold
+body2
+\series default
+; default: 0
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label1
+\series default
+ - optional label of 
+\series bold
+body1
+\series default
+; default: 
+\emph on
+None
+\emph default
+ (split in two bodies) or no change (a partial split of 
+\series bold
+body1
+\series default
+)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+label2
+\series default
+ - optional label of 
+\series bold
+body2
+\series default
+; default: 
+\emph on
+None
+\end_layout
+
+\begin_layout Standard
+Properties:
+\end_layout
+
+\begin_layout Enumerate
+
+\series bold
+surf
+\series default
+ normals are calculated so that the face nodes are counter clockwise oriented
+ when looking from the positive normal direction.
+\end_layout
+
+\begin_layout Enumerate
+
+\series bold
+body2
+\series default
+ is on the 
+\emph on
+positive
+\emph default
+ side of 
+\series bold
+surf
+\series default
+, i.e.
+ the normals of 
+\series bold
+surf
+\series default
+ points towards the newly created body.
+\end_layout
+
+\begin_layout Enumerate
+
+\series bold
+body1
+\series default
+ maintains its ID as long as 
+\series bold
+body2
+\series default
+ == 
+\emph on
+None
+\emph default
+.
+\end_layout
+
+\begin_layout Enumerate
+ID of 
+\series bold
+body1
+\series default
+ changes when 
+\series bold
+body2
+\series default
+ != 
+\emph on
+None
+\emph default
+ (when two fragments are created).
+\end_layout
+
+\begin_layout Enumerate
+All constraints attached to 
+\series bold
+body1
+\series default
+ are deleted during splitting.
+\end_layout
+
+\begin_layout Enumerate
+All forces applied to 
+\series bold
+body1
+\series default
+ are deleted during splitting.
+\end_layout
+
+\begin_layout Enumerate
+RT_SPLIT terminates with an error message in case none or more then two
+ mesh fragments were created.
+\end_layout
+
 \begin_layout Section
 \begin_inset CommandInset label
 LatexCommand label
@@ -12435,6 +12682,12 @@ extents
 \end_layout
 
 \begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:CALLBACK"
+
+\end_inset
+
 CALLBACK (solfec, interval, data, callback)
 \end_layout
 
@@ -13608,228 +13861,6 @@ surfid2
 r-clockwise-normal aligned with 
 \series bold
 faceset
-\end_layout
-
-\begin_layout Subsection*
-(body2, lst1, lst2) = RT_SPLIT (body1, surf | sid1, sid2, label1, label2)
- 
-\color red
-(Under development)
-\end_layout
-
-\begin_layout Standard
-This routine splits a meshed BODY object along a surface aligned with internal
- element boundaries.
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-body2
-\series default
- - created BODY object or 
-\emph on
-None
-\emph default
- if the split does not create another body
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-lst1, lst2
-\series default
- - lists mapping original mesh node numbers to new mesh node numbers in
- 
-\series bold
-body1
-\series default
- and 
-\series bold
-body2
-\series default
-.
- Only 
-\series bold
-lst1
-\series default
- is valid in case of a split which does not create two separate bodies -
- in this case 
-\series bold
-lst2
-\series default
- == 
-\emph on
-None
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-body1
-\series default
- - a MESH based BODY which is split
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-surf
-\series default
- - surface definition of the split plane on 
-\series bold
-body1
-\series default
-: a list of lists face nodes 
-\emph on
-[[n0, n1, n2], [n3, n4, n5, n6], ...]
-\emph default
- defining the splitting surface (zero based indexing)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-sid1
-\series default
- - optional identifier for the newly created surface on 
-\series bold
-body1
-\series default
-; default: 0
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-sid2
-\series default
- - optional identifier for the newly created surface on 
-\series bold
-body2
-\series default
-; default: 0
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-label1
-\series default
- - optional label of 
-\series bold
-body1
-\series default
-; default: 
-\emph on
-None
-\emph default
- (split in two bodies) or no change (a partial split of 
-\series bold
-body1
-\series default
-)
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-label2
-\series default
- - optional label of 
-\series bold
-body2
-\series default
-; default: 
-\emph on
-None
-\end_layout
-
-\begin_layout Standard
-Properties:
-\end_layout
-
-\begin_layout Enumerate
-
-\series bold
-surf
-\series default
- normals are calculated so that the face nodes are counter clockwise oriented
- when looking from the positive normal direction.
-\end_layout
-
-\begin_layout Enumerate
-
-\series bold
-body2
-\series default
- is on the 
-\emph on
-positive
-\emph default
- side of 
-\series bold
-surf
-\series default
-, i.e.
- the normals of 
-\series bold
-surf
-\series default
- points towards the newly created body.
-\end_layout
-
-\begin_layout Enumerate
-
-\series bold
-body1
-\series default
- maintains its ID as long as 
-\series bold
-body2
-\series default
- == 
-\emph on
-None
-\emph default
-.
-\end_layout
-
-\begin_layout Enumerate
-ID of 
-\series bold
-body1
-\series default
- changes when 
-\series bold
-body2
-\series default
- != 
-\emph on
-None
-\emph default
- (when two fragments are created).
-\end_layout
-
-\begin_layout Enumerate
-All constraints attached to 
-\series bold
-body1
-\series default
- are deleted during splitting.
-\end_layout
-
-\begin_layout Enumerate
-All forces applied to 
-\series bold
-body1
-\series default
- are deleted during splitting.
-\end_layout
-
-\begin_layout Enumerate
-RT_SPLIT terminates with an error message in case none or more then two
- mesh fragments are created.
 \end_layout
 
 \begin_layout Subsection*

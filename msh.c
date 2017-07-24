@@ -2526,17 +2526,18 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
     MAP *mapped = NULL;
     n = SET_Size (input_nodes);
     ERRMEM (cpy->ref_nodes = realloc (cpy->ref_nodes, 2 * (cpy->nodes_count + n) * sizeof (double [3])));
+    cpy->cur_nodes = cpy->ref_nodes + cpy->nodes_count + n;
+    memmove (cpy->cur_nodes, cpy->cur_nodes-n, cpy->nodes_count * sizeof (double [3]));
     n = cpy->nodes_count;
     for (SET *item = SET_First (input_nodes); item; item = SET_Next(item))
     {
       i = (int)(long) item->data;
       COPY (cpy->ref_nodes[i], cpy->ref_nodes[n]);
+      COPY (cpy->cur_nodes[i], cpy->cur_nodes[n]);
       MAP_Insert (&cpy->mapmem, &mapped, (void*)(long)i, (void*)(long)n, NULL);
       n ++;
     }
     cpy->nodes_count = n;
-    cpy->cur_nodes = cpy->ref_nodes + cpy->nodes_count;
-    memcpy (cpy->cur_nodes, cpy->ref_nodes, n * sizeof (double [3]));
 
     /* duplicate nodes */
     for (MAP *item = MAP_First (separated); item; item = MAP_Next (item))
@@ -2596,6 +2597,7 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
       {
 	kd = KDT_Nearest (kdtree, msh->cur_nodes [j], GEOMETRIC_EPSILON);
 	ASSERT_TEXT (kd, "Kd-tree point query failed");
+	ASSERT_TEXT (kd->n == 0, "Kd-tree node reassignment in MESH_Split_By_Faces --> try smaller GEOMETRIC_EPSILON");
 	kd->n = j; /* assign node indices to tree nodes */
       }
       ERRMEM (*lst = malloc (nout[0] * sizeof (int*)));
