@@ -1,4 +1,19 @@
-This example demonstrates runtime mesh splitting capability;
+Demonstration of runtime mesh splitting via RT_SPLIT command
+invoked from a callback function;
 
-Online: 
-YouTube: 
+Two elastic pipes impact a flat base and fragment based on pre-set,
+time-based triggers; One pipe develops a "single-crack" first, without
+fragmenting, and then develops another "crack" and fragments in two;
+The other pipe fragments in two pieces after a single call to RT_SPLIT;
+
+       _           _
+     /_ / \      /_ / \
+    /   \ /     /   \ /     |
+   |  O  |     |  O  |     \|/ (0, 0, -1) m/s
+    \ _ /       \ _ /       +
+
+  =====================
+
+
+Online: N/A
+YouTube: https://www.youtube.com/watch?v=TQzvVyBJ0aw

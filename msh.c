@@ -2821,6 +2821,84 @@ void MESH_Elements_Around_Node (ELEMENT *ele, int node, SET **set)
   }
 }
 
+/* return a list of inter-element faces, e.g. [3, n0, n1, n2, 4, n0, n1, n2, n3, ...] */
+void MESH_Inter_Element_Faces (MESH *msh, int **faces, int *nfaces)
+{
+  int k, i, j, n, m, *fac, bulk = 0;
+  ELEMENT *ele, *nei, *next;
+  FACE tmp[4];
+
+  memset (&tmp, 0, sizeof(tmp)); /* clear temporary faces */
+
+  *nfaces = 0;
+  for (m = 0, ele = msh->surfeles; ele; ele = ele->next) m += ele->neighs;
+  for (ele = msh->bulkeles; ele; ele = ele->next) m += ele->neighs;
+  ERRMEM ((*faces) = malloc (m * sizeof (int [5]))); /* conservative allocation of the output list */
+  fac = *faces;
+
+  for (ele = msh->surfeles; ele; ele = next)
+  {
+    for (k = 0; k < ele->neighs; k ++)
+    {
+      nei = ele->adj[k];
+      if (ele < nei) /* avoid repeating */
+      {
+	for (n = i = 0; i < ele->type; i ++)
+	{
+	  for (j = 0; j < nei->type; j ++)
+	  {
+	    if (ele->nodes[i] == nei->nodes[j])
+	    {
+	      fac[n] = ele->nodes[i];
+	      n ++;
+	      ASSERT_TEXT (n <= 4, "Inconsistent element adjacency");
+	    }
+	  }
+	}
+
+	if (n >= 3)
+	{
+	  sort (fac, fac+n-1); /* sorted face vertices to be able to compare faces */
+
+	  m = neighs (ele->type); 
+
+	  for (i = 0; i < m; i ++)
+	  {
+	    setup_face (ele, i, &tmp[0], 1);
+
+	    if (n == tmp[0].type && lexcmp(fac, tmp[0].nodes, n) == 0)
+	    {
+	      setup_face (ele, i, &tmp[1], 0);
+
+	      fac[0] = n;
+
+	      for (j = 0; j < n; j ++) fac[j+1] = tmp[1].nodes[j]; /* 'fac' must include vertices in a correct order */
+
+	      break;
+	    }
+	  }
+	  
+	  (*nfaces) ++;
+	  fac += n+1; /* append 'fac' to output list */
+	}
+      }
+    }
+
+    next = ele->next;
+    if (next == NULL && bulk == 0)
+    {
+      next = msh->bulkeles;
+      bulk = 1;
+    }
+  }
+
+  if (*nfaces == 0)
+  {
+    free (*faces);
+    *faces = NULL;
+  }
+}
+
 /* find an element containing a referential point */
 /* update mesh according to the given motion */
 void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion)

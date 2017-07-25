@@ -2944,7 +2944,7 @@ static void sparsify_contacts (DOM *dom)
 
 	    MAXABS (d, c);
 
-	    if (c < margin && con->id < adj->id) /* eliminate duplicated contact points (compare ids not to eliminate both) */
+	    if (c < margin && (con->id < adj->id || (adj->state & CON_NEW) == 0)) /* eliminate duplicated contact points (compare ids not to eliminate both) */
 	    {
 	      con->state |= CON_DONE;
 	      SET_Insert (&mem, &del, con, NULL);

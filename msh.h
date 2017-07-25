@@ -179,6 +179,9 @@ ELEMENT* MESH_Element_With_Node (MESH *msh, int node);
 /* collect elements around a node (ele->node [i] == node && *set == NULL initially assumed) */
 void MESH_Elements_Around_Node (ELEMENT *ele, int node, SET **set);
 
+/* return a list of inter-element faces, e.g. [3, n0, n1, n2, 4, n0, n1, n2, n3, ...] */
+void MESH_Inter_Element_Faces (MESH *msh, int **faces, int *nfaces);
+
 /* update mesh according to the given motion */
 void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion);
 
