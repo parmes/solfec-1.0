@@ -9336,7 +9336,7 @@ An object of type TIME_SERIES is a linear spline based on a series of 2-points.
 \end_layout
 
 \begin_layout Subsection*
-obj = TIME_SERIES (points | label)
+obj = TIME_SERIES (points | label, cache)
 \end_layout
 
 \begin_layout Standard
@@ -9412,6 +9412,36 @@ label
  is stored in memory just once; this facilitates more optimal memory usage
  in cases where many identical TIME_SERIES objects are used in multiple
  constraints (for example); the label should be unique
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+cache
+\series default
+ - optional partial cache size; if 
+\series bold
+points
+\series default
+ = file path and 
+\series bold
+cache
+\series default
+ > 0 then only the cache size of points is stored in memory at any given
+ time; this helps to save memory in case of a need for many large time series
+ objects; default: 0 (entire time series is stored in memory) 
+\series bold
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+Some parameters can also be accessed as members of a TIME_SERIES object.
+ These are
+\begin_inset Separator latexpar
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -12521,35 +12551,19 @@ surf
 \end_layout
 
 \begin_layout Enumerate
-
-\series bold
-body1
-\series default
- maintains its ID as long as 
-\series bold
-body2
-\series default
- == 
-\emph on
-None
-\emph default
-.
-\end_layout
-
-\begin_layout Enumerate
 ID of 
 \series bold
 body1
 \series default
- changes when 
+ changes every time a split happens (even if 
 \series bold
 body2
 \series default
- != 
+ is 
 \emph on
 None
 \emph default
- (when two fragments are created).
+).
 \end_layout
 
 \begin_layout Enumerate

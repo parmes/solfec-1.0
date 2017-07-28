@@ -32,7 +32,12 @@ struct time_series
   double (*points) [2]; /* vector of (time, value) pairs */
   char *label; /* label for globally mapped time series */
   int marker; /* index of the last read interval */
-  int size; /* total number of pairs */
+  int size; /* number of pairs */
+  char *path; /* file path for partially cached time series */
+  long *offset; /* file offsets */
+  double *time; /* time instants maching file offsets */
+  int noffsets; /* number of offsets */
+  int cache; /* partial cache size */
 };
 
 /* create a copy */
@@ -42,7 +47,7 @@ TMS* TMS_Copy (TMS *ts);
 TMS* TMS_Create (int size, double *times, double *values, char *label);
 
 /* create time series from a text file */
-TMS* TMS_File (char *path, char *label);
+TMS* TMS_File (char *path, char *label, int cache);
 
 /* wrapper for a constant value */
 TMS* TMS_Constant (double value, char *label);

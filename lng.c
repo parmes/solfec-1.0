@@ -3829,10 +3829,11 @@ static int is_number_or_time_series (PyObject *obj, char *var)
 /* constructor */
 static PyObject* lng_TIME_SERIES_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("points", "label");
+  KEYWORDS ("points", "label", "cache");
   lng_TIME_SERIES *self;
   PyObject *points;
   PyObject *label;
+  int cache;
   char *lb;
 
   self = (lng_TIME_SERIES*)type->tp_alloc (type, 0);
@@ -3840,17 +3841,18 @@ static PyObject* lng_TIME_SERIES_new (PyTypeObject *type, PyObject *args, PyObje
   if (self)
   {
     label = NULL;
+    cache = 0;
 
-    PARSEKEYS ("O|O", &points, &label);
+    PARSEKEYS ("O|Od", &points, &label, &cache);
 
-    TYPETEST (is_list_or_string (points, kwl [0], 1, 2) && is_string (label, kwl[1]));
+    TYPETEST (is_list_or_string (points, kwl [0], 1, 2) && is_string (label, kwl[1]) && is_non_negative (cache, kwl[2]));
 
     if (label) lb = PyString_AsString (label);
     else lb = NULL;
 
     if (PyString_Check (points))
     {
-      if (!(self->ts = TMS_File (PyString_AsString (points), lb)))
+      if (!(self->ts = TMS_File (PyString_AsString (points), lb, cache)))
       {
 	PyErr_SetString (PyExc_ValueError, "Could not open file");
 	return NULL;
@@ -3921,10 +3923,26 @@ static PyObject* lng_TIME_SERIES_get_times (lng_TIME_SERIES *self, void *closure
 {
   PyObject *list;
 
-  ERRMEM (list = PyList_New (self->ts->size));
+  if (self->ts->path) /* partially cached time series */
+  {
+    ERRMEM (list = PyList_New (0));
 
-  for (int i = 0; i < self->ts->size; i ++)
-    PyList_SetItem (list, i, PyFloat_FromDouble (self->ts->points [i][0]));
+    for (int i = 0; i < self->ts->noffsets; i ++)
+    {
+      TMS_Value (self->ts, self->ts->time[i]); /* load partial cache at this offset */
+
+      /* output data points from the current cache */
+      for (int j = 0; j < self->ts->size; j ++)
+        PyList_Append (list, PyFloat_FromDouble (self->ts->points [j][0]));
+    }
+  }
+  else
+  {
+    ERRMEM (list = PyList_New (self->ts->size));
+
+    for (int i = 0; i < self->ts->size; i ++)
+      PyList_SetItem (list, i, PyFloat_FromDouble (self->ts->points [i][0]));
+  }
 
   return list;
 }
@@ -3959,6 +3977,12 @@ static PyObject* lng_TIME_SERIES_get_derivative (lng_TIME_SERIES *self, void *cl
 
   out = (lng_TIME_SERIES*)lng_TIME_SERIES_TYPE.tp_alloc (&lng_TIME_SERIES_TYPE, 0);
 
+  if (self->ts->path)
+  {
+    PyErr_SetString (PyExc_ValueError, "Derivative of partially cached time series objects is not supported");
+    return NULL;
+  }
+
   out->ts = TMS_Derivative  (self->ts);
 
   return (PyObject*)out;
@@ -3975,6 +3999,12 @@ static PyObject* lng_TIME_SERIES_get_integral (lng_TIME_SERIES *self, void *clos
   lng_TIME_SERIES *out;
 
   out = (lng_TIME_SERIES*)lng_TIME_SERIES_TYPE.tp_alloc (&lng_TIME_SERIES_TYPE, 0);
+
+  if (self->ts->path)
+  {
+    PyErr_SetString (PyExc_ValueError, "Integral of partially cached time series objects is not supported");
+    return NULL;
+  }
 
   out->ts = TMS_Integral (self->ts);
 

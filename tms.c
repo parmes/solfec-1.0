@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <float.h>
 #include "mem.h"
 #include "tms.h"
 #include "pck.h"
@@ -48,6 +49,34 @@ static int findmarker (double (*begin)[2], double (*end)[2], double time)
       return (mid - begin);
     }
     else if (time < (*mid)[0])
+    {
+      high = mid - 1;
+    }
+    else
+    {
+      low = mid + 1;
+    }
+  }
+
+  return 0;
+}
+
+static int findoffset (double *begin, double *end, double time)
+{
+  double *low = begin,
+	 *high = end,
+	 *mid;
+
+  while (low <= high)
+  {
+    mid = low + (high-low) / 2;
+
+    if (time >= (*mid) &&
+        time < (*(mid+1)))
+    {
+      return (mid - begin);
+    }
+    else if (time < (*mid))
     {
       high = mid - 1;
     }
@@ -135,54 +164,136 @@ TMS* TMS_Create (int size, double *times, double *values, char *label)
 
   addlabel (ts, label);
 
+  ts->path = NULL; /* not partially cached */
+  ts->offset = NULL;
+  ts->time = NULL;
+  ts->noffsets = 0;
+  ts->cache = 0;
+
   return ts;
 }
 
-TMS* TMS_File (char *path, char *label)
+TMS* TMS_File (char *path, char *label, int cache)
 {
+  int np, no, size;
   char buf [4096];
+  double t0, t, v;
   FILE *fp;
   TMS *ts;
-  int np;
 
   if (!(fp = fopen (path, "r"))) return NULL;
   ERRMEM (ts = malloc (sizeof (TMS)));
   ERRMEM (ts->points = MEM_CALLOC (sizeof (double [2]) * CHUNK));
 
-  np = CHUNK;
+  if (cache)
+  {
+    ERRMEM (ts->path = malloc (strlen(path)+1));
+    strcpy (ts->path, path);
+    ERRMEM (ts->offset = MEM_CALLOC (sizeof (long) * CHUNK));
+    ERRMEM (ts->time = MEM_CALLOC (sizeof (double) * CHUNK));
+    ts->noffsets = 1;
+  }
+
+  ts->cache = cache;
+
+  np = no = CHUNK;
   ts->size = 0;
+  size = 0;
+  t = -DBL_MAX;
   while (fgets(buf, sizeof(buf), fp) != NULL) /* read line */
   {
     if (buf[0] == '#') continue; /* skip comments */
 
-    if (sscanf (buf, "%lf%lf", &ts->points [ts->size][0], &ts->points [ts->size][1]) == EOF) break;
-
-    if (ts->size)
+    if (cache == 0 || ts->size < cache)
     {
-      ASSERT (ts->points [ts->size][0] > ts->points [ts->size-1][0], ERR_TMS_TIME_NOT_INCREASED);
+      t0 = t;
+
+      if (sscanf (buf, "%lf%lf", &t, &v) == EOF) break;
+
+      ASSERT (t > t0, ERR_TMS_TIME_NOT_INCREASED);
+
+      ts->points [ts->size][0] = t;
+      ts->points [ts->size][1] = v;
+
+      if (++ ts->size >= np)
+      {
+	np += CHUNK;
+	ERRMEM (ts->points = realloc (ts->points, sizeof (double [2]) * np));
+      }
+
+      size ++;
     }
-
-    if (++ ts->size >= np)
+    else
     {
-      np += CHUNK;
-      ERRMEM (ts->points = realloc (ts->points, sizeof (double [2]) * np));
+      if (size == cache)
+      {
+	ts->offset[ts->noffsets] = ftell(fp);
+	ts->time[ts->noffsets] = t;
+
+	if (++ ts->noffsets >= no)
+	{
+	  no += CHUNK;
+	  ERRMEM (ts->offset = realloc (ts->offset, sizeof (long) * no));
+	  ERRMEM (ts->time = realloc (ts->time, sizeof (double) * no));
+	}
+
+	size = 0;
+      }
+
+      t0 = t;
+
+      if (sscanf (buf, "%lf%lf", &t, &v) == EOF) break;
+
+      ASSERT (t > t0, ERR_TMS_TIME_NOT_INCREASED);
+
+      size ++;
     }
   }
 
   if (ts->size == 0)
   {
     free (ts->points);
+    if (cache)
+    {
+      free (ts->path);
+      free (ts->offset);
+      free (ts->time);
+    }
     free (ts);
     ASSERT (0, ERR_FILE_EMPTY);
   }
   else
   {
     ERRMEM (ts->points = realloc (ts->points, sizeof (double [2]) * ts->size)); /* trim */
+
+    if (cache)
+    {
+      ERRMEM (ts->offset = realloc (ts->offset, sizeof (long) * (ts->noffsets+1))); /* trim */
+      ERRMEM (ts->time = realloc (ts->time, sizeof (double) * (ts->noffsets+1)));
+
+      if (size < cache)
+      {
+	ts->offset[ts->noffsets] = ftell(fp);
+	ts->time[ts->noffsets] = t;
+	ts->noffsets ++;
+      }
+    }
   }
 
   ts->marker = 0;
 
   addlabel (ts, label);
+
+  if (cache == 0) /* not partially cached */
+  {
+    ts->path = NULL;
+    ts->offset = NULL;
+    ts->time = NULL;
+    ts->noffsets = 0;
+    ts->cache = 0;
+  }
+
+  fclose (fp);
 
   return ts;
 }
@@ -197,6 +308,12 @@ TMS* TMS_Constant (double value, char *label)
 
   addlabel (ts, label);
 
+  ts->path = NULL; /* not partially cached */
+  ts->offset = NULL;
+  ts->time = NULL;
+  ts->noffsets = 0;
+  ts->cache = 0;
+
   return ts;
 }
 
@@ -205,15 +322,25 @@ TMS* TMS_Integral (TMS *ts)
   double (*pin) [2],
 	 (*pout) [2];
   TMS *out;
+  char *lb;
   int n;
 
-  if (!(out = bylabel (ts->label)))
+  ASSERT_TEXT (ts->path == NULL, "Integral of partially cached time series objects is not supported");
+
+  if (ts->label)
   {
-    ASSERT (ts->size > 0, ERR_TMS_INTEGRATE_CONSTANT);
+    ERRMEM (lb = malloc (sizeof(ts->label)+3));
+    sprintf (lb, "%s_i", ts->label);
+  }
+  else lb = NULL;
+ 
+  if (!(out = bylabel (lb)))
+  {
+    ASSERT (ts->size > 1, ERR_TMS_INTEGRATE_CONSTANT);
     ERRMEM (out = malloc (sizeof (TMS)));
     out->size = ts->size;
 
-    if (out->size == 0)
+    if (out->size == 2)
     {
       free (out);
       return TMS_Constant ((ts->points[1][0] - ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]), NULL);
@@ -226,7 +353,7 @@ TMS* TMS_Integral (TMS *ts)
     pout = out->points;
 
     pout [0][0] = pin[0][0];
-    pout [0][1] = pin[0][1];
+    pout [0][1] = 0.0;
 
     for (n = 1; n < out->size; n ++)
     {
@@ -236,14 +363,12 @@ TMS* TMS_Integral (TMS *ts)
 
     if (ts->label)
     {
-      char *lb;
-      ERRMEM (lb = malloc (sizeof(ts->label)+3));
-      sprintf (lb, "%s_i", ts->label);
       addlabel (out, lb);
-      free (lb);
     }
     else out->label = NULL;
   }
+
+  if (lb) free (lb);
 
   return out;
 }
@@ -253,9 +378,19 @@ TMS* TMS_Derivative (TMS *ts)
   double (*pin) [2],
 	 (*pout) [2];
   TMS *out;
+  char *lb;
   int n;
 
-  if (!(out = bylabel (ts->label)))
+  ASSERT_TEXT (ts->path == NULL, "Derivative of partially cached time series objects is not supported");
+
+  if (ts->label)
+  {
+    ERRMEM (lb = malloc (sizeof(ts->label)+3));
+    sprintf (lb, "%s_d", ts->label);
+  }
+  else lb = NULL;
+ 
+  if (!(out = bylabel (lb)))
   {
     if (ts->size == 0) return TMS_Constant (0.0, NULL);
 
@@ -302,14 +437,12 @@ TMS* TMS_Derivative (TMS *ts)
 
     if (ts->label)
     {
-      char *lb;
-      ERRMEM (lb = malloc (sizeof(ts->label)+3));
-      sprintf (lb, "%s_d", ts->label);
       addlabel (out, lb);
-      free (lb);
     }
     else out->label = NULL;
   }
+
+  if (lb) free (lb);
 
   return out;
 }
@@ -319,6 +452,26 @@ double TMS_Value (TMS *ts, double time)
   double lo, hi;
 
   if (ts->size == 0) return ts->value;
+
+  /* if the time series is partially cached - when out of bounds - reload cache */
+  if ((time < ts->points[0][0] || time > ts->points[ts->size-1][0]) && ts->path)
+  {
+    char buf [4096];
+    int off = findoffset (ts->time, ts->time + ts->noffsets - 1, time);
+    FILE *fp = fopen (ts->path, "r");
+    ASSERT_TEXT (fp, "Opening data file [%s] for partially cached TIME_SERIES file has failed", ts->path);
+    fseek (fp, ts->offset[off], SEEK_SET);
+    ts->size = 0;
+    while (ts->size < ts->cache && fgets(buf, sizeof(buf), fp) != NULL) /* read line */
+    {
+      if (buf[0] == '#') continue; /* skip comments */
+
+      if (sscanf (buf, "%lf%lf", &ts->points [ts->size][0], &ts->points [ts->size][1]) == EOF) break;
+
+      ts->size ++;
+    }
+    fclose (fp);
+  }
 
   if (time < ts->points[0][0]) return ts->points[0][1];
   else if (time > ts->points[ts->size-1][0]) return ts->points[ts->size-1][1];
@@ -342,7 +495,7 @@ void TMS_Output (TMS *ts, char *path, double step)
 {
   double (*p) [2], t, e;
   FILE *fp;
-  int n;
+  size_t n;
 
   ASSERT (fp = fopen (path, "w"), ERR_FILE_OPEN);
 
@@ -360,9 +513,23 @@ void TMS_Output (TMS *ts, char *path, double step)
     }
     else
     {
-      p = ts->points;
-      for (n = 0; n < ts->size; n ++)
-	fprintf (fp, "%e\t%e\n", p[n][0], p[n][1]);
+      if (ts->path)
+      {
+	char buf [4096];
+	FILE *f0 = fopen (ts->path, "r");
+	ASSERT_TEXT (f0, "Opening data file [%s] for partially cached TIME_SERIES file has failed", ts->path);
+        while ((n = fread(buf, sizeof(char), sizeof(buf), f0)) > 0)
+        {
+          ASSERT_TEXT (fwrite(buf, sizeof(char), n, fp) == n, "Writing data file [%s] has failed", path);
+        }
+	fclose (f0);
+      }
+      else
+      {
+	p = ts->points;
+	for (n = 0; n < (size_t) ts->size; n ++)
+	  fprintf (fp, "%e\t%e\n", p[n][0], p[n][1]);
+      }
     }
   }
 
@@ -378,6 +545,12 @@ void TMS_Destroy (TMS *ts)
   {
     free (ts->points);
     free (ts);
+    if (ts->path)
+    {
+      free (ts->path);
+      free (ts->offset);
+      free (ts->time);
+    }
   }
 }
 
@@ -388,9 +561,15 @@ void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **
     pack_int (isize, i, ints, 1); /* labeled */
     pack_string (isize, i, ints, ts->label);
   }
+  else if (ts->path)
+  {
+    pack_int (isize, i, ints, 2); /* not labeled and partially cached */
+    pack_int (isize, i, ints, ts->cache);
+    pack_string (isize, i, ints, ts->path);
+  }
   else
   {
-    pack_int (isize, i, ints, 0); /* not labeled */
+    pack_int (isize, i, ints, 0); /* not labeled and not partially cached */
     pack_double (dsize, d, doubles, ts->value);
     pack_int (isize, i, ints, ts->marker);
     pack_int (isize, i, ints, ts->size);
@@ -400,19 +579,26 @@ void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **
 
 TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
 {
-  int labeled;
+  int type;
   TMS *ts;
 
-  labeled = unpack_int (ipos, i, ints);
+  type = unpack_int (ipos, i, ints);
 
-  if (labeled)
+  if (type == 1) /* labeled */
   {
     char *lb = unpack_string (ipos, i, ints);
     ts = MAP_Find (labeled_time_series, lb, (MAP_Compare)strcmp);
     ASSERT_TEXT (ts, "Labeled time series is not present in the global map");
     free (lb);
   }
-  else
+  else if (type == 2) /* not labeled and partially cached */
+  {
+    int cache = unpack_int (ipos, i, ints);
+    char *path = unpack_string (ipos, i, ints);
+    ts = TMS_File (path, NULL, cache);
+    free (path);
+  }
+  else /* not labeled and not partially cached */
   {
     ERRMEM (ts = malloc (sizeof (TMS)));
     ts->value = unpack_double (dpos, d, doubles);
@@ -424,24 +610,39 @@ TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
       unpack_doubles (dpos, d, doubles, (double*)ts->points, ts->size * 2);
     }
     ts->label = NULL;
+    ts->path = NULL; /* not partially cached */
+    ts->offset = NULL;
+    ts->time = NULL;
+    ts->noffsets = 0;
+    ts->cache = 0;
   }
 
   return ts;
 }
 
 /* export MBFCP definition */
-void TMS_2_MBFCP (TMS *tms, FILE *out)
+void TMS_2_MBFCP (TMS *ts, FILE *out)
 {
   int n;
 
-  if (tms->size == 0)
+  if (ts->size == 0)
   {
-    fprintf (out, "CONSTANT:\t%g\n", tms->value);
+    fprintf (out, "CONSTANT:\t%g\n", ts->value);
   }
   else
   {
-    fprintf (out, "TIME_SERIES:\t%d\n", tms->size);
-    for (n = 0; n < tms->size; n ++) fprintf (out, "%g\t%g\n", tms->points [n][0], tms->points[n][1]);
+    fprintf (out, "TIME_SERIES:\t%d\n", ts->size);
+    if (ts->path)
+    {
+      for (int i = 0; i < ts->noffsets; i ++)
+      {
+	TMS_Value (ts, ts->time[i]); /* load partial cache at this offset */
+
+	/* output data points from the current cache */
+	for (n = 0; n < ts->size; n ++) fprintf (out, "%g\t%g\n", ts->points [n][0], ts->points[n][1]);
+      }
+    }
+    else for (n = 0; n < ts->size; n ++) fprintf (out, "%g\t%g\n", ts->points [n][0], ts->points[n][1]);
   }
 }
 
