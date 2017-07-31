@@ -3843,7 +3843,7 @@ static PyObject* lng_TIME_SERIES_new (PyTypeObject *type, PyObject *args, PyObje
     label = NULL;
     cache = 0;
 
-    PARSEKEYS ("O|Od", &points, &label, &cache);
+    PARSEKEYS ("O|Oi", &points, &label, &cache);
 
     TYPETEST (is_list_or_string (points, kwl [0], 1, 2) && is_string (label, kwl[1]) && is_non_negative (cache, kwl[2]));
 

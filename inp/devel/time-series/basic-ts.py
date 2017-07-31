@@ -1,4 +1,4 @@
-tms1 = TIME_SERIES ('inp/devel/time-series.txt');
+tms1 = TIME_SERIES ('ts-data-0.txt');
 print 'From file:'
 print tms1.times
 print tms1.values

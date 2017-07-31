@@ -1,0 +1,9 @@
+Examples of the application of the TIME_SERIES object in Solfec;
+Included files:
+
+* README - this file
+* basic-ts.py - simple time series creation without a simulation
+* cached-ts.py - 10 moving balls 100-point series witch 10-point cache
+* labeled-ts.py - 10 moving balls using the same labeled time series
+* ts-gen.py - generate ts-data-{1 .. 10} files with N data points
+* ts-data-{0 .. 10}.txt - example data files; "0" with comments

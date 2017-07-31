@@ -33,11 +33,12 @@ struct time_series
   char *label; /* label for globally mapped time series */
   int marker; /* index of the last read interval */
   int size; /* number of pairs */
+  int cache; /* partial cache size */
   char *path; /* file path for partially cached time series */
   long *offset; /* file offsets */
   double *time; /* time instants maching file offsets */
   int noffsets; /* number of offsets */
-  int cache; /* partial cache size */
+  int op; /* partial cache operation: 0-none, 1-derivative */
 };
 
 /* create a copy */
