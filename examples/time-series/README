@@ -7,3 +7,6 @@ Included files:
 * labeled-ts.py - 10 moving balls using the same labeled time series
 * ts-gen.py - generate ts-data-{1 .. 10} files with N data points
 * ts-data-{0 .. 10}.txt - example data files; "0 file" with comments
+
+Online: http://parmes.github.io/solfec/examples/time_series.html
+YouTube: https://www.youtube.com/watch?v=X9_aS4RILTA
