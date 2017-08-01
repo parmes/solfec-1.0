@@ -155,39 +155,42 @@ static void addlabel (TMS *ts, char *label)
   else ts->label = NULL;
 }
 
-TMS* TMS_Copy (TMS *ts)
+static TMS* hardcopy (TMS *ts)
 {
   TMS *out;
 
-  if (ts->label)
+  ERRMEM (out = MEM_CALLOC (sizeof (TMS)));
+  out->value = ts->value;
+  ERRMEM (out->points = malloc (sizeof (double [2]) * ts->size));
+  out->marker = ts->marker;
+  out->size = ts->size;
+  memcpy (out->points, ts->points, sizeof (double [2]) * ts->size);
+  out->label = NULL;
+  if (ts->cache)
   {
-    out = MAP_Find (labeled_time_series, ts->label, (MAP_Compare)strcmp);
-    ASSERT_TEXT (out, "Labeled time series is not present in the global map");
-  }
-  else
-  {
-    ERRMEM (out = MEM_CALLOC (sizeof (TMS)));
-    out->value = ts->value;
-    ERRMEM (out->points = malloc (sizeof (double [2]) * ts->size));
-    out->marker = ts->marker;
-    out->size = ts->size;
-    memcpy (out->points, ts->points, sizeof (double [2]) * ts->size);
-    out->label = NULL;
-    if (ts->cache)
-    {
-      out->cache = ts->cache;
-      ERRMEM (out->path = malloc (strlen(ts->path)+1));
-      strcpy (out->path, ts->path);
-      ERRMEM (out->offset = malloc (ts->noffsets * sizeof(long)));
-      memcpy (out->offset, ts->offset, ts->noffsets * sizeof(long));
-      ERRMEM (out->time = malloc (ts->noffsets* sizeof(long)));
-      memcpy (out->time, ts->time, ts->noffsets* sizeof(long));
-      out->noffsets = ts->noffsets;
-      out->op = ts->op;
-    }
+    out->cache = ts->cache;
+    ERRMEM (out->path = malloc (strlen(ts->path)+1));
+    strcpy (out->path, ts->path);
+    ERRMEM (out->offset = malloc (ts->noffsets * sizeof(long)));
+    memcpy (out->offset, ts->offset, ts->noffsets * sizeof(long));
+    ERRMEM (out->time = malloc (ts->noffsets* sizeof(long)));
+    memcpy (out->time, ts->time, ts->noffsets* sizeof(long));
+    out->noffsets = ts->noffsets;
+    out->op = ts->op;
   }
 
   return out;
+}
+
+TMS* TMS_Copy (TMS *ts)
+{
+  if (ts->label)
+  {
+    TMS *out = MAP_Find (labeled_time_series, ts->label, (MAP_Compare)strcmp);
+    ASSERT_TEXT (out, "Labeled time series is not present in the global map");
+    return NULL;
+  }
+  else return hardcopy(ts);
 }
 
 TMS* TMS_Create (int size, double *times, double *values, char *label)
@@ -442,7 +445,7 @@ TMS* TMS_Derivative (TMS *ts)
 
   if (ts->label)
   {
-    ERRMEM (lb = malloc (sizeof(ts->label)+3));
+    ERRMEM (lb = malloc (strlen(ts->label)+3));
     sprintf (lb, "%s_d", ts->label);
   }
   else lb = NULL;
@@ -456,9 +459,9 @@ TMS* TMS_Derivative (TMS *ts)
       return TMS_Constant ((ts->points[1][1] - ts->points[0][1])/(ts->points[1][0] - ts->points[0][0]), NULL);
     }
 
-    out = TMS_Copy (ts);
+    out = hardcopy (ts);
 
-    applyderivative (ts);
+    applyderivative (out);
 
     if (ts->label)
     {

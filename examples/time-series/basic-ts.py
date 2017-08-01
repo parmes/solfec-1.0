@@ -1,4 +1,8 @@
-tms1 = TIME_SERIES ('ts-data-0.txt');
+# basic applications of TIME_SERIES (points)
+import os
+d0 = os.path.dirname(os.path.realpath(__file__))
+
+tms1 = TIME_SERIES (d0+'/ts-data-0.txt');
 print 'From file:'
 print tms1.times
 print tms1.values

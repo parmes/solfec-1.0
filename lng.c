@@ -3977,12 +3977,6 @@ static PyObject* lng_TIME_SERIES_get_derivative (lng_TIME_SERIES *self, void *cl
 
   out = (lng_TIME_SERIES*)lng_TIME_SERIES_TYPE.tp_alloc (&lng_TIME_SERIES_TYPE, 0);
 
-  if (self->ts->path)
-  {
-    PyErr_SetString (PyExc_ValueError, "Derivative of partially cached time series objects is not supported");
-    return NULL;
-  }
-
   out->ts = TMS_Derivative  (self->ts);
 
   return (PyObject*)out;

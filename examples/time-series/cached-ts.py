@@ -1,4 +1,6 @@
 # partially cached TIME_SERIES ('data.txt', cache = N) example
+import os
+d0 = os.path.dirname(os.path.realpath(__file__))
 
 # create SOLFEC object and bulk material
 solfec = SOLFEC ('DYNAMIC', 1E-3, 'out/cached-ts')
@@ -15,7 +17,7 @@ mat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF',
 # we set the partial cache size to 10; this means that only
 # 10 points are stored in memory, per series, at any time;
 for i in range (1, 11):
-  tms = TIME_SERIES ('ts-data-%d.txt' % i, cache = 10)
+  tms = TIME_SERIES (d0+'/ts-data-%d.txt' % i, cache = 10)
   sph = SPHERE ((i, 0, 0), 0.4, 1, 1)
   bod = BODY (solfec, 'RIGID', sph, mat)
   SET_DISPLACEMENT (bod, (i, 0, 0), (0, 1, 0), tms)
