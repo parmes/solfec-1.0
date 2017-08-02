@@ -2290,43 +2290,44 @@ MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
   if (nfac > 0)
   {
     /* adjacently flag separated elements */
-    mapped_parts (separated);
-
-    /* add extra nodes */
-    MAP *mapped = NULL;
-    n = SET_Size (nodes);
-    ERRMEM (msh->ref_nodes = realloc (msh->ref_nodes, 2 * (msh->nodes_count + n) * sizeof (double [3])));
-    n = msh->nodes_count;
-    for (SET *item = SET_First (nodes); item; item = SET_Next(item))
+    if (mapped_parts (separated) == 2)
     {
-      i = (int)(long) item->data;
-      COPY (msh->ref_nodes[i], msh->ref_nodes[n]);
-      MAP_Insert (&msh->mapmem, &mapped, (void*)(long)i, (void*)(long)n, NULL);
-      n ++;
-    }
-    msh->nodes_count = n;
-    msh->cur_nodes = msh->ref_nodes + msh->nodes_count;
-    memcpy (msh->cur_nodes, msh->ref_nodes, n * sizeof (double [3]));
-
-    /* duplicate nodes */
-    for (MAP *item = MAP_First (separated); item; item = MAP_Next (item))
-    {
-      ele = item->key;
-      nei = item->data;
-
-      /* adjacent elements have been flagged into same flag sets along the separating surfaces;
-       * they have also been mapped to their former neighbours along the separating surfaces;
-       * hence, in order to choose the nodal set (old or new) for node duplication it should be
-       * sufficient to use the below "separation side" criterion, based on flag comparison */
-      if (ele->flag < nei->flag)
+      /* add extra nodes */
+      MAP *mapped = NULL;
+      n = SET_Size (nodes);
+      ERRMEM (msh->ref_nodes = realloc (msh->ref_nodes, 2 * (msh->nodes_count + n) * sizeof (double [3])));
+      n = msh->nodes_count;
+      for (SET *item = SET_First (nodes); item; item = SET_Next(item))
       {
-	for (i = 0; i < nei->type; i ++)
+	i = (int)(long) item->data;
+	COPY (msh->ref_nodes[i], msh->ref_nodes[n]);
+	MAP_Insert (&msh->mapmem, &mapped, (void*)(long)i, (void*)(long)n, NULL);
+	n ++;
+      }
+      msh->nodes_count = n;
+      msh->cur_nodes = msh->ref_nodes + msh->nodes_count;
+      memcpy (msh->cur_nodes, msh->ref_nodes, n * sizeof (double [3]));
+
+      /* duplicate nodes */
+      for (MAP *item = MAP_First (separated); item; item = MAP_Next (item))
+      {
+	ele = item->key;
+	nei = item->data;
+
+	/* adjacent elements have been flagged into same flag sets along the separating surfaces;
+	 * they have also been mapped to their former neighbours along the separating surfaces;
+	 * hence, in order to choose the nodal set (old or new) for node duplication it should be
+	 * sufficient to use the below "separation side" criterion, based on flag comparison */
+	if (ele->flag < nei->flag)
 	{
-	  MAP *jtem = MAP_Find_Node (mapped, (void*)(long)nei->nodes[i], NULL);
-	  if (jtem)
+	  for (i = 0; i < nei->type; i ++)
 	  {
-	    j = (int)(long) jtem->data;
-	    nei->nodes[i] = j;
+	    MAP *jtem = MAP_Find_Node (mapped, (void*)(long)nei->nodes[i], NULL);
+	    if (jtem)
+	    {
+	      j = (int)(long) jtem->data;
+	      nei->nodes[i] = j;
+	    }
 	  }
 	}
       }
@@ -2520,55 +2521,56 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
   if (nfac > 0)
   {
     /* adjacently flag separated elements */
-    mapped_parts (separated);
-
-    /* add extra nodes */
-    MAP *mapped = NULL;
-    n = SET_Size (input_nodes);
-    ERRMEM (cpy->ref_nodes = realloc (cpy->ref_nodes, 2 * (cpy->nodes_count + n) * sizeof (double [3])));
-    cpy->cur_nodes = cpy->ref_nodes + cpy->nodes_count + n;
-    memmove (cpy->cur_nodes, cpy->cur_nodes-n, cpy->nodes_count * sizeof (double [3]));
-    n = cpy->nodes_count;
-    for (SET *item = SET_First (input_nodes); item; item = SET_Next(item))
+    if (mapped_parts (separated) == 2)
     {
-      i = (int)(long) item->data;
-      COPY (cpy->ref_nodes[i], cpy->ref_nodes[n]);
-      COPY (cpy->cur_nodes[i], cpy->cur_nodes[n]);
-      MAP_Insert (&cpy->mapmem, &mapped, (void*)(long)i, (void*)(long)n, NULL);
-      n ++;
-    }
-    cpy->nodes_count = n;
-
-    /* duplicate nodes */
-    for (MAP *item = MAP_First (separated); item; item = MAP_Next (item))
-    {
-      ele = item->key;
-      nei = item->data;
-
-      /* adjacent elements have been flagged into same flag sets along the separating surfaces;
-       * they have also been mapped to their former neighbours along the separating surfaces;
-       * hence, in order to choose the nodal set (old or new) for node duplication it should be
-       * sufficient to use the below "separation side" criterion, based on flag comparison */
-      if (ele->flag < nei->flag)
+      /* add extra nodes */
+      MAP *mapped = NULL;
+      n = SET_Size (input_nodes);
+      ERRMEM (cpy->ref_nodes = realloc (cpy->ref_nodes, 2 * (cpy->nodes_count + n) * sizeof (double [3])));
+      cpy->cur_nodes = cpy->ref_nodes + cpy->nodes_count + n;
+      memmove (cpy->cur_nodes, cpy->cur_nodes-n, cpy->nodes_count * sizeof (double [3]));
+      n = cpy->nodes_count;
+      for (SET *item = SET_First (input_nodes); item; item = SET_Next(item))
       {
-	for (i = 0; i < nei->type; i ++)
+	i = (int)(long) item->data;
+	COPY (cpy->ref_nodes[i], cpy->ref_nodes[n]);
+	COPY (cpy->cur_nodes[i], cpy->cur_nodes[n]);
+	MAP_Insert (&cpy->mapmem, &mapped, (void*)(long)i, (void*)(long)n, NULL);
+	n ++;
+      }
+      cpy->nodes_count = n;
+
+      /* duplicate nodes */
+      for (MAP *item = MAP_First (separated); item; item = MAP_Next (item))
+      {
+	ele = item->key;
+	nei = item->data;
+
+	/* adjacent elements have been flagged into same flag sets along the separating surfaces;
+	 * they have also been mapped to their former neighbours along the separating surfaces;
+	 * hence, in order to choose the nodal set (old or new) for node duplication it should be
+	 * sufficient to use the below "separation side" criterion, based on flag comparison */
+	if (ele->flag < nei->flag)
 	{
-	  MAP *jtem = MAP_Find_Node (mapped, (void*)(long)nei->nodes[i], NULL);
-	  if (jtem)
+	  for (i = 0; i < nei->type; i ++)
 	  {
-	    j = (int)(long) jtem->data;
-	    nei->nodes[i] = j;
-	  }
-	}
-	for (cac = nei->faces; cac; cac = cac->next)
-	{
-	  for (i = 0; i < cac->type; i ++)
-	  {
-	    MAP *jtem = MAP_Find_Node (mapped, (void*)(long)cac->nodes[i], NULL);
+	    MAP *jtem = MAP_Find_Node (mapped, (void*)(long)nei->nodes[i], NULL);
 	    if (jtem)
 	    {
 	      j = (int)(long) jtem->data;
-	      cac->nodes[i] = j;
+	      nei->nodes[i] = j;
+	    }
+	  }
+	  for (cac = nei->faces; cac; cac = cac->next)
+	  {
+	    for (i = 0; i < cac->type; i ++)
+	    {
+	      MAP *jtem = MAP_Find_Node (mapped, (void*)(long)cac->nodes[i], NULL);
+	      if (jtem)
+	      {
+		j = (int)(long) jtem->data;
+		cac->nodes[i] = j;
+	      }
 	    }
 	  }
 	}
@@ -2897,6 +2899,48 @@ void MESH_Inter_Element_Faces (MESH *msh, int **faces, int *nfaces)
     free (*faces);
     *faces = NULL;
   }
+}
+
+/* return a list of inter-element faces belonging to a plane defined by (point, normal);
+ * the plane is in the reference configuration if 'ref' is nonzero; 'eps' tolerance is used to decied which faces are on plane */
+void MESH_Inter_Element_Faces_On_Plane (MESH *msh, double *point, double *normal, int ref, double eps, int **faces, int *nfaces)
+{
+  double (*nod) [3] = ref ? msh->ref_nodes : msh->cur_nodes, a[3], d;
+  int *f, *g, *h, n, i, j;
+
+  MESH_Inter_Element_Faces (msh, &f, &n);
+
+  ERRMEM ((*faces) = malloc (n * sizeof (int [5])));
+  h = *faces;
+  *nfaces = 0;
+
+  for (i = 0, g = f; i < n; i ++, g += (g[0]+1))
+  {
+    for (j = 1; j <= g[0]; j ++)
+    {
+      SUB (nod[g[j]], point, a);
+      d = ABS(DOT(a, normal));
+      if (d > eps) break;
+    }
+
+    if (j > g[0])
+    {
+      for (j = 0; j <= g[0]; j ++)
+      {
+	h[j] = g[j];
+      }
+      h += (h[0]+1);
+      (*nfaces) ++;
+    }
+  }
+
+  if ((*nfaces) == 0)
+  {
+    free (*faces);
+    *faces = NULL;
+  }
+
+  if (n) free (f);
 }
 
 /* find an element containing a referential point */

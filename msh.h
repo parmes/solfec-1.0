@@ -182,6 +182,10 @@ void MESH_Elements_Around_Node (ELEMENT *ele, int node, SET **set);
 /* return a list of inter-element faces, e.g. [3, n0, n1, n2, 4, n0, n1, n2, n3, ...] */
 void MESH_Inter_Element_Faces (MESH *msh, int **faces, int *nfaces);
 
+/* return a list of inter-element faces belonging to a plane defined by (point, normal);
+ * the plane is in the reference configuration if 'ref' is nonzero; 'eps' tolerance is used to decied which faces are on plane */
+void MESH_Inter_Element_Faces_On_Plane (MESH *msh, double *point, double *normal, int ref, double eps, int **faces, int *nfaces);
+
 /* update mesh according to the given motion */
 void MESH_Update (MESH *msh, void *body, void *shp, MOTION motion);
 

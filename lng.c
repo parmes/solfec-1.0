@@ -163,6 +163,23 @@ static char* as_string (PyObject *obj)
   return NULL;
 }
 
+/* a bool number test */
+static int is_bool (PyObject *obj, char *var)
+{
+  if (obj)
+  {
+    if (!PyBool_Check (obj))
+    {
+      char buf [BUFLEN];
+      sprintf (buf, "'%s' must be boolean", var);
+      PyErr_SetString (PyExc_ValueError, buf);
+      return 0;
+    }
+  }
+
+  return 1;
+}
+
 /* a positive number test */
 static int is_positive (double num, char *var)
 {
@@ -1167,6 +1184,59 @@ static PyObject* lng_MESH_inter_element_faces (lng_MESH *self, PyObject *args, P
   return list;
 }
 
+/* return lists of nodes of inter-element faces on a plane */
+static PyObject* lng_MESH_inter_element_faces_on_plane (lng_MESH *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("point", "normal", "ref", "eps");
+  PyObject *point, *normal, *ref;
+  int *faces, nfaces, i, j, *f;
+  PyObject *list, *item;
+  double eps, p[3], n[3];
+
+  if (!self->msh)
+  {
+    PyErr_SetString (PyExc_ValueError, "The MESH object is empty");
+    return NULL;
+  }
+
+  ref = NULL;
+  eps = GEOMETRIC_EPSILON;
+
+  PARSEKEYS ("OO|Od", &point, &normal, &ref, &eps);
+
+  TYPETEST (is_tuple (point, kwl [0], 3) && is_tuple (normal, kwl[1], 3) &&
+            is_bool (ref, kwl[2]) && is_positive (eps, kwl[3]));
+
+  p[0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+  p[1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+  p[2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+  n[0] = PyFloat_AsDouble (PyTuple_GetItem (normal, 0));
+  n[1] = PyFloat_AsDouble (PyTuple_GetItem (normal, 1));
+  n[2] = PyFloat_AsDouble (PyTuple_GetItem (normal, 2));
+
+  MESH_Inter_Element_Faces_On_Plane (self->msh, p, n, ref == NULL || ref == Py_True, eps, &faces, &nfaces);
+
+  if (!(list = PyList_New (nfaces))) return NULL;
+
+  for (i = 0, f = faces; i < nfaces; i ++, f += f[0]+1)
+  {
+    if (!(item = PyList_New (f[0]))) return NULL;
+
+    for (j = 1; j <= f[0]; j ++)
+    {
+      PyList_SetItem (item, j-1, PyInt_FromLong (f[j]));
+    }
+
+    PyList_SetItem (list, i, item);
+  }
+
+  if (nfaces > 0) free (faces);
+
+  return list;
+}
+
+
 /* number of nodes */
 static PyObject* lng_MESH_get_nnod (lng_MESH *self, void *closure)
 {
@@ -1324,6 +1394,7 @@ static PyMethodDef lng_MESH_methods [] =
   {"node", (PyCFunction)lng_MESH_node, METH_VARARGS|METH_KEYWORDS, "Return a node point of a mesh"},
   {"nodes_on_surface", (PyCFunction)lng_MESH_nodes_on_surface, METH_VARARGS|METH_KEYWORDS, "Return list of node numbers belonging to a given surface"},
   {"inter_element_faces", (PyCFunction)lng_MESH_inter_element_faces, METH_NOARGS, "Return list of node lists of inter-element faces"},
+  {"inter_element_faces_on_plane", (PyCFunction)lng_MESH_inter_element_faces_on_plane, METH_VARARGS|METH_KEYWORDS, "Return list of node lists of inter-element faces on a plane"},
   {"get_data", (PyCFunction)lng_MESH_get_meshdata, METH_NOARGS, "Return mesh data - very developmental!"},
   {"set_volid", (PyCFunction)lng_MESH_setvolid, METH_VARARGS|METH_KEYWORDS, "Set volid for all faces"},
   {"surface_integration_points", (PyCFunction)lng_MESH_surface_integration_points, METH_VARARGS|METH_KEYWORDS, "Return surface integration points"},

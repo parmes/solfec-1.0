@@ -5687,7 +5687,7 @@ Some parameters can also be accessed as members and methods of a MESH object.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="6" columns="1">
+<lyxtabular version="3" rows="7" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -5793,7 +5793,7 @@ volid
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -5805,6 +5805,76 @@ obj.inter_element_faces()
 \emph default
  - returns a list of lists of node indices of inter-element faces, e.g.
  [[n0, n1, n2], [n0, n1, n2, n3], ...]
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.inter_element_faces_on_plane(point, normal | ref, eps)
+\series default
+\emph default
+ - returns a list of lists of node indices of inter-element faces on a plane,
+ e.g.
+ [[n0, n1, n2], [n0, n1, n2, n3], ...], where 
+\series bold
+\emph on
+point
+\series default
+\emph default
+, 
+\series bold
+\emph on
+normal
+\series default
+\emph default
+ define the plane, 
+\series bold
+\emph on
+ref
+\series default
+\emph default
+ can be 
+\emph on
+True
+\emph default
+ or 
+\emph on
+False
+\emph default
+ and determines whether the plane is in the reference or current configuration
+ (default: 
+\emph on
+True
+\emph default
+), 
+\series bold
+eps
+\series default
+ determines the tolerance for the 
+\begin_inset Quotes eld
+\end_inset
+
+on plane
+\begin_inset Quotes erd
+\end_inset
+
+ test (default: geometric epsilon, cf.
+ Section 
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "subsec:GEOMETRIC_EPSILON"
+
+\end_inset
+
+)
 \end_layout
 
 \end_inset
@@ -12802,6 +12872,12 @@ depth
 \end_layout
 
 \begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:GEOMETRIC_EPSILON"
+
+\end_inset
+
 GEOMETRIC_EPSILON (epsilon)
 \end_layout
 
