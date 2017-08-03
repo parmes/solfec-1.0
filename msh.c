@@ -2349,27 +2349,15 @@ MESH** MESH_Split_By_Nodes (MESH *msh, SET *nodes, int surfid, int *nout)
 
 static int input_face_compare (int *inf, int *ing)
 {
+  int f[4] = {inf[1], inf[2], inf[3], inf[4]},
+      g[4] = {ing[1], ing[2], ing[3], ing[4]};
+
   if (inf[0] < ing[0]) return -1;
   else if (inf[0] == ing[0])
   {
-    if (inf[1] < ing[1]) return -1;
-    else if (inf[1] == ing[1])
-    {
-      if (inf[2] < ing[2]) return -1;
-      else if (inf[2] == ing[2])
-      {
-	if (inf[3] < ing[3]) return -1;
-	else if (inf[3] == ing[3])
-	{
-	  if (inf[0] == 3) return 0;
-	  else
-	  {
-	    if (inf[4] < ing[4]) return -1;
-	    else if (inf[4] == ing[4]) return 0;
-	  }
-	}
-      }
-    }
+    sort (f, f+inf[0]-1);
+    sort (g, g+ing[0]-1);
+    return lexcmp (f, g, inf[0]);
   }
 
   return 1;
@@ -2385,8 +2373,8 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
   int k, i, j, fac[5], n, m, nghs, nfac = 0, bulk = 0, *inf;
   ELEMENT *ele, *nei, *adj[6], *next;
   SET *input_faces, *input_nodes;
-  MAP *separated = NULL;
-  FACE tmp[4], *cac;
+  MAP *oneside = NULL;
+  FACE ing, tmp[4], *cac;
   MESH **out, *cpy;
   KDT *kdtree, *kd;
 
@@ -2447,9 +2435,19 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	  }
 	}
 
-	if (SET_Contains (input_faces, fac, (SET_Compare) input_face_compare)) /* face nodes in the splitting set => modify adjacency */
+	inf = SET_Find (input_faces, fac, (SET_Compare) input_face_compare); /* face nodes in the splitting set ? */
+
+	if (inf) /* yes => modify adjacency, insert new faces and set up surface IDs */
 	{
 	  nfac ++; /* number of split faces */
+
+          /* let 'ing' represent the input face */
+	  ing.type = inf[0];
+	  ing.nodes[0] = inf[1];
+	  ing.nodes[1] = inf[2];
+	  ing.nodes[2] = inf[3];
+	  if (inf[0] == 4) ing.nodes[3] = inf[4];
+	  setup_normal (cpy->cur_nodes, &ing);
 
           /* break ele->adj adjacency */
 	  for (j = 0; j < ele->neighs; j ++)
@@ -2467,10 +2465,14 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	  cac[0] = tmp[1];
 	  cac->ele = ele;
 	  setup_normal (cpy->cur_nodes, cac);
+	  cac->surface = DOT (ing.normal, cac->normal) > 0. ? sid1 : sid2;
 	  cac->next = ele->faces; /* append element face list */
 	  ele->faces = cac;
 	  cac->n = cpy->faces; /* append mesh face list */
 	  cpy->faces = cac;
+
+	  if (DOT(ing.normal, cac->normal) > 0.)
+	    MAP_Insert (&cpy->mapmem, &oneside, ele, nei, NULL);
 
           /* break nei->adj adjacency */
 	  for (j = 0; j < nei->neighs; j ++)
@@ -2499,13 +2501,14 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	  cac[0] = tmp[3];
 	  cac->ele = nei;
 	  setup_normal (cpy->cur_nodes, cac);
+	  cac->surface = DOT (ing.normal, cac->normal) > 0. ? sid1 : sid2;
 	  cac->next = nei->faces; /* append element face list */
 	  nei->faces = cac;
 	  cac->n = cpy->faces; /* append mesh face list */
 	  cpy->faces = cac;
 
-	  MAP_Insert (&cpy->mapmem, &separated, ele, nei, NULL); /* seed for recursive marking */
-	  MAP_Insert (&cpy->mapmem, &separated, nei, ele, NULL);
+	  if (DOT(ing.normal, cac->normal) > 0.)
+	    MAP_Insert (&cpy->mapmem, &oneside, nei, ele, NULL);
 	}
       }
     }
@@ -2520,10 +2523,9 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 
   if (nfac > 0)
   {
-    /* adjacently flag separated elements */
-    if (mapped_parts (separated) == 2)
+    if (MESH_Parts(cpy) == 1) /* split without fragmentation */
     {
-      /* add extra nodes */
+      /* add extra nodes from the input set */
       MAP *mapped = NULL;
       n = SET_Size (input_nodes);
       ERRMEM (cpy->ref_nodes = realloc (cpy->ref_nodes, 2 * (cpy->nodes_count + n) * sizeof (double [3])));
@@ -2540,45 +2542,44 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
       }
       cpy->nodes_count = n;
 
-      /* duplicate nodes */
-      for (MAP *item = MAP_First (separated); item; item = MAP_Next (item))
+      /* duplicate nodes on one side of the splitting surface */
+      for (MAP *item = MAP_First (oneside); item; item = MAP_Next (item))
       {
 	ele = item->key;
-	nei = item->data;
 
-	/* adjacent elements have been flagged into same flag sets along the separating surfaces;
-	 * they have also been mapped to their former neighbours along the separating surfaces;
-	 * hence, in order to choose the nodal set (old or new) for node duplication it should be
-	 * sufficient to use the below "separation side" criterion, based on flag comparison */
-	if (ele->flag < nei->flag)
+	for (i = 0; i < ele->type; i ++)
 	{
-	  for (i = 0; i < nei->type; i ++)
+	  MAP *jtem = MAP_Find_Node (mapped, (void*)(long)ele->nodes[i], NULL);
+	  if (jtem)
 	  {
-	    MAP *jtem = MAP_Find_Node (mapped, (void*)(long)nei->nodes[i], NULL);
+	    j = (int)(long) jtem->data;
+	    ele->nodes[i] = j;
+	  }
+	}
+	for (cac = ele->faces; cac; cac = cac->next)
+	{
+	  for (i = 0; i < cac->type; i ++)
+	  {
+	    MAP *jtem = MAP_Find_Node (mapped, (void*)(long)cac->nodes[i], NULL);
 	    if (jtem)
 	    {
 	      j = (int)(long) jtem->data;
-	      nei->nodes[i] = j;
-	    }
-	  }
-	  for (cac = nei->faces; cac; cac = cac->next)
-	  {
-	    for (i = 0; i < cac->type; i ++)
-	    {
-	      MAP *jtem = MAP_Find_Node (mapped, (void*)(long)cac->nodes[i], NULL);
-	      if (jtem)
-	      {
-		j = (int)(long) jtem->data;
-		cac->nodes[i] = j;
-	      }
+	      cac->nodes[i] = j;
 	    }
 	  }
 	}
+
+	/* TODO --> suitably propagate to local neighbours;
+	   for non-hex meshes many elements may meet at a node;
+	   now how do we decide that the elements are on the suitable
+	   side of the splitting surface? We can use MESH_Elements_Around_Node
+	   to collect elements around all input_nodes; And then somehow decide
+	   for which we are going to remap the node indices; */
       }
     }
     
     /* separate meshes */
-    out = MESH_Separate (cpy, nout, sid1);
+    out = MESH_Separate (cpy, nout, -1);
   }
   else
   {

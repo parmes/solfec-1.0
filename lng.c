@@ -8032,7 +8032,7 @@ static PyObject* lng_RT_SPLIT (PyObject *self, PyObject *args, PyObject *kwds)
   sid2 = 0;
   nout = 0;
 
-  PARSEKEYS ("OO|ddOO", &body1, &surf_arg, &sid1, &sid2, &label1, &label2);
+  PARSEKEYS ("OO|iiOO", &body1, &surf_arg, &sid1, &sid2, &label1, &label2);
 
   TYPETEST (is_body (body1, kwl[0]) && is_list (surf_arg, kwl[1], 0, 0) &&
             is_string (label1, kwl[4]) && is_string (label2, kwl[2]));
