@@ -2081,6 +2081,8 @@ int BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, cha
     if (label1 == NULL && bod->label) label1 = bod->label;
     *bod1 = BODY_Create (bod->kind, SHAPE_Create(SHAPE_MESH, out[0]), bod->mat, label1,
                 bod->flags & BODY_PERMANENT_FLAGS, bod->form, NULL, NULL, NULL, NULL);
+    (*bod1)->scheme = bod->scheme;
+    (*bod1)->damping = bod->damping;
     (*lst1) = lst[0];
     (*nlst1) = nlst[0];
     free (lst);
@@ -2095,6 +2097,10 @@ int BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, cha
                 bod->flags & BODY_PERMANENT_FLAGS, bod->form, NULL, NULL, NULL, NULL);
     *bod2 = BODY_Create (bod->kind, SHAPE_Create(SHAPE_MESH, out[1]), bod->mat, label2,
                 bod->flags & BODY_PERMANENT_FLAGS, bod->form, NULL, NULL, NULL, NULL);
+    (*bod1)->scheme = bod->scheme;
+    (*bod1)->damping = bod->damping;
+    (*bod2)->scheme = bod->scheme;
+    (*bod2)->damping = bod->damping;
     (*lst1) = lst[0];
     (*nlst1) = nlst[0];
     (*lst2) = lst[1];
