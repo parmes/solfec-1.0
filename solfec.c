@@ -36,6 +36,9 @@
 /* global list of created SOLFEC objects */
 static SOLFEC *solfec = NULL;
 
+/* global output directory */
+static char *OUTDIR = NULL;
+
 /* global output sub-directory */
 static char *SUBDIR = NULL;
 
@@ -64,6 +67,12 @@ void REGISTER_SOLFEC (SOLFEC *sol)
 {
   sol->next = solfec;
   solfec = sol;
+}
+
+/* get output directory */
+char* OUTPUT_DIR ()
+{
+  return OUTDIR;
 }
 
 /* get output sub-directory */
@@ -222,6 +231,38 @@ static char* getfile (int argc, char **argv)
     else if (ARGC < MAX_ARGC) /* non-Solfec argument */
     {
       ARGV [ARGC ++] = argv [n];
+    }
+  }
+
+  n = strlen (path);
+  
+  if (n > 3)
+  {
+    if (!(path[n-3] == '.' && path[n-2] == 'p' && path[n-1] == 'y'))
+    {
+      int m = 0;
+
+      if (path[n-1] == '/') /* /a/directory/path/ */
+      {
+        path[n-1] = '\0';
+	n--;
+      }
+
+      while (n > 0 && path[n-1] != '/')
+      {
+        n--;
+	m++;
+      }
+
+      char *path1 = malloc (n+m+m+16);
+
+      ERRMEM (path1);
+
+      sprintf (path1, "%s/%s.py", path, &path[n]);
+
+      OUTDIR = path; /* this will overwrite SOLFEC's outpath */
+
+      path = path1; /* XXX: allow for memory leak */
     }
   }
 

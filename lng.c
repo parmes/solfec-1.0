@@ -1729,11 +1729,12 @@ static PyObject* lng_SOLFEC_new (PyTypeObject *type, PyObject *args, PyObject *k
     outpath = "solfec.out";
     output = NULL;
 
-    PARSEKEYS ("OdO|O", &analysis, &step, &output);
+    PARSEKEYS ("OdO", &analysis, &step, &output);
 
     TYPETEST (is_string (analysis, kwl [0]) && is_positive (step, kwl[1]) && is_string (output, kwl [2]));
 
-    outpath = PyString_AsString (output);
+    if (OUTPUT_DIR()) outpath = OUTPUT_DIR();
+    else outpath = PyString_AsString (output);
 
     IFIS (analysis, "QUASI_STATIC")
     {
@@ -7251,14 +7252,16 @@ static PyObject* lng_NCPU (PyObject *self, PyObject *args, PyObject *kwds)
   lng_SOLFEC *solfec;
   int ncpu;
 
-  PARSEKEYS ("O", &solfec);
+  solfec = NULL;
+
+  PARSEKEYS ("|O", &solfec);
 
   TYPETEST (is_solfec (solfec, kwl[0]));
 
 #if MPI
   MPI_Comm_size (MPI_COMM_WORLD, &ncpu);
 #else
-  if (solfec->sol->mode == SOLFEC_READ)
+  if (solfec && solfec->sol->mode == SOLFEC_READ)
   {
     PBF *bf;
     for (bf = solfec->sol->bf, ncpu = 0; bf; bf = bf->next) ncpu ++;

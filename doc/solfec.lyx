@@ -13178,7 +13178,7 @@ This routine sets up a parallel barrier in the MPI mode (all processes need
 \end_layout
 
 \begin_layout Subsection*
-num = NCPU (solfec)
+num = NCPU (| solfec)
 \end_layout
 
 \begin_layout Standard
@@ -13198,7 +13198,7 @@ num
 \series bold
 solfec
 \series default
- - SOLFEC object
+ - optional SOLFEC object (useful in 'READ' mode)
 \end_layout
 
 \begin_layout Subsection*

@@ -13,6 +13,9 @@
 /* register new SOLFEC object */
 void REGISTER_SOLFEC (SOLFEC *sol);
 
+/* get output directory */
+char* OUTPUT_DIR ();
+
 /* get output sub-directory */
 char* OUTPUT_SUBDIR ();
 
