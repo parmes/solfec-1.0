@@ -1,4 +1,4 @@
-# Solfec scaling example:
+# SOLFEC parallel scaling example
 # -------------------------------------------------------
 # Array of elastic cubes undergoing sine sweep excitation
 
@@ -28,6 +28,7 @@ solv = 'NS' # solver
 lofq = 1 # acc sweep low freq.
 hifq = 5 # acc sweep high freq.
 amag = 1 # acc sweep magnitude
+xdmf = 'OFF'
 argv = NON_SOLFEC_ARGV()
 
 # print help
@@ -51,6 +52,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '          per MPI rank is approximately maintained'
   print '-step number --> time step (default: %g)' % step
   print '-stop number --> duration (default: %g)' % stop
+  print '-xdmf --> export XDMF in READ mode (default: %s)' % xdmf
   print '-help or -h --> show this help and exit'
   print 
   print 'NOTE: remember to use exactly the same parameters'
@@ -78,6 +80,8 @@ if argv != None:
       stop = float (argv [i+1])
     elif argv [i] == '-weak':
       weak = 'ON'
+    elif argv [i] == '-xdmf':
+      xdmf = 'ON'
     elif argv [i] in ('-help', '-h'):
       sys.exit(0)
     elif argv [i][0] == '-':
@@ -90,8 +94,8 @@ ncpu = NCPU ()
 
 # output path components
 begining = 'out/array-of-cubes/'
-ending = 'STE%g_DUR%g_%s_M%d_N%d_%s_%s%d' % \
-  (step,stop,kifo, M, N, solv,'S' if weak == 'OFF' else 'W',ncpu)
+ending = 'STE%g_DUR%g_%s_%s_M%d_N%d_%s%d' % \
+  (step,stop,kifo,solv,M,N,'S' if weak == 'OFF' else 'W',ncpu)
 outpath = begining + ending
 
 # create solfec object
@@ -100,10 +104,27 @@ sol = SOLFEC ('DYNAMIC', step, outpath)
 # test whether command line switches need to
 # be deduced from the output path in READ mode
 if sol.mode == 'READ' and sol.outpath != outpath:
-  print 'SOLFEC.outpath:', sol.outpath
-  print 'TODO --> implement retriving of command line switches!'
-  print 'exiting ...'
-  sys.exit(1)
+  ending = sol.outpath[sol.outpath.rfind('/')+1:]
+  for x in ending.split('_'):
+    if x[0:3] == 'STE': step = float(x[3:])
+    elif x[0:3] == 'DUR': stop = float(x[3:])
+    elif x in ('TL','BC','PR','RG'): kifo = x
+    elif x in ('NS','GS'): solv = x
+    elif x[0] == 'M': M = int(x[1:])
+    elif x[0] == 'N': N = int(x[1:])
+    elif x[0] == 'S': ncpu = int(x[1:])
+    elif x[0] == 'W':
+      ncpu = int(x[1:])
+      weak = 'ON'
+    else:
+      print 'ERROR: path ending', ending
+      print '       format is invalid'
+      sys.exit(1)
+  print 'From', ending, 'read:'
+  print '    ',
+  print '(step, stop, kifo, M, N, solv, weak, ncpu) =',
+  print '(%g, %g, %s, %d, %d, %s, %s, %d)' % \
+         (step, stop, kifo, M, N, solv, weak, ncpu), '\n'
 
 # bulk and surface materials
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
@@ -141,7 +162,7 @@ for i in range (0,M):
       lst.append(bod.id) # append list of body ids
 
 # acceleration sweep signal
-(vt, vd, vv, va) = acc_sweep (step, stop, lofq, hifq, amag)
+(vt, vd, vv, va) = acc_sweep (.2*stop, step, .8*stop, lofq, hifq, amag)
 tsv = [None]*(len(vt)+len(vd))
 tsv[::2] = vt
 tsv[1::2] = vv
@@ -157,7 +178,7 @@ for i in (0, 1, 2):
     TRANSLATE (msh, tuple(vec[i:]+vec[:i]))
     bod = BODY (sol, 'OBSTACLE', msh, mat)
     if HERE(sol, bod):
-      SET_VELOCITY (bod, bod.center, (1, 1, 1), tsv)
+      SET_VELOCITY (bod, bod.center, (1, 1, 0), tsv)
 
 # set gravity
 GRAVITY (sol, (0, 0, -10))
@@ -176,12 +197,27 @@ RUN (sol, slv, stop)
 if RANK() == 0 and sol.mode == 'WRITE':
   dt = time.clock() - start
   ln = '%s = %g' % (ending,dt)
-  fp = begining + 'SCALING'
+  fp = begining + 'RUNTIMES'
   with open(fp, "a") as f: f.write(ln+'\n')
   print 'Runtime line:',  ln, 'appended to:', fp
 
-# XDMF export
+# READ mode post-processing
 if sol.mode == 'READ' and not VIEWER():
-  xdmf_path = 'out/array-of-cubes/'+ ending + '_XDMF' if SUBDIR() == None \
-              else 'out/array-of-cubes/' + ending + '%s_XDMF' % SUBDIR()
-  XDMF_EXPORT (sol, (0.0, stop), xdmf_path, lst)
+  if xdmf == 'ON':
+    xdmf_path = 'out/array-of-cubes/'+ 'XDMF_' + ending if SUBDIR() == None \
+		else 'out/array-of-cubes/' + 'XDMF_'+ ending + '/' + SUBDIR()
+    XDMF_EXPORT (sol, (0.0, stop), xdmf_path, lst)
+
+  timer = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
+  dur = DURATION (sol)
+  th = HISTORY (sol, timer, dur[0], dur[1])
+  timing = {'TOTAL':0.0}
+  for i in range (0, len(timer)):
+    ss = 0.0
+    for tt in th [i+1]: ss += tt
+    timing[timer[i]] = ss
+    timing['TOTAL'] += ss
+  ln = '%s = %s' % (ending, timing)
+  fp = begining + 'TIMINGS'
+  with open(fp, "a") as f: f.write(ln+'\n')
+  print 'Timing line:',  ln, 'appended to:', fp

@@ -3,6 +3,7 @@ from math import sin, cos, pi
 
 # acc_sweep: generate constant magnitude acceleration sine sweep signal
 # ---------------------------------------------------------------------
+# rest - initial rest time
 # step - signal time step
 # stop - duration of the signal
 # lofq - low frequency for the sweep
@@ -15,7 +16,7 @@ from math import sin, cos, pi
 #         - vv is a list of velocity values
 #         - va is a list of acceleration values, at those time instants
 # -------------------------------------------------------------------------------
-def acc_sweep (step, stop, lofq, hifq, amag):
+def acc_sweep (rest, step, stop, lofq, hifq, amag):
 
   t = 0.0
   v = 0.0
@@ -90,5 +91,15 @@ def acc_sweep (step, stop, lofq, hifq, amag):
   for v in vv:
    d = d + v * step  # integration of dd / dt = v
    vd.append (d)
+
+  # include initial rest period
+  n = int(rest/step)
+  if n > 0:
+    for i in range (0,n):
+      vt.append(vt[-1]+step)
+    v0 = [.0]*n
+    vd = v0+vd
+    vv = v0+vv
+    va = v0+va
 
   return (vt, vd, vv, va)
