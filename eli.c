@@ -393,6 +393,7 @@ void ELLIP_Update (ELLIP *eli, void *body, void *shp, MOTION motion)
 
     switch (bod->kind)
     {
+    case OBS:
     case RIG:
     {
       double *R1 = bod->conf, *R0 = eli->ref_rot, *rot = eli->cur_rot;
