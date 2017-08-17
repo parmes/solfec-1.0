@@ -35,6 +35,7 @@ def BLOCK (x, y, z, wx, wy, wz, v, s):
 
 def ELLIPS (rx, ry, rz, x0, y0, z, wx, wy, v, s):
   global iell, nell, sol, mat
+  if iell == nell: return
   a = x0 + .5*wx
   b = y0 + .5*wy
   x = x0 - .5*wx
@@ -50,20 +51,23 @@ def ELLIPS (rx, ry, rz, x0, y0, z, wx, wy, v, s):
     x = x + 2.*rx
 
 step = 0.001
-outi = 0.05
-stop = 5.0
-nell = 100
+outi = 0.03
+stop = 10
+fric = 0.3
+nell = 200
 iell = 0
 
+# initial setup
 sol = SOLFEC ('DYNAMIC', step, 'out/rotating-drum')
 mat = BULK_MATERIAL (sol, young = 1E6, poisson = 0.25, density = 100)
-SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.4)
-sv = GAUSS_SEIDEL_SOLVER (1E-3, 100)
+SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = fric)
+slv = GAUSS_SEIDEL_SOLVER (1, 100, meritval = 1E-8)
+#slv = NEWTON_SOLVER (delta = 1E-5, maxiter = 100)
 GRAVITY (sol, (0, 0, -10))
 OUTPUT (sol, outi)
 
-# drum
-pip = PIPE ((0, 0, 0), (0, 0.5, 0), 1, 0.05, 1, 32, 1, 1, [1, 2, 3, 4])
+# rotating drum
+pip = PIPE ((0, 0, 0), (0, 0.5, 0), 1, 0.05, 1, 32, 1, 1, [1, 1, 1, 1])
 bl1 = BLOCK(-0.9, 0.25, 0, 0.2, 0.5, 0.2, 1, 1)
 bl2 = BLOCK (0.9, 0.25, 0, 0.2, 0.5, 0.2, 1, 1)
 bod = BODY (sol, 'OBSTACLE', [pip, bl1, bl2], mat)
@@ -82,12 +86,19 @@ rz = rr
 # .5*acc*t^2 = 2*rz+eps --> t = sqrt(2*(2*rr+eps)/acc)
 dt = sqrt(2*(2*rz+.1*rz)/10)
 
+# simulation callback
 rotating = False
-def callback (sol):
-  if iell == nell and not rotating:
+def callback (bod):
+  global rotating
+  if iell < nell: # insert particles
+    ELLIPS (rx, ry, rz, 0, 0.25, 0.25, 1.4, 0.4, 2, 2)
+  elif not rotating: # rotate drum
     INITIAL_VELOCITY (bod, (0, 0, 0), (0, 1, 0))
-  else: ELLIPS (rx, ry, rz, 0, 0.25, 0.25, 1.4, 0.4, 2, 2)
+    rotating = True
   return 1
 
-CALLBACK (sol, dt, sol, callback)
-RUN (sol, sv, stop)
+# set callback
+CALLBACK (sol, dt, bod, callback)
+
+# run simulation
+RUN (sol, slv, stop)
