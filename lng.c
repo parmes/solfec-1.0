@@ -9861,8 +9861,10 @@ static int subset_add (DOM *dom, SET **subset, PyObject *obj)
       return 0;
     }
 
-    for (BODY *bod = dom->bod; bod; bod = bod->next)
+    for (MAP *item = MAP_First (dom->allbodies); item; item = MAP_Next (item))
     {
+      BODY *bod = item->data;
+
       if (bod->label && regexec (&xp, bod->label, 0, NULL, 0) == 0)
       {
 	SET_Insert (NULL, subset, (void*) (long) bod->id, NULL);
@@ -9947,6 +9949,8 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
   PARSEKEYS ("OOO|OO", &solfec, &time, &path, &subset_arg, &attributes_arg);
   
   TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[2]));
+
+  SOLFEC_Read_Init (solfec->sol);
 
   if (PyList_Check(time))
   {

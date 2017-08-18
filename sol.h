@@ -185,6 +185,9 @@ void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, 
 /* the next time minus the current time */
 double SOLFEC_Time_Skip (SOLFEC *sol);
 
+/* initialize solfec in READ state */
+void SOLFEC_Read_Init (SOLFEC *sol);
+
 /* get analysis duration time limits */
 void SOLFEC_Time_Limits (SOLFEC *sol, double *start, double *end);
 

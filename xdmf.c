@@ -384,8 +384,60 @@ static void write_bodies (DOM *dom, hid_t h5_file, MAP **gids, int **gid, int *g
     {
       switch (shp->kind)
       {
-      case SHAPE_MESH:
       case SHAPE_CONVEX:
+      {
+        if (H5Lexists (h5_file, "GRIDS", H5P_DEFAULT))
+	{
+	  ASSERT_TEXT (h5_grids = H5Gopen (h5_file, "GRIDS", H5P_DEFAULT), "HDF5 file write error");
+	}
+	else
+	{
+	  ASSERT_TEXT ((h5_grids = H5Gcreate (h5_file, "GRIDS", H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+	}
+
+	for (CONVEX *cvx = shp->data; cvx; cvx = cvx->next)
+	{
+	  MAP *item = MAP_Find_Node (*gids, cvx, NULL);
+
+	  int grid_id; /* unique grid id */
+
+	  if (item)
+	  {
+	    grid_id = (int) (long) item->data;
+	  }
+	  else
+	  {
+	    grid_id = MAP_Size (*gids);
+	    MAP_Insert (NULL, gids, cvx, (void*) (long) grid_id, NULL);
+	  }
+
+	  snprintf (h5_text, 1024, "%d", grid_id);
+
+	  if (H5Lexists (h5_grids, h5_text, H5P_DEFAULT))
+	  {
+	    ASSERT_TEXT (h5_grid = H5Gopen (h5_grids, h5_text, H5P_DEFAULT), "HDF5 file write error");
+	    ASSERT_TEXT (H5LTget_attribute_int (h5_grid, ".", "STEPS", &steps) >= 0, "HDF5 file write error");
+	    steps ++;
+	    ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "STEPS", &steps, 1) >= 0, "HDF5 file write error");
+	  }
+	  else 
+	  {
+	    steps = 1;
+	    pack_int (gid_size, gid, gid_count, grid_id);
+	    ASSERT_TEXT ((h5_grid = H5Gcreate (h5_grids, h5_text, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT)) >= 0, "HDF5 file write error");
+	    ASSERT_TEXT (H5LTset_attribute_int (h5_grid, ".", "STEPS", &steps, 1) >= 0, "HDF5 file write error");
+	    if (bod->label) ASSERT_TEXT (H5LTset_attribute_string (h5_grid, ".", "LABEL", bod->label) >= 0, "HDF5 file write error");
+	    else ASSERT_TEXT (H5LTset_attribute_string (h5_grid, ".", "LABEL", h5_text) >= 0, "HDF5 file write error");
+	  }
+
+	  write_convex (cvx, bod, dom->time, steps-1, h5_grid, attributes);
+	}
+
+	H5Gclose (h5_grid);
+        H5Gclose (h5_grids);
+      }
+      break;
+      case SHAPE_MESH:
       {
 	if (H5Lexists (h5_file, "GRIDS", H5P_DEFAULT))
 	{
@@ -429,14 +481,7 @@ static void write_bodies (DOM *dom, hid_t h5_file, MAP **gids, int **gid, int *g
 	  else ASSERT_TEXT (H5LTset_attribute_string (h5_grid, ".", "LABEL", h5_text) >= 0, "HDF5 file write error");
 	}
 
-	if (shp->kind == SHAPE_MESH)
-	{
-	  write_mesh (shp->data, bod, dom->time, steps-1, h5_grid, attributes);
-	}
-	else
-	{
-	  write_convex (shp->data, bod, dom->time, steps-1, h5_grid, attributes);
-	}
+	write_mesh (shp->data, bod, dom->time, steps-1, h5_grid, attributes);
 
 	H5Gclose (h5_grid);
         H5Gclose (h5_grids);

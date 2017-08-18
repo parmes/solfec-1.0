@@ -902,6 +902,12 @@ double SOLFEC_Time_Skip (SOLFEC *sol)
   else return sol->dom->step;
 }
 
+/* initialize solfec in READ state */
+void SOLFEC_Read_Init (SOLFEC *sol)
+{
+  if (sol->mode == SOLFEC_READ) init (sol);
+}
+
 /* get analysis duration time limits */
 void SOLFEC_Time_Limits (SOLFEC *sol, double *start, double *end)
 {
