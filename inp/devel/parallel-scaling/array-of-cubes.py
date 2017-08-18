@@ -28,13 +28,13 @@ solv = 'NS' # solver
 lofq = 1 # acc sweep low freq.
 hifq = 5 # acc sweep high freq.
 amag = 1 # acc sweep magnitude
-xdmf = 'OFF'
+xdmf = 'OFF' # export XMDF
 argv = NON_SOLFEC_ARGV()
 
 # print help
 if argv != None and ('-help' in argv or '-h' in argv):
   print '------------------------------------------------------------------------'
-  print 'Array of cubes parameters:'
+  print 'Array of cubes excitation parameters:'
   print '------------------------------------------------------------------------'
   print '-M number --> array edge size (default: %d)' % M
   print '-N number --> cube mesh edge size (default: %d)' % N
@@ -55,8 +55,11 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-xdmf --> export XDMF in READ mode (default: %s)' % xdmf
   print '-help or -h --> show this help and exit'
   print 
-  print 'NOTE: remember to use exactly the same parameters'
-  print '      if you wish to access results in READ mode'
+  print 'NOTE: becasue the output path depends on the input parameters'
+  print '      use the same parameters to access results in READ mode, e.g.'
+  print '      solfec -v path/to/array-of-cubes.py {same parameters}, or'
+  print '      use the output directory as an input path instead, e.g.'
+  print '      solfec -v path/to/results/directory'
   print '------------------------------------------------------------------------'
 
 # parse command line switches
@@ -122,15 +125,13 @@ if sol.mode == 'READ' and sol.outpath != outpath:
       sys.exit(1)
   print 'From', ending, 'read:'
   print '    ',
-  print '(step, stop, kifo, M, N, solv, weak, ncpu) =',
-  print '(%g, %g, %s, %d, %d, %s, %s, %d)' % \
-         (step, stop, kifo, M, N, solv, weak, ncpu), '\n'
+  print '(step, stop, kifo, solv, M, N, weak, ncpu) =',
+  print '(%g, %g, %s, %s, %d, %d, %s, %d)' % \
+         (step, stop, kifo, solv, M, N, weak, ncpu), '\n'
 
 # bulk and surface materials
-mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
-  young = 1E6, poisson = 0.25, density = 100)
-SURFACE_MATERIAL (sol,
-  model = 'SIGNORINI_COULOMB', friction = 0.1)
+mat = BULK_MATERIAL (sol, young = 1E6, poisson = 0.25, density = 100)
+SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.1)
 
 # .1-wide cube corner nodes
 nodes = [0.0, 0.0, 0.0,
@@ -157,7 +158,7 @@ for i in range (0,M):
         if kifo == 'PR': bod = BODY (sol, 'PSEUDO_RIGID', msh, mat)
         else: bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, form = kifo)
 	bod.scheme = 'DEF_LIM' # semi-implicit time integration
-	bod.damping = 1E-4 # damping out free vibrations
+	bod.damping = step # damp out free vibrations
       else: bod = BODY (sol, 'RIGID', msh, mat)
       lst.append(bod.id) # append list of body ids
 
@@ -188,7 +189,7 @@ if solv == 'NS': slv = NEWTON_SOLVER ()
 else: slv = GAUSS_SEIDEL_SOLVER (1.0, 1000, meritval=1E-8)
 
 # output interval
-OUTPUT (sol, 0.03)
+OUTPUT (sol, outi)
 
 # run simulation
 import time

@@ -5,7 +5,9 @@
 from math import sqrt
 from math import sin
 from math import cos
+import sys
 
+# create drum side "wheel" wall
 def WHEEL (x, y, z, r, t, v, s):
   a = 0.0
   points = []
@@ -22,6 +24,7 @@ def WHEEL (x, y, z, r, t, v, s):
     a += 0.2
   return HULL (points, v, s)
 
+# create drum block
 def BLOCK (x, y, z, wx, wy, wz, v, s):
   points = [x-.5*wx, y-.5*wy, z-.5*wz,
             x+.5*wx, y-.5*wy, z-.5*wz,
@@ -33,37 +36,178 @@ def BLOCK (x, y, z, wx, wy, wz, v, s):
             x-.5*wx, y+.5*wy, z+.5*wz]
   return HULL (points, v, s)
 
-def ELLIPS (rx, ry, rz, x0, y0, z, wx, wy, v, s):
-  global iell, nell, sol, mat
-  if iell == nell: return
+# create particles
+def PARTICLES (rx, ry, rz, x0, y0, z, wx, wy, v, s):
+  global ipar, npar, sol, mat, sphs, kifo, step
+  if ipar == npar: return
+  rr = (rx+ry+rz)/3.
+  if sphs == 'ON':
+    rx = rr
+    ry = rr
+    rz = rr
   a = x0 + .5*wx
   b = y0 + .5*wy
   x = x0 - .5*wx
   while x < a:
     y = y0 - .5*wy
     while y < b:
-      if iell < nell:
+      if ipar < npar:
         if RANK() == 0:
-	  shp = ELLIP ((x, y, z), (rx, ry, rz), v, s)
-	  BODY (sol, 'RIGID', shp, mat)
-	iell = iell + 1
+	  lb = 'PAR%d' % ipar
+	  if kifo in ('PR','RG'):
+	    if sphs == 'ON':
+	      shp = SPHERE ((x, y, z), rr, v, s)
+	    else: shp = ELLIP ((x, y, z), (rx, ry, rz), v, s)
+	    if kifo == 'RG': BODY (sol, 'RIGID', shp, mat, lb)
+	    else:
+	      bod = BODY (sol, 'PSEUDO_RIGID', shp, mat, lb)
+	      bod.scheme = 'DEF_LIM' # semi-implicit time integration
+	      bod.damping = step # damp out free vibrations
+	  else:
+            msh = ELLIP_MESH ((x, y, z), (rx, ry, rz), rr*0.1, v, s)
+            bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, lb, form = 'BC')
+	    bod.scheme = 'DEF_LIM' # semi-implicit time integration
+	    bod.damping = step # damp out free vibrations
+	ipar = ipar + 1
       y = y + 2.*ry
     x = x + 2.*rx
 
-step = 0.001
-outi = 0.03
-stop = 10
-fric = 0.3
-nell = 200
-iell = 0
+# paramters 
+npar = 100 # number of particles
+step = 0.001 # time step
+outi = 0.03 # output interval
+stop = 10 # duration
+fric = 0.3 # friction coefficient
+ipar = 0 # partical counter (used internally)
+kifo = 'PR' # kinematics
+solv = 'NS' # constraint solver
+weak = 'OFF' # weak scaling test flag
+sphs = 'OFF' # use sphereical particles
+xdmf = 'OFF' # export XDMF (-kifo FE)
+argv = NON_SOLFEC_ARGV()
 
-# initial setup
-sol = SOLFEC ('DYNAMIC', step, 'out/rotating-drum')
+# print help
+if argv != None and ('-help' in argv or '-h' in argv):
+  print '------------------------------------------------------------------------'
+  print 'Rotating drum with ellipsoidal or sphereical particles:'
+  print '------------------------------------------------------------------------'
+  print '-npar number --> number of particles (default: %d)' % npar
+  print '-kifo name --> kinematics in {FE, PR, RG} (default: %s)' % kifo
+  print '               where: FE -- Finite Element'
+  print '                      PR -- Pseudo-rigid'
+  print '                      RG -- Rigid'
+  print '-solv name --> solver in {NS, GS} (default: %s)' % solv
+  print '               where: NS -- Projected Newton solver'
+  print '               where: GS -- Gauss-Seidel solver'
+  print '-outi number --> output interval (default: %g)' % outi
+  print '-weak --> enable weak scaling test (default: %s)' % weak
+  print '          in this mode a "-npar" particles per'
+  print '          MPI rank is approximately maintained'
+  print '-step number --> time step (default: %g)' % step
+  print '-stop number --> duration (default: %g)' % stop
+  print '-fric number --> friction coefficient (default %g)' % fric
+  print '-shps number --> use spherical particles (default %s)' % sphs
+  print '-xdmf --> export XDMF in READ mode (-kifo FE; default: %s)' % xdmf
+  print '-help or -h --> show this help and exit'
+  print 
+  print 'FYI: smaller time step may be appropriate for larger perticle numbers'
+  print '     since the size of individual particles gets proportionally smaller'
+  print
+  print 'NOTE: becasue the output path depends on the input parameters'
+  print '      use the same parameters to access results in READ mode, e.g.'
+  print '      solfec -v path/to/rotating-drum.py {same parameters}, or'
+  print '      use the output directory as an input path instead, e.g.'
+  print '      solfec -v path/to/results/directory'
+  print '------------------------------------------------------------------------'
+
+# parse command line switches
+if argv != None:
+  for i in range (0,len(argv)):
+    if argv [i] == '-npar':
+      npar = int (argv [i+1])
+    elif argv [i] == '-kifo':
+      if argv [i+1] in ('FE', 'PR', 'RG'):
+	kifo = argv [i+1]
+    elif argv [i] == '-solv':
+      if argv [i+1] in ('NS', 'GS'):
+	solv = argv [i+1]
+    elif argv [i] == '-outi':
+      outi = float (argv [i+1])
+    elif argv [i] == '-step':
+      step = float (argv [i+1])
+    elif argv [i] == '-stop':
+      stop = float (argv [i+1])
+    elif argv [i] == '-fric':
+      fric = float (argv [i+1])
+    elif argv [i] == '-weak':
+      weak = 'ON'
+    elif argv [i] == '-sphs':
+      sphs = 'ON'
+    elif argv [i] == '-xdmf':
+      xdmf = 'ON'
+    elif argv [i] in ('-help', '-h'):
+      sys.exit(0)
+    elif argv [i][0] == '-':
+      print 'INFO: invalid parameter: %s' % argv[i]
+      print '                    try: -help'
+      sys.exit(0)
+
+# number of CPUs
+ncpu = NCPU ()
+
+# output path components
+begining = 'out/rotating-drum/'
+ending = 'STE%g_DUR%g_%s_%s_%s_FRI%g_N%d_%s%d' % \
+  (step,stop,kifo,solv,'ELL' if sphs == 'OFF' else 'SPH',\
+  fric,npar,'S' if weak == 'OFF' else 'W',ncpu)
+outpath = begining + ending
+
+# create solfec object
+sol = SOLFEC ('DYNAMIC', step, outpath)
+
+# test whether command line switches need to
+# be deduced from the output path in READ mode
+if sol.mode == 'READ' and sol.outpath != outpath:
+  ending = sol.outpath[sol.outpath.rfind('/')+1:]
+  for x in ending.split('_'):
+    if x[0:3] == 'STE': step = float(x[3:])
+    elif x[0:3] == 'DUR': stop = float(x[3:])
+    elif x[0:3] == 'FRI': fric = float(x[3:])
+    elif x in ('FE','PR','RG'): kifo = x
+    elif x in ('NS','GS'): solv = x
+    elif x == 'ELL': sphs = 'OFF'
+    elif x == 'SPH': sphs = 'ON'
+    elif x[0] == 'N': N = int(x[1:])
+    elif x[0] == 'S': ncpu = int(x[1:])
+    elif x[0] == 'W':
+      ncpu = int(x[1:])
+      weak = 'ON'
+    else:
+      print 'ERROR: path ending', ending
+      print '       format is invalid'
+      sys.exit(1)
+  print 'From', ending, 'read:'
+  print '    ',
+  print '(step, stop, kifo, solv, sphs, fric, npar, weak, ncpu) =',
+  print '(%g, %g, %s, %s, %s, %g, %d, %s, %d)' % \
+         (step, stop, kifo, solv, sphs, fric, npar, weak, ncpu), '\n'
+
+# bulk and surface materials
 mat = BULK_MATERIAL (sol, young = 1E6, poisson = 0.25, density = 100)
 SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = fric)
-slv = GAUSS_SEIDEL_SOLVER (1, 100, meritval = 1E-8)
-#slv = NEWTON_SOLVER (delta = 1E-5, maxiter = 100)
+
+# modify npar if week scaling is 'ON'
+if weak == 'ON':
+  npar = int((ncpu * npar))
+
+# set gravity
 GRAVITY (sol, (0, 0, -10))
+
+# create solver
+if solv == 'NS': slv = NEWTON_SOLVER (delta = 1E-6)
+else: slv = GAUSS_SEIDEL_SOLVER (1.0, 1000, meritval=1E-8)
+
+# output interval
 OUTPUT (sol, outi)
 
 # rotating drum
@@ -79,7 +223,7 @@ wh2 = WHEEL (0, 0.502, 0, 1.05, 0.05, 1, 1)
 BODY (sol, 'OBSTACLE', wh2, mat)
 
 # ellipsoid radii
-rr = (.1/nell)**(1./3.)
+rr = (.1/npar)**(1./3.)
 rx = .9*rr
 ry = .5*rr
 rz = rr
@@ -90,8 +234,8 @@ dt = sqrt(2*(2*rz+.1*rz)/10)
 rotating = False
 def callback (bod):
   global rotating
-  if iell < nell: # insert particles
-    ELLIPS (rx, ry, rz, 0, 0.25, 0.25, 1.4, 0.4, 2, 2)
+  if ipar < npar: # insert particles
+    PARTICLES (rx, ry, rz, 0, 0.25, 0.25, 1.4, 0.4, 2, 2)
   elif not rotating: # rotate drum
     INITIAL_VELOCITY (bod, (0, 0, 0), (0, 1, 0))
     rotating = True
@@ -101,4 +245,33 @@ def callback (bod):
 CALLBACK (sol, dt, bod, callback)
 
 # run simulation
+import time
+start = time.clock()
 RUN (sol, slv, stop)
+if RANK() == 0 and sol.mode == 'WRITE':
+  dt = time.clock() - start
+  ln = '%s = %g' % (ending,dt)
+  fp = begining + 'RUNTIMES'
+  with open(fp, "a") as f: f.write(ln+'\n')
+  print 'Runtime line:',  ln, 'appended to:', fp
+
+# READ mode post-processing
+if sol.mode == 'READ' and not VIEWER():
+  if kifo == 'FE' and xdmf == 'ON':
+    xdmf_path = 'out/rotating-drum/'+ 'XDMF_' + ending if SUBDIR() == None \
+		else 'out/rotating-drum/' + 'XDMF_'+ ending + '/' + SUBDIR()
+    XDMF_EXPORT (sol, (0.0, stop), xdmf_path, [bod, 'PAR'])
+
+  timer = ['TIMINT', 'CONUPD', 'CONDET', 'LOCDYN', 'CONSOL', 'PARBAL']
+  dur = DURATION (sol)
+  th = HISTORY (sol, timer, dur[0], dur[1])
+  timing = {'TOTAL':0.0}
+  for i in range (0, len(timer)):
+    ss = 0.0
+    for tt in th [i+1]: ss += tt
+    timing[timer[i]] = ss
+    timing['TOTAL'] += ss
+  ln = '%s = %s' % (ending, timing)
+  fp = begining + 'TIMINGS'
+  with open(fp, "a") as f: f.write(ln+'\n')
+  print 'Timing line:',  ln, 'appended to:', fp

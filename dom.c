@@ -3102,12 +3102,6 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
     case FEM: dom->nfem ++; break;
     }
     dom->dofs += bod->dofs;
-    
-    if (dom->time > 0.0) /* initialize body */
-    {
-      if (dom->dynamic) BODY_Dynamic_Init (bod);
-      else BODY_Static_Init (bod);
-    }
 #if MPI
   }
   else
@@ -3507,8 +3501,6 @@ void DOM_Extents (DOM *dom, double *extents)
 /* initialize domain at t == 0.0 */
 void DOM_Initialize (DOM *dom)
 {
-  BODY *bod;
-
 #if MPI
   SOLFEC_Timer_Start (dom->solfec, "PARBAL");
 
@@ -3518,26 +3510,6 @@ void DOM_Initialize (DOM *dom)
 
   SOLFEC_Timer_End (dom->solfec, "PARBAL");
 #endif
-
-  SOLFEC_Timer_Start (dom->solfec, "TIMINT");
-
-  /* initialize bodies */
-  if (dom->dynamic > 0)
-  {
-    for (bod = dom->bod; bod; bod = bod->next)
-    {
-      BODY_Dynamic_Init (bod); /* integration scheme is set externally */
-    }
-  }
-  else
-  {
-    for (bod = dom->bod; bod; bod = bod->next)
-    {
-      BODY_Static_Init (bod);
-    }
-  }
-
-  SOLFEC_Timer_End (dom->solfec, "TIMINT");
 }
 
 /* domain update initial half-step => bodies and constraints are
@@ -3598,11 +3570,23 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
 
   /* begin time integration */
   if (dom->dynamic)
+  {
     for (bod = dom->bod; bod; bod = bod->next)
+    {
+      if (!bod->inverse) BODY_Dynamic_Init (bod); /* set up mass, stiffness, and tangent inverse */
+
       BODY_Dynamic_Step_Begin (bod, time, step);
+    }
+  }
   else
+  {
     for (bod = dom->bod; bod; bod = bod->next)
+    {
+      if (!bod->inverse) BODY_Static_Init (bod);
+
       BODY_Static_Step_Begin (bod, time, step);
+    }
+  }
 
   SOLFEC_Timer_End (dom->solfec, "TIMINT");
 
