@@ -1873,6 +1873,43 @@ But crucially note
  second run the above if test will result in the output 'READ MODE!'.
 \end_layout
 
+\begin_layout Section
+Output directory as an input path
+\end_layout
+
+\begin_layout Standard
+Solfec creates a copy of an input file in the output directory.
+ For example, if the output path is
+\end_layout
+
+\begin_layout LyX-Code
+out/analysis1
+\end_layout
+
+\begin_layout Standard
+the corresponding copy of the input file will be
+\end_layout
+
+\begin_layout LyX-Code
+out/analysis1/analysis1.py
+\end_layout
+
+\begin_layout Standard
+In order to view or post-process the results that have been saved in this
+ directory, one can run
+\end_layout
+
+\begin_layout LyX-Code
+solfec -v out/analysis1
+\end_layout
+
+\begin_layout Standard
+For this approach to be robust, care needs to be taken to ensure that the
+ input file can be correctly run from any location (e.g.
+ access to additional data or scripts required by an input file needs to
+ be suitably resolved).
+\end_layout
+
 \begin_layout Chapter
 \begin_inset CommandInset label
 LatexCommand label
