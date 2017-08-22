@@ -3549,10 +3549,12 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   step = dom->step;
 
   /* initialize bodies */
-  if (dom->dynamic > 0)
+  if (dom->dynamic)
   {
     for (bod = dom->bod; bod; bod = bod->next)
     {
+      if (!bod->inverse) BODY_Dynamic_Init (bod); /* set up mass, stiffness, and tangent inverse */
+
       double h = BODY_Dynamic_Critical_Step (bod);
 
       if (h < step) step = h;
@@ -3573,8 +3575,6 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
   {
     for (bod = dom->bod; bod; bod = bod->next)
     {
-      if (!bod->inverse) BODY_Dynamic_Init (bod); /* set up mass, stiffness, and tangent inverse */
-
       BODY_Dynamic_Step_Begin (bod, time, step);
     }
   }

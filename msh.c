@@ -2373,7 +2373,7 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
   int k, i, j, fac[5], n, m, nghs, nfac = 0, bulk = 0, *inf;
   ELEMENT *ele, *nei, *adj[6], *next;
   SET *input_faces, *input_nodes;
-  MAP *oneside = NULL;
+  SET *oneside = NULL;
   FACE ing, tmp[4], *cac;
   MESH **out, *cpy;
   KDT *kdtree, *kd;
@@ -2472,7 +2472,7 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	  cpy->faces = cac;
 
 	  if (DOT(ing.normal, cac->normal) > 0.)
-	    MAP_Insert (&cpy->mapmem, &oneside, ele, nei, NULL);
+	    SET_Insert (NULL, &oneside, ele, NULL);
 
           /* break nei->adj adjacency */
 	  for (j = 0; j < nei->neighs; j ++)
@@ -2508,7 +2508,7 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	  cpy->faces = cac;
 
 	  if (DOT(ing.normal, cac->normal) > 0.)
-	    MAP_Insert (&cpy->mapmem, &oneside, nei, ele, NULL);
+	    SET_Insert (NULL, &oneside, nei, NULL);
 	}
       }
     }
@@ -2542,10 +2542,57 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
       }
       cpy->nodes_count = n;
 
-      /* duplicate nodes on one side of the splitting surface */
-      for (MAP *item = MAP_First (oneside); item; item = MAP_Next (item))
+      /* incrementally complement the 'oneside' set by all adjacent elements */
+      SET *addme = NULL;
+      do
       {
-	ele = item->key;
+	SET_Free (NULL, &addme);
+
+	for (SET *item = SET_First (oneside); item; item = SET_Next (item))
+	{
+	  ele = item->data;
+
+	  for (i = 0; i < ele->type; i ++)
+	  {
+	    MAP *jtem = MAP_Find_Node (mapped, (void*)(long)ele->nodes[i], NULL);
+
+	    if (jtem) /* a renumbered node */
+	    {
+	      SET *eset = NULL;
+
+	      MESH_Elements_Around_Node (ele, ele->nodes[i], &eset); /* all adjacent elements */
+
+	      for (SET *item = SET_First (eset); item; item = SET_Next (item))
+	      {
+		nei = item->data;
+
+		if (!SET_Find (oneside, nei, NULL)) /* if not yet included  */
+		{
+		  for (j = 0; j < nei->neighs; j ++) /* test all neighbours */
+		  {
+		    if (SET_Find (oneside, nei->adj[j], NULL)) /* if any of the neighbours is included */
+		    {
+		      SET_Insert (NULL, &addme, nei, NULL); /* include this element as well */
+		    }
+		  }
+		}
+	      }
+	      SET_Free (NULL, &eset);
+	    }
+	  }
+	}
+
+	for (SET *item = SET_First (addme); item; item = SET_Next (item))
+	{
+	  SET_Insert (NULL, &oneside, item->data, NULL); /* increase the 'oneside' set */
+	}
+      }
+      while (addme);
+
+      /* duplicate nodes on one side of the splitting surface */
+      for (SET *item = SET_First (oneside); item; item = SET_Next (item))
+      {
+	ele = item->data;
 
 	for (i = 0; i < ele->type; i ++)
 	{
@@ -2569,12 +2616,9 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	  }
 	}
 
-	/* TODO --> suitably propagate to local neighbours;
-	   for non-hex meshes many elements may meet at a node;
-	   now how do we decide that the elements are on the suitable
-	   side of the splitting surface? We can use MESH_Elements_Around_Node
-	   to collect elements around all input_nodes; And then somehow decide
-	   for which we are going to remap the node indices; */
+	/* TODO --> test half-split surfaces separation on Ben's data;
+	            e.g. solfec test_RT_SPLIT.py TUBE-TET-1 CSET -v
+		         seems to produce clean surfaces -- but not separated */
       }
     }
     
@@ -2589,6 +2633,7 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 
   SET_Free (NULL, &input_faces);
   SET_Free (NULL, &input_nodes);
+  SET_Free (NULL, &oneside);
   MESH_Destroy (cpy);
 
   if (lst && nlst)
