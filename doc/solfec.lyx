@@ -10836,6 +10836,33 @@ solfec_solver
 \end_layout
 
 \begin_layout Standard
+\noindent
+Notes:
+\end_layout
+
+\begin_layout Itemize
+motion of the boundary bodies listed in the 
+\series bold
+parmec2solfec
+\series default
+ mapping is driven by the PARMEC model
+\end_layout
+
+\begin_layout Itemize
+\noindent
+SOLFEC boundary bodies listed in the 
+\series bold
+parmec2solfec
+\series default
+ mapping must be rigid
+\end_layout
+
+\begin_layout Itemize
+if motion of the boundary bodies is restrained in PARMEC, equivalent kinematic
+ constraints need to applied to the same bodies in SOLFEC
+\end_layout
+
+\begin_layout Standard
 Some parameters can also be accessed as members of a HYBRID_SOLVER object.
  These are
 \begin_inset Separator latexpar
