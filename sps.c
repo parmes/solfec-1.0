@@ -110,7 +110,9 @@ SURFACE_MATERIAL* SPSET_Insert (SPSET *set, int surf1, int surf2, char *label, S
  
   SURFACE_MATERIAL *out = SET_Find (set->set, &data, (SET_Compare) setcmp);
 
-  if (out == NULL)
+  short newout = (out == NULL);
+
+  if (newout)
   {
     ERRMEM (out = MEM_Alloc (&set->matmem)); 
 
@@ -136,10 +138,12 @@ SURFACE_MATERIAL* SPSET_Insert (SPSET *set, int surf1, int surf2, char *label, S
   /* copy all data from the 'model' onwards */
   memcpy (&out->model, &data.model, sizeof (SURFACE_MATERIAL) - ((char*)&data.model - (char*)&data.index));
 
-  ERRMEM (set->tab = realloc (set->tab, (set->size + 1) * sizeof (SURFACE_MATERIAL*)));
-  set->tab [set->size] = out;
-  out->index = set->size ++;
-
+  if (newout)
+  {
+    ERRMEM (set->tab = realloc (set->tab, (set->size + 1) * sizeof (SURFACE_MATERIAL*)));
+    set->tab [set->size] = out;
+    out->index = set->size ++;
+  }
 
   return out;
 }
@@ -222,7 +226,7 @@ void SPSET_2_MBFCP (SPSET *set, FILE *out)
 
   fprintf (out, "SURFACE_MATERIALS:\t%d\n", set->size);
 
-  for (int i = 0; i < set->size + 1; i ++)
+  for (int i = 0; i < set->size; i ++)
   {
     if (i)
     {
@@ -254,7 +258,6 @@ void SPSET_2_MBFCP (SPSET *set, FILE *out)
   }
 
   fprintf (out, "\n");
-  free (tab);
 }
 
 /* transfer data from the source 'src' to a destiny 'dst' at the given 'time' */
