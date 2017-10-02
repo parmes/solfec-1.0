@@ -2620,13 +2620,20 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	            e.g. solfec test_RT_SPLIT.py TUBE-TET-1 CSET -v
 		         seems to produce clean surfaces -- but not separated */
       }
+
+      ERRMEM (out = malloc (sizeof(MESH*)));
+      out[0] = cpy;
+      *nout = 1;
     }
-    
-    /* separate meshes */
-    out = MESH_Separate (cpy, nout, -1);
+    else 
+    {
+      out = MESH_Separate (cpy, nout, -1); /* separate meshes */
+      MESH_Destroy (cpy);
+    }
   }
   else
   {
+    MESH_Destroy (cpy);
     out = NULL;
     *nout = 0;
   }
@@ -2634,7 +2641,6 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
   SET_Free (NULL, &input_faces);
   SET_Free (NULL, &input_nodes);
   SET_Free (NULL, &oneside);
-  MESH_Destroy (cpy);
 
   if (lst && nlst)
   {
