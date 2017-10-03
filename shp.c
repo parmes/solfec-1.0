@@ -155,11 +155,11 @@ SHAPE* SHAPE_Create (short kind, void *data)
   return shp;
 }
 
-/* create shape geometric object pairs */
-SGP* SGP_Create (SHAPE *shp, int *nsgp)
+/* create shape geometric object pairs for contact detection */
+SGP* SGP_Create (SHAPE *shp, int *nsgp, int *nsgpall)
 {
   SGP *sgp, *ptr;
-  int n = 0;
+  int n = 0, m = 0;
 
   /* compute geomerical objects */
   for (SHAPE *shq = shp; shq; shq = shq->next)
@@ -170,6 +170,7 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp)
       {
 	MESH *msh = shq->data;
 	for (ELEMENT *ele = msh->surfeles; ele; ele = ele->next) n ++;
+	for (ELEMENT *ele = msh->bulkeles; ele; ele = ele->next) m ++;
       }
       break;
       case SHAPE_CONVEX:
@@ -188,8 +189,9 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp)
   }
 
   /* allocate */
-  ERRMEM (ptr = sgp = MEM_CALLOC (n * sizeof (SGP)));
+  ERRMEM (ptr = sgp = MEM_CALLOC ((n+m) * sizeof (SGP)));
   *nsgp = n;
+  *nsgpall = n+m;
 
   /* set pointers */
   for (SHAPE *shq = shp; shq; shq = shq->next)
@@ -224,6 +226,24 @@ SGP* SGP_Create (SHAPE *shp, int *nsgp)
 	ptr->kind = GOBJ_ELLIP;
 	ptr ++;
       }
+      break;
+    }
+  }
+
+  for (SHAPE *shq = shp; shq; shq = shq->next)
+  {
+    switch (shq->kind)
+    {
+      case SHAPE_MESH:
+      {
+	MESH *msh = shq->data;
+	for (ELEMENT *ele = msh->bulkeles; ele; ele = ele->next, ptr ++)
+	  ptr->shp = shq, ptr->gobj = ele, ptr->kind = GOBJ_ELEMENT;
+      }
+      break;
+      case SHAPE_CONVEX:
+      case SHAPE_SPHERE:
+      case SHAPE_ELLIP:
       break;
     }
   }

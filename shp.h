@@ -73,7 +73,7 @@ struct shape_gobj_pair
 SHAPE* SHAPE_Create (short kind, void *data);
 
 /* create shape geometric object pairs */
-SGP* SGP_Create (SHAPE *shp, int *nsgp);
+SGP* SGP_Create (SHAPE *shp, int *nsgp, int *nsgpall);
 
 /* get GOBJ type of given shape */
 GOBJ SHAPE_2_GOBJ (SHAPE *shp);

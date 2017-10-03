@@ -992,7 +992,7 @@ BODY* BODY_Create (short kind, SHAPE *shp, BULK_MATERIAL *mat, char *label, BODY
   bod->flags = flags;
 
   /* create piars table */
-  bod->sgp = SGP_Create (shp, &bod->nsgp);
+  bod->sgp = SGP_Create (shp, &bod->nsgp, &bod->nsgpall);
 
   /* update body extents */
   SHAPE_Extents (shp, bod->extents);

@@ -8995,8 +8995,8 @@ static PyObject* lng_OVERLAPPING (PyObject *self, PyObject *args, PyObject *kwds
   ERRMEM (shp = MEM_CALLOC (sizeof (BODY)));
   obs->shape = create_shape (obstacles, 0);
   shp->shape = create_shape (shapes, -1); /* empty and simple glue */
-  obs->sgp = SGP_Create (obs->shape, &obs->nsgp);
-  shp->sgp = SGP_Create (shp->shape, &shp->nsgp);
+  obs->sgp = SGP_Create (obs->shape, &obs->nsgp, &obs->nsgpall);
+  shp->sgp = SGP_Create (shp->shape, &shp->nsgp, &shp->nsgpall);
   aabb = AABB_Create (obs->nsgp + shp->nsgp);
   obs->kind = shp->kind = RIG;
   ocd.bod = shp;
@@ -9434,7 +9434,7 @@ static PyObject* lng_DISPLAY_POINT (PyObject *self, PyObject *args, PyObject *kw
   dp->X [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
   dp->X [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
 
-  if ((n = SHAPE_Sgp (body->bod->sgp, body->bod->nsgp, dp->X)) < 0)
+  if ((n = SHAPE_Sgp (body->bod->sgp, body->bod->nsgpall, dp->X)) < 0)
   {
     PyErr_SetString (PyExc_ValueError, "Point outside of the body");
     return NULL;

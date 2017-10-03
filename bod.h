@@ -177,9 +177,11 @@ struct general_body
 
   SHAPE *shape;    /* shape of the body */
 
-  SGP *sgp;        /* shape and geometric object pairs */
+  SGP *sgp;        /* shape and geometric object pairs: outer/surface [0,...,nsgp-1] followed by inner [nsgp,...,nsgpall-1] */
 
-  int nsgp;        /* number of them (above) */
+  int nsgp;        /* number of surface geometric object pairs used for contact detection */
+
+  int nsgpall;      /* number of all geometric object pairs including inner geometric objects */
 
   double extents [6];  /* shape extents */
 
