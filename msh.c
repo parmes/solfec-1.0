@@ -2363,6 +2363,153 @@ static int input_face_compare (int *inf, int *ing)
   return 1;
 }
 
+/* test if element is behind surface */
+static int is_behind_surface (MESH *msh, ELEMENT *ele, int *surf)
+{
+  double ec[3] = {0,0,0}, dmin = DBL_MAX;
+  double (*x)[3] = msh->cur_nodes;
+  int *fac, *fmin = surf, i;
+
+  for (i = 0; i < ele->type; i++)
+  {
+    ACC (x[ele->nodes[i]], ec);
+  }
+  DIV (ec, (double)i, ec);
+
+  /* find closest surface face to element */
+  for (fac = surf; fac[0]; fac += (fac[0]+1))
+  {
+    double fc[3] = {0,0,0}, dc[3], d;
+
+    for (i = 1; i <= fac[0]; i++)
+    {
+      ACC (x[fac[i]], fc);
+    }
+    DIV (fc, (double)i, fc);
+
+    SUB (ec, fc, dc);
+    d = DOT (dc, dc);
+    if (d < dmin)
+    {
+      fmin = fac;
+      dmin = d;
+    }
+  }
+
+  double ab[3], bc[3], nn[3], dd[3];
+
+  SUB (x[fmin[2]], x[fmin[1]], ab);
+  SUB (x[fmin[3]], x[fmin[2]], bc);
+  PRODUCT (ab, bc, nn);
+
+  SUB (ec, x[fmin[1]], dd);
+  if (DOT (dd, nn) < 0.0) return 1;
+  else return 0;
+}
+
+#if 0
+struct tempface
+{
+  int type;
+  int node[4];
+  struct tempface *nei[4];
+};
+struct tempedge
+{
+  int i;
+  int j;
+};
+
+static int tempedgecmp (struct tempedge *f, struct tempedge *g)
+{
+  if (f->i < g->i) return -1;
+  else if (f->i == g->i && f->j < g->j) return -1;
+  else  if (f->i == g->i && f->j == g->j) return 0;
+  else return 1;
+}
+
+/* return set of indices of splitting surface nodes which are either at the outer
+ * surface of the mesh or are fully looped around by faces within the splitting
+ * surface; these nodes are later duplicated and this way inner fronts of the splitting
+ * surface are corectly closed -- their nodes are not duplicated as they do not form
+ * closed triangle loops neither belong to the mesh boundary */
+static SET* create_split_nodes (MESH *msh, int *surf)
+{
+  SET *split_nodes = NULL;
+  int *node_state; /* 0: unused, 1: boundary, 2: looped by faces */
+  int *f, n = 0, m = 0;
+  struct tempface *face;
+  struct tempedge *edge;
+  MAP *e2f = NULL;
+
+  ERRMEM (node_state = MEM_CALLOC (msh->nodes_count * sizeof(int)));
+
+  for (f = surf; f[0]; f += (f[0]+1)) n ++;
+
+  ERRMEM (face = malloc (sizeof (struct tempface) * n));
+  ERRMEM (edge = malloc (sizeof (struct tempedge) * n * 4)); /* overalloc */
+
+  for (n = 0, f = surf; f[0]; f += (f[0]+1))
+  {
+    face[n].type = f[0];
+    face[n].node[0] = f[1]; 
+    face[n].node[1] = f[2]; 
+    face[n].node[2] = f[3]; 
+    if (f[0] == 4) face[n].node[3] = f[4];
+
+    int epair[4][2] = {{f[1]<f[2] ? f[1]:f[2], f[1]<f[2] ? f[2]:f[1]},
+                       {f[2]<f[3] ? f[2]:f[3], f[2]<f[3] ? f[3]:f[2]},
+                       {0, 0}, {0, 0}};
+    if (f[0] == 3)
+    {
+      epair[2][0] = f[3]<f[1] ? f[3]:f[1];
+      epair[2][1] = f[3]<f[1] ? f[1]:f[3];
+    }
+    else
+    {
+      epair[2][0] = f[3]<f[4] ? f[3]:f[4];
+      epair[2][1] = f[3]<f[4] ? f[4]:f[3];
+      epair[3][0] = f[4]<f[1] ? f[4]:f[1];
+      epair[3][1] = f[4]<f[1] ? f[1]:f[4];
+    }
+
+    for (int i = 0; i < f[0]; i ++)
+    {
+      struct tempedge ed = {epair[i][0], epair[i][1]};
+
+      MAP *item = MAP_Find_Node (e2f, &ed, (MAP_Compare) tempedgecmp);
+
+      if (item) /* found mapped face -- complete adjacency */
+      {
+	struct tempface *nei = item->data; 
+	face[n].nei[i] = nei;
+	for (int j = 0; j < nei->type; j++)
+	{
+	  if (nei->nei[j] == NULL)
+	  {
+	    nei->nei[j] = &face[n];
+	    break;
+	  }
+	}
+      }
+      else /* map edge to face */
+      {
+	face[n].nei[i] = NULL;
+	edge[m] = ed;
+	MAP_Insert (NULL, &e2f, &edge[m], &face[n], (MAP_Compare) tempedgecmp);
+	m ++;
+      }
+    }
+  }
+
+  free (node_state);
+  free (face);
+  free (edge);
+
+  return split_nodes;
+}
+#endif
+
 /* split mesh by surface;
  * 'surf' defines faces as follows: [(4, n1, n2, n3, n4), (3, n1, n2, n3), ..., 0];
  * 'sid1' and 'sid2' are new surface ids on the 'outside' and 'inside' of 'surf' respectively;
@@ -2372,18 +2519,18 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 {
   int k, i, j, fac[5], n, m, nghs, nfac = 0, bulk = 0, *inf;
   ELEMENT *ele, *nei, *adj[6], *next;
-  SET *input_faces, *input_nodes;
+  SET *input_faces, *split_nodes;
   SET *oneside = NULL;
   FACE ing, tmp[4], *cac;
   MESH **out, *cpy;
   KDT *kdtree, *kd;
 
   /* create input faces and nodes sets */
-  for (inf = surf, input_faces = NULL, input_nodes = NULL; inf[0]; inf += (inf[0]+1))
+  for (inf = surf, input_faces = NULL, split_nodes = NULL; inf[0]; inf += (inf[0]+1))
   {
     SET_Insert (NULL, &input_faces, inf, (SET_Compare) input_face_compare);
     for (i = 1; i <= inf[0]; i ++)
-      SET_Insert (NULL, &input_nodes, (void*) (long) inf[i], NULL);
+      SET_Insert (NULL, &split_nodes, (void*) (long) inf[i], NULL);
   }
 
   cpy = MESH_Copy (msh); /* work on a copy */
@@ -2527,12 +2674,12 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
     {
       /* add extra nodes from the input set */
       MAP *mapped = NULL;
-      n = SET_Size (input_nodes);
+      n = SET_Size (split_nodes);
       ERRMEM (cpy->ref_nodes = realloc (cpy->ref_nodes, 2 * (cpy->nodes_count + n) * sizeof (double [3])));
       cpy->cur_nodes = cpy->ref_nodes + cpy->nodes_count + n;
       memmove (cpy->cur_nodes, cpy->cur_nodes-n, cpy->nodes_count * sizeof (double [3]));
       n = cpy->nodes_count;
-      for (SET *item = SET_First (input_nodes); item; item = SET_Next(item))
+      for (SET *item = SET_First (split_nodes); item; item = SET_Next(item))
       {
 	i = (int)(long) item->data;
 	COPY (cpy->ref_nodes[i], cpy->ref_nodes[n]);
@@ -2568,12 +2715,9 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 
 		if (!SET_Find (oneside, nei, NULL)) /* if not yet included  */
 		{
-		  for (j = 0; j < nei->neighs; j ++) /* test all neighbours */
+		  if (is_behind_surface (cpy, nei, surf))
 		  {
-		    if (SET_Find (oneside, nei->adj[j], NULL)) /* if any of the neighbours is included */
-		    {
-		      SET_Insert (NULL, &addme, nei, NULL); /* include this element as well */
-		    }
+		    SET_Insert (NULL, &addme, nei, NULL); /* include this element as well */
 		  }
 		}
 	      }
@@ -2615,10 +2759,9 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
 	    }
 	  }
 	}
-
-	/* TODO --> test half-split surfaces separation on Ben's data;
-	            e.g. solfec test_RT_SPLIT.py TUBE-TET-1 CSET -v
-		         seems to produce clean surfaces -- but not separated */
+	/* TODO --> half-split surface test on Ben's data: solfec test_RT_SPLIT.py TUBE-TET-1 SSET -v
+		    produces an inner front of splitting without surface elements; the inner nodes at
+		    the edge of the splitting surface should not be duplicated -- how to detect them? */
       }
 
       ERRMEM (out = malloc (sizeof(MESH*)));
@@ -2639,7 +2782,7 @@ MESH** MESH_Split_By_Faces (MESH *msh, int *surf, int sid1, int sid2, int *nout,
   }
 
   SET_Free (NULL, &input_faces);
-  SET_Free (NULL, &input_nodes);
+  SET_Free (NULL, &split_nodes);
   SET_Free (NULL, &oneside);
 
   if (lst && nlst)
