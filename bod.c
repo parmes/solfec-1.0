@@ -2085,6 +2085,7 @@ int BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, cha
     (*bod1)->damping = bod->damping;
     (*lst1) = lst[0];
     (*nlst1) = nlst[0];
+    free (out);
     free (lst);
     free (nlst);
     if (bod->kind == FEM) FEM_Map_State_Direct (bod->shape->data, bod->conf, bod->velo,
@@ -2105,6 +2106,7 @@ int BODY_Split_Mesh (BODY *bod, int *surf, int sid1, int sid2, char *label1, cha
     (*nlst1) = nlst[0];
     (*lst2) = lst[1];
     (*nlst2) = nlst[1];
+    free (out);
     free (lst);
     free (nlst);
     if (bod->kind == FEM) FEM_Map_State_Direct (bod->shape->data, bod->conf, bod->velo,
