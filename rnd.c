@@ -204,6 +204,7 @@ enum /* menu items */
   TOOLS_WIREFRAME_ALL,
   TOOLS_WIREFRAME_NONE,
   TOOLS_LEGENDS_ON_OFF,
+  TOOLS_LIGHTING_ON_OFF,
   TOOLS_NEXT_MODE,
   TOOLS_PREVIOUS_MODE,
   ANALYSIS_RUN,
@@ -390,6 +391,7 @@ static short legendon = 1; /* enabled / disabled legend flag */
 
 static short display_points = 0; /* enable / disable display points */
 
+static short lightingon = 1; /* enable / disable lighting globally */
 
 /* menu modal analysis callback */
 static void menu_modal_analysis (int mode)
@@ -2811,14 +2813,14 @@ static void render_body_set (SET *set)
       }
     }
     glPointSize (1.0);
-    glEnable (GL_LIGHTING);
+    if (lightingon) glEnable (GL_LIGHTING);
   }
 
   if (legend_constraint_based ()) /* render constraints or forces over transparent volumes */
   {
     glDisable (GL_LIGHTING);
     render_body_set_constraints_or_forces (set);
-    glEnable (GL_LIGHTING);
+    if (lightingon) glEnable (GL_LIGHTING);
 
     if (!render_bodies) return;
 
@@ -2850,7 +2852,7 @@ static void render_body_set (SET *set)
       glDisable (GL_LIGHTING);
       glColor3fv (color);
       render_body_lines (item->data, SEETHROUGH|HIDDEN);
-      glEnable (GL_LIGHTING);
+      if (lightingon) glEnable (GL_LIGHTING);
       render_body_triangles (item->data, SEETHROUGH|HIDDEN|WIREFRAME);
     }
 
@@ -4054,6 +4056,19 @@ static void menu_tools (int item)
       legendon = 1;
     }
     break;
+  case TOOLS_LIGHTING_ON_OFF:
+    if (lightingon)
+    {
+      glDisable (GL_LIGHTING);
+      lightingon = 0;
+    }
+    else
+    {
+      glEnable (GL_LIGHTING);
+      lightingon = 1;
+    }
+    GLV_Redraw_All ();
+    break;
   case TOOLS_NEXT_MODE:
     if (modal_analysis_menu)
     {
@@ -4190,6 +4205,7 @@ int RND_Menu (char ***names, int **codes)
   glutAddMenuEntry ("wireframe all /w/", TOOLS_WIREFRAME_ALL);
   glutAddMenuEntry ("wireframe none /W/", TOOLS_WIREFRAME_NONE);
   glutAddMenuEntry ("legends on/off /l/", TOOLS_LEGENDS_ON_OFF);
+  glutAddMenuEntry ("lighting on/off /m/", TOOLS_LIGHTING_ON_OFF);
 
   menu_name [MENU_KINDS] = "kinds of";
   menu_code [MENU_KINDS] = glutCreateMenu (menu_kinds);
@@ -4440,6 +4456,9 @@ void RND_Key (int key, int x, int y)
     break;
   case 'l':
     menu_tools (TOOLS_LEGENDS_ON_OFF);
+    break;
+  case 'm':
+    menu_tools (TOOLS_LIGHTING_ON_OFF);
     break;
   }
 }
