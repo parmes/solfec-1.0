@@ -57,3 +57,9 @@ def callback (sol):
 CALLBACK (sol, step, sol, callback)
 
 RUN (sol, sv, 1.0)
+
+if sol.mode == 'READ':
+  dur = DURATION (sol)
+  pnt = (1.06066, 1.06066, 0)
+  th = HISTORY (sol, ('frag1',pnt, 'DZ'), dur[0], dur[1])
+  print th

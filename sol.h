@@ -222,7 +222,7 @@ struct solfec_history_item
   unsigned char contacts_only; /* contact filtering flag */
   VALUE_KIND entity; /* (body, point, index, entity) <=> BODY_ENTITY */
   SET *bodies; /* (bodies, index) <=> ENERGY_VALUE, CONSTRAINT_VALUE */
-  char *label; /* label <=> TIMING_VALUE or LABELED_ */
+  char *label; /* label <=> BODY label, or TIMING_VALUE, or LABELED_ */
   enum {BODY_ENTITY, ENERGY_VALUE, TIMING_VALUE,
         CONSTRAINT_VALUE, LABELED_INT, LABELED_DOUBLE} item;
   enum {OP_SUM, OP_AVG, OP_MAX, OP_MIN} op; /* operation for parallel labeled data */

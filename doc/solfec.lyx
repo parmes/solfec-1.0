@@ -2017,6 +2017,11 @@ Routines marked as
 (Under development)
 \color inherit
  are functional, although they may be unstable.
+ Routines marked as 
+\color red
+(Experimental)
+\color inherit
+ are only moderately tested.
 \end_layout
 
 \begin_layout Standard
@@ -12494,7 +12499,7 @@ Cracking criteria.
 (body2, lst1, lst2) = RT_SPLIT (body1, surf | sid1, sid2, label1, label2)
  
 \color red
-(Under development)
+(Experimental)
 \end_layout
 
 \begin_layout Standard
@@ -14664,7 +14669,7 @@ name "subsec:COROTATE_DISPLACEMENTS"
 
 obj = COROTATED_DISPLACEMENTS (solfec, subset | sampling) 
 \color red
-(Under development)
+(Experimental)
 \end_layout
 
 \begin_layout Standard
@@ -14855,7 +14860,7 @@ name "subsec:RIGID_DISPLACEMENTS"
 
 obj = RIGID_DISPLACEMENTS (body) 
 \color red
-(Under development)
+(Experimental)
 \end_layout
 
 \begin_layout Standard
@@ -15079,7 +15084,7 @@ quality
 \begin_layout Subsection*
 RENDER(solfec, object) 
 \color red
-(Under development)
+(Experimental)
 \end_layout
 
 \begin_layout Standard
@@ -15122,7 +15127,7 @@ reference "cha:Viewer-Scripts"
 \begin_layout Subsection*
 XDMF_EXPORT (solfec, time, path | subset, attributes) 
 \color red
-(Under development)
+(Experimental)
 \end_layout
 
 \begin_layout Standard
@@ -15256,7 +15261,7 @@ name "subsec:REGISTER_BASE"
 
 REGISTER_BASE (solfec, base, label) 
 \color red
-(Under development)
+(Experimental)
 \end_layout
 
 \begin_layout Standard
@@ -15721,7 +15726,7 @@ a tuple
 \emph on
 body
 \emph default
- is a BODY object, 
+ is a BODY object or a body label string, 
 \emph on
 point
 \emph default
@@ -15735,7 +15740,15 @@ entity
 \emph default
  is one of: 'CX', 'CY', 'CZ' (current coordinate), 'DX', 'DY', 'DZ' (displacemen
 t), 'VX', 'VY', 'VZ' (velocity), 'SX', 'SY', 'SZ', 'SXY', 'SXZ', 'SYZ' (stress),
- 'MISES' (von Mises norm of stress)
+ 'MISES' (von Mises norm of stress); 
+\series bold
+\emph on
+Note:
+\series default
+\emph default
+ if body label is used and the body initially did not exist (e.g.
+ it was inserted during simulation or produced as a result of fragmentation)
+ corresponding values for times when it did not exit are NaN;
 \end_layout
 
 \begin_layout Itemize

@@ -1098,8 +1098,22 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
       case BODY_ENTITY:
 	{
 	  double values [7];
-          BODY_Point_Values (shi[i].bod, shi[i].point, shi[i].entity, values);
-	  shi[i].history [cur] = values [shi[i].index];
+	  if (shi[i].bod)
+	  {
+	    BODY_Point_Values (shi[i].bod, shi[i].point, shi[i].entity, values);
+	    shi[i].history [cur] = values [shi[i].index];
+	  }
+	  else
+	  {
+	    ASSERT_DEBUG (shi[i].label, "BUG: history iterm BODY label expexted but NULL found");
+	    BODY *bod = MAP_Find (sol->dom->lab, shi[i].label, (MAP_Compare)strcmp);
+	    if (bod)
+	    {
+	      BODY_Point_Values (bod, shi[i].point, shi[i].entity, values);
+	      shi[i].history [cur] = values [shi[i].index];
+	    }
+	    else shi[i].history [cur] = NAN;
+	  }
 	}
 	break;
       case ENERGY_VALUE:

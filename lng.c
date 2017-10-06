@@ -10419,9 +10419,19 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
       point = PyTuple_GetItem (obj, 1);
       entity = PyTuple_GetItem (obj, 2);
 
-      if (!(is_body (body, "body") && is_tuple (point, "point", 3) && is_string (entity, "entity"))) return 0;
+      if (!((is_body (body, "body") || is_string (body, "body")) &&
+	   is_tuple (point, "point", 3) && is_string (entity, "entity"))) return 0;
 
-      shi->bod = body->bod;
+      if (is_body (body, "body"))
+      {
+        shi->bod = body->bod;
+	shi->label = NULL;
+      }
+      else
+      {
+        shi->bod = NULL;
+	shi->label = PyString_AsString(body);
+      }
       shi->point [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
       shi->point [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
       shi->point [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
