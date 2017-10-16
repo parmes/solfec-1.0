@@ -5,7 +5,7 @@ from math import log
 import os, sys
 import ast
 
-if len(sys.argv) < 1:
+if len(sys.argv) < 2:
   print 'SYNOPSIS: python path/to/scaling-plots.py path/to/top/level/output/directory'
   print '          e.g. python scaling-plots.py out/array-of-cubes'
   sys.exit(0)

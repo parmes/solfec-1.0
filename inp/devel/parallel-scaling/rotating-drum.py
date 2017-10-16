@@ -78,6 +78,7 @@ step = 0.001 # time step
 outi = 0.03 # output interval
 stop = 10 # duration
 fric = 0.3 # friction coefficient
+angv = 1.0 # drum angular velocity
 ipar = 0 # partical counter (used internally)
 kifo = 'PR' # kinematics
 solv = 'NS' # constraint solver
@@ -106,6 +107,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-step number --> time step (default: %g)' % step
   print '-stop number --> duration (default: %g)' % stop
   print '-fric number --> friction coefficient (default %g)' % fric
+  print '-angv number --> drum angular velocity [rad/s] (default %g)' % angv
   print '-shps number --> use spherical particles (default %s)' % sphs
   print '-xdmf --> export XDMF in READ mode (-kifo FE; default: %s)' % xdmf
   print '-help or -h --> show this help and exit'
@@ -113,7 +115,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print 'FYI: smaller time step may be appropriate for larger perticle numbers'
   print '     since the size of individual particles gets proportionally smaller'
   print
-  print 'NOTE: becasue the output path depends on the input parameters'
+  print 'NOTE: because the output path depends on the input parameters'
   print '      use the same parameters to access results in READ mode, e.g.'
   print '      solfec -v path/to/rotating-drum.py {same parameters}, or'
   print '      use the output directory as an input path instead, e.g.'
@@ -139,6 +141,8 @@ if argv != None:
       stop = float (argv [i+1])
     elif argv [i] == '-fric':
       fric = float (argv [i+1])
+    elif argv [i] == '-angv':
+      angv = float (argv [i+1])
     elif argv [i] == '-weak':
       weak = 'ON'
     elif argv [i] == '-sphs':
@@ -157,9 +161,9 @@ ncpu = NCPU ()
 
 # output path components
 begining = 'out/rotating-drum/'
-ending = 'STE%g_DUR%g_%s_%s_%s_FRI%g_N%d_%s%d' % \
+ending = 'STE%g_DUR%g_%s_%s_%s_FRI%g_ANG%g_N%d_%s%d' % \
   (step,stop,kifo,solv,'ELL' if sphs == 'OFF' else 'SPH',\
-  fric,npar,'S' if weak == 'OFF' else 'W',ncpu)
+  fric,angv,npar,'S' if weak == 'OFF' else 'W',ncpu)
 outpath = begining + ending
 
 # create solfec object
@@ -173,6 +177,7 @@ if sol.mode == 'READ' and sol.outpath != outpath:
     if x[0:3] == 'STE': step = float(x[3:])
     elif x[0:3] == 'DUR': stop = float(x[3:])
     elif x[0:3] == 'FRI': fric = float(x[3:])
+    elif x[0:3] == 'ANG': angv = float(x[3:])
     elif x in ('FE','PR','RG'): kifo = x
     elif x in ('NS','GS'): solv = x
     elif x == 'ELL': sphs = 'OFF'
@@ -237,7 +242,7 @@ def callback (bod):
   if ipar < npar: # insert particles
     PARTICLES (rx, ry, rz, 0, 0.25, 0.25, 1.4, 0.4, 2, 2)
   elif not rotating: # rotate drum
-    INITIAL_VELOCITY (bod, (0, 0, 0), (0, 1, 0))
+    INITIAL_VELOCITY (bod, (0, 0, 0), (0, angv, 0))
     rotating = True
   return 1
 

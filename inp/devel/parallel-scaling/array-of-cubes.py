@@ -18,7 +18,6 @@ from acc_sweep import *
 
 M = 5 # array edge size
 N = 1 # cube mesh size
-gap = 0.001 # between cubes
 step = 5E-4 # time step
 stop = 5 # duration
 kifo = 'BC' # kinematics
@@ -55,7 +54,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-xdmf --> export XDMF in READ mode (default: %s)' % xdmf
   print '-help or -h --> show this help and exit'
   print 
-  print 'NOTE: becasue the output path depends on the input parameters'
+  print 'NOTE: because the output path depends on the input parameters'
   print '      use the same parameters to access results in READ mode, e.g.'
   print '      solfec -v path/to/array-of-cubes.py {same parameters}, or'
   print '      use the output directory as an input path instead, e.g.'
@@ -146,6 +145,9 @@ nodes = [0.0, 0.0, 0.0,
 # modify M if week scaling is 'ON'
 if weak == 'ON':
   M = int((ncpu * M**3)**(1./3.))+1
+
+# calculate gap = 10mm / numbe of cubes along x/y/z
+gap = 0.010/M # between cubes
 
 # create an array of cubes
 lst = []
