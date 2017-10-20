@@ -261,7 +261,7 @@ static void read_new_bodies (DOM *dom, PBF *bf)
 
 	if (!MAP_Find (dom->allbodies, (void*) (long) bod->id, NULL))
 	{
-	  MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
+	  MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL); /* all bodies from all times */
 	}
 	else BODY_Destroy (bod); /* FIXME: bodies created in input files at time > 0;
 				    FIXME: perhaps there is no need of moving GLV to the fist lng_RUN call,
@@ -453,6 +453,8 @@ void dom_read_state (DOM *dom, PBF *bf)
   /* mark all bodies as absent */
   for (bod = dom->bod; bod; bod = bod->next) bod->flags |= BODY_ABSENT;
 
+  SET *usedlabel = NULL;
+
   for (; bf; bf = bf->next)
   {
     if (PBF_Label (bf, "DOM"))
@@ -497,7 +499,16 @@ void dom_read_state (DOM *dom, PBF *bf)
 	{
 	  ASSERT_DEBUG_EXT (bod = MAP_Find (dom->allbodies, (void*) (long) id, NULL), "Body id invalid");
 
-	  if (bod->label) MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
+	  if (bod->label)
+	  {
+	    MAP *node = MAP_Find (dom->lab, bod->label, (MAP_Compare)strcmp);
+	    if (node)
+	    {
+	      node->data = bod; /* body fregments can inherit labels */
+	      SET_Insert (NULL, &usedlabel, bod->label, (SET_Compare)strcmp);
+	    }
+	    else MAP_Insert (&dom->mapmem, &dom->lab, bod->label, bod, (MAP_Compare) strcmp);
+	  }
 	  MAP_Insert (&dom->mapmem, &dom->idb, (void*) (long) bod->id, bod, NULL);
 	  bod->next = dom->bod;
 	  if (dom->bod) dom->bod->prev = bod;
@@ -538,7 +549,8 @@ void dom_read_state (DOM *dom, PBF *bf)
 
     if (bod->flags & BODY_ABSENT)
     {
-      if (bod->label) MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
+      if (bod->label && !SET_Contains (usedlabel, bod->label, (SET_Compare)strcmp))
+	MAP_Delete (&dom->mapmem, &dom->lab, bod->label, (MAP_Compare) strcmp);
       MAP_Delete (&dom->mapmem, &dom->idb, (void*) (long) bod->id, NULL);
       if (bod->next) bod->next->prev = bod->prev;
       if (bod->prev) bod->prev->next = bod->next;
@@ -546,6 +558,8 @@ void dom_read_state (DOM *dom, PBF *bf)
       dom->nbod --;
     }
   }
+
+  SET_Free (NULL, &usedlabel);
 
   /* attach constraints to bodies */
   dom_attach_constraints (dom);
