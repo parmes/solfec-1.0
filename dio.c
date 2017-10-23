@@ -501,7 +501,7 @@ void dom_read_state (DOM *dom, PBF *bf)
 
 	  if (bod->label)
 	  {
-	    MAP *node = MAP_Find (dom->lab, bod->label, (MAP_Compare)strcmp);
+	    MAP *node = MAP_Find_Node (dom->lab, bod->label, (MAP_Compare)strcmp);
 	    if (node)
 	    {
 	      node->data = bod; /* body fregments can inherit labels */
