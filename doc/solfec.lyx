@@ -9956,7 +9956,7 @@ obj.merhist
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="5" columns="1">
+<lyxtabular version="3" rows="6" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -10033,7 +10033,7 @@ reference "tab:var-gs"
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -10046,6 +10046,24 @@ obj.innerloops
  - number of inner Gauss-Seidel loops per one global step during a parallel
  run (default: 1).
  Ignored in sequential mode.
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.itershist
+\series default
+\emph default
+ - set to 'ON' before reading; when red returns a Python list storing iterations
+ counts from all solver runs.
 \end_layout
 
 \end_inset
@@ -10613,7 +10631,7 @@ obj.mvhist
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="2" columns="1">
+<lyxtabular version="3" rows="3" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="95col%">
 <row>
@@ -10632,7 +10650,7 @@ Read/write
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -10640,6 +10658,24 @@ Read/write
 \emph on
 obj.meritval, obj.maxiter, obj.locdyn, obj.linver, obj.linmaxiter, obj.maxmatvec,
  obj.epsilon, obj.delta, obj.theta, obj.omega, obj.gsflag
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.itershist
+\series default
+\emph default
+ - set to 'ON' before reading; when red returns a Python list storing iterations
+ counts from all solver runs.
 \end_layout
 
 \end_inset

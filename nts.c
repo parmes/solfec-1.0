@@ -1210,6 +1210,17 @@ static int gmres_based_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
     ns->iters ++;
   }
 
+  if (ns->itershistcount >= 0)
+  {
+    if (ns->itershistcount >= ns->itershistsize)
+    {
+      ns->itershistsize += 1024;
+      ERRMEM (ns->itershist = realloc (ns->itershist, ns->itershistsize * sizeof(int)));
+    }
+    ns->itershist[ns->itershistcount] = ns->iters;
+    ns->itershistcount ++;
+  }
+
 #if MPI
   if (ldy->dom->rank == 0)
 #endif
@@ -1261,6 +1272,17 @@ static int diagonalized_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
     ns->iters ++;
   }
 
+  if (ns->itershistcount >= 0)
+  {
+    if (ns->itershistcount >= ns->itershistsize)
+    {
+      ns->itershistsize += 1024;
+      ERRMEM (ns->itershist = realloc (ns->itershist, ns->itershistsize * sizeof(int)));
+    }
+    ns->itershist[ns->itershistcount] = ns->iters;
+    ns->itershistcount ++;
+  }
+
 #if MPI
   if (ldy->dom->rank == 0)
 #endif
@@ -1289,6 +1311,9 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->merhist = NULL;
   ns->mvhist = NULL;
   ns->gsflag = GS_ON;
+  ns->itershist = NULL;
+  ns->itershistcount = -1;
+  ns->itershistsize = 0;
 
   return ns;
 }
@@ -1345,5 +1370,6 @@ void NEWTON_Destroy (NEWTON *ns)
 {
   free (ns->merhist);
   free (ns->mvhist);
+  free (ns->itershist);
   free (ns);
 }

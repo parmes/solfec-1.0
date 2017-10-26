@@ -464,6 +464,9 @@ GAUSS_SEIDEL* GAUSS_SEIDEL_Create (double epsilon, int maxiter, double meritval,
   gs->innerloops = 1;
   gs->verbose = 1;
   gs->nomerit = 0;
+  gs->itershist = NULL;
+  gs->itershistcount = -1;
+  gs->itershistsize = 0;
 
   return gs;
 }
@@ -837,6 +840,17 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   }
   while (++ gs->iters < gs->maxiter && (error > gs->epsilon || *merit > gs->meritval));
 
+  if (gs->itershistcount >= 0)
+  {
+    if (gs->itershistcount >= gs->itershistsize)
+    {
+      gs->itershistsize += 1024;
+      ERRMEM (gs->itershist = realloc (gs->itershist, gs->itershistsize * sizeof(int)));
+    }
+    gs->itershist[gs->itershistcount] = gs->iters;
+    gs->itershistcount ++;
+  }
+
   if (rank == 0 && verbose) printf (fmt, gs->iters, error, *merit);
 
   if (gs->variant < GS_BOUNDARY_JACOBI)
@@ -1134,5 +1148,6 @@ void GAUSS_SEIDEL_Destroy (GAUSS_SEIDEL *gs)
 {
   free (gs->rerhist);
   free (gs->merhist);
+  free (gs->itershist);
   free (gs);
 }

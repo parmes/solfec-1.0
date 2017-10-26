@@ -82,6 +82,8 @@ angv = 1.0 # drum angular velocity
 ipar = 0 # partical counter (used internally)
 kifo = 'PR' # kinematics
 solv = 'NS' # constraint solver
+nsdl = 0.0 # Newton solver delta
+nsep = 0.25 # Newton solver epsilon
 weak = 'OFF' # weak scaling test flag
 sphs = 'OFF' # use sphereical particles
 prfx = '' # predix string
@@ -101,6 +103,8 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-solv name --> solver in {NS, GS} (default: %s)' % solv
   print '               where: NS -- Projected Newton solver'
   print '               where: GS -- Gauss-Seidel solver'
+  print '-nsdl number --> Newton solver delta (default: %g)' % nsdl
+  print '-nsep number --> Newton solver epsilon (default: %g)' % nsep
   print '-outi number --> output interval (default: %g)' % outi
   print '-weak --> enable weak scaling test (default: %s)' % weak
   print '          in this mode a "-npar" particles per'
@@ -135,6 +139,10 @@ if argv != None:
     elif argv [i] == '-solv':
       if argv [i+1] in ('NS', 'GS'):
 	solv = argv [i+1]
+    elif argv [i] == '-nsdl':
+      nsdl = float (argv [i+1])
+    elif argv [i] == '-nsep':
+      nsep = float (argv [i+1])
     elif argv [i] == '-outi':
       outi = float (argv [i+1])
     elif argv [i] == '-step':
@@ -166,8 +174,9 @@ ncpu = NCPU ()
 # output path components
 begining = 'out/rotating-drum/'
 if len(prfx) > 0: prfx += '_'
+solvstr = 'NS_NSDL%g_NSEP%g' % (nsdl, nsep) if solv == 'NS' else 'GS'
 ending = prfx + 'STE%g_DUR%g_%s_%s_%s_FRI%g_ANG%g_N%d_%s%d' % \
-  (step,stop,kifo,solv,'ELL' if sphs == 'OFF' else 'SPH',\
+  (step,stop,kifo,solvstr,'ELL' if sphs == 'OFF' else 'SPH',\
   fric,angv,npar,'S' if weak == 'OFF' else 'W',ncpu)
 outpath = begining + ending
 
@@ -185,6 +194,8 @@ if sol.mode == 'READ' and sol.outpath != outpath:
     elif x[0:3] == 'ANG': angv = float(x[3:])
     elif x in ('FE','PR','RG'): kifo = x
     elif x in ('NS','GS'): solv = x
+    elif x[0:4] == 'NSDL': nsdl = float(x[4:])
+    elif x[0:4] == 'NSEP': nsep = float(x[4:])
     elif x == 'ELL': sphs = 'OFF'
     elif x == 'SPH': sphs = 'ON'
     elif x[0] == 'N': N = int(x[1:])
@@ -215,7 +226,7 @@ if weak == 'ON':
 GRAVITY (sol, (0, 0, -10))
 
 # create solver
-if solv == 'NS': slv = NEWTON_SOLVER (delta = 1E-6)
+if solv == 'NS': slv = NEWTON_SOLVER (delta = nsdl, epsilon = nsep, maxmatvec = 100000)
 else: slv = GAUSS_SEIDEL_SOLVER (1.0, 1000, meritval=1E-8)
 
 # output interval
@@ -244,7 +255,7 @@ dt = sqrt(2*(2*rz+.1*rz)/10)
 # simulation callback
 rotating = False
 def callback (bod):
-  global rotating
+  global rotating, ipar, npar
   if ipar < npar: # insert particles
     PARTICLES (rx, ry, rz, 0, 0.25, 0.25, 1.4, 0.4, 2, 2)
   elif not rotating: # rotate drum
@@ -257,12 +268,22 @@ CALLBACK (sol, dt, bod, callback)
 
 # run simulation
 import time
+slv.itershist = 'ON'
 start = time.clock()
 RUN (sol, slv, stop)
 if RANK() == 0 and sol.mode == 'WRITE':
   dt = time.clock() - start
   ln = '%s = %g' % (ending,dt)
   fp = begining + 'RUNTIMES'
+  with open(fp, "a") as f: f.write(ln+'\n')
+  print 'Runtime line:',  ln, 'appended to:', fp
+  itershist = slv.itershist
+  itup = sum([x for x in itershist if x > 0 and x < 1000])
+  itlo = sum([1 for x in itershist if x > 0 and x < 1000])
+  itavg = itup / itlo if itup > 0 else 1
+  n1000 = itershist.count(1000)
+  ln = '%s = %d, %d' % (ending,itavg,n1000)
+  fp = begining + 'ITERS'
   with open(fp, "a") as f: f.write(ln+'\n')
   print 'Runtime line:',  ln, 'appended to:', fp
 

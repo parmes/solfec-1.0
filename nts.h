@@ -59,6 +59,12 @@ struct newton
   int *mvhist; /* matrix-vector products history */
 
   int iters; /* iterations count */
+
+  int *itershist; /* iterations history of all solver calls */
+
+  int itershistcount; /* < 0: do not collect iterations history; >= 0 the size of the iterhistory */
+
+  int itershistsize; /* iterations history buffer size */
 };
 
 /* create solver */

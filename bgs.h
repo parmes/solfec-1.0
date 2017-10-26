@@ -85,6 +85,12 @@ struct gs
 
   int iters; /* most recent number of iterations */
 
+  int *itershist; /* iterations history of all solver calls */
+
+  int itershistcount; /* < 0: do not collect iterations history; >= 0 the size of the iterhistory */
+
+  int itershistsize; /* iterations history buffer size */
+
 #if MPI
   int colors, bot, mid, top, inn; /* processor colors, bottom, middle, top and inner set sizes */
 #endif

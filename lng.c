@@ -4321,6 +4321,30 @@ static int lng_GAUSS_SEIDEL_SOLVER_set_iters (lng_GAUSS_SEIDEL_SOLVER *self, PyO
   return -1;
 }
 
+static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_itershist (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
+{
+  if (self->gs->itershistcount > 0)
+  {
+    PyObject *list = PyList_New (self->gs->itershistcount);
+    for (int i = 0; i < self->gs->itershistcount; i ++)
+    {
+      PyList_SetItem (list, i, PyInt_FromLong (self->gs->itershist[i]));
+    }
+    return list;
+  }
+  else Py_RETURN_NONE;
+}
+
+static int lng_GAUSS_SEIDEL_SOLVER_set_itershist (lng_GAUSS_SEIDEL_SOLVER *self, PyObject *value, void *closure)
+{
+  IFIS (value, "ON")
+  {
+    self->gs->itershistcount = 0;
+  }
+
+  return 0;
+}
+
 static PyObject* lng_GAUSS_SEIDEL_SOLVER_get_rerhist (lng_GAUSS_SEIDEL_SOLVER *self, void *closure)
 {
   PyObject *list;
@@ -4525,6 +4549,7 @@ static PyGetSetDef lng_GAUSS_SEIDEL_SOLVER_getset [] =
   {"failure", (getter)lng_GAUSS_SEIDEL_SOLVER_get_failure, (setter)lng_GAUSS_SEIDEL_SOLVER_set_failure, "failure action", NULL},
   {"error", (getter)lng_GAUSS_SEIDEL_SOLVER_get_error, (setter)lng_GAUSS_SEIDEL_SOLVER_set_error, "error code", NULL},
   {"iters", (getter)lng_GAUSS_SEIDEL_SOLVER_get_iters, (setter)lng_GAUSS_SEIDEL_SOLVER_set_iters, "number of iterations", NULL},
+  {"itershist", (getter)lng_GAUSS_SEIDEL_SOLVER_get_itershist, (setter)lng_GAUSS_SEIDEL_SOLVER_set_itershist, "history of numbers of iterations", NULL},
   {"rerhist", (getter)lng_GAUSS_SEIDEL_SOLVER_get_rerhist, (setter)lng_GAUSS_SEIDEL_SOLVER_set_rerhist, "relative error history", NULL},
   {"merhist", (getter)lng_GAUSS_SEIDEL_SOLVER_get_merhist, (setter)lng_GAUSS_SEIDEL_SOLVER_set_merhist, "merit function history", NULL},
   {"epsilon", (getter)lng_GAUSS_SEIDEL_SOLVER_get_epsilon, (setter)lng_GAUSS_SEIDEL_SOLVER_set_epsilon, "relative accuracy", NULL},
@@ -4939,6 +4964,30 @@ static int lng_NEWTON_SOLVER_set_iters (lng_NEWTON_SOLVER *self, PyObject *value
   return -1;
 }
 
+static PyObject* lng_NEWTON_SOLVER_get_itershist (lng_NEWTON_SOLVER *self, void *closure)
+{
+  if (self->ns->itershistcount > 0)
+  {
+    PyObject *list = PyList_New (self->ns->itershistcount);
+    for (int i = 0; i < self->ns->itershistcount; i ++)
+    {
+      PyList_SetItem (list, i, PyInt_FromLong (self->ns->itershist[i]));
+    }
+    return list;
+  }
+  else Py_RETURN_NONE;
+}
+
+static int lng_NEWTON_SOLVER_set_itershist (lng_NEWTON_SOLVER *self, PyObject *value, void *closure)
+{
+  IFIS (value, "ON")
+  {
+    self->ns->itershistcount = 0;
+  }
+
+  return 0;
+}
+
 static PyObject* lng_NEWTON_SOLVER_get_gsflag (lng_NEWTON_SOLVER *self, void *closure)
 {
   if (self->ns->gsflag == GS_ON) return PyString_FromString ("ON");
@@ -4990,6 +5039,7 @@ static PyGetSetDef lng_NEWTON_SOLVER_getset [] =
   {"merhist", (getter)lng_NEWTON_SOLVER_get_merhist, (setter)lng_NEWTON_SOLVER_set_merhist, "merit function history", NULL},
   {"mvhist", (getter)lng_NEWTON_SOLVER_get_mvhist, (setter)lng_NEWTON_SOLVER_set_mvhist, "matrix-vector products history", NULL},
   {"iters", (getter)lng_NEWTON_SOLVER_get_iters, (setter)lng_NEWTON_SOLVER_set_iters, "iterations count", NULL},
+  {"itershist", (getter)lng_NEWTON_SOLVER_get_itershist, (setter)lng_NEWTON_SOLVER_set_itershist, "history of iterations counts", NULL},
   {"gsflag", (getter)lng_NEWTON_SOLVER_get_gsflag, (setter)lng_NEWTON_SOLVER_set_gsflag, "Gauss-Seidel failure iterations flag", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
@@ -10419,7 +10469,7 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
       point = PyTuple_GetItem (obj, 1);
       entity = PyTuple_GetItem (obj, 2);
 
-      if (!((is_body (body, "body") || is_string (body, "body")) &&
+      if (!((is_body (body, "body") || is_string ((PyObject*)body, "body")) &&
 	   is_tuple (point, "point", 3) && is_string (entity, "entity"))) return 0;
 
       if (is_body (body, "body"))
@@ -10430,7 +10480,7 @@ static int parse_history_item (PyObject *obj, MEM *setmem, SOLFEC *sol, SHI *shi
       else
       {
         shi->bod = NULL;
-	shi->label = PyString_AsString(body);
+	shi->label = PyString_AsString((PyObject*)body);
       }
       shi->point [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
       shi->point [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));

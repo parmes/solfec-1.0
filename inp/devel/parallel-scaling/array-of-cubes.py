@@ -192,7 +192,7 @@ for i in (0, 1, 2):
 GRAVITY (sol, (0, 0, -10))
 
 # create solver
-if solv == 'NS': slv = NEWTON_SOLVER ()
+if solv == 'NS': slv = NEWTON_SOLVER (maxmatvec = 100000)
 else: slv = GAUSS_SEIDEL_SOLVER (1.0, 1000, meritval=1E-8)
 
 # output interval
@@ -200,12 +200,22 @@ OUTPUT (sol, outi)
 
 # run simulation
 import time
+slv.itershist = 'ON'
 start = time.clock()
 RUN (sol, slv, stop)
 if RANK() == 0 and sol.mode == 'WRITE':
   dt = time.clock() - start
   ln = '%s = %g' % (ending,dt)
   fp = begining + 'RUNTIMES'
+  with open(fp, "a") as f: f.write(ln+'\n')
+  print 'Runtime line:',  ln, 'appended to:', fp
+  itershist = slv.itershist
+  itup = sum([x for x in itershist if x > 0 and x < 1000])
+  itlo = sum([1 for x in itershist if x > 0 and x < 1000])
+  itavg = itup / itlo if itup > 0 else 1
+  n1000 = itershist.count(1000)
+  ln = '%s = %d, %d' % (ending,itavg,n1000)
+  fp = begining + 'ITERS'
   with open(fp, "a") as f: f.write(ln+'\n')
   print 'Runtime line:',  ln, 'appended to:', fp
 
