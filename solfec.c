@@ -234,7 +234,8 @@ static char* getfile (int argc, char **argv)
     }
   }
 
-  n = strlen (path);
+  if (path) n = strlen (path);
+  else n = 0;
   
   if (n > 3)
   {
