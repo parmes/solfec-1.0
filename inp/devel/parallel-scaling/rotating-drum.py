@@ -84,6 +84,7 @@ kifo = 'PR' # kinematics
 solv = 'NS' # constraint solver
 weak = 'OFF' # weak scaling test flag
 sphs = 'OFF' # use sphereical particles
+prfx = '' # predix string
 xdmf = 'OFF' # export XDMF (-kifo FE)
 argv = NON_SOLFEC_ARGV()
 
@@ -109,6 +110,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-fric number --> friction coefficient (default %g)' % fric
   print '-angv number --> drum angular velocity [rad/s] (default %g)' % angv
   print '-shps number --> use spherical particles (default %s)' % sphs
+  print '-prfx string --> include a prefix string into the output path'
   print '-xdmf --> export XDMF in READ mode (-kifo FE; default: %s)' % xdmf
   print '-help or -h --> show this help and exit'
   print 
@@ -147,6 +149,8 @@ if argv != None:
       weak = 'ON'
     elif argv [i] == '-sphs':
       sphs = 'ON'
+    elif argv [i] == '-prfx':
+      prfx = str (argv [i+1])
     elif argv [i] == '-xdmf':
       xdmf = 'ON'
     elif argv [i] in ('-help', '-h'):
@@ -161,7 +165,8 @@ ncpu = NCPU ()
 
 # output path components
 begining = 'out/rotating-drum/'
-ending = 'STE%g_DUR%g_%s_%s_%s_FRI%g_ANG%g_N%d_%s%d' % \
+if len(prfx) > 0: prfx += '_'
+ending = prfx + 'STE%g_DUR%g_%s_%s_%s_FRI%g_ANG%g_N%d_%s%d' % \
   (step,stop,kifo,solv,'ELL' if sphs == 'OFF' else 'SPH',\
   fric,angv,npar,'S' if weak == 'OFF' else 'W',ncpu)
 outpath = begining + ending
@@ -187,7 +192,8 @@ if sol.mode == 'READ' and sol.outpath != outpath:
     elif x[0] == 'W':
       ncpu = int(x[1:])
       weak = 'ON'
-    else:
+    elif x != ending[:ending.index("_STE")]:
+      # or if not a prefix report an error
       print 'ERROR: path ending', ending
       print '       format is invalid'
       sys.exit(1)

@@ -27,6 +27,7 @@ solv = 'NS' # solver
 lofq = 1 # acc sweep low freq.
 hifq = 5 # acc sweep high freq.
 amag = 1 # acc sweep magnitude
+prfx = '' # predix string
 xdmf = 'OFF' # export XMDF
 argv = NON_SOLFEC_ARGV()
 
@@ -51,6 +52,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '          per MPI rank is approximately maintained'
   print '-step number --> time step (default: %g)' % step
   print '-stop number --> duration (default: %g)' % stop
+  print '-prfx string --> include a prefix string into the output path'
   print '-xdmf --> export XDMF in READ mode (default: %s)' % xdmf
   print '-help or -h --> show this help and exit'
   print 
@@ -82,6 +84,8 @@ if argv != None:
       stop = float (argv [i+1])
     elif argv [i] == '-weak':
       weak = 'ON'
+    elif argv [i] == '-prfx':
+      prfx = str (argv [i+1])
     elif argv [i] == '-xdmf':
       xdmf = 'ON'
     elif argv [i] in ('-help', '-h'):
@@ -96,7 +100,8 @@ ncpu = NCPU ()
 
 # output path components
 begining = 'out/array-of-cubes/'
-ending = 'STE%g_DUR%g_%s_%s_M%d_N%d_%s%d' % \
+if len(prfx) > 0: prfx += '_'
+ending = prfx + 'STE%g_DUR%g_%s_%s_M%d_N%d_%s%d' % \
   (step,stop,kifo,solv,M,N,'S' if weak == 'OFF' else 'W',ncpu)
 outpath = begining + ending
 
@@ -118,7 +123,7 @@ if sol.mode == 'READ' and sol.outpath != outpath:
     elif x[0] == 'W':
       ncpu = int(x[1:])
       weak = 'ON'
-    else:
+    elif x != ending[:ending.index("_STE")]:
       print 'ERROR: path ending', ending
       print '       format is invalid'
       sys.exit(1)
