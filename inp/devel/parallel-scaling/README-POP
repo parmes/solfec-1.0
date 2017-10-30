@@ -56,21 +56,21 @@ NOTE: because the output path depends on the input parameters
       solfec -v path/to/results/directory
 ------------------------------------------------------------------------
 
-The key parameters to make the problem larger are N and M; N produces a larger array (more bodies);
-M make per-body meshes denser (don't overdo it -- 2 to 8 should do -- if you really want to test multi-body
+The key parameters to make the problem larger are M and N; M produces a larger array (more bodies);
+N make per-body meshes denser (don't overdo it -- 2 to 8 should do -- if you really want to test multi-body
 behaviour -- otherwise calculation time may be dominated by FEM processing and solfec has not been optimized
 for fast single-body FE calculations);
 
 so for example
 
-solfec inp/devel/parallel-scaling/array-of-cubes.py -N 20 -M 2
+solfec inp/devel/parallel-scaling/array-of-cubes.py -M 20 -N 2
 
 will produce a relatively large problem for a single cluster node; You may want to test it to see what
 size is good in terms of keeping the node busy.
 
 If you would like a shorter analysis use the -stop option, e.g.
 
-solfec inp/devel/parallel-scaling/array-of-cubes.py -N 20 -M 2 -stop 1.0
+solfec inp/devel/parallel-scaling/array-of-cubes.py -M 20 -N 2 -stop 1.0
 
 will cut the calculation time 5-fold compared to the default;
  
