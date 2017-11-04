@@ -1,0 +1,200 @@
+There are two examples in this directory:
+
+1. Array of cubes - this example is meant to illustrate a simple
+  finite element based multibody structural type problem, where
+  a stack of cubes is subject to a sine sweep acceleration signal.
+
+2. Rotating drum - this example is mean to illustrate a simple
+  granular type problem where pseudo-rigid (or rigid) ellipsoids
+  are mixed inside of a rotating drum.
+
+How to run these examples?
+==========================
+
+Both examples have command line arguments. You can run:
+
+solfec examples/parallel-scaling/array-of-cubes.py -h
+
+and get:
+
+------------------------------------------------------------------------
+Array of cubes excitation parameters:
+------------------------------------------------------------------------
+-M number --> array edge size (default: 5)
+-N number --> cube mesh edge size (default: 1)
+-kifo name --> kinematics in {TL, BC, PR, RG} (default: BC)
+               where: TL -- Total Lagrangian FEM
+                      BC -- Body Co-rotational FEM
+                      PR -- Pseudo-rigid
+                      RG -- Rigid
+-solv name --> solver in {NS, GS} (default: NS)
+               where: NS -- Projected Newton solver
+               where: GS -- Gauss-Seidel solver
+-outi number --> output interval (default: 0.003)
+-weak --> enable weak scaling test (default: OFF)
+          in this mode a constant MxMxM array size
+          per MPI rank is approximately maintained
+-step number --> time step (default: 0.0005)
+-stop number --> duration (default: 5)
+-prfx string --> include a prefix string into the output path
+-xdmf --> export XDMF in READ mode (default: OFF)
+-help or -h --> show this help and exit
+
+NOTE: because the output path depends on the input parameters
+      use the same parameters to access results in READ mode, e.g.
+      solfec -v path/to/array-of-cubes.py {same parameters}, or
+      use the output directory as an input path instead, e.g.
+      solfec -v path/to/results/directory
+------------------------------------------------------------------------
+
+The key parameters to control the problem size are M and N; M produces a larger
+array (more bodies); N makes per-body meshes denser (don't overdo it -- 2 to 8
+should do -- if you really want to test multi-body behaviour -- otherwise calculation
+time may be dominated by FEM processing and solfec has not been optimized for fast
+single-body FE calculations).
+
+For example:
+
+solfec examples/parallel-scaling/array-of-cubes.py -M 20 -N 2
+
+will produce a relatively large problem for a single cluster node; You may want to
+test it to see what size is good in terms of keeping the node busy. If you would like
+a shorter analysis use the -stop option, e.g.
+
+solfec examples/parallel-scaling/array-of-cubes.py -M 20 -N 2 -stop 1.0
+
+will cut the calculation time 5-fold compared to the default;
+ 
+You can use the -weak flag if you would like to test weak scaling; Solfec will try to
+keep the problem size, per MPI-rank, constant with the growing number of MPI ranks;
+
+Output directories
+==================
+
+Every time you run this example, there will be an output directory generated in:
+
+out/array-of-cubes/DIRNAME
+
+where DIRNAME depends on the command line switches and on the number of MPI ranks;
+
+You can always view the results graphically (if you compiled Solfec with OpenGL support)
+by typing:
+
+solfec -v out/array-of-cubes/DIRNAME
+
+to see what the example is doing; (You will need to HIDE the outer boundaries which are
+obscuring the box array; Press 'h' and select the drum contour and then right-click to
+hide bodies; Press 'ESC' to stop hiding)
+
+Scaling plots
+=============
+
+You can also generate scaling plots using a provided Python script:
+
+python examples/parallel-scaling/scaling-plots.py out/array-of-cubes
+
+This will generate files:
+
+out/array-of-cubes/RUNTIMES.png - with collective comparison of scalling of all runs
+(suitably combining runs with same parameters, execpt MPI rank count);
+
+and
+
+out/array-of-cubes/TIMINGS_DIRNAME.png - which provides more detailed timings of computational
+stages per individual set of runs (with same parameters);
+
+To test this, just quickly run:
+
+mpirun -np 1 solfec-mpi examples/parallel-scaling/array-of-cubes.py -stop 0.1
+mpirun -np 2 solfec-mpi examples/parallel-scaling/array-of-cubes.py -stop 0.1
+mpirun -np 4 solfec-mpi examples/parallel-scaling/array-of-cubes.py -stop 0.1
+...
+
+followed by:
+
+python examples/parallel-scaling/scaling-plots.py out/array-of-cubes
+
+and then view the contents of out/array-of-cubes in the search for *.png files;
+
+The rotating drum example
+=========================
+
+This example also have command line params:
+
+solfec examples/parallel-scaling/rotating-drum.py -h
+
+resulting in:
+
+------------------------------------------------------------------------
+Rotating drum with ellipsoidal or sphereical particles:
+------------------------------------------------------------------------
+-npar number --> number of particles (default: 100)
+-kifo name --> kinematics in {FE, PR, RG} (default: PR)
+               where: FE -- Finite Element
+                      PR -- Pseudo-rigid
+                      RG -- Rigid
+-solv name --> solver in {NS, GS} (default: NS)
+               where: NS -- Projected Newton solver
+               where: GS -- Gauss-Seidel solver
+-nsdl number --> Newton solver delta (default: 0)
+-nsep number --> Newton solver epsilon (default: 0.25)
+-outi number --> output interval (default: 0.03)
+-weak --> enable weak scaling test (default: OFF)
+          in this mode a "-npar" particles per
+          MPI rank is approximately maintained
+-step number --> time step (default: 0.001)
+-stop number --> duration (default: 10)
+-fric number --> friction coefficient (default 0.3)
+-angv number --> drum angular velocity [rad/s] (default 1)
+-shps number --> use spherical particles (default OFF)
+-prfx string --> include a prefix string into the output path
+-xdmf --> export XDMF in READ mode (-kifo FE; default: OFF)
+-help or -h --> show this help and exit
+
+FYI: smaller time step may be appropriate for larger perticle numbers
+     since the size of individual particles gets proportionally smaller
+
+NOTE: because the output path depends on the input parameters
+      use the same parameters to access results in READ mode, e.g.
+      solfec -v path/to/rotating-drum.py {same parameters}, or
+      use the output directory as an input path instead, e.g.
+      solfec -v path/to/results/directory
+------------------------------------------------------------------------
+
+The key parameter here is -npar which determines the number of particles in the simulation;
+You will need to go into tens of thousands to saturate a cluster node with 24 hardware cores,
+for example;
+
+This test problem is mostly meant to be used with RIGID and PSEUDO-RIGID kinematic models;
+In this case the particle shape is analytical -- rigid or deforming only linearly in the
+pseudo-rigid case; Finite element ellipsoidal particles are also supported - and you can try:)
+(this may be unstable)
+
+NOTE: The more particles you use the smaller they become; It may be practically useful
+to use smaller then the default 1 rad/s rotational speed of he drum in case of many particles;
+By the same token, it may be necessary to use a smaler then the default time step (test this
+first);
+
+You can run the serial case:
+
+solfec examples/parallel-scaling/rotating-drum.py 
+
+and view the results:
+
+solfec -v examples/parallel-scaling/rotating-drum.py 
+
+or
+
+solfec -v out/rotating-drum/DIRNAME
+
+to see what "this example is doing"; You will need to HIDE the outer drum panels in order to see
+the particles; Press 'h' and select the drum contour and then right-click to hide bodies; Press
+'ESC' to stop hiding;
+
+There are two stages to the simulation here: first the bodies are injected in to the drum and then
+the rotation begins; You can still use the '-stop' parameter to save computational time - but don't
+overdo it - or you will not be able to simulate both stages; -stop 2.0 should span both stages even
+for smaller particles (make your own tests); you can try shorter runs to save computational time;
+
+Plotting works, in an analogous way to the array of cubes; Good luck and thank you for your interest
+in testing Solfec!
