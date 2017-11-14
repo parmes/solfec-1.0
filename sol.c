@@ -559,7 +559,11 @@ SOLFEC* SOLFEC_Create (short dynamic, double step, char *outpath)
   sol->bcd = NULL;
 
 #if MPI
-  if ((sol->bf = readoutpath (sol->outpath)))
+  sol->bf = readoutpath (sol->outpath);
+
+  MPI_Barrier(MPI_COMM_WORLD);
+
+  if (sol->bf)
   {
     if (CONTINUE_WRITE_FLAG()) /* check rank correctness of continued compuration mode */
     {
