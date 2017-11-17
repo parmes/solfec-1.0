@@ -1,0 +1,29 @@
+#!/bin/bash
+#
+# use like:
+#   sbatch -J jobname run.sh
+#
+# Don't restart if failing:
+#SBATCH --no-requeue
+# Total number of processes:
+#SBATCH -n 1
+# Number of nodes:
+#SBATCH -N 1
+# Time required: Days-hours:mins:secs
+#SBATCH --time 3-00:00:00
+# Load intel mpi that solfec-mpi is compiled against:
+module load icc ifort
+# print input config:
+echo "sbatch_script: jobid = $SLURM_JOB_ID"
+echo "sbatch_script: jobname = $SLURM_JOB_NAME"
+echo "sbatch_script: nodes = $SLURM_NODELIST"
+echo "sbatch_script: n_processes = $SLURM_NPROCS"
+echo "sbatch_script: cwd = `pwd`"
+echo "sbatch_script: started mpirun `date`:"
+# command:
+solfec input-file.py
+echo "sbatch_script: ended mpirun: `date`"
+# move the logfile:
+set -x
+file_ext='_run_dyn'
+mv slurm-$SLURM_JOB_ID.out $SLURM_JOB_NAME$file_ext.out

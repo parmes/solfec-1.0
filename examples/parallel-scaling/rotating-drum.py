@@ -82,8 +82,10 @@ angv = 1.0 # drum angular velocity
 ipar = 0 # partical counter (used internally)
 kifo = 'PR' # kinematics
 solv = 'NS' # constraint solver
+maxi = 1000 # constraint solver maximum iterations
 nsdl = 0.0 # Newton solver delta
-nsep = 0.25 # Newton solver epsilon
+leps = 0.25 # Newton solver epsilon
+lmxi = 10 # Newton solver linmaxiter
 weak = 'OFF' # weak scaling test flag
 sphs = 'OFF' # use sphereical particles
 prfx = '' # predix string
@@ -100,11 +102,13 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '               where: FE -- Finite Element'
   print '                      PR -- Pseudo-rigid'
   print '                      RG -- Rigid'
-  print '-solv name --> solver in {NS, GS} (default: %s)' % solv
+  print '-solv name --> Constraint solver in {NS, GS} (default: %s)' % solv
   print '               where: NS -- Projected Newton solver'
   print '               where: GS -- Gauss-Seidel solver'
+  print '-maxi number --> Constraint solver max. iter. (default: %d)' % maxi
   print '-nsdl number --> Newton solver delta (default: %g)' % nsdl
-  print '-nsep number --> Newton solver epsilon (default: %g)' % nsep
+  print '-leps number --> Newton linear solver epsilon (default: %g)' % leps
+  print '-lmxi number --> Newton linear solver linmaxiter (default: %d)' % lmxi
   print '-outi number --> output interval (default: %g)' % outi
   print '-weak --> enable weak scaling test (default: %s)' % weak
   print '          in this mode a "-npar" particles per'
@@ -139,10 +143,14 @@ if argv != None:
     elif argv [i] == '-solv':
       if argv [i+1] in ('NS', 'GS'):
 	solv = argv [i+1]
+    elif argv [i] == '-maxi':
+      maxi = int (argv [i+1])
     elif argv [i] == '-nsdl':
       nsdl = float (argv [i+1])
-    elif argv [i] == '-nsep':
-      nsep = float (argv [i+1])
+    elif argv [i] == '-leps':
+      leps = float (argv [i+1])
+    elif argv [i] == '-lmxi':
+      lmxi = int (argv [i+1])
     elif argv [i] == '-outi':
       outi = float (argv [i+1])
     elif argv [i] == '-step':
@@ -174,7 +182,7 @@ ncpu = NCPU ()
 # output path components
 begining = 'out/rotating-drum/'
 if len(prfx) > 0: prfx += '_'
-solvstr = 'NS_NSDL%g_NSEP%g' % (nsdl, nsep) if solv == 'NS' else 'GS'
+solvstr = 'NS_MAXI%d_NSDL%g_LEPS%g_LMXI%d' % (maxi, nsdl, leps, lmxi) if solv == 'NS' else 'GS_MAXI%d' % maxi
 ending = prfx + 'STE%g_DUR%g_%s_%s_%s_FRI%g_ANG%g_N%d_%s%d' % \
   (step,stop,kifo,solvstr,'ELL' if sphs == 'OFF' else 'SPH',\
   fric,angv,npar,'S' if weak == 'OFF' else 'W',ncpu)
@@ -194,8 +202,10 @@ if sol.mode == 'READ' and sol.outpath != outpath:
     elif x[0:3] == 'ANG': angv = float(x[3:])
     elif x in ('FE','PR','RG'): kifo = x
     elif x in ('NS','GS'): solv = x
+    elif x[0:4] == 'MAXI': maxi = int(x[4:])
     elif x[0:4] == 'NSDL': nsdl = float(x[4:])
-    elif x[0:4] == 'NSEP': nsep = float(x[4:])
+    elif x[0:4] == 'LEPS': leps = float(x[4:])
+    elif x[0:4] == 'LMXI': lmxi = int(x[4:])
     elif x == 'ELL': sphs = 'OFF'
     elif x == 'SPH': sphs = 'ON'
     elif x[0] == 'N': N = int(x[1:])
@@ -226,8 +236,9 @@ if weak == 'ON':
 GRAVITY (sol, (0, 0, -10))
 
 # create solver
-if solv == 'NS': slv = NEWTON_SOLVER (delta = nsdl, epsilon = nsep, maxmatvec = 100000)
-else: slv = GAUSS_SEIDEL_SOLVER (1.0, 1000, meritval=1E-8)
+if solv == 'NS': slv = NEWTON_SOLVER (maxiter = maxi,\
+  delta = nsdl, epsilon = leps, linmaxiter = lmxi, maxmatvec = 100000)
+else: slv = GAUSS_SEIDEL_SOLVER (1.0, maxi, meritval=1E-8)
 
 # output interval
 OUTPUT (sol, outi)
@@ -278,11 +289,12 @@ if RANK() == 0 and sol.mode == 'WRITE':
   with open(fp, "a") as f: f.write(ln+'\n')
   print 'Runtime line:',  ln, 'appended to:', fp
   itershist = slv.itershist
-  itup = sum([x for x in itershist if x > 0 and x < 1000])
-  itlo = sum([1 for x in itershist if x > 0 and x < 1000])
+  itsum = sum(itershist)
+  itup = sum([x for x in itershist if x > 0 and x < maxi])
+  itlo = sum([1 for x in itershist if x > 0 and x < maxi])
   itavg = itup / itlo if itup > 0 else 1
-  n1000 = itershist.count(1000)
-  ln = '%s = %d, %d' % (ending,itavg,n1000)
+  nmaxi = itershist.count(maxi)
+  ln = '%s = %d, %d, %d' % (ending,itsum,itavg,nmaxi)
   fp = begining + 'ITERS'
   with open(fp, "a") as f: f.write(ln+'\n')
   print 'Runtime line:',  ln, 'appended to:', fp
