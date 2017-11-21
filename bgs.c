@@ -1035,6 +1035,17 @@ void GAUSS_SEIDEL_Solve (GAUSS_SEIDEL *gs, LOCDYN *ldy)
   }
   while (++ gs->iters < gs->maxiter && (error > gs->epsilon || *merit > gs->meritval));
 
+  if (gs->itershistcount >= 0)
+  {
+    if (gs->itershistcount >= gs->itershistsize)
+    {
+      gs->itershistsize += 1024;
+      ERRMEM (gs->itershist = realloc (gs->itershist, gs->itershistsize * sizeof(int)));
+    }
+    gs->itershist[gs->itershistcount] = gs->iters;
+    gs->itershistcount ++;
+  }
+
   if (verbose) printf (fmt, gs->iters, error, *merit);
 
   E("GSRUN");
