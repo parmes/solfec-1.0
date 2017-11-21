@@ -117,7 +117,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-stop number --> duration (default: %g)' % stop
   print '-fric number --> friction coefficient (default %g)' % fric
   print '-angv number --> drum angular velocity [rad/s] (default %g)' % angv
-  print '-shps number --> use spherical particles (default %s)' % sphs
+  print '-sphs --> use spherical particles (default %s)' % sphs
   print '-prfx string --> include a prefix string into the output path'
   print '-xdmf --> export XDMF in READ mode (-kifo FE; default: %s)' % xdmf
   print '-help or -h --> show this help and exit'
