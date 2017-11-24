@@ -37,7 +37,7 @@ def BLOCK (x, y, z, wx, wy, wz, v, s):
   return HULL (points, v, s)
 
 # create particles
-def PARTICLES (rx, ry, rz, x0, y0, z, wx, wy, v, s):
+def PARTICLES (rx, ry, rz, x0, y0, z, nz, wx, wy, v, s):
   global ipar, npar, sol, mat, sphs, kifo, step
   if ipar == npar: return
   rr = (rx+ry+rz)/3.
@@ -47,30 +47,34 @@ def PARTICLES (rx, ry, rz, x0, y0, z, wx, wy, v, s):
     rz = rr
   a = x0 + .5*wx
   b = y0 + .5*wy
-  x = x0 - .5*wx
-  while x < a:
-    y = y0 - .5*wy
-    while y < b:
-      if ipar < npar:
-        if RANK() == 0:
-	  lb = 'PAR%d' % ipar
-	  if kifo in ('PR','RG'):
-	    if sphs == 'ON':
-	      shp = SPHERE ((x, y, z), rr, v, s)
-	    else: shp = ELLIP ((x, y, z), (rx, ry, rz), v, s)
-	    if kifo == 'RG': BODY (sol, 'RIGID', shp, mat, lb)
+  iz = 0
+  while iz < nz:
+    iz = iz + 1
+    x = x0 - .5*wx
+    while x < a:
+      y = y0 - .5*wy
+      while y < b:
+	if ipar < npar:
+	  if RANK() == 0:
+	    lb = 'PAR%d' % ipar
+	    if kifo in ('PR','RG'):
+	      if sphs == 'ON':
+		shp = SPHERE ((x, y, z), rr, v, s)
+	      else: shp = ELLIP ((x, y, z), (rx, ry, rz), v, s)
+	      if kifo == 'RG': BODY (sol, 'RIGID', shp, mat, lb)
+	      else:
+		bod = BODY (sol, 'PSEUDO_RIGID', shp, mat, lb)
+		bod.scheme = 'DEF_LIM' # semi-implicit time integration
+		bod.damping = step # damp out free vibrations
 	    else:
-	      bod = BODY (sol, 'PSEUDO_RIGID', shp, mat, lb)
+	      msh = ELLIP_MESH ((x, y, z), (rx, ry, rz), rr*0.1, v, s)
+	      bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, lb, form = 'BC')
 	      bod.scheme = 'DEF_LIM' # semi-implicit time integration
 	      bod.damping = step # damp out free vibrations
-	  else:
-            msh = ELLIP_MESH ((x, y, z), (rx, ry, rz), rr*0.1, v, s)
-            bod = BODY (sol, 'FINITE_ELEMENT', msh, mat, lb, form = 'BC')
-	    bod.scheme = 'DEF_LIM' # semi-implicit time integration
-	    bod.damping = step # damp out free vibrations
-	ipar = ipar + 1
-      y = y + 2.*ry
-    x = x + 2.*rx
+	  ipar = ipar + 1
+	y = y + 2.*ry
+      x = x + 2.*rx
+    z = z - 2.*rz
 
 # paramters 
 npar = 100 # number of particles
@@ -260,15 +264,16 @@ rr = (.1/npar)**(1./3.)
 rx = .9*rr
 ry = .5*rr
 rz = rr
+nn = int(0.75/(2.*rz))
 # .5*acc*t^2 = 2*rz+eps --> t = sqrt(2*(2*rr+eps)/acc)
-dt = sqrt(2*(2*rz+.1*rz)/10)
+dt = nn*sqrt(2*(2*rz+.1*rz)/10)
 
 # simulation callback
 rotating = False
 def callback (bod):
   global rotating, ipar, npar
   if ipar < npar: # insert particles
-    PARTICLES (rx, ry, rz, 0, 0.25, 0.25, 1.4, 0.4, 2, 2)
+    PARTICLES (rx, ry, rz, 0, 0.25, 0.25, nn, 1.4, 0.4, 2, 2)
   elif not rotating: # rotate drum
     INITIAL_VELOCITY (bod, (0, 0, 0), (0, angv, 0))
     rotating = True

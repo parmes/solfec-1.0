@@ -935,7 +935,7 @@ void SOLFEC_Time_Limits (SOLFEC *sol, double *start, double *end)
 void SOLFEC_Set_Callback (SOLFEC *sol, double interval, void *data, void *call, SOLFEC_Callback callback)
 {
   sol->callback_interval = interval;
-  sol->callback_time = sol->dom->time + interval;
+  sol->callback_time = sol->dom->time;
   sol->data = data;
   sol->call = call;
   sol->callback = callback;
