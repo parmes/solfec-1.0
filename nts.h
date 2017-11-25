@@ -52,6 +52,11 @@ struct newton
 
   short gsflag;
 
+  enum {RELDELTA_OFF, RELDELTA_avgWii,
+        RELDELTA_minWii, RELDELTA_maxWii} reldelta; /* relative delta flag */
+
+  double W_norm; /* norm of W operator used when reldelta != RELDELTA_OFF; (1.0 by default) */
+
   /* output */
 
   double *merhist; /* merit function history */

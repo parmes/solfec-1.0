@@ -10388,7 +10388,7 @@ WARNING:
 
 \begin_layout Subsection*
 obj = NEWTON_SOLVER (| meritval, maxiter, locdyn, linver, linmaxiter, maxmatvec,
- epsilon, delta, theta, omega, gsflag)
+ epsilon, delta, theta, omega, gsflag, reldelta)
 \end_layout
 
 \begin_layout Itemize
@@ -10538,6 +10538,38 @@ gsflag
 \series default
  - 'ON' or 'OFF' deciding whether to us Gauss-Seidel iterations in case
  of failure (default: 'ON')
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+reldelta
+\series default
+ - make 
+\series bold
+delta
+\series default
+ relative to the generalized inverse inertia 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+ operator; possible choices are: 'OFF' - delta is regarded as an absolute
+ value, 'avgWii' - delta is relative to the average of the diagonal entries
+ of 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+, 'minWii' - delta is relative to the minimum of the diagonal entries of
+ 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+, 'maxWii' - delta is relative to the maximum of the diagonal entries of
+ 
+\begin_inset Formula $\mathbf{W}$
+\end_inset
+
+; (default: 'OFF')
 \end_layout
 
 \begin_layout Standard

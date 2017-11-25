@@ -114,6 +114,15 @@ void LOCDYN_W_MatrixMarket (LOCDYN *ldy, const char *path);
 /* clone local dynamics for non-contacts */
 LOCDYN* LOCDYN_Clone_Non_Contacts (LOCDYN *ldy);
 
+/* W norm: average of the diagonal */
+double LOCDYN_avgWii (LOCDYN *ldy);
+
+/* W norm: minimum of the diagonal */
+double LOCDYN_minWii (LOCDYN *ldy);
+
+/* W norm: maximum of the diagonal */
+double LOCDYN_maxWii (LOCDYN *ldy);
+
 /* free memory */
 void LOCDYN_Destroy (LOCDYN *ldy);
 

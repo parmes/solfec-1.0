@@ -19,6 +19,7 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#include <float.h>
 #include "sol.h"
 #include "alg.h"
 #include "dom.h"
@@ -1139,6 +1140,56 @@ LOCDYN* LOCDYN_Clone_Non_Contacts (LOCDYN *ldy)
   MEM_Release (&mapmem);
 
   return clo;
+}
+
+/* W norm: average of the diagonal */
+double LOCDYN_avgWii (LOCDYN *ldy)
+{
+  double sum = 0.0, div = 0.0;
+  DIAB *dia;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    double *W = dia->W;
+    sum += W[0]+W[4]+W[8];
+    div += 3.0;
+  }
+
+  return sum/div;
+}
+
+/* W norm: minimum of the diagonal */
+double LOCDYN_minWii (LOCDYN *ldy)
+{
+  double min = DBL_MAX;
+  DIAB *dia;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    double *W = dia->W;
+    if (W[0] < min) min = W[0];
+    if (W[4] < min) min = W[4];
+    if (W[8] < min) min = W[8];
+  }
+
+  return min;
+}
+
+/* W norm: maximum of the diagonal */
+double LOCDYN_maxWii (LOCDYN *ldy)
+{
+  double max = 0.0;
+  DIAB *dia;
+
+  for (dia = ldy->dia; dia; dia = dia->n)
+  {
+    double *W = dia->W;
+    if (W[0] > max) max = W[0];
+    if (W[4] > max) max = W[4];
+    if (W[8] > max) max = W[8];
+  }
+
+  return max;
 }
 
 /* free memory */

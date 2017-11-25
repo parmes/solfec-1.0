@@ -644,7 +644,7 @@ static int Matvec (void *matvec_data, double alpha, PRIVATE *A, VECTOR *x, doubl
     ADDMUL (Q, alpha, U, Q);
   }
 
-  Axpy (alpha * A->ns->delta, x, y);
+  Axpy (alpha * A->ns->delta * A->ns->W_norm, x, y);
 
   A->matvec ++;
 
@@ -1191,7 +1191,7 @@ static int gmres_based_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
 
   while (ns->iters < ns->maxiter && A->matvec < ns->maxmatvec && *merit > ns->meritval)
   {
-    solve (A, PQN_GMRES, ns->linmaxiter, ns->epsilon, dynamic, step, ns->delta, 0.0, ns->omega, A->dr, A->rhs);
+    solve (A, PQN_GMRES, ns->linmaxiter, ns->epsilon, dynamic, step, ns->delta * ns->W_norm, 0.0, ns->omega, A->dr, A->rhs);
 
     U_WR_B (A, 0);
 
@@ -1311,6 +1311,8 @@ NEWTON* NEWTON_Create (double meritval, int maxiter)
   ns->merhist = NULL;
   ns->mvhist = NULL;
   ns->gsflag = GS_ON;
+  ns->reldelta = RELDELTA_OFF;
+  ns->W_norm = 1.0;
   ns->itershist = NULL;
   ns->itershistcount = -1;
   ns->itershistsize = 0;
@@ -1325,6 +1327,14 @@ void NEWTON_Solve (NEWTON *ns, LOCDYN *ldy)
   int ret;
 
   A = create_private_data (ns, ldy);
+
+  switch (ns->reldelta)
+  {
+  case RELDELTA_OFF: break;
+  case RELDELTA_avgWii: ns->W_norm = LOCDYN_avgWii(ldy); break;
+  case RELDELTA_minWii: ns->W_norm = LOCDYN_minWii(ldy); break;
+  case RELDELTA_maxWii: ns->W_norm = LOCDYN_maxWii(ldy); break;
+  }
 
   switch (ns->linver)
   {

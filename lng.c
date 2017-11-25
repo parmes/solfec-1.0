@@ -4662,10 +4662,10 @@ struct lng_NEWTON_SOLVER
 /* constructor */
 static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("meritval", "maxiter", "locdyn", "linver", "linmaxiter", "maxmatvec", "epsilon", "delta", "theta", "omega", "gsflag");
+  KEYWORDS ("meritval", "maxiter", "locdyn", "linver", "linmaxiter", "maxmatvec", "epsilon", "delta", "theta", "omega", "gsflag", "reldelta");
   double meritval, epsilon, delta, theta, omega;
+  PyObject *locdyn, *linver, *gsflag, *reldelta;
   int maxiter, linmaxiter, maxmatvec;
-  PyObject *locdyn, *linver, *gsflag;
   lng_NEWTON_SOLVER *self;
 
   self = (lng_NEWTON_SOLVER*)type->tp_alloc (type, 0);
@@ -4683,8 +4683,9 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     theta = 0.25;
     omega = 1E-10;
     gsflag = NULL;
+    reldelta = NULL;
 
-    PARSEKEYS ("|diOOiiddddO", &meritval, &maxiter, &locdyn, &linver, &linmaxiter, &maxmatvec, &epsilon, &delta, &theta, &omega, &gsflag);
+    PARSEKEYS ("|diOOiiddddOO", &meritval, &maxiter, &locdyn, &linver, &linmaxiter, &maxmatvec, &epsilon, &delta, &theta, &omega, &gsflag, &reldelta);
 
     TYPETEST (is_positive (meritval, kwl[0]) && is_positive (maxiter, kwl[1]) && is_string (locdyn, kwl[2]) && is_string (locdyn, kwl[3]) &&
       is_positive (linmaxiter, kwl[4]) && is_positive (maxmatvec, kwl[5]) && is_positive (epsilon, kwl[6]) && is_non_negative (delta, kwl[7]) &&
@@ -4745,6 +4746,31 @@ static PyObject* lng_NEWTON_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       ELSE
       {
 	PyErr_SetString (PyExc_ValueError, "Invalid gsflag value: neither ON nor OFF");
+	return NULL;
+      }
+    }
+
+    if (reldelta)
+    {
+      IFIS (reldelta, "OFF")
+      {
+	self->ns->reldelta = RELDELTA_OFF;
+      }
+      ELIF (reldelta, "avgWii")
+      {
+	self->ns->reldelta = RELDELTA_avgWii;
+      }
+      ELIF (reldelta, "minWii")
+      {
+	self->ns->reldelta = RELDELTA_minWii;
+      }
+      ELIF (reldelta, "maxWii")
+      {
+	self->ns->reldelta = RELDELTA_maxWii;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid reldelta value: neither of {OFF, avgWii, minWii, maxWii} ");
 	return NULL;
       }
     }
