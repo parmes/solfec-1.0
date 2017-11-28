@@ -1205,7 +1205,7 @@ static int gmres_based_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
 #if MPI
     if (ldy->dom->rank == 0)
 #endif
-    if (ldy->dom->verbose && ns->iters % div == 0) printf (fmt, ns->delta, ns->iters, *merit), div *= 2;
+    if (ldy->dom->verbose && ns->iters % div == 0) printf (fmt, ns->delta * ns->W_norm, ns->iters, *merit), div *= 2;
 
     ns->iters ++;
   }
@@ -1224,7 +1224,7 @@ static int gmres_based_solve (PRIVATE *A, NEWTON *ns, LOCDYN *ldy)
 #if MPI
   if (ldy->dom->rank == 0)
 #endif
-  if (ldy->dom->verbose) printf (fmt, ns->delta, ns->iters, *merit);
+  if (ldy->dom->verbose) printf (fmt, ns->delta * ns->W_norm, ns->iters, *merit);
 
   if (*merit > ns->meritval) return 0;
   else return 1;

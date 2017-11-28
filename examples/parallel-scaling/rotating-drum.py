@@ -88,6 +88,7 @@ kifo = 'PR' # kinematics
 solv = 'NS' # constraint solver
 maxi = 1000 # constraint solver maximum iterations
 nsdl = 0.0 # Newton solver delta
+rldl = 'OFF' # Newton solver relative delta flag
 leps = 0.25 # Newton solver epsilon
 lmxi = 10 # Newton solver linmaxiter
 weak = 'OFF' # weak scaling test flag
@@ -111,6 +112,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '               where: GS -- Gauss-Seidel solver'
   print '-maxi number --> Constraint solver max. iter. (default: %d)' % maxi
   print '-nsdl number --> Newton solver delta (default: %g)' % nsdl
+  print '-rldl string --> Newton solver relative delta flag (default: %s)' % rldl
   print '-leps number --> Newton linear solver epsilon (default: %g)' % leps
   print '-lmxi number --> Newton linear solver linmaxiter (default: %d)' % lmxi
   print '-outi number --> output interval (default: %g)' % outi
@@ -151,6 +153,13 @@ if argv != None:
       maxi = int (argv [i+1])
     elif argv [i] == '-nsdl':
       nsdl = float (argv [i+1])
+    elif argv [i] == '-rldl':
+      rldl = argv [i+1]
+      rldlv = ('OFF', 'avgWii', 'minWii', 'maxWii')
+      if rldl not in rldlv:
+        print 'ERROR: invalid -rldl value'
+	print '       use one of:', rldlv
+	sys.exit(0)
     elif argv [i] == '-leps':
       leps = float (argv [i+1])
     elif argv [i] == '-lmxi':
@@ -186,7 +195,7 @@ ncpu = NCPU ()
 # output path components
 begining = 'out/rotating-drum/'
 if len(prfx) > 0: prfx += '_'
-solvstr = 'NS_MAXI%d_NSDL%g_LEPS%g_LMXI%d' % (maxi, nsdl, leps, lmxi) if solv == 'NS' else 'GS_MAXI%d' % maxi
+solvstr = 'NS_MAXI%d_NSDL%g_RLDL%s_LEPS%g_LMXI%d' % (maxi, nsdl, rldl, leps, lmxi) if solv == 'NS' else 'GS_MAXI%d' % maxi
 ending = prfx + 'STE%g_DUR%g_%s_%s_%s_FRI%g_ANG%g_N%d_%s%d' % \
   (step,stop,kifo,solvstr,'ELL' if sphs == 'OFF' else 'SPH',\
   fric,angv,npar,'S' if weak == 'OFF' else 'W',ncpu)
@@ -208,6 +217,7 @@ if sol.mode == 'READ' and sol.outpath != outpath:
     elif x in ('NS','GS'): solv = x
     elif x[0:4] == 'MAXI': maxi = int(x[4:])
     elif x[0:4] == 'NSDL': nsdl = float(x[4:])
+    elif x[0:4] == 'RLDL': rldl = x[4:]
     elif x[0:4] == 'LEPS': leps = float(x[4:])
     elif x[0:4] == 'LMXI': lmxi = int(x[4:])
     elif x == 'ELL': sphs = 'OFF'
@@ -240,8 +250,8 @@ if weak == 'ON':
 GRAVITY (sol, (0, 0, -10))
 
 # create solver
-if solv == 'NS': slv = NEWTON_SOLVER (maxiter = maxi,\
-  delta = nsdl, epsilon = leps, linmaxiter = lmxi, maxmatvec = 100000)
+if solv == 'NS': slv = NEWTON_SOLVER (maxiter = maxi, delta = nsdl,\
+  epsilon = leps, linmaxiter = lmxi, maxmatvec = 100000, reldelta = rldl)
 else: slv = GAUSS_SEIDEL_SOLVER (1.0, maxi, meritval=1E-8)
 
 # output interval
