@@ -82,6 +82,7 @@ step = 0.001 # time step
 outi = 0.03 # output interval
 stop = 10 # duration
 fric = 0.3 # friction coefficient
+dens = 100 # bulk material density
 angv = 1.0 # drum angular velocity
 ipar = 0 # partical counter (used internally)
 kifo = 'PR' # kinematics
@@ -122,6 +123,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-step number --> time step (default: %g)' % step
   print '-stop number --> duration (default: %g)' % stop
   print '-fric number --> friction coefficient (default %g)' % fric
+  print '-dens number --> bulk material density (default %g)' % dens
   print '-angv number --> drum angular velocity [rad/s] (default %g)' % angv
   print '-sphs --> use spherical particles (default %s)' % sphs
   print '-prfx string --> include a prefix string into the output path'
@@ -172,6 +174,8 @@ if argv != None:
       stop = float (argv [i+1])
     elif argv [i] == '-fric':
       fric = float (argv [i+1])
+    elif argv [i] == '-dens':
+      dens = float (argv [i+1])
     elif argv [i] == '-angv':
       angv = float (argv [i+1])
     elif argv [i] == '-weak':
@@ -196,9 +200,9 @@ ncpu = NCPU ()
 begining = 'out/rotating-drum/'
 if len(prfx) > 0: prfx += '_'
 solvstr = 'NS_MAXI%d_NSDL%g_RLDL%s_LEPS%g_LMXI%d' % (maxi, nsdl, rldl, leps, lmxi) if solv == 'NS' else 'GS_MAXI%d' % maxi
-ending = prfx + 'STE%g_DUR%g_%s_%s_%s_FRI%g_ANG%g_N%d_%s%d' % \
+ending = prfx + 'STE%g_DUR%g_%s_%s_%s_FRI%g_DEN%g_ANG%g_N%d_%s%d' % \
   (step,stop,kifo,solvstr,'ELL' if sphs == 'OFF' else 'SPH',\
-  fric,angv,npar,'S' if weak == 'OFF' else 'W',ncpu)
+  fric,dens,angv,npar,'S' if weak == 'OFF' else 'W',ncpu)
 outpath = begining + ending
 
 # create solfec object
@@ -212,6 +216,7 @@ if sol.mode == 'READ' and sol.outpath != outpath:
     if x[0:3] == 'STE': step = float(x[3:])
     elif x[0:3] == 'DUR': stop = float(x[3:])
     elif x[0:3] == 'FRI': fric = float(x[3:])
+    elif x[0:3] == 'DEN': dens = float(x[3:])
     elif x[0:3] == 'ANG': angv = float(x[3:])
     elif x in ('FE','PR','RG'): kifo = x
     elif x in ('NS','GS'): solv = x
@@ -234,12 +239,12 @@ if sol.mode == 'READ' and sol.outpath != outpath:
       sys.exit(1)
   print 'From', ending, 'read:'
   print '    ',
-  print '(step, stop, kifo, solv, sphs, fric, npar, weak, ncpu) =',
-  print '(%g, %g, %s, %s, %s, %g, %d, %s, %d)' % \
-         (step, stop, kifo, solv, sphs, fric, npar, weak, ncpu), '\n'
+  print '(step, stop, kifo, solv, sphs, fric, dens, npar, weak, ncpu) =',
+  print '(%g, %g, %s, %s, %s, %g, %g, %d, %s, %d)' % \
+         (step, stop, kifo, solv, sphs, fric, dens, npar, weak, ncpu), '\n'
 
 # bulk and surface materials
-mat = BULK_MATERIAL (sol, young = 1E6, poisson = 0.25, density = 100)
+mat = BULK_MATERIAL (sol, young = 1E6, poisson = 0.25, density = dens)
 SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = fric)
 
 # modify npar if week scaling is 'ON'

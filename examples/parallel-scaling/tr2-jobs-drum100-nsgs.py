@@ -9,14 +9,19 @@ class Job:
     self.command = command
 
 jobs = []
-jobs.append (Job('dr0_e_ns', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 5 -leps 0.001 -nsdl 0.001 -solv NS'))
-jobs.append (Job('dr0_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 5 -leps 0.001 -nsdl 0.001 -solv GS'))
-jobs.append (Job('dr1_e_ns', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 5 -leps 0.001 -nsdl 0.001 -solv NS'))
-jobs.append (Job('dr1_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 5 -leps 0.001 -nsdl 0.001 -solv GS'))
-jobs.append (Job('dr0_s_ns', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 5 -leps 0.001 -nsdl 0.001 -solv NS -sphs'))
-jobs.append (Job('dr0_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 5 -leps 0.001 -nsdl 0.001 -solv GS -sphs'))
-jobs.append (Job('dr1_s_ns', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 5 -leps 0.001 -nsdl 0.001 -solv NS -sphs'))
-jobs.append (Job('dr1_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 5 -leps 0.001 -nsdl 0.001 -solv GS -sphs'))
+jobs.append (Job('dr0_e_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 15 -leps 0.1 -nsdl 0.0001 -solv NS'))
+jobs.append (Job('dr0_e_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 20 -leps 0.25 -nsdl 0.01 -rldl avgWii -solv NS'))
+jobs.append (Job('dr0_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -solv GS'))
+jobs.append (Job('dr1_e_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 1000 -leps 0.1 -nsdl 1E-6 -solv NS'))
+jobs.append (Job('dr1_e_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 10 -leps 0.025 -nsdl 0.025 -rldl avgWii -solv NS'))
+jobs.append (Job('dr1_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -solv GS'))
+
+jobs.append (Job('dr0_s_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 15 -leps 0.1 -nsdl 0.0001 -solv NS -sphs'))
+jobs.append (Job('dr0_s_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 20 -leps 0.25 -nsdl 0.01 -rldl avgWii -solv NS -sphs'))
+jobs.append (Job('dr0_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -solv GS -sphs'))
+jobs.append (Job('dr1_s_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 1000 -leps 0.1 -nsdl 1E-6 -solv NS -sphs'))
+jobs.append (Job('dr1_s_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 10 -leps 0.025 -nsdl 0.025 -rldl avgWii -solv NS -sphs'))
+jobs.append (Job('dr1_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -solv GS -sphs'))
 
 for job in jobs: # schedule jobs
   print '***'
