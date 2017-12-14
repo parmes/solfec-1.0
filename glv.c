@@ -802,11 +802,22 @@ static void avi (char *path)
   int len;
 
   len = strlen (path);
-  if (strcmp (&path[len-4], ".avi"))
-  sprintf (&path [len], ".avi");
+  if (len > 0)
+  {
+    if (len > 4 && strcmp (&path[len-4], ".avi"))
+    {
+      sprintf (&path [len], ".avi");
+    }
 
-  if (AVI) AVI_Close (AVI);
-  AVI = AVI_Open (width, height, 24, path);
+    if (AVI) AVI_Close (AVI);
+    AVI = AVI_Open (width, height, 24, path);
+
+    if (AVI) /* menu item switch: from AVI START to AVI STOP */
+    {
+      glutSetMenu (export_menu);
+      glutChangeToMenuEntry (1, "AVI STOP", MENU_EXPORT_AVI_STOP);
+    }
+  }
 }
 
 /* view menu */
@@ -937,20 +948,24 @@ static void menu_view3D (int value)
   }
 }
 
+/* avi menu item change timer: from AVI STOP to AVI START */
+static void avi_stop_timer (int value)
+{
+  glutSetMenu (export_menu);
+  glutChangeToMenuEntry (1, "AVI START", MENU_EXPORT_AVI_START);
+}
+
 /* export menu */
 static void menu_export3D (int value)
 {
   switch (value)
   {
     case MENU_EXPORT_AVI_START:
-      glutSetMenu (export_menu);
-      glutChangeToMenuEntry (1, "AVI STOP", MENU_EXPORT_AVI_STOP);
       GLV_Read_Text ("AVI FILE NAME", avi);
       break;
     case MENU_EXPORT_AVI_STOP:
-      glutSetMenu (export_menu);
-      glutChangeToMenuEntry (1, "AVI START", MENU_EXPORT_AVI_START);
       if (AVI) { AVI_Close (AVI); AVI = NULL; }
+      glutTimerFunc (100, avi_stop_timer, 1);
       break;
     case MENU_EXPORT_PDF:
       GLV_Read_Text ("PDF FILE NAME", pdf);
@@ -978,7 +993,7 @@ static void menu3D (int value)
   }
 }
 
-static void timer (int value)
+static void input_timer (int value)
 {
   if (input.visible)
   {
@@ -987,7 +1002,7 @@ static void timer (int value)
     updateall ();
 
     /* set up next trigger */
-    glutTimerFunc (750, timer, 0);
+    glutTimerFunc (750, input_timer, 0);
   }
   else /* last timer run executes the 'done' callback => ... */
   {   /* ... this prevents capturing the input window when reading buffers */
@@ -1284,7 +1299,7 @@ void GLV_Read_Text (char *title, void (*done) (char *text))
   input.length = 0;
   input.text [0] = '\0';
   input.visible = 1;
-  glutTimerFunc (750, timer, 0);
+  glutTimerFunc (750, input_timer, 0);
 }
 
 int GLV_Reading_Text ()
