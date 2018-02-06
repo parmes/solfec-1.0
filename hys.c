@@ -259,10 +259,12 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
       for (j = 0; j < ift_counts[i]; j ++)
       {
 	struct ift_struct *item = &ift_all[ift_displs[i]+j];
-	struct alftrp_struct *jtem = &alftrp_all[ift_displs[i]+j];
 	parmec_set_force_and_torque (item->i[1], item->f, item->t);
+#if 0
+	struct alftrp_struct *jtem = &alftrp_all[ift_displs[i]+j];
 	SET (jtem->a, 0.0); /* clear for velocities */
 	SET (jtem->l, 0.0);
+#endif
       }
     }
 
@@ -270,6 +272,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     {
       parmec_one_step (step, hs->parmec_interval, hs->parmec_interval_func, hs->parmec_interval_tms, hs->parmec_prefix);
 
+#if 0
       for (i = 0; i < size; i ++)
       {
 	for (j = 0; j < ift_counts[i]; j ++)
@@ -282,9 +285,12 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 	  ACC (linear, jtem->l);
 	}
       }
+#endif
     }
 
+#if 0
     double inv = 1.0/(double)nstep;
+#endif
 
     for (i = 0; i < size; i ++)
     {
@@ -292,8 +298,12 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
       {
 	struct ift_struct *item = &ift_all[ift_displs[i]+j];
 	struct alftrp_struct *jtem = &alftrp_all[ift_displs[i]+j];
+#if 0
 	SCALE (jtem->a, inv); /* average velocities */
 	SCALE (jtem->l, inv);
+#else
+	parmec_get_angular_and_linear (item->i[1], jtem->a, jtem->l);
+#endif
         parmec_get_force_and_torque (item->i[1], nstep, jtem->f, jtem->t);
         parmec_get_rotation_and_position (item->i[1], jtem->r, jtem->p);
       }
@@ -358,13 +368,16 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     BODY_Rigid_Force (bod, dom->time, dom->step, force, torque);
     int num = (int) (long) item->data; /* parmec particle number */
     parmec_set_force_and_torque (num, force, torque);
+#if 0
     SET6 (bod->velo, 0.0);
+#endif
   }
 
   for (int i = 0; i < nstep; i ++)
   {
     parmec_one_step (step, hs->parmec_interval, hs->parmec_interval_func, hs->parmec_interval_tms, hs->parmec_prefix);
 
+#if 0
     for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
     {
       BODY *bod = MAP_Find (dom->idb, item->key, NULL);
@@ -374,9 +387,12 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
       ACC (angular, bod->velo);
       ACC (linear, bod->velo+3);
     }
+#endif
   }
 
+#if 0
   double inv = 1.0/(double)nstep;
+#endif
 
   for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
   {
@@ -385,7 +401,11 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque);
     parmec_get_rotation_and_position (num, bod->conf, bod->conf+9);
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
+#if 0
     SCALE6 (bod->velo, inv);
+#else
+    parmec_get_angular_and_linear (num, bod->velo, bod->velo+3);
+#endif
   }
 }
 #endif
