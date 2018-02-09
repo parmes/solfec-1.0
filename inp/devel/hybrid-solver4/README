@@ -1,0 +1,31 @@
+This is a two-body vibration test of the HYBRID_SOLVER in Solfec;
+The problem geometry is:
+
+                                
+                                +---------------+
+			       /               /|
+                  +-----------/               / |
+                 /           /               /  |
+                /           /               /   |
+               /           /               /    |
+              /           +---------------+     |
+             /            |               |     |
+            /             +--------+      |     +
+	   +----------------------+|      |    /
+	   |                      ||      |   /
+	   +----------------------+|      |  /
+	                  +--------+      | /
+	   y              |               |/
+           |/z            +---------------+
+	   --x		 
+
+The plate is held by two damped springs and it is modeled in Parmec;
+The U-shaped body is vibrated at both of the far-x low-y corners and it
+is modeled in Solfec; The plate is rigid; the U-body is elastic;
+Contact between the plate and the U-body is modeled as non-smooth in
+Solfec; Body dimensions are in the range of tens of centimeters;
+There is a gap between the plate and the U-shaped body in the range
+of one millimeter; Details can be found in the input files.
+
+This example is prepared with the intention of testing the stability
+of the hybrid time stepping scheme.
