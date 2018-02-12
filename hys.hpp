@@ -30,7 +30,7 @@ SOFTWARE.
 #define __hyshpp__
 
 /* initialize parmec */
-void parmec_init(char *path);
+void parmec_init(char *path, char **argv, int argc);
 
 /* prescribe body force and torque --> forces set this way are kept constant
  *                                  and used during all following time steps

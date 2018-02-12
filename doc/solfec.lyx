@@ -10871,7 +10871,8 @@ Hybrid solver allows to combine smooth rigid body nonlinear spring based
 \end_layout
 
 \begin_layout Subsection*
-obj = HYBRID_SOLVER (parmec_file, parmec_step, parmec2solfec, solfec_solver)
+obj = HYBRID_SOLVER (parmec_file, parmec_step, parmec2solfec, solfec_solver
+ | parmec_argv)
 \end_layout
 
 \begin_layout Itemize
@@ -10880,6 +10881,14 @@ obj = HYBRID_SOLVER (parmec_file, parmec_step, parmec2solfec, solfec_solver)
 obj
 \series default
  - created HYBRID_SOLVER object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+parmec_file
+\series default
+ - PARMEC input file path
 \end_layout
 
 \begin_layout Itemize
@@ -10906,6 +10915,22 @@ solfec_solver
 \series default
  - SOLFEC constraint solver (e.g.
  NEWTON_SOLVER) 
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+parmec_argv
+\series default
+ - optional list of PARMEC arguments, retrieved by PARMEC command 
+\begin_inset CommandInset href
+LatexCommand href
+name "ARGV"
+target "http://parmes.github.io/parmec/input_commands.html#argv"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard

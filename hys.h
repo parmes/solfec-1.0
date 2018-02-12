@@ -35,6 +35,8 @@ typedef struct hybrid_solver HYBRID_SOLVER;
 struct hybrid_solver
 {
   char *parmec_file;
+  char **parmec_argv;
+  int parmec_argc;
   double parmec_step;
   double *parmec_interval;
   void** parmec_interval_func;
@@ -48,7 +50,8 @@ struct hybrid_solver
 
 /* create solver */
 HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step,
-           MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind);
+           MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind,
+	   char **parmec_argv, int parmec_argc);
 
 /* run solver */
 void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration);

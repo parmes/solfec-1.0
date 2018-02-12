@@ -24,11 +24,12 @@ d34 = (d12-d47)/2.
 d45 = 0.02
 dOz = 0.5
 gap = 0.001
+lwfact = 1.0 # TODO: make into ARGV
 step = 1E-3
 stop = 5.0
-lofq = 5.0
-hifq = 5.0
-amag = 10.0
+lofq = 3.0
+hifq = 3.0
+amag = 5.0
 
 nodes0 = [dO0, 0, 0,
           dO0+d01, 0, 0,
@@ -66,7 +67,7 @@ nodes1 = [0, d34+gap, 0,
 
 mesh1 = HEX(nodes1, 1, 1, 2, 0, [0]*6)
 
-sol = SOLFEC ('DYNAMIC', step, 'out/hs4-hybrid')
+sol = SOLFEC ('DYNAMIC', step, 'out/hs4-hybrid-lwfact-%g' % lwfact)
 
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
     young = 1E9, poisson = 0.25, density = 1E3)
@@ -95,16 +96,30 @@ ns = NEWTON_SOLVER ()
 
 # parmec's output files are written to the same location as the input path
 # for that to be the solfec's output directory, we copy parmec's input file there
-copyfile('inp/devel/hybrid-solver4/hs4-parmec.py', 'out/hs4-hybrid/hs4-parmec.py')
+copyfile('inp/devel/hybrid-solver4/hs4-parmec.py', sol.outpath+'/hs4-parmec.py')
 
 # nubering of bodies in Parmec starts from 0 while in Solfec from 1
 # hence below we used dictionary {0 : 1} as the parmec2solfec mapping
-hs = HYBRID_SOLVER ('out/hs4-hybrid/hs4-parmec.py', 0.0005, {0:bod1.id}, ns)
+hs = HYBRID_SOLVER (sol.outpath+'/hs4-parmec.py', lwfact*0.005, {0:bod1.id}, ns,
+                    ['-leeway', '%s'%(lwfact*gap)])
 
 # set PARMEC output interval
-hs.parmec_interval = 0.03;
+hs.parmec_interval = 0.01;
 
 import solfec as solfec # we need to be specific when using the OUTPUT command
-solfec.OUTPUT (sol, 0.03) # since 'OUTPUT' in Solfec collides with 'OUTPUT' in Parmec
+solfec.OUTPUT (sol, 0.01) # since 'OUTPUT' in Solfec collides with 'OUTPUT' in Parmec
 
 RUN (sol, hs, stop)
+
+if sol.mode == 'READ' and not VIEWER():
+  try:
+    import matplotlib.pyplot as plt
+    dur = DURATION (sol)
+    th = solfec.HISTORY (sol, [(bod0, tuple(nodes0[0:3]), 'DY')], dur [0], dur [1])
+    plt.plot (th[0], th[1], label='DY(node 0)')
+    plt.xlabel ('Time [s]')
+    plt.ylabel ('DY of node 0[m]')
+    plt.legend(loc = 'upper right')
+    plt.savefig (sol.outpath+'/node0dy.png')
+  except ImportError:
+    pass # no reaction

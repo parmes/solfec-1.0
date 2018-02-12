@@ -412,12 +412,15 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 
 /* create solver */
 HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, 
-           MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind)
+           MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind,
+	   char **parmec_argv, int parmec_argc)
 {
   HYBRID_SOLVER *hs;
 
   ERRMEM (hs = MEM_CALLOC (sizeof (HYBRID_SOLVER)));
   hs->parmec_file = parmec_file;
+  hs->parmec_argv = parmec_argv;
+  hs->parmec_argc = parmec_argc;
   hs->parmec_step = parmec_step;
   hs->parmec_interval = NULL;
   hs->parmec_interval_func = NULL;
@@ -440,7 +443,7 @@ HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step,
   MPI_Comm_rank (MPI_COMM_WORLD, &rank);
   if (rank == 0) /* parmec lib is used on rank 0 */
 #endif
-  parmec_init(hs->parmec_file);
+  parmec_init(hs->parmec_file, hs->parmec_argv, hs->parmec_argc);
 
   /* TODO: perhaps invoke Solfec's python init so that Parmec's commands
            do not overwrite the Solfec's ones */

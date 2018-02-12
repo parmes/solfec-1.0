@@ -50,8 +50,14 @@ def LINEAR_SPRING_DAMPER(part, point, leeway, ratio, accmax=1.):
   print 'LSD critical step:', step
   return ([-1.0, -stiff, 1.0, stiff], [-1.0, -damp, 1.0, damp], step)
 
-(spr0, dsh0, h0) = LINEAR_SPRING_DAMPER (par0, p0, gap, 1.0)
-(spr1, dsh1, h1) = LINEAR_SPRING_DAMPER (par0, p1, gap, 1.0)
+argv = ARGV()
+lway = gap
+if len(argv) > 1 and argv[0] == '-leeway':
+  lway = float(argv[1])
+print 'LEEWAY:', lway
+
+(spr0, dsh0, h0) = LINEAR_SPRING_DAMPER (par0, p0, lway, 1.0)
+(spr1, dsh1, h1) = LINEAR_SPRING_DAMPER (par0, p1, lway, 1.0)
 
 print spr0, dsh0
 print spr1, dsh1
@@ -59,9 +65,8 @@ print spr1, dsh1
 SPRING (par0, p0, -1, p0, spr0, dsh0)
 SPRING (par0, p1, -1, p1, spr1, dsh1)
 
-VELOCITY (par0, angular = (0, 0, 1))
-
 step = 0.9*min(h0,h1)
 print 'STEP:', step
 
+#VELOCITY (par0, angular = (0, 0, 1))
 #DEM (5.0, step, 0.1)

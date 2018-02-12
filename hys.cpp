@@ -33,11 +33,11 @@ SOFTWARE.
 extern "C" { /* C */
 
 /* initialize parmec */
-void parmec_init (char *path)
+void parmec_init (char *path, char **argv, int argc)
 {
   parmec::init();
 
-  parmec::input(path);
+  parmec::input(path, argv, argc);
 }
 
 /* prescribe body force and torque --> forces set this way are kept constant

@@ -25,9 +25,9 @@ dOz = 0.5
 gap = 0.001
 step = 1E-3
 stop = 5.0
-lofq = 5.0
-hifq = 5.0
-amag = 10.0
+lofq = 3.0
+hifq = 3.0
+amag = 5.0
 
 nodes0 = [dO0, 0, 0,
           dO0+d01, 0, 0,
@@ -96,3 +96,16 @@ FIX_POINT (bod1, tuple(nodes1[4*3:4*3+3]))
 OUTPUT (sol, 1E-2)
 
 RUN (sol, NEWTON_SOLVER(), stop)
+
+if sol.mode == 'READ' and not VIEWER():
+  try:
+    import matplotlib.pyplot as plt
+    dur = DURATION (sol)
+    th = HISTORY (sol, [(bod0, tuple(nodes0[0:3]), 'DY')], dur [0], dur [1])
+    plt.plot (th[0], th[1], label='DY(node 0)')
+    plt.xlabel ('Time [s]')
+    plt.ylabel ('DY of node 0[m]')
+    plt.legend(loc = 'upper right')
+    plt.savefig ('out/hs4-solfec/node0dy.png')
+  except ImportError:
+    pass # no reaction

@@ -5378,8 +5378,8 @@ struct lng_HYBRID_SOLVER
 /* constructor */
 static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("parmec_file", "parmec_step", "parmec2solfec", "solfec_solver");
-  PyObject *parmec_file, *parmec2solfec, *solfec_solver;
+  KEYWORDS ("parmec_file", "parmec_step", "parmec2solfec", "solfec_solver", "parmec_argv");
+  PyObject *parmec_file, *parmec2solfec, *solfec_solver, *parmec_argv;
   lng_HYBRID_SOLVER *self;
   double parmec_step;
 
@@ -5394,11 +5394,13 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     self->parmec_interval_tms[0] = -1;
     self->parmec_interval_tms[1] = -1;
     self->parmec_prefix = NULL;
+    parmec_argv = NULL;
 
-    PARSEKEYS ("OdOO", &parmec_file, &parmec_step, &parmec2solfec, &solfec_solver);
+    PARSEKEYS ("OdOO|O", &parmec_file, &parmec_step, &parmec2solfec, &solfec_solver, &parmec_argv);
 
     TYPETEST (is_string (parmec_file, kwl[0]) && is_positive (parmec_step, kwl[1]) &&
-              is_dict (parmec2solfec, kwl[2]) && is_solver (solfec_solver, kwl[3]));
+              is_dict (parmec2solfec, kwl[2]) && is_solver (solfec_solver, kwl[3]) &&
+	      is_list (parmec_argv, kwl[4], 0, 0));
 
     MAP *p2s = NULL;
     PyObject *key, *val;
@@ -5437,8 +5439,23 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       MAP_Insert (NULL, &p2s, (void*) lkey, (void*) lval, NULL);
     }
 
+    char **argv = NULL;
+    int argc = 0;
+
+    if (parmec_argv)
+    {
+      argc = PyList_Size (parmec_argv)+1;
+      ERRMEM (argv = MEM_CALLOC (sizeof(char*)*argc));
+      argv[0] = PyString_AsString(parmec_file);
+      for (int i = 1; i < argc; i ++)
+      {
+	argv[i] = PyString_AsString(PyList_GetItem(parmec_argv,i-1));
+      }
+    }
+
     self->hs = HYBRID_SOLVER_Create (PyString_AsString(parmec_file), parmec_step,
-                  p2s, get_solver(solfec_solver), get_solver_kind(solfec_solver));
+                  p2s, get_solver(solfec_solver), get_solver_kind(solfec_solver),
+		  argv, argc);
   }
 
   return (PyObject*)self;
