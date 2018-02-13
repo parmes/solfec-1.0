@@ -808,7 +808,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
 #endif
       if (verbose) printf ("TIME: %g ... ", sol->dom->time);
 
-      if (sol->verbose < 0) /* % */
+      if (sol->verbose < 0 && duration >= 0) /* % */
       {
 	if (dodel) printf ("\b\b\b\b");
 	int progress = (int) (100. * ((sol->dom->time - t0) / fabs(duration)));
@@ -863,7 +863,7 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       if (stopfile (sol)) break;
     }
 
-    if (sol->verbose < 0) /* % */
+    if (sol->verbose < 0 && duration >= 0) /* % */
     {
       printf ("\n");
       fflush (stdout);

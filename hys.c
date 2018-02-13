@@ -498,6 +498,7 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
   }
 
   double time0 = sol->dom->time;
+  int dodel = 0;
 
   /* integrate over duration */
   sol->t0 = sol->dom->time; /* these can be overwritten when negative duration is used */
@@ -507,6 +508,13 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
     SOLFEC_Run (sol, hs->solfec_solver_kind, hs->solfec_solver, -sol->dom->step); /* negative duration used --> see comment just above */
 
     parmec_steps (hs, sol->dom, actual_parmec_step, num_parmec_steps);
+
+    if (sol->verbose < 0) /* % */
+    {
+      if (dodel) printf ("\b\b\b\b");
+      int progress = (int) (100. * ((sol->dom->time - sol->t0) / duration));
+      printf ("%3d%%", progress); dodel = 1; fflush (stdout);
+    }
   }
 
   /* include contact detection between mapped Solfec bodies;
@@ -520,6 +528,12 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
 	AABB_Include_Body_Pair (sol->aabb, (int)(long)item->key, (int)(long)jtem->key);
       }
     }
+  }
+
+  if (sol->verbose < 0) /* % */
+  {
+    printf ("\n");
+    fflush (stdout);
   }
 }
 

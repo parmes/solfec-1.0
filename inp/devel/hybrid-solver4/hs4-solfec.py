@@ -1,33 +1,16 @@
-###
-import os, sys
-def where(program):
-  for path in os.environ["PATH"].split(os.pathsep):
-    if os.path.exists(os.path.join(path, program)):
-      return path
-  return None
-path = where('parmec4')
-if path == None:
-  print 'ERROR: parmec4 not found in PATH!'
-  print '       Download and compile parmec;'
-  print '       Add parmec directory to PATH variable.'
-  sys.exit(1)
-sys.path.append(os.path.join (path, 'python'))
-from acc_sweep import *
-###
+import os
+d0 = os.path.dirname(os.path.realpath(__file__))
+execfile (d0 + '/hs4-globals.py')
 
-dO0 = 0.2
-d01 = 0.2
-d12 = 0.05
-d47 = 0.01
-d34 = (d12-d47)/2.
-d45 = 0.02
-dOz = 0.5
-gap = 0.001
-step = 1E-3
-stop = 5.0
-lofq = 3.0
-hifq = 3.0
-amag = 5.0
+percent = False # percentage progress
+sweep = False # acceleration sweep
+argv = NON_SOLFEC_ARGV()
+if argv <> None and '-percent' in argv: percent = True
+if argv <> None and '-sweep' in argv: sweep = True
+
+if sweep:
+  lofq = lofq_sweep
+  hifq = hifq_sweep
 
 nodes0 = [dO0, 0, 0,
           dO0+d01, 0, 0,
@@ -65,7 +48,8 @@ nodes1 = [0, d34+gap, 0,
 
 mesh1 = HEX(nodes1, 1, 1, 2, 0, [0]*6)
 
-sol = SOLFEC ('DYNAMIC', step, 'out/hs4-solfec')
+sol = SOLFEC ('DYNAMIC', step, 'out/hs4-solfec' + ('-sweep' if sweep else ''))
+if percent: sol.verbose = '%'
 
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
     young = 1E9, poisson = 0.25, density = 1E3)
@@ -102,10 +86,14 @@ if sol.mode == 'READ' and not VIEWER():
     import matplotlib.pyplot as plt
     dur = DURATION (sol)
     th = HISTORY (sol, [(bod0, tuple(nodes0[0:3]), 'DY')], dur [0], dur [1])
-    plt.plot (th[0], th[1], label='DY(node 0)')
+    plt.plot (th[0], th[1], label='baseline')
     plt.xlabel ('Time [s]')
-    plt.ylabel ('DY of node 0[m]')
+    plt.ylabel ('DY of node 0 [m]')
     plt.legend(loc = 'upper right')
-    plt.savefig ('out/hs4-solfec/node0dy.png')
+    plt.title('Baseline: Solfec only')
+    plt.savefig (sol.outpath+'/node0dy.png')
+    import pickle
+    pickle.dump (th[0], open(sol.outpath+'/node0t.pickle', 'wb'))
+    pickle.dump (th[1], open(sol.outpath+'/node0dy.pickle', 'wb'))
   except ImportError:
     pass # no reaction
