@@ -99,7 +99,7 @@ void parmec_one_step (double step, double* interval, void** interval_func, int* 
   parmec::dem (step, step, interval, interval_func, interval_tms, prefix, 0, 0);
 }
 
-/* read angular and linear velocities of a body */
+/* read angular and linear velocities of a particle */
 void parmec_get_angular_and_linear (int num, double *angular, double *linear)
 {
   angular[0] = parmec::angular[0][num];
@@ -111,7 +111,19 @@ void parmec_get_angular_and_linear (int num, double *angular, double *linear)
   linear[2] = parmec::linear[2][num];
 }
 
-/* read rotation and position of a body */
+/* write angular and linear velocities of a particle */
+void parmec_set_angular_and_linear (int num, double *angular, double *linear)
+{
+  parmec::angular[0][num] = angular[0];
+  parmec::angular[1][num] = angular[1];
+  parmec::angular[2][num] = angular[2];
+
+  parmec::linear[0][num] = linear[0];
+  parmec::linear[1][num] = linear[1];
+  parmec::linear[2][num] = linear[2];
+}
+
+/* read rotation and position of a particle */
 void parmec_get_rotation_and_position (int num, double *rotation, double *position)
 {
   rotation[0] = parmec::rotation[0][num];
@@ -127,6 +139,30 @@ void parmec_get_rotation_and_position (int num, double *rotation, double *positi
   position[0] = parmec::position[0][num];
   position[1] = parmec::position[1][num];
   position[2] = parmec::position[2][num];
+}
+
+/* write rotation and position of a particle */
+void parmec_set_rotation_and_position (int num, double *rotation, double *position)
+{
+  parmec::rotation[0][num] = rotation[0];
+  parmec::rotation[1][num] = rotation[1];
+  parmec::rotation[2][num] = rotation[2];
+  parmec::rotation[3][num] = rotation[3];
+  parmec::rotation[4][num] = rotation[4];
+  parmec::rotation[5][num] = rotation[5];
+  parmec::rotation[6][num] = rotation[6];
+  parmec::rotation[7][num] = rotation[7];
+  parmec::rotation[8][num] = rotation[8];
+
+  parmec::position[0][num] = position[0];
+  parmec::position[1][num] = position[1];
+  parmec::position[2][num] = position[2];
+}
+
+/* disable particle dynamics */
+void parmec_disable_dynamics (int num)
+{
+  parmec::flags[num] |= parmec::SKIP;
 }
 
 /* get number of defined time series objects */

@@ -45,11 +45,20 @@ void parmec_get_force_and_torque (int num, int nstep, double *force, double *tor
 /* perform single time integration step */
 void parmec_one_step (double step, double* interval, void** interval_func, int* interval_tms, char* prefix);
 
-/* read angular and linear velocities of a body */
+/* read angular and linear velocities of a particle */
 void parmec_get_angular_and_linear (int num, double *angular, double *linear);
 
-/* read rotation and position of a body */
+/* write angular and linear velocities of a particle */
+void parmec_set_angular_and_linear (int num, double *angular, double *linear);
+
+/* read rotation and position of a particle */
 void parmec_get_rotation_and_position (int num, double *rotation, double *position);
+
+/* write rotation and position of a particle */
+void parmec_set_rotation_and_position (int num, double *rotation, double *position);
+
+/* disable particle dynamics */
+void parmec_disable_dynamics (int num);
 
 /* get number of defined time series objects */
 int parmec_get_tmsnum ();

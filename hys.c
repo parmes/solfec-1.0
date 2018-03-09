@@ -41,6 +41,8 @@ SOFTWARE.
 #include <mpi.h>
 #endif
 
+#define BOUNDARY_IN_SOLFEC 0 /* boundary bodies are ingtegrated in solfec, when 1, or in parmec, when 0 */
+
 #if MPI
 /* unify parmec2solfec mapping across all ranks */
 void parmec2solfec_unify (MAP** parmec2solfec)
@@ -351,6 +353,10 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
     ASSERT_TEXT (bod, "ERROR: Solfec-Parmec boundary body with Solfec id = %d has not been found", (int)(long) item->key);
     ASSERT_TEXT (bod->kind == RIG, "ERROR: Solfec-Parmec boundary body with Solfec id = %d is not rigid", (int)(long) item->key);
     if (!bod->parmec) ERRMEM (bod->parmec = MEM_CALLOC (sizeof(PARMEC_FORCE)));
+
+#if BOUNDARY_IN_SOLFEC
+    parmec_disable_dynamics ((int) (long) item->data);
+#endif
   }
 }
 
@@ -361,6 +367,32 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 {
   MAP *item;
 
+#if BOUNDARY_IN_SOLFEC
+  for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
+    int num = (int) (long) item->data; /* parmec particle number */
+    parmec_set_rotation_and_position (num, bod->conf, bod->conf+9);
+    parmec_set_angular_and_linear (num, bod->velo, bod->velo+3);
+    double zero [3] = {0., 0., 0.};
+    parmec_set_force_and_torque (num, zero, zero); /* zero force accumulation vectors */
+  }
+
+  for (int i = 0; i < nstep; i ++)
+  {
+    /* XXX --> linearly interpolate rotation/position of boundary particles between Solfec steps ? */
+               
+    parmec_one_step (step, hs->parmec_interval, hs->parmec_interval_func, hs->parmec_interval_tms, hs->parmec_prefix);
+  }
+
+  for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
+    int num = (int) (long) item->data; /* parmec particle number */
+    parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque);
+  }
+
+#else /* BOUNDARY_IN_SOLFEC == 0 */
   for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
   {
     double force[3], torque[3];
@@ -407,6 +439,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     parmec_get_angular_and_linear (num, bod->velo, bod->velo+3);
 #endif
   }
+#endif
 }
 #endif
 
