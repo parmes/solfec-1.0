@@ -43,7 +43,8 @@ SOFTWARE.
 
 #define BOUNDARY_IN_SOLFEC 0 /* boundary bodies are ingtegrated in solfec, when 1, or in parmec, when 0 */
 
-#if MPI
+#if MPI /* parallel */
+
 /* unify parmec2solfec mapping across all ranks */
 void parmec2solfec_unify (MAP** parmec2solfec)
 {
@@ -169,13 +170,164 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 
   free (sendbuf);
   MAP_Free (NULL, &found);
+
+#if BOUNDARY_IN_SOLFEC
+  for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+  {
+    int num = (int) (long) item->data; /* parmec particle number */
+    parmec_disable_dynamics (num); /* disable time integration of boundary particles */
+  }
+#endif
 }
 
-/* apply constant boundary force from Solfec;
- * perform a number of Parmec time integration steps;
- * read back average velocity of boundary bodies into Solfec */
+/* perform a number of Parmec time integration steps */
 static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 {
+#if BOUNDARY_IN_SOLFEC
+  MPI_Datatype subtypes[6] = {MPI_INT, MPI_DOUBLE, MPI_DOUBLE}, ial_type, ft_type;
+  struct ial_struct { int i[2]; double a[3]; double l[3]; } *ial;
+  struct ft_struct { double f[3]; double t[3]; } *ft;
+  int blocklens[3] = {2, 3, 3}, ial_size, ial_count, i, j, k;
+  int rank, size, *ial_counts, *ial_displs;
+  struct ial_struct *ial_all;
+  struct ft_struct *ft_all;
+  MPI_Aint displs[3];
+  MAP *item;
+
+  ial_size = MAP_Size (hs->solfec2parmec);
+  ERRMEM (ial = MEM_CALLOC (ial_size * sizeof(struct ial_struct)));
+  ERRMEM (ft = MEM_CALLOC (ial_size * sizeof(struct ft_struct)));
+
+  MPI_Get_address (&ial->i, &displs[0]);
+  MPI_Get_address (&ial->a, &displs[1]);
+  MPI_Get_address (&ial->l, &displs[2]);
+  displs[2] = displs[2] - displs[0];
+  displs[1] = displs[1] - displs[0];
+  displs[0] = 0;
+
+  MPI_Type_create_struct (3, blocklens, displs, subtypes, &ial_type);
+  MPI_Type_commit (&ial_type);
+
+  subtypes[0] = MPI_DOUBLE;
+  blocklens[0] = 3;
+  MPI_Get_address (&ft->f, &displs[0]);
+  MPI_Get_address (&ft->t, &displs[1]);
+  displs[1] = displs[1] - displs[0];
+  displs[0] = 0;
+
+  MPI_Type_create_struct (2, blocklens, displs, subtypes, &ft_type);
+  MPI_Type_commit (&ft_type);
+
+  for (item = MAP_First(hs->solfec2parmec), j = 0; item; item = MAP_Next (item))
+  {
+    BODY *bod = MAP_Find (dom->idb, item->key, NULL);
+    if (bod)
+    {
+      COPY (bod->velo, ial[j].a); /* copy velocity */
+      COPY (bod->velo+3, ial[j].l);
+      ial[j].i[0] = bod->id;
+      ial[j].i[1] = (int) (long) item->data; /* parmec particle number */
+      j ++;
+    }
+  }
+  ial_count = j;
+
+  MPI_Comm_rank (MPI_COMM_WORLD, &rank);
+  MPI_Comm_size (MPI_COMM_WORLD, &size);
+
+  if (rank == 0)
+  {
+    ERRMEM (ial_all = malloc (size * ial_size * sizeof(struct ial_struct)));
+    ERRMEM (ft_all = malloc (size * ial_size * sizeof(struct ft_struct)));
+    ERRMEM (ial_counts = MEM_CALLOC(size * sizeof(int)));
+    ERRMEM (ial_displs = MEM_CALLOC(size * sizeof(int)));
+  }
+
+  MPI_Gather (&ial_count, 1, MPI_INT, ial_counts, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+  if (rank == 0)
+  {
+    for (i = 1, ial_displs[0] = 0; i < size; i ++)
+    { 
+      ial_displs[i] = ial_displs[i-1] + ial_counts[i-1];
+    }
+  }
+
+  MPI_Gatherv (ial, ial_count, ial_type, ial_all, ial_counts, ial_displs, ial_type, 0, MPI_COMM_WORLD);
+
+  if (rank == 0)
+  {
+    for (i = 0; i < size; i ++)
+    {
+      for (j = 0; j < ial_counts[i]; j ++)
+      {
+	double zero [3] = {0., 0., 0.};
+	struct ial_struct *item = &ial_all[ial_displs[i]+j];
+	parmec_set_force_and_torque (item->i[1], zero, zero); /* zero force accumulation vectors */
+        parmec_set_angular_and_linear (item->i[1], item->a, item->l); /* update velocity */
+      }
+    }
+
+    for (k = 0; k < nstep; k ++) /* parmec steps */
+    {
+      /* linearly interpolate position/rotation of boundary particles in Parmec between Solfec steps;
+	 simply use current velocities to extrapolate - this is consistent with Solfec's time stepping;
+	 this way motion of boundary particles is applied graduall which may benefit stability */
+
+      for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+      {
+	int num = (int) (long) item->data; /* parmec particle number */
+	double R[9],x[3],O[3],v[3],DR[9],R1[9];
+	parmec_get_rotation_and_position (num, R, x);
+	parmec_get_angular_and_linear (num, O, v);
+	SCALE (O, step);
+	EXPMAP (O, DR);
+	NNMUL (R, DR, R1);
+	ADDMUL (x, step, v, x);
+	parmec_set_rotation_and_position (num, R1, x);
+      }
+
+      parmec_one_step (step, hs->parmec_interval, hs->parmec_interval_func, hs->parmec_interval_tms, hs->parmec_prefix);
+    }
+
+    for (i = 0; i < size; i ++)
+    {
+      for (j = 0; j < ial_counts[i]; j ++)
+      {
+	struct ial_struct *item = &ial_all[ial_displs[i]+j];
+	struct ft_struct *jtem = &ft_all[ial_displs[i]+j];
+        parmec_get_force_and_torque (item->i[1], nstep, jtem->f, jtem->t); /* read forces from Parmec */
+      }
+    }
+  }
+
+  /* scatter parmec force and torque */
+  MPI_Scatterv (ft_all, ial_counts, ial_displs, ft_type, ft, ial_count, ft_type, 0, MPI_COMM_WORLD);
+
+  for (j = 0; j < ial_count; j ++)
+  {
+    BODY *bod = MAP_Find (dom->idb, (void*) (long) ial[j].i[0], NULL);
+    ASSERT_TEXT (bod, "Inconsistent body identifier when transferring boundary data");
+    if (!bod->parmec) ERRMEM (bod->parmec = MEM_CALLOC (sizeof(PARMEC_FORCE))); /* allocate parmec force if needed */
+    COPY (ft[j].f, bod->parmec->force); /* read forces from Parmec */
+    COPY (ft[j].t, bod->parmec->torque);
+  }
+
+  MPI_Type_free (&ial_type);
+  MPI_Type_free (&ft_type);
+
+  if (rank == 0)
+  {
+    free (ial_all);
+    free (ft_all);
+    free (ial_counts);
+    free (ial_displs);
+  }
+
+  free (ial);
+  free (ft);
+
+#else /* BOUNDARY_IN_SOLFEC == 0 */
   MPI_Datatype subtypes[6] = {MPI_INT, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE, MPI_DOUBLE}, ift_type, alftrp_type;
   struct alftrp_struct { double a[3]; double l[3]; double f[3]; double t[3]; double r[9]; double p[3]; } *alftrp;
   int blocklens[6] = {2, 3, 3, 3, 9, 3}, ift_size, ift_count, i, j, k;
@@ -283,7 +435,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     }
   }
 
-  /* scatter parmec average velocities, force, torque, rotation and position */
+  /* scatter parmec velocities, force, torque, rotation and position */
   MPI_Scatterv (alftrp_all, ift_counts, ift_displs, alftrp_type, alftrp, ift_count, alftrp_type, 0, MPI_COMM_WORLD);
 
   for (j = 0; j < ift_count; j ++)
@@ -313,8 +465,11 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 
   free (ift);
   free (alftrp);
+#endif
 }
-#else
+
+#else /* MPI == 0 */
+
 /* initialize boundary */
 static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 {
@@ -326,14 +481,13 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
     if (!bod->parmec) ERRMEM (bod->parmec = MEM_CALLOC (sizeof(PARMEC_FORCE)));
 
 #if BOUNDARY_IN_SOLFEC
-    parmec_disable_dynamics ((int) (long) item->data);
+    int num = (int) (long) item->data; /* parmec particle number */
+    parmec_disable_dynamics (num); /* disable time integration of boundary particles */
 #endif
   }
 }
 
-/* apply constant boundary force from Solfec;
- * perform a number of Parmec time integration steps;
- * read back average velocity of boundary bodies into Solfec */
+/* perform a number of Parmec time integration steps */
 static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 {
   MAP *item;
@@ -343,16 +497,30 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   {
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     int num = (int) (long) item->data; /* parmec particle number */
-    parmec_set_rotation_and_position (num, bod->conf, bod->conf+9);
-    parmec_set_angular_and_linear (num, bod->velo, bod->velo+3);
     double zero [3] = {0., 0., 0.};
     parmec_set_force_and_torque (num, zero, zero); /* zero force accumulation vectors */
+    parmec_set_angular_and_linear (num, bod->velo, bod->velo+3); /* update velocity */
   }
 
   for (int i = 0; i < nstep; i ++)
   {
-    /* XXX --> linearly interpolate rotation/position of boundary particles between Solfec steps ? */
-               
+    /* linearly interpolate position/rotation of boundary particles in Parmec between Solfec steps;
+       simply use current velocities to extrapolate - this is consistent with Solfec's time stepping;
+       this way motion of boundary particles is applied graduall which may benefit stability */
+
+    for (item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
+    {
+      int num = (int) (long) item->data; /* parmec particle number */
+      double R[9],x[3],O[3],v[3],DR[9],R1[9];
+      parmec_get_rotation_and_position (num, R, x);
+      parmec_get_angular_and_linear (num, O, v);
+      SCALE (O, step);
+      EXPMAP (O, DR);
+      NNMUL (R, DR, R1);
+      ADDMUL (x, step, v, x);
+      parmec_set_rotation_and_position (num, R1, x);
+    }
+
     parmec_one_step (step, hs->parmec_interval, hs->parmec_interval_func, hs->parmec_interval_tms, hs->parmec_prefix);
   }
 
@@ -360,7 +528,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   {
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     int num = (int) (long) item->data; /* parmec particle number */
-    parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque);
+    parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque); /* read forces from Parmec */
   }
 
 #else /* BOUNDARY_IN_SOLFEC == 0 */
@@ -389,7 +557,8 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   }
 #endif
 }
-#endif
+
+#endif /* MPI/serial */
 
 /* create solver */
 HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, 
