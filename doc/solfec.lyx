@@ -8355,7 +8355,7 @@ obj.mesh
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="7" columns="1">
+<lyxtabular version="3" rows="8" columns="1">
 <features tabularvalignment="middle">
 <column alignment="left" valignment="top" width="80col%">
 <row>
@@ -8496,7 +8496,7 @@ obj.damping
 </cell>
 </row>
 <row>
-<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
 \begin_inset Text
 
 \begin_layout Plain Layout
@@ -8511,6 +8511,23 @@ obj.fracturecheck
 \series bold
 \color red
 (Under development)
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" bottomline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\series bold
+\emph on
+obj.disable_rotation
+\series default
+\emph default
+ - for rigid bodies disable integration of rotation ('ON' or default: 'OFF')
 \end_layout
 
 \end_inset

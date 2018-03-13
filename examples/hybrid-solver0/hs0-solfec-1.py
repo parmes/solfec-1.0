@@ -21,6 +21,13 @@ nodes = [0, 0, 0,
 msh = HEX (nodes, 1, 1, 1, 0, [0, 1, 2, 3, 4, 5])
 bod1 = BODY (sol, 'RIGID', msh, mat) # boundary bodies are rigid
 
+FIX_DIRECTION (bod1, tuple(nodes[0:3]), (1, 0, 0))
+FIX_DIRECTION (bod1, tuple(nodes[0:3]), (0, 1, 0))
+FIX_DIRECTION (bod1, tuple(nodes[3:6]), (1, 0, 0))
+FIX_DIRECTION (bod1, tuple(nodes[12:15]), (1, 0, 0))
+FIX_DIRECTION (bod1, tuple(nodes[12:15]), (0, 1, 0))
+FIX_DIRECTION (bod1, tuple(nodes[15:18]), (1, 0, 0))
+
 msh = HEX (nodes, 2, 2, 2, 0, [0, 1, 2, 3, 4, 5])
 TRANSLATE (msh, (0, 0, 1.1))
 bod2 = BODY (sol, 'RIGID', msh, mat)

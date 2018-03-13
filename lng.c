@@ -3677,7 +3677,7 @@ static int lng_BODY_set_fracturecheck (lng_BODY *self, PyObject *value, void *cl
   {
 #endif
 
-  if (!is_string (value, "scheme")) return -1;
+  if (!is_string (value, "fracturecheck")) return -1;
 
   if (self->bod->kind != FEM)
   {
@@ -3687,6 +3687,53 @@ static int lng_BODY_set_fracturecheck (lng_BODY *self, PyObject *value, void *cl
 
   IFIS (value, "ON") self->bod->flags |= BODY_CHECK_FRACTURE;
   ELIF (value, "OFF") self->bod->flags &= ~BODY_CHECK_FRACTURE;
+  ELSE
+  {
+    PyErr_SetString (PyExc_ValueError, "Neither 'ON' nor 'OFF'!");
+    return -1;
+  }
+
+#if MPI
+  }
+#endif
+
+  return 0;
+}
+
+static PyObject* lng_BODY_get_disable_rotation (lng_BODY *self, void *closure)
+{
+#if MPI
+  if (IS_HERE (self))
+  {
+#endif
+
+  if (self->bod->flags & BODY_DISABLE_ROTATION)
+    return PyString_FromString ("ON");
+  else return PyString_FromString ("OFF");
+
+#if MPI
+  }
+  else Py_RETURN_NONE;
+#endif
+}
+
+static int lng_BODY_set_disable_rotation (lng_BODY *self, PyObject *value, void *closure)
+{
+#if MPI
+  if (IS_HERE (self))
+  {
+#endif
+
+  if (!is_string (value, "disable_rotation")) return -1;
+
+  if (self->bod->kind != RIG)
+  {
+    PyErr_Warn (NULL, "Unable to disable/enable integration of rotation for non RIGID bodies!");
+    return 0;
+  }
+
+  IFIS (value, "ON") self->bod->flags |= BODY_DISABLE_ROTATION;
+  ELIF (value, "OFF") self->bod->flags &= ~BODY_DISABLE_ROTATION;
   ELSE
   {
     PyErr_SetString (PyExc_ValueError, "Neither 'ON' nor 'OFF'!");
@@ -3824,6 +3871,7 @@ static PyGetSetDef lng_BODY_getset [] =
   {"ncon", (getter)lng_BODY_get_ncon, (setter)lng_BODY_set_ncon, "constraints count", NULL},
   {"material", (getter)lng_BODY_get_material, (setter)lng_BODY_set_material, "global body material", NULL},
   {"fracturecheck", (getter)lng_BODY_get_fracturecheck, (setter)lng_BODY_set_fracturecheck, "fracture check", NULL},
+  {"disable_rotation", (getter)lng_BODY_get_disable_rotation, (setter)lng_BODY_set_disable_rotation, "fracture check", NULL},
   {"display_points", (getter)lng_BODY_get_display_points, (setter)lng_BODY_set_display_points, "display points data", NULL},
   {"mesh", (getter)lng_BODY_get_mesh, (setter)lng_BODY_set_mesh, "computational mesh", NULL},
   {NULL, 0, 0, NULL, NULL}

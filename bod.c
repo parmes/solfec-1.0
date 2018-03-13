@@ -1332,6 +1332,11 @@ void BODY_Dynamic_Step_Begin (BODY *bod, double time, double step)
 	     spatorq [3],
 	     reftorq [3];
      
+      if (bod->flags & BODY_DISABLE_ROTATION) 
+      {
+	SET (W, 0.0);
+      }
+
       COPY (W, W0);
       COPY (v, v0);
       COPY (W, O);
@@ -1441,6 +1446,11 @@ void BODY_Dynamic_Step_End (BODY *bod, double time, double step)
       rig_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, velo); /* u(t+h) += inv (M) * h * r */
       ADDMUL (x, half, v, x); /* x(t+h) = x(t+h/2) + (h/2) * v(t+h) */
+
+      if (bod->flags & BODY_DISABLE_ROTATION) 
+      {
+	SET (W, 0.0);
+      }
 
       if (sch <= SCH_RIG_NEG)
       {
@@ -1636,6 +1646,12 @@ void BODY_Static_Step_End (BODY *bod, double time, double step)
       rig_constraints_force (bod, force); /* r = SUM (over constraints) { H^T * R (average, [t, t+h]) } */
       MX_Matvec (step, bod->inverse, force, 1.0, bod->velo); /* u(t+h) += inv (M) * h * r */
       ADDMUL (x, step, v, x); /* x(t+h) = x(t) + h * v(t+h) */
+
+      if (bod->flags & BODY_DISABLE_ROTATION) 
+      {
+	SET (W, 0.0);
+      }
+
       COPY (W, O);
       SCALE (O, step);
       EXPMAP (O, DR); 

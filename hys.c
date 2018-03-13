@@ -41,7 +41,7 @@ SOFTWARE.
 #include <mpi.h>
 #endif
 
-#define BOUNDARY_IN_SOLFEC 0 /* boundary bodies are ingtegrated in solfec, when 1, or in parmec, when 0 */
+#define BOUNDARY_IN_SOLFEC 1 /* boundary bodies are ingtegrated in solfec, when 1, or in parmec, when 0 */
 
 #if MPI /* parallel */
 

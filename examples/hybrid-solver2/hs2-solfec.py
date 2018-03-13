@@ -50,9 +50,17 @@ for i in range (0,M+N+M):
 	# Solfec-Parmec boundary
 	msh = HEX (nodes, 1, 1, 1, 0, [0, 1, 2, 3, 4, 5])
 	TRANSLATE (msh, (i*(0.1+gap), j*(0.1+gap), 0))
+	p1 = msh.node(0)
+	p2 = msh.node(1)
+	p3 = msh.node(3)
 	bod = BODY (sol, 'RIGID', msh, mat)
+	FIX_DIRECTION (bod, p1, (0, 0, 1))
+	FIX_DIRECTION (bod, p2, (0, 0, 1))
+	FIX_DIRECTION (bod, p3, (0, 0, 1))
         # in parallel bod.id can be None for remote bodies, so
-	if HERE(sol,bod): parmec2solfec[iparmec] = bod.id
+	if HERE(sol,bod):
+	  bod.disable_rotation = 'ON'
+	  parmec2solfec[iparmec] = bod.id
       iparmec = iparmec + 1 # next parmec body
 
 # create Newton solver

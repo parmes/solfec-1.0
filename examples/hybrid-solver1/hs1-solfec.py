@@ -24,7 +24,17 @@ nodes = [0.0, 0.0, 0.0,
 for i in [M-1, M+N]:
   msh = HEX (nodes, 1, 1, 1, 0, [0, 1, 2, 3, 4, 5])
   TRANSLATE (msh, (i*(0.1+gap), 0, 0))
+  p1 = msh.node(0)
+  p2 = msh.node(1)
+  p3 = msh.node(3)
+  p4 = msh.node(4)
   bod1 = BODY (sol, 'RIGID', msh, mat) # boundary bodies are rigid
+  FIX_DIRECTION (bod1, p1, (0, 0, 1))
+  FIX_DIRECTION (bod1, p2, (0, 0, 1))
+  FIX_DIRECTION (bod1, p3, (0, 0, 1))
+  FIX_DIRECTION (bod1, p1, (0, 1, 0))
+  FIX_DIRECTION (bod1, p2, (0, 1, 0))
+  FIX_DIRECTION (bod1, p4, (0, 1, 0))
 
 for i in range(0,N):
   msh = HEX (nodes, 2, 2, 2, 0, [0, 1, 2, 3, 4, 5])

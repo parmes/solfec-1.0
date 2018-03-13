@@ -48,7 +48,9 @@ for i in range (0,M+N+M):
 	  TRANSLATE (msh, (i*(0.1+gap), j*(0.1+gap), k*(0.1+gap)))
 	  bod = BODY (sol, 'RIGID', msh, mat) # boundary bodies are rigid
           # in parallel bod.id can be None for remote bodies, so
-	  if HERE(sol,bod): parmec2solfec[iparmec] = bod.id
+	  if HERE(sol,bod):
+	    bod.disable_rotation = 'ON'
+	    parmec2solfec[iparmec] = bod.id
 	iparmec = iparmec + 1 # next parmec body
 
 # create Newton solver
