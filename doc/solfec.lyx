@@ -8506,7 +8506,7 @@ obj.damping
 obj.fracturecheck
 \series default
 \emph default
- - check fracture criterion for FEM bodies ('ON' or default: 'OFF').
+ - check fracture criterion for FEM bodies ('ON', or default: 'OFF').
  
 \series bold
 \color red
@@ -8527,7 +8527,7 @@ obj.fracturecheck
 obj.disable_rotation
 \series default
 \emph default
- - for rigid bodies disable integration of rotation ('ON' or default: 'OFF')
+ - for rigid bodies disable integration of rotation ('ON', or default: 'OFF')
 \end_layout
 
 \end_inset
