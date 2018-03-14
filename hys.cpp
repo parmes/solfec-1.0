@@ -72,7 +72,7 @@ void parmec_set_force_and_torque (int num, double *force, double *torque)
 /* read body force and torque --> these are inner parmec forces
  *                                accumulated over a number of steps
  */
-void parmec_get_force_and_torque (int num, int nstep, double *force, double *torque)
+void parmec_get_force_and_torque (int num, double *force, double *torque)
 {
   parmec::prescribed_body_force *p = (parmec::prescribed_body_force*)
           MAP_Find (parmec::prescribed_body_forces, (void*)(long)num, NULL);
@@ -83,14 +83,12 @@ void parmec_get_force_and_torque (int num, int nstep, double *force, double *tor
     exit (1);
   }
 
-  double inv = 1.0/(double)nstep;
-
-  force[0] = inv*p->inner_force[0];
-  force[1] = inv*p->inner_force[1];
-  force[2] = inv*p->inner_force[2];
-  torque[0] = inv*p->inner_torque[0];
-  torque[1] = inv*p->inner_torque[1];
-  torque[2] = inv*p->inner_torque[2];
+  force[0] = p->inner_force[0];
+  force[1] = p->inner_force[1];
+  force[2] = p->inner_force[2];
+  torque[0] = p->inner_torque[0];
+  torque[1] = p->inner_torque[1];
+  torque[2] = p->inner_torque[2];
 }
 
 /* perform single time integration step */

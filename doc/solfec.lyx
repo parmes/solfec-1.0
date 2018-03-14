@@ -10889,7 +10889,7 @@ Hybrid solver allows to combine smooth rigid body nonlinear spring based
 
 \begin_layout Subsection*
 obj = HYBRID_SOLVER (parmec_file, parmec_step, parmec2solfec, solfec_solver
- | parmec_argv)
+ | parmec_argv, boundary_contact_detection)
 \end_layout
 
 \begin_layout Itemize
@@ -10922,7 +10922,15 @@ parmec_step
 parmec2solfec
 \series default
  - Python dictionary based mapping of PARMEC particle numbers to SOLFEC
- body identifiers
+ body identifiers; these are the 
+\begin_inset Quotes eld
+\end_inset
+
+boundary
+\begin_inset Quotes erd
+\end_inset
+
+ bodies
 \end_layout
 
 \begin_layout Itemize
@@ -10948,6 +10956,14 @@ target "http://parmes.github.io/parmec/input_commands.html#argv"
 \end_inset
 
 
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+boundary_contact_detection
+\series default
+ - optional boundary contact detection flag ('ON', or default: 'OFF')
 \end_layout
 
 \begin_layout Standard

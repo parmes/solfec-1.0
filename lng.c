@@ -5426,10 +5426,11 @@ struct lng_HYBRID_SOLVER
 /* constructor */
 static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
-  KEYWORDS ("parmec_file", "parmec_step", "parmec2solfec", "solfec_solver", "parmec_argv");
-  PyObject *parmec_file, *parmec2solfec, *solfec_solver, *parmec_argv;
+  KEYWORDS ("parmec_file", "parmec_step", "parmec2solfec", "solfec_solver", "parmec_argv", "boundary_contact_detection");
+  PyObject *parmec_file, *parmec2solfec, *solfec_solver, *parmec_argv, *boundary_contact_detection;
   lng_HYBRID_SOLVER *self;
   double parmec_step;
+  int bcd;
 
   self = (lng_HYBRID_SOLVER*)type->tp_alloc (type, 0);
 
@@ -5443,12 +5444,14 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     self->parmec_interval_tms[1] = -1;
     self->parmec_prefix = NULL;
     parmec_argv = NULL;
+    boundary_contact_detection = NULL;
+    bcd = 0;
 
     PARSEKEYS ("OdOO|O", &parmec_file, &parmec_step, &parmec2solfec, &solfec_solver, &parmec_argv);
 
     TYPETEST (is_string (parmec_file, kwl[0]) && is_positive (parmec_step, kwl[1]) &&
               is_dict (parmec2solfec, kwl[2]) && is_solver (solfec_solver, kwl[3]) &&
-	      is_list (parmec_argv, kwl[4], 0, 0));
+	      is_list (parmec_argv, kwl[4], 0, 0) && is_string (boundary_contact_detection, kwl[5]));
 
     MAP *p2s = NULL;
     PyObject *key, *val;
@@ -5501,9 +5504,26 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
       }
     }
 
+    if (boundary_contact_detection)
+    {
+      IFIS (boundary_contact_detection, "ON")
+      {
+	bcd = 1;
+      }
+      ELIF (boundary_contact_detection, "OFF")
+      {
+	bcd = 0;
+      }
+      ELSE
+      {
+	PyErr_SetString (PyExc_ValueError, "Invalid boundary contact detection argument (use 'ON'/'OFF')");
+	return NULL;
+      }
+    }
+
     self->hs = HYBRID_SOLVER_Create (PyString_AsString(parmec_file), parmec_step,
                   p2s, get_solver(solfec_solver), get_solver_kind(solfec_solver),
-		  argv, argc);
+		  argv, argc, bcd);
   }
 
   return (PyObject*)self;

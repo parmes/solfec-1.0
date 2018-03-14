@@ -40,7 +40,7 @@ void parmec_set_force_and_torque (int num, double *force, double *torque);
 /* read body force and torque --> these are inner parmec forces
  *                                accumulated over a number of steps
  */
-void parmec_get_force_and_torque (int num, int nstep, double *force, double *torque);
+void parmec_get_force_and_torque (int num, double *force, double *torque);
 
 /* perform single time integration step */
 void parmec_one_step (double step, double* interval, void** interval_func, int* interval_tms, char* prefix);

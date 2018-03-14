@@ -296,7 +296,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
       {
 	struct ial_struct *item = &ial_all[ial_displs[i]+j];
 	struct ft_struct *jtem = &ft_all[ial_displs[i]+j];
-        parmec_get_force_and_torque (item->i[1], nstep, jtem->f, jtem->t); /* read forces from Parmec */
+        parmec_get_force_and_torque (item->i[1], jtem->f, jtem->t); /* read forces from Parmec */
       }
     }
   }
@@ -429,7 +429,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 	struct ift_struct *item = &ift_all[ift_displs[i]+j];
 	struct alftrp_struct *jtem = &alftrp_all[ift_displs[i]+j];
 	parmec_get_angular_and_linear (item->i[1], jtem->a, jtem->l);
-        parmec_get_force_and_torque (item->i[1], nstep, jtem->f, jtem->t);
+        parmec_get_force_and_torque (item->i[1], jtem->f, jtem->t);
         parmec_get_rotation_and_position (item->i[1], jtem->r, jtem->p);
       }
     }
@@ -528,7 +528,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   {
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     int num = (int) (long) item->data; /* parmec particle number */
-    parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque); /* read forces from Parmec */
+    parmec_get_force_and_torque (num, bod->parmec->force, bod->parmec->torque); /* read forces from Parmec */
   }
 
 #else /* BOUNDARY_IN_SOLFEC == 0 */
@@ -550,7 +550,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   {
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     int num = (int) (long) item->data; /* parmec particle number */
-    parmec_get_force_and_torque (num, nstep, bod->parmec->force, bod->parmec->torque);
+    parmec_get_force_and_torque (num, bod->parmec->force, bod->parmec->torque);
     parmec_get_rotation_and_position (num, bod->conf, bod->conf+9);
     SHAPE_Update (bod->shape, bod, (MOTION)BODY_Cur_Point);
     parmec_get_angular_and_linear (num, bod->velo, bod->velo+3);
@@ -563,7 +563,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
 /* create solver */
 HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step, 
            MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind,
-	   char **parmec_argv, int parmec_argc)
+	   char **parmec_argv, int parmec_argc, int boundary_contact_detection)
 {
   HYBRID_SOLVER *hs;
 
@@ -587,6 +587,7 @@ HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step,
   }
   hs->solfec_solver = solfec_solver;
   hs->solfec_solver_kind = solfec_solver_kind;
+  hs->boundary_contact_detection = boundary_contact_detection;
 
 #if MPI
   int rank;
@@ -624,15 +625,18 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
     num_parmec_steps *= 2;
   }
 
-  /* exclude contact detection between mapped Solfec bodies (boundary);
-   * we do want contact detection between boundary and interior bodies */
-  for (MAP *item = MAP_First (hs->solfec2parmec); item; item = MAP_Next (item))
+  if (hs->boundary_contact_detection == 0)
   {
-    for (MAP *jtem = MAP_First (hs->solfec2parmec); jtem; jtem = MAP_Next (jtem))
+    /* exclude contact detection between mapped Solfec bodies (boundary);
+     * we do want contact detection between boundary and interior bodies */
+    for (MAP *item = MAP_First (hs->solfec2parmec); item; item = MAP_Next (item))
     {
-      if (item->key != jtem->key)
+      for (MAP *jtem = MAP_First (hs->solfec2parmec); jtem; jtem = MAP_Next (jtem))
       {
-	AABB_Exclude_Body_Pair (sol->aabb, (int)(long)item->key, (int)(long)jtem->key);
+	if (item->key != jtem->key)
+	{
+	  AABB_Exclude_Body_Pair (sol->aabb, (int)(long)item->key, (int)(long)jtem->key);
+	}
       }
     }
   }
@@ -667,15 +671,18 @@ void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration)
     }
   }
 
-  /* include contact detection between mapped Solfec bodies;
-   * this may be useful in case another solver is used following this one */
-  for (MAP *item = MAP_First (hs->solfec2parmec); item; item = MAP_Next (item))
+  if (hs->boundary_contact_detection == 0)
   {
-    for (MAP *jtem = MAP_First (hs->solfec2parmec); jtem; jtem = MAP_Next (jtem))
+    /* include contact detection between mapped Solfec bodies;
+     * this may be useful in case another solver is used following this one */
+    for (MAP *item = MAP_First (hs->solfec2parmec); item; item = MAP_Next (item))
     {
-      if (item->key != jtem->key)
+      for (MAP *jtem = MAP_First (hs->solfec2parmec); jtem; jtem = MAP_Next (jtem))
       {
-	AABB_Include_Body_Pair (sol->aabb, (int)(long)item->key, (int)(long)jtem->key);
+	if (item->key != jtem->key)
+	{
+	  AABB_Include_Body_Pair (sol->aabb, (int)(long)item->key, (int)(long)jtem->key);
+	}
       }
     }
   }

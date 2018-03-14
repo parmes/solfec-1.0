@@ -46,12 +46,13 @@ struct hybrid_solver
   MAP *solfec2parmec;
   void *solfec_solver;
   int solfec_solver_kind;
+  int boundary_contact_detection;
 };
 
 /* create solver */
 HYBRID_SOLVER* HYBRID_SOLVER_Create (char *parmec_file, double parmec_step,
            MAP *parmec2solfec, void *solfec_solver, int solfec_solver_kind,
-	   char **parmec_argv, int parmec_argc);
+	   char **parmec_argv, int parmec_argc, int boundary_contact_detection);
 
 /* run solver */
 void HYBRID_SOLVER_Run (HYBRID_SOLVER *hs, SOLFEC *sol, double duration);
