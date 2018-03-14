@@ -32,13 +32,17 @@ SOFTWARE.
 /* initialize parmec */
 void parmec_init(char *path, char **argv, int argc);
 
+/* allocate force and torque exchange buffers; must be
+ * called prior to parmec_{set,get}_force_and_forque routines */
+void parmec_force_and_torque_alloc (int num);
+
 /* prescribe body force and torque --> forces set this way are kept constant
  *                                  and used during all following time steps
  */
 void parmec_set_force_and_torque (int num, double *force, double *torque);
 
 /* read body force and torque --> these are inner parmec forces
- *                                accumulated over a number of steps
+ *                                accumulated at the latest step
  */
 void parmec_get_force_and_torque (int num, double *force, double *torque);
 

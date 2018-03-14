@@ -40,6 +40,33 @@ void parmec_init (char *path, char **argv, int argc)
   parmec::input(path, argv, argc);
 }
 
+/* allocate force and torque exchange buffers; must be
+ * called prior to parmec_{set,get}_force_and_forque routines */
+void parmec_force_and_torque_alloc (int num)
+{
+  parmec::prescribed_body_force *p = (parmec::prescribed_body_force*)
+          MAP_Find (parmec::prescribed_body_forces, (void*)(long)num, NULL);
+
+  if (!p)
+  {
+    p = new parmec::prescribed_body_force;
+    p->particle = num;
+    p->outer_force[0] = 0.0;
+    p->outer_force[1] = 0.0;
+    p->outer_force[2] = 0.0;
+    p->outer_torque[0] = 0.0;
+    p->outer_torque[1] = 0.0;
+    p->outer_torque[2] = 0.0;
+    p->inner_force[0] = 0.0;
+    p->inner_force[1] = 0.0;
+    p->inner_force[2] = 0.0;
+    p->inner_torque[0] = 0.0;
+    p->inner_torque[1] = 0.0;
+    p->inner_torque[2] = 0.0;
+    MAP_Insert (NULL, &parmec::prescribed_body_forces, (void*)(long)num, p, NULL);
+  }
+}
+
 /* prescribe body force and torque --> forces set this way are kept constant
  *                                  and used during all following time steps
  */
@@ -50,9 +77,8 @@ void parmec_set_force_and_torque (int num, double *force, double *torque)
 
   if (!p)
   {
-    p = new parmec::prescribed_body_force;
-    p->particle = num;
-    MAP_Insert (NULL, &parmec::prescribed_body_forces, (void*)(long)num, p, NULL);
+    fprintf (stderr, "ERROR: Solfec-Parmec boundary force with Paremc id = %d has not been found", num);
+    exit (1);
   }
 
   p->outer_force[0] = force[0]; /* prescribe outer forces */
@@ -61,16 +87,10 @@ void parmec_set_force_and_torque (int num, double *force, double *torque)
   p->outer_torque[0] = torque[0];
   p->outer_torque[1] = torque[1];
   p->outer_torque[2] = torque[2];
-  p->inner_force[0] = 0.0; /* zero inner forces */
-  p->inner_force[1] = 0.0;
-  p->inner_force[2] = 0.0;
-  p->inner_torque[0] = 0.0;
-  p->inner_torque[1] = 0.0;
-  p->inner_torque[2] = 0.0;
 }
 
 /* read body force and torque --> these are inner parmec forces
- *                                accumulated over a number of steps
+ *                                accumulated at the latest step
  */
 void parmec_get_force_and_torque (int num, double *force, double *torque)
 {

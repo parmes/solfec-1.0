@@ -5447,7 +5447,8 @@ static PyObject* lng_HYBRID_SOLVER_new (PyTypeObject *type, PyObject *args, PyOb
     boundary_contact_detection = NULL;
     bcd = 0;
 
-    PARSEKEYS ("OdOO|O", &parmec_file, &parmec_step, &parmec2solfec, &solfec_solver, &parmec_argv);
+    PARSEKEYS ("OdOO|OO", &parmec_file, &parmec_step, &parmec2solfec, &solfec_solver,
+                          &parmec_argv, &boundary_contact_detection);
 
     TYPETEST (is_string (parmec_file, kwl[0]) && is_positive (parmec_step, kwl[1]) &&
               is_dict (parmec2solfec, kwl[2]) && is_solver (solfec_solver, kwl[3]) &&

@@ -161,6 +161,11 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
       MAP *jtem = MAP_Find_Node (found, item->key, NULL);
       ASSERT_TEXT (jtem, "ERROR: Solfec-Parmec boundary body with Solfec id = %d has not been found", (int)(long) item->key);
       ASSERT_TEXT ((long) (void*) jtem->data == RIG, "ERROR: Solfec-Parmec boundary body with Solfec id = %d is not rigid", (int)(long) item->key);
+      int num = (int) (long) item->data; /* parmec particle number */
+      parmec_force_and_torque_alloc (num); /* allocate force exchange buffers */
+#if BOUNDARY_IN_SOLFEC
+      parmec_disable_dynamics (num); /* disable time integration of boundary particles */
+#endif
     }
 
     free (recvbuf);
@@ -170,14 +175,6 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
 
   free (sendbuf);
   MAP_Free (NULL, &found);
-
-#if BOUNDARY_IN_SOLFEC
-  for (MAP *item = MAP_First(hs->solfec2parmec); item; item = MAP_Next (item))
-  {
-    int num = (int) (long) item->data; /* parmec particle number */
-    parmec_disable_dynamics (num); /* disable time integration of boundary particles */
-  }
-#endif
 }
 
 /* perform a number of Parmec time integration steps */
@@ -261,9 +258,7 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
     {
       for (j = 0; j < ial_counts[i]; j ++)
       {
-	double zero [3] = {0., 0., 0.};
 	struct ial_struct *item = &ial_all[ial_displs[i]+j];
-	parmec_set_force_and_torque (item->i[1], zero, zero); /* zero force accumulation vectors */
         parmec_set_angular_and_linear (item->i[1], item->a, item->l); /* update velocity */
       }
     }
@@ -479,9 +474,9 @@ static void init_boundary (HYBRID_SOLVER *hs, DOM *dom)
     ASSERT_TEXT (bod, "ERROR: Solfec-Parmec boundary body with Solfec id = %d has not been found", (int)(long) item->key);
     ASSERT_TEXT (bod->kind == RIG, "ERROR: Solfec-Parmec boundary body with Solfec id = %d is not rigid", (int)(long) item->key);
     if (!bod->parmec) ERRMEM (bod->parmec = MEM_CALLOC (sizeof(PARMEC_FORCE)));
-
-#if BOUNDARY_IN_SOLFEC
     int num = (int) (long) item->data; /* parmec particle number */
+    parmec_force_and_torque_alloc (num); /* allocate force exchange buffers */
+#if BOUNDARY_IN_SOLFEC
     parmec_disable_dynamics (num); /* disable time integration of boundary particles */
 #endif
   }
@@ -497,8 +492,6 @@ static void parmec_steps (HYBRID_SOLVER *hs, DOM *dom, double step, int nstep)
   {
     BODY *bod = MAP_Find (dom->idb, item->key, NULL);
     int num = (int) (long) item->data; /* parmec particle number */
-    double zero [3] = {0., 0., 0.};
-    parmec_set_force_and_torque (num, zero, zero); /* zero force accumulation vectors */
     parmec_set_angular_and_linear (num, bod->velo, bod->velo+3); /* update velocity */
   }
 
