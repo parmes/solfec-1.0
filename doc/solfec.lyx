@@ -10976,21 +10976,16 @@ motion of the boundary bodies listed in the
 \series bold
 parmec2solfec
 \series default
- mapping is driven by the PARMEC model
+ mapping is driven by the SOLFEC model
 \end_layout
 
 \begin_layout Itemize
 \noindent
-SOLFEC boundary bodies listed in the 
+boundary bodies listed in the 
 \series bold
 parmec2solfec
 \series default
  mapping must be rigid
-\end_layout
-
-\begin_layout Itemize
-if motion of the boundary bodies is restrained in PARMEC, equivalent kinematic
- constraints need to applied to the same bodies in SOLFEC
 \end_layout
 
 \begin_layout Standard
