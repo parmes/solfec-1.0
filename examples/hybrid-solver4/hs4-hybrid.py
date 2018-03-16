@@ -84,7 +84,7 @@ ns = NEWTON_SOLVER ()
 
 # parmec's output files are written to the same location as the input path
 # for that to be the solfec's output directory, we copy parmec's input file there
-copyfile('inp/devel/hybrid-solver4/hs4-parmec.py', sol.outpath+'/hs4-parmec.py')
+copyfile('examples/hybrid-solver4/hs4-parmec.py', sol.outpath+'/hs4-parmec.py')
 
 # nubering of bodies in Parmec starts from 0 while in Solfec from 1
 # hence below we used dictionary {0 : 1} as the parmec2solfec mapping
