@@ -60,8 +60,8 @@ POSIX = yes
 
 HDF5 = yes
 
-HDF5INC = -I/opt/local/include
-HDF5LIB = -L/opt/local/lib -lhdf5 -lhdf5_hl
+HDF5INC = -I/opt/local/lib/hdf5-18/include
+HDF5LIB = -L/opt/local/lib/hdf5-18/lib -lhdf5 -lhdf5_hl
 
 #
 # XDR (must be set when HDF5 = no)
