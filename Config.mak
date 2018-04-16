@@ -60,8 +60,8 @@ POSIX = yes
 
 HDF5 = yes
 
-HDF5INC = -I/opt/local/include
-HDF5LIB = -L/opt/local/lib -lhdf5 -lhdf5_hl
+HDF5INC = -I/opt/local/lib/hdf5-18/include
+HDF5LIB = -L/opt/local/lib/hdf5-18/lib -lhdf5 -lhdf5_hl
 
 #
 # XDR (must be set when HDF5 = no)
@@ -137,6 +137,14 @@ DYNLB = ../dynlb
 #
 
 PARMEC = ../parmec
+
+#
+# MED paths (this need to be specified if PARMEC
+# library has been compiled with MED support)
+#
+
+MEDINC = -I/Users/tomek/Devel/med-3.2.0/build/include
+MEDLIB = -L/Users/tomek/Devel/med-3.2.0/build/lib -lmed
 
 #
 # Siconos (yes/no)
