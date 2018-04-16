@@ -614,12 +614,12 @@ static int gobj_adjacent (short paircode, void *aobj, void *bobj)
 
 #if MPI
 /* return an SGP index:
- * semi-positive index indicates regular SGP */
+ * semi-positive index indicates regular surface SGP */
 static int SGP_index (BODY *bod, SGP *sgp)
 {
   long n = sgp - bod->sgp;
 
-  ASSERT_DEBUG (n >= 0 && n < bod->nsgpall, "Error in SGP index");
+  ASSERT_DEBUG (n >= 0 && n < bod->nsgp, "Error in SGP index");
 
   return n;
 }
@@ -629,7 +629,7 @@ static SGP* SGP_from_index (DOM *dom, BODY *bod, int n)
 {
   SGP *sgp;
 
-  ASSERT_DEBUG (n >= 0 && n < bod->nsgpall, "Error in SGP index");
+  ASSERT_DEBUG (n >= 0 && n < bod->nsgp, "Error in SGP index");
 
   sgp = &bod->sgp [n];
 
@@ -659,7 +659,7 @@ static int constraint_weight (CON *con)
 /* body weight */
 static int body_weight (BODY *bod)
 {
-  return  bod->dofs + bod->nsgpall; /* XXX: this is meant to represent the time integration and contact detection together */
+  return  bod->dofs + bod->nsgp; /* XXX: this is meant to represent the time integration and contact detection together */
 }
 
 /* domain weight */
@@ -3192,7 +3192,7 @@ CON* DOM_Fix_Point (DOM *dom, BODY *bod, double *pnt, double strength)
   SGP *sgp;
   int n;
 
-  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgpall, pnt)) < 0) return NULL;
+  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
   con = insert (dom, bod, NULL, sgp, NULL, FIXPNT);
@@ -3215,12 +3215,12 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir, BODY *bod
   CON *con;
   int n, m;
 
-  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgpall, pnt)) < 0) return NULL;
+  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
   sgp = &bod->sgp [n];
 
   if (bod2)
   {
-    if ((m = SHAPE_Sgp (bod2->sgp, bod2->nsgpall, pnt2)) < 0) return NULL;
+    if ((m = SHAPE_Sgp (bod2->sgp, bod2->nsgp, pnt2)) < 0) return NULL;
     sgp2 = &bod2->sgp [m];
   }
   else sgp2 = NULL;
@@ -3251,7 +3251,7 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   SGP *sgp;
   int n;
 
-  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgpall, pnt)) < 0) return NULL;
+  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
 
   sgp = &bod->sgp [n];
   con = insert (dom, bod, NULL, sgp, NULL, VELODIR);
@@ -3287,12 +3287,12 @@ CON* DOM_Put_Rigid_Link (DOM *dom, BODY *master, BODY *slave, double *mpnt, doub
 
   ASSERT_DEBUG (master, "At least one body pointer must not be NULL");
 
-  if ((m = SHAPE_Sgp (master->sgp, master->nsgpall, mpnt)) < 0) return NULL;
+  if ((m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
   msgp = &master->sgp [m];
 
   if (slave)
   { 
-    if ((s = SHAPE_Sgp (slave->sgp, slave->nsgpall, spnt)) < 0) return NULL;
+    if ((s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
     ssgp = &slave->sgp [s];
   }
   else ssgp = NULL;
@@ -3336,10 +3336,10 @@ CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *
 
   ASSERT_DEBUG (master && slave, "Both bodies needs to be passed");
 
-  if ((m = SHAPE_Sgp (master->sgp, master->nsgpall, mpnt)) < 0) return NULL;
+  if ((m = SHAPE_Sgp (master->sgp, master->nsgp, mpnt)) < 0) return NULL;
   msgp = &master->sgp [m];
 
-  if ((s = SHAPE_Sgp (slave->sgp, slave->nsgpall, spnt)) < 0) return NULL;
+  if ((s = SHAPE_Sgp (slave->sgp, slave->nsgp, spnt)) < 0) return NULL;
   ssgp = &slave->sgp [s];
 
   con = insert (dom, master, slave, msgp, ssgp, SPRING);
@@ -3371,11 +3371,11 @@ CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *
 void DOM_Remove_Constraint (DOM *dom, CON *con)
 {
   long n = con->msgp - con->master->sgp;
-  if (n < 0 || n >= con->master->nsgpall) MEM_Free (&dom->sgpmem, con->msgp);
+  if (n < 0 || n >= con->master->nsgp) MEM_Free (&dom->sgpmem, con->msgp);
   if (con->slave)
   {
     n = con->ssgp - con->slave->sgp;
-    if (n < 0 || n >= con->slave->nsgpall) MEM_Free (&dom->sgpmem, con->ssgp);
+    if (n < 0 || n >= con->slave->nsgp) MEM_Free (&dom->sgpmem, con->ssgp);
   }
 
 #if DEBUG
@@ -3462,7 +3462,7 @@ void DOM_Transfer_Constraint (DOM *dom, CON *con, BODY *src, BODY *dst)
     COPY (con->point, point);
   }
 
-  n = SHAPE_Closest_Sgp (dst->sgp, dst->nsgpall, point, NULL);
+  n = SHAPE_Closest_Sgp (dst->sgp, dst->nsgp, point, NULL);
 
   if (con->master == src)
   {
@@ -3877,7 +3877,7 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, unsigned int mid
 
       if (!pnd->mele) return 0;
     }
-    else if (SHAPE_Sgp (master->sgp, master->nsgpall, mpnt) < 0) return 0;
+    else if (SHAPE_Sgp (master->sgp, master->nsgp, mpnt) < 0) return 0;
   }
 
   if (slave)
@@ -3889,7 +3889,7 @@ int DOM_Pending_Constraint (DOM *dom, short kind, BODY *master, unsigned int mid
 
       if (!pnd->sele) return 0;
     }
-    else if (SHAPE_Sgp (slave->sgp, slave->nsgpall, spnt) < 0) return 0;
+    else if (SHAPE_Sgp (slave->sgp, slave->nsgp, spnt) < 0) return 0;
   }
 
   SET_Insert (&dom->setmem, &dom->pendingcons, pnd, NULL); /* they will be inserted or deleted during load balancing */
