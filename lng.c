@@ -9696,18 +9696,21 @@ static PyObject* lng_FORWARD (PyObject *self, PyObject *args, PyObject *kwds)
 
   TYPETEST (is_solfec (solfec, kwl[0]) && is_string (corotated_displacements, kwl[2]));
 
-  IFIS (corotated_displacements, "TRUE")
+  if (corotated_displacements)
   {
-    corod = 1;
-  }
-  ELIF (corotated_displacements, "FALSE")
-  {
-    corod = 0;
-  }
-  ELSE
-  {
-    PyErr_SetString (PyExc_ValueError, "Invalid corotated_displacements string");
-    return 0;
+    IFIS (corotated_displacements, "TRUE")
+    {
+      corod = 1;
+    }
+    ELIF (corotated_displacements, "FALSE")
+    {
+      corod = 0;
+    }
+    ELSE
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid corotated_displacements string");
+      return 0;
+    }
   }
 
   if (solfec->sol->mode == SOLFEC_READ) SOLFEC_Forward (solfec->sol, steps, corod); 
