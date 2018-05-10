@@ -9,19 +9,25 @@ class Job:
     self.command = command
 
 jobs = []
-jobs.append (Job('dr0_e_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 15 -leps 0.1 -nsdl 0.0001 -solv NS'))
-jobs.append (Job('dr0_e_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 20 -leps 0.25 -nsdl 0.01 -rldl avgWii -solv NS'))
-jobs.append (Job('dr0_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -solv GS'))
-jobs.append (Job('dr1_e_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 1000 -leps 0.1 -nsdl 1E-6 -solv NS'))
-jobs.append (Job('dr1_e_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 10 -leps 0.025 -nsdl 0.025 -rldl avgWii -solv NS'))
-jobs.append (Job('dr1_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -solv GS'))
+jobs.append (Job('dr0_e_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo RG -lmxi 15 -leps 0.1 -nsdl 0.0001 -solv NS'))
+jobs.append (Job('dr0_e_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo RG -lmxi 20 -leps 0.25 -nsdl 0.01 -rldl avgWii -solv NS'))
+jobs.append (Job('dr0_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo RG -solv GS'))
+jobs.append (Job('dr1_e_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo PR -lmxi 1000 -leps 0.1 -nsdl 1E-6 -solv NS'))
+jobs.append (Job('dr1_e_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo PR -lmxi 10 -leps 0.025 -nsdl 0.025 -rldl avgWii -solv NS'))
+jobs.append (Job('dr1_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo PR -solv GS'))
 
-jobs.append (Job('dr0_s_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 15 -leps 0.1 -nsdl 0.0001 -solv NS -sphs'))
-jobs.append (Job('dr0_s_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -lmxi 20 -leps 0.25 -nsdl 0.01 -rldl avgWii -solv NS -sphs'))
-jobs.append (Job('dr0_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo RG -solv GS -sphs'))
-jobs.append (Job('dr1_s_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 1000 -leps 0.1 -nsdl 1E-6 -solv NS -sphs'))
-jobs.append (Job('dr1_s_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -lmxi 10 -leps 0.025 -nsdl 0.025 -rldl avgWii -solv NS -sphs'))
-jobs.append (Job('dr1_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -outi 0.3 -kifo PR -solv GS -sphs'))
+jobs.append (Job('dr0_s_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo RG -lmxi 15 -leps 0.1 -nsdl 0.0001 -solv NS -sphs'))
+jobs.append (Job('dr0_s_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo RG -lmxi 20 -leps 0.25 -nsdl 0.01 -rldl avgWii -solv NS -sphs'))
+jobs.append (Job('dr0_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo RG -solv GS -sphs'))
+jobs.append (Job('dr1_s_ns0', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo PR -lmxi 1000 -leps 0.1 -nsdl 1E-6 -solv NS -sphs'))
+jobs.append (Job('dr1_s_ns1', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo PR -lmxi 10 -leps 0.025 -nsdl 0.025 -rldl avgWii -solv NS -sphs'))
+jobs.append (Job('dr1_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo PR -solv GS -sphs'))
+
+if '--post' in sys.argv: # delete recreated file
+  cmd = 'rm -f out/rotating-drum/nsgs/TIMINGS'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
 
 for job in jobs: # schedule jobs
   print '***'
@@ -46,4 +52,18 @@ for job in jobs: # schedule jobs
 
   if '--post' in sys.argv: process = subprocess.Popen(job.command, shell=True)
   else: process = subprocess.Popen('sbatch -J %s run.sh' % job.name, shell=True)
+  process.wait()
+
+if '--post' in sys.argv: # copy stats to renamed files
+  cmd = 'cp out/rotating-drum/nsgs/ITERS tr2-dru100-nsgs-iters'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'cp out/rotating-drum/nsgs/RUNTIMES tr2-dru100-nsgs-runtimes'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'cp out/rotating-drum/nsgs/TIMINGS tr2-dru100-nsgs-timings'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
   process.wait()

@@ -28,6 +28,7 @@ lofq = 1 # acc sweep low freq.
 hifq = 5 # acc sweep high freq.
 amag = 1 # acc sweep magnitude
 prfx = '' # predix string
+subd = '' # subdirectory string
 xdmf = 'OFF' # export XMDF
 argv = NON_SOLFEC_ARGV()
 
@@ -53,6 +54,7 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-step number --> time step (default: %g)' % step
   print '-stop number --> duration (default: %g)' % stop
   print '-prfx string --> include a prefix string into the output path'
+  print '-subd string --> include a subdirectory into the output path'
   print '-xdmf --> export XDMF in READ mode (default: %s)' % xdmf
   print '-help or -h --> show this help and exit'
   print 
@@ -86,6 +88,8 @@ if argv != None:
       weak = 'ON'
     elif argv [i] == '-prfx':
       prfx = str (argv [i+1])
+    elif argv [i] == '-subd':
+      subd = str (argv [i+1])
     elif argv [i] == '-xdmf':
       xdmf = 'ON'
     elif argv [i] in ('-help', '-h'):
@@ -99,7 +103,7 @@ if argv != None:
 ncpu = NCPU ()
 
 # output path components
-begining = 'out/array-of-cubes/'
+begining = 'out/array-of-cubes/' + (subd+'/') if len(subd) > 0 else subd
 if len(prfx) > 0: prfx += '_'
 ending = prfx + 'STE%g_DUR%g_%s_%s_M%d_N%d_%s%d' % \
   (step,stop,kifo,solv,M,N,'S' if weak == 'OFF' else 'W',ncpu)
@@ -111,6 +115,7 @@ sol = SOLFEC ('DYNAMIC', step, outpath)
 # test whether command line switches need to
 # be deduced from the output path in READ mode
 if sol.mode == 'READ' and sol.outpath != outpath:
+  begining = sol.outpath[0:sol.outpath.rfind('/')] 
   ending = sol.outpath[sol.outpath.rfind('/')+1:]
   for x in ending.split('_'):
     if x[0:3] == 'STE': step = float(x[3:])
