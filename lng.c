@@ -2331,6 +2331,18 @@ static int lng_SURFACE_MATERIAL_set_dashpot (lng_SURFACE_MATERIAL *self, PyObjec
   return 0;
 }
 
+static PyObject* lng_SURFACE_MATERIAL_get_hpow (lng_SURFACE_MATERIAL *self, void *closure)
+{
+  return PyFloat_FromDouble (self->mat->hpow);
+}
+
+static int lng_SURFACE_MATERIAL_set_hpow (lng_SURFACE_MATERIAL *self, PyObject *value, void *closure)
+{
+  if (!is_number_ge (value, "hpow", 0)) return -1;
+  self->mat->hpow = PyFloat_AsDouble (value);
+  return 0;
+}
+
 /* SURFACE_MATERIAL methods */
 static PyMethodDef lng_SURFACE_MATERIAL_methods [] =
 { {NULL, NULL, 0, NULL} };
@@ -2351,6 +2363,7 @@ static PyGetSetDef lng_SURFACE_MATERIAL_getset [] =
   {"restitution", (getter)lng_SURFACE_MATERIAL_get_restitution, (setter)lng_SURFACE_MATERIAL_set_restitution, "restitution", NULL},
   {"spring", (getter)lng_SURFACE_MATERIAL_get_spring, (setter)lng_SURFACE_MATERIAL_set_spring, "spring", NULL},
   {"dashpot", (getter)lng_SURFACE_MATERIAL_get_dashpot, (setter)lng_SURFACE_MATERIAL_set_dashpot, "dashpot", NULL},
+  {"hpow", (getter)lng_SURFACE_MATERIAL_get_hpow, (setter)lng_SURFACE_MATERIAL_set_hpow, "hpow", NULL},
   {NULL, 0, 0, NULL, NULL}
 };
 

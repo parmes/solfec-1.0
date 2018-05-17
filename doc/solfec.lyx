@@ -7452,7 +7452,8 @@ Read/write
 \begin_layout Plain Layout
 
 \emph on
-obj.model,obj.friction, obj.cohesion, obj.restitution, obj.spring, obj.dashpot
+obj.model,obj.friction, obj.cohesion, obj.restitution, obj.spring, obj.dashpot,
+ obj.hpow
 \end_layout
 
 \end_inset
