@@ -9,10 +9,17 @@ class Job:
     self.command = command
 
 jobs = []
+# Gauss-Seidel jobs
 jobs.append (Job('dr0_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo RG -solv GS'))
 jobs.append (Job('dr1_e_gs', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo PR -solv GS'))
 jobs.append (Job('dr0_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo RG -solv GS -sphs'))
 jobs.append (Job('dr1_s_gs', 'solfec examples/parallel-scaling/rotating-drum.py -subd nsgs -outi 0.3 -kifo PR -solv GS -sphs'))
+# best timing Newton absolute delta jobs (updated after running all absdelta jobs and TR2 shortest runtime script)
+jobs.append (Job('dr0_s_ns', 'solfec examples/parallel-scaling/rotating-drum.py -subd absdelta -outi 0.3 -kifo RG -lmxi  15 -leps 0.25 -nsdl 0.0001 -sphs'))
+jobs.append (Job('dr1_s_ns', 'solfec examples/parallel-scaling/rotating-drum.py -subd absdelta -outi 0.3 -kifo PR -lmxi  20 -leps 0.25 -nsdl 1E-13 -sphs'))
+# best timing Newton relative delta jobs (updated after running all reldelta jobs and TR2 shortest runtime script)
+jobs.append (Job('dr2_s_ns', 'solfec examples/parallel-scaling/rotating-drum.py -subd reldelta -outi 0.3 -kifo RG -lmxi 10 -leps 0.25 -nsdl 0.01 -rldl avgWii -sphs'))
+jobs.append (Job('dr3_s_ns', 'solfec examples/parallel-scaling/rotating-drum.py -subd reldelta -outi 0.3 -kifo PR -lmxi 5 -leps 0.01 -nsdl 0.01 -rldl avgWii -sphs'))
 
 if '--post' in sys.argv: # delete recreated file
   cmd = 'rm -f out/rotating-drum/nsgs/TIMINGS'
