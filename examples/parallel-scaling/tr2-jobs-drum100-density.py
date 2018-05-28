@@ -14,11 +14,11 @@ jobs = []
 
 for i in range(0,len(dens)):
   for j in range(0, len(nsdl)):
-    jobs.append (Job('0dns_%d_%d' % (i, j), 'solfec examples/parallel-scaling/rotating-drum.py -subd density -outi 0.3 -kifo RG -dens %g -lmxi 20 -leps 0.25 -nsdl %g -rldl avgWii -solv NS' % (dens[i], nsdl[j])))
+    jobs.append (Job('0dns_%d_%d' % (i, j), 'solfec examples/parallel-scaling/rotating-drum.py -subd density -outi 0.3 -kifo RG -dens %g -lmxi 10 -leps 0.25 -nsdl %g -rldl avgWii -solv NS' % (dens[i], nsdl[j])))
 
 for i in range(0,len(dens)):
   for j in range(0, len(nsdl)):
-    jobs.append (Job('1dns_%d_%d' % (i, j), 'solfec examples/parallel-scaling/rotating-drum.py -subd density -outi 0.3 -kifo PR -dens %g -lmxi 10 -leps 0.025 -nsdl %g -rldl avgWii -solv NS' % (dens[i], nsdl[j])))
+    jobs.append (Job('1dns_%d_%d' % (i, j), 'solfec examples/parallel-scaling/rotating-drum.py -subd density -outi 0.3 -kifo PR -dens %g -lmxi 5 -leps 0.01 -nsdl %g -rldl avgWii -solv NS' % (dens[i], nsdl[j])))
 
 if '--post' in sys.argv: # delete recreated file
   cmd = 'rm -f out/rotating-drum/density/TIMINGS'
