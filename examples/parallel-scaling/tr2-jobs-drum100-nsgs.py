@@ -26,6 +26,14 @@ if '--post' in sys.argv: # delete recreated file
   print cmd
   process = subprocess.Popen(cmd, shell=True)
   process.wait()
+  cmd = 'rm -f out/rotating-drum/absdelta/TIMINGS'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'rm -f out/rotating-drum/reldelta/TIMINGS'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
 
 for job in jobs: # schedule jobs
   print '***'
@@ -62,6 +70,30 @@ if '--post' in sys.argv: # copy stats to renamed files
   process = subprocess.Popen(cmd, shell=True)
   process.wait()
   cmd = 'cp out/rotating-drum/nsgs/TIMINGS tr2-dru100-nsgs-timings'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'cat out/rotating-drum/absdelta/ITERS >> tr2-dru100-nsgs-iters'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'cat out/rotating-drum/absdelta/RUNTIMES >> tr2-dru100-nsgs-runtimes'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'cat out/rotating-drum/absdelta/TIMINGS >> tr2-dru100-nsgs-timings'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'cat out/rotating-drum/reldelta/ITERS >> tr2-dru100-nsgs-iters'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'cat out/rotating-drum/reldelta/RUNTIMES >> tr2-dru100-nsgs-runtimes'
+  print cmd
+  process = subprocess.Popen(cmd, shell=True)
+  process.wait()
+  cmd = 'cat out/rotating-drum/reldelta/TIMINGS >> tr2-dru100-nsgs-timings'
   print cmd
   process = subprocess.Popen(cmd, shell=True)
   process.wait()
