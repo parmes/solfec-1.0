@@ -50,18 +50,27 @@ if not VIEWER() and solfec.mode == 'READ':
   import sys
   sys.stdout.flush()
 
-  th = HISTORY (solfec, [(bodies[0], (1, 0.05, 0.05), 'CX'),
-                         (bodies[0], (1, 0.05, 0.05), 'CY'),
-			 (bodies[0], (1, 0.05, 0.05), 'CZ'),
-			 (bodies[1], (1, 0.05, 0.05), 'CX'),
-			 (bodies[1], (1, 0.05, 0.05), 'CY'),
-			 (bodies[1], (1, 0.05, 0.05), 'CZ')], 0, stop)
+  if nele == 1:
+    th = HISTORY (solfec, [(bodies[0], (1, 0.05, 0.05), 'CX'),
+			   (bodies[0], (1, 0.05, 0.05), 'CY'),
+			   (bodies[0], (1, 0.05, 0.05), 'CZ')], 0, stop)
+  else:
+    th = HISTORY (solfec, [(bodies[0], (1, 0.05, 0.05), 'CX'),
+			   (bodies[0], (1, 0.05, 0.05), 'CY'),
+			   (bodies[0], (1, 0.05, 0.05), 'CZ'),
+			   (bodies[1], (1, 0.05, 0.05), 'CX'),
+			   (bodies[1], (1, 0.05, 0.05), 'CY'),
+			   (bodies[1], (1, 0.05, 0.05), 'CZ')], 0, stop)
   try:
     import matplotlib.pyplot as plt
 
     dp = []
-    for (x0,y0,z0,x1,y1,z1) in zip(th[1],th[2],th[3],th[4],th[5],th[6]):
-      dp.append (((x0-x1)**2+(y0-y1)**2+(z0-z1)**2)**0.5)
+    if nele == 1:
+      for (x0,y0,z0) in zip(th[1],th[2],th[3]):
+	dp.append (((x0-1.0)**2+(y0-0.05)**2+(z0-0.05)**2)**0.5)
+    else:
+      for (x0,y0,z0,x1,y1,z1) in zip(th[1],th[2],th[3],th[4],th[5],th[6]):
+	dp.append (((x0-x1)**2+(y0-y1)**2+(z0-z1)**2)**0.5)
     plt.clf ()
     plt.plot (th[0], dp)
     plt.xlim ((0, th[0][-1]))
