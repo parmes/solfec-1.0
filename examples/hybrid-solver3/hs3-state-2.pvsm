@@ -11957,7 +11957,7 @@
         <Domain name="array_list" id="4908.CellArrayStatus.array_list"/>
       </Property>
       <Property name="FileName" id="4908.FileName" number_of_elements="1">
-        <Element index="0" value="/Users/tomek/Dropbox/tkwork/codes/solfec/out/hybrid-solver3/hs3-parmec0sd.xmf"/>
+        <Element index="0" value="/Users/tomek/Dropbox/tkwork/codes/solfec/out/hybrid-solver3/hs3-parmec0sl.xmf"/>
         <Domain name="files" id="4908.FileName.files"/>
       </Property>
       <Property name="PointArrayInfo" id="4908.PointArrayInfo" number_of_elements="10">
@@ -14039,7 +14039,7 @@
     <ProxyCollection name="sources">
       <Item id="5877" name="con"/>
       <Item id="4719" name="hs3-parmec0.xmf"/>
-      <Item id="4908" name="hs3-parmec0sd.xmf"/>
+      <Item id="4908" name="hs3-parmec0sl.xmf"/>
       <Item id="4849" name="hs3-solfec_constraints.xmf"/>
       <Item id="4790" name="hs3-solfec_grids.xmf"/>
       <Item id="6134" name="spr"/>
