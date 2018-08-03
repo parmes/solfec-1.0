@@ -1,8 +1,8 @@
-M = 5 # must be same as in hs2-paremc.py
-N = 3 # must be same as in hs2-paremc.py
-gap = 0.001 # must be same as in hs2-paremc.py
+M = 5 # outer layers
+N = 3 # inner layers
+gap = 0.001 # betweeb bodies
 step = 5E-4 # time step
-stop = 5 # must be <= stop in hs2-parmec.py
+stop = 0.1 # duration
 
 # create solfec object
 sol = SOLFEC ('DYNAMIC', step, 'out/hybrid-solver2')

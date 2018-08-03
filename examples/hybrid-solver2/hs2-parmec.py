@@ -1,11 +1,7 @@
-M = 5 # must be same as in hs2-solfec.py
-N = 3 # must be same as in hs2-solfec.py
-gap = 0.001 # must be same as in hs2-solfec.py
+# inherited from SOLFEC: M, N, gap, step, stop
 lofq = 1 # low excitation frequency
 hifq = 1 # high excitation freqency
 amag = 1 # acceleration magnitude
-step = 1E-4 # time step
-stop = 5 # must be >= stop in hs2-solfec.py
 
 # find path to parmec source directory in order
 # to load the acceleration sweep signal script

@@ -1,11 +1,7 @@
-M = 5 # must be same as in hs2-solfec.py
-N = 3 # must be same as in hs2-solfec.py
-gap = 0.001 # must be same as in hs2-solfec.py
+# inherited from SOLFEC: M, N, gap, step, stop
 lofq = 1
 hifq = 1
 amag = 1
-step = 1E-4
-stop = 5 # must be >= stop in hs2-solfec.py
 
 import os, sys
 
