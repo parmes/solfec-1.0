@@ -2,7 +2,7 @@ M = 5 # outer layers
 N = 3 # inner layers
 gap = 0.001 # betweeb bodies
 step = 5E-4 # time step
-stop = 0.1 # duration
+stop = 5 # duration
 
 # create solfec object
 sol = SOLFEC ('DYNAMIC', step, 'out/hybrid-solver2')
@@ -85,7 +85,10 @@ import solfec as solfec # this is needed since 'OUTPUT' in Solfec
 solfec.OUTPUT (sol, 0.03) # collides with 'OUTPUT' in Parmec
 
 # run simulation
+import time
+start_time = time.time()
 RUN (sol, hs, stop)
+if RANK() == 0: print("--- %s seconds ---" % (time.time() - start_time))
 
 # XDMF export
 if sol.mode == 'READ' and not VIEWER():
