@@ -6,5 +6,7 @@ solfec-mpi
 *.swp
 *.o
 *.pyc
+*.xmf
+*.h5
 ext/blopex/include*
 doc/#*
