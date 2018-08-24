@@ -79,7 +79,7 @@ for i in range (0,M+N+M):
 for (i,j) in ijmap:
   if i in outer or j in outer:
     bod = ijmap[(i,j)]
-    SET_VELOCITY (bod, bod.center, (1., 1., 0.), tsv)
+    if HERE(sol, bod): SET_VELOCITY (bod, bod.center, (1., 1., 0.), tsv)
 
 # exclude contact detection between
 # the outer-most shell of bodies
