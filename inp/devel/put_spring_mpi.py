@@ -1,7 +1,9 @@
 step = 1E-4
 stop = 5.0
+nbod = 10
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/put_spring_mpi')
+#solfec.verbose = 'OFF'
 
 bulk = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 1E9, poisson = 0.3, density = 1E3)
 
@@ -12,7 +14,7 @@ def springfunc (stroke, velocity):
 
 prevbod = None
 
-for i in range (0, 10):
+for i in range (0, nbod):
   nodes = [i, i, i,
 	   i+1, i, i,
 	   i+1, i+1, i,
@@ -40,7 +42,8 @@ FIX_POINT (body, (i+1, i+1, i+1))
 
 GRAVITY (solfec, (0, 0, -10))
 
-slv = NEWTON_SOLVER ()
+#slv = NEWTON_SOLVER () # linearised calculation of spring values
+slv = GAUSS_SEIDEL_SOLVER (1E-3, 100) # direct calculation of spring values
 
 OUTPUT (solfec, 0.01)
 

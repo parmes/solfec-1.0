@@ -1138,7 +1138,7 @@ static void pack_boundary_constraint_update (CON *con, int *dsize, double **d, i
     pack_double (dsize, d, doubles, con->area);
     pack_double (dsize, d, doubles, con->gap);
   }
-  else if (con->kind == RIGLNK)
+  else if (con->kind == RIGLNK || con->kind == SPRING)
   {
     pack_doubles (dsize, d, doubles, con->base, 9);
   }
@@ -1164,7 +1164,7 @@ static CON* unpack_external_constraint_update (DOM *dom, int *dpos, double *d, i
     con->area = unpack_double (dpos, d, doubles);
     con->gap = unpack_double (dpos, d, doubles);
   }
-  else if (con->kind == RIGLNK)
+  else if (con->kind == RIGLNK || con->kind == SPRING)
   {
     unpack_doubles (dpos, d, doubles, con->base, 9);
   }
