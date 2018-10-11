@@ -3941,6 +3941,12 @@ void DOM_Read_State (DOM *dom, PBF *bf)
   dom_read_state (dom, bf);
 }
 
+/* write domain subset state */
+void DOM_Write_Subset (DOM *dom, char *subset, PBF *bf)
+{
+  ASSERT_TEXT (0, "Not implemented!"); /* TODO */
+}
+
 /* read state of an individual body */
 int DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod)
 {

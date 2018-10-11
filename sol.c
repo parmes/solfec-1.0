@@ -649,6 +649,7 @@ out:
   sol->verbose = 1;
   sol->cleanup = 0;
   sol->registered_bases = NULL;
+  sol->subsetoutput = NULL;
 
   return sol;
 }
@@ -859,6 +860,15 @@ void SOLFEC_Run (SOLFEC *sol, SOLVER_KIND kind, void *solver, double duration)
       /* BCD sampling */
       if (sol->bcd) BCD_Sample (sol, sol->bcd);
 
+      /* subset output */
+      for (SUBSET_OUTPUT *sub = sol->subsetoutput; sub; sub = sub->next)
+      {
+        if (sub->now < sub->ntimes && sol->dom->time >= sub->times[sub->now])
+	{
+	  DOM_Write_Subset (sol->dom, sub->subset, sub->bf);
+	}
+      }
+
       /* check whether STOP file was created by the user */
       if (stopfile (sol)) break;
     }
@@ -1052,6 +1062,14 @@ void SOLFEC_Destroy (SOLFEC *sol)
   MEM_Release (&sol->mapmem);
   MEM_Release (&sol->timemem);
 
+  SUBSET_OUTPUT *sub = sol->subsetoutput, *nsub = NULL;
+  for (; sub; sub = nsub)
+  {
+    free (sub->times); 
+    nsub = sub->next;
+    free (sub);
+  }
+
   free (sol);
 }
 
@@ -1202,7 +1220,11 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 	    switch (shi[i].index)
 	    {
 	    case CONSTRAINT_GAP:
-	      if (con->kind == CONTACT) value = MIN (value, con->gap); break;
+	      if (con->kind == CONTACT)
+	      {
+		value = MIN (value, con->gap); 
+	      }
+	      break;
 	    case CONSTRAINT_R:
 	      if (usedir)
 	      {
@@ -1362,4 +1384,18 @@ void SOLFEC_Register_Base (SOLFEC *sol, MX *evec, double *eval, char *label)
   base->label = label;
 
   MAP_Insert (&sol->mapmem, &sol->registered_bases, label, base, (MAP_Compare)strcmp);
+}
+
+/* register subset output specification */
+void SOLFEC_Register_Subset_Output (SOLFEC *sol, double *times, int ntimes, char *path, char *subset)
+{
+  SUBSET_OUTPUT *sub = MEM_CALLOC (sizeof(SUBSET_OUTPUT));
+  sub->times = times;
+  sub->now = 0;
+  sub->ntimes = ntimes;
+  sub->path = path;
+  sub->subset = subset;
+  sub->bf = NULL; /* FIXME */
+  sub->next = sol->subsetoutput;
+  sol->subsetoutput = sub;
 }

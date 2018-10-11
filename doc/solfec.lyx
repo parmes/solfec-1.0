@@ -15375,6 +15375,123 @@ attributes
 \end_layout
 
 \begin_layout Subsection*
+SUBSET_OUTPUT (solfec, time, path | subset) 
+\color red
+(Experimental)
+\end_layout
+
+\begin_layout Standard
+Save subsets of results in Solfec format.
+ The saved results can be viewed with the Solfec viewer using -x option,
+ without a need for an input file.
+ Note, that only in 'WRITE' mode the actual output 
+\emph on
+time
+\emph default
+ specification can be exactly followed, in case it differs from the one
+ set using the OUTPUT (
+\begin_inset CommandInset ref
+LatexCommand pageref
+reference "subsec:OUTPUT"
+
+\end_inset
+
+) command; in 'READ' mode the closest possible approximation of time intervals
+ is used.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+time
+\series default
+ - A time instant, e.g.
+ t0, a collection of time instants, e.g.
+ 
+\emph on
+[t0, t1, t2, ..., tN]
+\emph default
+, or a time interval, e.g.
+ 
+\emph on
+(t0, t1)
+\emph default
+;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - output path, e.g.
+ '/tmp/sim0' will possibly result in a /tmp/sim0/sim0.h5 file output in serial
+ mode, or in /tmp/sim0/sim0.h5.{0...N-1} files output in MPI-parallel mode on
+ N ranks;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+subset
+\series default
+ - specification of a subset of exported bodies; a string can be used to
+ define a POSIX regular expression
+\begin_inset Foot
+status open
+
+\begin_layout Plain Layout
+Follow 
+\series bold
+
+\begin_inset CommandInset href
+LatexCommand href
+name "this link"
+target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
+
+\end_inset
+
+
+\series default
+ for the syntax of POSIX regular expressions.
+\end_layout
+
+\end_inset
+
+ that will be matched against body labels; a list of body objects or integer
+ body identifiers can be used 
+\emph on
+[body1, body2, id3, id4, body5, ...]
+\emph default
+ mixed up in an arbitrary manner; or a tuple specifying extents of a bounding
+ box can be used 
+\emph on
+(xlow, ylow, zlow, xhigh, yhigh, zhigh)
+\emph default
+, which the bounding boxes of exported bodies will overlapped at time 
+\begin_inset Formula $t=0$
+\end_inset
+
+; also a list of an arbitrary combination of those can be used, e.g.
+ 
+\emph on
+['BOD*A', 123, body1, body2, 256, (0, 0, 0, 1, 1, 1), 'KEY??7', (3, 3, 3,
+ 4, 4, 4)]
+\emph default
+ defines two labels, two integer body ids, two body objects, and two bounding
+ boxes, that together define a subset of bodies that will be used during
+ export;
+\end_layout
+
+\begin_layout Subsection*
 \begin_inset CommandInset label
 LatexCommand label
 name "subsec:REGISTER_BASE"
