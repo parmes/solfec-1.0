@@ -60,8 +60,8 @@ POSIX = yes
 
 HDF5 = yes
 
-HDF5INC = -I/opt/local/lib/hdf5-18/include
-HDF5LIB = -L/opt/local/lib/hdf5-18/lib -lhdf5 -lhdf5_hl
+HDF5INC = -I/opt/local/include
+HDF5LIB = -L/opt/local/lib -lhdf5 -lhdf5_hl
 
 #
 # XDR (must be set when HDF5 = no)
@@ -96,7 +96,7 @@ PYTHONLIB = -L/opt/local/lib -lpython2.7
 #
 
 OPENGL = yes
-GLINC = -Wno-deprecated-declarations
+GLINC = -DGL_SILENCE_DEPRECATION
 GLLIB = -framework GLUT -framework OpenGL
 
 #
@@ -143,8 +143,8 @@ PARMEC = ../parmec
 # library has been compiled with MED support)
 #
 
-MEDINC = -I/Users/tomek/Devel/med-3.2.0/build/include
-MEDLIB = -L/Users/tomek/Devel/med-3.2.0/build/lib -lmed
+#MEDINC = -I/Users/tomek/Devel/med-3.2.0/build/include
+#MEDLIB = -L/Users/tomek/Devel/med-3.2.0/build/lib -lmed
 
 #
 # Siconos (yes/no)

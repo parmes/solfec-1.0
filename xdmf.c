@@ -570,8 +570,13 @@ static void write_constraints (DOM *dom, hid_t h5_file, SET *subset, int attribu
     }
 
     pack_doubles (&point_size, &point, &point_count, con->point, 3);
-    pack_doubles (&reac_size, &reac, &reac_count, con->R, 3);
-    pack_doubles (&relv_size, &relv, &relv_count, con->U, 3);
+
+    double Rglo[3];
+    NVMUL (con->base, con->R, Rglo);
+    pack_doubles (&reac_size, &reac, &reac_count, Rglo, 3);
+    double Uglo[3];
+    NVMUL (con->base, con->U, Uglo);
+    pack_doubles (&relv_size, &relv, &relv_count, Uglo, 3);
     pack_double (&gap_size, &gap, &gap_count, con->gap);
   }
  
