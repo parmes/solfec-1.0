@@ -96,19 +96,6 @@ enum solfec_mode
 
 typedef enum solfec_mode SOLFEC_MODE;
 
-struct subset_output
-{
-  double *times;
-  int now;
-  int ntimes;
-  char *path;
-  char *subset;
-  PBF *bf;  
-  struct subset_output *next;
-};
-
-typedef struct subset_output SUBSET_OUTPUT;
-
 struct solfec
 {
   SOLFEC_MODE mode;
@@ -160,9 +147,6 @@ struct solfec
 
   /* registered FE bases */
   MAP *registered_bases;
-
-  /* subset output */
-  SUBSET_OUTPUT *subsetoutput;
 
   /* list structure */
   SOLFEC *next;
@@ -265,8 +249,5 @@ int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time, SET *subset);
 
 /* register FE base; (evec, eval, label) must be dynamically allocated */
 void SOLFEC_Register_Base (SOLFEC *sol, MX *evec, double *eval, char *label);
-
-/* register subset output specification */
-void SOLFEC_Register_Subset_Output (SOLFEC *sol, double *times, int ntimes, char *path, char *subset);
 
 #endif

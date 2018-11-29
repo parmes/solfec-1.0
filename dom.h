@@ -391,9 +391,6 @@ void DOM_Write_State (DOM *dom, PBF *bf);
 /* read domain state */
 void DOM_Read_State (DOM *dom, PBF *bf);
 
-/* write domain subset state */
-void DOM_Write_Subset (DOM *dom, char *subset, PBF *bf);
-
 /* read state of an individual body */
 int  DOM_Read_Body (DOM *dom, PBF *bf, BODY *bod);
 
