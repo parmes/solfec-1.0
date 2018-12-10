@@ -382,6 +382,11 @@ if not VIEWER() and solfec.mode == 'READ': # extract and output time series
     import modred
     import numpy
 
+    if modred.__version__[0] != '1':
+      print 'modred version 1 is needed!'
+      import sys
+      sys.exit(1)
+
     fb1_defo = COROTATED_DISPLACEMENTS (solfec, 'FB1(2)(2)')
     fb2_defo = COROTATED_DISPLACEMENTS (solfec, 'FB2(2)(2)')
     ib1_defo = COROTATED_DISPLACEMENTS (solfec, 'IB1(2)(2)')

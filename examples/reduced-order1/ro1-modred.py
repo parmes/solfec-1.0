@@ -4,6 +4,9 @@ import pickle
 import time
 import os, sys
 dirpath = os.path.dirname(os.path.realpath(__file__))
+if modred.__version__[0] != '1':
+  print 'modred version 1 is needed!'
+  sys.exit(1)
 
 try:
   podbase = pickle.load(open('out/reduced-order1/podbase.pickle', 'rb'))

@@ -99,6 +99,11 @@ def ro0_modal_base (use_scipy=False, verbose='OFF'):
 # POD base calculation routine
 def ro0_POD_base(rigid, deformable, num_modes=11, verbose=False):
 
+  if modred.__version__[0] != '1':
+    print 'modred version 1 is needed!'
+    import sys
+    sys.exit(1)
+
   vecs = numpy.transpose(numpy.array(rigid+deformable))
 
   if verbose:

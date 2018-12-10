@@ -4,10 +4,14 @@ import sys
 import math
 import gzip
 import numpy
+import time
 import modred
 import pickle
 import commands
 from math import cos 
+if modred.__version__[0] != '1':
+  print 'modred version 1 is needed!'
+  sys.exit(1)
 
 def where(program):
   for path in os.environ["PATH"].split(os.pathsep):
@@ -252,8 +256,15 @@ if formu in ['TL', 'BC'] and genbase:
 if RANK() == 0 and solfec.mode == 'WRITE':
   print 'Running', stop, 'seconds of analysis with step', step, '...'
 
+t0 = time.time()
+
 if solfec.mode <> 'READ':
   RUN (solfec, slv, stop)
+
+elapsed = time.time() - t0
+   
+if RANK() == 0 and solfec.mode == 'WRITE':   
+    print "analysis run time =", elapsed, "seconds"
 
 if solfec.mode == 'READ' and formu in ['TL', 'BC'] and genbase:
   from sys import stdout

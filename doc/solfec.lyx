@@ -1,5 +1,5 @@
-#LyX 2.2 created this file. For more info see http://www.lyx.org/
-\lyxformat 508
+#LyX 2.3 created this file. For more info see http://www.lyx.org/
+\lyxformat 544
 \begin_document
 \begin_header
 \save_transient_properties true
@@ -21,6 +21,8 @@
 \font_osf false
 \font_sf_scale 100 100
 \font_tt_scale 100 100
+\use_microtype false
+\use_dash_ligatures true
 \graphics default
 \default_output_format default
 \output_sync 0
@@ -60,6 +62,7 @@
 \suppress_date false
 \justification true
 \use_refstyle 0
+\use_minted 0
 \index Index
 \shortcut idx
 \color #008000
@@ -75,7 +78,10 @@
 \tocdepth 2
 \paragraph_separation indent
 \paragraph_indentation default
-\quotes_language english
+\is_math_indent 0
+\math_numbering_side default
+\quotes_style english
+\dynamic_quotes 0
 \papercolumns 1
 \papersides 1
 \paperpagestyle default
@@ -123,6 +129,7 @@ Solfec is a computational code aimed at simulation of multi-body systems
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Moreau01"
+literal "true"
 
 \end_inset
 
@@ -130,6 +137,7 @@ key "Moreau01"
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Jean01"
+literal "true"
 
 \end_inset
 
@@ -149,6 +157,7 @@ key "Jean01"
 \begin_inset CommandInset href
 LatexCommand href
 target "http://code.google.com/p/solfec"
+literal "false"
 
 \end_inset
 
@@ -571,6 +580,7 @@ It should be stressed that the above presentation exemplifies only a particular
 \begin_inset CommandInset citation
 LatexCommand cite
 key "MoreauBook,Moreau1999b,BrogliatoBook,Moreau01,Jean01,Glocker2001book,Acary2008,LeineStability,Studer2009book,Koziara2008PhD"
+literal "true"
 
 \end_inset
 
@@ -593,6 +603,7 @@ Solfec is hosted on
 LatexCommand href
 name "GitHub"
 target "https://github.com/tkoziara/solfec"
+literal "false"
 
 \end_inset
 
@@ -605,6 +616,7 @@ git
 \begin_inset CommandInset href
 LatexCommand href
 target "https://git-scm.com"
+literal "false"
 
 \end_inset
 
@@ -635,6 +647,7 @@ solfec
 LatexCommand href
 name "Cygwin"
 target "http://www.cygwin.com/"
+literal "false"
 
 \end_inset
 
@@ -643,6 +656,7 @@ target "http://www.cygwin.com/"
 LatexCommand href
 name "Mingw"
 target "http://mingw-w64.org"
+literal "false"
 
 \end_inset
 
@@ -1233,6 +1247,7 @@ C, C++, FORTRAN 95
 LatexCommand href
 name "HDF5 library"
 target "http://www.hdfgroup.org"
+literal "false"
 
 \end_inset
 
@@ -1255,6 +1270,7 @@ target "http://www.hdfgroup.org"
 LatexCommand href
 name "BLAS and LAPACK"
 target "http://www.netlib.org/lapack/"
+literal "false"
 
 \end_inset
 
@@ -1305,6 +1321,7 @@ either
 LatexCommand href
 name "Zoltan"
 target "http://www.cs.sandia.gov/Zoltan/"
+literal "false"
 
 \end_inset
 
@@ -1319,6 +1336,7 @@ target "http://www.cs.sandia.gov/Zoltan/"
 LatexCommand href
 name "dynlb"
 target "https://github.com/tkoziara/dynlb"
+literal "false"
 
 \end_inset
 
@@ -1338,6 +1356,7 @@ target "https://github.com/tkoziara/dynlb"
 LatexCommand href
 name "Siconos"
 target "http://siconos.gforge.inria.fr"
+literal "false"
 
 \end_inset
 
@@ -1483,6 +1502,7 @@ solfec
 LatexCommand href
 name "Solfec mailing list"
 target "http://groups.google.com/group/solfec"
+literal "false"
 
 \end_inset
 
@@ -6335,6 +6355,7 @@ This routine creates a tetrahedral mesh.
 LatexCommand href
 name "http://tetgen.berlios.de/"
 target "http://tetgen.berlios.de/"
+literal "false"
 
 \end_inset
 
@@ -6374,6 +6395,7 @@ a path (e.g.
 LatexCommand href
 name "http://tetgen.berlios.de/fformats.html"
 target "http://tetgen.berlios.de/fformats.html"
+literal "false"
 
 \end_inset
 
@@ -9260,6 +9282,7 @@ NEW1 in
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008b"
+literal "true"
 
 \end_inset
 
@@ -9296,6 +9319,7 @@ NEW2 in
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008b"
+literal "true"
 
 \end_inset
 
@@ -9336,6 +9360,7 @@ NEW3 in
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008b"
+literal "true"
 
 \end_inset
 
@@ -9372,6 +9397,7 @@ Explicit scheme described in Chapter 5 of
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008PhD"
+literal "true"
 
 \end_inset
 
@@ -9413,6 +9439,7 @@ Linearly implicit scheme similar to
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Zhang1997"
+literal "true"
 
 \end_inset
 
@@ -10753,6 +10780,7 @@ status open
 LatexCommand href
 name "http://siconos.gforge.inria.fr/HomePage/index.html"
 target "http://siconos.gforge.inria.fr/HomePage/index.html"
+literal "false"
 
 \end_inset
 
@@ -10953,6 +10981,7 @@ parmec_argv
 LatexCommand href
 name "ARGV"
 target "http://parmes.github.io/parmec/input_commands.html#argv"
+literal "false"
 
 \end_inset
 
@@ -11038,6 +11067,7 @@ PARMEC output interval specification (as in
 LatexCommand href
 name "parmec’s DEM command"
 target "http://parmes.github.io/parmec/input_commands.html#dem"
+literal "false"
 
 \end_inset
 
@@ -11070,6 +11100,7 @@ obj.parmec_prefix
 LatexCommand href
 name "parmec’s DEM command"
 target "http://parmes.github.io/parmec/input_commands.html#dem"
+literal "false"
 
 \end_inset
 
@@ -13165,6 +13196,7 @@ Follow
 LatexCommand href
 name "this link"
 target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
+literal "false"
 
 \end_inset
 
@@ -13248,6 +13280,7 @@ Follow
 LatexCommand href
 name "this link"
 target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
+literal "false"
 
 \end_inset
 
@@ -14533,6 +14566,7 @@ This routine internally partitions a finite element body into parts glued
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Metis"
+literal "true"
 
 \end_inset
 
@@ -14829,6 +14863,7 @@ reference "tab:formulation"
 LatexCommand href
 name "modred"
 target "https://pypi.python.org/pypi/modred"
+literal "false"
 
 \end_inset
 
@@ -14838,6 +14873,7 @@ target "https://pypi.python.org/pypi/modred"
 LatexCommand href
 name "modred"
 target "https://pypi.python.org/pypi/modred"
+literal "false"
 
 \end_inset
 
@@ -14905,6 +14941,7 @@ Follow
 LatexCommand href
 name "this link"
 target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
+literal "false"
 
 \end_inset
 
@@ -15012,6 +15049,7 @@ reference "tab:formulation"
 LatexCommand href
 name "modred"
 target "https://pypi.python.org/pypi/modred"
+literal "false"
 
 \end_inset
 
@@ -15247,6 +15285,12 @@ reference "cha:Viewer-Scripts"
 \end_layout
 
 \begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
+name "subsec:XDMF_EXPORT"
+
+\end_inset
+
 XDMF_EXPORT (solfec, time, path | subset, attributes) 
 \color red
 (Experimental)
@@ -15319,6 +15363,12 @@ subset
 status open
 
 \begin_layout Plain Layout
+\begin_inset CommandInset label
+LatexCommand label
+name "fn:posix"
+
+\end_inset
+
 Follow 
 \series bold
 
@@ -15326,6 +15376,7 @@ Follow
 LatexCommand href
 name "this link"
 target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Expressions"
+literal "false"
 
 \end_inset
 
@@ -15333,6 +15384,125 @@ target "https://en.wikibooks.org/wiki/Regular_Expressions/POSIX_Basic_Regular_Ex
 \series default
  for the syntax of POSIX regular expressions.
 \end_layout
+
+\end_inset
+
+ that will be matched against body labels; a list of body objects or integer
+ body identifiers can be used 
+\emph on
+[body1, body2, id3, id4, body5, ...]
+\emph default
+ mixed up in an arbitrary manner; or a tuple specifying extents of a bounding
+ box can be used 
+\emph on
+(xlow, ylow, zlow, xhigh, yhigh, zhigh)
+\emph default
+, which the bounding boxes of exported bodies will overlapped at time 
+\begin_inset Formula $t=0$
+\end_inset
+
+; also a list of an arbitrary combination of those can be used, e.g.
+ 
+\emph on
+['BOD*A', 123, body1, body2, 256, (0, 0, 0, 1, 1, 1), 'KEY??7', (3, 3, 3,
+ 4, 4, 4)]
+\emph default
+ defines two labels, two integer body ids, two body objects, and two bounding
+ boxes, that together define a subset of bodies that will be used during
+ export;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+attributes
+\series default
+ - specify a list of export attributes; default ['DISP', 'VELO', 'REAC',
+ 'GAP']; available attributes are 'DISP' (body displacement), 'VELO' (body
+ velocity), 'STRESS' (body stress), 'REAC' (constraint reactions), 'RELV'
+ (relative constraint velocities), 'GAP' (contact gaps); a non-optional
+ scalar attribute 'BID' (body identifier) is always included with exported
+ geometry
+\end_layout
+
+\begin_layout Subsection*
+SOLFEC_EXPORT (solfec, time, path | subset, attributes) 
+\color red
+(Under development)
+\end_layout
+
+\begin_layout Standard
+Export results in Solfec format.
+ In 'WRITE' mode only the geometry at time 
+\begin_inset Formula $t=0$
+\end_inset
+
+ is saved, while arguments 
+\emph on
+time
+\emph default
+ and 
+\emph on
+attributes
+\emph default
+ are ignored.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+solfec
+\series default
+ - SOLFEC object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+time
+\series default
+ - A time instant, e.g.
+ t0, a collection of time instants, e.g.
+ 
+\emph on
+[t0, t1, t2, ..., tN]
+\emph default
+, or a time interval, e.g.
+ 
+\emph on
+(t0, t1)
+\emph default
+;
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+path
+\series default
+ - output path to the directory that will contain the Solfec output file(s),
+ e.g.
+ '/tmp/sim0' will possibly result in /tmp/sim0/sim0.py and /tmp/sim0/sim0.h5
+ output files; Such output path can be opened with Solfec viewer by specifying
+ it as the input path, e.g.
+ 
+\emph on
+solfec -v /tmp/sim0
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+subset
+\series default
+ - specification of a subset of exported bodies; a string can be used to
+ define a POSIX regular expression
+\begin_inset CommandInset ref
+LatexCommand ref
+reference "fn:posix"
+plural "false"
+caps "false"
+noprefix "false"
 
 \end_inset
 
@@ -16978,6 +17148,7 @@ matplotlib
 \begin_inset CommandInset href
 LatexCommand href
 target "http://matplotlib.sourceforge.net/index.html"
+literal "false"
 
 \end_inset
 
@@ -17073,6 +17244,7 @@ reference "fig:volint"
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008PhD"
+literal "true"
 
 \end_inset
 
@@ -17556,6 +17728,7 @@ TODO
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008PhD"
+literal "true"
 
 \end_inset
 
@@ -17634,6 +17807,7 @@ and
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008PhD"
+literal "true"
 
 \end_inset
 
@@ -17850,6 +18024,7 @@ reference "alg:Spring-dashpot"
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Koziara2008PhD"
+literal "true"
 
 \end_inset
 
@@ -18315,6 +18490,7 @@ e and Feng
 \begin_inset CommandInset citation
 LatexCommand citep
 key "DeSaxce1998"
+literal "true"
 
 \end_inset
 
@@ -18742,6 +18918,7 @@ reference "alg:Serial-Gauss-Seidel"
 \begin_inset CommandInset citation
 LatexCommand cite
 key "Adams01"
+literal "true"
 
 \end_inset
 
@@ -19698,6 +19875,7 @@ where
 \begin_inset CommandInset citation
 LatexCommand citep
 key "Fukushima2002"
+literal "true"
 
 \end_inset
 
