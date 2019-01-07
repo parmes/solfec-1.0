@@ -134,6 +134,8 @@ OBJMPI = $(EXTO)       \
 	 obj/psc-mpi.o \
 	 $(PARMECMPIO)
 
+default: version solfec
+
 solfec: obj/solfec.o obj/libBLOPEX.a obj/libsolfec.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
 	$(CXX) $(PROFILE) -o $@ $< -Lobj -lsolfec -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIB)
 
@@ -159,7 +161,7 @@ obj/libsolfec.a: $(OBJ)
 
 ifeq ($(MPI),yes)
 
-all: solfec solfec-mpi
+all: version solfec solfec-mpi
 
 solfec-mpi: obj/solfec-mpi.o obj/libBLOPEX.a obj/libsolfec-mpi.a obj/libkrylov.a obj/libmetis.a obj/libdmumps.a obj/libtet.a
 	$(MPICC) $(PROFILE) -o $@ $< -Lobj -lsolfec-mpi -lkrylov -ldmumps -lmetis -ltet -lBLOPEX $(LIBMPI)
@@ -171,7 +173,7 @@ obj/libsolfec-mpi.a: $(OBJMPI)
 
 else
 
-all: solfec
+all: version solfec
 
 endif
 
@@ -210,8 +212,6 @@ clean:
 
 version:
 	python version.py
-
-version.h: version
 
 obj/solfec.o: solfec.c version.h
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
