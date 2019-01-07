@@ -1,0 +1,2 @@
+#define VERSION_HASH "de169ce"
+#define VERSION_DATE "2018-12-10"

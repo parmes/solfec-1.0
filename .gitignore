@@ -8,5 +8,6 @@ solfec-mpi
 *.pyc
 *.xmf
 *.h5
+*.vscode
 ext/blopex/include*
 doc/#*

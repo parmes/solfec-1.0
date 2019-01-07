@@ -32,6 +32,7 @@
 #include "sol.h"
 #include "err.h"
 #include "ext/predicates.h"
+#include "version.h"
 
 /* global list of created SOLFEC objects */
 static SOLFEC *solfec = NULL;
@@ -331,7 +332,11 @@ int main (int argc, char **argv)
 
     char *path = getfile (argc, argv); /* parse input */
 
-    if (!path) printf (synopsis); /* print info */
+    if (!path) 
+    {
+      printf ("VERSION: %s %s\n", VERSION_DATE, VERSION_HASH);
+      printf (synopsis); /* print info */
+    }
     else lngerr = lng (path); /* call interpreter */
 
     WARNING (lngerr == 0, "input parsing error");

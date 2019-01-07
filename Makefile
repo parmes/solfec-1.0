@@ -208,7 +208,12 @@ clean:
 	(cd ext/tetgen && make clean)
 	(cd ext/blopex && make clean)
 
-obj/solfec.o: solfec.c
+version:
+	python version.py
+
+version.h: version
+
+obj/solfec.o: solfec.c version.h
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
 
 obj/fastlz.o: ext/fastlz.c ext/fastlz.h
@@ -404,7 +409,7 @@ obj/gl2ps.o: ext/gl2ps.c ext/gl2ps.h
 
 # MPI
 
-obj/solfec-mpi.o: solfec.c
+obj/solfec-mpi.o: solfec.c version.h
 	$(MPICC) $(CFLAGS) $(MPIFLG) -c -o $@ $<
 
 obj/put-mpi.o: put.c put.h alg.h err.h
