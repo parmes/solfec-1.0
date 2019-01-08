@@ -15426,7 +15426,7 @@ attributes
 \end_layout
 
 \begin_layout Subsection*
-SOLFEC_EXPORT (solfec, time, path | subset, attributes) 
+SOLFEC_EXPORT (solfec, time, path | subset) 
 \color red
 (Under development)
 \end_layout
@@ -15529,19 +15529,6 @@ noprefix "false"
  defines two labels, two integer body ids, two body objects, and two bounding
  boxes, that together define a subset of bodies that will be used during
  export;
-\end_layout
-
-\begin_layout Itemize
-
-\series bold
-attributes
-\series default
- - specify a list of export attributes; default ['DISP', 'VELO', 'REAC',
- 'GAP']; available attributes are 'DISP' (body displacement), 'VELO' (body
- velocity), 'STRESS' (body stress), 'REAC' (constraint reactions), 'RELV'
- (relative constraint velocities), 'GAP' (contact gaps); a non-optional
- scalar attribute 'BID' (body identifier) is always included with exported
- geometry
 \end_layout
 
 \begin_layout Subsection*

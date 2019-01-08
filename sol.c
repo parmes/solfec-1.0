@@ -40,6 +40,7 @@
 #include "solfec.h"
 #include "sol.h"
 #include "dio.h"
+#include "iou.h"
 #include "err.h"
 #include "tmr.h"
 #include "mrf.h"
@@ -117,35 +118,10 @@ static char* copyoutpath (char *outpath)
   return out;
 }
 
-/* from directory path get last name */
-static char *lastname (char *path)
-{
-  int l = strlen (path);
-
-  while (l > 0 && path [l-1] != '/') l --;
-
-  return &path [l];
-}
-
-/* get file path from directory path */
-static char *getpath (char *outpath)
-{
-  int l = strlen (outpath),
-      n = l + strlen (lastname (outpath)) + 8;
-  char *path;
-
-  ERRMEM (path = malloc (n));
-  strcpy (path, outpath);
-  path [l] = '/';
-  strcpy (path+l+1, lastname (outpath));
-
-  return path;
-}
-
 /* attempt reading output path */
 static PBF* readoutpath (char *outpath)
 {
-  char *path = getpath (outpath);
+  char *path = getfilepath (outpath);
   PBF *bf = PBF_Read (path);
 
   free (path);
@@ -155,47 +131,13 @@ static PBF* readoutpath (char *outpath)
 /* attempt writing output path */
 static PBF* writeoutpath (char *outpath, PBF_FLG append)
 {
-#if POSIX
-  int i, l = strlen (outpath);
+  makedirspath (outpath);
 
-  for (i = 0; i < l; i ++) /* create all directories on the way */
-  {
-    if (outpath [i] == '/')
-    {
-       outpath [i] = '\0';
-       mkdir (outpath, 0777); /* POSIX */
-       outpath [i] = '/';
-    }
-  }
-  mkdir (outpath, 0777); /* POSIX */
-#endif
-
-  char *path = getpath (outpath);
+  char *path = getfilepath (outpath);
   PBF *bf = PBF_Write (path, append, PBF_ON);
 
   free (path);
   return bf;
-}
-
-/* copy a file */
-static void copyfile (char *from, char *to)
-{
-  FILE *f, *t;
-  char c;
-
-  ASSERT (f = fopen (from, "rb"), ERR_FILE_OPEN);
-  ASSERT (t = fopen (to, "wb"), ERR_FILE_OPEN);
-
-  while (!feof(f))
-  {
-    c = fgetc(f);
-    ASSERT (!ferror(f), ERR_FILE_READ);
-    if(!feof(f)) fputc(c, t);
-    ASSERT (!ferror(t), ERR_FILE_WRITE);
-  }
-
-  ASSERT (fclose (f) == 0, ERR_FILE_CLOSE);
-  ASSERT (fclose (t) == 0, ERR_FILE_CLOSE);
 }
 
 /* output state */
@@ -618,7 +560,7 @@ write:
   {
     if ((sol->bf = writeoutpath (sol->outpath, PBF_OFF)))
     {
-      char *copy, *path = getpath (sol->outpath);
+      char *copy, *path = getfilepath (sol->outpath);
 
       ERRMEM (copy = malloc (strlen (path) + 8));
       sprintf (copy, "%s.py", path);
@@ -656,7 +598,7 @@ out:
 /* allocate file name without extension */
 char* SOLFEC_Alloc_File_Name (SOLFEC *sol, int extlen)
 {
-  char *copy, *path = getpath (sol->outpath);
+  char *copy, *path = getfilepath (sol->outpath);
 
   ERRMEM (copy = malloc (strlen (path) + extlen));
   strcpy (copy, path);
@@ -1202,7 +1144,8 @@ double* SOLFEC_History (SOLFEC *sol, SHI *shi, int nshi, double t0, double t1, i
 	    switch (shi[i].index)
 	    {
 	    case CONSTRAINT_GAP:
-	      if (con->kind == CONTACT) value = MIN (value, con->gap); break;
+	      if (con->kind == CONTACT) value = MIN (value, con->gap);
+	      break;
 	    case CONSTRAINT_R:
 	      if (usedir)
 	      {

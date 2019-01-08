@@ -31,6 +31,7 @@
 #include "solfec.h"
 #include "set.h"
 #include "xdmf.h"
+#include "scxp.h"
 #include "alg.h"
 #include "sol.h"
 #include "rnd.h"
@@ -10271,6 +10272,107 @@ static PyObject* lng_XDMF_EXPORT (PyObject *self, PyObject *args, PyObject *kwds
   Py_RETURN_NONE;
 }
 
+/* Export results in native format */
+static PyObject* lng_SOLFEC_EXPORT (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("solfec", "time", "path", "subset");
+  PyObject *time, *path, *subset_arg;
+  SET *subset;
+  lng_SOLFEC *solfec;
+  double *times;
+  int ntimes;
+
+  subset = NULL;
+  subset_arg = NULL;
+  
+  PARSEKEYS ("OOO|O", &solfec, &time, &path, &subset_arg);
+  
+  TYPETEST (is_solfec (solfec, kwl[0]) && is_string (path, kwl[2]));
+
+  SOLFEC_Read_Init (solfec->sol);
+
+  if (PyList_Check(time))
+  {
+    ntimes = PyList_Size(time);
+
+    ERRMEM (times = malloc (ntimes * sizeof (double)));
+
+    for (int i = 0; i < ntimes; i ++)
+    {
+      times[i] = PyFloat_AsDouble (PyList_GetItem(time, i));
+    }
+  }
+  else if (PyTuple_Check(time))
+  {
+    if (PyTuple_Size(time) != 2)
+    {
+      PyErr_SetString (PyExc_ValueError, "The 'time' tuple size should be two: (t0, t1)");
+      return NULL;
+    }
+
+    ntimes = -1;
+
+    ERRMEM (times = malloc (2 * sizeof (double)));
+
+    times[0] = PyFloat_AsDouble (PyTuple_GetItem(time, 0));
+
+    times[1] = PyFloat_AsDouble (PyTuple_GetItem(time, 1));
+  }
+  else
+  {
+    ntimes = 1;
+
+    ERRMEM (times = malloc (sizeof (double)));
+
+    times[0] = PyFloat_AsDouble (time);
+  }
+
+  /* process subset_arg */
+  if (subset_arg)
+  {
+    if (PyList_Check(subset_arg))
+    {
+      int nobj = PyList_Size (subset_arg);
+
+      for (int i = 0; i < nobj; i ++)
+      {
+	if (!subset_add (solfec->sol->dom, &subset, PyList_GetItem (subset_arg, i)))
+	{
+	  PyErr_SetString (PyExc_ValueError, "Invalid subset definition");
+	  return NULL;
+	}
+      }
+    }
+    else if (!subset_add (solfec->sol->dom, &subset, subset_arg))
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid subset definition");
+      return NULL;
+    }
+
+    if (subset == NULL)
+    {
+      PyErr_SetString (PyExc_ValueError, "Invalid subset definition (matching bodies not found)");
+      return NULL;
+    }
+  }
+
+#if !MPI
+  if (solfec->sol->mode == SOLFEC_WRITE)
+  {
+    solfec_export (solfec->sol, NULL, 0, PyString_AsString(path), subset);
+  }
+  else
+  {
+    solfec_export (solfec->sol, times, ntimes, PyString_AsString(path), subset);
+  }
+#endif
+
+  SET_Free (NULL, &subset);
+  free (times);
+
+  Py_RETURN_NONE;
+}
+
 /* register FE base */
 static PyObject* lng_REGISTER_BASE (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -11033,6 +11135,7 @@ static PyMethodDef lng_methods [] =
   {"DURATION", (PyCFunction)lng_DURATION, METH_VARARGS|METH_KEYWORDS, "Get analysis duration"},
   {"RENDER", (PyCFunction)lng_RENDER, METH_VARARGS|METH_KEYWORDS, "Render bodies"},
   {"XDMF_EXPORT", (PyCFunction)lng_XDMF_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export results in XDMF format"},
+  {"SOLFEC_EXPORT", (PyCFunction)lng_SOLFEC_EXPORT, METH_VARARGS|METH_KEYWORDS, "Export results in native format"},
   {"REGISTER_BASE", (PyCFunction)lng_REGISTER_BASE, METH_VARARGS|METH_KEYWORDS, "Register FE base"},
   {"COROTATED_DISPLACEMENTS", (PyCFunction)lng_COROTATED_DISPLACEMENTS, METH_VARARGS|METH_KEYWORDS, "Extract snapshots of co-rotated FEM displacements"},
   {"RIGID_DISPLACEMENTS", (PyCFunction)lng_RIGID_DISPLACEMENTS, METH_VARARGS|METH_KEYWORDS, "Output six rigid body displacements of a FEM body"},
@@ -11293,6 +11396,7 @@ int lng (const char *path)
                      "from solfec import DURATION\n"
                      "from solfec import RENDER\n"
                      "from solfec import XDMF_EXPORT\n"
+                     "from solfec import SOLFEC_EXPORT\n"
                      "from solfec import REGISTER_BASE\n"
                      "from solfec import COROTATED_DISPLACEMENTS\n"
                      "from solfec import RIGID_DISPLACEMENTS\n"

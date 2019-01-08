@@ -106,6 +106,7 @@ OBJ =   $(EXTO)   \
 	obj/fem.o \
 	obj/bcd.o \
 	obj/xdmf.o \
+	obj/scxp.o \
         $(SICONO) \
 	$(OPENGLO) \
 	$(PARMECO)
@@ -379,6 +380,9 @@ obj/bcd.o: bcd.c bcd.h bod.h sol.h dom.h lng.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/xdmf.o: xdmf.c xdmf.h sol.h dom.h bod.h shp.h msh.h err.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+obj/scxp.o: scxp.c scxp.h sol.h dom.h bod.h shp.h msh.h err.h
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/dbs.o: dbs.c dbs.h ldy.h dom.h alg.h lap.h bla.h err.h
