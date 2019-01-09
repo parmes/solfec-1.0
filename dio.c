@@ -387,7 +387,9 @@ void dom_write_state (DOM *dom, PBF *bf, SET *subset)
 
   PBF_Label (bf, "IOVER");
 
-  PBF_Int (bf, &dom->solfec->iover, 1);
+  int iover  = ABS (dom->solfec->iover);
+
+  PBF_Int (bf, &iover, 1);
 #endif
 
   /* write time step */

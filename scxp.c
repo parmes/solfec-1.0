@@ -41,17 +41,9 @@ SOFTWARE.
 #include "scxp.h"
 
 /* mimicks sol.c:write_state */
-static void write_state (SOLFEC *sol, PBF *bf, int *init, SET *subset)
+static void write_state (SOLFEC *sol, PBF *bf, SET *subset)
 {
   PBF_Time (bf, &sol->dom->time);
-
-  if (*init == 0)
-  {
-    PBF_Label (bf, "IOVER");
-    int iover = ABS(sol->iover);
-    PBF_Int (bf, &iover, 1);
-    *init = 1;
-  }
 
   dom_write_state (sol->dom, bf, subset);
 
@@ -91,8 +83,6 @@ void solfec_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *sub
 
   printf ("SOLFEC_EXPORT --> starting ...\n");
 
-  int init = 0;
-
   if (ntimes < 0)
   {
     double start, end, t0, t1;
@@ -111,7 +101,7 @@ void solfec_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *sub
     {
       printf ("SOLFEC_EXPORT --> writing state at time %g ...\n", sol->dom->time);
 
-      write_state (sol, bf, &init, subset);
+      write_state (sol, bf, subset);
 
       printf ("SOLFEC_EXPORT --> moving to next time step ...\n");
 
@@ -129,14 +119,14 @@ void solfec_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *sub
 
       printf ("SOLFEC_EXPORT --> writing state at time %g ...\n", times[i]);
 
-      write_state (sol, bf, &init, subset);
+      write_state (sol, bf, subset);
     }
   }
   else
   {
     printf ("SOLFEC_EXPORT --> writing state at time 0 ...\n");
 
-    write_state (sol, bf, &init, subset);
+    write_state (sol, bf, subset);
   }
 
   PBF_Close (bf);
