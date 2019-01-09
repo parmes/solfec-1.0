@@ -48,11 +48,12 @@ static void write_state (SOLFEC *sol, PBF *bf, int *init, SET *subset)
   if (*init == 0)
   {
     PBF_Label (bf, "IOVER");
-    PBF_Int (bf, &sol->iover, 1);
+    int iover = ABS(sol->iover);
+    PBF_Int (bf, &iover, 1);
     *init = 1;
   }
 
-  dom_write_state (sol->dom, bf); /* TODO: subset */
+  dom_write_state (sol->dom, bf, subset);
 
   int numt = MAP_Size (sol->timers);
   PBF_Label (bf, "TIMERS");

@@ -15428,24 +15428,20 @@ attributes
 \begin_layout Subsection*
 SOLFEC_EXPORT (solfec, time, path | subset) 
 \color red
-(Under development)
+(Experimental)
 \end_layout
 
 \begin_layout Standard
-Export results in Solfec format.
+Export results in Solfec native format.
  In 'WRITE' mode only the geometry at time 
 \begin_inset Formula $t=0$
 \end_inset
 
- is saved, while arguments 
+ is saved, while the argument 
 \emph on
 time
 \emph default
- and 
-\emph on
-attributes
-\emph default
- are ignored.
+ is ignored.
 \end_layout
 
 \begin_layout Itemize

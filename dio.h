@@ -12,7 +12,7 @@
 #define __dio__
 
 /* write domain state */
-void dom_write_state (DOM *dom, PBF *bf);
+void dom_write_state (DOM *dom, PBF *bf, SET *subset);
 
 /* read domain state */
 void dom_read_state (DOM *dom, PBF *bf);

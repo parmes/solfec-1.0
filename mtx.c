@@ -160,7 +160,7 @@ static int prepare_matrix (PREPOP op, MX *b, unsigned short kind, int nzmax, int
   MX *B;
 
   /* if the values of the input matrix are to be and can really be coppied: prepare a copy */
-  if (op == PREP_COPY && b->kind != kind && b->m == m && b->n == b->n && b->nzmax <= nzmax)
+  if (op == PREP_COPY && b->kind != kind && b->m == m && b->n == n && b->nzmax <= nzmax)
   {
     ASSERT_DEBUG (b->kind != MXBD && kind != MXBD, "Invalid prepare_copy call (to or from MXBD)");
     B = copy_matrix (b, NULL);

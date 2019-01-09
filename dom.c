@@ -3932,7 +3932,7 @@ void DOM_Pending_Body_Remove (DOM *dom, BODY *bod)
 /* write domain state */
 void DOM_Write_State (DOM *dom, PBF *bf)
 {
-  dom_write_state (dom, bf);
+  dom_write_state (dom, bf, NULL);
 }
 
 /* read domain state */

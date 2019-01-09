@@ -376,7 +376,7 @@ static void read_new_bodies (DOM *dom, PBF *bf)
 }
 
 /* write domain state */
-void dom_write_state (DOM *dom, PBF *bf)
+void dom_write_state (DOM *dom, PBF *bf, SET *subset)
 {
   /* mark domain output */
 
@@ -412,10 +412,18 @@ void dom_write_state (DOM *dom, PBF *bf)
 
   PBF_Label (bf, "BODS");
 
-  PBF_Int (bf, &dom->nbod, 1);
+  if (subset)
+  {
+    int nbod = SET_Size (subset);
+
+    PBF_Int (bf, &nbod, 1);
+  }
+  else PBF_Int (bf, &dom->nbod, 1);
 
   for (BODY *bod = dom->bod; bod; bod = bod->next)
   {
+    if (subset && !SET_Find (subset, (void*) (long) bod->id, NULL)) continue;
+
     PBF_Uint (bf, &bod->id, 1);
 
     if (bod->label) PBF_Label (bf, bod->label); /* label body record for fast access */
@@ -426,11 +434,34 @@ void dom_write_state (DOM *dom, PBF *bf)
   /* write constraints */
 
   PBF_Label (bf, "CONS");
- 
-  PBF_Int (bf, &dom->ncon, 1);
+
+  if (subset)
+  {
+    int ncon = 0;
+
+    for (CON *con = dom->con; con; con = con->next)
+    {
+      if (subset)
+      {
+	if (!SET_Find (subset, (void*) (long) con->master->id, NULL)) continue;
+	if (con->slave && !SET_Find (subset, (void*) (long) con->slave->id, NULL)) continue;
+      }
+
+      ncon ++;
+    }
+
+    PBF_Int (bf, &ncon, 1);
+  }
+  else PBF_Int (bf, &dom->ncon, 1);
 
   for (CON *con = dom->con; con; con = con->next)
   {
+    if (subset)
+    {
+      if (!SET_Find (subset, (void*) (long) con->master->id, NULL)) continue;
+      if (con->slave && !SET_Find (subset, (void*) (long) con->slave->id, NULL)) continue;
+    }
+
     write_constraint (con, bf);
   }
 }
