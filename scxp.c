@@ -40,6 +40,34 @@ SOFTWARE.
 #include "err.h"
 #include "scxp.h"
 
+/* mimicks sol.c:write_state */
+static void write_state (SOLFEC *sol, PBF *bf, int *init, SET *subset)
+{
+  PBF_Time (bf, &sol->dom->time);
+
+  if (*init == 0)
+  {
+    PBF_Label (bf, "IOVER");
+    PBF_Int (bf, &sol->iover, 1);
+    *init = 1;
+  }
+
+  dom_write_state (sol->dom, bf); /* TODO: subset */
+
+  int numt = MAP_Size (sol->timers);
+  PBF_Label (bf, "TIMERS");
+  PBF_Int (bf, &numt, 1);
+  
+  for (MAP *item = MAP_First (sol->timers); item; item = MAP_Next (item))
+  {
+    TIMING *t = item->data;
+
+    PBF_Label (bf, item->key);
+    PBF_Double (bf, &t->total, 1);
+    PBF_String (bf, (char**) &item->key);
+  }
+}
+
 /* Export results in XDMF format;
  * ntimes > 0 --> number of individual time instances;
  * ntimes < 0 --> a time interval from times[0] to times[1];
@@ -62,6 +90,8 @@ void solfec_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *sub
 
   printf ("SOLFEC_EXPORT --> starting ...\n");
 
+  int init = 0;
+
   if (ntimes < 0)
   {
     double start, end, t0, t1;
@@ -80,9 +110,7 @@ void solfec_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *sub
     {
       printf ("SOLFEC_EXPORT --> writing state at time %g ...\n", sol->dom->time);
 
-      PBF_Time (bf, &sol->dom->time);
-
-      dom_write_state (sol->dom, bf); /* TODO: subset */
+      write_state (sol, bf, &init, subset);
 
       printf ("SOLFEC_EXPORT --> moving to next time step ...\n");
 
@@ -100,18 +128,14 @@ void solfec_export (SOLFEC *sol, double *times, int ntimes, char *path, SET *sub
 
       printf ("SOLFEC_EXPORT --> writing state at time %g ...\n", times[i]);
 
-      PBF_Time (bf, &sol->dom->time);
-
-      dom_write_state (sol->dom, bf); /* TODO: subset */
+      write_state (sol, bf, &init, subset);
     }
   }
   else
   {
     printf ("SOLFEC_EXPORT --> writing state at time 0 ...\n");
 
-    PBF_Time (bf, &sol->dom->time);
-
-    dom_write_state (sol->dom, bf); /* TODO: subset */
+    write_state (sol, bf, &init, subset);
   }
 
   PBF_Close (bf);
