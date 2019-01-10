@@ -56,6 +56,8 @@ struct value_source
   ELEPNT *epn;
 
   double *pnt;
+
+  int node_index;
 };
 
 typedef struct cut_data CUT_DATA;
@@ -342,6 +344,8 @@ static char picked_body_tip [PICKED_BODY_TIP_LEN];
 
 static double *picked_point = NULL, /* currently picked point */
 	      *picked_point_hist [2] = {NULL, NULL}; /* history of picked points */
+static int picked_node_index = -1, /* picked mesh node index */
+           picked_node_index_hist [2] = {-1, -1}; /* history of node indices */
 
 static double arrow_factor = 0.05; /* arrow drawing constant */
 
@@ -773,8 +777,9 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 {
   double **vsr, **nsr, **lsr, **vvs, **end, *pla, *val;
   GLfloat *ver, *v, *nor, *n, *col, *c, *lin, *l;
+  struct auxpair {CONVEX *cvx; int idx;};
+  MEM pairmem, mapmem, setmem, auxmem;
   MAP *fmap, *emap, *vmap, *jtem;
-  MEM pairmem, mapmem, setmem;
   VALUE_SOURCE *source;
   POINTER_PAIR *pair;
   SET *lset, *item;
@@ -790,6 +795,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
   ERRMEM (data = MEM_CALLOC (sizeof (BODY_DATA)));
   if (wireframe) data->flags |= WIREFRAME;
 
+  MEM_Init (&auxmem, sizeof (struct auxpair), CHUNK);
   MEM_Init (&pairmem, sizeof (POINTER_PAIR), CHUNK);
   MEM_Init (&mapmem, sizeof (MAP), CHUNK);
   MEM_Init (&setmem, sizeof (SET), CHUNK);
@@ -808,7 +814,16 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
       {
 	data->triangles_count += (fac->type - 2);
 
-	for (i = 0; i < fac->type; i ++) MAP_Insert (&mapmem, &vmap, &msh->cur_nodes [fac->nodes [i]][0], NULL, NULL);
+	for (i = 0; i < fac->type; i ++) 
+	{
+	  if (!MAP_Find(vmap, &msh->cur_nodes [fac->nodes [i]][0], NULL))
+	  {
+	    struct auxpair *pair = MEM_Alloc (&auxmem);
+	    pair->cvx = NULL;
+	    pair->idx = fac->nodes[i];
+	    MAP_Insert (&mapmem, &vmap, &msh->cur_nodes [fac->nodes [i]][0], pair, NULL);
+	  }
+	}
 
 	for (i = 0; i < fac->type - 1; i ++)
 	  register_line (&pairmem, &setmem, &lset, &msh->cur_nodes [fac->nodes [i]][0], &msh->cur_nodes[fac->nodes [i+1]][0]);
@@ -822,7 +837,16 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	{
 	  data->triangles_count += (f[0] - 2);
 
-	  for (i = 1; i <= f[0]; i ++) MAP_Insert (&mapmem, &vmap, &cvx->cur [f[i]], cvx, NULL);
+	  for (i = 1; i <= f[0]; i ++)
+	  {
+	    if (!MAP_Find (vmap, &cvx->cur [f[i]], NULL))
+	    {
+	      struct auxpair *pair = MEM_Alloc (&auxmem);
+	      pair->cvx = cvx;
+	      pair->idx = f[i];
+	      MAP_Insert (&mapmem, &vmap, &cvx->cur [f[i]], pair, NULL);
+	    }
+	  }
 
 	  for (i = 1; i <= f[0]-1; i ++)
 	    register_line (&pairmem, &setmem, &lset, &cvx->cur [f[i]], &cvx->cur [f[i+1]]);
@@ -880,11 +904,15 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 
     for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))
     {
+      struct auxpair *pair = jtem->data;
+
       if (bod->msh)
       {
-	cvx = jtem->data; /* must have been mapped to a convex */
+	cvx = pair->cvx; /* must have been mapped to a convex */
 	source->epn = &cvx->epn [((double*)jtem->key - cvx->cur) / 3]; /* extract ELEPNT */
+	source->node_index = pair->idx; /* convex node index */
       }
+      else source->node_index = pair->idx; /* mesh or convex node index */
 
       source->pnt = jtem->key; /* needed for both scalar field rendering and point picking */
 
@@ -1068,11 +1096,15 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 
     for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))
     {
+      struct auxpair *pair = jtem->data;
+
       if (bod->msh)
       {
-	cvx = jtem->data; /* must have been mapped to a convex */
+	cvx = pair->cvx; /* must have been mapped to a convex */
 	source->epn = &cvx->epn [((double*)jtem->key - cvx->cur) / 3]; /* extract ELEPNT */
+	source->node_index = pair->idx; /* comvex node index */
       }
+      else source->node_index = pair->idx; /* mesh or convex node index */
 
       source->pnt = jtem->key; /* needed for both scalar field rendering and point picking */
 
@@ -1136,6 +1168,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 #endif
   }
 
+  MEM_Release (&auxmem);
   MEM_Release (&setmem);
   MEM_Release (&mapmem);
   MEM_Release (&pairmem);
@@ -3557,7 +3590,7 @@ static BODY* pick_body (int x, int y)
 }
 
 /* pick one point using 2D selection */
-static double* pick_point (int x, int y)
+static double* pick_point (int x, int y, int *picked_node_index)
 {
   unsigned char pix [4];
   GLint viewport [4];
@@ -3573,6 +3606,7 @@ static double* pick_point (int x, int y)
   glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
 
   bod = MAP_Find (domain->idb, (void*) (long) rgbatoid (pix), NULL);
+  *picked_node_index = -1;
   point = NULL;
 
   if (bod)
@@ -3585,7 +3619,11 @@ static double* pick_point (int x, int y)
     glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
     BODY_DATA *data = bod->rendering;
     int i = rgbatoid (pix);
-    if (i > 0 && i <= data->values_count) point = data->value_sources [i-1].pnt;
+    if (i > 0 && i <= data->values_count) 
+    {
+      point = data->value_sources [i-1].pnt;
+      *picked_node_index = data->value_sources[i-1].node_index;
+    }
   }
 
   return point;
@@ -3626,6 +3664,9 @@ static int modes_off ()
   picked_point = NULL;
   picked_point_hist [0] = NULL;
   picked_point_hist [1] = NULL;
+  picked_node_index = -1;
+  picked_node_index_hist [0] = -1;
+  picked_node_index_hist [1] = -1;
   GLV_Rectangle_Off ();
   GLV_Release_Mouse ();
   update ();
@@ -4561,7 +4602,7 @@ void RND_Mouse (int button, int state, int x, int y)
 	switch (tool_mode)
 	{
 	case TOOLS_POINTS_COORDS:
-	  printf ("POINT: %g, %g, %g\n", picked_point [0], picked_point [1], picked_point [2]);
+	  printf ("POINT: [%g, %g, %g] (node %d)\n", picked_point [0], picked_point [1], picked_point [2], picked_node_index);
 	  break;
 	case TOOLS_POINTS_DISTANCE:
 	  if (picked_point_hist [0])
@@ -4571,15 +4612,21 @@ void RND_Mouse (int button, int state, int x, int y)
 	    SUB (picked_point_hist [0], picked_point, d);
 	    len = LEN (d);
 
-	    printf ("DISTANCE from [%g, %g, %g] to [%g, %g, %g]: %g\n",
-	      picked_point_hist [0][0], picked_point_hist [0][1], picked_point_hist [0][2], 
-	      picked_point [0], picked_point [1], picked_point [2], len);
+	    printf ("DISTANCE from [%g, %g, %g] (node %d) to [%g, %g, %g] (node %d): %g\n",
+	      picked_point_hist [0][0], picked_point_hist [0][1], picked_point_hist [0][2],
+	      picked_node_index_hist[0], picked_point [0], picked_point [1], picked_point [2],
+	      picked_node_index, len);
 
 	    picked_point_hist [0] = NULL;
+	    picked_node_index_hist [0] = -1;
 
 	    GLV_Redraw_All ();
 	  }
-	  else picked_point_hist [0] = picked_point;
+	  else 
+	  {
+	    picked_point_hist [0] = picked_point;
+	    picked_node_index_hist [0] = picked_node_index;
+	  }
 	  break;
 	case TOOLS_POINTS_ANGLE:
 	  if (picked_point_hist [0] && picked_point_hist [1])
@@ -4594,15 +4641,19 @@ void RND_Mouse (int button, int state, int x, int y)
 	    {
 	      angle = 180.0 * acos (DOT (d0, d1) / (l0*l1)) / ALG_PI;
 
-	      printf ("ANGLE between [%g, %g, %g] and [%g, %g, %g] and [%g, %g, %g]: %g\n",
+	      printf ("ANGLE between [%g, %g, %g] (node %d) and [%g, %g, %g] (node %d) and [%g, %g, %g] (node %d): %g\n",
 		picked_point_hist [0][0], picked_point_hist [0][1], picked_point_hist [0][2], 
+		picked_node_index_hist [0],
 		picked_point_hist [1][0], picked_point_hist [1][1], picked_point_hist [1][2], 
-		picked_point [0], picked_point [1], picked_point [2], angle);
+		picked_node_index_hist [1],
+		picked_point [0], picked_point [1], picked_point [2], picked_node_index, angle);
 	    }
 	    else printf ("Coincident points has been picked. Try again.\n");
 
 	    picked_point_hist [0] = NULL;
 	    picked_point_hist [1] = NULL;
+	    picked_node_index_hist [0] = -1;
+	    picked_node_index_hist [1] = -1;
 
 	    GLV_Redraw_All ();
 	  }
@@ -4610,6 +4661,8 @@ void RND_Mouse (int button, int state, int x, int y)
 	  {
 	    picked_point_hist [1] = picked_point_hist [0];
 	    picked_point_hist [0] = picked_point;
+	    picked_node_index_hist[1] = picked_node_index_hist[0];
+	    picked_node_index_hist[0] = picked_node_index;
 	  }
 	  break;
 	case TOOLS_TRACKBALL_CENTER:
@@ -4673,7 +4726,7 @@ void RND_Passive (int x, int y)
   }
   else if (mouse_mode == MOUSE_PICK_POINT)
   {
-    picked_point = pick_point (x, y);
+    picked_point = pick_point (x, y, &picked_node_index);
 
     GLV_Redraw_All ();
   }
