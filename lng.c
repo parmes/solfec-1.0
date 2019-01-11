@@ -4111,6 +4111,8 @@ static PyObject* lng_TIME_SERIES_get_derivative (lng_TIME_SERIES *self, void *cl
 
   out = (lng_TIME_SERIES*)lng_TIME_SERIES_TYPE.tp_alloc (&lng_TIME_SERIES_TYPE, 0);
 
+  WARNING (self->ts->label == NULL, "Derivatives of labeled time series are themselves unlabeled.");
+
   out->ts = TMS_Derivative  (self->ts);
 
   return (PyObject*)out;
@@ -4133,6 +4135,8 @@ static PyObject* lng_TIME_SERIES_get_integral (lng_TIME_SERIES *self, void *clos
     PyErr_SetString (PyExc_ValueError, "Integral of partially cached time series objects is not supported");
     return NULL;
   }
+
+  WARNING (self->ts->label == NULL, "Integrals of labeled time series are themselves unlabeled.");
 
   out->ts = TMS_Integral (self->ts);
 
@@ -6644,6 +6648,9 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
     d [0] = PyFloat_AsDouble (PyTuple_GetItem (direction, 0));
     d [1] = PyFloat_AsDouble (PyTuple_GetItem (direction, 1));
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
+
+    WARNING (tms->ts->label == NULL, "\nSET_DISPLACEMENT computes an unlableled derivative of the input time series."
+                                     "\nYou can use SET_VELOCITY if you would like to use a labeled time series.\n");
 
     if (!(out->con = DOM_Set_Velocity (body->bod->dom, body->bod, p, d, TMS_Derivative (tms->ts))))
     {

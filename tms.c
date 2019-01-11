@@ -133,6 +133,7 @@ static double linterp (double (*point) [2], double time)
   return point[0][1] + (point[1][1]-point[0][1]) * (dt / (point[1][0] - point[0][0]));
 }
 
+#if 0
 static TMS* bylabel (char *label)
 {
   if (label)
@@ -141,6 +142,7 @@ static TMS* bylabel (char *label)
   }
   else return NULL;
 }
+#endif
 
 static void addlabel (TMS *ts, char *label)
 {
@@ -380,54 +382,36 @@ TMS* TMS_Integral (TMS *ts)
   double (*pin) [2],
 	 (*pout) [2];
   TMS *out;
-  char *lb;
   int n;
 
   ASSERT_TEXT (ts->path == NULL, "Integral of partially cached time series objects is not supported");
 
-  if (ts->label)
+  ASSERT (ts->size > 1, ERR_TMS_INTEGRATE_CONSTANT);
+  ERRMEM (out = malloc (sizeof (TMS)));
+  out->size = ts->size;
+
+  if (out->size == 2)
   {
-    ERRMEM (lb = malloc (sizeof(ts->label)+3));
-    sprintf (lb, "%s_i", ts->label);
-  }
-  else lb = NULL;
- 
-  if (!(out = bylabel (lb)))
-  {
-    ASSERT (ts->size > 1, ERR_TMS_INTEGRATE_CONSTANT);
-    ERRMEM (out = malloc (sizeof (TMS)));
-    out->size = ts->size;
-
-    if (out->size == 2)
-    {
-      free (out);
-      return TMS_Constant ((ts->points[1][0] - ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]), NULL);
-    }
-
-    ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
-
-    out->marker = 0;
-    pin = ts->points;
-    pout = out->points;
-
-    pout [0][0] = pin[0][0];
-    pout [0][1] = 0.0;
-
-    for (n = 1; n < out->size; n ++)
-    {
-      pout [n][0] = pin [n][0];
-      pout [n][1] = pout [n-1][1] + (pin[n][0] - pin[n-1][0]) * 0.5 * (pin[n-1][1] + pin[n][1]);
-    }
-
-    if (ts->label)
-    {
-      addlabel (out, lb);
-    }
-    else out->label = NULL;
+    free (out);
+    return TMS_Constant ((ts->points[1][0] - ts->points[0][0]) * 0.5 *  (ts->points[0][1] + ts->points[1][1]), NULL);
   }
 
-  if (lb) free (lb);
+  ERRMEM (out->points = MEM_CALLOC (sizeof (double [2]) * out->size));
 
+  out->marker = 0;
+  pin = ts->points;
+  pout = out->points;
+
+  pout [0][0] = pin[0][0];
+  pout [0][1] = 0.0;
+
+  for (n = 1; n < out->size; n ++)
+  {
+    pout [n][0] = pin [n][0];
+    pout [n][1] = pout [n-1][1] + (pin[n][0] - pin[n-1][0]) * 0.5 * (pin[n-1][1] + pin[n][1]);
+  }
+
+  out->label = NULL;
   out->cache = 0;
   out->path = NULL; /* not partially cached */
   out->offset = NULL;
@@ -441,36 +425,19 @@ TMS* TMS_Integral (TMS *ts)
 TMS* TMS_Derivative (TMS *ts)
 {
   TMS *out;
-  char *lb;
 
-  if (ts->label)
+  if (ts->size == 0) return TMS_Constant (0.0, NULL);
+
+  if (ts->size == 1)
   {
-    ERRMEM (lb = malloc (strlen(ts->label)+3));
-    sprintf (lb, "%s_d", ts->label);
-  }
-  else lb = NULL;
- 
-  if (!(out = bylabel (lb)))
-  {
-    if (ts->size == 0) return TMS_Constant (0.0, NULL);
-
-    if (ts->size == 1)
-    {
-      return TMS_Constant ((ts->points[1][1] - ts->points[0][1])/(ts->points[1][0] - ts->points[0][0]), NULL);
-    }
-
-    out = hardcopy (ts);
-
-    applyderivative (out);
-
-    if (ts->label)
-    {
-      addlabel (out, lb);
-    }
-    else out->label = NULL;
+    return TMS_Constant ((ts->points[1][1] - ts->points[0][1])/(ts->points[1][0] - ts->points[0][0]), NULL);
   }
 
-  if (lb) free (lb);
+  out = hardcopy (ts);
+
+  applyderivative (out);
+
+  out->label = NULL;
 
   if (out->cache) out->op = 1; /* partially cached derivative */
 
