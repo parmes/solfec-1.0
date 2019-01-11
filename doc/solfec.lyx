@@ -9568,7 +9568,16 @@ label
  - optional label string; if a label is provided than the TIME_SERIES object
  is stored in memory just once; this facilitates more optimal memory usage
  in cases where many identical TIME_SERIES objects are used in multiple
- constraints (for example); the label should be unique
+ constraints (for example); the label should be unique; 
+\series bold
+Note:
+\series default
+ labeled time series should be declared globally on all MPI ranks and must
+ not be defined within 
+\series bold
+if
+\series default
+ blocks dependent on the HERE(...) command
 \end_layout
 
 \begin_layout Itemize
