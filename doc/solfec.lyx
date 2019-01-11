@@ -7157,6 +7157,17 @@ t
  is time.
  The function should return a numeric value of the scalar field at given
  point and instant of time.
+ See also: 
+\begin_inset CommandInset ref
+LatexCommand nameref
+reference "subsec:REGISTER_CALLBACK"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -9876,7 +9887,18 @@ callback
 \emph on
 value = callback (obj, data)
 \emph default
-, where for the returned value equal zero Solfec run is stopped
+, where for the returned value equal zero Solfec run is stopped; See also:
+ 
+\begin_inset CommandInset ref
+LatexCommand nameref
+reference "subsec:REGISTER_CALLBACK"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Standard
@@ -11742,7 +11764,17 @@ velocity
 
 
 \emph default
- (positive if stroke increases).
+ (positive if stroke increases); See also: 
+\begin_inset CommandInset ref
+LatexCommand nameref
+reference "subsec:REGISTER_CALLBACK"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Itemize
@@ -12322,6 +12354,17 @@ force
 u
 \series default
  (power conjugate to it).
+ See also: 
+\begin_inset CommandInset ref
+LatexCommand nameref
+reference "subsec:REGISTER_CALLBACK"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+
 \end_layout
 
 \end_inset
@@ -13019,6 +13062,41 @@ extents
 \begin_layout Subsection*
 \begin_inset CommandInset label
 LatexCommand label
+name "subsec:REGISTER_CALLBACK"
+
+\end_inset
+
+REGISTER_CALLBACK (callback | data)
+\end_layout
+
+\begin_layout Standard
+This routine registers a Python callback later used by Solfec.
+ All callback and data pairs must be registered in the same order on all
+ MPI ranks, when Solfec is run in parallel.
+ This function is ignored in sequential mode.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+callback
+\series default
+ - callback function of form: 
+\emph on
+value = callback (data)
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+data
+\series default
+ - data passed to the callback function
+\end_layout
+
+\begin_layout Subsection*
+\begin_inset CommandInset label
+LatexCommand label
 name "subsec:CALLBACK"
 
 \end_inset
@@ -13069,7 +13147,18 @@ callback
 \emph on
 value = callback (data)
 \emph default
-, where for the returned value equal zero Solfec run is stopped
+, where for the returned value equal zero Solfec run is stopped; See also:
+ 
+\begin_inset CommandInset ref
+LatexCommand nameref
+reference "subsec:REGISTER_CALLBACK"
+plural "false"
+caps "false"
+noprefix "false"
+
+\end_inset
+
+
 \end_layout
 
 \begin_layout Subsection*

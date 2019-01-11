@@ -4286,7 +4286,15 @@ static PyObject* lng_GAUSS_SEIDEL_SOLVER_new (PyTypeObject *type, PyObject *args
 	  return NULL;
 	}
 
+#if MPI
+        if (lngcallback_id (self->data, self->callback) == 0)
+	{
+	  PyErr_SetString (PyExc_ValueError, "You must REGISTER_CALLBACK before parallel use");
+	  return NULL;
+	}
+#else
 	callback_pair_push (self->data, self->callback);
+#endif
 	gsfail = GS_FAILURE_CALLBACK;
       }
       ELSE
@@ -6973,7 +6981,16 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
     }
     else out->id = out->con->id;
 
+#if MPI
+    if (lngcallback_id (NULL, function) == 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "You must REGISTER_CALLBACK before parallel use");
+      return NULL;
+    }
+#else
     callback_pair_push (NULL, function); /* store callback on stack */
+#endif
+
 #if MPI
     }
     else /* both bodies passed */
@@ -6990,7 +7007,15 @@ static PyObject* lng_PUT_SPRING (PyObject *self, PyObject *args, PyObject *kwds)
 	return NULL;
       }
 
+#if MPI
+      if (lngcallback_id (NULL, function) == 0)
+      {
+	PyErr_SetString (PyExc_ValueError, "You must REGISTER_CALLBACK before parallel use");
+	return NULL;
+      }
+#else
       callback_pair_push (NULL, function); /* store callback on stack */
+#endif
     }
 #endif
   }
@@ -7156,7 +7181,15 @@ static PyObject* lng_FORCE (PyObject *self, PyObject *args, PyObject *kwds)
     ts = (TMS*) data;
     call = value;
     func = (FORCE_FUNC) lng_FORCE_callback;
+#if MPI
+    if (lngcallback_id (data, value) == 0)
+    {
+      PyErr_SetString (PyExc_ValueError, "You must REGISTER_CALLBACK before parallel use");
+      return NULL;
+    }
+#else
     callback_pair_push (data, value);
+#endif
   }
   else ts = TMS_Copy (((lng_TIME_SERIES*)value)->ts);
 
@@ -8881,6 +8914,25 @@ static int lng_CALLBACK_callback (SOLFEC *sol, PyObject *data, PyObject *callbac
   return ret;
 }
 
+/* register callback and data pair for parallel runs */
+static PyObject* lng_REGISTER_CALLBACK (PyObject *self, PyObject *args, PyObject *kwds)
+{
+#if MPI
+  KEYWORDS ("callback", "data");
+  PyObject *callback, *data;
+
+  data = NULL;
+
+  PARSEKEYS ("O|O", &callback, &data);
+
+  TYPETEST (is_callable (callback, kwl[0]));
+
+  callback_pair_push (data, callback);
+#endif
+
+  Py_RETURN_NONE;
+}
+
 /* set analysis callback */
 static PyObject* lng_CALLBACK (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -8899,7 +8951,15 @@ static PyObject* lng_CALLBACK (PyObject *self, PyObject *args, PyObject *kwds)
   if (solfec->sol->mode == SOLFEC_READ) Py_RETURN_NONE; /* skip READ mode */
 
   SOLFEC_Set_Callback (solfec->sol, interval, data, callback, (SOLFEC_Callback) lng_CALLBACK_callback);
+#if MPI
+  if (lngcallback_id (data, callback) == 0)
+  {
+    PyErr_SetString (PyExc_ValueError, "You must REGISTER_CALLBACK before parallel use");
+    return NULL;
+  }
+#else
   callback_pair_push (data, callback);
+#endif
 
   Py_RETURN_NONE;
 }
@@ -11125,6 +11185,7 @@ static PyMethodDef lng_methods [] =
   {"RUN", (PyCFunction)lng_RUN, METH_VARARGS|METH_KEYWORDS, "Run analysis"},
   {"OUTPUT", (PyCFunction)lng_OUTPUT, METH_VARARGS|METH_KEYWORDS, "Set data output interval"},
   {"EXTENTS", (PyCFunction)lng_EXTENTS, METH_VARARGS|METH_KEYWORDS, "Set scene extents"},
+  {"REGISTER_CALLBACK", (PyCFunction)lng_REGISTER_CALLBACK, METH_VARARGS|METH_KEYWORDS, "Register callback and data pair"},
   {"CALLBACK", (PyCFunction)lng_CALLBACK, METH_VARARGS|METH_KEYWORDS, "Set analysis callback"},
   {"UNPHYSICAL_PENETRATION", (PyCFunction)lng_UNPHYSICAL_PENETRATION, METH_VARARGS|METH_KEYWORDS, "Set unphysical penetration bound"},
   {"GEOMETRIC_EPSILON", (PyCFunction)lng_GEOMETRIC_EPSILON, METH_VARARGS|METH_KEYWORDS, "Set geometric epsilon"},
@@ -11386,6 +11447,7 @@ int lng (const char *path)
                      "from solfec import RUN\n"
                      "from solfec import OUTPUT\n"
                      "from solfec import EXTENTS\n"
+                     "from solfec import REGISTER_CALLBACK\n"
                      "from solfec import CALLBACK\n"
                      "from solfec import UNPHYSICAL_PENETRATION\n"
                      "from solfec import GEOMETRIC_EPSILON\n"
