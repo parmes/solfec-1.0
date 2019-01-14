@@ -78,7 +78,7 @@ endif
 
 ifeq ($(DEBUG),yes)
   DBG = yes
-  DEBUG =  -W -Wall -Wno-unused-parameter -pedantic -g -DDEBUG
+  DEBUG =  -W -Wall -Wno-unused-parameter -g -DDEBUG
   ifeq ($(PROFILE),yes)
     PROFILE = -p
   else
@@ -101,7 +101,7 @@ ifeq ($(DEBUG),yes)
   endif
 else
   DBG = no
-  DEBUG =  -w -pedantic -O3 -funroll-loops
+  DEBUG =  -w -O3 -funroll-loops
   PROFILE =
   MEMDEBUG =
   GEOMDEBUG =
