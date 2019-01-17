@@ -40,6 +40,10 @@ BLOPEXINC = -Iext/blopex/include
 CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG) $(TIMERS) $(HDF5) $(XDRINC)
 CXXFLAGS = $(DEBUG) $(PROFILE) $(NOTHROW) $(MEMDEBUG) $(GEOMDEBUG)
 
+ifeq ($(FLTK),yes)
+GLLIB = $(FLLIB)
+endif
+
 LIB = -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(FCLIB) $(MUMPS) $(SICONOSLIB) $(PARMECLIB)
 
 ifeq ($(MPI),yes)
@@ -399,14 +403,22 @@ obj/sol.o: sol.c sol.h lng.h dom.h box.h sps.h cvx.h sph.h msh.h shp.h err.h alg
 
 # OPENGL
 
+ifeq ($(FLTK),yes)
+obj/glv.o: glv.c glv.h bmp.h err.h
+	$(CXX) $(CFLAGS) -DFLTK $(FLINC) -Wno-write-strings -Wno-cast-function-type -c -o $@ $<
+
+obj/rnd.o: rnd.c rnd.h alg.h dom.h shp.h cvx.h msh.h sph.h err.h
+	$(CXX) $(CFLAGS) $(OS) $(PYTHON) -DFLTK $(FLINC) -Wno-write-strings -Wno-cast-function-type -c -o $@ $<
+else
 obj/glv.o: glv.c glv.h bmp.h err.h
 	$(CC) $(CFLAGS) $(OPENGL) -c -o $@ $<
 
-obj/bmp.o: bmp.c bmp.h
-	$(CC) $(CFLAGS) -c -o $@ $<
-
 obj/rnd.o: rnd.c rnd.h alg.h dom.h shp.h cvx.h msh.h sph.h err.h
 	$(CC) $(CFLAGS) $(OS) $(PYTHON) $(OPENGL) -c -o $@ $<
+endif
+
+obj/bmp.o: bmp.c bmp.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 obj/gl2ps.o: ext/gl2ps.c ext/gl2ps.h
 	$(CC) $(CFLAGS) -c -o $@ $<

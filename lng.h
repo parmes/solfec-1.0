@@ -22,6 +22,10 @@
 #ifndef __lng__
 #define __lng__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 /* interpret an input file (return 0 on success) */
 int lng (const char *path);
 
@@ -47,5 +51,9 @@ void lng_xdecref (void *obj);
 
 /* append Python list with a list storing a vector of double precision numbers */
 void lng_append_list_with_list_of_doubles (void *list, double *vector, int length);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

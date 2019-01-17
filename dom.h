@@ -64,6 +64,13 @@ typedef struct domain DOM;
 #define STRENGTH(Z)     ((Z)[4])   /* tensile strength */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
 
+enum constraint_state
+     {CON_COHESIVE = 0x01,
+      CON_NEW      = 0x02,  /* newly inserted constraint */
+      CON_IDLOCK   = 0x04,  /* locked ID cannot be freed to the pool */
+      CON_EXTERNAL = 0x08,  /* a boundary constraint migrated in from another processor */
+      CON_DONE     = 0x10}; /* auxiliary flag used in several places */
+
 struct constraint
 {
   double R [3], /* average constraint reaction */
@@ -87,12 +94,7 @@ struct constraint
 
   enum {CONTACT = 0, FIXPNT, FIXDIR, VELODIR, RIGLNK, SPRING} kind; /* constraint kind */
 
-  enum {CON_COHESIVE = 0x01,
-        CON_NEW      = 0x02, /* newly inserted constraint */
-	CON_IDLOCK   = 0x04, /* locked ID cannot be freed to the pool */
-	CON_EXTERNAL = 0x08, /* a boundary constraint migrated in from another processor */
-        CON_DONE     = 0x10} /* auxiliary flag used in several places */
-        state;
+  int state; /* enum constraint_state */
 
   short paircode; /* geometric object pair code for a contact */
 
@@ -262,7 +264,7 @@ struct domain
   double mindist; /* minimal distance between contact points */
   double depth; /* unphisical interpenetration depth bound (negative) */
 
-  DOM_FLAGS flags; /* some flags */
+  int flags; /* DOM_FLAGS */
   short verbose; /* verbosity flag */
 
   double merit; /* most recent constraints satisfaction merit function value */

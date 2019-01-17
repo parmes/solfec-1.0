@@ -31,6 +31,10 @@ typedef struct box BOX;
 #ifndef __shp__
 #define __shp__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 typedef struct shape SHAPE; /* general shape */
 typedef struct shape_gobj_pair SGP; /* shape and geometric object pair */
 
@@ -168,5 +172,9 @@ SHAPE* SHAPE_Unpack (void *solfec, int *dpos, double *d, int doubles, int *ipos,
 
 /* export MBFCP definition */
 void SHAPE_2_MBFCP (SHAPE *shp, FILE *out);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

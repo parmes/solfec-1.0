@@ -26,6 +26,10 @@
 #ifndef __fem__
 #define __fem__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 /* some global macros */
 #define FEM_MESH(bod) ((bod)->msh ? (bod)->msh : ((MESH*)(bod)->shape->data))
 #define FEM_MATERIAL(bod, ele) ((ele)->mat ? (ele)->mat : (bod)->mat)
@@ -174,5 +178,9 @@ int FEM_Mesh_Volume_Integration_Points_Count (MESH *msh, int volume);
 /* get mesh volume integration points (referential coordinates);
  * volume == INT_MAX --> entire volume */
 void FEM_Mesh_Volume_Integration_Points_Get (MESH *msh, int volume, double *refpnt);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

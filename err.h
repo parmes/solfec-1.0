@@ -29,6 +29,10 @@
 #ifndef __err__
 #define __err__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 typedef struct errstack ERRSTACK;
 
 struct errstack /* error stack */
@@ -249,6 +253,10 @@ char* errstring (int error);
   }
 #else
   #define AUXDUMP(Path, ...)
+#endif
+
+#if __cplusplus
+} /* extern C */
 #endif
 
 #endif

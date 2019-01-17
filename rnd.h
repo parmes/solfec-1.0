@@ -24,6 +24,10 @@
 #ifndef __rnd__
 #define __rnd__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 /* functions below match
  * GLUT hooks from glv.h */
 int  RND_Menu (char ***names, int **codes);
@@ -53,4 +57,9 @@ void RND_Solver (DOM *dom, int kind, void *solver);
 void RND_Free_Rendering_Data (void *ptr);
 
 void select_id (SET *bodies);
+
+#if __cplusplus
+} /* extern C */
+#endif
+
 #endif

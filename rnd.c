@@ -19,11 +19,16 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if FLTK
+  #include <FL/glut.h>
+  #include <FL/glu.h>
+#else
 #if __APPLE__
   #include <GLUT/glut.h>
 #else
   #include <GL/glut.h>
   #include <GL/glext.h>
+#endif
 #endif
 #if POSIX
 #include <sys/stat.h>
@@ -49,6 +54,10 @@
 #include "fem.h"
 #include "err.h"
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 typedef struct value_source VALUE_SOURCE; /* vertex value source */
 
 struct value_source
@@ -64,7 +73,7 @@ typedef struct cut_data CUT_DATA;
 
 struct cut_data
 {
-  enum {EULER, LAGRANGE} kind;
+  enum cut_kind {EULER, LAGRANGE} kind;
 
   double point [3],
 	 normal [3];
@@ -89,12 +98,15 @@ struct cut_data
 
 typedef struct body_data BODY_DATA; /* body rendering data */
 
+enum body_flags 
+     {SEETHROUGH  = 0x01,   /* transparency flag */
+      HIDDEN      = 0x02,   /* hidden state */
+      ROUGH_MESH  = 0x04,   /* rough mesh rendering */
+      WIREFRAME   = 0x08};  /* wireframe mode */
+
 struct body_data
 {
-  enum {SEETHROUGH  = 0x01,         /* transparency flag */
-        HIDDEN      = 0x02,         /* hidden state */
-	ROUGH_MESH  = 0x04,         /* rough mesh rendering */
-        WIREFRAME   = 0x08} flags;  /* wireframe mode */
+  int flags;
 
 #if VBO
   GLuint triangles, /* VBO of triangle vertices, normals and colors */
@@ -378,7 +390,11 @@ static double global_extents [6] = {0, 0, 0, 1, 1, 1}; /* global scene extents *
 static short cut_sketch = 0; /* sketch cut plane */
 static double cut_point [3] = {0, 0, 0}; /* current cut point */
 static double cut_normal [3] = {0, 0, 1}; /* current cut normal */
+#if __cplusplus
+static cut_data::cut_kind cut_kind = cut_data::EULER; /* cut kind */
+#else
 static short cut_kind = EULER; /* cut kind */
+#endif
 static CUT_DATA *cuts = NULL; /* cuts through bodies */
 static SET *euler_cuts = NULL; /* points and normal of current Euler cuts */
 
@@ -405,7 +421,7 @@ static void menu_modal_analysis (int mode)
   if (SET_Prev (selection->set) == NULL &&
       SET_Next (selection->set) == NULL) /* just one body */
   {
-    BODY *bod = selection->set->data;
+    BODY *bod = (BODY*)selection->set->data;
     double *e = bod->extents, d [3], scale;
 
     SUB (e+3, e, d);
@@ -431,7 +447,7 @@ static void modal_analysis_results ()
   if (SET_Prev (selection->set) == NULL &&
       SET_Next (selection->set) == NULL) /* just one body */
   {
-    BODY *bod = selection->set->data;
+    BODY *bod = (BODY*)selection->set->data;
 
     if (bod->eval && bod->evec && modal_analysis_menu == 0)
     {
@@ -490,7 +506,7 @@ static void selection_init ()
     selection = prev;
   }
   
-  ERRMEM (selection = malloc (sizeof (SELECTION)));
+  ERRMEM (selection = (SELECTION*)malloc (sizeof (SELECTION)));
 
   for (selection->set = NULL, bod = domain->bod; bod; bod = bod->next) SET_Insert (&rndsetmem, &selection->set, bod, NULL);
 
@@ -504,7 +520,7 @@ static void selection_push (SET *set)
 {
   SELECTION *s;
 
-  ERRMEM (s = malloc (sizeof (SELECTION)));
+  ERRMEM (s = (SELECTION*)malloc (sizeof (SELECTION)));
   s->prev = selection;
   s->set = set;
 
@@ -663,14 +679,22 @@ static double point_value (BODY *bod, SHAPE *shp, void *gobj, double *X)
     return 0.0;
   }
 
+#if __cplusplus
+  if (bod->kind == BODY::FEM)
+#else
   if (bod->kind == FEM)
+#endif
   {
     ELEMENT *ele = NULL;
 
+#if __cplusplus
+    if (shp->kind == SHAPE::SHAPE_CONVEX) /* convices with background mesh */
+#else
     if (shp->kind == SHAPE_CONVEX) /* convices with background mesh */
+#endif
     {
+      CONVEX *cvx = (CONVEX*)gobj;
       MESH *msh = bod->msh;
-      CONVEX *cvx = gobj;
       double dist, d;
       int i;
 
@@ -694,7 +718,7 @@ static double point_value (BODY *bod, SHAPE *shp, void *gobj, double *X)
 	}
       }
     }
-    else ele = gobj;
+    else ele = (ELEMENT*)gobj;
 
     FEM_Point_Values (bod, ele, X, kind, values);
   }
@@ -751,7 +775,7 @@ static void register_line (MEM *pairmem, MEM *setmem, SET **lset, double *a, dou
 {
   POINTER_PAIR *pair;
 
-  ERRMEM (pair = MEM_Alloc (pairmem));
+  ERRMEM (pair = (POINTER_PAIR*)MEM_Alloc (pairmem));
 
   pair->one = (a < b ? a : b);
   pair->two = (a > b ? a : b);
@@ -792,7 +816,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
   MESH *msh;
   FACE *fac;
 
-  ERRMEM (data = MEM_CALLOC (sizeof (BODY_DATA)));
+  ERRMEM (data = (BODY_DATA*)MEM_CALLOC (sizeof (BODY_DATA)));
   if (wireframe) data->flags |= WIREFRAME;
 
   MEM_Init (&auxmem, sizeof (struct auxpair), CHUNK);
@@ -808,8 +832,12 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
   {
     switch (shp->kind)
     {
+#if __cplusplus
+    case SHAPE::SHAPE_MESH:
+#else
     case SHAPE_MESH:
-      msh = shp->data;
+#endif
+      msh = (MESH*)shp->data;
       for (fac = msh->faces; fac; fac = fac->n)
       {
 	data->triangles_count += (fac->type - 2);
@@ -818,7 +846,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	{
 	  if (!MAP_Find(vmap, &msh->cur_nodes [fac->nodes [i]][0], NULL))
 	  {
-	    struct auxpair *pair = MEM_Alloc (&auxmem);
+	    struct auxpair *pair = (struct auxpair*)MEM_Alloc (&auxmem);
 	    pair->cvx = NULL;
 	    pair->idx = fac->nodes[i];
 	    MAP_Insert (&mapmem, &vmap, &msh->cur_nodes [fac->nodes [i]][0], pair, NULL);
@@ -830,8 +858,12 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	register_line (&pairmem, &setmem, &lset, &msh->cur_nodes [fac->nodes [i]][0], &msh->cur_nodes [fac->nodes [0]][0]);
       }
       break;
+#if __cplusplus
+    case SHAPE::SHAPE_CONVEX:
+#else
     case SHAPE_CONVEX:
-      for (cvx = shp->data; cvx; cvx = cvx->next)
+#endif
+      for (cvx = (CONVEX*)shp->data; cvx; cvx = cvx->next)
       {
 	for (f = cvx->fac, j = 0; j < cvx->nfac; f += f[0]+1, j ++)
 	{
@@ -841,7 +873,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	  {
 	    if (!MAP_Find (vmap, &cvx->cur [f[i]], NULL))
 	    {
-	      struct auxpair *pair = MEM_Alloc (&auxmem);
+	      struct auxpair *pair = (struct auxpair*)MEM_Alloc (&auxmem);
 	      pair->cvx = cvx;
 	      pair->idx = f[i];
 	      MAP_Insert (&mapmem, &vmap, &cvx->cur [f[i]], pair, NULL);
@@ -854,22 +886,30 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	}
       }
       break;
+#if __cplusplus
+    case SHAPE::SHAPE_SPHERE:
+#else
     case SHAPE_SPHERE:
+#endif
       {
-        sph = shp->data;
+        sph = (SPHERE*)shp->data;
 	data->spheres_count ++;
 
-	ERRMEM (data->spheres = realloc (data->spheres, data->spheres_count * sizeof (SPHERE*)));
+	ERRMEM (data->spheres = (SPHERE**)realloc (data->spheres, data->spheres_count * sizeof (SPHERE*)));
 	j = (data->spheres_count - 1);
 	data->spheres [j] = sph;
       }
       break;
+#if __cplusplus
+    case SHAPE::SHAPE_ELLIP:
+#else
     case SHAPE_ELLIP:
+#endif
       {
-        eli = shp->data;
+        eli = (ELLIP*)shp->data;
 	data->ellips_count ++;
 
-	ERRMEM (data->ellips = realloc (data->ellips, data->ellips_count * sizeof (ELLIP*)));
+	ERRMEM (data->ellips = (ELLIP**)realloc (data->ellips, data->ellips_count * sizeof (ELLIP*)));
 	j = (data->ellips_count - 1);
 	data->ellips [j] = eli;
       }
@@ -880,9 +920,9 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
   if (wireframe)
   {
     data->lines_count = SET_Size (lset);
-    ERRMEM (lin = malloc (data->lines_count * sizeof (GLfloat) * 12));
+    ERRMEM (lin = (GLfloat*)malloc (data->lines_count * sizeof (GLfloat) * 12));
     col = lin + data->lines_count * 6;
-    ERRMEM (data->vertex_sources = malloc (data->lines_count * (sizeof (double) * 2) + data->lines_count * sizeof (double*) * 4));
+    ERRMEM (data->vertex_sources = (double**)malloc (data->lines_count * (sizeof (double) * 2) + data->lines_count * sizeof (double*) * 4));
     data->vertex_values = (double*) data->vertex_sources; /* here used for line vertex values */
     data->vertex_value_sources = (double**) (data->vertex_values + data->lines_count * 2);
     data->line_sources = data->vertex_value_sources + data->lines_count * 2;
@@ -893,18 +933,18 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 
     for (item = SET_First (lset), lsr = data->line_sources; item; item = SET_Next (item), lsr += 2)
     {
-      pair = item->data;
+      pair = (POINTER_PAIR*)item->data;
       lsr [0] = pair->one;
       lsr [1] = pair->two;
     }
 
     data->values_count = MAP_Size (vmap); /* number of unique vertices */
-    ERRMEM (data->values = MEM_CALLOC (data->values_count * sizeof (double)));
-    ERRMEM (data->value_sources = malloc (data->values_count * sizeof (VALUE_SOURCE)));
+    ERRMEM (data->values = (double*)MEM_CALLOC (data->values_count * sizeof (double)));
+    ERRMEM (data->value_sources = (VALUE_SOURCE*)malloc (data->values_count * sizeof (VALUE_SOURCE)));
 
     for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))
     {
-      struct auxpair *pair = jtem->data;
+      struct auxpair *pair = (struct auxpair*)jtem->data;
 
       if (bod->msh)
       {
@@ -914,7 +954,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
       }
       else source->node_index = pair->idx; /* mesh or convex node index */
 
-      source->pnt = jtem->key; /* needed for both scalar field rendering and point picking */
+      source->pnt = (double*)jtem->key; /* needed for both scalar field rendering and point picking */
 
       jtem->data = &data->values [source - data->value_sources]; /* map to source */
     }
@@ -923,8 +963,12 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
     {
       switch (shp->kind)
       {
+#if __cplusplus
+      case SHAPE::SHAPE_MESH:
+#else
       case SHAPE_MESH:
-	msh = shp->data;
+#endif
+	msh = (MESH*)shp->data;
 	for (fac = msh->faces; fac; fac = fac->n)
 	{
 	  for (i = 1; i < fac->type - 1; i ++)
@@ -941,8 +985,12 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	  }
 	}
 	break;
+#if __cplusplus
+      case SHAPE::SHAPE_CONVEX:
+#else
       case SHAPE_CONVEX:
-	for (cvx = shp->data; cvx; cvx = cvx->next)
+#endif
+	for (cvx = (CONVEX*)shp->data; cvx; cvx = cvx->next)
 	{
 	  for (f = cvx->fac, j = 0, pla = cvx->pla; j < cvx->nfac; f += f[0]+1, j ++, pla += 4)
 	  {
@@ -961,8 +1009,13 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	  }
 	}
 	break;
+#if __cplusplus
+      case SHAPE::SHAPE_SPHERE: break;
+      case SHAPE::SHAPE_ELLIP: break;
+#else
       case SHAPE_SPHERE: break;
       case SHAPE_ELLIP: break;
+#endif
       }
     }
 
@@ -973,7 +1026,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	 l = lin, c = col; lsr < end;
 	 lsr ++, vvs ++, val ++, l += 3, c += 3)
     {
-      ASSERT_DEBUG_EXT (*vvs = MAP_Find (vmap, *lsr, NULL), "Inconsistent vertex mapping");
+      ASSERT_DEBUG_EXT (*vvs = (double*)MAP_Find (vmap, *lsr, NULL), "Inconsistent vertex mapping");
       register_identifier (&data->surfaces, (int) (long) MAP_Find (fmap, *lsr, NULL), val); /* map surfaces to vertex values */
       register_identifier (&data->volumes, (int) (long) MAP_Find (emap, *lsr, NULL), val); /* map volumes to vertex values */
       COPY (*lsr, l);
@@ -982,7 +1035,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 
     if (data->spheres_count)
     {
-      ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
+      ERRMEM (data->sphere_colors = (GLfloat*)malloc (data->spheres_count * sizeof (GLfloat) * 3));
 
       for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
       {
@@ -992,7 +1045,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 
     if (data->ellips_count)
     {
-      ERRMEM (data->ellip_colors = malloc (data->ellips_count * sizeof (GLfloat) * 3));
+      ERRMEM (data->ellip_colors = (GLfloat*)malloc (data->ellips_count * sizeof (GLfloat) * 3));
 
       for (c = data->ellip_colors, v = c + data->ellips_count * 3; c < v; c += 3)
       {
@@ -1017,11 +1070,11 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
   else
   {
     data->lines_count = SET_Size (lset);
-    ERRMEM (lin = malloc (data->lines_count * sizeof (GLfloat) * 6));
-    ERRMEM (ver = malloc (data->triangles_count * sizeof (GLfloat) * 27));
+    ERRMEM (lin = (GLfloat*)malloc (data->lines_count * sizeof (GLfloat) * 6));
+    ERRMEM (ver = (GLfloat*)malloc (data->triangles_count * sizeof (GLfloat) * 27));
     nor = ver + data->triangles_count * 9;
     col = nor + data->triangles_count * 9;
-    ERRMEM (data->vertex_sources = malloc (data->triangles_count * (sizeof (double*) * 9 + sizeof (double) * 3) + data->lines_count * sizeof (double*) * 2));
+    ERRMEM (data->vertex_sources = (double**)malloc (data->triangles_count * (sizeof (double*) * 9 + sizeof (double) * 3) + data->lines_count * sizeof (double*) * 2));
     data->normal_sources = data->vertex_sources + data->triangles_count * 3;
     data->vertex_values = (double*) (data->normal_sources + data->triangles_count * 3);
     data->vertex_value_sources = (double**) (data->vertex_values + data->triangles_count * 3);
@@ -1032,7 +1085,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 
     for (item = SET_First (lset), lsr = data->line_sources; item; item = SET_Next (item), lsr += 2)
     {
-      pair = item->data;
+      pair = (POINTER_PAIR*)item->data;
       lsr [0] = pair->one;
       lsr [1] = pair->two;
     }
@@ -1045,8 +1098,12 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
     {
       switch (shp->kind)
       {
+#if __cplusplus
+      case SHAPE::SHAPE_MESH:
+#else
       case SHAPE_MESH:
-	msh = shp->data;
+#endif
+	msh = (MESH*)shp->data;
 	for (fac = msh->faces; fac; fac = fac->n)
 	{
 	  for (i = 1; i < fac->type - 1; i ++, vsr += 3, nsr += 3, val += 3)
@@ -1064,8 +1121,12 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	  }
 	}
 	break;
+#if __cplusplus
+      case SHAPE::SHAPE_CONVEX:
+#else
       case SHAPE_CONVEX:
-	for (cvx = shp->data; cvx; cvx = cvx->next)
+#endif
+	for (cvx = (CONVEX*)shp->data; cvx; cvx = cvx->next)
 	{
 	  for (f = cvx->fac, j = 0, pla = cvx->pla; j < cvx->nfac; f += f[0]+1, j ++, pla += 4)
 	  {
@@ -1085,18 +1146,23 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 	  }
 	}
 	break;
+#if __cplusplus
+      case SHAPE::SHAPE_SPHERE: break;
+      case SHAPE::SHAPE_ELLIP: break;
+#else
       case SHAPE_SPHERE: break;
       case SHAPE_ELLIP: break;
+#endif
       }
     }
 
     data->values_count = MAP_Size (vmap); /* number of unique vertices */
-    ERRMEM (data->values = MEM_CALLOC (data->values_count * sizeof (double)));
-    ERRMEM (data->value_sources = malloc (data->values_count * sizeof (VALUE_SOURCE)));
+    ERRMEM (data->values = (double*)MEM_CALLOC (data->values_count * sizeof (double)));
+    ERRMEM (data->value_sources = (VALUE_SOURCE*)malloc (data->values_count * sizeof (VALUE_SOURCE)));
 
     for (source = data->value_sources, jtem = MAP_First (vmap); jtem; source ++, jtem = MAP_Next (jtem))
     {
-      struct auxpair *pair = jtem->data;
+      struct auxpair *pair = (struct auxpair*)jtem->data;
 
       if (bod->msh)
       {
@@ -1106,7 +1172,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
       }
       else source->node_index = pair->idx; /* mesh or convex node index */
 
-      source->pnt = jtem->key; /* needed for both scalar field rendering and point picking */
+      source->pnt = (double*)jtem->key; /* needed for both scalar field rendering and point picking */
 
       jtem->data = &data->values [source - data->value_sources]; /* map to source */
     }
@@ -1120,7 +1186,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
     {
       COPY (*vsr, v);
       COPY (*nsr, n);
-      ASSERT_DEBUG_EXT (*vvs = MAP_Find (vmap, *vsr, NULL), "Inconsistent vertex mapping");
+      ASSERT_DEBUG_EXT (*vvs = (double*)MAP_Find (vmap, *vsr, NULL), "Inconsistent vertex mapping");
       COPY (neutral_color, c);
     }
 
@@ -1133,7 +1199,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 
     if (data->spheres_count)
     {
-      ERRMEM (data->sphere_colors = malloc (data->spheres_count * sizeof (GLfloat) * 3));
+      ERRMEM (data->sphere_colors = (GLfloat*)malloc (data->spheres_count * sizeof (GLfloat) * 3));
 
       for (c = data->sphere_colors, v = c + data->spheres_count * 3; c < v; c += 3)
       {
@@ -1143,7 +1209,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 
     if (data->ellips_count)
     {
-      ERRMEM (data->ellip_colors = malloc (data->ellips_count * sizeof (GLfloat) * 3));
+      ERRMEM (data->ellip_colors = (GLfloat*)malloc (data->ellips_count * sizeof (GLfloat) * 3));
 
       for (c = data->ellip_colors, v = c + data->ellips_count * 3; c < v; c += 3)
       {
@@ -1179,7 +1245,7 @@ static BODY_DATA* create_body_data (BODY *bod, int wireframe)
 /* update body set constraint or force legend values */
 static void update_body_constraint_or_force_values (BODY *bod)
 {
-  BODY_DATA *data = bod->rendering;
+  BODY_DATA *data = (BODY_DATA*)bod->rendering;
   double value;
   FORCE *force;
   SET *item;
@@ -1191,7 +1257,7 @@ static void update_body_constraint_or_force_values (BODY *bod)
   {
     for (item = SET_First (bod->con); item; item = SET_Next (item))
     {
-      con = item->data;
+      con = (CON*)item->data;
 
       if (con->state & CON_DONE) continue;
 
@@ -1258,7 +1324,7 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
     case KINDS_OF_SURFACES:
       for (item = MAP_First (data->surfaces); item; item = MAP_Next (item))
       {
-	for (jtem = SET_First (item->data); jtem; jtem = SET_Next (jtem)) val = jtem->data, *val = (double) (long) item->key;
+	for (jtem = SET_First ((SET*)item->data); jtem; jtem = SET_Next (jtem)) val = (double*)jtem->data, *val = (double) (long) item->key;
 	if ((double) (long) item->key < legend.extents [0]) legend.extents [0] = (double) (long) item->key;
 	if ((double) (long) item->key > legend.extents [1]) legend.extents [1] = (double) (long) item->key;
         SET_Insert (&rndsetmem, &legend.discrete, item->key, NULL);
@@ -1267,7 +1333,7 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
     case KINDS_OF_VOLUMES:
       for (item = MAP_First (data->volumes); item; item = MAP_Next (item))
       {
-	for (jtem = SET_First (item->data); jtem; jtem = SET_Next (jtem)) val = jtem->data, *val = (double) (long) item->key;
+	for (jtem = SET_First ((SET*)item->data); jtem; jtem = SET_Next (jtem)) val = (double*)jtem->data, *val = (double) (long) item->key;
 	if ((double) (long) item->key < legend.extents [0]) legend.extents [0] = (double) (long) item->key;
 	if ((double) (long) item->key > legend.extents [1]) legend.extents [1] = (double) (long) item->key;
         SET_Insert (&rndsetmem, &legend.discrete, item->key, NULL);
@@ -1320,7 +1386,11 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
       last = src + data->values_count;
       val = data->values;
 
+#if __cplusplus
+      if (bod->kind == BODY::FEM)
+#else
       if (bod->kind == FEM)
+#endif
       {
 	if (bod->msh)
 	{
@@ -1343,7 +1413,11 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
 	  }
 	}
       }
+#if __cplusplus
+      else if (bod->kind != BODY::OBS && !(bod->kind == BODY::RIG && legend.entity >= RESULTS_SX))
+#else
       else if (bod->kind != OBS && !(bod->kind == RIG && legend.entity >= RESULTS_SX))
+#endif
       {
 	for (; src < last; src ++, val ++)
 	{
@@ -1396,10 +1470,18 @@ static void update_body_values (BODY *bod, BODY_DATA *data)
 
     switch (bod->kind)
     {
+#if __cplusplus
+    case BODY::OBS:
+#else
     case OBS:
+#endif
       data->values_updated = legend.entity < RESULTS_DX;
       break;
+#if __cplusplus
+    case BODY::RIG:
+#else
     case RIG:
+#endif
       data->values_updated = legend.entity < RESULTS_SX;
       break;
     default:
@@ -1522,9 +1604,13 @@ static void update_cuts (void)
   {
     next = cut->next;
 
+#if __cplusplus
+    if (cut->kind == cut_data::EULER)
+#else
     if (cut->kind == EULER)
+#endif
     {
-      BODY_DATA *data = cut->bod->rendering;
+      BODY_DATA *data = (BODY_DATA*)cut->bod->rendering;
       data->flags &= ~SEETHROUGH;
       free (cut->tri);
       free (cut);
@@ -1546,18 +1632,22 @@ static void update_cuts (void)
   /* create new Euler cuts */
   for (SET *jtem = SET_First (euler_cuts); jtem; jtem = SET_Next (jtem))
   {
-    double *point = jtem->data, *normal = point + 3;
+    double *point = (double*)jtem->data, *normal = point + 3;
     for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
     {
-      BODY *bod = item->data;
-      BODY_DATA *data = bod->rendering;
+      BODY *bod = (BODY*)item->data;
+      BODY_DATA *data = (BODY_DATA*)bod->rendering;
       double *ref, *cur;
       CUT_DATA *cut;
       SGP *sgp;
       TRI *tri;
       int m, n;
 
+#if __cplusplus
+      if (bod->kind == BODY::OBS) continue;
+#else
       if (bod->kind == OBS) continue;
+#endif
       if (data->flags & HIDDEN) continue;
 
       tri = SHAPE_Cut (bod->shape, point, normal, &m, bod, (MOTION)BODY_Ref_Point, &sgp, &ref, &cur, &n);
@@ -1565,7 +1655,7 @@ static void update_cuts (void)
       if (tri)
       {
 	data->flags |= SEETHROUGH; /* make the body transparent if it was cut */
-	ERRMEM (cut = MEM_CALLOC (sizeof (CUT_DATA) + sizeof (double [n])));
+	ERRMEM (cut = (CUT_DATA*)MEM_CALLOC (sizeof (CUT_DATA) + sizeof (double [n])));
 	cut->val = (double*) (cut+1);
 	cut->kind = cut_kind;
 	COPY (point, cut->point);
@@ -1607,10 +1697,18 @@ static void update_cut_values (CUT_DATA *cut)
 
   switch (cut->bod->kind)
   {
+#if __cplusplus
+  case BODY::OBS:
+#else
   case OBS:
+#endif
     cut->values_updated = legend.entity < RESULTS_DX;
     break;
+#if __cplusplus
+  case BODY::RIG:
+#else
   case RIG:
+#endif
     cut->values_updated = legend.entity < RESULTS_SX;
     break;
   default:
@@ -1646,9 +1744,9 @@ static void render_ellip_triangles (double *center, double *sca, double *rot, GL
   glMatrixMode (GL_MODELVIEW_MATRIX);
   glPushMatrix ();
     glTranslated (center[0], center[1], center[2]);
-    GLfloat m [16] = {rot [0], rot [1], rot [2], 0,
-                      rot [3], rot [4], rot [5], 0,
-		      rot [6], rot [7], rot [8], 0,
+    GLfloat m [16] = {(GLfloat)rot [0], (GLfloat)rot [1], (GLfloat)rot [2], 0,
+                      (GLfloat)rot [3], (GLfloat)rot [4], (GLfloat)rot [5], 0,
+		      (GLfloat)rot [6], (GLfloat)rot [7], (GLfloat)rot [8], 0,
 		      0      , 0      , 0      , 1};
     glMultMatrixf (m);
     glScaled (sca [0], sca [1], sca [2]);
@@ -1673,9 +1771,9 @@ static void selection_render_ellip_triangles (double *center, double *sca, doubl
   glMatrixMode (GL_MODELVIEW_MATRIX);
   glPushMatrix ();
     glTranslated (center[0], center[1], center[2]);
-    GLfloat m [16] = {rot [0], rot [1], rot [2], 0,
-                      rot [3], rot [4], rot [5], 0,
-		      rot [6], rot [7], rot [8], 0,
+    GLfloat m [16] = {(GLfloat)rot [0], (GLfloat)rot [1], (GLfloat)rot [2], 0,
+                      (GLfloat)rot [3], (GLfloat)rot [4], (GLfloat)rot [5], 0,
+		      (GLfloat)rot [6], (GLfloat)rot [7], (GLfloat)rot [8], 0,
 		      0      , 0      , 0      , 1};
     glMultMatrixf (m);
     glScaled (sca [0], sca [1], sca [2]);
@@ -1762,12 +1860,21 @@ char *legend_value_string (void *data)
   {
     switch ((long)data)
     {
+#if __cplusplus
+      case constraint::CONTACT: return "CNT";
+      case constraint::FIXPNT: return "PNT";
+      case constraint::FIXDIR: return "DIR";
+      case constraint::VELODIR: return "VEL";
+      case constraint::RIGLNK: return "LNK";
+      case constraint::SPRING: return "SPR";
+#else
       case CONTACT: return "CNT";
       case FIXPNT: return "PNT";
       case FIXDIR: return "DIR";
       case VELODIR: return "VEL";
       case RIGLNK: return "LNK";
       case SPRING: return "SPR";
+#endif
       default: return "???";
     }
   }
@@ -1775,10 +1882,17 @@ char *legend_value_string (void *data)
   {
     switch ((long)data)
     {
+#if __cplusplus
+      case BODY::OBS: return "OBS";
+      case BODY::RIG: return "RIG";
+      case BODY::PRB: return "PRB";
+      case BODY::FEM: return "FEM";
+#else
       case OBS: return "OBS";
       case RIG: return "RIG";
       case PRB: return "PRB";
       case FEM: return "FEM";
+#endif
       default: return "???";
     }
   }
@@ -1879,7 +1993,7 @@ static void legend_disable ()
   {
     for (BODY *bod = domain->bod; bod; bod = bod->next)
     {
-      BODY_DATA *data = bod->rendering;
+      BODY_DATA *data = (BODY_DATA*)bod->rendering;
       data->values_updated = 0;
     }
 
@@ -1928,7 +2042,7 @@ static void render_body_triangles (BODY *bod, short skip)
 
   if (bod->rendering == NULL) bod->rendering = create_body_data (bod, WIREFRAME_FLAG());
 
-  data = bod->rendering;
+  data = (BODY_DATA*)bod->rendering;
 
   if (bod == picked_body ||           /* do not render a picked body */
       SET_Find (picked_set, bod, NULL) ||
@@ -1976,7 +2090,7 @@ static void render_body_triangles (BODY *bod, short skip)
 /* render body triangles without colors */
 static void render_body_triangles_plain (BODY *bod, short skip)
 {
-  BODY_DATA *data = bod->rendering;
+  BODY_DATA *data = (BODY_DATA*)bod->rendering;
 
   if (bod == picked_body ||           /* do not render a picked body */
       SET_Find (picked_set, bod, NULL) ||
@@ -2020,7 +2134,7 @@ static void render_body_lines (BODY *bod, short skip)
 
   if (bod->rendering == NULL) bod->rendering = create_body_data (bod, WIREFRAME_FLAG());
 
-  data = bod->rendering;
+  data = (BODY_DATA*)bod->rendering;
 
   if (data->flags & skip) return;
 
@@ -2060,7 +2174,7 @@ static void render_body_lines (BODY *bod, short skip)
 /* render body for selection */
 static void selection_render_body (BODY *bod)
 {
-  BODY_DATA *data = bod->rendering;
+  BODY_DATA *data = (BODY_DATA*)bod->rendering;
 
   if (data->flags & HIDDEN) return;
 
@@ -2137,14 +2251,18 @@ static void selection_render_body (BODY *bod)
 /* render rough mesh */
 static void render_rough_mesh (BODY *bod)
 {
-  BODY_DATA *data = bod->rendering,
+  BODY_DATA *data = (BODY_DATA*)bod->rendering,
 	    *rough = data->rough;
 
   if (data->flags & HIDDEN) return;
 
   if (!rough)
   {
+#if __cplusplus
+    SHAPE shape = {SHAPE::SHAPE_MESH, bod->msh, NULL};
+#else
     SHAPE shape = {SHAPE_MESH, bod->msh, NULL};
+#endif
     BODY body = bod [0];
     body.shape = &shape;
     body.msh = NULL;
@@ -2650,10 +2768,13 @@ static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
 	 ext = GLV_Minimal_Extent() * arrow_factor,
 	 eps,
 	 len;
-
+#if __cplusplus
+  if (force->kind & general_force::PRESSURE)
+#else
   if (force->kind & PRESSURE)
+#endif
   {
-    MESH *msh = bod->shape->data;
+    MESH *msh = (MESH*)bod->shape->data;
     FACE *fac = msh->faces;
     int surfid = force->surfid;
     double (*cur) [3] = msh->cur_nodes;
@@ -2693,7 +2814,11 @@ static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
   }
   else
   {
+#if __cplusplus
+    if (bod->kind == BODY::FEM)
+#else
     if (bod->kind == FEM)
+#endif
     {
       SGP *sgp;
       int n;
@@ -2702,7 +2827,11 @@ static void render_force (BODY *bod, FORCE *force, GLfloat color [3])
       sgp = &bod->sgp [n];
       BODY_Cur_Point (bod, sgp, force->ref_point, point); /* TODO: optimize */
     }
+#if __cplusplus
+    else if (force->kind & general_force::TORQUE)
+#else
     else if (force->kind & TORQUE)
+#endif
     {
       BODY_Cur_Point (bod, NULL, bod->ref_center, point);
     }
@@ -2735,8 +2864,8 @@ static void render_body_set_constraints_or_forces (SET *set)
 
   for (item = SET_First (set); item; item = SET_Next (item))
   {
-    bod = item->data;
-    data = bod->rendering;
+    bod = (BODY*)item->data;
+    data = (BODY_DATA*)bod->rendering;
 
     if (data->flags & HIDDEN) continue;
 
@@ -2744,7 +2873,7 @@ static void render_body_set_constraints_or_forces (SET *set)
     {
       for (jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
       {
-	con = jtem->data;
+	con = (CON*)jtem->data;
 
 	if (con->state & CON_DONE) continue;
 
@@ -2758,12 +2887,21 @@ static void render_body_set_constraints_or_forces (SET *set)
 
 	  switch (con->kind)
 	  {
+#if __cplusplus
+	    case constraint::CONTACT: render_contact (con, color); break;
+	    case constraint::FIXPNT: render_fixpnt (con, color); break;
+	    case constraint::FIXDIR: render_fixdir (con, color); break;
+	    case constraint::VELODIR: render_velodir (con, color); break;
+	    case constraint::RIGLNK: render_riglnk (con, 2.0, color); break;
+	    case constraint::SPRING: render_spring (con, color); break;
+#else
 	    case CONTACT: render_contact (con, color); break;
 	    case FIXPNT: render_fixpnt (con, color); break;
 	    case FIXDIR: render_fixdir (con, color); break;
 	    case VELODIR: render_velodir (con, color); break;
 	    case RIGLNK: render_riglnk (con, 2.0, color); break;
 	    case SPRING: render_spring (con, color); break;
+#endif
 	  }
 
 	  break;
@@ -2806,16 +2944,20 @@ static void render_rigid_links (SET *set, GLfloat *color)
 
   for (item = SET_First (set); item; item = SET_Next (item))
   {
-    bod = item->data;
-    data = bod->rendering;
+    bod = (BODY*)item->data;
+    data = (BODY_DATA*)bod->rendering;
 
     if (data->flags & HIDDEN) continue;
 
     for (jtem = SET_First (bod->con); jtem; jtem = SET_Next (jtem))
     {
-      con = jtem->data;
+      con = (CON*)jtem->data;
 
+#if __cplusplus
+      if (con->kind == constraint::RIGLNK) render_riglnk (con, 1.0, color);
+#else
       if (con->kind == RIGLNK) render_riglnk (con, 1.0, color);
+#endif
     }
   }
 }
@@ -2834,10 +2976,10 @@ static void render_body_set (SET *set)
     glPointSize (5.0);
     for (item = SET_First (set); item; item = SET_Next (item))
     {
-      bod = item->data;
+      bod = (BODY*)item->data;
       for (jtem = SET_First (bod->displaypoints); jtem; jtem = SET_Next (jtem))
       {
-	point = jtem->data;
+	point = (DISPLAY_POINT*)jtem->data;
 	glBegin (GL_POINTS);
 	glColor3f (0, 0, 1);
 	glVertex3dv (point->x);
@@ -2867,8 +3009,8 @@ static void render_body_set (SET *set)
 	  SET_Find (picked_set, item->data, NULL)) continue;
 
       glColor4fv (color);
-      render_body_lines (item->data, HIDDEN);
-      render_body_triangles_plain (item->data, HIDDEN|WIREFRAME);
+      render_body_lines ((BODY*)item->data, HIDDEN);
+      render_body_triangles_plain ((BODY*)item->data, HIDDEN|WIREFRAME);
     }
 
     glDisable (GL_BLEND);
@@ -2884,9 +3026,9 @@ static void render_body_set (SET *set)
     {
       glDisable (GL_LIGHTING);
       glColor3fv (color);
-      render_body_lines (item->data, SEETHROUGH|HIDDEN);
+      render_body_lines ((BODY*)item->data, SEETHROUGH|HIDDEN);
       if (lightingon) glEnable (GL_LIGHTING);
-      render_body_triangles (item->data, SEETHROUGH|HIDDEN|WIREFRAME);
+      render_body_triangles ((BODY*)item->data, SEETHROUGH|HIDDEN|WIREFRAME);
     }
 
     render_rigid_links (set, color);
@@ -2903,11 +3045,11 @@ static void render_body_set (SET *set)
       if (SEETHROUGH (item->data))
       {
 	glColor4fv (color);
-	render_body_lines (item->data, HIDDEN|WIREFRAME);
-        render_body_triangles_plain (item->data, HIDDEN|WIREFRAME);
+	render_body_lines ((BODY*)item->data, HIDDEN|WIREFRAME);
+        render_body_triangles_plain ((BODY*)item->data, HIDDEN|WIREFRAME);
       }
 
-      if (ROUGH_MESH (item->data)) render_rough_mesh (item->data);
+      if (ROUGH_MESH (item->data)) render_rough_mesh ((BODY*)item->data);
     }
 
     glDisable (GL_BLEND);
@@ -2923,10 +3065,10 @@ static void selection_2D_render_body_set (SET *set)
 
   for (item = SET_First (set); item; item = SET_Next (item))
   {
-    bod = item->data;
+    bod = (BODY*)item->data;
     idtorgba (bod->id, color);
     glColor4fv (color);
-    selection_render_body (item->data);
+    selection_render_body ((BODY*)item->data);
   }
 }
 
@@ -2957,9 +3099,9 @@ static void selection_3D_render_body_set (SET *set)
 
   for (item = SET_First (set); item; item = SET_Next (item))
   {
-    bod = item->data;
+    bod = (BODY*)item->data;
     glPushName (bod->id);
-    selection_render_body (item->data);
+    selection_render_body ((BODY*)item->data);
     glPopName ();
   }
 }
@@ -2991,7 +3133,7 @@ static void render_picked_body (void)
 
   for (SET *item = SET_First (picked_set); item; item = SET_Next (item))
   {
-    BODY *bod = item->data;
+    BODY *bod = (BODY*)item->data;
 
     switch (tool_mode)
     {
@@ -3098,7 +3240,7 @@ static void render_cuts (void)
   for (cut = cuts; cut; cut = cut->next)
   {
     if (!SET_Contains (selection->set, cut->bod, NULL)) continue;
-    BODY_DATA *data = cut->bod->rendering;
+    BODY_DATA *data = (BODY_DATA*)cut->bod->rendering;
     if (data->flags & HIDDEN) continue;
 
     cur = cut->cur;
@@ -3144,8 +3286,8 @@ static void update_extents ()
 
   for (item = SET_First (selection->set); item; item = SET_Next (item))
   {
-    BODY *bod = item->data;
-    BODY_DATA *data = bod->rendering;
+    BODY *bod = (BODY*)item->data;
+    BODY_DATA *data = (BODY_DATA*)bod->rendering;
 
     if (data && data->flags & HIDDEN) continue;
 
@@ -3191,8 +3333,8 @@ static void update ()
 
     for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
     {
-      BODY *bod = item->data;
-      update_body_values (bod, bod->rendering);
+      BODY *bod = (BODY*)item->data;
+      update_body_values (bod, (BODY_DATA*)bod->rendering);
     }
 
     update_cuts_values ();
@@ -3207,7 +3349,7 @@ static void update ()
 
   if (render_bodies)
   {
-    for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_data (bod, bod->rendering);
+    for (BODY *bod = domain->bod; bod; bod = bod->next) update_body_data (bod, (BODY_DATA*)bod->rendering);
   }
 
   GLV_Resize_Viewport (time_window, time_width (), TIME_HEIGHT); /* stretch time window to fit text */
@@ -3229,7 +3371,7 @@ static void update ()
 /* one simulation step */
 static void step ()
 {
-  SOLVER_DATA *s = MAP_Find (solvers, domain, NULL);
+  SOLVER_DATA *s = (SOLVER_DATA*)MAP_Find (solvers, domain, NULL);
 
   double epsilon = DBL_EPSILON;
 
@@ -3239,7 +3381,7 @@ static void step ()
   while (domain->time + epsilon == domain->time) epsilon += DBL_EPSILON;
 
   /* (***) note that domain->step might be decreased due to stability issues */
-  if (s) SOLFEC_Run (solfec, s->kind, s->solver, epsilon); /* use epsilon as the duration in order to make just one step; see (***) */
+  if (s) SOLFEC_Run (solfec, (SOLVER_KIND)s->kind, s->solver, epsilon); /* use epsilon as the duration in order to make just one step; see (***) */
   else 
   {
     PENALTY *ps = PENALTY_Create (1);
@@ -3294,7 +3436,7 @@ static void run_script (char *path)
   char *line;
   int error;
   
-  ERRMEM (line = MEM_CALLOC (128 + strlen (path)));
+  ERRMEM (line = (char*)MEM_CALLOC (128 + strlen (path)));
   sprintf (line, "runscript('%s')", path);
   // Python function "runscript" defined at run-time via lng.c
   // No error handling is required as any stack trace is printed to stdout
@@ -3307,7 +3449,7 @@ static void run_script (char *path)
 static char *get_regerror (int errcode, regex_t *compiled)
 {
   size_t length = regerror (errcode, compiled, NULL, 0);
-  char *buffer = malloc (length);
+  char *buffer = (char*)malloc (length);
   regerror (errcode, compiled, buffer, length);
   return buffer;
 }
@@ -3501,7 +3643,7 @@ static void select_2D (int x1, int y1, int x2, int y2)
   h = MAX (h, 1);
   m = w * h;
 
-  ERRMEM (pix = malloc (m * sizeof (unsigned char [4])));
+  ERRMEM (pix = (unsigned char (*)[4])malloc (m * sizeof (unsigned char [4])));
   glReadPixels (x, y, w, h, GL_RGBA, GL_UNSIGNED_BYTE, pix);
   for (ids = NULL, n = 0; n < m; n ++) SET_Insert (&rndsetmem, &ids, (void*) (long) rgbatoid (pix [n]), NULL);
   free (pix);
@@ -3510,7 +3652,7 @@ static void select_2D (int x1, int y1, int x2, int y2)
   {
     for (set = NULL, item = SET_First (ids); item; item = SET_Next (item))
     {
-      bod = MAP_Find (domain->idb, item->data, NULL);
+      bod = (BODY*)MAP_Find (domain->idb, item->data, NULL);
       if (bod) SET_Insert (&rndsetmem, &set, bod, NULL);
     }
 
@@ -3536,7 +3678,7 @@ static void select_3D (int x1, int y1, int x2, int y2)
   w = MAX (w, 2);
   h = MAX (h, 2);
   selsize = SET_Size (selection->set) * 4; /* assumes that each body id stored in a separate hit, which is excessive and must be enough */
-  ERRMEM (sel = malloc (sizeof (GLuint [selsize])));
+  ERRMEM (sel = (GLuint*)malloc (sizeof (GLuint [selsize])));
 
   glSelectBuffer (selsize, sel);
   glRenderMode (GL_SELECT);
@@ -3561,7 +3703,7 @@ static void select_3D (int x1, int y1, int x2, int y2)
     {
       for (k = 0; k < sel [m]; k ++)
       {
-	bod = MAP_Find (domain->idb, (void*) (long) sel [m+3+k], NULL);
+	bod = (BODY*)MAP_Find (domain->idb, (void*) (long) sel [m+3+k], NULL);
 	if (bod) SET_Insert (&rndsetmem, &set, bod, NULL);
       }
     }
@@ -3586,7 +3728,7 @@ static BODY* pick_body (int x, int y)
   glGetIntegerv (GL_VIEWPORT, viewport);
   glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
 
-  return MAP_Find (domain->idb, (void*) (long) rgbatoid (pix), NULL);
+  return (BODY*)MAP_Find (domain->idb, (void*) (long) rgbatoid (pix), NULL);
 }
 
 /* pick one point using 2D selection */
@@ -3605,7 +3747,7 @@ static double* pick_point (int x, int y, int *picked_node_index)
   glGetIntegerv (GL_VIEWPORT, viewport);
   glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
 
-  bod = MAP_Find (domain->idb, (void*) (long) rgbatoid (pix), NULL);
+  bod = (BODY*)MAP_Find (domain->idb, (void*) (long) rgbatoid (pix), NULL);
   *picked_node_index = -1;
   point = NULL;
 
@@ -3613,11 +3755,11 @@ static double* pick_point (int x, int y, int *picked_node_index)
   {
     glDisable (GL_LIGHTING);
     glClear (GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-    selection_2D_render_point_set (bod->rendering);
+    selection_2D_render_point_set ((BODY_DATA*)bod->rendering);
     glEnable (GL_LIGHTING);
 
     glReadPixels (x, viewport[3] - y, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pix);
-    BODY_DATA *data = bod->rendering;
+    BODY_DATA *data = (BODY_DATA*)bod->rendering;
     int i = rgbatoid (pix);
     if (i > 0 && i <= data->values_count) 
     {
@@ -3638,8 +3780,8 @@ static void switchwireframe (SET *bodies)
 
   for (item = SET_First (bodies); item; item = SET_Next (item))
   {
-    bod = item->data;
-    data = bod->rendering;
+    bod = (BODY*)item->data;
+    data = (BODY_DATA*)bod->rendering;
     if (data)
     {
       int wire = data->flags & WIREFRAME;
@@ -3828,15 +3970,19 @@ static void menu_tools (int item)
     {
       for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
       {
-	BODY *bod = item->data;
-	BODY_DATA *data = bod->rendering;
+	BODY *bod = (BODY*)item->data;
+	BODY_DATA *data = (BODY_DATA*)bod->rendering;
 	double *ref, *cur;
 	CUT_DATA *cut;
 	SGP *sgp;
 	TRI *tri;
 	int m, n;
 
+#if __cplusplus
+	if (bod->kind == BODY::OBS) continue;
+#else
 	if (bod->kind == OBS) continue;
+#endif
 	if (data->flags & HIDDEN) continue;
 
 	tri = SHAPE_Cut (bod->shape, cut_point, cut_normal, &m, bod, (MOTION)BODY_Ref_Point, &sgp, &ref, &cur, &n);
@@ -3844,7 +3990,7 @@ static void menu_tools (int item)
 	if (tri)
 	{
 	  data->flags |= SEETHROUGH; /* make the body transparent if it was cut */
-	  ERRMEM (cut = MEM_CALLOC (sizeof (CUT_DATA) + sizeof (double [n])));
+	  ERRMEM (cut = (CUT_DATA*)MEM_CALLOC (sizeof (CUT_DATA) + sizeof (double [n])));
 	  cut->val = (double*) (cut+1);
 	  cut->kind = cut_kind;
 	  COPY (cut_point, cut->point);
@@ -3862,10 +4008,14 @@ static void menu_tools (int item)
 	}
       }
 
+#if __cplusplus
+      if (cut_kind == cut_data::EULER)
+#else
       if (cut_kind == EULER)
+#endif
       {
 	double *point_normal;
-	ERRMEM (point_normal = malloc (sizeof (double [6])));
+	ERRMEM (point_normal = (double*)malloc (sizeof (double [6])));
 	COPY (cut_point, point_normal);
 	COPY (cut_normal, point_normal + 3);
 	SET_Insert (NULL, &euler_cuts, point_normal, NULL); /* record Euler cut */
@@ -3882,7 +4032,11 @@ static void menu_tools (int item)
       {
 	if (!GLV_Reading_Text ())
 	{
+#if __cplusplus
+	  cut_kind = cut_data::EULER;
+#else
 	  cut_kind = EULER;
+#endif
 	  GLV_Read_Text ("Euler cut normal (format: nx ny nz)", read_cut_normal);
 	}
       }
@@ -3890,7 +4044,11 @@ static void menu_tools (int item)
       {
 	if (!GLV_Reading_Text ())
 	{
+#if __cplusplus
+	  cut_kind = cut_data::LAGRANGE;
+#else
 	  cut_kind = LAGRANGE;
+#endif
 	  GLV_Read_Text ("Lagrange cut normal (format: nx ny nz)", read_cut_normal);
 	}
       }
@@ -3903,7 +4061,7 @@ static void menu_tools (int item)
 
       for (cut = cuts; cut; cut = next)
       {
-        BODY_DATA *data = cut->bod->rendering;	
+        BODY_DATA *data = (BODY_DATA*)cut->bod->rendering;	
 	data->flags &= ~SEETHROUGH;
 	next = cut->next;
 	free (cut->tri);
@@ -3947,19 +4105,19 @@ static void menu_tools (int item)
     break;
   case TOOLS_TRANSPARENT_ALL:
     for (BODY *bod = domain->bod; bod; bod = bod->next)
-    { BODY_DATA *data = bod->rendering; data->flags |= SEETHROUGH; }
+    { BODY_DATA *data = (BODY_DATA*)bod->rendering; data->flags |= SEETHROUGH; }
     GLV_Redraw_All ();
     break;
   case TOOLS_TRANSPARENT_NONE:
     for (BODY *bod = domain->bod; bod; bod = bod->next)
-    { BODY_DATA *data = bod->rendering; data->flags &= ~SEETHROUGH; }
+    { BODY_DATA *data = (BODY_DATA*)bod->rendering; data->flags &= ~SEETHROUGH; }
     for (CUT_DATA *cut = cuts; cut; cut = cut->next)
-    { BODY_DATA *data = cut->bod->rendering;	data->flags |= SEETHROUGH; }
+    { BODY_DATA *data = (BODY_DATA*)cut->bod->rendering; data->flags |= SEETHROUGH; }
     GLV_Redraw_All ();
     break;
   case TOOLS_SHOW_ALL:
     for (BODY *bod = domain->bod; bod; bod = bod->next)
-    { BODY_DATA *data = bod->rendering; data->flags &= ~HIDDEN; }
+    { BODY_DATA *data = (BODY_DATA*)bod->rendering; data->flags &= ~HIDDEN; }
     update_extents ();
     break;
   case TOOLS_NEXT_RESULT:
@@ -4038,8 +4196,8 @@ static void menu_tools (int item)
   case TOOLS_WIREFRAME_ALL:
     for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
     {
-      BODY *bod = item->data;
-      BODY_DATA *data = bod->rendering;
+      BODY *bod = (BODY*)item->data;
+      BODY_DATA *data = (BODY_DATA*)bod->rendering;
       if (data)
       {
 	if (!(data->flags & WIREFRAME))
@@ -4054,8 +4212,8 @@ static void menu_tools (int item)
   case TOOLS_WIREFRAME_NONE:
     for (SET *item = SET_First (selection->set); item; item = SET_Next (item))
     {
-      BODY *bod = item->data;
-      BODY_DATA *data = bod->rendering;
+      BODY *bod = (BODY*)item->data;
+      BODY_DATA *data = (BODY_DATA*)bod->rendering;
       if (data)
       {
 	if (data->flags & WIREFRAME)
@@ -4113,7 +4271,7 @@ static void menu_tools (int item)
   case TOOLS_NEXT_MODE:
     if (modal_analysis_menu)
     {
-      BODY *bod = selection->set->data;
+      BODY *bod = (BODY*)selection->set->data;
       if (current_eigenmode < (bod->evec->n-1)) current_eigenmode ++;
       else current_eigenmode = 0;
       menu_modal_analysis (current_eigenmode);
@@ -4123,7 +4281,7 @@ static void menu_tools (int item)
   case TOOLS_PREVIOUS_MODE:
     if (modal_analysis_menu)
     {
-      BODY *bod = selection->set->data;
+      BODY *bod = (BODY*)selection->set->data;
       if (current_eigenmode > 0) current_eigenmode --;
       else current_eigenmode = bod->evec->n-1;
       menu_modal_analysis (current_eigenmode);
@@ -4570,7 +4728,7 @@ void RND_Mouse (int button, int state, int x, int y)
       {
 
 #define APPLY_MOUSE_PICK_BODY(body)\
-	BODY_DATA *data = (body)->rendering;\
+	BODY_DATA *data = (BODY_DATA*)(body)->rendering;\
 	switch (tool_mode)\
 	{\
 	case TOOLS_TRANSPARENT:\
@@ -4591,7 +4749,7 @@ void RND_Mouse (int button, int state, int x, int y)
 
 	for (SET *item = SET_First (picked_set); item; item = SET_Next (item))
 	{
-	  BODY *bod = item->data;
+	  BODY *bod = (BODY*)item->data;
 	  APPLY_MOUSE_PICK_BODY (bod);
 	}
 
@@ -4777,10 +4935,10 @@ void RND_Solver (DOM *dom, int kind, void *solver)
   SOLVER_DATA *data;
   MAP *item;
 
-  if ((item = MAP_Find (solvers, dom, NULL))) data = item->data; /* already mapped */
+  if ((item = MAP_Find_Node (solvers, dom, NULL))) data = (SOLVER_DATA*)item->data; /* already mapped */
   else
   {
-    ERRMEM (data = malloc (sizeof (SOLVER_DATA)));
+    ERRMEM (data = (SOLVER_DATA*)malloc (sizeof (SOLVER_DATA)));
     MAP_Insert (NULL, &solvers, dom, data, NULL); /* map to domain */
   }
 
@@ -4790,9 +4948,7 @@ void RND_Solver (DOM *dom, int kind, void *solver)
 
 void RND_Free_Rendering_Data (void *ptr)
 {
-  BODY_DATA *data;
-
-  data = ptr;
+  BODY_DATA *data = (BODY_DATA*)ptr;
 
   free (data->vertex_sources);
   free (data->values);
@@ -4814,3 +4970,7 @@ void RND_Free_Rendering_Data (void *ptr)
 
   free (data);
 }
+
+#if __cplusplus
+} /* extern C */
+#endif

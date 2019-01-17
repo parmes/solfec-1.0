@@ -22,6 +22,10 @@
 #ifndef __bmp__
 #define __bmp__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 /* allocate RGB buffer */
 void* RGB_Alloc (int width, int height);
 
@@ -42,5 +46,9 @@ void AVI_Frame (void *avi, void *rgb);
 
 /* close the avi file */
 void AVI_Close (void *avi);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

@@ -24,6 +24,10 @@
 #ifndef __pes__
 #define __pes__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 typedef struct penalty PENALTY;
 
 struct penalty
@@ -46,4 +50,8 @@ void PENALTY_Destroy (PENALTY *ps);
 /* spring and dashpot based explicit diagonal block contact solver */
 int PENALTY_Spring_Dashpot_Contact (CON *con, short implicit, double step, double gap, double spring, double dashpot, double hpow,
                              double friction, double cohesion, double *W, double *B, double *V, double *U, double *R);
+#if __cplusplus
+} /* extern C */
+#endif
+
 #endif

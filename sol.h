@@ -41,6 +41,10 @@
 #ifndef __sol__
 #define __sol__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 /* ============================= INPUT-OUTPUT VERSION ============================ */
 /* === Version increments require precise records of causes and affected files === */
 /* =============================================================================== */
@@ -249,5 +253,9 @@ int SOLFEC_Rigid_To_FEM (SOLFEC *sol, char *path, double time, SET *subset);
 
 /* register FE base; (evec, eval, label) must be dynamically allocated */
 void SOLFEC_Register_Base (SOLFEC *sol, MX *evec, double *eval, char *label);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

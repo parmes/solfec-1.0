@@ -19,10 +19,15 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if FLTK
+  #include <FL/glut.h>
+  #include <FL/glu.h>
+#else
 #if __APPLE__
   #include <GLUT/glut.h>
 #else
   #include <GL/glut.h>
+#endif
 #endif
 #include <stdarg.h>
 #include <stdlib.h>
@@ -36,6 +41,10 @@
 #include "bmp.h"
 #include "glv.h"
 #include "alg.h"
+
+#if __cplusplus
+extern "C" { /* C */
+#endif
 
 #define MAXPRINTLEN 2048
 
@@ -199,9 +208,9 @@ static void render_rectangle ()
 static void globals3D ()
 {
   GLfloat pos [4] =
-   {look.from [0],
-    look.from [1],
-    look.from [2], 1.0},
+   {(GLfloat)look.from [0],
+    (GLfloat)look.from [1],
+    (GLfloat)look.from [2], 1.0},
     specular [4] =
     {0.0, 0.0, 0.0, 1.0},
     emission [4] =
@@ -442,7 +451,7 @@ static void render3D ()
 
   if (AVI)
   {
-    char *rgb = RGB_Alloc (width, height);
+    char *rgb = (char*)RGB_Alloc (width, height);
     glReadPixels (0, 0, width, height, GL_RGB, GL_UNSIGNED_BYTE, rgb);
     AVI_Frame (AVI, rgb);
     RGB_Free (rgb);
@@ -1465,3 +1474,7 @@ void GLV_Trackball_Center (double *point)
   SUB (point, a, look.from);
   updateall ();
 }
+
+#if __cplusplus
+} /* extern C */
+#endif

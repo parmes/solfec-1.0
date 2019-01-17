@@ -22,6 +22,10 @@
 #ifndef __glv__
 #define __glv__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 typedef int  (*View_Menu) (char***, int**); /* menu set up (CALLED FIRST) */
 typedef void (*View_Init) (void); /* initialisation (CALLED SECOND) */
 typedef int  (*View_Idle) (void); /* idle callback => return != 0 to cose view update */
@@ -142,5 +146,9 @@ void GLV_Window_Title (char *fmt, ...);
 
 /* set trackball center */
 void GLV_Trackball_Center (double *point);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

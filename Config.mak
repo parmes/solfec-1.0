@@ -92,6 +92,14 @@ PYTHON = -I/opt/local/Library/Frameworks/Python.framework/Versions/2.7/include/p
 PYTHONLIB = -L/opt/local/lib -lpython2.7
 
 #
+# FLTK (an alternative OpenGL GUI)
+# 
+
+FLTK = no
+FLINC = -I/opt/local/include
+FLLIB = -L/opt/local/lib -Wl,-headerpad_max_install_names -Wl,-syslibroot,/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.14.sdk -lfltk_gl -framework OpenGL -lfltk -lpthread -framework Cocoa
+
+#
 # OpenGL (yes/no)
 #
 

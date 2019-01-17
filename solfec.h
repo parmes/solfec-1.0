@@ -10,6 +10,10 @@
 #ifndef __solfec__
 #define __solfec__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 /* register new SOLFEC object */
 void REGISTER_SOLFEC (SOLFEC *sol);
 
@@ -36,5 +40,9 @@ double VERBOSITY_INTERVAL ();
 
 /* get non-Solfec input arguments */
 char** NON_SOLFEC_ARGV (int *argc);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

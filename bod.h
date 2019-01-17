@@ -42,6 +42,10 @@ typedef struct solfec SOLFEC;
 #ifndef __bod__
 #define __bod__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 /* finite element formulation */
 typedef enum {TOTAL_LAGRANGIAN = 1, BODY_COROTATIONAL,
   BODY_COROTATIONAL_MODAL, BODY_COROTATIONAL_REDUCED_ORDER} FEMFORM; /* must be > 1 (see BODY_Pack in bod.c) */ 
@@ -372,5 +376,9 @@ void BODY_2_MBFCP (BODY *bod, FILE *out);
 
 /* caculate rigid body force and torque from applied point forces and constraints */
 void BODY_Rigid_Force (BODY *bod, double time, double step, double *linforc, double *spatorq);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

@@ -35,6 +35,10 @@ typedef struct element ELEMENT;
 #ifndef __msh__
 #define __msh__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 typedef struct face FACE;
 typedef struct mesh MESH;
 
@@ -277,5 +281,9 @@ void MESH_Write (MESH *msh, char *path);
 
 /* read mesh */
 MESH* MESH_Read (char *path);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif

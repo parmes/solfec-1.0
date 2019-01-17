@@ -24,6 +24,10 @@
 #ifndef __set__
 #define __set__
 
+#if __cplusplus
+extern "C" { /* C */
+#endif
+
 typedef struct set SET; /* set type */
 typedef int (*SET_Compare) (void*, void*); /* comparison callback */
 
@@ -72,5 +76,9 @@ SET* SET_Prev (SET *node);
 
 /* next element */
 SET* SET_Next (SET *node);
+
+#if __cplusplus
+} /* extern C */
+#endif
 
 #endif
