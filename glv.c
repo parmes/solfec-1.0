@@ -1326,8 +1326,20 @@ void GLV_Print (double x, double y, double z, int font, char *fmt, ...)
   vsnprintf (buff, MAXPRINTLEN, fmt, arg); /* read formated string */
   va_end (arg);
 
+#if FLTK /* FIXME */
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glEnable(GL_BLEND);
+  glEnable(GL_LINE_SMOOTH);
+  glPushMatrix();
+  glTranslatef(x, y, z);
+  glScalef(0.08f,0.08f, 0.08f);
+  for (i = 0; buff[i]; i++)
+    glutStrokeCharacter (GLUT_STROKE_ROMAN, buff[i]);
+  glPopMatrix();
+  glDisable(GL_LINE_SMOOTH);
+  glDisable(GL_BLEND);
+#else
   glRasterPos3d (x, y, z); /* string position */
-
   switch (font)
   {
     case GLV_FONT_8_BY_13:
@@ -1356,6 +1368,7 @@ void GLV_Print (double x, double y, double z, int font, char *fmt, ...)
 	glutBitmapCharacter (GLUT_BITMAP_HELVETICA_18, buff[i]);
       break;
   }
+#endif
 }
 
 int GLV_Print_Width (int font, char *fmt, ...)

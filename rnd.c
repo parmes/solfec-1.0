@@ -2984,7 +2984,9 @@ static void render_body_set (SET *set)
 	glColor3f (0, 0, 1);
 	glVertex3dv (point->x);
         glEnd ();
+#if !FLTK /* FIXME */
 	if (point->label) GLV_Print (point->x[0], point->x[1], point->x[2], GLV_FONT_12, point->label);
+#endif
       }
     }
     glPointSize (1.0);
@@ -3855,9 +3857,11 @@ static void coord_render ()
   glVertex3d (0., 0., .7);
   glEnd ();
 
+#if !FLTK /* FIXME */
   GLV_Print (.7, 0, .2, TIME_FONT, "x");
   GLV_Print (0, .7, .2, TIME_FONT, "y");
   GLV_Print (0,  0, .8, TIME_FONT, "z");
+#endif
 
   glEnable (GL_LIGHTING);
 }
