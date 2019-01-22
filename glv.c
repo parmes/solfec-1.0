@@ -22,6 +22,9 @@
 #if FLTK
   #include <FL/glut.h>
   #include <FL/glu.h>
+  #include <locale>
+  #include <string>
+  #include "vera.h"
 #else
 #if __APPLE__
   #include <GLUT/glut.h>
@@ -1316,6 +1319,28 @@ int GLV_Reading_Text ()
   return input.visible;
 }
 
+/* reverse single column bitmap */
+inline static void Reverse1(uint8_t* inp, size_t c, uint8_t *out)
+{
+  for (size_t i = 0; i < c / 2; i++)
+  {
+    out[i] = inp[c - 1 - i];
+    out[c - 1 - i] = inp[i];
+  }
+}
+
+/* reverse two-column bitmap */
+inline static void Reverse2(uint8_t* inp, size_t c, uint8_t *out)
+{
+  for (size_t i = 0; i < c / 2; i+=2)
+  {
+    out[i] = inp[c - 2 - i];
+    out[i+1] = inp[c - 1 - i];
+    out[c - 2 - i] = inp[i];
+    out[c - 1 - i] = inp[i+1];
+  }
+}
+
 void GLV_Print (double x, double y, double z, int font, char *fmt, ...)
 {
   va_list arg;
@@ -1326,18 +1351,28 @@ void GLV_Print (double x, double y, double z, int font, char *fmt, ...)
   vsnprintf (buff, MAXPRINTLEN, fmt, arg); /* read formated string */
   va_end (arg);
 
-#if FLTK /* FIXME */
-  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-  glEnable(GL_BLEND);
-  glEnable(GL_LINE_SMOOTH);
-  glPushMatrix();
-  glTranslatef(x, y, z);
-  glScalef(0.08f,0.08f, 0.08f);
+#if FLTK
+  /* https://www.codeproject.com/Tips/196097/Converting-ANSI-to-Unicode-and-back */
+  std::wstring wstr(strlen(buff), 0);
+  std::use_facet<std::ctype<wchar_t> >(std::locale()).widen (buff, buff+strlen(buff), &wstr[0]);
+
+  glRasterPos3d (x, y, z); /* string position */
+  glPixelStorei (GL_UNPACK_ALIGNMENT, 1);
   for (i = 0; buff[i]; i++)
-    glutStrokeCharacter (GLUT_STROKE_ROMAN, buff[i]);
-  glPopMatrix();
-  glDisable(GL_LINE_SMOOTH);
-  glDisable(GL_BLEND);
+  {
+    /* https://github.com/littlevgl/lvgl/blob/master/lv_misc/lv_font.c#L182 */
+    uint32_t index = (wstr[i] - vera_unicode_first);
+
+    /* https://littlevgl.com/ttf-font-to-c-array */
+    GLsizei w = vera_glyph_dsc[index].w_px;
+    GLubyte *b = (GLubyte*)&vera_glyph_bitmap[vera_glyph_dsc[index].glyph_index];
+
+    /* https://www.glprogramming.com/red/chapter08.html */
+    GLubyte x[2*vera_h_px];
+    if (w < 9) Reverse1(b, vera_h_px, x);
+    else Reverse2(b,2*vera_h_px,x);
+    glBitmap (w, 16, 0, 0, w+2, 0, x);
+  }
 #else
   glRasterPos3d (x, y, z); /* string position */
   switch (font)
