@@ -184,11 +184,11 @@ endif
 
 test: solfec
 	make del
-	./solfec inp/tests/serial-tests.py
+	./solfec tests/serial-tests.py
 
 partest: solfec solfec-mpi
 	make del
-	bash inp/tests/parallel-tests.sh
+	bash tests/parallel-tests.sh
 
 del:
 	rm -fr out/*

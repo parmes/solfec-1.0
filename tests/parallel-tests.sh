@@ -1,6 +1,6 @@
 #!/bin/bash
 
-tests="inp/tests/locdyn-test.sh"
+tests="tests/locdyn-test.sh"
 
 echo "------------------------------------------------------------------------------------------"
 echo "Solfec parallel tests"
