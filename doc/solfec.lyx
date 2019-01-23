@@ -8061,7 +8061,7 @@ material
  - a BULK_MATERIAL object or a label of a bulk material (specifies an initial
  body-wise material, see also the 
 \series bold
-MATERIAL (...)
+APPLY_BULKMAT (...)
 \series default
  routine in Section 
 \begin_inset CommandInset ref

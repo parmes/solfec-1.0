@@ -3850,6 +3850,8 @@ void FEM_Point_Values (BODY *bod, ELEMENT *ele, double *X, VALUE_KIND kind, doub
     ele = MESH_Element_Containing_Point (msh, X, 1);
   }
 
+  ASSERT_TEXT (ele, "point outside of referential mesh");
+
   int nod = ELEMENT_Ref_Point_To_Node (msh, ele, X);
 
   if (nod == -1)
