@@ -13,7 +13,7 @@ except:
   print '=============='
   print 'Initialization'
   print '=============='
-  sol = ro0_model (1.0/256, 0.0, 'TL', verbose='%', overwrite=True)
+  sol = ro0_model (1.0/256, 0.0, 'TL', verbose='%\n', overwrite=True)
   print 'Samping displacements ...',
   rig = RIGID_DISPLACEMENTS (sol.bodies[0])
   defo = COROTATED_DISPLACEMENTS (sol, sol.bodies[0])

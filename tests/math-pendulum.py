@@ -30,10 +30,10 @@ def termination (sol, bod):
     if howmany > 3:
       exact = 2.36
       error = abs (sol.time - exact) / exact
-      if (error < 0.01): print 'PASSED'
+      if (error < 0.01): print '\b\b\b\bPASSED'
       else:
-	print 'FAILED'
-        print '(', 'Computed pendulum period was %.3f' % sol.time, 'while the reference value is %.3f' % exact, ')'
+	print '\b\b\b\bFAILED',
+        print '(Computed pendulum period was %.3f' % sol.time, 'while the reference value is %.3f)' % exact
       return 0
     else: howmany = howmany + 1
 
@@ -55,7 +55,7 @@ step = 0.001
 stop = 2.5
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/math-pendulum')
-if not VIEWER(): solfec.verbose = 'OFF'
+if not VIEWER(): solfec.verbose = '%'
 
 bulkmat = BULK_MATERIAL (solfec)
 

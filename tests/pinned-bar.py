@@ -38,10 +38,10 @@ def callback (bod):
   elif bod.conf [9] <= 0:
     exact = 2.121
     error = abs (bod.velo [1] - exact) / exact;
-    if (error < 0.01): print 'PASSED'
+    if (error < 0.01): print '\b\b\b\bPASSED'
     else:
-      print 'FAILED'
-      print '(','Angular velocity y [mass center x = 0] was %.3f' % bod.velo [1], 'while the reference value is %.3f' % exact, ')'
+      print '\b\b\b\bFAILED',
+      print '(Angular velocity y [mass center x = 0] was %.3f' % bod.velo [1], 'while the reference value is %.3f)' % exact
     return 0
   else: return 1
 
@@ -52,7 +52,7 @@ step = 0.001
 stop = 0.5
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/pinned-bar')
-if not VIEWER(): solfec.verbose = 'OFF'
+if not VIEWER(): solfec.verbose = '%'
 
 bulkmat = BULK_MATERIAL (solfec, model = 'KIRCHHOFF', young = 200e9, poisson = 0.3, density = 1)
 

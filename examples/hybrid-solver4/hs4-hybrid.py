@@ -55,7 +55,7 @@ nodes1 = [0, d34+gap, 0,
 mesh1 = HEX(nodes1, 1, 1, 2, 0, [0]*6)
 
 sol = SOLFEC ('DYNAMIC', step, 'out/hs4-hybrid-lwf-%g' % lwf + ('-sweep' if sweep else ''))
-if percent: sol.verbose = '%'
+if percent: sol.verbose = '%\n'
 
 mat = BULK_MATERIAL (sol, model = 'KIRCHHOFF',
     young = 1E9, poisson = 0.25, density = 1E3)

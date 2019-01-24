@@ -20,17 +20,17 @@ else:
   for div in step_denom:
     print 'Solving for step 1/%d and damping 0.0 ...' % div
     print 'FEM-TL ...',
-    sol = ro0_model (1.0/div, 0.0, 'TL', verbose='%',
+    sol = ro0_model (1.0/div, 0.0, 'TL', verbose='%\n',
 		     overwrite=True, runduration=1.0)
     print '\bFEM-BC ...',
-    sol = ro0_model (1.0/div, 0.0, 'BC', verbose='%',
+    sol = ro0_model (1.0/div, 0.0, 'BC', verbose='%\n',
 		     overwrite=True, runduration=1.0)
     print '\bFEM-BC-RO ...',
     sol = ro0_model (1.0/div, 0.0, 'BC-RO', pod_base,
-	verbose='%', overwrite=True, runduration=1.0)
+	verbose='%\n', overwrite=True, runduration=1.0)
     print '\bFEM-BC-MODAL ...',
     sol = ro0_model (1.0/div, 0.0, 'BC-MODAL', modal_base,
-	    verbose='%', overwrite=True, runduration=1.0)
+	    verbose='%\n', overwrite=True, runduration=1.0)
 
     # open in 'READ' mode and retrieve time histories
     times = ro0_times (ro0_model (1.0/div, 0.0, 'TL'))
@@ -63,17 +63,17 @@ else:
   for damp in damping:
     print 'Solving for step 1/%d and damping %g ...' % (div, damp)
     print 'FEM-TL ...',
-    sol = ro0_model (1.0/div, damp, 'TL', verbose='%',
+    sol = ro0_model (1.0/div, damp, 'TL', verbose='%\n',
 		     overwrite=True, runduration=1.0)
     print '\bFEM-BC ...',
-    sol = ro0_model (1.0/div, damp, 'BC', verbose='%',
+    sol = ro0_model (1.0/div, damp, 'BC', verbose='%\n',
 		     overwrite=True, runduration=1.0)
     print '\bFEM-BC-RO ...',
     sol = ro0_model (1.0/div, damp, 'BC-RO', pod_base,
-	verbose='%', overwrite=True, runduration=1.0)
+	verbose='%\n', overwrite=True, runduration=1.0)
     print '\bFEM-BC-MODAL ...',
     sol = ro0_model (1.0/div, damp, 'BC-MODAL', modal_base,
-	    verbose='%', overwrite=True, runduration=1.0)
+	    verbose='%\n', overwrite=True, runduration=1.0)
 
     # open in 'READ' mode and retrieve time histories
     times = ro0_times (ro0_model (1.0/div, damp, 'TL'))

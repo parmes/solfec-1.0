@@ -102,7 +102,7 @@ gs = GAUSS_SEIDEL_SOLVER (1E-4, 10000)
 
 # solfec one
 solfec1 = SOLFEC ('DYNAMIC', step, 'out/tests/arch/one')
-if not VIEWER(): solfec1.verbose = 'OFF'
+if not VIEWER(): solfec1.verbose = '%'
 CONTACT_SPARSIFY (solfec1, 0.005)
 SURFACE_MATERIAL (solfec1, model = 'SIGNORINI_COULOMB', friction = 0.5)
 bulkmat1 = BULK_MATERIAL (solfec1, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
@@ -112,7 +112,7 @@ CALLBACK (solfec1, step, solfec1, progress_callback_one)
 
 # solfec two
 solfec2 = SOLFEC ('DYNAMIC', step, 'out/tests/arch/two')
-if not VIEWER(): solfec2.verbose = 'OFF'
+if not VIEWER(): solfec2.verbose = '%'
 CONTACT_SPARSIFY (solfec2, 0.005)
 SURFACE_MATERIAL (solfec2, model = 'SIGNORINI_COULOMB', friction = 0.5)
 bulkmat2 = BULK_MATERIAL (solfec2, model = 'KIRCHHOFF', young = 1, poisson = 0, density = 1)
@@ -120,17 +120,19 @@ GRAVITY (solfec2, (0, 0, -9.81))
 masonry_arch_create (0.1094, bulkmat2, solfec2)
 CALLBACK (solfec2, step, solfec2, progress_callback_two)
 
-print '    ' , 
+print '1 of 2:', 
 RUN (solfec1, gs, stop)
+print '\b\b\b\b\b\b\b\b\b\b\b\b\b',
+print '2 of 2:', 
 RUN (solfec2, gs, stop)
-print '\b\b\b\b\b\b\b' ,
+print '\b\b\b\b\b\b\b\b\b\b\b\b\b',
 
 if not VIEWER() and solfec1.mode == 'WRITE' and solfec2.mode == 'WRITE':
 
-    if E1 [stepnum - 1] < 1E-4 and E2 [stepnum - 1] > 1E-3: print 'PASSED'
+    if E1 [stepnum - 1] < 1E-4 and E2 [stepnum - 1] > 1E-3: print 'PASSED     '
     else:
-      print 'FAILED'
-      print '(', 'Kinetic energy out of bounds: E1 = %g, E2 = %g' % (E1[stepnum-1], E2[stepnum-1]), ')'
+      print 'FAILED',
+      print '(Kinetic energy out of bounds: E1 = %g, E2 = %g)' % (E1[stepnum-1], E2[stepnum-1])
 
     try:
       import matplotlib.pyplot as plt

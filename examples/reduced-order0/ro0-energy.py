@@ -23,17 +23,17 @@ else:
   for div in step_denom:
     print 'Solving for step 1/%d and damping %g ...' % (div, damp)
     print 'FEM-TL ...',
-    sol = ro0_model (1.0/div, damp, 'TL', verbose='%',
+    sol = ro0_model (1.0/div, damp, 'TL', verbose='%\n',
 		     overwrite=True, runduration=dura)
     print '\bFEM-BC ...',
-    sol = ro0_model (1.0/div, damp, 'BC', verbose='%',
+    sol = ro0_model (1.0/div, damp, 'BC', verbose='%\n',
 		     overwrite=True, runduration=dura)
     print '\bFEM-BC-RO ...',
     sol = ro0_model (1.0/div, damp, 'BC-RO', pod_base,
-	verbose='%', overwrite=True, runduration=dura)
+	verbose='%\n', overwrite=True, runduration=dura)
     print '\bFEM-BC-MODAL ...',
     sol = ro0_model (1.0/div, damp, 'BC-MODAL', modal_base,
-	    verbose='%', overwrite=True, runduration=dura)
+	    verbose='%\n', overwrite=True, runduration=dura)
 
     # open in 'READ' mode and retrieve time histories
     print '\bTIME: ', 

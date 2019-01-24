@@ -331,7 +331,11 @@ def create_simulation (step, stop, outstep):
            S239     + \
            S240     + \
            S241     + \
-           S242
+           S242	    
+           #S243	    + \ # FIXME
+           #S244	    + \
+           #S245	    + \
+	   #S246
            
    bulk = BULK_MATERIAL (solfec,
                          model = 'KIRCHHOFF',
@@ -370,12 +374,17 @@ def create_simulation (step, stop, outstep):
    FIX156.append(Mesh_final.node(45))
    FIX156.append(Mesh_final.node(8))
    FIX156.append(Mesh_final.node(48))
+
+   Mesh_copy = COPY(Mesh_final)
    
    Bod_M1 = BODY (solfec, 'FINITE_ELEMENT', Mesh_final, bulk)
    
-   for i in range (0,len(Node)):
+   #for i in range (0,len(Node)):
      # press 'D' in the viewer to see display points
-     DISPLAY_POINT (Bod_M1, Node[i], 'N%d'%i)
+   #  DISPLAY_POINT (Bod_M1, Node[i], 'N%d'%i)
+   for i in range (0,Mesh_copy.nnod):
+     # press 'D' in the viewer to see display points
+     DISPLAY_POINT (Bod_M1, Mesh_copy.node(i), 'N%d'%i)
    
    FIX_POINT (Bod_M1,Point_C)
    
@@ -402,9 +411,9 @@ def create_simulation (step, stop, outstep):
    return solfec
 
 # data
-step = 1E-3
+step = 5E-3
 stop = 1.0
-outstep = 1E-2
+outstep = 5E-2
 
 # calculate
 solfec = create_simulation (step, stop, outstep)
@@ -422,4 +431,11 @@ if not VIEWER():
   A = mesh.node(0)
   SEEK (solfec, stop)
   disp = DISPLACEMENT (body, A)
-  print disp
+
+  Code_Aster_Ref = 4.66E-03 # FIXME - obtain reference with the four additional pressure patches included
+
+  if abs(disp[0]-Code_Aster_Ref) < 0.2E-3: # FIXME
+    print '\b\b\b\bPASSED'
+  else:
+    print '\b\b\b\bFAILED', 
+    print '(Computed displacement was %g' % disp[0], 'while reference is %g)' % Code_Aster_Ref

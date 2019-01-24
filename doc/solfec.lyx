@@ -7015,7 +7015,10 @@ obj.verbose
 \emph default
  - 'ON' or 'OFF' enabling or disabling writing to standard output (default:
  'ON') ; '%' can also be used to enable plain percentage printout per individual
- RUN
+ RUN; '%
+\backslash
+n' can be used for the same purpose with a newline inserted after finished
+ calculations
 \end_layout
 
 \end_inset

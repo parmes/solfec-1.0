@@ -1912,6 +1912,7 @@ static int lng_SOLFEC_set_verbose (lng_SOLFEC *self, PyObject *value, void *clos
   IFIS (value, "ON") self->sol->verbose = 1;
   ELIF (value, "OFF") self->sol->verbose = 0;
   ELIF (value, "%") self->sol->verbose = -1;
+  ELIF (value, "%\n") self->sol->verbose = -2;
   ELSE
   {
     PyErr_SetString (PyExc_ValueError, "Invalid verbose value (ON/OFF/% accepted)");

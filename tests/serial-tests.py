@@ -1,11 +1,15 @@
 import sys
 
-tests = ['tests/pinned-bar.py',
+tests = [
+         'tests/pinned-bar.py',
          'tests/math-pendulum.py',
          'tests/double-pendulum.py',
          'tests/projectile.py',
 	 'tests/block-sliding.py',
-	 'tests/arch.py']
+	 'tests/arch.py',
+	 'tests/BM01/BM01_pressure.py',
+	 'tests/BM01/BM01_force.py',
+	 ]
 
 print '------------------------------------------------------------------------------------------'
 print 'Solfec serial tests'

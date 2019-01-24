@@ -1,11 +1,9 @@
 def create_simulation (step,stop, N_archi):
-   #step=1.E-4
-   #stop=5.
-   #Dir_out='out/LE-302_Grosier_1e-3'
-   Dir_out='out_serie/LE-302_fin_'+'step_'+str(step)+'s'
+   Dir_out='out/tests/BM01_force_'+'step_'+str(step)+'s'
    GEOMETRIC_EPSILON (1E-5)
    
    solfec=SOLFEC ('QUASI_STATIC', step, Dir_out)
+
    Nodes_M1=[
          0.1000000E+02, 0.0000000E+00, 0.0000000E+00,
          0.0000000E+00, 0.0000000E+00, 0.1000000E+02,
@@ -351,8 +349,6 @@ def create_simulation (step,stop, N_archi):
    for i in Mesh_final.nodes_on_surface(11):
      Node.append(Mesh_final.node(i))
      
-   #Point_A=Mesh_final.node(0)
-   #Point_B=Mesh_final.node(2)
    Point_A = Mesh_final.node(0)
    Point_B = Mesh_final.node(2)
    Point_C = Mesh_final.node(1)
@@ -381,8 +377,6 @@ def create_simulation (step,stop, N_archi):
    
    
    Bod_M1 = BODY (solfec, 'FINITE_ELEMENT',Mesh_final,bulk)
-   #Bod_M1.scheme = 'DEF_EXP'
-   #Bod_M1.damping = 1E-4
    
    data =[]
    time=[]
@@ -408,45 +402,51 @@ def create_simulation (step,stop, N_archi):
    Fix_direc_Y=(0.,1.,0.)
    for fix in FIX246:
      FIX_DIRECTION (Bod_M1, fix, Fix_direc_Y)
-   #  SET_DISPLACEMENT(Bod_M1,fix, Fix_direc_Y, Serie)
-   #	FIX_POINT (Bod_M1,fix)
      
    Fix_direc_X=(1.,0.,0.)
    for fix in FIX156:
      FIX_DIRECTION (Bod_M1, fix, Fix_direc_X)
-    # SET_DISPLACEMENT(Bod_M1,fix, Fix_direc_X, Serie)  
-   #	FIX_POINT (Bod_M1,fix)
       
-   P=2.0E+03  #N/m2
-   surface=11
-   #PRESSURE (Bod_M1, surface, -P)
-   
    F=2E+06   #N
    FORCE(Bod_M1,'SPATIAL', Point_A,(1,0,0),F)
    FORCE(Bod_M1,'SPATIAL', Point_B,(0,-1,0),F)
-   
-   #GRAVITY (solfec, (0, 0, -10))
    
    gs= GAUSS_SEIDEL_SOLVER (1E-3 , 1000)
    gs_imp= GAUSS_SEIDEL_SOLVER (1E-6 , 1000, 1E-6)
    nt = NEWTON_SOLVER ()
    nt_imp= NEWTON_SOLVER (1E-9, 1000, delta = 1E-6)
    OUTPUT(solfec,N_archi*step)
+   if not VIEWER() and solfec.mode == 'WRITE':
+     solfec.verbose = '%'
    RUN (solfec, gs_imp, stop)
+   return solfec
 
+# data
+step = 5E-3
+stop = 1.0
+outstep = 5E-2
 
-stop=20.
+# calculate
+solfec = create_simulation (step, stop, outstep)
+
+# read results
 if not VIEWER():
-  tw1 = create_simulation (2.E-2, stop, 1 )
-  tw2 = create_simulation (1.E-2, stop, 1 )
-  tw3 = create_simulation (1.E-3, stop, 10)
-  tw4 = create_simulation (2.E-3, stop, 5 )
-  tw5 = create_simulation (5.E-3, stop, 2 )
-  tw6 = create_simulation (1.E-4, stop, 100)
-  tw7 = create_simulation (2.E-4, stop, 50)  
-  tw8 = create_simulation (5.E-4, stop, 20)  
+  solfec = create_simulation (step, stop, outstep)
+  if solfec.mode != 'READ':
+    print 'READ ERROR'
+    import sys
+    sys.exit(1)
+
+  body = solfec.bodies[0]
+  mesh = body.mesh
+  A = mesh.node(0)
+  SEEK (solfec, stop)
+  disp = DISPLACEMENT (body, A)
   
-  
-  
-  
-  
+  Code_Aster_Ref = 2.134E-02
+
+  if abs(disp[0]-Code_Aster_Ref) < 0.001E-2:
+    print '\b\b\b\bPASSED'
+  else:
+    print '\b\b\b\bFAILED', 
+    print '(Computed displacement was %g' % disp[0], 'while reference is %g)' % Code_Aster_Ref

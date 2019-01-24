@@ -33,7 +33,7 @@ stop = 1.976
 step = stop / 1024.0
 
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/projectile')
-if not VIEWER(): solfec.verbose = 'OFF'
+if not VIEWER(): solfec.verbose = '%'
 material = BULK_MATERIAL (solfec)
 GRAVITY (solfec, (0, 0, -gravity))
 
@@ -51,10 +51,10 @@ if not VIEWER():
     value = bod.conf [9] / 0.0254 # conver to inches
     exact = 86.138
     error = abs (value - exact) / exact
-    if (error < 0.005): print 'PASSED'
+    if (error < 0.005): print '\b\b\b\bPASSED'
     else:
-      print 'FAILED'
-      print '(', 'Computed x distance was %.3f' % value, 'while the reference value is %.3f' % exact, ')'
+      print '\b\b\b\bFAILED',
+      print '(Computed x distance was %.3f' % value, 'while the reference value is %.3f)' % exact
 
     try:
       import matplotlib.pyplot as plt

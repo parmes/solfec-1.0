@@ -44,7 +44,7 @@ def double_pendulum_create (material, solfec):
 def double_pendulum_run (step, stop, gravity, skip):
 
   solfec = SOLFEC ('DYNAMIC', step, 'out/tests/double-pendulum')
-  if not VIEWER(): solfec.verbose = 'OFF'
+  if not VIEWER(): solfec.verbose = '%'
 
   bulkmat = BULK_MATERIAL (solfec)
 
@@ -112,11 +112,11 @@ else:
 	error = abs (tot[ref[0]] - ref[1]) / max (1, ref[1])
 	if error > 1E-3:
 	  passed = 0
-	  print 'FAILED'
-	  print '(', 'Computed total energy was %.3f' % tot[ref[0]], 'while the reference is %.3f' % ref[1]
+	  print '\b\b\b\bFAILED',
+	  print '(Computed total energy was %.3f' % tot[ref[0]], 'while the reference is %.3f)' % ref[1]
 	  break
 
-      if passed: print 'PASSED'
+      if passed: print '\b\b\b\bPASSED'
 
       try:
 	import matplotlib.pyplot as plt

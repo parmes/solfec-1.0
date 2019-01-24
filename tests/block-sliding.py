@@ -41,7 +41,7 @@ step = 0.001
 stop = 10.0
 gravity = 9.81
 solfec = SOLFEC ('DYNAMIC', step, 'out/tests/block-sliding')
-if not VIEWER(): solfec.verbose = 'OFF'
+if not VIEWER(): solfec.verbose = '%'
 material = BULK_MATERIAL (solfec, density = 111.11111111111111111) # so that 0.3*0.3*0.1*111.(1) = 1.0
 SURFACE_MATERIAL (solfec, friction = 0.8)
 gs = GAUSS_SEIDEL_SOLVER (1E-3, 1000)
@@ -76,11 +76,11 @@ if not VIEWER():
       error = abs (val - ref[2]) / max (1, ref[2])
       if error > 1E-3:
 	passed = 0
-	print 'FAILED'
-	print '(', 'Computed value was %.3f' % val, 'while the reference is %.3f' % ref[2], ')'
+	print '\b\b\b\bFAILED',
+	print '(Computed value was %.3f' % val, 'while the reference is %.3f)' % ref[2]
 	break
 
-    if passed: print 'PASSED'
+    if passed: print '\b\b\b\bPASSED'
 
     try:
       import matplotlib.pyplot as plt
