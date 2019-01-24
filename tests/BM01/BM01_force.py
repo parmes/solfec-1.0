@@ -1,4 +1,4 @@
-def create_simulation (step,stop, N_archi):
+def create_simulation (step, stop, outstep):
    Dir_out='out/tests/BM01_force_'+'step_'+str(step)+'s'
    GEOMETRIC_EPSILON (1E-5)
    
@@ -415,7 +415,7 @@ def create_simulation (step,stop, N_archi):
    gs_imp= GAUSS_SEIDEL_SOLVER (1E-6 , 1000, 1E-6)
    nt = NEWTON_SOLVER ()
    nt_imp= NEWTON_SOLVER (1E-9, 1000, delta = 1E-6)
-   OUTPUT(solfec,N_archi*step)
+   OUTPUT(solfec, outstep)
    if not VIEWER() and solfec.mode == 'WRITE':
      solfec.verbose = '%'
    RUN (solfec, gs_imp, stop)
@@ -443,10 +443,11 @@ if not VIEWER():
   SEEK (solfec, stop)
   disp = DISPLACEMENT (body, A)
   
+  Value = disp[0]
   Code_Aster_Ref = 2.134E-02
 
-  if abs(disp[0]-Code_Aster_Ref) < 0.001E-2:
+  if abs(Value-Code_Aster_Ref) < 0.001E-2:
     print '\b\b\b\bPASSED'
   else:
     print '\b\b\b\bFAILED', 
-    print '(Computed displacement was %g' % disp[0], 'while reference is %g)' % Code_Aster_Ref
+    print '(Computed displacement was %g' % Value, 'while reference is %g)' % Code_Aster_Ref

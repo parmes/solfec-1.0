@@ -432,10 +432,11 @@ if not VIEWER():
   SEEK (solfec, stop)
   disp = DISPLACEMENT (body, A)
 
+  Value = disp[0]
   Code_Aster_Ref = 4.66E-03 # FIXME - obtain reference with the four additional pressure patches included
 
-  if abs(disp[0]-Code_Aster_Ref) < 0.2E-3: # FIXME
+  if abs(Value-Code_Aster_Ref) < 0.2E-3: # FIXME
     print '\b\b\b\bPASSED'
   else:
     print '\b\b\b\bFAILED', 
-    print '(Computed displacement was %g' % disp[0], 'while reference is %g)' % Code_Aster_Ref
+    print '(Computed displacement was %g' % Value, 'while reference is %g)' % Code_Aster_Ref

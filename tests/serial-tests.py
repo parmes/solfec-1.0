@@ -9,6 +9,8 @@ tests = [
 	 'tests/arch.py',
 	 'tests/BM01/BM01_pressure.py',
 	 'tests/BM01/BM01_force.py',
+	 'tests/BM02/BM02_hexa.py',
+	 'tests/BM02/BM02_tetra.py',
 	 ]
 
 print '------------------------------------------------------------------------------------------'
