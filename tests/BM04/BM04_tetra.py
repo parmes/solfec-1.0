@@ -1852,14 +1852,11 @@ def create_simulation (step, stop, outstep):
     surface=11
     PRESSURE (Bod_M1, surface, -P)
 
-    gs= GAUSS_SEIDEL_SOLVER (1E-3 , 1000)
-    gs_imp= GAUSS_SEIDEL_SOLVER (1E-6 , 1000, 1E-6)
-    nt = NEWTON_SOLVER ()
-    nt_imp= NEWTON_SOLVER (1E-9, 1000, delta = 1E-6)
+    nt = NEWTON_SOLVER (1E-13, delta = 1E-8, locdyn = 'OFF')
     OUTPUT(solfec, outstep)
     if not VIEWER() and solfec.mode == 'WRITE':
       solfec.verbose = '%'
-    RUN (solfec, gs_imp, stop)
+    RUN (solfec, nt, stop)
     return solfec
 
 # data
@@ -1882,23 +1879,23 @@ if not VIEWER():
   mesh0 = COPY(body.mesh) # referential mesh
 
   data_dz = [
-#       1-based               current           DZ            DZ        recorded
-#       node                node coords       Solfec      Code_Aster    tolerance
-        (1, (0.00E+00, -3.53E-16, 3.00E+00), -1.4470E-03, -1.4461E-03, 0.059*0.01),
-        (63, (0.00E+00, 3.33E-01, 3.00E+00), -1.4460E-03, -1.4453E-03, 0.049*0.01),
-	(64, (0.00E+00, 6.67E-01, 3.00E+00), -1.4451E-03, -1.4433E-03, 0.128*0.01),
-	(65, (0.00E+00, 1.00E+00, 3.00E+00), -1.4525E-03, -1.4511E-03, 0.094*0.01),
-	(105, (2.74E-01, 6.04E-01, 3.00E+00), -1.4594E-03, -1.4579E-03, 0.103*0.01),
-	(106, (2.77E-01, 2.77E-01, 3.00E+00), -1.4575E-03, -1.4565E-03, 0.074*0.01),
-	(103, (3.09E-01, 9.51E-01, 3.00E+00), -1.4651E-03, -1.4636E-03, 0.099*0.01),
-	(26, (3.33E-01, -3.53E-16, 3.00E+00), -1.4571E-03, -1.4561E-03, 0.069*0.01),
-	(107, (5.13E-01, 5.12E-01, 3.00E+00), -1.4704E-03, -1.4690E-03, 0.090*0.01),
-	(102, (5.88E-01, 8.09E-01, 3.00E+00), -1.4750E-03, -1.4736E-03, 0.097*0.01),
-	(104, (6.04E-01, 2.74E-01, 3.00E+00), -1.4706E-03, -1.4694E-03, 0.081*0.01),
-	(25, (6.67E-01, -3.53E-16, 3.00E+00), -1.4739E-03, -1.4726E-03, 0.088*0.01),
-	(101, (8.09E-01, 5.88E-01, 3.00E+00), -1.4803E-03, -1.4790E-03, 0.091*0.01),
-	(100, (9.51E-01, 3.09E-01, 3.00E+00), -1.4851E-03, -1.4838E-03, 0.087*0.01),
-	(24, (1.00E+00, -7.07E-16, 3.00E+00), -1.4843E-03, -1.4830E-03, 0.091*0.01)]
+#       1-based               current           DZ            DZ    
+#       node                node coords       Solfec      Code_Aster
+        (1, (0.00E+00, -3.53E-16, 3.00E+00), -1.4470E-03, -1.4461E-03),
+        (63, (0.00E+00, 3.33E-01, 3.00E+00), -1.4460E-03, -1.4453E-03),
+	(64, (0.00E+00, 6.67E-01, 3.00E+00), -1.4451E-03, -1.4433E-03),
+	(65, (0.00E+00, 1.00E+00, 3.00E+00), -1.4525E-03, -1.4511E-03),
+	(105, (2.74E-01, 6.04E-01, 3.00E+00), -1.4594E-03, -1.4579E-03),
+	(106, (2.77E-01, 2.77E-01, 3.00E+00), -1.4575E-03, -1.4565E-03),
+	(103, (3.09E-01, 9.51E-01, 3.00E+00), -1.4651E-03, -1.4636E-03),
+	(26, (3.33E-01, -3.53E-16, 3.00E+00), -1.4571E-03, -1.4561E-03),
+	(107, (5.13E-01, 5.12E-01, 3.00E+00), -1.4704E-03, -1.4690E-03),
+	(102, (5.88E-01, 8.09E-01, 3.00E+00), -1.4750E-03, -1.4736E-03),
+	(104, (6.04E-01, 2.74E-01, 3.00E+00), -1.4706E-03, -1.4694E-03),
+	(25, (6.67E-01, -3.53E-16, 3.00E+00), -1.4739E-03, -1.4726E-03),
+	(101, (8.09E-01, 5.88E-01, 3.00E+00), -1.4803E-03, -1.4790E-03),
+	(100, (9.51E-01, 3.09E-01, 3.00E+00), -1.4851E-03, -1.4838E-03),
+	(24, (1.00E+00, -7.07E-16, 3.00E+00), -1.4843E-03, -1.4830E-03)]
 
   failed = False
   SEEK (solfec, stop)
@@ -1907,10 +1904,13 @@ if not VIEWER():
     disp = DISPLACEMENT (body, pnt)
     Value = disp[2]
     Code_Aster_Ref = item[3]
+    error = abs(Value-Code_Aster_Ref)/abs(Code_Aster_Ref) 
+    tolerance = 0.0009
 
-    if abs(Value-Code_Aster_Ref) > item[4]:
+    if error > tolerance:
       failed = True
       print '\b\b\b\bFAILED', 
-      print '(Computed displacement at node %d  was %g' % (item[0]-1, Value), 'while reference is %g)' % Code_Aster_Ref
+      print '(Computed displacement at node %d  was %g' % (item[0]-1, Value), 'while reference is %g)' % Code_Aster_Ref,
+      print '-->(error %g, while tolerance %g)' % (error, tolerance)
 
   if not failed: print '\b\b\b\bPASSED'

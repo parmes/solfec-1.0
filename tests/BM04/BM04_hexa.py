@@ -929,14 +929,11 @@ def create_simulation (step, stop, outstep):
     surface=11
     PRESSURE (Bod_M1, surface, -P)
 
-    gs= GAUSS_SEIDEL_SOLVER (1E-3 , 1000)
-    gs_imp= GAUSS_SEIDEL_SOLVER (1E-6 , 1000, 1E-6)
-    nt = NEWTON_SOLVER ()
-    nt_imp= NEWTON_SOLVER (1E-9, 1000, delta = 1E-6)
+    nt = NEWTON_SOLVER (1E-13, delta = 1E-8, locdyn = 'OFF')
     OUTPUT(solfec, outstep)
     if not VIEWER() and solfec.mode == 'WRITE':
       solfec.verbose = '%'
-    RUN (solfec, gs_imp, stop)
+    RUN (solfec, nt, stop)
     return solfec
 
 # data
@@ -959,23 +956,23 @@ if not VIEWER():
   mesh0 = COPY(body.mesh)
 
   data_dz = [
-#       1-based          current           DZ            DZ        recorded
-#       node           node coords       Solfec      Code_Aster    tolerance
-        (238, (0.2308, 0.6500, 3.0000), -1.467E-03, -1.466E-03, 0.073*0.01),
-        (245, (0.2973, 0.3106, 3.0000), -1.465E-03, -1.464E-03, 0.074*0.01),
-	(229, (0.3265, 0.8809, 3.0000), -1.478E-03, -1.477E-03, 0.074*0.01),
-	(244, (0.3595, 0.2348, 3.0000), -1.468E-03, -1.467E-03, 0.073*0.01),
-	(237, (0.3605, 0.5807, 3.0000), -1.473E-03, -1.472E-03, 0.074*0.01),
-	(243, (0.4057, 0.1484, 3.0000), -1.470E-03, -1.469E-03, 0.074*0.01),
-	(242, (0.4342, 0.0546, 3.0000), -1.471E-03, -1.470E-03, 0.074*0.01),
-        (241, (0.4438, -0.0429, 3.0000), -1.472E-03, -1.471E-03, 0.074*0.01),
-	(236, (0.4741, 0.4874, 3.0000), -1.478E-03, -1.477E-03, 0.075*0.01),
-	(228, (0.4994, 0.7885, 3.0000), -1.484E-03, -1.483E-03, 0.075*0.01),
-	(235, (0.5674, 0.3737, 3.0000), -1.481E-03, -1.480E-03, 0.075*0.01),
-	(234, (0.6367, 0.2441, 3.0000), -1.483E-03, -1.482E-03, 0.076*0.01),
-	(227, (0.6509, 0.6642, 3.0000), -1.489E-03, -1.487E-03, 0.077*0.01),
-	(233, (0.6794, 0.1034, 3.0000), -1.484E-03, -1.483E-03, 0.076*0.01),
-        (232, (0.6938, -0.0429, 3.0000), -1.484E-03, -1.483E-03, 0.076*0.01)]
+#       1-based          current           DZ            DZ    
+#       node           node coords       Solfec      Code_Aster
+        (238, (0.2308, 0.6500, 3.0000), -1.467E-03, -1.466E-03),
+        (245, (0.2973, 0.3106, 3.0000), -1.465E-03, -1.464E-03),
+	(229, (0.3265, 0.8809, 3.0000), -1.478E-03, -1.477E-03),
+	(244, (0.3595, 0.2348, 3.0000), -1.468E-03, -1.467E-03),
+	(237, (0.3605, 0.5807, 3.0000), -1.473E-03, -1.472E-03),
+	(243, (0.4057, 0.1484, 3.0000), -1.470E-03, -1.469E-03),
+	(242, (0.4342, 0.0546, 3.0000), -1.471E-03, -1.470E-03),
+        (241, (0.4438, -0.0429, 3.0000), -1.472E-03, -1.471E-03),
+	(236, (0.4741, 0.4874, 3.0000), -1.478E-03, -1.477E-03),
+	(228, (0.4994, 0.7885, 3.0000), -1.484E-03, -1.483E-03),
+	(235, (0.5674, 0.3737, 3.0000), -1.481E-03, -1.480E-03),
+	(234, (0.6367, 0.2441, 3.0000), -1.483E-03, -1.482E-03),
+	(227, (0.6509, 0.6642, 3.0000), -1.489E-03, -1.487E-03),
+	(233, (0.6794, 0.1034, 3.0000), -1.484E-03, -1.483E-03),
+        (232, (0.6938, -0.0429, 3.0000), -1.484E-03, -1.483E-03)]
 
   failed = False
   SEEK (solfec, stop)
@@ -984,10 +981,13 @@ if not VIEWER():
     disp = DISPLACEMENT (body, pnt)
     Value = disp[2]
     Code_Aster_Ref = item[3]
+    error = abs(Value-Code_Aster_Ref)/abs(Code_Aster_Ref) 
+    tolerance = 0.0011
 
-    if abs(Value-Code_Aster_Ref) > item[4]:
+    if error > tolerance:
       failed = True
       print '\b\b\b\bFAILED', 
-      print '(Computed displacement at node %d was %g' % (item[0]-1, Value), 'while reference is %g)' % Code_Aster_Ref
+      print '(Computed displacement at node %d was %g' % (item[0]-1, Value), 'while reference is %g)' % Code_Aster_Ref,
+      print '-->(error %g, while tolerance %g)' % (error, tolerance)
 
   if not failed: print '\b\b\b\bPASSED'

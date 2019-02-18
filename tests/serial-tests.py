@@ -15,6 +15,7 @@ tests = [
 	 'tests/BM03/BM03_tetra.py',
 	 'tests/BM04/BM04_hexa.py',
 	 'tests/BM04/BM04_tetra.py',
+	 'tests/BM06/BM06_hexa.py',
 	 ]
 
 print '------------------------------------------------------------------------------------------'
