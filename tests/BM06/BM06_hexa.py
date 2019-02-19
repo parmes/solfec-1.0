@@ -5986,8 +5986,8 @@ if not VIEWER():
   failed = False
   SEEK (solfec, stop)
   label = ('DX', 'DY', 'DZ')
-  for i in range (0,3):
-    for item in data_dz:
+  for item in data_dz:
+    for i in range (0,3):
       pnt = mesh0.node(item[0]-1)
       disp = DISPLACEMENT (body, pnt)
       Value = disp[i]
@@ -5999,6 +5999,48 @@ if not VIEWER():
 	failed = True
 	print '\b\b\b\bFAILED', 
 	print '(Computed displacement %s at node %d was %g' % (label[i], item[0]-1, Value), 'while reference is %g)' % Code_Aster_Ref,
+	print '-->(error %g, while tolerance %g)' % (error, tolerance)
+
+  data_p = [
+#       1-based     (SX, SY, SZ)                      (SX, SY, SZ)                       tolerances
+#       node       Solfec 841200b                      Code_Aster                      Solfec 5be22f7
+       (22, ( 2.23E+07,  3.08E+07, -4.10E+07), (-2.22E+07,  3.07E+07, -4.10E+07), (0.0060, 0.0026, 0.00027)),
+       (23, ( 3.35E+07,  3.43E+07, -1.77E+07), (-3.35E+07,  3.42E+07, -1.78E+07), (0.00048, 0.0019, 0.0075)),
+       (24, ( 4.79E+07,  3.65E+07,  7.55E+06), (-4.83E+07,  3.63E+07,  7.28E+06), (0.0082, 0.0066, 0.049)),
+       (31, ( 2.76E+07, -3.48E+06, -2.79E+07), (-2.76E+07, -3.46E+06, -2.79E+07), (0.0045, 0.015, 0.0013)),
+       (32, (-3.19E+07, -2.48E+06, -7.08E+06), (-3.19E+07, -2.49E+06, -7.09E+06), (0.000013, 0.0054, 0.0076)),
+       (33, ( 3.60E+07, -1.49E+05,  1.85E+07), (-3.63E+07, -1.42E+05,  1.85E+07), (0.010, 0.19, 0.0080)), # FIXME: 20% difference
+       (40, ( 2.57E+07, -3.56E+07, -1.54E+07), (-2.55E+07, -3.55E+07, -1.54E+07), (0.010, 0.0026, 0.0027)),
+       (41, ( 2.28E+07, -3.30E+07,  4.61E+06), (-2.27E+07, -3.29E+07,  4.72E+06), (0.0038, 0.0026, 0.0072)),
+       (42, ( 2.46E+07, -3.27E+07,  2.25E+07), (-2.45E+07, -3.26E+07,  2.29E+07), (0.0036, 0.0022, 0.0083)),
+       (49, (-2.01E+07, -6.26E+07, -5.51E+06), (-1.94E+07, -6.23E+07, -5.40E+06), (0.042, 0.0050, 0.014)),
+       (50, (-1.24E+07, -5.96E+07,  1.12E+07), (-1.17E+07, -5.93E+07,  1.17E+07), (0.064, 0.0054, 0.027)),
+       (51, ( 5.97E+06, -5.78E+07,  2.40E+07), (-5.52E+06, -5.75E+07,  2.49E+07), (0.084, 0.0056, 0.027)),
+       (105,(-3.16E+07, -2.95E+06, -7.98E+06), (-3.15E+07, -2.96E+06, -7.98E+06), (0.0020, 0.0034, 0.0049)),
+       (106,( 3.86E+07, -3.43E+06,  1.30E+07), (-3.86E+07, -3.47E+06,  1.30E+07), (0.0013, 0.016, 0.009))]
+
+  SEEK (solfec, stop)
+  label = ('SX', 'SY', 'SZ')
+  for item in data_p:
+    for i in range (0,3):
+      pnt = mesh0.node(item[0]-1)
+      stre = STRESS (body, pnt)
+      Value = stre[i]
+      Code_Aster_Ref = item[2][i]
+      error = abs(Value-Code_Aster_Ref)/abs(Code_Aster_Ref) 
+      tolerance = item[3][i]
+      tstr = "%.6f" % tolerance
+      teps = 0.000001
+      j = len(tstr)-1
+      while j > 0 and tstr[j] == '0':
+	teps = teps * 10.
+	j = j - 1
+      tolerance = tolerance + teps # bump up last significant digit
+
+      if error > tolerance:
+	failed = True
+	print '\b\b\b\bFAILED', 
+	print '(Computed stress %s at node %d was %g' % (label[i], item[0]-1, Value), 'while reference is %g)' % Code_Aster_Ref,
 	print '-->(error %g, while tolerance %g)' % (error, tolerance)
 
   if not failed: print '\b\b\b\bPASSED'

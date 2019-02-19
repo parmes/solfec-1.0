@@ -957,7 +957,7 @@ if not VIEWER():
 
   data_dz = [
 #       1-based          current           DZ            DZ    
-#       node           node coords       Solfec      Code_Aster
+#       node           node coords    Solfec 841200b  Code_Aster
         (238, (0.2308, 0.6500, 3.0000), -1.467E-03, -1.466E-03),
         (245, (0.2973, 0.3106, 3.0000), -1.465E-03, -1.464E-03),
 	(229, (0.3265, 0.8809, 3.0000), -1.478E-03, -1.477E-03),
