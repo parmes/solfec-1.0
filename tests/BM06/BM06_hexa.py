@@ -5914,8 +5914,6 @@ def create_simulation (step, stop, outstep):
     FIX_Z.append(Mesh_final.node(1887))
     FIX_Z.append(Mesh_final.node(1888))
     FIX_Z.append(Mesh_final.node(1896))
-
- 
     
     Bod_M1 = BODY (solfec, 'FINITE_ELEMENT',Mesh_final,bulk)
        
@@ -5966,8 +5964,8 @@ if not VIEWER():
   mesh0 = COPY(body.mesh)
 
   data_dz = [
-#       1-based     (DX, DY, DZ)                             (DX, DY, DZ)
-#       node           Solfec                                  Code_Aster
+#       1-based      (DX, DY, DZ)                            (DX, DY, DZ)
+#       node        Solfec 841200b                            Code_Aster
        (22, (6.394E-04, 1.700E-04, 2.516E-04), (6.400E-04, 1.702E-04, 2.519E-04)),
        (23, (6.616E-04, 1.825E-04, 2.415E-04), (6.620E-04, 1.827E-04, 2.417E-04)),
        (24, (6.655E-04, 1.949E-04, 2.100E-04), (6.659E-04, 1.952E-04, 2.102E-04)),
