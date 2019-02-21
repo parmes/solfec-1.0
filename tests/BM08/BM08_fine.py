@@ -2624,7 +2624,6 @@ def create_simulation (step, stop, outstep):
     P=-1.0E+04  #N/m2
     surface=11
     PRESSURE (Bod_M1, surface, P)
-
     
     nt = NEWTON_SOLVER (1E-12, delta = 1E-8, locdyn = 'OFF')
     OUTPUT(solfec, outstep)
