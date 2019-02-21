@@ -1,3 +1,4 @@
+# THICK PLATE CLAMPED AT EDGES
 
 def create_simulation (step, stop, outstep):
     Dir_out='out/tests/BM06_hexa_step_'+str(step)+'s'

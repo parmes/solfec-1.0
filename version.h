@@ -1,2 +1,2 @@
-#define VERSION_HASH "b7af11f"
-#define VERSION_DATE "2019-01-24"
+#define VERSION_HASH "c060f54"
+#define VERSION_DATE "2019-02-19"

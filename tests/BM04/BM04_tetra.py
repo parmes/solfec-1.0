@@ -1,3 +1,4 @@
+# A SOLID CYLINDER UNDER PURE TENSION
 
 def create_simulation (step, stop, outstep):
     Dir_out='out/tests/BM04_tetra_step_'+str(step)+'s'

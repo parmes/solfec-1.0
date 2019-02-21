@@ -1,3 +1,4 @@
+# INTERNAL PRESSURE ON A THICK-WALLED INFINITE CYLINDER
 
 def create_simulation (step, stop, outstep):
     Dir_out='out/tests/BM07_hexa_step_'+str(step)+'s'

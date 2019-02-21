@@ -1,3 +1,4 @@
+# UNIFORMLY DISTRIBUTED LOAD ON A CIRCULAR PLATE
 
 def create_simulation (step, stop, outstep):
   Dir_out='out/tests/BM02_hexa_'+'step_'+str(step)+'s'

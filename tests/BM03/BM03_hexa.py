@@ -1,3 +1,4 @@
+# A SPHERICAL SHELL WITH A HOLE UNDER NODAL LOADS
 
 def create_simulation (step, stop, outstep):
   Dir_out='out/tests/BM03_hexa_step_'+str(step)+'s'

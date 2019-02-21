@@ -1,3 +1,5 @@
+# A HEMISPHERE UNDER APPLIED POINT LOADS AND INTERNAL PRESSURE
+
 def create_simulation (step, stop, outstep):
    Dir_out='out/tests/BM01_force_'+'step_'+str(step)+'s'
    GEOMETRIC_EPSILON (1E-5)
