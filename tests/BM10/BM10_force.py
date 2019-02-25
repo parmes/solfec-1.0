@@ -1637,7 +1637,7 @@ def create_simulation (step, stop, outstep):
                           
     Bod_M1 = BODY (solfec, 'FINITE_ELEMENT',Mesh_Final,bulk)
 
-    for i in range (0,len(Node)):
+    for i in range (220, 230):
       DISPLAY_POINT (Bod_M1, Node[i], 'N%d'%i) # press 'D' in the viewer to see display points
 
     Fix_direc_X=(1.,0.,0.)
@@ -1762,7 +1762,7 @@ if not VIEWER():
 	(230,        4.00E+05,           4.00E+05)]
 
 #   tolerance Solfec c060f54
-  tole_p = [0.29,  # XXX --> large discrepancy (unlike in the raport)
+  tole_p = [0.29,  # XXX --> large discrepancy (unlike in report 2018-NG-GRA-D3.2_V1.2)
             0.0031,
             0.010,
             0.025,
