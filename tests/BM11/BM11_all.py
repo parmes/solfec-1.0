@@ -815,7 +815,8 @@ def create_simulation (step, stop, outstep):
                           
     Bod_M1 = BODY (solfec, 'FINITE_ELEMENT',Mesh_Final,bulk)
 
-    for i in [43, 13, 33, 3]:
+    #for i in [33, 43, 3, 13]:
+    for i in [50, 62, 3, 13]:
       DISPLAY_POINT (Bod_M1, Node[i], 'N%d'%i) # press 'D' in the viewer to see display points
 
     Fix_direc_X=(1.,0.,0.)
@@ -879,17 +880,18 @@ def create_simulation (step, stop, outstep):
     FORCE(Bod_M1,'SPATIAL', N86,(0.,1.,0.),525000  )
     FORCE(Bod_M1,'SPATIAL', N88,(0.,1.,0.),208500  )
 
-    gs = GAUSS_SEIDEL_SOLVER (1E-6 , 1000, 1E-6)
+    #gs = GAUSS_SEIDEL_SOLVER (1E-6 , 1000, 1E-6) # to reporoduce  2018-NG-GRA-D3.2_V1.2 tolerances
+    ns = NEWTON_SOLVER (1E-12, 4096, delta = 1E-9, locdyn = 'OFF') # tigher with Code_Aster overall and faster
     OUTPUT(solfec, outstep)
     if not VIEWER() and solfec.mode == 'WRITE':
       solfec.verbose = '%'
-    RUN (solfec, gs, stop)
+    RUN (solfec, ns, stop)
     return solfec
 
 # data
-step = 1E-5
-stop = 1E-3
-outstep = 1E-5
+step = 1E-3
+stop = 0.1
+outstep = 0.01
 
 # calculate
 solfec = create_simulation (step, stop, outstep)
@@ -915,6 +917,7 @@ if not VIEWER():
   mesh0 = COPY(body.mesh)
 
   data = [
+# (step, [(node, [(Code_Aster SX, SY, SZ), ...])
   (1E-3, [(33, (2.06E+07, 7.44E+07, 2.85E+07)), (43, (2.03E+07, 9.17E+07, 3.36E+07)), (3, (1.32E+07, 5.71E+07, 2.11E+07)), (13, (1.37E+07, 7.63E+07, 2.70E+07))]),
   (5E-4, [(33, (2.06E+07, 7.44E+07, 2.85E+07)), (43, (2.03E+07, 9.17E+07, 3.36E+07)), (3, (1.32E+07, 5.71E+07, 2.11E+07)), (13, (1.37E+07, 7.63E+07, 2.70E+07))]),
   (2E-4, [(33, (2.06E+07, 7.44E+07, 2.85E+07)), (43, (2.03E+07, 9.17E+07, 3.36E+07)), (3, (1.32E+07, 5.71E+07, 2.11E+07)), (13, (1.37E+07, 7.63E+07, 2.70E+07))]),
@@ -922,26 +925,54 @@ if not VIEWER():
   (5E-5, [(33, (2.06E+07, 7.44E+07, 2.85E+07)), (43, (2.03E+07, 9.17E+07, 3.36E+07)), (3, (1.32E+07, 5.71E+07, 2.11E+07)), (13, (1.37E+07, 7.63E+07, 2.70E+07))]),
   (2E-5, [(33, (2.06E+07, 7.44E+07, 2.85E+07)), (43, (2.03E+07, 9.17E+07, 3.36E+07)), (3, (1.32E+07, 5.71E+07, 2.11E+07)), (13, (1.37E+07, 7.63E+07, 2.70E+07))])]
 
-  imap = {33:33, 43:43, 3:3, 13:13} # in case of changes
+  tols = [
+# (step, [(node, [(Solfec c060f54 diff_X, diff_Y, diff_Z), ...])
+# (1E-3, [(33, (0.020, 0.061, 0.18)), (43, (0.021, 0.0039, 0.12)), (3, (0.093, 0.020, 0.21)), (13, (0.10, 0.016, 0.13))]), # GAUSS_SEIDEL_SOLVER
+  (1E-3, [(33, (0.081, 0.074, 0.075)), (43, (0.057, 0.018, 0.023)), (3, (0.0035, 0.00017, 0.00034)), (13, (0.00015, 0.0010, 0.0054))]), # NEWTON_SOLVER
+  (5E-4, [(33, ()), (43, ()), (3, ()), (13, ())]), # TODO: if needed
+  (2E-4, [(33, ()), (43, ()), (3, ()), (13, ())]),
+  (1E-4, [(33, ()), (43, ()), (3, ()), (13, ())]),
+  (5E-5, [(33, ()), (43, ()), (3, ()), (13, ())]),
+  (2E-5, [(33, ()), (43, ()), (3, ()), (13, ())])]
+
+  #imap = {33:33, 43:43, 3:3, 13:13} # in case of changes
+  imap = {33:50, 43:62, 3:3, 13:15} # XXX: these nodes are actually used in 2018-NG-GRA-D3.2_V1.2, while the map keys ("D point") are reported therein
+
+  step_data = None # select results set
+  tols_data = None
+  for (d, t) in zip(data, tols):
+    if d[0] == step:
+      step_data = d[1]
+      tols_data = t[1]
+      break
+
+  if step_data == None:
+    print 'Test misuse: use one of avilable steps'
+    import sys
+    sys.exit(0)
+
+  if len(tols_data[1][1]) == 0:
+    print 'Tolerance data missing: run test with this step and record tolerances'
+    import sys
+    sys.exit(0)
 
   failed = False
   compo = ('SX', 'SY', 'SZ')
-  for jtem in data:
-    SEEK (solfec, jtem[0])
-    for item in jtem[1]:
-      nod = imap[item[0]]
-      pnt = mesh0.node(nod)
-      stre = STRESS (body, pnt)
-      for i in range (0,3):
-	Value = stre[i]
-	Code_Aster_Ref = item[1][i]
-	error = abs(Value-Code_Aster_Ref)/abs(Code_Aster_Ref) 
-	tolerance = 0.0
+  SEEK (solfec, stop)
+  for (item, tole) in zip(step_data, tols_data):
+    nod = imap[item[0]]
+    pnt = mesh0.node(nod)
+    stre = STRESS (body, pnt)
+    for i in range (0,3):
+      Value = stre[i]
+      Code_Aster_Ref = item[1][i]
+      error = abs(Value-Code_Aster_Ref)/abs(Code_Aster_Ref) 
+      tolerance = tole[1][i] + tolerance_epsilon(tole[1][i])
 
-	if error > tolerance:
-	  failed = True
-	  print '\b\b\b\bFAILED', 
-	  print '(Computed stress %s at node %d was %g' % (compo[i], nod, Value), 'while reference is %g)' % Code_Aster_Ref,
-	  print '-->(error %g, while tolerance %g)' % (error, tolerance)
+      if error > tolerance:
+	failed = True
+	print '\b\b\b\bFAILED', 
+	print '(Computed stress %s at node %d was %g' % (compo[i], nod, Value), 'while reference is %g)' % Code_Aster_Ref,
+	print '-->(error %g, while tolerance %g)' % (error, tolerance)
 
   if not failed: print '\b\b\b\bPASSED'

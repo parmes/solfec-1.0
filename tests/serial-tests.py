@@ -21,6 +21,7 @@ tests = [
 	 'tests/BM09/BM09_hexa.py',
 	 'tests/BM10/BM10_force.py',
 	 'tests/BM10/BM10_gravity.py',
+	 'tests/BM11/BM11_all.py',
 	 ]
 
 print '------------------------------------------------------------------------------------------'
