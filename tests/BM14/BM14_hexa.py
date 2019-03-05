@@ -193,4 +193,59 @@ if not VIEWER():
 	print '(Computed displacement %s at point (%g, %g, %g) was %g' % (label[i], pnt[0], pnt[1], pnt[2], Value), 'while reference is %g)' % Code_Aster_Ref,
 	print '-->(error %g, while tolerance %g)' % (error, tolerance)
 
+  data_p = {
+#       time step
+        5E-05 : [
+#       point       SX, SY, SZ                                SX, SY, SZ
+#       coords     Solfec 841200b                             Code_Aster 
+        (N1,  ( 1.04E+09,  2.15E+09,  8.09E+08),    ( 1.01E+09,  2.06E+09,  7.82E+08)),
+	(N2,  (-1.14E+09, -2.15E+09, -1.14E+09),    (-1.16E+09, -2.20E+09, -1.15E+09))],
+	2E-04 : [
+        (N1,  ( 1.04E+09,  2.17E+09,  7.93E+08),    (1.01E+09,   2.06E+09,  7.82E+08)),
+	(N2,  (-1.16E+09, -2.15E+09, -1.16E+09),    (-1.16E+09, -2.20E+09, -1.15E+09))],
+	1E-04 : [
+        (N1,  ( 1.03E+09,  2.13E+09,  8.10E+08),    ( 1.01E+09,  2.06E+09,  7.82E+08)),
+	(N2,  (-1.14E+09, -2.14E+09, -1.13E+09),    (-1.16E+09, -2.20E+09, -1.15E+09))] }
+
+# tolerance Solfec e58e6a4
+  tole_p = {
+        5E-05 : [
+        (N1,  (0.11,  0.015,  0.42)),
+	(N2,  (0.12,  0.041,  0.31))],
+	2E-04 : [
+        (N1,  (0.14, 0.046,  0.49)), # XXX: way larger discrepancies than those reported in 2018-NG-GRA-D3.2_V1.2 (Table 53)
+	(N2,  (0.096,  0.011,  0.31))],
+	1E-04 : [
+        (N1,  (0.14,  0.041,  0.48)),
+	(N2,  (0.11,  0.017,  0.31))] }
+
+  def tolerance_epsilon (tolerance):
+    if tolerance > 1.0: return 0.01*tolerance
+    tstr = "%.15f" % tolerance
+    teps = 0.000000000000001
+    j = len(tstr)-1
+    while j > 0 and tstr[j] == '0':
+      teps = teps * 10.
+      j = j - 1
+    return 0.0 if j == 1 else teps
+
+  failed = False
+  SEEK (solfec, stop)
+  label = ('SX', 'SY', 'SZ')
+  for (item, tole) in zip(data_p[step], tole_p[step]):
+    pnt = item[0]
+    stre = STRESS (body, pnt)
+    for i in range(0,3):
+      Value = -stre[i] # XXX: note the need to reverse sign
+      Code_Aster_Ref = item[2][i]
+      div =  1.0 if abs(Code_Aster_Ref) == 0.0 else abs(Code_Aster_Ref) 
+      error = abs(Value-Code_Aster_Ref)/div 
+      tolerance = tole[1][i] + tolerance_epsilon(tole[1][i])
+
+      if error > tolerance:
+	failed = True
+	print '\b\b\b\bFAILED', 
+	print '(Computed stress %s at point (%g, %g, %g) was %g' % (label[i], pnt[0], pnt[1], pnt[2], Value), 'while reference is %g)' % Code_Aster_Ref,
+	print '-->(error %g, while tolerance %g)' % (error, tolerance)
+
   if not failed: print '\b\b\b\bPASSED'
