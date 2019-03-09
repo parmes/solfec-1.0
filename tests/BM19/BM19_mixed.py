@@ -4429,7 +4429,7 @@ def create_simulation (step, stop, outstep):
     return (solfec, No_Trait_Cylin)
 
 # data
-step = 1E-4 # one of 1E-4, 5E-5, 1E-5, 5E-6
+step = 5E-5 # one of 1E-4, 5E-5, 1E-5, 5E-6
 stop = 2E-3
 outstep = 5E-4
 
@@ -4443,6 +4443,16 @@ if not VIEWER():
     print 'READ ERROR'
     import sys
     sys.exit(1)
+
+  def tolerance_epsilon (tolerance):
+    if tolerance > 1.0: return 0.01*tolerance
+    tstr = "%.15f" % tolerance
+    teps = 0.000000000000001
+    j = len(tstr)-1
+    while j > 0 and tstr[j] == '0':
+      teps = teps * 10.
+      j = j - 1
+    return 0.0 if j == 1 else teps
 
   body = BYLABEL(solfec, 'BODY', 'bod0')
 
@@ -4474,35 +4484,25 @@ if not VIEWER():
 # tolerance Solfec c060f54
   tole_dz = {
         1E-04 : [
-        (point[0],  (0, 0, 0)),
-        (point[1],  (0, 0, 0)),
-        (point[2],  (0, 0, 0)),
-	(point[3],  (0, 0, 0))],
+        (point[0],  (0.99, 2.3E-08, 1.03)), # XXX: note large discrepancies (likely: locking effects)
+        (point[1],  (0.99, 9.8E-11, 1.02)),
+        (point[2],  (0.99, 6.1E-09, 1.03)),
+	(point[3],  (0.99, 9.4E-09, 1.02))],
 	5E-05 : [
-        (point[0],  (0, 0, 0)),
-        (point[1],  (0, 0, 0)),
-        (point[2],  (0, 0, 0)),
-	(point[3],  (0, 0, 0))],
+        (point[0],  (1.01, 1.3E-08, 1.01)),
+        (point[1],  (0.99, 1.7E-08, 1.01)),
+        (point[2],  (1.01, 1.1E-09, 1.01)),
+	(point[3],  (0.99, 2.1E-09, 1.01))],
 	1E-05 : [
-        (point[0],  (0, 0, 0)),
-        (point[1],  (0, 0, 0)),
-        (point[2],  (0, 0, 0)),
-	(point[3],  (0, 0, 0))],
+        (point[0],  (0.99, 2.5E-09, 1.01)),
+        (point[1],  (1.01, 1.9E-09, 1.01)),
+        (point[2],  (0.99, 2.4E-09, 1.01)),
+	(point[3],  (1.01, 1.7E-09, 1.01))],
 	5E-06 : [
-        (point[0],  (0, 0, 0)),
-        (point[1],  (0, 0, 0)),
-        (point[2],  (0, 0, 0)),
-	(point[3],  (0, 0, 0))] }
-
-  def tolerance_epsilon (tolerance):
-    if tolerance > 1.0: return 0.01*tolerance
-    tstr = "%.15f" % tolerance
-    teps = 0.000000000000001
-    j = len(tstr)-1
-    while j > 0 and tstr[j] == '0':
-      teps = teps * 10.
-      j = j - 1
-    return 0.0 if j == 1 else teps
+        (point[0],  (1.01, 3.9E-10, 1.01)),
+        (point[1],  (1.01, 1.1E-09, 1.01)),
+        (point[2],  (1.01, 4.1E-10, 1.01)),
+	(point[3],  (1.01, 1.1E-09, 1.01))] }
 
   failed = False
   SEEK (solfec, stop)
@@ -4551,35 +4551,25 @@ if not VIEWER():
 # tolerance Solfec e58e6a4
   tole_p = {
         1E-04 : [
-        (point[0],  (0, 0, 0)),
-        (point[1],  (0, 0, 0)),
-        (point[2],  (0, 0, 0)),
-	(point[3],  (0, 0, 0))],
+        (point[0],  (1.22, 0.71, 0.42)),
+        (point[1],  (1.52, 0.51, 0.14)),
+        (point[2],  (1.22, 0.69, 0.42)),
+	(point[3],  (1.51, 0.51, 0.14))],
 	5E-05 : [
-        (point[0],  (0, 0, 0)),
-        (point[1],  (0, 0, 0)),
-        (point[2],  (0, 0, 0)),
-	(point[3],  (0, 0, 0))],
+        (point[0],  (0.24, 0.045, 0.056)),
+        (point[1],  (0.81, 0.85, 0.84)),
+        (point[2],  (0.24, 0.045, 0.056)),
+	(point[3],  (0.81, 0.85, 0.84))],
 	1E-05 : [
-        (point[0],  (0, 0, 0)),
-        (point[1],  (0, 0, 0)),
-        (point[2],  (0, 0, 0)),
-	(point[3],  (0, 0, 0))],
-	5E-05 : [
-        (point[0],  (0, 0, 0)),
-        (point[1],  (0, 0, 0)),
-        (point[2],  (0, 0, 0)),
-	(point[3],  (0, 0, 0))] }
-
-  def tolerance_epsilon (tolerance):
-    if tolerance > 1.0: return 0.01*tolerance
-    tstr = "%.15f" % tolerance
-    teps = 0.000000000000001
-    j = len(tstr)-1
-    while j > 0 and tstr[j] == '0':
-      teps = teps * 10.
-      j = j - 1
-    return 0.0 if j == 1 else teps
+        (point[0],  (0.38, 0.48, 0.54)),
+        (point[1],  (2.28, 1.74, 1.51)),
+        (point[2],  (0.38, 0.48, 0.54)),
+	(point[3],  (2.28, 1.74, 1.51))],
+	5E-06 : [
+        (point[0],  (0.42, 0.55, 0.63)),
+        (point[1],  (2.19, 1.64, 1.41)),
+        (point[2],  (0.42, 0.55, 0.63)),
+	(point[3],  (2.19, 1.64, 1.41))] }
 
   failed = False
   SEEK (solfec, stop)
