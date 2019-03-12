@@ -2275,7 +2275,6 @@ def create_simulation (step, stop, outstep, HZ_value):
   Fix_direc_Y=(0.,1.,0.)
   Fix_direc_Z=(0.,0.,1.)    
 
-#FIX_DIRECTION (bod_sphere_1, P1, Fix_direc_X)
   FIX_DIRECTION (bod_sphere_1, P1, Fix_direc_Y)
   FIX_DIRECTION (bod_sphere_1, P1, Fix_direc_Z)
       
