@@ -1,3 +1,5 @@
+# BEAM IN VIBRATION
+
 tms_5HZ_force= TIME_SERIES ([
                              0.00540540540540541   ,  0   ,  
                              0.0108108108108108   ,  86824.2898001726   ,  

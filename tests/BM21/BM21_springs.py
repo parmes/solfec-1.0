@@ -1,3 +1,5 @@
+# SPRING-MASS SYSTEM WITH 8 DEGREES OF FREEDOM
+
 P1 =  ( 0.0, 0.,  0.)
 P2 =  ( 0.5, 0.,  0.)
 P3 =  ( 1.0, 0.,  0.)

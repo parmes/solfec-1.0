@@ -31,6 +31,7 @@ tests = [
 	 'tests/BM20/BM20_spring.py',
 	 'tests/BM21/BM21_springs.py',
 	 'tests/BM22/BM22_hexa.py',
+	 'tests/BM23/BM23_hexa.py',
 	 ]
 
 print '------------------------------------------------------------------------------------------'
