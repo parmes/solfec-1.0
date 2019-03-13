@@ -1,4 +1,4 @@
-# IMPACT DYNAMIC OF A BEAM ON A RIGID WALL
+# DYNAMIC IMPACT OF A BEAM ON A RIGID WALL
 
 def create_simulation (step, stop, outstep):  
     Dir_out='out/tests/BM23_hexa_'+str(step)+'s'

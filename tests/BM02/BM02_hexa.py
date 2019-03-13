@@ -368,14 +368,12 @@ def create_simulation (step, stop, outstep):
   surface=11
   PRESSURE (Bod_M1, surface, -P)
   
-  gs= GAUSS_SEIDEL_SOLVER (1E-3 , 1000)
-  gs_imp= GAUSS_SEIDEL_SOLVER (1E-6 , 1000, 1E-6)  
-  nt = NEWTON_SOLVER ()
-  nt_imp= NEWTON_SOLVER (1E-9, 1000, delta = 1E-6)
+  gs = GAUSS_SEIDEL_SOLVER (1E-6 , 1000, 1E-6)  
+  nt = NEWTON_SOLVER (1E-10, locdyn = 'OFF')
   OUTPUT (solfec, outstep)
   if not VIEWER() and solfec.mode == 'WRITE':
     solfec.verbose = '%'
-  RUN (solfec, gs_imp, stop)
+  RUN (solfec, nt, stop)
   return solfec
 
 # data

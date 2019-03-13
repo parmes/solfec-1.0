@@ -32,11 +32,15 @@ tests = [
 	 'tests/BM21/BM21_springs.py',
 	 'tests/BM22/BM22_hexa.py',
 	 'tests/BM23/BM23_hexa.py',
+	 'tests/BM24/BM24_hexa.py',
 	 ]
 
 print '------------------------------------------------------------------------------------------'
 print 'Solfec serial tests'
 print '------------------------------------------------------------------------------------------'
+
+import time
+start = time.time()
 
 for t in tests:
   print 'Running', t, '...', 
@@ -45,3 +49,12 @@ for t in tests:
   exec f
   f.close ()
   print '------------------------------------------------------------------------------------------'
+
+end = time.time()
+seconds = end-start
+minutes = seconds / 60.
+hours = minutes / 60.
+h = int(hours)
+m = int(minutes - h*60)
+s = int(seconds - h*3600 - m*60)
+print 'All tests finished in:', h, 'hours', m, 'minutes', s, 'seconds'
