@@ -17,7 +17,7 @@ sys.path.append(d0+'/scripts')
 from acc_sweep import *
 
 M = 5 # array edge size
-N = 1 # cube mesh size
+N = 2 # cube mesh size
 step = 5E-4 # time step
 stop = 5 # duration
 kifo = 'BC' # kinematics
@@ -103,7 +103,7 @@ if argv != None:
 ncpu = NCPU ()
 
 # output path components
-begining = 'out/array-of-cubes/' + (subd+'/') if len(subd) > 0 else subd
+begining = 'out/array-of-cubes/'+subd+'/' if len(subd) > 0 else 'out/array-of-cubes/'
 if len(prfx) > 0: prfx += '_'
 ending = prfx + 'STE%g_DUR%g_%s_%s_M%d_N%d_%s%d' % \
   (step,stop,kifo,solv,M,N,'S' if weak == 'OFF' else 'W',ncpu)
