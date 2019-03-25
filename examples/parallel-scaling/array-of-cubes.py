@@ -24,10 +24,15 @@ kifo = 'BC' # kinematics
 outi = 0.003 # output interval
 weak = 'OFF' # week scaling
 solv = 'NS' # solver
+maxi = 1000 # constraint solver maximum iterations
+nsdl = 0.0 # Newton solver delta
+rldl = 'OFF' # Newton solver relative delta flag
+leps = 0.25 # Newton solver epsilon
+lmxi = 10 # Newton solver linmaxiter
 lofq = 1 # acc sweep low freq.
 hifq = 5 # acc sweep high freq.
 amag = 1 # acc sweep magnitude
-prfx = '' # predix string
+prfx = '' # prefix string
 subd = '' # subdirectory string
 xdmf = 'OFF' # export XMDF
 argv = NON_SOLFEC_ARGV()
@@ -47,6 +52,11 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '-solv name --> solver in {NS, GS} (default: %s)' % solv
   print '               where: NS -- Projected Newton solver'
   print '               where: GS -- Gauss-Seidel solver'
+  print '-maxi number --> Constraint solver max. iter. (default: %d)' % maxi
+  print '-nsdl number --> Newton solver delta (default: %g)' % nsdl
+  print '-rldl string --> Newton solver relative delta flag (default: %s)' % rldl
+  print '-leps number --> Newton linear solver epsilon (default: %g)' % leps
+  print '-lmxi number --> Newton linear solver linmaxiter (default: %d)' % lmxi
   print '-outi number --> output interval (default: %g)' % outi
   print '-weak --> enable weak scaling test (default: %s)' % weak
   print '          in this mode a constant MxMxM array size'
@@ -78,6 +88,21 @@ if argv != None:
     elif argv [i] == '-solv':
       if argv [i+1] in ('NS', 'GS'):
 	solv = argv [i+1]
+    elif argv [i] == '-maxi':
+      maxi = int (argv [i+1])
+    elif argv [i] == '-nsdl':
+      nsdl = float (argv [i+1])
+    elif argv [i] == '-rldl':
+      rldl = argv [i+1]
+      rldlv = ('OFF', 'avgWii', 'minWii', 'maxWii')
+      if rldl not in rldlv:
+        print 'ERROR: invalid -rldl value'
+	print '       use one of:', rldlv
+	sys.exit(0)
+    elif argv [i] == '-leps':
+      leps = float (argv [i+1])
+    elif argv [i] == '-lmxi':
+      lmxi = int (argv [i+1])
     elif argv [i] == '-outi':
       outi = float (argv [i+1])
     elif argv [i] == '-step':
@@ -103,10 +128,11 @@ if argv != None:
 ncpu = NCPU ()
 
 # output path components
-begining = 'out/array-of-cubes/'+subd+'/' if len(subd) > 0 else 'out/array-of-cubes/'
+begining = 'out/array-of-cubes/'+ ((subd+'/') if len(subd) > 0 else '')
 if len(prfx) > 0: prfx += '_'
+solvstr = 'NS_MAXI%d_NSDL%g_RLDL%s_LEPS%g_LMXI%d' % (maxi, nsdl, rldl, leps, lmxi) if solv == 'NS' else 'GS_MAXI%d' % maxi
 ending = prfx + 'STE%g_DUR%g_%s_%s_M%d_N%d_%s%d' % \
-  (step,stop,kifo,solv,M,N,'S' if weak == 'OFF' else 'W',ncpu)
+  (step,stop,kifo,solvstr,M,N,'S' if weak == 'OFF' else 'W',ncpu)
 outpath = begining + ending
 
 # create solfec object
@@ -122,6 +148,11 @@ if sol.mode == 'READ' and sol.outpath != outpath:
     elif x[0:3] == 'DUR': stop = float(x[3:])
     elif x in ('TL','BC','PR','RG'): kifo = x
     elif x in ('NS','GS'): solv = x
+    elif x[0:4] == 'MAXI': maxi = int(x[4:])
+    elif x[0:4] == 'NSDL': nsdl = float(x[4:])
+    elif x[0:4] == 'RLDL': rldl = x[4:]
+    elif x[0:4] == 'LEPS': leps = float(x[4:])
+    elif x[0:4] == 'LMXI': lmxi = int(x[4:])
     elif x[0] == 'M': M = int(x[1:])
     elif x[0] == 'N': N = int(x[1:])
     elif x[0] == 'S': ncpu = int(x[1:])
@@ -197,8 +228,9 @@ for i in (0, 1, 2):
 GRAVITY (sol, (0, 0, -10))
 
 # create solver
-if solv == 'NS': slv = NEWTON_SOLVER (maxmatvec = 100000)
-else: slv = GAUSS_SEIDEL_SOLVER (1.0, 1000, meritval=1E-8)
+if solv == 'NS': slv = NEWTON_SOLVER (maxiter = maxi, delta = nsdl,\
+  epsilon = leps, linmaxiter = lmxi, maxmatvec = 100000, reldelta = rldl)
+else: slv = GAUSS_SEIDEL_SOLVER (1.0, maxi, meritval=1E-8)
 
 # output interval
 OUTPUT (sol, outi)
@@ -215,11 +247,12 @@ if RANK() == 0 and sol.mode == 'WRITE':
   with open(fp, "a") as f: f.write(ln+'\n')
   print 'Runtime line:',  ln, 'appended to:', fp
   itershist = slv.itershist
-  itup = sum([x for x in itershist if x > 0 and x < 1000])
-  itlo = sum([1 for x in itershist if x > 0 and x < 1000])
+  itsum = sum(itershist)
+  itup = sum([x for x in itershist if x > 0 and x < maxi])
+  itlo = sum([1 for x in itershist if x > 0 and x < maxi])
   itavg = itup / itlo if itup > 0 else 1
-  n1000 = itershist.count(1000)
-  ln = '%s = %d, %d' % (ending,itavg,n1000)
+  nmaxi = itershist.count(maxi)
+  ln = '%s = %d, %d, %d' % (ending,itsum,itavg,nmaxi)
   fp = begining + 'ITERS'
   with open(fp, "a") as f: f.write(ln+'\n')
   print 'Runtime line:',  ln, 'appended to:', fp

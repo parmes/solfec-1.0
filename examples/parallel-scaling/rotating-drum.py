@@ -94,7 +94,7 @@ leps = 0.25 # Newton solver epsilon
 lmxi = 10 # Newton solver linmaxiter
 weak = 'OFF' # weak scaling test flag
 sphs = 'OFF' # use sphereical particles
-prfx = '' # predix string
+prfx = '' # prefix string
 subd = '' # subdirectory string
 xdmf = 'OFF' # export XDMF (-kifo FE)
 argv = NON_SOLFEC_ARGV()
@@ -201,7 +201,7 @@ if argv != None:
 ncpu = NCPU ()
 
 # output path components
-begining = 'out/rotating-drum/' + (subd+'/') if len(subd) > 0 else subd
+begining = 'out/rotating-drum/' + ((subd+'/') if len(subd) > 0 else '')
 if len(prfx) > 0: prfx += '_'
 solvstr = 'NS_MAXI%d_NSDL%g_RLDL%s_LEPS%g_LMXI%d' % (maxi, nsdl, rldl, leps, lmxi) if solv == 'NS' else 'GS_MAXI%d' % maxi
 ending = prfx + 'STE%g_DUR%g_%s_%s_%s_FRI%g_DEN%g_ANG%g_N%d_%s%d' % \
