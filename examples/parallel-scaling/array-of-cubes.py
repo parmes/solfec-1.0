@@ -19,7 +19,9 @@ from acc_sweep import *
 M = 5 # array edge size
 N = 2 # cube mesh size
 step = 5E-4 # time step
-stop = 5 # duration
+stop = 3 # duration
+fric = 0.1 # friction coefficient
+dens = 1000 # bulk material density
 kifo = 'BC' # kinematics
 outi = 0.003 # output interval
 weak = 'OFF' # week scaling
@@ -29,9 +31,9 @@ nsdl = 0.0 # Newton solver delta
 rldl = 'OFF' # Newton solver relative delta flag
 leps = 0.25 # Newton solver epsilon
 lmxi = 10 # Newton solver linmaxiter
-lofq = 1 # acc sweep low freq.
-hifq = 5 # acc sweep high freq.
-amag = 1 # acc sweep magnitude
+lofq = 2 # acc sweep low freq.
+hifq = 2 # acc sweep high freq.
+amag = 5 # acc sweep magnitude
 prfx = '' # prefix string
 subd = '' # subdirectory string
 xdmf = 'OFF' # export XMDF
@@ -63,6 +65,8 @@ if argv != None and ('-help' in argv or '-h' in argv):
   print '          per MPI rank is approximately maintained'
   print '-step number --> time step (default: %g)' % step
   print '-stop number --> duration (default: %g)' % stop
+  print '-fric number --> friction coefficient (default %g)' % fric
+  print '-dens number --> bulk material density (default %g)' % dens
   print '-prfx string --> include a prefix string into the output path'
   print '-subd string --> include a subdirectory into the output path'
   print '-xdmf --> export XDMF in READ mode (default: %s)' % xdmf
@@ -109,6 +113,10 @@ if argv != None:
       step = float (argv [i+1])
     elif argv [i] == '-stop':
       stop = float (argv [i+1])
+    elif argv [i] == '-fric':
+      fric = float (argv [i+1])
+    elif argv [i] == '-dens':
+      dens = float (argv [i+1])
     elif argv [i] == '-weak':
       weak = 'ON'
     elif argv [i] == '-prfx':
@@ -131,8 +139,8 @@ ncpu = NCPU ()
 begining = 'out/array-of-cubes/'+ ((subd+'/') if len(subd) > 0 else '')
 if len(prfx) > 0: prfx += '_'
 solvstr = 'NS_MAXI%d_NSDL%g_RLDL%s_LEPS%g_LMXI%d' % (maxi, nsdl, rldl, leps, lmxi) if solv == 'NS' else 'GS_MAXI%d' % maxi
-ending = prfx + 'STE%g_DUR%g_%s_%s_M%d_N%d_%s%d' % \
-  (step,stop,kifo,solvstr,M,N,'S' if weak == 'OFF' else 'W',ncpu)
+ending = prfx + 'STE%g_DUR%g_%s_%s_FRI%g_DEN%g_M%d_N%d_%s%d' % \
+  (step,stop,kifo,solvstr,fric,dens,M,N,'S' if weak == 'OFF' else 'W',ncpu)
 outpath = begining + ending
 
 # create solfec object
@@ -146,6 +154,8 @@ if sol.mode == 'READ' and sol.outpath != outpath:
   for x in ending.split('_'):
     if x[0:3] == 'STE': step = float(x[3:])
     elif x[0:3] == 'DUR': stop = float(x[3:])
+    elif x[0:3] == 'FRI': fric = float(x[3:])
+    elif x[0:3] == 'DEN': dens = float(x[3:])
     elif x in ('TL','BC','PR','RG'): kifo = x
     elif x in ('NS','GS'): solv = x
     elif x[0:4] == 'MAXI': maxi = int(x[4:])
@@ -165,13 +175,13 @@ if sol.mode == 'READ' and sol.outpath != outpath:
       sys.exit(1)
   print 'From', ending, 'read:'
   print '    ',
-  print '(step, stop, kifo, solv, M, N, weak, ncpu) =',
-  print '(%g, %g, %s, %s, %d, %d, %s, %d)' % \
-         (step, stop, kifo, solv, M, N, weak, ncpu), '\n'
+  print '(step, stop, kifo, solv, fric, dens, M, N, weak, ncpu) =',
+  print '(%g, %g, %s, %s, %g, %g, %d, %d, %s, %d)' % \
+         (step, stop, kifo, solv, fric, dens, M, N, weak, ncpu), '\n'
 
 # bulk and surface materials
-mat = BULK_MATERIAL (sol, young = 1E6, poisson = 0.25, density = 100)
-SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = 0.1)
+mat = BULK_MATERIAL (sol, young = 1E9, poisson = 0.25, density = dens)
+SURFACE_MATERIAL (sol, model = 'SIGNORINI_COULOMB', friction = fric)
 
 # .1-wide cube corner nodes
 nodes = [0.0, 0.0, 0.0,
