@@ -29,6 +29,7 @@ tests = [
 	 'tests/BM14/BM14_hexa.py',
 	 'tests/BM15/BM15_mixed.py',
 	 'tests/BM16/BM16_tetra.py',
+	 'tests/BM17/BM17_tetra.py',
 	 'tests/BM19/BM19_mixed.py',
 	 'tests/BM20/BM20_spring.py',
 	 'tests/BM21/BM21_springs.py',
