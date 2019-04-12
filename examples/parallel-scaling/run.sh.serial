@@ -11,8 +11,16 @@
 #SBATCH -N 1
 # Time required: Days-hours:mins:secs
 #SBATCH --time 3-00:00:00
-# Load intel mpi that solfec-mpi is compiled against:
-module load icc ifort
+# Partition choice
+#SBATCH --partition cn
+
+# load modules
+#module load icc
+#module load ifort
+#module load impi
+#module load hdf5
+#module load mkl
+
 # print input config:
 echo "sbatch_script: jobid = $SLURM_JOB_ID"
 echo "sbatch_script: jobname = $SLURM_JOB_NAME"
@@ -20,10 +28,11 @@ echo "sbatch_script: nodes = $SLURM_NODELIST"
 echo "sbatch_script: n_processes = $SLURM_NPROCS"
 echo "sbatch_script: cwd = `pwd`"
 echo "sbatch_script: started mpirun `date`:"
+
 # command:
 solfec input-file.py
 echo "sbatch_script: ended mpirun: `date`"
+
 # move the logfile:
 set -x
-file_ext='_run_dyn'
-mv slurm-$SLURM_JOB_ID.out $SLURM_JOB_NAME$file_ext.out
+mv slurm-$SLURM_JOB_ID.out $SLURM_JOB_NAME.out
