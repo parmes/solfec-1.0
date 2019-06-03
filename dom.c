@@ -1639,6 +1639,19 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
   pack_int (isize, i, ints, SET_Size (dbd->remove));
   for (item = SET_First (dbd->remove); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
+
+  /* pack contact excluded body pairs */
+  AABB_Pack_Body_Pairs (dbd->dom->aabb, isize, i, ints);
+
+  /* pack contact excluded surface pairs */
+  int size = SET_Size (dbd->dom->excluded);
+  pack_int (isize, i, ints, size);
+  for (item = SET_First (dbd->dom->excluded); item; item = SET_Next (item))
+  {
+    int *pair = (int*)item->data;
+    pack_int (isize, i, ints, pair[0]);
+    pack_int (isize, i, ints, pair[1]);
+  }
 }
 
 /* unpack domain balancing data */
@@ -1675,6 +1688,22 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid constraint id");
     DOM_Remove_Constraint (dom, con);
+  }
+
+  /* unpack contact excluded body pairs */
+  AABB_Unpack_Body_Pairs (dom->aabb, ipos, i, ints);
+
+  /* unpack contact excluded surface pairs */
+  j = unpack_int (ipos, i, ints);
+  for (n = 0; n < j; n ++)
+  {
+    int pair[2] = {unpack_int (ipos, i, ints),
+                   unpack_int (ipos, i, ints)};
+
+    if (!SET_Contains (dom->excluded, pair, (SET_Compare) pair_compare))
+    {
+      DOM_Exclude_Contact (dom, pair[0], pair[1]);
+    }
   }
 
   return NULL;

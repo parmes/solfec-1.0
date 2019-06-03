@@ -14496,14 +14496,6 @@ CONTACT_EXCLUDE_BODIES (body1, body2)
 \begin_layout Standard
 This routine disables contact detection for a specific pair of bodies.
  By default contact detection is enabled for all possible body pairs.
- 
-\series bold
-NOTE:
-\series default
- 
-\emph on
-must be invoked on all processors during a parallel run (do not use from
- within a callback).
 \end_layout
 
 \begin_layout Itemize
@@ -14529,14 +14521,6 @@ CONTACT_EXCLUDE_SURFACES (solfec, surf1, surf2)
 \begin_layout Standard
 This routine disables contact detection for a specific pair of surfaces.
  By default contact detection is enabled for all possible surface pairs.
- 
-\series bold
-NOTE:
-\series default
- 
-\emph on
-must be invoked on all processors during a parallel run (do not use from
- within a callback).
 \end_layout
 
 \begin_layout Itemize

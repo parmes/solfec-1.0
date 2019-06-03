@@ -30,6 +30,7 @@
 #include "bod.h"
 #include "swp.h"
 #include "hsh.h"
+#include "pck.h"
 #include "err.h"
 
 #if MPI
@@ -535,6 +536,39 @@ void AABB_Include_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2)
   OPR opr = {MIN (id1, id2), MAX (id1, id2), 0, 0};
 
   SET_Delete (&aabb->setmem, &aabb->nobody, &opr, (SET_Compare) bodcmp);
+}
+
+/* pack excluded body pairs ids */
+void AABB_Pack_Body_Pairs (AABB *aabb, int *isize, int **i, int *ints)
+{
+  int size = SET_Size (aabb->nobody);
+  pack_int (isize, i, ints, size);
+
+  for (SET *item = SET_First (aabb->nobody); item; item = SET_Next (item))
+  {
+    OPR *opr = (OPR*)item->data;
+    pack_int (isize, i, ints, opr->bod1);
+    pack_int (isize, i, ints, opr->bod2);
+  }
+}
+
+/* unpack excluded body pairs ids (and include them into the set) */
+void AABB_Unpack_Body_Pairs (AABB *aabb, int *ipos, int *i, int ints)
+{
+  int size = unpack_int (ipos, i, ints);
+
+  for (int n = 0; n < size; n ++)
+  {
+    int bod1 = unpack_int (ipos, i, ints),
+        bod2 = unpack_int (ipos, i, ints);
+
+    OPR pair = {bod1, bod2, 0, 0};
+
+    if (!SET_Contains (aabb->nobody, &pair, (SET_Compare) bodcmp))
+    {
+      AABB_Exclude_Body_Pair (aabb, bod1, bod2);
+    }
+  }
 }
 
 /* never report overlaps betweem this pair of objects (bod1, sgp1), (bod1, sgp2) */

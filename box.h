@@ -186,6 +186,12 @@ void AABB_Exclude_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2);
 /* undo the effect of AABB_Exclude_Body_Pair */
 void AABB_Include_Body_Pair (AABB *aabb, unsigned int id1, unsigned int id2);
 
+/* pack excluded body pairs ids */
+void AABB_Pack_Body_Pairs (AABB *aabb, int *isize, int **i, int *ints);
+
+/* unpack excluded body pairs ids (and include them into the set) */
+void AABB_Unpack_Body_Pairs (AABB *aabb, int *ipos, int *i, int ints);
+
 /* never report overlaps betweem this pair of objects (bod1, sgp1), (bod1, sgp2) */
 void AABB_Exclude_Gobj_Pair (AABB *aabb, unsigned int bod1, int sgp1, unsigned int bod2, int sgp2);
 
