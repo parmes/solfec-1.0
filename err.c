@@ -19,6 +19,11 @@
  * You should have received a copy of the GNU Lesser General Public
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
+#if DEBUG && NOTHROW
+#include <execinfo.h>
+#include <stdlib.h>
+#endif
+
 #include "err.h"
 
 ERRSTACK *__errstack__ = NULL; /* global error context */
@@ -28,6 +33,23 @@ short WARNINGS_ENABLED = 1; /* warnings flag */
 /* get error string */
 char* errstring (int error)
 {
+#if DEBUG && NOTHROW
+  void *array[99];
+  size_t size;
+  char **strings;
+  size_t i;
+
+  size = backtrace (array, 99);
+  strings = backtrace_symbols (array, size);
+
+  printf ("Obtained %zd stack frames.\n", size);
+
+  for (i = 0; i < size; i++)
+     printf ("%s\n", strings[i]);
+
+  free (strings);
+#endif
+
   switch (error)
   {
     case ERR_OUT_OF_MEMORY: return "Out of memory";
