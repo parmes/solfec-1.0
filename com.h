@@ -48,21 +48,21 @@ struct comobj
 };
 
 /* communicate integers and doubles using point to point communication */
-int COM (MPI_Comm comm, int tag,
+uint64_t COM (MPI_Comm comm, int tag,
          COMDATA *send, int nsend,
 	 COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate integers and doubles using all to all communication */
-int COMALL (MPI_Comm comm,
+uint64_t COMALL (MPI_Comm comm,
             COMDATA *send, int nsend,
 	    COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate one set of integers and doubles to all other processors */
-int COMONEALL (MPI_Comm comm, COMDATA send,
+uint64_t COMONEALL (MPI_Comm comm, COMDATA send,
 	       COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate objects using point to point communication */
-int COMOBJS (MPI_Comm comm, int tag,
+uint64_t COMOBJS (MPI_Comm comm, int tag,
 	     OBJ_Pack pack,
 	     void *data,
 	     OBJ_Unpack unpack,
@@ -70,7 +70,7 @@ int COMOBJS (MPI_Comm comm, int tag,
 	     COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate objects using all to all communication */
-int COMOBJSALL (MPI_Comm comm,
+uint64_t COMOBJSALL (MPI_Comm comm,
 	        OBJ_Pack pack,
 	        void *data,
 	        OBJ_Unpack unpack,
@@ -78,7 +78,7 @@ int COMOBJSALL (MPI_Comm comm,
 	        COMOBJ **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
 /* communicate an object to all other processors */
-int COMOBJALL (MPI_Comm comm,
+uint64_t COMOBJALL (MPI_Comm comm,
 	       OBJ_Pack pack,
 	       void *data,
 	       OBJ_Unpack unpack,
@@ -94,10 +94,10 @@ void* COM_Pattern (MPI_Comm comm, int tag,
 
 /* communicate integers and doubles accodring
  * to the pattern computed by COM_Pattern */
-int COM_Repeat (void *pattern);
+uint64_t COM_Repeat (void *pattern);
 
 /* non-blocking send */
-int COM_Send (void *pattern);
+uint64_t COM_Send (void *pattern);
 
 /* blocking receive */
 void COM_Recv (void *pattern);
@@ -114,7 +114,7 @@ void* COMALL_Pattern (MPI_Comm comm,
 
 /* communicate integers and doubles accodring
  * to the pattern computed by COMALL_Pattern */
-int COMALL_Repeat (void *pattern);
+uint64_t COMALL_Repeat (void *pattern);
 
 /* free all to all communication pattern */
 void COMALL_Free (void *pattern);

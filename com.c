@@ -1,5 +1,5 @@
 /*
- * com.h
+ * com.c
  * Copyright (C) 2009, Tomasz Koziara (t.koziara AT gmail.com)
  * ---------------------------------------------------------------
  * parallel communication
@@ -26,6 +26,7 @@
 #include "com.h"
 #include "map.h"
 #include "alg.h"
+#include "put.h"
 #include "err.h"
 
 typedef struct compattern COMPATTERN;
@@ -94,14 +95,13 @@ struct comallpattern
 };
 
 /* communicate integers and doubles using point to point communication */
-int COM (MPI_Comm comm, int tag,
+uint64_t COM (MPI_Comm comm, int tag,
          COMDATA *send, int nsend,
 	 COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
   COMDATA *cd;
   int rank,
       ncpu,
-      send_size,
     (*send_sizes) [3],
      *send_position,
      *send_rank,
@@ -113,6 +113,7 @@ int COM (MPI_Comm comm, int tag,
     (*recv_sizes) [3],
       recv_count,
       i, j, k, l;
+  uint64_t send_size;
   char **send_data,
        **recv_data;
   MPI_Request *req;
@@ -292,7 +293,7 @@ int COM (MPI_Comm comm, int tag,
 }
 
 /* communicate integers and doubles using all to all communication */
-int COMALL (MPI_Comm comm,
+uint64_t COMALL (MPI_Comm comm,
             COMDATA *send, int nsend,
 	    COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
@@ -313,6 +314,18 @@ int COMALL (MPI_Comm comm,
   char *send_data,
        *recv_data;
   void *p;
+
+  /* test total send size */
+  double big_size = 0.;
+  for (i = 0, cd = send; i < nsend; i ++, cd ++)
+  {
+    MPI_Pack_size (cd->ints, MPI_INT, comm, &j);
+    MPI_Pack_size (cd->doubles, MPI_DOUBLE, comm, &k);
+    big_size += (j + k);
+  }
+  double max_big_size = PUT_double_max (big_size);
+  /* and use point-to-point communication in case > 2.14GB is being sent on any rank */
+  if (max_big_size > (double)(1<<31)) return COM (comm, 0, send, nsend, recv, nrecv);
 
   MPI_Comm_rank (comm, &rank);
   MPI_Comm_size (comm, &ncpu);
@@ -336,7 +349,7 @@ int COMALL (MPI_Comm comm,
   for (send_size = i = 0; i < ncpu; i ++)
   {
     send_counts [i] = send_sizes [i][2];
-    send_size += send_counts [i];
+    send_size += send_counts [i]; /* note that this counter would overflow at 2.14GB */
     if (i < (ncpu - 1)) send_disps [i+1] = send_size;
   }
   send_disps [0] = 0;
@@ -453,7 +466,7 @@ int COMALL (MPI_Comm comm,
 }
 
 /* communicate one set of integers and doubles to all other processors */
-int COMONEALL (MPI_Comm comm, COMDATA send,
+uint64_t COMONEALL (MPI_Comm comm, COMDATA send,
 	       COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
   COMDATA *send_data;
@@ -518,7 +531,7 @@ static double* next_double (COMDATA *data, int size, int *idx)
 #endif
 
 /* communicate objects using point to point communication */
-int COMOBJS (MPI_Comm comm, int tag,
+uint64_t COMOBJS (MPI_Comm comm, int tag,
 	     OBJ_Pack pack,
 	     void *data,
 	     OBJ_Unpack unpack,
@@ -668,7 +681,7 @@ int COMOBJS (MPI_Comm comm, int tag,
 }
 
 /* communicate objects using all to all communication */
-int COMOBJSALL (MPI_Comm comm,
+uint64_t COMOBJSALL (MPI_Comm comm,
 	        OBJ_Pack pack,
 	        void *data,
 	        OBJ_Unpack unpack,
@@ -679,7 +692,7 @@ int COMOBJSALL (MPI_Comm comm,
 }
 
 /* communicate an object to all other processors */
-int COMOBJALL (MPI_Comm comm,
+uint64_t COMOBJALL (MPI_Comm comm,
 	       OBJ_Pack pack,
 	       void *data,
 	       OBJ_Unpack unpack,
@@ -872,7 +885,7 @@ void* COM_Pattern (MPI_Comm comm, int tag,
 
 /* communicate integers and doubles accodring
  * to the pattern computed by COM_Pattern */
-int COM_Repeat (void *pattern)
+uint64_t COM_Repeat (void *pattern)
 {
   COMPATTERN *cp = pattern;
   int *rankmap = cp->rankmap,
@@ -939,7 +952,7 @@ int COM_Repeat (void *pattern)
 }
 
 /* non-blocking send */
-int COM_Send (void *pattern)
+uint64_t COM_Send (void *pattern)
 {
   COMPATTERN *cp = pattern;
   int *rankmap = cp->rankmap,
@@ -1168,7 +1181,7 @@ void* COMALL_Pattern (MPI_Comm comm,
 
 /* communicate integers and doubles accodring
  * to the pattern computed by COMALL_Pattern */
-int COMALL_Repeat (void *pattern)
+uint64_t COMALL_Repeat (void *pattern)
 {
   COMALLPATTERN *pp = pattern;
   COMDATA *cd;

@@ -80,9 +80,9 @@ ifeq ($(DEBUG),yes)
   DBG = yes
   DEBUG =  -W -Wall -Wno-unused-parameter -g -DDEBUG
   ifeq ($(PROFILE),yes)
-    PROFILE = -p
+    PROFILE = -p -rdynamic
   else
-    PROFILE =
+    PROFILE = -rdynamic
   endif
   ifeq ($(NOTHROW),yes)
     NOTHROW = -DNOTHROW
