@@ -325,7 +325,7 @@ uint64_t COMALL (MPI_Comm comm,
   }
   double max_big_size = PUT_double_max (big_size);
   /* and use point-to-point communication in case > 2.14GB is being sent on any rank */
-  if (max_big_size > (double)(1<<31)) 
+  if (max_big_size > 2147483648)
   {
     WARNING (0, "COMALL send buffer size > 2.14GB resulting in inefficient point-to-point workaround");
     return COM (comm, 0, send, nsend, recv, nrecv);
