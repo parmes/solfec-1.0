@@ -315,6 +315,9 @@ uint64_t COMALL (MPI_Comm comm,
        *recv_data;
   void *p;
 
+  MPI_Comm_rank (comm, &rank);
+  MPI_Comm_size (comm, &ncpu);
+
   /* test total send size */
   double big_size = 0.;
   for (i = 0, cd = send; i < nsend; i ++, cd ++)
@@ -327,12 +330,9 @@ uint64_t COMALL (MPI_Comm comm,
   /* and use point-to-point communication in case > 2.14GB is being sent on any rank */
   if (max_big_size > 2147483648)
   {
-    WARNING (0, "COMALL send buffer size > 2.14GB resulting in inefficient point-to-point workaround");
-    return COM (comm, 0, send, nsend, recv, nrecv);
+    WARNING (rank != 0, "COMALL send buffer size > 2.14GB resulting in inefficient point-to-point workaround");
+    return COM (comm, 0, send, nsend, recv, nrecv); /* line above: produce the warning only on rank 0 process */
   }
-
-  MPI_Comm_rank (comm, &rank);
-  MPI_Comm_size (comm, &ncpu);
 
   ERRMEM (send_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
   ERRMEM (send_counts = MEM_CALLOC (ncpu * sizeof (int)));
