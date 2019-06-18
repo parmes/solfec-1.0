@@ -94,6 +94,44 @@ struct comallpattern
       nrecv;
 };
 
+#if PARDEBUG
+static int* next_int (COMDATA *data, int size, int *idx)
+{
+  int *out = NULL;
+
+  while (idx [0] < size)
+  {
+    if (idx [1] < data [idx [0]].ints)
+    {
+      out = &data [idx [0]].i [idx [1]];
+      idx [1] ++;
+      break;
+    }
+    else idx [0] ++, idx [1] = 0;
+  }
+
+  return out;
+}
+
+static double* next_double (COMDATA *data, int size, int *idx)
+{
+  double *out = NULL;
+
+  while (idx [0] < size)
+  {
+    if (idx [1] < data [idx [0]].doubles)
+    {
+      out = &data [idx [0]].d [idx [1]];
+      idx [1] ++;
+      break;
+    }
+    else idx [0] ++, idx [1] = 0;
+  }
+
+  return out;
+}
+#endif
+
 /* communicate integers and doubles using point to point communication */
 uint64_t COM (MPI_Comm comm, int tag,
          COMDATA *send, int nsend,
@@ -292,6 +330,149 @@ uint64_t COM (MPI_Comm comm, int tag,
   return send_size;
 }
 
+/* simple version of the above */
+uint64_t COM_simple (MPI_Comm comm, int tag,
+         COMDATA *send, int nsend,
+	 COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+{
+  COMDATA *cd;
+  int rank,
+      ncpu,
+      nsend_max,
+     *ranks_ints_doubles,
+      i, j, l, m, n;
+  uint64_t send_size;
+  void *p;
+
+  MPI_Comm_rank (comm, &rank);
+  MPI_Comm_size (comm, &ncpu);
+
+  nsend_max = PUT_int_max (nsend);
+
+  /* (ncpu + 1) since local send buffer is stored at the end */
+  ERRMEM (ranks_ints_doubles = MEM_CALLOC (3 * nsend_max * (ncpu + 1) * sizeof (int)));
+
+  /* compute send sizes */
+  for (send_size = i = j = 0, l =  3 * nsend_max * ncpu, cd = send; i < nsend; i ++, cd ++)
+  {
+    if (cd->ints || cd->doubles)
+    {
+      send_size += cd->ints * sizeof(int) + cd->doubles * sizeof(double);
+      ranks_ints_doubles [l+j+0] = cd->rank;
+      ranks_ints_doubles [l+j+1] = cd->ints;
+      ranks_ints_doubles [l+j+2] = cd->doubles;
+      j += 3;
+    }
+  }
+
+  /* gather send ranks, ints, doubles */
+  MPI_Allgather (&ranks_ints_doubles[3 * nsend_max * ncpu], 3 * nsend_max, MPI_INT, ranks_ints_doubles, 3 * nsend_max, MPI_INT, comm);
+
+#if 0
+  if (rank == 0)
+  {
+    printf ("ranks_ints_doubles = ");
+    for (int i = 0; i < ncpu; i ++)
+    {
+      for (int j = 0; j < 3 * nsend_max; j += 3)
+      {
+	printf ("(%d, %d, %d) ", ranks_ints_doubles[3 * nsend_max * i + j + 0],
+				 ranks_ints_doubles[3 * nsend_max * i + j + 1],
+				 ranks_ints_doubles[3 * nsend_max * i + j + 2]);
+      }
+      if (i < ncpu-1) printf (" | ");
+    }
+    printf ("\n");
+    fflush (stdout);
+  }
+  MPI_Barrier (comm);
+#endif
+
+  /* calculate contiguous receive size and prepare receive buffers */
+  (*nrecv) = m = n = 0;
+  for (i = 0; i < ncpu; i ++)
+  {
+    for (j = 0; j < 3 * nsend_max; j += 3)
+    {
+      l = 3 * nsend_max * i + j;
+
+      if(ranks_ints_doubles[l+1] || ranks_ints_doubles[l+2])
+      {
+        if (ranks_ints_doubles[l+0] == rank)
+	{
+	  (*nrecv) ++;
+	  m += ranks_ints_doubles[l+1];
+	  n += ranks_ints_doubles[l+2];
+	}
+      }
+      else break;
+    }
+  }
+  j = (*nrecv) * sizeof (COMDATA) + m * sizeof (int) + n * sizeof (double);
+  ERRMEM ((*recv) = malloc (j));
+  p = (*recv) + (*nrecv);
+  cd = *recv;
+  for (i = 0; i < ncpu; i ++)
+  {
+    for (j = 0; j < 3 * nsend_max; j += 3)
+    {
+      l = 3 * nsend_max * i + j;
+
+      if (ranks_ints_doubles[l+1] || ranks_ints_doubles[l+2])
+      {
+        if (ranks_ints_doubles[l+0] == rank)
+	{
+	  cd->rank = i;
+	  cd->ints = ranks_ints_doubles[l+1];
+	  cd->doubles = ranks_ints_doubles[l+2];
+	  cd->i = p; p = (cd->i + cd->ints);
+	  cd->d = p; p = (cd->d + cd->doubles);
+	  cd ++;
+	}
+      }
+      else break;
+    }
+  }
+  free (ranks_ints_doubles);
+
+  /* communicate data */
+  int recv_count = 0;
+  MPI_Request *req;
+  MPI_Status *sta;
+  ERRMEM (req = malloc (2 * (*nrecv) * sizeof (MPI_Request)));
+  ERRMEM (sta = malloc (2 * (*nrecv) * sizeof (MPI_Status)));
+  for (i = 0, cd = *recv; i < *nrecv; i ++, cd ++)
+  {
+    if (cd->ints)
+    {
+      MPI_Irecv (cd->i, cd->ints, MPI_INT, cd->rank, tag, comm, &req[recv_count]);
+      recv_count ++;
+    }
+    if (cd->doubles)
+    {
+      MPI_Irecv (cd->d, cd->doubles, MPI_DOUBLE, cd->rank, tag, comm, &req[recv_count]);
+      recv_count ++;
+    }
+  }
+  MPI_Barrier (comm);
+  for (i = 0, cd = send; i < nsend; i ++, cd ++)
+  {
+    if (cd->ints) 
+    {
+      MPI_Rsend (cd->i, cd->ints, MPI_INT, cd->rank, tag, comm);
+    }
+    if (cd->doubles) 
+    {
+      MPI_Rsend (cd->d, cd->doubles, MPI_DOUBLE, cd->rank, tag, comm);
+    }
+  }
+  MPI_Waitall (recv_count, req, sta);
+  free (req);
+  free (sta);
+
+  return send_size;
+}
+
 /* communicate integers and doubles using all to all communication */
 uint64_t COMALL (MPI_Comm comm,
             COMDATA *send, int nsend,
@@ -331,7 +512,56 @@ uint64_t COMALL (MPI_Comm comm,
   if (max_big_size > 2147483648)
   {
     WARNING (rank != 0, "COMALL send buffer size > 2.14GB resulting in inefficient point-to-point workaround");
-    return COM (comm, 0, send, nsend, recv, nrecv); /* line above: produce the warning only on rank 0 process */
+    int64_t ret = COM_simple (comm, 0, send, nsend, recv, nrecv); /* line above: produce the warning only on rank 0 process */
+
+#if 0
+    {
+      int debug_send_count, *ip, *jp, ii [2], jj [2];
+      COMDATA *debug_send_data;
+      double *qq, *pp;
+
+      /* send backwards */
+      COM (comm, 0, *recv, *nrecv, &debug_send_data, &debug_send_count);
+
+      ii[0] = 0, ii[1] = 0;
+      jj[0] = 0, jj[1] = 0;
+      do
+      {
+	ip = next_int (send, nsend, ii);
+	jp = next_int (debug_send_data, debug_send_count, jj);
+	if (ip && jp)
+	{
+	  ASSERT_DEBUG (*ip == *jp, "Integer values mismatch");
+	}
+	else
+	{
+	  ASSERT_DEBUG (!ip && !jp, "Integer count mismatch");
+	}
+      }
+      while (ip && jp);
+
+      ii[0] = 0, ii[1] = 0;
+      jj[0] = 0, jj[1] = 0;
+      do
+      {
+	qq = next_double (send, nsend, ii);
+	pp = next_double (debug_send_data, debug_send_count, jj);
+	if (qq && pp)
+	{
+	  ASSERT_DEBUG (*qq == *pp, "Double values mismatch");
+	}
+	else
+	{
+	  ASSERT_DEBUG (!qq && !pp, "Double count mismatch");
+	}
+      }
+      while (qq && pp);
+
+      free (debug_send_data);
+    }
+#endif
+
+    return ret;
   }
 
   ERRMEM (send_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
@@ -497,42 +727,6 @@ uint64_t COMONEALL (MPI_Comm comm, COMDATA send,
 
   return ret;
 }
-
-#if PARDEBUG
-static int* next_int (COMDATA *data, int size, int *idx)
-{
-  int *out = NULL;
-
-  while (idx [0] < size)
-  {
-    if (idx [1] < data [idx [0]].ints)
-    {
-      out = &data [idx [0]].i [idx [1]];
-      idx [1] ++;
-    }
-    else idx [0] ++, idx [1] = 0;
-  }
-
-  return out;
-}
-
-static double* next_double (COMDATA *data, int size, int *idx)
-{
-  double *out = NULL;
-
-  while (idx [0] < size)
-  {
-    if (idx [1] < data [idx [0]].doubles)
-    {
-      out = &data [idx [0]].d [idx [1]];
-      idx [1] ++;
-    }
-    else idx [0] ++, idx [1] = 0;
-  }
-
-  return out;
-}
-#endif
 
 /* communicate objects using point to point communication */
 uint64_t COMOBJS (MPI_Comm comm, int tag,
