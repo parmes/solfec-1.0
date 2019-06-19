@@ -21,6 +21,7 @@
 
 #include <stdlib.h>
 #include <limits.h>
+#include <string.h>
 #include <mpi.h>
 #include "mem.h"
 #include "com.h"
@@ -330,6 +331,7 @@ uint64_t COM (MPI_Comm comm, int tag,
   return send_size;
 }
 
+#if 0
 /* simple version of the above */
 uint64_t COM_simple (MPI_Comm comm, int tag,
          COMDATA *send, int nsend,
@@ -367,26 +369,6 @@ uint64_t COM_simple (MPI_Comm comm, int tag,
 
   /* gather send ranks, ints, doubles */
   MPI_Allgather (&ranks_ints_doubles[3 * nsend_max * ncpu], 3 * nsend_max, MPI_INT, ranks_ints_doubles, 3 * nsend_max, MPI_INT, comm);
-
-#if 0
-  if (rank == 0)
-  {
-    printf ("ranks_ints_doubles = ");
-    for (int i = 0; i < ncpu; i ++)
-    {
-      for (int j = 0; j < 3 * nsend_max; j += 3)
-      {
-	printf ("(%d, %d, %d) ", ranks_ints_doubles[3 * nsend_max * i + j + 0],
-				 ranks_ints_doubles[3 * nsend_max * i + j + 1],
-				 ranks_ints_doubles[3 * nsend_max * i + j + 2]);
-      }
-      if (i < ncpu-1) printf (" | ");
-    }
-    printf ("\n");
-    fflush (stdout);
-  }
-  MPI_Barrier (comm);
-#endif
 
   /* calculate contiguous receive size and prepare receive buffers */
   (*nrecv) = m = n = 0;
@@ -472,6 +454,7 @@ uint64_t COM_simple (MPI_Comm comm, int tag,
 
   return send_size;
 }
+#endif
 
 /* communicate integers and doubles using all to all communication */
 uint64_t COMALL (MPI_Comm comm,
@@ -479,18 +462,18 @@ uint64_t COMALL (MPI_Comm comm,
 	    COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
 {
   COMDATA *cd;
+  uint64_t send_size64,
+          *send_disps64,
+	   recv_size64,
+	  *recv_disps64;
   int rank,
       ncpu,
     (*send_sizes) [3],
      *send_counts,
-     *send_disps,
      *send_position,
-      send_size,
     (*recv_sizes) [3],
      *recv_counts,
-     *recv_disps,
      *recv_position,
-      recv_size,
       i, j, k;
   char *send_data,
        *recv_data;
@@ -499,74 +482,9 @@ uint64_t COMALL (MPI_Comm comm,
   MPI_Comm_rank (comm, &rank);
   MPI_Comm_size (comm, &ncpu);
 
-  /* test total send size */
-  double big_size = 0.;
-  for (i = 0, cd = send; i < nsend; i ++, cd ++)
-  {
-    MPI_Pack_size (cd->ints, MPI_INT, comm, &j);
-    MPI_Pack_size (cd->doubles, MPI_DOUBLE, comm, &k);
-    big_size += (j + k);
-  }
-  double max_big_size = PUT_double_max (big_size);
-  /* and use point-to-point communication in case > 2.14GB is being sent on any rank */
-  if (max_big_size > 2147483648)
-  {
-    WARNING (rank != 0, "COMALL send buffer size > 2.14GB resulting in inefficient point-to-point workaround");
-    int64_t ret = COM_simple (comm, 0, send, nsend, recv, nrecv); /* line above: produce the warning only on rank 0 process */
-
-#if 0
-    {
-      int debug_send_count, *ip, *jp, ii [2], jj [2];
-      COMDATA *debug_send_data;
-      double *qq, *pp;
-
-      /* send backwards */
-      COM (comm, 0, *recv, *nrecv, &debug_send_data, &debug_send_count);
-
-      ii[0] = 0, ii[1] = 0;
-      jj[0] = 0, jj[1] = 0;
-      do
-      {
-	ip = next_int (send, nsend, ii);
-	jp = next_int (debug_send_data, debug_send_count, jj);
-	if (ip && jp)
-	{
-	  ASSERT_DEBUG (*ip == *jp, "Integer values mismatch");
-	}
-	else
-	{
-	  ASSERT_DEBUG (!ip && !jp, "Integer count mismatch");
-	}
-      }
-      while (ip && jp);
-
-      ii[0] = 0, ii[1] = 0;
-      jj[0] = 0, jj[1] = 0;
-      do
-      {
-	qq = next_double (send, nsend, ii);
-	pp = next_double (debug_send_data, debug_send_count, jj);
-	if (qq && pp)
-	{
-	  ASSERT_DEBUG (*qq == *pp, "Double values mismatch");
-	}
-	else
-	{
-	  ASSERT_DEBUG (!qq && !pp, "Double count mismatch");
-	}
-      }
-      while (qq && pp);
-
-      free (debug_send_data);
-    }
-#endif
-
-    return ret;
-  }
-
   ERRMEM (send_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
   ERRMEM (send_counts = MEM_CALLOC (ncpu * sizeof (int)));
-  ERRMEM (send_disps = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (send_disps64 = MEM_CALLOC (ncpu * sizeof (uint64_t)));
   ERRMEM (send_position = MEM_CALLOC (ncpu * sizeof (int)));
 
   /* compute send sizes */
@@ -580,23 +498,23 @@ uint64_t COMALL (MPI_Comm comm,
   }
 
   /* compute send displacements */
-  for (send_size = i = 0; i < ncpu; i ++)
+  for (send_size64 = i = 0; i < ncpu; i ++)
   {
     send_counts [i] = send_sizes [i][2];
-    send_size += send_counts [i]; /* note that this counter would overflow at 2.14GB */
-    if (i < (ncpu - 1)) send_disps [i+1] = send_size;
+    send_size64 += send_counts [i]; /* note that this counter would overflow at 2.14GB */
+    if (i < (ncpu - 1)) send_disps64 [i+1] = send_size64;
   }
-  send_disps [0] = 0;
+  send_disps64 [0] = 0;
 
   /* allocate send buffer */
-  ERRMEM (send_data = malloc (send_size));
+  ERRMEM (send_data = malloc (send_size64));
 
   /* pack ints */
   for (i = 0, cd = send; i < nsend; i ++, cd ++)
   {
     if (cd->ints)
     {
-      MPI_Pack (cd->i, cd->ints, MPI_INT, &send_data [send_disps [cd->rank]], send_counts [cd->rank], &send_position [cd->rank], comm);
+      MPI_Pack (cd->i, cd->ints, MPI_INT, &send_data [send_disps64 [cd->rank]], send_counts [cd->rank], &send_position [cd->rank], comm);
     }
   }
 
@@ -605,7 +523,7 @@ uint64_t COMALL (MPI_Comm comm,
   {
     if (cd->doubles)
     {
-      MPI_Pack (cd->d, cd->doubles, MPI_DOUBLE, &send_data [send_disps [cd->rank]], send_counts [cd->rank], &send_position [cd->rank], comm); 
+      MPI_Pack (cd->d, cd->doubles, MPI_DOUBLE, &send_data [send_disps64 [cd->rank]], send_counts [cd->rank], &send_position [cd->rank], comm); 
     }
   }
 
@@ -618,28 +536,81 @@ uint64_t COMALL (MPI_Comm comm,
 
   ERRMEM (recv_sizes = MEM_CALLOC (ncpu * sizeof (int [3])));
   ERRMEM (recv_counts = MEM_CALLOC (ncpu * sizeof (int)));
-  ERRMEM (recv_disps = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (recv_disps64 = MEM_CALLOC (ncpu * sizeof (uint64_t)));
   ERRMEM (recv_position = MEM_CALLOC (ncpu * sizeof (int)));
 
   /* distribute send sizes into receive sizes */
   MPI_Alltoall (send_sizes, 3, MPI_INT, recv_sizes, 3, MPI_INT, comm);
 
   /* compute receive displacements */
-  for (recv_size = i = 0; i < ncpu; i ++)
+  for (recv_size64 = i = 0; i < ncpu; i ++)
   {
     recv_counts [i] = recv_sizes [i][2];
-    recv_size += recv_counts [i];
-    if (i < (ncpu - 1)) recv_disps [i+1] = recv_size;
+    recv_size64 += recv_counts [i];
+    if (i < (ncpu - 1)) recv_disps64 [i+1] = recv_size64;
   }
-  recv_disps [0] = 0;
+  recv_disps64 [0] = 0;
 
   /* allocate receive buffer */
-  ERRMEM (recv_data = malloc (recv_size));
+  ERRMEM (recv_data = malloc (recv_size64));
 
-  /* all to all send and receive */
-  MPI_Alltoallv (send_data, send_counts, send_disps, MPI_PACKED, recv_data, recv_counts, recv_disps, MPI_PACKED, comm);
+  if (send_size64 < INT_MAX && recv_size64 < INT_MAX)
+  {
+    int *send_disps,
+        *recv_disps;
 
-  if (recv_size)
+    ERRMEM (send_disps = MEM_CALLOC (ncpu * sizeof (int)));
+    ERRMEM (recv_disps = MEM_CALLOC (ncpu * sizeof (int)));
+
+    for (i = 0; i < ncpu; i ++)
+    {
+      send_disps[i] = send_disps64[i];
+      recv_disps[i] = recv_disps64[i];
+    }
+
+    /* all to all send and receive */
+    MPI_Alltoallv (send_data, send_counts, send_disps, MPI_PACKED, recv_data, recv_counts, recv_disps, MPI_PACKED, comm);
+
+    free (send_disps);
+    free (recv_disps);
+  }
+  else
+  {
+    WARNING (rank != 0, "COMALL MPI_Alltoallv displacement size > INT_MAX resulting in MPI_Alltoall workaround");
+    /* use MPI_Type_contiguous combined with longest {send, recv} per rank buffer */
+    int max_buf = 0;
+    for (i = 0; i < ncpu; i ++)
+    {
+      max_buf = MAX (max_buf, MAX(send_counts[i], recv_counts[i]));
+    }
+    max_buf = PUT_int_max (max_buf);
+
+    char *send_data64,
+	 *recv_data64;
+  
+    ERRMEM (send_data64 = malloc (ncpu * max_buf));
+    ERRMEM (recv_data64 = malloc (ncpu * max_buf));
+
+    for (i = 0; i < ncpu; i ++)
+    {
+      memcpy (&send_data64[i*max_buf], &send_data[send_disps64[i]], send_counts[i]);
+    }
+
+    MPI_Datatype contig;
+    MPI_Type_contiguous (max_buf, MPI_PACKED, &contig);
+    MPI_Type_commit(&contig);
+    MPI_Alltoall (send_data64, 1, contig, recv_data64, 1, contig, comm);
+
+    for (i = 0; i < ncpu; i ++)
+    {
+      memcpy (&recv_data[recv_disps64[i]], &recv_data64[i*max_buf], recv_counts[i]);
+    }
+
+    free (send_data64);
+    free (recv_data64);
+  }
+
+  if (recv_size64)
   {
     /* contiguous receive size */
     j = ncpu * sizeof (COMDATA);
@@ -664,8 +635,8 @@ uint64_t COMALL (MPI_Comm comm,
     /* unpack data */
     for (i = 0; i < ncpu; i ++)
     {
-      MPI_Unpack (&recv_data [recv_disps [i]], recv_counts [i], &recv_position [i], (*recv) [i].i, (*recv) [i].ints, MPI_INT, comm);
-      MPI_Unpack (&recv_data [recv_disps [i]], recv_counts [i], &recv_position [i], (*recv) [i].d, (*recv) [i].doubles, MPI_DOUBLE, comm);
+      MPI_Unpack (&recv_data [recv_disps64 [i]], recv_counts [i], &recv_position [i], (*recv) [i].i, (*recv) [i].ints, MPI_INT, comm);
+      MPI_Unpack (&recv_data [recv_disps64 [i]], recv_counts [i], &recv_position [i], (*recv) [i].d, (*recv) [i].doubles, MPI_DOUBLE, comm);
     }
 
     /* compress receive storage */
@@ -687,16 +658,16 @@ uint64_t COMALL (MPI_Comm comm,
   /* cleanup */
   free (send_sizes);
   free (send_counts);
-  free (send_disps);
+  free (send_disps64);
   free (send_position);
   free (recv_sizes);
   free (recv_counts);
-  free (recv_disps);
+  free (recv_disps64);
   free (recv_position);
   free (send_data);
   free (recv_data);
 
-  return send_size;
+  return send_size64;
 }
 
 /* communicate one set of integers and doubles to all other processors */
