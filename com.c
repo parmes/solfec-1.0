@@ -554,7 +554,10 @@ uint64_t COMALL (MPI_Comm comm,
   /* allocate receive buffer */
   ERRMEM (recv_data = malloc (recv_size64));
 
-  if (send_size64 < INT_MAX && recv_size64 < INT_MAX)
+  double send_size64_max = PUT_double_max (send_size64),
+         recv_size64_max = PUT_double_max (recv_size64);
+
+  if (send_size64_max < INT_MAX && recv_size64_max < INT_MAX)
   {
     int *send_disps,
         *recv_disps;
