@@ -579,38 +579,31 @@ uint64_t COMALL (MPI_Comm comm,
   }
   else
   {
-    WARNING (rank != 0, "COMALL MPI_Alltoallv displacement size > INT_MAX resulting in MPI_Alltoall workaround");
-    /* use MPI_Type_contiguous combined with longest {send, recv} per rank buffer */
-    int max_buf = 0;
+    WARNING (rank != 0, "COMALL MPI_Alltoallv displacement size > INT_MAX resulting in point-to-point workaround");
+    int recv_count = 0;
+    MPI_Request *req;
+    MPI_Status *sta;
+    ERRMEM (req = malloc (ncpu * sizeof (MPI_Request)));
+    ERRMEM (sta = malloc (ncpu * sizeof (MPI_Status)));
     for (i = 0; i < ncpu; i ++)
     {
-      max_buf = MAX (max_buf, MAX(send_counts[i], recv_counts[i]));
+      if (recv_counts[i])
+      {
+	MPI_Irecv (&recv_data[recv_disps64[i]], recv_counts[i], MPI_PACKED, i, 0, comm, &req[recv_count]);
+	recv_count ++;
+      }
     }
-    max_buf = PUT_int_max (max_buf);
-
-    char *send_data64,
-	 *recv_data64;
-  
-    ERRMEM (send_data64 = malloc (ncpu * max_buf));
-    ERRMEM (recv_data64 = malloc (ncpu * max_buf));
-
+    MPI_Barrier (comm);
     for (i = 0; i < ncpu; i ++)
     {
-      memcpy (&send_data64[i*max_buf], &send_data[send_disps64[i]], send_counts[i]);
+      if (send_counts[i])
+      {
+	MPI_Rsend (&send_data[send_disps64[i]], send_counts[i], MPI_PACKED, i, 0, comm);
+      }
     }
-
-    MPI_Datatype contig;
-    MPI_Type_contiguous (max_buf, MPI_PACKED, &contig);
-    MPI_Type_commit(&contig);
-    MPI_Alltoall (send_data64, 1, contig, recv_data64, 1, contig, comm);
-
-    for (i = 0; i < ncpu; i ++)
-    {
-      memcpy (&recv_data[recv_disps64[i]], &recv_data64[i*max_buf], recv_counts[i]);
-    }
-
-    free (send_data64);
-    free (recv_data64);
+    MPI_Waitall (recv_count, req, sta);
+    free (req);
+    free (sta);
   }
 
   if (recv_size64)
