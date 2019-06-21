@@ -1393,7 +1393,7 @@ static void stats_create (DOM *dom)
   dom->stats [2].name = "CONSTRAINTS";
   dom->stats [3].name = "EXTERNAL";
   dom->stats [4].name = "SPARSIFIED";
-  dom->stats [5].name = "BYTES SENT";
+  dom->stats [5].name = "MB SENT";
   dom->stats [6].name = "DOM WEIGHT";
 }
 
@@ -1441,7 +1441,7 @@ static void update_external_constraint_points (DOM *dom)
     }
   }
 
-  dom->bytes += COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
+  dom->bytes += COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv)/1000000;
 
   for (i = 0; i < nrecv; i ++)
   {
@@ -1516,8 +1516,8 @@ static void update_children (DOM *dom)
     send [i].rank = i;
   }
 
-  /* send children updates; since this is the first communication in a sequence, we have here dom->bytes = ... rather than dom->bytes += ... */
-  dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)update_children_pack, dom, (OBJ_Unpack)update_children_unpack, send, dom->ncpu, &recv, &nrecv);
+  /* send children updates */
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)update_children_pack, dom, (OBJ_Unpack)update_children_unpack, send, dom->ncpu, &recv, &nrecv)/1000000;
 
   for (i = 0; i < dom->ncpu; i ++) SET_Free (&dom->setmem, &dbd [i].children);
   free (send);
@@ -2247,7 +2247,7 @@ static void domain_balancing (DOM *dom)
   children_migration_begin (dom, dbd);
 
   /* communication */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_pack, dom, (OBJ_Unpack)domain_balancing_unpack, send, dom->ncpu, &recv, &nrecv);
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_balancing_pack, dom, (OBJ_Unpack)domain_balancing_unpack, send, dom->ncpu, &recv, &nrecv)/1000000;
 
   /* delete migrated out children */
   children_migration_end (dom);
@@ -2288,7 +2288,7 @@ static void domain_balancing (DOM *dom)
 
   /* after this step all bodies contain sets of all old constraints (including contacts); this way during contact detection all existing contacts will get filtered out;
    * note that children sets of bodies can extend and hence constraints might need to be sent to new ranks */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)old_boundary_constraints_pack, dom, (OBJ_Unpack)old_external_constraints_unpack, send, dom->ncpu, &recv, &nrecv);
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)old_boundary_constraints_pack, dom, (OBJ_Unpack)old_external_constraints_unpack, send, dom->ncpu, &recv, &nrecv)/1000000;
 
   /* assign external ranks */
   for (i = 0; i < nrecv; i ++)
@@ -2411,7 +2411,7 @@ static void domain_gluing_begin (DOM *dom)
   new_boundary_constraints_migration (dom, dbd);
 
   /* communication */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_begin_pack, dom, (OBJ_Unpack)domain_gluing_begin_unpack, send, dom->ncpu, &recv, &nrecv);
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_begin_pack, dom, (OBJ_Unpack)domain_gluing_begin_unpack, send, dom->ncpu, &recv, &nrecv)/1000000;
 
   /* assign external ranks */
   for (i = 0; i < nrecv; i ++)
@@ -2509,7 +2509,7 @@ static void domain_gluing_end (DOM *dom)
   }
 
   /* send ids of external constraints to be deleted and deleted external constraints of received ids */
-  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_end_pack, dom, (OBJ_Unpack)domain_gluing_end_unpack, send, dom->ncpu, &recv, &nrecv);
+  dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)domain_gluing_end_pack, dom, (OBJ_Unpack)domain_gluing_end_unpack, send, dom->ncpu, &recv, &nrecv)/1000000;
 
   /* compute statistics */
   stats_compute (dom);
@@ -2601,8 +2601,8 @@ static void manage_bodies (DOM *dom)
     send [i].rank = i;
   }
 
-  /* since this is the first communication in a sequence, we have here dom->bytes = ... rather than dom->bytes += ... */
-  dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)manage_bodies_pack, dom, (OBJ_Unpack)manage_bodies_unpack, send, dom->ncpu, &recv, &nrecv);
+  /* since this is the last communication in a full time step, we have here dom->bytes = ... rather than dom->bytes += ... */
+  dom->bytes = COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)manage_bodies_pack, dom, (OBJ_Unpack)manage_bodies_unpack, send, dom->ncpu, &recv, &nrecv)/1000000;
 
   free (send);
   free (recv);
@@ -2792,7 +2792,7 @@ void update_external_RUV (DOM *dom)
   }
 
   dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_RUV, dom,
-    (OBJ_Unpack)unpack_RUV, send, dom->ncpu, &recv, &nrecv);
+    (OBJ_Unpack)unpack_RUV, send, dom->ncpu, &recv, &nrecv)/1000000;
 
   free (send);
   free (recv);
@@ -3862,12 +3862,12 @@ void DOM_Update_External_Reactions (DOM *dom, short normal)
   if (normal > 0)
   {
     dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_normal_reactions, dom,
-      (OBJ_Unpack)unpack_normal_reactions, send, dom->ncpu, &recv, &nrecv);
+      (OBJ_Unpack)unpack_normal_reactions, send, dom->ncpu, &recv, &nrecv)/1000000;
   }
   else
   {
     dom->bytes += COMOBJSALL (MPI_COMM_WORLD, (OBJ_Pack)pack_reactions, dom,
-      (OBJ_Unpack)unpack_reactions, send, dom->ncpu, &recv, &nrecv);
+      (OBJ_Unpack)unpack_reactions, send, dom->ncpu, &recv, &nrecv)/1000000;
   }
 
   free (send);
