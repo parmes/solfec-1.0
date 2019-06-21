@@ -501,7 +501,7 @@ uint64_t COMALL (MPI_Comm comm,
   for (send_size64 = i = 0; i < ncpu; i ++)
   {
     send_counts [i] = send_sizes [i][2];
-    send_size64 += send_counts [i]; /* note that this counter would overflow at 2.14GB */
+    send_size64 += send_counts [i]; /* note that this counter would overflow at 2.14GB if it was integer */
     if (i < (ncpu - 1)) send_disps64 [i+1] = send_size64;
   }
   send_disps64 [0] = 0;
@@ -631,8 +631,11 @@ uint64_t COMALL (MPI_Comm comm,
     /* unpack data */
     for (i = 0; i < ncpu; i ++)
     {
-      MPI_Unpack (&recv_data [recv_disps64 [i]], recv_counts [i], &recv_position [i], (*recv) [i].i, (*recv) [i].ints, MPI_INT, comm);
-      MPI_Unpack (&recv_data [recv_disps64 [i]], recv_counts [i], &recv_position [i], (*recv) [i].d, (*recv) [i].doubles, MPI_DOUBLE, comm);
+      if (recv_counts [i])
+      {
+	MPI_Unpack (&recv_data [recv_disps64 [i]], recv_counts [i], &recv_position [i], (*recv) [i].i, (*recv) [i].ints, MPI_INT, comm);
+	MPI_Unpack (&recv_data [recv_disps64 [i]], recv_counts [i], &recv_position [i], (*recv) [i].d, (*recv) [i].doubles, MPI_DOUBLE, comm);
+      }
     }
 
     /* compress receive storage */
