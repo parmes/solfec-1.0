@@ -293,7 +293,7 @@ struct domain
   MAP *pairedup; /* map of body ids to SETs of body ids based on two-body constraints (e.g. RIGLNK, SPRING) */
   MAP *idtorank; /* global all body id to rank mapping */
   SET *sparebid; /* deleted body ids */
-  enum {ALWAYS, NEVER, EVERYNCPU} insertbodymode; /* insert body mode */
+  enum {ALWAYS, NEVER, RANK0} insertbodymode; /* insert body mode */
   int rebalanced; /* counts rebalancing steps */
   int updatefreq; /* domain partitioning update frequency */
 #endif

@@ -2645,7 +2645,7 @@ static void manage_bodies (DOM *dom)
   SET_Free (&dom->setmem, &dom->sparebid);
 
   /* restore body insertion mode */
-  dom->insertbodymode = EVERYNCPU;
+  dom->insertbodymode = RANK0;
 
   /* delete unused bodies with empty constraint sets */
   SET *todel = NULL;
@@ -2805,7 +2805,7 @@ static void create_mpi (DOM *dom)
 
   dom->updatefreq = 10;
 
-  dom->insertbodymode = EVERYNCPU;
+  dom->insertbodymode = RANK0;
 
   dom->sparebid = NULL;
 
@@ -3095,9 +3095,8 @@ void DOM_Insert_Body (DOM *dom, BODY *bod)
   MAP_Insert (&dom->mapmem, &dom->allbodies, (void*) (long) bod->id, bod, NULL);
 
 #if MPI
-  /* insert every 'rank' body into this domain */
-  if (dom->insertbodymode == ALWAYS ||
-     (dom->insertbodymode == EVERYNCPU && dom->rank == 0)) /* all bodies created on rank 0 */
+  if ((dom->insertbodymode == RANK0 && dom->rank == 0) /* bodies are created on rank 0 process */
+      || dom->insertbodymode == ALWAYS) /* used during body migration in load balancing */
   {
     /* mark as parent */
     bod->flags |= BODY_PARENT;
