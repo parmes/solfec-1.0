@@ -269,16 +269,16 @@ uint64_t COM (MPI_Comm comm, int tag,
   MPI_Waitall (recv_count, req, sta);
 
   /* contiguous receive size */
-  j = recv_count * sizeof (COMDATA);
+  uint64_t size = recv_count * sizeof (COMDATA);
   for (i = 0; i < recv_count; i ++)
   {
-    j += recv_sizes [i][0] * sizeof (int) + 
-         recv_sizes [i][1] * sizeof (double);
+    size += recv_sizes [i][0] * sizeof (int) + 
+            recv_sizes [i][1] * sizeof (double);
   }
 
   /* prepare receive buffers */
   ERRMEM (recv_data = malloc (recv_count * sizeof (char*)));
-  ERRMEM ((*recv) = malloc (j));
+  ERRMEM ((*recv) = malloc (size));
   p = (*recv) + recv_count;
   *nrecv = recv_count;
   for (i = 0, cd = *recv; i < recv_count; i ++, cd ++)
@@ -390,8 +390,8 @@ uint64_t COM_simple (MPI_Comm comm, int tag,
       else break;
     }
   }
-  j = (*nrecv) * sizeof (COMDATA) + m * sizeof (int) + n * sizeof (double);
-  ERRMEM ((*recv) = malloc (j));
+  uint64_t size = (*nrecv) * sizeof (COMDATA) + m * sizeof (int) + n * sizeof (double);
+  ERRMEM ((*recv) = malloc (size));
   p = (*recv) + (*nrecv);
   cd = *recv;
   for (i = 0; i < ncpu; i ++)
@@ -610,15 +610,15 @@ uint64_t COMALL (MPI_Comm comm,
   if (recv_size64)
   {
     /* contiguous receive size */
-    j = ncpu * sizeof (COMDATA);
+    uint64_t size = ncpu * sizeof (COMDATA);
     for (i = 0; i < ncpu; i ++)
     {
-      j += recv_sizes [i][0] * sizeof (int) + 
-	   recv_sizes [i][1] * sizeof (double);
+      size += recv_sizes [i][0] * sizeof (int) + 
+	      recv_sizes [i][1] * sizeof (double);
     }
 
     /* prepare output receive data */
-    ERRMEM ((*recv) = malloc (j));
+    ERRMEM ((*recv) = malloc (size));
     p = (*recv) + ncpu;
     for (i = 0, cd = *recv; i < ncpu; i ++, cd ++)
     {
