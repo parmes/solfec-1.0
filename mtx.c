@@ -1656,7 +1656,7 @@ static MX* bd_inverse (MX *a, MX *b)
       if ((int)w > lwork) lwork = (int)w;
     }
 
-    ERRMEM (ipiv = malloc (sizeof (int) * lwork/4));
+    ERRMEM (ipiv = malloc (sizeof (int) * (1+lwork/4)));
     ERRMEM (work = malloc (sizeof (double) * lwork));
     
     for (k = 0; k < n; k ++)
