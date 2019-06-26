@@ -20,7 +20,9 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #if OPENGL
-#if __APPLE__
+#if FLTK
+  #include <FL/glut.h>
+#elif __APPLE__
   #include <GLUT/glut.h>
 #else
   #include <GL/glut.h>
@@ -30,9 +32,15 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
+#if __cplusplus
+extern "C" {
+#endif
 #include "alg.h"
 #include "hul.h"
 #include "gjk.h"
+#if __cplusplus
+}
+#endif
 
 enum {GJK_CONVEX_CONVEX = 1,
       GJK_CONVEX_SPHERE,

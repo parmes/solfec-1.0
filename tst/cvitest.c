@@ -20,7 +20,9 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #if OPENGL
-#if __APPLE__
+#if FLTK
+  #include <FL/glut.h>
+#elif __APPLE__
   #include <GLUT/glut.h>
 #else
   #include <GL/glut.h>
@@ -32,10 +34,16 @@
 #include <float.h>
 #include <stdio.h>
 #include <time.h>
+#if __cplusplus
+extern "C" {
+#endif
 #include "alg.h"
 #include "hul.h"
 #include "cvi.h"
 #include "err.h"
+#if __cplusplus
+}
+#endif
 
 #define minim 4
 #define limit 128
@@ -153,7 +161,7 @@ static void gen ()
   }
 }
 
-static void export (void)
+static void exportfunc (void)
 {
   int i;
 
@@ -410,7 +418,7 @@ static void key (int key, int x, int y)
 
     GLV_Redraw_All ();
   }
-  else if (key == 'e') export ();
+  else if (key == 'e') exportfunc ();
   else if (key == 'k')
   {
     if (kind == REGULARIZED) kind = NON_REGULARIZED, printf ("NON_REGULARIZED\n");

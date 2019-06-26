@@ -25,14 +25,22 @@
 #include <time.h>
 #include <math.h>
 
+#if __cplusplus
+extern "C" {
+#endif
 #include "mem.h"
 #include "err.h"
 #include "alg.h"
 #include "box.h"
 #include "bod.h"
+#if __cplusplus
+}
+#endif
 
 #if OPENGL
-#if __APPLE__
+#if FLTK
+  #include <FL/glut.h>
+#elif __APPLE__
   #include <GLUT/glut.h>
 #else
   #include <GL/glut.h>
@@ -157,8 +165,8 @@ static void box_extents_update (void *data, TESTBOX *box, double *extents)
 
 static void box_overlap_create (void *data, BOX *one, BOX *two)
 {
-  TESTBOX *o = one->sgp->gobj,
-	  *t = two->sgp->gobj;
+  TESTBOX *o = (TESTBOX*) one->sgp->gobj,
+	  *t = (TESTBOX*) two->sgp->gobj;
 
   if (MAP_Insert (&aabb->mapmem, &o->adj, t, NULL, NULL))
   {
@@ -193,7 +201,11 @@ static void generate_box_set (int howmany, short arrange)
   int i;
 
   /* enable self-contact (we use one dummy body) */
+#if __cplusplus
+  bod.flags = static_cast<BODY_FLAGS>(bod.flags|BODY_DETECT_SELF_CONTACT);
+#else
   bod.flags |= BODY_DETECT_SELF_CONTACT;
+#endif
 
   /* adjust edge widths to the number of boxes */
   box_wx = box_wy = box_wz = pow (volume/(double)howmany, 0.33),
@@ -203,8 +215,8 @@ static void generate_box_set (int howmany, short arrange)
 
   /* initialise particles memory */
   howmany = MAX (howmany, 1);
-  ERRMEM (box = realloc (box, sizeof (TESTBOX) * howmany));
-  ERRMEM (sgp = realloc (sgp, sizeof (SGP) * howmany));
+  ERRMEM (box = (TESTBOX*) realloc (box, sizeof (TESTBOX) * howmany));
+  ERRMEM (sgp = (SGP*)realloc (sgp, sizeof (SGP) * howmany));
   boxsize = howmany;
   deleted = NULL; /* empty deleted boxes list */
 
@@ -214,7 +226,11 @@ static void generate_box_set (int howmany, short arrange)
   aabb->dom = (DOM*)1;
 
   /* let the dummy body be rigid */
+#if __cplusplus
+  bod.kind = BODY::RIG;
+#else
   bod.kind = RIG;
+#endif
  
   switch (arrange)
   {
@@ -294,10 +310,10 @@ static void box_motion_step ()
   /* update velocities in order to avoid collisions */
   for (obj = aabb->lst; obj; obj = obj->next)
   {
-    r = obj->sgp->gobj;
+    r = (TESTBOX*)obj->sgp->gobj;
     for (item = MAP_First (r->adj); item; item = MAP_Next (item))
     {
-      p = item->key; 
+      p = (TESTBOX*)item->key; 
       obi = p->box;
       if (obi < obj)
       {
@@ -317,7 +333,7 @@ static void box_motion_step ()
   /* update positions */
   for (obj = aabb->lst; obj; obj = obj->next)
   {
-    p = obj->sgp->gobj;
+    p = (TESTBOX*)obj->sgp->gobj;
     q = p->coord;
     u = p->velo;
     
@@ -402,7 +418,7 @@ static void single_computational_step ()
   {
     if (DRAND () < prob)
     {
-      p = obj->sgp->gobj;
+      p = (TESTBOX*)obj->sgp->gobj;
       AABB_Delete (aabb, p->box);
       p->n = deleted;
       deleted = p;
@@ -413,10 +429,10 @@ static void single_computational_step ()
   /* test for released overlaps */
   for (obj = aabb->lst; obj; obj = obj->next)
   {
-    p = obj->sgp->gobj;
+    p = (TESTBOX*)obj->sgp->gobj;
     for (MAP *item = MAP_First (p->adj); item; )
     {
-      TESTBOX *r = item->key;
+      TESTBOX *r = (TESTBOX*)item->key;
       int i;
 
       for (i = 0; i < 3; i ++)
@@ -562,7 +578,7 @@ static void view_render3d (void)
     {
       box_color (n, color);
       glColor3fv (color);
-      p = u->sgp->gobj;
+      p = (TESTBOX*)u->sgp->gobj;
       GLBOX (p->coord);
     }
     glEnd ();
@@ -575,10 +591,10 @@ static void view_render3d (void)
     glColor3d (1., 0., 0.);
     for (u = aabb->lst; u; u = u->next)
     {
-      p = u->sgp->gobj;
+      p = (TESTBOX*)u->sgp->gobj;
       for (item = MAP_First (p->adj); item; item = MAP_Next (item))
       {
-	r = item->key;
+	r = (TESTBOX*)item->key;
 	v = r->box;
 	if (u < v)
 	{

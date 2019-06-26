@@ -1,12 +1,24 @@
 include ../Config.mak
 include ../Flags.mak
 
+ifeq ($(FLTK),yes)
+OPENGL = -DOPENGL -DFLTK $(FLINC)
+GLLIB = $(FLLIB)
+GLCC = $(CXX)
+else
+GLCC = $(CC)
+endif
+
+ifdef PARMEC
+  PARMECLIB = -L../$(PARMEC) -lparmec8 -fopenmp $(MEDLIB)
+endif
+
 LIBBRICKS = ../obj/libsolfec.a
 LIBBRICKSMPI = ../obj/libsolfec-mpi.a
 MUMPS = -L../ext/mumps/libseq -lmpiseq
 BLOPEX = -lBLOPEX
 CFLAGS = $(STD) $(DEBUG) $(PROFILE) $(OPENGL) $(HDF5) $(XDRINC) -I..
-LIB = -L../obj -lsolfec -lkrylov -lmetis -ldmumps -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(CUDALIB) $(FCLIB) $(MUMPS) $(SICONOSLIB) $(BLOPEX)
+LIB = -L../obj -lsolfec -lkrylov -lmetis -ldmumps -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(GLLIB) $(PYTHONLIB) $(HDF5LIB) $(XDRLIB) $(CUDALIB) $(FCLIB) $(MUMPS) $(SICONOSLIB) $(BLOPEX) $(PARMECLIB)
 ifeq ($(MPI),yes)
   LIBMPI = -L../obj -lsolfec-mpi -lkrylov -lmetis -ldmumps -ltet -lm -lstdc++ $(LAPACK) $(BLAS) $(HDF5LIB) $(XDRLIB) $(CUDALIB) $(FCLIB) $(MUMPS) $(BLOPEX)
 endif
@@ -59,7 +71,7 @@ glvtest: obj/glvtest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 obj/glvtest.o: glvtest.c $(LIBBRICKS)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(GLCC) $(CFLAGS) -c -o $@ $<
 
 anytest: obj/anytest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
@@ -77,25 +89,25 @@ hultest: obj/hultest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 obj/hultest.o: hultest.c $(LIBBRICKS)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(GLCC) $(CFLAGS) -c -o $@ $<
 
 cvitest: obj/cvitest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 obj/cvitest.o: cvitest.c $(LIBBRICKS)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(GLCC) $(CFLAGS) -c -o $@ $<
 
 gjktest: obj/gjktest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 obj/gjktest.o: gjktest.c $(LIBBRICKS)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(GLCC) $(CFLAGS) -c -o $@ $<
 
 boxtest: obj/boxtest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)
 
 obj/boxtest.o: boxtest.c $(LIBBRICKS)
-	$(CC) $(CFLAGS) -c -o $@ $<
+	$(GLCC) $(CFLAGS) -c -o $@ $<
 
 listest: obj/listest.o $(LIBBRICKS)
 	$(CC) $(CFLAGS) -o $@ $< $(LIB)

@@ -20,7 +20,9 @@
  * License along with Solfec. If not, see <http://www.gnu.org/licenses/>. */
 
 #if OPENGL
-#if __APPLE__
+#if FLTK
+  #include <FL/glut.h>
+#elif __APPLE__
   #include <GLUT/glut.h>
 #else
   #include <GL/glut.h>
