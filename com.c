@@ -1008,16 +1008,16 @@ void* COM_Pattern (MPI_Comm comm, int tag,
   MPI_Waitall (pattern->recv_count, pattern->recv_req, pattern->recv_sta);
 
   /* contiguous receive size */
-  j = pattern->recv_count * sizeof (COMDATA);
+  uint64_t size = pattern->recv_count * sizeof (COMDATA);
   for (i = 0; i < pattern->recv_count; i ++)
   {
-    j += pattern->recv_sizes [i][0] * sizeof (int) + 
-         pattern->recv_sizes [i][1] * sizeof (double);
+    size += pattern->recv_sizes [i][0] * sizeof (int) + 
+            pattern->recv_sizes [i][1] * sizeof (double);
   }
 
   /* prepare receive buffers */
   ERRMEM (pattern->recv_data = malloc (pattern->recv_count * sizeof (char*)));
-  ERRMEM (pattern->recv = malloc (j));
+  ERRMEM (pattern->recv = malloc (size));
   p = pattern->recv + pattern->recv_count;
   pattern->nrecv = pattern->recv_count;
   for (i = 0, cd = pattern->recv; i < pattern->recv_count; i ++, cd ++)
@@ -1308,16 +1308,15 @@ void* COMALL_Pattern (MPI_Comm comm,
   if (pattern->recv_size)
   {
     /* contiguous receive size */
-    j = ncpu * sizeof (COMDATA);
+    uint64_t size = ncpu * sizeof (COMDATA);
     for (i = 0; i < ncpu; i ++)
     {
-      j += pattern->recv_sizes [i][0] * sizeof (int) + 
-	   pattern->recv_sizes [i][1] * sizeof (double);
+      size += pattern->recv_sizes [i][0] * sizeof (int) + 
+	      pattern->recv_sizes [i][1] * sizeof (double);
     }
 
     /* prepare output receive data */
-    ERRMEM (pattern->recv = malloc (j));
-    ERRMEM ((*recv) = malloc (j));
+    ERRMEM ((*recv) = malloc (size));
     p = (*recv) + ncpu;
     for (i = 0, cd = *recv; i < ncpu; i ++, cd ++)
     {
@@ -1326,7 +1325,6 @@ void* COMALL_Pattern (MPI_Comm comm,
       cd->doubles = pattern->recv_sizes [i][1];
       cd->i = p; p = (cd->i + cd->ints);
       cd->d = p; p = (cd->d + cd->doubles);
-      pattern->recv [i] = *cd;
     }
 
     /* compress receive storage */
@@ -1344,6 +1342,9 @@ void* COMALL_Pattern (MPI_Comm comm,
     *recv = NULL;
     *nrecv = 0;
   }
+
+  pattern->recv = *recv;
+  pattern->nrecv = *nrecv;
 
   return pattern;
 }
@@ -1414,6 +1415,5 @@ void COMALL_Free (void *pattern)
   free (pp->recv_position);
   free (pp->send_data);
   free (pp->recv_data);
-  free (pp->recv);
   free (pp);
 }
