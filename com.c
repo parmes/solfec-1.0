@@ -711,8 +711,8 @@ uint64_t COMOBJS (MPI_Comm comm, int tag,
 	  *recv_data,
 	  *cd, *cc;
   int recv_count,
-      i, n,
-      ret;
+      i, n;
+  uint64_t ret;
   COMOBJ *co;
   MAP *map;
   MEM mem;
