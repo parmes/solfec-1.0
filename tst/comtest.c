@@ -65,8 +65,12 @@ static int test_simple (int comall)
     send[k].d = d;
   }
 
-  if (comall) COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv);
-  else COM (MPI_COMM_WORLD, 0, send, nsend, &recv, &nrecv);
+  switch (comall)
+  {
+  case 0: COM (MPI_COMM_WORLD, 0, send, nsend, &recv, &nrecv); break;
+  case 1: COMALL (MPI_COMM_WORLD, send, nsend, &recv, &nrecv); break;
+  case 2: COMALL2 (MPI_COMM_WORLD, send, nsend, &recv, &nrecv); break;
+  }
 
   for (k = 0; k < nrecv; k ++)
   {
@@ -205,7 +209,7 @@ static int test_objall ()
 
   OBJECT obj [nsend];
 
-  COMOBJ send [nsend], *recv;
+  COMOBJ *recv;
 
   int k, n, nrecv;
 
@@ -213,9 +217,6 @@ static int test_objall ()
   {
     for (n = 0; n < INTS; n ++) obj[k].i[n] = RANK;
     for (n = 0; n < DOUBLES; n ++) obj[k].d[n] = RANK;
-
-    send[k].rank = (RANK + 1) % SIZE;
-    send[k].o = &obj[k];
   }
 
   COMOBJALL (MPI_COMM_WORLD, (OBJ_Pack)pack, NULL, (OBJ_Unpack)unpack, obj, &recv, &nrecv);
@@ -260,6 +261,9 @@ int main (int argc, char **argv)
 
   if (test_simple (1)) printf ("Rank %d of %d COMALL OK\n", RANK, SIZE);
   else printf ("Rank %d of %d COMALL FAILED\n", RANK, SIZE);
+
+  if (test_simple (2)) printf ("Rank %d of %d COMALL2 OK\n", RANK, SIZE);
+  else printf ("Rank %d of %d COMALL2 FAILED\n", RANK, SIZE);
 
   if (test_pattern (1)) printf ("Rank %d of %d COMALL_Pattern OK\n", RANK, SIZE);
   else printf ("Rank %d of %d COMALL_Pattern FAILED\n", RANK, SIZE);

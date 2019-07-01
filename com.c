@@ -670,6 +670,217 @@ uint64_t COMALL (MPI_Comm comm,
   return send_size64;
 }
 
+/* alternative approach to communicating integers and doubles using all to all communication;
+   more appropriate for sending large data volumes */
+uint64_t COMALL2 (MPI_Comm comm,
+            COMDATA *send, int nsend,
+	    COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
+{
+  COMDATA *cd;
+  uint64_t *int_send_counts,
+	   int_send_size,
+	   *int_send_counts_max,
+	   *int_block_position,
+	   *double_send_counts,
+	   double_send_size,
+	   *double_send_counts_max,
+	   *double_block_position;
+  int rank, ncpu, i, j,
+	   *int_block_send_counts,
+	   *int_block_send_disps,
+	   int_block_send_size,
+	   *double_block_send_counts,
+	   *double_block_send_disps,
+	   double_block_send_size;
+  int *int_send_data,
+      *int_recv_data;
+  double *double_send_data,
+         *double_recv_data;
+  void *p;
+
+  MPI_Comm_rank (comm, &rank);
+  MPI_Comm_size (comm, &ncpu);
+
+  ERRMEM (int_send_counts = MEM_CALLOC (ncpu * sizeof (uint64_t)));
+  ERRMEM (int_send_counts_max = MEM_CALLOC (ncpu * sizeof (uint64_t)));
+  ERRMEM (int_block_position = MEM_CALLOC (ncpu * sizeof (uint64_t)));
+  ERRMEM (double_send_counts = MEM_CALLOC (ncpu * sizeof (uint64_t)));
+  ERRMEM (double_send_counts_max = MEM_CALLOC (ncpu * sizeof (uint64_t)));
+  ERRMEM (double_block_position = MEM_CALLOC (ncpu * sizeof (uint64_t)));
+
+  ERRMEM (int_block_send_counts = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (int_block_send_disps = MEM_CALLOC ((ncpu+1) * sizeof (int)));
+  ERRMEM (double_block_send_counts = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (double_block_send_disps = MEM_CALLOC ((ncpu+1) * sizeof (int)));
+
+  /* compute send counts */
+  for (int_send_size = double_send_size = i = 0, cd = send; i < nsend; i ++, cd ++)
+  {
+    int_send_counts [cd->rank] += cd->ints;
+    double_send_counts [cd->rank] += cd->doubles;
+    int_send_size += cd->ints;
+    double_send_size += cd->doubles;
+  }
+
+  /* reduce total send sizes */
+  uint64_t ids[2] = {int_send_size, double_send_size}, idsx[2];
+
+  MPI_Allreduce (ids, idsx, 2, MPI_UINT64_T, MPI_MAX, MPI_COMM_WORLD);
+
+  /* block sizes that allow to use integer displacements in MPI_Alltoallv */
+  int int_block_size = (1 + idsx[0]/INT_MAX),
+      double_block_size = (1 + idsx[1]/INT_MAX);
+
+  /* contiguous block types */
+  MPI_Datatype int_block_type, double_block_type;
+  MPI_Type_contiguous(int_block_size, MPI_INT, &int_block_type);
+  MPI_Type_contiguous(double_block_size, MPI_DOUBLE, &double_block_type);
+  MPI_Type_commit(&int_block_type);
+  MPI_Type_commit(&double_block_type);
+
+  /* compute send displacements using these blocks */
+  for (int_block_send_size = double_block_send_size = i = 0; i < ncpu; i ++)
+  {
+    int_block_send_counts [i] = 1 + int_send_counts [i] / int_block_size;
+    int_block_send_size += int_block_send_counts [i];
+    int_block_send_disps [i+1] = int_block_send_size;
+
+    double_block_send_counts [i] = 1 + double_send_counts [i] / double_block_size;
+    double_block_send_size += double_block_send_counts [i];
+    double_block_send_disps [i+1] = double_block_send_size;
+  }
+
+  /* allocate send buffers */
+  ERRMEM (int_send_data = malloc (int_block_send_size * sizeof(int [int_block_size])));
+  ERRMEM (double_send_data = malloc (double_block_send_size * sizeof(double [double_block_size])));
+
+  /* pack send data into send buffers */
+  for (i = 0, cd = send; i < nsend; i ++, cd ++)
+  {
+    j = cd->rank;
+    memcpy (&int_send_data[int_block_size*int_block_send_disps[j] + int_block_position[j]], cd->i, sizeof(int [cd->ints]));
+    int_block_position[j] += cd->ints;
+    memcpy (&double_send_data[double_block_size*double_block_send_disps[j] + double_block_position[j]], cd->d, sizeof(double [cd->doubles]));
+    double_block_position[j] += cd->doubles;
+  }
+
+  uint64_t *int_recv_counts,
+	   *double_recv_counts;
+
+  int      *int_block_recv_counts,
+	   *int_block_recv_disps,
+	   int_block_recv_size,
+	   *double_block_recv_counts,
+	   *double_block_recv_disps,
+	   double_block_recv_size;
+
+  /* allocate receive indexing buffers */
+  ERRMEM (int_recv_counts = MEM_CALLOC (ncpu * sizeof (uint64_t)));
+  ERRMEM (double_recv_counts = MEM_CALLOC (ncpu * sizeof (uint64_t)));
+
+  ERRMEM (int_block_recv_counts = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (int_block_recv_disps = MEM_CALLOC ((ncpu+1) * sizeof (int)));
+  ERRMEM (double_block_recv_counts = MEM_CALLOC (ncpu * sizeof (int)));
+  ERRMEM (double_block_recv_disps = MEM_CALLOC ((ncpu+1) * sizeof (int)));
+
+  /* distribute send sizes into receive sizes */
+  MPI_Alltoall (int_send_counts, 1, MPI_UINT64_T, int_recv_counts, 1, MPI_UINT64_T, comm);
+  MPI_Alltoall (double_send_counts, 1, MPI_UINT64_T, double_recv_counts, 1, MPI_UINT64_T, comm);
+
+  MPI_Alltoall (int_block_send_counts, 1, MPI_INT, int_block_recv_counts, 1, MPI_INT, comm);
+  MPI_Alltoall (double_block_send_counts, 1, MPI_INT, double_block_recv_counts, 1, MPI_INT, comm);
+
+  /* compute receive block displacements */
+  for (int_block_recv_size = double_block_recv_size = i = 0; i < ncpu; i ++)
+  {
+    int_block_recv_size += int_block_recv_counts [i];
+    int_block_recv_disps [i+1] = int_block_recv_size;
+    double_block_recv_size += double_block_recv_counts [i];
+    double_block_recv_disps [i+1] = double_block_recv_size;
+  }
+
+  /* allocate receive buffers */
+  ERRMEM (int_recv_data = malloc (int_block_recv_size * sizeof(int [int_block_size])));
+  ERRMEM (double_recv_data = malloc (double_block_recv_size * sizeof(double [double_block_size])));
+
+  /* all to all send and receive */
+  MPI_Alltoallv (int_send_data, int_block_send_counts, int_block_send_disps, int_block_type,
+                 int_recv_data, int_block_recv_counts, int_block_recv_disps, int_block_type, comm);
+  MPI_Alltoallv (double_send_data, double_block_send_counts, double_block_send_disps, double_block_type,
+                 double_recv_data, double_block_recv_counts, double_block_recv_disps, double_block_type, comm);
+
+  if (int_block_recv_size || double_block_recv_size)
+  {
+    /* contiguous receive size */
+    uint64_t size = ncpu * sizeof (COMDATA);
+    for (i = 0; i < ncpu; i ++)
+    {
+      size += int_block_recv_counts [i] * sizeof (int [int_block_size]) + 
+	      double_block_recv_counts [i] * sizeof (double [double_block_size]);
+    }
+
+    /* prepare output receive data */
+    ERRMEM ((*recv) = malloc (size));
+    p = (*recv) + ncpu;
+    for (i = 0, cd = *recv; i < ncpu; i ++, cd ++)
+    {
+      cd->rank = i;
+      cd->ints = int_recv_counts [i];
+      cd->doubles = double_recv_counts [i];
+      cd->i = p; p = (cd->i + cd->ints);
+      cd->d = p; p = (cd->d + cd->doubles);
+    }
+
+    /* unpack data */
+    for (i = 0; i < ncpu; i ++)
+    {
+      memcpy ((*recv)[i].i, &int_recv_data[int_block_size*int_block_recv_disps[i]], (*recv) [i].ints * sizeof(int));
+      memcpy ((*recv)[i].d, &double_recv_data[double_block_size*double_block_recv_disps[i]], (*recv) [i].doubles * sizeof(double));
+    }
+
+    /* compress receive storage */
+    for (*nrecv = i = 0; i < ncpu; i ++)
+    {
+      if (int_recv_counts [i] || double_recv_counts[i])
+      {
+	(*recv) [*nrecv] = (*recv) [i];
+	(*nrecv) ++;
+      }
+    }
+  }
+  else
+  {
+    *recv = NULL;
+    *nrecv = 0;
+  }
+
+  /* cleanup */
+  free (int_send_counts);
+  free (int_send_counts_max);
+  free (int_block_position);
+  free (double_send_counts);
+  free (double_send_counts_max);
+  free (double_block_position);
+  free (int_block_send_counts);
+  free (int_block_send_disps);
+  free (double_block_send_counts);
+  free (double_block_send_disps);
+  free (int_send_data);
+  free (double_send_data);
+  free (int_recv_counts);
+  free (double_recv_counts);
+  free (int_block_recv_counts);
+  free (int_block_recv_disps);
+  free (double_block_recv_counts);
+  free (double_block_recv_disps);
+  free (int_recv_data);
+  free (double_recv_data);
+
+  return int_block_send_size * sizeof(int [int_block_size]) + double_block_send_size * sizeof(double [double_block_size]);
+}
+
+#define COMALLX COMALL2 /* COMALL or COMALL2 */
+
 /* communicate one set of integers and doubles to all other processors */
 uint64_t COMONEALL (MPI_Comm comm, COMDATA send,
 	       COMDATA **recv, int *nrecv) /* recv is contiguous => free (*recv) releases all memory */
@@ -692,7 +903,7 @@ uint64_t COMONEALL (MPI_Comm comm, COMDATA send,
     }
   }
 
-  ret = COMALL (comm, send_data, ncpu - 1, recv, nrecv);
+  ret = COMALLX (comm, send_data, ncpu - 1, recv, nrecv);
 
   free (send_data);
 
@@ -749,7 +960,7 @@ uint64_t COMOBJS (MPI_Comm comm, int tag,
   }
 
   /* send and receive packed data */
-  if (tag == INT_MIN) ret = COMALL (comm, send_data, nsend, &recv_data, &recv_count); /* all to all */
+  if (tag == INT_MIN) ret = COMALLX (comm, send_data, nsend, &recv_data, &recv_count); /* all to all */
   else ret = COM (comm, tag, send_data, nsend, &recv_data, &recv_count); /* point to point */
 
 #if PARDEBUG
@@ -759,7 +970,7 @@ uint64_t COMOBJS (MPI_Comm comm, int tag,
     double *qq, *pp;
 
     /* send backwards */
-    if (tag == INT_MIN) COMALL (comm, recv_data, recv_count, &debug_send_data, &debug_send_count);
+    if (tag == INT_MIN) COMALLX (comm, recv_data, recv_count, &debug_send_data, &debug_send_count);
     else COM (comm, tag, recv_data, recv_count, &debug_send_data, &debug_send_count);
 
     ii[0] = 0, ii[1] = 0;

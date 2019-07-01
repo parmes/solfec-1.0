@@ -58,6 +58,12 @@ uint64_t COMALL (MPI_Comm comm,
             COMDATA *send, int nsend,
 	    COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
 
+/* alternative approach to communicating integers and doubles using all to all communication;
+   more appropriate for sending large data volumes */
+uint64_t COMALL2 (MPI_Comm comm,
+            COMDATA *send, int nsend,
+	    COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
+
 /* communicate one set of integers and doubles to all other processors */
 uint64_t COMONEALL (MPI_Comm comm, COMDATA send,
 	       COMDATA **recv, int *nrecv); /* recv is contiguous => free (*recv) releases all memory */
