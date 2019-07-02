@@ -815,8 +815,8 @@ uint64_t COMALL2 (MPI_Comm comm,
     uint64_t size = ncpu * sizeof (COMDATA);
     for (i = 0; i < ncpu; i ++)
     {
-      size += int_block_recv_counts [i] * sizeof (int [int_block_size]) + 
-	      double_block_recv_counts [i] * sizeof (double [double_block_size]);
+      size += int_recv_counts [i] * sizeof (int) +
+	      double_recv_counts [i] * sizeof (double);
     }
 
     /* prepare output receive data */
