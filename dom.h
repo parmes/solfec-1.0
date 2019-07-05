@@ -296,6 +296,7 @@ struct domain
   enum {ALWAYS, NEVER, RANK0} insertbodymode; /* insert body mode */
   int rebalanced; /* counts rebalancing steps */
   int updatefreq; /* domain partitioning update frequency */
+  int excluded_changed[2]; /* rank 0 excluded {body, surface} pairs changed flag */
 #endif
 
 #if OMP

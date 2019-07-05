@@ -8632,6 +8632,8 @@ static PyObject* lng_CONTACT_EXCLUDE_BODIES (PyObject *self, PyObject *args, PyO
   sol = body1->dom->solfec;
 
   AABB_Exclude_Body_Pair (sol->aabb, body1->id, body2->id);
+
+  sol->dom->excluded_changed[0] = 1;
 #else
   if (body1->bod->dom != body2->bod->dom)
   {
@@ -8659,6 +8661,10 @@ static PyObject* lng_CONTACT_EXCLUDE_SURFACES (PyObject *self, PyObject *args, P
   TYPETEST (is_solfec (solfec, kwl[0]));
 
   DOM_Exclude_Contact (solfec->sol->dom, surf1, surf2);
+
+#if MPI
+  solfec->sol->dom->excluded_changed[1] = 1;
+#endif
 
   Py_RETURN_NONE;
 }

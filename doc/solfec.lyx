@@ -14496,6 +14496,7 @@ CONTACT_EXCLUDE_BODIES (body1, body2)
 \begin_layout Standard
 This routine disables contact detection for a specific pair of bodies.
  By default contact detection is enabled for all possible body pairs.
+ Must be called on MPI rank 0 process to take effect.
 \end_layout
 
 \begin_layout Itemize
@@ -14521,6 +14522,7 @@ CONTACT_EXCLUDE_SURFACES (solfec, surf1, surf2)
 \begin_layout Standard
 This routine disables contact detection for a specific pair of surfaces.
  By default contact detection is enabled for all possible surface pairs.
+ Must be called on MPI rank 0 process to take effect.
 \end_layout
 
 \begin_layout Itemize

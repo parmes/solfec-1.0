@@ -1639,19 +1639,6 @@ static void domain_balancing_pack (DBD *dbd, int *dsize, double **d, int *double
   pack_int (isize, i, ints, SET_Size (dbd->remove));
   for (item = SET_First (dbd->remove); item; item = SET_Next (item))
     pack_int (isize, i, ints, (int) (long) item->data);
-
-  /* pack contact excluded body pairs */
-  AABB_Pack_Body_Pairs (dbd->dom->aabb, isize, i, ints);
-
-  /* pack contact excluded surface pairs */
-  int size = SET_Size (dbd->dom->excluded);
-  pack_int (isize, i, ints, size);
-  for (item = SET_First (dbd->dom->excluded); item; item = SET_Next (item))
-  {
-    int *pair = (int*)item->data;
-    pack_int (isize, i, ints, pair[0]);
-    pack_int (isize, i, ints, pair[1]);
-  }
 }
 
 /* unpack domain balancing data */
@@ -1688,22 +1675,6 @@ static void* domain_balancing_unpack (DOM *dom, int *dpos, double *d, int double
     id = unpack_int (ipos, i, ints);
     ASSERT_DEBUG_EXT (con = MAP_Find (dom->conext, (void*) (long) id, NULL), "Invalid constraint id");
     DOM_Remove_Constraint (dom, con);
-  }
-
-  /* unpack contact excluded body pairs */
-  AABB_Unpack_Body_Pairs (dom->aabb, ipos, i, ints);
-
-  /* unpack contact excluded surface pairs */
-  j = unpack_int (ipos, i, ints);
-  for (n = 0; n < j; n ++)
-  {
-    int pair[2] = {unpack_int (ipos, i, ints),
-                   unpack_int (ipos, i, ints)};
-
-    if (!SET_Contains (dom->excluded, pair, (SET_Compare) pair_compare))
-    {
-      DOM_Exclude_Contact (dom, pair[0], pair[1]);
-    }
   }
 
   return NULL;
@@ -2314,6 +2285,66 @@ static void domain_balancing (DOM *dom)
   /* clean */
   free (send);
   free (recv);
+
+  /* broadcast excluded body and surface sets changes */
+  MPI_Bcast (dom->excluded_changed, 2, MPI_INT, 0, MPI_COMM_WORLD);
+  
+  if (dom->excluded_changed[0]) /* update excluded body sets */
+  {
+    int isize = 0, *i = NULL, ints = 0, ipos = 0;
+
+    if (dom->rank == 0) AABB_Pack_Body_Pairs (dom->aabb, &isize, &i, &ints);
+
+    MPI_Bcast (&ints, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (dom->rank > 0) (i = malloc (sizeof (int [ints])));
+
+    MPI_Bcast (i, ints, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (dom->rank > 0) AABB_Unpack_Body_Pairs (dom->aabb, &ipos, i, ints);
+
+    free (i);
+
+    dom->excluded_changed[0] = 0;
+  }
+
+  if (dom->excluded_changed[1]) /* update excluded surface sets */
+  {
+    int size = SET_Size (dom->excluded), *i = NULL, n;
+    SET *item;
+
+    MPI_Bcast (&size, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    ERRMEM (i = malloc (size * sizeof(int [2])));
+
+    if (dom->rank == 0)
+    {
+      for (n = 0, item = SET_First (dom->excluded); item; n++, item = SET_Next (item))
+      {
+	int *pair = (int*)item->data;
+	i[2*n] = pair[0];
+	i[2*n+1] = pair[1];
+      }
+    }
+
+    MPI_Bcast (i, 2*size, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (dom->rank > 0)
+    {
+      for (n = 0; n < size; n ++)
+      {
+	int pair[2] = {i[2*n], i[2*n+1]};
+	if (!SET_Contains (dom->excluded, pair, (SET_Compare) pair_compare))
+	{
+	  DOM_Exclude_Contact (dom, pair[0], pair[1]);
+	}
+      }
+    }
+
+    free (i);
+
+    dom->excluded_changed[1] = 0;
+  }
 }
 
 /* compute new boundary constraints migration */
@@ -3070,6 +3101,8 @@ DOM* DOM_Create (AABB *aabb, SPSET *sps, short dynamic, double step)
 
 #if MPI
   create_mpi (dom);
+  dom->excluded_changed[0] = 0;
+  dom->excluded_changed[1] = 0;
 #endif
 
 #if OMP
