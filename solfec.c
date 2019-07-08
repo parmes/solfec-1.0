@@ -334,7 +334,7 @@ int main (int argc, char **argv)
 
     if (!path) 
     {
-      printf ("VERSION: Solfec-1.%s (%s)\n", VERSION_HASH, VERSION_DATE);
+      printf ("VERSION: 1.%s (%s)\n", VERSION_HASH, VERSION_DATE);
       printf (synopsis); /* print info */
     }
     else lngerr = lng (path); /* call interpreter */
