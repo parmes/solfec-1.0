@@ -95,7 +95,7 @@
 \begin_body
 
 \begin_layout Title
-Solfec User Manual
+Solfec-1.0 User Manual
 \end_layout
 
 \begin_layout Author
@@ -122,7 +122,7 @@ Introduction
 \end_layout
 
 \begin_layout Standard
-Solfec is a computational code aimed at simulation of multi-body systems
+Solfec-1.0 is a computational code aimed at simulation of multi-body systems
  with constraints.
  It implements an instance of the Contact Dynamics (CD) method by Moreau
  
@@ -153,7 +153,7 @@ literal "true"
  a couple of constraint solvers (e.g.
  penalty, Gauss-Seidel).
  A distributed memory and a serial versions of the code are available.
- Solfec is an open-source software and can be downloaded from 
+ Solfec-1.0 is an open-source software and can be downloaded from 
 \begin_inset CommandInset href
 LatexCommand href
 target "http://code.google.com/p/solfec"
@@ -598,7 +598,7 @@ Installation
 \end_layout
 
 \begin_layout Standard
-Solfec is hosted on 
+Solfec-1.0 is hosted on 
 \begin_inset CommandInset href
 LatexCommand href
 name "GitHub"
@@ -661,7 +661,7 @@ literal "false"
 \end_inset
 
  instead.
- Solfec is written in C and it uses a simple makefile to get compiled.
+ Solfec-1.0 is written in C and it uses a simple makefile to get compiled.
  The file 
 \emph on
 solfec/Config.mak
@@ -1293,7 +1293,7 @@ Python
 \series bold
 OpenGL
 \series default
- libraries and developments files (this enables Solfec's viewer)
+ libraries and developments files (this enables Solfec-1.0's viewer)
 \end_layout
 
 \begin_layout Itemize
@@ -1367,7 +1367,7 @@ literal "false"
 \end_layout
 
 \begin_layout Standard
-To compile Solfec, after editing the 
+To compile Solfec-1.0, after editing the 
 \emph on
 Config.mak
 \emph default
@@ -1455,7 +1455,7 @@ DEBUG = no
 \begin_inset Quotes erd
 \end_inset
 
- most of the time: this will make Solfec about 40% faster.
+ most of the time: this will make Solfec-1.0 about 40% faster.
  Nonetheless, when you experience trouble with running the code, recompile
  it with 
 \begin_inset Quotes eld
@@ -1494,7 +1494,8 @@ POSIX = yes
 \emph on
 solfec
 \emph default
- directory, making it easier to run Solfec form any location in your filesystem.
+ directory, making it easier to run Solfec-1.0 form any location in your
+ filesystem.
  You can ask for help, using the 
 \color blue
 
@@ -1518,11 +1519,11 @@ name "cha:Running-Solfec"
 
 \end_inset
 
-Running Solfec
+Running Solfec-1.0
 \end_layout
 
 \begin_layout Standard
-Solfec is a command line program.
+Solfec-1.0 is a command line program.
  It can be run sequentially (command: 
 \emph on
 solfec
@@ -1609,7 +1610,7 @@ NOTE1:
 \emph on
 -c
 \emph default
- Solfec terminates in case RUN is used multiple times; 
+ Solfec-1.0 terminates in case RUN is used multiple times; 
 \series bold
 NOTE2:
 \series default
@@ -1738,8 +1739,8 @@ out/cubes/16
 \end_layout
 
 \begin_layout Standard
-During a parallel run Solfec updates a file named STATE, placed in the output
- directory of a simulation.
+During a parallel run Solfec-1.0 updates a file named STATE, placed in the
+ output directory of a simulation.
  It contains statistics relevant to the run, including an estimated time
  until the end of the simulation.
  The output directory contains as well a copy of the input file, which makes
@@ -1799,7 +1800,7 @@ name "fig:Solfec-viewer"
 
 
 \lang english
-Solfec viewer window.
+Solfec-1.0 viewer window.
 \end_layout
 
 \end_inset
@@ -1852,7 +1853,7 @@ mpirun -np 4 ./solfec-mpi inp/test.py -s dir1 arg1 arg2
 then  results will be written into 'out/test/dir1/arg1'.
  You can see that command line input parameters can influence the location
  of the output directory.
- Since for this first run Solfec did not manage to find any results located
+ Since for this first run Solfec-1.0 did not manage to find any results located
  at 'out/test/dir1/arg1' the analysis will be pursued and testing
 \end_layout
 
@@ -1888,7 +1889,7 @@ since 'out/test/dir1/arg1.py' is an exact copy of 'inp/test.py'.
 \series bold
 But crucially note
 \series default
-, that the same parameters '-s dir1 arg1, arg2' need to be passed to Solfec
+, that the same parameters '-s dir1 arg1, arg2' need to be passed to Solfec-1.0
  so that the correct output path could be recognized! Of course, on this
  second run the above if test will result in the output 'READ MODE!'.
 \end_layout
@@ -1898,7 +1899,7 @@ Output directory as an input path
 \end_layout
 
 \begin_layout Standard
-Solfec creates a copy of an input file in the output directory.
+Solfec-1.0 creates a copy of an input file in the output directory.
  For example, if the output path is
 \end_layout
 
@@ -1941,10 +1942,10 @@ Input language
 \end_layout
 
 \begin_layout Standard
-Solfec input file is essentially a Python source code.
- Python interpreter is embedded in Solfec.
- At the same time Solfec extends Python by adding a number of objects and
- routines.
+Solfec-1.0 input file is essentially a Python source code.
+ Python interpreter is embedded in Solfec-1.0.
+ At the same time Solfec-1.0 extends Python by adding a number of objects
+ and routines.
  There are few general principles to remember:
 \end_layout
 
@@ -1966,7 +1967,7 @@ c, d
 \end_layout
 
 \begin_layout Itemize
-Passing Solfec objects to some routines 
+Passing Solfec-1.0 objects to some routines 
 \emph on
 empties
 \emph default
@@ -2045,7 +2046,8 @@ Routines marked as
 \end_layout
 
 \begin_layout Standard
-Sections below document Solfec objects and routines used for their manipulation.
+Sections below document Solfec-1.0 objects and routines used for their manipulati
+on.
 \end_layout
 
 \begin_layout Section
@@ -2053,7 +2055,7 @@ Feature maturity matrix
 \end_layout
 
 \begin_layout Standard
-The below table gives indicative assessment of the maturity of various Solfec
+The below table gives indicative assessment of the maturity of various Solfec-1.0
  commands.
 \begin_inset Separator latexpar
 \end_inset
@@ -5308,7 +5310,7 @@ x
 \end_layout
 
 \begin_layout Section
-Solfec objects
+Solfec-1.0 objects
 \end_layout
 
 \begin_layout Subsection
@@ -5629,7 +5631,7 @@ name "fig:elements"
 
 
 \lang english
-Element types in Solfec.
+Element types in Solfec-1.0.
 \end_layout
 
 \end_inset
@@ -6717,7 +6719,7 @@ SOLFEC
 \end_layout
 
 \begin_layout Standard
-An object of type SOLFEC represents the Solfec algorithm.
+An object of type SOLFEC represents the Solfec-1.0 algorithm.
  One can use several SOLFEC objects to run several analyses from a single
  input file.
 \end_layout
@@ -9810,7 +9812,7 @@ failure
 \series default
  - failure (lack of convergence) action (default: 'CONTINUE').
  Available failure actions are: 'CONTINUE' (simulation is continued), 'EXIT'
- (simulation is stopped and Solfec exits), 'CALLBACK' (a callback function
+ (simulation is stopped and Solfec-1.0 exits), 'CALLBACK' (a callback function
  is called if it was set or otherwise the 'EXIT' scenario is executed).
  In all cases 
 \series bold
@@ -9890,8 +9892,8 @@ callback
 \emph on
 value = callback (obj, data)
 \emph default
-, where for the returned value equal zero Solfec run is stopped; See also:
- 
+, where for the returned value equal zero Solfec-1.0 run is stopped; See
+ also: 
 \begin_inset CommandInset ref
 LatexCommand nameref
 reference "subsec:REGISTER_CALLBACK"
@@ -10845,7 +10847,7 @@ WARNING3:
 \series bold
 WARNING4:
 \series default
- Solfec needs to be compiled with Sicons support for this solver to work.
+ Solfec-1.0 needs to be compiled with Sicons support for this solver to work.
 \end_layout
 
 \begin_layout Subsection*
@@ -10944,7 +10946,7 @@ HYBRID_SOLVER
 \begin_layout Standard
 Hybrid solver allows to combine smooth rigid body nonlinear spring based
  PARMEC models with non-smooth SOLFEC models.
- The solver is supported both in the serial and MPI version of Solfec.
+ The solver is supported both in the serial and MPI version of Solfec-1.0.
  The Parmec library is shared memory parallel and in the MPI mode this part
  of modeling is executed on MPI rank 0 process, employing maximum available
  shared memory parallelism.
@@ -13073,9 +13075,9 @@ REGISTER_CALLBACK (callback | data)
 \end_layout
 
 \begin_layout Standard
-This routine registers a Python callback later used by Solfec.
+This routine registers a Python callback later used by Solfec-1.0.
  All callback and data pairs must be registered in the same order on all
- MPI ranks, when Solfec is run in parallel.
+ MPI ranks, when Solfec-1.0 is run in parallel.
  This function is ignored in sequential mode.
 \end_layout
 
@@ -13108,7 +13110,7 @@ CALLBACK (solfec, interval, data, callback)
 \end_layout
 
 \begin_layout Standard
-This routine defines a callback function, invoked during a run of Solfec
+This routine defines a callback function, invoked during a run of Solfec-1.0
  every interval of time.
  A callback routine can interrupt the course of 
 \series bold
@@ -13150,8 +13152,8 @@ callback
 \emph on
 value = callback (data)
 \emph default
-, where for the returned value equal zero Solfec run is stopped; See also:
- 
+, where for the returned value equal zero Solfec-1.0 run is stopped; See
+ also: 
 \begin_inset CommandInset ref
 LatexCommand nameref
 reference "subsec:REGISTER_CALLBACK"
@@ -13206,7 +13208,7 @@ GEOMETRIC_EPSILON (epsilon)
 
 \begin_layout Standard
 This routine sets a numerical tolerance for geometric tests performed within
- Solfec.
+ Solfec-1.0.
  The tolerance is a characteristic distance between two distinct points
  below which they can be regarded as one.
 \end_layout
@@ -13224,7 +13226,7 @@ WARNINGS (state)
 \end_layout
 
 \begin_layout Standard
-This routine disables or enables Solfec warnings.
+This routine disables or enables Solfec-1.0 warnings.
  It is a good practice to have the warnings enabled and only switch them
  off after making sure, that they can be ignored.
 \end_layout
@@ -13242,8 +13244,8 @@ INITIALIZE_STATE (solfec, path, time | subset)
 \end_layout
 
 \begin_layout Standard
-This routine initializes the state of a Solfec object with the state red
- from an output directory at a given time.
+This routine initializes the state of a Solfec-1.0 object with the state
+ red from an output directory at a given time.
  It is ignored in the 'READ' mode.
 \end_layout
 
@@ -13252,7 +13254,7 @@ This routine initializes the state of a Solfec object with the state red
 \series bold
 solfec
 \series default
- - Solfec object in the 'WRITE' mode
+ - Solfec-1.0 object in the 'WRITE' mode
 \end_layout
 
 \begin_layout Itemize
@@ -13320,7 +13322,7 @@ RIGID_TO_FEM (path, time, solfec | subset)
 \end_layout
 
 \begin_layout Standard
-This routine initializes the state of FEM bodies within the Solfec object
+This routine initializes the state of FEM bodies within the Solfec-1.0 object
  with the state of rigid bodies red from an output directory at a given
  time.
  It is ignored in the 'READ' mode.
@@ -13342,9 +13344,9 @@ path
 \series default
  - path to the output directory containing matching rigid body analysis
  results; the number of rigid bodies in this analysis must match the number
- of FEM bodies in the Solfec object; the identifiers of rigid bodies must
- match the identifiers of FEM bodies; this is guaranteed if the input files
- for both analyses differ only by the prescribed body kinds;
+ of FEM bodies in the Solfec-1.0 object; the identifiers of rigid bodies
+ must match the identifiers of FEM bodies; this is guaranteed if the input
+ files for both analyses differ only by the prescribed body kinds;
 \end_layout
 
 \begin_layout Itemize
@@ -13360,7 +13362,7 @@ time
 \series bold
 solfec
 \series default
- - Solfec object in the 'WRITE' mode
+ - Solfec-1.0 object in the 'WRITE' mode
 \end_layout
 
 \begin_layout Itemize
@@ -13418,7 +13420,7 @@ IMBALANCE_TOLERANCE (solfec, tolerance | weightfactor, updatefreq)
 \end_layout
 
 \begin_layout Standard
-This routine sets the imbalance tolerance for parallel balancing of Solfec
+This routine sets the imbalance tolerance for parallel balancing of Solfec-1.0
  data.
  A ratio of maximal to minimal per processor count of objects used.
  Hence, 1.0 indicates perfect balance, while any ratio > 1.0 indicates an
@@ -13481,7 +13483,7 @@ num = RANK ()
 \end_layout
 
 \begin_layout Standard
-This routine returns the rank of the CPU that runs the current copy of Solfec.
+This routine returns the rank of the CPU that runs the current copy of Solfec-1.0.
 \end_layout
 
 \begin_layout Itemize
@@ -14737,7 +14739,7 @@ MBFCP_EXPORT (solfec, path)
 \end_layout
 
 \begin_layout Standard
-This routine exports Solfec model into the MBFCP problem definition format.
+This routine exports Solfec-1.0 model into the MBFCP problem definition format.
  See http://code.google.com/p/mbfcp/ for details.
 \end_layout
 
@@ -14764,7 +14766,7 @@ argv = NON_SOLFEC_ARGV ()
 \begin_layout Standard
 This routine returns all command line arguments (in the form of a list of
  strings) that have been passed to 'solfec' or 'solfec-mpi' application
- and has not been identified as valid Solfec arguments.
+ and has not been identified as valid Solfec-1.0 arguments.
  This way the user can pass some arguments to the input scripts.
 \end_layout
 
@@ -15519,7 +15521,7 @@ SOLFEC_EXPORT (solfec, time, path | subset)
 \end_layout
 
 \begin_layout Standard
-Export results in Solfec native format.
+Export results in Solfec-1.0 native format.
  In 'WRITE' mode only the geometry at time 
 \begin_inset Formula $t=0$
 \end_inset
@@ -15563,11 +15565,11 @@ time
 \series bold
 path
 \series default
- - output path to the directory that will contain the Solfec output file(s),
+ - output path to the directory that will contain the Solfec-1.0 output file(s),
  e.g.
  '/tmp/sim0' will possibly result in /tmp/sim0/sim0.py and /tmp/sim0/sim0.h5
- output files; Such output path can be opened with Solfec viewer by specifying
- it as the input path, e.g.
+ output files; Such output path can be opened with Solfec-1.0 viewer by specifyin
+g it as the input path, e.g.
  
 \emph on
 solfec -v /tmp/sim0
@@ -16452,7 +16454,8 @@ floor = HULL ([-w/2, -l/2, -h,
 \begin_layout Standard
 We simply created a convex hull about eight points.
  This is only a geometric object for the moment.
- It exists only in Python interpreter, but not yet inside of a Solfec model.
+ It exists only in Python interpreter, but not yet inside of a Solfec-1.0
+ model.
  In order to insert it into a model, we need first to create a SOLFEC object,
  a BULK_MATERIAL object, and finally a BODY object having the shape described
  by the 
@@ -16529,7 +16532,8 @@ Note, that the floor is simply an obstacle - it does not move.
 \end_layout
 
 \begin_layout Standard
-This will create a Solfec viewer, which should result in the following picture
+This will create a Solfec-1.0 viewer, which should result in the following
+ picture
 \begin_inset Separator latexpar
 \end_inset
 
@@ -17183,7 +17187,7 @@ if not VIEWER() and sol1.mode == 'READ':
 \end_layout
 
 \begin_layout Standard
-First, we check whether Solfec is not run with the 
+First, we check whether Solfec-1.0 is not run with the 
 \emph on
 -v
 \emph default
@@ -17204,7 +17208,7 @@ we again run
 \end_layout
 
 \begin_layout Standard
-Now, Solfec will find out that the output files in 
+Now, Solfec-1.0 will find out that the output files in 
 \emph on
 out/tutorial/ball-impact-(1,2,3)
 \emph default
@@ -17545,7 +17549,7 @@ We walk over all contact points and compare each of them with other contacts
  between the mesh elements that are topologically adjacent.
  We know then, that next to a contact point with a small supporting area
  there is another one with a suitably larger contact area.
- The Solfec command CONTACT_SPARSIFY sets the 
+ The Solfec-1.0 command CONTACT_SPARSIFY sets the 
 \begin_inset Formula $threshold$
 \end_inset
 
@@ -17570,7 +17574,7 @@ status open
 \begin_layout Plain Layout
 \align center
 \begin_inset Graphics
-	filename /Users/tomek/Dropbox/tkwork/codes/solfec/doc/figures/arch-1.png
+	filename /Users/tomek/Dropbox/tkwork/codes/solfec-1.0/doc/figures/arch-1.png
 	lyxscale 30
 	width 62text%
 
@@ -18771,7 +18775,7 @@ Solvers
 
 \begin_layout Standard
 Development of solvers for unilateral dynamics is one of the main driving
- forces behind Solfec.
+ forces behind Solfec-1.0.
  The two solvers described in Sections 
 \begin_inset CommandInset ref
 LatexCommand ref
@@ -18795,7 +18799,7 @@ reference "sec:PQN"
 
 \end_inset
 
- has been designed specifically for Solfec.
+ has been designed specifically for Solfec-1.0.
 \end_layout
 
 \begin_layout Section
