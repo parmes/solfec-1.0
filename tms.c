@@ -291,6 +291,12 @@ TMS* TMS_File (char *path, char *label, int cache)
       size ++;
     }
 
+    if (ts->size == 1)
+    {
+      ts->offset[0] = off0;
+      ts->time[0] = t;
+    }
+
     if (size == cache)
     {
       ts->offset[ts->noffsets] = off0;
