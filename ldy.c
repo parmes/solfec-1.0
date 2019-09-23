@@ -349,7 +349,13 @@ static int dumpcmp (CON *a, CON *b)
   if (a->kind < b->kind) return -1;
   else if (a->kind > b->kind) return 1;
 
-  ASSERT_DEBUG (a == b, "Two different constraints between same pair of bodies have same spatial point");
+  for (int i = 6; i < 9; i ++)
+  {
+    if (a->base [i] < b->base [i]) return -1;
+    else if (a->base [i] > b->base [i]) return 1;
+  }
+
+  ASSERT_DEBUG (a == b, "Two different constraints between same pair of bodies have same spatial point and normal direction");
 
   return 0;
 }
