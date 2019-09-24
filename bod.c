@@ -1569,28 +1569,12 @@ void BODY_Static_Init (BODY *bod)
     case OBS:
     case RIG:
     {
-      double *W = RIG_ANGVEL(bod),
-	     *v = RIG_LINVEL(bod);
-     
-      /* cancel initial
-       * velocities */ 
-      SET (W, 0);
-      SET (v, 0);
-     
       /* initialise inverse */ 
       rig_static_inverse (bod);
     }
     break;
     case PRB:
     {
-      double *L = PRB_GRADVEL(bod),
-	     *v = PRB_LINVEL(bod);
-     
-      /* cancel initial
-       * velocities */ 
-      SET9 (L, 0);
-      SET (v, 0);
-
       /* initialise inverse */ 
       prb_static_inverse (bod, bod->dom->step);
     }
