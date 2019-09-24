@@ -4480,7 +4480,7 @@ LOCDYN_DUMP
 \begin_inset Text
 
 \begin_layout Plain Layout
-x
+
 \end_layout
 
 \end_inset
@@ -4489,7 +4489,7 @@ x
 \begin_inset Text
 
 \begin_layout Plain Layout
-
+x
 \end_layout
 
 \end_inset
@@ -14620,6 +14620,11 @@ LOCDYN_DUMP (solfec, path)
 This routine dumps into a file the most recent state of local dynamics.
  It is meant for debugging and test purposes, e.g.
  comparing local dynamics between runs on various processor counts.
+ There is a Python script in Solfec-1.0 source tree: 
+\emph on
+solfec-1.0/scripts/locdyn_compare
+\emph default
+ which can be used to compare local dynamics dumps.
 \end_layout
 
 \begin_layout Itemize

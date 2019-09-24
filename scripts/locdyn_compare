@@ -1,0 +1,120 @@
+#!/opt/local/bin/python
+import sys, ast
+
+def read_locdyn(path):
+  diag = []
+  offd = []
+  BVUR = []
+  with open(path) as f:
+    for line in f:
+      j0 = line.find(' ')
+      name = line[0:j0]
+      j1 = line.find(')', j0)
+      point = ast.literal_eval(line[j0+1:j1+1])
+      j2 = line.find(')', j1+1)
+      pair = ast.literal_eval(line[j1+2:j2+1])
+      j3 = line.find(']', j2+1)
+      base = ast.literal_eval(line[j2+2:j3+1])
+      j4 = line.find(']', j3+1)
+      W = ast.literal_eval(line[j3+2:j4+1])
+      diag.append((name, point, pair, base, W))
+      j5 = line.find(')', j4+1)
+      B = ast.literal_eval(line[j4+2:j5+1])
+      j6 = line.find(')', j5+1)
+      V = ast.literal_eval(line[j5+2:j6+1])
+      j7 = line.find(')', j6+1)
+      U = ast.literal_eval(line[j6+2:j7+1])
+      j8 = line.find(')', j7+1)
+      R = ast.literal_eval(line[j7+2:j8+1])
+      BVUR.append((B, V, U, R))
+      adj = []
+      j9 = j8+1
+      while line.find('=>', j9) > 0:
+        j9 = line.find('=>', j9)+3
+        k0 = line.find(' ', j9)
+        name = line[j9:k0]
+        k1 = line.find(')', k0)
+        point = ast.literal_eval(line[k0+1:k1+1])
+        k2 = line.find(')', k1+1)
+        pair = ast.literal_eval(line[k1+2:k2+1])
+        k3 = line.find(']', k2+1)
+        base = ast.literal_eval(line[k2+2:k3+1])
+        k4 = line.find(']', k3+1)
+        W = ast.literal_eval(line[k3+2:k4+1])
+        adj.append((name, point, pair, base, W))
+      offd.append(sorted(adj))
+  perm = sorted(range(len(diag)), key=lambda k: diag[k])
+  return (sorted(diag), [offd[i] for i in perm], [BVUR[i] for i in perm])
+
+if len(sys.argv) < 3:
+  print('SYNOPSIS: python locdyn_compare.py file1 file2 [tolerance]')
+  sys.exit(0)
+
+(dia1, off1, BVUR1) = read_locdyn(sys.argv[1])
+(dia2, off2, BVUR2) = read_locdyn(sys.argv[2])
+
+if (len(sys.argv) > 3):
+  tol = float(sys.argv[3])
+else: tol = 0.
+
+if len(dia1) != len(dia2):
+  print('Local dynamics sizes differ: %d != %d' % (len(dia1), len(dia2)))
+  sys.exit(1)
+
+diaok = True
+for i in range(0,len(dia1)):
+  if dia1[i] != dia2[i]:
+    tolok = True
+    for j in range(1,len(dia1[i])):
+      for k in range(0,len(dia1[i][j])):
+        if abs(dia1[i][j][k]-dia2[i][j][k]) > tol:
+          tolok = False
+          break
+    if not tolok:
+      print('Diagonal entires at index %d differ at item %d, index %d:' % (i, j, k))
+      print(dia1[i])
+      print(dia2[i])
+      diaok = False
+
+if diaok: print('Diag ok.')
+
+offok = True
+for i in range(0,len(off1)):
+  if off1[i] != off2[i]:
+    tolok = True
+    for j in range(0,len(off1[i])):
+      if off1[i][j][0] != off2[i][j][0]:
+        tolok = False
+        k = 0
+        l = -1
+        break
+      for k in range(1,len(off1[i][j])):
+        for l in range(0,len(off1[i][j][k])):
+          if abs(off1[i][j][k][l]-off2[i][j][k][l]) > tol:
+            tolok = False
+            break
+    if not tolok:
+      print('Off-diagonal terms at index %d differ at term %d, item %d, index %d:' % (i, j, k, l))
+      print(dia1[i])
+      print(dia2[i])
+      offok = False
+
+if offok: print('Off-diag ok.')
+
+BVURok = True
+for i in range(0,len(BVUR1)):
+  if BVUR1[i] != BVUR2[i]:
+    tolok = True
+    for j in range(0,len(BVUR1[i])):
+      for k in range(0,len(BVUR1[i][j])):
+        if abs(BVUR1[i][j][k]-BVUR2[i][j][k]) > tol:
+          tolok = False
+          break
+      if not tolok: break
+    if not tolok:
+      print('BVUR entires at index %d differ at item %d, index %d:' % (i, j, k))
+      print(BVUR1[i])
+      print(BVUR2[i])
+      BVURok = False
+
+if BVURok: print('BVUR ok.')

@@ -891,10 +891,8 @@ void LOCDYN_Update_End (LOCDYN *ldy)
 /* dump local dynamics to file */
 void LOCDYN_Dump (LOCDYN *ldy, const char *path)
 {
-#define WTOL 1E-15 /* XXX */
   MEM mapmem, offmem;
   MAP *adj, *item;
-  double W [9], Z;
   char *fullpath;
   OFFB *blk, *q;
   DIAB *dia;
@@ -919,16 +917,14 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
   {
     con = dia->con;
 
-    NNCOPY (dia->W, W);
-    MAXABSN (W, 9, Z);
-    Z *= WTOL; /* drop tolerance */
-    FILTERN (W, 9, Z); /* fill with zeros below the Z tolerance */
-
-    fprintf (f, "%s (%.6g, %.6g, %.6g) (%d, %d) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] => ",
+    fprintf (f, "%s (%.6g, %.6g, %.6g) (%d, %d) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] "
+                "(%.6g, %.6g, %.6g) (%.6g, %.6g, %.6g) (%.6g, %.6g, %.6g) (%.6g, %.6g, %.6g)",
       CON_Kind (con), con->point [0], con->point [1], con->point [2],
       (int)con->master->id, con->slave ? (int)con->slave->id : -1,
       con->base [0], con->base [1], con->base [2], con->base [3], con->base [4], con->base [5], con->base [6], con->base [7], con->base [8],
-      W [0], W [1], W [2], W [3], W [4], W [5], W [6], W [7], W [8]);
+      dia->W [0], dia->W [1], dia->W [2], dia->W [3], dia->W [4], dia->W [5], dia->W [6], dia->W [7], dia->W [8],
+      dia->B [0], dia->B [1], dia->B [2], dia->V[0], dia->V[1], dia->V[2],
+      dia->U [0], dia->U [1], dia->U [2], dia->R[0], dia->R[1], dia->R[2]);
 
     MAP_Free (&mapmem, &adj);
     MEM_Release (&offmem);
@@ -960,13 +956,11 @@ void LOCDYN_Dump (LOCDYN *ldy, const char *path)
       con = item->key;
       q = item->data;
 
-      NNCOPY (q->W, W);
-      FILTERN (W, 9, Z); /* use diagonal Z */
-
-      fprintf (f, "%s (%.6g, %.6g, %.6g) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] ",
+      fprintf (f, " => %s (%.6g, %.6g, %.6g) (%d, %d) [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g] [%.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g, %.6g]",
         CON_Kind (con), con->point [0], con->point [1], con->point [2],
-	W [0], W [1], W [2], W [3], W [4], W [5], W [6], W [7], W [8]);
-
+        (int)con->master->id, con->slave ? (int)con->slave->id : -1,
+        con->base [0], con->base [1], con->base [2], con->base [3], con->base [4], con->base [5], con->base [6], con->base [7], con->base [8],
+        q->W [0], q->W [1], q->W [2], q->W [3], q->W [4], q->W [5], q->W [6], q->W [7], q->W [8]);
     }
 
     fprintf (f, "\n");
