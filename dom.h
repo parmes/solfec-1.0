@@ -63,6 +63,9 @@ typedef struct domain DOM;
 #define RIGLNK_LEN(Z)   ((Z)[3])   /* rigid link length */
 #define STRENGTH(Z)     ((Z)[4])   /* tensile strength */
 #define VELODIR(Z)      ((Z)[0])   /* prescribed velocity at (t+h) */
+#define VELODIR0(Z)     ((Z)[0])   /* prescribed velocity at (t+h) */
+#define VELODIR1(Z)     ((Z)[1])   /* prescribed velocity at (t+h) */
+#define VELODIR2(Z)     ((Z)[2])   /* prescribed velocity at (t+h) */
 
 enum constraint_state
      {CON_COHESIVE = 0x01,
@@ -92,7 +95,7 @@ struct constraint
 
   int num; /* local number */
 
-  enum {CONTACT = 0, FIXPNT, FIXDIR, VELODIR, RIGLNK, SPRING} kind; /* constraint kind */
+  enum {CONTACT = 0, FIXPNT, FIXDIR, VELODIR, VELODIR3, RIGLNK, SPRING} kind; /* constraint kind */
 
   int state; /* enum constraint_state */
 
@@ -102,7 +105,7 @@ struct constraint
 
   SURFACE_MATERIAL_STATE mat; /* surface pair material data */
 
-  TMS *tms; /* time series data (if any) */
+  TMS *tms[3]; /* time series data (if any) */
 
   BODY *master, /* master body */
        *slave; /* slave body */
@@ -338,6 +341,9 @@ CON* DOM_Fix_Direction (DOM *dom, BODY *bod, double *pnt, double *dir, BODY *bod
 
 /* prescribe a velocity of the referential point along the spatial direction */
 CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel);
+
+/* prescribe a velocity of the referential point using a local orthogonal base */
+CON* DOM_Set_Velocity3 (DOM *dom, BODY *bod, double *pnt, double *base, TMS *vel[3]);
 
 /* insert rigid link constraint between two (referential) points of bodies; if one of the body
  * pointers is NULL then the link acts between the other body and a fixed (spatial) point;

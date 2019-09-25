@@ -6678,6 +6678,78 @@ static PyObject* lng_SET_DISPLACEMENT (PyObject *self, PyObject *args, PyObject 
   return (PyObject*)out;
 }
 
+/* create prescribed displacement3 constraint */
+static PyObject* lng_SET_DISPLACEMENT3 (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "point", "base", "tms");
+  PyObject *point, *base, *tmstup;
+  lng_CONSTRAINT *out;
+  lng_BODY *body;
+  lng_TIME_SERIES *tms[3];
+  double p [3], b [9];
+
+  out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
+
+  if (out)
+  {
+    PARSEKEYS ("OOOO", &body, &point, &base, &tmstup);
+
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
+	      is_tuple (base, kwl[2], 9) && is_tuple (tmstup, kwl[3], 3));
+
+    tms[0] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 0);
+    tms[1] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 1);
+    tms[2] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 2);
+
+    TYPETEST (is_time_series (tms[0], "tms[0]") &&
+              is_time_series (tms[1], "tms[1]") &&
+              is_time_series (tms[2], "tms[2]"));
+
+#if MPI
+    if (IS_HERE (body))
+    {
+#endif
+
+    out->dom = body->bod->dom;
+
+    p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+    p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+    p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+    b [0] = PyFloat_AsDouble (PyTuple_GetItem (base, 0));
+    b [1] = PyFloat_AsDouble (PyTuple_GetItem (base, 1));
+    b [2] = PyFloat_AsDouble (PyTuple_GetItem (base, 2));
+    b [3] = PyFloat_AsDouble (PyTuple_GetItem (base, 3));
+    b [4] = PyFloat_AsDouble (PyTuple_GetItem (base, 4));
+    b [5] = PyFloat_AsDouble (PyTuple_GetItem (base, 5));
+    b [6] = PyFloat_AsDouble (PyTuple_GetItem (base, 6));
+    b [7] = PyFloat_AsDouble (PyTuple_GetItem (base, 7));
+    b [8] = PyFloat_AsDouble (PyTuple_GetItem (base, 8));
+
+    WARNING (tms[0]->ts->label == NULL, "\nSET_DISPLACEMENT3 computes an unlableled derivative of the input time series."
+                                         "\nYou can use SET_VELOCITY3 if you would like to use a labeled time series.\n");
+    WARNING (tms[1]->ts->label == NULL, "\nSET_DISPLACEMENT3 computes an unlableled derivative of the input time series."
+                                         "\nYou can use SET_VELOCITY3 if you would like to use a labeled time series.\n");
+    WARNING (tms[2]->ts->label == NULL, "\nSET_DISPLACEMENT3 computes an unlableled derivative of the input time series."
+                                         "\nYou can use SET_VELOCITY3 if you would like to use a labeled time series.\n");
+
+    TMS *ts[3] = {TMS_Derivative (tms[0]->ts), TMS_Derivative (tms[1]->ts), TMS_Derivative (tms[2]->ts)};
+
+    if (!(out->con = DOM_Set_Velocity3 (body->bod->dom, body->bod, p, b, ts)))
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
+    else out->id = out->con->id;
+
+#if MPI
+    }
+#endif
+  }
+
+  return (PyObject*)out;
+}
+
 /* create prescribed velocity constraint */
 static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6736,6 +6808,71 @@ static PyObject* lng_SET_VELOCITY (PyObject *self, PyObject *args, PyObject *kwd
   return (PyObject*)out;
 }
 
+/* create prescribed velocity3 constraint */
+static PyObject* lng_SET_VELOCITY3 (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "point", "base", "tms");
+  PyObject *point, *base, *tmstup;
+  lng_CONSTRAINT *out;
+  lng_BODY *body;
+  lng_TIME_SERIES *tms[3];
+  double p [3], b [9];
+
+  out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
+
+  if (out)
+  {
+    PARSEKEYS ("OOOO", &body, &point, &base, &tmstup);
+
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
+	      is_tuple (base, kwl[2], 9) && is_tuple (tmstup, kwl[3], 3));
+
+    tms[0] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 0);
+    tms[1] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 1);
+    tms[2] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 2);
+
+    TYPETEST (is_time_series (tms[0], "tms[0]") &&
+              is_time_series (tms[1], "tms[1]") &&
+              is_time_series (tms[2], "tms[2]"));
+
+#if MPI
+    if (IS_HERE (body))
+    {
+#endif
+
+    out->dom = body->bod->dom;
+
+    p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+    p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+    p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+    b [0] = PyFloat_AsDouble (PyTuple_GetItem (base, 0));
+    b [1] = PyFloat_AsDouble (PyTuple_GetItem (base, 1));
+    b [2] = PyFloat_AsDouble (PyTuple_GetItem (base, 2));
+    b [3] = PyFloat_AsDouble (PyTuple_GetItem (base, 3));
+    b [4] = PyFloat_AsDouble (PyTuple_GetItem (base, 4));
+    b [5] = PyFloat_AsDouble (PyTuple_GetItem (base, 5));
+    b [6] = PyFloat_AsDouble (PyTuple_GetItem (base, 6));
+    b [7] = PyFloat_AsDouble (PyTuple_GetItem (base, 7));
+    b [8] = PyFloat_AsDouble (PyTuple_GetItem (base, 8));
+
+    TMS *ts[3] = {tms[0]->ts, tms[1]->ts, tms[2]->ts};
+
+    if (!(out->con = DOM_Set_Velocity3 (body->bod->dom, body->bod, p, b, ts)))
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
+    else out->id = out->con->id;
+
+#if MPI
+    }
+#endif
+  }
+
+  return (PyObject*)out;
+}
+
 /* create prescribed acceleration constraint */
 static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject *kwds)
 {
@@ -6777,6 +6914,71 @@ static PyObject* lng_SET_ACCELERATION (PyObject *self, PyObject *args, PyObject 
     d [2] = PyFloat_AsDouble (PyTuple_GetItem (direction, 2));
 
     if (!(out->con = DOM_Set_Velocity (body->bod->dom, body->bod, p, d, TMS_Integral (tms->ts))))
+    {
+      PyErr_SetString (PyExc_ValueError, "Point outside of domain");
+      return NULL;
+    }
+    else out->id = out->con->id;
+
+#if MPI
+    }
+#endif
+  }
+
+  return (PyObject*)out;
+}
+
+/* create prescribed acceleration3 constraint */
+static PyObject* lng_SET_ACCELERATION3 (PyObject *self, PyObject *args, PyObject *kwds)
+{
+  KEYWORDS ("body", "point", "base", "tms");
+  PyObject *point, *base, *tmstup;
+  lng_CONSTRAINT *out;
+  lng_BODY *body;
+  lng_TIME_SERIES *tms[3];
+  double p [3], b [9];
+
+  out = (lng_CONSTRAINT*)lng_CONSTRAINT_TYPE.tp_alloc (&lng_CONSTRAINT_TYPE, 0);
+
+  if (out)
+  {
+    PARSEKEYS ("OOOO", &body, &point, &base, &tmstup);
+
+    TYPETEST (is_body (body, kwl[0]) && is_tuple (point, kwl[1], 3) &&
+	      is_tuple (base, kwl[2], 9) && is_tuple (tmstup, kwl[3], 3));
+
+    tms[0] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 0);
+    tms[1] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 1);
+    tms[2] = (lng_TIME_SERIES*) PyTuple_GetItem (tmstup, 2);
+
+    TYPETEST (is_time_series (tms[0], "tms[0]") &&
+              is_time_series (tms[1], "tms[1]") &&
+              is_time_series (tms[2], "tms[2]"));
+
+#if MPI
+    if (IS_HERE (body))
+    {
+#endif
+
+    out->dom = body->bod->dom;
+
+    p [0] = PyFloat_AsDouble (PyTuple_GetItem (point, 0));
+    p [1] = PyFloat_AsDouble (PyTuple_GetItem (point, 1));
+    p [2] = PyFloat_AsDouble (PyTuple_GetItem (point, 2));
+
+    b [0] = PyFloat_AsDouble (PyTuple_GetItem (base, 0));
+    b [1] = PyFloat_AsDouble (PyTuple_GetItem (base, 1));
+    b [2] = PyFloat_AsDouble (PyTuple_GetItem (base, 2));
+    b [3] = PyFloat_AsDouble (PyTuple_GetItem (base, 3));
+    b [4] = PyFloat_AsDouble (PyTuple_GetItem (base, 4));
+    b [5] = PyFloat_AsDouble (PyTuple_GetItem (base, 5));
+    b [6] = PyFloat_AsDouble (PyTuple_GetItem (base, 6));
+    b [7] = PyFloat_AsDouble (PyTuple_GetItem (base, 7));
+    b [8] = PyFloat_AsDouble (PyTuple_GetItem (base, 8));
+
+    TMS *ts[3] = {TMS_Integral (tms[0]->ts), TMS_Integral (tms[1]->ts), TMS_Integral (tms[2]->ts)};
+
+    if (!(out->con = DOM_Set_Velocity3 (body->bod->dom, body->bod, p, b, ts)))
     {
       PyErr_SetString (PyExc_ValueError, "Point outside of domain");
       return NULL;
@@ -11158,8 +11360,11 @@ static PyMethodDef lng_methods [] =
   {"FIX_POINT", METHOD_WITH_KEYWORDS(lng_FIX_POINT), METH_VARARGS|METH_KEYWORDS, "Create a fixed point constraint"},
   {"FIX_DIRECTION", METHOD_WITH_KEYWORDS(lng_FIX_DIRECTION), METH_VARARGS|METH_KEYWORDS, "Create a fixed direction constraint"},
   {"SET_DISPLACEMENT", METHOD_WITH_KEYWORDS(lng_SET_DISPLACEMENT), METH_VARARGS|METH_KEYWORDS, "Create a prescribed displacement constraint"},
+  {"SET_DISPLACEMENT3", METHOD_WITH_KEYWORDS(lng_SET_DISPLACEMENT3), METH_VARARGS|METH_KEYWORDS, "Create a prescribed displacement3 constraint"},
   {"SET_VELOCITY", METHOD_WITH_KEYWORDS(lng_SET_VELOCITY), METH_VARARGS|METH_KEYWORDS, "Create a prescribed velocity constraint"},
+  {"SET_VELOCITY3", METHOD_WITH_KEYWORDS(lng_SET_VELOCITY3), METH_VARARGS|METH_KEYWORDS, "Create a prescribed velocity3 constraint"},
   {"SET_ACCELERATION", METHOD_WITH_KEYWORDS(lng_SET_ACCELERATION), METH_VARARGS|METH_KEYWORDS, "Create a prescribed acceleration constraint"},
+  {"SET_ACCELERATION3", METHOD_WITH_KEYWORDS(lng_SET_ACCELERATION3), METH_VARARGS|METH_KEYWORDS, "Create a prescribed acceleration3 constraint"},
   {"PUT_RIGID_LINK", METHOD_WITH_KEYWORDS(lng_PUT_RIGID_LINK), METH_VARARGS|METH_KEYWORDS, "Create a rigid linke constraint"},
   {"PUT_SPRING", METHOD_WITH_KEYWORDS(lng_PUT_SPRING), METH_VARARGS|METH_KEYWORDS, "Create a spring constraint"},
   {"GRAVITY", METHOD_WITH_KEYWORDS(lng_GRAVITY), METH_VARARGS|METH_KEYWORDS, "Set gravity acceleration"},
@@ -11420,8 +11625,11 @@ int lng (const char *path)
                      "from solfec import FIX_POINT\n"
                      "from solfec import FIX_DIRECTION\n"
                      "from solfec import SET_DISPLACEMENT\n"
+                     "from solfec import SET_DISPLACEMENT3\n"
                      "from solfec import SET_VELOCITY\n"
+                     "from solfec import SET_VELOCITY3\n"
                      "from solfec import SET_ACCELERATION\n"
+                     "from solfec import SET_ACCELERATION3\n"
                      "from solfec import PUT_RIGID_LINK\n"
                      "from solfec import PUT_SPRING\n"
                      "from solfec import GRAVITY\n"

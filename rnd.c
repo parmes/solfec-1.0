@@ -1865,6 +1865,7 @@ char *legend_value_string (void *data)
       case constraint::FIXPNT: return "PNT";
       case constraint::FIXDIR: return "DIR";
       case constraint::VELODIR: return "VEL";
+      case constraint::VELODIR3: return "VEL3";
       case constraint::RIGLNK: return "LNK";
       case constraint::SPRING: return "SPR";
 #else
@@ -1872,6 +1873,7 @@ char *legend_value_string (void *data)
       case FIXPNT: return "PNT";
       case FIXDIR: return "DIR";
       case VELODIR: return "VEL";
+      case VELODIR3: return "VEL3";
       case RIGLNK: return "LNK";
       case SPRING: return "SPR";
 #endif
@@ -2420,6 +2422,36 @@ static void render_velodir (CON *con, GLfloat color [3])
   glLineWidth (1.0);
 }
 
+/* render velocity3 constraint */
+static void render_velodir3 (CON *con, GLfloat color [3])
+{
+  double other [3][3],
+	 scal = GLV_Minimal_Extent() * 0.03;
+
+  glColor3fv (color);
+
+  glPointSize (3.0);
+  glBegin (GL_POINTS);
+    glVertex3dv (con->point);
+  glEnd ();
+  glPointSize (1.0);
+
+  ADDMUL (con->point, scal, con->base+0, other[0]);
+  ADDMUL (con->point, scal, con->base+3, other[1]);
+  ADDMUL (con->point, scal, con->base+6, other[2]);
+
+  glLineWidth (2.0);
+  glBegin (GL_LINES);
+    glVertex3dv (con->point);
+    glVertex3dv (other[0]);
+    glVertex3dv (con->point);
+    glVertex3dv (other[1]);
+    glVertex3dv (con->point);
+    glVertex3dv (other[2]);
+  glEnd ();
+  glLineWidth (1.0);
+}
+
 /* render rigid link constraint */
 static void render_riglnk (CON *con, GLfloat width, GLfloat color [3])
 {
@@ -2892,6 +2924,7 @@ static void render_body_set_constraints_or_forces (SET *set)
 	    case constraint::FIXPNT: render_fixpnt (con, color); break;
 	    case constraint::FIXDIR: render_fixdir (con, color); break;
 	    case constraint::VELODIR: render_velodir (con, color); break;
+	    case constraint::VELODIR3: render_velodir3 (con, color); break;
 	    case constraint::RIGLNK: render_riglnk (con, 2.0, color); break;
 	    case constraint::SPRING: render_spring (con, color); break;
 #else
@@ -2899,6 +2932,7 @@ static void render_body_set_constraints_or_forces (SET *set)
 	    case FIXPNT: render_fixpnt (con, color); break;
 	    case FIXDIR: render_fixdir (con, color); break;
 	    case VELODIR: render_velodir (con, color); break;
+	    case VELODIR3: render_velodir3 (con, color); break;
 	    case RIGLNK: render_riglnk (con, 2.0, color); break;
 	    case SPRING: render_spring (con, color); break;
 #endif

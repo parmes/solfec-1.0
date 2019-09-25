@@ -377,6 +377,21 @@ static int velodir (double *Z, double *W, double *B, double *U, double *R)
   return 0;
 }
 
+static int velodir3 (double *Z, double *W, double *B, double *U, double *R)
+{
+  double A [9];
+
+  NNCOPY (W, A);
+  U[0] = VELODIR0(Z);
+  U[1] = VELODIR1(Z);
+  U[2] = VELODIR2(Z);
+  SCALE (U, -1.0);
+  SUB (U, B, R);
+  if (lapack_dposv ('U', 3, 1, A, 3, R, 3)) return -1;
+
+  return 0;
+}
+
 static int riglnk (short dynamic, double epsilon, int maxiter, double step,
   double *base, double *Z, double *W, double *B, double *V, double *U, double *R)
 {
@@ -525,6 +540,8 @@ int DIAGONAL_BLOCK_Solver (DIAS diagsolver, double diagepsilon, int diagmaxiter,
     return fixdir (dynamic, dia->W, B, dia->V, dia->U, dia->R);
   case VELODIR:
     return velodir (Z, dia->W, B, dia->U, dia->R);
+  case VELODIR3:
+    return velodir3 (Z, dia->W, B, dia->U, dia->R);
   case RIGLNK:
     return riglnk (dynamic, diagepsilon, diagmaxiter,
 	    step, base, Z, dia->W, B, dia->V, dia->U, dia->R);

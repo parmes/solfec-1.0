@@ -1007,6 +1007,15 @@ static int solve (PRIVATE *A, short linver, int linmaxiter, double epsilon, shor
       T [8] = W [8];
     }
     break;
+    case VELODIR3:
+    {
+      b [0] = VELODIR0(dat->con->Z)-U[0];
+      b [1] = VELODIR1(dat->con->Z)-U[1];
+      b [2] = VELODIR2(dat->con->Z)-U[2];
+
+      NNCOPY (W, T);
+    }
+    break;
     case RIGLNK:
     {
       double h = step * (dynamic ? 0.5 : 1.0),

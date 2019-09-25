@@ -2066,7 +2066,7 @@ The below table gives indicative assessment of the maturity of various Solfec-1.
 \begin_layout Standard
 \align center
 \begin_inset Tabular
-<lyxtabular version="3" rows="85" columns="4">
+<lyxtabular version="3" rows="88" columns="4">
 <features islongtable="true" longtabularalignment="center">
 <column alignment="center" valignment="top">
 <column alignment="center" valignment="top">
@@ -2960,6 +2960,44 @@ SET_DISPLACEMENT
 \begin_inset Text
 
 \begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+SET_DISPLACEMENT3
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
 x
 \end_layout
 
@@ -3027,7 +3065,83 @@ x
 \begin_inset Text
 
 \begin_layout Plain Layout
+SET_VELOCITY3
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
 SET_ACCELERATION
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+x
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+<cell alignment="center" valignment="top" topline="true" leftline="true" rightline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+
+\end_layout
+
+\end_inset
+</cell>
+</row>
+<row>
+<cell alignment="center" valignment="top" topline="true" leftline="true" usebox="none">
+\begin_inset Text
+
+\begin_layout Plain Layout
+SET_ACCELERATION3
 \end_layout
 
 \end_inset
@@ -11456,6 +11570,67 @@ tms
 \end_layout
 
 \begin_layout Subsection*
+obj = SET_DISPLACEMENT3 (body, point, base, tms)
+\end_layout
+
+\begin_layout Standard
+This routine prescribes a displacement history of a referential point along
+ all directions at a local orthogonal base.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+base
+\series default
+ - 
+\emph on
+(ux, uy, uz, vx, vy, vz, wx, wy, wz)
+\emph default
+ tuple with the local orthogonal base components
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+tms
+\series default
+ - 
+\emph on
+(ts0, ts1, ts2)
+\emph default
+ tuple of TIME_SERIES objects with the displacement histories
+\end_layout
+
+\begin_layout Subsection*
 obj = SET_VELOCITY (body, point, direction, value)
 \end_layout
 
@@ -11513,6 +11688,67 @@ value
 \end_layout
 
 \begin_layout Subsection*
+obj = SET_VELOCITY3 (body, point, base, tms)
+\end_layout
+
+\begin_layout Standard
+This routine prescribes a velocity history of a referential point along
+ all directions at a local orthogonal base.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+base
+\series default
+ - 
+\emph on
+(ux, uy, uz, vx, vy, vz, wx, wy, wz)
+\emph default
+ tuple with the local orthogonal base components
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+tms
+\series default
+ - 
+\emph on
+(ts0, ts1, ts2)
+\emph default
+ tuple of TIME_SERIES objects with the velocity histories
+\end_layout
+
+\begin_layout Subsection*
 obj = SET_ACCELERATION (body, point, direction, tms)
 \end_layout
 
@@ -11567,6 +11803,67 @@ direction
 tms
 \series default
  - TIME_SERIES object with the acceleration history
+\end_layout
+
+\begin_layout Subsection*
+obj = SET_ACCELERATION3 (body, point, base, tms)
+\end_layout
+
+\begin_layout Standard
+This routine prescribes an acceleration history of a referential point along
+ all directions at a local orthogonal base.
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+obj
+\series default
+ - created CONSTRAINT object
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+body
+\series default
+ - BODY object whose motion is constrained
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+point
+\series default
+ - 
+\emph on
+(x, y, z)
+\emph default
+ tuple with referential point coordinates
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+base
+\series default
+ - 
+\emph on
+(ux, uy, uz, vx, vy, vz, wx, wy, wz)
+\emph default
+ tuple with the local orthogonal  base components
+\end_layout
+
+\begin_layout Itemize
+
+\series bold
+tms
+\series default
+ - 
+\emph on
+(ts0, ts1, ts2)
+\emph default
+ tuple of TIME_SERIES objects with the acceleration histories
 \end_layout
 
 \begin_layout Subsection*

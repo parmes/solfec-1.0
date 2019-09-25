@@ -507,7 +507,16 @@ static void update_fixdir (DOM *dom, CON *con)
 /* update velocity direction data */
 static void update_velodir (DOM *dom, CON *con)
 {
-  VELODIR (con->Z) = TMS_Value (con->tms, dom->time + dom->step);
+  VELODIR (con->Z) = TMS_Value (con->tms[0], dom->time + dom->step);
+  BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
+}
+
+/* update velocity3 direction data */
+static void update_velodir3 (DOM *dom, CON *con)
+{
+  VELODIR0 (con->Z) = TMS_Value (con->tms[0], dom->time + dom->step);
+  VELODIR1 (con->Z) = TMS_Value (con->tms[1], dom->time + dom->step);
+  VELODIR2 (con->Z) = TMS_Value (con->tms[2], dom->time + dom->step);
   BODY_Cur_Point (con->master, con->msgp, con->mpnt, con->point);
 }
 
@@ -903,7 +912,13 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
     SURFACE_MATERIAL_Pack_State (&con->mat, dsize, d, doubles, isize, i, ints);
     break;
     case VELODIR:
-    TMS_Pack (con->tms, dsize, d, doubles, isize, i, ints);
+    TMS_Pack (con->tms[0], dsize, d, doubles, isize, i, ints);
+    pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
+    break;
+    case VELODIR3:
+    TMS_Pack (con->tms[0], dsize, d, doubles, isize, i, ints);
+    TMS_Pack (con->tms[1], dsize, d, doubles, isize, i, ints);
+    TMS_Pack (con->tms[2], dsize, d, doubles, isize, i, ints);
     pack_doubles (dsize, d, doubles, con->Z, DOM_Z_SIZE);
     break;
     case FIXPNT:
@@ -913,7 +928,7 @@ static void pack_constraint (CON *con, int *dsize, double **d, int *doubles, int
     break;
     case SPRING:
     {
-      int fid = lngcallback_id (NULL, con->tms);
+      int fid = lngcallback_id (NULL, con->tms[0]);
       ASSERT_TEXT (fid, "failed to obtain SPRING callback function ID");
       pack_int (isize, i, ints, fid);
       pack_int (isize, i, ints, con->spair[0]); /* direction update kind */
@@ -989,7 +1004,13 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
     SURFACE_MATERIAL_Unpack_State (dom->sps, &con->mat, dpos, d, doubles, ipos, i, ints);
     break;
     case VELODIR:
-    con->tms = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
+    con->tms[0] = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
+    unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
+    break;
+    case VELODIR3:
+    con->tms[0] = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
+    con->tms[1] = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
+    con->tms[2] = TMS_Unpack (dpos, d, doubles, ipos, i, ints);
     unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
     break;
     case FIXPNT:
@@ -1000,7 +1021,7 @@ static void unpack_constraint (DOM *dom, int *dpos, double *d, int doubles, int 
     case SPRING:
     {
       int fid = unpack_int (ipos, i, ints); /* callback */
-      fid = lngcallback_set (fid, NULL, (void**) &con->tms);
+      fid = lngcallback_set (fid, NULL, (void**) &con->tms[0]);
       ASSERT_TEXT (fid, "failed to set SPRING callback based on ID");
       con->spair[0] = unpack_int (ipos, i, ints); /* direction update kind */
       unpack_doubles (dpos, d, doubles, con->Z, DOM_Z_SIZE);
@@ -3041,6 +3062,7 @@ char* CON_Kind (CON *con)
   case FIXPNT: return "FIXPNT";
   case FIXDIR: return "FIXDIR";
   case VELODIR: return "VELODIR";
+  case VELODIR3: return "VELODIR3";
   case RIGLNK: return "RIGLNK";
   case SPRING: return "SPRING";
   }
@@ -3319,7 +3341,31 @@ CON* DOM_Set_Velocity (DOM *dom, BODY *bod, double *pnt, double *dir, TMS *vel)
   COPY (pnt, con->point);
   COPY (pnt, con->mpnt);
   localbase (dir, con->base);
-  con->tms = vel;
+  con->tms[0] = vel;
+
+  /* insert into local dynamics */
+  con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
+
+  return con;
+}
+
+/* prescribe a velocity of the referential point using a local orthogonal base */
+CON* DOM_Set_Velocity3 (DOM *dom, BODY *bod, double *pnt, double *base, TMS *vel[3])
+{
+  CON *con;
+  SGP *sgp;
+  int n;
+
+  if ((n = SHAPE_Sgp (bod->sgp, bod->nsgp, pnt)) < 0) return NULL;
+
+  sgp = &bod->sgp [n];
+  con = insert (dom, bod, NULL, sgp, NULL, VELODIR3);
+  COPY (pnt, con->point);
+  COPY (pnt, con->mpnt);
+  NNCOPY (base, con->base);
+  con->tms[0] = vel[0];
+  con->tms[1] = vel[1];
+  con->tms[2] = vel[2];
 
   /* insert into local dynamics */
   con->dia = LOCDYN_Insert (dom->ldy, con, bod, NULL);
@@ -3419,7 +3465,7 @@ CON* DOM_Put_Spring (DOM *dom, BODY *master, double *mpnt, BODY *slave, double *
   con->Z[5] = w[1];
   con->Z[6] = w[2];
   con->spair[0] = update; /* store update in spair[0] */
-  con->tms = function;
+  con->tms[0] = function;
   update_spring (dom, con); /* initial update */
 
   /* insert into local dynamics */
@@ -3490,7 +3536,13 @@ void DOM_Remove_Constraint (DOM *dom, CON *con)
 
     if (con->kind == CONTACT) SURFACE_MATERIAL_Destroy_State (&con->mat); /* free contact material state */
     /* free velocity constraint time history */
-    else if (con->kind == VELODIR) TMS_Destroy (con->tms);
+    else if (con->kind == VELODIR) TMS_Destroy (con->tms[0]);
+    else if (con->kind == VELODIR3)
+    {
+      TMS_Destroy(con->tms[0]);
+      TMS_Destroy(con->tms[1]);
+      TMS_Destroy(con->tms[2]);
+    }
 
     /* destroy passed data */
     MEM_Free (&dom->conmem, con);
@@ -3673,6 +3725,7 @@ LOCDYN* DOM_Update_Begin (DOM *dom)
       case FIXPNT:  update_fixpnt  (dom, con); break;
       case FIXDIR:  update_fixdir  (dom, con); break;
       case VELODIR: update_velodir (dom, con); break;
+      case VELODIR3: update_velodir3 (dom, con); break;
       case RIGLNK:  update_riglnk  (dom, con); break;
       case SPRING:  update_spring (dom, con); break;
     }
@@ -4055,7 +4108,13 @@ void DOM_Destroy (DOM *dom)
   for (con = dom->con; con; con = con->next)
   {
     if (con->kind == CONTACT) SURFACE_MATERIAL_Destroy_State (&con->mat);
-    else if (con->kind == VELODIR && con->tms) TMS_Destroy (con->tms);
+    else if (con->kind == VELODIR && con->tms[0]) TMS_Destroy (con->tms[0]);
+    else if (con->kind == VELODIR3)
+    {
+      TMS_Destroy(con->tms[0]);
+      TMS_Destroy(con->tms[1]);
+      TMS_Destroy(con->tms[2]);
+    }
   }
 
   LOCDYN_Destroy (dom->ldy);
@@ -4127,7 +4186,16 @@ void DOM_2_MBFCP (DOM *dom, FILE *out)
       fprintf (out, "BODY:\t%d\n", con->master->id);
       fprintf (out, "POINT:\t%g  %g  %g\n", con->mpnt [0], con->mpnt [1], con->mpnt [2]);
       fprintf (out, "DIRECTION:\t%g  %g  %g\n", con->base [6], con->base [7], con->base [8]);
-      TMS_2_MBFCP (con->tms, out);
+      TMS_2_MBFCP (con->tms[0], out);
+      break;
+    case VELODIR3:
+      fprintf (out, "KIND:\tVELODIR3\n");
+      fprintf (out, "BODY:\t%d\n", con->master->id);
+      fprintf (out, "POINT:\t%g  %g  %g\n", con->mpnt [0], con->mpnt [1], con->mpnt [2]);
+      fprintf (out, "DIRECTION:\t%g  %g  %g\n", con->base [6], con->base [7], con->base [8]);
+      TMS_2_MBFCP (con->tms[0], out);
+      TMS_2_MBFCP (con->tms[1], out);
+      TMS_2_MBFCP (con->tms[2], out);
       break;
     case RIGLNK:
       fprintf (out, "KIND:\tRIGLNK\n");

@@ -107,6 +107,16 @@ double MERIT_Function (LOCDYN *ldy, short update_U)
       up = Q[2] * P[2];
     }
     break;
+    case VELODIR3:
+    {
+      P [0] = VELODIR0(con->Z) - U[0];
+      P [1] = VELODIR1(con->Z) - U[1];
+      P [2] = VELODIR2(con->Z) - U[2];
+      NVMUL (A, P, Q);
+      up = DOT (Q, P);
+    }
+    break;
+ 
     case RIGLNK:
     {
       double h = step * (dynamic ? 0.5 : 1.0);
