@@ -571,6 +571,7 @@ void TMS_Pack (TMS *ts, int *dsize, double **d, int *doubles, int *isize, int **
     pack_int (isize, i, ints, 2); /* not labeled and partially cached */
     pack_int (isize, i, ints, ts->cache);
     pack_string (isize, i, ints, ts->path);
+    pack_int (isize, i, ints, ts->op);
   }
   else
   {
@@ -601,6 +602,8 @@ TMS* TMS_Unpack (int *dpos, double *d, int doubles, int *ipos, int *i, int ints)
     int cache = unpack_int (ipos, i, ints);
     char *path = unpack_string (ipos, i, ints);
     ts = TMS_File (path, NULL, cache);
+    ts->op = unpack_int (ipos, i, ints);
+    if (ts->op) applyderivative (ts);
     free (path);
   }
   else /* not labeled and not partially cached */
