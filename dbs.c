@@ -385,7 +385,6 @@ static int velodir3 (double *Z, double *W, double *B, double *U, double *R)
   U[0] = VELODIR0(Z);
   U[1] = VELODIR1(Z);
   U[2] = VELODIR2(Z);
-  SCALE (U, -1.0);
   SUB (U, B, R);
   if (lapack_dposv ('U', 3, 1, A, 3, R, 3)) return -1;
 
