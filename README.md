@@ -1,5 +1,5 @@
 # Solfec-1.0
-Parallel Non-Smooth Contact Dynamics using MPI, C and Python. [See documentaion](http://parmes.github.io/solfec)
+Parallel Non-Smooth Contact Dynamics using MPI, C and Python. [See documentaion](http://parmes.github.io/solfec-1.0)
 
 Solfec-1.0 implements the Non-Smooth Contact Dynamics Method [1,2] using MPI, C, Python and several 3rd party
 codes written in C/C++/Fortran. It includes mesh, convex polyhedra, sphere and ellipsoid based shapes,
