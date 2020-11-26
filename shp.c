@@ -998,13 +998,13 @@ void SHAPE_2_MBFCP (SHAPE *shp, FILE *out)
 
   if (SET_Size (sph))
   {
-    fprintf (out, "SPHERES:\t%d\n", SET_Size (msh));
+    fprintf (out, "SPHERES:\t%d\n", SET_Size (sph));
 
-    for (item = SET_First (msh); item; item = SET_Next (item))
+    for (item = SET_First (sph); item; item = SET_Next (item))
     {
       SPHERE_2_MBFCP (item->data, out);
     }
 
-    SET_Free (NULL, &msh);
+    SET_Free (NULL, &sph);
   }
 }
